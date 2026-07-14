@@ -69,6 +69,10 @@ test.describe("Trains schedule preview (no blank state)", () => {
     await expect(page.getByTestId("trains-plan-week-banner")).toBeVisible();
     await expect(page.getByTestId("trains-template-selector")).toBeVisible();
     await expect(page.getByTestId("trains-template-detail-hint")).toBeVisible();
+    // Simple Mode defaults on for officers — guided flow replaces dense quick-actions.
+    await expect(page.getByTestId("trains-guided-conductor-flow")).toBeVisible();
+    await expect(page.getByTestId("trains-guided-primary-cta")).toBeVisible();
+    await expect(page.getByTestId("trains-quick-actions")).toHaveCount(0);
   });
 
   test("month view shows preview legend for draft days", async ({ page }) => {

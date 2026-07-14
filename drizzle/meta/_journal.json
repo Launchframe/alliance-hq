@@ -764,6 +764,13 @@
       "when": 1789524000000,
       "tag": "0111_commander_level_stat_sync",
       "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1789600000000,
+      "tag": "0112_trains_simple_mode",
+      "breakpoints": true
     }
   ]
 }

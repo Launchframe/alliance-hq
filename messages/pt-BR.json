@@ -3162,8 +3162,54 @@
       "wheelSpeed_slow": "Lenta",
       "wheelSpeed_regular": "Normal",
       "wheelSpeed_fast": "Rápida",
+      "simpleMode": {
+        "label": "Modo simples",
+        "hint": "Passos guiados para escolher o condutor de hoje em vez da grade completa de ações rápidas."
+      },
       "advancedSettings": "Configurações avançadas",
       "saveFailed": "Não foi possível salvar as preferências de trens."
+    },
+    "guidedFlow": {
+      "heading": "Configuração do condutor de hoje",
+      "steps": {
+        "prerequisites": {
+          "title": "Dados de pontuação",
+          "bodyReady": "{count} comandantes têm pontuações prontas para este dia.",
+          "bodyMissing": "Ainda não há pontuações para a verificação de VS / Preço é Frete deste dia.",
+          "uploadLink": "Enviar vídeo de pontuação"
+        },
+        "template": {
+          "title": "Modelo da semana",
+          "change": "Alterar modelo"
+        },
+        "conductor": {
+          "title": "Condutor",
+          "spin": "Girar para o condutor",
+          "pickTop": "Escolher o maior pontuador",
+          "pickManual": "Escolher condutor manualmente",
+          "assigned": "Condutor: {name}",
+          "change": "Alterar"
+        },
+        "vip": {
+          "title": "VIP / Guardião",
+          "spin": "Girar para o VIP",
+          "pickManual": "Escolher VIP manualmente",
+          "assigned": "VIP: {name}",
+          "change": "Alterar",
+          "skipped": "VIP não é usado neste dia"
+        },
+        "lock": {
+          "title": "Confirmar",
+          "lockCta": "Confirmar condutor",
+          "ready": "Pronto para confirmar e criar o trem de hoje"
+        },
+        "done": {
+          "title": "Tudo pronto",
+          "summary": "Condutor confirmado. Ações avançadas estão disponíveis se você precisar.",
+          "showAdvanced": "Mostrar ações avançadas",
+          "hideAdvanced": "Ocultar ações avançadas"
+        }
+      }
     },
     "help": {
       "openLabel": "Ajuda dos trens",

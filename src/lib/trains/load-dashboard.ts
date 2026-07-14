@@ -45,8 +45,14 @@ import {
 import { loadTrainsUserPreferences } from "@/lib/trains/trains-user-preferences.server";
 import type { TrainsDisplayWeekStartDow } from "@/lib/trains/trains-display-calendar.shared";
 import type { TrainsWheelSpinSpeed } from "@/lib/trains/trains-wheel-speed.shared";
+import {
+  loadTrainsVsDataStatus,
+  type TrainsVsDataStatus,
+} from "@/lib/trains/vs-data-status.server";
 import { getServerCalendarDate } from "@/lib/trains/service";
 import type { ConductorMechanismType, WeekTemplateType } from "@/lib/trains/types";
+
+export type { TrainsVsDataStatus };
 
 export type WeekConductorRecordSummary = {
   id: string;
@@ -147,6 +153,8 @@ export type TrainsDashboardPayload = {
   weekEnd: string;
   displayWeekStartDow: TrainsDisplayWeekStartDow;
   wheelSpinSpeed: TrainsWheelSpinSpeed;
+  /** Guided conductor flow (Simple Mode); defaults true. */
+  simpleModeEnabled: boolean;
   trainWeekStartDow: number;
   canManageTrains: boolean;
   /** Pre-production only: train managers may clear a persisted week schedule. */
@@ -180,6 +188,11 @@ export type TrainsDashboardPayload = {
     conductorMechanism: string;
     vipMechanism: string | null;
   } | null;
+  /**
+   * Non-blocking VS / PIF score readiness for today's conductor actions.
+   * Null when there is no alliance / day context to evaluate.
+   */
+  vsDataStatus: TrainsVsDataStatus | null;
   pools: Record<
     string,
     {
@@ -209,6 +222,7 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   | "roster"
   | "conductorRecord"
   | "todayDayConfig"
+  | "vsDataStatus"
   | "pools"
   | "conductorHistory"
   | "conductorStats"
@@ -225,6 +239,7 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   roster: [],
   conductorRecord: null,
   todayDayConfig: null,
+  vsDataStatus: null,
   pools: {},
   conductorHistory: [],
   conductorStats: null,
@@ -274,6 +289,7 @@ export async function loadTrainsDashboard(
   const preferenceFields = {
     displayWeekStartDow: userPreferences.displayWeekStartDow,
     wheelSpinSpeed: userPreferences.wheelSpinSpeed,
+    simpleModeEnabled: userPreferences.simpleModeEnabled,
     trainWeekStartDow: trainWeekConfig.trainWeekStartDow,
   };
 
@@ -373,6 +389,14 @@ export async function loadTrainsDashboard(
   );
   const conductorHistory = historyRows.map(mapRecord);
   const pirSettings = await loadPriceIsRightTicketSettings(allianceId);
+  const vsDataStatus = todayDayConfig
+    ? await loadTrainsVsDataStatus({
+        allianceId,
+        trainDate: today,
+        conductorMechanism: todayDayConfig.conductorMechanism,
+        paintTemplate: todayDayConfig.paintTemplate ?? dashboardTemplateType,
+      })
+    : null;
 
   return {
     today,
@@ -407,6 +431,7 @@ export async function loadTrainsDashboard(
           vipMechanism: todayDayConfig.vipMechanism,
         }
       : null,
+    vsDataStatus,
     pools,
     conductorHistory,
     conductorStats,

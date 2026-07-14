@@ -22,10 +22,12 @@ export const TRAINS_ADVANCED_SETTINGS_HREF =
 type Props = {
   displayWeekStartDow: TrainsDisplayWeekStartDow;
   wheelSpinSpeed: TrainsWheelSpinSpeed;
+  simpleModeEnabled: boolean;
   canEdit: boolean;
   onPreferencesChange: (next: {
     displayWeekStartDow: TrainsDisplayWeekStartDow;
     wheelSpinSpeed: TrainsWheelSpinSpeed;
+    simpleModeEnabled: boolean;
   }) => void;
   onError?: (message: string) => void;
 };
@@ -33,6 +35,7 @@ type Props = {
 export function TrainsUserSettingsMenu({
   displayWeekStartDow,
   wheelSpinSpeed,
+  simpleModeEnabled,
   canEdit,
   onPreferencesChange,
   onError,
@@ -125,6 +128,7 @@ export function TrainsUserSettingsMenu({
     async (patch: {
       displayWeekStartDow?: TrainsDisplayWeekStartDow;
       wheelSpinSpeed?: TrainsWheelSpinSpeed;
+      simpleModeEnabled?: boolean;
     }) => {
       if (!canEdit) return;
       setSaving(true);
@@ -137,6 +141,7 @@ export function TrainsUserSettingsMenu({
         const body = (await res.json()) as {
           displayWeekStartDow?: TrainsDisplayWeekStartDow;
           wheelSpinSpeed?: TrainsWheelSpinSpeed;
+          simpleModeEnabled?: boolean;
           error?: string;
         };
         if (!res.ok) {
@@ -147,6 +152,7 @@ export function TrainsUserSettingsMenu({
           displayWeekStartDow:
             body.displayWeekStartDow ?? displayWeekStartDow,
           wheelSpinSpeed: body.wheelSpinSpeed ?? wheelSpinSpeed,
+          simpleModeEnabled: body.simpleModeEnabled ?? simpleModeEnabled,
         });
       } catch (e) {
         onError?.(e instanceof Error ? e.message : t("saveFailed"));
@@ -159,6 +165,7 @@ export function TrainsUserSettingsMenu({
       displayWeekStartDow,
       onError,
       onPreferencesChange,
+      simpleModeEnabled,
       t,
       wheelSpinSpeed,
     ],
@@ -240,6 +247,31 @@ export function TrainsUserSettingsMenu({
                 </div>
               </div>
             </fieldset>
+
+            <div className="mt-3 border-t border-hq-border pt-3">
+              <label className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-hq-surface-muted">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 accent-cyan-500"
+                  checked={simpleModeEnabled}
+                  disabled={!canEdit || saving}
+                  data-testid="trains-simple-mode-toggle"
+                  onChange={(event) =>
+                    void patchPreferences({
+                      simpleModeEnabled: event.target.checked,
+                    })
+                  }
+                />
+                <span>
+                  <span className="block text-sm text-hq-fg">
+                    {t("simpleMode.label")}
+                  </span>
+                  <span className="block text-xs text-hq-fg-muted">
+                    {t("simpleMode.hint")}
+                  </span>
+                </span>
+              </label>
+            </div>
 
             <div className="mt-3 border-t border-hq-border pt-3">
               <Link
