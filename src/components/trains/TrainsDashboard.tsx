@@ -93,6 +93,7 @@ import { supportsManualConductorPick, supportsManualVipPick } from "@/lib/trains
 import {
   allianceTrainWeekFromRow,
   getTrainWeekStart,
+  weekDatesInTrainWeek,
 } from "@/lib/trains/train-week-calendar.shared";
 import {
   canManualPickForDate,
@@ -993,7 +994,19 @@ export function TrainsDashboard({ initial }: Props) {
           ? (data.schedule.templateType as WeekTemplateType)
           : inferWeekTemplateFromDayConfigs(weekPage.dayConfigs));
 
-      if (currentTemplate === templateType) return;
+      if (currentTemplate === templateType) {
+        // Draft week: Simple Mode stays on the template step until the schedule
+        // row exists. Re-confirming the preview template must persist it.
+        if (!data.schedulePersisted && weekStart === data.weekStart) {
+          const dates = weekDatesInTrainWeek(weekStart, trainWeekConfig).filter(
+            (date) => date >= data.today,
+          );
+          if (dates.length > 0) {
+            void paintDates(dates, templateType, { updateWeekTemplate: true });
+          }
+        }
+        return;
+      }
 
       const lockedThroughDate = latestLockedDateInWeek(
         weekRecords,
@@ -1010,9 +1023,13 @@ export function TrainsDashboard({ initial }: Props) {
     },
     [
       data.schedule,
+      data.schedulePersisted,
+      data.today,
       data.weekStart,
+      paintDates,
       setPendingTemplateChange,
       targetTrainWeekStart,
+      trainWeekConfig,
       viewedWeek,
       weekViewSeed,
     ],
@@ -1564,7 +1581,9 @@ export function TrainsDashboard({ initial }: Props) {
                 schedulePersisted={data.schedulePersisted}
                 templateType={activeWeekTemplate}
                 paintTemplate={conductorPaint}
-                vsDataStatus={data.vsDataStatus}
+                vsDataStatus={
+                  selectedDate === data.today ? data.vsDataStatus : null
+                }
                 hasConductor={Boolean(selectedRecord?.conductorMemberId)}
                 conductorName={selectedRecord?.conductorMemberName}
                 vipNeeded={guidedVipNeeded}

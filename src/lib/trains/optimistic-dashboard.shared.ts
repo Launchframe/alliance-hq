@@ -311,6 +311,7 @@ export function applyOptimisticPaint(
       ...next,
       data: {
         ...next.data,
+        schedulePersisted: true,
         schedule: next.data.schedule
           ? { ...next.data.schedule, templateType }
           : {
