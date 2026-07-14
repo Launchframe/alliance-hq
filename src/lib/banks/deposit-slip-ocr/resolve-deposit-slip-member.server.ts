@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, eq, ne } from "drizzle-orm";
 
+import { DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN } from "@/lib/banks/deposit-slip-ocr/deposit-slip-member-match.shared";
 import { getDb, schema } from "@/lib/db";
 import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
 import {
@@ -17,11 +18,12 @@ import {
 import { resolveCommanderIdForMember } from "@/lib/vr/repository";
 
 /**
- * Fuzzy name matches at/above this confidence may auto-link FKs at commit.
- * Exact / previous_name always auto-link. Below this, candidate is surfaced for
- * review but member FKs stay null.
+ * Re-exported for callers that only need the auto-link threshold (kept
+ * alongside the resolver so a single import gets both). Defined in
+ * `deposit-slip-member-match.shared.ts` so the `"use client"` review table can
+ * import the same value without pulling in this `server-only` module.
  */
-export const DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN = 0.85;
+export { DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN };
 
 /**
  * When exact tag lookup misses, allow a unique fuzzy tag hit at/above this
@@ -121,6 +123,43 @@ async function listAlliancesWithTagsDefault(): Promise<HqAllianceCandidate[]> {
       name: row.name,
       ownerAshedUserId: row.ownerAshedUserId,
     }));
+}
+
+/**
+ * Wrap `resolveDepositSlipMemberLinks` deps so a whole batch (one parse or
+ * one commit, dozens of rows) shares a single alliance-tag-table fetch and
+ * one roster fetch per distinct alliance, instead of re-querying per row.
+ * Callers resolving more than one row in a loop/`Promise.all` should build
+ * one cache and pass it to every call.
+ */
+export function createDepositSlipMemberResolverCache(
+  deps: ResolveDepositSlipMemberLinksDeps = {},
+): ResolveDepositSlipMemberLinksDeps {
+  const listAlliancesWithTags =
+    deps.listAlliancesWithTags ?? listAlliancesWithTagsDefault;
+  const loadRosterMembers = deps.loadRosterMembers ?? loadLocalRosterMembers;
+
+  let alliancesPromise: Promise<HqAllianceCandidate[]> | null = null;
+  const rosterCache = new Map<
+    string,
+    Promise<ReturnType<typeof allianceMemberRowToAshedMember>[]>
+  >();
+
+  return {
+    ...deps,
+    listAlliancesWithTags: () => {
+      alliancesPromise ??= listAlliancesWithTags();
+      return alliancesPromise;
+    },
+    loadRosterMembers: (allianceId: string) => {
+      let cached = rosterCache.get(allianceId);
+      if (!cached) {
+        cached = loadRosterMembers(allianceId);
+        rosterCache.set(allianceId, cached);
+      }
+      return cached;
+    },
+  };
 }
 
 /** Exported for unit tests — unique fuzzy tag among HQ alliances. */

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockResolveHqAllianceIdFromSession = vi.fn();
 const mockResolveDepositSlipMemberLinks = vi.fn();
+const mockCreateDepositSlipMemberResolverCache = vi.fn();
 const mockInsertValues = vi.fn();
 const mockUpdateWhere = vi.fn();
 
@@ -21,6 +22,8 @@ vi.mock(
   () => ({
     resolveDepositSlipMemberLinks: (...args: unknown[]) =>
       mockResolveDepositSlipMemberLinks(...args),
+    createDepositSlipMemberResolverCache: (...args: unknown[]) =>
+      mockCreateDepositSlipMemberResolverCache(...args),
   }),
 );
 
@@ -65,6 +68,7 @@ describe("processDepositSlipVideoParse", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockResolveHqAllianceIdFromSession.mockResolvedValue("alliance-1");
+    mockCreateDepositSlipMemberResolverCache.mockReturnValue({});
     mockResolveDepositSlipMemberLinks.mockResolvedValue({
       depositAllianceId: "alliance-1",
       allianceMemberId: "am-1",

@@ -6,7 +6,10 @@ import { nanoid } from "nanoid";
 import type { DedupedDepositSlip } from "@/lib/banks/deposit-slip-ocr/deposit-slip-dedupe.shared";
 import { depositSlipDraftToParsedRowFields } from "@/lib/banks/deposit-slip-ocr/draft-row.shared";
 import type { ParsedDepositSlipHistory } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
-import { resolveDepositSlipMemberLinks } from "@/lib/banks/deposit-slip-ocr/resolve-deposit-slip-member.server";
+import {
+  createDepositSlipMemberResolverCache,
+  resolveDepositSlipMemberLinks,
+} from "@/lib/banks/deposit-slip-ocr/resolve-deposit-slip-member.server";
 import { getDb, schema } from "@/lib/db";
 import { resolveHqAllianceIdFromSession } from "@/lib/members/resolve-hq-alliance";
 import {
@@ -154,16 +157,23 @@ export async function processDepositSlipVideoParse(
 
   const resolvedLinks = await input.timer.measureStep(
     "deposit_slip.resolve_members",
-    async () =>
-      Promise.all(
+    async () => {
+      // Share one alliance-tag fetch and one roster fetch per alliance across
+      // the whole batch instead of re-querying per row.
+      const resolverDeps = createDepositSlipMemberResolverCache();
+      return Promise.all(
         dedupedSlips.map((slip) =>
-          resolveDepositSlipMemberLinks({
-            bankAllianceId: hqAllianceId,
-            depositAllianceTag: slip.identity.allianceTag,
-            commanderName: slip.identity.commanderName,
-          }),
+          resolveDepositSlipMemberLinks(
+            {
+              bankAllianceId: hqAllianceId,
+              depositAllianceTag: slip.identity.allianceTag,
+              commanderName: slip.identity.commanderName,
+            },
+            resolverDeps,
+          ),
         ),
-      ),
+      );
+    },
   );
 
   const matchedCount = resolvedLinks.filter(

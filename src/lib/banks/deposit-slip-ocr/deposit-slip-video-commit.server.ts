@@ -5,7 +5,10 @@ import { and, eq } from "drizzle-orm";
 import type { DepositSlipPayload } from "@/lib/banks/api.shared";
 import { validateDepositSlipPayload } from "@/lib/banks/api.shared";
 import { parsedRowFieldsToDepositSlipDraft } from "@/lib/banks/deposit-slip-ocr/draft-row.shared";
-import { resolveDepositSlipMemberLinks } from "@/lib/banks/deposit-slip-ocr/resolve-deposit-slip-member.server";
+import {
+  createDepositSlipMemberResolverCache,
+  resolveDepositSlipMemberLinks,
+} from "@/lib/banks/deposit-slip-ocr/resolve-deposit-slip-member.server";
 import { createDepositSlip } from "@/lib/banks/repository.server";
 import { getDb, schema } from "@/lib/db";
 
@@ -86,6 +89,10 @@ export async function commitDepositSlipsFromVideoJob(
   let skippedCount = 0;
   const errors: string[] = [];
 
+  // Share one alliance-tag fetch and one roster fetch per alliance across the
+  // whole commit instead of re-querying per row.
+  const resolverDeps = createDepositSlipMemberResolverCache();
+
   for (const row of rows) {
     const draft = parsedRowFieldsToDepositSlipDraft(row);
     if (!draft || draft.amount == null || !draft.depositAt || draft.termDays == null) {
@@ -96,11 +103,14 @@ export async function commitDepositSlipsFromVideoJob(
       continue;
     }
 
-    const links = await resolveDepositSlipMemberLinks({
-      bankAllianceId: input.allianceId,
-      depositAllianceTag: draft.identity.allianceTag,
-      commanderName: draft.identity.commanderName,
-    });
+    const links = await resolveDepositSlipMemberLinks(
+      {
+        bankAllianceId: input.allianceId,
+        depositAllianceTag: draft.identity.allianceTag,
+        commanderName: draft.identity.commanderName,
+      },
+      resolverDeps,
+    );
 
     const payload: DepositSlipPayload = {
       bankId: input.bankId,

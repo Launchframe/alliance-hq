@@ -32,6 +32,9 @@ export type MemberMatchOptions = {
   allianceTag?: string | null;
 };
 
+/** Fuzzy name similarity floor below which `matchMemberName` returns "none". */
+export const MEMBER_FUZZY_AUTO_MATCH_MIN = 0.6;
+
 function normalizeForMatch(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -123,7 +126,7 @@ export function matchMemberName(
     }
   }
 
-  if (best && bestScore >= 0.6) {
+  if (best && bestScore >= MEMBER_FUZZY_AUTO_MATCH_MIN) {
     return {
       ocrName,
       memberId: best.id,

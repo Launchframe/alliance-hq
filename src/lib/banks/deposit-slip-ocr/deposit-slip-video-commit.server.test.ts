@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const createDepositSlip = vi.hoisted(() => vi.fn());
 const selectLimit = vi.hoisted(() => vi.fn());
 const resolveDepositSlipMemberLinks = vi.hoisted(() => vi.fn());
+const createDepositSlipMemberResolverCache = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/banks/repository.server", () => ({
   createDepositSlip,
@@ -12,6 +13,7 @@ vi.mock(
   "@/lib/banks/deposit-slip-ocr/resolve-deposit-slip-member.server",
   () => ({
     resolveDepositSlipMemberLinks,
+    createDepositSlipMemberResolverCache,
   }),
 );
 
@@ -37,6 +39,7 @@ describe("commitDepositSlipsFromVideoJob", () => {
     vi.clearAllMocks();
     selectLimit.mockResolvedValue([{ id: "bank-1" }]);
     createDepositSlip.mockResolvedValue({ id: "slip-1" });
+    createDepositSlipMemberResolverCache.mockReturnValue({});
     resolveDepositSlipMemberLinks.mockResolvedValue({
       depositAllianceId: "alliance-roar",
       allianceMemberId: "am-1",
@@ -112,12 +115,17 @@ describe("commitDepositSlipsFromVideoJob", () => {
     });
 
     expect(result.createdCount).toBe(2);
+    expect(createDepositSlipMemberResolverCache).toHaveBeenCalledTimes(1);
     expect(resolveDepositSlipMemberLinks).toHaveBeenCalledTimes(2);
-    expect(resolveDepositSlipMemberLinks).toHaveBeenNthCalledWith(1, {
-      bankAllianceId: "alliance-a",
-      depositAllianceTag: "Roar",
-      commanderName: "Blue Investor",
-    });
+    expect(resolveDepositSlipMemberLinks).toHaveBeenNthCalledWith(
+      1,
+      {
+        bankAllianceId: "alliance-a",
+        depositAllianceTag: "Roar",
+        commanderName: "Blue Investor",
+      },
+      createDepositSlipMemberResolverCache.mock.results[0]!.value,
+    );
     expect(createDepositSlip).toHaveBeenCalledTimes(2);
     expect(createDepositSlip).toHaveBeenNthCalledWith(1, "alliance-a", {
       bankId: "bank-1",

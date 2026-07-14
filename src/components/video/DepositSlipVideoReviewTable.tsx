@@ -6,6 +6,10 @@ import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
 import {
+  DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN,
+  DEPOSIT_SLIP_MEMBER_NEAR_MISS_MIN,
+} from "@/lib/banks/deposit-slip-ocr/deposit-slip-member-match.shared";
+import {
   DEPOSIT_STATUSES,
   DEPOSIT_TERMS,
   type DepositStatus,
@@ -43,8 +47,8 @@ export type DepositSlipVideoReviewRow = {
 
 function matchConfidenceClass(confidence: number | null | undefined): string {
   if (confidence == null || confidence === 0) return "border-hq-border text-hq-fg-muted";
-  if (confidence >= 0.85) return "border-hq-green text-hq-fg";
-  if (confidence >= 0.6) return "border-[#d29922] text-[#d29922]";
+  if (confidence >= DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN) return "border-hq-green text-hq-fg";
+  if (confidence >= DEPOSIT_SLIP_MEMBER_NEAR_MISS_MIN) return "border-[#d29922] text-[#d29922]";
   return "border-hq-border text-hq-fg-muted";
 }
 

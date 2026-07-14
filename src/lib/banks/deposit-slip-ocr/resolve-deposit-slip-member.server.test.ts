@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN,
+  createDepositSlipMemberResolverCache,
   pickUniqueFuzzyAllianceTag,
   resolveDepositSlipMemberLinks,
 } from "@/lib/banks/deposit-slip-ocr/resolve-deposit-slip-member.server";
@@ -215,6 +216,49 @@ describe("resolveDepositSlipMemberLinks", () => {
     expect(result.matchConfidence).toBe(0);
   });
 
+  it("refuses to auto-link when both the tag and the commander name are only weakly fuzzy", async () => {
+    // Tag "Roa" is a unique fuzzy hit for "Roar" (0.75+), but the commander
+    // name only weakly matches a member on that roster (<0.85) — dual-weak
+    // must not write FKs, only surface the candidate.
+    const weakMembers: AshedMember[] = [
+      {
+        id: "ashed-close",
+        current_name: "Blu Investar",
+        status: "active",
+      },
+    ];
+    const listAlliancesByTag = vi.fn().mockResolvedValue([]);
+    const listAlliancesWithTags = vi.fn().mockResolvedValue([
+      { id: "alliance-roar", tag: "Roar", name: "Roar", ownerAshedUserId: null },
+      { id: "alliance-grow", tag: "GRoW", name: "Grow", ownerAshedUserId: null },
+    ]);
+
+    const result = await resolveDepositSlipMemberLinks(
+      {
+        bankAllianceId: "alliance-bank",
+        depositAllianceTag: "Roa",
+        commanderName: "Blue Investor",
+      },
+      {
+        listAlliancesByTag,
+        listAlliancesWithTags,
+        loadRosterMembers: vi.fn().mockResolvedValue(weakMembers),
+        findAllianceMemberId: vi.fn(),
+        resolveCommanderId: vi.fn(),
+      },
+    );
+
+    expect(result.tagMatchMethod).toBe("fuzzy");
+    expect(result.depositAllianceId).toBe("alliance-roar");
+    expect(result.candidateMatchMethod).toBe("fuzzy");
+    expect(result.candidateConfidence).toBeLessThan(
+      DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN,
+    );
+    expect(result.allianceMemberId).toBeNull();
+    expect(result.commanderId).toBeNull();
+    expect(result.matchMethod).toBe("none");
+  });
+
   it("returns null member FKs when the commander name does not match", async () => {
     const result = await resolveDepositSlipMemberLinks(
       {
@@ -242,5 +286,83 @@ describe("resolveDepositSlipMemberLinks", () => {
       candidateAshedMemberId: null,
       tagMatchMethod: "exact",
     });
+  });
+});
+
+describe("createDepositSlipMemberResolverCache", () => {
+  it("fetches the alliance-tag list and each alliance's roster only once across a batch", async () => {
+    const listAlliancesByTag = vi.fn().mockResolvedValue([]);
+    const listAlliancesWithTags = vi.fn().mockResolvedValue([
+      { id: "alliance-roar", tag: "Roar", name: "Roar", ownerAshedUserId: null },
+    ]);
+    const loadRosterMembers = vi.fn().mockResolvedValue(members);
+    const findAllianceMemberId = vi.fn().mockResolvedValue("am-blue");
+    const resolveCommanderId = vi.fn().mockResolvedValue("cmd-blue");
+
+    const cache = createDepositSlipMemberResolverCache({
+      listAlliancesByTag,
+      listAlliancesWithTags,
+      loadRosterMembers,
+      findAllianceMemberId,
+      resolveCommanderId,
+    });
+
+    // Three rows sharing the same OCR-glitched tag and roster alliance —
+    // without caching this would be 3 full alliance-table scans + 3 roster
+    // fetches for the same alliance.
+    await Promise.all([
+      resolveDepositSlipMemberLinks(
+        { bankAllianceId: "alliance-bank", depositAllianceTag: "Roa", commanderName: "Blue Investor" },
+        cache,
+      ),
+      resolveDepositSlipMemberLinks(
+        { bankAllianceId: "alliance-bank", depositAllianceTag: "Roa", commanderName: "Orange Investor" },
+        cache,
+      ),
+      resolveDepositSlipMemberLinks(
+        { bankAllianceId: "alliance-bank", depositAllianceTag: "Roa", commanderName: "Blue Investor" },
+        cache,
+      ),
+    ]);
+
+    expect(listAlliancesWithTags).toHaveBeenCalledTimes(1);
+    expect(loadRosterMembers).toHaveBeenCalledTimes(1);
+    expect(loadRosterMembers).toHaveBeenCalledWith("alliance-roar");
+  });
+
+  it("caches roster fetches per distinct alliance id, not globally", async () => {
+    const loadRosterMembers = vi
+      .fn()
+      .mockImplementation((allianceId: string) =>
+        Promise.resolve(
+          allianceId === "alliance-a"
+            ? [members[0]!]
+            : [members[1]!],
+        ),
+      );
+
+    const cache = createDepositSlipMemberResolverCache({
+      listAlliancesByTag: vi.fn(),
+      loadRosterMembers,
+      findAllianceMemberId: vi.fn().mockResolvedValue(null),
+      resolveCommanderId: vi.fn().mockResolvedValue(null),
+    });
+
+    await resolveDepositSlipMemberLinks(
+      { bankAllianceId: "alliance-a", depositAllianceTag: null, commanderName: "Blue Investor" },
+      cache,
+    );
+    await resolveDepositSlipMemberLinks(
+      { bankAllianceId: "alliance-b", depositAllianceTag: null, commanderName: "Orange Investor" },
+      cache,
+    );
+    await resolveDepositSlipMemberLinks(
+      { bankAllianceId: "alliance-a", depositAllianceTag: null, commanderName: "Blue Investor" },
+      cache,
+    );
+
+    expect(loadRosterMembers).toHaveBeenCalledTimes(2);
+    expect(loadRosterMembers).toHaveBeenCalledWith("alliance-a");
+    expect(loadRosterMembers).toHaveBeenCalledWith("alliance-b");
   });
 });
