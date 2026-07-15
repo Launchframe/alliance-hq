@@ -125,6 +125,7 @@ export async function POST(request: Request) {
     hqEventId: null,
     storageKey: `fixture-snapshot/${jobId}`,
     allianceId,
+    parseSessionId,
     enqueuedByHqUserId: session.hqUserId ?? null,
     ingestMethod: "fixture",
     frameCount: 0,

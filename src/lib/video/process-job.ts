@@ -55,6 +55,7 @@ import {
   mockOcrDepositSlipFrames,
   mockOcrScoreFrames,
 } from "@/lib/video/ocr-mock";
+import { isDevOrPreviewEnvironment } from "@/lib/dev/env-guard";
 import { loadFixtureAsOcrEntries } from "@/lib/video/vs-fixture-ocr-inject.server";
 import {
   engineRequiresAshed,
@@ -376,14 +377,16 @@ export async function processVideoJob(
     } else {
       const jobFixtureId = job.fixtureId ?? null;
       const jobFixtureDayIndex = job.fixtureDayIndex ?? null;
+      const useFixtureOcr =
+        jobFixtureId != null && isDevOrPreviewEnvironment();
 
-      if (ocrEngine === "mock" || jobFixtureId) {
+      if (ocrEngine === "mock" || useFixtureOcr) {
         allianceId = await timer.measureStep("alliance.resolve_hq", () =>
           resolveHqAllianceIdFromSession(processingSessionId),
         );
 
         let rawEntries: OcrEntry[];
-        if (jobFixtureId) {
+        if (useFixtureOcr) {
           const fixtureEntries = await timer.measureStep(
             "fixture.load_template",
             () => loadFixtureAsOcrEntries(jobFixtureId, jobFixtureDayIndex),
