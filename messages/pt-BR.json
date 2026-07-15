@@ -2929,6 +2929,9 @@
     },
     "breakdownTotalLabel": "Total do detalhamento: {total}",
     "breakdownSubmit": "Salvar Detalhamento",
+    "breakdownPreviewScreenshot": "Ver captura",
+    "breakdownClosePreview": "Fechar pré-visualização",
+    "ocrPartialHint": "Alguns valores não puderam ser lidos com precisão. Verifique e corrija os campos destacados, depois salve.",
     "percentileTitle": "Posição na aliança",
     "percentileRank": "Posição {rank} de {count} que reportaram",
     "percentileAtOrBelow": "{percentile}% dos que reportaram estão no seu THP ou abaixo",
@@ -4259,6 +4262,7 @@
       "anomalyConfirm": "Tem *certeza* de que seu THP total é {total}? Esse é um salto grande à frente do grupo. Toque Sim se for sério.",
       "ocrConfirm": "Li o poder total de heróis como **{total}**. Toque Sim para salvar, ou Não para cancelar.",
       "ocrFailed": "Não foi possível ler essa captura. Tente uma imagem mais nítida da tela Power Details ou informe `/thp total:163460435` manualmente.",
+      "ocrPartial": "Alguns valores foram difíceis de ler. Revise e corrija o detalhamento pré-preenchido abaixo.",
       "invalidTotal": "Informe um THP total válido entre 1 e 1.000.000.000.",
       "commanderNotFound": "Não foi possível encontrar seu comandante nesta aliança. Execute `/link-commander` primeiro."
     },

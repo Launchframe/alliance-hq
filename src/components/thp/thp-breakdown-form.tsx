@@ -2,19 +2,23 @@
 
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
+import { Eye } from "lucide-react";
+import type { Slide } from "yet-another-react-lightbox";
 
 import {
   FORM_SUBMIT_ENTER_KEY_HINT,
   preventDefaultFormSubmit,
 } from "@/lib/client/form-enter-submit.shared";
 import { THP_BREAKDOWN_KEYS, type ThpBreakdown } from "@/lib/thp/my-thp.shared";
+import { ScreenshotLightbox } from "@/components/ui/ScreenshotLightbox";
 
 type Draft = Record<keyof ThpBreakdown, string>;
 
-function draftFromBreakdown(breakdown: ThpBreakdown | null): Draft {
+function draftFromBreakdown(breakdown: ThpBreakdown | Partial<ThpBreakdown> | null): Draft {
   const draft = {} as Draft;
   for (const key of THP_BREAKDOWN_KEYS) {
-    draft[key] = breakdown ? String(breakdown[key]) : "";
+    const value = breakdown?.[key];
+    draft[key] = value != null && value > 0 ? String(value) : "";
   }
   return draft;
 }
@@ -29,15 +33,25 @@ function parseDraft(draft: Draft): ThpBreakdown {
 }
 
 type Props = {
-  initial: ThpBreakdown | null;
+  initial: ThpBreakdown | Partial<ThpBreakdown> | null;
   busy: boolean;
   onSubmit: (breakdown: ThpBreakdown) => void;
   onCancel: () => void;
+  screenshotPreviewUrl?: string | null;
+  partialHint?: string | null;
 };
 
-export function ThpBreakdownForm({ initial, busy, onSubmit, onCancel }: Props) {
+export function ThpBreakdownForm({
+  initial,
+  busy,
+  onSubmit,
+  onCancel,
+  screenshotPreviewUrl,
+  partialHint,
+}: Props) {
   const t = useTranslations("myThp");
   const [draft, setDraft] = useState<Draft>(() => draftFromBreakdown(initial));
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const total = useMemo(() => {
     return THP_BREAKDOWN_KEYS.reduce((sum, key) => {
@@ -45,6 +59,11 @@ export function ThpBreakdownForm({ initial, busy, onSubmit, onCancel }: Props) {
       return sum + (Number.isFinite(parsed) && parsed > 0 ? parsed : 0);
     }, 0);
   }, [draft]);
+
+  const lightboxSlides = useMemo<Slide[]>(
+    () => (screenshotPreviewUrl ? [{ src: screenshotPreviewUrl }] : []),
+    [screenshotPreviewUrl],
+  );
 
   return (
     <form
@@ -55,8 +74,29 @@ export function ThpBreakdownForm({ initial, busy, onSubmit, onCancel }: Props) {
       }}
       data-testid="my-thp-breakdown-form"
     >
-      <h2 className="text-lg font-semibold text-hq-fg">{t("breakdownDialogTitle")}</h2>
-      <p className="text-sm text-hq-fg-muted">{t("breakdownDialogDescription")}</p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-lg font-semibold text-hq-fg">{t("breakdownDialogTitle")}</h2>
+          <p className="text-sm text-hq-fg-muted">{t("breakdownDialogDescription")}</p>
+        </div>
+        {screenshotPreviewUrl ? (
+          <button
+            type="button"
+            onClick={() => setLightboxOpen(true)}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-hq-border px-3 py-2 text-xs font-medium text-hq-fg hover:border-hq-accent"
+            data-testid="my-thp-breakdown-preview-btn"
+          >
+            <Eye className="h-4 w-4" aria-hidden />
+            {t("breakdownPreviewScreenshot")}
+          </button>
+        ) : null}
+      </div>
+
+      {partialHint ? (
+        <p className="rounded-lg border border-hq-warning/50 bg-hq-warning/10 px-3 py-2 text-sm text-hq-warning">
+          {partialHint}
+        </p>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {THP_BREAKDOWN_KEYS.map((key) => (
@@ -102,6 +142,14 @@ export function ThpBreakdownForm({ initial, busy, onSubmit, onCancel }: Props) {
           {t("cancel")}
         </button>
       </div>
+
+      <ScreenshotLightbox
+        open={lightboxOpen && lightboxSlides.length > 0}
+        index={0}
+        slides={lightboxSlides}
+        onClose={() => setLightboxOpen(false)}
+        closeLabel={t("breakdownClosePreview")}
+      />
     </form>
   );
 }
