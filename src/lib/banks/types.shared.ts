@@ -18,6 +18,9 @@ export type DepositStatus = (typeof DEPOSIT_STATUSES)[number];
 export const BATTLE_PLAN_EVENT_TYPES = ["capture", "drop"] as const;
 export type BattlePlanEventType = (typeof BATTLE_PLAN_EVENT_TYPES)[number];
 
+/** Default bank protection duration: 3 days and 12 hours. */
+export const BANK_PROTECTION_DURATION_MS = (3 * 24 + 12) * 60 * 60 * 1000;
+
 export type SerializedBank = {
   id: string;
   gameServerNumber: number;
@@ -25,6 +28,7 @@ export type SerializedBank = {
   coordY: number;
   level: number;
   capturedAt: string | null;
+  protectionExpiresAt: string | null;
   dropByAt: string | null;
   depositPolicy: DepositPolicy | null;
   priorCaptureCount: number;

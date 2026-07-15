@@ -55,6 +55,7 @@ function bank(
     coordX: 699,
     coordY: 499,
     capturedAt: null,
+    protectionExpiresAt: null,
     dropByAt: null,
     depositPolicy: "warzone",
     priorCaptureCount: 1,

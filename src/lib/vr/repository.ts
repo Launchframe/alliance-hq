@@ -1600,6 +1600,39 @@ export async function listRegisteredGuildsWithTrainChannel(): Promise<
     }));
 }
 
+export async function setGuildSeasonalEventsChannel(
+  guildId: string,
+  channelId: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.discordGuildAlliances)
+    .set({ seasonalEventsChannelId: channelId })
+    .where(eq(schema.discordGuildAlliances.guildId, guildId));
+}
+
+export async function setGuildRegularEventsChannel(
+  guildId: string,
+  channelId: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.discordGuildAlliances)
+    .set({ regularEventsChannelId: channelId })
+    .where(eq(schema.discordGuildAlliances.guildId, guildId));
+}
+
+export async function setGuildBankingChannel(
+  guildId: string,
+  channelId: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.discordGuildAlliances)
+    .set({ bankingChannelId: channelId })
+    .where(eq(schema.discordGuildAlliances.guildId, guildId));
+}
+
 export async function getAllianceTrainDiscordAnnouncementsEnabled(
   allianceId: string,
 ): Promise<boolean> {

@@ -1256,6 +1256,9 @@ export const discordGuildAlliances = pgTable("discord_guild_alliances", {
     .references(() => alliances.id, { onDelete: "cascade" }),
   vrReportChannelId: text("vr_report_channel_id"),
   trainChannelId: text("train_channel_id"),
+  seasonalEventsChannelId: text("seasonal_events_channel_id"),
+  regularEventsChannelId: text("regular_events_channel_id"),
+  bankingChannelId: text("banking_channel_id"),
   registeredAt: timestamp("registered_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -3015,6 +3018,10 @@ export const battlePlanCaptureEvents = pgTable(
     coordX: integer("coord_x"),
     coordY: integer("coord_y"),
     level: integer("level"),
+    /** Set when the pre-capture Discord announcement was sent. */
+    discordAnnouncedAt: timestamp("discord_announced_at", {
+      withTimezone: true,
+    }),
     createdByHqUserId: text("created_by_hq_user_id").references(
       () => hqUsers.id,
       { onDelete: "set null" },
@@ -3054,6 +3061,13 @@ export const banks = pgTable(
     coordY: integer("coord_y").notNull(),
     level: integer("level").notNull(),
     capturedAt: timestamp("captured_at", { withTimezone: true }),
+    protectionExpiresAt: timestamp("protection_expires_at", {
+      withTimezone: true,
+    }),
+    /** Last protection milestone (hours remaining) announced to Discord. */
+    discordProtectionLastMilestone: integer(
+      "discord_protection_last_milestone",
+    ),
     dropByAt: timestamp("drop_by_at", { withTimezone: true }),
     depositPolicy: text("deposit_policy"),
     priorCaptureCount: integer("prior_capture_count").notNull().default(0),

@@ -32,6 +32,7 @@ function makeBank(id: string, amount: number): BankWithSlips {
     coordY: 20,
     level: 5,
     capturedAt: null,
+    protectionExpiresAt: null,
     dropByAt: null,
     depositPolicy: "alliance",
     priorCaptureCount: 0,
