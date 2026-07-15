@@ -3619,7 +3619,11 @@
       "close": "Continue",
       "never": "never",
       "lastConducted": "Last: {date}",
-      "conductsThisYear": "{count} this year"
+      "conductsThisYear": "{count} this year",
+      "vsValidation": {
+        "top1Title": "Top VR Score",
+        "top10Title": "Top 10 VR Scores"
+      }
     },
     "season": {
       "label": "Game season",

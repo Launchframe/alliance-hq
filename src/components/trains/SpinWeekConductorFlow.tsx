@@ -82,12 +82,14 @@ export function SpinWeekConductorFlow({
   const [confirmResults, setConfirmResults] = useState<SpinWeekResultRow[]>([]);
   const [wheelOpen, setWheelOpen] = useState(false);
   const [wheelCandidates, setWheelCandidates] = useState<
-    Array<{ memberId: string; memberName: string }>
+    Array<{ memberId: string; memberName: string; priorDayVsScore?: number }>
   >([]);
   const [wheelWinner, setWheelWinner] = useState<{
     memberId: string;
     memberName: string;
+    priorDayVsScore?: number;
   } | null>(null);
+  const [wheelMechanism, setWheelMechanism] = useState<string | null>(null);
   const [wheelStats, setWheelStats] = useState<RollResponse["stats"] | null>(
     null,
   );
@@ -210,6 +212,7 @@ export function SpinWeekConductorFlow({
             : [{ memberId: result.memberId, memberName: result.memberName }],
         );
         setWheelWinner(result);
+        setWheelMechanism(result.mechanism);
         setWheelStats(body.stats ?? null);
         setWheelQualification(result.qualification ?? null);
         setWheelDayLabel(spinWeekDayLabel(date));
@@ -338,6 +341,7 @@ export function SpinWeekConductorFlow({
         stats={wheelStats ?? null}
         qualification={wheelQualification}
         dayLabel={wheelDayLabel}
+        mechanism={wheelMechanism}
         speedMultiplier={wheelSpeedMultiplier}
         automated
         onAutomatedRevealComplete={handleAutomatedRevealComplete}
