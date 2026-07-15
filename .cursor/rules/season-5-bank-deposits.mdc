@@ -117,6 +117,16 @@ If a terminal row arrives and no matching blue exists yet:
 
 Clear `depositAtEstimated` once a non-estimate source wins.
 
+## Derived display states
+
+### Elapsed (`term_elapsed`)
+
+A locked deposit slip whose `maturesAt` has passed displays as "Elapsed" (purple badge) on Bank Management. This is **display-only** — the DB `status` remains `locked`. The actual terminal state (`matured` or `looted`) is determined only when a matching deposit slip history screenshot row is committed via OCR.
+
+### Deposit table UX
+
+The deposit slip list uses pill-based filters: Active (default) | Elapsed | Matured | Looted. Active shows in-term locked deposits; Elapsed shows past-term locked deposits awaiting outcome confirmation. Stats bar shows Total deposited, Recovered, Lost to looting.
+
 ## Drop optimization
 
 Officers drop a held bank to free capture capacity for a higher-priority stronghold, while minimizing reputational / CrystalGold loss to investors.

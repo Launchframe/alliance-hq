@@ -4,6 +4,8 @@ import {
   activeDeposits,
   buildDepositFalloffSeries,
   buildRiskHeatmap,
+  computeDepositStats,
+  depositSlipDisplayStatus,
   maturityOutflowAtHour,
   parseSlipFingerprint,
   reconstructActualLockedSeries,
@@ -64,6 +66,79 @@ function bank(
     ...overrides,
   };
 }
+
+describe("depositSlipDisplayStatus", () => {
+  const displayNow = new Date("2025-06-15T12:00:00Z");
+
+  it("returns locked for locked slip with future maturesAt", () => {
+    expect(
+      depositSlipDisplayStatus(
+        { status: "locked", maturesAt: "2025-06-20T00:00:00Z" },
+        displayNow,
+      ),
+    ).toBe("locked");
+  });
+
+  it("returns term_elapsed for locked slip with past maturesAt", () => {
+    expect(
+      depositSlipDisplayStatus(
+        { status: "locked", maturesAt: "2025-06-10T00:00:00Z" },
+        displayNow,
+      ),
+    ).toBe("term_elapsed");
+  });
+
+  it("returns term_elapsed when maturesAt equals now", () => {
+    expect(
+      depositSlipDisplayStatus(
+        { status: "locked", maturesAt: "2025-06-15T12:00:00Z" },
+        displayNow,
+      ),
+    ).toBe("term_elapsed");
+  });
+
+  it("returns matured unchanged even with past maturesAt", () => {
+    expect(
+      depositSlipDisplayStatus(
+        { status: "matured", maturesAt: "2025-06-10T00:00:00Z" },
+        displayNow,
+      ),
+    ).toBe("matured");
+  });
+
+  it("returns looted unchanged even with past maturesAt", () => {
+    expect(
+      depositSlipDisplayStatus(
+        { status: "looted", maturesAt: "2025-06-10T00:00:00Z" },
+        displayNow,
+      ),
+    ).toBe("looted");
+  });
+});
+
+describe("computeDepositStats", () => {
+  it("computes totals across mixed statuses", () => {
+    const slips = [
+      { amount: 1000, status: "locked" as const, maturesAt: "2025-06-20T00:00:00Z" },
+      { amount: 2000, status: "matured" as const, maturesAt: "2025-06-10T00:00:00Z" },
+      { amount: 500, status: "looted" as const, maturesAt: "2025-06-08T00:00:00Z" },
+      { amount: 3000, status: "matured" as const, maturesAt: "2025-06-05T00:00:00Z" },
+    ] as unknown as SerializedDepositSlip[];
+    const stats = computeDepositStats(slips);
+    expect(stats.totalDeposited).toBe(6500);
+    expect(stats.totalRecovered).toBe(5000);
+    expect(stats.totalLooted).toBe(500);
+    expect(stats.interestEarned).toBeNull();
+  });
+
+  it("returns zeros for empty slips", () => {
+    const stats = computeDepositStats([]);
+    expect(stats.totalDeposited).toBe(0);
+    expect(stats.totalRecovered).toBe(0);
+    expect(stats.totalLooted).toBe(0);
+    expect(stats.interestEarned).toBeNull();
+  });
+});
 
 describe("activeDeposits", () => {
   it("excludes matured, looted, and already-mature locked slips", () => {

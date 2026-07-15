@@ -24,6 +24,7 @@
   --hq-pill-fg: #424a53;
   --hq-pill-border: #d0d7de;
   --hq-warning: #9a6700;
+  --hq-purple: #8250df;
 
   --background: var(--hq-canvas);
   --foreground: var(--hq-fg);
@@ -53,6 +54,7 @@
   --hq-pill-fg: #c9d1d9;
   --hq-pill-border: #484f58;
   --hq-warning: #d29922;
+  --hq-purple: #a371f7;
 }
 
 /* yet-another-react-lightbox — match Alliance HQ chrome */
@@ -87,6 +89,7 @@
   --color-hq-pill-fg: var(--hq-pill-fg);
   --color-hq-pill-border: var(--hq-pill-border);
   --color-hq-warning: var(--hq-warning);
+  --color-hq-purple: var(--hq-purple);
   --font-mono: var(--font-mono-family), ui-monospace, SFMono-Regular, Menlo,
     Monaco, Consolas, "Liberation Mono", monospace;
   /* Week schedule 7-column grid needs ~1180px; below that use day carousel. */
