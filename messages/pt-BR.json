@@ -3565,7 +3565,11 @@
       "close": "Continuar",
       "never": "nunca",
       "lastConducted": "Última: {date}",
-      "conductsThisYear": "{count} este ano"
+      "conductsThisYear": "{count} este ano",
+      "vsValidation": {
+        "top1Title": "Maior Pontuação VR",
+        "top10Title": "Top 10 Pontuações VR"
+      }
     },
     "season": {
       "label": "Temporada do jogo",
