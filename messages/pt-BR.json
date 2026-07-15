@@ -3173,6 +3173,10 @@
     "conductsThisYear": "Vezes este ano",
     "noneYet": "—",
     "quickActions": "Ações rápidas",
+    "uploadScoresBanner": {
+      "body": "O modelo deste dia requer pontuações VS. Envie as pontuações de ontem antes de sortear o condutor.",
+      "link": "Enviar vídeo de pontuação"
+    },
     "quickActionsConductor": "Condutor",
     "quickActionsVip": "VIP",
     "spinWheel": "Girar a roleta!",
@@ -3262,9 +3266,9 @@
       "heading": "Configuração do condutor de hoje",
       "steps": {
         "prerequisites": {
-          "title": "Dados de pontuação",
-          "bodyReady": "{count} comandantes têm pontuações prontas para este dia.",
-          "bodyMissing": "Ainda não há pontuações para a verificação de VS / Preço é Frete deste dia.",
+          "title": "Enviar pontuações",
+          "bodyReady": "{count} comandantes têm pontuações prontas.",
+          "bodyMissing": "As pontuações VS de ontem são necessárias antes de sortear o condutor.",
           "uploadLink": "Enviar vídeo de pontuação"
         },
         "template": {
