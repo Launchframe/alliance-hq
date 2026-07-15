@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { serializeBank, validateBankPayload, type BankPayload } from "@/lib/banks/api.shared";
 import { createBank } from "@/lib/banks/repository.server";
+import { requireBankWrite } from "@/lib/banks/route-helpers.server";
 import { deactivateCaptureReminderInboxItem } from "@/lib/battle-plan/capture-reminder-inbox.server";
 import {
   requireBattlePlanAllianceContext,
@@ -30,6 +31,9 @@ export async function POST(request: Request, { params }: Props) {
   const denied = await requireBattlePlanWrite(sessionId);
   if (denied) return denied;
 
+  const bankDenied = await requireBankWrite(sessionId);
+  if (bankDenied) return bankDenied;
+
   const { id: eventId } = await params;
   const db = getDb();
 
@@ -46,6 +50,37 @@ export async function POST(request: Request, { params }: Props) {
 
   if (!event) {
     return NextResponse.json({ error: "Event not found." }, { status: 404 });
+  }
+
+  if (event.territoryType !== "stronghold") {
+    return NextResponse.json(
+      { error: "Only stronghold capture events can confirm a bank." },
+      { status: 400 },
+    );
+  }
+
+  if (event.status === "cancelled") {
+    return NextResponse.json(
+      { error: "Event was cancelled." },
+      { status: 400 },
+    );
+  }
+
+  if (event.bankId) {
+    const [existingBank] = await db
+      .select()
+      .from(schema.banks)
+      .where(
+        and(
+          eq(schema.banks.id, event.bankId),
+          eq(schema.banks.allianceId, allianceId),
+        ),
+      )
+      .limit(1);
+    if (existingBank) {
+      await deactivateCaptureReminderInboxItem(eventId);
+      return NextResponse.json({ bank: serializeBank(existingBank) });
+    }
   }
 
   if (
@@ -70,6 +105,7 @@ export async function POST(request: Request, { params }: Props) {
     level: event.level,
     capturedAt: event.scheduledAt.toISOString(),
     depositPolicy,
+    priorCaptureCount: 1,
   };
 
   const validationError = validateBankPayload(bankPayload);
