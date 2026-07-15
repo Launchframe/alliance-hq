@@ -207,13 +207,15 @@ export function mechanismNeedsWheel(
   );
 }
 
-/** Officer manual override when leaderboard data is missing or wrong. */
+/** Officer manual pick — conductor_pick days need this to record the conductor's choice. */
 export function supportsManualVipPick(
   mechanism: VipMechanismType | string | null | undefined,
 ): boolean {
   if (!mechanism) return false;
   return (
-    mechanism === "donations_second" || mechanism === "event_top_x_lottery"
+    mechanism === "conductor_pick" ||
+    mechanism === "donations_second" ||
+    mechanism === "event_top_x_lottery"
   );
 }
 
