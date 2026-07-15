@@ -20,7 +20,6 @@ import {
 import type { VideoJobRow } from "@/lib/types/video";
 import {
   uploadVideoFile,
-  createFixtureOnlyJob,
   type UploadConfig,
 } from "@/lib/video/client-upload";
 import {
@@ -34,7 +33,7 @@ import {
 } from "@/lib/video/upload-limit";
 import { jobMatchesScoreTarget } from "@/lib/video/score-target-nav";
 import { isMemberRosterVideoTarget } from "@/lib/video/score-targets";
-import { VsFixturePicker } from "@/components/video/VsFixturePicker";
+
 
 function formatBytes(bytes: number | null): string {
   if (!bytes) return "—";
@@ -101,8 +100,6 @@ type Props = {
   canProcess?: boolean;
   ashedConnected?: boolean;
   connectUrl?: string;
-  /** When true, show the dev fixture picker for vs-performance uploads. */
-  isDevEnvironment?: boolean;
 };
 
 function statusLabel(
@@ -137,7 +134,6 @@ export function VideoUploadForm({
   canProcess = false,
   ashedConnected = false,
   connectUrl = "/connect?next=%2Ftools%2Fvideo-upload",
-  isDevEnvironment = false,
 }: Props) {
   const t = useTranslations("video");
   const tNav = useTranslations("nav");
@@ -187,16 +183,6 @@ export function VideoUploadForm({
     null,
   );
   const searchParams = useSearchParams();
-  const queryFixtureId = searchParams.get("fixtureId") ?? null;
-
-  const [fixtureIdOverride, setFixtureIdOverride] = useState<string | null>(null);
-  const [fixtureDayIndex, setFixtureDayIndex] = useState<number | null>(null);
-
-  const fixtureId = fixtureIdOverride ?? queryFixtureId;
-  const setFixtureId = setFixtureIdOverride;
-
-  const showFixturePicker =
-    isDevEnvironment && scoreTarget === "vs-performance";
 
   const processJobQueryId = useMemo(() => {
     if (!canProcess) return null;
@@ -272,43 +258,8 @@ export function VideoUploadForm({
   const fileTooLarge =
     file !== null && fileExceedsUploadLimit(file.size, uploadConfig);
 
-  const isFixtureOnly = !!fixtureId && !file;
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-
-    if (fixtureId && !file) {
-      setUploading(true);
-      setError(null);
-      setSuccess(null);
-      try {
-        const data = await createFixtureOnlyJob({
-          fixtureId,
-          fixtureDayIndex,
-          scoreTarget,
-          onJobCreated: (jobId) => {
-            if (!canProcess) {
-              setActiveSurvey((prev) => (prev ? { ...prev, jobId } : null));
-            }
-          },
-        });
-        setSurveyCompleteByJobId((prev) => ({
-          ...prev,
-          [data.jobId]: false,
-        }));
-        if (canProcess) {
-          setSuccess(null);
-          setProcessPromptJobId(data.jobId);
-        } else {
-          setSuccess(data.message ?? t("queuedSuccess"));
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : tc("uploadFailed"));
-      } finally {
-        setUploading(false);
-      }
-      return;
-    }
 
     if (!file) {
       setError(t("chooseFileFirst"));
@@ -353,8 +304,6 @@ export function VideoUploadForm({
         file: uploadFile,
         scoreTarget,
         boardKey: effectiveBoardKey || undefined,
-        fixtureId: fixtureId || undefined,
-        fixtureDayIndex: fixtureDayIndex ?? undefined,
         uploadConfig,
         onProgress: (loaded, total) => {
           setUploadProgress({ loaded, total });
@@ -544,25 +493,9 @@ export function VideoUploadForm({
           </label>
         ) : null}
 
-        {showFixturePicker ? (
-          <div className="mt-4 rounded-lg border border-dashed border-hq-border bg-hq-surface-muted/50 p-3">
-            <span className="mb-2 block text-xs font-medium uppercase tracking-wider text-hq-fg-muted">
-              Dev: VS Score Fixture
-            </span>
-            <VsFixturePicker
-              value={fixtureId}
-              dayIndex={fixtureDayIndex}
-              onChange={(id, idx) => {
-                setFixtureId(id);
-                setFixtureDayIndex(idx);
-              }}
-            />
-          </div>
-        ) : null}
-
         <label className="mt-4 block">
           <span className="mb-2 block text-sm text-hq-fg-muted">
-            {fixtureId ? `${t("fileLabel")} (optional with fixture)` : t("fileLabel")}
+            {t("fileLabel")}
           </span>
           <input
             type="file"
@@ -627,14 +560,10 @@ export function VideoUploadForm({
 
         <button
           type="submit"
-          disabled={uploading || (!file && !isFixtureOnly) || fileTooLarge || (!uploadConfig && !isFixtureOnly)}
+          disabled={uploading || !file || fileTooLarge || !uploadConfig}
           className="mt-4 w-full rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50 sm:w-auto"
         >
-          {uploading
-            ? t("uploading")
-            : isFixtureOnly
-              ? "Submit Fixture"
-              : t("uploadButton")}
+          {uploading ? t("uploading") : t("uploadButton")}
         </button>
         </fieldset>
       </form>

@@ -25,10 +25,14 @@ function TemplateCard({
   template,
   onDelete,
   onEdit,
+  onSnapshot,
+  snapshotting,
 }: {
   template: VsScoreTemplate;
   onDelete: (id: string) => void;
   onEdit: (id: string, name: string, tags: string[]) => void;
+  onSnapshot: (id: string) => void;
+  snapshotting: string | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(template.name);
@@ -135,12 +139,16 @@ function TemplateCard({
               </button>
             </div>
           </div>
-          <a
-            href={`/tools/video-upload?scoreTarget=vs-performance&fixtureId=${template.id}`}
-            className="mt-2 inline-block text-xs text-hq-success underline"
+          <button
+            type="button"
+            disabled={snapshotting === template.id}
+            onClick={() => onSnapshot(template.id)}
+            className="mt-2 inline-block text-xs text-hq-success underline disabled:opacity-50"
           >
-            Use in upload wizard →
-          </a>
+            {snapshotting === template.id
+              ? "Creating snapshot…"
+              : "Create snapshot →"}
+          </button>
         </>
       )}
     </div>
@@ -274,6 +282,37 @@ export function VsScoreLibraryClient() {
       await loadLibrary();
     } finally {
       setSaving(false);
+    }
+  }
+
+  const [snapshotting, setSnapshotting] = useState<string | null>(null);
+  const [snapshotError, setSnapshotError] = useState<string | null>(null);
+
+  async function handleSnapshot(fixtureId: string) {
+    setSnapshotting(fixtureId);
+    setSnapshotError(null);
+    try {
+      const res = await fetch("/api/dev/vs-score-fixtures/snapshot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fixtureId, scoreTarget: "vs-performance" }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        jobId?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.jobId) {
+        setSnapshotError(data.error ?? "Snapshot creation failed");
+        return;
+      }
+      window.location.href = `/tools/video-upload/${data.jobId}/review`;
+    } catch (err) {
+      setSnapshotError(
+        err instanceof Error ? err.message : "Snapshot creation failed",
+      );
+    } finally {
+      setSnapshotting(null);
     }
   }
 
@@ -496,16 +535,23 @@ export function VsScoreLibraryClient() {
               : "No fixtures match your filters."}
           </p>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {filtered.map((t) => (
-              <TemplateCard
-                key={t.id}
-                template={t}
-                onDelete={handleDelete}
-                onEdit={handleEdit}
-              />
-            ))}
-          </div>
+          <>
+            {snapshotError ? (
+              <p className="text-sm text-hq-danger">{snapshotError}</p>
+            ) : null}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {filtered.map((t) => (
+                <TemplateCard
+                  key={t.id}
+                  template={t}
+                  onDelete={handleDelete}
+                  onEdit={handleEdit}
+                  onSnapshot={handleSnapshot}
+                  snapshotting={snapshotting}
+                />
+              ))}
+            </div>
+          </>
         )}
       </section>
     </div>

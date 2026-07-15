@@ -48,8 +48,6 @@ export async function uploadVideoFile(options: {
   scoreTarget: string;
   boardKey?: string;
   hqEventId?: string;
-  fixtureId?: string;
-  fixtureDayIndex?: number;
   uploadConfig: UploadConfig;
   onProgress?: (loaded: number, total: number) => void;
   /** Fires once a server-side job row exists (R2 init or direct POST). */
@@ -64,8 +62,6 @@ export async function uploadVideoFile(options: {
     formData.set("scoreTarget", scoreTarget);
     if (boardKey) formData.set("boardKey", boardKey);
     if (options.hqEventId) formData.set("hqEventId", options.hqEventId);
-    if (options.fixtureId) formData.set("fixtureId", options.fixtureId);
-    if (options.fixtureDayIndex != null) formData.set("fixtureDayIndex", String(options.fixtureDayIndex));
 
     onProgress?.(0, file.size);
     const res = await fetch("/api/tools/video-upload", {
@@ -97,8 +93,6 @@ export async function uploadVideoFile(options: {
       scoreTarget,
       boardKey: boardKey ?? null,
       hqEventId: options.hqEventId ?? null,
-      fixtureId: options.fixtureId ?? null,
-      fixtureDayIndex: options.fixtureDayIndex ?? null,
     }),
   });
   const init = (await initRes.json()) as InitUploadResponse & { error?: string };
@@ -123,41 +117,6 @@ export async function uploadVideoFile(options: {
   }
 
   throw new Error("Unexpected upload init mode.");
-}
-
-export async function createFixtureOnlyJob(options: {
-  fixtureId: string;
-  fixtureDayIndex?: number | null;
-  scoreTarget: string;
-  onJobCreated?: (jobId: string) => void;
-}): Promise<{ jobId: string; message: string; status: string }> {
-  const res = await fetch("/api/dev/vs-score-fixtures/create-job", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      fixtureId: options.fixtureId,
-      fixtureDayIndex: options.fixtureDayIndex ?? null,
-      scoreTarget: options.scoreTarget,
-    }),
-  });
-  const data = (await res.json()) as {
-    ok?: boolean;
-    jobId?: string;
-    message?: string;
-    status?: string;
-    error?: string;
-  };
-  if (!res.ok) {
-    throw new Error(data.error ?? "Fixture job creation failed");
-  }
-  if (data.jobId) {
-    options.onJobCreated?.(data.jobId);
-  }
-  return {
-    jobId: data.jobId ?? "",
-    message: data.message ?? "Fixture-only job created.",
-    status: data.status ?? "pending_approval",
-  };
 }
 
 async function completeUpload(
