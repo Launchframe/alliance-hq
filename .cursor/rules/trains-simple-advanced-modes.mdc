@@ -1,0 +1,86 @@
+---
+description: Trains dashboard dual-mode UX — guided stepper (simple) vs quick-actions (advanced)
+globs:
+  - src/components/trains/**
+  - src/lib/trains/guided-flow*
+---
+
+# Trains: simple mode vs advanced mode
+
+The trains dashboard has two interaction modes. Both operate on the **same underlying state** (schedule, conductor assignments, VIP, locks, pools) and share handlers; the difference is presentation and flow.
+
+## Guided mode (default)
+
+`simpleModeEnabled` (user preference, default `true`) renders **`TrainsGuidedConductorFlow`** — a vertical stepper that walks officers through the day's tasks in order.
+
+### Step order
+
+`template → prepare_pool → conductor → lock → vip → done`
+
+Each step blocks until its prerequisite is satisfied. Canonical step logic lives in **`guided-flow.shared.ts`** (`currentGuidedStep`, `resolvePoolStepState`). The UI component reads this; **do not duplicate step-gating logic in the component**.
+
+### Blocking vs non-blocking
+
+| Step | Blocks until |
+| --- | --- |
+| `template` | A week template is assigned |
+| `prepare_pool` | Pool is ready (has members/scores); or officer explicitly skips score requirements |
+| `conductor` | A conductor is assigned for the day |
+| `lock` | The conductor slot is locked |
+| `vip` | VIP is assigned (if the mechanism requires one) |
+
+The `prepare_pool` step is **context-aware**: its title, descriptor, and CTA change based on the pool kind (VS, donations, R3, R4, takedown team, PiF). When score-based pools have zero candidates, the step blocks by default and offers a **"Skip score requirements"** bypass button.
+
+### Primary and secondary actions on Conductor step
+
+| Template type | Primary button | Secondary button |
+| --- | --- | --- |
+| Most templates | Spin for Conductor | Pick Conductor |
+| R3 Recognition | Pick Conductor (only) | — |
+
+`mechanismUsesWheelSpin` in `guided-flow.shared.ts` determines whether the spin option is available.
+
+## Advanced mode (opt-in)
+
+When `simpleModeEnabled` is off, the dashboard shows **quick-action buttons** inline: spin/pick conductor, lock/unlock, pick VIP, upload scores, and day-level controls. Officers manage each concern independently.
+
+### Hint banners in advanced mode
+
+When a prerequisite is missing (e.g. no VS scores for a VS-push day), advanced mode shows a **non-blocking hint banner** with a recovery CTA. This mirrors the guided flow's blocking behavior as a visual nudge rather than a gate.
+
+## Parity contract
+
+Every action available in one mode must be reachable in the other:
+
+| Guided flow step | Advanced mode equivalent |
+| --- | --- |
+| Prepare pool → Upload scores CTA | Hint banner + upload scores button |
+| Spin for Conductor | Spin button |
+| Pick Conductor | Pick button |
+| Lock | Lock button |
+| Pick VIP | Pick VIP button |
+
+**When adding a new feature:**
+
+1. Wire the action handler at the dashboard level (shared between modes).
+2. Add it to the guided flow step where it logically fits.
+3. Add the equivalent control to the advanced mode layout.
+4. If the feature has a prerequisite, make it blocking in guided mode and a hint banner in advanced mode.
+
+## Key files
+
+| Concern | File |
+| --- | --- |
+| Step logic (canonical) | `src/lib/trains/guided-flow.shared.ts` |
+| Step logic tests | `src/lib/trains/guided-flow.shared.test.ts` |
+| Guided flow UI | `src/components/trains/TrainsGuidedConductorFlow.tsx` |
+| Dashboard (mode switch) | `src/components/trains/TrainsDashboard.tsx` |
+| Spin sources | `src/lib/trains/spin-source.shared.ts` |
+| Mechanism styles | `src/lib/trains/mechanism-styles.ts` |
+
+## Do not
+
+- Duplicate step-gating logic in the UI component — call `currentGuidedStep()` and `resolvePoolStepState()`.
+- Add a guided-flow-only action without an advanced mode counterpart (or vice versa).
+- Skip pool readiness checks — if the guided flow blocks, advanced mode must at least warn.
+- Assume guided mode is always on — test both modes when changing dashboard layout or actions.
