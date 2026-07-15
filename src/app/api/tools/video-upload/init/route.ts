@@ -133,6 +133,8 @@ export async function POST(request: Request) {
       extractionConfigJson: null,
       r2UploadId: null,
       expectedFileSizeBytes: fileSize,
+      fixtureId: null,
+      fixtureDayIndex: null,
       createdAt: now,
       updatedAt: now,
     });

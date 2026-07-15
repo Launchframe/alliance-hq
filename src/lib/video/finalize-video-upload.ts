@@ -18,6 +18,8 @@ export type FinalizeVideoUploadInput = {
   hqEventId: string | null;
   allianceId: string | null;
   enqueuedByHqUserId: string | null;
+  fixtureId?: string | null;
+  fixtureDayIndex?: number | null;
 };
 
 /**
@@ -83,6 +85,8 @@ export async function finalizeVideoUploadEnqueue(
     extractionConfigJson: primary.configJson,
     r2UploadId: null,
     expectedFileSizeBytes: null,
+    fixtureId: input.fixtureId ?? null,
+    fixtureDayIndex: input.fixtureDayIndex ?? null,
     createdAt: now,
     updatedAt: now,
   });

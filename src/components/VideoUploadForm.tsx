@@ -34,6 +34,7 @@ import {
 import { jobMatchesScoreTarget } from "@/lib/video/score-target-nav";
 import { isMemberRosterVideoTarget } from "@/lib/video/score-targets";
 
+
 function formatBytes(bytes: number | null): string {
   if (!bytes) return "—";
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -182,6 +183,7 @@ export function VideoUploadForm({
     null,
   );
   const searchParams = useSearchParams();
+
   const processJobQueryId = useMemo(() => {
     if (!canProcess) return null;
     return searchParams.get("processJob")?.trim() || null;
@@ -258,6 +260,7 @@ export function VideoUploadForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
     if (!file) {
       setError(t("chooseFileFirst"));
       return;
@@ -284,8 +287,6 @@ export function VideoUploadForm({
     setSuccess(null);
 
     const uploadFile = file;
-    // Processors approve first, then survey while OCR runs. Non-processors get
-    // the survey immediately after upload (with a pending-approval hint).
     if (!canProcess) {
       setActiveSurvey({
         jobId: "",

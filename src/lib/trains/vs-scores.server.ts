@@ -4,9 +4,11 @@ import { decryptSecret } from "@/lib/crypto/encrypt";
 import { base44Json } from "@/lib/base44/fetch";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { DEFAULT_APP_ID } from "@/lib/connectionString";
+import { isDevOrPreviewEnvironment } from "@/lib/dev/env-guard";
 import { addCalendarDays } from "@/lib/trains/game-time";
 import type { RollCandidate } from "@/lib/trains/types";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
+import { fetchLocalVsScores } from "@/lib/video/vs-fixture-submit.server";
 import {
   getAllianceAshedCredential,
   getAllianceById,
@@ -193,6 +195,11 @@ export async function fetchAlliancePriorDayVsScoresByMember(
   allianceId: string,
   recordedDate: string,
 ): Promise<Map<string, number>> {
+  if (isDevOrPreviewEnvironment()) {
+    const local = await fetchLocalVsScores(allianceId, recordedDate);
+    if (local.size > 0) return local;
+  }
+
   const resolved = await resolveAllianceAshedConnection(allianceId);
   if (!resolved) return new Map();
 
