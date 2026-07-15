@@ -3212,6 +3212,10 @@
     "conductsThisYear": "Conducts this year",
     "noneYet": "—",
     "quickActions": "Quick actions",
+    "uploadScoresBanner": {
+      "body": "This day's template requires VS scores. Upload yesterday's scores before spinning for conductor.",
+      "link": "Upload score video"
+    },
     "quickActionsConductor": "Conductor",
     "quickActionsVip": "VIP",
     "spinWheel": "Spin the wheel!",
@@ -3301,8 +3305,8 @@
       "heading": "Today’s conductor setup",
       "steps": {
         "prerequisites": {
-          "title": "Score data",
-          "bodyReady": "{count} commanders have scores ready for this day.",
+          "title": "Upload scores",
+          "bodyReady": "{count} commanders have scores ready.",
           "bodyMissing": "No scores found yet for this day’s VS / Price Is Freight check.",
           "uploadLink": "Upload score video"
         },
