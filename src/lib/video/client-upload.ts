@@ -125,6 +125,41 @@ export async function uploadVideoFile(options: {
   throw new Error("Unexpected upload init mode.");
 }
 
+export async function createFixtureOnlyJob(options: {
+  fixtureId: string;
+  fixtureDayIndex?: number | null;
+  scoreTarget: string;
+  onJobCreated?: (jobId: string) => void;
+}): Promise<{ jobId: string; message: string; status: string }> {
+  const res = await fetch("/api/dev/vs-score-fixtures/create-job", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      fixtureId: options.fixtureId,
+      fixtureDayIndex: options.fixtureDayIndex ?? null,
+      scoreTarget: options.scoreTarget,
+    }),
+  });
+  const data = (await res.json()) as {
+    ok?: boolean;
+    jobId?: string;
+    message?: string;
+    status?: string;
+    error?: string;
+  };
+  if (!res.ok) {
+    throw new Error(data.error ?? "Fixture job creation failed");
+  }
+  if (data.jobId) {
+    options.onJobCreated?.(data.jobId);
+  }
+  return {
+    jobId: data.jobId ?? "",
+    message: data.message ?? "Fixture-only job created.",
+    status: data.status ?? "pending_approval",
+  };
+}
+
 async function completeUpload(
   jobId: string,
   uploadId?: string,

@@ -162,82 +162,92 @@ export async function processVideoJob(
   let totalRawOcrRows: number | null = null;
 
   try {
-    const videoStorageKey = await resolveJobVideoStorageKey(job);
-    if (!videoStorageKey) {
-      throw new Error("Job has no stored video.");
-    }
+    const isFixtureOnlyJob = !!job.fixtureId;
 
-    const connection = (await resolveVideoJobAshedConnection({
-      engine: ocrEngine,
-      loadConnection: () => getAshedConnection(processingSessionId),
-    })) as ParsedConnection | null;
+    let connection: ParsedConnection | null = null;
+    let frames: import("@/lib/video/frame-extractor").ExtractedFrame[] = [];
 
-    if (engineRequiresAshed(ocrEngine) && !connection) {
-      // Recoverable: revert to pending so a connected processor can re-approve.
-      await db
-        .update(schema.videoJobs)
-        .set({
-          status: "pending_approval",
-          processingSessionId: null,
-          approvedByHqUserId: null,
-          approvedAt: null,
-          errorMessage: "awaiting_ashed_connection",
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.videoJobs.id, jobId));
-      await emitVideoJobStatus({
-        ...videoJobStatusOwnerFields(job),
+    if (isFixtureOnlyJob) {
+      logPipelineStep("fixture.skip_video", 0, {
+        fixtureId: job.fixtureId,
         jobId,
-        status: "pending_approval",
-        fileName: job.fileName,
-        scoreTarget: scoreTargetId,
-        frameCount: null,
-        uploadedFrameCount: 0,
-        errorMessage: "awaiting_ashed_connection",
       });
-      throw new AshedNotConnectedError();
+    } else {
+      const videoStorageKey = await resolveJobVideoStorageKey(job);
+      if (!videoStorageKey) {
+        throw new Error("Job has no stored video.");
+      }
+
+      connection = (await resolveVideoJobAshedConnection({
+        engine: ocrEngine,
+        loadConnection: () => getAshedConnection(processingSessionId),
+      })) as ParsedConnection | null;
+
+      if (engineRequiresAshed(ocrEngine) && !connection) {
+        await db
+          .update(schema.videoJobs)
+          .set({
+            status: "pending_approval",
+            processingSessionId: null,
+            approvedByHqUserId: null,
+            approvedAt: null,
+            errorMessage: "awaiting_ashed_connection",
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.videoJobs.id, jobId));
+        await emitVideoJobStatus({
+          ...videoJobStatusOwnerFields(job),
+          jobId,
+          status: "pending_approval",
+          fileName: job.fileName,
+          scoreTarget: scoreTargetId,
+          frameCount: null,
+          uploadedFrameCount: 0,
+          errorMessage: "awaiting_ashed_connection",
+        });
+        throw new AshedNotConnectedError();
+      }
+
+      await setStatus("extracting");
+      await writeAuditLog({
+        sessionId: job.sessionId,
+        allianceId: jobHqAllianceId ?? job.allianceId,
+        action: "video.extract_start",
+        resourceType: "video_job",
+        resourceName: scoreTargetId,
+        resourceId: jobId,
+        metadata: { fileName: job.fileName },
+      });
+
+      const tmpVideo = path.join(
+        os.tmpdir(),
+        `hq-video-${jobId}${path.extname(job.fileName ?? ".mp4")}`,
+      );
+      const videoBytes = await timer.measureStep("storage.load_video", () =>
+        streamObjectToFile(videoStorageKey, tmpVideo),
+        (bytes) => ({ bytes }),
+      );
+      logPipelineStep("storage.temp_video_ready", 0, { bytes: videoBytes, jobId });
+
+      const extractionConfig = (job.extractionConfigJson as ExtractionConfig | null) ?? undefined;
+
+      try {
+        const extractResult = await timer.measureStep("ffmpeg.extract", () =>
+          extractLeaderboardFrames(tmpVideo, extractionConfig),
+          (result) => ({ frameCount: result.frames.length }),
+        );
+        frames = extractResult.frames;
+        videoDurationSeconds = extractResult.videoDurationSeconds;
+        denseFrameCount = extractResult.denseFrameCount;
+        framesSkipped = extractResult.framesSkipped;
+      } finally {
+        await timer.measureStep("storage.delete_temp_video", () =>
+          fs.unlink(tmpVideo).catch(() => undefined),
+        );
+      }
     }
 
     const target = getScoreTargetOrThrow(scoreTargetId);
-
-    await setStatus("extracting");
-    await writeAuditLog({
-      sessionId: job.sessionId,
-      allianceId: jobHqAllianceId ?? job.allianceId,
-      action: "video.extract_start",
-      resourceType: "video_job",
-      resourceName: scoreTargetId,
-      resourceId: jobId,
-      metadata: { fileName: job.fileName },
-    });
-
-    const tmpVideo = path.join(
-      os.tmpdir(),
-      `hq-video-${jobId}${path.extname(job.fileName ?? ".mp4")}`,
-    );
-    const videoBytes = await timer.measureStep("storage.load_video", () =>
-      streamObjectToFile(videoStorageKey, tmpVideo),
-      (bytes) => ({ bytes }),
-    );
-    logPipelineStep("storage.temp_video_ready", 0, { bytes: videoBytes, jobId });
-
-    const extractionConfig = (job.extractionConfigJson as ExtractionConfig | null) ?? undefined;
-
-    let frames: import("@/lib/video/frame-extractor").ExtractedFrame[] = [];
-    try {
-      const extractResult = await timer.measureStep("ffmpeg.extract", () =>
-        extractLeaderboardFrames(tmpVideo, extractionConfig),
-        (result) => ({ frameCount: result.frames.length }),
-      );
-      frames = extractResult.frames;
-      videoDurationSeconds = extractResult.videoDurationSeconds;
-      denseFrameCount = extractResult.denseFrameCount;
-      framesSkipped = extractResult.framesSkipped;
-    } finally {
-      await timer.measureStep("storage.delete_temp_video", () =>
-        fs.unlink(tmpVideo).catch(() => undefined),
-      );
-    }
 
     frameCount = frames.length;
     const totalFrameBytes = frames.reduce((sum, frame) => sum + frame.buffer.length, 0);

@@ -20,6 +20,7 @@ import {
 import type { VideoJobRow } from "@/lib/types/video";
 import {
   uploadVideoFile,
+  createFixtureOnlyJob,
   type UploadConfig,
 } from "@/lib/video/client-upload";
 import {
@@ -271,8 +272,44 @@ export function VideoUploadForm({
   const fileTooLarge =
     file !== null && fileExceedsUploadLimit(file.size, uploadConfig);
 
+  const isFixtureOnly = !!fixtureId && !file;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (fixtureId && !file) {
+      setUploading(true);
+      setError(null);
+      setSuccess(null);
+      try {
+        const data = await createFixtureOnlyJob({
+          fixtureId,
+          fixtureDayIndex,
+          scoreTarget,
+          onJobCreated: (jobId) => {
+            if (!canProcess) {
+              setActiveSurvey((prev) => (prev ? { ...prev, jobId } : null));
+            }
+          },
+        });
+        setSurveyCompleteByJobId((prev) => ({
+          ...prev,
+          [data.jobId]: false,
+        }));
+        if (canProcess) {
+          setSuccess(null);
+          setProcessPromptJobId(data.jobId);
+        } else {
+          setSuccess(data.message ?? t("queuedSuccess"));
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : tc("uploadFailed"));
+      } finally {
+        setUploading(false);
+      }
+      return;
+    }
+
     if (!file) {
       setError(t("chooseFileFirst"));
       return;
@@ -299,8 +336,6 @@ export function VideoUploadForm({
     setSuccess(null);
 
     const uploadFile = file;
-    // Processors approve first, then survey while OCR runs. Non-processors get
-    // the survey immediately after upload (with a pending-approval hint).
     if (!canProcess) {
       setActiveSurvey({
         jobId: "",
@@ -527,7 +562,7 @@ export function VideoUploadForm({
 
         <label className="mt-4 block">
           <span className="mb-2 block text-sm text-hq-fg-muted">
-            {t("fileLabel")}
+            {fixtureId ? `${t("fileLabel")} (optional with fixture)` : t("fileLabel")}
           </span>
           <input
             type="file"
@@ -592,10 +627,14 @@ export function VideoUploadForm({
 
         <button
           type="submit"
-          disabled={uploading || !file || fileTooLarge || !uploadConfig}
+          disabled={uploading || (!file && !isFixtureOnly) || fileTooLarge || (!uploadConfig && !isFixtureOnly)}
           className="mt-4 w-full rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50 sm:w-auto"
         >
-          {uploading ? t("uploading") : t("uploadButton")}
+          {uploading
+            ? t("uploading")
+            : isFixtureOnly
+              ? "Submit Fixture"
+              : t("uploadButton")}
         </button>
         </fieldset>
       </form>
