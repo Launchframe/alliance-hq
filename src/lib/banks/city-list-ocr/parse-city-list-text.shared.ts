@@ -381,6 +381,16 @@ export function parseCityListFooter(lines: readonly string[]): {
  * some CrystalGold amounts on dark cards. Missing amounts stay null for
  * officer review rather than discarding the whole tile or borrowing amounts
  * from the next row.
+ *
+ * When a tile-row's own coordinate line is *completely* unreadable (zero
+ * matches from both `COORD_TOKEN_RE` and `COORD_GLUED_RE`), that line drops
+ * out of `coordLineIndices` entirely and its value/level lines land in the
+ * pre-line window of the *next* surviving coordinate row. Without care,
+ * those orphaned tokens would zip onto the next row's real coordinates and
+ * silently corrupt otherwise-good data (see the value/level reset below).
+ * The orphaned row's tile itself is unrecoverable here — no anchor exists
+ * for it — but the caller can still detect the gap via the "Bank
+ * Strongholds captured: N/M" header count and prompt for manual entry.
  */
 export function parseCityListBanks(
   lines: readonly string[],
@@ -416,6 +426,19 @@ export function parseCityListBanks(
     for (let i = preStart; i < coordLineIndex; i += 1) {
       const tokens = tokenized[i]!;
       if (tokens.isHeaderFooter) continue;
+      // A second value/level line before reaching this row's own coordinate
+      // line means an earlier tile-row's coordinate line was fully
+      // unreadable (dropped from `coordLineIndices`). Discard its orphaned
+      // tokens instead of zipping them onto this row's coordinates — that
+      // tile is unrecoverable without a coordinate anchor, but it must not
+      // corrupt this row's real data.
+      if (
+        (tokens.values.length > 0 && values.length > 0) ||
+        (tokens.levels.length > 0 && levels.length > 0)
+      ) {
+        values.length = 0;
+        levels.length = 0;
+      }
       values.push(...tokens.values);
       levels.push(...tokens.levels);
     }

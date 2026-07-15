@@ -424,6 +424,38 @@ describe("parseCityListBanks", () => {
     expect(banks[2]?.currentDepositCount).toBe(50);
   });
 
+  it("does not misassign an orphaned row's amounts when its own coordinate line is fully unreadable", () => {
+    // The middle tile-row's coordinate line is completely unreadable (no
+    // match on either the labeled or glued coordinate patterns), so it has
+    // zero coords and drops out of `coordLineIndices`. Its value/level
+    // lines land in the next row's pre-line window and must be discarded,
+    // not zipped onto the next row's real coordinates.
+    const banks = parseCityListBanks([
+      "600.00K",
+      "Lv.3",
+      "#1211 (X:1, Y:1)",
+      "500.00K",
+      "Lv.2",
+      "unreadable garbage with no coordinate pattern at all",
+      "400.00K",
+      "Lv.4",
+      "#1211 (X:3, Y:3)",
+    ]);
+    expect(banks).toHaveLength(2);
+    expect(banks[0]).toMatchObject({
+      crystalGoldValue: 600_000,
+      coordX: 1,
+      coordY: 1,
+      level: 3,
+    });
+    expect(banks[1]).toMatchObject({
+      crystalGoldValue: 400_000,
+      coordX: 3,
+      coordY: 3,
+      level: 4,
+    });
+  });
+
   it("recovers a top row that only appears as hashless coords (bottom-row regression)", () => {
     // Live review UI lost the top row while keeping bottom-row #1203 tiles.
     const banks = parseCityListBanks([
