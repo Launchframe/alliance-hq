@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  clampOcrDepositCount,
   parseCityListBanks,
   parseCityListFooter,
   parseCityListHeader,
@@ -513,6 +514,45 @@ describe("parseCityListText", () => {
         (bank) => bank.coordX === 699 && bank.coordY === 99,
       ),
     ).toBe(true);
+  });
+});
+
+describe("clampOcrDepositCount", () => {
+  it("returns values already within capacity unchanged", () => {
+    expect(clampOcrDepositCount(0)).toBe(0);
+    expect(clampOcrDepositCount(81)).toBe(81);
+    expect(clampOcrDepositCount(100)).toBe(100);
+    expect(clampOcrDepositCount(110)).toBe(110);
+  });
+
+  it("strips leading digits when OCR prepends junk (271 → 71)", () => {
+    expect(clampOcrDepositCount(271)).toBe(71);
+  });
+
+  it("strips multiple leading digits if needed (1200 → 00 → 0)", () => {
+    expect(clampOcrDepositCount(1200)).toBe(0);
+  });
+
+  it("handles values just above the cap (111 → 11)", () => {
+    expect(clampOcrDepositCount(111)).toBe(11);
+  });
+
+  it("handles a three-digit result after one strip (395 → 95)", () => {
+    expect(clampOcrDepositCount(395)).toBe(95);
+  });
+});
+
+describe("parseCityListBanks — deposit clamping", () => {
+  it("clamps OCR deposit counts above 110 by stripping leading digits", () => {
+    const banks = parseCityListBanks([
+      "600.00K 500.00K",
+      "Lv.3 Lv.6",
+      "#1211 (X:1, Y:1) #1211 (X:2, Y:2)",
+      "271/100 395/110",
+    ]);
+    expect(banks).toHaveLength(2);
+    expect(banks[0]?.currentDepositCount).toBe(71);
+    expect(banks[1]?.currentDepositCount).toBe(95);
   });
 });
 
