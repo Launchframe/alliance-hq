@@ -8,6 +8,7 @@ import {
   parseCityListText,
   parseCompactCrystalGoldValue,
 } from "@/lib/banks/city-list-ocr/parse-city-list-text.shared";
+import { bankDepositCapacity } from "@/lib/banks/types.shared";
 
 /**
  * Golden lines transcribed from bank-stronghold-city-list.png: City List →
@@ -389,6 +390,39 @@ describe("parseCityListBanks", () => {
     });
   });
 
+  it("parses deposit counts from level 6+ banks with 110 capacity", () => {
+    const banks = parseCityListBanks([
+      "600.00K 500.00K",
+      "Lv.6 Lv.7",
+      "#1211 (X:599, Y:499) #1211 (X:699, Y:599)",
+      "95/110 108/110",
+    ]);
+    expect(banks).toHaveLength(2);
+    expect(banks[0]).toMatchObject({
+      level: 6,
+      crystalGoldValue: 600_000,
+      currentDepositCount: 95,
+    });
+    expect(banks[1]).toMatchObject({
+      level: 7,
+      crystalGoldValue: 500_000,
+      currentDepositCount: 108,
+    });
+  });
+
+  it("handles mixed 100 and 110 deposit capacities in the same row", () => {
+    const banks = parseCityListBanks([
+      "600.00K 500.00K 400.00K",
+      "Lv.3 Lv.6 Lv.2",
+      "#1211 (X:1, Y:1) #1211 (X:2, Y:2) #1211 (X:3, Y:3)",
+      "81/100 95/110 50/100",
+    ]);
+    expect(banks).toHaveLength(3);
+    expect(banks[0]?.currentDepositCount).toBe(81);
+    expect(banks[1]?.currentDepositCount).toBe(95);
+    expect(banks[2]?.currentDepositCount).toBe(50);
+  });
+
   it("recovers a top row that only appears as hashless coords (bottom-row regression)", () => {
     // Live review UI lost the top row while keeping bottom-row #1203 tiles.
     const banks = parseCityListBanks([
@@ -479,5 +513,22 @@ describe("parseCityListText", () => {
         (bank) => bank.coordX === 699 && bank.coordY === 99,
       ),
     ).toBe(true);
+  });
+});
+
+describe("bankDepositCapacity", () => {
+  it("returns 100 for levels 1–5", () => {
+    for (let level = 1; level <= 5; level++) {
+      expect(bankDepositCapacity(level)).toBe(100);
+    }
+  });
+
+  it("returns 110 for level 6", () => {
+    expect(bankDepositCapacity(6)).toBe(110);
+  });
+
+  it("returns 110 for levels 7 and above", () => {
+    expect(bankDepositCapacity(7)).toBe(110);
+    expect(bankDepositCapacity(10)).toBe(110);
   });
 });

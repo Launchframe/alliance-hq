@@ -1,3 +1,11 @@
+/**
+ * In-game deposit slot capacity by bank level.
+ * Levels 1–5: 100 slots. Level 6+: 110 slots.
+ */
+export function bankDepositCapacity(level: number): number {
+  return level >= 6 ? 110 : 100;
+}
+
 export const DEPOSIT_POLICIES = ["alliance", "warzone", "public"] as const;
 export type DepositPolicy = (typeof DEPOSIT_POLICIES)[number];
 
