@@ -76,7 +76,7 @@ export async function handleWebThpCommand(input: {
     if (explicitTotal == null && explicitBreakdown) {
       explicitTotal = Object.values(explicitBreakdown).reduce((a, b) => a + b, 0);
     }
-    if (explicitTotal == null) {
+    if (explicitTotal == null || !validateThpTotal(explicitTotal)) {
       const partialValues = Object.entries(ocr.breakdown).filter(
         ([, v]) => v != null && v > 0,
       );
@@ -87,10 +87,12 @@ export async function handleWebThpCommand(input: {
           partialBreakdown: ocr.breakdown,
         };
       }
-      return {
-        status: "error",
-        message: translate("thp.ocrFailed"),
-      };
+      if (explicitTotal == null) {
+        return {
+          status: "error",
+          message: translate("thp.ocrFailed"),
+        };
+      }
     }
   }
 
