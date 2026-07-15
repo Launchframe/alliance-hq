@@ -281,6 +281,30 @@ describe("parsePowerDetailsLines", () => {
     expect(parsed.breakdown.wallOfHonor).toBe(4_702_700);
   });
 
+  it("repairs header total > 1B where a comma was OCR'd as a digit", () => {
+    // Real sample: header "163,843,831" reads as "1637843831" (comma→7 in header).
+    // Components also have commas absorbed as various digits (7, 1, 8).
+    // Multiple cost-1 header repairs reconcile; verify the >1B raw value is rejected
+    // and a reasonable ~164M value is found instead.
+    const lines = [
+      "Hero Power 1637843831",
+      "Hero Level 8578681512",
+      "Decorations & Building",
+      "Stats 37370394",
+      "Gear 138190850",
+      "Exclusive Weapon 91085358",
+      "Hero Tier 12/051%7,07,",
+      "Hero Skill 6'574'310",
+      "Wall of Honor 4%02¥00",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBeGreaterThan(160_000_000);
+    expect(parsed.heroPowerTotal).toBeLessThan(165_000_000);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown.heroTier).toBe(7_051_707);
+    expect(parsed.breakdown.heroSkill).toBe(6_574_310);
+  });
+
   it("recovers Hero Power total from live dual-pass OCR lines", () => {
     // Real dual-pass output from the Jul 14 screenshot: header commas→digits mix,
     // body still drops/duplicates glyphs on some rows.

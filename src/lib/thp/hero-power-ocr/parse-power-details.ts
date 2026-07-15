@@ -1007,9 +1007,11 @@ export function parsePowerDetailsLines(lines: string[]): ParsePowerDetailsResult
     let full = breakdown as ThpBreakdown;
     if (heroPowerTotal != null) {
       const headerTotal = heroPowerTotal;
+      const headerInRange =
+        headerTotal >= 1_000_000 && headerTotal <= 1_000_000_000;
       const headerCandidates = Array.from(
         new Set([
-          headerTotal,
+          ...(headerInRange ? [headerTotal] : []),
           ...candidateDigitRepairs(headerTotal).filter(
             (value) =>
               value >= 1_000_000 &&
@@ -1039,10 +1041,6 @@ export function parsePowerDetailsLines(lines: string[]): ParsePowerDetailsResult
         }
       }
       if (reconciled && matchedTotal != null) {
-        // Covers the already-consistent case too: headerCandidates always
-        // includes the raw header total at cost 0, tried first, and
-        // reconcileBreakdownToTotal short-circuits when the sum already
-        // matches — so an exact match never falls through to the `else`.
         Object.assign(breakdown, reconciled);
         full = reconciled;
         heroPowerTotal = matchedTotal;
