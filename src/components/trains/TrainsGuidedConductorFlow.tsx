@@ -8,8 +8,7 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import {
   currentGuidedStep,
-  guidedFlowShowPrerequisites,
-  type GuidedFlowActionStep,
+  type GuidedFlowStep,
 } from "@/lib/trains/guided-flow.shared";
 import { WEEK_TEMPLATES_WITH_DETAIL_HINTS } from "@/lib/trains/week-template-registry.shared";
 import type { TrainsVsDataStatus } from "@/lib/trains/vs-data-status.shared";
@@ -54,17 +53,32 @@ export type TrainsGuidedConductorFlowProps = {
   videoUploadHref?: string;
 };
 
-type StepId = "template" | "conductor" | "vip" | "lock" | "done";
+type StepId =
+  | "prerequisites"
+  | "template"
+  | "conductor"
+  | "vip"
+  | "lock"
+  | "done";
 type StepStatus = "completed" | "current" | "upcoming" | "skipped";
 
-const STEP_ORDER: StepId[] = ["template", "conductor", "vip", "lock", "done"];
+const STEP_ORDER: StepId[] = [
+  "template",
+  "prerequisites",
+  "conductor",
+  "vip",
+  "lock",
+  "done",
+];
 
 function stepStatus(
   step: StepId,
-  current: GuidedFlowActionStep,
+  current: GuidedFlowStep,
   vipNeeded: boolean,
+  vsDataRequired: boolean,
 ): StepStatus {
   if (step === "vip" && !vipNeeded) return "skipped";
+  if (step === "prerequisites" && !vsDataRequired) return "skipped";
   const stepIndex = STEP_ORDER.indexOf(step);
   const currentIndex = STEP_ORDER.indexOf(current);
   if (stepIndex < currentIndex) return "completed";
@@ -204,6 +218,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   const tTemplateDetails = useTranslations("trains.templateDetails");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
+  const vsRequired = Boolean(vsDataStatus?.required);
   const guidedInput = {
     schedulePersisted,
     hasConductor,
@@ -214,7 +229,6 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     vsDataReady: vsDataStatus?.ready,
   };
   const current = currentGuidedStep(guidedInput);
-  const showPrerequisites = guidedFlowShowPrerequisites(guidedInput);
 
   const templateLabel = templateType ? tTemplates(templateType) : null;
   const templateHint =
@@ -238,11 +252,12 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
       ? { label: t("steps.vip.pickManual"), onClick: onPickVipManual }
       : null;
 
-  const templateStatus = stepStatus("template", current, vipNeeded);
-  const conductorStatus = stepStatus("conductor", current, vipNeeded);
-  const vipStatus = stepStatus("vip", current, vipNeeded);
-  const lockStatus = stepStatus("lock", current, vipNeeded);
-  const doneStatus = stepStatus("done", current, vipNeeded);
+  const prerequisitesStatus = stepStatus("prerequisites", current, vipNeeded, vsRequired);
+  const templateStatus = stepStatus("template", current, vipNeeded, vsRequired);
+  const conductorStatus = stepStatus("conductor", current, vipNeeded, vsRequired);
+  const vipStatus = stepStatus("vip", current, vipNeeded, vsRequired);
+  const lockStatus = stepStatus("lock", current, vipNeeded, vsRequired);
+  const doneStatus = stepStatus("done", current, vipNeeded, vsRequired);
 
   return (
     <div
@@ -250,24 +265,6 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
       data-testid="trains-guided-conductor-flow"
     >
       <h3 className="text-sm font-medium text-hq-fg-muted">{t("heading")}</h3>
-
-      {showPrerequisites ? (
-        <div
-          className="flex flex-col gap-1 rounded-lg border border-cyan-500/30 bg-cyan-500/5 px-3 py-2.5"
-          data-testid="trains-guided-prerequisites"
-        >
-          <span className="text-[10px] font-medium uppercase tracking-wide text-cyan-300">
-            {t("steps.prerequisites.title")}
-          </span>
-          <p className="text-sm text-hq-fg">{t("steps.prerequisites.bodyMissing")}</p>
-          <Link
-            href={videoUploadHref ?? DEFAULT_VIDEO_UPLOAD_HREF}
-            className="text-sm font-medium text-cyan-300 hover:text-cyan-200 hover:underline"
-          >
-            {t("steps.prerequisites.uploadLink")} →
-          </Link>
-        </div>
-      ) : null}
 
       <ol className="flex flex-col">
         <StepRow status={templateStatus} title={t("steps.template.title")}>
@@ -290,6 +287,37 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
             </p>
           ) : null}
         </StepRow>
+
+        {prerequisitesStatus !== "skipped" ? (
+          <StepRow
+            status={prerequisitesStatus}
+            title={t("steps.prerequisites.title")}
+          >
+            {prerequisitesStatus === "current" ? (
+              <div
+                className="flex flex-col gap-2"
+                data-testid="trains-guided-prerequisites"
+              >
+                <p className="text-sm text-hq-fg">
+                  {t("steps.prerequisites.bodyMissing")}
+                </p>
+                <Link
+                  href={videoUploadHref ?? DEFAULT_VIDEO_UPLOAD_HREF}
+                  data-testid="trains-guided-upload-link"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 sm:w-auto"
+                >
+                  {t("steps.prerequisites.uploadLink")} →
+                </Link>
+              </div>
+            ) : prerequisitesStatus === "completed" ? (
+              <p className="text-xs text-hq-fg-muted">
+                {t("steps.prerequisites.bodyReady", {
+                  count: vsDataStatus?.scoreCount ?? 0,
+                })}
+              </p>
+            ) : null}
+          </StepRow>
+        ) : null}
 
         <StepRow status={conductorStatus} title={t("steps.conductor.title")}>
           {conductorStatus === "completed" ? (

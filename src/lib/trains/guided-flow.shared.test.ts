@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   currentGuidedStep,
-  guidedFlowShowPrerequisites,
+  guidedFlowPrerequisitesBlocking,
   type GuidedFlowInput,
 } from "@/lib/trains/guided-flow.shared";
 
@@ -67,7 +67,7 @@ describe("currentGuidedStep", () => {
     expect(currentGuidedStep(base)).toBe("done");
   });
 
-  it("does not block on missing VS prerequisites", () => {
+  it("blocks on prerequisites when VS data required but missing", () => {
     expect(
       currentGuidedStep({
         ...base,
@@ -76,14 +76,50 @@ describe("currentGuidedStep", () => {
         vsDataRequired: true,
         vsDataReady: false,
       }),
+    ).toBe("prerequisites");
+  });
+
+  it("proceeds to conductor when VS data is ready", () => {
+    expect(
+      currentGuidedStep({
+        ...base,
+        hasConductor: false,
+        locked: false,
+        vsDataRequired: true,
+        vsDataReady: true,
+      }),
     ).toBe("conductor");
+  });
+
+  it("does not block prerequisites when template not yet chosen", () => {
+    expect(
+      currentGuidedStep({
+        ...base,
+        schedulePersisted: false,
+        hasConductor: false,
+        locked: false,
+        vsDataRequired: true,
+        vsDataReady: false,
+      }),
+    ).toBe("template");
+  });
+
+  it("does not block prerequisites when already locked", () => {
+    expect(
+      currentGuidedStep({
+        ...base,
+        locked: true,
+        vsDataRequired: true,
+        vsDataReady: false,
+      }),
+    ).toBe("done");
   });
 });
 
-describe("guidedFlowShowPrerequisites", () => {
-  it("is true when VS/PIF data required and not ready", () => {
+describe("guidedFlowPrerequisitesBlocking", () => {
+  it("is true when VS data required, not ready, template chosen, not locked", () => {
     expect(
-      guidedFlowShowPrerequisites({
+      guidedFlowPrerequisitesBlocking({
         ...base,
         locked: false,
         vsDataRequired: true,
@@ -94,7 +130,7 @@ describe("guidedFlowShowPrerequisites", () => {
 
   it("is false when data is ready", () => {
     expect(
-      guidedFlowShowPrerequisites({
+      guidedFlowPrerequisitesBlocking({
         ...base,
         locked: false,
         vsDataRequired: true,
@@ -105,7 +141,7 @@ describe("guidedFlowShowPrerequisites", () => {
 
   it("is false when data is not required", () => {
     expect(
-      guidedFlowShowPrerequisites({
+      guidedFlowPrerequisitesBlocking({
         ...base,
         locked: false,
         vsDataRequired: false,
@@ -116,9 +152,21 @@ describe("guidedFlowShowPrerequisites", () => {
 
   it("is false when locked even if scores are missing", () => {
     expect(
-      guidedFlowShowPrerequisites({
+      guidedFlowPrerequisitesBlocking({
         ...base,
         locked: true,
+        vsDataRequired: true,
+        vsDataReady: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("is false when template not yet persisted", () => {
+    expect(
+      guidedFlowPrerequisitesBlocking({
+        ...base,
+        schedulePersisted: false,
+        locked: false,
         vsDataRequired: true,
         vsDataReady: false,
       }),
