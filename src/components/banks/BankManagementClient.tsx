@@ -178,8 +178,8 @@ export function BankManagementClient({ initial }: Props) {
     setError(null);
     try {
       if (pendingDelete.kind === "bank") {
-        const response = await fetch(`/api/banks/${pendingDelete.bank.id}`, {
-          method: "DELETE",
+        const response = await fetch(`/api/banks/${pendingDelete.bank.id}/drop`, {
+          method: "POST",
         });
         if (!response.ok) {
           await handleMutationError(response);
