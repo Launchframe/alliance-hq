@@ -30,7 +30,7 @@ export type ParsedCityListBank = {
   gameServerNumber: number;
   coordX: number;
   coordY: number;
-  /** Deposit slot usage out of 100, e.g. 81 for "81/100". Null if unreadable. */
+  /** Deposit slot usage (cap 100 or 110 by level), e.g. 81 for "81/100". Null if unreadable. */
   currentDepositCount: number | null;
 };
 
@@ -133,8 +133,8 @@ function parseGluedServerAndX(
   return matchingMagnitude ?? candidates[0]!;
 }
 
-/** Deposit slot usage token, e.g. "81/100". */
-const DEPOSIT_TOKEN_RE = /\b(\d{1,3})\s*\/\s*100\b/g;
+/** Deposit slot usage token, e.g. "81/100" or "95/110" (level 6+ banks). */
+const DEPOSIT_TOKEN_RE = /\b(\d{1,3})\s*\/\s*(100|110)\b/g;
 
 const TOTAL_DEPOSITED_RE =
   /total\s+crystalgold\s+deposited:?\s*(\d[\d,]*(?:\.\d+)?)\s*([KMB])?/i;
