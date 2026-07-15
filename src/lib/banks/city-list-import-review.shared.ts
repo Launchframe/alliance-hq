@@ -10,18 +10,36 @@ export function clampReviewIndexAfterRemove(
 }
 
 /**
+ * Sentinel coordinates used for manual "Add row" and captured-count padding.
+ * A real City List bank never sits at the map origin.
+ */
+export function isCityListPlaceholderCoords(
+  coordX: number,
+  coordY: number,
+): boolean {
+  return coordX === 0 && coordY === 0;
+}
+
+/**
  * Number of placeholder rows to add so the review list matches the "Bank
  * Strongholds captured: N/M" header count when OCR parsed fewer tiles than
  * N (e.g. a tile's coordinate line was fully unreadable and its bank could
  * not be recovered by the parser at all). Returns 0 when the header count
- * is unavailable or already met/exceeded.
+ * is unavailable, non-positive, or already met/exceeded. When `capturedLimit`
+ * (M) is present, the pad target is `min(N, M)` so a garbled oversized N
+ * cannot flood the review list.
  */
 export function missingRowCountForCapturedCount(
   parsedRowCount: number,
   capturedCount: number | null,
+  capturedLimit: number | null = null,
 ): number {
-  if (capturedCount == null) return 0;
-  return Math.max(0, capturedCount - parsedRowCount);
+  if (capturedCount == null || capturedCount <= 0) return 0;
+  const target =
+    capturedLimit != null && capturedLimit > 0
+      ? Math.min(capturedCount, capturedLimit)
+      : capturedCount;
+  return Math.max(0, target - parsedRowCount);
 }
 
 /**
@@ -73,11 +91,29 @@ export function validateCityListReviewRow(
   if (!row.gameServerNumber || row.gameServerNumber <= 0) {
     errors.gameServerNumber = requiredMsg;
   }
-  if (row.coordX === 0 && row.coordY === 0) {
+  if (isCityListPlaceholderCoords(row.coordX, row.coordY)) {
     errors.coordX = requiredMsg;
     errors.coordY = requiredMsg;
   }
   return errors;
+}
+
+/**
+ * Server-side import guard for the same sentinel / required fields the
+ * review UI enforces. Returns an English API error string, or null when OK.
+ */
+export function cityListImportBankIdentityError(
+  gameServerNumber: number,
+  coordX: number,
+  coordY: number,
+): string | null {
+  if (gameServerNumber <= 0) {
+    return "Each bank requires a positive gameServerNumber.";
+  }
+  if (isCityListPlaceholderCoords(coordX, coordY)) {
+    return "Bank coordinates (0, 0) are not allowed; fill in real map coordinates.";
+  }
+  return null;
 }
 
 export function cityListReviewRowsHaveErrors(

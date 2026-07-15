@@ -456,6 +456,75 @@ describe("parseCityListBanks", () => {
     });
   });
 
+  it("discards tokens from multiple consecutive unreadable rows before a survivor", () => {
+    const banks = parseCityListBanks([
+      "600.00K",
+      "Lv.3",
+      "#1211 (X:1, Y:1)",
+      "500.00K",
+      "Lv.2",
+      "unreadable garbage row A",
+      "450.00K",
+      "Lv.5",
+      "unreadable garbage row B",
+      "400.00K",
+      "Lv.4",
+      "#1211 (X:3, Y:3)",
+    ]);
+    expect(banks).toHaveLength(2);
+    expect(banks[0]).toMatchObject({
+      crystalGoldValue: 600_000,
+      coordX: 1,
+      coordY: 1,
+      level: 3,
+    });
+    expect(banks[1]).toMatchObject({
+      crystalGoldValue: 400_000,
+      coordX: 3,
+      coordY: 3,
+      level: 4,
+    });
+  });
+
+  it("discards a multi-tile orphaned row without corrupting the next multi-tile survivor", () => {
+    const banks = parseCityListBanks([
+      "600.00K 500.00K",
+      "Lv.3 Lv.2",
+      "#1211 (X:1, Y:1) #1211 (X:2, Y:2)",
+      "450.00K 350.00K 250.00K",
+      "Lv.5 Lv.6 Lv.7",
+      "unreadable multi-tile garbage with no coords",
+      "400.00K 300.00K",
+      "Lv.4 Lv.1",
+      "#1211 (X:3, Y:3) #1211 (X:4, Y:4)",
+    ]);
+    expect(banks).toHaveLength(4);
+    expect(banks[0]).toMatchObject({
+      crystalGoldValue: 600_000,
+      coordX: 1,
+      coordY: 1,
+      level: 3,
+    });
+    expect(banks[1]).toMatchObject({
+      crystalGoldValue: 500_000,
+      coordX: 2,
+      coordY: 2,
+      level: 2,
+    });
+    expect(banks[2]).toMatchObject({
+      crystalGoldValue: 400_000,
+      coordX: 3,
+      coordY: 3,
+      level: 4,
+    });
+    expect(banks[3]).toMatchObject({
+      crystalGoldValue: 300_000,
+      coordX: 4,
+      coordY: 4,
+      level: 1,
+    });
+  });
+
   it("recovers a top row that only appears as hashless coords (bottom-row regression)", () => {
     // Live review UI lost the top row while keeping bottom-row #1203 tiles.
     const banks = parseCityListBanks([

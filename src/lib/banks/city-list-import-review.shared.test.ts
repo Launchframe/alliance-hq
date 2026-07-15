@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  cityListImportBankIdentityError,
   cityListReviewRowsHaveErrors,
   clampReviewIndexAfterRemove,
   defaultPlaceholderGameServerNumber,
+  isCityListPlaceholderCoords,
   missingRowCountForCapturedCount,
   validateCityListReviewRow,
 } from "@/lib/banks/city-list-import-review.shared";
@@ -26,9 +28,24 @@ describe("clampReviewIndexAfterRemove", () => {
   });
 });
 
+describe("isCityListPlaceholderCoords", () => {
+  it("is true only for the (0, 0) sentinel", () => {
+    expect(isCityListPlaceholderCoords(0, 0)).toBe(true);
+    expect(isCityListPlaceholderCoords(0, 499)).toBe(false);
+    expect(isCityListPlaceholderCoords(599, 0)).toBe(false);
+    expect(isCityListPlaceholderCoords(599, 499)).toBe(false);
+  });
+});
+
 describe("missingRowCountForCapturedCount", () => {
   it("returns 0 when captured count is unavailable", () => {
     expect(missingRowCountForCapturedCount(5, null)).toBe(0);
+  });
+
+  it("returns 0 when captured count is non-positive", () => {
+    expect(missingRowCountForCapturedCount(5, 0)).toBe(0);
+    expect(missingRowCountForCapturedCount(0, 0)).toBe(0);
+    expect(missingRowCountForCapturedCount(2, -1)).toBe(0);
   });
 
   it("returns 0 when parsed rows already meet or exceed the captured count", () => {
@@ -39,6 +56,16 @@ describe("missingRowCountForCapturedCount", () => {
   it("returns the gap when OCR parsed fewer tiles than the captured count", () => {
     expect(missingRowCountForCapturedCount(5, 7)).toBe(2);
     expect(missingRowCountForCapturedCount(0, 3)).toBe(3);
+  });
+
+  it("clamps the pad target to capturedLimit when N exceeds M", () => {
+    expect(missingRowCountForCapturedCount(2, 33, 6)).toBe(4);
+    expect(missingRowCountForCapturedCount(6, 33, 6)).toBe(0);
+  });
+
+  it("ignores a non-positive capturedLimit and pads to capturedCount", () => {
+    expect(missingRowCountForCapturedCount(2, 5, 0)).toBe(3);
+    expect(missingRowCountForCapturedCount(2, 5, null)).toBe(3);
   });
 });
 
@@ -105,6 +132,25 @@ describe("validateCityListReviewRow", () => {
     );
     expect(errors.coordX).toBeUndefined();
     expect(errors.coordY).toBeUndefined();
+  });
+});
+
+describe("cityListImportBankIdentityError", () => {
+  it("returns null for a valid identity", () => {
+    expect(cityListImportBankIdentityError(1211, 599, 499)).toBeNull();
+    expect(cityListImportBankIdentityError(1211, 0, 499)).toBeNull();
+  });
+
+  it("rejects a non-positive game server number", () => {
+    expect(cityListImportBankIdentityError(0, 599, 499)).toMatch(
+      /positive gameServerNumber/i,
+    );
+  });
+
+  it("rejects placeholder (0, 0) coordinates", () => {
+    expect(cityListImportBankIdentityError(1211, 0, 0)).toMatch(
+      /\(0, 0\)/i,
+    );
   });
 });
 

@@ -13,6 +13,7 @@ import {
   cityListReviewRowsHaveErrors,
   clampReviewIndexAfterRemove,
   defaultPlaceholderGameServerNumber,
+  isCityListPlaceholderCoords,
   missingRowCountForCapturedCount,
   validateCityListReviewRow,
   type CityListRowErrors,
@@ -384,6 +385,7 @@ export function CityListImportModal({
       const missingCount = missingRowCountForCapturedCount(
         parsedRows.length,
         body.snapshot?.capturedCount ?? null,
+        body.snapshot?.capturedLimit ?? null,
       );
       const defaultGameServerNumber = defaultPlaceholderGameServerNumber(
         parsedRows.map((row) => row.gameServerNumber),
@@ -474,6 +476,9 @@ export function CityListImportModal({
   const hasDuplicateCoords = useMemo(() => {
     const seen = new Set<string>();
     for (const row of rows) {
+      // Placeholder (0, 0) rows are already invalid until filled; multiple
+      // captured-count pads must not surface as coordinate collisions.
+      if (isCityListPlaceholderCoords(row.coordX, row.coordY)) continue;
       const key = bankKey(row.gameServerNumber, row.coordX, row.coordY);
       if (seen.has(key)) return true;
       seen.add(key);
