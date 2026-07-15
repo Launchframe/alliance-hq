@@ -136,6 +136,24 @@ function parseGluedServerAndX(
 /** Deposit slot usage token, e.g. "81/100" or "95/110" (level 6+ banks). */
 const DEPOSIT_TOKEN_RE = /\b(\d{1,3})\s*\/\s*(100|110)\b/g;
 
+/** Absolute maximum deposit slot capacity across all bank levels. */
+const BANK_DEPOSIT_CAPACITY_MAX = 110;
+
+/**
+ * OCR sometimes prepends digits from adjacent tile text to a deposit count
+ * (e.g. "271/100" when the real count is 71). Strip leading digits until
+ * the value is within the game's maximum capacity.
+ */
+export function clampOcrDepositCount(raw: number): number {
+  let n = raw;
+  while (n > BANK_DEPOSIT_CAPACITY_MAX) {
+    const s = String(n);
+    if (s.length <= 1) break;
+    n = Number(s.slice(1));
+  }
+  return n;
+}
+
 const TOTAL_DEPOSITED_RE =
   /total\s+crystalgold\s+deposited:?\s*(\d[\d,]*(?:\.\d+)?)\s*([KMB])?/i;
 
@@ -285,7 +303,9 @@ function tokenizeCityListLine(line: string): LineTokens {
     values: extractValuesFromLine(line),
     levels: extractFromLine(line, LEVEL_TOKEN_RE, (m) => Number(m[1])),
     coords: extractCoordsFromLine(line),
-    deposits: extractFromLine(line, DEPOSIT_TOKEN_RE, (m) => Number(m[1])),
+    deposits: extractFromLine(line, DEPOSIT_TOKEN_RE, (m) =>
+      clampOcrDepositCount(Number(m[1])),
+    ),
     isHeaderFooter: false,
   };
 }
