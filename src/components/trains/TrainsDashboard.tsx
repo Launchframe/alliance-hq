@@ -1879,7 +1879,8 @@ export function TrainsDashboard({ initial }: Props) {
               <h3 className="text-sm font-medium text-hq-fg-muted">
                 {t("quickActions")}
               </h3>
-              {data.vsDataStatus?.required &&
+              {selectedDate === data.today &&
+              data.vsDataStatus?.required &&
               !data.vsDataStatus.ready &&
               !locked ? (
                 <div
