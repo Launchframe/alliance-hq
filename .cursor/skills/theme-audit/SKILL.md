@@ -7,67 +7,93 @@ description: Audit and fix light/dark mode issues across components — scan for
 
 Systematically find and fix components that only look correct in one theme (typically dark mode). Run this skill when the user reports unreadable text, invisible controls, or broken gradients in light or dark mode.
 
+**Rule of thumb:** Generic chrome (surfaces, borders, warnings, errors) must use `hq-*` tokens from [`src/app/globals.css`](src/app/globals.css) — see [`.cursor/rules/hq-theming.mdc`](../../rules/hq-theming.mdc). Domain-colored train/mechanism hues are the exception; those need explicit light + `dark:` Tailwind classes.
+
 ## Phase 1: Scan
 
-Search the target files for hardcoded Tailwind color classes that lack a `dark:` counterpart. Common offenders:
+Search the target files for hardcoded Tailwind color classes that lack a light-mode counterpart (or lack `dark:` when only light classes exist). Common offenders:
 
 ### Bare dark-mode-only background + text
 
 ```bash
-# Background tints that disappear on white
-rg 'bg-(blue|cyan|violet|emerald|amber|red|green|purple|orange|pink|yellow)-\d00/\d' --glob '*.tsx' --glob '*.ts' -l
+# Background tints that disappear on white (include slate — officer/custom mechanisms)
+rg 'bg-(blue|cyan|violet|emerald|amber|red|green|purple|orange|pink|yellow|slate)-\d00/\d+' --glob '*.tsx' --glob '*.ts' -l src/
 
 # Light text that vanishes on white
-rg 'text-(blue|cyan|violet|emerald|amber|red|green|purple|orange|pink|yellow)-(100|200|300)' --glob '*.tsx' --glob '*.ts' -l
+rg 'text-(blue|cyan|violet|emerald|amber|red|green|purple|orange|pink|yellow|slate)-(100|200|300)' --glob '*.tsx' --glob '*.ts' -l src/
 
 # Border tints
-rg 'border-(blue|cyan|violet|emerald|amber|red|green|purple|orange|pink|yellow)-\d00/\d' --glob '*.tsx' --glob '*.ts' -l
+rg 'border-(blue|cyan|violet|emerald|amber|red|green|purple|orange|pink|yellow|slate)-\d00(/\d+)?' --glob '*.tsx' --glob '*.ts' -l src/
 ```
 
 ### Inline style with hardcoded hex
 
 ```bash
-rg 'style=.*#[0-9a-fA-F]{6}' --glob '*.tsx' -l
-rg 'linear-gradient' --glob '*.tsx' -l
+rg 'style=.*#[0-9a-fA-F]{6}' --glob '*.tsx' -l src/
+rg 'linear-gradient' --glob '*.tsx' -l src/
 ```
 
-### Missing dark: variant
+### Missing dual-mode variant
 
-For each match from the scan, check whether a corresponding `dark:` class exists on the same element. If not, the element is a candidate for repair.
+For each match, check whether the same element has **both** a readable light-mode class and a `dark:` counterpart. A lone `bg-blue-500/15 text-blue-200` (no light pastel) is a repair candidate.
 
 **Exclusions (skip these):**
 
 - Files under `node_modules/`, `.next/`, `dist/`
-- Classes inside `MECHANISM_STYLES`, `TEMPLATE_CELL_STYLES`, or similar canonical maps that are already audited
+- `hq-*` token classes (already dual-mode via `:root` / `:root.dark`)
 - Decorative elements that intentionally do not flip with theme (document the exception)
-- `hq-*` token classes (these are already dual-mode by definition)
+- Charts / data viz with a fixed palette documented next to the series config
+
+**Canonical maps (fix here first, do not skip):** Legacy dark-biased entries in [`src/lib/trains/mechanism-styles.ts`](../../src/lib/trains/mechanism-styles.ts) (`MECHANISM_STYLES`) and [`src/lib/trains/calendar-cell-styles.shared.ts`](../../src/lib/trains/calendar-cell-styles.shared.ts) (`TEMPLATE_CELL_STYLES`, not exported). Repair the map — every consumer benefits. Do not patch individual components when the class string comes from these maps.
 
 ## Phase 2: Fix
 
-For each identified file, apply the dual-mode pattern from `hq-theming.mdc` § Domain-colored components:
+### Generic chrome → `hq-*` tokens
+
+Before adding Tailwind hue scales, check whether a semantic token fits:
+
+| Role | Use |
+| --- | --- |
+| Surfaces | `bg-hq-canvas`, `bg-hq-surface`, `border-hq-border` |
+| Text | `text-hq-fg`, `text-hq-fg-muted` |
+| Status | `text-hq-warning`, `text-hq-danger`, `text-hq-success` |
+
+If no token fits, add a CSS variable in both `:root` and `:root.dark`, wire it in `@theme inline`, then use the new `hq-*` class — do not ship one-off hex.
+
+### Domain-colored components (mechanism / brand palettes)
+
+When the hue carries domain meaning (cyan = Price Is Freight, blue = VS, purple = R4, etc.), apply the dual-mode pattern from [`.cursor/rules/hq-theming.mdc`](../../rules/hq-theming.mdc) **Domain-colored components**:
 
 | Layer | Light mode | Dark mode |
 | --- | --- | --- |
-| Background | Solid pastel (`bg-cyan-100`) | Translucent tint (`dark:bg-cyan-500/10`) |
-| Text | Dark hue (`text-cyan-700`) | Light hue (`dark:text-cyan-100`) |
-| Border | Mid hue (`border-cyan-500`) | Same or translucent (`dark:border-cyan-500/30`) |
+| Background | Solid pastel (`bg-blue-100`) | Translucent tint (`dark:bg-blue-500/15`) |
+| Text | Dark hue (`text-blue-700`) | Light hue (`dark:text-blue-200`) |
+| Border | Mid hue (`border-blue-500`) | Same or translucent (`dark:border-blue-500`) |
 | Link / CTA | Readable hue (`text-cyan-600`) | Light hue (`dark:text-cyan-300`) |
+
+Full example:
+
+```
+border-blue-500 bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200
+```
 
 ### Gradient overlays
 
-Replace inline `style` gradients with Tailwind classes:
+Replace inline `style` gradients with Tailwind classes. Prefer `hq-canvas` over hardcoded dark hex:
 
 ```
 # Before (dark-only)
 style={{ background: "linear-gradient(to bottom, #0d1117, transparent)" }}
 
 # After (dual-mode)
-className="bg-gradient-to-b from-white dark:from-[#0d1117] via-white/60 dark:via-[#0d1117]/60 to-transparent dark:to-transparent"
+className="bg-gradient-to-b from-hq-canvas via-hq-canvas/60 to-transparent"
 ```
+
+When a gradient must differ by theme, use `dark:` variants (`from-white dark:from-hq-canvas`) — never a single-theme inline hex.
 
 ### Canonical style maps
 
-If the offending classes are in `MECHANISM_STYLES` or `TEMPLATE_CELL_STYLES`, fix them in the map — every consumer benefits at once.
+If offending classes live in `MECHANISM_STYLES` or `TEMPLATE_CELL_STYLES`, fix them in the map file — every consumer benefits at once.
 
 ## Phase 3: Verify
 
