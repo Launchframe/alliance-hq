@@ -228,7 +228,7 @@ export function DepositSlipList({ bank, canWrite, onAdd, onEdit, onDelete }: Pro
 
           {visibleSlips.length === 0 ? (
             <p className="text-sm text-hq-fg-muted py-4 text-center">
-              No {t(`filter.${filter}`).toLowerCase()} deposits
+              {t(`filter.empty.${filter}`)}
             </p>
           ) : (
             <ul className="space-y-2">

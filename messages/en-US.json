@@ -5159,7 +5159,13 @@
       "active": "Active",
       "elapsed": "Elapsed",
       "matured": "Matured",
-      "looted": "Looted"
+      "looted": "Looted",
+      "empty": {
+        "active": "No active deposits",
+        "elapsed": "No elapsed deposits",
+        "matured": "No matured deposits",
+        "looted": "No looted deposits"
+      }
     },
     "stats": {
       "totalDeposited": "Total deposited",

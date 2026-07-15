@@ -5159,7 +5159,13 @@
       "active": "Ativos",
       "elapsed": "Esgotados",
       "matured": "Maturados",
-      "looted": "Saqueados"
+      "looted": "Saqueados",
+      "empty": {
+        "active": "Nenhum depósito ativo",
+        "elapsed": "Nenhum depósito com prazo esgotado",
+        "matured": "Nenhum depósito maturado",
+        "looted": "Nenhum depósito saqueado"
+      }
     },
     "stats": {
       "totalDeposited": "Total depositado",
