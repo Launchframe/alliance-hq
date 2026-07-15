@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Pencil, Plus, Trash2, Video } from "lucide-react";
@@ -70,6 +70,13 @@ function StatCard({
 export function DepositSlipList({ bank, canWrite, onAdd, onEdit, onDelete }: Props) {
   const t = useTranslations("bankManagement");
   const [filter, setFilter] = useState<DepositFilter>("active");
+  const prevBankIdRef = useRef(bank?.id);
+  if (prevBankIdRef.current !== bank?.id) {
+    prevBankIdRef.current = bank?.id;
+    if (filter !== "active") {
+      setFilter("active");
+    }
+  }
 
   const annotatedSlips = useMemo(() => {
     if (!bank) return [];
