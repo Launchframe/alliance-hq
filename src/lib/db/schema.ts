@@ -2908,6 +2908,9 @@ export const inboxReminderItems = pgTable("inbox_reminder_items", {
     () => eurUserSubscriptions.id,
     { onDelete: "cascade" },
   ),
+  captureEventId: text("capture_event_id"),
+  /** When set, item is only visible after this timestamp. */
+  visibleAfter: timestamp("visible_after", { withTimezone: true }),
   /** When set, item is only visible to sessions with this permission. */
   requiredPermission: text("required_permission"),
   active: integer("active").notNull().default(1),
@@ -3007,6 +3010,11 @@ export const battlePlanCaptureEvents = pgTable(
     status: text("status").notNull().default("scheduled"),
     /** Optional FK when event_type is drop. */
     bankId: text("bank_id"),
+    /** Optional target stronghold coordinates for auto-bank creation. */
+    gameServerNumber: integer("game_server_number"),
+    coordX: integer("coord_x"),
+    coordY: integer("coord_y"),
+    level: integer("level"),
     createdByHqUserId: text("created_by_hq_user_id").references(
       () => hqUsers.id,
       { onDelete: "set null" },

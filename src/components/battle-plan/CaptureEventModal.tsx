@@ -54,6 +54,10 @@ export type CaptureEventFormValues = {
   capturePolicy: CapturePolicy;
   notes: string;
   status: "scheduled" | "completed" | "cancelled";
+  gameServerNumber: string;
+  coordX: string;
+  coordY: string;
+  level: string;
 };
 
 type Props = {
@@ -89,6 +93,10 @@ function valuesFromEvent(
     capturePolicy: event.effectiveCapturePolicy,
     notes: event.notes ?? "",
     status: event.status === "cancelled" ? "cancelled" : event.status,
+    gameServerNumber: event.gameServerNumber?.toString() ?? "",
+    coordX: event.coordX?.toString() ?? "",
+    coordY: event.coordY?.toString() ?? "",
+    level: event.level?.toString() ?? "",
   };
 }
 
@@ -120,6 +128,10 @@ function buildInitialValues(
     capturePolicy: defaultCapturePolicy,
     notes: "",
     status: "scheduled",
+    gameServerNumber: "",
+    coordX: "",
+    coordY: "",
+    level: "",
   };
 }
 
@@ -405,6 +417,80 @@ function CaptureEventForm({
             />
           </label>
 
+          {values.territoryType === "stronghold" ? (
+            <fieldset className="space-y-2 text-sm">
+              <legend className="text-hq-fg-muted">
+                {t("event.targetCoords")}
+              </legend>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <label className="block space-y-1">
+                  <span className="text-xs text-hq-fg-muted">
+                    {t("event.gameServer")}
+                  </span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    className="w-full rounded border border-hq-border bg-hq-bg px-2 py-1.5 text-sm"
+                    placeholder="#"
+                    value={values.gameServerNumber}
+                    onChange={(e) =>
+                      setValues((c) => ({
+                        ...c,
+                        gameServerNumber: e.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="text-xs text-hq-fg-muted">X</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    className="w-full rounded border border-hq-border bg-hq-bg px-2 py-1.5 text-sm"
+                    placeholder="X"
+                    value={values.coordX}
+                    onChange={(e) =>
+                      setValues((c) => ({ ...c, coordX: e.target.value }))
+                    }
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="text-xs text-hq-fg-muted">Y</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    className="w-full rounded border border-hq-border bg-hq-bg px-2 py-1.5 text-sm"
+                    placeholder="Y"
+                    value={values.coordY}
+                    onChange={(e) =>
+                      setValues((c) => ({ ...c, coordY: e.target.value }))
+                    }
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="text-xs text-hq-fg-muted">
+                    {t("event.level")}
+                  </span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    className="w-full rounded border border-hq-border bg-hq-bg px-2 py-1.5 text-sm"
+                    placeholder="Lv"
+                    value={values.level}
+                    onChange={(e) =>
+                      setValues((c) => ({ ...c, level: e.target.value }))
+                    }
+                  />
+                </label>
+              </div>
+              <p className="text-xs text-hq-fg-muted">
+                {t("event.targetCoordsHint")}
+              </p>
+            </fieldset>
+          ) : null}
+
           <fieldset className="space-y-2 text-sm">
             <legend className="text-hq-fg-muted">{t("event.marker")}</legend>
             <div className="flex flex-wrap gap-2">
@@ -630,6 +716,12 @@ export function captureEventFormToPayload(
           values.scheduledTime,
           resolveBattlePlanIana(timeDisplay),
         );
+  const gameServerNumber = values.gameServerNumber.trim()
+    ? parseInt(values.gameServerNumber, 10)
+    : null;
+  const coordX = values.coordX.trim() ? parseInt(values.coordX, 10) : null;
+  const coordY = values.coordY.trim() ? parseInt(values.coordY, 10) : null;
+  const level = values.level.trim() ? parseInt(values.level, 10) : null;
   return {
     scheduledAt,
     territoryType: values.territoryType,
@@ -637,5 +729,9 @@ export function captureEventFormToPayload(
     capturePolicy: values.capturePolicy,
     notes: values.notes.trim() || null,
     status: values.status,
+    gameServerNumber: Number.isFinite(gameServerNumber) ? gameServerNumber : null,
+    coordX: Number.isFinite(coordX) ? coordX : null,
+    coordY: Number.isFinite(coordY) ? coordY : null,
+    level: Number.isFinite(level) ? level : null,
   };
 }

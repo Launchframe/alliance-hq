@@ -6,6 +6,10 @@ import {
   type CaptureEventPayload,
 } from "@/lib/battle-plan/api.shared";
 import {
+  deactivateCaptureReminderInboxItem,
+  materializeCaptureReminderInboxItem,
+} from "@/lib/battle-plan/capture-reminder-inbox.server";
+import {
   deleteCaptureEvent,
   reloadSerializedDashboard,
   updateCaptureEvent,
@@ -45,6 +49,26 @@ export async function PUT(request: Request, { params }: Props) {
 
   try {
     const row = await updateCaptureEvent(allianceId, id, body);
+
+    const isStrongholdCapture =
+      row.territoryType === "stronghold" &&
+      (row.eventType ?? "capture") === "capture";
+    const isScheduled = (row.status ?? "scheduled") === "scheduled";
+
+    if (isStrongholdCapture && isScheduled) {
+      const title = row.notes?.trim()
+        ? `Stronghold capture: ${row.notes.trim()}`
+        : "Stronghold capture";
+      await materializeCaptureReminderInboxItem({
+        allianceId,
+        captureEventId: row.id,
+        scheduledAt: row.scheduledAt,
+        title,
+      });
+    } else {
+      await deactivateCaptureReminderInboxItem(row.id);
+    }
+
     const dashboard = await reloadSerializedDashboard(
       allianceId,
       true,
@@ -82,6 +106,7 @@ export async function DELETE(request: Request, { params }: Props) {
 
   try {
     await deleteCaptureEvent(allianceId, id, body.planRevision);
+    await deactivateCaptureReminderInboxItem(id);
     const dashboard = await reloadSerializedDashboard(
       allianceId,
       true,

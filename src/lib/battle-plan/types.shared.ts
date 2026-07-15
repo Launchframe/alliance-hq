@@ -37,6 +37,10 @@ export type SerializedCaptureEvent = {
   notes: string | null;
   status: CaptureEventStatus;
   bankId: string | null;
+  gameServerNumber: number | null;
+  coordX: number | null;
+  coordY: number | null;
+  level: number | null;
   createdAt: string;
   updatedAt: string;
 };

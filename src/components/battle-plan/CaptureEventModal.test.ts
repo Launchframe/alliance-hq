@@ -18,6 +18,10 @@ function baseValues(
     capturePolicy: "peace",
     notes: "",
     status: "scheduled",
+    gameServerNumber: "",
+    coordX: "",
+    coordY: "",
+    level: "",
     ...overrides,
   };
 }
