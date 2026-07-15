@@ -28,6 +28,7 @@ export type DepositSlipPayload = {
   depositAt: string;
   termDays: DepositTermDays;
   amount: number;
+  outcomeAmount?: number | null;
   status?: DepositStatus;
   outcomeAt?: string | null;
   depositAllianceTag?: string | null;
@@ -99,6 +100,7 @@ export function serializeDepositSlip(row: {
   status: string;
   outcomeAt: Date | null;
   amount: number;
+  outcomeAmount: number | null;
   depositAllianceTag: string | null;
   depositAllianceId: string | null;
   commanderName: string;
@@ -117,6 +119,7 @@ export function serializeDepositSlip(row: {
     status: isDepositStatus(row.status) ? row.status : "locked",
     outcomeAt: row.outcomeAt?.toISOString() ?? null,
     amount: row.amount,
+    outcomeAmount: row.outcomeAmount ?? null,
     depositAllianceTag: row.depositAllianceTag,
     depositAllianceId: row.depositAllianceId,
     commanderName: row.commanderName,

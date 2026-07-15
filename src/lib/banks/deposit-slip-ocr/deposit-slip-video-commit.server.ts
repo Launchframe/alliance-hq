@@ -22,6 +22,7 @@ export type DepositSlipVideoCommitRow = {
   profession: string | null;
   allianceRankTitle: string | null;
   rosterRankRaw: string | null;
+  rank?: number | null;
   frameIndex: number | null;
   deleted: boolean;
   /** Optional overrides; otherwise loaded from `parsed_rows` at commit. */
@@ -108,6 +109,7 @@ export async function commitDepositSlipsFromVideoJob(
       profession: row.profession,
       allianceRankTitle: row.allianceRankTitle,
       rosterRankRaw: row.rosterRankRaw,
+      rank: row.rank,
       frameIndex: row.frameIndex,
       deleted: false,
       memberId: row.memberId,
@@ -124,7 +126,17 @@ export async function commitDepositSlipsFromVideoJob(
   const resolverDeps = createDepositSlipMemberResolverCache();
 
   for (const row of rows) {
-    const draft = parsedRowFieldsToDepositSlipDraft(row);
+    const draft = parsedRowFieldsToDepositSlipDraft({
+      ocrName: row.ocrName,
+      score: row.score,
+      powerLevel: row.powerLevel,
+      memberLevel: row.memberLevel,
+      profession: row.profession,
+      allianceRankTitle: row.allianceRankTitle,
+      rosterRankRaw: row.rosterRankRaw,
+      rank: row.rank ?? null,
+      frameIndex: row.frameIndex,
+    });
     if (!draft || draft.amount == null || !draft.depositAt || draft.termDays == null) {
       skippedCount += 1;
       errors.push(
@@ -156,6 +168,7 @@ export async function commitDepositSlipsFromVideoJob(
       depositAt: draft.depositAt,
       termDays: draft.termDays,
       amount: draft.amount,
+      outcomeAmount: draft.outcomeAmount ?? null,
       status: draft.status,
       outcomeAt:
         draft.status === "matured" || draft.status === "looted"

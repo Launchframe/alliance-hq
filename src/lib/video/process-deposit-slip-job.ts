@@ -208,7 +208,7 @@ export async function processDepositSlipVideoParse(
             parseSessionId,
             ocrName: fields.ocrName,
             score: fields.score,
-            rank: null,
+            rank: fields.rank,
             rosterRankRaw: fields.rosterRankRaw,
             allianceRank: null,
             allianceRankTitle: fields.allianceRankTitle,
