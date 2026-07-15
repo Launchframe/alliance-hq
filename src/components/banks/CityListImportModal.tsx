@@ -422,25 +422,26 @@ export function CityListImportModal({
     });
   }, []);
 
-  const addRow = useCallback(
-    (allianceGameServerNumber: number | null) => {
-      const newRow: ReviewRow = {
-        rowKey: newRowKey(),
-        gameServerNumber: allianceGameServerNumber ?? 0,
-        coordX: 0,
-        coordY: 0,
-        level: 1,
-        currentDepositValue: null,
-        currentDepositCount: null,
-      };
-      setRows((prev) => {
-        const next = [...prev, newRow];
-        queueMicrotask(() => setReviewIndex(next.length - 1));
-        return next;
-      });
-    },
-    [],
-  );
+  const addRow = useCallback(() => {
+    const defaultGameServerNumber =
+      rows.find((row) => row.gameServerNumber > 0)?.gameServerNumber ??
+      existingBanks.find((bank) => bank.gameServerNumber > 0)?.gameServerNumber ??
+      0;
+    const newRow: ReviewRow = {
+      rowKey: newRowKey(),
+      gameServerNumber: defaultGameServerNumber,
+      coordX: 0,
+      coordY: 0,
+      level: 1,
+      currentDepositValue: null,
+      currentDepositCount: null,
+    };
+    setRows((prev) => {
+      const next = [...prev, newRow];
+      queueMicrotask(() => setReviewIndex(next.length - 1));
+      return next;
+    });
+  }, [existingBanks, rows]);
 
   const rowKeys = useMemo(
     () =>
@@ -630,7 +631,7 @@ export function CityListImportModal({
         <button
           type="submit"
           className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          disabled={importing}
+          disabled={importing || rows.length === 0}
         >
           {importing ? t("actions.saving") : t("cityListConfirmImport")}
         </button>
@@ -910,7 +911,7 @@ export function CityListImportModal({
                       <button
                         type="button"
                         className="inline-flex items-center gap-1.5 rounded border border-dashed border-hq-border px-3 py-2 text-sm text-hq-fg-muted hover:border-hq-accent hover:text-hq-fg"
-                        onClick={() => addRow(null)}
+                        onClick={() => addRow()}
                       >
                         <Plus className="h-3.5 w-3.5" aria-hidden />
                         {t("cityListAddRow")}
@@ -1105,7 +1106,7 @@ export function CityListImportModal({
               <button
                 type="button"
                 className="inline-flex items-center gap-1.5 rounded border border-dashed border-hq-border px-3 py-2 text-sm text-hq-fg-muted hover:border-hq-accent hover:text-hq-fg"
-                onClick={() => addRow(null)}
+                onClick={() => addRow()}
               >
                 <Plus className="h-3.5 w-3.5" aria-hidden />
                 {t("cityListAddRow")}

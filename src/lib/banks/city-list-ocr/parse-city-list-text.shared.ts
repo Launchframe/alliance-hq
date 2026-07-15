@@ -30,7 +30,7 @@ export type ParsedCityListBank = {
   gameServerNumber: number;
   coordX: number;
   coordY: number;
-  /** Deposit slot usage out of 100, e.g. 81 for "81/100". Null if unreadable. */
+  /** Deposit slot usage (cap 100 or 110 by level), e.g. 81 for "81/100". Null if unreadable. */
   currentDepositCount: number | null;
 };
 
