@@ -5152,7 +5152,27 @@
     "status": {
       "locked": "Locked",
       "matured": "Matured",
-      "looted": "Looted"
+      "looted": "Looted",
+      "term_elapsed": "Elapsed"
+    },
+    "filter": {
+      "active": "Active",
+      "elapsed": "Elapsed",
+      "matured": "Matured",
+      "looted": "Looted",
+      "empty": {
+        "active": "No active deposits",
+        "elapsed": "No elapsed deposits",
+        "matured": "No matured deposits",
+        "looted": "No looted deposits"
+      }
+    },
+    "stats": {
+      "totalDeposited": "Total deposited",
+      "recovered": "Recovered",
+      "lostToLooting": "Lost to looting",
+      "interestEarned": "Interest earned",
+      "interestUnavailable": "Import deposit slip history to unlock interest tracking"
     },
     "actions": {
       "save": "Save",

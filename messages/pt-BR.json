@@ -5152,7 +5152,27 @@
     "status": {
       "locked": "Bloqueado",
       "matured": "Amadurecido",
-      "looted": "Saqueado"
+      "looted": "Saqueado",
+      "term_elapsed": "Prazo esgotado"
+    },
+    "filter": {
+      "active": "Ativos",
+      "elapsed": "Esgotados",
+      "matured": "Maturados",
+      "looted": "Saqueados",
+      "empty": {
+        "active": "Nenhum depósito ativo",
+        "elapsed": "Nenhum depósito com prazo esgotado",
+        "matured": "Nenhum depósito maturado",
+        "looted": "Nenhum depósito saqueado"
+      }
+    },
+    "stats": {
+      "totalDeposited": "Total depositado",
+      "recovered": "Recuperado",
+      "lostToLooting": "Perdido em saque",
+      "interestEarned": "Juros recebidos",
+      "interestUnavailable": "Importe o histórico de depósitos para acompanhar os juros"
     },
     "actions": {
       "save": "Salvar",

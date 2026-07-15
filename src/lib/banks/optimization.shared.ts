@@ -27,6 +27,48 @@ export function isActiveLockedDeposit(
   );
 }
 
+export const DEPOSIT_DISPLAY_STATUSES = [...DEPOSIT_STATUSES, "term_elapsed"] as const;
+export type DepositDisplayStatus = (typeof DEPOSIT_DISPLAY_STATUSES)[number];
+
+export function depositSlipDisplayStatus(
+  slip: Pick<SerializedDepositSlip, "status" | "maturesAt">,
+  now?: Date,
+): DepositDisplayStatus {
+  if (slip.status === "locked" && new Date(slip.maturesAt).getTime() <= (now ?? new Date()).getTime()) {
+    return "term_elapsed";
+  }
+  return slip.status;
+}
+
+export type DepositStats = {
+  totalDeposited: number;
+  totalRecovered: number;
+  totalLooted: number;
+  interestEarned: number | null;
+};
+
+export function computeDepositStats(slips: readonly SerializedDepositSlip[]): DepositStats {
+  let totalDeposited = 0;
+  let totalRecovered = 0;
+  let totalLooted = 0;
+
+  for (const slip of slips) {
+    totalDeposited += slip.amount;
+    if (slip.status === "matured") {
+      totalRecovered += slip.amount;
+    } else if (slip.status === "looted") {
+      totalLooted += slip.amount;
+    }
+  }
+
+  return {
+    totalDeposited,
+    totalRecovered,
+    totalLooted,
+    interestEarned: null,
+  };
+}
+
 export function activeDeposits(
   slips: readonly SerializedDepositSlip[],
   now: Date = new Date(),
