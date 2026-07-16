@@ -97,7 +97,7 @@ Wire those through `/admin/experiments` (or config assignment) for roster upload
 
 Admin **cannot** change Tesseract settings from the UI today. Deposit-slip stills reuse the **hardcoded roster defaults** (`scale 2`, PSM `6`, min confidence `40`). Parse configs and experiments for this target only affect **frame extraction**.
 
-Native OCR is always used for this target (no Ashed). Cross-frame merge already runs, but only exact-key dedupe — partial rows from different frames do not automatically fill each other’s missing fields.
+Native OCR is always used for this target (no Ashed). Cross-frame merge partitions by exact normalized commander name, corroborates nearby or majority-agreeing timestamps (including OCR minute misreads), coalesces partial reads into one review row, and flags genuine amount/term/identity conflicts for officer resolution.
 
 ### Ashed scoreboards (Desert Storm, VS, …)
 
