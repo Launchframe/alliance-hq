@@ -17,7 +17,10 @@ import {
   type DedupeReport,
 } from "@/lib/video/dedupe/merge-report.shared";
 import { ocrDepositSlipNativeFrames } from "@/lib/video/ocr-deposit-slip-native";
-import type { VideoOcrEngine } from "@/lib/video/ocr-provider.shared";
+import type {
+  VideoOcrEngine,
+  VideoOcrProgressCallback,
+} from "@/lib/video/ocr-provider.shared";
 import type { PipelineTimer } from "@/lib/video/pipeline-timer";
 import type { ScoreTargetDef } from "@/lib/video/score-targets";
 
@@ -32,6 +35,8 @@ export type ProcessDepositSlipVideoParseInput = {
   now: Date;
   /** When engine is mock — pre-parsed history from fixtures. */
   mockHistory?: ParsedDepositSlipHistory;
+  /** Fired as each frame's OCR settles, for the waiting-page progress bar. */
+  onOcrProgress?: VideoOcrProgressCallback;
 };
 
 export type ProcessDepositSlipVideoParseResult = {
@@ -113,6 +118,7 @@ export async function processDepositSlipVideoParse(
         ocrDepositSlipNativeFrames(input.frames, {
           timer: input.timer,
           jobId: input.jobId,
+          onProgress: input.onOcrProgress,
         }),
       (result) => ({
         frameCount: input.frames.length,

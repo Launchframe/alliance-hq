@@ -12,6 +12,15 @@ export type VideoJobStatusEvent = {
   rowCount?: number | null;
   matchedCount?: number | null;
   errorMessage?: string | null;
+  /**
+   * Fine-grained pipeline stage layered on top of `status` — display-only,
+   * for the waiting-page progress bar/banner. Older events (or emit sites
+   * that haven't been updated) omit this; clients fall back to
+   * `defaultStageForJobStatus(status)` from video-job-stage.shared.ts.
+   */
+  stage?: string | null;
+  /** OCR engine used for this job's pass, once resolved. See ocr-provider.shared.ts. */
+  ocrEngine?: string | null;
   updatedAt: string;
 };
 

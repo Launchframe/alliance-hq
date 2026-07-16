@@ -85,6 +85,14 @@ import {
 import type { AshedMember } from "@/lib/video/member-matcher";
 import { readPreferredDepositSlipBankId } from "@/lib/banks/deposit-slip-upload-context.shared";
 import type { SerializedBank } from "@/lib/banks/types.shared";
+import { VideoJobProgressBar } from "@/components/video/VideoJobProgressBar";
+import {
+  isIndeterminateVideoJobStage,
+  resolveVideoJobStage,
+  stageShowsPipelineLabel,
+  videoJobEngineLabelKey,
+  videoJobStageProgressPercent,
+} from "@/lib/video/video-job-stage.shared";
 
 type ParsedRow = {
   id: string;
@@ -1518,19 +1526,73 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     );
   }
 
+  if (displayJobStatus === "pending_approval") {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-hq-fg-muted">{t("pendingApproval")}</p>
+        <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
+          {t("backToUploads")}
+        </Link>
+      </div>
+    );
+  }
+
   if (
-    displayJobStatus === "pending_approval" ||
     displayJobStatus === "queued" ||
     displayJobStatus === "extracting" ||
     displayJobStatus === "parsing"
   ) {
+    const liveStage = resolveVideoJobStage(displayJobStatus, liveJob?.stage);
+    const frameProgress =
+      liveJob?.frameCount != null && liveJob.frameCount > 0
+        ? {
+            completed: liveJob.uploadedFrameCount ?? 0,
+            total: liveJob.frameCount,
+          }
+        : null;
+    const progressPercent = videoJobStageProgressPercent(
+      liveStage,
+      frameProgress,
+    );
+    const progressIndeterminate = isIndeterminateVideoJobStage(
+      liveStage,
+      frameProgress,
+    );
+    const engineLabelKey = stageShowsPipelineLabel(liveStage)
+      ? videoJobEngineLabelKey(liveJob?.ocrEngine)
+      : null;
+
+    const stageMessage =
+      liveStage === "queued"
+        ? t("stageQueued")
+        : liveStage === "extracting_frames"
+          ? t("stageExtracting")
+          : liveStage === "ocr_running" && frameProgress
+            ? t("stageOcrRunning", {
+                completed: frameProgress.completed,
+                total: frameProgress.total,
+              })
+            : liveStage === "finalizing_rows"
+              ? t("stageFinalizing")
+              : liveStage === "done"
+                ? t("stageDone")
+                : t("processing", { status: displayJobStatus });
+
     return (
       <div className="space-y-4">
-        <p className="text-sm text-hq-fg-muted">
-          {displayJobStatus === "pending_approval"
-            ? t("pendingApproval")
-            : t("processing", { status: displayJobStatus })}
-        </p>
+        <div className="space-y-2">
+          <p className="text-sm text-hq-fg-muted">{stageMessage}</p>
+          <VideoJobProgressBar
+            percent={progressPercent}
+            indeterminate={progressIndeterminate}
+            label={stageMessage}
+          />
+          {engineLabelKey ? (
+            <p className="text-xs text-hq-fg-muted">
+              {t("pipelineLabel", { engine: t(engineLabelKey) })}
+            </p>
+          ) : null}
+        </div>
         <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
           {t("backToUploads")}
         </Link>
