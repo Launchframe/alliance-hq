@@ -193,6 +193,15 @@ export function RosterVideoReviewTable({
     [members],
   );
 
+  const assignedMemberIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const row of activeRows) {
+      const id = row.memberId?.trim();
+      if (id) ids.add(id);
+    }
+    return ids;
+  }, [activeRows]);
+
   function quotaErrorLabel(code: RosterRankQuotaErrorCode): string {
     return t(`rosterQuota.${code}`, {
       maxR4: ROSTER_MAX_R4,
@@ -324,6 +333,7 @@ export function RosterVideoReviewTable({
                         emptyLabel: tMembers("createNew"),
                         highlightMemberId: row.memberId,
                         highlightConfidence: row.matchConfidence,
+                        excludeMemberIds: assignedMemberIds,
                       })}
                     />
                   </td>

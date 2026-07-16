@@ -962,6 +962,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [rows],
   );
 
+  const assignedMemberIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const row of activeRows) {
+      const id = row.memberId?.trim();
+      if (id) ids.add(id);
+    }
+    return ids;
+  }, [activeRows]);
+
   const filteredRows = useMemo(
     () =>
       filterQuery.trim()
@@ -2277,6 +2286,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                       highlightMemberId: row.memberId,
                       highlightConfidence: row.matchConfidence,
                       selectedMembers: rows,
+                      excludeMemberIds: assignedMemberIds,
                     })}
                   />
                 </td>

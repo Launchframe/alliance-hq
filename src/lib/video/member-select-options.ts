@@ -14,6 +14,7 @@ type SelectedMemberLike = {
 /**
  * Build Matched Member select options. Includes any currently selected members
  * that are missing from the roster list so cross-device review still shows labels.
+ * Omits members already assigned to other rows (keeps this row's current match).
  */
 export function buildMemberMatchSelectOptions(
   members: MemberLike[],
@@ -23,15 +24,31 @@ export function buildMemberMatchSelectOptions(
     highlightConfidence?: number | null;
     /** Rows with a stored match that may not appear in `members`. */
     selectedMembers?: SelectedMemberLike[];
+    /**
+     * Member ids already assigned elsewhere. Still includes
+     * `highlightMemberId` so the current row can keep / clear its match.
+     */
+    excludeMemberIds?: Iterable<string>;
   },
 ): AppSelectOption[] {
+  const excluded = new Set<string>();
+  for (const id of config.excludeMemberIds ?? []) {
+    const trimmed = id.trim();
+    if (trimmed) excluded.add(trimmed);
+  }
+  const keepId = config.highlightMemberId?.trim() || null;
+  if (keepId) {
+    excluded.delete(keepId);
+  }
+
   const byId = new Map<string, MemberLike>();
   for (const member of members) {
+    if (excluded.has(member.id)) continue;
     byId.set(member.id, member);
   }
   for (const selected of config.selectedMembers ?? []) {
     const id = selected.memberId?.trim();
-    if (!id || byId.has(id)) continue;
+    if (!id || byId.has(id) || excluded.has(id)) continue;
     const name = selected.memberName?.trim();
     if (!name) continue;
     byId.set(id, { id, current_name: name });
