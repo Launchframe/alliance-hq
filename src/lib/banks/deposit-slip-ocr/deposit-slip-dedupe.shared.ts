@@ -10,6 +10,17 @@
  * Missing or implausible timestamps fold into the matching name group when
  * unambiguous.
  *
+ * Known limitation / follow-up (PR #313 Real Steel):
+ * {@link DEPOSIT_AT_PROXIMITY_MS} (15m diameter) and
+ * {@link DEPOSIT_AT_MAJORITY_OUTLIER_MS} (45m singleton absorb) can still
+ * coalesce two genuine same-commander deposits when their OCR'd depositAts
+ * land inside those windows with matching amount/term. The normal
+ * locked → matured lifecycle cannot produce that (terms are 1/3/5 days), but
+ * a deposit **can be looted** (`early_termination_refund`) within minutes of
+ * depositAt — so a rapid re-deposit after looting is a real false-merge risk.
+ * Next lever: frame-index continuity and/or status/outcome discrimination so
+ * a lone looted initiate is not absorbed as an OCR outlier of a prior slip.
+ *
  * This module is a thin domain adapter over the generic helpers in
  * `src/lib/video/dedupe/`: it supplies deposit-slip field specs (amount, term,
  * alliance tag, server number) and coalescing policy (status/outcome merge), and
@@ -49,6 +60,9 @@ import { stringSimilarity } from "@/lib/video/member-matcher";
  * that still count as the same slip within a same-name cluster. Catches OCR
  * minute-digit noise (e.g. 13:18 vs 13:28) without chaining many genuine
  * deposits spaced ~10–15 minutes apart into one mega-merge.
+ *
+ * Follow-up: rapid genuine re-deposits after an early loot can still fall
+ * inside this diameter — see module header "Known limitation".
  */
 export const DEPOSIT_AT_PROXIMITY_MS = 15 * 60 * 1000;
 
@@ -57,6 +71,10 @@ export const DEPOSIT_AT_PROXIMITY_MS = 15 * 60 * 1000;
  * outlier farther than {@link DEPOSIT_AT_PROXIMITY_MS} but within this window
  * may still fold into that majority (OCR flipped a tens digit). Multi-row
  * distant groups are never absorbed — those are a second real deposit.
+ *
+ * Follow-up: a **single-read** genuine second deposit (especially after
+ * looting within this window) can still be swallowed — see module header
+ * "Known limitation".
  */
 export const DEPOSIT_AT_MAJORITY_OUTLIER_MS = 45 * 60 * 1000;
 
