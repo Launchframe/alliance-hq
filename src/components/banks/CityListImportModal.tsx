@@ -8,6 +8,12 @@ import type { Slide } from "yet-another-react-lightbox";
 import { Dialog } from "@/components/ui/dialog";
 import { ScreenshotLightbox } from "@/components/ui/ScreenshotLightbox";
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
+import { CityListImportResetDialog } from "@/components/banks/CityListImportResetDialog";
+import {
+  clearCityListImportDraft,
+  readCityListImportDraft,
+  writeCityListImportDraft,
+} from "@/lib/banks/city-list-import-draft.shared";
 import type { ParsedCityListBank } from "@/lib/banks/city-list-ocr/parse-city-list-text.shared";
 import {
   cityListReviewRowsHaveErrors,
@@ -279,8 +285,12 @@ export function CityListImportModal({
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const screenshotsRef = useRef<SelectedScreenshot[]>([]);
+  const draftHydrationAttemptedRef = useRef(false);
+  const suppressDraftClearRef = useRef(false);
 
   useEffect(() => {
     screenshotsRef.current = screenshots;
@@ -299,6 +309,10 @@ export function CityListImportModal({
   }, [revokeScreenshots]);
 
   const reset = useCallback(() => {
+    // Emptying `rows` here must not be mistaken by the auto-save effect
+    // below for the user clearing their review — it should leave any
+    // already-persisted draft alone so an accidental close can recover it.
+    suppressDraftClearRef.current = true;
     setStep("upload");
     setRows([]);
     setReviewIndex(0);
@@ -307,16 +321,63 @@ export function CityListImportModal({
     setError(null);
     setTouched(new Set());
     setSubmitAttempted(false);
+    setDraftRestored(false);
     setParsing(false);
     setImporting(false);
     clearScreenshots();
   }, [clearScreenshots]);
+
+  // Closing the modal (accidentally via Escape/overlay click, or after a
+  // successful import) clears in-memory state via `reset()` above, but must
+  // NOT touch the sessionStorage draft — that is what lets an accidental
+  // close be recovered from. Only an explicit Reset, or a successful
+  // import, clears the persisted draft.
+  const resetAndClearDraft = useCallback(() => {
+    clearCityListImportDraft();
+    reset();
+  }, [reset]);
 
   useEffect(() => {
     return () => {
       revokeScreenshots(screenshotsRef.current);
     };
   }, [revokeScreenshots]);
+
+  // Restore a previously auto-saved review (e.g. after an accidental
+  // Escape/overlay-click close, or a page refresh) once per open session.
+  useEffect(() => {
+    if (!open) {
+      draftHydrationAttemptedRef.current = false;
+      return;
+    }
+    if (draftHydrationAttemptedRef.current) return;
+    draftHydrationAttemptedRef.current = true;
+
+    setRows((currentRows) => {
+      if (currentRows.length > 0) return currentRows;
+      const draft = readCityListImportDraft();
+      if (!draft) return currentRows;
+      setSnapshot(draft.snapshot);
+      setStep("review");
+      setDraftRestored(true);
+      return draft.rows;
+    });
+  }, [open]);
+
+  // Auto-save the in-progress review so an accidental modal close doesn't
+  // lose it. Deliberately does not depend on `open` — the last edit before
+  // an accidental close is already captured by the time close fires.
+  useEffect(() => {
+    if (rows.length === 0) {
+      if (suppressDraftClearRef.current) {
+        suppressDraftClearRef.current = false;
+        return;
+      }
+      clearCityListImportDraft();
+      return;
+    }
+    writeCityListImportDraft({ version: 1, rows, snapshot: snapshot ?? null });
+  }, [rows, snapshot]);
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -577,6 +638,7 @@ export function CityListImportModal({
         throw new Error(body?.error ?? t("cityListParseFailed"));
       }
 
+      clearCityListImportDraft();
       onImported(body.dashboard);
       handleOpenChange(false);
     } catch (e) {
@@ -598,6 +660,11 @@ export function CityListImportModal({
 
   const reviewMeta = (
     <>
+      {draftRestored ? (
+        <div className="rounded-lg border border-hq-accent/40 bg-hq-accent/10 px-3 py-2 text-sm text-hq-accent">
+          {t("cityListDraftRestored")}
+        </div>
+      ) : null}
       {snapshot?.serverTime || snapshot?.capturesRemainingToday != null ? (
         <div className="flex flex-wrap gap-2 text-xs text-hq-fg-muted">
           {snapshot?.serverTime ? (
@@ -637,7 +704,15 @@ export function CityListImportModal({
       {submitAttempted && hasDuplicateCoords ? (
         <p className="text-sm text-hq-danger">{t("cityListDuplicateCoords")}</p>
       ) : null}
-      <div className="flex flex-wrap justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <button
+          type="button"
+          className="mr-auto rounded border border-hq-border px-3 py-2 text-sm text-hq-fg-muted hover:border-hq-danger hover:text-hq-danger"
+          onClick={() => setResetConfirmOpen(true)}
+          disabled={importing}
+        >
+          {t("cityListReset")}
+        </button>
         <button
           type="button"
           className="rounded border border-hq-border px-3 py-2 text-sm text-hq-fg"
@@ -716,6 +791,7 @@ export function CityListImportModal({
       open={open}
       onOpenChange={handleOpenChange}
       title={t("cityListImportTitle")}
+      ignoreOutsideDismiss={resetConfirmOpen}
       className={cn(
         "w-full max-w-[min(96vw,52rem)]",
         step === "review" &&
@@ -1184,6 +1260,15 @@ export function CityListImportModal({
         slides={lightboxSlides}
         onClose={() => setLightboxIndex(null)}
         closeLabel={t("cityListClosePreview")}
+      />
+
+      <CityListImportResetDialog
+        open={resetConfirmOpen}
+        onCancel={() => setResetConfirmOpen(false)}
+        onConfirm={() => {
+          setResetConfirmOpen(false);
+          resetAndClearDraft();
+        }}
       />
     </Dialog>
   );
