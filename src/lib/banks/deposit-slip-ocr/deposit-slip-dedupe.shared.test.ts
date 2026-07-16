@@ -4,6 +4,7 @@ import {
   coalesceDepositSlips,
   dedupeDepositSlips,
   resetDepositSlipIdCounterForTests,
+  splitByDepositAtProximity,
 } from "@/lib/banks/deposit-slip-ocr/deposit-slip-dedupe.shared";
 import type { ParsedDepositSlipDraft } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import {
@@ -131,6 +132,34 @@ describe("coalesceDepositSlips", () => {
     expect(merged.amount).toBe(6000);
     expect(merged.termDays).toBe(1);
     expect(merged.outcomeAmount).toBe(6840);
+  });
+
+  it("picks the minimum sourceFrameIndex across the merged group", () => {
+    const merged = coalesceDepositSlips([
+      slip({
+        commanderName: "FramePick",
+        sourceFrameIndex: 42,
+        amount: 6000,
+        termDays: 1,
+        status: "matured",
+        outcomeKind: "total_return",
+        outcomeAmount: 6840,
+      }),
+      slip({
+        commanderName: "FramePick",
+        sourceFrameIndex: 5,
+        amount: null,
+        termDays: null,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "FramePick",
+        sourceFrameIndex: 17,
+        amount: 6000,
+        termDays: 1,
+      }),
+    ]);
+    expect(merged.sourceFrameIndex).toBe(5);
   });
 });
 
@@ -351,6 +380,169 @@ describe("dedupeDepositSlips", () => {
     expect(slips).toHaveLength(2);
     expect(report.clusters).toHaveLength(0);
   });
+
+  it("auto-merges same commander when OCR misreads the minute by a digit", () => {
+    // Modeled on job OIrb8ejUMyAkHv4S / Ranger 275: identical commander name
+    // split across nearby minute buckets because OCR flipped a digit.
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Ranger 275",
+        depositAt: "2026-07-11T13:18:26.000Z",
+        amount: 6000,
+        termDays: 1,
+        sourceFrameIndex: 5,
+      }),
+      slip({
+        commanderName: "Ranger 275",
+        depositAt: "2026-07-11T13:28:26.000Z",
+        amount: 6000,
+        termDays: 1,
+        sourceFrameIndex: 40,
+      }),
+      slip({
+        commanderName: "Ranger 275",
+        depositAt: "2026-07-11T13:18:40.000Z",
+        amount: 6000,
+        termDays: 1,
+        sourceFrameIndex: 6,
+      }),
+    ]);
+    expect(slips).toHaveLength(1);
+    expect(report.autoMergedCount).toBe(2);
+    expect(slips[0]?.sourceFrameIndex).toBe(5);
+  });
+
+  it("keeps genuinely distant same-commander deposits as separate slips", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Ranger 275",
+        depositAt: "2026-07-11T13:18:26.000Z",
+        amount: 6000,
+      }),
+      slip({
+        commanderName: "Ranger 275",
+        depositAt: "2026-07-11T16:45:00.000Z",
+        amount: 9000,
+      }),
+    ]);
+    expect(slips).toHaveLength(2);
+    expect(report.autoMergedCount).toBe(0);
+    expect(report.clusters).toHaveLength(0);
+  });
+
+  it("does not let a majority minute swallow a second oversampled distant deposit", () => {
+    // 3 OCR reads of 13:18 must not absorb 2 OCR reads of 16:45 just because
+    // 13:18 wins a strict majority and amounts/terms agree.
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Ranger 275",
+        depositAt: "2026-07-11T13:18:26.000Z",
+        amount: 6000,
+        termDays: 1,
+      }),
+      slip({
+        commanderName: "Ranger 275",
+        depositAt: "2026-07-11T13:18:30.000Z",
+        amount: 6000,
+        termDays: 1,
+      }),
+      slip({
+        commanderName: "Ranger 275",
+        depositAt: "2026-07-11T13:18:40.000Z",
+        amount: 6000,
+        termDays: 1,
+      }),
+      slip({
+        commanderName: "Ranger 275",
+        depositAt: "2026-07-11T16:45:00.000Z",
+        amount: 6000,
+        termDays: 1,
+      }),
+      slip({
+        commanderName: "Ranger 275",
+        depositAt: "2026-07-11T16:45:10.000Z",
+        amount: 6000,
+        termDays: 1,
+      }),
+    ]);
+    expect(slips).toHaveLength(2);
+    expect(report.autoMergedCount).toBe(3);
+    const minutes = slips
+      .map((s) => toMinuteTimestampKey(s.depositAt))
+      .sort();
+    expect(minutes).toEqual(["2026-07-11T13:18", "2026-07-11T16:45"]);
+  });
+
+  it("absorbs a lone OCR outlier near a majority-minute home", () => {
+    // Majority at 13:18; singleton at 13:48 (tens-digit OCR flip) still merges.
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Outlier",
+        depositAt: "2026-07-11T13:18:26.000Z",
+        amount: 6000,
+      }),
+      slip({
+        commanderName: "Outlier",
+        depositAt: "2026-07-11T13:18:30.000Z",
+        amount: 6000,
+      }),
+      slip({
+        commanderName: "Outlier",
+        depositAt: "2026-07-11T13:18:40.000Z",
+        amount: 6000,
+      }),
+      slip({
+        commanderName: "Outlier",
+        depositAt: "2026-07-11T13:48:00.000Z",
+        amount: 6000,
+      }),
+    ]);
+    expect(slips).toHaveLength(1);
+    expect(report.autoMergedCount).toBe(3);
+  });
+
+  it("does not chain many spaced deposits into one proximity mega-merge", () => {
+    // Diameter-capped proximity: 12-minute steps spanning 36 minutes must not
+    // collapse into a single slip.
+    const { slips } = dedupeDepositSlips([
+      slip({
+        commanderName: "Chain",
+        depositAt: "2026-07-11T13:00:00.000Z",
+      }),
+      slip({
+        commanderName: "Chain",
+        depositAt: "2026-07-11T13:12:00.000Z",
+      }),
+      slip({
+        commanderName: "Chain",
+        depositAt: "2026-07-11T13:24:00.000Z",
+      }),
+      slip({
+        commanderName: "Chain",
+        depositAt: "2026-07-11T13:36:00.000Z",
+      }),
+    ]);
+    expect(slips.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("splitByDepositAtProximity", () => {
+  it("caps group diameter so consecutive gaps cannot chain forever", () => {
+    const rows = [
+      { id: "a", ts: "2026-07-11T13:00:00.000Z" },
+      { id: "b", ts: "2026-07-11T13:12:00.000Z" },
+      { id: "c", ts: "2026-07-11T13:24:00.000Z" },
+      { id: "d", ts: "2026-07-11T13:36:00.000Z" },
+    ];
+    const { anchoredGroups, unanchored } = splitByDepositAtProximity(
+      rows,
+      (r) => r.ts,
+    );
+    expect(unanchored).toHaveLength(0);
+    expect(anchoredGroups).toHaveLength(2);
+    expect(anchoredGroups[0]?.map((r) => r.id)).toEqual(["a", "b"]);
+    expect(anchoredGroups[1]?.map((r) => r.id)).toEqual(["c", "d"]);
+  });
 });
 
 // Regression fixtures modeled directly on job O3DSiQGyvAGG6iM6, where the old
@@ -462,7 +654,7 @@ describe("dedupeDepositSlips — missing-timestamp reconciliation", () => {
     expect(report.clusters[0]?.reason).toBe("commander_match_missing_timestamp");
   });
 
-  it("flags a timestamp-less row as ambiguous when it conflicts with its best name match", () => {
+  it("flags a timestamp-less row when it conflicts with its best name match", () => {
     const { slips, report } = dedupeDepositSlips([
       slip({
         commanderName: "CAIPIRA",
@@ -474,8 +666,11 @@ describe("dedupeDepositSlips — missing-timestamp reconciliation", () => {
 
     expect(slips).toHaveLength(2);
     expect(report.flaggedCount).toBe(1);
+    // Exact-name clustering folds the unanchored row into the same review
+    // group, so the conflict surfaces as a field dispute (not a separate
+    // missing-timestamp ambiguity cluster).
     expect(report.clusters[0]?.reason).toBe(
-      "commander_match_missing_timestamp_ambiguous",
+      "same_commander_timestamp_conflicting_amount_or_term",
     );
   });
 
@@ -509,9 +704,11 @@ describe("dedupeDepositSlips — missing-timestamp reconciliation", () => {
     expect(slips).toHaveLength(1);
     expect(report.autoMergedCount).toBeGreaterThanOrEqual(2);
     expect(slips[0]?.identity.commanderName).toBe("GrandMaster");
-    expect(
-      report.clusters.some((c) => c.reason === "commander_match_missing_timestamp"),
-    ).toBe(true);
+    // Exact-name clustering merges the unanchored row in the same pass as the
+    // timestamped duplicates (no separate missing-timestamp cluster).
+    expect(report.clusters.some((c) => c.disposition === "auto_merged")).toBe(
+      true,
+    );
   });
 });
 

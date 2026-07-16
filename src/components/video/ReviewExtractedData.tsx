@@ -73,8 +73,10 @@ import {
 } from "@/components/video/RosterVideoReviewTable";
 import {
   DepositSlipVideoReviewTable,
+  depositSlipFollowMeCompatible,
   useDepositSlipReviewValidation,
 } from "@/components/video/DepositSlipVideoReviewTable";
+import type { DepositSlipVisibleSortKey } from "@/lib/banks/deposit-slip-review-visible-rows.shared";
 import type { PassComparison } from "@/lib/video/compare-pass-results";
 import {
   formatHeroPowerMForStorage,
@@ -243,6 +245,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [depositSlipVisibleRowIds, setDepositSlipVisibleRowIds] = useState<
     string[]
   >([]);
+  const [depositSlipSortKey, setDepositSlipSortKey] =
+    useState<DepositSlipVisibleSortKey>("depositAt");
   const [error, setError] = useState<string | null>(null);
   const [errorConnectUrl, setErrorConnectUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -1049,13 +1053,27 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     previewSeekControllerRef.current?.seek(seconds);
   }, []);
 
+  const onDepositSlipSortKeyChange = useCallback(
+    (next: DepositSlipVisibleSortKey) => {
+      setDepositSlipSortKey(next);
+      if (!depositSlipFollowMeCompatible(next)) {
+        setPreviewFollowMe(false);
+      }
+    },
+    [setPreviewFollowMe],
+  );
+
   // Follow-me for any non-roster review table that registers row anchors
-  // (score leaderboards and deposit-slip history).
+  // (score leaderboards and deposit-slip history). Deposit-slip Follow-me is
+  // only meaningful sorted by depositAt — commander sort has unrelated frame
+  // times as visual neighbors.
   const scoreTableFollowMeEnabled =
     hasSourceVideo &&
     !scoreTargetMeta?.showRosterColumns &&
     previewFollowMe &&
-    previewOpen;
+    previewOpen &&
+    (!scoreTargetMeta?.showDepositSlipColumns ||
+      depositSlipFollowMeCompatible(depositSlipSortKey));
 
   const { registerFollowAnchor } = useVideoReviewFollowMe({
     enabled: scoreTableFollowMeEnabled,
@@ -1640,6 +1658,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             {hasSourceVideo && !scoreTargetMeta?.showRosterColumns ? (
               <button
                 type="button"
+                disabled={
+                  !!scoreTargetMeta?.showDepositSlipColumns &&
+                  !depositSlipFollowMeCompatible(depositSlipSortKey)
+                }
                 onClick={() => {
                   setPreviewFollowMe((on) => {
                     const next = !on;
@@ -1653,7 +1675,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   previewFollowMe
                     ? "border-hq-accent bg-[#0c2d6b]/40 text-hq-accent"
                     : "border-hq-border text-hq-fg hover:bg-hq-surface-muted"
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-50`}
               >
                 <LocateFixed className="h-4 w-4 shrink-0" aria-hidden />
                 {t("followMe")}
@@ -2148,6 +2170,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             }
             registerFollowAnchor={registerFollowAnchor}
             onVisibleRowIdsChange={onDepositSlipVisibleRowIdsChange}
+            onSortKeyChange={onDepositSlipSortKeyChange}
           />
         </>
       ) : (
