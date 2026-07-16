@@ -35,6 +35,7 @@ vi.mock("@/lib/db", () => ({
       id: "parsedRows.id",
       memberId: "parsedRows.memberId",
       matchMethod: "parsedRows.matchMethod",
+      rank: "parsedRows.rank",
       parseSessionId: "parsedRows.parseSessionId",
       deleted: "parsedRows.deleted",
     },
@@ -318,5 +319,110 @@ describe("commitDepositSlipsFromVideoJob", () => {
     expect(result.createdCount).toBe(1);
     expect(result.skippedCount).toBe(1);
     expect(createDepositSlip).toHaveBeenCalledTimes(1);
+  });
+
+  it("persists outcomeAmount from rank on matured/looted rows", async () => {
+    await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-matured",
+          ocrName: "Green Investor",
+          score: "5000",
+          powerLevel: "2026-07-10T12:14:34.000Z",
+          memberLevel: 3,
+          profession: "matured",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: "total_return",
+          rank: 5750,
+          frameIndex: 0,
+          deleted: false,
+        },
+        {
+          id: "row-looted",
+          ocrName: "Orange Investor",
+          score: "5000",
+          powerLevel: "2026-07-09T12:49:35.000Z",
+          memberLevel: 3,
+          profession: "looted",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: "early_termination_refund",
+          rank: 3000,
+          frameIndex: 1,
+          deleted: false,
+        },
+      ],
+    });
+
+    expect(createDepositSlip).toHaveBeenNthCalledWith(1, "alliance-a", {
+      bankId: "bank-1",
+      depositAt: "2026-07-10T12:14:34.000Z",
+      termDays: 3,
+      amount: 5000,
+      outcomeAmount: 5750,
+      status: "matured",
+      outcomeAt: "2026-07-10T12:14:34.000Z",
+      depositAllianceTag: "Roar",
+      depositAllianceId: "alliance-roar",
+      commanderName: "Green Investor",
+      commanderId: "cmd-1",
+      allianceMemberId: "am-1",
+    });
+    expect(createDepositSlip).toHaveBeenNthCalledWith(2, "alliance-a", {
+      bankId: "bank-1",
+      depositAt: "2026-07-09T12:49:35.000Z",
+      termDays: 3,
+      amount: 5000,
+      outcomeAmount: 3000,
+      status: "looted",
+      outcomeAt: "2026-07-09T12:49:35.000Z",
+      depositAllianceTag: "Roar",
+      depositAllianceId: "alliance-roar",
+      commanderName: "Orange Investor",
+      commanderId: "cmd-1",
+      allianceMemberId: "am-1",
+    });
+  });
+
+  it("hydrates outcomeAmount from parsed_rows when submit omits rank", async () => {
+    selectWhereRows.mockReturnValue([
+      {
+        id: "row-matured",
+        memberId: null,
+        matchMethod: null,
+        rank: 6840,
+      },
+    ]);
+
+    await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-matured",
+          ocrName: "Green Investor",
+          score: "6000",
+          powerLevel: "2026-07-10T12:14:34.000Z",
+          memberLevel: 3,
+          profession: "matured",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: "total_return",
+          frameIndex: 0,
+          deleted: false,
+        },
+      ],
+    });
+
+    expect(createDepositSlip).toHaveBeenCalledWith(
+      "alliance-a",
+      expect.objectContaining({
+        amount: 6000,
+        outcomeAmount: 6840,
+        status: "matured",
+      }),
+    );
   });
 });

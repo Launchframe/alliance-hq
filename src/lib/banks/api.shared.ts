@@ -186,6 +186,14 @@ export function validateDepositSlipPayload(
   ) {
     return "amount must be a positive integer.";
   }
+  if (
+    body.outcomeAmount != null &&
+    (typeof body.outcomeAmount !== "number" ||
+      !Number.isInteger(body.outcomeAmount) ||
+      body.outcomeAmount < 0)
+  ) {
+    return "outcomeAmount must be a non-negative integer.";
+  }
   if (!body.commanderName?.trim()) {
     return "commanderName is required.";
   }

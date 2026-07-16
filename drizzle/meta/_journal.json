@@ -740,8 +740,8 @@
     {
       "idx": 105,
       "version": "7",
-      "when": 1788345600000,
-      "tag": "0106_bank_deposit_slip_outcome_amount",
+      "when": 1788528000000,
+      "tag": "0108_bank_deposit_slip_outcome_amount",
       "breakpoints": true
     }
   ]
