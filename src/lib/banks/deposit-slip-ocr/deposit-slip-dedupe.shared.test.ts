@@ -132,6 +132,34 @@ describe("coalesceDepositSlips", () => {
     expect(merged.termDays).toBe(1);
     expect(merged.outcomeAmount).toBe(6840);
   });
+
+  it("picks the minimum sourceFrameIndex across the merged group", () => {
+    const merged = coalesceDepositSlips([
+      slip({
+        commanderName: "FramePick",
+        sourceFrameIndex: 42,
+        amount: 6000,
+        termDays: 1,
+        status: "matured",
+        outcomeKind: "total_return",
+        outcomeAmount: 6840,
+      }),
+      slip({
+        commanderName: "FramePick",
+        sourceFrameIndex: 5,
+        amount: null,
+        termDays: null,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "FramePick",
+        sourceFrameIndex: 17,
+        amount: 6000,
+        termDays: 1,
+      }),
+    ]);
+    expect(merged.sourceFrameIndex).toBe(5);
+  });
 });
 
 describe("dedupeDepositSlips", () => {
@@ -351,6 +379,55 @@ describe("dedupeDepositSlips", () => {
     expect(slips).toHaveLength(2);
     expect(report.clusters).toHaveLength(0);
   });
+
+  it("auto-merges same commander when OCR misreads the minute by a digit", () => {
+    // Modeled on job OIrb8ejUMyAkHv4S / Ranger 275: identical commander name
+    // split across nearby minute buckets because OCR flipped a digit.
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Ranger 275",
+        depositAt: "2026-07-11T13:18:26.000Z",
+        amount: 6000,
+        termDays: 1,
+        sourceFrameIndex: 5,
+      }),
+      slip({
+        commanderName: "Ranger 275",
+        depositAt: "2026-07-11T13:28:26.000Z",
+        amount: 6000,
+        termDays: 1,
+        sourceFrameIndex: 40,
+      }),
+      slip({
+        commanderName: "Ranger 275",
+        depositAt: "2026-07-11T13:18:40.000Z",
+        amount: 6000,
+        termDays: 1,
+        sourceFrameIndex: 6,
+      }),
+    ]);
+    expect(slips).toHaveLength(1);
+    expect(report.autoMergedCount).toBe(2);
+    expect(slips[0]?.sourceFrameIndex).toBe(5);
+  });
+
+  it("keeps genuinely distant same-commander deposits as separate slips", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Ranger 275",
+        depositAt: "2026-07-11T13:18:26.000Z",
+        amount: 6000,
+      }),
+      slip({
+        commanderName: "Ranger 275",
+        depositAt: "2026-07-11T16:45:00.000Z",
+        amount: 9000,
+      }),
+    ]);
+    expect(slips).toHaveLength(2);
+    expect(report.autoMergedCount).toBe(0);
+    expect(report.clusters).toHaveLength(0);
+  });
 });
 
 // Regression fixtures modeled directly on job O3DSiQGyvAGG6iM6, where the old
@@ -462,7 +539,7 @@ describe("dedupeDepositSlips — missing-timestamp reconciliation", () => {
     expect(report.clusters[0]?.reason).toBe("commander_match_missing_timestamp");
   });
 
-  it("flags a timestamp-less row as ambiguous when it conflicts with its best name match", () => {
+  it("flags a timestamp-less row when it conflicts with its best name match", () => {
     const { slips, report } = dedupeDepositSlips([
       slip({
         commanderName: "CAIPIRA",
@@ -474,8 +551,11 @@ describe("dedupeDepositSlips — missing-timestamp reconciliation", () => {
 
     expect(slips).toHaveLength(2);
     expect(report.flaggedCount).toBe(1);
+    // Exact-name clustering folds the unanchored row into the same review
+    // group, so the conflict surfaces as a field dispute (not a separate
+    // missing-timestamp ambiguity cluster).
     expect(report.clusters[0]?.reason).toBe(
-      "commander_match_missing_timestamp_ambiguous",
+      "same_commander_timestamp_conflicting_amount_or_term",
     );
   });
 
@@ -509,9 +589,11 @@ describe("dedupeDepositSlips — missing-timestamp reconciliation", () => {
     expect(slips).toHaveLength(1);
     expect(report.autoMergedCount).toBeGreaterThanOrEqual(2);
     expect(slips[0]?.identity.commanderName).toBe("GrandMaster");
-    expect(
-      report.clusters.some((c) => c.reason === "commander_match_missing_timestamp"),
-    ).toBe(true);
+    // Exact-name clustering merges the unanchored row in the same pass as the
+    // timestamped duplicates (no separate missing-timestamp cluster).
+    expect(report.clusters.some((c) => c.disposition === "auto_merged")).toBe(
+      true,
+    );
   });
 });
 

@@ -1,13 +1,18 @@
 /**
- * Deposit-slip cross-frame dedupe: fuzzy commander + to-the-minute timestamp.
+ * Deposit-slip cross-frame dedupe: fuzzy commander first, depositAt as
+ * corroboration.
+ *
+ * Primary partition is fuzzy commander name across the whole job (not
+ * to-the-minute timestamp). Within a name cluster, nearby / majority-agreeing
+ * timestamps auto-merge; genuinely distant timestamps (same commander deposited
+ * twice) split into separate slips. Missing or implausible timestamps fold into
+ * the matching name group when unambiguous.
  *
  * This module is a thin domain adapter over the generic helpers in
  * `src/lib/video/dedupe/`: it supplies deposit-slip field specs (amount, term,
  * alliance tag, server number) and coalescing policy (status/outcome merge), and
  * delegates clustering, majority-vote conflict resolution, and missing-timestamp
- * reconciliation to the shared, domain-agnostic engine pieces. Future OCR history
- * dedupe (bank stronghold lists, event scores, train cargo, ...) can follow the
- * same pattern.
+ * reconciliation to the shared, domain-agnostic engine pieces.
  */
 
 import { nanoid } from "nanoid";
@@ -36,6 +41,13 @@ import {
 } from "@/lib/video/dedupe/timestamp-collision.shared";
 import { partitionPlausibleTimestamps } from "@/lib/video/dedupe/timestamp-plausibility.shared";
 import { stringSimilarity } from "@/lib/video/member-matcher";
+
+/**
+ * Max gap between depositAts that still count as the same slip within a
+ * same-name cluster. Catches OCR minute-digit noise (e.g. 13:18 vs 13:28)
+ * without merging a commander who genuinely deposited hours apart.
+ */
+export const DEPOSIT_AT_PROXIMITY_MS = 15 * 60 * 1000;
 
 export type DedupedDepositSlip = ParsedDepositSlipDraft & {
   /** Provisional id — used as parsed_rows.id for survivors. */
@@ -294,9 +306,6 @@ export function coalesceDepositSlips(
     ) {
       dest.identity.gameServerNumber = s.identity.gameServerNumber;
     }
-    if (dest.sourceFrameIndex == null && s.sourceFrameIndex != null) {
-      dest.sourceFrameIndex = s.sourceFrameIndex;
-    }
     if (
       typeof s.confidence === "number" &&
       (dest.confidence == null || s.confidence > dest.confidence)
@@ -304,6 +313,19 @@ export function coalesceDepositSlips(
       dest.confidence = s.confidence;
     }
   }
+
+  // Seek / Follow-me targets the earliest frame in the merged group, not the
+  // completeness-winner's frame (which may be a later re-OCR of the same slip).
+  let minFrame: number | null = null;
+  for (const s of slips) {
+    if (
+      s.sourceFrameIndex != null &&
+      (minFrame == null || s.sourceFrameIndex < minFrame)
+    ) {
+      minFrame = s.sourceFrameIndex;
+    }
+  }
+  dest.sourceFrameIndex = minFrame ?? undefined;
 
   return dest;
 }
@@ -330,23 +352,283 @@ function pickBestSlipId(group: readonly IndexedSlip[]): string {
   return group.slice().sort(compareSlipQuality)[0]!.slipId;
 }
 
+function parseDepositAtMs(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? null : ms;
+}
+
+/**
+ * True when one to-the-minute key accounts for a strict majority of the
+ * timestamped rows in a same-name cluster (OCR outliers lose to the crowd).
+ */
+function hasMajorityMinuteKey(
+  slips: readonly ParsedDepositSlipDraft[],
+): boolean {
+  const keys = slips
+    .map((s) => toMinuteTimestampKey(s.depositAt))
+    .filter((k): k is string => k != null);
+  if (keys.length === 0) return false;
+  const counts = new Map<string, number>();
+  for (const key of keys) {
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const majorityThreshold = keys.length / 2;
+  for (const count of counts.values()) {
+    if (count > majorityThreshold) return true;
+  }
+  return false;
+}
+
+/**
+ * Split timestamped rows into proximity-connected subgroups (sorted union of
+ * neighbors within `proximityMs`). Rows without a parseable timestamp are
+ * returned separately as `unanchored`.
+ */
+export function splitByDepositAtProximity<T>(
+  rows: readonly T[],
+  getTs: (row: T) => string | null | undefined,
+  proximityMs: number = DEPOSIT_AT_PROXIMITY_MS,
+): { anchoredGroups: T[][]; unanchored: T[] } {
+  const unanchored: T[] = [];
+  const anchored: { row: T; ms: number }[] = [];
+  for (const row of rows) {
+    const ms = parseDepositAtMs(getTs(row) ?? null);
+    if (ms == null) {
+      unanchored.push(row);
+    } else {
+      anchored.push({ row, ms });
+    }
+  }
+  if (anchored.length === 0) {
+    return { anchoredGroups: [], unanchored };
+  }
+
+  anchored.sort((a, b) => a.ms - b.ms);
+  const groups: T[][] = [];
+  let current: T[] = [anchored[0]!.row];
+  let prevMs = anchored[0]!.ms;
+  for (let i = 1; i < anchored.length; i += 1) {
+    const next = anchored[i]!;
+    if (next.ms - prevMs <= proximityMs) {
+      current.push(next.row);
+    } else {
+      groups.push(current);
+      current = [next.row];
+    }
+    prevMs = next.ms;
+  }
+  groups.push(current);
+  return { anchoredGroups: groups, unanchored };
+}
+
+type DedupeAccum = {
+  clusters: DedupeCluster[];
+  consumed: Set<string>;
+  output: IndexedSlip[];
+  conflictFields: readonly ConflictFieldSpec<ParsedDepositSlipDraft>[];
+};
+
+function emitAutoMerged(
+  accum: DedupeAccum,
+  group: readonly IndexedSlip[],
+  reason: string,
+  corrections: readonly FieldCorrection[],
+): void {
+  const merged = applyDepositSlipCorrections(
+    coalesceDepositSlips(group),
+    corrections,
+  );
+  const destinationSlipId = nextSlipId();
+  const destination: IndexedSlip = {
+    ...merged,
+    identity: { ...merged.identity },
+    slipId: destinationSlipId,
+  };
+  const clusterId = `c_${nextSlipId()}`;
+  accum.clusters.push({
+    clusterId,
+    disposition: "auto_merged",
+    reason,
+    destinationSlipId,
+    ...(corrections.length > 0
+      ? { correctedFields: corrections.map((c) => c.key) }
+      : {}),
+    members: [
+      ...group.map((s) => ({
+        slipId: s.slipId,
+        snapshot: slipSnapshot(s),
+      })),
+      {
+        slipId: destinationSlipId,
+        snapshot: slipSnapshot(destination),
+      },
+    ],
+  });
+  accum.output.push(destination);
+  for (const s of group) accum.consumed.add(s.slipId);
+  // Destination is a synthetic review row — mark it consumed so later passes
+  // don't treat it as an open OCR source.
+  accum.consumed.add(destinationSlipId);
+}
+
+function emitFlagged(
+  accum: DedupeAccum,
+  group: readonly IndexedSlip[],
+  reason: string,
+): void {
+  const clusterId = `c_${nextSlipId()}`;
+  accum.clusters.push({
+    clusterId,
+    disposition: "flagged",
+    reason,
+    destinationSlipId: pickBestSlipId(group),
+    members: group.map((s) => ({
+      slipId: s.slipId,
+      snapshot: slipSnapshot(s),
+    })),
+  });
+  for (const s of group) {
+    accum.output.push({ ...s, dedupeClusterId: clusterId });
+    accum.consumed.add(s.slipId);
+  }
+}
+
+/**
+ * Merge or flag a same-name (and same-deposit) subgroup after conflict resolution.
+ */
+function resolveNameTimestampGroup(
+  accum: DedupeAccum,
+  group: readonly IndexedSlip[],
+  autoMergeReason: string,
+): void {
+  if (group.length === 0) return;
+  if (group.length === 1) {
+    const only = group[0]!;
+    if (!accum.consumed.has(only.slipId)) {
+      accum.output.push(only);
+      accum.consumed.add(only.slipId);
+    }
+    return;
+  }
+
+  const conflictResolution = resolveGroupConflicts(group, accum.conflictFields);
+  if (!conflictResolution.resolved) {
+    emitFlagged(accum, group, pickConflictFlagReason(conflictResolution.conflictingFields));
+    return;
+  }
+
+  const minPair = minPairwiseNameSimilarity(group);
+  if (minPair < FUZZY_AUTO_MERGE_THRESHOLD) {
+    emitFlagged(accum, group, "borderline_commander_name_same_minute");
+    return;
+  }
+
+  const corrections = conflictResolution.corrections;
+  emitAutoMerged(
+    accum,
+    group,
+    corrections.length > 0
+      ? `${autoMergeReason}_majority_corrected`
+      : autoMergeReason,
+    corrections,
+  );
+}
+
+/**
+ * Within an exact-normalized-name cluster: majority/nearby timestamps merge;
+ * distant timestamps split into separate slips; unanchored rows fold when
+ * unambiguous. Singletons are left unconsumed so a later same-minute fuzzy
+ * pass can still pair OCR name variants (e.g. gondrong / gondronq).
+ */
+function processExactNameCluster(
+  accum: DedupeAccum,
+  nameCluster: readonly IndexedSlip[],
+): void {
+  if (nameCluster.length <= 1) {
+    return;
+  }
+
+  const timestamped = nameCluster.filter(
+    (s) => toMinuteTimestampKey(s.depositAt) != null,
+  );
+  const unanchored = nameCluster.filter(
+    (s) => toMinuteTimestampKey(s.depositAt) == null,
+  );
+
+  if (timestamped.length === 0) {
+    // Name-only group with no usable timestamps — merge or flag among themselves.
+    resolveNameTimestampGroup(
+      accum,
+      unanchored,
+      "commander_match_missing_timestamp",
+    );
+    return;
+  }
+
+  if (hasMajorityMinuteKey(timestamped) || timestamped.length === 1) {
+    resolveNameTimestampGroup(
+      accum,
+      [...timestamped, ...unanchored],
+      unanchored.length > 0 && timestamped.length === 1
+        ? "commander_match_missing_timestamp"
+        : "same_commander_and_minute_timestamp",
+    );
+    return;
+  }
+
+  const { anchoredGroups } = splitByDepositAtProximity(
+    timestamped,
+    (s) => s.depositAt,
+  );
+
+  if (anchoredGroups.length === 1) {
+    resolveNameTimestampGroup(
+      accum,
+      [...anchoredGroups[0]!, ...unanchored],
+      unanchored.length > 0
+        ? "commander_match_missing_timestamp"
+        : "same_commander_and_minute_timestamp",
+    );
+    return;
+  }
+
+  // Multiple distant deposits for the same commander name.
+  for (const subgroup of anchoredGroups) {
+    resolveNameTimestampGroup(
+      accum,
+      subgroup,
+      "same_commander_and_minute_timestamp",
+    );
+  }
+  if (unanchored.length === 0) return;
+
+  // Unanchored rows with several possible deposits → ambiguous review flag.
+  if (unanchored.length >= 1 && anchoredGroups.length > 1) {
+    emitFlagged(
+      accum,
+      unanchored,
+      "commander_match_missing_timestamp_ambiguous",
+    );
+    return;
+  }
+  resolveNameTimestampGroup(
+    accum,
+    unanchored,
+    "commander_match_missing_timestamp",
+  );
+}
+
 /**
  * Collapse cross-frame deposit-slip OCR duplicates.
  *
- * Auto-merge: same fuzzy commander + same to-the-minute timestamp, and either
- * every field agrees or every disagreeing field has a clear majority — or, for
- * `allianceTag` specifically, a batch-wide frequency tiebreak on a genuine
- * local tie (the minority/rare reading is treated as OCR noise and corrected).
- * Flag: borderline fuzzy names sharing a minute, or a genuine field conflict
- * with no majority and no decisive tiebreak (e.g. a 2-2 split). Distinct,
- * dissimilar commanders that merely share a deposit minute are *not* flagged —
- * that's normal during a deposit flood wave, not evidence of duplication.
- * A parseable-but-implausible timestamp (e.g. a garbled year) is treated like
- * a missing one. Rows with no usable timestamp get one more pass: fold into a
- * matching same-named cluster/row if exactly one exists (or merge with each
- * other), fold into an already-flagged cluster if all matching candidates
- * already dispute the same identity, otherwise flag as ambiguous, otherwise
- * pass through unchanged.
+ * Primary partition is **exact normalized commander name** across the whole
+ * job (so OCR-misread minutes for the same commander still meet). Within a
+ * name group, nearby / majority-agreeing timestamps auto-merge; genuinely
+ * distant timestamps split. Fuzzy name variants (OCR typos) still merge only
+ * when they share a to-the-minute timestamp — that keeps unrelated lookalike
+ * names from chaining across a flood wave. Missing or implausible timestamps
+ * fold into the matching name group when unambiguous.
  */
 export function dedupeDepositSlips(
   slips: readonly ParsedDepositSlipDraft[],
@@ -363,367 +645,363 @@ export function dedupeDepositSlips(
     buildAllianceTagFrequency(slips),
   );
 
-  const clusters: DedupeCluster[] = [];
-  const consumed = new Set<string>();
-  const output: IndexedSlip[] = [];
+  const accum: DedupeAccum = {
+    clusters: [],
+    consumed: new Set<string>(),
+    output: [],
+    conflictFields,
+  };
 
+  // Implausible timestamps (e.g. year 0256) must not form their own proximity
+  // subgroup — strip the bad depositAt so they fold as unanchored into the
+  // matching name cluster.
   const parseable = input.filter((s) => toMinuteTimestampKey(s.depositAt) != null);
   const neverTimestamped = input.filter(
     (s) => toMinuteTimestampKey(s.depositAt) == null,
   );
-  // A parseable timestamp can still be an OCR digit-transposition outlier (e.g.
-  // "2026" misread as "0256") — that row would otherwise anchor its own,
-  // unrelated per-minute bucket and never get compared against its actual
-  // duplicate. Route implausible outliers through the same missing-anchor
-  // reconciliation pass as rows with no timestamp at all.
-  const { plausible: withTs, implausible: implausibleTs } =
+  const { plausible: withPlausibleTs, implausible: implausibleTs } =
     partitionPlausibleTimestamps(parseable, (s) => s.depositAt);
-  const withoutTs = [...neverTimestamped, ...implausibleTs];
+  const demotedImplausible: IndexedSlip[] = implausibleTs.map((s) => ({
+    ...s,
+    depositAt: null,
+  }));
+  const workingPool: IndexedSlip[] = [
+    ...withPlausibleTs,
+    ...neverTimestamped,
+    ...demotedImplausible,
+  ];
 
-  const byMinute = groupByMinuteTimestamp(withTs, (s) => s.depositAt);
-
-  for (const [, minuteGroup] of byMinute) {
-    if (minuteGroup.length === 1) {
-      const only = minuteGroup[0]!;
-      if (!consumed.has(only.slipId)) {
-        output.push(only);
-        consumed.add(only.slipId);
-      }
+  // Primary partition: exact normalized commander name (job-wide).
+  const byExactName = new Map<string, IndexedSlip[]>();
+  const emptyNameRows: IndexedSlip[] = [];
+  for (const slip of workingPool) {
+    const key = normalizeEntityName(slip.identity.commanderName);
+    if (!key) {
+      emptyNameRows.push(slip);
       continue;
     }
+    const bucket = byExactName.get(key);
+    if (bucket) bucket.push(slip);
+    else byExactName.set(key, [slip]);
+  }
 
-    const assignedInMinute = new Set<string>();
+  for (const nameCluster of byExactName.values()) {
+    processExactNameCluster(accum, nameCluster);
+  }
+  for (const slip of emptyNameRows) {
+    if (!accum.consumed.has(slip.slipId)) {
+      accum.output.push(slip);
+      accum.consumed.add(slip.slipId);
+    }
+  }
 
-    // High-confidence fuzzy clusters within this minute.
+  // Fuzzy OCR name variants still require a shared minute — otherwise short
+  // lookalike names (Filler0/Filler1) chain across an entire flood wave.
+  // Include already-emitted same-minute destinations so a fuzzy variant can
+  // still fold into an exact-name merge that already ran (gondrong → gondronq).
+  const remainingForFuzzy = workingPool.filter(
+    (s) => !accum.consumed.has(s.slipId),
+  );
+  const outputByMinute = groupByMinuteTimestamp(
+    accum.output.filter((s) => toMinuteTimestampKey(s.depositAt) != null),
+    (s) => s.depositAt,
+  );
+  const openByMinute = groupByMinuteTimestamp(
+    remainingForFuzzy.filter((s) => toMinuteTimestampKey(s.depositAt) != null),
+    (s) => s.depositAt,
+  );
+
+  const minuteKeys = new Set([
+    ...outputByMinute.keys(),
+    ...openByMinute.keys(),
+  ]);
+
+  for (const minuteKey of minuteKeys) {
+    const open = openByMinute.get(minuteKey) ?? [];
+    const destinationsHere = outputByMinute.get(minuteKey) ?? [];
+    if (open.length === 0) continue;
+
+    const pool = [...open, ...destinationsHere];
     const autoClusters = clusterByFuzzyName(
-      minuteGroup,
+      pool,
       (s) => s.identity.commanderName,
       { threshold: FUZZY_AUTO_MERGE_THRESHOLD, includeSingletons: false },
     );
 
+    const assignedOpen = new Set<string>();
     for (const group of autoClusters) {
-      const clusterId = `c_${nextSlipId()}`;
-      const conflictResolution = resolveGroupConflicts(group, conflictFields);
-
-      if (!conflictResolution.resolved) {
-        clusters.push({
-          clusterId,
-          disposition: "flagged",
-          reason: pickConflictFlagReason(conflictResolution.conflictingFields),
-          destinationSlipId: pickBestSlipId(group),
-          members: group.map((s) => ({
-            slipId: s.slipId,
-            snapshot: slipSnapshot(s),
-          })),
-        });
-        for (const s of group) {
-          output.push({ ...s, dedupeClusterId: clusterId });
-          consumed.add(s.slipId);
-          assignedInMinute.add(s.slipId);
-        }
-        continue;
-      }
-
-      const minPair = minPairwiseNameSimilarity(group);
-      if (minPair < FUZZY_AUTO_MERGE_THRESHOLD) {
-        clusters.push({
-          clusterId,
-          disposition: "flagged",
-          reason: "borderline_commander_name_same_minute",
-          destinationSlipId: pickBestSlipId(group),
-          members: group.map((s) => ({
-            slipId: s.slipId,
-            snapshot: slipSnapshot(s),
-          })),
-        });
-        for (const s of group) {
-          output.push({ ...s, dedupeClusterId: clusterId });
-          consumed.add(s.slipId);
-          assignedInMinute.add(s.slipId);
-        }
-        continue;
-      }
-
-      const corrections = conflictResolution.corrections;
-      const merged = applyDepositSlipCorrections(
-        coalesceDepositSlips(group),
-        corrections,
+      const sources = group.filter((s) =>
+        open.some((o) => o.slipId === s.slipId),
       );
-      const destinationSlipId = nextSlipId();
-      const destination: IndexedSlip = {
-        ...merged,
-        identity: { ...merged.identity },
-        slipId: destinationSlipId,
-      };
-      clusters.push({
-        clusterId,
-        disposition: "auto_merged",
-        reason:
-          corrections.length > 0
-            ? "same_commander_and_minute_timestamp_majority_corrected"
-            : "same_commander_and_minute_timestamp",
-        destinationSlipId,
-        ...(corrections.length > 0
-          ? { correctedFields: corrections.map((c) => c.key) }
-          : {}),
-        members: [
-          ...group.map((s) => ({
-            slipId: s.slipId,
-            snapshot: slipSnapshot(s),
-          })),
-          {
-            slipId: destinationSlipId,
-            snapshot: slipSnapshot(destination),
-          },
-        ],
-      });
-      output.push(destination);
-      for (const s of group) {
-        consumed.add(s.slipId);
-        assignedInMinute.add(s.slipId);
+      const dests = group.filter((s) =>
+        destinationsHere.some((d) => d.slipId === s.slipId),
+      );
+      if (sources.length === 0) continue;
+
+      if (dests.length === 1) {
+        const destination = accum.output.find(
+          (o) => o.slipId === dests[0]!.slipId,
+        )!;
+        const conflictResolution = resolveGroupConflicts(
+          [...sources, destination],
+          conflictFields,
+        );
+        if (!conflictResolution.resolved) {
+          emitFlagged(
+            accum,
+            sources,
+            pickConflictFlagReason(conflictResolution.conflictingFields),
+          );
+          for (const s of sources) assignedOpen.add(s.slipId);
+          continue;
+        }
+        const corrections = conflictResolution.corrections;
+        const merged = applyDepositSlipCorrections(
+          coalesceDepositSlips([...sources, destination]),
+          corrections,
+        );
+        const rebuilt: IndexedSlip = {
+          ...merged,
+          depositAt: destination.depositAt,
+          identity: { ...merged.identity },
+          slipId: destination.slipId,
+          dedupeClusterId: destination.dedupeClusterId,
+        };
+        const outputIndex = accum.output.findIndex(
+          (o) => o.slipId === destination.slipId,
+        );
+        if (outputIndex >= 0) accum.output[outputIndex] = rebuilt;
+
+        const existingFlagged = destination.dedupeClusterId
+          ? accum.clusters.find(
+              (c) =>
+                c.clusterId === destination.dedupeClusterId &&
+                c.disposition === "flagged",
+            )
+          : undefined;
+        if (existingFlagged) {
+          existingFlagged.members.push(
+            ...sources.map((s) => ({
+              slipId: s.slipId,
+              snapshot: slipSnapshot(s),
+            })),
+          );
+        } else {
+          const clusterId = `c_${nextSlipId()}`;
+          accum.clusters.push({
+            clusterId,
+            disposition: "auto_merged",
+            reason:
+              corrections.length > 0
+                ? "same_commander_and_minute_timestamp_majority_corrected"
+                : "same_commander_and_minute_timestamp",
+            destinationSlipId: destination.slipId,
+            ...(corrections.length > 0
+              ? { correctedFields: corrections.map((c) => c.key) }
+              : {}),
+            members: [
+              ...sources.map((s) => ({
+                slipId: s.slipId,
+                snapshot: slipSnapshot(s),
+              })),
+              {
+                slipId: destination.slipId,
+                snapshot: slipSnapshot(rebuilt),
+              },
+            ],
+          });
+        }
+        for (const s of sources) {
+          accum.consumed.add(s.slipId);
+          assignedOpen.add(s.slipId);
+        }
+        continue;
       }
+
+      if (dests.length > 1) {
+        emitFlagged(
+          accum,
+          sources,
+          "commander_match_missing_timestamp_ambiguous",
+        );
+        for (const s of sources) assignedOpen.add(s.slipId);
+        continue;
+      }
+
+      // No existing destination — merge/flag the open sources alone.
+      resolveNameTimestampGroup(
+        accum,
+        sources,
+        "same_commander_and_minute_timestamp",
+      );
+      for (const s of sources) assignedOpen.add(s.slipId);
     }
 
-    // Borderline fuzzy (below auto threshold) within remaining minute rows → flag.
-    const remainingAfterAuto = minuteGroup.filter(
-      (s) => !assignedInMinute.has(s.slipId),
+    const remainingInMinute = open.filter(
+      (s) => !assignedOpen.has(s.slipId) && !accum.consumed.has(s.slipId),
     );
     const borderline = clusterByFuzzyName(
-      remainingAfterAuto,
+      remainingInMinute,
       (s) => s.identity.commanderName,
       { threshold: FUZZY_FLAG_MIN_THRESHOLD, includeSingletons: false },
     );
     for (const group of borderline) {
-      const minPair = minPairwiseNameSimilarity(group);
-      // Only flag the borderline band; auto-threshold pairs were already handled.
+      const stillOpen = group.filter((s) => !accum.consumed.has(s.slipId));
+      if (stillOpen.length < 2) continue;
+      const minPair = minPairwiseNameSimilarity(stillOpen);
       if (minPair >= FUZZY_AUTO_MERGE_THRESHOLD) continue;
+      emitFlagged(accum, stillOpen, "borderline_commander_name_same_minute");
+    }
+  }
+
+  // Fold leftover unanchored rows into a unique same-name (fuzzy) destination
+  // when unambiguous — covers timestamp-less OCR of a fuzzy name variant.
+  const leftoverUnanchored = workingPool.filter(
+    (s) =>
+      !accum.consumed.has(s.slipId) &&
+      toMinuteTimestampKey(s.depositAt) == null,
+  );
+  if (leftoverUnanchored.length > 0) {
+    const destinations = accum.output.slice();
+    const reconciliation = reconcileMissingAnchorRows(
+      leftoverUnanchored,
+      destinations,
+      {
+        getName: (s) => s.identity.commanderName,
+        isCompatible: (rows) =>
+          resolveGroupConflicts(rows, conflictFields).resolved,
+      },
+    );
+
+    for (const { destination, anchorlessRows } of reconciliation.mergedIntoDestination) {
+      const conflictResolution = resolveGroupConflicts(
+        [...anchorlessRows, destination],
+        conflictFields,
+      );
+      const corrections = conflictResolution.resolved
+        ? conflictResolution.corrections
+        : [];
+      const merged = applyDepositSlipCorrections(
+        coalesceDepositSlips([...anchorlessRows, destination]),
+        corrections,
+      );
+      const rebuilt: IndexedSlip = {
+        ...merged,
+        depositAt: destination.depositAt,
+        identity: { ...merged.identity },
+        slipId: destination.slipId,
+        dedupeClusterId: destination.dedupeClusterId,
+      };
+      const outputIndex = accum.output.findIndex(
+        (o) => o.slipId === destination.slipId,
+      );
+      if (outputIndex >= 0) accum.output[outputIndex] = rebuilt;
+
+      const existingFlaggedCluster = destination.dedupeClusterId
+        ? accum.clusters.find(
+            (cluster) =>
+              cluster.clusterId === destination.dedupeClusterId &&
+              cluster.disposition === "flagged",
+          )
+        : undefined;
+      if (existingFlaggedCluster) {
+        existingFlaggedCluster.members.push(
+          ...anchorlessRows.map((s) => ({
+            slipId: s.slipId,
+            snapshot: slipSnapshot(s),
+          })),
+        );
+        for (const s of anchorlessRows) accum.consumed.add(s.slipId);
+        continue;
+      }
 
       const clusterId = `c_${nextSlipId()}`;
-      clusters.push({
+      accum.clusters.push({
         clusterId,
-        disposition: "flagged",
-        reason: "borderline_commander_name_same_minute",
-        destinationSlipId: pickBestSlipId(group),
-        members: group.map((s) => ({
-          slipId: s.slipId,
-          snapshot: slipSnapshot(s),
-        })),
+        disposition: "auto_merged",
+        reason: "commander_match_missing_timestamp",
+        destinationSlipId: destination.slipId,
+        ...(corrections.length > 0
+          ? { correctedFields: corrections.map((c) => c.key) }
+          : {}),
+        members: [
+          ...anchorlessRows.map((s) => ({
+            slipId: s.slipId,
+            snapshot: slipSnapshot(s),
+          })),
+          { slipId: destination.slipId, snapshot: slipSnapshot(rebuilt) },
+        ],
       });
-      for (const s of group) {
-        output.push({ ...s, dedupeClusterId: clusterId });
-        consumed.add(s.slipId);
-        assignedInMinute.add(s.slipId);
-      }
+      for (const s of anchorlessRows) accum.consumed.add(s.slipId);
     }
 
-    // Remaining rows in this minute weren't fuzzy-similar enough (not even at
-    // the lenient borderline threshold) to any other row in the same minute —
-    // they're just distinct commanders whose deposits happened to land in the
-    // same minute, which is completely normal during a deposit flood wave.
-    // Sharing a minute alone is not suspicious; only similar-looking names
-    // sharing a minute are (handled by the auto/borderline passes above), so
-    // these pass straight through unflagged.
-    const stillLeft = minuteGroup.filter(
-      (s) => !assignedInMinute.has(s.slipId),
-    );
-    for (const s of stillLeft) {
-      if (!consumed.has(s.slipId)) {
-        output.push(s);
-        consumed.add(s.slipId);
-      }
-    }
-  }
-
-  // Rows with no parseable timestamp never joined a per-minute cluster above —
-  // give them one more chance to fold into a matching commander by name alone.
-  // All rows in `output` at this point came from `withTs` (they have a valid
-  // timestamp), including auto-merged synthetic destinations whose slipId is
-  // NOT in `consumed`. Using the full output avoids incorrectly excluding those
-  // synthetic destinations as anchor targets.
-  const perMinuteDestinations = output.slice();
-  const reconciliation = reconcileMissingAnchorRows(withoutTs, perMinuteDestinations, {
-    getName: (s) => s.identity.commanderName,
-    isCompatible: (rows) => resolveGroupConflicts(rows, conflictFields).resolved,
-  });
-
-  for (const { destination, anchorlessRows } of reconciliation.mergedIntoDestination) {
-    const conflictResolution = resolveGroupConflicts(
-      [...anchorlessRows, destination],
-      conflictFields,
-    );
-    const corrections = conflictResolution.resolved
-      ? conflictResolution.corrections
-      : [];
-    const merged = applyDepositSlipCorrections(
-      coalesceDepositSlips([...anchorlessRows, destination]),
-      corrections,
-    );
-    const rebuilt: IndexedSlip = {
-      ...merged,
-      // `destination` is the anchored row by construction — its timestamp is
-      // the reconciled group's source of truth. An anchorless row can still
-      // carry a *parseable* timestamp (e.g. one just demoted for being an
-      // implausible outlier), which would otherwise outrank the real anchor
-      // in `coalesceDepositSlips`'s generic completeness ranking and clobber
-      // the correct depositAt.
-      depositAt: destination.depositAt,
-      identity: { ...merged.identity },
-      slipId: destination.slipId,
-      // The destination remains the same review row after enrichment. Preserve
-      // its flagged-cluster membership even when a more-complete anchorless row
-      // won `coalesceDepositSlips`'s base-object ranking.
-      dedupeClusterId: destination.dedupeClusterId,
-    };
-    const outputIndex = output.findIndex((o) => o.slipId === destination.slipId);
-    if (outputIndex >= 0) output[outputIndex] = rebuilt;
-
-    // A compatible single destination can itself already belong to a flagged
-    // name cluster. Keep the newly folded evidence in that one review decision
-    // instead of creating an overlapping auto-merge cluster that reuses the
-    // same destination slip id.
-    const existingFlaggedCluster = destination.dedupeClusterId
-      ? clusters.find(
-          (cluster) =>
-            cluster.clusterId === destination.dedupeClusterId &&
-            cluster.disposition === "flagged",
-        )
-      : undefined;
-    if (existingFlaggedCluster) {
-      existingFlaggedCluster.members.push(
-        ...anchorlessRows.map((s) => ({
-          slipId: s.slipId,
-          snapshot: slipSnapshot(s),
-        })),
+    for (const group of reconciliation.mergedAmongThemselves) {
+      const open = group.filter((s) => !accum.consumed.has(s.slipId));
+      if (open.length < 2) continue;
+      resolveNameTimestampGroup(
+        accum,
+        open,
+        "commander_match_missing_timestamp",
       );
-      for (const s of anchorlessRows) consumed.add(s.slipId);
-      continue;
     }
 
-    const clusterId = `c_${nextSlipId()}`;
-    clusters.push({
-      clusterId,
-      disposition: "auto_merged",
-      reason: "commander_match_missing_timestamp",
-      destinationSlipId: destination.slipId,
-      ...(corrections.length > 0
-        ? { correctedFields: corrections.map((c) => c.key) }
-        : {}),
-      members: [
-        ...anchorlessRows.map((s) => ({
-          slipId: s.slipId,
-          snapshot: slipSnapshot(s),
-        })),
-        { slipId: destination.slipId, snapshot: slipSnapshot(rebuilt) },
-      ],
-    });
-    for (const s of anchorlessRows) consumed.add(s.slipId);
-  }
+    for (const { group, matchedDestinations } of reconciliation.ambiguous) {
+      const open = group.filter((s) => !accum.consumed.has(s.slipId));
+      if (open.length === 0) continue;
 
-  for (const group of reconciliation.mergedAmongThemselves) {
-    const conflictResolution = resolveGroupConflicts(group, conflictFields);
-    const corrections = conflictResolution.resolved
-      ? conflictResolution.corrections
-      : [];
-    const merged = applyDepositSlipCorrections(coalesceDepositSlips(group), corrections);
-    const destinationSlipId = nextSlipId();
-    const destination: IndexedSlip = {
-      ...merged,
-      identity: { ...merged.identity },
-      slipId: destinationSlipId,
-    };
-    const clusterId = `c_${nextSlipId()}`;
-    clusters.push({
-      clusterId,
-      disposition: "auto_merged",
-      reason: "commander_match_missing_timestamp",
-      destinationSlipId,
-      ...(corrections.length > 0
-        ? { correctedFields: corrections.map((c) => c.key) }
-        : {}),
-      members: [
-        ...group.map((s) => ({ slipId: s.slipId, snapshot: slipSnapshot(s) })),
-        { slipId: destinationSlipId, snapshot: slipSnapshot(destination) },
-      ],
-    });
-    output.push(destination);
-    for (const s of group) consumed.add(s.slipId);
-  }
-
-  for (const { group, matchedDestinations } of reconciliation.ambiguous) {
-    // If every matched destination already belongs to one existing flagged
-    // cluster (e.g. two near-identical names sharing a minute, already
-    // flagged as `borderline_commander_name_same_minute` against each other —
-    // or even just one destination that's already part of a flagged cluster
-    // with *other* rows, e.g. a single fuzzy-but-field-conflicting match),
-    // the anchorless row isn't a *new* ambiguity — it's more evidence for the
-    // same disputed identity. Fold it into that cluster instead of opening a
-    // redundant one, so officer review sees one grouped decision, not two.
-    const destinationClusterIds = new Set(
-      matchedDestinations.map((d) => d.dedupeClusterId).filter((id): id is string => !!id),
-    );
-    const existingCluster =
-      matchedDestinations.length > 0 &&
-      destinationClusterIds.size === 1 &&
-      matchedDestinations.every((d) => !!d.dedupeClusterId)
-        ? clusters.find((c) => c.clusterId === [...destinationClusterIds][0])
-        : undefined;
-
-    if (existingCluster) {
-      existingCluster.members.push(
-        ...group.map((s) => ({ slipId: s.slipId, snapshot: slipSnapshot(s) })),
+      const destinationClusterIds = new Set(
+        matchedDestinations
+          .map((d) => d.dedupeClusterId)
+          .filter((id): id is string => !!id),
       );
-      for (const s of group) {
-        output.push({ ...s, dedupeClusterId: existingCluster.clusterId });
-        consumed.add(s.slipId);
+      const existingCluster =
+        matchedDestinations.length > 0 &&
+        destinationClusterIds.size === 1 &&
+        matchedDestinations.every((d) => !!d.dedupeClusterId)
+          ? accum.clusters.find(
+              (c) => c.clusterId === [...destinationClusterIds][0],
+            )
+          : undefined;
+
+      if (existingCluster) {
+        existingCluster.members.push(
+          ...open.map((s) => ({
+            slipId: s.slipId,
+            snapshot: slipSnapshot(s),
+          })),
+        );
+        for (const s of open) {
+          accum.output.push({ ...s, dedupeClusterId: existingCluster.clusterId });
+          accum.consumed.add(s.slipId);
+        }
+        continue;
       }
-      continue;
-    }
 
-    const clusterId = `c_${nextSlipId()}`;
-    clusters.push({
-      clusterId,
-      disposition: "flagged",
-      reason: "commander_match_missing_timestamp_ambiguous",
-      destinationSlipId: pickBestSlipId(group),
-      members: group.map((s) => ({ slipId: s.slipId, snapshot: slipSnapshot(s) })),
-    });
-    for (const s of group) {
-      output.push({ ...s, dedupeClusterId: clusterId });
-      consumed.add(s.slipId);
+      emitFlagged(accum, open, "commander_match_missing_timestamp_ambiguous");
     }
   }
 
-  for (const s of reconciliation.untouched) {
-    if (!consumed.has(s.slipId)) {
-      output.push(s);
-      consumed.add(s.slipId);
+  // Safety: anything not yet emitted passes through.
+  for (const s of workingPool) {
+    if (!accum.consumed.has(s.slipId)) {
+      accum.output.push(s);
+      accum.consumed.add(s.slipId);
     }
   }
 
-  for (const s of input) {
-    if (!consumed.has(s.slipId)) {
-      output.push(s);
-      consumed.add(s.slipId);
-    }
-  }
-
-  // Every input row ends up either as its own output row or folded into another
-  // one; the exact "removed by merge" count is simply the size delta. (A
-  // cluster-by-cluster tally is fragile once a cluster's "destination" can be a
-  // pre-existing row rather than a freshly synthesized one, as happens in the
-  // missing-timestamp reconciliation pass above.)
-  const autoMergedRemoved = Math.max(0, input.length - output.length);
+  const autoMergedRemoved = Math.max(0, input.length - accum.output.length);
 
   const report: DedupeReport = {
-    clusters,
+    clusters: accum.clusters,
     autoMergedCount: autoMergedRemoved,
-    flaggedCount: clusters.filter((c) => c.disposition === "flagged").length,
+    flaggedCount: accum.clusters.filter((c) => c.disposition === "flagged")
+      .length,
     inputCount: input.length,
-    outputCount: output.length,
+    outputCount: accum.output.length,
   };
 
   return {
-    slips: sortByDepositAtDesc(output),
+    slips: sortByDepositAtDesc(accum.output),
     report,
   };
 }

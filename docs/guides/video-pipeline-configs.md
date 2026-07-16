@@ -178,6 +178,23 @@ Do **not** set this as the global default. Scope to:
 4. New uploads’ **primary** jobs show `passKey` matching the assigned arm on `/admin/video-jobs`. Officers review/rate that primary — no Promote needed mid-experiment.
 5. When the variant wins on completeness without timeouts, **Promote** it to a config assignment (standing default after conclude / outside experiment traffic).
 
+### Oversampling — dense fps creates duplicate OCR rows
+
+**Symptom.** A slowly scrolling Deposit Slip History clip stamped with `{ "mode": "fps", "sampleFps": 3 }` (or higher) yields far more OCR rows than real slips — for example ~146 raw rows for ~24–40 deposits. The same commander name appears many times across adjacent frames. Cross-frame dedupe recovers some duplicates, but review stays noisy when OCR also misreads the deposit minute.
+
+**Diagnosis.** Fixed fps on a slow scroll means each on-screen row is captured **3–9+ times** before it scrolls off. That is an extraction density problem, not a missing-frame problem. Dedupe (exact normalized commander name first, nearby timestamps as corroboration) reduces the burden, but lowering sample rate still cuts OCR cost and review volume at the source.
+
+**Recommended experiment for `bank-deposit-slip-history`**
+
+| Goal | Try |
+|------|-----|
+| Fewer duplicate reads on slow scrolls | `{ "mode": "fps", "sampleFps": 1 }` or `1.5` |
+| Keep coverage without fixed oversampling | `{ "mode": "scene", "sceneThreshold": 0.15–0.25, "sampleFps": 1 }` (tune threshold for scroll motion) |
+
+Scope the assignment to `bank-deposit-slip-history` only. Prefer an A/B experiment against the current standing config before promoting. Reprocess does **not** rewrite `extractionConfigJson` on old jobs — re-upload or re-stamp to test.
+
+If under-sampling (missing rows) and oversampling (duplicate rows) both appear on the same target, pick density from scroll speed: fast scrolls need denser fps; slow scrolls need lower fps or scene mode.
+
 ### Step 4 — What “good” looks like on the job detail page
 
 On `/admin/video-jobs/<id>`:
