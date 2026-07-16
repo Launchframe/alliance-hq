@@ -1,12 +1,14 @@
 /**
- * Deposit-slip cross-frame dedupe: fuzzy commander first, depositAt as
- * corroboration.
+ * Deposit-slip cross-frame dedupe: exact normalized commander name first,
+ * depositAt as corroboration.
  *
- * Primary partition is fuzzy commander name across the whole job (not
- * to-the-minute timestamp). Within a name cluster, nearby / majority-agreeing
- * timestamps auto-merge; genuinely distant timestamps (same commander deposited
- * twice) split into separate slips. Missing or implausible timestamps fold into
- * the matching name group when unambiguous.
+ * Primary partition is exact normalized commander name across the whole job
+ * (not to-the-minute timestamp). Within a name cluster, nearby timestamps
+ * auto-merge; a majority-minute home may absorb a lone OCR outlier a bit
+ * farther out; genuinely distant multi-row deposits (same commander deposited
+ * twice) stay separate. Fuzzy name variants still require a shared minute.
+ * Missing or implausible timestamps fold into the matching name group when
+ * unambiguous.
  *
  * This module is a thin domain adapter over the generic helpers in
  * `src/lib/video/dedupe/`: it supplies deposit-slip field specs (amount, term,
@@ -43,11 +45,20 @@ import { partitionPlausibleTimestamps } from "@/lib/video/dedupe/timestamp-plaus
 import { stringSimilarity } from "@/lib/video/member-matcher";
 
 /**
- * Max gap between depositAts that still count as the same slip within a
- * same-name cluster. Catches OCR minute-digit noise (e.g. 13:18 vs 13:28)
- * without merging a commander who genuinely deposited hours apart.
+ * Max gap between consecutive depositAts (and max span of a proximity group)
+ * that still count as the same slip within a same-name cluster. Catches OCR
+ * minute-digit noise (e.g. 13:18 vs 13:28) without chaining many genuine
+ * deposits spaced ~10–15 minutes apart into one mega-merge.
  */
 export const DEPOSIT_AT_PROXIMITY_MS = 15 * 60 * 1000;
+
+/**
+ * When a minute key has a strict majority of reads for a commander, a lone
+ * outlier farther than {@link DEPOSIT_AT_PROXIMITY_MS} but within this window
+ * may still fold into that majority (OCR flipped a tens digit). Multi-row
+ * distant groups are never absorbed — those are a second real deposit.
+ */
+export const DEPOSIT_AT_MAJORITY_OUTLIER_MS = 45 * 60 * 1000;
 
 export type DedupedDepositSlip = ParsedDepositSlipDraft & {
   /** Provisional id — used as parsed_rows.id for survivors. */
@@ -359,30 +370,61 @@ function parseDepositAtMs(iso: string | null | undefined): number | null {
 }
 
 /**
- * True when one to-the-minute key accounts for a strict majority of the
- * timestamped rows in a same-name cluster (OCR outliers lose to the crowd).
+ * To-the-minute key that accounts for a strict majority of timestamped rows
+ * in a same-name cluster, or null when no minute wins.
  */
-function hasMajorityMinuteKey(
+function findMajorityMinuteKey(
   slips: readonly ParsedDepositSlipDraft[],
-): boolean {
+): string | null {
   const keys = slips
     .map((s) => toMinuteTimestampKey(s.depositAt))
     .filter((k): k is string => k != null);
-  if (keys.length === 0) return false;
+  if (keys.length === 0) return null;
   const counts = new Map<string, number>();
   for (const key of keys) {
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   const majorityThreshold = keys.length / 2;
-  for (const count of counts.values()) {
-    if (count > majorityThreshold) return true;
+  let bestKey: string | null = null;
+  let bestCount = 0;
+  for (const [key, count] of counts) {
+    if (count > majorityThreshold && count > bestCount) {
+      bestKey = key;
+      bestCount = count;
+    }
   }
-  return false;
+  return bestKey;
+}
+
+function groupDepositAtRange(
+  group: readonly ParsedDepositSlipDraft[],
+): { min: number; max: number } | null {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const s of group) {
+    const ms = parseDepositAtMs(s.depositAt);
+    if (ms == null) continue;
+    if (ms < min) min = ms;
+    if (ms > max) max = ms;
+  }
+  if (!Number.isFinite(min)) return null;
+  return { min, max };
+}
+
+/** Gap between two closed time ranges (0 when they overlap). */
+function rangeGapMs(
+  a: { min: number; max: number },
+  b: { min: number; max: number },
+): number {
+  if (a.min > b.max) return a.min - b.max;
+  if (b.min > a.max) return b.min - a.max;
+  return 0;
 }
 
 /**
- * Split timestamped rows into proximity-connected subgroups (sorted union of
- * neighbors within `proximityMs`). Rows without a parseable timestamp are
+ * Split timestamped rows into proximity-connected subgroups. Neighbors join
+ * when consecutive gaps and the group's overall span are both ≤ `proximityMs`
+ * (diameter-capped single-linkage). Rows without a parseable timestamp are
  * returned separately as `unanchored`.
  */
 export function splitByDepositAtProximity<T>(
@@ -408,18 +450,63 @@ export function splitByDepositAtProximity<T>(
   const groups: T[][] = [];
   let current: T[] = [anchored[0]!.row];
   let prevMs = anchored[0]!.ms;
+  let groupStartMs = anchored[0]!.ms;
   for (let i = 1; i < anchored.length; i += 1) {
     const next = anchored[i]!;
-    if (next.ms - prevMs <= proximityMs) {
+    if (
+      next.ms - prevMs <= proximityMs &&
+      next.ms - groupStartMs <= proximityMs
+    ) {
       current.push(next.row);
     } else {
       groups.push(current);
       current = [next.row];
+      groupStartMs = next.ms;
     }
     prevMs = next.ms;
   }
   groups.push(current);
   return { anchoredGroups: groups, unanchored };
+}
+
+/**
+ * When one minute dominates a name cluster, fold lone nearby OCR outliers into
+ * that majority home. Never absorb a multi-row distant group (second deposit).
+ */
+function absorbMajorityMinuteOutliers<T extends ParsedDepositSlipDraft>(
+  anchoredGroups: T[][],
+  majorityKey: string,
+  outlierMs: number = DEPOSIT_AT_MAJORITY_OUTLIER_MS,
+): T[][] {
+  if (anchoredGroups.length <= 1) return anchoredGroups;
+
+  const majorityIdx = anchoredGroups.findIndex((g) =>
+    g.some((s) => toMinuteTimestampKey(s.depositAt) === majorityKey),
+  );
+  if (majorityIdx < 0) return anchoredGroups;
+
+  const majorityGroup = anchoredGroups[majorityIdx]!;
+  const majorityRange = groupDepositAtRange(majorityGroup);
+  if (!majorityRange) return anchoredGroups;
+
+  const absorbed: T[] = [...majorityGroup];
+  const remaining: T[][] = [];
+  for (let i = 0; i < anchoredGroups.length; i += 1) {
+    if (i === majorityIdx) continue;
+    const group = anchoredGroups[i]!;
+    const groupRange = groupDepositAtRange(group);
+    const gap =
+      groupRange == null
+        ? Number.POSITIVE_INFINITY
+        : rangeGapMs(majorityRange, groupRange);
+    // Only singleton outliers — a second oversampled deposit stays separate.
+    if (group.length === 1 && gap <= outlierMs) {
+      absorbed.push(...group);
+    } else {
+      remaining.push(group);
+    }
+  }
+  return [absorbed, ...remaining];
 }
 
 type DedupeAccum = {
@@ -536,10 +623,11 @@ function resolveNameTimestampGroup(
 }
 
 /**
- * Within an exact-normalized-name cluster: majority/nearby timestamps merge;
- * distant timestamps split into separate slips; unanchored rows fold when
- * unambiguous. Singletons are left unconsumed so a later same-minute fuzzy
- * pass can still pair OCR name variants (e.g. gondrong / gondronq).
+ * Within an exact-normalized-name cluster: nearby (diameter-capped) timestamps
+ * merge; a majority-minute home may absorb a lone OCR outlier; distant
+ * multi-row deposits split; unanchored rows fold when unambiguous. Singletons
+ * are left unconsumed so a later same-minute fuzzy pass can still pair OCR
+ * name variants (e.g. gondrong / gondronq).
  */
 function processExactNameCluster(
   accum: DedupeAccum,
@@ -566,21 +654,29 @@ function processExactNameCluster(
     return;
   }
 
-  if (hasMajorityMinuteKey(timestamped) || timestamped.length === 1) {
+  if (timestamped.length === 1) {
     resolveNameTimestampGroup(
       accum,
       [...timestamped, ...unanchored],
-      unanchored.length > 0 && timestamped.length === 1
+      unanchored.length > 0
         ? "commander_match_missing_timestamp"
         : "same_commander_and_minute_timestamp",
     );
     return;
   }
 
-  const { anchoredGroups } = splitByDepositAtProximity(
+  let { anchoredGroups } = splitByDepositAtProximity(
     timestamped,
     (s) => s.depositAt,
   );
+
+  // Majority must not swallow a second genuine deposit that was also
+  // oversampled — only proximity-split first, then absorb singleton OCR
+  // outliers near the majority-minute home.
+  const majorityKey = findMajorityMinuteKey(timestamped);
+  if (majorityKey) {
+    anchoredGroups = absorbMajorityMinuteOutliers(anchoredGroups, majorityKey);
+  }
 
   if (anchoredGroups.length === 1) {
     resolveNameTimestampGroup(
