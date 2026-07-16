@@ -73,6 +73,26 @@ describe("reconcileMissingAnchorRows", () => {
     ]);
   });
 
+  it("disambiguates multiple name matches by field compatibility when exactly one destination fits", () => {
+    // Same commander has two separate already-anchored deposit cycles
+    // (different amounts). The anchor-less row's amount only matches one
+    // of them, so it should merge into that one instead of going ambiguous.
+    const anchorless: Row[] = [{ id: "a1", name: "Bat Pig", amount: 6000 }];
+    const destinations: Row[] = [
+      { id: "d1", name: "Bat Pig", amount: 6000 },
+      { id: "d2", name: "Bat Pig", amount: 9000 },
+    ];
+
+    const result = reconcileMissingAnchorRows(anchorless, destinations, {
+      getName: (r) => r.name,
+      isCompatible,
+    });
+
+    expect(result.mergedIntoDestination).toHaveLength(1);
+    expect(result.mergedIntoDestination[0]?.destination.id).toBe("d1");
+    expect(result.ambiguous).toHaveLength(0);
+  });
+
   it("flags as ambiguous when the match has an incompatible field", () => {
     const anchorless: Row[] = [{ id: "a1", name: "EagleTN", amount: 5000 }];
     const destinations: Row[] = [{ id: "d1", name: "EagleTN", amount: 6000 }];

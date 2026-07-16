@@ -1152,11 +1152,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const duplicateMemberIssues = scoreTargetMeta?.showRosterColumns
     ? rosterValidation.duplicateMemberIssues
-    : scoreDuplicateMemberIssues;
+    : scoreTargetMeta?.showDepositSlipColumns
+      ? depositSlipValidation.duplicateMemberIssues
+      : scoreDuplicateMemberIssues;
 
   const duplicateRowIds = scoreTargetMeta?.showRosterColumns
     ? rosterValidation.duplicateRowIds
-    : scoreDuplicateRowIds;
+    : scoreTargetMeta?.showDepositSlipColumns
+      ? depositSlipValidation.duplicateRowIds
+      : scoreDuplicateRowIds;
 
   const hasScoreConflicts =
     scoreTargetMeta?.showScoreColumn !== false &&

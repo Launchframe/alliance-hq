@@ -146,6 +146,48 @@ function dedupeAndSortSlips(
   return unique;
 }
 
+/**
+ * Max number of lines to look backward/forward from an identity line when
+ * hunting for its timestamp. Wider than the nominal 1-line gap so a couple
+ * of garbled/hallucinated OCR lines between the timestamp and identity
+ * (common on the small gray timestamp text) don't cause a miss.
+ */
+const TIMESTAMP_SEARCH_BACK_LINES = 6;
+const TIMESTAMP_SEARCH_FORWARD_LINES = 2;
+
+/**
+ * Find the timestamp line for the deposit-slip row whose identity line is
+ * at `identityIndex`. In the in-game overlay each row is physically
+ * `[timestamp, identity, deposit info]`, so the timestamp normally sits
+ * immediately before the identity line. Extra noise lines from OCR can
+ * shift that offset, so this scans outward from the identity line in
+ * proximity order (closest first) rather than a fixed-width window —
+ * but stops as soon as it crosses into a neighboring row's identity line,
+ * so it can never mistakenly borrow a different row's timestamp.
+ */
+function findNearbyDepositSlipTimestamp(
+  lines: readonly { text: string; confidence: number | null }[],
+  identityIndex: number,
+): { depositAt: string; confidence: number | null } | null {
+  for (let k = 1; k <= TIMESTAMP_SEARCH_BACK_LINES; k += 1) {
+    const j = identityIndex - k;
+    if (j < 0) break;
+    const probe = lines[j]!.text.trim();
+    if (parseDepositSlipIdentity(probe)) break;
+    const ts = parseDepositSlipTimestamp(probe);
+    if (ts) return { depositAt: ts, confidence: lines[j]!.confidence };
+  }
+  for (let k = 1; k <= TIMESTAMP_SEARCH_FORWARD_LINES; k += 1) {
+    const j = identityIndex + k;
+    if (j >= lines.length) break;
+    const probe = lines[j]!.text.trim();
+    if (parseDepositSlipIdentity(probe)) break;
+    const ts = parseDepositSlipTimestamp(probe);
+    if (ts) return { depositAt: ts, confidence: lines[j]!.confidence };
+  }
+  return null;
+}
+
 /** Game timestamps are wall-clock without TZ; treat as UTC for storage. */
 export function parseDepositSlipTimestamp(raw: string): string | null {
   const match = raw.match(TIMESTAMP_RE);
@@ -232,19 +274,12 @@ export function parseDepositSlipHistoryText(
 
     const confidenceParts: Array<number | null> = [normalized[i]!.confidence];
 
-    // Timestamp is usually on the same visual row — search nearby lines.
-    let depositAt: string | null = null;
-    for (
-      let j = Math.max(0, i - 2);
-      j <= Math.min(normalized.length - 1, i + 1);
-      j += 1
-    ) {
-      const ts = parseDepositSlipTimestamp(normalized[j]!.text.trim());
-      if (ts) {
-        depositAt = ts;
-        confidenceParts.push(normalized[j]!.confidence);
-        break;
-      }
+    // Timestamp is usually on the line right before this identity — search
+    // nearby lines, closest first, without crossing into a neighboring row.
+    const nearbyTimestamp = findNearbyDepositSlipTimestamp(normalized, i);
+    const depositAt = nearbyTimestamp?.depositAt ?? null;
+    if (nearbyTimestamp) {
+      confidenceParts.push(nearbyTimestamp.confidence);
     }
 
     let amount: number | null = null;
