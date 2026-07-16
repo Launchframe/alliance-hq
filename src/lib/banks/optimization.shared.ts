@@ -51,13 +51,19 @@ export function computeDepositStats(slips: readonly SerializedDepositSlip[]): De
   let totalDeposited = 0;
   let totalRecovered = 0;
   let totalLooted = 0;
+  let interestEarned: number | null = null;
 
   for (const slip of slips) {
     totalDeposited += slip.amount;
     if (slip.status === "matured") {
-      totalRecovered += slip.amount;
+      totalRecovered += slip.outcomeAmount ?? slip.amount;
+      if (slip.outcomeAmount != null) {
+        const interest = slip.outcomeAmount - slip.amount;
+        interestEarned = (interestEarned ?? 0) + interest;
+      }
     } else if (slip.status === "looted") {
-      totalLooted += slip.amount;
+      totalLooted +=
+        slip.outcomeAmount != null ? slip.amount - slip.outcomeAmount : slip.amount;
     }
   }
 
@@ -65,7 +71,7 @@ export function computeDepositStats(slips: readonly SerializedDepositSlip[]): De
     totalDeposited,
     totalRecovered,
     totalLooted,
-    interestEarned: null,
+    interestEarned,
   };
 }
 
@@ -418,6 +424,7 @@ export function slipsForProjectionActualOverlay(
       status: live?.status ?? entry.status,
       outcomeAt: live?.outcomeAt ?? entry.outcomeAt,
       amount: entry.amount,
+      outcomeAmount: live?.outcomeAmount ?? null,
       depositAllianceTag: live?.depositAllianceTag ?? null,
       depositAllianceId: live?.depositAllianceId ?? null,
       commanderName: live?.commanderName ?? "",

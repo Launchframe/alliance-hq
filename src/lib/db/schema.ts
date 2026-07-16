@@ -3086,6 +3086,7 @@ export const bankDepositSlips = pgTable(
     status: text("status").notNull().default("locked"),
     outcomeAt: timestamp("outcome_at", { withTimezone: true }),
     amount: integer("amount").notNull(),
+    outcomeAmount: integer("outcome_amount"),
     depositAllianceTag: text("deposit_alliance_tag"),
     depositAllianceId: text("deposit_alliance_id").references(
       () => alliances.id,

@@ -50,6 +50,7 @@ function makeBank(id: string, amount: number): BankWithSlips {
         status: "locked",
         outcomeAt: null,
         amount,
+        outcomeAmount: null,
         depositAllianceTag: "TAG",
         depositAllianceId: null,
         commanderName: "Cmdr",

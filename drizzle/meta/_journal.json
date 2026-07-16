@@ -736,6 +736,13 @@
       "when": 1788259200000,
       "tag": "0105_bank_deposit_slip_alliance_member",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1788528000000,
+      "tag": "0108_bank_deposit_slip_outcome_amount",
+      "breakpoints": true
     }
   ]
 }

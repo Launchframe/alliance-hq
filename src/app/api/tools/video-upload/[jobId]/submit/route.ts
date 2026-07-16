@@ -467,6 +467,8 @@ export async function POST(request: Request, { params }: Props) {
           profession: schema.parsedRows.profession,
           allianceRankTitle: schema.parsedRows.allianceRankTitle,
           rosterRankRaw: schema.parsedRows.rosterRankRaw,
+          // Scratchpad for CrystalGold outcome (green/orange); see draft-row.shared.
+          rank: schema.parsedRows.rank,
           frameIndex: schema.parsedRows.frameIndex,
           dedupeClusterId: schema.parsedRows.dedupeClusterId,
           deleted: schema.parsedRows.deleted,
@@ -587,6 +589,7 @@ export async function POST(request: Request, { params }: Props) {
           profession: row.profession ?? null,
           allianceRankTitle: row.allianceRankTitle ?? null,
           rosterRankRaw: row.rosterRankRaw ?? null,
+          rank: row.rank ?? null,
           frameIndex: row.frameIndex ?? null,
           deleted: Boolean(row.deleted),
         })),

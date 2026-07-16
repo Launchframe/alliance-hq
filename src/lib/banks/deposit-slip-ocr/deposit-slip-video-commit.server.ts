@@ -22,6 +22,7 @@ export type DepositSlipVideoCommitRow = {
   profession: string | null;
   allianceRankTitle: string | null;
   rosterRankRaw: string | null;
+  rank?: number | null;
   frameIndex: number | null;
   deleted: boolean;
   /** Optional overrides; otherwise loaded from `parsed_rows` at commit. */
@@ -46,7 +47,15 @@ export type CommitDepositSlipsFromVideoJobResult = {
 async function loadParsedRowLinkMeta(
   parseSessionId: string,
 ): Promise<
-  Map<string, { memberId: string | null; matchMethod: string | null }>
+  Map<
+    string,
+    {
+      memberId: string | null;
+      matchMethod: string | null;
+      /** Scratchpad for outcomeAmount (see draft-row.shared). */
+      rank: number | null;
+    }
+  >
 > {
   const db = getDb();
   const rows = await db
@@ -54,13 +63,18 @@ async function loadParsedRowLinkMeta(
       id: schema.parsedRows.id,
       memberId: schema.parsedRows.memberId,
       matchMethod: schema.parsedRows.matchMethod,
+      rank: schema.parsedRows.rank,
     })
     .from(schema.parsedRows)
     .where(eq(schema.parsedRows.parseSessionId, parseSessionId));
   return new Map(
     rows.map((row) => [
       row.id,
-      { memberId: row.memberId, matchMethod: row.matchMethod },
+      {
+        memberId: row.memberId,
+        matchMethod: row.matchMethod,
+        rank: row.rank,
+      },
     ]),
   );
 }
@@ -108,6 +122,7 @@ export async function commitDepositSlipsFromVideoJob(
       profession: row.profession,
       allianceRankTitle: row.allianceRankTitle,
       rosterRankRaw: row.rosterRankRaw,
+      rank: row.rank,
       frameIndex: row.frameIndex,
       deleted: false,
       memberId: row.memberId,
@@ -124,7 +139,21 @@ export async function commitDepositSlipsFromVideoJob(
   const resolverDeps = createDepositSlipMemberResolverCache();
 
   for (const row of rows) {
-    const draft = parsedRowFieldsToDepositSlipDraft(row);
+    const meta = linkMetaByRowId.get(row.id);
+    // Prefer submit/body rank; fall back to persisted OCR scratchpad so
+    // callers that omit rank (legacy review payloads) still persist outcomeAmount.
+    const rank = row.rank !== undefined ? row.rank : (meta?.rank ?? null);
+    const draft = parsedRowFieldsToDepositSlipDraft({
+      ocrName: row.ocrName,
+      score: row.score,
+      powerLevel: row.powerLevel,
+      memberLevel: row.memberLevel,
+      profession: row.profession,
+      allianceRankTitle: row.allianceRankTitle,
+      rosterRankRaw: row.rosterRankRaw,
+      rank,
+      frameIndex: row.frameIndex,
+    });
     if (!draft || draft.amount == null || !draft.depositAt || draft.termDays == null) {
       skippedCount += 1;
       errors.push(
@@ -133,7 +162,6 @@ export async function commitDepositSlipsFromVideoJob(
       continue;
     }
 
-    const meta = linkMetaByRowId.get(row.id);
     const matchMethod = row.matchMethod ?? meta?.matchMethod ?? null;
     const memberId = row.memberId ?? meta?.memberId ?? null;
     const preferredAshedMemberId =
@@ -156,6 +184,7 @@ export async function commitDepositSlipsFromVideoJob(
       depositAt: draft.depositAt,
       termDays: draft.termDays,
       amount: draft.amount,
+      outcomeAmount: draft.outcomeAmount ?? null,
       status: draft.status,
       outcomeAt:
         draft.status === "matured" || draft.status === "looted"

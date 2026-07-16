@@ -35,6 +35,7 @@ function slip(
     status: "locked",
     outcomeAt: null,
     amount: 6000,
+    outcomeAmount: null,
     depositAllianceTag: "Roar",
     depositAllianceId: null,
     commanderName: "snapz a saurus",
@@ -119,15 +120,46 @@ describe("depositSlipDisplayStatus", () => {
 describe("computeDepositStats", () => {
   it("computes totals across mixed statuses", () => {
     const slips = [
-      { amount: 1000, status: "locked" as const, maturesAt: "2025-06-20T00:00:00Z" },
-      { amount: 2000, status: "matured" as const, maturesAt: "2025-06-10T00:00:00Z" },
-      { amount: 500, status: "looted" as const, maturesAt: "2025-06-08T00:00:00Z" },
-      { amount: 3000, status: "matured" as const, maturesAt: "2025-06-05T00:00:00Z" },
+      { amount: 1000, status: "locked" as const, outcomeAmount: null, maturesAt: "2025-06-20T00:00:00Z" },
+      { amount: 2000, status: "matured" as const, outcomeAmount: null, maturesAt: "2025-06-10T00:00:00Z" },
+      { amount: 500, status: "looted" as const, outcomeAmount: null, maturesAt: "2025-06-08T00:00:00Z" },
+      { amount: 3000, status: "matured" as const, outcomeAmount: null, maturesAt: "2025-06-05T00:00:00Z" },
     ] as unknown as SerializedDepositSlip[];
     const stats = computeDepositStats(slips);
     expect(stats.totalDeposited).toBe(6500);
     expect(stats.totalRecovered).toBe(5000);
     expect(stats.totalLooted).toBe(500);
+    expect(stats.interestEarned).toBeNull();
+  });
+
+  it("computes interestEarned when outcomeAmount is present", () => {
+    const slips = [
+      { amount: 5000, status: "matured" as const, outcomeAmount: 5750, maturesAt: "2025-06-10T00:00:00Z" },
+      { amount: 3000, status: "matured" as const, outcomeAmount: 3450, maturesAt: "2025-06-12T00:00:00Z" },
+    ] as unknown as SerializedDepositSlip[];
+    const stats = computeDepositStats(slips);
+    expect(stats.totalRecovered).toBe(5750 + 3450);
+    expect(stats.interestEarned).toBe(750 + 450);
+    expect(stats.totalDeposited).toBe(8000);
+  });
+
+  it("computes loot loss from outcomeAmount partial refund", () => {
+    const slips = [
+      { amount: 5000, status: "looted" as const, outcomeAmount: 3000, maturesAt: "2025-06-10T00:00:00Z" },
+    ] as unknown as SerializedDepositSlip[];
+    const stats = computeDepositStats(slips);
+    expect(stats.totalLooted).toBe(2000);
+    expect(stats.totalRecovered).toBe(0);
+  });
+
+  it("falls back to amount when outcomeAmount is null", () => {
+    const slips = [
+      { amount: 5000, status: "matured" as const, outcomeAmount: null, maturesAt: "2025-06-10T00:00:00Z" },
+      { amount: 2000, status: "looted" as const, outcomeAmount: null, maturesAt: "2025-06-08T00:00:00Z" },
+    ] as unknown as SerializedDepositSlip[];
+    const stats = computeDepositStats(slips);
+    expect(stats.totalRecovered).toBe(5000);
+    expect(stats.totalLooted).toBe(2000);
     expect(stats.interestEarned).toBeNull();
   });
 

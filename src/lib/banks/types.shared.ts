@@ -44,6 +44,7 @@ export type SerializedDepositSlip = {
   status: DepositStatus;
   outcomeAt: string | null;
   amount: number;
+  outcomeAmount: number | null;
   depositAllianceTag: string | null;
   depositAllianceId: string | null;
   commanderName: string;
