@@ -46,6 +46,57 @@ Prefer opacity modifiers on tokens (`/10`, `/40`, `/50`) over unique hex+alpha l
 2. If the same chrome appears in two or more places, extract a small shared component or shared class string — do not copy-paste divergent one-offs.
 3. Prefer existing shared UI primitives over new ad-hoc layout chrome when they fit.
 
+## Domain-colored components (mechanism / brand palettes)
+
+Some components use **Tailwind color-scale classes** where the hue carries domain meaning — cyan for Price Is Freight, blue for VS, purple for R4, emerald for R3, amber for donations, etc. These **cannot** be replaced with generic `hq-*` tokens because the color itself communicates a game mechanic.
+
+**Every such class must have a `dark:` counterpart.** Without one, the color is only readable in whatever theme the author happened to be using.
+
+### Dual-mode pattern
+
+| Layer | Light mode | Dark mode |
+| --- | --- | --- |
+| Background | Solid pastel (`bg-blue-100`) | Translucent tint (`dark:bg-blue-500/15`) |
+| Text | Dark hue (`text-blue-700`) | Light hue (`dark:text-blue-200`) |
+| Border | Mid hue (`border-blue-500`) | Same or translucent (`dark:border-blue-500`) |
+
+Full example for a VS-themed section:
+
+```
+border-blue-500 bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200
+```
+
+### Canonical maps
+
+Mechanism and template cell classes live in [`src/lib/trains/mechanism-styles.ts`](src/lib/trains/mechanism-styles.ts) (`MECHANISM_STYLES`) and [`src/lib/trains/calendar-cell-styles.shared.ts`](src/lib/trains/calendar-cell-styles.shared.ts) (`TEMPLATE_CELL_STYLES`, not exported). **New entries must use the dual-mode shape above** (light pastel + `dark:` tint/text). Legacy entries may still be dark-biased (`bg-blue-500/15 text-blue-200` without light counterparts) — migrate them when you touch that surface.
+
+### CTAs inside themed panels
+
+Buttons and links inside domain-colored sections are the most common readability failure:
+
+| Do | Don't |
+| --- | --- |
+| `bg-cyan-100 text-cyan-700 dark:bg-cyan-500/10 dark:text-cyan-100` | `bg-cyan-500/10 text-cyan-100` (invisible on white) |
+| `text-cyan-600 dark:text-cyan-300` for links | `text-cyan-300` (invisible on white) |
+
+### Fade / gradient overlays
+
+Never hardcode a dark-mode background hex in inline `style`. Prefer `hq-*` surface tokens (they already flip with theme) over hex literals that happen to match `--hq-canvas`:
+
+| Do | Don't |
+| --- | --- |
+| `bg-gradient-to-b from-hq-canvas via-hq-canvas/60 to-transparent` | `style={{ background: "linear-gradient(…, #0d1117 …)" }}` or `dark:from-[#0d1117]` |
+
+Known legacy debt (migrate when those surfaces are next touched): `PriceIsRightTicketsPanel`, `TrainPivotBanner`, and related train panels still use bare `text-cyan-300` / hardcoded `#0d1117` gradients.
+
+### Badge / pill accents
+
+Small colored badges (e.g. takedown override, rank indicators) follow the same rule:
+
+```
+bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-200
+```
+
 ## Allowed exceptions
 
 - Third-party brand colors already exposed as tokens (e.g. `hq-discord`)
@@ -54,7 +105,9 @@ Prefer opacity modifiers on tokens (`/10`, `/40`, `/50`) over unique hex+alpha l
 
 ## Checklist before shipping UI
 
-- [ ] Colors go through `hq-*` (or a new token added in light **and** dark)
+- [ ] Colors go through `hq-*` (or a new token added in light **and** dark) — domain-colored components excepted; see above
 - [ ] No new arbitrary hex for borders/backgrounds/text unless an exception above applies
+- [ ] Domain-colored components use dual-mode classes (light + `dark:`) — no bare `text-cyan-100` or `bg-blue-500/10` without a light-mode counterpart
+- [ ] Fade/gradient overlays use `hq-*` surface tokens (e.g. `from-hq-canvas`), not hardcoded dark hex in `style` or `dark:from-[#…]`
 - [ ] Warning / error / success use the matching semantic token
 - [ ] Spot-check light and dark (or reason from token definitions) before merge
