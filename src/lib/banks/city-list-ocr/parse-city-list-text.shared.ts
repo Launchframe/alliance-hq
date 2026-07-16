@@ -21,6 +21,19 @@
  * parentheses (`#1211x:699,v:399)`), confuse `Y` with `V`, drop the leading
  * `#`, glue server+X (`#1211599, V:499)`), and mangle levels into `Lv:3` /
  * `Lvi3`. Levels/deposits are optional; missing amounts stay null.
+ *
+ * Row-local zip is still vulnerable when a token is missed from the
+ * **middle** of a row (not just a fully-unreadable coordinate line): e.g. a
+ * row of 3 tiles that only recovers 2 K-amounts (tile 1's amount OCR'd as
+ * nothing) would, under plain index-zip, hand tile 2's amount to tile 1 and
+ * tile 3's to tile 2, leaking real data onto the wrong bank. When callers
+ * supply word-level bbox data (`CityListOcrLine.words`, threaded through from
+ * `runTesseract`'s `blocks: true` output), `parseCityListBanks` instead
+ * matches each value/level/deposit token to its nearest coordinate column by
+ * on-image x-position — a dropped middle token then leaves that one tile's
+ * field null instead of shifting every later tile in the row. Plain string
+ * lines (no word data — most existing tests, and any legacy raw-line
+ * storage) fall back to the original per-index zip unchanged.
  */
 
 export type ParsedCityListBank = {
@@ -54,6 +67,58 @@ export type ParsedCityListSnapshot = {
 
 /** Default level when OCR drops every `Lv.N` token for a tile. Officers can fix in review. */
 export const CITY_LIST_DEFAULT_LEVEL = 1;
+
+/**
+ * Word-level bbox span, in on-image pixel space, with the word's char range
+ * within the owning line's (single-space-joined) `text`. Matches the shape
+ * produced by `extractOcrLinesFromTesseractData` — duplicated here (rather
+ * than imported) so this module stays decoupled from the roster-ocr Tesseract
+ * plumbing and safe for client bundles.
+ */
+export type CityListOcrWordSpan = {
+  text: string;
+  charStart: number;
+  charEnd: number;
+  x0: number;
+  x1: number;
+};
+
+export type CityListOcrLine = {
+  text: string;
+  words?: readonly CityListOcrWordSpan[];
+};
+
+/** Callers may pass plain strings (no column data) or richer word-bbox lines. */
+export type CityListOcrLineInput = string | CityListOcrLine;
+
+function normalizeCityListLine(line: CityListOcrLineInput): CityListOcrLine {
+  return typeof line === "string" ? { text: line } : line;
+}
+
+/** A matched token paired with its on-image x-center, when word data exists. */
+type Positioned<T> = { value: T; xCenter: number | null };
+
+/**
+ * On-image x-center for a `[start, end)` character range, from the bbox of
+ * every word overlapping that range. Null when no words are available or
+ * none overlap (regex matched punctuation-only text between words, etc.).
+ */
+function xCenterForRange(
+  words: readonly CityListOcrWordSpan[] | undefined,
+  start: number,
+  end: number,
+): number | null {
+  if (!words || words.length === 0) return null;
+  let x0: number | null = null;
+  let x1: number | null = null;
+  for (const word of words) {
+    if (word.charEnd <= start || word.charStart >= end) continue;
+    if (x0 == null || word.x0 < x0) x0 = word.x0;
+    if (x1 == null || word.x1 > x1) x1 = word.x1;
+  }
+  if (x0 == null || x1 == null) return null;
+  return (x0 + x1) / 2;
+}
 
 const HEADER_OR_FOOTER_RE =
   /total\s+crystalgold\s+deposited|bank\s+strongholds?\s+captured|bank\s+stronghold\s+captures\s+left|server\s*time/i;
@@ -213,12 +278,14 @@ function isPlausibleCityListCoord(
   );
 }
 
-function extractCoordsFromLine(line: string): Array<{
-  gameServerNumber: number;
-  coordX: number;
-  coordY: number;
-}> {
-  const labeled = extractFromLine(line, COORD_TOKEN_RE, (m) => {
+function extractCoordsFromLine(line: CityListOcrLine): Array<
+  Positioned<{
+    gameServerNumber: number;
+    coordX: number;
+    coordY: number;
+  }>
+> {
+  const labeled = extractWithPosition(line, COORD_TOKEN_RE, (m) => {
     const gameServerNumber = Number(m[1]);
     const coordX = Number(m[2]);
     const coordY = Number(m[3]);
@@ -230,15 +297,15 @@ function extractCoordsFromLine(line: string): Array<{
   if (labeled.length > 0) return labeled;
 
   // Only use glued server+X when no labeled X: tokens matched.
-  return extractFromLine(line, COORD_GLUED_RE, (m) => {
+  return extractWithPosition(line, COORD_GLUED_RE, (m) => {
     const serverAndX = m[1]!;
     const coordY = Number(m[2]);
     return parseGluedServerAndX(serverAndX, coordY);
   });
 }
 
-function extractValuesFromLine(line: string): Array<number | null> {
-  return extractFromLine(line, VALUE_TOKEN_RE, (m) => {
+function extractValuesFromLine(line: CityListOcrLine): Array<Positioned<number>> {
+  return extractWithPosition(line, VALUE_TOKEN_RE, (m) => {
     const whole = m[1]!;
     const decimals = m[2];
     const suffix = m[3];
@@ -261,35 +328,49 @@ function isHeaderOrFooterLine(line: string): boolean {
   return HEADER_OR_FOOTER_RE.test(line);
 }
 
-function extractFromLine<T>(
-  line: string,
+/**
+ * Like the plain regex-scan below, but additionally resolves each match's
+ * on-image x-center from `line.words` (when present) so callers can align
+ * tokens across independently-OCR'd lines by column position instead of
+ * array index.
+ */
+function extractWithPosition<T>(
+  line: CityListOcrLine,
   regex: RegExp,
   map: (match: RegExpExecArray) => T | null,
-): T[] {
-  const results: T[] = [];
+): Array<Positioned<T>> {
+  const results: Array<Positioned<T>> = [];
   const re = new RegExp(regex.source, regex.flags);
   let match: RegExpExecArray | null;
-  while ((match = re.exec(line)) != null) {
+  while ((match = re.exec(line.text)) != null) {
     const mapped = map(match);
-    if (mapped != null) results.push(mapped);
+    if (mapped == null) continue;
+    const xCenter = xCenterForRange(
+      line.words,
+      match.index,
+      match.index + match[0]!.length,
+    );
+    results.push({ value: mapped, xCenter });
   }
   return results;
 }
 
 type LineTokens = {
-  values: Array<number | null>;
-  levels: number[];
-  coords: Array<{
-    gameServerNumber: number;
-    coordX: number;
-    coordY: number;
-  }>;
-  deposits: number[];
+  values: Array<Positioned<number>>;
+  levels: Array<Positioned<number>>;
+  coords: Array<
+    Positioned<{
+      gameServerNumber: number;
+      coordX: number;
+      coordY: number;
+    }>
+  >;
+  deposits: Array<Positioned<number>>;
   isHeaderFooter: boolean;
 };
 
-function tokenizeCityListLine(line: string): LineTokens {
-  const isHeaderFooter = isHeaderOrFooterLine(line);
+function tokenizeCityListLine(line: CityListOcrLine): LineTokens {
+  const isHeaderFooter = isHeaderOrFooterLine(line.text);
   if (isHeaderFooter) {
     return {
       values: [],
@@ -301,9 +382,9 @@ function tokenizeCityListLine(line: string): LineTokens {
   }
   return {
     values: extractValuesFromLine(line),
-    levels: extractFromLine(line, LEVEL_TOKEN_RE, (m) => Number(m[1])),
+    levels: extractWithPosition(line, LEVEL_TOKEN_RE, (m) => Number(m[1])),
     coords: extractCoordsFromLine(line),
-    deposits: extractFromLine(line, DEPOSIT_TOKEN_RE, (m) =>
+    deposits: extractWithPosition(line, DEPOSIT_TOKEN_RE, (m) =>
       clampOcrDepositCount(Number(m[1])),
     ),
     isHeaderFooter: false,
@@ -319,6 +400,63 @@ function isDepositOnlyLine(tokens: LineTokens): boolean {
     tokens.levels.length === 0 &&
     tokens.coords.length === 0
   );
+}
+
+/**
+ * Assign each coordinate its nearest-by-x-position token from `tokens`
+ * (greedy, closest pairs first, one-to-one). Falls back to plain per-index
+ * zip when position data is unavailable for either side (no word bbox on
+ * these lines) — the original, tested behavior for plain-string input.
+ */
+function assignByPosition<T>(
+  coords: ReadonlyArray<Positioned<unknown>>,
+  tokens: ReadonlyArray<Positioned<T>>,
+): Array<T | undefined> {
+  const assigned: Array<T | undefined> = new Array(coords.length).fill(
+    undefined,
+  );
+  if (tokens.length === 0) return assigned;
+
+  const canUsePosition =
+    coords.every((c) => c.xCenter != null) &&
+    tokens.every((t) => t.xCenter != null);
+  if (!canUsePosition) {
+    for (let i = 0; i < coords.length && i < tokens.length; i += 1) {
+      assigned[i] = tokens[i]!.value;
+    }
+    return assigned;
+  }
+
+  const pairs: Array<{
+    coordIndex: number;
+    tokenIndex: number;
+    distance: number;
+  }> = [];
+  coords.forEach((coord, coordIndex) => {
+    tokens.forEach((token, tokenIndex) => {
+      pairs.push({
+        coordIndex,
+        tokenIndex,
+        distance: Math.abs(coord.xCenter! - token.xCenter!),
+      });
+    });
+  });
+  pairs.sort((a, b) => a.distance - b.distance);
+
+  const claimedCoords = new Set<number>();
+  const claimedTokens = new Set<number>();
+  for (const pair of pairs) {
+    if (
+      claimedCoords.has(pair.coordIndex) ||
+      claimedTokens.has(pair.tokenIndex)
+    ) {
+      continue;
+    }
+    assigned[pair.coordIndex] = tokens[pair.tokenIndex]!.value;
+    claimedCoords.add(pair.coordIndex);
+    claimedTokens.add(pair.tokenIndex);
+  }
+  return assigned;
 }
 
 /** Parse header fields: total CrystalGold deposited + captured count/limit. */
@@ -393,9 +531,11 @@ export function parseCityListFooter(lines: readonly string[]): {
  * Strongholds captured: N/M" header count and prompt for manual entry.
  */
 export function parseCityListBanks(
-  lines: readonly string[],
+  lines: readonly CityListOcrLineInput[],
 ): ParsedCityListBank[] {
-  const tokenized = lines.map(tokenizeCityListLine);
+  const tokenized = lines.map((line) =>
+    tokenizeCityListLine(normalizeCityListLine(line)),
+  );
   const coordLineIndices: number[] = [];
   for (let i = 0; i < tokenized.length; i += 1) {
     if (tokenized[i]!.coords.length > 0) coordLineIndices.push(i);
@@ -421,8 +561,8 @@ export function parseCityListBanks(
       preStart += 1;
     }
 
-    const values: Array<number | null> = [];
-    const levels: number[] = [];
+    const values: Array<Positioned<number>> = [];
+    const levels: Array<Positioned<number>> = [];
     for (let i = preStart; i < coordLineIndex; i += 1) {
       const tokens = tokenized[i]!;
       if (tokens.isHeaderFooter) continue;
@@ -449,7 +589,7 @@ export function parseCityListBanks(
     levels.push(...coordLine.levels);
     const coords = coordLine.coords;
 
-    const deposits: number[] = [...coordLine.deposits];
+    const deposits: Array<Positioned<number>> = [...coordLine.deposits];
     for (let i = coordLineIndex + 1; i < nextCoordLineIndex; i += 1) {
       const tokens = tokenized[i]!;
       if (tokens.isHeaderFooter) continue;
@@ -458,10 +598,14 @@ export function parseCityListBanks(
       deposits.push(...tokens.deposits);
     }
 
+    const assignedLevels = assignByPosition(coords, levels);
+    const assignedValues = assignByPosition(coords, values);
+    const assignedDeposits = assignByPosition(coords, deposits);
+
     for (let i = 0; i < coords.length; i += 1) {
-      const coord = coords[i]!;
-      const level = levels[i];
-      const rawValue = values[i];
+      const coord = coords[i]!.value;
+      const level = assignedLevels[i];
+      const rawValue = assignedValues[i];
       banks.push({
         level:
           level != null && Number.isFinite(level) && level > 0
@@ -473,7 +617,7 @@ export function parseCityListBanks(
         gameServerNumber: coord.gameServerNumber,
         coordX: coord.coordX,
         coordY: coord.coordY,
-        currentDepositCount: deposits[i] ?? null,
+        currentDepositCount: assignedDeposits[i] ?? null,
       });
     }
   }
@@ -485,10 +629,13 @@ export function parseCityListBanks(
  * snapshot of banks + header/footer metadata.
  */
 export function parseCityListText(
-  lines: readonly string[],
+  lines: readonly CityListOcrLineInput[],
 ): ParsedCityListSnapshot {
-  const header = parseCityListHeader(lines);
-  const footer = parseCityListFooter(lines);
+  const textLines = lines.map((line) =>
+    typeof line === "string" ? line : line.text,
+  );
+  const header = parseCityListHeader(textLines);
+  const footer = parseCityListFooter(textLines);
   const banks = parseCityListBanks(lines);
 
   const isComplete =

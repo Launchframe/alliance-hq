@@ -19,7 +19,10 @@ import path from "node:path";
 
 import { createWorker, type Worker } from "tesseract.js";
 
-import { extractOcrLinesFromTesseractData } from "@/lib/members/roster-ocr/tesseract-lines.shared";
+import {
+  extractOcrLinesFromTesseractData,
+  type ExtractedOcrWordSpan,
+} from "@/lib/members/roster-ocr/tesseract-lines.shared";
 import type { RosterOcrConfig } from "@/lib/members/roster-ocr/types";
 import { DEFAULT_ROSTER_OCR_CONFIG } from "@/lib/members/roster-ocr/types";
 
@@ -122,6 +125,8 @@ export type OcrLineResult = {
   text: string;
   /** Tesseract confidence 0–100. */
   confidence: number;
+  /** Word-level bbox spans for column-position-aware parsing, when available. */
+  words?: ExtractedOcrWordSpan[];
 };
 
 /**
