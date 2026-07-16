@@ -9,7 +9,16 @@ import { Dialog } from "@/components/ui/dialog";
 import { ScreenshotLightbox } from "@/components/ui/ScreenshotLightbox";
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 import type { ParsedCityListBank } from "@/lib/banks/city-list-ocr/parse-city-list-text.shared";
-import { clampReviewIndexAfterRemove } from "@/lib/banks/city-list-import-review.shared";
+import {
+  cityListReviewRowsHaveErrors,
+  clampReviewIndexAfterRemove,
+  defaultPlaceholderGameServerNumber,
+  isCityListPlaceholderCoords,
+  missingRowCountForCapturedCount,
+  validateCityListReviewRow,
+  type CityListRowErrors,
+  type CityListRowFieldName,
+} from "@/lib/banks/city-list-import-review.shared";
 import { formatCityListServerTime } from "@/lib/banks/city-list-server-time.shared";
 import {
   bankDepositCapacity,
@@ -84,44 +93,27 @@ function rowsFromParse(banks: ParsedCityListBank[]): ReviewRow[] {
   }));
 }
 
+function buildPlaceholderRow(gameServerNumber: number): ReviewRow {
+  return {
+    rowKey: newRowKey(),
+    gameServerNumber,
+    coordX: 0,
+    coordY: 0,
+    level: 1,
+    currentDepositValue: null,
+    currentDepositCount: null,
+  };
+}
+
 function bankKey(server: number, x: number, y: number): string {
   return `${server}:${x}:${y}`;
 }
 
-type RowFieldName =
-  | "level"
-  | "gameServerNumber"
-  | "coordX"
-  | "coordY"
-  | "currentDepositValue"
-  | "currentDepositCount";
+type RowFieldName = CityListRowFieldName;
+type RowErrors = CityListRowErrors;
 
 function touchKey(rowKey: string, field: RowFieldName): string {
   return `${rowKey}:${field}`;
-}
-
-type RowErrors = Partial<Record<RowFieldName, string>>;
-
-function validateRow(
-  row: ReviewRow,
-  requiredMsg: string,
-  levelMinMsg: string,
-): RowErrors {
-  const errors: RowErrors = {};
-  if (row.level < 1) errors.level = levelMinMsg;
-  if (!row.gameServerNumber || row.gameServerNumber <= 0)
-    errors.gameServerNumber = requiredMsg;
-  return errors;
-}
-
-function hasValidationErrors(
-  rows: ReviewRow[],
-  requiredMsg: string,
-  levelMinMsg: string,
-): boolean {
-  return rows.some(
-    (row) => Object.keys(validateRow(row, requiredMsg, levelMinMsg)).length > 0,
-  );
 }
 
 type FieldLabels = {
@@ -200,24 +192,32 @@ function BankReviewCardFields({
         <input
           type="number"
           step={1}
-          className={inputOk}
+          className={showErrors("coordX") && errors.coordX ? inputErr : inputOk}
           value={row.coordX}
           onChange={(event) =>
             onChange({ coordX: Number(event.target.value) || 0 })
           }
+          onBlur={() => onTouchField("coordX")}
         />
+        {showErrors("coordX") && errors.coordX ? (
+          <span className="text-hq-danger">{errors.coordX}</span>
+        ) : null}
       </label>
       <label className="block space-y-1 text-xs text-hq-fg-muted">
         <span>{labels.coordY}</span>
         <input
           type="number"
           step={1}
-          className={inputOk}
+          className={showErrors("coordY") && errors.coordY ? inputErr : inputOk}
           value={row.coordY}
           onChange={(event) =>
             onChange({ coordY: Number(event.target.value) || 0 })
           }
+          onBlur={() => onTouchField("coordY")}
         />
+        {showErrors("coordY") && errors.coordY ? (
+          <span className="text-hq-danger">{errors.coordY}</span>
+        ) : null}
       </label>
       <label className="block space-y-1 text-xs text-hq-fg-muted">
         <span>{labels.amount}</span>
@@ -377,7 +377,31 @@ export function CityListImportModal({
         throw new Error(t("cityListParseFailed"));
       }
 
-      setRows(parsedRows);
+      // Leverage the "Bank Strongholds captured: N/M" header as an
+      // independent anchor: if OCR recovered fewer tiles than N, pad the
+      // review list with blank rows so the officer sees exactly how many
+      // banks are missing and can fill them in manually, instead of
+      // silently importing an incomplete list.
+      const missingCount = missingRowCountForCapturedCount(
+        parsedRows.length,
+        body.snapshot?.capturedCount ?? null,
+        body.snapshot?.capturedLimit ?? null,
+      );
+      const defaultGameServerNumber = defaultPlaceholderGameServerNumber(
+        parsedRows.map((row) => row.gameServerNumber),
+        existingBanks.map((bank) => bank.gameServerNumber),
+      );
+      const paddedRows =
+        missingCount > 0
+          ? [
+              ...parsedRows,
+              ...Array.from({ length: missingCount }, () =>
+                buildPlaceholderRow(defaultGameServerNumber),
+              ),
+            ]
+          : parsedRows;
+
+      setRows(paddedRows);
       setReviewIndex(0);
       setPreviewIndex(0);
       setSnapshot(body.snapshot ?? null);
@@ -387,7 +411,7 @@ export function CityListImportModal({
     } finally {
       setParsing(false);
     }
-  }, [screenshots, t]);
+  }, [existingBanks, screenshots, t]);
 
   const updateRow = useCallback(
     (rowKey: string, patch: Partial<ReviewRow>) => {
@@ -423,19 +447,11 @@ export function CityListImportModal({
   }, []);
 
   const addRow = useCallback(() => {
-    const defaultGameServerNumber =
-      rows.find((row) => row.gameServerNumber > 0)?.gameServerNumber ??
-      existingBanks.find((bank) => bank.gameServerNumber > 0)?.gameServerNumber ??
-      0;
-    const newRow: ReviewRow = {
-      rowKey: newRowKey(),
-      gameServerNumber: defaultGameServerNumber,
-      coordX: 0,
-      coordY: 0,
-      level: 1,
-      currentDepositValue: null,
-      currentDepositCount: null,
-    };
+    const defaultGameServerNumber = defaultPlaceholderGameServerNumber(
+      rows.map((row) => row.gameServerNumber),
+      existingBanks.map((bank) => bank.gameServerNumber),
+    );
+    const newRow = buildPlaceholderRow(defaultGameServerNumber);
     setRows((prev) => {
       const next = [...prev, newRow];
       queueMicrotask(() => setReviewIndex(next.length - 1));
@@ -460,6 +476,9 @@ export function CityListImportModal({
   const hasDuplicateCoords = useMemo(() => {
     const seen = new Set<string>();
     for (const row of rows) {
+      // Placeholder (0, 0) rows are already invalid until filled; multiple
+      // captured-count pads must not surface as coordinate collisions.
+      if (isCityListPlaceholderCoords(row.coordX, row.coordY)) continue;
       const key = bankKey(row.gameServerNumber, row.coordX, row.coordY);
       if (seen.has(key)) return true;
       seen.add(key);
@@ -509,7 +528,10 @@ export function CityListImportModal({
   const rowValidationErrors = useMemo(
     () =>
       new Map<string, RowErrors>(
-        rows.map((row) => [row.rowKey, validateRow(row, requiredMsg, levelMinMsg)]),
+        rows.map((row) => [
+          row.rowKey,
+          validateCityListReviewRow(row, requiredMsg, levelMinMsg),
+        ]),
       ),
     [rows, requiredMsg, levelMinMsg],
   );
@@ -521,7 +543,7 @@ export function CityListImportModal({
 
     if (
       hasDuplicateCoords ||
-      hasValidationErrors(rows, requiredMsg, levelMinMsg)
+      cityListReviewRowsHaveErrors(rows, requiredMsg, levelMinMsg)
     ) {
       return;
     }
@@ -1029,30 +1051,64 @@ export function CityListImportModal({
                             </div>
                           </td>
                           <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              step={1}
-                              className="w-20 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
-                              value={row.coordX}
-                              onChange={(event) =>
-                                updateRow(row.rowKey, {
-                                  coordX: Number(event.target.value) || 0,
-                                })
-                              }
-                            />
+                            <div className="space-y-0.5">
+                              <input
+                                type="number"
+                                step={1}
+                                className={cn(
+                                  "w-20",
+                                  showFieldError(row.rowKey, "coordX") &&
+                                    errs.coordX
+                                    ? "min-w-0 rounded border border-hq-danger bg-hq-canvas px-2 py-1"
+                                    : "min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1",
+                                )}
+                                value={row.coordX}
+                                onChange={(event) =>
+                                  updateRow(row.rowKey, {
+                                    coordX: Number(event.target.value) || 0,
+                                  })
+                                }
+                                onBlur={() =>
+                                  touchField(row.rowKey, "coordX")
+                                }
+                              />
+                              {showFieldError(row.rowKey, "coordX") &&
+                              errs.coordX ? (
+                                <p className="text-[11px] text-hq-danger">
+                                  {errs.coordX}
+                                </p>
+                              ) : null}
+                            </div>
                           </td>
                           <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              step={1}
-                              className="w-20 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
-                              value={row.coordY}
-                              onChange={(event) =>
-                                updateRow(row.rowKey, {
-                                  coordY: Number(event.target.value) || 0,
-                                })
-                              }
-                            />
+                            <div className="space-y-0.5">
+                              <input
+                                type="number"
+                                step={1}
+                                className={cn(
+                                  "w-20",
+                                  showFieldError(row.rowKey, "coordY") &&
+                                    errs.coordY
+                                    ? "min-w-0 rounded border border-hq-danger bg-hq-canvas px-2 py-1"
+                                    : "min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1",
+                                )}
+                                value={row.coordY}
+                                onChange={(event) =>
+                                  updateRow(row.rowKey, {
+                                    coordY: Number(event.target.value) || 0,
+                                  })
+                                }
+                                onBlur={() =>
+                                  touchField(row.rowKey, "coordY")
+                                }
+                              />
+                              {showFieldError(row.rowKey, "coordY") &&
+                              errs.coordY ? (
+                                <p className="text-[11px] text-hq-danger">
+                                  {errs.coordY}
+                                </p>
+                              ) : null}
+                            </div>
                           </td>
                           <td className="px-3 py-2">
                             <input

@@ -7,6 +7,7 @@
 
 import { NextResponse } from "next/server";
 
+import { cityListImportBankIdentityError } from "@/lib/banks/city-list-import-review.shared";
 import { reloadBankManagementDashboard } from "@/lib/banks/reload-dashboard.server";
 import {
   listBanksForAlliance,
@@ -77,6 +78,15 @@ function parseImportBanks(
         error:
           "Each bank requires gameServerNumber, coordX, coordY, and level ≥ 1.",
       };
+    }
+
+    const identityError = cityListImportBankIdentityError(
+      gameServerNumber,
+      coordX,
+      coordY,
+    );
+    if (identityError) {
+      return { error: identityError };
     }
 
     const key = bankKey(gameServerNumber, coordX, coordY);
