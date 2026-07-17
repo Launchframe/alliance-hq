@@ -48,7 +48,12 @@ import {
   type VideoJobStage,
 } from "@/lib/video/video-job-stage.shared";
 import { createThrottledOcrProgressEmitter } from "@/lib/video/video-ocr-progress-emit.shared";
-import { maybeEnqueueShadowPass } from "@/lib/video/enqueue-shadow-pass";
+import { maybeEnqueueShadowPass, maybeEnqueueShadowPassEarly } from "@/lib/video/enqueue-shadow-pass";
+import { isVideoForceExtractionShadowEnabled } from "@/lib/video/early-shadow-dev.shared";
+import {
+  expectedVsRowCount,
+  shouldEnqueueEarlyExtractionShadow,
+} from "@/lib/video/early-shadow-eligibility.shared";
 import {
   AshedNotConnectedError,
   isAshedNotConnectedError,
@@ -362,6 +367,72 @@ export async function processVideoJob(
           path: `r2://${process.env.R2_BUCKET ?? "hq-videos"}/videos/${jobId}/frames/`,
           jobId,
         });
+      }
+
+      // Early / forced denser extraction shadow before OCR (overlaps with primary OCR).
+      if (
+        shouldEnqueueAshedOcrShadowPasses(ocrEngine) &&
+        !isRosterTarget &&
+        !isDepositSlipTarget
+      ) {
+        try {
+          const earlyShadowJob = {
+            id: job.id,
+            sessionId: job.sessionId,
+            processingSessionId: job.processingSessionId ?? null,
+            allianceId: jobHqAllianceId ?? job.allianceId ?? null,
+            scoreTarget: job.scoreTarget ?? null,
+            category: job.category ?? null,
+            storageKey: job.storageKey ?? null,
+            boardKey: job.boardKey ?? null,
+            hqEventId: job.hqEventId ?? null,
+            groupId: job.groupId ?? null,
+            passRole: job.passRole ?? null,
+            frameCount: frames.length,
+            hqUserId: job.hqUserId ?? null,
+          };
+
+          if (isVideoForceExtractionShadowEnabled()) {
+            await maybeEnqueueShadowPassEarly({
+              job: earlyShadowJob,
+              reason: "dev_force",
+            });
+          } else if (
+            scoreTargetId === "vs-performance" &&
+            job.passRole === "primary"
+          ) {
+            const [survey] = await db
+              .select({
+                rowCountEstimate: schema.videoJobSurveys.rowCountEstimate,
+              })
+              .from(schema.videoJobSurveys)
+              .where(eq(schema.videoJobSurveys.jobId, jobId))
+              .limit(1);
+            const rosterSize = jobHqAllianceId
+              ? (await listAllianceMembers(jobHqAllianceId)).length
+              : 0;
+            const expectedRows = expectedVsRowCount({
+              rosterSize,
+              surveyRowCountEstimate: survey?.rowCountEstimate ?? null,
+            });
+            if (
+              shouldEnqueueEarlyExtractionShadow({
+                scoreTargetId,
+                passRole: job.passRole,
+                frameCount: frames.length,
+                denseFrameCount,
+                expectedRows,
+              })
+            ) {
+              await maybeEnqueueShadowPassEarly({
+                job: earlyShadowJob,
+                reason: "early_undersample",
+              });
+            }
+          }
+        } catch {
+          // Early shadow failure must not fail primary job
+        }
       }
 
       await setStatus(

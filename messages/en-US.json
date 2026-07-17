@@ -3941,6 +3941,7 @@
     "loading": "Loading…",
     "processing": "Processing ({status})… this page refreshes automatically.",
     "pendingApproval": "Waiting for a video processor to approve this upload. OCR will start after approval — this page refreshes automatically.",
+    "shadowWithhold": "We may still be gathering denser leaderboard frames. Review will open when that pass finishes (or after a short wait).",
     "processingFailed": "Processing failed. Try uploading again.",
     "stageQueued": "Waiting in the processing queue…",
     "stageExtracting": "Extracting frames from the video…",

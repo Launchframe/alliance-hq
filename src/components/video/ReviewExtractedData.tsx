@@ -53,6 +53,10 @@ import {
 import type { ManualRowPosition } from "@/lib/video/manual-row-position";
 import { mergeParsedRowInReviewOrder } from "@/lib/video/parsed-row-review-order";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
+import {
+  isPrimaryParseInadequate,
+  VS_SHADOW_WITHHOLD_DEFAULT_MS,
+} from "@/lib/video/early-shadow-eligibility.shared";
 import { VideoPipelineStatsButton } from "@/components/video/VideoPipelineStatsDialog";
 import {
   ReviewVideoPreview,
@@ -324,6 +328,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [showComparisonPrompt, setShowComparisonPrompt] = useState(false);
   const [showComparisonSheet, setShowComparisonSheet] = useState(false);
   const [comparisonDismissed, setComparisonDismissed] = useState(false);
+  const [expectedRowCount, setExpectedRowCount] = useState<number | null>(null);
+  const [shadowPassInFlight, setShadowPassInFlight] = useState(false);
+  const [forceInadequate, setForceInadequate] = useState(false);
+  const [withholdEscapeMs, setWithholdEscapeMs] = useState(
+    VS_SHADOW_WITHHOLD_DEFAULT_MS,
+  );
+  const [shadowWithholdEscaped, setShadowWithholdEscaped] = useState(false);
+  const withholdStartRef = useRef<number | null>(null);
   const [rosterMembers, setRosterMembers] = useState<AshedMember[]>([]);
   const [allianceTag, setAllianceTag] = useState<string | null>(null);
   const [allianceName, setAllianceName] = useState<string | null>(null);
@@ -559,6 +571,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             }
           >;
           members?: AshedMember[];
+          expectedRowCount?: number | null;
+          shadowPassInFlight?: boolean;
+          devShadowUx?: {
+            forceInadequate?: boolean;
+            withholdEscapeMs?: number;
+          } | null;
         };
         if (isStale()) {
           return;
@@ -619,6 +637,19 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setDedupeReport(isDedupeReport(loadedDedupe) ? loadedDedupe : null);
         setDetectedBankContext(data.detectedBankContext ?? null);
         setScoreTargetMeta(data.scoreTargetMeta ?? null);
+        setExpectedRowCount(
+          typeof data.expectedRowCount === "number"
+            ? data.expectedRowCount
+            : null,
+        );
+        setShadowPassInFlight(Boolean(data.shadowPassInFlight));
+        setForceInadequate(Boolean(data.devShadowUx?.forceInadequate));
+        setWithholdEscapeMs(
+          typeof data.devShadowUx?.withholdEscapeMs === "number" &&
+            data.devShadowUx.withholdEscapeMs >= 1_000
+            ? data.devShadowUx.withholdEscapeMs
+            : VS_SHADOW_WITHHOLD_DEFAULT_MS,
+        );
         const serverRows = (data.rows ?? []).map((row) => ({
           ...row,
           scoreConflict: row.scoreConflict ?? 0,
@@ -700,6 +731,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   useEffect(() => {
     loadRef.current = load;
   }, [load]);
+
+  useEffect(() => {
+    setShadowWithholdEscaped(false);
+    withholdStartRef.current = null;
+  }, [jobId]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -984,24 +1020,144 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   useEffect(() => {
     const groupFetchStatuses = new Set(["review", "complete", "discarded"]);
     if (!groupFetchStatuses.has(jobStatus)) return;
-    void (async () => {
+
+    let cancelled = false;
+    const shadowTerminal = new Set([
+      "review",
+      "complete",
+      "failed",
+      "discarded",
+    ]);
+
+    const fetchGroup = async () => {
       const res = await fetch(`/api/tools/video-upload/${jobId}/group`);
-      if (res.ok) {
-        const data = (await res.json()) as GroupInfo;
-        setGroupInfo(data);
-        const comp = data.group?.comparisonJson;
-        if (
-          viewMode === "review" &&
-          jobStatus === "review" &&
-          comp?.recommendedJobId &&
-          comp.recommendedJobId !== data.group?.selectedJobId &&
-          !comparisonDismissed
-        ) {
-          setShowComparisonPrompt(true);
-        }
+      if (!res.ok || cancelled) return;
+      const data = (await res.json()) as GroupInfo;
+      setGroupInfo(data);
+
+      const shadowPass = data.passes.find((pass) => pass.passRole === "shadow");
+      if (shadowPass) {
+        setShadowPassInFlight(!shadowTerminal.has(shadowPass.status));
       }
-    })();
-  }, [jobId, jobStatus, comparisonDismissed, viewMode]);
+
+      const comp = data.group?.comparisonJson;
+      if (
+        viewMode === "review" &&
+        jobStatus === "review" &&
+        comp?.recommendedJobId &&
+        comp.recommendedJobId !== data.group?.selectedJobId &&
+        !comparisonDismissed
+      ) {
+        setShowComparisonPrompt(true);
+      }
+    };
+
+    void fetchGroup();
+
+    const shouldPoll =
+      viewMode === "review" &&
+      jobStatus === "review" &&
+      scoreTargetMeta?.id === "vs-performance";
+    const intervalId = shouldPoll
+      ? window.setInterval(() => {
+          void fetchGroup();
+        }, 3_000)
+      : undefined;
+
+    return () => {
+      cancelled = true;
+      if (intervalId != null) window.clearInterval(intervalId);
+    };
+  }, [
+    jobId,
+    jobStatus,
+    comparisonDismissed,
+    viewMode,
+    scoreTargetMeta?.id,
+  ]);
+
+  const uniqueActiveRowCount = useMemo(
+    () => rows.filter((row) => !row.deleted).length,
+    [rows],
+  );
+
+  const shadowPassStillRunning = useMemo(() => {
+    if (shadowPassInFlight) return true;
+    const shadowPass = groupInfo?.passes.find(
+      (pass) => pass.passRole === "shadow",
+    );
+    if (!shadowPass) return false;
+    return !["review", "complete", "failed", "discarded"].includes(
+      shadowPass.status,
+    );
+  }, [groupInfo, shadowPassInFlight]);
+
+  const shouldWithholdForShadow = useMemo(() => {
+    if (viewMode !== "review") return false;
+    if (jobStatus !== "review") return false;
+    if (scoreTargetMeta?.id !== "vs-performance") return false;
+    if (shadowWithholdEscaped) return false;
+    if (
+      !isPrimaryParseInadequate({
+        uniqueRowCount: uniqueActiveRowCount,
+        expectedRows: expectedRowCount,
+        forceInadequate,
+      })
+    ) {
+      return false;
+    }
+    return shadowPassStillRunning;
+  }, [
+    viewMode,
+    jobStatus,
+    scoreTargetMeta?.id,
+    shadowWithholdEscaped,
+    uniqueActiveRowCount,
+    expectedRowCount,
+    forceInadequate,
+    shadowPassStillRunning,
+  ]);
+
+  useEffect(() => {
+    const candidate =
+      viewMode === "review" &&
+      jobStatus === "review" &&
+      scoreTargetMeta?.id === "vs-performance" &&
+      isPrimaryParseInadequate({
+        uniqueRowCount: uniqueActiveRowCount,
+        expectedRows: expectedRowCount,
+        forceInadequate,
+      }) &&
+      shadowPassStillRunning;
+
+    if (!candidate) {
+      withholdStartRef.current = null;
+      return;
+    }
+
+    if (withholdStartRef.current == null) {
+      withholdStartRef.current = Date.now();
+    }
+    const elapsed = Date.now() - withholdStartRef.current;
+    const remaining = withholdEscapeMs - elapsed;
+    if (remaining <= 0) {
+      setShadowWithholdEscaped(true);
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      setShadowWithholdEscaped(true);
+    }, remaining);
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    viewMode,
+    jobStatus,
+    scoreTargetMeta?.id,
+    uniqueActiveRowCount,
+    expectedRowCount,
+    forceInadequate,
+    shadowPassStillRunning,
+    withholdEscapeMs,
+  ]);
 
   const updateGroupSelection = useCallback(
     async (
@@ -1868,6 +2024,18 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             </p>
           ) : null}
         </div>
+        <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
+          {t("backToUploads")}
+        </Link>
+      </div>
+    );
+  }
+
+  if (shouldWithholdForShadow) {
+    return (
+      <div className="space-y-4">
+        {renderActionErrorBanner()}
+        <p className="text-sm text-hq-fg-muted">{t("shadowWithhold")}</p>
         <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
           {t("backToUploads")}
         </Link>
