@@ -334,8 +334,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [withholdEscapeMs, setWithholdEscapeMs] = useState(
     VS_SHADOW_WITHHOLD_DEFAULT_MS,
   );
-  const [shadowWithholdEscaped, setShadowWithholdEscaped] = useState(false);
-  const withholdStartRef = useRef<number | null>(null);
+  const shadowWithholdEscapedByJobRef = useRef<Map<string, boolean>>(new Map());
+  const [, bumpShadowWithholdEscapeVersion] = useState(0);
+  const withholdStartByJobRef = useRef<Map<string, number>>(new Map());
   const [rosterMembers, setRosterMembers] = useState<AshedMember[]>([]);
   const [allianceTag, setAllianceTag] = useState<string | null>(null);
   const [allianceName, setAllianceName] = useState<string | null>(null);
@@ -733,11 +734,6 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }, [load]);
 
   useEffect(() => {
-    setShadowWithholdEscaped(false);
-    withholdStartRef.current = null;
-  }, [jobId]);
-
-  useEffect(() => {
     queueMicrotask(() => {
       void load();
     });
@@ -1033,11 +1029,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       const res = await fetch(`/api/tools/video-upload/${jobId}/group`);
       if (!res.ok || cancelled) return;
       const data = (await res.json()) as GroupInfo;
+      if (cancelled) return;
       setGroupInfo(data);
 
       const shadowPass = data.passes.find((pass) => pass.passRole === "shadow");
       if (shadowPass) {
         setShadowPassInFlight(!shadowTerminal.has(shadowPass.status));
+      } else {
+        setShadowPassInFlight(false);
       }
 
       const comp = data.group?.comparisonJson;
@@ -1082,15 +1081,19 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   );
 
   const shadowPassStillRunning = useMemo(() => {
-    if (shadowPassInFlight) return true;
     const shadowPass = groupInfo?.passes.find(
       (pass) => pass.passRole === "shadow",
     );
-    if (!shadowPass) return false;
-    return !["review", "complete", "failed", "discarded"].includes(
-      shadowPass.status,
-    );
+    if (shadowPass) {
+      return !["review", "complete", "failed", "discarded"].includes(
+        shadowPass.status,
+      );
+    }
+    return shadowPassInFlight;
   }, [groupInfo, shadowPassInFlight]);
+
+  const shadowWithholdEscaped =
+    shadowWithholdEscapedByJobRef.current.get(jobId) ?? false;
 
   const shouldWithholdForShadow = useMemo(() => {
     if (viewMode !== "review") return false;
@@ -1131,24 +1134,29 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       shadowPassStillRunning;
 
     if (!candidate) {
-      withholdStartRef.current = null;
+      withholdStartByJobRef.current.delete(jobId);
       return;
     }
 
-    if (withholdStartRef.current == null) {
-      withholdStartRef.current = Date.now();
+    let start = withholdStartByJobRef.current.get(jobId);
+    if (start == null) {
+      start = Date.now();
+      withholdStartByJobRef.current.set(jobId, start);
     }
-    const elapsed = Date.now() - withholdStartRef.current;
+    const elapsed = Date.now() - start;
     const remaining = withholdEscapeMs - elapsed;
+    const markEscaped = () => {
+      shadowWithholdEscapedByJobRef.current.set(jobId, true);
+      bumpShadowWithholdEscapeVersion((version) => version + 1);
+    };
     if (remaining <= 0) {
-      setShadowWithholdEscaped(true);
+      markEscaped();
       return;
     }
-    const timeoutId = window.setTimeout(() => {
-      setShadowWithholdEscaped(true);
-    }, remaining);
+    const timeoutId = window.setTimeout(markEscaped, remaining);
     return () => window.clearTimeout(timeoutId);
   }, [
+    jobId,
     viewMode,
     jobStatus,
     scoreTargetMeta?.id,
