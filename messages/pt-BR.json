@@ -5248,10 +5248,11 @@
   },
   "statSync": {
     "title": "Sincronização HQ ↔ Ashed",
-    "subtitle": "Resolva relatórios de THP e kills pendentes para enviar ao Ashed, ou mantenha o Ashed quando o HQ estiver errado.",
+    "subtitle": "Resolva relatórios de THP, kills e nível HQ pendentes para enviar ao Ashed, ou mantenha o Ashed quando o HQ estiver errado.",
     "tabs": {
       "thp": "THP",
-      "kills": "Kills"
+      "kills": "Kills",
+      "level": "Nível HQ"
     },
     "empty": "Nenhum item pendente para este status.",
     "loadFailed": "Falha ao carregar a revisão de sincronização.",

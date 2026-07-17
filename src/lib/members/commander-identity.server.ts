@@ -64,6 +64,7 @@ async function mirrorMemberThpToCommander(input: {
   thpHistory?: Array<{ value: number; recorded_date: string }>;
   powerLevelHistory?: Array<{ value: string; recorded_date: string }>;
   killsHistory?: Array<{ value: number; recorded_date: string }>;
+  levelHistory?: Array<{ value: number; recorded_date: string }>;
   hqUserId?: string | null;
 }): Promise<void> {
   const source = input.thpSource ?? "ashed_sync";
@@ -108,6 +109,28 @@ async function mirrorMemberThpToCommander(input: {
       ashedMemberId: input.ashedMemberId,
       memberName: input.memberName,
       total: kills,
+      source: source as "ashed_sync" | "roster_import" | "video_parse",
+      hqUserId: input.hqUserId,
+    });
+  }
+
+  const {
+    syncCommanderLevelFromAllianceMember,
+    seedCommanderLevelHistoryFromAshed,
+  } = await import("@/lib/member-level/sync-from-member.server");
+  await seedCommanderLevelHistoryFromAshed({
+    commanderId: input.commanderId,
+    allianceId: input.allianceId,
+    history: input.levelHistory,
+    source: source as "ashed_sync" | "roster_import" | "video_parse",
+  });
+  if (input.ashedStats?.memberLevel != null) {
+    await syncCommanderLevelFromAllianceMember({
+      commanderId: input.commanderId,
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      memberName: input.memberName,
+      total: input.ashedStats.memberLevel,
       source: source as "ashed_sync" | "roster_import" | "video_parse",
       hqUserId: input.hqUserId,
     });
@@ -503,6 +526,9 @@ async function upsertCommanderRow(input: {
     input.ashedStats,
     memberRow?.currentName ?? input.memberDisplayName ?? null,
   );
+  // Level dual-write goes through commander_level_events so inbound conflict
+  // policy can see the pre-sync HQ value.
+  const { memberLevel: _omitLevel, ...statsWithoutLevel } = stats;
   const normalizedUid = input.gameUid ? normalizeGameUid(input.gameUid) : null;
 
   if (normalizedUid) {
@@ -511,7 +537,7 @@ async function upsertCommanderRow(input: {
       await db
         .update(schema.commanders)
         .set({
-          ...stats,
+          ...statsWithoutLevel,
           gameServerNumber:
             input.gameServerNumber ?? existing.gameServerNumber ?? null,
           updatedAt: now,
@@ -525,7 +551,7 @@ async function upsertCommanderRow(input: {
     await db
       .update(schema.commanders)
       .set({
-        ...stats,
+        ...statsWithoutLevel,
         gameUid: normalizedUid,
         gameServerNumber: input.gameServerNumber ?? null,
         updatedAt: now,
@@ -540,7 +566,7 @@ async function upsertCommanderRow(input: {
       id: nanoid(),
       gameUid: normalizedUid,
       gameServerNumber: input.gameServerNumber ?? null,
-      ...stats,
+      ...statsWithoutLevel,
       createdAt: now,
       updatedAt: now,
     })
@@ -723,6 +749,7 @@ export async function syncCommanderFromAllianceMember(input: {
   thpSource?: ThpEventSource;
   thpHistory?: Array<{ value: number; recorded_date: string }>;
   powerLevelHistory?: Array<{ value: string; recorded_date: string }>;
+  levelHistory?: Array<{ value: number; recorded_date: string }>;
   hqUserId?: string | null;
 }): Promise<CommanderSyncResult> {
   const memberRow = await loadAllianceMemberRow(
@@ -776,6 +803,7 @@ export async function syncCommanderFromAllianceMember(input: {
       thpSource: input.thpSource,
       thpHistory: input.thpHistory,
       powerLevelHistory: input.powerLevelHistory,
+      levelHistory: input.levelHistory,
       hqUserId: input.hqUserId,
     });
     return { status: "synced", commanderId };
@@ -919,6 +947,7 @@ export async function syncCommanderFromAllianceMember(input: {
     thpSource: input.thpSource,
     thpHistory: input.thpHistory,
     powerLevelHistory: input.powerLevelHistory,
+    levelHistory: input.levelHistory,
     hqUserId: input.hqUserId,
   });
   return { status: "synced", commanderId };

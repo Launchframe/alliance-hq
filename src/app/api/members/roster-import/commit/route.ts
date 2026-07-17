@@ -16,7 +16,7 @@ const rowSchema = z.object({
   allianceRank: z.number().int().min(1).max(5),
   allianceRankTitle: z.string().trim().nullable().optional(),
   heroPowerM: z.number().nullable().optional(),
-  memberLevel: z.number().int().nullable().optional(),
+  memberLevel: z.number().int().min(1).nullable().optional(),
 });
 
 const bodySchema = z.object({
