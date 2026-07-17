@@ -34,6 +34,8 @@ import {
 } from "@/lib/video/score-targets";
 import { BANK_READ_PERMISSION } from "@/lib/rbac/constants";
 import { requireAlliancePermission } from "@/lib/rbac/require-permission";
+import { readDetectedBankContextFromRawExtract } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
+import type { DetectedBankContext } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -61,6 +63,7 @@ export async function GET(_request: Request, { params }: Props) {
 
     let parseSession = null;
     let parseSessionIdForRows: string | null = null;
+    let detectedBankContext: DetectedBankContext | null = null;
     let rows: Array<{
       id: string;
       ocrName: string;
@@ -102,6 +105,9 @@ export async function GET(_request: Request, { params }: Props) {
           }
         : null;
       parseSessionIdForRows = ps?.id ?? null;
+      detectedBankContext = readDetectedBankContextFromRawExtract(
+        ps?.rawExtractJson,
+      );
     }
 
     const storedAllianceId = job.allianceId ?? parseSession?.allianceId ?? null;
@@ -259,6 +265,7 @@ export async function GET(_request: Request, { params }: Props) {
       },
       parseSession,
       dedupeReport: parseSession?.dedupeReport ?? null,
+      detectedBankContext,
       rows,
       members,
     });

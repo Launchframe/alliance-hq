@@ -9,6 +9,7 @@ import {
   mergeDepositSlipHistoryParses,
   type ParsedDepositSlipHistory,
 } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
+import type { DetectedBankContext } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
 import {
   createDepositSlipMemberResolverCache,
   resolveDepositSlipMemberLinks,
@@ -124,6 +125,7 @@ export async function ocrDepositSlipVideoFrameChunk(
     rawLines: string[];
     history: ParsedDepositSlipHistory;
   }>;
+  let detectedBankContext: DetectedBankContext | null = null;
 
   if (input.engine === "mock") {
     const fullHistory = input.mockHistory ?? {
@@ -183,6 +185,7 @@ export async function ocrDepositSlipVideoFrameChunk(
       0,
     );
     frameTimings = native.frameTimings;
+    detectedBankContext = native.detectedBankContext;
   }
 
   await Promise.all(
@@ -364,7 +367,12 @@ export async function finalizeDepositSlipVideoParse(input: {
       rowCount: dedupedSlips.length,
       matchedCount,
       status: "open",
-      rawExtractJson: { ...history, slips: dedupedSlips },
+      rawExtractJson: {
+        ...history,
+        slips: dedupedSlips,
+        // detectedBankContext: OCR bank coords/info for review Create-bank UI
+        detectedBankContext,
+      },
       dedupeReportJson: dedupeReport,
       createdAt: input.now,
       updatedAt: input.now,

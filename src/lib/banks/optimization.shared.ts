@@ -5,6 +5,7 @@ import type {
   ProjectionVsActualSummary,
   RecommendedDropMetrics,
   RiskHeatmapCell,
+  SerializedBank,
   SerializedDepositSlip,
 } from "@/lib/banks/types.shared";
 import {
@@ -127,6 +128,13 @@ export function hoursUntilAllMature(
   return Math.max(0, (latestMs - now.getTime()) / MS_PER_HOUR);
 }
 
+export function isPastDropDeadline(
+  bank: Pick<SerializedBank, "dropByAt">,
+  now: Date = new Date(),
+): boolean {
+  return bank.dropByAt != null && new Date(bank.dropByAt).getTime() <= now.getTime();
+}
+
 export function recommendNextDrop(
   banks: readonly BankWithSlips[],
   options: {
@@ -134,13 +142,14 @@ export function recommendNextDrop(
     now?: Date;
   } = {},
 ): RecommendedDropMetrics | null {
-  if (banks.length === 0) {
+  const now = options.now ?? new Date();
+  const activeBanks = banks.filter((bank) => !isPastDropDeadline(bank, now));
+  if (activeBanks.length === 0) {
     return null;
   }
 
-  const now = options.now ?? new Date();
-  const lowestLevel = Math.min(...banks.map((bank) => bank.level));
-  const candidates = banks.filter((bank) => bank.level === lowestLevel);
+  const lowestLevel = Math.min(...activeBanks.map((bank) => bank.level));
+  const candidates = activeBanks.filter((bank) => bank.level === lowestLevel);
 
   const scored = candidates.map((bank) => {
     const slips = bank.depositSlips;

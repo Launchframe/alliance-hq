@@ -6,6 +6,7 @@ import {
   buildRiskHeatmap,
   computeDepositStats,
   depositSlipDisplayStatus,
+  isPastDropDeadline,
   maturityOutflowAtHour,
   parseSlipFingerprint,
   reconstructActualLockedSeries,
@@ -193,6 +194,39 @@ describe("activeDeposits", () => {
   });
 });
 
+describe("isPastDropDeadline", () => {
+  it("returns false when dropByAt is null", () => {
+    expect(isPastDropDeadline({ dropByAt: null }, now)).toBe(false);
+  });
+
+  it("returns false when dropByAt is in the future", () => {
+    expect(
+      isPastDropDeadline(
+        { dropByAt: "2026-07-11T16:00:00.000-02:00" },
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it("returns true when dropByAt is in the past", () => {
+    expect(
+      isPastDropDeadline(
+        { dropByAt: "2026-07-09T16:00:00.000-02:00" },
+        now,
+      ),
+    ).toBe(true);
+  });
+
+  it("returns true when dropByAt equals now", () => {
+    expect(
+      isPastDropDeadline(
+        { dropByAt: now.toISOString() },
+        now,
+      ),
+    ).toBe(true);
+  });
+});
+
 describe("recommendNextDrop", () => {
   it("prefers the lowest-level bank with minimal value at risk", () => {
     const banks = [
@@ -245,6 +279,56 @@ describe("recommendNextDrop", () => {
 
   it("returns null when no banks are held", () => {
     expect(recommendNextDrop([], { now })).toBeNull();
+  });
+
+  it("skips banks past their drop deadline", () => {
+    const banks = [
+      bank({
+        id: "past-deadline",
+        level: 1,
+        dropByAt: "2026-07-09T16:00:00.000-02:00",
+        depositSlips: [
+          slip({
+            id: "p1",
+            bankId: "past-deadline",
+            amount: 100,
+            maturesAt: "2026-07-12T16:00:00.000-02:00",
+          }),
+        ],
+      }),
+      bank({
+        id: "active",
+        level: 2,
+        dropByAt: "2026-07-12T16:00:00.000-02:00",
+        depositSlips: [
+          slip({
+            id: "a1",
+            bankId: "active",
+            amount: 6000,
+            maturesAt: "2026-07-12T16:00:00.000-02:00",
+          }),
+        ],
+      }),
+    ];
+
+    expect(recommendNextDrop(banks, { now })?.bankId).toBe("active");
+  });
+
+  it("returns null when all banks are past their drop deadline", () => {
+    const banks = [
+      bank({
+        id: "past-1",
+        level: 1,
+        dropByAt: "2026-07-09T16:00:00.000-02:00",
+      }),
+      bank({
+        id: "past-2",
+        level: 2,
+        dropByAt: "2026-07-08T16:00:00.000-02:00",
+      }),
+    ];
+
+    expect(recommendNextDrop(banks, { now })).toBeNull();
   });
 });
 

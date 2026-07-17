@@ -78,6 +78,7 @@ import {
 } from "@/lib/video/process-deposit-slip-job";
 import type { ParsedDepositSlipHistory } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import type { PipelineTimer } from "@/lib/video/pipeline-timer";
+import { ocrDepositSlipNativeFrames } from "@/lib/video/ocr-deposit-slip-native";
 
 const timer = {
   measureStep: async <T,>(
@@ -193,6 +194,70 @@ describe("processDepositSlipVideoParse", () => {
       ]),
     );
     expect(mockResolveDepositSlipMemberLinks).toHaveBeenCalledTimes(2);
+  });
+
+  it("persists detectedBankContext on parseSessions.rawExtractJson", async () => {
+    const mockOcr = vi.mocked(ocrDepositSlipNativeFrames);
+    mockOcr.mockResolvedValue({
+      history: {
+        depositPolicy: null,
+        minimumDeposit: null,
+        slips: [],
+      },
+      dedupeReport: {
+        autoMergedCount: 0,
+        flaggedCount: 0,
+        clusters: [],
+        inputCount: 0,
+        outputCount: 0,
+      },
+      frameTimings: [
+        { frameIndex: 0, ms: 1, entryCount: 0, error: null, rawLines: [] },
+      ],
+      concurrency: 1,
+      detectedBankContext: {
+        gameServerNumber: 1203,
+        coordX: 199,
+        coordY: 599,
+        level: 1,
+        owningAllianceTag: "BigD",
+        bankName: "Trailblazer Bank",
+        currentDepositValue: 29_387,
+        depositCapacity: 600_000,
+        firstCaptureDate: null,
+        sources: { bankInfo: true, favorites: true },
+      },
+    });
+
+    await processDepositSlipVideoParse({
+      jobId: "job-1",
+      sessionId: "session-1",
+      scoreTargetId: "bank-deposit-slip-history",
+      target: { id: "bank-deposit-slip-history" } as never,
+      engine: "native",
+      frames: [{ index: 0, buffer: Buffer.from("") }],
+      timer,
+      now: new Date("2026-07-12T00:00:00.000Z"),
+    });
+
+    const parseSessionInsert = mockInsertValues.mock.calls.find(
+      ([table]) =>
+        typeof table === "object" &&
+        table != null &&
+        "id" in table &&
+        table.id === "parseSessions.id",
+    );
+    expect(parseSessionInsert?.[1]).toEqual(
+      expect.objectContaining({
+        rawExtractJson: expect.objectContaining({
+          detectedBankContext: expect.objectContaining({
+            coordX: 199,
+            coordY: 599,
+            sources: { bankInfo: true, favorites: true },
+          }),
+        }),
+      }),
+    );
   });
 
   it("persists below-threshold fuzzy candidates for review without claiming auto-link FKs", async () => {

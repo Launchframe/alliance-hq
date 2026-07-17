@@ -3981,6 +3981,25 @@
     "depositSlipSubmitSkippedDuplicates": "Skipped {count} that already matched history.",
     "bankLabel": "Bank Stronghold",
     "bankPlaceholder": "Select bank…",
+    "bankContextMatched": "Matched bank #{server} (X:{x}, Y:{y}) detected from the video.",
+    "bankContextNoMatchTitle": "No existing bank matches this video",
+    "bankContextNoMatchHint": "We detected bank coordinates in the video that don't match any bank in your alliance. Create it now so this deposit slip links to the right bank.",
+    "bankContextCreateSubmit": "Create bank from video",
+    "bankContextCreating": "Creating…",
+    "bankContextCreateFailed": "Could not create the bank from video.",
+    "bankContextFieldServer": "Server",
+    "bankContextFieldX": "X",
+    "bankContextFieldY": "Y",
+    "bankContextFieldLevel": "Stronghold Level",
+    "bankContextFieldDropByAt": "Drop at time",
+    "bankContextFieldDropByAtHint": "Required — when you plan to drop this bank.",
+    "bankContextPartialTitle": "Detected partial bank info from the video",
+    "bankContextPartialHint": "We couldn't read bank coordinates from the video, so no bank could be matched or created automatically. Pick the correct bank below.",
+    "bankContextFieldBankName": "Bank name",
+    "bankContextFieldAllianceTag": "Alliance tag",
+    "bankContextFieldCurrentDeposit": "Current deposit",
+    "bankContextFieldDepositCapacity": "Deposit capacity",
+    "bankContextFieldFirstCaptureDate": "First captured",
     "scoreConflictHint": "Some players were read with conflicting scores across video frames. Pick the correct score and delete the extra row for each player.",
     "scoreConflictRow": "Conflicting scores — verify and delete the duplicate row.",
     "duplicateMemberTitle": "Multiple rows map to the same member",
@@ -5080,6 +5099,81 @@
           "caption": "Copy your player UID from your profile, then confirm the commander name in Discord."
         }
       }
+    },
+    "bankLifecycle": {
+      "hub": {
+        "title": "Bank lifecycle guide",
+        "subtitle": "How a Bank Stronghold moves from a target on Battle Plan to a scheduled drop: plan, capture, create, record, review, run, and retire.",
+        "funnelTitle": "The funnel: targets → banks → deposits → drop",
+        "funnelBody": "Bank Strongholds follow the same lifecycle every time:\n\n1. Battle planning — mark the target on Battle Plan before you capture it.\n2. Create the bank — register it in Bank Management, either from a City List screenshot or by hand.\n3. Record a deposit video — capture Bank Info, optional Favorites, and Deposit Slip History in one upload.\n4. Review and commit — confirm the bank and deposit rows, then submit.\n5. Ongoing operations — track active, elapsed, matured, and looted deposits, stats, and risk as the bank runs.\n6. Abandon and drop — stop new deposits, wait for maturity, and schedule the in-game drop.\n\nEach step below links to full instructions.",
+        "videoTitle": "One video covers bank context and deposit history",
+        "videoBody": "Deposit slip videos don't have to be Deposit Slip History alone. Open Bank Info — and optionally Favorites — at the start of the same recording, and HQ automatically reads coordinates, level, owning alliance tag, and deposit value/capacity from those frames to help align the upload with the right bank. Favorites wins for exact coordinates when both are present.",
+        "flowTitle": "Walk the lifecycle",
+        "flowBody": "Tap a step for detailed instructions.",
+        "startCallout": "<link>Start with battle planning</link> if you haven't captured the stronghold yet, or jump to whichever step matches where you are today."
+      },
+      "steps": {
+        "battlePlanning": {
+          "title": "Plan the capture in Battle Plan",
+          "summary": "Mark the stronghold or city you're about to take, with target coordinates, before you touch Bank Management.",
+          "instructions": "Open Battle Plan and schedule a capture for the stronghold (or city) you're about to take.\n\n• Set the territory type and, if you've already scouted it, the target coordinates — Battle Plan can auto-create a matching Bank in Bank Management once you confirm the capture later.\n• Add a marker so members know which target you mean, and announce it to the alliance straight from Battle Plan.\n• Capturing without pre-scouted coordinates is fine too — add the Bank by hand once you hold it (see the next step).\n\nAlready hold the stronghold? Battle planning is optional — skip straight to creating the bank."
+        },
+        "createBanks": {
+          "title": "Create the bank in Bank Management",
+          "summary": "Once you hold the stronghold, register it as a Bank — import from a City List screenshot, or add it by hand.",
+          "instructions": "Open Bank Management and add the stronghold as a Bank. Two ways in:\n\n1. City List import (fastest for many banks) — click Import banks from screenshot and upload one or more in-game City List → Bank Stronghold screenshots. HQ reads server, coordinates, level, and current deposit value/count from each row and merges duplicates by coordinates. Capture overlapping shots if you hold more banks than fit on one screen.\n2. Manual entry — click Add bank and enter the server, X/Y coordinates, and Stronghold level yourself. Use this for a single new capture, or when an import missed one.\n\nEither way, the bank now appears in your Bank Strongholds list, where you can set its deposit policy (alliance members, same warzone, or public).",
+          "tip": "No screenshot handy? Capture Bank Info and Favorites frames in the deposit video from the next step instead — HQ can use those to help align coordinates to the right bank."
+        },
+        "recordDepositVideo": {
+          "title": "Record and upload the deposit video",
+          "summary": "One video: open Bank Info, optionally swing by Favorites for exact coordinates, then scroll Deposit Slip History — HQ reads all three.",
+          "instructions": "From the Bank Stronghold in-game, record a single video that walks through:\n\n1. Bank Info — open the bank's info panel so HQ can read its level, owning alliance tag, current deposit value, and deposit capacity.\n2. Favorites (optional, but recommended) — if the bank is starred in your Favorites list, open that screen too. Favorites shows exact X/Y coordinates, which HQ trusts over other sources when aligning the bank.\n3. Deposit Slip History — scroll all the way through your deposit slip history so every locked, matured, and looted deposit is on screen.\n\nUpload the video from Tools → Video upload, or tap the video icon next to a bank in Bank Management to jump straight to upload with that bank pre-selected.\n\nHQ's OCR reads all three frame types from the same video: Bank Info and Favorites feed the bank's context (coordinates, level, alliance tag, deposit value), while Deposit Slip History becomes the individual deposit rows you'll review next.",
+          "tip": "Recording Bank Info and Favorites before you scroll deposit history gives HQ the best chance to align coordinates ahead of review — but the order doesn't have to be exact."
+        },
+        "reviewAndCommit": {
+          "title": "Review and commit the upload",
+          "summary": "Confirm which bank the slips belong to, fix any OCR misreads, and submit.",
+          "instructions": "After processing, open the review page for your upload:\n\n1. Confirm the Bank selector matches the stronghold you recorded — HQ pre-selects your most recently used bank, so double-check it, especially if you've uploaded more than one bank's video recently.\n2. Walk each parsed deposit slip row: term, amount, status (locked/matured/looted), and commander name. Fix anything the OCR misread — you can preview the source video frame for any row.\n3. Submit once everything looks right. Committed slips merge into that bank's deposit list, and duplicates from re-uploads are deduped automatically.\n\nIf a bank's coordinates look wrong, correct them in Bank Management before you submit so future uploads keep aligning cleanly."
+        },
+        "ongoingOps": {
+          "title": "Track deposits day to day",
+          "summary": "Use the Active/Elapsed/Matured/Looted filters, alliance stats, and the falloff chart to manage a live bank.",
+          "instructions": "Once a bank has deposit slips, Bank Management gives you the tools to run it day to day:\n\n• Filters — switch between Active (locked, still earning), Elapsed (term passed but not yet matured in-game), Matured, and Looted to see exactly where each deposit stands.\n• Stats — Total deposited, Recovered, Lost to looting, and Interest earned (once you've imported deposit slip history) summarize the bank's performance at a glance.\n• Investor risk heatmap — shows which of the next 72 hours have the fewest locked deposits at risk, so you know when it's safest to drop.\n• Deposit falloff projection — projects locked value and maturity outflow over time; save a snapshot to compare against what actually happens.\n• Recommended next drop — HQ highlights the lowest-level bank with the least value at risk as your best drop candidate.\n\nCheck in regularly — new deposits, maturing deposits, and shifting risk change the recommendation as time passes."
+        },
+        "abandonDrop": {
+          "title": "Abandon the bank and schedule the drop",
+          "summary": "Stop taking new deposits, wait for terms to mature, set the drop deadline, and schedule the in-game drop.",
+          "instructions": "When a bank is nearing the end of its life:\n\n1. Stop new deposits — tell investors to stop depositing (or tighten the deposit policy) once you're planning to abandon it, so no one locks in a fresh term right before you drop.\n2. Wait for maturity — use the Investor risk heatmap and falloff projection to find a time when as many deposits as possible have matured, minimizing value at risk.\n3. Set the drop deadline — edit the bank and set Need to drop by to the date/time you must abandon it in-game (for example, when the stronghold's protection expires). This date drives the Past drop deadline section.\n4. Schedule the drop — from the Recommended next drop card, click Schedule drop to add a Bank drop event to Battle Plan at the recommended (or a custom) time, so members see the announcement and know to limit new deposit terms.\n\nOnce a bank's Need to drop by time passes, it moves into the Past drop deadline section of Bank Strongholds — still tracked in HQ, but flagged so you can confirm whether it's still held in-game or has already been dropped.",
+          "tip": "Setting Need to drop by as soon as you capture a bank, even a rough estimate, keeps it from landing in Past drop deadline by surprise later, and keeps the drop recommendation accurate."
+        }
+      },
+      "flow": {
+        "instructionsHeading": "Instructions",
+        "backToFlow": "← Back to overview",
+        "stepLabel": "Step {current} of {total}"
+      },
+      "screenshots": {
+        "bankInfoMenu": {
+          "alt": "In-game Bank Info panel showing level, owning alliance, and deposit value/capacity",
+          "caption": "Open Bank Info first in your deposit video so HQ can read the bank's level, alliance tag, and deposit value/capacity."
+        },
+        "addToFavorites": {
+          "alt": "Favorites list showing a starred Bank Stronghold with exact X/Y coordinates",
+          "caption": "Favorites (optional) gives HQ exact coordinates — Favorites wins over other sources when aligning the bank."
+        },
+        "depositSlipHistory": {
+          "alt": "Deposit Slip History screen scrolled to show multiple locked and matured deposits",
+          "caption": "Scroll all the way through Deposit Slip History so every deposit slip is captured on screen."
+        },
+        "cityListImport": {
+          "alt": "City List screen showing the Bank Stronghold tab with several captured banks",
+          "caption": "Import banks from one or more City List → Bank Stronghold screenshots — HQ merges duplicates by coordinates."
+        },
+        "abandonDrop": {
+          "alt": "Bank Management showing a bank moved into the Past drop deadline section",
+          "caption": "Once Need to drop by passes, the bank moves into Past drop deadline until you confirm it's been dropped."
+        }
+      }
     }
   },
   "uploadReminders": {
@@ -5407,7 +5501,10 @@
     "cityListServerTime": "Screenshot server time: {time}",
     "editBank": "Edit bank",
     "deleteBank": "Delete bank",
+    "lifecycleGuideLink": "Bank lifecycle guide",
     "banksTitle": "Bank Strongholds",
+    "pastDropDeadlineTitle": "Past drop deadline",
+    "pastDropDeadlineHint": "Still tracked in HQ, but past the planned drop time — confirm whether these banks are still held in-game.",
     "depositsTitle": "Deposit slips",
     "addDeposit": "Add deposit slip",
     "editDeposit": "Edit deposit slip",

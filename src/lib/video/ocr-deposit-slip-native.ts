@@ -1,5 +1,12 @@
 import "server-only";
 
+import { parseBankInfoText } from "@/lib/banks/bank-context-ocr/parse-bank-info-text.shared";
+import { parseFavoritesText } from "@/lib/banks/bank-context-ocr/parse-favorites-text.shared";
+import {
+  coalesceDetectedBankContext,
+  mergeBankContext,
+  type DetectedBankContext,
+} from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
 import { parseDepositSlipImage } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-image.server";
 import {
   mergeDepositSlipHistoryParses,
@@ -33,7 +40,18 @@ export type OcrDepositSlipNativeFramesResult = {
   dedupeReport: DedupeReport;
   frameTimings: NativeDepositSlipFrameTiming[];
   concurrency: number;
+  /** Coalesced bank info + favorites OCR across all frames. */
+  detectedBankContext: DetectedBankContext | null;
 };
+
+function detectBankContextFromOcrLines(
+  rawLines: readonly string[],
+): DetectedBankContext | null {
+  return mergeBankContext(
+    parseBankInfoText(rawLines),
+    parseFavoritesText(rawLines),
+  );
+}
 
 export async function ocrDepositSlipNativeFrames(
   frames: Array<{ index: number; buffer: Buffer }>,
@@ -139,6 +157,14 @@ export async function ocrDepositSlipNativeFrames(
     frameResults.map((frame) => frame.history),
   );
 
+  let detectedBankContext: DetectedBankContext | null = null;
+  for (const frame of frameResults) {
+    detectedBankContext = coalesceDetectedBankContext(
+      detectedBankContext,
+      detectBankContextFromOcrLines(frame.rawLines),
+    );
+  }
+
   return {
     history: merged.history,
     dedupeReport: merged.dedupeReport,
@@ -151,5 +177,6 @@ export async function ocrDepositSlipNativeFrames(
       history: frame.history,
     })),
     concurrency,
+    detectedBankContext,
   };
 }
