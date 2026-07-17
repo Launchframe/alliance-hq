@@ -22,7 +22,10 @@ import {
 import { mockOcrRosterFrames } from "@/lib/video/ocr-mock";
 import { ocrRosterAllFrames } from "@/lib/video/ocr-roster-pipeline";
 import { ocrRosterNativeFrames } from "@/lib/video/ocr-roster-native";
-import type { VideoOcrEngine } from "@/lib/video/ocr-provider.shared";
+import type {
+  VideoOcrEngine,
+  VideoOcrProgressCallback,
+} from "@/lib/video/ocr-provider.shared";
 import type { ScoreTargetDef } from "@/lib/video/score-targets";
 import type { ExtractedRosterMember } from "@/lib/video/roster-extract";
 
@@ -38,6 +41,8 @@ export type ProcessRosterVideoParseInput = {
   frames: Array<{ index: number; buffer: Buffer }>;
   timer: PipelineTimer;
   now: Date;
+  /** Fired as each frame's OCR settles, for the waiting-page progress bar. */
+  onOcrProgress?: VideoOcrProgressCallback;
 };
 
 export type ProcessRosterVideoParseResult = {
@@ -80,6 +85,9 @@ async function runRosterOcr(
       input.frames.map((f) => ({ index: f.index })),
       { allianceId: hqAllianceId },
     );
+    for (let i = 0; i < input.frames.length; i += 1) {
+      await input.onOcrProgress?.(i + 1, input.frames.length);
+    }
     return {
       members,
       frameTimings: input.frames.map((frame) => ({
@@ -102,6 +110,7 @@ async function runRosterOcr(
       passKey: input.rosterPassKey ?? null,
       timer: input.timer,
       jobId: input.jobId,
+      onProgress: input.onOcrProgress,
     });
     return {
       members: native.members,
@@ -127,7 +136,7 @@ async function runRosterOcr(
     input.connection,
     input.target,
     input.frames,
-    { timer: input.timer, jobId: input.jobId },
+    { timer: input.timer, jobId: input.jobId, onProgress: input.onOcrProgress },
   );
   return {
     members: ashed.members,

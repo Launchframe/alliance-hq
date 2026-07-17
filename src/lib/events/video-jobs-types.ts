@@ -1,3 +1,5 @@
+import { defaultStageForJobStatus } from "@/lib/video/video-job-stage.shared";
+
 export type VideoJobStatusEvent = {
   sessionId: string;
   /** HQ user who uploaded — present so other devices for the same user receive events. */
@@ -12,6 +14,15 @@ export type VideoJobStatusEvent = {
   rowCount?: number | null;
   matchedCount?: number | null;
   errorMessage?: string | null;
+  /**
+   * Fine-grained pipeline stage layered on top of `status` — display-only,
+   * for the waiting-page progress bar/banner. Older events (or emit sites
+   * that haven't been updated) omit this; clients fall back to
+   * `defaultStageForJobStatus(status)` from video-job-stage.shared.ts.
+   */
+  stage?: string | null;
+  /** OCR engine used for this job's pass, once resolved. See ocr-provider.shared.ts. */
+  ocrEngine?: string | null;
   updatedAt: string;
 };
 
@@ -49,4 +60,40 @@ export function parseVideoJobStatusEvent(
   } catch {
     return null;
   }
+}
+
+/**
+ * Merge a newer live event onto the cached job. Nullish progress/stage fields
+ * must not wipe values from an earlier, richer event (e.g. OCR progress that
+ * omits `frameCount` after the parsing kickoff already set the total).
+ */
+export function mergeVideoJobStatusEvent(
+  current: VideoJobStatusEvent | undefined,
+  next: VideoJobStatusEvent,
+): VideoJobStatusEvent {
+  if (!current) {
+    return next;
+  }
+  if (
+    new Date(next.updatedAt).getTime() < new Date(current.updatedAt).getTime()
+  ) {
+    return current;
+  }
+
+  const stage =
+    next.stage ??
+    (next.status !== current.status
+      ? defaultStageForJobStatus(next.status)
+      : undefined) ??
+    current.stage;
+
+  return {
+    ...current,
+    ...next,
+    frameCount: next.frameCount ?? current.frameCount,
+    uploadedFrameCount:
+      next.uploadedFrameCount ?? current.uploadedFrameCount,
+    stage,
+    ocrEngine: next.ocrEngine ?? current.ocrEngine,
+  };
 }

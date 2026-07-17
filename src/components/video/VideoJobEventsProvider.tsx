@@ -23,6 +23,7 @@ import {
   isActiveVideoJobStatus,
   isPendingApprovalStatus,
   isReviewReadyStatus,
+  mergeVideoJobStatusEvent,
 } from "@/lib/events/video-jobs-types";
 
 type VideoJobBanner = {
@@ -43,21 +44,6 @@ type VideoJobEventsContextValue = {
 const VideoJobEventsContext = createContext<VideoJobEventsContextValue | null>(
   null,
 );
-
-function mergeJobEvent(
-  current: VideoJobStatusEvent | undefined,
-  next: VideoJobStatusEvent,
-): VideoJobStatusEvent {
-  if (!current) {
-    return next;
-  }
-  if (
-    new Date(next.updatedAt).getTime() < new Date(current.updatedAt).getTime()
-  ) {
-    return current;
-  }
-  return { ...current, ...next };
-}
 
 function reviewPathForJob(jobId: string): string {
   return `/tools/video-upload/${jobId}/review`;
@@ -196,7 +182,7 @@ export function VideoJobEventsProvider({ children }: { children: ReactNode }) {
     (event: VideoJobStatusEvent, options?: { notify?: boolean }) => {
       setJobsById((prev) => ({
         ...prev,
-        [event.jobId]: mergeJobEvent(prev[event.jobId], event),
+        [event.jobId]: mergeVideoJobStatusEvent(prev[event.jobId], event),
       }));
       if (options?.notify) {
         pushBanner(event);
@@ -230,7 +216,7 @@ export function VideoJobEventsProvider({ children }: { children: ReactNode }) {
         setJobsById((prev) => {
           const next = { ...prev };
           for (const job of data.jobs!) {
-            next[job.jobId] = mergeJobEvent(next[job.jobId], job);
+            next[job.jobId] = mergeVideoJobStatusEvent(next[job.jobId], job);
           }
           return next;
         });

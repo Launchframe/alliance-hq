@@ -5,6 +5,7 @@ import {
 } from "@/lib/base44/fetch";
 import type { ScoreTargetDef } from "@/lib/video/score-targets";
 import { mapWithConcurrency } from "@/lib/video/map-with-concurrency";
+import type { VideoOcrProgressCallback } from "@/lib/video/ocr-provider.shared";
 import type { PipelineTimer } from "@/lib/video/pipeline-timer";
 import { defaultAshFrameConcurrency } from "@/lib/video/ocr-pipeline";
 import {
@@ -43,11 +44,14 @@ export async function ocrRosterAllFrames(
     concurrency?: number;
     timer?: PipelineTimer;
     jobId?: string;
+    onProgress?: VideoOcrProgressCallback;
   },
 ): Promise<OcrRosterAllFramesResult> {
   const concurrency = options?.concurrency ?? defaultAshFrameConcurrency();
   const timer = options?.timer;
   const jobId = options?.jobId;
+  const onProgress = options?.onProgress;
+  let completedCount = 0;
 
   timer?.logStep("ashed.roster_batch_start", 0, {
     jobId,
@@ -62,51 +66,58 @@ export async function ocrRosterAllFrames(
       const frameStarted = Date.now();
       const fileName = rosterFrameFileName(frame.index);
 
-      try {
-        const uploadStarted = Date.now();
-        const { file_url } = await base44UploadFile(
-          connection,
-          fileName,
-          "image/jpeg",
-          frame.buffer,
-        );
-        const uploadMs = Date.now() - uploadStarted;
+      const result = await (async () => {
+        try {
+          const uploadStarted = Date.now();
+          const { file_url } = await base44UploadFile(
+            connection,
+            fileName,
+            "image/jpeg",
+            frame.buffer,
+          );
+          const uploadMs = Date.now() - uploadStarted;
 
-        const extractStarted = Date.now();
-        const rawResult = await base44ExtractData(
-          connection,
-          file_url,
-          target.ocrSchema,
-        );
-        const extractMs = Date.now() - extractStarted;
+          const extractStarted = Date.now();
+          const rawResult = await base44ExtractData(
+            connection,
+            file_url,
+            target.ocrSchema,
+          );
+          const extractMs = Date.now() - extractStarted;
 
-        const ocrMembers = extractRosterMembers(rawResult);
-        const members = ocrMembers.map((m) =>
-          rosterOcrMemberToExtracted(m, frame.index),
-        );
+          const ocrMembers = extractRosterMembers(rawResult);
+          const members = ocrMembers.map((m) =>
+            rosterOcrMemberToExtracted(m, frame.index),
+          );
 
-        return {
-          frameIndex: frame.index,
-          members,
-          ms: Date.now() - frameStarted,
-          uploadMs,
-          extractMs,
-          rawResult,
-          error: null as string | null,
-        };
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Roster OCR frame failed";
-        return {
-          frameIndex: frame.index,
-          members: [] as ExtractedRosterMember[],
-          ms: Date.now() - frameStarted,
-          uploadMs: 0,
-          extractMs: 0,
-          rawResult: null,
-          error: message,
-        };
-      }
+          return {
+            frameIndex: frame.index,
+            members,
+            ms: Date.now() - frameStarted,
+            uploadMs,
+            extractMs,
+            rawResult,
+            error: null as string | null,
+          };
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "Roster OCR frame failed";
+          return {
+            frameIndex: frame.index,
+            members: [] as ExtractedRosterMember[],
+            ms: Date.now() - frameStarted,
+            uploadMs: 0,
+            extractMs: 0,
+            rawResult: null,
+            error: message,
+          };
+        }
+      })();
+
+      completedCount += 1;
+      await onProgress?.(completedCount, frames.length);
+
+      return result;
     },
   );
 

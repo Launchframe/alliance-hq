@@ -11,6 +11,7 @@ import {
 } from "@/lib/ocr/ocr-diagnostics.shared";
 import type { DedupeReport } from "@/lib/video/dedupe/merge-report.shared";
 import { mapWithConcurrency } from "@/lib/video/map-with-concurrency";
+import type { VideoOcrProgressCallback } from "@/lib/video/ocr-provider.shared";
 import { logPipelineStep } from "@/lib/video/pipeline-step-log";
 import type { PipelineTimer } from "@/lib/video/pipeline-timer";
 
@@ -37,10 +38,13 @@ export async function ocrDepositSlipNativeFrames(
   options?: {
     timer?: PipelineTimer;
     jobId?: string;
+    onProgress?: VideoOcrProgressCallback;
   },
 ): Promise<OcrDepositSlipNativeFramesResult> {
   const concurrency = NATIVE_DEPOSIT_SLIP_TESSERACT_CONCURRENCY;
   const timer = options?.timer;
+  const onProgress = options?.onProgress;
+  let completedCount = 0;
 
   timer?.logStep("tesseract.deposit_slip_batch_start", 0, {
     jobId: options?.jobId,
@@ -53,72 +57,79 @@ export async function ocrDepositSlipNativeFrames(
     concurrency,
     async (frame) => {
       const started = Date.now();
-      try {
-        const result = await parseDepositSlipImage(frame.buffer);
-        const slips = result.slips.map((slip) => ({
-          ...slip,
-          sourceFrameIndex: frame.index,
-        }));
-        const ms = Date.now() - started;
-        logOcrDiagnostics(
-          buildOcrDiagnostics({
-            source: "video_deposit_slip_native",
-            durationMs: ms,
-            rawLineCount: result.rawLines.length,
-            // Omit OCR text lines — deposit slips can include member names / amounts (PII).
-            parsedOk: slips.length > 0,
-            entryCount: slips.length,
+      const result = await (async () => {
+        try {
+          const result = await parseDepositSlipImage(frame.buffer);
+          const slips = result.slips.map((slip) => ({
+            ...slip,
+            sourceFrameIndex: frame.index,
+          }));
+          const ms = Date.now() - started;
+          logOcrDiagnostics(
+            buildOcrDiagnostics({
+              source: "video_deposit_slip_native",
+              durationMs: ms,
+              rawLineCount: result.rawLines.length,
+              // Omit OCR text lines — deposit slips can include member names / amounts (PII).
+              parsedOk: slips.length > 0,
+              entryCount: slips.length,
+              frameIndex: frame.index,
+              jobId: options?.jobId,
+              scoreTarget: "bank-deposit-slip-history",
+            }),
+          );
+          return {
             frameIndex: frame.index,
+            ms,
+            entryCount: slips.length,
+            error: null as string | null,
+            rawLines: result.rawLines,
+            history: {
+              depositPolicy: result.depositPolicy,
+              minimumDeposit: result.minimumDeposit,
+              slips,
+            } satisfies ParsedDepositSlipHistory,
+          };
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "Deposit slip OCR failed.";
+          logPipelineStep("tesseract.deposit_slip_frame_error", Date.now() - started, {
             jobId: options?.jobId,
-            scoreTarget: "bank-deposit-slip-history",
-          }),
-        );
-        return {
-          frameIndex: frame.index,
-          ms,
-          entryCount: slips.length,
-          error: null as string | null,
-          rawLines: result.rawLines,
-          history: {
-            depositPolicy: result.depositPolicy,
-            minimumDeposit: result.minimumDeposit,
-            slips,
-          } satisfies ParsedDepositSlipHistory,
-        };
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Deposit slip OCR failed.";
-        logPipelineStep("tesseract.deposit_slip_frame_error", Date.now() - started, {
-          jobId: options?.jobId,
-          frameIndex: frame.index,
-          error: message,
-        });
-        logOcrDiagnostics(
-          buildOcrDiagnostics({
-            source: "video_deposit_slip_native",
-            durationMs: Date.now() - started,
-            rawLineCount: 0,
-            parsedOk: false,
+            frameIndex: frame.index,
+            error: message,
+          });
+          logOcrDiagnostics(
+            buildOcrDiagnostics({
+              source: "video_deposit_slip_native",
+              durationMs: Date.now() - started,
+              rawLineCount: 0,
+              parsedOk: false,
+              entryCount: 0,
+              error: message,
+              frameIndex: frame.index,
+              jobId: options?.jobId,
+              scoreTarget: "bank-deposit-slip-history",
+            }),
+          );
+          return {
+            frameIndex: frame.index,
+            ms: Date.now() - started,
             entryCount: 0,
             error: message,
-            frameIndex: frame.index,
-            jobId: options?.jobId,
-            scoreTarget: "bank-deposit-slip-history",
-          }),
-        );
-        return {
-          frameIndex: frame.index,
-          ms: Date.now() - started,
-          entryCount: 0,
-          error: message,
-          rawLines: [] as string[],
-          history: {
-            depositPolicy: null,
-            minimumDeposit: null,
-            slips: [],
-          } satisfies ParsedDepositSlipHistory,
-        };
-      }
+            rawLines: [] as string[],
+            history: {
+              depositPolicy: null,
+              minimumDeposit: null,
+              slips: [],
+            } satisfies ParsedDepositSlipHistory,
+          };
+        }
+      })();
+
+      completedCount += 1;
+      await onProgress?.(completedCount, frames.length);
+
+      return result;
     },
   );
 

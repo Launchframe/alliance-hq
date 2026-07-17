@@ -8,6 +8,7 @@ import {
   logOcrDiagnostics,
 } from "@/lib/ocr/ocr-diagnostics.shared";
 import { mapWithConcurrency } from "@/lib/video/map-with-concurrency";
+import type { VideoOcrProgressCallback } from "@/lib/video/ocr-provider.shared";
 import { logPipelineStep } from "@/lib/video/pipeline-step-log";
 import type { PipelineTimer } from "@/lib/video/pipeline-timer";
 import {
@@ -59,6 +60,7 @@ export async function ocrRosterNativeFrames(
     concurrency?: number;
     timer?: PipelineTimer;
     jobId?: string;
+    onProgress?: VideoOcrProgressCallback;
   },
 ): Promise<OcrRosterNativeFramesResult> {
   const config = options?.config ?? DEFAULT_ROSTER_OCR_CONFIG;
@@ -68,6 +70,8 @@ export async function ocrRosterNativeFrames(
     NATIVE_ROSTER_TESSERACT_CONCURRENCY,
   );
   const timer = options?.timer;
+  const onProgress = options?.onProgress;
+  let completedCount = 0;
 
   timer?.logStep("tesseract.roster_batch_start", 0, {
     jobId: options?.jobId,
@@ -80,53 +84,60 @@ export async function ocrRosterNativeFrames(
     concurrency,
     async (frame) => {
       const started = Date.now();
-      try {
-        const result = await parseRosterImage(frame.buffer, {
-          config,
-          configPassKey: passKey ?? undefined,
-        });
-        const ms = Date.now() - started;
-        logOcrDiagnostics(
-          buildOcrDiagnostics({
-            source: "video_roster_native",
-            durationMs: ms,
-            rawLineCount: result.diagnostics?.rawLineCount ?? 0,
-            parsedOk: result.rows.length > 0,
-            entryCount: result.rows.length,
+      const result = await (async () => {
+        try {
+          const result = await parseRosterImage(frame.buffer, {
+            config,
+            configPassKey: passKey ?? undefined,
+          });
+          const ms = Date.now() - started;
+          logOcrDiagnostics(
+            buildOcrDiagnostics({
+              source: "video_roster_native",
+              durationMs: ms,
+              rawLineCount: result.diagnostics?.rawLineCount ?? 0,
+              parsedOk: result.rows.length > 0,
+              entryCount: result.rows.length,
+              frameIndex: frame.index,
+              jobId: options?.jobId,
+              scoreTarget: "member-roster-video",
+            }),
+          );
+          return {
             frameIndex: frame.index,
-            jobId: options?.jobId,
-            scoreTarget: "member-roster-video",
-          }),
-        );
-        return {
-          frameIndex: frame.index,
-          ms,
-          rows: result.rows,
-          error: null as string | null,
-        };
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Tesseract OCR failed";
-        logOcrDiagnostics(
-          buildOcrDiagnostics({
-            source: "video_roster_native",
-            durationMs: Date.now() - started,
-            rawLineCount: 0,
-            parsedOk: false,
-            entryCount: 0,
+            ms,
+            rows: result.rows,
+            error: null as string | null,
+          };
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "Tesseract OCR failed";
+          logOcrDiagnostics(
+            buildOcrDiagnostics({
+              source: "video_roster_native",
+              durationMs: Date.now() - started,
+              rawLineCount: 0,
+              parsedOk: false,
+              entryCount: 0,
+              error: message,
+              frameIndex: frame.index,
+              jobId: options?.jobId,
+              scoreTarget: "member-roster-video",
+            }),
+          );
+          return {
+            frameIndex: frame.index,
+            ms: Date.now() - started,
+            rows: [] as ParsedRosterRow[],
             error: message,
-            frameIndex: frame.index,
-            jobId: options?.jobId,
-            scoreTarget: "member-roster-video",
-          }),
-        );
-        return {
-          frameIndex: frame.index,
-          ms: Date.now() - started,
-          rows: [] as ParsedRosterRow[],
-          error: message,
-        };
-      }
+          };
+        }
+      })();
+
+      completedCount += 1;
+      await onProgress?.(completedCount, frames.length);
+
+      return result;
     },
   );
 
