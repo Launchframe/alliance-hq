@@ -184,3 +184,67 @@ test.describe("City List import review (captured count padding)", () => {
     await expect(page.getByText(/required/i).first()).toBeVisible();
   });
 });
+
+test.describe("City List import review (draft restore)", () => {
+  test("restores edited review after close and Reset clears sessionStorage", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    await createHqMemberLink(sql, {
+      allianceId: scenario.allianceId,
+      hqUserId: scenario.officer.hqUserId,
+    });
+    await page.context().addCookies(playwrightAuthCookies(scenario.officer));
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    const draftKey = `alliance-hq.city-list-import-draft:${scenario.allianceId}`;
+
+    await openCityListReview(page);
+
+    const reviewTable = page.locator("table");
+    await expect(reviewTable).toBeVisible();
+
+    // Columns: level, server, X, Y, amount, deposits — edit first-row X.
+    const xInput = reviewTable.locator("tbody tr").first().locator(
+      'input[type="number"]',
+    ).nth(2);
+    await xInput.fill("777");
+    await expect
+      .poll(async () =>
+        page.evaluate((key) => window.sessionStorage.getItem(key), draftKey),
+      )
+      .not.toBeNull();
+
+    // Accidental close (Escape) — in-memory state clears, draft stays.
+    await page.keyboard.press("Escape");
+    await expect(
+      page.getByRole("heading", { name: /import banks from screenshots/i }),
+    ).toBeHidden();
+
+    await page
+      .getByRole("button", { name: /import banks from screenshot/i })
+      .click();
+    await expect(
+      page.getByText(/Restored your unsaved review from last time/i),
+    ).toBeVisible();
+    await expect(
+      reviewTable.locator("tbody tr").first().locator('input[type="number"]').nth(2),
+    ).toHaveValue("777");
+
+    await page.getByRole("button", { name: /^reset$/i }).click();
+    await page.getByTestId("city-list-import-reset-confirm").click();
+
+    await expect(
+      page.getByRole("heading", { name: /import banks from screenshots/i }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /read screenshots/i }),
+    ).toBeVisible();
+    await expect
+      .poll(async () =>
+        page.evaluate((key) => window.sessionStorage.getItem(key), draftKey),
+      )
+      .toBeNull();
+  });
+});
