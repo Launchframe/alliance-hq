@@ -36,7 +36,10 @@ import { BANK_READ_PERMISSION } from "@/lib/rbac/constants";
 import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 import { readDetectedBankContextFromRawExtract } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
 import type { DetectedBankContext } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
-import { expectedVsRowCount } from "@/lib/video/early-shadow-eligibility.shared";
+import {
+  expectedVsRowCount,
+  isShadowPassTerminalStatus,
+} from "@/lib/video/early-shadow-eligibility.shared";
 import {
   isVideoDevShadowWithholdUxEnabled,
   resolveShadowWithholdEscapeMs,
@@ -268,13 +271,7 @@ export async function GET(_request: Request, { params }: Props) {
           )
           .limit(1);
         if (shadowJob) {
-          const terminal = new Set([
-            "review",
-            "complete",
-            "failed",
-            "discarded",
-          ]);
-          shadowPassInFlight = !terminal.has(shadowJob.status);
+          shadowPassInFlight = !isShadowPassTerminalStatus(shadowJob.status);
         }
       }
     }

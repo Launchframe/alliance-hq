@@ -55,6 +55,7 @@ import { mergeParsedRowInReviewOrder } from "@/lib/video/parsed-row-review-order
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 import {
   isPrimaryParseInadequate,
+  isShadowPassTerminalStatus,
   VS_SHADOW_WITHHOLD_DEFAULT_MS,
 } from "@/lib/video/early-shadow-eligibility.shared";
 import { VideoPipelineStatsButton } from "@/components/video/VideoPipelineStatsDialog";
@@ -114,6 +115,13 @@ import {
   videoJobEngineLabelKey,
   videoJobStageProgressPercent,
 } from "@/lib/video/video-job-stage.shared";
+
+/**
+ * After a shadow pass reaches review/complete, its comparison is written a
+ * moment later by the shadow worker (or recomputed by the primary). Keep the
+ * 3s group poll alive for at most this many extra ticks waiting for it.
+ */
+const SHADOW_COMPARISON_WAIT_MAX_POLLS = 20;
 
 type ParsedRow = {
   id: string;
@@ -1018,25 +1026,46 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     if (!groupFetchStatuses.has(jobStatus)) return;
 
     let cancelled = false;
-    const shadowTerminal = new Set([
-      "review",
-      "complete",
-      "failed",
-      "discarded",
-    ]);
+    let stopPolling = false;
+    let comparisonWaitPolls = 0;
 
     const fetchGroup = async () => {
-      const res = await fetch(`/api/tools/video-upload/${jobId}/group`);
-      if (!res.ok || cancelled) return;
-      const data = (await res.json()) as GroupInfo;
+      let data: GroupInfo;
+      try {
+        const res = await fetch(`/api/tools/video-upload/${jobId}/group`);
+        if (!res.ok || cancelled) return;
+        data = (await res.json()) as GroupInfo;
+      } catch {
+        // Transient network failure — the next poll (if any) retries.
+        return;
+      }
       if (cancelled) return;
       setGroupInfo(data);
 
       const shadowPass = data.passes.find((pass) => pass.passRole === "shadow");
       if (shadowPass) {
-        setShadowPassInFlight(!shadowTerminal.has(shadowPass.status));
+        setShadowPassInFlight(!isShadowPassTerminalStatus(shadowPass.status));
       } else {
         setShadowPassInFlight(false);
+      }
+
+      // Keep polling only while it can still change what we show: a running
+      // shadow (withhold gate) or a finished shadow whose comparison has not
+      // been written yet (comparison prompt). Otherwise stop the interval.
+      if (!shadowPass) {
+        stopPolling = true;
+      } else if (isShadowPassTerminalStatus(shadowPass.status)) {
+        const waitingForComparison =
+          (shadowPass.status === "review" ||
+            shadowPass.status === "complete") &&
+          !data.group?.comparisonJson;
+        comparisonWaitPolls += 1;
+        stopPolling =
+          !waitingForComparison ||
+          comparisonWaitPolls > SHADOW_COMPARISON_WAIT_MAX_POLLS;
+      } else {
+        comparisonWaitPolls = 0;
+        stopPolling = false;
       }
 
       const comp = data.group?.comparisonJson;
@@ -1059,6 +1088,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       scoreTargetMeta?.id === "vs-performance";
     const intervalId = shouldPoll
       ? window.setInterval(() => {
+          if (stopPolling) {
+            window.clearInterval(intervalId);
+            return;
+          }
           void fetchGroup();
         }, 3_000)
       : undefined;
@@ -1085,9 +1118,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       (pass) => pass.passRole === "shadow",
     );
     if (shadowPass) {
-      return !["review", "complete", "failed", "discarded"].includes(
-        shadowPass.status,
-      );
+      return !isShadowPassTerminalStatus(shadowPass.status);
     }
     return shadowPassInFlight;
   }, [groupInfo, shadowPassInFlight]);

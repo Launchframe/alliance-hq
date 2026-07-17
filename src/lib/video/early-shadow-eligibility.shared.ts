@@ -7,6 +7,20 @@ export const VS_MAX_VISIBLE_ROWS_PER_FRAME = 6;
 export const VS_DENSE_FRAME_UNDERSAMPLE_RATIO = 0.5;
 export const VS_SHADOW_WITHHOLD_DEFAULT_MS = 5 * 60 * 1000;
 
+/** Job statuses after which a shadow pass can no longer change withhold state. */
+export const VIDEO_SHADOW_PASS_TERMINAL_STATUSES = [
+  "review",
+  "complete",
+  "failed",
+  "discarded",
+] as const;
+
+export function isShadowPassTerminalStatus(status: string): boolean {
+  return (VIDEO_SHADOW_PASS_TERMINAL_STATUSES as readonly string[]).includes(
+    status,
+  );
+}
+
 export function expectedVsRowCount(params: {
   rosterSize: number | null | undefined;
   surveyRowCountEstimate: number | null | undefined;
