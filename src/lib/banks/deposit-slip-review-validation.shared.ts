@@ -156,10 +156,12 @@ type LockedDepositWindow = { start: number; end: number };
  * windows for the same commander that overlap mean the commander had two
  * simultaneously-open deposits — an illegal in-game duplicate investment.
  *
- * Rows missing `powerLevel` (depositAt) or `memberLevel` (termDays) can't
- * establish a window and are excluded rather than risk a false positive —
- * OCR sometimes defaults a garbled matured/looted row to `status: "locked"`
- * without a usable timestamp/term, and that must not look like a duplicate.
+ * Rows missing `powerLevel` (depositAt) or `memberLevel` (termDays), or with
+ * a `memberLevel` outside {@link DEPOSIT_TERMS}, can't establish a window and
+ * are excluded rather than risk a false positive — OCR sometimes defaults a
+ * garbled matured/looted row to `status: "locked"` without a usable
+ * timestamp/term (or an officer typo like term `2`), and that must not look
+ * like a duplicate.
  */
 function lockedWindowForRow(
   row: Pick<DepositSlipReviewValidationRow, "powerLevel" | "memberLevel">,
@@ -272,6 +274,10 @@ export function validateDepositSlipReviewRows(
     hasUnresolvedFlaggedClusters,
     duplicateMemberIssues,
     duplicateRowIds,
+    // Overlapping locked deposits are returned as duplicateRowIds /
+    // duplicateMemberIssues but intentionally omitted from canSubmitSlips —
+    // ReviewExtractedData gates submit via hasDuplicateMembers separately so
+    // this helper stays focused on incomplete rows + unresolved clusters.
     canSubmitSlips:
       activeRowCount > 0 &&
       incompleteRowIds.size === 0 &&
