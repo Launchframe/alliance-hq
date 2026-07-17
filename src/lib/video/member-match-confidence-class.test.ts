@@ -7,6 +7,12 @@ describe("memberMatchConfidenceBorderClass", () => {
     expect(memberMatchConfidenceBorderClass(null)).toBe("border-hq-danger");
     expect(memberMatchConfidenceBorderClass(undefined)).toBe("border-hq-danger");
     expect(memberMatchConfidenceBorderClass(0)).toBe("border-hq-danger");
+    expect(memberMatchConfidenceBorderClass(-0.1)).toBe("border-hq-danger");
+  });
+
+  it("marks sub-threshold positive confidence as danger", () => {
+    expect(memberMatchConfidenceBorderClass(0.59)).toBe("border-hq-danger");
+    expect(memberMatchConfidenceBorderClass(0.4)).toBe("border-hq-danger");
   });
 
   it("marks high-confidence matches as solid green", () => {

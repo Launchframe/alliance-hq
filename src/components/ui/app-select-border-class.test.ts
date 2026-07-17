@@ -8,6 +8,7 @@ import {
 describe("hasBorderColorClass", () => {
   it("detects semantic and arbitrary border colors", () => {
     expect(hasBorderColorClass("px-2 border-hq-green")).toBe(true);
+    expect(hasBorderColorClass("border-hq-green border-dashed")).toBe(true);
     expect(hasBorderColorClass("border-hq-danger")).toBe(true);
     expect(hasBorderColorClass("border-[#d29922]")).toBe(true);
   });
