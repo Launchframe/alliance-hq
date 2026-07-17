@@ -171,6 +171,27 @@ describe("mergeCityListOcrPasses", () => {
     ).toEqual(["499:799", "499:699", "599:599", "499:599", "599:499", "599:399"]);
   });
 
+  it("keeps primary reading order as backbone when both passes recover the same tile count", () => {
+    const primary = parseCityListText([
+      "Bank Strongholds captured: 2/8",
+      "600.00K 500.00K",
+      "Lv.2 Lv.2",
+      "#1211 (X:100, Y:100) #1211 (X:200, Y:200)",
+    ]);
+    const green = parseCityListText([
+      "600.00K 500.00K",
+      "Lv.3 Lv.3",
+      // Same tiles, reversed reading order — tie on count must not flip backbone.
+      "#1211 (X:200, Y:200) #1211 (X:100, Y:100)",
+    ]);
+    const merged = mergeCityListOcrPasses(primary, green);
+    expect(merged.banks).toHaveLength(2);
+    expect(merged.banks.map((b) => `${b.coordX}:${b.coordY}`)).toEqual([
+      "100:100",
+      "200:200",
+    ]);
+  });
+
   it("keeps the more-complete pass's order as backbone even when it runs second", () => {
     // Primary (greyscale) finds all 6 tiles in reading order; the green pass
     // only re-confirms 2 of them (e.g. a low-confidence recovery run). Primary

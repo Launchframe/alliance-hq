@@ -157,6 +157,8 @@ export function mergeCityListOcrPasses(
   primary: ParsedCityListSnapshot,
   secondary: ParsedCityListSnapshot,
 ): ParsedCityListSnapshot {
+  // Equal tile count → primary (greyscale) stays the backbone; only a strictly
+  // longer secondary pass flips which list supplies screen positions.
   const [base, overlay] =
     secondary.banks.length > primary.banks.length
       ? [secondary, primary]
@@ -218,13 +220,15 @@ export function mergeCityListOcrPasses(
  * Duplicate tiles (same server + X/Y) are auto-merged; conflicting extras
  * that somehow share a key are still coalesced (coords are the identity).
  *
- * Output order follows first-encounter order across `parts` (a `Map`
- * preserves insertion order), i.e. each screenshot's own reading order
- * (top-to-bottom, left-to-right), with any bank found only in a later
- * screenshot appended after that screenshot's already-placed tiles. This is
- * intentionally NOT a game-coordinate sort — map X/Y do not reliably
- * increase left-to-right/top-to-bottom on screen, so sorting by them would
- * scramble the on-screen grid order officers expect in the review table.
+ * Output order follows Map first-encounter order while scanning `parts` in
+ * array order: the first time a tile (server + coords) appears fixes its
+ * position; duplicates in later screenshots coalesce in place without moving.
+ * Tiles seen only in a later part append in the order they are first
+ * encountered. Each part's banks are already in that screenshot's reading
+ * order (top-to-bottom, left-to-right). This is intentionally NOT a
+ * game-coordinate sort — map X/Y do not reliably increase left-to-right/
+ * top-to-bottom on screen, so sorting by them would scramble the on-screen
+ * grid order officers expect in the review table.
  */
 export function mergeCityListParses(
   parts: readonly ParsedCityListSnapshot[],
