@@ -49,6 +49,28 @@ describe("POST /api/tools/video-upload/[jobId]/rematch-members", () => {
     );
   });
 
+  it("returns 409 without connectUrl when the alliance is not linked to Ashed", async () => {
+    resolveVideoJobAccess.mockResolvedValue({
+      ok: true,
+      job: { id: "job-1", status: "review" },
+    });
+    const { AllianceNotAshedLinkedError } = await import(
+      "@/lib/alliance/ashed-write-guard"
+    );
+    rematchVideoJobMembers.mockRejectedValue(
+      new AllianceNotAshedLinkedError("ally-native-1"),
+    );
+
+    const res = await POST(new Request("http://localhost/rematch-members"), {
+      params: Promise.resolve({ jobId: "job-1" }),
+    });
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.code).toBe("ALLIANCE_NOT_ASHED_LINKED");
+    expect(body.error).toBe("Alliance is not linked to Ashed.");
+    expect(body.connectUrl).toBeUndefined();
+  });
+
   it("returns 409 when job is already complete", async () => {
     resolveVideoJobAccess.mockResolvedValue({
       ok: true,
