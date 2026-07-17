@@ -466,6 +466,7 @@ export function CityListImportModal({
       setReviewIndex(0);
       setPreviewIndex(0);
       setSnapshot(body.snapshot ?? null);
+      setDraftRestored(false);
       setStep("review");
     } catch (e) {
       setError(e instanceof Error ? e.message : t("cityListParseFailed"));
@@ -720,6 +721,7 @@ export function CityListImportModal({
             setStep("upload");
             setReviewIndex(0);
             setSubmitAttempted(false);
+            setDraftRestored(false);
           }}
           disabled={importing}
         >
