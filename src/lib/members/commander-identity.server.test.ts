@@ -96,10 +96,20 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+const mockLevelSync = vi.hoisted(() => ({
+  seedCommanderLevelHistoryFromAshed: vi.fn(async () => 0),
+  syncCommanderLevelFromAllianceMember: vi.fn(async () => false),
+}));
+
 vi.mock("@/lib/thp/sync-from-member.server", () => ({
   seedCommanderPowerLevelHistoryFromAshed: vi.fn(async () => 0),
   seedCommanderThpHistoryFromAshed: vi.fn(async () => 0),
   syncCommanderThpFromAllianceMember: vi.fn(async () => false),
+}));
+
+vi.mock("@/lib/member-level/sync-from-member.server", () => ({
+  seedCommanderLevelHistoryFromAshed: mockLevelSync.seedCommanderLevelHistoryFromAshed,
+  syncCommanderLevelFromAllianceMember: mockLevelSync.syncCommanderLevelFromAllianceMember,
 }));
 
 import {
@@ -121,6 +131,8 @@ describe("commander-identity.server", () => {
     mockState.updatedCommanders = [];
     mockState.updatedMemberships = [];
     mockState.updatedHqUserCommanders = [];
+    mockLevelSync.seedCommanderLevelHistoryFromAshed.mockClear();
+    mockLevelSync.syncCommanderLevelFromAllianceMember.mockClear();
   });
 
   it("resolveCommanderByUid returns null for blank UID", async () => {
@@ -172,8 +184,9 @@ describe("commander-identity.server", () => {
       gameUid: "12345678901234",
       primaryName: "Alice",
       profession: "Engineer",
-      memberLevel: 30,
     });
+    expect(mockState.insertedCommanders[0]).not.toHaveProperty("memberLevel");
+    expect(mockLevelSync.syncCommanderLevelFromAllianceMember).not.toHaveBeenCalled();
   });
 
   it("upsertCommanderFromLink updates an existing commander", async () => {
@@ -289,13 +302,22 @@ describe("commander-identity.server", () => {
     expect(mockState.insertedCommanders[0]).toMatchObject({
       gameUid: "1111222233334444",
       primaryName: "Carol",
-      memberLevel: 22,
     });
+    expect(mockState.insertedCommanders[0]).not.toHaveProperty("memberLevel");
     expect(mockState.insertedMemberships[0]).toMatchObject({
       allianceId: "alliance-a",
       ashedMemberId: "member-3",
       status: "active",
     });
+    expect(mockLevelSync.syncCommanderLevelFromAllianceMember).toHaveBeenCalledWith(
+      expect.objectContaining({
+        commanderId: "commander-new",
+        allianceId: "alliance-a",
+        ashedMemberId: "member-3",
+        total: 22,
+        source: "ashed_sync",
+      }),
+    );
   });
 
   it("syncCommanderFromAllianceMember syncs UID-known rows without an alliance server", async () => {
