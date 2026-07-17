@@ -172,24 +172,21 @@ export async function handleDiscordWhatIsMyThpChart(input: {
   }
 
   const primary = links[0]!;
-  const name = primary.memberDisplayName ?? primary.ashedMemberId;
-  const commanderId = await getCommanderIdForMember(
+  const primaryName = primary.memberDisplayName ?? primary.ashedMemberId;
+  const primaryCommanderId = await getCommanderIdForMember(
     input.allianceId,
     primary.ashedMemberId,
   );
-  if (!commanderId) {
+  if (!primaryCommanderId) {
     const result = {
       ok: false as const,
-      content: t("query.thpNoReport", { name }),
+      content: t("query.thpNoReport", { name: primaryName }),
     };
     await auditChart(input.allianceId, input.discordUserId, "what_is_my_thp_chart", result);
     return result;
   }
 
-  const [commander, eventRows] = await Promise.all([
-    getCommanderThpState(commanderId),
-    listCommanderThpEvents(commanderId),
-  ]);
+  const eventRows = await listCommanderThpEvents(primaryCommanderId);
   const events = mapThpEvents(eventRows);
   const png = await renderThpHistoryChartPng({ events });
   if (!png) {
@@ -201,11 +198,35 @@ export async function handleDiscordWhatIsMyThpChart(input: {
     return result;
   }
 
-  const total = commander?.currentTotalHeroPower;
+  const captionLines: string[] = [];
+  for (const link of links) {
+    const name = link.memberDisplayName ?? link.ashedMemberId;
+    const commanderId = await getCommanderIdForMember(
+      input.allianceId,
+      link.ashedMemberId,
+    );
+    if (!commanderId) {
+      captionLines.push(t("query.thpNoReport", { name }));
+      continue;
+    }
+    const state = await getCommanderThpState(commanderId);
+    const total = state?.currentTotalHeroPower;
+    if (total == null || !(total > 0)) {
+      captionLines.push(t("query.thpNoReport", { name }));
+      continue;
+    }
+    captionLines.push(
+      t("query.thpStatus", {
+        name,
+        total: Math.round(total).toLocaleString(),
+      }),
+    );
+  }
+
   const content =
-    total != null
-      ? t("query.thpStatus", { name, total: total.toLocaleString("en-US") })
-      : t("query.thpNoReport", { name });
+    links.length === 1
+      ? captionLines[0]!
+      : `${t("query.thpHeader")}\n${captionLines.map((line) => `• ${line}`).join("\n")}`;
 
   const result: ChartQueryResult = {
     ok: true,
