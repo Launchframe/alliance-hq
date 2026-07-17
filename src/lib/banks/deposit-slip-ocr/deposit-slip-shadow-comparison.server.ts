@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import {
@@ -56,8 +56,9 @@ function isDedupeReportLike(value: unknown): value is DedupeReportLike {
  * already submitted before the shadow pass finished) and the submit route
  * (in case the shadow pass already finished before the officer submitted).
  * Whichever call observes *both* sides ready does the work; the other is a
- * cheap no-op. The `comparisonJson` idempotency check keeps a rare
- * near-simultaneous race from writing the comparison twice.
+ * cheap no-op. An atomic `comparisonJson` claim (UPDATE … WHERE the fingerprint
+ * key is still null) keeps a near-simultaneous race from writing duplicate
+ * `ocr_eval_snapshots` rows — only the winner persists the snapshot.
  */
 export async function maybeCompareDepositSlipFingerprintShadow(params: {
   groupId: string;
@@ -191,6 +192,29 @@ export async function maybeCompareDepositSlipFingerprintShadow(params: {
     uniqueLineCount,
   };
 
+  // Claim the comparison slot first so a near-simultaneous submit + shadow-
+  // complete race cannot both insert ocr_eval_snapshots rows. The early
+  // comparisonJson read above is a fast-path; this WHERE is the real guard.
+  const [claimed] = await db
+    .update(schema.videoUploadGroups)
+    .set({
+      comparisonJson: mergeGroupComparisons(group.comparisonJson, {
+        deposit_slip_fingerprint_shadow: comparison,
+      }),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.videoUploadGroups.id, params.groupId),
+        sql`${schema.videoUploadGroups.comparisonJson}->'deposit_slip_fingerprint_shadow' IS NULL`,
+      ),
+    )
+    .returning({ id: schema.videoUploadGroups.id });
+
+  if (!claimed) {
+    return;
+  }
+
   await persistDepositSlipOcrEvalSnapshot({
     groupId: params.groupId,
     primaryJobId: group.primaryJobId,
@@ -202,14 +226,4 @@ export async function maybeCompareDepositSlipFingerprintShadow(params: {
     rawLineCount,
     uniqueLineCount,
   });
-
-  await db
-    .update(schema.videoUploadGroups)
-    .set({
-      comparisonJson: mergeGroupComparisons(group.comparisonJson, {
-        deposit_slip_fingerprint_shadow: comparison,
-      }),
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.videoUploadGroups.id, params.groupId));
 }

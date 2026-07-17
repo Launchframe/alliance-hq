@@ -80,6 +80,7 @@ import {
   recordDataUploadBatch,
 } from "@/lib/data-management/batch-ledger.server";
 import { isDedupeReport } from "@/lib/video/dedupe/merge-report.shared";
+import { maybeCompareDepositSlipFingerprintShadow } from "@/lib/banks/deposit-slip-ocr/deposit-slip-shadow-comparison.server";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -646,20 +647,14 @@ export async function POST(request: Request, { params }: Props) {
       // dashboard. Never blocks or fails the officer's submit.
       if (job.groupId) {
         const groupIdForComparison = job.groupId;
-        void import(
-          "@/lib/banks/deposit-slip-ocr/deposit-slip-shadow-comparison.server"
-        )
-          .then(({ maybeCompareDepositSlipFingerprintShadow }) =>
-            maybeCompareDepositSlipFingerprintShadow({
-              groupId: groupIdForComparison,
-            }),
-          )
-          .catch((err: unknown) => {
-            console.error(
-              "[deposit-slip-fingerprint-shadow] comparison-on-submit failed",
-              err,
-            );
-          });
+        void maybeCompareDepositSlipFingerprintShadow({
+          groupId: groupIdForComparison,
+        }).catch((err: unknown) => {
+          console.error(
+            "[deposit-slip-fingerprint-shadow] comparison-on-submit failed",
+            err,
+          );
+        });
       }
 
       await writeAuditLog({

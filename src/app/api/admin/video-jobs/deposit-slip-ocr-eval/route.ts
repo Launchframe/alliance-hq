@@ -10,6 +10,7 @@ import {
   type DepositSlipOcrEvalSnapshotMetrics,
 } from "@/lib/banks/deposit-slip-ocr/deposit-slip-ocr-eval-snapshots.server";
 import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
+import { DEPOSIT_SLIP_FINGERPRINT_SHADOW_PASS_KEY } from "@/lib/video/enqueue-deposit-slip-fingerprint-shadow-pass";
 
 export type DepositSlipOcrEvalResponse = DepositSlipOcrEvalAggregate;
 
@@ -29,6 +30,10 @@ export async function GET(request: Request) {
 
   const conditions = [
     eq(schema.ocrEvalSnapshots.scoreTarget, BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET),
+    eq(
+      schema.ocrEvalSnapshots.nativePassKey,
+      DEPOSIT_SLIP_FINGERPRINT_SHADOW_PASS_KEY,
+    ),
   ];
 
   if (days > 0) {

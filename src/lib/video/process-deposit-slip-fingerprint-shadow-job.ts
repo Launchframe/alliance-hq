@@ -1,6 +1,6 @@
 import "server-only";
 
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import {
@@ -123,6 +123,115 @@ export async function processDepositSlipFingerprintShadowJob(
     });
   };
 
+  const emptyTimings = (): VideoProcessTimings => ({
+    jobId,
+    scoreTarget: scoreTargetId,
+    fileSizeBytes: job.fileSizeBytes,
+    frameCount: job.frameCount ?? 0,
+    rowCount: 0,
+    matchedCount: 0,
+    totalMs: 0,
+    phases: {},
+    ocrFrameMs: [],
+    ocrFrameAvgMs: null,
+    ocrConcurrency: 1,
+    ashedUploadTotalMs: null,
+    ashedExtractTotalMs: null,
+    videoDurationSeconds: null,
+    denseFrameCount: null,
+    framesSkipped: null,
+    totalRawOcrRows: null,
+  });
+
+  const timingsFromJob = (): VideoProcessTimings => {
+    const raw = job.timingsJson;
+    if (
+      raw &&
+      typeof raw === "object" &&
+      "totalMs" in raw &&
+      typeof (raw as { totalMs?: unknown }).totalMs === "number"
+    ) {
+      return raw as VideoProcessTimings;
+    }
+    return emptyTimings();
+  };
+
+  // Already finished — never re-OCR. Re-attempt comparison in case submit
+  // landed while a prior run skipped it.
+  if (job.status === "complete") {
+    if (job.groupId) {
+      try {
+        await maybeCompareDepositSlipFingerprintShadow({ groupId: job.groupId });
+      } catch (err) {
+        console.error(
+          "[deposit-slip-fingerprint-shadow] comparison-on-reentry failed",
+          err,
+        );
+      }
+    }
+    return timingsFromJob();
+  }
+
+  // Claim queued/failed → parsing so a duplicate dispatch cannot double-OCR.
+  const [claimed] = await db
+    .update(schema.videoJobs)
+    .set({ status: "parsing", errorMessage: null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.videoJobs.id, jobId),
+        inArray(schema.videoJobs.status, ["queued", "failed"]),
+      ),
+    )
+    .returning({ id: schema.videoJobs.id });
+
+  if (!claimed) {
+    const [fresh] = await db
+      .select({
+        status: schema.videoJobs.status,
+        timingsJson: schema.videoJobs.timingsJson,
+        groupId: schema.videoJobs.groupId,
+      })
+      .from(schema.videoJobs)
+      .where(eq(schema.videoJobs.id, jobId))
+      .limit(1);
+
+    if (fresh?.status === "complete" && fresh.groupId) {
+      try {
+        await maybeCompareDepositSlipFingerprintShadow({
+          groupId: fresh.groupId,
+        });
+      } catch (err) {
+        console.error(
+          "[deposit-slip-fingerprint-shadow] comparison-on-lost-claim failed",
+          err,
+        );
+      }
+      if (
+        fresh.timingsJson &&
+        typeof fresh.timingsJson === "object" &&
+        "totalMs" in fresh.timingsJson &&
+        typeof (fresh.timingsJson as { totalMs?: unknown }).totalMs === "number"
+      ) {
+        return fresh.timingsJson as VideoProcessTimings;
+      }
+    }
+
+    // Another worker is already parsing — idempotent no-op.
+    return emptyTimings();
+  }
+
+  await emitVideoJobStatus({
+    ...videoJobStatusOwnerFields(job),
+    jobId,
+    status: "parsing",
+    fileName: job.fileName,
+    scoreTarget: scoreTargetId,
+    frameCount: job.frameCount,
+    uploadedFrameCount: job.uploadedFrameCount,
+    errorMessage: null,
+    updatedAt: new Date().toISOString(),
+  });
+
   try {
     const [group] = await db
       .select({
@@ -143,8 +252,6 @@ export async function processDepositSlipFingerprintShadowJob(
       .from(schema.videoJobs)
       .where(eq(schema.videoJobs.id, group.primaryJobId))
       .limit(1);
-
-    await setStatus("parsing");
 
     const frames = await timer.measureStep(
       "storage.load_primary_frames",

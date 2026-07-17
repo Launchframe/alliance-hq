@@ -7,6 +7,11 @@ const mockState = {
   selectQueue: [] as Row[][],
   updateSets: [] as Row[],
   persistCalls: [] as Row[],
+  /**
+   * Rows returned by the atomic comparisonJson claim (`UPDATE … RETURNING`).
+   * Empty array = lost the race (no-op after compute).
+   */
+  claimReturns: [] as Row[][],
 };
 
 vi.mock("@/lib/db", () => ({
@@ -30,7 +35,12 @@ vi.mock("@/lib/db", () => ({
     update: () => ({
       set: (values: Row) => {
         mockState.updateSets.push(values);
-        return { where: async () => undefined };
+        return {
+          where: () => ({
+            returning: async () =>
+              mockState.claimReturns.shift() ?? [{ id: GROUP_ID }],
+          }),
+        };
       },
     }),
   }),
@@ -142,10 +152,11 @@ describe("maybeCompareDepositSlipFingerprintShadow", () => {
     mockState.selectQueue = [];
     mockState.updateSets = [];
     mockState.persistCalls = [];
+    mockState.claimReturns = [];
     vi.clearAllMocks();
   });
 
-  it("persists a snapshot and updates comparison_json when both sides are ready", async () => {
+  it("claims comparison_json then persists a snapshot when both sides are ready", async () => {
     const { primaryRows, shadowRows } = queueHappyPath();
     // Two parallel Promise.all selects (primary rows, shadow rows) resolve in
     // call order against the shared queue.
@@ -153,6 +164,13 @@ describe("maybeCompareDepositSlipFingerprintShadow", () => {
 
     await maybeCompareDepositSlipFingerprintShadow({ groupId: GROUP_ID });
 
+    expect(mockState.updateSets).toHaveLength(1);
+    const comparisonJson = mockState.updateSets[0]?.comparisonJson as Row;
+    expect(comparisonJson.deposit_slip_fingerprint_shadow).toMatchObject({
+      kind: "deposit_slip_fingerprint_shadow",
+      primaryJobId: "primary-job",
+      shadowJobId: "shadow-job",
+    });
     expect(persistDepositSlipOcrEvalSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
         groupId: GROUP_ID,
@@ -165,13 +183,17 @@ describe("maybeCompareDepositSlipFingerprintShadow", () => {
         uniqueLineCount: 61,
       }),
     );
+  });
+
+  it("skips snapshot persist when the comparisonJson claim loses a race", async () => {
+    const { primaryRows, shadowRows } = queueHappyPath();
+    mockState.selectQueue.push(primaryRows, shadowRows);
+    mockState.claimReturns = [[]];
+
+    await maybeCompareDepositSlipFingerprintShadow({ groupId: GROUP_ID });
+
     expect(mockState.updateSets).toHaveLength(1);
-    const comparisonJson = mockState.updateSets[0]?.comparisonJson as Row;
-    expect(comparisonJson.deposit_slip_fingerprint_shadow).toMatchObject({
-      kind: "deposit_slip_fingerprint_shadow",
-      primaryJobId: "primary-job",
-      shadowJobId: "shadow-job",
-    });
+    expect(persistDepositSlipOcrEvalSnapshot).not.toHaveBeenCalled();
   });
 
   it("is a no-op when there is no primary job on the group", async () => {
