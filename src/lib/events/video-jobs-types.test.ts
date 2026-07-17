@@ -104,6 +104,19 @@ describe("mergeVideoJobStatusEvent", () => {
     });
   });
 
+  it("re-resolves stage when status changes but next omits stage", () => {
+    const current = baseEvent({
+      status: "parsing",
+      stage: "ocr_running",
+      updatedAt: "2026-01-01T00:00:01.000Z",
+    });
+    const next = baseEvent({
+      status: "review",
+      updatedAt: "2026-01-01T00:00:02.000Z",
+    });
+    expect(mergeVideoJobStatusEvent(current, next).stage).toBe("done");
+  });
+
   it("allows an explicit uploadedFrameCount reset to zero", () => {
     const current = baseEvent({
       uploadedFrameCount: 40,

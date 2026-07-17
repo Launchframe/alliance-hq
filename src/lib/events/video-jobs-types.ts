@@ -1,3 +1,5 @@
+import { defaultStageForJobStatus } from "@/lib/video/video-job-stage.shared";
+
 export type VideoJobStatusEvent = {
   sessionId: string;
   /** HQ user who uploaded — present so other devices for the same user receive events. */
@@ -78,13 +80,20 @@ export function mergeVideoJobStatusEvent(
     return current;
   }
 
+  const stage =
+    next.stage ??
+    (next.status !== current.status
+      ? defaultStageForJobStatus(next.status)
+      : undefined) ??
+    current.stage;
+
   return {
     ...current,
     ...next,
     frameCount: next.frameCount ?? current.frameCount,
     uploadedFrameCount:
       next.uploadedFrameCount ?? current.uploadedFrameCount,
-    stage: next.stage ?? current.stage,
+    stage,
     ocrEngine: next.ocrEngine ?? current.ocrEngine,
   };
 }

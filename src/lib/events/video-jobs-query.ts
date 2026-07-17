@@ -1,6 +1,7 @@
 import { and, desc, eq, ne } from "drizzle-orm";
 
 import type { VideoJobStatusEvent } from "@/lib/events/video-jobs-types";
+import { defaultStageForJobStatus } from "@/lib/video/video-job-stage.shared";
 import { getDb, schema } from "@/lib/db";
 import { videoJobsOwnedByViewerWhere } from "@/lib/video/video-job-ownership.server";
 
@@ -54,6 +55,7 @@ export async function getRecentOwnedVideoJobs(
       rowCount,
       matchedCount,
       errorMessage: job.errorMessage,
+      stage: defaultStageForJobStatus(job.status) ?? undefined,
       updatedAt: job.updatedAt.toISOString(),
     });
   }
@@ -111,6 +113,7 @@ export async function getVideoJobStatusEvent(
     rowCount,
     matchedCount,
     errorMessage: job.errorMessage,
+    stage: defaultStageForJobStatus(job.status) ?? undefined,
     updatedAt: job.updatedAt.toISOString(),
   };
 }
