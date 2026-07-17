@@ -4604,8 +4604,14 @@
       "memberOnboardingReview": "Onboarding review",
       "memberOnboardingReviewTitle": "Review {name}",
       "memberOnboardingReviewBody": "A member linked through an invite or join code. Confirm their roster entry or merge with an existing unlinked entry.",
-      "memberOnboardingReviewBodyWithSuggestion": "Commander {gameName} — may match roster entry {suggested} (linked as {linkedName})."
-    }
+      "memberOnboardingReviewBodyWithSuggestion": "Commander {gameName} — may match roster entry {suggested} (linked as {linkedName}).",
+      "captureReminder": "Capture follow-up",
+      "captureReminderBody": "Was this Stronghold successfully captured?",
+      "captureYes": "Yes — create bank",
+      "captureNo": "No",
+      "captureSnooze": "Snooze 30 min"
+    },
+    "confirmCaptureFailed": "Failed to confirm capture."
   },
   "guides": {
     "gettingStarted": {
@@ -5038,6 +5044,10 @@
       "territoryType": "Territory type",
       "stronghold": "Stronghold",
       "city": "City",
+      "targetCoords": "Target coordinates (optional)",
+      "gameServer": "Server",
+      "level": "Level",
+      "targetCoordsHint": "Provide coordinates to auto-create a Bank when you confirm the capture later.",
       "drop": "Bank drop",
       "dropHint": "Investors should limit new deposit terms on this bank.",
       "marker": "Marker",

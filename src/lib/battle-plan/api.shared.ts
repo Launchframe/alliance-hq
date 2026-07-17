@@ -24,6 +24,10 @@ export type CaptureEventPayload = {
   status?: CaptureEventStatus;
   eventType?: BattlePlanEventType;
   bankId?: string | null;
+  gameServerNumber?: number | null;
+  coordX?: number | null;
+  coordY?: number | null;
+  level?: number | null;
 };
 
 export type BattlePlanSettingsPayload = {
@@ -81,6 +85,10 @@ export function serializeCaptureEvent(
     notes: string | null;
     status: string;
     bankId?: string | null;
+    gameServerNumber?: number | null;
+    coordX?: number | null;
+    coordY?: number | null;
+    level?: number | null;
     createdAt: Date;
     updatedAt: Date;
   },
@@ -112,6 +120,10 @@ export function serializeCaptureEvent(
     notes: row.notes,
     status: isCaptureEventStatus(row.status) ? row.status : "scheduled",
     bankId: row.bankId ?? null,
+    gameServerNumber: row.gameServerNumber ?? null,
+    coordX: row.coordX ?? null,
+    coordY: row.coordY ?? null,
+    level: row.level ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

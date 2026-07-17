@@ -233,6 +233,10 @@ export async function createCaptureEvent(
         notes: body.notes?.trim() || null,
         status: body.status ?? "scheduled",
         bankId: body.bankId ?? null,
+        gameServerNumber: body.gameServerNumber ?? null,
+        coordX: body.coordX ?? null,
+        coordY: body.coordY ?? null,
+        level: body.level ?? null,
         createdByHqUserId,
       })
       .returning();
@@ -288,6 +292,10 @@ export async function updateCaptureEvent(
         notes: body.notes?.trim() || null,
         status: body.status ?? "scheduled",
         bankId: body.bankId ?? null,
+        gameServerNumber: body.gameServerNumber ?? null,
+        coordX: body.coordX ?? null,
+        coordY: body.coordY ?? null,
+        level: body.level ?? null,
         updatedAt: new Date(),
       })
       .where(

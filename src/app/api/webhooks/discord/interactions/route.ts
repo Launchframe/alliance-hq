@@ -95,6 +95,11 @@ import {
   isDiscordVrSlashCommand,
 } from "@/lib/vr/discord-command-names";
 import {
+  handleDiscordSetBankingChannel,
+  handleDiscordSetRegularEventsChannel,
+  handleDiscordSetSeasonalEventsChannel,
+} from "@/lib/battle-plan/discord-channel-handlers.server";
+import {
   handleDiscordSetTrainChannel,
   handleDiscordTrainConductorPick,
   handleDiscordTrainIsReady,
@@ -271,6 +276,57 @@ async function handleSlashCommand(
       return discordMessageResponse(t("errors.serverError"));
     }
     const result = await handleDiscordSetTrainChannel({
+      guildId,
+      channelId,
+      discordUserId,
+      locale,
+    });
+    return discordMessageResponse(result.reply);
+  }
+
+  if (commandName === "set-seasonal-events-channel") {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
+    const channelId = interactionChannelId(payload);
+    if (!channelId) {
+      return discordMessageResponse(t("errors.serverError"));
+    }
+    const result = await handleDiscordSetSeasonalEventsChannel({
+      guildId,
+      channelId,
+      discordUserId,
+      locale,
+    });
+    return discordMessageResponse(result.reply);
+  }
+
+  if (commandName === "set-regular-events-channel") {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
+    const channelId = interactionChannelId(payload);
+    if (!channelId) {
+      return discordMessageResponse(t("errors.serverError"));
+    }
+    const result = await handleDiscordSetRegularEventsChannel({
+      guildId,
+      channelId,
+      discordUserId,
+      locale,
+    });
+    return discordMessageResponse(result.reply);
+  }
+
+  if (commandName === "set-banking-channel") {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
+    const channelId = interactionChannelId(payload);
+    if (!channelId) {
+      return discordMessageResponse(t("errors.serverError"));
+    }
+    const result = await handleDiscordSetBankingChannel({
       guildId,
       channelId,
       discordUserId,

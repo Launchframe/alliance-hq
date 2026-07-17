@@ -10,6 +10,7 @@ import {
   type BankPayload,
   type DepositSlipPayload,
 } from "@/lib/banks/api.shared";
+import { BANK_PROTECTION_DURATION_MS } from "@/lib/banks/types.shared";
 import {
   buildHeatmapsForBanks,
   recommendNextDrop,
@@ -226,7 +227,23 @@ export function buildBankManagementPayload(
   };
 }
 
+function resolveProtectionExpiresAt(
+  explicit: string | null | undefined,
+  capturedAt: Date | null,
+): Date | null {
+  if (explicit) return new Date(explicit);
+  if (capturedAt) {
+    return new Date(capturedAt.getTime() + BANK_PROTECTION_DURATION_MS);
+  }
+  return null;
+}
+
 export async function createBank(allianceId: string, body: BankPayload) {
+  const capturedAt = body.capturedAt ? new Date(body.capturedAt) : null;
+  const protectionExpiresAt = resolveProtectionExpiresAt(
+    body.protectionExpiresAt,
+    capturedAt,
+  );
   const db = getDb();
   const inserted = await db
     .insert(schema.banks)
@@ -237,7 +254,8 @@ export async function createBank(allianceId: string, body: BankPayload) {
       coordX: body.coordX,
       coordY: body.coordY,
       level: body.level,
-      capturedAt: body.capturedAt ? new Date(body.capturedAt) : null,
+      capturedAt,
+      protectionExpiresAt,
       dropByAt: body.dropByAt ? new Date(body.dropByAt) : null,
       depositPolicy: body.depositPolicy,
       priorCaptureCount: body.priorCaptureCount ?? 0,
@@ -254,6 +272,11 @@ export async function updateBank(
   bankId: string,
   body: BankPayload,
 ) {
+  const capturedAt = body.capturedAt ? new Date(body.capturedAt) : null;
+  const protectionExpiresAt = resolveProtectionExpiresAt(
+    body.protectionExpiresAt,
+    capturedAt,
+  );
   const db = getDb();
   const updated = await db
     .update(schema.banks)
@@ -262,7 +285,8 @@ export async function updateBank(
       coordX: body.coordX,
       coordY: body.coordY,
       level: body.level,
-      capturedAt: body.capturedAt ? new Date(body.capturedAt) : null,
+      capturedAt,
+      protectionExpiresAt,
       dropByAt: body.dropByAt ? new Date(body.dropByAt) : null,
       depositPolicy: body.depositPolicy,
       priorCaptureCount: body.priorCaptureCount ?? 0,

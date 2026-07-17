@@ -15,6 +15,7 @@ export type BankPayload = {
   coordY: number;
   level: number;
   capturedAt?: string | null;
+  protectionExpiresAt?: string | null;
   dropByAt?: string | null;
   depositPolicy: DepositPolicy;
   priorCaptureCount?: number;
@@ -61,6 +62,7 @@ export function serializeBank(row: {
   coordY: number;
   level: number;
   capturedAt: Date | null;
+  protectionExpiresAt?: Date | null;
   dropByAt: Date | null;
   depositPolicy: string | null;
   priorCaptureCount: number;
@@ -77,6 +79,7 @@ export function serializeBank(row: {
     coordY: row.coordY,
     level: row.level,
     capturedAt: row.capturedAt?.toISOString() ?? null,
+    protectionExpiresAt: row.protectionExpiresAt?.toISOString() ?? null,
     dropByAt: row.dropByAt?.toISOString() ?? null,
     depositPolicy:
       row.depositPolicy && isDepositPolicy(row.depositPolicy)

@@ -110,6 +110,7 @@ export async function loadReminderInboxForUser(options: {
     body: string | null;
     href: string | null;
     scoreTarget: string | null;
+    resourceId: string | null;
     createdAt: Date;
     dismissed: boolean;
   }>
@@ -134,6 +135,7 @@ export async function loadReminderInboxForUser(options: {
     )
     .orderBy(sql`${schema.inboxReminderItems.createdAt} DESC`);
 
+  const now = new Date();
   return items
     .filter((item) => {
       if (
@@ -143,6 +145,9 @@ export async function loadReminderInboxForUser(options: {
         return false;
       }
       if (!options.includeDismissed && dismissedIds.has(item.id)) {
+        return false;
+      }
+      if (item.visibleAfter && item.visibleAfter > now) {
         return false;
       }
       return true;
@@ -164,6 +169,7 @@ export async function loadReminderInboxForUser(options: {
           href: item.href,
         }),
       scoreTarget: item.scoreTarget,
+      resourceId: item.resourceId,
       createdAt: item.createdAt,
       dismissed: dismissedIds.has(item.id),
     }));

@@ -743,6 +743,20 @@
       "when": 1788528000000,
       "tag": "0108_bank_deposit_slip_outcome_amount",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1789516800000,
+      "tag": "0109_capture_event_coords_and_inbox_visible_after",
+      "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1789520400000,
+      "tag": "0110_discord_announcement_channels_and_bank_protection",
+      "breakpoints": true
     }
   ]
 }

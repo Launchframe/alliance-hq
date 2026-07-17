@@ -327,6 +327,30 @@ const commandBody = [
     },
   },
   {
+    name: "set-seasonal-events-channel",
+    description: "Set this channel for seasonal event announcements — bank captures, etc. (owner only).",
+    description_localizations: {
+      "pt-BR":
+        "Define este canal para anúncios de eventos sazonais — capturas de bancos, etc. (somente dono).",
+    },
+  },
+  {
+    name: "set-regular-events-channel",
+    description: "Set this channel for regular event announcements (owner only).",
+    description_localizations: {
+      "pt-BR":
+        "Define este canal para anúncios de eventos regulares (somente dono).",
+    },
+  },
+  {
+    name: "set-banking-channel",
+    description: "Set this channel for banking partner notifications — protection timers, etc. (owner only).",
+    description_localizations: {
+      "pt-BR":
+        "Define este canal para notificações de parceiros bancários — timers de proteção, etc. (somente dono).",
+    },
+  },
+  {
     name: "who-is-conductor",
     description: "Show today's train conductor (and VIP if set).",
     description_localizations: {

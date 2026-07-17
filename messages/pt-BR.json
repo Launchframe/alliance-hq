@@ -4550,8 +4550,14 @@
       "memberOnboardingReview": "Onboarding review",
       "memberOnboardingReviewTitle": "Review {name}",
       "memberOnboardingReviewBody": "A member linked through an invite or join code. Confirm their roster entry or merge with an existing unlinked entry.",
-      "memberOnboardingReviewBodyWithSuggestion": "Commander {gameName} — may match roster entry {suggested} (linked as {linkedName})."
-    }
+      "memberOnboardingReviewBodyWithSuggestion": "Commander {gameName} — may match roster entry {suggested} (linked as {linkedName}).",
+      "captureReminder": "Acompanhamento de captura",
+      "captureReminderBody": "Esta Fortaleza foi capturada com sucesso?",
+      "captureYes": "Sim — criar banco",
+      "captureNo": "Não",
+      "captureSnooze": "Adiar 30 min"
+    },
+    "confirmCaptureFailed": "Falha ao confirmar captura."
   },
   "uploadReminders": {
     "title": "Lembretes de upload",
@@ -5038,6 +5044,10 @@
       "territoryType": "Tipo de território",
       "stronghold": "Fortaleza",
       "city": "Cidade",
+      "targetCoords": "Coordenadas do alvo (opcional)",
+      "gameServer": "Servidor",
+      "level": "Nível",
+      "targetCoordsHint": "Informe as coordenadas para criar um Banco automaticamente ao confirmar a captura.",
       "drop": "Abandono de banco",
       "dropHint": "Investidores devem limitar novos prazos de depósito neste banco.",
       "marker": "Marcador",
