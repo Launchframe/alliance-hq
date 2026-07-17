@@ -81,6 +81,8 @@ export type BankManagementPayload = {
   heatmaps: Record<string, RiskHeatmapCell[]>;
   canWrite: boolean;
   todayServerDate: string;
+  /** Session alliance — scopes City List import drafts and tenant context. */
+  allianceId: string;
   effectiveSeasonKey?: string;
   nextCaptureLevel: number | null;
   /** Prefill for new bank forms from the session alliance. */

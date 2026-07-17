@@ -196,6 +196,7 @@ export async function loadBanksWithSlips(
 export function buildBankManagementPayload(
   banks: BankWithSlips[],
   options: {
+    allianceId: string;
     canWrite: boolean;
     todayServerDate: string;
     effectiveSeasonKey?: string;
@@ -217,6 +218,7 @@ export function buildBankManagementPayload(
     heatmaps: buildHeatmapsForBanks(banks, { now: options.now }),
     canWrite: options.canWrite,
     todayServerDate: options.todayServerDate,
+    allianceId: options.allianceId,
     effectiveSeasonKey: options.effectiveSeasonKey,
     nextCaptureLevel,
     allianceGameServerNumber: options.allianceGameServerNumber ?? null,

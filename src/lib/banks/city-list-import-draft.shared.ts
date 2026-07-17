@@ -4,9 +4,21 @@
  * (Escape, overlay click) or a page refresh. Only review-step data
  * (parsed banks + snapshot metadata) is persisted — the uploaded screenshot
  * `File`s cannot survive sessionStorage and are not needed once parsed.
+ *
+ * Keys are scoped by alliance so switching session alliance in the same
+ * tab does not restore another alliance's draft.
  */
 
-export const CITY_LIST_IMPORT_DRAFT_KEY = "alliance-hq.city-list-import-draft";
+export const CITY_LIST_IMPORT_DRAFT_KEY_PREFIX =
+  "alliance-hq.city-list-import-draft";
+
+/** Unscoped key from the first draft ship — cleared on write/clear. */
+export const CITY_LIST_IMPORT_DRAFT_LEGACY_KEY =
+  "alliance-hq.city-list-import-draft";
+
+export function cityListImportDraftKey(allianceId: string): string {
+  return `${CITY_LIST_IMPORT_DRAFT_KEY_PREFIX}:${allianceId}`;
+}
 
 export type CityListImportDraftRow = {
   rowKey: string;
@@ -89,12 +101,8 @@ function parseDraftSnapshot(value: unknown): CityListImportDraftSnapshot {
   };
 }
 
-/** Returns null when there is no draft, or it fails to parse (schema bump). */
-export function readCityListImportDraft(): CityListImportDraft | null {
-  if (typeof window === "undefined") return null;
+function parseStoredDraft(raw: string): CityListImportDraft | null {
   try {
-    const raw = window.sessionStorage.getItem(CITY_LIST_IMPORT_DRAFT_KEY);
-    if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<CityListImportDraft>;
     if (parsed.version !== 1 || !Array.isArray(parsed.rows)) return null;
 
@@ -116,22 +124,51 @@ export function readCityListImportDraft(): CityListImportDraft | null {
   }
 }
 
-export function writeCityListImportDraft(draft: CityListImportDraft): void {
-  if (typeof window === "undefined") return;
+function removeLegacyDraftKey(): void {
+  try {
+    window.sessionStorage.removeItem(CITY_LIST_IMPORT_DRAFT_LEGACY_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/** Returns null when there is no draft, or it fails to parse (schema bump). */
+export function readCityListImportDraft(
+  allianceId: string,
+): CityListImportDraft | null {
+  if (typeof window === "undefined" || !allianceId) return null;
+  try {
+    const raw = window.sessionStorage.getItem(
+      cityListImportDraftKey(allianceId),
+    );
+    if (!raw) return null;
+    return parseStoredDraft(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function writeCityListImportDraft(
+  allianceId: string,
+  draft: CityListImportDraft,
+): void {
+  if (typeof window === "undefined" || !allianceId) return;
   try {
     window.sessionStorage.setItem(
-      CITY_LIST_IMPORT_DRAFT_KEY,
+      cityListImportDraftKey(allianceId),
       JSON.stringify(draft),
     );
+    removeLegacyDraftKey();
   } catch {
     // Ignore quota / private mode failures — review can still be submitted.
   }
 }
 
-export function clearCityListImportDraft(): void {
-  if (typeof window === "undefined") return;
+export function clearCityListImportDraft(allianceId: string): void {
+  if (typeof window === "undefined" || !allianceId) return;
   try {
-    window.sessionStorage.removeItem(CITY_LIST_IMPORT_DRAFT_KEY);
+    window.sessionStorage.removeItem(cityListImportDraftKey(allianceId));
+    removeLegacyDraftKey();
   } catch {
     // ignore
   }

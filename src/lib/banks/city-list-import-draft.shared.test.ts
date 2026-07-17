@@ -1,12 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  CITY_LIST_IMPORT_DRAFT_KEY,
+  CITY_LIST_IMPORT_DRAFT_LEGACY_KEY,
+  cityListImportDraftKey,
   clearCityListImportDraft,
   readCityListImportDraft,
   writeCityListImportDraft,
   type CityListImportDraft,
 } from "@/lib/banks/city-list-import-draft.shared";
+
+const ALLIANCE_A = "alliance-a";
+const ALLIANCE_B = "alliance-b";
 
 function draft(
   overrides: Partial<CityListImportDraft> = {},
@@ -60,46 +64,92 @@ describe("city-list-import-draft", () => {
 
   it("round-trips a draft with rows and snapshot", () => {
     const d = draft();
-    writeCityListImportDraft(d);
-    expect(readCityListImportDraft()).toEqual(d);
+    writeCityListImportDraft(ALLIANCE_A, d);
+    expect(readCityListImportDraft(ALLIANCE_A)).toEqual(d);
   });
 
   it("round-trips a draft with a null snapshot", () => {
     const d = draft({ snapshot: null });
-    writeCityListImportDraft(d);
-    expect(readCityListImportDraft()).toEqual(d);
+    writeCityListImportDraft(ALLIANCE_A, d);
+    expect(readCityListImportDraft(ALLIANCE_A)).toEqual(d);
   });
 
-  it("clears the stored draft", () => {
-    writeCityListImportDraft(draft());
-    clearCityListImportDraft();
-    expect(readCityListImportDraft()).toBeNull();
-    expect(store.has(CITY_LIST_IMPORT_DRAFT_KEY)).toBe(false);
+  it("scopes drafts by allianceId", () => {
+    const draftA = draft({
+      rows: [
+        {
+          rowKey: "a",
+          gameServerNumber: 1,
+          coordX: 1,
+          coordY: 1,
+          level: 1,
+          currentDepositValue: null,
+          currentDepositCount: null,
+        },
+      ],
+    });
+    const draftB = draft({
+      rows: [
+        {
+          rowKey: "b",
+          gameServerNumber: 2,
+          coordX: 2,
+          coordY: 2,
+          level: 2,
+          currentDepositValue: null,
+          currentDepositCount: null,
+        },
+      ],
+    });
+    writeCityListImportDraft(ALLIANCE_A, draftA);
+    writeCityListImportDraft(ALLIANCE_B, draftB);
+    expect(readCityListImportDraft(ALLIANCE_A)).toEqual(draftA);
+    expect(readCityListImportDraft(ALLIANCE_B)).toEqual(draftB);
+    clearCityListImportDraft(ALLIANCE_A);
+    expect(readCityListImportDraft(ALLIANCE_A)).toBeNull();
+    expect(readCityListImportDraft(ALLIANCE_B)).toEqual(draftB);
+  });
+
+  it("clears the stored draft for that alliance", () => {
+    writeCityListImportDraft(ALLIANCE_A, draft());
+    clearCityListImportDraft(ALLIANCE_A);
+    expect(readCityListImportDraft(ALLIANCE_A)).toBeNull();
+    expect(store.has(cityListImportDraftKey(ALLIANCE_A))).toBe(false);
+  });
+
+  it("clears the legacy unscoped key on write and clear", () => {
+    store.set(CITY_LIST_IMPORT_DRAFT_LEGACY_KEY, JSON.stringify(draft()));
+    writeCityListImportDraft(ALLIANCE_A, draft());
+    expect(store.has(CITY_LIST_IMPORT_DRAFT_LEGACY_KEY)).toBe(false);
+
+    store.set(CITY_LIST_IMPORT_DRAFT_LEGACY_KEY, JSON.stringify(draft()));
+    clearCityListImportDraft(ALLIANCE_A);
+    expect(store.has(CITY_LIST_IMPORT_DRAFT_LEGACY_KEY)).toBe(false);
   });
 
   it("returns null when there is no stored draft", () => {
-    expect(readCityListImportDraft()).toBeNull();
+    expect(readCityListImportDraft(ALLIANCE_A)).toBeNull();
   });
 
   it("returns null for an empty rows array", () => {
     store.set(
-      CITY_LIST_IMPORT_DRAFT_KEY,
+      cityListImportDraftKey(ALLIANCE_A),
       JSON.stringify(draft({ rows: [] })),
     );
-    expect(readCityListImportDraft()).toBeNull();
+    expect(readCityListImportDraft(ALLIANCE_A)).toBeNull();
   });
 
   it("returns null for malformed JSON", () => {
-    store.set(CITY_LIST_IMPORT_DRAFT_KEY, "{not json");
-    expect(readCityListImportDraft()).toBeNull();
+    store.set(cityListImportDraftKey(ALLIANCE_A), "{not json");
+    expect(readCityListImportDraft(ALLIANCE_A)).toBeNull();
   });
 
   it("returns null for a future/unknown draft version (schema bump)", () => {
     store.set(
-      CITY_LIST_IMPORT_DRAFT_KEY,
+      cityListImportDraftKey(ALLIANCE_A),
       JSON.stringify({ ...draft(), version: 2 }),
     );
-    expect(readCityListImportDraft()).toBeNull();
+    expect(readCityListImportDraft(ALLIANCE_A)).toBeNull();
   });
 
   it("returns null when a row is missing a required numeric field", () => {
@@ -108,14 +158,20 @@ describe("city-list-import-draft", () => {
       rows: [{ rowKey: "row-1", coordX: 599, coordY: 499, level: 3 }],
       snapshot: null,
     };
-    store.set(CITY_LIST_IMPORT_DRAFT_KEY, JSON.stringify(malformed));
-    expect(readCityListImportDraft()).toBeNull();
+    store.set(cityListImportDraftKey(ALLIANCE_A), JSON.stringify(malformed));
+    expect(readCityListImportDraft(ALLIANCE_A)).toBeNull();
   });
 
   it("no-ops when window is undefined", () => {
     vi.unstubAllGlobals();
-    expect(readCityListImportDraft()).toBeNull();
-    expect(() => writeCityListImportDraft(draft())).not.toThrow();
-    expect(() => clearCityListImportDraft()).not.toThrow();
+    expect(readCityListImportDraft(ALLIANCE_A)).toBeNull();
+    expect(() => writeCityListImportDraft(ALLIANCE_A, draft())).not.toThrow();
+    expect(() => clearCityListImportDraft(ALLIANCE_A)).not.toThrow();
+  });
+
+  it("no-ops when allianceId is empty", () => {
+    expect(readCityListImportDraft("")).toBeNull();
+    expect(() => writeCityListImportDraft("", draft())).not.toThrow();
+    expect(store.size).toBe(0);
   });
 });

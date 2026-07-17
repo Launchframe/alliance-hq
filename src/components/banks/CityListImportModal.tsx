@@ -71,6 +71,7 @@ type SelectedScreenshot = {
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  allianceId: string;
   existingBanks: BankWithSlips[];
   onImported: (dashboard: BankManagementPayload) => void;
 };
@@ -267,6 +268,7 @@ function BankReviewCardFields({
 export function CityListImportModal({
   open,
   onOpenChange,
+  allianceId,
   existingBanks,
   onImported,
 }: Props) {
@@ -333,9 +335,9 @@ export function CityListImportModal({
   // close be recovered from. Only an explicit Reset, or a successful
   // import, clears the persisted draft.
   const resetAndClearDraft = useCallback(() => {
-    clearCityListImportDraft();
+    clearCityListImportDraft(allianceId);
     reset();
-  }, [reset]);
+  }, [allianceId, reset]);
 
   useEffect(() => {
     return () => {
@@ -345,6 +347,9 @@ export function CityListImportModal({
 
   // Restore a previously auto-saved review (e.g. after an accidental
   // Escape/overlay-click close, or a page refresh) once per open session.
+  // Modal close always resets in-memory rows via `reset()`, so on open the
+  // review starts empty — read outside any setState updater (updaters must
+  // stay pure) and defer applying so we don't cascade renders in the effect.
   useEffect(() => {
     if (!open) {
       draftHydrationAttemptedRef.current = false;
@@ -353,16 +358,17 @@ export function CityListImportModal({
     if (draftHydrationAttemptedRef.current) return;
     draftHydrationAttemptedRef.current = true;
 
-    setRows((currentRows) => {
-      if (currentRows.length > 0) return currentRows;
-      const draft = readCityListImportDraft();
-      if (!draft) return currentRows;
+    const draft = readCityListImportDraft(allianceId);
+    if (!draft) return;
+
+    const frame = requestAnimationFrame(() => {
+      setRows(draft.rows);
       setSnapshot(draft.snapshot);
       setStep("review");
       setDraftRestored(true);
-      return draft.rows;
     });
-  }, [open]);
+    return () => cancelAnimationFrame(frame);
+  }, [allianceId, open]);
 
   // Auto-save the in-progress review so an accidental modal close doesn't
   // lose it. Deliberately does not depend on `open` — the last edit before
@@ -373,11 +379,15 @@ export function CityListImportModal({
         suppressDraftClearRef.current = false;
         return;
       }
-      clearCityListImportDraft();
+      clearCityListImportDraft(allianceId);
       return;
     }
-    writeCityListImportDraft({ version: 1, rows, snapshot: snapshot ?? null });
-  }, [rows, snapshot]);
+    writeCityListImportDraft(allianceId, {
+      version: 1,
+      rows,
+      snapshot: snapshot ?? null,
+    });
+  }, [allianceId, rows, snapshot]);
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -639,7 +649,7 @@ export function CityListImportModal({
         throw new Error(body?.error ?? t("cityListParseFailed"));
       }
 
-      clearCityListImportDraft();
+      clearCityListImportDraft(allianceId);
       onImported(body.dashboard);
       handleOpenChange(false);
     } catch (e) {
@@ -647,7 +657,7 @@ export function CityListImportModal({
     } finally {
       setImporting(false);
     }
-  }, [handleOpenChange, hasDuplicateCoords, importing, levelMinMsg, onImported, requiredMsg, rows, snapshot, t]);
+  }, [allianceId, handleOpenChange, hasDuplicateCoords, importing, levelMinMsg, onImported, requiredMsg, rows, snapshot, t]);
 
   const openPreview = useCallback(
     (index = previewIndex) => {
