@@ -241,6 +241,15 @@ npm run discord:register-commands
 - `/link-alliance tag:...` works for an owner proven by member link.
 - `/link-ashed tag:...` opens the Ashed key form after HQ link.
 
+## Chart image preview (no Discord required)
+
+On local/preview, open the fixture PNG page the bot would attach:
+
+- Page: `/dev/discord-chart-preview`
+- API: `/api/dev/discord-chart-preview?kind=vr|thp&format=png|svg`
+
+Both are gated by `isDevOrPreviewEnvironment()` (404 in production).
+
 ## Troubleshooting
 
 - `401 Invalid request signature`: `DISCORD_PUBLIC_KEY` does not match `DISCORD_DEV_PRIVATE_KEY`, or the live Discord app public key is not loaded.

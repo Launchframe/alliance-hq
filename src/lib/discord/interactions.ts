@@ -520,6 +520,16 @@ export function discordDeferredEphemeralResponse() {
   };
 }
 
+/**
+ * Deferred ACK for channel-visible follow-ups (e.g. progress chart PNGs).
+ * Omit flags so the eventual `@original` edit is public in the channel.
+ */
+export function discordDeferredChannelResponse() {
+  return {
+    type: 5,
+  };
+}
+
 export function interactionApplicationId(
   payload: DiscordInteractionPayload,
 ): string | null {
