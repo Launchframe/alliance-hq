@@ -35,6 +35,7 @@ import {
 import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
+import { memberMatchConfidenceBorderClass } from "@/lib/video/member-match-confidence-class";
 import { shouldRefetchOnLiveJobStatus } from "@/lib/video/live-job-refresh.shared";
 import {
   buildConnectHref,
@@ -162,13 +163,6 @@ type GroupInfo = {
     parseSessionId: string | null;
   }>;
 };
-
-function confidenceClass(confidence: number | null): string {
-  if (confidence == null || confidence === 0) return "border-hq-danger";
-  if (confidence >= 0.9) return "border-hq-green";
-  if (confidence >= 0.6) return "border-[#d29922]";
-  return "border-hq-danger";
-}
 
 function ReviewActionErrorBanner({
   message,
@@ -2312,7 +2306,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     }}
                     aria-label={t("colMember")}
                     placeholder={t("unmatched")}
-                    triggerClassName={`px-2 py-1.5 ${confidenceClass(row.matchConfidence)}`}
+                    triggerClassName={`px-2 py-1.5 ${memberMatchConfidenceBorderClass(row.matchConfidence)}`}
                     searchable
                     searchMode="fuzzy"
                     combobox
