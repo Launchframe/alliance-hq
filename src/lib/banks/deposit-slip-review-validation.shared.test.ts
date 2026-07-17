@@ -276,4 +276,64 @@ describe("findOverlappingLockedDepositSlips", () => {
 
     expect(issues).toEqual([]);
   });
+
+  it("excludes locked rows whose term is not a valid deposit term", () => {
+    const issues = findOverlappingLockedDepositSlips([
+      {
+        id: "real-locked",
+        ocrName: "Bad Term",
+        score: "6000",
+        powerLevel: "2026-07-09T12:00:00.000Z",
+        memberLevel: 3,
+        profession: "locked",
+        deleted: false,
+      },
+      {
+        id: "invalid-term",
+        ocrName: "Bad Term",
+        score: "6000",
+        powerLevel: "2026-07-10T12:00:00.000Z",
+        memberLevel: 2,
+        profession: "locked",
+        deleted: false,
+      },
+    ]);
+
+    expect(issues).toEqual([]);
+  });
+
+  it("flags all pairwise-overlapping locked rows in a three-way cluster", () => {
+    const issues = findOverlappingLockedDepositSlips([
+      {
+        id: "a",
+        ocrName: "Triple Lock",
+        score: "6000",
+        powerLevel: "2026-07-01T12:00:00.000Z",
+        memberLevel: 5,
+        profession: "locked",
+        deleted: false,
+      },
+      {
+        id: "b",
+        ocrName: "Triple Lock",
+        score: "6000",
+        powerLevel: "2026-07-03T12:00:00.000Z",
+        memberLevel: 5,
+        profession: "locked",
+        deleted: false,
+      },
+      {
+        id: "c",
+        ocrName: "Triple Lock",
+        score: "6000",
+        powerLevel: "2026-07-05T12:00:00.000Z",
+        memberLevel: 5,
+        profession: "locked",
+        deleted: false,
+      },
+    ]);
+
+    expect(issues).toHaveLength(1);
+    expect(new Set(issues[0]!.rowIds)).toEqual(new Set(["a", "b", "c"]));
+  });
 });

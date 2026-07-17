@@ -156,14 +156,29 @@ const TIMESTAMP_SEARCH_BACK_LINES = 6;
 const TIMESTAMP_SEARCH_FORWARD_LINES = 2;
 
 /**
+ * True when `probe` is clearly another slip's (or this slip's) deposit /
+ * outcome content. Used as a hard boundary while hunting timestamps so we
+ * never walk past row-owned Deposit/Total-return/Early-refund lines into a
+ * neighboring row's timestamp (e.g. identity → Deposit → next timestamp).
+ */
+function isDepositSlipRowContentLine(probe: string): boolean {
+  return (
+    DEPOSIT_RE.test(probe) ||
+    TOTAL_RETURN_RE.test(probe) ||
+    EARLY_REFUND_RE.test(probe)
+  );
+}
+
+/**
  * Find the timestamp line for the deposit-slip row whose identity line is
  * at `identityIndex`. In the in-game overlay each row is physically
  * `[timestamp, identity, deposit info]`, so the timestamp normally sits
  * immediately before the identity line. Extra noise lines from OCR can
  * shift that offset, so this scans outward from the identity line in
  * proximity order (closest first) rather than a fixed-width window —
- * but stops as soon as it crosses into a neighboring row's identity line,
- * so it can never mistakenly borrow a different row's timestamp.
+ * but stops as soon as it crosses into a neighboring row's identity line
+ * *or* a Deposit/outcome content line, so it can never mistakenly borrow
+ * a different row's timestamp.
  */
 function findNearbyDepositSlipTimestamp(
   lines: readonly { text: string; confidence: number | null }[],
@@ -174,6 +189,9 @@ function findNearbyDepositSlipTimestamp(
     if (j < 0) break;
     const probe = lines[j]!.text.trim();
     if (parseDepositSlipIdentity(probe)) break;
+    // Previous row's Deposit/outcome sits between us and its timestamp when
+    // the previous identity was garbled — stop rather than steal that ts.
+    if (isDepositSlipRowContentLine(probe)) break;
     const ts = parseDepositSlipTimestamp(probe);
     if (ts) return { depositAt: ts, confidence: lines[j]!.confidence };
   }
@@ -182,6 +200,9 @@ function findNearbyDepositSlipTimestamp(
     if (j >= lines.length) break;
     const probe = lines[j]!.text.trim();
     if (parseDepositSlipIdentity(probe)) break;
+    // Do not walk past this row's Deposit/outcome into the next row's
+    // timestamp (common when this row's own timestamp was dropped entirely).
+    if (isDepositSlipRowContentLine(probe)) break;
     const ts = parseDepositSlipTimestamp(probe);
     if (ts) return { depositAt: ts, confidence: lines[j]!.confidence };
   }

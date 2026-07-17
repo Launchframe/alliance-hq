@@ -1,6 +1,6 @@
+import { DEPOSIT_TERMS, type DepositTermDays } from "@/lib/banks/types.shared";
 import type { DedupeReport } from "@/lib/video/dedupe/merge-report.shared";
 import type { DuplicateMemberIssue } from "@/lib/video/review-validation";
-import type { DepositTermDays } from "@/lib/banks/types.shared";
 
 export type DepositSlipReviewValidationRow = {
   id: string;
@@ -167,11 +167,11 @@ function lockedWindowForRow(
   if (!row.powerLevel) return null;
   const start = Date.parse(row.powerLevel);
   if (!Number.isFinite(start)) return null;
-  const termDays: DepositTermDays | null | undefined = row.memberLevel as
-    | DepositTermDays
-    | null
-    | undefined;
-  if (termDays == null) return null;
+  if (row.memberLevel == null) return null;
+  if (!(DEPOSIT_TERMS as readonly number[]).includes(row.memberLevel)) {
+    return null;
+  }
+  const termDays = row.memberLevel as DepositTermDays;
   const end = start + termDays * 24 * 60 * 60 * 1000;
   return { start, end };
 }
