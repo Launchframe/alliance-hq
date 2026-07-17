@@ -28,6 +28,12 @@ describe("withDefaultBorderColor", () => {
     );
   });
 
+  it("keeps dashed green without appending the default border", () => {
+    expect(withDefaultBorderColor("px-2 border-hq-green border-dashed")).toBe(
+      "px-2 border-hq-green border-dashed",
+    );
+  });
+
   it("adds the default border color when missing", () => {
     expect(withDefaultBorderColor("px-2 py-1.5")).toBe(
       "px-2 py-1.5 border-hq-border",
