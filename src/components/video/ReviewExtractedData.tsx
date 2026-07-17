@@ -434,8 +434,21 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         `/api/tools/video-upload/${jobId}/rematch-members`,
         { method: "POST" },
       );
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as {
+        error?: string;
+        code?: string;
+        connectUrl?: string;
+      };
       if (!res.ok) {
+        if (data.code === "ashed_not_connected") {
+          const reviewPath = `/tools/video-upload/${jobId}/review`;
+          stashConnectReturnPath(reviewPath);
+          setActionError(
+            data.error ?? tc("uploadFailed"),
+            data.connectUrl ?? buildConnectHref(reviewPath),
+          );
+          return false;
+        }
         setActionError(data.error ?? tc("uploadFailed"));
         return false;
       }
@@ -1320,13 +1333,24 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       });
       const data = (await res.json()) as {
         error?: string;
+        code?: string;
+        connectUrl?: string;
         submitted?: number;
         duplicateMembers?: Array<{ memberName: string }>;
         showSolicitedFeedback?: boolean;
         solicitedSource?: "solicited_first_upload" | "solicited_third_upload";
       };
       if (!res.ok) {
-        setActionError(data.error ?? tc("uploadFailed"));
+        if (data.code === "ashed_not_connected") {
+          const reviewPath = `/tools/video-upload/${jobId}/review`;
+          stashConnectReturnPath(reviewPath);
+          setActionError(
+            data.error ?? tc("uploadFailed"),
+            data.connectUrl ?? buildConnectHref(reviewPath),
+          );
+          return;
+        }
+        setActionError(data.error ?? tc("uploadFailed"), data.connectUrl);
         return;
       }
       clearDraft();
