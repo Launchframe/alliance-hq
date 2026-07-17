@@ -44,6 +44,8 @@ function isUsefulHeaderLine(line: string): boolean {
     /details\s*der\s*kampf/i.test(line) ||
     /poder\s*do\s*her[oó]i/i.test(line) ||
     /detalhes\s*do\s*poder/i.test(line) ||
+    /poder\s*de\s*h[eé]roe/i.test(line) ||
+    /detalles\s*de\s*poder/i.test(line) ||
     /영웅\s*전투력/.test(line) ||
     /전투력\s*정보/.test(line)
   );

@@ -386,6 +386,56 @@ describe("parsePowerDetailsLines", () => {
     expect(parsed.breakdown.gear).toBe(11_512_123);
   });
 
+  it("parses Mexican Spanish (es-MX) screenshot labels", () => {
+    // From "DETALLES DE PODER" screenshot — distinct from pt-BR (de/Héroe vs
+    // do/Herói, Equipamiento, Rango, Muro de Honor).
+    const lines = [
+      "Poder de Heroe 126,107,918",
+      "Nivel de Heroe 68,968,904",
+      "Decoraciones y Estadisticas de Construccion 27,322,648",
+      "Equipamiento 11,512,123",
+      "Habilidad de Heroe 5,905,810",
+      "Rango de Heroe 5,877,961",
+      "Arma Exclusiva 5,025,497",
+      "Muro de Honor 1,494,975",
+      "Poder de Dron 9,358,364",
+      "Nivel de Dron 4,575,346",
+      "Poder de Edificio 16,361,642",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(126_107_918);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown).toEqual({
+      heroLevel: 68_968_904,
+      decorationsAndBuildings: 27_322_648,
+      gear: 11_512_123,
+      exclusiveWeapons: 5_025_497,
+      heroTier: 5_877_961,
+      heroSkill: 5_905_810,
+      wallOfHonor: 1_494_975,
+    });
+  });
+
+  it("parses wrapped Mexican Spanish decorations label", () => {
+    const lines = [
+      "Poder de Héroe 126,107,918",
+      "Nivel de Héroe 68,968,904",
+      "Decoraciones y",
+      "Estadísticas de Construcción 27,322,648",
+      "Equipamiento 11,512,123",
+      "Habilidad de Héroe 5,905,810",
+      "Rango de Héroe 5,877,961",
+      "Arma Exclusiva 5,025,497",
+      "Muro de Honor 1,494,975",
+      "Edificios 12,389,000",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(126_107_918);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown.decorationsAndBuildings).toBe(27_322_648);
+    expect(parsed.breakdown.wallOfHonor).toBe(1_494_975);
+  });
+
   it("repairs header total > 1B where a comma was OCR'd as a digit", () => {
     // Real sample: header "163,843,831" reads as "1637843831" (comma→7 in header).
     // Components also have commas absorbed as various digits (7, 1, 8).
