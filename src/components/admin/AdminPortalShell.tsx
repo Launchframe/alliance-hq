@@ -55,8 +55,17 @@ export function AdminPortalShell({ children }: Props) {
         : "text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg",
     );
 
+  // Video jobs tables are wide (many columns); give that section ~50% more room
+  // than the default admin shell without widening every admin page.
+  const wideContent = pathname.startsWith("/admin/video-jobs");
+
   return (
-    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-4 md:space-y-6">
+    <div
+      className={cn(
+        "mx-auto w-full min-w-0 space-y-4 md:space-y-6",
+        wideContent ? "max-w-[108rem]" : "max-w-6xl",
+      )}
+    >
       <div className="lg:hidden">
         <div className="mb-3">
           <h1 className="text-xl font-semibold">{t("title")}</h1>

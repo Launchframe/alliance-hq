@@ -765,11 +765,17 @@
       "statusReview": "Review",
       "statusComplete": "Complete",
       "allStatuses": "All statuses",
-      "listLoading": "Loading jobs…"
+      "listLoading": "Loading jobs…",
+      "passRolePrimary": "Primary",
+      "passRoleShadow": "Shadow",
+      "passKeyLabel": "Pass"
     },
     "videoJobDetailPage": {
       "loading": "Loading job details…",
       "backToList": "← Video jobs",
+      "previousJob": "Previous job",
+      "nextJob": "Next job",
+      "jobPosition": "{position} of {total}",
       "uploadedBy": "Uploaded by",
       "frameCount": "Frames",
       "totalTime": "Total time",
