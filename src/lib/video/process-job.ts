@@ -100,6 +100,13 @@ export async function processVideoJob(
     return processTesseractShadowRosterJob(jobId, options);
   }
 
+  if (job.passRole === "deposit_slip_fingerprint_shadow") {
+    const { processDepositSlipFingerprintShadowJob } = await import(
+      "@/lib/video/process-deposit-slip-fingerprint-shadow-job"
+    );
+    return processDepositSlipFingerprintShadowJob(jobId, options);
+  }
+
   const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
   const isRosterTarget = isMemberRosterVideoTarget(scoreTargetId);
   const isDepositSlipTarget = isBankDepositSlipHistoryTarget(scoreTargetId);
@@ -947,6 +954,24 @@ export async function processVideoJob(
         await maybeEnqueueTesseractShadowPass({ job: shadowEnqueueJob });
       } catch {
         // Tesseract shadow failure must not fail primary job
+      }
+    }
+
+    // Row-fingerprint shadow pass for deposit slips. Reached only after the
+    // chunked OCR early-return above, so all frames are done and the primary
+    // is already at "review". Enqueue is insert + dispatch only — never waits
+    // on the shadow job itself. See enqueue-deposit-slip-fingerprint-shadow-pass.ts.
+    if (isDepositSlipTarget) {
+      try {
+        const { maybeEnqueueDepositSlipFingerprintShadowPass } = await import(
+          "@/lib/video/enqueue-deposit-slip-fingerprint-shadow-pass"
+        );
+        await maybeEnqueueDepositSlipFingerprintShadowPass({
+          job: shadowEnqueueJob,
+          ocrEngine,
+        });
+      } catch {
+        // Fingerprint shadow failure must not fail primary job
       }
     }
 

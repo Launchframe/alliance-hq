@@ -641,6 +641,27 @@ export async function POST(request: Request, { params }: Props) {
         .set({ status: "submitted", updatedAt: new Date() })
         .where(eq(schema.parseSessions.id, job.parseSessionId));
 
+      // Fire-and-forget: compare against the row-fingerprint shadow pass (if
+      // one exists and has already finished) for the admin OCR eval
+      // dashboard. Never blocks or fails the officer's submit.
+      if (job.groupId) {
+        const groupIdForComparison = job.groupId;
+        void import(
+          "@/lib/banks/deposit-slip-ocr/deposit-slip-shadow-comparison.server"
+        )
+          .then(({ maybeCompareDepositSlipFingerprintShadow }) =>
+            maybeCompareDepositSlipFingerprintShadow({
+              groupId: groupIdForComparison,
+            }),
+          )
+          .catch((err: unknown) => {
+            console.error(
+              "[deposit-slip-fingerprint-shadow] comparison-on-submit failed",
+              err,
+            );
+          });
+      }
+
       await writeAuditLog({
         sessionId: session.id,
         allianceId,

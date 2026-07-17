@@ -1135,6 +1135,24 @@
         "colDate": "Date",
         "dailyTrend": "Daily trend",
         "empty": "No roster Tesseract shadow evaluations in this window yet."
+      },
+      "depositSlipEval": {
+        "title": "Deposit slip — Tessaract bbox",
+        "subtitle": "Async Tessaract bbox OCR (bounding boxes, deduped across frames) scored against each video's final scores.",
+        "jobCount": "Total OCR jobs",
+        "rowRecall": "Avg row recall",
+        "rowPrecision": "Avg row precision",
+        "depositAtAgreement": "Avg deposit-time agreement",
+        "primaryMissingDepositAtRate": "Primary timestamp miss rate",
+        "shadowMissingDepositAtRate": "Shadow timestamp miss rate",
+        "amountAgreement": "Avg amount agreement",
+        "termDaysAgreement": "Avg term agreement",
+        "statusAgreement": "Avg status agreement",
+        "lineReduction": "Avg line reduction",
+        "colDate": "Date",
+        "colJobs": "Uploads",
+        "dailyTrend": "Daily trend",
+        "empty": "No Tessaract bbox evaluations in this window."
       }
     }
   },

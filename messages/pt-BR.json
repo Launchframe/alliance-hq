@@ -1135,6 +1135,24 @@
         "colDate": "Data",
         "dailyTrend": "Tendência diária",
         "empty": "Ainda não há avaliações de sombra Tesseract neste período."
+      },
+      "depositSlipEval": {
+        "title": "Comprovante de depósito — Tessaract bbox",
+        "subtitle": "OCR Tessaract bbox assíncrono (caixas delimitadoras, deduplicado entre frames) avaliado contra as pontuações finais de cada vídeo.",
+        "jobCount": "Total de jobs de OCR",
+        "rowRecall": "Recall médio de linhas",
+        "rowPrecision": "Precisão média de linhas",
+        "depositAtAgreement": "Concordância média de horário do depósito",
+        "primaryMissingDepositAtRate": "Taxa de timestamp ausente (primário)",
+        "shadowMissingDepositAtRate": "Taxa de timestamp ausente (sombra)",
+        "amountAgreement": "Concordância média de valor",
+        "termDaysAgreement": "Concordância média de prazo",
+        "statusAgreement": "Concordância média de status",
+        "lineReduction": "Redução média de linhas",
+        "colDate": "Data",
+        "colJobs": "Uploads",
+        "dailyTrend": "Tendência diária",
+        "empty": "Nenhuma avaliação Tessaract bbox neste período."
       }
     }
   },
