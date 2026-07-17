@@ -59,3 +59,32 @@ export function parseVideoJobStatusEvent(
     return null;
   }
 }
+
+/**
+ * Merge a newer live event onto the cached job. Nullish progress/stage fields
+ * must not wipe values from an earlier, richer event (e.g. OCR progress that
+ * omits `frameCount` after the parsing kickoff already set the total).
+ */
+export function mergeVideoJobStatusEvent(
+  current: VideoJobStatusEvent | undefined,
+  next: VideoJobStatusEvent,
+): VideoJobStatusEvent {
+  if (!current) {
+    return next;
+  }
+  if (
+    new Date(next.updatedAt).getTime() < new Date(current.updatedAt).getTime()
+  ) {
+    return current;
+  }
+
+  return {
+    ...current,
+    ...next,
+    frameCount: next.frameCount ?? current.frameCount,
+    uploadedFrameCount:
+      next.uploadedFrameCount ?? current.uploadedFrameCount,
+    stage: next.stage ?? current.stage,
+    ocrEngine: next.ocrEngine ?? current.ocrEngine,
+  };
+}

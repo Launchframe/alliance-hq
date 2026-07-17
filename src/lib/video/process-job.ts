@@ -43,7 +43,11 @@ import {
 } from "@/lib/video/score-targets";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
-import type { VideoJobStage } from "@/lib/video/video-job-stage.shared";
+import {
+  defaultStageForJobStatus,
+  type VideoJobStage,
+} from "@/lib/video/video-job-stage.shared";
+import { createThrottledOcrProgressEmitter } from "@/lib/video/video-ocr-progress-emit.shared";
 import { maybeEnqueueShadowPass } from "@/lib/video/enqueue-shadow-pass";
 import {
   AshedNotConnectedError,
@@ -119,12 +123,26 @@ export async function processVideoJob(
    */
   const processingSessionId = job.processingSessionId ?? job.sessionId;
 
+  // Mutable mirrors of the last values written for this run — `job` is a
+  // start-of-process snapshot and must not be used for SSE frameCount after
+  // the parsing kickoff (progress emits only pass uploadedFrameCount).
+  let liveFrameCount: number | null = job.frameCount ?? null;
+  let liveUploadedFrameCount: number | null = job.uploadedFrameCount ?? null;
+
   const setStatus = async (
     status: string,
     extra: Partial<typeof schema.videoJobs.$inferInsert> = {},
     meta?: { rowCount?: number; matchedCount?: number },
     stage?: VideoJobStage,
   ) => {
+    if (extra.frameCount !== undefined) {
+      liveFrameCount = extra.frameCount as number | null;
+    }
+    if (extra.uploadedFrameCount !== undefined) {
+      liveUploadedFrameCount = extra.uploadedFrameCount as number | null;
+    }
+    const resolvedStage =
+      stage ?? defaultStageForJobStatus(status) ?? undefined;
     const updatedAt = new Date();
     await db
       .update(schema.videoJobs)
@@ -137,16 +155,15 @@ export async function processVideoJob(
       status,
       fileName: job.fileName,
       scoreTarget: scoreTargetId,
-      frameCount: extra.frameCount ?? job.frameCount,
-      uploadedFrameCount:
-        extra.uploadedFrameCount ?? job.uploadedFrameCount,
+      frameCount: liveFrameCount,
+      uploadedFrameCount: liveUploadedFrameCount,
       rowCount: meta?.rowCount,
       matchedCount: meta?.matchedCount,
       errorMessage:
         typeof extra.errorMessage === "string"
           ? extra.errorMessage
           : job.errorMessage,
-      stage,
+      stage: resolvedStage,
       ocrEngine,
       updatedAt: updatedAt.toISOString(),
     });
@@ -157,34 +174,22 @@ export async function processVideoJob(
    * phase — for the waiting-page progress bar. Throttled so a fast OCR
    * engine (or high concurrency) doesn't hammer the DB with one write per
    * frame; the final frame always emits so the bar reaches 100% of the
-   * ocr_running band before the pipeline moves on. Awaited by the OCR
-   * pipelines (see ocr-provider.shared.ts) so this write is guaranteed to
-   * resolve before the subsequent "finalizing_rows" setStatus call — no
-   * risk of a late progress write clobbering a newer status.
+   * ocr_running band before the pipeline moves on. Serialized via a promise
+   * chain so concurrent Ashed workers cannot reorder uploadedFrameCount
+   * writes; OCR pipelines await each callback so the chain drains before
+   * the subsequent "finalizing_rows" setStatus call.
    */
-  const OCR_PROGRESS_EMIT_MIN_INTERVAL_MS = 1_200;
-  let lastOcrProgressEmitAt = 0;
-  const emitOcrFrameProgress = async (
-    completed: number,
-    total: number,
-  ): Promise<void> => {
-    const now = Date.now();
-    const isFinalFrame = total > 0 && completed >= total;
-    if (!isFinalFrame && now - lastOcrProgressEmitAt < OCR_PROGRESS_EMIT_MIN_INTERVAL_MS) {
-      return;
-    }
-    lastOcrProgressEmitAt = now;
-    try {
+  const emitOcrFrameProgress = createThrottledOcrProgressEmitter({
+    minIntervalMs: 1_200,
+    emit: async (completed) => {
       await setStatus(
         "parsing",
         { uploadedFrameCount: completed },
         undefined,
         "ocr_running",
       );
-    } catch {
-      // A progress-emit hiccup must not fail the OCR pass.
-    }
-  };
+    },
+  });
 
   let frameCount = 0;
   let rowCount = 0;
@@ -327,10 +332,15 @@ export async function processVideoJob(
       });
     }
 
-    await setStatus("parsing", {
-      frameCount: frames.length,
-      uploadedFrameCount: 0,
-    });
+    await setStatus(
+      "parsing",
+      {
+        frameCount: frames.length,
+        uploadedFrameCount: 0,
+      },
+      undefined,
+      "ocr_running",
+    );
 
     let allianceId: string;
     let parseSessionId: string;
@@ -440,6 +450,10 @@ export async function processVideoJob(
             ),
           (entries) => ({ rowCount: entries.length }),
         );
+
+        for (let i = 0; i < frames.length; i += 1) {
+          await emitOcrFrameProgress(i + 1, frames.length);
+        }
 
         ocrFrameMs = frames.map(() => 1);
         ocrConcurrency = 1;

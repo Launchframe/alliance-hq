@@ -4,8 +4,24 @@ import {
   isActiveVideoJobStatus,
   isReviewReadyStatus,
   isTerminalVideoJobStatus,
+  mergeVideoJobStatusEvent,
   parseVideoJobStatusEvent,
+  type VideoJobStatusEvent,
 } from "@/lib/events/video-jobs-types";
+
+function baseEvent(
+  overrides: Partial<VideoJobStatusEvent> = {},
+): VideoJobStatusEvent {
+  return {
+    sessionId: "s1",
+    jobId: "j1",
+    status: "parsing",
+    fileName: "clip.mp4",
+    scoreTarget: "desert-storm",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
 
 describe("video job status helpers", () => {
   it("detects active statuses", () => {
@@ -44,5 +60,59 @@ describe("parseVideoJobStatusEvent", () => {
   it("rejects invalid payloads", () => {
     expect(parseVideoJobStatusEvent("{")).toBeNull();
     expect(parseVideoJobStatusEvent(JSON.stringify({ jobId: "j1" }))).toBeNull();
+  });
+});
+
+describe("mergeVideoJobStatusEvent", () => {
+  it("returns next when there is no current event", () => {
+    const next = baseEvent({ frameCount: 40 });
+    expect(mergeVideoJobStatusEvent(undefined, next)).toBe(next);
+  });
+
+  it("keeps the newer updatedAt event", () => {
+    const current = baseEvent({
+      uploadedFrameCount: 5,
+      updatedAt: "2026-01-01T00:00:02.000Z",
+    });
+    const older = baseEvent({
+      uploadedFrameCount: 1,
+      updatedAt: "2026-01-01T00:00:01.000Z",
+    });
+    expect(mergeVideoJobStatusEvent(current, older)).toBe(current);
+  });
+
+  it("does not let nullish frameCount/stage/ocrEngine wipe prior values", () => {
+    const current = baseEvent({
+      frameCount: 40,
+      uploadedFrameCount: 10,
+      stage: "ocr_running",
+      ocrEngine: "ashed",
+      updatedAt: "2026-01-01T00:00:01.000Z",
+    });
+    const next = baseEvent({
+      frameCount: null,
+      uploadedFrameCount: 12,
+      stage: undefined,
+      ocrEngine: undefined,
+      updatedAt: "2026-01-01T00:00:02.000Z",
+    });
+    expect(mergeVideoJobStatusEvent(current, next)).toMatchObject({
+      frameCount: 40,
+      uploadedFrameCount: 12,
+      stage: "ocr_running",
+      ocrEngine: "ashed",
+    });
+  });
+
+  it("allows an explicit uploadedFrameCount reset to zero", () => {
+    const current = baseEvent({
+      uploadedFrameCount: 40,
+      updatedAt: "2026-01-01T00:00:01.000Z",
+    });
+    const next = baseEvent({
+      uploadedFrameCount: 0,
+      updatedAt: "2026-01-01T00:00:02.000Z",
+    });
+    expect(mergeVideoJobStatusEvent(current, next).uploadedFrameCount).toBe(0);
   });
 });

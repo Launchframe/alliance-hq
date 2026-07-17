@@ -85,6 +85,9 @@ async function runRosterOcr(
       input.frames.map((f) => ({ index: f.index })),
       { allianceId: hqAllianceId },
     );
+    for (let i = 0; i < input.frames.length; i += 1) {
+      await input.onOcrProgress?.(i + 1, input.frames.length);
+    }
     return {
       members,
       frameTimings: input.frames.map((frame) => ({

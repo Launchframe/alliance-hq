@@ -1567,16 +1567,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         ? t("stageQueued")
         : liveStage === "extracting_frames"
           ? t("stageExtracting")
-          : liveStage === "ocr_running" && frameProgress
-            ? t("stageOcrRunning", {
-                completed: frameProgress.completed,
-                total: frameProgress.total,
-              })
+          : liveStage === "ocr_running"
+            ? frameProgress
+              ? t("stageOcrRunning", {
+                  completed: frameProgress.completed,
+                  total: frameProgress.total,
+                })
+              : t("processing", { status: displayJobStatus })
             : liveStage === "finalizing_rows"
               ? t("stageFinalizing")
-              : liveStage === "done"
-                ? t("stageDone")
-                : t("processing", { status: displayJobStatus });
+              : t("processing", { status: displayJobStatus });
 
     return (
       <div className="space-y-4">

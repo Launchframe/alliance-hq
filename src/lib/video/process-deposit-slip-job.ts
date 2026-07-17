@@ -111,6 +111,9 @@ export async function processDepositSlipVideoParse(
           : 0),
       error: null,
     }));
+    for (let i = 0; i < input.frames.length; i += 1) {
+      await input.onOcrProgress?.(i + 1, input.frames.length);
+    }
   } else {
     const native = await input.timer.measureStep(
       "tesseract.deposit_slip_ocr_total",
