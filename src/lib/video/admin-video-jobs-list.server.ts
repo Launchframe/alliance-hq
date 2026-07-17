@@ -3,6 +3,10 @@ import "server-only";
 import { and, desc, eq, inArray, type SQL } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import {
+  mergeAdminVideoJobMatchesWithGroupSiblings,
+  shouldExpandAdminVideoJobUploadGroups,
+} from "@/lib/video/admin-video-jobs-expand.shared";
 import { orderAdminVideoJobsForIndex } from "@/lib/video/admin-video-jobs-group.shared";
 import { parseAdminVideoJobsStatusFilter } from "@/lib/video/admin-video-jobs-query.shared";
 
@@ -78,7 +82,9 @@ async function queryMatchedAdminVideoJobs(query: AdminVideoJobsListQuery) {
 async function expandUploadGroupSiblings<
   T extends { id: string; groupId: string | null },
 >(matched: T[], query: AdminVideoJobsListQuery): Promise<T[]> {
-  if (query.passKey || matched.length === 0) return matched;
+  if (!shouldExpandAdminVideoJobUploadGroups(query.passKey, matched.length)) {
+    return matched;
+  }
 
   const groupIds = [
     ...new Set(
@@ -95,28 +101,7 @@ async function expandUploadGroupSiblings<
     .from(schema.videoJobs)
     .where(inArray(schema.videoJobs.groupId, groupIds));
 
-  const byId = new Map<string, T>();
-  for (const job of matched) byId.set(job.id, job);
-  for (const job of siblings) {
-    if (!byId.has(job.id)) {
-      byId.set(job.id, job as T);
-    }
-  }
-  // Preserve matched newest-first order for first-seen grouping, then append
-  // any siblings that were not in the filtered window (rare).
-  const ordered: T[] = [];
-  const seen = new Set<string>();
-  for (const job of matched) {
-    ordered.push(job);
-    seen.add(job.id);
-  }
-  for (const job of siblings) {
-    if (!seen.has(job.id)) {
-      ordered.push(job as T);
-      seen.add(job.id);
-    }
-  }
-  return ordered;
+  return mergeAdminVideoJobMatchesWithGroupSiblings(matched, siblings as T[]);
 }
 
 /** Load video job rows for the admin index (grouped primary+shadow, capped). */
