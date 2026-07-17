@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   expectedVsRowCount,
   isPrimaryParseInadequate,
+  isShadowPassTerminalStatus,
   shouldEnqueueEarlyExtractionShadow,
   VS_EARLY_SHADOW_MIN_ROSTER,
 } from "./early-shadow-eligibility.shared";
@@ -30,6 +31,30 @@ describe("expectedVsRowCount", () => {
     expect(
       expectedVsRowCount({ rosterSize: null, surveyRowCountEstimate: null }),
     ).toBeNull();
+  });
+
+  it("ignores zero, negative, and NaN survey estimates (roster fallback)", () => {
+    expect(
+      expectedVsRowCount({ rosterSize: 100, surveyRowCountEstimate: 0 }),
+    ).toBe(90);
+    expect(
+      expectedVsRowCount({ rosterSize: 100, surveyRowCountEstimate: -5 }),
+    ).toBe(90);
+    expect(
+      expectedVsRowCount({
+        rosterSize: 100,
+        surveyRowCountEstimate: Number.NaN,
+      }),
+    ).toBe(90);
+  });
+
+  it("accepts roster exactly at the minimum", () => {
+    expect(
+      expectedVsRowCount({
+        rosterSize: VS_EARLY_SHADOW_MIN_ROSTER,
+        surveyRowCountEstimate: null,
+      }),
+    ).toBe(Math.floor(VS_EARLY_SHADOW_MIN_ROSTER * 0.9));
   });
 });
 
@@ -90,6 +115,44 @@ describe("shouldEnqueueEarlyExtractionShadow", () => {
       }),
     ).toBe(false);
   });
+
+  it("does not trigger when frames×6 exactly covers expected rows", () => {
+    expect(
+      shouldEnqueueEarlyExtractionShadow({
+        scoreTargetId: "vs-performance",
+        passRole: "primary",
+        frameCount: 14,
+        denseFrameCount: null,
+        expectedRows: 84,
+      }),
+    ).toBe(false);
+    expect(
+      shouldEnqueueEarlyExtractionShadow({
+        scoreTargetId: "vs-performance",
+        passRole: "primary",
+        frameCount: 14,
+        denseFrameCount: null,
+        expectedRows: 85,
+      }),
+    ).toBe(true);
+  });
+
+  it("skips small expected counts (roster exactly 20 → expected 18 < min)", () => {
+    const expectedRows = expectedVsRowCount({
+      rosterSize: VS_EARLY_SHADOW_MIN_ROSTER,
+      surveyRowCountEstimate: null,
+    });
+    expect(expectedRows).toBe(18);
+    expect(
+      shouldEnqueueEarlyExtractionShadow({
+        scoreTargetId: "vs-performance",
+        passRole: "primary",
+        frameCount: 1,
+        denseFrameCount: null,
+        expectedRows,
+      }),
+    ).toBe(false);
+  });
 });
 
 describe("isPrimaryParseInadequate", () => {
@@ -102,6 +165,18 @@ describe("isPrimaryParseInadequate", () => {
     ).toBe(false);
   });
 
+  it("treats exactly-expected row count as adequate", () => {
+    expect(
+      isPrimaryParseInadequate({ uniqueRowCount: 83, expectedRows: 83 }),
+    ).toBe(false);
+  });
+
+  it("is adequate when expected rows are unknown", () => {
+    expect(
+      isPrimaryParseInadequate({ uniqueRowCount: 0, expectedRows: null }),
+    ).toBe(false);
+  });
+
   it("honors forceInadequate for dev UX", () => {
     expect(
       isPrimaryParseInadequate({
@@ -110,5 +185,16 @@ describe("isPrimaryParseInadequate", () => {
         forceInadequate: true,
       }),
     ).toBe(true);
+  });
+});
+
+describe("isShadowPassTerminalStatus", () => {
+  it("marks review/complete/failed/discarded terminal and running states not", () => {
+    for (const status of ["review", "complete", "failed", "discarded"]) {
+      expect(isShadowPassTerminalStatus(status)).toBe(true);
+    }
+    for (const status of ["queued", "extracting", "parsing", "pending_approval"]) {
+      expect(isShadowPassTerminalStatus(status)).toBe(false);
+    }
   });
 });
