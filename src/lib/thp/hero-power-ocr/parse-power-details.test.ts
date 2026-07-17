@@ -334,6 +334,58 @@ describe("parsePowerDetailsLines", () => {
     expect(parsed.breakdown.wallOfHonor).toBe(1_494_975);
   });
 
+  it("parses Korean (KO) screenshot labels", () => {
+    // From "전투력 정보" screenshot — Hangul labels with English-style commas.
+    // Row order matches pt-BR (skill before tier, exclusive weapon after both).
+    const lines = [
+      "영웅 전투력 126,107,918",
+      "영웅 레벨 68,968,904",
+      "장식 및 건물 능력치 27,322,648",
+      "장비 11,512,123",
+      "영웅 스킬 5,905,810",
+      "영웅 티어 5,877,961",
+      "전속 무기 5,025,497",
+      "명예의 전당 1,494,975",
+      "드론 전투력 9,358,364",
+      "드론 레벨 4,575,346",
+      "건물 전투력 16,361,642",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(126_107_918);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown).toEqual({
+      heroLevel: 68_968_904,
+      decorationsAndBuildings: 27_322_648,
+      gear: 11_512_123,
+      exclusiveWeapons: 5_025_497,
+      heroTier: 5_877_961,
+      heroSkill: 5_905_810,
+      wallOfHonor: 1_494_975,
+    });
+  });
+
+  it("parses wrapped Korean decorations label", () => {
+    // "장식 및 건물 능력치" can wrap; second half must not trip the
+    // building section stop (which is specifically "건물 전투력").
+    const lines = [
+      "영웅 전투력 126,107,918",
+      "영웅 레벨 68,968,904",
+      "장식 및",
+      "건물 능력치 27,322,648",
+      "장비 11,512,123",
+      "영웅 스킬 5,905,810",
+      "영웅 티어 5,877,961",
+      "전속 무기 5,025,497",
+      "명예의 전당 1,494,975",
+      "드론 전투력 9,358,364",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(126_107_918);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown.decorationsAndBuildings).toBe(27_322_648);
+    expect(parsed.breakdown.gear).toBe(11_512_123);
+  });
+
   it("repairs header total > 1B where a comma was OCR'd as a digit", () => {
     // Real sample: header "163,843,831" reads as "1637843831" (comma→7 in header).
     // Components also have commas absorbed as various digits (7, 1, 8).

@@ -43,7 +43,9 @@ function isUsefulHeaderLine(line: string): boolean {
     /kampf\s*kraft/i.test(line) ||
     /details\s*der\s*kampf/i.test(line) ||
     /poder\s*do\s*her[oó]i/i.test(line) ||
-    /detalhes\s*do\s*poder/i.test(line)
+    /detalhes\s*do\s*poder/i.test(line) ||
+    /영웅\s*전투력/.test(line) ||
+    /전투력\s*정보/.test(line)
   );
 }
 

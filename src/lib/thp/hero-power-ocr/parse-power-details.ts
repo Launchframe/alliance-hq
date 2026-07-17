@@ -23,9 +23,9 @@ export type ParsePowerDetailsResult = {
 };
 
 const HERO_POWER_HEADER_RE =
-  /hero\s*l?\s*powers?|helden\s*kampf\s*kraft|poder\s*do\s*her[oó]i/i;
+  /hero\s*l?\s*powers?|helden\s*kampf\s*kraft|poder\s*do\s*her[oó]i|영웅\s*전투력/i;
 const SECTION_STOP_RE =
-  /^(drone\s*power|drone\s*level|skill\s*chip|drone\s*component|building\s*power|buildings?\b|drohnen[\s-]*kampf\s*kraft|drohnen[\s-]*level|f[äa]higkeits?\s*chip|drohnen\s*komponente|geb[äa]ude[\s-]*kampf\s*kraft|poder\s*do\s*drone|n[ií]vel\s*do\s*drone|componente\s*de\s*drone|chip\s*de\s*habilidade|poder\s*de\s*constru)/i;
+  /^(drone\s*power|drone\s*level|skill\s*chip|drone\s*component|building\s*power|buildings?\b|drohnen[\s-]*kampf\s*kraft|drohnen[\s-]*level|f[äa]higkeits?\s*chip|drohnen\s*komponente|geb[äa]ude[\s-]*kampf\s*kraft|poder\s*do\s*drone|n[ií]vel\s*do\s*drone|componente\s*de\s*drone|chip\s*de\s*habilidade|poder\s*de\s*constru|드론\s*전투력|드론\s*레벨|드론\s*파츠|스킬\s*칩|건물\s*전투력|생존자)/i;
 
 /**
  * Trailing numeric blob: digits plus common OCR substitutes for commas / noise.

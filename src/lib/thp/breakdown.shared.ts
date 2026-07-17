@@ -25,6 +25,8 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
       /^helden\s*level\b/i,
       // Brazilian Portuguese: "Nível do Herói" (accents often dropped by OCR).
       /^n[ií]vel\s*do\s*her[oó]i\b/i,
+      // Korean: "영웅 레벨".
+      /^영웅\s*레벨/,
     ],
   },
   {
@@ -40,6 +42,9 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
       // label that frequently wraps; match either half.
       /^decora[cç][oõ]es\b/i,
       /atributos\s*de\s*constru/i,
+      // Korean: "장식 및 건물 능력치" — may wrap after "장식 및".
+      /^장식/,
+      /건물\s*능력치/,
     ],
   },
   {
@@ -51,6 +56,8 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
       /^ausriistung\b/i,
       // Brazilian Portuguese: "Equipamento".
       /^equipamento\b/i,
+      // Korean: "장비".
+      /^장비/,
     ],
   },
   {
@@ -61,6 +68,8 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
       /^exklusive\s*waffen?\b/i,
       // Brazilian Portuguese: "Arma Exclusiva".
       /^arma\s*exclusiva\b/i,
+      // Korean: "전속 무기".
+      /^전속\s*무기/,
     ],
   },
   {
@@ -74,6 +83,8 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
       /^helden\s*rang\b/i,
       // Brazilian Portuguese: "Categoria de Herói".
       /^categoria\s*de\s*her[oó]i\b/i,
+      // Korean: "영웅 티어".
+      /^영웅\s*티어/,
     ],
   },
   {
@@ -87,6 +98,8 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
       /^helden[\s-]*fiihigkeit\b/i,
       // Brazilian Portuguese: "Habilidade de Herói".
       /^habilidade\s*de\s*her[oó]i\b/i,
+      // Korean: "영웅 스킬".
+      /^영웅\s*스킬/,
     ],
   },
   {
@@ -97,6 +110,8 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
       /^ehrenwand\b/i,
       // Brazilian Portuguese: "Mural de Honra".
       /^mural\s*de\s*honra\b/i,
+      // Korean: "명예의 전당".
+      /^명예의?\s*전당/,
     ],
   },
 ];
