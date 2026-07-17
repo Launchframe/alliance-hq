@@ -23,6 +23,8 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
       /^hero\s*level\b/i,
       // German: "Heldenlevel".
       /^helden\s*level\b/i,
+      // Brazilian Portuguese: "Nível do Herói" (accents often dropped by OCR).
+      /^n[ií]vel\s*do\s*her[oó]i\b/i,
     ],
   },
   {
@@ -34,6 +36,10 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
       // across two OCR lines, so match on the (more legible) second half too.
       /^dekorationen\b/i,
       /geb[äa]udestatistiken/i,
+      // Brazilian Portuguese: "Decorações e Atributos de Construção" — long
+      // label that frequently wraps; match either half.
+      /^decora[cç][oõ]es\b/i,
+      /atributos\s*de\s*constru/i,
     ],
   },
   {
@@ -43,6 +49,8 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
       // German: "Ausrüstung" — OCR often drops diacritics or doubles i→ii.
       /^ausr[uü]stung\b/i,
       /^ausriistung\b/i,
+      // Brazilian Portuguese: "Equipamento".
+      /^equipamento\b/i,
     ],
   },
   {
@@ -51,6 +59,8 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
       /^exclusive\s*weapons?\b/i,
       // German: "Exklusive Waffe".
       /^exklusive\s*waffen?\b/i,
+      // Brazilian Portuguese: "Arma Exclusiva".
+      /^arma\s*exclusiva\b/i,
     ],
   },
   {
@@ -62,6 +72,8 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
       /^hero\s*tie[rn]\b/i,
       // German: "Heldenrang".
       /^helden\s*rang\b/i,
+      // Brazilian Portuguese: "Categoria de Herói".
+      /^categoria\s*de\s*her[oó]i\b/i,
     ],
   },
   {
@@ -73,6 +85,8 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
       // or misread as a doubled "ii".
       /^helden[\s-]*f[äa]higkeit\b/i,
       /^helden[\s-]*fiihigkeit\b/i,
+      // Brazilian Portuguese: "Habilidade de Herói".
+      /^habilidade\s*de\s*her[oó]i\b/i,
     ],
   },
   {
@@ -81,6 +95,8 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
       /^wall\s*of\s*honou?r\b/i,
       // German: "Ehrenwand".
       /^ehrenwand\b/i,
+      // Brazilian Portuguese: "Mural de Honra".
+      /^mural\s*de\s*honra\b/i,
     ],
   },
 ];

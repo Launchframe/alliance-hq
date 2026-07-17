@@ -281,6 +281,59 @@ describe("parsePowerDetailsLines", () => {
     expect(parsed.breakdown.wallOfHonor).toBe(4_702_700);
   });
 
+  it("parses Brazilian Portuguese (pt-BR) screenshot labels", () => {
+    // From "Detalhes do Poder" screenshot — pt-BR uses comma thousand separators
+    // (same as English) but distinct labels. Row order also differs from EN/DE
+    // (Habilidade before Categoria, Arma Exclusiva after both).
+    const lines = [
+      "Poder do Heroi 126,107,918",
+      "Nivel do Heroi 68,968,904",
+      "Decoracoes e Atributos de Construcao 27,322,648",
+      "Equipamento 11,512,123",
+      "Habilidade de Heroi 5,905,810",
+      "Categoria de Heroi 5,877,961",
+      "Arma Exclusiva 5,025,497",
+      "Mural de Honra 1,494,975",
+      "Poder do Drone 9,358,364",
+      "Nivel do Drone 4,575,346",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(126_107_918);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown).toEqual({
+      heroLevel: 68_968_904,
+      decorationsAndBuildings: 27_322_648,
+      gear: 11_512_123,
+      exclusiveWeapons: 5_025_497,
+      heroTier: 5_877_961,
+      heroSkill: 5_905_810,
+      wallOfHonor: 1_494_975,
+    });
+  });
+
+  it("parses wrapped Brazilian Portuguese decorations label", () => {
+    // Long label "Decorações e Atributos de Construção" often wraps across
+    // two OCR lines, similar to German "Dekorationen und / Gebäudestatistiken".
+    const lines = [
+      "Poder do Herói 126.107.918",
+      "Nível do Herói 68.968.904",
+      "Decorações e Atributos",
+      "de Construção 27.322.648",
+      "Equipamento 11.512.123",
+      "Habilidade de Herói 5.905.810",
+      "Categoria de Herói 5.877.961",
+      "Arma Exclusiva 5.025.497",
+      "Mural de Honra 1.494.975",
+      "Poder de Construção 16.358.542",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(126_107_918);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown.decorationsAndBuildings).toBe(27_322_648);
+    expect(parsed.breakdown.heroLevel).toBe(68_968_904);
+    expect(parsed.breakdown.wallOfHonor).toBe(1_494_975);
+  });
+
   it("repairs header total > 1B where a comma was OCR'd as a digit", () => {
     // Real sample: header "163,843,831" reads as "1637843831" (comma→7 in header).
     // Components also have commas absorbed as various digits (7, 1, 8).

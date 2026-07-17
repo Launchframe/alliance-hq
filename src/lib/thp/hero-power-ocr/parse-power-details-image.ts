@@ -41,7 +41,9 @@ function isUsefulHeaderLine(line: string): boolean {
     /power\s*details/i.test(line) ||
     /helden\s*kampf\s*kraft/i.test(line) ||
     /kampf\s*kraft/i.test(line) ||
-    /details\s*der\s*kampf/i.test(line)
+    /details\s*der\s*kampf/i.test(line) ||
+    /poder\s*do\s*her[oó]i/i.test(line) ||
+    /detalhes\s*do\s*poder/i.test(line)
   );
 }
 
