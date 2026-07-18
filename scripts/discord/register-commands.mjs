@@ -78,7 +78,80 @@ const commanderLinkOptions = [
   },
 ];
 
+/** Discord slash-command choices allow at most 25 entries. */
+const translationLanguageChoices = [
+  { name: "English", value: "en" },
+  { name: "Português", value: "pt" },
+  { name: "Español", value: "es" },
+  { name: "Français", value: "fr" },
+  { name: "Deutsch", value: "de" },
+  { name: "Italiano", value: "it" },
+  { name: "Nederlands", value: "nl" },
+  { name: "Polski", value: "pl" },
+  { name: "Русский", value: "ru" },
+  { name: "Українська", value: "uk" },
+  { name: "Türkçe", value: "tr" },
+  { name: "العربية", value: "ar" },
+  { name: "한국어", value: "ko" },
+  { name: "日本語", value: "ja" },
+  { name: "中文（简体）", value: "zh-CN" },
+  { name: "中文（繁體）", value: "zh-TW" },
+  { name: "Tiếng Việt", value: "vi" },
+  { name: "ไทย", value: "th" },
+  { name: "Bahasa Indonesia", value: "id" },
+  { name: "Bahasa Melayu", value: "ms" },
+  { name: "Filipino", value: "tl" },
+  { name: "हिन्दी", value: "hi" },
+  { name: "Ελληνικά", value: "el" },
+  { name: "Magyar", value: "hu" },
+];
+
 const commandBody = [
+  {
+    // Message context menu (Apps → Translate); context menus take no description.
+    name: "Translate",
+    type: 3,
+    name_localizations: {
+      "pt-BR": "Traduzir",
+    },
+  },
+  {
+    name: "translation-language",
+    description: "Choose the language Apps → Translate uses for you.",
+    description_localizations: {
+      "pt-BR": "Escolha o idioma usado em Apps → Traduzir para você.",
+    },
+    options: [
+      {
+        name: "language",
+        description: "Your translation language",
+        description_localizations: {
+          "pt-BR": "Seu idioma de tradução",
+        },
+        type: 3,
+        required: true,
+        choices: translationLanguageChoices,
+      },
+    ],
+  },
+  {
+    name: "set-translation",
+    description: "Turn Apps → Translate on or off for this alliance (owner only).",
+    description_localizations: {
+      "pt-BR": "Ativa ou desativa Apps → Traduzir para esta aliança (somente dono).",
+    },
+    options: [
+      {
+        name: "enabled",
+        description: "Turn message translation on or off.",
+        description_localizations: {
+          "pt-BR": "Ativa ou desativa a tradução de mensagens.",
+        },
+        type: 5,
+        required: true,
+      },
+    ],
+  },
   {
     name: "link",
     description: "Link your Discord account to Alliance HQ",

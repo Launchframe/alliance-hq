@@ -4326,6 +4326,20 @@
     "setVrReportChannel": {
       "success": "O placar noturno de VR de **{tag}** será publicado em {channel}. Oficiais podem usar `/vr-report` a qualquer momento ou `/vr-report teams:N` para planos de takedown."
     },
+    "translate": {
+      "result": "{text}\n\n-# Traduzido de {source} para {target}",
+      "resultNoSource": "{text}\n\n-# Traduzido para {target}",
+      "sameLanguage": "Essa mensagem já está em {language}.",
+      "nothingToTranslate": "Essa mensagem não tem texto para traduzir.",
+      "tooLong": "Essa mensagem é longa demais para traduzir (máximo de {max} caracteres).",
+      "disabled": "A tradução de mensagens está desativada para esta aliança. O dono da aliança pode ativá-la com `/set-translation enabled:true`.",
+      "notConfigured": "A tradução ainda não está disponível neste servidor.",
+      "failed": "A tradução falhou. Tente novamente em instantes.",
+      "invalidLanguage": "Escolha um idioma da lista.",
+      "languageUpdated": "Seu idioma de tradução agora é **{language}**. Clique com o botão direito ou toque e segure em qualquer mensagem e use Apps → Traduzir.",
+      "enabledSuccess": "A tradução de mensagens está **ativada** para **{tag}**. Membros podem clicar com o botão direito ou tocar e segurar em qualquer mensagem e usar Apps → Traduzir para lê-la no próprio idioma. Todos podem escolher um idioma com `/translation-language`.",
+      "disabledSuccess": "A tradução de mensagens está **desativada** para **{tag}**."
+    },
     "train": {
       "setTrainChannel": {
         "success": "Anúncios de trem de **{tag}** serão publicados em {channel}. Ative os anúncios nas configurações da aliança no HQ; oficiais podem usar `/set-conductor` e `/train-is-ready`."

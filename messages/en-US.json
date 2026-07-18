@@ -4380,6 +4380,20 @@
     "setVrReportChannel": {
       "success": "Nightly VR standings for **{tag}** will post in {channel}. Officers can run `/vr-report` anytime for a fresh top-25 or `/vr-report teams:N` for takedown plans."
     },
+    "translate": {
+      "result": "{text}\n\n-# Translated from {source} to {target}",
+      "resultNoSource": "{text}\n\n-# Translated to {target}",
+      "sameLanguage": "That message is already in {language}.",
+      "nothingToTranslate": "That message has no text to translate.",
+      "tooLong": "That message is too long to translate (max {max} characters).",
+      "disabled": "Message translation is turned off for this alliance. The alliance owner can turn it on with `/set-translation enabled:true`.",
+      "notConfigured": "Translation isn't available on this server yet.",
+      "failed": "Translation failed. Try again in a moment.",
+      "invalidLanguage": "Pick a language from the list.",
+      "languageUpdated": "Your translation language is now **{language}**. Right-click or long-press any message, then Apps → Translate.",
+      "enabledSuccess": "Message translation is now **on** for **{tag}**. Members can right-click or long-press any message, then Apps → Translate to read it in their language. Everyone can pick a language with `/translation-language`.",
+      "disabledSuccess": "Message translation is now **off** for **{tag}**."
+    },
     "train": {
       "setTrainChannel": {
         "success": "Train announcements for **{tag}** will post in {channel}. Enable announcements in Alliance HQ settings, then officers can use `/set-conductor` and `/train-is-ready`."

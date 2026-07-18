@@ -11,6 +11,7 @@ import {
   discordMessageResponse,
   parseButtonCustomId,
   parseLinkSlashOptions,
+  parseResolvedTargetMessage,
   parseVrSlashLevel,
   verifyDiscordInteractionRequest,
 } from "@/lib/discord/interactions";
@@ -151,5 +152,51 @@ describe("discord interactions", () => {
     expect(discordMessageResponse("linked", undefined, { ephemeral: true }).data.flags).toBe(
       64,
     );
+  });
+});
+
+describe("parseResolvedTargetMessage", () => {
+  it("reads the target message from resolved.messages", () => {
+    expect(
+      parseResolvedTargetMessage({
+        type: 2,
+        data: {
+          name: "Translate",
+          type: 3,
+          target_id: "msg-1",
+          resolved: {
+            messages: {
+              "msg-1": { id: "msg-1", content: "olá", author: { id: "u1" } },
+            },
+          },
+        },
+      }),
+    ).toEqual({ id: "msg-1", content: "olá", authorIsBot: false });
+  });
+
+  it("flags bot-authored messages and tolerates missing content", () => {
+    expect(
+      parseResolvedTargetMessage({
+        type: 2,
+        data: {
+          name: "Translate",
+          type: 3,
+          target_id: "msg-2",
+          resolved: {
+            messages: { "msg-2": { author: { id: "bot", bot: true } } },
+          },
+        },
+      }),
+    ).toEqual({ id: "msg-2", content: "", authorIsBot: true });
+  });
+
+  it("returns null without a target or resolved entry", () => {
+    expect(parseResolvedTargetMessage({ type: 2, data: { name: "Translate" } })).toBeNull();
+    expect(
+      parseResolvedTargetMessage({
+        type: 2,
+        data: { name: "Translate", type: 3, target_id: "missing", resolved: {} },
+      }),
+    ).toBeNull();
   });
 });

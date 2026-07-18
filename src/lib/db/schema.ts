@@ -1296,6 +1296,8 @@ export const discordGuildAlliances = pgTable("discord_guild_alliances", {
   seasonalEventsChannelId: text("seasonal_events_channel_id"),
   regularEventsChannelId: text("regular_events_channel_id"),
   bankingChannelId: text("banking_channel_id"),
+  /** Message context-menu translation (Apps → Translate) for this guild. */
+  translationEnabled: boolean("translation_enabled").notNull().default(true),
   registeredAt: timestamp("registered_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -1329,10 +1331,31 @@ export const allianceAshedCredentials = pgTable("alliance_ashed_credentials", {
 export const discordUserPrefs = pgTable("discord_user_prefs", {
   discordUserId: text("discord_user_id").primaryKey(),
   locale: text("locale").notNull().default("en-US"),
+  /** Preferred target language for message translation (Google v2 code, e.g. `pt`). */
+  translationLanguage: text("translation_language"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
 });
+
+/** Short-lived cache for Apps → Translate so repeat lookups skip the provider. */
+export const discordMessageTranslations = pgTable(
+  "discord_message_translations",
+  {
+    messageId: text("message_id").notNull(),
+    targetLanguage: text("target_language").notNull(),
+    /** SHA-256 of the source content — invalidates the cache when a message is edited. */
+    contentHash: text("content_hash").notNull(),
+    translatedText: text("translated_text").notNull(),
+    detectedSourceLanguage: text("detected_source_language"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.messageId, table.targetLanguage] }),
+  ],
+);
 
 /** Short-lived one-time nonces for the /discord/authorize HQ web redirect. */
 export const discordAuthNonces = pgTable("discord_auth_nonces", {
@@ -1588,6 +1611,8 @@ export type DiscordBotAudit = typeof discordBotAudit.$inferSelect;
 export type DiscordGuildAlliance = typeof discordGuildAlliances.$inferSelect;
 export type AllianceAshedCredential = typeof allianceAshedCredentials.$inferSelect;
 export type DiscordUserPref = typeof discordUserPrefs.$inferSelect;
+export type DiscordMessageTranslation =
+  typeof discordMessageTranslations.$inferSelect;
 export type VideoJobSurvey = typeof videoJobSurveys.$inferSelect;
 
 /** Locally synced Ashed roster — normalized ranks for trains and Members UI. */
