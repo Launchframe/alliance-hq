@@ -528,7 +528,8 @@ async function upsertCommanderRow(input: {
   );
   // Level dual-write goes through commander_level_events so inbound conflict
   // policy can see the pre-sync HQ value.
-  const { memberLevel: _omitLevel, ...statsWithoutLevel } = stats;
+  const statsWithoutLevel = { ...stats };
+  delete statsWithoutLevel.memberLevel;
   const normalizedUid = input.gameUid ? normalizeGameUid(input.gameUid) : null;
 
   if (normalizedUid) {

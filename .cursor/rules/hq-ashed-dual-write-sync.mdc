@@ -1,9 +1,10 @@
 ---
-description: HQ↔Ashed dual-write / cross-sync for monotonic commander stats (THP, kills, ranks)
+description: HQ↔Ashed dual-write / cross-sync for monotonic commander stats (THP, kills, HQ level, ranks)
 globs:
   - src/lib/hq-ashed-stat-sync/**
   - src/lib/thp/**
   - src/lib/kills/**
+  - src/lib/member-level/**
   - src/lib/members/**/*
   - src/lib/trains/rank-sync.ts
 alwaysApply: false
@@ -11,16 +12,17 @@ alwaysApply: false
 
 # HQ ↔ Ashed dual-write sync
 
-Dual-written fields (rank, name, THP, kills) must converge. Neither service may silently clobber a newer value on the other.
+Dual-written fields (rank, name, THP, kills, **HQ/base level**) must converge. Neither service may silently clobber a newer value on the other.
 
 ## Rules
 
 1. **Recency wins** — Prefer recorded dates / event timestamps. After a successful peer write, stamp `ashed_synced_at` (or equivalent).
 2. **Monotonic fallbacks** — When timestamps are missing or tied:
    - **VR:** reject decreases within the active season.
-   - **THP / kills:** treat decreases as suspect stale — do not auto-apply; queue for officer review. Never auto-regress a protected HQ self-report (`web` / `discord` / `screenshot_ocr` / `video_parse`).
+   - **THP / kills / HQ level:** treat decreases as suspect stale — do not auto-apply; queue for officer review. Never auto-regress a protected HQ self-report (`web` / `discord` / `screenshot_ocr` / `video_parse`).
 3. **Officer review when ambiguous** — Keep HQ (local) vs Keep Ashed (remote) vs Discard junk HQ; requires an Ashed-connected officer for outbound PUT. Inbound conflicts (Ashed would regress protected HQ) are persisted in `hq_ashed_stat_sync_conflicts` and listed on `/stat-sync` with `ashedTotal` so Keep Ashed works.
-4. **Native alliances** — No Ashed PUT; HQ-local only.
-5. **Auth** — Ashed remains optional for login ([ashed-optional-auth](ashed-optional-auth.mdc)); dual-write only applies when the alliance is Ashed-linked and an officer has a session connection.
+4. **HQ level cap** — In-game max is 35. Clamp on write (`normalizeMemberHqLevel` / `clampMemberHqLevel`). Never blind-write `commanders.member_level` in `upsertCommanderRow`; always go through `syncCommanderLevel*` / `commander_level_events`. Over-cap Ashed inbound values clamp on HQ and leave `ashed_synced_at` null so Keep HQ can sanitize Ashed.
+5. **Native alliances** — No Ashed PUT; HQ-local only.
+6. **Auth** — Ashed remains optional for login ([ashed-optional-auth](ashed-optional-auth.mdc)); dual-write only applies when the alliance is Ashed-linked and an officer has a session connection.
 
-Shared implementation: [`src/lib/hq-ashed-stat-sync/`](../../src/lib/hq-ashed-stat-sync/). Rank pattern: [`rank-sync.ts`](../../src/lib/trains/rank-sync.ts).
+Shared implementation: [`src/lib/hq-ashed-stat-sync/`](../../src/lib/hq-ashed-stat-sync/) (THP / kills / level adapters). Level write path: [`src/lib/member-level/`](../../src/lib/member-level/). Rank pattern: [`rank-sync.ts`](../../src/lib/trains/rank-sync.ts).
