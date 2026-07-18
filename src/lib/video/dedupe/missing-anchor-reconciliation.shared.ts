@@ -82,7 +82,22 @@ export function reconcileMissingAnchorRows<T>(
     }
 
     if (matchedDestinations.length > 1) {
-      result.ambiguous.push({ group, matchedDestinations });
+      // Same commander can legitimately have several already-anchored rows
+      // (separate deposit cycles). Name similarity alone can't tell them
+      // apart, but field agreement (amount/term/alliance tag) often can —
+      // if exactly one candidate is compatible with this anchorless group,
+      // prefer it instead of giving up as ambiguous.
+      const compatibleDestinations = matchedDestinations.filter((dest) =>
+        opts.isCompatible([...group, dest]),
+      );
+      if (compatibleDestinations.length === 1) {
+        result.mergedIntoDestination.push({
+          destination: compatibleDestinations[0]!,
+          anchorlessRows: group,
+        });
+      } else {
+        result.ambiguous.push({ group, matchedDestinations });
+      }
       continue;
     }
 
