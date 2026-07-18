@@ -105,6 +105,7 @@ type SubmitBody = {
   boardKey?: string;
   commendationId?: string;
   bankId?: string;
+  vsPeriod?: "daily" | "weekly";
   rows: SubmitRow[];
 };
 
@@ -694,6 +695,12 @@ export async function POST(request: Request, { params }: Props) {
       hqEventId: body.hqEventId ?? job.hqEventId ?? undefined,
       boardKey: body.boardKey ?? job.boardKey ?? undefined,
       commendationId: body.commendationId ?? job.commendationId ?? undefined,
+      vsPeriod:
+        scoreTargetId === "vs-performance"
+          ? body.vsPeriod === "weekly"
+            ? "weekly"
+            : "daily"
+          : undefined,
     };
 
     // Resolve-or-create Ashed event (alliance + date). Prefer an existing event
@@ -720,12 +727,17 @@ export async function POST(request: Request, { params }: Props) {
 
     if (
       scoreTargetId === "vs-performance" &&
-      !isValidVsPerformanceRecordedDate(submitContext.recordedDate)
+      !isValidVsPerformanceRecordedDate(
+        submitContext.recordedDate,
+        submitContext.vsPeriod ?? "daily",
+      )
     ) {
       return NextResponse.json(
         {
           error:
-            "VS has no Sunday match day. Pick a Monday–Saturday recorded date.",
+            submitContext.vsPeriod === "weekly"
+              ? "Weekly VS totals use Sunday. Pick a Sunday recorded date."
+              : "VS has no Sunday match day. Pick a Monday–Saturday recorded date.",
         },
         { status: 400 },
       );
@@ -856,7 +868,12 @@ export async function POST(request: Request, { params }: Props) {
         });
         clearedPriorAshedScores = true;
       }
-      await dispatchScoreSubmit(connection, target, payloads);
+      await dispatchScoreSubmit(connection, target, payloads, {
+        submitContext,
+        allianceSizeAtRecord: (
+          await listAllianceMembers(allianceId)
+        ).length,
+      });
     };
     if (replaceScores) {
       await withAshedScoreReplaceLock(

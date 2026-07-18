@@ -30,6 +30,7 @@ export type VideoReviewDraftForm = {
   team: "A" | "B";
   recordedDate: string;
   bankId?: string;
+  vsPeriod?: "daily" | "weekly";
 };
 
 export type VideoReviewDraftV1 = VideoReviewDraftForm & {
@@ -97,6 +98,13 @@ export function parseVideoReviewDraft(raw: string): VideoReviewDraftV1 | null {
     if (draft.team !== "A" && draft.team !== "B") return null;
     if (typeof draft.recordedDate !== "string") return null;
     if (draft.bankId != null && typeof draft.bankId !== "string") return null;
+    if (
+      draft.vsPeriod != null &&
+      draft.vsPeriod !== "daily" &&
+      draft.vsPeriod !== "weekly"
+    ) {
+      return null;
+    }
     return draft;
   } catch {
     return null;

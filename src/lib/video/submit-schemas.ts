@@ -8,6 +8,8 @@ export type SubmitRowInput = {
   rank?: number | null;
 };
 
+export type VsScorePeriod = "daily" | "weekly";
+
 export type SubmitContext = {
   eventId?: string;
   team?: "A" | "B";
@@ -16,6 +18,8 @@ export type SubmitContext = {
   commendationId?: string;
   hqEventId?: string;
   bankId?: string;
+  /** VS Performance only: daily match-day scores vs Sunday weekly totals. */
+  vsPeriod?: VsScorePeriod;
 };
 
 export function buildSubmitPayloads(

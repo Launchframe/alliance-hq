@@ -24,10 +24,20 @@ export type VsPerformanceDayMeta = {
   vsDayKey: VsPerformanceDayKey;
 };
 
-/** Mon–Sat are VS match days; Sunday is never valid. */
-export function isValidVsPerformanceRecordedDate(recordedDate: string): boolean {
+/** Daily match days (Mon–Sat) vs weekly totals (Sunday upload). */
+export type VsScorePeriod = "daily" | "weekly";
+
+/** Mon–Sat are VS match days; Sunday is only valid for weekly totals. */
+export function isValidVsPerformanceRecordedDate(
+  recordedDate: string,
+  period: VsScorePeriod = "daily",
+): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(recordedDate.trim())) return false;
-  return getServerDayOfWeek(recordedDate.trim()) !== 0;
+  const dow = getServerDayOfWeek(recordedDate.trim());
+  if (period === "weekly") {
+    return dow === 0;
+  }
+  return dow !== 0;
 }
 
 /**
@@ -54,40 +64,43 @@ export function vsPerformanceDayMetaForDate(
   };
 }
 
-/** Nearest prior valid VS day (never Sunday). Same day when already valid. */
+/** Nearest prior valid date for the period. Same day when already valid. */
 export function nearestValidVsPerformanceDate(
   recordedDate: string,
+  period: VsScorePeriod = "daily",
 ): string {
   let cursor = recordedDate.trim().slice(0, 10);
   for (let i = 0; i < 7; i++) {
-    if (isValidVsPerformanceRecordedDate(cursor)) return cursor;
+    if (isValidVsPerformanceRecordedDate(cursor, period)) return cursor;
     cursor = addCalendarDays(cursor, -1);
   }
   return cursor;
 }
 
 /**
- * Recent Mon–Sat dates for the VS recorded-date selector (newest first).
- * Always includes `includeDate` when it is a valid VS day.
+ * Recent dates for the VS recorded-date selector (newest first).
+ * Daily: Mon–Sat. Weekly: Sundays only (HQ assumes weekly totals upload on Sunday).
  */
 export function listRecentVsPerformanceDates(options?: {
   now?: Date;
   daysBack?: number;
   includeDate?: string | null;
+  period?: VsScorePeriod;
 }): string[] {
+  const period = options?.period ?? "daily";
   const daysBack = options?.daysBack ?? 28;
   const today = getServerCalendarDate(options?.now);
   const dates: string[] = [];
   for (let i = 0; i <= daysBack; i++) {
     const date = addCalendarDays(today, -i);
-    if (isValidVsPerformanceRecordedDate(date)) {
+    if (isValidVsPerformanceRecordedDate(date, period)) {
       dates.push(date);
     }
   }
   const include = options?.includeDate?.trim().slice(0, 10);
   if (
     include &&
-    isValidVsPerformanceRecordedDate(include) &&
+    isValidVsPerformanceRecordedDate(include, period) &&
     !dates.includes(include)
   ) {
     dates.push(include);
