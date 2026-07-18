@@ -778,6 +778,13 @@
       "when": 1789686400000,
       "tag": "0113_train_channel_setter_min_rank",
       "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1789527600000,
+      "tag": "0114_commander_store_donations",
+      "breakpoints": true
     }
   ]
 }

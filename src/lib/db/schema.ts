@@ -3374,3 +3374,69 @@ export const bankDepositProjections = pgTable(
 );
 
 export type BankDepositProjection = typeof bankDepositProjections.$inferSelect;
+
+/** Self-reported Last War store gold-brick gift receipts (prize spend ledger). */
+export const commanderStoreDonationReceipts = pgTable(
+  "commander_store_donation_receipts",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    donorHqUserId: text("donor_hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    recipientAshedMemberId: text("recipient_ashed_member_id").notNull(),
+    recipientDisplayName: text("recipient_display_name"),
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull().default("USD"),
+    purchasedAt: timestamp("purchased_at", { withTimezone: true }).notNull(),
+    note: text("note"),
+    tipLinkId: text("tip_link_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("csdr_alliance_purchased_idx").on(table.allianceId, table.purchasedAt),
+    index("csdr_alliance_donor_purchased_idx").on(
+      table.allianceId,
+      table.donorHqUserId,
+      table.purchasedAt,
+    ),
+  ],
+);
+
+/** Shareable tip-jar short codes → Last War store launch for the owner commander. */
+export const commanderStoreTipLinks = pgTable(
+  "commander_store_tip_links",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    ownerHqUserId: text("owner_hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    codeHint: text("code_hint").notNull(),
+    displayNameSnapshot: text("display_name_snapshot"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("cstl_code_unique").on(table.code),
+    index("cstl_alliance_member_idx").on(table.allianceId, table.ashedMemberId),
+  ],
+);
+
+export type CommanderStoreDonationReceipt =
+  typeof commanderStoreDonationReceipts.$inferSelect;
+export type CommanderStoreTipLink = typeof commanderStoreTipLinks.$inferSelect;

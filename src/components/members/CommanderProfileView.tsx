@@ -20,6 +20,8 @@ import {
   type MainSquadType,
 } from "@/lib/commanders/main-squad.shared";
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
+import { CommanderStoreDonationSection } from "@/components/members/CommanderStoreDonationSection";
+import { CommanderTipJarCard } from "@/components/members/CommanderTipJarCard";
 
 type Props = {
   initial: CommanderProfilePayload;
@@ -122,6 +124,12 @@ export function CommanderProfileView({ initial }: Props) {
           {t("backToMembers")}
         </Link>
       </div>
+
+      <CommanderStoreDonationSection
+        ashedMemberId={member.ashedMemberId}
+        canGift={member.canGiftStoreBricks}
+      />
+      {member.canManageTipJar ? <CommanderTipJarCard /> : null}
 
       <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
         <div className="mb-5 flex items-center gap-4">

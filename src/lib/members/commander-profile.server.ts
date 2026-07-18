@@ -27,6 +27,7 @@ import {
 } from "@/lib/members/member-discipline.server";
 import { getAshedConnection } from "@/lib/session";
 import { viewerCanEditMainSquad } from "@/lib/commanders/main-squad.server";
+import { sessionCanGiftStoreBricks } from "@/lib/members/commander-donation.server";
 
 export type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
 
@@ -376,6 +377,9 @@ export async function loadCommanderProfile(
     allianceId,
     ashedMemberId,
   });
+  const canGift = await sessionCanGiftStoreBricks(sessionId, allianceId);
+  const canGiftStoreBricks = canGift && !viewerIsOwner;
+  const canManageTipJar = canGift && viewerIsOwner && Boolean(gameUid);
 
   return {
     member: {
@@ -395,6 +399,8 @@ export async function loadCommanderProfile(
       canOfficerOverrideMainSquad,
       viewerCanIssueClaimInvite: canOfficerOverrideMainSquad,
       viewerCanBreakGlassUnlink,
+      canGiftStoreBricks,
+      canManageTipJar,
       gameUid: viewerIsOwner ? gameUid : null,
     },
     alliance,

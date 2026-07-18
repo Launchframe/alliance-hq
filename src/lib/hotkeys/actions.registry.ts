@@ -59,6 +59,15 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     href: "/donations",
   },
   {
+    id: "nav.storeSpend",
+    labelKey: "actions.nav.storeSpend",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/donations/store-spend",
+    requiredPermission: "members:write",
+  },
+  {
     id: "nav.allianceExercise",
     labelKey: "actions.nav.allianceExercise",
     category: "navigation",
