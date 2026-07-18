@@ -140,8 +140,8 @@ export function LinkedDevicesSettings({ refreshToken = 0 }: Props) {
       }
       setRevokeTarget(null);
       if (data.revokedCurrentSession) {
-        stashConnectReturnPath("/account");
-        pushAndRefresh(buildConnectHref("/account"), "signOut");
+        stashConnectReturnPath("/settings/link-device");
+        pushAndRefresh(buildConnectHref("/settings/link-device"), "signOut");
         return;
       }
       setMessage(t("revoked"));

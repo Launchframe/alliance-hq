@@ -75,6 +75,8 @@ type Props = {
   skipWalkthroughToPaste?: boolean;
   /** Returning reconnect with a phone already linked — skip optional link-phone step. */
   skipLinkPhoneStep?: boolean;
+  /** HQ account has linked Ashed before — show multi-device reconnect warning. */
+  previouslyLinkedAshed?: boolean;
   /** Internal path after a successful connect (defaults to `/`). */
   returnTo?: string;
   /** Alternate POST target (e.g. Discord setup / authorize recovery). */
@@ -89,6 +91,7 @@ export function ConnectionWalkthrough({
   onConnected,
   skipWalkthroughToPaste = false,
   skipLinkPhoneStep = false,
+  previouslyLinkedAshed = false,
   returnTo,
   connectApiUrl,
   connectApiExtraBody,
@@ -630,7 +633,7 @@ export function ConnectionWalkthrough({
               {t.rich("steps.linkPhone.skippedBody", {
                 settingsLink: (chunks) => (
                   <Link
-                    href="/account"
+                    href="/settings/link-device"
                     className="text-hq-accent hover:underline"
                   >
                     {chunks}
@@ -659,6 +662,25 @@ export function ConnectionWalkthrough({
             ? t("setupComplete.body")
             : t.rich("subtitle", { link: ashedLink })}
         </p>
+        {previouslyLinkedAshed && !isPasteSuccess ? (
+          <div className="mt-4 rounded-lg border border-[#d29922]/40 bg-[#d29922]/10 px-4 py-3">
+            <p className="font-medium text-[#e3b341]">
+              {t("multiDeviceWarning.title")}
+            </p>
+            <p className="mt-2 text-sm text-hq-fg-muted">
+              {t.rich("multiDeviceWarning.body", {
+                link: (chunks) => (
+                  <Link
+                    href="/settings/link-device"
+                    className="font-medium text-hq-accent hover:underline"
+                  >
+                    {chunks}
+                  </Link>
+                ),
+              })}
+            </p>
+          </div>
+        ) : null}
       </header>
 
       <ol className="mb-4 flex flex-wrap gap-2" aria-label={t("progressLabel")}>
