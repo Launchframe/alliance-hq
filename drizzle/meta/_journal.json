@@ -799,6 +799,13 @@
       "when": 1789950000000,
       "tag": "0116_member_time_off",
       "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1790036400000,
+      "tag": "0117_discord_translation",
+      "breakpoints": true
     }
   ]
 }
