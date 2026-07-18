@@ -1391,6 +1391,21 @@
       "signingOut": "Signing out…",
       "unknownUser": "HQ user",
       "unknownEmail": "No email on file"
+    },
+    "ashedStatus": {
+      "label": "Ashed",
+      "ariaConnected": "Ashed connection status: connected",
+      "ariaDisconnected": "Ashed connection status: disconnected — reconnect",
+      "titleConnected": "Connected to Ashed",
+      "titleDisconnected": "Not connected — paste JWT",
+      "connectedHeading": "Connected",
+      "connectedSince": "Connected since",
+      "requestsThisSession": "Ashed requests this session",
+      "disconnect": "Disconnect",
+      "reconnectHeading": "Reconnect to Ashed",
+      "reconnectHint": "Paste a JWT (or Bearer token). HQ connects automatically when the token is valid — no button to click.",
+      "jwtLabel": "Ashed JWT",
+      "jwtPlaceholder": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…"
     }
   },
   "shellActivity": {

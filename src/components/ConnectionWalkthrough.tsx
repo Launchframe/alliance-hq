@@ -51,6 +51,7 @@ import {
   readStashedConnectReturnPath,
   resolveConnectReturnPath,
 } from "@/lib/connect/connect-return-path.shared";
+import { startAshedConnectionSession } from "@/lib/connect/connection-session-stats.shared";
 import {
   markConnectWalkthroughSeen,
   readConnectWalkthroughSeen,
@@ -381,6 +382,7 @@ export function ConnectionWalkthrough({
 
       if (useAlternateConnect && data.ok) {
         markConnectWalkthroughSeen();
+        startAshedConnectionSession();
         onConnectApiSuccess?.(data);
         onConnected?.(parsed.connection);
         return;
@@ -388,6 +390,7 @@ export function ConnectionWalkthrough({
 
       if (data.ashed && data.userLabel) {
         markConnectWalkthroughSeen();
+        startAshedConnectionSession();
         onConnected?.(parsed.connection);
         if (skipLinkPhoneStep) {
           navigatingAway = true;
@@ -404,6 +407,7 @@ export function ConnectionWalkthrough({
 
       onConnected?.(parsed.connection);
       markConnectWalkthroughSeen();
+      startAshedConnectionSession();
       navigatingAway = true;
       continueToApp();
     } catch (e) {
@@ -547,6 +551,14 @@ export function ConnectionWalkthrough({
                 className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 font-mono text-sm"
               />
             </label>
+            {/* Desktop: Connect under paste so preview expansion doesn't shift the CTA */}
+            <button
+              type="submit"
+              disabled={connecting || !canConnect}
+              className="hidden w-full rounded-lg border border-hq-success bg-hq-success px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50 sm:block"
+            >
+              {connecting ? tc("connecting") : tc("connect")}
+            </button>
             {showAlliancePicker ? (
               <AlliancePicker
                 alliances={alliancesForUi}
@@ -682,7 +694,7 @@ export function ConnectionWalkthrough({
 
       {isPasteStep && !isPasteSuccess ? (
         <form
-          className="rounded-xl border border-hq-border bg-hq-surface p-5"
+          className="rounded-xl border border-hq-border bg-hq-surface p-5 max-sm:mb-24"
           onSubmit={(event) => {
             preventDefaultFormSubmit(event);
             void connect();
@@ -720,10 +732,18 @@ export function ConnectionWalkthrough({
             >
               {tc("back")}
             </button>
+          </div>
+
+          {/* Mobile: screen-width sticky Connect FAB */}
+          <div
+            className="fixed inset-x-0 bottom-0 z-40 border-t border-hq-border bg-hq-canvas/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] backdrop-blur sm:hidden"
+            role="region"
+            aria-label={tc("connect")}
+          >
             <button
               type="submit"
               disabled={connecting || !canConnect}
-              className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
+              className="w-full rounded-lg border border-hq-success bg-hq-success px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
             >
               {connecting ? tc("connecting") : tc("connect")}
             </button>

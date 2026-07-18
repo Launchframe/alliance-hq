@@ -13,6 +13,7 @@ import {
   subscribeAshedShellConnectDismissed,
 } from "@/lib/connect/ashed-shell-prompts.shared";
 import { AllianceSetupGuideDashboardBanner } from "@/components/ashed-shell/AllianceSetupGuideDashboardBanner";
+import { AshedConnectionStatus } from "@/components/ashed-shell/AshedConnectionStatus";
 import { OpsInboxBell } from "@/components/ashed-shell/OpsInboxBell";
 import { ReminderInboxBell } from "@/components/ashed-shell/ReminderInboxBell";
 import { AdminSequenceOverlay } from "@/components/hotkeys/AdminSequenceOverlay";
@@ -237,6 +238,11 @@ export function AshedShell({
 
               {hasAppAccess ? (
                 <div className="flex shrink-0 items-center gap-2">
+                  <AshedConnectionStatus
+                    isConnected={isConnected}
+                    isAshedConnectAllowed={isAshedConnectAllowed}
+                    userLabel={userLabel}
+                  />
                   <HotkeyKeyboardButton />
                   {sessionPermissions.includes("inbox:read") ? (
                     <ReminderInboxBell />
