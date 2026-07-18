@@ -626,12 +626,22 @@ async function handleSlashCommand(
           return;
         }
 
-        await editDiscordOriginalInteractionWithFiles({
+        const uploaded = await editDiscordOriginalInteractionWithFiles({
           applicationId,
           interactionToken: token,
           content: result.content,
           files: result.files,
         });
+        if (!uploaded) {
+          console.error(
+            "[discord-bot] chart multipart edit failed; falling back to text caption",
+          );
+          await editDiscordOriginalInteraction({
+            applicationId,
+            interactionToken: token,
+            content: result.content,
+          });
+        }
       } catch (error) {
         console.error("[discord-bot] deferred chart render failed", error);
         await editDiscordOriginalInteraction({

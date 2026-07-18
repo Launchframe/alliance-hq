@@ -15,14 +15,13 @@ import {
   renderThpHistoryChartPng,
   renderVrProgressChartPng,
 } from "@/lib/charts/render-chart-png.server";
-import { ensureDiscordMemberLinksFromHq } from "@/lib/member-link/inherit-hq-to-discord.server";
 import { effectiveBaseVr } from "@/lib/vr/effective-vr.shared";
 import { instituteLevelForBaseVr } from "@/lib/vr/institute-levels.shared";
+import { listDiscordLinksForStatusQuery } from "@/lib/vr/bot-member-links.server";
 import { loadVrProgressChartPayload } from "@/lib/vr/load-progress-chart";
 import {
   getCommanderByAshedMemberId,
   getMemberSeasonHigh,
-  listDiscordLinksForUser,
   resolveSeasonKey,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
@@ -34,15 +33,6 @@ export type ChartQueryResult =
       files: Array<{ filename: string; bytes: Buffer; contentType: string }>;
     }
   | { ok: false; content: string };
-
-async function listLinksForQuery(allianceId: string, discordUserId: string) {
-  let links = await listDiscordLinksForUser(allianceId, discordUserId);
-  if (links.length === 0) {
-    await ensureDiscordMemberLinksFromHq({ discordUserId, allianceId });
-    links = await listDiscordLinksForUser(allianceId, discordUserId);
-  }
-  return links;
-}
 
 async function auditChart(
   allianceId: string,
@@ -82,7 +72,10 @@ export async function handleDiscordWhatIsMyVrChart(input: {
   locale: DiscordBotLocale;
 }): Promise<ChartQueryResult> {
   const t = createDiscordTranslator(input.locale);
-  const links = await listLinksForQuery(input.allianceId, input.discordUserId);
+  const links = await listDiscordLinksForStatusQuery(
+    input.allianceId,
+    input.discordUserId,
+  );
   if (links.length === 0) {
     const result = { ok: false as const, content: t("chart.vrNotLinked") };
     await auditChart(input.allianceId, input.discordUserId, "what_is_my_vr_chart", result);
@@ -164,7 +157,10 @@ export async function handleDiscordWhatIsMyThpChart(input: {
   locale: DiscordBotLocale;
 }): Promise<ChartQueryResult> {
   const t = createDiscordTranslator(input.locale);
-  const links = await listLinksForQuery(input.allianceId, input.discordUserId);
+  const links = await listDiscordLinksForStatusQuery(
+    input.allianceId,
+    input.discordUserId,
+  );
   if (links.length === 0) {
     const result = { ok: false as const, content: t("chart.thpNotLinked") };
     await auditChart(input.allianceId, input.discordUserId, "what_is_my_thp_chart", result);

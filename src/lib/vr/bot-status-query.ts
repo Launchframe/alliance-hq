@@ -6,25 +6,15 @@ import { getCommanderKillsState } from "@/lib/kills/repository";
 import { getCommanderThpState, getCommanderIdForMember } from "@/lib/thp/repository";
 import { effectiveBaseVr } from "@/lib/vr/effective-vr.shared";
 import { instituteLevelForBaseVr } from "@/lib/vr/institute-levels.shared";
-import { ensureDiscordMemberLinksFromHq } from "@/lib/member-link/inherit-hq-to-discord.server";
+import { listDiscordLinksForStatusQuery } from "@/lib/vr/bot-member-links.server";
 import {
   getCommanderByAshedMemberId,
   getMemberSeasonHigh,
-  listDiscordLinksForUser,
   resolveSeasonKey,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
 
 export type StatusQueryReply = { reply: string };
-
-async function listLinksForQuery(allianceId: string, discordUserId: string) {
-  let links = await listDiscordLinksForUser(allianceId, discordUserId);
-  if (links.length === 0) {
-    await ensureDiscordMemberLinksFromHq({ discordUserId, allianceId });
-    links = await listDiscordLinksForUser(allianceId, discordUserId);
-  }
-  return links;
-}
 
 async function auditQuery(
   allianceId: string,
@@ -52,7 +42,10 @@ export async function handleDiscordWhatIsMyVr(input: {
   locale: DiscordBotLocale;
 }): Promise<StatusQueryReply> {
   const t = createDiscordTranslator(input.locale);
-  const links = await listLinksForQuery(input.allianceId, input.discordUserId);
+  const links = await listDiscordLinksForStatusQuery(
+    input.allianceId,
+    input.discordUserId,
+  );
   if (links.length === 0) {
     const reply = { reply: t("query.vrNotLinked") };
     await auditQuery(input.allianceId, input.discordUserId, "what_is_my_vr", reply);
@@ -105,7 +98,10 @@ export async function handleDiscordWhatIsMyThp(input: {
   locale: DiscordBotLocale;
 }): Promise<StatusQueryReply> {
   const t = createDiscordTranslator(input.locale);
-  const links = await listLinksForQuery(input.allianceId, input.discordUserId);
+  const links = await listDiscordLinksForStatusQuery(
+    input.allianceId,
+    input.discordUserId,
+  );
   if (links.length === 0) {
     const reply = { reply: t("query.thpNotLinked") };
     await auditQuery(input.allianceId, input.discordUserId, "what_is_my_thp", reply);
@@ -155,7 +151,10 @@ export async function handleDiscordWhatIsMyKills(input: {
   locale: DiscordBotLocale;
 }): Promise<StatusQueryReply> {
   const t = createDiscordTranslator(input.locale);
-  const links = await listLinksForQuery(input.allianceId, input.discordUserId);
+  const links = await listDiscordLinksForStatusQuery(
+    input.allianceId,
+    input.discordUserId,
+  );
   if (links.length === 0) {
     const reply = { reply: t("query.killsNotLinked") };
     await auditQuery(input.allianceId, input.discordUserId, "what_is_my_kills", reply);
