@@ -5,6 +5,7 @@ import {
   getServerCalendarDate,
   getServerDayOfWeek,
 } from "@/lib/trains/game-time";
+import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
 
 export type VideoUploadCoverageTarget = {
   id: string;
@@ -16,20 +17,37 @@ export type VideoUploadCoverageTarget = {
 };
 
 const CORE_TARGETS = [
-  { id: "vs-performance", labelKey: "vsPerformance", uploadHref: "/tools/video-upload?target=vs-performance" },
-  { id: "donations", labelKey: "donations", uploadHref: "/tools/video-upload?target=donations" },
+  {
+    id: "vs-performance",
+    labelKey: "vsPerformance",
+    uploadHref: buildVideoUploadHref("vs-performance"),
+  },
+  {
+    id: "donations",
+    labelKey: "donations",
+    uploadHref: buildVideoUploadHref("donations"),
+  },
   {
     id: "alliance-exercise",
     labelKey: "allianceExercise",
-    uploadHref: "/tools/video-upload?target=alliance-exercise",
+    uploadHref: buildVideoUploadHref("alliance-exercise"),
   },
-  { id: "zombie-siege", labelKey: "zombieSiege", uploadHref: "/tools/video-upload?target=zombie-siege" },
+  {
+    id: "zombie-siege",
+    labelKey: "zombieSiege",
+    uploadHref: buildVideoUploadHref("zombie-siege"),
+  },
+  {
+    id: "alliance-kills-video",
+    labelKey: "allianceKillsVideo",
+    uploadHref: buildVideoUploadHref("alliance-kills-video"),
+  },
 ] as const;
 
 const WEEKEND_EVENT_TARGET = {
   id: "weekend-event",
   labelKey: "weekendEvent",
-  uploadHref: "/tools/video-upload?target=vs-performance",
+  uploadHref: buildVideoUploadHref("vs-performance"),
 } as const;
 
 export function resolveVsPerformanceLookbackHours(today = getServerCalendarDate()): number {
