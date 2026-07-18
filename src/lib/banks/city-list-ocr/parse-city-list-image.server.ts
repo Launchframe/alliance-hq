@@ -6,6 +6,7 @@ import {
 } from "@/lib/banks/city-list-ocr/city-list-dedupe.shared";
 import {
   parseCityListText,
+  type CityListOcrLineInput,
   type ParsedCityListSnapshot,
 } from "@/lib/banks/city-list-ocr/parse-city-list-text.shared";
 import {
@@ -32,9 +33,19 @@ export type ParseCityListImageResult = ParsedCityListSnapshot & {
   durationMs: number;
 };
 
-async function ocrLinesFromBuffer(buffer: Buffer): Promise<string[]> {
+async function ocrLinesFromBuffer(
+  buffer: Buffer,
+): Promise<CityListOcrLineInput[]> {
   const ocrLines = await runTesseract(buffer, CITY_LIST_OCR_CONFIG);
-  return ocrLines.map((line) => line.text);
+  return ocrLines.map((line) =>
+    line.words && line.words.length > 0
+      ? { text: line.text, words: line.words }
+      : line.text,
+  );
+}
+
+function lineInputText(line: CityListOcrLineInput): string {
+  return typeof line === "string" ? line : line.text;
 }
 
 /**
@@ -55,7 +66,7 @@ export async function parseCityListImage(
   if (!shouldRunCityListGreenOcrPass(primaryParsed)) {
     return {
       ...primaryParsed,
-      rawLines: primaryLines,
+      rawLines: primaryLines.map(lineInputText),
       durationMs: Date.now() - t0,
     };
   }
@@ -66,8 +77,10 @@ export async function parseCityListImage(
 
   const snapshot = mergeCityListOcrPasses(primaryParsed, greenParsed);
   const rawLines = [
-    ...primaryLines,
-    ...(greenLines.length > 0 ? ["--- green-pass ---", ...greenLines] : []),
+    ...primaryLines.map(lineInputText),
+    ...(greenLines.length > 0
+      ? ["--- green-pass ---", ...greenLines.map(lineInputText)]
+      : []),
   ];
 
   return {
