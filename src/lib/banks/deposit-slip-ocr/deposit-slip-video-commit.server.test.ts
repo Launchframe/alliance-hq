@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createDepositSlip = vi.hoisted(() => vi.fn());
+const listDepositSlipsForBank = vi.hoisted(() => vi.fn());
 const selectLimit = vi.hoisted(() => vi.fn());
 const selectWhereRows = vi.hoisted(() => vi.fn());
 const resolveDepositSlipMemberLinks = vi.hoisted(() => vi.fn());
@@ -8,6 +9,7 @@ const createDepositSlipMemberResolverCache = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/banks/repository.server", () => ({
   createDepositSlip,
+  listDepositSlipsForBank,
 }));
 
 vi.mock(
@@ -49,6 +51,7 @@ describe("commitDepositSlipsFromVideoJob", () => {
     vi.clearAllMocks();
     selectLimit.mockResolvedValue([{ id: "bank-1" }]);
     selectWhereRows.mockReturnValue([]);
+    listDepositSlipsForBank.mockResolvedValue([]);
     createDepositSlip.mockResolvedValue({ id: "slip-1" });
     createDepositSlipMemberResolverCache.mockReturnValue({});
     resolveDepositSlipMemberLinks.mockResolvedValue({
@@ -424,5 +427,93 @@ describe("commitDepositSlipsFromVideoJob", () => {
         status: "matured",
       }),
     );
+  });
+
+  it("skips high-confidence duplicates already stored for the bank", async () => {
+    listDepositSlipsForBank.mockResolvedValue([
+      {
+        commanderName: "Blue Investor",
+        depositAt: new Date("2026-07-10T12:14:34.000Z"),
+        amount: 6000,
+        termDays: 3,
+        depositAllianceTag: "Roar",
+      },
+    ]);
+
+    const result = await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-dup",
+          ocrName: "Blue Investor",
+          score: "6000",
+          powerLevel: "2026-07-10T12:16:00.000Z",
+          memberLevel: 3,
+          profession: "locked",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: null,
+          frameIndex: 0,
+          deleted: false,
+        },
+        {
+          id: "row-new",
+          ocrName: "Fresh Investor",
+          score: "6000",
+          powerLevel: "2026-07-11T10:00:00.000Z",
+          memberLevel: 1,
+          profession: "locked",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: null,
+          frameIndex: 1,
+          deleted: false,
+        },
+      ],
+    });
+
+    expect(result.createdCount).toBe(1);
+    expect(result.skippedDuplicateCount).toBe(1);
+    expect(createDepositSlip).toHaveBeenCalledTimes(1);
+    expect(createDepositSlip).toHaveBeenCalledWith(
+      "alliance-a",
+      expect.objectContaining({ commanderName: "Fresh Investor" }),
+    );
+  });
+
+  it("succeeds when every valid row was already in history", async () => {
+    listDepositSlipsForBank.mockResolvedValue([
+      {
+        commanderName: "Blue Investor",
+        depositAt: "2026-07-10T12:14:34.000Z",
+        amount: 6000,
+        termDays: 3,
+        depositAllianceTag: "Roar",
+      },
+    ]);
+
+    const result = await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-dup",
+          ocrName: "Blue Investor",
+          score: "6000",
+          powerLevel: "2026-07-10T12:14:34.000Z",
+          memberLevel: 3,
+          profession: "locked",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: null,
+          frameIndex: 0,
+          deleted: false,
+        },
+      ],
+    });
+
+    expect(result.createdCount).toBe(0);
+    expect(result.skippedDuplicateCount).toBe(1);
+    expect(createDepositSlip).not.toHaveBeenCalled();
   });
 });

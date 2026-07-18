@@ -1417,6 +1417,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         code?: string;
         connectUrl?: string;
         submitted?: number;
+        createdCount?: number;
+        skippedDuplicateCount?: number;
         duplicateMembers?: Array<{ memberName: string }>;
         showSolicitedFeedback?: boolean;
         solicitedSource?: "solicited_first_upload" | "solicited_third_upload";
@@ -1441,7 +1443,18 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           : scoreTargetMeta?.showRosterColumns
             ? t("rosterSubmitSuccess", { count: data.submitted ?? 0 })
             : scoreTargetMeta?.showDepositSlipColumns
-              ? t("depositSlipSubmitSuccess", { count: data.submitted ?? 0 })
+              ? [
+                  t("depositSlipSubmitAdded", {
+                    count: data.createdCount ?? data.submitted ?? 0,
+                  }),
+                  (data.skippedDuplicateCount ?? 0) > 0
+                    ? t("depositSlipSubmitSkippedDuplicates", {
+                        count: data.skippedDuplicateCount ?? 0,
+                      })
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" ")
               : isAllianceKillsTarget
                 ? t("killsSubmitSuccess", { count: data.submitted ?? 0 })
                 : t("submitSuccess", { count: data.submitted ?? 0 }),

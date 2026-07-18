@@ -4,13 +4,17 @@ import { and, eq } from "drizzle-orm";
 
 import type { DepositSlipPayload } from "@/lib/banks/api.shared";
 import { validateDepositSlipPayload } from "@/lib/banks/api.shared";
+import { findHighConfidenceHistoricalDepositMatch } from "@/lib/banks/deposit-slip-ocr/deposit-slip-history-match.shared";
 import { isDepositSlipAutoLinkedMatchMethod } from "@/lib/banks/deposit-slip-ocr/deposit-slip-member-match.shared";
 import { parsedRowFieldsToDepositSlipDraft } from "@/lib/banks/deposit-slip-ocr/draft-row.shared";
 import {
   createDepositSlipMemberResolverCache,
   resolveDepositSlipMemberLinks,
 } from "@/lib/banks/deposit-slip-ocr/resolve-deposit-slip-member.server";
-import { createDepositSlip } from "@/lib/banks/repository.server";
+import {
+  createDepositSlip,
+  listDepositSlipsForBank,
+} from "@/lib/banks/repository.server";
 import { getDb, schema } from "@/lib/db";
 
 export type DepositSlipVideoCommitRow = {
@@ -40,7 +44,10 @@ export type CommitDepositSlipsFromVideoJobInput = {
 
 export type CommitDepositSlipsFromVideoJobResult = {
   createdCount: number;
+  /** Incomplete / invalid rows (not history duplicates). */
   skippedCount: number;
+  /** High-confidence matches against slips already stored for this bank. */
+  skippedDuplicateCount: number;
   errors: string[];
 };
 
@@ -130,8 +137,24 @@ export async function commitDepositSlipsFromVideoJob(
     }));
   }
 
+  const existingSlips = await listDepositSlipsForBank(
+    input.allianceId,
+    input.bankId,
+  );
+  const history = existingSlips.map((slip) => ({
+    commanderName: slip.commanderName,
+    depositAt:
+      slip.depositAt instanceof Date
+        ? slip.depositAt.toISOString()
+        : String(slip.depositAt),
+    amount: slip.amount,
+    termDays: slip.termDays,
+    depositAllianceTag: slip.depositAllianceTag,
+  }));
+
   let createdCount = 0;
   let skippedCount = 0;
+  let skippedDuplicateCount = 0;
   const errors: string[] = [];
 
   // Share one alliance-tag fetch and one roster fetch per alliance across the
@@ -159,6 +182,18 @@ export async function commitDepositSlipsFromVideoJob(
       errors.push(
         `Row ${row.id}: missing commander, amount, deposit time, or term.`,
       );
+      continue;
+    }
+
+    const incoming = {
+      commanderName: draft.identity.commanderName,
+      depositAt: draft.depositAt,
+      amount: draft.amount,
+      termDays: draft.termDays,
+      depositAllianceTag: draft.identity.allianceTag,
+    };
+    if (findHighConfidenceHistoricalDepositMatch(incoming, history)) {
+      skippedDuplicateCount += 1;
       continue;
     }
 
@@ -206,13 +241,16 @@ export async function commitDepositSlipsFromVideoJob(
 
     await createDepositSlip(input.allianceId, payload);
     createdCount += 1;
+    // Later rows in this same commit must see the slip we just wrote so a
+    // duplicate OCR survivor in one video does not insert twice.
+    history.push(incoming);
   }
 
-  if (createdCount === 0) {
+  if (createdCount === 0 && skippedDuplicateCount === 0) {
     throw new Error(
       errors[0] ?? "No valid deposit slips to commit.",
     );
   }
 
-  return { createdCount, skippedCount, errors };
+  return { createdCount, skippedCount, skippedDuplicateCount, errors };
 }

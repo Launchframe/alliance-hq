@@ -634,13 +634,17 @@ export async function POST(request: Request, { params }: Props) {
           bankId,
           createdCount: result.createdCount,
           skippedCount: result.skippedCount,
+          skippedDuplicateCount: result.skippedDuplicateCount,
         },
       });
 
       return NextResponse.json({
         ok: true,
         submitted: result.createdCount,
-        ...result,
+        createdCount: result.createdCount,
+        skippedCount: result.skippedCount,
+        skippedDuplicateCount: result.skippedDuplicateCount,
+        errors: result.errors,
         showSolicitedFeedback: false,
         completedUploadCount: 0,
       });
