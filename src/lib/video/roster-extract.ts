@@ -3,6 +3,7 @@ import type {
   AshedMemberRecord,
   RosterVideoOcrMember,
 } from "@/lib/members/ashed-member-record";
+import { normalizeMemberHqLevel } from "@/lib/members/member-level.shared";
 import { unwrapOcrPayload } from "@/lib/video/normalize-rows";
 
 export type ExtractedRosterMember = {
@@ -78,15 +79,8 @@ export function parsePowerLevelString(
 }
 
 function normalizeMemberLevel(value: unknown): number | null {
-  let level: number | undefined;
-  if (typeof value === "number" && Number.isFinite(value)) {
-    level = Math.round(value);
-  } else if (typeof value === "string" && value.trim() && !isJunkOcrString(value)) {
-    const parsed = Number(value.trim());
-    if (Number.isFinite(parsed)) level = Math.round(parsed);
-  }
-  if (level == null || level < 1) return null;
-  return level;
+  if (typeof value === "string" && isJunkOcrString(value)) return null;
+  return normalizeMemberHqLevel(value);
 }
 
 function parseOcrLevel(value: unknown): number | undefined {

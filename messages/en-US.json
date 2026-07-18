@@ -5248,10 +5248,11 @@
   },
   "statSync": {
     "title": "HQ ↔ Ashed sync",
-    "subtitle": "Resolve pending THP and kills reports that need to be pushed to Ashed, or keep Ashed when HQ is wrong.",
+    "subtitle": "Resolve pending THP, kills, and HQ-level reports that need to be pushed to Ashed, or keep Ashed when HQ is wrong.",
     "tabs": {
       "thp": "THP",
-      "kills": "Kills"
+      "kills": "Kills",
+      "level": "HQ level"
     },
     "empty": "No pending sync items for this stat.",
     "loadFailed": "Failed to load sync review.",

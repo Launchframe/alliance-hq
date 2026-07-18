@@ -14,6 +14,7 @@ import {
   validateRosterRankQuota,
 } from "@/lib/members/roster-rank-quota.shared";
 import { parsePowerLevelString } from "@/lib/video/roster-extract";
+import { normalizeMemberHqLevel } from "@/lib/members/member-level.shared";
 
 export type CommitRosterFromVideoInput = {
   allianceId: string;
@@ -23,11 +24,6 @@ export type CommitRosterFromVideoInput = {
   markAbsentInactive?: boolean;
   ashedConnection?: ParsedConnection | null;
 };
-
-function normalizeMemberLevel(value: number | null): number | null {
-  if (value == null || value < 1) return null;
-  return Math.round(value);
-}
 
 export async function commitRosterFromVideoJob(
   input: CommitRosterFromVideoInput,
@@ -54,7 +50,7 @@ export async function commitRosterFromVideoJob(
         allianceRank,
         allianceRankTitle: null,
         powerLevel: powerLevel ?? row.powerLevel,
-        memberLevel: normalizeMemberLevel(row.memberLevel),
+        memberLevel: normalizeMemberHqLevel(row.memberLevel),
         profession: row.profession,
         status: "active" as const,
       };

@@ -73,7 +73,7 @@ export function StatSyncReviewClient({ initialStat, initialRows }: Props) {
         <h1 className="text-2xl font-semibold">{t("title")}</h1>
         <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         <div className="flex gap-2">
-          {(["thp", "kills"] as const).map((id) => (
+          {(["thp", "kills", "level"] as const).map((id) => (
             <button
               key={id}
               type="button"

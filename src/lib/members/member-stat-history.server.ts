@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { normalizeMemberHqLevel } from "@/lib/members/member-level.shared";
 import { getCommanderIdForMember } from "@/lib/thp/repository";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 
@@ -143,11 +144,13 @@ export async function seedMemberStatHistoriesFromAshed(input: {
   killsHistory?: Array<{ value: number; recorded_date: string }>;
 }): Promise<void> {
   for (const point of input.levelHistory ?? []) {
+    const level = normalizeMemberHqLevel(point.value);
+    if (level == null) continue;
     await appendMemberGameLevelEventIfChanged({
       allianceId: input.allianceId,
       ashedMemberId: input.ashedMemberId,
       memberName: input.memberName,
-      value: point.value,
+      value: level,
       recordedDate: point.recorded_date,
       source: "ashed_sync",
     });
