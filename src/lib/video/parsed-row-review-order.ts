@@ -1,3 +1,4 @@
+import { normalizeScoreValue } from "@/lib/video/normalize-rows";
 import {
   getScoreTarget,
   isMemberRosterVideoTarget,
@@ -7,6 +8,10 @@ export type ParsedRowSortFields = {
   rank?: number | null;
   allianceRank?: number | null;
   frameIndex?: number | null;
+};
+
+export type ParsedRowInitialSortFields = ParsedRowSortFields & {
+  score?: string | null;
 };
 
 /** Which nullable integer column the review GET route sorts first (before frameIndex). */
@@ -26,6 +31,13 @@ export function reviewRowPrimarySortKey(
   return null;
 }
 
+/** Targets that load in scoreboard order (highest score first). */
+export function sortsInitialReviewByScoreDesc(
+  scoreTargetId: string | null | undefined,
+): boolean {
+  return scoreTargetId === "desert-storm";
+}
+
 /** Postgres ASC with default NULLS LAST. */
 function compareNullableIntAsc(
   a: number | null | undefined,
@@ -37,7 +49,31 @@ function compareNullableIntAsc(
   return a - b;
 }
 
-/** Mirror `GET /api/tools/video-upload/[jobId]` parsed-row ordering. */
+function parseScoreNumberSoft(
+  score: string | null | undefined,
+): number | null {
+  if (score == null || score.trim() === "") return null;
+  const n = Number(normalizeScoreValue(score));
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Highest score first; empty/invalid scores last. */
+function compareScoreDesc(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): number {
+  const aNum = parseScoreNumberSoft(a);
+  const bNum = parseScoreNumberSoft(b);
+  if (aNum == null && bNum == null) return 0;
+  if (aNum == null) return 1;
+  if (bNum == null) return -1;
+  return bNum - aNum;
+}
+
+/**
+ * Ordering for add-row / merge during review. Intentionally does not sort by
+ * score so edits and inserts do not reshuffle the list mid-review.
+ */
 export function compareParsedRowsForReview(
   a: ParsedRowSortFields,
   b: ParsedRowSortFields,
@@ -52,6 +88,26 @@ export function compareParsedRowsForReview(
     if (byRank !== 0) return byRank;
   }
   return compareNullableIntAsc(a.frameIndex, b.frameIndex);
+}
+
+/**
+ * Initial review page load ordering. Desert Storm uses scoreboard order
+ * (score DESC); other targets keep rank/frameIndex rules.
+ */
+export function sortParsedRowsForInitialReview<T extends ParsedRowInitialSortFields>(
+  rows: T[],
+  scoreTargetId: string | null | undefined,
+): T[] {
+  if (sortsInitialReviewByScoreDesc(scoreTargetId)) {
+    return [...rows].sort((a, b) => {
+      const byScore = compareScoreDesc(a.score, b.score);
+      if (byScore !== 0) return byScore;
+      return compareNullableIntAsc(a.frameIndex, b.frameIndex);
+    });
+  }
+  return [...rows].sort((a, b) =>
+    compareParsedRowsForReview(a, b, scoreTargetId),
+  );
 }
 
 export function mergeParsedRowInReviewOrder<T extends ParsedRowSortFields>(
