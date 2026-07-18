@@ -145,7 +145,7 @@ describe("mergeCityListOcrPasses", () => {
     expect(merged.banks.every((b) => b.level === 2)).toBe(true);
   });
 
-  it("appends a top-row tile the greyscale pass missed", () => {
+  it("recovers a missing top row in its correct screen position, not appended after a coordinate sort", () => {
     const primary = parseCityListText([
       "Bank Strongholds captured: 6/8",
       "492.00K 357.62K 354.00K",
@@ -161,10 +161,59 @@ describe("mergeCityListOcrPasses", () => {
     ]);
     const merged = mergeCityListOcrPasses(primary, green);
     expect(merged.banks).toHaveLength(6);
-    expect(
-      merged.banks.some((b) => b.coordX === 499 && b.coordY === 799),
-    ).toBe(true);
     expect(merged.isComplete).toBe(true);
+    // Green recovered all 6 tiles (primary only found the bottom 3), so green's
+    // own reading order — recovered top row first, then the bottom row — wins
+    // as the position backbone. A game-coordinate sort would not reliably put
+    // the top row first (map X/Y are not screen pixel positions).
+    expect(
+      merged.banks.map((b) => `${b.coordX}:${b.coordY}`),
+    ).toEqual(["499:799", "499:699", "599:599", "499:599", "599:499", "599:399"]);
+  });
+
+  it("keeps primary reading order as backbone when both passes recover the same tile count", () => {
+    const primary = parseCityListText([
+      "Bank Strongholds captured: 2/8",
+      "600.00K 500.00K",
+      "Lv.2 Lv.2",
+      "#1211 (X:100, Y:100) #1211 (X:200, Y:200)",
+    ]);
+    const green = parseCityListText([
+      "600.00K 500.00K",
+      "Lv.3 Lv.3",
+      // Same tiles, reversed reading order — tie on count must not flip backbone.
+      "#1211 (X:200, Y:200) #1211 (X:100, Y:100)",
+    ]);
+    const merged = mergeCityListOcrPasses(primary, green);
+    expect(merged.banks).toHaveLength(2);
+    expect(merged.banks.map((b) => `${b.coordX}:${b.coordY}`)).toEqual([
+      "100:100",
+      "200:200",
+    ]);
+  });
+
+  it("keeps the more-complete pass's order as backbone even when it runs second", () => {
+    // Primary (greyscale) finds all 6 tiles in reading order; the green pass
+    // only re-confirms 2 of them (e.g. a low-confidence recovery run). Primary
+    // stays the backbone since it is the more complete read.
+    const primary = parseCityListText([
+      "Bank Strongholds captured: 6/8",
+      "588.00K 447.38K 522.00K",
+      "Lv.3 Lv.3 Lv.3",
+      "#1203 [X:499, Y:799] #1203 [X:499, Y:699] #1203 [X:599, Y:599]",
+      "492.00K 357.62K 354.00K",
+      "#1203 [X:499, Y:599] #1203 [X:599, Y:499] #1203 [X:599, Y:399]",
+    ]);
+    const green = parseCityListText([
+      "492.00K 354.00K",
+      "Lv.3 Lv.3",
+      "#1203 [X:499, Y:599] #1203 [X:599, Y:399]",
+    ]);
+    const merged = mergeCityListOcrPasses(primary, green);
+    expect(merged.banks).toHaveLength(6);
+    expect(
+      merged.banks.map((b) => `${b.coordX}:${b.coordY}`),
+    ).toEqual(["499:799", "499:699", "599:599", "499:599", "599:499", "599:399"]);
   });
 });
 
@@ -215,5 +264,63 @@ describe("mergeCityListParses", () => {
     const { snapshot } = mergeCityListParses([shotA, shotB]);
     expect(snapshot.banks).toHaveLength(2);
     expect(snapshot.isComplete).toBe(false);
+  });
+
+  it("preserves each screenshot's on-screen reading order instead of sorting by game coordinates", () => {
+    // Map X/Y do not increase left-to-right/top-to-bottom on screen — this
+    // shot's reading order is deliberately non-monotonic in X/Y so a
+    // coordinate sort would visibly scramble it.
+    const shotA = parseCityListText([
+      "Bank Strongholds captured: 6/8",
+      "600.00K 500.00K 400.00K",
+      "Lv.3 Lv.2 Lv.1",
+      "#1211 (X:900, Y:50) #1211 (X:100, Y:900) #1211 (X:500, Y:500)",
+    ]);
+    // A second, non-overlapping screenshot — its new tiles append after
+    // shotA's tiles, each still in that screenshot's own reading order.
+    const shotB = parseCityListText([
+      "Bank Strongholds captured: 6/8",
+      "300.00K 200.00K 100.00K",
+      "Lv.2 Lv.2 Lv.1",
+      "#1211 (X:700, Y:20) #1211 (X:20, Y:700) #1211 (X:300, Y:300)",
+    ]);
+
+    const { snapshot } = mergeCityListParses([shotA, shotB]);
+    expect(snapshot.banks).toHaveLength(6);
+    expect(snapshot.banks.map((b) => `${b.coordX}:${b.coordY}`)).toEqual([
+      "900:50",
+      "100:900",
+      "500:500",
+      "700:20",
+      "20:700",
+      "300:300",
+    ]);
+  });
+
+  it("keeps an overlapping tile at its first-encountered position", () => {
+    const shotA = parseCityListText([
+      "Bank Strongholds captured: 3/8",
+      "600.00K 500.00K 400.00K",
+      "Lv.3 Lv.2 Lv.1",
+      "#1211 (X:900, Y:50) #1211 (X:100, Y:900) #1211 (X:500, Y:500)",
+    ]);
+    // Re-shot with the middle tile overlapping shotA — the merged tile must
+    // stay in shotA's position (index 1), not move to wherever shotB's own
+    // reading order would otherwise place it.
+    const shotB = parseCityListText([
+      "Bank Strongholds captured: 3/8",
+      "500.00K",
+      "Lv.2",
+      "#1211 (X:100, Y:900)",
+    ]);
+
+    const { snapshot, dedupeReport } = mergeCityListParses([shotA, shotB]);
+    expect(snapshot.banks).toHaveLength(3);
+    expect(snapshot.banks.map((b) => `${b.coordX}:${b.coordY}`)).toEqual([
+      "900:50",
+      "100:900",
+      "500:500",
+    ]);
+    expect(dedupeReport.autoMergedCount).toBe(1);
   });
 });

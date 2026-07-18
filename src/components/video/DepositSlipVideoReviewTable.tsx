@@ -26,6 +26,13 @@ import {
   type DedupeReport,
 } from "@/lib/video/dedupe/merge-report.shared";
 
+/** Follow-me scrubbing only works when rows are ordered by deposit time. */
+export function depositSlipFollowMeCompatible(
+  sortKey: DepositSlipVisibleSortKey,
+): boolean {
+  return sortKey === "depositAt";
+}
+
 export type DepositSlipVideoReviewRow = {
   id: string;
   ocrName: string;
@@ -64,6 +71,8 @@ type Props = {
   registerFollowAnchor?: (rowId: string) => (element: HTMLElement | null) => void;
   /** Visible (filtered + sorted) row ids for Follow-me interpolation. */
   onVisibleRowIdsChange?: (ids: readonly string[]) => void;
+  /** Notifies parent when sort changes so Follow-me can be gated. */
+  onSortKeyChange?: (sortKey: DepositSlipVisibleSortKey) => void;
 };
 
 const FLAG_REASON_KEYS = [
@@ -198,6 +207,7 @@ export function DepositSlipVideoReviewTable({
   rowCanVideoPreview,
   registerFollowAnchor,
   onVisibleRowIdsChange,
+  onSortKeyChange,
 }: Props) {
   const t = useTranslations("videoReview");
   const tBanks = useTranslations("bankManagement");
@@ -206,6 +216,11 @@ export function DepositSlipVideoReviewTable({
   const [autoDedupeOpen, setAutoDedupeOpen] = useState(false);
 
   const report = isDedupeReport(dedupeReport) ? dedupeReport : null;
+  const followMeCompatible = depositSlipFollowMeCompatible(sortKey);
+
+  useLayoutEffect(() => {
+    onSortKeyChange?.(sortKey);
+  }, [sortKey, onSortKeyChange]);
 
   const activeRows = useMemo(
     () => rows.filter((row) => row.deleted !== 1),
@@ -469,8 +484,14 @@ export function DepositSlipVideoReviewTable({
                 <tr
                   key={row.id}
                   className={rowClass}
-                  ref={registerFollowAnchor?.(row.id)}
-                  data-video-follow-anchor={row.id}
+                  ref={
+                    followMeCompatible
+                      ? registerFollowAnchor?.(row.id)
+                      : undefined
+                  }
+                  data-video-follow-anchor={
+                    followMeCompatible ? row.id : undefined
+                  }
                 >
                   <td className="px-3 py-2 align-top">
                     <input

@@ -162,4 +162,80 @@ describe("parseDepositSlipHistoryText", () => {
     expect(parsed.slips).toHaveLength(1);
     expect(parsed.slips[0]?.confidence).toBeCloseTo((80 + 90 + 70) / 3);
   });
+
+  it("still finds the timestamp when garbled OCR inserts a few junk lines before the identity", () => {
+    const lines = [
+      "2026-7-10 12:14:34",
+      "UBPOSIT: LIYStalLoin", // hallucinated junk line
+      "|| ||", // another junk line
+      "#1211[GRoW]3MinOfDisappointment",
+      "Deposit: CrystalGold x 6000, Term: 3 day(s).",
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    expect(parsed.slips).toHaveLength(1);
+    expect(parsed.slips[0]?.depositAt).toBe("2026-07-10T12:14:34.000Z");
+  });
+
+  it("never borrows the previous row's timestamp when this row's own timestamp was dropped entirely", () => {
+    const lines = [
+      "2026-7-10 12:14:34",
+      "#1211[GRoW]3MinOfDisappointment",
+      "Deposit: CrystalGold x 6000, Term: 3 day(s).",
+      // This row's own timestamp line never made it through OCR.
+      "#1211[Roar]Capt Grim",
+      "Deposit: CrystalGold x 6000, Term: 1 days.",
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    expect(parsed.slips).toHaveLength(2);
+    expect(parsed.slips[0]?.identity.commanderName).toBe("3MinOfDisappointment");
+    expect(parsed.slips[0]?.depositAt).toBe("2026-07-10T12:14:34.000Z");
+    expect(parsed.slips[1]?.identity.commanderName).toBe("Capt Grim");
+    expect(parsed.slips[1]?.depositAt).toBeNull();
+  });
+
+  it("never borrows the next row's timestamp via forward search past a Deposit line", () => {
+    // Own timestamp dropped; only one content line before the next row's
+    // timestamp — forward search must not walk past Deposit into that ts.
+    const lines = [
+      "#1211[GRoW]3MinOfDisappointment",
+      "Deposit: CrystalGold x 6000, Term: 3 day(s).",
+      "2026-7-10 12:01:39",
+      "#1211[Roar]Capt Grim",
+      "Deposit: CrystalGold x 6000, Term: 1 days.",
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    expect(parsed.slips).toHaveLength(2);
+    const byName = Object.fromEntries(
+      parsed.slips.map((s) => [s.identity.commanderName, s]),
+    );
+    expect(byName["3MinOfDisappointment"]?.depositAt).toBeNull();
+    expect(byName["Capt Grim"]?.depositAt).toBe("2026-07-10T12:01:39.000Z");
+  });
+
+  it("still finds a timestamp that OCR placed immediately after the identity", () => {
+    const lines = [
+      "#1211[Roar]Capt Grim",
+      "2026-7-10 12:01:39",
+      "Deposit: CrystalGold x 6000, Term: 1 days.",
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    expect(parsed.slips).toHaveLength(1);
+    expect(parsed.slips[0]?.depositAt).toBe("2026-07-10T12:01:39.000Z");
+  });
+
+  it("does not steal the previous row's timestamp when that row's identity was garbled", () => {
+    // Previous identity failed IDENTITY_RE; Deposit still marks the row
+    // boundary so Capt Grim must not inherit the orphaned timestamp.
+    const lines = [
+      "2026-7-10 12:14:34",
+      "1211 GRoW 3MinOfDisappointment",
+      "Deposit: CrystalGold x 6000, Term: 3 day(s).",
+      "#1211[Roar]Capt Grim",
+      "Deposit: CrystalGold x 6000, Term: 1 days.",
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    expect(parsed.slips).toHaveLength(1);
+    expect(parsed.slips[0]?.identity.commanderName).toBe("Capt Grim");
+    expect(parsed.slips[0]?.depositAt).toBeNull();
+  });
 });

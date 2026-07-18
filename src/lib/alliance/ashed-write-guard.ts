@@ -6,12 +6,14 @@ import { getDb, schema } from "@/lib/db";
 
 export class AllianceNotAshedLinkedError extends Error {
   readonly code = "ALLIANCE_NOT_ASHED_LINKED" as const;
+  readonly allianceId: string;
 
   constructor(allianceId: string) {
-    super(
-      `Alliance ${allianceId} is not linked to Ashed. HQ cannot write Ashed entities until the alliance is connected from an existing Ashed seat.`,
-    );
+    // User-facing copy matches data-management routes; keep id off the banner
+    // (session /connect is the wrong recovery CTA for this setup gap).
+    super("Alliance is not linked to Ashed.");
     this.name = "AllianceNotAshedLinkedError";
+    this.allianceId = allianceId;
   }
 }
 

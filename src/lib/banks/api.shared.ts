@@ -15,6 +15,7 @@ export type BankPayload = {
   coordY: number;
   level: number;
   capturedAt?: string | null;
+  protectionExpiresAt?: string | null;
   dropByAt?: string | null;
   depositPolicy: DepositPolicy;
   priorCaptureCount?: number;
@@ -28,6 +29,7 @@ export type DepositSlipPayload = {
   depositAt: string;
   termDays: DepositTermDays;
   amount: number;
+  outcomeAmount?: number | null;
   status?: DepositStatus;
   outcomeAt?: string | null;
   depositAllianceTag?: string | null;
@@ -60,6 +62,7 @@ export function serializeBank(row: {
   coordY: number;
   level: number;
   capturedAt: Date | null;
+  protectionExpiresAt?: Date | null;
   dropByAt: Date | null;
   depositPolicy: string | null;
   priorCaptureCount: number;
@@ -76,6 +79,7 @@ export function serializeBank(row: {
     coordY: row.coordY,
     level: row.level,
     capturedAt: row.capturedAt?.toISOString() ?? null,
+    protectionExpiresAt: row.protectionExpiresAt?.toISOString() ?? null,
     dropByAt: row.dropByAt?.toISOString() ?? null,
     depositPolicy:
       row.depositPolicy && isDepositPolicy(row.depositPolicy)
@@ -99,6 +103,7 @@ export function serializeDepositSlip(row: {
   status: string;
   outcomeAt: Date | null;
   amount: number;
+  outcomeAmount: number | null;
   depositAllianceTag: string | null;
   depositAllianceId: string | null;
   commanderName: string;
@@ -117,6 +122,7 @@ export function serializeDepositSlip(row: {
     status: isDepositStatus(row.status) ? row.status : "locked",
     outcomeAt: row.outcomeAt?.toISOString() ?? null,
     amount: row.amount,
+    outcomeAmount: row.outcomeAmount ?? null,
     depositAllianceTag: row.depositAllianceTag,
     depositAllianceId: row.depositAllianceId,
     commanderName: row.commanderName,
@@ -182,6 +188,14 @@ export function validateDepositSlipPayload(
     body.amount <= 0
   ) {
     return "amount must be a positive integer.";
+  }
+  if (
+    body.outcomeAmount != null &&
+    (typeof body.outcomeAmount !== "number" ||
+      !Number.isInteger(body.outcomeAmount) ||
+      body.outcomeAmount < 0)
+  ) {
+    return "outcomeAmount must be a non-negative integer.";
   }
   if (!body.commanderName?.trim()) {
     return "commanderName is required.";

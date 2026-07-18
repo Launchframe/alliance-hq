@@ -46,12 +46,26 @@ const PARSE_BODY = {
   },
 };
 
-async function openCityListReview(page: Page): Promise<void> {
+const UNDERCOUNT_PARSE_BODY = {
+  banks: PARSE_BODY.banks,
+  snapshot: {
+    ...PARSE_BODY.snapshot,
+    // Header says 3 banks were captured, but OCR only recovered 2 tiles —
+    // the modal should pad the review list with a blank placeholder row.
+    capturedCount: 3,
+    isComplete: false,
+  },
+};
+
+async function openCityListReview(
+  page: Page,
+  parseBody: unknown = PARSE_BODY,
+): Promise<void> {
   await page.route("**/api/banks/city-list/parse", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(PARSE_BODY),
+      body: JSON.stringify(parseBody),
     });
   });
 
@@ -138,5 +152,99 @@ test.describe("City List import review (responsive)", () => {
     await expect(
       page.getByRole("button", { name: /preview screenshot/i }).first(),
     ).toBeVisible();
+  });
+});
+
+test.describe("City List import review (captured count padding)", () => {
+  test("pads a blank row when OCR parses fewer tiles than the captured count", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    await createHqMemberLink(sql, {
+      allianceId: scenario.allianceId,
+      hqUserId: scenario.officer.hqUserId,
+    });
+    await page.context().addCookies(playwrightAuthCookies(scenario.officer));
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    await openCityListReview(page, UNDERCOUNT_PARSE_BODY);
+
+    // Header said 3 banks captured; OCR only returned 2 — a 3rd blank row
+    // is padded in so the officer can fill it in manually.
+    await expect(page.getByText(/New Bank 1 of 3/i)).toBeVisible();
+
+    await page.getByRole("button", { name: /^next$/i }).click();
+    await page.getByRole("button", { name: /^next$/i }).click();
+    await expect(page.getByText(/New Bank 3 of 3/i)).toBeVisible();
+
+    // Submitting without filling in the padded row's coordinates surfaces
+    // validation errors instead of silently importing a (0, 0) bank.
+    await page.getByRole("button", { name: "Import banks", exact: true }).click();
+    await expect(page.getByText(/required/i).first()).toBeVisible();
+  });
+});
+
+test.describe("City List import review (draft restore)", () => {
+  test("restores edited review after close and Reset clears sessionStorage", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    await createHqMemberLink(sql, {
+      allianceId: scenario.allianceId,
+      hqUserId: scenario.officer.hqUserId,
+    });
+    await page.context().addCookies(playwrightAuthCookies(scenario.officer));
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    const draftKey = `alliance-hq.city-list-import-draft:${scenario.allianceId}`;
+
+    await openCityListReview(page);
+
+    const reviewTable = page.locator("table");
+    await expect(reviewTable).toBeVisible();
+
+    // Columns: level, server, X, Y, amount, deposits — edit first-row X.
+    const xInput = reviewTable.locator("tbody tr").first().locator(
+      'input[type="number"]',
+    ).nth(2);
+    await xInput.fill("777");
+    await expect
+      .poll(async () =>
+        page.evaluate((key) => window.sessionStorage.getItem(key), draftKey),
+      )
+      .not.toBeNull();
+
+    // Accidental close (Escape) — in-memory state clears, draft stays.
+    await page.keyboard.press("Escape");
+    await expect(
+      page.getByRole("heading", { name: /import banks from screenshots/i }),
+    ).toBeHidden();
+
+    await page
+      .getByRole("button", { name: /import banks from screenshot/i })
+      .click();
+    await expect(
+      page.getByText(/Restored your unsaved review from last time/i),
+    ).toBeVisible();
+    await expect(
+      reviewTable.locator("tbody tr").first().locator('input[type="number"]').nth(2),
+    ).toHaveValue("777");
+
+    await page.getByRole("button", { name: /^reset$/i }).click();
+    await page.getByTestId("city-list-import-reset-confirm").click();
+
+    await expect(
+      page.getByRole("heading", { name: /import banks from screenshots/i }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /read screenshots/i }),
+    ).toBeVisible();
+    await expect
+      .poll(async () =>
+        page.evaluate((key) => window.sessionStorage.getItem(key), draftKey),
+      )
+      .toBeNull();
   });
 });

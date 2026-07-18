@@ -3619,6 +3619,15 @@
     "processing": "Processando ({status})… esta página atualiza automaticamente.",
     "pendingApproval": "Aguardando um processador de vídeo aprovar este envio. O OCR começará após a aprovação — esta página atualiza automaticamente.",
     "processingFailed": "Falha no processamento. Tente enviar novamente.",
+    "stageQueued": "Aguardando na fila de processamento…",
+    "stageExtracting": "Extraindo quadros do vídeo…",
+    "stageOcrRunning": "Executando OCR — {completed} de {total} quadros",
+    "stageFinalizing": "Finalizando resultados…",
+    "stageDone": "Carregando seus resultados…",
+    "pipelineLabel": "Pipeline: {engine}",
+    "engineAshed": "Ashed",
+    "engineNative": "Tesseract interno",
+    "engineMock": "OCR simulado (dev/teste)",
     "backToUploads": "← Voltar aos envios",
     "summary": "{matched} correspondidos · {total} entradas",
     "noEntriesHint": "O OCR terminou, mas nenhuma linha foi interpretada. Geralmente era um bug de formato de resposta — tente executar o OCR novamente.",
@@ -4298,6 +4307,13 @@
       "killsStatus": "**{name}** — total de kills **{total}**.",
       "killsHeader": "Seus comandantes vinculados:"
     },
+    "chart": {
+      "nowLabel": "Agora",
+      "vrNotLinked": "Você ainda não tem um comandante vinculado. Execute `/link-commander` e depois peça com `/what-is-my-vr-chart`.",
+      "vrInsufficientData": "Ainda não há histórico de VR suficiente para gerar um gráfico. Informe o nível do instituto com `/vr` algumas vezes e tente de novo.",
+      "thpNotLinked": "Você ainda não tem um comandante vinculado. Execute `/link-commander` e depois peça com `/what-is-my-thp-chart`.",
+      "thpInsufficientData": "É preciso pelo menos dois relatórios de THP para desenhar o gráfico. Use `/thp` de novo após a próxima atualização."
+    },
     "weeklyPass": {
       "pickCharacter": "Para qual comandante você quer aplicar esta alteração?",
       "pickExpired": "Esse seletor expirou. Execute `/weekly-pass` novamente para escolher um comandante.",
@@ -4368,7 +4384,7 @@
     },
     "officerNotified": "Um oficial foi notificado no Alliance HQ. Eles podem falar com você aqui no Discord.",
     "help": {
-      "dmGeneral": "**Bot Alliance HQ** — use `/help` no servidor da aliança para passos conforme seu papel.\n\nComandos: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-thp`, `/who-is-conductor`, `/language`. Donos: `/link-alliance`. Oficiais (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Guia completo:** {guideUrl}",
+      "dmGeneral": "**Bot Alliance HQ** — use `/help` no servidor da aliança para passos conforme seu papel.\n\nComandos: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-vr-chart`, `/what-is-my-thp`, `/what-is-my-thp-chart`, `/who-is-conductor`, `/language`. Donos: `/link-alliance`. Oficiais (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Guia completo:** {guideUrl}",
       "setupLinkHq": "Vincule sua conta Discord ao Alliance HQ: execute `/link` e conclua o login no navegador.",
       "setupOwnerLinkHq": "Este servidor ainda não está registrado. **R5:** abra o assistente de instalação no navegador (entrar, tag, Ashed, adicionar bot).\n\n**Assistente:** {installWizardUrl}\n\n**Guia:** {guideUrl}",
       "setupOwnerLinkCommander": "Registre este servidor com o assistente de instalação, depois execute **`/link-commander`**.\n\n**Assistente:** {installWizardUrl}\n\n**Guia:** {guideUrl}",
@@ -4554,8 +4570,14 @@
       "memberOnboardingReview": "Onboarding review",
       "memberOnboardingReviewTitle": "Review {name}",
       "memberOnboardingReviewBody": "A member linked through an invite or join code. Confirm their roster entry or merge with an existing unlinked entry.",
-      "memberOnboardingReviewBodyWithSuggestion": "Commander {gameName} — may match roster entry {suggested} (linked as {linkedName})."
-    }
+      "memberOnboardingReviewBodyWithSuggestion": "Commander {gameName} — may match roster entry {suggested} (linked as {linkedName}).",
+      "captureReminder": "Acompanhamento de captura",
+      "captureReminderBody": "Esta Fortaleza foi capturada com sucesso?",
+      "captureYes": "Sim — criar banco",
+      "captureNo": "Não",
+      "captureSnooze": "Adiar 30 min"
+    },
+    "confirmCaptureFailed": "Falha ao confirmar captura."
   },
   "uploadReminders": {
     "title": "Lembretes de upload",
@@ -5042,6 +5064,10 @@
       "territoryType": "Tipo de território",
       "stronghold": "Fortaleza",
       "city": "Cidade",
+      "targetCoords": "Coordenadas do alvo (opcional)",
+      "gameServer": "Servidor",
+      "level": "Nível",
+      "targetCoordsHint": "Informe as coordenadas para criar um Banco automaticamente ao confirmar a captura.",
       "drop": "Abandono de banco",
       "dropHint": "Investidores devem limitar novos prazos de depósito neste banco.",
       "marker": "Marcador",
@@ -5092,6 +5118,11 @@
     "cityListParseFailed": "Não foi possível ler os bancos nessas imagens.",
     "cityListIncompleteWarning": "Os bancos importados são menos do que a quantidade capturada — a importação não removerá bancos existentes.",
     "cityListExtraHqWarning": "A Sede tem bancos que não aparecem nestas capturas de tela. Eles não foram alterados.",
+    "cityListDraftRestored": "Sua revisão não salva da última vez foi restaurada.",
+    "cityListAddRow": "Adicionar banco",
+    "cityListDuplicateCoords": "Dois ou mais bancos têm as mesmas coordenadas.",
+    "cityListValidationRequired": "Obrigatório",
+    "cityListValidationLevelMin": "O nível deve ser 1 ou superior",
     "cityListAddScreenshots": "Adicionar capturas",
     "cityListClearScreenshots": "Limpar",
     "cityListSelectedCount": "{count, plural, one {# captura selecionada} other {# capturas selecionadas}}",
@@ -5103,6 +5134,11 @@
     "cityListPreviewScreenshots": "Pré-visualizar capturas",
     "cityListPreviousBank": "Anterior",
     "cityListNextBank": "Próximo",
+    "cityListReset": "Redefinir",
+    "cityListResetTitle": "Redefinir esta importação?",
+    "cityListResetBody": "Remove tudo o que você revisou até agora e volta para a etapa de envio.",
+    "cityListResetHint": "Isso não pode ser desfeito — você precisará enviar as capturas de tela novamente para recomeçar.",
+    "cityListResetConfirm": "Redefinir importação",
     "capturesLeftToday": "Capturas restantes hoje: {remaining}/{limit}",
     "cityListServerTime": "Horário do servidor na captura: {time}",
     "editBank": "Editar banco",
@@ -5152,7 +5188,27 @@
     "status": {
       "locked": "Bloqueado",
       "matured": "Amadurecido",
-      "looted": "Saqueado"
+      "looted": "Saqueado",
+      "term_elapsed": "Prazo esgotado"
+    },
+    "filter": {
+      "active": "Ativos",
+      "elapsed": "Esgotados",
+      "matured": "Maturados",
+      "looted": "Saqueados",
+      "empty": {
+        "active": "Nenhum depósito ativo",
+        "elapsed": "Nenhum depósito com prazo esgotado",
+        "matured": "Nenhum depósito maturado",
+        "looted": "Nenhum depósito saqueado"
+      }
+    },
+    "stats": {
+      "totalDeposited": "Total depositado",
+      "recovered": "Recuperado",
+      "lostToLooting": "Perdido em saque",
+      "interestEarned": "Juros recebidos",
+      "interestUnavailable": "Importe o histórico de depósitos para acompanhar os juros"
     },
     "actions": {
       "save": "Salvar",
@@ -5203,10 +5259,11 @@
   },
   "statSync": {
     "title": "Sincronização HQ ↔ Ashed",
-    "subtitle": "Resolva relatórios de THP e kills pendentes para enviar ao Ashed, ou mantenha o Ashed quando o HQ estiver errado.",
+    "subtitle": "Resolva relatórios de THP, kills e nível HQ pendentes para enviar ao Ashed, ou mantenha o Ashed quando o HQ estiver errado.",
     "tabs": {
       "thp": "THP",
-      "kills": "Kills"
+      "kills": "Kills",
+      "level": "Nível HQ"
     },
     "empty": "Nenhum item pendente para este status.",
     "loadFailed": "Falha ao carregar a revisão de sincronização.",

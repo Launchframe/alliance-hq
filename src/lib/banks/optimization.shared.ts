@@ -27,6 +27,54 @@ export function isActiveLockedDeposit(
   );
 }
 
+export const DEPOSIT_DISPLAY_STATUSES = [...DEPOSIT_STATUSES, "term_elapsed"] as const;
+export type DepositDisplayStatus = (typeof DEPOSIT_DISPLAY_STATUSES)[number];
+
+export function depositSlipDisplayStatus(
+  slip: Pick<SerializedDepositSlip, "status" | "maturesAt">,
+  now?: Date,
+): DepositDisplayStatus {
+  if (slip.status === "locked" && new Date(slip.maturesAt).getTime() <= (now ?? new Date()).getTime()) {
+    return "term_elapsed";
+  }
+  return slip.status;
+}
+
+export type DepositStats = {
+  totalDeposited: number;
+  totalRecovered: number;
+  totalLooted: number;
+  interestEarned: number | null;
+};
+
+export function computeDepositStats(slips: readonly SerializedDepositSlip[]): DepositStats {
+  let totalDeposited = 0;
+  let totalRecovered = 0;
+  let totalLooted = 0;
+  let interestEarned: number | null = null;
+
+  for (const slip of slips) {
+    totalDeposited += slip.amount;
+    if (slip.status === "matured") {
+      totalRecovered += slip.outcomeAmount ?? slip.amount;
+      if (slip.outcomeAmount != null) {
+        const interest = slip.outcomeAmount - slip.amount;
+        interestEarned = (interestEarned ?? 0) + interest;
+      }
+    } else if (slip.status === "looted") {
+      totalLooted +=
+        slip.outcomeAmount != null ? slip.amount - slip.outcomeAmount : slip.amount;
+    }
+  }
+
+  return {
+    totalDeposited,
+    totalRecovered,
+    totalLooted,
+    interestEarned,
+  };
+}
+
 export function activeDeposits(
   slips: readonly SerializedDepositSlip[],
   now: Date = new Date(),
@@ -376,6 +424,7 @@ export function slipsForProjectionActualOverlay(
       status: live?.status ?? entry.status,
       outcomeAt: live?.outcomeAt ?? entry.outcomeAt,
       amount: entry.amount,
+      outcomeAmount: live?.outcomeAmount ?? null,
       depositAllianceTag: live?.depositAllianceTag ?? null,
       depositAllianceId: live?.depositAllianceId ?? null,
       commanderName: live?.commanderName ?? "",

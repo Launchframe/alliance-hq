@@ -9,6 +9,7 @@
  * - profession ← status
  * - allianceRankTitle ← alliance tag
  * - rosterRankRaw ← outcomeKind
+ * - rank ← outcomeAmount
  */
 
 import type { ParsedDepositSlipDraft } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
@@ -23,6 +24,7 @@ export type DepositSlipParsedRowFields = {
   profession: string | null;
   allianceRankTitle: string | null;
   rosterRankRaw: string | null;
+  rank: number | null;
   frameIndex: number | null;
 };
 
@@ -37,6 +39,7 @@ export function depositSlipDraftToParsedRowFields(
     profession: draft.status,
     allianceRankTitle: draft.identity.allianceTag,
     rosterRankRaw: draft.outcomeKind,
+    rank: draft.outcomeAmount,
     frameIndex: draft.sourceFrameIndex ?? null,
   };
 }
@@ -76,7 +79,7 @@ export function parsedRowFieldsToDepositSlipDraft(
     termDays,
     amount: amount != null && Number.isFinite(amount) ? Math.trunc(amount) : null,
     status,
-    outcomeAmount: null,
+    outcomeAmount: row.rank ?? null,
     outcomeKind,
     identity: {
       gameServerNumber: null,

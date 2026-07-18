@@ -8,6 +8,7 @@ import {
   filterAppSelectOptions,
   type AppSelectSearchMode,
 } from "@/components/ui/app-select-search";
+import { withDefaultBorderColor } from "@/components/ui/app-select-border-class";
 
 export type { AppSelectSearchMode } from "@/components/ui/app-select-search";
 export {
@@ -56,6 +57,12 @@ function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
+function mergeTriggerClassName(
+  ...parts: Array<string | false | null | undefined>
+): string {
+  return withDefaultBorderColor(cn(...parts));
+}
+
 function flattenOptions(
   options: AppSelectOption[] | undefined,
   groups: AppSelectOptionGroup[] | undefined,
@@ -67,7 +74,7 @@ function flattenOptions(
 }
 
 const defaultTriggerClass =
-  "flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-left text-sm text-hq-fg transition-colors hover:bg-hq-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hq-accent disabled:cursor-not-allowed disabled:opacity-50";
+  "flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border bg-hq-canvas px-3 py-2 text-left text-sm text-hq-fg transition-colors hover:bg-hq-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hq-accent disabled:cursor-not-allowed disabled:opacity-50";
 
 export function AppSelect({
   value,
@@ -503,7 +510,11 @@ export function AppSelect({
               }, 120);
             }}
             onKeyDown={handleComboboxKeyDown}
-            className={cn(defaultTriggerClass, "pr-9", triggerClassName)}
+            className={mergeTriggerClassName(
+              defaultTriggerClass,
+              "pr-9",
+              triggerClassName,
+            )}
             autoComplete="off"
           />
           <button
@@ -540,7 +551,10 @@ export function AppSelect({
           aria-haspopup="listbox"
           aria-expanded={open}
           aria-controls={open ? listboxId : undefined}
-          className={cn(defaultTriggerClass, triggerClassName)}
+          className={mergeTriggerClassName(
+            defaultTriggerClass,
+            triggerClassName,
+          )}
           onClick={() => {
             if (open) {
               closeMenu();

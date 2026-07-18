@@ -6,6 +6,7 @@ import {
   buildLinkIdentityConfirmButtons,
   buildVrConfirmButtons,
   discordComponentMessageResponse,
+  discordDeferredChannelResponse,
   discordDeferredEphemeralResponse,
   discordMessageResponse,
   parseButtonCustomId,
@@ -129,6 +130,12 @@ describe("discord interactions", () => {
     expect(discordDeferredEphemeralResponse()).toEqual({
       type: 5,
       data: { flags: 64 },
+    });
+  });
+
+  it("defers channel-visible chart work with type 5 and no flags", () => {
+    expect(discordDeferredChannelResponse()).toEqual({
+      type: 5,
     });
   });
 

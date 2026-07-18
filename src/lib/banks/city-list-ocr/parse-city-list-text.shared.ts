@@ -30,7 +30,7 @@ export type ParsedCityListBank = {
   gameServerNumber: number;
   coordX: number;
   coordY: number;
-  /** Deposit slot usage out of 100, e.g. 81 for "81/100". Null if unreadable. */
+  /** Deposit slot usage (cap 100 or 110 by level), e.g. 81 for "81/100". Null if unreadable. */
   currentDepositCount: number | null;
 };
 
@@ -133,8 +133,26 @@ function parseGluedServerAndX(
   return matchingMagnitude ?? candidates[0]!;
 }
 
-/** Deposit slot usage token, e.g. "81/100". */
-const DEPOSIT_TOKEN_RE = /\b(\d{1,3})\s*\/\s*100\b/g;
+/** Deposit slot usage token, e.g. "81/100" or "95/110" (level 6+ banks). */
+const DEPOSIT_TOKEN_RE = /\b(\d{1,3})\s*\/\s*(100|110)\b/g;
+
+/** Absolute maximum deposit slot capacity across all bank levels. */
+const BANK_DEPOSIT_CAPACITY_MAX = 110;
+
+/**
+ * OCR sometimes prepends digits from adjacent tile text to a deposit count
+ * (e.g. "271/100" when the real count is 71). Strip leading digits until
+ * the value is within the game's maximum capacity.
+ */
+export function clampOcrDepositCount(raw: number): number {
+  let n = raw;
+  while (n > BANK_DEPOSIT_CAPACITY_MAX) {
+    const s = String(n);
+    if (s.length <= 1) break;
+    n = Number(s.slice(1));
+  }
+  return n;
+}
 
 const TOTAL_DEPOSITED_RE =
   /total\s+crystalgold\s+deposited:?\s*(\d[\d,]*(?:\.\d+)?)\s*([KMB])?/i;
@@ -285,7 +303,9 @@ function tokenizeCityListLine(line: string): LineTokens {
     values: extractValuesFromLine(line),
     levels: extractFromLine(line, LEVEL_TOKEN_RE, (m) => Number(m[1])),
     coords: extractCoordsFromLine(line),
-    deposits: extractFromLine(line, DEPOSIT_TOKEN_RE, (m) => Number(m[1])),
+    deposits: extractFromLine(line, DEPOSIT_TOKEN_RE, (m) =>
+      clampOcrDepositCount(Number(m[1])),
+    ),
     isHeaderFooter: false,
   };
 }
@@ -361,6 +381,16 @@ export function parseCityListFooter(lines: readonly string[]): {
  * some CrystalGold amounts on dark cards. Missing amounts stay null for
  * officer review rather than discarding the whole tile or borrowing amounts
  * from the next row.
+ *
+ * When a tile-row's own coordinate line is *completely* unreadable (zero
+ * matches from both `COORD_TOKEN_RE` and `COORD_GLUED_RE`), that line drops
+ * out of `coordLineIndices` entirely and its value/level lines land in the
+ * pre-line window of the *next* surviving coordinate row. Without care,
+ * those orphaned tokens would zip onto the next row's real coordinates and
+ * silently corrupt otherwise-good data (see the value/level reset below).
+ * The orphaned row's tile itself is unrecoverable here — no anchor exists
+ * for it — but the caller can still detect the gap via the "Bank
+ * Strongholds captured: N/M" header count and prompt for manual entry.
  */
 export function parseCityListBanks(
   lines: readonly string[],
@@ -396,6 +426,19 @@ export function parseCityListBanks(
     for (let i = preStart; i < coordLineIndex; i += 1) {
       const tokens = tokenized[i]!;
       if (tokens.isHeaderFooter) continue;
+      // A second value/level line before reaching this row's own coordinate
+      // line means an earlier tile-row's coordinate line was fully
+      // unreadable (dropped from `coordLineIndices`). Discard its orphaned
+      // tokens instead of zipping them onto this row's coordinates — that
+      // tile is unrecoverable without a coordinate anchor, but it must not
+      // corrupt this row's real data.
+      if (
+        (tokens.values.length > 0 && values.length > 0) ||
+        (tokens.levels.length > 0 && levels.length > 0)
+      ) {
+        values.length = 0;
+        levels.length = 0;
+      }
       values.push(...tokens.values);
       levels.push(...tokens.levels);
     }

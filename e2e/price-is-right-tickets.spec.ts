@@ -99,9 +99,10 @@ test.describe("Price Is Freight raffle tickets", () => {
     });
 
     const today = getServerCalendarDate();
-    // Saturday shows the heavy-hitter odds panel for the selected day; this spec
-    // asserts weekday weighted UI, so select Friday via the day cell when needed.
-    // Train week starts Tuesday → Friday is weekStart + 3.
+    // Saturday uses the heavy-hitter odds panel (still mounted). Desktop week
+    // strip hides carousel "Previous day"; select Friday via the day cell so we
+    // assert the weighted VS raffle hero + chart. Train week starts Tuesday →
+    // Friday is weekStart + 3.
     const friday = addCalendarDays(dashboard.weekStart, 3);
     if (today !== friday) {
       await page

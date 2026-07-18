@@ -96,6 +96,21 @@ When OCR sees an **orange** row for Commander A:
 2. Mark that deposit **`looted`** (`outcomeAt` = orange row timestamp).
 3. Orange timestamp may be **any time ≥ blue** (early force-out when the bank drops / terminates). Do **not** require `termDays` alignment.
 
+### Cross-frame OCR dedupe — known looted-window limitation (follow-up)
+
+Video OCR dedupe (`dedupeDepositSlips` in `deposit-slip-dedupe.shared.ts`) merges same-commander rows whose `depositAt` values fall inside:
+
+| Constant | Window | Role |
+|----------|--------|------|
+| `DEPOSIT_AT_PROXIMITY_MS` | 15 minutes (diameter) | Auto-merge nearby OCR reads of one slip |
+| `DEPOSIT_AT_MAJORITY_OUTLIER_MS` | 45 minutes | Absorb a **singleton** OCR outlier into a majority-minute home |
+
+**Why maturity is safe:** locked → matured cannot finish inside those windows (terms are 1/3/5 days).
+
+**Why loot is not:** a deposit **can be looted within minutes** of `depositAt`. A commander who is looted and immediately re-deposits (same amount/term, one OCR read of the second slip) can have that second initiate absorbed as an “OCR outlier” of the first — a false merge Real Steel flagged on PR #313.
+
+**Follow-up (do not treat as fixed by #313):** harden separation for rapid post-loot re-deposits — e.g. frame-index continuity across the scroll, and/or refuse majority-outlier absorb when statuses/outcomes disagree (locked vs looted/matured), so a lone second initiate is not folded into a prior slip.
+
 ### OCR miss → synthetic blue (initiate)
 
 If a terminal row arrives and no matching blue exists yet:
@@ -116,6 +131,16 @@ If a terminal row arrives and no matching blue exists yet:
   - **(b)** an officer manually corrects `depositAt`.
 
 Clear `depositAtEstimated` once a non-estimate source wins.
+
+## Derived display states
+
+### Elapsed (`term_elapsed`)
+
+A locked deposit slip whose `maturesAt` has passed displays as "Elapsed" (purple badge) on Bank Management. This is **display-only** — the DB `status` remains `locked`. The actual terminal state (`matured` or `looted`) is determined only when a matching deposit slip history screenshot row is committed via OCR.
+
+### Deposit table UX
+
+The deposit slip list uses pill-based filters: Active (default) | Elapsed | Matured | Looted. Active shows in-term locked deposits; Elapsed shows past-term locked deposits awaiting outcome confirmation. Stats bar shows Total deposited, Recovered, Lost to looting.
 
 ## Drop optimization
 
@@ -177,6 +202,7 @@ When changing bank deposit OCR, City List OCR, commit, or Bank Management:
 6. **UID privacy** — do not display game UID; commander **name** (+ alliance tag from OCR) is the officer-facing identity.
 7. **City List upsert** — match on alliance+server+coords; never delete missing banks from OCR alone.
 8. **Ownership** — City List inserts are alliance-held (`priorCaptureCount = 1`); wild vs alliance loot semantics use `priorCaptureCount`.
+9. **Dedupe loot window** — do not assume deposits are ≥45m apart; looting can terminate a slip within minutes. See **Cross-frame OCR dedupe — known looted-window limitation** above before tightening proximity/outlier constants.
 
 ## Related
 

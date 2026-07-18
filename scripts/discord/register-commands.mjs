@@ -293,6 +293,34 @@ const commandBody = [
     },
   },
   {
+    name: "what-is-my-vr-chart",
+    description: "Post your VR progress chart image (channel-visible).",
+    description_localizations: {
+      "pt-BR": "Publica a imagem do seu gráfico de progresso de VR (visível no canal).",
+    },
+  },
+  {
+    name: "what-is-my-vr-progress",
+    description: "Alias for /what-is-my-vr-chart.",
+    description_localizations: {
+      "pt-BR": "Alias de /what-is-my-vr-chart.",
+    },
+  },
+  {
+    name: "what-is-my-thp-chart",
+    description: "Post your THP history chart image (channel-visible).",
+    description_localizations: {
+      "pt-BR": "Publica a imagem do seu gráfico de histórico de THP (visível no canal).",
+    },
+  },
+  {
+    name: "what-is-my-thp-progress",
+    description: "Alias for /what-is-my-thp-chart.",
+    description_localizations: {
+      "pt-BR": "Alias de /what-is-my-thp-chart.",
+    },
+  },
+  {
     name: "what-is-my-kill-count",
     description: "Show your current total kill count (channel-visible).",
     description_localizations: {
@@ -324,6 +352,30 @@ const commandBody = [
     description_localizations: {
       "pt-BR":
         "Define este canal para anúncios do trem (somente dono).",
+    },
+  },
+  {
+    name: "set-seasonal-events-channel",
+    description: "Set this channel for seasonal event announcements — bank captures, etc. (owner only).",
+    description_localizations: {
+      "pt-BR":
+        "Define este canal para anúncios de eventos sazonais — capturas de bancos, etc. (somente dono).",
+    },
+  },
+  {
+    name: "set-regular-events-channel",
+    description: "Set this channel for regular event announcements (owner only).",
+    description_localizations: {
+      "pt-BR":
+        "Define este canal para anúncios de eventos regulares (somente dono).",
+    },
+  },
+  {
+    name: "set-banking-channel",
+    description: "Set this channel for banking partner notifications — protection timers, etc. (owner only).",
+    description_localizations: {
+      "pt-BR":
+        "Define este canal para notificações de parceiros bancários — timers de proteção, etc. (somente dono).",
     },
   },
   {

@@ -35,7 +35,11 @@ import {
 import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
-import { shouldRefetchOnLiveJobStatus } from "@/lib/video/live-job-refresh.shared";
+import { memberMatchConfidenceBorderClass } from "@/lib/video/member-match-confidence-class";
+import {
+  isTerminalLiveJobStatus,
+  shouldRefetchOnLiveJobStatus,
+} from "@/lib/video/live-job-refresh.shared";
 import {
   buildConnectHref,
   stashConnectReturnPath,
@@ -73,8 +77,10 @@ import {
 } from "@/components/video/RosterVideoReviewTable";
 import {
   DepositSlipVideoReviewTable,
+  depositSlipFollowMeCompatible,
   useDepositSlipReviewValidation,
 } from "@/components/video/DepositSlipVideoReviewTable";
+import type { DepositSlipVisibleSortKey } from "@/lib/banks/deposit-slip-review-visible-rows.shared";
 import type { PassComparison } from "@/lib/video/compare-pass-results";
 import {
   formatHeroPowerMForStorage,
@@ -83,6 +89,14 @@ import {
 import type { AshedMember } from "@/lib/video/member-matcher";
 import { readPreferredDepositSlipBankId } from "@/lib/banks/deposit-slip-upload-context.shared";
 import type { SerializedBank } from "@/lib/banks/types.shared";
+import { VideoJobProgressBar } from "@/components/video/VideoJobProgressBar";
+import {
+  isIndeterminateVideoJobStage,
+  resolveVideoJobStage,
+  stageShowsPipelineLabel,
+  videoJobEngineLabelKey,
+  videoJobStageProgressPercent,
+} from "@/lib/video/video-job-stage.shared";
 
 type ParsedRow = {
   id: string;
@@ -161,13 +175,6 @@ type GroupInfo = {
   }>;
 };
 
-function confidenceClass(confidence: number | null): string {
-  if (confidence == null || confidence === 0) return "border-hq-danger";
-  if (confidence >= 0.9) return "border-hq-green";
-  if (confidence >= 0.6) return "border-[#d29922]";
-  return "border-hq-danger";
-}
-
 function ReviewActionErrorBanner({
   message,
   connectUrl,
@@ -243,6 +250,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [depositSlipVisibleRowIds, setDepositSlipVisibleRowIds] = useState<
     string[]
   >([]);
+  const [depositSlipSortKey, setDepositSlipSortKey] =
+    useState<DepositSlipVisibleSortKey>("depositAt");
   const [error, setError] = useState<string | null>(null);
   const [errorConnectUrl, setErrorConnectUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -302,6 +311,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [bankId, setBankId] = useState("");
   const rosterMembersHydratedRef = useRef(false);
   const liveJobStatusRef = useRef<string | null>(null);
+  const loadGenerationRef = useRef(0);
   const draftDirtyVersionRef = useRef(0);
   const [draftDirtyVersion, setDraftDirtyVersion] = useState(0);
   const isEventView = viewMode === "event";
@@ -430,8 +440,21 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         `/api/tools/video-upload/${jobId}/rematch-members`,
         { method: "POST" },
       );
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as {
+        error?: string;
+        code?: string;
+        connectUrl?: string;
+      };
       if (!res.ok) {
+        if (data.code === "ashed_not_connected") {
+          const reviewPath = `/tools/video-upload/${jobId}/review`;
+          stashConnectReturnPath(reviewPath);
+          setActionError(
+            data.error ?? tc("uploadFailed"),
+            data.connectUrl ?? buildConnectHref(reviewPath),
+          );
+          return false;
+        }
         setActionError(data.error ?? tc("uploadFailed"));
         return false;
       }
@@ -450,6 +473,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const load = useCallback(
     async (options?: { skipRematch?: boolean }) => {
+      const generation = ++loadGenerationRef.current;
+      const isStale = () => generation !== loadGenerationRef.current;
+
       try {
         const res = await fetch(`/api/tools/video-upload/${jobId}`);
         const data = (await res.json()) as {
@@ -488,6 +514,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           >;
           members?: AshedMember[];
         };
+        if (isStale()) {
+          return;
+        }
         if (!res.ok) {
           setJobStatus("load_error");
           setActionError(data.error ?? tc("uploadFailed"));
@@ -501,10 +530,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           data.job?.status !== "submitting"
         ) {
           const ok = await rematchMembers();
+          if (isStale()) {
+            return;
+          }
           if (ok) {
             await loadRef.current({ skipRematch: true });
             return;
           }
+        }
+
+        if (isStale()) {
+          return;
         }
 
         const jobMembers = data.members ?? [];
@@ -588,6 +624,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setAllianceName(data.alliance?.jobName ?? null);
         setAllianceStale(Boolean(data.alliance?.stale));
       } catch (err) {
+        if (isStale()) {
+          return;
+        }
         setJobStatus("load_error");
         setActionError(
           err instanceof Error ? err.message : tc("connectionFailed"),
@@ -608,14 +647,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }, [load]);
 
   const displayJobStatus = useMemo(() => {
-    const terminalStatuses = new Set([
+    const restTerminalStatuses = new Set([
       "review",
       "failed",
       "load_error",
       "complete",
       "discarded",
     ]);
-    if (terminalStatuses.has(jobStatus)) {
+    if (restTerminalStatuses.has(jobStatus)) {
       return jobStatus;
     }
     if (
@@ -625,6 +664,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         liveJob.status === "extracting" ||
         liveJob.status === "parsing")
     ) {
+      return liveJob.status;
+    }
+    // REST may lag the SSE stream when OCR finishes; honor review/failed only
+    // (complete/discarded from SSE while REST is still active must not exit the
+    // waiting UI without a refetch). load() runs via shouldRefetchOnLiveJobStatus.
+    if (liveJob && isTerminalLiveJobStatus(liveJob.status)) {
       return liveJob.status;
     }
     return jobStatus;
@@ -643,16 +688,21 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     // the provider returns a new object reference each time, so this effect
     // would otherwise run on every snapshot — re-running load() and clobbering
     // the reviewer's in-progress edits. See shouldRefetchOnLiveJobStatus.
-    if (shouldRefetchOnLiveJobStatus(previousStatus, liveJob.status)) {
+    if (
+      shouldRefetchOnLiveJobStatus(previousStatus, liveJob.status, {
+        restStatus: jobStatus,
+      })
+    ) {
       queueMicrotask(() => {
         void load();
       });
     }
-  }, [liveJob, load]);
+  }, [liveJob, load, jobStatus]);
 
   useEffect(() => {
     rosterMembersHydratedRef.current = false;
     liveJobStatusRef.current = null;
+    loadGenerationRef.current = 0;
   }, [jobId]);
 
   // Roster review: enrich stored rows from the job-alliance local roster once
@@ -1049,13 +1099,27 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     previewSeekControllerRef.current?.seek(seconds);
   }, []);
 
+  const onDepositSlipSortKeyChange = useCallback(
+    (next: DepositSlipVisibleSortKey) => {
+      setDepositSlipSortKey(next);
+      if (!depositSlipFollowMeCompatible(next)) {
+        setPreviewFollowMe(false);
+      }
+    },
+    [setPreviewFollowMe],
+  );
+
   // Follow-me for any non-roster review table that registers row anchors
-  // (score leaderboards and deposit-slip history).
+  // (score leaderboards and deposit-slip history). Deposit-slip Follow-me is
+  // only meaningful sorted by depositAt — commander sort has unrelated frame
+  // times as visual neighbors.
   const scoreTableFollowMeEnabled =
     hasSourceVideo &&
     !scoreTargetMeta?.showRosterColumns &&
     previewFollowMe &&
-    previewOpen;
+    previewOpen &&
+    (!scoreTargetMeta?.showDepositSlipColumns ||
+      depositSlipFollowMeCompatible(depositSlipSortKey));
 
   const { registerFollowAnchor } = useVideoReviewFollowMe({
     enabled: scoreTableFollowMeEnabled,
@@ -1134,11 +1198,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const duplicateMemberIssues = scoreTargetMeta?.showRosterColumns
     ? rosterValidation.duplicateMemberIssues
-    : scoreDuplicateMemberIssues;
+    : scoreTargetMeta?.showDepositSlipColumns
+      ? depositSlipValidation.duplicateMemberIssues
+      : scoreDuplicateMemberIssues;
 
   const duplicateRowIds = scoreTargetMeta?.showRosterColumns
     ? rosterValidation.duplicateRowIds
-    : scoreDuplicateRowIds;
+    : scoreTargetMeta?.showDepositSlipColumns
+      ? depositSlipValidation.duplicateRowIds
+      : scoreDuplicateRowIds;
 
   const hasScoreConflicts =
     scoreTargetMeta?.showScoreColumn !== false &&
@@ -1302,13 +1370,24 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       });
       const data = (await res.json()) as {
         error?: string;
+        code?: string;
+        connectUrl?: string;
         submitted?: number;
         duplicateMembers?: Array<{ memberName: string }>;
         showSolicitedFeedback?: boolean;
         solicitedSource?: "solicited_first_upload" | "solicited_third_upload";
       };
       if (!res.ok) {
-        setActionError(data.error ?? tc("uploadFailed"));
+        if (data.code === "ashed_not_connected") {
+          const reviewPath = `/tools/video-upload/${jobId}/review`;
+          stashConnectReturnPath(reviewPath);
+          setActionError(
+            data.error ?? tc("uploadFailed"),
+            data.connectUrl ?? buildConnectHref(reviewPath),
+          );
+          return;
+        }
+        setActionError(data.error ?? tc("uploadFailed"), data.connectUrl);
         return;
       }
       clearDraft();
@@ -1500,19 +1579,73 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     );
   }
 
+  if (displayJobStatus === "pending_approval") {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-hq-fg-muted">{t("pendingApproval")}</p>
+        <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
+          {t("backToUploads")}
+        </Link>
+      </div>
+    );
+  }
+
   if (
-    displayJobStatus === "pending_approval" ||
     displayJobStatus === "queued" ||
     displayJobStatus === "extracting" ||
     displayJobStatus === "parsing"
   ) {
+    const liveStage = resolveVideoJobStage(displayJobStatus, liveJob?.stage);
+    const frameProgress =
+      liveJob?.frameCount != null && liveJob.frameCount > 0
+        ? {
+            completed: liveJob.uploadedFrameCount ?? 0,
+            total: liveJob.frameCount,
+          }
+        : null;
+    const progressPercent = videoJobStageProgressPercent(
+      liveStage,
+      frameProgress,
+    );
+    const progressIndeterminate = isIndeterminateVideoJobStage(
+      liveStage,
+      frameProgress,
+    );
+    const engineLabelKey = stageShowsPipelineLabel(liveStage)
+      ? videoJobEngineLabelKey(liveJob?.ocrEngine)
+      : null;
+
+    const stageMessage =
+      liveStage === "queued"
+        ? t("stageQueued")
+        : liveStage === "extracting_frames"
+          ? t("stageExtracting")
+          : liveStage === "ocr_running"
+            ? frameProgress
+              ? t("stageOcrRunning", {
+                  completed: frameProgress.completed,
+                  total: frameProgress.total,
+                })
+              : t("processing", { status: displayJobStatus })
+            : liveStage === "finalizing_rows"
+              ? t("stageFinalizing")
+              : t("processing", { status: displayJobStatus });
+
     return (
       <div className="space-y-4">
-        <p className="text-sm text-hq-fg-muted">
-          {displayJobStatus === "pending_approval"
-            ? t("pendingApproval")
-            : t("processing", { status: displayJobStatus })}
-        </p>
+        <div className="space-y-2">
+          <p className="text-sm text-hq-fg-muted">{stageMessage}</p>
+          <VideoJobProgressBar
+            percent={progressPercent}
+            indeterminate={progressIndeterminate}
+            label={stageMessage}
+          />
+          {engineLabelKey ? (
+            <p className="text-xs text-hq-fg-muted">
+              {t("pipelineLabel", { engine: t(engineLabelKey) })}
+            </p>
+          ) : null}
+        </div>
         <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
           {t("backToUploads")}
         </Link>
@@ -1640,6 +1773,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             {hasSourceVideo && !scoreTargetMeta?.showRosterColumns ? (
               <button
                 type="button"
+                disabled={
+                  !!scoreTargetMeta?.showDepositSlipColumns &&
+                  !depositSlipFollowMeCompatible(depositSlipSortKey)
+                }
                 onClick={() => {
                   setPreviewFollowMe((on) => {
                     const next = !on;
@@ -1653,7 +1790,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   previewFollowMe
                     ? "border-hq-accent bg-[#0c2d6b]/40 text-hq-accent"
                     : "border-hq-border text-hq-fg hover:bg-hq-surface-muted"
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-50`}
               >
                 <LocateFixed className="h-4 w-4 shrink-0" aria-hidden />
                 {t("followMe")}
@@ -2148,6 +2285,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             }
             registerFollowAnchor={registerFollowAnchor}
             onVisibleRowIdsChange={onDepositSlipVisibleRowIdsChange}
+            onSortKeyChange={onDepositSlipSortKeyChange}
           />
         </>
       ) : (
@@ -2265,7 +2403,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     }}
                     aria-label={t("colMember")}
                     placeholder={t("unmatched")}
-                    triggerClassName={`px-2 py-1.5 ${confidenceClass(row.matchConfidence)}`}
+                    triggerClassName={`px-2 py-1.5 ${memberMatchConfidenceBorderClass(row.matchConfidence)}`}
                     searchable
                     searchMode="fuzzy"
                     combobox

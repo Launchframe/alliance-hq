@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  clampOcrDepositCount,
   parseCityListBanks,
   parseCityListFooter,
   parseCityListHeader,
@@ -8,6 +9,7 @@ import {
   parseCityListText,
   parseCompactCrystalGoldValue,
 } from "@/lib/banks/city-list-ocr/parse-city-list-text.shared";
+import { bankDepositCapacity } from "@/lib/banks/types.shared";
 
 /**
  * Golden lines transcribed from bank-stronghold-city-list.png: City List →
@@ -389,6 +391,140 @@ describe("parseCityListBanks", () => {
     });
   });
 
+  it("parses deposit counts from level 6+ banks with 110 capacity", () => {
+    const banks = parseCityListBanks([
+      "600.00K 500.00K",
+      "Lv.6 Lv.7",
+      "#1211 (X:599, Y:499) #1211 (X:699, Y:599)",
+      "95/110 108/110",
+    ]);
+    expect(banks).toHaveLength(2);
+    expect(banks[0]).toMatchObject({
+      level: 6,
+      crystalGoldValue: 600_000,
+      currentDepositCount: 95,
+    });
+    expect(banks[1]).toMatchObject({
+      level: 7,
+      crystalGoldValue: 500_000,
+      currentDepositCount: 108,
+    });
+  });
+
+  it("handles mixed 100 and 110 deposit capacities in the same row", () => {
+    const banks = parseCityListBanks([
+      "600.00K 500.00K 400.00K",
+      "Lv.3 Lv.6 Lv.2",
+      "#1211 (X:1, Y:1) #1211 (X:2, Y:2) #1211 (X:3, Y:3)",
+      "81/100 95/110 50/100",
+    ]);
+    expect(banks).toHaveLength(3);
+    expect(banks[0]?.currentDepositCount).toBe(81);
+    expect(banks[1]?.currentDepositCount).toBe(95);
+    expect(banks[2]?.currentDepositCount).toBe(50);
+  });
+
+  it("does not misassign an orphaned row's amounts when its own coordinate line is fully unreadable", () => {
+    // The middle tile-row's coordinate line is completely unreadable (no
+    // match on either the labeled or glued coordinate patterns), so it has
+    // zero coords and drops out of `coordLineIndices`. Its value/level
+    // lines land in the next row's pre-line window and must be discarded,
+    // not zipped onto the next row's real coordinates.
+    const banks = parseCityListBanks([
+      "600.00K",
+      "Lv.3",
+      "#1211 (X:1, Y:1)",
+      "500.00K",
+      "Lv.2",
+      "unreadable garbage with no coordinate pattern at all",
+      "400.00K",
+      "Lv.4",
+      "#1211 (X:3, Y:3)",
+    ]);
+    expect(banks).toHaveLength(2);
+    expect(banks[0]).toMatchObject({
+      crystalGoldValue: 600_000,
+      coordX: 1,
+      coordY: 1,
+      level: 3,
+    });
+    expect(banks[1]).toMatchObject({
+      crystalGoldValue: 400_000,
+      coordX: 3,
+      coordY: 3,
+      level: 4,
+    });
+  });
+
+  it("discards tokens from multiple consecutive unreadable rows before a survivor", () => {
+    const banks = parseCityListBanks([
+      "600.00K",
+      "Lv.3",
+      "#1211 (X:1, Y:1)",
+      "500.00K",
+      "Lv.2",
+      "unreadable garbage row A",
+      "450.00K",
+      "Lv.5",
+      "unreadable garbage row B",
+      "400.00K",
+      "Lv.4",
+      "#1211 (X:3, Y:3)",
+    ]);
+    expect(banks).toHaveLength(2);
+    expect(banks[0]).toMatchObject({
+      crystalGoldValue: 600_000,
+      coordX: 1,
+      coordY: 1,
+      level: 3,
+    });
+    expect(banks[1]).toMatchObject({
+      crystalGoldValue: 400_000,
+      coordX: 3,
+      coordY: 3,
+      level: 4,
+    });
+  });
+
+  it("discards a multi-tile orphaned row without corrupting the next multi-tile survivor", () => {
+    const banks = parseCityListBanks([
+      "600.00K 500.00K",
+      "Lv.3 Lv.2",
+      "#1211 (X:1, Y:1) #1211 (X:2, Y:2)",
+      "450.00K 350.00K 250.00K",
+      "Lv.5 Lv.6 Lv.7",
+      "unreadable multi-tile garbage with no coords",
+      "400.00K 300.00K",
+      "Lv.4 Lv.1",
+      "#1211 (X:3, Y:3) #1211 (X:4, Y:4)",
+    ]);
+    expect(banks).toHaveLength(4);
+    expect(banks[0]).toMatchObject({
+      crystalGoldValue: 600_000,
+      coordX: 1,
+      coordY: 1,
+      level: 3,
+    });
+    expect(banks[1]).toMatchObject({
+      crystalGoldValue: 500_000,
+      coordX: 2,
+      coordY: 2,
+      level: 2,
+    });
+    expect(banks[2]).toMatchObject({
+      crystalGoldValue: 400_000,
+      coordX: 3,
+      coordY: 3,
+      level: 4,
+    });
+    expect(banks[3]).toMatchObject({
+      crystalGoldValue: 300_000,
+      coordX: 4,
+      coordY: 4,
+      level: 1,
+    });
+  });
+
   it("recovers a top row that only appears as hashless coords (bottom-row regression)", () => {
     // Live review UI lost the top row while keeping bottom-row #1203 tiles.
     const banks = parseCityListBanks([
@@ -479,5 +615,61 @@ describe("parseCityListText", () => {
         (bank) => bank.coordX === 699 && bank.coordY === 99,
       ),
     ).toBe(true);
+  });
+});
+
+describe("clampOcrDepositCount", () => {
+  it("returns values already within capacity unchanged", () => {
+    expect(clampOcrDepositCount(0)).toBe(0);
+    expect(clampOcrDepositCount(81)).toBe(81);
+    expect(clampOcrDepositCount(100)).toBe(100);
+    expect(clampOcrDepositCount(110)).toBe(110);
+  });
+
+  it("strips leading digits when OCR prepends junk (271 → 71)", () => {
+    expect(clampOcrDepositCount(271)).toBe(71);
+  });
+
+  it("strips multiple leading digits if needed (1200 → 00 → 0)", () => {
+    expect(clampOcrDepositCount(1200)).toBe(0);
+  });
+
+  it("handles values just above the cap (111 → 11)", () => {
+    expect(clampOcrDepositCount(111)).toBe(11);
+  });
+
+  it("handles a three-digit result after one strip (395 → 95)", () => {
+    expect(clampOcrDepositCount(395)).toBe(95);
+  });
+});
+
+describe("parseCityListBanks — deposit clamping", () => {
+  it("clamps OCR deposit counts above 110 by stripping leading digits", () => {
+    const banks = parseCityListBanks([
+      "600.00K 500.00K",
+      "Lv.3 Lv.6",
+      "#1211 (X:1, Y:1) #1211 (X:2, Y:2)",
+      "271/100 395/110",
+    ]);
+    expect(banks).toHaveLength(2);
+    expect(banks[0]?.currentDepositCount).toBe(71);
+    expect(banks[1]?.currentDepositCount).toBe(95);
+  });
+});
+
+describe("bankDepositCapacity", () => {
+  it("returns 100 for levels 1–5", () => {
+    for (let level = 1; level <= 5; level++) {
+      expect(bankDepositCapacity(level)).toBe(100);
+    }
+  });
+
+  it("returns 110 for level 6", () => {
+    expect(bankDepositCapacity(6)).toBe(110);
+  });
+
+  it("returns 110 for levels 7 and above", () => {
+    expect(bankDepositCapacity(7)).toBe(110);
+    expect(bankDepositCapacity(10)).toBe(110);
   });
 });

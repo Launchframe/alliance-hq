@@ -18,6 +18,10 @@ function baseValues(
     capturePolicy: "peace",
     notes: "",
     status: "scheduled",
+    gameServerNumber: "",
+    coordX: "",
+    coordY: "",
+    level: "",
     ...overrides,
   };
 }
@@ -46,5 +50,41 @@ describe("captureEventFormToPayload", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("maps optional stronghold coordinates to payload numbers", () => {
+    const payload = captureEventFormToPayload(
+      baseValues({
+        gameServerNumber: "42",
+        coordX: "699",
+        coordY: "539",
+        level: "3",
+      }),
+      "server",
+    );
+    expect(payload).toMatchObject({
+      gameServerNumber: 42,
+      coordX: 699,
+      coordY: 539,
+      level: 3,
+    });
+  });
+
+  it("omits invalid coordinate fields from payload", () => {
+    const payload = captureEventFormToPayload(
+      baseValues({
+        gameServerNumber: "abc",
+        coordX: "",
+        coordY: "   ",
+        level: "",
+      }),
+      "server",
+    );
+    expect(payload).toMatchObject({
+      gameServerNumber: null,
+      coordX: null,
+      coordY: null,
+      level: null,
+    });
   });
 });

@@ -93,6 +93,8 @@ export function DepositSlipEditorModal({
       depositAt: depositAtIso,
       termDays: Number(values.termDays) as DepositTermDays,
       amount: Number(values.amount),
+      // Manual editor has no outcome field yet — preserve OCR-persisted value.
+      outcomeAmount: initial?.outcomeAmount ?? null,
       status: values.status,
       commanderName: values.commanderName.trim(),
       depositAllianceTag: values.allianceTag.trim() || null,

@@ -3673,6 +3673,15 @@
     "processing": "Processing ({status})… this page refreshes automatically.",
     "pendingApproval": "Waiting for a video processor to approve this upload. OCR will start after approval — this page refreshes automatically.",
     "processingFailed": "Processing failed. Try uploading again.",
+    "stageQueued": "Waiting in the processing queue…",
+    "stageExtracting": "Extracting frames from the video…",
+    "stageOcrRunning": "Running OCR — {completed} of {total} frames",
+    "stageFinalizing": "Finalizing results…",
+    "stageDone": "Loading your results…",
+    "pipelineLabel": "Pipeline: {engine}",
+    "engineAshed": "Ashed",
+    "engineNative": "In-house Tesseract",
+    "engineMock": "Mock OCR (dev/test)",
     "backToUploads": "← Back to uploads",
     "summary": "{matched} matched · {total} entries",
     "noEntriesHint": "OCR finished but no rows were parsed. This was usually a response-format bug — try re-running OCR.",
@@ -4352,6 +4361,13 @@
       "killsStatus": "**{name}** — kill count **{total}**.",
       "killsHeader": "Your linked commanders:"
     },
+    "chart": {
+      "nowLabel": "Now",
+      "vrNotLinked": "You don't have a linked commander yet. Run `/link-commander` first, then ask again with `/what-is-my-vr-chart`.",
+      "vrInsufficientData": "Not enough VR history to draw a chart yet. Report institute level with `/vr` a few times, then try again.",
+      "thpNotLinked": "You don't have a linked commander yet. Run `/link-commander` first, then ask again with `/what-is-my-thp-chart`.",
+      "thpInsufficientData": "Need at least two THP reports to draw a history chart. Use `/thp` again after your next update."
+    },
     "weeklyPass": {
       "pickCharacter": "Which commander do you want to apply this change to?",
       "pickExpired": "That picker expired. Run `/weekly-pass` again to choose a commander.",
@@ -4422,7 +4438,7 @@
     },
     "officerNotified": "An officer has been notified. They can reach out to you here on Discord.",
     "help": {
-      "dmGeneral": "**Alliance HQ bot** — run `/help` in your alliance server for steps matched to your role.\n\nQuick list: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-thp`, `/who-is-conductor`, `/language`. Owners set up with `/link-alliance`. Officers (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Full setup guide:** {guideUrl}",
+      "dmGeneral": "**Alliance HQ bot** — run `/help` in your alliance server for steps matched to your role.\n\nQuick list: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-vr-chart`, `/what-is-my-thp`, `/what-is-my-thp-chart`, `/who-is-conductor`, `/language`. Owners set up with `/link-alliance`. Officers (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Full setup guide:** {guideUrl}",
       "setupLinkHq": "Link your Discord account to Alliance HQ: run `/link` and complete the browser sign-in.",
       "setupOwnerLinkHq": "This server isn't registered yet. **R5:** open the install wizard in your browser (sign in, tag, Ashed, add bot).\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
       "setupOwnerLinkCommander": "Register this server with the install wizard, then run **`/link-commander`**.\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
@@ -4608,8 +4624,14 @@
       "memberOnboardingReview": "Onboarding review",
       "memberOnboardingReviewTitle": "Review {name}",
       "memberOnboardingReviewBody": "A member linked through an invite or join code. Confirm their roster entry or merge with an existing unlinked entry.",
-      "memberOnboardingReviewBodyWithSuggestion": "Commander {gameName} — may match roster entry {suggested} (linked as {linkedName})."
-    }
+      "memberOnboardingReviewBodyWithSuggestion": "Commander {gameName} — may match roster entry {suggested} (linked as {linkedName}).",
+      "captureReminder": "Capture follow-up",
+      "captureReminderBody": "Was this Stronghold successfully captured?",
+      "captureYes": "Yes — create bank",
+      "captureNo": "No",
+      "captureSnooze": "Snooze 30 min"
+    },
+    "confirmCaptureFailed": "Failed to confirm capture."
   },
   "guides": {
     "gettingStarted": {
@@ -5042,6 +5064,10 @@
       "territoryType": "Territory type",
       "stronghold": "Stronghold",
       "city": "City",
+      "targetCoords": "Target coordinates (optional)",
+      "gameServer": "Server",
+      "level": "Level",
+      "targetCoordsHint": "Provide coordinates to auto-create a Bank when you confirm the capture later.",
       "drop": "Bank drop",
       "dropHint": "Investors should limit new deposit terms on this bank.",
       "marker": "Marker",
@@ -5092,6 +5118,11 @@
     "cityListParseFailed": "Could not read banks from those images.",
     "cityListIncompleteWarning": "Imported banks are fewer than the captured count — import will not remove existing banks.",
     "cityListExtraHqWarning": "HQ has banks not shown in these screenshots. They were left unchanged.",
+    "cityListDraftRestored": "Restored your unsaved review from last time.",
+    "cityListAddRow": "Add bank row",
+    "cityListDuplicateCoords": "Two or more banks have the same coordinates.",
+    "cityListValidationRequired": "Required",
+    "cityListValidationLevelMin": "Level must be 1 or higher",
     "cityListAddScreenshots": "Add screenshots",
     "cityListClearScreenshots": "Clear",
     "cityListSelectedCount": "{count, plural, one {# screenshot selected} other {# screenshots selected}}",
@@ -5103,6 +5134,11 @@
     "cityListPreviewScreenshots": "Preview screenshots",
     "cityListPreviousBank": "Previous",
     "cityListNextBank": "Next",
+    "cityListReset": "Reset",
+    "cityListResetTitle": "Reset this import?",
+    "cityListResetBody": "Clears everything you’ve reviewed so far and returns to the upload step.",
+    "cityListResetHint": "This can’t be undone — you’ll need to re-upload the screenshots to start over.",
+    "cityListResetConfirm": "Reset import",
     "capturesLeftToday": "Captures left today: {remaining}/{limit}",
     "cityListServerTime": "Screenshot server time: {time}",
     "editBank": "Edit bank",
@@ -5152,7 +5188,27 @@
     "status": {
       "locked": "Locked",
       "matured": "Matured",
-      "looted": "Looted"
+      "looted": "Looted",
+      "term_elapsed": "Elapsed"
+    },
+    "filter": {
+      "active": "Active",
+      "elapsed": "Elapsed",
+      "matured": "Matured",
+      "looted": "Looted",
+      "empty": {
+        "active": "No active deposits",
+        "elapsed": "No elapsed deposits",
+        "matured": "No matured deposits",
+        "looted": "No looted deposits"
+      }
+    },
+    "stats": {
+      "totalDeposited": "Total deposited",
+      "recovered": "Recovered",
+      "lostToLooting": "Lost to looting",
+      "interestEarned": "Interest earned",
+      "interestUnavailable": "Import deposit slip history to unlock interest tracking"
     },
     "actions": {
       "save": "Save",
@@ -5203,10 +5259,11 @@
   },
   "statSync": {
     "title": "HQ ↔ Ashed sync",
-    "subtitle": "Resolve pending THP and kills reports that need to be pushed to Ashed, or keep Ashed when HQ is wrong.",
+    "subtitle": "Resolve pending THP, kills, and HQ-level reports that need to be pushed to Ashed, or keep Ashed when HQ is wrong.",
     "tabs": {
       "thp": "THP",
-      "kills": "Kills"
+      "kills": "Kills",
+      "level": "HQ level"
     },
     "empty": "No pending sync items for this stat.",
     "loadFailed": "Failed to load sync review.",

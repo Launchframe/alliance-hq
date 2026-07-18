@@ -5,6 +5,7 @@ import {
   validateCaptureEventPayload,
   type CaptureEventPayload,
 } from "@/lib/battle-plan/api.shared";
+import { materializeCaptureReminderInboxItem } from "@/lib/battle-plan/capture-reminder-inbox.server";
 import {
   createCaptureEvent,
   reloadSerializedDashboard,
@@ -45,6 +46,23 @@ export async function POST(request: Request) {
       session.hqUserId ?? null,
       body,
     );
+
+    if (
+      row.territoryType === "stronghold" &&
+      (row.eventType ?? "capture") === "capture" &&
+      (row.status ?? "scheduled") === "scheduled"
+    ) {
+      const title = row.notes?.trim()
+        ? `Stronghold capture: ${row.notes.trim()}`
+        : "Stronghold capture";
+      await materializeCaptureReminderInboxItem({
+        allianceId,
+        captureEventId: row.id,
+        scheduledAt: row.scheduledAt,
+        title,
+      });
+    }
+
     const dashboard = await reloadSerializedDashboard(
       allianceId,
       true,

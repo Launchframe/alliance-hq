@@ -13,6 +13,7 @@ import {
   appendMemberGameLevelEventIfChanged,
   appendCommanderPowerLevelEventIfChanged,
 } from "@/lib/members/member-stat-history.server";
+import { normalizeMemberHqLevel } from "@/lib/members/member-level.shared";
 import {
   syncCommanderFromAllianceMember,
   validateRosterImportCommanderIdentities,
@@ -117,14 +118,17 @@ async function appendStatEventsForRow(input: {
     }
   }
   if (input.memberLevel != null) {
-    await appendMemberGameLevelEventIfChanged({
-      allianceId: input.allianceId,
-      ashedMemberId: input.ashedMemberId,
-      memberName: input.memberName,
-      value: input.memberLevel,
-      source: input.source,
-      recordedByHqUserId: input.hqUserId,
-    });
+    const level = normalizeMemberHqLevel(input.memberLevel);
+    if (level != null) {
+      await appendMemberGameLevelEventIfChanged({
+        allianceId: input.allianceId,
+        ashedMemberId: input.ashedMemberId,
+        memberName: input.memberName,
+        value: level,
+        source: input.source,
+        recordedByHqUserId: input.hqUserId,
+      });
+    }
   }
 }
 

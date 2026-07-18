@@ -46,6 +46,7 @@ export function BankManagementClient({ initial }: Props) {
   const [banks, setBanks] = useState<BankWithSlips[]>(initial.banks);
   const [heatmaps, setHeatmaps] = useState(initial.heatmaps);
   const [canWrite, setCanWrite] = useState(initial.canWrite);
+  const [allianceId, setAllianceId] = useState(initial.allianceId);
   const [allianceGameServerNumber, setAllianceGameServerNumber] = useState(
     initial.allianceGameServerNumber,
   );
@@ -97,6 +98,7 @@ export function BankManagementClient({ initial }: Props) {
     setBanks(dashboard.banks);
     setHeatmaps(dashboard.heatmaps);
     setCanWrite(dashboard.canWrite);
+    setAllianceId(dashboard.allianceId);
     setAllianceGameServerNumber(dashboard.allianceGameServerNumber);
     setBankCapturesRemainingToday(dashboard.bankCapturesRemainingToday);
     setBankCapturesLimitToday(dashboard.bankCapturesLimitToday);
@@ -178,8 +180,8 @@ export function BankManagementClient({ initial }: Props) {
     setError(null);
     try {
       if (pendingDelete.kind === "bank") {
-        const response = await fetch(`/api/banks/${pendingDelete.bank.id}`, {
-          method: "DELETE",
+        const response = await fetch(`/api/banks/${pendingDelete.bank.id}/drop`, {
+          method: "POST",
         });
         if (!response.ok) {
           await handleMutationError(response);
@@ -390,6 +392,7 @@ export function BankManagementClient({ initial }: Props) {
       <CityListImportModal
         open={cityListModalOpen}
         onOpenChange={setCityListModalOpen}
+        allianceId={allianceId}
         existingBanks={banks}
         onImported={(dashboard) => applyDashboard(dashboard)}
       />

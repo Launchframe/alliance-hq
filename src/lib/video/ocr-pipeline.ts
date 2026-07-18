@@ -8,6 +8,7 @@ import {
   logOcrDiagnostics,
 } from "@/lib/ocr/ocr-diagnostics.shared";
 import { mapWithConcurrency } from "@/lib/video/map-with-concurrency";
+import type { VideoOcrProgressCallback } from "@/lib/video/ocr-provider.shared";
 import type { PipelineTimer } from "@/lib/video/pipeline-timer";
 import type { ScoreTargetDef } from "@/lib/video/score-targets";
 import {
@@ -130,11 +131,14 @@ export async function ocrAllFrames(
     concurrency?: number;
     timer?: PipelineTimer;
     jobId?: string;
+    onProgress?: VideoOcrProgressCallback;
   },
 ): Promise<OcrAllFramesResult> {
   const concurrency = options?.concurrency ?? defaultAshFrameConcurrency();
   const timer = options?.timer;
   const jobId = options?.jobId;
+  const onProgress = options?.onProgress;
+  let completedCount = 0;
 
   timer?.logStep("ashed.batch_start", 0, {
     jobId,
@@ -159,6 +163,9 @@ export async function ocrAllFrames(
           frame.index,
           timer,
         );
+
+      completedCount += 1;
+      await onProgress?.(completedCount, frames.length);
 
       return {
         frameIndex: frame.index,

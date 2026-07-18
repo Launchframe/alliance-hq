@@ -14,7 +14,7 @@ import { getAshedConnection, getOrCreateSession } from "@/lib/session";
 export const dynamic = "force-dynamic";
 
 function parseStat(value: unknown): MonotonicStatId | null {
-  return value === "thp" || value === "kills" ? value : null;
+  return value === "thp" || value === "kills" || value === "level" ? value : null;
 }
 
 export async function GET(request: Request) {

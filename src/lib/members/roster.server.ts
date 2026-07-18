@@ -146,6 +146,7 @@ export async function syncAllianceMembersFromAshed(input: {
       thpSource: "ashed_sync",
       thpHistory: record.total_hero_power_history,
       powerLevelHistory: record.power_level_history,
+      levelHistory: record.level_history,
     });
     if (syncResult.status === "deferred" && syncResult.conflict) {
       commanderConflicts.push(syncResult.conflict);

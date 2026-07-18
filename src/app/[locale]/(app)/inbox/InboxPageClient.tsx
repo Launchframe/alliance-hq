@@ -4,6 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
+import {
+  CAPTURE_REMINDER_INBOX_KIND,
+  isSnoozed,
+  snoozeItem,
+} from "@/lib/battle-plan/capture-reminder-inbox.shared";
 import { MEMBER_LINK_HELP_INBOX_KIND } from "@/lib/member-link/member-link-help-inbox.shared";
 import { ONBOARDING_REVIEW_INBOX_KIND } from "@/lib/member-link/onboarding-review-inbox.shared";
 import { ROSTER_LINK_INBOX_KIND } from "@/lib/member-link/roster-link-inbox.shared";
@@ -17,6 +22,7 @@ type ReminderItem = {
   body: string | null;
   href: string | null;
   scoreTarget: string | null;
+  resourceId: string | null;
   createdAt: string;
 };
 
@@ -30,6 +36,8 @@ export default function InboxPageClient({
   const [items, setItems] = useState<ReminderItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [snoozedIds, setSnoozedIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     try {
@@ -37,6 +45,9 @@ export default function InboxPageClient({
       if (!res.ok) throw new Error(t("loadFailed"));
       const data = (await res.json()) as { items: ReminderItem[] };
       setItems(data.items);
+      setSnoozedIds(
+        new Set(data.items.filter((i) => isSnoozed(i.id)).map((i) => i.id)),
+      );
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("loadFailed"));
@@ -84,12 +95,44 @@ export default function InboxPageClient({
     }
   }
 
+  async function confirmCapture(item: ReminderItem) {
+    if (!item.resourceId) return;
+    setConfirmingId(item.id);
+    try {
+      const res = await fetch(
+        `/api/battle-plan/events/${item.resourceId}/confirm-capture`,
+        { method: "POST" },
+      );
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(data.error || t("confirmCaptureFailed"));
+      }
+      await dismissOne(item.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("confirmCaptureFailed"));
+    } finally {
+      setConfirmingId(null);
+    }
+  }
+
+  function declineCapture(item: ReminderItem) {
+    void dismissOne(item.id);
+  }
+
+  function handleSnooze(item: ReminderItem) {
+    snoozeItem(item.id);
+    setSnoozedIds((prev) => new Set([...prev, item.id]));
+  }
+
   function kindLabel(kind: string): string {
     if (kind === "eur_occurrence") return t("kind.eurOccurrence");
     if (kind === "video_jobs_pending") return t("kind.videoJobsPending");
     if (kind === ROSTER_LINK_INBOX_KIND) return t("kind.memberLinkRequest");
     if (kind === ONBOARDING_REVIEW_INBOX_KIND) return t("kind.memberOnboardingReview");
     if (kind === MEMBER_LINK_HELP_INBOX_KIND) return t("kind.memberLinkHelp");
+    if (kind === CAPTURE_REMINDER_INBOX_KIND) return t("kind.captureReminder");
     return kind;
   }
 
@@ -147,59 +190,112 @@ export default function InboxPageClient({
         <p className="text-sm text-hq-fg-muted">{t("empty")}</p>
       ) : (
         <ul className="divide-y divide-hq-border rounded-xl border border-hq-border bg-hq-surface">
-          {items.map((item) => (
-            <li
-              key={item.id}
-              className={`flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
-                item.href ? "transition-colors hover:bg-hq-surface-muted" : ""
-              }`}
-            >
-              {item.href ? (
-                <Link
-                  href={item.href}
-                  className="group min-w-0 flex-1 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#388bfd]"
+          {items
+            .filter((item) => !snoozedIds.has(item.id))
+            .map((item) =>
+              item.kind === CAPTURE_REMINDER_INBOX_KIND ? (
+                <li
+                  key={item.id}
+                  className="flex flex-col gap-3 px-4 py-3"
                 >
-                  <p className="text-xs font-medium uppercase tracking-wide text-hq-accent">
-                    {kindLabel(item.kind)}
-                  </p>
-                  <p className="truncate font-medium text-hq-fg group-hover:text-hq-accent group-hover:underline">
-                    {displayTitle(item)}
-                  </p>
-                  {displayBody(item) ? (
-                    <p className="truncate text-sm text-hq-fg-muted">
-                      {displayBody(item)}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium uppercase tracking-wide text-hq-accent">
+                      {kindLabel(item.kind)}
                     </p>
-                  ) : null}
-                  <p className="mt-1 text-xs text-hq-fg-muted">
-                    <FormattedDateTime value={item.createdAt} />
-                  </p>
-                </Link>
+                    <p className="font-medium">{item.title}</p>
+                    <p className="mt-1 text-sm text-hq-fg-muted">
+                      {t("kind.captureReminderBody")}
+                    </p>
+                    <p className="mt-1 text-xs text-hq-fg-muted">
+                      <FormattedDateTime value={item.createdAt} />
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={
+                        confirmingId === item.id || dismissingId === item.id
+                      }
+                      onClick={() => void confirmCapture(item)}
+                      className="rounded-lg border border-hq-success bg-hq-success px-3 py-1.5 text-sm font-medium text-white hover:brightness-110 disabled:opacity-50"
+                    >
+                      {t("kind.captureYes")}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={dismissingId === item.id}
+                      onClick={() => declineCapture(item)}
+                      className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted disabled:opacity-50"
+                    >
+                      {t("kind.captureNo")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSnooze(item)}
+                      className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg-muted hover:bg-hq-surface-muted"
+                    >
+                      {t("kind.captureSnooze")}
+                    </button>
+                  </div>
+                </li>
               ) : (
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium uppercase tracking-wide text-hq-accent">
-                    {kindLabel(item.kind)}
-                  </p>
-                  <p className="truncate font-medium">{displayTitle(item)}</p>
-                  {displayBody(item) ? (
-                    <p className="truncate text-sm text-hq-fg-muted">
-                      {displayBody(item)}
-                    </p>
-                  ) : null}
-                  <p className="mt-1 text-xs text-hq-fg-muted">
-                    <FormattedDateTime value={item.createdAt} />
-                  </p>
-                </div>
-              )}
-              <button
-                type="button"
-                disabled={dismissingId === item.id}
-                onClick={() => void dismissOne(item.id)}
-                className="shrink-0 self-start rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg disabled:opacity-50 sm:self-center"
-              >
-                {t("dismiss")}
-              </button>
-            </li>
-          ))}
+                <li
+                  key={item.id}
+                  className={`flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
+                    item.href
+                      ? "transition-colors hover:bg-hq-surface-muted"
+                      : ""
+                  }`}
+                >
+                  {item.href ? (
+                    <Link
+                      href={item.href}
+                      className="group min-w-0 flex-1 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#388bfd]"
+                    >
+                      <p className="text-xs font-medium uppercase tracking-wide text-hq-accent">
+                        {kindLabel(item.kind)}
+                      </p>
+                      <p className="truncate font-medium text-hq-fg group-hover:text-hq-accent group-hover:underline">
+                        {displayTitle(item)}
+                      </p>
+                      {displayBody(item) ? (
+                        <p className="truncate text-sm text-hq-fg-muted">
+                          {displayBody(item)}
+                        </p>
+                      ) : null}
+                      <p className="mt-1 text-xs text-hq-fg-muted">
+                        <FormattedDateTime value={item.createdAt} />
+                      </p>
+                    </Link>
+                  ) : (
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium uppercase tracking-wide text-hq-accent">
+                        {kindLabel(item.kind)}
+                      </p>
+                      <p className="truncate font-medium">
+                        {displayTitle(item)}
+                      </p>
+                      {displayBody(item) ? (
+                        <p className="truncate text-sm text-hq-fg-muted">
+                          {displayBody(item)}
+                        </p>
+                      ) : null}
+                      <p className="mt-1 text-xs text-hq-fg-muted">
+                        <FormattedDateTime value={item.createdAt} />
+                      </p>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    disabled={dismissingId === item.id}
+                    onClick={() => void dismissOne(item.id)}
+                    className="shrink-0 self-start rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg disabled:opacity-50 sm:self-center"
+                  >
+                    {t("dismiss")}
+                  </button>
+                </li>
+              ),
+            )}
         </ul>
       )}
 

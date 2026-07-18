@@ -2,16 +2,35 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ChevronLeft, ChevronRight, Eye, Trash2, Upload, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, Plus, Trash2, Upload, X } from "lucide-react";
 import type { Slide } from "yet-another-react-lightbox";
 
 import { Dialog } from "@/components/ui/dialog";
 import { ScreenshotLightbox } from "@/components/ui/ScreenshotLightbox";
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
+import { CityListImportResetDialog } from "@/components/banks/CityListImportResetDialog";
+import {
+  clearCityListImportDraft,
+  readCityListImportDraft,
+  writeCityListImportDraft,
+} from "@/lib/banks/city-list-import-draft.shared";
 import type { ParsedCityListBank } from "@/lib/banks/city-list-ocr/parse-city-list-text.shared";
-import { clampReviewIndexAfterRemove } from "@/lib/banks/city-list-import-review.shared";
+import {
+  cityListReviewRowsHaveErrors,
+  clampReviewIndexAfterRemove,
+  defaultPlaceholderGameServerNumber,
+  isCityListPlaceholderCoords,
+  missingRowCountForCapturedCount,
+  validateCityListReviewRow,
+  type CityListRowErrors,
+  type CityListRowFieldName,
+} from "@/lib/banks/city-list-import-review.shared";
 import { formatCityListServerTime } from "@/lib/banks/city-list-server-time.shared";
-import type { BankManagementPayload, BankWithSlips } from "@/lib/banks/types.shared";
+import {
+  bankDepositCapacity,
+  type BankManagementPayload,
+  type BankWithSlips,
+} from "@/lib/banks/types.shared";
 
 type ReviewRow = {
   rowKey: string;
@@ -52,6 +71,7 @@ type SelectedScreenshot = {
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  allianceId: string;
   existingBanks: BankWithSlips[];
   onImported: (dashboard: BankManagementPayload) => void;
 };
@@ -80,8 +100,27 @@ function rowsFromParse(banks: ParsedCityListBank[]): ReviewRow[] {
   }));
 }
 
+function buildPlaceholderRow(gameServerNumber: number): ReviewRow {
+  return {
+    rowKey: newRowKey(),
+    gameServerNumber,
+    coordX: 0,
+    coordY: 0,
+    level: 1,
+    currentDepositValue: null,
+    currentDepositCount: null,
+  };
+}
+
 function bankKey(server: number, x: number, y: number): string {
   return `${server}:${x}:${y}`;
+}
+
+type RowFieldName = CityListRowFieldName;
+type RowErrors = CityListRowErrors;
+
+function touchKey(rowKey: string, field: RowFieldName): string {
+  return `${rowKey}:${field}`;
 }
 
 type FieldLabels = {
@@ -96,14 +135,24 @@ type FieldLabels = {
 function BankReviewCardFields({
   row,
   labels,
+  errors,
+  showErrors,
+  onTouchField,
   onChange,
 }: {
   row: ReviewRow;
   labels: FieldLabels;
+  errors: RowErrors;
+  showErrors: (field: RowFieldName) => boolean;
+  onTouchField: (field: RowFieldName) => void;
   onChange: (patch: Partial<ReviewRow>) => void;
 }) {
-  const inputClass =
-    "w-full min-w-0 rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg";
+  const inputBase =
+    "w-full min-w-0 rounded border bg-hq-canvas px-3 py-2 text-sm text-hq-fg";
+  const inputOk = `${inputBase} border-hq-border`;
+  const inputErr = `${inputBase} border-hq-danger`;
+
+  const depositMax = bankDepositCapacity(row.level);
 
   return (
     <div className="grid grid-cols-2 gap-3">
@@ -113,12 +162,16 @@ function BankReviewCardFields({
           type="number"
           min={1}
           step={1}
-          className={inputClass}
+          className={showErrors("level") && errors.level ? inputErr : inputOk}
           value={row.level}
           onChange={(event) =>
             onChange({ level: Number(event.target.value) || 0 })
           }
+          onBlur={() => onTouchField("level")}
         />
+        {showErrors("level") && errors.level ? (
+          <span className="text-hq-danger">{errors.level}</span>
+        ) : null}
       </label>
       <label className="block space-y-1 text-xs text-hq-fg-muted">
         <span>{labels.server}</span>
@@ -126,36 +179,52 @@ function BankReviewCardFields({
           type="number"
           min={1}
           step={1}
-          className={inputClass}
+          className={
+            showErrors("gameServerNumber") && errors.gameServerNumber
+              ? inputErr
+              : inputOk
+          }
           value={row.gameServerNumber}
           onChange={(event) =>
             onChange({ gameServerNumber: Number(event.target.value) || 0 })
           }
+          onBlur={() => onTouchField("gameServerNumber")}
         />
+        {showErrors("gameServerNumber") && errors.gameServerNumber ? (
+          <span className="text-hq-danger">{errors.gameServerNumber}</span>
+        ) : null}
       </label>
       <label className="block space-y-1 text-xs text-hq-fg-muted">
         <span>{labels.coordX}</span>
         <input
           type="number"
           step={1}
-          className={inputClass}
+          className={showErrors("coordX") && errors.coordX ? inputErr : inputOk}
           value={row.coordX}
           onChange={(event) =>
             onChange({ coordX: Number(event.target.value) || 0 })
           }
+          onBlur={() => onTouchField("coordX")}
         />
+        {showErrors("coordX") && errors.coordX ? (
+          <span className="text-hq-danger">{errors.coordX}</span>
+        ) : null}
       </label>
       <label className="block space-y-1 text-xs text-hq-fg-muted">
         <span>{labels.coordY}</span>
         <input
           type="number"
           step={1}
-          className={inputClass}
+          className={showErrors("coordY") && errors.coordY ? inputErr : inputOk}
           value={row.coordY}
           onChange={(event) =>
             onChange({ coordY: Number(event.target.value) || 0 })
           }
+          onBlur={() => onTouchField("coordY")}
         />
+        {showErrors("coordY") && errors.coordY ? (
+          <span className="text-hq-danger">{errors.coordY}</span>
+        ) : null}
       </label>
       <label className="block space-y-1 text-xs text-hq-fg-muted">
         <span>{labels.amount}</span>
@@ -163,7 +232,7 @@ function BankReviewCardFields({
           type="number"
           min={0}
           step={1}
-          className={inputClass}
+          className={inputOk}
           value={row.currentDepositValue ?? ""}
           onChange={(event) =>
             onChange({
@@ -179,9 +248,9 @@ function BankReviewCardFields({
         <input
           type="number"
           min={0}
-          max={100}
+          max={depositMax}
           step={1}
-          className={inputClass}
+          className={inputOk}
           value={row.currentDepositCount ?? ""}
           onChange={(event) =>
             onChange({
@@ -199,6 +268,7 @@ function BankReviewCardFields({
 export function CityListImportModal({
   open,
   onOpenChange,
+  allianceId,
   existingBanks,
   onImported,
 }: Props) {
@@ -215,8 +285,14 @@ export function CityListImportModal({
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [touched, setTouched] = useState<Set<string>>(new Set());
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const screenshotsRef = useRef<SelectedScreenshot[]>([]);
+  const draftHydrationAttemptedRef = useRef(false);
+  const suppressDraftClearRef = useRef(false);
 
   useEffect(() => {
     screenshotsRef.current = screenshots;
@@ -235,22 +311,83 @@ export function CityListImportModal({
   }, [revokeScreenshots]);
 
   const reset = useCallback(() => {
+    // Emptying `rows` here must not be mistaken by the auto-save effect
+    // below for the user clearing their review — it should leave any
+    // already-persisted draft alone so an accidental close can recover it.
+    suppressDraftClearRef.current = true;
     setStep("upload");
     setRows([]);
     setReviewIndex(0);
     setPreviewIndex(0);
     setSnapshot(null);
     setError(null);
+    setTouched(new Set());
+    setSubmitAttempted(false);
+    setDraftRestored(false);
     setParsing(false);
     setImporting(false);
     clearScreenshots();
   }, [clearScreenshots]);
+
+  // Closing the modal (accidentally via Escape/overlay click, or after a
+  // successful import) clears in-memory state via `reset()` above, but must
+  // NOT touch the sessionStorage draft — that is what lets an accidental
+  // close be recovered from. Only an explicit Reset, or a successful
+  // import, clears the persisted draft.
+  const resetAndClearDraft = useCallback(() => {
+    clearCityListImportDraft(allianceId);
+    reset();
+  }, [allianceId, reset]);
 
   useEffect(() => {
     return () => {
       revokeScreenshots(screenshotsRef.current);
     };
   }, [revokeScreenshots]);
+
+  // Restore a previously auto-saved review (e.g. after an accidental
+  // Escape/overlay-click close, or a page refresh) once per open session.
+  // Modal close always resets in-memory rows via `reset()`, so on open the
+  // review starts empty — read outside any setState updater (updaters must
+  // stay pure) and defer applying so we don't cascade renders in the effect.
+  useEffect(() => {
+    if (!open) {
+      draftHydrationAttemptedRef.current = false;
+      return;
+    }
+    if (draftHydrationAttemptedRef.current) return;
+    draftHydrationAttemptedRef.current = true;
+
+    const draft = readCityListImportDraft(allianceId);
+    if (!draft) return;
+
+    const frame = requestAnimationFrame(() => {
+      setRows(draft.rows);
+      setSnapshot(draft.snapshot);
+      setStep("review");
+      setDraftRestored(true);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [allianceId, open]);
+
+  // Auto-save the in-progress review so an accidental modal close doesn't
+  // lose it. Deliberately does not depend on `open` — the last edit before
+  // an accidental close is already captured by the time close fires.
+  useEffect(() => {
+    if (rows.length === 0) {
+      if (suppressDraftClearRef.current) {
+        suppressDraftClearRef.current = false;
+        return;
+      }
+      clearCityListImportDraft(allianceId);
+      return;
+    }
+    writeCityListImportDraft(allianceId, {
+      version: 1,
+      rows,
+      snapshot: snapshot ?? null,
+    });
+  }, [allianceId, rows, snapshot]);
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -311,17 +448,42 @@ export function CityListImportModal({
         throw new Error(t("cityListParseFailed"));
       }
 
-      setRows(parsedRows);
+      // Leverage the "Bank Strongholds captured: N/M" header as an
+      // independent anchor: if OCR recovered fewer tiles than N, pad the
+      // review list with blank rows so the officer sees exactly how many
+      // banks are missing and can fill them in manually, instead of
+      // silently importing an incomplete list.
+      const missingCount = missingRowCountForCapturedCount(
+        parsedRows.length,
+        body.snapshot?.capturedCount ?? null,
+        body.snapshot?.capturedLimit ?? null,
+      );
+      const defaultGameServerNumber = defaultPlaceholderGameServerNumber(
+        parsedRows.map((row) => row.gameServerNumber),
+        existingBanks.map((bank) => bank.gameServerNumber),
+      );
+      const paddedRows =
+        missingCount > 0
+          ? [
+              ...parsedRows,
+              ...Array.from({ length: missingCount }, () =>
+                buildPlaceholderRow(defaultGameServerNumber),
+              ),
+            ]
+          : parsedRows;
+
+      setRows(paddedRows);
       setReviewIndex(0);
       setPreviewIndex(0);
       setSnapshot(body.snapshot ?? null);
+      setDraftRestored(false);
       setStep("review");
     } catch (e) {
       setError(e instanceof Error ? e.message : t("cityListParseFailed"));
     } finally {
       setParsing(false);
     }
-  }, [screenshots, t]);
+  }, [existingBanks, screenshots, t]);
 
   const updateRow = useCallback(
     (rowKey: string, patch: Partial<ReviewRow>) => {
@@ -346,6 +508,29 @@ export function CityListImportModal({
     });
   }, []);
 
+  const touchField = useCallback((rowKey: string, field: RowFieldName) => {
+    setTouched((prev) => {
+      const key = touchKey(rowKey, field);
+      if (prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+  }, []);
+
+  const addRow = useCallback(() => {
+    const defaultGameServerNumber = defaultPlaceholderGameServerNumber(
+      rows.map((row) => row.gameServerNumber),
+      existingBanks.map((bank) => bank.gameServerNumber),
+    );
+    const newRow = buildPlaceholderRow(defaultGameServerNumber);
+    setRows((prev) => {
+      const next = [...prev, newRow];
+      queueMicrotask(() => setReviewIndex(next.length - 1));
+      return next;
+    });
+  }, [existingBanks, rows]);
+
   const rowKeys = useMemo(
     () =>
       new Set(
@@ -363,6 +548,9 @@ export function CityListImportModal({
   const hasDuplicateCoords = useMemo(() => {
     const seen = new Set<string>();
     for (const row of rows) {
+      // Placeholder (0, 0) rows are already invalid until filled; multiple
+      // captured-count pads must not surface as coordinate collisions.
+      if (isCityListPlaceholderCoords(row.coordX, row.coordY)) continue;
       const key = bankKey(row.gameServerNumber, row.coordX, row.coordY);
       if (seen.has(key)) return true;
       seen.add(key);
@@ -400,8 +588,37 @@ export function CityListImportModal({
     deposits: t("depositsTitle"),
   };
 
+  const requiredMsg = t("cityListValidationRequired");
+  const levelMinMsg = t("cityListValidationLevelMin");
+
+  const showFieldError = useCallback(
+    (rowKey: string, field: RowFieldName): boolean =>
+      submitAttempted || touched.has(touchKey(rowKey, field)),
+    [submitAttempted, touched],
+  );
+
+  const rowValidationErrors = useMemo(
+    () =>
+      new Map<string, RowErrors>(
+        rows.map((row) => [
+          row.rowKey,
+          validateCityListReviewRow(row, requiredMsg, levelMinMsg),
+        ]),
+      ),
+    [rows, requiredMsg, levelMinMsg],
+  );
+
   const commit = useCallback(async () => {
-    if (rows.length === 0 || importing || hasDuplicateCoords) return;
+    if (rows.length === 0 || importing) return;
+
+    setSubmitAttempted(true);
+
+    if (
+      hasDuplicateCoords ||
+      cityListReviewRowsHaveErrors(rows, requiredMsg, levelMinMsg)
+    ) {
+      return;
+    }
     setImporting(true);
     setError(null);
 
@@ -432,6 +649,7 @@ export function CityListImportModal({
         throw new Error(body?.error ?? t("cityListParseFailed"));
       }
 
+      clearCityListImportDraft(allianceId);
       onImported(body.dashboard);
       handleOpenChange(false);
     } catch (e) {
@@ -439,7 +657,7 @@ export function CityListImportModal({
     } finally {
       setImporting(false);
     }
-  }, [handleOpenChange, hasDuplicateCoords, importing, onImported, rows, snapshot, t]);
+  }, [allianceId, handleOpenChange, hasDuplicateCoords, importing, levelMinMsg, onImported, requiredMsg, rows, snapshot, t]);
 
   const openPreview = useCallback(
     (index = previewIndex) => {
@@ -453,6 +671,11 @@ export function CityListImportModal({
 
   const reviewMeta = (
     <>
+      {draftRestored ? (
+        <div className="rounded-lg border border-hq-accent/40 bg-hq-accent/10 px-3 py-2 text-sm text-hq-accent">
+          {t("cityListDraftRestored")}
+        </div>
+      ) : null}
       {snapshot?.serverTime || snapshot?.capturesRemainingToday != null ? (
         <div className="flex flex-wrap gap-2 text-xs text-hq-fg-muted">
           {snapshot?.serverTime ? (
@@ -488,25 +711,40 @@ export function CityListImportModal({
   );
 
   const reviewActions = (
-    <div className="flex flex-wrap justify-end gap-2 pt-2">
-      <button
-        type="button"
-        className="rounded border border-hq-border px-3 py-2 text-sm text-hq-fg"
-        onClick={() => {
-          setStep("upload");
-          setReviewIndex(0);
-        }}
-        disabled={importing}
-      >
-        {t("actions.cancel")}
-      </button>
-      <button
-        type="submit"
-        className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-        disabled={importing || rows.length === 0 || hasDuplicateCoords}
-      >
-        {importing ? t("actions.saving") : t("cityListConfirmImport")}
-      </button>
+    <div className="space-y-3 pt-2">
+      {submitAttempted && hasDuplicateCoords ? (
+        <p className="text-sm text-hq-danger">{t("cityListDuplicateCoords")}</p>
+      ) : null}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <button
+          type="button"
+          className="mr-auto rounded border border-hq-border px-3 py-2 text-sm text-hq-fg-muted hover:border-hq-danger hover:text-hq-danger"
+          onClick={() => setResetConfirmOpen(true)}
+          disabled={importing}
+        >
+          {t("cityListReset")}
+        </button>
+        <button
+          type="button"
+          className="rounded border border-hq-border px-3 py-2 text-sm text-hq-fg"
+          onClick={() => {
+            setStep("upload");
+            setReviewIndex(0);
+            setSubmitAttempted(false);
+            setDraftRestored(false);
+          }}
+          disabled={importing}
+        >
+          {t("actions.cancel")}
+        </button>
+        <button
+          type="submit"
+          className="rounded border border-hq-success bg-hq-success px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          disabled={importing || rows.length === 0}
+        >
+          {importing ? t("actions.saving") : t("cityListConfirmImport")}
+        </button>
+      </div>
     </div>
   );
 
@@ -565,6 +803,7 @@ export function CityListImportModal({
       open={open}
       onOpenChange={handleOpenChange}
       title={t("cityListImportTitle")}
+      ignoreOutsideDismiss={resetConfirmOpen}
       className={cn(
         "w-full max-w-[min(96vw,52rem)]",
         step === "review" &&
@@ -753,6 +992,13 @@ export function CityListImportModal({
                         <BankReviewCardFields
                           row={activeRow}
                           labels={fieldLabels}
+                          errors={rowValidationErrors.get(activeRow.rowKey) ?? {}}
+                          showErrors={(field) =>
+                            showFieldError(activeRow.rowKey, field)
+                          }
+                          onTouchField={(field) =>
+                            touchField(activeRow.rowKey, field)
+                          }
                           onChange={(patch) =>
                             updateRow(activeRow.rowKey, patch)
                           }
@@ -771,6 +1017,14 @@ export function CityListImportModal({
                       >
                         <ChevronLeft className="h-4 w-4" aria-hidden />
                         {t("cityListPreviousBank")}
+                      </button>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1.5 rounded border border-dashed border-hq-border px-3 py-2 text-sm text-hq-fg-muted hover:border-hq-accent hover:text-hq-fg"
+                        onClick={() => addRow()}
+                      >
+                        <Plus className="h-3.5 w-3.5" aria-hidden />
+                        {t("cityListAddRow")}
                       </button>
                       <button
                         type="button"
@@ -807,111 +1061,200 @@ export function CityListImportModal({
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((row) => (
-                      <tr key={row.rowKey} className="border-t border-hq-border">
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            min={1}
-                            step={1}
-                            className="w-16 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
-                            value={row.level}
-                            onChange={(event) =>
-                              updateRow(row.rowKey, {
-                                level: Number(event.target.value) || 0,
-                              })
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            min={1}
-                            step={1}
-                            className="w-20 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
-                            value={row.gameServerNumber}
-                            onChange={(event) =>
-                              updateRow(row.rowKey, {
-                                gameServerNumber:
-                                  Number(event.target.value) || 0,
-                              })
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            step={1}
-                            className="w-20 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
-                            value={row.coordX}
-                            onChange={(event) =>
-                              updateRow(row.rowKey, {
-                                coordX: Number(event.target.value) || 0,
-                              })
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            step={1}
-                            className="w-20 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
-                            value={row.coordY}
-                            onChange={(event) =>
-                              updateRow(row.rowKey, {
-                                coordY: Number(event.target.value) || 0,
-                              })
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            min={0}
-                            step={1}
-                            className="w-28 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
-                            value={row.currentDepositValue ?? ""}
-                            onChange={(event) =>
-                              updateRow(row.rowKey, {
-                                currentDepositValue: event.target.value
-                                  ? Number(event.target.value)
-                                  : null,
-                              })
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step={1}
-                            className="w-16 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
-                            value={row.currentDepositCount ?? ""}
-                            onChange={(event) =>
-                              updateRow(row.rowKey, {
-                                currentDepositCount: event.target.value
-                                  ? Number(event.target.value)
-                                  : null,
-                              })
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <button
-                            type="button"
-                            aria-label={t("actions.delete")}
-                            className="rounded border border-hq-border p-1.5 text-hq-fg-muted hover:border-hq-danger hover:text-hq-danger"
-                            onClick={() => removeRow(row.rowKey)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {rows.map((row) => {
+                      const errs = rowValidationErrors.get(row.rowKey) ?? {};
+                      const inputOk =
+                        "w-16 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1";
+                      const inputErr =
+                        "w-16 min-w-0 rounded border border-hq-danger bg-hq-canvas px-2 py-1";
+                      return (
+                        <tr
+                          key={row.rowKey}
+                          className="border-t border-hq-border"
+                        >
+                          <td className="px-3 py-2">
+                            <div className="space-y-0.5">
+                              <input
+                                type="number"
+                                min={1}
+                                step={1}
+                                className={
+                                  showFieldError(row.rowKey, "level") &&
+                                  errs.level
+                                    ? inputErr
+                                    : inputOk
+                                }
+                                value={row.level}
+                                onChange={(event) =>
+                                  updateRow(row.rowKey, {
+                                    level: Number(event.target.value) || 0,
+                                  })
+                                }
+                                onBlur={() =>
+                                  touchField(row.rowKey, "level")
+                                }
+                              />
+                              {showFieldError(row.rowKey, "level") &&
+                              errs.level ? (
+                                <p className="text-[11px] text-hq-danger">
+                                  {errs.level}
+                                </p>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="space-y-0.5">
+                              <input
+                                type="number"
+                                min={1}
+                                step={1}
+                                className={cn(
+                                  "w-20",
+                                  showFieldError(
+                                    row.rowKey,
+                                    "gameServerNumber",
+                                  ) && errs.gameServerNumber
+                                    ? "min-w-0 rounded border border-hq-danger bg-hq-canvas px-2 py-1"
+                                    : "min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1",
+                                )}
+                                value={row.gameServerNumber}
+                                onChange={(event) =>
+                                  updateRow(row.rowKey, {
+                                    gameServerNumber:
+                                      Number(event.target.value) || 0,
+                                  })
+                                }
+                                onBlur={() =>
+                                  touchField(row.rowKey, "gameServerNumber")
+                                }
+                              />
+                              {showFieldError(
+                                row.rowKey,
+                                "gameServerNumber",
+                              ) && errs.gameServerNumber ? (
+                                <p className="text-[11px] text-hq-danger">
+                                  {errs.gameServerNumber}
+                                </p>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="space-y-0.5">
+                              <input
+                                type="number"
+                                step={1}
+                                className={cn(
+                                  "w-20",
+                                  showFieldError(row.rowKey, "coordX") &&
+                                    errs.coordX
+                                    ? "min-w-0 rounded border border-hq-danger bg-hq-canvas px-2 py-1"
+                                    : "min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1",
+                                )}
+                                value={row.coordX}
+                                onChange={(event) =>
+                                  updateRow(row.rowKey, {
+                                    coordX: Number(event.target.value) || 0,
+                                  })
+                                }
+                                onBlur={() =>
+                                  touchField(row.rowKey, "coordX")
+                                }
+                              />
+                              {showFieldError(row.rowKey, "coordX") &&
+                              errs.coordX ? (
+                                <p className="text-[11px] text-hq-danger">
+                                  {errs.coordX}
+                                </p>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="space-y-0.5">
+                              <input
+                                type="number"
+                                step={1}
+                                className={cn(
+                                  "w-20",
+                                  showFieldError(row.rowKey, "coordY") &&
+                                    errs.coordY
+                                    ? "min-w-0 rounded border border-hq-danger bg-hq-canvas px-2 py-1"
+                                    : "min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1",
+                                )}
+                                value={row.coordY}
+                                onChange={(event) =>
+                                  updateRow(row.rowKey, {
+                                    coordY: Number(event.target.value) || 0,
+                                  })
+                                }
+                                onBlur={() =>
+                                  touchField(row.rowKey, "coordY")
+                                }
+                              />
+                              {showFieldError(row.rowKey, "coordY") &&
+                              errs.coordY ? (
+                                <p className="text-[11px] text-hq-danger">
+                                  {errs.coordY}
+                                </p>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              min={0}
+                              step={1}
+                              className="w-28 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
+                              value={row.currentDepositValue ?? ""}
+                              onChange={(event) =>
+                                updateRow(row.rowKey, {
+                                  currentDepositValue: event.target.value
+                                    ? Number(event.target.value)
+                                    : null,
+                                })
+                              }
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              min={0}
+                              max={bankDepositCapacity(row.level)}
+                              step={1}
+                              className="w-16 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1"
+                              value={row.currentDepositCount ?? ""}
+                              onChange={(event) =>
+                                updateRow(row.rowKey, {
+                                  currentDepositCount: event.target.value
+                                    ? Number(event.target.value)
+                                    : null,
+                                })
+                              }
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <button
+                              type="button"
+                              aria-label={t("actions.delete")}
+                              className="rounded border border-hq-border p-1.5 text-hq-fg-muted hover:border-hq-danger hover:text-hq-danger"
+                              onClick={() => removeRow(row.rowKey)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded border border-dashed border-hq-border px-3 py-2 text-sm text-hq-fg-muted hover:border-hq-accent hover:text-hq-fg"
+                onClick={() => addRow()}
+              >
+                <Plus className="h-3.5 w-3.5" aria-hidden />
+                {t("cityListAddRow")}
+              </button>
 
               {error ? <p className="text-sm text-hq-danger">{error}</p> : null}
 
@@ -929,6 +1272,15 @@ export function CityListImportModal({
         slides={lightboxSlides}
         onClose={() => setLightboxIndex(null)}
         closeLabel={t("cityListClosePreview")}
+      />
+
+      <CityListImportResetDialog
+        open={resetConfirmOpen}
+        onCancel={() => setResetConfirmOpen(false)}
+        onConfirm={() => {
+          setResetConfirmOpen(false);
+          resetAndClearDraft();
+        }}
       />
     </Dialog>
   );

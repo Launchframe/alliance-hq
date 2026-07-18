@@ -6,6 +6,7 @@ import { base44ListMembers } from "@/lib/base44/fetch";
 import { getDb, schema } from "@/lib/db";
 import { resolveHqAllianceIdFromSession } from "@/lib/members/resolve-hq-alliance";
 import { getAshedConnection } from "@/lib/session";
+import { AshedNotConnectedError } from "@/lib/video/errors";
 import {
   buildMemberIndex,
   matchMemberName,
@@ -45,7 +46,9 @@ export async function rematchVideoJobMembers(
   const { callerSessionId } = options;
   const connection = await getAshedConnection(callerSessionId);
   if (!connection) {
-    throw new Error("Ashed not connected for this session.");
+    throw new AshedNotConnectedError(
+      "Ashed not connected for this session.",
+    );
   }
 
   const previousAllianceId = job.allianceId;

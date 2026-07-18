@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   clusterDiffKeys,
+  depositSlipFollowMeCompatible,
   otherClusterMemberSlipIds,
   useDepositSlipReviewValidation,
 } from "@/components/video/DepositSlipVideoReviewTable";
@@ -9,6 +10,16 @@ import type {
   DedupeCluster,
   DedupeReport,
 } from "@/lib/video/dedupe/merge-report.shared";
+
+describe("depositSlipFollowMeCompatible", () => {
+  it("allows Follow-me anchors when sorted by depositAt", () => {
+    expect(depositSlipFollowMeCompatible("depositAt")).toBe(true);
+  });
+
+  it("suppresses Follow-me anchors when sorted by commander", () => {
+    expect(depositSlipFollowMeCompatible("commander")).toBe(false);
+  });
+});
 
 // Hook-shaped helper is plain logic — call the validation function directly.
 describe("useDepositSlipReviewValidation flagged clusters", () => {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, inArray } from "drizzle-orm";
 
 import { writeAuditLog } from "@/lib/bff/audit";
+import { buildConnectHref } from "@/lib/connect/connect-return-path.shared";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
@@ -467,6 +468,8 @@ export async function POST(request: Request, { params }: Props) {
           profession: schema.parsedRows.profession,
           allianceRankTitle: schema.parsedRows.allianceRankTitle,
           rosterRankRaw: schema.parsedRows.rosterRankRaw,
+          // Scratchpad for CrystalGold outcome (green/orange); see draft-row.shared.
+          rank: schema.parsedRows.rank,
           frameIndex: schema.parsedRows.frameIndex,
           dedupeClusterId: schema.parsedRows.dedupeClusterId,
           deleted: schema.parsedRows.deleted,
@@ -587,6 +590,7 @@ export async function POST(request: Request, { params }: Props) {
           profession: row.profession ?? null,
           allianceRankTitle: row.allianceRankTitle ?? null,
           rosterRankRaw: row.rosterRankRaw ?? null,
+          rank: row.rank ?? null,
           frameIndex: row.frameIndex ?? null,
           deleted: Boolean(row.deleted),
         })),
@@ -645,7 +649,15 @@ export async function POST(request: Request, { params }: Props) {
 
     const connection = await getAshedConnection(session.id);
     if (!connection) {
-      return NextResponse.json({ error: "Ashed not connected" }, { status: 503 });
+      const reviewPath = `/tools/video-upload/${jobId}/review`;
+      return NextResponse.json(
+        {
+          error: "Ashed not connected for this session.",
+          code: "ashed_not_connected",
+          connectUrl: buildConnectHref(reviewPath),
+        },
+        { status: 409 },
+      );
     }
 
     const hqAllianceId = await resolveHqAllianceIdFromStoredAllianceId(

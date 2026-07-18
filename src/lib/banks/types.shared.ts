@@ -1,3 +1,11 @@
+/**
+ * In-game deposit slot capacity by bank level.
+ * Levels 1–5: 100 slots. Level 6+: 110 slots.
+ */
+export function bankDepositCapacity(level: number): number {
+  return level >= 6 ? 110 : 100;
+}
+
 export const DEPOSIT_POLICIES = ["alliance", "warzone", "public"] as const;
 export type DepositPolicy = (typeof DEPOSIT_POLICIES)[number];
 
@@ -10,6 +18,9 @@ export type DepositStatus = (typeof DEPOSIT_STATUSES)[number];
 export const BATTLE_PLAN_EVENT_TYPES = ["capture", "drop"] as const;
 export type BattlePlanEventType = (typeof BATTLE_PLAN_EVENT_TYPES)[number];
 
+/** Default bank protection duration: 3 days and 12 hours. */
+export const BANK_PROTECTION_DURATION_MS = (3 * 24 + 12) * 60 * 60 * 1000;
+
 export type SerializedBank = {
   id: string;
   gameServerNumber: number;
@@ -17,6 +28,7 @@ export type SerializedBank = {
   coordY: number;
   level: number;
   capturedAt: string | null;
+  protectionExpiresAt: string | null;
   dropByAt: string | null;
   depositPolicy: DepositPolicy | null;
   priorCaptureCount: number;
@@ -36,6 +48,7 @@ export type SerializedDepositSlip = {
   status: DepositStatus;
   outcomeAt: string | null;
   amount: number;
+  outcomeAmount: number | null;
   depositAllianceTag: string | null;
   depositAllianceId: string | null;
   commanderName: string;
@@ -72,6 +85,8 @@ export type BankManagementPayload = {
   heatmaps: Record<string, RiskHeatmapCell[]>;
   canWrite: boolean;
   todayServerDate: string;
+  /** Session alliance — scopes City List import drafts and tenant context. */
+  allianceId: string;
   effectiveSeasonKey?: string;
   nextCaptureLevel: number | null;
   /** Prefill for new bank forms from the session alliance. */
