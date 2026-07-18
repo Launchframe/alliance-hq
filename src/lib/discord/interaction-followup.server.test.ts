@@ -72,3 +72,70 @@ describe("editDiscordOriginalInteraction", () => {
     expect(body.components).toEqual(components);
   });
 });
+
+describe("editDiscordOriginalInteractionWithFiles", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("PATCHes multipart payload_json and files[0]", async () => {
+    const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { editDiscordOriginalInteractionWithFiles } = await import(
+      "@/lib/discord/interaction-followup.server"
+    );
+    const ok = await editDiscordOriginalInteractionWithFiles({
+      applicationId: "app",
+      interactionToken: "tok",
+      content: "chart caption",
+      files: [
+        {
+          filename: "what-is-my-vr-chart.png",
+          bytes: Buffer.from("png-bytes"),
+          contentType: "image/png",
+        },
+      ],
+    });
+    expect(ok).toBe(true);
+    const call = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(call[0]).toBe(
+      "https://discord.com/api/v10/webhooks/app/tok/messages/@original",
+    );
+    expect(call[1].method).toBe("PATCH");
+    expect(call[1].body).toBeInstanceOf(FormData);
+    const form = call[1].body as FormData;
+    const payload = JSON.parse(String(form.get("payload_json")));
+    expect(payload).toEqual({
+      content: "chart caption",
+      components: [],
+      attachments: [{ id: 0, filename: "what-is-my-vr-chart.png" }],
+    });
+    expect(form.get("files[0]")).toBeTruthy();
+  });
+
+  it("returns false on a failed PATCH so callers can post a fallback edit", async () => {
+    const fetchMock = vi.fn(
+      async () => new Response("Request entity too large", { status: 413 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { editDiscordOriginalInteractionWithFiles } = await import(
+      "@/lib/discord/interaction-followup.server"
+    );
+    const ok = await editDiscordOriginalInteractionWithFiles({
+      applicationId: "app",
+      interactionToken: "tok",
+      content: "chart caption",
+      files: [
+        {
+          filename: "what-is-my-vr-chart.png",
+          bytes: Buffer.from("png-bytes"),
+          contentType: "image/png",
+        },
+      ],
+    });
+    expect(ok).toBe(false);
+  });
+});

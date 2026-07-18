@@ -4357,6 +4357,13 @@
       "killsStatus": "**{name}** — kill count **{total}**.",
       "killsHeader": "Your linked commanders:"
     },
+    "chart": {
+      "nowLabel": "Now",
+      "vrNotLinked": "You don't have a linked commander yet. Run `/link-commander` first, then ask again with `/what-is-my-vr-chart`.",
+      "vrInsufficientData": "Not enough VR history to draw a chart yet. Report institute level with `/vr` a few times, then try again.",
+      "thpNotLinked": "You don't have a linked commander yet. Run `/link-commander` first, then ask again with `/what-is-my-thp-chart`.",
+      "thpInsufficientData": "Need at least two THP reports to draw a history chart. Use `/thp` again after your next update."
+    },
     "weeklyPass": {
       "pickCharacter": "Which commander do you want to apply this change to?",
       "pickExpired": "That picker expired. Run `/weekly-pass` again to choose a commander.",
@@ -4427,7 +4434,7 @@
     },
     "officerNotified": "An officer has been notified. They can reach out to you here on Discord.",
     "help": {
-      "dmGeneral": "**Alliance HQ bot** — run `/help` in your alliance server for steps matched to your role.\n\nQuick list: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-thp`, `/who-is-conductor`, `/language`. Owners set up with `/link-alliance`. Officers (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Full setup guide:** {guideUrl}",
+      "dmGeneral": "**Alliance HQ bot** — run `/help` in your alliance server for steps matched to your role.\n\nQuick list: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-vr-chart`, `/what-is-my-thp`, `/what-is-my-thp-chart`, `/who-is-conductor`, `/language`. Owners set up with `/link-alliance`. Officers (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Full setup guide:** {guideUrl}",
       "setupLinkHq": "Link your Discord account to Alliance HQ: run `/link` and complete the browser sign-in.",
       "setupOwnerLinkHq": "This server isn't registered yet. **R5:** open the install wizard in your browser (sign in, tag, Ashed, add bot).\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
       "setupOwnerLinkCommander": "Register this server with the install wizard, then run **`/link-commander`**.\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",

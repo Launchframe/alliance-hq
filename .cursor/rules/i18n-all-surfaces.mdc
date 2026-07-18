@@ -1,0 +1,32 @@
+---
+description: i18n every user-visible surface — web, Discord, generated images, emails, OCR-adjacent copy
+alwaysApply: true
+---
+
+# i18n on every display surface
+
+Alliance HQ serves a deeply international audience. **Any copy a human can read must honor the active locale** — not only HQ web pages.
+
+## Surfaces in scope
+
+| Surface | Locale source | Typical wiring |
+| --- | --- | --- |
+| HQ web UI | next-intl route/`useLocale` | `useTranslations` / `getTranslations` |
+| Discord bot replies & slash descriptions | `discord_user_prefs` / `/language` | `createDiscordTranslator`, `messages/*/discordBot`, `register-commands.mjs` localizations |
+| Generated images (charts, report cards, overlays) | Same locale as the request/user | Pass `locale` into shared SVG/PNG builders; format dates/numbers with that locale; translate labels via i18n keys |
+| Emails / DMs / guides | Recipient or product locale | Localized templates; no hardcoded English bodies |
+| Dev/preview fixtures | Optional `locale` query / UI control | Exercise non-`en-US` paths |
+
+## Hard rules
+
+- **No hardcoded English** in TS/TSX for user-facing strings when i18n exists (see `user-facing-copy-review.mdc` for approval + en-US/pt-BR together).
+- **No English-only formatters** for visible dates/numbers on localized surfaces — use the active BCP 47 locale (`toLocaleString(locale)`, `Intl.NumberFormat(locale)`, shared chart formatters).
+- **Shared render paths** (web chart + Discord PNG, etc.) must take `locale` (and translated labels) so one plot definition stays locale-correct on every consumer.
+- When adding a new surface that shows text (including pixels), ask: *what is the user’s locale, and does every string/formatter use it?*
+
+## Checklist for PRs that show text
+
+- [ ] Strings come from approved locale files / Discord bot keys
+- [ ] Dates, counts, and compact axis ticks use the active locale
+- [ ] Discord replies and any attached images use the bot locale
+- [ ] `npm run i18n:validate` passes after locale edits

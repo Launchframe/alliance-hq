@@ -4303,6 +4303,13 @@
       "killsStatus": "**{name}** — total de kills **{total}**.",
       "killsHeader": "Seus comandantes vinculados:"
     },
+    "chart": {
+      "nowLabel": "Agora",
+      "vrNotLinked": "Você ainda não tem um comandante vinculado. Execute `/link-commander` e depois peça com `/what-is-my-vr-chart`.",
+      "vrInsufficientData": "Ainda não há histórico de VR suficiente para gerar um gráfico. Informe o nível do instituto com `/vr` algumas vezes e tente de novo.",
+      "thpNotLinked": "Você ainda não tem um comandante vinculado. Execute `/link-commander` e depois peça com `/what-is-my-thp-chart`.",
+      "thpInsufficientData": "É preciso pelo menos dois relatórios de THP para desenhar o gráfico. Use `/thp` de novo após a próxima atualização."
+    },
     "weeklyPass": {
       "pickCharacter": "Para qual comandante você quer aplicar esta alteração?",
       "pickExpired": "Esse seletor expirou. Execute `/weekly-pass` novamente para escolher um comandante.",
@@ -4373,7 +4380,7 @@
     },
     "officerNotified": "Um oficial foi notificado no Alliance HQ. Eles podem falar com você aqui no Discord.",
     "help": {
-      "dmGeneral": "**Bot Alliance HQ** — use `/help` no servidor da aliança para passos conforme seu papel.\n\nComandos: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-thp`, `/who-is-conductor`, `/language`. Donos: `/link-alliance`. Oficiais (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Guia completo:** {guideUrl}",
+      "dmGeneral": "**Bot Alliance HQ** — use `/help` no servidor da aliança para passos conforme seu papel.\n\nComandos: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-vr-chart`, `/what-is-my-thp`, `/what-is-my-thp-chart`, `/who-is-conductor`, `/language`. Donos: `/link-alliance`. Oficiais (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Guia completo:** {guideUrl}",
       "setupLinkHq": "Vincule sua conta Discord ao Alliance HQ: execute `/link` e conclua o login no navegador.",
       "setupOwnerLinkHq": "Este servidor ainda não está registrado. **R5:** abra o assistente de instalação no navegador (entrar, tag, Ashed, adicionar bot).\n\n**Assistente:** {installWizardUrl}\n\n**Guia:** {guideUrl}",
       "setupOwnerLinkCommander": "Registre este servidor com o assistente de instalação, depois execute **`/link-commander`**.\n\n**Assistente:** {installWizardUrl}\n\n**Guia:** {guideUrl}",

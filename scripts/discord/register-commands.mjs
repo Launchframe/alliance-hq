@@ -293,6 +293,34 @@ const commandBody = [
     },
   },
   {
+    name: "what-is-my-vr-chart",
+    description: "Post your VR progress chart image (channel-visible).",
+    description_localizations: {
+      "pt-BR": "Publica a imagem do seu gráfico de progresso de VR (visível no canal).",
+    },
+  },
+  {
+    name: "what-is-my-vr-progress",
+    description: "Alias for /what-is-my-vr-chart.",
+    description_localizations: {
+      "pt-BR": "Alias de /what-is-my-vr-chart.",
+    },
+  },
+  {
+    name: "what-is-my-thp-chart",
+    description: "Post your THP history chart image (channel-visible).",
+    description_localizations: {
+      "pt-BR": "Publica a imagem do seu gráfico de histórico de THP (visível no canal).",
+    },
+  },
+  {
+    name: "what-is-my-thp-progress",
+    description: "Alias for /what-is-my-thp-chart.",
+    description_localizations: {
+      "pt-BR": "Alias de /what-is-my-thp-chart.",
+    },
+  },
+  {
     name: "what-is-my-kill-count",
     description: "Show your current total kill count (channel-visible).",
     description_localizations: {

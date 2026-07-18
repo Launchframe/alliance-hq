@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import {
   assignVrChartStyles,
@@ -10,9 +10,14 @@ import {
 import {
   DEFAULT_PROJECTION_HORIZON_DAYS,
   PROJECTION_HORIZON_OPTIONS,
-  projectVrSeries,
 } from "@/lib/vr/vr-projection.shared";
 import type { VrProgressCommanderSeries } from "@/lib/vr/vr-progress-chart.shared";
+import {
+  buildVrProgressChartSvg,
+  defaultVisibleVrCommanderIds,
+  VR_PROGRESS_CHART_DEFAULT_HEIGHT,
+  VR_PROGRESS_CHART_DEFAULT_WIDTH,
+} from "@/lib/vr/vr-progress-chart-render.shared";
 
 type Props = {
   series: VrProgressCommanderSeries[];
@@ -22,72 +27,8 @@ type Props = {
   ariaLabel?: string;
 };
 
-type Point = {
-  x: number;
-  y: number;
-  atMs: number;
-  baseVr: number;
-};
-
-const CHART_WIDTH = 760;
-const CHART_HEIGHT = 300;
-const PAD = { top: 24, right: 24, bottom: 36, left: 56 };
-const MARKER_SIZE = 9;
-const DEFAULT_VISIBLE = 5;
-
 function cn(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
-}
-
-function formatShortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function smoothPath(points: Point[]): string {
-  if (points.length === 0) return "";
-  if (points.length === 1) return `M${points[0]!.x} ${points[0]!.y}`;
-
-  const commands = [`M${points[0]!.x} ${points[0]!.y}`];
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[Math.max(0, i - 1)]!;
-    const p1 = points[i]!;
-    const p2 = points[i + 1]!;
-    const p3 = points[Math.min(points.length - 1, i + 2)]!;
-    const c1x = p1.x + (p2.x - p0.x) / 6;
-    const c1y = p1.y + (p2.y - p0.y) / 6;
-    const c2x = p2.x - (p3.x - p1.x) / 6;
-    const c2y = p2.y - (p3.y - p1.y) / 6;
-    commands.push(`C${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`);
-  }
-  return commands.join(" ");
-}
-
-function pointFromEvent(
-  event: { at: string; baseVr: number },
-  xForTime: (timeMs: number) => number,
-  yForVr: (baseVr: number) => number,
-): Point {
-  const atMs = new Date(event.at).getTime();
-  return {
-    x: xForTime(atMs),
-    y: yForVr(event.baseVr),
-    atMs,
-    baseVr: event.baseVr,
-  };
-}
-
-function defaultVisibleIds(series: VrProgressCommanderSeries[]): Set<string> {
-  const sorted = [...series].sort((a, b) => a.rank - b.rank);
-  const ids = new Set<string>();
-  for (const row of sorted.slice(0, DEFAULT_VISIBLE)) {
-    ids.add(row.commanderId);
-  }
-  const viewer = series.find((row) => row.isViewer);
-  if (viewer) ids.add(viewer.commanderId);
-  return ids;
 }
 
 export function VrProgressProjectionChart({
@@ -98,18 +39,19 @@ export function VrProgressProjectionChart({
   ariaLabel,
 }: Props) {
   const t = useTranslations("myVr.chart");
+  const locale = useLocale();
   const [horizonDays, setHorizonDays] =
     useState<(typeof PROJECTION_HORIZON_OPTIONS)[number]>(
       DEFAULT_PROJECTION_HORIZON_DAYS,
     );
   const seriesKey = series.map((row) => row.commanderId).join("|");
   const [visibleCommanderIds, setVisibleCommanderIds] = useState<Set<string>>(
-    () => defaultVisibleIds(series),
+    () => new Set(defaultVisibleVrCommanderIds(series)),
   );
   const [syncedSeriesKey, setSyncedSeriesKey] = useState(seriesKey);
   if (syncedSeriesKey !== seriesKey) {
     setSyncedSeriesKey(seriesKey);
-    setVisibleCommanderIds(defaultVisibleIds(series));
+    setVisibleCommanderIds(new Set(defaultVisibleVrCommanderIds(series)));
   }
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement | null>(null);
@@ -139,70 +81,39 @@ export function VrProgressProjectionChart({
     return assignVrChartStyles(ids, viewerFlags);
   }, [eligibleSeries]);
 
-  const projectedByCommander = useMemo(() => {
-    const map = new Map<string, Array<{ at: string; baseVr: number }>>();
-    for (const row of eligibleSeries) {
-      map.set(
-        row.commanderId,
-        vrUpdatesLocked
-          ? []
-          : projectVrSeries({
-              events: row.events.map((event) => ({
-                createdAt: event.at,
-                baseVr: event.baseVr,
-                instituteLevel: event.instituteLevel,
-              })),
-              seasonKey,
-              now,
-              horizonDays,
-            }),
-      );
-    }
-    return map;
-  }, [eligibleSeries, horizonDays, now, seasonKey, vrUpdatesLocked]);
+  const chartSvg = useMemo(() => {
+    if (eligibleSeries.length === 0) return null;
+    return buildVrProgressChartSvg({
+      series: eligibleSeries,
+      seasonKey,
+      width: VR_PROGRESS_CHART_DEFAULT_WIDTH,
+      height: VR_PROGRESS_CHART_DEFAULT_HEIGHT,
+      vrUpdatesLocked,
+      now,
+      locale,
+      options: {
+        projectionHorizonDays: horizonDays,
+        visibleCommanderIds: [...visibleCommanderIds],
+        labels: { nowLabel: t("nowLabel") },
+        backgroundFill: null,
+      },
+    });
+  }, [
+    eligibleSeries,
+    horizonDays,
+    locale,
+    now,
+    seasonKey,
+    t,
+    visibleCommanderIds,
+    vrUpdatesLocked,
+  ]);
 
-  if (eligibleSeries.length === 0) return null;
+  if (eligibleSeries.length === 0 || !chartSvg) return null;
 
   const visibleSeries = eligibleSeries.filter((row) =>
     visibleCommanderIds.has(row.commanderId),
   );
-  const allProjectedEvents = visibleSeries.flatMap(
-    (row) => projectedByCommander.get(row.commanderId) ?? [],
-  );
-  const nowMs = now.getTime();
-  const minTime = Math.min(
-    ...visibleSeries.flatMap((row) =>
-      row.events.map((event) => new Date(event.at).getTime()),
-    ),
-    nowMs,
-  );
-  const maxTime = vrUpdatesLocked
-    ? Math.max(
-        ...visibleSeries.flatMap((row) =>
-          row.events.map((event) => new Date(event.at).getTime()),
-        ),
-        nowMs,
-      )
-    : nowMs + horizonDays * 24 * 60 * 60 * 1000;
-  const minVr = Math.min(
-    ...visibleSeries.flatMap((row) => row.events.map((event) => event.baseVr)),
-    ...(allProjectedEvents.length
-      ? allProjectedEvents.map((event) => event.baseVr)
-      : [0]),
-  );
-  const maxVr = Math.max(
-    ...visibleSeries.flatMap((row) => row.events.map((event) => event.baseVr)),
-    ...allProjectedEvents.map((event) => event.baseVr),
-  );
-  const innerW = CHART_WIDTH - PAD.left - PAD.right;
-  const innerH = CHART_HEIGHT - PAD.top - PAD.bottom;
-  const timeSpan = Math.max(1, maxTime - minTime);
-  const vrSpan = Math.max(250, maxVr - minVr);
-  const xForTime = (timeMs: number) =>
-    PAD.left + ((timeMs - minTime) / timeSpan) * innerW;
-  const yForVr = (baseVr: number) =>
-    PAD.top + innerH - ((baseVr - minVr) / vrSpan) * innerH;
-  const nowX = xForTime(nowMs);
 
   const toggleCommander = (commanderId: string) => {
     setVisibleCommanderIds((current) => {
@@ -216,6 +127,12 @@ export function VrProgressProjectionChart({
       return next;
     });
   };
+
+  // Shared builder returns a full <svg> document; strip the outer tag so we can
+  // control sizing/aria on the React host while keeping one plot definition.
+  const innerSvg = chartSvg
+    .replace(/^<svg[^>]*>/, "")
+    .replace(/<\/svg>\s*$/, "");
 
   return (
     <section
@@ -316,137 +233,12 @@ export function VrProgressProjectionChart({
       </div>
 
       <svg
-        viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+        viewBox={`0 0 ${VR_PROGRESS_CHART_DEFAULT_WIDTH} ${VR_PROGRESS_CHART_DEFAULT_HEIGHT}`}
         className="mt-4 h-auto w-full max-w-full"
         role="img"
         aria-label={ariaLabel ?? t("ariaLabel")}
-      >
-        <line
-          x1={PAD.left}
-          y1={PAD.top + innerH}
-          x2={PAD.left + innerW}
-          y2={PAD.top + innerH}
-          stroke="#30363d"
-          strokeWidth={1}
-        />
-        <line
-          x1={PAD.left}
-          y1={PAD.top}
-          x2={PAD.left}
-          y2={PAD.top + innerH}
-          stroke="#30363d"
-          strokeWidth={1}
-        />
-        <line
-          x1={nowX}
-          y1={PAD.top}
-          x2={nowX}
-          y2={PAD.top + innerH}
-          stroke="#8b949e"
-          strokeDasharray="2 4"
-          strokeWidth={1}
-        />
-        <text x={nowX + 5} y={PAD.top + 12} fill="#8b949e" fontSize={10}>
-          {t("nowLabel")}
-        </text>
-        <text
-          x={PAD.left - 8}
-          y={PAD.top + 4}
-          fill="#8b949e"
-          fontSize={10}
-          textAnchor="end"
-        >
-          {maxVr.toLocaleString()}
-        </text>
-        <text
-          x={PAD.left - 8}
-          y={PAD.top + innerH}
-          fill="#8b949e"
-          fontSize={10}
-          textAnchor="end"
-          dominantBaseline="hanging"
-        >
-          {minVr.toLocaleString()}
-        </text>
-        <text
-          x={PAD.left}
-          y={PAD.top + innerH + 18}
-          fill="#8b949e"
-          fontSize={10}
-          textAnchor="start"
-        >
-          {formatShortDate(new Date(minTime).toISOString())}
-        </text>
-        <text
-          x={PAD.left + innerW}
-          y={PAD.top + innerH + 18}
-          fill="#8b949e"
-          fontSize={10}
-          textAnchor="end"
-        >
-          {formatShortDate(new Date(maxTime).toISOString())}
-        </text>
-
-        {visibleSeries.map((row) => {
-          const style = styles.get(row.commanderId);
-          if (!style) return null;
-          const history = row.events.map((event) =>
-            pointFromEvent(event, xForTime, yForVr),
-          );
-          const projectionRaw = projectedByCommander.get(row.commanderId) ?? [];
-          const lastHistory = history.at(-1);
-          const projection =
-            lastHistory && projectionRaw.length > 0
-              ? [
-                  lastHistory,
-                  ...projectionRaw.map((event) =>
-                    pointFromEvent(event, xForTime, yForVr),
-                  ),
-                ]
-              : projectionRaw.map((event) =>
-                  pointFromEvent(event, xForTime, yForVr),
-                );
-          return (
-            <g key={row.commanderId}>
-              <path
-                d={smoothPath(history)}
-                fill="none"
-                stroke={style.color}
-                strokeWidth={row.isViewer ? 3 : 2.25}
-                strokeDasharray={style.dashArray}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              {projection.length > 1 ? (
-                <path
-                  d={smoothPath(projection)}
-                  fill="none"
-                  stroke={style.color}
-                  strokeWidth={row.isViewer ? 3 : 2.25}
-                  strokeDasharray={style.dashArray || "6 4"}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  opacity={0.45}
-                />
-              ) : null}
-              {history.map((point) => (
-                <path
-                  key={`${row.commanderId}:${point.atMs}`}
-                  d={svgPathForVrChartShape(
-                    style.shape,
-                    point.x,
-                    point.y,
-                    MARKER_SIZE,
-                  )}
-                  fill={style.color}
-                  stroke="#0d1117"
-                  strokeWidth={1}
-                />
-              ))}
-            </g>
-          );
-        })}
-      </svg>
+        dangerouslySetInnerHTML={{ __html: innerSvg }}
+      />
 
       <div className="mt-3 flex flex-wrap gap-2" aria-label={t("legend")}>
         {visibleSeries.map((row) => {

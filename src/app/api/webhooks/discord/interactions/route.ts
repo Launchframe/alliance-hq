@@ -11,7 +11,7 @@ import {
   downloadDiscordAttachment,
   parseResolvedAttachment,
 } from "@/lib/discord/attachments";
-import { editDiscordOriginalInteraction } from "@/lib/discord/interaction-followup.server";
+import { editDiscordOriginalInteraction, editDiscordOriginalInteractionWithFiles } from "@/lib/discord/interaction-followup.server";
 import {
   DISCORD_PING_RESPONSE,
   buildCharacterPickerButtons,
@@ -25,6 +25,7 @@ import {
   buildVrConfirmButtons,
   buildWalkthroughDoneButton,
   discordComponentMessageResponse,
+  discordDeferredChannelResponse,
   discordDeferredEphemeralResponse,
   discordMessageResponse,
   interactionApplicationId,
@@ -99,6 +100,12 @@ import {
   handleDiscordSetRegularEventsChannel,
   handleDiscordSetSeasonalEventsChannel,
 } from "@/lib/battle-plan/discord-channel-handlers.server";
+import {
+  handleDiscordWhatIsMyThpChart,
+  handleDiscordWhatIsMyVrChart,
+  isDiscordThpChartCommand,
+  isDiscordVrChartCommand,
+} from "@/lib/vr/bot-chart-query";
 import {
   handleDiscordSetTrainChannel,
   handleDiscordTrainConductorPick,
@@ -584,6 +591,68 @@ async function handleSlashCommand(
       locale,
     });
     return discordMessageResponse(result.reply, undefined, { ephemeral: false });
+  }
+
+  if (isDiscordVrChartCommand(commandName) || isDiscordThpChartCommand(commandName)) {
+    const applicationId = interactionApplicationId(payload);
+    const token = interactionToken(payload);
+    if (!applicationId || !token) {
+      console.error("[discord-bot] chart command missing application_id/token");
+      return discordMessageResponse(t("errors.serverError"), undefined, EPHEMERAL);
+    }
+
+    const chartKind = isDiscordVrChartCommand(commandName) ? "vr" : "thp";
+    scheduleBackgroundTask(scheduleBackground, async () => {
+      try {
+        const result =
+          chartKind === "vr"
+            ? await handleDiscordWhatIsMyVrChart({
+                allianceId,
+                discordUserId,
+                locale,
+              })
+            : await handleDiscordWhatIsMyThpChart({
+                allianceId,
+                discordUserId,
+                locale,
+              });
+
+        if (!result.ok) {
+          await editDiscordOriginalInteraction({
+            applicationId,
+            interactionToken: token,
+            content: result.content,
+          });
+          return;
+        }
+
+        const uploaded = await editDiscordOriginalInteractionWithFiles({
+          applicationId,
+          interactionToken: token,
+          content: result.content,
+          files: result.files,
+        });
+        if (!uploaded) {
+          console.error(
+            "[discord-bot] chart multipart edit failed; falling back to text caption",
+          );
+          await editDiscordOriginalInteraction({
+            applicationId,
+            interactionToken: token,
+            content: result.content,
+          });
+        }
+      } catch (error) {
+        console.error("[discord-bot] deferred chart render failed", error);
+        await editDiscordOriginalInteraction({
+          applicationId,
+          interactionToken: token,
+          content: t("errors.serverError"),
+        });
+      }
+    });
+
+    return discordDeferredChannelResponse();
   }
 
   if (commandName === "what-is-my-kill-count") {
