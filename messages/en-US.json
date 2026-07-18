@@ -3863,7 +3863,7 @@
     "saveDepositSlips": "Save {count} deposit slips",
     "submitting": "Submitting…",
     "submitSuccess": "Saved {count} scores to Ashed.",
-    "killsSubmitSuccess": "Saved {count} kill counts to Ashed and HQ.",
+    "killsSubmitSuccess": "Saved {count} kill counts to Ashed. Linked HQ commanders were updated when available.",
     "rosterSubmitSuccess": "Applied {count} roster rows to HQ members.",
     "depositSlipSubmitSuccess": "Saved {count} deposit slips to Bank Management.",
     "bankLabel": "Bank Stronghold",

@@ -3809,7 +3809,7 @@
     "saveDepositSlips": "Salvar {count} comprovantes de depósito",
     "submitting": "Enviando…",
     "submitSuccess": "{count} pontuações salvas no Ashed.",
-    "killsSubmitSuccess": "{count} contagens de kills salvas no Ashed e no HQ.",
+    "killsSubmitSuccess": "{count} contagens de kills salvas no Ashed. Comandantes vinculados no HQ foram atualizados quando disponíveis.",
     "rosterSubmitSuccess": "{count} linhas do elenco aplicadas aos membros do HQ.",
     "depositSlipSubmitSuccess": "{count} comprovantes de depósito salvos em Bank Management.",
     "bankLabel": "Bank Stronghold",
