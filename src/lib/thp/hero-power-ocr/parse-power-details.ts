@@ -22,9 +22,13 @@ export type ParsePowerDetailsResult = {
   complete: boolean;
 };
 
-const HERO_POWER_HEADER_RE = /hero\s*l?\s*powers?/i;
+const HERO_POWER_HEADER_RE =
+  /hero\s*l?\s*powers?|helden\s*kampf\s*kraft|poder\s*do\s*her[oó]i|poder\s*de\s*h[eé]roe|영웅\s*전투력/i;
 const SECTION_STOP_RE =
-  /^(drone\s*power|drone\s*level|skill\s*chip|drone\s*component|building\s*power|buildings?\b)/i;
+  /^(drone\s*power|drone\s*level|skill\s*chip|drone\s*component|building\s*power|buildings?\b|drohnen[\s-]*kampf\s*kraft|drohnen[\s-]*level|f[äa]higkeits?\s*chip|drohnen\s*komponente|geb[äa]ude[\s-]*kampf\s*kraft|poder\s*do\s*drone|n[ií]vel\s*do\s*drone|componente\s*de\s*drone|chip\s*de\s*habilidade|poder\s*de\s*constru|poder\s*de\s*dron|nivel\s*de\s*dron|componente\s*de\s*dron|chip\s*de\s*habilidad|poder\s*de\s*edificio|edificios?\b|드론\s*전투력|드론\s*레벨|드론\s*파츠|스킬\s*칩|건물\s*전투력|생존자)/i;
+/** Fuzzy drone/building section header — OCR often mangles "Drone Power" → "R4D10nePower". */
+const SECTION_STOP_FUZZY_RE =
+  /(?:drone|dron|10ne)\s*powers?|building\s*powers?/i;
 
 /**
  * Trailing numeric blob: digits plus common OCR substitutes for commas / noise.
@@ -66,6 +70,7 @@ function normalizePowerDetailsNumberBlob(blob: string): string {
   return blob
     .replace(/%/g, ",")
     .replace(/[¥€$]/g, ",")
+    .replace(/:/g, ",")
     .replace(/[!?|]+$/g, "");
 }
 
@@ -110,6 +115,35 @@ export function stripOcrCommaSevens(digits: string): string | null {
   return next;
 }
 
+/**
+ * When exactly one thousand-separator is OCR'd as a digit and the other is
+ * dropped, values land at 9 digits (`85,868,520` → `857868520`). Delete the
+ * separator-aligned slot (index 2) when that digit looks like a comma
+ * confusion: `1`/`7` always, or `8` only for gear-like values starting with `1`
+ * (`13,190,850` → `138190850`). Avoids eating a trailing ghost `8` on
+ * `85,857,244 8!` → `858572448`.
+ */
+function collapseInsertedSeparatorDigit(
+  value: number,
+  maxValue = 1_000_000_000,
+): number {
+  const digits = String(value);
+  if (digits.length !== 9) return value;
+  const sep = digits[2]!;
+  const allowSep8 = sep === "8" && digits[0] === "1";
+  if (sep !== "1" && sep !== "7" && !allowSep8) return value;
+  const del2 = Number.parseInt(`${digits.slice(0, 2)}${digits.slice(3)}`, 10);
+  if (
+    !Number.isFinite(del2) ||
+    del2 < 1_000_000 ||
+    del2 > maxValue ||
+    String(del2).startsWith("0")
+  ) {
+    return value;
+  }
+  return del2;
+}
+
 function parsePowerDetailsInteger(token: string): number | null {
   const normalized = normalizePowerDetailsNumberBlob(token);
   const raw = parseIntegerToken(normalized);
@@ -120,6 +154,23 @@ function parsePowerDetailsInteger(token: string): number | null {
     if (Number.isFinite(value)) return value;
   }
   return raw;
+}
+
+/** Bare / near-bare numeric line that can stand in for a destroyed Hero Power header. */
+function extractBareHeroPowerTotal(line: string): number | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+  if (matchThpLabel(trimmed) != null) return null;
+  if (SECTION_STOP_RE.test(trimmed)) return null;
+  // Reject lines that still look like labeled rows (letters beyond short OCR junk).
+  const letterRuns = trimmed.match(/[A-Za-zÀ-ÿ가-힣]{3,}/g) ?? [];
+  if (letterRuns.some((run) => !HERO_POWER_HEADER_RE.test(run))) {
+    return null;
+  }
+  const value = extractTrailingNumber(trimmed);
+  if (value == null) return null;
+  if (value < 1_000_000 || value > 1_000_000_000) return null;
+  return value;
 }
 
 function extractTrailingNumber(line: string): number | null {
@@ -917,18 +968,21 @@ export function coalescePowerDetailsLines(lines: string[]): string[] {
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i]!.replace(/\s+/g, " ").trim();
     if (!line) continue;
-    if (SECTION_STOP_RE.test(line) && !HERO_POWER_HEADER_RE.test(line)) {
+    if (
+      (SECTION_STOP_RE.test(line) || SECTION_STOP_FUZZY_RE.test(line)) &&
+      !HERO_POWER_HEADER_RE.test(line)
+    ) {
       break;
     }
 
     const { label, valuePart } = splitLabelValue(line);
-    const hasValue =
-      parseIntegerToken(valuePart) != null || extractTrailingNumber(line) != null;
+    const parsedVal = parseIntegerToken(valuePart) ?? extractTrailingNumber(line);
+    const hasValue = parsedVal != null && parsedVal >= 10_000;
     const key = matchThpLabel(label);
 
     if (key && !hasValue && i + 1 < lines.length) {
       const next = lines[i + 1]!.replace(/\s+/g, " ").trim();
-      if (SECTION_STOP_RE.test(next)) {
+      if (SECTION_STOP_RE.test(next) || SECTION_STOP_FUZZY_RE.test(next)) {
         out.push(line);
         break;
       }
@@ -972,22 +1026,39 @@ export function parsePowerDetailsLines(lines: string[]): ParsePowerDetailsResult
   const coalesced = coalescePowerDetailsLines(lines);
   const breakdown: Partial<ThpBreakdown> = {};
   let heroPowerTotal: number | null = null;
+  let sawBreakdownRow = false;
 
-  for (const rawLine of coalesced) {
-    const line = rawLine.replace(/\s+/g, " ").trim();
+  for (let i = 0; i < coalesced.length; i += 1) {
+    const line = coalesced[i]!.replace(/\s+/g, " ").trim();
     if (!line) continue;
 
     if (HERO_POWER_HEADER_RE.test(line) && heroPowerTotal == null) {
       const total = extractTrailingNumber(line);
-      if (total != null) heroPowerTotal = total;
+      if (total != null) {
+        heroPowerTotal = total;
+      } else if (i + 1 < coalesced.length) {
+        // Header label survived but the total landed on the next OCR line.
+        const peeked = extractBareHeroPowerTotal(
+          coalesced[i + 1]!.replace(/\s+/g, " ").trim(),
+        );
+        if (peeked != null) heroPowerTotal = peeked;
+      }
+    }
+
+    // Before any component row, accept a bare total from the header band
+    // (dual-pass often emits the number on its own line).
+    if (!sawBreakdownRow && heroPowerTotal == null) {
+      const bare = extractBareHeroPowerTotal(line);
+      if (bare != null) heroPowerTotal = bare;
     }
 
     const { label: labelPart, valuePart } = splitLabelValue(line);
     const key = matchThpLabel(labelPart);
     if (!key) continue;
+    sawBreakdownRow = true;
     const value =
       parsePowerDetailsInteger(valuePart) ?? extractTrailingNumber(line);
-    if (value != null) {
+    if (value != null && value >= 10_000) {
       breakdown[key] = value;
     }
   }
@@ -1005,9 +1076,17 @@ export function parsePowerDetailsLines(lines: string[]): ParsePowerDetailsResult
     let full = breakdown as ThpBreakdown;
     if (heroPowerTotal != null) {
       const headerTotal = heroPowerTotal;
+      full = Object.fromEntries(
+        THP_BREAKDOWN_KEYS.map((key) => [
+          key,
+          collapseInsertedSeparatorDigit(full[key], headerTotal),
+        ]),
+      ) as ThpBreakdown;
+      const headerInRange =
+        headerTotal >= 1_000_000 && headerTotal <= 1_000_000_000;
       const headerCandidates = Array.from(
         new Set([
-          headerTotal,
+          ...(headerInRange ? [headerTotal] : []),
           ...candidateDigitRepairs(headerTotal).filter(
             (value) =>
               value >= 1_000_000 &&
@@ -1037,10 +1116,6 @@ export function parsePowerDetailsLines(lines: string[]): ParsePowerDetailsResult
         }
       }
       if (reconciled && matchedTotal != null) {
-        // Covers the already-consistent case too: headerCandidates always
-        // includes the raw header total at cost 0, tried first, and
-        // reconcileBreakdownToTotal short-circuits when the sum already
-        // matches — so an exact match never falls through to the `else`.
         Object.assign(breakdown, reconciled);
         full = reconciled;
         heroPowerTotal = matchedTotal;
@@ -1050,9 +1125,6 @@ export function parsePowerDetailsLines(lines: string[]): ParsePowerDetailsResult
       // complete. Callers must not trust an unreconciled component set
       // (resolveProposed prefers breakdown sum over the header).
     }
-    // No Hero Power header: do not treat component-only OCR as submission-
-    // ready. Separator noise can glue digits (e.g. gear 133M) with no
-    // reconciliation anchor. Expose raw rows for diagnostics only.
   }
 
   return { heroPowerTotal, breakdown, complete };

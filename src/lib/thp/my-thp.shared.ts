@@ -54,6 +54,7 @@ export type MyThpPostStatus =
   | "anomaly_rejected"
   | "validation_error"
   | "ocr_confirm"
+  | "ocr_partial"
   | "error";
 
 export type MyThpPostResponse = {
@@ -62,4 +63,5 @@ export type MyThpPostResponse = {
   newThp?: number;
   proposedThp?: number;
   proposedBreakdown?: ThpBreakdown | null;
+  partialBreakdown?: Partial<ThpBreakdown> | null;
 };

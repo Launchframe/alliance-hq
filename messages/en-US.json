@@ -2983,6 +2983,9 @@
     },
     "breakdownTotalLabel": "Breakdown total: {total}",
     "breakdownSubmit": "Save Breakdown",
+    "breakdownPreviewScreenshot": "View screenshot",
+    "breakdownClosePreview": "Close preview",
+    "ocrPartialHint": "Some values couldn't be read accurately. Please verify and correct any highlighted fields, then save.",
     "percentileTitle": "Alliance standing",
     "percentileRank": "Rank {rank} of {count} reporters",
     "percentileAtOrBelow": "{percentile}% of reporters are at or below your THP",
@@ -4322,6 +4325,7 @@
       "anomalyConfirm": "Are you *sure* your total hero power is {total}? That's a big jump ahead of the pack. Tap Yes if you're serious.",
       "ocrConfirm": "I read total hero power as **{total}**. Tap Yes to save, or No to cancel.",
       "ocrFailed": "Couldn't read that screenshot. Try a clearer Power Details capture or enter `/thp total:163460435` manually.",
+      "ocrPartial": "Some values were hard to read. Please review and correct the pre-filled breakdown below.",
       "invalidTotal": "Enter a valid total hero power between 1 and 1,000,000,000.",
       "commanderNotFound": "Could not find your commander in this alliance. Run `/link-commander` first."
     },

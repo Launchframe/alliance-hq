@@ -226,6 +226,289 @@ describe("parsePowerDetailsLines", () => {
     });
   });
 
+  it("parses German (DE) screenshot with period/apostrophe separators", () => {
+    // Diagnostics from German-locale Power Details ("Details der Kampfkraft").
+    // German uses periods as thousand-separators and labels like "Heldenlevel",
+    // "Ausrüstung", "Heldenrang", "Helden-Fähigkeit", "Ehrenwand".
+    const lines = [
+      "Heldenkampfkraft 163'766'614",
+      "Heldenlevel 85'868'512",
+      "Dekorationen und",
+      "Gebaudestatistiken 37'293'177",
+      "Ausriistung 13'190'850",
+      "Exklusive Waffe 9'085'358",
+      "Heldenrang 7'051'707",
+      "Helden-Fahigkeit 6'574'310",
+      "Ehrenwand 4'702'700",
+      "Drohnen-Kampfkraft 11'803'262",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(163_766_614);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown).toEqual({
+      heroLevel: 85_868_512,
+      decorationsAndBuildings: 37_293_177,
+      gear: 13_190_850,
+      exclusiveWeapons: 9_085_358,
+      heroTier: 7_051_707,
+      heroSkill: 6_574_310,
+      wallOfHonor: 4_702_700,
+    });
+  });
+
+  it("parses noisy German OCR with mixed separators and digit confusion", () => {
+    // Real OCR diagnostics from German screenshot — note the mix of apostrophes,
+    // periods, colons, exclamation marks, and brackets in number positions.
+    const lines = [
+      "Heldenkampfkraft 163'766%614",
+      "Heldenlevel 85'868!512",
+      "Dekorationen und 293",
+      "Gebaudestatistiken 37293177",
+      "Ausriistung 13190'850",
+      "Exklusive Waffe 9'085'358",
+      "Heldenrang 7.051707",
+      "Helden-Fahigkeit 6'574'310",
+      "Ehrenwand 4702700",
+      "Drohnen-Level 5'349'852",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(163_766_614);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown.heroLevel).toBe(85_868_512);
+    expect(parsed.breakdown.gear).toBe(13_190_850);
+    expect(parsed.breakdown.heroTier).toBe(7_051_707);
+    expect(parsed.breakdown.heroSkill).toBe(6_574_310);
+    expect(parsed.breakdown.wallOfHonor).toBe(4_702_700);
+  });
+
+  it("parses Brazilian Portuguese (pt-BR) screenshot labels", () => {
+    // From "Detalhes do Poder" screenshot — pt-BR uses comma thousand separators
+    // (same as English) but distinct labels. Row order also differs from EN/DE
+    // (Habilidade before Categoria, Arma Exclusiva after both).
+    const lines = [
+      "Poder do Heroi 126,107,918",
+      "Nivel do Heroi 68,968,904",
+      "Decoracoes e Atributos de Construcao 27,322,648",
+      "Equipamento 11,512,123",
+      "Habilidade de Heroi 5,905,810",
+      "Categoria de Heroi 5,877,961",
+      "Arma Exclusiva 5,025,497",
+      "Mural de Honra 1,494,975",
+      "Poder do Drone 9,358,364",
+      "Nivel do Drone 4,575,346",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(126_107_918);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown).toEqual({
+      heroLevel: 68_968_904,
+      decorationsAndBuildings: 27_322_648,
+      gear: 11_512_123,
+      exclusiveWeapons: 5_025_497,
+      heroTier: 5_877_961,
+      heroSkill: 5_905_810,
+      wallOfHonor: 1_494_975,
+    });
+  });
+
+  it("parses wrapped Brazilian Portuguese decorations label", () => {
+    // Long label "Decorações e Atributos de Construção" often wraps across
+    // two OCR lines, similar to German "Dekorationen und / Gebäudestatistiken".
+    const lines = [
+      "Poder do Herói 126.107.918",
+      "Nível do Herói 68.968.904",
+      "Decorações e Atributos",
+      "de Construção 27.322.648",
+      "Equipamento 11.512.123",
+      "Habilidade de Herói 5.905.810",
+      "Categoria de Herói 5.877.961",
+      "Arma Exclusiva 5.025.497",
+      "Mural de Honra 1.494.975",
+      "Poder de Construção 16.358.542",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(126_107_918);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown.decorationsAndBuildings).toBe(27_322_648);
+    expect(parsed.breakdown.heroLevel).toBe(68_968_904);
+    expect(parsed.breakdown.wallOfHonor).toBe(1_494_975);
+  });
+
+  it("parses Korean (KO) screenshot labels", () => {
+    // From "전투력 정보" screenshot — Hangul labels with English-style commas.
+    // Row order matches pt-BR (skill before tier, exclusive weapon after both).
+    const lines = [
+      "영웅 전투력 126,107,918",
+      "영웅 레벨 68,968,904",
+      "장식 및 건물 능력치 27,322,648",
+      "장비 11,512,123",
+      "영웅 스킬 5,905,810",
+      "영웅 티어 5,877,961",
+      "전속 무기 5,025,497",
+      "명예의 전당 1,494,975",
+      "드론 전투력 9,358,364",
+      "드론 레벨 4,575,346",
+      "건물 전투력 16,361,642",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(126_107_918);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown).toEqual({
+      heroLevel: 68_968_904,
+      decorationsAndBuildings: 27_322_648,
+      gear: 11_512_123,
+      exclusiveWeapons: 5_025_497,
+      heroTier: 5_877_961,
+      heroSkill: 5_905_810,
+      wallOfHonor: 1_494_975,
+    });
+  });
+
+  it("parses wrapped Korean decorations label", () => {
+    // "장식 및 건물 능력치" can wrap; second half must not trip the
+    // building section stop (which is specifically "건물 전투력").
+    const lines = [
+      "영웅 전투력 126,107,918",
+      "영웅 레벨 68,968,904",
+      "장식 및",
+      "건물 능력치 27,322,648",
+      "장비 11,512,123",
+      "영웅 스킬 5,905,810",
+      "영웅 티어 5,877,961",
+      "전속 무기 5,025,497",
+      "명예의 전당 1,494,975",
+      "드론 전투력 9,358,364",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(126_107_918);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown.decorationsAndBuildings).toBe(27_322_648);
+    expect(parsed.breakdown.gear).toBe(11_512_123);
+  });
+
+  it("parses Mexican Spanish (es-MX) screenshot labels", () => {
+    // From "DETALLES DE PODER" screenshot — distinct from pt-BR (de/Héroe vs
+    // do/Herói, Equipamiento, Rango, Muro de Honor).
+    const lines = [
+      "Poder de Heroe 126,107,918",
+      "Nivel de Heroe 68,968,904",
+      "Decoraciones y Estadisticas de Construccion 27,322,648",
+      "Equipamiento 11,512,123",
+      "Habilidad de Heroe 5,905,810",
+      "Rango de Heroe 5,877,961",
+      "Arma Exclusiva 5,025,497",
+      "Muro de Honor 1,494,975",
+      "Poder de Dron 9,358,364",
+      "Nivel de Dron 4,575,346",
+      "Poder de Edificio 16,361,642",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(126_107_918);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown).toEqual({
+      heroLevel: 68_968_904,
+      decorationsAndBuildings: 27_322_648,
+      gear: 11_512_123,
+      exclusiveWeapons: 5_025_497,
+      heroTier: 5_877_961,
+      heroSkill: 5_905_810,
+      wallOfHonor: 1_494_975,
+    });
+  });
+
+  it("parses wrapped Mexican Spanish decorations label", () => {
+    const lines = [
+      "Poder de Héroe 126,107,918",
+      "Nivel de Héroe 68,968,904",
+      "Decoraciones y",
+      "Estadísticas de Construcción 27,322,648",
+      "Equipamiento 11,512,123",
+      "Habilidad de Héroe 5,905,810",
+      "Rango de Héroe 5,877,961",
+      "Arma Exclusiva 5,025,497",
+      "Muro de Honor 1,494,975",
+      "Edificios 12,389,000",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(126_107_918);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown.decorationsAndBuildings).toBe(27_322_648);
+    expect(parsed.breakdown.wallOfHonor).toBe(1_494_975);
+  });
+
+  it("recovers Jul 18 screenshot when header total is on a bare OCR line", () => {
+    // Live Discord sample: body header is gibberish ("BABELED"), dual-pass
+    // header band emits the total alone. Component commas land as mixed digits
+    // (7/1/8) with the other separator dropped → 9-digit blobs.
+    const lines = [
+      "164,613,299",
+      "(&))[HerolPower, BABELED &",
+      "Hero Level 857868520",
+      "Decorations & Building 371809752",
+      "Stats",
+      "Gear 138190850",
+      "Exclusive Weapon 974087080",
+      "Hero Tier 12/051%7,07,",
+      "Hero Skill 6!581'990",
+      "Wall of Honor 4%02¥00",
+      "R4D10nePower, 11'803%262]'v",
+      "Drone Level 513497852:",
+      "Skill Chip 37462800",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(164_613_299);
+    expect(parsed.complete).toBe(true);
+    // Oversized 9-digit blobs above the header are collapsed; tier 12→7.
+    expect(parsed.breakdown.heroLevel).toBe(85_868_520);
+    expect(parsed.breakdown.exclusiveWeapons).toBe(9_408_080);
+    expect(parsed.breakdown.heroTier).toBe(7_051_707);
+    expect(parsed.breakdown.heroSkill).toBe(6_581_990);
+    expect(
+      Object.values(parsed.breakdown).reduce((a, b) => a + (b ?? 0), 0),
+    ).toBe(164_613_299);
+  });
+
+  it("peeks the next line when Hero Power label has no trailing total", () => {
+    const lines = [
+      "Hero Power",
+      "164613299",
+      "Hero Level 85,868,520",
+      "Decorations & Building Stats 37,809,452",
+      "Gear 13,190,850",
+      "Exclusive Weapon 9,408,080",
+      "Hero Tier 7,051,707",
+      "Hero Skill 6,581,990",
+      "Wall of Honor 4,702,700",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(164_613_299);
+    expect(parsed.complete).toBe(true);
+  });
+
+  it("repairs header total > 1B where a comma was OCR'd as a digit", () => {
+    // Real sample: header "163,843,831" reads as "1637843831" (comma→7 in header).
+    // Components also have commas absorbed as various digits (7, 1, 8).
+    // Multiple cost-1 header repairs reconcile; verify the >1B raw value is rejected
+    // and a reasonable ~164M value is found instead.
+    const lines = [
+      "Hero Power 1637843831",
+      "Hero Level 8578681512",
+      "Decorations & Building",
+      "Stats 37370394",
+      "Gear 138190850",
+      "Exclusive Weapon 91085358",
+      "Hero Tier 12/051%7,07,",
+      "Hero Skill 6'574'310",
+      "Wall of Honor 4%02¥00",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBeGreaterThan(160_000_000);
+    expect(parsed.heroPowerTotal).toBeLessThan(165_000_000);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown.heroTier).toBe(7_051_707);
+    expect(parsed.breakdown.heroSkill).toBe(6_574_310);
+  });
+
   it("recovers Hero Power total from live dual-pass OCR lines", () => {
     // Real dual-pass output from the Jul 14 screenshot: header commas→digits mix,
     // body still drops/duplicates glyphs on some rows.
