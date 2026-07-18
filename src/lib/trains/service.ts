@@ -37,7 +37,6 @@ import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import {
   buildPriceIsRightWeightedCandidates,
   loadPriceIsRightTicketSettings,
-  pickTpirPoolEntry,
 } from "@/lib/trains/train-economy-threshold.server";
 import { buildHeavyHitterPoolCandidates } from "@/lib/trains/heavy-hitter-pool.server";
 import { isPriceIsRightPaintTemplate } from "@/lib/trains/heavy-hitter-pool.shared";
@@ -280,14 +279,9 @@ async function rollFromPool(
   useSequence: boolean,
   mechanism: ConductorMechanismType | VipMechanismType,
   useWeightedPick = false,
-  paintTemplate?: WeekTemplateType | null,
   respectConductorMinimums = false,
 ): Promise<RollResult> {
   const summary = await getPoolSummary(allianceId, poolType);
-  const useTpirPick =
-    poolType === "r3" &&
-    isPriceIsRightPaintTemplate(paintTemplate) &&
-    !useWeightedPick;
 
   let unselected = await listUnselectedPoolEntries(allianceId, poolType);
   const qualifiedIds = respectConductorMinimums
@@ -304,20 +298,7 @@ async function rollFromPool(
 
   let entry: (typeof unselected)[number] | null = null;
   if (unselected.length > 0) {
-    if (useTpirPick) {
-      const picked = await pickTpirPoolEntry({
-        allianceId,
-        poolType,
-        trainDate: date,
-        useSequence,
-      });
-      // pickTpirPoolEntry re-lists the pool; keep conductor-minimum winners only.
-      entry =
-        picked &&
-        (qualifiedIds == null || qualifiedIds.includes(picked.memberId))
-          ? picked
-          : pickUniformPoolEntry(unselected);
-    } else if (useSequence) {
+    if (useSequence) {
       entry =
         [...unselected].sort(
           (a, b) => (a.sequencePosition ?? 0) - (b.sequencePosition ?? 0),
@@ -849,7 +830,6 @@ export async function rollForConductor(input: {
         mechanism === "r4_sequence",
         mechanism,
         useWeightedPick,
-        dayConfig.paintTemplate,
         true,
       );
       const poolRefreshed = await refreshExhaustedPoolIfNeeded({

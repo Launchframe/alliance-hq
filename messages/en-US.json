@@ -3601,7 +3601,7 @@
       "takedown_week": "Conductor: random draw from the takedown team roster every day (depleting pool). VIP: Conductor's pick.",
       "r3_recognition": "Conductor: manual pick from the R3 pool every day — selected members are depleted from the pool. VIP: Conductor's pick.",
       "r4_train_week": "Conductor: Random R4 officer rotation. VIP: Conductor's pick.",
-      "donations_week": "Conductor: Priod day top donor. VIP: Second-place donor.",
+      "donations_week": "Conductor: Prior day top donor. VIP: Second-place donor.",
       "custom": "Conductor / VIP: No preset rules. Choose each day's conductor template on the calendar, or pick manually ."
     },
     "wheel": {

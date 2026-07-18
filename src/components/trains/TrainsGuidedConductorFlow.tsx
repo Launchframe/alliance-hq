@@ -395,11 +395,17 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                     <ChevronDown className="h-3.5 w-3.5" aria-hidden />
                   )}
                 </button>
-                {showAdvanced ? (
-                  <div className="mt-3 flex flex-col gap-3 border-t border-hq-border pt-3">
-                    {advancedActions}
-                  </div>
-                ) : null}
+                {/* Keep advanced actions mounted (hidden) so spin-week hotkey /
+                    walkthrough targets remain queryable while collapsed. */}
+                <div
+                  className={
+                    showAdvanced
+                      ? "mt-3 flex flex-col gap-3 border-t border-hq-border pt-3"
+                      : "hidden"
+                  }
+                >
+                  {advancedActions}
+                </div>
               </div>
             ) : null}
           </div>
