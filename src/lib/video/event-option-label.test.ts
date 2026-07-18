@@ -38,6 +38,18 @@ describe("formatEventOptionLabel", () => {
     ).toBe("Desert Storm 11/06/26");
   });
 
+  it("keeps the calendar day when the viewer timezone is west of server time", () => {
+    // Friday Desert Storm must not render as Thursday (Canyon Storm day).
+    expect(
+      formatEventOptionLabel({
+        eventTypeLabel: "Desert Storm",
+        eventDate: "2026-07-17",
+        locale: "en-US",
+        timezoneId: "America/New_York",
+      }),
+    ).toBe("Desert Storm 07/17/26");
+  });
+
   it("returns type label when date is missing", () => {
     expect(
       formatEventOptionLabel({
@@ -50,7 +62,23 @@ describe("formatEventOptionLabel", () => {
 });
 
 describe("formatAshedEventOptionLabel", () => {
-  it("prefers start_date", () => {
+  it("prefers event_date over start_date for storm events", () => {
+    expect(
+      formatAshedEventOptionLabel({
+        eventTypeLabel: "Desert Storm",
+        event: {
+          id: "CxZzjAkw9ALD9fcX",
+          name: "CxZzjAkw9ALD9fcX",
+          event_date: "2026-07-17",
+          start_date: "2026-07-16",
+        },
+        locale: "en-US",
+        timezoneId: "America/New_York",
+      }),
+    ).toBe("Desert Storm 07/17/26");
+  });
+
+  it("falls back to start_date when event_date is absent", () => {
     expect(
       formatAshedEventOptionLabel({
         eventTypeLabel: "Desert Storm",
