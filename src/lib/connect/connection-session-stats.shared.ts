@@ -42,14 +42,23 @@ export function loadAshedConnectionSessionStats(): AshedConnectionSessionStats |
   }
 }
 
-export function storeAshedConnectionSessionStats(
+function writeStats(
   stats: AshedConnectionSessionStats,
+  options?: { notify?: boolean },
 ): void {
   if (typeof window === "undefined") {
     return;
   }
   window.localStorage.setItem(STATS_KEY, JSON.stringify(stats));
-  emit();
+  if (options?.notify !== false) {
+    emit();
+  }
+}
+
+export function storeAshedConnectionSessionStats(
+  stats: AshedConnectionSessionStats,
+): void {
+  writeStats(stats, { notify: true });
 }
 
 export function startAshedConnectionSession(
@@ -59,7 +68,7 @@ export function startAshedConnectionSession(
     connectedAt,
     requestCount: 0,
   };
-  storeAshedConnectionSessionStats(stats);
+  writeStats(stats, { notify: true });
   return stats;
 }
 
@@ -71,7 +80,11 @@ export function ensureAshedConnectionSession(): AshedConnectionSessionStats {
   return startAshedConnectionSession();
 }
 
-export function incrementAshedRequestCount(): AshedConnectionSessionStats | null {
+/**
+ * Bump the session request counter without notifying React subscribers.
+ * Safe on hot paths (PerformanceObserver) — open/poll UI re-reads storage.
+ */
+export function incrementAshedRequestCountSilent(): AshedConnectionSessionStats | null {
   const current = loadAshedConnectionSessionStats();
   if (!current) {
     return null;
@@ -80,7 +93,16 @@ export function incrementAshedRequestCount(): AshedConnectionSessionStats | null
     ...current,
     requestCount: current.requestCount + 1,
   };
-  storeAshedConnectionSessionStats(next);
+  writeStats(next, { notify: false });
+  return next;
+}
+
+/** Prefer silent bump + explicit UI refresh for shell chrome. */
+export function incrementAshedRequestCount(): AshedConnectionSessionStats | null {
+  const next = incrementAshedRequestCountSilent();
+  if (next) {
+    emit();
+  }
   return next;
 }
 
@@ -125,48 +147,4 @@ export function shouldCountAsAshedSessionRequest(url: string): boolean {
   } catch {
     return false;
   }
-}
-
-let sessionRequestObserverInstallCount = 0;
-let originalFetch: typeof window.fetch | null = null;
-
-function resolveRequestUrl(input: RequestInfo | URL): string {
-  if (typeof input === "string") {
-    return input;
-  }
-  if (input instanceof URL) {
-    return input.toString();
-  }
-  return input.url;
-}
-
-/** Count successful HQ API calls while connected; ref-counted for Strict Mode. */
-export function installAshedSessionRequestObserver(): () => void {
-  if (typeof window === "undefined") {
-    return () => {};
-  }
-
-  sessionRequestObserverInstallCount += 1;
-  if (sessionRequestObserverInstallCount === 1) {
-    originalFetch = window.fetch.bind(window);
-    window.fetch = async (
-      input: RequestInfo | URL,
-      init?: RequestInit,
-    ): Promise<Response> => {
-      const response = await originalFetch!(input, init);
-      if (response.ok && shouldCountAsAshedSessionRequest(resolveRequestUrl(input))) {
-        incrementAshedRequestCount();
-      }
-      return response;
-    };
-  }
-
-  return () => {
-    sessionRequestObserverInstallCount -= 1;
-    if (sessionRequestObserverInstallCount <= 0 && originalFetch) {
-      window.fetch = originalFetch;
-      originalFetch = null;
-      sessionRequestObserverInstallCount = 0;
-    }
-  };
 }

@@ -2,8 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   clearAshedConnectionSessionStats,
-  incrementAshedRequestCount,
-  installAshedSessionRequestObserver,
+  incrementAshedRequestCountSilent,
   loadAshedConnectionSessionStats,
   shouldCountAsAshedSessionRequest,
   startAshedConnectionSession,
@@ -47,12 +46,13 @@ describe("connection-session-stats.shared", () => {
 
   it("increments request count while a session exists", () => {
     startAshedConnectionSession();
-    expect(incrementAshedRequestCount()?.requestCount).toBe(1);
-    expect(incrementAshedRequestCount()?.requestCount).toBe(2);
+    expect(incrementAshedRequestCountSilent()?.requestCount).toBe(1);
+    expect(incrementAshedRequestCountSilent()?.requestCount).toBe(2);
+    expect(loadAshedConnectionSessionStats()?.requestCount).toBe(2);
   });
 
   it("does not increment without an active session", () => {
-    expect(incrementAshedRequestCount()).toBeNull();
+    expect(incrementAshedRequestCountSilent()).toBeNull();
   });
 
   it("classifies Ashed-bound API paths", () => {
@@ -63,29 +63,5 @@ describe("connection-session-stats.shared", () => {
     );
     expect(shouldCountAsAshedSessionRequest("/api/health/db")).toBe(false);
     expect(shouldCountAsAshedSessionRequest("/dashboard")).toBe(false);
-  });
-
-  it("installAshedSessionRequestObserver is ref-counted", async () => {
-    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
-    vi.stubGlobal("window", {
-      localStorage: globalThis.localStorage,
-      fetch: fetchMock,
-    });
-
-    startAshedConnectionSession();
-    const uninstallA = installAshedSessionRequestObserver();
-    const uninstallB = installAshedSessionRequestObserver();
-
-    await window.fetch("/api/members");
-    expect(loadAshedConnectionSessionStats()?.requestCount).toBe(1);
-
-    uninstallA();
-    await window.fetch("/api/members");
-    expect(loadAshedConnectionSessionStats()?.requestCount).toBe(2);
-
-    uninstallB();
-    await window.fetch("/api/members");
-    expect(loadAshedConnectionSessionStats()?.requestCount).toBe(2);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });

@@ -8,10 +8,10 @@ import {
   clearAshedConnectionSessionStats,
   ensureAshedConnectionSession,
   formatConnectedSince,
-  installAshedSessionRequestObserver,
+  incrementAshedRequestCountSilent,
   loadAshedConnectionSessionStats,
+  shouldCountAsAshedSessionRequest,
   startAshedConnectionSession,
-  subscribeAshedConnectionSessionStats,
 } from "@/lib/connect/connection-session-stats.shared";
 import {
   markConnectWalkthroughSeen,
@@ -50,6 +50,8 @@ export function AshedConnectionStatus({
   const [jwtInput, setJwtInput] = React.useState("");
   const [connecting, setConnecting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  /** Bumps while the panel is open so request counts re-read from storage. */
+  const [statsPoll, setStatsPoll] = React.useState(0);
   const panelRef = React.useRef<HTMLDivElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const autoConnectRef = React.useRef(false);
@@ -60,19 +62,50 @@ export function AshedConnectionStatus({
     () => false,
   );
 
-  const stats = React.useSyncExternalStore(
-    subscribeAshedConnectionSessionStats,
-    loadAshedConnectionSessionStats,
-    () => null,
-  );
-
   React.useEffect(() => {
     if (!isConnected) {
       return;
     }
     ensureAshedConnectionSession();
-    return installAshedSessionRequestObserver();
+
+    // Prefer PerformanceObserver over patching window.fetch — wrapping fetch
+    // and notifying React on every /api/* call re-renders the shell and
+    // detaches interactive DOM (e2e: alliance switcher, video process panel).
+    if (typeof PerformanceObserver === "undefined") {
+      return;
+    }
+
+    let observer: PerformanceObserver;
+    try {
+      observer = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (
+            entry.entryType === "resource" &&
+            shouldCountAsAshedSessionRequest(entry.name)
+          ) {
+            incrementAshedRequestCountSilent();
+          }
+        }
+      });
+      observer.observe({ type: "resource", buffered: false });
+    } catch {
+      return;
+    }
+
+    return () => {
+      observer.disconnect();
+    };
   }, [isConnected]);
+
+  React.useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const interval = window.setInterval(() => {
+      setStatsPoll((n) => n + 1);
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [open]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -186,10 +219,15 @@ export function AshedConnectionStatus({
     return null;
   }
 
+  // Re-read when the panel opens or when statsPoll ticks while open.
+  void statsPoll;
+  const liveStats = open ? loadAshedConnectionSessionStats() : null;
+
   return (
     <div className="relative shrink-0" ref={panelRef}>
       <button
         type="button"
+        data-testid="ashed-connection-status"
         onClick={() => {
           setOpen((prev) => !prev);
           setError(null);
@@ -216,6 +254,7 @@ export function AshedConnectionStatus({
       {open ? (
         <div
           role="dialog"
+          data-testid="ashed-connection-status-panel"
           className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-hq-border bg-hq-surface p-4 shadow-xl max-sm:left-0 max-sm:right-auto"
         >
           {isConnected ? (
@@ -232,8 +271,8 @@ export function AshedConnectionStatus({
                     {t("connectedSince")}
                   </dt>
                   <dd className="text-hq-fg">
-                    {stats?.connectedAt
-                      ? formatConnectedSince(stats.connectedAt, locale)
+                    {liveStats?.connectedAt
+                      ? formatConnectedSince(liveStats.connectedAt, locale)
                       : "—"}
                   </dd>
                 </div>
@@ -241,7 +280,9 @@ export function AshedConnectionStatus({
                   <dt className="text-[0.65rem] uppercase tracking-wide text-hq-fg-muted">
                     {t("requestsThisSession")}
                   </dt>
-                  <dd className="text-hq-fg">{stats?.requestCount ?? 0}</dd>
+                  <dd className="text-hq-fg">
+                    {liveStats?.requestCount ?? 0}
+                  </dd>
                 </div>
               </dl>
               <button
