@@ -13,7 +13,7 @@ type Props = {
 
 const HINT_STYLES = {
   info: "border-hq-accent/40 bg-hq-accent/10 text-hq-accent",
-  warning: "border-[#d29922]/40 bg-[#d29922]/10 text-[#d29922]",
+  warning: "border-hq-warning/40 bg-hq-warning/10 text-hq-warning",
   error: "border-hq-danger/40 bg-hq-danger/10 text-hq-danger",
 } as const;
 

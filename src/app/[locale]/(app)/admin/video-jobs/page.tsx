@@ -192,6 +192,9 @@ export default function AdminVideoJobsPage() {
     };
   }, [loadJobs, filters, t]);
 
+  // API already returns orderAdminVideoJobsForIndex output; regrouping here is
+  // idempotent on that order and keeps the page safe if a future caller passes
+  // unordered rows. Could rely on server order alone later.
   const jobGroups = useMemo(
     () => groupAdminVideoJobsForIndex(jobs),
     [jobs],

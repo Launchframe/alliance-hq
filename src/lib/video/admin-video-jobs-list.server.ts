@@ -7,7 +7,10 @@ import {
   mergeAdminVideoJobMatchesWithGroupSiblings,
   shouldExpandAdminVideoJobUploadGroups,
 } from "@/lib/video/admin-video-jobs-expand.shared";
-import { orderAdminVideoJobsForIndex } from "@/lib/video/admin-video-jobs-group.shared";
+import {
+  orderAdminVideoJobsForIndex,
+  type AdminVideoJobGroupFields,
+} from "@/lib/video/admin-video-jobs-group.shared";
 import { parseAdminVideoJobsStatusFilter } from "@/lib/video/admin-video-jobs-query.shared";
 
 export type AdminVideoJobsListQuery = {
@@ -15,10 +18,21 @@ export type AdminVideoJobsListQuery = {
   bucket: string | null;
   passKey: string | null;
   rating: string | null;
+  /** API-only (list UI does not expose); kept for backward-compatible deep links. */
   ratingReason: string | null;
+  /** API-only (list UI does not expose); kept for backward-compatible deep links. */
   scoreTarget: string | null;
   limit: number;
 };
+
+/** Columns needed to expand groups and order the admin index / neighbor window. */
+const ADMIN_VIDEO_JOB_INDEX_COLUMNS = {
+  id: schema.videoJobs.id,
+  groupId: schema.videoJobs.groupId,
+  passRole: schema.videoJobs.passRole,
+  passIndex: schema.videoJobs.passIndex,
+  createdAt: schema.videoJobs.createdAt,
+} as const;
 
 /** Parse list/neighbors query params (same defaults as GET /api/admin/video-jobs). */
 export function parseAdminVideoJobsListQuery(
@@ -74,6 +88,26 @@ async function queryMatchedAdminVideoJobs(query: AdminVideoJobsListQuery) {
     .limit(query.limit);
 }
 
+async function queryMatchedAdminVideoJobIndexRows(
+  query: AdminVideoJobsListQuery,
+): Promise<AdminVideoJobGroupFields[]> {
+  const db = getDb();
+  const conditions = buildAdminVideoJobsListConditions(query);
+  if (conditions.length > 0) {
+    return db
+      .select(ADMIN_VIDEO_JOB_INDEX_COLUMNS)
+      .from(schema.videoJobs)
+      .where(and(...conditions))
+      .orderBy(desc(schema.videoJobs.createdAt))
+      .limit(query.limit);
+  }
+  return db
+    .select(ADMIN_VIDEO_JOB_INDEX_COLUMNS)
+    .from(schema.videoJobs)
+    .orderBy(desc(schema.videoJobs.createdAt))
+    .limit(query.limit);
+}
+
 /**
  * When filters would split a multi-pass upload (e.g. primary review, shadow
  * still processing), pull in the missing siblings so the index can keep them
@@ -81,7 +115,11 @@ async function queryMatchedAdminVideoJobs(query: AdminVideoJobsListQuery) {
  */
 async function expandUploadGroupSiblings<
   T extends { id: string; groupId: string | null },
->(matched: T[], query: AdminVideoJobsListQuery): Promise<T[]> {
+>(
+  matched: T[],
+  query: AdminVideoJobsListQuery,
+  options?: { indexColumnsOnly?: boolean },
+): Promise<T[]> {
   if (!shouldExpandAdminVideoJobUploadGroups(query.passKey, matched.length)) {
     return matched;
   }
@@ -96,25 +134,42 @@ async function expandUploadGroupSiblings<
   if (groupIds.length === 0) return matched;
 
   const db = getDb();
-  const siblings = await db
-    .select()
-    .from(schema.videoJobs)
-    .where(inArray(schema.videoJobs.groupId, groupIds));
+  const siblings = options?.indexColumnsOnly
+    ? await db
+        .select(ADMIN_VIDEO_JOB_INDEX_COLUMNS)
+        .from(schema.videoJobs)
+        .where(inArray(schema.videoJobs.groupId, groupIds))
+    : await db
+        .select()
+        .from(schema.videoJobs)
+        .where(inArray(schema.videoJobs.groupId, groupIds));
 
   return mergeAdminVideoJobMatchesWithGroupSiblings(matched, siblings as T[]);
 }
 
-/** Load video job rows for the admin index (grouped primary+shadow, capped). */
+/**
+ * Load video job rows for the admin index (grouped primary+shadow).
+ *
+ * `limit` applies to the filtered match query only. Sibling expansion may grow
+ * the returned list (and neighbor “N of M”) above that limit so multi-pass
+ * uploads stay intact — do not “fix” M > limit as a pagination bug.
+ */
 export async function listAdminVideoJobs(query: AdminVideoJobsListQuery) {
   const matched = await queryMatchedAdminVideoJobs(query);
   const withSiblings = await expandUploadGroupSiblings(matched, query);
   return orderAdminVideoJobsForIndex(withSiblings);
 }
 
-/** Load only ids for neighbor navigation (same filters/order/limit as the index). */
+/**
+ * Load only ids for neighbor navigation (same filters/order/expansion as the
+ * index). Selects index-sort columns only — not full job rows.
+ */
 export async function listAdminVideoJobIds(
   query: AdminVideoJobsListQuery,
 ): Promise<string[]> {
-  const jobs = await listAdminVideoJobs(query);
-  return jobs.map((job) => job.id);
+  const matched = await queryMatchedAdminVideoJobIndexRows(query);
+  const withSiblings = await expandUploadGroupSiblings(matched, query, {
+    indexColumnsOnly: true,
+  });
+  return orderAdminVideoJobsForIndex(withSiblings).map((job) => job.id);
 }
