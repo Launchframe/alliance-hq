@@ -2247,6 +2247,8 @@
     "showQr": "Mostrar QR code",
     "generating": "Gerando…",
     "scanHint": "Abra a câmera do celular e escaneie este código.",
+    "desktopLinkHint": "Vincular outro computador ou navegador? Copie este link e abra-o lá antes de expirar — o mesmo efeito de escanear o QR.",
+    "copyLinkLabel": "Link para outro dispositivo",
     "expiresIn": "Expira em",
     "expired": "Este QR code expirou. Gere um novo.",
     "linked": "Dispositivo móvel vinculado.",

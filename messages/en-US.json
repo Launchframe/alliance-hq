@@ -2301,6 +2301,8 @@
     "showQr": "Show QR code",
     "generating": "Generating…",
     "scanHint": "Open your phone camera and scan this code.",
+    "desktopLinkHint": "Linking another desktop or browser? Copy this link and open it there before it expires — same as scanning the QR.",
+    "copyLinkLabel": "Link for another device",
     "expiresIn": "Expires in",
     "expired": "This QR code expired. Generate a new one.",
     "linked": "Mobile device linked.",

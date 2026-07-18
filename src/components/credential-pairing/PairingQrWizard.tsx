@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { QRCodeSVG } from "qrcode.react";
 
+import { CopyToClipboardField } from "@/components/ui/CopyToClipboardField";
 import type { PairingPurpose } from "@/lib/credential-pairing/types";
 
 type PairingCreateResponse = {
@@ -60,6 +62,7 @@ export function PairingQrWizard({
   autoStart = false,
   strings,
 }: Props) {
+  const tDevice = useTranslations("deviceLink");
   const [active, setActive] = useState(autoStart);
   const [creating, setCreating] = useState(false);
   const [pairing, setPairing] = useState<PairingCreateResponse | null>(null);
@@ -227,7 +230,7 @@ export function PairingQrWizard({
               <div className="rounded-lg bg-white p-3">
                 <QRCodeSVG value={pairing.linkUrl} size={180} level="M" />
               </div>
-              <div className="min-w-0 space-y-2 text-sm text-hq-fg-muted">
+              <div className="min-w-0 flex-1 space-y-3 text-sm text-hq-fg-muted">
                 <p>{strings.scanHint}</p>
                 <p>
                   {strings.expiresIn}{" "}
@@ -235,6 +238,13 @@ export function PairingQrWizard({
                     {formatCountdown(remaining)}
                   </span>
                 </p>
+                <div className="space-y-2">
+                  <p>{tDevice("desktopLinkHint")}</p>
+                  <CopyToClipboardField
+                    value={pairing.linkUrl}
+                    label={tDevice("copyLinkLabel")}
+                  />
+                </div>
               </div>
             </div>
           )}
