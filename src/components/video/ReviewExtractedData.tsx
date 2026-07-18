@@ -36,7 +36,10 @@ import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
 import { memberMatchConfidenceBorderClass } from "@/lib/video/member-match-confidence-class";
-import { shouldRefetchOnLiveJobStatus } from "@/lib/video/live-job-refresh.shared";
+import {
+  isTerminalLiveJobStatus,
+  shouldRefetchOnLiveJobStatus,
+} from "@/lib/video/live-job-refresh.shared";
 import {
   buildConnectHref,
   stashConnectReturnPath,
@@ -308,6 +311,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [bankId, setBankId] = useState("");
   const rosterMembersHydratedRef = useRef(false);
   const liveJobStatusRef = useRef<string | null>(null);
+  const loadGenerationRef = useRef(0);
   const draftDirtyVersionRef = useRef(0);
   const [draftDirtyVersion, setDraftDirtyVersion] = useState(0);
   const isEventView = viewMode === "event";
@@ -469,6 +473,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const load = useCallback(
     async (options?: { skipRematch?: boolean }) => {
+      const generation = ++loadGenerationRef.current;
+      const isStale = () => generation !== loadGenerationRef.current;
+
       try {
         const res = await fetch(`/api/tools/video-upload/${jobId}`);
         const data = (await res.json()) as {
@@ -507,6 +514,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           >;
           members?: AshedMember[];
         };
+        if (isStale()) {
+          return;
+        }
         if (!res.ok) {
           setJobStatus("load_error");
           setActionError(data.error ?? tc("uploadFailed"));
@@ -520,10 +530,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           data.job?.status !== "submitting"
         ) {
           const ok = await rematchMembers();
+          if (isStale()) {
+            return;
+          }
           if (ok) {
             await loadRef.current({ skipRematch: true });
             return;
           }
+        }
+
+        if (isStale()) {
+          return;
         }
 
         const jobMembers = data.members ?? [];
@@ -607,6 +624,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setAllianceName(data.alliance?.jobName ?? null);
         setAllianceStale(Boolean(data.alliance?.stale));
       } catch (err) {
+        if (isStale()) {
+          return;
+        }
         setJobStatus("load_error");
         setActionError(
           err instanceof Error ? err.message : tc("connectionFailed"),
@@ -627,14 +647,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }, [load]);
 
   const displayJobStatus = useMemo(() => {
-    const terminalStatuses = new Set([
+    const restTerminalStatuses = new Set([
       "review",
       "failed",
       "load_error",
       "complete",
       "discarded",
     ]);
-    if (terminalStatuses.has(jobStatus)) {
+    if (restTerminalStatuses.has(jobStatus)) {
       return jobStatus;
     }
     if (
@@ -644,6 +664,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         liveJob.status === "extracting" ||
         liveJob.status === "parsing")
     ) {
+      return liveJob.status;
+    }
+    // REST may lag the SSE stream when OCR finishes; honor review/failed only
+    // (complete/discarded from SSE while REST is still active must not exit the
+    // waiting UI without a refetch). load() runs via shouldRefetchOnLiveJobStatus.
+    if (liveJob && isTerminalLiveJobStatus(liveJob.status)) {
       return liveJob.status;
     }
     return jobStatus;
@@ -662,16 +688,21 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     // the provider returns a new object reference each time, so this effect
     // would otherwise run on every snapshot — re-running load() and clobbering
     // the reviewer's in-progress edits. See shouldRefetchOnLiveJobStatus.
-    if (shouldRefetchOnLiveJobStatus(previousStatus, liveJob.status)) {
+    if (
+      shouldRefetchOnLiveJobStatus(previousStatus, liveJob.status, {
+        restStatus: jobStatus,
+      })
+    ) {
       queueMicrotask(() => {
         void load();
       });
     }
-  }, [liveJob, load]);
+  }, [liveJob, load, jobStatus]);
 
   useEffect(() => {
     rosterMembersHydratedRef.current = false;
     liveJobStatusRef.current = null;
+    loadGenerationRef.current = 0;
   }, [jobId]);
 
   // Roster review: enrich stored rows from the job-alliance local roster once

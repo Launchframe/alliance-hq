@@ -1,3 +1,25 @@
+/** SSE terminal statuses that should exit the waiting UI and trigger refetch. */
+export const TERMINAL_LIVE_JOB_STATUSES = ["review", "failed"] as const;
+
+export type TerminalLiveJobStatus = (typeof TERMINAL_LIVE_JOB_STATUSES)[number];
+
+const TERMINAL_LIVE_STATUSES = new Set<string>(TERMINAL_LIVE_JOB_STATUSES);
+
+export function isTerminalLiveJobStatus(
+  status: string,
+): status is TerminalLiveJobStatus {
+  return TERMINAL_LIVE_STATUSES.has(status);
+}
+
+/** REST statuses that mean the page is still waiting on OCR / pipeline work. */
+const ACTIVE_REST_STATUSES = new Set([
+  "pending_approval",
+  "queued",
+  "extracting",
+  "parsing",
+  "loading",
+]);
+
 /**
  * Decide whether the review page should refetch job data in response to a live
  * (SSE) job-status update.
@@ -9,19 +31,25 @@
  * in-progress edits.
  *
  * We only want to refetch when the job *transitions* into a review/failed state
- * (e.g. OCR just finished), not on repeated snapshots of the same status. The
- * initial page load is handled separately on mount, so a null previous status
- * (first observed event) must not trigger a reload.
+ * (e.g. OCR just finished), not on repeated snapshots of the same status.
+ *
+ * Exception: the first observed SSE event may already be terminal while the
+ * page's REST `jobStatus` is still active (opened mid-flight; job finished
+ * before any prior live status was recorded). Mount load alone cannot see that
+ * transition, so we refetch in that case. When REST is already terminal,
+ * mount load owns the initial payload and a null previous must not reload.
  */
 export function shouldRefetchOnLiveJobStatus(
   previousStatus: string | null,
   nextStatus: string,
+  options?: { restStatus?: string | null },
 ): boolean {
-  if (nextStatus !== "review" && nextStatus !== "failed") {
+  if (!TERMINAL_LIVE_STATUSES.has(nextStatus)) {
     return false;
   }
   if (previousStatus === null) {
-    return false;
+    const restStatus = options?.restStatus;
+    return restStatus != null && ACTIVE_REST_STATUSES.has(restStatus);
   }
   return previousStatus !== nextStatus;
 }
