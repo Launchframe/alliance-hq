@@ -1,7 +1,5 @@
 import "server-only";
 
-import sharp from "sharp";
-
 import type { ChartLocale } from "@/lib/charts/chart-locale-format.shared";
 import {
   buildThpHistoryChartSvg,
@@ -17,6 +15,13 @@ import {
 } from "@/lib/vr/vr-progress-chart-render.shared";
 
 export async function renderSvgToPng(svg: string): Promise<Buffer> {
+  // Lazy-load sharp so importers (Discord interactions webhook, dev preview)
+  // don't pay libvips native init on every cold start — only chart renders do.
+  // Same feature-boundary pattern as THP screenshot OCR; see
+  // scripts/vercel/video-ocr-file-tracing.mjs ("Prefer dynamic import at
+  // feature boundaries"). A static import here would put sharp on the module
+  // init path of the 3s-ACK interactions route for all commands.
+  const { default: sharp } = await import("sharp");
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 

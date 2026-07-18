@@ -114,4 +114,28 @@ describe("editDiscordOriginalInteractionWithFiles", () => {
     });
     expect(form.get("files[0]")).toBeTruthy();
   });
+
+  it("returns false on a failed PATCH so callers can post a fallback edit", async () => {
+    const fetchMock = vi.fn(
+      async () => new Response("Request entity too large", { status: 413 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { editDiscordOriginalInteractionWithFiles } = await import(
+      "@/lib/discord/interaction-followup.server"
+    );
+    const ok = await editDiscordOriginalInteractionWithFiles({
+      applicationId: "app",
+      interactionToken: "tok",
+      content: "chart caption",
+      files: [
+        {
+          filename: "what-is-my-vr-chart.png",
+          bytes: Buffer.from("png-bytes"),
+          contentType: "image/png",
+        },
+      ],
+    });
+    expect(ok).toBe(false);
+  });
 });
