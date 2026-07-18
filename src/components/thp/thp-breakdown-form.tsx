@@ -93,7 +93,10 @@ export function ThpBreakdownForm({
       </div>
 
       {partialHint ? (
-        <p className="rounded-lg border border-hq-warning/50 bg-hq-warning/10 px-3 py-2 text-sm text-hq-warning">
+        <p
+          className="rounded-lg border border-hq-warning/50 bg-hq-warning/10 px-3 py-2 text-sm text-hq-warning"
+          data-testid="my-thp-ocr-partial-hint"
+        >
           {partialHint}
         </p>
       ) : null}

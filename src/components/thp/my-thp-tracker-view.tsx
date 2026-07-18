@@ -440,7 +440,14 @@ export function MyThpTrackerView({ initial }: Props) {
         title={t("breakdownDialogTitle")}
       >
         <div className="relative z-[101] w-full max-w-lg rounded-xl border border-hq-border bg-hq-surface p-5 shadow-xl">
+          {/* Remount when OCR partial prefill/preview changes so draft state
+              resets even if Dialog ever keeps children mounted while closed. */}
           <ThpBreakdownForm
+            key={
+              partialBreakdownInitial
+                ? `ocr-partial:${screenshotPreviewUrl ?? "no-preview"}`
+                : `stored:${data.updatedAt ?? "none"}`
+            }
             initial={partialBreakdownInitial ?? data.breakdown}
             busy={busy}
             onSubmit={submitBreakdown}

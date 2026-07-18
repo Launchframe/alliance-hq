@@ -87,12 +87,13 @@ export async function handleWebThpCommand(input: {
           partialBreakdown: ocr.breakdown,
         };
       }
-      if (explicitTotal == null) {
-        return {
-          status: "error",
-          message: translate("thp.ocrFailed"),
-        };
-      }
+      // Screenshot produced nothing usable: missing total, or an out-of-range
+      // header with zero parsed rows. Prefer ocrFailed over invalidTotal so
+      // web matches Discord's "couldn't read the screenshot" copy.
+      return {
+        status: "error",
+        message: translate("thp.ocrFailed"),
+      };
     }
   }
 
