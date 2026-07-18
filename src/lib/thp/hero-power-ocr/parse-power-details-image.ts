@@ -35,6 +35,19 @@ function mergeOcrLines(primary: string[], secondary: string[]): string[] {
   return out;
 }
 
+function isBareHeroPowerTotalLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  // Mostly numeric: a lone Hero Power total from the inverted header band.
+  const digitCount = (trimmed.match(/\d/g) ?? []).length;
+  if (digitCount < 7) return false;
+  if ((trimmed.match(/[A-Za-zÀ-ÿ가-힣]/g) ?? []).length > 3) return false;
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length < 7 || digits.length > 10) return false;
+  const value = Number.parseInt(digits, 10);
+  return Number.isFinite(value) && value >= 1_000_000 && value <= 1_000_000_000;
+}
+
 function isUsefulHeaderLine(line: string): boolean {
   return (
     /hero\s*l?\s*powers?/i.test(line) ||
@@ -47,7 +60,8 @@ function isUsefulHeaderLine(line: string): boolean {
     /poder\s*de\s*h[eé]roe/i.test(line) ||
     /detalles\s*de\s*poder/i.test(line) ||
     /영웅\s*전투력/.test(line) ||
-    /전투력\s*정보/.test(line)
+    /전투력\s*정보/.test(line) ||
+    isBareHeroPowerTotalLine(line)
   );
 }
 

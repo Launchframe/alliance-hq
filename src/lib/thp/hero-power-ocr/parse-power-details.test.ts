@@ -436,6 +436,55 @@ describe("parsePowerDetailsLines", () => {
     expect(parsed.breakdown.wallOfHonor).toBe(1_494_975);
   });
 
+  it("recovers Jul 18 screenshot when header total is on a bare OCR line", () => {
+    // Live Discord sample: body header is gibberish ("BABELED"), dual-pass
+    // header band emits the total alone. Component commas land as mixed digits
+    // (7/1/8) with the other separator dropped → 9-digit blobs.
+    const lines = [
+      "164,613,299",
+      "(&))[HerolPower, BABELED &",
+      "Hero Level 857868520",
+      "Decorations & Building 371809752",
+      "Stats",
+      "Gear 138190850",
+      "Exclusive Weapon 974087080",
+      "Hero Tier 12/051%7,07,",
+      "Hero Skill 6!581'990",
+      "Wall of Honor 4%02¥00",
+      "R4D10nePower, 11'803%262]'v",
+      "Drone Level 513497852:",
+      "Skill Chip 37462800",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(164_613_299);
+    expect(parsed.complete).toBe(true);
+    // Oversized 9-digit blobs above the header are collapsed; tier 12→7.
+    expect(parsed.breakdown.heroLevel).toBe(85_868_520);
+    expect(parsed.breakdown.exclusiveWeapons).toBe(9_408_080);
+    expect(parsed.breakdown.heroTier).toBe(7_051_707);
+    expect(parsed.breakdown.heroSkill).toBe(6_581_990);
+    expect(
+      Object.values(parsed.breakdown).reduce((a, b) => a + (b ?? 0), 0),
+    ).toBe(164_613_299);
+  });
+
+  it("peeks the next line when Hero Power label has no trailing total", () => {
+    const lines = [
+      "Hero Power",
+      "164613299",
+      "Hero Level 85,868,520",
+      "Decorations & Building Stats 37,809,452",
+      "Gear 13,190,850",
+      "Exclusive Weapon 9,408,080",
+      "Hero Tier 7,051,707",
+      "Hero Skill 6,581,990",
+      "Wall of Honor 4,702,700",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(164_613_299);
+    expect(parsed.complete).toBe(true);
+  });
+
   it("repairs header total > 1B where a comma was OCR'd as a digit", () => {
     // Real sample: header "163,843,831" reads as "1637843831" (comma→7 in header).
     // Components also have commas absorbed as various digits (7, 1, 8).
