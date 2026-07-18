@@ -411,6 +411,13 @@ function isDepositOnlyLine(tokens: LineTokens): boolean {
  * either side's x-centers are not pairwise distinct (a glued OCR "word"
  * spanning several tokens yields identical union centers that cannot define
  * columns).
+ *
+ * Pairs farther apart than half the minimum coordinate pitch (the gap
+ * between adjacent column centers) are never assigned: a genuine token sits
+ * near its own column's center, so anything beyond half a pitch is closer to
+ * a *different* column — junk (tile-art misreads, stray fragments) goes
+ * unassigned instead of spilling into a far column that lost its own token.
+ * Single-column rows have no pitch and keep the uncapped behavior.
  */
 function assignByPosition<T>(
   coords: ReadonlyArray<Positioned<unknown>>,
@@ -442,6 +449,20 @@ function assignByPosition<T>(
     return assigned;
   }
 
+  // Max assignment distance: half the minimum gap between adjacent column
+  // centers. Beyond that, a token is closer to another column than to this
+  // one and is more likely junk than a displaced reading.
+  const sortedCoordCenters = coordCenters
+    .filter((x): x is number => x != null)
+    .sort((a, b) => a - b);
+  let minPitch = Number.POSITIVE_INFINITY;
+  for (let i = 1; i < sortedCoordCenters.length; i += 1) {
+    minPitch = Math.min(minPitch, sortedCoordCenters[i]! - sortedCoordCenters[i - 1]!);
+  }
+  const maxDistance = Number.isFinite(minPitch)
+    ? minPitch / 2
+    : Number.POSITIVE_INFINITY;
+
   const pairs: Array<{
     coordIndex: number;
     tokenIndex: number;
@@ -449,11 +470,9 @@ function assignByPosition<T>(
   }> = [];
   coords.forEach((coord, coordIndex) => {
     tokens.forEach((token, tokenIndex) => {
-      pairs.push({
-        coordIndex,
-        tokenIndex,
-        distance: Math.abs(coord.xCenter! - token.xCenter!),
-      });
+      const distance = Math.abs(coord.xCenter! - token.xCenter!);
+      if (distance > maxDistance) return;
+      pairs.push({ coordIndex, tokenIndex, distance });
     });
   });
   pairs.sort((a, b) => a.distance - b.distance);

@@ -691,11 +691,12 @@ describe("parseCityListBanks — word-bbox column-aware assignment", () => {
     expect(banks[1]).toMatchObject({ coordY: 399, crystalGoldValue: null });
   });
 
-  it("resolves two tokens contending for the same column: the closer one wins, the other spills to its next-nearest free column", () => {
+  it("resolves two tokens contending for the same column: the closer one wins, the loser goes unassigned when every other column is beyond half a pitch", () => {
     // A junk value token near COL2 (e.g. tile-art misread) plus the real
-    // COL2 value. The real token (distance 0) claims COL2; the junk token
-    // spills to COL1 — the same blast radius plain index-zip had, never
-    // worse. COL3 stays untouched.
+    // COL2 value. The real token (distance 0) claims COL2; the junk token's
+    // next-nearest column (COL1) is farther than half the column pitch, so
+    // it is dropped instead of spilling into a tile it plainly does not
+    // belong to. COL1 (whose own token OCR missed) stays null.
     const banks = parseCityListBanks([
       lineWithColumns([
         { text: "111.00K", xCenter: COL2 - 20 }, // junk, near COL2
@@ -709,9 +710,37 @@ describe("parseCityListBanks — word-bbox column-aware assignment", () => {
       ]),
     ]);
     expect(banks).toHaveLength(3);
-    expect(banks[0]).toMatchObject({ coordX: 1, crystalGoldValue: 111_000 });
+    expect(banks[0]).toMatchObject({ coordX: 1, crystalGoldValue: null });
     expect(banks[1]).toMatchObject({ coordX: 2, crystalGoldValue: 500_000 });
     expect(banks[2]).toMatchObject({ coordX: 3, crystalGoldValue: 400_000 });
+  });
+
+  it("still assigns a displaced token to a free column within half a pitch of it", () => {
+    // Tile 1's value drifted right (blur/skew) but stays within half the
+    // column pitch of COL1 — a plausible displaced reading, not junk — so
+    // the cap does not reject it.
+    const banks = parseCityListBanks([
+      lineWithColumns([
+        { text: "600.00K", xCenter: COL1 + 100 }, // displaced but within 150
+        { text: "500.00K", xCenter: COL2 },
+      ]),
+      lineWithColumns([
+        { text: "#1211 (X:1, Y:1)", xCenter: COL1 },
+        { text: "#1211 (X:2, Y:2)", xCenter: COL2 },
+      ]),
+    ]);
+    expect(banks).toHaveLength(2);
+    expect(banks[0]).toMatchObject({ coordX: 1, crystalGoldValue: 600_000 });
+    expect(banks[1]).toMatchObject({ coordX: 2, crystalGoldValue: 500_000 });
+  });
+
+  it("keeps uncapped assignment for single-column rows (no pitch to derive a cap from)", () => {
+    const banks = parseCityListBanks([
+      lineWithColumns([{ text: "600.00K", xCenter: COL3 }]), // far from COL1
+      lineWithColumns([{ text: "#1211 (X:1, Y:1)", xCenter: COL1 }]),
+    ]);
+    expect(banks).toHaveLength(1);
+    expect(banks[0]).toMatchObject({ coordX: 1, crystalGoldValue: 600_000 });
   });
 
   it("drops surplus tokens once every coordinate is claimed instead of overwriting an assignment", () => {
