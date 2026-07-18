@@ -4,6 +4,11 @@
  */
 
 import {
+  formatChartInteger,
+  formatChartShortDate,
+  type ChartLocale,
+} from "@/lib/charts/chart-locale-format.shared";
+import {
   assignVrChartStyles,
   svgPathForVrChartShape,
 } from "@/lib/vr/vr-chart-style.shared";
@@ -41,6 +46,8 @@ export type BuildVrProgressChartSvgInput = {
   height?: number;
   vrUpdatesLocked?: boolean;
   now?: Date;
+  /** BCP 47 locale for axis dates/numbers (Discord bot or web UI locale). */
+  locale?: ChartLocale;
   options?: {
     projectionHorizonDays?: number;
     visibleCommanderIds?: string[];
@@ -56,13 +63,6 @@ function escapeXml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-function formatShortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
 }
 
 function smoothPath(points: Point[]): string {
@@ -125,6 +125,7 @@ export function buildVrProgressChartSvg(
   const horizonDays =
     input.options?.projectionHorizonDays ?? DEFAULT_PROJECTION_HORIZON_DAYS;
   const nowLabel = input.options?.labels?.nowLabel ?? "Now";
+  const locale = input.locale ?? "en-US";
   const backgroundFill =
     input.options?.backgroundFill === undefined
       ? "#0d1117"
@@ -268,10 +269,10 @@ export function buildVrProgressChartSvg(
   <line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${pad.top + innerH}" stroke="#30363d" stroke-width="1" />
   <line x1="${nowX}" y1="${pad.top}" x2="${nowX}" y2="${pad.top + innerH}" stroke="#8b949e" stroke-dasharray="2 4" stroke-width="1" />
   <text x="${nowX + 5}" y="${pad.top + 12}" fill="#8b949e" font-size="10" font-family="system-ui,sans-serif">${escapeXml(nowLabel)}</text>
-  <text x="${pad.left - 8}" y="${pad.top + 4}" fill="#8b949e" font-size="10" text-anchor="end" font-family="system-ui,sans-serif">${maxVr.toLocaleString("en-US")}</text>
-  <text x="${pad.left - 8}" y="${pad.top + innerH}" fill="#8b949e" font-size="10" text-anchor="end" dominant-baseline="hanging" font-family="system-ui,sans-serif">${minVr.toLocaleString("en-US")}</text>
-  <text x="${pad.left}" y="${pad.top + innerH + 18}" fill="#8b949e" font-size="10" text-anchor="start" font-family="system-ui,sans-serif">${escapeXml(formatShortDate(new Date(minTime).toISOString()))}</text>
-  <text x="${pad.left + innerW}" y="${pad.top + innerH + 18}" fill="#8b949e" font-size="10" text-anchor="end" font-family="system-ui,sans-serif">${escapeXml(formatShortDate(new Date(maxTime).toISOString()))}</text>
+  <text x="${pad.left - 8}" y="${pad.top + 4}" fill="#8b949e" font-size="10" text-anchor="end" font-family="system-ui,sans-serif">${escapeXml(formatChartInteger(maxVr, locale))}</text>
+  <text x="${pad.left - 8}" y="${pad.top + innerH}" fill="#8b949e" font-size="10" text-anchor="end" dominant-baseline="hanging" font-family="system-ui,sans-serif">${escapeXml(formatChartInteger(minVr, locale))}</text>
+  <text x="${pad.left}" y="${pad.top + innerH + 18}" fill="#8b949e" font-size="10" text-anchor="start" font-family="system-ui,sans-serif">${escapeXml(formatChartShortDate(new Date(minTime).toISOString(), locale))}</text>
+  <text x="${pad.left + innerW}" y="${pad.top + innerH + 18}" fill="#8b949e" font-size="10" text-anchor="end" font-family="system-ui,sans-serif">${escapeXml(formatChartShortDate(new Date(maxTime).toISOString(), locale))}</text>
   ${seriesMarkup}
 </svg>`;
 }

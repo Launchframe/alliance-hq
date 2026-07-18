@@ -44,6 +44,28 @@ describe("buildVrProgressChartSvg", () => {
       }),
     ).toBeNull();
   });
+
+  it("formats axis labels with the requested locale", () => {
+    const now = new Date("2026-07-16T18:00:00.000Z");
+    const fixture = fixtureVrProgressSeries(now);
+    const en = buildVrProgressChartSvg({
+      series: fixture.series,
+      seasonKey: fixture.seasonKey,
+      now,
+      locale: "en-US",
+      options: { labels: { nowLabel: "Now" } },
+    });
+    const pt = buildVrProgressChartSvg({
+      series: fixture.series,
+      seasonKey: fixture.seasonKey,
+      now,
+      locale: "pt-BR",
+      options: { labels: { nowLabel: "Agora" } },
+    });
+    expect(en).toContain("Now");
+    expect(pt).toContain("Agora");
+    expect(en).not.toEqual(pt);
+  });
 });
 
 describe("buildThpHistoryChartSvg", () => {
@@ -56,6 +78,15 @@ describe("buildThpHistoryChartSvg", () => {
     expect(svg).toBeTruthy();
     expect(svg).toContain("<polyline");
     expect(svg).toContain('stroke="#58a6ff"');
+  });
+
+  it("formats axis ticks with the requested locale", () => {
+    const events = fixtureThpHistoryEvents();
+    const en = buildThpHistoryChartSvg({ events, locale: "en-US" });
+    const pt = buildThpHistoryChartSvg({ events, locale: "pt-BR" });
+    expect(en).toBeTruthy();
+    expect(pt).toBeTruthy();
+    expect(en).not.toEqual(pt);
   });
 
   it("returns null with fewer than two events", () => {

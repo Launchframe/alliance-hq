@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import {
   assignVrChartStyles,
@@ -39,6 +39,7 @@ export function VrProgressProjectionChart({
   ariaLabel,
 }: Props) {
   const t = useTranslations("myVr.chart");
+  const locale = useLocale();
   const [horizonDays, setHorizonDays] =
     useState<(typeof PROJECTION_HORIZON_OPTIONS)[number]>(
       DEFAULT_PROJECTION_HORIZON_DAYS,
@@ -89,6 +90,7 @@ export function VrProgressProjectionChart({
       height: VR_PROGRESS_CHART_DEFAULT_HEIGHT,
       vrUpdatesLocked,
       now,
+      locale,
       options: {
         projectionHorizonDays: horizonDays,
         visibleCommanderIds: [...visibleCommanderIds],
@@ -99,6 +101,7 @@ export function VrProgressProjectionChart({
   }, [
     eligibleSeries,
     horizonDays,
+    locale,
     now,
     seasonKey,
     t,

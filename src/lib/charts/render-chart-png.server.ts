@@ -2,6 +2,7 @@ import "server-only";
 
 import sharp from "sharp";
 
+import type { ChartLocale } from "@/lib/charts/chart-locale-format.shared";
 import {
   buildThpHistoryChartSvg,
   THP_HISTORY_CHART_DISCORD_HEIGHT,
@@ -27,6 +28,7 @@ export async function renderVrProgressChartPng(input: {
   width?: number;
   height?: number;
   nowLabel?: string;
+  locale?: ChartLocale;
 }): Promise<Buffer | null> {
   const svg = buildVrProgressChartSvg({
     series: input.series,
@@ -35,6 +37,7 @@ export async function renderVrProgressChartPng(input: {
     height: input.height ?? VR_PROGRESS_CHART_DISCORD_HEIGHT,
     vrUpdatesLocked: input.vrUpdatesLocked,
     now: input.now,
+    locale: input.locale,
     options: {
       labels: input.nowLabel ? { nowLabel: input.nowLabel } : undefined,
     },
@@ -47,11 +50,13 @@ export async function renderThpHistoryChartPng(input: {
   events: MyThpEvent[];
   width?: number;
   height?: number;
+  locale?: ChartLocale;
 }): Promise<Buffer | null> {
   const svg = buildThpHistoryChartSvg({
     events: input.events,
     width: input.width ?? THP_HISTORY_CHART_DISCORD_WIDTH,
     height: input.height ?? THP_HISTORY_CHART_DISCORD_HEIGHT,
+    locale: input.locale,
   });
   if (!svg) return null;
   return renderSvgToPng(svg);

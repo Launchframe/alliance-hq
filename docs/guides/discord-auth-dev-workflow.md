@@ -246,9 +246,9 @@ npm run discord:register-commands
 On local/preview, open the fixture PNG page the bot would attach:
 
 - Page: `/dev/discord-chart-preview`
-- API: `/api/dev/discord-chart-preview?kind=vr|thp&format=png|svg`
+- API: `/api/dev/discord-chart-preview?kind=vr|thp&format=png|svg&locale=en-US|pt-BR`
 
-Both are gated by `isDevOrPreviewEnvironment()` (404 in production).
+Both are gated by `isDevOrPreviewEnvironment()` (404 in production). Axis dates/numbers follow `locale` (defaults to `en-US`).
 
 ## Troubleshooting
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useLocale } from "next-intl";
 
 import type { MyThpEvent } from "@/lib/thp/my-thp.shared";
 import {
@@ -15,15 +16,17 @@ type Props = {
 };
 
 export function ThpHistoryChart({ events, className }: Props) {
+  const locale = useLocale();
   const chartSvg = useMemo(
     () =>
       buildThpHistoryChartSvg({
         events,
         width: THP_HISTORY_CHART_DEFAULT_WIDTH,
         height: THP_HISTORY_CHART_DEFAULT_HEIGHT,
+        locale,
         backgroundFill: null,
       }),
-    [events],
+    [events, locale],
   );
 
   if (!chartSvg) return null;

@@ -13,9 +13,9 @@ alwaysApply: true
 
 **The maintainer owns all user-facing English copy.** Agents must not invent, polish, or commit wording without explicit approval.
 
-This applies to UI, Discord bot replies, slash-command descriptions, email, error/empty-state text, onboarding, and help guides — anything a player or officer reads.
+This applies to UI, Discord bot replies, slash-command descriptions, email, error/empty-state text, onboarding, help guides, **and copy rendered into generated images (charts, cards, overlays)** — anything a player or officer reads.
 
-**Goal:** No “inline English” or `TODO: copy pending maintainer` artifacts in shipped code. Copy is agreed with the maintainer **before** implementation; locale files and wired i18n keys land together in the implementation pass.
+**Goal:** No “inline English” or `TODO: copy pending maintainer` artifacts in shipped code. Copy is agreed with the maintainer **before** implementation; locale files and wired i18n keys land together in the implementation pass. See also [`.cursor/rules/i18n-all-surfaces.mdc`](i18n-all-surfaces.mdc) for locale coverage across web, Discord, and image pipelines.
 
 ## Maintainer-preferred flow
 

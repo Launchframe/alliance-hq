@@ -25,8 +25,9 @@ export default function DiscordChartPreviewPage() {
         Fixture PNGs at Discord canvas size (1200×675) — the same shared SVG →{" "}
         <code className="text-hq-fg">sharp</code> pipeline used by{" "}
         <code className="text-hq-fg">/what-is-my-vr-chart</code> and{" "}
-        <code className="text-hq-fg">/what-is-my-thp-chart</code>. Dev and
-        preview only.
+        <code className="text-hq-fg">/what-is-my-thp-chart</code>. Pass{" "}
+        <code className="text-hq-fg">locale=pt-BR</code> on the API to preview
+        localized axis labels. Dev and preview only.
       </p>
 
       <section className="mt-10">

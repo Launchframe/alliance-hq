@@ -25,7 +25,7 @@ export const runtime = "nodejs";
 
 /**
  * Developer preview of Discord chart PNGs (fixture data).
- * GET /api/dev/discord-chart-preview?kind=vr|thp&format=png|svg
+ * GET /api/dev/discord-chart-preview?kind=vr|thp&format=png|svg&locale=en-US|pt-BR
  */
 export async function GET(request: NextRequest) {
   if (!isDevOrPreviewEnvironment()) {
@@ -34,6 +34,9 @@ export async function GET(request: NextRequest) {
 
   const kind = request.nextUrl.searchParams.get("kind") ?? "vr";
   const format = request.nextUrl.searchParams.get("format") ?? "png";
+  const localeParam = request.nextUrl.searchParams.get("locale");
+  const locale =
+    localeParam === "pt-BR" || localeParam === "en-US" ? localeParam : "en-US";
   if (kind !== "vr" && kind !== "thp") {
     return NextResponse.json(
       { error: "kind must be vr or thp" },
@@ -48,6 +51,7 @@ export async function GET(request: NextRequest) {
   }
 
   const now = new Date("2026-07-16T18:00:00.000Z");
+  const nowLabel = locale === "pt-BR" ? "Agora" : "Now";
 
   if (kind === "vr") {
     const fixture = fixtureVrProgressSeries(now);
@@ -57,7 +61,8 @@ export async function GET(request: NextRequest) {
       width: VR_PROGRESS_CHART_DISCORD_WIDTH,
       height: VR_PROGRESS_CHART_DISCORD_HEIGHT,
       now,
-      options: { labels: { nowLabel: "Now" } },
+      locale,
+      options: { labels: { nowLabel } },
     });
     if (!svg) {
       return NextResponse.json({ error: "empty_chart" }, { status: 500 });
@@ -74,7 +79,8 @@ export async function GET(request: NextRequest) {
       series: fixture.series,
       seasonKey: fixture.seasonKey,
       now,
-      nowLabel: "Now",
+      nowLabel,
+      locale,
     });
     if (!png) {
       return NextResponse.json({ error: "empty_chart" }, { status: 500 });
@@ -92,6 +98,7 @@ export async function GET(request: NextRequest) {
     events,
     width: THP_HISTORY_CHART_DISCORD_WIDTH,
     height: THP_HISTORY_CHART_DISCORD_HEIGHT,
+    locale,
   });
   if (!svg) {
     return NextResponse.json({ error: "empty_chart" }, { status: 500 });
@@ -104,7 +111,7 @@ export async function GET(request: NextRequest) {
       },
     });
   }
-  const png = await renderThpHistoryChartPng({ events });
+  const png = await renderThpHistoryChartPng({ events, locale });
   if (!png) {
     return NextResponse.json({ error: "empty_chart" }, { status: 500 });
   }

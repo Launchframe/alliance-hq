@@ -98,6 +98,7 @@ export async function handleDiscordWhatIsMyVrChart(input: {
     seasonKey: payload.seasonKey,
     vrUpdatesLocked: payload.vrUpdatesLocked,
     nowLabel: t("chart.nowLabel"),
+    locale: input.locale,
   });
   if (!png) {
     const result = { ok: false as const, content: t("chart.vrInsufficientData") };
@@ -184,7 +185,10 @@ export async function handleDiscordWhatIsMyThpChart(input: {
 
   const eventRows = await listCommanderThpEvents(primaryCommanderId);
   const events = mapThpEvents(eventRows);
-  const png = await renderThpHistoryChartPng({ events });
+  const png = await renderThpHistoryChartPng({
+    events,
+    locale: input.locale,
+  });
   if (!png) {
     const result = {
       ok: false as const,
@@ -214,7 +218,7 @@ export async function handleDiscordWhatIsMyThpChart(input: {
     captionLines.push(
       t("query.thpStatus", {
         name,
-        total: Math.round(total).toLocaleString(),
+        total: Math.round(total).toLocaleString(input.locale),
       }),
     );
   }
