@@ -78,6 +78,16 @@ export function buildSubmitPayloads(
         recorded_date: recordedDate,
       }));
 
+    case "alliance-kills-video":
+      // Ashed KillScore shape from har/member-kill-counts.har
+      return rows.map((row) => ({
+        alliance_id: allianceId,
+        member_id: row.memberId,
+        member_name: row.memberName,
+        score: parseScoreNumber(row.score),
+        recorded_date: recordedDate,
+      }));
+
     case "vs-performance":
       return rows.map((row) => ({
         alliance_id: allianceId,

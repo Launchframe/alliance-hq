@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { NeedsAttentionBadge } from "@/components/ui/NeedsAttentionBadge";
 import { MEMBER_ROSTER_VIDEO_SCORE_TARGET } from "@/lib/members/ashed-member-record";
+import { ALLIANCE_KILLS_VIDEO_SCORE_TARGET } from "@/lib/video/score-targets";
 import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
 
 const UPLOAD_VIDEO_ITEMS = [
@@ -18,9 +19,8 @@ const UPLOAD_VIDEO_ITEMS = [
     attention: true as const,
   },
   {
-    id: "seasonal",
+    id: ALLIANCE_KILLS_VIDEO_SCORE_TARGET,
     labelKey: "kills" as const,
-    boardKey: "kills" as const,
   },
   { id: "desert-storm", labelKey: "desertStorm" as const },
 ] as const;
@@ -69,15 +69,13 @@ export function MembersUploadVideoMenu({ rosterVideoAttentionCount }: Props) {
         >
           <ul className="space-y-1">
             {UPLOAD_VIDEO_ITEMS.map((item) => {
-              const href = buildVideoUploadHref(item.id, {
-                boardKey: "boardKey" in item ? item.boardKey : null,
-              });
+              const href = buildVideoUploadHref(item.id);
               const label =
                 item.labelKey === "memberRoster" || item.labelKey === "kills"
                   ? t(item.labelKey)
                   : tNav(item.labelKey);
               return (
-                <li key={`${item.id}-${"boardKey" in item ? item.boardKey : ""}`}>
+                <li key={item.id}>
                   <Link
                     role="menuitem"
                     href={href}

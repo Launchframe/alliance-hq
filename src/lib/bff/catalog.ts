@@ -30,6 +30,8 @@ const ENTITY_OPS: EntityOp[] = [
   { entity: "VSScore", method: "PUT", permission: "scores:write" },
   { entity: "Donation", method: "GET", permission: "scores:read" },
   { entity: "Donation", method: "POST", permission: "scores:write" },
+  { entity: "KillScore", method: "GET", permission: "scores:read" },
+  { entity: "KillScore", method: "POST", permission: "scores:write" },
   { entity: "Commendation", method: "GET", permission: "members:read" },
   { entity: "Commendation", method: "POST", permission: "members:write" },
   { entity: "Commendation", method: "DELETE", permission: "members:write" },

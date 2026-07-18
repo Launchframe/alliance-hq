@@ -397,6 +397,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }, []);
 
   const isVsPerformanceTarget = scoreTargetMeta?.id === "vs-performance";
+  const isAllianceKillsTarget = scoreTargetMeta?.id === "alliance-kills-video";
 
   const vsSafeRecordedDate = useMemo(() => {
     if (!isVsPerformanceTarget) return recordedDate;
@@ -1436,7 +1437,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             ? t("rosterSubmitSuccess", { count: data.submitted ?? 0 })
             : scoreTargetMeta?.showDepositSlipColumns
               ? t("depositSlipSubmitSuccess", { count: data.submitted ?? 0 })
-              : t("submitSuccess", { count: data.submitted ?? 0 }),
+              : isAllianceKillsTarget
+                ? t("killsSubmitSuccess", { count: data.submitted ?? 0 })
+                : t("submitSuccess", { count: data.submitted ?? 0 }),
       );
       // Stay on review through success + OCR rating; event redirect resumes after.
       if (!isEventView) {
@@ -2414,7 +2417,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 {t("colMember")}
               </th>
               {scoreTargetMeta?.showScoreColumn !== false ? (
-                <th className="px-3 py-3">{t("colScore")}</th>
+                <th className="px-3 py-3">
+                  {isAllianceKillsTarget ? t("colKills") : t("colScore")}
+                </th>
               ) : null}
               <th className="w-10 px-2 py-3">
                 <span className="sr-only">{t("rowVideoPreview")}</span>
@@ -2613,7 +2618,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 ? t("saveDepositSlips", { count: activeRows.length })
                 : isEventView
                   ? t("updateScores", { count: activeRows.length })
-                  : t("saveScores", { count: activeRows.length })}
+                  : isAllianceKillsTarget
+                    ? t("saveKills", { count: activeRows.length })
+                    : t("saveScores", { count: activeRows.length })}
         </button>
         {!isEventView ? (
         <button
