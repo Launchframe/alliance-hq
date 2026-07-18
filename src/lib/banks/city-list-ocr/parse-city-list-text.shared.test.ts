@@ -675,6 +675,96 @@ describe("parseCityListBanks — word-bbox column-aware assignment", () => {
     expect(banks[2]).toMatchObject({ coordX: 3, currentDepositCount: 50 });
   });
 
+  it("breaks an exact distance tie deterministically toward the lower coordinate index", () => {
+    // Single value token exactly midway between COL1 and COL2. Greedy
+    // assignment sorts pairs by distance with a stable sort over
+    // coord-index-major insertion order, so the leftmost coordinate wins.
+    const banks = parseCityListBanks([
+      lineWithColumns([{ text: "378.00K", xCenter: (COL1 + COL2) / 2 }]),
+      lineWithColumns([
+        { text: "#1203 (X:20, Y:499)", xCenter: COL1 },
+        { text: "#1203 (X:20, Y:399)", xCenter: COL2 },
+      ]),
+    ]);
+    expect(banks).toHaveLength(2);
+    expect(banks[0]).toMatchObject({ coordY: 499, crystalGoldValue: 378_000 });
+    expect(banks[1]).toMatchObject({ coordY: 399, crystalGoldValue: null });
+  });
+
+  it("resolves two tokens contending for the same column: the closer one wins, the other spills to its next-nearest free column", () => {
+    // A junk value token near COL2 (e.g. tile-art misread) plus the real
+    // COL2 value. The real token (distance 0) claims COL2; the junk token
+    // spills to COL1 — the same blast radius plain index-zip had, never
+    // worse. COL3 stays untouched.
+    const banks = parseCityListBanks([
+      lineWithColumns([
+        { text: "111.00K", xCenter: COL2 - 20 }, // junk, near COL2
+        { text: "500.00K", xCenter: COL2 },
+        { text: "400.00K", xCenter: COL3 },
+      ]),
+      lineWithColumns([
+        { text: "#1211 (X:1, Y:1)", xCenter: COL1 },
+        { text: "#1211 (X:2, Y:2)", xCenter: COL2 },
+        { text: "#1211 (X:3, Y:3)", xCenter: COL3 },
+      ]),
+    ]);
+    expect(banks).toHaveLength(3);
+    expect(banks[0]).toMatchObject({ coordX: 1, crystalGoldValue: 111_000 });
+    expect(banks[1]).toMatchObject({ coordX: 2, crystalGoldValue: 500_000 });
+    expect(banks[2]).toMatchObject({ coordX: 3, crystalGoldValue: 400_000 });
+  });
+
+  it("drops surplus tokens once every coordinate is claimed instead of overwriting an assignment", () => {
+    const banks = parseCityListBanks([
+      lineWithColumns([
+        { text: "600.00K", xCenter: COL1 },
+        { text: "999.00K", xCenter: COL1 + 30 }, // extra junk near COL1
+        { text: "500.00K", xCenter: COL2 },
+      ]),
+      lineWithColumns([
+        { text: "#1211 (X:1, Y:1)", xCenter: COL1 },
+        { text: "#1211 (X:2, Y:2)", xCenter: COL2 },
+      ]),
+    ]);
+    expect(banks).toHaveLength(2);
+    expect(banks[0]).toMatchObject({ coordX: 1, crystalGoldValue: 600_000 });
+    expect(banks[1]).toMatchObject({ coordX: 2, crystalGoldValue: 500_000 });
+  });
+
+  it("falls back to per-index zip when OCR glues the whole coordinate line into one word (all coords share one x-center)", () => {
+    // A single glued "word" spanning every coordinate token gives all three
+    // coord matches the same union bbox center. Nearest-match against a
+    // single shared column point would hand the MIDDLE tile's value to the
+    // first coordinate; degenerate (non-distinct) columns must zip by index
+    // instead.
+    const gluedCoordText =
+      "#1211(X:1,Y:1)#1211(X:2,Y:2)#1211(X:3,Y:3)";
+    const gluedCoordLine: CityListOcrLine = {
+      text: gluedCoordText,
+      words: [
+        {
+          text: gluedCoordText,
+          charStart: 0,
+          charEnd: gluedCoordText.length,
+          x0: COL1 - 40,
+          x1: COL3 + 40,
+        },
+      ],
+    };
+    const banks = parseCityListBanks([
+      lineWithColumns([
+        { text: "600.00K", xCenter: COL1 },
+        { text: "500.00K", xCenter: COL2 },
+        { text: "400.00K", xCenter: COL3 },
+      ]),
+      gluedCoordLine,
+    ]);
+    expect(banks).toHaveLength(3);
+    expect(banks[0]).toMatchObject({ coordX: 1, crystalGoldValue: 600_000 });
+    expect(banks[1]).toMatchObject({ coordX: 2, crystalGoldValue: 500_000 });
+    expect(banks[2]).toMatchObject({ coordX: 3, crystalGoldValue: 400_000 });
+  });
+
   it("falls back to per-index zip when only some lines in the row carry word data", () => {
     // Mixed input: coord line has word bbox, but the value line is a plain
     // string (e.g. merged from a caller that didn't thread words through

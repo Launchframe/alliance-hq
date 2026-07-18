@@ -108,6 +108,62 @@ describe("extractOcrLinesFromTesseractData", () => {
     expect(lines).toEqual([{ text: "keep me", confidence: 90 }]);
   });
 
+  it("falls back to the full line.text when only SOME words are missing bbox, instead of silently dropping those words' text", () => {
+    const lines = extractOcrLinesFromTesseractData(
+      {
+        blocks: [
+          {
+            paragraphs: [
+              {
+                lines: [
+                  {
+                    text: "Commander Nightfall",
+                    confidence: 90,
+                    words: [
+                      { text: "Commander", bbox: { x0: 10, x1: 90 } },
+                      { text: "Nightfall", bbox: null },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        text: "",
+      },
+      40,
+    );
+    expect(lines).toEqual([{ text: "Commander Nightfall", confidence: 90 }]);
+  });
+
+  it("falls back to line.text when a word bbox coordinate is NaN (never emits non-finite x positions)", () => {
+    const lines = extractOcrLinesFromTesseractData(
+      {
+        blocks: [
+          {
+            paragraphs: [
+              {
+                lines: [
+                  {
+                    text: "600.00K 500.00K",
+                    confidence: 90,
+                    words: [
+                      { text: "600.00K", bbox: { x0: 10, x1: 90 } },
+                      { text: "500.00K", bbox: { x0: Number.NaN, x1: 390 } },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        text: "",
+      },
+      40,
+    );
+    expect(lines).toEqual([{ text: "600.00K 500.00K", confidence: 90 }]);
+  });
+
   it("skips blank words when reconstructing text and offsets", () => {
     const lines = extractOcrLinesFromTesseractData(
       {

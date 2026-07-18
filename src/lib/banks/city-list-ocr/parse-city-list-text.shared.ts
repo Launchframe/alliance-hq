@@ -404,9 +404,13 @@ function isDepositOnlyLine(tokens: LineTokens): boolean {
 
 /**
  * Assign each coordinate its nearest-by-x-position token from `tokens`
- * (greedy, closest pairs first, one-to-one). Falls back to plain per-index
- * zip when position data is unavailable for either side (no word bbox on
- * these lines) — the original, tested behavior for plain-string input.
+ * (greedy, closest pairs first, one-to-one; exact-distance ties break toward
+ * the lower index via the stable sort). Falls back to plain per-index zip —
+ * the original, tested behavior for plain-string input — when position data
+ * is unavailable for either side (no word bbox on these lines) or when
+ * either side's x-centers are not pairwise distinct (a glued OCR "word"
+ * spanning several tokens yields identical union centers that cannot define
+ * columns).
  */
 function assignByPosition<T>(
   coords: ReadonlyArray<Positioned<unknown>>,
@@ -417,9 +421,20 @@ function assignByPosition<T>(
   );
   if (tokens.length === 0) return assigned;
 
+  // Degenerate position data: two matches sharing one x-center (a single
+  // giant OCR "word" spanning multiple tokens gives every match the same
+  // union bbox) cannot define distinct columns — nearest-match could invert
+  // neighbors that index order gets right, so zip instead.
+  const coordCenters = coords.map((c) => c.xCenter);
+  const tokenCenters = tokens.map((t) => t.xCenter);
+  const hasDistinctCenters =
+    new Set(coordCenters).size === coordCenters.length &&
+    new Set(tokenCenters).size === tokenCenters.length;
+
   const canUsePosition =
-    coords.every((c) => c.xCenter != null) &&
-    tokens.every((t) => t.xCenter != null);
+    hasDistinctCenters &&
+    coordCenters.every((x) => x != null) &&
+    tokenCenters.every((x) => x != null);
   if (!canUsePosition) {
     for (let i = 0; i < coords.length && i < tokens.length; i += 1) {
       assigned[i] = tokens[i]!.value;

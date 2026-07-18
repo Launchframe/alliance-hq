@@ -56,7 +56,10 @@ export type ExtractedOcrLine = {
  * Rebuild line text as a single-space join of word texts (rather than
  * trusting tesseract's own spacing) so char offsets line up exactly with
  * `words[].charStart`/`charEnd` for downstream column-position lookups.
- * Falls back to the original `line.text` when no words are present.
+ * Falls back to the original `line.text` (returns null) when no words are
+ * present, or when any non-blank word lacks a usable bbox — dropping just
+ * that word would silently lose its text from the line, and partial word
+ * data cannot be trusted for column matching anyway.
  */
 function buildLineFromWords(
   line: TesseractLineLike,
@@ -72,7 +75,16 @@ function buildLineFromWords(
     if (!text) continue;
     const x0 = word.bbox?.x0;
     const x1 = word.bbox?.x1;
-    if (typeof x0 !== "number" || typeof x1 !== "number") continue;
+    // Finite-number guard: NaN x-positions would otherwise flow into distance
+    // sorting downstream and make column assignment nondeterministic.
+    if (
+      typeof x0 !== "number" ||
+      typeof x1 !== "number" ||
+      !Number.isFinite(x0) ||
+      !Number.isFinite(x1)
+    ) {
+      return null;
+    }
     if (parts.length > 0) cursor += 1; // joining space
     const charStart = cursor;
     const charEnd = charStart + text.length;
