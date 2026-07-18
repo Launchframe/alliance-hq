@@ -59,3 +59,7 @@ Follow the global skill. Additionally for this repo:
 
 - **Clean pass or out-of-scope CI red** — still apply `real-steel-ready` when the chain ends if no unresolved Critical issues in scope.
 - **Merge conflicts with base** — do **not** apply `real-steel-ready` until resolved or the maintainer takes over.
+
+## After Real Steel
+
+To triage suggestions/nits, land copy-approved fixes, and merge, use [close-the-loop](../close-the-loop/SKILL.md).
