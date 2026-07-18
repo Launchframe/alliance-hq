@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq } from "drizzle-orm";
 
-import { getDb, schema } from "@/lib/db";
+import {
+  listAdminVideoJobs,
+  parseAdminVideoJobsListQuery,
+} from "@/lib/video/admin-video-jobs-list.server";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
-import { parseAdminVideoJobsStatusFilter } from "@/lib/video/admin-video-jobs-query.shared";
 
 export async function GET(request: Request) {
   const sessionId = await readSessionId();
@@ -16,38 +17,8 @@ export async function GET(request: Request) {
   if (denied) return denied;
 
   const url = new URL(request.url);
-  const status = parseAdminVideoJobsStatusFilter(url.searchParams.get("status"));
-  const bucket = url.searchParams.get("bucket");
-  const passKey = url.searchParams.get("passKey");
-  const rating = url.searchParams.get("rating");
-  const ratingReason = url.searchParams.get("ratingReason");
-  const scoreTarget = url.searchParams.get("scoreTarget");
-  const limit = Math.min(Number(url.searchParams.get("limit") ?? 100), 500);
-
-  const db = getDb();
-
-  const conditions = [
-    status ? eq(schema.videoJobs.status, status) : undefined,
-    bucket ? eq(schema.videoJobs.qualityBucket, bucket) : undefined,
-    passKey ? eq(schema.videoJobs.passKey, passKey) : undefined,
-    rating ? eq(schema.videoJobs.rating, rating) : undefined,
-    ratingReason ? eq(schema.videoJobs.ratingReason, ratingReason) : undefined,
-    scoreTarget ? eq(schema.videoJobs.scoreTarget, scoreTarget) : undefined,
-  ].filter(Boolean) as Parameters<typeof and>;
-
-  const rows =
-    conditions.length > 0
-      ? await db
-          .select()
-          .from(schema.videoJobs)
-          .where(and(...conditions))
-          .orderBy(desc(schema.videoJobs.createdAt))
-          .limit(limit)
-      : await db
-          .select()
-          .from(schema.videoJobs)
-          .orderBy(desc(schema.videoJobs.createdAt))
-          .limit(limit);
+  const query = parseAdminVideoJobsListQuery(url.searchParams);
+  const rows = await listAdminVideoJobs(query);
 
   return NextResponse.json({ jobs: rows });
 }
