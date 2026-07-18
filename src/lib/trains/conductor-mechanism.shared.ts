@@ -25,6 +25,8 @@ export function canSpinConductorForDay(
   date?: string | null,
 ): boolean {
   if (locked) return false;
+  // R3 recognition is a manual award pick from the R3 pool — no wheel.
+  if (paintTemplate === "r3_recognition") return false;
   const mechanism = effectiveConductorMechanism(
     conductorMechanism,
     paintTemplate,

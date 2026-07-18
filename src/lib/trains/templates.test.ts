@@ -133,7 +133,7 @@ describe("generateDayConfigForDate", () => {
     expect(config.conductorMechanism).toBe("r3_lottery");
   });
 
-  it("returns price is right day config as r3 lottery on weekdays", () => {
+  it("returns price is right Tue–Fri as r3 lottery (eligible VS raffle)", () => {
     const weekStart = "2026-06-09";
     const config = generateDayConfigForDate(
       "price_is_right",
@@ -155,7 +155,27 @@ describe("generateDayConfigForDate", () => {
     expect(saturday.vipMechanism).toBe("conductor_pick");
   });
 
-  it("returns r3 lottery for every r3_recognition weekday (wheel, not vs auto-roll)", () => {
+  it("returns custom mechanics on Sun–Mon for price is right", () => {
+    const weekStart = "2026-06-09";
+    for (const date of ["2026-06-14", "2026-06-15"]) {
+      const config = generateDayConfigForDate("price_is_right", date, weekStart);
+      expect(config.conductorMechanism).toBe("custom");
+      expect(config.vipMechanism).toBe("none");
+    }
+  });
+
+  it("returns heavy-hitter lottery for every takedown_week day", () => {
+    const weekStart = "2026-06-09";
+    const config = generateDayConfigForDate(
+      "takedown_week",
+      "2026-06-10",
+      weekStart,
+    );
+    expect(config.conductorMechanism).toBe("heavy_hitter_lottery");
+    expect(config.vipMechanism).toBe("conductor_pick");
+  });
+
+  it("returns r3 lottery for every r3_recognition day (manual award pick)", () => {
     const weekStart = "2026-06-09";
     for (const date of [
       "2026-06-09",
@@ -182,10 +202,10 @@ describe("supportsManualConductorPick", () => {
 });
 
 describe("supportsManualVipPick", () => {
-  it("allows manual override on lottery VIP days", () => {
+  it("allows manual VIP pick for conductor_pick, donations, and lottery days", () => {
     expect(supportsManualVipPick("event_top_x_lottery")).toBe(true);
     expect(supportsManualVipPick("donations_second")).toBe(true);
-    expect(supportsManualVipPick("conductor_pick")).toBe(false);
+    expect(supportsManualVipPick("conductor_pick")).toBe(true);
     expect(supportsManualVipPick("none")).toBe(false);
   });
 });

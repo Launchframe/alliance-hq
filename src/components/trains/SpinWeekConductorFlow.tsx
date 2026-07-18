@@ -13,6 +13,7 @@ import {
 import {
   isWheelBlockedError,
   parseTrainRollError,
+  type TrainRollErrorDetails,
 } from "@/lib/trains/roll-errors.shared";
 import type { PoolRefreshedInfo, RollResult } from "@/lib/trains/types";
 import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
@@ -52,6 +53,8 @@ type Props = {
   ) => Promise<boolean>;
   presentPoolRefreshedHints: (items: PoolRefreshedInfo[]) => void;
   onError: (message: string) => void;
+  /** Surface structured wheel/pool blocks with recovery CTAs on the dashboard. */
+  onWheelBlocked?: (details: TrainRollErrorDetails) => void;
   onRefresh: () => void;
 };
 
@@ -71,6 +74,7 @@ export function SpinWeekConductorFlow({
   withOptimisticMutation,
   presentPoolRefreshedHints,
   onError,
+  onWheelBlocked,
   onRefresh,
 }: Props) {
   const t = useTranslations("trains.spinWeek");
@@ -78,12 +82,14 @@ export function SpinWeekConductorFlow({
   const [confirmResults, setConfirmResults] = useState<SpinWeekResultRow[]>([]);
   const [wheelOpen, setWheelOpen] = useState(false);
   const [wheelCandidates, setWheelCandidates] = useState<
-    Array<{ memberId: string; memberName: string }>
+    Array<{ memberId: string; memberName: string; priorDayVsScore?: number }>
   >([]);
   const [wheelWinner, setWheelWinner] = useState<{
     memberId: string;
     memberName: string;
+    priorDayVsScore?: number;
   } | null>(null);
+  const [wheelMechanism, setWheelMechanism] = useState<string | null>(null);
   const [wheelStats, setWheelStats] = useState<RollResponse["stats"] | null>(
     null,
   );
@@ -142,7 +148,11 @@ export function SpinWeekConductorFlow({
         if (!body.result) {
           const blocked = parseTrainRollError(body);
           if (isWheelBlockedError(blocked)) {
-            throw new Error(body.error ?? t("rollFailed"));
+            const err = new Error(body.error ?? t("rollFailed")) as Error & {
+              wheelBlocked?: TrainRollErrorDetails;
+            };
+            err.wheelBlocked = blocked;
+            throw err;
           }
           throw new Error(body.error ?? t("rollFailed"));
         }
@@ -202,6 +212,7 @@ export function SpinWeekConductorFlow({
             : [{ memberId: result.memberId, memberName: result.memberName }],
         );
         setWheelWinner(result);
+        setWheelMechanism(result.mechanism);
         setWheelStats(body.stats ?? null);
         setWheelQualification(result.qualification ?? null);
         setWheelDayLabel(spinWeekDayLabel(date));
@@ -229,9 +240,26 @@ export function SpinWeekConductorFlow({
       setWheelQualification(null);
       pendingRollRef.current = null;
       setPhase("idle");
+      const wheelBlocked =
+        error instanceof Error
+          ? (error as Error & { wheelBlocked?: TrainRollErrorDetails })
+              .wheelBlocked
+          : undefined;
+      if (wheelBlocked && onWheelBlocked) {
+        onWheelBlocked(wheelBlocked);
+        return;
+      }
       onError(error instanceof Error ? error.message : t("rollFailed"));
     }
-  }, [eligibleDates, onError, phase, rollUntilQualified, t, waitForWheel]);
+  }, [
+    eligibleDates,
+    onError,
+    onWheelBlocked,
+    phase,
+    rollUntilQualified,
+    t,
+    waitForWheel,
+  ]);
 
   const dismissConfirm = useCallback(() => {
     setConfirmResults([]);
@@ -313,6 +341,7 @@ export function SpinWeekConductorFlow({
         stats={wheelStats ?? null}
         qualification={wheelQualification}
         dayLabel={wheelDayLabel}
+        mechanism={wheelMechanism}
         speedMultiplier={wheelSpeedMultiplier}
         automated
         onAutomatedRevealComplete={handleAutomatedRevealComplete}

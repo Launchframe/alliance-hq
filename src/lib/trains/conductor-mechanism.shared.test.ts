@@ -63,4 +63,10 @@ describe("canSpinConductorForDay", () => {
   it("blocks officer_pick without r4_event_vip paint", () => {
     expect(canSpinConductorForDay("officer_pick", false, null)).toBe(false);
   });
+
+  it("blocks the wheel for r3_recognition (manual award pick)", () => {
+    expect(
+      canSpinConductorForDay("r3_lottery", false, "r3_recognition"),
+    ).toBe(false);
+  });
 });

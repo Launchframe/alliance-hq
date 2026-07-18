@@ -17,12 +17,19 @@ import {
 export type TrainsUserPreferences = {
   displayWeekStartDow: TrainsDisplayWeekStartDow;
   wheelSpinSpeed: TrainsWheelSpinSpeed;
+  simpleModeEnabled: boolean;
 };
 
 const DEFAULT_PREFERENCES: TrainsUserPreferences = {
   displayWeekStartDow: DEFAULT_TRAINS_DISPLAY_WEEK_START_DOW,
   wheelSpinSpeed: DEFAULT_TRAINS_WHEEL_SPIN_SPEED,
+  simpleModeEnabled: true,
 };
+
+function normalizeSimpleModeEnabled(value: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  return true;
+}
 
 export async function loadTrainsUserPreferences(
   hqUserId: string | null | undefined,
@@ -36,6 +43,7 @@ export async function loadTrainsUserPreferences(
     .select({
       displayWeekStartDow: schema.hqUsers.trainsDisplayWeekStartDow,
       wheelSpinSpeed: schema.hqUsers.trainsWheelSpinSpeed,
+      simpleModeEnabled: schema.hqUsers.trainsSimpleModeEnabled,
     })
     .from(schema.hqUsers)
     .where(eq(schema.hqUsers.id, hqUserId))
@@ -48,6 +56,7 @@ export async function loadTrainsUserPreferences(
   return {
     displayWeekStartDow: normalizeDisplayWeekStartDow(user.displayWeekStartDow),
     wheelSpinSpeed: normalizeTrainsWheelSpinSpeed(user.wheelSpinSpeed),
+    simpleModeEnabled: normalizeSimpleModeEnabled(user.simpleModeEnabled),
   };
 }
 
@@ -60,6 +69,7 @@ export async function updateTrainsUserPreferences(
     updatedAt: Date;
     trainsDisplayWeekStartDow?: TrainsDisplayWeekStartDow;
     trainsWheelSpinSpeed?: TrainsWheelSpinSpeed;
+    trainsSimpleModeEnabled?: boolean;
   } = {
     updatedAt: new Date(),
   };
@@ -73,6 +83,12 @@ export async function updateTrainsUserPreferences(
   if (partial.wheelSpinSpeed !== undefined) {
     patch.trainsWheelSpinSpeed = normalizeTrainsWheelSpinSpeed(
       partial.wheelSpinSpeed,
+    );
+  }
+
+  if (partial.simpleModeEnabled !== undefined) {
+    patch.trainsSimpleModeEnabled = normalizeSimpleModeEnabled(
+      partial.simpleModeEnabled,
     );
   }
 

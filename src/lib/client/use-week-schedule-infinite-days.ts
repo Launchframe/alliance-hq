@@ -108,7 +108,8 @@ export function useWeekScheduleInfiniteDays({
 }: Options) {
   const cacheRef = useRef(new Map<string, WeekSchedulePagePayload>());
   const loadingWeeksRef = useRef(new Set<string>());
-  const seedWeekStartRef = useRef(seedPage.weekStart);
+  const seedPageRef = useRef(seedPage);
+  const onWeekLoadErrorRef = useRef(onWeekLoadError);
   const [days, setDays] = useState<WeekCarouselDayEntry[]>(() =>
     flattenWeekPage(seedPage),
   );
@@ -119,9 +120,52 @@ export function useWeekScheduleInfiniteDays({
     daysRef.current = days;
   }, [days]);
 
-  const rememberPage = useCallback((page: WeekSchedulePagePayload) => {
-    cacheRef.current.set(page.weekStart, page);
+  useEffect(() => {
+    seedPageRef.current = seedPage;
+  }, [seedPage]);
+
+  useEffect(() => {
+    onWeekLoadErrorRef.current = onWeekLoadError;
+  }, [onWeekLoadError]);
+
+  const rebuildFromRange = useCallback((startWeek: string, endWeek: string) => {
+    const pages = pagesFromCache(cacheRef.current, startWeek, endWeek);
+    if (pages.length === 0) return [];
+    return mergeWeekPages(pages);
   }, []);
+
+  const commitDays = useCallback((next: WeekCarouselDayEntry[]) => {
+    daysRef.current = next;
+    setDays(next);
+  }, []);
+
+  /**
+   * Cache a week page and, when it overlaps the visible buffer, rebuild `days`
+   * so optimistic / live paints show up without remounting the carousel.
+   */
+  const rememberPage = useCallback(
+    (page: WeekSchedulePagePayload) => {
+      cacheRef.current.set(page.weekStart, page);
+
+      const current = daysRef.current;
+      if (current.length === 0) {
+        commitDays(flattenWeekPage(page));
+        return;
+      }
+
+      const startWeek = current[0]!.weekStart;
+      const endWeek = current[current.length - 1]!.weekStart;
+      if (page.weekStart < startWeek || page.weekStart > endWeek) {
+        return;
+      }
+
+      const merged = rebuildFromRange(startWeek, endWeek);
+      if (merged.length > 0) {
+        commitDays(merged);
+      }
+    },
+    [commitDays, rebuildFromRange],
+  );
 
   const fetchWeek = useCallback(
     async (weekStart: string): Promise<WeekSchedulePagePayload | null> => {
@@ -141,48 +185,33 @@ export function useWeekScheduleInfiniteDays({
           error?: string;
         };
         if (!res.ok) {
-          onWeekLoadError?.(body.error ?? "Could not load week.");
+          onWeekLoadErrorRef.current?.(body.error ?? "Could not load week.");
           return null;
         }
         rememberPage(body);
         return body;
       } catch {
-        onWeekLoadError?.("Could not load week.");
+        onWeekLoadErrorRef.current?.("Could not load week.");
         return null;
       } finally {
         loadingWeeksRef.current.delete(weekStart);
       }
     },
-    [onWeekLoadError, rememberPage],
+    [rememberPage],
   );
-
-  const rebuildFromRange = useCallback((startWeek: string, endWeek: string) => {
-    const pages = pagesFromCache(cacheRef.current, startWeek, endWeek);
-    if (pages.length === 0) return [];
-    return mergeWeekPages(pages);
-  }, []);
-
-  const commitDays = useCallback((next: WeekCarouselDayEntry[]) => {
-    daysRef.current = next;
-    setDays(next);
-  }, []);
-
-  useEffect(() => {
-    rememberPage(seedPage);
-  }, [rememberPage, seedPage]);
-
-  useEffect(() => {
-    seedWeekStartRef.current = seedPage.weekStart;
-  }, [seedPage.weekStart]);
 
   useEffect(() => {
     let cancelled = false;
+    const seed = seedPageRef.current;
+    const anchorStart = seed.weekStart;
 
     void (async () => {
       setBootstrapping(true);
-      rememberPage(seedPage);
+      // Never clobber a week already filled by liveWeek / a prior bootstrap.
+      if (!cacheRef.current.has(anchorStart)) {
+        cacheRef.current.set(anchorStart, seed);
+      }
 
-      const anchorStart = seedWeekStartRef.current;
       const prevStart = addCalendarDays(anchorStart, -7);
       const nextStart = addCalendarDays(anchorStart, 7);
 
@@ -190,15 +219,26 @@ export function useWeekScheduleInfiniteDays({
 
       if (cancelled) return;
 
+      if (!cacheRef.current.has(anchorStart)) {
+        cacheRef.current.set(anchorStart, seedPageRef.current);
+      }
+
       const merged = rebuildFromRange(prevStart, nextStart);
-      commitDays(merged.length > 0 ? merged : flattenWeekPage(seedPage));
+      commitDays(
+        merged.length > 0
+          ? merged
+          : flattenWeekPage(
+              cacheRef.current.get(anchorStart) ?? seedPageRef.current,
+            ),
+      );
       setBootstrapping(false);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [commitDays, fetchWeek, rebuildFromRange, rememberPage, seedPage.weekStart]);
+    // Seed *content* updates arrive via rememberPage(liveWeek), not re-bootstrap.
+  }, [commitDays, fetchWeek, rebuildFromRange, seedPage.weekStart]);
 
   const extendEarlier = useCallback(async (): Promise<number> => {
     const current = daysRef.current;

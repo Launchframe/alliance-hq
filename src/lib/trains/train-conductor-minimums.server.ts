@@ -101,3 +101,39 @@ export async function evaluateConductorQualification(input: {
     periodEnd: end,
   });
 }
+
+/**
+ * When conductor minimums are enabled, returns memberIds that pass.
+ * `null` means minimums are off — callers should treat every candidate as eligible.
+ */
+export async function filterMemberIdsByConductorMinimums(
+  allianceId: string,
+  trainDate: string,
+  memberIds: readonly string[],
+): Promise<string[] | null> {
+  const settings = await loadTrainConductorMinimums(allianceId, false);
+  if (!minimumsEnforcementEnabled(settings)) {
+    return null;
+  }
+
+  const allianceRow = await loadAllianceRow(allianceId);
+  const trainWeekConfig = allianceTrainWeekFromRow(allianceRow ?? {});
+  const { start, end } = evaluationPeriodForTrainDate(
+    trainDate,
+    settings.window,
+    trainWeekConfig,
+  );
+  const evalSettings = minimumsSettingsForHqLocalEval(settings);
+  const vsTotals = await fetchHqSeasonVsScoresByMember(allianceId);
+
+  return memberIds.filter((memberId) => {
+    const qualification = buildMemberQualification({
+      vsScore: vsTotals.get(memberId) ?? 0,
+      donationScore: 0,
+      settings: evalSettings,
+      periodStart: start,
+      periodEnd: end,
+    });
+    return qualification.qualified;
+  });
+}

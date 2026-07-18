@@ -35,6 +35,7 @@ export async function fetchNativeVrTopScorers(
       memberId: row.ashedMemberId,
       memberName,
       allianceRank: rankById.get(row.ashedMemberId) ?? null,
+      priorDayVsScore: row.highestBaseVr,
     });
   }
   return candidates;

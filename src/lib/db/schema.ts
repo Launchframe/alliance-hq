@@ -189,6 +189,10 @@ export const hqUsers = pgTable("hq_users", {
   trainsWheelSpinSpeed: text("trains_wheel_spin_speed")
     .notNull()
     .default("slow"),
+  /** Trains dashboard Simple Mode (guided conductor flow) preference */
+  trainsSimpleModeEnabled: boolean("trains_simple_mode_enabled")
+    .notNull()
+    .default(true),
   /** Per-user customized hotkey bindings (JSON payload with overrides). */
   hotkeyBindings: jsonb("hotkey_bindings"),
   isPlatformMaintainer: integer("is_platform_maintainer").notNull().default(0),
