@@ -82,6 +82,21 @@ export function isCompositeWeekTemplate(
   return template in COMPOSITE_WEEK_TEMPLATES;
 }
 
+/**
+ * Reverse-map a segment-only template to its composite parent.
+ * Returns `null` when `segment` is not a segment of any composite.
+ */
+export function compositeParentForSegment(
+  segment: WeekTemplateType,
+): WeekTemplateType | null {
+  for (const [composite, def] of Object.entries(COMPOSITE_WEEK_TEMPLATES)) {
+    if (def?.segments.some((s) => s.template === segment)) {
+      return composite as WeekTemplateType;
+    }
+  }
+  return null;
+}
+
 /** Monday-start week index (legacy VS calendar helpers). */
 export function dayIndexInWeek(date: string, weekStart: string): number {
   return weekDatesFromMonday(weekStart).indexOf(date);

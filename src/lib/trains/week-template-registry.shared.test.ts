@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  compositeParentForSegment,
   isWeekTemplateSegment,
   resolvePaintTemplateForDay,
   segmentTemplateForDayIndex,
@@ -60,5 +61,17 @@ describe("week template registry", () => {
     expect(usesCombinedSegmentDisplay("price_is_right_weekdays")).toBe(true);
     expect(usesCombinedSegmentDisplay("takedown_week")).toBe(true);
     expect(usesCombinedSegmentDisplay("economy_week")).toBe(false);
+  });
+
+  it("maps segment templates back to their composite parent", () => {
+    expect(compositeParentForSegment("vs_push_weekdays")).toBe("vs_push_week");
+    expect(compositeParentForSegment("r4_event_vip")).toBe("vs_push_week");
+    expect(compositeParentForSegment("price_is_right_weekdays")).toBe(
+      "price_is_right",
+    );
+    expect(compositeParentForSegment("economy_week")).toBeNull();
+    // `custom` is a PIR weekend segment and also a selectable whole-week preset;
+    // reverse-map still finds the composite that uses it as a segment.
+    expect(compositeParentForSegment("custom")).toBe("price_is_right");
   });
 });

@@ -72,6 +72,10 @@ import {
 import { canStartConductorSwap } from "@/lib/trains/conductor-swap.shared";
 import { currentGuidedStep } from "@/lib/trains/guided-flow.shared";
 import type { PoolRefreshedInfo, PoolType, RollResult, WeekTemplateType } from "@/lib/trains/types";
+import {
+  compositeParentForSegment,
+  isWeekTemplateSegment,
+} from "@/lib/trains/week-template-registry.shared";
 import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
 import {
   applyOptimisticConductorPick,
@@ -133,7 +137,13 @@ function inferWeekTemplateFromDayConfigs(
 
   const counts = new Map<WeekTemplateType, number>();
   for (const day of dayConfigs) {
-    const key = day.paintTemplate ?? "vs_push_week";
+    let key = day.paintTemplate ?? "vs_push_week";
+    // Draft dayConfigs use segment paint templates (e.g. vs_push_weekdays).
+    // Map those back to selectable composite parents so the template picker
+    // can show a detail panel for the inferred selection.
+    if (isWeekTemplateSegment(key)) {
+      key = compositeParentForSegment(key) ?? key;
+    }
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
 

@@ -64,20 +64,23 @@ test.describe("Trains schedule preview (no blank state)", () => {
 
     await page.goto("/trains");
 
-    await expect(page.getByTestId("trains-schedule-section")).toBeVisible();
-    await expect(page.getByTestId("trains-no-schedule-section")).toHaveCount(0);
-    await expect(page.getByTestId("trains-plan-week-banner")).toBeVisible();
-    await expect(page.getByTestId("trains-template-selector")).toBeVisible();
-    await expect(page.getByTestId("trains-week-template-button")).toBeVisible();
+    // Scope to the app shell — Soft Nav / view transitions can briefly leave a
+    // hidden duplicate of the schedule section in the document.
+    const trainsRoot = page.locator("#hq-app-shell");
+    await expect(trainsRoot.getByTestId("trains-schedule-section")).toBeVisible();
+    await expect(trainsRoot.getByTestId("trains-no-schedule-section")).toHaveCount(0);
+    await expect(trainsRoot.getByTestId("trains-plan-week-banner")).toBeVisible();
+    await expect(trainsRoot.getByTestId("trains-template-selector")).toBeVisible();
+    await expect(trainsRoot.getByTestId("trains-week-template-button")).toBeVisible();
     // Template explanations live in the picker dialog (scrollable on small screens).
-    await page.getByTestId("trains-week-template-button").click();
+    await trainsRoot.getByTestId("trains-week-template-button").click();
     await expect(page.getByTestId("trains-template-picker-list")).toBeVisible();
     await expect(page.getByTestId("trains-template-picker-detail")).toBeVisible();
     await page.keyboard.press("Escape");
     // Simple Mode defaults on for officers — guided flow replaces dense quick-actions.
-    await expect(page.getByTestId("trains-guided-conductor-flow")).toBeVisible();
-    await expect(page.getByTestId("trains-guided-primary-cta")).toBeVisible();
-    await expect(page.getByTestId("trains-quick-actions")).toHaveCount(0);
+    await expect(trainsRoot.getByTestId("trains-guided-conductor-flow")).toBeVisible();
+    await expect(trainsRoot.getByTestId("trains-guided-primary-cta")).toBeVisible();
+    await expect(trainsRoot.getByTestId("trains-quick-actions")).toHaveCount(0);
   });
 
   test("month view shows preview legend for draft days", async ({ page }) => {
