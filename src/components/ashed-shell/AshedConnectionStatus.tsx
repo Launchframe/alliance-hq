@@ -8,9 +8,8 @@ import {
   clearAshedConnectionSessionStats,
   ensureAshedConnectionSession,
   formatConnectedSince,
-  incrementAshedRequestCount,
+  installAshedSessionRequestObserver,
   loadAshedConnectionSessionStats,
-  shouldCountAsAshedSessionRequest,
   startAshedConnectionSession,
   subscribeAshedConnectionSessionStats,
 } from "@/lib/connect/connection-session-stats.shared";
@@ -72,28 +71,7 @@ export function AshedConnectionStatus({
       return;
     }
     ensureAshedConnectionSession();
-
-    const originalFetch = window.fetch.bind(window);
-    window.fetch = async (
-      input: RequestInfo | URL,
-      init?: RequestInit,
-    ): Promise<Response> => {
-      const response = await originalFetch(input, init);
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-            ? input.toString()
-            : input.url;
-      if (response.ok && shouldCountAsAshedSessionRequest(url)) {
-        incrementAshedRequestCount();
-      }
-      return response;
-    };
-
-    return () => {
-      window.fetch = originalFetch;
-    };
+    return installAshedSessionRequestObserver();
   }, [isConnected]);
 
   React.useEffect(() => {

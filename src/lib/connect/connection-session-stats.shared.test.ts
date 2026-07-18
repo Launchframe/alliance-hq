@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearAshedConnectionSessionStats,
   incrementAshedRequestCount,
+  installAshedSessionRequestObserver,
   loadAshedConnectionSessionStats,
   shouldCountAsAshedSessionRequest,
   startAshedConnectionSession,
@@ -56,11 +57,35 @@ describe("connection-session-stats.shared", () => {
 
   it("classifies Ashed-bound API paths", () => {
     expect(shouldCountAsAshedSessionRequest("/api/members")).toBe(true);
-    expect(shouldCountAsAshedSessionRequest("/api/auth/connect")).toBe(true);
+    expect(shouldCountAsAshedSessionRequest("/api/auth/connect")).toBe(false);
     expect(shouldCountAsAshedSessionRequest("/api/auth/disconnect")).toBe(
       false,
     );
     expect(shouldCountAsAshedSessionRequest("/api/health/db")).toBe(false);
     expect(shouldCountAsAshedSessionRequest("/dashboard")).toBe(false);
+  });
+
+  it("installAshedSessionRequestObserver is ref-counted", async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
+    vi.stubGlobal("window", {
+      localStorage: globalThis.localStorage,
+      fetch: fetchMock,
+    });
+
+    startAshedConnectionSession();
+    const uninstallA = installAshedSessionRequestObserver();
+    const uninstallB = installAshedSessionRequestObserver();
+
+    await window.fetch("/api/members");
+    expect(loadAshedConnectionSessionStats()?.requestCount).toBe(1);
+
+    uninstallA();
+    await window.fetch("/api/members");
+    expect(loadAshedConnectionSessionStats()?.requestCount).toBe(2);
+
+    uninstallB();
+    await window.fetch("/api/members");
+    expect(loadAshedConnectionSessionStats()?.requestCount).toBe(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });

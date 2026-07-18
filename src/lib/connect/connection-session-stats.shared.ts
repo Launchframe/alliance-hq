@@ -115,6 +115,7 @@ export function shouldCountAsAshedSessionRequest(url: string): boolean {
     if (
       path.startsWith("/api/auth/sign-out") ||
       path.startsWith("/api/auth/disconnect") ||
+      path.startsWith("/api/auth/connect") ||
       path.startsWith("/api/health") ||
       path.startsWith("/api/feedback")
     ) {
@@ -124,4 +125,48 @@ export function shouldCountAsAshedSessionRequest(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+let sessionRequestObserverInstallCount = 0;
+let originalFetch: typeof window.fetch | null = null;
+
+function resolveRequestUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") {
+    return input;
+  }
+  if (input instanceof URL) {
+    return input.toString();
+  }
+  return input.url;
+}
+
+/** Count successful HQ API calls while connected; ref-counted for Strict Mode. */
+export function installAshedSessionRequestObserver(): () => void {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  sessionRequestObserverInstallCount += 1;
+  if (sessionRequestObserverInstallCount === 1) {
+    originalFetch = window.fetch.bind(window);
+    window.fetch = async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      const response = await originalFetch!(input, init);
+      if (response.ok && shouldCountAsAshedSessionRequest(resolveRequestUrl(input))) {
+        incrementAshedRequestCount();
+      }
+      return response;
+    };
+  }
+
+  return () => {
+    sessionRequestObserverInstallCount -= 1;
+    if (sessionRequestObserverInstallCount <= 0 && originalFetch) {
+      window.fetch = originalFetch;
+      originalFetch = null;
+      sessionRequestObserverInstallCount = 0;
+    }
+  };
 }
