@@ -11,10 +11,19 @@ export type TesseractWordLike = {
   bbox?: { x0?: number | null; x1?: number | null } | null;
 };
 
+export type TesseractLineBboxLike = {
+  x0?: number | null;
+  y0?: number | null;
+  x1?: number | null;
+  y1?: number | null;
+};
+
 export type TesseractLineLike = {
   text?: string | null;
   confidence?: number | null;
   words?: TesseractWordLike[] | null;
+  /** Line bounding box in processed-image pixel space, when available. */
+  bbox?: TesseractLineBboxLike | null;
 };
 
 export type TesseractBlockLike = {
@@ -45,12 +54,55 @@ export type ExtractedOcrWordSpan = {
   x1: number;
 };
 
+export type ExtractedOcrLineBbox = {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+};
+
 export type ExtractedOcrLine = {
   text: string;
   confidence: number;
   /** Word-level bbox spans, when the source line included `words`. */
   words?: ExtractedOcrWordSpan[];
+  /**
+   * Line bounding box, when Tesseract returned complete geometry for this
+   * line. `null` when `blocks` was omitted (plain-text fallback path) or
+   * Tesseract returned a partial/malformed bbox — callers that use geometry
+   * (e.g. cross-frame row fingerprinting) must treat `null` as "no geometry
+   * available" and fall back to text-only matching, not throw.
+   */
+  bbox?: ExtractedOcrLineBbox | null;
+  /** `bbox.y1 - bbox.y0`, precomputed for convenience. `null` when `bbox` is `null`. */
+  rowHeight?: number | null;
 };
+
+function extractLineBbox(
+  bbox: TesseractLineBboxLike | null | undefined,
+): { bbox: ExtractedOcrLineBbox | null; rowHeight: number | null } {
+  if (
+    !bbox ||
+    typeof bbox.x0 !== "number" ||
+    typeof bbox.y0 !== "number" ||
+    typeof bbox.x1 !== "number" ||
+    typeof bbox.y1 !== "number" ||
+    !Number.isFinite(bbox.x0) ||
+    !Number.isFinite(bbox.y0) ||
+    !Number.isFinite(bbox.x1) ||
+    !Number.isFinite(bbox.y1)
+  ) {
+    return { bbox: null, rowHeight: null };
+  }
+
+  const resolved: ExtractedOcrLineBbox = {
+    x0: bbox.x0,
+    y0: bbox.y0,
+    x1: bbox.x1,
+    y1: bbox.y1,
+  };
+  return { bbox: resolved, rowHeight: resolved.y1 - resolved.y0 };
+}
 
 /**
  * Rebuild line text as a single-space join of word texts (rather than
@@ -118,10 +170,11 @@ export function extractOcrLinesFromTesseractData(
           .trim();
         if (!text) continue;
 
+        const { bbox, rowHeight } = extractLineBbox(line.bbox);
         lines.push(
           fromWords
-            ? { text, confidence, words: fromWords.words }
-            : { text, confidence },
+            ? { text, confidence, words: fromWords.words, bbox, rowHeight }
+            : { text, confidence, bbox, rowHeight },
         );
       }
     }
@@ -130,11 +183,12 @@ export function extractOcrLinesFromTesseractData(
   if (lines.length > 0) return lines;
 
   // Fallback when blocks were not requested / null but plain text exists.
+  // No geometry is available on this path.
   const fallback = (data.text ?? "")
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-    .map((text) => ({ text, confidence: 100 }));
+    .map((text) => ({ text, confidence: 100, bbox: null, rowHeight: null }));
 
   return fallback;
 }
