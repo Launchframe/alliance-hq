@@ -31,6 +31,7 @@ import {
   listRecentVsPerformanceDates,
   nearestValidVsPerformanceDate,
   vsPerformanceDayMetaForDate,
+  type VsScorePeriod,
 } from "@/lib/video/vs-recorded-date.shared";
 import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
@@ -242,6 +243,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [hqEventId, setHqEventId] = useState("");
   const [boardKey, setBoardKey] = useState("");
   const [team, setTeam] = useState<"A" | "B">("A");
+  const [vsPeriod, setVsPeriod] = useState<VsScorePeriod>("daily");
   const [recordedDate, setRecordedDate] = useState(() =>
     accountTodayCalendarDate(timezoneId),
   );
@@ -329,8 +331,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       team,
       recordedDate,
       bankId,
+      vsPeriod,
     }),
-    [bankId, boardKey, eventId, hqEventId, recordedDate, team],
+    [bankId, boardKey, eventId, hqEventId, recordedDate, team, vsPeriod],
   );
 
   const draftEnabled =
@@ -397,15 +400,25 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const vsSafeRecordedDate = useMemo(() => {
     if (!isVsPerformanceTarget) return recordedDate;
-    if (isValidVsPerformanceRecordedDate(recordedDate)) return recordedDate;
-    return nearestValidVsPerformanceDate(recordedDate);
-  }, [isVsPerformanceTarget, recordedDate]);
+    if (isValidVsPerformanceRecordedDate(recordedDate, vsPeriod)) {
+      return recordedDate;
+    }
+    return nearestValidVsPerformanceDate(recordedDate, vsPeriod);
+  }, [isVsPerformanceTarget, recordedDate, vsPeriod]);
 
   const vsRecordedDateOptions = useMemo(() => {
     if (!isVsPerformanceTarget) return [];
     return listRecentVsPerformanceDates({
       includeDate: vsSafeRecordedDate,
+      period: vsPeriod,
     }).map((date) => {
+      if (vsPeriod === "weekly") {
+        return {
+          value: date,
+          label: t("vsWeeklyDateOption", { date }),
+          searchText: date,
+        };
+      }
       const meta = vsPerformanceDayMetaForDate(date);
       const dayName = meta
         ? t(
@@ -430,7 +443,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         searchText: `${date} ${dayName}`,
       };
     });
-  }, [isVsPerformanceTarget, vsSafeRecordedDate, t]);
+  }, [isVsPerformanceTarget, vsSafeRecordedDate, vsPeriod, t]);
 
   const rematchMembers = useCallback(async () => {
     setRematching(true);
@@ -590,9 +603,20 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           setHqEventId(restored.form.hqEventId);
           setBoardKey(restored.form.boardKey);
           setTeam(restored.form.team);
+          if (
+            restored.form.vsPeriod === "daily" ||
+            restored.form.vsPeriod === "weekly"
+          ) {
+            setVsPeriod(restored.form.vsPeriod);
+          }
+          const restoredPeriod =
+            restored.form.vsPeriod === "weekly" ? "weekly" : "daily";
           setRecordedDate(
             loadedIsVs
-              ? nearestValidVsPerformanceDate(restored.form.recordedDate)
+              ? nearestValidVsPerformanceDate(
+                  restored.form.recordedDate,
+                  restoredPeriod,
+                )
               : restored.form.recordedDate,
           );
           if (restored.form.bankId) {
@@ -606,7 +630,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             setBoardKey(data.job.boardKey);
           }
           if (loadedIsVs) {
-            setRecordedDate((prev) => nearestValidVsPerformanceDate(prev));
+            setRecordedDate((prev) =>
+              nearestValidVsPerformanceDate(prev, "daily"),
+            );
           }
         }
         setDraftRestored(restored.restored);
@@ -1306,9 +1332,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     }
     if (
       scoreTargetMeta?.id === "vs-performance" &&
-      !isValidVsPerformanceRecordedDate(vsSafeRecordedDate)
+      !isValidVsPerformanceRecordedDate(vsSafeRecordedDate, vsPeriod)
     ) {
-      setActionError(t("vsSundayInvalid"));
+      setActionError(
+        vsPeriod === "weekly" ? t("vsWeeklyDateInvalid") : t("vsSundayInvalid"),
+      );
       return;
     }
 
@@ -1329,6 +1357,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           recordedDate: isVsPerformanceTarget
             ? vsSafeRecordedDate
             : recordedDate,
+          vsPeriod: isVsPerformanceTarget ? vsPeriod : undefined,
           bankId: scoreTargetMeta?.showBankSelector ? bankId : undefined,
           rows: rows.map((r) =>
             isRoster
@@ -2063,14 +2092,61 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             </div>
           </div>
         ) : null}
+        {isVsPerformanceTarget ? (
+          <div className="block text-sm">
+            <span className="mb-1 block text-hq-fg-muted">
+              {t("vsPeriodLabel")}
+            </span>
+            <div
+              role="group"
+              aria-label={t("vsPeriodLabel")}
+              className="flex items-center gap-0.5 rounded-lg border border-hq-border p-0.5"
+            >
+              {(["daily", "weekly"] as const).map((option) => {
+                const active = vsPeriod === option;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => {
+                      markDraftDirty();
+                      setVsPeriod(option);
+                      setRecordedDate((prev) =>
+                        nearestValidVsPerformanceDate(prev, option),
+                      );
+                      clearActionError();
+                    }}
+                    aria-pressed={active}
+                    className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                      active
+                        ? "bg-hq-border text-hq-fg"
+                        : "text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg"
+                    }`}
+                  >
+                    {option === "daily" ? t("vsPeriodDaily") : t("vsPeriodWeekly")}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-xs text-hq-fg-muted">
+              {vsPeriod === "weekly"
+                ? t("vsPeriodWeeklyHint")
+                : t("vsPeriodDailyHint")}
+            </p>
+          </div>
+        ) : null}
         <label className="block text-sm">
           <span className="mb-1 block text-hq-fg-muted">{t("dateLabel")}</span>
           {isVsPerformanceTarget ? (
             <AppSelect
               value={vsSafeRecordedDate}
               onChange={(next) => {
-                if (!isValidVsPerformanceRecordedDate(next)) {
-                  setActionError(t("vsSundayInvalid"));
+                if (!isValidVsPerformanceRecordedDate(next, vsPeriod)) {
+                  setActionError(
+                    vsPeriod === "weekly"
+                      ? t("vsWeeklyDateInvalid")
+                      : t("vsSundayInvalid"),
+                  );
                   return;
                 }
                 markDraftDirty();

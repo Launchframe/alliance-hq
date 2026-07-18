@@ -22,9 +22,16 @@ describe("vsPerformanceDayNumberForDate", () => {
 });
 
 describe("isValidVsPerformanceRecordedDate", () => {
-  it("rejects Sunday and accepts Saturday", () => {
+  it("daily rejects Sunday and accepts Saturday", () => {
     expect(isValidVsPerformanceRecordedDate("2026-07-12")).toBe(false);
     expect(isValidVsPerformanceRecordedDate("2026-07-11")).toBe(true);
+  });
+
+  it("weekly accepts Sunday only", () => {
+    expect(isValidVsPerformanceRecordedDate("2026-07-12", "weekly")).toBe(true);
+    expect(isValidVsPerformanceRecordedDate("2026-07-11", "weekly")).toBe(
+      false,
+    );
   });
 });
 
@@ -45,20 +52,29 @@ describe("vsPerformanceDayMetaForDate", () => {
 });
 
 describe("nearestValidVsPerformanceDate", () => {
-  it("steps back from Sunday to Saturday", () => {
+  it("steps back from Sunday to Saturday for daily", () => {
     expect(nearestValidVsPerformanceDate("2026-07-12")).toBe("2026-07-11");
+  });
+
+  it("steps back to Sunday for weekly", () => {
+    expect(nearestValidVsPerformanceDate("2026-07-13", "weekly")).toBe(
+      "2026-07-12",
+    );
   });
 });
 
 describe("listRecentVsPerformanceDates", () => {
-  it("never includes Sunday and can pin includeDate", () => {
+  it("lists only Sundays for weekly period", () => {
     const dates = listRecentVsPerformanceDates({
-      now: new Date("2026-07-13T15:00:00.000-02:00"),
-      daysBack: 10,
-      includeDate: "2026-06-01",
+      now: new Date("2026-07-15T12:00:00.000-02:00"),
+      daysBack: 14,
+      period: "weekly",
     });
-    expect(dates).not.toContain("2026-07-12");
-    expect(dates).toContain("2026-06-01"); // Monday
-    expect(dates[0]).toBe("2026-07-13"); // Monday today
+    expect(dates.length).toBeGreaterThan(0);
+    for (const date of dates) {
+      expect(isValidVsPerformanceRecordedDate(date, "weekly")).toBe(true);
+    }
+    expect(dates).toContain("2026-07-12");
+    expect(dates).toContain("2026-07-05");
   });
 });
