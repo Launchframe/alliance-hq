@@ -10,7 +10,7 @@ type Props = {
   skipWalkthroughToPaste?: boolean;
   skipLinkPhoneStep?: boolean;
   /** HQ account has linked Ashed before — show multi-device reconnect warning. */
-  previouslyConnected?: boolean;
+  previouslyLinkedAshed?: boolean;
   returnTo?: string;
 };
 
@@ -18,7 +18,7 @@ export function ConnectFlowClient({
   showWelcomeChoice: initialWelcome,
   skipWalkthroughToPaste = false,
   skipLinkPhoneStep = false,
-  previouslyConnected = false,
+  previouslyLinkedAshed = false,
   returnTo,
 }: Props) {
   const [showWelcomeChoice, setShowWelcomeChoice] = useState(initialWelcome);
@@ -33,7 +33,7 @@ export function ConnectFlowClient({
     <ConnectionWalkthrough
       skipWalkthroughToPaste={skipWalkthroughToPaste}
       skipLinkPhoneStep={skipLinkPhoneStep}
-      previouslyConnected={previouslyConnected}
+      previouslyLinkedAshed={previouslyLinkedAshed}
       returnTo={returnTo}
     />
   );

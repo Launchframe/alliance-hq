@@ -28,6 +28,7 @@ export default async function ConnectPage({ searchParams }: Props) {
   let showWelcomeChoice = false;
   let skipWalkthroughToPaste = false;
   let skipLinkPhoneStep = false;
+  let previouslyLinkedAshed = false;
   let returnTo: string | undefined;
 
   try {
@@ -48,7 +49,8 @@ export default async function ConnectPage({ searchParams }: Props) {
     returnTo = parseConnectQueryReturn(next);
     showWelcomeChoice =
       welcome === "1" && state.hasAppAccess && !state.isConnected;
-    skipWalkthroughToPaste = await shouldSkipConnectWalkthrough(session.id);
+    previouslyLinkedAshed = await shouldSkipConnectWalkthrough(session.id);
+    skipWalkthroughToPaste = previouslyLinkedAshed;
     skipLinkPhoneStep = await shouldSkipLinkPhoneStep(session.id);
   } catch (error) {
     rethrowNavigationError(error);
@@ -60,7 +62,7 @@ export default async function ConnectPage({ searchParams }: Props) {
       showWelcomeChoice={showWelcomeChoice}
       skipWalkthroughToPaste={skipWalkthroughToPaste}
       skipLinkPhoneStep={skipLinkPhoneStep}
-      previouslyConnected={skipWalkthroughToPaste}
+      previouslyLinkedAshed={previouslyLinkedAshed}
       returnTo={returnTo}
     />
   );

@@ -50,6 +50,8 @@ type Props = {
   signInLinkNotice?: LinkedOAuthProvider | null;
   signInLinkError?: string | null;
   ssoAvailability?: AuthSsoAvailability;
+  /** Native-only members cannot pair Ashed devices. */
+  isAshedConnectAllowed?: boolean;
 };
 
 export function AccountSettingsForm({
@@ -63,6 +65,7 @@ export function AccountSettingsForm({
   signInLinkNotice = null,
   signInLinkError = null,
   ssoAvailability = { google: false, discord: false },
+  isAshedConnectAllowed = true,
 }: Props) {
   const t = useTranslations("account");
   const tSettings = useTranslations("settings");
@@ -318,18 +321,20 @@ export function AccountSettingsForm({
         linkError={discordLinkError}
       />
 
-      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
-        <h2 className="font-medium">{tSettings("linkDeviceTitle")}</h2>
-        <p className="mt-2 text-sm text-hq-fg-muted">
-          {tSettings("linkDeviceBody")}
-        </p>
-        <Link
-          href="/settings/link-device"
-          className="mt-4 inline-block text-sm text-hq-accent hover:underline"
-        >
-          {tSettings("linkDeviceLink")} →
-        </Link>
-      </section>
+      {isAshedConnectAllowed ? (
+        <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+          <h2 className="font-medium">{tSettings("linkDeviceTitle")}</h2>
+          <p className="mt-2 text-sm text-hq-fg-muted">
+            {tSettings("linkDeviceBody")}
+          </p>
+          <Link
+            href="/settings/link-device"
+            className="mt-4 inline-block text-sm text-hq-accent hover:underline"
+          >
+            {tSettings("linkDeviceLink")} →
+          </Link>
+        </section>
+      ) : null}
 
       {ashed ? (
         <section className="rounded-xl border border-hq-border bg-hq-surface p-5">

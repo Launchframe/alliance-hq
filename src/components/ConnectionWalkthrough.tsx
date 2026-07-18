@@ -76,7 +76,7 @@ type Props = {
   /** Returning reconnect with a phone already linked — skip optional link-phone step. */
   skipLinkPhoneStep?: boolean;
   /** HQ account has linked Ashed before — show multi-device reconnect warning. */
-  previouslyConnected?: boolean;
+  previouslyLinkedAshed?: boolean;
   /** Internal path after a successful connect (defaults to `/`). */
   returnTo?: string;
   /** Alternate POST target (e.g. Discord setup / authorize recovery). */
@@ -91,7 +91,7 @@ export function ConnectionWalkthrough({
   onConnected,
   skipWalkthroughToPaste = false,
   skipLinkPhoneStep = false,
-  previouslyConnected = false,
+  previouslyLinkedAshed = false,
   returnTo,
   connectApiUrl,
   connectApiExtraBody,
@@ -662,7 +662,7 @@ export function ConnectionWalkthrough({
             ? t("setupComplete.body")
             : t.rich("subtitle", { link: ashedLink })}
         </p>
-        {previouslyConnected && !isPasteSuccess ? (
+        {previouslyLinkedAshed && !isPasteSuccess ? (
           <div className="mt-4 rounded-lg border border-[#d29922]/40 bg-[#d29922]/10 px-4 py-3">
             <p className="font-medium text-[#e3b341]">
               {t("multiDeviceWarning.title")}
