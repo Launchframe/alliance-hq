@@ -60,6 +60,7 @@ export default async function ConnectPage({ searchParams }: Props) {
       showWelcomeChoice={showWelcomeChoice}
       skipWalkthroughToPaste={skipWalkthroughToPaste}
       skipLinkPhoneStep={skipLinkPhoneStep}
+      previouslyConnected={skipWalkthroughToPaste}
       returnTo={returnTo}
     />
   );

@@ -1540,6 +1540,10 @@
     "successTitle": "Conectado ao Ashed",
     "signedInAsBefore": "Conectado como",
     "returningUserHint": "Bem-vindo de volta — cole uma nova chave de conexão do DevTools quando estiver pronto.",
+    "multiDeviceWarning": {
+      "title": "Já conectado em outro dispositivo?",
+      "body": "Não cole uma nova chave de conexão aqui se outro navegador ou celular ainda tiver o Ashed conectado — isso desconectará o outro dispositivo. No dispositivo que ainda funciona, abra <link>Vincular dispositivo</link> e escaneie o QR com este."
+    },
     "showSetupInstructions": "Ver instruções completas de configuração",
     "noExpiryRead": "Conectado, mas não conseguimos ler uma data de expiração neste token. Ainda assim, notificaremos você se o Ashed parar de aceitá-lo.",
     "continue": "Continuar para o Alliance HQ",
@@ -1600,7 +1604,7 @@
         "errorBody": "O código QR expirou ou não pôde ser usado. Tente novamente quando estiver pronto.",
         "tryAgain": "Tentar novamente",
         "skip": "Pular por enquanto",
-        "skippedBody": "Sem problemas. Você pode conectar outro dispositivo em <settingsLink>Configurações</settingsLink> a qualquer momento.",
+        "skippedBody": "Sem problemas. Você pode conectar outro dispositivo em <settingsLink>Vincular dispositivo</settingsLink> a qualquer momento.",
         "continueWithoutPhone": "Continuar para o Alliance HQ",
         "continueToHq": "Continuar para o Alliance HQ",
         "privacyNote": "NÃO COMPARTILHE este código QR com ninguém. O código nele contido é um link de curta duração para sua conta — quem obtiver esse código poderá assumir o controle total da sua conta."
@@ -1896,6 +1900,9 @@
     "hotkeysTitle": "Atalhos de teclado",
     "hotkeysBody": "Veja e personalize atalhos para navegação e ações comuns.",
     "hotkeysLink": "Gerenciar atalhos de teclado",
+    "linkDeviceTitle": "Vincular dispositivo",
+    "linkDeviceBody": "Mostre um QR code para copiar sua conexão Ashed para um celular ou outro navegador — sem colar as credenciais de novo.",
+    "linkDeviceLink": "Abrir Vincular dispositivo",
     "uploadRemindersTitle": "Lembretes de upload",
     "uploadRemindersBody": "Configure quando os oficiais são lembrados de enviar pontuações de eventos e gerencie suas assinaturas pessoais.",
     "uploadRemindersLink": "Gerenciar lembretes de upload",
@@ -2226,8 +2233,16 @@
     "switchToSelected": "Usar {tag} nesta sessão"
   },
   "deviceLink": {
-    "sectionTitle": "Vincular dispositivo móvel",
-    "sectionBody": "Já conectou no computador? Mostre um QR code aqui e escaneie com a câmera do celular para usar a mesma conexão no mobile — sem o passo do DevTools.",
+    "pageTitle": "Vincular dispositivo",
+    "pageSubtitle": "Copie sua conexão Ashed para outro celular ou navegador com um QR code.",
+    "multiDeviceHint": {
+      "title": "Use isto para cada dispositivo extra",
+      "body": "<strong>Vincular dispositivo</strong> é a única forma segura de usar o Ashed em vários celulares ou navegadores. Conectar manualmente (colar um cURL / chave de conexão) em outro dispositivo apagará a conexão Ashed deste dispositivo."
+    },
+    "needsConnectionBody": "Conecte o Ashed neste dispositivo primeiro e volte aqui para mostrar um QR code para os outros dispositivos.",
+    "needsConnectionCta": "Conectar Ashed",
+    "sectionTitle": "Mostrar QR code",
+    "sectionBody": "Escaneie com o celular ou navegador que deseja vincular — sem o passo do DevTools nesse dispositivo.",
     "storageNote": "Sua chave de conexão continua criptografada no nosso servidor — o QR code contém apenas um link de curta duração, não a chave em si.",
     "showQr": "Mostrar QR code",
     "generating": "Gerando…",
@@ -2243,7 +2258,7 @@
       "success": "Seu celular agora está conectado.",
       "continue": "Continuar para o Alliance HQ",
       "failed": "Este link é inválido ou expirou.",
-      "retryHint": "No computador, abra Configurações e gere um novo QR code."
+      "retryHint": "No dispositivo conectado, abra Vincular dispositivo e gere um novo QR code."
     },
     "devices": {
       "listTitle": "Dispositivos vinculados",

@@ -1540,6 +1540,10 @@
     "successTitle": "Connected to Ashed",
     "signedInAsBefore": "Signed in as",
     "returningUserHint": "Welcome back — paste a fresh connection key from DevTools when you're ready.",
+    "multiDeviceWarning": {
+      "title": "Already connected on another device?",
+      "body": "Don't paste a new connection key here if another browser or phone still has Ashed connected — that will disconnect the other device. On the device that still works, open <link>Link a device</link> and scan the QR with this one."
+    },
     "showSetupInstructions": "Show full setup instructions",
     "noExpiryRead": "Connected, but we couldn't read an expiry date from this token. We'll still notify you if Ashed stops accepting it.",
     "continue": "Continue to Alliance HQ",
@@ -1600,7 +1604,7 @@
         "errorBody": "The QR code expired or could not be claimed. Try again when you're ready.",
         "tryAgain": "Try again",
         "skip": "Skip for now",
-        "skippedBody": "No problem. You can connect another device from <settingsLink>Settings</settingsLink> at any time.",
+        "skippedBody": "No problem. You can connect another device from <settingsLink>Link a device</settingsLink> at any time.",
         "continueWithoutPhone": "Continue to Alliance HQ",
         "continueToHq": "Continue to Alliance HQ",
         "privacyNote": "DO NOT SHARE this QR code with anyone. The code contained in it is a short-lived link to your account — anybody who gets this code will be able to take full control of your account."
@@ -1950,6 +1954,9 @@
     "hotkeysTitle": "Keyboard shortcuts",
     "hotkeysBody": "View and customize shortcuts for navigation and common actions.",
     "hotkeysLink": "Manage keyboard shortcuts",
+    "linkDeviceTitle": "Link a device",
+    "linkDeviceBody": "Show a QR code to copy your Ashed connection to a phone or another browser — without pasting credentials again.",
+    "linkDeviceLink": "Open Link a device",
     "uploadRemindersTitle": "Upload reminders",
     "uploadRemindersBody": "Configure when officers are reminded to upload event scores, and manage your personal reminder subscriptions.",
     "uploadRemindersLink": "Manage upload reminders",
@@ -2280,8 +2287,16 @@
     "switchToSelected": "Switch session to {tag}"
   },
   "deviceLink": {
-    "sectionTitle": "Link a mobile device",
-    "sectionBody": "Already connected on a computer? Show a QR code here and scan it with your phone camera to use the same connection on mobile — no DevTools step.",
+    "pageTitle": "Link a device",
+    "pageSubtitle": "Copy your Ashed connection to another phone or browser with a QR code.",
+    "multiDeviceHint": {
+      "title": "Use this for every extra device",
+      "body": "<strong>Link a device</strong> is the only safe way to use Ashed on multiple phones or browsers. Manually connecting (pasting a cURL / connection key) on another device will wipe this device's Ashed connection."
+    },
+    "needsConnectionBody": "Connect Ashed on this device first, then come back here to show a QR code for your other devices.",
+    "needsConnectionCta": "Connect Ashed",
+    "sectionTitle": "Show QR code",
+    "sectionBody": "Scan with the phone or browser you want to link — no DevTools step on that device.",
     "storageNote": "Your connection key stays encrypted on our server — the QR code only contains a short-lived link, not the key itself.",
     "showQr": "Show QR code",
     "generating": "Generating…",
@@ -2297,7 +2312,7 @@
       "success": "Your phone is now connected.",
       "continue": "Continue to Alliance HQ",
       "failed": "This link is invalid or expired.",
-      "retryHint": "On your computer, open Settings and generate a new QR code."
+      "retryHint": "On your connected device, open Link a device and generate a new QR code."
     },
     "devices": {
       "listTitle": "Linked devices",
