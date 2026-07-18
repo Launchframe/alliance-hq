@@ -63,9 +63,7 @@ export function buildThpHistoryChartSvg(
   );
 
   const points = events.map((event, index) => {
-    const x =
-      pad.left +
-      (events.length === 1 ? innerW / 2 : (index / (events.length - 1)) * innerW);
+    const x = pad.left + (index / (events.length - 1)) * innerW;
     const y = pad.top + innerH - ((event.total - minThp) / thpSpan) * innerH;
     return { x, y, event };
   });
