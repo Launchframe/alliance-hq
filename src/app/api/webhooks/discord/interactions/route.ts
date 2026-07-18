@@ -35,6 +35,7 @@ import {
   interactionToken,
   parseButtonCustomId,
   parseLinkSlashOptions,
+  parseResolvedTargetMessage,
   parseSlashOptionBoolean,
   parseSlashOptionInteger,
   parseSlashOptionString,
@@ -118,6 +119,16 @@ import {
   buildProfessionSelectButtons,
   buildProfessionSwitchConfirmButtons,
 } from "@/lib/discord/interactions";
+import {
+  DISCORD_SET_TRANSLATION_COMMAND,
+  DISCORD_TRANSLATION_LANGUAGE_COMMAND,
+  isDiscordTranslateMessageCommand,
+} from "@/lib/translate/discord-command-names";
+import {
+  handleDiscordSetTranslation,
+  handleDiscordTranslateMessage,
+  handleDiscordTranslationLanguage,
+} from "@/lib/translate/discord-handlers.server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -230,6 +241,30 @@ async function handleSlashCommand(
     const result = await handleDiscordLanguage({
       discordUserId,
       locale: parsed,
+    });
+    return discordMessageResponse(result.reply);
+  }
+
+  if (commandName === DISCORD_TRANSLATION_LANGUAGE_COMMAND) {
+    const languageCode = parseSlashOptionString(payload, "language");
+    const result = await handleDiscordTranslationLanguage({
+      discordUserId,
+      locale,
+      languageCode,
+    });
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
+  }
+
+  if (commandName === DISCORD_SET_TRANSLATION_COMMAND) {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
+    const enabled = parseSlashOptionBoolean(payload, "enabled") ?? true;
+    const result = await handleDiscordSetTranslation({
+      guildId,
+      discordUserId,
+      locale,
+      enabled,
     });
     return discordMessageResponse(result.reply);
   }
@@ -395,6 +430,52 @@ async function handleSlashCommand(
     return discordMessageResponse(
       await setupMessage(locale, guildId, discordUserId),
     );
+  }
+
+  if (isDiscordTranslateMessageCommand(commandName)) {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"), undefined, EPHEMERAL);
+    }
+    const targetMessage = parseResolvedTargetMessage(payload);
+    if (!targetMessage) {
+      return discordMessageResponse(t("errors.serverError"), undefined, EPHEMERAL);
+    }
+    const applicationId = interactionApplicationId(payload);
+    const token = interactionToken(payload);
+    if (!applicationId || !token) {
+      console.error("[discord-bot] translate missing application_id/token");
+      return discordMessageResponse(t("errors.serverError"), undefined, EPHEMERAL);
+    }
+
+    // Provider latency can brush Discord's ~3s ACK window — defer, then edit.
+    scheduleBackgroundTask(scheduleBackground, async () => {
+      try {
+        const result = await handleDiscordTranslateMessage({
+          allianceId,
+          guildId,
+          discordUserId,
+          locale,
+          payloadLocale: payload.locale,
+          message: { id: targetMessage.id, content: targetMessage.content },
+        });
+        await editDiscordOriginalInteraction({
+          applicationId,
+          interactionToken: token,
+          content: result.reply,
+          ephemeral: true,
+        });
+      } catch (error) {
+        console.error("[discord-bot] deferred translate failed", error);
+        await editDiscordOriginalInteraction({
+          applicationId,
+          interactionToken: token,
+          content: t("translate.failed"),
+          ephemeral: true,
+        });
+      }
+    });
+
+    return discordDeferredEphemeralResponse();
   }
 
   if (isDiscordVrSlashCommand(commandName)) {
