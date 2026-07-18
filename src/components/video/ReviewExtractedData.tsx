@@ -25,7 +25,10 @@ import {
   duplicateMemberRowIds,
   findDuplicateMemberAssignments,
 } from "@/lib/video/review-validation";
-import { isZeroScoreWarningDisabled } from "@/lib/video/score-targets";
+import {
+  isAllianceKillsVideoTarget,
+  isZeroScoreWarningDisabled,
+} from "@/lib/video/score-targets";
 import {
   isValidVsPerformanceRecordedDate,
   listRecentVsPerformanceDates,
@@ -397,7 +400,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }, []);
 
   const isVsPerformanceTarget = scoreTargetMeta?.id === "vs-performance";
-  const isAllianceKillsTarget = scoreTargetMeta?.id === "alliance-kills-video";
+  const isAllianceKillsTarget =
+    scoreTargetMeta?.id != null &&
+    isAllianceKillsVideoTarget(scoreTargetMeta.id);
 
   const vsSafeRecordedDate = useMemo(() => {
     if (!isVsPerformanceTarget) return recordedDate;
