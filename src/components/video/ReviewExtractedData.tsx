@@ -646,6 +646,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     ) {
       return liveJob.status;
     }
+    // REST may lag the SSE stream when OCR finishes; honor terminal live status
+    // so the waiting UI can exit (load() runs via shouldRefetchOnLiveJobStatus).
+    if (liveJob && terminalStatuses.has(liveJob.status)) {
+      return liveJob.status;
+    }
     return jobStatus;
   }, [jobStatus, liveJob]);
 
@@ -662,12 +667,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     // the provider returns a new object reference each time, so this effect
     // would otherwise run on every snapshot — re-running load() and clobbering
     // the reviewer's in-progress edits. See shouldRefetchOnLiveJobStatus.
-    if (shouldRefetchOnLiveJobStatus(previousStatus, liveJob.status)) {
+    if (
+      shouldRefetchOnLiveJobStatus(previousStatus, liveJob.status, {
+        restStatus: jobStatus,
+      })
+    ) {
       queueMicrotask(() => {
         void load();
       });
     }
-  }, [liveJob, load]);
+  }, [liveJob, load, jobStatus]);
 
   useEffect(() => {
     rosterMembersHydratedRef.current = false;
