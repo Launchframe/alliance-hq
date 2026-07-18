@@ -1,4 +1,15 @@
-const TERMINAL_LIVE_STATUSES = new Set(["review", "failed"]);
+/** SSE terminal statuses that should exit the waiting UI and trigger refetch. */
+export const TERMINAL_LIVE_JOB_STATUSES = ["review", "failed"] as const;
+
+export type TerminalLiveJobStatus = (typeof TERMINAL_LIVE_JOB_STATUSES)[number];
+
+const TERMINAL_LIVE_STATUSES = new Set<string>(TERMINAL_LIVE_JOB_STATUSES);
+
+export function isTerminalLiveJobStatus(
+  status: string,
+): status is TerminalLiveJobStatus {
+  return TERMINAL_LIVE_STATUSES.has(status);
+}
 
 /** REST statuses that mean the page is still waiting on OCR / pipeline work. */
 const ACTIVE_REST_STATUSES = new Set([

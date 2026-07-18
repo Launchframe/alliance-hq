@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { shouldRefetchOnLiveJobStatus } from "./live-job-refresh.shared";
+import {
+  isTerminalLiveJobStatus,
+  shouldRefetchOnLiveJobStatus,
+} from "./live-job-refresh.shared";
+
+describe("isTerminalLiveJobStatus", () => {
+  it("is true only for review and failed", () => {
+    expect(isTerminalLiveJobStatus("review")).toBe(true);
+    expect(isTerminalLiveJobStatus("failed")).toBe(true);
+    expect(isTerminalLiveJobStatus("complete")).toBe(false);
+    expect(isTerminalLiveJobStatus("discarded")).toBe(false);
+    expect(isTerminalLiveJobStatus("parsing")).toBe(false);
+  });
+});
 
 describe("shouldRefetchOnLiveJobStatus", () => {
   it("refetches when transitioning from a processing status into review", () => {
