@@ -43,10 +43,10 @@ export function formatEventOptionLabel(options: {
   if (typeof eventDate === "string") {
     const datePart = eventDate.trim().slice(0, 10);
     if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
-      const utcInstant = accountCalendarDateToUtcStart(
-        datePart,
-        DEFAULT_ACCOUNT_TIMEZONE_ID,
-      );
+      // Treat YYYY-MM-DD as a calendar date in the viewer's timezone. Converting
+      // via server time then formatting in a western TZ shifts the day (e.g.
+      // Desert Storm Friday → Thursday, which looks like Canyon Storm).
+      const utcInstant = accountCalendarDateToUtcStart(datePart, timezoneId);
       if (utcInstant) {
         return `${eventTypeLabel} ${formatAccountDate(utcInstant, {
           locale,
@@ -81,9 +81,9 @@ export type AshedEventLike = {
 };
 
 const ASHED_EVENT_DATE_FIELDS = [
+  "event_date",
   "start_date",
   "end_date",
-  "event_date",
   "recorded_date",
   "date",
 ] as const satisfies ReadonlyArray<keyof AshedEventLike>;
