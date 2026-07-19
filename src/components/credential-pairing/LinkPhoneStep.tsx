@@ -30,6 +30,8 @@ export function LinkPhoneStep({ onLinked }: Props) {
     showQr: t("revealQr"),
     generating: tDevice("generating"),
     scanHint: tDevice("scanHint"),
+    desktopLinkHint: tDevice("desktopLinkHint"),
+    copyLinkLabel: tDevice("copyLinkLabel"),
     expiresIn: tDevice("expiresIn"),
     expired: tDevice("expired"),
     linked: tDevice("linked"),

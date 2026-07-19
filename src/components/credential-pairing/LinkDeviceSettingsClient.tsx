@@ -44,6 +44,8 @@ export function LinkDeviceSettingsClient({ isConnected }: Props) {
                 showQr: t("showQr"),
                 generating: t("generating"),
                 scanHint: t("scanHint"),
+                desktopLinkHint: t("desktopLinkHint"),
+                copyLinkLabel: t("copyLinkLabel"),
                 expiresIn: t("expiresIn"),
                 expired: t("expired"),
                 linked: t("linked"),
