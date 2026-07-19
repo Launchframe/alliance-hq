@@ -10,7 +10,7 @@
  * Missing or implausible timestamps fold into the matching name group when
  * unambiguous.
  *
- * Known limitation / follow-up (PR #313 Real Steel):
+ * Known limitation / follow-up (PR #313 Real Steel, partially closed by #353):
  * {@link DEPOSIT_AT_PROXIMITY_MS} (15m diameter) and
  * {@link DEPOSIT_AT_MAJORITY_OUTLIER_MS} (45m singleton absorb) can still
  * coalesce two genuine same-commander deposits when their OCR'd depositAts
@@ -18,8 +18,10 @@
  * locked → matured lifecycle cannot produce that (terms are 1/3/5 days), but
  * a deposit **can be looted** (`early_termination_refund`) within minutes of
  * depositAt — so a rapid re-deposit after looting is a real false-merge risk.
- * Next lever: frame-index continuity and/or status/outcome discrimination so
- * a lone looted initiate is not absorbed as an OCR outlier of a prior slip.
+ * Mitigations in place: majority-outlier absorb is **status-gated** (#353);
+ * proximity auto-merge peels locked rows timed after a terminal OCR row
+ * (post-outcome re-deposits) out of the diameter group. Remaining lever:
+ * frame-index continuity across the scroll.
  *
  * This module is a thin domain adapter over the generic helpers in
  * `src/lib/video/dedupe/`: it supplies deposit-slip field specs (amount, term,
@@ -713,6 +715,43 @@ function emitFlagged(
 }
 
 /**
+ * Split a same-name proximity group when a locked row is timed *after* a
+ * terminal (loot/mature) row — that locked is a re-deposit, not the initiate
+ * for the terminal. Keeps valid initiate+loot pairs (locked ≤ terminal)
+ * together while peeling post-outcome blues out of the ≤15m diameter merge.
+ */
+function splitPostOutcomeRedeposits(
+  group: readonly IndexedSlip[],
+): IndexedSlip[][] {
+  const terminals = group.filter(
+    (s) => s.status === "matured" || s.status === "looted",
+  );
+  if (terminals.length === 0) return [group.slice()];
+
+  let latestTerminalMs = Number.NEGATIVE_INFINITY;
+  for (const t of terminals) {
+    const ms = parseDepositAtMs(t.depositAt);
+    if (ms != null && ms > latestTerminalMs) latestTerminalMs = ms;
+  }
+  if (!Number.isFinite(latestTerminalMs)) return [group.slice()];
+
+  const primary: IndexedSlip[] = [];
+  const redeposits: IndexedSlip[] = [];
+  for (const slip of group) {
+    if (slip.status === "locked") {
+      const ms = parseDepositAtMs(slip.depositAt);
+      if (ms != null && ms > latestTerminalMs) {
+        redeposits.push(slip);
+        continue;
+      }
+    }
+    primary.push(slip);
+  }
+  if (redeposits.length === 0) return [group.slice()];
+  return [primary, ...redeposits.map((s) => [s])];
+}
+
+/**
  * Merge or flag a same-name (and same-deposit) subgroup after conflict resolution.
  */
 function resolveNameTimestampGroup(
@@ -765,6 +804,16 @@ function resolveNameTimestampGroup(
   const minPair = minPairwiseNameSimilarity(group);
   if (minPair < FUZZY_AUTO_MERGE_THRESHOLD) {
     emitFlagged(accum, group, "borderline_commander_name_same_minute");
+    return;
+  }
+
+  // Peel post-loot / post-mature re-deposits out of the ≤15m proximity merge.
+  const parts = splitPostOutcomeRedeposits(group);
+  if (parts.length > 1) {
+    for (const part of parts) {
+      if (part.length === 0) continue;
+      resolveNameTimestampGroup(accum, part, autoMergeReason);
+    }
     return;
   }
 

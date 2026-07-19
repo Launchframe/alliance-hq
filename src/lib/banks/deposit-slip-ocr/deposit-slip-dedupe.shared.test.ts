@@ -1364,7 +1364,9 @@ describe("dedupeDepositSlips — review triage", () => {
     ).toBe(false);
   });
 
-  it("does not lifecycle-merge a re-deposit locked after an earlier loot survivor", () => {
+  it("peels a ≤15m post-loot re-deposit locked out of proximity merge", () => {
+    // Initiate 12:00 → loot 12:10 → re-deposit 12:20 all fit the 15m diameter.
+    // Peel keeps the post-terminal locked from riding the initiate+loot merge.
     const { slips, report } = dedupeDepositSlips([
       slip({
         commanderName: "Loot Redeposit",
@@ -1391,16 +1393,15 @@ describe("dedupeDepositSlips — review triage", () => {
       }),
     ]);
 
-    // Proximity may still coalesce initiate+loot (known ≤15m loot window);
-    // the later re-deposit must remain its own slip.
-    expect(slips.length).toBeGreaterThanOrEqual(2);
-    expect(slips.some((s) => s.status === "locked")).toBe(true);
+    expect(slips).toHaveLength(2);
     const lockedRedeposit = slips.find(
       (s) =>
         s.status === "locked" &&
         s.depositAt === "2026-07-10T12:20:00.000Z",
     );
     expect(lockedRedeposit).toBeDefined();
+    expect(lockedRedeposit?.amount).toBe(5000);
+    expect(slips.some((s) => s.status === "looted")).toBe(true);
     expect(
       report.clusters.filter((c) => c.reason === "lifecycle_locked_to_looted"),
     ).toHaveLength(0);
