@@ -1405,6 +1405,71 @@ describe("dedupeDepositSlips — review triage", () => {
       report.clusters.filter((c) => c.reason === "lifecycle_locked_to_looted"),
     ).toHaveLength(0);
   });
+
+  it("does not absorb a post-loot re-deposit blue into a multi-frame-OCR'd orange majority (majority-outlier status guard)", () => {
+    // Three OCR reads of the SAME orange (looted) row within one minute form
+    // a majority home; a single re-deposit blue row lands ~20m later — inside
+    // the 45m outlier window, but status-mismatched, so must stay separate.
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Post Loot Redeposit",
+        depositAt: "2026-07-10T12:00:09.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "looted",
+        outcomeKind: "early_termination_refund",
+        outcomeAmount: 0,
+        sourceFrameIndex: 9,
+      }),
+      slip({
+        commanderName: "Post Loot Redeposit",
+        depositAt: "2026-07-10T12:00:10.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "looted",
+        outcomeKind: "early_termination_refund",
+        outcomeAmount: 0,
+        sourceFrameIndex: 10,
+      }),
+      slip({
+        commanderName: "Post Loot Redeposit",
+        depositAt: "2026-07-10T12:00:12.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "looted",
+        outcomeKind: "early_termination_refund",
+        outcomeAmount: 0,
+        sourceFrameIndex: 11,
+      }),
+      slip({
+        commanderName: "Post Loot Redeposit",
+        depositAt: "2026-07-10T12:20:00.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "locked",
+        sourceFrameIndex: 40,
+      }),
+    ]);
+
+    const lockedRedeposit = slips.find(
+      (s) =>
+        s.status === "locked" && s.depositAt === "2026-07-10T12:20:00.000Z",
+    );
+    expect(lockedRedeposit).toBeDefined();
+    // No survivor may claim an outcome before its own deposit (the corruption
+    // this guard prevents: the re-deposit's later depositAt paired with the
+    // earlier orange's outcomeAt).
+    for (const s of slips) {
+      if (s.outcomeAt && s.depositAt) {
+        expect(Date.parse(s.outcomeAt)).toBeGreaterThanOrEqual(
+          Date.parse(s.depositAt),
+        );
+      }
+    }
+    expect(
+      report.clusters.some((c) => c.reason === "lifecycle_locked_to_looted"),
+    ).toBe(false);
+  });
 });
 
 describe("dedupeDepositSlips — slipId uniqueness", () => {

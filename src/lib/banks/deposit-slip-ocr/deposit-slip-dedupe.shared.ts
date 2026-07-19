@@ -589,6 +589,13 @@ export function splitByDepositAtProximity<T>(
 /**
  * When one minute dominates a name cluster, fold lone nearby OCR outliers into
  * that majority home. Never absorb a multi-row distant group (second deposit).
+ *
+ * Status-gated: repeated OCR reads of one underlying slip always report the
+ * same status (blue/green/orange come from distinct template text), so an
+ * outlier whose status isn't already present in the majority group is a
+ * distinct lifecycle event (e.g. a post-loot re-deposit), not a re-read of
+ * the majority row — refuse to absorb it. See "known looted-window
+ * limitation" in `.cursor/rules/season-5-bank-deposits.mdc`.
  */
 function absorbMajorityMinuteOutliers<T extends ParsedDepositSlipDraft>(
   anchoredGroups: T[][],
@@ -606,6 +613,7 @@ function absorbMajorityMinuteOutliers<T extends ParsedDepositSlipDraft>(
   const majorityRange = groupDepositAtRange(majorityGroup);
   if (!majorityRange) return anchoredGroups;
 
+  const majorityStatuses = new Set(majorityGroup.map((s) => s.status));
   const absorbed: T[] = [...majorityGroup];
   const remaining: T[][] = [];
   for (let i = 0; i < anchoredGroups.length; i += 1) {
@@ -616,8 +624,14 @@ function absorbMajorityMinuteOutliers<T extends ParsedDepositSlipDraft>(
       groupRange == null
         ? Number.POSITIVE_INFINITY
         : rangeGapMs(majorityRange, groupRange);
-    // Only singleton outliers — a second oversampled deposit stays separate.
-    if (group.length === 1 && gap <= outlierMs) {
+    // Only singleton outliers whose status already appears in the majority
+    // home — a second oversampled deposit or a status-mismatched lifecycle
+    // event stays separate.
+    if (
+      group.length === 1 &&
+      gap <= outlierMs &&
+      majorityStatuses.has(group[0]!.status)
+    ) {
       absorbed.push(...group);
     } else {
       remaining.push(group);
