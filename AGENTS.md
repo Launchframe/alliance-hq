@@ -69,7 +69,7 @@ Apply on every Real Steel pass for this repo:
 
 ## Last War domain (game mechanics)
 
-Alliance HQ models **in-game** alliance mechanics (trains, VS weeks, R1–R5 ranks) separately from **HQ RBAC** and Ashed iframe pages. Game server time is **UTC−2**; VS match weeks run Mon–Sat with Sunday off; calendar weeks start Monday 00:00 server time.
+Alliance HQ models **in-game** alliance mechanics (trains, VS weeks, R1–R5 ranks) separately from **HQ RBAC** and Ashed iframe pages. Game server time is **UTC−2**; VS match weeks run Mon–Sat with Sunday off (break day); weekly VS totals use the Sunday week-ending date and are typically uploaded Sunday 00:00–Monday 00:00 server time; calendar weeks start Monday 00:00 server time.
 
 - Alliance ranks **R1–R5** are stored in immutable **`member_alliance_rank_events`**; confirmed changes dual-write to Ashed `Member` and update **`alliance_members`** (locally synced roster with normalized rank/title). Members page refresh syncs from Ashed; train pools read local roster, not live Ashed queries.
 - Train conductor mutations require **`trains:write`** (owner/maintainer/officer — not `data_entry`).

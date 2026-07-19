@@ -30,9 +30,10 @@ import {
   isZeroScoreWarningDisabled,
 } from "@/lib/video/score-targets";
 import {
+  defaultVsPerformanceRecordedDate,
+  coerceVsPerformanceRecordedDate,
   isValidVsPerformanceRecordedDate,
   listRecentVsPerformanceDates,
-  nearestValidVsPerformanceDate,
   vsPerformanceDayMetaForDate,
   type VsScorePeriod,
 } from "@/lib/video/vs-recorded-date.shared";
@@ -406,10 +407,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const vsSafeRecordedDate = useMemo(() => {
     if (!isVsPerformanceTarget) return recordedDate;
-    if (isValidVsPerformanceRecordedDate(recordedDate, vsPeriod)) {
-      return recordedDate;
-    }
-    return nearestValidVsPerformanceDate(recordedDate, vsPeriod);
+    return coerceVsPerformanceRecordedDate(recordedDate, vsPeriod);
   }, [isVsPerformanceTarget, recordedDate, vsPeriod]);
 
   const vsRecordedDateOptions = useMemo(() => {
@@ -619,7 +617,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             restored.form.vsPeriod === "weekly" ? "weekly" : "daily";
           setRecordedDate(
             loadedIsVs
-              ? nearestValidVsPerformanceDate(
+              ? coerceVsPerformanceRecordedDate(
                   restored.form.recordedDate,
                   restoredPeriod,
                 )
@@ -636,9 +634,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             setBoardKey(data.job.boardKey);
           }
           if (loadedIsVs) {
-            setRecordedDate((prev) =>
-              nearestValidVsPerformanceDate(prev, "daily"),
-            );
+            // VS dates are game-server calendar, not account-local "today"
+            // (Sat night officer-local can already be Sunday ST).
+            setRecordedDate(defaultVsPerformanceRecordedDate("daily"));
           }
         }
         setDraftRestored(restored.restored);
@@ -2160,7 +2158,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                       markDraftDirty();
                       setVsPeriod(option);
                       setRecordedDate((prev) =>
-                        nearestValidVsPerformanceDate(prev, option),
+                        coerceVsPerformanceRecordedDate(prev, option),
                       );
                       clearActionError();
                     }}

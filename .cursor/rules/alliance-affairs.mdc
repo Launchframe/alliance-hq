@@ -4,6 +4,8 @@ globs:
   - src/lib/trains/**
   - src/components/trains/**
   - src/app/api/trains/**
+  - src/lib/video/vs-recorded-date*
+  - src/components/video/ReviewExtractedData.tsx
 ---
 
 # Alliance affairs (in-game mechanics)
@@ -14,7 +16,7 @@ HQ models **in-game** alliance mechanics separately from **HQ RBAC** and Ashed i
 
 - Game server time is **UTC−2**.
 - Calendar weeks start **Monday 00:00** server time.
-- VS match week runs **Mon–Sat**; **Sunday off**.
+- VS match week runs **Mon–Sat**; **Sunday off** (break day — no daily VS).
 
 ## Ranks R1–R5
 
@@ -48,6 +50,13 @@ Composite templates (`vs_push_weekdays` + `r4_event_vip`) paint weekend segments
 
 - `vs_top_10` and event pool seeding use **T−1** calendar day scores (`vsScoreReferenceDate(trainDate)` → Ashed `VSScore.recorded_date`).
 - VS day names (Mon–Sat): Radar Training, Base Expansion, Age of Science, Hero Day, Total Mobilization, Buster Day.
+
+## VS Performance video upload (daily vs weekly)
+
+- **Daily** `recorded_date`: Mon–Sat match day (server calendar).
+- **Weekly** `recorded_date`: the **Sunday** that ends that VS week (“week ending Sunday”). Sunday is not a match day; it is the week-end marker for totals.
+- **Weekly upload window:** Sunday **00:00** → Monday **00:00** server time. An upload in that window may be treated as the weekly totals video for the week ending that Sunday (when no weekly batch exists yet). Officer-local Saturday night often falls in this window.
+- Defaults and period toggles must use **`getServerCalendarDate` / `defaultVsPerformanceRecordedDate`**, never the officer’s account-local “today” alone — account Sat + server Sun otherwise snaps weekly to the **previous** Sunday.
 
 ## Economy-week pivot
 
