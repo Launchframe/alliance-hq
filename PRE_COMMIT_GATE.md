@@ -11,12 +11,12 @@ Qualitative rules before every commit or push:
 
 ## Gates
 
-Run from repository root, in order. All must pass.
+Run from repository root, in order. All must pass. (Matches `.husky/pre-commit`.)
 
-### 1. Test
+### 1. Typecheck
 
 ```bash
-npm test
+npx tsc --noEmit
 ```
 
 ### 2. Lint
@@ -25,13 +25,19 @@ npm test
 npm run lint
 ```
 
-### 3. i18n
+### 3. Test
+
+```bash
+npm test
+```
+
+### 4. i18n
 
 ```bash
 npm run i18n:validate
 ```
 
-### 4. Drizzle migration journal
+### 5. Drizzle migration journal
 
 ```bash
 npm run db:validate-journal

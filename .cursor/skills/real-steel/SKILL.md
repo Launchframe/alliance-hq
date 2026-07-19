@@ -63,3 +63,5 @@ Follow the global skill. Additionally for this repo:
 ## After Real Steel
 
 To triage suggestions/nits, land copy-approved fixes, and merge, use [close-the-loop](../close-the-loop/SKILL.md).
+
+If the maintainer will close the loop in the same session, **keep** the Real Steel worktree (do not remove it yet). Close-the-loop prefers that worktree for fixes; otherwise it refreshes via `./scripts/new-worktree.sh`.

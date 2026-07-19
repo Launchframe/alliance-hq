@@ -16,17 +16,27 @@ Orchestrate a feature PR from open → Real Steel → feedback triage → fixes 
 merge. Sibling skills own sub-steps; this skill owns **sequence, triage buckets,
 copy gates, and finalize**.
 
+## When to use which skill
+
+| Need | Skill |
+| --- | --- |
+| Adversarial multi-model review + `real-steel-ready` | [/real-steel](../real-steel/SKILL.md) only |
+| Triage Real Steel (or human) suggestions → fixes → merge | **This skill** (`close-the-loop`) |
+| Bot review threads only (Copilot/Cursor bots); suggested human replies | `~/.cursor/skills/address-pr-feedback/SKILL.md` |
+
+Do **not** re-run a full Real Steel chain from this skill unless step 6 applies. Do **not** treat bot-thread cleanup as a substitute for Real Steel triage.
+
 ## Workflow (canonical)
 
 1. Implement, open PR
 2. Maintainer validates the PR contents
-3. Runs real-steel against the PR
-4. Evaluate suggestions & nits. Adjust and approve any temporary copy in accordance with our i18n rules. Determine blocking ("close the loop on the PR"), deferred, or won't do.
+3. Run real-steel against the PR
+4. Evaluate Criticals, suggestions & nits. Propose copy changes; wait for maintainer approval per i18n rules. Bucket each item: blocking (“close the loop on the PR”), deferred, or won't do.
 5. Implement fixes to suggestions.
 6. OPTIONAL: real-steel review of new commits on the PR
 7. Finalize and merge
 
-Do not skip step 2 or 4. Agents do not invent merge approval when branch policy requires a human review.
+Do not skip step 4. Do not skip step 2 **unless** the maintainer is already past validation (e.g. “close the loop on the PR”, “address these suggestions”, or a Real Steel comment/URL handed for triage — those count as proceed). Agents do not invent merge approval when branch policy requires a human review.
 
 ## Related skills and rules
 
@@ -36,7 +46,7 @@ Do not skip step 2 or 4. Agents do not invent merge approval when branch policy 
 | Bot-thread triage / suggested human replies | `~/.cursor/skills/address-pr-feedback/SKILL.md` |
 | User-facing English + en-US/pt-BR | [user-facing-copy-review.mdc](../../rules/user-facing-copy-review.mdc), [i18n-all-surfaces.mdc](../../rules/i18n-all-surfaces.mdc) |
 | Git / worktree isolation | [agent-git-hygiene.mdc](../../rules/agent-git-hygiene.mdc) |
-| Pre-commit gates | `AGENTS.md` → `PRE-COMMIT.md` |
+| Pre-commit gates | [`PRE_COMMIT_GATE.md`](../../../PRE_COMMIT_GATE.md) (also summarized in `AGENTS.md`) |
 
 ## Step detail
 
@@ -48,17 +58,20 @@ Do not skip step 2 or 4. Agents do not invent merge approval when branch policy 
 
 ### 2. Maintainer validates the PR contents
 
-- **Human gate.** Agent waits for explicit validation (approve shape, request changes, or “run real-steel”).
-- Do not start Real Steel or close-the-loop triage until the maintainer has validated (or explicitly asked to proceed).
+- **Human gate** for greenfield implement→review flows. Agent waits for explicit validation (approve shape, request changes, or “run real-steel”).
+- Skip waiting when the maintainer already validated or uses post–Real Steel close-the-loop phrasing (see Workflow note and Invocation shortcuts).
 
-### 3. Runs real-steel against the PR
+### 3. Run real-steel against the PR
 
 - Follow [real-steel](../real-steel/SKILL.md): worktree + `move_agent_to_root` once, then pass chain.
 - Expect `real-steel-ready` when the chain completes without unresolved Criticals / copy blockers.
 
-### 4. Evaluate suggestions & nits
+### 4. Evaluate Criticals, suggestions & nits
 
-Read the Real Steel issue comment (and any follow-up threads). For **each** Suggestion and Nit, assign exactly one bucket:
+Read the Real Steel issue comment (and any follow-up threads).
+
+- Unresolved **Critical** findings are always **Blocking** (fix before merge, or record an explicit maintainer won't-do with rationale).
+- For **each** Suggestion and Nit, assign exactly one bucket:
 
 | Bucket | Meaning | Action |
 | --- | --- | --- |
@@ -68,7 +81,7 @@ Read the Real Steel issue comment (and any follow-up threads). For **each** Sugg
 
 **Copy / i18n (hard gate):**
 
-- Any change to user-facing English (or new keys) → present proposals to the maintainer **first**; wait for approval (see copy-review rule).
+- Any change to user-facing English (or new keys) → present proposals to the maintainer **first**; wait for approval (see copy-review rule). Agents never approve copy.
 - Temporary / inaccurate copy called out by Real Steel counts as Blocking until soft/count-accurate wording is **approved**, then implemented in en-US + hand pt-BR together.
 - Do **not** run `npm run i18n:translate` or other auto-translate.
 - After locale edits: `npm run i18n:validate`.
@@ -77,11 +90,21 @@ Read the Real Steel issue comment (and any follow-up threads). For **each** Sugg
 
 ### 5. Implement fixes to suggestions
 
-- Work in the PR worktree (not primary clone). Prefer `move_agent_to_root` into that worktree when the environment allows.
+- Work in the PR worktree (not primary clone). Prefer the existing Real Steel worktree if still present; otherwise `./scripts/new-worktree.sh` (or refresh) for the PR branch. Prefer `move_agent_to_root` into that worktree when the environment allows.
 - Implement **Blocking** items only (plus maintainer-explicit extras).
 - For human Real Steel comments: react (`+1` / `-1` / `eyes`), fix valid items, prepare a concise reply — **post only when the maintainer asks** (or says “post the reply”).
 - Bot feedback: follow `address-pr-feedback` (post bot replies; keep human replies suggested unless told to post).
-- Run PRE-COMMIT gates (`tsc`, lint, test). Commit (short why-focused message) and push.
+- Run gates from [`PRE_COMMIT_GATE.md`](../../../PRE_COMMIT_GATE.md) (match husky):
+
+```bash
+npx tsc --noEmit
+npm run lint
+npm test
+npm run i18n:validate
+npm run db:validate-journal
+```
+
+- Commit (short why-focused message) and push.
 
 ### 6. OPTIONAL: real-steel review of new commits on the PR
 
@@ -92,7 +115,7 @@ Read the Real Steel issue comment (and any follow-up threads). For **each** Sugg
 
 Finalize means **all** of:
 
-1. Blocking items done; triage for deferred / won't-do recorded (PR reply or chat).
+1. Blocking items done (including Criticals); triage for deferred / won't-do recorded (PR reply or chat).
 2. Approved copy landed in locales; `i18n:validate` clean.
 3. CI green on the tip commit.
 4. Human Real Steel reply posted when the maintainer approved the reply text.
@@ -111,7 +134,7 @@ Auto-merge (`gh pr merge --auto`) only when the repo supports it; otherwise watc
 
 | User says | Start at |
 | --- | --- |
-| “close the loop on the PR” + PR URL / Real Steel comment | Step 4 (assume 1–3 done) |
+| “close the loop on the PR” + PR URL / Real Steel comment | Step 4 (assume 1–3 done; step 2 satisfied) |
 | “address these suggestions and nits” | Step 4 → 5; hold copy until approved |
 | “post the reply and finalize” | Post approved reply → step 7 |
 | “/real-steel …” | Step 3 only (handoff back here for 4–7) |

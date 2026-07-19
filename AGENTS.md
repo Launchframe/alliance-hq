@@ -6,11 +6,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Pre-commit gates
 
-Before creating a commit, all checks in [`PRE-COMMIT.md`](./PRE-COMMIT.md) must pass, in order:
+Before creating a commit, all checks in [`PRE_COMMIT_GATE.md`](./PRE_COMMIT_GATE.md) must pass, in order (matches `.husky/pre-commit`):
 
 1. `npx tsc --noEmit`
 2. `npm run lint`
-3. `npm run test`
+3. `npm test`
+4. `npm run i18n:validate`
+5. `npm run db:validate-journal`
 
 Do not commit while any gate is failing.
 
