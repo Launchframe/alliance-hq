@@ -172,6 +172,22 @@ export async function listDepositSlipsForAlliance(allianceId: string) {
     .orderBy(asc(schema.bankDepositSlips.depositAt));
 }
 
+export async function listDepositSlipsForBank(
+  allianceId: string,
+  bankId: string,
+) {
+  return getDb()
+    .select()
+    .from(schema.bankDepositSlips)
+    .where(
+      and(
+        eq(schema.bankDepositSlips.allianceId, allianceId),
+        eq(schema.bankDepositSlips.bankId, bankId),
+      ),
+    )
+    .orderBy(asc(schema.bankDepositSlips.depositAt));
+}
+
 export async function loadBanksWithSlips(
   allianceId: string,
 ): Promise<BankWithSlips[]> {

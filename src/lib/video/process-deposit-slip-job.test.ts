@@ -5,6 +5,7 @@ const mockResolveDepositSlipMemberLinks = vi.fn();
 const mockCreateDepositSlipMemberResolverCache = vi.fn();
 const mockInsertValues = vi.fn();
 const mockUpdateWhere = vi.fn();
+const mockSelectLimit = vi.fn();
 
 vi.mock("server-only", () => ({}));
 
@@ -33,6 +34,14 @@ vi.mock("@/lib/video/ocr-deposit-slip-native", () => ({
 
 vi.mock("@/lib/db", () => ({
   getDb: () => ({
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: (n: number) => mockSelectLimit(n),
+          orderBy: () => mockSelectLimit("orderBy"),
+        }),
+      }),
+    }),
     insert: (table: unknown) => ({
       values: (payload: unknown) => mockInsertValues(table, payload),
     }),
@@ -43,17 +52,30 @@ vi.mock("@/lib/db", () => ({
     }),
   }),
   schema: {
-    parseSessions: { id: "parseSessions.id" },
+    parseSessions: {
+      id: "parseSessions.id",
+      allianceId: "parseSessions.allianceId",
+      rowCount: "parseSessions.rowCount",
+      matchedCount: "parseSessions.matchedCount",
+    },
     parsedRows: { id: "parsedRows.id" },
     videoFrames: {
       jobId: "videoFrames.jobId",
       frameIndex: "videoFrames.frameIndex",
+      ocrRawJson: "videoFrames.ocrRawJson",
     },
-    videoJobs: { id: "videoJobs.id" },
+    videoJobs: {
+      id: "videoJobs.id",
+      parseSessionId: "videoJobs.parseSessionId",
+      allianceId: "videoJobs.allianceId",
+    },
   },
 }));
 
-import { processDepositSlipVideoParse } from "@/lib/video/process-deposit-slip-job";
+import {
+  finalizeDepositSlipVideoParse,
+  processDepositSlipVideoParse,
+} from "@/lib/video/process-deposit-slip-job";
 import type { ParsedDepositSlipHistory } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import type { PipelineTimer } from "@/lib/video/pipeline-timer";
 
@@ -85,6 +107,8 @@ describe("processDepositSlipVideoParse", () => {
     });
     mockInsertValues.mockResolvedValue(undefined);
     mockUpdateWhere.mockResolvedValue(undefined);
+    // Single-shot mock path uses historyOverride — no load-from-frames select.
+    mockSelectLimit.mockResolvedValue([]);
   });
 
   it("persists parsed rows with dedupe slip IDs so review actions match report members", async () => {
@@ -240,5 +264,46 @@ describe("processDepositSlipVideoParse", () => {
         matchMethod: "none",
       }),
     ]);
+  });
+});
+
+describe("finalizeDepositSlipVideoParse", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockResolveHqAllianceIdFromSession.mockResolvedValue("alliance-1");
+    mockInsertValues.mockResolvedValue(undefined);
+    mockUpdateWhere.mockResolvedValue(undefined);
+  });
+
+  it("reuses an existing parse session on load-from-frames re-entry", async () => {
+    mockSelectLimit
+      .mockResolvedValueOnce([
+        { parseSessionId: "parse-existing", allianceId: "alliance-1" },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "parse-existing",
+          allianceId: "alliance-1",
+          rowCount: 7,
+          matchedCount: 5,
+        },
+      ]);
+
+    const result = await finalizeDepositSlipVideoParse({
+      jobId: "job-1",
+      sessionId: "session-1",
+      scoreTargetId: "bank-deposit-slip-history",
+      timer,
+      now: new Date("2026-07-12T00:00:00.000Z"),
+    });
+
+    expect(result).toEqual({
+      parseSessionId: "parse-existing",
+      hqAllianceId: "alliance-1",
+      rowCount: 7,
+      matchedCount: 5,
+    });
+    expect(mockInsertValues).not.toHaveBeenCalled();
+    expect(mockResolveHqAllianceIdFromSession).not.toHaveBeenCalled();
   });
 });

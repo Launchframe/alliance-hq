@@ -1417,6 +1417,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         code?: string;
         connectUrl?: string;
         submitted?: number;
+        createdCount?: number;
+        skippedDuplicateCount?: number;
+        updatedCount?: number;
         duplicateMembers?: Array<{ memberName: string }>;
         showSolicitedFeedback?: boolean;
         solicitedSource?: "solicited_first_upload" | "solicited_third_upload";
@@ -1441,7 +1444,35 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           : scoreTargetMeta?.showRosterColumns
             ? t("rosterSubmitSuccess", { count: data.submitted ?? 0 })
             : scoreTargetMeta?.showDepositSlipColumns
-              ? t("depositSlipSubmitSuccess", { count: data.submitted ?? 0 })
+              ? (() => {
+                  const created = data.createdCount ?? data.submitted ?? 0;
+                  const updated = data.updatedCount ?? 0;
+                  const skipped = data.skippedDuplicateCount ?? 0;
+                  // Reuse existing "Saved {count}" when only outcomes were applied
+                  // (no new en-US string without maintainer copy approval).
+                  if (created === 0 && updated > 0) {
+                    return [
+                      t("depositSlipSubmitSuccess", { count: updated }),
+                      skipped > 0
+                        ? t("depositSlipSubmitSkippedDuplicates", {
+                            count: skipped,
+                          })
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
+                  }
+                  return [
+                    t("depositSlipSubmitAdded", { count: created }),
+                    skipped > 0
+                      ? t("depositSlipSubmitSkippedDuplicates", {
+                          count: skipped,
+                        })
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
+                })()
               : isAllianceKillsTarget
                 ? t("killsSubmitSuccess", { count: data.submitted ?? 0 })
                 : t("submitSuccess", { count: data.submitted ?? 0 }),
