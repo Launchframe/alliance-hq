@@ -160,4 +160,19 @@ test.describe("Welcome claim share links (anti-404)", () => {
       timeout: 15_000,
     });
   });
+
+  test("forwards /welcome?invite= to /invite/<token>", async ({ page }) => {
+    const sql = getE2eSql();
+    const session = await createAuthenticatedHqSession(
+      sql,
+      `welcome-inv-${nanoid(6)}@e2e.test`,
+    );
+    await page.context().addCookies(playwrightAuthCookies(session));
+
+    const token = `e2eWelcomeInviteToken${nanoid(16)}`;
+    await page.goto(`/welcome?invite=${encodeURIComponent(token)}`);
+
+    await expect(page).toHaveURL(new RegExp(`/invite/${token}`));
+    await assertNotApp404(page);
+  });
 });
