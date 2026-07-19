@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  coerceVsPerformanceRecordedDate,
   defaultVsPerformanceRecordedDate,
   isValidVsPerformanceRecordedDate,
   isVsWeeklyUploadWindow,
@@ -99,6 +100,27 @@ describe("defaultVsPerformanceRecordedDate", () => {
     const sundayServer = new Date("2026-07-19T03:30:00.000Z");
     expect(defaultVsPerformanceRecordedDate("daily", sundayServer)).toBe(
       "2026-07-18",
+    );
+  });
+});
+
+describe("coerceVsPerformanceRecordedDate", () => {
+  it("preserves a valid weekly Sunday", () => {
+    expect(coerceVsPerformanceRecordedDate("2026-07-05", "weekly")).toBe(
+      "2026-07-05",
+    );
+  });
+
+  it("defaults invalid weekly dates from server today, not account-local walk-back", () => {
+    const sundayServer = new Date("2026-07-19T03:30:00.000Z");
+    expect(
+      coerceVsPerformanceRecordedDate("2026-07-18", "weekly", sundayServer),
+    ).toBe("2026-07-19");
+  });
+
+  it("walks back invalid daily Sunday to Saturday", () => {
+    expect(coerceVsPerformanceRecordedDate("2026-07-12", "daily")).toBe(
+      "2026-07-11",
     );
   });
 });

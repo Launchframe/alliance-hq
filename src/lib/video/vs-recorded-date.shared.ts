@@ -109,6 +109,25 @@ export function defaultVsPerformanceRecordedDate(
 }
 
 /**
+ * Normalize a stored or user-selected date for the active VS period.
+ * Weekly invalid dates default from server today (not account-local walk-back).
+ */
+export function coerceVsPerformanceRecordedDate(
+  recordedDate: string,
+  period: VsScorePeriod = "daily",
+  now = new Date(),
+): string {
+  const trimmed = recordedDate.trim().slice(0, 10);
+  if (isValidVsPerformanceRecordedDate(trimmed, period)) {
+    return trimmed;
+  }
+  if (period === "weekly") {
+    return defaultVsPerformanceRecordedDate("weekly", now);
+  }
+  return nearestValidVsPerformanceDate(trimmed, period);
+}
+
+/**
  * Recent dates for the VS recorded-date selector (newest first).
  * Daily: Mon–Sat. Weekly: Sundays only (week-ending dates).
  */

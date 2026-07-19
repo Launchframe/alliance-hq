@@ -31,9 +31,9 @@ import {
 } from "@/lib/video/score-targets";
 import {
   defaultVsPerformanceRecordedDate,
+  coerceVsPerformanceRecordedDate,
   isValidVsPerformanceRecordedDate,
   listRecentVsPerformanceDates,
-  nearestValidVsPerformanceDate,
   vsPerformanceDayMetaForDate,
   type VsScorePeriod,
 } from "@/lib/video/vs-recorded-date.shared";
@@ -407,10 +407,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const vsSafeRecordedDate = useMemo(() => {
     if (!isVsPerformanceTarget) return recordedDate;
-    if (isValidVsPerformanceRecordedDate(recordedDate, vsPeriod)) {
-      return recordedDate;
-    }
-    return nearestValidVsPerformanceDate(recordedDate, vsPeriod);
+    return coerceVsPerformanceRecordedDate(recordedDate, vsPeriod);
   }, [isVsPerformanceTarget, recordedDate, vsPeriod]);
 
   const vsRecordedDateOptions = useMemo(() => {
@@ -620,7 +617,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             restored.form.vsPeriod === "weekly" ? "weekly" : "daily";
           setRecordedDate(
             loadedIsVs
-              ? nearestValidVsPerformanceDate(
+              ? coerceVsPerformanceRecordedDate(
                   restored.form.recordedDate,
                   restoredPeriod,
                 )
@@ -2129,19 +2126,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     onClick={() => {
                       markDraftDirty();
                       setVsPeriod(option);
-                      setRecordedDate((prev) => {
-                        // Weekly defaults from server today so account-Sat /
-                        // server-Sun does not snap to last week's Sunday.
-                        if (option === "weekly") {
-                          if (
-                            isValidVsPerformanceRecordedDate(prev, "weekly")
-                          ) {
-                            return prev;
-                          }
-                          return defaultVsPerformanceRecordedDate("weekly");
-                        }
-                        return nearestValidVsPerformanceDate(prev, "daily");
-                      });
+                      setRecordedDate((prev) =>
+                        coerceVsPerformanceRecordedDate(prev, option),
+                      );
                       clearActionError();
                     }}
                     aria-pressed={active}
