@@ -19,6 +19,7 @@ import {
   resolveVideoJobAccess,
   videoJobAccessErrorResponse,
 } from "@/lib/video/video-job-access.server";
+import { recoverStaleSubmittingVideoJob } from "@/lib/video/recover-stale-submitting-video-job.server";
 import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-alliance.server";
 import { commitRosterFromVideoJob } from "@/lib/members/roster-video-commit";
 import {
@@ -200,7 +201,14 @@ export async function POST(request: Request, { params }: Props) {
     if (!access.ok) {
       return videoJobAccessErrorResponse(access);
     }
-    const job = access.job;
+    let job = access.job;
+
+    if (job.status === "submitting") {
+      const recovered = await recoverStaleSubmittingVideoJob(jobId);
+      if (recovered.recovered) {
+        job = { ...job, status: "review" };
+      }
+    }
 
     if (!isVideoJobReadyForSubmit(job.status)) {
       if (job.status === "submitting") {

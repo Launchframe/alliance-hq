@@ -11,6 +11,7 @@ import {
   resolveVideoJobAccess,
   videoJobAccessErrorResponse,
 } from "@/lib/video/video-job-access.server";
+import { recoverStaleSubmittingVideoJob } from "@/lib/video/recover-stale-submitting-video-job.server";
 
 type Props = { params: Promise<{ jobId: string }> };
 
@@ -23,7 +24,14 @@ export async function PATCH(_request: Request, { params }: Props) {
   if (!access.ok) {
     return videoJobAccessErrorResponse(access);
   }
-  const job = access.job;
+  let job = access.job;
+
+  if (job.status === "submitting") {
+    const recovered = await recoverStaleSubmittingVideoJob(jobId);
+    if (recovered.recovered) {
+      job = { ...job, status: "review" };
+    }
+  }
 
   if (job.status !== "review" && job.status !== "failed") {
     return NextResponse.json(

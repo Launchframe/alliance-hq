@@ -14,6 +14,7 @@ import {
   videoJobAccessErrorResponse,
 } from "@/lib/video/video-job-access.server";
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
+import { recoverStaleSubmittingVideoJob } from "@/lib/video/recover-stale-submitting-video-job.server";
 import {
   resolveHqAllianceIdFromStoredAllianceId,
 } from "@/lib/video/video-job-alliance.server";
@@ -46,7 +47,13 @@ export async function GET(_request: Request, { params }: Props) {
     if (!access.ok) {
       return videoJobAccessErrorResponse(access);
     }
-    const job = access.job;
+    let job = access.job;
+    if (job.status === "submitting") {
+      const recovered = await recoverStaleSubmittingVideoJob(jobId);
+      if (recovered.recovered) {
+        job = { ...job, status: "review" };
+      }
+    }
     const db = getDb();
 
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
