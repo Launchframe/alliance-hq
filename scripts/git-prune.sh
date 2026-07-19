@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Prune stale local topic branches and optional unused worktrees after merges.
 #
-# Safe by default: dry-run only. Pass --apply to delete. Never touches main,
-# the currently checked-out branch, branches with open PRs, or dirty worktrees.
+# Safe by default: dry-run only (local branch/worktree deletion). Still runs
+# `git fetch --prune origin` so gone-upstream detection is accurate. Pass
+# --apply to delete. Never touches main, the currently checked-out branch,
+# branches with open PRs, or dirty worktrees.
 #
 # Designed to pair with GitHub "Automatically delete head branches" so that
 # after a PR merges, `origin/<branch>` disappears and this script can drop the
@@ -90,7 +92,7 @@ load_open_pr_branches() {
   OPEN_PR_LOOKUP_FAILED=0
   while IFS= read -r head; do
     [[ -n "${head}" ]] && OPEN_PR_BRANCHES+=("${head}")
-  done <<<"${heads}"
+  done <<<"${heads}" || true
 }
 
 open_pr_blocks_delete() {
@@ -198,7 +200,7 @@ declare -a OPEN_PR_BRANCHES=()
 OPEN_PR_LOOKUP_FAILED=0
 load_open_pr_branches
 if [[ "${OPEN_PR_LOOKUP_FAILED}" -eq 1 ]]; then
-  info "  gh unavailable — will skip all candidate branch deletes (worktrees still reported)"
+  info "  gh unavailable — will skip branch deletes and stale worktree removals"
 else
   info "  ${#OPEN_PR_BRANCHES[@]} open PR head(s)"
 fi
@@ -245,7 +247,7 @@ while IFS= read -r line; do
     continue
   fi
   GONE_BRANCHES+=("${branch}")
-done < <(git branch -vv | grep ': gone]' || true)
+done < <(git branch -vv | grep ': gone]' || true) || true
 
 if [[ ${#GONE_BRANCHES[@]} -eq 0 ]]; then
   info "  (none)"
@@ -309,7 +311,7 @@ if [[ "${INCLUDE_MERGED}" -eq 1 ]]; then
       continue
     fi
     MERGED_BRANCHES+=("${branch}")
-  done < <(git branch --merged "${MERGE_BASE}" --format='%(refname:short)')
+  done < <(git branch --merged "${MERGE_BASE}" --format='%(refname:short)') || true
 
   if [[ ${#MERGED_BRANCHES[@]} -eq 0 ]]; then
     info "  (none)"
@@ -370,6 +372,12 @@ if [[ "${INCLUDE_WORKTREES}" -eq 1 ]]; then
     if [[ "${stale}" -eq 1 ]]; then
       if has_meaningful_status "${path}"; then
         WORKTREE_SKIPPED+=("${path} (dirty; branch=${branch})")
+      elif open_pr_blocks_delete "${branch}"; then
+        if [[ "${OPEN_PR_LOOKUP_FAILED}" -eq 1 ]]; then
+          WORKTREE_SKIPPED+=("${path} (gh unavailable; branch=${branch})")
+        else
+          WORKTREE_SKIPPED+=("${path} (open PR; branch=${branch})")
+        fi
       else
         WORKTREES_TO_REMOVE+=("${path}|${branch}")
       fi
@@ -451,7 +459,13 @@ for entry in "${WORKTREES_TO_REMOVE[@]+"${WORKTREES_TO_REMOVE[@]}"}"; do
   [[ -z "${entry:-}" ]] && continue
   wt_path="${entry%%|*}"
   info "  worktree remove ${wt_path}"
-  git worktree remove --force "${wt_path}"
+  if git worktree remove "${wt_path}" 2>/dev/null; then
+    :
+  elif git worktree remove --force "${wt_path}"; then
+    info "    (removed with --force)"
+  else
+    die "worktree remove failed: ${wt_path}"
+  fi
 done
 if [[ ${#WORKTREES_TO_REMOVE[@]} -gt 0 ]]; then
   git worktree prune
