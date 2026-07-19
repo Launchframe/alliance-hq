@@ -85,6 +85,16 @@ After a task is merged, abandoned, or handed back to the maintainer:
 4. Delete the remote branch if it was pushed but **never opened as a PR** (no GitHub auto-delete): `git push origin --delete feat/<topic>`. Then prune stale remote-tracking refs: `git fetch --prune origin`.
 5. Drop obsolete topic-scoped stashes once their changes are merged, committed elsewhere, or no longer needed.
 
+**Bulk prune (preferred after several merges):** from any clone/worktree of this repo:
+
+```bash
+./scripts/git-prune.sh                 # dry-run: gone remotes + safety skips
+./scripts/git-prune.sh --worktrees     # also list clean stale worktrees
+./scripts/git-prune.sh --apply --worktrees --yes   # delete (maintainer/agent with approval)
+```
+
+The script pairs with GitHub **Automatically delete head branches**. It never deletes `main`, the current branch, dirty worktrees, or open-PR heads. Dry-run is the default.
+
 ## Before changing branches in the primary clone
 
 1. `git status` — if dirty, **commit to a topic branch** or **stop and ask**; do not auto-stash to “make checkout work.”
