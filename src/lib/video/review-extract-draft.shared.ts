@@ -222,6 +222,7 @@ export function restoreVideoReviewDraftIfPresent<T extends VideoReviewDraftRow>(
       team: draft.team,
       recordedDate: draft.recordedDate,
       bankId: draft.bankId ?? "",
+      vsPeriod: draft.vsPeriod,
     },
     restored: true,
     savedAt: draft.savedAt ?? null,
