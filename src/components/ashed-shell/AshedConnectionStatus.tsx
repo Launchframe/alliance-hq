@@ -1,9 +1,12 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useLocale, useTranslations } from "next-intl";
 
 import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
+import { shellChromeMenuRectFromTrigger } from "@/components/ashed-shell/shellChromeMenuPosition";
+import { Link } from "@/i18n/navigation";
 import {
   clearAshedConnectionSessionStats,
   ensureAshedConnectionSession,
@@ -52,15 +55,29 @@ export function AshedConnectionStatus({
   const [error, setError] = React.useState<string | null>(null);
   /** Bumps while the panel is open so request counts re-read from storage. */
   const [statsPoll, setStatsPoll] = React.useState(0);
-  const panelRef = React.useRef<HTMLDivElement>(null);
+  const menuId = React.useId();
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const autoConnectRef = React.useRef(false);
+  const [menuRect, setMenuRect] = React.useState<ReturnType<
+    typeof shellChromeMenuRectFromTrigger
+  > | null>(null);
 
   const hasConnectedBefore = React.useSyncExternalStore(
     subscribeConnectedBefore,
     readAshedConnectedOnThisDeviceBefore,
     () => false,
   );
+
+  const updateMenuRect = React.useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return null;
+    const rect = trigger.getBoundingClientRect();
+    return shellChromeMenuRectFromTrigger(rect, {
+      desktopWidth: Math.min(22 * 16, window.innerWidth - 32),
+      gap: 8,
+    });
+  }, []);
 
   React.useEffect(() => {
     if (!isConnected) {
@@ -111,15 +128,23 @@ export function AshedConnectionStatus({
     if (!open) return;
 
     const onPointerDown = (event: MouseEvent) => {
-      if (!panelRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-        setError(null);
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (triggerRef.current?.contains(target)) return;
+      if (
+        target instanceof Element &&
+        target.closest(`[data-ashed-connection-status-panel="${menuId}"]`)
+      ) {
+        return;
       }
+      setOpen(false);
+      setError(null);
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpen(false);
         setError(null);
+        triggerRef.current?.focus();
       }
     };
 
@@ -129,6 +154,44 @@ export function AshedConnectionStatus({
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
+  }, [menuId, open]);
+
+  React.useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      const rect = updateMenuRect();
+      if (rect) {
+        setMenuRect(rect);
+      }
+    });
+
+    function handleLayoutChange() {
+      requestAnimationFrame(() => {
+        const next = updateMenuRect();
+        if (next) {
+          setMenuRect(next);
+        }
+      });
+    }
+
+    window.addEventListener("resize", handleLayoutChange);
+    window.addEventListener("scroll", handleLayoutChange, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", handleLayoutChange);
+      window.removeEventListener("scroll", handleLayoutChange, true);
+    };
+  }, [open, updateMenuRect]);
+
+  React.useEffect(() => {
+    if (open) return;
+    const frame = requestAnimationFrame(() => {
+      setMenuRect(null);
+    });
+    return () => cancelAnimationFrame(frame);
   }, [open]);
 
   React.useEffect(() => {
@@ -223,9 +286,103 @@ export function AshedConnectionStatus({
   void statsPoll;
   const liveStats = open ? loadAshedConnectionSessionStats() : null;
 
+  const panel =
+    open && menuRect && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            role="dialog"
+            data-testid="ashed-connection-status-panel"
+            data-ashed-connection-status-panel={menuId}
+            className="fixed z-[100] rounded-xl border border-hq-border bg-hq-surface p-4 shadow-xl"
+            style={{
+              top: menuRect.top,
+              left: menuRect.left,
+              right: menuRect.right,
+              width: menuRect.width,
+            }}
+          >
+            {isConnected ? (
+              <>
+                <p className="text-sm font-semibold text-hq-fg">
+                  {t("connectedHeading")}
+                </p>
+                {userLabel ? (
+                  <p className="mt-1 text-xs text-hq-fg-muted">{userLabel}</p>
+                ) : null}
+                <dl className="mt-3 grid gap-2 text-sm">
+                  <div>
+                    <dt className="text-[0.65rem] uppercase tracking-wide text-hq-fg-muted">
+                      {t("connectedSince")}
+                    </dt>
+                    <dd className="text-hq-fg">
+                      {liveStats?.connectedAt
+                        ? formatConnectedSince(liveStats.connectedAt, locale)
+                        : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[0.65rem] uppercase tracking-wide text-hq-fg-muted">
+                      {t("requestsThisSession")}
+                    </dt>
+                    <dd className="text-hq-fg">
+                      {liveStats?.requestCount ?? 0}
+                    </dd>
+                  </div>
+                </dl>
+                <Link
+                  href="/settings/link-device"
+                  onClick={() => setOpen(false)}
+                  className="mt-4 flex w-full items-center justify-center rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg transition-colors hover:bg-hq-surface-muted"
+                >
+                  {t("linkAnotherDevice")}
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => void disconnect()}
+                  className="mt-2 w-full rounded-lg border border-hq-danger bg-hq-danger px-3 py-2 text-sm text-white"
+                >
+                  {t("disconnect")}
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-semibold text-hq-fg">
+                  {t("reconnectHeading")}
+                </p>
+                <p className="mt-2 text-xs text-hq-fg-muted">
+                  {t("reconnectHint")}
+                </p>
+                <label className="mt-3 block text-xs text-hq-fg-muted">
+                  {t("jwtLabel")}
+                  <textarea
+                    ref={textareaRef}
+                    rows={4}
+                    value={jwtInput}
+                    disabled={connecting}
+                    onChange={(e) => setJwtInput(e.target.value)}
+                    placeholder={t("jwtPlaceholder")}
+                    className="mt-1 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 font-mono text-xs text-hq-fg"
+                  />
+                </label>
+                {connecting ? (
+                  <p className="mt-2 text-xs text-hq-accent">{tc("connecting")}</p>
+                ) : null}
+              </>
+            )}
+            {error ? (
+              <p className="mt-2 text-xs text-hq-danger" role="alert">
+                {error}
+              </p>
+            ) : null}
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
-    <div className="relative shrink-0" ref={panelRef}>
+    <>
       <button
+        ref={triggerRef}
         type="button"
         data-testid="ashed-connection-status"
         onClick={() => {
@@ -250,81 +407,7 @@ export function AshedConnectionStatus({
         />
         {t("label")}
       </button>
-
-      {open ? (
-        <div
-          role="dialog"
-          data-testid="ashed-connection-status-panel"
-          className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-hq-border bg-hq-surface p-4 shadow-xl max-sm:left-0 max-sm:right-auto"
-        >
-          {isConnected ? (
-            <>
-              <p className="text-sm font-semibold text-hq-fg">
-                {t("connectedHeading")}
-              </p>
-              {userLabel ? (
-                <p className="mt-1 text-xs text-hq-fg-muted">{userLabel}</p>
-              ) : null}
-              <dl className="mt-3 grid gap-2 text-sm">
-                <div>
-                  <dt className="text-[0.65rem] uppercase tracking-wide text-hq-fg-muted">
-                    {t("connectedSince")}
-                  </dt>
-                  <dd className="text-hq-fg">
-                    {liveStats?.connectedAt
-                      ? formatConnectedSince(liveStats.connectedAt, locale)
-                      : "—"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-[0.65rem] uppercase tracking-wide text-hq-fg-muted">
-                    {t("requestsThisSession")}
-                  </dt>
-                  <dd className="text-hq-fg">
-                    {liveStats?.requestCount ?? 0}
-                  </dd>
-                </div>
-              </dl>
-              <button
-                type="button"
-                onClick={() => void disconnect()}
-                className="mt-4 w-full rounded-lg border border-hq-danger bg-hq-danger px-3 py-2 text-sm text-white"
-              >
-                {t("disconnect")}
-              </button>
-            </>
-          ) : (
-            <>
-              <p className="text-sm font-semibold text-hq-fg">
-                {t("reconnectHeading")}
-              </p>
-              <p className="mt-2 text-xs text-hq-fg-muted">
-                {t("reconnectHint")}
-              </p>
-              <label className="mt-3 block text-xs text-hq-fg-muted">
-                {t("jwtLabel")}
-                <textarea
-                  ref={textareaRef}
-                  rows={4}
-                  value={jwtInput}
-                  disabled={connecting}
-                  onChange={(e) => setJwtInput(e.target.value)}
-                  placeholder={t("jwtPlaceholder")}
-                  className="mt-1 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 font-mono text-xs text-hq-fg"
-                />
-              </label>
-              {connecting ? (
-                <p className="mt-2 text-xs text-hq-accent">{tc("connecting")}</p>
-              ) : null}
-            </>
-          )}
-          {error ? (
-            <p className="mt-2 text-xs text-hq-danger" role="alert">
-              {error}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
+      {panel}
+    </>
   );
 }
