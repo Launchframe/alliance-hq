@@ -1,16 +1,16 @@
 "use client";
 
 import { ArrowLeft } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
 import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
-import { SegmentedCodeInput } from "@/components/ui/SegmentedCodeInput";
 import {
-  FORM_SUBMIT_ENTER_KEY_HINT,
-  preventDefaultFormSubmit,
-} from "@/lib/client/form-enter-submit.shared";
+  normalizeJoinCodeInput,
+  SegmentedCodeInput,
+} from "@/components/ui/SegmentedCodeInput";
+import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 import { extractHqInviteToken } from "@/lib/native-alliance/invite-token-from-input.shared";
 import { resolveDiscordPostLinkOnboardingRedirect } from "@/lib/navigation/safe-redirect.shared";
 
@@ -26,6 +26,12 @@ type Props = {
   redirectToOverride?: string;
 };
 
+/**
+ * Module-scoped so React remounts (Strict Mode / soft navigation) cannot
+ * double-fire auto-redeem against single-use claim codes.
+ */
+const autoRedeemAttemptedCodes = new Set<string>();
+
 export function JoinCodeClient({
   initialCode,
   showBackLink = true,
@@ -35,12 +41,16 @@ export function JoinCodeClient({
 }: Props) {
   const t = useTranslations("join");
   const { push, assign } = useShellNavigation();
+  const hasInitialCode = Boolean(initialCode?.trim());
   const [code, setCode] = useState(initialCode ?? "");
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState(hasInitialCode);
   const [error, setError] = useState<string | null>(null);
+  const redeemInFlightRef = useRef(false);
 
-  async function redeem() {
-    const trimmed = code.trim();
+  async function redeem(codeOverride?: string) {
+    if (redeemInFlightRef.current) return;
+
+    const trimmed = (codeOverride ?? code).trim();
     if (!trimmed) {
       setError(t("codeRequired"));
       return;
@@ -59,6 +69,7 @@ export function JoinCodeClient({
       return;
     }
 
+    redeemInFlightRef.current = true;
     setSubmitting(true);
     setError(null);
     try {
@@ -80,9 +91,27 @@ export function JoinCodeClient({
     } catch (e) {
       setError(e instanceof Error ? e.message : t("redeemFailed"));
     } finally {
+      redeemInFlightRef.current = false;
       setSubmitting(false);
     }
   }
+
+  // Share links (`/welcome?code=` → `/join?code=`) should skip the typed entry
+  // step when the code is already in the URL.
+  useEffect(() => {
+    const trimmed = initialCode?.trim();
+    if (!trimmed) return;
+    const key = normalizeJoinCodeInput(trimmed);
+    if (!key || autoRedeemAttemptedCodes.has(key)) return;
+    autoRedeemAttemptedCodes.add(key);
+    // Defer so setState inside redeem is not synchronous in the effect body
+    // (react-hooks/set-state-in-effect). Module set already blocks remount doubles.
+    queueMicrotask(() => {
+      void redeem(trimmed);
+    });
+    // Intentionally once per URL-provided code (module set survives remount).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- auto-redeem on initialCode only
+  }, [initialCode]);
 
   return (
     <div
@@ -128,7 +157,7 @@ export function JoinCodeClient({
             value={code}
             onChange={setCode}
             onSubmit={() => void redeem()}
-            autoFocus={!initialCode}
+            autoFocus={!hasInitialCode}
           />
         </div>
 
