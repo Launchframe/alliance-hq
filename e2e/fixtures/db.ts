@@ -814,6 +814,8 @@ export async function createAllianceJoinCodeRow(
     maxRedemptions?: number;
     createdByHqUserId?: string | null;
     expiresInDays?: number;
+    /** When set, redeemers must UID-prove this roster commander (claim code). */
+    targetAshedMemberId?: string | null;
   },
 ): Promise<{ joinCodeId: string; code: string }> {
   const now = new Date();
@@ -826,6 +828,7 @@ export async function createAllianceJoinCodeRow(
   const codeHint =
     code.length <= 4 ? code : `…${code.slice(-4)}`;
   const roleId = ROLE_IDS[options.roleName];
+  const targetAshedMemberId = options.targetAshedMemberId?.trim() || null;
 
   await sql`
     INSERT INTO hq_alliance_join_codes (
@@ -838,6 +841,7 @@ export async function createAllianceJoinCodeRow(
       redemption_count,
       expires_at,
       created_by_hq_user_id,
+      target_ashed_member_id,
       created_at
     ) VALUES (
       ${joinCodeId},
@@ -849,6 +853,7 @@ export async function createAllianceJoinCodeRow(
       0,
       ${expiresAt},
       ${options.createdByHqUserId ?? null},
+      ${targetAshedMemberId},
       ${now}
     )
   `;

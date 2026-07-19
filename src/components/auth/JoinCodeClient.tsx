@@ -1,16 +1,13 @@
 "use client";
 
 import { ArrowLeft } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
 import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
 import { SegmentedCodeInput } from "@/components/ui/SegmentedCodeInput";
-import {
-  FORM_SUBMIT_ENTER_KEY_HINT,
-  preventDefaultFormSubmit,
-} from "@/lib/client/form-enter-submit.shared";
+import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 import { extractHqInviteToken } from "@/lib/native-alliance/invite-token-from-input.shared";
 import { resolveDiscordPostLinkOnboardingRedirect } from "@/lib/navigation/safe-redirect.shared";
 
@@ -38,9 +35,10 @@ export function JoinCodeClient({
   const [code, setCode] = useState(initialCode ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const autoRedeemStartedRef = useRef(false);
 
-  async function redeem() {
-    const trimmed = code.trim();
+  async function redeem(codeOverride?: string) {
+    const trimmed = (codeOverride ?? code).trim();
     if (!trimmed) {
       setError(t("codeRequired"));
       return;
@@ -83,6 +81,17 @@ export function JoinCodeClient({
       setSubmitting(false);
     }
   }
+
+  // Share links (`/welcome?code=` → `/join?code=`) should skip the typed entry
+  // step when the code is already in the URL.
+  useEffect(() => {
+    const trimmed = initialCode?.trim();
+    if (!trimmed || autoRedeemStartedRef.current) return;
+    autoRedeemStartedRef.current = true;
+    void redeem(trimmed);
+    // Intentionally once per mount for the URL-provided code.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- auto-redeem on initialCode only
+  }, [initialCode]);
 
   return (
     <div
