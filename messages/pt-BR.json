@@ -1410,6 +1410,7 @@
       "connectedSince": "Conectado desde",
       "requestsThisSession": "Solicitações Ashed nesta sessão",
       "disconnect": "Desconectar",
+      "linkAnotherDevice": "Vincular outro dispositivo",
       "reconnectHeading": "Reconectar ao Ashed",
       "reconnectHint": "Cole um JWT (ou token Bearer). O HQ conecta automaticamente quando o token é válido — sem botão para clicar.",
       "jwtLabel": "JWT do Ashed",

@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { useFeedback } from "@/components/feedback";
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
+import { shellChromeMenuRectFromTrigger } from "@/components/ashed-shell/shellChromeMenuPosition";
 import { Link, usePathname } from "@/i18n/navigation";
 import {
   buildConnectHref,
@@ -51,11 +52,9 @@ export function ShellProfileMenu({
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const [open, setOpen] = React.useState(false);
   const [signingOut, setSigningOut] = React.useState(false);
-  const [menuRect, setMenuRect] = React.useState<{
-    top: number;
-    right: number;
-    minWidth: number;
-  } | null>(null);
+  const [menuRect, setMenuRect] = React.useState<ReturnType<
+    typeof shellChromeMenuRectFromTrigger
+  > | null>(null);
 
   const headerName = displayName ?? userLabel ?? t("unknownUser");
   const headerEmail = userEmail ?? t("unknownEmail");
@@ -64,11 +63,10 @@ export function ShellProfileMenu({
     const trigger = triggerRef.current;
     if (!trigger) return null;
     const rect = trigger.getBoundingClientRect();
-    return {
-      top: rect.bottom + 4,
-      right: window.innerWidth - rect.right,
-      minWidth: Math.max(rect.width, 220),
-    };
+    return shellChromeMenuRectFromTrigger(rect, {
+      desktopMinWidth: Math.max(rect.width, 220),
+      gap: 4,
+    });
   }, []);
 
   function closeMenu() {
@@ -184,6 +182,7 @@ export function ShellProfileMenu({
             className="fixed z-[100] overflow-hidden rounded-lg border border-hq-border bg-hq-surface py-1 shadow-lg"
             style={{
               top: menuRect.top,
+              left: menuRect.left,
               right: menuRect.right,
               minWidth: menuRect.minWidth,
             }}

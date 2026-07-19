@@ -1410,6 +1410,7 @@
       "connectedSince": "Connected since",
       "requestsThisSession": "Ashed requests this session",
       "disconnect": "Disconnect",
+      "linkAnotherDevice": "Link another device",
       "reconnectHeading": "Reconnect to Ashed",
       "reconnectHint": "Paste a JWT (or Bearer token). HQ connects automatically when the token is valid — no button to click.",
       "jwtLabel": "Ashed JWT",
