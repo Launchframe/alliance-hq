@@ -35,3 +35,8 @@ API routes should return stable JSON on 4xx/5xx:
 ```
 
 Clients key off `code` for special CTAs; always show `error` (or approved i18n) in the banner.
+
+## Related
+
+- [`connect-return-path.shared.ts`](../src/lib/connect/connect-return-path.shared.ts) — stash review/upload path before Connect so return lands on the same screen
+- [`.cursor/rules/ashed-optional-auth.mdc`](ashed-optional-auth.mdc) — Ashed optional; `ashed_not_connected` is a recovery path, not a hard block for native alliances
