@@ -97,6 +97,22 @@ describe("buildSubmitPayloads", () => {
       recorded_date: "2026-07-10",
     });
   });
+  it("builds KillScore rows matching Ashed member-kill-counts.har", () => {
+    const target = getScoreTargetOrThrow("alliance-kills-video");
+    const rows = buildSubmitPayloads(
+      target,
+      "alliance-1",
+      { recordedDate: "2026-07-18" },
+      [{ memberId: "m1", memberName: "elsa", score: "32,884,083" }],
+    );
+    expect(rows[0]).toEqual({
+      alliance_id: "alliance-1",
+      member_id: "m1",
+      member_name: "elsa",
+      score: 32884083,
+      recorded_date: "2026-07-18",
+    });
+  });
 });
 
 describe("validateSubmitContext", () => {

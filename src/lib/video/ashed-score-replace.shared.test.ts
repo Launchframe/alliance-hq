@@ -35,6 +35,15 @@ describe("shouldReplaceAshedScoresOnSubmit", () => {
     ).toBe(true);
   });
 
+  it("replaces alliance-kills-video by recorded date", () => {
+    expect(
+      shouldReplaceAshedScoresOnSubmit(
+        getScoreTargetOrThrow("alliance-kills-video"),
+        {},
+      ),
+    ).toBe(true);
+  });
+
   it("does not replace HQ-event-store seasonal targets", () => {
     expect(
       shouldReplaceAshedScoresOnSubmit(getScoreTargetOrThrow("seasonal"), {

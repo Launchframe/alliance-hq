@@ -120,6 +120,9 @@ const STORM_SUBMIT_CONTEXT: SubmitContextField[] = [
   "recordedDate",
 ];
 
+/** Alliance-wide kill totals from Strength Ranking → Kills (Ashed KillScore). */
+export const ALLIANCE_KILLS_VIDEO_SCORE_TARGET = "alliance-kills-video" as const;
+
 export const SCORE_TARGETS: ScoreTargetDef[] = [
   {
     id: "desert-storm",
@@ -223,6 +226,23 @@ export const SCORE_TARGETS: ScoreTargetDef[] = [
     submitMethod: "bulk",
     submitContext: ["recordedDate"],
     inHouseOcrAccuracy: "mid",
+  },
+  {
+    /** Strength Ranking → Kills tab (Ashed KillScore + HQ commander kills history). */
+    id: ALLIANCE_KILLS_VIDEO_SCORE_TARGET,
+    labelKey: "allianceKillsVideo",
+    group: "recurring",
+    submitEntity: "KillScore",
+    ocrSchema: ENTRIES_NUMBER_SCHEMA,
+    enabled: true,
+    leaderboardModel: "linear-full",
+    eventEntity: null,
+    seriesEntity: null,
+    // bulk + delete-by-date: Ashed UI POSTs KillScore row-by-row; HQ uses bulk
+    // for speed and replaces on re-submit (same pattern as donations / VS).
+    submitMethod: "bulk",
+    submitContext: ["recordedDate"],
+    inHouseOcrAccuracy: "low",
   },
   {
     id: "frontline-breakthrough",
@@ -344,6 +364,10 @@ export function requiresCommendation(target: ScoreTargetDef): boolean {
 
 export function isMemberRosterVideoTarget(id: string): boolean {
   return id === MEMBER_ROSTER_VIDEO_SCORE_TARGET;
+}
+
+export function isAllianceKillsVideoTarget(id: string): boolean {
+  return id === ALLIANCE_KILLS_VIDEO_SCORE_TARGET;
 }
 
 export function isBankDepositSlipHistoryTarget(id: string): boolean {

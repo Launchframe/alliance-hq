@@ -32,7 +32,10 @@ import {
   isVideoUploadOverLimit,
 } from "@/lib/video/upload-limit";
 import { jobMatchesScoreTarget } from "@/lib/video/score-target-nav";
-import { isMemberRosterVideoTarget } from "@/lib/video/score-targets";
+import {
+  isAllianceKillsVideoTarget,
+  isMemberRosterVideoTarget,
+} from "@/lib/video/score-targets";
 
 function formatBytes(bytes: number | null): string {
   if (!bytes) return "—";
@@ -502,7 +505,11 @@ export function VideoUploadForm({
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className="block w-full max-w-full text-sm text-hq-fg-muted file:mb-2 file:block file:w-full file:rounded-lg file:border-0 file:bg-hq-success file:px-4 file:py-2 file:text-sm file:text-white sm:file:mb-0 sm:file:mr-4 sm:file:inline-block sm:file:w-auto"
           />
-          <p className="mt-2 text-xs text-hq-fg-muted">{t("fileHint")}</p>
+          <p className="mt-2 text-xs text-hq-fg-muted">
+            {isAllianceKillsVideoTarget(scoreTarget)
+              ? t("fileHintKills")
+              : t("fileHint")}
+          </p>
           {maxUploadLabel ? (
             <p className="mt-2 text-xs text-hq-fg-muted">
               {t("fileSizeLimit", { maxSize: maxUploadLabel })}

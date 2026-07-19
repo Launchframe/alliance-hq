@@ -21,6 +21,10 @@ import {
 } from "@/lib/video/video-job-access.server";
 import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-alliance.server";
 import { commitRosterFromVideoJob } from "@/lib/members/roster-video-commit";
+import {
+  commitAllianceKillsFromVideoSubmit,
+  listPriorAllianceKillsVideoMemberIds,
+} from "@/lib/kills/alliance-kills-video-commit.server";
 import { commitDepositSlipsFromVideoJob } from "@/lib/banks/deposit-slip-ocr/deposit-slip-video-commit.server";
 import {
   mergeDepositSlipReviewRowsForSubmit,
@@ -38,6 +42,7 @@ import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 import { findDuplicateMemberAssignments } from "@/lib/video/review-validation";
 import {
   getScoreTargetOrThrow,
+  isAllianceKillsVideoTarget,
   isBankDepositSlipHistoryTarget,
   isMemberRosterVideoTarget,
   usesHqEventStore,
@@ -851,6 +856,13 @@ export async function POST(request: Request, { params }: Props) {
     const replaceScores = shouldReplaceAshedScoresOnSubmit(target, {
       eventId: submitContext.eventId,
     });
+    const priorAllianceKillsMemberIds =
+      replaceScores && isAllianceKillsVideoTarget(target.id)
+        ? await listPriorAllianceKillsVideoMemberIds({
+            allianceId,
+            recordedDate: submitContext.recordedDate,
+          })
+        : [];
     const runReplaceAndInsert = async () => {
       if (replaceScores) {
         await replaceAshedScoresForContext({
@@ -893,6 +905,19 @@ export async function POST(request: Request, { params }: Props) {
       });
     } else {
       await runReplaceAndInsert();
+    }
+
+    if (isAllianceKillsVideoTarget(target.id)) {
+      await commitAllianceKillsFromVideoSubmit({
+        allianceId,
+        hqUserId: session.hqUserId ?? job.enqueuedByHqUserId ?? null,
+        previousMemberIds: priorAllianceKillsMemberIds,
+        rows: activeRows.map((row) => ({
+          memberId: row.memberId,
+          memberName: row.memberName,
+          score: row.score ?? "",
+        })),
+      });
     }
 
     if (submitContext.hqEventId) {

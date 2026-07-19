@@ -128,4 +128,27 @@ describe("replaceAshedScoresForContext", () => {
       },
     );
   });
+
+  it("calls bulkDeleteByDate with alliance + date for KillScore (no event)", async () => {
+    base44CallFunction.mockResolvedValueOnce({});
+    await replaceAshedScoresForContext({
+      connection: connection as never,
+      target: {
+        submitEntity: "KillScore",
+      } as never,
+      ashedAllianceId: "ashed-1",
+      recordedDate: "2026-07-18",
+      context: {},
+    });
+    expect(base44CallFunction).toHaveBeenCalledWith(
+      connection,
+      "bulkDeleteByDate",
+      {
+        alliance_id: "ashed-1",
+        entity_type: "KillScore",
+        recorded_date: "2026-07-18",
+        confirm: true,
+      },
+    );
+  });
 });
