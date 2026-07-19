@@ -37,7 +37,9 @@ const baseForm = {
   vsPeriod: "daily" as const,
 };
 
-function makeDraft(overrides?: Partial<ReturnType<typeof buildVideoReviewDraft>>) {
+function makeDraft(
+  overrides?: Partial<Parameters<typeof buildVideoReviewDraft>[0]>,
+) {
   return buildVideoReviewDraft({
     jobId: "job-1",
     viewMode: "review",
