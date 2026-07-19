@@ -4329,7 +4329,20 @@
     "postComplete": "Instantâneos pós concluídos",
     "waitingForJobs": "Aguardando os dois envios terminarem",
     "reportSoon": "O relatório de eficiência é liberado após os envios de domingo.",
-    "noReportYet": "Ainda não há relatório do Dia Buster concluído."
+    "noReportYet": "Ainda não há relatório do Dia Buster concluído.",
+    "report": {
+      "title": "Relatório de eficiência",
+      "subtitle": "Menor eficiência primeiro — revise membros que podem precisar de treinamento.",
+      "member": "Membro",
+      "powerLost": "Poder perdido (M)",
+      "killsDelta": "Kills ganhos",
+      "killPoints": "Pts. de kill estimados",
+      "netVs": "Pontuação VS líquida",
+      "efficiency": "Eficiência",
+      "noEngagement": "Sem engajamento",
+      "empty": "Ainda não há dados de instantâneo suficientes para ranquear os membros.",
+      "vsUnavailable": "Pontuações VS de sábado indisponíveis no Ashed."
+    }
   },
   "releaseNotes": {
     "bannerPrefix": "O Alliance HQ foi atualizado — veja as novidades desta",

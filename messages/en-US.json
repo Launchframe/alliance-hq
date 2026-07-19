@@ -4383,7 +4383,20 @@
     "postComplete": "Post-snapshots complete",
     "waitingForJobs": "Waiting for both uploads to finish",
     "reportSoon": "Efficiency report unlocks after Sunday’s uploads.",
-    "noReportYet": "No completed Buster Day report yet."
+    "noReportYet": "No completed Buster Day report yet.",
+    "report": {
+      "title": "Efficiency report",
+      "subtitle": "Weakest efficiency first — review members who may need training.",
+      "member": "Member",
+      "powerLost": "Power lost (M)",
+      "killsDelta": "Kills gained",
+      "killPoints": "Est. kill points",
+      "netVs": "Net VS score",
+      "efficiency": "Efficiency",
+      "noEngagement": "No engagement",
+      "empty": "Not enough snapshot data to rank members yet.",
+      "vsUnavailable": "Saturday VS scores unavailable from Ashed."
+    }
   },
   "releaseNotes": {
     "bannerPrefix": "Alliance HQ was updated — see what's new in",
