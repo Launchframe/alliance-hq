@@ -70,7 +70,16 @@ When an upload finishes enqueue (`finalize` / `activate`):
 
 **Promote is not required** for an active experiment to change officer-facing OCR. Promote graduates a winner to the standing assignment for uploads outside experiment traffic (or after conclude).
 
-**Reprocess uses the config already stamped on the job.** Changing `/admin/parse-configs` or promoting an experiment does **not** rewrite old jobs. To test a new recipe on an existing video: assign the config for new uploads, or re-upload / re-stamp (ops paths that re-finalize the job).
+**Officer reprocess** (tools UI) keeps the config already stamped on the job. Changing `/admin/parse-configs` or promoting an experiment does **not** rewrite old jobs by itself.
+
+**Admin reprocess** on `/admin/video-jobs` can **re-stamp** `passKey` + `extractionConfigJson` before reset:
+
+| Choice | Job stamp | Upload group experiment attribution |
+|--------|-----------|-------------------------------------|
+| **Keep** | Unchanged | Unchanged |
+| **Increase / Decrease / Advanced** (config changes) | New recipe written on the job | Group moves to the system campaign `Ad-hoc reprocess · {scoreTarget}` (`status: paused`, so it never receives upload traffic) with an arm for that recipe |
+
+Paused ad-hoc campaigns still appear on `/admin/experiments` and feed experiment / fleet analytics. Leaving a live A/B campaign for an ad-hoc reprocess is intentional so thumbs/quality are not attributed to the wrong arm.
 
 ### Cost and latency
 
@@ -191,7 +200,7 @@ Do **not** set this as the global default. Scope to:
 | Fewer duplicate reads on slow scrolls | `{ "mode": "fps", "sampleFps": 1 }` or `1.5` |
 | Keep coverage without fixed oversampling | `{ "mode": "scene", "sceneThreshold": 0.15–0.25, "sampleFps": 1 }` (tune threshold for scroll motion) |
 
-Scope the assignment to `bank-deposit-slip-history` only. Prefer an A/B experiment against the current standing config before promoting. Reprocess does **not** rewrite `extractionConfigJson` on old jobs — re-upload or re-stamp to test.
+Scope the assignment to `bank-deposit-slip-history` only. Prefer an A/B experiment against the current standing config before promoting. Officers’ reprocess keeps the stamped recipe; platform admins can re-stamp denser/sparser fps from **Reprocess** on `/admin/video-jobs` (tracked under the paused ad-hoc reprocess campaign).
 
 If under-sampling (missing rows) and oversampling (duplicate rows) both appear on the same target, pick density from scroll speed: fast scrolls need denser fps; slow scrolls need lower fps or scene mode.
 
