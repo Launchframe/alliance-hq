@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
+import { canReprocessVideoJob } from "@/lib/video/admin-job-actions";
 import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import {
   adHocReprocessCampaignName,
@@ -18,16 +19,6 @@ import {
 } from "@/lib/video/admin-reprocess-extraction.shared";
 import { resetVideoJobForReprocess } from "@/lib/video/reset-video-job-for-reprocess";
 
-export type AdminReprocessResult = {
-  jobId: string;
-  status: "queued";
-  previousPassKey: string | null;
-  nextPassKey: string | null;
-  changed: boolean;
-  campaignId: string | null;
-  armId: string | null;
-};
-
 export class AdminReprocessError extends Error {
   constructor(
     message: string,
@@ -37,6 +28,25 @@ export class AdminReprocessError extends Error {
     this.name = "AdminReprocessError";
   }
 }
+
+function assertJobCanReprocess(status: string): void {
+  if (!canReprocessVideoJob(status)) {
+    throw new AdminReprocessError(
+      `Cannot reprocess job in status "${status}" while processing is in flight.`,
+      409,
+    );
+  }
+}
+
+export type AdminReprocessResult = {
+  jobId: string;
+  status: "queued";
+  previousPassKey: string | null;
+  nextPassKey: string | null;
+  changed: boolean;
+  campaignId: string | null;
+  armId: string | null;
+};
 
 function parseRequestBody(raw: unknown): AdminReprocessExtractionRequest {
   if (raw == null || typeof raw !== "object") {
@@ -76,6 +86,22 @@ function parseRequestBody(raw: unknown): AdminReprocessExtractionRequest {
   return result;
 }
 
+/**
+ * Prefer an existing active parse config with an equal recipe.
+ * Draft/archived rows are never reused or reactivated.
+ */
+export function findActiveMatchingParseConfigId(
+  rows: Array<{ id: string; status: string; configJson: unknown }>,
+  config: ExtractionConfig,
+): string | null {
+  const match = rows.find((row) => {
+    if (row.status !== "active") return false;
+    const normalized = normalizeExtractionConfig(row.configJson);
+    return normalized != null && extractionConfigsEqual(normalized, config);
+  });
+  return match?.id ?? null;
+}
+
 async function upsertParseConfigForExtraction(params: {
   config: ExtractionConfig;
   passKey: string;
@@ -87,26 +113,14 @@ async function upsertParseConfigForExtraction(params: {
     .from(schema.parseConfigs)
     .where(eq(schema.parseConfigs.passKey, params.passKey));
 
-  const match = existing.find((row) => {
-    const normalized = normalizeExtractionConfig(row.configJson);
-    return normalized != null && extractionConfigsEqual(normalized, params.config);
-  });
-
-  if (match) {
-    if (match.status !== "active") {
-      await db
-        .update(schema.parseConfigs)
-        .set({ status: "active", updatedAt: new Date() })
-        .where(eq(schema.parseConfigs.id, match.id));
-    }
-    return match.id;
-  }
+  const matchId = findActiveMatchingParseConfigId(existing, params.config);
+  if (matchId) return matchId;
 
   const id = nanoid(16);
   const now = new Date();
   await db.insert(schema.parseConfigs).values({
     id,
-    name: params.passKey,
+    name: `Ad-hoc reprocess · ${params.passKey}`,
     passKey: params.passKey,
     description: "Created by admin ad-hoc reprocess",
     configJson: params.config,
@@ -267,6 +281,7 @@ export async function adminReprocessVideoJob(params: {
   if (!job) {
     throw new AdminReprocessError("Job not found", 404);
   }
+  assertJobCanReprocess(job.status);
 
   const [sessionRow] = await db
     .select({ hqUserId: schema.sessions.hqUserId })
@@ -319,6 +334,15 @@ export async function adminReprocessVideoJob(params: {
   let armId: string | null = null;
   let nextPassKey: string | null = previousPassKey;
 
+  // Prepare parse-config / campaign / arm before mutating the job so a late
+  // in-flight status can still 409 without leaving a half-stamped job.
+  let pendingStamp: {
+    passKey: string;
+    config: ExtractionConfig;
+    campaignId: string;
+    armId: string;
+  } | null = null;
+
   if (resolved.changed) {
     const scoreTarget = job.scoreTarget ?? job.category;
     if (!scoreTarget?.trim()) {
@@ -345,15 +369,33 @@ export async function adminReprocessVideoJob(params: {
       configId,
       passKey,
     });
+    pendingStamp = {
+      passKey,
+      config: resolved.config,
+      campaignId,
+      armId,
+    };
+  }
 
+  const [freshStatus] = await db
+    .select({ status: schema.videoJobs.status })
+    .from(schema.videoJobs)
+    .where(eq(schema.videoJobs.id, job.id))
+    .limit(1);
+  if (!freshStatus) {
+    throw new AdminReprocessError("Job not found", 404);
+  }
+  assertJobCanReprocess(freshStatus.status);
+
+  if (pendingStamp) {
     const groupId = await ensureJobHasGroup(job);
     const now = new Date();
 
     await db
       .update(schema.videoUploadGroups)
       .set({
-        experimentCampaignId: campaignId,
-        experimentArmId: armId,
+        experimentCampaignId: pendingStamp.campaignId,
+        experimentArmId: pendingStamp.armId,
         updatedAt: now,
       })
       .where(eq(schema.videoUploadGroups.id, groupId));
@@ -361,8 +403,8 @@ export async function adminReprocessVideoJob(params: {
     await db
       .update(schema.videoJobs)
       .set({
-        passKey,
-        extractionConfigJson: resolved.config,
+        passKey: pendingStamp.passKey,
+        extractionConfigJson: pendingStamp.config,
         groupId,
         updatedAt: now,
       })

@@ -105,9 +105,11 @@ export function AdminReprocessDialog({
     };
   }, [open, advancedOpen, t]);
 
-  const ladderBase = current ? simpleLadderBaseFps(current) : 2;
-  const increaseDisabled = !canIncreaseFps(ladderBase);
-  const decreaseDisabled = !canDecreaseFps(ladderBase);
+  const ladderBase = current ? simpleLadderBaseFps(current) : null;
+  const increaseDisabled =
+    ladderBase == null || !canIncreaseFps(ladderBase);
+  const decreaseDisabled =
+    ladderBase == null || !canDecreaseFps(ladderBase);
 
   const previewSimple = current
     ? resolveSimpleReprocessExtraction(current, adjustment)

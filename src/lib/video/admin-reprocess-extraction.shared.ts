@@ -130,7 +130,12 @@ export function canDecreaseFps(fps: number): boolean {
 
 /**
  * FPS value used for simple ladder Increase/Decrease availability.
- * Scene mode lands on the nearest notch first, then steps.
+ *
+ * - fps mode: uses the stamped sampleFps directly (off-ladder values step
+ *   strictly to the next notch via {@link stepFpsLadder}).
+ * - scene mode: snaps to the nearest ladder notch first, then steps — so a
+ *   scene job at sampleFps 1.8 increase becomes fps_3 (nearest 2 → step 3),
+ *   not fps_2. Intentional densify bias when leaving scene capture.
  */
 export function simpleLadderBaseFps(current: ExtractionConfig): number {
   if (current.mode === "fps") {

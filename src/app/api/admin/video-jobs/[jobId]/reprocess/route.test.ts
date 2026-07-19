@@ -145,4 +145,26 @@ describe("POST /api/admin/video-jobs/[jobId]/reprocess", () => {
       error: 'adjustment must be "keep", "increase", or "decrease".',
     });
   });
+
+  it("maps in-flight AdminReprocessError to 409 after route gate", async () => {
+    const { AdminReprocessError } = await import(
+      "@/lib/video/admin-reprocess-extraction.server"
+    );
+    adminReprocessVideoJob.mockRejectedValue(
+      new AdminReprocessError(
+        'Cannot reprocess job in status "extracting" while processing is in flight.',
+        409,
+      ),
+    );
+    const res = await POST(
+      new Request("http://localhost/reprocess", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adjustment: "increase" }),
+      }),
+      { params: Promise.resolve({ jobId: "job-1" }) },
+    );
+    expect(res.status).toBe(409);
+    expect(dispatchVideoProcessing).not.toHaveBeenCalled();
+  });
 });
