@@ -141,11 +141,18 @@ describe("parseDepositSlipHistoryText", () => {
     expect(parsed.slips[1]?.status).toBe("locked");
   });
 
-  it("dedupes overlapping frame parses", () => {
+  it("dedupes overlapping frame parses into a lifecycle-merged deposit", () => {
     const a = parseDepositSlipHistoryText(MY_SLIPS_MIXED_LINES);
     const b = parseDepositSlipHistoryText(MY_SLIPS_MIXED_LINES.slice(4));
     const merged = mergeDepositSlipHistoryParses([a, b]);
-    expect(merged.history.slips).toHaveLength(2);
+    // Locked (Jul 7) + matured (Jul 8) for the same commander collapse to one row.
+    expect(merged.history.slips).toHaveLength(1);
+    expect(merged.history.slips[0]).toMatchObject({
+      status: "matured",
+      depositAt: "2026-07-07T21:08:46.000Z",
+      outcomeAt: "2026-07-08T21:08:46.000Z",
+      amount: 6000,
+    });
   });
 
   it("attaches mean Tesseract confidence from contributing OCR lines", () => {

@@ -49,4 +49,45 @@ describe("draft-row outcomeAmount round-trip", () => {
     const restored = parsedRowFieldsToDepositSlipDraft(fields);
     expect(restored!.outcomeAmount).toBeNull();
   });
+
+  it("round-trips outcomeAt via rosterRankRaw @suffix", () => {
+    const draft: ParsedDepositSlipDraft = {
+      depositAt: "2026-07-10T12:00:00.000Z",
+      termDays: 1,
+      amount: 5000,
+      status: "matured",
+      outcomeAmount: 5700,
+      outcomeKind: "total_return",
+      outcomeAt: "2026-07-11T14:30:00.000Z",
+      identity: {
+        gameServerNumber: null,
+        allianceTag: "LFgo",
+        commanderName: "Lifecycle",
+        rawIdentity: "Lifecycle",
+      },
+    };
+    const fields = depositSlipDraftToParsedRowFields(draft);
+    expect(fields.rosterRankRaw).toBe(
+      "total_return@2026-07-11T14:30:00.000Z",
+    );
+    const restored = parsedRowFieldsToDepositSlipDraft(fields);
+    expect(restored?.outcomeKind).toBe("total_return");
+    expect(restored?.outcomeAt).toBe("2026-07-11T14:30:00.000Z");
+  });
+
+  it("ignores unknown rosterRankRaw kinds even with @suffix", () => {
+    const restored = parsedRowFieldsToDepositSlipDraft({
+      ocrName: "Player",
+      score: "1000",
+      powerLevel: "2026-07-10T12:00:00.000Z",
+      memberLevel: 1,
+      profession: "locked",
+      allianceRankTitle: null,
+      rosterRankRaw: "not_a_kind@2026-07-11T14:30:00.000Z",
+      rank: null,
+      frameIndex: null,
+    });
+    expect(restored?.outcomeKind).toBeNull();
+    expect(restored?.outcomeAt).toBeNull();
+  });
 });

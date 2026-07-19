@@ -248,13 +248,14 @@ export async function commitDepositSlipsFromVideoJob(
     ) {
       const updatePayload: DepositSlipPayload = {
         bankId: input.bankId,
-        // Keep the initiate timestamp; OCR time on green/orange is outcomeAt.
+        // Keep the initiate timestamp; OCR time on green/orange is outcomeAt
+        // (lifecycle merges may already split depositAt vs outcomeAt).
         depositAt: historicalMatch.depositAt,
         termDays: draft.termDays,
         amount: draft.amount,
         outcomeAmount: draft.outcomeAmount ?? null,
         status: draft.status,
-        outcomeAt: draft.depositAt,
+        outcomeAt: draft.outcomeAt ?? draft.depositAt,
         depositAllianceTag: draft.identity.allianceTag,
         depositAllianceId: links.depositAllianceId,
         commanderName: draft.identity.commanderName,
@@ -288,7 +289,7 @@ export async function commitDepositSlipsFromVideoJob(
       status: draft.status,
       outcomeAt:
         draft.status === "matured" || draft.status === "looted"
-          ? draft.depositAt
+          ? (draft.outcomeAt ?? draft.depositAt)
           : null,
       depositAllianceTag: draft.identity.allianceTag,
       depositAllianceId: links.depositAllianceId,

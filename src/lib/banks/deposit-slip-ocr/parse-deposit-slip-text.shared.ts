@@ -36,6 +36,11 @@ export type ParsedDepositSlipDraft = {
   status: DepositStatus;
   outcomeAmount: number | null;
   outcomeKind: "total_return" | "early_termination_refund" | null;
+  /**
+   * When a locked→matured/looted lifecycle merge keeps both times: deposit
+   * initiate in `depositAt`, maturity/loot instant here.
+   */
+  outcomeAt?: string | null;
   identity: ParsedDepositSlipIdentity;
   /** Source frame index when known (video stitch). */
   sourceFrameIndex?: number;
