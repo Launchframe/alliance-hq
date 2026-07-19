@@ -50,16 +50,13 @@ function decodeRosterRankRaw(raw: string | null | undefined): {
   const atIdx = raw.indexOf("@");
   const kindPart = atIdx >= 0 ? raw.slice(0, atIdx) : raw;
   const outcomeAt = atIdx >= 0 ? raw.slice(atIdx + 1).trim() || null : null;
-  const outcomeKind =
-    kindPart === "total_return" || kindPart === "early_termination_refund"
-      ? kindPart
-      : null;
-  if (
-    outcomeKind &&
-    !(OUTCOME_KIND_VALUES as readonly string[]).includes(outcomeKind)
-  ) {
-    return { outcomeKind: null, outcomeAt: null };
-  }
+  const outcomeKind = (OUTCOME_KIND_VALUES as readonly string[]).includes(
+    kindPart,
+  )
+    ? (kindPart as ParsedDepositSlipDraft["outcomeKind"])
+    : null;
+  // Unknown kind → drop any trailing @time so we never invent outcomeAt.
+  if (!outcomeKind) return { outcomeKind: null, outcomeAt: null };
   return { outcomeKind, outcomeAt };
 }
 

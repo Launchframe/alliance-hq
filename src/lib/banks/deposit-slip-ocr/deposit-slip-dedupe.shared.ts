@@ -147,6 +147,8 @@ export function haveExactDisplayIdentity(
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+/** OCR slack around exact term maturity (green is termDays after blue). */
+const MATURITY_ALIGNMENT_SLACK_MS = 12 * 60 * 60 * 1000;
 
 function parseDepositAtMs(value: string | null | undefined): number | null {
   if (!value) return null;
@@ -154,34 +156,69 @@ function parseDepositAtMs(value: string | null | undefined): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-function timestampsWithinTermWindow(
-  slips: readonly ParsedDepositSlipDraft[],
+/**
+ * Whether a locked initiate and a terminal OCR row are the same deposit's
+ * lifecycle events (not a second deposit / rapid re-deposit).
+ */
+function canLifecycleMergePair(
+  locked: ParsedDepositSlipDraft,
+  outcome: ParsedDepositSlipDraft,
 ): boolean {
-  const times = slips
-    .map((s) => parseDepositAtMs(s.depositAt))
-    .filter((ms): ms is number => ms != null)
-    .sort((a, b) => a - b);
-  if (times.length < 2) return true;
-  const termDays = slips.find((s) => s.termDays != null)?.termDays ?? 1;
-  const span = times[times.length - 1]! - times[0]!;
-  // Allow the full term plus a day of OCR slack.
-  return span <= termDays * MS_PER_DAY + MS_PER_DAY;
+  if (outcome.status !== "matured" && outcome.status !== "looted") return false;
+  const depositMs = parseDepositAtMs(locked.depositAt);
+  const outcomeMs = parseDepositAtMs(outcome.depositAt);
+  if (depositMs == null || outcomeMs == null) return false;
+  // Outcome cannot precede initiate; a later locked vs earlier loot is a re-deposit.
+  if (outcomeMs < depositMs) return false;
+  const termDays = locked.termDays ?? outcome.termDays ?? 1;
+  const span = outcomeMs - depositMs;
+  // Full term plus a day of OCR slack (upper bound).
+  if (span > termDays * MS_PER_DAY + MS_PER_DAY) return false;
+  if (outcome.status === "matured") {
+    // Green must land near depositAt + termDays — not minutes/hours later.
+    const expected = termDays * MS_PER_DAY;
+    return span >= expected - MATURITY_ALIGNMENT_SLACK_MS;
+  }
+  return true;
 }
 
 function applyLifecycleTimestamps(
   slips: readonly ParsedDepositSlipDraft[],
   merged: ParsedDepositSlipDraft,
 ): ParsedDepositSlipDraft {
-  const times = slips
+  const isOutcome =
+    merged.status === "matured" || merged.status === "looted";
+  if (!isOutcome) {
+    return { ...merged, outcomeAt: merged.outcomeAt ?? null };
+  }
+
+  const lockedTimes = slips
+    .filter((s) => s.status === "locked")
     .map((s) => ({ iso: s.depositAt, ms: parseDepositAtMs(s.depositAt) }))
     .filter((t): t is { iso: string; ms: number } => t.ms != null && !!t.iso)
     .sort((a, b) => a.ms - b.ms);
-  if (times.length === 0) return merged;
+  const outcomeTimes = slips
+    .filter((s) => s.status === "matured" || s.status === "looted")
+    .map((s) => ({ iso: s.depositAt, ms: parseDepositAtMs(s.depositAt) }))
+    .filter((t): t is { iso: string; ms: number } => t.ms != null && !!t.iso)
+    .sort((a, b) => a.ms - b.ms);
+
+  // Prefer status-aware split: locked OCR → depositAt, terminal OCR → outcomeAt.
+  if (lockedTimes.length > 0 && outcomeTimes.length > 0) {
+    const depositAt = lockedTimes[0]!.iso;
+    const outcomeAt = outcomeTimes[outcomeTimes.length - 1]!.iso;
+    return {
+      ...merged,
+      depositAt,
+      outcomeAt: depositAt === outcomeAt ? (merged.outcomeAt ?? null) : outcomeAt,
+    };
+  }
+
+  const times = [...lockedTimes, ...outcomeTimes].sort((a, b) => a.ms - b.ms);
+  if (times.length === 0) return { ...merged, outcomeAt: merged.outcomeAt ?? null };
   const earliest = times[0]!.iso;
   const latest = times[times.length - 1]!.iso;
-  const isOutcome =
-    merged.status === "matured" || merged.status === "looted";
-  if (!isOutcome || earliest === latest) {
+  if (earliest === latest) {
     return { ...merged, depositAt: earliest, outcomeAt: merged.outcomeAt ?? null };
   }
   return { ...merged, depositAt: earliest, outcomeAt: latest };
@@ -861,7 +898,7 @@ function absorbExactMissingTimestampRows(
 
 /**
  * Collapse locked + matured/looted survivors for the same deposit identity
- * when their OCR timestamps fall within the loan term window.
+ * when their OCR timestamps are a plausible single-deposit lifecycle pair.
  */
 function mergeLifecycleSurvivors(accum: DedupeAccum): void {
   const byIdentity = new Map<string, IndexedSlip[]>();
@@ -880,13 +917,15 @@ function mergeLifecycleSurvivors(accum: DedupeAccum): void {
     const matured = group.filter((s) => s.status === "matured");
     const looted = group.filter((s) => s.status === "looted");
     if (matured.length > 0 && looted.length > 0) continue;
-    if (locked.length === 0) continue;
-    // Exactly one matured *or* looted survivor — never collapse two outcomes.
+    // Exactly one locked + one matured *or* looted — never fold a second
+    // initiate (rapid re-deposit) into an outcome.
+    if (locked.length !== 1) continue;
     if (matured.length + looted.length !== 1) continue;
-    const outcome = matured.length > 0 ? matured : looted;
-    if (!timestampsWithinTermWindow(group)) continue;
+    const outcomeSlip = (matured.length > 0 ? matured : looted)[0]!;
+    const lockedSlip = locked[0]!;
+    if (!canLifecycleMergePair(lockedSlip, outcomeSlip)) continue;
 
-    const mergeGroup = [...locked, ...outcome];
+    const mergeGroup = [lockedSlip, outcomeSlip];
     const reason =
       matured.length > 0
         ? "lifecycle_locked_to_matured"

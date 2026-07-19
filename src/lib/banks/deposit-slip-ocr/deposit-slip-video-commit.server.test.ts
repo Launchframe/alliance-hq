@@ -392,6 +392,39 @@ describe("commitDepositSlipsFromVideoJob", () => {
     });
   });
 
+  it("persists lifecycle-merge outcomeAt from rosterRankRaw @suffix on create", async () => {
+    await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-lifecycle",
+          ocrName: "Lifecycle Investor",
+          score: "5000",
+          powerLevel: "2026-07-10T12:00:00.000Z",
+          memberLevel: 1,
+          profession: "matured",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: "total_return@2026-07-11T14:30:00.000Z",
+          rank: 5700,
+          frameIndex: 0,
+          deleted: false,
+        },
+      ],
+    });
+
+    expect(createDepositSlip).toHaveBeenCalledWith(
+      "alliance-a",
+      expect.objectContaining({
+        depositAt: "2026-07-10T12:00:00.000Z",
+        status: "matured",
+        outcomeAt: "2026-07-11T14:30:00.000Z",
+        outcomeAmount: 5700,
+      }),
+    );
+  });
+
   it("hydrates outcomeAmount from parsed_rows when submit omits rank", async () => {
     selectWhereRows.mockReturnValue([
       {

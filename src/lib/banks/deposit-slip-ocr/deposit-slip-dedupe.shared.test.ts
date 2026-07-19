@@ -1304,6 +1304,107 @@ describe("dedupeDepositSlips — review triage", () => {
       ),
     ).toBe(false);
   });
+
+  it("does not fold two locked initiates into one matured outcome", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Double Lock",
+        depositAt: "2026-07-10T12:00:00.000Z",
+        amount: 5000,
+        termDays: 1,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "Double Lock",
+        depositAt: "2026-07-10T18:00:00.000Z",
+        amount: 5000,
+        termDays: 1,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "Double Lock",
+        depositAt: "2026-07-11T14:30:00.000Z",
+        amount: 5000,
+        termDays: 1,
+        status: "matured",
+        outcomeKind: "total_return",
+        outcomeAmount: 5700,
+      }),
+    ]);
+
+    expect(slips).toHaveLength(3);
+    expect(
+      report.clusters.some((c) => c.reason === "lifecycle_locked_to_matured"),
+    ).toBe(false);
+  });
+
+  it("does not lifecycle-merge locked + matured hours apart (not term-aligned)", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Early Green",
+        depositAt: "2026-07-10T12:00:00.000Z",
+        amount: 5000,
+        termDays: 1,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "Early Green",
+        depositAt: "2026-07-10T14:00:00.000Z",
+        amount: 5000,
+        termDays: 1,
+        status: "matured",
+        outcomeKind: "total_return",
+        outcomeAmount: 5700,
+      }),
+    ]);
+
+    expect(slips).toHaveLength(2);
+    expect(
+      report.clusters.some((c) => c.reason === "lifecycle_locked_to_matured"),
+    ).toBe(false);
+  });
+
+  it("does not lifecycle-merge a re-deposit locked after an earlier loot survivor", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Loot Redeposit",
+        depositAt: "2026-07-10T12:00:00.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "Loot Redeposit",
+        depositAt: "2026-07-10T12:10:00.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "looted",
+        outcomeKind: "early_termination_refund",
+        outcomeAmount: 0,
+      }),
+      slip({
+        commanderName: "Loot Redeposit",
+        depositAt: "2026-07-10T12:20:00.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "locked",
+      }),
+    ]);
+
+    // Proximity may still coalesce initiate+loot (known ≤15m loot window);
+    // the later re-deposit must remain its own slip.
+    expect(slips.length).toBeGreaterThanOrEqual(2);
+    expect(slips.some((s) => s.status === "locked")).toBe(true);
+    const lockedRedeposit = slips.find(
+      (s) =>
+        s.status === "locked" &&
+        s.depositAt === "2026-07-10T12:20:00.000Z",
+    );
+    expect(lockedRedeposit).toBeDefined();
+    expect(
+      report.clusters.filter((c) => c.reason === "lifecycle_locked_to_looted"),
+    ).toHaveLength(0);
+  });
 });
 
 describe("dedupeDepositSlips — slipId uniqueness", () => {
