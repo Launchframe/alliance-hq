@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Pencil, Plus, Trash2, Video } from "lucide-react";
 
-import { pickLatestDepositSlip } from "@/lib/banks/deposit-slip-ocr/deposit-slip-history-match.shared";
+import { pickLatestDepositSlip } from "@/lib/banks/deposit-slip-ocr/deposit-slip-latest.shared";
 import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import {
   computeDepositStats,

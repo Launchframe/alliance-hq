@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createDepositSlip = vi.hoisted(() => vi.fn());
+const updateDepositSlip = vi.hoisted(() => vi.fn());
 const listDepositSlipsForBank = vi.hoisted(() => vi.fn());
 const selectLimit = vi.hoisted(() => vi.fn());
 const selectWhereRows = vi.hoisted(() => vi.fn());
@@ -9,6 +10,7 @@ const createDepositSlipMemberResolverCache = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/banks/repository.server", () => ({
   createDepositSlip,
+  updateDepositSlip,
   listDepositSlipsForBank,
 }));
 
@@ -53,6 +55,7 @@ describe("commitDepositSlipsFromVideoJob", () => {
     selectWhereRows.mockReturnValue([]);
     listDepositSlipsForBank.mockResolvedValue([]);
     createDepositSlip.mockResolvedValue({ id: "slip-1" });
+    updateDepositSlip.mockResolvedValue({ id: "slip-1" });
     createDepositSlipMemberResolverCache.mockReturnValue({});
     resolveDepositSlipMemberLinks.mockResolvedValue({
       depositAllianceId: "alliance-roar",
@@ -432,11 +435,13 @@ describe("commitDepositSlipsFromVideoJob", () => {
   it("skips high-confidence duplicates already stored for the bank", async () => {
     listDepositSlipsForBank.mockResolvedValue([
       {
+        id: "hist-1",
         commanderName: "Blue Investor",
         depositAt: new Date("2026-07-10T12:14:34.000Z"),
         amount: 6000,
         termDays: 3,
         depositAllianceTag: "Roar",
+        status: "locked",
       },
     ]);
 
@@ -474,21 +479,25 @@ describe("commitDepositSlipsFromVideoJob", () => {
 
     expect(result.createdCount).toBe(1);
     expect(result.skippedDuplicateCount).toBe(1);
+    expect(result.updatedCount).toBe(0);
     expect(createDepositSlip).toHaveBeenCalledTimes(1);
     expect(createDepositSlip).toHaveBeenCalledWith(
       "alliance-a",
       expect.objectContaining({ commanderName: "Fresh Investor" }),
     );
+    expect(updateDepositSlip).not.toHaveBeenCalled();
   });
 
   it("succeeds when every valid row was already in history", async () => {
     listDepositSlipsForBank.mockResolvedValue([
       {
+        id: "hist-1",
         commanderName: "Blue Investor",
         depositAt: "2026-07-10T12:14:34.000Z",
         amount: 6000,
         termDays: 3,
         depositAllianceTag: "Roar",
+        status: "locked",
       },
     ]);
 
@@ -514,6 +523,57 @@ describe("commitDepositSlipsFromVideoJob", () => {
 
     expect(result.createdCount).toBe(0);
     expect(result.skippedDuplicateCount).toBe(1);
+    expect(result.updatedCount).toBe(0);
     expect(createDepositSlip).not.toHaveBeenCalled();
+  });
+
+  it("updates a locked history slip when a nearby looted OCR row arrives", async () => {
+    listDepositSlipsForBank.mockResolvedValue([
+      {
+        id: "hist-locked",
+        commanderName: "Blue Investor",
+        depositAt: new Date("2026-07-10T12:14:34.000Z"),
+        amount: 6000,
+        termDays: 3,
+        depositAllianceTag: "Roar",
+        status: "locked",
+      },
+    ]);
+
+    const result = await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-loot",
+          ocrName: "Blue Investor",
+          score: "6000",
+          powerLevel: "2026-07-10T12:20:00.000Z",
+          memberLevel: 3,
+          profession: "looted",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: "early_termination_refund",
+          rank: 3000,
+          frameIndex: 0,
+          deleted: false,
+        },
+      ],
+    });
+
+    expect(result.createdCount).toBe(0);
+    expect(result.skippedDuplicateCount).toBe(0);
+    expect(result.updatedCount).toBe(1);
+    expect(createDepositSlip).not.toHaveBeenCalled();
+    expect(updateDepositSlip).toHaveBeenCalledWith(
+      "alliance-a",
+      "hist-locked",
+      expect.objectContaining({
+        depositAt: "2026-07-10T12:14:34.000Z",
+        status: "looted",
+        outcomeAt: "2026-07-10T12:20:00.000Z",
+        outcomeAmount: 3000,
+      }),
+    );
   });
 });

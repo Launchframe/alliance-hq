@@ -5,7 +5,7 @@
  */
 
 import { DEPOSIT_AT_PROXIMITY_MS } from "@/lib/banks/deposit-slip-ocr/deposit-slip-dedupe.shared";
-import type { SerializedDepositSlip } from "@/lib/banks/types.shared";
+import type { DepositStatus } from "@/lib/banks/types.shared";
 import { normalizeEntityName } from "@/lib/video/dedupe/fuzzy-name-cluster.shared";
 
 export type HistoricalDepositSlipIdentity = {
@@ -14,6 +14,7 @@ export type HistoricalDepositSlipIdentity = {
   amount: number;
   termDays: number;
   depositAllianceTag?: string | null;
+  status?: DepositStatus;
 };
 
 function depositAtMs(value: string | Date): number | null {
@@ -32,6 +33,9 @@ function normalizeTag(tag: string | null | undefined): string | null {
  * True when `incoming` is a high-confidence duplicate of `existing`:
  * same normalized commander, depositAt within the OCR proximity window,
  * same amount and term, and non-conflicting alliance tags when both set.
+ *
+ * Status is intentionally excluded — use {@link shouldSkipHistoricalDepositDuplicate}
+ * / {@link shouldUpdateHistoricalDepositOutcome} for skip vs outcome-update.
  */
 export function isHighConfidenceHistoricalDepositMatch(
   incoming: HistoricalDepositSlipIdentity,
@@ -74,23 +78,50 @@ export function findHighConfidenceHistoricalDepositMatch<
   return null;
 }
 
-/** Newest deposit event for the bank hero (by depositAt, then createdAt). */
-export function pickLatestDepositSlip(
-  slips: readonly SerializedDepositSlip[],
-): SerializedDepositSlip | null {
-  if (slips.length === 0) return null;
-  let best = slips[0]!;
-  for (let i = 1; i < slips.length; i += 1) {
-    const slip = slips[i]!;
-    const bestAt = Date.parse(best.depositAt);
-    const slipAt = Date.parse(slip.depositAt);
-    if (slipAt > bestAt) {
-      best = slip;
-      continue;
-    }
-    if (slipAt === bestAt && slip.createdAt > best.createdAt) {
-      best = slip;
-    }
+function resolveStatus(
+  slip: HistoricalDepositSlipIdentity,
+): DepositStatus {
+  return slip.status ?? "locked";
+}
+
+/**
+ * Skip when the OCR row is the same lifecycle event already stored (or a
+ * locked re-read of a deposit that already terminated). Do **not** skip when
+ * a locked slip should be advanced by a matured/looted OCR row — loot can land
+ * inside {@link DEPOSIT_AT_PROXIMITY_MS} of initiate.
+ */
+export function shouldSkipHistoricalDepositDuplicate(
+  incoming: HistoricalDepositSlipIdentity,
+  existing: HistoricalDepositSlipIdentity,
+  proximityMs: number = DEPOSIT_AT_PROXIMITY_MS,
+): boolean {
+  if (!isHighConfidenceHistoricalDepositMatch(incoming, existing, proximityMs)) {
+    return false;
   }
-  return best;
+  const incomingStatus = resolveStatus(incoming);
+  const existingStatus = resolveStatus(existing);
+  if (incomingStatus === existingStatus) return true;
+  if (incomingStatus === "locked" && existingStatus !== "locked") return true;
+  if (incomingStatus !== "locked" && existingStatus !== "locked") return true;
+  return false;
+}
+
+/**
+ * Locked history row + terminal OCR row within the proximity window → apply
+ * outcome onto the existing slip instead of inserting a second deposit.
+ */
+export function shouldUpdateHistoricalDepositOutcome(
+  incoming: HistoricalDepositSlipIdentity,
+  existing: HistoricalDepositSlipIdentity,
+  proximityMs: number = DEPOSIT_AT_PROXIMITY_MS,
+): boolean {
+  if (!isHighConfidenceHistoricalDepositMatch(incoming, existing, proximityMs)) {
+    return false;
+  }
+  const incomingStatus = resolveStatus(incoming);
+  const existingStatus = resolveStatus(existing);
+  return (
+    existingStatus === "locked" &&
+    (incomingStatus === "matured" || incomingStatus === "looted")
+  );
 }

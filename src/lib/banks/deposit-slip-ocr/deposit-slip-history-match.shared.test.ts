@@ -4,8 +4,10 @@ import { DEPOSIT_AT_PROXIMITY_MS } from "@/lib/banks/deposit-slip-ocr/deposit-sl
 import {
   findHighConfidenceHistoricalDepositMatch,
   isHighConfidenceHistoricalDepositMatch,
-  pickLatestDepositSlip,
+  shouldSkipHistoricalDepositDuplicate,
+  shouldUpdateHistoricalDepositOutcome,
 } from "@/lib/banks/deposit-slip-ocr/deposit-slip-history-match.shared";
+import { pickLatestDepositSlip } from "@/lib/banks/deposit-slip-ocr/deposit-slip-latest.shared";
 import type { SerializedDepositSlip } from "@/lib/banks/types.shared";
 
 function identity(
@@ -15,6 +17,7 @@ function identity(
     amount: number;
     termDays: number;
     depositAllianceTag: string | null;
+    status: "locked" | "matured" | "looted";
   }> = {},
 ) {
   return {
@@ -23,6 +26,7 @@ function identity(
     amount: 6000,
     termDays: 3,
     depositAllianceTag: "Roar",
+    status: "locked" as const,
     ...overrides,
   };
 }
@@ -100,6 +104,48 @@ describe("isHighConfidenceHistoricalDepositMatch", () => {
   });
 });
 
+describe("shouldSkipHistoricalDepositDuplicate / shouldUpdateHistoricalDepositOutcome", () => {
+  it("skips same-status identity matches", () => {
+    expect(
+      shouldSkipHistoricalDepositDuplicate(
+        identity({ status: "locked" }),
+        identity({ status: "locked" }),
+      ),
+    ).toBe(true);
+    expect(
+      shouldUpdateHistoricalDepositOutcome(
+        identity({ status: "locked" }),
+        identity({ status: "locked" }),
+      ),
+    ).toBe(false);
+  });
+
+  it("does not skip a looted OCR row against a locked history slip", () => {
+    const locked = identity({ status: "locked" });
+    const looted = identity({
+      status: "looted",
+      depositAt: "2026-07-10T12:20:00.000Z",
+    });
+    expect(shouldSkipHistoricalDepositDuplicate(looted, locked)).toBe(false);
+    expect(shouldUpdateHistoricalDepositOutcome(looted, locked)).toBe(true);
+  });
+
+  it("skips a locked re-upload when history already terminated", () => {
+    expect(
+      shouldSkipHistoricalDepositDuplicate(
+        identity({ status: "locked" }),
+        identity({ status: "looted" }),
+      ),
+    ).toBe(true);
+    expect(
+      shouldUpdateHistoricalDepositOutcome(
+        identity({ status: "locked" }),
+        identity({ status: "looted" }),
+      ),
+    ).toBe(false);
+  });
+});
+
 describe("findHighConfidenceHistoricalDepositMatch", () => {
   it("returns the matching history row", () => {
     const history = [
@@ -140,5 +186,19 @@ describe("pickLatestDepositSlip", () => {
         newerSameMinuteLaterCreate,
       ])?.id,
     ).toBe("c");
+  });
+
+  it("ignores invalid depositAt when a valid newer slip exists", () => {
+    const invalid = slip({
+      id: "bad",
+      depositAt: "not-a-date",
+      createdAt: "2026-07-12T12:00:00.000Z",
+    });
+    const valid = slip({
+      id: "good",
+      depositAt: "2026-07-11T12:00:00.000Z",
+      createdAt: "2026-07-11T12:00:00.000Z",
+    });
+    expect(pickLatestDepositSlip([invalid, valid])?.id).toBe("good");
   });
 });
