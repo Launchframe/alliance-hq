@@ -2243,7 +2243,7 @@
     "needsConnectionCta": "Conectar Ashed",
     "sectionTitle": "Mostrar QR code",
     "sectionBody": "Escaneie com o celular ou navegador que deseja vincular — sem o passo do DevTools nesse dispositivo.",
-    "storageNote": "Sua chave de conexão continua criptografada no nosso servidor — o QR code contém apenas um link de curta duração, não a chave em si.",
+    "storageNote": "Sua chave de conexão continua criptografada no nosso servidor — o QR code e o link copiável contêm apenas uma URL de vinculação de curta duração, não a chave em si.",
     "showQr": "Mostrar QR code",
     "generating": "Gerando…",
     "scanHint": "Abra a câmera do celular e escaneie este código.",
@@ -2251,7 +2251,7 @@
     "copyLinkLabel": "Link para outro dispositivo",
     "expiresIn": "Expira em",
     "expired": "Este QR code expirou. Gere um novo.",
-    "linked": "Dispositivo móvel vinculado.",
+    "linked": "Dispositivo vinculado.",
     "createFailed": "Não foi possível iniciar a vinculação do dispositivo.",
     "hideQr": "Ocultar QR code",
     "landing": {
