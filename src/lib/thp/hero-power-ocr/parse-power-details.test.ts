@@ -468,6 +468,36 @@ describe("parsePowerDetailsLines", () => {
     ).toBe(164_613_299);
   });
 
+  it("recovers Jul 19 Discord sample when both separators become digits", () => {
+    // Same screen as Jul 18, but dual-pass keeps the mangled header total
+    // (`164,613,299` → `16416135299`) and Hero Level absorbs both commas
+    // (`85,868,520` → `8578681520`). Tier OCR adds an extra trailing 7.
+    const lines = [
+      "(&))[HerolPower, 16416135299",
+      "Hero Level 8578681520",
+      "Decorations & Building 371809752",
+      "Stats",
+      "Gear 138190850",
+      "Exclusive Weapon 974087080",
+      "Hero Tier 12/051%7,077,",
+      "Hero Skill 6!581'990",
+      "Wall of Honor 4%02¥00",
+      "PR4D1onelPower, 11'803%262]'v",
+      "Drone Level 513497852:",
+      "Skill Chip 37462800",
+    ];
+    const parsed = parsePowerDetailsLines(lines);
+    expect(parsed.heroPowerTotal).toBe(164_613_299);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.breakdown.heroLevel).toBe(85_868_520);
+    expect(parsed.breakdown.exclusiveWeapons).toBe(9_408_080);
+    expect(parsed.breakdown.heroTier).toBe(7_051_707);
+    expect(parsed.breakdown.heroSkill).toBe(6_581_990);
+    expect(
+      Object.values(parsed.breakdown).reduce((a, b) => a + (b ?? 0), 0),
+    ).toBe(164_613_299);
+  });
+
   it("peeks the next line when Hero Power label has no trailing total", () => {
     const lines = [
       "Hero Power",

@@ -115,33 +115,81 @@ export function stripOcrCommaSevens(digits: string): string | null {
   return next;
 }
 
+function isCommaConfusionSeparator(ch: string, leadingDigit: string): boolean {
+  if (ch === "1" || ch === "7") return true;
+  // `8` only for gear-like values starting with `1` (`13,190,850` → `138190850`).
+  return ch === "8" && leadingDigit === "1";
+}
+
 /**
- * When exactly one thousand-separator is OCR'd as a digit and the other is
- * dropped, values land at 9 digits (`85,868,520` → `857868520`). Delete the
- * separator-aligned slot (index 2) when that digit looks like a comma
- * confusion: `1`/`7` always, or `8` only for gear-like values starting with `1`
- * (`13,190,850` → `138190850`). Avoids eating a trailing ghost `8` on
- * `85,857,244 8!` → `858572448`.
+ * Collapse OCR'd thousand-separator digits back out of values.
+ *
+ * - 9 digits: one sep inserted into an 8-digit value (`85,868,520` →
+ *   `857868520`). Delete index 2 when that digit looks like a comma
+ *   confusion. Avoids eating a trailing ghost `8` on `85,857,244 8!` →
+ *   `858572448`.
+ * - 10 digits: both seps inserted into an 8-digit value
+ *   (`85,868,520` → `8578681520`). Delete indices 2 and 6.
+ * - 11 digits: both seps inserted into a 9-digit header
+ *   (`164,613,299` → `16416135299` when seps read as `1`/`5` is handled via
+ *   digit-repair candidates; structured collapse only when sep slots are
+ *   comma-like `1`/`7`/`8`).
  */
 function collapseInsertedSeparatorDigit(
   value: number,
   maxValue = 1_000_000_000,
 ): number {
   const digits = String(value);
-  if (digits.length !== 9) return value;
-  const sep = digits[2]!;
-  const allowSep8 = sep === "8" && digits[0] === "1";
-  if (sep !== "1" && sep !== "7" && !allowSep8) return value;
-  const del2 = Number.parseInt(`${digits.slice(0, 2)}${digits.slice(3)}`, 10);
-  if (
-    !Number.isFinite(del2) ||
-    del2 < 1_000_000 ||
-    del2 > maxValue ||
-    String(del2).startsWith("0")
-  ) {
-    return value;
+  const leading = digits[0]!;
+
+  const tryDelete = (indices: number[]): number | null => {
+    for (const index of indices) {
+      if (!isCommaConfusionSeparator(digits[index]!, leading)) return null;
+    }
+    let next = digits;
+    for (const index of [...indices].sort((a, b) => b - a)) {
+      next = `${next.slice(0, index)}${next.slice(index + 1)}`;
+    }
+    if (!next || next.startsWith("0")) return null;
+    const collapsed = Number.parseInt(next, 10);
+    if (
+      !Number.isFinite(collapsed) ||
+      collapsed < 1_000_000 ||
+      collapsed > maxValue
+    ) {
+      return null;
+    }
+    return collapsed;
+  };
+
+  if (digits.length === 9) {
+    return tryDelete([2]) ?? value;
   }
-  return del2;
+  if (digits.length === 10) {
+    return tryDelete([2, 6]) ?? value;
+  }
+  if (digits.length === 11) {
+    // Headers are xxx,xxx,xxx. When the raw blob is already >1B, both
+    // thousand-separators were absorbed as digits — always strip the sep
+    // slots (indices 3 and 7), even if OCR emitted junk there (`5`, etc.).
+    // Comma-like-only collapse is too strict for dual-pass header noise.
+    if (value > 1_000_000_000) {
+      const structured = Number.parseInt(
+        `${digits.slice(0, 3)}${digits.slice(4, 7)}${digits.slice(8)}`,
+        10,
+      );
+      if (
+        Number.isFinite(structured) &&
+        structured >= 1_000_000 &&
+        structured <= maxValue &&
+        !String(structured).startsWith("0")
+      ) {
+        return structured;
+      }
+    }
+    return tryDelete([3, 7]) ?? value;
+  }
+  return value;
 }
 
 function parsePowerDetailsInteger(token: string): number | null {
@@ -247,11 +295,6 @@ function candidateDigitRepairs(value: number): number[] {
     }
   }
 
-  for (const [from, to] of PREFIX_CONFUSIONS) {
-    if (!digits.startsWith(from)) continue;
-    add(`${to}${digits.slice(from.length)}`);
-  }
-
   // Explicitly keep deletions down to typical THP component lengths (7–9 digits).
   const deleteTowardLength = (input: string, targetLen: number) => {
     if (input.length <= targetLen) return;
@@ -272,6 +315,17 @@ function candidateDigitRepairs(value: number): number[] {
       }
     }
   };
+
+  for (const [from, to] of PREFIX_CONFUSIONS) {
+    if (!digits.startsWith(from)) continue;
+    const repaired = `${to}${digits.slice(from.length)}`;
+    add(repaired);
+    // `12/051%7,077` → prefix 12→7 leaves `70517077`; trim the extra OCR digit.
+    for (const targetLen of [7, 8, 9]) {
+      deleteTowardLength(repaired, targetLen);
+    }
+  }
+
   for (const targetLen of [7, 8, 9]) {
     deleteTowardLength(digits, targetLen);
   }
@@ -280,11 +334,24 @@ function candidateDigitRepairs(value: number): number[] {
     const text = String(candidate);
     let rank = Math.abs(text.length - digits.length) * 10;
     for (const [from, to] of PREFIX_CONFUSIONS) {
-      if (
-        digits.startsWith(from) &&
-        text === `${to}${digits.slice(from.length)}`
-      ) {
+      if (!digits.startsWith(from)) continue;
+      const repaired = `${to}${digits.slice(from.length)}`;
+      if (text === repaired) {
         rank -= 100;
+        break;
+      }
+      // Keep prefix+trim candidates (`70517077` → `7051707`) inside the
+      // top-200 cut; same-length digit swaps otherwise flood the ranking.
+      if (repaired.length === text.length + 1) {
+        let trimmed = false;
+        for (let i = 0; i < repaired.length; i += 1) {
+          if (`${repaired.slice(0, i)}${repaired.slice(i + 1)}` === text) {
+            rank -= 90;
+            trimmed = true;
+            break;
+          }
+        }
+        if (trimmed) break;
       }
     }
     if (text.length >= 7 && text.length <= 9) rank -= 15;
@@ -300,11 +367,18 @@ function repairEditCost(from: number, to: number): number {
   const toDigits = String(to);
 
   for (const [prefix, replacement] of PREFIX_CONFUSIONS) {
-    if (
-      fromDigits.startsWith(prefix) &&
-      toDigits === `${replacement}${fromDigits.slice(prefix.length)}`
-    ) {
-      return 1;
+    if (!fromDigits.startsWith(prefix)) continue;
+    const afterPrefix = `${replacement}${fromDigits.slice(prefix.length)}`;
+    if (toDigits === afterPrefix) return 1;
+    // Prefix repair + one deletion (extra separator digit after 12→7).
+    if (afterPrefix.length === toDigits.length + 1) {
+      for (let i = 0; i < afterPrefix.length; i += 1) {
+        if (
+          `${afterPrefix.slice(0, i)}${afterPrefix.slice(i + 1)}` === toDigits
+        ) {
+          return i === 0 ? 4 : 2;
+        }
+      }
     }
   }
   if (fromDigits.length === toDigits.length + 1) {
@@ -450,17 +524,32 @@ function optionAllowedForKey(
   const cost = repairEditCost(original, option);
   if (cost > 2) return false;
 
+  const maxLen = maxLenForKey(key);
   if (
-    PREFIX_CONFUSIONS.some(
-      ([prefix, replacement]) =>
-        fromText.startsWith(prefix) &&
-        toText === `${replacement}${fromText.slice(prefix.length)}`,
-    )
+    PREFIX_CONFUSIONS.some(([prefix, replacement]) => {
+      if (!fromText.startsWith(prefix)) return false;
+      const afterPrefix = `${replacement}${fromText.slice(prefix.length)}`;
+      if (toText === afterPrefix) return true;
+      // Prefix 12→7 plus dropping one leftover OCR digit toward expected width.
+      if (
+        afterPrefix.length === toText.length + 1 &&
+        toText.length >= minLenForKey(key) &&
+        toText.length <= maxLen
+      ) {
+        for (let i = 0; i < afterPrefix.length; i += 1) {
+          if (
+            `${afterPrefix.slice(0, i)}${afterPrefix.slice(i + 1)}` === toText
+          ) {
+            return true;
+          }
+        }
+      }
+      return false;
+    })
   ) {
     return true;
   }
 
-  const maxLen = maxLenForKey(key);
   // Oversized OCR blobs: only same-leading length reductions.
   if (fromText.length > maxLen) {
     return (
@@ -553,17 +642,33 @@ export function reconcileBreakdownToTotal(
       const maxLen = maxLenForKey(key);
       const hasAlt = healthyOptions.some((value) => value !== original);
       if (!hasAlt) return healthyOptions;
-      // Prefer prefix 12→7 over generic length reduction when both apply.
+      // Prefer prefix 12→7 (and prefix+trim) over generic length reduction.
       if (PREFIX_CONFUSIONS.some(([prefix]) => text.startsWith(prefix))) {
         const prefixHits = healthyOptions.filter((value) => {
           const to = String(value);
-          return PREFIX_CONFUSIONS.some(
-            ([prefix, replacement]) =>
-              text.startsWith(prefix) &&
-              to === `${replacement}${text.slice(prefix.length)}`,
-          );
+          return PREFIX_CONFUSIONS.some(([prefix, replacement]) => {
+            if (!text.startsWith(prefix)) return false;
+            const afterPrefix = `${replacement}${text.slice(prefix.length)}`;
+            if (to === afterPrefix) return true;
+            if (afterPrefix.length !== to.length + 1) return false;
+            for (let i = 0; i < afterPrefix.length; i += 1) {
+              if (
+                `${afterPrefix.slice(0, i)}${afterPrefix.slice(i + 1)}` === to
+              ) {
+                return true;
+              }
+            }
+            return false;
+          });
         });
-        if (prefixHits.length > 0) return prefixHits;
+        if (prefixHits.length > 0) {
+          // Prefer repairs that land at the expected component width
+          // (`12…077` → `7051707`, not the intermediate `70517077`).
+          const atExpectedWidth = prefixHits.filter(
+            (value) => String(value).length <= maxLen,
+          );
+          return atExpectedWidth.length > 0 ? atExpectedWidth : prefixHits;
+        }
       }
       if (text.length > maxLen) {
         return healthyOptions.filter((value) => value !== original);
@@ -600,11 +705,20 @@ export function reconcileBreakdownToTotal(
         const from = String(breakdown[key]);
         const to = String(value);
         if (
-          PREFIX_CONFUSIONS.some(
-            ([prefix, replacement]) =>
-              from.startsWith(prefix) &&
-              to === `${replacement}${from.slice(prefix.length)}`,
-          )
+          PREFIX_CONFUSIONS.some(([prefix, replacement]) => {
+            if (!from.startsWith(prefix)) return false;
+            const afterPrefix = `${replacement}${from.slice(prefix.length)}`;
+            if (to === afterPrefix) return true;
+            if (afterPrefix.length !== to.length + 1) return false;
+            for (let i = 0; i < afterPrefix.length; i += 1) {
+              if (
+                `${afterPrefix.slice(0, i)}${afterPrefix.slice(i + 1)}` === to
+              ) {
+                return true;
+              }
+            }
+            return false;
+          })
         ) {
           pushUnique(value);
         }
@@ -1076,6 +1190,7 @@ export function parsePowerDetailsLines(lines: string[]): ParsePowerDetailsResult
     let full = breakdown as ThpBreakdown;
     if (heroPowerTotal != null) {
       const headerTotal = heroPowerTotal;
+      const collapsedHeader = collapseInsertedSeparatorDigit(headerTotal);
       full = Object.fromEntries(
         THP_BREAKDOWN_KEYS.map((key) => [
           key,
@@ -1084,9 +1199,14 @@ export function parsePowerDetailsLines(lines: string[]): ParsePowerDetailsResult
       ) as ThpBreakdown;
       const headerInRange =
         headerTotal >= 1_000_000 && headerTotal <= 1_000_000_000;
+      const collapsedHeaderInRange =
+        collapsedHeader !== headerTotal &&
+        collapsedHeader >= 1_000_000 &&
+        collapsedHeader <= 1_000_000_000;
       const headerCandidates = Array.from(
         new Set([
           ...(headerInRange ? [headerTotal] : []),
+          ...(collapsedHeaderInRange ? [collapsedHeader] : []),
           ...candidateDigitRepairs(headerTotal).filter(
             (value) =>
               value >= 1_000_000 &&
@@ -1096,10 +1216,16 @@ export function parsePowerDetailsLines(lines: string[]): ParsePowerDetailsResult
               String(value)[0] === String(headerTotal)[0],
           ),
         ]),
-      ).sort(
-        (a, b) =>
-          repairEditCost(headerTotal, a) - repairEditCost(headerTotal, b),
-      );
+      ).sort((a, b) => {
+        // Prefer structured separator collapse over arbitrary digit deletions
+        // that happen to reconcile (16416135299 → 164613299, not 161135299).
+        const aCollapsed = a === collapsedHeader ? 0 : 1;
+        const bCollapsed = b === collapsedHeader ? 0 : 1;
+        if (aCollapsed !== bCollapsed) return aCollapsed - bCollapsed;
+        return (
+          repairEditCost(headerTotal, a) - repairEditCost(headerTotal, b)
+        );
+      });
 
       let reconciled: ThpBreakdown | null = null;
       let matchedTotal: number | null = null;
