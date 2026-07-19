@@ -3,6 +3,10 @@ import { z } from "zod";
 
 import { completePairing } from "@/lib/credential-pairing";
 import { PairingError, pairingErrorStatus } from "@/lib/credential-pairing/types";
+import {
+  collectDatabaseErrorText,
+  publicPairingCompleteFailureMessage,
+} from "@/lib/db/error-message";
 import { getOrCreateSession } from "@/lib/session";
 
 const bodySchema = z.object({
@@ -28,8 +32,14 @@ export async function POST(request: Request) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid request." }, { status: 400 });
     }
+    console.error("[pairing/complete]", collectDatabaseErrorText(error));
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Pairing failed." },
+      {
+        error: publicPairingCompleteFailureMessage(error),
+        ...(process.env.NODE_ENV === "development"
+          ? { detail: collectDatabaseErrorText(error) }
+          : {}),
+      },
       { status: 500 },
     );
   }

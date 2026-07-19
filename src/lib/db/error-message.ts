@@ -41,6 +41,26 @@ export function postgresErrorCode(error: unknown): string | null {
   return null;
 }
 
+const DRIZZLE_SQL_LEAK_PATTERN = /insert into|update "|select /i;
+
+/** True when driver/ORM text must not be returned to browsers. */
+export function isDatabaseErrorTextLeakedToClient(error: unknown): boolean {
+  const detail = collectDatabaseErrorText(error);
+  return (
+    detail.includes("Failed query") ||
+    DRIZZLE_SQL_LEAK_PATTERN.test(detail) ||
+    postgresErrorCode(error) !== null
+  );
+}
+
+/** Generic pairing-complete failure copy — no SQL or driver details. */
+export function publicPairingCompleteFailureMessage(error: unknown): string {
+  if (isDatabaseErrorTextLeakedToClient(error)) {
+    return "Pairing failed. Generate a new QR code and try again.";
+  }
+  return "Pairing failed.";
+}
+
 export function isConnectionPoolExhausted(error: unknown): boolean {
   const text = collectDatabaseErrorText(error);
   return text.includes("53300") || /too many clients already/i.test(text);
