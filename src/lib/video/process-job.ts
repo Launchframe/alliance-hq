@@ -472,6 +472,14 @@ export async function processVideoJob(
             "ocr_running",
           );
         },
+        requeueAfterChunkDispatchFailed: async ({ timingsJson }) => {
+          await setStatus(
+            "queued",
+            { timingsJson },
+            undefined,
+            "ocr_running",
+          );
+        },
       });
 
       allianceId = slipPhase.hqAllianceId;

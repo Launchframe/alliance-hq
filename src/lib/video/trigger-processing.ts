@@ -12,20 +12,20 @@ export { resolveVideoProcessBaseUrl };
 
 export async function dispatchVideoProcessing(
   jobId: string,
-  options?: { source?: string },
-): Promise<void> {
+  options?: { source?: string; awaitResult?: boolean },
+): Promise<boolean> {
   const secret = process.env.VIDEO_WORKER_SECRET;
   if (!secret) {
     console.error(
       `[video-trigger] ${jobId} skipped: VIDEO_WORKER_SECRET is not configured`,
     );
-    return;
+    return false;
   }
 
   const url = resolveVideoProcessEndpoint(jobId);
   const source = options?.source ?? "upload";
 
-  const task = (async () => {
+  const task = (async (): Promise<boolean> => {
     const started = Date.now();
     try {
       const res = await fetch(url, {
@@ -46,13 +46,14 @@ export async function dispatchVideoProcessing(
           source,
           status: res.status,
         });
-        return;
+        return false;
       }
       logPipelineStep("trigger.process_dispatched", Date.now() - started, {
         jobId,
         source,
         status: res.status,
       });
+      return true;
     } catch (error) {
       console.error(
         `[video-trigger] ${jobId} error from ${source}:`,
@@ -63,13 +64,19 @@ export async function dispatchVideoProcessing(
         source,
         error: error instanceof Error ? error.message : "unknown",
       });
+      return false;
     }
   })();
 
+  if (options?.awaitResult) {
+    return task;
+  }
+
   if (process.env.VERCEL) {
     waitUntil(task);
-    return;
+    return true;
   }
 
   void task;
+  return true;
 }

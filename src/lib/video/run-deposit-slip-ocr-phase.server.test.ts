@@ -65,7 +65,7 @@ describe("runDepositSlipOcrPhase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("DEPOSIT_SLIP_OCR_FRAME_CHUNK_SIZE", "2");
-    mockDispatch.mockResolvedValue(undefined);
+    mockDispatch.mockResolvedValue(true);
     mockUpdateWhere.mockResolvedValue(undefined);
     mockGetObject.mockImplementation(async (key: string) =>
       Buffer.from(key),
@@ -146,8 +146,60 @@ describe("runDepositSlipOcrPhase", () => {
     );
     expect(mockDispatch).toHaveBeenCalledWith("job-1", {
       source: "deposit_slip_ocr_chunk",
+      awaitResult: true,
     });
     expect(mockFinalize).not.toHaveBeenCalled();
+  });
+
+  it("requeues when the next-chunk dispatch fails", async () => {
+    mockLoadFrames.mockResolvedValue([
+      {
+        frameIndex: 0,
+        storageKey: "f0",
+        ocrRawJson: null,
+        videoTimestampSeconds: 0,
+      },
+      {
+        frameIndex: 1,
+        storageKey: "f1",
+        ocrRawJson: null,
+        videoTimestampSeconds: 1,
+      },
+      {
+        frameIndex: 2,
+        storageKey: "f2",
+        ocrRawJson: null,
+        videoTimestampSeconds: 2,
+      },
+    ]);
+    mockDispatch.mockResolvedValue(false);
+
+    const requeueAfterChunkDispatchFailed = vi.fn().mockResolvedValue(undefined);
+
+    const result = await runDepositSlipOcrPhase({
+      jobId: "job-1",
+      sessionId: "session-1",
+      scoreTargetId: "bank-deposit-slip-history",
+      target: { id: "bank-deposit-slip-history" } as never,
+      engine: "native",
+      extractedFrames: [],
+      timingsJson: null,
+      timer,
+      now: new Date("2026-07-18T00:00:00.000Z"),
+      onOcrProgress: vi.fn(),
+      setChunkProgress: vi.fn(),
+      setContinueChunk: vi.fn(),
+      requeueAfterChunkDispatchFailed,
+    });
+
+    expect(result.kind).toBe("continue");
+    expect(requeueAfterChunkDispatchFailed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timingsJson: expect.objectContaining({
+          depositSlipOcrChunk: expect.objectContaining({ nextFrameOffset: 2 }),
+        }),
+      }),
+    );
   });
 
   it("finalizes when the last chunk completes", async () => {

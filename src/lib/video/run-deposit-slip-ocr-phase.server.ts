@@ -96,9 +96,12 @@ export async function runDepositSlipOcrPhase(input: {
     nextFrameOffset: number;
     timingsJson: Record<string, unknown>;
   }) => Promise<void>;
+  /** When the next-chunk worker trigger fails, requeue for cron backup. */
+  requeueAfterChunkDispatchFailed?: (params: {
+    timingsJson: Record<string, unknown>;
+  }) => Promise<void>;
 }): Promise<DepositSlipOcrPhaseResult> {
   const db = getDb();
-  const chunkSize = resolveDepositSlipOcrFrameChunkSize();
   let stored = await loadStoredDepositFrames(input.jobId);
 
   // First invocation: caller already wrote extracted frames to storage.
@@ -113,6 +116,8 @@ export async function runDepositSlipOcrPhase(input: {
   }
 
   const storedState = readDepositSlipOcrChunkState(input.timingsJson);
+  const chunkSize =
+    storedState?.chunkSize ?? resolveDepositSlipOcrFrameChunkSize();
   const nextFrameOffset = resolveDepositSlipOcrResumeOffset({
     storedState,
     frames: stored,
@@ -229,11 +234,15 @@ export async function runDepositSlipOcrPhase(input: {
       nextFrameOffset: ocrCompletedThrough,
       timingsJson: nextTimings,
     });
-    void dispatchVideoProcessing(input.jobId, {
+    const dispatched = await dispatchVideoProcessing(input.jobId, {
       source: "deposit_slip_ocr_chunk",
-    }).catch((err: unknown) => {
-      console.error("[deposit-slip-ocr-chunk] dispatch failed", err);
+      awaitResult: true,
     });
+    if (!dispatched) {
+      await input.requeueAfterChunkDispatchFailed?.({
+        timingsJson: nextTimings,
+      });
+    }
     return {
       kind: "continue",
       hqAllianceId: chunkResult.hqAllianceId,
