@@ -26,6 +26,7 @@
 #
 # Worktree dir: ../<repo-name>-<branch-leaf> (sibling of this clone).
 # Remove when done:  git worktree remove --force <dir> && git worktree prune
+# Bulk cleanup:      ./scripts/git-prune.sh --worktrees   (dry-run; add --apply)
 
 set -euo pipefail
 
