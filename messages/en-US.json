@@ -3709,6 +3709,7 @@
     "fileLabel": "Video file",
     "fileHint": "MP4 or MOV screen recording while scrolling the full leaderboard.",
     "fileHintKills": "Drop Kills screenshots here or browse — upload from the Strength Ranking → Kills tab. A screen recording scrolling that leaderboard also works.",
+    "depositSlipFileHint": "Prefer shorter clips, or several uploads working from newest slips downward. Long history videos can take many minutes to finish OCR.",
     "fileSizeLimit": "Maximum size: {maxSize}.",
     "fileSizeTipsIntro": "If the file is too large, try:",
     "fileSizeTipCrop": "Crop to the narrowest frame that still shows full leaderboard rows (names and scores).",

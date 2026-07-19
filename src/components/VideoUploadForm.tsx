@@ -34,6 +34,7 @@ import {
 import { jobMatchesScoreTarget } from "@/lib/video/score-target-nav";
 import {
   isAllianceKillsVideoTarget,
+  isBankDepositSlipHistoryTarget,
   isMemberRosterVideoTarget,
 } from "@/lib/video/score-targets";
 
@@ -506,9 +507,11 @@ export function VideoUploadForm({
             className="block w-full max-w-full text-sm text-hq-fg-muted file:mb-2 file:block file:w-full file:rounded-lg file:border-0 file:bg-hq-success file:px-4 file:py-2 file:text-sm file:text-white sm:file:mb-0 sm:file:mr-4 sm:file:inline-block sm:file:w-auto"
           />
           <p className="mt-2 text-xs text-hq-fg-muted">
-            {isAllianceKillsVideoTarget(scoreTarget)
-              ? t("fileHintKills")
-              : t("fileHint")}
+            {isBankDepositSlipHistoryTarget(scoreTarget)
+              ? t("depositSlipFileHint")
+              : isAllianceKillsVideoTarget(scoreTarget)
+                ? t("fileHintKills")
+                : t("fileHint")}
           </p>
           {maxUploadLabel ? (
             <p className="mt-2 text-xs text-hq-fg-muted">
