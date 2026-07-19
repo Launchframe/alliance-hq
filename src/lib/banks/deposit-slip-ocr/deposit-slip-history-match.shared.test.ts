@@ -144,6 +144,24 @@ describe("shouldSkipHistoricalDepositDuplicate / shouldUpdateHistoricalDepositOu
       ),
     ).toBe(false);
   });
+
+  it("skips without downgrading when two different terminal statuses match", () => {
+    // Only locked->matured/looted is a valid outcome update; a deposit cannot
+    // legitimately flip between matured and looted, so a proximity match
+    // between two different terminal statuses should skip, not overwrite.
+    const matured = identity({
+      status: "matured",
+      depositAt: "2026-07-10T12:14:34.000Z",
+    });
+    const looted = identity({
+      status: "looted",
+      depositAt: "2026-07-10T12:20:00.000Z",
+    });
+    expect(shouldSkipHistoricalDepositDuplicate(looted, matured)).toBe(true);
+    expect(shouldUpdateHistoricalDepositOutcome(looted, matured)).toBe(false);
+    expect(shouldSkipHistoricalDepositDuplicate(matured, looted)).toBe(true);
+    expect(shouldUpdateHistoricalDepositOutcome(matured, looted)).toBe(false);
+  });
 });
 
 describe("findHighConfidenceHistoricalDepositMatch", () => {

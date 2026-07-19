@@ -576,4 +576,56 @@ describe("commitDepositSlipsFromVideoJob", () => {
       }),
     );
   });
+
+  it("does not double-update when the same terminal OCR row repeats within one batch", async () => {
+    listDepositSlipsForBank.mockResolvedValue([
+      {
+        id: "hist-locked",
+        commanderName: "Blue Investor",
+        depositAt: new Date("2026-07-10T12:14:34.000Z"),
+        amount: 6000,
+        termDays: 3,
+        depositAllianceTag: "Roar",
+        status: "locked",
+      },
+    ]);
+
+    const result = await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-loot-1",
+          ocrName: "Blue Investor",
+          score: "6000",
+          powerLevel: "2026-07-10T12:20:00.000Z",
+          memberLevel: 3,
+          profession: "looted",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: "early_termination_refund",
+          rank: 3000,
+          frameIndex: 0,
+          deleted: false,
+        },
+        {
+          id: "row-loot-2",
+          ocrName: "Blue Investor",
+          score: "6000",
+          powerLevel: "2026-07-10T12:20:05.000Z",
+          memberLevel: 3,
+          profession: "looted",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: "early_termination_refund",
+          rank: 3000,
+          frameIndex: 1,
+          deleted: false,
+        },
+      ],
+    });
+
+    expect(result.updatedCount).toBe(1);
+    expect(result.skippedDuplicateCount).toBe(1);
+    expect(updateDepositSlip).toHaveBeenCalledTimes(1);
+  });
 });
