@@ -246,3 +246,82 @@ describe("parseDepositSlipHistoryText", () => {
     expect(parsed.slips[0]?.depositAt).toBeNull();
   });
 });
+
+describe("parseDepositSlipHistoryText — vertical line-bbox association", () => {
+  /** Helper: build a line with a synthetic vertical band. */
+  function geoLine(
+    text: string,
+    y0: number,
+    height = 28,
+  ): {
+    text: string;
+    confidence: number;
+    bbox: { x0: number; y0: number; x1: number; y1: number };
+  } {
+    return {
+      text,
+      confidence: 90,
+      bbox: { x0: 40, y0, x1: 400, y1: y0 + height },
+    };
+  }
+
+  it("keeps amounts on the geometrically nearer commander when OCR reading order interleaves rows", () => {
+    // Reading order would give Yodehh Cheesy's 5166 (next Deposit within the
+    // look-ahead window before Cheesy's identity). Vertical centers put each
+    // Deposit under the correct identity.
+    const lines = [
+      geoLine("2026-7-11 10:00:00", 40),
+      geoLine("#1203[LFgo]Yodehh", 80),
+      geoLine("2026-7-11 10:01:00", 200),
+      geoLine("#1203[LFgo]CheesyD03", 240),
+      geoLine("Deposit: CrystalGold x 5166, Term: 1 days.", 280),
+      geoLine("Deposit: CrystalGold x 4000, Term: 1 days.", 120),
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    expect(parsed.slips).toHaveLength(2);
+    const byName = Object.fromEntries(
+      parsed.slips.map((s) => [s.identity.commanderName, s]),
+    );
+    expect(byName.Yodehh?.amount).toBe(4000);
+    expect(byName.CheesyD03?.amount).toBe(5166);
+    expect(byName.Yodehh?.depositAt).toBe("2026-07-11T10:00:00.000Z");
+    expect(byName.CheesyD03?.depositAt).toBe("2026-07-11T10:01:00.000Z");
+  });
+
+  it("still uses reading-order association when line bboxes are absent", () => {
+    const lines = [
+      "2026-7-11 10:00:00",
+      "#1203[LFgo]Yodehh",
+      "Deposit: CrystalGold x 5166, Term: 1 days.",
+      "#1203[LFgo]CheesyD03",
+      "Deposit: CrystalGold x 4000, Term: 1 days.",
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    const byName = Object.fromEntries(
+      parsed.slips.map((s) => [s.identity.commanderName, s]),
+    );
+    // Without geometry, Yodehh still consumes the next Deposit in order.
+    expect(byName.Yodehh?.amount).toBe(5166);
+    expect(byName.CheesyD03?.amount).toBe(4000);
+  });
+
+  it("attaches total-return outcomes to the identity above them by y", () => {
+    const lines = [
+      geoLine("2026-7-11 09:00:00", 40),
+      geoLine("#1203[LFgo]Alpha", 80),
+      geoLine("Deposit: CrystalGold x 6000, Term: 1 days.", 120),
+      geoLine("Total return: CrystalGold x 6840.", 150),
+      geoLine("2026-7-11 09:05:00", 220),
+      geoLine("#1203[LFgo]Beta", 260),
+      geoLine("Deposit: CrystalGold x 5000, Term: 1 days.", 300),
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    const byName = Object.fromEntries(
+      parsed.slips.map((s) => [s.identity.commanderName, s]),
+    );
+    expect(byName.Alpha?.status).toBe("matured");
+    expect(byName.Alpha?.outcomeAmount).toBe(6840);
+    expect(byName.Beta?.status).toBe("locked");
+    expect(byName.Beta?.outcomeAmount).toBeNull();
+  });
+});

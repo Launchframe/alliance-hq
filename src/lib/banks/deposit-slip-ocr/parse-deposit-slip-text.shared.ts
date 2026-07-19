@@ -1,6 +1,12 @@
 /**
  * Client-safe Deposit Slip History line parsers.
  * Expects OCR text from the in-game "Deposit Slip History" overlay.
+ *
+ * When Tesseract line bboxes are present (same geometry plumbing as City List
+ * word-x matching), field association uses **vertical proximity** so a
+ * Deposit/outcome line attaches to the nearest identity above it — not the
+ * next identity in OCR reading order. Without bboxes, association falls back
+ * to the legacy line-order window.
  */
 
 import type {
@@ -52,24 +58,64 @@ export type ParsedDepositSlipDraft = {
   confidence?: number | null;
 };
 
-/** OCR line input for parsers that optionally carry Tesseract confidence. */
+/** Line bbox in processed-image pixel space (from Tesseract blocks). */
+export type DepositSlipOcrLineBbox = {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+};
+
+/**
+ * OCR line input for parsers. Optional confidence + line bbox enable
+ * geometry-aware name↔amount association when present.
+ */
 export type DepositSlipOcrLine = {
   text: string;
   confidence?: number | null;
+  bbox?: DepositSlipOcrLineBbox | null;
 };
+
+type NormalizedOcrLine = {
+  text: string;
+  confidence: number | null;
+  /** Vertical center in image pixels; null when bbox missing/invalid. */
+  yCenter: number | null;
+  rowHeight: number | null;
+};
+
+function lineYCenter(bbox: DepositSlipOcrLineBbox | null | undefined): {
+  yCenter: number | null;
+  rowHeight: number | null;
+} {
+  if (
+    !bbox ||
+    typeof bbox.y0 !== "number" ||
+    typeof bbox.y1 !== "number" ||
+    !Number.isFinite(bbox.y0) ||
+    !Number.isFinite(bbox.y1)
+  ) {
+    return { yCenter: null, rowHeight: null };
+  }
+  return {
+    yCenter: (bbox.y0 + bbox.y1) / 2,
+    rowHeight: Math.max(1, bbox.y1 - bbox.y0),
+  };
+}
 
 function normalizeOcrLines(
   lines: readonly string[] | readonly DepositSlipOcrLine[],
-): Array<{ text: string; confidence: number | null }> {
+): NormalizedOcrLine[] {
   return lines.map((line) => {
     if (typeof line === "string") {
-      return { text: line, confidence: null };
+      return { text: line, confidence: null, yCenter: null, rowHeight: null };
     }
     const confidence =
       typeof line.confidence === "number" && Number.isFinite(line.confidence)
         ? line.confidence
         : null;
-    return { text: line.text, confidence };
+    const { yCenter, rowHeight } = lineYCenter(line.bbox);
+    return { text: line.text, confidence, yCenter, rowHeight };
   });
 }
 
@@ -79,6 +125,25 @@ function meanConfidence(values: readonly (number | null)[]): number | null {
   );
   if (present.length === 0) return null;
   return present.reduce((sum, value) => sum + value, 0) / present.length;
+}
+
+function medianPositive(values: readonly number[]): number {
+  const sorted = values.filter((v) => v > 0).sort((a, b) => a - b);
+  if (sorted.length === 0) return 36;
+  return sorted[Math.floor(sorted.length / 2)]!;
+}
+
+/**
+ * Max vertical gap (px) from an identity to claim a timestamp / Deposit /
+ * outcome line. Scaled from median OCR line height when available.
+ */
+function maxVerticalFieldGapPx(lines: readonly NormalizedOcrLine[]): number {
+  const med = medianPositive(
+    lines
+      .map((l) => l.rowHeight)
+      .filter((h): h is number => typeof h === "number"),
+  );
+  return Math.max(96, med * 5);
 }
 
 export type ParsedDepositSlipHistory = {
@@ -176,40 +241,32 @@ function isDepositSlipRowContentLine(probe: string): boolean {
 
 /**
  * Find the timestamp line for the deposit-slip row whose identity line is
- * at `identityIndex`. In the in-game overlay each row is physically
- * `[timestamp, identity, deposit info]`, so the timestamp normally sits
- * immediately before the identity line. Extra noise lines from OCR can
- * shift that offset, so this scans outward from the identity line in
- * proximity order (closest first) rather than a fixed-width window —
- * but stops as soon as it crosses into a neighboring row's identity line
- * *or* a Deposit/outcome content line, so it can never mistakenly borrow
- * a different row's timestamp.
+ * at `identityIndex` (reading-order path).
  */
 function findNearbyDepositSlipTimestamp(
-  lines: readonly { text: string; confidence: number | null }[],
+  lines: readonly NormalizedOcrLine[],
   identityIndex: number,
-): { depositAt: string; confidence: number | null } | null {
+  claimedLineIndexes: ReadonlySet<number>,
+): { depositAt: string; confidence: number | null; lineIndex: number } | null {
   for (let k = 1; k <= TIMESTAMP_SEARCH_BACK_LINES; k += 1) {
     const j = identityIndex - k;
     if (j < 0) break;
+    if (claimedLineIndexes.has(j)) continue;
     const probe = lines[j]!.text.trim();
     if (parseDepositSlipIdentity(probe)) break;
-    // Previous row's Deposit/outcome sits between us and its timestamp when
-    // the previous identity was garbled — stop rather than steal that ts.
     if (isDepositSlipRowContentLine(probe)) break;
     const ts = parseDepositSlipTimestamp(probe);
-    if (ts) return { depositAt: ts, confidence: lines[j]!.confidence };
+    if (ts) return { depositAt: ts, confidence: lines[j]!.confidence, lineIndex: j };
   }
   for (let k = 1; k <= TIMESTAMP_SEARCH_FORWARD_LINES; k += 1) {
     const j = identityIndex + k;
     if (j >= lines.length) break;
+    if (claimedLineIndexes.has(j)) continue;
     const probe = lines[j]!.text.trim();
     if (parseDepositSlipIdentity(probe)) break;
-    // Do not walk past this row's Deposit/outcome into the next row's
-    // timestamp (common when this row's own timestamp was dropped entirely).
     if (isDepositSlipRowContentLine(probe)) break;
     const ts = parseDepositSlipTimestamp(probe);
-    if (ts) return { depositAt: ts, confidence: lines[j]!.confidence };
+    if (ts) return { depositAt: ts, confidence: lines[j]!.confidence, lineIndex: j };
   }
   return null;
 }
@@ -271,6 +328,324 @@ export function parseMinimumDeposit(lines: readonly string[]): number | null {
   return null;
 }
 
+type IdentityAnchor = {
+  lineIndex: number;
+  identity: ParsedDepositSlipIdentity;
+  confidence: number | null;
+  yCenter: number | null;
+};
+
+type DraftBuilder = {
+  identity: ParsedDepositSlipIdentity;
+  identityConfidence: number | null;
+  depositAt: string | null;
+  termDays: DepositTermDays | null;
+  amount: number | null;
+  status: DepositStatus;
+  outcomeAmount: number | null;
+  outcomeKind: ParsedDepositSlipDraft["outcomeKind"];
+  confidenceParts: Array<number | null>;
+};
+
+function emptyDraft(anchor: IdentityAnchor): DraftBuilder {
+  return {
+    identity: anchor.identity,
+    identityConfidence: anchor.confidence,
+    depositAt: null,
+    termDays: null,
+    amount: null,
+    status: "locked",
+    outcomeAmount: null,
+    outcomeKind: null,
+    confidenceParts: [anchor.confidence],
+  };
+}
+
+function finalizeDraft(draft: DraftBuilder): ParsedDepositSlipDraft | null {
+  if (draft.amount == null && draft.depositAt == null) return null;
+  return {
+    depositAt: draft.depositAt,
+    termDays: draft.termDays,
+    amount: draft.amount,
+    status: draft.status,
+    outcomeAmount: draft.outcomeAmount,
+    outcomeKind: draft.outcomeKind,
+    identity: draft.identity,
+    confidence: meanConfidence(draft.confidenceParts),
+  };
+}
+
+/**
+ * True when enough identities carry line bboxes to prefer vertical
+ * association over OCR reading order.
+ */
+function shouldUseVerticalGeometry(
+  anchors: readonly IdentityAnchor[],
+  lines: readonly NormalizedOcrLine[],
+): boolean {
+  const withY = anchors.filter((a) => a.yCenter != null).length;
+  if (withY === 0) return false;
+  // Need at least one field line with geometry too — otherwise nothing to zip.
+  const fieldWithY = lines.some((line) => {
+    if (line.yCenter == null) return false;
+    const t = line.text.trim();
+    return (
+      Boolean(parseDepositSlipTimestamp(t)) ||
+      DEPOSIT_RE.test(t) ||
+      TOTAL_RETURN_RE.test(t) ||
+      EARLY_REFUND_RE.test(t)
+    );
+  });
+  return fieldWithY && withY >= Math.ceil(anchors.length / 2);
+}
+
+/**
+ * Assign each geometric field line to the nearest identity **above** it
+ * (same card: timestamp slightly above identity; Deposit/outcome below).
+ * Exclusive: one Deposit line → one identity.
+ */
+function assignFieldsByVerticalProximity(
+  anchors: readonly IdentityAnchor[],
+  lines: readonly NormalizedOcrLine[],
+  drafts: Map<number, DraftBuilder>,
+  claimedLineIndexes: Set<number>,
+): void {
+  const maxGap = maxVerticalFieldGapPx(lines);
+  const medH = medianPositive(
+    lines
+      .map((l) => l.rowHeight)
+      .filter((h): h is number => typeof h === "number"),
+  );
+  // Allow a little OCR y-reorder noise (field slightly above identity).
+  const aboveSlack = medH * 0.75;
+
+  const geoAnchors = anchors
+    .filter((a): a is IdentityAnchor & { yCenter: number } => a.yCenter != null)
+    .slice()
+    .sort((a, b) => a.yCenter - b.yCenter);
+
+  type FieldKind = "timestamp" | "deposit" | "outcome";
+  type FieldCandidate = {
+    lineIndex: number;
+    yCenter: number;
+    kind: FieldKind;
+    confidence: number | null;
+    apply: (draft: DraftBuilder) => void;
+  };
+
+  const fields: FieldCandidate[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    if (claimedLineIndexes.has(i)) continue;
+    const line = lines[i]!;
+    if (line.yCenter == null) continue;
+    const probe = line.text.trim();
+    if (!probe) continue;
+    if (parseDepositSlipIdentity(probe)) continue;
+
+    const ts = parseDepositSlipTimestamp(probe);
+    if (ts) {
+      fields.push({
+        lineIndex: i,
+        yCenter: line.yCenter,
+        kind: "timestamp",
+        confidence: line.confidence,
+        apply: (draft) => {
+          if (draft.depositAt != null) return;
+          draft.depositAt = ts;
+          draft.confidenceParts.push(line.confidence);
+        },
+      });
+      continue;
+    }
+
+    const depositMatch = probe.match(DEPOSIT_RE);
+    if (depositMatch) {
+      const amount = parseIntAmount(depositMatch[1]!);
+      const termDays = toDepositTermDays(Number(depositMatch[2]));
+      fields.push({
+        lineIndex: i,
+        yCenter: line.yCenter,
+        kind: "deposit",
+        confidence: line.confidence,
+        apply: (draft) => {
+          if (draft.amount != null) return;
+          draft.amount = amount;
+          draft.termDays = termDays;
+          draft.confidenceParts.push(line.confidence);
+        },
+      });
+      continue;
+    }
+
+    const totalMatch = probe.match(TOTAL_RETURN_RE);
+    if (totalMatch) {
+      const outcomeAmount = parseIntAmount(totalMatch[1]!);
+      fields.push({
+        lineIndex: i,
+        yCenter: line.yCenter,
+        kind: "outcome",
+        confidence: line.confidence,
+        apply: (draft) => {
+          if (draft.outcomeKind != null) return;
+          draft.outcomeAmount = outcomeAmount;
+          draft.outcomeKind = "total_return";
+          draft.status = "matured";
+          draft.confidenceParts.push(line.confidence);
+        },
+      });
+      continue;
+    }
+
+    const earlyMatch = probe.match(EARLY_REFUND_RE);
+    if (earlyMatch) {
+      const outcomeAmount = parseIntAmount(earlyMatch[1]!);
+      fields.push({
+        lineIndex: i,
+        yCenter: line.yCenter,
+        kind: "outcome",
+        confidence: line.confidence,
+        apply: (draft) => {
+          if (draft.outcomeKind != null) return;
+          draft.outcomeAmount = outcomeAmount;
+          draft.outcomeKind = "early_termination_refund";
+          draft.status = "looted";
+          draft.confidenceParts.push(line.confidence);
+        },
+      });
+    }
+  }
+
+  // Nearest identity whose y is at or above the field (with small slack).
+  const pickIdentity = (
+    fieldY: number,
+    kind: FieldKind,
+  ): (IdentityAnchor & { yCenter: number }) | null => {
+    let best: (IdentityAnchor & { yCenter: number }) | null = null;
+    let bestDist = Number.POSITIVE_INFINITY;
+    for (const anchor of geoAnchors) {
+      const dy = fieldY - anchor.yCenter;
+      if (kind === "timestamp") {
+        // Timestamps sit above the identity; allow slight below noise.
+        if (dy > aboveSlack) continue;
+        if (anchor.yCenter - fieldY > maxGap) continue;
+      } else {
+        // Deposit / outcome sit below the identity.
+        if (dy < -aboveSlack) continue;
+        if (dy > maxGap) continue;
+      }
+      const dist = Math.abs(dy);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = anchor;
+      }
+    }
+    return best;
+  };
+
+  // Process closer field↔identity pairs first so contested lines go to the
+  // geometrically nearer commander (not reading-order first-come).
+  const scored = fields
+    .map((field) => {
+      const anchor = pickIdentity(field.yCenter, field.kind);
+      if (!anchor) return null;
+      return {
+        field,
+        anchor,
+        dist: Math.abs(field.yCenter - anchor.yCenter),
+      };
+    })
+    .filter(
+      (
+        row,
+      ): row is {
+        field: FieldCandidate;
+        anchor: IdentityAnchor & { yCenter: number };
+        dist: number;
+      } => row != null,
+    )
+    .sort((a, b) => a.dist - b.dist || a.field.lineIndex - b.field.lineIndex);
+
+  for (const { field, anchor } of scored) {
+    if (claimedLineIndexes.has(field.lineIndex)) continue;
+    const draft = drafts.get(anchor.lineIndex);
+    if (!draft) continue;
+
+    if (field.kind === "timestamp" && draft.depositAt != null) continue;
+    if (field.kind === "deposit" && draft.amount != null) continue;
+    if (field.kind === "outcome" && draft.outcomeKind != null) continue;
+
+    field.apply(draft);
+    claimedLineIndexes.add(field.lineIndex);
+  }
+}
+
+/**
+ * Legacy reading-order association for identities / fields that geometry
+ * could not fill. Only consumes unclaimed lines.
+ */
+function fillDraftsFromReadingOrder(
+  anchors: readonly IdentityAnchor[],
+  lines: readonly NormalizedOcrLine[],
+  drafts: Map<number, DraftBuilder>,
+  claimedLineIndexes: Set<number>,
+): void {
+  for (const anchor of anchors) {
+    const draft = drafts.get(anchor.lineIndex);
+    if (!draft) continue;
+    const i = anchor.lineIndex;
+
+    if (draft.depositAt == null) {
+      const nearbyTimestamp = findNearbyDepositSlipTimestamp(
+        lines,
+        i,
+        claimedLineIndexes,
+      );
+      if (nearbyTimestamp) {
+        draft.depositAt = nearbyTimestamp.depositAt;
+        draft.confidenceParts.push(nearbyTimestamp.confidence);
+        claimedLineIndexes.add(nearbyTimestamp.lineIndex);
+      }
+    }
+
+    for (let j = i; j < Math.min(lines.length, i + 5); j += 1) {
+      if (j !== i && claimedLineIndexes.has(j)) continue;
+      const probe = lines[j]!.text.trim();
+      if (j > i && parseDepositSlipIdentity(probe)) break;
+
+      if (draft.amount == null) {
+        const depositMatch = probe.match(DEPOSIT_RE);
+        if (depositMatch) {
+          draft.amount = parseIntAmount(depositMatch[1]!);
+          draft.termDays = toDepositTermDays(Number(depositMatch[2]));
+          draft.confidenceParts.push(lines[j]!.confidence);
+          claimedLineIndexes.add(j);
+          continue;
+        }
+      }
+
+      if (draft.outcomeKind == null) {
+        const totalMatch = probe.match(TOTAL_RETURN_RE);
+        if (totalMatch) {
+          draft.outcomeAmount = parseIntAmount(totalMatch[1]!);
+          draft.outcomeKind = "total_return";
+          draft.status = "matured";
+          draft.confidenceParts.push(lines[j]!.confidence);
+          claimedLineIndexes.add(j);
+          continue;
+        }
+        const earlyMatch = probe.match(EARLY_REFUND_RE);
+        if (earlyMatch) {
+          draft.outcomeAmount = parseIntAmount(earlyMatch[1]!);
+          draft.outcomeKind = "early_termination_refund";
+          draft.status = "looted";
+          draft.confidenceParts.push(lines[j]!.confidence);
+          claimedLineIndexes.add(j);
+        }
+      }
+    }
+  }
+}
+
 /**
  * Parse OCR lines from Deposit Slip History into drafts.
  * Duplicate slips (scroll overlap across frames) should be merged via
@@ -278,7 +653,9 @@ export function parseMinimumDeposit(lines: readonly string[]): number | null {
  *
  * When lines include Tesseract confidence, each draft carries the mean
  * confidence of the identity / timestamp / deposit / outcome lines that
- * contributed to it (used by dedupe pick-best).
+ * contributed to it (used by dedupe pick-best). When lines include line
+ * bboxes, Deposit/outcome/timestamp lines attach by vertical proximity
+ * before any reading-order fallback.
  */
 export function parseDepositSlipHistoryText(
   lines: readonly string[] | readonly DepositSlipOcrLine[],
@@ -288,71 +665,47 @@ export function parseDepositSlipHistoryText(
   const depositPolicy = parseDepositPolicyFromHeader(textLines);
   const minimumDeposit = parseMinimumDeposit(textLines);
 
-  const slips: ParsedDepositSlipDraft[] = [];
-
-  // Find identity lines; associate nearby timestamp + deposit/outcome lines.
+  const anchors: IdentityAnchor[] = [];
   for (let i = 0; i < normalized.length; i += 1) {
     const line = normalized[i]!.text.trim();
     if (!line) continue;
-
     const identity = parseDepositSlipIdentity(line);
     if (!identity) continue;
-
-    const confidenceParts: Array<number | null> = [normalized[i]!.confidence];
-
-    // Timestamp is usually on the line right before this identity — search
-    // nearby lines, closest first, without crossing into a neighboring row.
-    const nearbyTimestamp = findNearbyDepositSlipTimestamp(normalized, i);
-    const depositAt = nearbyTimestamp?.depositAt ?? null;
-    if (nearbyTimestamp) {
-      confidenceParts.push(nearbyTimestamp.confidence);
-    }
-
-    let amount: number | null = null;
-    let termDays: DepositTermDays | null = null;
-    let status: DepositStatus = "locked";
-    let outcomeAmount: number | null = null;
-    let outcomeKind: ParsedDepositSlipDraft["outcomeKind"] = null;
-
-    for (let j = i; j < Math.min(normalized.length, i + 5); j += 1) {
-      const probe = normalized[j]!.text.trim();
-      // Stop if we hit another identity (next slip)
-      if (j > i && parseDepositSlipIdentity(probe)) break;
-
-      const depositMatch = probe.match(DEPOSIT_RE);
-      if (depositMatch) {
-        amount = parseIntAmount(depositMatch[1]!);
-        termDays = toDepositTermDays(Number(depositMatch[2]));
-        confidenceParts.push(normalized[j]!.confidence);
-      }
-      const totalMatch = probe.match(TOTAL_RETURN_RE);
-      if (totalMatch) {
-        outcomeAmount = parseIntAmount(totalMatch[1]!);
-        outcomeKind = "total_return";
-        status = "matured";
-        confidenceParts.push(normalized[j]!.confidence);
-      }
-      const earlyMatch = probe.match(EARLY_REFUND_RE);
-      if (earlyMatch) {
-        outcomeAmount = parseIntAmount(earlyMatch[1]!);
-        outcomeKind = "early_termination_refund";
-        status = "looted";
-        confidenceParts.push(normalized[j]!.confidence);
-      }
-    }
-
-    if (amount == null && depositAt == null) continue;
-
-    slips.push({
-      depositAt,
-      termDays,
-      amount,
-      status,
-      outcomeAmount,
-      outcomeKind,
+    anchors.push({
+      lineIndex: i,
       identity,
-      confidence: meanConfidence(confidenceParts),
+      confidence: normalized[i]!.confidence,
+      yCenter: normalized[i]!.yCenter,
     });
+  }
+
+  const drafts = new Map<number, DraftBuilder>();
+  for (const anchor of anchors) {
+    drafts.set(anchor.lineIndex, emptyDraft(anchor));
+  }
+
+  const claimedLineIndexes = new Set<number>();
+  for (const anchor of anchors) {
+    claimedLineIndexes.add(anchor.lineIndex);
+  }
+
+  if (shouldUseVerticalGeometry(anchors, normalized)) {
+    assignFieldsByVerticalProximity(
+      anchors,
+      normalized,
+      drafts,
+      claimedLineIndexes,
+    );
+  }
+
+  fillDraftsFromReadingOrder(anchors, normalized, drafts, claimedLineIndexes);
+
+  const slips: ParsedDepositSlipDraft[] = [];
+  for (const anchor of anchors) {
+    const draft = drafts.get(anchor.lineIndex);
+    if (!draft) continue;
+    const finalized = finalizeDraft(draft);
+    if (finalized) slips.push(finalized);
   }
 
   return {
