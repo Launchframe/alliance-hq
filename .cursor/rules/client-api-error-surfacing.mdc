@@ -1,0 +1,37 @@
+---
+description: Client fetch must surface API errors next to the action that failed
+globs:
+  - src/components/**/*.tsx
+  - src/lib/client/**/*.ts
+  - src/lib/client/**/*.tsx
+alwaysApply: false
+---
+
+# Client API error surfacing
+
+Officers judge success by the control they just used. A `fetch` that fails with a JSON body must not look like a no-op (button briefly disabled, then re-enabled, nothing nearby).
+
+## Required pattern
+
+1. **Parse the body on failure** — `const data = await res.json()` (guarded) even when `!res.ok`.
+2. **Set visible error state** from `data.error` / `data.message` (or a mapped i18n string). Never swallow `!res.ok`.
+3. **Render the error next to the triggering action** (submit row, dialog footer, form actions) — not only at the top of a long page.
+4. **Bring it into view** when the message is set (`scrollIntoView` on an anchor near that control, `block: "nearest"`).
+5. **Wire known recovery codes** when the API returns them (example: `ashed_not_connected` → Connect CTA via `connectUrl` / `buildConnectHref`).
+
+## Anti-patterns
+
+- Handling `ashed_not_connected` (or any error) only in network code with no UI state change the user can see beside the CTA
+- Top-of-page-only banners on screens with tall tables / review lists
+- `console.error` as the sole failure signal
+- Re-enabling a busy button in `finally` without having set error/success UI
+
+## Server contract (pair with this)
+
+API routes should return stable JSON on 4xx/5xx:
+
+```json
+{ "error": "Human-readable message", "code": "optional_machine_code", "connectUrl": "optional" }
+```
+
+Clients key off `code` for special CTAs; always show `error` (or approved i18n) in the banner.

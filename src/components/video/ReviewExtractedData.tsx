@@ -259,6 +259,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     useState<DepositSlipVisibleSortKey>("depositAt");
   const [error, setError] = useState<string | null>(null);
   const [errorConnectUrl, setErrorConnectUrl] = useState<string | null>(null);
+  const actionErrorAnchorRef = useRef<HTMLDivElement | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [reprocessPending, setReprocessPending] = useState(false);
   const [rematching, setRematching] = useState(false);
@@ -1491,18 +1492,29 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     setErrorConnectUrl(connectUrl ?? null);
   }
 
+  useEffect(() => {
+    if (!error) return;
+    // Submit CTA sits below a long table — bring the banner into view.
+    actionErrorAnchorRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+    });
+  }, [error]);
+
   function renderActionErrorBanner() {
     if (!error) {
       return null;
     }
     return (
-      <ReviewActionErrorBanner
-        message={error}
-        connectUrl={errorConnectUrl ?? undefined}
-        connectLabel={tQueue("connectCta")}
-        onDismiss={clearActionError}
-        dismissLabel={t("comparisonClose")}
-      />
+      <div ref={actionErrorAnchorRef}>
+        <ReviewActionErrorBanner
+          message={error}
+          connectUrl={errorConnectUrl ?? undefined}
+          connectLabel={tQueue("connectCta")}
+          onDismiss={clearActionError}
+          dismissLabel={t("comparisonClose")}
+        />
+      </div>
     );
   }
 
@@ -1783,7 +1795,6 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         }
       >
         <div className="mx-auto min-w-0 w-full max-w-5xl flex-1 space-y-6 px-4 pb-6 md:px-0">
-          {renderActionErrorBanner()}
           <div>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <Link
@@ -2601,6 +2612,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         </>
       )}
 
+      {renderActionErrorBanner()}
       {success && <p className="text-sm text-hq-green">{success}</p>}
 
       <div className="flex flex-wrap gap-3">
