@@ -24,6 +24,8 @@ export type NativeDepositSlipFrameTiming = {
   entryCount: number;
   error: string | null;
   rawLines: string[];
+  /** Per-frame parse — persisted so chunked OCR can finalize later. */
+  history: ParsedDepositSlipHistory;
 };
 
 export type OcrDepositSlipNativeFramesResult = {
@@ -146,6 +148,7 @@ export async function ocrDepositSlipNativeFrames(
       entryCount: frame.entryCount,
       error: frame.error,
       rawLines: frame.rawLines,
+      history: frame.history,
     })),
     concurrency,
   };

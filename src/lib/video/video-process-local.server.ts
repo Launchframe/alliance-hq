@@ -1,5 +1,8 @@
 import "server-only";
 
+import { eq } from "drizzle-orm";
+
+import { getDb, schema } from "@/lib/db";
 import { markVideoJobFailed } from "@/lib/video/mark-video-job-failed";
 import { isAshedNotConnectedError } from "@/lib/video/errors";
 import type { VideoProcessJobResult } from "@/lib/video/video-process-dispatch.server";
@@ -13,11 +16,19 @@ export async function runVideoProcessJobLocally(
     const timings = await processVideoJob(jobId, {
       analyticsSource: options?.analyticsSource ?? "worker",
     });
+    const db = getDb();
+    const [job] = await db
+      .select({ status: schema.videoJobs.status })
+      .from(schema.videoJobs)
+      .where(eq(schema.videoJobs.id, jobId))
+      .limit(1);
+    // Chunked deposit-slip OCR leaves the job `queued` for the next slice.
+    const status = job?.status ?? "review";
     return {
       ok: true,
       processed: true,
       jobId,
-      status: "review",
+      status,
       timings,
       httpStatus: 200,
     };

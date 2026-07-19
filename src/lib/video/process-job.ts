@@ -56,10 +56,11 @@ import {
 import { dispatchVideoArchive } from "@/lib/video/trigger-archive";
 import { computePassComparison } from "@/lib/video/compare-pass-results";
 import { mergeGroupComparisons } from "@/lib/video/group-comparisons.shared";
+import { mockOcrScoreFrames } from "@/lib/video/ocr-mock";
 import {
-  mockOcrDepositSlipFrames,
-  mockOcrScoreFrames,
-} from "@/lib/video/ocr-mock";
+  runDepositSlipOcrPhase,
+  shouldSkipDepositSlipExtract,
+} from "@/lib/video/run-deposit-slip-ocr-phase.server";
 import {
   engineRequiresAshed,
   resolveVideoJobAshedConnection,
@@ -244,107 +245,150 @@ export async function processVideoJob(
 
     const target = getScoreTargetOrThrow(scoreTargetId);
 
-    await setStatus("extracting");
-    await writeAuditLog({
-      sessionId: job.sessionId,
-      allianceId: jobHqAllianceId ?? job.allianceId,
-      action: "video.extract_start",
-      resourceType: "video_job",
-      resourceName: scoreTargetId,
-      resourceId: jobId,
-      metadata: { fileName: job.fileName },
-    });
-
-    const tmpVideo = path.join(
-      os.tmpdir(),
-      `hq-video-${jobId}${path.extname(job.fileName ?? ".mp4")}`,
-    );
-    const videoBytes = await timer.measureStep("storage.load_video", () =>
-      streamObjectToFile(videoStorageKey, tmpVideo),
-      (bytes) => ({ bytes }),
-    );
-    logPipelineStep("storage.temp_video_ready", 0, { bytes: videoBytes, jobId });
-
-    const extractionConfig = (job.extractionConfigJson as ExtractionConfig | null) ?? undefined;
+    const skipDepositExtract =
+      isDepositSlipTarget && (await shouldSkipDepositSlipExtract(jobId));
 
     let frames: import("@/lib/video/frame-extractor").ExtractedFrame[] = [];
-    try {
-      const extractResult = await timer.measureStep("ffmpeg.extract", () =>
-        extractLeaderboardFrames(tmpVideo, extractionConfig),
-        (result) => ({ frameCount: result.frames.length }),
+    let totalFrameBytes = 0;
+
+    if (!skipDepositExtract) {
+      await setStatus("extracting");
+      await writeAuditLog({
+        sessionId: job.sessionId,
+        allianceId: jobHqAllianceId ?? job.allianceId,
+        action: "video.extract_start",
+        resourceType: "video_job",
+        resourceName: scoreTargetId,
+        resourceId: jobId,
+        metadata: { fileName: job.fileName },
+      });
+
+      const tmpVideo = path.join(
+        os.tmpdir(),
+        `hq-video-${jobId}${path.extname(job.fileName ?? ".mp4")}`,
       );
-      frames = extractResult.frames;
-      videoDurationSeconds = extractResult.videoDurationSeconds;
-      denseFrameCount = extractResult.denseFrameCount;
-      framesSkipped = extractResult.framesSkipped;
-    } finally {
-      await timer.measureStep("storage.delete_temp_video", () =>
-        fs.unlink(tmpVideo).catch(() => undefined),
+      const videoBytes = await timer.measureStep("storage.load_video", () =>
+        streamObjectToFile(videoStorageKey, tmpVideo),
+        (bytes) => ({ bytes }),
       );
-    }
-
-    frameCount = frames.length;
-    const totalFrameBytes = frames.reduce((sum, frame) => sum + frame.buffer.length, 0);
-    const avgFrameBytes =
-      frames.length > 0 ? Math.round(totalFrameBytes / frames.length) : 0;
-
-    logPipelineStep("frames.summary", 0, {
-      frameCount: frames.length,
-      totalBytes: totalFrameBytes,
-      avgBytes: avgFrameBytes,
-      concurrency: defaultAshFrameConcurrency(),
-      jobId,
-    });
-
-    for (const frame of frames) {
-      await timer.measureStep("storage.put_frame", async () => {
-        const key = frameStorageKey(jobId, frame.index);
-        await putObject(key, frame.buffer);
-        await db.insert(schema.videoFrames).values({
-          id: nanoid(16),
-          jobId,
-          frameIndex: frame.index,
-          storageKey: key,
-          videoTimestampSeconds: frame.videoTimestampSeconds,
-          createdAt: now,
-        });
-      }, { frameIndex: frame.index, bytes: frame.buffer.length });
-    }
-
-    const storageBucket = prefersLocalStorage()
-      ? "local .data/uploads"
-      : "R2 hq-videos";
-    logPipelineStep("storage.frames_written", 0, {
-      frameCount: frames.length,
-      totalBytes: totalFrameBytes,
-      bucket: storageBucket,
-      jobId,
-    });
-    if (prefersLocalStorage()) {
-      logPipelineStep("storage.frames_local", 0, {
-        path: path.join(process.cwd(), ".data", "uploads", "videos", jobId, "frames"),
+      logPipelineStep("storage.temp_video_ready", 0, {
+        bytes: videoBytes,
         jobId,
       });
-    } else if (r2Configured()) {
-      logPipelineStep("storage.frames_local", 0, {
-        path: `r2://${process.env.R2_BUCKET ?? "hq-videos"}/videos/${jobId}/frames/`,
-        jobId,
-      });
-    }
 
-    await setStatus(
-      "parsing",
-      {
+      const extractionConfig =
+        (job.extractionConfigJson as ExtractionConfig | null) ?? undefined;
+
+      try {
+        const extractResult = await timer.measureStep("ffmpeg.extract", () =>
+          extractLeaderboardFrames(tmpVideo, extractionConfig),
+          (result) => ({ frameCount: result.frames.length }),
+        );
+        frames = extractResult.frames;
+        videoDurationSeconds = extractResult.videoDurationSeconds;
+        denseFrameCount = extractResult.denseFrameCount;
+        framesSkipped = extractResult.framesSkipped;
+      } finally {
+        await timer.measureStep("storage.delete_temp_video", () =>
+          fs.unlink(tmpVideo).catch(() => undefined),
+        );
+      }
+
+      frameCount = frames.length;
+      totalFrameBytes = frames.reduce(
+        (sum, frame) => sum + frame.buffer.length,
+        0,
+      );
+      const avgFrameBytes =
+        frames.length > 0 ? Math.round(totalFrameBytes / frames.length) : 0;
+
+      logPipelineStep("frames.summary", 0, {
         frameCount: frames.length,
-        uploadedFrameCount: 0,
-      },
-      undefined,
-      "ocr_running",
-    );
+        totalBytes: totalFrameBytes,
+        avgBytes: avgFrameBytes,
+        concurrency: defaultAshFrameConcurrency(),
+        jobId,
+      });
+
+      for (const frame of frames) {
+        await timer.measureStep(
+          "storage.put_frame",
+          async () => {
+            const key = frameStorageKey(jobId, frame.index);
+            await putObject(key, frame.buffer);
+            await db.insert(schema.videoFrames).values({
+              id: nanoid(16),
+              jobId,
+              frameIndex: frame.index,
+              storageKey: key,
+              videoTimestampSeconds: frame.videoTimestampSeconds,
+              createdAt: now,
+            });
+          },
+          { frameIndex: frame.index, bytes: frame.buffer.length },
+        );
+      }
+
+      const storageBucket = prefersLocalStorage()
+        ? "local .data/uploads"
+        : "R2 hq-videos";
+      logPipelineStep("storage.frames_written", 0, {
+        frameCount: frames.length,
+        totalBytes: totalFrameBytes,
+        bucket: storageBucket,
+        jobId,
+      });
+      if (prefersLocalStorage()) {
+        logPipelineStep("storage.frames_local", 0, {
+          path: path.join(
+            process.cwd(),
+            ".data",
+            "uploads",
+            "videos",
+            jobId,
+            "frames",
+          ),
+          jobId,
+        });
+      } else if (r2Configured()) {
+        logPipelineStep("storage.frames_local", 0, {
+          path: `r2://${process.env.R2_BUCKET ?? "hq-videos"}/videos/${jobId}/frames/`,
+          jobId,
+        });
+      }
+
+      await setStatus(
+        "parsing",
+        {
+          frameCount: frames.length,
+          uploadedFrameCount: 0,
+        },
+        undefined,
+        "ocr_running",
+      );
+    } else {
+      // Continuation chunk: frames already in storage from the first pass.
+      const [frameCountRow] = await db
+        .select({ frameCount: schema.videoJobs.frameCount })
+        .from(schema.videoJobs)
+        .where(eq(schema.videoJobs.id, jobId))
+        .limit(1);
+      frameCount = frameCountRow?.frameCount ?? job.frameCount ?? 0;
+      await setStatus(
+        "parsing",
+        {
+          frameCount,
+          uploadedFrameCount: job.uploadedFrameCount ?? 0,
+        },
+        undefined,
+        "ocr_running",
+      );
+    }
 
     let allianceId: string;
     let parseSessionId: string;
     let unresolvedConflicts: string[] = [];
+    let depositSlipAwaitingNextChunk = false;
 
     if (isRosterTarget) {
       const rosterConfig = isValidRosterOcrConfig(job.extractionConfigJson)
@@ -388,52 +432,79 @@ export async function processVideoJob(
         "finalizing_rows",
       );
     } else if (isDepositSlipTarget) {
-      const mockHistory =
-        ocrEngine === "mock"
-          ? await timer.measureStep("mock.deposit_slip_ocr_total", () =>
-              mockOcrDepositSlipFrames(
-                scoreTargetId,
-                frames.map((f) => ({ index: f.index })),
-              ),
-            )
-          : undefined;
-      const { processDepositSlipVideoParse } = await import(
-        "@/lib/video/process-deposit-slip-job"
-      );
-      const slipResult = await processDepositSlipVideoParse({
+      const slipPhase = await runDepositSlipOcrPhase({
         jobId,
         sessionId: processingSessionId,
         scoreTargetId,
         target,
         engine: ocrEngine,
-        frames: frames.map((f) => ({ index: f.index, buffer: f.buffer })),
+        extractedFrames: frames,
+        timingsJson: job.timingsJson,
         timer,
         now,
-        mockHistory,
         onOcrProgress: emitOcrFrameProgress,
+        setChunkProgress: async ({ totalFrames, completedThrough }) => {
+          frameCount = totalFrames;
+          await setStatus(
+            "parsing",
+            {
+              frameCount: totalFrames,
+              uploadedFrameCount: completedThrough,
+            },
+            undefined,
+            "ocr_running",
+          );
+        },
+        setContinueChunk: async ({
+          totalFrames,
+          nextFrameOffset,
+          timingsJson,
+        }) => {
+          frameCount = totalFrames;
+          await setStatus(
+            "parsing",
+            {
+              frameCount: totalFrames,
+              uploadedFrameCount: nextFrameOffset,
+              timingsJson,
+            },
+            undefined,
+            "ocr_running",
+          );
+        },
       });
 
-      allianceId = slipResult.hqAllianceId;
-      parseSessionId = slipResult.parseSessionId;
-      rowCount = slipResult.rowCount;
-      matchedCount = slipResult.matchedCount;
-      ocrFrameMs = slipResult.ocrFrameMs;
-      ocrConcurrency = slipResult.ocrConcurrency;
+      allianceId = slipPhase.hqAllianceId;
+      ocrFrameMs = slipPhase.ocrFrameMs;
+      ocrConcurrency = slipPhase.ocrConcurrency;
       ashedUploadTotalMs = 0;
       ashedExtractTotalMs = 0;
-      totalRawOcrRows = slipResult.totalRawOcrRows;
+      totalRawOcrRows = slipPhase.totalRawOcrRows;
+      frameCount = slipPhase.totalFrames;
 
-      await timer.measureStep("storage.cleanup_frame_temp", () =>
-        cleanupFrameTempDir(frames),
-        { frameCount: frames.length },
-      );
+      if (slipPhase.kind === "continue") {
+        depositSlipAwaitingNextChunk = true;
+        parseSessionId = "";
+        rowCount = 0;
+        matchedCount = 0;
+      } else {
+        parseSessionId = slipPhase.parseSessionId;
+        rowCount = slipPhase.rowCount;
+        matchedCount = slipPhase.matchedCount;
+        await setStatus(
+          "parsing",
+          { uploadedFrameCount: slipPhase.totalFrames },
+          undefined,
+          "finalizing_rows",
+        );
+      }
 
-      await setStatus(
-        "parsing",
-        { uploadedFrameCount: frames.length },
-        undefined,
-        "finalizing_rows",
-      );
+      if (frames.length > 0) {
+        await timer.measureStep("storage.cleanup_frame_temp", () =>
+          cleanupFrameTempDir(frames),
+          { frameCount: frames.length },
+        );
+      }
     } else {
       if (ocrEngine === "mock") {
         allianceId = await timer.measureStep("alliance.resolve_hq", () =>
@@ -760,13 +831,24 @@ export async function processVideoJob(
       totalRawOcrRows,
     };
 
+    // More deposit-slip OCR chunks remain — job is already queued + dispatched.
+    if (depositSlipAwaitingNextChunk) {
+      timer.log(`job ${jobId} deposit-slip OCR chunk complete; continuing`, {
+        scoreTarget: scoreTargetId,
+        frameCount,
+        uploadedFrameCount: job.uploadedFrameCount,
+        ocrConcurrency,
+      });
+      return timings;
+    }
+
     await setStatus(
       "review",
       {
         parseSessionId,
         allianceId,
         timingsJson: timings,
-        totalFileSizeBytes: totalFrameBytes,
+        totalFileSizeBytes: totalFrameBytes || job.totalFileSizeBytes,
       },
       { rowCount, matchedCount },
     );
