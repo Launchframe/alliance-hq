@@ -107,6 +107,7 @@ export function resetDepositSlipIdCounterForTests(): void {
 function slipSnapshot(slip: ParsedDepositSlipDraft): Record<string, unknown> {
   return {
     depositAt: slip.depositAt,
+    outcomeAt: slip.outcomeAt ?? null,
     termDays: slip.termDays,
     amount: slip.amount,
     status: slip.status,
@@ -117,6 +118,73 @@ function slipSnapshot(slip: ParsedDepositSlipDraft): Record<string, unknown> {
     rawIdentity: slip.identity.rawIdentity,
     sourceFrameIndex: slip.sourceFrameIndex ?? null,
   };
+}
+
+/** Officer-visible identity used to force auto-merge / redundant missing-ts absorb. */
+export function depositSlipDisplayIdentityKey(
+  slip: ParsedDepositSlipDraft,
+  opts?: { includeStatus?: boolean },
+): string {
+  const includeStatus = opts?.includeStatus !== false;
+  const name = normalizeEntityName(slip.identity.commanderName);
+  const tag = (slip.identity.allianceTag ?? "").trim().toLowerCase();
+  const amount = slip.amount == null ? "" : String(slip.amount);
+  const term = slip.termDays == null ? "" : String(slip.termDays);
+  const status = includeStatus ? slip.status : "";
+  return `${name}|${tag}|${amount}|${term}|${status}`;
+}
+
+export function haveExactDisplayIdentity(
+  slips: readonly ParsedDepositSlipDraft[],
+  opts?: { includeStatus?: boolean },
+): boolean {
+  if (slips.length < 2) return true;
+  if (!normalizeEntityName(slips[0]!.identity.commanderName)) return false;
+  const first = depositSlipDisplayIdentityKey(slips[0]!, opts);
+  return slips.every(
+    (s) => depositSlipDisplayIdentityKey(s, opts) === first,
+  );
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function parseDepositAtMs(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function timestampsWithinTermWindow(
+  slips: readonly ParsedDepositSlipDraft[],
+): boolean {
+  const times = slips
+    .map((s) => parseDepositAtMs(s.depositAt))
+    .filter((ms): ms is number => ms != null)
+    .sort((a, b) => a - b);
+  if (times.length < 2) return true;
+  const termDays = slips.find((s) => s.termDays != null)?.termDays ?? 1;
+  const span = times[times.length - 1]! - times[0]!;
+  // Allow the full term plus a day of OCR slack.
+  return span <= termDays * MS_PER_DAY + MS_PER_DAY;
+}
+
+function applyLifecycleTimestamps(
+  slips: readonly ParsedDepositSlipDraft[],
+  merged: ParsedDepositSlipDraft,
+): ParsedDepositSlipDraft {
+  const times = slips
+    .map((s) => ({ iso: s.depositAt, ms: parseDepositAtMs(s.depositAt) }))
+    .filter((t): t is { iso: string; ms: number } => t.ms != null && !!t.iso)
+    .sort((a, b) => a.ms - b.ms);
+  if (times.length === 0) return merged;
+  const earliest = times[0]!.iso;
+  const latest = times[times.length - 1]!.iso;
+  const isOutcome =
+    merged.status === "matured" || merged.status === "looted";
+  if (!isOutcome || earliest === latest) {
+    return { ...merged, depositAt: earliest, outcomeAt: merged.outcomeAt ?? null };
+  }
+  return { ...merged, depositAt: earliest, outcomeAt: latest };
 }
 
 function completenessScore(slip: ParsedDepositSlipDraft): number {
@@ -356,7 +424,7 @@ export function coalesceDepositSlips(
   }
   dest.sourceFrameIndex = minFrame ?? undefined;
 
-  return dest;
+  return applyLifecycleTimestamps(slips, dest);
 }
 
 function sortByDepositAtDesc(slips: DedupedDepositSlip[]): DedupedDepositSlip[] {
@@ -379,12 +447,6 @@ function makeIndexed(slips: readonly ParsedDepositSlipDraft[]): IndexedSlip[] {
 
 function pickBestSlipId(group: readonly IndexedSlip[]): string {
   return group.slice().sort(compareSlipQuality)[0]!.slipId;
-}
-
-function parseDepositAtMs(iso: string | null | undefined): number | null {
-  if (!iso) return null;
-  const ms = Date.parse(iso);
-  return Number.isNaN(ms) ? null : ms;
 }
 
 /**
@@ -617,6 +679,32 @@ function resolveNameTimestampGroup(
     return;
   }
 
+  // Officer-visible fields already agree — never block on server# / OCR junk.
+  if (haveExactDisplayIdentity(group)) {
+    const anchored = group.filter(
+      (s) => toMinuteTimestampKey(s.depositAt) != null,
+    );
+    const missingTs = group.filter(
+      (s) => toMinuteTimestampKey(s.depositAt) == null,
+    );
+    if (missingTs.length > 0 && anchored.length > 0) {
+      // Keep timestamped survivor(s); clipped-ts twins go to the missing-ts section.
+      if (anchored.length === 1) {
+        const only = anchored[0]!;
+        if (!accum.consumed.has(only.slipId)) {
+          accum.output.push(only);
+          accum.consumed.add(only.slipId);
+        }
+      } else {
+        emitAutoMerged(accum, anchored, "exact_display_identity", []);
+      }
+      absorbExactMissingTimestampRows(accum, missingTs);
+      return;
+    }
+    emitAutoMerged(accum, group, "exact_display_identity", []);
+    return;
+  }
+
   const conflictResolution = resolveGroupConflicts(group, accum.conflictFields);
   if (!conflictResolution.resolved) {
     emitFlagged(accum, group, pickConflictFlagReason(conflictResolution.conflictingFields));
@@ -717,20 +805,97 @@ function processExactNameCluster(
   }
   if (unanchored.length === 0) return;
 
-  // Unanchored rows with several possible deposits → ambiguous review flag.
-  if (unanchored.length >= 1 && anchoredGroups.length > 1) {
+  // Prefer exact display-identity absorb into a unique survivor before flagging.
+  const stillAmbiguous = absorbExactMissingTimestampRows(accum, unanchored);
+  if (stillAmbiguous.length === 0) return;
+  if (stillAmbiguous.length >= 1) {
     emitFlagged(
       accum,
-      unanchored,
+      stillAmbiguous,
       "commander_match_missing_timestamp_ambiguous",
     );
-    return;
   }
-  resolveNameTimestampGroup(
-    accum,
-    unanchored,
-    "commander_match_missing_timestamp",
-  );
+}
+
+/**
+ * Absorb unanchored rows into the unique timestamped survivor that matches
+ * display identity. Returns rows that still cannot be placed.
+ */
+function absorbExactMissingTimestampRows(
+  accum: DedupeAccum,
+  unanchored: readonly IndexedSlip[],
+): IndexedSlip[] {
+  const stillUnanchored: IndexedSlip[] = [];
+  for (const row of unanchored) {
+    if (accum.consumed.has(row.slipId)) continue;
+    const key = depositSlipDisplayIdentityKey(row);
+    const exactDests = accum.output.filter(
+      (d) =>
+        !d.dedupeClusterId &&
+        toMinuteTimestampKey(d.depositAt) != null &&
+        depositSlipDisplayIdentityKey(d) === key,
+    );
+    if (exactDests.length !== 1) {
+      stillUnanchored.push(row);
+      continue;
+    }
+    const destination = exactDests[0]!;
+    const clusterId = `c_${nextSlipId()}`;
+    accum.clusters.push({
+      clusterId,
+      disposition: "auto_merged",
+      reason: "redundant_missing_timestamp",
+      destinationSlipId: destination.slipId,
+      members: [
+        { slipId: row.slipId, snapshot: slipSnapshot(row) },
+        {
+          slipId: destination.slipId,
+          snapshot: slipSnapshot(destination),
+        },
+      ],
+    });
+    accum.consumed.add(row.slipId);
+  }
+  return stillUnanchored;
+}
+
+/**
+ * Collapse locked + matured/looted survivors for the same deposit identity
+ * when their OCR timestamps fall within the loan term window.
+ */
+function mergeLifecycleSurvivors(accum: DedupeAccum): void {
+  const byIdentity = new Map<string, IndexedSlip[]>();
+  for (const slip of accum.output) {
+    // Leave officer-flagged clusters alone.
+    if (slip.dedupeClusterId) continue;
+    const key = depositSlipDisplayIdentityKey(slip, { includeStatus: false });
+    const bucket = byIdentity.get(key);
+    if (bucket) bucket.push(slip);
+    else byIdentity.set(key, [slip]);
+  }
+
+  for (const group of byIdentity.values()) {
+    if (group.length < 2) continue;
+    const locked = group.filter((s) => s.status === "locked");
+    const matured = group.filter((s) => s.status === "matured");
+    const looted = group.filter((s) => s.status === "looted");
+    if (matured.length > 0 && looted.length > 0) continue;
+    if (locked.length === 0) continue;
+    // Exactly one matured *or* looted survivor — never collapse two outcomes.
+    if (matured.length + looted.length !== 1) continue;
+    const outcome = matured.length > 0 ? matured : looted;
+    if (!timestampsWithinTermWindow(group)) continue;
+
+    const mergeGroup = [...locked, ...outcome];
+    const reason =
+      matured.length > 0
+        ? "lifecycle_locked_to_matured"
+        : "lifecycle_locked_to_looted";
+
+    const mergeIds = new Set(mergeGroup.map((s) => s.slipId));
+    accum.output = accum.output.filter((s) => !mergeIds.has(s.slipId));
+    emitAutoMerged(accum, mergeGroup, reason, []);
+  }
 }
 
 /**
@@ -977,12 +1142,21 @@ export function dedupeDepositSlips(
   );
   if (leftoverUnanchored.length > 0) {
     const destinations = accum.output.slice();
-    const reconciliation = reconcileMissingAnchorRows(
+
+    // Prefer exact display-identity (incl. status) matches — these are clipped
+    // timestamps of an already-parsed deposit, not officer work.
+    const stillUnanchored = absorbExactMissingTimestampRows(
+      accum,
       leftoverUnanchored,
+    );
+
+    const reconciliation = reconcileMissingAnchorRows(
+      stillUnanchored.filter((s) => !accum.consumed.has(s.slipId)),
       destinations,
       {
         getName: (s) => s.identity.commanderName,
         isCompatible: (rows) =>
+          haveExactDisplayIdentity(rows) ||
           resolveGroupConflicts(rows, conflictFields).resolved,
       },
     );
@@ -995,6 +1169,10 @@ export function dedupeDepositSlips(
       const corrections = conflictResolution.resolved
         ? conflictResolution.corrections
         : [];
+      const exactMatch = haveExactDisplayIdentity([
+        ...anchorlessRows,
+        destination,
+      ]);
       const merged = applyDepositSlipCorrections(
         coalesceDepositSlips([...anchorlessRows, destination]),
         corrections,
@@ -1033,7 +1211,9 @@ export function dedupeDepositSlips(
       accum.clusters.push({
         clusterId,
         disposition: "auto_merged",
-        reason: "commander_match_missing_timestamp",
+        reason: exactMatch
+          ? "redundant_missing_timestamp"
+          : "commander_match_missing_timestamp",
         destinationSlipId: destination.slipId,
         ...(corrections.length > 0
           ? { correctedFields: corrections.map((c) => c.key) }
@@ -1102,6 +1282,10 @@ export function dedupeDepositSlips(
       accum.consumed.add(s.slipId);
     }
   }
+
+  // Pair locked ↔ matured/looted survivors that share deposit identity but
+  // landed in different timestamp proximity groups (lifecycle events).
+  mergeLifecycleSurvivors(accum);
 
   const autoMergedRemoved = Math.max(0, input.length - accum.output.length);
 

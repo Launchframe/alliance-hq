@@ -8,7 +8,7 @@
  * - memberLevel ← termDays
  * - profession ← status
  * - allianceRankTitle ← alliance tag
- * - rosterRankRaw ← outcomeKind
+ * - rosterRankRaw ← outcomeKind (optional `@outcomeAt` ISO suffix for lifecycle merges)
  * - rank ← outcomeAmount
  */
 
@@ -28,6 +28,41 @@ export type DepositSlipParsedRowFields = {
   frameIndex: number | null;
 };
 
+const OUTCOME_KIND_VALUES = [
+  "total_return",
+  "early_termination_refund",
+] as const;
+
+function encodeRosterRankRaw(
+  outcomeKind: ParsedDepositSlipDraft["outcomeKind"],
+  outcomeAt: string | null | undefined,
+): string | null {
+  if (!outcomeKind) return null;
+  const at = outcomeAt?.trim();
+  return at ? `${outcomeKind}@${at}` : outcomeKind;
+}
+
+function decodeRosterRankRaw(raw: string | null | undefined): {
+  outcomeKind: ParsedDepositSlipDraft["outcomeKind"];
+  outcomeAt: string | null;
+} {
+  if (!raw?.trim()) return { outcomeKind: null, outcomeAt: null };
+  const atIdx = raw.indexOf("@");
+  const kindPart = atIdx >= 0 ? raw.slice(0, atIdx) : raw;
+  const outcomeAt = atIdx >= 0 ? raw.slice(atIdx + 1).trim() || null : null;
+  const outcomeKind =
+    kindPart === "total_return" || kindPart === "early_termination_refund"
+      ? kindPart
+      : null;
+  if (
+    outcomeKind &&
+    !(OUTCOME_KIND_VALUES as readonly string[]).includes(outcomeKind)
+  ) {
+    return { outcomeKind: null, outcomeAt: null };
+  }
+  return { outcomeKind, outcomeAt };
+}
+
 export function depositSlipDraftToParsedRowFields(
   draft: ParsedDepositSlipDraft,
 ): DepositSlipParsedRowFields {
@@ -38,7 +73,7 @@ export function depositSlipDraftToParsedRowFields(
     memberLevel: draft.termDays,
     profession: draft.status,
     allianceRankTitle: draft.identity.allianceTag,
-    rosterRankRaw: draft.outcomeKind,
+    rosterRankRaw: encodeRosterRankRaw(draft.outcomeKind, draft.outcomeAt),
     rank: draft.outcomeAmount,
     frameIndex: draft.sourceFrameIndex ?? null,
   };
@@ -68,11 +103,7 @@ export function parsedRowFieldsToDepositSlipDraft(
       ? (row.profession as DepositStatus)
       : "locked";
 
-  const outcomeKind =
-    row.rosterRankRaw === "total_return" ||
-    row.rosterRankRaw === "early_termination_refund"
-      ? row.rosterRankRaw
-      : null;
+  const { outcomeKind, outcomeAt } = decodeRosterRankRaw(row.rosterRankRaw);
 
   return {
     depositAt: row.powerLevel?.trim() || null,
@@ -81,6 +112,7 @@ export function parsedRowFieldsToDepositSlipDraft(
     status,
     outcomeAmount: row.rank ?? null,
     outcomeKind,
+    outcomeAt,
     identity: {
       gameServerNumber: null,
       allianceTag: row.allianceRankTitle?.trim() || null,

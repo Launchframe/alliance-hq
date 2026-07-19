@@ -108,6 +108,8 @@ Admin **cannot** change Tesseract settings from the UI today. Deposit-slip still
 
 Native OCR is always used for this target (no Ashed). Cross-frame merge partitions by exact normalized commander name, corroborates nearby or majority-agreeing timestamps (including OCR minute misreads), coalesces partial reads into one review row, and flags genuine amount/term/identity conflicts for officer resolution.
 
+**Officer review triage (post-dedupe):** identical display-identity duplicates and locked→matured/looted lifecycle pairs (timestamps within the loan term) land in **Automatically merged**; clipped-timestamp rows that already match a kept deposit go to a collapsed **Missing deposit time — already covered** section and do not block save. Fingerprint/bbox shadowing (same OCR line across overlapping frames) is separate from within-frame name↔amount zip errors — those still need officer edit or a future parser fix.
+
 ### Ashed scoreboards (Desert Storm, VS, …)
 
 OCR quality is largely owned by the Ashed OCR service when Ashed is the engine. HQ parse configs still control **which frames** are sent. Alliance “HQ OCR only” and native-only targets are separate engine switches — not sensitivity knobs.
