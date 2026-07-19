@@ -30,6 +30,7 @@ import {
   isZeroScoreWarningDisabled,
 } from "@/lib/video/score-targets";
 import {
+  defaultVsPerformanceRecordedDate,
   isValidVsPerformanceRecordedDate,
   listRecentVsPerformanceDates,
   nearestValidVsPerformanceDate,
@@ -636,9 +637,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             setBoardKey(data.job.boardKey);
           }
           if (loadedIsVs) {
-            setRecordedDate((prev) =>
-              nearestValidVsPerformanceDate(prev, "daily"),
-            );
+            // VS dates are game-server calendar, not account-local "today"
+            // (Sat night officer-local can already be Sunday ST).
+            setRecordedDate(defaultVsPerformanceRecordedDate("daily"));
           }
         }
         setDraftRestored(restored.restored);
@@ -2128,9 +2129,19 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     onClick={() => {
                       markDraftDirty();
                       setVsPeriod(option);
-                      setRecordedDate((prev) =>
-                        nearestValidVsPerformanceDate(prev, option),
-                      );
+                      setRecordedDate((prev) => {
+                        // Weekly defaults from server today so account-Sat /
+                        // server-Sun does not snap to last week's Sunday.
+                        if (option === "weekly") {
+                          if (
+                            isValidVsPerformanceRecordedDate(prev, "weekly")
+                          ) {
+                            return prev;
+                          }
+                          return defaultVsPerformanceRecordedDate("weekly");
+                        }
+                        return nearestValidVsPerformanceDate(prev, "daily");
+                      });
                       clearActionError();
                     }}
                     aria-pressed={active}

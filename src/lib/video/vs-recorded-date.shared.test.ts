@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  defaultVsPerformanceRecordedDate,
   isValidVsPerformanceRecordedDate,
+  isVsWeeklyUploadWindow,
   listRecentVsPerformanceDates,
   nearestValidVsPerformanceDate,
   vsPerformanceDayMetaForDate,
@@ -59,6 +61,44 @@ describe("nearestValidVsPerformanceDate", () => {
   it("steps back to Sunday for weekly", () => {
     expect(nearestValidVsPerformanceDate("2026-07-13", "weekly")).toBe(
       "2026-07-12",
+    );
+  });
+});
+
+describe("defaultVsPerformanceRecordedDate", () => {
+  it("uses server Sunday for weekly during the Sun→Mon upload window", () => {
+    // Saturday evening US / Sunday early server (UTC−2)
+    const sundayServer = new Date("2026-07-19T03:30:00.000Z"); // Sun 01:30 ST
+    expect(defaultVsPerformanceRecordedDate("weekly", sundayServer)).toBe(
+      "2026-07-19",
+    );
+    expect(isVsWeeklyUploadWindow(sundayServer)).toBe(true);
+  });
+
+  it("does not snap weekly to last week when account-local would be Saturday", () => {
+    // Bug reproduction: walking back from account Sat 2026-07-18 while server
+    // is already Sun 2026-07-19 wrongly yielded 2026-07-12.
+    expect(nearestValidVsPerformanceDate("2026-07-18", "weekly")).toBe(
+      "2026-07-12",
+    );
+    const sundayServer = new Date("2026-07-19T03:30:00.000Z");
+    expect(defaultVsPerformanceRecordedDate("weekly", sundayServer)).toBe(
+      "2026-07-19",
+    );
+  });
+
+  it("uses prior Sunday for weekly mid-week", () => {
+    const wednesday = new Date("2026-07-15T14:00:00.000-02:00");
+    expect(defaultVsPerformanceRecordedDate("weekly", wednesday)).toBe(
+      "2026-07-12",
+    );
+    expect(isVsWeeklyUploadWindow(wednesday)).toBe(false);
+  });
+
+  it("defaults daily to Saturday when server day is Sunday", () => {
+    const sundayServer = new Date("2026-07-19T03:30:00.000Z");
+    expect(defaultVsPerformanceRecordedDate("daily", sundayServer)).toBe(
+      "2026-07-18",
     );
   });
 });
