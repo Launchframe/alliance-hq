@@ -29,6 +29,9 @@ import {
   parseAdminVideoJobsListFilters,
   type AdminVideoJobsListFilters,
 } from "@/lib/video/admin-video-jobs-query.shared";
+import { AdminReprocessDialog } from "@/components/admin/AdminReprocessDialog";
+import type { AdminReprocessFpsAdjustment } from "@/lib/video/admin-reprocess-extraction.shared";
+import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 
 type VideoJob = {
   id: string;
@@ -47,6 +50,7 @@ type VideoJob = {
   passRole: string | null;
   passIndex: number | null;
   groupId: string | null;
+  extractionConfigJson?: unknown;
   createdAt: string;
 };
 
@@ -143,6 +147,7 @@ export default function AdminVideoJobsPage() {
   const [listLoading, setListLoading] = useState(true);
   const [actingJobId, setActingJobId] = useState<string | null>(null);
   const [errorDialogJob, setErrorDialogJob] = useState<VideoJob | null>(null);
+  const [reprocessJob, setReprocessJob] = useState<VideoJob | null>(null);
 
   const setFilters = useCallback(
     (patch: Partial<AdminVideoJobsListFilters>) => {
@@ -205,17 +210,46 @@ export default function AdminVideoJobsPage() {
     new Set(jobs.map((j) => j.passKey).filter(Boolean) as string[]),
   ).sort();
 
-  async function runAction(jobId: string, action: "requeue" | "reprocess") {
+  async function runRequeue(jobId: string) {
     setActingJobId(jobId);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/video-jobs/${jobId}/${action}`, {
+      const res = await fetch(`/api/admin/video-jobs/${jobId}/requeue`, {
         method: "POST",
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
         throw new Error(data.error ?? tJobs("actionFailed"));
       }
+      const loaded = await loadJobs(filters);
+      setJobs(loaded);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tJobs("actionFailed"));
+    } finally {
+      setActingJobId(null);
+    }
+  }
+
+  async function confirmReprocess(body: {
+    adjustment?: AdminReprocessFpsAdjustment;
+    extraction?: ExtractionConfig;
+    parseConfigId?: string;
+  }) {
+    if (!reprocessJob) return;
+    const jobId = reprocessJob.id;
+    setActingJobId(jobId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/video-jobs/${jobId}/reprocess`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        throw new Error(data.error ?? tJobs("actionFailed"));
+      }
+      setReprocessJob(null);
       const loaded = await loadJobs(filters);
       setJobs(loaded);
     } catch (err) {
@@ -408,7 +442,7 @@ export default function AdminVideoJobsPage() {
                     title={
                       canRequeue ? undefined : tJobs("actionUnavailable")
                     }
-                    onClick={() => void runAction(job.id, "requeue")}
+                    onClick={() => void runRequeue(job.id)}
                     className="text-hq-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {tJobs("requeue")}
@@ -419,7 +453,7 @@ export default function AdminVideoJobsPage() {
                     title={
                       canReprocess ? undefined : tJobs("actionUnavailable")
                     }
-                    onClick={() => void runAction(job.id, "reprocess")}
+                    onClick={() => setReprocessJob(job)}
                     className="text-hq-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {tJobs("reprocess")}
@@ -546,7 +580,7 @@ export default function AdminVideoJobsPage() {
                             title={
                               canRequeue ? undefined : tJobs("actionUnavailable")
                             }
-                            onClick={() => void runAction(job.id, "requeue")}
+                            onClick={() => void runRequeue(job.id)}
                             className="text-xs text-hq-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {tJobs("requeue")}
@@ -559,7 +593,7 @@ export default function AdminVideoJobsPage() {
                                 ? undefined
                                 : tJobs("actionUnavailable")
                             }
-                            onClick={() => void runAction(job.id, "reprocess")}
+                            onClick={() => setReprocessJob(job)}
                             className="text-xs text-hq-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {tJobs("reprocess")}
@@ -577,6 +611,23 @@ export default function AdminVideoJobsPage() {
       />
         </div>
       </div>
+
+      {reprocessJob ? (
+        <AdminReprocessDialog
+          key={reprocessJob.id}
+          open
+          jobId={reprocessJob.id}
+          passKey={reprocessJob.passKey}
+          extractionConfigJson={reprocessJob.extractionConfigJson}
+          busy={actingJobId === reprocessJob.id}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setReprocessJob(null);
+          }}
+          onConfirm={(body) => {
+            void confirmReprocess(body);
+          }}
+        />
+      ) : null}
 
       {errorDialogJob ? (
         <div
