@@ -1169,6 +1169,51 @@ export const commanderPowerLevelEvents = pgTable(
   ],
 );
 
+/**
+ * Tracks which Friday/Sunday roster + kills video jobs count as pre/post
+ * snapshots for a VS week’s Buster Day efficiency report. Power/kills values
+ * stay in existing event tables; Saturday VS scores are read live from Ashed.
+ */
+export const busterDayReports = pgTable(
+  "buster_day_reports",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    /** Monday YYYY-MM-DD of the VS week (server calendar). */
+    vsWeekMonday: text("vs_week_monday").notNull(),
+    preSnapshotDate: text("pre_snapshot_date"),
+    preRosterJobId: text("pre_roster_job_id"),
+    preKillsJobId: text("pre_kills_job_id"),
+    preCompletedAt: timestamp("pre_completed_at", { withTimezone: true }),
+    postSnapshotDate: text("post_snapshot_date"),
+    postRosterJobId: text("post_roster_job_id"),
+    postKillsJobId: text("post_kills_job_id"),
+    postCompletedAt: timestamp("post_completed_at", { withTimezone: true }),
+    preReminderSentAt: timestamp("pre_reminder_sent_at", { withTimezone: true }),
+    postReminderSentAt: timestamp("post_reminder_sent_at", {
+      withTimezone: true,
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("buster_day_reports_alliance_week_unique").on(
+      table.allianceId,
+      table.vsWeekMonday,
+    ),
+    index("buster_day_reports_alliance_updated_idx").on(
+      table.allianceId,
+      table.updatedAt,
+    ),
+  ],
+);
+
 /** Web THP anomaly / OCR confirm pending (parallel to discord_bot_pending). */
 export const hqThpPending = pgTable(
   "hq_thp_pending",
