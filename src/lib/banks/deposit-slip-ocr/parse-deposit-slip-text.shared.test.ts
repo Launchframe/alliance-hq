@@ -400,4 +400,76 @@ describe("parseDepositSlipHistoryText — vertical line-bbox association", () =>
     expect(byName.Upper?.amount).toBe(1111);
     expect(byName.Lower?.amount).toBe(2222);
   });
+
+  it("uses the single-identity distance cap when only one commander is on frame", () => {
+    // Only one anchor: identityForYBand's single-anchor branch (distance <=
+    // maxGap) rather than the multi-anchor band loop. Deposit is close, so it
+    // must still attach via geometry.
+    const lines = [
+      geoLine("2026-7-11 10:00:00", 40),
+      geoLine("#1203[LFgo]Solo", 80),
+      geoLine("Deposit: CrystalGold x 7777, Term: 3 days.", 120),
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    expect(parsed.slips).toHaveLength(1);
+    expect(parsed.slips[0]?.amount).toBe(7777);
+    expect(parsed.slips[0]?.depositAt).toBe("2026-07-11T10:00:00.000Z");
+  });
+
+  it("falls back to reading-order for a single field line missing its own bbox, without geometry mis-zipping the others", () => {
+    // Both identities have full geometry (geometry runs), but Upper's Deposit
+    // line individually lacks a bbox. It must still land on Upper via the
+    // reading-order fallback, not on Lower.
+    const lines = [
+      geoLine("2026-7-11 10:00:00", 40),
+      geoLine("#1203[LFgo]Upper", 80),
+      { text: "Deposit: CrystalGold x 1111, Term: 1 days.", confidence: 90 },
+      geoLine("2026-7-11 10:01:00", 170),
+      geoLine("#1203[LFgo]Lower", 200),
+      geoLine("Deposit: CrystalGold x 2222, Term: 1 days.", 240),
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    const byName = Object.fromEntries(
+      parsed.slips.map((s) => [s.identity.commanderName, s]),
+    );
+    expect(byName.Upper?.amount).toBe(1111);
+    expect(byName.Lower?.amount).toBe(2222);
+  });
+
+  it("routes each row to the correct commander across three interleaved identities (middle y-band)", () => {
+    // Upper=80, Middle=200, Lower=320 → midpoints 140 and 260. Fields are
+    // emitted out of row order to exercise the middle band specifically.
+    const lines = [
+      geoLine("#1203[LFgo]Upper", 80),
+      geoLine("#1203[LFgo]Middle", 200),
+      geoLine("#1203[LFgo]Lower", 320),
+      geoLine("Deposit: CrystalGold x 3000, Term: 3 days.", 330),
+      geoLine("Deposit: CrystalGold x 1000, Term: 1 days.", 90),
+      geoLine("Deposit: CrystalGold x 2000, Term: 5 days.", 210),
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    const byName = Object.fromEntries(
+      parsed.slips.map((s) => [s.identity.commanderName, s]),
+    );
+    expect(byName.Upper?.amount).toBe(1000);
+    expect(byName.Middle?.amount).toBe(2000);
+    expect(byName.Lower?.amount).toBe(3000);
+  });
+
+  it("does not attach a Deposit line beyond the max vertical gap to a lone identity", () => {
+    // Single identity, but the only Deposit-shaped line is far outside the
+    // gap cap (and outside the 5-line reading-order look-ahead too), so it
+    // should end up unclaimed rather than geometrically forced onto Solo.
+    const lines = [
+      geoLine("#1203[LFgo]Solo", 80),
+      geoLine("noise 1", 400),
+      geoLine("noise 2", 440),
+      geoLine("noise 3", 480),
+      geoLine("noise 4", 520),
+      geoLine("noise 5", 560),
+      geoLine("Deposit: CrystalGold x 9999, Term: 1 days.", 900),
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    expect(parsed.slips).toHaveLength(0);
+  });
 });
