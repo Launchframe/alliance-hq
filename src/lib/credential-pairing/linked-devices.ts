@@ -33,19 +33,37 @@ export async function registerLinkedDevice(options: {
   const id = nanoid(16);
   const db = getDb();
 
-  await db.insert(schema.linkedDevices).values({
-    id,
-    hqUserId: options.hqUserId,
-    sessionId: options.sessionId,
-    pairingCodeId: options.pairingCodeId,
-    deviceName,
-    userAgent,
-    osLabel,
-    linkedAt: now,
-    lastAccessAt: now,
-  });
+  // session_id is unique — re-scanning on the same phone/browser must refresh
+  // the existing row (including clearing revoked_at) instead of failing insert.
+  const [row] = await db
+    .insert(schema.linkedDevices)
+    .values({
+      id,
+      hqUserId: options.hqUserId,
+      sessionId: options.sessionId,
+      pairingCodeId: options.pairingCodeId,
+      deviceName,
+      userAgent,
+      osLabel,
+      linkedAt: now,
+      lastAccessAt: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.linkedDevices.sessionId,
+      set: {
+        hqUserId: options.hqUserId,
+        pairingCodeId: options.pairingCodeId,
+        deviceName,
+        userAgent,
+        osLabel,
+        linkedAt: now,
+        lastAccessAt: now,
+        revokedAt: null,
+      },
+    })
+    .returning({ id: schema.linkedDevices.id });
 
-  return id;
+  return row?.id ?? id;
 }
 
 export async function listActiveLinkedDevicesForUser(

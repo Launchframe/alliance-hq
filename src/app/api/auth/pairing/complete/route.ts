@@ -3,11 +3,26 @@ import { z } from "zod";
 
 import { completePairing } from "@/lib/credential-pairing";
 import { PairingError, pairingErrorStatus } from "@/lib/credential-pairing/types";
+import { collectDatabaseErrorText } from "@/lib/db/error-message";
 import { getOrCreateSession } from "@/lib/session";
 
 const bodySchema = z.object({
   code: z.string().trim().min(1),
 });
+
+function publicPairingFailureMessage(error: unknown): string {
+  const detail = collectDatabaseErrorText(error);
+  if (
+    detail.includes("Failed query") ||
+    /insert into|update "|select /i.test(detail)
+  ) {
+    return "Pairing failed. Generate a new QR code and try again.";
+  }
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  return "Pairing failed.";
+}
 
 export async function POST(request: Request) {
   try {
@@ -28,8 +43,14 @@ export async function POST(request: Request) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid request." }, { status: 400 });
     }
+    console.error("[pairing/complete]", collectDatabaseErrorText(error));
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Pairing failed." },
+      {
+        error: publicPairingFailureMessage(error),
+        ...(process.env.NODE_ENV === "development"
+          ? { detail: collectDatabaseErrorText(error) }
+          : {}),
+      },
       { status: 500 },
     );
   }
