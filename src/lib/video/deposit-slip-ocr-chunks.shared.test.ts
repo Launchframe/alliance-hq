@@ -6,6 +6,7 @@ import {
   readDepositSlipOcrChunkState,
   resolveDepositSlipOcrFrameChunkSize,
   resolveDepositSlipOcrOffsetFromFrames,
+  resolveDepositSlipOcrResumeOffset,
   videoFrameHasDepositSlipHistory,
   writeDepositSlipOcrChunkState,
 } from "@/lib/video/deposit-slip-ocr-chunks.shared";
@@ -91,6 +92,54 @@ describe("resolveDepositSlipOcrOffsetFromFrames", () => {
         { frameIndex: 0, ocrRawJson: { history: { slips: [] } } },
         { frameIndex: 1, ocrRawJson: { history: { slips: [] } } },
       ]),
+    ).toBe(2);
+  });
+});
+
+describe("resolveDepositSlipOcrResumeOffset", () => {
+  const frames = [
+    { frameIndex: 0, ocrRawJson: { history: { slips: [] } } },
+    { frameIndex: 1, ocrRawJson: { history: { slips: [] } } },
+    { frameIndex: 2, ocrRawJson: { lines: [] } },
+    { frameIndex: 3, ocrRawJson: null },
+  ];
+
+  it("uses frame scan when no stored cursor", () => {
+    expect(
+      resolveDepositSlipOcrResumeOffset({ storedState: null, frames }),
+    ).toBe(2);
+  });
+
+  it("does not skip frames still missing history when cursor is ahead", () => {
+    expect(
+      resolveDepositSlipOcrResumeOffset({
+        storedState: {
+          version: 1,
+          nextFrameOffset: 4,
+          totalFrames: 4,
+          chunkSize: 2,
+        },
+        frames,
+      }),
+    ).toBe(2);
+  });
+
+  it("re-OCRs from the cursor when frames are ahead (mid-chunk rewrite)", () => {
+    expect(
+      resolveDepositSlipOcrResumeOffset({
+        storedState: {
+          version: 1,
+          nextFrameOffset: 2,
+          totalFrames: 4,
+          chunkSize: 2,
+        },
+        frames: [
+          { frameIndex: 0, ocrRawJson: { history: { slips: [] } } },
+          { frameIndex: 1, ocrRawJson: { history: { slips: [] } } },
+          { frameIndex: 2, ocrRawJson: { history: { slips: [] } } },
+          { frameIndex: 3, ocrRawJson: { history: { slips: [] } } },
+        ],
+      }),
     ).toBe(2);
   });
 });

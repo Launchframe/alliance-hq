@@ -247,6 +247,49 @@ export async function finalizeDepositSlipVideoParse(input: {
   matchedCount: number;
 }> {
   const db = getDb();
+
+  // Chunked OCR finalize loads from frames. If the worker died after creating
+  // the parse session but before status→review, reuse the existing session
+  // instead of inserting a duplicate.
+  const loadFromFrames =
+    input.histories == null && input.historyOverride == null;
+  if (loadFromFrames) {
+    const [existingJob] = await db
+      .select({
+        parseSessionId: schema.videoJobs.parseSessionId,
+        allianceId: schema.videoJobs.allianceId,
+      })
+      .from(schema.videoJobs)
+      .where(eq(schema.videoJobs.id, input.jobId))
+      .limit(1);
+    if (existingJob?.parseSessionId) {
+      const [existingSession] = await db
+        .select({
+          id: schema.parseSessions.id,
+          allianceId: schema.parseSessions.allianceId,
+          rowCount: schema.parseSessions.rowCount,
+          matchedCount: schema.parseSessions.matchedCount,
+        })
+        .from(schema.parseSessions)
+        .where(eq(schema.parseSessions.id, existingJob.parseSessionId))
+        .limit(1);
+      if (existingSession) {
+        const hqAllianceId =
+          existingSession.allianceId ??
+          existingJob.allianceId ??
+          (await input.timer.measureStep("alliance.resolve_hq", () =>
+            resolveHqAllianceIdFromSession(input.sessionId),
+          ));
+        return {
+          parseSessionId: existingSession.id,
+          hqAllianceId,
+          rowCount: existingSession.rowCount,
+          matchedCount: existingSession.matchedCount,
+        };
+      }
+    }
+  }
+
   const hqAllianceId = await input.timer.measureStep(
     "alliance.resolve_hq",
     () => resolveHqAllianceIdFromSession(input.sessionId),

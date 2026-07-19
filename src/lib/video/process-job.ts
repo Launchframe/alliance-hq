@@ -831,12 +831,13 @@ export async function processVideoJob(
       totalRawOcrRows,
     };
 
-    // More deposit-slip OCR chunks remain — job is already queued + dispatched.
+    // More deposit-slip OCR chunks remain — stay in `parsing` (in-flight) and
+    // the phase already dispatched the next worker invocation.
     if (depositSlipAwaitingNextChunk) {
       timer.log(`job ${jobId} deposit-slip OCR chunk complete; continuing`, {
         scoreTarget: scoreTargetId,
         frameCount,
-        uploadedFrameCount: job.uploadedFrameCount,
+        uploadedFrameCount: liveUploadedFrameCount,
         ocrConcurrency,
       });
       return timings;

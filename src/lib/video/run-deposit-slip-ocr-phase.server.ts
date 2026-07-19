@@ -9,7 +9,7 @@ import {
   depositSlipOcrChunkWindow,
   readDepositSlipOcrChunkState,
   resolveDepositSlipOcrFrameChunkSize,
-  resolveDepositSlipOcrOffsetFromFrames,
+  resolveDepositSlipOcrResumeOffset,
   writeDepositSlipOcrChunkState,
   type DepositSlipOcrChunkState,
 } from "@/lib/video/deposit-slip-ocr-chunks.shared";
@@ -67,8 +67,8 @@ async function loadStoredDepositFrames(jobId: string) {
 
 /**
  * OCR the next deposit-slip frame chunk. When more frames remain, updates
- * chunk state, sets the job back to `queued`, and dispatches the next worker
- * invocation. When the last chunk finishes, creates the parse session.
+ * chunk state, keeps the job in-flight (`parsing`), and dispatches the next
+ * worker invocation. When the last chunk finishes, creates the parse session.
  */
 export async function runDepositSlipOcrPhase(input: {
   jobId: string;
@@ -113,11 +113,10 @@ export async function runDepositSlipOcrPhase(input: {
   }
 
   const storedState = readDepositSlipOcrChunkState(input.timingsJson);
-  const nextFrameOffset =
-    storedState?.nextFrameOffset ??
-    (stored.length > 0
-      ? resolveDepositSlipOcrOffsetFromFrames(stored)
-      : 0);
+  const nextFrameOffset = resolveDepositSlipOcrResumeOffset({
+    storedState,
+    frames: stored,
+  });
 
   if (nextFrameOffset >= totalFrames) {
     const finalized = await finalizeDepositSlipVideoParse({

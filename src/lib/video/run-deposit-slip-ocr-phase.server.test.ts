@@ -210,4 +210,59 @@ describe("runDepositSlipOcrPhase", () => {
     expect(mockDispatch).not.toHaveBeenCalled();
     expect(mockFinalize).toHaveBeenCalled();
   });
+
+  it("rewinds a stale cursor that skipped frames still missing history", async () => {
+    mockLoadFrames.mockResolvedValue([
+      {
+        frameIndex: 0,
+        storageKey: "f0",
+        ocrRawJson: { history: { slips: [] } },
+        videoTimestampSeconds: 0,
+      },
+      {
+        frameIndex: 1,
+        storageKey: "f1",
+        ocrRawJson: null,
+        videoTimestampSeconds: 1,
+      },
+      {
+        frameIndex: 2,
+        storageKey: "f2",
+        ocrRawJson: null,
+        videoTimestampSeconds: 2,
+      },
+    ]);
+
+    const result = await runDepositSlipOcrPhase({
+      jobId: "job-1",
+      sessionId: "session-1",
+      scoreTargetId: "bank-deposit-slip-history",
+      target: { id: "bank-deposit-slip-history" } as never,
+      engine: "native",
+      extractedFrames: [],
+      timingsJson: {
+        depositSlipOcrChunk: {
+          version: 1,
+          nextFrameOffset: 2,
+          totalFrames: 3,
+          chunkSize: 2,
+        },
+      },
+      timer,
+      now: new Date("2026-07-18T00:00:00.000Z"),
+      onOcrProgress: vi.fn(),
+      setChunkProgress: vi.fn(),
+      setContinueChunk: vi.fn(),
+    });
+
+    expect(result.kind).toBe("complete");
+    expect(mockOcrChunk).toHaveBeenCalledWith(
+      expect.objectContaining({
+        frames: [
+          { index: 1, buffer: expect.any(Buffer) },
+          { index: 2, buffer: expect.any(Buffer) },
+        ],
+      }),
+    );
+  });
 });

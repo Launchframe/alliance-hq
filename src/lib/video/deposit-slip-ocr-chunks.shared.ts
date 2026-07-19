@@ -137,3 +137,22 @@ export function resolveDepositSlipOcrOffsetFromFrames(
   }
   return frames.length;
 }
+
+/**
+ * Resume cursor for the next OCR chunk.
+ * Prefer the persisted cursor, but never skip frames that still lack history
+ * (worker killed mid-chunk after some frame writes, or a stale cursor).
+ */
+export function resolveDepositSlipOcrResumeOffset(params: {
+  storedState: DepositSlipOcrChunkState | null;
+  frames: ReadonlyArray<{ frameIndex: number; ocrRawJson: unknown }>;
+}): number {
+  const fromFrames =
+    params.frames.length > 0
+      ? resolveDepositSlipOcrOffsetFromFrames(params.frames)
+      : 0;
+  if (params.storedState == null) {
+    return fromFrames;
+  }
+  return Math.min(params.storedState.nextFrameOffset, fromFrames);
+}
