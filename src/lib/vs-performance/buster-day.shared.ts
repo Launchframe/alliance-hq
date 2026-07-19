@@ -54,6 +54,26 @@ export function isBusterDaySnapshotComplete(input: {
   return Boolean(input.rosterJobId && input.killsJobId);
 }
 
+/**
+ * Normalize optional POST job id fields.
+ * `undefined` = leave existing; `null` = clear; non-empty string = attach.
+ * Empty / whitespace-only strings are rejected.
+ */
+export function normalizeOptionalBusterDayJobId(
+  value: string | null | undefined,
+):
+  | { ok: true; value: string | null | undefined }
+  | { ok: false; error: string } {
+  if (value === undefined || value === null) {
+    return { ok: true, value };
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return { ok: false, error: "Job id must be a non-empty string." };
+  }
+  return { ok: true, value: trimmed };
+}
+
 export type SerializedBusterDayReport = {
   id: string;
   allianceId: string;

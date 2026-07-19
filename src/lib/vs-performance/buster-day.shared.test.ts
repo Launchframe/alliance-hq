@@ -4,6 +4,7 @@ import {
   busterDayWeekDates,
   busterDayWeekMondayForDate,
   isBusterDaySnapshotComplete,
+  normalizeOptionalBusterDayJobId,
   resolveBusterDayWizardPhase,
 } from "./buster-day.shared";
 
@@ -68,5 +69,36 @@ describe("isBusterDaySnapshotComplete", () => {
         killsJobId: "k1",
       }),
     ).toBe(false);
+  });
+});
+
+describe("normalizeOptionalBusterDayJobId", () => {
+  it("preserves undefined and null", () => {
+    expect(normalizeOptionalBusterDayJobId(undefined)).toEqual({
+      ok: true,
+      value: undefined,
+    });
+    expect(normalizeOptionalBusterDayJobId(null)).toEqual({
+      ok: true,
+      value: null,
+    });
+  });
+
+  it("trims non-empty ids and rejects blanks", () => {
+    expect(normalizeOptionalBusterDayJobId("  job-1  ")).toEqual({
+      ok: true,
+      value: "job-1",
+    });
+    expect(normalizeOptionalBusterDayJobId("")).toMatchObject({ ok: false });
+    expect(normalizeOptionalBusterDayJobId("   ")).toMatchObject({
+      ok: false,
+    });
+  });
+});
+
+describe("busterDayWeekMondayForDate normalization", () => {
+  it("maps mid-week dates to the VS week Monday", () => {
+    expect(busterDayWeekMondayForDate("2026-07-15")).toBe("2026-07-13");
+    expect(busterDayWeekMondayForDate("2026-07-13")).toBe("2026-07-13");
   });
 });

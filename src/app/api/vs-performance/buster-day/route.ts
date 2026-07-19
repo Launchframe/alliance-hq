@@ -69,15 +69,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const vsWeekMonday =
-    body.vsWeekMonday?.trim() ||
-    busterDayWeekMondayForDate(getServerCalendarDate());
-  if (!DATE_PATTERN.test(vsWeekMonday)) {
+  const rawWeek =
+    body.vsWeekMonday?.trim() || getServerCalendarDate();
+  if (!DATE_PATTERN.test(rawWeek)) {
     return NextResponse.json(
       { error: "vsWeekMonday must be YYYY-MM-DD." },
       { status: 400 },
     );
   }
+  // Always store the VS week Monday, even if the client sent Fri/Sun.
+  const vsWeekMonday = busterDayWeekMondayForDate(rawWeek);
 
   if (body.rosterJobId === undefined && body.killsJobId === undefined) {
     return NextResponse.json(
@@ -86,13 +87,21 @@ export async function POST(request: Request) {
     );
   }
 
-  const report = await attachBusterDaySnapshotJob({
+  const attached = await attachBusterDaySnapshotJob({
     allianceId,
     vsWeekMonday,
     kind: body.kind,
     rosterJobId: body.rosterJobId,
     killsJobId: body.killsJobId,
   });
+  if (!attached.ok) {
+    return NextResponse.json(
+      { error: attached.error },
+      { status: attached.status },
+    );
+  }
 
-  return NextResponse.json({ report: serializeBusterDayReport(report) });
+  return NextResponse.json({
+    report: serializeBusterDayReport(attached.report),
+  });
 }

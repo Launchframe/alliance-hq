@@ -4,10 +4,12 @@ import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { MEMBER_ROSTER_VIDEO_SCORE_TARGET } from "@/lib/members/ashed-member-record";
 import {
   busterDayWeekDates,
   busterDayWeekMondayForDate,
   isBusterDaySnapshotComplete,
+  normalizeOptionalBusterDayJobId,
   resolveBusterDayWizardPhase,
   type SerializedBusterDayReport,
 } from "@/lib/vs-performance/buster-day.shared";
@@ -15,8 +17,46 @@ import {
   getServerCalendarDate,
   getWeekStartMonday,
 } from "@/lib/trains/game-time";
+import { ALLIANCE_KILLS_VIDEO_SCORE_TARGET } from "@/lib/video/score-targets";
 
 type BusterDayReportRow = typeof schema.busterDayReports.$inferSelect;
+
+export type AttachBusterDaySnapshotJobResult =
+  | { ok: true; report: BusterDayReportRow }
+  | { ok: false; status: 400 | 404; error: string };
+
+/**
+ * Ensure a video job exists, belongs to the alliance, and matches the expected
+ * score target. Cross-tenant misses return 404 (no existence leak).
+ */
+async function assertAllianceBusterDayVideoJob(input: {
+  allianceId: string;
+  jobId: string;
+  expectedScoreTarget: string;
+}): Promise<{ ok: true } | { ok: false; status: 400 | 404; error: string }> {
+  const db = getDb();
+  const [job] = await db
+    .select({
+      id: schema.videoJobs.id,
+      allianceId: schema.videoJobs.allianceId,
+      scoreTarget: schema.videoJobs.scoreTarget,
+    })
+    .from(schema.videoJobs)
+    .where(eq(schema.videoJobs.id, input.jobId))
+    .limit(1);
+
+  if (!job || job.allianceId !== input.allianceId) {
+    return { ok: false, status: 404, error: "Video job not found." };
+  }
+  if (job.scoreTarget !== input.expectedScoreTarget) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Video job score target mismatch.",
+    };
+  }
+  return { ok: true };
+}
 
 function toIso(value: Date | null | undefined): string | null {
   return value ? value.toISOString() : null;
@@ -91,8 +131,9 @@ export async function getLatestCompletedBusterDayReport(
 
 export async function getOrCreateBusterDayReport(
   allianceId: string,
-  vsWeekMonday: string = getWeekStartMonday(getServerCalendarDate()),
+  vsWeekMondayInput: string = getWeekStartMonday(getServerCalendarDate()),
 ): Promise<BusterDayReportRow> {
+  const vsWeekMonday = busterDayWeekMondayForDate(vsWeekMondayInput);
   const existing = await getBusterDayReportByWeek(allianceId, vsWeekMonday);
   if (existing) return existing;
 
@@ -136,23 +177,51 @@ export async function attachBusterDaySnapshotJob(input: {
   kind: BusterDaySnapshotKind;
   rosterJobId?: string | null;
   killsJobId?: string | null;
-}): Promise<BusterDayReportRow> {
+}): Promise<AttachBusterDaySnapshotJobResult> {
+  const vsWeekMonday = busterDayWeekMondayForDate(input.vsWeekMonday);
+
+  const rosterNorm = normalizeOptionalBusterDayJobId(input.rosterJobId);
+  if (!rosterNorm.ok) {
+    return { ok: false, status: 400, error: rosterNorm.error };
+  }
+  const killsNorm = normalizeOptionalBusterDayJobId(input.killsJobId);
+  if (!killsNorm.ok) {
+    return { ok: false, status: 400, error: killsNorm.error };
+  }
+
+  if (rosterNorm.value) {
+    const check = await assertAllianceBusterDayVideoJob({
+      allianceId: input.allianceId,
+      jobId: rosterNorm.value,
+      expectedScoreTarget: MEMBER_ROSTER_VIDEO_SCORE_TARGET,
+    });
+    if (!check.ok) return check;
+  }
+  if (killsNorm.value) {
+    const check = await assertAllianceBusterDayVideoJob({
+      allianceId: input.allianceId,
+      jobId: killsNorm.value,
+      expectedScoreTarget: ALLIANCE_KILLS_VIDEO_SCORE_TARGET,
+    });
+    if (!check.ok) return check;
+  }
+
   const report = await getOrCreateBusterDayReport(
     input.allianceId,
-    input.vsWeekMonday,
+    vsWeekMonday,
   );
-  const dates = busterDayWeekDates(input.vsWeekMonday);
+  const dates = busterDayWeekDates(vsWeekMonday);
   const now = new Date();
 
   const nextRoster =
-    input.rosterJobId !== undefined
-      ? input.rosterJobId
+    rosterNorm.value !== undefined
+      ? rosterNorm.value
       : input.kind === "pre"
         ? report.preRosterJobId
         : report.postRosterJobId;
   const nextKills =
-    input.killsJobId !== undefined
-      ? input.killsJobId
+    killsNorm.value !== undefined
+      ? killsNorm.value
       : input.kind === "pre"
         ? report.preKillsJobId
         : report.postKillsJobId;
@@ -186,13 +255,22 @@ export async function attachBusterDaySnapshotJob(input: {
   const [updated] = await db
     .update(schema.busterDayReports)
     .set(patch)
-    .where(eq(schema.busterDayReports.id, report.id))
+    .where(
+      and(
+        eq(schema.busterDayReports.id, report.id),
+        eq(schema.busterDayReports.allianceId, input.allianceId),
+      ),
+    )
     .returning();
 
   if (!updated) {
-    throw new Error("Failed to update buster day report.");
+    return {
+      ok: false,
+      status: 404,
+      error: "Failed to update buster day report.",
+    };
   }
-  return updated;
+  return { ok: true, report: updated };
 }
 
 export type BusterDayWizardState = {
