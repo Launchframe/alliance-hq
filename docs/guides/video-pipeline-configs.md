@@ -110,7 +110,7 @@ Native OCR is always used for this target (no Ashed). Cross-frame merge partitio
 
 **Officer review triage (post-dedupe):** identical display-identity duplicates and locked→matured/looted lifecycle pairs (timestamps within the loan term) land in **Automatically merged**; clipped-timestamp rows that already match a kept deposit go to a collapsed **Missing deposit time — already covered** section and do not block save. Fingerprint/bbox shadowing (same OCR line across overlapping frames) is separate from within-frame name↔amount association (below).
 
-**Within-frame field association:** when Tesseract returns line bboxes, Deposit / outcome / timestamp lines attach to the nearest identity by **vertical proximity** (same geometry plumbing as City List word-x matching from #317 — deposit slips use **y**, not column x). Without bboxes, association falls back to OCR reading-order windows. Cross-frame fingerprinting collapses duplicate line reads; it does not fix within-frame name↔amount mis-zips.
+**Within-frame field association:** when Tesseract returns line bboxes for every identity on the frame, Deposit / outcome / timestamp lines attach by **midpoint y-bands** between identity centers (same geometry plumbing as City List word-x matching from #317 — deposit slips use **y**, not column x). Without complete identity bboxes, association falls back to OCR reading-order windows. Cross-frame fingerprinting collapses duplicate line reads; it does not fix within-frame name↔amount mis-zips.
 
 ### Ashed scoreboards (Desert Storm, VS, …)
 

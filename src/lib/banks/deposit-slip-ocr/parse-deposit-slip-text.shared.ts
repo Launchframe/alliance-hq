@@ -3,10 +3,11 @@
  * Expects OCR text from the in-game "Deposit Slip History" overlay.
  *
  * When Tesseract line bboxes are present (same geometry plumbing as City List
- * word-x matching), field association uses **vertical proximity** so a
- * Deposit/outcome line attaches to the nearest identity above it — not the
- * next identity in OCR reading order. Without bboxes, association falls back
- * to the legacy line-order window.
+ * word-x matching), field association uses **midpoint y-bands** between
+ * identity centers so a Deposit/outcome/timestamp line attaches to the card
+ * that owns its vertical band — not the next identity in OCR reading order.
+ * Without complete identity bboxes, association falls back to the legacy
+ * line-order window.
  */
 
 import type {
@@ -376,17 +377,19 @@ function finalizeDraft(draft: DraftBuilder): ParsedDepositSlipDraft | null {
 }
 
 /**
- * True when enough identities carry line bboxes to prefer vertical
- * association over OCR reading order.
+ * True when every identity carries a line bbox and at least one field line
+ * does too — otherwise prefer full reading-order (partial geometry can steal
+ * fields onto the subset of geo anchors). Mirrors City List requiring usable
+ * centers on both sides before position matching.
  */
 function shouldUseVerticalGeometry(
   anchors: readonly IdentityAnchor[],
   lines: readonly NormalizedOcrLine[],
 ): boolean {
-  const withY = anchors.filter((a) => a.yCenter != null).length;
-  if (withY === 0) return false;
+  if (anchors.length === 0) return false;
+  if (anchors.some((a) => a.yCenter == null)) return false;
   // Need at least one field line with geometry too — otherwise nothing to zip.
-  const fieldWithY = lines.some((line) => {
+  return lines.some((line) => {
     if (line.yCenter == null) return false;
     const t = line.text.trim();
     return (
@@ -396,13 +399,55 @@ function shouldUseVerticalGeometry(
       EARLY_REFUND_RE.test(t)
     );
   });
-  return fieldWithY && withY >= Math.ceil(anchors.length / 2);
+}
+
+type GeoIdentityAnchor = IdentityAnchor & { yCenter: number };
+
+/**
+ * Identity that owns `fieldY` via midpoint y-bands between sorted identity
+ * centers (City List half-pitch analog on the vertical axis). First/last
+ * bands extend to ±∞ but still require `maxGap` to the owner.
+ */
+function identityForYBand(
+  fieldY: number,
+  geoAnchors: readonly GeoIdentityAnchor[],
+  maxGap: number,
+): GeoIdentityAnchor | null {
+  if (geoAnchors.length === 0) return null;
+  if (geoAnchors.length === 1) {
+    const only = geoAnchors[0]!;
+    return Math.abs(fieldY - only.yCenter) <= maxGap ? only : null;
+  }
+
+  for (let i = 0; i < geoAnchors.length; i += 1) {
+    const anchor = geoAnchors[i]!;
+    const lower =
+      i === 0
+        ? Number.NEGATIVE_INFINITY
+        : (geoAnchors[i - 1]!.yCenter + anchor.yCenter) / 2;
+    const upper =
+      i === geoAnchors.length - 1
+        ? Number.POSITIVE_INFINITY
+        : (anchor.yCenter + geoAnchors[i + 1]!.yCenter) / 2;
+    // Half-open on the upper edge so the midpoint belongs to the lower band;
+    // the last band is closed on both sides.
+    const inBand =
+      i === geoAnchors.length - 1
+        ? fieldY >= lower && fieldY <= upper
+        : fieldY >= lower && fieldY < upper;
+    if (!inBand) continue;
+    if (Math.abs(fieldY - anchor.yCenter) > maxGap) return null;
+    return anchor;
+  }
+  return null;
 }
 
 /**
- * Assign each geometric field line to the nearest identity **above** it
- * (same card: timestamp slightly above identity; Deposit/outcome below).
- * Exclusive: one Deposit line → one identity.
+ * Assign each geometric field line to the identity whose midpoint y-band
+ * contains it (timestamp / Deposit / outcome on the same card). Exclusive:
+ * one field line → at most one identity; closer pairs win first. When the
+ * owner's slot for that kind is already filled, the line is still claimed
+ * (orphaned) so reading-order cannot mis-zip it.
  */
 function assignFieldsByVerticalProximity(
   anchors: readonly IdentityAnchor[],
@@ -411,18 +456,11 @@ function assignFieldsByVerticalProximity(
   claimedLineIndexes: Set<number>,
 ): void {
   const maxGap = maxVerticalFieldGapPx(lines);
-  const medH = medianPositive(
-    lines
-      .map((l) => l.rowHeight)
-      .filter((h): h is number => typeof h === "number"),
-  );
-  // Allow a little OCR y-reorder noise (field slightly above identity).
-  const aboveSlack = medH * 0.75;
 
   const geoAnchors = anchors
-    .filter((a): a is IdentityAnchor & { yCenter: number } => a.yCenter != null)
+    .filter((a): a is GeoIdentityAnchor => a.yCenter != null)
     .slice()
-    .sort((a, b) => a.yCenter - b.yCenter);
+    .sort((a, b) => a.yCenter - b.yCenter || a.lineIndex - b.lineIndex);
 
   type FieldKind = "timestamp" | "deposit" | "outcome";
   type FieldCandidate = {
@@ -515,38 +553,11 @@ function assignFieldsByVerticalProximity(
     }
   }
 
-  // Nearest identity whose y is at or above the field (with small slack).
-  const pickIdentity = (
-    fieldY: number,
-    kind: FieldKind,
-  ): (IdentityAnchor & { yCenter: number }) | null => {
-    let best: (IdentityAnchor & { yCenter: number }) | null = null;
-    let bestDist = Number.POSITIVE_INFINITY;
-    for (const anchor of geoAnchors) {
-      const dy = fieldY - anchor.yCenter;
-      if (kind === "timestamp") {
-        // Timestamps sit above the identity; allow slight below noise.
-        if (dy > aboveSlack) continue;
-        if (anchor.yCenter - fieldY > maxGap) continue;
-      } else {
-        // Deposit / outcome sit below the identity.
-        if (dy < -aboveSlack) continue;
-        if (dy > maxGap) continue;
-      }
-      const dist = Math.abs(dy);
-      if (dist < bestDist) {
-        bestDist = dist;
-        best = anchor;
-      }
-    }
-    return best;
-  };
-
   // Process closer field↔identity pairs first so contested lines go to the
   // geometrically nearer commander (not reading-order first-come).
   const scored = fields
     .map((field) => {
-      const anchor = pickIdentity(field.yCenter, field.kind);
+      const anchor = identityForYBand(field.yCenter, geoAnchors, maxGap);
       if (!anchor) return null;
       return {
         field,
@@ -559,7 +570,7 @@ function assignFieldsByVerticalProximity(
         row,
       ): row is {
         field: FieldCandidate;
-        anchor: IdentityAnchor & { yCenter: number };
+        anchor: GeoIdentityAnchor;
         dist: number;
       } => row != null,
     )
@@ -570,11 +581,15 @@ function assignFieldsByVerticalProximity(
     const draft = drafts.get(anchor.lineIndex);
     if (!draft) continue;
 
-    if (field.kind === "timestamp" && draft.depositAt != null) continue;
-    if (field.kind === "deposit" && draft.amount != null) continue;
-    if (field.kind === "outcome" && draft.outcomeKind != null) continue;
-
-    field.apply(draft);
+    const slotFull =
+      (field.kind === "timestamp" && draft.depositAt != null) ||
+      (field.kind === "deposit" && draft.amount != null) ||
+      (field.kind === "outcome" && draft.outcomeKind != null);
+    if (!slotFull) {
+      field.apply(draft);
+    }
+    // Always claim: geometry decided this line belongs to this band. Leaving
+    // it unclaimed lets reading-order steal it across rows.
     claimedLineIndexes.add(field.lineIndex);
   }
 }
@@ -653,9 +668,10 @@ function fillDraftsFromReadingOrder(
  *
  * When lines include Tesseract confidence, each draft carries the mean
  * confidence of the identity / timestamp / deposit / outcome lines that
- * contributed to it (used by dedupe pick-best). When lines include line
- * bboxes, Deposit/outcome/timestamp lines attach by vertical proximity
- * before any reading-order fallback.
+ * contributed to it (used by dedupe pick-best). When every identity line
+ * includes a line bbox (plus at least one field bbox), Deposit/outcome/
+ * timestamp lines attach by midpoint y-bands before any reading-order
+ * fallback.
  */
 export function parseDepositSlipHistoryText(
   lines: readonly string[] | readonly DepositSlipOcrLine[],

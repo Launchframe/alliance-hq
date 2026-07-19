@@ -324,4 +324,80 @@ describe("parseDepositSlipHistoryText — vertical line-bbox association", () =>
     expect(byName.Beta?.status).toBe("locked");
     expect(byName.Beta?.outcomeAmount).toBeNull();
   });
+
+  it("assigns a Deposit past the midpoint to the lower identity (y-band, not nearest-above)", () => {
+    // A=80, B=200 → midpoint 140. Deposit at 160 is closer to B but still
+    // above B — nearest-above would steal it for A; y-banding gives it to B.
+    const lines = [
+      geoLine("2026-7-11 10:00:00", 40),
+      geoLine("#1203[LFgo]Upper", 80),
+      geoLine("Deposit: CrystalGold x 1111, Term: 1 days.", 110),
+      geoLine("2026-7-11 10:01:00", 170),
+      geoLine("#1203[LFgo]Lower", 200),
+      geoLine("Deposit: CrystalGold x 2222, Term: 1 days.", 160),
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    const byName = Object.fromEntries(
+      parsed.slips.map((s) => [s.identity.commanderName, s]),
+    );
+    expect(byName.Upper?.amount).toBe(1111);
+    expect(byName.Lower?.amount).toBe(2222);
+  });
+
+  it("falls back to reading-order when any identity lacks a line bbox", () => {
+    // Only Lower has geometry. If geometry ran with a half-threshold gate,
+    // the Deposit at y=120 (Upper's) could attach to Lower. Full fallback
+    // keeps reading-order: Upper consumes 1111, Lower consumes 2222.
+    const lines = [
+      { text: "2026-7-11 10:00:00", confidence: 90 },
+      { text: "#1203[LFgo]Upper", confidence: 90 },
+      {
+        text: "Deposit: CrystalGold x 1111, Term: 1 days.",
+        confidence: 90,
+        bbox: { x0: 40, y0: 120, x1: 400, y1: 148 },
+      },
+      {
+        text: "2026-7-11 10:01:00",
+        confidence: 90,
+        bbox: { x0: 40, y0: 170, x1: 400, y1: 198 },
+      },
+      {
+        text: "#1203[LFgo]Lower",
+        confidence: 90,
+        bbox: { x0: 40, y0: 200, x1: 400, y1: 228 },
+      },
+      {
+        text: "Deposit: CrystalGold x 2222, Term: 1 days.",
+        confidence: 90,
+        bbox: { x0: 40, y0: 240, x1: 400, y1: 268 },
+      },
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    const byName = Object.fromEntries(
+      parsed.slips.map((s) => [s.identity.commanderName, s]),
+    );
+    expect(byName.Upper?.amount).toBe(1111);
+    expect(byName.Lower?.amount).toBe(2222);
+  });
+
+  it("does not let reading-order steal a second Deposit already banded to a full slot", () => {
+    // Both Deposits land in Upper's y-band (midpoint with Lower at 200 is 140).
+    // Closer 1111 fills Upper; 1333 is claimed as an orphan so Lower cannot
+    // take it via interleaved reading-order look-ahead.
+    const lines = [
+      geoLine("2026-7-11 10:00:00", 40),
+      geoLine("#1203[LFgo]Upper", 80),
+      geoLine("2026-7-11 10:01:00", 170),
+      geoLine("#1203[LFgo]Lower", 200),
+      geoLine("Deposit: CrystalGold x 1333, Term: 1 days.", 125),
+      geoLine("Deposit: CrystalGold x 1111, Term: 1 days.", 110),
+      geoLine("Deposit: CrystalGold x 2222, Term: 1 days.", 240),
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    const byName = Object.fromEntries(
+      parsed.slips.map((s) => [s.identity.commanderName, s]),
+    );
+    expect(byName.Upper?.amount).toBe(1111);
+    expect(byName.Lower?.amount).toBe(2222);
+  });
 });
