@@ -375,7 +375,7 @@ const commandBody = [
     description: "Set this channel for banking partner notifications — protection timers, etc. (owner only).",
     description_localizations: {
       "pt-BR":
-        "Define este canal para notificações de parceiros bancários — timers de proteção, etc. (somente dono).",
+        "Define este canal para notificações de parceiros bancários — timers de proteção, etc (somente dono).",
     },
   },
   {
