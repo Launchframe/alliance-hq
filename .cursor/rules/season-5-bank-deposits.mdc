@@ -109,7 +109,10 @@ Video OCR dedupe (`dedupeDepositSlips` in `deposit-slip-dedupe.shared.ts`) merge
 
 **Why loot is not:** a deposit **can be looted within minutes** of `depositAt`. A commander who is looted and immediately re-deposits (same amount/term, one OCR read of the second slip) can have that second initiate absorbed as an “OCR outlier” of the first — a false merge Real Steel flagged on PR #313.
 
-**Follow-up (do not treat as fixed by #313):** harden separation for rapid post-loot re-deposits — e.g. frame-index continuity across the scroll, and/or refuse majority-outlier absorb when statuses/outcomes disagree (locked vs looted/matured), so a lone second initiate is not folded into a prior slip.
+**Status (partially closed):**
+- **45m majority-outlier absorb** — status-gated in #353 (`absorbMajorityMinuteOutliers` requires the outlier’s status to already appear in the majority group). A post-loot locked re-deposit is no longer folded into a multi-frame orange majority.
+- **≤15m proximity diameter** — peels locked rows timed **after** a terminal OCR row out of the proximity merge group (post-outcome re-deposits). Valid initiate+loot pairs (locked ≤ terminal time) still coalesce.
+- **Still open:** frame-index continuity across the scroll for edge cases that pass both gates.
 
 ### Within-frame field association (line bboxes)
 

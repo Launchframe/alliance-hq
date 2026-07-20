@@ -1364,7 +1364,9 @@ describe("dedupeDepositSlips — review triage", () => {
     ).toBe(false);
   });
 
-  it("does not lifecycle-merge a re-deposit locked after an earlier loot survivor", () => {
+  it("peels a ≤15m post-loot re-deposit locked out of proximity merge", () => {
+    // Initiate 12:00 → loot 12:10 → re-deposit 12:20 all fit the 15m diameter.
+    // Peel keeps the post-terminal locked from riding the initiate+loot merge.
     const { slips, report } = dedupeDepositSlips([
       slip({
         commanderName: "Loot Redeposit",
@@ -1391,19 +1393,62 @@ describe("dedupeDepositSlips — review triage", () => {
       }),
     ]);
 
-    // Proximity may still coalesce initiate+loot (known ≤15m loot window);
-    // the later re-deposit must remain its own slip.
-    expect(slips.length).toBeGreaterThanOrEqual(2);
-    expect(slips.some((s) => s.status === "locked")).toBe(true);
+    expect(slips).toHaveLength(2);
     const lockedRedeposit = slips.find(
       (s) =>
         s.status === "locked" &&
         s.depositAt === "2026-07-10T12:20:00.000Z",
     );
     expect(lockedRedeposit).toBeDefined();
+    expect(lockedRedeposit?.amount).toBe(5000);
+    expect(slips.some((s) => s.status === "looted")).toBe(true);
     expect(
       report.clusters.filter((c) => c.reason === "lifecycle_locked_to_looted"),
     ).toHaveLength(0);
+  });
+
+  it("still merges multi-frame OCR duplicates of a peeled post-loot re-deposit", () => {
+    // Two frames of the same post-loot locked must coalesce after peel, not
+    // stay as separate singleton survivors.
+    const { slips } = dedupeDepositSlips([
+      slip({
+        commanderName: "Loot Redeposit Dup",
+        depositAt: "2026-07-10T12:00:00.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "Loot Redeposit Dup",
+        depositAt: "2026-07-10T12:10:00.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "looted",
+        outcomeKind: "early_termination_refund",
+        outcomeAmount: 0,
+      }),
+      slip({
+        commanderName: "Loot Redeposit Dup",
+        depositAt: "2026-07-10T12:20:00.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "locked",
+        sourceFrameIndex: 10,
+      }),
+      slip({
+        commanderName: "Loot Redeposit Dup",
+        depositAt: "2026-07-10T12:20:05.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "locked",
+        sourceFrameIndex: 11,
+      }),
+    ]);
+
+    expect(slips).toHaveLength(2);
+    const lockedRedeposits = slips.filter((s) => s.status === "locked");
+    expect(lockedRedeposits).toHaveLength(1);
+    expect(lockedRedeposits[0]?.depositAt).toMatch(/^2026-07-10T12:20/);
   });
 
   it("does not absorb a post-loot re-deposit blue into a multi-frame-OCR'd orange majority (majority-outlier status guard)", () => {
