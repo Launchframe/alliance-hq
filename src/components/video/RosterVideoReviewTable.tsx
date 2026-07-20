@@ -1,11 +1,10 @@
 "use client";
 
-import { Video } from "lucide-react";
+import { Crosshair, Trash2 } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
-import type { AshedMemberProfession } from "@/lib/members/ashed-member-record";
 import type { AllianceMembersPayload } from "@/lib/members/load";
 import {
   computeProjectedRosterRankCounts,
@@ -60,12 +59,6 @@ type Props = {
     canSubmitRanks: boolean;
   }) => void;
 };
-
-const PROFESSION_OPTIONS: Array<AshedMemberProfession | ""> = [
-  "",
-  "Engineer",
-  "War Leader",
-];
 
 const RANK_OPTIONS = [1, 2, 3, 4, 5] as const;
 
@@ -239,16 +232,14 @@ export function RosterVideoReviewTable({
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-hq-border">
-        <table className="min-w-full text-sm">
+        <table className="w-full min-w-[36rem] table-fixed text-sm">
           <thead className="bg-hq-surface text-left text-hq-fg-muted">
             <tr>
-              <th className="px-4 py-3">{t("colName")}</th>
-              <th className="px-4 py-3">{t("colMember")}</th>
-              <th className="px-4 py-3">{t("colAllianceRank")}</th>
-              <th className="px-4 py-3">{t("colPower")}</th>
-              <th className="px-4 py-3">{t("colLevel")}</th>
-              <th className="px-4 py-3">{t("colProfession")}</th>
-              <th className="px-4 py-3" />
+              <th className="w-[22%] px-3 py-3 sm:px-4">{t("colName")}</th>
+              <th className="w-[34%] px-3 py-3 sm:px-4">{t("colMember")}</th>
+              <th className="w-[5.5rem] px-2 py-3 sm:w-24">{t("colAllianceRank")}</th>
+              <th className="w-[5.5rem] px-2 py-3 sm:w-28">{t("colPower")}</th>
+              <th className="w-[4.5rem] px-2 py-3" />
             </tr>
           </thead>
           <tbody>
@@ -270,8 +261,8 @@ export function RosterVideoReviewTable({
 
               return (
                 <tr key={row.id} className={rowClass}>
-                  <td className="px-4 py-3 font-medium">
-                    <div>{row.ocrName}</div>
+                  <td className="px-3 py-3 font-medium sm:px-4">
+                    <div className="break-words">{row.ocrName}</div>
                     {isNameMismatch ? (
                       <p className="mt-1 text-xs text-[#d29922]">
                         {t("rosterNameMismatchRow")}
@@ -302,7 +293,7 @@ export function RosterVideoReviewTable({
                       </p>
                     ) : null}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="min-w-0 px-3 py-3 sm:px-4">
                     <AppSelect
                       value={row.memberId ?? ""}
                       onChange={(next) => {
@@ -316,6 +307,7 @@ export function RosterVideoReviewTable({
                       }}
                       aria-label={t("colMember")}
                       placeholder={tMembers("createNew")}
+                      className="w-full min-w-0"
                       triggerClassName={`px-2 py-1.5 ${memberMatchConfidenceBorderClass(row.matchConfidence)}`}
                       searchable
                       searchMode="fuzzy"
@@ -331,7 +323,7 @@ export function RosterVideoReviewTable({
                       })}
                     />
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-2 py-3">
                     <AppSelect
                       value={
                         row.allianceRank != null ? String(row.allianceRank) : ""
@@ -342,6 +334,7 @@ export function RosterVideoReviewTable({
                         })
                       }
                       aria-label={t("colAllianceRank")}
+                      className="w-full max-w-[5.5rem]"
                       triggerClassName={`px-2 py-1.5 ${
                         row.allianceRank == null ||
                         row.allianceRank < 1 ||
@@ -358,12 +351,12 @@ export function RosterVideoReviewTable({
                       ]}
                     />
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-2 py-3">
                     <input
                       type="number"
                       step="0.1"
                       min={0}
-                      className="w-24 rounded border border-hq-border bg-hq-canvas px-2 py-1.5"
+                      className="w-full max-w-[6.5rem] rounded border border-hq-border bg-hq-canvas px-2 py-1.5"
                       value={row.heroPowerM ?? ""}
                       placeholder="—"
                       onChange={(e) =>
@@ -376,68 +369,27 @@ export function RosterVideoReviewTable({
                       aria-label={t("colPower")}
                     />
                   </td>
-                  <td className="px-4 py-3">
-                    <input
-                      type="number"
-                      min={1}
-                      className="w-20 rounded border border-hq-border bg-hq-canvas px-2 py-1.5"
-                      value={row.memberLevel ?? ""}
-                      placeholder="—"
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        if (!raw) {
-                          onUpdateRow(row.id, { memberLevel: null });
-                          return;
-                        }
-                        const parsed = Number(raw);
-                        onUpdateRow(row.id, {
-                          memberLevel:
-                            Number.isFinite(parsed) && parsed >= 1
-                              ? Math.round(parsed)
-                              : null,
-                        });
-                      }}
-                      aria-label={t("colLevel")}
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <AppSelect
-                      value={row.profession ?? ""}
-                      onChange={(next) =>
-                        onUpdateRow(row.id, {
-                          profession: next || null,
-                        })
-                      }
-                      aria-label={t("colProfession")}
-                      triggerClassName="px-2 py-1.5"
-                      options={PROFESSION_OPTIONS.map((option) => ({
-                        value: option,
-                        label: option
-                          ? t(
-                              `rosterProfession.${option === "War Leader" ? "warLeader" : "engineer"}`,
-                            )
-                          : t("rosterProfessionNone"),
-                      }))}
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-col gap-1">
+                  <td className="px-2 py-3">
+                    <div className="flex items-center justify-end gap-1">
                       {canPreview && onPreviewFrame ? (
                         <button
                           type="button"
                           onClick={() => onPreviewFrame(row.frameIndex)}
-                          className="inline-flex items-center gap-1 text-xs text-hq-accent hover:underline"
+                          className="inline-flex size-8 items-center justify-center rounded-lg text-hq-accent hover:bg-hq-surface-muted"
+                          aria-label={t("rowVideoPreview")}
+                          title={t("rowVideoPreview")}
                         >
-                          <Video className="size-3.5" aria-hidden />
-                          {t("rowVideoPreview")}
+                          <Crosshair className="size-4" aria-hidden />
                         </button>
                       ) : null}
                       <button
                         type="button"
                         onClick={() => onDeleteRow(row.id)}
-                        className="text-left text-xs text-hq-danger hover:underline"
+                        className="inline-flex size-8 items-center justify-center rounded-lg text-hq-danger hover:bg-[#f8514915]"
+                        aria-label={t("deleteRow")}
+                        title={t("deleteRow")}
                       >
-                        {t("deleteRow")}
+                        <Trash2 className="size-4" aria-hidden />
                       </button>
                     </div>
                   </td>

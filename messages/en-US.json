@@ -106,7 +106,7 @@
     "frontlineBreakthrough": "Frontline Breakthrough",
     "seasonal": "Seasonal",
     "allianceStar": "Alliance Star",
-    "memberRosterVideo": "Member roster (video)",
+    "memberRosterVideo": "Members + Power",
     "bankDepositSlipHistory": "Deposit Slip History (video)",
     "groups": {
       "events": "Events",
@@ -1724,8 +1724,8 @@
     "showLess": "Show fewer",
     "dismiss": "Hide",
     "navigating": "Opening…",
-    "rosterVideoHint": "For Ashed alliances, upload a roster scroll video to align live in-game names with your roster before members link.",
-    "rosterVideoCta": "Upload roster video",
+    "rosterVideoHint": "For Ashed alliances, upload a Members + Power scroll video to align live in-game names and power with your roster before members link.",
+    "rosterVideoCta": "Upload Members + Power",
     "tasks": {
       "connect_ashed": {
         "title": "Connect your Ashed seat",
@@ -1734,8 +1734,8 @@
       },
       "roster_hardening": {
         "title": "Harden roster names",
-        "helper": "Upload a roster scroll video so live commander names match your roster before members link.",
-        "action": "Upload roster video"
+        "helper": "Upload a Members + Power scroll video so live commander names match your roster before members link.",
+        "action": "Upload Members + Power"
       },
       "roster_populated": {
         "title": "Import your roster",
@@ -2382,11 +2382,11 @@
     "rosterLinkRequestsAttention": "{count} roster link requests need attention",
     "onboardingReviewsAttention": "{count} onboarding reviews need attention",
     "memberLinkHelpRequestsAttention": "{count} ask-an-officer help requests need attention",
-    "uploadRosterVideoAttention": "Roster video upload recommended",
+    "uploadRosterVideoAttention": "Members + Power upload recommended",
     "uploadVideoMenu": {
       "trigger": "Upload video",
-      "rosterAttention": "Roster video upload recommended",
-      "memberRoster": "Member roster",
+      "rosterAttention": "Members + Power upload recommended",
+      "memberRoster": "Members + Power",
       "kills": "Kills"
     },
     "editRanksAttention": "{count} members need ranks assigned",
@@ -2429,7 +2429,7 @@
     "refreshNative": "Refresh roster",
     "refreshingNative": "Refreshing…",
     "importMembers": "Import members",
-    "uploadRosterVideo": "Upload roster video",
+    "uploadRosterVideo": "Upload Members + Power",
     "rosterLinkRequests": "Roster link requests",
     "onboardingReviews": "Onboarding review",
     "memberLinkHelpRequests": "Ask an officer help",
@@ -3728,6 +3728,7 @@
     "fileLabel": "Video file",
     "fileHint": "MP4 or MOV screen recording while scrolling the full leaderboard.",
     "fileHintKills": "Drop Kills screenshots here or browse — upload from the Strength Ranking → Kills tab. A screen recording scrolling that leaderboard also works.",
+    "fileHintMembersPower": "Scroll the in-game alliance member list (best for names and power). Strength Ranking → Power also works for names and power, but does not include HQ levels.",
     "depositSlipFileHint": "Prefer shorter clips, or several uploads working from newest slips downward. Long history videos can take many minutes to finish OCR.",
     "fileSizeLimit": "Maximum size: {maxSize}.",
     "fileSizeTipsIntro": "If the file is too large, try:",

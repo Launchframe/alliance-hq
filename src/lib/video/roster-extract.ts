@@ -19,8 +19,6 @@ export type ExtractedRosterMember = {
   _sourceFrameIndex?: number;
 };
 
-const POWER_RE = /(\d+(?:\.\d+)?)\s*M\b/i;
-
 const JUNK_OCR_STRINGS = new Set([
   "",
   "null",
@@ -57,35 +55,80 @@ export function parseRosterVideoAllianceRank(
   };
 }
 
+const POWER_SUFFIX_RE = /^(\d+(?:\.\d+)?)\s*([KMB])\b/i;
+const POWER_EMBEDDED_M_RE = /(\d+(?:\.\d+)?)\s*M\b/i;
+
+function formatPowerLevelDisplay(millions: number): string {
+  const decimals = millions >= 10 ? 1 : 2;
+  const factor = 10 ** decimals;
+  const rounded = Math.round(millions * factor) / factor;
+  return `${rounded}M`;
+}
+
 export function parsePowerLevelString(
   value: string | undefined | null,
 ): { powerLevel: string | null; heroPowerM: number | null } {
   if (!value?.trim() || isJunkOcrString(value)) {
     return { powerLevel: null, heroPowerM: null };
   }
-  const trimmed = value.trim();
-  const match = POWER_RE.exec(trimmed);
-  if (match) {
-    const heroPowerM = parseFloat(match[1]!);
+  const trimmed = value.trim().replace(/,/g, "");
+
+  const suffixMatch = POWER_SUFFIX_RE.exec(trimmed);
+  if (suffixMatch) {
+    const amount = parseFloat(suffixMatch[1]!);
+    const suffix = suffixMatch[2]!.toUpperCase();
+    if (!Number.isFinite(amount) || amount < 0) {
+      return { powerLevel: null, heroPowerM: null };
+    }
+    const millions =
+      suffix === "B" ? amount * 1000 : suffix === "K" ? amount / 1000 : amount;
+    const heroPowerM = Number(millions.toPrecision(12));
+    return {
+      powerLevel: formatPowerLevelDisplay(heroPowerM),
+      heroPowerM,
+    };
+  }
+
+  const embeddedM = POWER_EMBEDDED_M_RE.exec(trimmed);
+  if (embeddedM) {
+    const heroPowerM = parseFloat(embeddedM[1]!);
     if (!Number.isFinite(heroPowerM)) {
       return { powerLevel: null, heroPowerM: null };
     }
     return {
-      powerLevel: trimmed,
+      powerLevel: formatPowerLevelDisplay(heroPowerM),
       heroPowerM,
     };
   }
+
+  // Strength Ranking → Power often returns the raw integer (e.g. "297494218").
+  if (/^\d+(\.\d+)?$/.test(trimmed)) {
+    const raw = Number(trimmed);
+    if (!Number.isFinite(raw) || raw <= 0) {
+      return { powerLevel: null, heroPowerM: null };
+    }
+    if (raw >= 1_000_000) {
+      const millions = raw / 1_000_000;
+      return {
+        powerLevel: formatPowerLevelDisplay(millions),
+        heroPowerM: millions,
+      };
+    }
+    // Already in millions (e.g. "297.5") — common when OCR drops the suffix.
+    if (raw < 10_000) {
+      return {
+        powerLevel: formatPowerLevelDisplay(raw),
+        heroPowerM: raw,
+      };
+    }
+  }
+
   return { powerLevel: null, heroPowerM: null };
 }
 
 function normalizeMemberLevel(value: unknown): number | null {
   if (typeof value === "string" && isJunkOcrString(value)) return null;
   return normalizeMemberHqLevel(value);
-}
-
-function parseOcrLevel(value: unknown): number | undefined {
-  const normalized = normalizeMemberLevel(value);
-  return normalized ?? undefined;
 }
 
 function normalizeOcrMember(raw: unknown): RosterVideoOcrMember | null {
@@ -109,13 +152,21 @@ function normalizeOcrMember(raw: unknown): RosterVideoOcrMember | null {
   let powerLevel: string | undefined;
   if (typeof row.power_level === "string" && !isJunkOcrString(row.power_level)) {
     powerLevel = row.power_level;
+  } else if (typeof row.power === "string" && !isJunkOcrString(row.power)) {
+    powerLevel = row.power;
+  } else if (typeof row.power_level === "number" && Number.isFinite(row.power_level)) {
+    powerLevel = String(row.power_level);
+  } else if (typeof row.power === "number" && Number.isFinite(row.power)) {
+    powerLevel = String(row.power);
   }
 
   return {
     current_name: name,
     rank: rankRaw,
     power_level: powerLevel,
-    level: parseOcrLevel(row.level),
+    // Strength Ranking → Power does not show HQ levels; Ashed often hallucinates
+    // them. Never trust OCR level for roster video — keep existing HQ levels.
+    level: undefined,
     status: typeof row.status === "string" ? row.status : undefined,
   };
 }
@@ -151,7 +202,7 @@ export function rosterOcrMemberToExtracted(
     allianceRankTitle: null,
     powerLevel,
     heroPowerM,
-    memberLevel: normalizeMemberLevel(member.level),
+    memberLevel: null,
     profession: null,
     status: member.status?.trim() || null,
     _sourceFrameIndex: sourceFrameIndex,
@@ -165,7 +216,6 @@ function rosterMemberKey(row: ExtractedRosterMember): string {
 function completenessScore(row: ExtractedRosterMember): number {
   let score = 0;
   if (row.heroPowerM != null) score += 2;
-  if (row.memberLevel != null) score += 2;
   if (row.allianceRank != null) score += 1;
   return score;
 }

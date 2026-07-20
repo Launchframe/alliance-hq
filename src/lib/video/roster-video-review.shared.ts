@@ -1,12 +1,9 @@
-import type { AshedMemberProfession } from "@/lib/members/ashed-member-record";
 import {
   buildMemberIndex,
   matchMemberName,
   type AshedMember,
 } from "@/lib/video/member-matcher";
 import { parsePowerLevelString } from "@/lib/video/roster-extract";
-
-const VALID_PROFESSIONS = new Set<string>(["Engineer", "War Leader"]);
 
 export type ParsedRowLike = {
   id: string;
@@ -105,19 +102,9 @@ export function parsedRowsToRosterReviewRows(
       }
     }
 
-    const level =
-      row.memberLevel != null && row.memberLevel >= 1
-        ? Math.round(row.memberLevel)
-        : null;
+    const level = null;
 
-    let profession: string | null = null;
-    if (
-      row.edited === 1 &&
-      row.profession &&
-      VALID_PROFESSIONS.has(row.profession)
-    ) {
-      profession = row.profession as AshedMemberProfession;
-    }
+    const profession: string | null = null;
 
     return {
       id: row.id,

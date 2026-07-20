@@ -39,13 +39,14 @@ describe("roster-video-review.shared", () => {
     expect(rows[0]?.matchConfidence).toBeGreaterThan(0.6);
   });
 
-  it("clears junk profession unless row was edited with valid value", () => {
+  it("never hydrates profession or OCR level onto review rows", () => {
     const rows = parsedRowsToRosterReviewRows(
       [
         {
           id: "1",
           ocrName: "Beta",
           profession: "Warlord",
+          memberLevel: 35,
           memberId: null,
           memberName: null,
           matchConfidence: 0,
@@ -56,6 +57,7 @@ describe("roster-video-review.shared", () => {
           ocrName: "Gamma",
           profession: "Engineer",
           edited: 1,
+          memberLevel: 30,
           memberId: null,
           memberName: null,
           matchConfidence: 0,
@@ -67,7 +69,9 @@ describe("roster-video-review.shared", () => {
     );
 
     expect(rows[0]?.profession).toBeNull();
-    expect(rows[1]?.profession).toBe("Engineer");
+    expect(rows[0]?.memberLevel).toBeNull();
+    expect(rows[1]?.profession).toBeNull();
+    expect(rows[1]?.memberLevel).toBeNull();
   });
 
   it("flags unmatched and low-confidence roster rows", () => {
