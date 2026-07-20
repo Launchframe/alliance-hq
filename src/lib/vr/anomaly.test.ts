@@ -37,6 +37,33 @@ describe("anomaly detection", () => {
     ).toBe(false);
   });
 
+  it("does not confirm solely because VR exceeds the legacy 10k cap", () => {
+    expect(
+      shouldAnomalyConfirm({
+        proposedVr: 11200,
+        reporterCount: 10,
+        peerMax: 10900,
+      }),
+    ).toBe(false);
+    expect(
+      shouldAnomalyConfirm({
+        proposedVr: 11200,
+        reporterCount: 10,
+        peerMax: 0,
+      }),
+    ).toBe(false);
+  });
+
+  it("still confirms large peer gaps on season 5 ladders", () => {
+    expect(
+      shouldAnomalyConfirm({
+        proposedVr: 12000,
+        reporterCount: 12,
+        peerMax: 10900,
+      }),
+    ).toBe(true);
+  });
+
   it("uses playful copy", () => {
     expect(anomalyConfirmMessage(8000)).toMatch(/sure/i);
   });

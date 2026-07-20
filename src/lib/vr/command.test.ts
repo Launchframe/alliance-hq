@@ -60,6 +60,18 @@ describe("processVrCommand", () => {
     expect(result.pending?.kind).toBe("anomaly_confirm");
   });
 
+  it("does not prompt anomaly confirm for season 5 VR above 10k when near peers", () => {
+    const result = processVrCommand({
+      ...base,
+      seasonKey: "5",
+      seasonHigh: 10900,
+      explicitLevel: 11200,
+      peerMax: 10900,
+    });
+    expect(result.needsConfirmation).toBeFalsy();
+    expect(result.action).toMatchObject({ type: "set_vr", vr: 11200 });
+  });
+
   it("respects season max institute VR", () => {
     const result = processVrCommand({
       ...base,
