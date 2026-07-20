@@ -1389,6 +1389,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 ? {
                     id: r.id,
                     ocrName: r.ocrName,
+                    memberId: r.memberId,
+                    memberName: r.memberName,
+                    matchConfidence: r.matchConfidence,
+                    matchMethod: r.matchMethod,
                     score: r.score ?? "",
                     powerLevel: r.powerLevel ?? null,
                     memberLevel: r.memberLevel,

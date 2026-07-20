@@ -522,7 +522,11 @@ export function DepositSlipVideoReviewTable({
                       }}
                       aria-label={t("colMember")}
                       placeholder={t("unmatched")}
-                      triggerClassName={`px-2 py-1.5 ${memberMatchConfidenceBorderClass(row.matchConfidence)}`}
+                      triggerClassName={`px-2 py-1.5 ${
+                        row.memberId
+                          ? memberMatchConfidenceBorderClass(row.matchConfidence)
+                          : "border-hq-border"
+                      }`}
                       searchable
                       searchMode="fuzzy"
                       combobox
