@@ -2385,6 +2385,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               dedupeFlag: row.dedupeFlag,
               deleted: row.deleted,
             }))}
+            members={members}
             filterQuery={filterQuery}
             dedupeReport={dedupeReport}
             onUpdateRow={(id, patch) => updateRow(id, patch)}
