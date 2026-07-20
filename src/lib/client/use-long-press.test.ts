@@ -47,4 +47,26 @@ describe("createLongPressController", () => {
     vi.advanceTimersByTime(500);
     expect(onLongPress).not.toHaveBeenCalled();
   });
+
+  it("ignores non-primary buttons", () => {
+    const onLongPress = vi.fn();
+    const controller = createLongPressController({ onLongPress, holdMs: 500 });
+
+    controller.onPointerDown({ clientX: 10, clientY: 10, button: 2 });
+    vi.advanceTimersByTime(500);
+    expect(onLongPress).not.toHaveBeenCalled();
+  });
+
+  it("does not fire when disabled", () => {
+    const onLongPress = vi.fn();
+    const controller = createLongPressController({
+      onLongPress,
+      holdMs: 500,
+      disabled: true,
+    });
+
+    controller.onPointerDown({ clientX: 10, clientY: 10 });
+    vi.advanceTimersByTime(500);
+    expect(onLongPress).not.toHaveBeenCalled();
+  });
 });

@@ -28,21 +28,10 @@ import { TemplatePaletteBadge } from "@/components/trains/TemplatePaletteBadge";
 import {
   TEMPLATE_PALETTE_STYLES,
 } from "@/lib/trains/mechanism-styles";
+import { PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
 import type { WeekTemplateType } from "@/lib/trains/types";
 
-export const PAINT_TEMPLATES: WeekTemplateType[] = [
-  "vs_push_week",
-  "vs_push_weekdays",
-  "r4_event_vip",
-  "economy_week",
-  "price_is_right",
-  "price_is_right_weekdays",
-  "takedown_week",
-  "r3_recognition",
-  "r4_train_week",
-  "donations_week",
-  "custom",
-];
+export { PAINT_TEMPLATES };
 
 type Props = {
   today: string;

@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { PAINT_TEMPLATES } from "@/components/trains/TrainMonthCalendar";
+import { PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
 import { TemplatePaletteBadge } from "@/components/trains/TemplatePaletteBadge";
 import type { WeekTemplateType } from "@/lib/trains/types";
 
@@ -71,7 +71,7 @@ export function DayTemplateContextMenu({
   useEffect(() => {
     if (!open) return;
 
-    function handlePointerDown(event: MouseEvent) {
+    function handlePointerDown(event: PointerEvent) {
       const target = event.target;
       if (!(target instanceof Node)) return;
       if (menuRef.current?.contains(target)) return;
@@ -82,10 +82,10 @@ export function DayTemplateContextMenu({
       if (event.key === "Escape") onClose();
     }
 
-    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [open, onClose]);

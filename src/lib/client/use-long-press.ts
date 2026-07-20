@@ -45,12 +45,17 @@ export function useLongPress({
 }: UseLongPressOptions): UseLongPressResult {
   const controllerRef = useRef<LongPressController | null>(null);
   const firedRef = useRef(false);
+  const onLongPressRef = useRef(onLongPress);
+
+  useEffect(() => {
+    onLongPressRef.current = onLongPress;
+  }, [onLongPress]);
 
   useEffect(() => {
     const controller = createLongPressController({
       onLongPress: (point) => {
         firedRef.current = true;
-        onLongPress({
+        onLongPressRef.current({
           clientX: point.clientX,
           clientY: point.clientY,
           button: point.button ?? 0,
@@ -67,7 +72,7 @@ export function useLongPress({
         controllerRef.current = null;
       }
     };
-  }, [disabled, holdMs, moveTolerancePx, onLongPress]);
+  }, [disabled, holdMs, moveTolerancePx]);
 
   const onPointerDown = useCallback((event: ReactPointerEvent<HTMLElement>) => {
     firedRef.current = false;
