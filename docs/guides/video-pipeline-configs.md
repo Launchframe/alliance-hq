@@ -108,7 +108,9 @@ Admin **cannot** change Tesseract settings from the UI today. Deposit-slip still
 
 Native OCR is always used for this target (no Ashed). Cross-frame merge partitions by exact normalized commander name, corroborates nearby or majority-agreeing timestamps (including OCR minute misreads), coalesces partial reads into one review row, and flags genuine amount/term/identity conflicts for officer resolution.
 
-**Officer review triage (post-dedupe):** identical display-identity duplicates and locked→matured/looted lifecycle pairs (timestamps within the loan term) land in **Automatically merged**; clipped-timestamp rows that already match a kept deposit go to a collapsed **Missing deposit time — already covered** section and do not block save. Fingerprint/bbox shadowing (same OCR line across overlapping frames) is separate from within-frame name↔amount zip errors — those still need officer edit or a future parser fix.
+**Officer review triage (post-dedupe):** identical display-identity duplicates and locked→matured/looted lifecycle pairs (timestamps within the loan term) land in **Automatically merged**; clipped-timestamp rows that already match a kept deposit go to a collapsed **Missing deposit time — already covered** section and do not block save. Fingerprint/bbox shadowing (same OCR line across overlapping frames) is separate from within-frame name↔amount association (below).
+
+**Within-frame field association:** when Tesseract returns **distinct** line bboxes for every identity on the frame, Deposit / outcome / timestamp lines attach by **midpoint y-bands** between identity centers (same geometry plumbing as City List word-x matching from #317 — deposit slips use **y**, not column x). Without complete / distinct identity bboxes, association falls back to OCR reading-order windows. When identities are fully geo-tagged but some **field** lines lack bboxes, geometry claims what it can and the rest still use the legacy look-ahead window (those lines can still mis-zip). Cross-frame fingerprinting collapses duplicate line reads; it does not fix within-frame name↔amount mis-zips.
 
 ### Ashed scoreboards (Desert Storm, VS, …)
 
