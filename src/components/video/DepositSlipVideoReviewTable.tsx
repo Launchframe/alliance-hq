@@ -6,6 +6,9 @@ import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
 import {
+  depositSlipMemberMatchBorderClass,
+} from "@/lib/banks/deposit-slip-ocr/deposit-slip-member-match.shared";
+import {
   DEPOSIT_STATUSES,
   DEPOSIT_TERMS,
   type DepositStatus,
@@ -21,7 +24,6 @@ import {
   type DedupeCluster,
   type DedupeReport,
 } from "@/lib/video/dedupe/merge-report.shared";
-import { memberMatchConfidenceBorderClass } from "@/lib/video/member-match-confidence-class";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
 
 /** Follow-me scrubbing only works when rows are ordered by deposit time. */
@@ -510,21 +512,39 @@ export function DepositSlipVideoReviewTable({
                     <AppSelect
                       value={row.memberId ?? ""}
                       onChange={(next) => {
-                        const member = members.find((m) => m.id === next);
+                        if (!next) {
+                          onUpdateRow(row.id, {
+                            memberId: null,
+                            memberName: null,
+                            matchConfidence: 0,
+                            matchMethod: "none",
+                          });
+                          return;
+                        }
+                        // Roster may omit a previously selected member
+                        // (cross-device); keep the stored label via rows.
+                        const fromRoster = members.find((m) => m.id === next);
+                        const fromSelected = rows.find(
+                          (r) => r.memberId === next && r.memberName,
+                        );
                         onUpdateRow(row.id, {
-                          memberId: next || null,
-                          memberName: member?.current_name ?? null,
-                          matchConfidence: next ? 1 : 0,
+                          memberId: next,
+                          memberName:
+                            fromRoster?.current_name ??
+                            fromSelected?.memberName ??
+                            (row.memberId === next ? row.memberName : null) ??
+                            null,
+                          matchConfidence: 1,
                           // Commit honors preferredAshedMemberId only when
                           // matchMethod is a real auto-link method (not "none").
-                          matchMethod: next ? "exact" : "none",
+                          matchMethod: "exact",
                         });
                       }}
                       aria-label={t("colMember")}
                       placeholder={t("unmatched")}
                       triggerClassName={`px-2 py-1.5 ${
                         row.memberId
-                          ? memberMatchConfidenceBorderClass(row.matchConfidence)
+                          ? depositSlipMemberMatchBorderClass(row.matchConfidence)
                           : "border-hq-border"
                       }`}
                       searchable

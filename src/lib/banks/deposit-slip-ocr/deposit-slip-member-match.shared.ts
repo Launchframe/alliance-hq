@@ -55,3 +55,23 @@ export function isDepositSlipAutoLinkedMatchMethod(
     matchMethod !== "none"
   );
 }
+
+/**
+ * Border class for deposit-slip Matched Member selects — uses the same
+ * auto-link / near-miss thresholds as parse-time matching so officers are
+ * not misled by the generic score-review border helper (≥0.9 solid).
+ */
+export function depositSlipMemberMatchBorderClass(
+  confidence: number | null | undefined,
+): string {
+  if (confidence == null || confidence <= 0) {
+    return "border-hq-border";
+  }
+  if (confidence >= DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN) {
+    return "border-hq-green";
+  }
+  if (confidence >= DEPOSIT_SLIP_MEMBER_NEAR_MISS_MIN) {
+    return "border-hq-warning";
+  }
+  return "border-hq-border";
+}
