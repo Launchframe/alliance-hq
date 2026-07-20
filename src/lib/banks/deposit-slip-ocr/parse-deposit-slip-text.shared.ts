@@ -377,10 +377,10 @@ function finalizeDraft(draft: DraftBuilder): ParsedDepositSlipDraft | null {
 }
 
 /**
- * True when every identity carries a line bbox and at least one field line
- * does too — otherwise prefer full reading-order (partial geometry can steal
- * fields onto the subset of geo anchors). Mirrors City List requiring usable
- * centers on both sides before position matching.
+ * True when every identity carries a **distinct** line bbox and at least one
+ * field line does too — otherwise prefer full reading-order. Partial geometry
+ * can steal fields onto the subset of geo anchors; identical yCenters collapse
+ * midpoint bands to zero width (City List `hasDistinctCenters` analog).
  */
 function shouldUseVerticalGeometry(
   anchors: readonly IdentityAnchor[],
@@ -388,6 +388,8 @@ function shouldUseVerticalGeometry(
 ): boolean {
   if (anchors.length === 0) return false;
   if (anchors.some((a) => a.yCenter == null)) return false;
+  const centers = anchors.map((a) => a.yCenter as number);
+  if (new Set(centers).size !== centers.length) return false;
   // Need at least one field line with geometry too — otherwise nothing to zip.
   return lines.some((line) => {
     if (line.yCenter == null) return false;

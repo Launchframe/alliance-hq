@@ -111,6 +111,20 @@ Video OCR dedupe (`dedupeDepositSlips` in `deposit-slip-dedupe.shared.ts`) merge
 
 **Follow-up (do not treat as fixed by #313):** harden separation for rapid post-loot re-deposits — e.g. frame-index continuity across the scroll, and/or refuse majority-outlier absorb when statuses/outcomes disagree (locked vs looted/matured), so a lone second initiate is not folded into a prior slip.
 
+### Within-frame field association (line bboxes)
+
+When Tesseract returns line bboxes, Deposit / outcome / timestamp lines attach to identities by **midpoint y-bands** between sorted identity `yCenter`s (City List #317 half-pitch analog on the vertical axis — not nearest-above). Geometry runs only when **every** identity has a **distinct** `yCenter` and at least one field line also has a bbox; otherwise the frame uses full reading-order association.
+
+**Known limitations (not regressions from y-banding):**
+
+| Case | Behavior |
+|------|----------|
+| Any identity missing a line bbox | Full reading-order fallback for the frame |
+| Two identities share the same `yCenter` | Full reading-order fallback (degenerate zero-width bands) |
+| Identities have geometry, but some **field** lines lack bboxes | Geometry claims fields that have bboxes; remaining lines still use the legacy `i..i+5` reading-order window — those lines can still mis-zip in adversarial interleavings |
+
+Cross-frame fingerprinting collapses duplicate line reads across overlapping frames; it does **not** fix within-frame name↔amount mis-zips.
+
 ### OCR miss → synthetic blue (initiate)
 
 If a terminal row arrives and no matching blue exists yet:
@@ -203,6 +217,7 @@ When changing bank deposit OCR, City List OCR, commit, or Bank Management:
 7. **City List upsert** — match on alliance+server+coords; never delete missing banks from OCR alone.
 8. **Ownership** — City List inserts are alliance-held (`priorCaptureCount = 1`); wild vs alliance loot semantics use `priorCaptureCount`.
 9. **Dedupe loot window** — do not assume deposits are ≥45m apart; looting can terminate a slip within minutes. See **Cross-frame OCR dedupe — known looted-window limitation** above before tightening proximity/outlier constants.
+10. **Within-frame y-banding** — require distinct identity `yCenter`s before geometry; do not treat partial field-bbox frames as fully fixed by midpoint bands (see **Within-frame field association**).
 
 ## Related
 

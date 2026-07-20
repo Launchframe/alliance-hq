@@ -472,4 +472,21 @@ describe("parseDepositSlipHistoryText — vertical line-bbox association", () =>
     const parsed = parseDepositSlipHistoryText(lines);
     expect(parsed.slips).toHaveLength(0);
   });
+
+  it("falls back to reading-order when two identities share the same yCenter", () => {
+    // Degenerate geometry: identical centers collapse a midpoint band to zero
+    // width. Prefer full reading-order over shadowing one identity.
+    const lines = [
+      geoLine("#1203[LFgo]Upper", 100),
+      geoLine("#1203[LFgo]Lower", 100), // same yCenter as Upper
+      geoLine("Deposit: CrystalGold x 1111, Term: 1 days.", 130),
+      geoLine("Deposit: CrystalGold x 2222, Term: 1 days.", 160),
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    const byName = Object.fromEntries(
+      parsed.slips.map((s) => [s.identity.commanderName, s]),
+    );
+    expect(byName.Upper?.amount).toBe(1111);
+    expect(byName.Lower?.amount).toBe(2222);
+  });
 });
