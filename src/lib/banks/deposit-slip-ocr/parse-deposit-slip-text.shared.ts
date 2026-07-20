@@ -252,20 +252,22 @@ function findNearbyDepositSlipTimestamp(
   for (let k = 1; k <= TIMESTAMP_SEARCH_BACK_LINES; k += 1) {
     const j = identityIndex - k;
     if (j < 0) break;
-    if (claimedLineIndexes.has(j)) continue;
     const probe = lines[j]!.text.trim();
+    // Boundaries before claimed-skip: identity lines are always pre-claimed,
+    // so checking claimed first would `continue` past the previous row.
     if (parseDepositSlipIdentity(probe)) break;
     if (isDepositSlipRowContentLine(probe)) break;
+    if (claimedLineIndexes.has(j)) continue;
     const ts = parseDepositSlipTimestamp(probe);
     if (ts) return { depositAt: ts, confidence: lines[j]!.confidence, lineIndex: j };
   }
   for (let k = 1; k <= TIMESTAMP_SEARCH_FORWARD_LINES; k += 1) {
     const j = identityIndex + k;
     if (j >= lines.length) break;
-    if (claimedLineIndexes.has(j)) continue;
     const probe = lines[j]!.text.trim();
     if (parseDepositSlipIdentity(probe)) break;
     if (isDepositSlipRowContentLine(probe)) break;
+    if (claimedLineIndexes.has(j)) continue;
     const ts = parseDepositSlipTimestamp(probe);
     if (ts) return { depositAt: ts, confidence: lines[j]!.confidence, lineIndex: j };
   }
@@ -625,9 +627,11 @@ function fillDraftsFromReadingOrder(
     }
 
     for (let j = i; j < Math.min(lines.length, i + 5); j += 1) {
-      if (j !== i && claimedLineIndexes.has(j)) continue;
       const probe = lines[j]!.text.trim();
+      // Identity boundary before claimed-skip: next-row identities are always
+      // pre-claimed, so checking claimed first would scan into their fields.
       if (j > i && parseDepositSlipIdentity(probe)) break;
+      if (j !== i && claimedLineIndexes.has(j)) continue;
 
       if (draft.amount == null) {
         const depositMatch = probe.match(DEPOSIT_RE);

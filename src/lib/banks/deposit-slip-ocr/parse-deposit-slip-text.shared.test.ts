@@ -245,6 +245,39 @@ describe("parseDepositSlipHistoryText", () => {
     expect(parsed.slips[0]?.identity.commanderName).toBe("Capt Grim");
     expect(parsed.slips[0]?.depositAt).toBeNull();
   });
+
+  it("stops reading-order look-ahead at the next claimed identity line", () => {
+    // Identities are always pre-claimed. Claimed-skip before the identity
+    // boundary would let Upper walk into Lower's Deposit.
+    const lines = [
+      "#1203[LFgo]Upper",
+      "#1203[LFgo]Lower",
+      "Deposit: CrystalGold x 1111, Term: 1 days.",
+      "Deposit: CrystalGold x 2222, Term: 1 days.",
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    const byName = Object.fromEntries(
+      parsed.slips.map((s) => [s.identity.commanderName, s]),
+    );
+    expect(byName.Upper).toBeUndefined();
+    expect(byName.Lower?.amount).toBe(1111);
+  });
+
+  it("does not assign the next row's timestamp across a claimed identity boundary", () => {
+    const lines = [
+      "#1203[LFgo]Upper",
+      "#1203[LFgo]Lower",
+      "2026-7-10 12:00:00",
+      "Deposit: CrystalGold x 2222, Term: 1 days.",
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    const byName = Object.fromEntries(
+      parsed.slips.map((s) => [s.identity.commanderName, s]),
+    );
+    expect(byName.Upper).toBeUndefined();
+    expect(byName.Lower?.depositAt).toBe("2026-07-10T12:00:00.000Z");
+    expect(byName.Lower?.amount).toBe(2222);
+  });
 });
 
 describe("parseDepositSlipHistoryText — vertical line-bbox association", () => {
@@ -478,8 +511,8 @@ describe("parseDepositSlipHistoryText — vertical line-bbox association", () =>
     // width. Prefer full reading-order over shadowing one identity.
     const lines = [
       geoLine("#1203[LFgo]Upper", 100),
-      geoLine("#1203[LFgo]Lower", 100), // same yCenter as Upper
       geoLine("Deposit: CrystalGold x 1111, Term: 1 days.", 130),
+      geoLine("#1203[LFgo]Lower", 100), // same yCenter as Upper → no geometry
       geoLine("Deposit: CrystalGold x 2222, Term: 1 days.", 160),
     ];
     const parsed = parseDepositSlipHistoryText(lines);
