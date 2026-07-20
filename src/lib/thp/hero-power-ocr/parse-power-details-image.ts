@@ -1,18 +1,42 @@
+/**
+ * Geometry-first Power Details image OCR.
+ *
+ * Pipeline (see plan):
+ * 1. Label-band OCR (letters) → row names
+ * 2. Value-band OCR (digits-only) → component numbers without comma→digit damage
+ * 3. Header-value OCR (digits-only, inverted) → Hero Power total
+ * 4. Zip by normalized y-center → `matchThpLabel` → assemble
+ *
+ * Discord/web callers still gate on `complete` (sum === header). This module does
+ * not run freeform dual-pass merge or separator-digit surgery.
+ */
+
 import {
   buildOcrDiagnostics,
   logOcrDiagnostics,
 } from "@/lib/ocr/ocr-diagnostics.shared";
-import { runTesseract } from "@/lib/members/roster-ocr/tesseract";
+import { runTesseract, type OcrLineResult } from "@/lib/members/roster-ocr/tesseract";
 import {
-  parsePowerDetailsLines,
+  assembleGeometryParse,
+  coalesceLabelLines,
+  normalizeDigitsOnlyComponent,
+  normalizeGeometryLines,
+  parseDigitsOnlyHeaderTotal,
+  zipLabelsToValues,
+  type GeometryOcrLine,
+} from "@/lib/thp/hero-power-ocr/parse-power-details-geometry.shared";
+import {
   toThpBreakdown,
   type ParsePowerDetailsResult,
 } from "@/lib/thp/hero-power-ocr/parse-power-details";
 import {
-  POWER_DETAILS_BODY_OCR_CONFIG,
-  POWER_DETAILS_HEADER_OCR_CONFIG,
-  preprocessPowerDetailsHeaderBand,
-  preprocessPowerDetailsImage,
+  POWER_DETAILS_HEADER_VALUE_OCR_CONFIG,
+  POWER_DETAILS_LABEL_OCR_CONFIG,
+  POWER_DETAILS_VALUE_OCR_CONFIG,
+  preprocessPowerDetailsHeaderValue,
+  preprocessPowerDetailsLabelBand,
+  preprocessPowerDetailsValueBand,
+  preprocessPowerDetailsValueBandInverted,
 } from "@/lib/thp/hero-power-ocr/preprocess-power-details";
 
 export type ParsePowerDetailsImageResult = ParsePowerDetailsResult & {
@@ -20,109 +44,151 @@ export type ParsePowerDetailsImageResult = ParsePowerDetailsResult & {
     rawLineCount: number;
     durationMs: number;
     sampleLines: string[];
+    /** How many label↔value pairs mapped to a breakdown key with a numeric value. */
+    pairedCount?: number;
   };
 };
 
-function mergeOcrLines(primary: string[], secondary: string[]): string[] {
-  const out = [...primary];
-  const seen = new Set(primary.map((line) => line.toLowerCase()));
-  for (const line of secondary) {
-    const key = line.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(line);
-  }
-  return out;
+function toGeometryLines(lines: OcrLineResult[]): GeometryOcrLine[] {
+  return lines.map((line) => ({
+    text: line.text,
+    bbox: line.bbox ?? null,
+  }));
 }
 
-function isBareHeroPowerTotalLine(line: string): boolean {
-  const trimmed = line.trim();
-  if (!trimmed) return false;
-  // Mostly numeric: a lone Hero Power total from the inverted header band.
-  const digitCount = (trimmed.match(/\d/g) ?? []).length;
-  if (digitCount < 7) return false;
-  if ((trimmed.match(/[A-Za-zÀ-ÿ가-힣]/g) ?? []).length > 3) return false;
-  const digits = trimmed.replace(/\D/g, "");
-  if (digits.length < 7 || digits.length > 10) return false;
-  const value = Number.parseInt(digits, 10);
-  return Number.isFinite(value) && value >= 1_000_000 && value <= 1_000_000_000;
-}
-
-function isUsefulHeaderLine(line: string): boolean {
+function pickHeaderTotal(
+  headerLines: OcrLineResult[],
+  invertedValueLines: OcrLineResult[],
+  valueLines: OcrLineResult[],
+): number | null {
   return (
-    /hero\s*l?\s*powers?/i.test(line) ||
-    /power\s*details/i.test(line) ||
-    /helden\s*kampf\s*kraft/i.test(line) ||
-    /kampf\s*kraft/i.test(line) ||
-    /details\s*der\s*kampf/i.test(line) ||
-    /poder\s*do\s*her[oó]i/i.test(line) ||
-    /detalhes\s*do\s*poder/i.test(line) ||
-    /poder\s*de\s*h[eé]roe/i.test(line) ||
-    /detalles\s*de\s*poder/i.test(line) ||
-    /영웅\s*전투력/.test(line) ||
-    /전투력\s*정보/.test(line) ||
-    isBareHeroPowerTotalLine(line)
+    pickBestHeaderCandidate(headerLines) ??
+    pickBestHeaderCandidate(invertedValueLines.slice(0, 4)) ??
+    pickBestHeaderCandidate(valueLines.slice(0, 3))
   );
 }
 
-function parseScore(parsed: ParsePowerDetailsResult): number {
-  let score = 0;
-  if (parsed.heroPowerTotal != null) score += 100;
-  if (parsed.complete) score += 50;
-  score += Object.keys(parsed.breakdown).length * 5;
-  return score;
+function pickBestHeaderCandidate(lines: OcrLineResult[]): number | null {
+  let best: number | null = null;
+  for (const line of lines) {
+    // Normalize separator-slot pollution first (`164,615,505` → sometimes 10 digits).
+    const normalized =
+      normalizeDigitsOnlyComponent(line.text) ??
+      parseDigitsOnlyHeaderTotal(line.text);
+    if (normalized == null) continue;
+    // Hero Power totals dominate individual components (typically ≥100M once
+    // accounts leave early game). Reject component-sized readings that appear
+    // in the value column (gear / exclusive weapon / etc.).
+    if (normalized < 100_000_000 || normalized > 1_000_000_000) continue;
+    if (best == null || normalized > best) best = normalized;
+  }
+  return best;
 }
+
 
 export async function parsePowerDetailsImage(
   imageBuffer: Buffer,
 ): Promise<ParsePowerDetailsImageResult> {
   const t0 = Date.now();
 
-  // Body first (component rows). Only fall back to the inverted header-band
-  // pass (extra Tesseract call) when the body alone didn't already produce a
-  // header-reconciled result — keeps the common case single-pass.
-  const bodyPre = await preprocessPowerDetailsImage(imageBuffer);
-  const bodyLines = (
-    await runTesseract(bodyPre.buffer, POWER_DETAILS_BODY_OCR_CONFIG)
-  ).map((line) => line.text);
-  const bodyOnly = parsePowerDetailsLines(bodyLines);
+  const [labelPre, valuePre, valueInvPre, headerPre] = await Promise.all([
+    preprocessPowerDetailsLabelBand(imageBuffer),
+    preprocessPowerDetailsValueBand(imageBuffer),
+    preprocessPowerDetailsValueBandInverted(imageBuffer),
+    preprocessPowerDetailsHeaderValue(imageBuffer),
+  ]);
 
-  let parsed: ParsePowerDetailsResult = bodyOnly;
-  let textLines = bodyLines;
+  // Tesseract worker is serialized internally — await sequentially for clarity.
+  const labelLinesRaw = await runTesseract(
+    labelPre.buffer,
+    POWER_DETAILS_LABEL_OCR_CONFIG,
+  );
+  const valueLinesRaw = await runTesseract(
+    valuePre.buffer,
+    POWER_DETAILS_VALUE_OCR_CONFIG,
+  );
+  const valueInvLinesRaw = await runTesseract(
+    valueInvPre.buffer,
+    POWER_DETAILS_VALUE_OCR_CONFIG,
+  );
+  const headerLinesRaw = await runTesseract(
+    headerPre.buffer,
+    POWER_DETAILS_HEADER_VALUE_OCR_CONFIG,
+  );
 
-  if (!bodyOnly.complete || bodyOnly.heroPowerTotal == null) {
-    const headerPre = await preprocessPowerDetailsHeaderBand(imageBuffer);
-    const headerLines = (
-      await runTesseract(headerPre.buffer, POWER_DETAILS_HEADER_OCR_CONFIG)
-    )
-      .map((line) => line.text)
-      .filter(isUsefulHeaderLine);
+  const labels = coalesceLabelLines(
+    normalizeGeometryLines(toGeometryLines(labelLinesRaw), labelPre.height),
+  );
+  // Inverted value column recovers white outlined digits better on this UI.
+  // Fall back to the non-inverted pass when inverted yields fewer digit lines.
+  const invertedValues = normalizeGeometryLines(
+    toGeometryLines(valueInvLinesRaw),
+    valueInvPre.height,
+  );
+  const normalValues = normalizeGeometryLines(
+    toGeometryLines(valueLinesRaw),
+    valuePre.height,
+  );
+  const valuesRaw =
+    invertedValues.filter((line) => /\d{5,}/.test(line.text)).length >=
+    normalValues.filter((line) => /\d{5,}/.test(line.text)).length
+      ? invertedValues
+      : normalValues;
 
-    const mergedLines = mergeOcrLines(headerLines, bodyLines);
-    const merged = parsePowerDetailsLines(mergedLines);
-    if (parseScore(merged) >= parseScore(bodyOnly)) {
-      parsed = merged;
-      textLines = mergedLines;
-    }
-  }
+  const headerTotal = pickHeaderTotal(
+    headerLinesRaw,
+    valueInvLinesRaw,
+    valueLinesRaw,
+  );
+
+  // The value column still contains the header-row total on the right. Drop it
+  // so it cannot be y-zipped onto Hero Level (same failure mode as freeform
+  // attaching the total to the wrong row).
+  const values = valuesRaw.filter((line) => {
+    const asHeader = parseDigitsOnlyHeaderTotal(line.text);
+    if (headerTotal != null && asHeader === headerTotal) return false;
+    if (line.yNorm < 0.12 && asHeader != null) return false;
+    return true;
+  });
+
+  const pairs = zipLabelsToValues({ labels, values });
+  const assembled = assembleGeometryParse({ pairs, headerTotal });
+
+  const sampleLines = [
+    ...headerLinesRaw.map((line) => `hdr:${line.text}`),
+    ...valueInvLinesRaw.slice(0, 3).map((line) => `inv:${line.text}`),
+    ...pairs.map(
+      (pair) =>
+        `${pair.key ?? "?"}=${pair.valueText} ← ${pair.label.slice(0, 40)}`,
+    ),
+    ...valueLinesRaw.slice(0, 4).map((line) => `val:${line.text}`),
+  ];
 
   const durationMs = Date.now() - t0;
   const diagnostics = buildOcrDiagnostics({
     source: "thp_screenshot",
     durationMs,
-    rawLineCount: textLines.length,
-    lines: textLines,
-    parsedOk: parsed.complete && parsed.heroPowerTotal != null,
-    parsedValue: parsed.heroPowerTotal,
+    rawLineCount:
+      labelLinesRaw.length +
+      valueLinesRaw.length +
+      valueInvLinesRaw.length +
+      headerLinesRaw.length,
+    lines: sampleLines,
+    parsedOk: assembled.complete && assembled.heroPowerTotal != null,
+    parsedValue: assembled.heroPowerTotal,
+    entryCount: assembled.pairedCount,
   });
   logOcrDiagnostics(diagnostics);
+
   return {
-    ...parsed,
-    breakdown: parsed.breakdown,
+    heroPowerTotal: assembled.heroPowerTotal,
+    breakdown: assembled.breakdown,
+    complete: assembled.complete,
     diagnostics: {
       rawLineCount: diagnostics.rawLineCount,
       durationMs: diagnostics.durationMs,
       sampleLines: diagnostics.sampleLines,
+      pairedCount: assembled.pairedCount,
     },
   };
 }
