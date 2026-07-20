@@ -22,6 +22,7 @@ import {
   ownerProvenByMemberLink,
 } from "@/lib/vr/discord-guild-registration";
 import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
+import { parseTrainChannelSetterMinRank } from "@/lib/trains/train-channel-setter.shared";
 import { getAllianceVrSandboxState } from "@/lib/vr/vr-sandbox.server";
 import type { VrSeasonContext } from "@/lib/vr/vr-season-lock.shared";
 import { resolveVrSeasonContextFromParts } from "@/lib/vr/vr-season-lock.shared";
@@ -1672,7 +1673,7 @@ export async function getAllianceTrainChannelSetterMinRank(
     .from(schema.alliances)
     .where(eq(schema.alliances.id, allianceId))
     .limit(1);
-  return row?.minRank === "owner" ? "owner" : "officer";
+  return parseTrainChannelSetterMinRank(row?.minRank);
 }
 
 export async function setAllianceTrainChannelSetterMinRank(

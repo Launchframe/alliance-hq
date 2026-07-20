@@ -16,7 +16,6 @@ import {
   loadTrainDiscordSettings,
   saveTrainDiscordSettings,
 } from "@/lib/trains/train-discord-settings.server";
-import { isTrainChannelSetterMinRank } from "@/lib/trains/train-channel-setter.shared";
 import { getOrCreateSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -92,13 +91,6 @@ export async function PATCH(request: Request, context: RouteContext) {
     const { tag } = await context.params;
     const alliance = await resolveAllianceRouteForSession(session.id, tag);
 
-    const denied = await requireAllianceRoutePermission(
-      session.id,
-      alliance.allianceId,
-      "trains:write",
-    );
-    if (denied) return denied;
-
     const body = patchSchema.safeParse(await request.json());
     if (!body.success) {
       return NextResponse.json(
@@ -107,14 +99,16 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    if (
-      body.data.channelSetterMinRank !== undefined &&
-      !isTrainChannelSetterMinRank(body.data.channelSetterMinRank)
-    ) {
-      return NextResponse.json(
-        { error: "Invalid channel setter permission." },
-        { status: 400 },
+    const touchesAnnouncements = body.data.announcementsEnabled !== undefined;
+    const touchesSetterRank = body.data.channelSetterMinRank !== undefined;
+
+    if (touchesAnnouncements) {
+      const denied = await requireAllianceRoutePermission(
+        session.id,
+        alliance.allianceId,
+        "trains:write",
       );
+      if (denied) return denied;
     }
 
     const canConfigureChannelSetterMinRank = await sessionIsAllianceOwner(
@@ -122,10 +116,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       alliance.allianceId,
     );
 
-    if (
-      body.data.channelSetterMinRank !== undefined &&
-      !canConfigureChannelSetterMinRank
-    ) {
+    if (touchesSetterRank && !canConfigureChannelSetterMinRank) {
       return NextResponse.json(
         {
           error:
