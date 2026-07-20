@@ -13,13 +13,20 @@ export type DepositSlipReviewValidationRow = {
   allianceRankTitle?: string | null;
   rosterRankRaw?: string | null;
   frameIndex?: number | null;
+  memberId?: string | null;
+  memberName?: string | null;
+  matchConfidence?: number | null;
+  matchMethod?: string | null;
   deleted: number | boolean;
 };
 
 export type DepositSlipReviewSubmittedRow = {
   id: string;
   ocrName?: string | null;
+  memberId?: string | null;
   memberName?: string | null;
+  matchConfidence?: number | null;
+  matchMethod?: string | null;
   score?: string | null;
   powerLevel?: string | null;
   memberLevel?: number | null;
@@ -93,6 +100,15 @@ export function mergeDepositSlipReviewRowsForSubmit<
           : persisted.rosterRankRaw,
       frameIndex:
         "frameIndex" in submitted ? submitted.frameIndex : persisted.frameIndex,
+      memberId: "memberId" in submitted ? submitted.memberId : persisted.memberId,
+      memberName:
+        "memberName" in submitted ? submitted.memberName : persisted.memberName,
+      matchConfidence:
+        "matchConfidence" in submitted
+          ? submitted.matchConfidence
+          : persisted.matchConfidence,
+      matchMethod:
+        "matchMethod" in submitted ? submitted.matchMethod : persisted.matchMethod,
       deleted:
         "deleted" in submitted ? Boolean(submitted.deleted) : persisted.deleted,
     };

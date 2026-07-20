@@ -6,8 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
 import {
-  DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN,
-  DEPOSIT_SLIP_MEMBER_NEAR_MISS_MIN,
+  depositSlipMemberMatchBorderClass,
 } from "@/lib/banks/deposit-slip-ocr/deposit-slip-member-match.shared";
 import {
   DEPOSIT_STATUSES,
@@ -25,6 +24,7 @@ import {
   type DedupeCluster,
   type DedupeReport,
 } from "@/lib/video/dedupe/merge-report.shared";
+import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
 
 /** Follow-me scrubbing only works when rows are ordered by deposit time. */
 export function depositSlipFollowMeCompatible(
@@ -52,15 +52,16 @@ export type DepositSlipVideoReviewRow = {
   deleted: number;
 };
 
-function matchConfidenceClass(confidence: number | null | undefined): string {
-  if (confidence == null || confidence === 0) return "border-hq-border text-hq-fg-muted";
-  if (confidence >= DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN) return "border-hq-green text-hq-fg";
-  if (confidence >= DEPOSIT_SLIP_MEMBER_NEAR_MISS_MIN) return "border-[#d29922] text-[#d29922]";
-  return "border-hq-border text-hq-fg-muted";
-}
+export type DepositSlipMemberOption = {
+  id: string;
+  current_name: string;
+  previous_names?: string[];
+};
 
 type Props = {
   rows: DepositSlipVideoReviewRow[];
+  /** Job roster — officers pick when OCR does not auto-link. */
+  members: DepositSlipMemberOption[];
   filterQuery: string;
   dedupeReport?: DedupeReport | null;
   onUpdateRow: (id: string, patch: Partial<DepositSlipVideoReviewRow>) => void;
@@ -212,6 +213,7 @@ function SnapshotFields({
 
 export function DepositSlipVideoReviewTable({
   rows,
+  members,
   filterQuery,
   dedupeReport = null,
   onUpdateRow,
@@ -224,6 +226,7 @@ export function DepositSlipVideoReviewTable({
 }: Props) {
   const t = useTranslations("videoReview");
   const tBanks = useTranslations("bankManagement");
+  const tMembers = useTranslations("members");
   const [sortKey, setSortKey] =
     useState<DepositSlipVisibleSortKey>("depositAt");
   const [autoDedupeOpen, setAutoDedupeOpen] = useState(false);
@@ -505,28 +508,59 @@ export function DepositSlipVideoReviewTable({
                       className="w-full min-w-[4rem] rounded-md border border-hq-border bg-hq-canvas px-2 py-1.5"
                     />
                   </td>
-                  <td className="px-3 py-2 align-top">
-                    {row.memberId && row.memberName ? (
-                      <div
-                        className={`rounded-md border bg-hq-canvas px-2 py-1.5 text-sm ${matchConfidenceClass(row.matchConfidence)}`}
-                        title={
-                          row.matchConfidence != null
-                            ? `${Math.round(row.matchConfidence * 100)}%`
-                            : undefined
+                  <td className="min-w-[8rem] px-3 py-2 align-top sm:min-w-[11rem]">
+                    <AppSelect
+                      value={row.memberId ?? ""}
+                      onChange={(next) => {
+                        if (!next) {
+                          onUpdateRow(row.id, {
+                            memberId: null,
+                            memberName: null,
+                            matchConfidence: 0,
+                            matchMethod: "none",
+                          });
+                          return;
                         }
-                      >
-                        <span className="block truncate">{row.memberName}</span>
-                        {row.matchConfidence != null ? (
-                          <span className="mt-0.5 block text-xs opacity-80">
-                            {Math.round(row.matchConfidence * 100)}%
-                          </span>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-hq-fg-muted">
-                        {t("unmatched")}
-                      </span>
-                    )}
+                        // Roster may omit a previously selected member
+                        // (cross-device); keep the stored label via rows.
+                        const fromRoster = members.find((m) => m.id === next);
+                        const fromSelected = rows.find(
+                          (r) => r.memberId === next && r.memberName,
+                        );
+                        onUpdateRow(row.id, {
+                          memberId: next,
+                          memberName:
+                            fromRoster?.current_name ??
+                            fromSelected?.memberName ??
+                            (row.memberId === next ? row.memberName : null) ??
+                            null,
+                          matchConfidence: 1,
+                          // Commit honors preferredAshedMemberId only when
+                          // matchMethod is a real auto-link method (not "none").
+                          matchMethod: "exact",
+                        });
+                      }}
+                      aria-label={t("colMember")}
+                      placeholder={t("unmatched")}
+                      triggerClassName={`px-2 py-1.5 ${
+                        row.memberId
+                          ? depositSlipMemberMatchBorderClass(row.matchConfidence)
+                          : "border-hq-border"
+                      }`}
+                      searchable
+                      searchMode="fuzzy"
+                      combobox
+                      hideEmptyOptionWhileSearching
+                      searchPlaceholder={tMembers("searchPlaceholder")}
+                      noSearchResultsLabel={t("memberSearchNoResults")}
+                      options={buildMemberMatchSelectOptions(members, {
+                        emptyLabel: t("unmatched"),
+                        highlightMemberId: row.memberId,
+                        highlightConfidence: row.matchConfidence,
+                        selectedMembers: rows,
+                        // Same commander may appear on multiple deposit rows.
+                      })}
+                    />
                   </td>
                   <td className="px-3 py-2 align-top">
                     <input

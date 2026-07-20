@@ -100,6 +100,8 @@ type SubmitRow = {
   allianceRankTitle?: string | null;
   rosterRankRaw?: string | null;
   frameIndex?: number | null;
+  matchConfidence?: number | null;
+  matchMethod?: string | null;
   deleted?: boolean;
 };
 
@@ -482,6 +484,10 @@ export async function POST(request: Request, { params }: Props) {
           profession: schema.parsedRows.profession,
           allianceRankTitle: schema.parsedRows.allianceRankTitle,
           rosterRankRaw: schema.parsedRows.rosterRankRaw,
+          memberId: schema.parsedRows.memberId,
+          memberName: schema.parsedRows.memberName,
+          matchConfidence: schema.parsedRows.matchConfidence,
+          matchMethod: schema.parsedRows.matchMethod,
           // Scratchpad for CrystalGold outcome (green/orange); see draft-row.shared.
           rank: schema.parsedRows.rank,
           frameIndex: schema.parsedRows.frameIndex,
@@ -502,7 +508,10 @@ export async function POST(request: Request, { params }: Props) {
         body.rows.map((row) => ({
           id: row.id,
           ocrName: row.ocrName ?? null,
+          memberId: row.memberId ?? null,
           memberName: row.memberName ?? null,
+          matchConfidence: row.matchConfidence ?? null,
+          matchMethod: row.matchMethod ?? null,
           score: row.score ?? null,
           powerLevel: row.powerLevel ?? null,
           memberLevel: row.memberLevel ?? null,
@@ -570,6 +579,10 @@ export async function POST(request: Request, { params }: Props) {
           .update(schema.parsedRows)
           .set({
             ocrName: row.ocrName.trim(),
+            memberId: row.memberId ?? null,
+            memberName: row.memberName ?? null,
+            matchConfidence: row.matchConfidence ?? null,
+            matchMethod: row.matchMethod ?? null,
             score: row.score ?? null,
             powerLevel: row.powerLevel ?? null,
             memberLevel:

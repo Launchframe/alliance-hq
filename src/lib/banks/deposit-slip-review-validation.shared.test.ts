@@ -129,6 +129,36 @@ describe("validateDepositSlipReviewRows", () => {
 
     expect(merged.unknownRowIds).toEqual(new Set(["foreign-row"]));
   });
+
+  it("merges officer-confirmed member links from submitted rows", () => {
+    const merged = mergeDepositSlipReviewRowsForSubmit(
+      [
+        {
+          ...validRow("row-1"),
+          memberId: null,
+          memberName: null,
+          matchMethod: "none",
+          matchConfidence: null,
+        },
+      ],
+      [
+        {
+          id: "row-1",
+          memberId: "m-1",
+          memberName: "Alice",
+          matchMethod: "exact",
+          matchConfidence: 1,
+        },
+      ],
+    );
+
+    expect(merged.rows[0]).toMatchObject({
+      memberId: "m-1",
+      memberName: "Alice",
+      matchMethod: "exact",
+      matchConfidence: 1,
+    });
+  });
 });
 
 describe("findOverlappingLockedDepositSlips", () => {
