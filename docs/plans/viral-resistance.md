@@ -39,7 +39,7 @@ Cron at **00:00 Server Time** (`Etc/GMT+2`) posts ranked VR (top 25) to each gui
 ## Officers
 
 - HQ **VR leaderboard** — sort by base VR desc, then Ashed total hero power desc.
-- **Officer panel** — anomaly flags (≥750 above peers when ≥10 reporters, or >10250); override API available.
+- **Officer panel** — anomaly flags (≥750 above peers when ≥10 reporters); override API available.
 
 ## Audit
 

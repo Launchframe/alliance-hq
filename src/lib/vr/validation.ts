@@ -23,7 +23,6 @@ export const VR_MIN = 100;
 export const VR_MAX = 28000;
 export const ANOMALY_GAP = 750;
 export const ANOMALY_MIN_REPORTERS = 10;
-export const OFFICER_REVIEW_THRESHOLD = 10250;
 
 export {
   baseVrForInstituteLevel,

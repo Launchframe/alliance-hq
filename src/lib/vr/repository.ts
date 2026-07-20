@@ -11,7 +11,7 @@ import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-ide
 import { hasConflictingDiscordGameUidClaim } from "@/lib/member-link/link-claim-guards.shared";
 import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
-import { buildFlagReason, peerMaxExcludingMember } from "@/lib/vr/anomaly";
+import { buildFlagReason, peerMaxExcludingMember, shouldAnomalyConfirm } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER, type VrEventSource } from "@/lib/vr/constants";
 import { coerceInstituteLevelFromBaseVr } from "@/lib/vr/institute-levels.shared";
 import {
@@ -738,7 +738,11 @@ export async function upsertCommanderSeasonVr(input: {
   const peerMax = peerMaxExcludingMember(rows, input.ashedMemberId);
   const flagReason =
     input.flagReason ??
-    (input.baseVr >= peerMax + 750 || input.baseVr > 10250
+    (shouldAnomalyConfirm({
+      proposedVr: input.baseVr,
+      reporterCount: rows.length,
+      peerMax,
+    })
       ? buildFlagReason(input.baseVr, peerMax)
       : null);
 
