@@ -48,6 +48,8 @@ export type TrainsGuidedConductorFlowProps = {
   onRollVip: () => void;
   onPickVipManual: () => void;
   onLock: () => void;
+  /** Pool remaining + View pool — same panel as advanced mode, for depleting pools. */
+  poolPanel?: ReactNode;
   /** Rendered inside the "Show advanced actions" disclosure (swap / reseed / unlock, etc). */
   advancedActions?: ReactNode;
   videoUploadHref?: string;
@@ -209,6 +211,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     onRollVip,
     onPickVipManual,
     onLock,
+    poolPanel,
     advancedActions,
     videoUploadHref,
   } = props;
@@ -265,6 +268,10 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
       data-testid="trains-guided-conductor-flow"
     >
       <h3 className="text-sm font-medium text-hq-fg-muted">{t("heading")}</h3>
+
+      {poolPanel ? (
+        <div data-testid="trains-guided-pool-panel">{poolPanel}</div>
+      ) : null}
 
       <ol className="flex flex-col">
         <StepRow status={templateStatus} title={t("steps.template.title")}>

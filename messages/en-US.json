@@ -3175,6 +3175,11 @@
     "monthLoadFailed": "Could not load that month.",
     "paintPaletteTitle": "Paint days",
     "paintPaletteHint": "Select days on the calendar (tap, drag, or Shift+click a range), then choose a template to paint them.",
+    "dayTemplateMenu": {
+      "title": "Change day template",
+      "ariaLabel": "Choose a template for {date}",
+      "holdHint": "Press and hold a day to change its template"
+    },
     "weekdays": {
       "mon": "Mon",
       "tue": "Tue",

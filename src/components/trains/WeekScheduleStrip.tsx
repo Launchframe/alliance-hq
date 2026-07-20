@@ -2,7 +2,12 @@
 
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import type {
   WeekConductorRecordSummary,
@@ -18,6 +23,7 @@ import {
 } from "@/lib/trains/train-week-calendar.shared";
 import { buildProvisionalWeekPage } from "@/lib/client/week-schedule-provisional";
 import { useCoverFlowCarousel } from "@/lib/client/use-cover-flow-carousel";
+import { useLongPress } from "@/lib/client/use-long-press";
 import {
   useWeekScheduleInfiniteDays,
   weekRangeForDate,
@@ -35,6 +41,10 @@ import {
 import type { WeekTemplateType } from "@/lib/trains/types";
 import { usesCombinedSegmentDisplay } from "@/lib/trains/week-template-registry.shared";
 import { coverFlowItemStyle } from "@/lib/client/cover-flow-carousel.shared";
+import {
+  DayTemplateContextMenu,
+  type DayTemplateMenuAnchor,
+} from "@/components/trains/DayTemplateContextMenu";
 
 type Props = {
   today: string;
@@ -46,6 +56,12 @@ type Props = {
   conductorLabels: Record<string, string>;
   vipLabels: Record<string, string>;
   templateShortLabels?: Partial<Record<WeekTemplateType, string>>;
+  templateLabels?: Record<string, string>;
+  /** Officers/admins may open the day-template menu. */
+  canPaintDays?: boolean;
+  /** Per-date gate (today/future for officers; admins may paint past). */
+  isDatePaintable?: (date: string) => boolean;
+  onPaintDate?: (date: string, template: WeekTemplateType) => void;
   navLabels: {
     previousWeek: string;
     nextWeek: string;
@@ -112,6 +128,8 @@ type DayCellOptions = {
   layout?: "grid" | "carousel";
   onSelect?: () => void;
   draftScheduleAriaLabel?: string;
+  canPaint?: boolean;
+  onOpenTemplateMenu?: (anchor: DayTemplateMenuAnchor) => void;
 };
 
 function WeekScheduleDayCell({
@@ -128,6 +146,8 @@ function WeekScheduleDayCell({
   layout = "grid",
   onSelect,
   draftScheduleAriaLabel,
+  canPaint = false,
+  onOpenTemplateMenu,
 }: DayCellOptions) {
   const isProvisional = isProvisionalDayConfig(day.id);
   const isToday = day.date === today;
@@ -160,6 +180,22 @@ function WeekScheduleDayCell({
     : isToday
       ? "ring-1 ring-hq-accent/50 ring-offset-1 ring-offset-hq-canvas"
       : "";
+
+  const openMenuFromEvent = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!canPaint || !onOpenTemplateMenu) return;
+      onSelect?.();
+      onOpenTemplateMenu({ date: day.date, x: clientX, y: clientY });
+    },
+    [canPaint, day.date, onOpenTemplateMenu, onSelect],
+  );
+
+  const longPress = useLongPress({
+    disabled: !canPaint || !onOpenTemplateMenu,
+    onLongPress: (event) => {
+      openMenuFromEvent(event.clientX, event.clientY);
+    },
+  });
 
   const cellInner = (
     <>
@@ -228,13 +264,30 @@ function WeekScheduleDayCell({
     return (
       <button
         type="button"
-        onClick={onSelect}
+        onClick={() => {
+          if (longPress.didFireLongPress()) {
+            longPress.clearLongPressFlag();
+            return;
+          }
+          onSelect();
+        }}
+        onContextMenu={(event) => {
+          if (!canPaint || !onOpenTemplateMenu) return;
+          event.preventDefault();
+          openMenuFromEvent(event.clientX, event.clientY);
+        }}
+        onPointerDown={longPress.onPointerDown}
+        onPointerMove={longPress.onPointerMove}
+        onPointerUp={longPress.onPointerUp}
+        onPointerCancel={longPress.onPointerCancel}
         aria-pressed={showDetail}
+        aria-haspopup={canPaint ? "menu" : undefined}
         aria-label={
           isProvisional && draftScheduleAriaLabel
             ? `${weekday} ${day.date.slice(5)}, ${draftScheduleAriaLabel}`
             : `${weekday} ${day.date.slice(5)}`
         }
+        data-testid={`trains-week-day-${day.date}`}
         className={`${baseClass} transition-opacity hover:opacity-95`}
       >
         {cellInner}
@@ -257,6 +310,9 @@ type CarouselProps = {
   conductorLabels: Record<string, string>;
   vipLabels: Record<string, string>;
   templateShortLabels?: Partial<Record<WeekTemplateType, string>>;
+  canPaintDays?: boolean;
+  isDatePaintable?: (date: string) => boolean;
+  onOpenTemplateMenu?: (anchor: DayTemplateMenuAnchor) => void;
   navLabels: Props["navLabels"];
   trainWeekConfig?: AllianceTrainWeekConfig;
   onSelectDate: (date: string) => void;
@@ -274,6 +330,9 @@ function WeekScheduleInfiniteDayCarousel({
   conductorLabels,
   vipLabels,
   templateShortLabels,
+  canPaintDays = false,
+  isDatePaintable,
+  onOpenTemplateMenu,
   navLabels,
   trainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
   onSelectDate,
@@ -427,21 +486,11 @@ function WeekScheduleInfiniteDayCarousel({
       <div
         key={entry.day.date}
         className={`absolute left-1/2 top-1/2 ${
-          selectable && !isAnimating ? "cursor-pointer" : "pointer-events-none"
+          selectable && !isAnimating ? "" : "pointer-events-none"
         } ${interacting ? "" : "transition-transform duration-300"}`}
         style={{
           ...itemStyle,
           transformStyle: "preserve-3d",
-        }}
-        onClick={() => {
-          if (!selectable || isAnimating) return;
-          setIndex(index);
-        }}
-        role={selectable ? "button" : undefined}
-        tabIndex={selectable && showDetail ? 0 : -1}
-        onKeyDown={(event) => {
-          if (!selectable || isAnimating || event.key !== "Enter") return;
-          setIndex(index);
         }}
       >
         <WeekScheduleDayCell
@@ -456,6 +505,18 @@ function WeekScheduleInfiniteDayCarousel({
           templateShortLabels={templateShortLabels}
           layout="carousel"
           draftScheduleAriaLabel={draftScheduleAriaLabel}
+          onSelect={
+            selectable && !isAnimating
+              ? () => {
+                  setIndex(index);
+                }
+              : undefined
+          }
+          canPaint={
+            canPaintDays &&
+            (isDatePaintable ? isDatePaintable(entry.day.date) : true)
+          }
+          onOpenTemplateMenu={onOpenTemplateMenu}
         />
       </div>
     );
@@ -508,6 +569,10 @@ export function WeekScheduleStrip({
   conductorLabels,
   vipLabels,
   templateShortLabels,
+  templateLabels = {},
+  canPaintDays = false,
+  isDatePaintable,
+  onPaintDate,
   navLabels,
   trainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
   externalWeek,
@@ -539,6 +604,37 @@ export function WeekScheduleStrip({
     dayConfigs: initialDayConfigs,
     weekRecords: initialWeekRecords,
   }));
+  const [templateMenuAnchor, setTemplateMenuAnchor] =
+    useState<DayTemplateMenuAnchor | null>(null);
+
+  const handleOpenTemplateMenu = useCallback((anchor: DayTemplateMenuAnchor) => {
+    setTemplateMenuAnchor(anchor);
+  }, []);
+
+  const handleCloseTemplateMenu = useCallback(() => {
+    setTemplateMenuAnchor(null);
+  }, []);
+
+  const handlePaintTemplate = useCallback(
+    (template: WeekTemplateType) => {
+      if (!templateMenuAnchor || !onPaintDate) return;
+      onPaintDate(templateMenuAnchor.date, template);
+    },
+    [onPaintDate, templateMenuAnchor],
+  );
+
+  const dateCanPaint = useCallback(
+    (date: string) =>
+      canPaintDays && (isDatePaintable ? isDatePaintable(date) : true),
+    [canPaintDays, isDatePaintable],
+  );
+
+  const menuDayConfig =
+    templateMenuAnchor == null
+      ? null
+      : (externalWeek?.dayConfigs.find((d) => d.date === templateMenuAnchor.date) ??
+        page.dayConfigs.find((d) => d.date === templateMenuAnchor.date) ??
+        null);
 
   const handleCarouselWeekLabelChange = useCallback(
     (weekStart: string, weekEnd: string) => {
@@ -675,6 +771,8 @@ export function WeekScheduleStrip({
             className="aspect-square min-w-0 p-1.5 min-h-0 w-auto"
             onSelect={selectable ? () => onSelectDate(day.date) : undefined}
             draftScheduleAriaLabel={draftScheduleAriaLabel}
+            canPaint={dateCanPaint(day.date)}
+            onOpenTemplateMenu={handleOpenTemplateMenu}
           />
         );
       })}
@@ -734,6 +832,9 @@ export function WeekScheduleStrip({
               conductorLabels={conductorLabels}
               vipLabels={vipLabels}
               templateShortLabels={templateShortLabels}
+              canPaintDays={canPaintDays}
+              isDatePaintable={isDatePaintable}
+              onOpenTemplateMenu={handleOpenTemplateMenu}
               navLabels={navLabels}
               onSelectDate={onSelectDate}
               onWeekChange={onWeekChange}
@@ -747,6 +848,15 @@ export function WeekScheduleStrip({
           {dayGrid}
         </div>
       </div>
+
+      <DayTemplateContextMenu
+        open={templateMenuAnchor != null}
+        anchor={templateMenuAnchor}
+        currentTemplate={menuDayConfig?.paintTemplate}
+        templateLabels={templateLabels}
+        onSelect={handlePaintTemplate}
+        onClose={handleCloseTemplateMenu}
+      />
     </div>
   );
 }

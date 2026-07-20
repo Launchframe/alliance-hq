@@ -3121,6 +3121,11 @@
     "monthLoadFailed": "Não foi possível carregar esse mês.",
     "paintPaletteTitle": "Pintar dias",
     "paintPaletteHint": "Selecione dias no calendário (toque, arraste ou Shift+clique em um intervalo) e depois escolha um modelo para pintá-los.",
+    "dayTemplateMenu": {
+      "title": "Alterar modelo do dia",
+      "ariaLabel": "Escolher um modelo para {date}",
+      "holdHint": "Pressione e segure um dia para alterar o modelo"
+    },
     "weekdays": {
       "mon": "Seg",
       "tue": "Ter",

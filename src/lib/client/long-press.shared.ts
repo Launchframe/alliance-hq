@@ -1,0 +1,79 @@
+const DEFAULT_HOLD_MS = 500;
+const DEFAULT_MOVE_TOLERANCE_PX = 10;
+
+export type LongPressPointerPoint = {
+  clientX: number;
+  clientY: number;
+  button?: number;
+};
+
+export type LongPressControllerOptions = {
+  onLongPress: (point: LongPressPointerPoint) => void;
+  holdMs?: number;
+  moveTolerancePx?: number;
+  disabled?: boolean;
+  /** Injected for tests; defaults to window timers. */
+  setTimeoutFn?: typeof setTimeout;
+  clearTimeoutFn?: typeof clearTimeout;
+};
+
+/**
+ * Pointer long-press with move-cancel (safe for carousels / swipe).
+ * Framework-agnostic so it can be unit-tested without React Testing Library.
+ */
+export function createLongPressController({
+  onLongPress,
+  holdMs = DEFAULT_HOLD_MS,
+  moveTolerancePx = DEFAULT_MOVE_TOLERANCE_PX,
+  disabled = false,
+  setTimeoutFn = setTimeout,
+  clearTimeoutFn = clearTimeout,
+}: LongPressControllerOptions) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let start: { x: number; y: number } | null = null;
+  let fired = false;
+
+  function clearTimer() {
+    if (timer != null) {
+      clearTimeoutFn(timer);
+      timer = null;
+    }
+    start = null;
+  }
+
+  return {
+    onPointerDown(point: LongPressPointerPoint) {
+      if (disabled || (point.button ?? 0) !== 0) return;
+      fired = false;
+      clearTimer();
+      start = { x: point.clientX, y: point.clientY };
+      timer = setTimeoutFn(() => {
+        timer = null;
+        fired = true;
+        onLongPress(point);
+      }, holdMs);
+    },
+    onPointerMove(point: LongPressPointerPoint) {
+      if (!start || timer == null) return;
+      const dx = point.clientX - start.x;
+      const dy = point.clientY - start.y;
+      if (dx * dx + dy * dy > moveTolerancePx * moveTolerancePx) {
+        clearTimer();
+      }
+    },
+    onPointerUp() {
+      clearTimer();
+    },
+    onPointerCancel() {
+      clearTimer();
+    },
+    didFireLongPress() {
+      return fired;
+    },
+    clearLongPressFlag() {
+      fired = false;
+    },
+  };
+}
+
+export type LongPressController = ReturnType<typeof createLongPressController>;
