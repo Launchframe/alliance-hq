@@ -348,10 +348,11 @@ const commandBody = [
   },
   {
     name: "set-train-channel",
-    description: "Set this channel for train conductor announcements (owner only).",
+    description:
+      "Set this channel for train conductor announcements (R4+ by default; owners can restrict).",
     description_localizations: {
       "pt-BR":
-        "Define este canal para anúncios do trem (somente dono).",
+        "Define este canal para anúncios do trem (R4+ por padrão; o dono pode restringir).",
     },
   },
   {

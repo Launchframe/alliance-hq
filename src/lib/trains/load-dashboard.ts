@@ -278,9 +278,11 @@ export async function loadTrainsDashboard(
     ? await loadTrainDiscordSettings(allianceId, canManageTrains)
     : {
         announcementsEnabled: false,
+        channelSetterMinRank: "officer" as const,
         guildChannelCount: 0,
         guilds: [],
         canManage: false,
+        canConfigureChannelSetterMinRank: false,
       };
   const trainDiscordFields = {
     trainDiscordAnnouncementsEnabled: trainDiscordSettings.announcementsEnabled,

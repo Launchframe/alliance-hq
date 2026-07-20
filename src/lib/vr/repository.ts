@@ -1661,6 +1661,34 @@ export async function setAllianceTrainDiscordAnnouncementsEnabled(
     .where(eq(schema.alliances.id, allianceId));
 }
 
+export async function getAllianceTrainChannelSetterMinRank(
+  allianceId: string,
+): Promise<"officer" | "owner"> {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      minRank: schema.alliances.trainChannelSetterMinRank,
+    })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+  return row?.minRank === "owner" ? "owner" : "officer";
+}
+
+export async function setAllianceTrainChannelSetterMinRank(
+  allianceId: string,
+  minRank: "officer" | "owner",
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.alliances)
+    .set({
+      trainChannelSetterMinRank: minRank,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.alliances.id, allianceId));
+}
+
 export async function listAllianceDiscordGuildTrainSetup(
   allianceId: string,
 ): Promise<

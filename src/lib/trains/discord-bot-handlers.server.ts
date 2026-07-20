@@ -13,12 +13,15 @@ import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { findExactMemberByName } from "@/lib/vr/link-helpers";
 import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import {
+  callerIsAllianceOfficerViaMemberLink,
   callerIsAllianceOwner,
   getAllianceById,
+  getAllianceTrainChannelSetterMinRank,
   getGuildAllianceId,
   setGuildTrainChannel,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
+import { canSetTrainChannel } from "@/lib/trains/train-channel-setter.shared";
 import { findFuzzyMemberCandidates } from "@/lib/video/member-matcher";
 
 export type TrainBotReply = {
@@ -74,18 +77,29 @@ export async function handleDiscordSetTrainChannel(input: {
     return { reply };
   }
 
-  const isOwner = await callerIsAllianceOwner({
-    allianceId,
-    discordUserId: input.discordUserId,
-  });
-  if (!isOwner) {
-    const reply = t("errors.notOwner");
+  const [minRank, isOwner, isOfficer] = await Promise.all([
+    getAllianceTrainChannelSetterMinRank(allianceId),
+    callerIsAllianceOwner({
+      allianceId,
+      discordUserId: input.discordUserId,
+    }),
+    callerIsAllianceOfficerViaMemberLink({
+      allianceId,
+      discordUserId: input.discordUserId,
+    }),
+  ]);
+
+  if (!canSetTrainChannel({ minRank, isOwner, isOfficer })) {
+    const reply =
+      minRank === "owner"
+        ? t("train.setTrainChannel.deniedOwnerOnly")
+        : t("train.setTrainChannel.deniedOfficer");
     await writeDiscordBotAudit({
       allianceId,
       discordUserId: input.discordUserId,
       command: "set_train_channel",
       payload: input,
-      result: { reply },
+      result: { reply, minRank },
     });
     return { reply };
   }
