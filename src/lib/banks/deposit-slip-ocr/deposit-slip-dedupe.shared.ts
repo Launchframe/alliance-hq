@@ -719,6 +719,8 @@ function emitFlagged(
  * terminal (loot/mature) row — that locked is a re-deposit, not the initiate
  * for the terminal. Keeps valid initiate+loot pairs (locked ≤ terminal)
  * together while peeling post-outcome blues out of the ≤15m diameter merge.
+ * Peeled re-deposits stay in one subgroup so multi-frame OCR duplicates of
+ * the same re-deposit can still proximity / exact-identity merge.
  */
 function splitPostOutcomeRedeposits(
   group: readonly IndexedSlip[],
@@ -748,7 +750,7 @@ function splitPostOutcomeRedeposits(
     primary.push(slip);
   }
   if (redeposits.length === 0) return [group.slice()];
-  return [primary, ...redeposits.map((s) => [s])];
+  return [primary, redeposits];
 }
 
 /**

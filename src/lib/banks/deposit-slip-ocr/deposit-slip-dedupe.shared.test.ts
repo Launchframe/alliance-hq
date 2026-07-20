@@ -1407,6 +1407,50 @@ describe("dedupeDepositSlips — review triage", () => {
     ).toHaveLength(0);
   });
 
+  it("still merges multi-frame OCR duplicates of a peeled post-loot re-deposit", () => {
+    // Two frames of the same post-loot locked must coalesce after peel, not
+    // stay as separate singleton survivors.
+    const { slips } = dedupeDepositSlips([
+      slip({
+        commanderName: "Loot Redeposit Dup",
+        depositAt: "2026-07-10T12:00:00.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "Loot Redeposit Dup",
+        depositAt: "2026-07-10T12:10:00.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "looted",
+        outcomeKind: "early_termination_refund",
+        outcomeAmount: 0,
+      }),
+      slip({
+        commanderName: "Loot Redeposit Dup",
+        depositAt: "2026-07-10T12:20:00.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "locked",
+        sourceFrameIndex: 10,
+      }),
+      slip({
+        commanderName: "Loot Redeposit Dup",
+        depositAt: "2026-07-10T12:20:05.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "locked",
+        sourceFrameIndex: 11,
+      }),
+    ]);
+
+    expect(slips).toHaveLength(2);
+    const lockedRedeposits = slips.filter((s) => s.status === "locked");
+    expect(lockedRedeposits).toHaveLength(1);
+    expect(lockedRedeposits[0]?.depositAt).toMatch(/^2026-07-10T12:20/);
+  });
+
   it("does not absorb a post-loot re-deposit blue into a multi-frame-OCR'd orange majority (majority-outlier status guard)", () => {
     // Three OCR reads of the SAME orange (looted) row within one minute form
     // a majority home; a single re-deposit blue row lands ~20m later — inside
