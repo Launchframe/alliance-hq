@@ -24,6 +24,7 @@ vi.mock("@/lib/thp/repository", () => ({
 
 vi.mock("@/lib/vr/load-progress-chart", () => ({
   loadVrProgressChartPayload: vi.fn(),
+  listVrProgressChartCommanderCandidates: vi.fn(),
 }));
 
 vi.mock("@/lib/vr/repository", () => ({
@@ -41,7 +42,7 @@ import {
   getCommanderThpState,
   listCommanderThpEvents,
 } from "@/lib/thp/repository";
-import { loadVrProgressChartPayload } from "@/lib/vr/load-progress-chart";
+import { loadVrProgressChartPayload, listVrProgressChartCommanderCandidates } from "@/lib/vr/load-progress-chart";
 import {
   getCommanderByAshedMemberId,
   getMemberSeasonHigh,
@@ -90,6 +91,10 @@ describe("handleDiscordWhatIsMyVrChart", () => {
       seasonKey: "1",
       vrUpdatesLocked: false,
     });
+    vi.mocked(listVrProgressChartCommanderCandidates).mockResolvedValue([
+      { commanderId: "cmd-viewer", memberName: "Alpha" },
+      { commanderId: "cmd-other", memberName: "Top" },
+    ]);
     vi.mocked(renderVrProgressChartPng).mockResolvedValue(pngBytes);
     vi.mocked(getCommanderByAshedMemberId).mockResolvedValue(null);
   });
@@ -148,6 +153,7 @@ describe("handleDiscordWhatIsMyVrChart", () => {
     expect(renderVrProgressChartPng).toHaveBeenCalledWith(
       expect.objectContaining({
         visibleCommanderIds: ["cmd-viewer"],
+        showLegend: true,
       }),
     );
     if (result.ok) {
@@ -187,6 +193,79 @@ describe("handleDiscordWhatIsMyVrChart", () => {
       expect(result.content).toMatch(/Bravo/);
       expect(result.content).not.toMatch(link.gameUid);
       expect(result.content).not.toMatch(secondLink.gameUid);
+    }
+  });
+
+  it("includes named alliance commanders on the chart", async () => {
+    vi.mocked(listDiscordLinksForUser).mockResolvedValue([link]);
+    vi.mocked(getMemberSeasonHigh).mockResolvedValue(1000);
+    vi.mocked(getCommanderByAshedMemberId).mockResolvedValue({
+      commanderId: "cmd-viewer",
+      weeklyPassActive: false,
+    } as never);
+    vi.mocked(loadVrProgressChartPayload).mockResolvedValue({
+      series: [
+        {
+          commanderId: "cmd-viewer",
+          ashedMemberId: "m1",
+          memberName: "Alpha",
+          rank: 5,
+          currentBaseVr: 1000,
+          isViewer: true,
+          events: [{ at: "2026-07-01T00:00:00.000Z", baseVr: 900, instituteLevel: 10 }],
+        },
+        {
+          commanderId: "cmd-other",
+          ashedMemberId: "m9",
+          memberName: "Top",
+          rank: 1,
+          currentBaseVr: 5000,
+          isViewer: false,
+          events: [{ at: "2026-07-01T00:00:00.000Z", baseVr: 4800, instituteLevel: 25 }],
+        },
+      ],
+      seasonKey: "1",
+      vrUpdatesLocked: false,
+    });
+
+    const result = await handleDiscordWhatIsMyVrChart({
+      allianceId: "a1",
+      discordUserId: "d1",
+      locale: "en-US",
+      additionalCommanderNames: ["Top"],
+    });
+    expect(result.ok).toBe(true);
+    expect(loadVrProgressChartPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        restrictToCommanderIds: ["cmd-viewer", "cmd-other"],
+      }),
+    );
+    expect(renderVrProgressChartPng).toHaveBeenCalledWith(
+      expect.objectContaining({
+        visibleCommanderIds: ["cmd-viewer", "cmd-other"],
+      }),
+    );
+  });
+
+  it("rejects unknown commander names", async () => {
+    vi.mocked(listDiscordLinksForUser).mockResolvedValue([link]);
+    vi.mocked(getCommanderByAshedMemberId).mockResolvedValue({
+      commanderId: "cmd-viewer",
+      weeklyPassActive: false,
+    } as never);
+    vi.mocked(listVrProgressChartCommanderCandidates).mockResolvedValue([
+      { commanderId: "cmd-viewer", memberName: "Alpha" },
+    ]);
+
+    const result = await handleDiscordWhatIsMyVrChart({
+      allianceId: "a1",
+      discordUserId: "d1",
+      locale: "en-US",
+      additionalCommanderNames: ["Nobody"],
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.content).toMatch(/Nobody/);
     }
   });
 });

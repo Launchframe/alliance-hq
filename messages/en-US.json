@@ -4352,6 +4352,9 @@
       "nowLabel": "Now",
       "vrNotLinked": "You don't have a linked commander yet. Run `/link-commander` first, then ask again with `/what-is-my-vr-chart`.",
       "vrInsufficientData": "Not enough VR history to draw a chart yet. Report institute level with `/vr` a few times, then try again.",
+      "vrCommanderNotFound": "No alliance commander with VR history matched: {names}.",
+      "vrCommanderAmbiguous": "Multiple commanders matched that name. Be more specific: {detail}.",
+      "vrTooManyCommanders": "You can compare up to {max} commanders on one chart (including yours).",
       "thpNotLinked": "You don't have a linked commander yet. Run `/link-commander` first, then ask again with `/what-is-my-thp-chart`.",
       "thpInsufficientData": "Need at least two THP reports to draw a history chart. Use `/thp` again after your next update."
     },

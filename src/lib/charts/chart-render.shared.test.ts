@@ -47,6 +47,26 @@ describe("buildVrProgressChartSvg", () => {
     ).toBeNull();
   });
 
+  it("renders a legend when showLegend is enabled", () => {
+    const now = new Date("2026-07-16T18:00:00.000Z");
+    const fixture = fixtureVrProgressSeries(now);
+    const viewerId = fixture.series.find((row) => row.isViewer)!.commanderId;
+    const svg = buildVrProgressChartSvg({
+      series: fixture.series,
+      seasonKey: fixture.seasonKey,
+      width: 1200,
+      height: 675,
+      now,
+      options: {
+        labels: { nowLabel: "Now" },
+        visibleCommanderIds: [viewerId],
+        showLegend: true,
+      },
+    });
+    expect(svg).toContain("Viewer");
+    expect(svg).toMatch(/font-weight="600"/);
+  });
+
   it("formats axis labels with the requested locale", () => {
     const now = new Date("2026-07-16T18:00:00.000Z");
     const fixture = fixtureVrProgressSeries(now);

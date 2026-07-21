@@ -37,6 +37,7 @@ export async function renderVrProgressChartPng(input: {
   locale?: ChartLocale;
   /** When set, only these commanders are drawn (Discord bot: caller only). */
   visibleCommanderIds?: string[];
+  showLegend?: boolean;
 }): Promise<Buffer | null> {
   const svg = buildVrProgressChartSvg({
     series: input.series,
@@ -49,6 +50,7 @@ export async function renderVrProgressChartPng(input: {
     options: {
       labels: input.nowLabel ? { nowLabel: input.nowLabel } : undefined,
       visibleCommanderIds: input.visibleCommanderIds,
+      showLegend: input.showLegend,
     },
   });
   if (!svg) return null;

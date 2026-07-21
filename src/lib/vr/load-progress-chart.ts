@@ -13,6 +13,7 @@ import {
   type VrProgressChartPayload,
   type VrProgressCommanderSeries,
 } from "@/lib/vr/vr-progress-chart.shared";
+import type { VrChartCommanderCandidate } from "@/lib/vr/vr-chart-resolve-commanders.shared";
 
 type LeaderboardProgressRow = {
   commanderId: string;
@@ -60,10 +61,54 @@ function eventFromRow(
   };
 }
 
+function commanderNameForRow(
+  row: LeaderboardProgressRow,
+  linkNameById: Map<string, string | null>,
+  memberNameById: Map<string, string | null>,
+): string {
+  return (
+    linkNameById.get(row.ashedMemberId) ??
+    memberNameById.get(row.ashedMemberId) ??
+    row.ashedMemberId
+  );
+}
+
+/** Alliance members with season VR rows — used to resolve Discord chart name args. */
+export async function listVrProgressChartCommanderCandidates(
+  allianceId: string,
+): Promise<VrChartCommanderCandidate[]> {
+  const season = await resolveVrSeasonContext(allianceId);
+  const [rawRows, rawMembers, rawLinks] = await Promise.all([
+    listAllianceSeasonVrForLeaderboard(allianceId, season.seasonKey),
+    loadAllianceMembersForBot(allianceId),
+    listDiscordLinksByAlliance(allianceId),
+  ]);
+  const rows = rawRows as LeaderboardProgressRow[];
+  const members = rawMembers as ProgressMember[];
+  const links = rawLinks as ProgressDiscordLink[];
+
+  const memberNameById = new Map(
+    members.map((member) => [
+      member.id,
+      member.current_name ?? member.currentName ?? null,
+    ]),
+  );
+  const linkNameById = new Map(
+    links.map((link) => [link.ashedMemberId, link.memberDisplayName]),
+  );
+
+  return rows.map((row) => ({
+    commanderId: row.commanderId,
+    memberName: commanderNameForRow(row, linkNameById, memberNameById),
+  }));
+}
+
 export async function loadVrProgressChartPayload(input: {
   allianceId: string;
   viewerCommanderId?: string | null;
   viewerAshedMemberId?: string | null;
+  /** When set, load only these commanders (must have season VR rows). */
+  restrictToCommanderIds?: string[];
 }): Promise<VrProgressChartPayload> {
   const season = await resolveVrSeasonContext(input.allianceId);
   const [rawRows, rawMembers, rawLinks] = await Promise.all([
@@ -99,13 +144,17 @@ export async function loadVrProgressChartPayload(input: {
   const rankedRows = (rows as LeaderboardProgressRow[])
     .slice()
     .sort((a, b) => b.highestBaseVr - a.highestBaseVr);
-  const selectedRows = selectTopVrChartCommanders(
-    rankedRows.map((row) => ({
-      ...row,
-      currentBaseVr: row.highestBaseVr,
-    })),
-    viewerCommanderId,
-  );
+  const selectedRows = input.restrictToCommanderIds?.length
+    ? rankedRows.filter((row) =>
+        input.restrictToCommanderIds!.includes(row.commanderId),
+      )
+    : selectTopVrChartCommanders(
+        rankedRows.map((row) => ({
+          ...row,
+          currentBaseVr: row.highestBaseVr,
+        })),
+        viewerCommanderId,
+      );
   const eventRowsByCommander = await listCommanderSeasonVrEventsBulk(
     selectedRows.map((row) => row.commanderId),
     season.seasonKey,
@@ -131,10 +180,7 @@ export async function loadVrProgressChartPayload(input: {
     return {
       commanderId: row.commanderId,
       ashedMemberId: row.ashedMemberId,
-      memberName:
-        linkNameById.get(row.ashedMemberId) ??
-        memberNameById.get(row.ashedMemberId) ??
-        row.ashedMemberId,
+      memberName: commanderNameForRow(row, linkNameById, memberNameById),
       rank,
       currentBaseVr: row.highestBaseVr,
       isViewer: row.commanderId === viewerCommanderId,

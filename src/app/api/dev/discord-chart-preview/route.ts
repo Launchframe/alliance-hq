@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
       height: VR_PROGRESS_CHART_DISCORD_HEIGHT,
       now,
       locale,
-      options: { labels: { nowLabel }, visibleCommanderIds },
+      options: { labels: { nowLabel }, visibleCommanderIds, showLegend: true },
     });
     if (!svg) {
       return NextResponse.json({ error: "empty_chart" }, { status: 500 });
@@ -84,6 +84,7 @@ export async function GET(request: NextRequest) {
       nowLabel,
       locale,
       visibleCommanderIds,
+      showLegend: true,
     });
     if (!png) {
       return NextResponse.json({ error: "empty_chart" }, { status: 500 });
