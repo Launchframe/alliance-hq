@@ -3,6 +3,11 @@ import "server-only";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import {
+  listStoredAllianceIdsForHqAlliance,
+  videoJobStoredAllianceIdIn,
+  videoUploadGroupStoredAllianceIdIn,
+} from "@/lib/video/video-job-alliance.server";
 
 export type PassKeyRow = {
   passKey: string;
@@ -82,15 +87,31 @@ export type LoadVideoJobsAnalyticsOptions = {
   allianceId?: string | null;
 };
 
+/** Clamp URL `days` to 0 (all time) or 1–365 for interval filters. */
+export function clampVideoJobsAnalyticsDays(raw: number): number {
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  return Math.min(Math.max(1, Math.trunc(raw)), 365);
+}
+
 export async function loadVideoJobsAnalytics(
   options: LoadVideoJobsAnalyticsOptions,
 ): Promise<AnalyticsResponse> {
   const scoreTargetFilter = options.scoreTarget;
   const passKeyFilter = options.passKey;
-  const days = options.days;
-  const allianceId = options.allianceId?.trim() || null;
+  const days = clampVideoJobsAnalyticsDays(options.days);
+  const hqAllianceId = options.allianceId?.trim() || null;
 
   const db = getDb();
+
+  const storedAllianceIds = hqAllianceId
+    ? await listStoredAllianceIdsForHqAlliance(hqAllianceId)
+    : [];
+  const allianceCondition = hqAllianceId
+    ? videoJobStoredAllianceIdIn(storedAllianceIds)
+    : undefined;
+  const uploadGroupAllianceCondition = hqAllianceId
+    ? videoUploadGroupStoredAllianceIdIn(storedAllianceIds)
+    : undefined;
 
   const dateFilter =
     days > 0
@@ -103,10 +124,6 @@ export async function loadVideoJobsAnalytics(
 
   const passKeyCondition = passKeyFilter
     ? eq(schema.videoJobs.passKey, passKeyFilter)
-    : undefined;
-
-  const allianceCondition = allianceId
-    ? eq(schema.videoJobs.allianceId, allianceId)
     : undefined;
 
   const jobConditions = [
@@ -207,10 +224,6 @@ export async function loadVideoJobsAnalytics(
     .orderBy(schema.videoJobs.scoreTarget);
 
   // ── 5. Recommendation accuracy ────────────────────────────────────────────
-  const uploadGroupAllianceCondition = allianceId
-    ? eq(schema.videoUploadGroups.allianceId, allianceId)
-    : undefined;
-
   const recAccConditions = [
     isNotNull(schema.videoUploadGroups.comparisonJson),
     ...(scoreTargetFilter

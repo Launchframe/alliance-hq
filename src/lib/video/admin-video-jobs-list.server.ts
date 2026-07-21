@@ -11,6 +11,10 @@ import {
   orderAdminVideoJobsForIndex,
   type AdminVideoJobGroupFields,
 } from "@/lib/video/admin-video-jobs-group.shared";
+import {
+  listStoredAllianceIdsForHqAlliance,
+  videoJobStoredAllianceIdIn,
+} from "@/lib/video/video-job-alliance.server";
 import { parseAdminVideoJobsStatusFilter } from "@/lib/video/admin-video-jobs-query.shared";
 
 export type AdminVideoJobsListQuery = {
@@ -57,10 +61,11 @@ export function parseAdminVideoJobsListQuery(
 
 function buildAdminVideoJobsListConditions(
   query: AdminVideoJobsListQuery,
+  storedAllianceIds: readonly string[] | null,
 ): SQL[] {
   return [
-    query.allianceId
-      ? eq(schema.videoJobs.allianceId, query.allianceId)
+    storedAllianceIds?.length
+      ? videoJobStoredAllianceIdIn(storedAllianceIds)
       : undefined,
     query.status ? eq(schema.videoJobs.status, query.status) : undefined,
     query.bucket ? eq(schema.videoJobs.qualityBucket, query.bucket) : undefined,
@@ -75,9 +80,21 @@ function buildAdminVideoJobsListConditions(
   ].filter((c): c is SQL => Boolean(c));
 }
 
+async function resolveStoredAllianceIdsForListQuery(
+  query: AdminVideoJobsListQuery,
+): Promise<readonly string[] | null> {
+  const hqAllianceId = query.allianceId?.trim();
+  if (!hqAllianceId) return null;
+  return listStoredAllianceIdsForHqAlliance(hqAllianceId);
+}
+
 async function queryMatchedAdminVideoJobs(query: AdminVideoJobsListQuery) {
   const db = getDb();
-  const conditions = buildAdminVideoJobsListConditions(query);
+  const storedAllianceIds = await resolveStoredAllianceIdsForListQuery(query);
+  const conditions = buildAdminVideoJobsListConditions(
+    query,
+    storedAllianceIds,
+  );
   if (conditions.length > 0) {
     return db
       .select()
@@ -97,7 +114,11 @@ async function queryMatchedAdminVideoJobIndexRows(
   query: AdminVideoJobsListQuery,
 ): Promise<AdminVideoJobGroupFields[]> {
   const db = getDb();
-  const conditions = buildAdminVideoJobsListConditions(query);
+  const storedAllianceIds = await resolveStoredAllianceIdsForListQuery(query);
+  const conditions = buildAdminVideoJobsListConditions(
+    query,
+    storedAllianceIds,
+  );
   if (conditions.length > 0) {
     return db
       .select(ADMIN_VIDEO_JOB_INDEX_COLUMNS)
