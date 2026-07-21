@@ -96,6 +96,38 @@ When OCR sees an **orange** row for Commander A:
 2. Mark that deposit **`looted`** (`outcomeAt` = orange row timestamp).
 3. Orange timestamp may be **any time ≥ blue** (early force-out when the bank drops / terminates). Do **not** require `termDays` alignment.
 
+### Cross-frame OCR dedupe — known looted-window limitation (follow-up)
+
+Video OCR dedupe (`dedupeDepositSlips` in `deposit-slip-dedupe.shared.ts`) merges same-commander rows whose `depositAt` values fall inside:
+
+| Constant | Window | Role |
+|----------|--------|------|
+| `DEPOSIT_AT_PROXIMITY_MS` | 15 minutes (diameter) | Auto-merge nearby OCR reads of one slip |
+| `DEPOSIT_AT_MAJORITY_OUTLIER_MS` | 45 minutes | Absorb a **singleton** OCR outlier into a majority-minute home |
+
+**Why maturity is safe:** locked → matured cannot finish inside those windows (terms are 1/3/5 days).
+
+**Why loot is not:** a deposit **can be looted within minutes** of `depositAt`. A commander who is looted and immediately re-deposits (same amount/term, one OCR read of the second slip) can have that second initiate absorbed as an “OCR outlier” of the first — a false merge Real Steel flagged on PR #313.
+
+**Status (partially closed):**
+- **45m majority-outlier absorb** — status-gated in #353 (`absorbMajorityMinuteOutliers` requires the outlier’s status to already appear in the majority group). A post-loot locked re-deposit is no longer folded into a multi-frame orange majority.
+- **≤15m proximity diameter** — peels locked rows timed **after** a terminal OCR row out of the proximity merge group (post-outcome re-deposits). Valid initiate+loot pairs (locked ≤ terminal time) still coalesce.
+- **Still open:** frame-index continuity across the scroll for edge cases that pass both gates.
+
+### Within-frame field association (line bboxes)
+
+When Tesseract returns line bboxes, Deposit / outcome / timestamp lines attach to identities by **midpoint y-bands** between sorted identity `yCenter`s (City List #317 half-pitch analog on the vertical axis — not nearest-above). Geometry runs only when **every** identity has a **distinct** `yCenter` and at least one field line also has a bbox; otherwise the frame uses full reading-order association.
+
+**Known limitations (not regressions from y-banding):**
+
+| Case | Behavior |
+|------|----------|
+| Any identity missing a line bbox | Full reading-order fallback for the frame |
+| Two identities share the same `yCenter` | Full reading-order fallback (degenerate zero-width bands) |
+| Identities have geometry, but some **field** lines lack bboxes | Geometry claims fields that have bboxes; remaining lines still use the legacy `i..i+5` reading-order window — those lines can still mis-zip in adversarial interleavings |
+
+Cross-frame fingerprinting collapses duplicate line reads across overlapping frames; it does **not** fix within-frame name↔amount mis-zips.
+
 ### OCR miss → synthetic blue (initiate)
 
 If a terminal row arrives and no matching blue exists yet:
@@ -187,6 +219,8 @@ When changing bank deposit OCR, City List OCR, commit, or Bank Management:
 6. **UID privacy** — do not display game UID; commander **name** (+ alliance tag from OCR) is the officer-facing identity.
 7. **City List upsert** — match on alliance+server+coords; never delete missing banks from OCR alone.
 8. **Ownership** — City List inserts are alliance-held (`priorCaptureCount = 1`); wild vs alliance loot semantics use `priorCaptureCount`.
+9. **Dedupe loot window** — do not assume deposits are ≥45m apart; looting can terminate a slip within minutes. See **Cross-frame OCR dedupe — known looted-window limitation** above before tightening proximity/outlier constants.
+10. **Within-frame y-banding** — require distinct identity `yCenter`s before geometry; do not treat partial field-bbox frames as fully fixed by midpoint bands (see **Within-frame field association**).
 
 ## Related
 

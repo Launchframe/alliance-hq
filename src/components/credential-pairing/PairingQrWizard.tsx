@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
+import { CopyToClipboardField } from "@/components/ui/CopyToClipboardField";
 import type { PairingPurpose } from "@/lib/credential-pairing/types";
 
 type PairingCreateResponse = {
@@ -24,6 +25,8 @@ export type PairingWizardStrings = {
   showQr: string;
   generating: string;
   scanHint: string;
+  desktopLinkHint: string;
+  copyLinkLabel: string;
   expiresIn: string;
   expired: string;
   linked: string;
@@ -227,7 +230,7 @@ export function PairingQrWizard({
               <div className="rounded-lg bg-white p-3">
                 <QRCodeSVG value={pairing.linkUrl} size={180} level="M" />
               </div>
-              <div className="min-w-0 space-y-2 text-sm text-hq-fg-muted">
+              <div className="min-w-0 flex-1 space-y-3 text-sm text-hq-fg-muted">
                 <p>{strings.scanHint}</p>
                 <p>
                   {strings.expiresIn}{" "}
@@ -235,6 +238,13 @@ export function PairingQrWizard({
                     {formatCountdown(remaining)}
                   </span>
                 </p>
+                <div className="space-y-2">
+                  <p>{strings.desktopLinkHint}</p>
+                  <CopyToClipboardField
+                    value={pairing.linkUrl}
+                    label={strings.copyLinkLabel}
+                  />
+                </div>
               </div>
             </div>
           )}

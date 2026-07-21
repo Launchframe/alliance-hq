@@ -8,6 +8,8 @@ import {
   parseCityListServerTime,
   parseCityListText,
   parseCompactCrystalGoldValue,
+  type CityListOcrLine,
+  type CityListOcrWordSpan,
 } from "@/lib/banks/city-list-ocr/parse-city-list-text.shared";
 import { bankDepositCapacity } from "@/lib/banks/types.shared";
 
@@ -549,6 +551,265 @@ describe("parseCityListBanks", () => {
     expect(banks.every((b) => b.level === 3)).toBe(true);
     expect(banks[0]?.crystalGoldValue).toBe(588_000);
     expect(banks[5]?.crystalGoldValue).toBe(354_000);
+  });
+});
+
+/**
+ * Builds a `CityListOcrLine` with word-level bbox spans. Each non-null entry
+ * in `cells` becomes one "word" (a whole grid-tile token, e.g. "378.00K") at
+ * the given on-image x-center; `null` simulates a tile OCR dropped entirely
+ * from this line. Column x-centers below mirror a 3-tile grid row
+ * (left/middle/right thirds of the card).
+ */
+function lineWithColumns(
+  cells: ReadonlyArray<{ text: string; xCenter: number } | null>,
+): CityListOcrLine {
+  const words: CityListOcrWordSpan[] = [];
+  const parts: string[] = [];
+  let cursor = 0;
+  for (const cell of cells) {
+    if (!cell) continue;
+    if (parts.length > 0) cursor += 1; // joining space
+    const charStart = cursor;
+    const charEnd = charStart + cell.text.length;
+    words.push({
+      text: cell.text,
+      charStart,
+      charEnd,
+      x0: cell.xCenter - 40,
+      x1: cell.xCenter + 40,
+    });
+    parts.push(cell.text);
+    cursor = charEnd;
+  }
+  return { text: parts.join(" "), words };
+}
+
+const COL1 = 150;
+const COL2 = 450;
+const COL3 = 750;
+
+describe("parseCityListBanks — word-bbox column-aware assignment", () => {
+  it("nulls only the tile whose amount OCR missed, instead of shifting later tiles' amounts left", () => {
+    // Reproduces the reported grid-misalignment bug: a 3-tile row's leftmost
+    // amount ("348.00K") never matched, so the value line only recovered 2
+    // tokens. Plain index-zip would hand tile 2's amount to tile 1 and tile
+    // 3's to tile 2 (losing 348.00K entirely and misattributing the rest).
+    // With column bbox data, each recovered amount snaps to its own nearest
+    // coordinate instead.
+    const banks = parseCityListBanks([
+      lineWithColumns([
+        null,
+        { text: "378.00K", xCenter: COL2 },
+        { text: "222.00K", xCenter: COL3 },
+      ]),
+      lineWithColumns([
+        { text: "Lv.5", xCenter: COL1 },
+        { text: "Lv.5", xCenter: COL2 },
+        { text: "Lv.4", xCenter: COL3 },
+      ]),
+      lineWithColumns([
+        { text: "#1203 (X:20, Y:499)", xCenter: COL1 },
+        { text: "#1203 (X:20, Y:399)", xCenter: COL2 },
+        { text: "#1203 (X:99, Y:599)", xCenter: COL3 },
+      ]),
+      lineWithColumns([
+        { text: "58/100", xCenter: COL1 },
+        { text: "63/100", xCenter: COL2 },
+        { text: "37/100", xCenter: COL3 },
+      ]),
+    ]);
+
+    expect(banks).toHaveLength(3);
+    expect(banks[0]).toMatchObject({
+      coordX: 20,
+      coordY: 499,
+      level: 5,
+      crystalGoldValue: null, // OCR never recovered this tile's amount.
+      currentDepositCount: 58,
+    });
+    expect(banks[1]).toMatchObject({
+      coordX: 20,
+      coordY: 399,
+      level: 5,
+      crystalGoldValue: 378_000,
+      currentDepositCount: 63,
+    });
+    expect(banks[2]).toMatchObject({
+      coordX: 99,
+      coordY: 599,
+      level: 4,
+      crystalGoldValue: 222_000,
+      currentDepositCount: 37,
+    });
+  });
+
+  it("assigns a dropped middle-tile deposit count to null rather than shifting the trailing tile's count left", () => {
+    const banks = parseCityListBanks([
+      lineWithColumns([
+        { text: "600.00K", xCenter: COL1 },
+        { text: "500.00K", xCenter: COL2 },
+        { text: "400.00K", xCenter: COL3 },
+      ]),
+      lineWithColumns([
+        { text: "Lv.3", xCenter: COL1 },
+        { text: "Lv.2", xCenter: COL2 },
+        { text: "Lv.4", xCenter: COL3 },
+      ]),
+      lineWithColumns([
+        { text: "#1211 (X:1, Y:1)", xCenter: COL1 },
+        { text: "#1211 (X:2, Y:2)", xCenter: COL2 },
+        { text: "#1211 (X:3, Y:3)", xCenter: COL3 },
+      ]),
+      // Middle tile's deposit count OCR missed entirely.
+      lineWithColumns([
+        { text: "81/100", xCenter: COL1 },
+        null,
+        { text: "50/100", xCenter: COL3 },
+      ]),
+    ]);
+
+    expect(banks).toHaveLength(3);
+    expect(banks[0]).toMatchObject({ coordX: 1, currentDepositCount: 81 });
+    expect(banks[1]).toMatchObject({ coordX: 2, currentDepositCount: null });
+    expect(banks[2]).toMatchObject({ coordX: 3, currentDepositCount: 50 });
+  });
+
+  it("breaks an exact distance tie deterministically toward the lower coordinate index", () => {
+    // Single value token exactly midway between COL1 and COL2. Greedy
+    // assignment sorts pairs by distance with a stable sort over
+    // coord-index-major insertion order, so the leftmost coordinate wins.
+    const banks = parseCityListBanks([
+      lineWithColumns([{ text: "378.00K", xCenter: (COL1 + COL2) / 2 }]),
+      lineWithColumns([
+        { text: "#1203 (X:20, Y:499)", xCenter: COL1 },
+        { text: "#1203 (X:20, Y:399)", xCenter: COL2 },
+      ]),
+    ]);
+    expect(banks).toHaveLength(2);
+    expect(banks[0]).toMatchObject({ coordY: 499, crystalGoldValue: 378_000 });
+    expect(banks[1]).toMatchObject({ coordY: 399, crystalGoldValue: null });
+  });
+
+  it("resolves two tokens contending for the same column: the closer one wins, the loser goes unassigned when every other column is beyond half a pitch", () => {
+    // A junk value token near COL2 (e.g. tile-art misread) plus the real
+    // COL2 value. The real token (distance 0) claims COL2; the junk token's
+    // next-nearest column (COL1) is farther than half the column pitch, so
+    // it is dropped instead of spilling into a tile it plainly does not
+    // belong to. COL1 (whose own token OCR missed) stays null.
+    const banks = parseCityListBanks([
+      lineWithColumns([
+        { text: "111.00K", xCenter: COL2 - 20 }, // junk, near COL2
+        { text: "500.00K", xCenter: COL2 },
+        { text: "400.00K", xCenter: COL3 },
+      ]),
+      lineWithColumns([
+        { text: "#1211 (X:1, Y:1)", xCenter: COL1 },
+        { text: "#1211 (X:2, Y:2)", xCenter: COL2 },
+        { text: "#1211 (X:3, Y:3)", xCenter: COL3 },
+      ]),
+    ]);
+    expect(banks).toHaveLength(3);
+    expect(banks[0]).toMatchObject({ coordX: 1, crystalGoldValue: null });
+    expect(banks[1]).toMatchObject({ coordX: 2, crystalGoldValue: 500_000 });
+    expect(banks[2]).toMatchObject({ coordX: 3, crystalGoldValue: 400_000 });
+  });
+
+  it("still assigns a displaced token to a free column within half a pitch of it", () => {
+    // Tile 1's value drifted right (blur/skew) but stays within half the
+    // column pitch of COL1 — a plausible displaced reading, not junk — so
+    // the cap does not reject it.
+    const banks = parseCityListBanks([
+      lineWithColumns([
+        { text: "600.00K", xCenter: COL1 + 100 }, // displaced but within 150
+        { text: "500.00K", xCenter: COL2 },
+      ]),
+      lineWithColumns([
+        { text: "#1211 (X:1, Y:1)", xCenter: COL1 },
+        { text: "#1211 (X:2, Y:2)", xCenter: COL2 },
+      ]),
+    ]);
+    expect(banks).toHaveLength(2);
+    expect(banks[0]).toMatchObject({ coordX: 1, crystalGoldValue: 600_000 });
+    expect(banks[1]).toMatchObject({ coordX: 2, crystalGoldValue: 500_000 });
+  });
+
+  it("keeps uncapped assignment for single-column rows (no pitch to derive a cap from)", () => {
+    const banks = parseCityListBanks([
+      lineWithColumns([{ text: "600.00K", xCenter: COL3 }]), // far from COL1
+      lineWithColumns([{ text: "#1211 (X:1, Y:1)", xCenter: COL1 }]),
+    ]);
+    expect(banks).toHaveLength(1);
+    expect(banks[0]).toMatchObject({ coordX: 1, crystalGoldValue: 600_000 });
+  });
+
+  it("drops surplus tokens once every coordinate is claimed instead of overwriting an assignment", () => {
+    const banks = parseCityListBanks([
+      lineWithColumns([
+        { text: "600.00K", xCenter: COL1 },
+        { text: "999.00K", xCenter: COL1 + 30 }, // extra junk near COL1
+        { text: "500.00K", xCenter: COL2 },
+      ]),
+      lineWithColumns([
+        { text: "#1211 (X:1, Y:1)", xCenter: COL1 },
+        { text: "#1211 (X:2, Y:2)", xCenter: COL2 },
+      ]),
+    ]);
+    expect(banks).toHaveLength(2);
+    expect(banks[0]).toMatchObject({ coordX: 1, crystalGoldValue: 600_000 });
+    expect(banks[1]).toMatchObject({ coordX: 2, crystalGoldValue: 500_000 });
+  });
+
+  it("falls back to per-index zip when OCR glues the whole coordinate line into one word (all coords share one x-center)", () => {
+    // A single glued "word" spanning every coordinate token gives all three
+    // coord matches the same union bbox center. Nearest-match against a
+    // single shared column point would hand the MIDDLE tile's value to the
+    // first coordinate; degenerate (non-distinct) columns must zip by index
+    // instead.
+    const gluedCoordText =
+      "#1211(X:1,Y:1)#1211(X:2,Y:2)#1211(X:3,Y:3)";
+    const gluedCoordLine: CityListOcrLine = {
+      text: gluedCoordText,
+      words: [
+        {
+          text: gluedCoordText,
+          charStart: 0,
+          charEnd: gluedCoordText.length,
+          x0: COL1 - 40,
+          x1: COL3 + 40,
+        },
+      ],
+    };
+    const banks = parseCityListBanks([
+      lineWithColumns([
+        { text: "600.00K", xCenter: COL1 },
+        { text: "500.00K", xCenter: COL2 },
+        { text: "400.00K", xCenter: COL3 },
+      ]),
+      gluedCoordLine,
+    ]);
+    expect(banks).toHaveLength(3);
+    expect(banks[0]).toMatchObject({ coordX: 1, crystalGoldValue: 600_000 });
+    expect(banks[1]).toMatchObject({ coordX: 2, crystalGoldValue: 500_000 });
+    expect(banks[2]).toMatchObject({ coordX: 3, crystalGoldValue: 400_000 });
+  });
+
+  it("falls back to per-index zip when only some lines in the row carry word data", () => {
+    // Mixed input: coord line has word bbox, but the value line is a plain
+    // string (e.g. merged from a caller that didn't thread words through
+    // for every line). `assignByPosition` requires *both* sides to have
+    // position data, so this degrades to the original index-zip rather than
+    // guessing from partial position info.
+    const banks = parseCityListBanks([
+      "600.00K 500.00K",
+      lineWithColumns([
+        { text: "#1211 (X:1, Y:1)", xCenter: COL1 },
+        { text: "#1211 (X:2, Y:2)", xCenter: COL2 },
+      ]),
+    ]);
+    expect(banks).toHaveLength(2);
+    expect(banks[0]).toMatchObject({ coordX: 1, crystalGoldValue: 600_000 });
+    expect(banks[1]).toMatchObject({ coordX: 2, crystalGoldValue: 500_000 });
   });
 });
 

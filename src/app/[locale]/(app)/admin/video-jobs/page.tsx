@@ -21,11 +21,17 @@ import {
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import type { QualityBucket } from "@/lib/video/quality-score";
 import {
+  groupAdminVideoJobsForIndex,
+} from "@/lib/video/admin-video-jobs-group.shared";
+import {
   adminVideoJobDetailHref,
   adminVideoJobsListHref,
   parseAdminVideoJobsListFilters,
   type AdminVideoJobsListFilters,
 } from "@/lib/video/admin-video-jobs-query.shared";
+import { AdminReprocessDialog } from "@/components/admin/AdminReprocessDialog";
+import type { AdminReprocessFpsAdjustment } from "@/lib/video/admin-reprocess-extraction.shared";
+import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 
 type VideoJob = {
   id: string;
@@ -41,7 +47,10 @@ type VideoJob = {
   rating: string | null;
   ratingReason: string | null;
   passKey: string | null;
+  passRole: string | null;
+  passIndex: number | null;
   groupId: string | null;
+  extractionConfigJson?: unknown;
   createdAt: string;
 };
 
@@ -78,6 +87,36 @@ function QualityBadge({ bucket }: { bucket: string | null | undefined }) {
   );
 }
 
+function PassRoleBadge({
+  passRole,
+  primaryLabel,
+  shadowLabel,
+}: {
+  passRole: string | null | undefined;
+  primaryLabel: string;
+  shadowLabel: string;
+}) {
+  if (passRole === "shadow") {
+    return (
+      <span className="rounded border border-hq-border bg-hq-surface-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-hq-fg-muted">
+        {shadowLabel}
+      </span>
+    );
+  }
+  if (passRole === "primary" || passRole == null) {
+    return (
+      <span className="rounded border border-hq-accent/40 bg-hq-accent/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-hq-accent">
+        {primaryLabel}
+      </span>
+    );
+  }
+  return (
+    <span className="rounded border border-hq-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-hq-fg-muted">
+      {passRole}
+    </span>
+  );
+}
+
 function formatJobDuration(ms: number | null | undefined): string {
   if (ms == null || !Number.isFinite(ms)) return "—";
   if (ms < 1000) return `${Math.round(ms)}ms`;
@@ -108,6 +147,7 @@ export default function AdminVideoJobsPage() {
   const [listLoading, setListLoading] = useState(true);
   const [actingJobId, setActingJobId] = useState<string | null>(null);
   const [errorDialogJob, setErrorDialogJob] = useState<VideoJob | null>(null);
+  const [reprocessJob, setReprocessJob] = useState<VideoJob | null>(null);
 
   const setFilters = useCallback(
     (patch: Partial<AdminVideoJobsListFilters>) => {
@@ -157,22 +197,59 @@ export default function AdminVideoJobsPage() {
     };
   }, [loadJobs, filters, t]);
 
+  // API already returns orderAdminVideoJobsForIndex output; regrouping here is
+  // idempotent on that order and keeps the page safe if a future caller passes
+  // unordered rows. Could rely on server order alone later.
+  const jobGroups = useMemo(
+    () => groupAdminVideoJobsForIndex(jobs),
+    [jobs],
+  );
+
   // Derive available pass keys from loaded jobs for the filter dropdown
   const availablePassKeys = Array.from(
     new Set(jobs.map((j) => j.passKey).filter(Boolean) as string[]),
   ).sort();
 
-  async function runAction(jobId: string, action: "requeue" | "reprocess") {
+  async function runRequeue(jobId: string) {
     setActingJobId(jobId);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/video-jobs/${jobId}/${action}`, {
+      const res = await fetch(`/api/admin/video-jobs/${jobId}/requeue`, {
         method: "POST",
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
         throw new Error(data.error ?? tJobs("actionFailed"));
       }
+      const loaded = await loadJobs(filters);
+      setJobs(loaded);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tJobs("actionFailed"));
+    } finally {
+      setActingJobId(null);
+    }
+  }
+
+  async function confirmReprocess(body: {
+    adjustment?: AdminReprocessFpsAdjustment;
+    extraction?: ExtractionConfig;
+    parseConfigId?: string;
+  }) {
+    if (!reprocessJob) return;
+    const jobId = reprocessJob.id;
+    setActingJobId(jobId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/video-jobs/${jobId}/reprocess`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        throw new Error(data.error ?? tJobs("actionFailed"));
+      }
+      setReprocessJob(null);
       const loaded = await loadJobs(filters);
       setJobs(loaded);
     } catch (err) {
@@ -269,11 +346,44 @@ export default function AdminVideoJobsPage() {
       <ResponsiveRecordViews
         isEmpty={jobs.length === 0}
         emptyMessage={tJobs("empty")}
-        mobileCards={jobs.map((job) => {
+        mobileCards={jobGroups.flatMap((group) => {
+          const grouped = group.jobs.length > 1;
+          return group.jobs.map((job, passIndex) => {
           const canRequeue = canRequeueVideoJob(job.status);
           const canReprocess = canReprocessVideoJob(job.status);
+          const showPassMeta =
+            grouped || Boolean(job.passKey) || job.passRole === "shadow";
           return (
-            <RecordDetailCard key={job.id}>
+            <RecordDetailCard
+              key={job.id}
+              className={
+                grouped
+                  ? passIndex === 0
+                    ? "border-l-2 border-l-hq-accent"
+                    : "border-l-2 border-l-hq-accent/50 bg-hq-surface-muted/40"
+                  : undefined
+              }
+            >
+              {showPassMeta ? (
+                <RecordDetailField label={tJobs("passKeyLabel")}>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {grouped ||
+                    job.passRole === "primary" ||
+                    job.passRole === "shadow" ? (
+                      <PassRoleBadge
+                        passRole={job.passRole}
+                        primaryLabel={tJobs("passRolePrimary")}
+                        shadowLabel={tJobs("passRoleShadow")}
+                      />
+                    ) : null}
+                    {job.passKey ? (
+                      <span className="font-mono text-xs text-hq-fg-muted">
+                        {job.passKey}
+                      </span>
+                    ) : null}
+                  </div>
+                </RecordDetailField>
+              ) : null}
               <RecordDetailField label={t("table.time")}>
                 <FormattedDateTime value={job.createdAt} />
               </RecordDetailField>
@@ -332,7 +442,7 @@ export default function AdminVideoJobsPage() {
                     title={
                       canRequeue ? undefined : tJobs("actionUnavailable")
                     }
-                    onClick={() => void runAction(job.id, "requeue")}
+                    onClick={() => void runRequeue(job.id)}
                     className="text-hq-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {tJobs("requeue")}
@@ -343,7 +453,7 @@ export default function AdminVideoJobsPage() {
                     title={
                       canReprocess ? undefined : tJobs("actionUnavailable")
                     }
-                    onClick={() => void runAction(job.id, "reprocess")}
+                    onClick={() => setReprocessJob(job)}
                     className="text-hq-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {tJobs("reprocess")}
@@ -352,6 +462,7 @@ export default function AdminVideoJobsPage() {
               </RecordDetailField>
             </RecordDetailCard>
           );
+          });
         })}
         desktopTable={
           <div className="overflow-x-auto rounded-xl border border-hq-border">
@@ -371,18 +482,49 @@ export default function AdminVideoJobsPage() {
                 </tr>
               </thead>
               <tbody>
-                {jobs.map((job) => {
+                {jobGroups.flatMap((group) => {
+                  const grouped = group.jobs.length > 1;
+                  return group.jobs.map((job, passIndex) => {
                   const canRequeue = canRequeueVideoJob(job.status);
                   const canReprocess = canReprocessVideoJob(job.status);
+                  const showPassMeta =
+                    grouped ||
+                    Boolean(job.passKey) ||
+                    job.passRole === "shadow";
+                  const rowClass = [
+                    "border-t border-hq-border",
+                    grouped ? "border-l-2 border-l-hq-accent" : "",
+                    grouped && passIndex > 0 ? "bg-hq-surface-muted/35" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
                   return (
-                    <tr key={job.id} className="border-t border-hq-border">
+                    <tr key={job.id} className={rowClass}>
                       <td className="px-4 py-2 whitespace-nowrap text-hq-fg-muted">
                         <FormattedDateTime value={job.createdAt} />
                       </td>
                       <td className="px-4 py-2">{job.status}</td>
                       <td className="px-4 py-2">{job.scoreTarget ?? "—"}</td>
-                      <td className="max-w-xs truncate px-4 py-2">
-                        {job.fileName ?? job.id}
+                      <td className="max-w-xs px-4 py-2">
+                        <div className="truncate">{job.fileName ?? job.id}</div>
+                        {showPassMeta ? (
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            {grouped ||
+                            job.passRole === "primary" ||
+                            job.passRole === "shadow" ? (
+                              <PassRoleBadge
+                                passRole={job.passRole}
+                                primaryLabel={tJobs("passRolePrimary")}
+                                shadowLabel={tJobs("passRoleShadow")}
+                              />
+                            ) : null}
+                            {job.passKey ? (
+                              <span className="font-mono text-[11px] text-hq-fg-muted">
+                                {job.passKey}
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="px-4 py-2">{job.frameCount ?? "—"}</td>
                       <td className="px-4 py-2 whitespace-nowrap">
@@ -438,7 +580,7 @@ export default function AdminVideoJobsPage() {
                             title={
                               canRequeue ? undefined : tJobs("actionUnavailable")
                             }
-                            onClick={() => void runAction(job.id, "requeue")}
+                            onClick={() => void runRequeue(job.id)}
                             className="text-xs text-hq-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {tJobs("requeue")}
@@ -451,7 +593,7 @@ export default function AdminVideoJobsPage() {
                                 ? undefined
                                 : tJobs("actionUnavailable")
                             }
-                            onClick={() => void runAction(job.id, "reprocess")}
+                            onClick={() => setReprocessJob(job)}
                             className="text-xs text-hq-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {tJobs("reprocess")}
@@ -460,6 +602,7 @@ export default function AdminVideoJobsPage() {
                       </td>
                     </tr>
                   );
+                  });
                 })}
               </tbody>
             </table>
@@ -468,6 +611,23 @@ export default function AdminVideoJobsPage() {
       />
         </div>
       </div>
+
+      {reprocessJob ? (
+        <AdminReprocessDialog
+          key={reprocessJob.id}
+          open
+          jobId={reprocessJob.id}
+          passKey={reprocessJob.passKey}
+          extractionConfigJson={reprocessJob.extractionConfigJson}
+          busy={actingJobId === reprocessJob.id}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setReprocessJob(null);
+          }}
+          onConfirm={(body) => {
+            void confirmReprocess(body);
+          }}
+        />
+      ) : null}
 
       {errorDialogJob ? (
         <div

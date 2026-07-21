@@ -17,18 +17,67 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
   key: ThpBreakdownKey;
   patterns: RegExp[];
 }> = [
-  { key: "heroLevel", patterns: [/^hero\s*level\b/i] },
+  {
+    key: "heroLevel",
+    patterns: [
+      /^hero\s*level\b/i,
+      // German: "Heldenlevel".
+      /^helden\s*level\b/i,
+      // Brazilian Portuguese: "Nível do Herói" (accents often dropped by OCR).
+      /^n[ií]vel\s*do\s*her[oó]i\b/i,
+      // Mexican Spanish: "Nivel de Héroe".
+      /^nivel\s*de\s*h[eé]roe\b/i,
+      // Korean: "영웅 레벨".
+      /^영웅\s*레벨/,
+    ],
+  },
   {
     key: "decorationsAndBuildings",
     patterns: [
       /^decorations?\s*(?:&|and)\s*building(?:\s*stats?)?\b/i,
       /^decorations?\s*and\s*buildings?\b/i,
+      // German: "Dekorationen und Gebäudestatistiken" — the label often wraps
+      // across two OCR lines, so match on the (more legible) second half too.
+      /^dekorationen\b/i,
+      /geb[äa]udestatistiken/i,
+      // Brazilian Portuguese: "Decorações e Atributos de Construção" — long
+      // label that frequently wraps; match either half.
+      /^decora[cç][oõ]es\b/i,
+      /atributos\s*de\s*constru/i,
+      // Mexican Spanish: "Decoraciones y Estadísticas de Construcción".
+      /^decoraciones\b/i,
+      /estad[ií]sticas\s*de\s*constru/i,
+      // Korean: "장식 및 건물 능력치" — may wrap after "장식 및".
+      /^장식/,
+      /건물\s*능력치/,
     ],
   },
-  { key: "gear", patterns: [/^gear\b/i] },
+  {
+    key: "gear",
+    patterns: [
+      /^gear\b/i,
+      // German: "Ausrüstung" — OCR often drops diacritics or doubles i→ii.
+      /^ausr[uü]stung\b/i,
+      /^ausriistung\b/i,
+      // Brazilian Portuguese: "Equipamento".
+      /^equipamento\b/i,
+      // Mexican Spanish: "Equipamiento".
+      /^equipamiento\b/i,
+      // Korean: "장비".
+      /^장비/,
+    ],
+  },
   {
     key: "exclusiveWeapons",
-    patterns: [/^exclusive\s*weapons?\b/i],
+    patterns: [
+      /^exclusive\s*weapons?\b/i,
+      // German: "Exklusive Waffe".
+      /^exklusive\s*waffen?\b/i,
+      // Brazilian Portuguese / Mexican Spanish: "Arma Exclusiva".
+      /^arma\s*exclusiva\b/i,
+      // Korean: "전속 무기".
+      /^전속\s*무기/,
+    ],
   },
   {
     key: "heroTier",
@@ -37,10 +86,47 @@ export const THP_LABEL_ALIASES: ReadonlyArray<{
       /^her[o0]\s*t[il1]er\b/i,
       /^hero\s*tief\b/i,
       /^hero\s*tie[rn]\b/i,
+      // German: "Heldenrang".
+      /^helden\s*rang\b/i,
+      // Brazilian Portuguese: "Categoria de Herói".
+      /^categoria\s*de\s*her[oó]i\b/i,
+      // Mexican Spanish: "Rango de Héroe".
+      /^rango\s*de\s*h[eé]roe\b/i,
+      // Korean: "영웅 티어".
+      /^영웅\s*티어/,
     ],
   },
-  { key: "heroSkill", patterns: [/^hero\s*skill\b/i, /^hera\s*skill\b/i] },
-  { key: "wallOfHonor", patterns: [/^wall\s*of\s*honou?r\b/i] },
+  {
+    key: "heroSkill",
+    patterns: [
+      /^hero\s*skill\b/i,
+      /^hera\s*skill\b/i,
+      // German: "Helden-Fähigkeit" — the umlaut is often dropped (ascii-fold)
+      // or misread as a doubled "ii".
+      /^helden[\s-]*f[äa]higkeit\b/i,
+      /^helden[\s-]*fiihigkeit\b/i,
+      // Brazilian Portuguese: "Habilidade de Herói".
+      /^habilidade\s*de\s*her[oó]i\b/i,
+      // Mexican Spanish: "Habilidad de Héroe".
+      /^habilidad\s*de\s*h[eé]roe\b/i,
+      // Korean: "영웅 스킬".
+      /^영웅\s*스킬/,
+    ],
+  },
+  {
+    key: "wallOfHonor",
+    patterns: [
+      /^wall\s*of\s*honou?r\b/i,
+      // German: "Ehrenwand".
+      /^ehrenwand\b/i,
+      // Brazilian Portuguese: "Mural de Honra".
+      /^mural\s*de\s*honra\b/i,
+      // Mexican Spanish: "Muro de Honor".
+      /^muro\s*de\s*honor\b/i,
+      // Korean: "명예의 전당".
+      /^명예의?\s*전당/,
+    ],
+  },
 ];
 
 export function sumThpBreakdown(breakdown: ThpBreakdown): number {

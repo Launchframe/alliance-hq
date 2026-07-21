@@ -1,6 +1,6 @@
 import type { ParsedConnection } from "@/lib/connectionString";
 
-export type MonotonicStatId = "thp" | "kills";
+export type MonotonicStatId = "thp" | "kills" | "level";
 
 export type StatSyncReviewRow = {
   stat: MonotonicStatId;
@@ -17,7 +17,7 @@ export type StatSyncReviewRow = {
 
 export type StatSyncAdapter = {
   stat: MonotonicStatId;
-  ashedField: "current_total_hero_power" | "current_kills";
+  ashedField: "current_total_hero_power" | "current_kills" | "level";
   getHqCurrent: (commanderId: string) => Promise<{
     total: number | null;
     updatedAt: Date | null;

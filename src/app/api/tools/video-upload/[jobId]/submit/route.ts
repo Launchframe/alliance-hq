@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, inArray } from "drizzle-orm";
 
 import { writeAuditLog } from "@/lib/bff/audit";
+import { buildConnectHref } from "@/lib/connect/connect-return-path.shared";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
@@ -18,8 +19,13 @@ import {
   resolveVideoJobAccess,
   videoJobAccessErrorResponse,
 } from "@/lib/video/video-job-access.server";
+import { recoverStaleSubmittingVideoJob } from "@/lib/video/recover-stale-submitting-video-job.server";
 import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-alliance.server";
 import { commitRosterFromVideoJob } from "@/lib/members/roster-video-commit";
+import {
+  commitAllianceKillsFromVideoSubmit,
+  listPriorAllianceKillsVideoMemberIds,
+} from "@/lib/kills/alliance-kills-video-commit.server";
 import { commitDepositSlipsFromVideoJob } from "@/lib/banks/deposit-slip-ocr/deposit-slip-video-commit.server";
 import {
   mergeDepositSlipReviewRowsForSubmit,
@@ -37,6 +43,7 @@ import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 import { findDuplicateMemberAssignments } from "@/lib/video/review-validation";
 import {
   getScoreTargetOrThrow,
+  isAllianceKillsVideoTarget,
   isBankDepositSlipHistoryTarget,
   isMemberRosterVideoTarget,
   usesHqEventStore,
@@ -93,6 +100,8 @@ type SubmitRow = {
   allianceRankTitle?: string | null;
   rosterRankRaw?: string | null;
   frameIndex?: number | null;
+  matchConfidence?: number | null;
+  matchMethod?: string | null;
   deleted?: boolean;
 };
 
@@ -104,6 +113,7 @@ type SubmitBody = {
   boardKey?: string;
   commendationId?: string;
   bankId?: string;
+  vsPeriod?: "daily" | "weekly";
   rows: SubmitRow[];
 };
 
@@ -193,7 +203,14 @@ export async function POST(request: Request, { params }: Props) {
     if (!access.ok) {
       return videoJobAccessErrorResponse(access);
     }
-    const job = access.job;
+    let job = access.job;
+
+    if (job.status === "submitting") {
+      const recovered = await recoverStaleSubmittingVideoJob(jobId);
+      if (recovered.recovered) {
+        job = { ...job, status: "review" };
+      }
+    }
 
     if (!isVideoJobReadyForSubmit(job.status)) {
       if (job.status === "submitting") {
@@ -467,6 +484,10 @@ export async function POST(request: Request, { params }: Props) {
           profession: schema.parsedRows.profession,
           allianceRankTitle: schema.parsedRows.allianceRankTitle,
           rosterRankRaw: schema.parsedRows.rosterRankRaw,
+          memberId: schema.parsedRows.memberId,
+          memberName: schema.parsedRows.memberName,
+          matchConfidence: schema.parsedRows.matchConfidence,
+          matchMethod: schema.parsedRows.matchMethod,
           // Scratchpad for CrystalGold outcome (green/orange); see draft-row.shared.
           rank: schema.parsedRows.rank,
           frameIndex: schema.parsedRows.frameIndex,
@@ -487,7 +508,10 @@ export async function POST(request: Request, { params }: Props) {
         body.rows.map((row) => ({
           id: row.id,
           ocrName: row.ocrName ?? null,
+          memberId: row.memberId ?? null,
           memberName: row.memberName ?? null,
+          matchConfidence: row.matchConfidence ?? null,
+          matchMethod: row.matchMethod ?? null,
           score: row.score ?? null,
           powerLevel: row.powerLevel ?? null,
           memberLevel: row.memberLevel ?? null,
@@ -555,6 +579,10 @@ export async function POST(request: Request, { params }: Props) {
           .update(schema.parsedRows)
           .set({
             ocrName: row.ocrName.trim(),
+            memberId: row.memberId ?? null,
+            memberName: row.memberName ?? null,
+            matchConfidence: row.matchConfidence ?? null,
+            matchMethod: row.matchMethod ?? null,
             score: row.score ?? null,
             powerLevel: row.powerLevel ?? null,
             memberLevel:
@@ -627,13 +655,19 @@ export async function POST(request: Request, { params }: Props) {
           bankId,
           createdCount: result.createdCount,
           skippedCount: result.skippedCount,
+          skippedDuplicateCount: result.skippedDuplicateCount,
+          updatedCount: result.updatedCount,
         },
       });
 
       return NextResponse.json({
         ok: true,
-        submitted: result.createdCount,
-        ...result,
+        submitted: result.createdCount + result.updatedCount,
+        createdCount: result.createdCount,
+        skippedCount: result.skippedCount,
+        skippedDuplicateCount: result.skippedDuplicateCount,
+        updatedCount: result.updatedCount,
+        errors: result.errors,
         showSolicitedFeedback: false,
         completedUploadCount: 0,
       });
@@ -648,7 +682,15 @@ export async function POST(request: Request, { params }: Props) {
 
     const connection = await getAshedConnection(session.id);
     if (!connection) {
-      return NextResponse.json({ error: "Ashed not connected" }, { status: 503 });
+      const reviewPath = `/tools/video-upload/${jobId}/review`;
+      return NextResponse.json(
+        {
+          error: "Ashed not connected for this session.",
+          code: "ashed_not_connected",
+          connectUrl: buildConnectHref(reviewPath),
+        },
+        { status: 409 },
+      );
     }
 
     const hqAllianceId = await resolveHqAllianceIdFromStoredAllianceId(
@@ -685,6 +727,12 @@ export async function POST(request: Request, { params }: Props) {
       hqEventId: body.hqEventId ?? job.hqEventId ?? undefined,
       boardKey: body.boardKey ?? job.boardKey ?? undefined,
       commendationId: body.commendationId ?? job.commendationId ?? undefined,
+      vsPeriod:
+        scoreTargetId === "vs-performance"
+          ? body.vsPeriod === "weekly"
+            ? "weekly"
+            : "daily"
+          : undefined,
     };
 
     // Resolve-or-create Ashed event (alliance + date). Prefer an existing event
@@ -711,12 +759,17 @@ export async function POST(request: Request, { params }: Props) {
 
     if (
       scoreTargetId === "vs-performance" &&
-      !isValidVsPerformanceRecordedDate(submitContext.recordedDate)
+      !isValidVsPerformanceRecordedDate(
+        submitContext.recordedDate,
+        submitContext.vsPeriod ?? "daily",
+      )
     ) {
       return NextResponse.json(
         {
           error:
-            "VS has no Sunday match day. Pick a Monday–Saturday recorded date.",
+            submitContext.vsPeriod === "weekly"
+              ? "Weekly VS totals use Sunday. Pick a Sunday recorded date."
+              : "VS has no Sunday match day. Pick a Monday–Saturday recorded date.",
         },
         { status: 400 },
       );
@@ -830,6 +883,13 @@ export async function POST(request: Request, { params }: Props) {
     const replaceScores = shouldReplaceAshedScoresOnSubmit(target, {
       eventId: submitContext.eventId,
     });
+    const priorAllianceKillsMemberIds =
+      replaceScores && isAllianceKillsVideoTarget(target.id)
+        ? await listPriorAllianceKillsVideoMemberIds({
+            allianceId,
+            recordedDate: submitContext.recordedDate,
+          })
+        : [];
     const runReplaceAndInsert = async () => {
       if (replaceScores) {
         await replaceAshedScoresForContext({
@@ -847,7 +907,12 @@ export async function POST(request: Request, { params }: Props) {
         });
         clearedPriorAshedScores = true;
       }
-      await dispatchScoreSubmit(connection, target, payloads);
+      await dispatchScoreSubmit(connection, target, payloads, {
+        submitContext,
+        allianceSizeAtRecord: (
+          await listAllianceMembers(allianceId)
+        ).length,
+      });
     };
     if (replaceScores) {
       await withAshedScoreReplaceLock(
@@ -867,6 +932,19 @@ export async function POST(request: Request, { params }: Props) {
       });
     } else {
       await runReplaceAndInsert();
+    }
+
+    if (isAllianceKillsVideoTarget(target.id)) {
+      await commitAllianceKillsFromVideoSubmit({
+        allianceId,
+        hqUserId: session.hqUserId ?? job.enqueuedByHqUserId ?? null,
+        previousMemberIds: priorAllianceKillsMemberIds,
+        rows: activeRows.map((row) => ({
+          memberId: row.memberId,
+          memberName: row.memberName,
+          score: row.score ?? "",
+        })),
+      });
     }
 
     if (submitContext.hqEventId) {

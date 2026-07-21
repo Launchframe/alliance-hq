@@ -70,7 +70,16 @@ When an upload finishes enqueue (`finalize` / `activate`):
 
 **Promote is not required** for an active experiment to change officer-facing OCR. Promote graduates a winner to the standing assignment for uploads outside experiment traffic (or after conclude).
 
-**Reprocess uses the config already stamped on the job.** Changing `/admin/parse-configs` or promoting an experiment does **not** rewrite old jobs. To test a new recipe on an existing video: assign the config for new uploads, or re-upload / re-stamp (ops paths that re-finalize the job).
+**Officer reprocess** (tools UI) keeps the config already stamped on the job. Changing `/admin/parse-configs` or promoting an experiment does **not** rewrite old jobs by itself.
+
+**Admin reprocess** on `/admin/video-jobs` can **re-stamp** `passKey` + `extractionConfigJson` before reset:
+
+| Choice | Job stamp | Upload group experiment attribution |
+|--------|-----------|-------------------------------------|
+| **Keep** | Unchanged | Unchanged |
+| **Increase / Decrease / Advanced** (config changes) | New recipe written on the job | Group moves to the system campaign `Ad-hoc reprocess · {scoreTarget}` (`status: paused`, so it never receives upload traffic) with an arm for that recipe |
+
+Paused ad-hoc campaigns still appear on `/admin/experiments` and feed experiment / fleet analytics. Leaving a live A/B campaign for an ad-hoc reprocess is intentional so thumbs/quality are not attributed to the wrong arm.
 
 ### Cost and latency
 
@@ -98,6 +107,10 @@ Wire those through `/admin/experiments` (or config assignment) for roster upload
 Admin **cannot** change Tesseract settings from the UI today. Deposit-slip stills reuse the **hardcoded roster defaults** (`scale 2`, PSM `6`, min confidence `40`). Parse configs and experiments for this target only affect **frame extraction**.
 
 Native OCR is always used for this target (no Ashed). Cross-frame merge partitions by exact normalized commander name, corroborates nearby or majority-agreeing timestamps (including OCR minute misreads), coalesces partial reads into one review row, and flags genuine amount/term/identity conflicts for officer resolution.
+
+**Officer review triage (post-dedupe):** identical display-identity duplicates and locked→matured/looted lifecycle pairs (timestamps within the loan term) land in **Automatically merged**; clipped-timestamp rows that already match a kept deposit go to a collapsed **Missing deposit time — already covered** section and do not block save. Fingerprint/bbox shadowing (same OCR line across overlapping frames) is separate from within-frame name↔amount association (below).
+
+**Within-frame field association:** when Tesseract returns **distinct** line bboxes for every identity on the frame, Deposit / outcome / timestamp lines attach by **midpoint y-bands** between identity centers (same geometry plumbing as City List word-x matching from #317 — deposit slips use **y**, not column x). Without complete / distinct identity bboxes, association falls back to OCR reading-order windows. When identities are fully geo-tagged but some **field** lines lack bboxes, geometry claims what it can and the rest still use the legacy look-ahead window (those lines can still mis-zip). Cross-frame fingerprinting collapses duplicate line reads; it does not fix within-frame name↔amount mis-zips.
 
 ### Ashed scoreboards (Desert Storm, VS, …)
 
@@ -191,7 +204,7 @@ Do **not** set this as the global default. Scope to:
 | Fewer duplicate reads on slow scrolls | `{ "mode": "fps", "sampleFps": 1 }` or `1.5` |
 | Keep coverage without fixed oversampling | `{ "mode": "scene", "sceneThreshold": 0.15–0.25, "sampleFps": 1 }` (tune threshold for scroll motion) |
 
-Scope the assignment to `bank-deposit-slip-history` only. Prefer an A/B experiment against the current standing config before promoting. Reprocess does **not** rewrite `extractionConfigJson` on old jobs — re-upload or re-stamp to test.
+Scope the assignment to `bank-deposit-slip-history` only. Prefer an A/B experiment against the current standing config before promoting. Officers’ reprocess keeps the stamped recipe; platform admins can re-stamp denser/sparser fps from **Reprocess** on `/admin/video-jobs` (tracked under the paused ad-hoc reprocess campaign).
 
 If under-sampling (missing rows) and oversampling (duplicate rows) both appear on the same target, pick density from scroll speed: fast scrolls need denser fps; slow scrolls need lower fps or scene mode.
 

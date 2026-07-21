@@ -7,6 +7,7 @@ import {
   listInboundStatConflicts,
 } from "@/lib/hq-ashed-stat-sync/conflicts.server";
 import { killsStatSyncAdapter } from "@/lib/hq-ashed-stat-sync/kills.adapter";
+import { levelStatSyncAdapter } from "@/lib/hq-ashed-stat-sync/level.adapter";
 import { mergeStatSyncReviewRows } from "@/lib/hq-ashed-stat-sync/merge-review.shared";
 import { thpStatSyncAdapter } from "@/lib/hq-ashed-stat-sync/thp.adapter";
 import type {
@@ -16,7 +17,9 @@ import type {
 } from "@/lib/hq-ashed-stat-sync/types";
 
 function adapterFor(stat: MonotonicStatId): StatSyncAdapter {
-  return stat === "thp" ? thpStatSyncAdapter : killsStatSyncAdapter;
+  if (stat === "thp") return thpStatSyncAdapter;
+  if (stat === "level") return levelStatSyncAdapter;
+  return killsStatSyncAdapter;
 }
 
 export async function listStatSyncReviewRows(

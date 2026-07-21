@@ -53,6 +53,11 @@ export function MyThpTrackerView({ initial }: Props) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
 
+  const [screenshotPreviewUrl, setScreenshotPreviewUrl] = useState<string | null>(null);
+  const screenshotPreviewUrlRef = useRef<string | null>(null);
+  const [partialBreakdownInitial, setPartialBreakdownInitial] =
+    useState<Partial<ThpBreakdown> | null>(null);
+
   const showStaleReportHint = useMemo(() => {
     const lastReportedAt = resolveThpLastReportedAt({
       updatedAt: data.updatedAt,
@@ -82,6 +87,12 @@ export function MyThpTrackerView({ initial }: Props) {
         setBreakdownDialogOpen(false);
         setConfirmKind(null);
         setSetTotalDraft("");
+        setPartialBreakdownInitial(null);
+        if (screenshotPreviewUrlRef.current) {
+          URL.revokeObjectURL(screenshotPreviewUrlRef.current);
+          screenshotPreviewUrlRef.current = null;
+          setScreenshotPreviewUrl(null);
+        }
         fireCelebrationConfetti();
         await refresh();
         return;
@@ -97,6 +108,13 @@ export function MyThpTrackerView({ initial }: Props) {
         setConfirmProposedBreakdown(payload.proposedBreakdown ?? null);
         setSetDialogOpen(false);
         setBreakdownDialogOpen(false);
+        return;
+      }
+
+      if (payload.status === "ocr_partial" && payload.partialBreakdown) {
+        setPartialBreakdownInitial(payload.partialBreakdown);
+        setBreakdownDialogOpen(true);
+        setSetDialogOpen(false);
         return;
       }
 
@@ -136,6 +154,12 @@ export function MyThpTrackerView({ initial }: Props) {
   const uploadScreenshot = async (file: File) => {
     setUploadingScreenshot(true);
     setError(null);
+    if (screenshotPreviewUrlRef.current) {
+      URL.revokeObjectURL(screenshotPreviewUrlRef.current);
+    }
+    const previewUrl = URL.createObjectURL(file);
+    screenshotPreviewUrlRef.current = previewUrl;
+    setScreenshotPreviewUrl(previewUrl);
     try {
       const form = new FormData();
       form.set("screenshot", file);
@@ -145,8 +169,16 @@ export function MyThpTrackerView({ initial }: Props) {
       });
       const payload = (await res.json()) as MyThpPostResponse & { error?: string };
       await handleResponse(payload, res.ok);
+      if (payload.status !== "ocr_partial") {
+        URL.revokeObjectURL(previewUrl);
+        screenshotPreviewUrlRef.current = null;
+        setScreenshotPreviewUrl(null);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : t("screenshotUploadFailed"));
+      URL.revokeObjectURL(previewUrl);
+      screenshotPreviewUrlRef.current = null;
+      setScreenshotPreviewUrl(null);
     } finally {
       setUploadingScreenshot(false);
     }
@@ -394,15 +426,34 @@ export function MyThpTrackerView({ initial }: Props) {
 
       <Dialog
         open={breakdownDialogOpen}
-        onOpenChange={setBreakdownDialogOpen}
+        onOpenChange={(open) => {
+          setBreakdownDialogOpen(open);
+          if (!open) {
+            if (screenshotPreviewUrlRef.current) {
+              URL.revokeObjectURL(screenshotPreviewUrlRef.current);
+              screenshotPreviewUrlRef.current = null;
+              setScreenshotPreviewUrl(null);
+            }
+            setPartialBreakdownInitial(null);
+          }
+        }}
         title={t("breakdownDialogTitle")}
       >
         <div className="relative z-[101] w-full max-w-lg rounded-xl border border-hq-border bg-hq-surface p-5 shadow-xl">
+          {/* Remount when OCR partial prefill/preview changes so draft state
+              resets even if Dialog ever keeps children mounted while closed. */}
           <ThpBreakdownForm
-            initial={data.breakdown}
+            key={
+              partialBreakdownInitial
+                ? `ocr-partial:${screenshotPreviewUrl ?? "no-preview"}`
+                : `stored:${data.updatedAt ?? "none"}`
+            }
+            initial={partialBreakdownInitial ?? data.breakdown}
             busy={busy}
             onSubmit={submitBreakdown}
             onCancel={() => setBreakdownDialogOpen(false)}
+            screenshotPreviewUrl={screenshotPreviewUrl}
+            partialHint={partialBreakdownInitial ? t("ocrPartialHint") : null}
           />
         </div>
       </Dialog>

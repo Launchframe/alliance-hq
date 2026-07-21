@@ -7,6 +7,17 @@ export type VideoOcrProvider = "ashed" | "local" | "mock";
 /** Per-job OCR engine used for a single pass. */
 export type VideoOcrEngine = "ashed" | "native" | "mock";
 
+/**
+ * Fired as each frame's OCR settles during a job's OCR pass, for the
+ * waiting-page progress bar. May return a promise — callers that need to
+ * order a DB write relative to frame completion (see process-job.ts) should
+ * await it before moving on to the next frame.
+ */
+export type VideoOcrProgressCallback = (
+  completedFrames: number,
+  totalFrames: number,
+) => void | Promise<void>;
+
 const PROVIDERS: ReadonlySet<string> = new Set(["ashed", "local", "mock"]);
 
 export type VideoOcrResolutionContext = {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { PriceIsRightTicketDistributionChart } from "@/components/trains/PriceIsRightTicketDistributionChart";
+import { Link } from "@/i18n/navigation";
 import {
   boardToChartPoints,
   formatPriceIsRightVsScore,
@@ -59,6 +60,7 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,7 +92,7 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [t, trainDate]);
+  }, [t, trainDate, reloadKey]);
 
   const mode: OddsMode = payload?.mode ?? "weighted";
   const isWeighted = mode === "weighted";
@@ -129,6 +131,13 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
         data-testid="price-is-right-tickets-panel"
       >
         <p className="text-sm text-hq-fg-muted">{error ?? t("loadFailed")}</p>
+        <button
+          type="button"
+          onClick={() => setReloadKey((key) => key + 1)}
+          className="mt-3 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-sm font-medium text-cyan-100 hover:bg-cyan-500/20"
+        >
+          {t("retryLoad")}
+        </button>
       </section>
     );
   }
@@ -136,21 +145,32 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
   // Weighted mode keeps the ticket hero + chart even with an empty board
   // (common in e2e / no prior-day VS). Equal-chance modes use a dedicated empty state.
   if (payload.board.length === 0 && !isWeighted) {
+    const isHeavyHitter = mode === "heavy_hitter";
     return (
       <section
         className="rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-5"
         data-testid="price-is-right-tickets-panel"
       >
         <h3 className="text-base font-semibold text-cyan-100">
-          {mode === "heavy_hitter"
+          {isHeavyHitter
             ? t("oddsTitleHeavyHitter")
             : t("oddsTitleUniform")}
         </h3>
         <p className="mt-2 text-sm text-hq-fg-muted">
-          {mode === "heavy_hitter"
+          {isHeavyHitter
             ? t("oddsEmptyHeavyHitter")
             : t("oddsEmptyUniform")}
         </p>
+        <div className="mt-3">
+          <Link
+            href={isHeavyHitter ? "/settings/trains" : "/tools/video-upload"}
+            className="inline-flex rounded-lg bg-cyan-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-cyan-400"
+          >
+            {isHeavyHitter
+              ? t("oddsEmptyHeavyHitterCta")
+              : t("oddsEmptyUniformCta")}
+          </Link>
+        </div>
       </section>
     );
   }

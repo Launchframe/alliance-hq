@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Pencil, Plus, Trash2, Video } from "lucide-react";
 
+import { pickLatestDepositSlip } from "@/lib/banks/deposit-slip-ocr/deposit-slip-latest.shared";
 import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import {
   computeDepositStats,
@@ -141,9 +142,27 @@ export function DepositSlipList({ bank, canWrite, onAdd, onEdit, onDelete }: Pro
     return computeDepositStats(bank.depositSlips);
   }, [bank]);
 
+  const latestSlip = useMemo(
+    () => (bank ? pickLatestDepositSlip(bank.depositSlips) : null),
+    [bank],
+  );
+
   if (!bank) return null;
 
   const hasSlips = bank.depositSlips.length > 0;
+  const latestHero =
+    latestSlip == null
+      ? null
+      : latestSlip.depositAllianceTag?.trim()
+        ? t("latestDepositSlipHero", {
+            allianceTag: latestSlip.depositAllianceTag.trim(),
+            commanderName: latestSlip.commanderName,
+            depositEventTime: formatDateTime(latestSlip.depositAt),
+          })
+        : t("latestDepositSlipHeroNoTag", {
+            commanderName: latestSlip.commanderName,
+            depositEventTime: formatDateTime(latestSlip.depositAt),
+          });
 
   return (
     <div className="min-w-0 space-y-3">
@@ -166,6 +185,23 @@ export function DepositSlipList({ bank, canWrite, onAdd, onEdit, onDelete }: Pro
           </button>
         ) : null}
       </div>
+
+      {latestHero ? (
+        <div className="rounded-xl border border-hq-accent/40 bg-hq-accent/10 px-4 py-3">
+          <p className="text-sm font-medium text-hq-fg">{latestHero}</p>
+          {canWrite ? (
+            <Link
+              href={buildVideoUploadHref(BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET, {
+                bankId: bank.id,
+              })}
+              className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-hq-accent hover:underline"
+            >
+              <Video className="h-3.5 w-3.5" aria-hidden />
+              {t("uploadDepositSlip")}
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
 
       {!hasSlips ? (
         <div className="min-w-0 space-y-3 rounded-lg border border-hq-border bg-hq-surface p-4 text-sm text-hq-fg-muted">

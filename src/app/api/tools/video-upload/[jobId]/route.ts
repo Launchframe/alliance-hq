@@ -14,6 +14,7 @@ import {
   videoJobAccessErrorResponse,
 } from "@/lib/video/video-job-access.server";
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
+import { recoverStaleSubmittingVideoJob } from "@/lib/video/recover-stale-submitting-video-job.server";
 import {
   resolveHqAllianceIdFromStoredAllianceId,
 } from "@/lib/video/video-job-alliance.server";
@@ -24,6 +25,7 @@ import {
 } from "@/lib/video/video-job-alliance.shared";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 import { resolveJobVideoStorageKey } from "@/lib/video/resolve-job-video-storage";
+import { sortParsedRowsForInitialReview } from "@/lib/video/parsed-row-review-order";
 import {
   getScoreTarget,
   isBankDepositSlipHistoryTarget,
@@ -45,7 +47,13 @@ export async function GET(_request: Request, { params }: Props) {
     if (!access.ok) {
       return videoJobAccessErrorResponse(access);
     }
-    const job = access.job;
+    let job = access.job;
+    if (job.status === "submitting") {
+      const recovered = await recoverStaleSubmittingVideoJob(jobId);
+      if (recovered.recovered) {
+        job = { ...job, status: "review" };
+      }
+    }
     const db = getDb();
 
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
@@ -129,28 +137,31 @@ export async function GET(_request: Request, { params }: Props) {
             : asc(schema.parsedRows.rank),
           asc(schema.parsedRows.frameIndex),
         );
-      rows = dbRows.map((r) => ({
-        id: r.id,
-        ocrName: r.ocrName,
-        score: r.score,
-        rank: r.rank,
-        rosterRankRaw: r.rosterRankRaw,
-        allianceRank: r.allianceRank,
-        allianceRankTitle: r.allianceRankTitle,
-        powerLevel: r.powerLevel,
-        memberLevel: r.memberLevel,
-        profession: r.profession,
-        frameIndex: r.frameIndex,
-        memberId: r.memberId,
-        memberName: r.memberName,
-        matchConfidence: r.matchConfidence,
-        matchMethod: r.matchMethod,
-        scoreConflict: r.scoreConflict,
-        dedupeClusterId: r.dedupeClusterId ?? null,
-        dedupeFlag: Boolean(r.dedupeClusterId),
-        deleted: r.deleted,
-        manuallyAdded: r.manuallyAdded,
-      }));
+      rows = sortParsedRowsForInitialReview(
+        dbRows.map((r) => ({
+          id: r.id,
+          ocrName: r.ocrName,
+          score: r.score,
+          rank: r.rank,
+          rosterRankRaw: r.rosterRankRaw,
+          allianceRank: r.allianceRank,
+          allianceRankTitle: r.allianceRankTitle,
+          powerLevel: r.powerLevel,
+          memberLevel: r.memberLevel,
+          profession: r.profession,
+          frameIndex: r.frameIndex,
+          memberId: r.memberId,
+          memberName: r.memberName,
+          matchConfidence: r.matchConfidence,
+          matchMethod: r.matchMethod,
+          scoreConflict: r.scoreConflict,
+          dedupeClusterId: r.dedupeClusterId ?? null,
+          dedupeFlag: Boolean(r.dedupeClusterId),
+          deleted: r.deleted,
+          manuallyAdded: r.manuallyAdded,
+        })),
+        scoreTargetId,
+      );
     }
 
     const timingsJson = isVideoProcessTimings(job.timingsJson)

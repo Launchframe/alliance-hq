@@ -6,7 +6,6 @@ import { expect, test } from "@playwright/test";
 import {
   addCalendarDays,
   getServerCalendarDate,
-  getServerDayOfWeek,
 } from "../src/lib/trains/game-time";
 import {
   createAllianceMembership,
@@ -95,20 +94,17 @@ test.describe("Price Is Freight raffle tickets", () => {
     });
 
     await page.goto("/trains");
-    await expect(page.getByTestId("trains-conductor-card")).toBeVisible({
+    // Simple Mode hides the conductor card until All Set; wait on schedule instead.
+    await expect(page.getByTestId("trains-schedule-section")).toBeVisible({
       timeout: 15_000,
     });
 
     const today = getServerCalendarDate();
-    // Saturday = heavy-hitter lottery (no VS raffle panel). Desktop week strip
-    // hides carousel "Previous day"; select Friday via the day cell instead.
-    // Train week starts Tuesday → Friday is weekStart + 3.
+    // Saturday uses the heavy-hitter odds panel (still mounted). Desktop week
+    // strip hides carousel "Previous day"; select Friday via the day cell so we
+    // assert the weighted VS raffle hero + chart. Train week starts Tuesday →
+    // Friday is weekStart + 3.
     const friday = addCalendarDays(dashboard.weekStart, 3);
-    if (getServerDayOfWeek(today) === 6) {
-      await expect(
-        page.getByTestId("price-is-right-tickets-panel"),
-      ).toHaveCount(0);
-    }
     if (today !== friday) {
       await page
         .locator(`button[aria-label*="${friday.slice(5)}"]`)

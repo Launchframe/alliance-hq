@@ -1,11 +1,14 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import type { DedupedDepositSlip } from "@/lib/banks/deposit-slip-ocr/deposit-slip-dedupe.shared";
 import { depositSlipDraftToParsedRowFields } from "@/lib/banks/deposit-slip-ocr/draft-row.shared";
-import type { ParsedDepositSlipHistory } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
+import {
+  mergeDepositSlipHistoryParses,
+  type ParsedDepositSlipHistory,
+} from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import {
   createDepositSlipMemberResolverCache,
   resolveDepositSlipMemberLinks,
@@ -16,8 +19,12 @@ import {
   emptyDedupeReport,
   type DedupeReport,
 } from "@/lib/video/dedupe/merge-report.shared";
+import { videoFrameHasDepositSlipHistory } from "@/lib/video/deposit-slip-ocr-chunks.shared";
 import { ocrDepositSlipNativeFrames } from "@/lib/video/ocr-deposit-slip-native";
-import type { VideoOcrEngine } from "@/lib/video/ocr-provider.shared";
+import type {
+  VideoOcrEngine,
+  VideoOcrProgressCallback,
+} from "@/lib/video/ocr-provider.shared";
 import type { PipelineTimer } from "@/lib/video/pipeline-timer";
 import type { ScoreTargetDef } from "@/lib/video/score-targets";
 
@@ -32,16 +39,29 @@ export type ProcessDepositSlipVideoParseInput = {
   now: Date;
   /** When engine is mock — pre-parsed history from fixtures. */
   mockHistory?: ParsedDepositSlipHistory;
+  /** Fired as each frame's OCR settles, for the waiting-page progress bar. */
+  onOcrProgress?: VideoOcrProgressCallback;
+  /**
+   * When false, OCR + persist per-frame history only (chunk continuation).
+   * Default true — also merge and create the officer-facing parse session.
+   */
+  finalize?: boolean;
 };
 
-export type ProcessDepositSlipVideoParseResult = {
-  parseSessionId: string;
+export type OcrDepositSlipVideoChunkResult = {
   hqAllianceId: string;
-  rowCount: number;
-  matchedCount: number;
   ocrFrameMs: number[];
   ocrConcurrency: number;
   totalRawOcrRows: number;
+  framesOcrComplete: number;
+  /** Per-frame histories written this chunk (for single-shot finalize). */
+  frameHistories: ParsedDepositSlipHistory[];
+};
+
+export type ProcessDepositSlipVideoParseResult = OcrDepositSlipVideoChunkResult & {
+  parseSessionId: string;
+  rowCount: number;
+  matchedCount: number;
 };
 
 function asDedupedSlips(
@@ -63,17 +83,36 @@ function asDedupedSlips(
   });
 }
 
-export async function processDepositSlipVideoParse(
-  input: ProcessDepositSlipVideoParseInput,
-): Promise<ProcessDepositSlipVideoParseResult> {
+function historyFromOcrRawJson(ocrRawJson: unknown): ParsedDepositSlipHistory | null {
+  if (!videoFrameHasDepositSlipHistory(ocrRawJson)) {
+    return null;
+  }
+  const history = (ocrRawJson as { history: ParsedDepositSlipHistory }).history;
+  return {
+    depositPolicy: history.depositPolicy ?? null,
+    minimumDeposit: history.minimumDeposit ?? null,
+    slips: Array.isArray(history.slips) ? history.slips : [],
+  };
+}
+
+/**
+ * OCR a frame slice and persist per-frame history on `video_frames`.
+ * Does not create a parse session — call {@link finalizeDepositSlipVideoParse}
+ * after every frame has history (or use processDepositSlipVideoParse with
+ * finalize: true for a single-shot run).
+ */
+export async function ocrDepositSlipVideoFrameChunk(
+  input: Omit<ProcessDepositSlipVideoParseInput, "finalize" | "scoreTargetId" | "target"> & {
+    scoreTargetId?: string;
+    target?: ScoreTargetDef;
+  },
+): Promise<OcrDepositSlipVideoChunkResult> {
   const db = getDb();
   const hqAllianceId = await input.timer.measureStep(
     "alliance.resolve_hq",
     () => resolveHqAllianceIdFromSession(input.sessionId),
   );
 
-  let history: ParsedDepositSlipHistory;
-  let dedupeReport: DedupeReport;
   let ocrFrameMs: number[];
   let ocrConcurrency: number;
   let totalRawOcrRows: number;
@@ -82,30 +121,45 @@ export async function processDepositSlipVideoParse(
     ms: number;
     entryCount: number;
     error: string | null;
-    rawLines?: string[];
+    rawLines: string[];
+    history: ParsedDepositSlipHistory;
   }>;
 
   if (input.engine === "mock") {
-    history = input.mockHistory ?? {
+    const fullHistory = input.mockHistory ?? {
       depositPolicy: null,
       minimumDeposit: null,
       slips: [],
     };
-    dedupeReport = emptyDedupeReport(history.slips.length);
     ocrFrameMs = input.frames.map(() => 1);
     ocrConcurrency = 1;
-    totalRawOcrRows = history.slips.length;
-    frameTimings = input.frames.map((frame) => ({
-      frameIndex: frame.index,
-      ms: 1,
-      entryCount:
-        history.slips.filter((s) => s.sourceFrameIndex === frame.index)
-          .length ||
-        (frame.index === (input.frames[0]?.index ?? 0)
-          ? history.slips.length
-          : 0),
-      error: null,
-    }));
+    frameTimings = input.frames.map((frame) => {
+      const slips = fullHistory.slips.filter(
+        (slip) => slip.sourceFrameIndex === frame.index,
+      );
+      const history: ParsedDepositSlipHistory = {
+        depositPolicy: fullHistory.depositPolicy,
+        minimumDeposit: fullHistory.minimumDeposit,
+        slips:
+          slips.length > 0
+            ? slips
+            : frame.index === (input.frames[0]?.index ?? 0)
+              ? fullHistory.slips
+              : [],
+      };
+      return {
+        frameIndex: frame.index,
+        ms: 1,
+        entryCount: history.slips.length,
+        error: null,
+        rawLines: [],
+        history,
+      };
+    });
+    totalRawOcrRows = frameTimings.reduce((sum, f) => sum + f.entryCount, 0);
+    for (let i = 0; i < input.frames.length; i += 1) {
+      await input.onOcrProgress?.(i + 1, input.frames.length);
+    }
   } else {
     const native = await input.timer.measureStep(
       "tesseract.deposit_slip_ocr_total",
@@ -113,6 +167,7 @@ export async function processDepositSlipVideoParse(
         ocrDepositSlipNativeFrames(input.frames, {
           timer: input.timer,
           jobId: input.jobId,
+          onProgress: input.onOcrProgress,
         }),
       (result) => ({
         frameCount: input.frames.length,
@@ -121,8 +176,6 @@ export async function processDepositSlipVideoParse(
         flagged: result.dedupeReport.flaggedCount,
       }),
     );
-    history = native.history;
-    dedupeReport = native.dedupeReport;
     ocrFrameMs = native.frameTimings.map((f) => f.ms);
     ocrConcurrency = native.concurrency;
     totalRawOcrRows = native.frameTimings.reduce(
@@ -141,7 +194,10 @@ export async function processDepositSlipVideoParse(
           extractMs: timing.ms,
           ocrEntryCount: timing.entryCount,
           ocrError: timing.error,
-          ocrRawJson: timing.rawLines ? { lines: timing.rawLines } : null,
+          ocrRawJson: {
+            lines: timing.rawLines,
+            history: timing.history,
+          },
         })
         .where(
           and(
@@ -152,14 +208,132 @@ export async function processDepositSlipVideoParse(
     ),
   );
 
+  await db
+    .update(schema.videoJobs)
+    .set({
+      allianceId: hqAllianceId,
+      updatedAt: input.now,
+    })
+    .where(eq(schema.videoJobs.id, input.jobId));
+
+  return {
+    hqAllianceId,
+    ocrFrameMs,
+    ocrConcurrency,
+    totalRawOcrRows,
+    framesOcrComplete: frameTimings.length,
+    frameHistories: frameTimings.map((timing) => timing.history),
+  };
+}
+
+export async function finalizeDepositSlipVideoParse(input: {
+  jobId: string;
+  sessionId: string;
+  scoreTargetId: string;
+  timer: PipelineTimer;
+  now: Date;
+  /** Optional in-memory histories (single-shot path); otherwise load from frames. */
+  histories?: ParsedDepositSlipHistory[];
+  /**
+   * When set, skip merge/dedupe and persist this history as-is (mock fixtures
+   * that already carry stable slipIds / cluster ids).
+   */
+  historyOverride?: ParsedDepositSlipHistory;
+  dedupeReport?: DedupeReport;
+}): Promise<{
+  parseSessionId: string;
+  hqAllianceId: string;
+  rowCount: number;
+  matchedCount: number;
+}> {
+  const db = getDb();
+
+  // Chunked OCR finalize loads from frames. If the worker died after creating
+  // the parse session but before status→review, reuse the existing session
+  // instead of inserting a duplicate.
+  const loadFromFrames =
+    input.histories == null && input.historyOverride == null;
+  if (loadFromFrames) {
+    const [existingJob] = await db
+      .select({
+        parseSessionId: schema.videoJobs.parseSessionId,
+        allianceId: schema.videoJobs.allianceId,
+      })
+      .from(schema.videoJobs)
+      .where(eq(schema.videoJobs.id, input.jobId))
+      .limit(1);
+    if (existingJob?.parseSessionId) {
+      const [existingSession] = await db
+        .select({
+          id: schema.parseSessions.id,
+          allianceId: schema.parseSessions.allianceId,
+          rowCount: schema.parseSessions.rowCount,
+          matchedCount: schema.parseSessions.matchedCount,
+        })
+        .from(schema.parseSessions)
+        .where(eq(schema.parseSessions.id, existingJob.parseSessionId))
+        .limit(1);
+      if (existingSession) {
+        const hqAllianceId =
+          existingSession.allianceId ??
+          existingJob.allianceId ??
+          (await input.timer.measureStep("alliance.resolve_hq", () =>
+            resolveHqAllianceIdFromSession(input.sessionId),
+          ));
+        return {
+          parseSessionId: existingSession.id,
+          hqAllianceId,
+          rowCount: existingSession.rowCount,
+          matchedCount: existingSession.matchedCount,
+        };
+      }
+    }
+  }
+
+  const hqAllianceId = await input.timer.measureStep(
+    "alliance.resolve_hq",
+    () => resolveHqAllianceIdFromSession(input.sessionId),
+  );
+
+  let history: ParsedDepositSlipHistory;
+  let dedupeReport: DedupeReport;
+
+  if (input.historyOverride) {
+    history = input.historyOverride;
+    dedupeReport =
+      input.dedupeReport ?? emptyDedupeReport(history.slips.length);
+  } else if (input.histories) {
+    const merged = mergeDepositSlipHistoryParses(input.histories);
+    history = merged.history;
+    dedupeReport = input.dedupeReport ?? merged.dedupeReport;
+  } else {
+    const frameRows = await db
+      .select({
+        frameIndex: schema.videoFrames.frameIndex,
+        ocrRawJson: schema.videoFrames.ocrRawJson,
+      })
+      .from(schema.videoFrames)
+      .where(eq(schema.videoFrames.jobId, input.jobId))
+      .orderBy(asc(schema.videoFrames.frameIndex));
+
+    const parts: ParsedDepositSlipHistory[] = [];
+    for (const row of frameRows) {
+      const part = historyFromOcrRawJson(row.ocrRawJson);
+      if (part) {
+        parts.push(part);
+      }
+    }
+    const merged = mergeDepositSlipHistoryParses(parts);
+    history = merged.history;
+    dedupeReport = merged.dedupeReport;
+  }
+
   const dedupedSlips = asDedupedSlips(history.slips);
   const parseSessionId = nanoid(16);
 
   const resolvedLinks = await input.timer.measureStep(
     "deposit_slip.resolve_members",
     async () => {
-      // Share one alliance-tag fetch and one roster fetch per alliance across
-      // the whole batch instead of re-querying per row.
       const resolverDeps = createDepositSlipMemberResolverCache();
       return Promise.all(
         dedupedSlips.map((slip) =>
@@ -254,8 +428,45 @@ export async function processDepositSlipVideoParse(
     hqAllianceId,
     rowCount: dedupedSlips.length,
     matchedCount,
-    ocrFrameMs,
-    ocrConcurrency,
-    totalRawOcrRows,
+  };
+}
+
+export async function processDepositSlipVideoParse(
+  input: ProcessDepositSlipVideoParseInput,
+): Promise<ProcessDepositSlipVideoParseResult> {
+  const finalize = input.finalize !== false;
+
+  const chunk = await ocrDepositSlipVideoFrameChunk(input);
+
+  if (!finalize) {
+    return {
+      ...chunk,
+      parseSessionId: "",
+      rowCount: 0,
+      matchedCount: 0,
+    };
+  }
+
+  // Mock fixtures already include stable slipIds — do not re-run merge/dedupe.
+  const finalized = await finalizeDepositSlipVideoParse({
+    jobId: input.jobId,
+    sessionId: input.sessionId,
+    scoreTargetId: input.scoreTargetId,
+    timer: input.timer,
+    now: input.now,
+    ...(input.engine === "mock" && input.mockHistory
+      ? {
+          historyOverride: input.mockHistory,
+          dedupeReport: emptyDedupeReport(input.mockHistory.slips.length),
+        }
+      : { histories: chunk.frameHistories }),
+  });
+
+  return {
+    ...chunk,
+    parseSessionId: finalized.parseSessionId,
+    hqAllianceId: finalized.hqAllianceId,
+    rowCount: finalized.rowCount,
+    matchedCount: finalized.matchedCount,
   };
 }

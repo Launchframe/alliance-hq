@@ -6,8 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
 import {
-  DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN,
-  DEPOSIT_SLIP_MEMBER_NEAR_MISS_MIN,
+  depositSlipMemberMatchBorderClass,
 } from "@/lib/banks/deposit-slip-ocr/deposit-slip-member-match.shared";
 import {
   DEPOSIT_STATUSES,
@@ -25,6 +24,7 @@ import {
   type DedupeCluster,
   type DedupeReport,
 } from "@/lib/video/dedupe/merge-report.shared";
+import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
 
 /** Follow-me scrubbing only works when rows are ordered by deposit time. */
 export function depositSlipFollowMeCompatible(
@@ -52,15 +52,16 @@ export type DepositSlipVideoReviewRow = {
   deleted: number;
 };
 
-function matchConfidenceClass(confidence: number | null | undefined): string {
-  if (confidence == null || confidence === 0) return "border-hq-border text-hq-fg-muted";
-  if (confidence >= DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN) return "border-hq-green text-hq-fg";
-  if (confidence >= DEPOSIT_SLIP_MEMBER_NEAR_MISS_MIN) return "border-[#d29922] text-[#d29922]";
-  return "border-hq-border text-hq-fg-muted";
-}
+export type DepositSlipMemberOption = {
+  id: string;
+  current_name: string;
+  previous_names?: string[];
+};
 
 type Props = {
   rows: DepositSlipVideoReviewRow[];
+  /** Job roster — officers pick when OCR does not auto-link. */
+  members: DepositSlipMemberOption[];
   filterQuery: string;
   dedupeReport?: DedupeReport | null;
   onUpdateRow: (id: string, patch: Partial<DepositSlipVideoReviewRow>) => void;
@@ -139,6 +140,12 @@ function datetimeLocalToIso(value: string): string | null {
   return `${y}-${mo}-${d}T${h}:${mi}:00.000Z`;
 }
 
+function formatSnapshotTime(value: unknown): string {
+  return typeof value === "string"
+    ? isoToDatetimeLocalValue(value).replace("T", " ") || "—"
+    : "—";
+}
+
 function formatSnapshotLine(snapshot: Record<string, unknown>): string {
   const name =
     typeof snapshot.commanderName === "string" ? snapshot.commanderName : "—";
@@ -148,12 +155,19 @@ function formatSnapshotLine(snapshot: Record<string, unknown>): string {
     typeof snapshot.termDays === "number" ? String(snapshot.termDays) : "—";
   const status =
     typeof snapshot.status === "string" ? snapshot.status : "—";
-  const depositAt =
-    typeof snapshot.depositAt === "string"
-      ? isoToDatetimeLocalValue(snapshot.depositAt).replace("T", " ")
-      : "—";
+  const depositAt = formatSnapshotTime(snapshot.depositAt);
   return `${name} · ${amount} · ${term}d · ${depositAt} · ${status}`;
 }
+
+function absorbedMemberCount(cluster: DedupeCluster): number {
+  return cluster.members.filter((m) => m.slipId !== cluster.destinationSlipId)
+    .length;
+}
+
+const LIFECYCLE_AUTO_MERGE_REASONS = new Set([
+  "lifecycle_locked_to_matured",
+  "lifecycle_locked_to_looted",
+]);
 
 /** Same fields as `formatSnapshotLine`, rendered per-field so conflicting ones can be bolded. */
 function SnapshotFields({
@@ -199,6 +213,7 @@ function SnapshotFields({
 
 export function DepositSlipVideoReviewTable({
   rows,
+  members,
   filterQuery,
   dedupeReport = null,
   onUpdateRow,
@@ -211,9 +226,11 @@ export function DepositSlipVideoReviewTable({
 }: Props) {
   const t = useTranslations("videoReview");
   const tBanks = useTranslations("bankManagement");
+  const tMembers = useTranslations("members");
   const [sortKey, setSortKey] =
     useState<DepositSlipVisibleSortKey>("depositAt");
   const [autoDedupeOpen, setAutoDedupeOpen] = useState(false);
+  const [missingTsOpen, setMissingTsOpen] = useState(false);
 
   const report = isDedupeReport(dedupeReport) ? dedupeReport : null;
   const followMeCompatible = depositSlipFollowMeCompatible(sortKey);
@@ -247,9 +264,33 @@ export function DepositSlipVideoReviewTable({
   const autoMergedClusters = useMemo(
     () =>
       (report?.clusters ?? []).filter(
-        (c): c is DedupeCluster => c.disposition === "auto_merged",
+        (c): c is DedupeCluster =>
+          c.disposition === "auto_merged" &&
+          c.reason !== "redundant_missing_timestamp",
       ),
     [report],
+  );
+
+  const missingTsClusters = useMemo(
+    () =>
+      (report?.clusters ?? []).filter(
+        (c): c is DedupeCluster =>
+          c.disposition === "auto_merged" &&
+          c.reason === "redundant_missing_timestamp",
+      ),
+    [report],
+  );
+
+  const autoMergedAbsorbedCount = useMemo(
+    () =>
+      autoMergedClusters.reduce((n, c) => n + absorbedMemberCount(c), 0),
+    [autoMergedClusters],
+  );
+
+  const missingTsAbsorbedCount = useMemo(
+    () =>
+      missingTsClusters.reduce((n, c) => n + absorbedMemberCount(c), 0),
+    [missingTsClusters],
   );
 
   const unresolvedFlaggedClusters = useMemo(
@@ -260,6 +301,21 @@ export function DepositSlipVideoReviewTable({
       ),
     [report, unresolvedClusterIds],
   );
+
+  function lifecycleDestinationLabel(
+    cluster: DedupeCluster,
+    destination: DedupeCluster["members"][number],
+  ): string | null {
+    if (!LIFECYCLE_AUTO_MERGE_REASONS.has(cluster.reason)) return null;
+    const depositAt = formatSnapshotTime(destination.snapshot.depositAt);
+    const outcomeAt = formatSnapshotTime(
+      destination.snapshot.outcomeAt ?? destination.snapshot.depositAt,
+    );
+    if (cluster.reason === "lifecycle_locked_to_looted") {
+      return t("depositSlipLifecycleLooted", { depositAt, outcomeAt });
+    }
+    return t("depositSlipLifecycleMatured", { depositAt, outcomeAt });
+  }
 
   const filteredRows = useMemo(
     () =>
@@ -283,81 +339,6 @@ export function DepositSlipVideoReviewTable({
 
   return (
     <div className="space-y-3">
-      {report && report.autoMergedCount > 0 ? (
-        <div className="rounded-xl border border-hq-border bg-hq-surface-muted/40 p-4 text-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="font-medium text-hq-fg">
-                {t("depositSlipAutoDedupeTitle", {
-                  count: report.autoMergedCount,
-                })}
-              </p>
-              <p className="mt-1 text-hq-fg-muted">
-                {t("depositSlipAutoDedupeHint")}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setAutoDedupeOpen((open) => !open)}
-              className="inline-flex items-center gap-1 rounded-md border border-hq-border px-2 py-1 text-xs hover:bg-hq-canvas"
-            >
-              {autoDedupeOpen ? (
-                <ChevronDown className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5" />
-              )}
-              {autoDedupeOpen
-                ? t("depositSlipAutoDedupeToggleHide")
-                : t("depositSlipAutoDedupeToggleShow")}
-            </button>
-          </div>
-          {autoDedupeOpen ? (
-            <ul className="mt-3 space-y-3">
-              {autoMergedClusters.map((cluster) => {
-                const destination = cluster.members.find(
-                  (m) => m.slipId === cluster.destinationSlipId,
-                );
-                const sources = cluster.members.filter(
-                  (m) => m.slipId !== cluster.destinationSlipId,
-                );
-                return (
-                  <li
-                    key={cluster.clusterId}
-                    className="rounded-lg border border-hq-border bg-hq-canvas p-3"
-                  >
-                    {destination ? (
-                      <p className="text-hq-fg">
-                        <span className="mr-2 rounded bg-hq-success/15 px-1.5 py-0.5 text-xs font-medium text-hq-success">
-                          {t("depositSlipAutoDedupeDestination")}
-                        </span>
-                        {formatSnapshotLine(destination.snapshot)}
-                      </p>
-                    ) : null}
-                    {cluster.correctedFields && cluster.correctedFields.length > 0 ? (
-                      <p className="mt-1 text-xs text-hq-fg-muted">
-                        {t("depositSlipAutoDedupeMajorityCorrected", {
-                          fields: cluster.correctedFields.join(", "),
-                        })}
-                      </p>
-                    ) : null}
-                    <ul className="mt-2 space-y-1 text-hq-fg-muted">
-                      {sources.map((source) => (
-                        <li key={source.slipId}>
-                          <span className="mr-2 rounded bg-hq-surface-muted px-1.5 py-0.5 text-xs">
-                            {t("depositSlipAutoDedupeSource")}
-                          </span>
-                          {formatSnapshotLine(source.snapshot)}
-                        </li>
-                      ))}
-                    </ul>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : null}
-        </div>
-      ) : null}
-
       {unresolvedFlaggedClusters.length > 0 ? (
         <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
           <p className="font-medium">
@@ -527,28 +508,59 @@ export function DepositSlipVideoReviewTable({
                       className="w-full min-w-[4rem] rounded-md border border-hq-border bg-hq-canvas px-2 py-1.5"
                     />
                   </td>
-                  <td className="px-3 py-2 align-top">
-                    {row.memberId && row.memberName ? (
-                      <div
-                        className={`rounded-md border bg-hq-canvas px-2 py-1.5 text-sm ${matchConfidenceClass(row.matchConfidence)}`}
-                        title={
-                          row.matchConfidence != null
-                            ? `${Math.round(row.matchConfidence * 100)}%`
-                            : undefined
+                  <td className="min-w-[8rem] px-3 py-2 align-top sm:min-w-[11rem]">
+                    <AppSelect
+                      value={row.memberId ?? ""}
+                      onChange={(next) => {
+                        if (!next) {
+                          onUpdateRow(row.id, {
+                            memberId: null,
+                            memberName: null,
+                            matchConfidence: 0,
+                            matchMethod: "none",
+                          });
+                          return;
                         }
-                      >
-                        <span className="block truncate">{row.memberName}</span>
-                        {row.matchConfidence != null ? (
-                          <span className="mt-0.5 block text-xs opacity-80">
-                            {Math.round(row.matchConfidence * 100)}%
-                          </span>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-hq-fg-muted">
-                        {t("unmatched")}
-                      </span>
-                    )}
+                        // Roster may omit a previously selected member
+                        // (cross-device); keep the stored label via rows.
+                        const fromRoster = members.find((m) => m.id === next);
+                        const fromSelected = rows.find(
+                          (r) => r.memberId === next && r.memberName,
+                        );
+                        onUpdateRow(row.id, {
+                          memberId: next,
+                          memberName:
+                            fromRoster?.current_name ??
+                            fromSelected?.memberName ??
+                            (row.memberId === next ? row.memberName : null) ??
+                            null,
+                          matchConfidence: 1,
+                          // Commit honors preferredAshedMemberId only when
+                          // matchMethod is a real auto-link method (not "none").
+                          matchMethod: "exact",
+                        });
+                      }}
+                      aria-label={t("colMember")}
+                      placeholder={t("unmatched")}
+                      triggerClassName={`px-2 py-1.5 ${
+                        row.memberId
+                          ? depositSlipMemberMatchBorderClass(row.matchConfidence)
+                          : "border-hq-border"
+                      }`}
+                      searchable
+                      searchMode="fuzzy"
+                      combobox
+                      hideEmptyOptionWhileSearching
+                      searchPlaceholder={tMembers("searchPlaceholder")}
+                      noSearchResultsLabel={t("memberSearchNoResults")}
+                      options={buildMemberMatchSelectOptions(members, {
+                        emptyLabel: t("unmatched"),
+                        highlightMemberId: row.memberId,
+                        highlightConfidence: row.matchConfidence,
+                        selectedMembers: rows,
+                        // Same commander may appear on multiple deposit rows.
+                      })}
+                    />
                   </td>
                   <td className="px-3 py-2 align-top">
                     <input
@@ -641,6 +653,154 @@ export function DepositSlipVideoReviewTable({
           </tbody>
         </table>
       </div>
+
+      {autoMergedAbsorbedCount > 0 ? (
+        <div className="rounded-xl border border-hq-border bg-hq-surface-muted/40 p-4 text-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-medium text-hq-fg">
+                {t("depositSlipAutoDedupeTitle", {
+                  count: autoMergedAbsorbedCount,
+                })}
+              </p>
+              <p className="mt-1 text-hq-fg-muted">
+                {t("depositSlipAutoDedupeHint")}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAutoDedupeOpen((open) => !open)}
+              className="inline-flex items-center gap-1 rounded-md border border-hq-border px-2 py-1 text-xs hover:bg-hq-canvas"
+            >
+              {autoDedupeOpen ? (
+                <ChevronDown className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5" />
+              )}
+              {autoDedupeOpen
+                ? t("depositSlipAutoDedupeToggleHide")
+                : t("depositSlipAutoDedupeToggleShow")}
+            </button>
+          </div>
+          {autoDedupeOpen ? (
+            <ul className="mt-3 space-y-3">
+              {autoMergedClusters.map((cluster) => {
+                const destination = cluster.members.find(
+                  (m) => m.slipId === cluster.destinationSlipId,
+                );
+                const sources = cluster.members.filter(
+                  (m) => m.slipId !== cluster.destinationSlipId,
+                );
+                const lifecycleLabel = destination
+                  ? lifecycleDestinationLabel(cluster, destination)
+                  : null;
+                return (
+                  <li
+                    key={cluster.clusterId}
+                    className="rounded-lg border border-hq-border bg-hq-canvas p-3"
+                  >
+                    {destination ? (
+                      <p className="text-hq-fg">
+                        <span className="mr-2 rounded bg-hq-success/15 px-1.5 py-0.5 text-xs font-medium text-hq-success">
+                          {t("depositSlipAutoDedupeDestination")}
+                        </span>
+                        {lifecycleLabel ??
+                          formatSnapshotLine(destination.snapshot)}
+                      </p>
+                    ) : null}
+                    {cluster.correctedFields &&
+                    cluster.correctedFields.length > 0 ? (
+                      <p className="mt-1 text-xs text-hq-fg-muted">
+                        {t("depositSlipAutoDedupeMajorityCorrected", {
+                          fields: cluster.correctedFields.join(", "),
+                        })}
+                      </p>
+                    ) : null}
+                    <ul className="mt-2 space-y-1 text-hq-fg-muted">
+                      {sources.map((source) => (
+                        <li key={source.slipId}>
+                          <span className="mr-2 rounded bg-hq-surface-muted px-1.5 py-0.5 text-xs">
+                            {t("depositSlipAutoDedupeSource")}
+                          </span>
+                          {formatSnapshotLine(source.snapshot)}
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+
+      {missingTsAbsorbedCount > 0 ? (
+        <div className="rounded-xl border border-hq-border bg-hq-surface-muted/40 p-4 text-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-medium text-hq-fg">
+                {t("depositSlipMissingTsCoveredTitle", {
+                  count: missingTsAbsorbedCount,
+                })}
+              </p>
+              <p className="mt-1 text-hq-fg-muted">
+                {t("depositSlipMissingTsCoveredHint")}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMissingTsOpen((open) => !open)}
+              className="inline-flex items-center gap-1 rounded-md border border-hq-border px-2 py-1 text-xs hover:bg-hq-canvas"
+            >
+              {missingTsOpen ? (
+                <ChevronDown className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5" />
+              )}
+              {missingTsOpen
+                ? t("depositSlipMissingTsCoveredToggleHide")
+                : t("depositSlipMissingTsCoveredToggleShow")}
+            </button>
+          </div>
+          {missingTsOpen ? (
+            <ul className="mt-3 space-y-3">
+              {missingTsClusters.map((cluster) => {
+                const destination = cluster.members.find(
+                  (m) => m.slipId === cluster.destinationSlipId,
+                );
+                const sources = cluster.members.filter(
+                  (m) => m.slipId !== cluster.destinationSlipId,
+                );
+                return (
+                  <li
+                    key={cluster.clusterId}
+                    className="rounded-lg border border-hq-border bg-hq-canvas p-3"
+                  >
+                    {destination ? (
+                      <p className="text-hq-fg">
+                        <span className="mr-2 rounded bg-hq-success/15 px-1.5 py-0.5 text-xs font-medium text-hq-success">
+                          {t("depositSlipMissingTsCoveredKept")}
+                        </span>
+                        {formatSnapshotLine(destination.snapshot)}
+                      </p>
+                    ) : null}
+                    <ul className="mt-2 space-y-1 text-hq-fg-muted">
+                      {sources.map((source) => (
+                        <li key={source.slipId}>
+                          <span className="mr-2 rounded bg-hq-surface-muted px-1.5 py-0.5 text-xs">
+                            {t("depositSlipMissingTsCoveredAbsorbed")}
+                          </span>
+                          {formatSnapshotLine(source.snapshot)}
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

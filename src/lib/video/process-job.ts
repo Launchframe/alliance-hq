@@ -43,6 +43,11 @@ import {
 } from "@/lib/video/score-targets";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
+import {
+  defaultStageForJobStatus,
+  type VideoJobStage,
+} from "@/lib/video/video-job-stage.shared";
+import { createThrottledOcrProgressEmitter } from "@/lib/video/video-ocr-progress-emit.shared";
 import { maybeEnqueueShadowPass } from "@/lib/video/enqueue-shadow-pass";
 import {
   AshedNotConnectedError,
@@ -51,10 +56,11 @@ import {
 import { dispatchVideoArchive } from "@/lib/video/trigger-archive";
 import { computePassComparison } from "@/lib/video/compare-pass-results";
 import { mergeGroupComparisons } from "@/lib/video/group-comparisons.shared";
+import { mockOcrScoreFrames } from "@/lib/video/ocr-mock";
 import {
-  mockOcrDepositSlipFrames,
-  mockOcrScoreFrames,
-} from "@/lib/video/ocr-mock";
+  runDepositSlipOcrPhase,
+  shouldSkipDepositSlipExtract,
+} from "@/lib/video/run-deposit-slip-ocr-phase.server";
 import {
   engineRequiresAshed,
   resolveVideoJobAshedConnection,
@@ -118,11 +124,26 @@ export async function processVideoJob(
    */
   const processingSessionId = job.processingSessionId ?? job.sessionId;
 
+  // Mutable mirrors of the last values written for this run — `job` is a
+  // start-of-process snapshot and must not be used for SSE frameCount after
+  // the parsing kickoff (progress emits only pass uploadedFrameCount).
+  let liveFrameCount: number | null = job.frameCount ?? null;
+  let liveUploadedFrameCount: number | null = job.uploadedFrameCount ?? null;
+
   const setStatus = async (
     status: string,
     extra: Partial<typeof schema.videoJobs.$inferInsert> = {},
     meta?: { rowCount?: number; matchedCount?: number },
+    stage?: VideoJobStage,
   ) => {
+    if (extra.frameCount !== undefined) {
+      liveFrameCount = extra.frameCount as number | null;
+    }
+    if (extra.uploadedFrameCount !== undefined) {
+      liveUploadedFrameCount = extra.uploadedFrameCount as number | null;
+    }
+    const resolvedStage =
+      stage ?? defaultStageForJobStatus(status) ?? undefined;
     const updatedAt = new Date();
     await db
       .update(schema.videoJobs)
@@ -135,18 +156,41 @@ export async function processVideoJob(
       status,
       fileName: job.fileName,
       scoreTarget: scoreTargetId,
-      frameCount: extra.frameCount ?? job.frameCount,
-      uploadedFrameCount:
-        extra.uploadedFrameCount ?? job.uploadedFrameCount,
+      frameCount: liveFrameCount,
+      uploadedFrameCount: liveUploadedFrameCount,
       rowCount: meta?.rowCount,
       matchedCount: meta?.matchedCount,
       errorMessage:
         typeof extra.errorMessage === "string"
           ? extra.errorMessage
           : job.errorMessage,
+      stage: resolvedStage,
+      ocrEngine,
       updatedAt: updatedAt.toISOString(),
     });
   };
+
+  /**
+   * Live per-frame progress during the OCR pass — the usually-longest
+   * phase — for the waiting-page progress bar. Throttled so a fast OCR
+   * engine (or high concurrency) doesn't hammer the DB with one write per
+   * frame; the final frame always emits so the bar reaches 100% of the
+   * ocr_running band before the pipeline moves on. Serialized via a promise
+   * chain so concurrent Ashed workers cannot reorder uploadedFrameCount
+   * writes; OCR pipelines await each callback so the chain drains before
+   * the subsequent "finalizing_rows" setStatus call.
+   */
+  const emitOcrFrameProgress = createThrottledOcrProgressEmitter({
+    minIntervalMs: 1_200,
+    emit: async (completed) => {
+      await setStatus(
+        "parsing",
+        { uploadedFrameCount: completed },
+        undefined,
+        "ocr_running",
+      );
+    },
+  });
 
   let frameCount = 0;
   let rowCount = 0;
@@ -193,108 +237,158 @@ export async function processVideoJob(
         frameCount: null,
         uploadedFrameCount: 0,
         errorMessage: "awaiting_ashed_connection",
+        stage: "awaiting_approval",
+        ocrEngine,
       });
       throw new AshedNotConnectedError();
     }
 
     const target = getScoreTargetOrThrow(scoreTargetId);
 
-    await setStatus("extracting");
-    await writeAuditLog({
-      sessionId: job.sessionId,
-      allianceId: jobHqAllianceId ?? job.allianceId,
-      action: "video.extract_start",
-      resourceType: "video_job",
-      resourceName: scoreTargetId,
-      resourceId: jobId,
-      metadata: { fileName: job.fileName },
-    });
-
-    const tmpVideo = path.join(
-      os.tmpdir(),
-      `hq-video-${jobId}${path.extname(job.fileName ?? ".mp4")}`,
-    );
-    const videoBytes = await timer.measureStep("storage.load_video", () =>
-      streamObjectToFile(videoStorageKey, tmpVideo),
-      (bytes) => ({ bytes }),
-    );
-    logPipelineStep("storage.temp_video_ready", 0, { bytes: videoBytes, jobId });
-
-    const extractionConfig = (job.extractionConfigJson as ExtractionConfig | null) ?? undefined;
+    const skipDepositExtract =
+      isDepositSlipTarget && (await shouldSkipDepositSlipExtract(jobId));
 
     let frames: import("@/lib/video/frame-extractor").ExtractedFrame[] = [];
-    try {
-      const extractResult = await timer.measureStep("ffmpeg.extract", () =>
-        extractLeaderboardFrames(tmpVideo, extractionConfig),
-        (result) => ({ frameCount: result.frames.length }),
+    let totalFrameBytes = 0;
+
+    if (!skipDepositExtract) {
+      await setStatus("extracting");
+      await writeAuditLog({
+        sessionId: job.sessionId,
+        allianceId: jobHqAllianceId ?? job.allianceId,
+        action: "video.extract_start",
+        resourceType: "video_job",
+        resourceName: scoreTargetId,
+        resourceId: jobId,
+        metadata: { fileName: job.fileName },
+      });
+
+      const tmpVideo = path.join(
+        os.tmpdir(),
+        `hq-video-${jobId}${path.extname(job.fileName ?? ".mp4")}`,
       );
-      frames = extractResult.frames;
-      videoDurationSeconds = extractResult.videoDurationSeconds;
-      denseFrameCount = extractResult.denseFrameCount;
-      framesSkipped = extractResult.framesSkipped;
-    } finally {
-      await timer.measureStep("storage.delete_temp_video", () =>
-        fs.unlink(tmpVideo).catch(() => undefined),
+      const videoBytes = await timer.measureStep("storage.load_video", () =>
+        streamObjectToFile(videoStorageKey, tmpVideo),
+        (bytes) => ({ bytes }),
       );
-    }
+      logPipelineStep("storage.temp_video_ready", 0, {
+        bytes: videoBytes,
+        jobId,
+      });
 
-    frameCount = frames.length;
-    const totalFrameBytes = frames.reduce((sum, frame) => sum + frame.buffer.length, 0);
-    const avgFrameBytes =
-      frames.length > 0 ? Math.round(totalFrameBytes / frames.length) : 0;
+      const extractionConfig =
+        (job.extractionConfigJson as ExtractionConfig | null) ?? undefined;
 
-    logPipelineStep("frames.summary", 0, {
-      frameCount: frames.length,
-      totalBytes: totalFrameBytes,
-      avgBytes: avgFrameBytes,
-      concurrency: defaultAshFrameConcurrency(),
-      jobId,
-    });
+      try {
+        const extractResult = await timer.measureStep("ffmpeg.extract", () =>
+          extractLeaderboardFrames(tmpVideo, extractionConfig),
+          (result) => ({ frameCount: result.frames.length }),
+        );
+        frames = extractResult.frames;
+        videoDurationSeconds = extractResult.videoDurationSeconds;
+        denseFrameCount = extractResult.denseFrameCount;
+        framesSkipped = extractResult.framesSkipped;
+      } finally {
+        await timer.measureStep("storage.delete_temp_video", () =>
+          fs.unlink(tmpVideo).catch(() => undefined),
+        );
+      }
 
-    for (const frame of frames) {
-      await timer.measureStep("storage.put_frame", async () => {
-        const key = frameStorageKey(jobId, frame.index);
-        await putObject(key, frame.buffer);
-        await db.insert(schema.videoFrames).values({
-          id: nanoid(16),
+      frameCount = frames.length;
+      totalFrameBytes = frames.reduce(
+        (sum, frame) => sum + frame.buffer.length,
+        0,
+      );
+      const avgFrameBytes =
+        frames.length > 0 ? Math.round(totalFrameBytes / frames.length) : 0;
+
+      logPipelineStep("frames.summary", 0, {
+        frameCount: frames.length,
+        totalBytes: totalFrameBytes,
+        avgBytes: avgFrameBytes,
+        concurrency: defaultAshFrameConcurrency(),
+        jobId,
+      });
+
+      for (const frame of frames) {
+        await timer.measureStep(
+          "storage.put_frame",
+          async () => {
+            const key = frameStorageKey(jobId, frame.index);
+            await putObject(key, frame.buffer);
+            await db.insert(schema.videoFrames).values({
+              id: nanoid(16),
+              jobId,
+              frameIndex: frame.index,
+              storageKey: key,
+              videoTimestampSeconds: frame.videoTimestampSeconds,
+              createdAt: now,
+            });
+          },
+          { frameIndex: frame.index, bytes: frame.buffer.length },
+        );
+      }
+
+      const storageBucket = prefersLocalStorage()
+        ? "local .data/uploads"
+        : "R2 hq-videos";
+      logPipelineStep("storage.frames_written", 0, {
+        frameCount: frames.length,
+        totalBytes: totalFrameBytes,
+        bucket: storageBucket,
+        jobId,
+      });
+      if (prefersLocalStorage()) {
+        logPipelineStep("storage.frames_local", 0, {
+          path: path.join(
+            process.cwd(),
+            ".data",
+            "uploads",
+            "videos",
+            jobId,
+            "frames",
+          ),
           jobId,
-          frameIndex: frame.index,
-          storageKey: key,
-          videoTimestampSeconds: frame.videoTimestampSeconds,
-          createdAt: now,
         });
-      }, { frameIndex: frame.index, bytes: frame.buffer.length });
-    }
+      } else if (r2Configured()) {
+        logPipelineStep("storage.frames_local", 0, {
+          path: `r2://${process.env.R2_BUCKET ?? "hq-videos"}/videos/${jobId}/frames/`,
+          jobId,
+        });
+      }
 
-    const storageBucket = prefersLocalStorage()
-      ? "local .data/uploads"
-      : "R2 hq-videos";
-    logPipelineStep("storage.frames_written", 0, {
-      frameCount: frames.length,
-      totalBytes: totalFrameBytes,
-      bucket: storageBucket,
-      jobId,
-    });
-    if (prefersLocalStorage()) {
-      logPipelineStep("storage.frames_local", 0, {
-        path: path.join(process.cwd(), ".data", "uploads", "videos", jobId, "frames"),
-        jobId,
-      });
-    } else if (r2Configured()) {
-      logPipelineStep("storage.frames_local", 0, {
-        path: `r2://${process.env.R2_BUCKET ?? "hq-videos"}/videos/${jobId}/frames/`,
-        jobId,
-      });
+      await setStatus(
+        "parsing",
+        {
+          frameCount: frames.length,
+          uploadedFrameCount: 0,
+        },
+        undefined,
+        "ocr_running",
+      );
+    } else {
+      // Continuation chunk: frames already in storage from the first pass.
+      const [frameCountRow] = await db
+        .select({ frameCount: schema.videoJobs.frameCount })
+        .from(schema.videoJobs)
+        .where(eq(schema.videoJobs.id, jobId))
+        .limit(1);
+      frameCount = frameCountRow?.frameCount ?? job.frameCount ?? 0;
+      await setStatus(
+        "parsing",
+        {
+          frameCount,
+          uploadedFrameCount: job.uploadedFrameCount ?? 0,
+        },
+        undefined,
+        "ocr_running",
+      );
     }
-
-    await setStatus("parsing", {
-      frameCount: frames.length,
-      uploadedFrameCount: 0,
-    });
 
     let allianceId: string;
     let parseSessionId: string;
     let unresolvedConflicts: string[] = [];
+    let depositSlipAwaitingNextChunk = false;
 
     if (isRosterTarget) {
       const rosterConfig = isValidRosterOcrConfig(job.extractionConfigJson)
@@ -313,6 +407,7 @@ export async function processVideoJob(
         frames: frames.map((f) => ({ index: f.index, buffer: f.buffer })),
         timer,
         now,
+        onOcrProgress: emitOcrFrameProgress,
       });
 
       allianceId = rosterResult.hqAllianceId;
@@ -330,48 +425,94 @@ export async function processVideoJob(
         { frameCount: frames.length },
       );
 
-      await setStatus("parsing", { uploadedFrameCount: frames.length });
-    } else if (isDepositSlipTarget) {
-      const mockHistory =
-        ocrEngine === "mock"
-          ? await timer.measureStep("mock.deposit_slip_ocr_total", () =>
-              mockOcrDepositSlipFrames(
-                scoreTargetId,
-                frames.map((f) => ({ index: f.index })),
-              ),
-            )
-          : undefined;
-      const { processDepositSlipVideoParse } = await import(
-        "@/lib/video/process-deposit-slip-job"
+      await setStatus(
+        "parsing",
+        { uploadedFrameCount: frames.length },
+        undefined,
+        "finalizing_rows",
       );
-      const slipResult = await processDepositSlipVideoParse({
+    } else if (isDepositSlipTarget) {
+      const slipPhase = await runDepositSlipOcrPhase({
         jobId,
         sessionId: processingSessionId,
         scoreTargetId,
         target,
         engine: ocrEngine,
-        frames: frames.map((f) => ({ index: f.index, buffer: f.buffer })),
+        extractedFrames: frames,
+        timingsJson: job.timingsJson,
         timer,
         now,
-        mockHistory,
+        onOcrProgress: emitOcrFrameProgress,
+        setChunkProgress: async ({ totalFrames, completedThrough }) => {
+          frameCount = totalFrames;
+          await setStatus(
+            "parsing",
+            {
+              frameCount: totalFrames,
+              uploadedFrameCount: completedThrough,
+            },
+            undefined,
+            "ocr_running",
+          );
+        },
+        setContinueChunk: async ({
+          totalFrames,
+          nextFrameOffset,
+          timingsJson,
+        }) => {
+          frameCount = totalFrames;
+          await setStatus(
+            "parsing",
+            {
+              frameCount: totalFrames,
+              uploadedFrameCount: nextFrameOffset,
+              timingsJson,
+            },
+            undefined,
+            "ocr_running",
+          );
+        },
+        requeueAfterChunkDispatchFailed: async ({ timingsJson }) => {
+          await setStatus(
+            "queued",
+            { timingsJson },
+            undefined,
+            "ocr_running",
+          );
+        },
       });
 
-      allianceId = slipResult.hqAllianceId;
-      parseSessionId = slipResult.parseSessionId;
-      rowCount = slipResult.rowCount;
-      matchedCount = slipResult.matchedCount;
-      ocrFrameMs = slipResult.ocrFrameMs;
-      ocrConcurrency = slipResult.ocrConcurrency;
+      allianceId = slipPhase.hqAllianceId;
+      ocrFrameMs = slipPhase.ocrFrameMs;
+      ocrConcurrency = slipPhase.ocrConcurrency;
       ashedUploadTotalMs = 0;
       ashedExtractTotalMs = 0;
-      totalRawOcrRows = slipResult.totalRawOcrRows;
+      totalRawOcrRows = slipPhase.totalRawOcrRows;
+      frameCount = slipPhase.totalFrames;
 
-      await timer.measureStep("storage.cleanup_frame_temp", () =>
-        cleanupFrameTempDir(frames),
-        { frameCount: frames.length },
-      );
+      if (slipPhase.kind === "continue") {
+        depositSlipAwaitingNextChunk = true;
+        parseSessionId = "";
+        rowCount = 0;
+        matchedCount = 0;
+      } else {
+        parseSessionId = slipPhase.parseSessionId;
+        rowCount = slipPhase.rowCount;
+        matchedCount = slipPhase.matchedCount;
+        await setStatus(
+          "parsing",
+          { uploadedFrameCount: slipPhase.totalFrames },
+          undefined,
+          "finalizing_rows",
+        );
+      }
 
-      await setStatus("parsing", { uploadedFrameCount: frames.length });
+      if (frames.length > 0) {
+        await timer.measureStep("storage.cleanup_frame_temp", () =>
+          cleanupFrameTempDir(frames),
+          { frameCount: frames.length },
+        );
+      }
     } else {
       if (ocrEngine === "mock") {
         allianceId = await timer.measureStep("alliance.resolve_hq", () =>
@@ -388,6 +529,10 @@ export async function processVideoJob(
             ),
           (entries) => ({ rowCount: entries.length }),
         );
+
+        for (let i = 0; i < frames.length; i += 1) {
+          await emitOcrFrameProgress(i + 1, frames.length);
+        }
 
         ocrFrameMs = frames.map(() => 1);
         ocrConcurrency = 1;
@@ -417,7 +562,12 @@ export async function processVideoJob(
           { frameCount: frames.length },
         );
 
-        await setStatus("parsing", { uploadedFrameCount: frames.length });
+        await setStatus(
+          "parsing",
+          { uploadedFrameCount: frames.length },
+          undefined,
+          "finalizing_rows",
+        );
 
         const hqMembers = await listAllianceMembers(allianceId);
         const members = hqMembers.map(allianceMemberRowToAshedMember);
@@ -516,7 +666,7 @@ export async function processVideoJob(
             connection!,
             target,
             frames.map((f) => ({ index: f.index, buffer: f.buffer })),
-            { timer, jobId },
+            { timer, jobId, onProgress: emitOcrFrameProgress },
           ),
         (result) => ({
           frameCount: frames.length,
@@ -572,7 +722,12 @@ export async function processVideoJob(
       { frameCount: frames.length },
     );
 
-    await setStatus("parsing", { uploadedFrameCount: frames.length });
+    await setStatus(
+      "parsing",
+      { uploadedFrameCount: frames.length },
+      undefined,
+      "finalizing_rows",
+    );
 
     let members: AshedMember[] = [];
     try {
@@ -684,13 +839,25 @@ export async function processVideoJob(
       totalRawOcrRows,
     };
 
+    // More deposit-slip OCR chunks remain — stay in `parsing` (in-flight) and
+    // the phase already dispatched the next worker invocation.
+    if (depositSlipAwaitingNextChunk) {
+      timer.log(`job ${jobId} deposit-slip OCR chunk complete; continuing`, {
+        scoreTarget: scoreTargetId,
+        frameCount,
+        uploadedFrameCount: liveUploadedFrameCount,
+        ocrConcurrency,
+      });
+      return timings;
+    }
+
     await setStatus(
       "review",
       {
         parseSessionId,
         allianceId,
         timingsJson: timings,
-        totalFileSizeBytes: totalFrameBytes,
+        totalFileSizeBytes: totalFrameBytes || job.totalFileSizeBytes,
       },
       { rowCount, matchedCount },
     );

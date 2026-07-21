@@ -6,6 +6,7 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { isPostgresUniqueViolation } from "@/lib/auth/postgres-unique.shared";
 import type { SystemRoleName } from "@/lib/rbac/constants";
 import { ROLE_IDS } from "@/lib/rbac/constants";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
@@ -230,15 +231,49 @@ export async function redeemAllianceJoinCode(
     .returning({ id: schema.hqAllianceJoinCodes.id });
 
   if (!updated) {
+    // Concurrent redeem (e.g. URL auto-redeem remount): if this user already
+    // won the race, treat as success instead of "no longer available".
+    const [racedRedemption] = await db
+      .select({ id: schema.hqAllianceJoinCodeRedemptions.id })
+      .from(schema.hqAllianceJoinCodeRedemptions)
+      .where(
+        and(
+          eq(schema.hqAllianceJoinCodeRedemptions.joinCodeId, joinCode.id),
+          eq(schema.hqAllianceJoinCodeRedemptions.hqUserId, input.hqUserId),
+        ),
+      )
+      .limit(1);
+    if (racedRedemption) {
+      return provisionAllianceMembership({
+        hqUserId: input.hqUserId,
+        sessionId: input.sessionId,
+        allianceId: joinCode.allianceId,
+        roleId: joinCode.roleId,
+        userLabel: input.userLabel,
+      });
+    }
     throw new Error("This join code is no longer available.");
   }
 
-  await db.insert(schema.hqAllianceJoinCodeRedemptions).values({
-    id: nanoid(16),
-    joinCodeId: joinCode.id,
-    hqUserId: input.hqUserId,
-    redeemedAt: now,
-  });
+  try {
+    await db.insert(schema.hqAllianceJoinCodeRedemptions).values({
+      id: nanoid(16),
+      joinCodeId: joinCode.id,
+      hqUserId: input.hqUserId,
+      redeemedAt: now,
+    });
+  } catch (error) {
+    if (isPostgresUniqueViolation(error)) {
+      return provisionAllianceMembership({
+        hqUserId: input.hqUserId,
+        sessionId: input.sessionId,
+        allianceId: joinCode.allianceId,
+        roleId: joinCode.roleId,
+        userLabel: input.userLabel,
+      });
+    }
+    throw error;
+  }
 
   const [user] = await db
     .select({ email: schema.hqUsers.email })

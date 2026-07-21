@@ -5,6 +5,7 @@ import {
   chordMatchesEvent,
   createSequenceState,
   findMatchingActionId,
+  OPEN_MODAL_DIALOG_SELECTOR,
   parseKeyboardEvent,
   sequenceMatchesBinding,
 } from "@/lib/hotkeys/engine";
@@ -67,6 +68,11 @@ describe("hotkey engine", () => {
     const sequenceBinding = { sequence: ["g", "m"] };
     expect(sequenceMatchesBinding(sequenceBinding, ["g"])).toBe(false);
     expect(sequenceMatchesBinding(sequenceBinding, ["g", "m"])).toBe(true);
+  });
+
+  it("uses a selector that ignores presentationHidden (invisible) dialogs", () => {
+    expect(OPEN_MODAL_DIALOG_SELECTOR).toContain(":not(.invisible)");
+    expect(OPEN_MODAL_DIALOG_SELECTOR).toContain('aria-modal="true"');
   });
 
   it("treats meta and ctrl as the same primary modifier (cross-platform Mod)", () => {

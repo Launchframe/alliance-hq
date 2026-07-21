@@ -6,6 +6,7 @@ import type { LinkedOAuthProvider } from "@/lib/auth/account-linking.shared";
 import { getAuthSsoAvailability } from "@/lib/auth/sso-config.server";
 import {
   getAshedConnectionMeta,
+  getSessionStateFor,
   requirePageSession,
   resolveEffectiveHqUserIdForSession,
 } from "@/lib/session";
@@ -28,6 +29,7 @@ export default async function AccountPage({ searchParams }: Props) {
   const locale = await getLocale();
   const params = await searchParams;
   const session = await requirePageSession("/account");
+  const sessionState = await getSessionStateFor(session, locale);
   const ashed = await getAshedConnectionMeta(session.id, locale);
   const timezone = await getAccountTimezoneIdForSession(session.id);
   const hqUserId = await resolveEffectiveHqUserIdForSession(
@@ -84,6 +86,7 @@ export default async function AccountPage({ searchParams }: Props) {
       signInLinkNotice={signInLinkNotice}
       signInLinkError={params.linkError?.trim() || null}
       ssoAvailability={ssoAvailability}
+      isAshedConnectAllowed={sessionState.rbac?.isAshedConnectAllowed ?? false}
     />
   );
 }

@@ -33,6 +33,7 @@ function slip(
     status: partial.status ?? "locked",
     outcomeAmount: partial.outcomeAmount ?? null,
     outcomeKind: partial.outcomeKind ?? null,
+    outcomeAt: partial.outcomeAt ?? null,
     identity: {
       gameServerNumber: partial.identity?.gameServerNumber ?? 1203,
       allianceTag: partial.identity?.allianceTag ?? "LFgo",
@@ -639,7 +640,11 @@ describe("dedupeDepositSlips — missing-timestamp reconciliation", () => {
     expect(slips[0]?.depositAt).toBe("2026-07-11T22:25:31.000Z");
     expect(report.autoMergedCount).toBe(3);
     expect(
-      report.clusters.some((c) => c.reason === "commander_match_missing_timestamp"),
+      report.clusters.some(
+        (c) =>
+          c.reason === "redundant_missing_timestamp" ||
+          c.reason === "commander_match_missing_timestamp",
+      ),
     ).toBe(true);
   });
 
@@ -1078,6 +1083,437 @@ describe("dedupeDepositSlips — folding missing-timestamp rows into an already-
     const clusterId = report.clusters[0]?.clusterId;
     expect(clusterId).toBeDefined();
     expect(slips.every((s) => s.dedupeClusterId === clusterId)).toBe(true);
+  });
+});
+
+describe("dedupeDepositSlips — review triage", () => {
+  it("auto-merges identical display-identity duplicates instead of flagging", () => {
+    const depositAt = "2026-07-11T13:18:26.000Z";
+    const { slips, report } = dedupeDepositSlips([
+      slip({ commanderName: "Red Panda Squad", depositAt, amount: 4500 }),
+      slip({ commanderName: "Red Panda Squad", depositAt, amount: 4500 }),
+      slip({
+        commanderName: "Red Panda Squad",
+        depositAt: "2026-07-11T13:18:40.000Z",
+        amount: 4500,
+      }),
+    ]);
+
+    expect(slips).toHaveLength(1);
+    expect(report.flaggedCount).toBe(0);
+    expect(report.autoMergedCount).toBeGreaterThanOrEqual(1);
+    expect(
+      report.clusters.some((c) => c.reason === "exact_display_identity"),
+    ).toBe(true);
+  });
+
+  it("merges locked + matured within the term window into one survivor with outcomeAt", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Myster X Zero",
+        depositAt: "2026-07-10T12:00:00.000Z",
+        amount: 5000,
+        termDays: 1,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "Myster X Zero",
+        depositAt: "2026-07-11T14:30:00.000Z",
+        amount: 5000,
+        termDays: 1,
+        status: "matured",
+        outcomeKind: "total_return",
+        outcomeAmount: 5700,
+      }),
+    ]);
+
+    expect(slips).toHaveLength(1);
+    expect(slips[0]?.status).toBe("matured");
+    expect(slips[0]?.depositAt).toBe("2026-07-10T12:00:00.000Z");
+    expect(slips[0]?.outcomeAt).toBe("2026-07-11T14:30:00.000Z");
+    expect(report.flaggedCount).toBe(0);
+    expect(
+      report.clusters.some((c) => c.reason === "lifecycle_locked_to_matured"),
+    ).toBe(true);
+  });
+
+  it("merges locked + looted within the term window", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Loot Pair",
+        depositAt: "2026-07-10T08:00:00.000Z",
+        amount: 3000,
+        termDays: 3,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "Loot Pair",
+        depositAt: "2026-07-12T09:00:00.000Z",
+        amount: 3000,
+        termDays: 3,
+        status: "looted",
+        outcomeKind: "early_termination_refund",
+        outcomeAmount: 0,
+      }),
+    ]);
+
+    expect(slips).toHaveLength(1);
+    expect(slips[0]?.status).toBe("looted");
+    expect(slips[0]?.depositAt).toBe("2026-07-10T08:00:00.000Z");
+    expect(slips[0]?.outcomeAt).toBe("2026-07-12T09:00:00.000Z");
+    expect(
+      report.clusters.some((c) => c.reason === "lifecycle_locked_to_looted"),
+    ).toBe(true);
+  });
+
+  it("absorbs a missing-timestamp twin that exactly matches one kept deposit", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "E Ron",
+        depositAt: "2026-07-11T10:00:00.000Z",
+        amount: 4500,
+        termDays: 1,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "E Ron",
+        depositAt: null,
+        amount: 4500,
+        termDays: 1,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "E Ron",
+        depositAt: null,
+        amount: 4500,
+        termDays: 1,
+        status: "locked",
+      }),
+    ]);
+
+    expect(slips).toHaveLength(1);
+    expect(slips[0]?.depositAt).toBe("2026-07-11T10:00:00.000Z");
+    expect(report.flaggedCount).toBe(0);
+    const redundant = report.clusters.filter(
+      (c) => c.reason === "redundant_missing_timestamp",
+    );
+    expect(redundant.length).toBeGreaterThanOrEqual(1);
+    expect(
+      redundant.reduce(
+        (n, c) =>
+          n + c.members.filter((m) => m.slipId !== c.destinationSlipId).length,
+        0,
+      ),
+    ).toBe(2);
+  });
+
+  it("absorbs a missing-timestamp row into the one exact-matching timestamped deposit", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "CaptainSmasher",
+        depositAt: "2026-07-11T10:38:00.000Z",
+        amount: 6000,
+        termDays: 1,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "CaptainSmasher",
+        depositAt: "2026-07-11T11:07:00.000Z",
+        amount: 7000,
+        termDays: 1,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "CaptainSmasher",
+        depositAt: null,
+        amount: 6000,
+        termDays: 1,
+        status: "locked",
+      }),
+    ]);
+
+    expect(slips).toHaveLength(2);
+    expect(
+      report.clusters.some((c) => c.reason === "redundant_missing_timestamp"),
+    ).toBe(true);
+    expect(
+      report.clusters.some(
+        (c) => c.reason === "commander_match_missing_timestamp_ambiguous",
+      ),
+    ).toBe(false);
+  });
+
+  it("flags missing-timestamp rows when two same-identity timestamped deposits make the match ambiguous", () => {
+    const { report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Ambiguous Twin",
+        depositAt: "2026-07-11T10:38:00.000Z",
+        amount: 6000,
+        termDays: 1,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "Ambiguous Twin",
+        depositAt: "2026-07-11T11:07:00.000Z",
+        amount: 6000,
+        termDays: 1,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "Ambiguous Twin",
+        depositAt: null,
+        amount: 6000,
+        termDays: 1,
+        status: "locked",
+      }),
+    ]);
+
+    expect(
+      report.clusters.some(
+        (c) => c.reason === "commander_match_missing_timestamp_ambiguous",
+      ),
+    ).toBe(true);
+  });
+
+  it("does not lifecycle-merge two matured deposits that only share display fields", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Twin Matured",
+        depositAt: "2026-07-10T12:00:00.000Z",
+        amount: 4000,
+        termDays: 1,
+        status: "matured",
+        outcomeKind: "total_return",
+        outcomeAmount: 4560,
+      }),
+      slip({
+        commanderName: "Twin Matured",
+        depositAt: "2026-07-11T12:00:00.000Z",
+        amount: 4000,
+        termDays: 1,
+        status: "matured",
+        outcomeKind: "total_return",
+        outcomeAmount: 4560,
+      }),
+    ]);
+
+    expect(slips).toHaveLength(2);
+    expect(
+      report.clusters.some((c) =>
+        c.reason.startsWith("lifecycle_locked_to_"),
+      ),
+    ).toBe(false);
+  });
+
+  it("does not fold two locked initiates into one matured outcome", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Double Lock",
+        depositAt: "2026-07-10T12:00:00.000Z",
+        amount: 5000,
+        termDays: 1,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "Double Lock",
+        depositAt: "2026-07-10T18:00:00.000Z",
+        amount: 5000,
+        termDays: 1,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "Double Lock",
+        depositAt: "2026-07-11T14:30:00.000Z",
+        amount: 5000,
+        termDays: 1,
+        status: "matured",
+        outcomeKind: "total_return",
+        outcomeAmount: 5700,
+      }),
+    ]);
+
+    expect(slips).toHaveLength(3);
+    expect(
+      report.clusters.some((c) => c.reason === "lifecycle_locked_to_matured"),
+    ).toBe(false);
+  });
+
+  it("does not lifecycle-merge locked + matured hours apart (not term-aligned)", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Early Green",
+        depositAt: "2026-07-10T12:00:00.000Z",
+        amount: 5000,
+        termDays: 1,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "Early Green",
+        depositAt: "2026-07-10T14:00:00.000Z",
+        amount: 5000,
+        termDays: 1,
+        status: "matured",
+        outcomeKind: "total_return",
+        outcomeAmount: 5700,
+      }),
+    ]);
+
+    expect(slips).toHaveLength(2);
+    expect(
+      report.clusters.some((c) => c.reason === "lifecycle_locked_to_matured"),
+    ).toBe(false);
+  });
+
+  it("peels a ≤15m post-loot re-deposit locked out of proximity merge", () => {
+    // Initiate 12:00 → loot 12:10 → re-deposit 12:20 all fit the 15m diameter.
+    // Peel keeps the post-terminal locked from riding the initiate+loot merge.
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Loot Redeposit",
+        depositAt: "2026-07-10T12:00:00.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "Loot Redeposit",
+        depositAt: "2026-07-10T12:10:00.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "looted",
+        outcomeKind: "early_termination_refund",
+        outcomeAmount: 0,
+      }),
+      slip({
+        commanderName: "Loot Redeposit",
+        depositAt: "2026-07-10T12:20:00.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "locked",
+      }),
+    ]);
+
+    expect(slips).toHaveLength(2);
+    const lockedRedeposit = slips.find(
+      (s) =>
+        s.status === "locked" &&
+        s.depositAt === "2026-07-10T12:20:00.000Z",
+    );
+    expect(lockedRedeposit).toBeDefined();
+    expect(lockedRedeposit?.amount).toBe(5000);
+    expect(slips.some((s) => s.status === "looted")).toBe(true);
+    expect(
+      report.clusters.filter((c) => c.reason === "lifecycle_locked_to_looted"),
+    ).toHaveLength(0);
+  });
+
+  it("still merges multi-frame OCR duplicates of a peeled post-loot re-deposit", () => {
+    // Two frames of the same post-loot locked must coalesce after peel, not
+    // stay as separate singleton survivors.
+    const { slips } = dedupeDepositSlips([
+      slip({
+        commanderName: "Loot Redeposit Dup",
+        depositAt: "2026-07-10T12:00:00.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "Loot Redeposit Dup",
+        depositAt: "2026-07-10T12:10:00.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "looted",
+        outcomeKind: "early_termination_refund",
+        outcomeAmount: 0,
+      }),
+      slip({
+        commanderName: "Loot Redeposit Dup",
+        depositAt: "2026-07-10T12:20:00.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "locked",
+        sourceFrameIndex: 10,
+      }),
+      slip({
+        commanderName: "Loot Redeposit Dup",
+        depositAt: "2026-07-10T12:20:05.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "locked",
+        sourceFrameIndex: 11,
+      }),
+    ]);
+
+    expect(slips).toHaveLength(2);
+    const lockedRedeposits = slips.filter((s) => s.status === "locked");
+    expect(lockedRedeposits).toHaveLength(1);
+    expect(lockedRedeposits[0]?.depositAt).toMatch(/^2026-07-10T12:20/);
+  });
+
+  it("does not absorb a post-loot re-deposit blue into a multi-frame-OCR'd orange majority (majority-outlier status guard)", () => {
+    // Three OCR reads of the SAME orange (looted) row within one minute form
+    // a majority home; a single re-deposit blue row lands ~20m later — inside
+    // the 45m outlier window, but status-mismatched, so must stay separate.
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Post Loot Redeposit",
+        depositAt: "2026-07-10T12:00:09.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "looted",
+        outcomeKind: "early_termination_refund",
+        outcomeAmount: 0,
+        sourceFrameIndex: 9,
+      }),
+      slip({
+        commanderName: "Post Loot Redeposit",
+        depositAt: "2026-07-10T12:00:10.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "looted",
+        outcomeKind: "early_termination_refund",
+        outcomeAmount: 0,
+        sourceFrameIndex: 10,
+      }),
+      slip({
+        commanderName: "Post Loot Redeposit",
+        depositAt: "2026-07-10T12:00:12.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "looted",
+        outcomeKind: "early_termination_refund",
+        outcomeAmount: 0,
+        sourceFrameIndex: 11,
+      }),
+      slip({
+        commanderName: "Post Loot Redeposit",
+        depositAt: "2026-07-10T12:20:00.000Z",
+        amount: 5000,
+        termDays: 3,
+        status: "locked",
+        sourceFrameIndex: 40,
+      }),
+    ]);
+
+    const lockedRedeposit = slips.find(
+      (s) =>
+        s.status === "locked" && s.depositAt === "2026-07-10T12:20:00.000Z",
+    );
+    expect(lockedRedeposit).toBeDefined();
+    // No survivor may claim an outcome before its own deposit (the corruption
+    // this guard prevents: the re-deposit's later depositAt paired with the
+    // earlier orange's outcomeAt).
+    for (const s of slips) {
+      if (s.outcomeAt && s.depositAt) {
+        expect(Date.parse(s.outcomeAt)).toBeGreaterThanOrEqual(
+          Date.parse(s.depositAt),
+        );
+      }
+    }
+    expect(
+      report.clusters.some((c) => c.reason === "lifecycle_locked_to_looted"),
+    ).toBe(false);
   });
 });
 

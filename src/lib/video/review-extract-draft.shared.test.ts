@@ -34,9 +34,12 @@ const baseForm = {
   team: "A" as const,
   recordedDate: "2026-06-26",
   bankId: "",
+  vsPeriod: "daily" as const,
 };
 
-function makeDraft(overrides?: Partial<ReturnType<typeof buildVideoReviewDraft>>) {
+function makeDraft(
+  overrides?: Partial<Parameters<typeof buildVideoReviewDraft>[0]>,
+) {
   return buildVideoReviewDraft({
     jobId: "job-1",
     viewMode: "review",
@@ -369,6 +372,21 @@ describe("restoreVideoReviewDraftIfPresent", () => {
     expect(result.rows[0]?.score).toBe("777");
     expect(result.form).toEqual(baseForm);
     expect(result.savedAt).toBe("2026-06-26T12:00:00.000Z");
+  });
+
+  it("restores vsPeriod and recordedDate from draft", () => {
+    const form = {
+      ...baseForm,
+      vsPeriod: "weekly" as const,
+      recordedDate: "2026-07-12",
+    };
+    writeVideoReviewDraftToStorage(makeDraft({ form }));
+    const result = restoreVideoReviewDraftIfPresent("job-1", "review", [
+      baseRow,
+    ]);
+    expect(result.restored).toBe(true);
+    expect(result.form?.vsPeriod).toBe("weekly");
+    expect(result.form?.recordedDate).toBe("2026-07-12");
   });
 
   it("returns null savedAt when draft omits savedAt", () => {

@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { PairingQrWizard } from "@/components/credential-pairing/PairingQrWizard";
-import { LinkedDevicesSettings } from "@/components/credential-pairing/LinkedDevicesSettings";
 import { AccountDiscordLinkSection } from "@/components/account/AccountDiscordLinkSection";
 import { SignInMethodQuickAccess } from "@/components/auth/SignInMethodQuickAccess";
 import { AppSelect } from "@/components/ui/AppSelect";
@@ -52,6 +50,8 @@ type Props = {
   signInLinkNotice?: LinkedOAuthProvider | null;
   signInLinkError?: string | null;
   ssoAvailability?: AuthSsoAvailability;
+  /** Native-only members cannot pair Ashed devices. */
+  isAshedConnectAllowed?: boolean;
 };
 
 export function AccountSettingsForm({
@@ -65,10 +65,10 @@ export function AccountSettingsForm({
   signInLinkNotice = null,
   signInLinkError = null,
   ssoAvailability = { google: false, discord: false },
+  isAshedConnectAllowed = true,
 }: Props) {
   const t = useTranslations("account");
   const tSettings = useTranslations("settings");
-  const tDevice = useTranslations("deviceLink");
   const tc = useTranslations("common");
   const locale = useLocale();
   const router = useRouter();
@@ -84,7 +84,6 @@ export function AccountSettingsForm({
     initialAshed?.expiryReminderDays ?? DEFAULT_EXPIRY_REMINDER_DAYS,
   );
   const [timezoneSaving, setTimezoneSaving] = useState(false);
-  const [linkedDevicesRefresh, setLinkedDevicesRefresh] = useState(0);
 
   useEffect(() => {
     if (initialTimezoneId) {
@@ -322,28 +321,20 @@ export function AccountSettingsForm({
         linkError={discordLinkError}
       />
 
-      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
-        <h2 className="font-medium">{tDevice("sectionTitle")}</h2>
-        <p className="mt-2 text-sm text-hq-fg-muted">{tDevice("sectionBody")}</p>
-        <p className="mt-2 text-sm text-hq-fg-muted">{tDevice("storageNote")}</p>
-        <div className="mt-4">
-          <PairingQrWizard
-            purpose="device_link"
-            onLinked={() => setLinkedDevicesRefresh((value) => value + 1)}
-            strings={{
-              showQr: tDevice("showQr"),
-              generating: tDevice("generating"),
-              scanHint: tDevice("scanHint"),
-              expiresIn: tDevice("expiresIn"),
-              expired: tDevice("expired"),
-              linked: tDevice("linked"),
-              createFailed: tDevice("createFailed"),
-              hideQr: tDevice("hideQr"),
-            }}
-          />
-          <LinkedDevicesSettings refreshToken={linkedDevicesRefresh} />
-        </div>
-      </section>
+      {isAshedConnectAllowed ? (
+        <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+          <h2 className="font-medium">{tSettings("linkDeviceTitle")}</h2>
+          <p className="mt-2 text-sm text-hq-fg-muted">
+            {tSettings("linkDeviceBody")}
+          </p>
+          <Link
+            href="/settings/link-device"
+            className="mt-4 inline-block text-sm text-hq-accent hover:underline"
+          >
+            {tSettings("linkDeviceLink")} →
+          </Link>
+        </section>
+      ) : null}
 
       {ashed ? (
         <section className="rounded-xl border border-hq-border bg-hq-surface p-5">

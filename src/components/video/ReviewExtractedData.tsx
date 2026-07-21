@@ -25,17 +25,26 @@ import {
   duplicateMemberRowIds,
   findDuplicateMemberAssignments,
 } from "@/lib/video/review-validation";
-import { isZeroScoreWarningDisabled } from "@/lib/video/score-targets";
 import {
+  isAllianceKillsVideoTarget,
+  isZeroScoreWarningDisabled,
+} from "@/lib/video/score-targets";
+import {
+  defaultVsPerformanceRecordedDate,
+  coerceVsPerformanceRecordedDate,
   isValidVsPerformanceRecordedDate,
   listRecentVsPerformanceDates,
-  nearestValidVsPerformanceDate,
   vsPerformanceDayMetaForDate,
+  type VsScorePeriod,
 } from "@/lib/video/vs-recorded-date.shared";
 import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
-import { shouldRefetchOnLiveJobStatus } from "@/lib/video/live-job-refresh.shared";
+import { memberMatchConfidenceBorderClass } from "@/lib/video/member-match-confidence-class";
+import {
+  isTerminalLiveJobStatus,
+  shouldRefetchOnLiveJobStatus,
+} from "@/lib/video/live-job-refresh.shared";
 import {
   buildConnectHref,
   stashConnectReturnPath,
@@ -85,6 +94,14 @@ import {
 import type { AshedMember } from "@/lib/video/member-matcher";
 import { readPreferredDepositSlipBankId } from "@/lib/banks/deposit-slip-upload-context.shared";
 import type { SerializedBank } from "@/lib/banks/types.shared";
+import { VideoJobProgressBar } from "@/components/video/VideoJobProgressBar";
+import {
+  isIndeterminateVideoJobStage,
+  resolveVideoJobStage,
+  stageShowsPipelineLabel,
+  videoJobEngineLabelKey,
+  videoJobStageProgressPercent,
+} from "@/lib/video/video-job-stage.shared";
 
 type ParsedRow = {
   id: string;
@@ -163,13 +180,6 @@ type GroupInfo = {
   }>;
 };
 
-function confidenceClass(confidence: number | null): string {
-  if (confidence == null || confidence === 0) return "border-hq-danger";
-  if (confidence >= 0.9) return "border-hq-green";
-  if (confidence >= 0.6) return "border-[#d29922]";
-  return "border-hq-danger";
-}
-
 function ReviewActionErrorBanner({
   message,
   connectUrl,
@@ -237,6 +247,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [hqEventId, setHqEventId] = useState("");
   const [boardKey, setBoardKey] = useState("");
   const [team, setTeam] = useState<"A" | "B">("A");
+  const [vsPeriod, setVsPeriod] = useState<VsScorePeriod>("daily");
   const [recordedDate, setRecordedDate] = useState(() =>
     accountTodayCalendarDate(timezoneId),
   );
@@ -306,6 +317,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [bankId, setBankId] = useState("");
   const rosterMembersHydratedRef = useRef(false);
   const liveJobStatusRef = useRef<string | null>(null);
+  const loadGenerationRef = useRef(0);
   const draftDirtyVersionRef = useRef(0);
   const [draftDirtyVersion, setDraftDirtyVersion] = useState(0);
   const isEventView = viewMode === "event";
@@ -323,8 +335,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       team,
       recordedDate,
       bankId,
+      vsPeriod,
     }),
-    [bankId, boardKey, eventId, hqEventId, recordedDate, team],
+    [bankId, boardKey, eventId, hqEventId, recordedDate, team, vsPeriod],
   );
 
   const draftEnabled =
@@ -388,18 +401,28 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }, []);
 
   const isVsPerformanceTarget = scoreTargetMeta?.id === "vs-performance";
+  const isAllianceKillsTarget =
+    scoreTargetMeta?.id != null &&
+    isAllianceKillsVideoTarget(scoreTargetMeta.id);
 
   const vsSafeRecordedDate = useMemo(() => {
     if (!isVsPerformanceTarget) return recordedDate;
-    if (isValidVsPerformanceRecordedDate(recordedDate)) return recordedDate;
-    return nearestValidVsPerformanceDate(recordedDate);
-  }, [isVsPerformanceTarget, recordedDate]);
+    return coerceVsPerformanceRecordedDate(recordedDate, vsPeriod);
+  }, [isVsPerformanceTarget, recordedDate, vsPeriod]);
 
   const vsRecordedDateOptions = useMemo(() => {
     if (!isVsPerformanceTarget) return [];
     return listRecentVsPerformanceDates({
       includeDate: vsSafeRecordedDate,
+      period: vsPeriod,
     }).map((date) => {
+      if (vsPeriod === "weekly") {
+        return {
+          value: date,
+          label: t("vsWeeklyDateOption", { date }),
+          searchText: date,
+        };
+      }
       const meta = vsPerformanceDayMetaForDate(date);
       const dayName = meta
         ? t(
@@ -424,7 +447,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         searchText: `${date} ${dayName}`,
       };
     });
-  }, [isVsPerformanceTarget, vsSafeRecordedDate, t]);
+  }, [isVsPerformanceTarget, vsSafeRecordedDate, vsPeriod, t]);
 
   const rematchMembers = useCallback(async () => {
     setRematching(true);
@@ -434,8 +457,21 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         `/api/tools/video-upload/${jobId}/rematch-members`,
         { method: "POST" },
       );
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as {
+        error?: string;
+        code?: string;
+        connectUrl?: string;
+      };
       if (!res.ok) {
+        if (data.code === "ashed_not_connected") {
+          const reviewPath = `/tools/video-upload/${jobId}/review`;
+          stashConnectReturnPath(reviewPath);
+          setActionError(
+            data.error ?? tc("uploadFailed"),
+            data.connectUrl ?? buildConnectHref(reviewPath),
+          );
+          return false;
+        }
         setActionError(data.error ?? tc("uploadFailed"));
         return false;
       }
@@ -454,6 +490,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const load = useCallback(
     async (options?: { skipRematch?: boolean }) => {
+      const generation = ++loadGenerationRef.current;
+      const isStale = () => generation !== loadGenerationRef.current;
+
       try {
         const res = await fetch(`/api/tools/video-upload/${jobId}`);
         const data = (await res.json()) as {
@@ -492,6 +531,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           >;
           members?: AshedMember[];
         };
+        if (isStale()) {
+          return;
+        }
         if (!res.ok) {
           setJobStatus("load_error");
           setActionError(data.error ?? tc("uploadFailed"));
@@ -505,10 +547,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           data.job?.status !== "submitting"
         ) {
           const ok = await rematchMembers();
+          if (isStale()) {
+            return;
+          }
           if (ok) {
             await loadRef.current({ skipRematch: true });
             return;
           }
+        }
+
+        if (isStale()) {
+          return;
         }
 
         const jobMembers = data.members ?? [];
@@ -558,9 +607,20 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           setHqEventId(restored.form.hqEventId);
           setBoardKey(restored.form.boardKey);
           setTeam(restored.form.team);
+          if (
+            restored.form.vsPeriod === "daily" ||
+            restored.form.vsPeriod === "weekly"
+          ) {
+            setVsPeriod(restored.form.vsPeriod);
+          }
+          const restoredPeriod =
+            restored.form.vsPeriod === "weekly" ? "weekly" : "daily";
           setRecordedDate(
             loadedIsVs
-              ? nearestValidVsPerformanceDate(restored.form.recordedDate)
+              ? coerceVsPerformanceRecordedDate(
+                  restored.form.recordedDate,
+                  restoredPeriod,
+                )
               : restored.form.recordedDate,
           );
           if (restored.form.bankId) {
@@ -574,7 +634,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             setBoardKey(data.job.boardKey);
           }
           if (loadedIsVs) {
-            setRecordedDate((prev) => nearestValidVsPerformanceDate(prev));
+            // VS dates are game-server calendar, not account-local "today"
+            // (Sat night officer-local can already be Sunday ST).
+            setRecordedDate(defaultVsPerformanceRecordedDate("daily"));
           }
         }
         setDraftRestored(restored.restored);
@@ -592,6 +654,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setAllianceName(data.alliance?.jobName ?? null);
         setAllianceStale(Boolean(data.alliance?.stale));
       } catch (err) {
+        if (isStale()) {
+          return;
+        }
         setJobStatus("load_error");
         setActionError(
           err instanceof Error ? err.message : tc("connectionFailed"),
@@ -612,14 +677,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }, [load]);
 
   const displayJobStatus = useMemo(() => {
-    const terminalStatuses = new Set([
+    const restTerminalStatuses = new Set([
       "review",
       "failed",
       "load_error",
       "complete",
       "discarded",
     ]);
-    if (terminalStatuses.has(jobStatus)) {
+    if (restTerminalStatuses.has(jobStatus)) {
       return jobStatus;
     }
     if (
@@ -629,6 +694,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         liveJob.status === "extracting" ||
         liveJob.status === "parsing")
     ) {
+      return liveJob.status;
+    }
+    // REST may lag the SSE stream when OCR finishes; honor review/failed only
+    // (complete/discarded from SSE while REST is still active must not exit the
+    // waiting UI without a refetch). load() runs via shouldRefetchOnLiveJobStatus.
+    if (liveJob && isTerminalLiveJobStatus(liveJob.status)) {
       return liveJob.status;
     }
     return jobStatus;
@@ -647,16 +718,21 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     // the provider returns a new object reference each time, so this effect
     // would otherwise run on every snapshot — re-running load() and clobbering
     // the reviewer's in-progress edits. See shouldRefetchOnLiveJobStatus.
-    if (shouldRefetchOnLiveJobStatus(previousStatus, liveJob.status)) {
+    if (
+      shouldRefetchOnLiveJobStatus(previousStatus, liveJob.status, {
+        restStatus: jobStatus,
+      })
+    ) {
       queueMicrotask(() => {
         void load();
       });
     }
-  }, [liveJob, load]);
+  }, [liveJob, load, jobStatus]);
 
   useEffect(() => {
     rosterMembersHydratedRef.current = false;
     liveJobStatusRef.current = null;
+    loadGenerationRef.current = 0;
   }, [jobId]);
 
   // Roster review: enrich stored rows from the job-alliance local roster once
@@ -966,6 +1042,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [rows],
   );
 
+  const assignedMemberIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const row of activeRows) {
+      const id = row.memberId?.trim();
+      if (id) ids.add(id);
+    }
+    return ids;
+  }, [activeRows]);
+
   const filteredRows = useMemo(
     () =>
       filterQuery.trim()
@@ -1152,11 +1237,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const duplicateMemberIssues = scoreTargetMeta?.showRosterColumns
     ? rosterValidation.duplicateMemberIssues
-    : scoreDuplicateMemberIssues;
+    : scoreTargetMeta?.showDepositSlipColumns
+      ? depositSlipValidation.duplicateMemberIssues
+      : scoreDuplicateMemberIssues;
 
   const duplicateRowIds = scoreTargetMeta?.showRosterColumns
     ? rosterValidation.duplicateRowIds
-    : scoreDuplicateRowIds;
+    : scoreTargetMeta?.showDepositSlipColumns
+      ? depositSlipValidation.duplicateRowIds
+      : scoreDuplicateRowIds;
 
   const hasScoreConflicts =
     scoreTargetMeta?.showScoreColumn !== false &&
@@ -1256,9 +1345,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     }
     if (
       scoreTargetMeta?.id === "vs-performance" &&
-      !isValidVsPerformanceRecordedDate(vsSafeRecordedDate)
+      !isValidVsPerformanceRecordedDate(vsSafeRecordedDate, vsPeriod)
     ) {
-      setActionError(t("vsSundayInvalid"));
+      setActionError(
+        vsPeriod === "weekly" ? t("vsWeeklyDateInvalid") : t("vsSundayInvalid"),
+      );
       return;
     }
 
@@ -1279,6 +1370,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           recordedDate: isVsPerformanceTarget
             ? vsSafeRecordedDate
             : recordedDate,
+          vsPeriod: isVsPerformanceTarget ? vsPeriod : undefined,
           bankId: scoreTargetMeta?.showBankSelector ? bankId : undefined,
           rows: rows.map((r) =>
             isRoster
@@ -1297,6 +1389,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 ? {
                     id: r.id,
                     ocrName: r.ocrName,
+                    memberId: r.memberId,
+                    memberName: r.memberName,
+                    matchConfidence: r.matchConfidence,
+                    matchMethod: r.matchMethod,
                     score: r.score ?? "",
                     powerLevel: r.powerLevel ?? null,
                     memberLevel: r.memberLevel,
@@ -1320,13 +1416,27 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       });
       const data = (await res.json()) as {
         error?: string;
+        code?: string;
+        connectUrl?: string;
         submitted?: number;
+        createdCount?: number;
+        skippedDuplicateCount?: number;
+        updatedCount?: number;
         duplicateMembers?: Array<{ memberName: string }>;
         showSolicitedFeedback?: boolean;
         solicitedSource?: "solicited_first_upload" | "solicited_third_upload";
       };
       if (!res.ok) {
-        setActionError(data.error ?? tc("uploadFailed"));
+        if (data.code === "ashed_not_connected") {
+          const reviewPath = `/tools/video-upload/${jobId}/review`;
+          stashConnectReturnPath(reviewPath);
+          setActionError(
+            data.error ?? tc("uploadFailed"),
+            data.connectUrl ?? buildConnectHref(reviewPath),
+          );
+          return;
+        }
+        setActionError(data.error ?? tc("uploadFailed"), data.connectUrl);
         return;
       }
       clearDraft();
@@ -1336,8 +1446,38 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           : scoreTargetMeta?.showRosterColumns
             ? t("rosterSubmitSuccess", { count: data.submitted ?? 0 })
             : scoreTargetMeta?.showDepositSlipColumns
-              ? t("depositSlipSubmitSuccess", { count: data.submitted ?? 0 })
-              : t("submitSuccess", { count: data.submitted ?? 0 }),
+              ? (() => {
+                  const created = data.createdCount ?? data.submitted ?? 0;
+                  const updated = data.updatedCount ?? 0;
+                  const skipped = data.skippedDuplicateCount ?? 0;
+                  // Reuse existing "Saved {count}" when only outcomes were applied
+                  // (no new en-US string without maintainer copy approval).
+                  if (created === 0 && updated > 0) {
+                    return [
+                      t("depositSlipSubmitSuccess", { count: updated }),
+                      skipped > 0
+                        ? t("depositSlipSubmitSkippedDuplicates", {
+                            count: skipped,
+                          })
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
+                  }
+                  return [
+                    t("depositSlipSubmitAdded", { count: created }),
+                    skipped > 0
+                      ? t("depositSlipSubmitSkippedDuplicates", {
+                          count: skipped,
+                        })
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
+                })()
+              : isAllianceKillsTarget
+                ? t("killsSubmitSuccess", { count: data.submitted ?? 0 })
+                : t("submitSuccess", { count: data.submitted ?? 0 }),
       );
       // Stay on review through success + OCR rating; event redirect resumes after.
       if (!isEventView) {
@@ -1518,19 +1658,73 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     );
   }
 
+  if (displayJobStatus === "pending_approval") {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-hq-fg-muted">{t("pendingApproval")}</p>
+        <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
+          {t("backToUploads")}
+        </Link>
+      </div>
+    );
+  }
+
   if (
-    displayJobStatus === "pending_approval" ||
     displayJobStatus === "queued" ||
     displayJobStatus === "extracting" ||
     displayJobStatus === "parsing"
   ) {
+    const liveStage = resolveVideoJobStage(displayJobStatus, liveJob?.stage);
+    const frameProgress =
+      liveJob?.frameCount != null && liveJob.frameCount > 0
+        ? {
+            completed: liveJob.uploadedFrameCount ?? 0,
+            total: liveJob.frameCount,
+          }
+        : null;
+    const progressPercent = videoJobStageProgressPercent(
+      liveStage,
+      frameProgress,
+    );
+    const progressIndeterminate = isIndeterminateVideoJobStage(
+      liveStage,
+      frameProgress,
+    );
+    const engineLabelKey = stageShowsPipelineLabel(liveStage)
+      ? videoJobEngineLabelKey(liveJob?.ocrEngine)
+      : null;
+
+    const stageMessage =
+      liveStage === "queued"
+        ? t("stageQueued")
+        : liveStage === "extracting_frames"
+          ? t("stageExtracting")
+          : liveStage === "ocr_running"
+            ? frameProgress
+              ? t("stageOcrRunning", {
+                  completed: frameProgress.completed,
+                  total: frameProgress.total,
+                })
+              : t("processing", { status: displayJobStatus })
+            : liveStage === "finalizing_rows"
+              ? t("stageFinalizing")
+              : t("processing", { status: displayJobStatus });
+
     return (
       <div className="space-y-4">
-        <p className="text-sm text-hq-fg-muted">
-          {displayJobStatus === "pending_approval"
-            ? t("pendingApproval")
-            : t("processing", { status: displayJobStatus })}
-        </p>
+        <div className="space-y-2">
+          <p className="text-sm text-hq-fg-muted">{stageMessage}</p>
+          <VideoJobProgressBar
+            percent={progressPercent}
+            indeterminate={progressIndeterminate}
+            label={stageMessage}
+          />
+          {engineLabelKey ? (
+            <p className="text-xs text-hq-fg-muted">
+              {t("pipelineLabel", { engine: t(engineLabelKey) })}
+            </p>
+          ) : null}
+        </div>
         <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
           {t("backToUploads")}
         </Link>
@@ -1948,14 +2142,61 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             </div>
           </div>
         ) : null}
+        {isVsPerformanceTarget ? (
+          <div className="block text-sm">
+            <span className="mb-1 block text-hq-fg-muted">
+              {t("vsPeriodLabel")}
+            </span>
+            <div
+              role="group"
+              aria-label={t("vsPeriodLabel")}
+              className="flex items-center gap-0.5 rounded-lg border border-hq-border p-0.5"
+            >
+              {(["daily", "weekly"] as const).map((option) => {
+                const active = vsPeriod === option;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => {
+                      markDraftDirty();
+                      setVsPeriod(option);
+                      setRecordedDate((prev) =>
+                        coerceVsPerformanceRecordedDate(prev, option),
+                      );
+                      clearActionError();
+                    }}
+                    aria-pressed={active}
+                    className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                      active
+                        ? "bg-hq-border text-hq-fg"
+                        : "text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg"
+                    }`}
+                  >
+                    {option === "daily" ? t("vsPeriodDaily") : t("vsPeriodWeekly")}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-xs text-hq-fg-muted">
+              {vsPeriod === "weekly"
+                ? t("vsPeriodWeeklyHint")
+                : t("vsPeriodDailyHint")}
+            </p>
+          </div>
+        ) : null}
         <label className="block text-sm">
           <span className="mb-1 block text-hq-fg-muted">{t("dateLabel")}</span>
           {isVsPerformanceTarget ? (
             <AppSelect
               value={vsSafeRecordedDate}
               onChange={(next) => {
-                if (!isValidVsPerformanceRecordedDate(next)) {
-                  setActionError(t("vsSundayInvalid"));
+                if (!isValidVsPerformanceRecordedDate(next, vsPeriod)) {
+                  setActionError(
+                    vsPeriod === "weekly"
+                      ? t("vsWeeklyDateInvalid")
+                      : t("vsSundayInvalid"),
+                  );
                   return;
                 }
                 markDraftDirty();
@@ -2148,6 +2389,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               dedupeFlag: row.dedupeFlag,
               deleted: row.deleted,
             }))}
+            members={members}
             filterQuery={filterQuery}
             dedupeReport={dedupeReport}
             onUpdateRow={(id, patch) => updateRow(id, patch)}
@@ -2214,7 +2456,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 {t("colMember")}
               </th>
               {scoreTargetMeta?.showScoreColumn !== false ? (
-                <th className="px-3 py-3">{t("colScore")}</th>
+                <th className="px-3 py-3">
+                  {isAllianceKillsTarget ? t("colKills") : t("colScore")}
+                </th>
               ) : null}
               <th className="w-10 px-2 py-3">
                 <span className="sr-only">{t("rowVideoPreview")}</span>
@@ -2288,7 +2532,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     }}
                     aria-label={t("colMember")}
                     placeholder={t("unmatched")}
-                    triggerClassName={`px-2 py-1.5 ${confidenceClass(row.matchConfidence)}`}
+                    triggerClassName={`px-2 py-1.5 ${memberMatchConfidenceBorderClass(row.matchConfidence)}`}
                     searchable
                     searchMode="fuzzy"
                     combobox
@@ -2300,6 +2544,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                       highlightMemberId: row.memberId,
                       highlightConfidence: row.matchConfidence,
                       selectedMembers: rows,
+                      excludeMemberIds: assignedMemberIds,
                     })}
                   />
                 </td>
@@ -2412,7 +2657,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 ? t("saveDepositSlips", { count: activeRows.length })
                 : isEventView
                   ? t("updateScores", { count: activeRows.length })
-                  : t("saveScores", { count: activeRows.length })}
+                  : isAllianceKillsTarget
+                    ? t("saveKills", { count: activeRows.length })
+                    : t("saveScores", { count: activeRows.length })}
         </button>
         {!isEventView ? (
         <button

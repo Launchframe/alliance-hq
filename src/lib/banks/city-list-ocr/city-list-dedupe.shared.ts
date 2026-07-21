@@ -143,16 +143,30 @@ function findNearestPassBankIndex(
 
 /**
  * Merge primary + secondary OCR passes from one screenshot.
- * Keeps primary coordinates when a secondary tile is within tolerance;
- * appends secondary tiles that are genuinely new (e.g. a recovered top row).
+ *
+ * Each pass's own bank list is already in screenshot reading order (top to
+ * bottom, left to right — see the zip comment in parse-city-list-text). The
+ * pass that recovered more tiles is the more complete read of the grid, so
+ * it wins as the position backbone; the other pass only fills in per-tile
+ * detail (level/value/deposit count) by nearest-coordinate match. This
+ * matters for the exact bug dual-pass exists to fix: when the primary pass
+ * drops a whole row, the recovery pass's order — not a game-coordinate sort —
+ * is what puts that row back in its correct screen position.
  */
 export function mergeCityListOcrPasses(
   primary: ParsedCityListSnapshot,
   secondary: ParsedCityListSnapshot,
 ): ParsedCityListSnapshot {
-  const banks: ParsedCityListBank[] = primary.banks.map((bank) => ({ ...bank }));
+  // Equal tile count → primary (greyscale) stays the backbone; only a strictly
+  // longer secondary pass flips which list supplies screen positions.
+  const [base, overlay] =
+    secondary.banks.length > primary.banks.length
+      ? [secondary, primary]
+      : [primary, secondary];
 
-  for (const candidate of secondary.banks) {
+  const banks: ParsedCityListBank[] = base.banks.map((bank) => ({ ...bank }));
+
+  for (const candidate of overlay.banks) {
     const idx = findNearestPassBankIndex(
       banks,
       candidate,
@@ -171,14 +185,6 @@ export function mergeCityListOcrPasses(
       banks.push({ ...candidate });
     }
   }
-
-  banks.sort((a, b) => {
-    if (a.gameServerNumber !== b.gameServerNumber) {
-      return a.gameServerNumber - b.gameServerNumber;
-    }
-    if (a.coordX !== b.coordX) return a.coordX - b.coordX;
-    return a.coordY - b.coordY;
-  });
 
   const capturedCount = firstNonNullNumber([
     primary.capturedCount,
@@ -213,6 +219,16 @@ export function mergeCityListOcrPasses(
  * Collapse overlapping City List screenshots into one snapshot.
  * Duplicate tiles (same server + X/Y) are auto-merged; conflicting extras
  * that somehow share a key are still coalesced (coords are the identity).
+ *
+ * Output order follows Map first-encounter order while scanning `parts` in
+ * array order: the first time a tile (server + coords) appears fixes its
+ * position; duplicates in later screenshots coalesce in place without moving.
+ * Tiles seen only in a later part append in the order they are first
+ * encountered. Each part's banks are already in that screenshot's reading
+ * order (top-to-bottom, left-to-right). This is intentionally NOT a
+ * game-coordinate sort — map X/Y do not reliably increase left-to-right/
+ * top-to-bottom on screen, so sorting by them would scramble the on-screen
+ * grid order officers expect in the review table.
  */
 export function mergeCityListParses(
   parts: readonly ParsedCityListSnapshot[],
@@ -280,14 +296,6 @@ export function mergeCityListParses(
     });
     banks.push(merged);
   }
-
-  banks.sort((a, b) => {
-    if (a.gameServerNumber !== b.gameServerNumber) {
-      return a.gameServerNumber - b.gameServerNumber;
-    }
-    if (a.coordX !== b.coordX) return a.coordX - b.coordX;
-    return a.coordY - b.coordY;
-  });
 
   const capturedCount = firstNonNullNumber(
     parts.map((part) => part.capturedCount),

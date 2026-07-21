@@ -15,6 +15,7 @@ import {
   type RosterRankQuotaErrorCode,
 } from "@/lib/members/roster-rank-quota.shared";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
+import { memberMatchConfidenceBorderClass } from "@/lib/video/member-match-confidence-class";
 import {
   duplicateMemberRowIds,
   findDuplicateMemberAssignments,
@@ -67,13 +68,6 @@ const PROFESSION_OPTIONS: Array<AshedMemberProfession | ""> = [
 ];
 
 const RANK_OPTIONS = [1, 2, 3, 4, 5] as const;
-
-function confidenceClass(confidence: number | null): string {
-  if (confidence == null || confidence === 0) return "border-[#484f58]";
-  if (confidence >= 0.9) return "border-hq-green";
-  if (confidence >= 0.6) return "border-[#d29922]";
-  return "border-[#484f58]";
-}
 
 function normalizeOcrName(name: string): string {
   return name.trim().toLowerCase();
@@ -192,6 +186,15 @@ export function RosterVideoReviewTable({
         .sort((a, b) => a.current_name.localeCompare(b.current_name)),
     [members],
   );
+
+  const assignedMemberIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const row of activeRows) {
+      const id = row.memberId?.trim();
+      if (id) ids.add(id);
+    }
+    return ids;
+  }, [activeRows]);
 
   function quotaErrorLabel(code: RosterRankQuotaErrorCode): string {
     return t(`rosterQuota.${code}`, {
@@ -313,7 +316,7 @@ export function RosterVideoReviewTable({
                       }}
                       aria-label={t("colMember")}
                       placeholder={tMembers("createNew")}
-                      triggerClassName={`px-2 py-1.5 ${confidenceClass(row.matchConfidence)}`}
+                      triggerClassName={`px-2 py-1.5 ${memberMatchConfidenceBorderClass(row.matchConfidence)}`}
                       searchable
                       searchMode="fuzzy"
                       combobox
@@ -324,6 +327,7 @@ export function RosterVideoReviewTable({
                         emptyLabel: tMembers("createNew"),
                         highlightMemberId: row.memberId,
                         highlightConfidence: row.matchConfidence,
+                        excludeMemberIds: assignedMemberIds,
                       })}
                     />
                   </td>

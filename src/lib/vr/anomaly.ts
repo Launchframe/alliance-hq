@@ -1,4 +1,4 @@
-import { ANOMALY_GAP, ANOMALY_MIN_REPORTERS, OFFICER_REVIEW_THRESHOLD } from "@/lib/vr/validation";
+import { ANOMALY_GAP, ANOMALY_MIN_REPORTERS } from "@/lib/vr/validation";
 
 export function peerMaxExcludingMember(
   rows: Array<{ ashedMemberId: string; highestBaseVr: number }>,
@@ -12,24 +12,21 @@ export function peerMaxExcludingMember(
   return max;
 }
 
+/** True when a report is far enough above alliance peers to warrant confirm/flag. */
 export function shouldAnomalyConfirm(input: {
   proposedVr: number;
   reporterCount: number;
   peerMax: number;
 }): boolean {
   if (input.reporterCount < ANOMALY_MIN_REPORTERS) return false;
-  if (input.proposedVr > OFFICER_REVIEW_THRESHOLD) return true;
   if (input.peerMax <= 0) return false;
   return input.proposedVr >= input.peerMax + ANOMALY_GAP;
 }
 
-export function anomalyConfirmMessage(proposedVr: number): string {
-  return `Are you *sure* your VR is ${proposedVr}? That would be way ahead of the pack for base VR. Tap Yes if you're serious — we believe you (probably).`;
+export function buildFlagReason(proposedVr: number, peerMax: number): string {
+  return `peer_gap_${proposedVr - peerMax}`;
 }
 
-export function buildFlagReason(proposedVr: number, peerMax: number): string {
-  if (proposedVr > OFFICER_REVIEW_THRESHOLD) {
-    return `above_${OFFICER_REVIEW_THRESHOLD}`;
-  }
-  return `peer_gap_${proposedVr - peerMax}`;
+export function anomalyConfirmMessage(proposedVr: number): string {
+  return `Are you *sure* your VR is ${proposedVr}? That would be way ahead of the pack for base VR. Tap Yes if you're serious — we believe you (probably).`;
 }

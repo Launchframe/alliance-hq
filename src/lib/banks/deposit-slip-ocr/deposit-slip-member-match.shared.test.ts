@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  depositSlipMemberMatchBorderClass,
   depositSlipReviewMatchConfidence,
   isDepositSlipAutoLinkedMatchMethod,
 } from "@/lib/banks/deposit-slip-ocr/deposit-slip-member-match.shared";
@@ -34,5 +35,21 @@ describe("isDepositSlipAutoLinkedMatchMethod", () => {
     expect(isDepositSlipAutoLinkedMatchMethod("exact")).toBe(true);
     expect(isDepositSlipAutoLinkedMatchMethod("fuzzy")).toBe(true);
     expect(isDepositSlipAutoLinkedMatchMethod("previous_name")).toBe(true);
+  });
+});
+
+describe("depositSlipMemberMatchBorderClass", () => {
+  it("uses auto-link green at 0.85 (not the generic 0.9 score-review floor)", () => {
+    expect(depositSlipMemberMatchBorderClass(0.85)).toBe("border-hq-green");
+    expect(depositSlipMemberMatchBorderClass(0.86)).toBe("border-hq-green");
+  });
+
+  it("marks near-miss below auto-link as warning", () => {
+    expect(depositSlipMemberMatchBorderClass(0.7)).toBe("border-hq-warning");
+  });
+
+  it("uses neutral border when unmatched", () => {
+    expect(depositSlipMemberMatchBorderClass(null)).toBe("border-hq-border");
+    expect(depositSlipMemberMatchBorderClass(0)).toBe("border-hq-border");
   });
 });

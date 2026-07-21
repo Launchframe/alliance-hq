@@ -16,6 +16,27 @@ type DialogProps = {
   presentationHidden?: boolean;
 };
 
+/** Nested open dialogs share one body scroll lock. */
+let bodyScrollLockCount = 0;
+let previousBodyOverflow = "";
+
+function lockBodyScroll() {
+  if (typeof document === "undefined") return;
+  if (bodyScrollLockCount === 0) {
+    previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+  }
+  bodyScrollLockCount += 1;
+}
+
+function unlockBodyScroll() {
+  if (typeof document === "undefined") return;
+  bodyScrollLockCount = Math.max(0, bodyScrollLockCount - 1);
+  if (bodyScrollLockCount === 0) {
+    document.body.style.overflow = previousBodyOverflow;
+  }
+}
+
 export function Dialog({
   open,
   onOpenChange,
@@ -39,13 +60,19 @@ export function Dialog({
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [ignoreOutsideDismiss, onOpenChange, open, presentationHidden]);
 
+  React.useEffect(() => {
+    if (!open || presentationHidden) return;
+    lockBodyScroll();
+    return () => unlockBodyScroll();
+  }, [open, presentationHidden]);
+
   if (!open || !mounted) {
     return null;
   }
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[100] flex items-end justify-center p-4 sm:items-center${
+      className={`fixed inset-0 z-[100] flex items-end justify-center overscroll-none p-4 sm:items-center${
         presentationHidden ? " invisible pointer-events-none" : ""
       }`}
       role="dialog"
@@ -60,7 +87,9 @@ export function Dialog({
           if (!ignoreOutsideDismiss) onOpenChange(false);
         }}
       />
-      <div className={dialogPanelClassName(className)}>{children}</div>
+      <div className={`${dialogPanelClassName(className)} overscroll-contain`}>
+        {children}
+      </div>
     </div>,
     document.body,
   );

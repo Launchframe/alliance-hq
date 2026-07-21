@@ -61,8 +61,8 @@ describe("fetchNativeVrTopScorers", () => {
   it("returns active roster members sorted by season VR", async () => {
     const result = await fetchNativeVrTopScorers("a1", 10);
     expect(result).toEqual([
-      { memberId: "m1", memberName: "Alpha", allianceRank: 4 },
-      { memberId: "m2", memberName: "Beta", allianceRank: 3 },
+      { memberId: "m1", memberName: "Alpha", allianceRank: 4, priorDayVsScore: 120 },
+      { memberId: "m2", memberName: "Beta", allianceRank: 3, priorDayVsScore: 90 },
     ]);
   });
 
@@ -74,7 +74,7 @@ describe("fetchNativeVrTopScorers", () => {
 
     const result = await fetchNativeVrTopScorers("a1", 1);
     expect(result).toEqual([
-      { memberId: "m1", memberName: "Alpha", allianceRank: 4 },
+      { memberId: "m1", memberName: "Alpha", allianceRank: 4, priorDayVsScore: 50 },
     ]);
   });
 });

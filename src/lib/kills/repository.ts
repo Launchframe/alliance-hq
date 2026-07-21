@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
@@ -20,7 +20,14 @@ const HQ_SOURCES_PENDING_ASHED_SYNC = new Set<KillsEventSource>([
   "screenshot_ocr",
 ]);
 
-function ashedSyncedAtForSource(source: KillsEventSource, now: Date): Date | null {
+function ashedSyncedAtForSource(
+  source: KillsEventSource,
+  now: Date,
+  markAshedSynced?: boolean,
+): Date | null {
+  if (markAshedSynced) {
+    return now;
+  }
   if (source === "ashed_sync" || source === "officer_override") {
     return now;
   }
@@ -110,6 +117,8 @@ export async function upsertCommanderKills(input: {
   source: KillsEventSource;
   hqUserId?: string | null;
   discordUserId?: string | null;
+  /** When true, skip outbound Member.current_kills sync (already written elsewhere). */
+  markAshedSynced?: boolean;
 }): Promise<boolean> {
   const db = getDb();
   const now = new Date();
@@ -117,6 +126,9 @@ export async function upsertCommanderKills(input: {
   const previousTotal = current?.currentKills ?? null;
 
   if (previousTotal === input.total) {
+    if (input.markAshedSynced) {
+      await markLatestVideoParseKillsAshedSynced(input.commanderId);
+    }
     return false;
   }
 
@@ -129,7 +141,11 @@ export async function upsertCommanderKills(input: {
     allianceId: input.allianceId ?? null,
     reportedByHqUserId: input.hqUserId ?? null,
     reportedByDiscordUserId: input.discordUserId ?? null,
-    ashedSyncedAt: ashedSyncedAtForSource(input.source, now),
+    ashedSyncedAt: ashedSyncedAtForSource(
+      input.source,
+      now,
+      input.markAshedSynced,
+    ),
     createdAt: now,
   });
 
@@ -141,6 +157,84 @@ export async function upsertCommanderKills(input: {
       updatedAt: now,
     })
     .where(eq(schema.commanders.id, input.commanderId));
+
+  return true;
+}
+
+/** Mark the latest non-discarded video_parse kills event as already synced to Ashed. */
+export async function markLatestVideoParseKillsAshedSynced(
+  commanderId: string,
+): Promise<boolean> {
+  const db = getDb();
+  const [latest] = await db
+    .select({
+      id: schema.commanderKillsEvents.id,
+      source: schema.commanderKillsEvents.source,
+      ashedSyncedAt: schema.commanderKillsEvents.ashedSyncedAt,
+    })
+    .from(schema.commanderKillsEvents)
+    .where(
+      and(
+        eq(schema.commanderKillsEvents.commanderId, commanderId),
+        isNull(schema.commanderKillsEvents.discardedAt),
+      ),
+    )
+    .orderBy(desc(schema.commanderKillsEvents.createdAt))
+    .limit(1);
+
+  if (!latest || latest.source !== "video_parse" || latest.ashedSyncedAt) {
+    return false;
+  }
+
+  await db
+    .update(schema.commanderKillsEvents)
+    .set({ ashedSyncedAt: new Date() })
+    .where(eq(schema.commanderKillsEvents.id, latest.id));
+  return true;
+}
+
+/**
+ * Discard the latest video_parse kills event and restore previousTotal when it
+ * still matches commander.currentKills (re-submit removed this member).
+ */
+export async function revertLatestVideoParseKillsIfStillCurrent(
+  commanderId: string,
+): Promise<boolean> {
+  const db = getDb();
+  const state = await getCommanderKillsState(commanderId);
+  const [latest] = await db
+    .select()
+    .from(schema.commanderKillsEvents)
+    .where(
+      and(
+        eq(schema.commanderKillsEvents.commanderId, commanderId),
+        isNull(schema.commanderKillsEvents.discardedAt),
+      ),
+    )
+    .orderBy(desc(schema.commanderKillsEvents.createdAt))
+    .limit(1);
+
+  if (!latest || latest.source !== "video_parse") {
+    return false;
+  }
+  if (state?.currentKills !== latest.total) {
+    return false;
+  }
+
+  const now = new Date();
+  await db
+    .update(schema.commanderKillsEvents)
+    .set({ discardedAt: now })
+    .where(eq(schema.commanderKillsEvents.id, latest.id));
+
+  await db
+    .update(schema.commanders)
+    .set({
+      currentKills: latest.previousTotal,
+      killsUpdatedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(schema.commanders.id, commanderId));
 
   return true;
 }

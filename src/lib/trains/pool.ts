@@ -214,7 +214,7 @@ export function pickWeightedPoolEntryFromRows<
   return weightedRows[weightedRows.length - 1] ?? null;
 }
 
-function pickUniformPoolEntry<T>(rows: T[]): T | null {
+export function pickUniformPoolEntry<T>(rows: T[]): T | null {
   if (rows.length === 0) return null;
   return rows[Math.floor(Math.random() * rows.length)] ?? null;
 }

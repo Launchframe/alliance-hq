@@ -82,6 +82,7 @@
     "mergeManager": "Gerenciador de Fusão",
     "vsPerformance": "Desempenho VS",
     "donations": "Doações",
+    "allianceKillsVideo": "Contagens de kills",
     "allianceExercise": "Exercício da Aliança",
     "reports": "Relatórios",
     "viralResistance": "Resistência Viral",
@@ -182,6 +183,7 @@
         "donations": "Doações",
         "allianceExercise": "Exercício da aliança",
         "zombieSiege": "Cerco zumbi",
+        "allianceKillsVideo": "Contagens de kills",
         "weekendEvent": "Guerra do Capitólio / Meteoro (fim de semana)"
       }
     },
@@ -765,11 +767,35 @@
       "statusReview": "Revisão",
       "statusComplete": "Concluído",
       "allStatuses": "Todos os status",
-      "listLoading": "Carregando jobs…"
+      "listLoading": "Carregando jobs…",
+      "passRolePrimary": "Principal",
+      "passRoleShadow": "Sombra",
+      "passKeyLabel": "Passagem",
+      "reprocessDialogTitle": "Ajustar a captura de frames antes de reprocessar?",
+      "reprocessDialogBody": "Extração atual: {passKey} ({summary}). Escolha uma taxa mais densa ou mais esparsa, mantenha a atual ou abra as configurações avançadas só para esta passagem.",
+      "reprocessKeep": "Manter a taxa atual",
+      "reprocessIncrease": "Aumentar (mais densa — melhor para rolagem lenta)",
+      "reprocessDecrease": "Diminuir (mais esparsa — menos frames)",
+      "reprocessAdvanced": "Avançado",
+      "reprocessAdvancedHint": "Ajuste fino só desta passagem. Os resultados ficam no experimento ad hoc de reprocessamento deste score target.",
+      "reprocessMode": "Modo de captura",
+      "reprocessModeFps": "Frames por segundo fixos",
+      "reprocessModeScene": "Mudanças de cena",
+      "reprocessSampleFps": "Frames por segundo",
+      "reprocessSceneThreshold": "Limiar de cena",
+      "reprocessPickConfig": "Começar a partir de uma parse config",
+      "reprocessPickConfigNone": "Personalizado",
+      "reprocessConfirm": "Reprocessar",
+      "reprocessCancel": "Cancelar",
+      "reprocessAtMax": "Já está na taxa simples mais densa",
+      "reprocessAtMin": "Já está na taxa simples mais esparsa"
     },
     "videoJobDetailPage": {
       "loading": "Carregando detalhes do job…",
       "backToList": "← Jobs de vídeo",
+      "previousJob": "Job anterior",
+      "nextJob": "Próximo job",
+      "jobPosition": "{position} de {total}",
       "uploadedBy": "Enviado por",
       "frameCount": "Frames",
       "totalTime": "Tempo total",
@@ -1391,6 +1417,22 @@
       "signingOut": "Saindo…",
       "unknownUser": "Usuário HQ",
       "unknownEmail": "Sem e-mail cadastrado"
+    },
+    "ashedStatus": {
+      "label": "Ashed",
+      "ariaConnected": "Status da conexão Ashed: conectado",
+      "ariaDisconnected": "Status da conexão Ashed: desconectado — reconectar",
+      "titleConnected": "Conectado ao Ashed",
+      "titleDisconnected": "Não conectado — cole o JWT",
+      "connectedHeading": "Conectado",
+      "connectedSince": "Conectado desde",
+      "requestsThisSession": "Solicitações Ashed nesta sessão",
+      "disconnect": "Desconectar",
+      "linkAnotherDevice": "Vincular outro dispositivo",
+      "reconnectHeading": "Reconectar ao Ashed",
+      "reconnectHint": "Cole um JWT (ou token Bearer). O HQ conecta automaticamente quando o token é válido — sem botão para clicar.",
+      "jwtLabel": "JWT do Ashed",
+      "jwtPlaceholder": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…"
     }
   },
   "shellActivity": {
@@ -1519,6 +1561,10 @@
     "successTitle": "Conectado ao Ashed",
     "signedInAsBefore": "Conectado como",
     "returningUserHint": "Bem-vindo de volta — cole uma nova chave de conexão do DevTools quando estiver pronto.",
+    "multiDeviceWarning": {
+      "title": "Já conectado em outro dispositivo?",
+      "body": "Não cole uma nova chave de conexão aqui se outro navegador ou celular ainda tiver o Ashed conectado — isso desconectará o outro dispositivo. No dispositivo que ainda funciona, abra <link>Vincular dispositivo</link> e escaneie o QR com este."
+    },
     "showSetupInstructions": "Ver instruções completas de configuração",
     "noExpiryRead": "Conectado, mas não conseguimos ler uma data de expiração neste token. Ainda assim, notificaremos você se o Ashed parar de aceitá-lo.",
     "continue": "Continuar para o Alliance HQ",
@@ -1579,7 +1625,7 @@
         "errorBody": "O código QR expirou ou não pôde ser usado. Tente novamente quando estiver pronto.",
         "tryAgain": "Tentar novamente",
         "skip": "Pular por enquanto",
-        "skippedBody": "Sem problemas. Você pode conectar outro dispositivo em <settingsLink>Configurações</settingsLink> a qualquer momento.",
+        "skippedBody": "Sem problemas. Você pode conectar outro dispositivo em <settingsLink>Vincular dispositivo</settingsLink> a qualquer momento.",
         "continueWithoutPhone": "Continuar para o Alliance HQ",
         "continueToHq": "Continuar para o Alliance HQ",
         "privacyNote": "NÃO COMPARTILHE este código QR com ninguém. O código nele contido é um link de curta duração para sua conta — quem obtiver esse código poderá assumir o controle total da sua conta."
@@ -1875,6 +1921,9 @@
     "hotkeysTitle": "Atalhos de teclado",
     "hotkeysBody": "Veja e personalize atalhos para navegação e ações comuns.",
     "hotkeysLink": "Gerenciar atalhos de teclado",
+    "linkDeviceTitle": "Vincular dispositivo",
+    "linkDeviceBody": "Mostre um QR code para copiar sua conexão Ashed para um celular ou outro navegador — sem colar as credenciais de novo.",
+    "linkDeviceLink": "Abrir Vincular dispositivo",
     "uploadRemindersTitle": "Lembretes de upload",
     "uploadRemindersBody": "Configure quando os oficiais são lembrados de enviar pontuações de eventos e gerencie suas assinaturas pessoais.",
     "uploadRemindersLink": "Gerenciar lembretes de upload",
@@ -2205,15 +2254,25 @@
     "switchToSelected": "Usar {tag} nesta sessão"
   },
   "deviceLink": {
-    "sectionTitle": "Vincular dispositivo móvel",
-    "sectionBody": "Já conectou no computador? Mostre um QR code aqui e escaneie com a câmera do celular para usar a mesma conexão no mobile — sem o passo do DevTools.",
-    "storageNote": "Sua chave de conexão continua criptografada no nosso servidor — o QR code contém apenas um link de curta duração, não a chave em si.",
+    "pageTitle": "Vincular dispositivo",
+    "pageSubtitle": "Copie sua conexão Ashed para outro celular ou navegador com um QR code.",
+    "multiDeviceHint": {
+      "title": "Use isto para cada dispositivo extra",
+      "body": "<strong>Vincular dispositivo</strong> é a única forma segura de usar o Ashed em vários celulares ou navegadores. Conectar manualmente (colar um cURL / chave de conexão) em outro dispositivo apagará a conexão Ashed deste dispositivo."
+    },
+    "needsConnectionBody": "Conecte o Ashed neste dispositivo primeiro e volte aqui para mostrar um QR code para os outros dispositivos.",
+    "needsConnectionCta": "Conectar Ashed",
+    "sectionTitle": "Mostrar QR code",
+    "sectionBody": "Escaneie com o celular ou navegador que deseja vincular — sem o passo do DevTools nesse dispositivo.",
+    "storageNote": "Sua chave de conexão continua criptografada no nosso servidor — o QR code e o link copiável contêm apenas uma URL de vinculação de curta duração, não a chave em si.",
     "showQr": "Mostrar QR code",
     "generating": "Gerando…",
     "scanHint": "Abra a câmera do celular e escaneie este código.",
+    "desktopLinkHint": "Vincular outro computador ou navegador? Copie este link e abra-o lá antes de expirar — o mesmo efeito de escanear o QR.",
+    "copyLinkLabel": "Link para outro dispositivo",
     "expiresIn": "Expira em",
     "expired": "Este QR code expirou. Gere um novo.",
-    "linked": "Dispositivo móvel vinculado.",
+    "linked": "Dispositivo vinculado.",
     "createFailed": "Não foi possível iniciar a vinculação do dispositivo.",
     "hideQr": "Ocultar QR code",
     "landing": {
@@ -2222,7 +2281,7 @@
       "success": "Seu celular agora está conectado.",
       "continue": "Continuar para o Alliance HQ",
       "failed": "Este link é inválido ou expirou.",
-      "retryHint": "No computador, abra Configurações e gere um novo QR code."
+      "retryHint": "No dispositivo conectado, abra Vincular dispositivo e gere um novo QR code."
     },
     "devices": {
       "listTitle": "Dispositivos vinculados",
@@ -2929,6 +2988,9 @@
     },
     "breakdownTotalLabel": "Total do detalhamento: {total}",
     "breakdownSubmit": "Salvar Detalhamento",
+    "breakdownPreviewScreenshot": "Ver captura",
+    "breakdownClosePreview": "Fechar pré-visualização",
+    "ocrPartialHint": "Alguns valores não puderam ser lidos com precisão. Verifique e corrija os campos destacados, depois salve.",
     "percentileTitle": "Posição na aliança",
     "percentileRank": "Posição {rank} de {count} que reportaram",
     "percentileAtOrBelow": "{percentile}% dos que reportaram estão no seu THP ou abaixo",
@@ -3032,7 +3094,8 @@
     "emptyRosterCta": "Ir para Membros",
     "planWeekBanner": {
       "title": "Planeje esta semana de trem",
-      "body": "Esta semana é um rascunho do seu modelo padrão. Escolha um modelo, pinte dias ou sorteie o condutor de hoje — seu plano é salvo quando você age."
+      "body": "Esta semana é um rascunho do seu modelo padrão. Escolha um modelo, pinte dias ou sorteie o condutor de hoje — seu plano é salvo quando você age.",
+      "chooseTemplate": "Escolher um modelo"
     },
     "previewLegend": "Dias esmaecidos são rascunhos; eles são salvos quando um oficial atualiza a agenda.",
     "previewDraftAriaLabel": "Agenda em rascunho",
@@ -3075,6 +3138,17 @@
     "templateBadge": "Modelo: {template}",
     "templateSelectLabel": "Modelo da semana",
     "templateSelectAria": "Modelo de agenda da semana",
+    "templatePicker": {
+      "title": "Escolher modelo da semana",
+      "apply": "Usar este modelo",
+      "cancel": "Cancelar",
+      "drawModeLabel": "Modo do sorteio",
+      "equalChance": "Chance igual",
+      "closerIsBetter": "Mais perto é melhor",
+      "equalChanceHint": "Todo R3 elegível tem a mesma chance (1/N).",
+      "closerIsBetterHint": "Pontuações mais próximas de 7,2M recebem mais bilhetes e maior chance de ganhar.",
+      "weekShapeAria": "Pré-visualização da cor de cada dia neste modelo"
+    },
     "todayConductor": "Condutor de hoje",
     "todayVip": "VIP",
     "awaitingConductor": "Aguardando seleção",
@@ -3162,8 +3236,54 @@
       "wheelSpeed_slow": "Lenta",
       "wheelSpeed_regular": "Normal",
       "wheelSpeed_fast": "Rápida",
+      "simpleMode": {
+        "label": "Modo simples",
+        "hint": "Passos guiados para escolher o condutor de hoje em vez da grade completa de ações rápidas."
+      },
       "advancedSettings": "Configurações avançadas",
       "saveFailed": "Não foi possível salvar as preferências de trens."
+    },
+    "guidedFlow": {
+      "heading": "Configuração do condutor de hoje",
+      "steps": {
+        "prerequisites": {
+          "title": "Dados de pontuação",
+          "bodyReady": "{count} comandantes têm pontuações prontas para este dia.",
+          "bodyMissing": "Ainda não há pontuações para a verificação de VS / Preço é Frete deste dia.",
+          "uploadLink": "Enviar vídeo de pontuação"
+        },
+        "template": {
+          "title": "Modelo da semana",
+          "change": "Alterar modelo"
+        },
+        "conductor": {
+          "title": "Condutor",
+          "spin": "Girar para o condutor",
+          "pickTop": "Escolher o maior pontuador",
+          "pickManual": "Escolher condutor manualmente",
+          "assigned": "Condutor: {name}",
+          "change": "Alterar"
+        },
+        "vip": {
+          "title": "VIP / Guardião",
+          "spin": "Girar para o VIP",
+          "pickManual": "Escolher VIP manualmente",
+          "assigned": "VIP: {name}",
+          "change": "Alterar",
+          "skipped": "VIP não é usado neste dia"
+        },
+        "lock": {
+          "title": "Confirmar",
+          "lockCta": "Confirmar condutor",
+          "ready": "Pronto para confirmar e criar o trem de hoje"
+        },
+        "done": {
+          "title": "Tudo pronto",
+          "summary": "Condutor confirmado. Ações avançadas estão disponíveis se você precisar.",
+          "showAdvanced": "Mostrar ações avançadas",
+          "hideAdvanced": "Ocultar ações avançadas"
+        }
+      }
     },
     "help": {
       "openLabel": "Ajuda dos trens",
@@ -3334,6 +3454,9 @@
       "oddsSubtitleHeavyHitter": "Chance igual entre os heavy hitters configurados.",
       "oddsEmptyUniform": "Nenhum membro R3 está na faixa de VS econômica deste dia ainda.",
       "oddsEmptyHeavyHitter": "Nenhum heavy hitter está configurado para o sorteio de sábado.",
+      "oddsEmptyUniformCta": "Enviar vídeo de placar",
+      "oddsEmptyHeavyHitterCta": "Abrir config. de trens",
+      "retryLoad": "Tentar de novo",
       "oddsHeroEqual": "Sua chance no sorteio de hoje: {probability}",
       "loading": "Carregando tickets de rifa…",
       "loadFailed": "Não foi possível carregar os tickets de rifa.",
@@ -3393,7 +3516,7 @@
       "poolEmptyHeavyHitter": "Nenhum heavy hitter está configurado para a loteria de sábado do Price Is Freight. Adicione membros em Configurações → Trens (equipe takedown / tickets máximos) e tente de novo.",
       "poolEmptyGeneric": "Nenhum membro elegível foi encontrado para este pool. Confira os ranks na página Membros e tente de novo.",
       "poolExhausted": "Todos os elegíveis deste pool já foram sorteados nesta geração. Recrie o pool para iniciar uma nova rodada.",
-      "poolUnavailable": "O pool da roleta ainda não está pronto. Tente recriar o pool ou confira os ranks na página Membros.",
+      "poolUnavailable": "O pool da roleta ainda não está pronto. Recrie o pool para remontar os elegíveis — em seguida giramos de novo.",
       "noVsScores": "Ainda não há pontuações VS suficientes para preencher a roleta. Informe as pontuações VS desta semana e tente de novo.",
       "noEventScores": "Ainda não há pontuações de evento suficientes para a roleta VIP. Informe as pontuações do evento e tente de novo.",
       "noDonationScores": "Doações ainda não são registradas no Alliance HQ. Escolha o doador manualmente na lista.",
@@ -3401,7 +3524,23 @@
       "ashedRequired": "Este sorteio precisa de conexão com o Ashed para ler pontuações ao vivo. Conecte o Ashed em Configurações ou use um mecanismo baseado na lista.",
       "generic": "A roleta não pode girar agora. Corrija o problema e tente de novo.",
       "goToMembers": "Ir para Membros",
+      "goToTrainSettings": "Abrir config. de trens",
+      "goToSettings": "Ir para Configurações",
+      "uploadScoreVideo": "Enviar vídeo de placar",
+      "pickManually": "Escolher manualmente",
+      "retrySpin": "Tentar girar de novo",
       "reseedPool": "Recriar pool",
+      "reseedAndRespin": "Recriar pool e girar de novo",
+      "reseedAndRespinBusy": "Recriando…",
+      "close": "Fechar"
+    },
+    "errorBanner": {
+      "dismiss": "Dispensar"
+    },
+    "autoDq": {
+      "spinAgain": "Girar de novo",
+      "pickManually": "Escolher manualmente",
+      "override": "Anular e manter",
       "close": "Fechar"
     },
     "mechanisms": {
@@ -3437,6 +3576,8 @@
       "r4_event_vip": "R4 e VIP de evento",
       "economy_week": "Semana economia",
       "price_is_right": "The Price Is Freight",
+      "price_is_right_weekdays": "Pontuações VS elegíveis",
+      "takedown_week": "Semana takedown",
       "r3_recognition": "Reconhecimento R3",
       "r4_train_week": "Semana R4",
       "donations_week": "Semana doações",
@@ -3445,15 +3586,28 @@
     "templatesShort": {
       "vs_push_weekdays": "Push VS",
       "r4_event_vip": "R4 e VIP evento",
-      "price_is_right": "Mais perto de 7,2M"
+      "price_is_right": "Mais perto de 7,2M",
+      "price_is_right_weekdays": "VS elegível",
+      "takedown_week": "Pool takedown"
+    },
+    "templateShapeLegend": {
+      "economy_week": "Pool R3",
+      "price_is_right_weekdays": "Pontuações VS elegíveis",
+      "takedown_week": "Pool do time takedown",
+      "custom": "Personalizado",
+      "r3_recognition": "Prêmio Condutor R3",
+      "r4_train_week": "Sorteio aleatório R4",
+      "donations_week": "Maiores doadores"
     },
     "templateDetails": {
       "vs_push_week": "Condutor: ter e sex = VS #1 do dia anterior (automático); qua, qui e sáb = sorteio aleatório entre o top 10 de VS; dom–seg = rodízio de oficiais R4+. VIP: condutor escolhe o VIP nos dias de VS; loteria top 10 de evento dom–seg.",
       "vs_push_weekdays": "Condutor: seg = maior doador; ter e sex = VS #1 do dia anterior; qua, qui e sáb = sorteio no top 10 de VS. VIP: seg = 2º doador; ter–sáb = escolha livre do condutor.",
       "r4_event_vip": "Condutor: rodízio de oficiais R4+. VIP: roleta loteria top 10 do evento (padrão: Capitol War). Típico para dias de fim de semana.",
       "economy_week": "Condutor: roleta R3 todos os dias — pool R3 completo, sem faixa de pontuação VS. VIP: o condutor do dia escolhe o VIP diretamente (escolha livre). Use para pivotar no meio da semana quando empurrar menos VS.",
-      "price_is_right": "Condutor: ter–sex e dom–seg = roleta R3 (tickets por VS ou faixa legada). Sábado = loteria heavy-hitter entre os overrides de tickets máximos / takedown (chance máxima igual). VIP: o condutor do dia escolhe o VIP diretamente (escolha livre).",
-      "r3_recognition": "Condutor: roleta R3 todos os dias — pool R3 completo (mesmo sorteio da Semana economia, sem filtro VS). VIP: o condutor do dia escolhe o VIP diretamente (escolha livre).",
+      "price_is_right": "Condutor: ter–sex = sorteio entre pontuações VS elegíveis. Sábado = sorteio do pool do time takedown. Dom–seg = Personalizado (manual). VIP: escolha do condutor nos dias de sorteio/takedown.",
+      "price_is_right_weekdays": "Condutor: sorteio entre pontuações VS elegíveis do dia anterior (Chance igual ou Mais perto é melhor). VIP: escolha do condutor.",
+      "takedown_week": "Condutor: sorteio aleatório do roster do time takedown todos os dias (pool que se esgota). VIP: escolha do condutor.",
+      "r3_recognition": "Condutor: escolha manual no pool R3 todos os dias — o membro escolhido sai do pool. VIP: escolha do condutor.",
       "r4_train_week": "Condutor: rodízio de oficiais R4+ — percorre o pool em ordem, um condutor por dia. VIP: o condutor do dia escolhe o VIP diretamente (escolha livre).",
       "donations_week": "Condutor: maior doador da aliança (automático). VIP: segundo doador (automático; oficiais podem corrigir manualmente se o placar estiver errado).",
       "custom": "Condutor / VIP: sem regras predefinidas — defina os mecanismos de cada dia no calendário ou escolha manualmente ao sortear."
@@ -3466,13 +3620,18 @@
       "vsShortfall": "VS: {score} pts (precisa {required}; faltam {shortfall})",
       "donationShortfall": "Doações: {score} pts (precisa {required}; faltam {shortfall})",
       "spinAgain": "Girar novamente",
+      "cancel": "Cancelar",
       "override": "Anular desqualificação",
       "overrideReasonLabel": "Motivo da anulação (opcional)",
       "overrideReasonPlaceholder": "ex.: ausência justificada, semana de compensação",
       "close": "Continuar",
       "never": "nunca",
       "lastConducted": "Última: {date}",
-      "conductsThisYear": "{count} este ano"
+      "conductsThisYear": "{count} este ano",
+      "vsValidation": {
+        "top1Title": "Maior Pontuação VR",
+        "top10Title": "Top 10 Pontuações VR"
+      }
     },
     "season": {
       "label": "Temporada do jogo",
@@ -3514,6 +3673,8 @@
     },
     "fileLabel": "Arquivo de vídeo",
     "fileHint": "MP4 ou MOV gravando a rolagem do placar completo.",
+    "fileHintKills": "Envie capturas de Kills ou navegue — use a aba Strength Ranking → Kills. Uma gravação rolando esse placar também funciona.",
+    "depositSlipFileHint": "Prefira clipes mais curtos, ou vários uploads começando pelos comprovantes mais recentes. Vídeos longos do histórico podem levar muitos minutos para terminar o OCR.",
     "fileSizeLimit": "Tamanho máximo: {maxSize}.",
     "fileSizeTipsIntro": "Se o arquivo é grande, tente:",
     "fileSizeTipCrop": "Cortar ao frame mais estreito que ainda mostre as linhas completas do placar (nomes e pontuações).",
@@ -3616,6 +3777,15 @@
     "processing": "Processando ({status})… esta página atualiza automaticamente.",
     "pendingApproval": "Aguardando um processador de vídeo aprovar este envio. O OCR começará após a aprovação — esta página atualiza automaticamente.",
     "processingFailed": "Falha no processamento. Tente enviar novamente.",
+    "stageQueued": "Aguardando na fila de processamento…",
+    "stageExtracting": "Extraindo quadros do vídeo…",
+    "stageOcrRunning": "Executando OCR — {completed} de {total} quadros",
+    "stageFinalizing": "Finalizando resultados…",
+    "stageDone": "Carregando seus resultados…",
+    "pipelineLabel": "Pipeline: {engine}",
+    "engineAshed": "Ashed",
+    "engineNative": "Tesseract interno",
+    "engineMock": "OCR simulado (dev/teste)",
     "backToUploads": "← Voltar aos envios",
     "summary": "{matched} correspondidos · {total} entradas",
     "noEntriesHint": "O OCR terminou, mas nenhuma linha foi interpretada. Geralmente era um bug de formato de resposta — tente executar o OCR novamente.",
@@ -3641,8 +3811,15 @@
     "existingStormScoresWarning": "Já existem pontuações para {eventName} Equipe {team}. Salvar substitui esse lote no mesmo evento. Abra o Gerenciamento de Dados para revisar ou excluir o lote antes se precisar recomeçar do zero.",
     "openDataManagement": "Abrir Gerenciamento de Dados",
     "dateLabel": "Data registrada",
+    "vsPeriodLabel": "Tipo de pontuação",
+    "vsPeriodDaily": "Diário",
+    "vsPeriodWeekly": "Semanal",
+    "vsPeriodDailyHint": "Pontuações do dia de VS (segunda a sábado).",
+    "vsPeriodWeeklyHint": "Totais da semana enviados no domingo. O Ashed preenche dias faltantes; o HQ não interpola.",
     "vsDayOption": "Dia {dayNumber} - {dayName} · {date}",
+    "vsWeeklyDateOption": "Semana terminando no domingo · {date}",
     "vsSundayInvalid": "Não há dia de VS no domingo. Escolha de segunda a sábado.",
+    "vsWeeklyDateInvalid": "Totais semanais de VS usam domingo. Escolha um domingo.",
     "vsDays": {
       "radarTraining": "Treinamento de Radar",
       "baseExpansion": "Expansão de Base",
@@ -3659,16 +3836,21 @@
     "colLevel": "Nível",
     "colProfession": "Profissão",
     "colScore": "Pontuação",
+    "colKills": "Kills",
     "unmatched": "Selecionar membro…",
     "memberSearchNoResults": "Nenhum membro correspondente.",
     "deleteRow": "Excluir",
     "saveScores": "Salvar {count} pontuações",
+    "saveKills": "Salvar {count} contagens de kills",
     "saveRoster": "Aplicar {count} linhas do elenco no HQ",
     "saveDepositSlips": "Salvar {count} comprovantes de depósito",
     "submitting": "Enviando…",
     "submitSuccess": "{count} pontuações salvas no Ashed.",
+    "killsSubmitSuccess": "{count} contagens de kills salvas no Ashed. Comandantes vinculados no HQ foram atualizados quando disponíveis.",
     "rosterSubmitSuccess": "{count} linhas do elenco aplicadas aos membros do HQ.",
     "depositSlipSubmitSuccess": "{count} comprovantes de depósito salvos em Bank Management.",
+    "depositSlipSubmitAdded": "{count} novo(s) comprovante(s) de depósito adicionado(s) a este banco.",
+    "depositSlipSubmitSkippedDuplicates": "{count} ignorado(s) por já coincidir com o histórico.",
     "bankLabel": "Bank Stronghold",
     "bankPlaceholder": "Selecione o banco…",
     "scoreConflictHint": "Alguns jogadores foram lidos com pontuações conflitantes entre frames do vídeo. Escolha a pontuação correta e exclua a linha extra de cada jogador.",
@@ -3756,13 +3938,21 @@
     "depositSlipSortDepositAt": "Horário do depósito",
     "depositSlipIncompleteRow": "Incompleto — preencha valor, prazo e horário do depósito.",
     "depositSlipIncompleteBlocked": "Preencha todas as linhas incompletas antes de salvar.",
-    "depositSlipAutoDedupeTitle": "{count, plural, one {# linha duplicada foi mesclada automaticamente.} other {# linhas duplicadas foram mescladas automaticamente.}}",
+    "depositSlipAutoDedupeTitle": "{count, plural, one {# depósito foi mesclado automaticamente.} other {# depósitos foram mesclados automaticamente.}}",
     "depositSlipAutoDedupeHint": "Expanda para ver quais linhas do OCR foram combinadas em cada linha mantida.",
     "depositSlipAutoDedupeToggleShow": "Mostrar grupos mesclados",
     "depositSlipAutoDedupeToggleHide": "Ocultar grupos mesclados",
     "depositSlipAutoDedupeDestination": "Mantida",
     "depositSlipAutoDedupeSource": "Mesclada",
     "depositSlipAutoDedupeMajorityCorrected": "Corrigido {fields} usando a leitura predominante entre as linhas mescladas.",
+    "depositSlipLifecycleMatured": "Depósito maturizado — depositado {depositAt}, maturizado {outcomeAt}",
+    "depositSlipLifecycleLooted": "Depósito saqueado — depositado {depositAt}, saqueado {outcomeAt}",
+    "depositSlipMissingTsCoveredTitle": "{count, plural, one {# linha está sem horário de depósito, mas já corresponde a um depósito analisado.} other {# linhas estão sem horário de depósito, mas já correspondem a um depósito analisado.}}",
+    "depositSlipMissingTsCoveredHint": "O horário provavelmente foi cortado no topo do quadro. Em geral é seguro ignorar. Expanda só se quiser conferir.",
+    "depositSlipMissingTsCoveredToggleShow": "Mostrar linhas sem horário",
+    "depositSlipMissingTsCoveredToggleHide": "Ocultar linhas sem horário",
+    "depositSlipMissingTsCoveredKept": "Já mantida",
+    "depositSlipMissingTsCoveredAbsorbed": "Sem horário (duplicata)",
     "depositSlipFlaggedTitle": "{count, plural, one {# agrupamento ainda precisa de revisão.} other {# agrupamentos ainda precisam de revisão.}}",
     "depositSlipFlaggedHint": "Edite ou exclua as linhas destacadas para que cada depósito apareça uma vez e depois salve.",
     "depositSlipFlaggedBlocked": "Resolva os agrupamentos duplicados sinalizados antes de salvar.",
@@ -4259,6 +4449,7 @@
       "anomalyConfirm": "Tem *certeza* de que seu THP total é {total}? Esse é um salto grande à frente do grupo. Toque Sim se for sério.",
       "ocrConfirm": "Li o poder total de heróis como **{total}**. Toque Sim para salvar, ou Não para cancelar.",
       "ocrFailed": "Não foi possível ler essa captura. Tente uma imagem mais nítida da tela Power Details ou informe `/thp total:163460435` manualmente.",
+      "ocrPartial": "Alguns valores foram difíceis de ler. Revise e corrija o detalhamento pré-preenchido abaixo.",
       "invalidTotal": "Informe um THP total válido entre 1 e 1.000.000.000.",
       "commanderNotFound": "Não foi possível encontrar seu comandante nesta aliança. Execute `/link-commander` primeiro."
     },
@@ -5099,6 +5290,8 @@
     "emptyBanks": "Nenhum banco ainda. Adicione um Banco para liberar recomendações de abandono.",
     "emptyDeposits": "Nenhum comprovante de depósito ainda para este banco.",
     "emptyDepositsHint": "Envie um vídeo do Histórico de Comprovantes de Depósito para importar comprovantes deste banco.",
+    "latestDepositSlipHero": "Último comprovante de depósito deste banco: [{allianceTag}] {commanderName} em {depositEventTime}",
+    "latestDepositSlipHeroNoTag": "Último comprovante de depósito deste banco: {commanderName} em {depositEventTime}",
     "uploadDepositSlip": "Enviar vídeo de comprovante de depósito",
     "addBank": "Adicionar banco",
     "importBanksFromScreenshot": "Importar bancos da captura de tela",
@@ -5108,6 +5301,7 @@
     "cityListParseFailed": "Não foi possível ler os bancos nessas imagens.",
     "cityListIncompleteWarning": "Os bancos importados são menos do que a quantidade capturada — a importação não removerá bancos existentes.",
     "cityListExtraHqWarning": "A Sede tem bancos que não aparecem nestas capturas de tela. Eles não foram alterados.",
+    "cityListDraftRestored": "Sua revisão não salva da última vez foi restaurada.",
     "cityListAddRow": "Adicionar banco",
     "cityListDuplicateCoords": "Dois ou mais bancos têm as mesmas coordenadas.",
     "cityListValidationRequired": "Obrigatório",
@@ -5123,6 +5317,11 @@
     "cityListPreviewScreenshots": "Pré-visualizar capturas",
     "cityListPreviousBank": "Anterior",
     "cityListNextBank": "Próximo",
+    "cityListReset": "Redefinir",
+    "cityListResetTitle": "Redefinir esta importação?",
+    "cityListResetBody": "Remove tudo o que você revisou até agora e volta para a etapa de envio.",
+    "cityListResetHint": "Isso não pode ser desfeito — você precisará enviar as capturas de tela novamente para recomeçar.",
+    "cityListResetConfirm": "Redefinir importação",
     "capturesLeftToday": "Capturas restantes hoje: {remaining}/{limit}",
     "cityListServerTime": "Horário do servidor na captura: {time}",
     "editBank": "Editar banco",
@@ -5243,10 +5442,11 @@
   },
   "statSync": {
     "title": "Sincronização HQ ↔ Ashed",
-    "subtitle": "Resolva relatórios de THP e kills pendentes para enviar ao Ashed, ou mantenha o Ashed quando o HQ estiver errado.",
+    "subtitle": "Resolva relatórios de THP, kills e nível HQ pendentes para enviar ao Ashed, ou mantenha o Ashed quando o HQ estiver errado.",
     "tabs": {
       "thp": "THP",
-      "kills": "Kills"
+      "kills": "Kills",
+      "level": "Nível HQ"
     },
     "empty": "Nenhum item pendente para este status.",
     "loadFailed": "Falha ao carregar a revisão de sincronização.",

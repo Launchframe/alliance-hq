@@ -1,5 +1,6 @@
 import {
   dayIndexInTrainWeek,
+  weekDatesInTrainWeek,
 } from "@/lib/trains/train-week-calendar.shared";
 import { weekDatesFromMonday } from "@/lib/trains/game-time";
 import type { WeekTemplateType } from "@/lib/trains/types";
@@ -9,6 +10,7 @@ import { WEEK_TEMPLATES } from "@/lib/trains/types";
 export const WEEK_TEMPLATE_SEGMENTS = [
   "vs_push_weekdays",
   "r4_event_vip",
+  "price_is_right_weekdays",
 ] as const;
 
 export type WeekTemplateSegmentId = (typeof WEEK_TEMPLATE_SEGMENTS)[number];
@@ -31,6 +33,8 @@ export const WEEK_TEMPLATES_WITH_DETAIL_HINTS: readonly WeekTemplateType[] = [
   "r4_event_vip",
   "economy_week",
   "price_is_right",
+  "price_is_right_weekdays",
+  "takedown_week",
   "r3_recognition",
   "r4_train_week",
   "donations_week",
@@ -60,12 +64,37 @@ export const COMPOSITE_WEEK_TEMPLATES: Partial<
       { template: "r4_event_vip", dayIndices: [5, 6] },
     ],
   },
+  price_is_right: {
+    segments: [
+      // Tue–Fri
+      { template: "price_is_right_weekdays", dayIndices: [0, 1, 2, 3] },
+      // Sat
+      { template: "takedown_week", dayIndices: [4] },
+      // Sun–Mon
+      { template: "custom", dayIndices: [5, 6] },
+    ],
+  },
 };
 
 export function isCompositeWeekTemplate(
   template: WeekTemplateType,
 ): template is keyof typeof COMPOSITE_WEEK_TEMPLATES {
   return template in COMPOSITE_WEEK_TEMPLATES;
+}
+
+/**
+ * Reverse-map a segment-only template to its composite parent.
+ * Returns `null` when `segment` is not a segment of any composite.
+ */
+export function compositeParentForSegment(
+  segment: WeekTemplateType,
+): WeekTemplateType | null {
+  for (const [composite, def] of Object.entries(COMPOSITE_WEEK_TEMPLATES)) {
+    if (def?.segments.some((s) => s.template === segment)) {
+      return composite as WeekTemplateType;
+    }
+  }
+  return null;
 }
 
 /** Monday-start week index (legacy VS calendar helpers). */
@@ -105,9 +134,33 @@ export function resolvePaintTemplateForDay(
   return segmentTemplateForDayIndex(templateType, dayIndex);
 }
 
+export type WeekTemplateDayShapeEntry = {
+  date: string;
+  segment: WeekTemplateType;
+};
+
+/**
+ * Per-day paint segment for the full train week starting at `weekStart`, in
+ * calendar order. Powers the week-shape preview strip in the template picker.
+ */
+export function weekTemplateDayShape(
+  templateType: WeekTemplateType,
+  weekStart: string,
+): WeekTemplateDayShapeEntry[] {
+  return weekDatesInTrainWeek(weekStart).map((date) => ({
+    date,
+    segment: resolvePaintTemplateForDay(templateType, date, weekStart),
+  }));
+}
+
 /** Segment templates with a single combined cell label (not conductor + VIP lines). */
 export const COMBINED_SEGMENT_DISPLAY_TEMPLATES: ReadonlySet<WeekTemplateType> =
-  new Set(["r4_event_vip", "price_is_right"]);
+  new Set([
+    "r4_event_vip",
+    "price_is_right",
+    "price_is_right_weekdays",
+    "takedown_week",
+  ]);
 
 export function usesCombinedSegmentDisplay(
   paintTemplate: WeekTemplateType | null | undefined,

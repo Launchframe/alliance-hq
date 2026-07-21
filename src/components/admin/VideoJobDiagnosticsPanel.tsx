@@ -12,9 +12,9 @@ type Props = {
 };
 
 const HINT_STYLES = {
-  info: "border-[#58a6ff40] bg-[#58a6ff10] text-[#79c0ff]",
-  warning: "border-[#d2992240] bg-[#d2992210] text-[#e3b341]",
-  error: "border-[#f8514940] bg-[#f8514910] text-[#ff7b72]",
+  info: "border-hq-accent/40 bg-hq-accent/10 text-hq-accent",
+  warning: "border-hq-warning/40 bg-hq-warning/10 text-hq-warning",
+  error: "border-hq-danger/40 bg-hq-danger/10 text-hq-danger",
 } as const;
 
 function formatAllianceLabel(
@@ -91,17 +91,17 @@ export function VideoJobDiagnosticsPanel({ jobId }: Props) {
   }, [jobId, loadFailedMessage]);
 
   if (loading && !report) {
-    return <p className="text-sm text-[#8b949e]">{t("diagnosticsLoading")}</p>;
+    return <p className="text-sm text-hq-fg-muted">{t("diagnosticsLoading")}</p>;
   }
 
   if (error && !report) {
     return (
       <div className="space-y-2">
-        <p className="text-sm text-red-400">{error}</p>
+        <p className="text-sm text-hq-danger">{error}</p>
         <button
           type="button"
           onClick={reload}
-          className="rounded-lg border border-[#30363d] px-3 py-1.5 text-sm text-[#e6edf3] hover:bg-[#21262d]"
+          className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted"
         >
           {t("diagnosticsRetry")}
         </button>
@@ -119,7 +119,7 @@ export function VideoJobDiagnosticsPanel({ jobId }: Props) {
     <div className="space-y-4">
       {report.hints.length > 0 ? (
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#8b949e]">
+          <p className="text-xs font-semibold uppercase tracking-wide text-hq-fg-muted">
             {t("diagnosticsHintsTitle")}
           </p>
           <ul className="space-y-2">
@@ -135,23 +135,23 @@ export function VideoJobDiagnosticsPanel({ jobId }: Props) {
         </div>
       ) : null}
 
-      <div className="grid gap-3 rounded-xl border border-[#30363d] bg-[#161b22] p-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 rounded-xl border border-hq-border bg-hq-surface p-4 text-sm text-hq-fg sm:grid-cols-2 lg:grid-cols-3">
         <div>
-          <p className="text-xs text-[#8b949e]">{t("diagnosticsOcrEngine")}</p>
+          <p className="text-xs text-hq-fg-muted">{t("diagnosticsOcrEngine")}</p>
           <p className="font-mono text-xs">{report.ocrEngineHint}</p>
         </div>
         <div>
-          <p className="text-xs text-[#8b949e]">{t("diagnosticsAlliance")}</p>
+          <p className="text-xs text-hq-fg-muted">{t("diagnosticsAlliance")}</p>
           <p>{formatAllianceLabel(report.alliance)}</p>
           {report.alliance ? (
-            <p className="text-xs text-[#8b949e]">
+            <p className="text-xs text-hq-fg-muted">
               {report.alliance.operatingMode}
               {report.alliance.videoHqOcrOnly ? " · HQ OCR only" : ""}
             </p>
           ) : null}
         </div>
         <div>
-          <p className="text-xs text-[#8b949e]">
+          <p className="text-xs text-hq-fg-muted">
             {t("diagnosticsUploadedFrameCount")}
           </p>
           <p>
@@ -160,19 +160,19 @@ export function VideoJobDiagnosticsPanel({ jobId }: Props) {
           </p>
         </div>
         <div>
-          <p className="text-xs text-[#8b949e]">
+          <p className="text-xs text-hq-fg-muted">
             {t("diagnosticsOcrEntries")}
           </p>
           <p>{report.frameSummary.totalOcrEntries}</p>
         </div>
         <div>
-          <p className="text-xs text-[#8b949e]">
+          <p className="text-xs text-hq-fg-muted">
             {t("diagnosticsParsedRows")}
           </p>
           <p>{report.parsedRowsInDb}</p>
         </div>
         <div>
-          <p className="text-xs text-[#8b949e]">
+          <p className="text-xs text-hq-fg-muted">
             {t("diagnosticsSameSession")}
           </p>
           <p>
@@ -182,7 +182,7 @@ export function VideoJobDiagnosticsPanel({ jobId }: Props) {
           </p>
         </div>
         <div>
-          <p className="text-xs text-[#8b949e]">{t("diagnosticsApprovedAt")}</p>
+          <p className="text-xs text-hq-fg-muted">{t("diagnosticsApprovedAt")}</p>
           <p>
             {report.job.approvedAt ? (
               <FormattedDateTime value={report.job.approvedAt} />
@@ -192,13 +192,13 @@ export function VideoJobDiagnosticsPanel({ jobId }: Props) {
           </p>
         </div>
         <div>
-          <p className="text-xs text-[#8b949e]">{t("diagnosticsUpdatedAt")}</p>
+          <p className="text-xs text-hq-fg-muted">{t("diagnosticsUpdatedAt")}</p>
           <p>
             <FormattedDateTime value={report.job.updatedAt} />
           </p>
         </div>
         <div>
-          <p className="text-xs text-[#8b949e]">
+          <p className="text-xs text-hq-fg-muted">
             {t("diagnosticsFramesWithErrors")}
           </p>
           <p>{report.frameSummary.framesWithErrors}</p>
@@ -210,7 +210,7 @@ export function VideoJobDiagnosticsPanel({ jobId }: Props) {
         value={json}
       />
 
-      <pre className="max-h-[32rem] overflow-auto rounded-xl border border-[#30363d] bg-[#0d1117] p-3 text-xs text-[#c9d1d9]">
+      <pre className="max-h-[32rem] overflow-auto rounded-xl border border-hq-border bg-hq-canvas p-3 text-xs text-hq-fg">
         {json}
       </pre>
     </div>

@@ -68,6 +68,8 @@ export function buildConductorWheelReelSession(
   for (let i = 0; i < slowPasses; i += 1) items.push(...shuffle(names));
 
   const alternates = names.filter((name) => name !== winner.memberName);
+
+  // Ensure the item immediately before the winner is not the winner's name.
   if (items.length > 0 && alternates.length > 0 && items[items.length - 1] === winner.memberName) {
     items[items.length - 1] = alternates[0]!;
   }
@@ -81,6 +83,31 @@ export function buildConductorWheelReelSession(
       items.push(alternates[i % alternates.length]!);
     } else {
       items.push(winner.memberName);
+    }
+  }
+
+  // Guarantee the resting viewport (visible slots around the winner) has no
+  // duplicate names. With ≥3 unique candidates this is always possible; with
+  // exactly 2, the two non-winner slots will necessarily share a name — in
+  // that case keep them and do not attempt swaps.
+  if (alternates.length >= 2) {
+    const halfV = Math.floor(VISIBLE / 2);
+    const viewStart = winnerIdx - halfV;
+    const viewEnd = winnerIdx + halfV;
+    const usedInView = new Set<string>();
+    usedInView.add(winner.memberName);
+
+    for (let idx = viewStart; idx <= viewEnd; idx += 1) {
+      if (idx === winnerIdx || idx < 0 || idx >= items.length) continue;
+      if (usedInView.has(items[idx]!)) {
+        const replacement = alternates.find(
+          (name) => !usedInView.has(name),
+        );
+        if (replacement) {
+          items[idx] = replacement;
+        }
+      }
+      usedInView.add(items[idx]!);
     }
   }
 

@@ -8,6 +8,8 @@ export type SubmitRowInput = {
   rank?: number | null;
 };
 
+export type VsScorePeriod = "daily" | "weekly";
+
 export type SubmitContext = {
   eventId?: string;
   team?: "A" | "B";
@@ -16,6 +18,8 @@ export type SubmitContext = {
   commendationId?: string;
   hqEventId?: string;
   bankId?: string;
+  /** VS Performance only: daily match-day scores vs Sunday weekly totals. */
+  vsPeriod?: VsScorePeriod;
 };
 
 export function buildSubmitPayloads(
@@ -66,6 +70,16 @@ export function buildSubmitPayloads(
       }));
 
     case "donations":
+      return rows.map((row) => ({
+        alliance_id: allianceId,
+        member_id: row.memberId,
+        member_name: row.memberName,
+        score: parseScoreNumber(row.score),
+        recorded_date: recordedDate,
+      }));
+
+    case "alliance-kills-video":
+      // Ashed KillScore shape from har/member-kill-counts.har
       return rows.map((row) => ({
         alliance_id: allianceId,
         member_id: row.memberId,

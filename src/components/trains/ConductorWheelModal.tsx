@@ -14,9 +14,10 @@ import {
   preventDefaultFormSubmit,
 } from "@/lib/client/form-enter-submit.shared";
 
-type WheelCandidate = {
+export type WheelCandidate = {
   memberId: string;
   memberName: string;
+  priorDayVsScore?: number;
 };
 
 type Props = {
@@ -29,6 +30,8 @@ type Props = {
   } | null;
   qualification?: MemberQualificationPayload | null;
   dayLabel?: string | null;
+  /** The selection mechanism used for this roll (e.g. "vs_top_10", "vs_high_score"). */
+  mechanism?: string | null;
   speedMultiplier?: number;
   automated?: boolean;
   onAutomatedRevealComplete?: () => void;
@@ -49,6 +52,23 @@ const SLOW_SECS = 1.8;
 
 type ReelSessionView = ReelSession;
 
+function isVsMechanism(mechanism: string | null | undefined): boolean {
+  return mechanism === "vs_top_10" || mechanism === "vs_high_score";
+}
+
+function vsScoreColor(score: number): string {
+  if (score >= 5_000_000) return "text-amber-300";
+  if (score >= 1_000_000) return "text-cyan-300";
+  if (score >= 500_000) return "text-emerald-300";
+  return "text-hq-fg-muted";
+}
+
+function formatVsScore(score: number): string {
+  if (score >= 1_000_000) return `${(score / 1_000_000).toFixed(1)}M`;
+  if (score >= 1_000) return `${(score / 1_000).toFixed(0)}K`;
+  return String(score);
+}
+
 export function ConductorWheelModal({
   open,
   candidates,
@@ -56,6 +76,7 @@ export function ConductorWheelModal({
   stats,
   qualification,
   dayLabel,
+  mechanism,
   speedMultiplier = 1,
   automated = false,
   onAutomatedRevealComplete,
@@ -74,6 +95,19 @@ export function ConductorWheelModal({
 
   const disqualified =
     qualification != null && qualification.qualified === false;
+
+  const showVsValidation = isVsMechanism(mechanism);
+  const winnerScore = winner
+    ? (candidates.find((c) => c.memberId === winner.memberId)
+        ?.priorDayVsScore ?? winner.priorDayVsScore)
+    : undefined;
+
+  const rankedCandidates = useMemo(() => {
+    if (!showVsValidation) return [];
+    return [...candidates]
+      .filter((c) => c.priorDayVsScore != null && c.priorDayVsScore > 0)
+      .sort((a, b) => (b.priorDayVsScore ?? 0) - (a.priorDayVsScore ?? 0));
+  }, [candidates, showVsValidation]);
 
   const reelSession = useMemo((): ReelSessionView | null => {
     if (!open || !winner || candidates.length === 0) return null;
@@ -180,6 +214,17 @@ export function ConductorWheelModal({
     onAutomatedRevealComplete,
   ]);
 
+  useEffect(() => {
+    if (!open || phase !== "revealed") return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onClose();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [open, phase, onClose]);
+
   if (!open || !winner || !reelSession) return null;
 
   const { items: reelItems, winnerIdx } = reelSession;
@@ -218,10 +263,15 @@ export function ConductorWheelModal({
             {reelItems.map((name, i) => {
               const isCenter = phase === "revealed" && i === winnerIdx;
               const centerDisqualified = isCenter && disqualified;
+              const showScore =
+                isCenter &&
+                !centerDisqualified &&
+                winnerScore != null &&
+                winnerScore > 0;
               return (
                 <div
                   key={i}
-                  className="flex items-center justify-center px-4 text-center font-bold text-hq-fg"
+                  className="flex flex-col items-center justify-center px-4 text-center font-bold text-hq-fg"
                   style={{ height: ITEM_H }}
                 >
                   <span
@@ -235,6 +285,13 @@ export function ConductorWheelModal({
                   >
                     {name}
                   </span>
+                  {showScore ? (
+                    <span
+                      className={`mt-0.5 text-sm font-semibold ${vsScoreColor(winnerScore!)}`}
+                    >
+                      {formatVsScore(winnerScore!)} VR
+                    </span>
+                  ) : null}
                 </div>
               );
             })}
@@ -257,6 +314,53 @@ export function ConductorWheelModal({
             }}
           />
         </div>
+
+        {phase === "revealed" &&
+          !disqualified &&
+          showVsValidation &&
+          rankedCandidates.length > 0 ? (
+          <div className="mt-4">
+            <p className="mb-2 text-center text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
+              {mechanism === "vs_high_score"
+                ? t("vsValidation.top1Title")
+                : t("vsValidation.top10Title")}
+            </p>
+            <div className="overflow-hidden rounded-lg border border-hq-border">
+              <ul className="divide-y divide-hq-border/60">
+                {rankedCandidates.map((candidate, idx) => {
+                  const isWinner =
+                    winner && candidate.memberId === winner.memberId;
+                  return (
+                    <li
+                      key={candidate.memberId}
+                      className={`flex items-center justify-between gap-3 px-3 py-2 ${
+                        isWinner ? "bg-[#388bfd]/10" : "bg-hq-surface/60"
+                      }`}
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="shrink-0 text-xs font-semibold text-hq-fg-muted">
+                          #{idx + 1}
+                        </span>
+                        <span
+                          className={`truncate text-sm font-medium ${
+                            isWinner ? "text-white" : "text-hq-fg"
+                          }`}
+                        >
+                          {candidate.memberName}
+                        </span>
+                      </div>
+                      <span
+                        className={`shrink-0 text-sm font-semibold ${vsScoreColor(candidate.priorDayVsScore!)}`}
+                      >
+                        {formatVsScore(candidate.priorDayVsScore!)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
+        ) : null}
 
         {phase === "revealed" && disqualified && qualification ? (
           <div className="mt-4 space-y-2 text-center text-sm text-hq-fg">
@@ -318,6 +422,14 @@ export function ConductorWheelModal({
               />
             </label>
             <div className="flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                data-testid="trains-wheel-cancel"
+                className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
+              >
+                {t("cancel")}
+              </button>
               <button
                 type="button"
                 onClick={() => onSpinAgain?.()}

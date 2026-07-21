@@ -26,7 +26,14 @@ export function commanderStatsFromAshedSnapshot(
       : null,
     profession: ashedStats?.profession ?? null,
     professionalLevel: ashedStats?.professionalLevel ?? null,
-    memberLevel: ashedStats?.memberLevel ?? null,
+    // Raw level from Ashed/OCR; dual-write path clamps via upsertCommanderLevel.
+    // upsertCommanderRow strips this field so inbound conflict policy can run.
+    memberLevel:
+      typeof ashedStats?.memberLevel === "number" &&
+      Number.isFinite(ashedStats.memberLevel) &&
+      ashedStats.memberLevel >= 1
+        ? Math.round(ashedStats.memberLevel)
+        : null,
     powerLevel,
     currentKills: ashedStats?.currentKills ?? null,
     currentSquadPowerJson: ashedStats?.currentSquadPowerJson ?? null,
@@ -53,7 +60,10 @@ export function ashedMemberRecordToCommanderStats(record: {
       typeof record.professional_level === "number"
         ? record.professional_level
         : null,
-    memberLevel: typeof record.level === "number" ? Math.round(record.level) : null,
+    memberLevel:
+      typeof record.level === "number" && Number.isFinite(record.level)
+        ? Math.round(record.level)
+        : null,
     powerLevel: record.power_level ?? null,
     currentTotalHeroPower:
       typeof record.current_total_hero_power === "number"

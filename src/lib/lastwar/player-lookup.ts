@@ -3,6 +3,7 @@ import {
   E2E_CLAIM_INVITE_MIRROR_UID,
   lookupPlayerUidBypass,
 } from "@/lib/lastwar/player-lookup-bypass.shared";
+import { normalizeMemberHqLevel } from "@/lib/members/member-level.shared";
 
 export { E2E_CLAIM_INVITE_MIRROR_UID } from "@/lib/lastwar/player-lookup-bypass.shared";
 
@@ -94,17 +95,7 @@ export function parseLastWarAvatarUrl(
 }
 
 export function parseLastWarGameUserLevel(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    const rounded = Math.round(value);
-    return rounded >= 1 ? rounded : null;
-  }
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (!/^\d+$/.test(trimmed)) return null;
-    const parsed = Number.parseInt(trimmed, 10);
-    return parsed >= 1 ? parsed : null;
-  }
-  return null;
+  return normalizeMemberHqLevel(value);
 }
 
 export function parseGameServerNumberFromUid(uid: string): number | null {

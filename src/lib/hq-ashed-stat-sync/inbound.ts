@@ -15,7 +15,7 @@ import type { InboundStatDecision } from "@/lib/hq-ashed-stat-sync/policy";
 import type { StatSyncAdapter } from "@/lib/hq-ashed-stat-sync/types";
 
 export async function loadLatestNonDiscardedEventMeta(
-  table: "thp" | "kills",
+  table: "thp" | "kills" | "level",
   commanderId: string,
 ): Promise<{
   source: string | null;
@@ -42,6 +42,33 @@ export async function loadLatestNonDiscardedEventMeta(
         ),
       )
       .orderBy(desc(schema.commanderThpEvents.createdAt))
+      .limit(1);
+    return {
+      source: row?.source ?? null,
+      eventId: row?.eventId ?? null,
+      ashedSyncedAt: row?.ashedSyncedAt ?? null,
+      total: row?.total ?? null,
+      createdAt: row?.createdAt ?? null,
+    };
+  }
+
+  if (table === "level") {
+    const [row] = await db
+      .select({
+        source: schema.commanderLevelEvents.source,
+        eventId: schema.commanderLevelEvents.id,
+        ashedSyncedAt: schema.commanderLevelEvents.ashedSyncedAt,
+        total: schema.commanderLevelEvents.total,
+        createdAt: schema.commanderLevelEvents.createdAt,
+      })
+      .from(schema.commanderLevelEvents)
+      .where(
+        and(
+          eq(schema.commanderLevelEvents.commanderId, commanderId),
+          isNull(schema.commanderLevelEvents.discardedAt),
+        ),
+      )
+      .orderBy(desc(schema.commanderLevelEvents.createdAt))
       .limit(1);
     return {
       source: row?.source ?? null,

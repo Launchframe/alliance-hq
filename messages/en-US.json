@@ -82,6 +82,7 @@
     "mergeManager": "Merge Manager",
     "vsPerformance": "VS Performance",
     "donations": "Donations",
+    "allianceKillsVideo": "Kill counts",
     "allianceExercise": "Alliance Exercise",
     "reports": "Reports",
     "viralResistance": "Viral Resistance",
@@ -182,6 +183,7 @@
         "donations": "Donations",
         "allianceExercise": "Alliance Exercise",
         "zombieSiege": "Zombie Siege",
+        "allianceKillsVideo": "Kill counts",
         "weekendEvent": "Capitol War / Meteor (weekend)"
       }
     },
@@ -765,11 +767,35 @@
       "statusReview": "Review",
       "statusComplete": "Complete",
       "allStatuses": "All statuses",
-      "listLoading": "Loading jobs…"
+      "listLoading": "Loading jobs…",
+      "passRolePrimary": "Primary",
+      "passRoleShadow": "Shadow",
+      "passKeyLabel": "Pass",
+      "reprocessDialogTitle": "Adjust frame capture before reprocessing?",
+      "reprocessDialogBody": "Current extraction: {passKey} ({summary}). Choose a denser or sparser rate, keep it, or open advanced settings for this pass only.",
+      "reprocessKeep": "Keep current rate",
+      "reprocessIncrease": "Increase (denser — better for slow scrolls)",
+      "reprocessDecrease": "Decrease (sparser — fewer frames)",
+      "reprocessAdvanced": "Advanced",
+      "reprocessAdvancedHint": "Fine-tune this single pass. Results are tracked under the ad-hoc reprocess experiment for this score target.",
+      "reprocessMode": "Capture mode",
+      "reprocessModeFps": "Fixed frames per second",
+      "reprocessModeScene": "Scene changes",
+      "reprocessSampleFps": "Frames per second",
+      "reprocessSceneThreshold": "Scene threshold",
+      "reprocessPickConfig": "Start from parse config",
+      "reprocessPickConfigNone": "Custom",
+      "reprocessConfirm": "Reprocess",
+      "reprocessCancel": "Cancel",
+      "reprocessAtMax": "Already at the densest simple rate",
+      "reprocessAtMin": "Already at the sparsest simple rate"
     },
     "videoJobDetailPage": {
       "loading": "Loading job details…",
       "backToList": "← Video jobs",
+      "previousJob": "Previous job",
+      "nextJob": "Next job",
+      "jobPosition": "{position} of {total}",
       "uploadedBy": "Uploaded by",
       "frameCount": "Frames",
       "totalTime": "Total time",
@@ -1391,6 +1417,22 @@
       "signingOut": "Signing out…",
       "unknownUser": "HQ user",
       "unknownEmail": "No email on file"
+    },
+    "ashedStatus": {
+      "label": "Ashed",
+      "ariaConnected": "Ashed connection status: connected",
+      "ariaDisconnected": "Ashed connection status: disconnected — reconnect",
+      "titleConnected": "Connected to Ashed",
+      "titleDisconnected": "Not connected — paste JWT",
+      "connectedHeading": "Connected",
+      "connectedSince": "Connected since",
+      "requestsThisSession": "Ashed requests this session",
+      "disconnect": "Disconnect",
+      "linkAnotherDevice": "Link another device",
+      "reconnectHeading": "Reconnect to Ashed",
+      "reconnectHint": "Paste a JWT (or Bearer token). HQ connects automatically when the token is valid — no button to click.",
+      "jwtLabel": "Ashed JWT",
+      "jwtPlaceholder": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…"
     }
   },
   "shellActivity": {
@@ -1519,6 +1561,10 @@
     "successTitle": "Connected to Ashed",
     "signedInAsBefore": "Signed in as",
     "returningUserHint": "Welcome back — paste a fresh connection key from DevTools when you're ready.",
+    "multiDeviceWarning": {
+      "title": "Already connected on another device?",
+      "body": "Don't paste a new connection key here if another browser or phone still has Ashed connected — that will disconnect the other device. On the device that still works, open <link>Link a device</link> and scan the QR with this one."
+    },
     "showSetupInstructions": "Show full setup instructions",
     "noExpiryRead": "Connected, but we couldn't read an expiry date from this token. We'll still notify you if Ashed stops accepting it.",
     "continue": "Continue to Alliance HQ",
@@ -1579,7 +1625,7 @@
         "errorBody": "The QR code expired or could not be claimed. Try again when you're ready.",
         "tryAgain": "Try again",
         "skip": "Skip for now",
-        "skippedBody": "No problem. You can connect another device from <settingsLink>Settings</settingsLink> at any time.",
+        "skippedBody": "No problem. You can connect another device from <settingsLink>Link a device</settingsLink> at any time.",
         "continueWithoutPhone": "Continue to Alliance HQ",
         "continueToHq": "Continue to Alliance HQ",
         "privacyNote": "DO NOT SHARE this QR code with anyone. The code contained in it is a short-lived link to your account — anybody who gets this code will be able to take full control of your account."
@@ -1929,6 +1975,9 @@
     "hotkeysTitle": "Keyboard shortcuts",
     "hotkeysBody": "View and customize shortcuts for navigation and common actions.",
     "hotkeysLink": "Manage keyboard shortcuts",
+    "linkDeviceTitle": "Link a device",
+    "linkDeviceBody": "Show a QR code to copy your Ashed connection to a phone or another browser — without pasting credentials again.",
+    "linkDeviceLink": "Open Link a device",
     "uploadRemindersTitle": "Upload reminders",
     "uploadRemindersBody": "Configure when officers are reminded to upload event scores, and manage your personal reminder subscriptions.",
     "uploadRemindersLink": "Manage upload reminders",
@@ -2259,15 +2308,25 @@
     "switchToSelected": "Switch session to {tag}"
   },
   "deviceLink": {
-    "sectionTitle": "Link a mobile device",
-    "sectionBody": "Already connected on a computer? Show a QR code here and scan it with your phone camera to use the same connection on mobile — no DevTools step.",
-    "storageNote": "Your connection key stays encrypted on our server — the QR code only contains a short-lived link, not the key itself.",
+    "pageTitle": "Link a device",
+    "pageSubtitle": "Copy your Ashed connection to another phone or browser with a QR code.",
+    "multiDeviceHint": {
+      "title": "Use this for every extra device",
+      "body": "<strong>Link a device</strong> is the only safe way to use Ashed on multiple phones or browsers. Manually connecting (pasting a cURL / connection key) on another device will wipe this device's Ashed connection."
+    },
+    "needsConnectionBody": "Connect Ashed on this device first, then come back here to show a QR code for your other devices.",
+    "needsConnectionCta": "Connect Ashed",
+    "sectionTitle": "Show QR code",
+    "sectionBody": "Scan with the phone or browser you want to link — no DevTools step on that device.",
+    "storageNote": "Your connection key stays encrypted on our server — the QR code and copyable link only contain a short-lived pairing URL, not the key itself.",
     "showQr": "Show QR code",
     "generating": "Generating…",
     "scanHint": "Open your phone camera and scan this code.",
+    "desktopLinkHint": "Linking another desktop or browser? Copy this link and open it there before it expires — same as scanning the QR.",
+    "copyLinkLabel": "Link for another device",
     "expiresIn": "Expires in",
     "expired": "This QR code expired. Generate a new one.",
-    "linked": "Mobile device linked.",
+    "linked": "Device linked.",
     "createFailed": "Could not start device linking.",
     "hideQr": "Hide QR code",
     "landing": {
@@ -2276,7 +2335,7 @@
       "success": "Your phone is now connected.",
       "continue": "Continue to Alliance HQ",
       "failed": "This link is invalid or expired.",
-      "retryHint": "On your computer, open Settings and generate a new QR code."
+      "retryHint": "On your connected device, open Link a device and generate a new QR code."
     },
     "devices": {
       "listTitle": "Linked devices",
@@ -2983,6 +3042,9 @@
     },
     "breakdownTotalLabel": "Breakdown total: {total}",
     "breakdownSubmit": "Save Breakdown",
+    "breakdownPreviewScreenshot": "View screenshot",
+    "breakdownClosePreview": "Close preview",
+    "ocrPartialHint": "Some values couldn't be read accurately. Please verify and correct any highlighted fields, then save.",
     "percentileTitle": "Alliance standing",
     "percentileRank": "Rank {rank} of {count} reporters",
     "percentileAtOrBelow": "{percentile}% of reporters are at or below your THP",
@@ -3086,7 +3148,8 @@
     "emptyRosterCta": "Go to Members",
     "planWeekBanner": {
       "title": "Plan this train week",
-      "body": "This week is a draft from your default template. Pick a template, paint days, or roll today's conductor — your plan saves when you take action."
+      "body": "This week is a draft from your default template. Pick a template, paint days, or roll today's conductor — your plan saves when you take action.",
+      "chooseTemplate": "Choose a template"
     },
     "previewLegend": "Faded days are drafts; they save when an officer updates the schedule.",
     "previewDraftAriaLabel": "Draft schedule",
@@ -3129,6 +3192,17 @@
     "templateBadge": "Template: {template}",
     "templateSelectLabel": "Week template",
     "templateSelectAria": "Week schedule template",
+    "templatePicker": {
+      "title": "Choose a week template",
+      "apply": "Use this template",
+      "cancel": "Cancel",
+      "drawModeLabel": "Draw mode",
+      "equalChance": "Equal chance",
+      "closerIsBetter": "Closer is Better",
+      "equalChanceHint": "Every eligible VS score has the same odds (1/n). Excludes R4+.",
+      "closerIsBetterHint": "Scores closest to 7.2M get better shot at winning. Excludes R4+.",
+      "weekShapeAria": "Preview of each day's color for this template"
+    },
     "todayConductor": "Today's Conductor",
     "todayVip": "VIP",
     "awaitingConductor": "Awaiting selection",
@@ -3216,8 +3290,54 @@
       "wheelSpeed_slow": "Slow",
       "wheelSpeed_regular": "Regular",
       "wheelSpeed_fast": "Fast",
+      "simpleMode": {
+        "label": "Simple Mode",
+        "hint": "Guided steps for picking today’s conductor instead of the full quick-actions grid."
+      },
       "advancedSettings": "Advanced Settings",
       "saveFailed": "Could not save train preferences."
+    },
+    "guidedFlow": {
+      "heading": "Today’s conductor setup",
+      "steps": {
+        "prerequisites": {
+          "title": "Score data",
+          "bodyReady": "{count} commanders have scores ready for this day.",
+          "bodyMissing": "No scores found yet for this day’s VS / Price Is Freight check.",
+          "uploadLink": "Upload score video"
+        },
+        "template": {
+          "title": "Week template",
+          "change": "Change template"
+        },
+        "conductor": {
+          "title": "Conductor",
+          "spin": "Spin for conductor",
+          "pickTop": "Pick top scorer",
+          "pickManual": "Pick conductor manually",
+          "assigned": "Conductor: {name}",
+          "change": "Change"
+        },
+        "vip": {
+          "title": "VIP / Guardian",
+          "spin": "Spin for VIP",
+          "pickManual": "Pick VIP manually",
+          "assigned": "VIP: {name}",
+          "change": "Change",
+          "skipped": "VIP not used for this day"
+        },
+        "lock": {
+          "title": "Lock",
+          "lockCta": "Lock conductor",
+          "ready": "Ready to lock and spawn today’s train"
+        },
+        "done": {
+          "title": "All set",
+          "summary": "Conductor locked. Advanced actions are available if you need them.",
+          "showAdvanced": "Show advanced actions",
+          "hideAdvanced": "Hide advanced actions"
+        }
+      }
     },
     "help": {
       "openLabel": "Train help",
@@ -3388,6 +3508,9 @@
       "oddsSubtitleHeavyHitter": "Equal chance among configured heavy hitters.",
       "oddsEmptyUniform": "No R3 members fall in the economy VS range for this day yet.",
       "oddsEmptyHeavyHitter": "No heavy hitters are configured for Saturday's draw.",
+      "oddsEmptyUniformCta": "Upload score video",
+      "oddsEmptyHeavyHitterCta": "Open train settings",
+      "retryLoad": "Retry",
       "oddsHeroEqual": "Your chance in today's draw: {probability}",
       "loading": "Loading raffle tickets…",
       "loadFailed": "Could not load raffle tickets.",
@@ -3447,7 +3570,7 @@
       "poolEmptyHeavyHitter": "No heavy hitters are configured for Saturday's Price Is Freight lottery. Add members under Settings → Trains (Takedown team / max tickets), then try again.",
       "poolEmptyGeneric": "No eligible members were found for this pool. Check member ranks on the Members page, then try again.",
       "poolExhausted": "Everyone eligible for this pool has already been picked in the current generation. Re-seed the pool to start a fresh rotation.",
-      "poolUnavailable": "The wheel pool isn't ready yet. Try re-seeding the pool or check member ranks on the Members page.",
+      "poolUnavailable": "The wheel pool isn't ready yet. Re-seed it to rebuild the eligible members, then we'll spin again.",
       "noVsScores": "There aren't enough VS scores to fill the wheel yet. Enter VS scores for this week, then try again.",
       "noEventScores": "There aren't enough event scores to fill the VIP wheel yet. Enter scores for this event, then try again.",
       "noDonationScores": "Donation scores aren't tracked in Alliance HQ yet. Pick the donor manually from your roster.",
@@ -3455,7 +3578,23 @@
       "ashedRequired": "This roll needs an Ashed connection to read live scores. Connect Ashed in Settings, or use a roster-based mechanism instead.",
       "generic": "The wheel can't spin right now. Fix the underlying issue and try again.",
       "goToMembers": "Go to Members",
+      "goToTrainSettings": "Open train settings",
+      "goToSettings": "Go to Settings",
+      "uploadScoreVideo": "Upload score video",
+      "pickManually": "Pick manually",
+      "retrySpin": "Try spinning again",
       "reseedPool": "Re-seed pool",
+      "reseedAndRespin": "Re-seed pool & re-spin",
+      "reseedAndRespinBusy": "Re-seeding…",
+      "close": "Close"
+    },
+    "errorBanner": {
+      "dismiss": "Dismiss"
+    },
+    "autoDq": {
+      "spinAgain": "Spin again",
+      "pickManually": "Pick manually",
+      "override": "Override & keep",
       "close": "Close"
     },
     "mechanisms": {
@@ -3491,6 +3630,8 @@
       "r4_event_vip": "R4 & Event VIP",
       "economy_week": "Economy week",
       "price_is_right": "The Price Is Freight",
+      "price_is_right_weekdays": "Eligible VS scores",
+      "takedown_week": "Takedown week",
       "r3_recognition": "R3 recognition",
       "r4_train_week": "R4 Week",
       "donations_week": "Donations week",
@@ -3499,18 +3640,31 @@
     "templatesShort": {
       "vs_push_weekdays": "VS Push",
       "r4_event_vip": "R4 & Event VIP",
-      "price_is_right": "Closest to 7.2M"
+      "price_is_right": "Closest to 7.2M",
+      "price_is_right_weekdays": "Eligible VS",
+      "takedown_week": "Takedown pool"
+    },
+    "templateShapeLegend": {
+      "economy_week": "R3 pool",
+      "price_is_right_weekdays": "Eligible VS scores",
+      "takedown_week": "Takedown team pool",
+      "custom": "Custom",
+      "r3_recognition": "R3 Conductor award",
+      "r4_train_week": "R4 random draw",
+      "donations_week": "Top donors"
     },
     "templateDetails": {
-      "vs_push_week": "Conductor: Tue and Fri = prior-day VS #1 (auto); Wed, Thu, and Sat = random draw from VS top 10; Sun–Mon = R4+ officer rotation. VIP: Conductor picks VIP on VS weekdays; event top-10 lottery Sun–Mon.",
-      "vs_push_weekdays": "Conductor: Mon = top donor; Tue and Fri = prior-day VS #1; Wed, Thu, and Sat = random from VS top 10. VIP: Mon = 2nd donor; Tue–Sat = conductor free pick.",
-      "r4_event_vip": "Conductor: R4+ officer rotation. VIP: Event top-10 lottery wheel (default event: Capitol War). Typical for weekend train days.",
-      "economy_week": "Conductor: R3 wheel every day — full R3 pool, no VS score band. VIP: Today's conductor picks VIP directly (free pick). Use to pivot mid-week when pushing less VS.",
-      "price_is_right": "Conductor: Tue–Fri and Sun–Mon = R3 raffle wheel (ticket weighting or legacy VS band). Saturday = heavy-hitter lottery among the max-ticket / takedown overrides (equal max chance). VIP: Today's conductor picks VIP directly (free pick).",
-      "r3_recognition": "Conductor: R3 wheel every day — full R3 pool (same draw as Economy week, without VS filtering). VIP: Today's conductor picks VIP directly (free pick).",
-      "r4_train_week": "Conductor: R4+ officer rotation — walks the pool in order, one conductor per day. VIP: Today's conductor picks VIP directly (free pick).",
-      "donations_week": "Conductor: Top alliance donor (auto). VIP: Second-place donor (auto; officers can override if leaderboard data is wrong).",
-      "custom": "Conductor / VIP: No preset rules — set each day's mechanisms on the calendar or pick manually when you roll."
+      "vs_push_week": "Conductor: Radar Training and Train Heroes days top-scores get Conductor at Reset. Other VS days, except Enemy Buster, draw Conductor from VS top 10. Sun & Mon are R4+ officer rotation days. VIP: Conductor picks VIP on VS weekdays; custom event top-10 lottery Sun & Mon.",
+      "vs_push_weekdays": "Conductor: Mon = top weekly donations; Tue and Fri = prior-day VS #1; Wed, Thu, and Sat = random from VS top 10. VIP: Mon = 2nd donor; Tue–Sat = conductor free pick.",
+      "r4_event_vip": "Conductor: R4+ officer rotation. VIP: Custom event top-10 lottery wheel (Capitol War, Meteorite, etc). Typical for weekend train days.",
+      "economy_week": "Conductor: R3 wheel every day. VIP: Conductor's pick.",
+      "price_is_right": "Conductor: Tue–Fri = raffle from eligible prior-day VS scores. Saturday = random draw from the takedown team pool. Sun–Mon = Custom (manual). VIP: Conductor's pick on raffle/takedown days.",
+      "price_is_right_weekdays": "Conductor: raffle from eligible prior-day VS scores (Equal chance or Closer is Better). VIP: Conductor's pick.",
+      "takedown_week": "Conductor: random draw from the takedown team roster every day (depleting pool). VIP: Conductor's pick.",
+      "r3_recognition": "Conductor: manual pick from the R3 pool every day — selected members are depleted from the pool. VIP: Conductor's pick.",
+      "r4_train_week": "Conductor: Random R4 officer rotation. VIP: Conductor's pick.",
+      "donations_week": "Conductor: Prior day top donor. VIP: Second-place donor.",
+      "custom": "Conductor / VIP: No preset rules. Choose each day's conductor template on the calendar, or pick manually ."
     },
     "wheel": {
       "title": "All aboard!",
@@ -3520,13 +3674,18 @@
       "vsShortfall": "VS: {score} pts (need {required}; short by {shortfall})",
       "donationShortfall": "Donations: {score} pts (need {required}; short by {shortfall})",
       "spinAgain": "Spin again",
+      "cancel": "Cancel",
       "override": "Override disqualification",
       "overrideReasonLabel": "Reason for override (optional)",
       "overrideReasonPlaceholder": "e.g. excused absence, makeup week",
       "close": "Continue",
       "never": "never",
       "lastConducted": "Last: {date}",
-      "conductsThisYear": "{count} this year"
+      "conductsThisYear": "{count} this year",
+      "vsValidation": {
+        "top1Title": "Top VR Score",
+        "top10Title": "Top 10 VR Scores"
+      }
     },
     "season": {
       "label": "Game season",
@@ -3568,6 +3727,8 @@
     },
     "fileLabel": "Video file",
     "fileHint": "MP4 or MOV screen recording while scrolling the full leaderboard.",
+    "fileHintKills": "Drop Kills screenshots here or browse — upload from the Strength Ranking → Kills tab. A screen recording scrolling that leaderboard also works.",
+    "depositSlipFileHint": "Prefer shorter clips, or several uploads working from newest slips downward. Long history videos can take many minutes to finish OCR.",
     "fileSizeLimit": "Maximum size: {maxSize}.",
     "fileSizeTipsIntro": "If the file is too large, try:",
     "fileSizeTipCrop": "Crop to the narrowest frame that still shows full leaderboard rows (names and scores).",
@@ -3670,6 +3831,15 @@
     "processing": "Processing ({status})… this page refreshes automatically.",
     "pendingApproval": "Waiting for a video processor to approve this upload. OCR will start after approval — this page refreshes automatically.",
     "processingFailed": "Processing failed. Try uploading again.",
+    "stageQueued": "Waiting in the processing queue…",
+    "stageExtracting": "Extracting frames from the video…",
+    "stageOcrRunning": "Running OCR — {completed} of {total} frames",
+    "stageFinalizing": "Finalizing results…",
+    "stageDone": "Loading your results…",
+    "pipelineLabel": "Pipeline: {engine}",
+    "engineAshed": "Ashed",
+    "engineNative": "In-house Tesseract",
+    "engineMock": "Mock OCR (dev/test)",
     "backToUploads": "← Back to uploads",
     "summary": "{matched} matched · {total} entries",
     "noEntriesHint": "OCR finished but no rows were parsed. This was usually a response-format bug — try re-running OCR.",
@@ -3695,8 +3865,15 @@
     "existingStormScoresWarning": "Scores already exist for {eventName} Team {team}. Saving replaces that batch on the same event. Open Data Management to review or delete the batch first if you need a clean slate.",
     "openDataManagement": "Open Data Management",
     "dateLabel": "Recorded date",
+    "vsPeriodLabel": "Score type",
+    "vsPeriodDaily": "Daily",
+    "vsPeriodWeekly": "Weekly",
+    "vsPeriodDailyHint": "Match-day scores (Monday–Saturday).",
+    "vsPeriodWeeklyHint": "Week totals uploaded on Sunday. Ashed fills missing daily scores; HQ does not interpolate.",
     "vsDayOption": "Day {dayNumber} - {dayName} · {date}",
+    "vsWeeklyDateOption": "Week ending Sunday · {date}",
     "vsSundayInvalid": "VS has no Sunday match day. Pick Monday–Saturday.",
+    "vsWeeklyDateInvalid": "Weekly VS totals use Sunday. Pick a Sunday date.",
     "vsDays": {
       "radarTraining": "Radar Training",
       "baseExpansion": "Base Expansion",
@@ -3713,16 +3890,21 @@
     "colLevel": "Level",
     "colProfession": "Profession",
     "colScore": "Score",
+    "colKills": "Kills",
     "unmatched": "Select member…",
     "memberSearchNoResults": "No matching members.",
     "deleteRow": "Delete",
     "saveScores": "Save {count} scores",
+    "saveKills": "Save {count} kill counts",
     "saveRoster": "Apply {count} roster rows to HQ",
     "saveDepositSlips": "Save {count} deposit slips",
     "submitting": "Submitting…",
     "submitSuccess": "Saved {count} scores to Ashed.",
+    "killsSubmitSuccess": "Saved {count} kill counts to Ashed. Linked HQ commanders were updated when available.",
     "rosterSubmitSuccess": "Applied {count} roster rows to HQ members.",
     "depositSlipSubmitSuccess": "Saved {count} deposit slips to Bank Management.",
+    "depositSlipSubmitAdded": "Added {count} new deposit slip(s) to this bank.",
+    "depositSlipSubmitSkippedDuplicates": "Skipped {count} that already matched history.",
     "bankLabel": "Bank Stronghold",
     "bankPlaceholder": "Select bank…",
     "scoreConflictHint": "Some players were read with conflicting scores across video frames. Pick the correct score and delete the extra row for each player.",
@@ -3810,13 +3992,21 @@
     "depositSlipSortDepositAt": "Deposit time",
     "depositSlipIncompleteRow": "Incomplete — fill amount, term, and deposit time.",
     "depositSlipIncompleteBlocked": "Fill every incomplete row before saving.",
-    "depositSlipAutoDedupeTitle": "{count, plural, one {# duplicate row was automatically merged.} other {# duplicate rows were automatically merged.}}",
+    "depositSlipAutoDedupeTitle": "{count, plural, one {# deposit was automatically merged.} other {# deposits were automatically merged.}}",
     "depositSlipAutoDedupeHint": "Expand to see which OCR rows were combined into each kept row.",
     "depositSlipAutoDedupeToggleShow": "Show merged groups",
     "depositSlipAutoDedupeToggleHide": "Hide merged groups",
     "depositSlipAutoDedupeDestination": "Kept",
     "depositSlipAutoDedupeSource": "Merged away",
     "depositSlipAutoDedupeMajorityCorrected": "Corrected {fields} using the majority reading across merged rows.",
+    "depositSlipLifecycleMatured": "Matured deposit — deposited {depositAt}, matured {outcomeAt}",
+    "depositSlipLifecycleLooted": "Looted deposit — deposited {depositAt}, looted {outcomeAt}",
+    "depositSlipMissingTsCoveredTitle": "{count, plural, one {# row is missing a deposit time but already matches a parsed deposit.} other {# rows are missing a deposit time but already match a parsed deposit.}}",
+    "depositSlipMissingTsCoveredHint": "The timestamp was probably clipped off the top of the frame. This is usually safe to ignore. Expand only if you want to double-check.",
+    "depositSlipMissingTsCoveredToggleShow": "Show missing-time rows",
+    "depositSlipMissingTsCoveredToggleHide": "Hide missing-time rows",
+    "depositSlipMissingTsCoveredKept": "Already kept",
+    "depositSlipMissingTsCoveredAbsorbed": "Missing time (duplicate)",
     "depositSlipFlaggedTitle": "{count, plural, one {# cluster still needs review.} other {# clusters still need review.}}",
     "depositSlipFlaggedHint": "Edit or delete the highlighted rows so each deposit appears once, then save.",
     "depositSlipFlaggedBlocked": "Resolve flagged duplicate clusters before saving.",
@@ -4313,6 +4503,7 @@
       "anomalyConfirm": "Are you *sure* your total hero power is {total}? That's a big jump ahead of the pack. Tap Yes if you're serious.",
       "ocrConfirm": "I read total hero power as **{total}**. Tap Yes to save, or No to cancel.",
       "ocrFailed": "Couldn't read that screenshot. Try a clearer Power Details capture or enter `/thp total:163460435` manually.",
+      "ocrPartial": "Some values were hard to read. Please review and correct the pre-filled breakdown below.",
       "invalidTotal": "Enter a valid total hero power between 1 and 1,000,000,000.",
       "commanderNotFound": "Could not find your commander in this alliance. Run `/link-commander` first."
     },
@@ -5099,6 +5290,8 @@
     "emptyBanks": "No banks yet. Add a Bank Stronghold to unlock drop recommendations.",
     "emptyDeposits": "No deposit slips yet for this bank.",
     "emptyDepositsHint": "Upload a Deposit Slip History video to import slips for this bank.",
+    "latestDepositSlipHero": "Latest deposit slip for this bank: [{allianceTag}] {commanderName} on {depositEventTime}",
+    "latestDepositSlipHeroNoTag": "Latest deposit slip for this bank: {commanderName} on {depositEventTime}",
     "uploadDepositSlip": "Upload deposit slip video",
     "addBank": "Add bank",
     "importBanksFromScreenshot": "Import banks from screenshot",
@@ -5108,6 +5301,7 @@
     "cityListParseFailed": "Could not read banks from those images.",
     "cityListIncompleteWarning": "Imported banks are fewer than the captured count — import will not remove existing banks.",
     "cityListExtraHqWarning": "HQ has banks not shown in these screenshots. They were left unchanged.",
+    "cityListDraftRestored": "Restored your unsaved review from last time.",
     "cityListAddRow": "Add bank row",
     "cityListDuplicateCoords": "Two or more banks have the same coordinates.",
     "cityListValidationRequired": "Required",
@@ -5123,6 +5317,11 @@
     "cityListPreviewScreenshots": "Preview screenshots",
     "cityListPreviousBank": "Previous",
     "cityListNextBank": "Next",
+    "cityListReset": "Reset",
+    "cityListResetTitle": "Reset this import?",
+    "cityListResetBody": "Clears everything you’ve reviewed so far and returns to the upload step.",
+    "cityListResetHint": "This can’t be undone — you’ll need to re-upload the screenshots to start over.",
+    "cityListResetConfirm": "Reset import",
     "capturesLeftToday": "Captures left today: {remaining}/{limit}",
     "cityListServerTime": "Screenshot server time: {time}",
     "editBank": "Edit bank",
@@ -5243,10 +5442,11 @@
   },
   "statSync": {
     "title": "HQ ↔ Ashed sync",
-    "subtitle": "Resolve pending THP and kills reports that need to be pushed to Ashed, or keep Ashed when HQ is wrong.",
+    "subtitle": "Resolve pending THP, kills, and HQ-level reports that need to be pushed to Ashed, or keep Ashed when HQ is wrong.",
     "tabs": {
       "thp": "THP",
-      "kills": "Kills"
+      "kills": "Kills",
+      "level": "HQ level"
     },
     "empty": "No pending sync items for this stat.",
     "loadFailed": "Failed to load sync review.",

@@ -2,6 +2,7 @@ import {
   MECHANISM_STYLES,
   mechanismStyleClass,
 } from "@/lib/trains/mechanism-styles";
+import { isPriceIsRightPaintTemplate } from "@/lib/trains/heavy-hitter-pool.shared";
 import type { WeekTemplateType } from "@/lib/trains/types";
 import { WEEK_TEMPLATES } from "@/lib/trains/types";
 
@@ -14,6 +15,8 @@ const TEMPLATE_CELL_STYLES: Partial<Record<WeekTemplateType, string>> = {
   r4_event_vip: "border-slate-300 bg-slate-400/15 text-slate-100",
   economy_week: "border-red-500 bg-red-500/15 text-red-200",
   price_is_right: "border-cyan-500 bg-cyan-500/15 text-cyan-200",
+  price_is_right_weekdays: "border-cyan-500 bg-cyan-500/15 text-cyan-200",
+  takedown_week: "border-cyan-400 bg-cyan-400/15 text-cyan-100",
   r3_recognition: MECHANISM_STYLES.r3_lottery,
   r4_train_week: MECHANISM_STYLES.r4_sequence,
   donations_week: MECHANISM_STYLES.donations_top,
@@ -42,8 +45,8 @@ export function calendarCellStyleClass(
   if (paintTemplate === "economy_week") {
     return TEMPLATE_CELL_STYLES.economy_week!;
   }
-  if (paintTemplate === "price_is_right") {
-    return TEMPLATE_CELL_STYLES.price_is_right!;
+  if (isPriceIsRightPaintTemplate(paintTemplate)) {
+    return TEMPLATE_CELL_STYLES.price_is_right_weekdays!;
   }
   if (paintTemplate === "vs_push_week") {
     return mechanismStyleClass(conductorMechanism);

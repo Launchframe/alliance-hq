@@ -15,9 +15,20 @@ import {
 import {
   adminVideoJobDetailHref,
   adminVideoJobsListHref,
+  buildAdminVideoJobsListSearchParams,
   parseAdminVideoJobsListFilters,
 } from "@/lib/video/admin-video-jobs-query.shared";
 import { SURVEY_SCROLL_STYLES, type SurveyScrollStyle } from "@/lib/video/survey";
+
+type JobNeighbors = {
+  previousId: string | null;
+  nextId: string | null;
+  position: number | null;
+  total: number;
+  /** Job id these neighbors were fetched for (ignore stale while navigating). */
+  forJobId: string;
+};
+
 type JobDetail = {
   id: string;
   status: string;
@@ -331,6 +342,9 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
   );
   const [data, setData] = useState<DetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [neighbors, setNeighbors] = useState<JobNeighbors | null>(null);
+  const activeNeighbors =
+    neighbors?.forJobId === jobId ? neighbors : null;
   const [tab, setTab] = useState<TabId>("frames");
   const [expandedFrames, setExpandedFrames] = useState<Set<number>>(new Set());
 
@@ -386,6 +400,32 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
     if (!res.ok) throw new Error(await res.text());
     setData((await res.json()) as DetailResponse);
   }, [jobId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const qs = buildAdminVideoJobsListSearchParams(listFilters);
+    qs.set("limit", "200");
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/admin/video-jobs/${jobId}/neighbors?${qs.toString()}`,
+        );
+        if (!res.ok) {
+          if (!cancelled) setNeighbors(null);
+          return;
+        }
+        const body = (await res.json()) as Omit<JobNeighbors, "forJobId">;
+        if (!cancelled) {
+          setNeighbors({ ...body, forJobId: jobId });
+        }
+      } catch {
+        if (!cancelled) setNeighbors(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId, listFilters]);
 
   useEffect(() => {
     void (async () => {
@@ -689,6 +729,43 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
         <h1 className="min-w-0 truncate text-lg font-medium text-hq-fg">
           {job.fileName ?? job.id}
         </h1>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {activeNeighbors?.position != null && activeNeighbors.total > 0 ? (
+            <span className="text-xs text-hq-fg-muted">
+              {tDetail("jobPosition", {
+                position: activeNeighbors.position,
+                total: activeNeighbors.total,
+              })}
+            </span>
+          ) : null}
+          {activeNeighbors?.previousId ? (
+            <Link
+              href={adminVideoJobDetailHref(
+                activeNeighbors.previousId,
+                listFilters,
+              )}
+              className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted"
+            >
+              {tDetail("previousJob")}
+            </Link>
+          ) : (
+            <span className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg-muted opacity-50">
+              {tDetail("previousJob")}
+            </span>
+          )}
+          {activeNeighbors?.nextId ? (
+            <Link
+              href={adminVideoJobDetailHref(activeNeighbors.nextId, listFilters)}
+              className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted"
+            >
+              {tDetail("nextJob")}
+            </Link>
+          ) : (
+            <span className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg-muted opacity-50">
+              {tDetail("nextJob")}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-3 rounded-xl border border-hq-border bg-hq-surface p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">

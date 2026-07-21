@@ -3,9 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   collectDatabaseErrorText,
   isConnectionPoolExhausted,
+  isDatabaseErrorTextLeakedToClient,
   isEncryptionKeyError,
   isMissingSchemaError,
   postgresErrorCode,
+  publicPairingCompleteFailureMessage,
   resolveDatabaseErrorPresentation,
 } from "./error-message";
 
@@ -51,6 +53,31 @@ describe("isEncryptionKeyError", () => {
         new Error("Unsupported state or unable to authenticate data"),
       ),
     ).toBe(true);
+  });
+});
+
+describe("publicPairingCompleteFailureMessage", () => {
+  it("hides Drizzle SQL and postgres codes from clients", () => {
+    const pg = Object.assign(
+      new Error('duplicate key value violates unique constraint "linked_devices_session_id_key"'),
+      { code: "23505" },
+    );
+    const drizzle = new Error('Failed query: insert into "linked_devices"', {
+      cause: pg,
+    });
+
+    expect(isDatabaseErrorTextLeakedToClient(drizzle)).toBe(true);
+    expect(publicPairingCompleteFailureMessage(drizzle)).toBe(
+      "Pairing failed. Generate a new QR code and try again.",
+    );
+  });
+
+  it("does not pass through arbitrary internal error messages", () => {
+    expect(
+      publicPairingCompleteFailureMessage(
+        new Error("ENOENT: /var/task/secrets/token.key"),
+      ),
+    ).toBe("Pairing failed.");
   });
 });
 

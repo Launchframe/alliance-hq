@@ -19,11 +19,13 @@ const patchSchema = z
   .object({
     displayWeekStartDow: z.union([z.literal(0), z.literal(1)]).optional(),
     wheelSpinSpeed: z.enum(["slow", "regular", "fast"]).optional(),
+    simpleModeEnabled: z.boolean().optional(),
   })
   .refine(
     (body) =>
       body.displayWeekStartDow !== undefined ||
-      body.wheelSpinSpeed !== undefined,
+      body.wheelSpinSpeed !== undefined ||
+      body.simpleModeEnabled !== undefined,
     { message: "At least one preference field is required." },
   );
 
@@ -34,6 +36,7 @@ export async function GET() {
       return NextResponse.json({
         displayWeekStartDow: DEFAULT_TRAINS_DISPLAY_WEEK_START_DOW,
         wheelSpinSpeed: DEFAULT_TRAINS_WHEEL_SPIN_SPEED,
+        simpleModeEnabled: true,
         canEdit: false,
       });
     }
@@ -82,6 +85,9 @@ export async function PATCH(request: Request) {
         ? {
             wheelSpinSpeed: normalizeTrainsWheelSpinSpeed(body.wheelSpinSpeed),
           }
+        : {}),
+      ...(body.simpleModeEnabled !== undefined
+        ? { simpleModeEnabled: body.simpleModeEnabled }
         : {}),
     });
 

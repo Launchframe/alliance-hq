@@ -42,6 +42,9 @@ describe("score-target-nav", () => {
 
   it("parses enabled scoreTarget query values only", () => {
     expect(parseVideoUploadScoreTargetParam("donations")).toBe("donations");
+    expect(parseVideoUploadScoreTargetParam("alliance-kills-video")).toBe(
+      "alliance-kills-video",
+    );
     expect(parseVideoUploadScoreTargetParam("alliance-star")).toBeNull();
     expect(parseVideoUploadScoreTargetParam("")).toBeNull();
   });

@@ -32,6 +32,7 @@ export async function reloadBankManagementDashboard(
   ]);
 
   return buildBankManagementPayload(banks, {
+    allianceId,
     canWrite,
     todayServerDate: getServerCalendarDate(),
     effectiveSeasonKey: effectiveSeason.seasonKey,

@@ -30,9 +30,10 @@ export function throwPoolExhausted(poolType: PoolType): never {
   );
 }
 
-export function throwPoolUnavailable(): never {
+export function throwPoolUnavailable(poolType?: PoolType): never {
   throw new TrainRollError("No pool entry available.", {
     code: "POOL_UNAVAILABLE",
+    poolType,
   });
 }
 

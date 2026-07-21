@@ -40,5 +40,10 @@ describe("parseTrainRollError", () => {
       isWheelBlockedError(parseTrainRollError({ rollError: { code: "POOL_EMPTY", poolType: "r3" } })),
     ).toBe(true);
     expect(isWheelBlockedError(null)).toBe(false);
+    expect(
+      parseTrainRollError({
+        rollError: { code: "POOL_UNAVAILABLE", poolType: "r3" },
+      }),
+    ).toEqual({ code: "POOL_UNAVAILABLE", poolType: "r3" });
   });
 });

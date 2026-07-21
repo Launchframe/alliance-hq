@@ -167,10 +167,48 @@ describe("optimistic dashboard state", () => {
     );
     expect(painted.viewedWeek.templateType).toBe("price_is_right");
     expect(painted.data.schedule?.templateType).toBe("price_is_right");
+    expect(painted.data.schedulePersisted).toBe(true);
+    // Composite PIR week: Tue–Fri paint as the weekday segment, not the parent.
     expect(
       painted.viewedWeek.dayConfigs.find((d) => d.date === "2026-06-10")
         ?.paintTemplate,
-    ).toBe("price_is_right");
+    ).toBe("price_is_right_weekdays");
+  });
+
+  it("marks schedulePersisted when creating an optimistic schedule from draft", () => {
+    const base = {
+      data: {
+        weekStart: "2026-06-08",
+        weekEnd: "2026-06-14",
+        schedule: null,
+        schedulePersisted: false,
+        dayConfigs: [],
+        weekRecords: [],
+      },
+      viewedWeek: {
+        weekStart: "2026-06-08",
+        weekEnd: "2026-06-14",
+        templateType: "vs_push_week" as const,
+        dayConfigs: [],
+        weekRecords: [],
+      },
+      viewedMonth: {
+        monthKey: "2026-06",
+        monthStart: "2026-06-01",
+        monthEnd: "2026-06-30",
+        dayConfigs: [],
+        monthRecords: [],
+      },
+    } as unknown as Parameters<typeof applyOptimisticPaint>[0];
+
+    const painted = applyOptimisticPaint(
+      base,
+      ["2026-06-10"],
+      "vs_push_week",
+      { updateWeekTemplate: true },
+    );
+    expect(painted.data.schedulePersisted).toBe(true);
+    expect(painted.data.schedule?.templateType).toBe("vs_push_week");
   });
 
   it("sets templateType on the viewed week when applying a week template", () => {

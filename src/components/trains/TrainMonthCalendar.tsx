@@ -36,6 +36,8 @@ export const PAINT_TEMPLATES: WeekTemplateType[] = [
   "r4_event_vip",
   "economy_week",
   "price_is_right",
+  "price_is_right_weekdays",
+  "takedown_week",
   "r3_recognition",
   "r4_train_week",
   "donations_week",
