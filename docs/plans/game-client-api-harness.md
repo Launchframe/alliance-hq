@@ -59,57 +59,52 @@ Treat this as:
 
 ---
 
-## Phase 0 — Capture lab (BlueStacks + sniffer)
+## Phase 0 — Capture lab (BlueStacks + SmartFox TCP)
 
-You already run the game on **BlueStacks on Mac**. First milestone is a **local capture lab**, not code in Alliance HQ.
+You run the game on **BlueStacks on Mac**. Login is **not** HTTPS — it is encrypted SmartFox TCP (`e405` mobile / `e406` PC) to the game relay (often `172.65.210.24:18349`). That is the same shape [LastWarTools/Capture-Tool](https://github.com/LastWarTools/Capture-Tool) already sniffs.
+
+**Preferred path:** compile/run our Mac fork in [`tools/lastwar-capture/`](../../tools/lastwar-capture/) (GPLv3), watch BlueStacks NAT traffic on `en0`, upload `handshake.bin` / `auth.bin` / `login.bin` to `api.lastwar.tools`, then call read-only VS endpoints. Operator guide: [`docs/guides/lastwar-tools-bluestacks-capture.md`](../guides/lastwar-tools-bluestacks-capture.md).
 
 ### Recommended stack (Mac)
 
-1. **HTTPS-capable proxy** — [mitmproxy](https://mitmproxy.org/) (free, scriptable) or Proxyman/Charles. Prefer mitmproxy for reproducible dumps we can check into a private `har/`-style folder (gitignored, like Ashed).
-2. **BlueStacks proxy** — Point the emulator’s Android network settings (or BlueStacks settings → proxy) at `host.docker.internal` / Mac LAN IP + proxy port.
-3. **CA install** — Install the proxy’s root CA into the **Android user/system trust store** inside the emulator so TLS decrypts. Without this you only see SNI/IPs.
-4. **Filter early** — Ignore ads/CDN/analytics; keep hosts matching `*lastwar*`, publisher CDNs, and anything the client hits when opening scoreboards.
+1. **Host sniffer** — `tools/lastwar-capture/capture_cli.py` (scapy + libpcap, run with `sudo`)  
+2. **BlueStacks** — force-quit game → start capture → relaunch + login  
+3. **API** — [lastwar.tools](https://lastwar.tools/) API key + session key (`scripts/lastwar-tools/`)  
+4. **Fallback** — Frida hook inside the guest (`frida_capture_bluestacks.js`) if host sniffing is blind  
+5. **Optional later** — mitmproxy only if we discover separate HTTPS scoreboard APIs; login itself does not need TLS intercept  
 
-### Capture protocol (repeatable)
+### Capture protocol (login → VS)
 
-For each scoreboard officers care about, run a **scripted capture session**:
+1. Capture login triple (handshake / auth / login) via CLI  
+2. `POST /auth/credentials/upload` → `GET /auth/sessions` → `session_key`  
+3. `GET /vs/rankings/daily?day=1..6` (Mon–Sat) via `scripts/lastwar-tools/fetch-vs-daily.mjs`  
+4. Filter by `alliance_abbr`; keep UIDs off shared surfaces  
 
-1. Cold start game → login complete  
-2. Clear proxy flow / start fresh recording  
-3. Open **only** the target UI (e.g. VS daily ranking) once  
-4. Scroll fully through the list if paginated  
-5. Export decrypted traffic (HAR or mitmproxy flow dump)  
-6. Label file: `captures/lastwar/<date>-<board>-<account>.har` (gitignored)
+Capture matrix (API whitelist — read-only):
 
-Capture matrix (minimum):
-
-- Login / session refresh  
-- Alliance member list  
-- VS daily + VS weekly  
-- One classic event board (Desert Storm or equivalent)  
-- Donations  
-- Alliance kills / strength ranking  
-- Personal Power Details (THP)  
-- Personal kills  
-- City list / bank UI (Season 5) if present  
+- Login / session (`/auth/*`)  
+- VS daily + season (`/vs/rankings/*`)  
+- VS schedule / matchups / group  
+- Alliance members  
+- Defer write endpoints under `/actions/*` forever for HQ automation  
 
 ### Hard technical risks to expect
 
 | Risk | Symptom | Mitigation direction |
 | --- | --- | --- |
-| **Cert pinning** | App fails to connect through proxy; empty decrypted bodies | Frida/objection unpin *in lab only*; or capture on rooted/patched BlueStacks image. Document exact steps privately — never ship unpin tooling in HQ prod. |
-| **Non-HTTP transport** | Only UDP/WebSocket/custom TCP | Broader capture (Wireshark); may need protobuf schema recovery |
-| **Binary protobuf / MessagePack** | Opaque bodies | Capture many samples; diff; optionally dump from client with Frida hooks on serialize |
-| **Device / anti-cheat fingerprint** | Extra headers (`X-Device-*`, signed timestamps) | Record full request templates; replay must include them |
-| **Short-lived tokens** | 401 after minutes | Harness must refresh like the client (Phase 2) |
-| **Server-time alignment** | Wrong VS day | Reuse HQ server-time (`Etc/GMT+2`) rules from `.cursor/rules/alliance-affairs.mdc` |
+| **Wrong iface on Mac** | Zero `e405` packets | `list-ifaces`; try `en0` / bridge; reboot BlueStacks |
+| **Capture after login** | Stuck waiting | Force-quit game, start sniffer, then launch |
+| **Host sniff blind** | Only see unrelated TCP | Frida `send()` hook in guest; pull `.bin` via adb |
+| **Session expiry** | 401 from lastwar.tools | Re-capture login blobs; refresh session_key |
+| **Third-party dependency** | lastwar.tools down / ToS | Keep blobs local; long-term optional self-hosted replay |
+| **Server-time alignment** | Wrong VS day | Day `1–6` = Mon–Sat ST; see `.cursor/rules/alliance-affairs.mdc` |
 
 ### Success criteria for Phase 0
 
-- [ ] At least one decrypted scoreboard response with clear member name + score fields  
-- [ ] Login/session request template documented (hosts, cookies, auth headers)  
-- [ ] Written note: pinning yes/no; encoding JSON vs protobuf  
-- [ ] Sanitized redaction checklist (tokens, UID, cookies) before anything leaves the lab machine  
+- [ ] Mac CLI captures handshake + auth + login from BlueStacks traffic (or Frida fallback)  
+- [ ] Upload accepted by `api.lastwar.tools`  
+- [ ] `fetch-vs-daily.mjs --day 1` returns alliance rows for a known VS Monday  
+- [ ] UIDs redacted in shared output  
 
 ---
 
@@ -246,11 +241,11 @@ Defer until captures show stable, documentable HTTP APIs and maintainer accepts 
 
 ## Immediate next actions (you + lab)
 
-1. Install mitmproxy (or Proxyman) on the Mac; configure BlueStacks proxy + CA.  
-2. Confirm whether Last War on BlueStacks **trusts user CAs** or pins — this gates everything.  
-3. Capture **login** + **VS daily** first (highest value for trains).  
-4. Drop sanitized structural notes into this plan’s appendix (or private gist) before writing harness code.  
-5. Decide go/no-go on ToS with eyes open before any shared hosting.
+1. Get a lastwar.tools API key; install `tools/lastwar-capture` deps on the Mac (`brew install libpcap`, venv, `pip install -r requirements.txt`).  
+2. Run `sudo -E python capture_cli.py capture --iface en0 --out ./creds --api-key "$LWT_API_KEY"` and log in via BlueStacks.  
+3. `node scripts/lastwar-tools/list-sessions.mjs` then `fetch-vs-daily.mjs --day 1 --alliance-tag …`.  
+4. If host sniff fails, use Frida path in `tools/lastwar-capture/README.md`.  
+5. Decide go/no-go on ToS / third-party dependency before any shared hosting.
 
 ---
 
