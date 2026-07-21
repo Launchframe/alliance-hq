@@ -55,6 +55,7 @@ export async function saveTrainDiscordSettings(
     channelSetterMinRank?: TrainChannelSetterMinRank;
   },
   canConfigureChannelSetterMinRank: boolean,
+  canManage: boolean,
 ): Promise<TrainDiscordSettings> {
   if (input.announcementsEnabled !== undefined) {
     await setAllianceTrainDiscordAnnouncementsEnabled(
@@ -73,7 +74,7 @@ export async function saveTrainDiscordSettings(
   }
   return loadTrainDiscordSettings(
     allianceId,
-    true,
+    canManage,
     canConfigureChannelSetterMinRank,
   );
 }

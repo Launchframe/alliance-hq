@@ -111,6 +111,11 @@ export async function PATCH(request: Request, context: RouteContext) {
       if (denied) return denied;
     }
 
+    const canManage = await sessionHasPermissionForAlliance(
+      session.id,
+      alliance.allianceId,
+      "trains:write",
+    );
     const canConfigureChannelSetterMinRank = await sessionIsAllianceOwner(
       session.id,
       alliance.allianceId,
@@ -128,7 +133,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const before = await loadTrainDiscordSettings(
       alliance.allianceId,
-      true,
+      canManage,
       canConfigureChannelSetterMinRank,
     );
     const saved = await saveTrainDiscordSettings(
@@ -138,6 +143,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         channelSetterMinRank: body.data.channelSetterMinRank,
       },
       canConfigureChannelSetterMinRank,
+      canManage,
     );
 
     const announcementsChanged =

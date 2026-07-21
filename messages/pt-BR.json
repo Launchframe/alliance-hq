@@ -4517,7 +4517,7 @@
     "train": {
       "setTrainChannel": {
         "success": "Anúncios de trem de **{tag}** serão publicados em {channel}. Ative os anúncios nas configurações da aliança no HQ; oficiais podem usar `/set-conductor` e `/train-is-ready`.",
-        "deniedOfficer": "Somente um oficial R4+ vinculado (ou o dono da aliança) pode definir o canal do trem. Vincule seu comandante primeiro, ou peça ao R5 para ajustar a permissão em Alliance HQ → Configurações → Trens.",
+        "deniedOfficer": "Somente um oficial R4+ vinculado (ou o dono da aliança) pode definir o canal do trem. Vincule seu comandante primeiro, ou peça a um oficial ou ao dono para executar este comando.",
         "deniedOwnerOnly": "Esta aliança exige que o R5 / dono defina o canal do trem. Peça ao dono, ou peça para voltar a permitir R4+ em Alliance HQ → Configurações → Trens."
       },
       "noConductor": "Ainda não há condutor para **{date}**.",

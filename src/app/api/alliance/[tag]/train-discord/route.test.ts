@@ -5,6 +5,7 @@ const resolveAllianceRouteForSessionMock = vi.fn();
 const requireAllianceRoutePermissionMock = vi.fn();
 const getRbacContextMock = vi.fn();
 const getAllianceMembershipRbacMock = vi.fn();
+const sessionHasPermissionForAllianceMock = vi.fn();
 const loadTrainDiscordSettingsMock = vi.fn();
 const saveTrainDiscordSettingsMock = vi.fn();
 const writeAuditLogMock = vi.fn();
@@ -32,7 +33,12 @@ vi.mock("@/lib/rbac/context", () => ({
     allianceId: string,
   ) => getAllianceMembershipRbacMock(sessionId, hqUserId, allianceId),
   getRbacContext: (sessionId: string) => getRbacContextMock(sessionId),
-  sessionHasPermissionForAlliance: vi.fn(),
+  sessionHasPermissionForAlliance: (
+    sessionId: string,
+    allianceId: string,
+    permission: string,
+  ) =>
+    sessionHasPermissionForAllianceMock(sessionId, allianceId, permission),
 }));
 
 vi.mock("@/lib/trains/train-discord-settings.server", () => ({
@@ -50,11 +56,13 @@ vi.mock("@/lib/trains/train-discord-settings.server", () => ({
     allianceId: string,
     input: unknown,
     canConfigureChannelSetterMinRank: boolean,
+    canManage: boolean,
   ) =>
     saveTrainDiscordSettingsMock(
       allianceId,
       input,
       canConfigureChannelSetterMinRank,
+      canManage,
     ),
 }));
 
@@ -101,6 +109,7 @@ describe("PATCH /api/alliance/[tag]/train-discord", () => {
     requireAllianceRoutePermissionMock.mockResolvedValue(null);
     getRbacContextMock.mockResolvedValue({ hqUserId: "hq-1" });
     getAllianceMembershipRbacMock.mockResolvedValue({ roleName: "officer" });
+    sessionHasPermissionForAllianceMock.mockResolvedValue(true);
     loadTrainDiscordSettingsMock.mockResolvedValue(settings);
     saveTrainDiscordSettingsMock.mockResolvedValue(settings);
     writeAuditLogMock.mockResolvedValue(undefined);
@@ -121,6 +130,7 @@ describe("PATCH /api/alliance/[tag]/train-discord", () => {
     requireAllianceRoutePermissionMock.mockResolvedValue(
       Response.json({ error: "Forbidden" }, { status: 403 }),
     );
+    sessionHasPermissionForAllianceMock.mockResolvedValue(false);
     getAllianceMembershipRbacMock.mockResolvedValue({ roleName: "owner" });
     saveTrainDiscordSettingsMock.mockResolvedValue({
       ...settings,
@@ -136,6 +146,37 @@ describe("PATCH /api/alliance/[tag]/train-discord", () => {
       "ally-1",
       { announcementsEnabled: undefined, channelSetterMinRank: "owner" },
       true,
+      false,
+    );
+  });
+
+  it("returns canManage=false when owner patches setter rank without trains:write", async () => {
+    requireAllianceRoutePermissionMock.mockResolvedValue(null);
+    sessionHasPermissionForAllianceMock.mockResolvedValue(false);
+    getAllianceMembershipRbacMock.mockResolvedValue({ roleName: "owner" });
+    saveTrainDiscordSettingsMock.mockResolvedValue({
+      ...settings,
+      channelSetterMinRank: "owner",
+      canManage: false,
+      canConfigureChannelSetterMinRank: true,
+    });
+
+    const res = await patchTrainDiscord({ channelSetterMinRank: "owner" });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { canManage: boolean };
+    expect(body.canManage).toBe(false);
+    expect(sessionHasPermissionForAllianceMock).toHaveBeenCalledWith(
+      "sess-1",
+      "ally-1",
+      "trains:write",
+    );
+    expect(loadTrainDiscordSettingsMock).toHaveBeenCalledWith("ally-1", false, true);
+    expect(saveTrainDiscordSettingsMock).toHaveBeenCalledWith(
+      "ally-1",
+      { announcementsEnabled: undefined, channelSetterMinRank: "owner" },
+      true,
+      false,
     );
   });
 
