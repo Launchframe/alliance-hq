@@ -156,6 +156,18 @@ async function longPressDay(page: Page, day: Locator) {
   await page.mouse.up();
 }
 
+/** Scroll within the menu's overflow list, then activate the template item. */
+async function selectDayTemplate(page: Page, template: string) {
+  const item = page.getByTestId(`trains-day-template-${template}`);
+  await expect(item).toBeAttached();
+  await item.evaluate((el) => {
+    el.scrollIntoView({ block: "nearest", inline: "nearest" });
+  });
+  // Menu items can sit in an overflow container; force avoids flaky
+  // "outside of the viewport" retries after the inner scroll.
+  await item.click({ force: true });
+}
+
 async function readPaintTemplate(
   request: APIRequestContext,
   cookieHeader: string,
@@ -235,7 +247,7 @@ test.describe("Week strip day template menu", () => {
       : fixture.today;
 
     await openDayTemplateMenu(page, paintDate);
-    await page.getByTestId("trains-day-template-economy_week").click();
+    await selectDayTemplate(page, "economy_week");
     await expect(page.getByTestId("trains-day-template-menu")).toHaveCount(0);
 
     await expect
@@ -315,7 +327,7 @@ test.describe("Week strip day template menu", () => {
     });
 
     await openDayTemplateMenu(page, pastDate);
-    await page.getByTestId("trains-day-template-economy_week").click();
+    await selectDayTemplate(page, "economy_week");
     await expect(page.getByRole("dialog", { name: /paint past train days/i })).toBeVisible();
     await page.getByTestId("trains-past-paint-confirm").click();
     await expect(page.getByRole("dialog", { name: /paint past train days/i })).toHaveCount(0);
