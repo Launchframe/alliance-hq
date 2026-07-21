@@ -441,13 +441,69 @@ class LoginCapture:
         self._stop = True
 
 
+def _http_json(
+    method: str,
+    url: str,
+    *,
+    headers: Optional[dict] = None,
+    body: Optional[bytes] = None,
+    timeout: float = 30,
+) -> tuple[int, str, dict]:
+    """Minimal HTTP helper (stdlib only — no requests dependency)."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    req = urllib.request.Request(url, data=body, method=method)
+    for key, value in (headers or {}).items():
+        req.add_header(key, value)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+            status = getattr(resp, "status", 200) or 200
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode("utf-8", errors="replace")
+        status = e.code
+    except urllib.error.URLError as e:
+        return 0, str(e.reason or e), {}
+
+    try:
+        parsed = json.loads(raw) if raw else {}
+    except Exception:
+        parsed = {}
+    if not isinstance(parsed, dict):
+        parsed = {"data": parsed}
+    return status, raw, parsed
+
+
+def _multipart_form(files: dict[str, tuple[str, bytes, str]]) -> tuple[bytes, str]:
+    """Build multipart/form-data body. files: field -> (filename, data, content_type)."""
+    import uuid
+
+    boundary = f"----LastWarCapture{uuid.uuid4().hex}"
+    chunks: list[bytes] = []
+    for field, (filename, data, content_type) in files.items():
+        chunks.append(f"--{boundary}\r\n".encode())
+        chunks.append(
+            (
+                f'Content-Disposition: form-data; name="{field}"; '
+                f'filename="{filename}"\r\n'
+                f"Content-Type: {content_type}\r\n\r\n"
+            ).encode()
+        )
+        chunks.append(data)
+        chunks.append(b"\r\n")
+    chunks.append(f"--{boundary}--\r\n".encode())
+    return b"".join(chunks), f"multipart/form-data; boundary={boundary}"
+
+
 def upload_credentials(
     creds: CredentialSet,
     api_key: str,
     base_url: str = API_BASE_URL,
     timeout: float = 30,
 ) -> tuple[bool, str, dict]:
-    import requests
+    import urllib.parse
 
     files = {
         "handshake": ("handshake.bin", creds.handshake, "application/octet-stream"),
@@ -457,41 +513,41 @@ def upload_credentials(
     params = {}
     if creds.server_ip and not is_private_ip(creds.server_ip):
         params["server_ip"] = creds.server_ip
-        params["server_port"] = creds.server_port
+        params["server_port"] = str(creds.server_port)
 
-    response = requests.post(
-        f"{base_url.rstrip('/')}/auth/credentials/upload",
-        headers={"X-API-Key": api_key},
-        files=files,
-        params=params,
+    body, content_type = _multipart_form(files)
+    url = f"{base_url.rstrip('/')}/auth/credentials/upload"
+    if params:
+        url = f"{url}?{urllib.parse.urlencode(params)}"
+
+    status, raw, parsed = _http_json(
+        "POST",
+        url,
+        headers={"X-API-Key": api_key, "Content-Type": content_type},
+        body=body,
         timeout=timeout,
     )
-    if response.ok:
-        try:
-            body = response.json()
-        except Exception:
-            body = {}
-        return True, body.get("message", "uploaded"), body if isinstance(body, dict) else {}
+    if 200 <= status < 300:
+        return True, parsed.get("message", "uploaded"), parsed
 
-    try:
-        detail = response.json().get("detail", response.text)
-    except Exception:
-        detail = response.text
-    return False, f"HTTP {response.status_code}: {detail}", {}
+    detail = parsed.get("detail", raw)
+    if isinstance(detail, dict):
+        detail = detail.get("validation_error") or detail.get("message") or detail
+    return False, f"HTTP {status}: {detail}", parsed
 
 
 def validate_api_key(api_key: str, base_url: str = API_BASE_URL) -> tuple[bool, str]:
-    import requests
-
-    response = requests.get(
+    status, raw, parsed = _http_json(
+        "GET",
         f"{base_url.rstrip('/')}/auth/validate",
-        headers={"X-API-Key": api_key},
+        headers={"X-API-Key": api_key, "Accept": "application/json"},
         timeout=10,
     )
-    if not response.ok:
-        return False, f"HTTP {response.status_code}"
-    data = response.json()
-    return True, data.get("display_name") or "ok"
+    if status == 0:
+        return False, raw or "network error"
+    if not (200 <= status < 300):
+        return False, f"HTTP {status}"
+    return True, parsed.get("display_name") or "ok"
 
 
 def load_credentials_dir(folder: str) -> CredentialSet:

@@ -26,11 +26,23 @@ brew install libpcap
 cd tools/lastwar-capture
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+# IMPORTANT: use `python -m pip` so packages land in the active venv
+python -m pip install -r requirements.txt
 
 # export your lastwar.tools key
 export LWT_API_KEY='…'
 ```
+
+If you see `ModuleNotFoundError: No module named 'requests'` (or `scapy`), you
+installed into a different Python than the one running the CLI. Fix:
+
+```bash
+# from tools/lastwar-capture with venv activated:
+python -m pip install -r requirements.txt
+which python   # should be .../tools/lastwar-capture/.venv/bin/python
+```
+
+`requests` is **not** required anymore (upload uses stdlib). Only `scapy` is.
 
 Packet capture needs root / BPF:
 

@@ -23,7 +23,7 @@ Those three binaries are uploaded as `handshake` / `auth_packet` / `login` to `P
 brew install libpcap
 cd tools/lastwar-capture
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -r requirements.txt   # must match the python that runs the CLI
 export LWT_API_KEY='…'
 ```
 

@@ -18,22 +18,38 @@ import argparse
 import os
 import sys
 
-from capture_core import (
-    API_BASE_URL,
-    LoginCapture,
-    SCAPY_AVAILABLE,
-    list_interfaces,
-    load_credentials_dir,
-    pick_default_iface,
-    upload_credentials,
-    validate_api_key,
-)
+
+def _die_missing_scapy() -> int:
+    print(
+        "Missing dependency: scapy\n"
+        "Install into THIS python:\n"
+        f"  {sys.executable} -m pip install -r requirements.txt\n"
+        "Then re-run with the same interpreter (venv recommended).",
+        file=sys.stderr,
+    )
+    return 1
+
+
+try:
+    from capture_core import (
+        API_BASE_URL,
+        LoginCapture,
+        SCAPY_AVAILABLE,
+        list_interfaces,
+        load_credentials_dir,
+        pick_default_iface,
+        upload_credentials,
+        validate_api_key,
+    )
+except ModuleNotFoundError as e:
+    # Extremely broken env — surface clearly
+    print(f"Import failed: {e}", file=sys.stderr)
+    raise SystemExit(_die_missing_scapy())
 
 
 def cmd_list_ifaces(_args: argparse.Namespace) -> int:
     if not SCAPY_AVAILABLE:
-        print("scapy not installed", file=sys.stderr)
-        return 1
+        return _die_missing_scapy()
     ifaces = list_interfaces()
     if not ifaces:
         print("No usable interfaces (need libpcap + non-loopback IPv4).", file=sys.stderr)
@@ -49,6 +65,8 @@ def cmd_list_ifaces(_args: argparse.Namespace) -> int:
 
 
 def cmd_capture(args: argparse.Namespace) -> int:
+    if not SCAPY_AVAILABLE:
+        return _die_missing_scapy()
     ifaces = list_interfaces()
     iface_name = args.iface
     if not iface_name:

@@ -8,7 +8,7 @@ if ! command -v python3 >/dev/null; then
   exit 1
 fi
 
-python3 -m pip install -r requirements.txt
+python3 -m pip install -r requirements-build.txt
 
 echo "Building GUI executable (optional)..."
 pyinstaller --onefile \
