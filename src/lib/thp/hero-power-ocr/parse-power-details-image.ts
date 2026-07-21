@@ -71,10 +71,15 @@ function pickHeaderTotal(
 function pickBestHeaderCandidate(lines: OcrLineResult[]): number | null {
   let best: number | null = null;
   for (const line of lines) {
-    // Normalize separator-slot pollution first (`164,615,505` → sometimes 10 digits).
-    const normalized =
-      normalizeDigitsOnlyComponent(line.text) ??
-      parseDigitsOnlyHeaderTotal(line.text);
+    // Prefer a direct header parse first. Component normalization can drop an
+    // interior `1` on a valid 9-digit total (e.g. `164615505` → 8 digits) and
+    // discard the real Hero Power reading. Only normalize when digit length
+    // indicates separator-slot pollution (commas mapped into extra digits).
+    const digitLen = line.text.replace(/\D/g, "").length;
+    let normalized = parseDigitsOnlyHeaderTotal(line.text);
+    if (normalized == null && digitLen > 9) {
+      normalized = normalizeDigitsOnlyComponent(line.text);
+    }
     if (normalized == null) continue;
     // Hero Power totals dominate individual components (typically ≥100M once
     // accounts leave early game). Reject component-sized readings that appear

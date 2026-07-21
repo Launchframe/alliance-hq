@@ -91,17 +91,33 @@ export function scrubSmallInkComponents(
         if (cy < minY) minY = cy;
         if (cy > maxY) maxY = cy;
 
-        const neighbors = [
-          cx > 0 ? idx - 1 : -1,
-          cx + 1 < width ? idx + 1 : -1,
-          cy > 0 ? idx - width : -1,
-          cy + 1 < height ? idx + width : -1,
-        ];
-        for (const n of neighbors) {
-          if (n < 0) continue;
-          if (!ink[n] || labels[n]) continue;
-          labels[n] = id;
-          stack.push(n);
+        if (cx > 0) {
+          const left = idx - 1;
+          if (ink[left] && !labels[left]) {
+            labels[left] = id;
+            stack.push(left);
+          }
+        }
+        if (cx + 1 < width) {
+          const right = idx + 1;
+          if (ink[right] && !labels[right]) {
+            labels[right] = id;
+            stack.push(right);
+          }
+        }
+        if (cy > 0) {
+          const up = idx - width;
+          if (ink[up] && !labels[up]) {
+            labels[up] = id;
+            stack.push(up);
+          }
+        }
+        if (cy + 1 < height) {
+          const down = idx + width;
+          if (ink[down] && !labels[down]) {
+            labels[down] = id;
+            stack.push(down);
+          }
         }
       }
 
