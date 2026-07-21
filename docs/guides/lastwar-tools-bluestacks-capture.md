@@ -16,16 +16,20 @@ Those three binaries are uploaded as `handshake` / `auth_packet` / `login` to `P
 
 ## Mac + BlueStacks steps
 
+Run these on your **Mac** (where BlueStacks lives). The Cursor cloud Linux agent cannot sniff BlueStacks traffic.
+
 1. Create a free API key at [lastwar.tools](https://lastwar.tools/).
 2. Install lab deps (once):
 
 ```bash
 brew install libpcap
 cd tools/lastwar-capture
-python3 -m venv .venv && source .venv/bin/activate
-python -m pip install -r requirements.txt   # must match the python that runs the CLI
+./setup.sh                 # creates .venv + installs scapy
+source .venv/bin/activate
 export LWT_API_KEY='…'
 ```
+
+If `.venv` is broken (`ensurepip` / no pip): `rm -rf .venv && ./setup.sh`.
 
 3. Force-quit Last War in BlueStacks.
 4. Start capture **before** relaunching the game:

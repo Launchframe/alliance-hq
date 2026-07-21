@@ -17,32 +17,50 @@ That is exactly what `POST https://api.lastwar.tools/auth/credentials/upload` ex
 
 BlueStacks runs the Android client; the **wire shape is the same**. Host-side scapy on your Mac can see the NAT’d packets if you sniff the right interface (usually `en0`).
 
+## Where to run this
+
+| Machine | Can capture BlueStacks login? |
+|---------|-------------------------------|
+| **Your Mac** (BlueStacks installed) | **Yes** — run capture here |
+| Cursor cloud agent (`/workspace` on Linux) | **No** — no BlueStacks, no `en0`; only good for editing/scripts |
+
+If your prompt shows `/workspace/tools/lastwar-capture` and `ubuntu@…`, you are on the **cloud agent**. Finish setup with `./setup.sh` if you want, but run **capture on the Mac**.
+
 ## Mac setup
 
 ```bash
-# once
+# once, ON YOUR MAC, from the repo checkout
 xcode-select --install   # if needed
 brew install libpcap
 cd tools/lastwar-capture
-python3 -m venv .venv
+./setup.sh               # creates .venv + installs scapy
 source .venv/bin/activate
-# IMPORTANT: use `python -m pip` so packages land in the active venv
-python -m pip install -r requirements.txt
-
-# export your lastwar.tools key
 export LWT_API_KEY='…'
 ```
 
-If you see `ModuleNotFoundError: No module named 'requests'` (or `scapy`), you
-installed into a different Python than the one running the CLI. Fix:
+### Dependency loop / broken `.venv`
+
+Symptoms:
+
+- `ensurepip is not available` / `apt install python3-venv`
+- `bash: python: command not found` (Debian has `python3` only)
+- CLI says install scapy into `.venv/bin/python` but that venv has no `pip`
+
+Fix:
 
 ```bash
-# from tools/lastwar-capture with venv activated:
-python -m pip install -r requirements.txt
-which python   # should be .../tools/lastwar-capture/.venv/bin/python
+cd /path/to/repo/tools/lastwar-capture   # don't nest cd tools/… if already here
+rm -rf .venv
+./setup.sh
+# or manually:
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
 ```
 
-`requests` is **not** required anymore (upload uses stdlib). Only `scapy` is.
+Never use bare `pip` (it often installs to `~/.local` while you run `.venv/bin/python`).  
+Always: `.venv/bin/python -m pip install …`
+
+`requests` is **not** required (upload uses stdlib). Only `scapy` is.
 
 Packet capture needs root / BPF:
 

@@ -20,13 +20,28 @@ import sys
 
 
 def _die_missing_scapy() -> int:
-    print(
-        "Missing dependency: scapy\n"
-        "Install into THIS python:\n"
-        f"  {sys.executable} -m pip install -r requirements.txt\n"
-        "Then re-run with the same interpreter (venv recommended).",
-        file=sys.stderr,
-    )
+    exe = sys.executable
+    broken_venv = "/.venv/" in exe and not os.path.isfile(
+        os.path.join(os.path.dirname(exe), "pip")
+    ) and not os.path.isfile(os.path.join(os.path.dirname(exe), "pip3"))
+    print("Missing dependency: scapy (or broken venv).", file=sys.stderr)
+    if broken_venv:
+        print(
+            "Your .venv was created without ensurepip (no pip inside).\n"
+            "Fix:\n"
+            "  rm -rf .venv && ./setup.sh\n"
+            "Linux cloud agent also needs:  sudo apt-get install -y python3-venv\n"
+            "Then capture on your Mac (this Linux VM cannot see BlueStacks).",
+            file=sys.stderr,
+        )
+    else:
+        print(
+            "Install into THIS python:\n"
+            f"  {exe} -m pip install -r requirements.txt\n"
+            "Or:  ./setup.sh\n"
+            "Use `python3`, not `python`, on Debian/Ubuntu.",
+            file=sys.stderr,
+        )
     return 1
 
 
