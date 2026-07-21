@@ -13,12 +13,16 @@ import {
   type RosterTesseractEvalComparison,
 } from "@/lib/video/compare-roster-ocr-quality";
 import {
-  adminVideoJobDetailHref,
-  adminVideoJobsListHref,
+  videoJobDetailHref,
+  videoJobsListHref,
   buildAdminVideoJobsListSearchParams,
   parseAdminVideoJobsListFilters,
 } from "@/lib/video/admin-video-jobs-query.shared";
 import { SURVEY_SCROLL_STYLES, type SurveyScrollStyle } from "@/lib/video/survey";
+import {
+  ADMIN_VIDEO_JOBS_CONSOLE,
+  type VideoJobsConsoleConfig,
+} from "@/lib/video/video-jobs-console.shared";
 
 type JobNeighbors = {
   previousId: string | null;
@@ -327,7 +331,13 @@ function estimateGalleryReleaseVelocityPxPerMs(
   return (last.x - start.x) / dt;
 }
 
-export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
+export function AdminVideoJobDetailView({
+  jobId,
+  config = ADMIN_VIDEO_JOBS_CONSOLE,
+}: {
+  jobId: string;
+  config?: VideoJobsConsoleConfig;
+}) {
   const t = useTranslations("admin");
   const tDetail = useTranslations("admin.videoJobDetailPage");
   const tSurvey = useTranslations("videoSurvey");
@@ -337,8 +347,8 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
     [searchParams],
   );
   const listHref = useMemo(
-    () => adminVideoJobsListHref(listFilters),
-    [listFilters],
+    () => videoJobsListHref(config.listPath, listFilters),
+    [listFilters, config.listPath],
   );
   const [data, setData] = useState<DetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -396,10 +406,10 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
   const videoModeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadDetail = useCallback(async () => {
-    const res = await fetch(`/api/admin/video-jobs/${jobId}`);
+    const res = await fetch(`${config.apiBase}/${jobId}`);
     if (!res.ok) throw new Error(await res.text());
     setData((await res.json()) as DetailResponse);
-  }, [jobId]);
+  }, [jobId, config.apiBase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -408,7 +418,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
     void (async () => {
       try {
         const res = await fetch(
-          `/api/admin/video-jobs/${jobId}/neighbors?${qs.toString()}`,
+          `${config.apiBase}/${jobId}/neighbors?${qs.toString()}`,
         );
         if (!res.ok) {
           if (!cancelled) setNeighbors(null);
@@ -425,7 +435,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [jobId, listFilters]);
+  }, [jobId, listFilters, config.apiBase]);
 
   useEffect(() => {
     void (async () => {
@@ -740,7 +750,8 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
           ) : null}
           {activeNeighbors?.previousId ? (
             <Link
-              href={adminVideoJobDetailHref(
+              href={videoJobDetailHref(
+                config.listPath,
                 activeNeighbors.previousId,
                 listFilters,
               )}
@@ -755,7 +766,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
           )}
           {activeNeighbors?.nextId ? (
             <Link
-              href={adminVideoJobDetailHref(activeNeighbors.nextId, listFilters)}
+              href={videoJobDetailHref(config.listPath, activeNeighbors.nextId, listFilters)}
               className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted"
             >
               {tDetail("nextJob")}
@@ -929,7 +940,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
               return (
                 <div key={pass.id} className="flex flex-col gap-1">
                   <Link
-                    href={adminVideoJobDetailHref(pass.id, listFilters)}
+                    href={videoJobDetailHref(config.listPath, pass.id, listFilters)}
                     className={`rounded-lg border px-3 py-1.5 text-sm ${
                       pass.id === jobId
                         ? "border-hq-accent text-hq-accent"
@@ -1046,7 +1057,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                     <div className="flex flex-col gap-3 sm:flex-row">
                       {/* eslint-disable-next-line @next/next/no-img-element -- admin-only JPEG from authenticated API route */}
                       <img
-                        src={`/api/admin/video-jobs/${jobId}/frames/${frame.frameIndex}`}
+                        src={`${config.apiBase}/${jobId}/frames/${frame.frameIndex}`}
                         alt={tDetail("frameThumbnail", {
                           index: frame.frameIndex,
                         })}
@@ -1189,7 +1200,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element -- admin gallery */}
                         <img
-                          src={`/api/admin/video-jobs/${jobId}/frames/${frame.frameIndex}`}
+                          src={`${config.apiBase}/${jobId}/frames/${frame.frameIndex}`}
                           alt={tDetail("frameThumbnail", {
                             index: frame.frameIndex,
                           })}
@@ -1246,7 +1257,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
                   {videoModeFrame ? (
                     // eslint-disable-next-line @next/next/no-img-element -- admin slideshow
                     <img
-                      src={`/api/admin/video-jobs/${jobId}/frames/${videoModeFrame.frameIndex}`}
+                      src={`${config.apiBase}/${jobId}/frames/${videoModeFrame.frameIndex}`}
                       alt={tDetail("frameThumbnail", {
                         index: videoModeFrame.frameIndex,
                       })}
@@ -1407,7 +1418,7 @@ export function AdminVideoJobDetailView({ jobId }: { jobId: string }) {
       ) : null}
 
       {tab === "diagnostics" ? (
-        <VideoJobDiagnosticsPanel key={jobId} jobId={jobId} />
+        <VideoJobDiagnosticsPanel key={jobId} jobId={jobId} apiBase={config.apiBase} />
       ) : null}
 
       {tab === "timings" ? (

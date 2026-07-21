@@ -123,6 +123,7 @@
     "settings": "Configurações",
     "team": "Acesso da equipe",
     "videoQueue": "Fila de vídeos",
+    "videoJobsOps": "Jobs de vídeo",
     "videoProcessors": "Processadores de vídeo",
     "videoProcessorsDescription": "Quem pode aprovar vídeos enviados para OCR",
     "adminPortal": "Portal admin",
@@ -1084,6 +1085,7 @@
       "loadFailed": "Falha ao carregar análises",
       "noData": "Sem dados para os filtros selecionados.",
       "experimentsLink": "Experimentos",
+      "backToJobs": "Jobs de vídeo",
       "mixedWarning": "Exibindo resultados de múltiplos tipos de evento — as métricas não são diretamente comparáveis. Selecione um tipo específico.",
       "passKeyPerformance": "desempenho de passagem",
       "ratingReasons": "Motivos de avaliação negativa",
@@ -1388,6 +1390,13 @@
     "queueLink": "fila de vídeo",
     "pageDescription": "Oficiais designados para aprovar e executar OCR em vídeos na fila da sua aliança.",
     "readOnlyHint": "Somente donos e mantenedores da aliança podem adicionar ou remover processadores."
+  },
+  "toolsVideoJobs": {
+    "title": "Jobs de vídeo",
+    "subtitle": "Inspecione, recoloque na fila e reprocesse os vídeos enviados da sua aliança.",
+    "backToQueue": "Voltar à fila de vídeos",
+    "analyticsTitle": "Análises de jobs de vídeo",
+    "analyticsSubtitle": "Desempenho de passagens dos vídeos processados da sua aliança."
   },
   "allianceSettings": {
     "title": "Configurações da aliança",

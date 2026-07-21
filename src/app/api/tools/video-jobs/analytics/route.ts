@@ -1,23 +1,16 @@
 import { NextResponse } from "next/server";
 
-import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
+import {
+  isAllianceVideoJobOpsDenied,
+  requireAllianceVideoJobOps,
+} from "@/lib/video/alliance-video-jobs-access.server";
 import { loadVideoJobsAnalytics } from "@/lib/video/video-jobs-analytics.server";
-
-export type {
-  AnalyticsResponse,
-  PassKeyRow,
-  BucketRow,
-} from "@/lib/video/video-jobs-analytics.server";
 
 export async function GET(request: Request) {
   const sessionId = await readSessionId();
-  if (!sessionId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const denied = await requirePlatformMaintainer(sessionId);
-  if (denied) return denied;
+  const ops = await requireAllianceVideoJobOps(sessionId);
+  if (isAllianceVideoJobOpsDenied(ops)) return ops;
 
   const url = new URL(request.url);
   const scoreTargetFilter = url.searchParams.get("scoreTarget");
@@ -28,6 +21,7 @@ export async function GET(request: Request) {
     scoreTarget: scoreTargetFilter,
     passKey: passKeyFilter,
     days,
+    allianceId: ops.allianceId,
   });
 
   return NextResponse.json(response);

@@ -10,6 +10,8 @@ Platform-maintainer guide for **frame extraction** and **OCR** settings used by 
 | Experiments | `/admin/experiments` | A/B traffic split across parse configs for a score target |
 | Video jobs | `/admin/video-jobs` | Inspect frames, timings, duration, and OCR output per job |
 | Analytics | `/admin/video-jobs/analytics` | Campaign / pass quality rollups |
+| Alliance video jobs (processors) | `/tools/video-jobs` | Same inspect / requeue / reprocess surface as admin, scoped to the signed-in alliance (owners, maintainers, and designated processors) |
+| Alliance analytics (processors) | `/tools/video-jobs/analytics` | Pass quality rollups for the current alliance only |
 
 Officers and uploaders do **not** pick fps or OCR settings. Density and OCR knobs are stamped onto each job when the upload is finalized (or when a roster experiment arm is assigned).
 

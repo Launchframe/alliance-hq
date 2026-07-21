@@ -123,6 +123,7 @@
     "settings": "Settings",
     "team": "Team access",
     "videoQueue": "Video queue",
+    "videoJobsOps": "Video jobs",
     "videoProcessors": "Video processors",
     "videoProcessorsDescription": "Who can approve uploaded videos for OCR",
     "adminPortal": "Admin portal",
@@ -1084,6 +1085,7 @@
       "loadFailed": "Failed to load analytics",
       "noData": "No data for the selected filters.",
       "experimentsLink": "Experiments",
+      "backToJobs": "Video jobs",
       "mixedWarning": "Showing results across multiple event types — metrics are not directly comparable between formats. Select a specific score target to filter.",
       "passKeyPerformance": "pass performance",
       "ratingReasons": "Rating reasons (thumbs down)",
@@ -1388,6 +1390,13 @@
     "queueLink": "Video queue",
     "pageDescription": "Officers designated to approve and run OCR on queued videos for your alliance.",
     "readOnlyHint": "Only alliance owners and maintainers can add or remove processors."
+  },
+  "toolsVideoJobs": {
+    "title": "Video jobs",
+    "subtitle": "Inspect, requeue, and reprocess your alliance's uploaded videos.",
+    "backToQueue": "Back to video queue",
+    "analyticsTitle": "Video job analytics",
+    "analyticsSubtitle": "Pass performance for your alliance's processed videos."
   },
   "allianceSettings": {
     "title": "Alliance settings",

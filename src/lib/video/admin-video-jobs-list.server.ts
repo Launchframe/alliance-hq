@@ -23,6 +23,8 @@ export type AdminVideoJobsListQuery = {
   /** API-only (list UI does not expose); kept for backward-compatible deep links. */
   scoreTarget: string | null;
   limit: number;
+  /** When set, restrict to one alliance (tools processor console). */
+  allianceId?: string | null;
 };
 
 /** Columns needed to expand groups and order the admin index / neighbor window. */
@@ -57,6 +59,9 @@ function buildAdminVideoJobsListConditions(
   query: AdminVideoJobsListQuery,
 ): SQL[] {
   return [
+    query.allianceId
+      ? eq(schema.videoJobs.allianceId, query.allianceId)
+      : undefined,
     query.status ? eq(schema.videoJobs.status, query.status) : undefined,
     query.bucket ? eq(schema.videoJobs.qualityBucket, query.bucket) : undefined,
     query.passKey ? eq(schema.videoJobs.passKey, query.passKey) : undefined,

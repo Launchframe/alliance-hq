@@ -11,6 +11,7 @@ import {
 import {
   createMemberWithRole,
   createVideoProcessorScenario,
+  insertAllianceVideoJob,
   insertPendingVideoJob,
   loadVideoJobStatus,
   seedLinkedRosterOfficer,
@@ -356,5 +357,86 @@ test.describe("Video processors page route", () => {
       }),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: /^add$/i })).toBeVisible();
+  });
+});
+
+test.describe("Alliance video jobs ops console", () => {
+  test("processor can list alliance-scoped jobs via tools API", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    const jobId = await insertAllianceVideoJob(sql, {
+      allianceId: scenario.allianceId,
+      sessionId: scenario.officer.sessionId,
+      enqueuedByHqUserId: scenario.officer.hqUserId,
+      status: "failed",
+    });
+
+    const res = await request.get("/api/tools/video-jobs?status=all", {
+      headers: { Cookie: authCookieHeader(scenario.processor) },
+    });
+    expect(res.status(), await res.text()).toBe(200);
+    const body = (await res.json()) as { jobs: Array<{ id: string }> };
+    expect(body.jobs.some((job) => job.id === jobId)).toBe(true);
+  });
+
+  test("officer without processor slot cannot access tools video jobs API", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+
+    const res = await request.get("/api/tools/video-jobs?status=all", {
+      headers: { Cookie: authCookieHeader(scenario.officer) },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test("processor cannot load a job from another alliance", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    const maintainer = await createPlatformMaintainerSession(sql);
+    const otherAlliance = await createNativeAlliance(sql, {
+      tag: `OT${Math.random().toString(36).slice(2, 6)}`,
+      name: "Other Alliance",
+    });
+    const otherOfficer = await createMemberWithRole(sql, e2eBaseUrl(), {
+      allianceId: otherAlliance.allianceId,
+      roleName: "officer",
+      invitedByHqUserId: maintainer.hqUserId,
+    });
+    const foreignJobId = await insertAllianceVideoJob(sql, {
+      allianceId: otherAlliance.allianceId,
+      sessionId: otherOfficer.sessionId,
+      enqueuedByHqUserId: otherOfficer.hqUserId,
+      status: "failed",
+    });
+
+    const res = await request.get(`/api/tools/video-jobs/${foreignJobId}`, {
+      headers: { Cookie: authCookieHeader(scenario.processor) },
+    });
+    expect(res.status()).toBe(404);
+  });
+
+  test("processor loads /tools/video-jobs console", async ({ page }) => {
+    const sql = getE2eSql();
+    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    await seedLinkedRosterOfficer(sql, {
+      allianceId: scenario.allianceId,
+      hqUserId: scenario.processor.hqUserId,
+      allianceRank: 4,
+      allianceRankTitle: "Warlord",
+    });
+    await page.context().addCookies(playwrightAuthCookies(scenario.processor));
+
+    const response = await page.goto("/tools/video-jobs");
+    expect(response, "No response for /tools/video-jobs").toBeTruthy();
+    expect(response!.status()).toBeLessThan(500);
+    await expect(
+      page.getByRole("heading", { level: 1, name: /^video jobs$/i }),
+    ).toBeVisible();
   });
 });
