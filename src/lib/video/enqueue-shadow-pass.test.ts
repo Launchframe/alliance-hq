@@ -208,6 +208,24 @@ describe("maybeEnqueueShadowPass", () => {
     expect(mockDb.insert).not.toHaveBeenCalled();
     expect(dispatchVideoProcessing).not.toHaveBeenCalled();
   });
+
+  it("treats concurrent unique violation as already-enqueued", async () => {
+    mockNoExistingShadow();
+    mockDb.insert.mockImplementationOnce(() => ({
+      values: vi.fn(async () => {
+        const err = Object.assign(new Error("duplicate"), { code: "23505" });
+        throw err;
+      }),
+    }));
+
+    await maybeEnqueueShadowPass({
+      job: primaryJob,
+      totalMs: 5000,
+      frameCount: 5,
+    });
+
+    expect(dispatchVideoProcessing).not.toHaveBeenCalled();
+  });
 });
 
 describe("maybeEnqueueShadowPassEarly", () => {

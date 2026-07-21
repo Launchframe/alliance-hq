@@ -13,6 +13,7 @@ import { resolveHqAllianceIdFromSession } from "@/lib/members/resolve-hq-allianc
 import { isValidRosterOcrConfig } from "@/lib/members/roster-ocr/roster-ocr-config";
 import {
   allianceMemberRowToAshedMember,
+  countAllianceMembers,
   listAllianceMembers,
   resolveHqAllianceId,
 } from "@/lib/members/roster.server";
@@ -409,7 +410,7 @@ export async function processVideoJob(
               .where(eq(schema.videoJobSurveys.jobId, jobId))
               .limit(1);
             const rosterSize = jobHqAllianceId
-              ? (await listAllianceMembers(jobHqAllianceId)).length
+              ? await countAllianceMembers(jobHqAllianceId)
               : 0;
             const expectedRows = expectedVsRowCount({
               rosterSize,
