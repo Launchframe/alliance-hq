@@ -99,15 +99,33 @@ export async function handleDiscordWhatIsMyVrChart(input: {
     primary.ashedMemberId,
     input.allianceId,
   );
-  const viewerCommanderId =
-    commander?.commanderId ?? null;
+  const viewerCommanderId = commander?.commanderId ?? null;
 
   const requestedNames = expandVrChartCommanderNameInputs(
     input.additionalCommanderNames ?? [],
   );
-  const catalog = await listVrProgressChartCommanderCandidates(input.allianceId);
-  const resolved = resolveVrChartCommanderNames(requestedNames, catalog);
 
+  if (!viewerCommanderId && requestedNames.length === 0) {
+    const result = { ok: false as const, content: t("chart.vrInsufficientData") };
+    await auditChart(
+      input.allianceId,
+      input.discordUserId,
+      "what_is_my_vr_chart",
+      result,
+    );
+    return result;
+  }
+
+  let resolved: ReturnType<typeof resolveVrChartCommanderNames> = {
+    commanderIds: [],
+    notFound: [],
+    ambiguous: [],
+  };
+
+  if (requestedNames.length > 0) {
+    const catalog = await listVrProgressChartCommanderCandidates(input.allianceId);
+    resolved = resolveVrChartCommanderNames(requestedNames, catalog);
+  }
   if (resolved.notFound.length > 0) {
     const result = {
       ok: false as const,
