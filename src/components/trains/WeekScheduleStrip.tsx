@@ -192,7 +192,7 @@ function WeekScheduleDayCell({
         x: clientX,
         y: clientY,
         returnFocus: () => {
-          cellButtonRef.current?.focus();
+          cellButtonRef.current?.focus({ preventScroll: true });
         },
       });
     },

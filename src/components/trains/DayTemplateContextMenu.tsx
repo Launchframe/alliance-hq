@@ -72,9 +72,13 @@ export function DayTemplateContextMenu({
       return;
     }
     returnFocusRef.current = anchor.returnFocus ?? null;
-    const rect = menuRef.current.getBoundingClientRect();
+    const menu = menuRef.current;
+    // offset* reflects layout size even when the menu is still visibility:hidden
+    // or partially off-screen; getBoundingClientRect can under-report while clipped.
+    const width = menu.offsetWidth;
+    const height = menu.offsetHeight;
     setPos(
-      clampMenuPosition(anchor.x, anchor.y, rect.width, rect.height, {
+      clampMenuPosition(anchor.x, anchor.y, width, height, {
         width: window.innerWidth,
         height: window.innerHeight,
       }),

@@ -23,7 +23,9 @@ export function getInitialMenuItemIndex(items: HTMLElement[]): number {
 export function focusMenuItem(items: HTMLElement[], index: number): number {
   if (items.length === 0) return -1;
   const nextIndex = Math.max(0, Math.min(items.length - 1, index));
-  items[nextIndex]?.focus();
+  // preventScroll: focusing a clipped item must not scroll the page/menu
+  // and shift fixed positioning during open.
+  items[nextIndex]?.focus({ preventScroll: true });
   return nextIndex;
 }
 

@@ -123,7 +123,10 @@ function weekDayLocator(page: Page, date: string): Locator {
     .first();
 }
 
-/** Open via contextmenu so Playwright hit-testing overlays don't block short viewports. */
+/**
+ * Open via a real right-click at viewport coords so clientX/Y are trustworthy.
+ * page.mouse bypasses locator hit-testing overlays on short viewports.
+ */
 async function openDayTemplateMenu(
   page: Page,
   date: string,
@@ -131,21 +134,19 @@ async function openDayTemplateMenu(
 ) {
   const day = weekDayLocator(page, date);
   await expect(day).toBeVisible();
+  await day.scrollIntoViewIfNeeded();
   const box = await day.boundingBox();
   expect(box).not.toBeNull();
   const clientX = box!.x + (position?.x ?? Math.min(12, box!.width / 2));
   const clientY = box!.y + (position?.y ?? Math.min(12, box!.height / 2));
-  await day.dispatchEvent("contextmenu", {
-    bubbles: true,
-    cancelable: true,
-    clientX,
-    clientY,
-    button: 2,
-  });
+  await page.mouse.click(clientX, clientY, { button: "right" });
   await expect(page.getByTestId("trains-day-template-menu")).toBeVisible();
 }
 
+/** Hold still on the day cell so carousel drag-threshold doesn't steal the press. */
 async function longPressDay(page: Page, day: Locator) {
+  await expect(day).toBeVisible();
+  await day.scrollIntoViewIfNeeded();
   const box = await day.boundingBox();
   expect(box).not.toBeNull();
   const x = box!.x + box!.width / 2;
@@ -156,16 +157,14 @@ async function longPressDay(page: Page, day: Locator) {
   await page.mouse.up();
 }
 
-/** Scroll within the menu's overflow list, then activate the template item. */
+/** Activate a template without Playwright viewport hit-testing on overflow items. */
 async function selectDayTemplate(page: Page, template: string) {
   const item = page.getByTestId(`trains-day-template-${template}`);
   await expect(item).toBeAttached();
-  await item.evaluate((el) => {
+  await item.evaluate((el: HTMLElement) => {
     el.scrollIntoView({ block: "nearest", inline: "nearest" });
+    el.click();
   });
-  // Menu items can sit in an overflow container; force avoids flaky
-  // "outside of the viewport" retries after the inner scroll.
-  await item.click({ force: true });
 }
 
 async function readPaintTemplate(
@@ -279,13 +278,27 @@ test.describe("Week strip day template menu", () => {
       y: Math.max(4, box!.height - 4),
     });
 
-    const menuBox = await page.getByTestId("trains-day-template-menu").boundingBox();
-    expect(menuBox).not.toBeNull();
+    const menu = page.getByTestId("trains-day-template-menu");
     const pad = 8;
-    expect(menuBox!.x).toBeGreaterThanOrEqual(pad);
-    expect(menuBox!.y).toBeGreaterThanOrEqual(pad);
-    expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(1280 - pad);
-    expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(640 - pad);
+    // Wait for layout clamp (pos set after measure) before asserting edges.
+    await expect
+      .poll(async () => {
+        const menuBox = await menu.boundingBox();
+        if (!menuBox) return null;
+        return {
+          leftOk: menuBox.x >= pad,
+          topOk: menuBox.y >= pad,
+          rightOk: menuBox.x + menuBox.width <= 1280 - pad,
+          bottomOk: menuBox.y + menuBox.height <= 640 - pad,
+          box: menuBox,
+        };
+      })
+      .toMatchObject({
+        leftOk: true,
+        topOk: true,
+        rightOk: true,
+        bottomOk: true,
+      });
   });
 
   test("mobile carousel long-press opens the template menu", async ({ page, request }) => {
