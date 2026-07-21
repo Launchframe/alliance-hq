@@ -125,6 +125,10 @@ describe("roster-extract", () => {
       powerLevel: "297.5M",
       heroPowerM: 297.5,
     });
+    expect(parsePowerLevelString("500000")).toEqual({
+      powerLevel: null,
+      heroPowerM: null,
+    });
     expect(parsePowerLevelString("")).toEqual({
       powerLevel: null,
       heroPowerM: null,
