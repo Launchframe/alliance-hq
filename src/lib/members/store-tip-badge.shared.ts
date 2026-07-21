@@ -11,8 +11,6 @@ export type StoreTipBadgeSvgInput = {
   commanderName: string;
   allianceTag: string | null;
   shortUrlDisplay: string;
-  /** Absolute URL encoded in the QR (e.g. https://host/b/code). */
-  qrPayloadUrl: string;
   /** Pre-built QR module matrix from a QR encoder (true = dark). */
   qrModules: boolean[][];
   width?: number;

@@ -32,7 +32,10 @@ export async function renderStoreTipBadgePng(input: {
 }): Promise<Buffer> {
   const qrModules = await buildQrModules(input.qrPayloadUrl);
   const svg = buildStoreTipBadgeSvg({
-    ...input,
+    headline: input.headline,
+    commanderName: input.commanderName,
+    allianceTag: input.allianceTag,
+    shortUrlDisplay: input.shortUrlDisplay,
     qrModules,
     width: STORE_TIP_BADGE_WIDTH,
     height: STORE_TIP_BADGE_HEIGHT,

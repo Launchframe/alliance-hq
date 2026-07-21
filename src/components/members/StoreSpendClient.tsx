@@ -203,13 +203,13 @@ export function StoreSpendClient({ canAlliance }: { canAlliance: boolean }) {
           <table className="min-w-full text-left text-sm">
             <thead className="bg-hq-surface text-hq-fg-muted">
               <tr>
-                <th className="px-3 py-2 font-medium">Date</th>
-                <th className="px-3 py-2 font-medium">Amount</th>
-                <th className="px-3 py-2 font-medium">Recipient</th>
+                <th className="px-3 py-2 font-medium">{t("storeSpendColDate")}</th>
+                <th className="px-3 py-2 font-medium">{t("storeSpendColAmount")}</th>
+                <th className="px-3 py-2 font-medium">{t("storeSpendColRecipient")}</th>
                 {scope === "alliance" ? (
-                  <th className="px-3 py-2 font-medium">Donor</th>
+                  <th className="px-3 py-2 font-medium">{t("storeSpendColDonor")}</th>
                 ) : null}
-                <th className="px-3 py-2 font-medium">Note</th>
+                <th className="px-3 py-2 font-medium">{t("storeSpendColNote")}</th>
               </tr>
             </thead>
             <tbody>

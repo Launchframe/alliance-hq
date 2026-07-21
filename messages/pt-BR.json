@@ -2543,6 +2543,11 @@
       "storeSpendWindow30d": "Últimos 30 dias",
       "storeSpendWindowMonth": "Este mês",
       "storeSpendWindowCustom": "Personalizado",
+      "storeSpendColDate": "Data",
+      "storeSpendColAmount": "Valor",
+      "storeSpendColRecipient": "Destinatário",
+      "storeSpendColDonor": "Doador",
+      "storeSpendColNote": "Nota",
       "tipJarTitle": "Compre tijolos para mim",
       "tipJarBody": "Baixe e compartilhe este distintivo. Quem escanear o QR ou abrir o link pode comprar tijolos de ouro para você na loja oficial do Last War.",
       "tipJarDownloadBadge": "Baixar distintivo",
@@ -2551,7 +2556,8 @@
       "tipJarCreate": "Criar link de gorjeta",
       "tipJarRegenerate": "Novo link",
       "tipJarRevoke": "Revogar link",
-      "tipJarNeedUid": "Vincule seu Commander antes de criar um link de gorjeta."
+      "tipJarNeedUid": "Vincule seu Commander antes de criar um link de gorjeta.",
+      "tipJarActionFailed": "Não foi possível atualizar o link de gorjeta. Tente de novo."
     },
     "onboardingReviews": "Onboarding review"
   },

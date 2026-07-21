@@ -10,6 +10,16 @@ type TipState = {
   codeHint?: string;
 } | null;
 
+function isTipState(value: unknown): value is NonNullable<TipState> {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.code === "string" &&
+    typeof v.shortPath === "string" &&
+    typeof v.badgePngPath === "string"
+  );
+}
+
 export function CommanderTipJarCard() {
   const t = useTranslations("members.profile");
   const [tip, setTip] = useState<TipState>(null);
@@ -18,21 +28,39 @@ export function CommanderTipJarCard() {
   const [copied, setCopied] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
 
-  const refresh = useCallback(async () => {
-    const res = await fetch("/api/members/me/store-tip-link");
-    const body = (await res.json()) as { tip?: TipState; error?: string; code?: string };
-    if (!res.ok) {
-      if (body.code === "commander_not_linked" || body.code === "recipient_uid_unavailable") {
-        setError(t("tipJarNeedUid"));
-      } else {
-        setError(body.error ?? t("tipJarNeedUid"));
+  const tipErrorFromBody = useCallback(
+    (body: { error?: string; code?: string } | null) => {
+      if (
+        body?.code === "commander_not_linked" ||
+        body?.code === "recipient_uid_unavailable"
+      ) {
+        return t("tipJarNeedUid");
       }
+      return body?.error ?? t("tipJarActionFailed");
+    },
+    [t],
+  );
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch("/api/members/me/store-tip-link");
+      const body = (await res.json()) as {
+        tip?: TipState;
+        error?: string;
+        code?: string;
+      };
+      if (!res.ok) {
+        setError(tipErrorFromBody(body));
+        setTip(null);
+        return;
+      }
+      setError(null);
+      setTip(body.tip ?? null);
+    } catch {
       setTip(null);
-      return;
+      setError(t("tipJarActionFailed"));
     }
-    setError(null);
-    setTip(body.tip ?? null);
-  }, [t]);
+  }, [t, tipErrorFromBody]);
 
   useEffect(() => {
     const id = requestAnimationFrame(() => {
@@ -45,22 +73,42 @@ export function CommanderTipJarCard() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/members/me/store-tip-link", { method: "POST" });
-      const body = (await res.json()) as TipState & { error?: string; code?: string };
+      const res = await fetch("/api/members/me/store-tip-link", {
+        method: "POST",
+      });
+      let raw: unknown = null;
+      try {
+        raw = await res.json();
+      } catch {
+        raw = null;
+      }
+      const body =
+        raw && typeof raw === "object"
+          ? (raw as {
+              tip?: unknown;
+              code?: string;
+              shortPath?: string;
+              badgePngPath?: string;
+              error?: string;
+            })
+          : null;
       if (!res.ok) {
-        if (body.code === "commander_not_linked" || body.code === "recipient_uid_unavailable") {
-          setError(t("tipJarNeedUid"));
-        } else {
-          setError(body.error ?? t("tipJarNeedUid"));
-        }
+        setError(tipErrorFromBody(body));
         return;
       }
-      setTip({
-        code: body!.code!,
-        shortPath: body!.shortPath!,
-        badgePngPath: body!.badgePngPath!,
-      });
+      const next = isTipState(body?.tip)
+        ? (body!.tip as NonNullable<TipState>)
+        : isTipState(body)
+          ? body
+          : null;
+      if (!next) {
+        setError(t("tipJarActionFailed"));
+        return;
+      }
+      setTip(next);
       setConfirmRevoke(false);
+    } catch {
+      setError(t("tipJarActionFailed"));
     } finally {
       setBusy(false);
     }
@@ -68,10 +116,25 @@ export function CommanderTipJarCard() {
 
   async function revoke() {
     setBusy(true);
+    setError(null);
     try {
-      await fetch("/api/members/me/store-tip-link", { method: "DELETE" });
+      const res = await fetch("/api/members/me/store-tip-link", {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        let body: { error?: string; code?: string } | null = null;
+        try {
+          body = (await res.json()) as { error?: string; code?: string };
+        } catch {
+          body = null;
+        }
+        setError(tipErrorFromBody(body));
+        return;
+      }
       setTip(null);
       setConfirmRevoke(false);
+    } catch {
+      setError(t("tipJarActionFailed"));
     } finally {
       setBusy(false);
     }

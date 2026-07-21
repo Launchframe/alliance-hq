@@ -2598,6 +2598,11 @@
       "storeSpendWindow30d": "Last 30 days",
       "storeSpendWindowMonth": "This month",
       "storeSpendWindowCustom": "Custom",
+      "storeSpendColDate": "Date",
+      "storeSpendColAmount": "Amount",
+      "storeSpendColRecipient": "Recipient",
+      "storeSpendColDonor": "Donor",
+      "storeSpendColNote": "Note",
       "tipJarTitle": "Buy me bricks",
       "tipJarBody": "Download and share this badge. Anyone who scans the QR or opens the link can buy gold bricks for you on the official Last War store.",
       "tipJarDownloadBadge": "Download badge",
@@ -2606,7 +2611,8 @@
       "tipJarCreate": "Create tip link",
       "tipJarRegenerate": "New link",
       "tipJarRevoke": "Revoke link",
-      "tipJarNeedUid": "Link your Commander before creating a tip link."
+      "tipJarNeedUid": "Link your Commander before creating a tip link.",
+      "tipJarActionFailed": "Couldn’t update tip link. Try again."
     }
   },
   "storeTipPublic": {

@@ -23,14 +23,21 @@ export function StoreTipPublicClient({
   const [busy, setBusy] = useState(false);
   const opened = useRef(false);
 
-  async function openStore() {
+  async function openStore(options?: { sameTab?: boolean }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/public/store-tip/${encodeURIComponent(code)}/launch`);
+      const res = await fetch(
+        `/api/public/store-tip/${encodeURIComponent(code)}/launch`,
+      );
       const body = (await res.json()) as { url?: string; error?: string };
       if (!res.ok || !body.url) {
         setError(body.error ?? t("tipPublicUnavailable"));
+        return;
+      }
+      // QR `?go=1` auto-open is not a user gesture — same-tab avoids popup blockers.
+      if (options?.sameTab) {
+        window.location.assign(body.url);
         return;
       }
       window.open(body.url, "_blank", "noopener,noreferrer");
@@ -45,7 +52,7 @@ export function StoreTipPublicClient({
     if (!autoOpen || opened.current) return;
     opened.current = true;
     const id = requestAnimationFrame(() => {
-      void openStore();
+      void openStore({ sameTab: true });
     });
     return () => cancelAnimationFrame(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot on mount
@@ -59,7 +66,9 @@ export function StoreTipPublicClient({
       {allianceTag ? (
         <p className="mt-2 text-sm font-medium text-sky-300/90">[{allianceTag}]</p>
       ) : null}
-      <p className="mt-4 text-sm leading-relaxed text-slate-300">{t("tipPublicBody")}</p>
+      <p className="mt-4 text-sm leading-relaxed text-slate-300">
+        {t("tipPublicBody")}
+      </p>
       {error ? (
         <p className="mt-4 text-sm text-red-400" role="alert">
           {error}

@@ -110,7 +110,8 @@ async function resolveRecipientGameUid(
       ),
     )
     .limit(1);
-  return discordLink?.gameUid?.trim() ?? null;
+  const fromDiscord = discordLink?.gameUid?.trim();
+  return fromDiscord || null;
 }
 
 async function viewerLinkedAshedMemberIds(
@@ -346,7 +347,6 @@ export async function listStoreSpend(input: {
         schema.commanderStoreDonationReceipts.recipientDisplayName,
       note: schema.commanderStoreDonationReceipts.note,
       donorDisplayName: schema.hqUsers.displayName,
-      donorEmail: schema.hqUsers.email,
     })
     .from(schema.commanderStoreDonationReceipts)
     .leftJoin(
@@ -371,9 +371,7 @@ export async function listStoreSpend(input: {
       amountCents: row.amountCents,
       recipientDisplayName: row.recipientDisplayName,
       donorDisplayName:
-        input.scope === "alliance"
-          ? row.donorDisplayName ?? row.donorEmail ?? null
-          : null,
+        input.scope === "alliance" ? row.donorDisplayName ?? null : null,
       note: row.note,
     })),
   };

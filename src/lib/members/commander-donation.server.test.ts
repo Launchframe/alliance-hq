@@ -79,7 +79,6 @@ describe("buildStoreTipBadgeSvg", () => {
       commanderName: "Alpha",
       allianceTag: "LFgo",
       shortUrlDisplay: "hq.example/b/abc123",
-      qrPayloadUrl: "https://hq.example/b/abc123",
       qrModules: [
         [true, false],
         [false, true],
