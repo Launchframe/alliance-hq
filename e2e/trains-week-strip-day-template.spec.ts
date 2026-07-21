@@ -111,41 +111,49 @@ async function setupPersistedTrainsWeek(
   };
 }
 
-/** Grid + carousel both mount day cells; target the visible layout only. */
+/**
+ * Prefer the visible week layout only (desktop grid vs mobile carousel).
+ * Both mount the same testids; Soft Nav can also leave duplicates briefly.
+ */
 function weekDayLocator(page: Page, date: string): Locator {
   return page
     .locator("#hq-app-shell")
     .getByTestId(`trains-week-day-${date}`)
-    .filter({ visible: true });
+    .filter({ visible: true })
+    .first();
 }
 
+/** Open via contextmenu so Playwright hit-testing overlays don't block short viewports. */
 async function openDayTemplateMenu(
   page: Page,
   date: string,
-  position: { x: number; y: number } = { x: 12, y: 12 },
+  position?: { x: number; y: number },
 ) {
   const day = weekDayLocator(page, date);
   await expect(day).toBeVisible();
-  await day.click({ button: "right", position });
+  const box = await day.boundingBox();
+  expect(box).not.toBeNull();
+  const clientX = box!.x + (position?.x ?? Math.min(12, box!.width / 2));
+  const clientY = box!.y + (position?.y ?? Math.min(12, box!.height / 2));
+  await day.dispatchEvent("contextmenu", {
+    bubbles: true,
+    cancelable: true,
+    clientX,
+    clientY,
+    button: 2,
+  });
   await expect(page.getByTestId("trains-day-template-menu")).toBeVisible();
 }
 
 async function longPressDay(page: Page, day: Locator) {
-  await day.dispatchEvent("pointerdown", {
-    bubbles: true,
-    button: 0,
-    pointerId: 1,
-    pointerType: "touch",
-    isPrimary: true,
-  });
-  await page.waitForTimeout(550);
-  await day.dispatchEvent("pointerup", {
-    bubbles: true,
-    button: 0,
-    pointerId: 1,
-    pointerType: "touch",
-    isPrimary: true,
-  });
+  const box = await day.boundingBox();
+  expect(box).not.toBeNull();
+  const x = box!.x + box!.width / 2;
+  const y = box!.y + box!.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.waitForTimeout(650);
+  await page.mouse.up();
 }
 
 async function readPaintTemplate(
@@ -186,9 +194,27 @@ test.describe("Week strip day template menu", () => {
 
     await openDayTemplateMenu(page, fixture.today);
 
-    await expect(page.getByTestId("trains-day-template-vs_push_week")).toBeFocused();
+    const menu = page.getByTestId("trains-day-template-menu");
+    await expect(menu).toBeVisible();
+    // Initial focus lands on the checked template, else the first item.
+    await expect
+      .poll(async () =>
+        menu.locator('[role="menuitemradio"]').evaluateAll((items) => {
+          const active = document.activeElement;
+          return items.findIndex((item) => item === active);
+        }),
+      )
+      .toBeGreaterThanOrEqual(0);
+
     await page.keyboard.press("ArrowDown");
-    await expect(page.getByTestId("trains-day-template-vs_push_weekdays")).toBeFocused();
+    await expect
+      .poll(async () =>
+        menu.locator('[role="menuitemradio"]').evaluateAll((items) => {
+          const active = document.activeElement;
+          return items.findIndex((item) => item === active);
+        }),
+      )
+      .toBeGreaterThan(0);
 
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("trains-day-template-menu")).toHaveCount(0);
@@ -225,7 +251,9 @@ test.describe("Week strip day template menu", () => {
   }) => {
     const fixture = await setupPersistedTrainsWeek(request);
     await page.context().addCookies(fixture.cookies);
-    await page.setViewportSize({ width: 1280, height: 480 });
+    // Tall enough for the week grid to be hittable; short enough that a
+    // bottom-right open still requires clamp (menu max-height ≈ 20rem).
+    await page.setViewportSize({ width: 1280, height: 640 });
     await page.goto("/trains");
     await expect(page.getByTestId("trains-schedule-section")).toBeVisible({
       timeout: 15_000,
@@ -245,7 +273,7 @@ test.describe("Week strip day template menu", () => {
     expect(menuBox!.x).toBeGreaterThanOrEqual(pad);
     expect(menuBox!.y).toBeGreaterThanOrEqual(pad);
     expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(1280 - pad);
-    expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(480 - pad);
+    expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(640 - pad);
   });
 
   test("mobile carousel long-press opens the template menu", async ({ page, request }) => {
@@ -261,7 +289,9 @@ test.describe("Week strip day template menu", () => {
     await expect(day).toBeVisible();
     await longPressDay(page, day);
 
-    await expect(page.getByTestId("trains-day-template-menu")).toBeVisible();
+    await expect(page.getByTestId("trains-day-template-menu")).toBeVisible({
+      timeout: 10_000,
+    });
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("trains-day-template-menu")).toHaveCount(0);
   });

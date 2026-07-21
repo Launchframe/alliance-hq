@@ -81,8 +81,9 @@ export function DayTemplateContextMenu({
     );
   }, [open, anchor]);
 
+  // Focus only after position is known — browsers skip focus on visibility:hidden.
   useEffect(() => {
-    if (!open || !menuRef.current) return;
+    if (!open || !pos || !menuRef.current) return;
 
     const menu = menuRef.current;
     const items = getMenuItems(menu);
@@ -142,7 +143,7 @@ export function DayTemplateContextMenu({
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [closeMenu, open]);
+  }, [closeMenu, open, pos]);
 
   if (!open || !anchor || typeof document === "undefined") return null;
 
