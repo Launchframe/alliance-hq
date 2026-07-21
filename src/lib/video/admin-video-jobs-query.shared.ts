@@ -65,17 +65,32 @@ export function buildAdminVideoJobsListSearchParams(
   return params;
 }
 
-export function adminVideoJobsListHref(
+export function videoJobsListHref(
+  listPath: string,
   filters: AdminVideoJobsListFilters,
 ): string {
   const qs = buildAdminVideoJobsListSearchParams(filters).toString();
-  return `/admin/video-jobs?${qs}`;
+  return `${listPath}?${qs}`;
+}
+
+export function videoJobDetailHref(
+  listPath: string,
+  jobId: string,
+  filters: AdminVideoJobsListFilters,
+): string {
+  const qs = buildAdminVideoJobsListSearchParams(filters).toString();
+  return `${listPath}/${jobId}?${qs}`;
+}
+
+export function adminVideoJobsListHref(
+  filters: AdminVideoJobsListFilters,
+): string {
+  return videoJobsListHref("/admin/video-jobs", filters);
 }
 
 export function adminVideoJobDetailHref(
   jobId: string,
   filters: AdminVideoJobsListFilters,
 ): string {
-  const qs = buildAdminVideoJobsListSearchParams(filters).toString();
-  return `/admin/video-jobs/${jobId}?${qs}`;
+  return videoJobDetailHref("/admin/video-jobs", jobId, filters);
 }

@@ -13,7 +13,7 @@ import {
 import { isDevOrPreviewEnvironment } from "@/lib/dev/env-guard";
 import { rethrowNavigationError } from "@/lib/navigation";
 import { getPageSessionState } from "@/lib/session";
-import { sessionCanReadAllianceVideoQueue } from "@/lib/video/processor-slots.server";
+import { sessionCanReadAllianceVideoQueue, sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +84,7 @@ export default async function AppLayout({
   const showVideoQueue =
     state.permissions.includes("hq:video:read") ||
     (await sessionCanReadAllianceVideoQueue(state.sessionId));
+  const showVideoJobsOps = await sessionCanProcessVideo(state.sessionId);
 
   return (
     <TimezoneProvider initialTimezoneId={state.timezone}>
@@ -104,6 +105,7 @@ export default async function AppLayout({
         showAdminPortal={state.permissions.includes("hq:admin")}
         showTeamAccess={state.showTeamAccess}
         showVideoQueue={showVideoQueue}
+        showVideoJobsOps={showVideoJobsOps}
         showVideoProcessorsNav={state.showVideoProcessorsNav}
         showAllianceSettings={Boolean(state.currentAllianceId)}
         currentAllianceId={

@@ -20,7 +20,10 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { resolveHqAllianceIdFromStoredAllianceId } from "./video-job-alliance.server";
+import {
+  listStoredAllianceIdsForHqAlliance,
+  resolveHqAllianceIdFromStoredAllianceId,
+} from "./video-job-alliance.server";
 
 describe("resolveHqAllianceIdFromStoredAllianceId", () => {
   beforeEach(() => {
@@ -59,5 +62,30 @@ describe("resolveHqAllianceIdFromStoredAllianceId", () => {
     await expect(
       resolveHqAllianceIdFromStoredAllianceId("unknown-ashed"),
     ).resolves.toBeNull();
+  });
+});
+
+describe("listStoredAllianceIdsForHqAlliance", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns hq id and ashed id when both exist", async () => {
+    selectLimit.mockResolvedValueOnce([
+      { id: "hq-1", ashedAllianceId: "ashed-1" },
+    ]);
+
+    await expect(listStoredAllianceIdsForHqAlliance("hq-1")).resolves.toEqual([
+      "hq-1",
+      "ashed-1",
+    ]);
+  });
+
+  it("falls back to hq id when alliance row is missing", async () => {
+    selectLimit.mockResolvedValueOnce([]);
+
+    await expect(listStoredAllianceIdsForHqAlliance("hq-missing")).resolves.toEqual(
+      ["hq-missing"],
+    );
   });
 });

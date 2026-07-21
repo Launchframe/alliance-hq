@@ -9,7 +9,10 @@ import type { VideoJobInspectReport } from "@/lib/video/video-job-inspect.shared
 
 type Props = {
   jobId: string;
+  apiBase?: string;
 };
+
+const DEFAULT_API_BASE = "/api/admin/video-jobs";
 
 const HINT_STYLES = {
   info: "border-hq-accent/40 bg-hq-accent/10 text-hq-accent",
@@ -29,9 +32,10 @@ function formatAllianceLabel(
 
 async function fetchInspectReport(
   jobId: string,
+  apiBase: string,
   loadFailedMessage: string,
 ): Promise<VideoJobInspectReport> {
-  const res = await fetch(`/api/admin/video-jobs/${jobId}/inspect`);
+  const res = await fetch(`${apiBase}/${jobId}/inspect`);
   const body = (await res.json()) as {
     report?: VideoJobInspectReport;
     error?: string;
@@ -45,7 +49,10 @@ async function fetchInspectReport(
   return body.report;
 }
 
-export function VideoJobDiagnosticsPanel({ jobId }: Props) {
+export function VideoJobDiagnosticsPanel({
+  jobId,
+  apiBase = DEFAULT_API_BASE,
+}: Props) {
   const t = useTranslations("admin.videoJobDetailPage");
   const [report, setReport] = useState<VideoJobInspectReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,7 +62,7 @@ export function VideoJobDiagnosticsPanel({ jobId }: Props) {
   const reload = useCallback(() => {
     setLoading(true);
     setError(null);
-    void fetchInspectReport(jobId, loadFailedMessage)
+    void fetchInspectReport(jobId, apiBase, loadFailedMessage)
       .then((next) => {
         setReport(next);
       })
@@ -66,12 +73,12 @@ export function VideoJobDiagnosticsPanel({ jobId }: Props) {
       .finally(() => {
         setLoading(false);
       });
-  }, [jobId, loadFailedMessage]);
+  }, [jobId, apiBase, loadFailedMessage]);
 
   useEffect(() => {
     let cancelled = false;
 
-    void fetchInspectReport(jobId, loadFailedMessage)
+    void fetchInspectReport(jobId, apiBase, loadFailedMessage)
       .then((next) => {
         if (!cancelled) setReport(next);
       })
@@ -88,7 +95,7 @@ export function VideoJobDiagnosticsPanel({ jobId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [jobId, loadFailedMessage]);
+  }, [jobId, apiBase, loadFailedMessage]);
 
   if (loading && !report) {
     return <p className="text-sm text-hq-fg-muted">{t("diagnosticsLoading")}</p>;

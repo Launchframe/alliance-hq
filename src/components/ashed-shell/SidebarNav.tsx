@@ -103,6 +103,7 @@ type Props = {
   showAdminPortal?: boolean;
   showTeamAccess?: boolean;
   showVideoQueue?: boolean;
+  showVideoJobsOps?: boolean;
   showVideoProcessorsNav?: boolean;
   operatingMode?: "ashed" | "native" | null;
   canUseAshedEmbeds?: boolean;
@@ -122,6 +123,7 @@ export function SidebarNav({
   showAdminPortal = false,
   showTeamAccess = false,
   showVideoQueue = false,
+  showVideoJobsOps = false,
   showVideoProcessorsNav = false,
   operatingMode = null,
   canUseAshedEmbeds = true,
@@ -232,6 +234,15 @@ export function SidebarNav({
                             href: "/tools/video-upload/queue",
                             labelKey: "videoQueue" as const,
                             pageId: "video-queue",
+                          },
+                        ]
+                      : []),
+                    ...(showVideoJobsOps
+                      ? [
+                          {
+                            href: "/tools/video-jobs",
+                            labelKey: "videoJobsOps" as const,
+                            pageId: "video-jobs-ops",
                           },
                         ]
                       : []),

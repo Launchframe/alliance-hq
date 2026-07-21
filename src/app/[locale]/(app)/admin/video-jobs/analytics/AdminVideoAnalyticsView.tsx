@@ -4,8 +4,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
-import type { AnalyticsResponse, PassKeyRow, BucketRow } from "@/app/api/admin/video-jobs/analytics/route";
+import type {
+  AnalyticsResponse,
+  PassKeyRow,
+  BucketRow,
+} from "@/lib/video/video-jobs-analytics.server";
 import type { RosterOcrEvalResponse } from "@/app/api/admin/video-jobs/roster-ocr-eval/route";
+import {
+  ADMIN_VIDEO_JOBS_CONSOLE,
+  type VideoJobsConsoleConfig,
+} from "@/lib/video/video-jobs-console.shared";
 
 const QUALITY_BUCKET_COLORS: Record<string, string> = {
   perfect: "text-hq-green",
@@ -122,7 +130,11 @@ function PassKeyTable({
   );
 }
 
-export function AdminVideoAnalyticsView() {
+export function AdminVideoAnalyticsView({
+  config = ADMIN_VIDEO_JOBS_CONSOLE,
+}: {
+  config?: VideoJobsConsoleConfig;
+}) {
   const t = useTranslations("admin.analyticsPage");
   const [data, setData] = useState<AnalyticsResponse | null>(null);
   const [rosterEval, setRosterEval] = useState<RosterOcrEvalResponse | null>(null);
@@ -141,16 +153,19 @@ export function AdminVideoAnalyticsView() {
       if (scoreTarget) params.set("scoreTarget", scoreTarget);
       if (passKey) params.set("passKey", passKey);
       if (days && days !== "0") params.set("days", days);
-      const res = await fetch(`/api/admin/video-jobs/analytics?${params}`);
+      const res = await fetch(`${config.apiBase}/analytics?${params}`);
       if (!res.ok) throw new Error(await res.text());
       const rosterParams = new URLSearchParams();
       if (days && days !== "0") rosterParams.set("days", days);
+      const rosterEvalPromise = config.includeRosterOcrEval
+        ? fetch(`/api/admin/video-jobs/roster-ocr-eval?${rosterParams}`)
+        : Promise.resolve(null);
       const [analyticsJson, rosterEvalRes] = await Promise.all([
         res.json() as Promise<AnalyticsResponse>,
-        fetch(`/api/admin/video-jobs/roster-ocr-eval?${rosterParams}`),
+        rosterEvalPromise,
       ]);
       setData(analyticsJson);
-      if (rosterEvalRes.ok) {
+      if (rosterEvalRes?.ok) {
         setRosterEval((await rosterEvalRes.json()) as RosterOcrEvalResponse);
       } else {
         setRosterEval(null);
@@ -160,7 +175,7 @@ export function AdminVideoAnalyticsView() {
     } finally {
       setLoading(false);
     }
-  }, [scoreTarget, passKey, days, t]);
+  }, [scoreTarget, passKey, days, t, config.apiBase, config.includeRosterOcrEval]);
 
   useEffect(() => {
     void (async () => {
@@ -229,21 +244,32 @@ export function AdminVideoAnalyticsView() {
         <div>
           <h1 className="text-xl font-semibold text-hq-fg">{t("title")}</h1>
           <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
-          <p className="mt-2 text-sm">
-            <Link
-              href="/admin/guides/video-pipeline"
-              className="text-hq-accent hover:underline"
-            >
-              Video pipeline configs and experiments guide
-            </Link>
-          </p>
+          {config.showFleetAdminLinks ? (
+            <p className="mt-2 text-sm">
+              <Link
+                href="/admin/guides/video-pipeline"
+                className="text-hq-accent hover:underline"
+              >
+                Video pipeline configs and experiments guide
+              </Link>
+            </p>
+          ) : null}
         </div>
-        <Link
-          href="/admin/experiments"
-          className="shrink-0 rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent transition-colors"
-        >
-          {t("experimentsLink")} →
-        </Link>
+        {config.showFleetAdminLinks ? (
+          <Link
+            href="/admin/experiments"
+            className="shrink-0 rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent transition-colors"
+          >
+            {t("experimentsLink")} →
+          </Link>
+        ) : (
+          <Link
+            href={config.listPath}
+            className="shrink-0 rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent transition-colors"
+          >
+            ← {t("backToJobs")}
+          </Link>
+        )}
       </div>
 
       {/* Filters */}
@@ -324,7 +350,9 @@ export function AdminVideoAnalyticsView() {
             />
           </div>
 
-          {(!scoreTarget || scoreTarget === "member-roster-video") && rosterEval ? (
+          {config.includeRosterOcrEval &&
+          (!scoreTarget || scoreTarget === "member-roster-video") &&
+          rosterEval ? (
             <section className="space-y-4 rounded-lg border border-hq-border bg-hq-surface p-4">
               <div>
                 <h2 className="text-sm font-semibold text-hq-fg">
