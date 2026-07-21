@@ -260,6 +260,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     useState<DepositSlipVisibleSortKey>("depositAt");
   const [error, setError] = useState<string | null>(null);
   const [errorConnectUrl, setErrorConnectUrl] = useState<string | null>(null);
+  const actionErrorAnchorRef = useRef<HTMLDivElement | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [reprocessPending, setReprocessPending] = useState(false);
   const [rematching, setRematching] = useState(false);
@@ -1524,18 +1525,29 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     setErrorConnectUrl(connectUrl ?? null);
   }
 
+  useEffect(() => {
+    if (!error) return;
+    // Submit CTA sits below a long table — bring the banner into view.
+    actionErrorAnchorRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+    });
+  }, [error]);
+
   function renderActionErrorBanner() {
     if (!error) {
       return null;
     }
     return (
-      <ReviewActionErrorBanner
-        message={error}
-        connectUrl={errorConnectUrl ?? undefined}
-        connectLabel={tQueue("connectCta")}
-        onDismiss={clearActionError}
-        dismissLabel={t("comparisonClose")}
-      />
+      <div ref={actionErrorAnchorRef}>
+        <ReviewActionErrorBanner
+          message={error}
+          connectUrl={errorConnectUrl ?? undefined}
+          connectLabel={tQueue("connectCta")}
+          onDismiss={clearActionError}
+          dismissLabel={t("comparisonClose")}
+        />
+      </div>
     );
   }
 
@@ -1557,7 +1569,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         if (data.code === "ashed_not_connected") {
           const reviewPath = `/tools/video-upload/${jobId}/review`;
           stashConnectReturnPath(reviewPath);
-          router.push(
+          setActionError(
+            data.error ?? tc("uploadFailed"),
             data.connectUrl ?? buildConnectHref(reviewPath),
           );
           return;
@@ -1650,7 +1663,6 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   if (displayJobStatus === "loading" || rematching) {
     return (
       <div className="space-y-4">
-        {renderActionErrorBanner()}
         <p className="text-sm text-hq-fg-muted">
           {rematching ? t("rematchingMembers") : t("loading")}
         </p>
@@ -1771,6 +1783,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const showTopPreview = previewOpen && effectivePreviewPlacement === "top";
   const showBottomPreview =
     previewOpen && effectivePreviewPlacement === "bottom";
+  const actionErrorNearReprocess = activeRows.length === 0 && !isEventView;
   const previewNode = previewOpen ? (
     <ReviewVideoPreview
       jobId={jobId}
@@ -1816,7 +1829,6 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         }
       >
         <div className="mx-auto min-w-0 w-full max-w-5xl flex-1 space-y-6 px-4 pb-6 md:px-0">
-          {renderActionErrorBanner()}
           <div>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <Link
@@ -1929,6 +1941,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           >
             {reprocessPending ? t("reprocessing") : t("reprocess")}
           </button>
+          {actionErrorNearReprocess ? (
+            <div className="mt-3">{renderActionErrorBanner()}</div>
+          ) : null}
         </div>
       )}
 
@@ -2635,6 +2650,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         </>
       )}
 
+      {!actionErrorNearReprocess ? renderActionErrorBanner() : null}
       {success && <p className="text-sm text-hq-green">{success}</p>}
 
       <div className="flex flex-wrap gap-3">
