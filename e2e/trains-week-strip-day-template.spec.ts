@@ -1,11 +1,16 @@
 import { randomBytes } from "node:crypto";
 
 import { nanoid } from "nanoid";
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 
 import {
   addCalendarDays,
-  getServerCalendarDate,
   isCalendarDateOnOrAfter,
 } from "../src/lib/trains/game-time";
 import {
@@ -80,7 +85,10 @@ async function setupPersistedTrainsWeek(
     headers: { Cookie: cookieHeader },
   });
   expect(dashboardRes.ok(), await dashboardRes.text()).toBeTruthy();
-  const dashboard = (await dashboardRes.json()) as { weekStart: string };
+  const dashboard = (await dashboardRes.json()) as {
+    weekStart: string;
+    today: string;
+  };
 
   const createRes = await request.post("/api/trains/schedule", {
     headers: {
@@ -99,8 +107,16 @@ async function setupPersistedTrainsWeek(
     cookies,
     cookieHeader,
     weekStart: dashboard.weekStart,
-    today: getServerCalendarDate(),
+    today: dashboard.today,
   };
+}
+
+/** Grid + carousel both mount day cells; target the visible layout only. */
+function weekDayLocator(page: Page, date: string): Locator {
+  return page
+    .locator("#hq-app-shell")
+    .getByTestId(`trains-week-day-${date}`)
+    .filter({ visible: true });
 }
 
 async function openDayTemplateMenu(
@@ -108,10 +124,28 @@ async function openDayTemplateMenu(
   date: string,
   position: { x: number; y: number } = { x: 12, y: 12 },
 ) {
-  const day = page.getByTestId(`trains-week-day-${date}`);
+  const day = weekDayLocator(page, date);
   await expect(day).toBeVisible();
   await day.click({ button: "right", position });
   await expect(page.getByTestId("trains-day-template-menu")).toBeVisible();
+}
+
+async function longPressDay(page: Page, day: Locator) {
+  await day.dispatchEvent("pointerdown", {
+    bubbles: true,
+    button: 0,
+    pointerId: 1,
+    pointerType: "touch",
+    isPrimary: true,
+  });
+  await page.waitForTimeout(550);
+  await day.dispatchEvent("pointerup", {
+    bubbles: true,
+    button: 0,
+    pointerId: 1,
+    pointerType: "touch",
+    isPrimary: true,
+  });
 }
 
 async function readPaintTemplate(
@@ -152,16 +186,13 @@ test.describe("Week strip day template menu", () => {
 
     await openDayTemplateMenu(page, fixture.today);
 
-    const economyItem = page.getByTestId("trains-day-template-economy_week");
-    await economyItem.focus();
-    await expect(economyItem).toBeFocused();
-
+    await expect(page.getByTestId("trains-day-template-vs_push_week")).toBeFocused();
     await page.keyboard.press("ArrowDown");
-    await expect(page.getByTestId("trains-day-template-r4_event_vip")).toBeFocused();
+    await expect(page.getByTestId("trains-day-template-vs_push_weekdays")).toBeFocused();
 
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("trains-day-template-menu")).toHaveCount(0);
-    await expect(page.getByTestId(`trains-week-day-${fixture.today}`)).toBeFocused();
+    await expect(weekDayLocator(page, fixture.today)).toBeFocused();
   });
 
   test("selecting a template paints the day", async ({ page, request }) => {
@@ -190,6 +221,7 @@ test.describe("Week strip day template menu", () => {
 
   test("menu stays within the viewport when opened near the bottom-right edge", async ({
     page,
+    request,
   }) => {
     const fixture = await setupPersistedTrainsWeek(request);
     await page.context().addCookies(fixture.cookies);
@@ -199,7 +231,7 @@ test.describe("Week strip day template menu", () => {
       timeout: 15_000,
     });
 
-    const day = page.getByTestId(`trains-week-day-${fixture.today}`);
+    const day = weekDayLocator(page, fixture.today);
     const box = await day.boundingBox();
     expect(box).not.toBeNull();
     await openDayTemplateMenu(page, fixture.today, {
@@ -216,7 +248,7 @@ test.describe("Week strip day template menu", () => {
     expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(480 - pad);
   });
 
-  test("mobile carousel long-press opens the template menu", async ({ page }) => {
+  test("mobile carousel long-press opens the template menu", async ({ page, request }) => {
     const fixture = await setupPersistedTrainsWeek(request);
     await page.context().addCookies(fixture.cookies);
     await page.setViewportSize({ width: 390, height: 844 });
@@ -225,16 +257,9 @@ test.describe("Week strip day template menu", () => {
       timeout: 15_000,
     });
 
-    const day = page.getByTestId(`trains-week-day-${fixture.today}`);
-    const box = await day.boundingBox();
-    expect(box).not.toBeNull();
-
-    const centerX = box!.x + box!.width / 2;
-    const centerY = box!.y + box!.height / 2;
-    await page.mouse.move(centerX, centerY);
-    await page.mouse.down();
-    await page.waitForTimeout(550);
-    await page.mouse.up();
+    const day = weekDayLocator(page, fixture.today);
+    await expect(day).toBeVisible();
+    await longPressDay(page, day);
 
     await expect(page.getByTestId("trains-day-template-menu")).toBeVisible();
     await page.keyboard.press("Escape");
