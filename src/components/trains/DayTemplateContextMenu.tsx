@@ -1,12 +1,27 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
 import { TemplatePaletteBadge } from "@/components/trains/TemplatePaletteBadge";
+import { clampMenuPosition } from "@/lib/client/clamp-menu-position.shared";
+import {
+  focusMenuItem,
+  getInitialMenuItemIndex,
+  getMenuItems,
+  menuKeyboardActionForKey,
+  nextMenuItemIndex,
+} from "@/lib/client/menu-keyboard-navigation.shared";
 import type { WeekTemplateType } from "@/lib/trains/types";
 
 export type DayTemplateMenuAnchor = {
@@ -14,6 +29,8 @@ export type DayTemplateMenuAnchor = {
   /** Preferred top-left in viewport coordinates (clientX/Y or rect). */
   x: number;
   y: number;
+  /** Restore focus to the day cell that opened the menu. */
+  returnFocus?: () => void;
 };
 
 type Props = {
@@ -28,24 +45,6 @@ type Props = {
 const MENU_MAX_HEIGHT =
   "min(20rem, calc(100dvh - 2rem))" as const;
 
-function clampMenuPosition(
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-): { left: number; top: number } {
-  const pad = 8;
-  const vw = typeof window !== "undefined" ? window.innerWidth : 400;
-  const vh = typeof window !== "undefined" ? window.innerHeight : 600;
-  let left = x;
-  let top = y;
-  if (left + width > vw - pad) left = Math.max(pad, vw - width - pad);
-  if (left < pad) left = pad;
-  if (top + height > vh - pad) top = Math.max(pad, vh - height - pad);
-  if (top < pad) top = pad;
-  return { left, top };
-}
-
 export function DayTemplateContextMenu({
   open,
   anchor,
@@ -57,29 +56,84 @@ export function DayTemplateContextMenu({
   const t = useTranslations("trains.dayTemplateMenu");
   const menuId = useId();
   const menuRef = useRef<HTMLDivElement>(null);
+  const returnFocusRef = useRef<(() => void) | null>(null);
+  const activeIndexRef = useRef(0);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  const closeMenu = useCallback(() => {
+    onClose();
+    returnFocusRef.current?.();
+    returnFocusRef.current = null;
+  }, [onClose]);
 
   useLayoutEffect(() => {
     if (!open || !anchor || !menuRef.current) {
       setPos(null);
       return;
     }
+    returnFocusRef.current = anchor.returnFocus ?? null;
     const rect = menuRef.current.getBoundingClientRect();
-    setPos(clampMenuPosition(anchor.x, anchor.y, rect.width, rect.height));
+    setPos(
+      clampMenuPosition(anchor.x, anchor.y, rect.width, rect.height, {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      }),
+    );
   }, [open, anchor]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !menuRef.current) return;
+
+    const menu = menuRef.current;
+    const items = getMenuItems(menu);
+    const initialIndex = getInitialMenuItemIndex(items);
+    activeIndexRef.current = focusMenuItem(items, initialIndex);
 
     function handlePointerDown(event: PointerEvent) {
       const target = event.target;
       if (!(target instanceof Node)) return;
-      if (menuRef.current?.contains(target)) return;
-      onClose();
+      if (menu.contains(target)) return;
+      closeMenu();
     }
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeMenu();
+        return;
+      }
+
+      const menuItems = getMenuItems(menu);
+      if (menuItems.length === 0) return;
+
+      const action = menuKeyboardActionForKey(event.key);
+      if (!action) return;
+
+      if (action === "tab-forward" || action === "tab-backward") {
+        if (event.key !== "Tab") return;
+        event.preventDefault();
+        const currentIndex = menuItems.findIndex(
+          (item) => item === document.activeElement,
+        );
+        const startIndex = currentIndex >= 0 ? currentIndex : activeIndexRef.current;
+        const nextIndex = nextMenuItemIndex(
+          menuItems,
+          startIndex,
+          event.shiftKey ? "tab-backward" : "tab-forward",
+        );
+        activeIndexRef.current = focusMenuItem(menuItems, nextIndex);
+        return;
+      }
+
+      event.preventDefault();
+      const currentIndex = menuItems.findIndex(
+        (item) => item === document.activeElement,
+      );
+      const startIndex = currentIndex >= 0 ? currentIndex : activeIndexRef.current;
+      activeIndexRef.current = focusMenuItem(
+        menuItems,
+        nextMenuItemIndex(menuItems, startIndex, action),
+      );
     }
 
     document.addEventListener("pointerdown", handlePointerDown);
@@ -88,7 +142,7 @@ export function DayTemplateContextMenu({
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [open, onClose]);
+  }, [closeMenu, open]);
 
   if (!open || !anchor || typeof document === "undefined") return null;
 
@@ -124,7 +178,7 @@ export function DayTemplateContextMenu({
               data-testid={`trains-day-template-${template}`}
               onClick={() => {
                 onSelect(template);
-                onClose();
+                closeMenu();
               }}
               className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-hq-canvas ${
                 selected ? "bg-hq-canvas/80 text-hq-fg" : "text-hq-fg"

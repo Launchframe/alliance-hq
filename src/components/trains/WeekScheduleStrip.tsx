@@ -181,11 +181,20 @@ function WeekScheduleDayCell({
       ? "ring-1 ring-hq-accent/50 ring-offset-1 ring-offset-hq-canvas"
       : "";
 
+  const cellButtonRef = useRef<HTMLButtonElement>(null);
+
   const openMenuFromEvent = useCallback(
     (clientX: number, clientY: number) => {
       if (!canPaint || !onOpenTemplateMenu) return;
       onSelect?.();
-      onOpenTemplateMenu({ date: day.date, x: clientX, y: clientY });
+      onOpenTemplateMenu({
+        date: day.date,
+        x: clientX,
+        y: clientY,
+        returnFocus: () => {
+          cellButtonRef.current?.focus();
+        },
+      });
     },
     [canPaint, day.date, onOpenTemplateMenu, onSelect],
   );
@@ -263,6 +272,7 @@ function WeekScheduleDayCell({
   if (selectable && onSelect) {
     return (
       <button
+        ref={cellButtonRef}
         type="button"
         onClick={() => {
           if (longPress.didFireLongPress()) {
