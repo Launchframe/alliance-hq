@@ -98,6 +98,25 @@ export function parseSlashOptionString(
   return typeof option?.value === "string" ? option.value : undefined;
 }
 
+/** Optional `with` / `with-2` … args on `/what-is-my-vr-chart`. */
+export const VR_CHART_WITH_OPTION_NAMES = [
+  "with",
+  "with-2",
+  "with-3",
+  "with-4",
+] as const;
+
+export function parseVrChartSlashCommanderNames(
+  payload: DiscordInteractionPayload,
+): string[] {
+  const names: string[] = [];
+  for (const name of VR_CHART_WITH_OPTION_NAMES) {
+    const value = parseSlashOptionString(payload, name);
+    if (value) names.push(value);
+  }
+  return names;
+}
+
 export function parseSlashOptionInteger(
   payload: DiscordInteractionPayload,
   name: string,

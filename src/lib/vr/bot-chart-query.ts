@@ -18,13 +18,23 @@ import {
 import { effectiveBaseVr } from "@/lib/vr/effective-vr.shared";
 import { instituteLevelForBaseVr } from "@/lib/vr/institute-levels.shared";
 import { listDiscordLinksForStatusQuery } from "@/lib/vr/bot-member-links.server";
-import { loadVrProgressChartPayload } from "@/lib/vr/load-progress-chart";
+import {
+  listVrProgressChartCommanderCandidates,
+  loadVrProgressChartPayload,
+} from "@/lib/vr/load-progress-chart";
+import {
+  expandVrChartCommanderNameInputs,
+  resolveVrChartCommanderNames,
+} from "@/lib/vr/vr-chart-resolve-commanders.shared";
 import {
   getCommanderByAshedMemberId,
   getMemberSeasonHigh,
   resolveSeasonKey,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
+
+/** Viewer plus up to four named allies on the Discord VR chart. */
+export const VR_CHART_MAX_VISIBLE_COMMANDERS = 5;
 
 export type ChartQueryResult =
   | {
@@ -70,6 +80,8 @@ export async function handleDiscordWhatIsMyVrChart(input: {
   allianceId: string;
   discordUserId: string;
   locale: DiscordBotLocale;
+  /** Optional alliance commander names to overlay on the chart. */
+  additionalCommanderNames?: string[];
 }): Promise<ChartQueryResult> {
   const t = createDiscordTranslator(input.locale);
   const links = await listDiscordLinksForStatusQuery(
@@ -87,10 +99,76 @@ export async function handleDiscordWhatIsMyVrChart(input: {
     primary.ashedMemberId,
     input.allianceId,
   );
+  const viewerCommanderId = commander?.commanderId ?? null;
+
+  const requestedNames = expandVrChartCommanderNameInputs(
+    input.additionalCommanderNames ?? [],
+  );
+
+  if (!viewerCommanderId && requestedNames.length === 0) {
+    const result = { ok: false as const, content: t("chart.vrInsufficientData") };
+    await auditChart(
+      input.allianceId,
+      input.discordUserId,
+      "what_is_my_vr_chart",
+      result,
+    );
+    return result;
+  }
+
+  let resolved: ReturnType<typeof resolveVrChartCommanderNames> = {
+    commanderIds: [],
+    notFound: [],
+    ambiguous: [],
+  };
+
+  if (requestedNames.length > 0) {
+    const catalog = await listVrProgressChartCommanderCandidates(input.allianceId);
+    resolved = resolveVrChartCommanderNames(requestedNames, catalog);
+  }
+  if (resolved.notFound.length > 0) {
+    const result = {
+      ok: false as const,
+      content: t("chart.vrCommanderNotFound", {
+        names: resolved.notFound.join(", "),
+      }),
+    };
+    await auditChart(input.allianceId, input.discordUserId, "what_is_my_vr_chart", result);
+    return result;
+  }
+  if (resolved.ambiguous.length > 0) {
+    const detail = resolved.ambiguous
+      .map((row) => `${row.query} (${row.memberNames.join(", ")})`)
+      .join("; ");
+    const result = {
+      ok: false as const,
+      content: t("chart.vrCommanderAmbiguous", { detail }),
+    };
+    await auditChart(input.allianceId, input.discordUserId, "what_is_my_vr_chart", result);
+    return result;
+  }
+
+  const visibleCommanderIds = [
+    ...(viewerCommanderId ? [viewerCommanderId] : []),
+    ...resolved.commanderIds.filter((id) => id !== viewerCommanderId),
+  ];
+  if (visibleCommanderIds.length > VR_CHART_MAX_VISIBLE_COMMANDERS) {
+    const result = {
+      ok: false as const,
+      content: t("chart.vrTooManyCommanders", {
+        max: VR_CHART_MAX_VISIBLE_COMMANDERS,
+      }),
+    };
+    await auditChart(input.allianceId, input.discordUserId, "what_is_my_vr_chart", result);
+    return result;
+  }
+
   const payload = await loadVrProgressChartPayload({
     allianceId: input.allianceId,
-    viewerCommanderId: commander?.commanderId ?? null,
+    viewerCommanderId,
     viewerAshedMemberId: primary.ashedMemberId,
+    restrictToCommanderIds:
+      visibleCommanderIds.length > 0 ? visibleCommanderIds : undefined,
   });
 
   const png = await renderVrProgressChartPng({
@@ -99,6 +177,9 @@ export async function handleDiscordWhatIsMyVrChart(input: {
     vrUpdatesLocked: payload.vrUpdatesLocked,
     nowLabel: t("chart.nowLabel"),
     locale: input.locale,
+    visibleCommanderIds:
+      visibleCommanderIds.length > 0 ? visibleCommanderIds : undefined,
+    showLegend: true,
   });
   if (!png) {
     const result = { ok: false as const, content: t("chart.vrInsufficientData") };

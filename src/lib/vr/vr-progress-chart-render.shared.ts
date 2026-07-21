@@ -3,6 +3,7 @@
  * Used by the My VR React chart and Discord/dev PNG pipeline — one plot definition.
  */
 
+import { CHART_SVG_FONT_FAMILY_WEB } from "@/lib/charts/chart-svg-font.shared";
 import {
   formatChartInteger,
   formatChartShortDate,
@@ -11,6 +12,7 @@ import {
 import {
   assignVrChartStyles,
   svgPathForVrChartShape,
+  type VrChartStyle,
 } from "@/lib/vr/vr-chart-style.shared";
 import {
   DEFAULT_PROJECTION_HORIZON_DAYS,
@@ -52,6 +54,8 @@ export type BuildVrProgressChartSvgInput = {
     projectionHorizonDays?: number;
     visibleCommanderIds?: string[];
     labels?: Partial<VrProgressChartSvgLabels>;
+    /** Draw a commander legend below the plot (Discord PNG). */
+    showLegend?: boolean;
     /** Chart canvas fill. Pass null to omit (web embeds over a surface). */
     backgroundFill?: string | null;
   };
@@ -111,6 +115,52 @@ export function defaultVisibleVrCommanderIds(
   return [...ids];
 }
 
+function buildVrChartLegendMarkup(input: {
+  visibleSeries: VrProgressCommanderSeries[];
+  styles: Map<string, VrChartStyle>;
+  width: number;
+  legendTop: number;
+  fontSize: number;
+  fontScale: number;
+  fontFamily: string;
+  markerSize: number;
+}): string {
+  const sorted = [...input.visibleSeries].sort((a, b) => a.rank - b.rank);
+  const columns = input.width >= 900 ? 4 : 3;
+  const colWidth = input.width / columns;
+  const rowHeight = input.fontSize * 1.9;
+  const shapeXOffset = 8 * input.fontScale;
+  const textXOffset = 18 * input.fontScale;
+
+  return sorted
+    .map((row, index) => {
+      const style = input.styles.get(row.commanderId);
+      if (!style) return "";
+      const col = index % columns;
+      const rowIndex = Math.floor(index / columns);
+      const x = col * colWidth + shapeXOffset;
+      const y = input.legendTop + rowIndex * rowHeight;
+      const label = `${row.rank}. ${row.memberName}`;
+      const fontWeight = row.isViewer ? ' font-weight="600"' : "";
+      return `<g>
+        <path d="${svgPathForVrChartShape(style.shape, x, y + input.fontSize * 0.35, input.markerSize * 0.75)}" fill="${style.color}" stroke="#0d1117" stroke-width="1" />
+        <text x="${x + textXOffset}" y="${y + input.fontSize}" fill="#e6edf3" font-size="${input.fontSize}" font-family="${input.fontFamily}"${fontWeight}>${escapeXml(label)}</text>
+      </g>`;
+    })
+    .join("");
+}
+
+function legendHeightForSeriesCount(
+  count: number,
+  width: number,
+  fontSize: number,
+): number {
+  if (count === 0) return 0;
+  const columns = width >= 900 ? 4 : 3;
+  const rows = Math.ceil(count / columns);
+  return rows * fontSize * 1.9 + fontSize * 0.8;
+}
+
 /**
  * Returns a full `<svg>…</svg>` document for the VR progress plot, or null
  * when there is nothing to draw.
@@ -126,6 +176,7 @@ export function buildVrProgressChartSvg(
     input.options?.projectionHorizonDays ?? DEFAULT_PROJECTION_HORIZON_DAYS;
   const nowLabel = input.options?.labels?.nowLabel ?? "Now";
   const locale = input.locale ?? "en-US";
+  const showLegend = input.options?.showLegend ?? false;
   const backgroundFill =
     input.options?.backgroundFill === undefined
       ? "#0d1117"
@@ -201,14 +252,20 @@ export function buildVrProgressChartSvg(
 
   const padScaleX = width / VR_PROGRESS_CHART_DEFAULT_WIDTH;
   const padScaleY = height / VR_PROGRESS_CHART_DEFAULT_HEIGHT;
+  const fontScale = Math.min(padScaleX, padScaleY);
+  const fontSize = 10 * fontScale;
+  const legendHeight = showLegend
+    ? legendHeightForSeriesCount(visibleSeries.length, width, fontSize)
+    : 0;
   const pad = {
     top: PAD.top * padScaleY,
     right: PAD.right * padScaleX,
-    bottom: PAD.bottom * padScaleY,
+    bottom: PAD.bottom * padScaleY + legendHeight,
     left: PAD.left * padScaleX,
   };
   const innerW = width - pad.left - pad.right;
   const innerH = height - pad.top - pad.bottom;
+  const axisLabelOffset = 18 * fontScale;
   const timeSpan = Math.max(1, maxTime - minTime);
   const vrSpan = Math.max(250, maxVr - minVr);
   const xForTime = (timeMs: number) =>
@@ -263,16 +320,32 @@ export function buildVrProgressChartSvg(
       ? ""
       : `<rect width="100%" height="100%" fill="${escapeXml(backgroundFill)}"/>`;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img">
+  const fontFamily = CHART_SVG_FONT_FAMILY_WEB;
+  const legendTop = pad.top + innerH + axisLabelOffset + 10 * fontScale;
+  const legendMarkup = showLegend
+    ? buildVrChartLegendMarkup({
+        visibleSeries,
+        styles,
+        width,
+        legendTop,
+        fontSize,
+        fontScale,
+        fontFamily,
+        markerSize,
+      })
+    : "";
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" overflow="visible" role="img">
   ${backgroundRect}
   <line x1="${pad.left}" y1="${pad.top + innerH}" x2="${pad.left + innerW}" y2="${pad.top + innerH}" stroke="#30363d" stroke-width="1" />
   <line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${pad.top + innerH}" stroke="#30363d" stroke-width="1" />
   <line x1="${nowX}" y1="${pad.top}" x2="${nowX}" y2="${pad.top + innerH}" stroke="#8b949e" stroke-dasharray="2 4" stroke-width="1" />
-  <text x="${nowX + 5}" y="${pad.top + 12}" fill="#8b949e" font-size="10" font-family="system-ui,sans-serif">${escapeXml(nowLabel)}</text>
-  <text x="${pad.left - 8}" y="${pad.top + 4}" fill="#8b949e" font-size="10" text-anchor="end" font-family="system-ui,sans-serif">${escapeXml(formatChartInteger(maxVr, locale))}</text>
-  <text x="${pad.left - 8}" y="${pad.top + innerH}" fill="#8b949e" font-size="10" text-anchor="end" dominant-baseline="hanging" font-family="system-ui,sans-serif">${escapeXml(formatChartInteger(minVr, locale))}</text>
-  <text x="${pad.left}" y="${pad.top + innerH + 18}" fill="#8b949e" font-size="10" text-anchor="start" font-family="system-ui,sans-serif">${escapeXml(formatChartShortDate(new Date(minTime).toISOString(), locale))}</text>
-  <text x="${pad.left + innerW}" y="${pad.top + innerH + 18}" fill="#8b949e" font-size="10" text-anchor="end" font-family="system-ui,sans-serif">${escapeXml(formatChartShortDate(new Date(maxTime).toISOString(), locale))}</text>
+  <text x="${nowX + 5 * fontScale}" y="${pad.top + 12 * fontScale}" fill="#8b949e" font-size="${fontSize}" font-family="${fontFamily}">${escapeXml(nowLabel)}</text>
+  <text x="${pad.left - 8 * fontScale}" y="${pad.top + 4 * fontScale}" fill="#8b949e" font-size="${fontSize}" text-anchor="end" font-family="${fontFamily}">${escapeXml(formatChartInteger(maxVr, locale))}</text>
+  <text x="${pad.left - 8 * fontScale}" y="${pad.top + innerH}" fill="#8b949e" font-size="${fontSize}" text-anchor="end" dominant-baseline="hanging" font-family="${fontFamily}">${escapeXml(formatChartInteger(minVr, locale))}</text>
+  <text x="${pad.left}" y="${pad.top + innerH + axisLabelOffset}" fill="#8b949e" font-size="${fontSize}" text-anchor="start" font-family="${fontFamily}">${escapeXml(formatChartShortDate(new Date(minTime).toISOString(), locale))}</text>
+  <text x="${pad.left + innerW}" y="${pad.top + innerH + axisLabelOffset}" fill="#8b949e" font-size="${fontSize}" text-anchor="end" font-family="${fontFamily}">${escapeXml(formatChartShortDate(new Date(maxTime).toISOString(), locale))}</text>
   ${seriesMarkup}
+  ${legendMarkup}
 </svg>`;
 }

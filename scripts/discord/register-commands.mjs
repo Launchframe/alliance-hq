@@ -17,6 +17,22 @@ if (!token || !applicationId) {
 
 const DISCORD_DESCRIPTION_MAX = 100;
 
+const vrChartWithOptions = ["with", "with-2", "with-3", "with-4"].map((name, index) => ({
+  name,
+  description:
+    index === 0
+      ? "Alliance commander name to include on your chart."
+      : "Another alliance commander name to include.",
+  description_localizations: {
+    "pt-BR":
+      index === 0
+        ? "Nome do comandante da aliança para incluir no gráfico."
+        : "Outro nome de comandante da aliança para incluir.",
+  },
+  type: 3,
+  required: false,
+}));
+
 const vrLevelOption = {
   name: "level",
   description: "Institute building level (optional)",
@@ -298,6 +314,7 @@ const commandBody = [
     description_localizations: {
       "pt-BR": "Publica a imagem do seu gráfico de progresso de VR (visível no canal).",
     },
+    options: vrChartWithOptions,
   },
   {
     name: "what-is-my-vr-progress",
@@ -305,6 +322,7 @@ const commandBody = [
     description_localizations: {
       "pt-BR": "Alias de /what-is-my-vr-chart.",
     },
+    options: vrChartWithOptions,
   },
   {
     name: "what-is-my-thp-chart",
@@ -375,7 +393,7 @@ const commandBody = [
     description: "Set this channel for banking partner notifications — protection timers, etc. (owner only).",
     description_localizations: {
       "pt-BR":
-        "Define este canal para notificações de parceiros bancários — timers de proteção, etc (somente dono).",
+        "Define este canal para notificações de parceiros bancários — timers de proteção, etc. (somente dono).",
     },
   },
   {

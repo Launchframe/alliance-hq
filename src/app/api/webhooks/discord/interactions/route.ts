@@ -39,6 +39,7 @@ import {
   parseSlashOptionBoolean,
   parseSlashOptionInteger,
   parseSlashOptionString,
+  parseVrChartSlashCommanderNames,
   parseVrSlashLevel,
   resolveDiscordPublicKey,
   verifyDiscordInteractionRequest,
@@ -610,6 +611,7 @@ async function handleSlashCommand(
                 allianceId,
                 discordUserId,
                 locale,
+                additionalCommanderNames: parseVrChartSlashCommanderNames(payload),
               })
             : await handleDiscordWhatIsMyThpChart({
                 allianceId,

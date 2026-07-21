@@ -4489,6 +4489,9 @@
       "nowLabel": "Agora",
       "vrNotLinked": "Você ainda não tem um comandante vinculado. Execute `/link-commander` e depois peça com `/what-is-my-vr-chart`.",
       "vrInsufficientData": "Ainda não há histórico de VR suficiente para gerar um gráfico. Informe o nível do instituto com `/vr` algumas vezes e tente de novo.",
+      "vrCommanderNotFound": "Nenhum comandante da aliança com histórico de VR correspondeu a: {names}.",
+      "vrCommanderAmbiguous": "Vários comandantes correspondem a esse nome. Seja mais específico: {detail}.",
+      "vrTooManyCommanders": "Você pode comparar até {max} comandantes em um gráfico (incluindo o seu).",
       "thpNotLinked": "Você ainda não tem um comandante vinculado. Execute `/link-commander` e depois peça com `/what-is-my-thp-chart`.",
       "thpInsufficientData": "É preciso pelo menos dois relatórios de THP para desenhar o gráfico. Use `/thp` de novo após a próxima atualização."
     },
