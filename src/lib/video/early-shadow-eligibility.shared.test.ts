@@ -189,8 +189,14 @@ describe("isPrimaryParseInadequate", () => {
 });
 
 describe("isShadowPassTerminalStatus", () => {
-  it("marks review/complete/failed/discarded terminal and running states not", () => {
-    for (const status of ["review", "complete", "failed", "discarded"]) {
+  it("marks review/complete/submitting/failed/discarded terminal and running states not", () => {
+    for (const status of [
+      "review",
+      "complete",
+      "submitting",
+      "failed",
+      "discarded",
+    ]) {
       expect(isShadowPassTerminalStatus(status)).toBe(true);
     }
     for (const status of ["queued", "extracting", "parsing", "pending_approval"]) {

@@ -11,6 +11,7 @@ export const VS_SHADOW_WITHHOLD_DEFAULT_MS = 5 * 60 * 1000;
 export const VIDEO_SHADOW_PASS_TERMINAL_STATUSES = [
   "review",
   "complete",
+  "submitting",
   "failed",
   "discarded",
 ] as const;
