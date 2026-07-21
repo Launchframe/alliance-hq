@@ -6,11 +6,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Pre-commit gates
 
-Before creating a commit, all checks in [`PRE-COMMIT.md`](./PRE-COMMIT.md) must pass, in order:
+Before creating a commit, all checks in [`PRE_COMMIT_GATE.md`](./PRE_COMMIT_GATE.md) must pass, in order (matches `.husky/pre-commit`):
 
 1. `npx tsc --noEmit`
 2. `npm run lint`
-3. `npm run test`
+3. `npm test`
+4. `npm run i18n:validate`
+5. `npm run db:validate-journal`
 
 Do not commit while any gate is failing.
 
@@ -32,7 +34,7 @@ Feature work is not done until Playwright e2e is green — see [`.cursor/rules/e
 
 ## Parallel agents and git isolation
 
-Concurrent Cursor agents (Multitask or separate tasks) must not share one dirty working tree. **One task → one branch → one concern**; use **git worktrees** for parallel writers. Do not use `git stash` as agent handoff — commit WIP to a topic branch instead. In this repo, Real Steel reviews run in a dedicated worktree and clean it up when done. Detail: [`.cursor/rules/agent-git-hygiene.mdc`](.cursor/rules/agent-git-hygiene.mdc), global workflow in `~/.cursor/skills/real-steel/SKILL.md`, and Alliance HQ completion (including `real-steel-ready` label) in [`.cursor/skills/real-steel/SKILL.md`](.cursor/skills/real-steel/SKILL.md).
+Concurrent Cursor agents (Multitask or separate tasks) must not share one dirty working tree. **One task → one branch → one concern**; use **git worktrees** for parallel writers. Do not use `git stash` as agent handoff — commit WIP to a topic branch instead. In this repo, Real Steel reviews run in a dedicated worktree and clean it up when done. Detail: [`.cursor/rules/agent-git-hygiene.mdc`](.cursor/rules/agent-git-hygiene.mdc), global workflow in `~/.cursor/skills/real-steel/SKILL.md`, and Alliance HQ completion (including `real-steel-ready` label) in [`.cursor/skills/real-steel/SKILL.md`](.cursor/skills/real-steel/SKILL.md). After Real Steel, triage suggestions through merge with [`.cursor/skills/close-the-loop/SKILL.md`](.cursor/skills/close-the-loop/SKILL.md).
 
 ## Client vs server imports (Next.js bundles)
 
