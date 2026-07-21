@@ -87,6 +87,13 @@ export const alliances = pgTable("alliances", {
   trainDiscordAnnouncementsEnabled: integer("train_discord_announcements_enabled")
     .notNull()
     .default(0),
+  /**
+   * Who may run Discord `/set-train-channel`.
+   * `officer` (default) = R4+ linked officers; `owner` = R5 / alliance owner only.
+   */
+  trainChannelSetterMinRank: text("train_channel_setter_min_rank")
+    .notNull()
+    .default("officer"),
   /** When 1, video OCR for this alliance uses in-house Tesseract instead of Ashed. */
   videoHqOcrOnly: integer("video_hq_ocr_only").notNull().default(0),
   /** When 1, self-report VR uses an isolated sandbox season key (practice mode). */

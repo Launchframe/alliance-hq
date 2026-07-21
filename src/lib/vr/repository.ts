@@ -22,6 +22,7 @@ import {
   ownerProvenByMemberLink,
 } from "@/lib/vr/discord-guild-registration";
 import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
+import { parseTrainChannelSetterMinRank } from "@/lib/trains/train-channel-setter.shared";
 import { getAllianceVrSandboxState } from "@/lib/vr/vr-sandbox.server";
 import type { VrSeasonContext } from "@/lib/vr/vr-season-lock.shared";
 import { resolveVrSeasonContextFromParts } from "@/lib/vr/vr-season-lock.shared";
@@ -1660,6 +1661,34 @@ export async function setAllianceTrainDiscordAnnouncementsEnabled(
     .update(schema.alliances)
     .set({
       trainDiscordAnnouncementsEnabled: enabled ? 1 : 0,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.alliances.id, allianceId));
+}
+
+export async function getAllianceTrainChannelSetterMinRank(
+  allianceId: string,
+): Promise<"officer" | "owner"> {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      minRank: schema.alliances.trainChannelSetterMinRank,
+    })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+  return parseTrainChannelSetterMinRank(row?.minRank);
+}
+
+export async function setAllianceTrainChannelSetterMinRank(
+  allianceId: string,
+  minRank: "officer" | "owner",
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.alliances)
+    .set({
+      trainChannelSetterMinRank: minRank,
       updatedAt: new Date(),
     })
     .where(eq(schema.alliances.id, allianceId));

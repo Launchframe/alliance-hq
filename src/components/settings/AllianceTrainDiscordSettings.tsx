@@ -7,6 +7,7 @@ import { Link } from "@/i18n/navigation";
 import { DiscordTrainChannelSetupLinks } from "@/components/settings/DiscordTrainChannelSetupLinks";
 import { allianceTrainDiscordApiPath } from "@/lib/alliance/alliance-settings-path.shared";
 import type { TrainDiscordGuildLink } from "@/lib/trains/train-discord-settings.shared";
+import type { TrainChannelSetterMinRank } from "@/lib/trains/train-channel-setter.shared";
 
 type Props = {
   allianceTag: string;
@@ -15,9 +16,11 @@ type Props = {
 
 type Payload = {
   announcementsEnabled: boolean;
+  channelSetterMinRank: TrainChannelSetterMinRank;
   guildChannelCount: number;
   guilds: TrainDiscordGuildLink[];
   canManage: boolean;
+  canConfigureChannelSetterMinRank: boolean;
   error?: string;
 };
 
@@ -63,15 +66,17 @@ export function AllianceTrainDiscordSettings({
     };
   }, [allianceTag, t]);
 
-  const toggle = async (next: boolean) => {
-    if (!display?.canManage) return;
+  const patch = async (payload: {
+    announcementsEnabled?: boolean;
+    channelSetterMinRank?: TrainChannelSetterMinRank;
+  }) => {
     setBusy(true);
     setError(null);
     try {
       const res = await fetch(allianceTrainDiscordApiPath(allianceTag), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ announcementsEnabled: next }),
+        body: JSON.stringify(payload),
       });
       const body = (await res.json()) as Payload;
       if (!res.ok) {
@@ -84,6 +89,16 @@ export function AllianceTrainDiscordSettings({
     } finally {
       setBusy(false);
     }
+  };
+
+  const toggle = async (next: boolean) => {
+    if (!display?.canManage) return;
+    await patch({ announcementsEnabled: next });
+  };
+
+  const setChannelSetterMinRank = async (next: TrainChannelSetterMinRank) => {
+    if (!display?.canConfigureChannelSetterMinRank) return;
+    await patch({ channelSetterMinRank: next });
   };
 
   return (
@@ -124,6 +139,49 @@ export function AllianceTrainDiscordSettings({
             installConfigured={installConfigured}
             canManage={display.canManage}
           />
+          {display.canConfigureChannelSetterMinRank ? (
+            <fieldset
+              className="space-y-3 border-t border-hq-border pt-4"
+              disabled={busy}
+            >
+              <legend className="text-sm font-medium text-hq-fg">
+                {t("channelSetterTitle")}
+              </legend>
+              <p className="text-sm text-hq-fg-muted">
+                {t("channelSetterDescription")}
+              </p>
+              <label className="flex items-start gap-3 text-sm text-hq-fg">
+                <input
+                  type="radio"
+                  name="channelSetterMinRank"
+                  className="mt-1"
+                  checked={display.channelSetterMinRank === "officer"}
+                  onChange={() => void setChannelSetterMinRank("officer")}
+                />
+                <span>
+                  <span className="font-medium">{t("channelSetterOfficerLabel")}</span>
+                  <span className="mt-1 block text-hq-fg-muted">
+                    {t("channelSetterOfficerHint")}
+                  </span>
+                </span>
+              </label>
+              <label className="flex items-start gap-3 text-sm text-hq-fg">
+                <input
+                  type="radio"
+                  name="channelSetterMinRank"
+                  className="mt-1"
+                  checked={display.channelSetterMinRank === "owner"}
+                  onChange={() => void setChannelSetterMinRank("owner")}
+                />
+                <span>
+                  <span className="font-medium">{t("channelSetterOwnerLabel")}</span>
+                  <span className="mt-1 block text-hq-fg-muted">
+                    {t("channelSetterOwnerHint")}
+                  </span>
+                </span>
+              </label>
+            </fieldset>
+          ) : null}
           {!display.canManage ? (
             <p className="text-xs text-hq-fg-muted">{t("readOnlyHint")}</p>
           ) : null}
