@@ -511,7 +511,9 @@ export function VideoUploadForm({
               ? t("depositSlipFileHint")
               : isAllianceKillsVideoTarget(scoreTarget)
                 ? t("fileHintKills")
-                : t("fileHint")}
+                : isMemberRosterVideoTarget(scoreTarget)
+                  ? t("fileHintMembersPower")
+                  : t("fileHint")}
           </p>
           {maxUploadLabel ? (
             <p className="mt-2 text-xs text-hq-fg-muted">

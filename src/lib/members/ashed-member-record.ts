@@ -57,11 +57,19 @@ export const ROSTER_VIDEO_OCR_SCHEMA: Record<string, unknown> = {
       items: {
         type: "object",
         properties: {
-          current_name: { type: "string" },
-          rank: { type: "string" },
-          power_level: { type: "string" },
-          level: { type: "number" },
-          profession: { type: "string" },
+          current_name: {
+            type: "string",
+            description: "Exact player name as shown",
+          },
+          rank: {
+            type: "string",
+            description: "Alliance rank as shown (e.g. R3, R4)",
+          },
+          power_level: {
+            type: "string",
+            description:
+              'Power as displayed (e.g. "150.5M", "1.2B", "950.3K") or the full numeric power value. Include any K/M/B suffix exactly as shown.',
+          },
           status: { type: "string" },
         },
         required: ["current_name"],

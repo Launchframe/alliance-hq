@@ -106,7 +106,7 @@
     "frontlineBreakthrough": "Frontline Breakthrough",
     "seasonal": "Sazonal",
     "allianceStar": "Alliance Star",
-    "memberRosterVideo": "Lista de membros (vídeo)",
+    "memberRosterVideo": "Membros + Poder",
     "bankDepositSlipHistory": "Histórico de comprovantes de depósito (vídeo)",
     "groups": {
       "events": "Eventos",
@@ -1733,8 +1733,8 @@
     "showLess": "Mostrar menos",
     "dismiss": "Ocultar",
     "navigating": "Abrindo…",
-    "rosterVideoHint": "Para alianças Ashed, envie um vídeo da lista no jogo para alinhar nomes ao roster antes dos membros vincularem.",
-    "rosterVideoCta": "Enviar vídeo do roster",
+    "rosterVideoHint": "Para alianças Ashed, envie um vídeo de Membros + Poder para alinhar nomes e poder do jogo ao roster antes dos membros vincularem.",
+    "rosterVideoCta": "Enviar Membros + Poder",
     "tasks": {
       "connect_ashed": {
         "title": "Conectar seu assento Ashed",
@@ -1743,8 +1743,8 @@
       },
       "roster_hardening": {
         "title": "Alinhar nomes do roster",
-        "helper": "Envie um vídeo da lista no jogo para que os nomes coincidam antes da vinculação.",
-        "action": "Enviar vídeo"
+        "helper": "Envie um vídeo de Membros + Poder para que os nomes coincidam antes da vinculação.",
+        "action": "Enviar Membros + Poder"
       },
       "roster_populated": {
         "title": "Importar seu roster",
@@ -2343,11 +2343,11 @@
     "rosterLinkRequestsAttention": "{count} solicitações de vínculo ao roster precisam de atenção",
     "onboardingReviewsAttention": "{count} revisões de onboarding precisam de atenção",
     "memberLinkHelpRequestsAttention": "{count} pedidos de ajuda ao oficial precisam de atenção",
-    "uploadRosterVideoAttention": "Recomendado enviar vídeo do elenco",
+    "uploadRosterVideoAttention": "Recomendado enviar Membros + Poder",
     "uploadVideoMenu": {
       "trigger": "Enviar vídeo",
-      "rosterAttention": "Recomendado enviar vídeo do elenco",
-      "memberRoster": "Elenco de membros",
+      "rosterAttention": "Recomendado enviar Membros + Poder",
+      "memberRoster": "Membros + Poder",
       "kills": "Kills"
     },
     "editRanksAttention": "{count} membros precisam de patentes atribuídas",
@@ -2390,7 +2390,7 @@
     "refreshNative": "Atualizar elenco",
     "refreshingNative": "Atualizando…",
     "importMembers": "Importar membros",
-    "uploadRosterVideo": "Enviar vídeo do elenco",
+    "uploadRosterVideo": "Enviar Membros + Poder",
     "rosterLinkRequests": "Solicitações de vínculo ao roster",
     "memberLinkHelpRequests": "Ajuda ao oficial",
     "rosterColumns": {
@@ -3689,6 +3689,7 @@
     "fileLabel": "Arquivo de vídeo",
     "fileHint": "MP4 ou MOV gravando a rolagem do placar completo.",
     "fileHintKills": "Envie capturas de Kills ou navegue — use a aba Strength Ranking → Kills. Uma gravação rolando esse placar também funciona.",
+    "fileHintMembersPower": "Role a lista de membros da aliança no jogo (melhor para nomes e poder). Strength Ranking → Power também funciona para nomes e poder, mas não inclui níveis de HQ.",
     "depositSlipFileHint": "Prefira clipes mais curtos, ou vários uploads começando pelos comprovantes mais recentes. Vídeos longos do histórico podem levar muitos minutos para terminar o OCR.",
     "fileSizeLimit": "Tamanho máximo: {maxSize}.",
     "fileSizeTipsIntro": "Se o arquivo é grande, tente:",

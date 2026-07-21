@@ -360,10 +360,9 @@ export async function POST(request: Request, { params }: Props) {
           row.heroPowerM != null && Number.isFinite(row.heroPowerM)
             ? row.heroPowerM
             : null;
-        const memberLevel =
-          row.memberLevel != null && row.memberLevel >= 1
-            ? Math.round(row.memberLevel)
-            : null;
+        // Roster video OCR cannot reliably read HQ level or profession from
+        // Strength Ranking → Power (or even member-list frames inconsistently).
+        // Never write those fields from this target so we don't clobber HQ data.
         await db
           .update(schema.parsedRows)
           .set({
@@ -371,8 +370,8 @@ export async function POST(request: Request, { params }: Props) {
             memberName: row.memberName ?? null,
             allianceRank: row.allianceRank ?? null,
             allianceRankTitle: null,
-            memberLevel,
-            profession: row.profession ?? null,
+            memberLevel: null,
+            profession: null,
             powerLevel: formatHeroPowerMForStorage(heroPowerM),
             deleted: row.deleted ? 1 : 0,
             edited: row.deleted ? 0 : 1,

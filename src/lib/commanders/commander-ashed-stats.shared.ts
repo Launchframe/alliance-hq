@@ -12,37 +12,68 @@ export type CommanderAshedStats = {
   currentSquadPowerJson?: unknown;
 };
 
+function hasAshedStatKey(
+  ashedStats: CommanderAshedStats | null | undefined,
+  key: keyof CommanderAshedStats,
+): boolean {
+  return ashedStats != null && Object.hasOwn(ashedStats, key);
+}
+
 export function commanderStatsFromAshedSnapshot(
   ashedStats: CommanderAshedStats | null | undefined,
   primaryName: string | null,
 ) {
-  const powerLevel = normalizePowerLevelString({
-    powerLevel: ashedStats?.powerLevel,
-  });
-  return {
+  const snapshot: {
+    primaryName: string | null;
+    primaryNameNormalized: string | null;
+    profession?: string | null;
+    professionalLevel?: number | null;
+    memberLevel?: number | null;
+    powerLevel?: string | null;
+    currentKills?: number | null;
+    currentSquadPowerJson?: unknown;
+    currentTotalHeroPower?: number | null;
+  } = {
     primaryName,
     primaryNameNormalized: primaryName
       ? normalizeCommanderName(primaryName)
       : null,
-    profession: ashedStats?.profession ?? null,
-    professionalLevel: ashedStats?.professionalLevel ?? null,
-    // Raw level from Ashed/OCR; dual-write path clamps via upsertCommanderLevel.
-    // upsertCommanderRow strips this field so inbound conflict policy can run.
-    memberLevel:
+  };
+
+  if (hasAshedStatKey(ashedStats, "profession")) {
+    snapshot.profession = ashedStats?.profession ?? null;
+  }
+  if (hasAshedStatKey(ashedStats, "professionalLevel")) {
+    snapshot.professionalLevel = ashedStats?.professionalLevel ?? null;
+  }
+  if (hasAshedStatKey(ashedStats, "memberLevel")) {
+    snapshot.memberLevel =
       typeof ashedStats?.memberLevel === "number" &&
       Number.isFinite(ashedStats.memberLevel) &&
       ashedStats.memberLevel >= 1
         ? Math.round(ashedStats.memberLevel)
-        : null,
-    powerLevel,
-    currentKills: ashedStats?.currentKills ?? null,
-    currentSquadPowerJson: ashedStats?.currentSquadPowerJson ?? null,
-    currentTotalHeroPower:
+        : null;
+  }
+  if (hasAshedStatKey(ashedStats, "powerLevel")) {
+    snapshot.powerLevel = normalizePowerLevelString({
+      powerLevel: ashedStats?.powerLevel,
+    });
+  }
+  if (hasAshedStatKey(ashedStats, "currentKills")) {
+    snapshot.currentKills = ashedStats?.currentKills ?? null;
+  }
+  if (hasAshedStatKey(ashedStats, "currentSquadPowerJson")) {
+    snapshot.currentSquadPowerJson = ashedStats?.currentSquadPowerJson ?? null;
+  }
+  if (hasAshedStatKey(ashedStats, "currentTotalHeroPower")) {
+    snapshot.currentTotalHeroPower =
       typeof ashedStats?.currentTotalHeroPower === "number" &&
       ashedStats.currentTotalHeroPower > 0
         ? Math.round(ashedStats.currentTotalHeroPower)
-        : null,
-  };
+        : null;
+  }
+
+  return snapshot;
 }
 
 export function ashedMemberRecordToCommanderStats(record: {

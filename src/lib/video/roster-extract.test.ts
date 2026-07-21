@@ -54,7 +54,7 @@ describe("roster-extract", () => {
     expect(extracted.profession).toBeNull();
   });
 
-  it("maps OCR member to alliance rank and power without profession from OCR", () => {
+  it("maps OCR member to alliance rank and power; ignores OCR level and profession", () => {
     const extracted = rosterOcrMemberToExtracted({
       current_name: "Alpha",
       rank: "R4",
@@ -67,7 +67,7 @@ describe("roster-extract", () => {
     expect(extracted.rosterRankRaw).toBe("R4");
     expect(extracted.powerLevel).toBe("162.8M");
     expect(extracted.heroPowerM).toBe(162.8);
-    expect(extracted.memberLevel).toBe(30);
+    expect(extracted.memberLevel).toBeNull();
     expect(extracted.profession).toBeNull();
   });
 
@@ -104,10 +104,30 @@ describe("roster-extract", () => {
     expect(extracted.memberLevel).toBeNull();
   });
 
-  it("parses power level strings with M suffix and rejects junk", () => {
+  it("parses power level strings with suffixes, raw integers, and rejects junk", () => {
     expect(parsePowerLevelString("162.8M")).toEqual({
       powerLevel: "162.8M",
       heroPowerM: 162.8,
+    });
+    expect(parsePowerLevelString("1.2B")).toEqual({
+      powerLevel: "1200M",
+      heroPowerM: 1200,
+    });
+    expect(parsePowerLevelString("950.3K")).toEqual({
+      powerLevel: "0.95M",
+      heroPowerM: 0.9503,
+    });
+    expect(parsePowerLevelString("297494218")).toEqual({
+      powerLevel: "297.5M",
+      heroPowerM: 297.494218,
+    });
+    expect(parsePowerLevelString("297.5")).toEqual({
+      powerLevel: "297.5M",
+      heroPowerM: 297.5,
+    });
+    expect(parsePowerLevelString("500000")).toEqual({
+      powerLevel: null,
+      heroPowerM: null,
     });
     expect(parsePowerLevelString("")).toEqual({
       powerLevel: null,
@@ -141,7 +161,7 @@ describe("roster-extract", () => {
     const collapsed = collapseRosterMembersByNameRank(rows);
     expect(collapsed).toHaveLength(1);
     expect(collapsed[0]?.powerLevel).toBe("100M");
-    expect(collapsed[0]?.memberLevel).toBe(25);
+    expect(collapsed[0]?.memberLevel).toBeNull();
     expect(collapsed[0]?.allianceRank).toBe(5);
   });
 

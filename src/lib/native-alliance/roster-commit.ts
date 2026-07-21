@@ -23,6 +23,7 @@ import { getCommanderIdForMember } from "@/lib/thp/repository";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 
 import { nativeRosterAshedAllianceId } from "./provision";
+import type { CommanderAshedStats } from "@/lib/commanders/commander-ashed-stats.shared";
 
 export type RosterImportCommitRow = {
   extractedName: string;
@@ -57,6 +58,17 @@ export type RosterImportCommitResult = {
 
 function normalizeName(name: string): string {
   return name.trim();
+}
+
+/** Only pass stat fields present on the commit row so partial roster syncs do not clobber HQ data. */
+function rosterImportAshedStats(
+  row: Pick<RosterImportCommitRow, "powerLevel" | "memberLevel" | "profession">,
+): CommanderAshedStats {
+  const stats: CommanderAshedStats = {};
+  if (row.powerLevel) stats.powerLevel = row.powerLevel;
+  if (row.memberLevel != null) stats.memberLevel = row.memberLevel;
+  if (row.profession) stats.profession = row.profession;
+  return stats;
 }
 
 async function appendRankEventIfChanged(input: {
@@ -263,11 +275,7 @@ export async function commitRosterImport(
         allianceId: input.allianceId,
         ashedMemberId: existing.ashedMemberId,
         memberDisplayName: name,
-        ashedStats: {
-          powerLevel: row.powerLevel ?? null,
-          memberLevel: row.memberLevel ?? null,
-          profession: row.profession ?? null,
-        },
+        ashedStats: rosterImportAshedStats(row),
         thpSource: eventSource,
         hqUserId: input.hqUserId,
       });
@@ -324,11 +332,7 @@ export async function commitRosterImport(
       allianceId: input.allianceId,
       ashedMemberId,
       memberDisplayName: name,
-      ashedStats: {
-        powerLevel: row.powerLevel ?? null,
-        memberLevel: row.memberLevel ?? null,
-        profession: row.profession ?? null,
-      },
+      ashedStats: rosterImportAshedStats(row),
       thpSource: eventSource,
       hqUserId: input.hqUserId,
     });
