@@ -178,8 +178,26 @@ describe("handleDiscordWhatIsMyVrChart", () => {
       memberId === "m1" ? 1000 : 900,
     );
     vi.mocked(getCommanderByAshedMemberId).mockResolvedValue({
+      commanderId: "cmd-viewer",
       weeklyPassActive: false,
     } as never);
+    vi.mocked(loadVrProgressChartPayload).mockResolvedValue({
+      series: [
+        {
+          commanderId: "cmd-viewer",
+          ashedMemberId: "m1",
+          memberName: "Alpha",
+          rank: 5,
+          currentBaseVr: 1000,
+          isViewer: true,
+          events: [
+            { at: "2026-07-01T00:00:00.000Z", baseVr: 900, instituteLevel: 10 },
+          ],
+        },
+      ],
+      seasonKey: "1",
+      vrUpdatesLocked: false,
+    });
 
     const result = await handleDiscordWhatIsMyVrChart({
       allianceId: "a1",
