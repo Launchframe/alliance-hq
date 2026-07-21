@@ -3,6 +3,7 @@
  * Used by the My VR React chart and Discord/dev PNG pipeline — one plot definition.
  */
 
+import { CHART_SVG_FONT_FAMILY_WEB } from "@/lib/charts/chart-svg-font.shared";
 import {
   formatChartInteger,
   formatChartShortDate,
@@ -209,6 +210,9 @@ export function buildVrProgressChartSvg(
   };
   const innerW = width - pad.left - pad.right;
   const innerH = height - pad.top - pad.bottom;
+  const fontScale = Math.min(padScaleX, padScaleY);
+  const fontSize = 10 * fontScale;
+  const axisLabelOffset = 18 * fontScale;
   const timeSpan = Math.max(1, maxTime - minTime);
   const vrSpan = Math.max(250, maxVr - minVr);
   const xForTime = (timeMs: number) =>
@@ -263,16 +267,18 @@ export function buildVrProgressChartSvg(
       ? ""
       : `<rect width="100%" height="100%" fill="${escapeXml(backgroundFill)}"/>`;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img">
+  const fontFamily = CHART_SVG_FONT_FAMILY_WEB;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" overflow="visible" role="img">
   ${backgroundRect}
   <line x1="${pad.left}" y1="${pad.top + innerH}" x2="${pad.left + innerW}" y2="${pad.top + innerH}" stroke="#30363d" stroke-width="1" />
   <line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${pad.top + innerH}" stroke="#30363d" stroke-width="1" />
   <line x1="${nowX}" y1="${pad.top}" x2="${nowX}" y2="${pad.top + innerH}" stroke="#8b949e" stroke-dasharray="2 4" stroke-width="1" />
-  <text x="${nowX + 5}" y="${pad.top + 12}" fill="#8b949e" font-size="10" font-family="system-ui,sans-serif">${escapeXml(nowLabel)}</text>
-  <text x="${pad.left - 8}" y="${pad.top + 4}" fill="#8b949e" font-size="10" text-anchor="end" font-family="system-ui,sans-serif">${escapeXml(formatChartInteger(maxVr, locale))}</text>
-  <text x="${pad.left - 8}" y="${pad.top + innerH}" fill="#8b949e" font-size="10" text-anchor="end" dominant-baseline="hanging" font-family="system-ui,sans-serif">${escapeXml(formatChartInteger(minVr, locale))}</text>
-  <text x="${pad.left}" y="${pad.top + innerH + 18}" fill="#8b949e" font-size="10" text-anchor="start" font-family="system-ui,sans-serif">${escapeXml(formatChartShortDate(new Date(minTime).toISOString(), locale))}</text>
-  <text x="${pad.left + innerW}" y="${pad.top + innerH + 18}" fill="#8b949e" font-size="10" text-anchor="end" font-family="system-ui,sans-serif">${escapeXml(formatChartShortDate(new Date(maxTime).toISOString(), locale))}</text>
+  <text x="${nowX + 5 * fontScale}" y="${pad.top + 12 * fontScale}" fill="#8b949e" font-size="${fontSize}" font-family="${fontFamily}">${escapeXml(nowLabel)}</text>
+  <text x="${pad.left - 8 * fontScale}" y="${pad.top + 4 * fontScale}" fill="#8b949e" font-size="${fontSize}" text-anchor="end" font-family="${fontFamily}">${escapeXml(formatChartInteger(maxVr, locale))}</text>
+  <text x="${pad.left - 8 * fontScale}" y="${pad.top + innerH}" fill="#8b949e" font-size="${fontSize}" text-anchor="end" dominant-baseline="hanging" font-family="${fontFamily}">${escapeXml(formatChartInteger(minVr, locale))}</text>
+  <text x="${pad.left}" y="${pad.top + innerH + axisLabelOffset}" fill="#8b949e" font-size="${fontSize}" text-anchor="start" font-family="${fontFamily}">${escapeXml(formatChartShortDate(new Date(minTime).toISOString(), locale))}</text>
+  <text x="${pad.left + innerW}" y="${pad.top + innerH + axisLabelOffset}" fill="#8b949e" font-size="${fontSize}" text-anchor="end" font-family="${fontFamily}">${escapeXml(formatChartShortDate(new Date(maxTime).toISOString(), locale))}</text>
   ${seriesMarkup}
 </svg>`;
 }

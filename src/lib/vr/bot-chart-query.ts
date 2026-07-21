@@ -93,12 +93,17 @@ export async function handleDiscordWhatIsMyVrChart(input: {
     viewerAshedMemberId: primary.ashedMemberId,
   });
 
+  const viewerCommanderId =
+    commander?.commanderId ??
+    payload.series.find((row) => row.isViewer)?.commanderId ??
+    null;
   const png = await renderVrProgressChartPng({
     series: payload.series,
     seasonKey: payload.seasonKey,
     vrUpdatesLocked: payload.vrUpdatesLocked,
     nowLabel: t("chart.nowLabel"),
     locale: input.locale,
+    visibleCommanderIds: viewerCommanderId ? [viewerCommanderId] : undefined,
   });
   if (!png) {
     const result = { ok: false as const, content: t("chart.vrInsufficientData") };

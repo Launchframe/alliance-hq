@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { ChartLocale } from "@/lib/charts/chart-locale-format.shared";
+import { embedChartSvgFont } from "@/lib/charts/chart-svg-font.server";
 import {
   buildThpHistoryChartSvg,
   THP_HISTORY_CHART_DISCORD_HEIGHT,
@@ -22,7 +23,7 @@ export async function renderSvgToPng(svg: string): Promise<Buffer> {
   // feature boundaries"). A static import here would put sharp on the module
   // init path of the 3s-ACK interactions route for all commands.
   const { default: sharp } = await import("sharp");
-  return sharp(Buffer.from(svg)).png().toBuffer();
+  return sharp(Buffer.from(embedChartSvgFont(svg))).png().toBuffer();
 }
 
 export async function renderVrProgressChartPng(input: {
@@ -34,6 +35,8 @@ export async function renderVrProgressChartPng(input: {
   height?: number;
   nowLabel?: string;
   locale?: ChartLocale;
+  /** When set, only these commanders are drawn (Discord bot: caller only). */
+  visibleCommanderIds?: string[];
 }): Promise<Buffer | null> {
   const svg = buildVrProgressChartSvg({
     series: input.series,
@@ -45,6 +48,7 @@ export async function renderVrProgressChartPng(input: {
     locale: input.locale,
     options: {
       labels: input.nowLabel ? { nowLabel: input.nowLabel } : undefined,
+      visibleCommanderIds: input.visibleCommanderIds,
     },
   });
   if (!svg) return null;

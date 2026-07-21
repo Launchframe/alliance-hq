@@ -111,8 +111,33 @@ describe("handleDiscordWhatIsMyVrChart", () => {
     vi.mocked(listDiscordLinksForUser).mockResolvedValue([link]);
     vi.mocked(getMemberSeasonHigh).mockResolvedValue(1000);
     vi.mocked(getCommanderByAshedMemberId).mockResolvedValue({
+      commanderId: "cmd-viewer",
       weeklyPassActive: false,
     } as never);
+    vi.mocked(loadVrProgressChartPayload).mockResolvedValue({
+      series: [
+        {
+          commanderId: "cmd-viewer",
+          ashedMemberId: "m1",
+          memberName: "Alpha",
+          rank: 5,
+          currentBaseVr: 1000,
+          isViewer: true,
+          events: [{ at: "2026-07-01T00:00:00.000Z", baseVr: 900, instituteLevel: 10 }],
+        },
+        {
+          commanderId: "cmd-other",
+          ashedMemberId: "m9",
+          memberName: "Top",
+          rank: 1,
+          currentBaseVr: 5000,
+          isViewer: false,
+          events: [{ at: "2026-07-01T00:00:00.000Z", baseVr: 4800, instituteLevel: 25 }],
+        },
+      ],
+      seasonKey: "1",
+      vrUpdatesLocked: false,
+    });
 
     const result = await handleDiscordWhatIsMyVrChart({
       allianceId: "a1",
@@ -120,6 +145,11 @@ describe("handleDiscordWhatIsMyVrChart", () => {
       locale: "en-US",
     });
     expect(result.ok).toBe(true);
+    expect(renderVrProgressChartPng).toHaveBeenCalledWith(
+      expect.objectContaining({
+        visibleCommanderIds: ["cmd-viewer"],
+      }),
+    );
     if (result.ok) {
       expect(result.content).toMatch(/Alpha/);
       expect(result.content).not.toMatch(link.gameUid);

@@ -55,6 +55,8 @@ export async function GET(request: NextRequest) {
 
   if (kind === "vr") {
     const fixture = fixtureVrProgressSeries(now);
+    const viewerId = fixture.series.find((row) => row.isViewer)?.commanderId;
+    const visibleCommanderIds = viewerId ? [viewerId] : undefined;
     const svg = buildVrProgressChartSvg({
       series: fixture.series,
       seasonKey: fixture.seasonKey,
@@ -62,7 +64,7 @@ export async function GET(request: NextRequest) {
       height: VR_PROGRESS_CHART_DISCORD_HEIGHT,
       now,
       locale,
-      options: { labels: { nowLabel } },
+      options: { labels: { nowLabel }, visibleCommanderIds },
     });
     if (!svg) {
       return NextResponse.json({ error: "empty_chart" }, { status: 500 });
@@ -81,6 +83,7 @@ export async function GET(request: NextRequest) {
       now,
       nowLabel,
       locale,
+      visibleCommanderIds,
     });
     if (!png) {
       return NextResponse.json({ error: "empty_chart" }, { status: 500 });

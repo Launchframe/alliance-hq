@@ -17,12 +17,14 @@ describe("render chart PNG", () => {
       series: fixture.series,
       seasonKey: fixture.seasonKey,
       now,
+      visibleCommanderIds: [fixture.series.find((row) => row.isViewer)!.commanderId],
     });
     expect(png).toBeTruthy();
     expect(png![0]).toBe(0x89);
     expect(png![1]).toBe(0x50);
     expect(png![2]).toBe(0x4e);
     expect(png![3]).toBe(0x47);
+    expect(png!.length).toBeGreaterThan(5_000);
   });
 
   it("renders THP history PNG with PNG magic bytes", async () => {

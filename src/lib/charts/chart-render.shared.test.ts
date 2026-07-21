@@ -24,6 +24,8 @@ describe("buildVrProgressChartSvg", () => {
     expect(svg).toContain("Now");
     expect(svg).toContain('fill="#0d1117"');
     expect(svg).toMatch(/path d="/);
+    expect(svg).toMatch(/font-size="/);
+    expect(svg).toMatch(/\d/);
   });
 
   it("returns null when every series is empty", () => {

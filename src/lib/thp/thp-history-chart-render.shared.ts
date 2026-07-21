@@ -3,6 +3,7 @@
  * Used by My THP React chart and Discord/dev PNG pipeline — one plot definition.
  */
 
+import { CHART_SVG_FONT_FAMILY_WEB } from "@/lib/charts/chart-svg-font.shared";
 import {
   formatChartCompactNumber,
   formatChartShortDate,
@@ -58,6 +59,10 @@ export function buildThpHistoryChartSvg(
   };
   const innerW = width - pad.left - pad.right;
   const innerH = height - pad.top - pad.bottom;
+  const fontScale = Math.min(padScaleX, padScaleY);
+  const fontSize = 10 * fontScale;
+  const axisLabelOffset = 16 * fontScale;
+  const fontFamily = CHART_SVG_FONT_FAMILY_WEB;
   const { min: minThp, max: maxThp, span: thpSpan } = thpChartYDomain(
     events.map((event) => event.total),
   );
@@ -73,7 +78,7 @@ export function buildThpHistoryChartSvg(
     .map(
       (point) => `<g>
       <circle cx="${point.x}" cy="${point.y}" r="4" fill="#58a6ff" />
-      <text x="${point.x}" y="${pad.top + innerH + 16}" fill="#8b949e" font-size="10" text-anchor="middle" font-family="system-ui,sans-serif">${escapeXml(formatChartShortDate(point.event.createdAt, locale))}</text>
+      <text x="${point.x}" y="${pad.top + innerH + axisLabelOffset}" fill="#8b949e" font-size="${fontSize}" text-anchor="middle" font-family="${fontFamily}">${escapeXml(formatChartShortDate(point.event.createdAt, locale))}</text>
     </g>`,
     )
     .join("");
@@ -83,12 +88,12 @@ export function buildThpHistoryChartSvg(
       ? ""
       : `<rect width="100%" height="100%" fill="${escapeXml(backgroundFill)}"/>`;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" data-testid="my-thp-history-chart">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" overflow="visible" role="img" data-testid="my-thp-history-chart">
   ${backgroundRect}
   <line x1="${pad.left}" y1="${pad.top + innerH}" x2="${pad.left + innerW}" y2="${pad.top + innerH}" stroke="#30363d" stroke-width="1" />
   <line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${pad.top + innerH}" stroke="#30363d" stroke-width="1" />
-  <text x="${pad.left - 8}" y="${pad.top + 4}" fill="#8b949e" font-size="10" text-anchor="end" font-family="system-ui,sans-serif">${escapeXml(formatChartCompactNumber(maxThp, locale))}</text>
-  <text x="${pad.left - 8}" y="${pad.top + innerH}" fill="#8b949e" font-size="10" text-anchor="end" dominant-baseline="hanging" font-family="system-ui,sans-serif">${escapeXml(formatChartCompactNumber(minThp, locale))}</text>
+  <text x="${pad.left - 8 * fontScale}" y="${pad.top + 4 * fontScale}" fill="#8b949e" font-size="${fontSize}" text-anchor="end" font-family="${fontFamily}">${escapeXml(formatChartCompactNumber(maxThp, locale))}</text>
+  <text x="${pad.left - 8 * fontScale}" y="${pad.top + innerH}" fill="#8b949e" font-size="${fontSize}" text-anchor="end" dominant-baseline="hanging" font-family="${fontFamily}">${escapeXml(formatChartCompactNumber(minThp, locale))}</text>
   <polyline fill="none" stroke="#58a6ff" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" points="${polyline}" />
   ${markers}
 </svg>`;
