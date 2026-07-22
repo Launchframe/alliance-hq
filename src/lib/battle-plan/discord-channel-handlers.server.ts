@@ -1,11 +1,11 @@
 import "server-only";
 
+import { resolveDiscordChannelSetterAccess } from "@/lib/discord/channel-setter-auth.server";
 import {
   createDiscordTranslator,
   type DiscordBotLocale,
 } from "@/lib/discord/i18n";
 import {
-  callerIsAllianceOwner,
   getAllianceById,
   getGuildAllianceId,
   setGuildBankingChannel,
@@ -15,6 +15,24 @@ import {
 
 type BotReply = { reply: string };
 
+async function guardChannelSetter(input: {
+  guildId: string;
+  discordUserId: string;
+  locale: DiscordBotLocale;
+}): Promise<{ allianceId: string } | { reply: string }> {
+  const t = createDiscordTranslator(input.locale);
+  const allianceId = await getGuildAllianceId(input.guildId);
+  if (!allianceId) return { reply: t("errors.guildNotRegistered") };
+
+  const access = await resolveDiscordChannelSetterAccess({
+    allianceId,
+    discordUserId: input.discordUserId,
+  });
+  if (!access.allowed) return { reply: t(access.denialKey) };
+
+  return { allianceId };
+}
+
 export async function handleDiscordSetSeasonalEventsChannel(input: {
   guildId: string;
   channelId: string;
@@ -22,19 +40,16 @@ export async function handleDiscordSetSeasonalEventsChannel(input: {
   locale: DiscordBotLocale;
 }): Promise<BotReply> {
   const t = createDiscordTranslator(input.locale);
-  const allianceId = await getGuildAllianceId(input.guildId);
-  if (!allianceId) return { reply: t("errors.guildNotRegistered") };
-
-  const isOwner = await callerIsAllianceOwner({
-    allianceId,
-    discordUserId: input.discordUserId,
-  });
-  if (!isOwner) return { reply: t("errors.ownerOnly") };
+  const gated = await guardChannelSetter(input);
+  if ("reply" in gated) return gated;
 
   await setGuildSeasonalEventsChannel(input.guildId, input.channelId);
-  const alliance = await getAllianceById(allianceId);
+  const alliance = await getAllianceById(gated.allianceId);
   return {
-    reply: `✅ Seasonal events channel set for **${alliance?.tag ?? "?"}**. Capture countdowns will be posted to <#${input.channelId}>.`,
+    reply: t("channelSetter.seasonalEventsSuccess", {
+      tag: alliance?.tag ?? "?",
+      channel: `<#${input.channelId}>`,
+    }),
   };
 }
 
@@ -45,19 +60,16 @@ export async function handleDiscordSetRegularEventsChannel(input: {
   locale: DiscordBotLocale;
 }): Promise<BotReply> {
   const t = createDiscordTranslator(input.locale);
-  const allianceId = await getGuildAllianceId(input.guildId);
-  if (!allianceId) return { reply: t("errors.guildNotRegistered") };
-
-  const isOwner = await callerIsAllianceOwner({
-    allianceId,
-    discordUserId: input.discordUserId,
-  });
-  if (!isOwner) return { reply: t("errors.ownerOnly") };
+  const gated = await guardChannelSetter(input);
+  if ("reply" in gated) return gated;
 
   await setGuildRegularEventsChannel(input.guildId, input.channelId);
-  const alliance = await getAllianceById(allianceId);
+  const alliance = await getAllianceById(gated.allianceId);
   return {
-    reply: `✅ Regular events channel set for **${alliance?.tag ?? "?"}**. Event announcements will be posted to <#${input.channelId}>.`,
+    reply: t("channelSetter.regularEventsSuccess", {
+      tag: alliance?.tag ?? "?",
+      channel: `<#${input.channelId}>`,
+    }),
   };
 }
 
@@ -68,18 +80,15 @@ export async function handleDiscordSetBankingChannel(input: {
   locale: DiscordBotLocale;
 }): Promise<BotReply> {
   const t = createDiscordTranslator(input.locale);
-  const allianceId = await getGuildAllianceId(input.guildId);
-  if (!allianceId) return { reply: t("errors.guildNotRegistered") };
-
-  const isOwner = await callerIsAllianceOwner({
-    allianceId,
-    discordUserId: input.discordUserId,
-  });
-  if (!isOwner) return { reply: t("errors.ownerOnly") };
+  const gated = await guardChannelSetter(input);
+  if ("reply" in gated) return gated;
 
   await setGuildBankingChannel(input.guildId, input.channelId);
-  const alliance = await getAllianceById(allianceId);
+  const alliance = await getAllianceById(gated.allianceId);
   return {
-    reply: `✅ Banking channel set for **${alliance?.tag ?? "?"}**. Protection timer alerts will be posted to <#${input.channelId}>.`,
+    reply: t("channelSetter.bankingSuccess", {
+      tag: alliance?.tag ?? "?",
+      channel: `<#${input.channelId}>`,
+    }),
   };
 }

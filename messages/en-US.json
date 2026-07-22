@@ -2197,12 +2197,12 @@
       "channelsConfigured": "{count, plural, one {# registered Discord server has a train channel} other {# registered Discord servers have train channels}}",
       "noChannel": "No train channel configured yet. Use the setup flow below.",
       "readOnlyHint": "Only train officers can change this setting.",
-      "channelSetterTitle": "Who can run /set-train-channel",
-      "channelSetterDescription": "Choose the minimum in-game rank required to set the Discord train announcement channel. Only the alliance owner can change this.",
+      "channelSetterTitle": "Who can run /set-*-channel commands",
+      "channelSetterDescription": "Choose the minimum in-game rank required to set Discord announcement channels (/set-train-channel, /set-vr-report-channel, /set-banking-channel, and other set-channel commands). Only the alliance owner can change this.",
       "channelSetterOfficerLabel": "R4+ officers (default)",
-      "channelSetterOfficerHint": "Any linked R4 or R5 commander may set the train channel.",
+      "channelSetterOfficerHint": "Any linked R4 or R5 commander may set Discord announcement channels.",
       "channelSetterOwnerLabel": "R5 / alliance owner only",
-      "channelSetterOwnerHint": "Only the alliance owner (linked R5) may set the train channel.",
+      "channelSetterOwnerHint": "Only the alliance owner (linked R5) may set Discord announcement channels.",
       "channelSetup": {
         "title": "Set train announcement channel",
         "body": "Open your Discord server, pick the channel where train posts should appear, then run the slash command below in that channel.",
@@ -4463,6 +4463,13 @@
       "noConfirm": "Nothing to confirm right now.",
       "askOfficerNeedsNameAndUid": "Run `/link-commander` and complete the secure link before asking an officer for help."
     },
+    "channelSetter": {
+      "deniedOfficer": "Only a linked R4+ officer (or the alliance owner) can set Discord announcement channels. Link your commander first, or ask an officer or owner to run this command.",
+      "deniedOwnerOnly": "This alliance requires the R5 / alliance owner to set Discord announcement channels. Ask your owner, or have them switch the setting back to R4+ in Alliance HQ → Settings → Trains.",
+      "seasonalEventsSuccess": "✅ Seasonal events channel set for **{tag}**. Capture countdowns will be posted to {channel}.",
+      "regularEventsSuccess": "✅ Regular events channel set for **{tag}**. Event announcements will be posted to {channel}.",
+      "bankingSuccess": "✅ Banking channel set for **{tag}**. Protection timer alerts will be posted to {channel}."
+    },
     "link": {
       "userPrompt": "Click the link below to link your Discord account to Alliance HQ (expires in 30 min):\n{url}\n\nAfter linking, run `/help` in Discord for your next step.",
       "commanderPrompt": "Open this secure link to enter your player ID (expires in 30 min):\n{url}\n\nYour player ID is never shared in Discord chat.",
@@ -4592,9 +4599,7 @@
     },
     "train": {
       "setTrainChannel": {
-        "success": "Train announcements for **{tag}** will post in {channel}. Enable announcements in Alliance HQ settings, then officers can use `/set-conductor` and `/train-is-ready`.",
-        "deniedOfficer": "Only a linked R4+ officer (or the alliance owner) can set the train channel. Link your commander first, or ask an officer or owner to run this command.",
-        "deniedOwnerOnly": "This alliance requires the R5 / alliance owner to set the train channel. Ask your owner, or have them switch the setting back to R4+ in Alliance HQ → Settings → Trains."
+        "success": "Train announcements for **{tag}** will post in {channel}. Enable announcements in Alliance HQ settings, then officers can use `/set-conductor` and `/train-is-ready`."
       },
       "noConductor": "No conductor record for **{date}** yet.",
       "statusNoSelection": "No conductor selected yet for **{date}**.",

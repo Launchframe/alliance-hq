@@ -2111,12 +2111,12 @@
       "channelsConfigured": "{count, plural, one {# servidor Discord com canal do trem} other {# servidores Discord com canal do trem}}",
       "noChannel": "Nenhum canal do trem configurado. Use o fluxo de configuração abaixo.",
       "readOnlyHint": "Somente oficiais do trem podem alterar esta opção.",
-      "channelSetterTitle": "Quem pode executar /set-train-channel",
-      "channelSetterDescription": "Escolha o posto mínimo no jogo necessário para definir o canal de anúncios do trem no Discord. Somente o dono da aliança pode alterar isto.",
+      "channelSetterTitle": "Quem pode executar comandos /set-*-channel",
+      "channelSetterDescription": "Escolha o posto mínimo no jogo necessário para definir canais de anúncio no Discord (/set-train-channel, /set-vr-report-channel, /set-banking-channel e outros). Somente o dono da aliança pode alterar isto.",
       "channelSetterOfficerLabel": "Oficiais R4+ (padrão)",
-      "channelSetterOfficerHint": "Qualquer comandante R4 ou R5 vinculado pode definir o canal do trem.",
+      "channelSetterOfficerHint": "Qualquer comandante R4 ou R5 vinculado pode definir canais de anúncio no Discord.",
       "channelSetterOwnerLabel": "Somente R5 / dono da aliança",
-      "channelSetterOwnerHint": "Somente o dono da aliança (R5 vinculado) pode definir o canal do trem.",
+      "channelSetterOwnerHint": "Somente o dono da aliança (R5 vinculado) pode definir canais de anúncio no Discord.",
       "channelSetup": {
         "title": "Definir canal de anúncios do trem",
         "body": "Abra seu servidor Discord, escolha o canal onde os posts do trem devem aparecer e execute o comando abaixo nesse canal.",
@@ -4409,6 +4409,13 @@
       "noConfirm": "Nada para confirmar agora.",
       "askOfficerNeedsNameAndUid": "Execute `/link-commander` e conclua o link seguro antes de pedir ajuda a um oficial."
     },
+    "channelSetter": {
+      "deniedOfficer": "Somente um oficial R4+ vinculado (ou o dono da aliança) pode definir canais de anúncio no Discord. Vincule seu comandante primeiro, ou peça a um oficial ou ao dono para executar este comando.",
+      "deniedOwnerOnly": "Esta aliança exige que o R5 / dono defina canais de anúncio no Discord. Peça ao dono, ou peça para voltar a permitir R4+ em Alliance HQ → Configurações → Trens.",
+      "seasonalEventsSuccess": "✅ Canal de eventos sazonais definido para **{tag}**. Contagens regressivas de captura serão publicadas em {channel}.",
+      "regularEventsSuccess": "✅ Canal de eventos regulares definido para **{tag}**. Anúncios de eventos serão publicados em {channel}.",
+      "bankingSuccess": "✅ Canal bancário definido para **{tag}**. Alertas de timer de proteção serão publicados em {channel}."
+    },
     "link": {
       "userPrompt": "Clique no link abaixo para vincular sua conta do Discord ao Alliance HQ (expira em 30 min):\n{url}\n\nDepois, execute `/help` no Discord para o próximo passo.",
       "commanderPrompt": "Abra este link seguro para informar seu ID de jogador (expira em 30 min):\n{url}\n\nSeu ID de jogador nunca é compartilhado no chat do Discord.",
@@ -4538,9 +4545,7 @@
     },
     "train": {
       "setTrainChannel": {
-        "success": "Anúncios de trem de **{tag}** serão publicados em {channel}. Ative os anúncios nas configurações da aliança no HQ; oficiais podem usar `/set-conductor` e `/train-is-ready`.",
-        "deniedOfficer": "Somente um oficial R4+ vinculado (ou o dono da aliança) pode definir o canal do trem. Vincule seu comandante primeiro, ou peça a um oficial ou ao dono para executar este comando.",
-        "deniedOwnerOnly": "Esta aliança exige que o R5 / dono defina o canal do trem. Peça ao dono, ou peça para voltar a permitir R4+ em Alliance HQ → Configurações → Trens."
+        "success": "Anúncios de trem de **{tag}** serão publicados em {channel}. Ative os anúncios nas configurações da aliança no HQ; oficiais podem usar `/set-conductor` e `/train-is-ready`."
       },
       "noConductor": "Ainda não há condutor para **{date}**.",
       "statusNoSelection": "Nenhum condutor selecionado ainda para **{date}**.",

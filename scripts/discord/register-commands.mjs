@@ -246,10 +246,11 @@ const commandBody = [
   },
   {
     name: "set-vr-report-channel",
-    description: "Set this channel for nightly VR standings (owner only).",
+    description:
+      "Set this channel for nightly VR standings (R4+ by default; owners can restrict).",
     description_localizations: {
       "pt-BR":
-        "Define este canal para o relatório noturno de VR (somente dono).",
+        "Define este canal para o relatório noturno de VR (R4+ por padrão; o dono pode restringir).",
     },
   },
   {
@@ -375,26 +376,29 @@ const commandBody = [
   },
   {
     name: "set-seasonal-events-channel",
-    description: "Set this channel for seasonal event announcements — bank captures, etc. (owner only).",
+    description:
+      "Set this channel for seasonal event announcements — bank captures, etc. (R4+ by default; owners can restrict).",
     description_localizations: {
       "pt-BR":
-        "Define este canal para anúncios de eventos sazonais — capturas de bancos, etc. (somente dono).",
+        "Define este canal para anúncios de eventos sazonais — capturas de bancos, etc. (R4+ por padrão; o dono pode restringir).",
     },
   },
   {
     name: "set-regular-events-channel",
-    description: "Set this channel for regular event announcements (owner only).",
+    description:
+      "Set this channel for regular event announcements (R4+ by default; owners can restrict).",
     description_localizations: {
       "pt-BR":
-        "Define este canal para anúncios de eventos regulares (somente dono).",
+        "Define este canal para anúncios de eventos regulares (R4+ por padrão; o dono pode restringir).",
     },
   },
   {
     name: "set-banking-channel",
-    description: "Set this channel for banking partner notifications — protection timers, etc. (owner only).",
+    description:
+      "Set this channel for banking partner notifications — protection timers, etc. (R4+ by default; owners can restrict).",
     description_localizations: {
       "pt-BR":
-        "Define este canal para notificações de parceiros bancários — timers de proteção, etc. (somente dono).",
+        "Define este canal para notificações de parceiros bancários — timers de proteção, etc. (R4+ por padrão; o dono pode restringir).",
     },
   },
   {
@@ -523,9 +527,11 @@ const commandBody = [
   },
   {
     name: "set-profession-channel",
-    description: "Register this channel for profession table announcements.",
+    description:
+      "Register this channel for profession table announcements (R4+ by default; owners can restrict).",
     description_localizations: {
-      "pt-BR": "Registre este canal para anúncios da tabela de profissões.",
+      "pt-BR":
+        "Registre este canal para anúncios da tabela de profissões (R4+ por padrão; o dono pode restringir).",
     },
   },
 ];

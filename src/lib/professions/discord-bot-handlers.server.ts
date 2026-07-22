@@ -1,5 +1,6 @@
 import "server-only";
 
+import { resolveDiscordChannelSetterAccess } from "@/lib/discord/channel-setter-auth.server";
 import type { DiscordBotLocale } from "@/lib/discord/i18n";
 import { createDiscordTranslator } from "@/lib/discord/i18n";
 import {
@@ -9,7 +10,7 @@ import {
   updateCommanderProfession,
 } from "@/lib/professions/service";
 import { upsertProfessionChannel } from "@/lib/professions/repository";
-import { callerIsAllianceOwner, resolveAllianceForGuild } from "@/lib/vr/repository";
+import { resolveAllianceForGuild } from "@/lib/vr/repository";
 
 const APP_URL = process.env.NEXTAUTH_URL?.replace(/\/$/, "") ?? "https://frontline.gay";
 
@@ -239,12 +240,12 @@ export async function handleDiscordSetProfessionChannel(input: {
     return { reply: t("errors.guildNotRegistered") };
   }
 
-  const isOwner = await callerIsAllianceOwner({
+  const access = await resolveDiscordChannelSetterAccess({
     allianceId,
     discordUserId: input.discordUserId,
   });
-  if (!isOwner) {
-    return { reply: t("profession.notOwner") };
+  if (!access.allowed) {
+    return { reply: t(access.denialKey) };
   }
 
   await upsertProfessionChannel(allianceId, input.guildId, input.channelId);

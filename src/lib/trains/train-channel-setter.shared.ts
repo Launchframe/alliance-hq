@@ -15,7 +15,7 @@ export function isTrainChannelSetterMinRank(
   return (TRAIN_CHANNEL_SETTER_MIN_RANKS as readonly string[]).includes(value);
 }
 
-/** Pure gate for Discord `/set-train-channel` callers. */
+/** Pure gate for Discord `/set-*-channel` callers (train, VR, banking, events, professions). */
 export function canSetTrainChannel(input: {
   minRank: TrainChannelSetterMinRank;
   isOwner: boolean;
