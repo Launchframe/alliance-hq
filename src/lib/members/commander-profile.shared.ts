@@ -25,6 +25,10 @@ export type CommanderProfilePayload = {
     viewerCanIssueClaimInvite: boolean;
     /** Viewer (alliance owner or platform maintainer) may break-glass unlink. */
     viewerCanBreakGlassUnlink: boolean;
+    /** Viewer may open Last War store to gift bricks to this peer Commander. */
+    canGiftStoreBricks: boolean;
+    /** Viewer may create/manage tip-jar badge for this Commander (own linked). */
+    canManageTipJar: boolean;
     /** Present only when the viewer is the HQ user who linked this commander. */
     gameUid: string | null;
   };

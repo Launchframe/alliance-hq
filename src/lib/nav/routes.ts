@@ -172,6 +172,14 @@ export const NAV_GROUPS: NavGroupDef[] = [
         kind: "iframe",
       },
       {
+        id: "store-spend",
+        labelKey: "storeSpend",
+        href: "/donations/store-spend",
+        kind: "native",
+        descriptionKey: "storeSpendDescription",
+        requiredPermission: "members:write",
+      },
+      {
         id: "alliance-exercise",
         labelKey: "allianceExercise",
         href: "/alliance-exercise",

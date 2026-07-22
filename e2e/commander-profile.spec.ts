@@ -111,6 +111,72 @@ test.describe("Commander profile and admin commanders", () => {
     expect(profileBody.member.gameUid).toBeNull();
   });
 
+  test("officer sees donate bricks and warning dialog on peer profile", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `DG${nanoid(3)}`,
+      name: "Donate Gift Alliance",
+    });
+    const peerId = `peer-${nanoid(8)}`;
+    await insertAllianceMember(sql, {
+      allianceId: alliance.allianceId,
+      ashedMemberId: peerId,
+      currentName: "E2E Donate Peer",
+      gameUid: "555566667777",
+    });
+
+    const session = await createAuthenticatedHqSession(sql, uniqueEmail("donor"));
+    await createAllianceMembership(sql, {
+      hqUserId: session.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "officer",
+      source: "manual",
+    });
+    const donorMemberId = `donor-self-${nanoid(6)}`;
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: session.hqUserId,
+      ashedMemberId: donorMemberId,
+    });
+    await insertAllianceMember(sql, {
+      allianceId: alliance.allianceId,
+      ashedMemberId: donorMemberId,
+      currentName: "E2E Donor Self",
+      gameUid: "111122223333",
+    });
+    await sql`
+      UPDATE sessions
+      SET
+        current_alliance_id = ${alliance.allianceId},
+        alliance_id = ${alliance.allianceId},
+        alliance_tag = ${alliance.tag}
+      WHERE id = ${session.sessionId}
+    `;
+    await page.context().addCookies(playwrightAuthCookies(session));
+
+    await page.route(`**/api/members/${peerId}/donation-store`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          url: "https://lastwar-us-platform.lastwar.com/pay/v1/officeGoldBrickPaymentLoginServlet?uid=x&loginToken=y&website_platform=new_office",
+        }),
+      });
+    });
+
+    await page.goto(`/members/${peerId}`);
+    await expect(page.getByRole("heading", { name: "E2E Donate Peer" })).toBeVisible();
+    await expect(page.getByText("555566667777")).not.toBeVisible();
+    const donate = page.getByRole("button", { name: /donate bricks|doar tijolos/i }).first();
+    await expect(donate).toBeVisible();
+    await donate.click();
+    await expect(
+      page.getByText(/open last war store|abrir a loja last war/i),
+    ).toBeVisible();
+  });
+
   test("linked HQ owner sees UID on their own commander profile", async ({
     page,
     request,
