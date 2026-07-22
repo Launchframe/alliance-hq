@@ -650,6 +650,23 @@ export function TrainsDashboard({ initial }: Props) {
     refreshRef.current = refresh;
   }, [refresh]);
 
+  // Revalidate dashboard data when the tab becomes visible again (e.g. after
+  // uploading scores on /tools/video-upload and returning).
+  useEffect(() => {
+    const MIN_INTERVAL_MS = 5_000;
+    let lastRefreshAt = 0;
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastRefreshAt < MIN_INTERVAL_MS) return;
+      lastRefreshAt = now;
+      void refreshRef.current();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
+
   const withOptimisticMutation = useCallback(
     async (
       apply: (snap: TrainsDashboardSnapshot) => TrainsDashboardSnapshot,
@@ -1862,6 +1879,25 @@ export function TrainsDashboard({ initial }: Props) {
               <h3 className="text-sm font-medium text-hq-fg-muted">
                 {t("quickActions")}
               </h3>
+              {selectedDate === data.today &&
+              data.vsDataStatus?.required &&
+              !data.vsDataStatus.ready &&
+              !locked ? (
+                <div
+                  className="flex flex-col gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/5 px-3 py-2.5"
+                  data-testid="trains-upload-scores-banner"
+                >
+                  <p className="text-sm text-hq-fg">
+                    {t("uploadScoresBanner.body")}
+                  </p>
+                  <Link
+                    href="/tools/video-upload"
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 sm:w-auto"
+                  >
+                    {t("uploadScoresBanner.link")} →
+                  </Link>
+                </div>
+              ) : null}
               {(canRoll || canManualPick || canManualPickVip) &&
               (selectedConductorSpinSource != null || selectedVipSpinSource != null) ? (
                 <TrainSpinSourcePanel

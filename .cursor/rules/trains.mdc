@@ -50,6 +50,7 @@ Do **not** use whole-week `setWeekTemplate` for pivot — it clears overrides.
 - **Clear week schedule** (`DELETE /api/trains/schedule`) is **pre-production only** (`isDevOrPreviewEnvironment`): train managers (`trains:write`) may discard a persisted week back to draft preview. Hidden and 404-gated in production. Does **not** delete conductor records.
 - Do **not** show schedulable train UI when **`activeMemberCount === 0`** (native alliances need roster first).
 - **Game season** is managed under **Settings**, not on the trains page.
+- **Simple vs advanced mode** — guided stepper (default) vs quick-actions layout; parity contract in [trains-simple-advanced-modes.mdc](./trains-simple-advanced-modes.mdc).
 
 ## Pools
 

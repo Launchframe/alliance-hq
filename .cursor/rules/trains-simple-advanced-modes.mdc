@@ -1,0 +1,99 @@
+---
+description: Trains dashboard dual-mode UX — guided stepper (simple) vs quick-actions (advanced)
+globs:
+  - src/components/trains/**
+  - src/lib/trains/guided-flow*
+  - src/lib/trains/vs-data-status*
+  - src/lib/trains/conductor-mechanism*
+---
+
+# Trains: simple mode vs advanced mode
+
+The trains dashboard has two interaction modes. Both operate on the **same underlying state** (schedule, conductor assignments, VIP, locks, pools) and share handlers; the difference is presentation and flow.
+
+See also: [trains.mdc](./trains.mdc) for week templates, pools, RBAC, and scheduling UX.
+
+## Guided mode (default)
+
+`simpleModeEnabled` (user preference via `PATCH /api/settings/trains-preferences`, default `true`) renders **`TrainsGuidedConductorFlow`** — a vertical stepper that walks officers through the day's tasks in order.
+
+### Step order
+
+`template → prerequisites → conductor → vip → lock → done`
+
+Steps `prerequisites` and `vip` are **skipped** when not applicable (no VS/PIF score requirement; VIP mechanism is `none`).
+
+Each step blocks until its prerequisite is satisfied. Canonical step logic lives in **`guided-flow.shared.ts`** (`currentGuidedStep`, `guidedFlowPrerequisitesBlocking`). Score readiness classification is in **`vs-data-status.shared.ts`** (`classifyVsDataNeed`, `buildVsDataStatus`). The UI component reads these; **do not duplicate step-gating logic in the component**.
+
+### Blocking vs non-blocking
+
+| Step | Blocks until |
+| --- | --- |
+| `template` | Week schedule persisted (`schedulePersisted`) |
+| `prerequisites` | VS or prior-day VS scores uploaded when required (`vsDataStatus.ready`); skipped when scores not required |
+| `conductor` | A conductor is assigned for the day |
+| `vip` | VIP assigned when mechanism requires one; skipped when `vipNeeded` is false |
+| `lock` | Conductor record locked for the day |
+
+The `prerequisites` step links officers to **`/tools/video-upload`** when VS (`vs_high_score`, `vs_top_10`) or Price Is Freight prior-day VS data is missing. There is no score bypass — officers must upload or pick manually in advanced mode.
+
+### Primary action on Conductor step
+
+The guided flow shows **one** primary CTA per step. Conductor step priority:
+
+1. **Spin for Conductor** — when `canSpinConductor(...)` is true (precomputed as `canSpinConductorWheel` in the dashboard)
+2. **Pick top scorer** — when mechanism is `vs_high_score` or `donations_top`
+3. **Pick Conductor** (manual) — when manual pick is allowed
+
+`canSpinConductorForDay()` in **`conductor-mechanism.shared.ts`** returns false for **`r3_recognition`** paint (manual award pick only — no wheel).
+
+## Advanced mode (opt-in)
+
+When `simpleModeEnabled` is off, the dashboard shows **quick-action buttons** inline (`data-testid="trains-quick-actions"`): spin/pick conductor, lock/unlock, pick VIP, reseed pool, swap, and day-level controls. Officers manage each concern independently.
+
+### Hint banners in advanced mode
+
+When VS/PIF scores are required but missing, advanced mode shows a **non-blocking upload-scores banner** (`data-testid="trains-upload-scores-banner"`) with a link to `/tools/video-upload`. This mirrors the guided flow's blocking `prerequisites` step.
+
+When a wheel spin fails due to empty pool / missing data, **`WheelBlockedDialog`** offers recovery CTAs (reseed, manual pick, retry spin).
+
+## Parity contract
+
+Every action available in one mode must be reachable in the other:
+
+| Guided flow step | Advanced mode equivalent |
+| --- | --- |
+| Prerequisites → upload scores link | Upload-scores banner + `/tools/video-upload` |
+| Spin for Conductor | Spin button |
+| Pick top scorer / Pick Conductor | Pick top scorer / Pick manually buttons |
+| Lock | Lock button |
+| Pick VIP | Pick VIP / spin VIP buttons |
+| Show advanced actions (swap, reseed, unlock) | Same controls in quick-actions layout |
+
+**When adding a new feature:**
+
+1. Wire the action handler at the dashboard level (shared between modes).
+2. Add it to the guided flow step where it logically fits.
+3. Add the equivalent control to the advanced mode layout.
+4. If the feature has a prerequisite, make it blocking in guided mode (`prerequisites` or step gate) and a hint banner or dialog recovery in advanced mode.
+
+## Key files
+
+| Concern | File |
+| --- | --- |
+| Step logic (canonical) | `src/lib/trains/guided-flow.shared.ts` |
+| Step logic tests | `src/lib/trains/guided-flow.shared.test.ts` |
+| VS/PIF score readiness | `src/lib/trains/vs-data-status.shared.ts` |
+| Wheel spin eligibility | `src/lib/trains/conductor-mechanism.shared.ts` |
+| Guided flow UI | `src/components/trains/TrainsGuidedConductorFlow.tsx` |
+| Dashboard (mode switch) | `src/components/trains/TrainsDashboard.tsx` |
+| Wheel blocked recovery | `src/components/trains/WheelBlockedDialog.tsx` |
+| Spin sources | `src/lib/trains/spin-source.shared.ts` |
+| Mechanism styles | `src/lib/trains/mechanism-styles.ts` |
+
+## Do not
+
+- Duplicate step-gating logic in the UI component — call `currentGuidedStep()` and `guidedFlowPrerequisitesBlocking()`.
+- Add a guided-flow-only action without an advanced mode counterpart (or vice versa).
+- Skip score readiness checks — if the guided flow blocks at `prerequisites`, advanced mode must at least warn.
+- Assume guided mode is always on — test both modes when changing dashboard layout or actions.
