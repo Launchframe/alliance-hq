@@ -194,8 +194,8 @@ if [[ "${COMMON_DIR}" != /* ]]; then
 fi
 PRIMARY_ROOT="$(dirname "${COMMON_DIR}")"
 if [[ "$(pwd -P)" != "$(cd "${PRIMARY_ROOT}" && pwd -P)" ]]; then
-  info "Note: running prune from ${ROOT_DIR}"
-  info "      (repo common dir: ${PRIMARY_ROOT})"
+  detail "Note: running prune from ${ROOT_DIR}"
+  detail "      (repo common dir: ${PRIMARY_ROOT})"
 fi
 
 CURRENT="$(current_branch)"
@@ -204,7 +204,9 @@ if [[ "${APPLY}" -eq 1 ]]; then
   MODE="apply"
 fi
 
-info "git-prune (${MODE}) — base=${MAIN_REF}, current=${CURRENT:-detached}"
+if [[ "${COMPACT}" -eq 0 ]]; then
+  info "git-prune (${MODE}) — base=${MAIN_REF}, current=${CURRENT:-detached}"
+fi
 
 section "Fetch + prune remote-tracking refs"
 git fetch --prune origin
