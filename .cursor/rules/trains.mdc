@@ -45,6 +45,7 @@ Do **not** use whole-week `setWeekTemplate` for pivot — it clears overrides.
 ## Scheduling UX (product direction)
 
 - Officers plan on a **calendar** with template palette + per-day paint (Phase B).
+- **Week strip:** long-press or right-click a day tile → scrollable day-template menu (same `PAINT_TEMPLATES` as month) → `paintDates([date], template)`. Tap still selects the day.
 - When the roster has members (`activeMemberCount > 0`), show **preview** day configs from the anchor template — never a blank “create week” gate.
 - Persist `train_week_schedules` on the **first officer schedule mutation** (paint, template change, lock) via `ensureWeekScheduleBaseline` — not on page load.
 - **Clear week schedule** (`DELETE /api/trains/schedule`) is **pre-production only** (`isDevOrPreviewEnvironment`): train managers (`trains:write`) may discard a persisted week back to draft preview. Hidden and 404-gated in production. Does **not** delete conductor records.

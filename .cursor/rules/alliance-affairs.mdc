@@ -70,7 +70,7 @@ Leadership may pivot Tue–Sun to economy-style (`r3_lottery`) after assessing D
 
 - Lottery/sequence pools (`r3`, `r4_plus`, `event_top_x`) remove a member once selected for a date.
 - When the last eligible member is picked, auto **re-seed** a new generation (`refreshExhaustedPoolIfNeeded`).
-- **`r4_sequence`:** when pool not exhausted, assign **next in sequence** (no random wheel animation).
+- **`r4_sequence`:** when pool not exhausted, assign **next in sequence** (deterministic pick). Still show the conductor wheel animation for celebration / screenshots; do not skip `ConductorWheelModal` for R4 single-day spins.
 - Permanent **`train_conductor_records`** = alliance audit trail (conductor + VIP + lock time).
 
 ## Event VIP (`event_top_x_lottery`)

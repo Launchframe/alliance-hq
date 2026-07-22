@@ -44,6 +44,9 @@ export function useCoverFlowCarousel({
   const suppressSelectionRef = useRef(false);
   const pendingEmittedIndexRef = useRef<number | null>(null);
   const prevSelectedIndexRef = useRef(selectedIndex);
+  const pendingDragXRef = useRef<number | null>(null);
+  /** Match day-cell long-press move tolerance so a hold can open the menu. */
+  const DRAG_START_TOLERANCE_PX = 10;
 
   const maxIndex = Math.max(0, itemCount - 1);
 
@@ -170,6 +173,7 @@ export function useCoverFlowCarousel({
   );
 
   const finishDrag = useCallback(() => {
+    pendingDragXRef.current = null;
     const samples = dragSamplesRef.current;
     dragAnchorXRef.current = null;
     dragSamplesRef.current = [];
@@ -210,10 +214,12 @@ export function useCoverFlowCarousel({
 
   const beginDrag = useCallback(
     (clientX: number) => {
+      pendingDragXRef.current = null;
       stopMomentum();
       stopSnap();
       setInteracting(true);
-      setIsAnimating(true);
+      // Do not set isAnimating here — that applies pointer-events-none on day
+      // cells and cancels in-progress long-press timers via pointercancel.
       dragAnchorXRef.current = clientX;
       dragAnchorPositionRef.current = positionRef.current;
       dragSamplesRef.current = [{ x: clientX, t: performance.now() }];
@@ -221,8 +227,38 @@ export function useCoverFlowCarousel({
     [stopMomentum, stopSnap],
   );
 
+  const clearPendingDrag = useCallback(() => {
+    pendingDragXRef.current = null;
+  }, []);
+
+  const armPendingDrag = useCallback((clientX: number) => {
+    pendingDragXRef.current = clientX;
+  }, []);
+
+  const maybeStartPendingDrag = useCallback(
+    (clientX: number) => {
+      const pendingX = pendingDragXRef.current;
+      if (pendingX == null) return;
+      const dx = clientX - pendingX;
+      if (dx * dx < DRAG_START_TOLERANCE_PX * DRAG_START_TOLERANCE_PX) {
+        return;
+      }
+      beginDrag(pendingX);
+      recordDrag(clientX);
+    },
+    [beginDrag, recordDrag],
+  );
+
+  function isWeekDayPointerTarget(target: EventTarget | null): boolean {
+    return (
+      target instanceof Element &&
+      Boolean(target.closest('[data-testid^="trains-week-day-"]'))
+    );
+  }
+
   const setIndex = useCallback(
     (index: number) => {
+      clearPendingDrag();
       stopMomentum();
       stopSnap();
       setInteracting(false);
@@ -230,7 +266,7 @@ export function useCoverFlowCarousel({
       setPositionClamped(index);
       emitSelection(index);
     },
-    [emitSelection, setPositionClamped, stopMomentum, stopSnap],
+    [clearPendingDrag, emitSelection, setPositionClamped, stopMomentum, stopSnap],
   );
 
   const shiftPosition = useCallback(
@@ -288,29 +324,66 @@ export function useCoverFlowCarousel({
 
   const viewportHandlers = {
     onMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => {
+      // Day cells own press/long-press; only start carousel drag after move.
+      if (isWeekDayPointerTarget(event.target)) {
+        armPendingDrag(event.clientX);
+        return;
+      }
       event.preventDefault();
       beginDrag(event.clientX);
     },
     onMouseMove: (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (pendingDragXRef.current != null) {
+        maybeStartPendingDrag(event.clientX);
+        return;
+      }
       if (dragAnchorXRef.current == null) return;
       recordDrag(event.clientX);
     },
-    onMouseUp: () => finishDrag(),
+    onMouseUp: () => {
+      if (pendingDragXRef.current != null) {
+        clearPendingDrag();
+        return;
+      }
+      if (dragAnchorXRef.current != null) finishDrag();
+    },
     onMouseLeave: () => {
+      if (pendingDragXRef.current != null) {
+        clearPendingDrag();
+        return;
+      }
       if (dragAnchorXRef.current != null) finishDrag();
     },
     onTouchStart: (event: ReactTouchEvent<HTMLDivElement>) => {
       const x = event.touches[0]?.clientX;
       if (x == null) return;
+      if (isWeekDayPointerTarget(event.target)) {
+        armPendingDrag(x);
+        return;
+      }
       beginDrag(x);
     },
     onTouchMove: (event: ReactTouchEvent<HTMLDivElement>) => {
-      if (dragAnchorXRef.current == null) return;
       const x = event.touches[0]?.clientX;
-      if (x != null) recordDrag(x);
+      if (x == null) return;
+      if (pendingDragXRef.current != null) {
+        maybeStartPendingDrag(x);
+        return;
+      }
+      if (dragAnchorXRef.current == null) return;
+      recordDrag(x);
     },
-    onTouchEnd: () => finishDrag(),
-    onTouchCancel: () => finishDrag(),
+    onTouchEnd: () => {
+      if (pendingDragXRef.current != null) {
+        clearPendingDrag();
+        return;
+      }
+      if (dragAnchorXRef.current != null) finishDrag();
+    },
+    onTouchCancel: () => {
+      clearPendingDrag();
+      if (dragAnchorXRef.current != null) finishDrag();
+    },
   };
 
   const safeIndex =

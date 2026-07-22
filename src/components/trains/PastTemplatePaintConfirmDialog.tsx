@@ -50,10 +50,16 @@ export function PastTemplatePaintConfirmDialog({
             variant="outline"
             disabled={busy}
             onClick={onCancel}
+            data-testid="trains-past-paint-cancel"
           >
             {t("cancel")}
           </Button>
-          <Button type="button" disabled={busy} onClick={onConfirm}>
+          <Button
+            type="button"
+            disabled={busy}
+            onClick={onConfirm}
+            data-testid="trains-past-paint-confirm"
+          >
             {busy ? t("confirming") : t("confirm")}
           </Button>
         </div>

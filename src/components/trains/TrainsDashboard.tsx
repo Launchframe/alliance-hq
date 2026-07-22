@@ -718,24 +718,9 @@ export function TrainsDashboard({ initial }: Props) {
         return;
       }
 
-      const rollDayConfig =
-        snapshotRef.current.data.dayConfigs.find(
-          (d) => d.date === selectedDate,
-        ) ??
-        snapshotRef.current.viewedWeek.dayConfigs.find(
-          (d) => d.date === selectedDate,
-        ) ??
-        null;
-      const rollConductorMech = effectiveConductorMechanism(
-        rollDayConfig?.conductorMechanism,
-        rollDayConfig?.paintTemplate,
-        selectedDate,
-      );
-
-      if (
-        body.result.isAutomatic ||
-        (role === "conductor" && rollConductorMech === "r4_sequence")
-      ) {
+      // Auto mechanisms (e.g. vs_high_score) skip the wheel. R4 sequence does not —
+      // pick stays sequential; modal is still the celebratory spin.
+      if (body.result.isAutomatic) {
         if (
           role === "conductor" &&
           body.result.qualification &&
@@ -1605,6 +1590,15 @@ export function TrainsDashboard({ initial }: Props) {
               conductorLabels={conductorShortLabels}
               vipLabels={vipShortLabels}
               templateShortLabels={templateShortLabels}
+              templateLabels={templateLabels}
+              canPaintDays={data.canManageTrains}
+              isDatePaintable={(date) =>
+                data.canUnlockConductor ||
+                canOfficerChangeTemplateForDate(date, data.today)
+              }
+              onPaintDate={(date, template) => {
+                void paintDates([date], template);
+              }}
               navLabels={{
                 previousWeek: t("weekNavPrevious"),
                 nextWeek: t("weekNavNext"),
@@ -1731,6 +1725,21 @@ export function TrainsDashboard({ initial }: Props) {
                   }
                   void lockConductor();
                 }}
+                poolPanel={
+                  isPoolSpinSource(selectedConductorSpinSource) ||
+                  isPoolSpinSource(selectedVipSpinSource) ? (
+                    <TrainSpinSourcePanel
+                      conductorSource={selectedConductorSpinSource}
+                      vipSource={selectedVipSpinSource}
+                      pools={data.pools}
+                      showConductorSpin={isPoolSpinSource(
+                        selectedConductorSpinSource,
+                      )}
+                      showVipSpin={isPoolSpinSource(selectedVipSpinSource)}
+                      onViewPool={openPoolDetails}
+                    />
+                  ) : null
+                }
                 advancedActions={
                   <>
                     <SpinWeekConductorFlow
