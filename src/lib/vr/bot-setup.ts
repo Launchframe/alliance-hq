@@ -4,9 +4,9 @@ import {
   type DiscordBotLocale,
   type DiscordTranslate,
 } from "@/lib/discord/i18n";
+import { resolveDiscordChannelSetterAccess } from "@/lib/discord/channel-setter-auth.server";
 import {
   callerCanRegisterGuildAlliance,
-  callerIsAllianceOwner,
   getAllianceById,
   getDiscordHqLink,
   getGuildAllianceId,
@@ -275,18 +275,18 @@ export async function handleDiscordSetVrReportChannel(input: {
     return { reply };
   }
 
-  const isOwner = await callerIsAllianceOwner({
+  const access = await resolveDiscordChannelSetterAccess({
     allianceId: registeredAllianceId,
     discordUserId: input.discordUserId,
   });
-  if (!isOwner) {
-    const reply = t("errors.notOwner");
+  if (!access.allowed) {
+    const reply = t(access.denialKey);
     await audit(
       registeredAllianceId,
       input.discordUserId,
       "set_vr_report_channel",
       input,
-      { reply },
+      { reply, minRank: access.minRank },
     );
     return { reply };
   }

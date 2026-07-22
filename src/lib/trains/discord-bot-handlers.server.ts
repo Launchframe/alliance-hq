@@ -1,5 +1,6 @@
 import "server-only";
 
+import { resolveDiscordChannelSetterAccess } from "@/lib/discord/channel-setter-auth.server";
 import type { DiscordBotLocale } from "@/lib/discord/i18n";
 import { createDiscordTranslator } from "@/lib/discord/i18n";
 import { callerCanManageTrains } from "@/lib/trains/discord-bot-auth.server";
@@ -13,15 +14,11 @@ import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { findExactMemberByName } from "@/lib/vr/link-helpers";
 import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import {
-  callerIsAllianceOfficerViaMemberLink,
-  callerIsAllianceOwner,
   getAllianceById,
-  getAllianceTrainChannelSetterMinRank,
   getGuildAllianceId,
   setGuildTrainChannel,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
-import { canSetTrainChannel } from "@/lib/trains/train-channel-setter.shared";
 import { findFuzzyMemberCandidates } from "@/lib/video/member-matcher";
 
 export type TrainBotReply = {
@@ -77,29 +74,18 @@ export async function handleDiscordSetTrainChannel(input: {
     return { reply };
   }
 
-  const [minRank, isOwner, isOfficer] = await Promise.all([
-    getAllianceTrainChannelSetterMinRank(allianceId),
-    callerIsAllianceOwner({
-      allianceId,
-      discordUserId: input.discordUserId,
-    }),
-    callerIsAllianceOfficerViaMemberLink({
-      allianceId,
-      discordUserId: input.discordUserId,
-    }),
-  ]);
-
-  if (!canSetTrainChannel({ minRank, isOwner, isOfficer })) {
-    const reply =
-      minRank === "owner"
-        ? t("train.setTrainChannel.deniedOwnerOnly")
-        : t("train.setTrainChannel.deniedOfficer");
+  const access = await resolveDiscordChannelSetterAccess({
+    allianceId,
+    discordUserId: input.discordUserId,
+  });
+  if (!access.allowed) {
+    const reply = t(access.denialKey);
     await writeDiscordBotAudit({
       allianceId,
       discordUserId: input.discordUserId,
       command: "set_train_channel",
       payload: input,
-      result: { reply, minRank },
+      result: { reply, minRank: access.minRank },
     });
     return { reply };
   }
