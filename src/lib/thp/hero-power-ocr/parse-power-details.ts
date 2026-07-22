@@ -1,10 +1,21 @@
 /**
  * Parse OCR text lines from the in-game Power Details screen.
  *
- * Tesseract often turns thousand-separators into apostrophes, dashes, slashes,
- * brackets, currency glyphs, or the digit `7` (`14,833,300` → `1478337300`).
- * Value extraction must tolerate that junk and strip separator-`7`s. Drone /
- * Building sections are ignored.
+ * ## Production image path
+ *
+ * Prefer {@link parsePowerDetailsImage} (geometry-first + digits-only columns).
+ * That path does **not** call the separator-digit surgery below.
+ *
+ * ## This module (legacy freeform lines)
+ *
+ * Still used for unit tests and any caller that already has Tesseract text
+ * lines. Tesseract often turns thousand-separators into apostrophes, dashes,
+ * slashes, brackets, currency glyphs, or the digit `7`
+ * (`14,833,300` → `1478337300`). Freeform value extraction must tolerate that
+ * junk and strip separator-`7`s. Drone / Building sections are ignored.
+ *
+ * Do not extend the digit-repair heuristics for new screenshot failures —
+ * fix crops / digits-only OCR instead.
  */
 
 import {

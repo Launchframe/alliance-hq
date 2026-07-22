@@ -46,7 +46,25 @@ Register: `npm run discord:register-commands`
 
 ## OCR
 
-In-house pipeline under `src/lib/thp/hero-power-ocr/` reuses roster OCR preprocessing + Tesseract, then parses Power Details labels.
+Geometry-first pipeline under `src/lib/thp/hero-power-ocr/`:
+
+1. **Label column** (left ~60% of modal) — letter OCR → `THP_LABEL_ALIASES` (EN/DE/pt-BR/KO/es-MX). Row order is **not** fixed.
+2. **Value column** (right ~45%) — **digits-only** whitelist so freeform comma→digit totals (`164376153505`) cannot be accepted as headers. Dual polarity (normal + inverted) because section bars are white-on-grey while component rows are dark-on-light.
+3. **Y-zip** pairs each label to the nearest value by normalized y-center; stop at Drone/Building.
+4. **Narrow normalize** (`normalizeDigitsOnlyComponent`) only undoes separator-slot pollution when Tesseract still maps a comma onto `1`/`7` — not the old combinatorial digit-repair search.
+5. `complete` only when all seven components sum to the header (or the sum is used when the white-on-grey header total is missing from OCR).
+
+Freeform full-modal Tesseract in `parse-power-details.ts` remains for unit fixtures / emergency only.
+
+```bash
+# Architecture / regression (no Tesseract download)
+npx vitest run src/lib/thp/hero-power-ocr/parse-power-details-geometry.shared.test.ts
+
+# Live screenshot (optional)
+THP_OCR_LIVE=1 npx vitest run src/lib/thp/hero-power-ocr/parse-power-details-image.live.test.ts
+# Pixel-perfect totals (stricter; may still fail on glyph quality)
+THP_OCR_LIVE=1 THP_OCR_LIVE_STRICT=1 npx vitest run src/lib/thp/hero-power-ocr/parse-power-details-image.live.test.ts
+```
 
 ## Anomaly review
 
