@@ -94,7 +94,12 @@ export function DayTemplateContextMenu({
     const initialIndex = getInitialMenuItemIndex(items);
     activeIndexRef.current = focusMenuItem(items, initialIndex);
 
+    // Ignore the pointer that opened the menu (long-press still held) so the
+    // trailing pointerup/click of that gesture cannot dismiss immediately.
+    const ignoreOutsideUntil = performance.now() + 750;
+
     function handlePointerDown(event: PointerEvent) {
+      if (performance.now() < ignoreOutsideUntil) return;
       const target = event.target;
       if (!(target instanceof Node)) return;
       if (menu.contains(target)) return;

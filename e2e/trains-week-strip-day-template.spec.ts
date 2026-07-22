@@ -143,18 +143,33 @@ async function openDayTemplateMenu(
   await expect(page.getByTestId("trains-day-template-menu")).toBeVisible();
 }
 
-/** Hold still on the day cell so carousel drag-threshold doesn't steal the press. */
+/**
+ * Stationary long-press via Playwright's click delay (real pointer events).
+ * `force` bypasses carousel hit-testing while the day button still receives
+ * the events — needed when snap briefly applies pointer-events-none.
+ */
 async function longPressDay(page: Page, day: Locator) {
   await expect(day).toBeVisible();
-  await day.scrollIntoViewIfNeeded();
+  await expect(day).toHaveAttribute("aria-haspopup", "menu");
   const box = await day.boundingBox();
   expect(box).not.toBeNull();
-  const x = box!.x + box!.width / 2;
-  const y = box!.y + box!.height / 2;
-  await page.mouse.move(x, y);
-  await page.mouse.down();
-  await page.waitForTimeout(650);
-  await page.mouse.up();
+  await day.click({
+    delay: 650,
+    force: true,
+    position: {
+      x: Math.min(24, Math.max(8, box!.width / 2)),
+      y: Math.min(24, Math.max(8, box!.height / 2)),
+    },
+  });
+}
+
+/** Infinite-day carousel finishes neighbor-week fetch before interactions. */
+async function waitForWeekCarouselReady(page: Page) {
+  await expect(page.getByTestId("trains-week-carousel")).toHaveAttribute(
+    "data-ready",
+    "true",
+    { timeout: 20_000 },
+  );
 }
 
 /** Activate a template without Playwright viewport hit-testing on overflow items. */
@@ -309,9 +324,15 @@ test.describe("Week strip day template menu", () => {
     await expect(page.getByTestId("trains-schedule-section")).toBeVisible({
       timeout: 15_000,
     });
+    // Neighbor-week bootstrap remounts the day buffer; long-press timers are
+    // cancelled if we press while data-ready is still false.
+    await waitForWeekCarouselReady(page);
 
     const day = weekDayLocator(page, fixture.today);
     await expect(day).toBeVisible();
+    await expect(day).toHaveAttribute("aria-haspopup", "menu", {
+      timeout: 15_000,
+    });
     await longPressDay(page, day);
 
     await expect(page.getByTestId("trains-day-template-menu")).toBeVisible({

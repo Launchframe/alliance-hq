@@ -36,6 +36,11 @@ function toPoint(event: ReactPointerEvent<HTMLElement>): LongPressPointerPoint {
 /**
  * Pointer long-press with move-cancel (safe for carousels / swipe).
  * Callers should skip the following click when `didFireLongPress()` is true.
+ *
+ * Controllers live for the lifetime of the hook instance; timers are cleared
+ * on pointer up/cancel and on unmount only — option changes update the live
+ * controller in place so React Strict Mode / parent re-renders don't abort an
+ * in-flight hold mid-press.
  */
 export function useLongPress({
   onLongPress,
@@ -46,10 +51,19 @@ export function useLongPress({
   const controllerRef = useRef<LongPressController | null>(null);
   const firedRef = useRef(false);
   const onLongPressRef = useRef(onLongPress);
+  const holdMsRef = useRef(holdMs);
+  const moveTolerancePxRef = useRef(moveTolerancePx);
+  const disabledRef = useRef(disabled);
 
   useEffect(() => {
     onLongPressRef.current = onLongPress;
   }, [onLongPress]);
+
+  useEffect(() => {
+    holdMsRef.current = holdMs;
+    moveTolerancePxRef.current = moveTolerancePx;
+    disabledRef.current = disabled;
+  }, [disabled, holdMs, moveTolerancePx]);
 
   useEffect(() => {
     const controller = createLongPressController({
@@ -61,9 +75,11 @@ export function useLongPress({
           button: point.button ?? 0,
         } as ReactPointerEvent<HTMLElement>);
       },
-      holdMs,
-      moveTolerancePx,
-      disabled,
+      // Read latest options at call time so we don't recreate the controller
+      // (and cancel timers) when holdMs / disabled identity changes.
+      getHoldMs: () => holdMsRef.current,
+      getMoveTolerancePx: () => moveTolerancePxRef.current,
+      isDisabled: () => disabledRef.current,
     });
     controllerRef.current = controller;
     return () => {
@@ -72,7 +88,7 @@ export function useLongPress({
         controllerRef.current = null;
       }
     };
-  }, [disabled, holdMs, moveTolerancePx]);
+  }, []);
 
   const onPointerDown = useCallback((event: ReactPointerEvent<HTMLElement>) => {
     firedRef.current = false;

@@ -496,7 +496,11 @@ function WeekScheduleInfiniteDayCarousel({
       <div
         key={entry.day.date}
         className={`absolute left-1/2 top-1/2 ${
-          selectable && !isAnimating ? "" : "pointer-events-none"
+          // Keep the selected/center day hittable during snap so long-press
+          // handlers stay mounted (toggling onSelect remounts button→div).
+          selectable && (!isAnimating || showDetail)
+            ? ""
+            : "pointer-events-none"
         } ${interacting ? "" : "transition-transform duration-300"}`}
         style={{
           ...itemStyle,
@@ -516,8 +520,9 @@ function WeekScheduleInfiniteDayCarousel({
           layout="carousel"
           draftScheduleAriaLabel={draftScheduleAriaLabel}
           onSelect={
-            selectable && !isAnimating
+            selectable
               ? () => {
+                  if (isAnimating) return;
                   setIndex(index);
                 }
               : undefined
@@ -533,7 +538,11 @@ function WeekScheduleInfiniteDayCarousel({
   };
 
   return (
-    <div className={`flex flex-col gap-2 ${bootstrapping ? "opacity-50" : ""}`}>
+    <div
+      className={`flex flex-col gap-2 ${bootstrapping ? "opacity-50" : ""}`}
+      data-testid="trains-week-carousel"
+      data-ready={bootstrapping ? "false" : "true"}
+    >
       <div
         className="relative touch-none select-none overflow-hidden rounded-xl border border-hq-border bg-hq-canvas/40"
         style={{ height: `${WEEK_CAROUSEL_VIEWPORT_HEIGHT_PX}px` }}
