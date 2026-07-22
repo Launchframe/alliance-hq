@@ -21,6 +21,7 @@
 #   --worktrees   Include worktree cleanup candidates / removals.
 #   --merged      Also delete locals already merged into main (even if remote
 #                 still exists). Off by default — prefer gone-remote cleanup.
+#   --compact     Summary + machine trailer only (for sessionStart hooks).
 #   --yes         Skip the interactive confirmation when --apply is set.
 #   -h, --help    Show this help.
 #
@@ -34,6 +35,7 @@ cd "${ROOT_DIR}"
 APPLY=0
 INCLUDE_WORKTREES=0
 INCLUDE_MERGED=0
+COMPACT=0
 ASSUME_YES=0
 MAIN_REF="main"
 PROTECTED_BRANCHES=("main" "master")
@@ -56,8 +58,16 @@ info() {
   printf '%s\n' "$*"
 }
 
+detail() {
+  if [[ "${COMPACT}" -eq 0 ]]; then
+    info "$@"
+  fi
+}
+
 section() {
-  printf '\n==> %s\n' "$*"
+  if [[ "${COMPACT}" -eq 0 ]]; then
+    printf '\n==> %s\n' "$*"
+  fi
 }
 
 is_protected() {
@@ -162,12 +172,17 @@ while [[ $# -gt 0 ]]; do
     --apply) APPLY=1 ;;
     --worktrees) INCLUDE_WORKTREES=1 ;;
     --merged) INCLUDE_MERGED=1 ;;
+    --compact) COMPACT=1 ;;
     --yes) ASSUME_YES=1 ;;
     -h|--help) usage ;;
     *) die "unknown option: $1 (try --help)" ;;
   esac
   shift
 done
+
+if [[ "${COMPACT}" -eq 1 && "${APPLY}" -eq 1 ]]; then
+  die "--compact is dry-run only (omit --apply)"
+fi
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   die "not inside a git repository"
@@ -193,16 +208,16 @@ info "git-prune (${MODE}) — base=${MAIN_REF}, current=${CURRENT:-detached}"
 
 section "Fetch + prune remote-tracking refs"
 git fetch --prune origin
-info "  pruned remote-tracking branches that no longer exist on origin"
+detail "  pruned remote-tracking branches that no longer exist on origin"
 
 section "Open PR heads (safety gate)"
 declare -a OPEN_PR_BRANCHES=()
 OPEN_PR_LOOKUP_FAILED=0
 load_open_pr_branches
 if [[ "${OPEN_PR_LOOKUP_FAILED}" -eq 1 ]]; then
-  info "  gh unavailable — will skip branch deletes and stale worktree removals"
+  detail "  gh unavailable — will skip branch deletes and stale worktree removals"
 else
-  info "  ${#OPEN_PR_BRANCHES[@]} open PR head(s)"
+  detail "  ${#OPEN_PR_BRANCHES[@]} open PR head(s)"
 fi
 
 load_branch_worktree_paths
@@ -250,16 +265,16 @@ while IFS= read -r line; do
 done < <(git branch -vv | grep ': gone]' || true) || true
 
 if [[ ${#GONE_BRANCHES[@]} -eq 0 ]]; then
-  info "  (none)"
+  detail "  (none)"
 else
   for b in "${GONE_BRANCHES[@]}"; do
-    info "  delete  ${b}"
+    detail "  delete  ${b}"
   done
 fi
 if [[ ${#GONE_SKIPPED[@]} -gt 0 ]]; then
-  info "  skipped:"
+  detail "  skipped:"
   for s in "${GONE_SKIPPED[@]}"; do
-    info "    - ${s}"
+    detail "    - ${s}"
   done
 fi
 
@@ -314,16 +329,16 @@ if [[ "${INCLUDE_MERGED}" -eq 1 ]]; then
   done < <(git branch --merged "${MERGE_BASE}" --format='%(refname:short)') || true
 
   if [[ ${#MERGED_BRANCHES[@]} -eq 0 ]]; then
-    info "  (none)"
+    detail "  (none)"
   else
     for b in "${MERGED_BRANCHES[@]}"; do
-      info "  delete  ${b}"
+      detail "  delete  ${b}"
     done
   fi
   if [[ ${#MERGED_SKIPPED[@]} -gt 0 ]]; then
-    info "  skipped:"
+    detail "  skipped:"
     for s in "${MERGED_SKIPPED[@]}"; do
-      info "    - ${s}"
+      detail "    - ${s}"
     done
   fi
 fi
@@ -408,16 +423,16 @@ if [[ "${INCLUDE_WORKTREES}" -eq 1 ]]; then
   done < <(git worktree list --porcelain; printf '\n')
 
   if [[ ${#WORKTREES_TO_REMOVE[@]} -eq 0 ]]; then
-    info "  (none)"
+    detail "  (none)"
   else
     for entry in "${WORKTREES_TO_REMOVE[@]}"; do
-      info "  remove  ${entry%%|*}  (branch ${entry##*|})"
+      detail "  remove  ${entry%%|*}  (branch ${entry##*|})"
     done
   fi
   if [[ ${#WORKTREE_SKIPPED[@]} -gt 0 ]]; then
-    info "  skipped:"
+    detail "  skipped:"
     for s in "${WORKTREE_SKIPPED[@]}"; do
-      info "    - ${s}"
+      detail "    - ${s}"
     done
   fi
 fi
@@ -426,11 +441,25 @@ fi
 
 total_branches=$((${#GONE_BRANCHES[@]} + ${#MERGED_BRANCHES[@]}))
 total_worktrees=${#WORKTREES_TO_REMOVE[@]}
+skipped_dirty=0
+for s in "${GONE_SKIPPED[@]+"${GONE_SKIPPED[@]}"}" "${MERGED_SKIPPED[@]+"${MERGED_SKIPPED[@]}"}" "${WORKTREE_SKIPPED[@]+"${WORKTREE_SKIPPED[@]}"}"; do
+  [[ -z "${s:-}" ]] && continue
+  case "${s}" in
+    *dirty*) skipped_dirty=$((skipped_dirty + 1)) ;;
+  esac
+done
 
 section "Summary"
 info "  branches to delete:  ${total_branches}"
 if [[ "${INCLUDE_WORKTREES}" -eq 1 ]]; then
   info "  worktrees to remove: ${total_worktrees}"
+fi
+if [[ "${COMPACT}" -eq 1 ]]; then
+  info "  skipped dirty:       ${skipped_dirty}"
+  info "GIT_PRUNE_BRANCHES=${total_branches}"
+  info "GIT_PRUNE_WORKTREES=${total_worktrees}"
+  info "GIT_PRUNE_SKIPPED_DIRTY=${skipped_dirty}"
+  exit 0
 fi
 
 if [[ "${APPLY}" -eq 0 ]]; then

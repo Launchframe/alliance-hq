@@ -6,6 +6,9 @@
 !.cursor/rules/**
 !.cursor/skills/
 !.cursor/skills/**
+!.cursor/hooks.json
+!.cursor/hooks/
+!.cursor/hooks/**
 .working_files/
 worktrees/
 .worktrees/
