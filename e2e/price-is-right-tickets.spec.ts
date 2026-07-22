@@ -106,8 +106,12 @@ test.describe("Price Is Freight raffle tickets", () => {
     // Friday is weekStart + 3.
     const friday = addCalendarDays(dashboard.weekStart, 3);
     if (today !== friday) {
+      // Carousel + grid both mount the same day testids; prefer the visible
+      // layout only (same Soft Nav pitfall as trains-week-strip e2e).
       await page
-        .locator(`button[aria-label*="${friday.slice(5)}"]`)
+        .locator("#hq-app-shell")
+        .getByTestId(`trains-week-day-${friday}`)
+        .filter({ visible: true })
         .first()
         .click();
     }
