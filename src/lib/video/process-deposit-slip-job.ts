@@ -5,11 +5,17 @@ import { nanoid } from "nanoid";
 
 import type { DedupedDepositSlip } from "@/lib/banks/deposit-slip-ocr/deposit-slip-dedupe.shared";
 import { depositSlipDraftToParsedRowFields } from "@/lib/banks/deposit-slip-ocr/draft-row.shared";
+import { parseBankInfoText } from "@/lib/banks/bank-context-ocr/parse-bank-info-text.shared";
+import { parseFavoritesText } from "@/lib/banks/bank-context-ocr/parse-favorites-text.shared";
+import {
+  coalesceDetectedBankContext,
+  mergeBankContext,
+  type DetectedBankContext,
+} from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
 import {
   mergeDepositSlipHistoryParses,
   type ParsedDepositSlipHistory,
 } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
-import type { DetectedBankContext } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
 import {
   createDepositSlipMemberResolverCache,
   resolveDepositSlipMemberLinks,
@@ -57,6 +63,8 @@ export type OcrDepositSlipVideoChunkResult = {
   framesOcrComplete: number;
   /** Per-frame histories written this chunk (for single-shot finalize). */
   frameHistories: ParsedDepositSlipHistory[];
+  /** Coalesced bank info + favorites OCR for this chunk (null when mock / none). */
+  detectedBankContext: DetectedBankContext | null;
 };
 
 export type ProcessDepositSlipVideoParseResult = OcrDepositSlipVideoChunkResult & {
@@ -94,6 +102,35 @@ function historyFromOcrRawJson(ocrRawJson: unknown): ParsedDepositSlipHistory | 
     minimumDeposit: history.minimumDeposit ?? null,
     slips: Array.isArray(history.slips) ? history.slips : [],
   };
+}
+
+function detectBankContextFromOcrLines(
+  rawLines: readonly string[],
+): DetectedBankContext | null {
+  return mergeBankContext(
+    parseBankInfoText(rawLines),
+    parseFavoritesText(rawLines),
+  );
+}
+
+function linesFromOcrRawJson(ocrRawJson: unknown): string[] {
+  if (!ocrRawJson || typeof ocrRawJson !== "object") return [];
+  const lines = (ocrRawJson as { lines?: unknown }).lines;
+  if (!Array.isArray(lines)) return [];
+  return lines.filter((line): line is string => typeof line === "string");
+}
+
+function coalesceDetectedBankContextFromFrameRows(
+  rows: Array<{ ocrRawJson: unknown }>,
+): DetectedBankContext | null {
+  let detected: DetectedBankContext | null = null;
+  for (const row of rows) {
+    detected = coalesceDetectedBankContext(
+      detected,
+      detectBankContextFromOcrLines(linesFromOcrRawJson(row.ocrRawJson)),
+    );
+  }
+  return detected;
 }
 
 /**
@@ -226,6 +263,7 @@ export async function ocrDepositSlipVideoFrameChunk(
     totalRawOcrRows,
     framesOcrComplete: frameTimings.length,
     frameHistories: frameTimings.map((timing) => timing.history),
+    detectedBankContext,
   };
 }
 
@@ -243,6 +281,11 @@ export async function finalizeDepositSlipVideoParse(input: {
    */
   historyOverride?: ParsedDepositSlipHistory;
   dedupeReport?: DedupeReport;
+  /**
+   * Coalesced bank context from the OCR chunk. When omitted, reconstruct from
+   * persisted frame `ocrRawJson.lines` (chunked finalize path).
+   */
+  detectedBankContext?: DetectedBankContext | null;
 }): Promise<{
   parseSessionId: string;
   hqAllianceId: string;
@@ -300,6 +343,8 @@ export async function finalizeDepositSlipVideoParse(input: {
 
   let history: ParsedDepositSlipHistory;
   let dedupeReport: DedupeReport;
+  let detectedBankContext: DetectedBankContext | null =
+    input.detectedBankContext ?? null;
 
   if (input.historyOverride) {
     history = input.historyOverride;
@@ -329,6 +374,10 @@ export async function finalizeDepositSlipVideoParse(input: {
     const merged = mergeDepositSlipHistoryParses(parts);
     history = merged.history;
     dedupeReport = merged.dedupeReport;
+    if (input.detectedBankContext === undefined) {
+      detectedBankContext =
+        coalesceDetectedBankContextFromFrameRows(frameRows);
+    }
   }
 
   const dedupedSlips = asDedupedSlips(history.slips);
@@ -466,8 +515,12 @@ export async function processDepositSlipVideoParse(
       ? {
           historyOverride: input.mockHistory,
           dedupeReport: emptyDedupeReport(input.mockHistory.slips.length),
+          detectedBankContext: null,
         }
-      : { histories: chunk.frameHistories }),
+      : {
+          histories: chunk.frameHistories,
+          detectedBankContext: chunk.detectedBankContext,
+        }),
   });
 
   return {

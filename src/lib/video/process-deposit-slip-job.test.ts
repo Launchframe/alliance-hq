@@ -212,7 +212,18 @@ describe("processDepositSlipVideoParse", () => {
         outputCount: 0,
       },
       frameTimings: [
-        { frameIndex: 0, ms: 1, entryCount: 0, error: null, rawLines: [] },
+        {
+          frameIndex: 0,
+          ms: 1,
+          entryCount: 0,
+          error: null,
+          rawLines: [],
+          history: {
+            depositPolicy: null,
+            minimumDeposit: null,
+            slips: [],
+          },
+        },
       ],
       concurrency: 1,
       detectedBankContext: {
