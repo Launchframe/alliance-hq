@@ -13,6 +13,7 @@ import { InvestorRiskHeatmap } from "@/components/banks/InvestorRiskHeatmap";
 import { RecommendedDropCard } from "@/components/banks/RecommendedDropCard";
 import { fromDatetimeLocalValue } from "@/components/banks/datetime-local";
 import { Dialog } from "@/components/ui/dialog";
+import { Link } from "@/i18n/navigation";
 import { formatCityListServerTime } from "@/lib/banks/city-list-server-time.shared";
 import type { BankPayload, DepositSlipPayload } from "@/lib/banks/api.shared";
 import { findNextAvailableMarkerPreset } from "@/lib/battle-plan/marker-conflict.shared";
@@ -313,8 +314,18 @@ export function BankManagementClient({ initial }: Props) {
   return (
     <div className="w-full min-w-0 max-w-full space-y-6">
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold text-hq-fg">{t("title")}</h1>
-        <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h1 className="text-2xl font-semibold text-hq-fg">{t("title")}</h1>
+            <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
+          </div>
+          <Link
+            href="/guides/bank-lifecycle"
+            className="text-xs text-hq-accent hover:underline"
+          >
+            {t("lifecycleGuideLink")}
+          </Link>
+        </div>
         {bankCityListServerTime || bankCapturesRemainingToday != null ? (
           <div className="mt-2 flex flex-wrap gap-2 text-xs text-hq-fg-muted">
             {bankCityListServerTime ? (

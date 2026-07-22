@@ -93,6 +93,9 @@ import {
 } from "@/lib/video/roster-video-review.shared";
 import type { AshedMember } from "@/lib/video/member-matcher";
 import { readPreferredDepositSlipBankId } from "@/lib/banks/deposit-slip-upload-context.shared";
+import type { DetectedBankContext } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
+import { matchDetectedBankContextToBanks } from "@/lib/banks/bank-context-ocr/detected-bank-context-match.shared";
+import { DepositSlipBankContextPanel } from "@/components/video/DepositSlipBankContextPanel";
 import type { SerializedBank } from "@/lib/banks/types.shared";
 import { VideoJobProgressBar } from "@/components/video/VideoJobProgressBar";
 import {
@@ -316,6 +319,18 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [rosterQuotaCanSubmit, setRosterQuotaCanSubmit] = useState(false);
   const [banks, setBanks] = useState<SerializedBank[]>([]);
   const [bankId, setBankId] = useState("");
+  /** OCR-detected bank coords/info from deposit-slip video frames (Create-bank UI). */
+  const [detectedBankContext, setDetectedBankContext] =
+    useState<DetectedBankContext | null>(null);
+  const bankContextMatch = useMemo(
+    () => matchDetectedBankContextToBanks(detectedBankContext, banks),
+    [detectedBankContext, banks],
+  );
+  /**
+   * Sticky bank choice from draft restore, preferred upload context, or officer
+   * picker — must not be overwritten when OCR context arrives later.
+   */
+  const bankIdLockedRef = useRef(false);
   const rosterMembersHydratedRef = useRef(false);
   const liveJobStatusRef = useRef<string | null>(null);
   const loadGenerationRef = useRef(0);
@@ -522,6 +537,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             allianceId?: string | null;
             dedupeReport?: unknown;
           };
+          detectedBankContext?: DetectedBankContext | null;
           dedupeReport?: unknown;
           rows?: Array<
             ParsedRow & {
@@ -589,6 +605,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         const loadedDedupe =
           data.dedupeReport ?? data.parseSession?.dedupeReport ?? null;
         setDedupeReport(isDedupeReport(loadedDedupe) ? loadedDedupe : null);
+        setDetectedBankContext(data.detectedBankContext ?? null);
         setScoreTargetMeta(data.scoreTargetMeta ?? null);
         const serverRows = (data.rows ?? []).map((row) => ({
           ...row,
@@ -625,6 +642,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               : restored.form.recordedDate,
           );
           if (restored.form.bankId) {
+            bankIdLockedRef.current = true;
             setBankId(restored.form.bankId);
           }
         } else {
@@ -925,21 +943,31 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       const data = (await res.json()) as { banks?: SerializedBank[] };
       const list = data.banks ?? [];
       setBanks(list);
-      if (bankId) return;
+      // Draft / officer / preferred upload context wins over OCR auto-align.
+      if (bankIdLockedRef.current) return;
       const preferredId = readPreferredDepositSlipBankId();
       const preferred =
         preferredId != null
           ? list.find((bank) => bank.id === preferredId)
           : undefined;
       if (preferred) {
+        bankIdLockedRef.current = true;
         setBankId(preferred.id);
         return;
       }
-      if (list[0]) {
+      // Video-detected server/X/Y coords take priority over "first bank in
+      // the list" — they point at the bank the deposit slip actually came from.
+      // Re-apply when context arrives after an earlier default selection.
+      const match = matchDetectedBankContextToBanks(detectedBankContext, list);
+      if (match.kind === "matched") {
+        setBankId(match.bankId);
+        return;
+      }
+      if (!bankId && list[0]) {
         setBankId(list[0].id);
       }
     })();
-  }, [scoreTargetMeta?.showBankSelector, bankId]);
+  }, [scoreTargetMeta?.showBankSelector, bankId, detectedBankContext]);
 
   useEffect(() => {
     const groupFetchStatuses = new Set(["review", "complete", "discarded"]);
@@ -2267,40 +2295,55 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       ) : null}
 
       {scoreTargetMeta?.showBankSelector ? (
-        <div className="rounded-xl border border-hq-border bg-hq-surface p-4">
-          <label className="block text-sm">
-            <span className="mb-1 block text-hq-fg-muted">
-              {t("bankLabel")}
-            </span>
-            <AppSelect
-              value={bankId}
-              onChange={(next) => {
+        <>
+          {detectedBankContext ? (
+            <DepositSlipBankContextPanel
+              context={detectedBankContext}
+              match={bankContextMatch}
+              onBankCreated={(bank) => {
+                setBanks((prev) => [...prev, bank]);
+                bankIdLockedRef.current = true;
                 markDraftDirty();
-                setBankId(next);
+                setBankId(bank.id);
               }}
-              placeholder={t("bankPlaceholder")}
-              aria-label={t("bankLabel")}
-              options={
-                banks.length === 0
-                  ? [
-                      {
-                        value: "",
-                        label: tBanks("emptyBanks"),
-                        disabled: true,
-                      },
-                    ]
-                  : banks.map((bank) => ({
-                      value: bank.id,
-                      label: tBanks("coords", {
-                        server: bank.gameServerNumber,
-                        x: bank.coordX,
-                        y: bank.coordY,
-                      }),
-                    }))
-              }
             />
-          </label>
-        </div>
+          ) : null}
+          <div className="rounded-xl border border-hq-border bg-hq-surface p-4">
+            <label className="block text-sm">
+              <span className="mb-1 block text-hq-fg-muted">
+                {t("bankLabel")}
+              </span>
+              <AppSelect
+                value={bankId}
+                onChange={(next) => {
+                  bankIdLockedRef.current = true;
+                  markDraftDirty();
+                  setBankId(next);
+                }}
+                placeholder={t("bankPlaceholder")}
+                aria-label={t("bankLabel")}
+                options={
+                  banks.length === 0
+                    ? [
+                        {
+                          value: "",
+                          label: tBanks("emptyBanks"),
+                          disabled: true,
+                        },
+                      ]
+                    : banks.map((bank) => ({
+                        value: bank.id,
+                        label: tBanks("coords", {
+                          server: bank.gameServerNumber,
+                          x: bank.coordX,
+                          y: bank.coordY,
+                        }),
+                      }))
+                }
+              />
+            </label>
+          </div>
+        </>
       ) : null}
 
       {scoreTargetMeta?.showRosterColumns ? (

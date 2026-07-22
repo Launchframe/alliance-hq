@@ -3927,6 +3927,25 @@
     "depositSlipSubmitSkippedDuplicates": "{count} ignorado(s) por já coincidir com o histórico.",
     "bankLabel": "Bank Stronghold",
     "bankPlaceholder": "Selecione o banco…",
+    "bankContextMatched": "Banco #{server} (X:{x}, Y:{y}) detectado no vídeo e selecionado.",
+    "bankContextNoMatchTitle": "Nenhum banco existente corresponde a este vídeo",
+    "bankContextNoMatchHint": "Detectamos coordenadas de banco no vídeo que não correspondem a nenhum banco da sua aliança. Crie-o agora para vincular este comprovante ao banco correto.",
+    "bankContextCreateSubmit": "Criar banco a partir do vídeo",
+    "bankContextCreating": "Criando…",
+    "bankContextCreateFailed": "Não foi possível criar o banco a partir do vídeo.",
+    "bankContextFieldServer": "Servidor",
+    "bankContextFieldX": "X",
+    "bankContextFieldY": "Y",
+    "bankContextFieldLevel": "Nível da Fortificação",
+    "bankContextFieldDropByAt": "Horário de queda",
+    "bankContextFieldDropByAtHint": "Obrigatório — quando você planeja derrubar este banco.",
+    "bankContextPartialTitle": "Informações parciais do banco detectadas no vídeo",
+    "bankContextPartialHint": "Não conseguimos ler as coordenadas do banco no vídeo, então nenhum banco pôde ser correspondido ou criado automaticamente. Selecione o banco correto abaixo.",
+    "bankContextFieldBankName": "Nome do banco",
+    "bankContextFieldAllianceTag": "Tag da aliança",
+    "bankContextFieldCurrentDeposit": "Depósito atual",
+    "bankContextFieldDepositCapacity": "Capacidade de depósito",
+    "bankContextFieldFirstCaptureDate": "Primeira captura",
     "scoreConflictHint": "Alguns jogadores foram lidos com pontuações conflitantes entre frames do vídeo. Escolha a pontuação correta e exclua a linha extra de cada jogador.",
     "scoreConflictRow": "Pontuações conflitantes — verifique e exclua a linha duplicada.",
     "duplicateMemberTitle": "Várias linhas correspondem ao mesmo membro",
@@ -5061,6 +5080,81 @@
           "caption": "Copie seu UID de jogador do perfil e confirme o nome do comandante no Discord."
         }
       }
+    },
+    "bankLifecycle": {
+      "hub": {
+        "title": "Guia do ciclo de vida do banco",
+        "subtitle": "Como um Banco passa de um alvo no Plano de Batalha até um abandono agendado: planejar, capturar, criar, gravar, revisar, operar e encerrar.",
+        "funnelTitle": "O funil: alvos → bancos → depósitos → abandono",
+        "funnelBody": "Bancos seguem sempre o mesmo ciclo de vida:\n\n1. Planejamento de batalha — marque o alvo no Plano de Batalha antes de capturá-lo.\n2. Criar o banco — registre-o na Gestão de Bancos, por importação de captura de tela da Lista da Cidade ou manualmente.\n3. Gravar um vídeo de depósito — capture Informações do Banco, Favoritos (opcional) e Histórico de Comprovantes de Depósito em um único envio.\n4. Revisar e confirmar — confirme o banco e as linhas de depósito, depois envie.\n5. Operação contínua — acompanhe depósitos ativos, esgotados, maturados e saqueados, estatísticas e risco enquanto o banco está em operação.\n6. Abandonar e retirar — pare novos depósitos, espere a maturação e agende o abandono no jogo.\n\nCada passo abaixo leva às instruções completas.",
+        "videoTitle": "Um único vídeo cobre o contexto do banco e o histórico de depósitos",
+        "videoBody": "Vídeos de comprovante de depósito não precisam mostrar só o Histórico de Comprovantes de Depósito. Abra Informações do Banco — e, opcionalmente, Favoritos — no início da mesma gravação, e a Sede lê automaticamente coordenadas, nível, tag da aliança dona e valor/capacidade de depósito dessas telas para ajudar a alinhar o envio ao banco correto. Favoritos tem prioridade para coordenadas exatas quando ambos estão presentes.",
+        "flowTitle": "Percorra o ciclo de vida",
+        "flowBody": "Toque em um passo para ver as instruções detalhadas.",
+        "startCallout": "<link>Comece pelo planejamento de batalha</link> se ainda não capturou o banco, ou vá direto ao passo que corresponde a onde você está hoje."
+      },
+      "steps": {
+        "battlePlanning": {
+          "title": "Planeje a captura no Plano de Batalha",
+          "summary": "Marque o Banco (ou cidade) que você está prestes a tomar, com as coordenadas do alvo, antes de abrir a Gestão de Bancos.",
+          "instructions": "Abra o Plano de Batalha e agende uma captura para o Banco (ou cidade) que você está prestes a tomar.\n\n• Defina o tipo de território e, se já tiver escoteirado o local, as coordenadas do alvo — o Plano de Batalha pode criar automaticamente um Banco correspondente na Gestão de Bancos quando você confirmar a captura depois.\n• Adicione um marcador para que os membros saibam qual é o alvo, e anuncie para a aliança direto pelo Plano de Batalha.\n• Capturar sem coordenadas escoteiradas também funciona — adicione o Banco manualmente depois de tomá-lo (veja o próximo passo).\n\nJá controla o Banco? O planejamento de batalha é opcional — vá direto para criar o banco."
+        },
+        "createBanks": {
+          "title": "Crie o banco na Gestão de Bancos",
+          "summary": "Depois de tomar o Banco, registre-o como um Banco — importe de uma captura de tela da Lista da Cidade ou adicione manualmente.",
+          "instructions": "Abra a Gestão de Bancos e adicione o Banco. Duas formas de fazer isso:\n\n1. Importar da Lista da Cidade (mais rápido para vários bancos) — clique em Importar bancos da captura de tela e envie uma ou mais capturas da aba Banco da Lista da Cidade no jogo. A Sede lê servidor, coordenadas, nível e valor/quantidade atual de depósito de cada linha, e mescla duplicatas pelas coordenadas. Capture telas com sobreposição se você tiver mais bancos do que cabem em uma tela.\n2. Entrada manual — clique em Adicionar banco e informe o servidor, coordenadas X/Y e o nível do Banco você mesmo. Use isso para uma única captura nova, ou quando uma importação deixou algum de fora.\n\nDe qualquer forma, o banco aparece na sua lista de Bancos, onde você pode definir a política de depósito (membros da aliança, mesma zona de guerra ou público).",
+          "tip": "Sem captura de tela à mão? Capture as telas de Informações do Banco e Favoritos no vídeo de depósito do próximo passo — a Sede pode usá-las para ajudar a alinhar as coordenadas ao banco certo."
+        },
+        "recordDepositVideo": {
+          "title": "Grave e envie o vídeo de depósito",
+          "summary": "Um único vídeo: abra Informações do Banco, passe por Favoritos (opcional) para coordenadas exatas, depois role o Histórico de Comprovantes de Depósito — a Sede lê os três.",
+          "instructions": "No Banco, dentro do jogo, grave um único vídeo passando por:\n\n1. Informações do Banco — abra o painel de informações do banco para que a Sede leia seu nível, tag da aliança dona, valor atual de depósito e capacidade de depósito.\n2. Favoritos (opcional, mas recomendado) — se o banco estiver marcado com estrela nos seus Favoritos, abra essa tela também. Favoritos mostra coordenadas X/Y exatas, que a Sede prioriza sobre outras fontes ao alinhar o banco.\n3. Histórico de Comprovantes de Depósito — role até o fim do histórico de comprovantes para que todo depósito bloqueado, maturado e saqueado apareça na tela.\n\nEnvie o vídeo em Ferramentas → Envio de vídeo, ou toque no ícone de vídeo ao lado de um banco na Gestão de Bancos para ir direto ao envio com esse banco já selecionado.\n\nO OCR da Sede lê os três tipos de tela no mesmo vídeo: Informações do Banco e Favoritos alimentam o contexto do banco (coordenadas, nível, tag da aliança, valor de depósito), enquanto o Histórico de Comprovantes de Depósito se transforma nas linhas de depósito que você vai revisar a seguir.",
+          "tip": "Gravar Informações do Banco e Favoritos antes de rolar o histórico de depósitos dá à Sede a melhor chance de alinhar as coordenadas antes da revisão — mas a ordem não precisa ser exata."
+        },
+        "reviewAndCommit": {
+          "title": "Revise e confirme o envio",
+          "summary": "Confirme a qual banco os comprovantes pertencem, corrija leituras erradas do OCR e envie.",
+          "instructions": "Depois do processamento, abra a página de revisão do seu envio:\n\n1. Confirme se o seletor de Banco corresponde ao Banco que você gravou — a Sede pré-seleciona o banco usado mais recentemente, então confira, especialmente se você enviou vídeos de mais de um banco recentemente.\n2. Percorra cada linha de comprovante lida: prazo, valor, status (bloqueado/maturado/saqueado) e nome do comandante. Corrija o que o OCR leu errado — você pode pré-visualizar o quadro do vídeo de origem de qualquer linha.\n3. Envie quando tudo estiver correto. Os comprovantes confirmados se juntam à lista de depósitos daquele banco, e duplicatas de reenvios são removidas automaticamente.\n\nSe as coordenadas de um banco parecerem erradas, corrija-as na Gestão de Bancos antes de enviar, para que os próximos envios continuem se alinhando corretamente."
+        },
+        "ongoingOps": {
+          "title": "Acompanhe os depósitos no dia a dia",
+          "summary": "Use os filtros Ativos/Esgotados/Maturados/Saqueados, as estatísticas da aliança e o gráfico de queda para gerenciar um banco em operação.",
+          "instructions": "Depois que um banco tem comprovantes de depósito, a Gestão de Bancos oferece as ferramentas para operá-lo no dia a dia:\n\n• Filtros — alterne entre Ativos (bloqueados, ainda rendendo), Esgotados (prazo passou mas ainda não maturou no jogo), Maturados e Saqueados para ver exatamente a situação de cada depósito.\n• Estatísticas — Total depositado, Recuperado, Perdido em saque e Juros recebidos (depois de importar o histórico de comprovantes) resumem o desempenho do banco rapidamente.\n• Mapa de risco dos investidores — mostra quais das próximas 72 horas têm menos depósitos bloqueados em risco, para você saber quando é mais seguro abandonar.\n• Projeção de queda dos depósitos — projeta o valor bloqueado e a saída por maturidade ao longo do tempo; salve um instantâneo para comparar com o que realmente aconteceu.\n• Próximo abandono recomendado — a Sede destaca o banco de menor nível com menos valor em risco como o melhor candidato para abandonar.\n\nConfira regularmente — novos depósitos, depósitos maturando e a mudança de risco alteram a recomendação com o tempo."
+        },
+        "abandonDrop": {
+          "title": "Abandone o banco e agende a retirada",
+          "summary": "Pare de aceitar novos depósitos, espere os prazos maturarem, defina o prazo de abandono e agende a retirada no jogo.",
+          "instructions": "Quando um banco está perto do fim da sua vida útil:\n\n1. Pare novos depósitos — avise os investidores para parar de depositar (ou aperte a política de depósito) assim que decidir abandoná-lo, para que ninguém trave um prazo novo pouco antes do abandono.\n2. Espere a maturação — use o mapa de risco dos investidores e a projeção de queda para encontrar um momento em que o máximo possível de depósitos já tenha maturado, minimizando o valor em risco.\n3. Defina o prazo de abandono — edite o banco e ajuste Precisa abandonar até para a data/hora em que você precisa abandoná-lo no jogo (por exemplo, quando a proteção do Banco expira). Essa data controla a seção Prazo de abandono vencido.\n4. Agende a retirada — no card Próximo abandono recomendado, clique em Agendar abandono para adicionar um evento de Abandono de banco ao Plano de Batalha no horário recomendado (ou personalizado), para que os membros vejam o anúncio e limitem novos prazos de depósito.\n\nQuando o horário de Precisa abandonar até de um banco passa, ele entra na seção Prazo de abandono vencido dos Bancos — ainda registrado na Sede, mas sinalizado para você confirmar se ainda está sob controle no jogo ou já foi abandonado.",
+          "tip": "Definir Precisa abandonar até assim que você captura um banco, mesmo que seja uma estimativa, evita que ele caia de surpresa em Prazo de abandono vencido depois, e mantém a recomendação de abandono precisa."
+        }
+      },
+      "flow": {
+        "instructionsHeading": "Instruções",
+        "backToFlow": "← Voltar para a visão geral",
+        "stepLabel": "Passo {current} de {total}"
+      },
+      "screenshots": {
+        "bankInfoMenu": {
+          "alt": "Painel de Informações do Banco no jogo mostrando nível, aliança dona e valor/capacidade de depósito",
+          "caption": "Abra Informações do Banco primeiro no seu vídeo de depósito para que a Sede leia o nível, a tag da aliança e o valor/capacidade de depósito do banco."
+        },
+        "addToFavorites": {
+          "alt": "Lista de Favoritos mostrando um Banco marcado com estrela e coordenadas X/Y exatas",
+          "caption": "Favoritos (opcional) dá à Sede coordenadas exatas — Favoritos tem prioridade sobre outras fontes ao alinhar o banco."
+        },
+        "depositSlipHistory": {
+          "alt": "Tela de Histórico de Comprovantes de Depósito rolada mostrando vários depósitos bloqueados e maturados",
+          "caption": "Role até o fim do Histórico de Comprovantes de Depósito para que todo comprovante seja capturado na tela."
+        },
+        "cityListImport": {
+          "alt": "Tela da Lista da Cidade mostrando a aba Banco com vários bancos capturados",
+          "caption": "Importe bancos de uma ou mais capturas da aba Banco da Lista da Cidade — a Sede mescla duplicatas pelas coordenadas."
+        },
+        "abandonDrop": {
+          "alt": "Gestão de Bancos mostrando um banco movido para a seção Prazo de abandono vencido",
+          "caption": "Quando Precisa abandonar até passa, o banco entra em Prazo de abandono vencido até você confirmar que foi abandonado."
+        }
+      }
     }
   },
   "onboardingReviews": {
@@ -5407,7 +5501,10 @@
     "cityListServerTime": "Horário do servidor na captura: {time}",
     "editBank": "Editar banco",
     "deleteBank": "Excluir banco",
+    "lifecycleGuideLink": "Guia do ciclo de vida do banco",
     "banksTitle": "Bancos",
+    "pastDropDeadlineTitle": "Prazo de abandono vencido",
+    "pastDropDeadlineHint": "Ainda registrados no HQ, mas após o horário planejado de abandono — confirme se esses bancos ainda estão sob controle no jogo.",
     "depositsTitle": "Comprovantes de depósito",
     "addDeposit": "Adicionar comprovante",
     "editDeposit": "Editar comprovante",
