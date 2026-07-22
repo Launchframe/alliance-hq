@@ -43,19 +43,31 @@ function parseFirstCaptureDate(raw: string): string | null {
   return `${y}-${mo!.padStart(2, "0")}-${d!.padStart(2, "0")}`;
 }
 
-function hasUsefulMatch(result: ParsedBankInfoFrame): boolean {
+/**
+ * Title/possession lines alone are not enough — Deposit Slip History identity
+ * rows (`#SERVER[TAG]Commander`) share that shape and must not become a false
+ * bank-context parse. Require at least one Bank Information–specific signal.
+ */
+function hasBankInfoSignal(input: {
+  hadCityOwner: boolean;
+  level: number | null;
+  currentDepositValue: number | null;
+  depositCapacity: number | null;
+  firstCaptureDate: string | null;
+}): boolean {
   return (
-    result.gameServerNumber != null ||
-    result.owningAllianceTag != null ||
-    result.level != null ||
-    result.currentDepositValue != null ||
-    result.depositCapacity != null
+    input.hadCityOwner ||
+    input.level != null ||
+    input.currentDepositValue != null ||
+    input.depositCapacity != null ||
+    input.firstCaptureDate != null
   );
 }
 
 /**
  * Parse OCR lines from the Bank Information menu into structured fields.
- * Returns null when no server, owner tag, level, or deposit value matched.
+ * Returns null when no bank-info-specific signal matched (level, deposit
+ * ratio, city owner, or first capture date).
  */
 export function parseBankInfoText(
   lines: readonly string[],
@@ -64,6 +76,7 @@ export function parseBankInfoText(
   let titleTag: string | null = null;
   let bankName: string | null = null;
   let ownerTag: string | null = null;
+  let hadCityOwner = false;
   let level: number | null = null;
   let currentDepositValue: number | null = null;
   let depositCapacity: number | null = null;
@@ -83,6 +96,7 @@ export function parseBankInfoText(
       const server = Number(ownerMatch[1]);
       if (Number.isFinite(server)) gameServerNumber ??= server;
       ownerTag = ownerMatch[2]!.trim() || null;
+      hadCityOwner = true;
     }
 
     const titleMatch = line.match(TITLE_POSSESSION_RE);
@@ -107,7 +121,19 @@ export function parseBankInfoText(
     }
   }
 
-  const result: ParsedBankInfoFrame = {
+  if (
+    !hasBankInfoSignal({
+      hadCityOwner,
+      level,
+      currentDepositValue,
+      depositCapacity,
+      firstCaptureDate,
+    })
+  ) {
+    return null;
+  }
+
+  return {
     gameServerNumber,
     owningAllianceTag: ownerTag ?? titleTag,
     bankName,
@@ -116,6 +142,4 @@ export function parseBankInfoText(
     depositCapacity,
     firstCaptureDate,
   };
-
-  return hasUsefulMatch(result) ? result : null;
 }

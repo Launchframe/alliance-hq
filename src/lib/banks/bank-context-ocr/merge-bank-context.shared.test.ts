@@ -123,6 +123,18 @@ describe("coalesceDetectedBankContext", () => {
     const merged = coalesceDetectedBankContext(bankOnly, favOnly);
     expect(merged?.sources).toEqual({ bankInfo: true, favorites: true });
   });
+
+  it("does not treat deposit-slip identity lines as bank-info context", () => {
+    const fromDepositSlip = mergeBankContext(
+      parseBankInfoText(["#1203 [BigD]SomeCommander"]),
+      null,
+    );
+    const withCoords = mergeBankContext(null, parseFavoritesText(FAVORITES_LINES));
+    expect(fromDepositSlip).toBeNull();
+    expect(coalesceDetectedBankContext(fromDepositSlip, withCoords)?.bankName).toBe(
+      "Trailblazer Bank",
+    );
+  });
 });
 
 describe("isDetectedBankContext", () => {

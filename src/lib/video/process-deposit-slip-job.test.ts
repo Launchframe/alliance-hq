@@ -382,4 +382,88 @@ describe("finalizeDepositSlipVideoParse", () => {
     expect(mockInsertValues).not.toHaveBeenCalled();
     expect(mockResolveHqAllianceIdFromSession).not.toHaveBeenCalled();
   });
+
+  it("reconstructs detectedBankContext from persisted frame OCR lines", async () => {
+    mockCreateDepositSlipMemberResolverCache.mockReturnValue({});
+    mockResolveDepositSlipMemberLinks.mockResolvedValue({
+      depositAllianceId: null,
+      allianceMemberId: null,
+      commanderId: null,
+      ashedMemberId: null,
+      matchMethod: "none",
+      matchConfidence: null,
+      candidateAshedMemberId: null,
+      candidateMemberName: null,
+      candidateMatchMethod: null,
+      candidateConfidence: null,
+      tagMatchMethod: null,
+      tagMatchConfidence: null,
+    });
+    // No existing parse session, then frame rows via orderBy.
+    mockSelectLimit
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          frameIndex: 0,
+          ocrRawJson: {
+            lines: [
+              "Bank Information",
+              "Lv.1",
+              "#1203 [BigD]Trailblazer Bank",
+              "City Owner: #1203 [BigD]Big Delinquents",
+              "29,387/600,000",
+            ],
+            history: {
+              depositPolicy: null,
+              minimumDeposit: null,
+              slips: [],
+            },
+          },
+        },
+        {
+          frameIndex: 1,
+          ocrRawJson: {
+            lines: [
+              "ADD TO FAVORITES",
+              "Warzone #1203 X:199 Y:599",
+              "Lv.1 [BigD]Trailblazer Bank",
+            ],
+            history: {
+              depositPolicy: null,
+              minimumDeposit: null,
+              slips: [],
+            },
+          },
+        },
+      ]);
+
+    await finalizeDepositSlipVideoParse({
+      jobId: "job-1",
+      sessionId: "session-1",
+      scoreTargetId: "bank-deposit-slip-history",
+      timer,
+      now: new Date("2026-07-12T00:00:00.000Z"),
+    });
+
+    const parseSessionInsert = mockInsertValues.mock.calls.find(
+      ([table]) =>
+        typeof table === "object" &&
+        table != null &&
+        "id" in table &&
+        table.id === "parseSessions.id",
+    );
+    expect(parseSessionInsert?.[1]).toEqual(
+      expect.objectContaining({
+        rawExtractJson: expect.objectContaining({
+          detectedBankContext: expect.objectContaining({
+            gameServerNumber: 1203,
+            coordX: 199,
+            coordY: 599,
+            bankName: "Trailblazer Bank",
+            sources: { bankInfo: true, favorites: true },
+          }),
+        }),
+      }),
+    );
+  });
 });

@@ -326,6 +326,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     () => matchDetectedBankContextToBanks(detectedBankContext, banks),
     [detectedBankContext, banks],
   );
+  /**
+   * Sticky bank choice from draft restore, preferred upload context, or officer
+   * picker — must not be overwritten when OCR context arrives later.
+   */
+  const bankIdLockedRef = useRef(false);
   const rosterMembersHydratedRef = useRef(false);
   const liveJobStatusRef = useRef<string | null>(null);
   const loadGenerationRef = useRef(0);
@@ -637,6 +642,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               : restored.form.recordedDate,
           );
           if (restored.form.bankId) {
+            bankIdLockedRef.current = true;
             setBankId(restored.form.bankId);
           }
         } else {
@@ -937,24 +943,27 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       const data = (await res.json()) as { banks?: SerializedBank[] };
       const list = data.banks ?? [];
       setBanks(list);
-      if (bankId) return;
+      // Draft / officer / preferred upload context wins over OCR auto-align.
+      if (bankIdLockedRef.current) return;
       const preferredId = readPreferredDepositSlipBankId();
       const preferred =
         preferredId != null
           ? list.find((bank) => bank.id === preferredId)
           : undefined;
       if (preferred) {
+        bankIdLockedRef.current = true;
         setBankId(preferred.id);
         return;
       }
       // Video-detected server/X/Y coords take priority over "first bank in
       // the list" — they point at the bank the deposit slip actually came from.
+      // Re-apply when context arrives after an earlier default selection.
       const match = matchDetectedBankContextToBanks(detectedBankContext, list);
       if (match.kind === "matched") {
         setBankId(match.bankId);
         return;
       }
-      if (list[0]) {
+      if (!bankId && list[0]) {
         setBankId(list[0].id);
       }
     })();
@@ -2287,15 +2296,18 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
       {scoreTargetMeta?.showBankSelector ? (
         <>
-          <DepositSlipBankContextPanel
-            context={detectedBankContext}
-            match={bankContextMatch}
-            onBankCreated={(bank) => {
-              setBanks((prev) => [...prev, bank]);
-              markDraftDirty();
-              setBankId(bank.id);
-            }}
-          />
+          {detectedBankContext ? (
+            <DepositSlipBankContextPanel
+              context={detectedBankContext}
+              match={bankContextMatch}
+              onBankCreated={(bank) => {
+                setBanks((prev) => [...prev, bank]);
+                bankIdLockedRef.current = true;
+                markDraftDirty();
+                setBankId(bank.id);
+              }}
+            />
+          ) : null}
           <div className="rounded-xl border border-hq-border bg-hq-surface p-4">
             <label className="block text-sm">
               <span className="mb-1 block text-hq-fg-muted">
@@ -2304,6 +2316,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               <AppSelect
                 value={bankId}
                 onChange={(next) => {
+                  bankIdLockedRef.current = true;
                   markDraftDirty();
                   setBankId(next);
                 }}

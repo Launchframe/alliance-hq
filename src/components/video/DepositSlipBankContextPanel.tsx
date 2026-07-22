@@ -15,7 +15,7 @@ import type { DetectedBankContext } from "@/lib/banks/bank-context-ocr/merge-ban
 import type { DetectedBankContextMatch } from "@/lib/banks/bank-context-ocr/detected-bank-context-match.shared";
 
 type Props = {
-  context: DetectedBankContext | null;
+  context: DetectedBankContext;
   match: DetectedBankContextMatch;
   onBankCreated: (bank: SerializedBank) => void;
 };
@@ -26,23 +26,22 @@ export function DepositSlipBankContextPanel({
   onBankCreated,
 }: Props) {
   const t = useTranslations("videoReview");
+  // Parent only mounts when context is non-null so these initializers see OCR.
   const [server, setServer] = useState(() =>
-    context?.gameServerNumber != null ? String(context.gameServerNumber) : "",
+    context.gameServerNumber != null ? String(context.gameServerNumber) : "",
   );
   const [coordX, setCoordX] = useState(() =>
-    context?.coordX != null ? String(context.coordX) : "",
+    context.coordX != null ? String(context.coordX) : "",
   );
   const [coordY, setCoordY] = useState(() =>
-    context?.coordY != null ? String(context.coordY) : "",
+    context.coordY != null ? String(context.coordY) : "",
   );
   const [level, setLevel] = useState(() =>
-    context?.level != null ? String(context.level) : "",
+    context.level != null ? String(context.level) : "",
   );
   const [dropByAt, setDropByAt] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-
-  if (!context) return null;
 
   if (match.kind === "matched") {
     return (
@@ -81,6 +80,9 @@ export function DepositSlipBankContextPanel({
           coordY: Number(coordY),
           level: Number(level),
           depositPolicy: "alliance",
+          // Deposit-video create implies an alliance-held bank (same as City List).
+          priorCaptureCount: 1,
+          currentDepositValue: context.currentDepositValue ?? undefined,
           dropByAt: fromDatetimeLocalValue(dropByAt),
         };
         const res = await fetch("/api/banks", {

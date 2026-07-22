@@ -62,6 +62,13 @@ describe("parseBankInfoText", () => {
     expect(parseBankInfoText(["Bank Information", "Back"])).toBeNull();
   });
 
+  it("ignores deposit-slip identity lines that share the title shape", () => {
+    expect(
+      parseBankInfoText(["#1203 [BigD]SomeCommander", "CrystalGold x 5000"]),
+    ).toBeNull();
+    expect(parseBankInfoText(["#1203[BigD]Trailblazer Bank"])).toBeNull();
+  });
+
   it("returns partial parse when only deposit value is present", () => {
     expect(parseBankInfoText(["29,387/600,000"])).toEqual({
       gameServerNumber: null,

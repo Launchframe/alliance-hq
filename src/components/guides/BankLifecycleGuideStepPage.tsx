@@ -54,7 +54,7 @@ export function BankLifecycleGuideStepPage({ stepSlug }: Props) {
 
       <section className="space-y-3">
         <h2 className="text-base font-medium">{t("flow.instructionsHeading")}</h2>
-        <p className="whitespace-pre-line text-sm leading-relaxed text-[#c9d1d9]">
+        <p className="whitespace-pre-line text-sm leading-relaxed text-hq-fg-muted">
           {t(`steps.${messageKey}.instructions`)}
         </p>
         {tip ? (
