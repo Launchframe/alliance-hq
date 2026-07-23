@@ -1222,6 +1222,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     dockHeightPx: previewDockHeightPx,
   });
 
+  useEffect(() => {
+    if (scoreTableFollowMeEnabled || depositSlipPreviewMode !== "frames") return;
+    const frame = requestAnimationFrame(() => {
+      setDepositSlipPreviewMode("video");
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [scoreTableFollowMeEnabled, depositSlipPreviewMode]);
+
   // Open the source preview when landing on a review job that has video (once per
   // job visit). Users can still close it during the session; revisiting or
   // refreshing the page opens it again.
@@ -2041,9 +2049,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 </button>
                 <button
                   type="button"
+                  disabled={!scoreTableFollowMeEnabled}
                   onClick={() => setDepositSlipPreviewMode("frames")}
                   aria-pressed={depositSlipPreviewMode === "frames"}
-                  className={`rounded-md px-2.5 py-1 text-sm ${
+                  className={`rounded-md px-2.5 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50 ${
                     depositSlipPreviewMode === "frames"
                       ? "bg-hq-accent/20 text-hq-accent"
                       : "text-hq-fg hover:bg-hq-surface-muted"

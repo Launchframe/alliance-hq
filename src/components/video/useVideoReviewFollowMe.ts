@@ -121,7 +121,9 @@ export function useVideoReviewFollowMe<TRow extends Row>({
 
       if (closestRowId !== activeFollowMeRowIdRef.current) {
         activeFollowMeRowIdRef.current = closestRowId;
-        setActiveFollowMeRowId(closestRowId);
+        requestAnimationFrame(() => {
+          setActiveFollowMeRowId(activeFollowMeRowIdRef.current);
+        });
       }
 
       const seconds = interpolateSecondsAtCenter(samples, centerY);

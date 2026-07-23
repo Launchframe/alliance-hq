@@ -42,7 +42,7 @@ describe("useDepositSlipReviewValidation flagged clusters", () => {
     outputCount: 2,
   };
 
-  it("blocks submit while two active flagged rows share a cluster", () => {
+  it("allows submit while two active flagged rows share a cluster", () => {
     const result = useDepositSlipReviewValidation(
       [
         {
