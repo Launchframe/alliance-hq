@@ -289,7 +289,7 @@ export function ConductorWheelModal({
                     <span
                       className={`mt-0.5 text-sm font-semibold ${vsScoreColor(winnerScore!)}`}
                     >
-                      {formatVsScore(winnerScore!)} VR
+                      {formatVsScore(winnerScore!)} VS
                     </span>
                   ) : null}
                 </div>

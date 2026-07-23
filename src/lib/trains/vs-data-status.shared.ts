@@ -24,14 +24,15 @@ export type ClassifyVsDataNeedInput = {
 
 /**
  * Decide whether today's conductor flow needs score data and which source.
- * VS wheel mechanisms use HQ season VR; Price Is Freight uses prior-day VS.
+ * `vs_high_score` / `vs_top_10` and Price Is Freight use prior-day Ashed VS.
+ * Kind `vr` is reserved for future Top VR wheels (season HQ VR).
  */
 export function classifyVsDataNeed(
   input: ClassifyVsDataNeedInput,
 ): { kind: TrainsVsDataStatusKind; required: boolean } {
   const mech = input.conductorMechanism;
   if (mech === "vs_high_score" || mech === "vs_top_10") {
-    return { kind: "vr", required: true };
+    return { kind: "prior_day_vs", required: true };
   }
   if (isPriceIsRightPaintTemplate(input.paintTemplate)) {
     return { kind: "prior_day_vs", required: true };

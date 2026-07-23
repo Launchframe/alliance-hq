@@ -35,7 +35,7 @@ Each step blocks until its prerequisite is satisfied. Canonical step logic lives
 | `vip` | VIP assigned when mechanism requires one; skipped when `vipNeeded` is false |
 | `lock` | Conductor record locked for the day |
 
-The `prerequisites` step links officers to **`/tools/video-upload`** when VS (`vs_high_score`, `vs_top_10`) or Price Is Freight prior-day VS data is missing. There is no score bypass — officers must upload or pick manually in advanced mode.
+The `prerequisites` step links officers to **`/tools/video-upload`** when prior-day VS is missing for `vs_high_score` / `vs_top_10` (`vsDataStatus.kind === "prior_day_vs"`) or Price Is Freight. Do not gate these on season VR reporter count. There is no score bypass — officers must upload or pick manually in advanced mode.
 
 ### Primary action on Conductor step
 

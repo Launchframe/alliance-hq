@@ -6,8 +6,9 @@ import type { RollCandidate } from "@/lib/trains/types";
 import { listAllianceSeasonVrForLeaderboard } from "@/lib/vr/repository";
 
 /**
- * Season VR standings from HQ (Discord/web reports). Used for all train wheels,
- * pools, and economy filters — never live Ashed VSScore.
+ * Season VR standings from HQ (Discord/web reports). Used for event Top X
+ * VIP seeding and other VR-based train surfaces — not `vs_high_score` /
+ * `vs_top_10` (those use prior-day Ashed VSScore).
  */
 export async function fetchNativeVrTopScorers(
   allianceId: string,

@@ -6,12 +6,12 @@ import {
 } from "@/lib/trains/vs-data-status.shared";
 
 describe("classifyVsDataNeed", () => {
-  it("requires VR for vs_high_score and vs_top_10", () => {
+  it("requires prior-day VS for vs_high_score and vs_top_10", () => {
     expect(
       classifyVsDataNeed({ conductorMechanism: "vs_high_score" }),
-    ).toEqual({ kind: "vr", required: true });
+    ).toEqual({ kind: "prior_day_vs", required: true });
     expect(classifyVsDataNeed({ conductorMechanism: "vs_top_10" })).toEqual({
-      kind: "vr",
+      kind: "prior_day_vs",
       required: true,
     });
   });
@@ -25,13 +25,13 @@ describe("classifyVsDataNeed", () => {
     ).toEqual({ kind: "prior_day_vs", required: true });
   });
 
-  it("prefers VR mechanism over paint template when both apply", () => {
+  it("keeps prior-day VS when vs_* mechanism and PIF paint both apply", () => {
     expect(
       classifyVsDataNeed({
         conductorMechanism: "vs_high_score",
         paintTemplate: "price_is_right",
       }),
-    ).toEqual({ kind: "vr", required: true });
+    ).toEqual({ kind: "prior_day_vs", required: true });
   });
 
   it("returns none when scores are not needed", () => {
