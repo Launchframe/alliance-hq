@@ -523,3 +523,41 @@ describe("parseDepositSlipHistoryText — vertical line-bbox association", () =>
     expect(byName.Lower?.amount).toBe(2222);
   });
 });
+
+describe("parseDepositSlipHistoryText — fuzzy outcome OCR", () => {
+  it("parses garbled early termination refund as looted", () => {
+    const parsed = parseDepositSlipHistoryText([
+      "2026-7-9 12:49:35",
+      "#1211[Roar]Hercules28",
+      "Early terminatlon refund: CrystalGold x 5970.",
+    ]);
+    expect(parsed.slips).toHaveLength(1);
+    expect(parsed.slips[0]).toMatchObject({
+      status: "looted",
+      outcomeKind: "early_termination_refund",
+      outcomeAmount: 5970,
+      identity: { commanderName: "Hercules28" },
+    });
+  });
+
+  it("emits looted slip with outcome only (no deposit line)", () => {
+    const parsed = parseDepositSlipHistoryText([
+      "2026-7-9 12:49:35",
+      "#1211[Roar]Hercules28",
+      "early termination refund crystalgold x 5970",
+    ]);
+    expect(parsed.slips[0]?.status).toBe("looted");
+    expect(parsed.slips[0]?.outcomeAmount).toBe(5970);
+    expect(parsed.slips[0]?.amount).toBeNull();
+  });
+
+  it("does not apply DEPOSIT parsing when refund tokens are present", () => {
+    const parsed = parseDepositSlipHistoryText([
+      "2026-7-9 12:49:35",
+      "#1211[Roar]snapz a saurus",
+      "Deposit: CrystalGold x 6000, early termination refund x 5970",
+    ]);
+    expect(parsed.slips[0]?.status).toBe("looted");
+    expect(parsed.slips[0]?.amount).toBeNull();
+  });
+});

@@ -21,6 +21,12 @@ import {
   type DedupedDepositSlip,
 } from "@/lib/banks/deposit-slip-ocr/deposit-slip-dedupe.shared";
 import {
+  isDepositSlipOutcomeProbe,
+  isDepositSlipRowContentProbe,
+  parseDepositSlipDepositLine,
+  parseDepositSlipOutcomeLine,
+} from "@/lib/banks/deposit-slip-ocr/deposit-slip-outcome-parse.shared";
+import {
   emptyDedupeReport,
   type DedupeReport,
 } from "@/lib/video/dedupe/merge-report.shared";
@@ -163,15 +169,6 @@ const TIMESTAMP_RE =
 
 const IDENTITY_RE = /#(\d{3,5})\s*\[\s*([^\]]+?)\s*\]\s*(.+?)\s*$/;
 
-const DEPOSIT_RE =
-  /Deposit:\s*CrystalGold\s*x\s*([\d,]+)\s*,\s*Term:\s*(\d+)\s*day/i;
-
-const TOTAL_RETURN_RE =
-  /Total\s+return:\s*CrystalGold\s*x\s*([\d,]+)/i;
-
-const EARLY_REFUND_RE =
-  /Early\s+termination\s+refund:\s*CrystalGold\s*x\s*([\d,]+)/i;
-
 const MIN_DEPOSIT_RE =
   /Minimum\s+Deposit\s+for\s+This\s+Bank:\s*([\d,]+)/i;
 
@@ -233,11 +230,25 @@ const TIMESTAMP_SEARCH_FORWARD_LINES = 2;
  * neighboring row's timestamp (e.g. identity → Deposit → next timestamp).
  */
 function isDepositSlipRowContentLine(probe: string): boolean {
-  return (
-    DEPOSIT_RE.test(probe) ||
-    TOTAL_RETURN_RE.test(probe) ||
-    EARLY_REFUND_RE.test(probe)
-  );
+  return isDepositSlipRowContentProbe(probe);
+}
+
+function applyOutcomeToDraft(
+  draft: DraftBuilder,
+  outcome: NonNullable<ReturnType<typeof parseDepositSlipOutcomeLine>>,
+  confidence: number | null,
+): void {
+  if (draft.outcomeKind != null) return;
+  draft.outcomeAmount = outcome.amount;
+  draft.outcomeKind = outcome.kind;
+  draft.status = outcome.kind === "total_return" ? "matured" : "looted";
+  draft.confidenceParts.push(confidence);
+}
+
+function promoteDraftStatusFromOutcome(draft: DraftBuilder): void {
+  if (draft.outcomeKind == null || draft.status !== "locked") return;
+  draft.status =
+    draft.outcomeKind === "total_return" ? "matured" : "looted";
 }
 
 /**
@@ -365,7 +376,10 @@ function emptyDraft(anchor: IdentityAnchor): DraftBuilder {
 }
 
 function finalizeDraft(draft: DraftBuilder): ParsedDepositSlipDraft | null {
-  if (draft.amount == null && draft.depositAt == null) return null;
+  promoteDraftStatusFromOutcome(draft);
+  if (draft.amount == null && draft.depositAt == null && draft.outcomeKind == null) {
+    return null;
+  }
   return {
     depositAt: draft.depositAt,
     termDays: draft.termDays,
@@ -398,9 +412,7 @@ function shouldUseVerticalGeometry(
     const t = line.text.trim();
     return (
       Boolean(parseDepositSlipTimestamp(t)) ||
-      DEPOSIT_RE.test(t) ||
-      TOTAL_RETURN_RE.test(t) ||
-      EARLY_REFUND_RE.test(t)
+      isDepositSlipRowContentProbe(t)
     );
   });
 }
@@ -500,10 +512,23 @@ function assignFieldsByVerticalProximity(
       continue;
     }
 
-    const depositMatch = probe.match(DEPOSIT_RE);
-    if (depositMatch) {
-      const amount = parseIntAmount(depositMatch[1]!);
-      const termDays = toDepositTermDays(Number(depositMatch[2]));
+    const outcome = parseDepositSlipOutcomeLine(probe);
+    if (outcome) {
+      fields.push({
+        lineIndex: i,
+        yCenter: line.yCenter,
+        kind: "outcome",
+        confidence: line.confidence,
+        apply: (draft) => applyOutcomeToDraft(draft, outcome, line.confidence),
+      });
+      continue;
+    }
+
+    const depositLine = parseDepositSlipDepositLine(probe);
+    if (depositLine) {
+      const termDays = depositLine.termDays
+        ? toDepositTermDays(depositLine.termDays)
+        : null;
       fields.push({
         lineIndex: i,
         yCenter: line.yCenter,
@@ -511,46 +536,8 @@ function assignFieldsByVerticalProximity(
         confidence: line.confidence,
         apply: (draft) => {
           if (draft.amount != null) return;
-          draft.amount = amount;
+          draft.amount = depositLine.amount;
           draft.termDays = termDays;
-          draft.confidenceParts.push(line.confidence);
-        },
-      });
-      continue;
-    }
-
-    const totalMatch = probe.match(TOTAL_RETURN_RE);
-    if (totalMatch) {
-      const outcomeAmount = parseIntAmount(totalMatch[1]!);
-      fields.push({
-        lineIndex: i,
-        yCenter: line.yCenter,
-        kind: "outcome",
-        confidence: line.confidence,
-        apply: (draft) => {
-          if (draft.outcomeKind != null) return;
-          draft.outcomeAmount = outcomeAmount;
-          draft.outcomeKind = "total_return";
-          draft.status = "matured";
-          draft.confidenceParts.push(line.confidence);
-        },
-      });
-      continue;
-    }
-
-    const earlyMatch = probe.match(EARLY_REFUND_RE);
-    if (earlyMatch) {
-      const outcomeAmount = parseIntAmount(earlyMatch[1]!);
-      fields.push({
-        lineIndex: i,
-        yCenter: line.yCenter,
-        kind: "outcome",
-        confidence: line.confidence,
-        apply: (draft) => {
-          if (draft.outcomeKind != null) return;
-          draft.outcomeAmount = outcomeAmount;
-          draft.outcomeKind = "early_termination_refund";
-          draft.status = "looted";
           draft.confidenceParts.push(line.confidence);
         },
       });
@@ -633,32 +620,22 @@ function fillDraftsFromReadingOrder(
       if (j > i && parseDepositSlipIdentity(probe)) break;
       if (j !== i && claimedLineIndexes.has(j)) continue;
 
-      if (draft.amount == null) {
-        const depositMatch = probe.match(DEPOSIT_RE);
-        if (depositMatch) {
-          draft.amount = parseIntAmount(depositMatch[1]!);
-          draft.termDays = toDepositTermDays(Number(depositMatch[2]));
-          draft.confidenceParts.push(lines[j]!.confidence);
+      if (draft.outcomeKind == null) {
+        const outcome = parseDepositSlipOutcomeLine(probe);
+        if (outcome) {
+          applyOutcomeToDraft(draft, outcome, lines[j]!.confidence);
           claimedLineIndexes.add(j);
           continue;
         }
       }
 
-      if (draft.outcomeKind == null) {
-        const totalMatch = probe.match(TOTAL_RETURN_RE);
-        if (totalMatch) {
-          draft.outcomeAmount = parseIntAmount(totalMatch[1]!);
-          draft.outcomeKind = "total_return";
-          draft.status = "matured";
-          draft.confidenceParts.push(lines[j]!.confidence);
-          claimedLineIndexes.add(j);
-          continue;
-        }
-        const earlyMatch = probe.match(EARLY_REFUND_RE);
-        if (earlyMatch) {
-          draft.outcomeAmount = parseIntAmount(earlyMatch[1]!);
-          draft.outcomeKind = "early_termination_refund";
-          draft.status = "looted";
+      if (draft.amount == null && !isDepositSlipOutcomeProbe(probe)) {
+        const depositLine = parseDepositSlipDepositLine(probe);
+        if (depositLine) {
+          draft.amount = depositLine.amount;
+          draft.termDays = depositLine.termDays
+            ? toDepositTermDays(depositLine.termDays)
+            : null;
           draft.confidenceParts.push(lines[j]!.confidence);
           claimedLineIndexes.add(j);
         }

@@ -1596,4 +1596,38 @@ describe("dedupeDepositSlips — slipId uniqueness", () => {
     expect(slips[0]?.confidence).toBe(92);
     expect(report.autoMergedCount).toBe(1);
   });
+
+  it("merges Hercules28 locked + looted same minute via lifecycle (not flagged conflict)", () => {
+    const depositAt = "2026-07-11T13:18:40.000Z";
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "Hercules28",
+        depositAt,
+        amount: 6000,
+        termDays: 3,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "Hercules28",
+        depositAt,
+        amount: 6000,
+        termDays: 1,
+        status: "looted",
+        outcomeKind: "early_termination_refund",
+        outcomeAmount: 5970,
+      }),
+    ]);
+
+    expect(slips).toHaveLength(1);
+    expect(slips[0]?.status).toBe("looted");
+    expect(report.flaggedCount).toBe(0);
+    expect(
+      report.clusters.some((c) => c.reason === "lifecycle_locked_to_looted"),
+    ).toBe(true);
+    expect(
+      report.clusters.some(
+        (c) => c.reason === "same_commander_timestamp_conflicting_amount_or_term",
+      ),
+    ).toBe(false);
+  });
 });
