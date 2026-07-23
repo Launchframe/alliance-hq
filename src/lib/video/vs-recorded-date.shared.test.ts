@@ -96,9 +96,23 @@ describe("defaultVsPerformanceRecordedDate", () => {
     expect(isVsWeeklyUploadWindow(wednesday)).toBe(false);
   });
 
+  it("defaults daily to prior valid VS day (yesterday when Mon–Sat)", () => {
+    const wednesday = new Date("2026-07-15T14:00:00.000-02:00");
+    expect(defaultVsPerformanceRecordedDate("daily", wednesday)).toBe(
+      "2026-07-14",
+    );
+  });
+
   it("defaults daily to Saturday when server day is Sunday", () => {
     const sundayServer = new Date("2026-07-19T03:30:00.000Z");
     expect(defaultVsPerformanceRecordedDate("daily", sundayServer)).toBe(
+      "2026-07-18",
+    );
+  });
+
+  it("defaults daily to Saturday when server day is Monday (skips Sunday)", () => {
+    const monday = new Date("2026-07-20T14:00:00.000-02:00");
+    expect(defaultVsPerformanceRecordedDate("daily", monday)).toBe(
       "2026-07-18",
     );
   });

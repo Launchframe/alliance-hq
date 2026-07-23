@@ -39,7 +39,12 @@ function memberFromScore(row: AshedVsScoreRow): RollCandidate | null {
   const memberName =
     row.member_name ?? row.memberName ?? row.current_name ?? null;
   if (!memberId || !memberName) return null;
-  return { memberId, memberName: String(memberName) };
+  const priorDayVsScore = scoreValue(row);
+  return {
+    memberId,
+    memberName: String(memberName),
+    ...(priorDayVsScore > 0 ? { priorDayVsScore } : {}),
+  };
 }
 
 async function fetchVsScoreRowsForRecordedDate(
@@ -200,6 +205,26 @@ export async function fetchAlliancePriorDayVsScoresByMember(
     resolved.connection,
     resolved.ashedAllianceId,
     recordedDate,
+  );
+}
+
+/**
+ * Top prior-day Ashed VS scorers for a train date (T−1 `recorded_date`).
+ * Used by `vs_high_score` / `vs_top_10` conductor rolls — not season VR.
+ */
+export async function fetchAllianceVsTopScorersForTrainDate(
+  allianceId: string,
+  trainDate: string,
+  limit: number,
+): Promise<RollCandidate[]> {
+  const resolved = await resolveAllianceAshedConnection(allianceId);
+  if (!resolved) return [];
+
+  return fetchVsTopScorersForTrainDate(
+    resolved.connection,
+    resolved.ashedAllianceId,
+    trainDate,
+    limit,
   );
 }
 

@@ -97,4 +97,8 @@ All queries filter by session **`allianceId`**.
 
 ## Data sources
 
-Trains are HQ-local: VR standings, pools, economy filters, and Price Is Right tickets use `memberSeasonVr` and the HQ roster. No live Ashed API calls. Donation wheels require manual officer picks until HQ stores donation scores. Do not show schedule preview before roster import (`activeMemberCount === 0`).
+- **`vs_high_score` / `vs_top_10`** — prior-day Ashed `VSScore` (`vsScoreReferenceDate(trainDate)`). Guided/advanced readiness is `prior_day_vs` (upload funnel). Do **not** use season HQ VR for these mechanisms.
+- **Event Top X VIP / other VR surfaces** — HQ `memberSeasonVr` standings.
+- **Pools, economy filters, Price Is Right tickets** — HQ roster + prior-day VS where applicable.
+- Donation wheels require manual officer picks until HQ stores donation scores.
+- Do not show schedule preview before roster import (`activeMemberCount === 0`).

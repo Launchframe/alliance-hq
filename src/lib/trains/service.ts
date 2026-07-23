@@ -66,6 +66,7 @@ import {
 } from "@/lib/trains/train-conductor-minimums.shared";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { fetchNativeVrTopScorers } from "@/lib/trains/native-scores.server";
+import { fetchAllianceVsTopScorersForTrainDate } from "@/lib/trains/vs-scores.server";
 import {
   getAllianceRanksAsOf,
   getMemberRankAsOf,
@@ -163,9 +164,14 @@ function weekDayConfigsForTemplate(
 
 async function fetchVsTopScorersForTrainDateResolved(input: {
   hqAllianceId: string;
+  trainDate: string;
   limit: number;
 }): Promise<RollCandidate[]> {
-  return fetchNativeVrTopScorers(input.hqAllianceId, input.limit);
+  return fetchAllianceVsTopScorersForTrainDate(
+    input.hqAllianceId,
+    input.trainDate,
+    input.limit,
+  );
 }
 
 async function buildPoolCandidates(input: {
@@ -737,13 +743,14 @@ export async function rollForConductor(input: {
     case "vs_high_score": {
       const top = await fetchVsTopScorersForTrainDateResolved({
         hqAllianceId: input.allianceId,
+        trainDate: input.date,
         limit: 1,
       });
       const winner = top[0];
       if (!winner) {
         throwNoWheelCandidates(
           "vs",
-          "No VR standings found for the wheel.",
+          "No VS scores found for the wheel.",
         );
       }
       result = {
@@ -756,10 +763,11 @@ export async function rollForConductor(input: {
     case "vs_top_10": {
       const top10 = await fetchVsTopScorersForTrainDateResolved({
         hqAllianceId: input.allianceId,
+        trainDate: input.date,
         limit: 10,
       });
       if (top10.length === 0) {
-        throwNoWheelCandidates("vs", "No VR standings found for the wheel.");
+        throwNoWheelCandidates("vs", "No VS scores found for the wheel.");
       }
       const winner = top10[Math.floor(Math.random() * top10.length)]!;
       result = {

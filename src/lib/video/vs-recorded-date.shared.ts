@@ -98,14 +98,22 @@ export function nearestValidVsPerformanceDate(
 
 /**
  * Default recorded date for VS review, always from **game server** calendar
- * (not the officer’s account timezone). Weekly on Sunday server day → that
- * Sunday (week just ended at 00:00). Mon–Sat → most recent prior Sunday.
+ * (not the officer’s account timezone).
+ * - Weekly on Sunday server day → that Sunday (week just ended at 00:00).
+ *   Mid-week → most recent prior Sunday.
+ * - Daily → prior valid VS match day (yesterday, walking back past Sunday),
+ *   so officers default to the board they usually upload after a match day.
+ *   The selector still allows today and further past dates.
  */
 export function defaultVsPerformanceRecordedDate(
   period: VsScorePeriod = "daily",
   now = new Date(),
 ): string {
-  return nearestValidVsPerformanceDate(getServerCalendarDate(now), period);
+  const today = getServerCalendarDate(now);
+  if (period === "weekly") {
+    return nearestValidVsPerformanceDate(today, period);
+  }
+  return nearestValidVsPerformanceDate(addCalendarDays(today, -1), period);
 }
 
 /**
