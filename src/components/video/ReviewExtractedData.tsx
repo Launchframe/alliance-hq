@@ -94,6 +94,10 @@ import {
 } from "@/lib/video/roster-video-review.shared";
 import type { AshedMember } from "@/lib/video/member-matcher";
 import { readPreferredDepositSlipBankId } from "@/lib/banks/deposit-slip-upload-context.shared";
+import {
+  depositSlipReviewRowSummaryParts,
+  diffKeysForDepositSlipRows,
+} from "@/lib/banks/deposit-slip-review-row-summary.shared";
 import type { DetectedBankContext } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
 import { matchDetectedBankContextToBanks } from "@/lib/banks/bank-context-ocr/detected-bank-context-match.shared";
 import { DepositSlipBankContextPanel } from "@/components/video/DepositSlipBankContextPanel";
@@ -1074,6 +1078,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [rows],
   );
 
+  const activeRowById = useMemo(
+    () => new Map(activeRows.map((row) => [row.id, row])),
+    [activeRows],
+  );
+
+  const scrollToDepositSlipRow = useCallback((rowId: string) => {
+    document
+      .querySelector(`[data-deposit-slip-row-id="${rowId}"]`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
+
   const assignedMemberIds = useMemo(() => {
     const ids = new Set<string>();
     for (const row of activeRows) {
@@ -1994,6 +2009,71 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       )}
 
       {hasDuplicateMembers &&
+      scoreTargetMeta?.showDepositSlipColumns ? (
+        <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
+          <p className="font-medium">{t("depositSlipOverlappingLockedTitle")}</p>
+          <p className="mt-2 text-hq-fg">{t("depositSlipOverlappingLockedHint")}</p>
+          <ul className="mt-3 space-y-3">
+            {duplicateMemberIssues.map((issue) => {
+              const issueRows = issue.rowIds
+                .map((id) => activeRowById.get(id))
+                .filter((row): row is ParsedRow => row != null);
+              const diffKeys = diffKeysForDepositSlipRows(issueRows);
+              return (
+                <li
+                  key={issue.memberId}
+                  className="rounded-lg border border-hq-danger/30 bg-hq-canvas p-3 text-hq-fg"
+                >
+                  <p className="text-xs font-medium uppercase tracking-wide text-hq-danger">
+                    {t("depositSlipOverlappingLockedGroup", {
+                      commander: issue.memberName,
+                      count: issue.rowIds.length,
+                    })}
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {issueRows.map((row) => (
+                      <li
+                        key={row.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-hq-surface-muted/40 px-2 py-1.5"
+                      >
+                        <span className="inline-flex flex-wrap items-center gap-1 text-sm">
+                          {depositSlipReviewRowSummaryParts(row, diffKeys).map(
+                            (part, index, parts) => (
+                              <span key={part.key} className="inline-flex items-center gap-1">
+                                <span
+                                  className={
+                                    part.differs
+                                      ? "font-semibold text-hq-danger"
+                                      : undefined
+                                  }
+                                >
+                                  {part.text}
+                                </span>
+                                {index < parts.length - 1 ? (
+                                  <span aria-hidden>·</span>
+                                ) : null}
+                              </span>
+                            ),
+                          )}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => scrollToDepositSlipRow(row.id)}
+                          className="whitespace-nowrap rounded-md border border-hq-border px-2 py-1 text-xs text-hq-fg hover:bg-hq-surface-muted"
+                        >
+                          {t("depositSlipWarningRowJump")}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+
+      {hasDuplicateMembers &&
       !scoreTargetMeta?.showDepositSlipColumns ? (
         <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
           <p className="font-medium">{t("duplicateMemberTitle")}</p>
@@ -2808,6 +2888,44 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           <p className="text-sm text-hq-fg-muted">
             {t("depositSlipOverlappingLockedHint")}
           </p>
+          <ul className="max-h-64 space-y-3 overflow-y-auto rounded-lg border border-hq-border bg-hq-canvas p-3">
+            {duplicateMemberIssues.map((issue) => {
+              const issueRows = issue.rowIds
+                .map((id) => activeRowById.get(id))
+                .filter((row): row is ParsedRow => row != null);
+              const diffKeys = diffKeysForDepositSlipRows(issueRows);
+              return (
+                <li key={issue.memberId}>
+                  <p className="text-xs font-medium text-hq-danger">
+                    {t("depositSlipOverlappingLockedGroup", {
+                      commander: issue.memberName,
+                      count: issue.rowIds.length,
+                    })}
+                  </p>
+                  <ul className="mt-1.5 space-y-1">
+                    {issueRows.map((row) => (
+                      <li key={row.id} className="text-sm text-hq-fg">
+                        {depositSlipReviewRowSummaryParts(row, diffKeys).map(
+                          (part, index, parts) => (
+                            <span key={part.key}>
+                              <span
+                                className={
+                                  part.differs ? "font-semibold text-hq-danger" : undefined
+                                }
+                              >
+                                {part.text}
+                              </span>
+                              {index < parts.length - 1 ? " · " : null}
+                            </span>
+                          ),
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              );
+            })}
+          </ul>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <button
               type="button"

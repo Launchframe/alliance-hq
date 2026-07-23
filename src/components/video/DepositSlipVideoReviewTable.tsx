@@ -465,6 +465,7 @@ export function DepositSlipVideoReviewTable({
                 <tr
                   key={row.id}
                   className={rowClass}
+                  data-deposit-slip-row-id={row.id}
                   ref={
                     followMeCompatible
                       ? registerFollowAnchor?.(row.id)
