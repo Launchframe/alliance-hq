@@ -272,7 +272,7 @@ async function submitUidThenConfirm(
 }
 
 test.describe("Member-link onboarding outcomes", () => {
-  test("invite roster miss on wrong server returns wrong_server without owner request", async ({
+  test("invite roster miss on mismatched position server prompts home-server confirm", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -292,10 +292,10 @@ test.describe("Member-link onboarding outcomes", () => {
     const response = await submitUidThenConfirm(page, "1234567890121205");
     expect(response.ok()).toBe(true);
     const body = (await response.json()) as { outcome?: string };
-    expect(body.outcome).toBe("wrong_server");
+    expect(body.outcome).toBe("confirm_home_server");
 
     await expect(
-      page.getByRole("heading", { name: /wrong state server/i }),
+      page.getByRole("heading", { name: /which server is home/i }),
     ).toBeVisible();
 
     const requestId = await getLatestPendingRosterLinkRequestId(sql, {
@@ -303,6 +303,113 @@ test.describe("Member-link onboarding outcomes", () => {
       hqUserId: accepted.hqUserId,
     });
     expect(requestId).toBeNull();
+  });
+
+  test("known commander bypasses position gate when lookup server differs", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const { accepted, email, alliance } =
+      await seedUnlinkedMemberOnboardSession(sql);
+    const now = new Date();
+    const commanderId = nanoid(16);
+    const gameUid = "1234567890121205";
+
+    await sql`
+      INSERT INTO commanders (
+        id, primary_name, primary_name_normalized, game_uid, game_server_number,
+        current_alliance_id, created_at, updated_at
+      ) VALUES (
+        ${commanderId},
+        ${"E2eWrongServer"},
+        ${"e2ewrongserver"},
+        ${gameUid},
+        ${1203},
+        ${alliance.allianceId},
+        ${now},
+        ${now}
+      )
+    `;
+
+    await page.context().addCookies(
+      playwrightAuthCookies({
+        sessionId: accepted.sessionId,
+        hqUserId: accepted.hqUserId,
+        email,
+        nextAuthToken: accepted.nextAuthToken,
+      }),
+    );
+    await openMemberLinkForm(page);
+
+    const response = await submitUidThenConfirm(page, gameUid);
+    expect(response.ok()).toBe(true);
+    const body = (await response.json()) as { outcome?: string };
+    expect(body.outcome).not.toBe("confirm_home_server");
+    expect(body.outcome).not.toBe("wrong_server");
+  });
+
+  test("honor flow alliance-home choice continues onboarding", async ({ page }) => {
+    const sql = getE2eSql();
+    const { accepted, email } = await seedUnlinkedMemberOnboardSession(sql);
+
+    await page.context().addCookies(
+      playwrightAuthCookies({
+        sessionId: accepted.sessionId,
+        hqUserId: accepted.hqUserId,
+        email,
+        nextAuthToken: accepted.nextAuthToken,
+      }),
+    );
+    await openMemberLinkForm(page);
+
+    await page.getByLabel(/player uid/i).fill("1234567890121205");
+    await page.getByRole("button", { name: /link my commander/i }).click();
+    await page.getByRole("button", { name: /yes, that's me/i }).click();
+
+    await expect(
+      page.getByRole("heading", { name: /which server is home/i }),
+    ).toBeVisible();
+
+    const linkResponse = page.waitForResponse(
+      (res) =>
+        new URL(res.url()).pathname.endsWith("/api/member-link") &&
+        res.request().method() === "POST",
+    );
+    await page
+      .getByRole("button", { name: /on server 1203/i })
+      .click();
+    const response = await linkResponse;
+    expect(response.ok()).toBe(true);
+    const body = (await response.json()) as { outcome?: string };
+    expect(body.outcome).not.toBe("confirm_home_server");
+    expect(body.outcome).not.toBe("wrong_server");
+  });
+
+  test("honor flow lookup-home choice shows workaround", async ({ page }) => {
+    const sql = getE2eSql();
+    const { accepted, email } = await seedUnlinkedMemberOnboardSession(sql);
+
+    await page.context().addCookies(
+      playwrightAuthCookies({
+        sessionId: accepted.sessionId,
+        hqUserId: accepted.hqUserId,
+        email,
+        nextAuthToken: accepted.nextAuthToken,
+      }),
+    );
+    await openMemberLinkForm(page);
+
+    await page.getByLabel(/player uid/i).fill("1234567890121205");
+    await page.getByRole("button", { name: /link my commander/i }).click();
+    await page.getByRole("button", { name: /yes, that's me/i }).click();
+    await page
+      .getByRole("button", { name: /server 1205/i })
+      .first()
+      .click();
+
+    await expect(
+      page.getByRole("heading", { name: /send your commander home/i }),
+    ).toBeVisible();
   });
 
   test("wrong_server submit shows wrong-server guidance", async ({ page }) => {

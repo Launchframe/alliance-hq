@@ -390,6 +390,8 @@ export async function runWebMemberLinkSubmit(input: {
   gameUid?: string;
   ownerProvidedServerNumber?: number;
   ownerLookupFallback?: boolean;
+  allianceHomeConfirmed?: boolean;
+  userClaimedLookupAsHome?: boolean;
 }): Promise<MemberLinkApiResponse> {
   const claimBlock = await blockSelfServiceWhenClaimPending({
     allianceId: input.allianceId,
@@ -616,6 +618,8 @@ export async function runWebMemberLinkSubmit(input: {
       linkedMemberIds,
       origin: "web",
       gameServerNumber: lookup.gameServerNumber,
+      allianceHomeConfirmed: input.allianceHomeConfirmed,
+      userClaimedLookupAsHome: input.userClaimedLookupAsHome,
       persistLink: async (target) => {
         const linked = await linkHqMember({
           allianceId: input.allianceId,
@@ -691,6 +695,30 @@ export async function runWebMemberLinkSubmit(input: {
       );
     }
 
+    if (selfService.reason === "confirm_home") {
+      return finishMemberLinkSubmit(ctx, {
+        outcome: "confirm_home_server",
+        message: translate("confirmHomeServerPrompt", {
+          commanderName: selfService.commanderName ?? lookup.gameUserName,
+          lookupServer: selfService.lookupServer ?? 0,
+          allianceTag: alliance?.tag ?? "alliance",
+          allianceServer: selfService.allianceServer ?? 0,
+        }),
+        pending: null,
+        lookupGameUserName: lookup.gameUserName,
+        lookupServerNumber: selfService.lookupServer ?? null,
+        allianceServerNumber: selfService.allianceServer ?? null,
+      });
+    }
+
+    if (selfService.reason === "position_not_home") {
+      return finishMemberLinkSubmit(ctx, {
+        outcome: "position_not_home",
+        message: translate("positionNotHomeBody"),
+        pending: null,
+      });
+    }
+
     if (selfService.reason === "wrong_server") {
       return finishMemberLinkSubmit(ctx, {
         outcome: "wrong_server",
@@ -710,6 +738,8 @@ export async function runWebMemberLinkSubmit(input: {
       suggestedTargetAshedMemberId: suggestion?.ashedMemberId ?? null,
       suggestionMethod: suggestion?.method ?? null,
       suggestedMatchedRosterName: suggestion?.matchedRosterName ?? null,
+      allianceHomeConfirmed: input.allianceHomeConfirmed,
+      userClaimedLookupAsHome: input.userClaimedLookupAsHome,
     });
     if (routed) {
       if (selfService.reason === "roster_full") {

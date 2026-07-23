@@ -38,6 +38,8 @@ type Phase =
   | "awaiting_owner"
   | "wrong_server"
   | "confirm_server"
+  | "confirm_home_server"
+  | "position_not_home"
   | "lookup_fallback"
   | "confirm_identity"
   | "claim"
@@ -232,6 +234,17 @@ export function MemberLinkOnboardingWizard({
           setMessage(data.message);
           setPhase("confirm_server");
           break;
+        case "confirm_home_server":
+          setConfirmName(data.lookupGameUserName ?? confirmName);
+          setLookupServerNumber(data.lookupServerNumber ?? null);
+          setAllianceServerNumber(data.allianceServerNumber ?? null);
+          setMessage(data.message);
+          setPhase("confirm_home_server");
+          break;
+        case "position_not_home":
+          setMessage(data.message);
+          setPhase("position_not_home");
+          break;
         case "lookup_fallback":
           setUseLookupFallback(true);
           setServerDraft("");
@@ -263,6 +276,8 @@ export function MemberLinkOnboardingWizard({
   function buildSubmitBody(extra?: {
     ownerProvidedServerNumber?: number;
     ownerLookupFallback?: boolean;
+    allianceHomeConfirmed?: boolean;
+    userClaimedLookupAsHome?: boolean;
   }) {
     return {
       reportedName: reportedName.trim(),
@@ -326,10 +341,13 @@ export function MemberLinkOnboardingWizard({
     }
   }
 
-  async function submitConfirmedLink() {
+  async function submitConfirmedLink(extra?: {
+    allianceHomeConfirmed?: boolean;
+    userClaimedLookupAsHome?: boolean;
+  }) {
     setFormError(null);
     const uid = gameUid.trim();
-    const name = confirmName?.trim();
+    const name = confirmName?.trim() ?? reportedName.trim();
     if (!name || !isValidGameUid(uid)) {
       setPhase("form");
       return;
@@ -343,6 +361,7 @@ export function MemberLinkOnboardingWizard({
       const data = await postJson<ApiResponse>("/api/member-link", {
         reportedName: name,
         gameUid: uid,
+        ...extra,
       });
       applyOutcome(data);
     } catch {
@@ -350,6 +369,14 @@ export function MemberLinkOnboardingWizard({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function submitHomeServerChoice(choice: "alliance" | "lookup") {
+    await submitConfirmedLink(
+      choice === "alliance"
+        ? { allianceHomeConfirmed: true }
+        : { userClaimedLookupAsHome: true },
+    );
   }
 
   function reenterUid() {
@@ -838,6 +865,68 @@ export function MemberLinkOnboardingWizard({
             {t("backToForm")}
           </button>
         </form>
+      ) : null}
+
+      {phase === "confirm_home_server" ? (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">{t("confirmHomeServerTitle")}</h2>
+            <p className="mt-1 text-sm text-hq-fg-muted">
+              {message ?? t("confirmHomeServerBody")}
+            </p>
+          </div>
+          {confirmName ? (
+            <p className="text-center text-sm font-medium text-hq-fg">{confirmName}</p>
+          ) : null}
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void submitHomeServerChoice("lookup")}
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-4 py-2.5 text-sm font-medium text-hq-fg disabled:opacity-50"
+            >
+              {t("confirmHomeServerLookupChoice", {
+                server: lookupServerNumber ?? 0,
+              })}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void submitHomeServerChoice("alliance")}
+              className="w-full rounded-lg border border-hq-success bg-hq-success px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {t("confirmHomeServerAllianceChoice", {
+                tag: allianceTag,
+                server: allianceServerNumber ?? 0,
+              })}
+            </button>
+          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={reenterUid}
+            className="w-full text-sm text-hq-fg-muted underline hover:text-hq-accent disabled:opacity-50"
+          >
+            {t("confirmIdentityNo")}
+          </button>
+        </div>
+      ) : null}
+
+      {phase === "position_not_home" ? (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">{t("positionNotHomeTitle")}</h2>
+          <p className="text-sm text-hq-fg-muted">
+            {message ?? t("positionNotHomeBody")}
+          </p>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={reenterUid}
+            className="w-full rounded-lg border border-hq-border bg-hq-canvas px-4 py-2.5 text-sm font-medium text-hq-fg disabled:opacity-50"
+          >
+            {t("backToForm")}
+          </button>
+        </div>
       ) : null}
 
       {phase === "confirm_identity" ? (

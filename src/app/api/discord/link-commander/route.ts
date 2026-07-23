@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAuthSession } from "@/lib/auth";
 import {
   confirmDiscordMemberLinkFromWeb,
+  confirmDiscordMemberLinkHomeFromWeb,
   pickDiscordMemberLinkFromWeb,
   previewDiscordMemberLinkFromWeb,
 } from "@/lib/vr/discord-member-link-web.server";
@@ -28,9 +29,16 @@ const pickBodySchema = z.object({
   memberId: z.string().trim().min(1),
 });
 
+const confirmHomeBodySchema = z.object({
+  action: z.literal("confirm_home"),
+  nonce: z.string().trim().min(1),
+  choice: z.enum(["alliance", "lookup"]),
+});
+
 const bodySchema = z.discriminatedUnion("action", [
   previewBodySchema,
   confirmBodySchema,
+  confirmHomeBodySchema,
   pickBodySchema,
 ]);
 
@@ -67,6 +75,17 @@ export async function POST(request: Request) {
       {
         nonce: parsed.nonce,
         answer: parsed.answer,
+      },
+      hqUserId,
+    );
+    return NextResponse.json(result);
+  }
+
+  if (parsed.action === "confirm_home") {
+    const result = await confirmDiscordMemberLinkHomeFromWeb(
+      {
+        nonce: parsed.nonce,
+        choice: parsed.choice,
       },
       hqUserId,
     );

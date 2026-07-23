@@ -4374,6 +4374,8 @@
     },
     "officerNotified": "Um oficial foi notificado no Alliance HQ. Ele pode ajudar você a acertar o nome e concluir o vínculo.",
     "wrongServer": "Seu UID pertence a um servidor estadual diferente desta aliança. Confira se entrou na aliança certa ou peça um novo convite ao R5.",
+    "confirmHomeServerPrompt": "Seu Comandante está posicionado no servidor {lookupServer}, mas [{allianceTag}] joga no servidor {allianceServer}. Qual servidor {commanderName} chama de lar?",
+    "positionNotHomeBody": "Se este não for o servidor lar do seu Comandante, envie-o de volta no jogo (retorne de um evento cross-server ou território conquistado) e tente novamente.",
     "awaitingOwner": "Verificamos seu comandante, mas o nome do roster ainda não confere. O dono da aliança recebeu um e-mail — um oficial precisa confirmar o membro correto no Alliance HQ antes de concluir o vínculo.",
     "nameMismatchRetry": "O Last War mostra seu nome como {gameName}. Digite exatamente (ou cole de um colega de aliança) e tente novamente.",
     "confirmServerMissing": "Não conseguimos ler seu servidor estadual no Last War. Informe o número do servidor estadual da sua aliança.",
@@ -4453,6 +4455,12 @@
     "confirmIdentityServer": "Servidor {server}",
     "confirmIdentityYes": "Sim, sou eu",
     "confirmIdentityNo": "Não, informar outro UID",
+    "confirmHomeServerTitle": "Qual é o servidor lar?",
+    "confirmHomeServerBody": "Last War mostra seu Comandante em um estado diferente desta aliança. Escolha o servidor que seu Comandante chama de lar.",
+    "confirmHomeServerLookupChoice": "Servidor {server} (onde estou posicionado agora)",
+    "confirmHomeServerAllianceChoice": "[{tag}] no servidor {server}",
+    "positionNotHomeTitle": "Envie seu Comandante para casa",
+    "positionNotHomeBody": "Se este não for o servidor lar do seu Comandante, envie-o de volta no jogo (retorne de um evento cross-server ou território conquistado) e tente novamente.",
     "uidBypass": {
       "title": "UIDs de teste (pré-produção)",
       "badge": "Só pré-prod",
@@ -4719,6 +4727,9 @@
     "helpTopics": {
       "wrongServer": {
         "body": "Seu UID pertence a um servidor estadual diferente desta aliança. Confira se entrou na aliança certa ou peça um novo convite ao R5."
+      },
+      "positionNotHome": {
+        "body": "Se este não for o servidor lar do seu Comandante, envie-o de volta no jogo (retorne de um evento cross-server ou território conquistado) e tente novamente."
       }
     }
   },
@@ -4779,6 +4790,10 @@
     "successBody": "Vinculado **{name}**. Volte ao Discord — você já pode usar /vr e outros comandos do bot.",
     "officerHeading": "Oficiais notificados",
     "wrongServerHeading": "Servidor estadual incorreto",
+    "positionNotHomeHeading": "Envie seu Comandante para casa",
+    "confirmHomeHeading": "Qual servidor seu Comandante chama de lar?",
+    "confirmHomeAllianceChoice": "[{tag}] no servidor {server}",
+    "confirmHomeLookupChoice": "Servidor {server} (onde estou posicionado agora)",
     "backToDiscord": "Você pode fechar esta aba e voltar ao Discord.",
     "invalidPlayerId": "Informe um ID de jogador com 12–16 dígitos do perfil no jogo.",
     "genericError": "Algo deu errado. Volte ao Discord e execute `/link-commander` novamente."

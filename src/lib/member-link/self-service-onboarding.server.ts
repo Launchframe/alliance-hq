@@ -3,7 +3,6 @@ import "server-only";
 import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
-import { resolveAllianceGameServerNumber } from "@/lib/game-season/game-servers.server";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
 import { parseGameServerNumberFromUid } from "@/lib/lastwar/player-lookup";
 import {
@@ -12,11 +11,11 @@ import {
 } from "@/lib/member-link/invite-onboarding-access.server";
 import { createOnboardingReviewAfterSelfServiceLink } from "@/lib/member-link/onboarding-review.server";
 import { createNativeAllianceMemberForRosterLink } from "@/lib/member-link/roster-member-create.server";
+import { resolveMemberLinkServerEligibilityForUid } from "@/lib/member-link/server-eligibility.server";
 import {
   canCreateRosterMemberDuringOnboarding,
   countActiveRosterMembers,
   isSelfServiceOnboardingEnabled,
-  isSelfServiceServerEligible,
   parseInviteOnboardingMinRole,
 } from "@/lib/member-link/self-service-onboarding.shared";
 import { getRbacContext } from "@/lib/rbac/context";
@@ -48,8 +47,17 @@ export type SelfServiceLinkResult =
     }
   | {
       ok: false;
-      reason: "not_eligible" | "roster_full" | "member_taken" | "wrong_server";
+      reason:
+        | "not_eligible"
+        | "roster_full"
+        | "member_taken"
+        | "wrong_server"
+        | "confirm_home"
+        | "position_not_home";
       attemptedAshedMemberId?: string;
+      lookupServer?: number;
+      allianceServer?: number;
+      commanderName?: string;
     };
 
 export async function loadAllianceMemberOnboardingRow(allianceId: string) {
@@ -248,6 +256,8 @@ export async function trySelfServiceMemberLink(input: {
   linkedMemberIds: Set<string>;
   origin: "web" | "discord";
   gameServerNumber?: number | null;
+  allianceHomeConfirmed?: boolean;
+  userClaimedLookupAsHome?: boolean;
   persistLink: (input: {
     ashedMemberId: string;
     memberDisplayName: string;
@@ -272,19 +282,30 @@ export async function trySelfServiceMemberLink(input: {
     return { ok: false, reason: "not_eligible" };
   }
 
-  const playerServerNumber =
+  const lookupServerNumber =
     input.lookup.gameServerNumber ??
     input.gameServerNumber ??
     parseGameServerNumberFromUid(input.gameUid);
-  const allianceServerNumber = await resolveAllianceGameServerNumber(
-    input.allianceId,
-  );
-  if (
-    !isSelfServiceServerEligible({
-      playerServerNumber,
-      allianceServerNumber,
-    })
-  ) {
+  const serverEligibility = await resolveMemberLinkServerEligibilityForUid({
+    allianceId: input.allianceId,
+    gameUid: input.gameUid,
+    lookupServer: lookupServerNumber,
+    allianceHomeConfirmed: input.allianceHomeConfirmed,
+    userClaimedLookupAsHome: input.userClaimedLookupAsHome,
+  });
+  if (serverEligibility.kind === "confirm_home") {
+    return {
+      ok: false,
+      reason: "confirm_home",
+      lookupServer: serverEligibility.lookupServer,
+      allianceServer: serverEligibility.allianceServer,
+      commanderName: input.lookup.gameUserName,
+    };
+  }
+  if (serverEligibility.kind === "rejected") {
+    if (serverEligibility.reason === "user_claimed_lookup_home") {
+      return { ok: false, reason: "position_not_home" };
+    }
     return { ok: false, reason: "wrong_server" };
   }
 

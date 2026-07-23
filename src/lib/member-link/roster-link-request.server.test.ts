@@ -27,6 +27,10 @@ vi.mock("@/lib/game-season/sync", () => ({
   applySeasonSync: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/lib/member-link/server-eligibility.server", () => ({
+  resolveMemberLinkServerEligibilityForUid: vi.fn(),
+}));
+
 vi.mock("@/lib/native-alliance/operating-mode", () => ({
   isNativeAlliance: vi.fn().mockResolvedValue(true),
 }));
@@ -51,6 +55,7 @@ vi.mock("@/lib/member-link/roster-link-owner-email.server", () => ({
 
 const gameServers = await import("@/lib/game-season/game-servers.server");
 const seasonSync = await import("@/lib/game-season/sync");
+const serverEligibility = await import("@/lib/member-link/server-eligibility.server");
 const operatingMode = await import("@/lib/native-alliance/operating-mode");
 const repository = await import("@/lib/member-link/repository.server");
 const dbModule = vi.hoisted(() => {
@@ -411,6 +416,44 @@ describe("tryRouteRosterMissToOwnerApproval", () => {
     vi.clearAllMocks();
     dbModule.chain.limit.mockResolvedValue([]);
     vi.mocked(gameServers.resolveAllianceGameServerNumber).mockResolvedValue(1203);
+    vi.mocked(serverEligibility.resolveMemberLinkServerEligibilityForUid).mockImplementation(
+      async (input) => {
+        const allianceServer = await gameServers.resolveAllianceGameServerNumber(
+          input.allianceId,
+        );
+        const lookupServer = input.lookupServer ?? null;
+        if (input.userClaimedLookupAsHome) {
+          return {
+            kind: "rejected",
+            reason: "user_claimed_lookup_home",
+            allianceServer,
+            knownCommanderHomeServer: null,
+          };
+        }
+        if (allianceServer != null && lookupServer != null && lookupServer !== allianceServer) {
+          return {
+            kind: "confirm_home",
+            lookupServer,
+            allianceServer,
+            knownCommanderHomeServer: null,
+          };
+        }
+        if (lookupServer == null) {
+          return {
+            kind: "rejected",
+            reason: "missing_server",
+            allianceServer,
+            knownCommanderHomeServer: null,
+          };
+        }
+        return {
+          kind: "eligible",
+          reason: "lookup_matches",
+          allianceServer,
+          knownCommanderHomeServer: null,
+        };
+      },
+    );
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, text: async () => "" }));
   });
 
@@ -421,14 +464,14 @@ describe("tryRouteRosterMissToOwnerApproval", () => {
       hqUserId: "u1",
       locale: "en-US",
       reportedName: "Commander",
-      gameUid: "1234567890121203",
+      gameUid: "1234567890120000",
       lookup: { ok: true, gameUserName: "Commander" },
     });
 
     expect(result?.outcome).toBe("wrong_server");
   });
 
-  it("returns wrong_server when alliance server mismatches", async () => {
+  it("returns confirm_home_server when alliance server mismatches lookup position", async () => {
     vi.mocked(gameServers.resolveAllianceGameServerNumber).mockResolvedValue(9999);
 
     const result = await tryRouteRosterMissToOwnerApproval({
@@ -441,7 +484,26 @@ describe("tryRouteRosterMissToOwnerApproval", () => {
       lookup: { ok: true, gameUserName: "Commander", gameServerNumber: 1203 },
     });
 
-    expect(result?.outcome).toBe("wrong_server");
+    expect(result?.outcome).toBe("confirm_home_server");
+    expect(result?.lookupServerNumber).toBe(1203);
+    expect(result?.allianceServerNumber).toBe(9999);
+  });
+
+  it("returns position_not_home when user claims lookup position as home", async () => {
+    vi.mocked(gameServers.resolveAllianceGameServerNumber).mockResolvedValue(9999);
+
+    const result = await tryRouteRosterMissToOwnerApproval({
+      allianceId: "a1",
+      allianceTag: "LFgo",
+      hqUserId: "u1",
+      locale: "en-US",
+      reportedName: "Commander",
+      gameUid: "1234567890121203",
+      lookup: { ok: true, gameUserName: "Commander", gameServerNumber: 1203 },
+      userClaimedLookupAsHome: true,
+    });
+
+    expect(result?.outcome).toBe("position_not_home");
   });
 
   it("creates awaiting_owner request when roster name misses without invite", async () => {

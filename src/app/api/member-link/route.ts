@@ -32,6 +32,8 @@ const submitSchema = z.object({
   gameUid: z.string().trim().max(20).optional(),
   ownerProvidedServerNumber: z.number().int().positive().max(9999).optional(),
   ownerLookupFallback: z.boolean().optional(),
+  allianceHomeConfirmed: z.boolean().optional(),
+  userClaimedLookupAsHome: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -58,6 +60,8 @@ export async function POST(request: Request) {
     gameUid: body.gameUid,
     ownerProvidedServerNumber: body.ownerProvidedServerNumber,
     ownerLookupFallback: body.ownerLookupFallback,
+    allianceHomeConfirmed: body.allianceHomeConfirmed,
+    userClaimedLookupAsHome: body.userClaimedLookupAsHome,
   });
 
   return memberLinkJsonResponse(result);

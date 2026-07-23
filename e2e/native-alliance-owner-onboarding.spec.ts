@@ -153,7 +153,7 @@ test.describe("Native alliance — PA provision through owner onboarding", () =>
     expect(
       officerLinkBody.outcome,
       officerLinkBody.message ?? "no message",
-    ).toBe("wrong_server");
+    ).toBe("confirm_home_server");
     expect(await loadAllianceGameServerNumber(sql, allianceId!)).toBe(ownerServer);
 
     // 4. Visitor redeems owner invite (protected link + passphrase).

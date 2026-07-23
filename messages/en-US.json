@@ -4428,6 +4428,8 @@
     },
     "officerNotified": "An officer has been notified. They will reach out to help you..",
     "wrongServer": "Your player UID is for a different state server than this alliance. Double-check you joined the right alliance, or ask your R5 for the correct invite.",
+    "confirmHomeServerPrompt": "Your Commander is currently positioned in {lookupServer}, but [{allianceTag}] lives on {allianceServer}. Which server does {commanderName} call home?",
+    "positionNotHomeBody": "If this is not your Commander's home server, send your Commander home in-game (return from a cross-server event or conquered territory) and try again.",
     "awaitingOwner": "We verified your commander, but the roster name doesn't match yet. Your alliance owner was emailed — an officer must confirm the correct roster member in Alliance HQ before you can finish linking.",
     "nameMismatchRetry": "Last War shows your name as {gameName}. Type it exactly (or paste from an alliance mate) and try again.",
     "confirmServerMissing": "We couldn't read your state server from Last War. Enter your alliance's state server number.",
@@ -4509,6 +4511,12 @@
     "confirmIdentityServer": "State server {server}",
     "confirmIdentityYes": "Yes, that's me",
     "confirmIdentityNo": "No, re-enter my UID",
+    "confirmHomeServerTitle": "Which server is home?",
+    "confirmHomeServerBody": "Last War shows your Commander in a different state than this alliance. Pick the server your Commander calls home.",
+    "confirmHomeServerLookupChoice": "Server {server} (where I'm positioned now)",
+    "confirmHomeServerAllianceChoice": "[{tag}] on server {server}",
+    "positionNotHomeTitle": "Send your Commander home",
+    "positionNotHomeBody": "If this is not your Commander's home server, send your Commander home in-game (return from a cross-server event or conquered territory) and try again.",
     "uidBypass": {
       "title": "Pre-production test UIDs",
       "badge": "Pre-prod only",
@@ -4773,6 +4781,9 @@
     "helpTopics": {
       "wrongServer": {
         "body": "Your player UID is for a different state server than this alliance. Double-check you joined the right alliance, or ask your R5 for the correct invite."
+      },
+      "positionNotHome": {
+        "body": "If this is not your Commander's home server, send your Commander home in-game (return from a cross-server event or conquered territory) and try again."
       }
     }
   },
@@ -4833,6 +4844,10 @@
     "successBody": "Linked **{name}**. Return to Discord — you're ready to use /vr and other bot commands.",
     "officerHeading": "Officers notified",
     "wrongServerHeading": "Wrong state server",
+    "positionNotHomeHeading": "Send your Commander home",
+    "confirmHomeHeading": "Which server does your Commander call home?",
+    "confirmHomeAllianceChoice": "[{tag}] on server {server}",
+    "confirmHomeLookupChoice": "Server {server} (where I'm positioned now)",
     "backToDiscord": "You can close this tab and return to Discord.",
     "invalidPlayerId": "Enter a 12–16 digit player ID from your in-game profile.",
     "genericError": "Something went wrong. Return to Discord and run `/link-commander` again."
