@@ -198,8 +198,10 @@ Receipt icon color (green vs white) means “screenshotting commander has a depo
 
 - **Complete** when `tiles.length === capturedCount` (full held inventory pictured).
 - **Upsert** by unique `(allianceId, gameServerNumber, coordX, coordY)` — update level / deposit count / value.
-- **Never auto-delete** banks missing from the screenshot. When the import is complete and HQ has extras, warn only (`cityListExtraHqWarning`).
-- Incomplete screenshots: warn; still upsert pictured tiles; leave others unchanged.
+- **Never auto-delete** banks missing from the screenshot.
+- When the import is complete and HQ has extras, warn (`cityListExtraHqWarning`).
+- Officers may **opt in** on the review dialog to archive missing banks (`archiveMissingBanks`): sets `dropByAt` to now so they appear under **Past drop deadline** — history kept, not hard-deleted.
+- Incomplete screenshots: warn; still upsert pictured tiles; leave others unchanged (archive checkbox still available if extras exist, but officers should only check it when the screenshots cover all held banks).
 
 Score target / module: `bank-city-list` under `src/lib/banks/city-list-ocr/`.
 
@@ -217,7 +219,7 @@ When changing bank deposit OCR, City List OCR, commit, or Bank Management:
 4. **Estimates** — orange-only synthetics stay flagged until blue OCR or officer edit.
 5. **Risk / heatmap** — only `locked` deposits contribute to value-at-risk for drop timing; matured/looted are closed.
 6. **UID privacy** — do not display game UID; commander **name** (+ alliance tag from OCR) is the officer-facing identity.
-7. **City List upsert** — match on alliance+server+coords; never delete missing banks from OCR alone.
+7. **City List upsert** — match on alliance+server+coords; never delete missing banks from OCR alone. Officer may opt in to soft-archive missing banks via `dropByAt=now`.
 8. **Ownership** — City List inserts are alliance-held (`priorCaptureCount = 1`); wild vs alliance loot semantics use `priorCaptureCount`.
 9. **Dedupe loot window** — do not assume deposits are ≥45m apart; looting can terminate a slip within minutes. See **Cross-frame OCR dedupe — known looted-window limitation** above before tightening proximity/outlier constants.
 10. **Within-frame y-banding** — require distinct identity `yCenter`s before geometry; do not treat partial field-bbox frames as fully fixed by midpoint bands (see **Within-frame field association**).

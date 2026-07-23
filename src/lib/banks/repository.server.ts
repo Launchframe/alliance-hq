@@ -126,6 +126,38 @@ export async function upsertBanksFromCityList(
   return results;
 }
 
+/**
+ * Soft-archive HQ banks not pictured in a City List import by setting
+ * `dropByAt` to `at` (typically now). Banks move into the Past drop deadline
+ * section; deposit history is retained. Never hard-deletes.
+ */
+export async function markBanksDropDeadlineAt(
+  allianceId: string,
+  bankIds: readonly string[],
+  at: Date = new Date(),
+) {
+  if (bankIds.length === 0) return [];
+  const db = getDb();
+  const updated = [];
+  for (const bankId of bankIds) {
+    const rows = await db
+      .update(schema.banks)
+      .set({
+        dropByAt: at,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.banks.id, bankId),
+          eq(schema.banks.allianceId, allianceId),
+        ),
+      )
+      .returning();
+    if (rows[0]) updated.push(rows[0]);
+  }
+  return updated;
+}
+
 export async function updateAllianceBankCityListSnapshot(
   allianceId: string,
   snapshot: {

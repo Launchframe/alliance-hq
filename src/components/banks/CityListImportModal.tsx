@@ -17,6 +17,7 @@ import {
 import type { ParsedCityListBank } from "@/lib/banks/city-list-ocr/parse-city-list-text.shared";
 import {
   cityListReviewRowsHaveErrors,
+  classifyCityListImportRowsAgainstHq,
   clampReviewIndexAfterRemove,
   defaultPlaceholderGameServerNumber,
   isCityListPlaceholderCoords,
@@ -289,6 +290,7 @@ export function CityListImportModal({
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [archiveMissingBanks, setArchiveMissingBanks] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const screenshotsRef = useRef<SelectedScreenshot[]>([]);
   const draftHydrationAttemptedRef = useRef(false);
@@ -326,6 +328,7 @@ export function CityListImportModal({
     setDraftRestored(false);
     setParsing(false);
     setImporting(false);
+    setArchiveMissingBanks(false);
     clearScreenshots();
   }, [clearScreenshots]);
 
@@ -558,6 +561,11 @@ export function CityListImportModal({
     return false;
   }, [rows]);
 
+  const importPresence = useMemo(
+    () => classifyCityListImportRowsAgainstHq(rows, existingBanks),
+    [rows, existingBanks],
+  );
+
   const extraHqBankCount = useMemo(
     () =>
       existingBanks.filter(
@@ -568,7 +576,9 @@ export function CityListImportModal({
       ).length,
     [existingBanks, rowKeys],
   );
-  const showExtraHqWarning = isCompleteImport && extraHqBankCount > 0;
+  const showExtraHqWarning =
+    isCompleteImport && extraHqBankCount > 0 && !archiveMissingBanks;
+  const showArchiveMissingOption = extraHqBankCount > 0;
 
   const lightboxSlides = useMemo<Slide[]>(
     () => screenshots.map((shot) => ({ src: shot.previewUrl })),
@@ -640,6 +650,8 @@ export function CityListImportModal({
           capturesRemainingToday: snapshot?.capturesRemainingToday ?? null,
           capturesLimitToday: snapshot?.capturesLimitToday ?? null,
           serverTime: snapshot?.serverTime ?? null,
+          archiveMissingBanks:
+            archiveMissingBanks && extraHqBankCount > 0 ? true : undefined,
         }),
       });
       const body = (await res.json().catch(() => null)) as
@@ -657,7 +669,7 @@ export function CityListImportModal({
     } finally {
       setImporting(false);
     }
-  }, [allianceId, handleOpenChange, hasDuplicateCoords, importing, levelMinMsg, onImported, requiredMsg, rows, snapshot, t]);
+  }, [allianceId, archiveMissingBanks, extraHqBankCount, handleOpenChange, hasDuplicateCoords, importing, levelMinMsg, onImported, requiredMsg, rows, snapshot, t]);
 
   const openPreview = useCallback(
     (index = previewIndex) => {
@@ -702,10 +714,46 @@ export function CityListImportModal({
           {t("cityListIncompleteWarning")}
         </div>
       ) : null}
+      {rows.length > 0 ? (
+        <div className="flex flex-wrap gap-2 text-xs">
+          <span className="rounded-full border border-hq-success/40 bg-hq-success/10 px-2.5 py-1 font-medium text-hq-success">
+            {t("cityListNewBankCount", { count: importPresence.newCount })}
+          </span>
+          <span className="rounded-full border border-hq-accent/40 bg-hq-accent/10 px-2.5 py-1 font-medium text-hq-accent">
+            {t("cityListExistingBankCount", {
+              count: importPresence.existingCount,
+            })}
+          </span>
+          {extraHqBankCount > 0 ? (
+            <span className="rounded-full border border-hq-warning/40 bg-hq-warning/10 px-2.5 py-1 font-medium text-hq-warning">
+              {t("cityListMissingFromImportCount", { count: extraHqBankCount })}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       {showExtraHqWarning ? (
         <div className="rounded-lg border border-hq-warning/40 bg-hq-warning/10 px-3 py-2 text-sm text-hq-warning">
           {t("cityListExtraHqWarning")}
         </div>
+      ) : null}
+      {showArchiveMissingOption ? (
+        <label className="flex items-start gap-2.5 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2.5 text-sm text-hq-fg">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={archiveMissingBanks}
+            onChange={(event) => setArchiveMissingBanks(event.target.checked)}
+            disabled={importing}
+          />
+          <span>
+            <span className="font-medium">
+              {t("cityListArchiveMissingLabel", { count: extraHqBankCount })}
+            </span>
+            <span className="mt-0.5 block text-xs text-hq-fg-muted">
+              {t("cityListArchiveMissingHint")}
+            </span>
+          </span>
+        </label>
       ) : null}
     </>
   );
@@ -973,13 +1021,27 @@ export function CityListImportModal({
                     {activeRow ? (
                       <div className="space-y-3 rounded-xl border border-hq-border bg-hq-canvas p-4">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
-                            {t("coords", {
-                              server: activeRow.gameServerNumber,
-                              x: activeRow.coordX,
-                              y: activeRow.coordY,
-                            })}
-                          </p>
+                          <div className="min-w-0 space-y-1">
+                            <p className="text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
+                              {t("coords", {
+                                server: activeRow.gameServerNumber,
+                                x: activeRow.coordX,
+                                y: activeRow.coordY,
+                              })}
+                            </p>
+                            {importPresence.rowExistsInHq(activeRow) ? (
+                              <span className="inline-flex rounded-full border border-hq-accent/40 bg-hq-accent/10 px-2 py-0.5 text-[11px] font-medium text-hq-accent">
+                                {t("cityListRowExisting")}
+                              </span>
+                            ) : !isCityListPlaceholderCoords(
+                                activeRow.coordX,
+                                activeRow.coordY,
+                              ) ? (
+                              <span className="inline-flex rounded-full border border-hq-success/40 bg-hq-success/10 px-2 py-0.5 text-[11px] font-medium text-hq-success">
+                                {t("cityListRowNew")}
+                              </span>
+                            ) : null}
+                          </div>
                           <button
                             type="button"
                             aria-label={t("actions.delete")}
@@ -1051,6 +1113,7 @@ export function CityListImportModal({
                 <table className="min-w-full text-left text-sm">
                   <thead className="bg-hq-canvas text-xs text-hq-fg-muted">
                     <tr>
+                      <th className="px-3 py-2">{t("cityListStatusColumn")}</th>
                       <th className="px-3 py-2">{t("fields.level")}</th>
                       <th className="px-3 py-2">{t("fields.server")}</th>
                       <th className="px-3 py-2">{t("fields.coordX")}</th>
@@ -1067,11 +1130,31 @@ export function CityListImportModal({
                         "w-16 min-w-0 rounded border border-hq-border bg-hq-canvas px-2 py-1";
                       const inputErr =
                         "w-16 min-w-0 rounded border border-hq-danger bg-hq-canvas px-2 py-1";
+                      const exists = importPresence.rowExistsInHq(row);
+                      const isPlaceholder = isCityListPlaceholderCoords(
+                        row.coordX,
+                        row.coordY,
+                      );
                       return (
                         <tr
                           key={row.rowKey}
                           className="border-t border-hq-border"
                         >
+                          <td className="px-3 py-2">
+                            {exists ? (
+                              <span className="inline-flex rounded-full border border-hq-accent/40 bg-hq-accent/10 px-2 py-0.5 text-[11px] font-medium text-hq-accent">
+                                {t("cityListRowExisting")}
+                              </span>
+                            ) : !isPlaceholder ? (
+                              <span className="inline-flex rounded-full border border-hq-success/40 bg-hq-success/10 px-2 py-0.5 text-[11px] font-medium text-hq-success">
+                                {t("cityListRowNew")}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-hq-fg-muted">
+                                —
+                              </span>
+                            )}
+                          </td>
                           <td className="px-3 py-2">
                             <div className="space-y-0.5">
                               <input

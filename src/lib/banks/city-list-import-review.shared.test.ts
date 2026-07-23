@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   cityListImportBankIdentityError,
   cityListReviewRowsHaveErrors,
+  classifyCityListImportRowsAgainstHq,
   clampReviewIndexAfterRemove,
   defaultPlaceholderGameServerNumber,
   isCityListPlaceholderCoords,
@@ -176,5 +177,34 @@ describe("cityListReviewRowsHaveErrors", () => {
         "Level must be at least 1",
       ),
     ).toBe(true);
+  });
+});
+
+describe("classifyCityListImportRowsAgainstHq", () => {
+  it("counts existing vs new by exact server+X+Y", () => {
+    const result = classifyCityListImportRowsAgainstHq(
+      [
+        { gameServerNumber: 1203, coordX: 199, coordY: 599 },
+        { gameServerNumber: 1203, coordX: 300, coordY: 400 },
+        { gameServerNumber: 1203, coordX: 0, coordY: 0 },
+      ],
+      [{ gameServerNumber: 1203, coordX: 199, coordY: 599 }],
+    );
+    expect(result.existingCount).toBe(1);
+    expect(result.newCount).toBe(1);
+    expect(
+      result.rowExistsInHq({
+        gameServerNumber: 1203,
+        coordX: 199,
+        coordY: 599,
+      }),
+    ).toBe(true);
+    expect(
+      result.rowExistsInHq({
+        gameServerNumber: 1203,
+        coordX: 300,
+        coordY: 400,
+      }),
+    ).toBe(false);
   });
 });
