@@ -3440,3 +3440,53 @@ export const commanderStoreTipLinks = pgTable(
 export type CommanderStoreDonationReceipt =
   typeof commanderStoreDonationReceipts.$inferSelect;
 export type CommanderStoreTipLink = typeof commanderStoreTipLinks.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Member time-off calendar
+// ---------------------------------------------------------------------------
+
+export const memberTimeOff = pgTable(
+  "member_time_off",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    memberName: text("member_name").notNull(),
+    /** Inclusive server calendar dates (YYYY-MM-DD). */
+    startDate: text("start_date").notNull(),
+    endDate: text("end_date").notNull(),
+    notes: text("notes"),
+    /** full_away | limited | minimums | hit_and_miss */
+    availability: text("availability").notNull().default("full_away"),
+    /** planned | officer_marked | unexpected */
+    entryKind: text("entry_kind").notNull().default("planned"),
+    /** discord | web | officer */
+    source: text("source").notNull(),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    createdByDiscordUserId: text("created_by_discord_user_id"),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("member_time_off_alliance_start_idx").on(
+      table.allianceId,
+      table.startDate,
+    ),
+    index("member_time_off_alliance_member_idx").on(
+      table.allianceId,
+      table.ashedMemberId,
+    ),
+  ],
+);
+
+export type MemberTimeOff = typeof memberTimeOff.$inferSelect;

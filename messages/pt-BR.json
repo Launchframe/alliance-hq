@@ -99,6 +99,8 @@
     "trainsDescription": "Agenda diária do Condutor, roleta e confirmação",
     "battlePlan": "Plano de Batalha",
     "battlePlanDescription": "Agende capturas de território e coordene marcadores no mapa",
+    "timeOff": "Ausências",
+    "timeOffDescription": "Veja quem está fora e anuncie sua própria agenda",
     "bankManagement": "Gestão de Bancos",
     "bankManagementDescription": "Acompanhe Bancos, risco de investidores e o melhor momento para abandonar",
     "desertStorm": "Desert Storm",
@@ -1521,6 +1523,7 @@
         "professions": "Ir para Profissão",
         "trains": "Ir para Trem da Aliança",
         "battlePlan": "Ir para Plano de Batalha",
+        "timeOff": "Ir para Ausências",
         "bankManagement": "Ir para Gestão de Bancos",
         "desertStorm": "Ir para Desert Storm",
         "canyonStorm": "Ir para Canyon Storm",
@@ -4643,6 +4646,27 @@
     "setVrReportChannel": {
       "success": "O placar noturno de VR de **{tag}** será publicado em {channel}. Oficiais podem usar `/vr-report` a qualquer momento ou `/vr-report teams:N` para planos de takedown."
     },
+    "timeOff": {
+      "notLinked": "Vincule seu comandante com `/link-commander` antes de anunciar ausência.",
+      "multipleCommanders": "Você tem vários comandantes vinculados ({names}). Use `start:` e `end:` explícitos ou desvincule extras com `/unlink`.",
+      "noUpcoming": "**{name}** não tem ausências futuras no calendário.",
+      "upcomingList": "Próximas ausências de **{name}**:\n{entries}",
+      "parseFailed": "Não consegui entender essas datas. Tente algo como \"fora na próxima semana\" ou use `start:AAAA-MM-DD` e `end:AAAA-MM-DD`.",
+      "invalidStart": "Adicione uma mensagem em `upcoming:` ou um `start:AAAA-MM-DD` válido.",
+      "invalidRange": "A data de fim deve ser igual ou posterior à de início.",
+      "saved": "Ausência salva.\n{summary}",
+      "usageIsOffline": "Uso: `/is-ally-offline commander:NomeDoComandante` (opcional `date:AAAA-MM-DD`).",
+      "commanderNotFound": "Nenhuma correspondência no roster para **{name}**. Confira a grafia.",
+      "pickCommander": "Várias correspondências no roster. Seja mais específico ou escolha entre: {names}",
+      "isAway": "**{name}** está marcado como ausente em **{date}**.\n{summary}",
+      "isAvailable": "**{name}** não tem ausência programada em **{date}**.",
+      "entrySummary": "**{name}** — {start} a {end} ({availability}){notes}",
+      "notesLine": " — {notes}",
+      "availabilityFullAway": "totalmente ausente",
+      "availabilityLimited": "disponibilidade limitada",
+      "availabilityMinimums": "mantendo mínimos",
+      "availabilityHitAndMiss": "irregular"
+    },
     "train": {
       "setTrainChannel": {
         "success": "Anúncios de trem de **{tag}** serão publicados em {channel}. Ative os anúncios nas configurações da aliança no HQ; oficiais podem usar `/set-conductor` e `/train-is-ready`."
@@ -5648,6 +5672,62 @@
       "detailLoadError": "Não foi possível carregar os resultados reais da projeção salva.",
       "nameRequired": "O nome é obrigatório.",
       "deleteProjection": "Excluir projeção"
+    }
+  },
+  "timeOff": {
+    "title": "Ausências",
+    "subtitle": "Veja quem está programado para ficar fora e compartilhe seus planos para que oficiais não precisem perguntar no chat.",
+    "form": {
+      "title": "Anuncie sua ausência",
+      "hint": "Descreva as datas em linguagem natural — por exemplo, \"fora na próxima semana visitando a família na França.\"",
+      "placeholder": "Vou ficar fora na próxima semana para visitar a família na França.",
+      "submit": "Salvar ausência",
+      "officerEntry": "Oficial: adicionar entrada para um membro"
+    },
+    "calendar": {
+      "previousMonth": "Mês anterior",
+      "nextMonth": "Próximo mês",
+      "weekdayHeaders": ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"],
+      "more": "+{count} mais"
+    },
+    "availability": {
+      "full_away": "Totalmente ausente",
+      "limited": "Disponibilidade limitada",
+      "minimums": "Mantendo mínimos",
+      "hit_and_miss": "Irregular"
+    },
+    "entry": {
+      "range": "{start} a {end}",
+      "cancel": "Cancelar esta entrada"
+    },
+    "officerModal": {
+      "title": "Entrada de ausência (oficial)",
+      "member": "Comandante",
+      "memberPlaceholder": "Selecione um membro do roster",
+      "kind": "Tipo de entrada",
+      "kindPlanned": "Ausência planejada (registrada por oficial)",
+      "kindUnexpected": "Ausência inesperada",
+      "start": "Data de início",
+      "end": "Data de fim",
+      "availability": "Disponibilidade",
+      "notes": "Notas",
+      "cancel": "Cancelar",
+      "save": "Salvar entrada"
+    },
+    "unexpectedReport": {
+      "title": "Relatório de ausências inesperadas",
+      "subtitle": "Oficiais podem sinalizar ausências não anunciadas e ver quem não publicou ausência planejada para hoje.",
+      "refresh": "Atualizar",
+      "flaggedTitle": "Sinalizadas como inesperadas",
+      "flaggedEmpty": "Nenhuma ausência inesperada sinalizada para hoje.",
+      "unannouncedTitle": "Sem ausência planejada hoje",
+      "unannouncedEmpty": "Todos no roster têm ausência planejada publicada para hoje."
+    },
+    "errors": {
+      "loadFailed": "Falha ao carregar o calendário de ausências.",
+      "saveFailed": "Não foi possível salvar a ausência.",
+      "reportFailed": "Não foi possível carregar o relatório de ausências inesperadas.",
+      "fieldsRequired": "Comandante e datas são obrigatórios."
     }
   },
   "statSync": {

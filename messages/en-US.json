@@ -99,6 +99,8 @@
     "trainsDescription": "Daily Conductor schedule, wheel rolls, and train lock-in",
     "battlePlan": "Battle Plan",
     "battlePlanDescription": "Schedule territory captures and coordinate map markers",
+    "timeOff": "Time Off",
+    "timeOffDescription": "See who is away and announce your own schedule",
     "bankManagement": "Bank Management",
     "bankManagementDescription": "Track Bank Strongholds, deposit risk, and drop timing",
     "desertStorm": "Desert Storm",
@@ -1521,6 +1523,7 @@
         "professions": "Go to Profession",
         "trains": "Go to Alliance Train",
         "battlePlan": "Go to Battle Plan",
+        "timeOff": "Go to Time Off",
         "bankManagement": "Go to Bank Management",
         "desertStorm": "Go to Desert Storm",
         "canyonStorm": "Go to Canyon Storm",
@@ -4697,6 +4700,27 @@
     "setVrReportChannel": {
       "success": "Nightly VR standings for **{tag}** will post in {channel}. Officers can run `/vr-report` anytime for a fresh top-25 or `/vr-report teams:N` for takedown plans."
     },
+    "timeOff": {
+      "notLinked": "Link your commander with `/link-commander` before announcing time off.",
+      "multipleCommanders": "You have multiple linked commanders ({names}). Use explicit `start:` and `end:` dates, or unlink extras with `/unlink`.",
+      "noUpcoming": "**{name}** has no upcoming time off on the calendar.",
+      "upcomingList": "**{name}** upcoming time off:\n{entries}",
+      "parseFailed": "I couldn't figure out those dates. Try something like \"away next week\" or add `start:YYYY-MM-DD` and `end:YYYY-MM-DD`.",
+      "invalidStart": "Add an `upcoming:` message or a valid `start:YYYY-MM-DD`.",
+      "invalidRange": "End date must be on or after the start date.",
+      "saved": "Time off saved.\n{summary}",
+      "usageIsOffline": "Usage: `/is-ally-offline commander:CommanderName` (optional `date:YYYY-MM-DD`).",
+      "commanderNotFound": "No roster match for **{name}**. Check spelling against your alliance members list.",
+      "pickCommander": "Multiple roster matches. Be more specific or pick from: {names}",
+      "isAway": "**{name}** is marked away on **{date}**.\n{summary}",
+      "isAvailable": "**{name}** has no scheduled time off on **{date}**.",
+      "entrySummary": "**{name}** — {start} to {end} ({availability}){notes}",
+      "notesLine": " — {notes}",
+      "availabilityFullAway": "fully away",
+      "availabilityLimited": "limited availability",
+      "availabilityMinimums": "maintaining minimums",
+      "availabilityHitAndMiss": "hit and miss"
+    },
     "train": {
       "setTrainChannel": {
         "success": "Train announcements for **{tag}** will post in {channel}. Enable announcements in Alliance HQ settings, then officers can use `/set-conductor` and `/train-is-ready`."
@@ -5648,6 +5672,62 @@
       "detailLoadError": "Could not load the saved projection's actual results.",
       "nameRequired": "Name is required.",
       "deleteProjection": "Delete projection"
+    }
+  },
+  "timeOff": {
+    "title": "Time Off",
+    "subtitle": "See who is scheduled away and share your own plans so officers do not have to chase answers in chat.",
+    "form": {
+      "title": "Announce your time off",
+      "hint": "Describe your dates in plain language — for example, \"away next week visiting family in France.\"",
+      "placeholder": "I'll be away this upcoming week to visit family in France.",
+      "submit": "Save time off",
+      "officerEntry": "Officer: add entry for a member"
+    },
+    "calendar": {
+      "previousMonth": "Previous month",
+      "nextMonth": "Next month",
+      "weekdayHeaders": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      "more": "+{count} more"
+    },
+    "availability": {
+      "full_away": "Fully away",
+      "limited": "Limited availability",
+      "minimums": "Maintaining minimums",
+      "hit_and_miss": "Hit and miss"
+    },
+    "entry": {
+      "range": "{start} to {end}",
+      "cancel": "Cancel this entry"
+    },
+    "officerModal": {
+      "title": "Officer time-off entry",
+      "member": "Commander",
+      "memberPlaceholder": "Select a roster member",
+      "kind": "Entry type",
+      "kindPlanned": "Planned absence (officer recorded)",
+      "kindUnexpected": "Unexpected absence",
+      "start": "Start date",
+      "end": "End date",
+      "availability": "Availability",
+      "notes": "Notes",
+      "cancel": "Cancel",
+      "save": "Save entry"
+    },
+    "unexpectedReport": {
+      "title": "Unexpected absence report",
+      "subtitle": "Officers can flag unannounced absences and see who has not posted planned time off today.",
+      "refresh": "Refresh",
+      "flaggedTitle": "Flagged unexpected",
+      "flaggedEmpty": "No unexpected absences flagged for today.",
+      "unannouncedTitle": "No planned time off today",
+      "unannouncedEmpty": "Everyone on the roster has planned time off posted for today."
+    },
+    "errors": {
+      "loadFailed": "Failed to load the time-off calendar.",
+      "saveFailed": "Could not save time off.",
+      "reportFailed": "Could not load the unexpected absence report.",
+      "fieldsRequired": "Commander and dates are required."
     }
   },
   "statSync": {
