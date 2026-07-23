@@ -26,6 +26,7 @@ Complete these **in order** before marking the auth + email release done.
 | `RESEND_API_KEY` | From [Resend](https://resend.com) → API Keys |
 | `EMAIL_FROM` | `Alliance HQ <auth@frontline.gay>` |
 | `DATABASE_URL` | Neon Postgres (unchanged) |
+| `DATABASE_URL_UNPOOLED` / `POSTGRES_URL_NON_POOLING` | Neon **direct** (non-pooler) URL — required for video-job / admin-alert SSE (`LISTEN`). Injected by the Neon ↔ Vercel integration; do not point these at the `-pooler` host. |
 | `TOKEN_ENCRYPTION_KEY` | Unchanged |
 | `R2_BUCKET` | e.g. `alliance-hq-video-queue` (must match the bucket you configure below) |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Cloudflare R2 API token with read/write on that bucket |
@@ -47,6 +48,8 @@ When **`DATABASE_URL` is managed by the Neon ↔ Vercel integration**, you canno
 4. Confirm `https://frontline.gay/api/health/db` returns `{ "ok": true }`.
 
 During the mismatch window, normal page/API requests may fail session lookups; SSE routes (`/api/events/video-jobs`, `/api/events/admin-alerts`) that call Postgres **`LISTEN`** must not leave that failure as an unhandled promise rejection (see `src/lib/db/postgres-listen.ts`). If the dedicated LISTEN connection drops after setup (including failed silent re-subscribe inside postgres.js), periodic **`select 1` probes** close the SSE stream with a **`reconnect`** event so clients open a fresh request on a new serverless instance.
+
+**LISTEN must use the direct Neon host.** PgBouncer transaction pooling (`*-pooler.*.neon.tech`) cannot keep a session-scoped `LISTEN` subscription open. The SSE listen clients resolve `DATABASE_URL_UNPOOLED` / `POSTGRES_URL_NON_POOLING` via `getListenDatabaseUrl()` and only fall back to `DATABASE_URL` when those are unset. One-shot `pg_notify` still works through the shared query pool. If live video progress bars stay frozen until reload, confirm Production has an unpooled URL and that it does **not** contain `-pooler`.
 
 **Not load-related:** `28P01` is always an auth/credential problem, not connection pool exhaustion.
 

@@ -2,16 +2,26 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   resolveDatabaseUrl,
+  resolveListenDatabaseUrl,
   shouldPreferLocalDatabaseUrl,
   type DatabaseUrlEnv,
 } from "./resolve-database-url";
 import { resolveDatabaseUrl as resolveDatabaseUrlMjs } from "../../../scripts/lib/database-url.mjs";
-import { getDatabaseUrl, normalizePostgresUrl, databaseHostFromUrl } from "./url";
+import {
+  getDatabaseUrl,
+  getListenDatabaseUrl,
+  normalizePostgresUrl,
+  databaseHostFromUrl,
+} from "./url";
 
 const LOCAL =
   "postgresql://postgres:alliance-hq@localhost:5432/alliance_hq_dev";
 const NEON =
   "postgresql://neondb_owner:secret@ep-orange-wildflower-adaa7e6k-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require";
+const NEON_UNPOOLED =
+  "postgresql://neondb_owner:secret@ep-orange-wildflower-adaa7e6k.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require";
+const NEON_NON_POOLING =
+  "postgresql://neondb_owner:secret@ep-orange-wildflower-adaa7e6k.c-2.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require";
 
 /** Mirrors a Vercel-pulled .env.development.local with both URLs set. */
 const VERCEL_PULLED_LOCAL_DEV: DatabaseUrlEnv = {
@@ -147,6 +157,76 @@ describe("getDatabaseUrl", () => {
     vi.stubEnv("DATABASE_URL", NEON);
     try {
       expect(getDatabaseUrl()).toBe(LOCAL);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
+
+describe("resolveListenDatabaseUrl", () => {
+  it("keeps LOCAL when local Postgres is preferred", () => {
+    expect(
+      resolveListenDatabaseUrl({
+        NODE_ENV: "development",
+        LOCAL_DATABASE_URL: LOCAL,
+        DATABASE_URL: NEON,
+        DATABASE_URL_UNPOOLED: NEON_UNPOOLED,
+      }),
+    ).toBe(LOCAL);
+  });
+
+  it("prefers DATABASE_URL_UNPOOLED on Vercel production", () => {
+    expect(
+      resolveListenDatabaseUrl({
+        NODE_ENV: "production",
+        VERCEL: "1",
+        LOCAL_DATABASE_URL: LOCAL,
+        DATABASE_URL: NEON,
+        DATABASE_URL_UNPOOLED: NEON_UNPOOLED,
+      }),
+    ).toBe(NEON_UNPOOLED);
+  });
+
+  it("falls back to POSTGRES_URL_NON_POOLING when UNPOOLED is unset", () => {
+    expect(
+      resolveListenDatabaseUrl({
+        NODE_ENV: "production",
+        VERCEL: "1",
+        DATABASE_URL: NEON,
+        POSTGRES_URL_NON_POOLING: NEON_NON_POOLING,
+      }),
+    ).toBe(NEON_NON_POOLING);
+  });
+
+  it("falls back to the pooled DATABASE_URL when no direct URL is set", () => {
+    expect(
+      resolveListenDatabaseUrl({
+        NODE_ENV: "production",
+        VERCEL: "1",
+        DATABASE_URL: NEON,
+      }),
+    ).toBe(NEON);
+  });
+
+  it("uses unpooled when developing against Neon without LOCAL", () => {
+    expect(
+      resolveListenDatabaseUrl({
+        NODE_ENV: "development",
+        DATABASE_URL: NEON,
+        DATABASE_URL_UNPOOLED: NEON_UNPOOLED,
+      }),
+    ).toBe(NEON_UNPOOLED);
+  });
+});
+
+describe("getListenDatabaseUrl", () => {
+  it("reads the unpooled URL from process.env", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL", "1");
+    vi.stubEnv("DATABASE_URL", NEON);
+    vi.stubEnv("DATABASE_URL_UNPOOLED", NEON_UNPOOLED);
+    try {
+      expect(getListenDatabaseUrl()).toBe(NEON_UNPOOLED);
     } finally {
       vi.unstubAllEnvs();
     }

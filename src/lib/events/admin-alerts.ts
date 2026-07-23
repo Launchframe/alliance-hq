@@ -1,6 +1,6 @@
 import postgres from "postgres";
 
-import { getDatabaseUrl } from "@/lib/db/url";
+import { getListenDatabaseUrl } from "@/lib/db/url";
 
 export type VrLinkAttentionAlert = {
   type: "vr_link_attention";
@@ -48,13 +48,15 @@ let notifyClient: ReturnType<typeof postgres> | null = null;
 
 function getNotifyClient() {
   if (!notifyClient) {
-    notifyClient = postgres(getDatabaseUrl(), { prepare: false, max: 1 });
+    // Keep admin-alert pub/sub off the Neon pooler host when DATABASE_URL is
+    // `*-pooler.*` (same direct URL used for the LISTEN client below).
+    notifyClient = postgres(getListenDatabaseUrl(), { prepare: false, max: 1 });
   }
   return notifyClient;
 }
 
 export function createAdminAlertListenClient() {
-  return postgres(getDatabaseUrl(), { prepare: false, max: 1 });
+  return postgres(getListenDatabaseUrl(), { prepare: false, max: 1 });
 }
 
 export async function emitAdminAlert(
