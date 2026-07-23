@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { Crosshair, LocateFixed, MonitorPlay, Trash2 } from "lucide-react";
+import { Crosshair, LocateFixed, MonitorPlay, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link, useRouter } from "@/i18n/navigation";
@@ -266,6 +266,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   >([]);
   const [depositSlipSortKey, setDepositSlipSortKey] =
     useState<DepositSlipVisibleSortKey>("depositAt");
+  const [depositSlipProblemNavIndex, setDepositSlipProblemNavIndex] =
+    useState(0);
   const [error, setError] = useState<string | null>(null);
   const [errorConnectUrl, setErrorConnectUrl] = useState<string | null>(null);
   const actionErrorAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -1276,6 +1278,61 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     })),
     dedupeReport,
   );
+
+  const depositSlipProblemRowIds = useMemo(() => {
+    if (!scoreTargetMeta?.showDepositSlipColumns) return [];
+    const problemIds = new Set<string>();
+    for (const id of depositSlipValidation.incompleteRowIds) {
+      problemIds.add(id);
+    }
+    for (const id of depositSlipValidation.duplicateRowIds) {
+      problemIds.add(id);
+    }
+    for (const row of activeRows) {
+      const clusterId = row.dedupeClusterId;
+      if (
+        clusterId &&
+        depositSlipValidation.unresolvedClusterIds.has(clusterId)
+      ) {
+        problemIds.add(row.id);
+      }
+    }
+    return depositSlipVisibleRowIds.filter((id) => problemIds.has(id));
+  }, [
+    scoreTargetMeta?.showDepositSlipColumns,
+    depositSlipValidation.incompleteRowIds,
+    depositSlipValidation.duplicateRowIds,
+    depositSlipValidation.unresolvedClusterIds,
+    activeRows,
+    depositSlipVisibleRowIds,
+  ]);
+
+  const depositSlipProblemRowIdsKey = depositSlipProblemRowIds.join(",");
+
+  useEffect(() => {
+    setDepositSlipProblemNavIndex(0);
+  }, [depositSlipProblemRowIdsKey]);
+
+  const jumpToDepositSlipProblem = useCallback(
+    (index: number) => {
+      if (depositSlipProblemRowIds.length === 0) return;
+      const wrapped =
+        ((index % depositSlipProblemRowIds.length) +
+          depositSlipProblemRowIds.length) %
+        depositSlipProblemRowIds.length;
+      setDepositSlipProblemNavIndex(wrapped);
+      scrollToDepositSlipRow(depositSlipProblemRowIds[wrapped]!);
+    },
+    [depositSlipProblemRowIds, scrollToDepositSlipRow],
+  );
+
+  const goToNextDepositSlipProblem = useCallback(() => {
+    jumpToDepositSlipProblem(depositSlipProblemNavIndex + 1);
+  }, [depositSlipProblemNavIndex, jumpToDepositSlipProblem]);
+
+  const goToPrevDepositSlipProblem = useCallback(() => {
+    jumpToDepositSlipProblem(depositSlipProblemNavIndex - 1);
+  }, [depositSlipProblemNavIndex, jumpToDepositSlipProblem]);
 
   const scoreDuplicateRowIds = useMemo(
     () => duplicateMemberRowIds(scoreDuplicateMemberIssues),
@@ -2523,6 +2580,35 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               </p>
             ) : null}
           </div>
+          {depositSlipProblemRowIds.length > 0 ? (
+            <div
+              className="sticky z-20 -mx-4 flex flex-wrap items-center gap-2 border-b border-hq-border bg-hq-canvas/95 px-4 py-2 backdrop-blur md:-mx-0 md:px-0"
+              style={{ top: "3.25rem" }}
+            >
+              <span className="text-sm text-hq-fg-muted">
+                {t("depositSlipReviewNavCounter", {
+                  current: depositSlipProblemNavIndex + 1,
+                  total: depositSlipProblemRowIds.length,
+                })}
+              </span>
+              <button
+                type="button"
+                onClick={goToPrevDepositSlipProblem}
+                aria-label={t("depositSlipReviewNavPrev")}
+                className="inline-flex items-center rounded-md border border-hq-border p-1.5 text-hq-fg hover:bg-hq-surface-muted"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                onClick={goToNextDepositSlipProblem}
+                aria-label={t("depositSlipReviewNavNext")}
+                className="inline-flex items-center rounded-md border border-hq-border p-1.5 text-hq-fg hover:bg-hq-surface-muted"
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
+          ) : null}
           <DepositSlipVideoReviewTable
             rows={activeRows.map((row) => ({
               id: row.id,
