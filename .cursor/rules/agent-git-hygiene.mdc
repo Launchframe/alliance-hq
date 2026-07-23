@@ -95,6 +95,8 @@ After a task is merged, abandoned, or handed back to the maintainer:
 
 The script pairs with GitHub **Automatically delete head branches**. It never deletes `main`, the current branch, dirty worktrees, or open-PR heads. Dry-run is the default.
 
+**SessionStart hook (Layer 3):** `.cursor/hooks.json` runs `.cursor/hooks/git-prune-session-start.sh` on new agent chats (dry-run only; skips background agents). It injects a short debt summary via `additional_context` / session `env`, and writes `.cursor/git-prune-status.md` (local, gitignored). If prune debt is relevant to the task, **Read** that status file or re-run `./scripts/git-prune.sh --worktrees`. Never auto-`--apply` from the hook.
+
 ## Before changing branches in the primary clone
 
 1. `git status` — if dirty, **commit to a topic branch** or **stop and ask**; do not auto-stash to “make checkout work.”
