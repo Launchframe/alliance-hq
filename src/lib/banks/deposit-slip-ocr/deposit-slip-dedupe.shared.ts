@@ -470,7 +470,10 @@ function sortByDepositAtDesc(slips: DedupedDepositSlip[]): DedupedDepositSlip[] 
   return [...slips].sort((a, b) => {
     const aMs = a.depositAt ? Date.parse(a.depositAt) : 0;
     const bMs = b.depositAt ? Date.parse(b.depositAt) : 0;
-    return bMs - aMs;
+    if (bMs !== aMs) return bMs - aMs;
+    const aFrame = a.sourceFrameIndex ?? Number.MAX_SAFE_INTEGER;
+    const bFrame = b.sourceFrameIndex ?? Number.MAX_SAFE_INTEGER;
+    return aFrame - bFrame;
   });
 }
 
