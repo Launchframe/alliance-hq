@@ -14,13 +14,18 @@ export type ConductorConfigPayload = {
 
 const TEMPLATE_CELL_STYLES: Partial<Record<WeekTemplateType, string>> = {
   vs_push_weekdays: MECHANISM_STYLES.vs_top_10,
-  r4_event_vip: "border-slate-300 bg-slate-400/15 text-slate-100",
+  r4_event_vip:
+    "border-slate-300 bg-slate-400/15 text-slate-100 light:bg-slate-100 light:text-slate-700",
   top_vs: MECHANISM_STYLES.vs_top_n,
   top_vr: MECHANISM_STYLES.vr_top_n,
-  economy_week: "border-red-500 bg-red-500/15 text-red-200",
-  price_is_right: "border-cyan-500 bg-cyan-500/15 text-cyan-200",
-  price_is_right_weekdays: "border-cyan-500 bg-cyan-500/15 text-cyan-200",
-  takedown_week: "border-cyan-400 bg-cyan-400/15 text-cyan-100",
+  economy_week:
+    "border-red-500 bg-red-500/15 text-red-200 light:bg-red-100 light:text-red-800",
+  price_is_right:
+    "border-cyan-500 bg-cyan-500/15 text-cyan-200 light:bg-cyan-100 light:text-cyan-800",
+  price_is_right_weekdays:
+    "border-cyan-500 bg-cyan-500/15 text-cyan-200 light:bg-cyan-100 light:text-cyan-800",
+  takedown_week:
+    "border-cyan-400 bg-cyan-400/15 text-cyan-100 light:bg-cyan-100 light:text-cyan-800",
   r3_recognition: MECHANISM_STYLES.r3_lottery,
   r4_train_week: MECHANISM_STYLES.r4_sequence,
   donations_week: MECHANISM_STYLES.donations_top,
@@ -68,7 +73,12 @@ export function calendarCellOpaqueStyleClass(
   paintTemplate?: WeekTemplateType | null,
 ): string {
   const style = calendarCellStyleClass(conductorMechanism, paintTemplate);
-  const withoutBg = style.replace(/\bbg-[\w-]+(?:\/[\d.]+)?\b/g, "").trim();
+  const withoutBg = style
+    .replace(/\blight:bg-[\w-]+(?:\/[\d.]+)?\b/g, "")
+    .replace(/\bdark:bg-[\w-]+(?:\/[\d.]+)?\b/g, "")
+    .replace(/\bbg-[\w-]+(?:\/[\d.]+)?\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
   return `${withoutBg} bg-hq-surface`;
 }
 
