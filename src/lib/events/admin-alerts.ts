@@ -1,6 +1,6 @@
 import postgres from "postgres";
 
-import { getDatabaseUrl } from "@/lib/db/url";
+import { getListenDatabaseUrl } from "@/lib/db/url";
 
 export type VrLinkAttentionAlert = {
   type: "vr_link_attention";
@@ -48,13 +48,14 @@ let notifyClient: ReturnType<typeof postgres> | null = null;
 
 function getNotifyClient() {
   if (!notifyClient) {
-    notifyClient = postgres(getDatabaseUrl(), { prepare: false, max: 1 });
+    // Prefer the direct URL so NOTIFY is not subject to PgBouncer session limits.
+    notifyClient = postgres(getListenDatabaseUrl(), { prepare: false, max: 1 });
   }
   return notifyClient;
 }
 
 export function createAdminAlertListenClient() {
-  return postgres(getDatabaseUrl(), { prepare: false, max: 1 });
+  return postgres(getListenDatabaseUrl(), { prepare: false, max: 1 });
 }
 
 export async function emitAdminAlert(

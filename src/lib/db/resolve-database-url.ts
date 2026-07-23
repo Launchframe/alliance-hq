@@ -3,6 +3,10 @@ export type DatabaseUrlEnv = {
   VERCEL?: string;
   LOCAL_DATABASE_URL?: string;
   DATABASE_URL?: string;
+  /** Neon direct (non-pooler) URL — required for Postgres LISTEN/NOTIFY. */
+  DATABASE_URL_UNPOOLED?: string;
+  /** Neon integration alias for the direct URL. */
+  POSTGRES_URL_NON_POOLING?: string;
 };
 
 /**
@@ -51,4 +55,31 @@ export function resolveDatabaseUrl(env: DatabaseUrlEnv): string {
   }
 
   return raw;
+}
+
+/**
+ * Connection string for session-scoped Postgres features (`LISTEN` / `NOTIFY`).
+ *
+ * Neon’s PgBouncer pooler runs in transaction mode and does **not** support
+ * LISTEN/NOTIFY. Prefer the direct (unpooled) URL when present; otherwise fall
+ * back to {@link resolveDatabaseUrl} (fine for local Postgres).
+ *
+ * Resolution order after the normal local/prod preference:
+ * 1. DATABASE_URL_UNPOOLED (Neon ↔ Vercel integration)
+ * 2. POSTGRES_URL_NON_POOLING (Neon integration alias)
+ * 3. resolveDatabaseUrl() (LOCAL_DATABASE_URL or DATABASE_URL)
+ */
+export function resolveListenDatabaseUrl(env: DatabaseUrlEnv): string {
+  if (shouldPreferLocalDatabaseUrl(env)) {
+    return resolveDatabaseUrl(env);
+  }
+
+  const unpooled =
+    env.DATABASE_URL_UNPOOLED?.trim() ||
+    env.POSTGRES_URL_NON_POOLING?.trim();
+  if (unpooled) {
+    return unpooled;
+  }
+
+  return resolveDatabaseUrl(env);
 }

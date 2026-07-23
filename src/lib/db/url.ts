@@ -1,8 +1,12 @@
-import { resolveDatabaseUrl } from "./resolve-database-url";
+import {
+  resolveDatabaseUrl,
+  resolveListenDatabaseUrl,
+} from "./resolve-database-url";
 
 export type { DatabaseUrlEnv } from "./resolve-database-url";
 export {
   resolveDatabaseUrl,
+  resolveListenDatabaseUrl,
   shouldPreferLocalDatabaseUrl,
 } from "./resolve-database-url";
 
@@ -14,6 +18,14 @@ export {
  */
 export function getDatabaseUrl(): string {
   return normalizePostgresUrl(resolveDatabaseUrl(process.env));
+}
+
+/**
+ * Direct (session) Postgres URL for LISTEN/SSE.
+ * Prefers DATABASE_URL_UNPOOLED / POSTGRES_URL_NON_POOLING over the pooler URL.
+ */
+export function getListenDatabaseUrl(): string {
+  return normalizePostgresUrl(resolveListenDatabaseUrl(process.env));
 }
 
 /** Hostname only — safe to show in admin UI (no credentials). */
