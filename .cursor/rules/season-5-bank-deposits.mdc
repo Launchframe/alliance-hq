@@ -200,8 +200,8 @@ Receipt icon color (green vs white) means “screenshotting commander has a depo
 - **Upsert** by unique `(allianceId, gameServerNumber, coordX, coordY)` — update level / deposit count / value.
 - **Never auto-delete** banks missing from the screenshot.
 - When the import is complete and HQ has extras, warn (`cityListExtraHqWarning`).
-- Officers may **opt in** on the review dialog to archive missing banks (`archiveMissingBanks`): sets `dropByAt` to now so they appear under **Past drop deadline** — history kept, not hard-deleted.
-- Incomplete screenshots: warn; still upsert pictured tiles; leave others unchanged (archive checkbox still available if extras exist, but officers should only check it when the screenshots cover all held banks).
+- Officers may **opt in** on the review dialog to archive missing banks (`archiveMissingBanks`) when the import is **complete**: sets `dropByAt` to now so they appear under **Past drop deadline** — history kept, not hard-deleted.
+- Incomplete screenshots: warn; still upsert pictured tiles; leave others unchanged (archive checkbox hidden until the import is complete).
 
 Score target / module: `bank-city-list` under `src/lib/banks/city-list-ocr/`.
 

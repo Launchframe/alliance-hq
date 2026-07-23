@@ -576,9 +576,12 @@ export function CityListImportModal({
       ).length,
     [existingBanks, rowKeys],
   );
+  const showArchiveMissingOption =
+    isCompleteImport && extraHqBankCount > 0;
+  const effectiveArchiveMissingBanks =
+    archiveMissingBanks && isCompleteImport && extraHqBankCount > 0;
   const showExtraHqWarning =
-    isCompleteImport && extraHqBankCount > 0 && !archiveMissingBanks;
-  const showArchiveMissingOption = extraHqBankCount > 0;
+    isCompleteImport && extraHqBankCount > 0 && !effectiveArchiveMissingBanks;
 
   const lightboxSlides = useMemo<Slide[]>(
     () => screenshots.map((shot) => ({ src: shot.previewUrl })),
@@ -650,8 +653,7 @@ export function CityListImportModal({
           capturesRemainingToday: snapshot?.capturesRemainingToday ?? null,
           capturesLimitToday: snapshot?.capturesLimitToday ?? null,
           serverTime: snapshot?.serverTime ?? null,
-          archiveMissingBanks:
-            archiveMissingBanks && extraHqBankCount > 0 ? true : undefined,
+          archiveMissingBanks: effectiveArchiveMissingBanks ? true : undefined,
         }),
       });
       const body = (await res.json().catch(() => null)) as
@@ -669,7 +671,7 @@ export function CityListImportModal({
     } finally {
       setImporting(false);
     }
-  }, [allianceId, archiveMissingBanks, extraHqBankCount, handleOpenChange, hasDuplicateCoords, importing, levelMinMsg, onImported, requiredMsg, rows, snapshot, t]);
+  }, [allianceId, effectiveArchiveMissingBanks, handleOpenChange, hasDuplicateCoords, importing, levelMinMsg, onImported, requiredMsg, rows, snapshot, t]);
 
   const openPreview = useCallback(
     (index = previewIndex) => {

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import {
@@ -135,27 +135,23 @@ export async function markBanksDropDeadlineAt(
   allianceId: string,
   bankIds: readonly string[],
   at: Date = new Date(),
-) {
+): Promise<typeof schema.banks.$inferSelect[]> {
   if (bankIds.length === 0) return [];
   const db = getDb();
-  const updated = [];
-  for (const bankId of bankIds) {
-    const rows = await db
-      .update(schema.banks)
-      .set({
-        dropByAt: at,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(schema.banks.id, bankId),
-          eq(schema.banks.allianceId, allianceId),
-        ),
-      )
-      .returning();
-    if (rows[0]) updated.push(rows[0]);
-  }
-  return updated;
+  const now = new Date();
+  return db
+    .update(schema.banks)
+    .set({
+      dropByAt: at,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(schema.banks.allianceId, allianceId),
+        inArray(schema.banks.id, [...bankIds]),
+      ),
+    )
+    .returning();
 }
 
 export async function updateAllianceBankCityListSnapshot(

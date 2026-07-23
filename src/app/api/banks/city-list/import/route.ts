@@ -223,7 +223,7 @@ export async function POST(request: Request) {
     const warnings: string[] = [];
     const archiveMissingBanks = body.archiveMissingBanks === true;
 
-    if (archiveMissingBanks && extraHq.length > 0) {
+    if (archiveMissingBanks && isComplete && extraHq.length > 0) {
       await markBanksDropDeadlineAt(
         allianceId,
         extraHq.map((bank) => bank.id),
@@ -242,7 +242,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       dashboard,
       ...(warnings.length > 0 ? { warnings } : {}),
-      ...(archiveMissingBanks && extraHq.length > 0
+      ...(archiveMissingBanks && isComplete && extraHq.length > 0
         ? { archivedMissingCount: extraHq.length }
         : {}),
     });
