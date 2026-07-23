@@ -39,9 +39,13 @@ export function useVideoReviewFollowMe<TRow extends Row>({
   dockHeightPx,
 }: Options<TRow>) {
   const lastSeekedSecondsRef = useRef<number | null>(null);
+  const activeFollowMeRowIdRef = useRef<string | null>(null);
   const secondsForRowRef = useRef(secondsForRow);
   const onSeekSecondsRef = useRef(onSeekSeconds);
   const [anchorRevision, setAnchorRevision] = useState(0);
+  const [activeFollowMeRowId, setActiveFollowMeRowId] = useState<string | null>(
+    null,
+  );
 
   // A single registry per hook instance hands out a *stable* callback ref per
   // row id, so React does not detach/reattach (and thus re-run setState) on
@@ -67,7 +71,11 @@ export function useVideoReviewFollowMe<TRow extends Row>({
   useEffect(() => {
     if (!enabled) {
       lastSeekedSecondsRef.current = null;
-      return;
+      activeFollowMeRowIdRef.current = null;
+      const frame = requestAnimationFrame(() => {
+        setActiveFollowMeRowId(null);
+      });
+      return () => cancelAnimationFrame(frame);
     }
 
     // Force a seek on the first sync after deps change (placement, dock, rows).
@@ -94,13 +102,28 @@ export function useVideoReviewFollowMe<TRow extends Row>({
       });
 
       const samples: FollowAnchorSample[] = [];
+      let closestRowId: string | null = null;
+      let closestDistance = Number.POSITIVE_INFINITY;
       for (const [rowId, element] of anchorElements) {
         const row = rowsById.get(rowId);
         if (!row) continue;
         const seconds = secondsForRowRef.current(row);
         if (seconds == null) continue;
         const rect = element.getBoundingClientRect();
-        samples.push({ seconds, centerPx: rect.top + rect.height / 2 });
+        const centerPx = rect.top + rect.height / 2;
+        samples.push({ seconds, centerPx });
+        const distance = Math.abs(centerPx - centerY);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestRowId = rowId;
+        }
+      }
+
+      if (closestRowId !== activeFollowMeRowIdRef.current) {
+        activeFollowMeRowIdRef.current = closestRowId;
+        requestAnimationFrame(() => {
+          setActiveFollowMeRowId(activeFollowMeRowIdRef.current);
+        });
       }
 
       const seconds = interpolateSecondsAtCenter(samples, centerY);
@@ -157,5 +180,5 @@ export function useVideoReviewFollowMe<TRow extends Row>({
     registry,
   ]);
 
-  return { registerFollowAnchor };
+  return { registerFollowAnchor, activeFollowMeRowId };
 }

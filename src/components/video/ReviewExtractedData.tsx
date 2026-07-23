@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { Crosshair, LocateFixed, MonitorPlay, Trash2 } from "lucide-react";
+import { Crosshair, LocateFixed, MonitorPlay, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link, useRouter } from "@/i18n/navigation";
@@ -11,6 +11,7 @@ import {
 } from "@/lib/client/form-enter-submit.shared";
 import { useFeedback } from "@/components/feedback";
 import { AppSelect } from "@/components/ui/AppSelect";
+import { Dialog } from "@/components/ui/dialog";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { useVideoJob } from "@/components/video/VideoJobEventsProvider";
 import {
@@ -93,6 +94,10 @@ import {
 } from "@/lib/video/roster-video-review.shared";
 import type { AshedMember } from "@/lib/video/member-matcher";
 import { readPreferredDepositSlipBankId } from "@/lib/banks/deposit-slip-upload-context.shared";
+import {
+  depositSlipReviewRowSummaryParts,
+  diffKeysForDepositSlipRows,
+} from "@/lib/banks/deposit-slip-review-row-summary.shared";
 import type { DetectedBankContext } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
 import { matchDetectedBankContextToBanks } from "@/lib/banks/bank-context-ocr/detected-bank-context-match.shared";
 import { DepositSlipBankContextPanel } from "@/components/video/DepositSlipBankContextPanel";
@@ -261,10 +266,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   >([]);
   const [depositSlipSortKey, setDepositSlipSortKey] =
     useState<DepositSlipVisibleSortKey>("depositAt");
+  const [depositSlipProblemNavIndex, setDepositSlipProblemNavIndex] =
+    useState(0);
+  const [depositSlipPreviewMode, setDepositSlipPreviewMode] = useState<
+    "video" | "frames"
+  >("video");
   const [error, setError] = useState<string | null>(null);
   const [errorConnectUrl, setErrorConnectUrl] = useState<string | null>(null);
   const actionErrorAnchorRef = useRef<HTMLDivElement | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [overlappingLockedConfirmOpen, setOverlappingLockedConfirmOpen] =
+    useState(false);
   const [reprocessPending, setReprocessPending] = useState(false);
   const [rematching, setRematching] = useState(false);
   const [groupActionBusy, setGroupActionBusy] = useState<string | null>(null);
@@ -1071,6 +1083,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [rows],
   );
 
+  const activeRowById = useMemo(
+    () => new Map(activeRows.map((row) => [row.id, row])),
+    [activeRows],
+  );
+
+  const scrollToDepositSlipRow = useCallback((rowId: string) => {
+    document
+      .querySelector(`[data-deposit-slip-row-id="${rowId}"]`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
+
   const assignedMemberIds = useMemo(() => {
     const ids = new Set<string>();
     for (const row of activeRows) {
@@ -1189,7 +1212,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     (!scoreTargetMeta?.showDepositSlipColumns ||
       depositSlipFollowMeCompatible(depositSlipSortKey));
 
-  const { registerFollowAnchor } = useVideoReviewFollowMe({
+  const { registerFollowAnchor, activeFollowMeRowId } = useVideoReviewFollowMe({
     enabled: scoreTableFollowMeEnabled,
     rows: followMeRows,
     secondsForRow: secondsForFollowRow,
@@ -1198,6 +1221,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     previewPlacement: effectivePreviewPlacement,
     dockHeightPx: previewDockHeightPx,
   });
+
+  useEffect(() => {
+    if (scoreTableFollowMeEnabled || depositSlipPreviewMode !== "frames") return;
+    const frame = requestAnimationFrame(() => {
+      setDepositSlipPreviewMode("video");
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [scoreTableFollowMeEnabled, depositSlipPreviewMode]);
 
   // Open the source preview when landing on a review job that has video (once per
   // job visit). Users can still close it during the session; revisiting or
@@ -1259,6 +1290,69 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     dedupeReport,
   );
 
+  const depositSlipProblemRowIds = useMemo(() => {
+    if (!scoreTargetMeta?.showDepositSlipColumns) return [];
+    const problemIds = new Set<string>();
+    for (const id of depositSlipValidation.incompleteRowIds) {
+      problemIds.add(id);
+    }
+    for (const id of depositSlipValidation.duplicateRowIds) {
+      problemIds.add(id);
+    }
+    for (const row of activeRows) {
+      const clusterId = row.dedupeClusterId;
+      if (
+        clusterId &&
+        depositSlipValidation.unresolvedClusterIds.has(clusterId)
+      ) {
+        problemIds.add(row.id);
+      }
+    }
+    return depositSlipVisibleRowIds.filter((id) => problemIds.has(id));
+  }, [
+    scoreTargetMeta?.showDepositSlipColumns,
+    depositSlipValidation.incompleteRowIds,
+    depositSlipValidation.duplicateRowIds,
+    depositSlipValidation.unresolvedClusterIds,
+    activeRows,
+    depositSlipVisibleRowIds,
+  ]);
+
+  const depositSlipProblemRowIdsKey = depositSlipProblemRowIds.join(",");
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      setDepositSlipProblemNavIndex(0);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [depositSlipProblemRowIdsKey]);
+
+  const followMeFrameIndex = useMemo(() => {
+    if (!activeFollowMeRowId) return null;
+    return activeRowById.get(activeFollowMeRowId)?.frameIndex ?? null;
+  }, [activeFollowMeRowId, activeRowById]);
+
+  const jumpToDepositSlipProblem = useCallback(
+    (index: number) => {
+      if (depositSlipProblemRowIds.length === 0) return;
+      const wrapped =
+        ((index % depositSlipProblemRowIds.length) +
+          depositSlipProblemRowIds.length) %
+        depositSlipProblemRowIds.length;
+      setDepositSlipProblemNavIndex(wrapped);
+      scrollToDepositSlipRow(depositSlipProblemRowIds[wrapped]!);
+    },
+    [depositSlipProblemRowIds, scrollToDepositSlipRow],
+  );
+
+  const goToNextDepositSlipProblem = useCallback(() => {
+    jumpToDepositSlipProblem(depositSlipProblemNavIndex + 1);
+  }, [depositSlipProblemNavIndex, jumpToDepositSlipProblem]);
+
+  const goToPrevDepositSlipProblem = useCallback(() => {
+    jumpToDepositSlipProblem(depositSlipProblemNavIndex - 1);
+  }, [depositSlipProblemNavIndex, jumpToDepositSlipProblem]);
+
   const scoreDuplicateRowIds = useMemo(
     () => duplicateMemberRowIds(scoreDuplicateMemberIssues),
     [scoreDuplicateMemberIssues],
@@ -1304,13 +1398,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const submitReadinessStatus =
     liveJob?.status === "submitting" ? "submitting" : displayJobStatus;
 
+  const duplicateMembersBlockSubmit =
+    hasDuplicateMembers && !scoreTargetMeta?.showDepositSlipColumns;
+
   const canSubmit =
     isVideoJobReadyForSubmit(submitReadinessStatus) &&
     activeRows.length > 0 &&
     eventGateSatisfied &&
     (!needsBoardPicker || boardKey) &&
     (!scoreTargetMeta?.showBankSelector || Boolean(bankId)) &&
-    !hasDuplicateMembers &&
+    !duplicateMembersBlockSubmit &&
     !hasDuplicateOcrNames &&
     !hasUnresolvedNameMismatches &&
     !submitting &&
@@ -1353,16 +1450,22 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     );
   }
 
-  async function handleSubmit() {
-    if (hasDuplicateMembers || hasDuplicateOcrNames) {
+  async function handleSubmit(options?: { skipOverlappingLockedConfirm?: boolean }) {
+    const skipOverlappingLockedConfirm =
+      options?.skipOverlappingLockedConfirm === true;
+    if (
+      hasDuplicateOcrNames ||
+      (hasDuplicateMembers && !scoreTargetMeta?.showDepositSlipColumns)
+    ) {
       setActionError(t("duplicateMemberBlocked"));
       return;
     }
     if (
       scoreTargetMeta?.showDepositSlipColumns &&
-      depositSlipValidation.hasUnresolvedFlaggedClusters
+      hasDuplicateMembers &&
+      !skipOverlappingLockedConfirm
     ) {
-      setActionError(t("depositSlipFlaggedBlocked"));
+      setOverlappingLockedConfirmOpen(true);
       return;
     }
     if (
@@ -1828,6 +1931,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       dockHeightPx={previewDockHeightPx}
       onSideWidthChange={setPreviewSideWidthPx}
       onDockHeightChange={setPreviewDockHeightPx}
+      previewMode={
+        scoreTargetMeta?.showDepositSlipColumns ? depositSlipPreviewMode : "video"
+      }
+      frameIndex={
+        scoreTargetMeta?.showDepositSlipColumns &&
+        depositSlipPreviewMode === "frames"
+          ? followMeFrameIndex
+          : null
+      }
     />
   ) : null;
 
@@ -1856,7 +1968,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             : undefined
         }
       >
-        <div className="mx-auto min-w-0 w-full max-w-5xl flex-1 space-y-6 px-4 pb-6 md:px-0">
+        <div className={`mx-auto min-w-0 w-full flex-1 space-y-6 px-4 pb-6 md:px-0 ${
+          scoreTargetMeta?.showDepositSlipColumns ? "" : "max-w-5xl"
+        }`}>
           <div>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <Link
@@ -1914,6 +2028,39 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 <LocateFixed className="h-4 w-4 shrink-0" aria-hidden />
                 {t("followMe")}
               </button>
+            ) : null}
+            {scoreTargetMeta?.showDepositSlipColumns && hasSourceVideo && previewOpen ? (
+              <div
+                className="inline-flex rounded-lg border border-hq-border p-0.5"
+                role="group"
+                aria-label={t("depositSlipPreviewModeGroup")}
+              >
+                <button
+                  type="button"
+                  onClick={() => setDepositSlipPreviewMode("video")}
+                  aria-pressed={depositSlipPreviewMode === "video"}
+                  className={`rounded-md px-2.5 py-1 text-sm ${
+                    depositSlipPreviewMode === "video"
+                      ? "bg-hq-accent/20 text-hq-accent"
+                      : "text-hq-fg hover:bg-hq-surface-muted"
+                  }`}
+                >
+                  {t("depositSlipPreviewModeFullVideo")}
+                </button>
+                <button
+                  type="button"
+                  disabled={!scoreTableFollowMeEnabled}
+                  onClick={() => setDepositSlipPreviewMode("frames")}
+                  aria-pressed={depositSlipPreviewMode === "frames"}
+                  className={`rounded-md px-2.5 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50 ${
+                    depositSlipPreviewMode === "frames"
+                      ? "bg-hq-accent/20 text-hq-accent"
+                      : "text-hq-fg hover:bg-hq-surface-muted"
+                  }`}
+                >
+                  {t("depositSlipPreviewModeFrames")}
+                </button>
+              </div>
             ) : null}
             <VideoPipelineStatsButton
               timings={timings}
@@ -1981,7 +2128,73 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         </div>
       )}
 
-      {hasDuplicateMembers && (
+      {hasDuplicateMembers &&
+      scoreTargetMeta?.showDepositSlipColumns ? (
+        <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
+          <p className="font-medium">{t("depositSlipOverlappingLockedTitle")}</p>
+          <p className="mt-2 text-hq-fg">{t("depositSlipOverlappingLockedHint")}</p>
+          <ul className="mt-3 space-y-3">
+            {duplicateMemberIssues.map((issue) => {
+              const issueRows = issue.rowIds
+                .map((id) => activeRowById.get(id))
+                .filter((row): row is ParsedRow => row != null);
+              const diffKeys = diffKeysForDepositSlipRows(issueRows);
+              return (
+                <li
+                  key={issue.memberId}
+                  className="rounded-lg border border-hq-danger/30 bg-hq-canvas p-3 text-hq-fg"
+                >
+                  <p className="text-xs font-medium uppercase tracking-wide text-hq-danger">
+                    {t("depositSlipOverlappingLockedGroup", {
+                      commander: issue.memberName,
+                      count: issue.rowIds.length,
+                    })}
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {issueRows.map((row) => (
+                      <li
+                        key={row.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-hq-surface-muted/40 px-2 py-1.5"
+                      >
+                        <span className="inline-flex flex-wrap items-center gap-1 text-sm">
+                          {depositSlipReviewRowSummaryParts(row, diffKeys).map(
+                            (part, index, parts) => (
+                              <span key={part.key} className="inline-flex items-center gap-1">
+                                <span
+                                  className={
+                                    part.differs
+                                      ? "font-semibold text-hq-danger"
+                                      : undefined
+                                  }
+                                >
+                                  {part.text}
+                                </span>
+                                {index < parts.length - 1 ? (
+                                  <span aria-hidden>·</span>
+                                ) : null}
+                              </span>
+                            ),
+                          )}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => scrollToDepositSlipRow(row.id)}
+                          className="whitespace-nowrap rounded-md border border-hq-border px-2 py-1 text-xs text-hq-fg hover:bg-hq-surface-muted"
+                        >
+                          {t("depositSlipWarningRowJump")}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+
+      {hasDuplicateMembers &&
+      !scoreTargetMeta?.showDepositSlipColumns ? (
         <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
           <p className="font-medium">{t("duplicateMemberTitle")}</p>
           <ul className="mt-2 list-inside list-disc space-y-1">
@@ -1996,7 +2209,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           </ul>
           <p className="mt-2 text-hq-fg">{t("duplicateMemberHint")}</p>
         </div>
-      )}
+      ) : null}
 
       {hasDuplicateOcrNames && (
         <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
@@ -2428,6 +2641,35 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               </p>
             ) : null}
           </div>
+          {depositSlipProblemRowIds.length > 0 ? (
+            <div
+              className="sticky z-20 -mx-4 flex flex-wrap items-center gap-2 border-b border-hq-border bg-hq-canvas/95 px-4 py-2 backdrop-blur md:-mx-0 md:px-0"
+              style={{ top: "3.25rem" }}
+            >
+              <span className="text-sm text-hq-fg-muted">
+                {t("depositSlipReviewNavCounter", {
+                  current: depositSlipProblemNavIndex + 1,
+                  total: depositSlipProblemRowIds.length,
+                })}
+              </span>
+              <button
+                type="button"
+                onClick={goToPrevDepositSlipProblem}
+                aria-label={t("depositSlipReviewNavPrev")}
+                className="inline-flex items-center rounded-md border border-hq-border p-1.5 text-hq-fg hover:bg-hq-surface-muted"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                onClick={goToNextDepositSlipProblem}
+                aria-label={t("depositSlipReviewNavNext")}
+                className="inline-flex items-center rounded-md border border-hq-border p-1.5 text-hq-fg hover:bg-hq-surface-muted"
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
+          ) : null}
           <DepositSlipVideoReviewTable
             rows={activeRows.map((row) => ({
               id: row.id,
@@ -2471,6 +2713,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             registerFollowAnchor={registerFollowAnchor}
             onVisibleRowIdsChange={onDepositSlipVisibleRowIdsChange}
             onSortKeyChange={onDepositSlipSortKeyChange}
+            highlightedRowId={
+              scoreTableFollowMeEnabled ? activeFollowMeRowId : null
+            }
           />
         </>
       ) : (
@@ -2783,6 +3028,81 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       </div>
       {showSidePreview ? previewNode : null}
       {showBottomPreview ? previewNode : null}
+      <Dialog
+        open={overlappingLockedConfirmOpen}
+        onOpenChange={setOverlappingLockedConfirmOpen}
+        title={t("depositSlipOverlappingLockedConfirmTitle")}
+      >
+        <div className="flex max-w-lg flex-col gap-4">
+          <h2 className="text-lg font-semibold text-hq-fg">
+            {t("depositSlipOverlappingLockedConfirmTitle")}
+          </h2>
+          <p className="text-sm text-hq-fg-muted">
+            {t("depositSlipOverlappingLockedHint")}
+          </p>
+          <ul className="max-h-64 space-y-3 overflow-y-auto rounded-lg border border-hq-border bg-hq-canvas p-3">
+            {duplicateMemberIssues.map((issue) => {
+              const issueRows = issue.rowIds
+                .map((id) => activeRowById.get(id))
+                .filter((row): row is ParsedRow => row != null);
+              const diffKeys = diffKeysForDepositSlipRows(issueRows);
+              return (
+                <li key={issue.memberId}>
+                  <p className="text-xs font-medium text-hq-danger">
+                    {t("depositSlipOverlappingLockedGroup", {
+                      commander: issue.memberName,
+                      count: issue.rowIds.length,
+                    })}
+                  </p>
+                  <ul className="mt-1.5 space-y-1">
+                    {issueRows.map((row) => (
+                      <li key={row.id} className="text-sm text-hq-fg">
+                        {depositSlipReviewRowSummaryParts(row, diffKeys).map(
+                          (part, index, parts) => (
+                            <span key={part.key}>
+                              <span
+                                className={
+                                  part.differs ? "font-semibold text-hq-danger" : undefined
+                                }
+                              >
+                                {part.text}
+                              </span>
+                              {index < parts.length - 1 ? " · " : null}
+                            </span>
+                          ),
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => setOverlappingLockedConfirmOpen(false)}
+              className="rounded-lg border border-hq-border px-4 py-2 text-sm hover:bg-hq-surface-muted disabled:opacity-50"
+            >
+              {t("depositSlipOverlappingLockedConfirmBack")}
+            </button>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => {
+                setOverlappingLockedConfirmOpen(false);
+                void handleSubmit({ skipOverlappingLockedConfirm: true });
+              }}
+              className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
+            >
+              {submitting
+                ? t("submitting")
+                : t("depositSlipOverlappingLockedConfirmSave")}
+            </button>
+          </div>
+        </div>
+      </Dialog>
       {hasSourceVideo && !previewOpen ? (
         <button
           type="button"

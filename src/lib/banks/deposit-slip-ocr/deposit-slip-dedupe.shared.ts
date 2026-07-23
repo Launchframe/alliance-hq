@@ -470,7 +470,10 @@ function sortByDepositAtDesc(slips: DedupedDepositSlip[]): DedupedDepositSlip[] 
   return [...slips].sort((a, b) => {
     const aMs = a.depositAt ? Date.parse(a.depositAt) : 0;
     const bMs = b.depositAt ? Date.parse(b.depositAt) : 0;
-    return bMs - aMs;
+    if (bMs !== aMs) return bMs - aMs;
+    const aFrame = a.sourceFrameIndex ?? Number.MAX_SAFE_INTEGER;
+    const bFrame = b.sourceFrameIndex ?? Number.MAX_SAFE_INTEGER;
+    return aFrame - bFrame;
   });
 }
 
@@ -754,6 +757,34 @@ function splitPostOutcomeRedeposits(
 }
 
 /**
+ * Merge a locked + terminal pair in one proximity/minute group when term or
+ * other officer fields disagree due to OCR (e.g. loot screen mis-reads term).
+ */
+function tryLifecycleMergeGroup(
+  accum: DedupeAccum,
+  group: readonly IndexedSlip[],
+): boolean {
+  const locked = group.filter((s) => s.status === "locked");
+  const matured = group.filter((s) => s.status === "matured");
+  const looted = group.filter((s) => s.status === "looted");
+  if (matured.length > 0 && looted.length > 0) return false;
+  if (locked.length !== 1 || matured.length + looted.length !== 1) return false;
+
+  const lockedSlip = locked[0]!;
+  const outcomeSlip = (matured.length > 0 ? matured : looted)[0]!;
+  const lifecycleIds = new Set([lockedSlip.slipId, outcomeSlip.slipId]);
+  if (group.some((s) => !lifecycleIds.has(s.slipId))) return false;
+  if (!canLifecycleMergePair(lockedSlip, outcomeSlip)) return false;
+
+  const reason =
+    matured.length > 0
+      ? "lifecycle_locked_to_matured"
+      : "lifecycle_locked_to_looted";
+  emitAutoMerged(accum, group, reason, []);
+  return true;
+}
+
+/**
  * Merge or flag a same-name (and same-deposit) subgroup after conflict resolution.
  */
 function resolveNameTimestampGroup(
@@ -799,6 +830,7 @@ function resolveNameTimestampGroup(
 
   const conflictResolution = resolveGroupConflicts(group, accum.conflictFields);
   if (!conflictResolution.resolved) {
+    if (tryLifecycleMergeGroup(accum, group)) return;
     emitFlagged(accum, group, pickConflictFlagReason(conflictResolution.conflictingFields));
     return;
   }

@@ -6,7 +6,11 @@ import {
 } from "./frame-video-seek";
 
 describe("previewSeekSecondsForFrame", () => {
-  it("seeks to the exact frame timestamp", () => {
+  it("seeks to the midpoint between frame N and N+1 when both exist", () => {
+    expect(previewSeekSecondsForFrame(2, { "2": 10, "3": 14 })).toBe(12);
+  });
+
+  it("falls back to the exact frame timestamp when N+1 is missing", () => {
     expect(previewSeekSecondsForFrame(2, { "2": 10.5 })).toBe(10.5);
   });
 

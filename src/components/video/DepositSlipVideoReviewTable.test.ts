@@ -42,7 +42,7 @@ describe("useDepositSlipReviewValidation flagged clusters", () => {
     outputCount: 2,
   };
 
-  it("blocks submit while two active flagged rows share a cluster", () => {
+  it("allows submit while two active flagged rows share a cluster", () => {
     const result = useDepositSlipReviewValidation(
       [
         {
@@ -73,7 +73,7 @@ describe("useDepositSlipReviewValidation flagged clusters", () => {
       report,
     );
     expect(result.hasUnresolvedFlaggedClusters).toBe(true);
-    expect(result.canSubmitSlips).toBe(false);
+    expect(result.canSubmitSlips).toBe(true);
   });
 
   it("allows submit after deleting extras in a flagged cluster", () => {

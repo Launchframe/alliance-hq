@@ -14,6 +14,7 @@ export type DepositSlipVisibleRowFields = {
   powerLevel: string | null;
   profession: string | null;
   allianceRankTitle: string | null;
+  frameIndex?: number | null;
 };
 
 export function filterAndSortDepositSlipReviewRows<
@@ -48,6 +49,9 @@ export function filterAndSortDepositSlipReviewRows<
     }
     const aMs = a.powerLevel ? Date.parse(a.powerLevel) : 0;
     const bMs = b.powerLevel ? Date.parse(b.powerLevel) : 0;
-    return bMs - aMs;
+    if (bMs !== aMs) return bMs - aMs;
+    const aFrame = a.frameIndex ?? Number.MAX_SAFE_INTEGER;
+    const bFrame = b.frameIndex ?? Number.MAX_SAFE_INTEGER;
+    return aFrame - bFrame;
   });
 }

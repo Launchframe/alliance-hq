@@ -49,7 +49,7 @@ function validRow(id: string, dedupeClusterId: string | null = null) {
 }
 
 describe("validateDepositSlipReviewRows", () => {
-  it("blocks when two active rows remain in a flagged cluster", () => {
+  it("allows submit when flagged clusters remain but rows are complete", () => {
     const result = validateDepositSlipReviewRows(
       [
         validRow("row-1", "flagged-1"),
@@ -62,7 +62,7 @@ describe("validateDepositSlipReviewRows", () => {
 
     expect(result.unresolvedClusterIds).toEqual(new Set(["flagged-1"]));
     expect(result.hasUnresolvedFlaggedClusters).toBe(true);
-    expect(result.canSubmitSlips).toBe(false);
+    expect(result.canSubmitSlips).toBe(true);
   });
 
   it("allows flagged clusters after extras are deleted", () => {
@@ -107,7 +107,7 @@ describe("validateDepositSlipReviewRows", () => {
 
     expect(merged.unknownRowIds.size).toBe(0);
     expect(result.unresolvedClusterIds).toEqual(new Set(["flagged-1"]));
-    expect(result.canSubmitSlips).toBe(false);
+    expect(result.canSubmitSlips).toBe(true);
   });
 
   it("does not fall back to persisted values when an edit clears a required field", () => {

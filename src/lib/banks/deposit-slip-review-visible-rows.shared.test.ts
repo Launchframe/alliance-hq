@@ -10,6 +10,7 @@ function row(
     powerLevel: string | null;
     profession: string | null;
     allianceRankTitle: string | null;
+    frameIndex: number | null;
   }> & { id: string },
 ) {
   return {
@@ -79,5 +80,26 @@ describe("filterAndSortDepositSlipReviewRows", () => {
         sortKey: "commander",
       }).map((r) => r.id),
     ).toEqual(["new", "old"]);
+  });
+
+  it("tie-breaks equal depositAt by ascending frameIndex", () => {
+    const rows = [
+      row({
+        id: "later-frame",
+        powerLevel: "2026-07-12T10:00:00.000Z",
+        frameIndex: 20,
+      }),
+      row({
+        id: "earlier-frame",
+        powerLevel: "2026-07-12T10:00:00.000Z",
+        frameIndex: 5,
+      }),
+    ];
+    expect(
+      filterAndSortDepositSlipReviewRows(rows, {
+        filterQuery: "",
+        sortKey: "depositAt",
+      }).map((r) => r.id),
+    ).toEqual(["earlier-frame", "later-frame"]);
   });
 });
