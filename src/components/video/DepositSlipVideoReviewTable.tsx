@@ -622,6 +622,7 @@ export function DepositSlipVideoReviewTable({
                       aria-label={tBanks("fields.termDays")}
                       searchable
                       combobox
+                      searchPlaceholder={tBanks("fields.termDays")}
                       options={DEPOSIT_TERMS.map((term) => ({
                         value: String(term),
                         label: String(term),
