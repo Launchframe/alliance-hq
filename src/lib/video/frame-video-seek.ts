@@ -8,9 +8,13 @@ export function previewSeekSecondsForFrame(
   frameTimestamps: FrameTimestampMap,
 ): number | null {
   if (frameIndex == null) return null;
-  const timestamp = frameTimestamps[String(frameIndex)];
-  if (timestamp == null || !Number.isFinite(timestamp)) return null;
-  return Math.max(0, timestamp);
+  const current = frameTimestamps[String(frameIndex)];
+  const next = frameTimestamps[String(frameIndex + 1)];
+  if (current == null || !Number.isFinite(current)) return null;
+  if (next != null && Number.isFinite(next) && next > current) {
+    return Math.max(0, (current + next) / 2);
+  }
+  return Math.max(0, current);
 }
 
 /**
