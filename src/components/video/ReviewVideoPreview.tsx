@@ -52,6 +52,9 @@ type Props = {
   dockHeightPx: number;
   onSideWidthChange: (width: number) => void;
   onDockHeightChange: (height: number) => void;
+  /** Parsed-frame still instead of source video (deposit-slip review). */
+  previewMode?: "video" | "frames";
+  frameIndex?: number | null;
 };
 
 function cn(...parts: Array<string | false | null | undefined>): string {
@@ -73,6 +76,8 @@ export function ReviewVideoPreview({
   dockHeightPx,
   onSideWidthChange,
   onDockHeightChange,
+  previewMode = "video",
+  frameIndex = null,
 }: Props) {
   const t = useTranslations("videoReview");
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -336,6 +341,9 @@ export function ReviewVideoPreview({
         unavailable={unavailable}
         unavailableLabel={t("previewUnavailable")}
         panHintLabel={t("previewPanHint")}
+        previewMode={previewMode}
+        frameIndex={frameIndex}
+        frameAltLabel={t("depositSlipPreviewFrameAlt", { index: frameIndex ?? 0 })}
       />
     </div>
   );
@@ -456,6 +464,9 @@ function VideoBody({
   unavailable,
   unavailableLabel,
   panHintLabel,
+  previewMode,
+  frameIndex,
+  frameAltLabel,
 }: {
   bodyRef: React.RefObject<HTMLDivElement | null>;
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -464,8 +475,11 @@ function VideoBody({
   unavailable: boolean;
   unavailableLabel: string;
   panHintLabel: string;
+  previewMode: "video" | "frames";
+  frameIndex: number | null;
+  frameAltLabel: string;
 }) {
-  const panEnabled = zoom === "width" && !unavailable;
+  const panEnabled = zoom === "width" && !unavailable && previewMode === "video";
   const panHandlers = usePointerScrollPan(bodyRef, panEnabled);
 
   if (unavailable) {
@@ -474,6 +488,23 @@ function VideoBody({
         <p className="flex min-h-0 flex-1 items-center justify-center px-4 text-center text-sm text-hq-fg-muted">
           {unavailableLabel}
         </p>
+      </div>
+    );
+  }
+
+  if (previewMode === "frames" && frameIndex != null) {
+    const frameSrc = `/api/tools/video-jobs/${jobId}/frames/${frameIndex}`;
+    return (
+      <div
+        ref={bodyRef}
+        className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black p-2"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={frameSrc}
+          alt={frameAltLabel}
+          className="max-h-full max-w-full object-contain"
+        />
       </div>
     );
   }

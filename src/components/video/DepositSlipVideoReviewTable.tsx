@@ -75,6 +75,8 @@ type Props = {
   onVisibleRowIdsChange?: (ids: readonly string[]) => void;
   /** Notifies parent when sort changes so Follow-me can be gated. */
   onSortKeyChange?: (sortKey: DepositSlipVisibleSortKey) => void;
+  /** Follow-me row highlight (deposit-slip review). */
+  highlightedRowId?: string | null;
 };
 
 const FLAG_REASON_KEYS = [
@@ -224,6 +226,7 @@ export function DepositSlipVideoReviewTable({
   registerFollowAnchor,
   onVisibleRowIdsChange,
   onSortKeyChange,
+  highlightedRowId,
 }: Props) {
   const t = useTranslations("videoReview");
   const tBanks = useTranslations("bankManagement");
@@ -489,7 +492,9 @@ export function DepositSlipVideoReviewTable({
                 ? "border-t border-hq-border bg-[#f8514910]"
                 : isIncomplete
                   ? "border-t border-hq-border bg-[#d2992210]"
-                  : "border-t border-hq-border";
+                  : highlightedRowId === row.id
+                    ? "border-t border-hq-border bg-[#58a6ff18] ring-1 ring-inset ring-hq-accent/50"
+                    : "border-t border-hq-border";
 
               return (
                 <tr

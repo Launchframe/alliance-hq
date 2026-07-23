@@ -268,6 +268,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     useState<DepositSlipVisibleSortKey>("depositAt");
   const [depositSlipProblemNavIndex, setDepositSlipProblemNavIndex] =
     useState(0);
+  const [depositSlipPreviewMode, setDepositSlipPreviewMode] = useState<
+    "video" | "frames"
+  >("video");
   const [error, setError] = useState<string | null>(null);
   const [errorConnectUrl, setErrorConnectUrl] = useState<string | null>(null);
   const actionErrorAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -1209,7 +1212,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     (!scoreTargetMeta?.showDepositSlipColumns ||
       depositSlipFollowMeCompatible(depositSlipSortKey));
 
-  const { registerFollowAnchor } = useVideoReviewFollowMe({
+  const { registerFollowAnchor, activeFollowMeRowId } = useVideoReviewFollowMe({
     enabled: scoreTableFollowMeEnabled,
     rows: followMeRows,
     secondsForRow: secondsForFollowRow,
@@ -1312,6 +1315,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   useEffect(() => {
     setDepositSlipProblemNavIndex(0);
   }, [depositSlipProblemRowIdsKey]);
+
+  const followMeFrameIndex = useMemo(() => {
+    if (!activeFollowMeRowId) return null;
+    return activeRowById.get(activeFollowMeRowId)?.frameIndex ?? null;
+  }, [activeFollowMeRowId, activeRowById]);
 
   const jumpToDepositSlipProblem = useCallback(
     (index: number) => {
@@ -1912,6 +1920,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       dockHeightPx={previewDockHeightPx}
       onSideWidthChange={setPreviewSideWidthPx}
       onDockHeightChange={setPreviewDockHeightPx}
+      previewMode={
+        scoreTargetMeta?.showDepositSlipColumns ? depositSlipPreviewMode : "video"
+      }
+      frameIndex={
+        scoreTargetMeta?.showDepositSlipColumns &&
+        depositSlipPreviewMode === "frames"
+          ? followMeFrameIndex
+          : null
+      }
     />
   ) : null;
 
@@ -2000,6 +2017,38 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 <LocateFixed className="h-4 w-4 shrink-0" aria-hidden />
                 {t("followMe")}
               </button>
+            ) : null}
+            {scoreTargetMeta?.showDepositSlipColumns && hasSourceVideo && previewOpen ? (
+              <div
+                className="inline-flex rounded-lg border border-hq-border p-0.5"
+                role="group"
+                aria-label={t("depositSlipPreviewModeGroup")}
+              >
+                <button
+                  type="button"
+                  onClick={() => setDepositSlipPreviewMode("video")}
+                  aria-pressed={depositSlipPreviewMode === "video"}
+                  className={`rounded-md px-2.5 py-1 text-sm ${
+                    depositSlipPreviewMode === "video"
+                      ? "bg-hq-accent/20 text-hq-accent"
+                      : "text-hq-fg hover:bg-hq-surface-muted"
+                  }`}
+                >
+                  {t("depositSlipPreviewModeFullVideo")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDepositSlipPreviewMode("frames")}
+                  aria-pressed={depositSlipPreviewMode === "frames"}
+                  className={`rounded-md px-2.5 py-1 text-sm ${
+                    depositSlipPreviewMode === "frames"
+                      ? "bg-hq-accent/20 text-hq-accent"
+                      : "text-hq-fg hover:bg-hq-surface-muted"
+                  }`}
+                >
+                  {t("depositSlipPreviewModeFrames")}
+                </button>
+              </div>
             ) : null}
             <VideoPipelineStatsButton
               timings={timings}
@@ -2652,6 +2701,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             registerFollowAnchor={registerFollowAnchor}
             onVisibleRowIdsChange={onDepositSlipVisibleRowIdsChange}
             onSortKeyChange={onDepositSlipSortKeyChange}
+            highlightedRowId={
+              scoreTableFollowMeEnabled ? activeFollowMeRowId : null
+            }
           />
         </>
       ) : (
