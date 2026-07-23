@@ -757,6 +757,28 @@ function splitPostOutcomeRedeposits(
 }
 
 /**
+ * The locked (initiate) row is the authoritative OCR read for facts fixed at
+ * deposit time — amount and term don't change over the deposit's life, so a
+ * terminal/outcome row's disagreeing read is the garbled one. Without this,
+ * `coalesceDepositSlips`'s general completeness ranking would often pick the
+ * terminal row instead (it scores higher — outcomeKind/outcomeAmount/status
+ * bonuses — for reasons unrelated to which row read amount/term correctly).
+ */
+function lifecycleMergeCorrections(
+  lockedSlip: ParsedDepositSlipDraft,
+  outcomeSlip: ParsedDepositSlipDraft,
+): FieldCorrection[] {
+  const corrections: FieldCorrection[] = [];
+  if (lockedSlip.termDays != null && lockedSlip.termDays !== outcomeSlip.termDays) {
+    corrections.push({ key: "termDays", value: lockedSlip.termDays });
+  }
+  if (lockedSlip.amount != null && lockedSlip.amount !== outcomeSlip.amount) {
+    corrections.push({ key: "amount", value: lockedSlip.amount });
+  }
+  return corrections;
+}
+
+/**
  * Merge a locked + terminal pair in one proximity/minute group when term or
  * other officer fields disagree due to OCR (e.g. loot screen mis-reads term).
  */
@@ -780,7 +802,12 @@ function tryLifecycleMergeGroup(
     matured.length > 0
       ? "lifecycle_locked_to_matured"
       : "lifecycle_locked_to_looted";
-  emitAutoMerged(accum, group, reason, []);
+  emitAutoMerged(
+    accum,
+    group,
+    reason,
+    lifecycleMergeCorrections(lockedSlip, outcomeSlip),
+  );
   return true;
 }
 

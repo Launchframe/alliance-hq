@@ -559,5 +559,8 @@ describe("parseDepositSlipHistoryText — fuzzy outcome OCR", () => {
     ]);
     expect(parsed.slips[0]?.status).toBe("looted");
     expect(parsed.slips[0]?.amount).toBeNull();
+    // The garbled deposit prefix's "x 6000" must not leak into outcomeAmount —
+    // 5970 is the actual refund figure that follows the refund keyword.
+    expect(parsed.slips[0]?.outcomeAmount).toBe(5970);
   });
 });

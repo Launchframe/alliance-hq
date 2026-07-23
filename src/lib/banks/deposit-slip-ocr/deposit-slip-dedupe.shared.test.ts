@@ -1620,6 +1620,10 @@ describe("dedupeDepositSlips — slipId uniqueness", () => {
 
     expect(slips).toHaveLength(1);
     expect(slips[0]?.status).toBe("looted");
+    // The locked (initiate) OCR read is authoritative for the fixed-at-deposit
+    // term — the looted row's "1" is the garbled read that caused the
+    // original flagged-conflict regression, and must not survive the merge.
+    expect(slips[0]?.termDays).toBe(3);
     expect(report.flaggedCount).toBe(0);
     expect(
       report.clusters.some((c) => c.reason === "lifecycle_locked_to_looted"),
@@ -1629,5 +1633,30 @@ describe("dedupeDepositSlips — slipId uniqueness", () => {
         (c) => c.reason === "same_commander_timestamp_conflicting_amount_or_term",
       ),
     ).toBe(false);
+  });
+
+  it("prefers the locked row's amount when the looted row's OCR disagrees", () => {
+    const depositAt = "2026-07-11T13:18:40.000Z";
+    const { slips } = dedupeDepositSlips([
+      slip({
+        commanderName: "Hercules28",
+        depositAt,
+        amount: 6000,
+        termDays: 3,
+        status: "locked",
+      }),
+      slip({
+        commanderName: "Hercules28",
+        depositAt,
+        amount: 6900,
+        termDays: 3,
+        status: "looted",
+        outcomeKind: "early_termination_refund",
+        outcomeAmount: 5970,
+      }),
+    ]);
+
+    expect(slips).toHaveLength(1);
+    expect(slips[0]?.amount).toBe(6000);
   });
 });

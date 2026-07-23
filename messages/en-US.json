@@ -4134,7 +4134,6 @@
     "depositSlipPreviewModeFullVideo": "Full video",
     "depositSlipPreviewModeFrames": "Parsed frames",
     "depositSlipPreviewFrameAlt": "OCR frame {index}",
-    "depositSlipFlaggedBlocked": "Resolve flagged duplicate clusters before saving.",
     "depositSlipFlaggedRow": "Needs review.",
     "depositSlipFlaggedKeepThisOne": "Keep this one, delete the rest",
     "depositSlipFlagReason": {

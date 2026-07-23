@@ -4080,7 +4080,6 @@
     "depositSlipPreviewModeFullVideo": "Vídeo completo",
     "depositSlipPreviewModeFrames": "Quadros analisados",
     "depositSlipPreviewFrameAlt": "Quadro OCR {index}",
-    "depositSlipFlaggedBlocked": "Resolva os agrupamentos duplicados sinalizados antes de salvar.",
     "depositSlipFlaggedRow": "Precisa de revisão.",
     "depositSlipFlaggedKeepThisOne": "Manter esta, excluir as demais",
     "depositSlipFlagReason": {

@@ -468,13 +468,18 @@ export function DepositSlipVideoReviewTable({
             onBlurCapture={(event) => {
               const tbody = tbodyRef.current;
               const next = event.relatedTarget;
-              if (
-                tbody &&
-                next instanceof Node &&
-                tbody.contains(next)
-              ) {
+              if (!(next instanceof Node)) {
+                setSortFrozenRowIds(null);
                 return;
               }
+              // AppSelect (e.g. the term typeahead) portals its open dropdown
+              // to document.body, so focus moving into it looks like it left
+              // the table — check that portal too or the freeze drops mid-pick.
+              const stillEditing =
+                (tbody && tbody.contains(next)) ||
+                (next instanceof Element &&
+                  next.closest("[data-app-select-menu]") != null);
+              if (stillEditing) return;
               setSortFrozenRowIds(null);
             }}
           >

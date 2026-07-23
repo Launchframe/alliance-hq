@@ -32,6 +32,14 @@ describe("parseDepositSlipOutcomeLine", () => {
       parseDepositSlipOutcomeLine("Deposit: CrystalGold x 6000, Term: 3 day(s)."),
     ).toBeNull();
   });
+
+  it("prefers the refund amount over a garbled deposit prefix on the same line", () => {
+    expect(
+      parseDepositSlipOutcomeLine(
+        "Deposit: CrystalGold x 6000, early termination refund x 5970",
+      ),
+    ).toEqual({ kind: "early_termination_refund", amount: 5970 });
+  });
 });
 
 describe("parseDepositSlipDepositLine", () => {

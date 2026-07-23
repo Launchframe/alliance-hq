@@ -35,6 +35,16 @@ function normalizeOcrProbe(probe: string): string {
 }
 
 function extractCrystalGoldAmount(normalized: string): number | null {
+  // A single garbled OCR line can carry both the original deposit's
+  // "CrystalGold x N" prefix and the outcome's own "x M" figure (e.g.
+  // "Deposit: CrystalGold x 6000, early termination refund x 5970"). Prefer
+  // the amount following the refund/return keyword — the deposit's principal
+  // is not the outcome amount, even when both appear on the same probe.
+  const afterKeyword =
+    normalized.match(/(?:refund|return)[^\d]*?crystalgold\s*x\s*([\d,]+)/) ??
+    normalized.match(/(?:refund|return)[^\d]*?x\s*([\d,]+)/);
+  if (afterKeyword) return parseIntAmount(afterKeyword[1]!);
+
   const match =
     normalized.match(/crystalgold\s*x\s*([\d,]+)/) ??
     normalized.match(/\bx\s*([\d,]+)/);

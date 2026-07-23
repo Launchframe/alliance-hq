@@ -58,8 +58,10 @@ function normalizedDiffValue(
       return row.powerLevel?.trim() ?? "";
     case "profession":
       return row.profession?.trim().toLowerCase() ?? "";
-    default:
-      return "";
+    default: {
+      const _exhaustive: never = key;
+      return _exhaustive;
+    }
   }
 }
 
