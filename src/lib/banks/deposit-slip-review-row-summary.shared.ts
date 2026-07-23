@@ -1,3 +1,5 @@
+import { formatDepositSlipGameTimestamp } from "@/lib/banks/deposit-slip-ocr/deposit-slip-game-timestamp.shared";
+
 export type DepositSlipReviewRowSummaryFields = {
   ocrName: string;
   allianceRankTitle?: string | null;
@@ -8,14 +10,6 @@ export type DepositSlipReviewRowSummaryFields = {
 };
 
 const EM_DASH = "—";
-
-function formatDepositAtForSummary(iso: string | null | undefined): string {
-  if (!iso) return EM_DASH;
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return EM_DASH;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
-}
 
 /** Live review row one-liner: commander · tag · amount · term · depositAt · status */
 export function formatDepositSlipReviewRowSummary(
@@ -28,7 +22,7 @@ export function formatDepositSlipReviewRowSummary(
     row.memberLevel != null && Number.isFinite(row.memberLevel)
       ? `${row.memberLevel}d`
       : EM_DASH;
-  const depositAt = formatDepositAtForSummary(row.powerLevel);
+  const depositAt = formatDepositSlipGameTimestamp(row.powerLevel);
   const status = row.profession?.trim() || EM_DASH;
   return `${commander} · ${tag} · ${amount} · ${term} · ${depositAt} · ${status}`;
 }
@@ -96,7 +90,7 @@ export function depositSlipReviewRowSummaryParts(
     row.memberLevel != null && Number.isFinite(row.memberLevel)
       ? `${row.memberLevel}d`
       : EM_DASH;
-  const depositAt = formatDepositAtForSummary(row.powerLevel);
+  const depositAt = formatDepositSlipGameTimestamp(row.powerLevel);
   const status = row.profession?.trim() || EM_DASH;
 
   return [

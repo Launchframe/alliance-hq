@@ -16,7 +16,7 @@ describe("formatDepositSlipReviewRowSummary", () => {
         powerLevel: "2026-07-11T10:30:00.000Z",
         profession: "locked",
       }),
-    ).toBe("Alpha · LFgo · 6000 · 3d · 2026-07-11 10:30 · locked");
+    ).toBe("Alpha · LFgo · 6000 · 3d · 2026-7-11 10:30:00 · locked");
   });
 
   it("uses em dashes for missing fields", () => {
