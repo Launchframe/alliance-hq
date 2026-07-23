@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, ChevronRight, Video } from "lucide-react";
-import { useLayoutEffect, useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
@@ -14,6 +14,7 @@ import {
   type DepositStatus,
   type DepositTermDays,
 } from "@/lib/banks/types.shared";
+import { formatDepositSlipGameTimestamp } from "@/lib/banks/deposit-slip-ocr/deposit-slip-game-timestamp.shared";
 import { validateDepositSlipReviewRows } from "@/lib/banks/deposit-slip-review-validation.shared";
 import {
   filterAndSortDepositSlipReviewRows,
@@ -142,7 +143,7 @@ function datetimeLocalToIso(value: string): string | null {
 
 function formatSnapshotTime(value: unknown): string {
   return typeof value === "string"
-    ? isoToDatetimeLocalValue(value).replace("T", " ") || "—"
+    ? formatDepositSlipGameTimestamp(value)
     : "—";
 }
 
@@ -231,6 +232,10 @@ export function DepositSlipVideoReviewTable({
     useState<DepositSlipVisibleSortKey>("depositAt");
   const [autoDedupeOpen, setAutoDedupeOpen] = useState(false);
   const [missingTsOpen, setMissingTsOpen] = useState(false);
+  const [sortFrozenRowIds, setSortFrozenRowIds] = useState<string[] | null>(
+    null,
+  );
+  const tbodyRef = useRef<HTMLTableSectionElement>(null);
 
   const report = isDedupeReport(dedupeReport) ? dedupeReport : null;
   const followMeCompatible = depositSlipFollowMeCompatible(sortKey);
@@ -326,9 +331,17 @@ export function DepositSlipVideoReviewTable({
     [activeRows, filterQuery, sortKey],
   );
 
+  const displayRows = useMemo(() => {
+    if (!sortFrozenRowIds) return filteredRows;
+    const byId = new Map(filteredRows.map((row) => [row.id, row]));
+    return sortFrozenRowIds
+      .map((id) => byId.get(id))
+      .filter((row): row is DepositSlipVideoReviewRow => row != null);
+  }, [filteredRows, sortFrozenRowIds]);
+
   useLayoutEffect(() => {
-    onVisibleRowIdsChange?.(filteredRows.map((row) => row.id));
-  }, [filteredRows, onVisibleRowIdsChange]);
+    onVisibleRowIdsChange?.(displayRows.map((row) => row.id));
+  }, [displayRows, onVisibleRowIdsChange]);
 
   function flagReasonLabel(reason: string): string {
     if (isFlagReasonKey(reason)) {
@@ -444,8 +457,25 @@ export function DepositSlipVideoReviewTable({
               <th className="px-3 py-2 font-medium" />
             </tr>
           </thead>
-          <tbody>
-            {filteredRows.map((row) => {
+          <tbody
+            ref={tbodyRef}
+            onFocusCapture={() => {
+              setSortFrozenRowIds(filteredRows.map((row) => row.id));
+            }}
+            onBlurCapture={(event) => {
+              const tbody = tbodyRef.current;
+              const next = event.relatedTarget;
+              if (
+                tbody &&
+                next instanceof Node &&
+                tbody.contains(next)
+              ) {
+                return;
+              }
+              setSortFrozenRowIds(null);
+            }}
+          >
+            {displayRows.map((row) => {
               const canPreview =
                 rowCanVideoPreview?.(row.frameIndex) && onPreviewFrame;
               const isIncomplete = incompleteRowIds.has(row.id);
@@ -590,6 +620,8 @@ export function DepositSlipVideoReviewTable({
                         });
                       }}
                       aria-label={tBanks("fields.termDays")}
+                      searchable
+                      combobox
                       options={DEPOSIT_TERMS.map((term) => ({
                         value: String(term),
                         label: String(term),
