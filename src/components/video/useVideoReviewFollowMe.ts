@@ -72,8 +72,10 @@ export function useVideoReviewFollowMe<TRow extends Row>({
     if (!enabled) {
       lastSeekedSecondsRef.current = null;
       activeFollowMeRowIdRef.current = null;
-      setActiveFollowMeRowId(null);
-      return;
+      const frame = requestAnimationFrame(() => {
+        setActiveFollowMeRowId(null);
+      });
+      return () => cancelAnimationFrame(frame);
     }
 
     // Force a seek on the first sync after deps change (placement, dock, rows).

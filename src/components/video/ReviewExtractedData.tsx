@@ -1313,7 +1313,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const depositSlipProblemRowIdsKey = depositSlipProblemRowIds.join(",");
 
   useEffect(() => {
-    setDepositSlipProblemNavIndex(0);
+    const frame = requestAnimationFrame(() => {
+      setDepositSlipProblemNavIndex(0);
+    });
+    return () => cancelAnimationFrame(frame);
   }, [depositSlipProblemRowIdsKey]);
 
   const followMeFrameIndex = useMemo(() => {
