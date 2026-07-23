@@ -49,7 +49,7 @@ When **`DATABASE_URL` is managed by the Neon ↔ Vercel integration**, you canno
 
 During the mismatch window, normal page/API requests may fail session lookups; SSE routes (`/api/events/video-jobs`, `/api/events/admin-alerts`) that call Postgres **`LISTEN`** must not leave that failure as an unhandled promise rejection (see `src/lib/db/postgres-listen.ts`). If the dedicated LISTEN connection drops after setup (including failed silent re-subscribe inside postgres.js), periodic **`select 1` probes** close the SSE stream with a **`reconnect`** event so clients open a fresh request on a new serverless instance.
 
-**LISTEN must use the direct Neon host.** PgBouncer transaction pooling (`*-pooler.*.neon.tech`) does not support `LISTEN`/`NOTIFY`. The SSE listen clients resolve `DATABASE_URL_UNPOOLED` / `POSTGRES_URL_NON_POOLING` via `getListenDatabaseUrl()` and only fall back to `DATABASE_URL` when those are unset. If live video progress bars stay frozen until reload, confirm Production has an unpooled URL and that it does **not** contain `-pooler`.
+**LISTEN must use the direct Neon host.** PgBouncer transaction pooling (`*-pooler.*.neon.tech`) cannot keep a session-scoped `LISTEN` subscription open. The SSE listen clients resolve `DATABASE_URL_UNPOOLED` / `POSTGRES_URL_NON_POOLING` via `getListenDatabaseUrl()` and only fall back to `DATABASE_URL` when those are unset. One-shot `pg_notify` still works through the shared query pool. If live video progress bars stay frozen until reload, confirm Production has an unpooled URL and that it does **not** contain `-pooler`.
 
 **Not load-related:** `28P01` is always an auth/credential problem, not connection pool exhaustion.
 

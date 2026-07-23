@@ -48,7 +48,8 @@ let notifyClient: ReturnType<typeof postgres> | null = null;
 
 function getNotifyClient() {
   if (!notifyClient) {
-    // Prefer the direct URL so NOTIFY is not subject to PgBouncer session limits.
+    // Keep admin-alert pub/sub off the Neon pooler host when DATABASE_URL is
+    // `*-pooler.*` (same direct URL used for the LISTEN client below).
     notifyClient = postgres(getListenDatabaseUrl(), { prepare: false, max: 1 });
   }
   return notifyClient;

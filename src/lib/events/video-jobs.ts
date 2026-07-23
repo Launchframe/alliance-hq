@@ -16,8 +16,9 @@ export const VIDEO_JOB_NOTIFY_CHANNEL = "hq_video_jobs";
 
 /**
  * Dedicated connection for LISTEN — do not share with the query pool (SSE).
- * Must use the direct (unpooled) Neon URL; PgBouncer transaction pooling does
- * not support LISTEN/NOTIFY.
+ * Must use the direct (unpooled) Neon URL: PgBouncer transaction pooling cannot
+ * keep a session-scoped LISTEN subscription open. `pg_notify` for this channel
+ * still runs through the shared query client elsewhere.
  */
 export function createVideoJobListenClient() {
   return postgres(getListenDatabaseUrl(), { prepare: false, max: 1 });
