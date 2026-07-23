@@ -1883,7 +1883,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             : undefined
         }
       >
-        <div className="mx-auto min-w-0 w-full max-w-5xl flex-1 space-y-6 px-4 pb-6 md:px-0">
+        <div className={`mx-auto min-w-0 w-full flex-1 space-y-6 px-4 pb-6 md:px-0 ${
+          scoreTargetMeta?.showDepositSlipColumns ? "" : "max-w-5xl"
+        }`}>
           <div>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <Link
