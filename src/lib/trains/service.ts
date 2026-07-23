@@ -814,7 +814,7 @@ export async function rollForConductor(input: {
       topBoard.topN,
     );
     if (top.length === 0) {
-      throwNoWheelCandidates("vs", "No VR standings found for the wheel.");
+      throwNoWheelCandidates("vr", "No VR standings found for the wheel.");
     }
     const winner = top[Math.floor(Math.random() * top.length)]!;
     result = {

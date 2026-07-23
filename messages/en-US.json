@@ -3664,6 +3664,7 @@
       "poolExhausted": "Everyone eligible for this pool has already been picked in the current generation. Re-seed the pool to start a fresh rotation.",
       "poolUnavailable": "The wheel pool isn't ready yet. Re-seed it to rebuild the eligible members, then we'll spin again.",
       "noVsScores": "There aren't enough VS scores to fill the wheel yet. Enter VS scores for this week, then try again.",
+      "noVrStandings": "There aren't enough season VR standings to fill the wheel yet. Report VR on the Members page, then try again.",
       "noEventScores": "There aren't enough event scores to fill the VIP wheel yet. Enter scores for this event, then try again.",
       "noDonationScores": "Donation scores aren't tracked in Alliance HQ yet. Pick the donor manually from your roster.",
       "noCandidatesGeneric": "There aren't enough eligible members to spin the wheel right now.",

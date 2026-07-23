@@ -7,7 +7,7 @@ export type TrainRollErrorCode =
   | "NO_WHEEL_CANDIDATES"
   | "ASHED_REQUIRED";
 
-export type WheelCandidateKind = "vs" | "event" | "donation";
+export type WheelCandidateKind = "vs" | "vr" | "event" | "donation";
 
 export type TrainRollErrorDetails = {
   code: TrainRollErrorCode;
@@ -51,7 +51,7 @@ export function parseTrainRollError(
   }
 
   if (message === "No VR standings found for the wheel.") {
-    return { code: "NO_WHEEL_CANDIDATES", candidateKind: "vs" };
+    return { code: "NO_WHEEL_CANDIDATES", candidateKind: "vr" };
   }
 
   if (message === "No event scores found for VIP wheel.") {

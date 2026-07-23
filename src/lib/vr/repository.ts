@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
@@ -691,6 +691,38 @@ export async function countSeasonReporters(
     seasonKey,
   );
   return allianceRows.length;
+}
+
+/** Active alliance members with season VR `highest_base_vr > 0`. */
+export async function countAllianceSeasonVrReporters(
+  allianceId: string,
+  seasonKey: string,
+): Promise<number> {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      count: sql<number>`cast(count(*) as integer)`,
+    })
+    .from(schema.commanderSeasonVr)
+    .innerJoin(
+      schema.commanderAllianceMemberships,
+      and(
+        eq(
+          schema.commanderAllianceMemberships.commanderId,
+          schema.commanderSeasonVr.commanderId,
+        ),
+        eq(schema.commanderAllianceMemberships.allianceId, allianceId),
+        isNull(schema.commanderAllianceMemberships.leftAt),
+      ),
+    )
+    .where(
+      and(
+        eq(schema.commanderSeasonVr.seasonKey, seasonKey),
+        gt(schema.commanderSeasonVr.highestBaseVr, 0),
+      ),
+    );
+
+  return row?.count ?? 0;
 }
 
 export async function listSeasonVrRows(allianceId: string, seasonKey: string) {

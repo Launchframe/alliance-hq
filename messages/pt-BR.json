@@ -3610,6 +3610,7 @@
       "poolExhausted": "Todos os elegíveis deste pool já foram sorteados nesta geração. Recrie o pool para iniciar uma nova rodada.",
       "poolUnavailable": "O pool da roleta ainda não está pronto. Recrie o pool para remontar os elegíveis — em seguida giramos de novo.",
       "noVsScores": "Ainda não há pontuações VS suficientes para preencher a roleta. Informe as pontuações VS desta semana e tente de novo.",
+      "noVrStandings": "Ainda não há classificações VR da temporada suficientes para preencher a roleta. Registre VR na página Membros e tente de novo.",
       "noEventScores": "Ainda não há pontuações de evento suficientes para a roleta VIP. Informe as pontuações do evento e tente de novo.",
       "noDonationScores": "Doações ainda não são registradas no Alliance HQ. Escolha o doador manualmente na lista.",
       "noCandidatesGeneric": "Não há membros elegíveis suficientes para girar a roleta agora.",
