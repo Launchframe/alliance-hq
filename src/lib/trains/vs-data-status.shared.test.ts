@@ -6,12 +6,23 @@ import {
 } from "@/lib/trains/vs-data-status.shared";
 
 describe("classifyVsDataNeed", () => {
-  it("requires prior-day VS for vs_high_score and vs_top_10", () => {
+  it("requires prior-day VS for vs_high_score, vs_top_10, and vs_top_n", () => {
     expect(
       classifyVsDataNeed({ conductorMechanism: "vs_high_score" }),
     ).toEqual({ kind: "prior_day_vs", required: true });
     expect(classifyVsDataNeed({ conductorMechanism: "vs_top_10" })).toEqual({
       kind: "prior_day_vs",
+      required: true,
+    });
+    expect(classifyVsDataNeed({ conductorMechanism: "vs_top_n" })).toEqual({
+      kind: "prior_day_vs",
+      required: true,
+    });
+  });
+
+  it("requires season VR for vr_top_n", () => {
+    expect(classifyVsDataNeed({ conductorMechanism: "vr_top_n" })).toEqual({
+      kind: "vr",
       required: true,
     });
   });

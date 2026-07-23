@@ -10,6 +10,12 @@ import {
   getServerDayOfWeek,
 } from "@/lib/trains/game-time";
 import {
+  defaultTopNForPaintTemplate,
+  isAutomaticTopNBoard,
+  resolveConductorTopNBoard,
+  type ConductorTopN,
+} from "@/lib/trains/conductor-top-n.shared";
+import {
   dayIndexInTrainWeekForSchedule,
   isCompositeWeekTemplate,
   segmentTemplateForDayIndex,
@@ -24,6 +30,8 @@ export type WeekTemplateOptions = {
   saturdayVipEvent?: EventTopXConfig;
   /** @deprecated Use weekendVipEvent */
   sundayVipEvent?: EventTopXConfig;
+  /** Scope when painting top_vs / top_vr. */
+  topN?: ConductorTopN;
 };
 
 const DEFAULT_WEEKEND_VIP_EVENT: EventTopXConfig = {
@@ -153,6 +161,24 @@ export function generateWeekDayConfigs(
       return dates.map((date) => weekdayPushConfig(date, weekStart, options));
     case "r4_event_vip":
       return dates.map((date) => r4EventVipDay(date, options));
+    case "top_vs": {
+      const topN = options?.topN ?? defaultTopNForPaintTemplate("top_vs");
+      return dates.map((date) => ({
+        date,
+        conductorMechanism: "vs_top_n" as ConductorMechanismType,
+        conductorConfig: { topN },
+        vipMechanism: "conductor_pick" as VipMechanismType,
+      }));
+    }
+    case "top_vr": {
+      const topN = options?.topN ?? defaultTopNForPaintTemplate("top_vr");
+      return dates.map((date) => ({
+        date,
+        conductorMechanism: "vr_top_n" as ConductorMechanismType,
+        conductorConfig: { topN },
+        vipMechanism: "conductor_pick" as VipMechanismType,
+      }));
+    }
     case "economy_week":
     case "r3_recognition":
       return dates.map((date) => ({
@@ -196,10 +222,14 @@ export function generateWeekDayConfigs(
 
 export function mechanismNeedsWheel(
   mechanism: ConductorMechanismType | VipMechanismType | null | undefined,
+  conductorConfig?: unknown,
 ): boolean {
   if (!mechanism) return false;
+  const topBoard = resolveConductorTopNBoard(mechanism, conductorConfig);
+  if (topBoard) {
+    return !isAutomaticTopNBoard(topBoard);
+  }
   return (
-    mechanism === "vs_top_10" ||
     mechanism === "r3_lottery" ||
     mechanism === "heavy_hitter_lottery" ||
     mechanism === "r4_sequence" ||
@@ -229,6 +259,8 @@ export function supportsManualConductorPick(
     mechanism === "heavy_hitter_lottery" ||
     mechanism === "vs_high_score" ||
     mechanism === "vs_top_10" ||
+    mechanism === "vs_top_n" ||
+    mechanism === "vr_top_n" ||
     mechanism === "donations_top" ||
     mechanism === "r4_sequence" ||
     mechanism === "officer_pick" ||

@@ -43,6 +43,8 @@ function sourceLabel(
       return source.topN === 1
         ? t("vsLeaderboardTop1")
         : t("vsLeaderboardTopN", { count: source.topN });
+    case "vr_leaderboard":
+      return t("vrLeaderboardTopN", { count: source.topN });
     case "donations_leaderboard":
       return source.rank === 1
         ? t("donationsLeaderboardTop")

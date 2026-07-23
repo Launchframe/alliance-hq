@@ -68,6 +68,25 @@ describe("loadTrainsVsDataStatus", () => {
     expect(fetchVr).not.toHaveBeenCalled();
   });
 
+  it("loads VR scorers for vr_top_n", async () => {
+    fetchVr.mockResolvedValue([
+      { memberId: "m1", memberName: "A", allianceRank: 3 },
+    ]);
+    const status = await loadTrainsVsDataStatus({
+      allianceId: "a1",
+      trainDate: "2026-06-13",
+      conductorMechanism: "vr_top_n",
+    });
+    expect(status).toEqual({
+      required: true,
+      ready: true,
+      scoreCount: 1,
+      kind: "vr",
+    });
+    expect(fetchVr).toHaveBeenCalled();
+    expect(fetchPrior).not.toHaveBeenCalled();
+  });
+
   it("loads prior-day VS for Price Is Freight", async () => {
     fetchPrior.mockResolvedValue(new Map([["m1", 100], ["m2", 200]]));
     const status = await loadTrainsVsDataStatus({

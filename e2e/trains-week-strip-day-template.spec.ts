@@ -271,6 +271,43 @@ test.describe("Week strip day template menu", () => {
       .toBe("economy_week");
   });
 
+  test("Top VS paint opens scope picker then paints with topN", async ({
+    page,
+    request,
+  }) => {
+    const fixture = await setupPersistedTrainsWeek(request);
+    await page.context().addCookies(fixture.cookies);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/trains");
+    await expect(page.getByTestId("trains-schedule-section")).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const paintDate = isCalendarDateOnOrAfter(
+      addCalendarDays(fixture.today, 1),
+      fixture.weekStart,
+    )
+      ? addCalendarDays(fixture.today, 1)
+      : fixture.today;
+
+    await openDayTemplateMenu(page, paintDate);
+    await selectDayTemplate(page, "top_vs");
+    await expect(page.getByTestId("trains-topn-scope-picker")).toBeVisible();
+    await page.getByTestId("trains-topn-scope-vs-5").click();
+    await expect(page.getByTestId("trains-day-template-menu")).toHaveCount(0);
+
+    await expect
+      .poll(async () =>
+        readPaintTemplate(
+          request,
+          fixture.cookieHeader,
+          fixture.weekStart,
+          paintDate,
+        ),
+      )
+      .toBe("top_vs");
+  });
+
   test("menu stays within the viewport when opened near the bottom-right edge", async ({
     page,
     request,

@@ -56,6 +56,15 @@ describe("conductorSpinSource", () => {
       topN: 10,
     });
   });
+
+  it("maps parameterized Top VS / Top VR from conductor_config.topN", () => {
+    expect(
+      conductorSpinSource("vs_top_n", "top_vs", null, { topN: 5 }),
+    ).toEqual({ kind: "vs_leaderboard", topN: 5 });
+    expect(
+      conductorSpinSource("vr_top_n", "top_vr", null, { topN: 10 }),
+    ).toEqual({ kind: "vr_leaderboard", topN: 10 });
+  });
 });
 
 describe("vipSpinSource", () => {

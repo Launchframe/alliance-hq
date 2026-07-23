@@ -8,11 +8,15 @@ import { WEEK_TEMPLATES } from "@/lib/trains/types";
 
 export type ConductorConfigPayload = {
   paintTemplate?: WeekTemplateType;
+  /** Top VS / Top VR scope when mechanism is vs_top_n / vr_top_n. */
+  topN?: number;
 };
 
 const TEMPLATE_CELL_STYLES: Partial<Record<WeekTemplateType, string>> = {
   vs_push_weekdays: MECHANISM_STYLES.vs_top_10,
   r4_event_vip: "border-slate-300 bg-slate-400/15 text-slate-100",
+  top_vs: MECHANISM_STYLES.vs_top_n,
+  top_vr: MECHANISM_STYLES.vr_top_n,
   economy_week: "border-red-500 bg-red-500/15 text-red-200",
   price_is_right: "border-cyan-500 bg-cyan-500/15 text-cyan-200",
   price_is_right_weekdays: "border-cyan-500 bg-cyan-500/15 text-cyan-200",
@@ -71,9 +75,20 @@ export function calendarCellOpaqueStyleClass(
 export function withPaintTemplateConfig<T extends { conductorConfig?: unknown }>(
   config: T,
   templateType: WeekTemplateType,
+  extras?: { topN?: number },
 ): T & { conductorConfig: ConductorConfigPayload } {
+  const existing =
+    config.conductorConfig && typeof config.conductorConfig === "object"
+      ? (config.conductorConfig as ConductorConfigPayload)
+      : {};
+  const topN =
+    extras?.topN ??
+    (typeof existing.topN === "number" ? existing.topN : undefined);
   return {
     ...config,
-    conductorConfig: { paintTemplate: templateType },
+    conductorConfig: {
+      paintTemplate: templateType,
+      ...(topN != null ? { topN } : {}),
+    },
   };
 }

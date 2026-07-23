@@ -5,6 +5,8 @@ export const PAINT_TEMPLATES: WeekTemplateType[] = [
   "vs_push_week",
   "vs_push_weekdays",
   "r4_event_vip",
+  "top_vs",
+  "top_vr",
   "economy_week",
   "price_is_right",
   "price_is_right_weekdays",

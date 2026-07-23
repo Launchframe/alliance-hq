@@ -1,3 +1,4 @@
+import { isAutomaticTopNBoard, resolveConductorTopNBoard } from "@/lib/trains/conductor-top-n.shared";
 import { mechanismNeedsWheel } from "@/lib/trains/templates";
 import { isPriceIsRightHeavyHitterSaturday } from "@/lib/trains/heavy-hitter-pool.shared";
 import type { ConductorMechanismType, WeekTemplateType } from "@/lib/trains/types";
@@ -14,6 +15,12 @@ export function effectiveConductorMechanism(
   if (paintTemplate === "r4_event_vip") {
     return "r4_sequence";
   }
+  if (paintTemplate === "top_vs") {
+    return "vs_top_n";
+  }
+  if (paintTemplate === "top_vr") {
+    return "vr_top_n";
+  }
   if (!conductorMechanism) return null;
   return conductorMechanism as ConductorMechanismType;
 }
@@ -23,6 +30,7 @@ export function canSpinConductorForDay(
   locked: boolean,
   paintTemplate?: WeekTemplateType | null,
   date?: string | null,
+  conductorConfig?: unknown,
 ): boolean {
   if (locked) return false;
   // R3 recognition is a manual award pick from the R3 pool — no wheel.
@@ -33,10 +41,14 @@ export function canSpinConductorForDay(
     date,
   );
   if (!mechanism) return false;
-  if (mechanism === "vs_high_score" || mechanism === "donations_top") {
+  if (mechanism === "donations_top") {
     return false;
   }
-  return mechanismNeedsWheel(mechanism);
+  const topBoard = resolveConductorTopNBoard(mechanism, conductorConfig);
+  if (isAutomaticTopNBoard(topBoard)) {
+    return false;
+  }
+  return mechanismNeedsWheel(mechanism, conductorConfig);
 }
 
 export function canSpinVipForDay(

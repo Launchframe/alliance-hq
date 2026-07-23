@@ -3548,8 +3548,9 @@
         "event_top_x": "Event top scorers pool",
         "heavy_hitter": "Heavy-hitter lottery pool"
       },
-      "vsLeaderboardTop1": "VS #1 (Monday high score)",
+      "vsLeaderboardTop1": "VS #1 (prior-day high score)",
       "vsLeaderboardTopN": "VS top {count}",
+      "vrLeaderboardTopN": "VR top {count}",
       "donationsLeaderboardTop": "Top donor",
       "donationsLeaderboardSecond": "Second-place donor",
       "eventLeaderboard": "Event top scorers (VIP wheel)"
@@ -3691,6 +3692,8 @@
     "mechanisms": {
       "vsHighScore": "VS Day 1 top",
       "vsTop10": "VS top 10",
+      "vsTopN": "Top VS",
+      "vrTopN": "Top VR",
       "r3Lottery": "R3 lottery",
       "heavyHitterLottery": "Heavy-hitter lottery",
       "r4Sequence": "Officer sequence",
@@ -3702,6 +3705,8 @@
     "mechanismsShort": {
       "vsHighScore": "VS D1",
       "vsTop10": "VS T10",
+      "vsTopN": "Top VS",
+      "vrTopN": "Top VR",
       "r3Lottery": "R3",
       "heavyHitterLottery": "HH",
       "r4Sequence": "R4",
@@ -3719,6 +3724,8 @@
       "vs_push_week": "VS Push week",
       "vs_push_weekdays": "VS Push weekdays",
       "r4_event_vip": "R4 & Event VIP",
+      "top_vs": "Top VS",
+      "top_vr": "Top VR",
       "economy_week": "Economy week",
       "price_is_right": "The Price Is Freight",
       "price_is_right_weekdays": "Eligible VS scores",
@@ -3731,9 +3738,18 @@
     "templatesShort": {
       "vs_push_weekdays": "VS Push",
       "r4_event_vip": "R4 & Event VIP",
+      "top_vs": "Top VS",
+      "top_vr": "Top VR",
       "price_is_right": "Closest to 7.2M",
       "price_is_right_weekdays": "Eligible VS",
       "takedown_week": "Takedown pool"
+    },
+    "topNScope": {
+      "titleVs": "Top VS scope",
+      "titleVr": "Top VR scope",
+      "scopeLabel": "Top {count}",
+      "back": "Back",
+      "vrLocked": "Need {required} VR reports for Top {count} (have {have})"
     },
     "templateShapeLegend": {
       "economy_week": "R3 pool",
@@ -3774,8 +3790,10 @@
       "lastConducted": "Last: {date}",
       "conductsThisYear": "{count} this year",
       "vsValidation": {
-        "top1Title": "Top VR Score",
-        "top10Title": "Top 10 VR Scores"
+        "top1Title": "Top VS Score",
+        "top10Title": "Top 10 VS Scores",
+        "topNVsTitle": "Top {count} VS Scores",
+        "topNVrTitle": "Top {count} VR Scores"
       }
     },
     "season": {

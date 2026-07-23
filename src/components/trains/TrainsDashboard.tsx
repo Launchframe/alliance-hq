@@ -63,6 +63,10 @@ import type {
   WeekSchedulePagePayload,
 } from "@/lib/trains/load-dashboard";
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
+import {
+  isAutomaticTopNBoard,
+  resolveConductorTopNBoard,
+} from "@/lib/trains/conductor-top-n.shared";
 import { isPriceIsRightPaintTemplate } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
   conductorSpinSource,
@@ -247,6 +251,7 @@ export function TrainsDashboard({ initial }: Props) {
   const [pendingPastPaint, setPendingPastPaint] = useState<{
     dates: string[];
     templateType: WeekTemplateType;
+    topN?: number;
   } | null>(null);
   const [pastPaintBusy, setPastPaintBusy] = useState(false);
   const [autoRollNotice, setAutoRollNotice] = useState<{
@@ -539,6 +544,8 @@ export function TrainsDashboard({ initial }: Props) {
     () => ({
       vs_high_score: t("mechanismsShort.vsHighScore"),
       vs_top_10: t("mechanismsShort.vsTop10"),
+      vs_top_n: t("mechanismsShort.vsTopN"),
+      vr_top_n: t("mechanismsShort.vrTopN"),
       r3_lottery: t("mechanismsShort.r3Lottery"),
       heavy_hitter_lottery: t("mechanismsShort.heavyHitterLottery"),
       r4_sequence: t("mechanismsShort.r4Sequence"),
@@ -564,6 +571,8 @@ export function TrainsDashboard({ initial }: Props) {
       vs_push_week: t("templates.vs_push_week"),
       vs_push_weekdays: t("templates.vs_push_weekdays"),
       r4_event_vip: t("templates.r4_event_vip"),
+      top_vs: t("templates.top_vs"),
+      top_vr: t("templates.top_vr"),
       economy_week: t("templates.economy_week"),
       price_is_right: t("templates.price_is_right"),
       price_is_right_weekdays: t("templates.price_is_right_weekdays"),
@@ -580,6 +589,8 @@ export function TrainsDashboard({ initial }: Props) {
     () => ({
       vs_push_weekdays: t("templatesShort.vs_push_weekdays"),
       r4_event_vip: t("templatesShort.r4_event_vip"),
+      top_vs: t("templatesShort.top_vs"),
+      top_vr: t("templatesShort.top_vr"),
       price_is_right: t("templatesShort.price_is_right"),
       price_is_right_weekdays: t("templatesShort.price_is_right_weekdays"),
       takedown_week: t("templatesShort.takedown_week"),
@@ -990,12 +1001,13 @@ export function TrainsDashboard({ initial }: Props) {
     (
       dates: string[],
       templateType: WeekTemplateType,
-      options?: { updateWeekTemplate?: boolean },
+      options?: { updateWeekTemplate?: boolean; topN?: number },
     ) => {
       return withOptimisticMutation(
         (snap) =>
           applyOptimisticPaint(snap, dates, templateType, {
             updateWeekTemplate: options?.updateWeekTemplate,
+            ...(options?.topN != null ? { topN: options.topN } : {}),
           }),
         async () => {
           const res = await fetch("/api/trains/schedule/days", {
@@ -1005,6 +1017,7 @@ export function TrainsDashboard({ initial }: Props) {
               dates,
               templateType,
               updateWeekTemplate: options?.updateWeekTemplate === true,
+              ...(options?.topN != null ? { topN: options.topN } : {}),
             }),
           });
           const body = (await res.json()) as { error?: string };
@@ -1022,7 +1035,7 @@ export function TrainsDashboard({ initial }: Props) {
     (
       dates: string[],
       templateType: WeekTemplateType,
-      options?: { updateWeekTemplate?: boolean },
+      options?: { updateWeekTemplate?: boolean; topN?: number },
     ) => {
       const allowedDates = data.canUnlockConductor
         ? dates
@@ -1039,7 +1052,11 @@ export function TrainsDashboard({ initial }: Props) {
           (date) => !canOfficerChangeTemplateForDate(date, data.today),
         );
         if (pastDates.length > 0) {
-          setPendingPastPaint({ dates: allowedDates, templateType });
+          setPendingPastPaint({
+            dates: allowedDates,
+            templateType,
+            ...(options?.topN != null ? { topN: options.topN } : {}),
+          });
           return Promise.resolve(false);
         }
       }
@@ -1301,6 +1318,17 @@ export function TrainsDashboard({ initial }: Props) {
       canManualPickVip ||
       Boolean(selectedRecord?.conductorMemberId) ||
       locked);
+  const selectedConductorConfig =
+    selectedDayConfig?.conductorConfig ??
+    (selectedDayConfig?.topN != null
+      ? { topN: selectedDayConfig.topN, paintTemplate: conductorPaint }
+      : conductorPaint
+        ? { paintTemplate: conductorPaint }
+        : null);
+  const selectedTopBoard = resolveConductorTopNBoard(
+    selectedDayConfig?.conductorMechanism,
+    selectedConductorConfig,
+  );
   const canSpinConductorWheel =
     canRoll &&
     canSpinConductor(
@@ -1308,6 +1336,7 @@ export function TrainsDashboard({ initial }: Props) {
       locked,
       conductorPaint,
       selectedDate,
+      selectedConductorConfig,
     );
   const canSpinVipWheel = canRoll && canSpinVip(vipMech, locked);
   const guidedVipNeeded = Boolean(vipMech) && vipMech !== "none";
@@ -1325,6 +1354,7 @@ export function TrainsDashboard({ initial }: Props) {
     selectedDayConfig?.conductorMechanism,
     conductorPaint,
     selectedDate,
+    selectedConductorConfig,
   );
   const selectedVipSpinSource = vipSpinSource(vipMech);
   const spinWeekContext = useMemo(() => {
@@ -1596,8 +1626,9 @@ export function TrainsDashboard({ initial }: Props) {
                 data.canUnlockConductor ||
                 canOfficerChangeTemplateForDate(date, data.today)
               }
-              onPaintDate={(date, template) => {
-                void paintDates([date], template);
+              vrReporterCount={data.vrReporterCount}
+              onPaintDate={(date, template, options) => {
+                void paintDates([date], template, options);
               }}
               navLabels={{
                 previousWeek: t("weekNavPrevious"),
@@ -1624,6 +1655,7 @@ export function TrainsDashboard({ initial }: Props) {
               conductorLabels={conductorShortLabels}
               vipLabels={vipShortLabels}
               templateLabels={templateLabels}
+              vrReporterCount={data.vrReporterCount}
               navLabels={{
                 previousMonth: t("monthNavPrevious"),
                 nextMonth: t("monthNavNext"),
@@ -1939,13 +1971,7 @@ export function TrainsDashboard({ initial }: Props) {
                   }}
                   onRefresh={refresh}
                 />
-                {canRoll &&
-                canSpinConductor(
-                  selectedDayConfig?.conductorMechanism,
-                  locked,
-                  conductorPaint,
-                  selectedDate,
-                ) ? (
+                {canRoll && canSpinConductorWheel ? (
                   <button
                     type="button"
                     disabled={trainQuickActionBusy}
@@ -1962,7 +1988,7 @@ export function TrainsDashboard({ initial }: Props) {
                   </button>
                 ) : null}
                 {canRoll &&
-                (conductorMech === "vs_high_score" ||
+                (isAutomaticTopNBoard(selectedTopBoard) ||
                   conductorMech === "donations_top") ? (
                   <button
                     type="button"
@@ -2405,7 +2431,12 @@ export function TrainsDashboard({ initial }: Props) {
             void executePaintDates(
               pendingPastPaint.dates,
               pendingPastPaint.templateType,
-              { updateWeekTemplate: true },
+              {
+                updateWeekTemplate: true,
+                ...(pendingPastPaint.topN != null
+                  ? { topN: pendingPastPaint.topN }
+                  : {}),
+              },
             )
               .then((ok) => {
                 if (ok) setPendingPastPaint(null);

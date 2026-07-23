@@ -48,7 +48,8 @@ Composite templates (`vs_push_weekdays` + `r4_event_vip`) paint weekend segments
 
 ## VS scoring for wheels
 
-- `vs_high_score` / `vs_top_10` use **T−1** calendar day scores (`vsScoreReferenceDate(trainDate)` → Ashed `VSScore.recorded_date`) — never season HQ VR.
+- Top VS (`vs_high_score` / `vs_top_10` / `vs_top_n`) uses **T−1** calendar day scores (`vsScoreReferenceDate(trainDate)` → Ashed `VSScore.recorded_date`) — never season HQ VR. Scopes 1/3/5/10 are never locked by score count at paint time.
+- Top VR (`vr_top_n`, scopes 3/5/10) uses season HQ VR; paint/roll requires `vrReporterCount >= 2×N`.
 - Event Top X VIP pool seeding uses season HQ VR (or event-specific scores when configured).
 - VS day names (Mon–Sat): Radar Training, Base Expansion, Age of Science, Hero Day, Total Mobilization, Buster Day.
 

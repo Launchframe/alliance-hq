@@ -3494,8 +3494,9 @@
         "event_top_x": "Pool top evento",
         "heavy_hitter": "Pool loteria heavy-hitter"
       },
-      "vsLeaderboardTop1": "VS #1 (maior pontuação de segunda)",
+      "vsLeaderboardTop1": "VS #1 (maior pontuação do dia anterior)",
       "vsLeaderboardTopN": "VS top {count}",
+      "vrLeaderboardTopN": "VR top {count}",
       "donationsLeaderboardTop": "Maior doador",
       "donationsLeaderboardSecond": "Segundo doador",
       "eventLeaderboard": "Top do evento (roda VIP)"
@@ -3637,6 +3638,8 @@
     "mechanisms": {
       "vsHighScore": "Top VS dia 1",
       "vsTop10": "Top 10 VS",
+      "vsTopN": "Top VS",
+      "vrTopN": "Top VR",
       "r3Lottery": "Loteria R3",
       "heavyHitterLottery": "Loteria heavy-hitter",
       "r4Sequence": "Sequência oficiais",
@@ -3648,6 +3651,8 @@
     "mechanismsShort": {
       "vsHighScore": "VS D1",
       "vsTop10": "VS T10",
+      "vsTopN": "Top VS",
+      "vrTopN": "Top VR",
       "r3Lottery": "R3",
       "heavyHitterLottery": "HH",
       "r4Sequence": "R4",
@@ -3665,6 +3670,8 @@
       "vs_push_week": "Semana push VS",
       "vs_push_weekdays": "Dias úteis push VS",
       "r4_event_vip": "R4 e VIP de evento",
+      "top_vs": "Top VS",
+      "top_vr": "Top VR",
       "economy_week": "Semana economia",
       "price_is_right": "The Price Is Freight",
       "price_is_right_weekdays": "Pontuações VS elegíveis",
@@ -3677,9 +3684,18 @@
     "templatesShort": {
       "vs_push_weekdays": "Push VS",
       "r4_event_vip": "R4 e VIP evento",
+      "top_vs": "Top VS",
+      "top_vr": "Top VR",
       "price_is_right": "Mais perto de 7,2M",
       "price_is_right_weekdays": "VS elegível",
       "takedown_week": "Pool takedown"
+    },
+    "topNScope": {
+      "titleVs": "Escopo Top VS",
+      "titleVr": "Escopo Top VR",
+      "scopeLabel": "Top {count}",
+      "back": "Voltar",
+      "vrLocked": "Precisa de {required} relatórios de VR para Top {count} (tem {have})"
     },
     "templateShapeLegend": {
       "economy_week": "Pool R3",
@@ -3720,8 +3736,10 @@
       "lastConducted": "Última: {date}",
       "conductsThisYear": "{count} este ano",
       "vsValidation": {
-        "top1Title": "Maior Pontuação VR",
-        "top10Title": "Top 10 Pontuações VR"
+        "top1Title": "Maior Pontuação VS",
+        "top10Title": "Top 10 Pontuações VS",
+        "topNVsTitle": "Top {count} Pontuações VS",
+        "topNVrTitle": "Top {count} Pontuações VR"
       }
     },
     "season": {
