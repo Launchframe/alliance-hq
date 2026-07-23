@@ -18,15 +18,20 @@ emit_empty() {
   exit 0
 }
 
-# Consume stdin (sessionStart payload) without requiring jq.
+# Consume stdin (sessionStart payload).
 input="$(cat || true)"
 
 # Skip background agents — they should not pay the fetch cost on every spawn.
-case "${input}" in
-  *'"is_background_agent":true'*|*'\"is_background_agent\": true'*)
+if command -v python3 >/dev/null 2>&1; then
+  if printf '%s' "${input}" | python3 -c 'import json,sys
+try:
+    data = json.load(sys.stdin)
+except json.JSONDecodeError:
+    sys.exit(1)
+sys.exit(0 if data.get("is_background_agent") is True else 1)' 2>/dev/null; then
     emit_empty
-    ;;
-esac
+  fi
+fi
 
 if [[ ! -x "${PRUNE_SCRIPT}" ]]; then
   emit_empty

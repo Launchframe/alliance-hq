@@ -209,8 +209,12 @@ if [[ "${COMPACT}" -eq 0 ]]; then
 fi
 
 section "Fetch + prune remote-tracking refs"
-git fetch --prune origin
-detail "  pruned remote-tracking branches that no longer exist on origin"
+if [[ "${COMPACT}" -eq 1 ]]; then
+  git fetch --prune origin >/dev/null 2>&1
+else
+  git fetch --prune origin
+  detail "  pruned remote-tracking branches that no longer exist on origin"
+fi
 
 section "Open PR heads (safety gate)"
 declare -a OPEN_PR_BRANCHES=()
