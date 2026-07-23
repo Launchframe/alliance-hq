@@ -10,6 +10,8 @@ import type {
   BucketRow,
 } from "@/lib/video/video-jobs-analytics.server";
 import type { RosterOcrEvalResponse } from "@/app/api/admin/video-jobs/roster-ocr-eval/route";
+import type { DepositSlipOcrEvalResponse } from "@/app/api/admin/video-jobs/deposit-slip-ocr-eval/route";
+import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import {
   ADMIN_VIDEO_JOBS_CONSOLE,
   type VideoJobsConsoleConfig,
@@ -138,6 +140,7 @@ export function AdminVideoAnalyticsView({
   const t = useTranslations("admin.analyticsPage");
   const [data, setData] = useState<AnalyticsResponse | null>(null);
   const [rosterEval, setRosterEval] = useState<RosterOcrEvalResponse | null>(null);
+  const [depositSlipEval, setDepositSlipEval] = useState<DepositSlipOcrEvalResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -160,9 +163,13 @@ export function AdminVideoAnalyticsView({
       const rosterEvalPromise = config.includeRosterOcrEval
         ? fetch(`/api/admin/video-jobs/roster-ocr-eval?${rosterParams}`)
         : Promise.resolve(null);
-      const [analyticsJson, rosterEvalRes] = await Promise.all([
+      const depositSlipEvalPromise = config.includeDepositSlipOcrEval
+        ? fetch(`/api/admin/video-jobs/deposit-slip-ocr-eval?${rosterParams}`)
+        : Promise.resolve(null);
+      const [analyticsJson, rosterEvalRes, depositSlipEvalRes] = await Promise.all([
         res.json() as Promise<AnalyticsResponse>,
         rosterEvalPromise,
+        depositSlipEvalPromise,
       ]);
       setData(analyticsJson);
       if (rosterEvalRes?.ok) {
@@ -170,12 +177,25 @@ export function AdminVideoAnalyticsView({
       } else {
         setRosterEval(null);
       }
+      if (depositSlipEvalRes?.ok) {
+        setDepositSlipEval((await depositSlipEvalRes.json()) as DepositSlipOcrEvalResponse);
+      } else {
+        setDepositSlipEval(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : t("loadFailed"));
     } finally {
       setLoading(false);
     }
-  }, [scoreTarget, passKey, days, t, config.apiBase, config.includeRosterOcrEval]);
+  }, [
+    scoreTarget,
+    passKey,
+    days,
+    t,
+    config.apiBase,
+    config.includeRosterOcrEval,
+    config.includeDepositSlipOcrEval,
+  ]);
 
   useEffect(() => {
     void (async () => {
@@ -447,6 +467,112 @@ export function AdminVideoAnalyticsView({
                               <td className="py-2 text-right text-hq-fg-muted">{pct(row.nameRecall, 1)}</td>
                               <td className="py-2 text-right text-hq-fg-muted">{pct(row.namePrecision, 1)}</td>
                               <td className="py-2 text-right text-hq-fg-muted">{pct(row.rankAgreement, 1)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </section>
+          ) : null}
+
+          {config.includeDepositSlipOcrEval &&
+          (!scoreTarget || scoreTarget === BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET) &&
+          depositSlipEval ? (
+            <section className="space-y-4 rounded-lg border border-hq-border bg-hq-surface p-4">
+              <div>
+                <h2 className="text-sm font-semibold text-hq-fg">
+                  {t("depositSlipEval.title")}
+                </h2>
+                <p className="mt-1 text-xs text-hq-fg-muted">{t("depositSlipEval.subtitle")}</p>
+              </div>
+              {depositSlipEval.jobCount === 0 ? (
+                <p className="text-xs text-hq-fg-muted">{t("depositSlipEval.empty")}</p>
+              ) : (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <KpiCard
+                      label={t("depositSlipEval.jobCount")}
+                      value={String(depositSlipEval.jobCount)}
+                    />
+                    <KpiCard
+                      label={t("depositSlipEval.rowRecall")}
+                      value={pct(depositSlipEval.avgRowRecall, 1)}
+                    />
+                    <KpiCard
+                      label={t("depositSlipEval.rowPrecision")}
+                      value={pct(depositSlipEval.avgRowPrecision, 1)}
+                    />
+                    <KpiCard
+                      label={t("depositSlipEval.depositAtAgreement")}
+                      value={pct(depositSlipEval.avgDepositAtAgreement, 1)}
+                    />
+                    <KpiCard
+                      label={t("depositSlipEval.primaryMissingDepositAtRate")}
+                      value={pct(depositSlipEval.avgPrimaryMissingDepositAtRate, 1)}
+                    />
+                    <KpiCard
+                      label={t("depositSlipEval.shadowMissingDepositAtRate")}
+                      value={pct(depositSlipEval.avgShadowMissingDepositAtRate, 1)}
+                    />
+                    <KpiCard
+                      label={t("depositSlipEval.amountAgreement")}
+                      value={pct(depositSlipEval.avgAmountAgreement, 1)}
+                    />
+                    <KpiCard
+                      label={t("depositSlipEval.termDaysAgreement")}
+                      value={pct(depositSlipEval.avgTermDaysAgreement, 1)}
+                    />
+                    <KpiCard
+                      label={t("depositSlipEval.statusAgreement")}
+                      value={pct(depositSlipEval.avgStatusAgreement, 1)}
+                    />
+                    <KpiCard
+                      label={t("depositSlipEval.lineReduction")}
+                      value={pct(depositSlipEval.avgLineReductionRate, 1)}
+                      sub={
+                        depositSlipEval.avgRawLineCount != null &&
+                        depositSlipEval.avgUniqueLineCount != null
+                          ? `${Math.round(depositSlipEval.avgRawLineCount)} → ${Math.round(depositSlipEval.avgUniqueLineCount)}`
+                          : undefined
+                      }
+                    />
+                  </div>
+                  {depositSlipEval.dailySeries.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-hq-fg-muted">
+                        {t("depositSlipEval.dailyTrend")}
+                      </h3>
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-hq-border text-hq-fg-muted uppercase tracking-wide">
+                            <th className="pb-2 text-left">{t("depositSlipEval.colDate")}</th>
+                            <th className="pb-2 text-right">{t("depositSlipEval.colJobs")}</th>
+                            <th className="pb-2 text-right">{t("depositSlipEval.rowRecall")}</th>
+                            <th className="pb-2 text-right">
+                              {t("depositSlipEval.primaryMissingDepositAtRate")}
+                            </th>
+                            <th className="pb-2 text-right">
+                              {t("depositSlipEval.shadowMissingDepositAtRate")}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {depositSlipEval.dailySeries.map((row) => (
+                            <tr key={row.date} className="border-b border-hq-surface-muted">
+                              <td className="py-2 text-hq-fg">{row.date}</td>
+                              <td className="py-2 text-right text-hq-fg">{row.jobCount}</td>
+                              <td className="py-2 text-right text-hq-fg-muted">
+                                {pct(row.avgRowRecall, 1)}
+                              </td>
+                              <td className="py-2 text-right text-hq-fg-muted">
+                                {pct(row.avgPrimaryMissingDepositAtRate, 1)}
+                              </td>
+                              <td className="py-2 text-right text-hq-fg-muted">
+                                {pct(row.avgShadowMissingDepositAtRate, 1)}
+                              </td>
                             </tr>
                           ))}
                         </tbody>

@@ -5,6 +5,8 @@ export type VideoJobsConsoleConfig = {
   analyticsPath: "/admin/video-jobs/analytics" | "/tools/video-jobs/analytics";
   showFleetAdminLinks: boolean;
   includeRosterOcrEval: boolean;
+  /** Admin-only Tessaract bbox / row-fingerprint deposit-slip eval dashboard. */
+  includeDepositSlipOcrEval: boolean;
 };
 
 export const ADMIN_VIDEO_JOBS_CONSOLE: VideoJobsConsoleConfig = {
@@ -13,6 +15,7 @@ export const ADMIN_VIDEO_JOBS_CONSOLE: VideoJobsConsoleConfig = {
   analyticsPath: "/admin/video-jobs/analytics",
   showFleetAdminLinks: true,
   includeRosterOcrEval: true,
+  includeDepositSlipOcrEval: true,
 };
 
 export const TOOLS_VIDEO_JOBS_CONSOLE: VideoJobsConsoleConfig = {
@@ -21,4 +24,5 @@ export const TOOLS_VIDEO_JOBS_CONSOLE: VideoJobsConsoleConfig = {
   analyticsPath: "/tools/video-jobs/analytics",
   showFleetAdminLinks: false,
   includeRosterOcrEval: false,
+  includeDepositSlipOcrEval: false,
 };
