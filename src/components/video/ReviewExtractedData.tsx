@@ -11,6 +11,7 @@ import {
 } from "@/lib/client/form-enter-submit.shared";
 import { useFeedback } from "@/components/feedback";
 import { AppSelect } from "@/components/ui/AppSelect";
+import { Dialog } from "@/components/ui/dialog";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { useVideoJob } from "@/components/video/VideoJobEventsProvider";
 import {
@@ -265,6 +266,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [errorConnectUrl, setErrorConnectUrl] = useState<string | null>(null);
   const actionErrorAnchorRef = useRef<HTMLDivElement | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [overlappingLockedConfirmOpen, setOverlappingLockedConfirmOpen] =
+    useState(false);
   const [reprocessPending, setReprocessPending] = useState(false);
   const [rematching, setRematching] = useState(false);
   const [groupActionBusy, setGroupActionBusy] = useState<string | null>(null);
@@ -1304,13 +1307,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const submitReadinessStatus =
     liveJob?.status === "submitting" ? "submitting" : displayJobStatus;
 
+  const duplicateMembersBlockSubmit =
+    hasDuplicateMembers && !scoreTargetMeta?.showDepositSlipColumns;
+
   const canSubmit =
     isVideoJobReadyForSubmit(submitReadinessStatus) &&
     activeRows.length > 0 &&
     eventGateSatisfied &&
     (!needsBoardPicker || boardKey) &&
     (!scoreTargetMeta?.showBankSelector || Boolean(bankId)) &&
-    !hasDuplicateMembers &&
+    !duplicateMembersBlockSubmit &&
     !hasDuplicateOcrNames &&
     !hasUnresolvedNameMismatches &&
     !submitting &&
@@ -1353,16 +1359,22 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     );
   }
 
-  async function handleSubmit() {
-    if (hasDuplicateMembers || hasDuplicateOcrNames) {
+  async function handleSubmit(options?: { skipOverlappingLockedConfirm?: boolean }) {
+    const skipOverlappingLockedConfirm =
+      options?.skipOverlappingLockedConfirm === true;
+    if (
+      hasDuplicateOcrNames ||
+      (hasDuplicateMembers && !scoreTargetMeta?.showDepositSlipColumns)
+    ) {
       setActionError(t("duplicateMemberBlocked"));
       return;
     }
     if (
       scoreTargetMeta?.showDepositSlipColumns &&
-      depositSlipValidation.hasUnresolvedFlaggedClusters
+      hasDuplicateMembers &&
+      !skipOverlappingLockedConfirm
     ) {
-      setActionError(t("depositSlipFlaggedBlocked"));
+      setOverlappingLockedConfirmOpen(true);
       return;
     }
     if (
@@ -1981,7 +1993,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         </div>
       )}
 
-      {hasDuplicateMembers && (
+      {hasDuplicateMembers &&
+      !scoreTargetMeta?.showDepositSlipColumns ? (
         <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
           <p className="font-medium">{t("duplicateMemberTitle")}</p>
           <ul className="mt-2 list-inside list-disc space-y-1">
@@ -1996,7 +2009,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           </ul>
           <p className="mt-2 text-hq-fg">{t("duplicateMemberHint")}</p>
         </div>
-      )}
+      ) : null}
 
       {hasDuplicateOcrNames && (
         <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
@@ -2783,6 +2796,43 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       </div>
       {showSidePreview ? previewNode : null}
       {showBottomPreview ? previewNode : null}
+      <Dialog
+        open={overlappingLockedConfirmOpen}
+        onOpenChange={setOverlappingLockedConfirmOpen}
+        title={t("depositSlipOverlappingLockedConfirmTitle")}
+      >
+        <div className="flex max-w-lg flex-col gap-4">
+          <h2 className="text-lg font-semibold text-hq-fg">
+            {t("depositSlipOverlappingLockedConfirmTitle")}
+          </h2>
+          <p className="text-sm text-hq-fg-muted">
+            {t("depositSlipOverlappingLockedHint")}
+          </p>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => setOverlappingLockedConfirmOpen(false)}
+              className="rounded-lg border border-hq-border px-4 py-2 text-sm hover:bg-hq-surface-muted disabled:opacity-50"
+            >
+              {t("depositSlipOverlappingLockedConfirmBack")}
+            </button>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => {
+                setOverlappingLockedConfirmOpen(false);
+                void handleSubmit({ skipOverlappingLockedConfirm: true });
+              }}
+              className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
+            >
+              {submitting
+                ? t("submitting")
+                : t("depositSlipOverlappingLockedConfirmSave")}
+            </button>
+          </div>
+        </div>
+      </Dialog>
       {hasSourceVideo && !previewOpen ? (
         <button
           type="button"

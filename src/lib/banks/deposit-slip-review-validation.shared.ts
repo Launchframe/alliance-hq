@@ -294,9 +294,6 @@ export function validateDepositSlipReviewRows(
     // duplicateMemberIssues but intentionally omitted from canSubmitSlips —
     // ReviewExtractedData gates submit via hasDuplicateMembers separately so
     // this helper stays focused on incomplete rows + unresolved clusters.
-    canSubmitSlips:
-      activeRowCount > 0 &&
-      incompleteRowIds.size === 0 &&
-      !hasUnresolvedFlaggedClusters,
+    canSubmitSlips: activeRowCount > 0 && incompleteRowIds.size === 0,
   };
 }

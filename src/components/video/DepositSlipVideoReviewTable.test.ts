@@ -73,7 +73,7 @@ describe("useDepositSlipReviewValidation flagged clusters", () => {
       report,
     );
     expect(result.hasUnresolvedFlaggedClusters).toBe(true);
-    expect(result.canSubmitSlips).toBe(false);
+    expect(result.canSubmitSlips).toBe(true);
   });
 
   it("allows submit after deleting extras in a flagged cluster", () => {

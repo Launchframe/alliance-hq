@@ -543,12 +543,6 @@ export async function POST(request: Request, { params }: Props) {
         reviewRows,
         isDedupeReport(dedupeReportJson) ? dedupeReportJson : null,
       );
-      if (reviewValidation.hasUnresolvedFlaggedClusters) {
-        return NextResponse.json(
-          { error: "Resolve flagged duplicate clusters before saving." },
-          { status: 400 },
-        );
-      }
       if (reviewValidation.incompleteRowIds.size > 0) {
         return NextResponse.json(
           { error: "Fill every incomplete row before saving." },
