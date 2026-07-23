@@ -148,6 +148,15 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     requiredPermission: "battle_plan:read",
   },
   {
+    id: "nav.timeOff",
+    labelKey: "actions.nav.timeOff",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/time-off",
+    requiredPermission: "time_off:read",
+  },
+  {
     id: "nav.bankManagement",
     labelKey: "actions.nav.bankManagement",
     category: "navigation",

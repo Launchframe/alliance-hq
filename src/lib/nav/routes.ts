@@ -242,6 +242,14 @@ export const NAV_GROUPS: NavGroupDef[] = [
         descriptionKey: "battlePlanDescription",
       },
       {
+        id: "time-off",
+        labelKey: "timeOff",
+        href: "/time-off",
+        kind: "native",
+        requiredPermission: "time_off:read",
+        descriptionKey: "timeOffDescription",
+      },
+      {
         id: "bank-management",
         labelKey: "bankManagement",
         href: "/bank-management",
