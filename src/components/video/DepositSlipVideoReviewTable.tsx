@@ -15,6 +15,16 @@ import {
   type DepositTermDays,
 } from "@/lib/banks/types.shared";
 import { formatDepositSlipGameTimestamp } from "@/lib/banks/deposit-slip-ocr/deposit-slip-game-timestamp.shared";
+import {
+  flaggedClusterIdsWithSingleSurvivor,
+  groupUnresolvedFlaggedClusters,
+  otherLiveClusterRowIds,
+} from "@/lib/banks/deposit-slip-flagged-clusters.shared";
+import {
+  depositSlipReviewRowSummaryParts,
+  diffKeysForDepositSlipRows,
+  type DepositSlipReviewRowSummaryFields,
+} from "@/lib/banks/deposit-slip-review-row-summary.shared";
 import { validateDepositSlipReviewRows } from "@/lib/banks/deposit-slip-review-validation.shared";
 import {
   filterAndSortDepositSlipReviewRows,
@@ -77,6 +87,8 @@ type Props = {
   onSortKeyChange?: (sortKey: DepositSlipVisibleSortKey) => void;
   /** Follow-me row highlight (deposit-slip review). */
   highlightedRowId?: string | null;
+  /** Scroll the table to a row (flagged-cluster / warning banners). */
+  onJumpToRow?: (rowId: string) => void;
 };
 
 const FLAG_REASON_KEYS = [
@@ -172,44 +184,24 @@ const LIFECYCLE_AUTO_MERGE_REASONS = new Set([
   "lifecycle_locked_to_looted",
 ]);
 
-/** Same fields as `formatSnapshotLine`, rendered per-field so conflicting ones can be bolded. */
-function SnapshotFields({
-  snapshot,
+function LiveRowSummaryFields({
+  row,
   diffKeys,
 }: {
-  snapshot: Record<string, unknown>;
+  row: DepositSlipReviewRowSummaryFields;
   diffKeys: Set<string>;
 }) {
-  const name =
-    typeof snapshot.commanderName === "string" ? snapshot.commanderName : "—";
-  const allianceTag =
-    typeof snapshot.allianceTag === "string" ? snapshot.allianceTag : "—";
-  const amount =
-    typeof snapshot.amount === "number" ? String(snapshot.amount) : "—";
-  const term =
-    typeof snapshot.termDays === "number" ? `${snapshot.termDays}d` : "—";
-  const status = typeof snapshot.status === "string" ? snapshot.status : "—";
-  const depositAt =
-    typeof snapshot.depositAt === "string"
-      ? isoToDatetimeLocalValue(snapshot.depositAt).replace("T", " ")
-      : "—";
-
-  const fieldClass = (key: string) =>
-    diffKeys.has(key) ? "font-semibold text-hq-danger" : undefined;
-
+  const parts = depositSlipReviewRowSummaryParts(row, diffKeys);
   return (
     <span className="inline-flex flex-wrap items-center gap-1">
-      <span>{name}</span>
-      <span aria-hidden>·</span>
-      <span className={fieldClass("allianceTag")}>{allianceTag}</span>
-      <span aria-hidden>·</span>
-      <span className={fieldClass("amount")}>{amount}</span>
-      <span aria-hidden>·</span>
-      <span className={fieldClass("termDays")}>{term}</span>
-      <span aria-hidden>·</span>
-      <span className={fieldClass("depositAt")}>{depositAt}</span>
-      <span aria-hidden>·</span>
-      <span className={fieldClass("status")}>{status}</span>
+      {parts.map((part, index) => (
+        <span key={part.key} className="inline-flex items-center gap-1">
+          {index > 0 ? <span aria-hidden>·</span> : null}
+          <span className={part.differs ? "font-semibold text-hq-danger" : undefined}>
+            {part.text}
+          </span>
+        </span>
+      ))}
     </span>
   );
 }
@@ -227,6 +219,7 @@ export function DepositSlipVideoReviewTable({
   onVisibleRowIdsChange,
   onSortKeyChange,
   highlightedRowId,
+  onJumpToRow,
 }: Props) {
   const t = useTranslations("videoReview");
   const tBanks = useTranslations("bankManagement");
@@ -301,14 +294,44 @@ export function DepositSlipVideoReviewTable({
     [missingTsClusters],
   );
 
-  const unresolvedFlaggedClusters = useMemo(
+  const flaggedClusterIds = useMemo(
     () =>
-      (report?.clusters ?? []).filter(
-        (c): c is DedupeCluster =>
-          c.disposition === "flagged" && unresolvedClusterIds.has(c.clusterId),
+      new Set(
+        (report?.clusters ?? [])
+          .filter((cluster) => cluster.disposition === "flagged")
+          .map((cluster) => cluster.clusterId),
       ),
-    [report, unresolvedClusterIds],
+    [report],
   );
+
+  const liveFlaggedClusterGroups = useMemo(
+    () =>
+      groupUnresolvedFlaggedClusters(
+        activeRows,
+        unresolvedClusterIds,
+        flaggedReasonByClusterId,
+        report?.clusters ?? [],
+      ),
+    [
+      activeRows,
+      unresolvedClusterIds,
+      flaggedReasonByClusterId,
+      report?.clusters,
+    ],
+  );
+
+  useLayoutEffect(() => {
+    const survivors = flaggedClusterIdsWithSingleSurvivor(
+      activeRows,
+      flaggedClusterIds,
+    );
+    for (const { survivorId } of survivors) {
+      const row = activeRows.find((r) => r.id === survivorId);
+      if (row?.dedupeClusterId) {
+        onUpdateRow(survivorId, { dedupeClusterId: null });
+      }
+    }
+  }, [activeRows, flaggedClusterIds, onUpdateRow]);
 
   function lifecycleDestinationLabel(
     cluster: DedupeCluster,
@@ -353,51 +376,70 @@ export function DepositSlipVideoReviewTable({
     return t("depositSlipFlaggedRow");
   }
 
+  function handleKeepFlaggedClusterRow(
+    clusterGroup: (typeof liveFlaggedClusterGroups)[number],
+    keepRowId: string,
+  ) {
+    for (const rowId of otherLiveClusterRowIds(clusterGroup.liveRows, keepRowId)) {
+      onDeleteRow(rowId);
+    }
+    onUpdateRow(keepRowId, { dedupeClusterId: null });
+  }
+
   return (
     <div className="space-y-3">
-      {unresolvedFlaggedClusters.length > 0 ? (
+      {liveFlaggedClusterGroups.length > 0 ? (
         <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
           <p className="font-medium">
             {t("depositSlipFlaggedTitle", {
-              count: unresolvedFlaggedClusters.length,
+              count: liveFlaggedClusterGroups.length,
             })}
           </p>
           <p className="mt-2 text-hq-fg">{t("depositSlipFlaggedHint")}</p>
           <ul className="mt-3 space-y-3">
-            {unresolvedFlaggedClusters.map((cluster) => {
-              const diffKeys = clusterDiffKeys(cluster);
+            {liveFlaggedClusterGroups.map((clusterGroup) => {
+              const diffKeys = diffKeysForDepositSlipRows(clusterGroup.liveRows);
+              const reason = clusterGroup.reason ?? "";
               return (
                 <li
-                  key={cluster.clusterId}
+                  key={clusterGroup.clusterId}
                   className="rounded-lg border border-hq-danger/30 bg-hq-canvas p-3 text-hq-fg"
                 >
                   <p className="text-xs font-medium uppercase tracking-wide text-hq-danger">
-                    {flagReasonLabel(cluster.reason)}
+                    {reason ? flagReasonLabel(reason) : t("depositSlipFlaggedRow")}
                   </p>
+                  {clusterGroup.staleReport ? (
+                    <p className="mt-2 text-xs text-hq-fg-muted">
+                      {t("depositSlipStaleClusterNote")}
+                    </p>
+                  ) : null}
                   <ul className="mt-2 space-y-1.5">
-                    {cluster.members.map((member) => (
+                    {clusterGroup.liveRows.map((row) => (
                       <li
-                        key={member.slipId}
+                        key={row.id}
                         className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-hq-surface-muted/40 px-2 py-1.5"
                       >
-                        <SnapshotFields
-                          snapshot={member.snapshot}
-                          diffKeys={diffKeys}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            for (const slipId of otherClusterMemberSlipIds(
-                              cluster,
-                              member.slipId,
-                            )) {
-                              onDeleteRow(slipId);
+                        <LiveRowSummaryFields row={row} diffKeys={diffKeys} />
+                        <div className="flex flex-wrap items-center gap-2">
+                          {onJumpToRow ? (
+                            <button
+                              type="button"
+                              onClick={() => onJumpToRow(row.id)}
+                              className="whitespace-nowrap rounded-md border border-hq-border px-2 py-1 text-xs text-hq-fg hover:bg-hq-surface-muted"
+                            >
+                              {t("depositSlipWarningRowJump")}
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleKeepFlaggedClusterRow(clusterGroup, row.id)
                             }
-                          }}
-                          className="whitespace-nowrap rounded-md border border-hq-border px-2 py-1 text-xs text-hq-fg hover:bg-hq-surface-muted"
-                        >
-                          {t("depositSlipFlaggedKeepThisOne")}
-                        </button>
+                            className="whitespace-nowrap rounded-md border border-hq-border px-2 py-1 text-xs text-hq-fg hover:bg-hq-surface-muted"
+                          >
+                            {t("depositSlipFlaggedKeepThisOne")}
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>

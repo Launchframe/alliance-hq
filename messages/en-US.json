@@ -4120,6 +4120,7 @@
     "depositSlipMissingTsCoveredAbsorbed": "Missing time (duplicate)",
     "depositSlipFlaggedTitle": "{count, plural, one {# cluster still needs review.} other {# clusters still need review.}}",
     "depositSlipFlaggedHint": "Review or delete the rows below so each deposit appears once. You can still save when every row is complete.",
+    "depositSlipStaleClusterNote": "The saved cluster report no longer matches these row IDs. Actions below apply to the live table only.",
     "depositSlipOverlappingLockedTitle": "Overlapping locked deposits",
     "depositSlipOverlappingLockedHint": "Two or more locked deposits for the same commander have overlapping terms. The game only allows one open deposit at a time. Review the rows below, then delete or fix any mistake. You can still save if you are sure the data is correct.",
     "depositSlipOverlappingLockedGroup": "{commander} — {count, plural, one {# overlapping row} other {# overlapping rows}}",
