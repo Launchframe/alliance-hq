@@ -34,6 +34,14 @@ test.describe("VS early shadow withhold review", () => {
       enqueuedByHqUserId: scenario.officer.hqUserId,
     });
 
+    // Keep session alliance aligned with the job so review load does not stall
+    // on a stale-roster rematch before the withhold gate can render.
+    await sql`
+      UPDATE sessions
+      SET current_alliance_id = ${scenario.allianceId}
+      WHERE id = ${scenario.officer.sessionId}
+    `;
+
     const cookie = authCookieHeader(scenario.officer);
     const jobRes = await request.get(
       `/api/tools/video-upload/${fixture.primaryJobId}`,
@@ -48,16 +56,30 @@ test.describe("VS early shadow withhold review", () => {
     expect(jobBody.expectedRowCount).toBeGreaterThan(5);
 
     await page.context().addCookies(playwrightAuthCookies(scenario.officer));
-    await page.goto(`/tools/video-upload/${fixture.primaryJobId}/review`);
 
-    await expect(
-      page.getByText(/gathering denser leaderboard frames/i),
-    ).toBeVisible();
+    const jobLoadPromise = page.waitForResponse(
+      (res) =>
+        res.request().method() === "GET" &&
+        res.url().includes(`/api/tools/video-upload/${fixture.primaryJobId}`) &&
+        !res.url().includes("/group") &&
+        res.status() === 200,
+    );
+
+    await page.goto(`/tools/video-upload/${fixture.primaryJobId}/review`);
+    await jobLoadPromise;
+
+    const reviewHeading = page.getByRole("heading", {
+      name: /review extracted data/i,
+    });
+
+    await expect(page.getByTestId("video-shadow-withhold")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(reviewHeading).not.toBeVisible();
 
     await setVideoJobStatus(sql, fixture.shadowJobId, "review");
 
-    await expect(
-      page.getByRole("heading", { name: /review extracted data/i }),
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(reviewHeading).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("video-shadow-withhold")).not.toBeVisible();
   });
 });
