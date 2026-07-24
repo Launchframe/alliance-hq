@@ -157,10 +157,7 @@ export function TimeOffCalendarClient({ initial }: Props) {
       />
 
       {dashboard.canManageOthers ? (
-        <UnexpectedAbsencePanel
-          initialReport={dashboard.unexpectedReport}
-          onChanged={() => void refreshMonth(dashboard.monthKey)}
-        />
+        <UnexpectedAbsencePanel initialReport={dashboard.unexpectedReport} />
       ) : null}
 
       {selectedEntry ? (

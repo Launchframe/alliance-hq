@@ -80,7 +80,7 @@ export async function handleDiscordMyTimeOff(input: {
     return { reply };
   }
 
-  if (links.length > 1 && !input.message?.trim() && !input.start) {
+  if (links.length > 1) {
     const names = links.map((link) => link.memberDisplayName).join(", ");
     const reply = t("timeOff.multipleCommanders", { names });
     await writeDiscordBotAudit({

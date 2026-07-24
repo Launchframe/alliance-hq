@@ -170,8 +170,8 @@ function tryNamedMonthRange(
     const end = parseMonthDay(namedRange[1], namedRange[3], today, {
       explicitMonth: true,
     });
-    if (start && end) {
-      return { start, end: end < start ? addCalendarDays(start, 7) : end };
+    if (start && end && end >= start) {
+      return { start, end };
     }
   }
 
@@ -185,7 +185,7 @@ function tryNamedMonthRange(
     const end = parseMonthDay(crossMonth[3], crossMonth[4], today, {
       explicitMonth: true,
     });
-    if (start && end) return { start, end };
+    if (start && end && end >= start) return { start, end };
   }
   return null;
 }

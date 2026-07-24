@@ -4707,7 +4707,7 @@
     },
     "timeOff": {
       "notLinked": "Vincule seu comandante com `/link-commander` antes de anunciar ausência.",
-      "multipleCommanders": "Você tem vários comandantes vinculados ({names}). Use `start:` e `end:` explícitos ou desvincule extras com `/unlink`.",
+      "multipleCommanders": "Você tem vários comandantes vinculados ({names}). Desvincule extras com `/unlink` antes de anunciar ausência.",
       "noUpcoming": "**{name}** não tem ausências futuras no calendário.",
       "upcomingList": "Próximas ausências de **{name}**:\n{entries}",
       "parseFailed": "Não consegui entender essas datas. Tente algo como \"fora na próxima semana\" ou use `start:AAAA-MM-DD` e `end:AAAA-MM-DD`.",

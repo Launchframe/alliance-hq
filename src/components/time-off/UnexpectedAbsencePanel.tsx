@@ -12,10 +12,9 @@ type ReportPayload = {
 
 type Props = {
   initialReport: ReportPayload | undefined;
-  onChanged: () => void;
 };
 
-export function UnexpectedAbsencePanel({ initialReport, onChanged }: Props) {
+export function UnexpectedAbsencePanel({ initialReport }: Props) {
   const t = useTranslations("timeOff");
   const [report, setReport] = useState<ReportPayload | null>(
     initialReport ?? null,
@@ -60,7 +59,6 @@ export function UnexpectedAbsencePanel({ initialReport, onChanged }: Props) {
           type="button"
           onClick={() => {
             void load();
-            onChanged();
           }}
           disabled={loading}
           className="rounded border border-hq-border px-3 py-1.5 text-xs text-hq-fg"

@@ -808,14 +808,6 @@ async function handleSlashCommand(
       commander,
       date,
     });
-    if (result.pickCandidates?.length) {
-      const names = result.pickCandidates.map((c) => c.name).join(", ");
-      return discordMessageResponse(
-        `${result.reply}\n${names}`,
-        undefined,
-        { ephemeral: false },
-      );
-    }
     return discordMessageResponse(result.reply, undefined, { ephemeral: false });
   }
 

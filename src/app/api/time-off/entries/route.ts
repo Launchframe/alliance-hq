@@ -107,11 +107,17 @@ export async function POST(request: Request) {
     if (deniedWrite) return deniedWrite;
   }
 
+  // Attribution is server-derived — ignore client-provided `source`.
+  const source = canManageOthers ? "officer" : "web";
+  const entryKind =
+    canManageOthers && payload.entryKind ? payload.entryKind : "planned";
+
   const row = await createTimeOffEntry({
     allianceId,
     payload: {
       ...payload,
-      source: payload.source ?? (canManageOthers ? "officer" : "web"),
+      entryKind,
+      source,
     },
     createdByHqUserId: session.hqUserId ?? null,
   });

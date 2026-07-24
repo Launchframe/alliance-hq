@@ -4761,7 +4761,7 @@
     },
     "timeOff": {
       "notLinked": "Link your commander with `/link-commander` before announcing time off.",
-      "multipleCommanders": "You have multiple linked commanders ({names}). Use explicit `start:` and `end:` dates, or unlink extras with `/unlink`.",
+      "multipleCommanders": "You have multiple linked commanders ({names}). Unlink extras with `/unlink` before announcing time off.",
       "noUpcoming": "**{name}** has no upcoming time off on the calendar.",
       "upcomingList": "**{name}** upcoming time off:\n{entries}",
       "parseFailed": "I couldn't figure out those dates. Try something like \"away next week\" or add `start:YYYY-MM-DD` and `end:YYYY-MM-DD`.",

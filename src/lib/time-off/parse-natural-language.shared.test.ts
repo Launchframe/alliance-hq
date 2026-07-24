@@ -68,4 +68,11 @@ describe("parseTimeOffMessage", () => {
     if (result.ok) return;
     expect(result.error).toBe("unrecognized");
   });
+
+  it("rejects same-month ranges where end day is before start", () => {
+    const result = parseTimeOffMessage("Away June 30-2", REF);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe("unrecognized");
+  });
 });
