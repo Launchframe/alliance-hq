@@ -51,13 +51,21 @@ export function AshedEmbed({ path, labelKey, scoreTargetId = null }: Props) {
   return (
     <div className="-mx-4 -mb-4 flex min-h-0 flex-1 flex-col md:mx-0 md:mb-0 md:space-y-4">
       {scoreTargetId ? (
-        <div className="border-b border-hq-border bg-hq-surface px-4 py-3 md:hidden">
+        <div className="space-y-2 border-b border-hq-border bg-hq-surface px-4 py-3 md:hidden">
           <Link
             href={buildVideoUploadHref(scoreTargetId)}
             className="inline-flex w-full items-center justify-center rounded-lg border border-hq-success bg-hq-success px-4 py-2.5 text-sm font-medium text-white hover:bg-hq-success-hover"
           >
             {t("uploadVideoScores")}
           </Link>
+          {scoreTargetId === "vs-performance" ? (
+            <Link
+              href="/vs-performance/buster-day"
+              className="inline-flex w-full items-center justify-center rounded-lg border border-hq-border bg-hq-surface-muted px-4 py-2.5 text-sm font-medium text-hq-fg hover:bg-hq-border"
+            >
+              {t("busterDayEfficiency")}
+            </Link>
+          ) : null}
         </div>
       ) : null}
 
@@ -71,6 +79,14 @@ export function AshedEmbed({ path, labelKey, scoreTargetId = null }: Props) {
               className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white hover:bg-hq-success-hover"
             >
               {t("uploadVideoScores")}
+            </Link>
+          ) : null}
+          {scoreTargetId === "vs-performance" ? (
+            <Link
+              href="/vs-performance/buster-day"
+              className="rounded-lg border border-hq-border bg-hq-surface-muted px-4 py-2 text-sm text-hq-fg hover:bg-hq-border"
+            >
+              {t("busterDayEfficiency")}
             </Link>
           ) : null}
           <a

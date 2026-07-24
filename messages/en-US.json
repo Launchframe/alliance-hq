@@ -4346,6 +4346,7 @@
   "ashedEmbed": {
     "description": "This page lives on Ashed. Open it below or in a new tab — your Alliance HQ sidebar stays here.",
     "uploadVideoScores": "Upload video scores",
+    "busterDayEfficiency": "Buster Day Efficiency",
     "openInAshed": "Open in Ashed ↗",
     "iframeHint": "Embedded pages need a separate Ashed login. If you use Google Sign-In on ashed.online, log in here with email + password instead. If the frame stays blank, use \"Open in Ashed\" above.",
     "iframeTitle": "Ashed — {path}",
@@ -4354,6 +4355,35 @@
       "body": "Use <strong>email + password</strong> — Google Sign-In is blocked inside embedded pages. Use <strong>Forgot password?</strong> on the Ashed login screen if you haven't set a password yet.",
       "dismiss": "Dismiss"
     }
+  },
+  "busterDay": {
+    "title": "Buster Day Efficiency",
+    "subtitle": "Capture power and kills before and after Buster Day, then rank who fought efficiently.",
+    "phase": {
+      "pre": {
+        "title": "Pre-Buster snapshots",
+        "body": "Upload today’s alliance roster and kills leaderboard before the fight."
+      },
+      "inProgress": {
+        "title": "Buster Day in progress",
+        "body": "Come back Sunday to upload post-fight snapshots and see the report."
+      },
+      "post": {
+        "title": "Post-Buster snapshots",
+        "body": "Upload today’s alliance roster and kills leaderboard after the fight."
+      },
+      "idle": {
+        "title": "No snapshot window right now",
+        "body": "Pre-uploads open Friday; post-uploads open Sunday. Your latest completed report is below when available."
+      }
+    },
+    "uploadRoster": "Upload roster (power)",
+    "uploadKills": "Upload kills",
+    "preComplete": "Pre-snapshots complete",
+    "postComplete": "Post-snapshots complete",
+    "waitingForJobs": "Waiting for both uploads to finish",
+    "reportSoon": "Efficiency report unlocks after Sunday’s uploads.",
+    "noReportYet": "No completed Buster Day report yet."
   },
   "releaseNotes": {
     "bannerPrefix": "Alliance HQ was updated — see what's new in",

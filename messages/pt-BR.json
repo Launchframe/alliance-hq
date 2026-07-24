@@ -4292,6 +4292,7 @@
   "ashedEmbed": {
     "description": "Esta página está hospedada no Ashed. Abra-a abaixo ou em uma nova aba — a barra lateral do seu Alliance HQ permanece aqui.",
     "uploadVideoScores": "Enviar pontuações por vídeo",
+    "busterDayEfficiency": "Eficiência do Dia Buster",
     "openInAshed": "Abrir no Ashed ↗",
     "iframeHint": "Páginas incorporadas exigem login separado no Ashed. Se você usa login com Google no ashed.online, entre aqui com e-mail + senha. Se o quadro ficar em branco, use \"Abrir no Ashed\" acima.",
     "iframeTitle": "Ashed — {path}",
@@ -4300,6 +4301,35 @@
       "body": "Use <strong>e-mail + senha</strong> — o login com Google é bloqueado em páginas incorporadas. Use <strong>Esqueci a senha</strong> na tela de login do Ashed se ainda não definiu uma senha.",
       "dismiss": "Dispensar"
     }
+  },
+  "busterDay": {
+    "title": "Eficiência do Dia Buster",
+    "subtitle": "Capture poder e kills antes e depois do Dia Buster e ranqueie quem lutou com eficiência.",
+    "phase": {
+      "pre": {
+        "title": "Instantâneos pré-Buster",
+        "body": "Envie hoje o roster da aliança e o ranking de kills antes da luta."
+      },
+      "inProgress": {
+        "title": "Dia Buster em andamento",
+        "body": "Volte no domingo para enviar os instantâneos pós-luta e ver o relatório."
+      },
+      "post": {
+        "title": "Instantâneos pós-Buster",
+        "body": "Envie hoje o roster da aliança e o ranking de kills depois da luta."
+      },
+      "idle": {
+        "title": "Nenhuma janela de instantâneo no momento",
+        "body": "Os envios pré abrem na sexta; os pós abrem no domingo. Seu relatório concluído mais recente aparece abaixo quando disponível."
+      }
+    },
+    "uploadRoster": "Enviar roster (poder)",
+    "uploadKills": "Enviar kills",
+    "preComplete": "Instantâneos pré concluídos",
+    "postComplete": "Instantâneos pós concluídos",
+    "waitingForJobs": "Aguardando os dois envios terminarem",
+    "reportSoon": "O relatório de eficiência é liberado após os envios de domingo.",
+    "noReportYet": "Ainda não há relatório do Dia Buster concluído."
   },
   "releaseNotes": {
     "bannerPrefix": "O Alliance HQ foi atualizado — veja as novidades desta",
