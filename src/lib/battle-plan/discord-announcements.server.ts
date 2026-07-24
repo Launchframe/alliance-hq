@@ -29,9 +29,13 @@ export async function listGuildsWithSeasonalEventsChannel(): Promise<
     .where(
       sql`${schema.discordGuildAlliances.seasonalEventsChannelId} is not null`,
     );
-  return rows.filter(
-    (r): r is ChannelTarget => Boolean(r.channelId?.trim()),
-  );
+  return rows
+    .filter((r) => Boolean(r.channelId?.trim()))
+    .map((r) => ({
+      guildId: r.guildId,
+      allianceId: r.allianceId,
+      channelId: r.channelId!.trim(),
+    }));
 }
 
 export async function listGuildsWithBankingChannel(): Promise<ChannelTarget[]> {
@@ -44,9 +48,13 @@ export async function listGuildsWithBankingChannel(): Promise<ChannelTarget[]> {
     })
     .from(schema.discordGuildAlliances)
     .where(sql`${schema.discordGuildAlliances.bankingChannelId} is not null`);
-  return rows.filter(
-    (r): r is ChannelTarget => Boolean(r.channelId?.trim()),
-  );
+  return rows
+    .filter((r) => Boolean(r.channelId?.trim()))
+    .map((r) => ({
+      guildId: r.guildId,
+      allianceId: r.allianceId,
+      channelId: r.channelId!.trim(),
+    }));
 }
 
 export async function listGuildsWithRegularEventsChannel(): Promise<
@@ -63,9 +71,13 @@ export async function listGuildsWithRegularEventsChannel(): Promise<
     .where(
       sql`${schema.discordGuildAlliances.regularEventsChannelId} is not null`,
     );
-  return rows.filter(
-    (r): r is ChannelTarget => Boolean(r.channelId?.trim()),
-  );
+  return rows
+    .filter((r) => Boolean(r.channelId?.trim()))
+    .map((r) => ({
+      guildId: r.guildId,
+      allianceId: r.allianceId,
+      channelId: r.channelId!.trim(),
+    }));
 }
 
 function groupByAlliance(targets: ChannelTarget[]): Map<string, string[]> {

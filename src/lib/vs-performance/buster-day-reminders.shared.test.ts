@@ -8,6 +8,7 @@ import {
   buildBusterDayReminderEmail,
   getServerHourOfDay,
   resolveBusterDayReminderKind,
+  sanitizeDiscordPlainText,
 } from "./buster-day-reminders.shared";
 
 /** Build an instant that is `hour:minute` on `date` in Server Time (UTC−2). */
@@ -76,7 +77,7 @@ describe("getServerHourOfDay", () => {
 
 describe("reminder copy builders", () => {
   it("includes wizard URL in Discord and email", () => {
-    const url = "https://frontline.gay/vs-performance/buster-day";
+    const url = "https://hq.example.com/vs-performance/buster-day";
     const discord = buildBusterDayReminderDiscordMessage({
       kind: "pre",
       allianceTag: "ABC",
@@ -93,5 +94,15 @@ describe("reminder copy builders", () => {
     expect(email.subject).toContain("ABC");
     expect(email.text).toContain(url);
     expect(email.html).toContain(url);
+  });
+
+  it("neutralizes @ in alliance tags for Discord", () => {
+    const discord = buildBusterDayReminderDiscordMessage({
+      kind: "pre",
+      allianceTag: "@ROAR",
+      wizardUrl: "https://hq.example.com/vs-performance/buster-day",
+    });
+    expect(discord).toContain("@\u200bROAR");
+    expect(sanitizeDiscordPlainText("@everyone")).toBe("@\u200beveryone");
   });
 });
