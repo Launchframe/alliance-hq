@@ -1,13 +1,16 @@
 import "server-only";
 
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import { resolveAppOrigin } from "@/lib/app-origin";
 import { listGuildsWithRegularEventsChannel } from "@/lib/battle-plan/discord-announcements.server";
 import { getDb, schema } from "@/lib/db";
 import { postDiscordChannelMessage } from "@/lib/discord/post-message.server";
 import { getOrCreateBusterDayReport } from "@/lib/vs-performance/buster-day-reports.server";
-import { sendBusterDayReminderEmails } from "@/lib/vs-performance/buster-day-reminder-email.server";
+import {
+  listBusterDayReminderEmails,
+  sendBusterDayReminderEmails,
+} from "@/lib/vs-performance/buster-day-reminder-email.server";
 import { isBusterDaySnapshotComplete } from "@/lib/vs-performance/buster-day.shared";
 import {
   buildBusterDayReminderDiscordMessage,
@@ -26,9 +29,38 @@ export type BusterDayReminderPassResult = {
   markedSent: number;
 };
 
-async function listAshedLinkedAllianceIds(): Promise<
-  Array<{ id: string; tag: string }>
-> {
+async function listAllianceIdsWithReminderEmailRecipients(): Promise<string[]> {
+  const db = getDb();
+  const [processorRows, adminRows] = await Promise.all([
+    db
+      .selectDistinct({ allianceId: schema.allianceVideoProcessors.allianceId })
+      .from(schema.allianceVideoProcessors),
+    db
+      .selectDistinct({ allianceId: schema.allianceMemberships.allianceId })
+      .from(schema.allianceMemberships)
+      .innerJoin(
+        schema.roles,
+        eq(schema.roles.id, schema.allianceMemberships.roleId),
+      )
+      .where(inArray(schema.roles.name, ["owner", "maintainer"])),
+  ]);
+  return [
+    ...new Set([
+      ...processorRows.map((r) => r.allianceId),
+      ...adminRows.map((r) => r.allianceId),
+    ]),
+  ];
+}
+
+async function listBusterDayReminderTargets(
+  channelsByAlliance: Map<string, string[]>,
+): Promise<Array<{ id: string; tag: string }>> {
+  const candidateIds = new Set(channelsByAlliance.keys());
+  for (const allianceId of await listAllianceIdsWithReminderEmailRecipients()) {
+    candidateIds.add(allianceId);
+  }
+  if (candidateIds.size === 0) return [];
+
   const db = getDb();
   const rows = await db
     .select({
@@ -36,14 +68,15 @@ async function listAshedLinkedAllianceIds(): Promise<
       tag: schema.alliances.tag,
     })
     .from(schema.alliances)
-    .where(isNotNull(schema.alliances.ashedAllianceId));
+    .where(inArray(schema.alliances.id, [...candidateIds]));
+
   return rows.map((r) => ({
     id: r.id,
     tag: r.tag?.trim() || r.id.slice(0, 8),
   }));
 }
 
-async function markBusterDayReminderSent(input: {
+async function claimBusterDayReminderSent(input: {
   reportId: string;
   kind: BusterDayReminderKind;
   sentAt: Date;
@@ -68,6 +101,22 @@ async function markBusterDayReminderSent(input: {
   return updated.length > 0;
 }
 
+async function releaseBusterDayReminderSent(input: {
+  reportId: string;
+  kind: BusterDayReminderKind;
+}): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.busterDayReports)
+    .set({
+      ...(input.kind === "pre"
+        ? { preReminderSentAt: null }
+        : { postReminderSentAt: null }),
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.busterDayReports.id, input.reportId));
+}
+
 /**
  * Fan out Friday 20:00 ST / Sunday 00:00 ST Buster Day snapshot reminders
  * (Discord regular-events channel + processor/owner/maintainer email).
@@ -88,7 +137,6 @@ export async function runBusterDayReminderPass(
     };
   }
 
-  const alliances = await listAshedLinkedAllianceIds();
   const guildTargets = await listGuildsWithRegularEventsChannel();
   const channelsByAlliance = new Map<string, string[]>();
   for (const t of guildTargets) {
@@ -97,6 +145,7 @@ export async function runBusterDayReminderPass(
     channelsByAlliance.set(t.allianceId, list);
   }
 
+  const alliances = await listBusterDayReminderTargets(channelsByAlliance);
   const vsWeekMonday = getWeekStartMonday(getServerCalendarDate(now));
   const wizardUrl = `${resolveAppOrigin()}/vs-performance/buster-day`;
   const sentAt = now;
@@ -109,35 +158,42 @@ export async function runBusterDayReminderPass(
 
   for (const alliance of alliances) {
     const report = await getOrCreateBusterDayReport(alliance.id, vsWeekMonday);
+    const alreadySent =
+      kind === "pre" ? report.preReminderSentAt : report.postReminderSentAt;
+    if (alreadySent) {
+      skippedAlreadySent += 1;
+      continue;
+    }
 
-    if (kind === "pre") {
-      if (report.preReminderSentAt) {
-        skippedAlreadySent += 1;
-        continue;
-      }
-      if (
-        isBusterDaySnapshotComplete({
-          rosterJobId: report.preRosterJobId,
-          killsJobId: report.preKillsJobId,
-        })
-      ) {
-        skippedComplete += 1;
-        continue;
-      }
-    } else {
-      if (report.postReminderSentAt) {
-        skippedAlreadySent += 1;
-        continue;
-      }
-      if (
-        isBusterDaySnapshotComplete({
-          rosterJobId: report.postRosterJobId,
-          killsJobId: report.postKillsJobId,
-        })
-      ) {
-        skippedComplete += 1;
-        continue;
-      }
+    const snapshotComplete =
+      kind === "pre"
+        ? isBusterDaySnapshotComplete({
+            rosterJobId: report.preRosterJobId,
+            killsJobId: report.preKillsJobId,
+          })
+        : isBusterDaySnapshotComplete({
+            rosterJobId: report.postRosterJobId,
+            killsJobId: report.postKillsJobId,
+          });
+    if (snapshotComplete) {
+      skippedComplete += 1;
+      continue;
+    }
+
+    const channels = channelsByAlliance.get(alliance.id) ?? [];
+    const emailRecipients = await listBusterDayReminderEmails(alliance.id);
+    if (channels.length === 0 && emailRecipients.length === 0) {
+      continue;
+    }
+
+    const claimed = await claimBusterDayReminderSent({
+      reportId: report.id,
+      kind,
+      sentAt,
+    });
+    if (!claimed) {
+      skippedAlreadySent += 1;
+      continue;
     }
 
     const discordMessage = buildBusterDayReminderDiscordMessage({
@@ -145,7 +201,6 @@ export async function runBusterDayReminderPass(
       allianceTag: alliance.tag,
       wizardUrl,
     });
-    const channels = channelsByAlliance.get(alliance.id) ?? [];
     let allianceDiscord = 0;
     for (const channelId of channels) {
       const ok = await postDiscordChannelMessage(channelId, discordMessage);
@@ -161,14 +216,10 @@ export async function runBusterDayReminderPass(
     });
     emailsSent += emailResult.sent;
 
-    // Mark sent only when at least one channel succeeded so failed runs retry.
     if (allianceDiscord > 0 || emailResult.sent > 0) {
-      const marked = await markBusterDayReminderSent({
-        reportId: report.id,
-        kind,
-        sentAt,
-      });
-      if (marked) markedSent += 1;
+      markedSent += 1;
+    } else {
+      await releaseBusterDayReminderSent({ reportId: report.id, kind });
     }
   }
 

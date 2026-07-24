@@ -44,21 +44,27 @@ export function resolveBusterDayReminderKind(
   return null;
 }
 
+export function sanitizeDiscordPlainText(value: string): string {
+  // Prevent accidental role/user mentions when alliance tags contain "@".
+  return value.replace(/@/g, "@\u200b");
+}
+
 export function buildBusterDayReminderDiscordMessage(input: {
   kind: BusterDayReminderKind;
   allianceTag: string;
   wizardUrl: string;
 }): string {
+  const tag = sanitizeDiscordPlainText(input.allianceTag);
   if (input.kind === "pre") {
     return [
-      `**Buster Day — pre-fight snapshots** (${input.allianceTag})`,
+      `**Buster Day — pre-fight snapshots** (${tag})`,
       "",
       "Upload tonight's alliance roster (power) and kills leaderboard before Saturday's fight.",
       `Open the wizard: ${input.wizardUrl}`,
     ].join("\n");
   }
   return [
-    `**Buster Day — post-fight snapshots** (${input.allianceTag})`,
+    `**Buster Day — post-fight snapshots** (${tag})`,
     "",
     "Upload today's alliance roster (power) and kills leaderboard to unlock the efficiency report.",
     `Open the wizard: ${input.wizardUrl}`,
