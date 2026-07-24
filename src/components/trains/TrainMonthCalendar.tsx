@@ -539,7 +539,7 @@ export function TrainMonthCalendar({
                 {inMonth && conductorName ? (
                   <div
                     className={`truncate text-[10px] font-bold leading-tight ${
-                      locked ? "text-white" : "text-hq-fg-muted"
+                      locked ? "text-white light:text-hq-fg" : "text-hq-fg-muted"
                     }`}
                     title={conductorName}
                   >
