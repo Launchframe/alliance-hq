@@ -52,8 +52,18 @@ const SLOW_SECS = 1.8;
 
 type ReelSessionView = ReelSession;
 
-function isVsMechanism(mechanism: string | null | undefined): boolean {
-  return mechanism === "vs_top_10" || mechanism === "vs_high_score";
+function scoreBoardKind(
+  mechanism: string | null | undefined,
+): "vs" | "vr" | null {
+  if (
+    mechanism === "vs_top_10" ||
+    mechanism === "vs_high_score" ||
+    mechanism === "vs_top_n"
+  ) {
+    return "vs";
+  }
+  if (mechanism === "vr_top_n") return "vr";
+  return null;
 }
 
 function vsScoreColor(score: number): string {
@@ -96,18 +106,20 @@ export function ConductorWheelModal({
   const disqualified =
     qualification != null && qualification.qualified === false;
 
-  const showVsValidation = isVsMechanism(mechanism);
+  const boardKind = scoreBoardKind(mechanism);
+  const showScoreValidation = boardKind != null;
+  const scoreSuffix = boardKind === "vr" ? "VR" : "VS";
   const winnerScore = winner
     ? (candidates.find((c) => c.memberId === winner.memberId)
         ?.priorDayVsScore ?? winner.priorDayVsScore)
     : undefined;
 
   const rankedCandidates = useMemo(() => {
-    if (!showVsValidation) return [];
+    if (!showScoreValidation) return [];
     return [...candidates]
       .filter((c) => c.priorDayVsScore != null && c.priorDayVsScore > 0)
       .sort((a, b) => (b.priorDayVsScore ?? 0) - (a.priorDayVsScore ?? 0));
-  }, [candidates, showVsValidation]);
+  }, [candidates, showScoreValidation]);
 
   const reelSession = useMemo((): ReelSessionView | null => {
     if (!open || !winner || candidates.length === 0) return null;
@@ -289,7 +301,7 @@ export function ConductorWheelModal({
                     <span
                       className={`mt-0.5 text-sm font-semibold ${vsScoreColor(winnerScore!)}`}
                     >
-                      {formatVsScore(winnerScore!)} VS
+                      {formatVsScore(winnerScore!)} {scoreSuffix}
                     </span>
                   ) : null}
                 </div>
@@ -317,13 +329,19 @@ export function ConductorWheelModal({
 
         {phase === "revealed" &&
           !disqualified &&
-          showVsValidation &&
+          showScoreValidation &&
           rankedCandidates.length > 0 ? (
           <div className="mt-4">
             <p className="mb-2 text-center text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
-              {mechanism === "vs_high_score"
-                ? t("vsValidation.top1Title")
-                : t("vsValidation.top10Title")}
+              {boardKind === "vr"
+                ? t("vsValidation.topNVrTitle", {
+                    count: rankedCandidates.length,
+                  })
+                : rankedCandidates.length === 1
+                  ? t("vsValidation.top1Title")
+                  : t("vsValidation.topNVsTitle", {
+                      count: rankedCandidates.length,
+                    })}
             </p>
             <div className="overflow-hidden rounded-lg border border-hq-border">
               <ul className="divide-y divide-hq-border/60">

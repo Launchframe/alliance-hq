@@ -1,6 +1,10 @@
 export const CONDUCTOR_MECHANISMS = [
   "vs_high_score",
   "vs_top_10",
+  /** Parameterized prior-day VS top N — scope in conductor_config.topN. */
+  "vs_top_n",
+  /** Parameterized season VR top N — scope in conductor_config.topN (3/5/10). */
+  "vr_top_n",
   "r3_lottery",
   "heavy_hitter_lottery",
   "r4_sequence",
@@ -25,6 +29,10 @@ export const WEEK_TEMPLATES = [
   "vs_push_week",
   "vs_push_weekdays",
   "r4_event_vip",
+  /** Paint-only: Top VS with scope (conductor_config.topN). */
+  "top_vs",
+  /** Paint-only: Top VR with scope (conductor_config.topN). */
+  "top_vr",
   "economy_week",
   "price_is_right",
   "price_is_right_weekdays",

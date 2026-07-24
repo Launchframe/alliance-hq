@@ -11,6 +11,8 @@ export const WEEK_TEMPLATE_SEGMENTS = [
   "vs_push_weekdays",
   "r4_event_vip",
   "price_is_right_weekdays",
+  "top_vs",
+  "top_vr",
 ] as const;
 
 export type WeekTemplateSegmentId = (typeof WEEK_TEMPLATE_SEGMENTS)[number];

@@ -37,6 +37,11 @@ describe("effectiveConductorMechanism", () => {
       "vs_top_10",
     );
   });
+
+  it("maps top_vs / top_vr paint to parameterized mechanisms", () => {
+    expect(effectiveConductorMechanism("custom", "top_vs")).toBe("vs_top_n");
+    expect(effectiveConductorMechanism("custom", "top_vr")).toBe("vr_top_n");
+  });
 });
 
 describe("canSpinConductorForDay", () => {
@@ -68,5 +73,22 @@ describe("canSpinConductorForDay", () => {
     expect(
       canSpinConductorForDay("r3_lottery", false, "r3_recognition"),
     ).toBe(false);
+  });
+
+  it("blocks the wheel for Top VS / legacy #1 (automatic)", () => {
+    expect(canSpinConductorForDay("vs_high_score", false, null)).toBe(false);
+    expect(
+      canSpinConductorForDay("vs_top_n", false, "top_vs", null, { topN: 1 }),
+    ).toBe(false);
+  });
+
+  it("allows the wheel for Top VS / Top VR scopes greater than 1", () => {
+    expect(canSpinConductorForDay("vs_top_10", false, null)).toBe(true);
+    expect(
+      canSpinConductorForDay("vs_top_n", false, "top_vs", null, { topN: 5 }),
+    ).toBe(true);
+    expect(
+      canSpinConductorForDay("vr_top_n", false, "top_vr", null, { topN: 3 }),
+    ).toBe(true);
   });
 });

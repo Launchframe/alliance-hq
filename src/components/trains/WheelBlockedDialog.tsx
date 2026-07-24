@@ -41,6 +41,9 @@ function bodyMessageKey(details: TrainRollErrorDetails): string {
       if (details.candidateKind === "vs") {
         return "wheelBlocked.noVsScores";
       }
+      if (details.candidateKind === "vr") {
+        return "wheelBlocked.noVrStandings";
+      }
       if (details.candidateKind === "event") {
         return "wheelBlocked.noEventScores";
       }
@@ -93,6 +96,9 @@ function primaryLinkCta(
       href: "/tools/video-upload",
       labelKey: "wheelBlocked.uploadScoreVideo",
     };
+  }
+  if (details.code === "NO_WHEEL_CANDIDATES" && details.candidateKind === "vr") {
+    return { href: "/members", labelKey: "wheelBlocked.goToMembers" };
   }
   if (details.code === "ASHED_REQUIRED") {
     return {

@@ -65,8 +65,16 @@ import {
   minimumsEnforcementEnabled,
 } from "@/lib/trains/train-conductor-minimums.shared";
 import { writeAuditLog } from "@/lib/bff/audit";
+import {
+  isVrTopScopeUnlocked,
+  isVsTopN,
+  isVrTopN,
+  resolveConductorTopNBoard,
+  type ConductorTopN,
+} from "@/lib/trains/conductor-top-n.shared";
 import { fetchNativeVrTopScorers } from "@/lib/trains/native-scores.server";
 import { fetchAllianceVsTopScorersForTrainDate } from "@/lib/trains/vs-scores.server";
+import { countAllianceVrReporters } from "@/lib/trains/vr-reporter-count.server";
 import {
   getAllianceRanksAsOf,
   getMemberRankAsOf,
@@ -654,6 +662,8 @@ export async function applyTemplateToDates(
     platformAdminPastOverride?: boolean;
     /** When true, persist the week schedule's templateType (week template dropdown). */
     updateWeekTemplate?: boolean;
+    /** Scope when painting top_vs / top_vr. */
+    topN?: ConductorTopN;
   },
 ): Promise<void> {
   if (dates.length === 0) return;
@@ -663,6 +673,27 @@ export async function applyTemplateToDates(
   const uniqueDates = [...new Set(dates)].sort();
   const today = getServerCalendarDate();
   const isPlatformAdmin = options?.platformAdminPastOverride ?? false;
+
+  let paintTopN = options?.topN;
+  if (templateType === "top_vs" || templateType === "top_vr") {
+    if (paintTopN == null) {
+      paintTopN = templateType === "top_vr" ? 3 : 10;
+    }
+    if (templateType === "top_vs" && !isVsTopN(paintTopN)) {
+      throw new Error("Top VS scope must be 1, 3, 5, or 10.");
+    }
+    if (templateType === "top_vr" && !isVrTopN(paintTopN)) {
+      throw new Error("Top VR scope must be 3, 5, or 10.");
+    }
+    if (templateType === "top_vr") {
+      const reporterCount = await countAllianceVrReporters(allianceId);
+      if (!isVrTopScopeUnlocked(paintTopN, reporterCount)) {
+        throw new Error(
+          `Need ${2 * paintTopN} VR reports for Top ${paintTopN} (have ${reporterCount}).`,
+        );
+      }
+    }
+  }
 
   for (const date of uniqueDates) {
     assertTemplateChangeAllowed(date, isPlatformAdmin, today);
@@ -684,13 +715,16 @@ export async function applyTemplateToDates(
     const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
     if (!schedule) continue;
 
-    const config = generateDayConfigForDate(templateType, date, weekStart);
+    const config = generateDayConfigForDate(templateType, date, weekStart, {
+      ...(paintTopN != null ? { topN: paintTopN } : {}),
+    });
     await upsertDayConfigOverride(
       allianceId,
       schedule.id,
       withPaintTemplateConfig(
         config,
         resolvePaintTemplateForDay(templateType, date, weekStart),
+        paintTopN != null ? { topN: paintTopN } : undefined,
       ),
       true,
     );
@@ -736,48 +770,61 @@ export async function rollForConductor(input: {
   );
 
   const mechanism = dayConfig.conductorMechanism as ConductorMechanismType;
+  const topBoard = resolveConductorTopNBoard(
+    mechanism,
+    dayConfig.conductorConfig,
+  );
 
   let result: RollResult;
 
-  switch (mechanism) {
-    case "vs_high_score": {
-      const top = await fetchVsTopScorersForTrainDateResolved({
-        hqAllianceId: input.allianceId,
-        trainDate: input.date,
-        limit: 1,
-      });
-      const winner = top[0];
-      if (!winner) {
-        throwNoWheelCandidates(
-          "vs",
-          "No VS scores found for the wheel.",
-        );
-      }
+  if (topBoard?.kind === "vs") {
+    const top = await fetchVsTopScorersForTrainDateResolved({
+      hqAllianceId: input.allianceId,
+      trainDate: input.date,
+      limit: topBoard.topN,
+    });
+    if (top.length === 0) {
+      throwNoWheelCandidates("vs", "No VS scores found for the wheel.");
+    }
+    if (topBoard.topN === 1) {
+      const winner = top[0]!;
       result = {
         ...winner,
         mechanism,
         isAutomatic: true,
       };
-      break;
-    }
-    case "vs_top_10": {
-      const top10 = await fetchVsTopScorersForTrainDateResolved({
-        hqAllianceId: input.allianceId,
-        trainDate: input.date,
-        limit: 10,
-      });
-      if (top10.length === 0) {
-        throwNoWheelCandidates("vs", "No VS scores found for the wheel.");
-      }
-      const winner = top10[Math.floor(Math.random() * top10.length)]!;
+    } else {
+      const winner = top[Math.floor(Math.random() * top.length)]!;
       result = {
         ...winner,
         mechanism,
         isAutomatic: false,
-        wheelCandidates: top10,
+        wheelCandidates: top,
       };
-      break;
     }
+  } else if (topBoard?.kind === "vr") {
+    const reporterCount = await countAllianceVrReporters(input.allianceId);
+    if (!isVrTopScopeUnlocked(topBoard.topN, reporterCount)) {
+      throw new Error(
+        `Need ${2 * topBoard.topN} VR reports for Top ${topBoard.topN} (have ${reporterCount}).`,
+      );
+    }
+    const top = await fetchNativeVrTopScorers(
+      input.allianceId,
+      topBoard.topN,
+    );
+    if (top.length === 0) {
+      throwNoWheelCandidates("vr", "No VR standings found for the wheel.");
+    }
+    const winner = top[Math.floor(Math.random() * top.length)]!;
+    result = {
+      ...winner,
+      mechanism,
+      isAutomatic: false,
+      wheelCandidates: top,
+    };
+  } else {
+  switch (mechanism) {
     case "donations_top": {
       throwNoWheelCandidates(
         "donation",
@@ -853,6 +900,7 @@ export async function rollForConductor(input: {
     }
     default:
       throw new Error(`Conductor mechanism "${mechanism}" is not rollable yet.`);
+  }
   }
 
   const gated = await applyConductorQualificationGate({

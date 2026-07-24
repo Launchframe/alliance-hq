@@ -211,14 +211,26 @@ export function patchDayConfigsForDates(
   dates: string[],
   templateType: WeekTemplateType,
   trainWeekConfig: AllianceTrainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
+  options?: { topN?: number },
 ): WeekScheduleDayConfig[] {
   const dateSet = new Set(dates);
   const byDate = new Map(dayConfigs.map((d) => [d.date, d]));
 
   for (const date of dates) {
     const weekStart = getTrainWeekStart(date, trainWeekConfig);
-    const generated = generateDayConfigForDate(templateType, date, weekStart);
+    const generated = generateDayConfigForDate(templateType, date, weekStart, {
+      ...(options?.topN != null
+        ? { topN: options.topN as 1 | 3 | 5 | 10 }
+        : {}),
+    });
     const existing = byDate.get(date);
+    const topN =
+      options?.topN ??
+      (generated.conductorConfig &&
+      typeof generated.conductorConfig === "object" &&
+      typeof (generated.conductorConfig as { topN?: unknown }).topN === "number"
+        ? ((generated.conductorConfig as { topN: number }).topN)
+        : null);
     byDate.set(date, {
       id: existing?.id ?? `optimistic-${date}`,
       date,
@@ -227,6 +239,11 @@ export function patchDayConfigsForDates(
       vipConfig: generated.vipConfig ?? null,
       isOverride: true,
       paintTemplate: resolvePaintTemplateForDay(templateType, date, weekStart),
+      topN,
+      conductorConfig: {
+        paintTemplate: resolvePaintTemplateForDay(templateType, date, weekStart),
+        ...(topN != null ? { topN } : {}),
+      },
     });
   }
 
@@ -252,11 +269,12 @@ export function applyOptimisticPaint(
   snap: TrainsDashboardSnapshot,
   dates: string[],
   templateType: WeekTemplateType,
-  options?: { updateWeekTemplate?: boolean },
+  options?: { updateWeekTemplate?: boolean; topN?: number },
 ): TrainsDashboardSnapshot {
   const trainWeekConfig = allianceTrainWeekFromRow({
     trainWeekStartDow: snap.data.trainWeekStartDow,
   });
+  const paintOptions = options?.topN != null ? { topN: options.topN } : undefined;
   let next: TrainsDashboardSnapshot = {
     data: {
       ...snap.data,
@@ -265,6 +283,7 @@ export function applyOptimisticPaint(
         dates,
         templateType,
         trainWeekConfig,
+        paintOptions,
       ),
     },
     viewedWeek: {
@@ -274,6 +293,7 @@ export function applyOptimisticPaint(
         dates,
         templateType,
         trainWeekConfig,
+        paintOptions,
       ),
     },
     viewedMonth: {
@@ -283,6 +303,7 @@ export function applyOptimisticPaint(
         dates,
         templateType,
         trainWeekConfig,
+        paintOptions,
       ),
     },
   };

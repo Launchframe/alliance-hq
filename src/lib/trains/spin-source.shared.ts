@@ -1,4 +1,5 @@
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
+import { resolveConductorTopNBoard } from "@/lib/trains/conductor-top-n.shared";
 import {
   isPriceIsRightHeavyHitterSaturday,
   isPriceIsRightPaintTemplate,
@@ -16,6 +17,11 @@ export type PoolSpinSource = {
 
 export type VsLeaderboardSpinSource = {
   kind: "vs_leaderboard";
+  topN: number;
+};
+
+export type VrLeaderboardSpinSource = {
+  kind: "vr_leaderboard";
   topN: number;
 };
 
@@ -41,6 +47,7 @@ export type PriceIsRightHeavyHitterSpinSource = {
 export type SpinSource =
   | PoolSpinSource
   | VsLeaderboardSpinSource
+  | VrLeaderboardSpinSource
   | DonationsLeaderboardSpinSource
   | EventLeaderboardSpinSource
   | PriceIsRightWeekdaySpinSource
@@ -51,6 +58,7 @@ export function conductorSpinSource(
   conductorMechanism: string | null | undefined,
   paintTemplate?: WeekTemplateType | null,
   date?: string | null,
+  conductorConfig?: unknown,
 ): SpinSource {
   if (isPriceIsRightPaintTemplate(paintTemplate)) {
     if (isPriceIsRightHeavyHitterSaturday(paintTemplate, date)) {
@@ -71,11 +79,12 @@ export function conductorSpinSource(
     return { kind: "pool", poolType };
   }
 
-  if (mechanism === "vs_top_10") {
-    return { kind: "vs_leaderboard", topN: 10 };
+  const topBoard = resolveConductorTopNBoard(mechanism, conductorConfig);
+  if (topBoard?.kind === "vs") {
+    return { kind: "vs_leaderboard", topN: topBoard.topN };
   }
-  if (mechanism === "vs_high_score") {
-    return { kind: "vs_leaderboard", topN: 1 };
+  if (topBoard?.kind === "vr") {
+    return { kind: "vr_leaderboard", topN: topBoard.topN };
   }
   if (mechanism === "donations_top") {
     return { kind: "donations_leaderboard", rank: 1 };

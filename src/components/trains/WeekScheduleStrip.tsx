@@ -61,7 +61,12 @@ type Props = {
   canPaintDays?: boolean;
   /** Per-date gate (today/future for officers; admins may paint past). */
   isDatePaintable?: (date: string) => boolean;
-  onPaintDate?: (date: string, template: WeekTemplateType) => void;
+  onPaintDate?: (
+    date: string,
+    template: WeekTemplateType,
+    options?: { topN?: number },
+  ) => void;
+  vrReporterCount?: number;
   navLabels: {
     previousWeek: string;
     nextWeek: string;
@@ -592,6 +597,7 @@ export function WeekScheduleStrip({
   canPaintDays = false,
   isDatePaintable,
   onPaintDate,
+  vrReporterCount = 0,
   navLabels,
   trainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
   externalWeek,
@@ -635,9 +641,11 @@ export function WeekScheduleStrip({
   }, []);
 
   const handlePaintTemplate = useCallback(
-    (template: WeekTemplateType) => {
+    (selection: { template: WeekTemplateType; topN?: number }) => {
       if (!templateMenuAnchor || !onPaintDate) return;
-      onPaintDate(templateMenuAnchor.date, template);
+      onPaintDate(templateMenuAnchor.date, selection.template, {
+        ...(selection.topN != null ? { topN: selection.topN } : {}),
+      });
     },
     [onPaintDate, templateMenuAnchor],
   );
@@ -869,10 +877,12 @@ export function WeekScheduleStrip({
       </div>
 
       <DayTemplateContextMenu
+        key={templateMenuAnchor?.date ?? "closed"}
         open={templateMenuAnchor != null}
         anchor={templateMenuAnchor}
         currentTemplate={menuDayConfig?.paintTemplate}
         templateLabels={templateLabels}
+        vrReporterCount={vrReporterCount}
         onSelect={handlePaintTemplate}
         onClose={handleCloseTemplateMenu}
       />
@@ -885,8 +895,15 @@ export function canSpinConductor(
   locked: boolean,
   paintTemplate?: WeekTemplateType | null,
   date?: string | null,
+  conductorConfig?: unknown,
 ): boolean {
-  return canSpinConductorForDay(mechanism, locked, paintTemplate, date);
+  return canSpinConductorForDay(
+    mechanism,
+    locked,
+    paintTemplate,
+    date,
+    conductorConfig,
+  );
 }
 
 export function canSpinVip(

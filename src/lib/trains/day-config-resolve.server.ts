@@ -79,9 +79,13 @@ export async function resolveRollDayConfig(
   const generated = generateDayConfigForDate(templateType, date, weekStart);
   const paintTemplate = resolvePaintTemplateForDay(templateType, date, weekStart);
 
+  const generatedConfig =
+    generated.conductorConfig && typeof generated.conductorConfig === "object"
+      ? (generated.conductorConfig as Record<string, unknown>)
+      : {};
   return {
     ...generated,
-    conductorConfig: { paintTemplate },
+    conductorConfig: { ...generatedConfig, paintTemplate },
     dayConfigId: null,
     paintTemplate,
   };

@@ -3,6 +3,8 @@ import type { WeekTemplateType } from "@/lib/trains/types";
 export const MECHANISM_STYLES: Record<string, string> = {
   vs_high_score: "border-blue-500 bg-blue-500/15 text-blue-200",
   vs_top_10: "border-blue-500 bg-blue-500/15 text-blue-200",
+  vs_top_n: "border-blue-500 bg-blue-500/15 text-blue-200",
+  vr_top_n: "border-violet-500 bg-violet-500/15 text-violet-200",
   r3_lottery: "border-emerald-500 bg-emerald-500/15 text-emerald-200",
   heavy_hitter_lottery: "border-cyan-500 bg-cyan-500/15 text-cyan-200",
   r4_sequence: "border-purple-500 bg-purple-500/15 text-purple-200",
@@ -27,6 +29,14 @@ export const TEMPLATE_PALETTE_STYLES: Record<
   r4_event_vip: {
     swatch: "bg-slate-400",
     ring: "ring-slate-400",
+  },
+  top_vs: {
+    swatch: "bg-blue-500",
+    ring: "ring-blue-500",
+  },
+  top_vr: {
+    swatch: "bg-violet-500",
+    ring: "ring-violet-500",
   },
   economy_week: {
     swatch: "bg-red-500",

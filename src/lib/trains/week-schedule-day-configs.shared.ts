@@ -1,5 +1,6 @@
 import { paintTemplateFromConductorConfig } from "@/lib/trains/calendar-cell-styles.shared";
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
+import { parseConductorConfigTopN } from "@/lib/trains/conductor-top-n.shared";
 import { generateWeekDayConfigs } from "@/lib/trains/templates";
 import type { WeekTemplateType } from "@/lib/trains/types";
 import { resolvePaintTemplateForDay } from "@/lib/trains/week-template-registry.shared";
@@ -26,6 +27,8 @@ export type MergedWeekScheduleDayConfig = {
   vipConfig: unknown;
   isOverride: boolean;
   paintTemplate: WeekTemplateType | null;
+  topN?: number | null;
+  conductorConfig?: unknown;
 };
 
 type DayConfigRow = {
@@ -53,6 +56,8 @@ function mapDayConfigRow(row: DayConfigRow): MergedWeekScheduleDayConfig {
     vipConfig: row.vipConfig,
     isOverride: row.isOverride === 1,
     paintTemplate,
+    topN: parseConductorConfigTopN(row.conductorConfig),
+    conductorConfig: row.conductorConfig ?? null,
   };
 }
 
@@ -78,6 +83,8 @@ export function resolveWeekDisplayDayConfigs(
       generated.date,
       weekStart,
     ),
+    topN: parseConductorConfigTopN(generated.conductorConfig),
+    conductorConfig: generated.conductorConfig ?? null,
   }));
 }
 
@@ -107,6 +114,8 @@ export function buildWeekScheduleDayConfigs(
         generated.date,
         weekStart,
       ),
+      topN: parseConductorConfigTopN(generated.conductorConfig),
+      conductorConfig: generated.conductorConfig ?? null,
     };
   });
 }

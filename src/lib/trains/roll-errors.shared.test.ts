@@ -31,6 +31,14 @@ describe("parseTrainRollError", () => {
     ).toEqual({ code: "POOL_EXHAUSTED" });
   });
 
+  it("parses VR wheel candidate messages", () => {
+    expect(
+      parseTrainRollError({
+        error: "No VR standings found for the wheel.",
+      }),
+    ).toEqual({ code: "NO_WHEEL_CANDIDATES", candidateKind: "vr" });
+  });
+
   it("returns null for unrelated errors", () => {
     expect(parseTrainRollError({ error: "Conductor is already locked." })).toBeNull();
   });

@@ -21,6 +21,7 @@ globs:
 |----------|-------------|
 | `vs_push_week` | **Composite:** Tue–Sat `vs_push_weekdays` + Sun–Mon `r4_event_vip` |
 | `vs_push_weekdays` | Mon `donations_top`; Tue/Fri `vs_high_score`; Wed/Thu/Sat `vs_top_10` |
+| `top_vs` / `top_vr` | Paint-only segments — `vs_top_n` / `vr_top_n` with `conductor_config.topN` |
 | `r4_event_vip` | Segment — `r4_sequence` conductor + `event_top_x_lottery` VIP (silvery cell) |
 | `economy_week` / `r3_recognition` | R3 lottery all days when saving inventory |
 | `price_is_right` | R3 lottery most days with optional **ticket weighting**; **Saturday** = heavy-hitter lottery among max-ticket overrides |
@@ -95,10 +96,20 @@ Schema: `train_price_is_right_*` on `alliances`.
 
 All queries filter by session **`allianceId`**.
 
+## Top VS / Top VR scopes
+
+| Surface | Mechanism | Scopes | Score source | Template-time lock |
+|--------|-----------|--------|--------------|--------------------|
+| **Top VS** | `vs_top_n` (+ legacy `vs_high_score`→1, `vs_top_10`→10) | 1, 3, 5, 10 | Prior-day Ashed VS | **Never** by reporter/score count — spin gated by `prior_day_vs` upload readiness |
+| **Top VR** | `vr_top_n` | 3, 5, 10 only | Season HQ VR | Scope N locked until `vrReporterCount >= 2×N` |
+
+Paint ids `top_vs` / `top_vr` open a scope picker. `conductor_config.topN` is merged with `paintTemplate` (do not wipe `topN` in `withPaintTemplateConfig`).
+
 ## Data sources
 
-- **`vs_high_score` / `vs_top_10`** — prior-day Ashed `VSScore` (`vsScoreReferenceDate(trainDate)`). Guided/advanced readiness is `prior_day_vs` (upload funnel). Do **not** use season HQ VR for these mechanisms.
-- **Event Top X VIP / other VR surfaces** — HQ `memberSeasonVr` standings.
+- **Top VS** (`vs_high_score` / `vs_top_10` / `vs_top_n`) — prior-day Ashed `VSScore` (`vsScoreReferenceDate(trainDate)`). Readiness `prior_day_vs`.
+- **Top VR** (`vr_top_n`) — HQ `memberSeasonVr`; readiness kind `vr`.
+- **Event Top X VIP** — HQ season VR / event scores.
 - **Pools, economy filters, Price Is Right tickets** — HQ roster + prior-day VS where applicable.
 - Donation wheels require manual officer picks until HQ stores donation scores.
 - Do not show schedule preview before roster import (`activeMemberCount === 0`).

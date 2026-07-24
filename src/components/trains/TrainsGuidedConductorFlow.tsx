@@ -243,7 +243,10 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   const conductorAction: PrimaryAction = canSpinConductorWheel
     ? { label: t("steps.conductor.spin"), onClick: onRollConductor }
     : canRoll &&
-        (conductorMech === "vs_high_score" || conductorMech === "donations_top")
+        (conductorMech === "vs_high_score" ||
+          conductorMech === "vs_top_n" ||
+          conductorMech === "donations_top") &&
+        !canSpinConductorWheel
       ? { label: t("steps.conductor.pickTop"), onClick: onPickTopScorer }
       : canManualPick
         ? { label: t("steps.conductor.pickManual"), onClick: onPickConductorManual }

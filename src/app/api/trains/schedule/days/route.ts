@@ -8,6 +8,12 @@ import {
   trainActionErrorResponse,
 } from "@/lib/trains/service";
 import { canOfficerChangeTemplateForDate } from "@/lib/trains/trains-day-actions.shared";
+import {
+  isTopNPaintTemplate,
+  isVrTopN,
+  isVsTopN,
+  type ConductorTopN,
+} from "@/lib/trains/conductor-top-n.shared";
 import type { WeekTemplateType } from "@/lib/trains/types";
 import { WEEK_TEMPLATES } from "@/lib/trains/types";
 import { getOrCreateSession } from "@/lib/session";
@@ -45,6 +51,7 @@ export async function PATCH(request: Request) {
     dates?: string[];
     templateType?: WeekTemplateType;
     updateWeekTemplate?: boolean;
+    topN?: number;
   };
 
   const dates = (body.dates ?? []).filter(
@@ -66,6 +73,34 @@ export async function PATCH(request: Request) {
     );
   }
 
+  let topN: ConductorTopN | undefined;
+  if (isTopNPaintTemplate(templateType)) {
+    const raw = body.topN;
+    if (typeof raw !== "number" || !Number.isInteger(raw)) {
+      return NextResponse.json(
+        { error: "A valid topN scope is required for Top VS / Top VR." },
+        { status: 400 },
+      );
+    }
+    if (templateType === "top_vs") {
+      if (!isVsTopN(raw)) {
+        return NextResponse.json(
+          { error: "Top VS scope must be 1, 3, 5, or 10." },
+          { status: 400 },
+        );
+      }
+      topN = raw;
+    } else {
+      if (!isVrTopN(raw)) {
+        return NextResponse.json(
+          { error: "Top VR scope must be 3, 5, or 10." },
+          { status: 400 },
+        );
+      }
+      topN = raw;
+    }
+  }
+
   const isPlatformAdmin = await sessionHasPermission(session.id, "hq:admin");
   const today = getServerCalendarDate();
   const blockedPastDates = dates.filter(
@@ -84,8 +119,9 @@ export async function PATCH(request: Request) {
     await applyTemplateToDates(ctx.allianceId, dates, templateType, {
       platformAdminPastOverride: isPlatformAdmin,
       updateWeekTemplate: body.updateWeekTemplate === true,
+      ...(topN != null ? { topN } : {}),
     });
-    return NextResponse.json({ ok: true, dates, templateType });
+    return NextResponse.json({ ok: true, dates, templateType, topN });
   } catch (error) {
     const { status, body: responseBody } = trainActionErrorResponse(error);
     return NextResponse.json(responseBody, { status });

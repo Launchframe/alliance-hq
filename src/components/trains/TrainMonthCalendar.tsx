@@ -25,9 +25,14 @@ import {
   provisionalDayConfigClass,
 } from "@/lib/trains/week-schedule-day-configs.shared";
 import { TemplatePaletteBadge } from "@/components/trains/TemplatePaletteBadge";
+import { TopNScopePicker } from "@/components/trains/TopNScopePicker";
 import {
   TEMPLATE_PALETTE_STYLES,
 } from "@/lib/trains/mechanism-styles";
+import {
+  isTopNPaintTemplate,
+  type ConductorTopN,
+} from "@/lib/trains/conductor-top-n.shared";
 import { PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
 import type { WeekTemplateType } from "@/lib/trains/types";
 
@@ -44,6 +49,7 @@ type Props = {
   conductorLabels: Record<string, string>;
   vipLabels: Record<string, string>;
   templateLabels: Record<string, string>;
+  vrReporterCount?: number;
   navLabels: {
     previousMonth: string;
     nextMonth: string;
@@ -57,7 +63,11 @@ type Props = {
   onSelectDate: (date: string) => void;
   onMonthChange?: (page: MonthSchedulePagePayload) => void;
   onMonthLoadError?: () => void;
-  onPaintDates?: (dates: string[], template: WeekTemplateType) => void;
+  onPaintDates?: (
+    dates: string[],
+    template: WeekTemplateType,
+    options?: { topN?: number },
+  ) => void;
 };
 
 function recordForDate(
@@ -100,6 +110,7 @@ export function TrainMonthCalendar({
   onMonthChange,
   onMonthLoadError,
   onPaintDates,
+  vrReporterCount = 0,
 }: Props) {
   const tc = useTranslations("common");
   const [viewMonthKey, setViewMonthKey] = useState(initialMonthKey);
@@ -256,16 +267,40 @@ export function TrainMonthCalendar({
     [onSelectDate, selectedDate],
   );
 
+  const [pendingScopeTemplate, setPendingScopeTemplate] = useState<
+    "top_vs" | "top_vr" | null
+  >(null);
+
   const applyTemplateToSelection = useCallback(
-    (template: WeekTemplateType) => {
+    (template: WeekTemplateType, options?: { topN?: number }) => {
       const paint = onPaintDatesRef.current;
       const range = selectedRangeRef.current;
       if (!paint || !range) return;
       const dates = expandPaintRange(range.anchor, range.focus);
       if (dates.length === 0) return;
-      paint(dates, template);
+      paint(dates, template, options);
     },
     [],
+  );
+
+  const handlePaletteClick = useCallback(
+    (template: WeekTemplateType) => {
+      if (isTopNPaintTemplate(template)) {
+        setPendingScopeTemplate(template);
+        return;
+      }
+      applyTemplateToSelection(template);
+    },
+    [applyTemplateToSelection],
+  );
+
+  const handleScopeSelect = useCallback(
+    (topN: ConductorTopN) => {
+      if (!pendingScopeTemplate) return;
+      applyTemplateToSelection(pendingScopeTemplate, { topN });
+      setPendingScopeTemplate(null);
+    },
+    [applyTemplateToSelection, pendingScopeTemplate],
   );
 
   const handleSelectionPointerDown = useCallback(
@@ -387,7 +422,8 @@ export function TrainMonthCalendar({
                   key={template}
                   type="button"
                   disabled={!hasSelection}
-                  onClick={() => applyTemplateToSelection(template)}
+                  data-testid={`trains-month-paint-${template}`}
+                  onClick={() => handlePaletteClick(template)}
                   className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                     hasSelection
                       ? `border-hq-border text-[#c9d1d9] hover:bg-hq-surface hover:ring-1 ${palette.ring}`
@@ -400,6 +436,19 @@ export function TrainMonthCalendar({
               );
             })}
           </div>
+          {pendingScopeTemplate ? (
+            <div
+              className="mt-2 overflow-hidden rounded-lg border border-hq-border bg-hq-surface"
+              data-testid="trains-month-topn-scope"
+            >
+              <TopNScopePicker
+                paintTemplate={pendingScopeTemplate}
+                vrReporterCount={vrReporterCount}
+                onBack={() => setPendingScopeTemplate(null)}
+                onSelect={handleScopeSelect}
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
 

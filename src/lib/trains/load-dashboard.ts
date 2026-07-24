@@ -2,6 +2,7 @@ import {
   resolveAnchorTemplateType,
 } from "@/lib/trains/day-config-resolve.server";
 import { paintTemplateFromConductorConfig } from "@/lib/trains/calendar-cell-styles.shared";
+import { parseConductorConfigTopN } from "@/lib/trains/conductor-top-n.shared";
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
 import { resolveWeekDisplayDayConfigs } from "@/lib/trains/week-schedule-day-configs.shared";
 import { isDevOrPreviewEnvironment } from "@/lib/dev/env-guard";
@@ -11,6 +12,7 @@ import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { loadActiveAlliancePoolMembers, loadAllianceRow } from "@/lib/members/game-roster";
 import { loadPriceIsRightTicketSettings } from "@/lib/trains/train-economy-threshold.server";
 import { resolveCliffPoints } from "@/lib/trains/train-price-is-right-tickets.shared";
+import { countAllianceVrReporters } from "@/lib/trains/vr-reporter-count.server";
 import { loadSession } from "@/lib/session";
 import { sessionHasPermission, sessionIsPlatformMaintainer } from "@/lib/rbac/context";
 import {
@@ -144,6 +146,8 @@ function mapDayConfigRow(
     vipConfig: d.vipConfig,
     isOverride: d.isOverride === 1,
     paintTemplate,
+    topN: parseConductorConfigTopN(d.conductorConfig),
+    conductorConfig: d.conductorConfig ?? null,
   };
 }
 
@@ -180,6 +184,9 @@ export type TrainsDashboardPayload = {
     vipConfig: unknown;
     isOverride: boolean;
     paintTemplate?: WeekTemplateType | null;
+    /** Top VS / Top VR scope from conductor_config.topN when present. */
+    topN?: number | null;
+    conductorConfig?: unknown;
   }>;
   weekRecords: WeekConductorRecordSummary[];
   roster: Array<{
@@ -197,6 +204,8 @@ export type TrainsDashboardPayload = {
    * Null when there is no alliance / day context to evaluate.
    */
   vsDataStatus: TrainsVsDataStatus | null;
+  /** Season VR reporters with highest_base_vr > 0 — Top VR scope locks. */
+  vrReporterCount: number;
   pools: Record<
     string,
     {
@@ -227,6 +236,7 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   | "conductorRecord"
   | "todayDayConfig"
   | "vsDataStatus"
+  | "vrReporterCount"
   | "pools"
   | "conductorHistory"
   | "conductorStats"
@@ -244,6 +254,7 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   conductorRecord: null,
   todayDayConfig: null,
   vsDataStatus: null,
+  vrReporterCount: 0,
   pools: {},
   conductorHistory: [],
   conductorStats: null,
@@ -395,14 +406,17 @@ export async function loadTrainsDashboard(
   );
   const conductorHistory = historyRows.map(mapRecord);
   const pirSettings = await loadPriceIsRightTicketSettings(allianceId);
-  const vsDataStatus = todayDayConfig
-    ? await loadTrainsVsDataStatus({
-        allianceId,
-        trainDate: today,
-        conductorMechanism: todayDayConfig.conductorMechanism,
-        paintTemplate: todayDayConfig.paintTemplate ?? dashboardTemplateType,
-      })
-    : null;
+  const [vsDataStatus, vrReporterCount] = await Promise.all([
+    todayDayConfig
+      ? loadTrainsVsDataStatus({
+          allianceId,
+          trainDate: today,
+          conductorMechanism: todayDayConfig.conductorMechanism,
+          paintTemplate: todayDayConfig.paintTemplate ?? dashboardTemplateType,
+        })
+      : Promise.resolve(null),
+    countAllianceVrReporters(allianceId),
+  ]);
 
   return {
     today,
@@ -439,6 +453,7 @@ export async function loadTrainsDashboard(
         }
       : null,
     vsDataStatus,
+    vrReporterCount,
     pools,
     conductorHistory,
     conductorStats,
