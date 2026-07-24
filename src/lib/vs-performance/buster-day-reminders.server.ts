@@ -196,30 +196,39 @@ export async function runBusterDayReminderPass(
       continue;
     }
 
-    const discordMessage = buildBusterDayReminderDiscordMessage({
-      kind,
-      allianceTag: alliance.tag,
-      wizardUrl,
-    });
     let allianceDiscord = 0;
-    for (const channelId of channels) {
-      const ok = await postDiscordChannelMessage(channelId, discordMessage);
-      if (ok) allianceDiscord += 1;
-    }
-    discordPosted += allianceDiscord;
+    let emailSent = 0;
+    try {
+      const discordMessage = buildBusterDayReminderDiscordMessage({
+        kind,
+        allianceTag: alliance.tag,
+        wizardUrl,
+      });
+      for (const channelId of channels) {
+        const ok = await postDiscordChannelMessage(channelId, discordMessage);
+        if (ok) allianceDiscord += 1;
+      }
+      discordPosted += allianceDiscord;
 
-    const emailResult = await sendBusterDayReminderEmails({
-      allianceId: alliance.id,
-      allianceTag: alliance.tag,
-      kind,
-      wizardUrl,
-    });
-    emailsSent += emailResult.sent;
+      const emailResult = await sendBusterDayReminderEmails({
+        allianceId: alliance.id,
+        allianceTag: alliance.tag,
+        kind,
+        wizardUrl,
+      });
+      emailSent = emailResult.sent;
+      emailsSent += emailSent;
 
-    if (allianceDiscord > 0 || emailResult.sent > 0) {
-      markedSent += 1;
-    } else {
-      await releaseBusterDayReminderSent({ reportId: report.id, kind });
+      if (allianceDiscord > 0 || emailSent > 0) {
+        markedSent += 1;
+      } else {
+        await releaseBusterDayReminderSent({ reportId: report.id, kind });
+      }
+    } catch (error) {
+      if (allianceDiscord === 0 && emailSent === 0) {
+        await releaseBusterDayReminderSent({ reportId: report.id, kind });
+      }
+      throw error;
     }
   }
 

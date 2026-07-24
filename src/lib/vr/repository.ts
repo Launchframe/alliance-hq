@@ -2357,9 +2357,9 @@ export async function setGuildVsPerformanceChannel(
     .where(eq(schema.discordGuildAlliances.guildId, guildId));
 }
 
-export async function listRegisteredGuildsWithVsPerformanceChannel(): Promise<
-  Array<{ guildId: string; allianceId: string; channelId: string }>
-> {
+export async function listRegisteredGuildsWithVsPerformanceChannel(
+  allianceId?: string,
+): Promise<Array<{ guildId: string; allianceId: string; channelId: string }>> {
   const db = getDb();
   const rows = await db
     .select({
@@ -2369,7 +2369,12 @@ export async function listRegisteredGuildsWithVsPerformanceChannel(): Promise<
     })
     .from(schema.discordGuildAlliances)
     .where(
-      sql`${schema.discordGuildAlliances.vsPerformanceChannelId} is not null`,
+      allianceId
+        ? and(
+            eq(schema.discordGuildAlliances.allianceId, allianceId),
+            sql`${schema.discordGuildAlliances.vsPerformanceChannelId} is not null`,
+          )
+        : sql`${schema.discordGuildAlliances.vsPerformanceChannelId} is not null`,
     );
 
   return rows
