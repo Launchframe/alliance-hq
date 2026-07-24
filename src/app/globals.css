@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant light (&:where(.light, .light *));
+
 :root {
   --hq-canvas: #ffffff;
   --hq-surface: #f6f8fa;

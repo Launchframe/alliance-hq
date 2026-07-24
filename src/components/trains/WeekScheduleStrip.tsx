@@ -241,7 +241,7 @@ function WeekScheduleDayCell({
             {conductorName ? (
               <div
                 className={`truncate text-[11px] font-bold leading-tight ${
-                  locked ? "text-hq-fg dark:text-white" : "text-hq-fg-muted"
+                  locked ? "text-white light:text-hq-fg" : "text-hq-fg-muted"
                 }`}
                 title={conductorName}
               >
