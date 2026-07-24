@@ -54,6 +54,7 @@ import {
 import { dispatchScoreSubmit } from "@/lib/video/submit-dispatch";
 import { notifyEurVideoEvidence } from "@/lib/eur/satisfaction";
 import { announcePriceIsRightLeaderboardAfterVsUpload } from "@/lib/trains/price-is-right-leaderboard-discord.server";
+import { announceVsPerformanceFinalizedToDiscord } from "@/lib/vs-performance/vs-performance-discord.server";
 import {
   replaceAshedScoresForContext,
   resolveOrCreateAshedEvent,
@@ -1091,6 +1092,20 @@ export async function POST(request: Request, { params }: Props) {
         vsRecordedDate: submitContext.recordedDate,
       }).catch((error) => {
         console.error("[train-pir-leaderboard] post-submit announce failed", error);
+      });
+
+      void announceVsPerformanceFinalizedToDiscord({
+        allianceId,
+        recordedDate: submitContext.recordedDate,
+        vsPeriod: submitContext.vsPeriod,
+        rows: activeRows.map((row) => ({
+          rank: row.rank ?? null,
+          memberName: row.memberName,
+          score: row.score ?? null,
+          deleted: 0,
+        })),
+      }).catch((error) => {
+        console.error("[vs-performance-discord] finalize announce failed", error);
       });
     }
 

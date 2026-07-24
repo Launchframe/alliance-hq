@@ -1352,6 +1352,7 @@ export const discordGuildAlliances = pgTable("discord_guild_alliances", {
   seasonalEventsChannelId: text("seasonal_events_channel_id"),
   regularEventsChannelId: text("regular_events_channel_id"),
   bankingChannelId: text("banking_channel_id"),
+  vsPerformanceChannelId: text("vs_performance_channel_id"),
   registeredAt: timestamp("registered_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

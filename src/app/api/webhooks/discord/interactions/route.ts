@@ -100,6 +100,7 @@ import {
   handleDiscordSetBankingChannel,
   handleDiscordSetRegularEventsChannel,
   handleDiscordSetSeasonalEventsChannel,
+  handleDiscordSetVsPerformanceChannel,
 } from "@/lib/battle-plan/discord-channel-handlers.server";
 import {
   handleDiscordWhatIsMyThpChart,
@@ -335,6 +336,23 @@ async function handleSlashCommand(
       return discordMessageResponse(t("errors.serverError"));
     }
     const result = await handleDiscordSetBankingChannel({
+      guildId,
+      channelId,
+      discordUserId,
+      locale,
+    });
+    return discordMessageResponse(result.reply);
+  }
+
+  if (commandName === "set-vs-performance-channel") {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
+    const channelId = interactionChannelId(payload);
+    if (!channelId) {
+      return discordMessageResponse(t("errors.serverError"));
+    }
+    const result = await handleDiscordSetVsPerformanceChannel({
       guildId,
       channelId,
       discordUserId,

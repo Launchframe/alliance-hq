@@ -402,6 +402,15 @@ const commandBody = [
     },
   },
   {
+    name: "set-vs-performance-channel",
+    description:
+      "Set this channel for VS Performance upload reports — parsed and finalized scores (R4+ by default; owners can restrict).",
+    description_localizations: {
+      "pt-BR":
+        "Define este canal para relatórios de VS Performance — pontuações analisadas e finalizadas (R4+ por padrão; o dono pode restringir).",
+    },
+  },
+  {
     name: "who-is-conductor",
     description: "Show today's train conductor (and VIP if set).",
     description_localizations: {

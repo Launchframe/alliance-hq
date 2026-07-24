@@ -1689,6 +1689,43 @@ export async function setGuildBankingChannel(
     .where(eq(schema.discordGuildAlliances.guildId, guildId));
 }
 
+export async function setGuildVsPerformanceChannel(
+  guildId: string,
+  channelId: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.discordGuildAlliances)
+    .set({ vsPerformanceChannelId: channelId })
+    .where(eq(schema.discordGuildAlliances.guildId, guildId));
+}
+
+export async function listRegisteredGuildsWithVsPerformanceChannel(): Promise<
+  Array<{ guildId: string; allianceId: string; channelId: string }>
+> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      guildId: schema.discordGuildAlliances.guildId,
+      allianceId: schema.discordGuildAlliances.allianceId,
+      channelId: schema.discordGuildAlliances.vsPerformanceChannelId,
+    })
+    .from(schema.discordGuildAlliances)
+    .where(
+      sql`${schema.discordGuildAlliances.vsPerformanceChannelId} is not null`,
+    );
+
+  return rows
+    .filter((row): row is typeof row & { channelId: string } =>
+      Boolean(row.channelId?.trim()),
+    )
+    .map((row) => ({
+      guildId: row.guildId,
+      allianceId: row.allianceId,
+      channelId: row.channelId.trim(),
+    }));
+}
+
 export async function getAllianceTrainDiscordAnnouncementsEnabled(
   allianceId: string,
 ): Promise<boolean> {
