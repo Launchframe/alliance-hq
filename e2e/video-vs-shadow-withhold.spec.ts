@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  attachAshedConnectionToSession,
   authCookieHeader,
   getE2eSql,
   playwrightAuthCookies,
@@ -49,13 +50,11 @@ test.describe("VS early shadow withhold review", () => {
     expect(jobBody.shadowPassInFlight).toBe(true);
     expect(jobBody.expectedRowCount).toBeGreaterThan(5);
 
-    // Owner session avoids enqueue-layout RBAC edge cases in the browser shell.
-    await page.context().addCookies(playwrightAuthCookies(scenario.owner));
-    const response = await page.goto(
-      `/tools/video-upload/${fixture.primaryJobId}/review`,
-    );
-    expect(response?.status()).toBe(200);
-    expect(page.url()).toContain(`/tools/video-upload/${fixture.primaryJobId}/review`);
+    // Linked processor + Ashed session bypasses /onboard shell redirect (see
+    // video-process-preview.spec.ts) while still exercising alliance video RBAC.
+    await attachAshedConnectionToSession(sql, scenario.processor.sessionId);
+    await page.context().addCookies(playwrightAuthCookies(scenario.processor));
+    await page.goto(`/tools/video-upload/${fixture.primaryJobId}/review`);
 
     const reviewHeading = page.getByRole("heading", {
       name: /review extracted data/i,
