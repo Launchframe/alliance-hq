@@ -271,6 +271,18 @@ async function submitUidThenConfirm(
   return linkResponse;
 }
 
+async function submitUidAndReachHomeServerConfirm(
+  page: import("@playwright/test").Page,
+  uid: string,
+) {
+  const linkResponse = await submitUidThenConfirm(page, uid);
+  const response = await linkResponse;
+  await expect(
+    page.getByRole("heading", { name: /which server is home/i }),
+  ).toBeVisible();
+  return response;
+}
+
 test.describe("Member-link onboarding outcomes", () => {
   test("invite roster miss on mismatched position server prompts home-server confirm", async ({
     page,
@@ -362,13 +374,13 @@ test.describe("Member-link onboarding outcomes", () => {
     );
     await openMemberLinkForm(page);
 
-    await page.getByLabel(/player uid/i).fill("1234567890121205");
-    await page.getByRole("button", { name: /link my commander/i }).click();
-    await page.getByRole("button", { name: /yes, that's me/i }).click();
-
-    await expect(
-      page.getByRole("heading", { name: /which server is home/i }),
-    ).toBeVisible();
+    const firstResponse = await submitUidAndReachHomeServerConfirm(
+      page,
+      "1234567890121205",
+    );
+    expect(firstResponse.ok()).toBe(true);
+    const firstBody = (await firstResponse.json()) as { outcome?: string };
+    expect(firstBody.outcome).toBe("confirm_home_server");
 
     const linkResponse = page.waitForResponse(
       (res) =>
@@ -399,13 +411,21 @@ test.describe("Member-link onboarding outcomes", () => {
     );
     await openMemberLinkForm(page);
 
-    await page.getByLabel(/player uid/i).fill("1234567890121205");
-    await page.getByRole("button", { name: /link my commander/i }).click();
-    await page.getByRole("button", { name: /yes, that's me/i }).click();
+    await submitUidAndReachHomeServerConfirm(page, "1234567890121205");
+
+    const linkResponse = page.waitForResponse(
+      (res) =>
+        new URL(res.url()).pathname.endsWith("/api/member-link") &&
+        res.request().method() === "POST",
+    );
     await page
       .getByRole("button", { name: /server 1205/i })
       .first()
       .click();
+    const response = await linkResponse;
+    expect(response.ok()).toBe(true);
+    const body = (await response.json()) as { outcome?: string };
+    expect(body.outcome).toBe("position_not_home");
 
     await expect(
       page.getByRole("heading", { name: /send your commander home/i }),
