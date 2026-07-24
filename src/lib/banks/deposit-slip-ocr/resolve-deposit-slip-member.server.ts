@@ -46,6 +46,10 @@ export type DepositSlipTagMatchMethod =
 
 export type ResolvedDepositSlipLinks = {
   depositAllianceId: string | null;
+  /** Alliance whose roster was searched for commander name matching. */
+  rosterAllianceId: string;
+  /** Canonical HQ tag for `rosterAllianceId` (null when alliance row has no tag). */
+  resolvedAllianceTag: string | null;
   allianceMemberId: string | null;
   commanderId: string | null;
   ashedMemberId: string | null;
@@ -210,6 +214,21 @@ function canAutoLinkMember(match: MemberMatch): boolean {
   );
 }
 
+function isBankRosterFallbackTag(tagMatchMethod: DepositSlipTagMatchMethod): boolean {
+  return tagMatchMethod === "none" || tagMatchMethod === "ambiguous";
+}
+
+/** When auto-linked, replace OCR alliance tag with the roster alliance's canonical tag. */
+export function applyResolvedAllianceTagToDepositSlip<
+  T extends { identity: { allianceTag: string | null } },
+>(slip: T, links: Pick<ResolvedDepositSlipLinks, "ashedMemberId" | "resolvedAllianceTag">): void {
+  if (links.ashedMemberId == null) return;
+  const resolved = links.resolvedAllianceTag?.trim();
+  if (!resolved) return;
+  if (slip.identity.allianceTag === resolved) return;
+  slip.identity.allianceTag = resolved;
+}
+
 /**
  * Resolve deposit-slip OCR identity into FKs at commit time:
  * - unique alliance tag (exact, then unique fuzzy) → `depositAllianceId`
@@ -243,8 +262,12 @@ export async function resolveDepositSlipMemberLinks(
     depositAllianceId: string | null,
     tagMatchMethod: DepositSlipTagMatchMethod,
     tagMatchConfidence: number,
+    rosterAllianceId: string,
+    resolvedAllianceTag: string | null,
   ): ResolvedDepositSlipLinks => ({
     depositAllianceId,
+    rosterAllianceId,
+    resolvedAllianceTag,
     allianceMemberId: null,
     commanderId: null,
     ashedMemberId: null,
@@ -263,6 +286,8 @@ export async function resolveDepositSlipMemberLinks(
   let tagMatchMethod: DepositSlipTagMatchMethod = "none";
   let tagMatchConfidence = 0;
 
+  const allianceCatalog = await listAlliancesWithTags();
+
   if (tag) {
     const exact = await listAlliancesByTag(tag);
     if (exact.length === 1) {
@@ -273,10 +298,7 @@ export async function resolveDepositSlipMemberLinks(
       tagMatchMethod = "ambiguous";
       tagMatchConfidence = 0;
     } else {
-      const fuzzyHit = pickUniqueFuzzyAllianceTag(
-        tag,
-        await listAlliancesWithTags(),
-      );
+      const fuzzyHit = pickUniqueFuzzyAllianceTag(tag, allianceCatalog);
       if (fuzzyHit) {
         depositAllianceId = fuzzyHit.candidate.id;
         tagMatchMethod = "fuzzy";
@@ -286,9 +308,18 @@ export async function resolveDepositSlipMemberLinks(
   }
 
   const rosterAllianceId = depositAllianceId ?? input.bankAllianceId;
+  const resolvedAllianceTag =
+    allianceCatalog.find((a) => a.id === rosterAllianceId)?.tag?.trim() || null;
+
   const members = await loadRosterMembers(rosterAllianceId);
   if (members.length === 0) {
-    return empty(depositAllianceId, tagMatchMethod, tagMatchConfidence);
+    return empty(
+      depositAllianceId,
+      tagMatchMethod,
+      tagMatchConfidence,
+      rosterAllianceId,
+      resolvedAllianceTag,
+    );
   }
 
   const preferredId = input.preferredAshedMemberId?.trim() || null;
@@ -306,6 +337,8 @@ export async function resolveDepositSlipMemberLinks(
       );
       return {
         depositAllianceId,
+        rosterAllianceId,
+        resolvedAllianceTag,
         allianceMemberId,
         commanderId,
         ashedMemberId: preferred.id,
@@ -322,7 +355,13 @@ export async function resolveDepositSlipMemberLinks(
   }
 
   if (!input.commanderName.trim()) {
-    return empty(depositAllianceId, tagMatchMethod, tagMatchConfidence);
+    return empty(
+      depositAllianceId,
+      tagMatchMethod,
+      tagMatchConfidence,
+      rosterAllianceId,
+      resolvedAllianceTag,
+    );
   }
 
   const match = matchMemberName(
@@ -341,8 +380,19 @@ export async function resolveDepositSlipMemberLinks(
   );
 
   if (!canAutoLinkMember(match)) {
+    if (isBankRosterFallbackTag(tagMatchMethod)) {
+      return empty(
+        depositAllianceId,
+        tagMatchMethod,
+        tagMatchConfidence,
+        rosterAllianceId,
+        resolvedAllianceTag,
+      );
+    }
     return {
       depositAllianceId,
+      rosterAllianceId,
+      resolvedAllianceTag,
       allianceMemberId: null,
       commanderId: null,
       ashedMemberId: null,
@@ -364,6 +414,8 @@ export async function resolveDepositSlipMemberLinks(
 
   return {
     depositAllianceId,
+    rosterAllianceId,
+    resolvedAllianceTag,
     allianceMemberId,
     commanderId,
     ashedMemberId: match.memberId,

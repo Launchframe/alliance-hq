@@ -70,6 +70,8 @@ export type DepositSlipMemberOption = {
 };
 
 type Props = {
+  /** Bank roster alliance tag — applied when officer manually assigns a member. */
+  rosterAllianceTag?: string | null;
   rows: DepositSlipVideoReviewRow[];
   /** Job roster — officers pick when OCR does not auto-link. */
   members: DepositSlipMemberOption[];
@@ -209,6 +211,7 @@ function LiveRowSummaryFields({
 export function DepositSlipVideoReviewTable({
   rows,
   members,
+  rosterAllianceTag,
   filterQuery,
   dedupeReport = null,
   onUpdateRow,
@@ -616,6 +619,9 @@ export function DepositSlipVideoReviewTable({
                           // Commit honors preferredAshedMemberId only when
                           // matchMethod is a real auto-link method (not "none").
                           matchMethod: "exact",
+                          ...(rosterAllianceTag?.trim()
+                            ? { allianceRankTitle: rosterAllianceTag.trim() }
+                            : {}),
                         });
                       }}
                       aria-label={t("colMember")}

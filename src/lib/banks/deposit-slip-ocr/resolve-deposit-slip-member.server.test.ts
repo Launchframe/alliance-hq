@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   DEPOSIT_SLIP_MEMBER_AUTO_LINK_MIN,
+  applyResolvedAllianceTagToDepositSlip,
   createDepositSlipMemberResolverCache,
   pickUniqueFuzzyAllianceTag,
   resolveDepositSlipMemberLinks,
@@ -56,6 +57,19 @@ describe("pickUniqueFuzzyAllianceTag", () => {
 });
 
 describe("resolveDepositSlipMemberLinks", () => {
+  const roarAlliance = {
+    id: "alliance-roar",
+    tag: "Roar",
+    name: "Roar",
+    ownerAshedUserId: null,
+  };
+  const bankAlliance = {
+    id: "alliance-bank",
+    tag: "BankTag",
+    name: "Bank",
+    ownerAshedUserId: null,
+  };
+
   it("resolves a unique tag and exact commander name into all three FKs", async () => {
     const result = await resolveDepositSlipMemberLinks(
       {
@@ -64,9 +78,8 @@ describe("resolveDepositSlipMemberLinks", () => {
         commanderName: "Blue Investor",
       },
       {
-        listAlliancesByTag: vi.fn().mockResolvedValue([
-          { id: "alliance-roar", tag: "Roar", name: "Roar", ownerAshedUserId: null },
-        ]),
+        listAlliancesByTag: vi.fn().mockResolvedValue([roarAlliance]),
+        listAlliancesWithTags: vi.fn().mockResolvedValue([roarAlliance, bankAlliance]),
         loadRosterMembers: vi.fn().mockResolvedValue(members),
         findAllianceMemberId: vi.fn().mockResolvedValue("am-blue"),
         resolveCommanderId: vi.fn().mockResolvedValue("cmd-blue"),
@@ -75,6 +88,8 @@ describe("resolveDepositSlipMemberLinks", () => {
 
     expect(result).toMatchObject({
       depositAllianceId: "alliance-roar",
+      rosterAllianceId: "alliance-roar",
+      resolvedAllianceTag: "Roar",
       allianceMemberId: "am-blue",
       commanderId: "cmd-blue",
       ashedMemberId: "ashed-blue",
@@ -114,6 +129,8 @@ describe("resolveDepositSlipMemberLinks", () => {
     expect(listAlliancesWithTags).toHaveBeenCalled();
     expect(loadRosterMembers).toHaveBeenCalledWith("alliance-roar");
     expect(result.depositAllianceId).toBe("alliance-roar");
+    expect(result.rosterAllianceId).toBe("alliance-roar");
+    expect(result.resolvedAllianceTag).toBe("Roar");
     expect(result.tagMatchMethod).toBe("fuzzy");
     expect(result.tagMatchConfidence).toBe(0.75);
     expect(result.allianceMemberId).toBe("am-blue");
@@ -135,9 +152,8 @@ describe("resolveDepositSlipMemberLinks", () => {
         preferredAshedMemberId: "ashed-orange",
       },
       {
-        listAlliancesByTag: vi.fn().mockResolvedValue([
-          { id: "alliance-roar", tag: "Roar", name: "Roar", ownerAshedUserId: null },
-        ]),
+        listAlliancesByTag: vi.fn().mockResolvedValue([roarAlliance]),
+        listAlliancesWithTags: vi.fn().mockResolvedValue([roarAlliance]),
         loadRosterMembers: vi.fn().mockResolvedValue(members),
         findAllianceMemberId,
         resolveCommanderId,
@@ -169,6 +185,14 @@ describe("resolveDepositSlipMemberLinks", () => {
           { id: "a1", tag: "LF", name: "One", ownerAshedUserId: null },
           { id: "a2", tag: "LF", name: "Two", ownerAshedUserId: null },
         ]),
+        listAlliancesWithTags: vi.fn().mockResolvedValue([
+          {
+            id: "alliance-bank",
+            tag: "LFgo",
+            name: "LFgo",
+            ownerAshedUserId: null,
+          },
+        ]),
         loadRosterMembers,
         findAllianceMemberId,
         resolveCommanderId,
@@ -176,6 +200,8 @@ describe("resolveDepositSlipMemberLinks", () => {
     );
 
     expect(result.depositAllianceId).toBeNull();
+    expect(result.rosterAllianceId).toBe("alliance-bank");
+    expect(result.resolvedAllianceTag).toBe("LFgo");
     expect(result.tagMatchMethod).toBe("ambiguous");
     expect(loadRosterMembers).toHaveBeenCalledWith("alliance-bank");
     expect(findAllianceMemberId).toHaveBeenCalledWith(
@@ -198,6 +224,7 @@ describe("resolveDepositSlipMemberLinks", () => {
       },
       {
         listAlliancesByTag: vi.fn(),
+        listAlliancesWithTags: vi.fn().mockResolvedValue([bankAlliance]),
         loadRosterMembers,
         findAllianceMemberId: vi.fn().mockResolvedValue("am-blue"),
         resolveCommanderId: vi.fn().mockResolvedValue(null),
@@ -229,9 +256,8 @@ describe("resolveDepositSlipMemberLinks", () => {
         commanderName: "Blue Investor",
       },
       {
-        listAlliancesByTag: vi.fn().mockResolvedValue([
-          { id: "alliance-roar", tag: "Roar", name: "Roar", ownerAshedUserId: null },
-        ]),
+        listAlliancesByTag: vi.fn().mockResolvedValue([roarAlliance]),
+        listAlliancesWithTags: vi.fn().mockResolvedValue([roarAlliance]),
         loadRosterMembers: vi.fn().mockResolvedValue(weakMembers),
         findAllianceMemberId: vi.fn(),
         resolveCommanderId: vi.fn(),
@@ -294,6 +320,46 @@ describe("resolveDepositSlipMemberLinks", () => {
     expect(result.matchMethod).toBe("none");
   });
 
+  it("does not surface weak bank-roster fallback candidates below auto-link threshold", async () => {
+    const weakMembers: AshedMember[] = [
+      {
+        id: "ashed-jimmy",
+        current_name: "JIMMY DwDx",
+        status: "active",
+      },
+    ];
+
+    const result = await resolveDepositSlipMemberLinks(
+      {
+        bankAllianceId: "alliance-lfgo",
+        depositAllianceTag: "B1GG",
+        commanderName: "JEmma",
+      },
+      {
+        listAlliancesByTag: vi.fn().mockResolvedValue([]),
+        listAlliancesWithTags: vi.fn().mockResolvedValue([
+          {
+            id: "alliance-lfgo",
+            tag: "LFgo",
+            name: "LFgo",
+            ownerAshedUserId: null,
+          },
+        ]),
+        loadRosterMembers: vi.fn().mockResolvedValue(weakMembers),
+        findAllianceMemberId: vi.fn(),
+        resolveCommanderId: vi.fn(),
+      },
+    );
+
+    expect(result.tagMatchMethod).toBe("none");
+    expect(result.rosterAllianceId).toBe("alliance-lfgo");
+    expect(result.candidateAshedMemberId).toBeNull();
+    expect(result.candidateMemberName).toBeNull();
+    expect(result.candidateConfidence).toBe(0);
+    expect(result.allianceMemberId).toBeNull();
+    expect(result.ashedMemberId).toBeNull();
+  });
+
   it("returns null member FKs when the commander name does not match", async () => {
     const result = await resolveDepositSlipMemberLinks(
       {
@@ -302,9 +368,8 @@ describe("resolveDepositSlipMemberLinks", () => {
         commanderName: "Completely Unknown",
       },
       {
-        listAlliancesByTag: vi.fn().mockResolvedValue([
-          { id: "alliance-roar", tag: "Roar", name: "Roar", ownerAshedUserId: null },
-        ]),
+        listAlliancesByTag: vi.fn().mockResolvedValue([roarAlliance]),
+        listAlliancesWithTags: vi.fn().mockResolvedValue([roarAlliance]),
         loadRosterMembers: vi.fn().mockResolvedValue(members),
         findAllianceMemberId: vi.fn(),
         resolveCommanderId: vi.fn(),
@@ -321,6 +386,34 @@ describe("resolveDepositSlipMemberLinks", () => {
       candidateAshedMemberId: null,
       tagMatchMethod: "exact",
     });
+  });
+});
+
+describe("applyResolvedAllianceTagToDepositSlip", () => {
+  it("overwrites OCR alliance tag when auto-linked to a roster alliance", () => {
+    const slip = {
+      identity: { allianceTag: "LFga" as string | null },
+    };
+    applyResolvedAllianceTagToDepositSlip(slip, {
+      ashedMemberId: "ashed-1",
+      resolvedAllianceTag: "LFgo",
+    });
+    expect(slip.identity.allianceTag).toBe("LFgo");
+  });
+
+  it("does not change tag when not auto-linked or tag already matches", () => {
+    const slip = { identity: { allianceTag: "LFga" as string | null } };
+    applyResolvedAllianceTagToDepositSlip(slip, {
+      ashedMemberId: null,
+      resolvedAllianceTag: "LFgo",
+    });
+    expect(slip.identity.allianceTag).toBe("LFga");
+
+    applyResolvedAllianceTagToDepositSlip(slip, {
+      ashedMemberId: "ashed-1",
+      resolvedAllianceTag: "LFga",
+    });
+    expect(slip.identity.allianceTag).toBe("LFga");
   });
 });
 
@@ -378,6 +471,10 @@ describe("createDepositSlipMemberResolverCache", () => {
 
     const cache = createDepositSlipMemberResolverCache({
       listAlliancesByTag: vi.fn(),
+      listAlliancesWithTags: vi.fn().mockResolvedValue([
+        { id: "alliance-a", tag: "A", name: "A", ownerAshedUserId: null },
+        { id: "alliance-b", tag: "B", name: "B", ownerAshedUserId: null },
+      ]),
       loadRosterMembers,
       findAllianceMemberId: vi.fn().mockResolvedValue(null),
       resolveCommanderId: vi.fn().mockResolvedValue(null),
