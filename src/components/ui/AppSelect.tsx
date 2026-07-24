@@ -9,6 +9,12 @@ import {
   type AppSelectSearchMode,
 } from "@/components/ui/app-select-search";
 import { withDefaultBorderColor } from "@/components/ui/app-select-border-class";
+import {
+  appendAppSelectTypeaheadBuffer,
+  APP_SELECT_TYPEAHEAD_RESET_MS,
+  findEnabledAppSelectTypeaheadIndex,
+  isAppSelectTypeaheadKey,
+} from "@/components/ui/app-select-typeahead";
 
 export type { AppSelectSearchMode } from "@/components/ui/app-select-search";
 export {
@@ -100,6 +106,11 @@ export function AppSelect({
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const comboboxInputRef = React.useRef<HTMLInputElement>(null);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
+  const typeaheadBufferRef = React.useRef("");
+  const typeaheadLastKeyAtRef = React.useRef(0);
+  const typeaheadResetTimerRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [comboboxFocused, setComboboxFocused] = React.useState(false);
@@ -152,12 +163,39 @@ export function AppSelect({
     };
   }, [useCombobox]);
 
+  function resetTypeaheadBuffer() {
+    typeaheadBufferRef.current = "";
+    typeaheadLastKeyAtRef.current = 0;
+    if (typeaheadResetTimerRef.current != null) {
+      clearTimeout(typeaheadResetTimerRef.current);
+      typeaheadResetTimerRef.current = null;
+    }
+  }
+
+  function scheduleTypeaheadReset() {
+    if (typeaheadResetTimerRef.current != null) {
+      clearTimeout(typeaheadResetTimerRef.current);
+    }
+    typeaheadResetTimerRef.current = setTimeout(() => {
+      resetTypeaheadBuffer();
+    }, APP_SELECT_TYPEAHEAD_RESET_MS);
+  }
+
   function closeMenu() {
     setOpen(false);
     setActiveIndex(-1);
     setSearchQuery("");
     setComboboxFocused(false);
+    resetTypeaheadBuffer();
   }
+
+  React.useEffect(() => {
+    return () => {
+      if (typeaheadResetTimerRef.current != null) {
+        clearTimeout(typeaheadResetTimerRef.current);
+      }
+    };
+  }, []);
 
   React.useEffect(() => {
     if (!open || !searchable || useCombobox) return;
@@ -355,6 +393,39 @@ export function AppSelect({
     if (event.key === "Escape") {
       event.preventDefault();
       closeMenu();
+      return;
+    }
+
+    if (searchable || useCombobox || !isAppSelectTypeaheadKey(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    const elapsed =
+      typeaheadLastKeyAtRef.current > 0
+        ? event.timeStamp - typeaheadLastKeyAtRef.current
+        : APP_SELECT_TYPEAHEAD_RESET_MS + 1;
+    const { buffer } = appendAppSelectTypeaheadBuffer(
+      typeaheadBufferRef.current,
+      event.key,
+      elapsed,
+    );
+    typeaheadBufferRef.current = buffer;
+    typeaheadLastKeyAtRef.current = event.timeStamp;
+    scheduleTypeaheadReset();
+
+    if (!open) {
+      setMenuRect(updateMenuRect());
+      setOpen(true);
+    }
+
+    const matchIndex = findEnabledAppSelectTypeaheadIndex(
+      enabledOptions,
+      buffer,
+      activeIndex,
+    );
+    if (matchIndex >= 0) {
+      setActiveIndex(matchIndex);
     }
   }
 
