@@ -1143,7 +1143,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     if (shadowWithholdEscaped) return false;
     if (
       !isPrimaryParseInadequate({
-        uniqueRowCount: uniqueActiveRowCount,
+        activeRowCount: uniqueActiveRowCount,
         expectedRows: expectedRowCount,
         forceInadequate,
       })
@@ -1168,7 +1168,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       jobStatus === "review" &&
       scoreTargetMeta?.id === "vs-performance" &&
       isPrimaryParseInadequate({
-        uniqueRowCount: uniqueActiveRowCount,
+        activeRowCount: uniqueActiveRowCount,
         expectedRows: expectedRowCount,
         forceInadequate,
       }) &&

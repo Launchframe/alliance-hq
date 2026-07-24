@@ -931,6 +931,92 @@ export async function processVideoJob(
       return timings;
     }
 
+    // Sync extraction-shadow comparison before review so polls never see a
+    // stale recommendation (shadow-first finish with empty primary baseline).
+    if (job.groupId) {
+      try {
+        if (job.passRole === "primary") {
+          const [shadowSibling] = await db
+            .select({
+              id: schema.videoJobs.id,
+              status: schema.videoJobs.status,
+            })
+            .from(schema.videoJobs)
+            .where(
+              and(
+                eq(schema.videoJobs.groupId, job.groupId),
+                eq(schema.videoJobs.passRole, "shadow"),
+              ),
+            )
+            .limit(1);
+          if (
+            shadowSibling &&
+            (shadowSibling.status === "review" ||
+              shadowSibling.status === "complete" ||
+              shadowSibling.status === "submitting")
+          ) {
+            const [group] = await db
+              .select({
+                primaryJobId: schema.videoUploadGroups.primaryJobId,
+                comparisonJson: schema.videoUploadGroups.comparisonJson,
+              })
+              .from(schema.videoUploadGroups)
+              .where(eq(schema.videoUploadGroups.id, job.groupId))
+              .limit(1);
+            if (group?.primaryJobId === job.id) {
+              const comparison = await computePassComparison(
+                job.id,
+                shadowSibling.id,
+              );
+              await db
+                .update(schema.videoUploadGroups)
+                .set({
+                  comparisonJson: mergeGroupComparisons(group.comparisonJson, {
+                    extraction_shadow: comparison,
+                  }),
+                  updatedAt: new Date(),
+                })
+                .where(eq(schema.videoUploadGroups.id, job.groupId));
+            }
+          }
+        } else if (job.passRole === "shadow") {
+          const [group] = await db
+            .select({
+              primaryJobId: schema.videoUploadGroups.primaryJobId,
+              comparisonJson: schema.videoUploadGroups.comparisonJson,
+            })
+            .from(schema.videoUploadGroups)
+            .where(eq(schema.videoUploadGroups.id, job.groupId))
+            .limit(1);
+
+          if (group?.primaryJobId) {
+            const [primaryJob] = await db
+              .select({ parseSessionId: schema.videoJobs.parseSessionId })
+              .from(schema.videoJobs)
+              .where(eq(schema.videoJobs.id, group.primaryJobId))
+              .limit(1);
+            if (primaryJob?.parseSessionId) {
+              const comparison = await computePassComparison(
+                group.primaryJobId,
+                job.id,
+              );
+              await db
+                .update(schema.videoUploadGroups)
+                .set({
+                  comparisonJson: mergeGroupComparisons(group.comparisonJson, {
+                    extraction_shadow: comparison,
+                  }),
+                  updatedAt: new Date(),
+                })
+                .where(eq(schema.videoUploadGroups.id, job.groupId));
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[shadow-pass] pre-review comparison sync failed", err);
+      }
+    }
+
     await setStatus(
       "review",
       {
@@ -1045,89 +1131,6 @@ export async function processVideoJob(
         });
       } catch {
         // Fingerprint shadow failure must not fail primary job
-      }
-    }
-
-    // Early shadows can finish before the primary; the comparison written at
-    // shadow completion then saw no primary rows (parseSessionId was null) and
-    // could recommend the shadow against an empty baseline. Recompute it now
-    // that the primary parse session exists.
-    if (job.passRole === "primary" && job.groupId) {
-      try {
-        const [shadowSibling] = await db
-          .select({
-            id: schema.videoJobs.id,
-            status: schema.videoJobs.status,
-          })
-          .from(schema.videoJobs)
-          .where(
-            and(
-              eq(schema.videoJobs.groupId, job.groupId),
-              eq(schema.videoJobs.passRole, "shadow"),
-            ),
-          )
-          .limit(1);
-        if (
-          shadowSibling &&
-          (shadowSibling.status === "review" ||
-            shadowSibling.status === "complete")
-        ) {
-          const [group] = await db
-            .select({
-              primaryJobId: schema.videoUploadGroups.primaryJobId,
-              comparisonJson: schema.videoUploadGroups.comparisonJson,
-            })
-            .from(schema.videoUploadGroups)
-            .where(eq(schema.videoUploadGroups.id, job.groupId))
-            .limit(1);
-          if (group?.primaryJobId === job.id) {
-            const comparison = await computePassComparison(
-              job.id,
-              shadowSibling.id,
-            );
-            await db
-              .update(schema.videoUploadGroups)
-              .set({
-                comparisonJson: mergeGroupComparisons(group.comparisonJson, {
-                  extraction_shadow: comparison,
-                }),
-                updatedAt: new Date(),
-              })
-              .where(eq(schema.videoUploadGroups.id, job.groupId));
-          }
-        }
-      } catch (err) {
-        // Comparison recompute failure must not fail primary job
-        console.error("[shadow-pass] primary-side comparison recompute failed", err);
-      }
-    }
-
-    // If this is a shadow pass, compute cross-pass comparison and persist to group
-    if (job.passRole === "shadow" && job.groupId) {
-      try {
-        const [group] = await db
-          .select({
-            primaryJobId: schema.videoUploadGroups.primaryJobId,
-            comparisonJson: schema.videoUploadGroups.comparisonJson,
-          })
-          .from(schema.videoUploadGroups)
-          .where(eq(schema.videoUploadGroups.id, job.groupId))
-          .limit(1);
-
-        if (group?.primaryJobId) {
-          const comparison = await computePassComparison(group.primaryJobId, job.id);
-          await db
-            .update(schema.videoUploadGroups)
-            .set({
-              comparisonJson: mergeGroupComparisons(group.comparisonJson, {
-                extraction_shadow: comparison,
-              }),
-              updatedAt: new Date(),
-            })
-            .where(eq(schema.videoUploadGroups.id, job.groupId));
-        }
-      } catch {
-        // Comparison failure must not fail shadow job
       }
     }
 
