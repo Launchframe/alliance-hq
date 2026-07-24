@@ -1,0 +1,14 @@
+Last War Credential Capture Tool (Mac / BlueStacks fork)
+=========================================================
+
+This directory is a derivative of:
+
+  LastWarTools/Capture-Tool
+  https://github.com/LastWarTools/Capture-Tool
+
+Upstream is licensed under the GNU General Public License v3.0.
+See LICENSE in this directory.
+
+Alliance HQ application code outside this directory is NOT under GPL.
+Do not import modules from this directory into the Next.js app bundle.
+Treat this as a standalone lab tool distributed under GPLv3.
