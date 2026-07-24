@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import {
@@ -36,6 +36,14 @@ import { BANK_READ_PERMISSION } from "@/lib/rbac/constants";
 import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 import { readDetectedBankContextFromRawExtract } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
 import type { DetectedBankContext } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
+import {
+  expectedVsRowCount,
+  isShadowPassTerminalStatus,
+} from "@/lib/video/early-shadow-eligibility.shared";
+import {
+  isVideoDevShadowWithholdUxEnabled,
+  resolveShadowWithholdEscapeMs,
+} from "@/lib/video/early-shadow-dev.shared";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -231,6 +239,43 @@ export async function GET(_request: Request, { params }: Props) {
         );
     }
 
+    let expectedRowCount: number | null = null;
+    let shadowPassInFlight = false;
+    let surveyRowCountEstimate: number | null = null;
+    if (scoreTargetId === "vs-performance") {
+      const [survey] = await db
+        .select({
+          rowCountEstimate: schema.videoJobSurveys.rowCountEstimate,
+        })
+        .from(schema.videoJobSurveys)
+        .where(eq(schema.videoJobSurveys.jobId, jobId))
+        .limit(1);
+      surveyRowCountEstimate = survey?.rowCountEstimate ?? null;
+      expectedRowCount = expectedVsRowCount({
+        rosterSize: members.length,
+        surveyRowCountEstimate,
+      });
+
+      if (job.groupId) {
+        const [shadowJob] = await db
+          .select({
+            id: schema.videoJobs.id,
+            status: schema.videoJobs.status,
+          })
+          .from(schema.videoJobs)
+          .where(
+            and(
+              eq(schema.videoJobs.groupId, job.groupId),
+              eq(schema.videoJobs.passRole, "shadow"),
+            ),
+          )
+          .limit(1);
+        if (shadowJob) {
+          shadowPassInFlight = !isShadowPassTerminalStatus(shadowJob.status);
+        }
+      }
+    }
+
     return NextResponse.json({
       job: {
         id: job.id,
@@ -268,6 +313,16 @@ export async function GET(_request: Request, { params }: Props) {
       detectedBankContext,
       rows,
       members,
+      expectedRowCount,
+      surveyRowCountEstimate,
+      shadowPassInFlight,
+      devShadowUx:
+        scoreTargetId === "vs-performance"
+          ? {
+              forceInadequate: isVideoDevShadowWithholdUxEnabled(),
+              withholdEscapeMs: resolveShadowWithholdEscapeMs(),
+            }
+          : null,
     });
   } catch (error) {
     return NextResponse.json(

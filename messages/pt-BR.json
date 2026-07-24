@@ -3887,6 +3887,7 @@
     "loading": "Carregando…",
     "processing": "Processando ({status})… esta página atualiza automaticamente.",
     "pendingApproval": "Aguardando um processador de vídeo aprovar este envio. O OCR começará após a aprovação — esta página atualiza automaticamente.",
+    "shadowWithhold": "Ainda podemos estar coletando frames mais densos do ranking. A revisão abre quando essa passagem terminar (ou após uma breve espera).",
     "processingFailed": "Falha no processamento. Tente enviar novamente.",
     "stageQueued": "Aguardando na fila de processamento…",
     "stageExtracting": "Extraindo quadros do vídeo…",

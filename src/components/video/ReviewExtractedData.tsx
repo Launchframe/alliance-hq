@@ -53,6 +53,11 @@ import {
 import type { ManualRowPosition } from "@/lib/video/manual-row-position";
 import { mergeParsedRowInReviewOrder } from "@/lib/video/parsed-row-review-order";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
+import {
+  isPrimaryParseInadequate,
+  isShadowPassTerminalStatus,
+  VS_SHADOW_WITHHOLD_DEFAULT_MS,
+} from "@/lib/video/early-shadow-eligibility.shared";
 import { VideoPipelineStatsButton } from "@/components/video/VideoPipelineStatsDialog";
 import {
   ReviewVideoPreview,
@@ -110,6 +115,13 @@ import {
   videoJobEngineLabelKey,
   videoJobStageProgressPercent,
 } from "@/lib/video/video-job-stage.shared";
+
+/**
+ * After a shadow pass reaches review/complete, its comparison is written a
+ * moment later by the shadow worker (or recomputed by the primary). Keep the
+ * 3s group poll alive for at most this many extra ticks waiting for it.
+ */
+const SHADOW_COMPARISON_WAIT_MAX_POLLS = 20;
 
 type ParsedRow = {
   id: string;
@@ -324,6 +336,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [showComparisonPrompt, setShowComparisonPrompt] = useState(false);
   const [showComparisonSheet, setShowComparisonSheet] = useState(false);
   const [comparisonDismissed, setComparisonDismissed] = useState(false);
+  const [expectedRowCount, setExpectedRowCount] = useState<number | null>(null);
+  const [shadowPassInFlight, setShadowPassInFlight] = useState(false);
+  const [forceInadequate, setForceInadequate] = useState(false);
+  const [withholdEscapeMs, setWithholdEscapeMs] = useState(
+    VS_SHADOW_WITHHOLD_DEFAULT_MS,
+  );
+  const shadowWithholdEscapedByJobRef = useRef<Map<string, boolean>>(new Map());
+  const [shadowWithholdEscapeVersion, bumpShadowWithholdEscapeVersion] =
+    useState(0);
+  const withholdStartByJobRef = useRef<Map<string, number>>(new Map());
   const [rosterMembers, setRosterMembers] = useState<AshedMember[]>([]);
   const [allianceTag, setAllianceTag] = useState<string | null>(null);
   const [allianceName, setAllianceName] = useState<string | null>(null);
@@ -559,6 +581,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             }
           >;
           members?: AshedMember[];
+          expectedRowCount?: number | null;
+          shadowPassInFlight?: boolean;
+          devShadowUx?: {
+            forceInadequate?: boolean;
+            withholdEscapeMs?: number;
+          } | null;
         };
         if (isStale()) {
           return;
@@ -619,6 +647,19 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setDedupeReport(isDedupeReport(loadedDedupe) ? loadedDedupe : null);
         setDetectedBankContext(data.detectedBankContext ?? null);
         setScoreTargetMeta(data.scoreTargetMeta ?? null);
+        setExpectedRowCount(
+          typeof data.expectedRowCount === "number"
+            ? data.expectedRowCount
+            : null,
+        );
+        setShadowPassInFlight(Boolean(data.shadowPassInFlight));
+        setForceInadequate(Boolean(data.devShadowUx?.forceInadequate));
+        setWithholdEscapeMs(
+          typeof data.devShadowUx?.withholdEscapeMs === "number" &&
+            data.devShadowUx.withholdEscapeMs >= 1_000
+            ? data.devShadowUx.withholdEscapeMs
+            : VS_SHADOW_WITHHOLD_DEFAULT_MS,
+        );
         const serverRows = (data.rows ?? []).map((row) => ({
           ...row,
           scoreConflict: row.scoreConflict ?? 0,
@@ -984,24 +1025,187 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   useEffect(() => {
     const groupFetchStatuses = new Set(["review", "complete", "discarded"]);
     if (!groupFetchStatuses.has(jobStatus)) return;
-    void (async () => {
-      const res = await fetch(`/api/tools/video-upload/${jobId}/group`);
-      if (res.ok) {
-        const data = (await res.json()) as GroupInfo;
-        setGroupInfo(data);
-        const comp = data.group?.comparisonJson;
-        if (
-          viewMode === "review" &&
-          jobStatus === "review" &&
-          comp?.recommendedJobId &&
-          comp.recommendedJobId !== data.group?.selectedJobId &&
-          !comparisonDismissed
-        ) {
-          setShowComparisonPrompt(true);
-        }
+
+    let cancelled = false;
+    let stopPolling = false;
+    let comparisonWaitPolls = 0;
+
+    const fetchGroup = async () => {
+      let data: GroupInfo;
+      try {
+        const res = await fetch(`/api/tools/video-upload/${jobId}/group`);
+        if (!res.ok || cancelled) return;
+        data = (await res.json()) as GroupInfo;
+      } catch {
+        // Transient network failure — the next poll (if any) retries.
+        return;
       }
-    })();
-  }, [jobId, jobStatus, comparisonDismissed, viewMode]);
+      if (cancelled) return;
+      setGroupInfo(data);
+
+      // Ignore empty/error-shaped payloads so a failed poll cannot clobber the
+      // job-route shadowPassInFlight flag and drop the withhold gate early.
+      if (!data.group) {
+        return;
+      }
+
+      const shadowPass = data.passes.find((pass) => pass.passRole === "shadow");
+      if (shadowPass) {
+        setShadowPassInFlight(!isShadowPassTerminalStatus(shadowPass.status));
+      } else {
+        setShadowPassInFlight(false);
+      }
+
+      // Keep polling only while it can still change what we show: a running
+      // shadow (withhold gate) or a finished shadow whose comparison has not
+      // been written yet (comparison prompt). Otherwise stop the interval.
+      if (!shadowPass) {
+        stopPolling = true;
+      } else if (isShadowPassTerminalStatus(shadowPass.status)) {
+        const waitingForComparison =
+          (shadowPass.status === "review" ||
+            shadowPass.status === "complete") &&
+          !data.group?.comparisonJson;
+        comparisonWaitPolls += 1;
+        stopPolling =
+          !waitingForComparison ||
+          comparisonWaitPolls > SHADOW_COMPARISON_WAIT_MAX_POLLS;
+      } else {
+        comparisonWaitPolls = 0;
+        stopPolling = false;
+      }
+
+      const comp = data.group?.comparisonJson;
+      if (
+        viewMode === "review" &&
+        jobStatus === "review" &&
+        comp?.recommendedJobId &&
+        comp.recommendedJobId !== data.group?.selectedJobId &&
+        !comparisonDismissed
+      ) {
+        setShowComparisonPrompt(true);
+      }
+    };
+
+    void fetchGroup();
+
+    const shouldPoll =
+      viewMode === "review" &&
+      jobStatus === "review" &&
+      scoreTargetMeta?.id === "vs-performance";
+    const intervalId = shouldPoll
+      ? window.setInterval(() => {
+          if (stopPolling) {
+            window.clearInterval(intervalId);
+            return;
+          }
+          void fetchGroup();
+        }, 3_000)
+      : undefined;
+
+    return () => {
+      cancelled = true;
+      if (intervalId != null) window.clearInterval(intervalId);
+    };
+  }, [
+    jobId,
+    jobStatus,
+    comparisonDismissed,
+    viewMode,
+    scoreTargetMeta?.id,
+  ]);
+
+  const uniqueActiveRowCount = useMemo(
+    () => rows.filter((row) => !row.deleted).length,
+    [rows],
+  );
+
+  const shadowPassStillRunning = useMemo(() => {
+    const shadowPass = groupInfo?.passes.find(
+      (pass) => pass.passRole === "shadow",
+    );
+    if (shadowPass) {
+      return !isShadowPassTerminalStatus(shadowPass.status);
+    }
+    return shadowPassInFlight;
+  }, [groupInfo, shadowPassInFlight]);
+
+  const shadowWithholdEscaped =
+    shadowWithholdEscapedByJobRef.current.get(jobId) ?? false;
+
+  const shouldWithholdForShadow = useMemo(() => {
+    void shadowWithholdEscapeVersion;
+    if (viewMode !== "review") return false;
+    if (jobStatus !== "review") return false;
+    if (scoreTargetMeta?.id !== "vs-performance") return false;
+    if (shadowWithholdEscaped) return false;
+    if (
+      !isPrimaryParseInadequate({
+        activeRowCount: uniqueActiveRowCount,
+        expectedRows: expectedRowCount,
+        forceInadequate,
+      })
+    ) {
+      return false;
+    }
+    return shadowPassStillRunning;
+  }, [
+    viewMode,
+    jobStatus,
+    scoreTargetMeta?.id,
+    uniqueActiveRowCount,
+    expectedRowCount,
+    forceInadequate,
+    shadowPassStillRunning,
+    shadowWithholdEscapeVersion,
+  ]);
+
+  useEffect(() => {
+    const candidate =
+      viewMode === "review" &&
+      jobStatus === "review" &&
+      scoreTargetMeta?.id === "vs-performance" &&
+      isPrimaryParseInadequate({
+        activeRowCount: uniqueActiveRowCount,
+        expectedRows: expectedRowCount,
+        forceInadequate,
+      }) &&
+      shadowPassStillRunning;
+
+    if (!candidate) {
+      withholdStartByJobRef.current.delete(jobId);
+      return;
+    }
+
+    let start = withholdStartByJobRef.current.get(jobId);
+    if (start == null) {
+      start = Date.now();
+      withholdStartByJobRef.current.set(jobId, start);
+    }
+    const elapsed = Date.now() - start;
+    const remaining = withholdEscapeMs - elapsed;
+    const markEscaped = () => {
+      shadowWithholdEscapedByJobRef.current.set(jobId, true);
+      bumpShadowWithholdEscapeVersion((version) => version + 1);
+    };
+    if (remaining <= 0) {
+      markEscaped();
+      return;
+    }
+    const timeoutId = window.setTimeout(markEscaped, remaining);
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    jobId,
+    viewMode,
+    jobStatus,
+    scoreTargetMeta?.id,
+    uniqueActiveRowCount,
+    expectedRowCount,
+    forceInadequate,
+    shadowPassStillRunning,
+    withholdEscapeMs,
+    shadowWithholdEscapeVersion,
+  ]);
 
   const updateGroupSelection = useCallback(
     async (
@@ -1868,6 +2072,24 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             </p>
           ) : null}
         </div>
+        <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
+          {t("backToUploads")}
+        </Link>
+      </div>
+    );
+  }
+
+  if (shouldWithholdForShadow) {
+    return (
+      <div className="space-y-4">
+        {renderActionErrorBanner()}
+        <p
+          className="text-sm text-hq-fg-muted"
+          role="status"
+          data-testid="video-shadow-withhold"
+        >
+          {t("shadowWithhold")}
+        </p>
         <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
           {t("backToUploads")}
         </Link>
