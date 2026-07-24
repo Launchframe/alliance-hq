@@ -45,10 +45,8 @@ async function postVsPerformanceDiscordMessage(
   allianceId: string,
   message: string,
 ): Promise<{ posted: number; skipped: number }> {
-  const channels = await listRegisteredGuildsWithVsPerformanceChannel();
-  const allianceChannels = channels.filter(
-    (target) => target.allianceId === allianceId,
-  );
+  const allianceChannels =
+    await listRegisteredGuildsWithVsPerformanceChannel(allianceId);
   if (allianceChannels.length === 0) {
     return { posted: 0, skipped: 1 };
   }

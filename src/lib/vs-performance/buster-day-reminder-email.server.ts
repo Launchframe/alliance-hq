@@ -99,7 +99,7 @@ export async function sendBusterDayReminderEmails(input: {
       });
       if (res.ok) sent += 1;
     } catch {
-      // Best-effort; cron retries while sentAt is still null.
+      // Best-effort per recipient; cron retries when the claim is released.
     }
   }
   return { sent };
