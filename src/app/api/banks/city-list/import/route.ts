@@ -11,6 +11,7 @@ import { cityListImportBankIdentityError } from "@/lib/banks/city-list-import-re
 import { reloadBankManagementDashboard } from "@/lib/banks/reload-dashboard.server";
 import {
   listBanksForAlliance,
+  markBanksDropDeadlineAt,
   updateAllianceBankCityListSnapshot,
   upsertBanksFromCityList,
   type CityListBankUpsertInput,
@@ -36,6 +37,8 @@ type ImportCityListBody = {
   capturesRemainingToday?: number | null;
   capturesLimitToday?: number | null;
   serverTime?: string | null;
+  /** When true, set dropByAt=now on HQ banks not present in this import. */
+  archiveMissingBanks?: boolean;
 };
 
 function asFiniteNumber(value: unknown): number | null {
@@ -205,24 +208,31 @@ export async function POST(request: Request) {
       bankCityListCapturedCap: capturedLimit,
     });
 
-    const warnings: string[] = [];
-    if (isComplete) {
-      const importedKeys = new Set(
-        parsed.banks.map((bank) =>
+    const importedKeys = new Set(
+      parsed.banks.map((bank) =>
+        bankKey(bank.gameServerNumber, bank.coordX, bank.coordY),
+      ),
+    );
+    const extraHq = existingBanks.filter(
+      (bank) =>
+        !importedKeys.has(
           bankKey(bank.gameServerNumber, bank.coordX, bank.coordY),
         ),
+    );
+
+    const warnings: string[] = [];
+    const archiveMissingBanks = body.archiveMissingBanks === true;
+
+    if (archiveMissingBanks && isComplete && extraHq.length > 0) {
+      await markBanksDropDeadlineAt(
+        allianceId,
+        extraHq.map((bank) => bank.id),
+        new Date(),
       );
-      const extraHq = existingBanks.filter(
-        (bank) =>
-          !importedKeys.has(
-            bankKey(bank.gameServerNumber, bank.coordX, bank.coordY),
-          ),
+    } else if (isComplete && extraHq.length > 0) {
+      warnings.push(
+        "HQ has banks not shown in this screenshot. They were left unchanged.",
       );
-      if (extraHq.length > 0) {
-        warnings.push(
-          "HQ has banks not shown in this screenshot. They were left unchanged.",
-        );
-      }
     }
 
     const dashboard = await reloadBankManagementDashboard(
@@ -232,6 +242,9 @@ export async function POST(request: Request) {
     return NextResponse.json({
       dashboard,
       ...(warnings.length > 0 ? { warnings } : {}),
+      ...(archiveMissingBanks && isComplete && extraHq.length > 0
+        ? { archivedMissingCount: extraHq.length }
+        : {}),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected error.";

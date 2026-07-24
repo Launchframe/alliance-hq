@@ -127,3 +127,73 @@ export function cityListReviewRowsHaveErrors(
         .length > 0,
   );
 }
+
+/** Exact alliance City List identity key: `server:x:y`. */
+export function cityListBankCoordKey(
+  gameServerNumber: number,
+  coordX: number,
+  coordY: number,
+): string {
+  return `${gameServerNumber}:${coordX}:${coordY}`;
+}
+
+export type CityListImportRowPresence = {
+  /** Review rows that match an existing HQ bank by exact server+X+Y. */
+  existingCount: number;
+  /** Review rows that do not match any HQ bank (will insert). */
+  newCount: number;
+};
+
+/**
+ * Classify reviewed import rows against current HQ banks by exact
+ * `server:x:y`. Placeholder (0,0) rows never count as existing.
+ */
+export function classifyCityListImportRowsAgainstHq(
+  rows: readonly {
+    gameServerNumber: number;
+    coordX: number;
+    coordY: number;
+  }[],
+  existingBanks: readonly {
+    gameServerNumber: number;
+    coordX: number;
+    coordY: number;
+  }[],
+): CityListImportRowPresence & {
+  existingKeys: Set<string>;
+  rowExistsInHq: (row: {
+    gameServerNumber: number;
+    coordX: number;
+    coordY: number;
+  }) => boolean;
+} {
+  const existingKeys = new Set(
+    existingBanks.map((bank) =>
+      cityListBankCoordKey(bank.gameServerNumber, bank.coordX, bank.coordY),
+    ),
+  );
+
+  const rowExistsInHq = (row: {
+    gameServerNumber: number;
+    coordX: number;
+    coordY: number;
+  }): boolean => {
+    if (isCityListPlaceholderCoords(row.coordX, row.coordY)) return false;
+    return existingKeys.has(
+      cityListBankCoordKey(row.gameServerNumber, row.coordX, row.coordY),
+    );
+  };
+
+  let existingCount = 0;
+  let newCount = 0;
+  for (const row of rows) {
+    if (isCityListPlaceholderCoords(row.coordX, row.coordY)) {
+      // Incomplete pads — count as neither until filled.
+      continue;
+    }
+    if (rowExistsInHq(row)) existingCount += 1;
+    else newCount += 1;
+  }
+
+  return { existingCount, newCount, existingKeys, rowExistsInHq };
+}

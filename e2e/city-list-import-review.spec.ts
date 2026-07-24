@@ -111,16 +111,16 @@ test.describe("City List import review (responsive)", () => {
 
     await openCityListReview(page);
 
-    await expect(page.getByText(/New Bank 1 of 2/i)).toBeVisible();
+    await expect(page.getByText(/Bank 1 of 2/i)).toBeVisible();
     await expect(page.getByRole("progressbar")).toBeVisible();
     // Desktop table stays in the DOM with `hidden md:block`.
     await expect(page.locator("table")).toBeHidden();
 
     await page.getByRole("button", { name: /^next$/i }).click();
-    await expect(page.getByText(/New Bank 2 of 2/i)).toBeVisible();
+    await expect(page.getByText(/Bank 2 of 2/i)).toBeVisible();
 
     await page.getByRole("button", { name: /^previous$/i }).click();
-    await expect(page.getByText(/New Bank 1 of 2/i)).toBeVisible();
+    await expect(page.getByText(/Bank 1 of 2/i)).toBeVisible();
 
     await page
       .getByRole("button", { name: /preview screenshots/i })
@@ -146,7 +146,7 @@ test.describe("City List import review (responsive)", () => {
     await expect(reviewTable).toBeVisible();
     await expect(reviewTable.getByText(/stronghold level/i)).toBeVisible();
     // Mobile stepper copy is `md:hidden`.
-    await expect(page.getByText(/New Bank 1 of 2/i)).toBeHidden();
+    await expect(page.getByText(/Bank 1 of 2/i)).toBeHidden();
     await expect(page.getByRole("progressbar")).toBeHidden();
 
     await expect(
@@ -172,11 +172,11 @@ test.describe("City List import review (captured count padding)", () => {
 
     // Header said 3 banks captured; OCR only returned 2 — a 3rd blank row
     // is padded in so the officer can fill it in manually.
-    await expect(page.getByText(/New Bank 1 of 3/i)).toBeVisible();
+    await expect(page.getByText(/Bank 1 of 3/i)).toBeVisible();
 
     await page.getByRole("button", { name: /^next$/i }).click();
     await page.getByRole("button", { name: /^next$/i }).click();
-    await expect(page.getByText(/New Bank 3 of 3/i)).toBeVisible();
+    await expect(page.getByText(/Bank 3 of 3/i)).toBeVisible();
 
     // Submitting without filling in the padded row's coordinates surfaces
     // validation errors instead of silently importing a (0, 0) bank.

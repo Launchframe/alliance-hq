@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import {
@@ -124,6 +124,34 @@ export async function upsertBanksFromCityList(
   }
 
   return results;
+}
+
+/**
+ * Soft-archive HQ banks not pictured in a City List import by setting
+ * `dropByAt` to `at` (typically now). Banks move into the Past drop deadline
+ * section; deposit history is retained. Never hard-deletes.
+ */
+export async function markBanksDropDeadlineAt(
+  allianceId: string,
+  bankIds: readonly string[],
+  at: Date = new Date(),
+): Promise<typeof schema.banks.$inferSelect[]> {
+  if (bankIds.length === 0) return [];
+  const db = getDb();
+  const now = new Date();
+  return db
+    .update(schema.banks)
+    .set({
+      dropByAt: at,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(schema.banks.allianceId, allianceId),
+        inArray(schema.banks.id, [...bankIds]),
+      ),
+    )
+    .returning();
 }
 
 export async function updateAllianceBankCityListSnapshot(
