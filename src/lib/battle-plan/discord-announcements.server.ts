@@ -49,6 +49,25 @@ export async function listGuildsWithBankingChannel(): Promise<ChannelTarget[]> {
   );
 }
 
+export async function listGuildsWithRegularEventsChannel(): Promise<
+  ChannelTarget[]
+> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      guildId: schema.discordGuildAlliances.guildId,
+      allianceId: schema.discordGuildAlliances.allianceId,
+      channelId: schema.discordGuildAlliances.regularEventsChannelId,
+    })
+    .from(schema.discordGuildAlliances)
+    .where(
+      sql`${schema.discordGuildAlliances.regularEventsChannelId} is not null`,
+    );
+  return rows.filter(
+    (r): r is ChannelTarget => Boolean(r.channelId?.trim()),
+  );
+}
+
 function groupByAlliance(targets: ChannelTarget[]): Map<string, string[]> {
   const map = new Map<string, string[]>();
   for (const t of targets) {
