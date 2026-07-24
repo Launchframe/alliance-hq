@@ -233,6 +233,7 @@ function ReviewActionErrorBanner({
 export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const router = useRouter();
   const t = useTranslations("videoReview");
+  const tJobs = useTranslations("admin.videoJobsPage");
   const tQueue = useTranslations("videoQueue");
   const tc = useTranslations("common");
   const tNav = useTranslations("nav");
@@ -328,6 +329,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [allianceTag, setAllianceTag] = useState<string | null>(null);
   const [allianceName, setAllianceName] = useState<string | null>(null);
   const [allianceStale, setAllianceStale] = useState(false);
+  const [canProcessVideo, setCanProcessVideo] = useState(false);
   const [rosterQuotaCanSubmit, setRosterQuotaCanSubmit] = useState(false);
   const [banks, setBanks] = useState<SerializedBank[]>([]);
   const [bankId, setBankId] = useState("");
@@ -525,6 +527,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         const res = await fetch(`/api/tools/video-upload/${jobId}`);
         const data = (await res.json()) as {
           error?: string;
+          canProcessVideo?: boolean;
           job?: {
             status: string;
             fileName?: string | null;
@@ -684,6 +687,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         );
         setAllianceName(data.alliance?.jobName ?? null);
         setAllianceStale(Boolean(data.alliance?.stale));
+        setCanProcessVideo(Boolean(data.canProcessVideo));
       } catch (err) {
         if (isStale()) {
           return;
@@ -1980,6 +1984,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             {t("backToUploads")}
           </Link>
           <div className="flex flex-wrap items-center gap-2">
+            {canProcessVideo && !allianceStale ? (
+              <Link
+                href={`/tools/video-jobs/${jobId}`}
+                className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted"
+              >
+                {tJobs("inspect")}
+              </Link>
+            ) : null}
             {canComparePasses ? (
               <button
                 type="button"

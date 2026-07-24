@@ -36,6 +36,7 @@ import { BANK_READ_PERMISSION } from "@/lib/rbac/constants";
 import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 import { readDetectedBankContextFromRawExtract } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
 import type { DetectedBankContext } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
+import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -231,7 +232,10 @@ export async function GET(_request: Request, { params }: Props) {
         );
     }
 
+    const canProcessVideo = await sessionCanProcessVideo(session.id);
+
     return NextResponse.json({
+      canProcessVideo,
       job: {
         id: job.id,
         status: job.status,
