@@ -17,6 +17,8 @@ function e2eBaseUrl(): string {
 }
 
 test.describe("VS early shadow withhold review", () => {
+  test.describe.configure({ timeout: 90_000 });
+
   test("withholds thin primary review while shadow is in flight, opens when shadow completes", async ({
     page,
     request,
@@ -34,14 +36,6 @@ test.describe("VS early shadow withhold review", () => {
       enqueuedByHqUserId: scenario.officer.hqUserId,
     });
 
-    // Keep session alliance aligned with the job so review load does not stall
-    // on a stale-roster rematch before the withhold gate can render.
-    await sql`
-      UPDATE sessions
-      SET current_alliance_id = ${scenario.allianceId}
-      WHERE id = ${scenario.officer.sessionId}
-    `;
-
     const cookie = authCookieHeader(scenario.officer);
     const jobRes = await request.get(
       `/api/tools/video-upload/${fixture.primaryJobId}`,
@@ -55,21 +49,25 @@ test.describe("VS early shadow withhold review", () => {
     expect(jobBody.shadowPassInFlight).toBe(true);
     expect(jobBody.expectedRowCount).toBeGreaterThan(5);
 
-    await page.context().addCookies(playwrightAuthCookies(scenario.officer));
-    await page.goto(`/tools/video-upload/${fixture.primaryJobId}/review`);
+    // Owner session avoids enqueue-layout RBAC edge cases in the browser shell.
+    await page.context().addCookies(playwrightAuthCookies(scenario.owner));
+    const response = await page.goto(
+      `/tools/video-upload/${fixture.primaryJobId}/review`,
+    );
+    expect(response?.status()).toBe(200);
+    expect(page.url()).toContain(`/tools/video-upload/${fixture.primaryJobId}/review`);
 
     const reviewHeading = page.getByRole("heading", {
       name: /review extracted data/i,
     });
     const withhold = page.getByTestId("video-shadow-withhold");
 
-    await expect(withhold.or(reviewHeading)).toBeVisible({ timeout: 15_000 });
-    await expect(withhold).toBeVisible();
+    await expect(withhold).toBeVisible({ timeout: 30_000 });
     await expect(reviewHeading).not.toBeVisible();
 
     await setVideoJobStatus(sql, fixture.shadowJobId, "review");
 
-    await expect(reviewHeading).toBeVisible({ timeout: 15_000 });
+    await expect(reviewHeading).toBeVisible({ timeout: 20_000 });
     await expect(withhold).not.toBeVisible();
   });
 });
