@@ -4085,6 +4085,7 @@
     "depositSlipMissingTsCoveredAbsorbed": "Sem horário (duplicata)",
     "depositSlipFlaggedTitle": "{count, plural, one {# agrupamento ainda precisa de revisão.} other {# agrupamentos ainda precisam de revisão.}}",
     "depositSlipFlaggedHint": "Revise ou exclua as linhas abaixo para que cada depósito apareça uma vez. Você ainda pode salvar quando todas as linhas estiverem completas.",
+    "depositSlipStaleClusterNote": "O relatório salvo do agrupamento não corresponde mais a estes IDs de linha. As ações abaixo afetam apenas a tabela ao vivo.",
     "depositSlipOverlappingLockedTitle": "Depósitos bloqueados sobrepostos",
     "depositSlipOverlappingLockedHint": "Dois ou mais depósitos bloqueados do mesmo comandante têm prazos sobrepostos. O jogo só permite um depósito aberto por vez. Revise as linhas abaixo e exclua ou corrija qualquer erro. Você ainda pode salvar se tiver certeza de que os dados estão corretos.",
     "depositSlipOverlappingLockedGroup": "{commander} — {count, plural, one {# linha sobreposta} other {# linhas sobrepostas}}",

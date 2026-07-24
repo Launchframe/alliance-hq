@@ -2716,6 +2716,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             highlightedRowId={
               scoreTableFollowMeEnabled ? activeFollowMeRowId : null
             }
+            onJumpToRow={scrollToDepositSlipRow}
           />
         </>
       ) : (
