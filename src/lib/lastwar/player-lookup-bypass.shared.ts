@@ -38,6 +38,12 @@ export const PLAYER_UID_BYPASS_ENTRIES: readonly PlayerUidBypassEntry[] = [
     descriptionKey: "wrongServer",
   },
   {
+    uid: "1234567890121291",
+    gameUserName: "E2eCrossServerKnown",
+    gameServerNumber: 1205,
+    descriptionKey: "wrongServer",
+  },
+  {
     uid: "1234567890121206",
     gameUserName: "Mew2407",
     gameServerNumber: 1203,
