@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { Button } from "@/components/ui/button";
 import {
+  DEPOSIT_SLIP_CLEARED_MEMBER_MATCH,
   depositSlipMemberMatchBorderClass,
 } from "@/lib/banks/deposit-slip-ocr/deposit-slip-member-match.shared";
 import {
@@ -597,12 +598,7 @@ export function DepositSlipVideoReviewTable({
                           value={row.memberId ?? ""}
                           onChange={(next) => {
                             if (!next) {
-                              onUpdateRow(row.id, {
-                                memberId: null,
-                                memberName: null,
-                                matchConfidence: 0,
-                                matchMethod: "none",
-                              });
+                              onUpdateRow(row.id, DEPOSIT_SLIP_CLEARED_MEMBER_MATCH);
                               return;
                             }
                             // Roster may omit a previously selected member
@@ -660,12 +656,7 @@ export function DepositSlipVideoReviewTable({
                           aria-label={t("clearMemberMatch")}
                           title={t("clearMemberMatch")}
                           onClick={() =>
-                            onUpdateRow(row.id, {
-                              memberId: null,
-                              memberName: null,
-                              matchConfidence: 0,
-                              matchMethod: "none",
-                            })
+                            onUpdateRow(row.id, DEPOSIT_SLIP_CLEARED_MEMBER_MATCH)
                           }
                         >
                           <X className="h-4 w-4" aria-hidden />
