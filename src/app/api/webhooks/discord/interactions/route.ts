@@ -126,6 +126,10 @@ import {
   buildProfessionSelectButtons,
   buildProfessionSwitchConfirmButtons,
 } from "@/lib/discord/interactions";
+import {
+  handleDiscordMyTimeOff,
+  handleDiscordIsAllyOffline,
+} from "@/lib/time-off/discord-bot-handlers.server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -777,6 +781,34 @@ async function handleSlashCommand(
       locale,
     });
     return discordMessageResponse(result.reply);
+  }
+
+  if (commandName === "my-time-off") {
+    const message = parseSlashOptionString(payload, "upcoming");
+    const start = parseSlashOptionString(payload, "start");
+    const end = parseSlashOptionString(payload, "end");
+    const result = await handleDiscordMyTimeOff({
+      allianceId,
+      discordUserId,
+      locale,
+      message,
+      start,
+      end,
+    });
+    return discordMessageResponse(result.reply, undefined, { ephemeral: false });
+  }
+
+  if (commandName === "is-ally-offline") {
+    const commander = parseSlashOptionString(payload, "commander");
+    const date = parseSlashOptionString(payload, "date");
+    const result = await handleDiscordIsAllyOffline({
+      allianceId,
+      discordUserId,
+      locale,
+      commander,
+      date,
+    });
+    return discordMessageResponse(result.reply, undefined, { ephemeral: false });
   }
 
   return discordMessageResponse(t("errors.unknownCommand"));
