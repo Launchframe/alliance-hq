@@ -4586,7 +4586,8 @@
       "deniedOwnerOnly": "Esta aliança exige que o R5 / dono defina canais de anúncio no Discord. Peça ao dono, ou peça para voltar a permitir R4+ em Alliance HQ → Configurações → Trens.",
       "seasonalEventsSuccess": "✅ Canal de eventos sazonais definido para **{tag}**. Contagens regressivas de captura serão publicadas em {channel}.",
       "regularEventsSuccess": "✅ Canal de eventos regulares definido para **{tag}**. Anúncios de eventos serão publicados em {channel}.",
-      "bankingSuccess": "✅ Canal bancário definido para **{tag}**. Alertas de timer de proteção serão publicados em {channel}."
+      "bankingSuccess": "✅ Canal bancário definido para **{tag}**. Alertas de timer de proteção serão publicados em {channel}.",
+      "vsPerformanceSuccess": "✅ Canal de VS Performance definido para **{tag}**. Relatórios de pontuações analisadas e finalizadas serão publicados em {channel}."
     },
     "link": {
       "userPrompt": "Clique no link abaixo para vincular sua conta do Discord ao Alliance HQ (expira em 30 min):\n{url}\n\nDepois, execute `/help` no Discord para o próximo passo.",

@@ -874,6 +874,19 @@ export async function processVideoJob(
       void notifyEurVideoEvidence(allianceId).catch(() => {});
     }
 
+    if (scoreTargetId === "vs-performance" && allianceId && parseSessionId) {
+      const { announceVsPerformanceParsedToDiscord } = await import(
+        "@/lib/vs-performance/vs-performance-discord.server"
+      );
+      void announceVsPerformanceParsedToDiscord({
+        allianceId,
+        jobId,
+        parseSessionId,
+      }).catch((error) => {
+        console.error("[vs-performance-discord] parse-complete announce failed", error);
+      });
+    }
+
     void dispatchVideoArchive(jobId);
 
     timer.log(`job ${jobId} complete`, {
