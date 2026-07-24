@@ -324,33 +324,6 @@ test.describe("Member-link onboarding outcomes", () => {
     expect(requestId).toBeNull();
   });
 
-  test("honor flow alliance-home choice continues onboarding", async ({ page }) => {
-    const sql = getE2eSql();
-    const { accepted, email } = await seedUnlinkedMemberOnboardSession(sql);
-
-    await page.context().addCookies(
-      playwrightAuthCookies({
-        sessionId: accepted.sessionId,
-        hqUserId: accepted.hqUserId,
-        email,
-        nextAuthToken: accepted.nextAuthToken,
-      }),
-    );
-    await openMemberLinkForm(page);
-
-    await submitUidAndReachHomeServerConfirm(page, "1234567890121205");
-
-    const linkResponse = page.waitForResponse(isMemberLinkSubmitResponse);
-    await page
-      .getByRole("button", { name: /on server 1203/i })
-      .click();
-    const response = await linkResponse;
-    expect(response.ok()).toBe(true);
-    const body = (await response.json()) as { outcome?: string };
-    expect(body.outcome).not.toBe("confirm_home_server");
-    expect(body.outcome).not.toBe("wrong_server");
-  });
-
   test("honor flow lookup-home choice shows workaround", async ({ page }) => {
     const sql = getE2eSql();
     const { accepted, email } = await seedUnlinkedMemberOnboardSession(sql);
@@ -380,6 +353,33 @@ test.describe("Member-link onboarding outcomes", () => {
     await expect(
       page.getByRole("heading", { name: /send your commander home/i }),
     ).toBeVisible();
+  });
+
+  test("honor flow alliance-home choice continues onboarding", async ({ page }) => {
+    const sql = getE2eSql();
+    const { accepted, email } = await seedUnlinkedMemberOnboardSession(sql);
+
+    await page.context().addCookies(
+      playwrightAuthCookies({
+        sessionId: accepted.sessionId,
+        hqUserId: accepted.hqUserId,
+        email,
+        nextAuthToken: accepted.nextAuthToken,
+      }),
+    );
+    await openMemberLinkForm(page);
+
+    await submitUidAndReachHomeServerConfirm(page, "1234567890121205");
+
+    const linkResponse = page.waitForResponse(isMemberLinkSubmitResponse);
+    await page
+      .getByRole("button", { name: /on server 1203/i })
+      .click();
+    const response = await linkResponse;
+    expect(response.ok()).toBe(true);
+    const body = (await response.json()) as { outcome?: string };
+    expect(body.outcome).not.toBe("confirm_home_server");
+    expect(body.outcome).not.toBe("wrong_server");
   });
 
   test("known commander bypasses position gate when lookup server differs", async ({
