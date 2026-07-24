@@ -6062,7 +6062,8 @@
       "seasonalEventsSuccess": "✅ Seasonal events channel set for **{tag}**. Capture countdowns will be posted to {channel}.",
       "regularEventsSuccess": "✅ Regular events channel set for **{tag}**. Event announcements will be posted to {channel}.",
       "r4Success": "✅ R4 channel set for **{tag}**. In-game schedule reminders will post to {channel}.",
-      "bankingSuccess": "✅ Banking channel set for **{tag}**. Protection timer alerts will be posted to {channel}."
+      "bankingSuccess": "✅ Banking channel set for **{tag}**. Protection timer alerts will be posted to {channel}.",
+      "vsPerformanceSuccess": "✅ VS Performance channel set for **{tag}**. Parsed and finalized VS score reports will be posted to {channel}."
     },
     "regularEvents": {
       "startsInOneHour": "{event} starts in 1 hour ({time} server time).",

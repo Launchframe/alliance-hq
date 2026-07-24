@@ -6009,7 +6009,8 @@
       "seasonalEventsSuccess": "✅ Canal de eventos sazonais definido para **{tag}**. Contagens regressivas de captura serão publicadas em {channel}.",
       "regularEventsSuccess": "✅ Canal de eventos regulares definido para **{tag}**. Anúncios de eventos serão publicados em {channel}.",
       "r4Success": "✅ Canal R4 definido para **{tag}**. Lembretes de agenda no jogo serão publicados em {channel}.",
-      "bankingSuccess": "✅ Canal bancário definido para **{tag}**. Alertas de timer de proteção serão publicados em {channel}."
+      "bankingSuccess": "✅ Canal bancário definido para **{tag}**. Alertas de timer de proteção serão publicados em {channel}.",
+      "vsPerformanceSuccess": "✅ Canal de VS Performance definido para **{tag}**. Relatórios de pontuações analisadas e finalizadas serão publicados em {channel}."
     },
     "regularEvents": {
       "startsInOneHour": "{event} começa em 1 hora ({time} horário do servidor).",

@@ -18,9 +18,22 @@ import { getSolicitedEligibility } from "@/lib/feedback/solicited-eligibility";
 import { notifyEurVideoEvidence } from "@/lib/eur/satisfaction";
 import { announcePriceIsRightLeaderboardAfterVsUpload } from "@/lib/trains/price-is-right-leaderboard-discord.server";
 import { maybeNominateConductorAfterVsUpload } from "@/lib/trains/conductor-confirmation.server";
+import { announceVsPerformanceFinalizedToDiscord } from "@/lib/vs-performance/vs-performance-discord.server";
 
 import { vsEvidenceErrorResponse } from "./errors.server";
 export { vsEvidenceErrorResponse } from "./errors.server";
+
+function announceFinalizedVsReview(allianceId: string, recordedDate: string, period: "daily" | "weekly", rows: readonly VsReviewRow[], automaticDeletedIds?: readonly string[]) {
+  const autoDeleted = new Set(automaticDeletedIds ?? []);
+  return announceVsPerformanceFinalizedToDiscord({
+    allianceId, recordedDate, vsPeriod: period,
+    rows: rows
+      .filter((row) => !row.deleted && !autoDeleted.has(row.id))
+      .map((row) => ({ rank: row.rank ?? null, memberName: row.memberName ?? null, score: row.score == null ? null : String(row.score), deleted: 0 })),
+  }).catch((error) => {
+    console.error("[vs-performance-discord] finalize announce failed", error);
+  });
+}
 
 export async function submitVsReview(input: {
   sessionId: string; hqUserId: string | null; job: VideoJob;
@@ -57,6 +70,7 @@ export async function submitVsReview(input: {
                 notifyEurVideoEvidence(allianceId),
                 announcePriceIsRightLeaderboardAfterVsUpload({ allianceId, vsRecordedDate: input.body.recordedDate! }),
                 maybeNominateConductorAfterVsUpload({ allianceId, vsRecordedDate: input.body.recordedDate! }),
+                announceFinalizedVsReview(allianceId, input.body.recordedDate!, period, input.body.rows, input.automaticDeletedIds),
                 syncVsScoresForAlliance(allianceId),
               ]),
           ...(matchResult.replayed
@@ -82,6 +96,7 @@ export async function submitVsReview(input: {
         notifyEurVideoEvidence(allianceId),
         announcePriceIsRightLeaderboardAfterVsUpload({ allianceId, vsRecordedDate: input.body.recordedDate! }),
         maybeNominateConductorAfterVsUpload({ allianceId, vsRecordedDate: input.body.recordedDate! }),
+        announceFinalizedVsReview(allianceId, input.body.recordedDate!, period, input.body.rows, input.automaticDeletedIds),
         syncVsScoresForAlliance(allianceId),
       ]);
     });
