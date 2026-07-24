@@ -1,10 +1,11 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Video } from "lucide-react";
+import { ChevronDown, ChevronRight, Video, X } from "lucide-react";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
+import { Button } from "@/components/ui/button";
 import {
   depositSlipMemberMatchBorderClass,
 } from "@/lib/banks/deposit-slip-ocr/deposit-slip-member-match.shared";
@@ -590,61 +591,87 @@ export function DepositSlipVideoReviewTable({
                     />
                   </td>
                   <td className="min-w-[8rem] px-3 py-2 align-top sm:min-w-[11rem]">
-                    <AppSelect
-                      value={row.memberId ?? ""}
-                      onChange={(next) => {
-                        if (!next) {
-                          onUpdateRow(row.id, {
-                            memberId: null,
-                            memberName: null,
-                            matchConfidence: 0,
-                            matchMethod: "none",
-                          });
-                          return;
-                        }
-                        // Roster may omit a previously selected member
-                        // (cross-device); keep the stored label via rows.
-                        const fromRoster = members.find((m) => m.id === next);
-                        const fromSelected = rows.find(
-                          (r) => r.memberId === next && r.memberName,
-                        );
-                        onUpdateRow(row.id, {
-                          memberId: next,
-                          memberName:
-                            fromRoster?.current_name ??
-                            fromSelected?.memberName ??
-                            (row.memberId === next ? row.memberName : null) ??
-                            null,
-                          matchConfidence: 1,
-                          // Commit honors preferredAshedMemberId only when
-                          // matchMethod is a real auto-link method (not "none").
-                          matchMethod: "exact",
-                          ...(rosterAllianceTag?.trim()
-                            ? { allianceRankTitle: rosterAllianceTag.trim() }
-                            : {}),
-                        });
-                      }}
-                      aria-label={t("colMember")}
-                      placeholder={t("unmatched")}
-                      triggerClassName={`px-2 py-1.5 ${
-                        row.memberId
-                          ? depositSlipMemberMatchBorderClass(row.matchConfidence)
-                          : "border-hq-border"
-                      }`}
-                      searchable
-                      searchMode="fuzzy"
-                      combobox
-                      hideEmptyOptionWhileSearching
-                      searchPlaceholder={tMembers("searchPlaceholder")}
-                      noSearchResultsLabel={t("memberSearchNoResults")}
-                      options={buildMemberMatchSelectOptions(members, {
-                        emptyLabel: t("unmatched"),
-                        highlightMemberId: row.memberId,
-                        highlightConfidence: row.matchConfidence,
-                        selectedMembers: rows,
-                        // Same commander may appear on multiple deposit rows.
-                      })}
-                    />
+                    <div className="flex items-start gap-1">
+                      <div className="min-w-0 flex-1">
+                        <AppSelect
+                          value={row.memberId ?? ""}
+                          onChange={(next) => {
+                            if (!next) {
+                              onUpdateRow(row.id, {
+                                memberId: null,
+                                memberName: null,
+                                matchConfidence: 0,
+                                matchMethod: "none",
+                              });
+                              return;
+                            }
+                            // Roster may omit a previously selected member
+                            // (cross-device); keep the stored label via rows.
+                            const fromRoster = members.find((m) => m.id === next);
+                            const fromSelected = rows.find(
+                              (r) => r.memberId === next && r.memberName,
+                            );
+                            onUpdateRow(row.id, {
+                              memberId: next,
+                              memberName:
+                                fromRoster?.current_name ??
+                                fromSelected?.memberName ??
+                                (row.memberId === next ? row.memberName : null) ??
+                                null,
+                              matchConfidence: 1,
+                              // Commit honors preferredAshedMemberId only when
+                              // matchMethod is a real auto-link method (not "none").
+                              matchMethod: "exact",
+                              ...(rosterAllianceTag?.trim()
+                                ? { allianceRankTitle: rosterAllianceTag.trim() }
+                                : {}),
+                            });
+                          }}
+                          aria-label={t("colMember")}
+                          placeholder={t("unmatched")}
+                          triggerClassName={`px-2 py-1.5 ${
+                            row.memberId
+                              ? depositSlipMemberMatchBorderClass(
+                                  row.matchConfidence,
+                                )
+                              : "border-hq-border"
+                          }`}
+                          searchable
+                          searchMode="fuzzy"
+                          combobox
+                          hideEmptyOptionWhileSearching
+                          searchPlaceholder={tMembers("searchPlaceholder")}
+                          noSearchResultsLabel={t("memberSearchNoResults")}
+                          options={buildMemberMatchSelectOptions(members, {
+                            emptyLabel: t("unmatched"),
+                            highlightMemberId: row.memberId,
+                            highlightConfidence: row.matchConfidence,
+                            selectedMembers: rows,
+                            // Same commander may appear on multiple deposit rows.
+                          })}
+                        />
+                      </div>
+                      {row.memberId ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0 text-hq-muted hover:text-hq-fg"
+                          aria-label={t("clearMemberMatch")}
+                          title={t("clearMemberMatch")}
+                          onClick={() =>
+                            onUpdateRow(row.id, {
+                              memberId: null,
+                              memberName: null,
+                              matchConfidence: 0,
+                              matchMethod: "none",
+                            })
+                          }
+                        >
+                          <X className="h-4 w-4" aria-hidden />
+                        </Button>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-3 py-2 align-top">
                     <input
