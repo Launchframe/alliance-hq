@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DEPOSIT_SLIP_CLEARED_MEMBER_MATCH,
   depositSlipMemberMatchBorderClass,
   depositSlipReviewMatchConfidence,
   isDepositSlipAutoLinkedMatchMethod,
@@ -35,6 +36,17 @@ describe("isDepositSlipAutoLinkedMatchMethod", () => {
     expect(isDepositSlipAutoLinkedMatchMethod("exact")).toBe(true);
     expect(isDepositSlipAutoLinkedMatchMethod("fuzzy")).toBe(true);
     expect(isDepositSlipAutoLinkedMatchMethod("previous_name")).toBe(true);
+  });
+});
+
+describe("DEPOSIT_SLIP_CLEARED_MEMBER_MATCH", () => {
+  it("nulls member fields and resets match metadata", () => {
+    expect(DEPOSIT_SLIP_CLEARED_MEMBER_MATCH).toEqual({
+      memberId: null,
+      memberName: null,
+      matchConfidence: 0,
+      matchMethod: "none",
+    });
   });
 });
 

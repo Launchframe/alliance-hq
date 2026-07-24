@@ -3949,6 +3949,7 @@
     "colScore": "Pontuação",
     "colKills": "Kills",
     "unmatched": "Selecionar membro…",
+    "clearMemberMatch": "Limpar correspondência do membro",
     "memberSearchNoResults": "Nenhum membro correspondente.",
     "deleteRow": "Excluir",
     "saveScores": "Salvar {count} pontuações",

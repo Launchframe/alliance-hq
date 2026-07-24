@@ -61,6 +61,14 @@ export function isDepositSlipAutoLinkedMatchMethod(
  * auto-link / near-miss thresholds as parse-time matching so officers are
  * not misled by the generic score-review border helper (≥0.9 solid).
  */
+/** Row patch applied when an officer clears a matched member (dropdown empty or X). */
+export const DEPOSIT_SLIP_CLEARED_MEMBER_MATCH = {
+  memberId: null,
+  memberName: null,
+  matchConfidence: 0,
+  matchMethod: "none",
+} as const;
+
 export function depositSlipMemberMatchBorderClass(
   confidence: number | null | undefined,
 ): string {

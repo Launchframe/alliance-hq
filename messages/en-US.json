@@ -4003,6 +4003,7 @@
     "colScore": "Score",
     "colKills": "Kills",
     "unmatched": "Select member…",
+    "clearMemberMatch": "Clear member match",
     "memberSearchNoResults": "No matching members.",
     "deleteRow": "Delete",
     "saveScores": "Save {count} scores",
