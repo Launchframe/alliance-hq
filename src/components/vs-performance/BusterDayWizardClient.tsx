@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
 import { ALLIANCE_KILLS_VIDEO_SCORE_TARGET } from "@/lib/video/score-targets";
@@ -74,19 +74,19 @@ function phaseBodyKey(
   }
 }
 
-function formatCompactNumber(value: number): string {
-  return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+function formatCompactNumber(value: number, locale: string): string {
+  return value.toLocaleString(locale, { maximumFractionDigits: 0 });
 }
 
-function formatPowerM(value: number): string {
-  return value.toLocaleString(undefined, {
+function formatPowerM(value: number, locale: string): string {
+  return value.toLocaleString(locale, {
     maximumFractionDigits: 2,
     minimumFractionDigits: 0,
   });
 }
 
-function formatEfficiency(value: number): string {
-  return value.toLocaleString(undefined, {
+function formatEfficiency(value: number, locale: string): string {
+  return value.toLocaleString(locale, {
     maximumFractionDigits: 1,
     minimumFractionDigits: 0,
   });
@@ -98,6 +98,7 @@ function EfficiencyReportTable({
   efficiency: EfficiencyPayload;
 }) {
   const t = useTranslations("busterDay");
+  const locale = useLocale();
 
   return (
     <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
@@ -137,22 +138,22 @@ function EfficiencyReportTable({
                 >
                   <td className="px-2 py-2 font-medium">{row.memberName}</td>
                   <td className="px-2 py-2 tabular-nums">
-                    {formatPowerM(row.powerLostM)}
+                    {formatPowerM(row.powerLostM, locale)}
                   </td>
                   <td className="px-2 py-2 tabular-nums">
-                    {formatCompactNumber(row.killsDelta)}
+                    {formatCompactNumber(row.killsDelta, locale)}
                   </td>
                   <td className="px-2 py-2 tabular-nums">
-                    {formatCompactNumber(row.estimatedKillPointsMin)}–
-                    {formatCompactNumber(row.estimatedKillPointsMax)}
+                    {formatCompactNumber(row.estimatedKillPointsMin, locale)}–
+                    {formatCompactNumber(row.estimatedKillPointsMax, locale)}
                   </td>
                   <td className="px-2 py-2 tabular-nums">
-                    {formatCompactNumber(row.netVsScore)}
+                    {formatCompactNumber(row.netVsScore, locale)}
                   </td>
                   <td className="px-2 py-2 tabular-nums">
                     {row.noEngagement || row.efficiencyRatio == null
                       ? t("report.noEngagement")
-                      : formatEfficiency(row.efficiencyRatio)}
+                      : formatEfficiency(row.efficiencyRatio, locale)}
                   </td>
                 </tr>
               ))}

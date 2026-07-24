@@ -339,19 +339,31 @@ export async function loadBusterDayWizardState(
   }
 
   const latestCompleted = await getLatestCompletedBusterDayReport(allianceId);
-  const efficiencySource =
+  const preferredEfficiencySource =
     reportRow &&
     isBusterDaySnapshotComplete({
       rosterJobId: reportRow.postRosterJobId,
       killsJobId: reportRow.postKillsJobId,
     })
       ? reportRow
-      : latestCompleted;
+      : null;
 
-  const efficiency = await efficiencyForCompletedReport(
+  let efficiency = await efficiencyForCompletedReport(
     allianceId,
-    efficiencySource,
+    preferredEfficiencySource,
   );
+  // Current week may look "post-complete" but still lack snapshot dates / pre
+  // jobs — fall back to the latest fully loadable completed report.
+  if (
+    !efficiency &&
+    latestCompleted &&
+    latestCompleted.id !== preferredEfficiencySource?.id
+  ) {
+    efficiency = await efficiencyForCompletedReport(
+      allianceId,
+      latestCompleted,
+    );
+  }
 
   return {
     phase,
