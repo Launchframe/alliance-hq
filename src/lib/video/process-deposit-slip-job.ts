@@ -18,6 +18,7 @@ import {
 } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import {
   createDepositSlipMemberResolverCache,
+  applyResolvedAllianceTagToDepositSlip,
   resolveDepositSlipMemberLinks,
 } from "@/lib/banks/deposit-slip-ocr/resolve-deposit-slip-member.server";
 import { getDb, schema } from "@/lib/db";
@@ -401,6 +402,10 @@ export async function finalizeDepositSlipVideoParse(input: {
       );
     },
   );
+
+  for (let i = 0; i < dedupedSlips.length; i++) {
+    applyResolvedAllianceTagToDepositSlip(dedupedSlips[i]!, resolvedLinks[i]!);
+  }
 
   const matchedCount = resolvedLinks.filter(
     (links) => links.candidateAshedMemberId != null,

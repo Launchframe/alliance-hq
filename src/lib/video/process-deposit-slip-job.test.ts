@@ -25,6 +25,19 @@ vi.mock(
       mockResolveDepositSlipMemberLinks(...args),
     createDepositSlipMemberResolverCache: (...args: unknown[]) =>
       mockCreateDepositSlipMemberResolverCache(...args),
+    applyResolvedAllianceTagToDepositSlip: (
+      slip: { identity: { allianceTag: string | null } },
+      links: {
+        ashedMemberId: string | null;
+        resolvedAllianceTag?: string | null;
+      },
+    ) => {
+      if (links.ashedMemberId == null) return;
+      const resolved = links.resolvedAllianceTag?.trim();
+      if (!resolved) return;
+      if (slip.identity.allianceTag === resolved) return;
+      slip.identity.allianceTag = resolved;
+    },
   }),
 );
 
