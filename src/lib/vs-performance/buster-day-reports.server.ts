@@ -14,6 +14,10 @@ import {
   type SerializedBusterDayReport,
 } from "@/lib/vs-performance/buster-day.shared";
 import {
+  loadBusterDayEfficiencyReport,
+  type BusterDayEfficiencyReportPayload,
+} from "@/lib/vs-performance/buster-day-efficiency.server";
+import {
   getServerCalendarDate,
   getWeekStartMonday,
 } from "@/lib/trains/game-time";
@@ -279,7 +283,40 @@ export type BusterDayWizardState = {
   week: ReturnType<typeof busterDayWeekDates>;
   report: SerializedBusterDayReport | null;
   latestCompleted: SerializedBusterDayReport | null;
+  efficiency: BusterDayEfficiencyReportPayload | null;
 };
+
+async function efficiencyForCompletedReport(
+  allianceId: string,
+  report: BusterDayReportRow | SerializedBusterDayReport | null,
+): Promise<BusterDayEfficiencyReportPayload | null> {
+  if (!report) return null;
+  const preComplete =
+    "preComplete" in report
+      ? report.preComplete
+      : isBusterDaySnapshotComplete({
+          rosterJobId: report.preRosterJobId,
+          killsJobId: report.preKillsJobId,
+        });
+  const postComplete =
+    "postComplete" in report
+      ? report.postComplete
+      : isBusterDaySnapshotComplete({
+          rosterJobId: report.postRosterJobId,
+          killsJobId: report.postKillsJobId,
+        });
+  if (!preComplete || !postComplete) return null;
+  const preSnapshotDate = report.preSnapshotDate;
+  const postSnapshotDate = report.postSnapshotDate;
+  if (!preSnapshotDate || !postSnapshotDate) return null;
+
+  return loadBusterDayEfficiencyReport({
+    allianceId,
+    vsWeekMonday: report.vsWeekMonday,
+    preSnapshotDate,
+    postSnapshotDate,
+  });
+}
 
 /**
  * Load wizard state for the current Server Time day.
@@ -302,6 +339,31 @@ export async function loadBusterDayWizardState(
   }
 
   const latestCompleted = await getLatestCompletedBusterDayReport(allianceId);
+  const preferredEfficiencySource =
+    reportRow &&
+    isBusterDaySnapshotComplete({
+      rosterJobId: reportRow.postRosterJobId,
+      killsJobId: reportRow.postKillsJobId,
+    })
+      ? reportRow
+      : null;
+
+  let efficiency = await efficiencyForCompletedReport(
+    allianceId,
+    preferredEfficiencySource,
+  );
+  // Current week may look "post-complete" but still lack snapshot dates / pre
+  // jobs — fall back to the latest fully loadable completed report.
+  if (
+    !efficiency &&
+    latestCompleted &&
+    latestCompleted.id !== preferredEfficiencySource?.id
+  ) {
+    efficiency = await efficiencyForCompletedReport(
+      allianceId,
+      latestCompleted,
+    );
+  }
 
   return {
     phase,
@@ -311,5 +373,6 @@ export async function loadBusterDayWizardState(
     latestCompleted: latestCompleted
       ? serializeBusterDayReport(latestCompleted)
       : null,
+    efficiency,
   };
 }
