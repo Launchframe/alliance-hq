@@ -897,11 +897,10 @@ function processExactNameCluster(
   if (timestamped.length === 1) {
     resolveNameTimestampGroup(
       accum,
-      [...timestamped, ...unanchored],
-      unanchored.length > 0
-        ? "commander_match_missing_timestamp"
-        : "same_commander_and_minute_timestamp",
+      timestamped,
+      "same_commander_and_minute_timestamp",
     );
+    finishUnanchoredRows(accum, unanchored);
     return;
   }
 
@@ -921,11 +920,10 @@ function processExactNameCluster(
   if (anchoredGroups.length === 1) {
     resolveNameTimestampGroup(
       accum,
-      [...anchoredGroups[0]!, ...unanchored],
-      unanchored.length > 0
-        ? "commander_match_missing_timestamp"
-        : "same_commander_and_minute_timestamp",
+      anchoredGroups[0]!,
+      "same_commander_and_minute_timestamp",
     );
+    finishUnanchoredRows(accum, unanchored);
     return;
   }
 
@@ -939,16 +937,25 @@ function processExactNameCluster(
   }
   if (unanchored.length === 0) return;
 
-  // Prefer exact display-identity absorb into a unique survivor before flagging.
+  finishUnanchoredRows(accum, unanchored);
+}
+
+/**
+ * After timestamped rows are resolved, absorb unanchored rows that exactly
+ * match a unique survivor; flag the rest as missing-timestamp ambiguous.
+ */
+function finishUnanchoredRows(
+  accum: DedupeAccum,
+  unanchored: readonly IndexedSlip[],
+): void {
+  if (unanchored.length === 0) return;
   const stillAmbiguous = absorbExactMissingTimestampRows(accum, unanchored);
   if (stillAmbiguous.length === 0) return;
-  if (stillAmbiguous.length >= 1) {
-    emitFlagged(
-      accum,
-      stillAmbiguous,
-      "commander_match_missing_timestamp_ambiguous",
-    );
-  }
+  emitFlagged(
+    accum,
+    stillAmbiguous,
+    "commander_match_missing_timestamp_ambiguous",
+  );
 }
 
 /**

@@ -671,12 +671,57 @@ describe("dedupeDepositSlips — missing-timestamp reconciliation", () => {
 
     expect(slips).toHaveLength(2);
     expect(report.flaggedCount).toBe(1);
-    // Exact-name clustering folds the unanchored row into the same review
-    // group, so the conflict surfaces as a field dispute (not a separate
-    // missing-timestamp ambiguity cluster).
     expect(report.clusters[0]?.reason).toBe(
-      "same_commander_timestamp_conflicting_amount_or_term",
+      "commander_match_missing_timestamp_ambiguous",
     );
+    expect(
+      report.clusters[0]?.members.some(
+        (m) => m.slipId === slips.find((s) => s.depositAt == null)?.slipId,
+      ),
+    ).toBe(true);
+    expect(
+      report.clusters[0]?.members.some(
+        (m) =>
+          m.slipId === slips.find((s) => s.depositAt != null)?.slipId,
+      ),
+    ).toBe(false);
+  });
+
+  it("does not mislabel an undated row as sharing a timestamp with a dated deposit (jamesBueller89)", () => {
+    const datedAt = "2026-07-18T22:29:27.000Z";
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "jamesBueller89",
+        depositAt: datedAt,
+        amount: 6000,
+        termDays: 5,
+        status: "matured",
+        outcomeKind: "total_return",
+        outcomeAmount: 6840,
+      }),
+      slip({
+        commanderName: "jamesBueller89",
+        depositAt: null,
+        amount: 6000,
+        termDays: 3,
+        status: "locked",
+      }),
+    ]);
+
+    expect(slips).toHaveLength(2);
+    expect(report.flaggedCount).toBe(1);
+    expect(report.clusters[0]?.reason).toBe(
+      "commander_match_missing_timestamp_ambiguous",
+    );
+    expect(
+      report.clusters.some((c) =>
+        c.reason === "same_commander_timestamp_conflicting_amount_or_term",
+      ),
+    ).toBe(false);
+    const datedSlip = slips.find((s) => s.depositAt === datedAt);
+    const undatedSlip = slips.find((s) => s.depositAt == null);
+    expect(datedSlip?.dedupeClusterId).toBeFalsy();
+    expect(undatedSlip?.dedupeClusterId).toBeTruthy();
   });
 
   it("leaves a truly unique timestamp-less commander untouched", () => {
