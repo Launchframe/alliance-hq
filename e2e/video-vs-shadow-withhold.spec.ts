@@ -56,30 +56,20 @@ test.describe("VS early shadow withhold review", () => {
     expect(jobBody.expectedRowCount).toBeGreaterThan(5);
 
     await page.context().addCookies(playwrightAuthCookies(scenario.officer));
-
-    const jobLoadPromise = page.waitForResponse(
-      (res) =>
-        res.request().method() === "GET" &&
-        res.url().includes(`/api/tools/video-upload/${fixture.primaryJobId}`) &&
-        !res.url().includes("/group") &&
-        res.status() === 200,
-    );
-
     await page.goto(`/tools/video-upload/${fixture.primaryJobId}/review`);
-    await jobLoadPromise;
 
     const reviewHeading = page.getByRole("heading", {
       name: /review extracted data/i,
     });
+    const withhold = page.getByTestId("video-shadow-withhold");
 
-    await expect(page.getByTestId("video-shadow-withhold")).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(withhold.or(reviewHeading)).toBeVisible({ timeout: 15_000 });
+    await expect(withhold).toBeVisible();
     await expect(reviewHeading).not.toBeVisible();
 
     await setVideoJobStatus(sql, fixture.shadowJobId, "review");
 
     await expect(reviewHeading).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId("video-shadow-withhold")).not.toBeVisible();
+    await expect(withhold).not.toBeVisible();
   });
 });
