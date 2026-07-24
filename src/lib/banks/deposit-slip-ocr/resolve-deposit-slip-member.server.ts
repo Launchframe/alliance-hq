@@ -286,6 +286,8 @@ export async function resolveDepositSlipMemberLinks(
   let tagMatchMethod: DepositSlipTagMatchMethod = "none";
   let tagMatchConfidence = 0;
 
+  const allianceCatalog = await listAlliancesWithTags();
+
   if (tag) {
     const exact = await listAlliancesByTag(tag);
     if (exact.length === 1) {
@@ -296,10 +298,7 @@ export async function resolveDepositSlipMemberLinks(
       tagMatchMethod = "ambiguous";
       tagMatchConfidence = 0;
     } else {
-      const fuzzyHit = pickUniqueFuzzyAllianceTag(
-        tag,
-        await listAlliancesWithTags(),
-      );
+      const fuzzyHit = pickUniqueFuzzyAllianceTag(tag, allianceCatalog);
       if (fuzzyHit) {
         depositAllianceId = fuzzyHit.candidate.id;
         tagMatchMethod = "fuzzy";
@@ -309,7 +308,6 @@ export async function resolveDepositSlipMemberLinks(
   }
 
   const rosterAllianceId = depositAllianceId ?? input.bankAllianceId;
-  const allianceCatalog = await listAlliancesWithTags();
   const resolvedAllianceTag =
     allianceCatalog.find((a) => a.id === rosterAllianceId)?.tag?.trim() || null;
 
