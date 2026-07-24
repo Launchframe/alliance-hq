@@ -350,7 +350,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     VS_SHADOW_WITHHOLD_DEFAULT_MS,
   );
   const shadowWithholdEscapedByJobRef = useRef<Map<string, boolean>>(new Map());
-  const [, bumpShadowWithholdEscapeVersion] = useState(0);
+  const [shadowWithholdEscapeVersion, bumpShadowWithholdEscapeVersion] =
+    useState(0);
   const withholdStartByJobRef = useRef<Map<string, number>>(new Map());
   const [rosterMembers, setRosterMembers] = useState<AshedMember[]>([]);
   const [allianceTag, setAllianceTag] = useState<string | null>(null);
@@ -1052,6 +1053,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       if (cancelled) return;
       setGroupInfo(data);
 
+      // Ignore empty/error-shaped payloads so a failed poll cannot clobber the
+      // job-route shadowPassInFlight flag and drop the withhold gate early.
+      if (!data.group) {
+        return;
+      }
+
       const shadowPass = data.passes.find((pass) => pass.passRole === "shadow");
       if (shadowPass) {
         setShadowPassInFlight(!isShadowPassTerminalStatus(shadowPass.status));
@@ -1137,6 +1144,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     shadowWithholdEscapedByJobRef.current.get(jobId) ?? false;
 
   const shouldWithholdForShadow = useMemo(() => {
+    void shadowWithholdEscapeVersion;
     if (viewMode !== "review") return false;
     if (jobStatus !== "review") return false;
     if (scoreTargetMeta?.id !== "vs-performance") return false;
@@ -1155,11 +1163,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     viewMode,
     jobStatus,
     scoreTargetMeta?.id,
-    shadowWithholdEscaped,
     uniqueActiveRowCount,
     expectedRowCount,
     forceInadequate,
     shadowPassStillRunning,
+    shadowWithholdEscapeVersion,
   ]);
 
   useEffect(() => {
@@ -1206,6 +1214,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     forceInadequate,
     shadowPassStillRunning,
     withholdEscapeMs,
+    shadowWithholdEscapeVersion,
   ]);
 
   const updateGroupSelection = useCallback(
@@ -2084,7 +2093,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     return (
       <div className="space-y-4">
         {renderActionErrorBanner()}
-        <p className="text-sm text-hq-fg-muted">{t("shadowWithhold")}</p>
+        <p
+          className="text-sm text-hq-fg-muted"
+          role="status"
+          data-testid="video-shadow-withhold"
+        >
+          {t("shadowWithhold")}
+        </p>
         <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
           {t("backToUploads")}
         </Link>
