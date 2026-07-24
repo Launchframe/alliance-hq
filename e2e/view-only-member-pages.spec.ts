@@ -23,6 +23,7 @@ const VIEW_ONLY_NATIVE_PAGES: Array<{ path: string; heading: RegExp }> = [
   { path: "/trains", heading: /alliance train/i },
   { path: "/battle-plan", heading: /battle plan/i },
   { path: "/bank-management", heading: /bank management/i },
+  { path: "/time-off", heading: /^time off$/i },
   { path: "/professions", heading: /^profession$/i },
   { path: "/my-vr", heading: /^my vr$/i },
   { path: "/settings", heading: /alliance settings/i },
@@ -44,6 +45,7 @@ const VIEW_ONLY_MEMBER_READ_PERMISSIONS = new Set([
   "members:read",
   "battle_plan:read",
   "bank:read",
+  "time_off:read",
   "data:read",
 ]);
 
@@ -190,6 +192,11 @@ test.describe("View-only member APIs — ashed alliance without personal Ashed c
       headers: { Cookie: cookie },
     });
     expect(banksRes.status(), await banksRes.text()).toBe(200);
+
+    const timeOffRes = await request.get("/api/time-off", {
+      headers: { Cookie: cookie },
+    });
+    expect(timeOffRes.status(), await timeOffRes.text()).toBe(200);
 
     const vrRes = await request.get("/api/vr/leaderboard", {
       headers: { Cookie: cookie },
