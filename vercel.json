@@ -23,6 +23,10 @@
     {
       "path": "/api/internal/battle-plan/announcements",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/internal/cron/buster-day-reminders",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
