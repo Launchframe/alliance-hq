@@ -156,31 +156,31 @@ describe("shouldEnqueueEarlyExtractionShadow", () => {
 });
 
 describe("isPrimaryParseInadequate", () => {
-  it("compares unique rows to expected", () => {
+  it("compares active (non-deleted) rows to expected", () => {
     expect(
-      isPrimaryParseInadequate({ uniqueRowCount: 20, expectedRows: 83 }),
+      isPrimaryParseInadequate({ activeRowCount: 20, expectedRows: 83 }),
     ).toBe(true);
     expect(
-      isPrimaryParseInadequate({ uniqueRowCount: 90, expectedRows: 83 }),
+      isPrimaryParseInadequate({ activeRowCount: 90, expectedRows: 83 }),
     ).toBe(false);
   });
 
   it("treats exactly-expected row count as adequate", () => {
     expect(
-      isPrimaryParseInadequate({ uniqueRowCount: 83, expectedRows: 83 }),
+      isPrimaryParseInadequate({ activeRowCount: 83, expectedRows: 83 }),
     ).toBe(false);
   });
 
   it("is adequate when expected rows are unknown", () => {
     expect(
-      isPrimaryParseInadequate({ uniqueRowCount: 0, expectedRows: null }),
+      isPrimaryParseInadequate({ activeRowCount: 0, expectedRows: null }),
     ).toBe(false);
   });
 
   it("honors forceInadequate for dev UX", () => {
     expect(
       isPrimaryParseInadequate({
-        uniqueRowCount: 100,
+        activeRowCount: 100,
         expectedRows: 50,
         forceInadequate: true,
       }),

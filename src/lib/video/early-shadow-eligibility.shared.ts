@@ -72,11 +72,12 @@ export function shouldEnqueueEarlyExtractionShadow(params: {
 }
 
 export function isPrimaryParseInadequate(params: {
-  uniqueRowCount: number;
+  /** Non-deleted parsed row count (not deduped unique names). */
+  activeRowCount: number;
   expectedRows: number | null;
   forceInadequate?: boolean;
 }): boolean {
   if (params.forceInadequate) return true;
   if (params.expectedRows == null) return false;
-  return params.uniqueRowCount < params.expectedRows;
+  return params.activeRowCount < params.expectedRows;
 }
