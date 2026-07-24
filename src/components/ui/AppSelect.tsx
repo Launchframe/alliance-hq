@@ -405,7 +405,7 @@ export function AppSelect({
       typeaheadLastKeyAtRef.current > 0
         ? event.timeStamp - typeaheadLastKeyAtRef.current
         : APP_SELECT_TYPEAHEAD_RESET_MS + 1;
-    const { buffer, cycleOnly } = appendAppSelectTypeaheadBuffer(
+    const { buffer } = appendAppSelectTypeaheadBuffer(
       typeaheadBufferRef.current,
       event.key,
       elapsed,
@@ -423,7 +423,6 @@ export function AppSelect({
       enabledOptions,
       buffer,
       activeIndex,
-      cycleOnly,
     );
     if (matchIndex >= 0) {
       setActiveIndex(matchIndex);

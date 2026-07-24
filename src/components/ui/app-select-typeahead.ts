@@ -11,9 +11,7 @@ export function isAppSelectTypeaheadKey(event: {
   altKey: boolean;
 }): boolean {
   if (event.ctrlKey || event.metaKey || event.altKey) return false;
-  if (event.key.length !== 1) return false;
-  const code = event.key.charCodeAt(0);
-  return code >= 32 && code <= 126;
+  return event.key.length === 1;
 }
 
 export function appendAppSelectTypeaheadBuffer(
@@ -39,7 +37,6 @@ export function findEnabledAppSelectTypeaheadIndex(
   enabledOptions: readonly AppSelectOption[],
   buffer: string,
   activeIndex: number,
-  cycleOnly: boolean,
 ): number {
   const needle = buffer.trim().toLowerCase();
   if (!needle || enabledOptions.length === 0) return -1;
@@ -53,9 +50,9 @@ export function findEnabledAppSelectTypeaheadIndex(
   }
   if (matches.length === 0) return -1;
 
-  if (cycleOnly && needle.length === 1) {
+  if (needle.length === 1) {
     const currentPos = matches.indexOf(activeIndex);
-    if (currentPos >= 0) {
+    if (currentPos >= 0 && matches.length > 1) {
       return matches[(currentPos + 1) % matches.length]!;
     }
   }

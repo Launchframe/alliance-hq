@@ -19,6 +19,17 @@ describe("isAppSelectTypeaheadKey", () => {
     ).toBe(true);
   });
 
+  it("accepts non-ASCII printable characters without modifiers", () => {
+    expect(
+      isAppSelectTypeaheadKey({
+        key: "ã",
+        ctrlKey: false,
+        metaKey: false,
+        altKey: false,
+      }),
+    ).toBe(true);
+  });
+
   it("rejects arrows, enter, and modified keys", () => {
     expect(
       isAppSelectTypeaheadKey({
@@ -74,14 +85,23 @@ describe("findEnabledAppSelectTypeaheadIndex", () => {
   ];
 
   it("jumps to the first label prefix match", () => {
-    expect(findEnabledAppSelectTypeaheadIndex(options, "3", -1, false)).toBe(1);
+    expect(findEnabledAppSelectTypeaheadIndex(options, "3", -1)).toBe(1);
   });
 
-  it("cycles single-character matches on repeat", () => {
-    expect(findEnabledAppSelectTypeaheadIndex(options, "3", 1, true)).toBe(2);
+  it("cycles single-character prefix matches when the active option already matches", () => {
+    expect(findEnabledAppSelectTypeaheadIndex(options, "3", 1)).toBe(2);
+  });
+
+  it("matches non-ASCII option labels case-insensitively", () => {
+    const localized = [
+      { value: "a", label: "Águia" },
+      { value: "b", label: "Álamo" },
+    ];
+    expect(findEnabledAppSelectTypeaheadIndex(localized, "á", -1)).toBe(0);
+    expect(findEnabledAppSelectTypeaheadIndex(localized, "á", 0)).toBe(1);
   });
 
   it("returns -1 when nothing matches", () => {
-    expect(findEnabledAppSelectTypeaheadIndex(options, "9", -1, false)).toBe(-1);
+    expect(findEnabledAppSelectTypeaheadIndex(options, "9", -1)).toBe(-1);
   });
 });
