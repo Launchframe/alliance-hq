@@ -258,6 +258,8 @@ async function finalizeDiscordMemberLink(input: {
   locale: DiscordBotLocale;
   identityConfirmed: boolean;
   auditAction?: string;
+  allianceHomeConfirmed?: boolean;
+  userClaimedLookupAsHome?: boolean;
 }): Promise<LinkCommandResult> {
   const { translate, walkthroughSteps } = botContext(input.locale);
   const gameUserName = input.lookup.gameUserName;
@@ -416,6 +418,8 @@ async function finalizeDiscordMemberLink(input: {
       linkedMemberIds,
       origin: "discord",
       gameServerNumber: input.lookup.gameServerNumber,
+      allianceHomeConfirmed: input.allianceHomeConfirmed,
+      userClaimedLookupAsHome: input.userClaimedLookupAsHome,
       persistLink: async (target) => {
         const linked = await linkDiscordMember({
           allianceId: input.allianceId,
@@ -498,6 +502,70 @@ async function finalizeDiscordMemberLink(input: {
         },
       );
       return result;
+    }
+
+    if (selfService.reason === "confirm_home") {
+      const confirmPending: LinkPendingState = {
+        kind: "link_confirm_home_server",
+        gameUid: uid,
+        gameUserName: input.lookup.gameUserName,
+        lookupServer: selfService.lookupServer ?? 0,
+        allianceServer: selfService.allianceServer ?? 0,
+        ...(input.lookup.gameUserLevel != null
+          ? { gameUserLevel: input.lookup.gameUserLevel }
+          : {}),
+        ...(input.replaceAll ? { replaceAll: true } : {}),
+      };
+      await saveDiscordBotPending(
+        input.allianceId,
+        input.discordUserId,
+        confirmPending,
+      );
+      const result: LinkCommandResult = {
+        reply: translate("confirmHomeServerPrompt", {
+          commanderName: selfService.commanderName ?? input.lookup.gameUserName,
+          lookupServer: selfService.lookupServer ?? 0,
+          allianceTag: alliance?.tag ?? "alliance",
+          allianceServer: selfService.allianceServer ?? 0,
+        }),
+        pending: confirmPending,
+        needsHomeServerConfirmation: true,
+      };
+      await audit(
+        input.allianceId,
+        input.discordUserId,
+        input.auditAction ?? "link",
+        input,
+        {
+          ...result,
+          selfService: false,
+          diagnostics: linkDiagnostics,
+        },
+      );
+      return result;
+    }
+
+    if (selfService.reason === "position_not_home") {
+      await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+      resolvedResult = {
+        ...resolvedResult,
+        reply: translate("positionNotHomeBody"),
+        pending: null,
+        needsOfficerAttention: false,
+        positionNotHome: true,
+      };
+      await audit(
+        input.allianceId,
+        input.discordUserId,
+        input.auditAction ?? "link",
+        input,
+        {
+          ...resolvedResult,
+          selfService: false,
+          diagnostics: linkDiagnostics,
+        },
+      );
+      return resolvedResult;
     }
 
     if (selfService.reason === "wrong_server") {
@@ -759,6 +827,66 @@ export async function handleDiscordLinkIdentityConfirm(input: {
     locale: input.locale,
     identityConfirmed: true,
     auditAction: "link_confirm",
+  });
+}
+
+export async function handleDiscordLinkHomeServerConfirm(input: {
+  allianceId: string;
+  guildId?: string | null;
+  discordUserId: string;
+  discordUsername?: string;
+  choice: "alliance" | "lookup";
+  locale: DiscordBotLocale;
+}): Promise<LinkCommandResult> {
+  const { translate } = botContext(input.locale);
+  const pendingRow = await getDiscordBotPending(input.discordUserId);
+  const pending = pendingRow?.pending;
+
+  if (!pending || pending.kind !== "link_confirm_home_server") {
+    const result: LinkCommandResult = {
+      reply: translate("link.confirmExpired"),
+      pending: null,
+    };
+    await audit(
+      input.allianceId,
+      input.discordUserId,
+      "link_confirm_home",
+      input,
+      result,
+    );
+    return result;
+  }
+
+  const lookup = await lookupPlayerByUid(pending.gameUid);
+  if (!lookup.ok) {
+    await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+    const result: LinkCommandResult = {
+      reply: lookup.message,
+      pending: null,
+    };
+    await audit(
+      input.allianceId,
+      input.discordUserId,
+      "link_confirm_home",
+      input,
+      result,
+    );
+    return result;
+  }
+
+  return finalizeDiscordMemberLink({
+    allianceId: input.allianceId,
+    guildId: input.guildId,
+    discordUserId: input.discordUserId,
+    discordUsername: input.discordUsername,
+    gameUid: pending.gameUid,
+    lookup,
+    replaceAll: pending.replaceAll,
+    locale: input.locale,
+    identityConfirmed: true,
+    auditAction: "link_confirm_home",
+    allianceHomeConfirmed: input.choice === "alliance",
+    userClaimedLookupAsHome: input.choice === "lookup",
   });
 }
 

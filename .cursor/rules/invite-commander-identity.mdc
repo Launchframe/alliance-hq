@@ -130,7 +130,9 @@ Implement and preserve in tests (`src/lib/vr/link-command.test.ts`):
 | Accept invite then skip onboard | `(app)` redirects to `/onboard` until linked |
 | Link succeeds | `hq_member_links.game_uid` = submitted UID; `ashed_member_id` = matched roster row |
 | Invite + roster miss + server match | `awaiting_owner`; pending `link_awaiting_owner`; owner email + inbox item |
-| Wrong UID server vs alliance | `wrong_server`; no owner notification |
+| Wrong UID server vs alliance (unknown commander, position ≠ home) | `confirm_home_server` honor prompt; alliance choice continues; lookup choice → `position_not_home` |
+| Known commander home matches alliance | Bypass position gate; link proceeds even when lookup position differs |
+| Wrong alliance (true home mismatch) | `wrong_server`; no owner notification |
 | Owner accepts email token | `alliance_members` + `hq_member_links` created (native); invitee can finish onboard |
 
 Update `e2e/invite-roles.spec.ts`, `e2e/onboard-member-link.spec.ts`, and unit tests when changing any step above.

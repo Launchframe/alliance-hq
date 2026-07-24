@@ -64,6 +64,15 @@ export type LinkPendingState =
       replaceAll?: boolean;
     }
   | {
+      kind: "link_confirm_home_server";
+      gameUid: string;
+      gameUserName: string;
+      lookupServer: number;
+      allianceServer: number;
+      gameUserLevel?: number;
+      replaceAll?: boolean;
+    }
+  | {
       kind: "link_awaiting_owner";
       requestId: string;
       gameUserName: string;
@@ -76,6 +85,8 @@ export type LinkCommandResult = {
   linked?: boolean;
   memberTaken?: boolean;
   needsIdentityConfirmation?: boolean;
+  needsHomeServerConfirmation?: boolean;
+  positionNotHome?: boolean;
   needsOfficerAttention?: boolean;
   wrongServer?: boolean;
   linkTarget?: {

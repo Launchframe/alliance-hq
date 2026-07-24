@@ -91,6 +91,25 @@ function parseLinkPending(value: unknown): LinkPendingState | null {
       ...(r.replaceAll === true ? { replaceAll: true } : {}),
     };
   }
+  if (
+    r.kind === "link_confirm_home_server" &&
+    typeof r.gameUid === "string" &&
+    typeof r.gameUserName === "string" &&
+    typeof r.lookupServer === "number" &&
+    typeof r.allianceServer === "number"
+  ) {
+    return {
+      kind: "link_confirm_home_server",
+      gameUid: r.gameUid,
+      gameUserName: r.gameUserName,
+      lookupServer: r.lookupServer,
+      allianceServer: r.allianceServer,
+      ...(typeof r.gameUserLevel === "number"
+        ? { gameUserLevel: r.gameUserLevel }
+        : {}),
+      ...(r.replaceAll === true ? { replaceAll: true } : {}),
+    };
+  }
   if (r.kind === "pick_alliance_by_name" && Array.isArray(r.candidates)) {
     return {
       kind: "pick_alliance_by_name",

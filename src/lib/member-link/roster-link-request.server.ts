@@ -14,6 +14,7 @@ import { applySeasonSync } from "@/lib/game-season/sync";
 import type { LastWarPlayerLookupResult } from "@/lib/lastwar/player-lookup";
 import { parseGameServerNumberFromUid } from "@/lib/lastwar/player-lookup";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
+import { resolveMemberLinkServerEligibilityForUid } from "@/lib/member-link/server-eligibility.server";
 import type {
   MemberLinkApiResponse,
   MemberLinkServerConfirmReason,
@@ -275,11 +276,53 @@ type MemberLinkServerGate =
 
 async function resolveMemberLinkServerGate(input: {
   allianceId: string;
+  allianceTag: string;
+  gameUid: string;
   lookup: Extract<LastWarPlayerLookupResult, { ok: true }>;
   translate: ReturnType<typeof createMemberLinkTranslator>;
+  allianceHomeConfirmed?: boolean;
+  userClaimedLookupAsHome?: boolean;
 }): Promise<MemberLinkServerGate> {
-  const playerServer = input.lookup.gameServerNumber;
-  if (playerServer == null) {
+  const lookupServer =
+    input.lookup.gameServerNumber ?? parseGameServerNumberFromUid(input.gameUid);
+  const eligibility = await resolveMemberLinkServerEligibilityForUid({
+    allianceId: input.allianceId,
+    gameUid: input.gameUid,
+    lookupServer,
+    allianceHomeConfirmed: input.allianceHomeConfirmed,
+    userClaimedLookupAsHome: input.userClaimedLookupAsHome,
+  });
+
+  if (eligibility.kind === "confirm_home") {
+    return {
+      ok: false,
+      response: {
+        outcome: "confirm_home_server",
+        message: input.translate("confirmHomeServerPrompt", {
+          commanderName: input.lookup.gameUserName,
+          lookupServer: eligibility.lookupServer,
+          allianceTag: input.allianceTag,
+          allianceServer: eligibility.allianceServer,
+        }),
+        pending: null,
+        lookupGameUserName: input.lookup.gameUserName,
+        lookupServerNumber: eligibility.lookupServer,
+        allianceServerNumber: eligibility.allianceServer,
+      },
+    };
+  }
+
+  if (eligibility.kind === "rejected") {
+    if (eligibility.reason === "user_claimed_lookup_home") {
+      return {
+        ok: false,
+        response: {
+          outcome: "position_not_home",
+          message: input.translate("positionNotHomeBody"),
+          pending: null,
+        },
+      };
+    }
     return {
       ok: false,
       response: {
@@ -290,8 +333,8 @@ async function resolveMemberLinkServerGate(input: {
     };
   }
 
-  const allianceServer = await resolveAllianceGameServerNumber(input.allianceId);
-  if (allianceServer == null || playerServer !== allianceServer) {
+  const playerServer = eligibility.allianceServer ?? lookupServer;
+  if (playerServer == null) {
     return {
       ok: false,
       response: {
@@ -618,12 +661,18 @@ export async function tryRouteRosterMissToOwnerApproval(input: {
   suggestedTargetAshedMemberId?: string | null;
   suggestionMethod?: string | null;
   suggestedMatchedRosterName?: string | null;
+  allianceHomeConfirmed?: boolean;
+  userClaimedLookupAsHome?: boolean;
 }): Promise<MemberLinkApiResponse | null> {
   const translate = createMemberLinkTranslator(input.locale);
   const serverGate = await resolveMemberLinkServerGate({
     allianceId: input.allianceId,
+    allianceTag: input.allianceTag,
+    gameUid: input.gameUid,
     lookup: input.lookup,
     translate,
+    allianceHomeConfirmed: input.allianceHomeConfirmed,
+    userClaimedLookupAsHome: input.userClaimedLookupAsHome,
   });
   if (!serverGate.ok) {
     return serverGate.response;

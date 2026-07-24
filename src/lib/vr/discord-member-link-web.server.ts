@@ -26,6 +26,7 @@ import type { LinkCommandResult } from "@/lib/vr/types";
 import {
   handleDiscordLinkCommanderSlash,
   handleDiscordLinkFuzzyPick,
+  handleDiscordLinkHomeServerConfirm,
   handleDiscordLinkIdentityConfirm,
 } from "@/lib/vr/service";
 
@@ -105,9 +106,28 @@ async function requireAuthenticatedMemberLinkSession(
 async function mapLinkCommandResultToWebOutcome(
   result: LinkCommandResult,
   consumeNonceOnLink: { nonceId: string; linked: boolean },
+  allianceTag?: string | null,
 ): Promise<DiscordMemberLinkWebOutcome> {
+  if (result.positionNotHome) {
+    return { outcome: "position_not_home", message: result.reply };
+  }
+
   if (result.wrongServer) {
     return { outcome: "wrong_server", message: result.reply };
+  }
+
+  if (
+    result.needsHomeServerConfirmation &&
+    result.pending?.kind === "link_confirm_home_server"
+  ) {
+    return {
+      outcome: "confirm_home_server",
+      message: result.reply,
+      gameUserName: result.pending.gameUserName,
+      lookupServerNumber: result.pending.lookupServer,
+      allianceServerNumber: result.pending.allianceServer,
+      allianceTag: allianceTag ?? null,
+    };
   }
 
   if (result.needsIdentityConfirmation && result.pending?.kind === "link_confirm_identity") {
@@ -190,6 +210,7 @@ export async function previewDiscordMemberLinkFromWeb(
   }
 
   const replaceAll = memberLinkReplaceAllFromNonceTag(ctx.nonceRow.tag);
+  const alliance = await getAllianceById(allianceId);
   const result = await handleDiscordLinkCommanderSlash({
     allianceId,
     guildId: ctx.nonceRow.guildId,
@@ -199,10 +220,14 @@ export async function previewDiscordMemberLinkFromWeb(
     locale: ctx.locale,
   });
 
-  return await mapLinkCommandResultToWebOutcome(result, {
-    nonceId: ctx.nonceRow.id,
-    linked: Boolean(result.linked && result.linkTarget),
-  });
+  return await mapLinkCommandResultToWebOutcome(
+    result,
+    {
+      nonceId: ctx.nonceRow.id,
+      linked: Boolean(result.linked && result.linkTarget),
+    },
+    alliance?.tag ?? null,
+  );
 }
 
 const confirmSchema = z.object({
@@ -227,6 +252,7 @@ export async function confirmDiscordMemberLinkFromWeb(
     return { outcome: "guild_not_registered" };
   }
 
+  const alliance = await getAllianceById(allianceId);
   const result = await handleDiscordLinkIdentityConfirm({
     allianceId,
     guildId: ctx.nonceRow.guildId,
@@ -239,10 +265,55 @@ export async function confirmDiscordMemberLinkFromWeb(
     return { outcome: "declined", message: result.reply };
   }
 
-  return await mapLinkCommandResultToWebOutcome(result, {
-    nonceId: ctx.nonceRow.id,
-    linked: Boolean(result.linked && result.linkTarget),
+  return await mapLinkCommandResultToWebOutcome(
+    result,
+    {
+      nonceId: ctx.nonceRow.id,
+      linked: Boolean(result.linked && result.linkTarget),
+    },
+    alliance?.tag ?? null,
+  );
+}
+
+const confirmHomeSchema = z.object({
+  nonce: z.string().trim().min(1),
+  choice: z.enum(["alliance", "lookup"]),
+});
+
+export async function confirmDiscordMemberLinkHomeFromWeb(
+  body: z.infer<typeof confirmHomeSchema>,
+  hqUserId: string | null,
+): Promise<DiscordMemberLinkWebOutcome> {
+  const denied = await requireAuthenticatedMemberLinkSession(body.nonce, hqUserId);
+  if (denied) return denied;
+
+  const ctx = await resolveMemberLinkContext(body.nonce);
+  if (!ctx) {
+    return sessionDenyOutcome("invalid_nonce");
+  }
+
+  const allianceId = await resolveMemberLinkAllianceId(ctx, { pendingFallback: true });
+  if (!allianceId) {
+    return { outcome: "guild_not_registered" };
+  }
+
+  const alliance = await getAllianceById(allianceId);
+  const result = await handleDiscordLinkHomeServerConfirm({
+    allianceId,
+    guildId: ctx.nonceRow.guildId,
+    discordUserId: ctx.nonceRow.discordUserId,
+    choice: body.choice,
+    locale: ctx.locale,
   });
+
+  return await mapLinkCommandResultToWebOutcome(
+    result,
+    {
+      nonceId: ctx.nonceRow.id,
+      linked: Boolean(result.linked && result.linkTarget),
+    },
+    alliance?.tag ?? null,
+  );
 }
 
 const pickSchema = z.object({
@@ -267,6 +338,7 @@ export async function pickDiscordMemberLinkFromWeb(
     return { outcome: "guild_not_registered" };
   }
 
+  const alliance = await getAllianceById(allianceId);
   const result = await handleDiscordLinkFuzzyPick({
     allianceId,
     discordUserId: ctx.nonceRow.discordUserId,
@@ -274,10 +346,14 @@ export async function pickDiscordMemberLinkFromWeb(
     locale: ctx.locale,
   });
 
-  return await mapLinkCommandResultToWebOutcome(result, {
-    nonceId: ctx.nonceRow.id,
-    linked: Boolean(result.linked && result.linkTarget),
-  });
+  return await mapLinkCommandResultToWebOutcome(
+    result,
+    {
+      nonceId: ctx.nonceRow.id,
+      linked: Boolean(result.linked && result.linkTarget),
+    },
+    alliance?.tag ?? null,
+  );
 }
 
-export { previewSchema, confirmSchema, pickSchema };
+export { previewSchema, confirmSchema, confirmHomeSchema, pickSchema };

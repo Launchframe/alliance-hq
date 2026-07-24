@@ -12,10 +12,12 @@ import type { DiscordMemberLinkWebOutcome } from "@/lib/vr/discord-member-link-w
 type Phase =
   | "form"
   | "confirm"
+  | "confirm_home"
   | "fuzzy"
   | "success"
   | "officer"
   | "wrong_server"
+  | "position_not_home"
   | "guild_not_registered"
   | "error";
 
@@ -41,6 +43,10 @@ type Props = {
     successBody: string;
     officerHeading: string;
     wrongServerHeading: string;
+    positionNotHomeHeading: string;
+    confirmHomeHeading: string;
+    confirmHomeAllianceChoice: string;
+    confirmHomeLookupChoice: string;
     guildNotRegisteredHeading: string;
     guildNotRegisteredBody: string;
     backToDiscord: string;
@@ -60,6 +66,15 @@ export function DiscordMemberLinkClient({
   const [gameUid, setGameUid] = useState("");
   const [gameUserName, setGameUserName] = useState<string | null>(null);
   const [gameServerNumber, setGameServerNumber] = useState<number | null>(null);
+  const [homeConfirmAllianceTag, setHomeConfirmAllianceTag] = useState<string | null>(
+    null,
+  );
+  const [homeConfirmLookupServer, setHomeConfirmLookupServer] = useState<number | null>(
+    null,
+  );
+  const [homeConfirmAllianceServer, setHomeConfirmAllianceServer] = useState<
+    number | null
+  >(null);
   const [candidates, setCandidates] = useState<
     Array<{ memberId: string; name: string }>
   >([]);
@@ -91,6 +106,15 @@ export function DiscordMemberLinkClient({
         setPhase("confirm");
         setFormError(null);
         break;
+      case "confirm_home_server":
+        setGameUserName(data.gameUserName);
+        setMessage(data.message);
+        setHomeConfirmAllianceTag(data.allianceTag);
+        setHomeConfirmLookupServer(data.lookupServerNumber);
+        setHomeConfirmAllianceServer(data.allianceServerNumber);
+        setPhase("confirm_home");
+        setFormError(null);
+        break;
       case "fuzzy_pick":
         setMessage(data.message);
         setCandidates(data.candidates);
@@ -108,6 +132,10 @@ export function DiscordMemberLinkClient({
       case "wrong_server":
         setMessage(data.message);
         setPhase("wrong_server");
+        break;
+      case "position_not_home":
+        setMessage(data.message);
+        setPhase("position_not_home");
         break;
       case "guild_not_registered":
         setPhase("guild_not_registered");
@@ -179,6 +207,18 @@ export function DiscordMemberLinkClient({
     }
   }
 
+  async function handleConfirmHome(choice: "alliance" | "lookup") {
+    setBusy(true);
+    try {
+      await postAction({ action: "confirm_home", nonce, choice });
+    } catch {
+      setPhase("error");
+      setMessage(labels.genericError);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handlePick(memberId: string) {
     setBusy(true);
     try {
@@ -201,6 +241,17 @@ export function DiscordMemberLinkClient({
             {labels.successBody.replace("{name}", linkedName)}
           </p>
         ) : null}
+        <p className="text-sm text-hq-fg-muted">{labels.backToDiscord}</p>
+      </div>
+    );
+  }
+
+  if (phase === "position_not_home") {
+    return (
+      <div className="space-y-3">
+        {renderHeader()}
+        <p className="font-semibold text-hq-fg">{labels.positionNotHomeHeading}</p>
+        {message ? <p className="text-sm text-hq-fg-muted">{message}</p> : null}
         <p className="text-sm text-hq-fg-muted">{labels.backToDiscord}</p>
       </div>
     );
@@ -237,6 +288,42 @@ export function DiscordMemberLinkClient({
         </p>
         {message ? <p className="text-sm text-hq-fg-muted">{message}</p> : null}
         <p className="text-sm text-hq-fg-muted">{labels.backToDiscord}</p>
+      </div>
+    );
+  }
+
+  if (phase === "confirm_home" && gameUserName) {
+    const tag = homeConfirmAllianceTag ?? allianceTag ?? "alliance";
+    return (
+      <div className="space-y-4">
+        {renderHeader()}
+        <p className="text-sm text-hq-fg-muted">
+          {message ?? labels.confirmHomeHeading}
+        </p>
+        <p className="text-lg font-semibold text-hq-fg">{gameUserName}</p>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void handleConfirmHome("lookup")}
+            className="rounded-lg border border-hq-border px-4 py-2.5 text-sm font-semibold text-hq-fg disabled:opacity-60"
+          >
+            {labels.confirmHomeLookupChoice.replace(
+              "{server}",
+              String(homeConfirmLookupServer ?? ""),
+            )}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void handleConfirmHome("alliance")}
+            className="rounded-lg bg-hq-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {labels.confirmHomeAllianceChoice
+              .replace("{tag}", tag)
+              .replace("{server}", String(homeConfirmAllianceServer ?? ""))}
+          </button>
+        </div>
       </div>
     );
   }

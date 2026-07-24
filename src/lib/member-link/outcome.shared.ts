@@ -12,6 +12,8 @@ export type MemberLinkOutcome =
   | "lookup_fallback"
   | "name_mismatch"
   | "confirm_server"
+  | "confirm_home_server"
+  | "position_not_home"
   | "usage"
   | "member_taken"
   | "pick_expired"
