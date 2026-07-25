@@ -5,6 +5,7 @@ import {
   isSupportedTranslationLanguage,
   normalizeTranslationLanguage,
   translationLanguageFromDiscordLocale,
+  translationLanguageFromHqLocale,
   translationLanguageName,
 } from "@/lib/translate/languages.shared";
 
@@ -81,5 +82,12 @@ describe("translationLanguageFromDiscordLocale", () => {
     expect(translationLanguageFromDiscordLocale("no")).toBe("en");
     expect(translationLanguageFromDiscordLocale(null)).toBe("en");
     expect(translationLanguageFromDiscordLocale(undefined)).toBe("en");
+  });
+});
+
+describe("translationLanguageFromHqLocale", () => {
+  it("maps HQ web locales the same as Discord client locales", () => {
+    expect(translationLanguageFromHqLocale("pt-BR")).toBe("pt");
+    expect(translationLanguageFromHqLocale("en-US")).toBe("en");
   });
 });

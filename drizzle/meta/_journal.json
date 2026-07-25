@@ -897,6 +897,13 @@
       "when": 1790900000132,
       "tag": "0132_discord_translation",
       "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1790122800000,
+      "tag": "0118_officer_intelligence",
+      "breakpoints": true
     }
   ]
 }

@@ -36,6 +36,8 @@ const HQ_PERMISSIONS = [
   { id: "bank:write", description: "Manage alliance bank strongholds and deposit slips" },
   { id: "time_off:read", description: "View alliance time-off calendar" },
   { id: "time_off:write", description: "Manage time-off entries for alliance members" },
+  { id: "officer_intel:read", description: "View officer intelligence sessions and ingested chat" },
+  { id: "officer_intel:write", description: "Upload and manage officer intelligence chat sessions" },
 ];
 
 function getDatabaseUrl() {
@@ -75,6 +77,8 @@ async function main() {
       "bank:write",
       "time_off:read",
       "time_off:write",
+      "officer_intel:read",
+      "officer_intel:write",
     ]),
   ];
   roleTemplates.maintainer.permissions = [...roleTemplates.owner.permissions];
@@ -91,6 +95,8 @@ async function main() {
       "bank:write",
       "time_off:read",
       "time_off:write",
+      "officer_intel:read",
+      "officer_intel:write",
     ]),
   ];
   roleTemplates.data_entry.permissions = [
@@ -100,6 +106,7 @@ async function main() {
       "battle_plan:read",
       "bank:read",
       "time_off:read",
+      "officer_intel:read",
     ]),
   ];
   roleTemplates.viewer.permissions = [
