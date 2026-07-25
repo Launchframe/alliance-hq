@@ -3772,6 +3772,16 @@
         "top10Title": "Top 10 Pontuações VS",
         "topNVsTitle": "Top {count} Pontuações VS",
         "topNVrTitle": "Top {count} Pontuações VR"
+      },
+      "share": {
+        "action": "Compartilhar imagem",
+        "exporting": "Preparando imagem…",
+        "failed": "Não foi possível exportar a imagem.",
+        "statsLine": "Último: {lastDate} · {count} este ano",
+        "eligibilityVsMinimum": "Elegível: {score} (mín. {minimum})",
+        "eligibilityTpif": "VS do dia anterior {score} — mais perto de {sweetSpot}",
+        "eligibilityVsLeaderboardRank": "#{rank} · {score} {suffix}",
+        "eligibilityVsLeaderboardScore": "{score} {suffix}"
       }
     },
     "season": {

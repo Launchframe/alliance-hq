@@ -192,6 +192,7 @@ export function TrainsDashboard({ initial }: Props) {
   >([]);
   const [wheelQualification, setWheelQualification] =
     useState<MemberQualificationPayload | null>(null);
+  const [wheelMechanism, setWheelMechanism] = useState<string | null>(null);
   const [wheelDayLabel, setWheelDayLabel] = useState<string | null>(null);
   const [conductorDisqualified, setConductorDisqualified] =
     useState<RollResult | null>(null);
@@ -367,6 +368,7 @@ export function TrainsDashboard({ initial }: Props) {
   const handleWheelClose = useCallback(() => {
     setWheelOpen(false);
     setWheelQualification(null);
+    setWheelMechanism(null);
     setWheelDayLabel(null);
     const pending = pendingWheelRollRef.current;
     pendingWheelRollRef.current = null;
@@ -910,6 +912,7 @@ export function TrainsDashboard({ initial }: Props) {
             ],
       );
       setWheelWinner(body.result);
+      setWheelMechanism(body.result.mechanism);
       setWheelStats(body.stats ?? null);
       setWheelQualification(body.result.qualification ?? null);
       setWheelDayLabel(spinWeekDayLabel(selectedDate));
@@ -931,6 +934,7 @@ export function TrainsDashboard({ initial }: Props) {
     pendingWheelRollRef.current = null;
     setWheelOpen(false);
     setWheelQualification(null);
+    setWheelMechanism(null);
     setWheelWinner(null);
     void runRollRef.current("conductor");
   }, []);
@@ -2454,6 +2458,8 @@ export function TrainsDashboard({ initial }: Props) {
         stats={wheelStats ?? null}
         qualification={wheelQualification}
         dayLabel={wheelDayLabel}
+        mechanism={wheelMechanism}
+        paintTemplate={conductorPaint}
         speedMultiplier={wheelAnimMultiplier}
         onClose={handleWheelClose}
         onSpinAgain={handleWheelSpinAgain}

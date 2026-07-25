@@ -3826,6 +3826,16 @@
         "top10Title": "Top 10 VS Scores",
         "topNVsTitle": "Top {count} VS Scores",
         "topNVrTitle": "Top {count} VR Scores"
+      },
+      "share": {
+        "action": "Share image",
+        "exporting": "Preparing image…",
+        "failed": "Could not export the share image.",
+        "statsLine": "Last: {lastDate} · {count} this year",
+        "eligibilityVsMinimum": "Eligible: {score} (min {minimum})",
+        "eligibilityTpif": "Prior-day VS {score} — closest to {sweetSpot}",
+        "eligibilityVsLeaderboardRank": "#{rank} · {score} {suffix}",
+        "eligibilityVsLeaderboardScore": "{score} {suffix}"
       }
     },
     "season": {

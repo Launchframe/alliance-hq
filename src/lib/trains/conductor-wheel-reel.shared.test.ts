@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildConductorWheelReelSession,
+  restingShareViewport,
   restingViewportNames,
   uniqueWheelCandidateNames,
 } from "@/lib/trains/conductor-wheel-reel.shared";
@@ -85,5 +86,19 @@ describe("buildConductorWheelReelSession", () => {
       const unique = new Set(visible);
       expect(unique.size).toBe(3);
     }
+  });
+});
+
+describe("restingShareViewport", () => {
+  it("returns five names with the winner centered when enough pool members exist", () => {
+    const candidates = Array.from({ length: 8 }, (_, i) => ({
+      memberId: String(i),
+      memberName: `Member${i}`,
+    }));
+    const winner = candidates[4]!;
+    const session = buildConductorWheelReelSession(candidates, winner);
+    const viewport = restingShareViewport(session);
+    expect(viewport.names).toHaveLength(5);
+    expect(viewport.names[viewport.winnerIndex]).toBe(winner.memberName);
   });
 });

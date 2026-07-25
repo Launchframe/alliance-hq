@@ -132,3 +132,51 @@ export function restingViewportNames(
   const start = session.winnerIdx - centerOffset;
   return session.items.slice(start, start + visible);
 }
+
+function padShareViewportNames(
+  names: string[],
+  winnerIndex: number,
+  targetLength: number,
+): string[] {
+  if (names.length >= targetLength) return names;
+  const padded = [...names];
+  while (padded.length < targetLength) {
+    if (winnerIndex > 0) {
+      padded.unshift(padded[0]!);
+    } else {
+      padded.push(padded[padded.length - 1]!);
+    }
+  }
+  return padded.slice(0, targetLength);
+}
+
+/** Winner plus surrounding names for share images (default: 2 above + 2 below). */
+export function restingShareViewport(
+  session: ReelSession,
+  surroundingCount = 4,
+): { names: string[]; winnerIndex: number } {
+  const half = Math.ceil(surroundingCount / 2);
+  const start = Math.max(0, session.winnerIdx - half);
+  const end = Math.min(session.items.length - 1, session.winnerIdx + half);
+  let names = session.items.slice(start, end + 1);
+  const winnerIndex = session.winnerIdx - start;
+  const targetLength = surroundingCount + 1;
+  if (names.length < targetLength) {
+    names = padShareViewportNames(names, winnerIndex, targetLength);
+  }
+  return { names: names.slice(0, targetLength), winnerIndex };
+}
+
+export function restingShareViewportNames(
+  session: ReelSession,
+  surroundingCount = 4,
+): string[] {
+  return restingShareViewport(session, surroundingCount).names;
+}
+
+export function winnerIndexInShareViewport(
+  session: ReelSession,
+  surroundingCount = 4,
+): number {
+  return restingShareViewport(session, surroundingCount).winnerIndex;
+}

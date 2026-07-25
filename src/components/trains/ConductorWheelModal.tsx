@@ -6,12 +6,22 @@ import { useLocale, useTranslations } from "next-intl";
 
 import {
   buildConductorWheelReelSession,
+  restingShareViewport,
   type ReelSession,
 } from "@/lib/trains/conductor-wheel-reel.shared";
+import {
+  downloadConductorWheelSharePng,
+  renderConductorWheelSharePngBlob,
+} from "@/lib/client/conductor-wheel-share-image.client";
+import {
+  formatWheelShareEligibilityLine,
+  resolveWheelShareEligibility,
+} from "@/lib/trains/conductor-wheel-share.shared";
 import {
   formatTrainPointCount,
   type MemberQualificationPayload,
 } from "@/lib/trains/train-conductor-minimums.shared";
+import type { WeekTemplateType } from "@/lib/trains/types";
 import {
   FORM_SUBMIT_ENTER_KEY_HINT,
   preventDefaultFormSubmit,
@@ -21,6 +31,7 @@ export type WheelCandidate = {
   memberId: string;
   memberName: string;
   priorDayVsScore?: number;
+  allianceRank?: number | null;
 };
 
 type Props = {
@@ -35,6 +46,7 @@ type Props = {
   dayLabel?: string | null;
   /** The selection mechanism used for this roll (e.g. "vs_top_10", "vs_high_score"). */
   mechanism?: string | null;
+  paintTemplate?: WeekTemplateType | null;
   speedMultiplier?: number;
   automated?: boolean;
   onAutomatedRevealComplete?: () => void;
@@ -70,9 +82,9 @@ function scoreBoardKind(
 }
 
 function vsScoreColor(score: number): string {
-  if (score >= 5_000_000) return "text-amber-300";
-  if (score >= 1_000_000) return "text-cyan-300";
-  if (score >= 500_000) return "text-emerald-300";
+  if (score >= 5_000_000) return "text-amber-600 dark:text-amber-300";
+  if (score >= 1_000_000) return "text-cyan-700 dark:text-cyan-300";
+  if (score >= 500_000) return "text-emerald-700 dark:text-emerald-300";
   return "text-hq-fg-muted";
 }
 
@@ -90,6 +102,7 @@ export function ConductorWheelModal({
   qualification,
   dayLabel,
   mechanism,
+  paintTemplate,
   speedMultiplier = 1,
   automated = false,
   onAutomatedRevealComplete,
@@ -103,6 +116,8 @@ export function ConductorWheelModal({
   const rafRef = useRef<number | null>(null);
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [overrideReason, setOverrideReason] = useState("");
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
 
   const fastSecs = FAST_SECS / speedMultiplier;
   const slowSecs = SLOW_SECS / speedMultiplier;
@@ -138,6 +153,88 @@ export function ConductorWheelModal({
   const phase =
     reelSession && revealedKey === reelSession.key ? "revealed" : "spinning";
 
+  const shareViewport = useMemo(() => {
+    if (!reelSession) return null;
+    return restingShareViewport(reelSession);
+  }, [reelSession]);
+
+  const shareEligibilityLine = useMemo(() => {
+    if (!winner) return null;
+    const leaderboardRank =
+      showScoreValidation && rankedCandidates.length > 0
+        ? rankedCandidates.findIndex(
+            (candidate) => candidate.memberId === winner.memberId,
+          ) + 1 || null
+        : null;
+    return formatWheelShareEligibilityLine(
+      resolveWheelShareEligibility({
+        mechanism,
+        paintTemplate,
+        winner,
+        qualification,
+        leaderboardRank:
+          leaderboardRank && leaderboardRank > 0 ? leaderboardRank : null,
+      }),
+      {
+        vsMinimum: (score, minimum) =>
+          t("share.eligibilityVsMinimum", { score, minimum }),
+        tpif: (score, sweetSpot) =>
+          t("share.eligibilityTpif", { score, sweetSpot }),
+        vsLeaderboardRank: (rank, score, suffix) =>
+          t("share.eligibilityVsLeaderboardRank", { rank, score, suffix }),
+        vsLeaderboardScore: (score, suffix) =>
+          t("share.eligibilityVsLeaderboardScore", { score, suffix }),
+      },
+    );
+  }, [
+    winner,
+    mechanism,
+    paintTemplate,
+    qualification,
+    showScoreValidation,
+    rankedCandidates,
+    t,
+  ]);
+
+  const handleShareImage = useCallback(async () => {
+    if (!winner || !shareViewport) return;
+    setShareBusy(true);
+    setShareError(null);
+    try {
+      const statsLine =
+        stats != null
+          ? t("share.statsLine", {
+              lastDate: stats.lastConductedDate ?? t("never"),
+              count: stats.conductsThisYear,
+            })
+          : null;
+      const blob = await renderConductorWheelSharePngBlob({
+        title: t("title"),
+        dayLabel,
+        names: shareViewport.names,
+        winnerIndex: shareViewport.winnerIndex,
+        eligibilityLine: shareEligibilityLine,
+        statsLine,
+      });
+      const safeDate = dayLabel?.replace(/[^\w-]+/g, "-").toLowerCase() ?? "conductor";
+      downloadConductorWheelSharePng(
+        blob,
+        `conductor-wheel-${safeDate}.png`,
+      );
+    } catch {
+      setShareError(t("share.failed"));
+    } finally {
+      setShareBusy(false);
+    }
+  }, [
+    winner,
+    shareViewport,
+    stats,
+    dayLabel,
+    shareEligibilityLine,
+    t,
+  ]);
+
   const fireConfetti = useCallback(() => {
     void confetti({
       particleCount: 140,
@@ -169,6 +266,7 @@ export function ConductorWheelModal({
     reel.style.filter = "";
     setRevealedKey(null);
     setOverrideReason("");
+    setShareError(null);
 
     let startTime: number | null = null;
     let cancelled = false;
@@ -295,8 +393,8 @@ export function ConductorWheelModal({
                       centerDisqualified
                         ? "text-4xl text-hq-danger transition-colors duration-500"
                         : isCenter
-                          ? "text-4xl text-white"
-                          : "text-2xl opacity-75"
+                          ? "text-4xl text-hq-accent dark:text-white"
+                          : "text-2xl text-hq-fg-muted opacity-90"
                     }
                   >
                     {name}
@@ -326,7 +424,7 @@ export function ConductorWheelModal({
             className="pointer-events-none absolute inset-0"
             style={{
               background:
-                "linear-gradient(to bottom, #161b22 0%, transparent 32%, transparent 68%, #161b22 100%)",
+                "linear-gradient(to bottom, var(--hq-surface) 0%, transparent 32%, transparent 68%, var(--hq-surface) 100%)",
             }}
           />
         </div>
@@ -365,7 +463,9 @@ export function ConductorWheelModal({
                         </span>
                         <span
                           className={`truncate text-sm font-medium ${
-                            isWinner ? "text-white" : "text-hq-fg"
+                            isWinner
+                              ? "text-hq-accent dark:text-white"
+                              : "text-hq-fg"
                           }`}
                         >
                           {candidate.memberName}
@@ -485,14 +585,29 @@ export function ConductorWheelModal({
         ) : null}
 
         {phase === "revealed" && !disqualified && !automated ? (
-          <div className="mt-6 flex justify-center">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover"
-            >
-              {t("close")}
-            </button>
+          <div className="mt-6 flex flex-col items-center gap-3">
+            {shareError ? (
+              <p className="text-sm text-hq-danger" role="alert">
+                {shareError}
+              </p>
+            ) : null}
+            <div className="flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                disabled={shareBusy}
+                onClick={() => void handleShareImage()}
+                className="rounded-lg border border-[#8957e5]/50 bg-[#8957e5]/10 px-4 py-2 text-sm font-medium text-[#8250df] hover:bg-[#8957e5]/20 disabled:opacity-50 dark:text-[#d2a8ff]"
+              >
+                {shareBusy ? t("share.exporting") : t("share.action")}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover"
+              >
+                {t("close")}
+              </button>
+            </div>
           </div>
         ) : null}
       </div>
