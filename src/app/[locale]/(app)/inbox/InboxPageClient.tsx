@@ -9,6 +9,7 @@ import {
   isSnoozed,
   snoozeItem,
 } from "@/lib/battle-plan/capture-reminder-inbox.shared";
+import { OFFICER_ACTION_ITEM_DUE_INBOX_KIND } from "@/lib/officer-intel/action-item-inbox.shared";
 import { MEMBER_LINK_HELP_INBOX_KIND } from "@/lib/member-link/member-link-help-inbox.shared";
 import { ONBOARDING_REVIEW_INBOX_KIND } from "@/lib/member-link/onboarding-review-inbox.shared";
 import { ROSTER_LINK_INBOX_KIND } from "@/lib/member-link/roster-link-inbox.shared";
@@ -133,6 +134,8 @@ export default function InboxPageClient({
     if (kind === ONBOARDING_REVIEW_INBOX_KIND) return t("kind.memberOnboardingReview");
     if (kind === MEMBER_LINK_HELP_INBOX_KIND) return t("kind.memberLinkHelp");
     if (kind === CAPTURE_REMINDER_INBOX_KIND) return t("kind.captureReminder");
+    if (kind === OFFICER_ACTION_ITEM_DUE_INBOX_KIND)
+      return t("kind.officerActionItemDue");
     return kind;
   }
 
@@ -161,6 +164,9 @@ export default function InboxPageClient({
     }
     if (item.kind === MEMBER_LINK_HELP_INBOX_KIND) {
       return t("kind.memberLinkHelpBody");
+    }
+    if (item.kind === OFFICER_ACTION_ITEM_DUE_INBOX_KIND) {
+      return t("kind.officerActionItemDueBody");
     }
     return item.body;
   }
