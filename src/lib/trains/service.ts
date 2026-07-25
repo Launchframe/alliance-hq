@@ -254,6 +254,23 @@ async function buildPoolCandidates(input: {
   return poolCandidates.filter((candidate) => qualified.has(candidate.memberId));
 }
 
+/** Non-blocking probe for roster readiness on rank-based conductor pools. */
+export async function countEligiblePoolMembers(input: {
+  hqAllianceId: string;
+  poolType: PoolType;
+  date: string;
+  paintTemplate?: WeekTemplateType | null;
+}): Promise<number> {
+  const candidates = await buildPoolCandidates({
+    hqAllianceId: input.hqAllianceId,
+    poolType: input.poolType,
+    date: input.date,
+    paintTemplate: input.paintTemplate,
+    respectConductorMinimums: true,
+  });
+  return candidates.length;
+}
+
 /** Seed a conductor pool if it has no entries yet (used by rolls and manual picks). */
 export async function ensureConductorPoolSeeded(input: {
   hqAllianceId: string;

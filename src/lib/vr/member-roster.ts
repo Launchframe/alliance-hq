@@ -31,7 +31,7 @@ function legacyTokenAllowedForAlliance(allianceTag: string): boolean {
   return allianceTag.trim().toLowerCase() === guardTag.trim().toLowerCase();
 }
 
-async function resolveBotAshedConnection(
+export async function resolveAllianceAshedBotConnection(
   allianceId: string,
 ): Promise<ParsedConnection | null> {
   const credential = await getAllianceAshedCredential(allianceId);
@@ -99,7 +99,7 @@ export async function loadAllianceMembersForMemberLink(
     return { members: [], rosterSource: "empty" };
   }
 
-  const connection = await resolveBotAshedConnection(allianceId);
+  const connection = await resolveAllianceAshedBotConnection(allianceId);
   if (!connection) {
     return { members: [], rosterSource: "empty" };
   }
@@ -128,7 +128,7 @@ export async function loadAllianceMembersForMemberLinkWithLiveRetry(
     return initial;
   }
 
-  const connection = await resolveBotAshedConnection(allianceId);
+  const connection = await resolveAllianceAshedBotConnection(allianceId);
   if (!connection) {
     return initial;
   }
@@ -165,7 +165,7 @@ export async function allianceHasBotCredentials(allianceId: string): Promise<boo
 
   const alliance = await getAllianceById(allianceId);
   if (!alliance?.ashedAllianceId) return false;
-  return (await resolveBotAshedConnection(allianceId)) != null;
+  return (await resolveAllianceAshedBotConnection(allianceId)) != null;
 }
 
 /** @deprecated Use loadAllianceMembersForBot — kept for tests importing buildBotAshedConnection */

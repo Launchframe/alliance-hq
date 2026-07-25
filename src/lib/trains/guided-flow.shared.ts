@@ -1,12 +1,12 @@
 /**
  * Pure step derivation for Trains Simple Mode guided conductor flow.
  *
- * When VS / Price Is Freight score data is required but missing, the flow
- * blocks at the `"prerequisites"` step — the officer must upload scores
- * before spinning for conductor.
+ * When roster or VS / Price Is Freight prerequisites are missing, the flow
+ * blocks before spinning for conductor.
  */
 
 export type GuidedFlowStep =
+  | "roster"
   | "prerequisites"
   | "template"
   | "conductor"
@@ -29,6 +29,13 @@ export type GuidedFlowInput = {
   /** Conductor record locked for the selected day. */
   locked: boolean;
   /**
+   * Roster data is required for today's conductor actions
+   * (`rosterDataStatus.required`).
+   */
+  rosterDataRequired?: boolean;
+  /** Roster ready (`rosterDataStatus.ready`). */
+  rosterDataReady?: boolean;
+  /**
    * VS/PIF score data is required for today's mechanism/paint
    * (`vsDataStatus.required`).
    */
@@ -36,6 +43,15 @@ export type GuidedFlowInput = {
   /** Score data ready (`vsDataStatus.ready`). */
   vsDataReady?: boolean;
 };
+
+/**
+ * Whether the roster step should show as blocking.
+ */
+export function guidedFlowRosterBlocking(input: GuidedFlowInput): boolean {
+  if (input.locked) return false;
+  if (!input.schedulePersisted) return false;
+  return Boolean(input.rosterDataRequired) && !input.rosterDataReady;
+}
 
 /**
  * Whether the prerequisites step should show as blocking.
@@ -47,15 +63,16 @@ export function guidedFlowPrerequisitesBlocking(
 ): boolean {
   if (input.locked) return false;
   if (!input.schedulePersisted) return false;
+  if (guidedFlowRosterBlocking(input)) return false;
   return Boolean(input.vsDataRequired) && !input.vsDataReady;
 }
 
 /**
  * First incomplete step for the guided flow primary CTA.
- * Blocks at `"prerequisites"` when score data is required but missing.
  */
 export function currentGuidedStep(input: GuidedFlowInput): GuidedFlowStep {
   if (!input.schedulePersisted) return "template";
+  if (guidedFlowRosterBlocking(input)) return "roster";
   if (guidedFlowPrerequisitesBlocking(input)) return "prerequisites";
   if (!input.hasConductor) return "conductor";
   if (input.vipNeeded && !input.hasVip) return "vip";

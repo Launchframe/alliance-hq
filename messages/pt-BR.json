@@ -3209,7 +3209,7 @@
     "dayTemplateMenu": {
       "title": "Alterar modelo do dia",
       "ariaLabel": "Escolher um modelo para {date}",
-      "holdHint": "Pressione e segure um dia para alterar o modelo"
+      "holdHint": "Pressione longamente um dia para alterar o modelo desse dia."
     },
     "weekdays": {
       "mon": "Seg",
@@ -3251,6 +3251,10 @@
     "uploadScoresBanner": {
       "body": "O modelo deste dia requer pontuações VS. Envie as pontuações de ontem antes de sortear o condutor.",
       "link": "Enviar vídeo de pontuação"
+    },
+    "rosterSyncBanner": {
+      "bodyEmpty": "O Alliance HQ ainda não tem o roster da sua aliança. Sincronize pelo Ashed para carregar membros e patentes antes de girar a roleta.",
+      "bodyMissingRanks": "Nenhum membro atende ao requisito de patente de hoje ({rankLabel}). Sincronize pelo Ashed caso as patentes estejam desatualizadas ou atribua patentes em Membros."
     },
     "quickActionsConductor": "Condutor",
     "quickActionsVip": "VIP",
@@ -3340,6 +3344,24 @@
     "guidedFlow": {
       "heading": "Configuração do condutor de hoje",
       "steps": {
+        "roster": {
+          "title": "Preparar roster",
+          "bodyEmpty": "O Alliance HQ ainda não tem o roster da sua aliança. Sincronize pelo Ashed para carregar membros e patentes antes de girar a roleta.",
+          "bodyMissingRanks": "Nenhum membro atende ao requisito de patente de hoje ({rankLabel}). Sincronize pelo Ashed caso as patentes estejam desatualizadas ou atribua patentes em Membros.",
+          "bodyNoSyncPath": "O HQ ainda não consegue puxar o roster pelo Ashed. Se você tem uma conta no ashed.online, conecte em Configurações e sincronize aqui. Caso contrário, peça ao dono da aliança ou a outro oficial com acesso ao Ashed para conectar em Configurações ou atualizar o roster em Membros.",
+          "syncAshed": "Sincronizar roster pelo Ashed",
+          "refreshNative": "Atualizar roster",
+          "syncing": "Sincronizando roster…",
+          "syncSuccess": "Roster atualizado ({count} membros ativos).",
+          "syncFailed": "Não foi possível sincronizar o roster. Tente de novo ou abra Membros.",
+          "connectAshed": "Conectar Ashed em Configurações",
+          "goToMembers": "Ir para Membros",
+          "rankLabels": {
+            "r3": "R3",
+            "r4_plus": "R4 ou R5",
+            "heavy_hitter": "heavy hitter"
+          }
+        },
         "prerequisites": {
           "title": "Enviar pontuações",
           "bodyReady": "{count} comandantes têm pontuações prontas.",
@@ -3623,6 +3645,7 @@
       "goToTrainSettings": "Abrir config. de trens",
       "goToSettings": "Ir para Configurações",
       "uploadScoreVideo": "Enviar vídeo de placar",
+      "syncRoster": "Sincronizar roster pelo Ashed",
       "pickManually": "Escolher manualmente",
       "retrySpin": "Tentar girar de novo",
       "reseedPool": "Recriar pool",

@@ -10,6 +10,9 @@ import {
   currentGuidedStep,
   type GuidedFlowStep,
 } from "@/lib/trains/guided-flow.shared";
+import { buildConnectHref } from "@/lib/connect/connect-return-path.shared";
+import { rosterSyncCapabilityAllowsInPageSync } from "@/lib/trains/roster-data-status.shared";
+import type { TrainsRosterDataStatus } from "@/lib/trains/roster-data-status.shared";
 import { WEEK_TEMPLATES_WITH_DETAIL_HINTS } from "@/lib/trains/week-template-registry.shared";
 import type { TrainsVsDataStatus } from "@/lib/trains/vs-data-status.shared";
 import type { WeekTemplateType } from "@/lib/trains/types";
@@ -24,6 +27,7 @@ export type TrainsGuidedConductorFlowProps = {
   /** Pre-translated template explainer; falls back to `trains.templateDetails.*` when omitted. */
   templateDetailHint?: string | null;
   vsDataStatus: TrainsVsDataStatus | null;
+  rosterDataStatus: TrainsRosterDataStatus | null;
   hasConductor: boolean;
   conductorName?: string | null;
   vipNeeded: boolean;
@@ -53,9 +57,13 @@ export type TrainsGuidedConductorFlowProps = {
   /** Rendered inside the "Show advanced actions" disclosure (swap / reseed / unlock, etc). */
   advancedActions?: ReactNode;
   videoUploadHref?: string;
+  rosterSyncBusy?: boolean;
+  rosterSyncNotice?: string | null;
+  onSyncRoster?: () => void;
 };
 
 type StepId =
+  | "roster"
   | "prerequisites"
   | "template"
   | "conductor"
@@ -66,6 +74,7 @@ type StepStatus = "completed" | "current" | "upcoming" | "skipped";
 
 const STEP_ORDER: StepId[] = [
   "template",
+  "roster",
   "prerequisites",
   "conductor",
   "vip",
@@ -78,9 +87,11 @@ function stepStatus(
   current: GuidedFlowStep,
   vipNeeded: boolean,
   vsDataRequired: boolean,
+  rosterDataRequired: boolean,
 ): StepStatus {
   if (step === "vip" && !vipNeeded) return "skipped";
   if (step === "prerequisites" && !vsDataRequired) return "skipped";
+  if (step === "roster" && !rosterDataRequired) return "skipped";
   const stepIndex = STEP_ORDER.indexOf(step);
   const currentIndex = STEP_ORDER.indexOf(current);
   if (stepIndex < currentIndex) return "completed";
@@ -191,6 +202,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     templateType,
     templateDetailHint,
     vsDataStatus,
+    rosterDataStatus,
     hasConductor,
     conductorName,
     vipNeeded,
@@ -214,7 +226,12 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     poolPanel,
     advancedActions,
     videoUploadHref,
+    rosterSyncBusy = false,
+    rosterSyncNotice = null,
+    onSyncRoster,
   } = props;
+
+  const connectAshedHref = buildConnectHref("/trains");
 
   const t = useTranslations("trains.guidedFlow");
   const tTemplates = useTranslations("trains.templates");
@@ -222,12 +239,15 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const vsRequired = Boolean(vsDataStatus?.required);
+  const rosterRequired = Boolean(rosterDataStatus?.required);
   const guidedInput = {
     schedulePersisted,
     hasConductor,
     vipNeeded,
     hasVip,
     locked,
+    rosterDataRequired: rosterDataStatus?.required,
+    rosterDataReady: rosterDataStatus?.ready,
     vsDataRequired: vsDataStatus?.required,
     vsDataReady: vsDataStatus?.ready,
   };
@@ -258,12 +278,55 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
       ? { label: t("steps.vip.pickManual"), onClick: onPickVipManual }
       : null;
 
-  const prerequisitesStatus = stepStatus("prerequisites", current, vipNeeded, vsRequired);
-  const templateStatus = stepStatus("template", current, vipNeeded, vsRequired);
-  const conductorStatus = stepStatus("conductor", current, vipNeeded, vsRequired);
-  const vipStatus = stepStatus("vip", current, vipNeeded, vsRequired);
-  const lockStatus = stepStatus("lock", current, vipNeeded, vsRequired);
-  const doneStatus = stepStatus("done", current, vipNeeded, vsRequired);
+  const prerequisitesStatus = stepStatus(
+    "prerequisites",
+    current,
+    vipNeeded,
+    vsRequired,
+    rosterRequired,
+  );
+  const rosterStatus = stepStatus(
+    "roster",
+    current,
+    vipNeeded,
+    vsRequired,
+    rosterRequired,
+  );
+  const templateStatus = stepStatus(
+    "template",
+    current,
+    vipNeeded,
+    vsRequired,
+    rosterRequired,
+  );
+  const conductorStatus = stepStatus(
+    "conductor",
+    current,
+    vipNeeded,
+    vsRequired,
+    rosterRequired,
+  );
+  const vipStatus = stepStatus("vip", current, vipNeeded, vsRequired, rosterRequired);
+  const lockStatus = stepStatus("lock", current, vipNeeded, vsRequired, rosterRequired);
+  const doneStatus = stepStatus("done", current, vipNeeded, vsRequired, rosterRequired);
+
+  const rosterRankLabel =
+    rosterDataStatus?.poolType != null
+      ? t(`steps.roster.rankLabels.${rosterDataStatus.poolType}`)
+      : null;
+  const rosterBodyKey =
+    rosterDataStatus?.activeMemberCount === 0
+      ? "steps.roster.bodyEmpty"
+      : rosterDataStatus?.needKind === "rank_pool"
+        ? "steps.roster.bodyMissingRanks"
+        : "steps.roster.bodyEmpty";
+  const canInPageRosterSync =
+    rosterDataStatus != null &&
+    rosterSyncCapabilityAllowsInPageSync(rosterDataStatus.syncCapability);
+  const rosterPrimaryLabel =
+    rosterDataStatus?.syncCapability === "native_reload"
+      ? t("steps.roster.refreshNative")
+      : t("steps.roster.syncAshed");
 
   return (
     <div
@@ -297,6 +360,68 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
             </p>
           ) : null}
         </StepRow>
+
+        {rosterStatus !== "skipped" ? (
+          <StepRow status={rosterStatus} title={t("steps.roster.title")}>
+            {rosterStatus === "current" ? (
+              <div
+                className="flex flex-col gap-2"
+                data-testid="trains-guided-roster"
+              >
+                <p className="text-sm text-hq-fg">
+                  {rosterDataStatus?.syncCapability === "none"
+                    ? t("steps.roster.bodyNoSyncPath")
+                    : t(rosterBodyKey, {
+                        rankLabel: rosterRankLabel ?? "",
+                      })}
+                </p>
+                {rosterSyncNotice ? (
+                  <p className="text-xs text-hq-success">{rosterSyncNotice}</p>
+                ) : null}
+                {canInPageRosterSync && onSyncRoster ? (
+                  <PrimaryCtaButton
+                    action={{
+                      label: rosterSyncBusy
+                        ? t("steps.roster.syncing")
+                        : rosterPrimaryLabel,
+                      onClick: onSyncRoster,
+                    }}
+                    busy={busy || rosterSyncBusy}
+                  />
+                ) : null}
+                {rosterDataStatus?.syncCapability === "none" ? (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <Link
+                      href={connectAshedHref}
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 sm:w-auto"
+                    >
+                      {t("steps.roster.connectAshed")}
+                    </Link>
+                    <Link
+                      href="/members"
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-hq-border bg-hq-canvas px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-surface sm:w-auto"
+                    >
+                      {t("steps.roster.goToMembers")}
+                    </Link>
+                  </div>
+                ) : rosterDataStatus?.syncCapability === "native_reload" ? (
+                  <Link
+                    href="/members"
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-hq-border bg-hq-canvas px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-surface sm:w-auto"
+                  >
+                    {t("steps.roster.goToMembers")}
+                  </Link>
+                ) : null}
+              </div>
+            ) : rosterStatus === "completed" ? (
+              <p className="text-xs text-hq-fg-muted">
+                {t("steps.roster.syncSuccess", {
+                  count: rosterDataStatus?.activeMemberCount ?? 0,
+                })}
+              </p>
+            ) : null}
+          </StepRow>
+        ) : null}
 
         {prerequisitesStatus !== "skipped" ? (
           <StepRow

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   currentGuidedStep,
   guidedFlowPrerequisitesBlocking,
+  guidedFlowRosterBlocking,
   type GuidedFlowInput,
 } from "@/lib/trains/guided-flow.shared";
 
@@ -67,6 +68,34 @@ describe("currentGuidedStep", () => {
     expect(currentGuidedStep(base)).toBe("done");
   });
 
+  it("blocks on roster before prerequisites when both are missing", () => {
+    expect(
+      currentGuidedStep({
+        ...base,
+        hasConductor: false,
+        locked: false,
+        rosterDataRequired: true,
+        rosterDataReady: false,
+        vsDataRequired: true,
+        vsDataReady: false,
+      }),
+    ).toBe("roster");
+  });
+
+  it("blocks on prerequisites when roster is ready but VS data missing", () => {
+    expect(
+      currentGuidedStep({
+        ...base,
+        hasConductor: false,
+        locked: false,
+        rosterDataRequired: true,
+        rosterDataReady: true,
+        vsDataRequired: true,
+        vsDataReady: false,
+      }),
+    ).toBe("prerequisites");
+  });
+
   it("blocks on prerequisites when VS data required but missing", () => {
     expect(
       currentGuidedStep({
@@ -113,6 +142,30 @@ describe("currentGuidedStep", () => {
         vsDataReady: false,
       }),
     ).toBe("done");
+  });
+});
+
+describe("guidedFlowRosterBlocking", () => {
+  it("is true when roster required, not ready, template chosen, not locked", () => {
+    expect(
+      guidedFlowRosterBlocking({
+        ...base,
+        locked: false,
+        rosterDataRequired: true,
+        rosterDataReady: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("is false when roster is ready", () => {
+    expect(
+      guidedFlowRosterBlocking({
+        ...base,
+        locked: false,
+        rosterDataRequired: true,
+        rosterDataReady: true,
+      }),
+    ).toBe(false);
   });
 });
 

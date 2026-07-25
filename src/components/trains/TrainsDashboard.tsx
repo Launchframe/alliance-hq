@@ -75,6 +75,7 @@ import {
 } from "@/lib/trains/spin-source.shared";
 import { canStartConductorSwap } from "@/lib/trains/conductor-swap.shared";
 import { currentGuidedStep } from "@/lib/trains/guided-flow.shared";
+import { rosterSyncCapabilityAllowsInPageSync } from "@/lib/trains/roster-data-status.shared";
 import type { PoolRefreshedInfo, PoolType, RollResult, WeekTemplateType } from "@/lib/trains/types";
 import {
   compositeParentForSegment,
@@ -259,6 +260,8 @@ export function TrainsDashboard({ initial }: Props) {
     memberName: string;
     role: "conductor" | "vip";
   } | null>(null);
+  const [rosterSyncBusy, setRosterSyncBusy] = useState(false);
+  const [rosterSyncNotice, setRosterSyncNotice] = useState<string | null>(null);
 
   const trainWeekConfig = useMemo(
     () => allianceTrainWeekFromRow({ trainWeekStartDow: data.trainWeekStartDow }),
@@ -660,6 +663,44 @@ export function TrainsDashboard({ initial }: Props) {
   useEffect(() => {
     refreshRef.current = refresh;
   }, [refresh]);
+
+  const handleRosterSync = useCallback(async () => {
+    setRosterSyncBusy(true);
+    setRosterSyncNotice(null);
+    try {
+      const res = await fetch("/api/trains/roster-sync", { method: "POST" });
+      const body = (await res.json()) as {
+        error?: string;
+        activeMemberCount?: number;
+        rosterDataStatus?: TrainsDashboardPayload["rosterDataStatus"];
+      };
+      if (!res.ok) {
+        setError(body.error ?? t("guidedFlow.steps.roster.syncFailed"));
+        return;
+      }
+      if (body.rosterDataStatus != null && body.activeMemberCount != null) {
+        setData((current) => ({
+          ...current,
+          activeMemberCount: body.activeMemberCount!,
+          rosterDataStatus: body.rosterDataStatus!,
+        }));
+        setRosterSyncNotice(
+          t("guidedFlow.steps.roster.syncSuccess", {
+            count: body.activeMemberCount,
+          }),
+        );
+      }
+      await refreshRef.current();
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : t("guidedFlow.steps.roster.syncFailed"),
+      );
+    } finally {
+      setRosterSyncBusy(false);
+    }
+  }, [t, setData, setError, setRosterSyncBusy, setRosterSyncNotice]);
 
   // Revalidate dashboard data when the tab becomes visible again (e.g. after
   // uploading scores on /tools/video-upload and returning).
@@ -1311,13 +1352,17 @@ export function TrainsDashboard({ initial }: Props) {
     !locked &&
     supportsManualVipPick(vipMech) &&
     canManualPickForDate();
+  const rosterBlocking =
+    Boolean(data.rosterDataStatus?.required) && !data.rosterDataStatus?.ready;
   const showQuickActions =
     data.canManageTrains &&
     (canRoll ||
       canManualPick ||
       canManualPickVip ||
       Boolean(selectedRecord?.conductorMemberId) ||
-      locked);
+      locked ||
+      rosterBlocking ||
+      !data.schedulePersisted);
   const selectedConductorConfig =
     selectedDayConfig?.conductorConfig ??
     (selectedDayConfig?.topN != null
@@ -1347,6 +1392,14 @@ export function TrainsDashboard({ initial }: Props) {
     vipNeeded: guidedVipNeeded,
     hasVip: guidedHasVip,
     locked,
+    rosterDataRequired:
+      selectedDate === data.today ? data.rosterDataStatus?.required : false,
+    rosterDataReady:
+      selectedDate === data.today ? data.rosterDataStatus?.ready : true,
+    vsDataRequired:
+      selectedDate === data.today ? data.vsDataStatus?.required : false,
+    vsDataReady:
+      selectedDate === data.today ? data.vsDataStatus?.ready : true,
   });
   const showConductorCard =
     !data.simpleModeEnabled || guidedStep === "done";
@@ -1425,25 +1478,19 @@ export function TrainsDashboard({ initial }: Props) {
     [conductorShortLabels, vipShortLabels],
   );
 
-  if (data.activeMemberCount === 0) {
-    return (
-      <div className="mx-auto flex w-full max-w-lg flex-col gap-4 p-4 sm:p-6">
-        <header>
-          <h1 className="text-2xl font-semibold text-foreground">{t("title")}</h1>
-          <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
-        </header>
-        <section className="rounded-2xl border border-hq-border bg-hq-surface p-6 text-center">
-          <p className="text-sm text-[#c9d1d9]">{t("emptyRosterBody")}</p>
-          <Link
-            href="/members"
-            className="mt-4 inline-flex rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover"
-          >
-            {t("emptyRosterCta")}
-          </Link>
-        </section>
-      </div>
-    );
-  }
+  const rosterRankLabel =
+    data.rosterDataStatus?.poolType != null
+      ? t(`guidedFlow.steps.roster.rankLabels.${data.rosterDataStatus.poolType}`)
+      : null;
+  const rosterBannerBodyKey =
+    data.rosterDataStatus?.activeMemberCount === 0
+      ? "rosterSyncBanner.bodyEmpty"
+      : data.rosterDataStatus?.needKind === "rank_pool"
+        ? "rosterSyncBanner.bodyMissingRanks"
+        : "rosterSyncBanner.bodyEmpty";
+  const canInPageRosterSync =
+    data.rosterDataStatus != null &&
+    rosterSyncCapabilityAllowsInPageSync(data.rosterDataStatus.syncCapability);
 
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 p-4 sm:p-6">
@@ -1608,6 +1655,17 @@ export function TrainsDashboard({ initial }: Props) {
             </div>
           </div>
 
+          {data.simpleModeEnabled &&
+          scheduleView === "week" &&
+          data.canManageTrains ? (
+            <p
+              className="text-xs text-hq-fg-muted"
+              data-testid="trains-day-template-hold-hint"
+            >
+              {t("dayTemplateMenu.holdHint")}
+            </p>
+          ) : null}
+
           {scheduleView === "week" ? (
             <WeekScheduleStrip
               today={data.today}
@@ -1724,6 +1782,9 @@ export function TrainsDashboard({ initial }: Props) {
                 vsDataStatus={
                   selectedDate === data.today ? data.vsDataStatus : null
                 }
+                rosterDataStatus={
+                  selectedDate === data.today ? data.rosterDataStatus : null
+                }
                 hasConductor={Boolean(selectedRecord?.conductorMemberId)}
                 conductorName={selectedRecord?.conductorMemberName}
                 vipNeeded={guidedVipNeeded}
@@ -1757,6 +1818,9 @@ export function TrainsDashboard({ initial }: Props) {
                   }
                   void lockConductor();
                 }}
+                rosterSyncBusy={rosterSyncBusy}
+                rosterSyncNotice={rosterSyncNotice}
+                onSyncRoster={() => void handleRosterSync()}
                 poolPanel={
                   isPoolSpinSource(selectedConductorSpinSource) ||
                   isPoolSpinSource(selectedVipSpinSource) ? (
@@ -1920,6 +1984,41 @@ export function TrainsDashboard({ initial }: Props) {
               <h3 className="text-sm font-medium text-hq-fg-muted">
                 {t("quickActions")}
               </h3>
+              {selectedDate === data.today &&
+              rosterBlocking &&
+              !locked ? (
+                <div
+                  className="flex flex-col gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/5 px-3 py-2.5"
+                  data-testid="trains-roster-sync-banner"
+                >
+                  <p className="text-sm text-hq-fg">
+                    {t(rosterBannerBodyKey, {
+                      rankLabel: rosterRankLabel ?? "",
+                    })}
+                  </p>
+                  {canInPageRosterSync ? (
+                    <button
+                      type="button"
+                      disabled={rosterSyncBusy}
+                      onClick={() => void handleRosterSync()}
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 disabled:opacity-50 sm:w-auto"
+                    >
+                      {rosterSyncBusy
+                        ? t("guidedFlow.steps.roster.syncing")
+                        : data.rosterDataStatus?.syncCapability === "native_reload"
+                          ? t("guidedFlow.steps.roster.refreshNative")
+                          : t("guidedFlow.steps.roster.syncAshed")}
+                    </button>
+                  ) : (
+                    <Link
+                      href="/members"
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 sm:w-auto"
+                    >
+                      {t("guidedFlow.steps.roster.goToMembers")} →
+                    </Link>
+                  )}
+                </div>
+              ) : null}
               {selectedDate === data.today &&
               data.vsDataStatus?.required &&
               !data.vsDataStatus.ready &&
@@ -2364,6 +2463,8 @@ export function TrainsDashboard({ initial }: Props) {
           setPickOpen(true);
         }}
         onRetrySpin={() => void runRollRef.current(wheelBlockedRole)}
+        canSyncRoster={canInPageRosterSync}
+        onSyncRoster={() => void handleRosterSync()}
       />
 
       <TrainPoolDetailsDialog

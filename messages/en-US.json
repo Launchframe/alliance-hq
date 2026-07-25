@@ -3263,7 +3263,7 @@
     "dayTemplateMenu": {
       "title": "Change day template",
       "ariaLabel": "Choose a template for {date}",
-      "holdHint": "Press and hold a day to change its template"
+      "holdHint": "Long press a day to change its template."
     },
     "weekdays": {
       "mon": "Mon",
@@ -3305,6 +3305,10 @@
     "uploadScoresBanner": {
       "body": "This day's template requires VS scores. Upload yesterday's scores before spinning for conductor.",
       "link": "Upload score video"
+    },
+    "rosterSyncBanner": {
+      "bodyEmpty": "Alliance HQ does not have your roster yet. Sync from Ashed to load members and ranks before spinning.",
+      "bodyMissingRanks": "No members match today's rank requirement ({rankLabel}). Sync from Ashed in case ranks are outdated, or assign ranks on Members."
     },
     "quickActionsConductor": "Conductor",
     "quickActionsVip": "VIP",
@@ -3394,6 +3398,24 @@
     "guidedFlow": {
       "heading": "Today’s conductor setup",
       "steps": {
+        "roster": {
+          "title": "Prepare roster",
+          "bodyEmpty": "Alliance HQ does not have your roster yet. Sync from Ashed to load members and ranks before spinning.",
+          "bodyMissingRanks": "No members match today's rank requirement ({rankLabel}). Sync from Ashed in case ranks are outdated, or assign ranks on Members.",
+          "bodyNoSyncPath": "HQ cannot pull your roster from Ashed yet. If you have an ashed.online seat, connect in Settings and sync here. Otherwise ask your alliance owner or another officer with Ashed access to connect from Settings or refresh the roster on Members.",
+          "syncAshed": "Sync roster from Ashed",
+          "refreshNative": "Refresh roster",
+          "syncing": "Syncing roster…",
+          "syncSuccess": "Roster updated ({count} active members).",
+          "syncFailed": "Could not sync the roster. Try again or open Members.",
+          "connectAshed": "Connect Ashed in Settings",
+          "goToMembers": "Go to Members",
+          "rankLabels": {
+            "r3": "R3",
+            "r4_plus": "R4 or R5",
+            "heavy_hitter": "heavy hitter"
+          }
+        },
         "prerequisites": {
           "title": "Upload scores",
           "bodyReady": "{count} commanders have scores ready.",
@@ -3677,6 +3699,7 @@
       "goToTrainSettings": "Open train settings",
       "goToSettings": "Go to Settings",
       "uploadScoreVideo": "Upload score video",
+      "syncRoster": "Sync roster from Ashed",
       "pickManually": "Pick manually",
       "retrySpin": "Try spinning again",
       "reseedPool": "Re-seed pool",

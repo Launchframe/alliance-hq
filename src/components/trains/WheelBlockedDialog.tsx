@@ -15,6 +15,7 @@ type Props = {
   busy?: boolean;
   /** Manual pick is available for today's role. */
   canPickManually?: boolean;
+  canSyncRoster?: boolean;
   onClose: () => void;
   /** Re-seed the pool, then retry the spin that failed. */
   onReseedAndRespin?: (poolType: PoolType) => void;
@@ -22,6 +23,7 @@ type Props = {
   onPickManually?: () => void;
   /** Retry the spin that failed (when reseed isn't the fix). */
   onRetrySpin?: () => void;
+  onSyncRoster?: () => void;
 };
 
 function bodyMessageKey(details: TrainRollErrorDetails): string {
@@ -81,6 +83,7 @@ function resolveReseedPoolType(
 
 function primaryLinkCta(
   details: TrainRollErrorDetails,
+  options?: { canSyncRoster?: boolean },
 ): { href: string; labelKey: string } | null {
   if (details.code === "POOL_EMPTY") {
     if (details.poolType === "heavy_hitter") {
@@ -88,6 +91,9 @@ function primaryLinkCta(
         href: "/settings/trains",
         labelKey: "wheelBlocked.goToTrainSettings",
       };
+    }
+    if (options?.canSyncRoster) {
+      return null;
     }
     return { href: "/members", labelKey: "wheelBlocked.goToMembers" };
   }
@@ -127,10 +133,12 @@ export function WheelBlockedDialog({
   fallbackPoolType = null,
   busy = false,
   canPickManually = false,
+  canSyncRoster = false,
   onClose,
   onReseedAndRespin,
   onPickManually,
   onRetrySpin,
+  onSyncRoster,
 }: Props) {
   const t = useTranslations("trains");
 
@@ -139,7 +147,12 @@ export function WheelBlockedDialog({
   const bodyKey = bodyMessageKey(details);
   const reseedPoolType = resolveReseedPoolType(details, fallbackPoolType);
   const showReseed = reseedPoolType != null && onReseedAndRespin != null;
-  const linkCta = primaryLinkCta(details);
+  const linkCta = primaryLinkCta(details, { canSyncRoster });
+  const showSyncRoster =
+    canSyncRoster &&
+    details.code === "POOL_EMPTY" &&
+    details.poolType !== "heavy_hitter" &&
+    onSyncRoster != null;
   const showPick =
     canPickManually &&
     showPickManuallyCta(details) &&
@@ -200,6 +213,20 @@ export function WheelBlockedDialog({
               className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50"
             >
               {t("wheelBlocked.retrySpin")}
+            </button>
+          ) : null}
+
+          {showSyncRoster ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                onSyncRoster();
+                onClose();
+              }}
+              className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 disabled:opacity-50"
+            >
+              {t("wheelBlocked.syncRoster")}
             </button>
           ) : null}
 
