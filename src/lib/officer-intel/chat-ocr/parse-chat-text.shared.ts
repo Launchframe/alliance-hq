@@ -188,13 +188,28 @@ export function mergeOfficerChatParses(
   parts: readonly ParsedOfficerChatMessage[][],
 ): ParsedOfficerChatMessage[] {
   const merged: ParsedOfficerChatMessage[] = [];
-  const seen = new Set<string>();
 
   for (const part of parts) {
-    for (const message of part) {
-      const key = [message.senderName, message.originalText].join("\0");
-      if (seen.has(key)) continue;
-      seen.add(key);
+    let overlap = 0;
+    const maxOverlap = Math.min(merged.length, part.length);
+    for (let size = maxOverlap; size > 0; size -= 1) {
+      const mergedStart = merged.length - size;
+      const matches = part
+        .slice(0, size)
+        .every((message, index) => {
+          const previous = merged[mergedStart + index]!;
+          return (
+            previous.senderName === message.senderName &&
+            previous.originalText === message.originalText
+          );
+        });
+      if (matches) {
+        overlap = size;
+        break;
+      }
+    }
+
+    for (const message of part.slice(overlap)) {
       merged.push({
         ...message,
         sequenceOrder: merged.length,

@@ -14,7 +14,7 @@ import {
   extensionForOfficerIntelMime,
   officerIntelImageStorageKey,
 } from "@/lib/officer-intel/storage.shared";
-import { putObject } from "@/lib/storage";
+import { deleteObject, putObject } from "@/lib/storage";
 
 export async function createOfficerChatSession(input: {
   allianceId: string;
@@ -154,13 +154,31 @@ export async function importOfficerChatSession(input: {
     return { error: "Session not found." as const };
   }
 
-  await db
-    .delete(schema.officerChatMessages)
-    .where(eq(schema.officerChatMessages.sessionId, input.sessionId));
-  await db
-    .delete(schema.officerChatSessionImages)
-    .where(eq(schema.officerChatSessionImages.sessionId, input.sessionId));
+  const previousImages = await listOfficerChatSessionImages({
+    sessionId: input.sessionId,
+    allianceId: input.allianceId,
+  });
+  const localizedMessages: Array<{
+    message: OfficerChatImportMessageInput;
+    locale: Awaited<ReturnType<typeof resolveOfficerChatLocaleText>>;
+  }> = [];
+  for (const message of input.messages) {
+    const locale = await resolveOfficerChatLocaleText({
+      allianceId: input.allianceId,
+      originalText: message.originalText,
+      hqLocale: input.hqLocale,
+    });
+    localizedMessages.push({ message, locale });
+  }
 
+  const stagedImages: Array<{
+    id: string;
+    storageKey: string;
+    sequenceOrder: number;
+    width: number | null;
+    height: number | null;
+  }> = [];
+  const uploadedStorageKeys: string[] = [];
   for (let index = 0; index < input.images.length; index += 1) {
     const image = input.images[index]!;
     const imageId = nanoid();
@@ -170,11 +188,8 @@ export async function importOfficerChatSession(input: {
       imageId,
       extension: extensionForOfficerIntelMime(image.mimeType),
     });
-    await putObject(storageKey, image.buffer);
-    await db.insert(schema.officerChatSessionImages).values({
+    stagedImages.push({
       id: imageId,
-      sessionId: input.sessionId,
-      allianceId: input.allianceId,
       storageKey,
       sequenceOrder: index,
       width: image.width ?? null,
@@ -182,46 +197,88 @@ export async function importOfficerChatSession(input: {
     });
   }
 
-  for (const message of input.messages) {
-    const locale = await resolveOfficerChatLocaleText({
-      allianceId: input.allianceId,
-      originalText: message.originalText,
-      hqLocale: input.hqLocale,
+  try {
+    for (let index = 0; index < input.images.length; index += 1) {
+      const storageKey = stagedImages[index]!.storageKey;
+      await putObject(storageKey, input.images[index]!.buffer);
+      uploadedStorageKeys.push(storageKey);
+    }
+
+    const now = new Date();
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(schema.officerChatMessages)
+        .where(
+          and(
+            eq(schema.officerChatMessages.sessionId, input.sessionId),
+            eq(schema.officerChatMessages.allianceId, input.allianceId),
+          ),
+        );
+      await tx
+        .delete(schema.officerChatSessionImages)
+        .where(
+          and(
+            eq(schema.officerChatSessionImages.sessionId, input.sessionId),
+            eq(schema.officerChatSessionImages.allianceId, input.allianceId),
+          ),
+        );
+
+      for (const image of stagedImages) {
+        await tx.insert(schema.officerChatSessionImages).values({
+          ...image,
+          sessionId: input.sessionId,
+          allianceId: input.allianceId,
+        });
+      }
+
+      for (const { message, locale } of localizedMessages) {
+        await tx.insert(schema.officerChatMessages).values({
+          id: nanoid(),
+          sessionId: input.sessionId,
+          allianceId: input.allianceId,
+          senderAllianceTag: message.senderAllianceTag ?? null,
+          senderName: message.senderName,
+          senderLevel: message.senderLevel ?? null,
+          senderVipLevel: message.senderVipLevel ?? null,
+          originalText: message.originalText,
+          inGameTranslatedText: message.inGameTranslatedText ?? null,
+          localeText: locale.localeText,
+          localeCode: locale.localeCode,
+          isReply: message.isReply ?? false,
+          replyToName: message.replyToName ?? null,
+          sequenceOrder: message.sequenceOrder,
+          sourceImageIndex: message.sourceImageIndex,
+        });
+      }
+
+      await tx
+        .update(schema.officerChatSessions)
+        .set({
+          title: input.title?.trim() || session.title,
+          channelLabel:
+            input.channelLabel === undefined
+              ? session.channelLabel
+              : input.channelLabel,
+          sessionAt:
+            input.sessionAt === undefined ? session.sessionAt : input.sessionAt,
+          status: "imported",
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(schema.officerChatSessions.id, input.sessionId),
+            eq(schema.officerChatSessions.allianceId, input.allianceId),
+          ),
+        );
     });
-    await db.insert(schema.officerChatMessages).values({
-      id: nanoid(),
-      sessionId: input.sessionId,
-      allianceId: input.allianceId,
-      senderAllianceTag: message.senderAllianceTag ?? null,
-      senderName: message.senderName,
-      senderLevel: message.senderLevel ?? null,
-      senderVipLevel: message.senderVipLevel ?? null,
-      originalText: message.originalText,
-      inGameTranslatedText: message.inGameTranslatedText ?? null,
-      localeText: locale.localeText,
-      localeCode: locale.localeCode,
-      isReply: message.isReply ?? false,
-      replyToName: message.replyToName ?? null,
-      sequenceOrder: message.sequenceOrder,
-      sourceImageIndex: message.sourceImageIndex,
-    });
+  } catch (error) {
+    await Promise.allSettled(uploadedStorageKeys.map((key) => deleteObject(key)));
+    throw error;
   }
 
-  const now = new Date();
-  await db
-    .update(schema.officerChatSessions)
-    .set({
-      title: input.title?.trim() || session.title,
-      channelLabel:
-        input.channelLabel === undefined
-          ? session.channelLabel
-          : input.channelLabel,
-      sessionAt:
-        input.sessionAt === undefined ? session.sessionAt : input.sessionAt,
-      status: "imported",
-      updatedAt: now,
-    })
-    .where(eq(schema.officerChatSessions.id, input.sessionId));
+  await Promise.allSettled(
+    previousImages.map((image) => deleteObject(image.storageKey)),
+  );
 
   return { ok: true as const };
 }

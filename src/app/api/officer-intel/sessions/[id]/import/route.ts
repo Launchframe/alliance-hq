@@ -36,18 +36,43 @@ function collectImageFiles(formData: FormData): File[] {
   return files;
 }
 
+function isNonnegativeSafeInteger(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= 0
+  );
+}
+
 function parseMessagesField(raw: unknown): OfficerChatImportMessageInput[] | null {
   if (!Array.isArray(raw) || raw.length === 0) return null;
   const messages: OfficerChatImportMessageInput[] = [];
   for (const row of raw) {
     if (!row || typeof row !== "object") return null;
     const record = row as Record<string, unknown>;
-    if (typeof record.senderName !== "string" || typeof record.originalText !== "string") {
+    if (
+      typeof record.senderName !== "string" ||
+      record.senderName.trim().length === 0 ||
+      typeof record.originalText !== "string" ||
+      record.originalText.trim().length === 0
+    ) {
       return null;
     }
     if (
-      typeof record.sequenceOrder !== "number" ||
-      typeof record.sourceImageIndex !== "number"
+      !isNonnegativeSafeInteger(record.sequenceOrder) ||
+      !isNonnegativeSafeInteger(record.sourceImageIndex)
+    ) {
+      return null;
+    }
+    if (
+      record.senderLevel != null &&
+      !isNonnegativeSafeInteger(record.senderLevel)
+    ) {
+      return null;
+    }
+    if (
+      record.senderVipLevel != null &&
+      !isNonnegativeSafeInteger(record.senderVipLevel)
     ) {
       return null;
     }
@@ -69,7 +94,7 @@ function parseMessagesField(raw: unknown): OfficerChatImportMessageInput[] | nul
       isReply: record.isReply === true,
       replyToName:
         typeof record.replyToName === "string" ? record.replyToName : null,
-      sequenceOrder: record.sequenceOrder,
+      sequenceOrder: messages.length,
       sourceImageIndex: record.sourceImageIndex,
     });
   }
@@ -124,6 +149,16 @@ export async function POST(request: Request, { params }: Props) {
   if (imageFiles.length > MAX_OFFICER_INTEL_IMAGES) {
     return NextResponse.json(
       { error: `At most ${MAX_OFFICER_INTEL_IMAGES} screenshots per import.` },
+      { status: 400 },
+    );
+  }
+  if (
+    messages.some(
+      (message) => message.sourceImageIndex >= imageFiles.length,
+    )
+  ) {
+    return NextResponse.json(
+      { error: "Message sourceImageIndex must reference an uploaded screenshot." },
       { status: 400 },
     );
   }

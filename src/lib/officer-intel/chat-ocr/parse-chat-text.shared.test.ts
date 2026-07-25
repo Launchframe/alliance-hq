@@ -74,4 +74,34 @@ describe("parseOfficerChatText", () => {
     expect(merged[0]?.sequenceOrder).toBe(0);
     expect(merged[1]?.sequenceOrder).toBe(1);
   });
+
+  it("preserves repeated messages outside an adjacent screenshot overlap", () => {
+    const partA = parseOfficerChatText(
+      [
+        "[LFgo]Alpha",
+        "Same message",
+        "[LFgo]Beta",
+        "Middle message",
+        "[LFgo]Alpha",
+        "Same message",
+      ],
+      0,
+      0,
+    );
+    const partB = parseOfficerChatText(
+      ["[LFgo]Gamma", "Later message"],
+      1,
+      0,
+    );
+
+    const merged = mergeOfficerChatParses([partA, partB]);
+
+    expect(merged.map((message) => message.senderName)).toEqual([
+      "Alpha",
+      "Beta",
+      "Alpha",
+      "Gamma",
+    ]);
+    expect(merged.map((message) => message.sequenceOrder)).toEqual([0, 1, 2, 3]);
+  });
 });

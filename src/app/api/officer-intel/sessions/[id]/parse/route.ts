@@ -17,6 +17,7 @@ import {
   requireOfficerIntelWrite,
 } from "@/lib/officer-intel/route-helpers.server";
 import {
+  isAllowedOfficerIntelImageMime,
   MAX_OFFICER_INTEL_IMAGE_BYTES,
   MAX_OFFICER_INTEL_IMAGES,
 } from "@/lib/officer-intel/storage.shared";
@@ -82,6 +83,12 @@ export async function POST(request: Request, { params }: Props) {
       return NextResponse.json(
         { error: "Image must be under 20 MB." },
         { status: 413 },
+      );
+    }
+    if (!isAllowedOfficerIntelImageMime(imageFile.type)) {
+      return NextResponse.json(
+        { error: "Invalid screenshot type." },
+        { status: 400 },
       );
     }
   }

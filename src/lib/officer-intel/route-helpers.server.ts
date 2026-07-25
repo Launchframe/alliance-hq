@@ -16,7 +16,7 @@ export async function requireOfficerIntelAllianceContext() {
   }
 
   const session = await getOrCreateSession();
-  const allianceId = session.currentAllianceId;
+  const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId) {
     return {
       error: NextResponse.json(
