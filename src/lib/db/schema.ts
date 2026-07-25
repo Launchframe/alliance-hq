@@ -3680,8 +3680,105 @@ export const officerChatTranslations = pgTable(
   ],
 );
 
+export const officerMeetingNotes = pgTable(
+  "officer_meeting_notes",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => officerChatSessions.id, { onDelete: "cascade" }),
+    summary: text("summary").notNull(),
+    keyDecisions: jsonb("key_decisions")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    openQuestions: jsonb("open_questions")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    /** draft | approved */
+    status: text("status").notNull().default("draft"),
+    synthesizedByHqUserId: text("synthesized_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    approvedByHqUserId: text("approved_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    modelId: text("model_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("officer_meeting_notes_session_idx").on(table.sessionId),
+    index("officer_meeting_notes_alliance_updated_idx").on(
+      table.allianceId,
+      table.updatedAt,
+    ),
+  ],
+);
+
+export const officerActionItems = pgTable(
+  "officer_action_items",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    noteId: text("note_id")
+      .notNull()
+      .references(() => officerMeetingNotes.id, { onDelete: "cascade" }),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => officerChatSessions.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    description: text("description"),
+    /** open | in_progress | done | cancelled */
+    status: text("status").notNull().default("open"),
+    /** low | normal | high */
+    priority: text("priority").notNull().default("normal"),
+    assigneeAllianceMemberId: text("assignee_alliance_member_id").references(
+      () => allianceMembers.id,
+      { onDelete: "set null" },
+    ),
+    assigneeNameRaw: text("assignee_name_raw"),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    dueHint: text("due_hint"),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_action_items_alliance_status_due_idx").on(
+      table.allianceId,
+      table.status,
+      table.dueAt,
+    ),
+    index("officer_action_items_note_idx").on(table.noteId),
+  ],
+);
+
 export type OfficerChatSession = typeof officerChatSessions.$inferSelect;
 export type OfficerChatSessionImage =
   typeof officerChatSessionImages.$inferSelect;
 export type OfficerChatMessage = typeof officerChatMessages.$inferSelect;
 export type OfficerChatTranslation = typeof officerChatTranslations.$inferSelect;
+export type OfficerMeetingNote = typeof officerMeetingNotes.$inferSelect;
+export type OfficerActionItem = typeof officerActionItems.$inferSelect;

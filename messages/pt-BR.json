@@ -5008,7 +5008,9 @@
       "captureReminderBody": "Esta Fortaleza foi capturada com sucesso?",
       "captureYes": "Sim — criar banco",
       "captureNo": "Não",
-      "captureSnooze": "Adiar 30 min"
+      "captureSnooze": "Adiar 30 min",
+      "officerActionItemDue": "Item de ação de oficiais",
+      "officerActionItemDueBody": "Um item de ação do chat de oficiais está no prazo."
     },
     "confirmCaptureFailed": "Falha ao confirmar captura."
   },
@@ -5886,6 +5888,44 @@
     "sourceScreenshots": "Capturas de origem",
     "screenshotNumber": "Captura {number}",
     "showOriginalAndInGame": "Mostrar original e tradução no jogo",
-    "replyTo": "Resposta a {name}:"
+    "replyTo": "Resposta a {name}:",
+    "synthesizeNotes": "Sintetizar atas da reunião",
+    "synthesizing": "Sintetizando…",
+    "synthesizeFailed": "Não foi possível sintetizar as atas da reunião.",
+    "llmUnavailable": "A síntese por IA não está configurada neste servidor.",
+    "viewMeetingNotes": "Ver atas da reunião",
+    "meetingNotesTitle": "Atas da reunião",
+    "backToSession": "Voltar à sessão de chat",
+    "noteStatusDraft": "Rascunho — edite e aprove quando estiver pronto",
+    "noteStatusApproved": "Aprovado",
+    "summary": "Resumo",
+    "keyDecisions": "Decisões principais",
+    "openQuestions": "Questões em aberto",
+    "actionItemsTitle": "Itens de ação",
+    "actionItemsPageTitle": "Itens de ação",
+    "actionItemsPageSubtitle": "Pendências abertas da síntese do chat de oficiais.",
+    "viewAllActionItems": "Ver todos os itens abertos",
+    "openActionItemsLink": "{count, plural, one {# item de ação aberto} other {# itens de ação abertos}}",
+    "noActionItems": "Nenhum item de ação nesta ata.",
+    "noOpenActionItems": "Nenhum item de ação aberto.",
+    "unassigned": "Sem responsável",
+    "saveDraft": "Salvar rascunho",
+    "approveNotes": "Aprovar atas",
+    "saving": "Salvando…",
+    "saveNoteFailed": "Não foi possível salvar as atas da reunião.",
+    "updateActionItemFailed": "Não foi possível atualizar este item de ação.",
+    "markInProgress": "Marcar em andamento",
+    "markDone": "Marcar como concluído",
+    "priority": {
+      "low": "Baixa",
+      "normal": "Normal",
+      "high": "Alta"
+    },
+    "status": {
+      "open": "Aberto",
+      "in_progress": "Em andamento",
+      "done": "Concluído",
+      "cancelled": "Cancelado"
+    }
   }
 }
