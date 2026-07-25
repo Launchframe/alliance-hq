@@ -61,6 +61,19 @@ export function OfficerIntelClient({ initial }: Props) {
         </p>
       ) : null}
 
+      {initial.openActionItemCount > 0 ? (
+        <section className="rounded-xl border border-hq-border bg-hq-surface px-4 py-3">
+          <Link
+            href="/officer-intel/action-items"
+            className="text-sm font-medium text-hq-accent hover:underline"
+          >
+            {t("openActionItemsLink", {
+              count: initial.openActionItemCount,
+            })}
+          </Link>
+        </section>
+      ) : null}
+
       {error ? (
         <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
           {error}

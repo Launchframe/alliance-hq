@@ -60,4 +60,6 @@ export type OfficerIntelDashboardPayload = {
   sessions: OfficerChatSessionSummary[];
   canWrite: boolean;
   translationConfigured: boolean;
+  llmConfigured: boolean;
+  openActionItemCount: number;
 };
