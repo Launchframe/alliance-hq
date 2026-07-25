@@ -47,7 +47,11 @@ export async function POST(request: Request) {
 
   let body: CreateSessionBody;
   try {
-    body = (await request.json()) as CreateSessionBody;
+    const parsed: unknown = await request.json();
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("body must be an object");
+    }
+    body = parsed as CreateSessionBody;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }

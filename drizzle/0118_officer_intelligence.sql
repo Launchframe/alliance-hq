@@ -59,6 +59,8 @@ ALTER TABLE "officer_chat_session_images" ADD CONSTRAINT "officer_chat_session_i
 ALTER TABLE "officer_chat_messages" ADD CONSTRAINT "officer_chat_messages_session_id_officer_chat_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."officer_chat_sessions"("id") ON DELETE cascade ON UPDATE no action;
 ALTER TABLE "officer_chat_messages" ADD CONSTRAINT "officer_chat_messages_alliance_id_alliances_id_fk" FOREIGN KEY ("alliance_id") REFERENCES "public"."alliances"("id") ON DELETE cascade ON UPDATE no action;
 
+ALTER TABLE "officer_chat_translations" ADD CONSTRAINT "officer_chat_translations_alliance_id_alliances_id_fk" FOREIGN KEY ("alliance_id") REFERENCES "public"."alliances"("id") ON DELETE cascade ON UPDATE no action;
+
 CREATE INDEX "officer_chat_sessions_alliance_updated_idx" ON "officer_chat_sessions" USING btree ("alliance_id","updated_at");
 CREATE INDEX "officer_chat_session_images_session_idx" ON "officer_chat_session_images" USING btree ("session_id","sequence_order");
 CREATE INDEX "officer_chat_messages_session_order_idx" ON "officer_chat_messages" USING btree ("session_id","sequence_order");

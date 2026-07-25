@@ -126,7 +126,11 @@ export async function POST(request: Request, { params }: Props) {
 
   let payload: Record<string, unknown>;
   try {
-    payload = JSON.parse(payloadRaw) as Record<string, unknown>;
+    const parsed: unknown = JSON.parse(payloadRaw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("payload must be an object");
+    }
+    payload = parsed as Record<string, unknown>;
   } catch {
     return NextResponse.json({ error: "payload must be valid JSON." }, { status: 400 });
   }
