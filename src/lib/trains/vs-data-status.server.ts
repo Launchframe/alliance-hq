@@ -27,6 +27,7 @@ export async function loadTrainsVsDataStatus(input: {
   const need = classifyVsDataNeed({
     conductorMechanism: input.conductorMechanism,
     paintTemplate: input.paintTemplate,
+    trainDate: input.trainDate,
   });
 
   if (need.kind === "none") {

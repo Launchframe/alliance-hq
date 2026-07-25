@@ -4,6 +4,7 @@
  */
 
 import { paintTemplateUsesPriorDayVs } from "@/lib/trains/heavy-hitter-pool.shared";
+import { vsScoreContextForTrainDate } from "@/lib/trains/vs-week-days.shared";
 
 export type TrainsVsDataStatusKind = "vr" | "prior_day_vs" | "none";
 
@@ -20,7 +21,19 @@ export type ClassifyVsDataNeedInput = {
   conductorMechanism: string | null | undefined;
   /** Day paint / week template (e.g. `price_is_right`). */
   paintTemplate?: string | null;
+  /** Train calendar date — gates prior-day VS (e.g. Monday → Sunday break). */
+  trainDate?: string | null;
 };
+
+/**
+ * Prior calendar day is a VS match day (Mon–Sat). Sunday is the VS break, so
+ * Monday conductor picks never require yesterday's scores; Sunday picks use
+ * Saturday (Buster Day) when the mechanism needs prior-day VS.
+ */
+export function priorDayVsAppliesForTrainDate(trainDate: string): boolean {
+  const { vsDayNumber } = vsScoreContextForTrainDate(trainDate);
+  return vsDayNumber != null;
+}
 
 /**
  * Decide whether today's conductor flow needs score data and which source.
@@ -31,19 +44,41 @@ export function classifyVsDataNeed(
   input: ClassifyVsDataNeedInput,
 ): { kind: TrainsVsDataStatusKind; required: boolean } {
   const mech = input.conductorMechanism;
-  if (
-    mech === "vs_high_score" ||
-    mech === "vs_top_10" ||
-    mech === "vs_top_n"
-  ) {
-    return { kind: "prior_day_vs", required: true };
+
+  // R3 recognition is manual award pick only — no score upload gate.
+  if (input.paintTemplate === "r3_recognition") {
+    return { kind: "none", required: false };
   }
+
   if (mech === "vr_top_n") {
     return { kind: "vr", required: true };
   }
-  if (paintTemplateUsesPriorDayVs(input.paintTemplate)) {
+
+  const priorDayVsOk =
+    input.trainDate == null ||
+    input.trainDate === "" ||
+    priorDayVsAppliesForTrainDate(input.trainDate);
+
+  if (!priorDayVsOk) {
+    return { kind: "none", required: false };
+  }
+
+  if (
+    mech === "vs_high_score" ||
+    mech === "vs_top_10" ||
+    mech === "vs_top_n" ||
+    mech === "heavy_hitter_lottery"
+  ) {
     return { kind: "prior_day_vs", required: true };
   }
+
+  if (
+    mech === "r3_lottery" &&
+    paintTemplateUsesPriorDayVs(input.paintTemplate)
+  ) {
+    return { kind: "prior_day_vs", required: true };
+  }
+
   return { kind: "none", required: false };
 }
 

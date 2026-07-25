@@ -3,18 +3,42 @@ import { describe, expect, it } from "vitest";
 import {
   buildVsDataStatus,
   classifyVsDataNeed,
+  priorDayVsAppliesForTrainDate,
 } from "@/lib/trains/vs-data-status.shared";
+
+describe("priorDayVsAppliesForTrainDate", () => {
+  it("applies on Sunday train days (Saturday Buster Day scores)", () => {
+    expect(priorDayVsAppliesForTrainDate("2026-06-14")).toBe(true);
+  });
+
+  it("does not apply on Monday train days (Sunday VS break)", () => {
+    expect(priorDayVsAppliesForTrainDate("2026-06-15")).toBe(false);
+  });
+});
 
 describe("classifyVsDataNeed", () => {
   it("requires prior-day VS for vs_high_score, vs_top_10, and vs_top_n", () => {
     expect(
-      classifyVsDataNeed({ conductorMechanism: "vs_high_score" }),
+      classifyVsDataNeed({
+        conductorMechanism: "vs_high_score",
+        trainDate: "2026-06-13",
+      }),
     ).toEqual({ kind: "prior_day_vs", required: true });
-    expect(classifyVsDataNeed({ conductorMechanism: "vs_top_10" })).toEqual({
+    expect(
+      classifyVsDataNeed({
+        conductorMechanism: "vs_top_10",
+        trainDate: "2026-06-13",
+      }),
+    ).toEqual({
       kind: "prior_day_vs",
       required: true,
     });
-    expect(classifyVsDataNeed({ conductorMechanism: "vs_top_n" })).toEqual({
+    expect(
+      classifyVsDataNeed({
+        conductorMechanism: "vs_top_n",
+        trainDate: "2026-06-13",
+      }),
+    ).toEqual({
       kind: "prior_day_vs",
       required: true,
     });
@@ -32,6 +56,7 @@ describe("classifyVsDataNeed", () => {
       classifyVsDataNeed({
         conductorMechanism: "r3_lottery",
         paintTemplate: "price_is_right",
+        trainDate: "2026-06-13",
       }),
     ).toEqual({ kind: "prior_day_vs", required: true });
   });
@@ -41,17 +66,81 @@ describe("classifyVsDataNeed", () => {
       classifyVsDataNeed({
         conductorMechanism: "vs_high_score",
         paintTemplate: "price_is_right",
+        trainDate: "2026-06-13",
       }),
     ).toEqual({ kind: "prior_day_vs", required: true });
   });
 
-  it("requires prior-day VS for economy week paint", () => {
+  it("requires prior-day VS for economy week paint with r3 lottery", () => {
     expect(
       classifyVsDataNeed({
         conductorMechanism: "r3_lottery",
         paintTemplate: "economy_week",
+        trainDate: "2026-06-13",
       }),
     ).toEqual({ kind: "prior_day_vs", required: true });
+  });
+
+  it("requires Saturday VS for r3 lottery on Sunday (Buster Day prior)", () => {
+    expect(
+      classifyVsDataNeed({
+        conductorMechanism: "r3_lottery",
+        paintTemplate: "economy_week",
+        trainDate: "2026-06-14",
+      }),
+    ).toEqual({ kind: "prior_day_vs", required: true });
+  });
+
+  it("does not require scores for r3 recognition manual award days", () => {
+    expect(
+      classifyVsDataNeed({
+        conductorMechanism: "r3_lottery",
+        paintTemplate: "r3_recognition",
+        trainDate: "2026-06-14",
+      }),
+    ).toEqual({ kind: "none", required: false });
+  });
+
+  it("does not require prior-day VS for r4 sequence on economy week paint", () => {
+    expect(
+      classifyVsDataNeed({
+        conductorMechanism: "r4_sequence",
+        paintTemplate: "economy_week",
+        trainDate: "2026-06-13",
+      }),
+    ).toEqual({ kind: "none", required: false });
+  });
+
+  it("skips prior-day VS on Monday for every conductor mechanism", () => {
+    expect(
+      classifyVsDataNeed({
+        conductorMechanism: "vs_high_score",
+        trainDate: "2026-06-15",
+      }),
+    ).toEqual({ kind: "none", required: false });
+    expect(
+      classifyVsDataNeed({
+        conductorMechanism: "r3_lottery",
+        paintTemplate: "economy_week",
+        trainDate: "2026-06-15",
+      }),
+    ).toEqual({ kind: "none", required: false });
+    expect(
+      classifyVsDataNeed({
+        conductorMechanism: "heavy_hitter_lottery",
+        paintTemplate: "price_is_right",
+        trainDate: "2026-06-15",
+      }),
+    ).toEqual({ kind: "none", required: false });
+  });
+
+  it("still requires VR on Monday for vr_top_n", () => {
+    expect(
+      classifyVsDataNeed({
+        conductorMechanism: "vr_top_n",
+        trainDate: "2026-06-15",
+      }),
+    ).toEqual({ kind: "vr", required: true });
   });
 });
 

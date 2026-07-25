@@ -5,6 +5,13 @@ import {
   type AllianceTrainWeekConfig,
 } from "@/lib/trains/train-week-calendar.shared";
 
+import type { PoolType } from "@/lib/trains/types";
+
+/** R3 and heavy-hitter pools honor alliance conductor minimums; R4+ sequence does not. */
+export function poolTypeRespectsConductorMinimums(poolType: PoolType): boolean {
+  return poolType === "r3" || poolType === "heavy_hitter";
+}
+
 export const TRAIN_MINIMUMS_WINDOWS = ["daily", "weekly"] as const;
 export type TrainMinimumsWindow = (typeof TRAIN_MINIMUMS_WINDOWS)[number];
 

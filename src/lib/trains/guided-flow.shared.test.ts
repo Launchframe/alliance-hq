@@ -120,6 +120,19 @@ describe("currentGuidedStep", () => {
     ).toBe("conductor");
   });
 
+  it("proceeds to conductor when manual pick is available without scores", () => {
+    expect(
+      currentGuidedStep({
+        ...base,
+        hasConductor: false,
+        locked: false,
+        vsDataRequired: true,
+        vsDataReady: false,
+        conductorManualPickAvailable: true,
+      }),
+    ).toBe("conductor");
+  });
+
   it("does not block prerequisites when template not yet chosen", () => {
     expect(
       currentGuidedStep({
@@ -210,6 +223,18 @@ describe("guidedFlowPrerequisitesBlocking", () => {
         locked: true,
         vsDataRequired: true,
         vsDataReady: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("is false when manual conductor pick is available", () => {
+    expect(
+      guidedFlowPrerequisitesBlocking({
+        ...base,
+        locked: false,
+        vsDataRequired: true,
+        vsDataReady: false,
+        conductorManualPickAvailable: true,
       }),
     ).toBe(false);
   });

@@ -8,6 +8,7 @@ import {
   minimumsEnforcementEnabled,
   minimumsSettingsForHqLocalEval,
   normalizeTrainMinimumsSettings,
+  poolTypeRespectsConductorMinimums,
 } from "@/lib/trains/train-conductor-minimums.shared";
 
 describe("train-conductor-minimums", () => {
@@ -15,6 +16,13 @@ describe("train-conductor-minimums", () => {
     expect(effectiveMinimum(1000, 10)).toBe(900);
     expect(effectiveMinimum(1000, 0)).toBe(1000);
     expect(effectiveMinimum(0, 50)).toBe(0);
+  });
+
+  it("poolTypeRespectsConductorMinimums applies to r3 and heavy hitter only", () => {
+    expect(poolTypeRespectsConductorMinimums("r3")).toBe(true);
+    expect(poolTypeRespectsConductorMinimums("heavy_hitter")).toBe(true);
+    expect(poolTypeRespectsConductorMinimums("r4_plus")).toBe(false);
+    expect(poolTypeRespectsConductorMinimums("all_members")).toBe(false);
   });
 
   it("weekly evaluation uses prior train week (Tue–Mon)", () => {

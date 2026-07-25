@@ -241,7 +241,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   const tTemplateDetails = useTranslations("trains.templateDetails");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const vsRequired = Boolean(vsDataStatus?.required);
+  const vsRequired = Boolean(vsDataStatus?.required && !canManualPick);
   const rosterRequired = Boolean(rosterDataStatus?.required);
   const guidedInput = {
     schedulePersisted,
@@ -253,6 +253,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     rosterDataReady: rosterDataStatus?.ready,
     vsDataRequired: vsDataStatus?.required,
     vsDataReady: vsDataStatus?.ready,
+    conductorManualPickAvailable: canManualPick,
   };
   const current = currentGuidedStep(guidedInput);
 
@@ -338,7 +339,9 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     rosterDataStatus?.blockerKind === "missing_rank_pool" &&
     !canInPageRosterSync;
   const showRosterUploadScores =
-    rosterDataStatus?.blockerKind === "conductor_minimums";
+    rosterDataStatus?.blockerKind === "conductor_minimums" &&
+    canSpinConductorWheel &&
+    !canManualPick;
   const rosterPrimaryLabel =
     rosterDataStatus?.syncCapability === "native_reload"
       ? t("steps.roster.refreshNative")

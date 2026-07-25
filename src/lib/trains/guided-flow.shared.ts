@@ -42,6 +42,11 @@ export type GuidedFlowInput = {
   vsDataRequired?: boolean;
   /** Score data ready (`vsDataStatus.ready`). */
   vsDataReady?: boolean;
+  /**
+   * Manual conductor pick is available today. Missing scores must not block
+   * the flow (e.g. R3 recognition, or officer override when data is late).
+   */
+  conductorManualPickAvailable?: boolean;
 };
 
 /**
@@ -55,8 +60,8 @@ export function guidedFlowRosterBlocking(input: GuidedFlowInput): boolean {
 
 /**
  * Whether the prerequisites step should show as blocking.
- * True when VS/PIF data is required, not ready, not locked, and the template
- * is already chosen (so the next natural step would be conductor).
+ * True when VS/PIF data is required for a wheel spin, not ready, not locked,
+ * and manual pick is not an available bypass.
  */
 export function guidedFlowPrerequisitesBlocking(
   input: GuidedFlowInput,
@@ -64,6 +69,7 @@ export function guidedFlowPrerequisitesBlocking(
   if (input.locked) return false;
   if (!input.schedulePersisted) return false;
   if (guidedFlowRosterBlocking(input)) return false;
+  if (input.conductorManualPickAvailable) return false;
   return Boolean(input.vsDataRequired) && !input.vsDataReady;
 }
 

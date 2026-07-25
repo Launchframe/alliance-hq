@@ -1470,6 +1470,7 @@ export function TrainsDashboard({ initial }: Props) {
       selectedDate === data.today ? data.vsDataStatus?.required : false,
     vsDataReady:
       selectedDate === data.today ? data.vsDataStatus?.ready : true,
+    conductorManualPickAvailable: canManualPick,
   });
   const showConductorCard =
     !data.simpleModeEnabled || guidedStep === "done";
@@ -2112,6 +2113,8 @@ export function TrainsDashboard({ initial }: Props) {
                 </div>
               ) : null}
               {selectedDate === data.today &&
+              canSpinConductorWheel &&
+              !canManualPick &&
               data.vsDataStatus?.required &&
               !data.vsDataStatus.ready &&
               !locked ? (

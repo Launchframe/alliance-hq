@@ -62,6 +62,7 @@ import {
 import {
   assertConductorMinimumOverrideQualification,
   minimumsEnforcementEnabled,
+  poolTypeRespectsConductorMinimums,
 } from "@/lib/trains/train-conductor-minimums.shared";
 import { writeAuditLog } from "@/lib/bff/audit";
 import {
@@ -278,7 +279,10 @@ export async function countEligiblePoolMembers(input: {
   date: string;
   paintTemplate?: WeekTemplateType | null;
 }): Promise<number> {
-  return countPoolCandidates({ ...input, respectConductorMinimums: true });
+  return countPoolCandidates({
+    ...input,
+    respectConductorMinimums: poolTypeRespectsConductorMinimums(input.poolType),
+  });
 }
 
 /** Rank-only pool size before conductor minimums filter. */
@@ -335,9 +339,7 @@ export async function ensureConductorPoolSeeded(input: {
 }): Promise<void> {
   const respectConductorMinimums =
     input.respectConductorMinimums ??
-    (input.poolType === "r3" ||
-      input.poolType === "r4_plus" ||
-      input.poolType === "heavy_hitter");
+    poolTypeRespectsConductorMinimums(input.poolType);
 
   const hasViable = await poolHasViableUnselectedEntries({
     allianceId: input.hqAllianceId,
@@ -953,13 +955,15 @@ export async function rollForConductor(input: {
           record.conductorMemberId,
         );
       }
+      const respectConductorMinimums =
+        poolTypeRespectsConductorMinimums(poolType);
       await ensureConductorPoolSeeded({
         hqAllianceId: input.allianceId,
         poolType,
         date: input.date,
         useSequence: mechanism === "r4_sequence",
         paintTemplate: dayConfig.paintTemplate,
-        respectConductorMinimums: true,
+        respectConductorMinimums,
       });
       const useWeightedPick = false;
       result = await rollFromPool(
@@ -969,7 +973,7 @@ export async function rollForConductor(input: {
         mechanism === "r4_sequence",
         mechanism,
         useWeightedPick,
-        true,
+        respectConductorMinimums,
       );
       const poolRefreshed = await refreshExhaustedPoolIfNeeded({
         allianceId: input.allianceId,
@@ -1118,9 +1122,7 @@ export async function reseedPool(input: {
 }): Promise<{ generation: number; count: number }> {
   const respectConductorMinimums =
     input.respectConductorMinimums ??
-    (input.poolType === "r3" ||
-      input.poolType === "r4_plus" ||
-      input.poolType === "heavy_hitter");
+    poolTypeRespectsConductorMinimums(input.poolType);
   const candidates = await buildPoolCandidates({
     hqAllianceId: input.allianceId,
     poolType: input.poolType,
