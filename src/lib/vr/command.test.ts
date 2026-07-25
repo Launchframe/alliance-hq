@@ -72,6 +72,18 @@ describe("processVrCommand", () => {
     expect(result.action).toMatchObject({ type: "set_vr", vr: 11200 });
   });
 
+  it("does not prompt anomaly confirm for one large S5 institute level bump", () => {
+    const result = processVrCommand({
+      ...base,
+      seasonKey: "5",
+      seasonHigh: 13300,
+      explicitLevel: 18000,
+      peerMax: 13300,
+    });
+    expect(result.needsConfirmation).toBeFalsy();
+    expect(result.action).toMatchObject({ type: "set_vr", vr: 18000 });
+  });
+
   it("respects season max institute VR", () => {
     const result = processVrCommand({
       ...base,

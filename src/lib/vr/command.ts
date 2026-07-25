@@ -52,6 +52,7 @@ function applyExplicitLevel(
 
   if (
     shouldAnomalyConfirm({
+      seasonKey,
       proposedVr: value,
       reporterCount: input.reporterCount,
       peerMax: input.peerMax,
