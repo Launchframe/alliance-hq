@@ -5393,7 +5393,9 @@
       "captureReminderBody": "Was this Stronghold successfully captured?",
       "captureYes": "Yes — create bank",
       "captureNo": "No",
-      "captureSnooze": "Snooze 30 min"
+      "captureSnooze": "Snooze 30 min",
+      "officerActionItemDue": "Officer action item",
+      "officerActionItemDueBody": "An action item from officer chat is due."
     },
     "confirmCaptureFailed": "Failed to confirm capture."
   },
@@ -6245,6 +6247,44 @@
     "sourceScreenshots": "Source screenshots",
     "screenshotNumber": "Screenshot {number}",
     "showOriginalAndInGame": "Show original and in-game translation",
-    "replyTo": "Reply to {name}:"
+    "replyTo": "Reply to {name}:",
+    "synthesizeNotes": "Synthesize meeting notes",
+    "synthesizing": "Synthesizing…",
+    "synthesizeFailed": "Could not synthesize meeting notes.",
+    "llmUnavailable": "AI synthesis is not configured on this server.",
+    "viewMeetingNotes": "View meeting notes",
+    "meetingNotesTitle": "Meeting notes",
+    "backToSession": "Back to chat session",
+    "noteStatusDraft": "Draft — edit and approve when ready",
+    "noteStatusApproved": "Approved",
+    "summary": "Summary",
+    "keyDecisions": "Key decisions",
+    "openQuestions": "Open questions",
+    "actionItemsTitle": "Action items",
+    "actionItemsPageTitle": "Action items",
+    "actionItemsPageSubtitle": "Open follow-ups from officer chat synthesis.",
+    "viewAllActionItems": "View all open items",
+    "openActionItemsLink": "{count, plural, one {# open action item} other {# open action items}}",
+    "noActionItems": "No action items in this note.",
+    "noOpenActionItems": "No open action items.",
+    "unassigned": "Unassigned",
+    "saveDraft": "Save draft",
+    "approveNotes": "Approve notes",
+    "saving": "Saving…",
+    "saveNoteFailed": "Could not save meeting notes.",
+    "updateActionItemFailed": "Could not update this action item.",
+    "markInProgress": "Mark in progress",
+    "markDone": "Mark done",
+    "priority": {
+      "low": "Low",
+      "normal": "Normal",
+      "high": "High"
+    },
+    "status": {
+      "open": "Open",
+      "in_progress": "In progress",
+      "done": "Done",
+      "cancelled": "Cancelled"
+    }
   }
 }

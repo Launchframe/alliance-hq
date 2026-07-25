@@ -862,6 +862,13 @@
       "when": 1790553600000,
       "tag": "0125_officer_intelligence",
       "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1790209200000,
+      "tag": "0119_officer_intel_synthesis",
+      "breakpoints": true
     }
   ]
 }
