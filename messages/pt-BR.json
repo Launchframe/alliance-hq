@@ -3209,7 +3209,8 @@
     "dayTemplateMenu": {
       "title": "Alterar modelo do dia",
       "ariaLabel": "Escolher um modelo para {date}",
-      "holdHint": "Pressione longamente um dia para alterar o modelo desse dia."
+      "holdHint": "Pressione longamente um dia para alterar o modelo desse dia.",
+      "dialogSubtitle": "Isso altera apenas a escolha de hoje — o modelo da semana permanece o mesmo."
     },
     "weekdays": {
       "mon": "Seg",
@@ -3390,7 +3391,7 @@
           "pickManual": "Escolher VIP manualmente",
           "assigned": "VIP: {name}",
           "change": "Alterar",
-          "skipped": "VIP não é usado neste dia"
+          "skipped": "Deixar o condutor decidir"
         },
         "lock": {
           "title": "Confirmar",

@@ -19,17 +19,20 @@ See also: [trains.mdc](./trains.mdc) for week templates, pools, RBAC, and schedu
 
 ### Step order
 
-`template → prerequisites → conductor → vip → lock → done`
+`template (non-blocking) → roster → prerequisites → conductor → vip → lock → done`
 
-Steps `prerequisites` and `vip` are **skipped** when not applicable (no VS/PIF score requirement; VIP mechanism is `none`).
+Steps `prerequisites`, `roster`, and `vip` are **skipped** when not applicable (no VS/PIF score requirement; no roster sync needed; VIP mechanism is `none`).
 
-Each step blocks until its prerequisite is satisfied. Canonical step logic lives in **`guided-flow.shared.ts`** (`currentGuidedStep`, `guidedFlowPrerequisitesBlocking`). Score readiness classification is in **`vs-data-status.shared.ts`** (`classifyVsDataNeed`, `buildVsDataStatus`). The UI component reads these; **do not duplicate step-gating logic in the component**.
+The **template** row is informational only — it shows today's conductor mechanism and a "Change pick" link. It does **not** block the flow on `schedulePersisted`. Day-level changes use **`DayMechanismPickerDialog`** (`DAY_PAINT_TEMPLATES`); whole-week changes use **`WeekTemplatePickerDialog`**.
+
+Each blocking step blocks until its prerequisite is satisfied. Canonical step logic lives in **`guided-flow.shared.ts`** (`currentGuidedStep`, `guidedFlowPrerequisitesBlocking`). Score readiness classification is in **`vs-data-status.shared.ts`** (`classifyVsDataNeed`, `buildVsDataStatus`). The UI component reads these; **do not duplicate step-gating logic in the component**.
 
 ### Blocking vs non-blocking
 
 | Step | Blocks until |
 | --- | --- |
-| `template` | Week schedule persisted (`schedulePersisted`) |
+| `template` | Never blocks (summary + change link only) |
+| `roster` | Roster synced when required (`rosterDataStatus.ready`); skipped when roster not required |
 | `prerequisites` | VS or prior-day VS scores uploaded when required (`vsDataStatus.ready`); skipped when scores not required |
 | `conductor` | A conductor is assigned for the day |
 | `vip` | VIP assigned when mechanism requires one; skipped when `vipNeeded` is false |

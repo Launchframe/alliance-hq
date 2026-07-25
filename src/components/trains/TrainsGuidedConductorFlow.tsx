@@ -21,7 +21,6 @@ import type { WeekTemplateType } from "@/lib/trains/types";
 const DEFAULT_VIDEO_UPLOAD_HREF = "/tools/video-upload";
 
 export type TrainsGuidedConductorFlowProps = {
-  schedulePersisted: boolean;
   templateType: WeekTemplateType | null;
   paintTemplate?: WeekTemplateType | null;
   /** Pre-translated template explainer; falls back to `trains.templateDetails.*` when omitted. */
@@ -199,7 +198,6 @@ function StepRow({
 
 export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps) {
   const {
-    schedulePersisted,
     templateType,
     paintTemplate,
     templateDetailHint,
@@ -244,7 +242,6 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   const vsRequired = Boolean(vsDataStatus?.required && !canManualPick);
   const rosterRequired = Boolean(rosterDataStatus?.required);
   const guidedInput = {
-    schedulePersisted,
     hasConductor,
     vipNeeded,
     hasVip,
@@ -364,16 +361,11 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
             {conductorPickLabel ? (
               <span className="text-sm text-hq-fg-muted">{conductorPickLabel}</span>
             ) : null}
-            {templateStatus === "current" ? (
-              <PrimaryCtaButton
-                action={{ label: t("steps.template.change"), onClick: onChangeTemplate }}
-                busy={busy}
-              />
-            ) : (
+            {!locked ? (
               <ChangeLink label={t("steps.template.change")} onClick={onChangeTemplate} />
-            )}
+            ) : null}
           </div>
-          {templateStatus === "current" && conductorPickHint ? (
+          {conductorPickHint ? (
             <p className="mt-1.5 text-xs leading-relaxed text-hq-fg-muted">
               {conductorPickHint}
             </p>

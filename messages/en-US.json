@@ -3263,7 +3263,8 @@
     "dayTemplateMenu": {
       "title": "Change day template",
       "ariaLabel": "Choose a template for {date}",
-      "holdHint": "Long press a day to change its template."
+      "holdHint": "Long press a day to change its template.",
+      "dialogSubtitle": "This changes today's pick only — this week's template stays the same."
     },
     "weekdays": {
       "mon": "Mon",
@@ -3444,7 +3445,7 @@
           "pickManual": "Pick VIP manually",
           "assigned": "VIP: {name}",
           "change": "Change",
-          "skipped": "VIP not used for this day"
+          "skipped": "Let the conductor decide"
         },
         "lock": {
           "title": "Lock",

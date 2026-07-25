@@ -26,7 +26,7 @@ import {
   isTopNPaintTemplate,
   type ConductorTopN,
 } from "@/lib/trains/conductor-top-n.shared";
-import { PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
+import { DAY_PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
 import type { WeekTemplateType } from "@/lib/trains/types";
 
 export type DayTemplateMenuAnchor = {
@@ -204,7 +204,7 @@ export function DayTemplateContextMenu({
             <p className="text-[10px] text-hq-fg-muted">{anchor.date}</p>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1">
-            {PAINT_TEMPLATES.map((template) => {
+            {DAY_PAINT_TEMPLATES.map((template) => {
               const selected = currentTemplate === template;
               return (
                 <button

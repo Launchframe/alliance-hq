@@ -36,6 +36,7 @@ import {
   resolveLiteralDayPaintTemplate,
   resolvePaintTemplateForCalendarDate,
   resolvePaintTemplateForDay,
+  shouldExpandCompositeByDayIndex,
 } from "@/lib/trains/week-template-registry.shared";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import { conductorDrawChanged } from "@/lib/trains/conductor-mechanism.shared";
@@ -96,6 +97,7 @@ import {
 } from "@/lib/trains/templates";
 import {
   clearConductorAssignment,
+  clearVipAssignment,
   deleteWeekScheduleAndDayConfigs,
   getConductorRecord,
   getWeekSchedule,
@@ -811,7 +813,10 @@ export async function applyTemplateToDates(
     await ensureWeekScheduleBaseline(allianceId, weekStart);
   }
 
-  const weekTemplateApply = options?.updateWeekTemplate === true;
+  const expandCompositeByDayIndex = shouldExpandCompositeByDayIndex({
+    updateWeekTemplate: options?.updateWeekTemplate,
+    dateCount: uniqueDates.length,
+  });
 
   for (const date of uniqueDates) {
     const weekStart = getTrainWeekStart(date, trainWeekConfig);
@@ -830,7 +835,7 @@ export async function applyTemplateToDates(
       conductorConfig: previousDayConfig.conductorConfig,
     };
 
-    const dayPaintTemplate = weekTemplateApply
+    const dayPaintTemplate = expandCompositeByDayIndex
       ? templateType
       : resolveLiteralDayPaintTemplate(templateType);
     const config = generateDayConfigForDate(
@@ -845,7 +850,7 @@ export async function applyTemplateToDates(
       templateType,
       date,
       weekStart,
-      weekTemplateApply,
+      weekTemplateApply: expandCompositeByDayIndex,
     });
     const paintedConfig = withPaintTemplateConfig(
       config,
@@ -869,8 +874,13 @@ export async function applyTemplateToDates(
 
     if (conductorDrawChanged(previousDraw, nextDraw)) {
       const record = await getConductorRecord(allianceId, date, seasonKey);
-      if (record?.conductorMemberId && !record.lockedAt) {
-        await clearConductorAssignment(allianceId, date, seasonKey);
+      if (record && !record.lockedAt) {
+        if (record.conductorMemberId) {
+          await clearConductorAssignment(allianceId, date, seasonKey);
+        }
+        if (record.vipMemberId) {
+          await clearVipAssignment(allianceId, date, seasonKey);
+        }
       }
     }
   }

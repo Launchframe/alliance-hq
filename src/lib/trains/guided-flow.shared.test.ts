@@ -8,7 +8,6 @@ import {
 } from "@/lib/trains/guided-flow.shared";
 
 const base: GuidedFlowInput = {
-  schedulePersisted: true,
   hasConductor: true,
   vipNeeded: true,
   hasVip: true,
@@ -16,19 +15,7 @@ const base: GuidedFlowInput = {
 };
 
 describe("currentGuidedStep", () => {
-  it("returns template when schedule is not persisted", () => {
-    expect(
-      currentGuidedStep({
-        ...base,
-        schedulePersisted: false,
-        hasConductor: false,
-        hasVip: false,
-        locked: false,
-      }),
-    ).toBe("template");
-  });
-
-  it("returns conductor when schedule exists but no conductor", () => {
+  it("returns conductor when no conductor assigned", () => {
     expect(
       currentGuidedStep({
         ...base,
@@ -133,17 +120,16 @@ describe("currentGuidedStep", () => {
     ).toBe("conductor");
   });
 
-  it("does not block prerequisites when template not yet chosen", () => {
+  it("blocks prerequisites when VS data missing even without persisted week schedule", () => {
     expect(
       currentGuidedStep({
         ...base,
-        schedulePersisted: false,
         hasConductor: false,
         locked: false,
         vsDataRequired: true,
         vsDataReady: false,
       }),
-    ).toBe("template");
+    ).toBe("prerequisites");
   });
 
   it("does not block prerequisites when already locked", () => {
@@ -159,7 +145,7 @@ describe("currentGuidedStep", () => {
 });
 
 describe("guidedFlowRosterBlocking", () => {
-  it("is true when roster required, not ready, template chosen, not locked", () => {
+  it("is true when roster required, not ready, not locked", () => {
     expect(
       guidedFlowRosterBlocking({
         ...base,
@@ -183,7 +169,7 @@ describe("guidedFlowRosterBlocking", () => {
 });
 
 describe("guidedFlowPrerequisitesBlocking", () => {
-  it("is true when VS data required, not ready, template chosen, not locked", () => {
+  it("is true when VS data required, not ready, not locked", () => {
     expect(
       guidedFlowPrerequisitesBlocking({
         ...base,
@@ -235,18 +221,6 @@ describe("guidedFlowPrerequisitesBlocking", () => {
         vsDataRequired: true,
         vsDataReady: false,
         conductorManualPickAvailable: true,
-      }),
-    ).toBe(false);
-  });
-
-  it("is false when template not yet persisted", () => {
-    expect(
-      guidedFlowPrerequisitesBlocking({
-        ...base,
-        schedulePersisted: false,
-        locked: false,
-        vsDataRequired: true,
-        vsDataReady: false,
       }),
     ).toBe(false);
   });

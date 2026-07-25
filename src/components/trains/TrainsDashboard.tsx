@@ -25,6 +25,7 @@ import { PriceIsRightPodiumLeaderboard } from "@/components/trains/PriceIsRightP
 import { PriceIsRightTicketsPanel } from "@/components/trains/PriceIsRightTicketsPanel";
 import { TodayConductorCard } from "@/components/trains/TodayConductorCard";
 import { WeekTemplateChangeDialog } from "@/components/trains/WeekTemplateChangeDialog";
+import { DayMechanismPickerDialog } from "@/components/trains/DayMechanismPickerDialog";
 import { WeekTemplatePickerDialog } from "@/components/trains/WeekTemplatePickerDialog";
 import { useHotkeys } from "@/components/hotkeys/HotkeyProvider";
 import {
@@ -37,7 +38,8 @@ import {
   type PoolDetailsOption,
 } from "@/components/trains/TrainPoolDetailsDialog";
 import { TrainSpinSourcePanel } from "@/components/trains/TrainSpinSourcePanel";
-import { TrainMonthCalendar, PAINT_TEMPLATES } from "@/components/trains/TrainMonthCalendar";
+import { TrainMonthCalendar } from "@/components/trains/TrainMonthCalendar";
+import { DAY_PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
 import {
   TrainScheduleViewToggle,
   type ScheduleView,
@@ -230,6 +232,7 @@ export function TrainsDashboard({ initial }: Props) {
     "conductor" | "vip"
   >("conductor");
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [dayMechanismPickerOpen, setDayMechanismPickerOpen] = useState(false);
   const [pendingTemplateChange, setPendingTemplateChange] = useState<{
     templateType: WeekTemplateType;
     weekStart: string;
@@ -1348,7 +1351,7 @@ export function TrainsDashboard({ initial }: Props) {
         handleScheduleViewChange("month");
       }),
       registerPageHandler("trains.goToToday", goToToday),
-      ...PAINT_TEMPLATES.map((template, index) =>
+      ...DAY_PAINT_TEMPLATES.map((template, index) =>
         registerPageHandler(trainTemplateHotkeyIds[index]!, () => {
           if (!data.canManageTrains) return;
           void paintDates([selectedDate], template);
@@ -1478,7 +1481,6 @@ export function TrainsDashboard({ initial }: Props) {
   const guidedVipNeeded = Boolean(vipMech) && vipMech !== "none";
   const guidedHasVip = Boolean(selectedRecord?.vipMemberId);
   const guidedStep = currentGuidedStep({
-    schedulePersisted: data.schedulePersisted,
     hasConductor: hasValidConductor,
     vipNeeded: guidedVipNeeded,
     hasVip: guidedHasVip,
@@ -1889,7 +1891,6 @@ export function TrainsDashboard({ initial }: Props) {
             data.simpleModeEnabled ? (
               <>
               <TrainsGuidedConductorFlow
-                schedulePersisted={data.schedulePersisted}
                 templateType={activeWeekTemplate}
                 paintTemplate={conductorPaint}
                 vsDataStatus={
@@ -1912,7 +1913,7 @@ export function TrainsDashboard({ initial }: Props) {
                 conductorMech={conductorMech}
                 vipMech={vipMech}
                 busy={trainQuickActionBusy}
-                onChangeTemplate={() => setTemplatePickerOpen(true)}
+                onChangeTemplate={() => setDayMechanismPickerOpen(true)}
                 onRollConductor={() => void runRoll("conductor")}
                 onPickTopScorer={() => void runRoll("conductor")}
                 onPickConductorManual={() => {
@@ -2612,6 +2613,31 @@ export function TrainsDashboard({ initial }: Props) {
         onClose={() => {
           setPoolDetailsOpen(false);
           setPoolDetailsInitialType(null);
+        }}
+      />
+
+      <DayMechanismPickerDialog
+        key={
+          dayMechanismPickerOpen
+            ? `day-mechanism-picker:open:${conductorPaint ?? activeWeekTemplate}:${data.today}`
+            : "day-mechanism-picker:closed"
+        }
+        open={dayMechanismPickerOpen}
+        currentTemplate={(conductorPaint ?? activeWeekTemplate) as WeekTemplateType}
+        date={data.today}
+        weekStart={targetTrainWeekStart}
+        vrReporterCount={data.vrReporterCount}
+        disabled={!data.canManageTrains}
+        weightingEnabled={data.priceIsRightWeightingEnabled}
+        onWeightingEnabledChange={handleWeightingEnabledChange}
+        onClose={() => setDayMechanismPickerOpen(false)}
+        onSelect={(templateType, topN) => {
+          setDayMechanismPickerOpen(false);
+          void paintDates(
+            [data.today],
+            templateType,
+            topN != null ? { topN } : undefined,
+          );
         }}
       />
 

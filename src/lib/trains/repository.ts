@@ -459,6 +459,44 @@ export async function clearConductorAssignment(
   return row ?? null;
 }
 
+export async function clearVipAssignment(
+  allianceId: string,
+  date: string,
+  seasonKey?: string | null,
+): Promise<(typeof schema.trainConductorRecords.$inferSelect) | null> {
+  const db = getDb();
+  const existing = await getConductorRecord(allianceId, date, seasonKey);
+  if (!existing) return null;
+  if (existing.lockedAt) {
+    throw new Error("Conductor is already locked for this day.");
+  }
+
+  if (existing.vipMemberId) {
+    await releasePoolSelectionForDate(
+      allianceId,
+      date,
+      existing.vipMemberId,
+    );
+  }
+
+  await db
+    .update(schema.trainConductorRecords)
+    .set({
+      vipMemberId: null,
+      vipMemberName: null,
+      vipRankEventId: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.trainConductorRecords.id, existing.id));
+
+  const [row] = await db
+    .select()
+    .from(schema.trainConductorRecords)
+    .where(eq(schema.trainConductorRecords.id, existing.id))
+    .limit(1);
+  return row ?? null;
+}
+
 export async function lockConductorRecord(
   recordId: string,
   allianceId: string,

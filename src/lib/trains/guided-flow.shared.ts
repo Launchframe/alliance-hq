@@ -8,15 +8,12 @@
 export type GuidedFlowStep =
   | "roster"
   | "prerequisites"
-  | "template"
   | "conductor"
   | "vip"
   | "lock"
   | "done";
 
 export type GuidedFlowInput = {
-  /** Week schedule row persisted in `train_week_schedules`. */
-  schedulePersisted: boolean;
   /** Conductor assigned for the selected day. */
   hasConductor: boolean;
   /**
@@ -54,7 +51,6 @@ export type GuidedFlowInput = {
  */
 export function guidedFlowRosterBlocking(input: GuidedFlowInput): boolean {
   if (input.locked) return false;
-  if (!input.schedulePersisted) return false;
   return Boolean(input.rosterDataRequired) && !input.rosterDataReady;
 }
 
@@ -67,7 +63,6 @@ export function guidedFlowPrerequisitesBlocking(
   input: GuidedFlowInput,
 ): boolean {
   if (input.locked) return false;
-  if (!input.schedulePersisted) return false;
   if (guidedFlowRosterBlocking(input)) return false;
   if (input.conductorManualPickAvailable) return false;
   return Boolean(input.vsDataRequired) && !input.vsDataReady;
@@ -77,7 +72,6 @@ export function guidedFlowPrerequisitesBlocking(
  * First incomplete step for the guided flow primary CTA.
  */
 export function currentGuidedStep(input: GuidedFlowInput): GuidedFlowStep {
-  if (!input.schedulePersisted) return "template";
   if (guidedFlowRosterBlocking(input)) return "roster";
   if (guidedFlowPrerequisitesBlocking(input)) return "prerequisites";
   if (!input.hasConductor) return "conductor";
