@@ -79,3 +79,13 @@ export function translationLanguageFromDiscordLocale(
   const base = normalizeTranslationLanguage(trimmed.split("-")[0]);
   return base ?? "en";
 }
+
+/**
+ * Map an HQ web locale (next-intl BCP 47 tag, e.g. `en-US`, `pt-BR`) onto a
+ * Google Translation v2 target code.
+ */
+export function translationLanguageFromHqLocale(
+  hqLocale: string | null | undefined,
+): string {
+  return translationLanguageFromDiscordLocale(hqLocale);
+}
