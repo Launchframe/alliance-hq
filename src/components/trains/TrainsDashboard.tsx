@@ -684,11 +684,13 @@ export function TrainsDashboard({ initial }: Props) {
           activeMemberCount: body.activeMemberCount!,
           rosterDataStatus: body.rosterDataStatus!,
         }));
-        setRosterSyncNotice(
-          t("guidedFlow.steps.roster.syncSuccess", {
-            count: body.activeMemberCount,
-          }),
-        );
+        if (body.rosterDataStatus.ready) {
+          setRosterSyncNotice(
+            t("guidedFlow.steps.roster.syncSuccess", {
+              count: body.activeMemberCount,
+            }),
+          );
+        }
       }
       await refreshRef.current();
     } catch (error) {
