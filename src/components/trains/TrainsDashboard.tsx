@@ -2483,8 +2483,8 @@ export function TrainsDashboard({ initial }: Props) {
       <WeekTemplatePickerDialog
         key={
           templatePickerOpen
-            ? `open:${activeWeekTemplate}`
-            : "closed"
+            ? `template-picker:open:${activeWeekTemplate}`
+            : "template-picker:closed"
         }
         open={templatePickerOpen}
         currentTemplate={activeWeekTemplate}
@@ -2502,8 +2502,8 @@ export function TrainsDashboard({ initial }: Props) {
       <WeekTemplateChangeDialog
         key={
           pendingTemplateChange
-            ? `${pendingTemplateChange.weekStart}:${pendingTemplateChange.templateType}`
-            : "closed"
+            ? `template-change:${pendingTemplateChange.weekStart}:${pendingTemplateChange.templateType}`
+            : "template-change:closed"
         }
         open={pendingTemplateChange != null}
         templateType={pendingTemplateChange?.templateType ?? null}
