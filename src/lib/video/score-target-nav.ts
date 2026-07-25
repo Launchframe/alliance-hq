@@ -19,7 +19,11 @@ export function getScoreTargetIdForNavHref(href: string): string | null {
 
 export function buildVideoUploadHref(
   scoreTargetId: string,
-  options?: { bankId?: string | null; boardKey?: string | null },
+  options?: {
+    bankId?: string | null;
+    boardKey?: string | null;
+    recordedDate?: string | null;
+  },
 ): string {
   const params = new URLSearchParams({ scoreTarget: scoreTargetId });
   const bankId = options?.bankId?.trim();
@@ -29,6 +33,10 @@ export function buildVideoUploadHref(
   const boardKey = options?.boardKey?.trim();
   if (boardKey) {
     params.set("boardKey", boardKey);
+  }
+  const recordedDate = parseVideoUploadRecordedDateParam(options?.recordedDate ?? undefined);
+  if (recordedDate) {
+    params.set("recordedDate", recordedDate);
   }
   return `/tools/video-upload?${params.toString()}`;
 }
@@ -52,6 +60,18 @@ export function parseVideoUploadBankIdParam(
 ): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+const RECORDED_DATE_PARAM = /^\d{4}-\d{2}-\d{2}$/;
+
+export function parseVideoUploadRecordedDateParam(
+  value: string | undefined,
+): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed || !RECORDED_DATE_PARAM.test(trimmed)) {
+    return null;
+  }
+  return trimmed;
 }
 
 export function resolveJobScoreTarget(job: {

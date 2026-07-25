@@ -7,6 +7,7 @@ import {
   syncAllianceMembersFromAshed,
 } from "@/lib/members/roster.server";
 import {
+  assertOfficerAshedSessionForSync,
   resolveOfficerAshedAllianceId,
   resolveRosterSyncCapability,
 } from "@/lib/members/roster-sync-capability.server";
@@ -30,11 +31,42 @@ export type SyncAllianceRosterResult = {
   capability: RosterSyncCapabilityKind;
 };
 
+async function syncViaAllianceBotCredentials(
+  allianceId: string,
+): Promise<{ synced: number } | null> {
+  const alliance = await getAllianceById(allianceId);
+  if (!alliance?.ashedAllianceId) {
+    return null;
+  }
+  const connection = await resolveAllianceAshedBotConnection(allianceId);
+  if (!connection) {
+    return null;
+  }
+  return syncAllianceMembersFromAshed({
+    hqAllianceId: allianceId,
+    ashedAllianceId: alliance.ashedAllianceId,
+    connection,
+  });
+}
+
+async function resolveAshedAllianceIdForOfficerSync(input: {
+  sessionId: string;
+  hqAllianceId: string;
+}): Promise<string> {
+  const alliance = await getAllianceById(input.hqAllianceId);
+  const linkedAshedAllianceId = alliance?.ashedAllianceId?.trim();
+  if (linkedAshedAllianceId) {
+    return linkedAshedAllianceId;
+  }
+
+  return (await resolveOfficerAshedAllianceId(input.sessionId)).ashedAllianceId;
+}
+
 export async function syncAllianceRosterForSession(input: {
   sessionId: string;
   allianceId: string;
 }): Promise<SyncAllianceRosterResult> {
-  const capability = await resolveRosterSyncCapability(
+  let capability = await resolveRosterSyncCapability(
     input.sessionId,
     input.allianceId,
   );
@@ -46,9 +78,11 @@ export async function syncAllianceRosterForSession(input: {
   let synced = 0;
 
   if (capability.kind === "officer_ashed") {
-    const { connection, ashedAllianceId } = await resolveOfficerAshedAllianceId(
-      input.sessionId,
-    );
+    const connection = await assertOfficerAshedSessionForSync(input.sessionId);
+    const ashedAllianceId = await resolveAshedAllianceIdForOfficerSync({
+      sessionId: input.sessionId,
+      hqAllianceId: input.allianceId,
+    });
     const hqAllianceId = await resolveHqAllianceId(
       input.allianceId,
       ashedAllianceId,
@@ -59,6 +93,14 @@ export async function syncAllianceRosterForSession(input: {
       connection,
     });
     synced = result.synced;
+
+    if (synced === 0) {
+      const botResult = await syncViaAllianceBotCredentials(input.allianceId);
+      if (botResult) {
+        synced = botResult.synced;
+        capability = { kind: "alliance_ashed" };
+      }
+    }
   } else if (capability.kind === "alliance_ashed") {
     const alliance = await getAllianceById(input.allianceId);
     if (!alliance?.ashedAllianceId) {

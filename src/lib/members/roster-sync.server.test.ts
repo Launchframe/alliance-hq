@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const resolveRosterSyncCapability = vi.fn();
 const resolveOfficerAshedAllianceId = vi.fn();
+const assertOfficerAshedSessionForSync = vi.fn();
 const resolveHqAllianceId = vi.fn();
 const syncAllianceMembersFromAshed = vi.fn();
 const listActiveAllianceMembersForPool = vi.fn();
@@ -14,6 +15,8 @@ vi.mock("@/lib/members/roster-sync-capability.server", () => ({
     resolveRosterSyncCapability(...args),
   resolveOfficerAshedAllianceId: (...args: unknown[]) =>
     resolveOfficerAshedAllianceId(...args),
+  assertOfficerAshedSessionForSync: (...args: unknown[]) =>
+    assertOfficerAshedSessionForSync(...args),
 }));
 
 vi.mock("@/lib/members/roster.server", () => ({
@@ -79,10 +82,8 @@ describe("syncAllianceRosterForSession", () => {
 
   it("syncs via officer Ashed session and returns refreshed counts", async () => {
     resolveRosterSyncCapability.mockResolvedValue({ kind: "officer_ashed" });
-    resolveOfficerAshedAllianceId.mockResolvedValue({
-      connection: { token: "tok" },
-      ashedAllianceId: "ashed-1",
-    });
+    assertOfficerAshedSessionForSync.mockResolvedValue({ token: "tok" });
+    getAllianceById.mockResolvedValue({ ashedAllianceId: "ashed-1" });
     resolveHqAllianceId.mockResolvedValue("hq-1");
     syncAllianceMembersFromAshed.mockResolvedValue({ synced: 5 });
     listActiveAllianceMembersForPool.mockResolvedValue([
@@ -95,6 +96,7 @@ describe("syncAllianceRosterForSession", () => {
       allianceId: "hq-1",
     });
 
+    expect(resolveOfficerAshedAllianceId).not.toHaveBeenCalled();
     expect(syncAllianceMembersFromAshed).toHaveBeenCalledWith({
       hqAllianceId: "hq-1",
       ashedAllianceId: "ashed-1",
@@ -103,6 +105,54 @@ describe("syncAllianceRosterForSession", () => {
     expect(result.synced).toBe(5);
     expect(result.activeMemberCount).toBe(2);
     expect(result.capability).toBe("officer_ashed");
+  });
+
+  it("falls back to alliance bot credentials when officer sync returns zero", async () => {
+    resolveRosterSyncCapability.mockResolvedValue({ kind: "officer_ashed" });
+    assertOfficerAshedSessionForSync.mockResolvedValue({ token: "tok" });
+    getAllianceById.mockResolvedValue({ ashedAllianceId: "ashed-1" });
+    resolveHqAllianceId.mockResolvedValue("hq-1");
+    syncAllianceMembersFromAshed
+      .mockResolvedValueOnce({ synced: 0 })
+      .mockResolvedValueOnce({ synced: 4 });
+    resolveAllianceAshedBotConnection.mockResolvedValue({ token: "bot" });
+
+    const result = await syncAllianceRosterForSession({
+      sessionId: "sess-1",
+      allianceId: "hq-1",
+    });
+
+    expect(syncAllianceMembersFromAshed).toHaveBeenCalledTimes(2);
+    expect(syncAllianceMembersFromAshed).toHaveBeenLastCalledWith({
+      hqAllianceId: "hq-1",
+      ashedAllianceId: "ashed-1",
+      connection: { token: "bot" },
+    });
+    expect(result.synced).toBe(4);
+    expect(result.capability).toBe("alliance_ashed");
+  });
+
+  it("resolves officer Ashed alliance from session tag when HQ row is unlinked", async () => {
+    resolveRosterSyncCapability.mockResolvedValue({ kind: "officer_ashed" });
+    assertOfficerAshedSessionForSync.mockResolvedValue({ token: "tok" });
+    getAllianceById.mockResolvedValue({ ashedAllianceId: null });
+    resolveOfficerAshedAllianceId.mockResolvedValue({
+      ashedAllianceId: "ashed-from-tag",
+    });
+    resolveHqAllianceId.mockResolvedValue("hq-1");
+    syncAllianceMembersFromAshed.mockResolvedValue({ synced: 2 });
+
+    await syncAllianceRosterForSession({
+      sessionId: "sess-1",
+      allianceId: "hq-1",
+    });
+
+    expect(resolveOfficerAshedAllianceId).toHaveBeenCalledWith("sess-1");
+    expect(syncAllianceMembersFromAshed).toHaveBeenCalledWith({
+      hqAllianceId: "hq-1",
+      ashedAllianceId: "ashed-from-tag",
+      connection: { token: "tok" },
+    });
   });
 
   it("syncs via alliance bot credentials when configured", async () => {

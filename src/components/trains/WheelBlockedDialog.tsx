@@ -74,7 +74,8 @@ function resolveReseedPoolType(
   }
   if (
     details.code === "POOL_EXHAUSTED" ||
-    details.code === "POOL_UNAVAILABLE"
+    details.code === "POOL_UNAVAILABLE" ||
+    details.code === "POOL_EMPTY"
   ) {
     return poolType;
   }

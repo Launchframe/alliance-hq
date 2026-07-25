@@ -11,6 +11,13 @@ export function isPriceIsRightPaintTemplate(
   );
 }
 
+/** Economy / Price Is Freight weeks use prior-day VS for conductor pools. */
+export function paintTemplateUsesPriorDayVs(
+  paintTemplate: WeekTemplateType | string | null | undefined,
+): boolean {
+  return paintTemplate === "economy_week" || isPriceIsRightPaintTemplate(paintTemplate);
+}
+
 /**
  * Saturday in a legacy whole-week `price_is_right` paint uses the heavy-hitter
  * lottery. New schedules paint Saturday as `takedown_week` instead.

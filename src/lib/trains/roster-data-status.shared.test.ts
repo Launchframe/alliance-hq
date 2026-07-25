@@ -43,11 +43,27 @@ describe("buildRosterDataStatus", () => {
       needKind: "rank_pool",
       activeMemberCount: 12,
       eligiblePoolCount: 0,
+      rankEligiblePoolCount: 0,
       syncCapability: "alliance_ashed",
       poolType: "r3",
     });
     expect(status.required).toBe(true);
     expect(status.ready).toBe(false);
+    expect(status.blockerKind).toBe("missing_rank_pool");
+  });
+
+  it("detects conductor minimums as the blocker", () => {
+    const status = buildRosterDataStatus({
+      needKind: "rank_pool",
+      activeMemberCount: 12,
+      eligiblePoolCount: 0,
+      rankEligiblePoolCount: 5,
+      syncCapability: "alliance_ashed",
+      poolType: "r3",
+    });
+    expect(status.blockerKind).toBe("conductor_minimums");
+    expect(status.required).toBe(false);
+    expect(status.ready).toBe(true);
   });
 
   it("is ready when members exist and rank pool has candidates", () => {

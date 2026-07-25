@@ -417,7 +417,14 @@ export async function loadTrainsDashboard(
           paintTemplate: todayDayConfig.paintTemplate ?? dashboardTemplateType,
           activeMemberCount,
         })
-      : Promise.resolve(null),
+      : loadTrainsRosterDataStatus({
+          sessionId,
+          allianceId,
+          trainDate: today,
+          conductorMechanism: null,
+          paintTemplate: dashboardTemplateType,
+          activeMemberCount,
+        }),
     countAllianceVrReporters(allianceId),
   ]);
 

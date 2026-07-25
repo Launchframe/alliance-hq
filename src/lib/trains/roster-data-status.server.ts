@@ -8,7 +8,7 @@ import {
   classifyRosterNeed,
   type TrainsRosterDataStatus,
 } from "@/lib/trains/roster-data-status.shared";
-import { countEligiblePoolMembers } from "@/lib/trains/service";
+import { countEligiblePoolMembers, countRankEligiblePoolMembers } from "@/lib/trains/service";
 
 export type { TrainsRosterDataStatus };
 
@@ -32,15 +32,20 @@ export async function loadTrainsRosterDataStatus(input: {
   });
 
   let eligiblePoolCount = 0;
+  let rankEligiblePoolCount = 0;
   if (need.kind === "rank_pool" && need.poolType && activeMemberCount > 0) {
-    eligiblePoolCount = await countEligiblePoolMembers({
+    const probe = {
       hqAllianceId: input.allianceId,
       poolType: need.poolType,
       date: input.trainDate,
       paintTemplate: input.paintTemplate as Parameters<
         typeof countEligiblePoolMembers
       >[0]["paintTemplate"],
-    });
+    };
+    [eligiblePoolCount, rankEligiblePoolCount] = await Promise.all([
+      countEligiblePoolMembers(probe),
+      countRankEligiblePoolMembers(probe),
+    ]);
   }
 
   const [{ kind: syncCapability }, lastSyncedAt] = await Promise.all([
@@ -52,6 +57,7 @@ export async function loadTrainsRosterDataStatus(input: {
     needKind: need.kind,
     activeMemberCount,
     eligiblePoolCount,
+    rankEligiblePoolCount,
     syncCapability,
     poolType: need.poolType,
     lastSyncedAt: lastSyncedAt?.toISOString() ?? null,

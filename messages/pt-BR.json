@@ -3249,8 +3249,8 @@
     "noneYet": "—",
     "quickActions": "Ações rápidas",
     "uploadScoresBanner": {
-      "body": "O modelo deste dia requer pontuações VS. Envie as pontuações de ontem antes de sortear o condutor.",
-      "link": "Enviar vídeo de pontuação"
+      "body": "Nenhuma pontuação encontrada ainda para a verificação VS deste dia.",
+      "link": "Enviar pontuações"
     },
     "rosterSyncBanner": {
       "bodyEmpty": "O Alliance HQ ainda não tem o roster da sua aliança. Sincronize pelo Ashed para carregar membros e patentes antes de girar a roleta.",
@@ -3353,7 +3353,11 @@
           "refreshNative": "Atualizar roster",
           "syncing": "Sincronizando roster…",
           "syncSuccess": "Roster atualizado ({count} membros ativos).",
+          "syncReady": "Roster pronto — {eligibleCount} membros qualificam para o pool {rankLabel} de hoje.",
+          "syncStillBlockedRanks": "Sincronizados {count} membros pelo Ashed, mas nenhum qualifica para o pool {rankLabel} de hoje. Atribua ou corrija patentes em Membros.",
+          "syncStillBlockedMinimums": "Sincronizados {count} membros. {rankEligible} correspondem a {rankLabel}, mas nenhum atende aos mínimos de condutor ainda.",
           "syncFailed": "Não foi possível sincronizar o roster. Tente de novo ou abra Membros.",
+          "bodyConductorMinimums": "Há membros no roster, mas nenhum que corresponda ao pool {rankLabel} de hoje também atende aos mínimos de condutor.",
           "connectAshed": "Conectar Ashed em Configurações",
           "goToMembers": "Ir para Membros",
           "rankLabels": {
@@ -3365,12 +3369,12 @@
         "prerequisites": {
           "title": "Enviar pontuações",
           "bodyReady": "{count} comandantes têm pontuações prontas.",
-          "bodyMissing": "As pontuações VS de ontem são necessárias antes de sortear o condutor.",
-          "uploadLink": "Enviar vídeo de pontuação"
+          "bodyMissing": "Nenhuma pontuação encontrada ainda para a verificação VS deste dia.",
+          "uploadLink": "Enviar pontuações"
         },
         "template": {
-          "title": "Modelo da semana",
-          "change": "Alterar modelo"
+          "title": "Escolha do condutor do dia",
+          "change": "Alterar escolha"
         },
         "conductor": {
           "title": "Condutor",

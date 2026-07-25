@@ -45,13 +45,13 @@ describe("classifyVsDataNeed", () => {
     ).toEqual({ kind: "prior_day_vs", required: true });
   });
 
-  it("returns none when scores are not needed", () => {
+  it("requires prior-day VS for economy week paint", () => {
     expect(
       classifyVsDataNeed({
         conductorMechanism: "r3_lottery",
         paintTemplate: "economy_week",
       }),
-    ).toEqual({ kind: "none", required: false });
+    ).toEqual({ kind: "prior_day_vs", required: true });
   });
 });
 

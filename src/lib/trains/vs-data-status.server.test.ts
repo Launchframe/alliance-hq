@@ -21,21 +21,25 @@ describe("loadTrainsVsDataStatus", () => {
     fetchPrior.mockReset();
   });
 
-  it("skips fetchers when scores are not required", async () => {
+  it("loads prior-day VS for economy week paint", async () => {
+    fetchPrior.mockResolvedValue(new Map([["m1", 1_000_000]]));
+
     const status = await loadTrainsVsDataStatus({
       allianceId: "a1",
       trainDate: "2026-06-13",
       conductorMechanism: "r3_lottery",
       paintTemplate: "economy_week",
     });
+
+    expect(fetchPrior).toHaveBeenCalledWith("a1", "2026-06-12");
     expect(status).toEqual({
-      required: false,
+      required: true,
       ready: true,
-      scoreCount: 0,
-      kind: "none",
+      scoreCount: 1,
+      kind: "prior_day_vs",
+      scoreDate: "2026-06-12",
     });
     expect(fetchVr).not.toHaveBeenCalled();
-    expect(fetchPrior).not.toHaveBeenCalled();
   });
 
   it("loads prior-day VS for vs_high_score", async () => {

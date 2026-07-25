@@ -5,7 +5,8 @@ import { canRefreshRosterFromAshed } from "@/lib/connect/ashed-shell-prompts.sha
 import type { RosterSyncCapabilityKind } from "@/lib/trains/roster-data-status.shared";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { getAshedConnection, loadSession } from "@/lib/session";
-import { allianceHasBotCredentials } from "@/lib/vr/member-roster";
+import { getAllianceById } from "@/lib/vr/repository";
+import { resolveAllianceAshedBotConnection } from "@/lib/vr/member-roster";
 
 export type ResolvedRosterSyncCapability = {
   kind: RosterSyncCapabilityKind;
@@ -21,6 +22,14 @@ export async function resolveRosterSyncCapability(
     return { kind: "native_reload" };
   }
 
+  const alliance = await getAllianceById(allianceId);
+  if (
+    alliance?.ashedAllianceId &&
+    (await resolveAllianceAshedBotConnection(allianceId))
+  ) {
+    return { kind: "alliance_ashed" };
+  }
+
   const connection = await getAshedConnection(sessionId);
   if (
     canRefreshRosterFromAshed({
@@ -29,10 +38,6 @@ export async function resolveRosterSyncCapability(
     })
   ) {
     return { kind: "officer_ashed" };
-  }
-
-  if (await allianceHasBotCredentials(allianceId)) {
-    return { kind: "alliance_ashed" };
   }
 
   return { kind: "none" };

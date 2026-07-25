@@ -3303,8 +3303,8 @@
     "noneYet": "—",
     "quickActions": "Quick actions",
     "uploadScoresBanner": {
-      "body": "This day's template requires VS scores. Upload yesterday's scores before spinning for conductor.",
-      "link": "Upload score video"
+      "body": "No scores found yet for this day's VS check.",
+      "link": "Upload scores"
     },
     "rosterSyncBanner": {
       "bodyEmpty": "Alliance HQ does not have your roster yet. Sync from Ashed to load members and ranks before spinning.",
@@ -3407,7 +3407,11 @@
           "refreshNative": "Refresh roster",
           "syncing": "Syncing roster…",
           "syncSuccess": "Roster updated ({count} active members).",
+          "syncReady": "Roster ready — {eligibleCount} members qualify for today's {rankLabel} pool.",
+          "syncStillBlockedRanks": "Synced {count} members from Ashed, but none qualify for today's {rankLabel} pool. Assign or fix ranks on Members.",
+          "syncStillBlockedMinimums": "Synced {count} members. {rankEligible} match {rankLabel}, but none meet conductor minimums yet.",
           "syncFailed": "Could not sync the roster. Try again or open Members.",
+          "bodyConductorMinimums": "Members are on the roster, but none who match today's {rankLabel} pool also meet conductor minimums yet.",
           "connectAshed": "Connect Ashed in Settings",
           "goToMembers": "Go to Members",
           "rankLabels": {
@@ -3419,12 +3423,12 @@
         "prerequisites": {
           "title": "Upload scores",
           "bodyReady": "{count} commanders have scores ready.",
-          "bodyMissing": "No scores found yet for this day’s VS / Price Is Freight check.",
-          "uploadLink": "Upload score video"
+          "bodyMissing": "No scores found yet for this day's VS check.",
+          "uploadLink": "Upload scores"
         },
         "template": {
-          "title": "Week template",
-          "change": "Change template"
+          "title": "This day's conductor pick",
+          "change": "Change pick"
         },
         "conductor": {
           "title": "Conductor",

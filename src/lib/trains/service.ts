@@ -50,7 +50,6 @@ import {
   markPoolMemberSelectedForDate,
   pickUniformPoolEntry,
   pickWeightedPoolEntryFromRows,
-  poolHasEntries,
   releasePoolSelectionForDate,
   seedPool,
   startNewPoolGeneration,
@@ -77,6 +76,7 @@ import { fetchAllianceVsTopScorersForTrainDate } from "@/lib/trains/vs-scores.se
 import { countAllianceVrReporters } from "@/lib/trains/vr-reporter-count.server";
 import {
   getAllianceRanksAsOf,
+  resolveMemberPoolAllianceRank,
   getMemberRankAsOf,
   isMemberEligibleForPool,
 } from "@/lib/trains/rank-history";
@@ -211,7 +211,7 @@ async function buildPoolCandidates(input: {
   const candidates: RollCandidate[] = [];
   for (const member of members) {
     const rankEvent = rankByMember.get(member.ashedMemberId);
-    const rank = rankEvent?.allianceRank ?? member.allianceRank ?? null;
+    const rank = resolveMemberPoolAllianceRank(member, rankEvent);
 
     if (!isMemberEligibleForPool(input.poolType, rank)) continue;
 
@@ -254,6 +254,23 @@ async function buildPoolCandidates(input: {
   return poolCandidates.filter((candidate) => qualified.has(candidate.memberId));
 }
 
+async function countPoolCandidates(input: {
+  hqAllianceId: string;
+  poolType: PoolType;
+  date: string;
+  paintTemplate?: WeekTemplateType | null;
+  respectConductorMinimums: boolean;
+}): Promise<number> {
+  const candidates = await buildPoolCandidates({
+    hqAllianceId: input.hqAllianceId,
+    poolType: input.poolType,
+    date: input.date,
+    paintTemplate: input.paintTemplate,
+    respectConductorMinimums: input.respectConductorMinimums,
+  });
+  return candidates.length;
+}
+
 /** Non-blocking probe for roster readiness on rank-based conductor pools. */
 export async function countEligiblePoolMembers(input: {
   hqAllianceId: string;
@@ -261,14 +278,49 @@ export async function countEligiblePoolMembers(input: {
   date: string;
   paintTemplate?: WeekTemplateType | null;
 }): Promise<number> {
-  const candidates = await buildPoolCandidates({
-    hqAllianceId: input.hqAllianceId,
-    poolType: input.poolType,
-    date: input.date,
-    paintTemplate: input.paintTemplate,
-    respectConductorMinimums: true,
-  });
-  return candidates.length;
+  return countPoolCandidates({ ...input, respectConductorMinimums: true });
+}
+
+/** Rank-only pool size before conductor minimums filter. */
+export async function countRankEligiblePoolMembers(input: {
+  hqAllianceId: string;
+  poolType: PoolType;
+  date: string;
+  paintTemplate?: WeekTemplateType | null;
+}): Promise<number> {
+  return countPoolCandidates({ ...input, respectConductorMinimums: false });
+}
+
+async function poolHasViableUnselectedEntries(input: {
+  allianceId: string;
+  poolType: PoolType;
+  date: string;
+  respectConductorMinimums: boolean;
+}): Promise<boolean> {
+  const summary = await getPoolSummary(input.allianceId, input.poolType);
+  if (summary.total === 0) {
+    return false;
+  }
+
+  let unselected = await listUnselectedPoolEntries(
+    input.allianceId,
+    input.poolType,
+  );
+  if (unselected.length === 0) {
+    return false;
+  }
+
+  if (input.respectConductorMinimums) {
+    const qualifiedIds = await filterMemberIdsByConductorMinimums(
+      input.allianceId,
+      input.date,
+      unselected.map((row) => row.memberId),
+    );
+    const qualified = new Set(qualifiedIds);
+    unselected = unselected.filter((row) => qualified.has(row.memberId));
+  }
+
+  return unselected.length > 0;
 }
 
 /** Seed a conductor pool if it has no entries yet (used by rolls and manual picks). */
@@ -281,8 +333,21 @@ export async function ensureConductorPoolSeeded(input: {
   paintTemplate?: WeekTemplateType | null;
   respectConductorMinimums?: boolean;
 }): Promise<void> {
-  const has = await poolHasEntries(input.hqAllianceId, input.poolType);
-  if (has) return;
+  const respectConductorMinimums =
+    input.respectConductorMinimums ??
+    (input.poolType === "r3" ||
+      input.poolType === "r4_plus" ||
+      input.poolType === "heavy_hitter");
+
+  const hasViable = await poolHasViableUnselectedEntries({
+    allianceId: input.hqAllianceId,
+    poolType: input.poolType,
+    date: input.date,
+    respectConductorMinimums,
+  });
+  if (hasViable) {
+    return;
+  }
 
   const candidates = await buildPoolCandidates({
     hqAllianceId: input.hqAllianceId,
@@ -290,17 +355,19 @@ export async function ensureConductorPoolSeeded(input: {
     date: input.date,
     eventTopN: input.eventTopN,
     paintTemplate: input.paintTemplate,
-    respectConductorMinimums: input.respectConductorMinimums,
+    respectConductorMinimums,
   });
   if (candidates.length === 0) {
     throwPoolEmpty(input.poolType);
   }
 
-  if (input.useSequence) {
-    await seedPool(input.hqAllianceId, input.poolType, candidates);
-  } else {
-    await seedPool(input.hqAllianceId, input.poolType, candidates);
+  const summary = await getPoolSummary(input.hqAllianceId, input.poolType);
+  if (summary.total > 0) {
+    await startNewPoolGeneration(input.hqAllianceId, input.poolType, candidates);
+    return;
   }
+
+  await seedPool(input.hqAllianceId, input.poolType, candidates);
 }
 
 async function rollFromPool(

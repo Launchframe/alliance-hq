@@ -59,6 +59,7 @@ export type TrainsGuidedConductorFlowProps = {
   videoUploadHref?: string;
   rosterSyncBusy?: boolean;
   rosterSyncNotice?: string | null;
+  rosterSyncNoticeTone?: "success" | "warning" | "error";
   onSyncRoster?: () => void;
 };
 
@@ -200,6 +201,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   const {
     schedulePersisted,
     templateType,
+    paintTemplate,
     templateDetailHint,
     vsDataStatus,
     rosterDataStatus,
@@ -228,6 +230,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     videoUploadHref,
     rosterSyncBusy = false,
     rosterSyncNotice = null,
+    rosterSyncNoticeTone = "success",
     onSyncRoster,
   } = props;
 
@@ -253,11 +256,12 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   };
   const current = currentGuidedStep(guidedInput);
 
-  const templateLabel = templateType ? tTemplates(templateType) : null;
-  const templateHint =
+  const dayConductorPick = paintTemplate ?? templateType;
+  const conductorPickLabel = dayConductorPick ? tTemplates(dayConductorPick) : null;
+  const conductorPickHint =
     templateDetailHint ??
-    (templateType && WEEK_TEMPLATES_WITH_DETAIL_HINTS.includes(templateType)
-      ? tTemplateDetails(templateType)
+    (dayConductorPick && WEEK_TEMPLATES_WITH_DETAIL_HINTS.includes(dayConductorPick)
+      ? tTemplateDetails(dayConductorPick)
       : null);
 
   const conductorAction: PrimaryAction = canSpinConductorWheel
@@ -315,14 +319,26 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
       ? t(`steps.roster.rankLabels.${rosterDataStatus.poolType}`)
       : null;
   const rosterBodyKey =
-    rosterDataStatus?.activeMemberCount === 0
-      ? "steps.roster.bodyEmpty"
-      : rosterDataStatus?.needKind === "rank_pool"
+    rosterDataStatus?.blockerKind === "conductor_minimums"
+      ? "steps.roster.bodyConductorMinimums"
+      : rosterDataStatus?.blockerKind === "missing_rank_pool"
         ? "steps.roster.bodyMissingRanks"
-        : "steps.roster.bodyEmpty";
+        : rosterDataStatus?.activeMemberCount === 0
+          ? "steps.roster.bodyEmpty"
+          : "steps.roster.bodyEmpty";
   const canInPageRosterSync =
     rosterDataStatus != null &&
     rosterSyncCapabilityAllowsInPageSync(rosterDataStatus.syncCapability);
+  const showRosterSyncCta =
+    canInPageRosterSync &&
+    onSyncRoster != null &&
+    (rosterDataStatus?.blockerKind === "empty_roster" ||
+      rosterDataStatus?.blockerKind === "missing_rank_pool");
+  const showRosterMembersLink =
+    rosterDataStatus?.blockerKind === "missing_rank_pool" &&
+    !canInPageRosterSync;
+  const showRosterUploadScores =
+    rosterDataStatus?.blockerKind === "conductor_minimums";
   const rosterPrimaryLabel =
     rosterDataStatus?.syncCapability === "native_reload"
       ? t("steps.roster.refreshNative")
@@ -342,8 +358,8 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
       <ol className="flex flex-col">
         <StepRow status={templateStatus} title={t("steps.template.title")}>
           <div className="flex flex-wrap items-center gap-2">
-            {templateLabel ? (
-              <span className="text-sm text-hq-fg-muted">{templateLabel}</span>
+            {conductorPickLabel ? (
+              <span className="text-sm text-hq-fg-muted">{conductorPickLabel}</span>
             ) : null}
             {templateStatus === "current" ? (
               <PrimaryCtaButton
@@ -354,9 +370,9 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
               <ChangeLink label={t("steps.template.change")} onClick={onChangeTemplate} />
             )}
           </div>
-          {templateStatus === "current" && templateHint ? (
+          {templateStatus === "current" && conductorPickHint ? (
             <p className="mt-1.5 text-xs leading-relaxed text-hq-fg-muted">
-              {templateHint}
+              {conductorPickHint}
             </p>
           ) : null}
         </StepRow>
@@ -376,9 +392,19 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                       })}
                 </p>
                 {rosterSyncNotice ? (
-                  <p className="text-xs text-hq-success">{rosterSyncNotice}</p>
+                  <p
+                    className={
+                      rosterSyncNoticeTone === "warning"
+                        ? "text-xs text-amber-600 dark:text-amber-400"
+                        : rosterSyncNoticeTone === "error"
+                          ? "text-xs text-hq-danger"
+                          : "text-xs text-hq-success"
+                    }
+                  >
+                    {rosterSyncNotice}
+                  </p>
                 ) : null}
-                {canInPageRosterSync && onSyncRoster ? (
+                {showRosterSyncCta ? (
                   <PrimaryCtaButton
                     action={{
                       label: rosterSyncBusy
@@ -404,7 +430,14 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                       {t("steps.roster.goToMembers")}
                     </Link>
                   </div>
-                ) : rosterDataStatus?.syncCapability === "native_reload" ? (
+                ) : showRosterUploadScores ? (
+                  <Link
+                    href={videoUploadHref ?? DEFAULT_VIDEO_UPLOAD_HREF}
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 sm:w-auto"
+                  >
+                    {t("steps.prerequisites.uploadLink")}
+                  </Link>
+                ) : showRosterMembersLink ? (
                   <Link
                     href="/members"
                     className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-hq-border bg-hq-canvas px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-surface sm:w-auto"
@@ -441,7 +474,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                   data-testid="trains-guided-upload-link"
                   className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 sm:w-auto"
                 >
-                  {t("steps.prerequisites.uploadLink")} →
+                  {t("steps.prerequisites.uploadLink")}
                 </Link>
               </div>
             ) : prerequisitesStatus === "completed" ? (

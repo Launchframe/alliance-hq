@@ -76,6 +76,7 @@ import {
 import { canStartConductorSwap } from "@/lib/trains/conductor-swap.shared";
 import { currentGuidedStep } from "@/lib/trains/guided-flow.shared";
 import { rosterSyncCapabilityAllowsInPageSync } from "@/lib/trains/roster-data-status.shared";
+import { buildTrainsGuidedVideoUploadHref } from "@/lib/trains/guided-video-upload.shared";
 import type { PoolRefreshedInfo, PoolType, RollResult, WeekTemplateType } from "@/lib/trains/types";
 import {
   compositeParentForSegment,
@@ -262,6 +263,9 @@ export function TrainsDashboard({ initial }: Props) {
   } | null>(null);
   const [rosterSyncBusy, setRosterSyncBusy] = useState(false);
   const [rosterSyncNotice, setRosterSyncNotice] = useState<string | null>(null);
+  const [rosterSyncNoticeTone, setRosterSyncNoticeTone] = useState<
+    "success" | "warning" | "error"
+  >("success");
 
   const trainWeekConfig = useMemo(
     () => allianceTrainWeekFromRow({ trainWeekStartDow: data.trainWeekStartDow }),
@@ -671,29 +675,86 @@ export function TrainsDashboard({ initial }: Props) {
       const res = await fetch("/api/trains/roster-sync", { method: "POST" });
       const body = (await res.json()) as {
         error?: string;
+        synced?: number;
         activeMemberCount?: number;
         rosterDataStatus?: TrainsDashboardPayload["rosterDataStatus"];
       };
       if (!res.ok) {
+        setRosterSyncNoticeTone("error");
         setError(body.error ?? t("guidedFlow.steps.roster.syncFailed"));
         return;
       }
-      if (body.rosterDataStatus != null && body.activeMemberCount != null) {
+
+      const syncSnapshot =
+        body.rosterDataStatus != null && body.activeMemberCount != null
+          ? {
+              activeMemberCount: body.activeMemberCount,
+              rosterDataStatus: body.rosterDataStatus,
+            }
+          : null;
+
+      await refreshRef.current();
+
+      if (syncSnapshot) {
         setData((current) => ({
           ...current,
-          activeMemberCount: body.activeMemberCount!,
-          rosterDataStatus: body.rosterDataStatus!,
+          activeMemberCount: syncSnapshot.activeMemberCount,
+          rosterDataStatus: syncSnapshot.rosterDataStatus,
         }));
-        if (body.rosterDataStatus.ready) {
+      }
+
+      const status = body.rosterDataStatus;
+      const rankLabel =
+        status?.poolType != null
+          ? t(`guidedFlow.steps.roster.rankLabels.${status.poolType}`)
+          : "";
+
+      if (body.synced === 0 && (body.activeMemberCount ?? 0) === 0) {
+        setRosterSyncNoticeTone("error");
+        setError(t("guidedFlow.steps.roster.syncFailed"));
+        return;
+      }
+
+      if (status?.ready) {
+        setRosterSyncNotice(
+          t("guidedFlow.steps.roster.syncReady", {
+            eligibleCount: status.eligiblePoolCount,
+            rankLabel,
+          }),
+        );
+        setRosterSyncNoticeTone("success");
+        setError(null);
+        return;
+      }
+
+      if ((body.activeMemberCount ?? 0) > 0 && status) {
+        if (status.blockerKind === "conductor_minimums") {
+          setRosterSyncNotice(
+            t("guidedFlow.steps.roster.syncStillBlockedMinimums", {
+              count: status.activeMemberCount,
+              rankEligible: status.rankEligiblePoolCount,
+              rankLabel,
+            }),
+          );
+        } else if (status.blockerKind === "missing_rank_pool") {
+          setRosterSyncNotice(
+            t("guidedFlow.steps.roster.syncStillBlockedRanks", {
+              count: status.activeMemberCount,
+              rankLabel,
+            }),
+          );
+        } else {
           setRosterSyncNotice(
             t("guidedFlow.steps.roster.syncSuccess", {
-              count: body.activeMemberCount,
+              count: body.activeMemberCount ?? 0,
             }),
           );
         }
+        setRosterSyncNoticeTone("warning");
+        setError(null);
       }
-      await refreshRef.current();
     } catch (error) {
+      setRosterSyncNoticeTone("error");
       setError(
         error instanceof Error
           ? error.message
@@ -702,7 +763,14 @@ export function TrainsDashboard({ initial }: Props) {
     } finally {
       setRosterSyncBusy(false);
     }
-  }, [t, setData, setError, setRosterSyncBusy, setRosterSyncNotice]);
+  }, [
+    t,
+    setData,
+    setError,
+    setRosterSyncBusy,
+    setRosterSyncNotice,
+    setRosterSyncNoticeTone,
+  ]);
 
   // Revalidate dashboard data when the tab becomes visible again (e.g. after
   // uploading scores on /tools/video-upload and returning).
@@ -1485,14 +1553,35 @@ export function TrainsDashboard({ initial }: Props) {
       ? t(`guidedFlow.steps.roster.rankLabels.${data.rosterDataStatus.poolType}`)
       : null;
   const rosterBannerBodyKey =
-    data.rosterDataStatus?.activeMemberCount === 0
-      ? "rosterSyncBanner.bodyEmpty"
-      : data.rosterDataStatus?.needKind === "rank_pool"
+    data.rosterDataStatus?.blockerKind === "conductor_minimums"
+      ? "guidedFlow.steps.roster.bodyConductorMinimums"
+      : data.rosterDataStatus?.blockerKind === "missing_rank_pool"
         ? "rosterSyncBanner.bodyMissingRanks"
-        : "rosterSyncBanner.bodyEmpty";
+        : data.rosterDataStatus?.activeMemberCount === 0
+          ? "rosterSyncBanner.bodyEmpty"
+          : "rosterSyncBanner.bodyEmpty";
   const canInPageRosterSync =
     data.rosterDataStatus != null &&
     rosterSyncCapabilityAllowsInPageSync(data.rosterDataStatus.syncCapability);
+  const canOfferRosterSync =
+    canInPageRosterSync &&
+    (data.rosterDataStatus?.blockerKind === "empty_roster" ||
+      data.rosterDataStatus?.blockerKind === "missing_rank_pool");
+  const showRosterBannerSync = canOfferRosterSync;
+  const showWheelRosterSync =
+    canOfferRosterSync ||
+    (canInPageRosterSync &&
+      wheelBlocked?.code === "POOL_EMPTY" &&
+      (wheelBlocked.poolType === "r3" ||
+        wheelBlocked.poolType === "r4_plus"));
+  const guidedVideoUploadHref = useMemo(
+    () =>
+      buildTrainsGuidedVideoUploadHref({
+        trainDate: data.today,
+        vsDataStatus: data.vsDataStatus,
+      }),
+    [data.today, data.vsDataStatus],
+  );
 
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 p-4 sm:p-6">
@@ -1822,6 +1911,7 @@ export function TrainsDashboard({ initial }: Props) {
                 }}
                 rosterSyncBusy={rosterSyncBusy}
                 rosterSyncNotice={rosterSyncNotice}
+                rosterSyncNoticeTone={rosterSyncNoticeTone}
                 onSyncRoster={() => void handleRosterSync()}
                 poolPanel={
                   isPoolSpinSource(selectedConductorSpinSource) ||
@@ -1942,7 +2032,7 @@ export function TrainsDashboard({ initial }: Props) {
                     ) : null}
                   </>
                 }
-                videoUploadHref="/tools/video-upload"
+                videoUploadHref={guidedVideoUploadHref}
               />
               {trainReadyConfirm &&
               data.trainDiscordConfigured &&
@@ -1998,7 +2088,7 @@ export function TrainsDashboard({ initial }: Props) {
                       rankLabel: rosterRankLabel ?? "",
                     })}
                   </p>
-                  {canInPageRosterSync ? (
+                  {showRosterBannerSync ? (
                     <button
                       type="button"
                       disabled={rosterSyncBusy}
@@ -2033,10 +2123,10 @@ export function TrainsDashboard({ initial }: Props) {
                     {t("uploadScoresBanner.body")}
                   </p>
                   <Link
-                    href="/tools/video-upload"
+                    href={guidedVideoUploadHref}
                     className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 sm:w-auto"
                   >
-                    {t("uploadScoresBanner.link")} →
+                    {t("uploadScoresBanner.link")}
                   </Link>
                 </div>
               ) : null}
@@ -2465,7 +2555,7 @@ export function TrainsDashboard({ initial }: Props) {
           setPickOpen(true);
         }}
         onRetrySpin={() => void runRollRef.current(wheelBlockedRole)}
-        canSyncRoster={canInPageRosterSync}
+        canSyncRoster={showWheelRosterSync}
         onSyncRoster={() => void handleRosterSync()}
       />
 
