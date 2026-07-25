@@ -21,8 +21,11 @@ export const VR_STEP = 250;
 export const VR_MIN = 100;
 /** Absolute ceiling for Discord slash registration (S5 max). */
 export const VR_MAX = 28000;
+/** @deprecated Anomaly detection uses institute level gaps (see ANOMALY_MIN_LEVEL_GAP). */
 export const ANOMALY_GAP = 750;
 export const ANOMALY_MIN_REPORTERS = 10;
+/** Confirm when proposed institute level is this many levels above alliance peers. */
+export const ANOMALY_MIN_LEVEL_GAP = 3;
 
 export {
   baseVrForInstituteLevel,

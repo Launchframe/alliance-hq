@@ -11,7 +11,7 @@ import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-ide
 import { hasConflictingDiscordGameUidClaim } from "@/lib/member-link/link-claim-guards.shared";
 import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
-import { buildFlagReason, peerMaxExcludingMember, shouldAnomalyConfirm } from "@/lib/vr/anomaly";
+import { buildFlagReason, peerMaxExcludingMember, peerMaxInstituteLevelExcludingMember, shouldAnomalyConfirm } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER, type VrEventSource } from "@/lib/vr/constants";
 import { coerceInstituteLevelFromBaseVr } from "@/lib/vr/institute-levels.shared";
 import {
@@ -788,14 +788,28 @@ export async function upsertCommanderSeasonVr(input: {
     coerceInstituteLevelFromBaseVr(input.seasonKey, input.baseVr);
   const rows = await listSeasonVrRows(input.allianceId, input.seasonKey);
   const peerMax = peerMaxExcludingMember(rows, input.ashedMemberId);
+  const peerMaxLevel = peerMaxInstituteLevelExcludingMember(
+    rows,
+    input.ashedMemberId,
+    input.seasonKey,
+  );
   const flagReason =
     input.flagReason ??
     (shouldAnomalyConfirm({
+      seasonKey: input.seasonKey,
       proposedVr: input.baseVr,
+      proposedLevel: instituteLevel,
       reporterCount: rows.length,
       peerMax,
+      peerMaxLevel,
     })
-      ? buildFlagReason(input.baseVr, peerMax)
+      ? buildFlagReason(
+          input.seasonKey,
+          input.baseVr,
+          peerMax,
+          instituteLevel,
+          peerMaxLevel,
+        )
       : null);
 
   await db
