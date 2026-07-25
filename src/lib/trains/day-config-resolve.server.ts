@@ -54,12 +54,14 @@ export async function resolveRollDayConfig(
   const stored = await getDayConfig(allianceId, date);
   if (stored) {
     const paintTemplate = paintTemplateFromConductorConfig(stored.conductorConfig);
-    const conductorMechanism =
-      effectiveConductorMechanism(
-        stored.conductorMechanism,
-        paintTemplate,
-        date,
-      ) ?? (stored.conductorMechanism as ConductorMechanismType);
+    const isDayOverride = stored.isOverride === 1;
+    const conductorMechanism = isDayOverride
+      ? (stored.conductorMechanism as ConductorMechanismType)
+      : (effectiveConductorMechanism(
+          stored.conductorMechanism,
+          paintTemplate,
+          date,
+        ) ?? (stored.conductorMechanism as ConductorMechanismType));
     return {
       date: stored.date,
       conductorMechanism,

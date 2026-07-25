@@ -25,6 +25,63 @@ export function effectiveConductorMechanism(
   return conductorMechanism as ConductorMechanismType;
 }
 
+/** Stable key for whether today's conductor draw rules changed (mechanism / paint / top-N). */
+export function conductorDrawIdentity(input: {
+  conductorMechanism: string | null | undefined;
+  paintTemplate?: WeekTemplateType | string | null;
+  date?: string | null;
+  conductorConfig?: unknown;
+  topN?: number | null;
+}): string {
+  const mechanism = effectiveConductorMechanism(
+    input.conductorMechanism,
+    input.paintTemplate as WeekTemplateType | null,
+    input.date,
+  );
+  if (!mechanism) return "";
+
+  let topN = input.topN ?? null;
+  if (
+    topN == null &&
+    input.conductorConfig &&
+    typeof input.conductorConfig === "object" &&
+    "topN" in input.conductorConfig
+  ) {
+    const raw = (input.conductorConfig as { topN?: unknown }).topN;
+    if (typeof raw === "number") topN = raw;
+  }
+
+  return [mechanism, input.paintTemplate ?? "", topN ?? ""].join("|");
+}
+
+export function conductorDrawChanged(
+  before: Parameters<typeof conductorDrawIdentity>[0],
+  after: Parameters<typeof conductorDrawIdentity>[0],
+): boolean {
+  return conductorDrawIdentity(before) !== conductorDrawIdentity(after);
+}
+
+/** Pending pick from an older draw mechanism does not count as today's conductor. */
+export function hasValidConductorPickForDay(input: {
+  conductorMemberId: string | null | undefined;
+  recordConductorMechanism: string | null | undefined;
+  dayConductorMechanism: string | null | undefined;
+  paintTemplate?: string | null;
+  date?: string | null;
+  conductorConfig?: unknown;
+  topN?: number | null;
+}): boolean {
+  if (!input.conductorMemberId) return false;
+  if (!input.recordConductorMechanism) return true;
+
+  const dayMechanism = effectiveConductorMechanism(
+    input.dayConductorMechanism,
+    input.paintTemplate as WeekTemplateType | null,
+    input.date,
+  );
+  return input.recordConductorMechanism === dayMechanism;
+}
+
 export function canSpinConductorForDay(
   conductorMechanism: string | null | undefined,
   locked: boolean,

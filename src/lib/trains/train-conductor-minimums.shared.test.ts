@@ -9,6 +9,8 @@ import {
   minimumsSettingsForHqLocalEval,
   normalizeTrainMinimumsSettings,
   poolTypeRespectsConductorMinimums,
+  conductorQualificationGateApplies,
+  formatTrainPointCount,
 } from "@/lib/trains/train-conductor-minimums.shared";
 
 describe("train-conductor-minimums", () => {
@@ -23,6 +25,46 @@ describe("train-conductor-minimums", () => {
     expect(poolTypeRespectsConductorMinimums("heavy_hitter")).toBe(true);
     expect(poolTypeRespectsConductorMinimums("r4_plus")).toBe(false);
     expect(poolTypeRespectsConductorMinimums("all_members")).toBe(false);
+  });
+
+  it("conductorQualificationGateApplies only when minimums and VS prerequisites are satisfied", () => {
+    expect(
+      conductorQualificationGateApplies({
+        poolType: "r4_plus",
+        minimumsEnabled: true,
+        vsDataRequired: true,
+        vsDataReady: true,
+      }),
+    ).toBe(false);
+    expect(
+      conductorQualificationGateApplies({
+        poolType: "r3",
+        minimumsEnabled: true,
+        vsDataRequired: true,
+        vsDataReady: false,
+      }),
+    ).toBe(false);
+    expect(
+      conductorQualificationGateApplies({
+        poolType: "r3",
+        minimumsEnabled: true,
+        vsDataRequired: false,
+        vsDataReady: false,
+      }),
+    ).toBe(false);
+    expect(
+      conductorQualificationGateApplies({
+        poolType: "r3",
+        minimumsEnabled: true,
+        vsDataRequired: true,
+        vsDataReady: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("formatTrainPointCount uses locale grouping", () => {
+    expect(formatTrainPointCount(6_480_000, "en-US")).toBe("6,480,000");
+    expect(formatTrainPointCount(6_480_000, "pt-BR")).toBe("6.480.000");
   });
 
   it("weekly evaluation uses prior train week (Tue–Mon)", () => {

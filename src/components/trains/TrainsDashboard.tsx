@@ -2,7 +2,7 @@
 
 import { ChevronDown, Info } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { ConductorPickModal } from "@/components/trains/ConductorPickModal";
 import { ConductorSwapDialog } from "@/components/trains/ConductorSwapDialog";
@@ -82,7 +82,10 @@ import {
   compositeParentForSegment,
   isWeekTemplateSegment,
 } from "@/lib/trains/week-template-registry.shared";
-import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
+import {
+  formatTrainPointCount,
+  type MemberQualificationPayload,
+} from "@/lib/trains/train-conductor-minimums.shared";
 import {
   applyOptimisticConductorPick,
   applyOptimisticConductorRoll,
@@ -100,6 +103,9 @@ import {
 } from "@/lib/trains/roll-errors.shared";
 import { latestLockedDateInWeek, pivotEconomyTargetDates } from "@/lib/trains/week-template-change.shared";
 import { spinWeekDayLabel } from "@/lib/trains/spin-week.shared";
+import {
+  hasValidConductorPickForDay,
+} from "@/lib/trains/conductor-mechanism.shared";
 import { supportsManualConductorPick, supportsManualVipPick } from "@/lib/trains/templates";
 import {
   allianceTrainWeekFromRow,
@@ -166,6 +172,7 @@ function inferWeekTemplateFromDayConfigs(
 
 export function TrainsDashboard({ initial }: Props) {
   const t = useTranslations("trains");
+  const locale = useLocale();
   const [data, setData] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [unlockConfirm, setUnlockConfirm] = useState(false);
@@ -680,8 +687,10 @@ export function TrainsDashboard({ initial }: Props) {
         rosterDataStatus?: TrainsDashboardPayload["rosterDataStatus"];
       };
       if (!res.ok) {
+        const message = body.error ?? t("guidedFlow.steps.roster.syncFailed");
         setRosterSyncNoticeTone("error");
-        setError(body.error ?? t("guidedFlow.steps.roster.syncFailed"));
+        setRosterSyncNotice(message);
+        setError(message);
         return;
       }
 
@@ -710,8 +719,10 @@ export function TrainsDashboard({ initial }: Props) {
           : "";
 
       if (body.synced === 0 && (body.activeMemberCount ?? 0) === 0) {
+        const message = t("guidedFlow.steps.roster.syncFailed");
         setRosterSyncNoticeTone("error");
-        setError(t("guidedFlow.steps.roster.syncFailed"));
+        setRosterSyncNotice(message);
+        setError(message);
         return;
       }
 
@@ -754,12 +765,13 @@ export function TrainsDashboard({ initial }: Props) {
         setError(null);
       }
     } catch (error) {
-      setRosterSyncNoticeTone("error");
-      setError(
+      const message =
         error instanceof Error
           ? error.message
-          : t("guidedFlow.steps.roster.syncFailed"),
-      );
+          : t("guidedFlow.steps.roster.syncFailed");
+      setRosterSyncNoticeTone("error");
+      setRosterSyncNotice(message);
+      setError(message);
     } finally {
       setRosterSyncBusy(false);
     }
@@ -1444,6 +1456,15 @@ export function TrainsDashboard({ initial }: Props) {
     selectedDayConfig?.conductorMechanism,
     selectedConductorConfig,
   );
+  const hasValidConductor = hasValidConductorPickForDay({
+    conductorMemberId: selectedRecord?.conductorMemberId,
+    recordConductorMechanism: selectedRecord?.conductorMechanism,
+    dayConductorMechanism: selectedDayConfig?.conductorMechanism,
+    paintTemplate: conductorPaint,
+    date: selectedDate,
+    conductorConfig: selectedConductorConfig,
+    topN: selectedDayConfig?.topN,
+  });
   const canSpinConductorWheel =
     canRoll &&
     canSpinConductor(
@@ -1458,7 +1479,7 @@ export function TrainsDashboard({ initial }: Props) {
   const guidedHasVip = Boolean(selectedRecord?.vipMemberId);
   const guidedStep = currentGuidedStep({
     schedulePersisted: data.schedulePersisted,
-    hasConductor: Boolean(selectedRecord?.conductorMemberId),
+    hasConductor: hasValidConductor,
     vipNeeded: guidedVipNeeded,
     hasVip: guidedHasVip,
     locked,
@@ -1877,7 +1898,7 @@ export function TrainsDashboard({ initial }: Props) {
                 rosterDataStatus={
                   selectedDate === data.today ? data.rosterDataStatus : null
                 }
-                hasConductor={Boolean(selectedRecord?.conductorMemberId)}
+                hasConductor={hasValidConductor}
                 conductorName={selectedRecord?.conductorMemberName}
                 vipNeeded={guidedVipNeeded}
                 hasVip={guidedHasVip}
@@ -2038,11 +2059,11 @@ export function TrainsDashboard({ initial }: Props) {
               {trainReadyConfirm &&
               data.trainDiscordConfigured &&
               !locked &&
-              selectedRecord?.conductorMemberId ? (
+              hasValidConductor ? (
                 <div className="mt-3 flex w-full flex-wrap items-center gap-2 rounded-lg border border-hq-success/40 bg-hq-success/10 px-3 py-2">
                   <span className="text-sm text-hq-green">
                     {t("trainIsReady.confirm", {
-                      name: selectedRecord.conductorMemberName ?? "—",
+                      name: selectedRecord?.conductorMemberName ?? "—",
                       date: selectedDate,
                     })}
                   </span>
@@ -2237,13 +2258,13 @@ export function TrainsDashboard({ initial }: Props) {
                     {t("pickVipManually")}
                   </button>
                 ) : null}
-                {!locked && selectedRecord?.conductorMemberId ? (
+                {!locked && hasValidConductor ? (
                   data.trainDiscordConfigured ? (
                     trainReadyConfirm ? (
                       <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-hq-success/40 bg-hq-success/10 px-3 py-2">
                         <span className="text-sm text-hq-green">
                           {t("trainIsReady.confirm", {
-                            name: selectedRecord.conductorMemberName ?? "—",
+                            name: selectedRecord?.conductorMemberName ?? "—",
                             date: selectedDate,
                           })}
                         </span>
@@ -2460,22 +2481,37 @@ export function TrainsDashboard({ initial }: Props) {
               {conductorDisqualified.qualification.vs.minimum > 0 ? (
                 <p className="text-xs text-hq-fg-muted">
                   {t("wheel.vsShortfall", {
-                    score: conductorDisqualified.qualification.vs.score,
-                    required:
+                    score: formatTrainPointCount(
+                      conductorDisqualified.qualification.vs.score,
+                      locale,
+                    ),
+                    required: formatTrainPointCount(
                       conductorDisqualified.qualification.vs.effectiveMinimum,
-                    shortfall: conductorDisqualified.qualification.vs.shortfall,
+                      locale,
+                    ),
+                    shortfall: formatTrainPointCount(
+                      conductorDisqualified.qualification.vs.shortfall,
+                      locale,
+                    ),
                   })}
                 </p>
               ) : null}
               {conductorDisqualified.qualification.donation.minimum > 0 ? (
                 <p className="text-xs text-hq-fg-muted">
                   {t("wheel.donationShortfall", {
-                    score: conductorDisqualified.qualification.donation.score,
-                    required:
+                    score: formatTrainPointCount(
+                      conductorDisqualified.qualification.donation.score,
+                      locale,
+                    ),
+                    required: formatTrainPointCount(
                       conductorDisqualified.qualification.donation
                         .effectiveMinimum,
-                    shortfall:
+                      locale,
+                    ),
+                    shortfall: formatTrainPointCount(
                       conductorDisqualified.qualification.donation.shortfall,
+                      locale,
+                    ),
                   })}
                 </p>
               ) : null}
@@ -2543,12 +2579,18 @@ export function TrainsDashboard({ initial }: Props) {
                 ? selectedVipSpinSource.poolType
                 : null
         }
-        busy={reseedingPool != null}
+        busy={reseedingPool != null || rosterSyncBusy}
+        rosterSyncBusy={rosterSyncBusy}
+        rosterSyncNotice={rosterSyncNotice}
+        rosterSyncNoticeTone={rosterSyncNoticeTone}
         canPickManually={
           wheelBlockedRole === "vip" ? canManualPickVip : canManualPick
         }
         onClose={() => {
-          if (reseedingPool == null) setWheelBlocked(null);
+          if (reseedingPool == null && !rosterSyncBusy) {
+            setWheelBlocked(null);
+            setRosterSyncNotice(null);
+          }
         }}
         onReseedAndRespin={(poolType) =>
           void reseedPool(poolType, { respin: wheelBlockedRole })
@@ -2714,7 +2756,7 @@ export function TrainsDashboard({ initial }: Props) {
         ) : null}
       </Dialog>
 
-      {selectedRecord?.conductorMemberId ? (
+      {hasValidConductor && selectedRecord ? (
         <ConductorSwapDialog
           open={swapOpen}
           sourceDate={selectedDate}

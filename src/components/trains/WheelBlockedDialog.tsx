@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
@@ -13,6 +14,9 @@ type Props = {
   /** Used when the error payload omitted poolType (legacy / POOL_UNAVAILABLE). */
   fallbackPoolType?: PoolType | null;
   busy?: boolean;
+  rosterSyncBusy?: boolean;
+  rosterSyncNotice?: string | null;
+  rosterSyncNoticeTone?: "success" | "warning" | "error";
   /** Manual pick is available for today's role. */
   canPickManually?: boolean;
   canSyncRoster?: boolean;
@@ -84,7 +88,7 @@ function resolveReseedPoolType(
 
 function primaryLinkCta(
   details: TrainRollErrorDetails,
-  options?: { canSyncRoster?: boolean },
+  options?: { canSyncRoster?: boolean; rosterSyncSucceeded?: boolean },
 ): { href: string; labelKey: string } | null {
   if (details.code === "POOL_EMPTY") {
     if (details.poolType === "heavy_hitter") {
@@ -93,7 +97,7 @@ function primaryLinkCta(
         labelKey: "wheelBlocked.goToTrainSettings",
       };
     }
-    if (options?.canSyncRoster) {
+    if (options?.canSyncRoster && !options.rosterSyncSucceeded) {
       return null;
     }
     return { href: "/members", labelKey: "wheelBlocked.goToMembers" };
@@ -128,11 +132,26 @@ function showRetrySpinCta(details: TrainRollErrorDetails): boolean {
   );
 }
 
+function noticeToneClass(
+  tone: "success" | "warning" | "error" | undefined,
+): string {
+  if (tone === "warning") {
+    return "text-amber-600 dark:text-amber-400";
+  }
+  if (tone === "error") {
+    return "text-hq-danger";
+  }
+  return "text-hq-success";
+}
+
 export function WheelBlockedDialog({
   open,
   details,
   fallbackPoolType = null,
   busy = false,
+  rosterSyncBusy = false,
+  rosterSyncNotice = null,
+  rosterSyncNoticeTone = "success",
   canPickManually = false,
   canSyncRoster = false,
   onClose,
@@ -145,15 +164,22 @@ export function WheelBlockedDialog({
 
   if (!details) return null;
 
+  const dialogBusy = busy || rosterSyncBusy;
+  const rosterSyncSucceeded = rosterSyncNoticeTone === "success";
   const bodyKey = bodyMessageKey(details);
   const reseedPoolType = resolveReseedPoolType(details, fallbackPoolType);
   const showReseed = reseedPoolType != null && onReseedAndRespin != null;
-  const linkCta = primaryLinkCta(details, { canSyncRoster });
+  const linkCta = primaryLinkCta(details, {
+    canSyncRoster,
+    rosterSyncSucceeded,
+  });
   const showSyncRoster =
     canSyncRoster &&
     details.code === "POOL_EMPTY" &&
     details.poolType !== "heavy_hitter" &&
-    onSyncRoster != null;
+    onSyncRoster != null &&
+    !rosterSyncBusy &&
+    !rosterSyncSucceeded;
   const showPick =
     canPickManually &&
     showPickManuallyCta(details) &&
@@ -165,7 +191,7 @@ export function WheelBlockedDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next && !busy) onClose();
+        if (!next && !dialogBusy) onClose();
       }}
       title={t("wheelBlocked.title")}
     >
@@ -179,10 +205,30 @@ export function WheelBlockedDialog({
           </p>
         </div>
 
+        {rosterSyncBusy ? (
+          <div
+            className="flex items-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/5 px-3 py-2.5 text-sm text-cyan-100"
+            data-testid="trains-wheel-blocked-syncing"
+            role="status"
+          >
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+            {t("guidedFlow.steps.roster.syncing")}
+          </div>
+        ) : null}
+
+        {!rosterSyncBusy && rosterSyncNotice ? (
+          <p
+            className={`text-sm leading-relaxed ${noticeToneClass(rosterSyncNoticeTone)}`}
+            data-testid="trains-wheel-blocked-sync-notice"
+          >
+            {rosterSyncNotice}
+          </p>
+        ) : null}
+
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
           <button
             type="button"
-            disabled={busy}
+            disabled={dialogBusy}
             onClick={onClose}
             className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas disabled:opacity-50"
           >
@@ -192,7 +238,7 @@ export function WheelBlockedDialog({
           {showPick ? (
             <button
               type="button"
-              disabled={busy}
+              disabled={dialogBusy}
               onClick={() => {
                 onPickManually();
                 onClose();
@@ -206,7 +252,7 @@ export function WheelBlockedDialog({
           {showRetry ? (
             <button
               type="button"
-              disabled={busy}
+              disabled={dialogBusy}
               onClick={() => {
                 onClose();
                 onRetrySpin();
@@ -220,12 +266,10 @@ export function WheelBlockedDialog({
           {showSyncRoster ? (
             <button
               type="button"
-              disabled={busy}
-              onClick={() => {
-                onSyncRoster();
-                onClose();
-              }}
+              disabled={dialogBusy}
+              onClick={() => onSyncRoster()}
               className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 disabled:opacity-50"
+              data-testid="trains-wheel-blocked-sync"
             >
               {t("wheelBlocked.syncRoster")}
             </button>
@@ -244,9 +288,10 @@ export function WheelBlockedDialog({
           {showReseed ? (
             <button
               type="button"
-              disabled={busy}
+              disabled={dialogBusy}
               onClick={() => onReseedAndRespin(reseedPoolType)}
               className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 disabled:opacity-50"
+              data-testid="trains-wheel-blocked-reseed"
             >
               {busy
                 ? t("wheelBlocked.reseedAndRespinBusy")

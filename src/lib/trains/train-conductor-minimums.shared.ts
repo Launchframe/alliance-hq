@@ -160,3 +160,34 @@ export function assertConductorMinimumOverrideQualification(
   }
   return qualification;
 }
+
+/** Locale-aware integer formatting for VS / donation point counts in train UI. */
+export function formatTrainPointCount(value: number, locale: string): string {
+  return Math.trunc(value).toLocaleString(locale);
+}
+
+/**
+ * Whether a wheel spin should run the post-roll conductor minimums gate.
+ * Skips R4+ pools, days without VS prerequisites, and days where the officer
+ * did not complete the VS upload step (prerequisites were skipped).
+ */
+export function conductorQualificationGateApplies(input: {
+  poolType: PoolType | null | undefined;
+  minimumsEnabled: boolean;
+  vsDataRequired: boolean;
+  vsDataReady: boolean;
+}): boolean {
+  if (input.poolType != null && !poolTypeRespectsConductorMinimums(input.poolType)) {
+    return false;
+  }
+  if (!input.minimumsEnabled) {
+    return false;
+  }
+  if (!input.vsDataRequired) {
+    return false;
+  }
+  if (!input.vsDataReady) {
+    return false;
+  }
+  return true;
+}

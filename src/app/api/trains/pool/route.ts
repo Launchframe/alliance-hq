@@ -89,6 +89,7 @@ export async function POST(request: Request) {
       poolType: body.poolType,
       date,
       paintTemplate: dayConfig.paintTemplate,
+      conductorMechanism: dayConfig.conductorMechanism,
     });
     return NextResponse.json(result);
   } catch (error) {

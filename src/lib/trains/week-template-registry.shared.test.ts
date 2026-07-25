@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   compositeParentForSegment,
   isWeekTemplateSegment,
+  resolveLiteralDayPaintTemplate,
+  resolvePaintTemplateForCalendarDate,
   resolvePaintTemplateForDay,
   segmentTemplateForDayIndex,
   usesCombinedSegmentDisplay,
@@ -38,6 +40,28 @@ describe("week template registry", () => {
     expect(resolvePaintTemplateForDay("economy_week", "2026-06-10", "2026-06-09")).toBe(
       "economy_week",
     );
+  });
+
+  it("keeps TPIF on Saturday for day override paints", () => {
+    const weekStart = "2026-06-09";
+    expect(resolveLiteralDayPaintTemplate("price_is_right")).toBe(
+      "price_is_right_weekdays",
+    );
+    expect(
+      resolvePaintTemplateForCalendarDate({
+        templateType: "price_is_right",
+        date: "2026-06-13",
+        weekStart,
+      }),
+    ).toBe("price_is_right_weekdays");
+    expect(
+      resolvePaintTemplateForCalendarDate({
+        templateType: "price_is_right",
+        date: "2026-06-13",
+        weekStart,
+        weekTemplateApply: true,
+      }),
+    ).toBe("takedown_week");
   });
 
   it("maps price_is_right composite days to weekday / takedown / custom segments", () => {

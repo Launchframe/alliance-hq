@@ -6,6 +6,7 @@ import { getDb, schema } from "@/lib/db";
 import { fetchHqSeasonVsScoresByMember } from "@/lib/trains/native-scores.server";
 import {
   buildMemberQualification,
+  conductorQualificationGateApplies,
   evaluationPeriodForTrainDate,
   minimumsEnforcementEnabled,
   minimumsSettingsForHqLocalEval,
@@ -16,6 +17,9 @@ import {
 } from "@/lib/trains/train-conductor-minimums.shared";
 import { allianceTrainWeekFromRow } from "@/lib/trains/train-week-calendar.shared";
 import { loadAllianceRow } from "@/lib/members/game-roster";
+import { classifyVsDataNeed } from "@/lib/trains/vs-data-status.shared";
+import { loadTrainsVsDataStatus } from "@/lib/trains/vs-data-status.server";
+import type { ConductorMechanismType, PoolType, WeekTemplateType } from "@/lib/trains/types";
 
 export type TrainConductorMinimumsRow = TrainConductorMinimumsSettings & {
   canManage: boolean;
@@ -135,5 +139,57 @@ export async function filterMemberIdsByConductorMinimums(
       periodEnd: end,
     });
     return qualification.qualified;
+  });
+}
+
+/**
+ * Whether pool seed/reseed should filter candidates by conductor minimums.
+ * Matches post-roll DQ gating — skip when VS prerequisites are not in play.
+ */
+export async function resolvePoolRespectsConductorMinimums(input: {
+  allianceId: string;
+  trainDate: string;
+  poolType: PoolType;
+  conductorMechanism?: ConductorMechanismType | string | null;
+  paintTemplate?: WeekTemplateType | string | null;
+}): Promise<boolean> {
+  return resolveConductorQualificationGateApplies({
+    allianceId: input.allianceId,
+    trainDate: input.trainDate,
+    conductorMechanism: input.conductorMechanism ?? "",
+    paintTemplate: input.paintTemplate,
+    poolType: input.poolType,
+  });
+}
+
+/** Whether post-roll minimums DQ applies for this conductor wheel spin. */
+export async function resolveConductorQualificationGateApplies(input: {
+  allianceId: string;
+  trainDate: string;
+  conductorMechanism: ConductorMechanismType | string;
+  paintTemplate?: WeekTemplateType | string | null;
+  poolType?: PoolType | null;
+}): Promise<boolean> {
+  const settings = await loadTrainConductorMinimums(input.allianceId, false);
+  const need = classifyVsDataNeed({
+    conductorMechanism: input.conductorMechanism,
+    paintTemplate: input.paintTemplate,
+    trainDate: input.trainDate,
+  });
+  const vsStatus =
+    need.required === false
+      ? { required: false, ready: true }
+      : await loadTrainsVsDataStatus({
+          allianceId: input.allianceId,
+          trainDate: input.trainDate,
+          conductorMechanism: input.conductorMechanism,
+          paintTemplate: input.paintTemplate,
+        });
+
+  return conductorQualificationGateApplies({
+    poolType: input.poolType,
+    minimumsEnabled: minimumsEnforcementEnabled(settings),
+    vsDataRequired: vsStatus.required,
+    vsDataReady: vsStatus.ready,
   });
 }

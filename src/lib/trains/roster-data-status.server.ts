@@ -38,6 +38,7 @@ export async function loadTrainsRosterDataStatus(input: {
       hqAllianceId: input.allianceId,
       poolType: need.poolType,
       date: input.trainDate,
+      conductorMechanism: input.conductorMechanism,
       paintTemplate: input.paintTemplate as Parameters<
         typeof countEligiblePoolMembers
       >[0]["paintTemplate"],
