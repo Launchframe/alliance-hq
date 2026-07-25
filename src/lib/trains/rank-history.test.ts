@@ -1,6 +1,41 @@
 import { describe, expect, it } from "vitest";
 
-import { isMemberEligibleForPool } from "@/lib/trains/rank-history";
+import {
+  isMemberEligibleForPool,
+  resolveMemberPoolAllianceRank,
+} from "@/lib/trains/rank-history";
+import type { AllianceMember } from "@/lib/db/schema";
+
+describe("resolveMemberPoolAllianceRank", () => {
+  const baseMember = {
+    id: "row-1",
+    allianceId: "hq-1",
+    ashedMemberId: "m1",
+    ashedAllianceId: "ashed-1",
+    currentName: "Commander",
+    previousNamesJson: [],
+    status: "active",
+    allianceRank: null,
+    allianceRankTitle: null,
+    ashedRankRaw: "R3",
+  } as unknown as AllianceMember;
+
+  it("uses the higher of HQ rank events and synced roster rank", () => {
+    expect(
+      resolveMemberPoolAllianceRank(baseMember, { allianceRank: 4 }),
+    ).toBe(4);
+    expect(
+      resolveMemberPoolAllianceRank(
+        { ...baseMember, allianceRank: 4 } as AllianceMember,
+        { allianceRank: 3 },
+      ),
+    ).toBe(4);
+  });
+
+  it("falls back to parsed Ashed rank raw like the members list", () => {
+    expect(resolveMemberPoolAllianceRank(baseMember, undefined)).toBe(3);
+  });
+});
 
 describe("isMemberEligibleForPool", () => {
   it("accepts R4 and R5 for r4_plus", () => {

@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import confetti from "canvas-confetti";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import {
   buildConductorWheelReelSession,
   type ReelSession,
 } from "@/lib/trains/conductor-wheel-reel.shared";
-import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
+import {
+  formatTrainPointCount,
+  type MemberQualificationPayload,
+} from "@/lib/trains/train-conductor-minimums.shared";
 import {
   FORM_SUBMIT_ENTER_KEY_HINT,
   preventDefaultFormSubmit,
@@ -95,6 +98,7 @@ export function ConductorWheelModal({
   onOverride,
 }: Props) {
   const t = useTranslations("trains.wheel");
+  const locale = useLocale();
   const reelRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
@@ -389,18 +393,33 @@ export function ConductorWheelModal({
             {qualification.vs.minimum > 0 ? (
               <p className="text-xs">
                 {t("vsShortfall", {
-                  score: qualification.vs.score,
-                  required: qualification.vs.effectiveMinimum,
-                  shortfall: qualification.vs.shortfall,
+                  score: formatTrainPointCount(qualification.vs.score, locale),
+                  required: formatTrainPointCount(
+                    qualification.vs.effectiveMinimum,
+                    locale,
+                  ),
+                  shortfall: formatTrainPointCount(
+                    qualification.vs.shortfall,
+                    locale,
+                  ),
                 })}
               </p>
             ) : null}
             {qualification.donation.minimum > 0 ? (
               <p className="text-xs">
                 {t("donationShortfall", {
-                  score: qualification.donation.score,
-                  required: qualification.donation.effectiveMinimum,
-                  shortfall: qualification.donation.shortfall,
+                  score: formatTrainPointCount(
+                    qualification.donation.score,
+                    locale,
+                  ),
+                  required: formatTrainPointCount(
+                    qualification.donation.effectiveMinimum,
+                    locale,
+                  ),
+                  shortfall: formatTrainPointCount(
+                    qualification.donation.shortfall,
+                    locale,
+                  ),
                 })}
               </p>
             ) : null}

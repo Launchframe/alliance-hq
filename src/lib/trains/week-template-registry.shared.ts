@@ -136,6 +136,37 @@ export function resolvePaintTemplateForDay(
   return segmentTemplateForDayIndex(templateType, dayIndex);
 }
 
+/**
+ * When an officer paints specific day(s) from the calendar menu, composite week
+ * presets mean "use this draw on these dates" — not "expand the whole-week shape
+ * by weekday index." E.g. painting Saturday with The Price Is Freight runs the
+ * eligible-VS raffle (Friday scores), not the week's Saturday takedown segment.
+ */
+export function resolveLiteralDayPaintTemplate(
+  templateType: WeekTemplateType,
+): WeekTemplateType {
+  if (templateType === "price_is_right") return "price_is_right_weekdays";
+  if (templateType === "vs_push_week") return "vs_push_weekdays";
+  return templateType;
+}
+
+/** Paint template persisted for a calendar day (week apply vs day override). */
+export function resolvePaintTemplateForCalendarDate(input: {
+  templateType: WeekTemplateType;
+  date: string;
+  weekStart: string;
+  weekTemplateApply?: boolean;
+}): WeekTemplateType {
+  if (input.weekTemplateApply) {
+    return resolvePaintTemplateForDay(
+      input.templateType,
+      input.date,
+      input.weekStart,
+    );
+  }
+  return resolveLiteralDayPaintTemplate(input.templateType);
+}
+
 export type WeekTemplateDayShapeEntry = {
   date: string;
   segment: WeekTemplateType;

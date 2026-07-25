@@ -97,6 +97,8 @@ type Props = {
   contextBankId?: string | null;
   /** Preferred seasonal board (e.g. kills) from deep-links. */
   contextBoardKey?: string | null;
+  /** Pre-filled VS / event recorded date from deep-links (YYYY-MM-DD). */
+  contextRecordedDate?: string | null;
   allianceTag?: string | null;
   allianceName?: string | null;
   /** When true, show inline process prompt after upload instead of a dead-end waiting message. */
@@ -132,6 +134,7 @@ export function VideoUploadForm({
   contextScoreTarget = null,
   contextBankId = null,
   contextBoardKey = null,
+  contextRecordedDate = null,
   allianceTag = null,
   allianceName = null,
   canProcess = false,
@@ -205,6 +208,14 @@ export function VideoUploadForm({
   const visibleJobs = contextScoreTarget
     ? jobs.filter((job) => jobMatchesScoreTarget(job, contextScoreTarget))
     : jobs;
+
+  function reviewHref(jobId: string): string {
+    if (!contextRecordedDate) {
+      return `/tools/video-upload/${jobId}/review`;
+    }
+    const params = new URLSearchParams({ recordedDate: contextRecordedDate });
+    return `/tools/video-upload/${jobId}/review?${params.toString()}`;
+  }
 
   useEffect(() => {
     void fetch("/api/tools/video-upload")
@@ -372,7 +383,7 @@ export function VideoUploadForm({
       }));
     }
     if (session?.navigateOnClose && session.jobId) {
-      push(`/tools/video-upload/${session.jobId}/review`);
+      push(reviewHref(session.jobId));
     }
   }
 
@@ -655,7 +666,7 @@ export function VideoUploadForm({
                       href={
                         job.status === "complete"
                           ? `/tools/video-upload/${job.id}/event`
-                          : `/tools/video-upload/${job.id}/review`
+                          : reviewHref(job.id)
                       }
                       className="text-xs text-hq-accent hover:underline"
                     >

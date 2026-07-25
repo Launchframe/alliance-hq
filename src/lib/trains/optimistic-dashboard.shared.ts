@@ -13,7 +13,12 @@ import type {
 } from "@/lib/trains/load-dashboard";
 import { generateDayConfigForDate, generateWeekDayConfigs } from "@/lib/trains/templates";
 import type { WeekTemplateType } from "@/lib/trains/types";
-import { resolvePaintTemplateForDay } from "@/lib/trains/week-template-registry.shared";
+import { conductorDrawChanged } from "@/lib/trains/conductor-mechanism.shared";
+import {
+  resolveLiteralDayPaintTemplate,
+  resolvePaintTemplateForCalendarDate,
+  resolvePaintTemplateForDay,
+} from "@/lib/trains/week-template-registry.shared";
 
 export type TrainsDashboardSnapshot = {
   data: TrainsDashboardPayload;
@@ -211,18 +216,27 @@ export function patchDayConfigsForDates(
   dates: string[],
   templateType: WeekTemplateType,
   trainWeekConfig: AllianceTrainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
-  options?: { topN?: number },
+  options?: { topN?: number; weekTemplateApply?: boolean },
 ): WeekScheduleDayConfig[] {
   const dateSet = new Set(dates);
   const byDate = new Map(dayConfigs.map((d) => [d.date, d]));
+  const weekTemplateApply = options?.weekTemplateApply === true;
+  const dayPaintTemplate = weekTemplateApply
+    ? templateType
+    : resolveLiteralDayPaintTemplate(templateType);
 
   for (const date of dates) {
     const weekStart = getTrainWeekStart(date, trainWeekConfig);
-    const generated = generateDayConfigForDate(templateType, date, weekStart, {
+    const generated = generateDayConfigForDate(
+      dayPaintTemplate,
+      date,
+      weekStart,
+      {
       ...(options?.topN != null
         ? { topN: options.topN as 1 | 3 | 5 | 10 }
         : {}),
-    });
+      },
+    );
     const existing = byDate.get(date);
     const topN =
       options?.topN ??
@@ -231,6 +245,12 @@ export function patchDayConfigsForDates(
       typeof (generated.conductorConfig as { topN?: unknown }).topN === "number"
         ? ((generated.conductorConfig as { topN: number }).topN)
         : null);
+    const paintTemplate = resolvePaintTemplateForCalendarDate({
+      templateType,
+      date,
+      weekStart,
+      weekTemplateApply,
+    });
     byDate.set(date, {
       id: existing?.id ?? `optimistic-${date}`,
       date,
@@ -238,10 +258,10 @@ export function patchDayConfigsForDates(
       vipMechanism: generated.vipMechanism ?? null,
       vipConfig: generated.vipConfig ?? null,
       isOverride: true,
-      paintTemplate: resolvePaintTemplateForDay(templateType, date, weekStart),
+      paintTemplate,
       topN,
       conductorConfig: {
-        paintTemplate: resolvePaintTemplateForDay(templateType, date, weekStart),
+        paintTemplate,
         ...(topN != null ? { topN } : {}),
       },
     });
@@ -265,6 +285,75 @@ export function patchDayConfigsForDates(
   return merged.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+function clearConductorPicksWhenDrawChanges(
+  records: WeekConductorRecordSummary[],
+  dates: string[],
+  dayConfigs: WeekScheduleDayConfig[],
+  templateType: WeekTemplateType,
+  trainWeekConfig: AllianceTrainWeekConfig,
+  paintOptions?: { topN?: number; weekTemplateApply?: boolean },
+): WeekConductorRecordSummary[] {
+  const dateSet = new Set(dates);
+  const weekTemplateApply = paintOptions?.weekTemplateApply === true;
+  return records.map((record) => {
+    if (
+      !dateSet.has(record.date) ||
+      record.lockedAt ||
+      !record.conductorMemberId
+    ) {
+      return record;
+    }
+
+    const previousDay = dayConfigs.find((day) => day.date === record.date);
+    if (!previousDay) return record;
+
+    const weekStart = getTrainWeekStart(record.date, trainWeekConfig);
+    const generated = generateDayConfigForDate(
+      weekTemplateApply
+        ? templateType
+        : resolveLiteralDayPaintTemplate(templateType),
+      record.date,
+      weekStart,
+      paintOptions?.topN != null
+        ? { topN: paintOptions.topN as 1 | 3 | 5 | 10 }
+        : undefined,
+    );
+    const nextPaintTemplate = resolvePaintTemplateForCalendarDate({
+      templateType,
+      date: record.date,
+      weekStart,
+      weekTemplateApply,
+    });
+
+    const previousDraw = {
+      conductorMechanism: previousDay.conductorMechanism,
+      paintTemplate: previousDay.paintTemplate,
+      date: record.date,
+      conductorConfig: previousDay.conductorConfig,
+      topN: previousDay.topN,
+    };
+    const nextDraw = {
+      conductorMechanism: generated.conductorMechanism,
+      paintTemplate: nextPaintTemplate,
+      date: record.date,
+      conductorConfig: generated.conductorConfig,
+      topN: paintOptions?.topN ?? previousDay.topN,
+    };
+
+    if (!conductorDrawChanged(previousDraw, nextDraw)) {
+      return record;
+    }
+
+    return {
+      ...record,
+      conductorMemberId: null,
+      conductorMemberName: null,
+      substituteForMemberId: null,
+      substituteForMemberName: null,
+    };
+  });
+}
+
 export function applyOptimisticPaint(
   snap: TrainsDashboardSnapshot,
   dates: string[],
@@ -274,7 +363,26 @@ export function applyOptimisticPaint(
   const trainWeekConfig = allianceTrainWeekFromRow({
     trainWeekStartDow: snap.data.trainWeekStartDow,
   });
-  const paintOptions = options?.topN != null ? { topN: options.topN } : undefined;
+  const paintOptions =
+    options?.topN != null
+      ? {
+          topN: options.topN,
+          weekTemplateApply: options?.updateWeekTemplate === true,
+        }
+      : { weekTemplateApply: options?.updateWeekTemplate === true };
+  const clearRecords = (
+    records: WeekConductorRecordSummary[],
+    dayConfigs: WeekScheduleDayConfig[],
+  ) =>
+    clearConductorPicksWhenDrawChanges(
+      records,
+      dates,
+      dayConfigs,
+      templateType,
+      trainWeekConfig,
+      paintOptions,
+    );
+
   let next: TrainsDashboardSnapshot = {
     data: {
       ...snap.data,
@@ -283,8 +391,20 @@ export function applyOptimisticPaint(
         dates,
         templateType,
         trainWeekConfig,
-        paintOptions,
+        {
+          ...paintOptions,
+          weekTemplateApply: options?.updateWeekTemplate === true,
+        },
       ),
+      weekRecords: clearRecords(snap.data.weekRecords, snap.data.dayConfigs),
+      conductorRecord:
+        dates.includes(snap.data.today) &&
+        snap.data.conductorRecord?.conductorMemberId
+          ? clearRecords(
+              [snap.data.conductorRecord],
+              snap.data.dayConfigs,
+            )[0] ?? snap.data.conductorRecord
+          : snap.data.conductorRecord,
     },
     viewedWeek: {
       ...snap.viewedWeek,
@@ -293,7 +413,14 @@ export function applyOptimisticPaint(
         dates,
         templateType,
         trainWeekConfig,
-        paintOptions,
+        {
+          ...paintOptions,
+          weekTemplateApply: options?.updateWeekTemplate === true,
+        },
+      ),
+      weekRecords: clearRecords(
+        snap.viewedWeek.weekRecords,
+        snap.viewedWeek.dayConfigs,
       ),
     },
     viewedMonth: {
@@ -303,7 +430,14 @@ export function applyOptimisticPaint(
         dates,
         templateType,
         trainWeekConfig,
-        paintOptions,
+        {
+          ...paintOptions,
+          weekTemplateApply: options?.updateWeekTemplate === true,
+        },
+      ),
+      monthRecords: clearRecords(
+        snap.viewedMonth.monthRecords,
+        snap.viewedMonth.dayConfigs,
       ),
     },
   };

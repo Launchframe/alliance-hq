@@ -5,6 +5,13 @@ import {
   type AllianceTrainWeekConfig,
 } from "@/lib/trains/train-week-calendar.shared";
 
+import type { PoolType } from "@/lib/trains/types";
+
+/** R3 and heavy-hitter pools honor alliance conductor minimums; R4+ sequence does not. */
+export function poolTypeRespectsConductorMinimums(poolType: PoolType): boolean {
+  return poolType === "r3" || poolType === "heavy_hitter";
+}
+
 export const TRAIN_MINIMUMS_WINDOWS = ["daily", "weekly"] as const;
 export type TrainMinimumsWindow = (typeof TRAIN_MINIMUMS_WINDOWS)[number];
 
@@ -152,4 +159,35 @@ export function assertConductorMinimumOverrideQualification(
     throw new Error("Member meets conductor minimums; override is not allowed.");
   }
   return qualification;
+}
+
+/** Locale-aware integer formatting for VS / donation point counts in train UI. */
+export function formatTrainPointCount(value: number, locale: string): string {
+  return Math.trunc(value).toLocaleString(locale);
+}
+
+/**
+ * Whether a wheel spin should run the post-roll conductor minimums gate.
+ * Skips R4+ pools, days without VS prerequisites, and days where the officer
+ * did not complete the VS upload step (prerequisites were skipped).
+ */
+export function conductorQualificationGateApplies(input: {
+  poolType: PoolType | null | undefined;
+  minimumsEnabled: boolean;
+  vsDataRequired: boolean;
+  vsDataReady: boolean;
+}): boolean {
+  if (input.poolType != null && !poolTypeRespectsConductorMinimums(input.poolType)) {
+    return false;
+  }
+  if (!input.minimumsEnabled) {
+    return false;
+  }
+  if (!input.vsDataRequired) {
+    return false;
+  }
+  if (!input.vsDataReady) {
+    return false;
+  }
+  return true;
 }

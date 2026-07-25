@@ -43,15 +43,17 @@ type DayConfigRow = {
 
 function mapDayConfigRow(row: DayConfigRow): MergedWeekScheduleDayConfig {
   const paintTemplate = paintTemplateFromConductorConfig(row.conductorConfig);
+  const isDayOverride = row.isOverride === 1;
   return {
     id: row.id,
     date: row.date,
-    conductorMechanism:
-      effectiveConductorMechanism(
-        row.conductorMechanism,
-        paintTemplate,
-        row.date,
-      ) ?? row.conductorMechanism,
+    conductorMechanism: isDayOverride
+      ? row.conductorMechanism
+      : (effectiveConductorMechanism(
+          row.conductorMechanism,
+          paintTemplate,
+          row.date,
+        ) ?? row.conductorMechanism),
     vipMechanism: row.vipMechanism,
     vipConfig: row.vipConfig,
     isOverride: row.isOverride === 1,

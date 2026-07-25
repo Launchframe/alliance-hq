@@ -1,6 +1,9 @@
 import { and, desc, eq, lte, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import type { AllianceMember } from "@/lib/db/schema";
+import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
+import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
 import type { PoolType } from "@/lib/trains/types";
 
 export type ResolvedMemberAllianceRank = {
@@ -9,6 +12,31 @@ export type ResolvedMemberAllianceRank = {
   rankEventId: string | null;
   source: "hq" | "synced" | null;
 };
+
+/**
+ * Effective rank for train pool eligibility. Uses the higher of HQ rank history and
+ * the synced Ashed roster so officers promoted in-game are not stuck behind stale
+ * R3 lottery events, while R3 members still qualify when either source says R3.
+ */
+export function resolveMemberPoolAllianceRank(
+  member: AllianceMember,
+  rankEvent?: { allianceRank: number } | null,
+): number | null {
+  const syncedRank =
+    member.allianceRank ??
+    parseAshedMemberAllianceRank(allianceMemberRowToAshedMember(member))
+      .rank ??
+    null;
+  const eventRank = rankEvent?.allianceRank ?? null;
+
+  if (eventRank == null && syncedRank == null) {
+    return null;
+  }
+  if (eventRank != null && syncedRank != null) {
+    return Math.max(eventRank, syncedRank);
+  }
+  return eventRank ?? syncedRank;
+}
 
 export function isMemberEligibleForPool(
   poolType: PoolType,

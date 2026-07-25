@@ -1,6 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
+import { useSearchParams } from "next/navigation";
 import { Crosshair, LocateFixed, MonitorPlay, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -30,6 +31,7 @@ import {
   isAllianceKillsVideoTarget,
   isZeroScoreWarningDisabled,
 } from "@/lib/video/score-targets";
+import { parseVideoUploadRecordedDateParam } from "@/lib/video/score-target-nav";
 import {
   defaultVsPerformanceRecordedDate,
   coerceVsPerformanceRecordedDate,
@@ -241,6 +243,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const tBanks = useTranslations("bankManagement");
   const locale = useLocale();
   const { timezoneId } = useAccountTimezone();
+  const searchParams = useSearchParams();
+  const presetRecordedDate = parseVideoUploadRecordedDateParam(
+    searchParams.get("recordedDate") ?? undefined,
+  );
   const { showExperienceFeedback } = useFeedback();
   const liveJob = useVideoJob(jobId);
 
@@ -257,8 +263,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [boardKey, setBoardKey] = useState("");
   const [team, setTeam] = useState<"A" | "B">("A");
   const [vsPeriod, setVsPeriod] = useState<VsScorePeriod>("daily");
-  const [recordedDate, setRecordedDate] = useState(() =>
-    accountTodayCalendarDate(timezoneId),
+  const [recordedDate, setRecordedDate] = useState(
+    () => presetRecordedDate ?? accountTodayCalendarDate(timezoneId),
   );
   const [stormOverlapWarning, setStormOverlapWarning] = useState(false);
   const [filterQuery, setFilterQuery] = useState("");
