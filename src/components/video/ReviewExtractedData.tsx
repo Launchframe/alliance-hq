@@ -94,6 +94,7 @@ import {
 } from "@/lib/video/roster-video-review.shared";
 import type { AshedMember } from "@/lib/video/member-matcher";
 import { readPreferredDepositSlipBankId } from "@/lib/banks/deposit-slip-upload-context.shared";
+import { formatDepositStatusToken } from "@/lib/banks/deposit-status-label.shared";
 import {
   depositSlipReviewRowSummaryParts,
   diffKeysForDepositSlipRows,
@@ -239,6 +240,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const tNav = useTranslations("nav");
   const tMembers = useTranslations("members");
   const tBanks = useTranslations("bankManagement");
+  const formatDepositSlipStatus = useCallback(
+    (raw: string) =>
+      formatDepositStatusToken(raw, (status) => tBanks(`status.${status}`)),
+    [tBanks],
+  );
   const locale = useLocale();
   const { timezoneId } = useAccountTimezone();
   const { showExperienceFeedback } = useFeedback();
@@ -2169,7 +2175,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                         className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-hq-surface-muted/40 px-2 py-1.5"
                       >
                         <span className="inline-flex flex-wrap items-center gap-1 text-sm">
-                          {depositSlipReviewRowSummaryParts(row, diffKeys).map(
+                          {depositSlipReviewRowSummaryParts(
+                            row,
+                            diffKeys,
+                            formatDepositSlipStatus,
+                          ).map(
                             (part, index, parts) => (
                               <span key={part.key} className="inline-flex items-center gap-1">
                                 <span
@@ -3071,7 +3081,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   <ul className="mt-1.5 space-y-1">
                     {issueRows.map((row) => (
                       <li key={row.id} className="text-sm text-hq-fg">
-                        {depositSlipReviewRowSummaryParts(row, diffKeys).map(
+                        {depositSlipReviewRowSummaryParts(
+                          row,
+                          diffKeys,
+                          formatDepositSlipStatus,
+                        ).map(
                           (part, index, parts) => (
                             <span key={part.key}>
                               <span

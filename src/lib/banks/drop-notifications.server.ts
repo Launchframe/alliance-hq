@@ -43,7 +43,7 @@ function buildDiscordMessage(summary: BankDropSummary): string {
 
   if (summary.lockedCount > 0) {
     lines.push(
-      `⚠️ Still locked at drop: ${summary.lockedCount} deposits (${formatCG(summary.lockedValue)} CG)`,
+      `⚠️ Still deposited at drop: ${summary.lockedCount} deposits (${formatCG(summary.lockedValue)} CG)`,
     );
   }
 
@@ -90,7 +90,7 @@ function buildEmailText(summary: BankDropSummary): string {
     `Crystal gold looted: ${formatCG(summary.crystalGoldLooted)} CG`,
     `Slippage: ${summary.slippagePercent}%`,
     summary.lockedCount > 0
-      ? `Still locked at drop: ${summary.lockedCount} deposits (${formatCG(summary.lockedValue)} CG)`
+      ? `Still deposited at drop: ${summary.lockedCount} deposits (${formatCG(summary.lockedValue)} CG)`
       : "",
     "",
     "— Alliance HQ",
@@ -117,7 +117,7 @@ function buildEmailHtml(summary: BankDropSummary): string {
 
   if (summary.lockedCount > 0) {
     rows.push([
-      "Still locked at drop",
+      "Still deposited at drop",
       `${summary.lockedCount} deposits (${formatCG(summary.lockedValue)} CG)`,
     ]);
   }
