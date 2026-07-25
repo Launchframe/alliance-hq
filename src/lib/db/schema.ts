@@ -3560,3 +3560,128 @@ export const memberTimeOff = pgTable(
 );
 
 export type MemberTimeOff = typeof memberTimeOff.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Officer intelligence — chat ingestion
+// ---------------------------------------------------------------------------
+
+export const officerChatSessions = pgTable(
+  "officer_chat_sessions",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    channelLabel: text("channel_label"),
+    sessionAt: timestamp("session_at", { withTimezone: true }),
+    /** draft | imported */
+    status: text("status").notNull().default("draft"),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_chat_sessions_alliance_updated_idx").on(
+      table.allianceId,
+      table.updatedAt,
+    ),
+  ],
+);
+
+export const officerChatSessionImages = pgTable(
+  "officer_chat_session_images",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => officerChatSessions.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    storageKey: text("storage_key").notNull(),
+    sequenceOrder: integer("sequence_order").notNull(),
+    width: integer("width"),
+    height: integer("height"),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_chat_session_images_session_idx").on(
+      table.sessionId,
+      table.sequenceOrder,
+    ),
+  ],
+);
+
+export const officerChatMessages = pgTable(
+  "officer_chat_messages",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => officerChatSessions.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    senderAllianceTag: text("sender_alliance_tag"),
+    senderName: text("sender_name").notNull(),
+    senderLevel: integer("sender_level"),
+    senderVipLevel: integer("sender_vip_level"),
+    originalText: text("original_text").notNull(),
+    inGameTranslatedText: text("in_game_translated_text"),
+    localeText: text("locale_text").notNull(),
+    localeCode: text("locale_code").notNull(),
+    isReply: boolean("is_reply").notNull().default(false),
+    replyToName: text("reply_to_name"),
+    sequenceOrder: integer("sequence_order").notNull(),
+    sourceImageIndex: integer("source_image_index").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_chat_messages_session_order_idx").on(
+      table.sessionId,
+      table.sequenceOrder,
+    ),
+  ],
+);
+
+export const officerChatTranslations = pgTable(
+  "officer_chat_translations",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    contentHash: text("content_hash").notNull(),
+    targetLanguage: text("target_language").notNull(),
+    translatedText: text("translated_text").notNull(),
+    detectedSourceLanguage: text("detected_source_language"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("officer_chat_translations_alliance_hash_lang_idx").on(
+      table.allianceId,
+      table.contentHash,
+      table.targetLanguage,
+    ),
+  ],
+);
+
+export type OfficerChatSession = typeof officerChatSessions.$inferSelect;
+export type OfficerChatSessionImage =
+  typeof officerChatSessionImages.$inferSelect;
+export type OfficerChatMessage = typeof officerChatMessages.$inferSelect;
+export type OfficerChatTranslation = typeof officerChatTranslations.$inferSelect;
