@@ -5,12 +5,12 @@ import {
   type AlertSeverity,
 } from "@/lib/ops/alert.server";
 import { withApiErrorHandler } from "@/lib/ops/api-error";
+import { bearerMatches } from "@/lib/ops/cron-auth";
 
 function verifyIncomingSecret(req: NextRequest): boolean {
   const expected = process.env.OPS_ALERTS_INCOMING_SECRET?.trim();
   if (!expected) return false;
-  const auth = req.headers.get("authorization");
-  return auth === `Bearer ${expected}`;
+  return bearerMatches(expected, req.headers.get("authorization"));
 }
 
 function parseSeverity(raw: unknown): AlertSeverity {
