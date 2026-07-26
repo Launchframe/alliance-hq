@@ -617,7 +617,7 @@ async function finalizeDiscordMemberLink(input: {
       finalRosterMembers,
       gameUserName,
     );
-    const requestId = await createDiscordRosterMissLinkRequest({
+    const rosterMiss = await createDiscordRosterMissLinkRequest({
       allianceId: input.allianceId,
       allianceTag: alliance?.tag ?? "alliance",
       discordUserId: input.discordUserId,
@@ -631,8 +631,98 @@ async function finalizeDiscordMemberLink(input: {
       suggestedTargetAshedMemberId: suggestion?.ashedMemberId ?? null,
       suggestionMethod: suggestion?.method ?? null,
       suggestedMatchedRosterName: suggestion?.matchedRosterName ?? null,
+      allianceHomeConfirmed: input.allianceHomeConfirmed,
+      userClaimedLookupAsHome: input.userClaimedLookupAsHome,
     });
-    if (requestId) {
+
+    if (rosterMiss.status === "confirm_home") {
+      const confirmPending: LinkPendingState = {
+        kind: "link_confirm_home_server",
+        gameUid: uid,
+        gameUserName: input.lookup.gameUserName,
+        lookupServer: rosterMiss.lookupServer,
+        allianceServer: rosterMiss.allianceServer,
+        ...(input.lookup.gameUserLevel != null
+          ? { gameUserLevel: input.lookup.gameUserLevel }
+          : {}),
+        ...(input.replaceAll ? { replaceAll: true } : {}),
+      };
+      await saveDiscordBotPending(
+        input.allianceId,
+        input.discordUserId,
+        confirmPending,
+      );
+      const result: LinkCommandResult = {
+        reply: translate("confirmHomeServerPrompt", {
+          commanderName: input.lookup.gameUserName,
+          lookupServer: rosterMiss.lookupServer,
+          allianceTag: alliance?.tag ?? "alliance",
+          allianceServer: rosterMiss.allianceServer,
+        }),
+        pending: confirmPending,
+        needsHomeServerConfirmation: true,
+      };
+      await audit(
+        input.allianceId,
+        input.discordUserId,
+        input.auditAction ?? "link",
+        input,
+        {
+          ...result,
+          selfService: false,
+          diagnostics: linkDiagnostics,
+        },
+      );
+      return result;
+    }
+
+    if (rosterMiss.status === "position_not_home") {
+      await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+      resolvedResult = {
+        ...resolvedResult,
+        reply: translate("positionNotHomeBody"),
+        pending: null,
+        needsOfficerAttention: false,
+        positionNotHome: true,
+      };
+      await audit(
+        input.allianceId,
+        input.discordUserId,
+        input.auditAction ?? "link",
+        input,
+        {
+          ...resolvedResult,
+          selfService: false,
+          diagnostics: linkDiagnostics,
+        },
+      );
+      return resolvedResult;
+    }
+
+    if (rosterMiss.status === "wrong_server") {
+      await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+      resolvedResult = {
+        ...resolvedResult,
+        reply: translate("helpTopics.wrongServer.body"),
+        pending: null,
+        needsOfficerAttention: false,
+        wrongServer: true,
+      };
+      await audit(
+        input.allianceId,
+        input.discordUserId,
+        input.auditAction ?? "link",
+        input,
+        {
+          ...resolvedResult,
+          selfService: false,
+          diagnostics: linkDiagnostics,
+        },
+      );
+      return resolvedResult;
+    }
+
+    if (rosterMiss.status === "created") {
       rosterLinkRequestCreated = true;
       const rosterFull = selfService.reason === "roster_full";
       resolvedResult = {
