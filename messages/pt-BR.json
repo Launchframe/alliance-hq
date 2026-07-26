@@ -3914,6 +3914,20 @@
       }
     }
   },
+  "videoHygieneCoach": {
+    "title": "Dica para sua próxima gravação",
+    "dismiss": "Dispensar",
+    "openFramesHint": "Depois do OCR, abra um job e use Quadros analisados com Follow Me para ver o que o HQ realmente capturou.",
+    "openQueueLink": "Abrir fila de vídeo",
+    "tips": {
+      "chaoticScroll": "Seus envios recentes deste placar parecem apressados. Role mais devagar e de forma constante para cada linha ficar nítida.",
+      "fastScroll": "Tente rolar um pouco mais devagar — pans rápidos costumam perder frames que o OCR precisa.",
+      "lowQuality": "As revisões recentes precisaram de muitas correções. Mantenha o placar inteiro na tela e evite saltos bruscos.",
+      "longReview": "As revisões deste placar estão demorando. Uma captura mais limpa (rolagem constante, menos blur) costuma acelerar a revisão.",
+      "thumbsDown": "Avaliações negativas recentes apontam para a qualidade da captura. Confira a iluminação e a consistência da rolagem antes do próximo envio.",
+      "defaultSteady": "Continue com uma rolagem lenta e constante — funciona bem com a extração de frames do HQ."
+    }
+  },
   "video": {
     "title": "Enviar a partir de vídeo",
     "subtitle": "Grave a rolagem de um placar do Last War. Extraímos frames, OCR e você revisa antes de enviar ao Ashed.",

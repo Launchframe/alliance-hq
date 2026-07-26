@@ -13,6 +13,7 @@ import { AppSelect } from "@/components/ui/AppSelect";
 import { useMergedVideoJobs } from "@/components/video/VideoJobEventsProvider";
 import { VideoSurveyDialog } from "@/components/video/VideoSurveyDialog";
 import { VideoProcessAfterUploadPanel } from "@/components/video/VideoProcessAfterUploadPanel";
+import { VideoHygieneCoachBanner } from "@/components/video/VideoHygieneCoachBanner";
 import {
   clearPreferredDepositSlipBankId,
   writePreferredDepositSlipBankId,
@@ -431,6 +432,8 @@ export function VideoUploadForm({
           <p className="mt-2 text-xs text-hq-fg-muted">{t("pendingApprovalHint")}</p>
         ) : null}
       </div>
+
+      <VideoHygieneCoachBanner scoreTarget={scoreTarget} />
 
       <form
         onSubmit={(e) => void handleSubmit(e)}
