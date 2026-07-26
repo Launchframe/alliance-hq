@@ -257,6 +257,14 @@ export const NAV_GROUPS: NavGroupDef[] = [
         requiredPermission: "bank:read",
         descriptionKey: "bankManagementDescription",
       },
+      {
+        id: "officer-intel",
+        labelKey: "officerIntel",
+        href: "/officer-intel",
+        kind: "native",
+        requiredPermission: "officer_intel:read",
+        descriptionKey: "officerIntelDescription",
+      },
     ],
   },
   {

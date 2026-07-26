@@ -1352,6 +1352,8 @@ export const discordGuildAlliances = pgTable("discord_guild_alliances", {
   seasonalEventsChannelId: text("seasonal_events_channel_id"),
   regularEventsChannelId: text("regular_events_channel_id"),
   bankingChannelId: text("banking_channel_id"),
+  /** Message context-menu translation (Apps → Translate) for this guild. */
+  translationEnabled: boolean("translation_enabled").notNull().default(true),
   registeredAt: timestamp("registered_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -1385,10 +1387,31 @@ export const allianceAshedCredentials = pgTable("alliance_ashed_credentials", {
 export const discordUserPrefs = pgTable("discord_user_prefs", {
   discordUserId: text("discord_user_id").primaryKey(),
   locale: text("locale").notNull().default("en-US"),
+  /** Preferred target language for message translation (Google v2 code, e.g. `pt`). */
+  translationLanguage: text("translation_language"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
 });
+
+/** Short-lived cache for Apps → Translate so repeat lookups skip the provider. */
+export const discordMessageTranslations = pgTable(
+  "discord_message_translations",
+  {
+    messageId: text("message_id").notNull(),
+    targetLanguage: text("target_language").notNull(),
+    /** SHA-256 of the source content — invalidates the cache when a message is edited. */
+    contentHash: text("content_hash").notNull(),
+    translatedText: text("translated_text").notNull(),
+    detectedSourceLanguage: text("detected_source_language"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.messageId, table.targetLanguage] }),
+  ],
+);
 
 /** Short-lived one-time nonces for the /discord/authorize HQ web redirect. */
 export const discordAuthNonces = pgTable("discord_auth_nonces", {
@@ -1644,6 +1667,8 @@ export type DiscordBotAudit = typeof discordBotAudit.$inferSelect;
 export type DiscordGuildAlliance = typeof discordGuildAlliances.$inferSelect;
 export type AllianceAshedCredential = typeof allianceAshedCredentials.$inferSelect;
 export type DiscordUserPref = typeof discordUserPrefs.$inferSelect;
+export type DiscordMessageTranslation =
+  typeof discordMessageTranslations.$inferSelect;
 export type VideoJobSurvey = typeof videoJobSurveys.$inferSelect;
 
 /** Locally synced Ashed roster — normalized ranks for trains and Members UI. */
@@ -3535,3 +3560,128 @@ export const memberTimeOff = pgTable(
 );
 
 export type MemberTimeOff = typeof memberTimeOff.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Officer intelligence — chat ingestion
+// ---------------------------------------------------------------------------
+
+export const officerChatSessions = pgTable(
+  "officer_chat_sessions",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    channelLabel: text("channel_label"),
+    sessionAt: timestamp("session_at", { withTimezone: true }),
+    /** draft | imported */
+    status: text("status").notNull().default("draft"),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_chat_sessions_alliance_updated_idx").on(
+      table.allianceId,
+      table.updatedAt,
+    ),
+  ],
+);
+
+export const officerChatSessionImages = pgTable(
+  "officer_chat_session_images",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => officerChatSessions.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    storageKey: text("storage_key").notNull(),
+    sequenceOrder: integer("sequence_order").notNull(),
+    width: integer("width"),
+    height: integer("height"),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_chat_session_images_session_idx").on(
+      table.sessionId,
+      table.sequenceOrder,
+    ),
+  ],
+);
+
+export const officerChatMessages = pgTable(
+  "officer_chat_messages",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => officerChatSessions.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    senderAllianceTag: text("sender_alliance_tag"),
+    senderName: text("sender_name").notNull(),
+    senderLevel: integer("sender_level"),
+    senderVipLevel: integer("sender_vip_level"),
+    originalText: text("original_text").notNull(),
+    inGameTranslatedText: text("in_game_translated_text"),
+    localeText: text("locale_text").notNull(),
+    localeCode: text("locale_code").notNull(),
+    isReply: boolean("is_reply").notNull().default(false),
+    replyToName: text("reply_to_name"),
+    sequenceOrder: integer("sequence_order").notNull(),
+    sourceImageIndex: integer("source_image_index").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_chat_messages_session_order_idx").on(
+      table.sessionId,
+      table.sequenceOrder,
+    ),
+  ],
+);
+
+export const officerChatTranslations = pgTable(
+  "officer_chat_translations",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    contentHash: text("content_hash").notNull(),
+    targetLanguage: text("target_language").notNull(),
+    translatedText: text("translated_text").notNull(),
+    detectedSourceLanguage: text("detected_source_language"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("officer_chat_translations_alliance_hash_lang_idx").on(
+      table.allianceId,
+      table.contentHash,
+      table.targetLanguage,
+    ),
+  ],
+);
+
+export type OfficerChatSession = typeof officerChatSessions.$inferSelect;
+export type OfficerChatSessionImage =
+  typeof officerChatSessionImages.$inferSelect;
+export type OfficerChatMessage = typeof officerChatMessages.$inferSelect;
+export type OfficerChatTranslation = typeof officerChatTranslations.$inferSelect;

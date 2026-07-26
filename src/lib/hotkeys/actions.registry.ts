@@ -166,6 +166,15 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     requiredPermission: "bank:read",
   },
   {
+    id: "nav.officerIntel",
+    labelKey: "actions.nav.officerIntel",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/officer-intel",
+    requiredPermission: "officer_intel:read",
+  },
+  {
     id: "nav.desertStorm",
     labelKey: "actions.nav.desertStorm",
     category: "navigation",
