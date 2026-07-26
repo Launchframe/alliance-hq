@@ -4,11 +4,14 @@ import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
+import { isVideoJobFailProtectedStatus } from "@/lib/video/video-lifecycle.shared";
 
 /**
  * Mark a video job failed in the DB and notify SSE subscribers.
  * Safe to call when processing already failed inside {@link processVideoJob}
  * (no-op DB write if already failed; still re-emits for reconnecting clients).
+ * Never overwrites review/complete/submitting/discarded — a losing duplicate
+ * worker must not wipe a successful parse.
  */
 export async function markVideoJobFailed(
   jobId: string,
@@ -23,6 +26,10 @@ export async function markVideoJobFailed(
     .limit(1);
 
   if (!job) {
+    return false;
+  }
+
+  if (isVideoJobFailProtectedStatus(job.status)) {
     return false;
   }
 

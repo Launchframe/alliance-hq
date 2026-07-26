@@ -147,17 +147,30 @@ describe("markVideoJobFailed", () => {
   it("skips update when onlyIfStatuses excludes the current status", async () => {
     setupDb(
       mockJobRow({
-        status: "review",
+        status: "extracting",
       }),
     );
 
     const ok = await markVideoJobFailed("job-1", "stale sweep", {
-      onlyIfStatuses: ["extracting", "parsing"],
+      onlyIfStatuses: ["parsing"],
     });
 
     expect(ok).toBe(false);
     expect(mockUpdate).not.toHaveBeenCalled();
     expect(mockEmitVideoJobStatus).not.toHaveBeenCalled();
+  });
+
+  it("refuses to overwrite review/complete/submitting (duplicate worker race)", async () => {
+    for (const status of ["review", "complete", "submitting"] as const) {
+      vi.clearAllMocks();
+      setupDb(mockJobRow({ status }));
+
+      const ok = await markVideoJobFailed("job-1", "losing worker crashed");
+
+      expect(ok).toBe(false);
+      expect(mockUpdate).not.toHaveBeenCalled();
+      expect(mockEmitVideoJobStatus).not.toHaveBeenCalled();
+    }
   });
 
   it("marks in-flight extracting jobs failed with audit", async () => {
