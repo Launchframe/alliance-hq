@@ -91,6 +91,27 @@ function main() {
       }
     }
 
+    if (budget.requireWorkerScript) {
+      const hasWorkerScript = [...files].some((file) =>
+        file.includes("tesseract.js/src/worker-script/node/index.js"),
+      );
+      const hasWorkerConstants = [...files].some((file) =>
+        file.includes("tesseract.js/src/constants/"),
+      );
+      if (!hasWorkerScript) {
+        failed = true;
+        console.error(
+          `\n${budget.route} trace is missing tesseract worker-script entry (videoOcrFileTracing).`,
+        );
+      }
+      if (!hasWorkerConstants) {
+        failed = true;
+        console.error(
+          `\n${budget.route} trace is missing tesseract.js/src/constants (worker relative requires).`,
+        );
+      }
+    }
+
     if (Array.isArray(budget.forbidPathSubstrings)) {
       const forbiddenHits = [...files].filter((file) =>
         budget.forbidPathSubstrings.some((needle) => file.includes(needle)),
