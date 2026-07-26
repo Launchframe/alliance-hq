@@ -8,8 +8,18 @@ import { ConductorPickModal } from "@/components/trains/ConductorPickModal";
 import { ConductorSwapDialog } from "@/components/trains/ConductorSwapDialog";
 import { ConductorHistoryTable } from "@/components/trains/ConductorHistoryTable";
 import { ConductorWheelModal } from "@/components/trains/ConductorWheelModal";
+import {
+  ConductorWheelSharePreviewDialog,
+  type ConductorWheelSharePreview,
+} from "@/components/trains/ConductorWheelSharePreviewDialog";
 import { TrainsHelpPanel } from "@/components/trains/TrainsHelpPanel";
 import { TrainsGuidedConductorFlow } from "@/components/trains/TrainsGuidedConductorFlow";
+import { renderConductorWheelSharePngBlob } from "@/lib/client/conductor-wheel-share-image.client";
+import { buildShareViewportForWinner } from "@/lib/trains/conductor-wheel-reel.shared";
+import {
+  formatWheelShareEligibilityLine,
+  resolveWheelShareEligibility,
+} from "@/lib/trains/conductor-wheel-share.shared";
 import { SpinWeekConductorFlow } from "@/components/trains/SpinWeekConductorFlow";
 import { ClearWeekScheduleDialog } from "@/components/trains/ClearWeekScheduleDialog";
 import { TrainPivotBanner } from "@/components/trains/TrainPivotBanner";
@@ -232,6 +242,10 @@ export function TrainsDashboard({ initial }: Props) {
   const [wheelBlockedRole, setWheelBlockedRole] = useState<
     "conductor" | "vip"
   >("conductor");
+  const [shareExportBusy, setShareExportBusy] = useState(false);
+  const [shareExportError, setShareExportError] = useState<string | null>(null);
+  const [shareExportPreview, setShareExportPreview] =
+    useState<ConductorWheelSharePreview | null>(null);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [dayMechanismPickerOpen, setDayMechanismPickerOpen] = useState(false);
   const [pendingTemplateChange, setPendingTemplateChange] = useState<{
@@ -1428,6 +1442,87 @@ export function TrainsDashboard({ initial }: Props) {
     conductorPaint,
     selectedDate,
   );
+  function closeShareExportPreview() {
+    setShareExportPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+  }
+
+  async function handleShareExportImage() {
+    if (
+      !selectedRecord?.conductorMemberId ||
+      !selectedRecord.conductorMemberName ||
+      shareExportBusy
+    ) {
+      return;
+    }
+    setShareExportBusy(true);
+    setShareExportError(null);
+    try {
+      const winner = {
+        memberId: selectedRecord.conductorMemberId,
+        memberName: selectedRecord.conductorMemberName,
+      };
+      const viewport = buildShareViewportForWinner(winner, data.roster);
+      const dayLabel = spinWeekDayLabel(selectedDate);
+      const statsForShare =
+        selectedDate === data.today &&
+        selectedRecord.conductorMemberId ===
+          data.conductorRecord?.conductorMemberId
+          ? data.conductorStats
+          : null;
+      const statsLine =
+        statsForShare != null
+          ? t("wheel.share.statsLine", {
+              lastDate: statsForShare.lastConductedDate ?? t("wheel.never"),
+              count: statsForShare.conductsThisYear,
+            })
+          : null;
+      const eligibilityLine = formatWheelShareEligibilityLine(
+        resolveWheelShareEligibility({
+          mechanism: selectedRecord.conductorMechanism ?? conductorMech,
+          paintTemplate: conductorPaint,
+          winner,
+        }),
+        {
+          vsMinimum: (score, minimum) =>
+            t("wheel.share.eligibilityVsMinimum", { score, minimum }),
+          tpif: (score, sweetSpot) =>
+            t("wheel.share.eligibilityTpif", { score, sweetSpot }),
+          vsLeaderboardRank: (rank, score, suffix) =>
+            t("wheel.share.eligibilityVsLeaderboardRank", {
+              rank,
+              score,
+              suffix,
+            }),
+          vsLeaderboardScore: (score, suffix) =>
+            t("wheel.share.eligibilityVsLeaderboardScore", { score, suffix }),
+        },
+      );
+      const blob = await renderConductorWheelSharePngBlob({
+        title: t("wheel.title"),
+        dayLabel,
+        names: viewport.names,
+        winnerIndex: viewport.winnerIndex,
+        eligibilityLine,
+        statsLine,
+      });
+      const safeDate =
+        dayLabel.replace(/[^\w-]+/g, "-").toLowerCase() || "conductor";
+      const filename = `conductor-wheel-${safeDate}.png`;
+      const url = URL.createObjectURL(blob);
+      setShareExportPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev.url);
+        return { blob, url, filename };
+      });
+    } catch {
+      setShareExportError(t("wheel.share.failed"));
+    } finally {
+      setShareExportBusy(false);
+    }
+  }
+
   const vipMech = selectedDayConfig?.vipMechanism;
   const canPaintTemplate =
     data.canUnlockConductor ||
@@ -1438,7 +1533,7 @@ export function TrainsDashboard({ initial }: Props) {
     supportsManualConductorPick(conductorMech) &&
     canManualPickForDate();
   const canManualPickVip =
-    !locked &&
+    locked &&
     supportsManualVipPick(vipMech) &&
     canManualPickForDate();
   const rosterBlocking =
@@ -1878,8 +1973,29 @@ export function TrainsDashboard({ initial }: Props) {
                     })
                   : null
               }
+              shareActionLabel={
+                !data.simpleModeEnabled && hasValidConductor
+                  ? t("wheel.share.action")
+                  : undefined
+              }
+              shareBusyLabel={t("wheel.share.exporting")}
+              shareBusy={shareExportBusy}
+              onShareImage={
+                !data.simpleModeEnabled && hasValidConductor
+                  ? () => void handleShareExportImage()
+                  : undefined
+              }
               data-testid="trains-conductor-card"
             />
+          ) : null}
+          {shareExportError ? (
+            <p
+              className="text-sm text-hq-danger"
+              role="alert"
+              data-testid="trains-share-export-error"
+            >
+              {shareExportError}
+            </p>
           ) : null}
 
           {isPriceIsRightPaintTemplate(conductorPaint) ? (
@@ -1940,6 +2056,12 @@ export function TrainsDashboard({ initial }: Props) {
                 rosterSyncNotice={rosterSyncNotice}
                 rosterSyncNoticeTone={rosterSyncNoticeTone}
                 onSyncRoster={() => void handleRosterSync()}
+                onShareImage={
+                  hasValidConductor
+                    ? () => void handleShareExportImage()
+                    : undefined
+                }
+                shareBusy={shareExportBusy}
                 poolPanel={
                   isPoolSpinSource(selectedConductorSpinSource) ||
                   isPoolSpinSource(selectedVipSpinSource) ? (
@@ -1977,10 +2099,7 @@ export function TrainsDashboard({ initial }: Props) {
                       }}
                       onRefresh={refresh}
                     />
-                    {canStartConductorSwap(selectedRecord) &&
-                    spinWeekContext.dayConfigs.some(
-                      (day) => day.date !== selectedDate,
-                    ) ? (
+                    {canStartConductorSwap(selectedRecord) ? (
                       <button
                         type="button"
                         onClick={() => setSwapOpen(true)}
@@ -2231,8 +2350,7 @@ export function TrainsDashboard({ initial }: Props) {
                     {t("pickConductorManually")}
                   </button>
                 ) : null}
-                {canStartConductorSwap(selectedRecord) &&
-                spinWeekContext.dayConfigs.some((day) => day.date !== selectedDate) ? (
+                {canStartConductorSwap(selectedRecord) ? (
                   <button
                     type="button"
                     onClick={() => setSwapOpen(true)}
@@ -2464,6 +2582,13 @@ export function TrainsDashboard({ initial }: Props) {
         onClose={handleWheelClose}
         onSpinAgain={handleWheelSpinAgain}
         onOverride={(reason) => void handleWheelOverride(reason)}
+      />
+
+      <ConductorWheelSharePreviewDialog
+        open={shareExportPreview != null}
+        preview={shareExportPreview}
+        onClose={closeShareExportPreview}
+        zIndexClassName="z-[200]"
       />
 
       <Dialog
@@ -2792,8 +2917,8 @@ export function TrainsDashboard({ initial }: Props) {
         <ConductorSwapDialog
           open={swapOpen}
           sourceDate={selectedDate}
+          today={data.today}
           sourceRecord={selectedRecord}
-          dayConfigs={spinWeekContext.dayConfigs}
           weekRecords={spinWeekContext.weekRecords}
           busy={swapBusy}
           onConfirm={(targetDate) => void confirmConductorSwap(targetDate)}

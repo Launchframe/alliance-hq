@@ -105,6 +105,7 @@ import {
   listDayConfigsForWeek,
   lockConductorRecord,
   replaceDayConfigs,
+  assignVipOnLockedConductor,
   upsertConductorDraft,
   upsertDayConfigOverride,
   upsertWeekSchedule,
@@ -1111,8 +1112,11 @@ export async function rollForVip(input: {
     input.date,
     seasonKey,
   );
-  if (record?.lockedAt) {
-    throw new Error("Train is locked; VIP cannot be changed.");
+  if (!record?.lockedAt) {
+    throw new Error("Lock the conductor before assigning VIP.");
+  }
+  if (!record.conductorMemberId) {
+    throw new Error("No conductor set for this day.");
   }
 
   const dayConfig = await resolveRollDayConfig(
@@ -1183,14 +1187,13 @@ export async function rollForVip(input: {
     input.date,
   );
 
-  await upsertConductorDraft({
+  await assignVipOnLockedConductor({
     allianceId: input.allianceId,
     date: input.date,
     seasonKey,
     vipMemberId: result.memberId,
     vipMemberName: result.memberName,
     vipRankEventId: rankEvent?.id ?? null,
-    conductorMechanism: dayConfig.conductorMechanism,
     vipMechanism: mechanism,
     dayConfigId: dayConfig.dayConfigId,
   });
@@ -1341,6 +1344,11 @@ export async function swapConductors(input: {
 }> {
   if (input.dateA === input.dateB) {
     throw new Error("Pick two different days to swap.");
+  }
+
+  const today = getServerCalendarDate();
+  if (input.dateB <= today) {
+    throw new Error("Swap targets must be a future day.");
   }
 
   const seasonKey = await resolveTrainSeasonKey(input.allianceId);

@@ -19,7 +19,7 @@ See also: [trains.mdc](./trains.mdc) for week templates, pools, RBAC, and schedu
 
 ### Step order
 
-`template (non-blocking) → roster → prerequisites → conductor → vip → lock → done`
+`template (non-blocking) → roster → prerequisites → conductor → lock → vip → done`
 
 Steps `prerequisites`, `roster`, and `vip` are **skipped** when not applicable (no VS/PIF score requirement; no roster sync needed; VIP mechanism is `none`).
 
@@ -35,8 +35,8 @@ Each blocking step blocks until its prerequisite is satisfied. Canonical step lo
 | `roster` | Roster synced when required (`rosterDataStatus.ready`); skipped when roster not required |
 | `prerequisites` | VS or prior-day VS scores uploaded when required (`vsDataStatus.ready`); skipped when scores not required |
 | `conductor` | A conductor is assigned for the day |
-| `vip` | VIP assigned when mechanism requires one; skipped when `vipNeeded` is false |
-| `lock` | Conductor record locked for the day |
+| `lock` | Conductor record locked for the day (spawn / board before VIP) |
+| `vip` | VIP assigned when mechanism requires one; skipped when `vipNeeded` is false. VIP actions require the day to be locked. |
 
 The `prerequisites` step links officers to **`/tools/video-upload`** when prior-day VS is missing for Top VS (`vs_high_score` / `vs_top_10` / `vs_top_n`, `vsDataStatus.kind === "prior_day_vs"`) or Price Is Freight. Do **not** lock Top VS scopes by VS reporter count. Top VR scopes use the 2×N VR reporter lock at paint/roll time (separate from this upload step). There is no score bypass — officers must upload or pick manually in advanced mode.
 

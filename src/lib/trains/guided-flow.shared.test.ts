@@ -26,17 +26,27 @@ describe("currentGuidedStep", () => {
     ).toBe("conductor");
   });
 
-  it("returns vip when conductor assigned and VIP needed but missing", () => {
+  it("returns lock when conductor assigned but unlocked", () => {
     expect(
       currentGuidedStep({
         ...base,
         hasVip: false,
         locked: false,
       }),
+    ).toBe("lock");
+  });
+
+  it("returns vip when locked and VIP needed but missing", () => {
+    expect(
+      currentGuidedStep({
+        ...base,
+        hasVip: false,
+        locked: true,
+      }),
     ).toBe("vip");
   });
 
-  it("skips vip when vipNeeded is false", () => {
+  it("skips vip when vipNeeded is false after lock", () => {
     expect(
       currentGuidedStep({
         ...base,
@@ -45,13 +55,17 @@ describe("currentGuidedStep", () => {
         locked: false,
       }),
     ).toBe("lock");
+    expect(
+      currentGuidedStep({
+        ...base,
+        vipNeeded: false,
+        hasVip: false,
+        locked: true,
+      }),
+    ).toBe("done");
   });
 
-  it("returns lock when assignments complete but unlocked", () => {
-    expect(currentGuidedStep({ ...base, locked: false })).toBe("lock");
-  });
-
-  it("returns done when locked", () => {
+  it("returns done when locked and VIP complete", () => {
     expect(currentGuidedStep(base)).toBe("done");
   });
 
@@ -132,15 +146,16 @@ describe("currentGuidedStep", () => {
     ).toBe("prerequisites");
   });
 
-  it("does not block prerequisites when already locked", () => {
+  it("returns vip when locked with missing VIP even if scores are missing", () => {
     expect(
       currentGuidedStep({
         ...base,
+        hasVip: false,
         locked: true,
         vsDataRequired: true,
         vsDataReady: false,
       }),
-    ).toBe("done");
+    ).toBe("vip");
   });
 });
 

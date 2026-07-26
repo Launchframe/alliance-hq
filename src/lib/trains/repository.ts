@@ -459,6 +459,58 @@ export async function clearConductorAssignment(
   return row ?? null;
 }
 
+/**
+ * Assign or replace VIP on a locked conductor day. Draft upserts reject
+ * locked rows; VIP boarding happens after lock/spawn.
+ */
+export async function assignVipOnLockedConductor(input: {
+  allianceId: string;
+  date: string;
+  seasonKey?: string | null;
+  vipMemberId: string;
+  vipMemberName: string;
+  vipRankEventId?: string | null;
+  vipMechanism?: string | null;
+  dayConfigId?: string | null;
+  guardianIsVip?: number | null;
+}): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
+  const db = getDb();
+  const existing = await getConductorRecord(
+    input.allianceId,
+    input.date,
+    input.seasonKey,
+  );
+  if (!existing?.lockedAt) {
+    throw new Error("Lock the conductor before assigning VIP.");
+  }
+  if (!existing.conductorMemberId) {
+    throw new Error("No conductor set for this day.");
+  }
+
+  await db
+    .update(schema.trainConductorRecords)
+    .set({
+      vipMemberId: input.vipMemberId,
+      vipMemberName: input.vipMemberName,
+      vipRankEventId: input.vipRankEventId ?? null,
+      vipMechanism: input.vipMechanism ?? existing.vipMechanism,
+      dayConfigId: input.dayConfigId ?? existing.dayConfigId,
+      guardianIsVip:
+        input.guardianIsVip != null
+          ? input.guardianIsVip
+          : existing.guardianIsVip,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.trainConductorRecords.id, existing.id));
+
+  const [row] = await db
+    .select()
+    .from(schema.trainConductorRecords)
+    .where(eq(schema.trainConductorRecords.id, existing.id))
+    .limit(1);
+  return row!;
+}
+
 export async function clearVipAssignment(
   allianceId: string,
   date: string,

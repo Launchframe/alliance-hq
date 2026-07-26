@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildConductorWheelReelSession,
+  buildShareViewportForWinner,
   restingShareViewport,
   restingViewportNames,
   uniqueWheelCandidateNames,
@@ -100,5 +101,29 @@ describe("restingShareViewport", () => {
     const viewport = restingShareViewport(session);
     expect(viewport.names).toHaveLength(5);
     expect(viewport.names[viewport.winnerIndex]).toBe(winner.memberName);
+  });
+});
+
+describe("buildShareViewportForWinner", () => {
+  it("centers the winner and fills surrounding slots from candidates", () => {
+    const winner = { memberId: "w", memberName: "Winner" };
+    const candidates = [
+      { memberId: "a", memberName: "Alpha" },
+      { memberId: "b", memberName: "Bravo" },
+      winner,
+      { memberId: "c", memberName: "Charlie" },
+      { memberId: "d", memberName: "Delta" },
+    ];
+    const viewport = buildShareViewportForWinner(winner, candidates);
+    expect(viewport.names).toHaveLength(5);
+    expect(viewport.names[viewport.winnerIndex]).toBe("Winner");
+    expect(viewport.names.filter((name) => name === "Winner")).toHaveLength(1);
+  });
+
+  it("pads when the roster is thin", () => {
+    const winner = { memberId: "w", memberName: "Solo" };
+    const viewport = buildShareViewportForWinner(winner, [winner]);
+    expect(viewport.names).toHaveLength(5);
+    expect(viewport.names[viewport.winnerIndex]).toBe("Solo");
   });
 });

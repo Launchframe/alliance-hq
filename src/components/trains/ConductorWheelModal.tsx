@@ -5,14 +5,15 @@ import confetti from "canvas-confetti";
 import { useLocale, useTranslations } from "next-intl";
 
 import {
+  ConductorWheelSharePreviewDialog,
+  type ConductorWheelSharePreview,
+} from "@/components/trains/ConductorWheelSharePreviewDialog";
+import {
   buildConductorWheelReelSession,
   restingShareViewport,
   type ReelSession,
 } from "@/lib/trains/conductor-wheel-reel.shared";
-import {
-  downloadConductorWheelSharePng,
-  renderConductorWheelSharePngBlob,
-} from "@/lib/client/conductor-wheel-share-image.client";
+import { renderConductorWheelSharePngBlob } from "@/lib/client/conductor-wheel-share-image.client";
 import {
   formatWheelShareEligibilityLine,
   resolveWheelShareEligibility,
@@ -118,6 +119,8 @@ export function ConductorWheelModal({
   const [overrideReason, setOverrideReason] = useState("");
   const [shareBusy, setShareBusy] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
+  const [sharePreview, setSharePreview] =
+    useState<ConductorWheelSharePreview | null>(null);
 
   const fastSecs = FAST_SECS / speedMultiplier;
   const slowSecs = SLOW_SECS / speedMultiplier;
@@ -196,6 +199,18 @@ export function ConductorWheelModal({
     t,
   ]);
 
+  const closeSharePreview = useCallback(() => {
+    setSharePreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+  }, []);
+
+  const handleClose = useCallback(() => {
+    closeSharePreview();
+    onClose();
+  }, [closeSharePreview, onClose]);
+
   const handleShareImage = useCallback(async () => {
     if (!winner || !shareViewport) return;
     setShareBusy(true);
@@ -216,11 +231,14 @@ export function ConductorWheelModal({
         eligibilityLine: shareEligibilityLine,
         statsLine,
       });
-      const safeDate = dayLabel?.replace(/[^\w-]+/g, "-").toLowerCase() ?? "conductor";
-      downloadConductorWheelSharePng(
-        blob,
-        `conductor-wheel-${safeDate}.png`,
-      );
+      const safeDate =
+        dayLabel?.replace(/[^\w-]+/g, "-").toLowerCase() ?? "conductor";
+      const filename = `conductor-wheel-${safeDate}.png`;
+      const url = URL.createObjectURL(blob);
+      setSharePreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev.url);
+        return { blob, url, filename };
+      });
     } catch {
       setShareError(t("share.failed"));
     } finally {
@@ -267,6 +285,7 @@ export function ConductorWheelModal({
     setRevealedKey(null);
     setOverrideReason("");
     setShareError(null);
+    closeSharePreview();
 
     let startTime: number | null = null;
     let cancelled = false;
@@ -312,7 +331,15 @@ export function ConductorWheelModal({
       cancelled = true;
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     };
-  }, [reelSession, open, fireConfetti, disqualified, fastSecs, slowSecs]);
+  }, [
+    reelSession,
+    open,
+    fireConfetti,
+    disqualified,
+    fastSecs,
+    slowSecs,
+    closeSharePreview,
+  ]);
 
   useEffect(() => {
     if (!automated || !open || phase !== "revealed" || disqualified) return;
@@ -333,11 +360,27 @@ export function ConductorWheelModal({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
-      onClose();
+      if (sharePreview) {
+        closeSharePreview();
+        return;
+      }
+      handleClose();
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [open, phase, onClose]);
+  }, [open, phase, handleClose, sharePreview, closeSharePreview]);
+
+  // Revoke blob URLs if the modal unmounts while a preview is open.
+  const sharePreviewRef = useRef(sharePreview);
+  useEffect(() => {
+    sharePreviewRef.current = sharePreview;
+  }, [sharePreview]);
+  useEffect(() => {
+    return () => {
+      const prev = sharePreviewRef.current;
+      if (prev) URL.revokeObjectURL(prev.url);
+    };
+  }, []);
 
   if (!open || !winner || !reelSession) return null;
 
@@ -350,6 +393,7 @@ export function ConductorWheelModal({
       : `${qualification.periodStart} – ${qualification.periodEnd}`);
 
   return (
+    <>
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4"
       role="dialog"
@@ -561,7 +605,7 @@ export function ConductorWheelModal({
             <div className="flex flex-wrap justify-center gap-2">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleClose}
                 data-testid="trains-wheel-cancel"
                 className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
               >
@@ -595,6 +639,7 @@ export function ConductorWheelModal({
               <button
                 type="button"
                 disabled={shareBusy}
+                data-testid="trains-wheel-share"
                 onClick={() => void handleShareImage()}
                 className="rounded-lg border border-[#8957e5]/50 bg-[#8957e5]/10 px-4 py-2 text-sm font-medium text-[#8250df] hover:bg-[#8957e5]/20 disabled:opacity-50 dark:text-[#d2a8ff]"
               >
@@ -602,7 +647,7 @@ export function ConductorWheelModal({
               </button>
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleClose}
                 className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover"
               >
                 {t("close")}
@@ -612,5 +657,12 @@ export function ConductorWheelModal({
         ) : null}
       </div>
     </div>
+
+    <ConductorWheelSharePreviewDialog
+      open={sharePreview != null}
+      preview={sharePreview}
+      onClose={closeSharePreview}
+    />
+    </>
   );
 }

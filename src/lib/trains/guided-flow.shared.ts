@@ -75,7 +75,8 @@ export function currentGuidedStep(input: GuidedFlowInput): GuidedFlowStep {
   if (guidedFlowRosterBlocking(input)) return "roster";
   if (guidedFlowPrerequisitesBlocking(input)) return "prerequisites";
   if (!input.hasConductor) return "conductor";
-  if (input.vipNeeded && !input.hasVip) return "vip";
+  // Lock before VIP: conductor must board (lock/spawn) before VIP can board.
   if (!input.locked) return "lock";
+  if (input.vipNeeded && !input.hasVip) return "vip";
   return "done";
 }

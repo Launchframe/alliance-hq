@@ -150,6 +150,19 @@ function padShareViewportNames(
   return padded.slice(0, targetLength);
 }
 
+function finalizeShareViewport(
+  names: string[],
+  winnerIndex: number,
+  surroundingCount: number,
+): { names: string[]; winnerIndex: number } {
+  const targetLength = surroundingCount + 1;
+  const padded =
+    names.length < targetLength
+      ? padShareViewportNames(names, winnerIndex, targetLength)
+      : names;
+  return { names: padded.slice(0, targetLength), winnerIndex };
+}
+
 /** Winner plus surrounding names for share images (default: 2 above + 2 below). */
 export function restingShareViewport(
   session: ReelSession,
@@ -158,13 +171,32 @@ export function restingShareViewport(
   const half = Math.ceil(surroundingCount / 2);
   const start = Math.max(0, session.winnerIdx - half);
   const end = Math.min(session.items.length - 1, session.winnerIdx + half);
-  let names = session.items.slice(start, end + 1);
+  const names = session.items.slice(start, end + 1);
   const winnerIndex = session.winnerIdx - start;
-  const targetLength = surroundingCount + 1;
-  if (names.length < targetLength) {
-    names = padShareViewportNames(names, winnerIndex, targetLength);
-  }
-  return { names: names.slice(0, targetLength), winnerIndex };
+  return finalizeShareViewport(names, winnerIndex, surroundingCount);
+}
+
+/**
+ * Deterministic share viewport for re-export after the wheel closes.
+ * Winner is centered; surrounding names come from other candidates in order.
+ */
+export function buildShareViewportForWinner(
+  winner: WheelReelCandidate,
+  candidates: WheelReelCandidate[],
+  surroundingCount = 4,
+): { names: string[]; winnerIndex: number } {
+  const half = Math.ceil(surroundingCount / 2);
+  const others = uniqueWheelCandidateNames(
+    candidates.filter(
+      (candidate) =>
+        candidate.memberId !== winner.memberId &&
+        candidate.memberName !== winner.memberName,
+    ),
+  );
+  const above = others.slice(0, half);
+  const below = others.slice(half, half + half);
+  const names = [...above, winner.memberName, ...below];
+  return finalizeShareViewport(names, above.length, surroundingCount);
 }
 
 export function restingShareViewportNames(

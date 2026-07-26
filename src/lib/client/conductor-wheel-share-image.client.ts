@@ -244,3 +244,22 @@ export function downloadConductorWheelSharePng(
   anchor.click();
   URL.revokeObjectURL(href);
 }
+
+/** Copy a PNG blob to the system clipboard (image/png). */
+export async function copyConductorWheelSharePngToClipboard(
+  blob: Blob,
+): Promise<void> {
+  if (
+    typeof navigator === "undefined" ||
+    !navigator.clipboard?.write ||
+    typeof ClipboardItem === "undefined"
+  ) {
+    throw new Error("Clipboard image copy is unavailable");
+  }
+  // Safari prefers a Promise-valued ClipboardItem payload.
+  await navigator.clipboard.write([
+    new ClipboardItem({
+      "image/png": Promise.resolve(blob),
+    }),
+  ]);
+}
