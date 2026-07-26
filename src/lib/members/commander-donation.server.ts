@@ -64,7 +64,11 @@ export function getLastWarStoreLoginToken(): string | null {
   return token && token.length > 0 ? token : null;
 }
 
-/** Build Last War office gold-brick URL. Never log the result (contains UID ± token). */
+/**
+ * Build Last War office gold-brick URL.
+ * Never log the result (contains UID ± token). Never return this URL in a JSON
+ * API body — launch routes must 302 so clients navigate the HQ path instead.
+ */
 export function buildLastWarStoreUrl(uid: string): string | null {
   const token = getLastWarStoreLoginToken();
   if (!token) return null;

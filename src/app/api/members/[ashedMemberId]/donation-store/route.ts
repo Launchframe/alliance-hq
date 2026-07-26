@@ -13,25 +13,41 @@ type RouteContext = {
   params: Promise<{ ashedMemberId: string }>;
 };
 
-export async function GET(_request: Request, context: RouteContext) {
+/**
+ * Officer gift launch — 302 to Last War. Never JSON `{ url }` so session XSS /
+ * client logs cannot scrape `loginToken` from a fetch body.
+ */
+export async function GET(request: Request, context: RouteContext) {
   const session = await getOrCreateSession();
   const { ashedMemberId } = await context.params;
+  const id = ashedMemberId.trim();
 
   try {
-    const result = await resolveCommanderDonationStoreUrl(
-      session.id,
-      ashedMemberId.trim(),
-    );
-    return NextResponse.json(result);
+    const result = await resolveCommanderDonationStoreUrl(session.id, id);
+    return NextResponse.redirect(result.url, {
+      status: 302,
+      headers: {
+        "Cache-Control": "no-store",
+      },
+    });
   } catch (error) {
     if (
       error instanceof CommanderDonationError ||
       error instanceof CommanderAccessError
     ) {
-      return NextResponse.json(
-        { error: error.message, code: "code" in error ? error.code : undefined },
-        { status: error.status },
+      const dest = new URL(
+        `/members/${encodeURIComponent(id)}`,
+        request.url,
       );
+      const code =
+        error instanceof CommanderDonationError ? error.code : "forbidden";
+      dest.searchParams.set("donationLaunchError", code);
+      return NextResponse.redirect(dest, {
+        status: 302,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      });
     }
     throw error;
   }
