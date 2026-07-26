@@ -270,11 +270,16 @@ export async function createRosterLinkRequest(input: {
   return { requestId, ...tokens };
 }
 
-type MemberLinkServerGate =
+export type MemberLinkServerGate =
   | { ok: true; playerServer: number }
   | { ok: false; response: MemberLinkApiResponse };
 
-async function resolveMemberLinkServerGate(input: {
+/**
+ * Shared server-eligibility gate for web member-link paths (exact roster match,
+ * roster-miss owner queue, etc.). Discord handlers use the eligibility helper
+ * directly so they can map outcomes onto bot reply keys.
+ */
+export async function resolveMemberLinkServerGate(input: {
   allianceId: string;
   allianceTag: string;
   gameUid: string;

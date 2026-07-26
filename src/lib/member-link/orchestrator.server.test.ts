@@ -40,7 +40,11 @@ vi.mock("@/lib/lastwar/player-lookup", () => ({
 vi.mock("@/lib/vr/member-roster", () => ({
   loadAllianceMembersForMemberLink: vi.fn().mockResolvedValue({
     members: [],
-    rosterSource: "native",
+    rosterSource: "native_local",
+  }),
+  loadAllianceMembersForMemberLinkWithLiveRetry: vi.fn().mockResolvedValue({
+    members: [],
+    rosterSource: "native_local",
   }),
 }));
 
@@ -53,6 +57,10 @@ vi.mock("@/lib/member-link/roster-link-request.server", () => ({
   isOwnerColdStartEligible: vi.fn().mockResolvedValue(true),
   tryBootstrapOwnerColdStartMember: vi.fn().mockResolvedValue(null),
   tryRouteRosterMissToOwnerApproval: vi.fn().mockResolvedValue(null),
+  resolveMemberLinkServerGate: vi.fn().mockResolvedValue({
+    ok: true,
+    playerServer: 1203,
+  }),
   getRosterLinkRequestById: vi.fn(),
   supersedePendingRosterLinkRequests: vi.fn().mockResolvedValue(undefined),
 }));
@@ -65,11 +73,21 @@ vi.mock("@/lib/member-link/claim.server", () => ({
 const lookup = await import("@/lib/lastwar/player-lookup");
 const roster = await import("@/lib/member-link/roster-link-request.server");
 const claim = await import("@/lib/member-link/claim.server");
+const memberRoster = await import("@/lib/vr/member-roster");
+const repository = await import("@/lib/member-link/repository.server");
 
 describe("runWebMemberLinkSubmit onboarding unblockers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(roster.isOwnerColdStartEligible).mockResolvedValue(true);
+    vi.mocked(roster.resolveMemberLinkServerGate).mockResolvedValue({
+      ok: true,
+      playerServer: 1203,
+    });
+    vi.mocked(memberRoster.loadAllianceMembersForMemberLink).mockResolvedValue({
+      members: [],
+      rosterSource: "native_local",
+    });
   });
 
   it("returns name_mismatch with lookup name for retry", async () => {
@@ -213,6 +231,49 @@ describe("runWebMemberLinkSubmit onboarding unblockers", () => {
 
     expect(result.outcome).toBe("name_mismatch");
     expect(JSON.stringify(result)).not.toContain("1234567890121203");
+  });
+
+  it("gates exact roster match through server eligibility before linking", async () => {
+    vi.mocked(roster.isOwnerColdStartEligible).mockResolvedValue(false);
+    vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
+      ok: true,
+      gameUserName: "Same Name",
+      gameServerNumber: 1205,
+    });
+    vi.mocked(memberRoster.loadAllianceMembersForMemberLink).mockResolvedValue({
+      members: [
+        {
+          id: "m-exact",
+          current_name: "Same Name",
+          previous_names: [],
+          status: "active",
+        } as never,
+      ],
+      rosterSource: "native_local",
+    });
+    vi.mocked(roster.resolveMemberLinkServerGate).mockResolvedValue({
+      ok: false,
+      response: {
+        outcome: "confirm_home_server",
+        message: "Which server is home?",
+        pending: null,
+        lookupServerNumber: 1205,
+        allianceServerNumber: 1203,
+      },
+    });
+
+    const result = await runWebMemberLinkSubmit({
+      sessionId: "sess-1",
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+      reportedName: "Same Name",
+      gameUid: "1234567890121205",
+    });
+
+    expect(result.outcome).toBe("confirm_home_server");
+    expect(roster.resolveMemberLinkServerGate).toHaveBeenCalled();
+    expect(repository.linkHqMember).not.toHaveBeenCalled();
   });
 });
 

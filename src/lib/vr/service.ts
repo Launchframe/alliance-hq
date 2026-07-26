@@ -27,6 +27,7 @@ import {
 import { ensureDiscordMemberLinksFromHq } from "@/lib/member-link/inherit-hq-to-discord.server";
 import { tryPreApprovedMemberLink } from "@/lib/member-link/preapproved-link.server";
 import { createDiscordRosterMissLinkRequest } from "@/lib/member-link/roster-link-request.server";
+import { resolveMemberLinkServerEligibilityForUid } from "@/lib/member-link/server-eligibility.server";
 import { trySelfServiceMemberLink } from "@/lib/member-link/self-service-onboarding.server";
 import {
   loadAllianceMembersForBot,
@@ -321,9 +322,16 @@ async function finalizeDiscordMemberLink(input: {
     gameUserName,
   };
 
+  // Exact roster match from processLinkCommand — must gate before persist so a
+  // same-name commander on another server cannot skip confirm_home / wrong_server
+  // (and cannot sole-R5 native-owner claim via maybeClaimNativeOwnerFromDiscordLink).
+  const exactMatchLinkTarget = Boolean(
+    "linkTarget" in resolvedResult && resolvedResult.linkTarget,
+  );
+
   // Already linked on HQ web, or accepted a commander claim invite: do not send
   // officers through roster-link approval again.
-  if (!("linkTarget" in resolvedResult && resolvedResult.linkTarget)) {
+  if (!exactMatchLinkTarget) {
     const hqLink = await getDiscordHqLink(input.discordUserId);
     if (hqLink?.hqUserId) {
       const preapproved = await tryPreApprovedMemberLink({
@@ -365,6 +373,75 @@ async function finalizeDiscordMemberLink(input: {
   }
 
   if ("linkTarget" in resolvedResult && resolvedResult.linkTarget) {
+    if (exactMatchLinkTarget) {
+      const serverEligibility = await resolveMemberLinkServerEligibilityForUid({
+        allianceId: input.allianceId,
+        gameUid: uid,
+        lookupServer: input.lookup.gameServerNumber,
+        allianceHomeConfirmed: input.allianceHomeConfirmed,
+        userClaimedLookupAsHome: input.userClaimedLookupAsHome,
+      });
+      if (serverEligibility.kind === "confirm_home") {
+        const confirmPending: LinkPendingState = {
+          kind: "link_confirm_home_server",
+          gameUid: uid,
+          gameUserName: input.lookup.gameUserName,
+          lookupServer: serverEligibility.lookupServer,
+          allianceServer: serverEligibility.allianceServer,
+          ...(input.lookup.gameUserLevel != null
+            ? { gameUserLevel: input.lookup.gameUserLevel }
+            : {}),
+          ...(input.replaceAll ? { replaceAll: true } : {}),
+        };
+        await saveDiscordBotPending(
+          input.allianceId,
+          input.discordUserId,
+          confirmPending,
+        );
+        const result: LinkCommandResult = {
+          reply: translate("confirmHomeServerPrompt", {
+            commanderName: input.lookup.gameUserName,
+            lookupServer: serverEligibility.lookupServer,
+            allianceTag: alliance?.tag ?? "alliance",
+            allianceServer: serverEligibility.allianceServer,
+          }),
+          pending: confirmPending,
+          needsHomeServerConfirmation: true,
+        };
+        await audit(
+          input.allianceId,
+          input.discordUserId,
+          input.auditAction ?? "link",
+          input,
+          { ...result, diagnostics: linkDiagnostics },
+        );
+        return result;
+      }
+      if (serverEligibility.kind === "rejected") {
+        await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+        const rejected: LinkCommandResult =
+          serverEligibility.reason === "user_claimed_lookup_home"
+            ? {
+                reply: translate("positionNotHomeBody"),
+                pending: null,
+                positionNotHome: true,
+              }
+            : {
+                reply: translate("helpTopics.wrongServer.body"),
+                pending: null,
+                wrongServer: true,
+              };
+        await audit(
+          input.allianceId,
+          input.discordUserId,
+          input.auditAction ?? "link",
+          input,
+          { ...rejected, diagnostics: linkDiagnostics },
+        );
+        return rejected;
+      }
+    }
+
     const persisted = await persistLinkTarget({
       allianceId: input.allianceId,
       discordUserId: input.discordUserId,
