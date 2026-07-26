@@ -6,11 +6,19 @@ import type { ParsedConnection } from "@/lib/connectionString";
 import { DEFAULT_APP_ID } from "@/lib/connectionString";
 import { addCalendarDays } from "@/lib/trains/game-time";
 import type { RollCandidate } from "@/lib/trains/types";
-import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
+import {
+  vsScoreContextForTrainDate,
+  vsScoreReferenceDate,
+} from "@/lib/trains/vs-week-days.shared";
 import {
   getAllianceAshedCredential,
   getAllianceById,
 } from "@/lib/vr/repository";
+
+/** True when T−1 is a VS match day (Mon–Sat). Sunday break has no daily scores. */
+function priorDayDailyVsApplies(trainDate: string): boolean {
+  return vsScoreContextForTrainDate(trainDate).vsDayNumber != null;
+}
 
 type AshedVsScoreRow = {
   id?: string;
@@ -23,7 +31,15 @@ type AshedVsScoreRow = {
   points?: number;
   total?: number;
   recorded_date?: string;
+  /** Weekly week-ending totals (Sunday). Must not feed daily train wheels. */
+  is_weekly?: boolean;
+  isWeekly?: boolean;
 };
+
+/** Weekly VS totals share Sunday `recorded_date` but are not daily match scores. */
+function isWeeklyVsScoreRow(row: AshedVsScoreRow): boolean {
+  return row.is_weekly === true || row.isWeekly === true;
+}
 
 function memberIdFromRow(row: AshedVsScoreRow): string | null {
   const memberId = row.member_id ?? row.memberId ?? row.id;
@@ -58,7 +74,11 @@ async function fetchVsScoreRowsForRecordedDate(
       recorded_date: recordedDate,
     }),
   )}&sort=-score`;
-  return base44Json<AshedVsScoreRow[]>(connection, path);
+  const rows = await base44Json<AshedVsScoreRow[]>(connection, path);
+  // Weekly uploads use Sunday recorded_date + is_weekly. Train Top VS / PIF need
+  // daily match scores only — never week totals (Monday T−1 would otherwise spin
+  // from the prior week's leaderboard).
+  return rows.filter((row) => !isWeeklyVsScoreRow(row));
 }
 
 export async function fetchVsScoresByRecordedDate(
@@ -112,6 +132,10 @@ export async function fetchVsTopScorersForTrainDate(
   trainDate: string,
   limit: number,
 ): Promise<RollCandidate[]> {
+  // Sunday is the VS break — Monday trains have no prior-day daily scores.
+  if (!priorDayDailyVsApplies(trainDate)) {
+    return [];
+  }
   return fetchVsTopScorersForRecordedDate(
     connection,
     allianceId,
@@ -193,7 +217,7 @@ async function resolveAllianceAshedConnection(
   return { connection, ashedAllianceId };
 }
 
-/** Prior-day VS scores keyed by roster member id (Ashed VSScore for recorded_date). */
+/** Daily VS scores keyed by roster member id (Ashed VSScore for recorded_date). */
 export async function fetchAlliancePriorDayVsScoresByMember(
   allianceId: string,
   recordedDate: string,
@@ -211,12 +235,16 @@ export async function fetchAlliancePriorDayVsScoresByMember(
 /**
  * Top prior-day Ashed VS scorers for a train date (T−1 `recorded_date`).
  * Used by `vs_high_score` / `vs_top_10` conductor rolls — not season VR.
+ * Empty when T−1 is the Sunday VS break (weekly totals are not used).
  */
 export async function fetchAllianceVsTopScorersForTrainDate(
   allianceId: string,
   trainDate: string,
   limit: number,
 ): Promise<RollCandidate[]> {
+  if (!priorDayDailyVsApplies(trainDate)) {
+    return [];
+  }
   const resolved = await resolveAllianceAshedConnection(allianceId);
   if (!resolved) return [];
 
@@ -228,11 +256,14 @@ export async function fetchAllianceVsTopScorersForTrainDate(
   );
 }
 
-/** VS scores for the calendar day before trainDate. */
+/** Daily VS scores for the calendar day before trainDate (never weekly totals). */
 export async function fetchAlliancePriorDayVsScoresForTrainDate(
   allianceId: string,
   trainDate: string,
 ): Promise<Map<string, number>> {
+  if (!priorDayDailyVsApplies(trainDate)) {
+    return new Map();
+  }
   return fetchAlliancePriorDayVsScoresByMember(
     allianceId,
     vsScoreReferenceDate(trainDate),
