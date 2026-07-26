@@ -156,6 +156,35 @@ function tryExplicitIsoRange(
   return null;
 }
 
+function bumpYear(ymd: string, delta: number): string {
+  const year = Number(ymd.slice(0, 4)) + delta;
+  if (!Number.isFinite(year)) return ymd;
+  return `${year}${ymd.slice(4)}`;
+}
+
+/**
+ * Named months omit the year. Prefer the upcoming occurrence:
+ * - Dec→Jan style ranges bump the end into the next calendar year
+ * - fully-past ranges roll both ends forward one year
+ */
+function resolveUpcomingNamedRange(
+  start: string,
+  end: string,
+  today: string,
+): { start: string; end: string } | null {
+  let resolvedStart = start;
+  let resolvedEnd = end;
+  if (resolvedEnd < resolvedStart) {
+    resolvedEnd = bumpYear(resolvedEnd, 1);
+  }
+  if (resolvedEnd < today) {
+    resolvedStart = bumpYear(resolvedStart, 1);
+    resolvedEnd = bumpYear(resolvedEnd, 1);
+  }
+  if (resolvedEnd < resolvedStart) return null;
+  return { start: resolvedStart, end: resolvedEnd };
+}
+
 function tryNamedMonthRange(
   text: string,
   today: string,
@@ -170,8 +199,9 @@ function tryNamedMonthRange(
     const end = parseMonthDay(namedRange[1], namedRange[3], today, {
       explicitMonth: true,
     });
+    // Same calendar month: end day must not precede start day.
     if (start && end && end >= start) {
-      return { start, end };
+      return resolveUpcomingNamedRange(start, end, today);
     }
   }
 
@@ -185,7 +215,10 @@ function tryNamedMonthRange(
     const end = parseMonthDay(crossMonth[3], crossMonth[4], today, {
       explicitMonth: true,
     });
-    if (start && end && end >= start) return { start, end };
+    // Cross-month may span the year boundary (Dec → Jan).
+    if (start && end) {
+      return resolveUpcomingNamedRange(start, end, today);
+    }
   }
   return null;
 }

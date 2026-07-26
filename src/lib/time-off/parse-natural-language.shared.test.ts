@@ -18,15 +18,48 @@ describe("parseTimeOffMessage", () => {
     expect(result.parsed.availability).toBe("full_away");
   });
 
-  it("parses named month ranges", () => {
+  it("parses named month ranges in the same year when still upcoming", () => {
+    const result = parseTimeOffMessage(
+      "Traveling to a project site from August 3-11",
+      REF,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.parsed.startDate).toBe("2026-08-03");
+    expect(result.parsed.endDate).toBe("2026-08-11");
+  });
+
+  it("rolls past named-month ranges into the next year", () => {
     const result = parseTimeOffMessage(
       "Traveling to a project site from June 3-11",
       REF,
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.parsed.startDate).toBe("2026-06-03");
-    expect(result.parsed.endDate).toBe("2026-06-11");
+    expect(result.parsed.startDate).toBe("2027-06-03");
+    expect(result.parsed.endDate).toBe("2027-06-11");
+  });
+
+  it("rolls December announcements of January into next year", () => {
+    const result = parseTimeOffMessage(
+      "Away January 5-10",
+      "2026-12-15",
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.parsed.startDate).toBe("2027-01-05");
+    expect(result.parsed.endDate).toBe("2027-01-10");
+  });
+
+  it("supports cross-month ranges that span the year boundary", () => {
+    const result = parseTimeOffMessage(
+      "Away December 28 to January 5",
+      "2026-12-15",
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.parsed.startDate).toBe("2026-12-28");
+    expect(result.parsed.endDate).toBe("2027-01-05");
   });
 
   it("detects limited availability", () => {
