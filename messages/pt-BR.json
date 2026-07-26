@@ -4752,6 +4752,7 @@
       "discordResult": "{mention} está vinculado a: **{commanders}**.",
       "commanderNotFound": "Nenhuma correspondência no roster para **{name}**. Confira a grafia.",
       "pickCommander": "Várias correspondências no roster. Seja mais específico ou escolha entre: {names}",
+      "pickExpired": "Essa opção expirou. Execute `/who-is` novamente para escolher um comandante.",
       "commanderOwner": "**{name}** está vinculado a {mention} ({handle}).",
       "commanderHqOnly": "**{name}** está vinculado no Alliance HQ, mas ainda não no Discord.",
       "unclaimedMember": "**{name}** está no roster, mas não vinculado a nenhuma conta.",

@@ -4806,6 +4806,7 @@
       "discordResult": "{mention} is linked to: **{commanders}**.",
       "commanderNotFound": "No roster match for **{name}**. Check spelling against your alliance members list.",
       "pickCommander": "Multiple roster matches. Be more specific or pick from: {names}",
+      "pickExpired": "That option expired. Run `/who-is` again to choose a commander.",
       "commanderOwner": "**{name}** is linked to {mention} ({handle}).",
       "commanderHqOnly": "**{name}** is linked on Alliance HQ but has no Discord link yet.",
       "unclaimedMember": "**{name}** is on the roster but not linked to any account.",

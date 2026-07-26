@@ -168,7 +168,19 @@ async function lookupByCommander(input: {
       const reply = t("whoIs.pickCommander", {
         names: resolved.pickCandidates.map((row) => row.name).join(", "),
       });
+      await auditWhoIs(input.allianceId, input.discordUserId, "who_is", input, {
+        reply,
+        pickCount: resolved.pickCandidates.length,
+      });
       return { reply, pickCandidates: resolved.pickCandidates };
+    }
+    if (resolved.notFound && input.resolvedMemberId) {
+      const reply = t("whoIs.pickExpired");
+      await auditWhoIs(input.allianceId, input.discordUserId, "who_is", input, {
+        reply,
+        stalePick: true,
+      });
+      return { reply };
     }
     const reply = t("whoIs.commanderNotFound", {
       name: input.commanderName?.trim() ?? "",
@@ -340,19 +352,24 @@ export async function handleDiscordWhoIsClaimInvite(input: {
     );
     return { reply };
   } catch (error) {
-    const reason =
-      error instanceof CommanderClaimInviteError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : "unknown";
-    const reply = t("whoIs.claimInviteFailed", { reason });
+    if (error instanceof CommanderClaimInviteError) {
+      const reply = t("whoIs.claimInviteFailed", { reason: error.message });
+      await auditWhoIs(
+        input.allianceId,
+        input.discordUserId,
+        "who_is_claim_invite",
+        input,
+        { reply, error: error.code },
+      );
+      return { reply };
+    }
+    const reply = t("errors.serverError");
     await auditWhoIs(
       input.allianceId,
       input.discordUserId,
       "who_is_claim_invite",
       input,
-      { reply, error: reason },
+      { reply, error: "unexpected" },
     );
     return { reply };
   }

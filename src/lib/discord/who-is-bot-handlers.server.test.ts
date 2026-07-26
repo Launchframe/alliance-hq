@@ -106,6 +106,17 @@ describe("handleDiscordWhoIs", () => {
     expect(result.reply).toMatch(/link-commander/i);
   });
 
+  it("returns usage when both options are provided", async () => {
+    const result = await handleDiscordWhoIs({
+      allianceId: "a1",
+      discordUserId: "d-caller",
+      locale: "en-US",
+      targetDiscordUserId: "d-target",
+      commanderName: "Alpha",
+    });
+    expect(result.reply).toMatch(/who-is discord/i);
+  });
+
   it("returns usage when both options are missing", async () => {
     const result = await handleDiscordWhoIs({
       allianceId: "a1",
@@ -113,6 +124,16 @@ describe("handleDiscordWhoIs", () => {
       locale: "en-US",
     });
     expect(result.reply).toMatch(/who-is discord/i);
+  });
+
+  it("returns pick expired when a stale roster pick is used", async () => {
+    const result = await handleDiscordWhoIs({
+      allianceId: "a1",
+      discordUserId: "d-caller",
+      locale: "en-US",
+      resolvedMemberId: "gone-member",
+    });
+    expect(result.reply).toMatch(/expired/i);
   });
 
   it("lists commanders for a Discord user", async () => {
@@ -266,5 +287,16 @@ describe("handleDiscordWhoIsClaimInvite", () => {
       targetAshedMemberId: "m1",
     });
     expect(result.reply).toContain("TAG-ABC123");
+  });
+
+  it("returns a generic server error for unexpected claim failures", async () => {
+    vi.mocked(createAllianceJoinCode).mockRejectedValue(new Error("db down"));
+    const result = await handleDiscordWhoIsClaimInvite({
+      allianceId: "a1",
+      discordUserId: "d-caller",
+      locale: "en-US",
+      ashedMemberId: "m1",
+    });
+    expect(result.reply).toMatch(/Something went wrong/i);
   });
 });
