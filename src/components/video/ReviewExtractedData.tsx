@@ -1426,7 +1426,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     (!scoreTargetMeta?.showDepositSlipColumns ||
       depositSlipFollowMeCompatible(depositSlipSortKey));
 
-  const { registerFollowAnchor, activeFollowMeRowId } = useVideoReviewFollowMe({
+  const {
+    registerFollowAnchor,
+    activeFollowMeRowId,
+    activateFollowMeRow,
+  } = useVideoReviewFollowMe({
     enabled: scoreTableFollowMeEnabled,
     rows: followMeRows,
     secondsForRow: secondsForFollowRow,
@@ -2957,6 +2961,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             highlightedRowId={
               scoreTableFollowMeEnabled ? activeFollowMeRowId : null
             }
+            onFollowMeActivateRow={
+              scoreTableFollowMeEnabled ? activateFollowMeRow : undefined
+            }
             onJumpToRow={scrollToDepositSlipRow}
           />
         </>
@@ -3032,6 +3039,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 className={rowClass}
                 ref={registerFollowAnchor(row.id)}
                 data-video-follow-anchor={row.id}
+                onClick={() => {
+                  if (scoreTableFollowMeEnabled) {
+                    activateFollowMeRow(row.id);
+                  }
+                }}
+                onFocusCapture={() => {
+                  if (scoreTableFollowMeEnabled) {
+                    activateFollowMeRow(row.id);
+                  }
+                }}
               >
                 {scoreTargetMeta?.showRankColumn ? (
                   <td className="px-3 py-3 align-top">

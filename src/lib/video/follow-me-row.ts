@@ -96,3 +96,16 @@ export function followMeViewportCenterY(options: {
   const visibleHeight = options.viewportHeight - top - bottom;
   return top + visibleHeight / 2;
 }
+
+/** Smaller than a single frame step (~1s) so scrubbing stays smooth without
+ * spamming identical currentTime writes. */
+export const FOLLOW_ME_SEEK_EPSILON_SECONDS = 0.02;
+
+export function shouldSeekFollowMeSeconds(
+  lastSeekedSeconds: number | null,
+  nextSeconds: number,
+  epsilon = FOLLOW_ME_SEEK_EPSILON_SECONDS,
+): boolean {
+  if (lastSeekedSeconds == null) return true;
+  return Math.abs(lastSeekedSeconds - nextSeconds) >= epsilon;
+}

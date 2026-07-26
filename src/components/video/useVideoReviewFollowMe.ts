@@ -6,6 +6,7 @@ import {
   followMeObserverRootMargin,
   followMeViewportCenterY,
   interpolateSecondsAtCenter,
+  shouldSeekFollowMeSeconds,
   type FollowAnchorSample,
 } from "@/lib/video/follow-me-row";
 import { createFollowAnchorRegistry } from "@/lib/video/follow-me-anchor-registry";
@@ -24,10 +25,6 @@ type Options<TRow extends Row> = {
   previewPlacement: PreviewPlacement;
   dockHeightPx: number;
 };
-
-/** Smaller than a single frame step (~1s) so scrubbing stays smooth without
- * spamming identical currentTime writes. */
-const SEEK_EPSILON_SECONDS = 0.02;
 
 export function useVideoReviewFollowMe<TRow extends Row>({
   enabled,
@@ -66,6 +63,35 @@ export function useVideoReviewFollowMe<TRow extends Row>({
   const registerFollowAnchor = useCallback(
     (rowId: string) => registry.register(rowId),
     [registry],
+  );
+
+  const rowsRef = useRef(rows);
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
+
+  /**
+   * Seek (and highlight) a specific row while Follow-me is on — used when the
+   * officer clicks a result row or focuses a field inside it.
+   */
+  const activateFollowMeRow = useCallback(
+    (rowId: string) => {
+      if (!enabled) return;
+      const row = rowsRef.current.find((candidate) => candidate.id === rowId);
+      if (!row) return;
+      const seconds = secondsForRowRef.current(row);
+      if (rowId !== activeFollowMeRowIdRef.current) {
+        activeFollowMeRowIdRef.current = rowId;
+        setActiveFollowMeRowId(rowId);
+      }
+      if (seconds == null) return;
+      if (!shouldSeekFollowMeSeconds(lastSeekedSecondsRef.current, seconds)) {
+        return;
+      }
+      lastSeekedSecondsRef.current = seconds;
+      onSeekSecondsRef.current(seconds);
+    },
+    [enabled],
   );
 
   useEffect(() => {
@@ -128,8 +154,7 @@ export function useVideoReviewFollowMe<TRow extends Row>({
 
       const seconds = interpolateSecondsAtCenter(samples, centerY);
       if (seconds == null) return;
-      const last = lastSeekedSecondsRef.current;
-      if (last != null && Math.abs(last - seconds) < SEEK_EPSILON_SECONDS) {
+      if (!shouldSeekFollowMeSeconds(lastSeekedSecondsRef.current, seconds)) {
         return;
       }
       lastSeekedSecondsRef.current = seconds;
@@ -180,5 +205,5 @@ export function useVideoReviewFollowMe<TRow extends Row>({
     registry,
   ]);
 
-  return { registerFollowAnchor, activeFollowMeRowId };
+  return { registerFollowAnchor, activeFollowMeRowId, activateFollowMeRow };
 }

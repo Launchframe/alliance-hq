@@ -1,11 +1,10 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Video, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Trash2, Video, X } from "lucide-react";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
-import { Button } from "@/components/ui/button";
 import {
   DEPOSIT_SLIP_CLEARED_MEMBER_MATCH,
   depositSlipMemberMatchBorderClass,
@@ -91,6 +90,11 @@ type Props = {
   onSortKeyChange?: (sortKey: DepositSlipVisibleSortKey) => void;
   /** Follow-me row highlight (deposit-slip review). */
   highlightedRowId?: string | null;
+  /**
+   * When Follow-me is active, clicking a row or focusing a field seeks the
+   * preview to that row's frame.
+   */
+  onFollowMeActivateRow?: (rowId: string) => void;
   /** Scroll the table to a row (flagged-cluster / warning banners). */
   onJumpToRow?: (rowId: string) => void;
 };
@@ -224,6 +228,7 @@ export function DepositSlipVideoReviewTable({
   onVisibleRowIdsChange,
   onSortKeyChange,
   highlightedRowId,
+  onFollowMeActivateRow,
   onJumpToRow,
 }: Props) {
   const t = useTranslations("videoReview");
@@ -556,6 +561,8 @@ export function DepositSlipVideoReviewTable({
                   data-video-follow-anchor={
                     followMeCompatible ? row.id : undefined
                   }
+                  onClick={() => onFollowMeActivateRow?.(row.id)}
+                  onFocusCapture={() => onFollowMeActivateRow?.(row.id)}
                 >
                   <td className="px-3 py-2 align-top">
                     <input
@@ -592,75 +599,72 @@ export function DepositSlipVideoReviewTable({
                     />
                   </td>
                   <td className="min-w-[8rem] px-3 py-2 align-top sm:min-w-[11rem]">
-                    <div className="flex items-start gap-1">
-                      <div className="min-w-0 flex-1">
-                        <AppSelect
-                          value={row.memberId ?? ""}
-                          onChange={(next) => {
-                            if (!next) {
-                              onUpdateRow(row.id, DEPOSIT_SLIP_CLEARED_MEMBER_MATCH);
-                              return;
-                            }
-                            // Roster may omit a previously selected member
-                            // (cross-device); keep the stored label via rows.
-                            const fromRoster = members.find((m) => m.id === next);
-                            const fromSelected = rows.find(
-                              (r) => r.memberId === next && r.memberName,
-                            );
-                            onUpdateRow(row.id, {
-                              memberId: next,
-                              memberName:
-                                fromRoster?.current_name ??
-                                fromSelected?.memberName ??
-                                (row.memberId === next ? row.memberName : null) ??
-                                null,
-                              matchConfidence: 1,
-                              // Commit honors preferredAshedMemberId only when
-                              // matchMethod is a real auto-link method (not "none").
-                              matchMethod: "exact",
-                              ...(rosterAllianceTag?.trim()
-                                ? { allianceRankTitle: rosterAllianceTag.trim() }
-                                : {}),
-                            });
-                          }}
-                          aria-label={t("colMember")}
-                          placeholder={t("unmatched")}
-                          triggerClassName={`px-2 py-1.5 ${
-                            row.memberId
-                              ? depositSlipMemberMatchBorderClass(
-                                  row.matchConfidence,
-                                )
-                              : "border-hq-border"
-                          }`}
-                          searchable
-                          searchMode="fuzzy"
-                          combobox
-                          hideEmptyOptionWhileSearching
-                          searchPlaceholder={tMembers("searchPlaceholder")}
-                          noSearchResultsLabel={t("memberSearchNoResults")}
-                          options={buildMemberMatchSelectOptions(members, {
-                            emptyLabel: t("unmatched"),
-                            highlightMemberId: row.memberId,
-                            highlightConfidence: row.matchConfidence,
-                            selectedMembers: rows,
-                            // Same commander may appear on multiple deposit rows.
-                          })}
-                        />
-                      </div>
+                    <div className="group relative">
+                      <AppSelect
+                        value={row.memberId ?? ""}
+                        onChange={(next) => {
+                          if (!next) {
+                            onUpdateRow(row.id, DEPOSIT_SLIP_CLEARED_MEMBER_MATCH);
+                            return;
+                          }
+                          // Roster may omit a previously selected member
+                          // (cross-device); keep the stored label via rows.
+                          const fromRoster = members.find((m) => m.id === next);
+                          const fromSelected = rows.find(
+                            (r) => r.memberId === next && r.memberName,
+                          );
+                          onUpdateRow(row.id, {
+                            memberId: next,
+                            memberName:
+                              fromRoster?.current_name ??
+                              fromSelected?.memberName ??
+                              (row.memberId === next ? row.memberName : null) ??
+                              null,
+                            matchConfidence: 1,
+                            // Commit honors preferredAshedMemberId only when
+                            // matchMethod is a real auto-link method (not "none").
+                            matchMethod: "exact",
+                            ...(rosterAllianceTag?.trim()
+                              ? { allianceRankTitle: rosterAllianceTag.trim() }
+                              : {}),
+                          });
+                        }}
+                        aria-label={t("colMember")}
+                        placeholder={t("unmatched")}
+                        triggerClassName={`px-2 py-1.5 ${
+                          row.memberId
+                            ? depositSlipMemberMatchBorderClass(
+                                row.matchConfidence,
+                              )
+                            : "border-hq-border"
+                        }`}
+                        searchable
+                        searchMode="fuzzy"
+                        combobox
+                        hideEmptyOptionWhileSearching
+                        searchPlaceholder={tMembers("searchPlaceholder")}
+                        noSearchResultsLabel={t("memberSearchNoResults")}
+                        options={buildMemberMatchSelectOptions(members, {
+                          emptyLabel: t("unmatched"),
+                          highlightMemberId: row.memberId,
+                          highlightConfidence: row.matchConfidence,
+                          selectedMembers: rows,
+                          // Same commander may appear on multiple deposit rows.
+                        })}
+                      />
                       {row.memberId ? (
-                        <Button
+                        <button
                           type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 shrink-0 text-hq-muted hover:text-hq-fg"
+                          className="pointer-events-none absolute inset-y-0 right-8 z-10 my-auto flex h-6 w-6 items-center justify-center rounded bg-hq-canvas/90 text-hq-fg-muted opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 hover:text-hq-fg"
                           aria-label={t("clearMemberMatch")}
                           title={t("clearMemberMatch")}
-                          onClick={() =>
-                            onUpdateRow(row.id, DEPOSIT_SLIP_CLEARED_MEMBER_MATCH)
-                          }
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onUpdateRow(row.id, DEPOSIT_SLIP_CLEARED_MEMBER_MATCH);
+                          }}
                         >
-                          <X className="h-4 w-4" aria-hidden />
-                        </Button>
+                          <X className="h-3.5 w-3.5" aria-hidden />
+                        </button>
                       ) : null}
                     </div>
                   </td>
@@ -675,7 +679,7 @@ export function DepositSlipVideoReviewTable({
                       className="w-full min-w-[5rem] rounded-md border border-hq-border bg-hq-canvas px-2 py-1.5 font-mono"
                     />
                   </td>
-                  <td className="px-3 py-2 align-top">
+                  <td className="w-[4.5rem] min-w-[4.5rem] px-2 py-2 align-top">
                     <AppSelect
                       value={
                         row.memberLevel != null ? String(row.memberLevel) : ""
@@ -694,6 +698,7 @@ export function DepositSlipVideoReviewTable({
                       searchable
                       combobox
                       searchPlaceholder={tBanks("fields.termDays")}
+                      triggerClassName="px-2 py-1.5"
                       options={DEPOSIT_TERMS.map((term) => ({
                         value: String(term),
                         label: String(term),
@@ -736,7 +741,10 @@ export function DepositSlipVideoReviewTable({
                       {canPreview ? (
                         <button
                           type="button"
-                          onClick={() => onPreviewFrame?.(row.frameIndex)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onPreviewFrame?.(row.frameIndex);
+                          }}
                           className="rounded-md border border-hq-border p-1.5 text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg"
                           aria-label={t("rowVideoPreview")}
                         >
@@ -745,10 +753,15 @@ export function DepositSlipVideoReviewTable({
                       ) : null}
                       <button
                         type="button"
-                        onClick={() => onDeleteRow(row.id)}
-                        className="rounded-md border border-hq-border px-2 py-1 text-xs text-hq-danger hover:bg-[#f8514910]"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onDeleteRow(row.id);
+                        }}
+                        className="inline-flex size-8 items-center justify-center rounded-md border border-hq-border text-hq-danger hover:bg-[#f8514910]"
+                        aria-label={t("deleteRow")}
+                        title={t("deleteRow")}
                       >
-                        {t("deleteRow")}
+                        <Trash2 className="h-4 w-4" aria-hidden />
                       </button>
                     </div>
                   </td>

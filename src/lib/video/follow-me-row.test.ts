@@ -1,10 +1,30 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  FOLLOW_ME_SEEK_EPSILON_SECONDS,
   followMeObserverRootMargin,
   followMeViewportCenterY,
   interpolateSecondsAtCenter,
+  shouldSeekFollowMeSeconds,
 } from "@/lib/video/follow-me-row";
+
+describe("shouldSeekFollowMeSeconds", () => {
+  it("seeks when there is no prior time", () => {
+    expect(shouldSeekFollowMeSeconds(null, 12)).toBe(true);
+  });
+
+  it("skips seeks within epsilon of the last time", () => {
+    expect(shouldSeekFollowMeSeconds(10, 10 + FOLLOW_ME_SEEK_EPSILON_SECONDS / 2)).toBe(
+      false,
+    );
+  });
+
+  it("seeks when the delta exceeds epsilon", () => {
+    expect(shouldSeekFollowMeSeconds(10, 10 + FOLLOW_ME_SEEK_EPSILON_SECONDS * 2)).toBe(
+      true,
+    );
+  });
+});
 
 describe("interpolateSecondsAtCenter", () => {
   it("returns null when there are no usable samples", () => {
