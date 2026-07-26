@@ -22,7 +22,7 @@ import {
   depletingManualPickErrorMessage,
   evaluateDepletingManualPick,
 } from "@/lib/trains/depleting-manual-pick.shared";
-import { isPriceIsRightPaintTemplate } from "@/lib/trains/heavy-hitter-pool.shared";
+import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
   ensureConductorPoolSeeded,
   getServerCalendarDate,
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     }
 
     const depletingPool =
-      !isPriceIsRightPaintTemplate(dayConfig.paintTemplate) &&
+      !usesPriceIsFreightConductorRoll(dayConfig.paintTemplate) &&
       Boolean(conductorMechanismPoolType(mechanism));
 
     if (existing?.conductorMemberId && depletingPool) {

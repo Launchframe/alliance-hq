@@ -3,6 +3,7 @@ import { resolveConductorTopNBoard } from "@/lib/trains/conductor-top-n.shared";
 import {
   isPriceIsRightHeavyHitterSaturday,
   isPriceIsRightPaintTemplate,
+  usesPriceIsFreightConductorRoll,
 } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
   conductorMechanismPoolType,
@@ -60,11 +61,13 @@ export function conductorSpinSource(
   date?: string | null,
   conductorConfig?: unknown,
 ): SpinSource {
-  if (isPriceIsRightPaintTemplate(paintTemplate)) {
+  if (usesPriceIsFreightConductorRoll(paintTemplate)) {
     if (isPriceIsRightHeavyHitterSaturday(paintTemplate, date)) {
       return { kind: "price_is_right_heavy_hitter" };
     }
-    return { kind: "price_is_right_raffle" };
+    if (isPriceIsRightPaintTemplate(paintTemplate)) {
+      return { kind: "price_is_right_raffle" };
+    }
   }
 
   const mechanism = effectiveConductorMechanism(

@@ -9,7 +9,7 @@ import {
   type PriceIsRightLeaderboardEntry,
 } from "@/lib/trains/price-is-right-leaderboard.shared";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
-import { isPriceIsRightPaintTemplate } from "@/lib/trains/heavy-hitter-pool.shared";
+import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
   getAllianceRanksAsOf,
   isMemberEligibleForPool,
@@ -34,7 +34,7 @@ export async function loadPriceIsRightVsLeaderboard(input: {
     input.trainDate,
     seasonKey,
   );
-  if (!isPriceIsRightPaintTemplate(dayConfig.paintTemplate)) {
+  if (!usesPriceIsFreightConductorRoll(dayConfig.paintTemplate)) {
     throw new Error("Selected day is not a Price Is Freight train day.");
   }
 
