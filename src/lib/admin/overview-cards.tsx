@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Activity,
   Award,
   Bug,
   Building2,
@@ -17,6 +18,7 @@ export type AdminOverviewCard = {
   href: string;
   titleKey:
     | "systemTitle"
+    | "opsTitle"
     | "alliancesTitle"
     | "usersTitle"
     | "commandersTitle"
@@ -29,6 +31,7 @@ export type AdminOverviewCard = {
     | "translationReportsTitle";
   descKey:
     | "systemDesc"
+    | "opsDesc"
     | "alliancesDesc"
     | "usersDesc"
     | "commandersDesc"
@@ -48,6 +51,12 @@ export const ADMIN_OVERVIEW_CARDS: AdminOverviewCard[] = [
     titleKey: "systemTitle",
     descKey: "systemDesc",
     icon: Server,
+  },
+  {
+    href: "/admin/ops",
+    titleKey: "opsTitle",
+    descKey: "opsDesc",
+    icon: Activity,
   },
   {
     href: "/admin/alliances",
