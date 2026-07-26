@@ -56,22 +56,27 @@ export function computeBusterDayEfficiencyRow(
   const killsEnd = input.killsEnd;
   const vsScoreSaturday = input.vsScoreSaturday;
 
-  const powerLostM =
-    powerStartM != null && powerEndM != null
-      ? Math.max(0, powerStartM - powerEndM)
-      : 0;
+  const hasPowerPair = powerStartM != null && powerEndM != null;
+  const hasVsScore = vsScoreSaturday != null;
+
+  const powerLostM = hasPowerPair
+    ? Math.max(0, powerStartM - powerEndM)
+    : 0;
   const killsDelta =
     killsStart != null && killsEnd != null
       ? Math.max(0, killsEnd - killsStart)
       : 0;
-  const netVsScore =
-    vsScoreSaturday != null
-      ? Math.max(0, vsScoreSaturday - BUSTER_DAY_BASELINE_POINTS)
-      : 0;
+  const netVsScore = hasVsScore
+    ? Math.max(0, vsScoreSaturday - BUSTER_DAY_BASELINE_POINTS)
+    : 0;
 
+  // Missing power or Saturday VS must not rank as measured 0 / ε — that
+  // produced god-tier ratios (null power) or false-weakest (null VS).
+  const canScore = hasPowerPair && hasVsScore;
   const noEngagement =
-    netVsScore <= BUSTER_DAY_EFFICIENCY_EPSILON &&
-    powerLostM <= BUSTER_DAY_NO_ENGAGEMENT_POWER_M;
+    !canScore ||
+    (netVsScore <= BUSTER_DAY_EFFICIENCY_EPSILON &&
+      powerLostM <= BUSTER_DAY_NO_ENGAGEMENT_POWER_M);
 
   const efficiencyRatio = noEngagement
     ? null

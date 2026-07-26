@@ -216,56 +216,74 @@ export async function attachBusterDaySnapshotJob(input: {
   );
   const dates = busterDayWeekDates(vsWeekMonday);
   const now = new Date();
-
-  const nextRoster =
-    rosterNorm.value !== undefined
-      ? rosterNorm.value
-      : input.kind === "pre"
-        ? report.preRosterJobId
-        : report.postRosterJobId;
-  const nextKills =
-    killsNorm.value !== undefined
-      ? killsNorm.value
-      : input.kind === "pre"
-        ? report.preKillsJobId
-        : report.postKillsJobId;
-  const complete = isBusterDaySnapshotComplete({
-    rosterJobId: nextRoster,
-    killsJobId: nextKills,
-  });
-
-  const patch =
-    input.kind === "pre"
-      ? {
-          preSnapshotDate: dates.friday,
-          preRosterJobId: nextRoster,
-          preKillsJobId: nextKills,
-          preCompletedAt: complete
-            ? (report.preCompletedAt ?? now)
-            : null,
-          updatedAt: now,
-        }
-      : {
-          postSnapshotDate: dates.sunday,
-          postRosterJobId: nextRoster,
-          postKillsJobId: nextKills,
-          postCompletedAt: complete
-            ? (report.postCompletedAt ?? now)
-            : null,
-          updatedAt: now,
-        };
-
   const db = getDb();
-  const [updated] = await db
-    .update(schema.busterDayReports)
-    .set(patch)
-    .where(
-      and(
-        eq(schema.busterDayReports.id, report.id),
-        eq(schema.busterDayReports.allianceId, input.allianceId),
-      ),
-    )
-    .returning();
+
+  // Lock the row before merging partial attaches so concurrent roster-only /
+  // kills-only POSTs cannot overwrite each other from a stale snapshot.
+  const updated = await db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select()
+      .from(schema.busterDayReports)
+      .where(
+        and(
+          eq(schema.busterDayReports.id, report.id),
+          eq(schema.busterDayReports.allianceId, input.allianceId),
+        ),
+      )
+      .for("update")
+      .limit(1);
+    if (!locked) return null;
+
+    const nextRoster =
+      rosterNorm.value !== undefined
+        ? rosterNorm.value
+        : input.kind === "pre"
+          ? locked.preRosterJobId
+          : locked.postRosterJobId;
+    const nextKills =
+      killsNorm.value !== undefined
+        ? killsNorm.value
+        : input.kind === "pre"
+          ? locked.preKillsJobId
+          : locked.postKillsJobId;
+    const complete = isBusterDaySnapshotComplete({
+      rosterJobId: nextRoster,
+      killsJobId: nextKills,
+    });
+
+    const patch =
+      input.kind === "pre"
+        ? {
+            preSnapshotDate: dates.friday,
+            preRosterJobId: nextRoster,
+            preKillsJobId: nextKills,
+            preCompletedAt: complete
+              ? (locked.preCompletedAt ?? now)
+              : null,
+            updatedAt: now,
+          }
+        : {
+            postSnapshotDate: dates.sunday,
+            postRosterJobId: nextRoster,
+            postKillsJobId: nextKills,
+            postCompletedAt: complete
+              ? (locked.postCompletedAt ?? now)
+              : null,
+            updatedAt: now,
+          };
+
+    const [row] = await tx
+      .update(schema.busterDayReports)
+      .set(patch)
+      .where(
+        and(
+          eq(schema.busterDayReports.id, locked.id),
+          eq(schema.busterDayReports.allianceId, input.allianceId),
+        ),
+      )
+      .returning();
+    return row ?? null;
+  });
 
   if (!updated) {
     return {

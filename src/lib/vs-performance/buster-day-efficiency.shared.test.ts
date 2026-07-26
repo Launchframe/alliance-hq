@@ -79,6 +79,40 @@ describe("computeBusterDayEfficiencyRow", () => {
     expect(row.netVsScore).toBe(0);
     expect(row.noEngagement).toBe(true);
   });
+
+  it("does not treat missing power as zero loss (god-tier ratio)", () => {
+    const row = computeBusterDayEfficiencyRow({
+      commanderId: "c5",
+      memberName: "Echo",
+      ashedMemberId: "m5",
+      powerStartM: null,
+      powerEndM: null,
+      killsStart: null,
+      killsEnd: null,
+      vsScoreSaturday: BUSTER_DAY_BASELINE_POINTS + 2_000_000,
+    });
+    expect(row.powerLostM).toBe(0);
+    expect(row.netVsScore).toBe(2_000_000);
+    expect(row.noEngagement).toBe(true);
+    expect(row.efficiencyRatio).toBeNull();
+  });
+
+  it("does not treat missing Saturday VS as measured zero net score", () => {
+    const row = computeBusterDayEfficiencyRow({
+      commanderId: "c6",
+      memberName: "Foxtrot",
+      ashedMemberId: "m6",
+      powerStartM: 100,
+      powerEndM: 50,
+      killsStart: 0,
+      killsEnd: 10,
+      vsScoreSaturday: null,
+    });
+    expect(row.powerLostM).toBe(50);
+    expect(row.netVsScore).toBe(0);
+    expect(row.noEngagement).toBe(true);
+    expect(row.efficiencyRatio).toBeNull();
+  });
 });
 
 describe("computeBusterDayEfficiencyReport", () => {
@@ -116,6 +150,49 @@ describe("computeBusterDayEfficiencyReport", () => {
       },
     ]);
     expect(rows.map((r) => r.commanderId)).toEqual(["weak", "strong", "idle"]);
+  });
+
+  it("sinks incomplete power/VS rows instead of ranking them", () => {
+    const rows = computeBusterDayEfficiencyReport([
+      {
+        commanderId: "missingPower",
+        memberName: "MissingPower",
+        ashedMemberId: "mp",
+        powerStartM: null,
+        powerEndM: null,
+        killsStart: null,
+        killsEnd: null,
+        vsScoreSaturday: BUSTER_DAY_BASELINE_POINTS + 2_000_000,
+      },
+      {
+        commanderId: "trueWeak",
+        memberName: "TrueWeak",
+        ashedMemberId: "tw",
+        powerStartM: 100,
+        powerEndM: 10,
+        killsStart: 0,
+        killsEnd: 1,
+        vsScoreSaturday: BUSTER_DAY_BASELINE_POINTS + 100_000,
+      },
+      {
+        commanderId: "missingVs",
+        memberName: "MissingVs",
+        ashedMemberId: "mv",
+        powerStartM: 100,
+        powerEndM: 50,
+        killsStart: 0,
+        killsEnd: 10,
+        vsScoreSaturday: null,
+      },
+    ]);
+    expect(rows.map((r) => r.commanderId)).toEqual([
+      "trueWeak",
+      "missingPower",
+      "missingVs",
+    ]);
+    expect(rows[0]?.efficiencyRatio).not.toBeNull();
+    expect(rows[1]?.efficiencyRatio).toBeNull();
+    expect(rows[2]?.efficiencyRatio).toBeNull();
   });
 });
 
