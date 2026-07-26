@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import {
   serializeTimeOffEntry,
+  timeOffEntryKindRequiresWrite,
   validateTimeOffEntryPayload,
   type TimeOffEntryPayload,
 } from "@/lib/time-off/api.shared";
@@ -99,10 +100,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  if (
-    payload.entryKind === "unexpected" ||
-    payload.entryKind === "officer_marked"
-  ) {
+  if (payload.entryKind && timeOffEntryKindRequiresWrite(payload.entryKind)) {
     const deniedWrite = await requireTimeOffWrite(sessionId);
     if (deniedWrite) return deniedWrite;
   }

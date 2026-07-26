@@ -10,6 +10,7 @@ import {
   FORM_SUBMIT_ENTER_KEY_HINT,
   preventDefaultFormSubmit,
 } from "@/lib/client/form-enter-submit.shared";
+import { canCancelTimeOffEntry } from "@/lib/time-off/api.shared";
 import type { TimeOffCalendarPayload, SerializedTimeOffEntry } from "@/lib/time-off/types.shared";
 
 type Props = {
@@ -177,8 +178,13 @@ export function TimeOffCalendarClient({ initial }: Props) {
           {selectedEntry.notes ? (
             <p className="mt-2 text-sm text-hq-fg">{selectedEntry.notes}</p>
           ) : null}
-          {(dashboard.canManageOthers ||
-            dashboard.linkedCommanderIds.includes(selectedEntry.ashedMemberId)) && (
+          {canCancelTimeOffEntry({
+            entryKind: selectedEntry.entryKind,
+            canManageOthers: dashboard.canManageOthers,
+            ownsCommander: dashboard.linkedCommanderIds.includes(
+              selectedEntry.ashedMemberId,
+            ),
+          }) ? (
             <button
               type="button"
               disabled={saving}
@@ -187,7 +193,7 @@ export function TimeOffCalendarClient({ initial }: Props) {
             >
               {t("entry.cancel")}
             </button>
-          )}
+          ) : null}
         </section>
       ) : null}
 
