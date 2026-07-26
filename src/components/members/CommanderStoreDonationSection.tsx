@@ -8,6 +8,7 @@ import {
   preventDefaultFormSubmit,
 } from "@/lib/client/form-enter-submit.shared";
 import { Link } from "@/i18n/navigation";
+import { commanderDonationStoreLaunchPath } from "@/lib/members/store-tip-launch.shared";
 
 type Props = {
   ashedMemberId: string;
@@ -38,23 +39,21 @@ export function CommanderStoreDonationSection({ ashedMemberId, canGift }: Props)
 
   if (!canGift) return null;
 
-  async function launchStore() {
+  function launchStore() {
     setLaunchBusy(true);
     setLaunchError(null);
     try {
-      const res = await fetch(`/api/members/${ashedMemberId}/donation-store`);
-      const body = (await res.json()) as { url?: string; code?: string; error?: string };
-      if (!res.ok || !body.url) {
-        if (body.code === "recipient_uid_unavailable") {
-          setLaunchError(t("donationUnavailable"));
-        } else if (body.code === "donation_store_unavailable") {
-          setLaunchError(t("donationStoreUnavailable"));
-        } else {
-          setLaunchError(body.error ?? t("donationLaunchFailed"));
-        }
+      // Open the redirect route directly — never fetch JSON `{ url }` (would
+      // put loginToken + uid into the page's JS / response body).
+      const popup = window.open(
+        commanderDonationStoreLaunchPath(ashedMemberId),
+        "_blank",
+        "noopener,noreferrer",
+      );
+      if (!popup) {
+        setLaunchError(t("donationLaunchFailed"));
         return;
       }
-      window.open(body.url, "_blank", "noopener,noreferrer");
       setConfirmOpen(false);
       setShowRecord(true);
     } catch {
@@ -132,7 +131,7 @@ export function CommanderStoreDonationSection({ ashedMemberId, canGift }: Props)
               type="button"
               disabled={launchBusy}
               className="rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-60"
-              onClick={() => void launchStore()}
+              onClick={() => launchStore()}
             >
               {launchBusy ? "…" : t("donationDialogConfirm")}
             </button>
