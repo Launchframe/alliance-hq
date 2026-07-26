@@ -221,3 +221,170 @@ export async function createVideoProcessorScenario(
 
   return { allianceId: alliance.allianceId, owner, officer, processor };
 }
+
+/** Seed additional active roster members for VS expected-row heuristics. */
+export async function seedRosterMemberBatch(
+  sql: Sql,
+  input: { allianceId: string; count: number },
+): Promise<void> {
+  const now = new Date();
+  const ashedAllianceId = `e2e-alliance-${input.allianceId}`;
+  for (let i = 0; i < input.count; i++) {
+    await sql`
+      INSERT INTO alliance_members (
+        id, alliance_id, ashed_member_id, ashed_alliance_id, current_name, status,
+        alliance_rank, synced_at, created_at, updated_at
+      ) VALUES (
+        ${nanoid(16)},
+        ${input.allianceId},
+        ${`e2e-roster-${nanoid(10)}`},
+        ${ashedAllianceId},
+        ${`Commander ${i + 1}`},
+        ${"active"},
+        ${1},
+        ${now},
+        ${now},
+        ${now}
+      )
+    `;
+  }
+}
+
+export type VsShadowWithholdFixture = {
+  groupId: string;
+  primaryJobId: string;
+  shadowJobId: string;
+  parseSessionId: string;
+};
+
+/** VS primary in review with thin parse + shadow pass still processing (withhold UX). */
+export async function createVsShadowWithholdFixture(
+  sql: Sql,
+  input: {
+    allianceId: string;
+    sessionId: string;
+    enqueuedByHqUserId: string;
+    primaryRowCount?: number;
+    shadowStatus?: string;
+  },
+): Promise<VsShadowWithholdFixture> {
+  const now = new Date();
+  const groupId = nanoid(16);
+  const primaryJobId = nanoid(16);
+  const shadowJobId = nanoid(16);
+  const parseSessionId = nanoid(16);
+  const primaryRowCount = input.primaryRowCount ?? 5;
+  const shadowStatus = input.shadowStatus ?? "parsing";
+
+  await sql`
+    INSERT INTO video_upload_groups (
+      id, session_id, alliance_id, score_target, primary_job_id,
+      selected_job_id, created_at, updated_at
+    ) VALUES (
+      ${groupId},
+      ${input.sessionId},
+      ${input.allianceId},
+      ${"vs-performance"},
+      ${primaryJobId},
+      ${primaryJobId},
+      ${now},
+      ${now}
+    )
+  `;
+
+  await sql`
+    INSERT INTO video_jobs (
+      id, session_id, status, category, score_target, alliance_id,
+      enqueued_by_hq_user_id, ingest_method, group_id, pass_role, pass_index,
+      parse_session_id, frame_count, created_at, updated_at
+    ) VALUES (
+      ${primaryJobId},
+      ${input.sessionId},
+      ${"review"},
+      ${"vs-performance"},
+      ${"vs-performance"},
+      ${input.allianceId},
+      ${input.enqueuedByHqUserId},
+      ${"video"},
+      ${groupId},
+      ${"primary"},
+      ${0},
+      ${parseSessionId},
+      ${4},
+      ${now},
+      ${now}
+    )
+  `;
+
+  await sql`
+    INSERT INTO video_jobs (
+      id, session_id, status, category, score_target, alliance_id,
+      enqueued_by_hq_user_id, ingest_method, group_id, pass_role, pass_index,
+      created_at, updated_at
+    ) VALUES (
+      ${shadowJobId},
+      ${input.sessionId},
+      ${shadowStatus},
+      ${"vs-performance"},
+      ${"vs-performance"},
+      ${input.allianceId},
+      ${input.enqueuedByHqUserId},
+      ${"video"},
+      ${groupId},
+      ${"shadow"},
+      ${1},
+      ${now},
+      ${now}
+    )
+  `;
+
+  await sql`
+    INSERT INTO parse_sessions (
+      id, job_id, session_id, score_target, alliance_id,
+      row_count, matched_count, status, created_at, updated_at
+    ) VALUES (
+      ${parseSessionId},
+      ${primaryJobId},
+      ${input.sessionId},
+      ${"vs-performance"},
+      ${input.allianceId},
+      ${primaryRowCount},
+      ${primaryRowCount},
+      ${"open"},
+      ${now},
+      ${now}
+    )
+  `;
+
+  for (let i = 0; i < primaryRowCount; i++) {
+    await sql`
+      INSERT INTO parsed_rows (
+        id, parse_session_id, ocr_name, score, rank, deleted, edited,
+        created_at, updated_at
+      ) VALUES (
+        ${nanoid(16)},
+        ${parseSessionId},
+        ${`Player ${i + 1}`},
+        ${String(1000 + i)},
+        ${i + 1},
+        ${0},
+        ${0},
+        ${now},
+        ${now}
+      )
+    `;
+  }
+
+  return { groupId, primaryJobId, shadowJobId, parseSessionId };
+}
+
+export async function setVideoJobStatus(
+  sql: Sql,
+  jobId: string,
+  status: string,
+): Promise<void> {
+  await sql`
+    UPDATE video_jobs SET status = ${status}, updated_at = ${new Date()}
+    WHERE id = ${jobId}
+  `;
+}
