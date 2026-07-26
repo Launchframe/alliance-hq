@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -13,6 +13,31 @@ import {
 } from "@/lib/storage";
 import { transcodeVideoArchiveToTemp } from "@/lib/video/archive-source";
 import { logPipelineStep } from "@/lib/video/pipeline-step-log";
+
+async function sourceStillNeededBySiblings(
+  jobId: string,
+  groupId: string | null,
+  sourceKey: string,
+): Promise<boolean> {
+  if (!groupId) return false;
+  const db = getDb();
+  const siblings = await db
+    .select({
+      storageKey: schema.videoJobs.storageKey,
+      archiveStorageKey: schema.videoJobs.archiveStorageKey,
+    })
+    .from(schema.videoJobs)
+    .where(
+      and(
+        eq(schema.videoJobs.groupId, groupId),
+        ne(schema.videoJobs.id, jobId),
+      ),
+    );
+  return siblings.some(
+    (sibling) =>
+      sibling.storageKey === sourceKey && sibling.archiveStorageKey == null,
+  );
+}
 
 export async function archiveVideoJobSource(jobId: string): Promise<void> {
   const db = getDb();
@@ -48,7 +73,18 @@ export async function archiveVideoJobSource(jobId: string): Promise<void> {
     tmpArchive = await transcodeVideoArchiveToTemp(tmpSource, jobId);
     const archiveBuffer = await fs.readFile(tmpArchive);
     await putObject(archiveKey, archiveBuffer);
-    await deleteObject(sourceKey);
+
+    // Shadow / sibling jobs often share this storageKey. Deleting while they
+    // still need the source makes early/late extraction shadows fail with no
+    // clean retry (one-shadow-per-group unique index).
+    const keepSharedSource = await sourceStillNeededBySiblings(
+      jobId,
+      job.groupId ?? null,
+      sourceKey,
+    );
+    if (!keepSharedSource) {
+      await deleteObject(sourceKey);
+    }
 
     await db
       .update(schema.videoJobs)
@@ -64,6 +100,7 @@ export async function archiveVideoJobSource(jobId: string): Promise<void> {
       jobId,
       originalBytes: originalSize,
       archiveBytes: archiveBuffer.length,
+      deletedSource: !keepSharedSource,
     });
   } finally {
     await fs.unlink(tmpSource).catch(() => undefined);

@@ -1016,8 +1016,22 @@ export async function processVideoJob(
       return timings;
     }
 
-    // Sync extraction-shadow comparison before review so polls never see a
-    // stale recommendation (shadow-first finish with empty primary baseline).
+    // Persist parseSessionId on the job before comparison sync —
+    // computePassComparison loads rows via video_jobs.parseSessionId.
+    await setStatus(
+      "review",
+      {
+        parseSessionId,
+        allianceId,
+        timingsJson: timings,
+        totalFileSizeBytes: totalFrameBytes || job.totalFileSizeBytes,
+      },
+      { rowCount, matchedCount },
+    );
+
+    // Sync extraction-shadow comparison after review so shadow-first finish
+    // recomputes against the primary's now-persisted parse session (not an
+    // empty baseline that permanently recommends the shadow pass).
     if (job.groupId) {
       try {
         if (job.passRole === "primary") {
@@ -1098,20 +1112,9 @@ export async function processVideoJob(
           }
         }
       } catch (err) {
-        console.error("[shadow-pass] pre-review comparison sync failed", err);
+        console.error("[shadow-pass] post-review comparison sync failed", err);
       }
     }
-
-    await setStatus(
-      "review",
-      {
-        parseSessionId,
-        allianceId,
-        timingsJson: timings,
-        totalFileSizeBytes: totalFrameBytes || job.totalFileSizeBytes,
-      },
-      { rowCount, matchedCount },
-    );
 
     if (allianceId) {
       const { notifyEurVideoEvidence } = await import("@/lib/eur/satisfaction");
