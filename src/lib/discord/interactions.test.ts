@@ -97,6 +97,14 @@ describe("discord interactions", () => {
       date: "2026-06-20",
       answer: "yes",
     });
+    expect(parseButtonCustomId("whois:pick:member-1")).toEqual({
+      kind: "whois_pick",
+      memberId: "member-1",
+    });
+    expect(parseButtonCustomId("whois:claim:member-1")).toEqual({
+      kind: "whois_claim",
+      memberId: "member-1",
+    });
     expect(parseButtonCustomId("other")).toBeNull();
   });
 
