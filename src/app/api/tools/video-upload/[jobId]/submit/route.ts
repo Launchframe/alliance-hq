@@ -27,6 +27,8 @@ import {
   listPriorAllianceKillsVideoMembers,
 } from "@/lib/kills/alliance-kills-video-commit.server";
 import { commitDepositSlipsFromVideoJob } from "@/lib/banks/deposit-slip-ocr/deposit-slip-video-commit.server";
+import { buildReviewOutcomePatch } from "@/lib/video/video-hygiene-instrumentation.shared";
+import { computeQualityScore } from "@/lib/video/quality-score";
 import {
   mergeDepositSlipReviewRowsForSubmit,
   validateDepositSlipReviewRows,
@@ -67,7 +69,6 @@ import {
   type SubmitContext,
 } from "@/lib/video/submit-schemas";
 import { isValidVsPerformanceRecordedDate } from "@/lib/video/vs-recorded-date.shared";
-import { computeQualityScore } from "@/lib/video/quality-score";
 import {
   isVideoJobReadyForSubmit,
   resolveVideoSubmitRollbackStatus,
@@ -396,9 +397,15 @@ export async function POST(request: Request, { params }: Props) {
         ashedConnection: await getAshedConnection(session.id),
       });
 
+      const endedAt = new Date();
+      const reviewPatch = buildReviewOutcomePatch({
+        reviewOpenedAt: job.reviewOpenedAt,
+        endedAt,
+      });
+
       await db
         .update(schema.videoJobs)
-        .set({ status: "complete", updatedAt: new Date() })
+        .set({ status: "complete", updatedAt: endedAt, ...reviewPatch })
         .where(eq(schema.videoJobs.id, jobId));
 
       await emitVideoJobStatus({
@@ -626,7 +633,13 @@ export async function POST(request: Request, { params }: Props) {
 
       await db
         .update(schema.videoJobs)
-        .set({ status: "complete", updatedAt: new Date() })
+        .set({
+          status: "complete",
+          updatedAt: new Date(),
+          ...buildReviewOutcomePatch({
+            reviewOpenedAt: job.reviewOpenedAt,
+          }),
+        })
         .where(eq(schema.videoJobs.id, jobId));
 
       await emitVideoJobStatus({
@@ -1012,13 +1025,38 @@ export async function POST(request: Request, { params }: Props) {
         .where(eq(schema.parsedRows.id, row.id));
     }
 
+    const endedAt = new Date();
+    const quality = job.parseSessionId
+      ? computeQualityScore({
+          rowsSaved,
+          rowsEdited,
+          rowsDeleted,
+          rowsAdded,
+          status: "complete",
+        })
+      : null;
+
     await db
       .update(schema.videoJobs)
       .set({
         status: "complete",
         team: submitContext.team ?? null,
         recordedDate: submitContext.recordedDate,
-        updatedAt: new Date(),
+        updatedAt: endedAt,
+        ...buildReviewOutcomePatch({
+          reviewOpenedAt: job.reviewOpenedAt,
+          endedAt,
+          ...(quality
+            ? {
+                rowsSaved,
+                rowsEdited,
+                rowsDeleted,
+                rowsAdded,
+                qualityScore: quality.qualityScore,
+                qualityBucket: quality.qualityBucket,
+              }
+            : {}),
+        }),
       })
       .where(eq(schema.videoJobs.id, jobId));
 
@@ -1034,21 +1072,8 @@ export async function POST(request: Request, { params }: Props) {
     if (job.parseSessionId) {
       await db
         .update(schema.parseSessions)
-        .set({ status: "submitted", updatedAt: new Date() })
+        .set({ status: "submitted", updatedAt: endedAt })
         .where(eq(schema.parseSessions.id, job.parseSessionId));
-
-      const { qualityScore, qualityBucket } = computeQualityScore({
-        rowsSaved,
-        rowsEdited,
-        rowsDeleted,
-        rowsAdded,
-        status: "complete",
-      });
-
-      await db
-        .update(schema.videoJobs)
-        .set({ qualityScore, qualityBucket, qualityComputedAt: new Date() })
-        .where(eq(schema.videoJobs.id, jobId));
     }
 
     // Record the batch only after local submit bookkeeping succeeds. Upstream

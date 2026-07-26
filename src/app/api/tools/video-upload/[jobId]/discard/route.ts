@@ -8,6 +8,7 @@ import { deleteObject } from "@/lib/storage";
 import { getOrCreateSession } from "@/lib/session";
 import { computeQualityScore } from "@/lib/video/quality-score";
 import { filterJobStorageKeysSafeToDelete } from "@/lib/video/shared-job-storage.server";
+import { buildReviewOutcomePatch } from "@/lib/video/video-hygiene-instrumentation.shared";
 import {
   resolveVideoJobAccess,
   videoJobAccessErrorResponse,
@@ -41,6 +42,10 @@ export async function PATCH(_request: Request, { params }: Props) {
     );
   }
 
+  let rowsSaved = 0;
+  let rowsEdited = 0;
+  let rowsDeleted = 0;
+  let rowsAdded = 0;
   let qualityScore: number | undefined;
   let qualityBucket: string | undefined;
 
@@ -55,31 +60,43 @@ export async function PATCH(_request: Request, { params }: Props) {
       .where(eq(schema.parsedRows.parseSessionId, job.parseSessionId));
 
     const activeRows = parsedRows.filter((row) => row.deleted !== 1);
+    rowsSaved = activeRows.length;
+    rowsEdited = activeRows.filter(
+      (row) => row.edited === 1 && row.manuallyAdded !== 1,
+    ).length;
+    rowsDeleted = parsedRows.filter((row) => row.deleted === 1).length;
+    rowsAdded = activeRows.filter((row) => row.manuallyAdded === 1).length;
     const result = computeQualityScore({
-      rowsSaved: activeRows.length,
-      rowsEdited: activeRows.filter(
-        (row) => row.edited === 1 && row.manuallyAdded !== 1,
-      ).length,
-      rowsDeleted: parsedRows.filter((row) => row.deleted === 1).length,
-      rowsAdded: activeRows.filter((row) => row.manuallyAdded === 1).length,
+      rowsSaved,
+      rowsEdited,
+      rowsDeleted,
+      rowsAdded,
       status: "discarded",
     });
     qualityScore = result.qualityScore;
     qualityBucket = result.qualityBucket;
   }
 
+  const endedAt = new Date();
   const [discarded] = await db
     .update(schema.videoJobs)
     .set({
       status: "discarded",
-      updatedAt: new Date(),
-      ...(qualityScore != null && qualityBucket != null
-        ? {
-            qualityScore,
-            qualityBucket,
-            qualityComputedAt: new Date(),
-          }
-        : {}),
+      updatedAt: endedAt,
+      ...buildReviewOutcomePatch({
+        reviewOpenedAt: job.reviewOpenedAt,
+        endedAt,
+        ...(qualityScore != null && qualityBucket != null
+          ? {
+              rowsSaved,
+              rowsEdited,
+              rowsDeleted,
+              rowsAdded,
+              qualityScore,
+              qualityBucket,
+            }
+          : {}),
+      }),
     })
     .where(
       and(
