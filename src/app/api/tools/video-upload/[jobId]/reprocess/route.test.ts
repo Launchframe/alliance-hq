@@ -53,6 +53,15 @@ vi.mock("@/lib/video/alliance-ocr-settings.server", () => ({
 vi.mock("@/lib/video/reset-video-job-for-reprocess", () => ({
   resetVideoJobForReprocess: (...args: unknown[]) =>
     resetVideoJobForReprocess(...args),
+  VideoJobReprocessConflictError: class VideoJobReprocessConflictError extends Error {
+    readonly statusCode = 409;
+    constructor(status: string) {
+      super(
+        `Cannot reprocess job in status "${status}" while processing is in flight.`,
+      );
+      this.name = "VideoJobReprocessConflictError";
+    }
+  },
 }));
 
 vi.mock("@/lib/video/trigger-processing", () => ({
@@ -145,5 +154,32 @@ describe("POST /api/tools/video-upload/[jobId]/reprocess", () => {
       params: Promise.resolve({ jobId: "job-x" }),
     });
     expect(res.status).toBe(403);
+  });
+
+  it("returns 409 when job is submitting", async () => {
+    getOrCreateSession.mockResolvedValue(SESSION);
+    sessionCanProcessVideo.mockResolvedValue(true);
+    selectLimit.mockResolvedValue([
+      {
+        id: "job-3",
+        allianceId: "ally-1",
+        scoreTarget: "bank-deposit-slip-history",
+        category: "bank-deposit-slip-history",
+        fileName: "slip.mp4",
+        enqueuedByHqUserId: "hq-uploader",
+        status: "submitting",
+      },
+    ]);
+
+    const res = await POST(new Request("http://localhost/reprocess"), {
+      params: Promise.resolve({ jobId: "job-3" }),
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error:
+        'Cannot reprocess job in status "submitting" while processing is in flight.',
+    });
+    expect(resetVideoJobForReprocess).not.toHaveBeenCalled();
+    expect(dispatchVideoProcessing).not.toHaveBeenCalled();
   });
 });

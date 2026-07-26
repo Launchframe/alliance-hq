@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { readSessionId } from "@/lib/session";
-import { canReprocessVideoJob } from "@/lib/video/admin-job-actions";
+import {
+  canReprocessVideoJob,
+  videoJobReprocessInFlightMessage,
+} from "@/lib/video/admin-job-actions";
 import {
   AdminReprocessError,
   adminReprocessVideoJob,
@@ -31,7 +34,7 @@ export async function POST(request: Request, { params }: Props) {
   if (!canReprocessVideoJob(access.job.status)) {
     return NextResponse.json(
       {
-        error: `Cannot reprocess job in status "${access.job.status}" while processing is in flight.`,
+        error: videoJobReprocessInFlightMessage(access.job.status),
       },
       { status: 409 },
     );

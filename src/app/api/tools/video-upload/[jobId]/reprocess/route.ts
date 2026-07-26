@@ -11,7 +11,14 @@ import {
   resolveVideoOcrEngineForJob,
 } from "@/lib/video/ocr-provider.shared";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
-import { resetVideoJobForReprocess } from "@/lib/video/reset-video-job-for-reprocess";
+import {
+  canReprocessVideoJob,
+  videoJobReprocessInFlightMessage,
+} from "@/lib/video/admin-job-actions";
+import {
+  resetVideoJobForReprocess,
+  VideoJobReprocessConflictError,
+} from "@/lib/video/reset-video-job-for-reprocess";
 import {
   isMemberRosterVideoTarget,
   isNativeOnlyVideoTarget,
@@ -55,6 +62,13 @@ export async function POST(_request: Request, { params }: Props) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
+    if (!canReprocessVideoJob(job.status)) {
+      return NextResponse.json(
+        { error: videoJobReprocessInFlightMessage(job.status) },
+        { status: 409 },
+      );
+    }
+
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
     const reviewPath = `/tools/video-upload/${jobId}/review`;
     const allianceId = job.allianceId ?? session.currentAllianceId;
@@ -82,7 +96,9 @@ export async function POST(_request: Request, { params }: Props) {
       }
     }
 
-    // Rebind OCR to the reprocessing processor's credential / session.
+    // Claim queued first so a concurrent submit cannot be half-overwritten.
+    await resetVideoJobForReprocess(jobId);
+
     await db
       .update(schema.videoJobs)
       .set({
@@ -92,8 +108,6 @@ export async function POST(_request: Request, { params }: Props) {
         updatedAt: new Date(),
       })
       .where(eq(schema.videoJobs.id, jobId));
-
-    await resetVideoJobForReprocess(jobId);
 
     await writeAuditLog({
       sessionId: session.id,
@@ -109,6 +123,9 @@ export async function POST(_request: Request, { params }: Props) {
 
     return NextResponse.json({ ok: true, jobId, status: "queued" });
   } catch (error) {
+    if (error instanceof VideoJobReprocessConflictError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Reprocess failed",

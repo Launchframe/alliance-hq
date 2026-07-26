@@ -5,7 +5,10 @@ import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
-import { canReprocessVideoJob } from "@/lib/video/admin-job-actions";
+import {
+  canReprocessVideoJob,
+  videoJobReprocessInFlightMessage,
+} from "@/lib/video/admin-job-actions";
 import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import {
   adHocReprocessCampaignName,
@@ -17,7 +20,10 @@ import {
   type AdminReprocessExtractionRequest,
   type AdminReprocessFpsAdjustment,
 } from "@/lib/video/admin-reprocess-extraction.shared";
-import { resetVideoJobForReprocess } from "@/lib/video/reset-video-job-for-reprocess";
+import {
+  resetVideoJobForReprocess,
+  VideoJobReprocessConflictError,
+} from "@/lib/video/reset-video-job-for-reprocess";
 
 export class AdminReprocessError extends Error {
   constructor(
@@ -32,7 +38,7 @@ export class AdminReprocessError extends Error {
 function assertJobCanReprocess(status: string): void {
   if (!canReprocessVideoJob(status)) {
     throw new AdminReprocessError(
-      `Cannot reprocess job in status "${status}" while processing is in flight.`,
+      videoJobReprocessInFlightMessage(status),
       409,
     );
   }
@@ -411,7 +417,14 @@ export async function adminReprocessVideoJob(params: {
       .where(eq(schema.videoJobs.id, job.id));
   }
 
-  await resetVideoJobForReprocess(job.id);
+  try {
+    await resetVideoJobForReprocess(job.id);
+  } catch (err) {
+    if (err instanceof VideoJobReprocessConflictError) {
+      throw new AdminReprocessError(err.message, 409);
+    }
+    throw err;
+  }
 
   const adjustmentLabel: AdminReprocessFpsAdjustment | "advanced" =
     resolved.source;

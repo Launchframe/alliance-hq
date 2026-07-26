@@ -24,11 +24,13 @@ describe("canReprocessVideoJob", () => {
     expect(canReprocessVideoJob("failed")).toBe(true);
     expect(canReprocessVideoJob("review")).toBe(true);
     expect(canReprocessVideoJob("queued")).toBe(true);
+    expect(canReprocessVideoJob("complete")).toBe(true);
   });
 
-  it("blocks reprocess while extracting or parsing", () => {
+  it("blocks reprocess while extracting, parsing, or submitting", () => {
     expect(canReprocessVideoJob("extracting")).toBe(false);
     expect(canReprocessVideoJob("parsing")).toBe(false);
+    expect(canReprocessVideoJob("submitting")).toBe(false);
   });
 });
 

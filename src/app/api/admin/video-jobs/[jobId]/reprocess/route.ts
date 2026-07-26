@@ -4,7 +4,10 @@ import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { readSessionId } from "@/lib/session";
-import { canReprocessVideoJob } from "@/lib/video/admin-job-actions";
+import {
+  canReprocessVideoJob,
+  videoJobReprocessInFlightMessage,
+} from "@/lib/video/admin-job-actions";
 import {
   AdminReprocessError,
   adminReprocessVideoJob,
@@ -39,7 +42,7 @@ export async function POST(request: Request, { params }: Props) {
   if (!canReprocessVideoJob(job.status)) {
     return NextResponse.json(
       {
-        error: `Cannot reprocess job in status "${job.status}" while processing is in flight.`,
+        error: videoJobReprocessInFlightMessage(job.status),
       },
       { status: 409 },
     );
