@@ -18,9 +18,9 @@ import { listDiscordLinksForStatusQuery } from "@/lib/vr/bot-member-links.server
 import { findExactMemberByName } from "@/lib/vr/link-helpers";
 import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import {
+  callerIsPlatformMaintainerViaDiscord,
   getAllianceById,
   getDiscordLinkByAllianceAndMember,
-  getLinkedMemberIds,
   listDiscordLinksForUser,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
@@ -58,6 +58,11 @@ async function ensureCallerLinked(input: {
     input.discordUserId,
   );
   if (callerLinks.length === 0) {
+    // Platform maintainers may look up / issue claim invites without a
+    // commander link in the guild alliance (parity with web invite RBAC).
+    if (await callerIsPlatformMaintainerViaDiscord(input.discordUserId)) {
+      return null;
+    }
     const reply = t("whoIs.notLinked");
     await auditWhoIs(input.allianceId, input.discordUserId, "who_is", input, {
       reply,
@@ -217,16 +222,6 @@ async function lookupByCommander(input: {
     memberId,
   );
   if (hqLink) {
-    const reply = t("whoIs.commanderHqOnly", { name: memberName });
-    await auditWhoIs(input.allianceId, input.discordUserId, "who_is", input, {
-      reply,
-      ashedMemberId: memberId,
-    });
-    return { reply };
-  }
-
-  const linkedMemberIds = await getLinkedMemberIds(input.allianceId);
-  if (linkedMemberIds.has(memberId)) {
     const reply = t("whoIs.commanderHqOnly", { name: memberName });
     await auditWhoIs(input.allianceId, input.discordUserId, "who_is", input, {
       reply,

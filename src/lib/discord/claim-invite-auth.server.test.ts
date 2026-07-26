@@ -8,15 +8,21 @@ vi.mock("@/lib/vr/bot-officer-auth", () => ({
 
 vi.mock("@/lib/vr/repository", () => ({
   callerIsAllianceOwner: vi.fn(),
+  callerIsPlatformMaintainerViaDiscord: vi.fn(),
   getAllianceById: vi.fn(),
 }));
 
 import { callerCanRunVrReport } from "@/lib/vr/bot-officer-auth";
-import { callerIsAllianceOwner, getAllianceById } from "@/lib/vr/repository";
+import {
+  callerIsAllianceOwner,
+  callerIsPlatformMaintainerViaDiscord,
+  getAllianceById,
+} from "@/lib/vr/repository";
 
 describe("callerCanIssueClaimInviteFromDiscord", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(callerIsPlatformMaintainerViaDiscord).mockResolvedValue(false);
     vi.mocked(getAllianceById).mockResolvedValue({
       inviteOnboardingMinRole: "officer",
     } as never);
@@ -30,6 +36,23 @@ describe("callerCanIssueClaimInviteFromDiscord", () => {
         discordUserId: "d1",
       }),
     ).resolves.toBe(false);
+  });
+
+  it("allows platform maintainers without owner/officer proof", async () => {
+    vi.mocked(callerIsPlatformMaintainerViaDiscord).mockResolvedValue(true);
+    vi.mocked(getAllianceById).mockResolvedValue({
+      inviteOnboardingMinRole: "owner",
+    } as never);
+
+    await expect(
+      callerCanIssueClaimInviteFromDiscord({
+        allianceId: "a1",
+        discordUserId: "d1",
+      }),
+    ).resolves.toBe(true);
+    expect(getAllianceById).not.toHaveBeenCalled();
+    expect(callerIsAllianceOwner).not.toHaveBeenCalled();
+    expect(callerCanRunVrReport).not.toHaveBeenCalled();
   });
 
   it("requires owner proof when invite onboarding is owner-only", async () => {

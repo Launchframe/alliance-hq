@@ -31,9 +31,9 @@ vi.mock("@/lib/vr/member-roster", () => ({
 }));
 
 vi.mock("@/lib/vr/repository", () => ({
+  callerIsPlatformMaintainerViaDiscord: vi.fn(),
   getAllianceById: vi.fn(),
   getDiscordLinkByAllianceAndMember: vi.fn(),
-  getLinkedMemberIds: vi.fn(),
   listDiscordLinksForUser: vi.fn(),
   writeDiscordBotAudit: vi.fn(),
 }));
@@ -52,9 +52,9 @@ import {
 import { listDiscordLinksForStatusQuery } from "@/lib/vr/bot-member-links.server";
 import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import {
+  callerIsPlatformMaintainerViaDiscord,
   getAllianceById,
   getDiscordLinkByAllianceAndMember,
-  getLinkedMemberIds,
   listDiscordLinksForUser,
 } from "@/lib/vr/repository";
 
@@ -91,7 +91,7 @@ describe("handleDiscordWhoIs", () => {
     vi.mocked(listDiscordLinksForStatusQuery).mockResolvedValue([callerLink]);
     vi.mocked(getAllianceById).mockResolvedValue({ tag: "TAG" } as never);
     vi.mocked(loadAllianceMembersForBot).mockResolvedValue(members as never);
-    vi.mocked(getLinkedMemberIds).mockResolvedValue(new Set());
+    vi.mocked(callerIsPlatformMaintainerViaDiscord).mockResolvedValue(false);
     vi.mocked(callerCanIssueClaimInviteFromDiscord).mockResolvedValue(false);
   });
 
@@ -104,6 +104,19 @@ describe("handleDiscordWhoIs", () => {
       targetDiscordUserId: "d-target",
     });
     expect(result.reply).toMatch(/link-commander/i);
+  });
+
+  it("allows platform maintainers without a commander link", async () => {
+    vi.mocked(listDiscordLinksForStatusQuery).mockResolvedValue([]);
+    vi.mocked(callerIsPlatformMaintainerViaDiscord).mockResolvedValue(true);
+    vi.mocked(listDiscordLinksForUser).mockResolvedValue([]);
+    const result = await handleDiscordWhoIs({
+      allianceId: "a1",
+      discordUserId: "d-pm",
+      locale: "en-US",
+      targetDiscordUserId: "d-target",
+    });
+    expect(result.reply).toMatch(/no linked commander/i);
   });
 
   it("returns usage when both options are provided", async () => {
@@ -212,7 +225,7 @@ describe("handleDiscordWhoIs", () => {
     });
   });
 
-  it("does not offer a claim invite to regular members", async () => {
+  it("does not offer a claim invite to regular members when Discord and HQ links miss", async () => {
     vi.mocked(getDiscordLinkByAllianceAndMember).mockResolvedValue(null as never);
     vi.mocked(getHqMemberLinkByAllianceAndMember).mockResolvedValue(null as never);
     const result = await handleDiscordWhoIs({
