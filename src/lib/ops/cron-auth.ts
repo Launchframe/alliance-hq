@@ -1,6 +1,10 @@
 import { timingSafeEqual } from "crypto";
 
-function bearerMatches(secret: string, authHeader: string | null): boolean {
+/** Timing-safe comparison of `Authorization: Bearer <secret>`. */
+export function bearerMatches(
+  secret: string,
+  authHeader: string | null,
+): boolean {
   const expected = Buffer.from(`Bearer ${secret}`, "utf8");
   const received = Buffer.from(authHeader ?? "", "utf8");
   if (expected.length !== received.length) return false;

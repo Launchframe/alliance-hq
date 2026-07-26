@@ -38,6 +38,8 @@ export async function GET(request: Request) {
       return {
         processed: 0,
         httpStatus: 503,
+        // Expected until owners configure a channel — do not page ops.
+        skipFailureAlert: true,
         error:
           "No report channels configured. Owners should run /set-vr-report-channel, or set DISCORD_GUILD_ID + DISCORD_VR_REPORT_CHANNEL_ID for legacy single-tenant.",
       };
