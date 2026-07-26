@@ -2,30 +2,28 @@ import { NextResponse } from "next/server";
 
 import { runEurTick } from "@/lib/eur/run-tick";
 import { runRosterLinkReminderPass } from "@/lib/member-link/roster-link-reminders.server";
+import { authorizeCron } from "@/lib/ops/cron-auth";
+import { runCron } from "@/lib/ops/run-cron";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-function authorize(request: Request): boolean {
-  const auth = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET?.trim();
-  if (cronSecret && auth === `Bearer ${cronSecret}`) {
-    return true;
-  }
-  const workerSecret = process.env.VIDEO_WORKER_SECRET;
-  if (workerSecret && auth === `Bearer ${workerSecret}`) {
-    return true;
-  }
-  return false;
-}
-
 export async function GET(request: Request) {
-  if (!authorize(request)) {
+  if (!authorizeCron(request, { alternateEnvKeys: ["VIDEO_WORKER_SECRET"] })) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const result = await runEurTick();
-  const rosterLinkRemindersSent = await runRosterLinkReminderPass();
-  return NextResponse.json({ ok: true, ...result, rosterLinkRemindersSent });
+  return runCron("eur-tick", async () => {
+    const result = await runEurTick();
+    const rosterLinkRemindersSent = await runRosterLinkReminderPass();
+    return {
+      ...result,
+      rosterLinkRemindersSent,
+      processed:
+        result.occurrencesCreated +
+        result.remindersMaterialized +
+        rosterLinkRemindersSent,
+    };
+  });
 }
