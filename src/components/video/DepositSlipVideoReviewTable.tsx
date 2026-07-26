@@ -741,7 +741,10 @@ export function DepositSlipVideoReviewTable({
                       {canPreview ? (
                         <button
                           type="button"
-                          onClick={() => onPreviewFrame?.(row.frameIndex)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onPreviewFrame?.(row.frameIndex);
+                          }}
                           className="rounded-md border border-hq-border p-1.5 text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg"
                           aria-label={t("rowVideoPreview")}
                         >
@@ -750,7 +753,10 @@ export function DepositSlipVideoReviewTable({
                       ) : null}
                       <button
                         type="button"
-                        onClick={() => onDeleteRow(row.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onDeleteRow(row.id);
+                        }}
                         className="inline-flex size-8 items-center justify-center rounded-md border border-hq-border text-hq-danger hover:bg-[#f8514910]"
                         aria-label={t("deleteRow")}
                         title={t("deleteRow")}
