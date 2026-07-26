@@ -276,6 +276,7 @@
       "audit": "Audit log",
       "videoJobs": "Video jobs",
       "videoJobAnalytics": "Analytics",
+      "videoLearning": "Video learning",
       "parseConfigs": "Parse configs",
       "experiments": "Experiments",
       "hqEvents": "HQ events",
@@ -1156,6 +1157,54 @@
         "dailyTrend": "Daily trend",
         "empty": "No Tessaract bbox evaluations in this window."
       }
+    },
+    "videoLearningPage": {
+      "title": "Video learning",
+      "subtitle": "Closed-loop hygiene coaching and extraction adapt for video officers.",
+      "daysLabel": "Days",
+      "searchLabel": "Officer",
+      "searchPlaceholder": "Name or email",
+      "loading": "Loading…",
+      "refresh": "Refresh",
+      "loadFailed": "Failed to load video learning data.",
+      "empty": "No officers with video jobs in this window.",
+      "closeDetail": "Close detail",
+      "thrashTitle": "Thrash signals",
+      "thrashEmpty": "No thrash signals for this officer.",
+      "rewardsTitle": "Rewards by score target",
+      "eventsTitle": "Coach / adapt events",
+      "eventsEmpty": "No coach or adapt events yet.",
+      "jobsTitle": "Recent jobs",
+      "kpi": {
+        "officers": "Officers",
+        "improving": "Improving",
+        "regressing": "Regressing",
+        "flat": "Flat",
+        "adaptBias": "Adapt bias on",
+        "thrashFlags": "Thrash flags"
+      },
+      "col": {
+        "officer": "Officer",
+        "jobs": "Jobs",
+        "thumbsUp": "Thumbs-up",
+        "quality": "Avg quality",
+        "reviewMs": "Review time",
+        "direction": "Direction",
+        "adapt": "Adapt overlays",
+        "flags": "Flags",
+        "target": "Score target"
+      },
+      "direction": {
+        "improving": "Improving",
+        "flat": "Flat",
+        "regressing": "Regressing"
+      },
+      "thrash": {
+        "adapt_oscillation": "Adapt oscillation",
+        "coach_spam": "Coach spam",
+        "worsening_after_adapt": "Worsening after adapt",
+        "cross_signal_conflict": "Cross-signal conflict"
+      }
     }
   },
   "team": {
@@ -1552,6 +1601,7 @@
         "audit": "Audit log",
         "videoJobs": "Video jobs",
         "videoJobAnalytics": "Video job analytics",
+        "videoLearning": "Video learning",
         "parseConfigs": "Parse configs",
         "experiments": "Experiments",
         "hqEvents": "HQ events",

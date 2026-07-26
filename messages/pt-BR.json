@@ -287,6 +287,7 @@
       "closeSections": "Fechar menu admin",
       "sectionsTitle": "Seções",
       "videoJobAnalytics": "Análises",
+      "videoLearning": "Aprendizado de vídeo",
       "parseConfigs": "Configurações de análise",
       "experiments": "Experimentos"
     },
@@ -1156,6 +1157,54 @@
         "dailyTrend": "Tendência diária",
         "empty": "Nenhuma avaliação Tessaract bbox neste período."
       }
+    },
+    "videoLearningPage": {
+      "title": "Aprendizado de vídeo",
+      "subtitle": "Ciclo fechado de coaching de higiene e adaptação de extração para oficiais de vídeo.",
+      "daysLabel": "Dias",
+      "searchLabel": "Oficial",
+      "searchPlaceholder": "Nome ou e-mail",
+      "loading": "Carregando…",
+      "refresh": "Atualizar",
+      "loadFailed": "Falha ao carregar dados de aprendizado de vídeo.",
+      "empty": "Nenhum oficial com trabalhos de vídeo neste período.",
+      "closeDetail": "Fechar detalhe",
+      "thrashTitle": "Sinais de thrashing",
+      "thrashEmpty": "Nenhum sinal de thrashing para este oficial.",
+      "rewardsTitle": "Recompensas por alvo de pontuação",
+      "eventsTitle": "Eventos de coach / adapt",
+      "eventsEmpty": "Ainda não há eventos de coach ou adapt.",
+      "jobsTitle": "Trabalhos recentes",
+      "kpi": {
+        "officers": "Oficiais",
+        "improving": "Melhorando",
+        "regressing": "Piorando",
+        "flat": "Estável",
+        "adaptBias": "Viés adaptativo ligado",
+        "thrashFlags": "Flags de thrashing"
+      },
+      "col": {
+        "officer": "Oficial",
+        "jobs": "Trabalhos",
+        "thumbsUp": "Polegar para cima",
+        "quality": "Qualidade média",
+        "reviewMs": "Tempo de revisão",
+        "direction": "Direção",
+        "adapt": "Overlays adaptativos",
+        "flags": "Flags",
+        "target": "Alvo de pontuação"
+      },
+      "direction": {
+        "improving": "Melhorando",
+        "flat": "Estável",
+        "regressing": "Piorando"
+      },
+      "thrash": {
+        "adapt_oscillation": "Oscilação de adapt",
+        "coach_spam": "Spam de coach",
+        "worsening_after_adapt": "Piora após adapt",
+        "cross_signal_conflict": "Conflito entre sinais"
+      }
     }
   },
   "team": {
@@ -1552,6 +1601,7 @@
         "audit": "Registro de auditoria",
         "videoJobs": "Trabalhos de vídeo",
         "videoJobAnalytics": "Análise de trabalhos de vídeo",
+        "videoLearning": "Aprendizado de vídeo",
         "parseConfigs": "Configs de parse",
         "experiments": "Experimentos",
         "hqEvents": "Eventos HQ",

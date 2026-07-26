@@ -9,6 +9,7 @@ export const ADMIN_LINKS = [
   { href: "/admin/audit", labelKey: "audit" as const },
   { href: "/admin/video-jobs", labelKey: "videoJobs" as const },
   { href: "/admin/video-jobs/analytics", labelKey: "videoJobAnalytics" as const },
+  { href: "/admin/video-learning", labelKey: "videoLearning" as const },
   { href: "/admin/parse-configs", labelKey: "parseConfigs" as const },
   { href: "/admin/experiments", labelKey: "experiments" as const },
   { href: "/admin/hq-events", labelKey: "hqEvents" as const },
