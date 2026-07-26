@@ -3535,3 +3535,59 @@ export const memberTimeOff = pgTable(
 );
 
 export type MemberTimeOff = typeof memberTimeOff.$inferSelect;
+
+/** Ops alert history (Discord/email fan-out + incoming webhook relays). */
+export const opsEvents = pgTable(
+  "ops_events",
+  {
+    id: text("id").primaryKey(),
+    severity: text("severity").notNull(),
+    source: text("source").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    fingerprint: text("fingerprint"),
+    sentryEventId: text("sentry_event_id"),
+    channelStatus: jsonb("channel_status").$type<Record<string, boolean>>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("ops_events_severity_created_at_idx").on(
+      table.severity,
+      table.createdAt,
+    ),
+    index("ops_events_fingerprint_created_at_idx").on(
+      table.fingerprint,
+      table.createdAt,
+    ),
+    index("ops_events_created_at_idx").on(table.createdAt),
+  ],
+);
+
+export type OpsEvent = typeof opsEvents.$inferSelect;
+
+/** Internal cron execution history for /admin/ops. */
+export const cronRuns = pgTable(
+  "cron_runs",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    status: text("status").notNull(),
+    errorClass: text("error_class"),
+    errorMessage: text("error_message"),
+    processed: integer("processed"),
+    durationMs: integer("duration_ms"),
+  },
+  (table) => [
+    index("cron_runs_name_started_at_idx").on(table.name, table.startedAt),
+    index("cron_runs_status_idx").on(table.status),
+    index("cron_runs_started_at_idx").on(table.startedAt),
+  ],
+);
+
+export type CronRun = typeof cronRuns.$inferSelect;
