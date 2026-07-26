@@ -16,6 +16,7 @@ export type ServerEligibilityResult =
       kind: "rejected";
       reason:
         | "user_claimed_lookup_home"
+        | "known_home_mismatch"
         | "missing_server"
         | "alliance_server_unknown";
     };
@@ -35,12 +36,18 @@ export function resolveMemberLinkServerEligibility(input: {
   const lookupServer = input.lookupServer ?? null;
   const knownHome = input.knownCommanderHomeServer ?? null;
 
-  if (input.allianceHomeConfirmed && allianceServer != null) {
-    return { kind: "eligible", reason: "user_confirmed_alliance_home" };
-  }
-
   if (allianceServer == null) {
     return { kind: "rejected", reason: "alliance_server_unknown" };
+  }
+
+  // HQ already recorded a different home server for this UID — hard reject.
+  // Position match and honor-system confirm must not override known home.
+  if (knownHome != null && knownHome !== allianceServer) {
+    return { kind: "rejected", reason: "known_home_mismatch" };
+  }
+
+  if (input.allianceHomeConfirmed) {
+    return { kind: "eligible", reason: "user_confirmed_alliance_home" };
   }
 
   if (knownHome != null && knownHome === allianceServer) {

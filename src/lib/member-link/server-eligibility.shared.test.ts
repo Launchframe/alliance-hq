@@ -48,6 +48,27 @@ describe("resolveMemberLinkServerEligibility", () => {
     ).toEqual({ kind: "eligible", reason: "user_confirmed_alliance_home" });
   });
 
+  it("rejects when known commander home differs from alliance (true home mismatch)", () => {
+    expect(
+      resolveMemberLinkServerEligibility({
+        lookupServer: 1211,
+        allianceServer: 1211,
+        knownCommanderHomeServer: 1288,
+      }),
+    ).toEqual({ kind: "rejected", reason: "known_home_mismatch" });
+  });
+
+  it("rejects known home mismatch even after honor-system alliance confirm", () => {
+    expect(
+      resolveMemberLinkServerEligibility({
+        lookupServer: 1288,
+        allianceServer: 1211,
+        knownCommanderHomeServer: 1288,
+        allianceHomeConfirmed: true,
+      }),
+    ).toEqual({ kind: "rejected", reason: "known_home_mismatch" });
+  });
+
   it("rejects when user claims lookup position is home", () => {
     expect(
       resolveMemberLinkServerEligibility({
