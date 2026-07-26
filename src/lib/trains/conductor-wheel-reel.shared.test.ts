@@ -102,6 +102,20 @@ describe("restingShareViewport", () => {
     expect(viewport.names).toHaveLength(5);
     expect(viewport.names[viewport.winnerIndex]).toBe(winner.memberName);
   });
+
+  it("adjusts winnerIndex when front-padding a short early-reel slice", () => {
+    const session = {
+      items: ["Alpha", "Winner", "Bravo"],
+      winnerIdx: 1,
+      fastEndY: 0,
+      targetY: 0,
+      key: "early",
+    };
+    const viewport = restingShareViewport(session);
+    expect(viewport.names).toHaveLength(5);
+    expect(viewport.names[viewport.winnerIndex]).toBe("Winner");
+    expect(viewport.winnerIndex).toBe(2);
+  });
 });
 
 describe("buildShareViewportForWinner", () => {
@@ -125,5 +139,16 @@ describe("buildShareViewportForWinner", () => {
     const viewport = buildShareViewportForWinner(winner, [winner]);
     expect(viewport.names).toHaveLength(5);
     expect(viewport.names[viewport.winnerIndex]).toBe("Solo");
+  });
+
+  it("keeps winnerIndex aligned when padding a one-alternate roster", () => {
+    const winner = { memberId: "w", memberName: "Winner" };
+    const viewport = buildShareViewportForWinner(winner, [
+      winner,
+      { memberId: "a", memberName: "Alpha" },
+    ]);
+    expect(viewport.names).toHaveLength(5);
+    expect(viewport.names[viewport.winnerIndex]).toBe("Winner");
+    expect(viewport.winnerIndex).toBe(2);
   });
 });

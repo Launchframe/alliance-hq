@@ -133,34 +133,43 @@ export function restingViewportNames(
   return session.items.slice(start, start + visible);
 }
 
-function padShareViewportNames(
-  names: string[],
-  winnerIndex: number,
-  targetLength: number,
-): string[] {
-  if (names.length >= targetLength) return names;
-  const padded = [...names];
-  while (padded.length < targetLength) {
-    if (winnerIndex > 0) {
-      padded.unshift(padded[0]!);
-    } else {
-      padded.push(padded[padded.length - 1]!);
-    }
-  }
-  return padded.slice(0, targetLength);
-}
-
+/**
+ * Pad a short share viewport to `surroundingCount + 1` slots while keeping the
+ * winner near center. Front-padding must bump `winnerIndex` so the highlight
+ * stays on the winner name.
+ */
 function finalizeShareViewport(
   names: string[],
   winnerIndex: number,
   surroundingCount: number,
 ): { names: string[]; winnerIndex: number } {
   const targetLength = surroundingCount + 1;
-  const padded =
-    names.length < targetLength
-      ? padShareViewportNames(names, winnerIndex, targetLength)
-      : names;
-  return { names: padded.slice(0, targetLength), winnerIndex };
+  if (names.length >= targetLength) {
+    return { names: names.slice(0, targetLength), winnerIndex };
+  }
+
+  const desiredWinnerIndex = Math.ceil(surroundingCount / 2);
+  const padded = [...names];
+  let adjustedWinnerIndex = winnerIndex;
+
+  // Pad above until the winner sits at the centered slot (or we run out of room).
+  while (
+    adjustedWinnerIndex < desiredWinnerIndex &&
+    padded.length < targetLength
+  ) {
+    padded.unshift(padded[0]!);
+    adjustedWinnerIndex += 1;
+  }
+
+  // Pad below (or further above if still short and winner is already centered).
+  while (padded.length < targetLength) {
+    padded.push(padded[padded.length - 1]!);
+  }
+
+  return {
+    names: padded.slice(0, targetLength),
+    winnerIndex: adjustedWinnerIndex,
+  };
 }
 
 /** Winner plus surrounding names for share images (default: 2 above + 2 below). */

@@ -188,6 +188,7 @@ export function ConductorWheelModal({
         vsLeaderboardScore: (score, suffix) =>
           t("share.eligibilityVsLeaderboardScore", { score, suffix }),
       },
+      locale,
     );
   }, [
     winner,
@@ -196,6 +197,7 @@ export function ConductorWheelModal({
     qualification,
     showScoreValidation,
     rankedCandidates,
+    locale,
     t,
   ]);
 

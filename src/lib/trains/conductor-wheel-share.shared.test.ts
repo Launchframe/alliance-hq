@@ -89,4 +89,9 @@ describe("formatWheelShareScore", () => {
     expect(formatWheelShareScore(7_250_000)).toBe("7.3M");
     expect(formatWheelShareScore(7_200_000)).toBe("7.2M");
   });
+
+  it("uses the active locale for sub-thousand grouping", () => {
+    expect(formatWheelShareScore(999, "en-US")).toBe("999");
+    expect(formatWheelShareScore(999, "pt-BR")).toBe("999");
+  });
 });

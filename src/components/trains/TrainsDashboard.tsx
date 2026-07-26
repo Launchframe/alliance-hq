@@ -1499,6 +1499,7 @@ export function TrainsDashboard({ initial }: Props) {
           vsLeaderboardScore: (score, suffix) =>
             t("wheel.share.eligibilityVsLeaderboardScore", { score, suffix }),
         },
+        locale,
       );
       const blob = await renderConductorWheelSharePngBlob({
         title: t("wheel.title"),

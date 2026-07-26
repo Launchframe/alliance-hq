@@ -28,7 +28,10 @@ export type WheelShareEligibility =
     }
   | null;
 
-export function formatWheelShareScore(score: number): string {
+export function formatWheelShareScore(
+  score: number,
+  locale = "en-US",
+): string {
   if (score >= 1_000_000) {
     const millions = score / 1_000_000;
     return Number.isInteger(millions)
@@ -36,11 +39,14 @@ export function formatWheelShareScore(score: number): string {
       : `${millions.toFixed(1)}M`;
   }
   if (score >= 1_000) return `${Math.round(score / 1_000)}K`;
-  return score.toLocaleString("en-US");
+  return score.toLocaleString(locale);
 }
 
-export function formatWheelSharePoints(score: number): string {
-  return `${formatWheelShareScore(score)} pts`;
+export function formatWheelSharePoints(
+  score: number,
+  locale = "en-US",
+): string {
+  return `${formatWheelShareScore(score, locale)} pts`;
 }
 
 function vsLeaderboardSuffix(
@@ -115,29 +121,30 @@ export type WheelShareEligibilityLabels = {
 export function formatWheelShareEligibilityLine(
   eligibility: WheelShareEligibility,
   labels: WheelShareEligibilityLabels,
+  locale = "en-US",
 ): string | null {
   if (!eligibility) return null;
   switch (eligibility.kind) {
     case "vs_minimum":
       return labels.vsMinimum(
-        formatWheelSharePoints(eligibility.score),
-        formatWheelSharePoints(eligibility.minimum),
+        formatWheelSharePoints(eligibility.score, locale),
+        formatWheelSharePoints(eligibility.minimum, locale),
       );
     case "tpif":
       return labels.tpif(
-        formatWheelSharePoints(eligibility.score),
-        formatWheelSharePoints(eligibility.sweetSpot),
+        formatWheelSharePoints(eligibility.score, locale),
+        formatWheelSharePoints(eligibility.sweetSpot, locale),
       );
     case "vs_leaderboard":
       if (eligibility.rank != null && eligibility.rank >= 1) {
         return labels.vsLeaderboardRank(
           eligibility.rank,
-          formatWheelShareScore(eligibility.score),
+          formatWheelShareScore(eligibility.score, locale),
           eligibility.suffix,
         );
       }
       return labels.vsLeaderboardScore(
-        formatWheelShareScore(eligibility.score),
+        formatWheelShareScore(eligibility.score, locale),
         eligibility.suffix,
       );
     default:
