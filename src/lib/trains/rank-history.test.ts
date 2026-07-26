@@ -20,7 +20,7 @@ describe("resolveMemberPoolAllianceRank", () => {
     ashedRankRaw: "R3",
   } as unknown as AllianceMember;
 
-  it("uses the higher of HQ rank events and synced roster rank", () => {
+  it("prefers HQ rank events over a stale higher synced roster rank", () => {
     expect(
       resolveMemberPoolAllianceRank(baseMember, { allianceRank: 4 }),
     ).toBe(4);
@@ -28,6 +28,15 @@ describe("resolveMemberPoolAllianceRank", () => {
       resolveMemberPoolAllianceRank(
         { ...baseMember, allianceRank: 4 } as AllianceMember,
         { allianceRank: 3 },
+      ),
+    ).toBe(3);
+  });
+
+  it("falls back to synced roster rank when no HQ event exists", () => {
+    expect(
+      resolveMemberPoolAllianceRank(
+        { ...baseMember, allianceRank: 4, ashedRankRaw: "R4" } as AllianceMember,
+        undefined,
       ),
     ).toBe(4);
   });
