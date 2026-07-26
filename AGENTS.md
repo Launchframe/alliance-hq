@@ -51,6 +51,19 @@ Before wiring a client component to shared logic, trace the import chain:
 
 **Smell:** a new `lib/` helper imported by both a page client component and an API route — split it immediately; do not re-export server code from the same barrel the client uses.
 
+## Observability and alerting
+
+Production ops visibility uses **Sentry** (stack traces), **`GET /api/health`** (uptime monitors), and **`sendOpsAlert`** in [`src/lib/ops/alert.server.ts`](src/lib/ops/alert.server.ts) (Discord ops webhook + platform-maintainer email). See [docs/ops/triage.md](docs/ops/triage.md) and the **triage** Cursor skill ([`.cursor/skills/triage/SKILL.md`](.cursor/skills/triage/SKILL.md)).
+
+**Privacy guardrails (non-negotiable for ops telemetry):**
+
+- Never log or alert on Last War `game_uid`, Ashed JWTs / connection keys, session cookies (`alliance_hq_session`, `authjs.session-token`), or raw emails.
+- Shared scrubber [`src/lib/observability/scrub.ts`](src/lib/observability/scrub.ts) is used by Sentry `beforeSend` and the alert dispatcher.
+- Health checks and ops events must not include user identifiers beyond hashed/internal IDs when absolutely necessary; prefer `alliance_id` / `ashed_member_id`.
+- `E2E_TEST=true` skips outbound Discord/email alerts but still persists `ops_events` rows for CI.
+
+**When investigating production issues:** use `npm run ops:health`, `npm run ops:errors`, and `npm run ops:crons`. Admin ops dashboard: `/admin/ops`.
+
 ## Real Steel review focus
 
 Apply on every Real Steel pass for this repo:
