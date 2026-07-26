@@ -3535,3 +3535,22 @@ export const memberTimeOff = pgTable(
 );
 
 export type MemberTimeOff = typeof memberTimeOff.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Platform release notes (runtime store; authored in docs/release-notes/)
+// ---------------------------------------------------------------------------
+
+export const hqReleaseNotes = pgTable("hq_release_notes", {
+  version: text("version").primaryKey(),
+  title: text("title").notNull(),
+  summary: text("summary").notNull(),
+  bodyMarkdown: text("body_markdown").notNull(),
+  breaking: jsonb("breaking").$type<string[]>(),
+  maintainerNotes: jsonb("maintainer_notes").$type<string[]>(),
+  shippedAt: timestamp("shipped_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export type HqReleaseNote = typeof hqReleaseNotes.$inferSelect;

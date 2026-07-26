@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * Publish shipped release notes to Vercel Edge Config.
+ * Publish shipped release notes to Postgres.
  *
  * Usage:
  *   npm run release-notes:publish
@@ -12,7 +12,7 @@ import path from "node:path";
 
 import "./load-env";
 
-import { publishReleaseNotesToEdgeConfig } from "../../src/lib/release-notes/publish";
+import { publishReleaseNotesToDatabase } from "../../src/lib/release-notes/publish";
 import { readPackageVersion } from "../../src/lib/release-notes/package-version-io";
 
 function parseArgs(argv: string[]) {
@@ -42,7 +42,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const packageVersion = readPackageVersion(repoRoot);
 
-  const result = await publishReleaseNotesToEdgeConfig({
+  const result = await publishReleaseNotesToDatabase({
     repoRoot,
     dryRun: args.dryRun,
     requirePackageVersion: args.skipRequirePackageVersion
@@ -56,7 +56,7 @@ async function main() {
   }
 
   console.log(
-    `Published ${result.entries.length} release note entries to Edge Config key ${result.edgeConfigKey}`,
+    `Published ${result.entries.length} release note entries to Postgres`,
   );
 }
 

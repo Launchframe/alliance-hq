@@ -2,12 +2,11 @@ import fs from "node:fs";
 
 import type { ReleaseNoteEntry, ReleaseNoteFrontmatter } from "./types";
 import {
-  HQ_RELEASE_NOTES_EDGE_CONFIG_KEY,
   RELEASE_NOTE_SECTION_HEADINGS,
   RELEASE_NOTES_DIR,
 } from "./types";
 
-export { HQ_RELEASE_NOTES_EDGE_CONFIG_KEY, RELEASE_NOTES_DIR };
+export { RELEASE_NOTES_DIR };
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 
@@ -225,7 +224,7 @@ function buildPublicBodyMarkdown(body: string): string {
   return buildReleaseNoteBodyMarkdown({ summary, breaking, maintainerNotes });
 }
 
-/** Reconstruct /releases markdown from distilled fields (Edge Config omits bodyMarkdown). */
+/** Reconstruct public release-note markdown from distilled fields. */
 export function buildReleaseNoteBodyMarkdown(parts: {
   summary: string;
   breaking?: string[];
@@ -251,47 +250,6 @@ export function buildReleaseNoteBodyMarkdown(parts: {
   }
 
   return sections.join("\n\n").trim();
-}
-
-export type ReleaseNoteEdgeEntry = Omit<ReleaseNoteEntry, "bodyMarkdown">;
-
-/** Drop duplicated bodyMarkdown before Edge Config publish (64 KiB item limit). */
-export function compactReleaseNoteForEdgeConfig(
-  entry: ReleaseNoteEntry,
-): ReleaseNoteEdgeEntry {
-  const { bodyMarkdown: _bodyMarkdown, ...compact } = entry;
-  return compact;
-}
-
-export function hydrateReleaseNoteEntry(
-  entry: ReleaseNoteEntry | ReleaseNoteEdgeEntry,
-): ReleaseNoteEntry {
-  if (
-    "bodyMarkdown" in entry &&
-    typeof entry.bodyMarkdown === "string" &&
-    entry.bodyMarkdown.length > 0
-  ) {
-    return entry;
-  }
-
-  const { version, title, summary, shippedAt, breaking, maintainerNotes } =
-    entry;
-
-  return {
-    version,
-    title,
-    summary,
-    bodyMarkdown: buildReleaseNoteBodyMarkdown({
-      summary,
-      breaking,
-      maintainerNotes,
-    }),
-    ...(shippedAt ? { shippedAt } : {}),
-    ...(breaking && breaking.length > 0 ? { breaking } : {}),
-    ...(maintainerNotes && maintainerNotes.length > 0
-      ? { maintainerNotes }
-      : {}),
-  };
 }
 
 export function distillReleaseNoteMarkdown(

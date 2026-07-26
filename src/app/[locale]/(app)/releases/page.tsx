@@ -1,7 +1,7 @@
 import { getTranslations } from "next-intl/server";
 
 import { ReleaseNoteMarkdown } from "@/components/release-notes/ReleaseNoteMarkdown";
-import { loadReleaseNotesFromEdgeConfig } from "@/lib/release-notes/edge-config";
+import { loadReleaseNotesFromDatabase } from "@/lib/release-notes/db";
 import { compareAppVersions } from "@/lib/release-notes/version";
 import { requirePageSession } from "@/lib/session";
 
@@ -15,7 +15,7 @@ export async function generateMetadata() {
 export default async function ReleasesPage() {
   await requirePageSession("/releases");
   const t = await getTranslations("releaseNotes");
-  const entries = [...(await loadReleaseNotesFromEdgeConfig())].sort((a, b) =>
+  const entries = [...(await loadReleaseNotesFromDatabase())].sort((a, b) =>
     compareAppVersions(b.version, a.version),
   );
 
