@@ -466,6 +466,19 @@ export const videoJobs = pgTable("video_jobs", {
   rating: text("rating"),
   ratingAt: timestamp("rating_at", { withTimezone: true }),
   ratingReason: text("rating_reason"),
+  /** HQ user who submitted the post-review OCR thumbs rating. */
+  ratedByHqUserId: text("rated_by_hq_user_id").references(() => hqUsers.id, {
+    onDelete: "set null",
+  }),
+  /** First time an officer opened the review UI for this job (idempotent). */
+  reviewOpenedAt: timestamp("review_opened_at", { withTimezone: true }),
+  /** Officer review latency: submit/discard time − reviewOpenedAt (ms). */
+  reviewDurationMs: integer("review_duration_ms"),
+  /** Row correction counts stamped with quality at submit/discard. */
+  reviewRowsSaved: integer("review_rows_saved"),
+  reviewRowsEdited: integer("review_rows_edited"),
+  reviewRowsDeleted: integer("review_rows_deleted"),
+  reviewRowsAdded: integer("review_rows_added"),
   qualityScore: real("quality_score"),
   qualityBucket: text("quality_bucket"),
   qualityComputedAt: timestamp("quality_computed_at", { withTimezone: true }),
@@ -570,6 +583,39 @@ export const videoJobSurveys = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [unique("video_job_surveys_job_id_unique").on(table.jobId)],
+);
+
+/**
+ * Append-only coach/adapt decision events for the video hygiene learning loop.
+ * Written by later slices; instrumentation lands the table for the admin dashboard.
+ */
+export const videoHygieneEvents = pgTable(
+  "video_hygiene_events",
+  {
+    id: text("id").primaryKey(),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    scoreTarget: text("score_target").notNull(),
+    kind: text("kind").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>(),
+    jobId: text("job_id").references(() => videoJobs.id, {
+      onDelete: "set null",
+    }),
+    allianceId: text("alliance_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    userTargetCreatedIdx: index(
+      "video_hygiene_events_user_target_created_idx",
+    ).on(table.hqUserId, table.scoreTarget, table.createdAt),
+    kindCreatedIdx: index("video_hygiene_events_kind_created_idx").on(
+      table.kind,
+      table.createdAt,
+    ),
+  }),
 );
 
 export const parseSessions = pgTable("parse_sessions", {
@@ -1645,6 +1691,7 @@ export type DiscordGuildAlliance = typeof discordGuildAlliances.$inferSelect;
 export type AllianceAshedCredential = typeof allianceAshedCredentials.$inferSelect;
 export type DiscordUserPref = typeof discordUserPrefs.$inferSelect;
 export type VideoJobSurvey = typeof videoJobSurveys.$inferSelect;
+export type VideoHygieneEvent = typeof videoHygieneEvents.$inferSelect;
 
 /** Locally synced Ashed roster — normalized ranks for trains and Members UI. */
 export const allianceMembers = pgTable(
