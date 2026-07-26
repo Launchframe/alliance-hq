@@ -27,6 +27,7 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
 (Paths: `video-process/queue`, `vr/daily-report`, `season-sync`, `train/departing-soon`, `cron/eur-tick`.)
 
 4. For video queue — also check `VIDEO_WORKER_SECRET` / `VIDEO_WORKER_BASE_URL` and worker host health.
+5. **`degraded` status** (no alert): `vr-daily-report` returns HTTP 503 when no Discord report channel is configured — expected until an owner runs `/set-vr-report-channel`. Other cron HTTP ≥500 responses (e.g. video worker 502) **do** alert and record `failure`.
 
 ## 5xx spike
 
