@@ -1,0 +1,90 @@
+---
+description: Trains conductor/VIP/date/wizard UX invariants — prevent day-vs-week and lifecycle thrash
+globs:
+  - src/lib/trains/**
+  - src/components/trains/**
+  - src/app/api/trains/**
+  - .cursor/rules/trains*
+  - .cursor/skills/trains-feature/**
+---
+
+# Trains conductor UX invariants
+
+Hard product rules. Prefer these over older skill/docs text when they conflict. **Confirm with the maintainer** before changing any of these.
+
+See also: [trains.mdc](./trains.mdc), [trains-simple-advanced-modes.mdc](./trains-simple-advanced-modes.mdc).
+
+## Terminology
+
+| Term | Means | Do not confuse with |
+|------|--------|---------------------|
+| **Week template** | Whole-week / multi-day paint; may be **composite** (e.g. `vs_push_week`) | A single day's conductor mechanism |
+| **Day conductor pick** / day paint | One day's conductor (+ VIP) mechanism from `DAY_PAINT_TEMPLATES` | Week template names that contain "week" |
+| **Lock** | `lockedAt` — conductor boarded / train spawned | VIP assignment |
+
+Guided flow first row: **"This day's conductor pick"** — never label it "Week template".
+
+## Day paint vs week templates (exclusive)
+
+Canonical lists: `DAY_PAINT_TEMPLATES` vs selectable week/composites in `paint-templates.shared.ts` + `week-template-registry.shared.ts`.
+
+| Surface | Options |
+|---------|---------|
+| Month — **one** day selected | Day mechanisms only — **no** composites |
+| Month — **multiple** days | Week templates (composites OK) |
+| Week strip — **Week template** control | Week / composite templates |
+| Week strip — long-press / change day | Day mechanisms for that date only |
+| Guided **"Change pick"** | **This day** via `DayMechanismPickerDialog` — never `WeekTemplatePickerDialog` |
+
+- Do **not** put composites (e.g. `vs_push_week`) in single-day pickers.
+- Day-painted mechanism **sticks** unless impossible for that server date (e.g. TPIF on Monday bounces; Saturday **day** TPIF must not auto-rewrite to the week’s heavy-hitter segment).
+- Changing a day’s conductor mechanism **releases** any unlocked pending conductor/VIP draft so the officer can spin again under the new mechanism.
+
+## Lifecycle: conductor → lock → VIP
+
+In-game: conductor boards (lock/spawn) **before** VIP can board.
+
+- Guided order: `… → conductor → lock → vip → done` (`guided-flow.shared.ts` / `currentGuidedStep`).
+- VIP assign/spin requires `lockedAt`. Server: `assignVipOnLockedConductor`; client gates: `canSpinVipForDay` / manual VIP only when locked.
+- Do **not** put VIP before lock in UI, skill, or docs.
+
+## Dates (server calendar)
+
+- “Today” / eligibility uses **game server calendar** (`game-time`, UTC−2), not the browser local date.
+- **Monday:** no prior-day VS for any conductor mechanism (Sunday is the VS break).
+- **Sunday** draws that need prior-day VS use **Saturday** (Enemy Buster Day).
+- **Manual picks** (e.g. `r3_recognition`) are never blocked on missing/low VS scores.
+- `r3_recognition` is **manual award only** — no R3 pool wheel.
+
+## Swap / make-up day
+
+- Source: unlocked draft with a conductor (`canStartConductorSwap`).
+- Targets: **strictly after** server today; never past or same day.
+- Quick picks: next **3** unlocked future days (`conductorSwapCandidates`) — **may cross week boundaries**.
+- Offer a date picker for farther future dates.
+- Do **not** hide Swap on the last day of the current week.
+- Both days must be unlocked (`swapConductors`).
+
+## Week strip
+
+- Every day tile always shows the conductor name or **"—"** (not only when selected).
+- Long-press day paint uses `DAY_PAINT_TEMPLATES`.
+
+## Share image
+
+- Share → generate PNG → **preview** → **Copy Media** / **Download** / Close. Never auto-download on Share click.
+- Re-export from guided Conductor step and advanced Today’s Conductor when a conductor exists (pending or locked).
+- Frame: winner + surrounding pool names + confetti; eligibility stats when the draw required a score threshold; locale-format large numbers.
+
+## Wizard recovery (stay on `/trains`)
+
+- Roster/pool blockers: in-flow Ashed sync when alliance + session allow; **Members** CTA only as last resort.
+- Sync/upload dialogs: loading → success/error → next-step CTAs; refresh guided step state after success.
+- `WheelBlockedDialog` CTAs must match the real blocker (upload prior-day VS vs sync roster vs reseed) — not a generic Members link when scores or Ashed sync would unblock.
+- Disqualified-winner UI only when that mechanism actually required VS. If the wizard skipped scores (e.g. R4), do not show VS disqualification for a 0-score roster.
+
+## Before implementing UX changes
+
+1. Read this rule, `trains-simple-advanced-modes.mdc`, and `guided-flow.shared.ts` / swap / paint-template tests.
+2. If changing step order, date eligibility, day/week paint lists, or share/swap flows — **confirm with the maintainer first**.
+3. Update this rule in the same PR when product intent changes.
