@@ -7,6 +7,7 @@ import { getDb, schema } from "@/lib/db";
 import { deleteObject } from "@/lib/storage";
 import { getOrCreateSession } from "@/lib/session";
 import { computeQualityScore } from "@/lib/video/quality-score";
+import { filterJobStorageKeysSafeToDelete } from "@/lib/video/shared-job-storage.server";
 import {
   resolveVideoJobAccess,
   videoJobAccessErrorResponse,
@@ -107,11 +108,16 @@ export async function PATCH(_request: Request, { params }: Props) {
     errorMessage: null,
   });
 
-  const keysToDelete = new Set<string>();
-  if (job.storageKey) keysToDelete.add(job.storageKey);
-  if (job.archiveStorageKey) keysToDelete.add(job.archiveStorageKey);
+  // Early/late pass siblings share storageKey. Do not delete the upload while
+  // another living sibling still needs it for preview / reprocess / archive.
+  const keysToDelete = await filterJobStorageKeysSafeToDelete({
+    jobId,
+    groupId: job.groupId ?? null,
+    storageKey: job.storageKey ?? null,
+    archiveStorageKey: job.archiveStorageKey ?? null,
+  });
   await Promise.all(
-    [...keysToDelete].map((key) => deleteObject(key).catch(() => undefined)),
+    keysToDelete.map((key) => deleteObject(key).catch(() => undefined)),
   );
 
   return NextResponse.json({ ok: true });
