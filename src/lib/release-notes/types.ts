@@ -22,8 +22,6 @@ export type CompiledReleaseNoteDraft = {
   frontmatterStatus: "ready";
 };
 
-export const HQ_RELEASE_NOTES_EDGE_CONFIG_KEY = "hqReleaseNotes";
-
 export const RELEASE_NOTES_DIR = "docs/release-notes";
 
 export const RELEASE_NOTE_SECTION_HEADINGS = {

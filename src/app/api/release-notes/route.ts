@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { APP_VERSION } from "@/lib/feedback/constants";
-import { loadReleaseNotesFromEdgeConfig } from "@/lib/release-notes/edge-config";
+import { loadReleaseNotesFromDatabase } from "@/lib/release-notes/db";
 import { filterReleaseNotesSince } from "@/lib/release-notes/version";
 import {
   getAshedConnection,
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
   const currentVersion = rawCurrent || "unknown";
   const since = url.searchParams.get("since")?.trim() || undefined;
 
-  const notes = await loadReleaseNotesFromEdgeConfig();
+  const notes = await loadReleaseNotesFromDatabase();
   const entries = filterReleaseNotesSince(notes, since, currentVersion);
 
   return NextResponse.json({

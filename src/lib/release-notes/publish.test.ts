@@ -2,19 +2,30 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { compactReleaseNoteForEdgeConfig } from "./markdown";
 import {
   collectShippedReleaseNoteEntries,
-  HQ_RELEASE_NOTES_EDGE_CONFIG_MAX_BYTES,
+  publishReleaseNotesToDatabase,
 } from "./publish";
 
-describe("publishReleaseNotesToEdgeConfig payload", () => {
-  it("compact entries stay under the Edge Config item size limit", () => {
-    const repoRoot = path.resolve(import.meta.dirname, "../..");
+describe("publishReleaseNotesToDatabase", () => {
+  it("collects shipped markdown entries", () => {
+    const repoRoot = path.resolve(import.meta.dirname, "../../..");
     const entries = collectShippedReleaseNoteEntries(repoRoot);
-    const compact = entries.map(compactReleaseNoteForEdgeConfig);
-    const payloadBytes = Buffer.byteLength(JSON.stringify(compact), "utf8");
 
-    expect(payloadBytes).toBeLessThan(HQ_RELEASE_NOTES_EDGE_CONFIG_MAX_BYTES);
+    expect(entries.length).toBeGreaterThan(0);
+    expect(entries.every((entry) => entry.version && entry.title)).toBe(true);
+    expect(entries.every((entry) => entry.bodyMarkdown.length > 0)).toBe(true);
+  });
+
+  it("dry-run returns distilled entries without requiring DATABASE_URL", async () => {
+    const repoRoot = path.resolve(import.meta.dirname, "../../..");
+    const result = await publishReleaseNotesToDatabase({
+      repoRoot,
+      dryRun: true,
+      requirePackageVersion: null,
+    });
+
+    expect(result.dryRun).toBe(true);
+    expect(result.entries.length).toBeGreaterThan(0);
   });
 });

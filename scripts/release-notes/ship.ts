@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * Ship a production release: bump version, publish Edge Config, Discord, tag.
+ * Ship a production release: bump version, publish Postgres, Discord, tag.
  *
  * Usage:
  *   npm run release:ship -- --dry-run
@@ -27,7 +27,7 @@ import {
   extractTagDiffReleaseInputs,
   resolveLatestTag,
 } from "../../src/lib/release-notes/git";
-import { publishReleaseNotesToEdgeConfig } from "../../src/lib/release-notes/publish";
+import { publishReleaseNotesToDatabase } from "../../src/lib/release-notes/publish";
 import {
   parseReleaseNoteMarkdown,
   readReleaseNoteFile,
@@ -292,7 +292,7 @@ async function main() {
     console.log(noteContent.split("\n").slice(0, 12).join("\n"));
     console.log("\n--- GitHub release notes preview ---");
     console.log(githubNotes);
-    console.log(`\nWould publish Edge Config, Discord, and tag v${nextVersion}`);
+    console.log(`\nWould publish Postgres, Discord, and tag v${nextVersion}`);
     return;
   }
 
@@ -302,7 +302,7 @@ async function main() {
   try {
     let publishedEntry;
     if (!args.skipPublish) {
-      const publishResult = await publishReleaseNotesToEdgeConfig({
+      const publishResult = await publishReleaseNotesToDatabase({
         repoRoot,
         requirePackageVersion: nextVersion,
       });
@@ -323,7 +323,7 @@ async function main() {
       const releasesUrl = resolveReleaseNotesPageUrl();
       const entry =
         publishedEntry ??
-        (await publishReleaseNotesToEdgeConfig({
+        (await publishReleaseNotesToDatabase({
           repoRoot,
           dryRun: true,
         })).entries.find((item) => item.version === nextVersion);

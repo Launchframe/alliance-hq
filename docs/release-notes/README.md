@@ -1,6 +1,6 @@
 # Alliance HQ release notes
 
-Author release notes in markdown under this directory, compile them from git history, publish to Vercel Edge Config, and ship with Discord announcements.
+Author release notes in markdown under this directory, compile them from git history, publish to Postgres, and ship with Discord announcements.
 
 ## Workflow
 
@@ -25,7 +25,7 @@ Author release notes in markdown under this directory, compile them from git his
    npm run release:ship -- --yes
    ```
 
-   This bumps `package.json`, marks the note `shipped`, publishes all shipped notes to Edge Config (`hqReleaseNotes`), posts to Discord, commits, pushes, and creates a GitHub release tag.
+   This bumps `package.json`, marks the note `shipped`, upserts all shipped notes into Postgres (`hq_release_notes`), posts to Discord, commits, pushes, and creates a GitHub release tag.
 
 ## Frontmatter
 
@@ -47,10 +47,9 @@ Author release notes in markdown under this directory, compile them from git his
 
 | Variable | Purpose |
 |----------|---------|
-| `EDGE_CONFIG` | Runtime read on Vercel |
-| `EDGE_CONFIG_ID` + `VERCEL_API_TOKEN` | Publish during ship |
+| `DATABASE_URL` | Runtime read + publish upserts |
 | `DISCORD_BOT_TOKEN` + `DISCORD_RELEASE_NOTES_CHANNEL_ID` | Discord announcement |
-| `NEXT_PUBLIC_APP_URL` | Link to `/releases` in Discord |
+| `NEXT_PUBLIC_APP_URL` | Link to `/releases` in Discord (ship falls back to production origin) |
 
 Ship/publish scripts load `.env`, then `.env.local` (and `.env.development.local` in non-production), same as `db:migrate`.
 
@@ -59,6 +58,14 @@ Ship/publish scripts load `.env`, then `.env.local` (and `.env.development.local
 ```bash
 npm run release-notes:publish -- --all-shipped
 npm run release:notify-discord
+```
+
+## Local / fresh database sync
+
+After `db:migrate`, local DBs start with an empty `hq_release_notes` table. Sync from shipped markdown:
+
+```bash
+npm run release-notes:publish -- --all-shipped
 ```
 
 ## Backfill (one-time)
