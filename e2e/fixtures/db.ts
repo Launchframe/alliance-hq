@@ -315,6 +315,7 @@ export async function acceptInviteViaApi(
   email: string,
   next?: string,
   sessionId?: string,
+  passphrase?: string,
 ): Promise<{
   sessionId: string;
   redirectTo: string;
@@ -329,8 +330,30 @@ export async function acceptInviteViaApi(
     browserSessionId = fixture.sessionId;
     nextAuthToken = fixture.nextAuthToken;
   } else if (!nextAuthToken) {
-    const authUser = await createHqUserOnly(sql, email);
-    nextAuthToken = authUser.nextAuthToken;
+    const [sessionRow] = await sql<
+      Array<{
+        hqUserId: string;
+        email: string;
+        displayName: string | null;
+      }>
+    >`
+      SELECT s.hq_user_id AS "hqUserId", u.email, u.display_name AS "displayName"
+      FROM sessions s
+      INNER JOIN hq_users u ON u.id = s.hq_user_id
+      WHERE s.id = ${browserSessionId}
+      LIMIT 1
+    `;
+
+    if (sessionRow?.hqUserId) {
+      nextAuthToken = await encodeNextAuthSessionToken({
+        hqUserId: sessionRow.hqUserId,
+        email: sessionRow.email,
+        name: sessionRow.displayName ?? "E2E User",
+      });
+    } else {
+      const authUser = await createHqUserOnly(sql, email);
+      nextAuthToken = authUser.nextAuthToken;
+    }
   }
 
   const res = await fetch(`${baseURL}/api/invite/${encodeURIComponent(token)}/accept`, {
@@ -346,6 +369,7 @@ export async function acceptInviteViaApi(
       email,
       displayName: "E2E User",
       next,
+      passphrase,
     }),
   });
 

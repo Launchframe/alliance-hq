@@ -9,6 +9,7 @@ import type {
   InviteWizardTargets,
   InviteWizardType,
 } from "@/lib/settings/invite-wizard.shared";
+import { isValidDiscordUserId } from "@/lib/native-alliance/discord-officer-invite.shared";
 import { isValidInviteEmail } from "@/lib/settings/invite-wizard.shared";
 
 type CommanderRow = { ashedMemberId: string; name: string };
@@ -42,6 +43,7 @@ export async function generateInviteWizardResult(input: {
   const { type, targets, allianceName, commanders } = input;
 
   if (type === "invite_link") {
+    const isDiscordOfficer = targets.inviteLinkSubtype === "discord_officer";
     const res = await fetch("/api/settings/team/invites", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -51,7 +53,10 @@ export async function generateInviteWizardResult(input: {
           targets.inviteLinkSubtype === "email"
             ? targets.inviteEmail.trim()
             : undefined,
-        roleName: targets.inviteRole,
+        roleName: isDiscordOfficer ? "officer" : targets.inviteRole,
+        targetDiscordUserId: isDiscordOfficer
+          ? targets.inviteDiscordUserId.trim()
+          : undefined,
         redirectPath: targets.inviteRedirectPath.trim() || undefined,
         adminLabel: targets.inviteAdminLabel.trim() || undefined,
       }),
@@ -226,6 +231,12 @@ export function validateInviteWizardStep2(input: {
   const { type, targets } = input;
 
   if (type === "invite_link") {
+    if (targets.inviteLinkSubtype === "discord_officer") {
+      if (!isValidDiscordUserId(targets.inviteDiscordUserId)) {
+        return "inviteDiscordUserIdRequired";
+      }
+      return null;
+    }
     if (targets.inviteRole === "") {
       return "inviteRoleRequired";
     }

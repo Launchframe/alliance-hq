@@ -9,6 +9,11 @@ import {
   type CommanderClaimInviteError,
 } from "./invites";
 
+vi.mock("@/lib/auth/discord-hq-link.server", () => ({
+  getDiscordProviderAccountIdForHqUser: vi.fn(),
+  syncDiscordHqLinkFromSignedInUser: vi.fn().mockResolvedValue({ ok: true }),
+}));
+
 vi.mock("@/lib/vr/repository", () => ({
   getLinkedMemberIds: vi.fn().mockResolvedValue(new Set<string>()),
 }));
@@ -144,6 +149,80 @@ describe("createHqInvite", () => {
     ).rejects.toMatchObject({
       code: "commander_already_claimed",
     } satisfies Partial<CommanderClaimInviteError>);
+  });
+
+  it("rejects discord officer invites without a target Discord user ID", async () => {
+    let selectCalls = 0;
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(() => {
+              selectCalls += 1;
+              if (selectCalls === 1) {
+                return Promise.resolve([{ id: "role-officer" }]);
+              }
+              if (selectCalls === 2) {
+                return Promise.resolve([{ id: "alliance-1" }]);
+              }
+              return Promise.resolve([]);
+            }),
+          })),
+        })),
+      })),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+        })),
+      })),
+    } as never);
+
+    await expect(
+      createHqInvite({
+        allianceId: "alliance-1",
+        kind: "discord_officer",
+        roleName: "officer",
+        invitedByHqUserId: "user-1",
+        origin: "https://hq.test",
+      }),
+    ).rejects.toThrow("A valid Discord user ID is required.");
+  });
+
+  it("rejects discord officer invites for non-officer roles", async () => {
+    let selectCalls = 0;
+    vi.mocked(getDb).mockReturnValue({
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(() => {
+              selectCalls += 1;
+              if (selectCalls === 1) {
+                return Promise.resolve([{ id: "role-member" }]);
+              }
+              if (selectCalls === 2) {
+                return Promise.resolve([{ permissionId: "members:read" }]);
+              }
+              if (selectCalls === 3) {
+                return Promise.resolve([{ id: "alliance-1" }]);
+              }
+              return Promise.resolve([]);
+            }),
+          })),
+        })),
+      })),
+      insert: vi.fn(() => ({ values: vi.fn().mockResolvedValue(undefined) })),
+    } as never);
+
+    await expect(
+      createHqInvite({
+        allianceId: "alliance-1",
+        kind: "discord_officer",
+        roleName: "member",
+        targetDiscordUserId: "12345678901234567",
+        invitedByHqUserId: "user-1",
+        origin: "https://hq.test",
+      }),
+    ).rejects.toThrow("Discord officer invites must use the officer role.");
   });
 
   it("rejects claim invites for former roster commanders", async () => {
