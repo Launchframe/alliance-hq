@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import { serializeDiscordMemberLinkForOfficerApi } from "@/lib/vr/discord-member-link-api.shared";
 import {
   deleteDiscordMemberLink,
   listDiscordMemberLinks,
@@ -31,7 +32,11 @@ export async function GET() {
   }
 
   const links = await listDiscordMemberLinks(allianceId);
-  return NextResponse.json({ links });
+  // Officers may manage Discord↔commander bindings, but must not receive
+  // plaintext player UIDs (credential-grade). See player-uid-privacy.
+  return NextResponse.json({
+    links: links.map(serializeDiscordMemberLinkForOfficerApi),
+  });
 }
 
 export async function POST(request: Request) {
@@ -64,7 +69,9 @@ export async function POST(request: Request) {
     gameUid,
   });
 
-  return NextResponse.json({ link });
+  return NextResponse.json({
+    link: serializeDiscordMemberLinkForOfficerApi(link),
+  });
 }
 
 export async function DELETE(request: Request) {
