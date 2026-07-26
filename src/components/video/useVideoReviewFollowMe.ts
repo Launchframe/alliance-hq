@@ -68,6 +68,36 @@ export function useVideoReviewFollowMe<TRow extends Row>({
     [registry],
   );
 
+  const rowsRef = useRef(rows);
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
+
+  /**
+   * Seek (and highlight) a specific row while Follow-me is on — used when the
+   * officer clicks a result row or focuses a field inside it.
+   */
+  const activateFollowMeRow = useCallback(
+    (rowId: string) => {
+      if (!enabled) return;
+      const row = rowsRef.current.find((candidate) => candidate.id === rowId);
+      if (!row) return;
+      const seconds = secondsForRowRef.current(row);
+      if (rowId !== activeFollowMeRowIdRef.current) {
+        activeFollowMeRowIdRef.current = rowId;
+        setActiveFollowMeRowId(rowId);
+      }
+      if (seconds == null) return;
+      const last = lastSeekedSecondsRef.current;
+      if (last != null && Math.abs(last - seconds) < SEEK_EPSILON_SECONDS) {
+        return;
+      }
+      lastSeekedSecondsRef.current = seconds;
+      onSeekSecondsRef.current(seconds);
+    },
+    [enabled],
+  );
+
   useEffect(() => {
     if (!enabled) {
       lastSeekedSecondsRef.current = null;
@@ -180,5 +210,5 @@ export function useVideoReviewFollowMe<TRow extends Row>({
     registry,
   ]);
 
-  return { registerFollowAnchor, activeFollowMeRowId };
+  return { registerFollowAnchor, activeFollowMeRowId, activateFollowMeRow };
 }
