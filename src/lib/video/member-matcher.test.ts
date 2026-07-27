@@ -102,6 +102,22 @@ describe("short-name member auto-match (shared import + video)", () => {
     expect(match.memberId).toBeNull();
     expect(match.matchMethod).toBe("none");
   });
+
+  it("includeFormer matches leavers and prefers active on conflict", () => {
+    const roster: AshedMember[] = [
+      { id: "active", current_name: "Happy", status: "active" },
+      { id: "former", current_name: "Happytokill", status: "former" },
+      { id: "gone", current_name: "Leaver", status: "former" },
+    ];
+    const withFormer = matchAllNames(["Leaver", "Happy"], roster, {
+      includeFormer: true,
+    });
+    expect(withFormer[0]?.memberId).toBe("gone");
+    expect(withFormer[1]?.memberId).toBe("active");
+
+    const activeOnly = matchAllNames(["Leaver"], roster);
+    expect(activeOnly[0]?.memberId).toBeNull();
+  });
 });
 
 describe("matchAllNames", () => {

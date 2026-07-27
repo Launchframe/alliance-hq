@@ -3,8 +3,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { Link, useRouter } from "@/i18n/navigation";
 import { AppSelect } from "@/components/ui/AppSelect";
-import { Dialog } from "@/components/ui/dialog";
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 import {
   classifyHistoryImportRow,
@@ -24,9 +24,10 @@ import {
 } from "@/lib/video/member-matcher";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
 
-type RosterMember = {
+export type HistoryImportRosterMember = {
   memberId: string;
   memberName: string;
+  inactive?: boolean;
 };
 
 type ReviewRow = InterpolatedHistoryRow & {
@@ -38,22 +39,19 @@ type ReviewRow = InterpolatedHistoryRow & {
 };
 
 type Props = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   today: string;
-  roster: RosterMember[];
-  onImported: () => void;
+  roster: HistoryImportRosterMember[];
 };
 
 function newRowKey(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function toAshedMembers(roster: RosterMember[]): AshedMember[] {
+function toAshedMembers(roster: HistoryImportRosterMember[]): AshedMember[] {
   return roster.map((member) => ({
     id: member.memberId,
     current_name: member.memberName,
-    status: "active",
+    status: member.inactive ? "former" : "active",
   }));
 }
 
@@ -63,6 +61,8 @@ function historyImportStatusBadgeClass(
   switch (status) {
     case "ready":
       return "border-hq-success/40 bg-hq-success/15 text-hq-success";
+    case "inactive_member":
+      return "border-hq-accent/40 bg-hq-accent/15 text-hq-accent";
     case "overwrite_draft":
       return "border-hq-accent/40 bg-hq-accent/15 text-hq-accent";
     case "already_locked":
@@ -83,14 +83,9 @@ function historyImportStatusBadgeClass(
   }
 }
 
-export function ConductorHistoryImportDialog({
-  open,
-  onOpenChange,
-  today,
-  roster,
-  onImported,
-}: Props) {
+export function ConductorHistoryImportClient({ today, roster }: Props) {
   const t = useTranslations("trains.historyImport");
+  const router = useRouter();
   const [step, setStep] = useState<"paste" | "review">("paste");
   const [pasteText, setPasteText] = useState("");
   const [firstDate, setFirstDate] = useState("");
@@ -106,35 +101,32 @@ export function ConductorHistoryImportDialog({
   const [committing, setCommitting] = useState(false);
 
   const ashedMembers = useMemo(() => toAshedMembers(roster), [roster]);
-  const defaultYear = Number.parseInt(today.slice(0, 4), 10) || 2026;
-
-  const reset = useCallback(() => {
-    setStep("paste");
-    setPasteText("");
-    setFirstDate("");
-    setLastDate("");
-    setLines([]);
-    setRows([]);
-    setExistingByDate(new Map());
-    setHasGap(false);
-    setError(null);
-    setBusy(false);
-    setCommitting(false);
-  }, []);
-
-  const handleOpenChange = useCallback(
-    (next: boolean) => {
-      if (!next) reset();
-      onOpenChange(next);
-    },
-    [onOpenChange, reset],
+  const selectMembers = useMemo(
+    () =>
+      ashedMembers.map((member) => ({
+        id: member.id,
+        current_name: member.current_name,
+        previous_names: member.previous_names,
+        inactive: member.status === "former",
+      })),
+    [ashedMembers],
   );
+  const inactiveById = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const member of roster) {
+      map.set(member.memberId, Boolean(member.inactive));
+    }
+    return map;
+  }, [roster]);
+  const defaultYear = Number.parseInt(today.slice(0, 4), 10) || 2026;
 
   const statusLabel = useCallback(
     (row: ReviewRow) => {
       switch (row.status) {
         case "ready":
           return t("status.ok");
+        case "inactive_member":
+          return t("status.inactiveMember");
         case "already_locked":
           return t("status.alreadyLocked");
         case "conflict_locked":
@@ -176,9 +168,10 @@ export function ConductorHistoryImportDialog({
         flags: row.flags,
         memberId,
         blank: row.blank,
+        memberInactive: memberId ? inactiveById.get(memberId) === true : false,
         existing: row.date ? existingMap.get(row.date) : undefined,
       }),
-    [],
+    [inactiveById],
   );
 
   const buildReviewFromLines = useCallback(
@@ -218,6 +211,7 @@ export function ConductorHistoryImportDialog({
       const matches = matchAllNames(
         interpolated.map((row) => row.name),
         ashedMembers,
+        { includeFormer: true },
       );
 
       setLines(nextLines);
@@ -334,23 +328,31 @@ export function ConductorHistoryImportDialog({
       if (!res.ok) {
         throw new Error(body.error ?? t("commitFailed"));
       }
-      onImported();
-      handleOpenChange(false);
+      router.push("/trains");
+      router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : t("commitFailed"));
     } finally {
       setCommitting(false);
     }
-  }, [commitableRows, committing, handleOpenChange, onImported, t]);
+  }, [commitableRows, committing, router, t]);
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={handleOpenChange}
-      title={t("title")}
-      className="max-w-[min(96vw,56rem)]"
-    >
-      <div className="space-y-4">
+    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6">
+      <div>
+        <Link
+          href="/trains"
+          className="text-sm text-hq-accent hover:underline"
+          data-testid="trains-history-import-back"
+        >
+          ← {t("backToTrains")}
+        </Link>
+        <h1 className="mt-4 text-2xl font-semibold text-hq-fg">
+          {t("pageTitle")}
+        </h1>
+      </div>
+
+      <div className="space-y-4 rounded-2xl border border-hq-border bg-hq-surface p-5">
         {step === "paste" ? (
           <form
             className="space-y-4"
@@ -365,7 +367,7 @@ export function ConductorHistoryImportDialog({
               <textarea
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
-                rows={12}
+                rows={14}
                 className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 font-mono text-sm text-hq-fg"
                 data-testid="trains-history-import-paste"
               />
@@ -396,13 +398,12 @@ export function ConductorHistoryImportDialog({
               </p>
             ) : null}
             <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => handleOpenChange(false)}
+              <Link
+                href="/trains"
                 className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg hover:bg-hq-canvas"
               >
                 {t("cancel")}
-              </button>
+              </Link>
               <button
                 type="submit"
                 disabled={busy || !pasteText.trim()}
@@ -439,10 +440,11 @@ export function ConductorHistoryImportDialog({
               </div>
               <ul className="divide-y divide-hq-border">
                 {rows.map((row) => {
-                  const options = buildMemberMatchSelectOptions(ashedMembers, {
+                  const options = buildMemberMatchSelectOptions(selectMembers, {
                     emptyLabel: t("status.unmatched"),
                     highlightMemberId: row.memberId,
                     highlightConfidence: row.confidence,
+                    inactiveOptionSuffix: t("inactiveOptionSuffix"),
                   });
                   const insertCount = row.anchorConflict?.missingDayCount ?? 0;
                   const highlight =
@@ -544,13 +546,12 @@ export function ConductorHistoryImportDialog({
                 {t("back")}
               </button>
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleOpenChange(false)}
+                <Link
+                  href="/trains"
                   className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg hover:bg-hq-canvas"
                 >
                   {t("cancel")}
-                </button>
+                </Link>
                 <button
                   type="submit"
                   disabled={
@@ -571,6 +572,6 @@ export function ConductorHistoryImportDialog({
           </form>
         )}
       </div>
-    </Dialog>
+    </div>
   );
 }

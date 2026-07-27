@@ -32,6 +32,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "nav.myKills": seq("g", "8"),
   "nav.professions": seq("g", "'"),
   "nav.trains": seq("g", "t"),
+  "nav.trainsHistoryImport": seq("g", "t", "i"),
   "nav.battlePlan": seq("g", "h"),
   "nav.timeOff": seq("g", "w"),
   "nav.bankManagement": seq("g", "9"),

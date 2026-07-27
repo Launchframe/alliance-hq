@@ -153,6 +153,7 @@ test.describe("Conductor history import", () => {
     await page.goto("/trains");
     await page.getByTestId("trains-history-import-open").scrollIntoViewIfNeeded();
     await page.getByTestId("trains-history-import-open").click();
+    await expect(page).toHaveURL(/\/trains\/history-import/);
 
     await page.getByTestId("trains-history-import-paste").fill(
       `${fixture.memberA.name}\n${fixture.memberB.name}`,
@@ -213,6 +214,7 @@ test.describe("Conductor history import", () => {
     await page.context().addCookies(fixture.cookies);
     await page.goto("/trains");
     await page.getByTestId("trains-history-import-open").click();
+    await expect(page).toHaveURL(/\/trains\/history-import/);
     await page.getByTestId("trains-history-import-paste").fill(fixture.memberB.name);
     await page.locator('input[type="date"]').nth(0).fill(targetDate);
     await page.locator('input[type="date"]').nth(1).fill(targetDate);
@@ -243,5 +245,70 @@ test.describe("Conductor history import", () => {
     const body = (await importRes.json()) as { conflicts: number; imported: number };
     expect(body.conflicts).toBe(1);
     expect(body.imported).toBe(0);
+  });
+
+  test("imports a former roster member and keeps denormalized name after churn", async ({
+    page,
+    request,
+  }) => {
+    const fixture = await setupHistoryImportOfficer(request);
+    const targetDate = addCalendarDays(fixture.today, -2);
+    test.skip(
+      targetDate >= fixture.today,
+      "Need a past calendar day for former import.",
+    );
+
+    const sql = getE2eSql();
+    await sql`
+      UPDATE alliance_members
+      SET status = 'former'
+      WHERE ashed_member_id = ${fixture.memberB.ashedMemberId}
+    `;
+
+    await page.context().addCookies(fixture.cookies);
+    await page.goto("/trains/history-import");
+    await page.getByTestId("trains-history-import-paste").fill(
+      `${fixture.memberA.name}\n${fixture.memberB.name}`,
+    );
+    const newest = addCalendarDays(fixture.today, -2);
+    const oldest = addCalendarDays(fixture.today, -3);
+    await page.locator('input[type="date"]').nth(0).fill(newest);
+    await page.locator('input[type="date"]').nth(1).fill(oldest);
+    await page.getByTestId("trains-history-import-review").click();
+
+    await expect(page.getByTestId("trains-history-import-row-0")).toHaveAttribute(
+      "data-status",
+      "ready",
+    );
+    await expect(page.getByTestId("trains-history-import-row-1")).toHaveAttribute(
+      "data-status",
+      "inactive_member",
+    );
+    await page.getByTestId("trains-history-import-commit").click();
+
+    await expect
+      .poll(async () => {
+        const res = await request.get(
+          `/api/trains/conductor/history-import?start=${encodeURIComponent(oldest)}&end=${encodeURIComponent(newest)}`,
+          { headers: { Cookie: fixture.cookieHeader } },
+        );
+        if (!res.ok()) return null;
+        const body = (await res.json()) as {
+          records: Array<{
+            date: string;
+            lockedAt: string | null;
+            conductorMemberId: string | null;
+            conductorMemberName: string | null;
+          }>;
+        };
+        const byDate = new Map(body.records.map((r) => [r.date, r]));
+        const formerDay = byDate.get(oldest);
+        return (
+          Boolean(formerDay?.lockedAt) &&
+          formerDay?.conductorMemberId === fixture.memberB.ashedMemberId &&
+          formerDay?.conductorMemberName === fixture.memberB.name
+        );
+      })
+      .toBeTruthy();
   });
 });

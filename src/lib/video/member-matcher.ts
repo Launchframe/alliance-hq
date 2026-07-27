@@ -30,6 +30,8 @@ export type MemberMatch = {
 
 export type MemberMatchOptions = {
   allianceTag?: string | null;
+  /** When true, former roster members participate in matching (history import). */
+  includeFormer?: boolean;
 };
 
 /** Fuzzy name similarity floor below which `matchMemberName` returns "none". */
@@ -164,13 +166,25 @@ function findUniqueSubstringMember(
     }
   }
 
-  if (matches.size !== 1) return null;
-  return [...matches.values()][0] ?? null;
+  if (matches.size === 1) return [...matches.values()][0] ?? null;
+
+  // Prefer a single active member when both active and former would match.
+  const activeOnly = [...matches.values()].filter(
+    (row) => row.member.status !== "former",
+  );
+  if (activeOnly.length === 1) return activeOnly[0] ?? null;
+
+  return null;
 }
 
-export function buildMemberIndex(members: AshedMember[]) {
+export function buildMemberIndex(
+  members: AshedMember[],
+  options?: { includeFormer?: boolean },
+) {
   const exact = new Map<string, AshedMember>();
-  const active = members.filter((m) => m.status !== "former");
+  const active = members.filter((m) =>
+    options?.includeFormer ? true : m.status !== "former",
+  );
 
   for (const member of active) {
     exact.set(normalizeForMatch(member.current_name), member);
@@ -216,6 +230,7 @@ export function matchMemberName(
 
   let best: AshedMember | null = null;
   let bestScore = 0;
+  let bestIsFormer = false;
   for (const member of index.active) {
     const candidates = [
       member.current_name,
@@ -225,9 +240,14 @@ export function matchMemberName(
       // Pure Levenshtein only — containment is handled by the unique-substring
       // pass above so ambiguous short names (two "Happy*" roster rows) stay unmatched.
       const score = similarity(normalized, normalizeForMatch(candidate));
-      if (score > bestScore) {
+      const isFormer = member.status === "former";
+      if (
+        score > bestScore ||
+        (score === bestScore && bestIsFormer && !isFormer)
+      ) {
         bestScore = score;
         best = member;
+        bestIsFormer = isFormer;
       }
     }
   }
@@ -256,7 +276,9 @@ export function matchAllNames(
   members: AshedMember[],
   options?: MemberMatchOptions,
 ): MemberMatch[] {
-  const index = buildMemberIndex(members);
+  const index = buildMemberIndex(members, {
+    includeFormer: options?.includeFormer === true,
+  });
   return ocrNames.map((name) => matchMemberName(name, index, options));
 }
 

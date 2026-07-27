@@ -1522,6 +1522,7 @@
         "myKills": "Go to My Kills",
         "professions": "Go to Profession",
         "trains": "Go to Alliance Train",
+        "trainsHistoryImport": "Import conductor history",
         "battlePlan": "Go to Battle Plan",
         "timeOff": "Go to Time Off",
         "bankManagement": "Go to Bank Management",
@@ -3702,6 +3703,7 @@
       "colStatus": "Status",
       "status": {
         "ok": "Ready to lock",
+        "inactiveMember": "Matched to an inactive member",
         "alreadyLocked": "Already locked (same conductor)",
         "conflictLocked": "Locked to a different conductor",
         "unmatched": "Pick a roster member",
@@ -3714,6 +3716,7 @@
       "gapBanner": "One or more labeled dates don’t match list order. Insert blank rows before each flagged row to acknowledge missing conductors (Event mail is only kept ~30 days), then continue.",
       "blankName": "(unknown)",
       "fillGap": "Fill gap",
+      "inactiveOptionSuffix": "(inactive)",
       "colActions": "Actions",
       "commit": "Lock imported days",
       "commitPartial": "Lock {count} ready days",
@@ -3723,6 +3726,8 @@
       "success": "Imported {imported}, skipped {skipped}, conflicts {conflicts}",
       "openAction": "Import history",
       "emptyCta": "Import past conductors",
+      "pageTitle": "Import conductor history",
+      "backToTrains": "Back to Trains",
       "cancel": "Cancel",
       "back": "Back"
     },

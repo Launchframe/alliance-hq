@@ -368,10 +368,22 @@ describe("classifyHistoryImportRow", () => {
       }),
     ).toBe("blank");
 
+    expect(
+      classifyHistoryImportRow({
+        date: "2026-06-01",
+        flags: [],
+        memberId: "m-former",
+        memberInactive: true,
+        existing: undefined,
+      }),
+    ).toBe("inactive_member");
+
     expect(historyImportRowIsCommitable("ready")).toBe(true);
+    expect(historyImportRowIsCommitable("inactive_member")).toBe(true);
     expect(historyImportRowIsCommitable("overwrite_draft")).toBe(true);
     expect(historyImportRowIsCommitable("conflict_locked")).toBe(false);
     expect(historyImportRowIsCommitable("already_locked")).toBe(false);
     expect(historyImportRowIsCommitable("blank")).toBe(false);
+    expect(historyImportRowIsCommitable("unmatched")).toBe(false);
   });
 });

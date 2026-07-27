@@ -74,6 +74,7 @@ export type ExistingConductorSnapshot = {
 
 export type HistoryImportRowCommitStatus =
   | "ready"
+  | "inactive_member"
   | "already_locked"
   | "conflict_locked"
   | "unmatched"
@@ -302,6 +303,8 @@ export function classifyHistoryImportRow(input: {
   flags: HistoryImportDateFlag[];
   memberId: string | null;
   blank?: boolean;
+  /** True when matched member has roster status `former`. */
+  memberInactive?: boolean;
   existing: ExistingConductorSnapshot | null | undefined;
 }): HistoryImportRowCommitStatus {
   if (input.blank || input.flags.includes("blank")) return "blank";
@@ -318,11 +321,16 @@ export function classifyHistoryImportRow(input: {
     return "conflict_locked";
   }
   if (existing?.conductorMemberId) return "overwrite_draft";
+  if (input.memberInactive) return "inactive_member";
   return "ready";
 }
 
 export function historyImportRowIsCommitable(
   status: HistoryImportRowCommitStatus,
 ): boolean {
-  return status === "ready" || status === "overwrite_draft";
+  return (
+    status === "ready" ||
+    status === "inactive_member" ||
+    status === "overwrite_draft"
+  );
 }

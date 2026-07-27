@@ -1522,6 +1522,7 @@
         "myKills": "Ir para Meus Kills",
         "professions": "Ir para Profissão",
         "trains": "Ir para Trem da Aliança",
+        "trainsHistoryImport": "Importar histórico de condutores",
         "battlePlan": "Ir para Plano de Batalha",
         "timeOff": "Ir para Ausências",
         "bankManagement": "Ir para Gestão de Bancos",
@@ -3648,6 +3649,7 @@
       "colStatus": "Status",
       "status": {
         "ok": "Pronto para confirmar",
+        "inactiveMember": "Correspondido a um membro inativo",
         "alreadyLocked": "Já confirmado (mesmo condutor)",
         "conflictLocked": "Confirmado com outro condutor",
         "unmatched": "Escolha um membro da lista",
@@ -3660,6 +3662,7 @@
       "gapBanner": "Uma ou mais datas rotuladas não batem com a ordem da lista. Insira linhas em branco antes de cada linha sinalizada para reconhecer condutores faltantes (o correio de Evento no jogo só fica ~30 dias) e continue.",
       "blankName": "(desconhecido)",
       "fillGap": "Preencher lacuna",
+      "inactiveOptionSuffix": "(inativo)",
       "colActions": "Ações",
       "commit": "Confirmar dias importados",
       "commitPartial": "Confirmar {count} dias prontos",
@@ -3669,6 +3672,8 @@
       "success": "Importados {imported}, ignorados {skipped}, conflitos {conflicts}",
       "openAction": "Importar histórico",
       "emptyCta": "Importar condutores passados",
+      "pageTitle": "Importar histórico de condutores",
+      "backToTrains": "Voltar aos Trens",
       "cancel": "Cancelar",
       "back": "Voltar"
     },

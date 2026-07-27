@@ -1326,12 +1326,9 @@ export async function importConductorHistory(input: {
 }> {
   const today = getServerCalendarDate();
   const seasonKey = await resolveTrainSeasonKey(input.allianceId);
-  const roster = await loadActiveAlliancePoolMembers({
-    allianceId: input.allianceId,
-  });
-  const rosterById = new Map(
-    roster.map((member) => [member.ashedMemberId, member]),
-  );
+  const { loadAllianceGameRoster } = await import("@/lib/members/game-roster");
+  const roster = await loadAllianceGameRoster({ allianceId: input.allianceId });
+  const rosterById = new Map(roster.map((member) => [member.id, member]));
 
   const results: ConductorHistoryImportRowResult[] = [];
   let imported = 0;
@@ -1368,7 +1365,7 @@ export async function importConductorHistory(input: {
       results.push({
         date,
         status: "error",
-        message: "Member is not on the active alliance roster.",
+        message: "Member is not on the alliance roster.",
       });
       continue;
     }
