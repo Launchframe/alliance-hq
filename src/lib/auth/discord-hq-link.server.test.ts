@@ -14,11 +14,15 @@ import {
 import { inheritHqMemberLinksToDiscord, revokeHqMirroredDiscordMemberLinks } from "@/lib/member-link/inherit-hq-to-discord.server";
 import {
   deleteDiscordHqLinkForHqUser,
+  getDiscordHqLink,
+  getDiscordHqLinkByHqUserId,
   upsertDiscordHqLink,
 } from "@/lib/vr/repository";
 
 vi.mock("@/lib/vr/repository", () => ({
   deleteDiscordHqLinkForHqUser: vi.fn(),
+  getDiscordHqLink: vi.fn(),
+  getDiscordHqLinkByHqUserId: vi.fn(),
   upsertDiscordHqLink: vi.fn(),
 }));
 
@@ -57,6 +61,7 @@ vi.mock("@/lib/db", () => ({
 describe("syncDiscordHqLinkFromOAuthSignIn", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getDiscordHqLink).mockResolvedValue(null as never);
   });
 
   it("no-ops when discord or hq user id is blank", async () => {
@@ -100,6 +105,63 @@ describe("syncDiscordHqLinkFromOAuthSignIn", () => {
       hqUserId: "hq-1",
     });
     expect(inheritHqMemberLinksToDiscord).toHaveBeenCalledWith({
+      discordUserId: "discord-1",
+      hqUserId: "hq-1",
+    });
+  });
+
+  it("revokes prior HQ mirrored member links when Discord rebinds", async () => {
+    const staleWhere = vi.fn().mockResolvedValue([]);
+    const deleteWhere = vi.fn().mockResolvedValue(undefined);
+    const select = vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({ where: staleWhere }),
+    });
+    const deleteFn = vi.fn().mockReturnValue({ where: deleteWhere });
+    vi.mocked(getDb).mockReturnValue({ select, delete: deleteFn } as never);
+    vi.mocked(getDiscordHqLink).mockResolvedValue({
+      discordUserId: "discord-1",
+      hqUserId: "hq-prior",
+    } as never);
+
+    await syncDiscordHqLinkFromOAuthSignIn({
+      discordUserId: "discord-1",
+      hqUserId: "hq-new",
+    });
+
+    expect(revokeHqMirroredDiscordMemberLinks).toHaveBeenCalledWith({
+      discordUserId: "discord-1",
+      hqUserId: "hq-prior",
+    });
+    expect(upsertDiscordHqLink).toHaveBeenCalledWith({
+      discordUserId: "discord-1",
+      hqUserId: "hq-new",
+    });
+    expect(inheritHqMemberLinksToDiscord).toHaveBeenCalledWith({
+      discordUserId: "discord-1",
+      hqUserId: "hq-new",
+    });
+  });
+
+  it("does not revoke when Discord is already bound to the same HQ user", async () => {
+    const staleWhere = vi.fn().mockResolvedValue([]);
+    const deleteWhere = vi.fn().mockResolvedValue(undefined);
+    const select = vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({ where: staleWhere }),
+    });
+    const deleteFn = vi.fn().mockReturnValue({ where: deleteWhere });
+    vi.mocked(getDb).mockReturnValue({ select, delete: deleteFn } as never);
+    vi.mocked(getDiscordHqLink).mockResolvedValue({
+      discordUserId: "discord-1",
+      hqUserId: "hq-1",
+    } as never);
+
+    await syncDiscordHqLinkFromOAuthSignIn({
+      discordUserId: "discord-1",
+      hqUserId: "hq-1",
+    });
+
+    expect(revokeHqMirroredDiscordMemberLinks).not.toHaveBeenCalled();
+    expect(upsertDiscordHqLink).toHaveBeenCalledWith({
       discordUserId: "discord-1",
       hqUserId: "hq-1",
     });
@@ -207,6 +269,7 @@ describe("completeDiscordBotHqLink", () => {
 describe("unlinkDiscordHqLinkForUser", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getDiscordHqLinkByHqUserId).mockResolvedValue(null as never);
   });
 
   it("preserves the bot link when Discord OAuth is the last sign-in method", async () => {
@@ -214,6 +277,10 @@ describe("unlinkDiscordHqLinkForUser", () => {
       ok: false,
       code: "last_method",
     });
+    vi.mocked(getDiscordHqLinkByHqUserId).mockResolvedValue({
+      discordUserId: "discord-1",
+      hqUserId: "hq-1",
+    } as never);
 
     await expect(unlinkDiscordHqLinkForUser("  hq-1  ")).resolves.toEqual({
       ok: false,
@@ -224,17 +291,26 @@ describe("unlinkDiscordHqLinkForUser", () => {
       hqUserId: "hq-1",
       provider: "discord",
     });
+    expect(revokeHqMirroredDiscordMemberLinks).not.toHaveBeenCalled();
     expect(deleteDiscordHqLinkForHqUser).not.toHaveBeenCalled();
   });
 
-  it("removes the bot link after Discord OAuth unlink succeeds", async () => {
+  it("revokes mirrored member links then removes the bot link after OAuth unlink", async () => {
     vi.mocked(unlinkOAuthProviderForUser).mockResolvedValue({ ok: true });
+    vi.mocked(getDiscordHqLinkByHqUserId).mockResolvedValue({
+      discordUserId: "discord-1",
+      hqUserId: "hq-1",
+    } as never);
     vi.mocked(deleteDiscordHqLinkForHqUser).mockResolvedValue(true);
 
     await expect(unlinkDiscordHqLinkForUser("hq-1")).resolves.toEqual({
       ok: true,
     });
 
+    expect(revokeHqMirroredDiscordMemberLinks).toHaveBeenCalledWith({
+      discordUserId: "discord-1",
+      hqUserId: "hq-1",
+    });
     expect(deleteDiscordHqLinkForHqUser).toHaveBeenCalledWith("hq-1");
   });
 
@@ -243,10 +319,19 @@ describe("unlinkDiscordHqLinkForUser", () => {
       ok: false,
       code: "not_linked",
     });
+    vi.mocked(getDiscordHqLinkByHqUserId).mockResolvedValue({
+      discordUserId: "discord-1",
+      hqUserId: "hq-1",
+    } as never);
     vi.mocked(deleteDiscordHqLinkForHqUser).mockResolvedValue(true);
 
     await expect(unlinkDiscordHqLinkForUser("hq-1")).resolves.toEqual({
       ok: true,
+    });
+
+    expect(revokeHqMirroredDiscordMemberLinks).toHaveBeenCalledWith({
+      discordUserId: "discord-1",
+      hqUserId: "hq-1",
     });
   });
 });

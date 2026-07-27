@@ -13,6 +13,8 @@ import {
 } from "@/lib/vr/auth-nonce";
 import {
   deleteDiscordHqLinkForHqUser,
+  getDiscordHqLink,
+  getDiscordHqLinkByHqUserId,
   upsertDiscordHqLink,
 } from "@/lib/vr/repository";
 import { unlinkOAuthProviderForUser } from "@/lib/auth/account-linking.server";
@@ -67,6 +69,19 @@ export async function syncDiscordHqLinkFromOAuthSignIn(input: {
         ne(schema.discordHqLinks.discordUserId, discordUserId),
       ),
     );
+
+  // Discord rebind to a different HQ user: drop the prior HQ's inherited
+  // commander links so stale owner/officer Discord gates cannot survive.
+  const existingForDiscord = await getDiscordHqLink(discordUserId);
+  if (
+    existingForDiscord &&
+    existingForDiscord.hqUserId !== hqUserId
+  ) {
+    await revokeHqMirroredDiscordMemberLinks({
+      discordUserId,
+      hqUserId: existingForDiscord.hqUserId,
+    });
+  }
 
   await upsertDiscordHqLink({ discordUserId, hqUserId });
   // Web commanders should work on Discord without a second name+UID pass.
@@ -167,6 +182,8 @@ export async function unlinkDiscordHqLinkForUser(
     return { ok: false, reason: "not_linked" };
   }
 
+  const existingBotLink = await getDiscordHqLinkByHqUserId(trimmed);
+
   const oauthResult = await unlinkOAuthProviderForUser({
     hqUserId: trimmed,
     provider: "discord",
@@ -174,6 +191,13 @@ export async function unlinkDiscordHqLinkForUser(
 
   if (!oauthResult.ok && oauthResult.code === "last_method") {
     return { ok: false, reason: "last_sign_in_method" };
+  }
+
+  if (existingBotLink) {
+    await revokeHqMirroredDiscordMemberLinks({
+      discordUserId: existingBotLink.discordUserId,
+      hqUserId: trimmed,
+    });
   }
 
   const hadBotLink = await deleteDiscordHqLinkForHqUser(trimmed);
