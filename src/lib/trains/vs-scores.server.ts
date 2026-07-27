@@ -6,19 +6,12 @@ import type { ParsedConnection } from "@/lib/connectionString";
 import { DEFAULT_APP_ID } from "@/lib/connectionString";
 import { addCalendarDays } from "@/lib/trains/game-time";
 import type { RollCandidate } from "@/lib/trains/types";
-import {
-  vsScoreContextForTrainDate,
-  vsScoreReferenceDate,
-} from "@/lib/trains/vs-week-days.shared";
+import { priorDayVsAppliesForTrainDate } from "@/lib/trains/vs-data-status.shared";
+import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 import {
   getAllianceAshedCredential,
   getAllianceById,
 } from "@/lib/vr/repository";
-
-/** True when T−1 is a VS match day (Mon–Sat). Sunday break has no daily scores. */
-function priorDayDailyVsApplies(trainDate: string): boolean {
-  return vsScoreContextForTrainDate(trainDate).vsDayNumber != null;
-}
 
 type AshedVsScoreRow = {
   id?: string;
@@ -133,7 +126,7 @@ export async function fetchVsTopScorersForTrainDate(
   limit: number,
 ): Promise<RollCandidate[]> {
   // Sunday is the VS break — Monday trains have no prior-day daily scores.
-  if (!priorDayDailyVsApplies(trainDate)) {
+  if (!priorDayVsAppliesForTrainDate(trainDate)) {
     return [];
   }
   return fetchVsTopScorersForRecordedDate(
@@ -242,7 +235,7 @@ export async function fetchAllianceVsTopScorersForTrainDate(
   trainDate: string,
   limit: number,
 ): Promise<RollCandidate[]> {
-  if (!priorDayDailyVsApplies(trainDate)) {
+  if (!priorDayVsAppliesForTrainDate(trainDate)) {
     return [];
   }
   const resolved = await resolveAllianceAshedConnection(allianceId);
@@ -261,7 +254,7 @@ export async function fetchAlliancePriorDayVsScoresForTrainDate(
   allianceId: string,
   trainDate: string,
 ): Promise<Map<string, number>> {
-  if (!priorDayDailyVsApplies(trainDate)) {
+  if (!priorDayVsAppliesForTrainDate(trainDate)) {
     return new Map();
   }
   return fetchAlliancePriorDayVsScoresByMember(
