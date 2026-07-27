@@ -24,12 +24,13 @@ describe("resolveMemberPoolAllianceRank", () => {
     expect(
       resolveMemberPoolAllianceRank(baseMember, { allianceRank: 4 }),
     ).toBe(4);
-    expect(
-      resolveMemberPoolAllianceRank(
-        { ...baseMember, allianceRank: 4 } as AllianceMember,
-        { allianceRank: 3 },
-      ),
-    ).toBe(3);
+    const demotedRank = resolveMemberPoolAllianceRank(
+      { ...baseMember, allianceRank: 4 } as AllianceMember,
+      { allianceRank: 3 },
+    );
+    expect(demotedRank).toBe(3);
+    expect(isMemberEligibleForPool("r3", demotedRank)).toBe(true);
+    expect(isMemberEligibleForPool("r4_plus", demotedRank)).toBe(false);
   });
 
   it("falls back to synced roster rank when no HQ event exists", () => {
@@ -43,6 +44,19 @@ describe("resolveMemberPoolAllianceRank", () => {
 
   it("falls back to parsed Ashed rank raw like the members list", () => {
     expect(resolveMemberPoolAllianceRank(baseMember, undefined)).toBe(3);
+  });
+
+  it("returns null when no HQ event and no synced or Ashed rank", () => {
+    expect(
+      resolveMemberPoolAllianceRank(
+        {
+          ...baseMember,
+          allianceRank: null,
+          ashedRankRaw: null,
+        } as AllianceMember,
+        null,
+      ),
+    ).toBe(null);
   });
 });
 

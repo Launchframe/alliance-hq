@@ -6,7 +6,10 @@ import { getDb, schema } from "@/lib/db";
 import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { startNewPoolGeneration } from "@/lib/trains/pool";
-import { getAllianceRanksAsOf } from "@/lib/trains/rank-history";
+import {
+  getAllianceRanksAsOf,
+  resolveMemberPoolAllianceRank,
+} from "@/lib/trains/rank-history";
 import { PRICE_IS_RIGHT_MAX_TICKETS } from "@/lib/trains/train-price-is-right-tickets.shared";
 import { loadPriceIsRightTicketSettings } from "@/lib/trains/train-economy-threshold.server";
 import type { RollCandidate } from "@/lib/trains/types";
@@ -41,7 +44,7 @@ export async function buildHeavyHitterPoolCandidates(
     candidates.push({
       memberId,
       memberName: member.currentName,
-      allianceRank: rankEvent?.allianceRank ?? member.allianceRank ?? null,
+      allianceRank: resolveMemberPoolAllianceRank(member, rankEvent),
       ticketCount: PRICE_IS_RIGHT_MAX_TICKETS,
     });
   }
