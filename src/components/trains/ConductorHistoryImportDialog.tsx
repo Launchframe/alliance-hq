@@ -344,6 +344,7 @@ export function ConductorHistoryImportDialog({
                 type="submit"
                 disabled={busy || !pasteText.trim()}
                 className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-50"
+                data-testid="trains-history-import-review"
               >
                 {busy ? t("reviewing") : t("reviewTitle")}
               </button>
@@ -392,6 +393,7 @@ export function ConductorHistoryImportDialog({
                         key={row.rowKey}
                         className="border-t border-hq-border"
                         data-testid={`trains-history-import-row-${row.index}`}
+                        data-status={row.status}
                       >
                         <td className="px-3 py-2 tabular-nums text-hq-fg">
                           {row.date ?? "—"}
