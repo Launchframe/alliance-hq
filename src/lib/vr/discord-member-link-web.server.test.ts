@@ -36,6 +36,7 @@ import { consumeDiscordAuthNonce, getValidDiscordAuthNonce } from "@/lib/vr/auth
 import { isValidGameUid, lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import {
   getDiscordBotPending,
+  getDiscordUserLocale,
   getGuildAllianceId,
 } from "@/lib/vr/repository";
 import { resolveAllianceIdForDiscordMemberLink } from "@/lib/vr/resolve-member-link-alliance.server";
@@ -141,7 +142,7 @@ describe("discord-member-link-web.server", () => {
     } as never);
 
     const result = await confirmDiscordMemberLinkFromWeb(
-      { nonce: "abc123", answer: "yes" },
+      { nonce: "abc123", answer: "yes", gameUid: "1234567890121203" },
       "hq-user-1",
     );
 
@@ -151,9 +152,55 @@ describe("discord-member-link-web.server", () => {
       memberDisplayName: "Commander",
     });
     expect(handleDiscordLinkIdentityConfirm).toHaveBeenCalledWith(
-      expect.objectContaining({ allianceId: "alliance-from-pending" }),
+      expect.objectContaining({
+        allianceId: "alliance-from-pending",
+        expectedGameUid: "1234567890121203",
+      }),
     );
     expect(consumeDiscordAuthNonce).toHaveBeenCalledWith("nonce-row-1");
+  });
+
+  it("rejects confirm when pending game UID was overwritten by another preview", async () => {
+    vi.mocked(getDiscordBotPending).mockResolvedValue({
+      allianceId: "alliance-from-pending",
+      pending: {
+        kind: "link_confirm_identity",
+        gameUid: "9999999999999999",
+        gameUserName: "Other",
+      },
+    } as never);
+    vi.mocked(lookupPlayerByUid).mockResolvedValue({ ok: false, message: "nope" } as never);
+    vi.mocked(resolveAllianceIdForDiscordMemberLink).mockResolvedValue(null);
+
+    const result = await confirmDiscordMemberLinkFromWeb(
+      { nonce: "abc123", answer: "yes", gameUid: "1234567890121203" },
+      "hq-user-1",
+    );
+
+    expect(result).toEqual({ outcome: "guild_not_registered" });
+    expect(handleDiscordLinkIdentityConfirm).not.toHaveBeenCalled();
+  });
+
+  it("passes expectedGameUid so the service can reject a stale pending row", async () => {
+    vi.mocked(getGuildAllianceId).mockResolvedValue("alliance-registered");
+    vi.mocked(getDiscordUserLocale).mockResolvedValue("en-US");
+    vi.mocked(handleDiscordLinkIdentityConfirm).mockResolvedValue({
+      reply: "expired",
+      pending: null,
+    } as never);
+
+    const result = await confirmDiscordMemberLinkFromWeb(
+      { nonce: "abc123", answer: "yes", gameUid: "1234567890121203" },
+      "hq-user-1",
+    );
+
+    expect(result).toEqual({ outcome: "error", message: "expired" });
+    expect(handleDiscordLinkIdentityConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allianceId: "alliance-registered",
+        expectedGameUid: "1234567890121203",
+      }),
+    );
   });
 
   it("picks using pending alliance when guild is not registered", async () => {
@@ -175,7 +222,7 @@ describe("discord-member-link-web.server", () => {
     } as never);
 
     const result = await pickDiscordMemberLinkFromWeb(
-      { nonce: "abc123", memberId: "m1" },
+      { nonce: "abc123", memberId: "m1", gameUid: "1234567890121203" },
       "hq-user-1",
     );
 
@@ -185,7 +232,10 @@ describe("discord-member-link-web.server", () => {
       memberDisplayName: "Commander",
     });
     expect(handleDiscordLinkFuzzyPick).toHaveBeenCalledWith(
-      expect.objectContaining({ allianceId: "alliance-from-pending" }),
+      expect.objectContaining({
+        allianceId: "alliance-from-pending",
+        expectedGameUid: "1234567890121203",
+      }),
     );
   });
 

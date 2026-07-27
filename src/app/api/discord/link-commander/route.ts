@@ -21,18 +21,21 @@ const confirmBodySchema = z.object({
   action: z.literal("confirm"),
   nonce: z.string().trim().min(1),
   answer: z.enum(["yes", "no"]),
+  gameUid: z.string().trim().min(1).max(20),
 });
 
 const pickBodySchema = z.object({
   action: z.literal("pick"),
   nonce: z.string().trim().min(1),
   memberId: z.string().trim().min(1),
+  gameUid: z.string().trim().min(1).max(20).optional(),
 });
 
 const confirmHomeBodySchema = z.object({
   action: z.literal("confirm_home"),
   nonce: z.string().trim().min(1),
   choice: z.enum(["alliance", "lookup"]),
+  gameUid: z.string().trim().min(1).max(20),
 });
 
 const bodySchema = z.discriminatedUnion("action", [
@@ -75,6 +78,7 @@ export async function POST(request: Request) {
       {
         nonce: parsed.nonce,
         answer: parsed.answer,
+        gameUid: parsed.gameUid,
       },
       hqUserId,
     );
@@ -86,6 +90,7 @@ export async function POST(request: Request) {
       {
         nonce: parsed.nonce,
         choice: parsed.choice,
+        gameUid: parsed.gameUid,
       },
       hqUserId,
     );
@@ -96,6 +101,7 @@ export async function POST(request: Request) {
     {
       nonce: parsed.nonce,
       memberId: parsed.memberId,
+      gameUid: parsed.gameUid,
     },
     hqUserId,
   );

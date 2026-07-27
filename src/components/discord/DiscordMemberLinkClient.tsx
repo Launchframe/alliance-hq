@@ -198,7 +198,7 @@ export function DiscordMemberLinkClient({
   async function handleConfirm(answer: "yes" | "no") {
     setBusy(true);
     try {
-      await postAction({ action: "confirm", nonce, answer });
+      await postAction({ action: "confirm", nonce, answer, gameUid: gameUid.trim() });
     } catch {
       setPhase("error");
       setMessage(labels.genericError);
@@ -210,7 +210,12 @@ export function DiscordMemberLinkClient({
   async function handleConfirmHome(choice: "alliance" | "lookup") {
     setBusy(true);
     try {
-      await postAction({ action: "confirm_home", nonce, choice });
+      await postAction({
+        action: "confirm_home",
+        nonce,
+        choice,
+        gameUid: gameUid.trim(),
+      });
     } catch {
       setPhase("error");
       setMessage(labels.genericError);
@@ -222,7 +227,12 @@ export function DiscordMemberLinkClient({
   async function handlePick(memberId: string) {
     setBusy(true);
     try {
-      await postAction({ action: "pick", nonce, memberId });
+      await postAction({
+        action: "pick",
+        nonce,
+        memberId,
+        gameUid: gameUid.trim() || undefined,
+      });
     } catch {
       setPhase("error");
       setMessage(labels.genericError);
