@@ -137,6 +137,26 @@ export function cityListBankCoordKey(
   return `${gameServerNumber}:${coordX}:${coordY}`;
 }
 
+/**
+ * City List tiles are currently held banks. Soft-archive (and true past drop
+ * deadlines) set `dropByAt` ≤ now. When such a bank reappears on City List,
+ * clear the deadline so it returns to active inventory / drop recommendations.
+ *
+ * Preserve future officer-planned drop deadlines (`dropByAt` > now).
+ */
+export function cityListUpsertClearsDropByAt(
+  dropByAt: Date | string | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (dropByAt == null) return false;
+  const ms =
+    dropByAt instanceof Date
+      ? dropByAt.getTime()
+      : Date.parse(String(dropByAt));
+  if (Number.isNaN(ms)) return false;
+  return ms <= now.getTime();
+}
+
 export type CityListImportRowPresence = {
   /** Review rows that match an existing HQ bank by exact server+X+Y. */
   existingCount: number;

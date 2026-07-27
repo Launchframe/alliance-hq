@@ -10,6 +10,7 @@ import {
   type BankPayload,
   type DepositSlipPayload,
 } from "@/lib/banks/api.shared";
+import { cityListUpsertClearsDropByAt } from "@/lib/banks/city-list-import-review.shared";
 import { BANK_PROTECTION_DURATION_MS } from "@/lib/banks/types.shared";
 import {
   buildHeatmapsForBanks,
@@ -90,13 +91,22 @@ export async function upsertBanksFromCityList(
       .limit(1);
 
     if (existing[0]) {
+      const now = new Date();
+      const clearSoftArchive = cityListUpsertClearsDropByAt(
+        existing[0].dropByAt,
+        now,
+      );
       const updated = await db
         .update(schema.banks)
         .set({
           level: bank.level,
           currentDepositCount: bank.currentDepositCount,
           currentDepositValue: bank.currentDepositValue,
-          updatedAt: new Date(),
+          // Re-pictured banks are currently held — undo soft-archive so they
+          // re-enter active inventory / recommendNextDrop. Keep future
+          // officer-planned drop deadlines.
+          ...(clearSoftArchive ? { dropByAt: null } : {}),
+          updatedAt: now,
         })
         .where(eq(schema.banks.id, existing[0].id))
         .returning();
@@ -130,6 +140,10 @@ export async function upsertBanksFromCityList(
  * Soft-archive HQ banks not pictured in a City List import by setting
  * `dropByAt` to `at` (typically now). Banks move into the Past drop deadline
  * section; deposit history is retained. Never hard-deletes.
+ *
+ * Re-importing a pictured bank clears a past `dropByAt` via
+ * `upsertBanksFromCityList` so re-captured / still-held banks return to
+ * active inventory.
  */
 export async function markBanksDropDeadlineAt(
   allianceId: string,
