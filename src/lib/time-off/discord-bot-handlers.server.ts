@@ -11,6 +11,7 @@ import { resolveAllianceForGuild } from "@/lib/vr/service";
 import { addCalendarDays, getServerCalendarDate, getWeekStartMonday } from "@/lib/trains/game-time";
 import { serializeTimeOffEntry } from "./api.shared";
 import { createTimeOff, updateTimeOff, cancelTimeOff, previewTimeOff } from "./mutations.server";
+import { dualWriteTimeOffToAshed } from "./excused-sync.server";
 import { listActiveTimeOffEntries, listOwnTimeOffPage, listTimeOffForMember, listTimeOffRoster } from "./repository.server";
 import { parseTimeOffMessage } from "./parse-natural-language.shared";
 import { canManageTimeOffEntry, isTimeOffDate, TimeOffError, TIME_OFF_MAX_DAYS, TIME_OFF_MAX_NOTES, type TimeOffDraft } from "./workflow.shared";
@@ -255,6 +256,12 @@ async function handleComponent(ctx: Context, payload: DiscordInteractionPayload)
     if (action === "back") return showEntry(ctx, state.entryId);
     if (action === "confirm") {
       await cancelTimeOff(ctx.actor, state.entryId, state.version);
+      await dualWriteTimeOffToAshed({
+        allianceId: ctx.actor.allianceId,
+        entryId: state.entryId,
+        discordUserId: ctx.actor.discordUserId,
+        operation: "delete",
+      });
       return { content: ctx.t("timeOff.workflow.cancelled") };
     }
   }
@@ -264,7 +271,13 @@ async function handleComponent(ctx: Context, payload: DiscordInteractionPayload)
       const entry = state.entryId
         ? await updateTimeOff(ctx.actor, state.entryId, state.draft, state.version)
         : await createTimeOff(ctx.actor, state.draft, state.requestId);
-      return { content: `${ctx.t(state.entryId ? "timeOff.workflow.updated" : "timeOff.workflow.saved")}\n${summary(ctx, entry)}` };
+      const ashedSyncFailed = await dualWriteTimeOffToAshed({
+        allianceId: ctx.actor.allianceId,
+        entryId: entry.id,
+        discordUserId: ctx.actor.discordUserId,
+        operation: "upsert",
+      });
+      return { content: `${ctx.t(state.entryId ? "timeOff.workflow.updated" : "timeOff.workflow.saved")}${ashedSyncFailed ? `\n${ctx.t("timeOff.errors.ashedSyncFailed")}` : ""}\n${summary(ctx, entry)}` };
     }
   }
   throw new TimeOffError("expired", 403);

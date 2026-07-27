@@ -105,6 +105,26 @@ export async function findActiveTimeOffForMemberOnDate(input: {
   return rows[0] ? serializeTimeOffEntry(rows[0]) : null;
 }
 
+/** Persists the Ashed ExcusedRecord id(s) an entry was pushed to (or synced from). */
+export async function setTimeOffEntryAshedExcusedIds(input: {
+  allianceId: string;
+  entryId: string;
+  ashedExcusedIds: string[];
+}) {
+  await getDb()
+    .update(schema.memberTimeOff)
+    .set({
+      ashedExcusedIds: input.ashedExcusedIds,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.memberTimeOff.id, input.entryId),
+        eq(schema.memberTimeOff.allianceId, input.allianceId),
+      ),
+    );
+}
+
 export async function listUnexpectedAbsenceReport(input: {
   allianceId: string;
   asOfDate: string;

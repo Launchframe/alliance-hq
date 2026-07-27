@@ -26,6 +26,7 @@ import {
   syncMemberCommendationsFromAshed,
   syncMemberViolationsFromAshed,
 } from "@/lib/members/member-discipline.server";
+import { syncMemberExcusedFromAshed } from "@/lib/time-off/excused-sync.server";
 import { getAshedConnection } from "@/lib/session";
 import { viewerCanEditMainSquad } from "@/lib/commanders/main-squad.server";
 import { sessionCanGiftStoreBricks } from "@/lib/members/commander-donation.server";
@@ -97,18 +98,22 @@ export async function loadCommanderProfile(
   if (!memberRow) return null;
 
   const db = getDb();
-  const [alliance] = await db
+  const [allianceRow] = await db
     .select({
       id: schema.alliances.id,
       tag: schema.alliances.tag,
       name: schema.alliances.name,
       slug: schema.alliances.slug,
+      ashedAllianceId: schema.alliances.ashedAllianceId,
     })
     .from(schema.alliances)
     .where(eq(schema.alliances.id, allianceId))
     .limit(1);
 
-  if (!alliance) return null;
+  if (!allianceRow) return null;
+
+  // Internal-only field, not part of the client payload — see `alliance` below.
+  const { ashedAllianceId: ashedAllianceIdForSync, ...alliance } = allianceRow;
 
   const operatingMode = await getAllianceOperatingMode(allianceId);
   const canSeeEmail = await sessionHasPermission(sessionId, "members:write");
@@ -301,7 +306,7 @@ export async function loadCommanderProfile(
   const connection =
     operatingMode === "ashed" ? await getAshedConnection(sessionId) : null;
   if (connection) {
-    await Promise.all([
+    const syncTasks = [
       syncMemberCommendationsFromAshed(
         connection,
         allianceId,
@@ -314,7 +319,24 @@ export async function loadCommanderProfile(
         ashedMemberId,
         memberRow.currentName,
       ),
-    ]);
+    ];
+    if (ashedAllianceIdForSync) {
+      syncTasks.push(
+        syncMemberExcusedFromAshed(
+          connection,
+          allianceId,
+          ashedAllianceIdForSync,
+          ashedMemberId,
+          memberRow.currentName,
+        ).catch((error) => {
+          console.error(
+            "[time-off] failed to sync excused records from Ashed",
+            error,
+          );
+        }),
+      );
+    }
+    await Promise.all(syncTasks);
   }
 
   const [commendationRows, violationRows] = await Promise.all([

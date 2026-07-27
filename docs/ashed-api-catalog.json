@@ -675,17 +675,20 @@
     {
       "name": "ExcusedRecord",
       "methods": [
-        "GET"
+        "DELETE",
+        "GET",
+        "POST"
       ],
       "harFiles": [
         "ashed.online-alliance_management.har",
-        "ashed.online-performance_and_reporting.har"
+        "ashed.online-performance_and_reporting.har",
+        "ashed.online-member_roster_excused_periods_management.har"
       ],
       "navGroups": [
         "alliance-management",
         "performance-reporting"
       ],
-      "supportsById": false,
+      "supportsById": true,
       "bffPath": "/api/bff/v1/entities/ExcusedRecord",
       "permissions": {
         "read": "members:read",
@@ -1665,8 +1668,20 @@
       {
         "type": "entity",
         "name": "ExcusedRecord",
+        "method": "DELETE",
+        "permission": "members:write"
+      },
+      {
+        "type": "entity",
+        "name": "ExcusedRecord",
         "method": "GET",
         "permission": "members:read"
+      },
+      {
+        "type": "entity",
+        "name": "ExcusedRecord",
+        "method": "POST",
+        "permission": "members:write"
       },
       {
         "type": "entity",

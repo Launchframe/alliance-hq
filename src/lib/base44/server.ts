@@ -5,6 +5,7 @@ import type { ParsedConnection } from "@/lib/connectionString";
 export const KNOWN_ENTITIES = [
   "Violation",
   "ViolationType",
+  "ExcusedRecord",
   "Member",
   "Alliance",
   "User",

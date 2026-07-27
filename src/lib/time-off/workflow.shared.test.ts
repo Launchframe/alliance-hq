@@ -31,6 +31,7 @@ describe("time-off draft validation", () => {
     expect(parseTimeOffDraft({ ...draft, source: "officer", memberName: "Spoof", availability: "minimums" })).toEqual({
       ...draft,
       entryKind: "planned",
+      activityScope: "all",
     });
   });
 
