@@ -70,11 +70,12 @@ export function buildSubmitPayloads(
       }));
 
     case "donations":
+      // Ashed Donation entity requires `amount` (not `score`).
       return rows.map((row) => ({
         alliance_id: allianceId,
         member_id: row.memberId,
         member_name: row.memberName,
-        score: parseScoreNumber(row.score),
+        amount: parseScoreNumber(row.score),
         recorded_date: recordedDate,
       }));
 

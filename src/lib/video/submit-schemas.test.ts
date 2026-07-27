@@ -113,6 +113,24 @@ describe("buildSubmitPayloads", () => {
       recorded_date: "2026-07-18",
     });
   });
+
+  it("builds Donation rows with amount (Ashed Donation requires amount, not score)", () => {
+    const target = getScoreTargetOrThrow("donations");
+    const rows = buildSubmitPayloads(
+      target,
+      "alliance-1",
+      { recordedDate: "2026-07-27" },
+      [{ memberId: "m1", memberName: "Alice", score: "12,500" }],
+    );
+    expect(rows[0]).toEqual({
+      alliance_id: "alliance-1",
+      member_id: "m1",
+      member_name: "Alice",
+      amount: 12500,
+      recorded_date: "2026-07-27",
+    });
+    expect(rows[0]).not.toHaveProperty("score");
+  });
 });
 
 describe("validateSubmitContext", () => {

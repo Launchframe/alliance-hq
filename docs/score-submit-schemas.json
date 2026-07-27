@@ -54,7 +54,7 @@
         "alliance_id",
         "member_id",
         "member_name",
-        "score",
+        "amount",
         "recorded_date"
       ]
     },
