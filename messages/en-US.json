@@ -3690,10 +3690,10 @@
     "historyImport": {
       "title": "Import conductor history",
       "pasteLabel": "Paste conductors (newest first)",
-      "pasteHint": "One name per line. Optional dates like “Redd (July 26)”. Or paste names only and set first/last dates below.",
+      "pasteHint": "One name per line. Optional dates like “Redd (July 26)”. Or paste names only and set the newest date below — older days are filled from the list length.",
       "pasteEmpty": "Paste at least one conductor name.",
       "firstDate": "Newest date",
-      "lastDate": "Oldest date",
+      "lastDate": "Oldest date (optional)",
       "reviewTitle": "Review matches",
       "reviewing": "Preparing review…",
       "colDate": "Date",

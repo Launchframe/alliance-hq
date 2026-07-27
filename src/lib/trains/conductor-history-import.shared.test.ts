@@ -117,7 +117,44 @@ C (July 17)
     expect(rows.every((r) => r.flags.includes("gap"))).toBe(true);
   });
 
-  it("uses first/last date pickers when paste has no anchors", () => {
+  it("uses newest date alone and infers older days from list length", () => {
+    const lines = parseHistoryPaste(`Redd
+SlowRider
+Eagle
+`);
+    const { rows, hasGap } = interpolateHistoryDates({
+      lines,
+      today: "2026-07-27",
+      defaultYear: 2026,
+      firstDate: "2026-07-26",
+    });
+    expect(hasGap).toBe(false);
+    expect(rows.map((r) => r.date)).toEqual([
+      "2026-07-26",
+      "2026-07-25",
+      "2026-07-24",
+    ]);
+  });
+
+  it("fills from a single first-line text anchor without an end date", () => {
+    const lines = parseHistoryPaste(`Redd (July 26)
+SlowRider
+Eagle
+`);
+    const { rows, hasGap } = interpolateHistoryDates({
+      lines,
+      today: "2026-07-27",
+      defaultYear: 2026,
+    });
+    expect(hasGap).toBe(false);
+    expect(rows.map((r) => r.date)).toEqual([
+      "2026-07-26",
+      "2026-07-25",
+      "2026-07-24",
+    ]);
+  });
+
+  it("still accepts an optional lastDate override when provided", () => {
     const lines = parseHistoryPaste(`Redd
 SlowRider
 Eagle
@@ -139,7 +176,7 @@ Eagle
 
   it("flags today and future dates as not_past", () => {
     const lines = parseHistoryPaste(`Redd (July 27)
-Eagle (July 26)
+Eagle
 `);
     const { rows } = interpolateHistoryDates({
       lines,
@@ -147,11 +184,11 @@ Eagle (July 26)
       defaultYear: 2026,
     });
     expect(rows[0]?.flags).toContain("not_past");
-    expect(rows[1]?.flags).toEqual([]);
+    expect(rows[1]?.date).toBe("2026-07-26");
   });
 
-  it("flags missing dates when fewer than two anchors exist", () => {
-    const lines = parseHistoryPaste(`Redd (July 26)
+  it("flags missing dates when no newest anchor exists", () => {
+    const lines = parseHistoryPaste(`Redd
 SlowRider
 `);
     const { rows } = interpolateHistoryDates({
@@ -159,7 +196,7 @@ SlowRider
       today: "2026-07-27",
       defaultYear: 2026,
     });
-    expect(rows[1]?.flags).toContain("missing_date");
+    expect(rows.every((r) => r.flags.includes("missing_date"))).toBe(true);
   });
 });
 

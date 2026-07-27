@@ -3636,10 +3636,10 @@
     "historyImport": {
       "title": "Importar histórico de condutores",
       "pasteLabel": "Cole os condutores (mais recente primeiro)",
-      "pasteHint": "Um nome por linha. Datas opcionais como “Redd (July 26)”. Ou cole só os nomes e defina a primeira e a última data abaixo.",
+      "pasteHint": "Um nome por linha. Datas opcionais como “Redd (July 26)”. Ou cole só os nomes e defina a data mais recente abaixo — os dias mais antigos são preenchidos pela quantidade de nomes.",
       "pasteEmpty": "Cole pelo menos um nome de condutor.",
       "firstDate": "Data mais recente",
-      "lastDate": "Data mais antiga",
+      "lastDate": "Data mais antiga (opcional)",
       "reviewTitle": "Revisar correspondências",
       "reviewing": "Preparando revisão…",
       "colDate": "Data",

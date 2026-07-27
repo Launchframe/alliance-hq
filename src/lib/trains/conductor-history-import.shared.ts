@@ -136,7 +136,10 @@ function resolveLineAnchorDate(
 
 /**
  * Interpolate descending calendar dates for a newest→oldest paste list.
- * Optional firstDate/lastDate override the first/last rows.
+ *
+ * A newest date alone is enough: names are sequential day-by-day and the
+ * oldest date is inferred as `newest − (n − 1)`. Optional middle/last anchors
+ * and `lastDate` still validate consistency (gap / date_conflict).
  */
 export function interpolateHistoryDates(input: {
   lines: ParsedHistoryLine[];
@@ -167,58 +170,47 @@ export function interpolateHistoryDates(input: {
     dates[n - 1] = input.lastDate;
   }
 
-  const anchorIndexes: number[] = [];
+  // Snapshot explicit anchors before sequential fill (for conflict checks).
+  const explicitAnchors: Array<{ index: number; date: string }> = [];
   for (let i = 0; i < n; i += 1) {
-    if (dates[i]) anchorIndexes.push(i);
+    if (dates[i]) explicitAnchors.push({ index: i, date: dates[i]! });
   }
 
   let hasGap = false;
+  const newestIndex = explicitAnchors[0]?.index;
+  const newestDate = explicitAnchors[0]?.date ?? null;
 
-  if (anchorIndexes.length < 2) {
+  if (newestDate == null || newestIndex == null) {
     for (let i = 0; i < n; i += 1) {
-      if (!dates[i]) flags[i]!.push("missing_date");
+      flags[i]!.push("missing_date");
     }
   } else {
-    for (let a = 0; a < anchorIndexes.length - 1; a += 1) {
-      const i = anchorIndexes[a]!;
-      const j = anchorIndexes[a + 1]!;
-      const start = dates[i]!;
-      const end = dates[j]!;
+    // Extend newest back to row 0 when the first explicit anchor is mid-list.
+    const row0Date = addCalendarDays(newestDate, newestIndex);
+    for (let k = 0; k < n; k += 1) {
+      dates[k] = addCalendarDays(row0Date, -k);
+    }
 
-      if (start <= end) {
+    for (const anchor of explicitAnchors) {
+      const expected = dates[anchor.index];
+      if (expected && anchor.date !== expected) {
         hasGap = true;
-        for (let k = i; k <= j; k += 1) {
-          if (!flags[k]!.includes("not_descending")) {
-            flags[k]!.push("not_descending");
-          }
+        if (!flags[anchor.index]!.includes("date_conflict")) {
+          flags[anchor.index]!.push("date_conflict");
         }
-        continue;
-      }
-
-      const expectedSteps = calendarDayDiff(start, end);
-      if (expectedSteps !== j - i) {
-        hasGap = true;
-        for (let k = i; k <= j; k += 1) {
-          if (!flags[k]!.includes("gap")) flags[k]!.push("gap");
+        // Also mark the segment from previous consistent expectation as a gap
+        // so the review banner shows in-game check instructions.
+        if (!flags[anchor.index]!.includes("gap")) {
+          flags[anchor.index]!.push("gap");
         }
-        continue;
-      }
-
-      for (let k = i; k <= j; k += 1) {
-        const expected = addCalendarDays(start, -(k - i));
-        const existing = dates[k];
-        if (existing && existing !== expected) {
-          if (!flags[k]!.includes("date_conflict")) {
-            flags[k]!.push("date_conflict");
-          }
-        }
-        dates[k] = expected;
       }
     }
 
-    for (let i = 0; i < n; i += 1) {
-      if (!dates[i] && !flags[i]!.includes("gap")) {
-        flags[i]!.push("missing_date");
+    // If any middle/last anchor conflicts, flag all rows in the list as gap
+    // so officers know the whole span needs checking.
+    if (hasGap) {
+      for (let k = 0; k < n; k += 1) {
+        if (!flags[k]!.includes("gap")) flags[k]!.push("gap");
       }
     }
   }
