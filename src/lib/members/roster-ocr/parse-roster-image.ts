@@ -1,12 +1,16 @@
 /**
- * Orchestrator: preprocess → tesseract → segment → parse → return result.
+ * Orchestrator: preprocess → tesseract → crop → segment → parse → return result.
  *
  * This is the main entry point for the roster OCR pipeline.
  */
 
+import {
+  cropRosterLinesBelowSearch,
+  toRosterOcrLineLikes,
+} from "@/lib/members/roster-ocr/crop-list-region.shared";
 import { preprocessRosterImage } from "@/lib/members/roster-ocr/preprocess";
-import { runTesseract } from "@/lib/members/roster-ocr/tesseract";
 import { parseRosterRows } from "@/lib/members/roster-ocr/parse-rows";
+import { runTesseract } from "@/lib/members/roster-ocr/tesseract";
 import type {
   ParseRosterImageResult,
   RosterLayout,
@@ -26,9 +30,10 @@ export type ParseRosterImageOptions = {
  * Full roster OCR pipeline.
  *
  * 1. Pre-process (greyscale + upscale via sharp).
- * 2. Tesseract OCR → raw text lines.
- * 3. Segment by rank headers / title detection.
- * 4. Parse tokens (name, power, level) from each member line.
+ * 2. Tesseract OCR → raw text lines (+ bbox when available).
+ * 3. Crop to the scrollable list below "Search for Members".
+ * 4. Segment by rank headers / title detection.
+ * 5. Parse tokens (name, power, level) from each member line.
  */
 export async function parseRosterImage(
   imageBuffer: Buffer,
@@ -45,12 +50,16 @@ export async function parseRosterImage(
 
   // Step 2 — OCR
   const ocrLines = await runTesseract(processedBuffer, config);
-
   const rawLineCount = ocrLines.length;
-  const textLines = ocrLines.map((l) => l.text);
 
-  // Step 3 + 4 — segment + parse
-  const { rows, layout } = parseRosterRows(textLines, explicitLayout);
+  // Step 3 — crop header chrome above the Search bar
+  const cropped = cropRosterLinesBelowSearch(toRosterOcrLineLikes(ocrLines));
+  const textLines = cropped.lines.map((l) => l.text);
+
+  // Step 4 + 5 — segment + parse
+  const { rows, layout } = parseRosterRows(textLines, explicitLayout, {
+    forceRankList: cropped.croppedBelowSearch,
+  });
 
   const ignoredLineCount = rawLineCount - rows.length;
 

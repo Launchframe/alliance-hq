@@ -33,6 +33,7 @@ afterAll(async () => {
 
 describe("parseRosterRows — mocked OCR lines (officers layout)", () => {
   // Simulates what Tesseract would produce for the officers screenshot
+  // (no Members-list Search bar — that forces rank_list).
   const mockedLines = [
     "Leader BigDaddy 8.5M Lv.95",
     "Warlord TigerShark 4.2M Lv.80",
@@ -40,7 +41,6 @@ describe("parseRosterRows — mocked OCR lines (officers layout)", () => {
     "Muse CoolGirl 3.1M",
     "Butler ServantHero 2.8M Lv.65",
     "Online",
-    "Search for Members",
     "Manage",
   ];
 

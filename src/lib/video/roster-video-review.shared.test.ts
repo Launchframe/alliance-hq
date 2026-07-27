@@ -77,7 +77,7 @@ describe("roster-video-review.shared", () => {
     },
   );
 
-  it("never hydrates profession or OCR level onto review rows", () => {
+  it("hydrates OCR level onto review rows but never profession", () => {
     const rows = parsedRowsToRosterReviewRows(
       [
         {
@@ -107,9 +107,9 @@ describe("roster-video-review.shared", () => {
     );
 
     expect(rows[0]?.profession).toBeNull();
-    expect(rows[0]?.memberLevel).toBeNull();
+    expect(rows[0]?.memberLevel).toBe(35);
     expect(rows[1]?.profession).toBeNull();
-    expect(rows[1]?.memberLevel).toBeNull();
+    expect(rows[1]?.memberLevel).toBe(30);
   });
 
   it("flags unmatched and low-confidence roster rows", () => {
@@ -136,6 +136,33 @@ describe("roster-video-review.shared", () => {
         deleted: 0,
       }),
     ).toBe(false);
+  });
+
+  it("does not flag unmatched rows when the HQ roster is empty", () => {
+    expect(
+      isRosterRowNameMismatch(
+        {
+          memberId: null,
+          matchConfidence: 0,
+          matchMethod: "none",
+          deleted: 0,
+        },
+        { existingMemberCount: 0 },
+      ),
+    ).toBe(false);
+    const ids = findUnmatchedRosterRowIds(
+      [
+        {
+          id: "a",
+          memberId: null,
+          matchConfidence: 0,
+          matchMethod: "none",
+          deleted: 0,
+        },
+      ],
+      { existingMemberCount: 0 },
+    );
+    expect(ids.size).toBe(0);
   });
 
   it("collects unmatched row ids", () => {

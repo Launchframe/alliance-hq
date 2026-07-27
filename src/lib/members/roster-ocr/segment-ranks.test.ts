@@ -31,6 +31,16 @@ describe("isIgnoredLine", () => {
     expect(isIgnoredLine("1d ago")).toBe(true);
   });
 
+  it("does not ignore a name that only contains a trailing timestamp token", () => {
+    // Whole-line ignore is for chrome; name+timestamp is cleaned in parse-rows.
+    expect(isIgnoredLine("Nobell 1h ago")).toBe(false);
+  });
+
+  it("ignores officer title chrome rows", () => {
+    expect(isIgnoredLine("Recruiter Muse Butler")).toBe(true);
+    expect(isIgnoredLine("Warlord")).toBe(true);
+  });
+
   it("ignores member count fraction", () => {
     expect(isIgnoredLine("45 / 100")).toBe(true);
   });
@@ -62,6 +72,11 @@ describe("parseRankHeader", () => {
 
   it("is case-insensitive", () => {
     expect(parseRankHeader("r2")).toBe(2);
+  });
+
+  it("parses section headers with quota counts", () => {
+    expect(parseRankHeader("R3 9/78")).toBe(3);
+    expect(parseRankHeader("R4 0/10")).toBe(4);
   });
 
   it("returns null for non-header lines", () => {
@@ -133,6 +148,22 @@ describe("detectLayout", () => {
   it("detects officers when titled roles present and no rank headers", () => {
     const lines = ["Leader BigDaddy", "Warlord ShadowFox", "Recruiter StarDust"];
     expect(detectLayout(lines)).toBe("officers");
+  });
+
+  it("forces rank_list when Search for Members is present", () => {
+    const lines = [
+      "Warlord",
+      "Recruiter",
+      "Search for Members",
+      "R3 9/78",
+      "Player1",
+    ];
+    expect(detectLayout(lines)).toBe("rank_list");
+  });
+
+  it("uses rank_list when any R-section header is present", () => {
+    const lines = ["Warlord ShadowFox", "R3", "Player1"];
+    expect(detectLayout(lines)).toBe("rank_list");
   });
 
   it("falls back to rank_list for ambiguous input", () => {

@@ -819,9 +819,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   // Roster review: enrich stored rows from the job-alliance local roster once
   // members arrive with the job payload (no personal Ashed credential required).
+  // Also runs for empty rosters so powerLevel → heroPowerM still hydrates.
   useEffect(() => {
     if (!scoreTargetMeta?.showRosterColumns) return;
-    if (rosterMembers.length === 0) return;
     if (rosterMembersHydratedRef.current) return;
     rosterMembersHydratedRef.current = true;
     setRows((prev) => {
@@ -838,6 +838,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           memberId: next.memberId,
           memberName: next.memberName,
           matchConfidence: next.matchConfidence,
+          matchMethod: next.matchMethod ?? row.matchMethod,
           allianceRank: next.allianceRank,
           heroPowerM: next.heroPowerM,
           memberLevel: next.memberLevel,
@@ -1488,6 +1489,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       deleted: row.deleted,
       matchMethod: row.matchMethod,
     })),
+    { existingMemberCount: rosterMembers.length },
   );
 
   const depositSlipValidation = useDepositSlipReviewValidation(
