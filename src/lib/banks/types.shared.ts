@@ -87,6 +87,8 @@ export type BankManagementPayload = {
   todayServerDate: string;
   /** Session alliance — scopes City List import drafts and tenant context. */
   allianceId: string;
+  /** In-game alliance tag for investor filtering on deposit falloff. */
+  allianceTag: string | null;
   effectiveSeasonKey?: string;
   nextCaptureLevel: number | null;
   /** Prefill for new bank forms from the session alliance. */

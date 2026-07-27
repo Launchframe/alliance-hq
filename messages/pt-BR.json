@@ -4181,11 +4181,11 @@
     "depositSlipFlaggedTitle": "{count, plural, one {# agrupamento ainda precisa de revisão.} other {# agrupamentos ainda precisam de revisão.}}",
     "depositSlipFlaggedHint": "Revise ou exclua as linhas abaixo para que cada depósito apareça uma vez. Você ainda pode salvar quando todas as linhas estiverem completas.",
     "depositSlipStaleClusterNote": "O relatório salvo do agrupamento não corresponde mais a estes IDs de linha. As ações abaixo afetam apenas a tabela ao vivo.",
-    "depositSlipOverlappingLockedTitle": "Depósitos bloqueados sobrepostos",
-    "depositSlipOverlappingLockedHint": "Dois ou mais depósitos bloqueados do mesmo comandante têm prazos sobrepostos. O jogo só permite um depósito aberto por vez. Revise as linhas abaixo e exclua ou corrija qualquer erro. Você ainda pode salvar se tiver certeza de que os dados estão corretos.",
+    "depositSlipOverlappingLockedTitle": "Depósitos sobrepostos",
+    "depositSlipOverlappingLockedHint": "Dois ou mais depósitos Depositados do mesmo comandante têm prazos sobrepostos. O jogo só permite um depósito aberto por vez. Revise as linhas abaixo e exclua ou corrija qualquer erro. Você ainda pode salvar se tiver certeza de que os dados estão corretos.",
     "depositSlipOverlappingLockedGroup": "{commander} — {count, plural, one {# linha sobreposta} other {# linhas sobrepostas}}",
     "depositSlipWarningRowJump": "Ir para a linha",
-    "depositSlipOverlappingLockedConfirmTitle": "Salvar com depósitos bloqueados sobrepostos?",
+    "depositSlipOverlappingLockedConfirmTitle": "Salvar com depósitos Depositados sobrepostos?",
     "depositSlipOverlappingLockedConfirmSave": "Salvar mesmo assim",
     "depositSlipOverlappingLockedConfirmBack": "Voltar",
     "depositSlipReviewNavPrev": "Problema anterior",
@@ -5351,18 +5351,18 @@
         "recordDepositVideo": {
           "title": "Grave e envie o vídeo de depósito",
           "summary": "Um único vídeo: abra Informações do Banco, passe por Favoritos (opcional) para coordenadas exatas, depois role o Histórico de Comprovantes de Depósito — a Sede lê os três.",
-          "instructions": "No Banco, dentro do jogo, grave um único vídeo passando por:\n\n1. Informações do Banco — abra o painel de informações do banco para que a Sede leia seu nível, tag da aliança dona, valor atual de depósito e capacidade de depósito.\n2. Favoritos (opcional, mas recomendado) — se o banco estiver marcado com estrela nos seus Favoritos, abra essa tela também. Favoritos mostra coordenadas X/Y exatas, que a Sede prioriza sobre outras fontes ao alinhar o banco.\n3. Histórico de Comprovantes de Depósito — role até o fim do histórico de comprovantes para que todo depósito bloqueado, maturado e saqueado apareça na tela.\n\nEnvie o vídeo em Ferramentas → Envio de vídeo, ou toque no ícone de vídeo ao lado de um banco na Gestão de Bancos para ir direto ao envio com esse banco já selecionado.\n\nO OCR da Sede lê os três tipos de tela no mesmo vídeo: Informações do Banco e Favoritos alimentam o contexto do banco (coordenadas, nível, tag da aliança, valor de depósito), enquanto o Histórico de Comprovantes de Depósito se transforma nas linhas de depósito que você vai revisar a seguir.",
+          "instructions": "No Banco, dentro do jogo, grave um único vídeo passando por:\n\n1. Informações do Banco — abra o painel de informações do banco para que a Sede leia seu nível, tag da aliança dona, valor atual de depósito e capacidade de depósito.\n2. Favoritos (opcional, mas recomendado) — se o banco estiver marcado com estrela nos seus Favoritos, abra essa tela também. Favoritos mostra coordenadas X/Y exatas, que a Sede prioriza sobre outras fontes ao alinhar o banco.\n3. Histórico de Comprovantes de Depósito — role até o fim do histórico de comprovantes para que todo depósito Depositado, Maturado e Saqueado apareça na tela.\n\nEnvie o vídeo em Ferramentas → Envio de vídeo, ou toque no ícone de vídeo ao lado de um banco na Gestão de Bancos para ir direto ao envio com esse banco já selecionado.\n\nO OCR da Sede lê os três tipos de tela no mesmo vídeo: Informações do Banco e Favoritos alimentam o contexto do banco (coordenadas, nível, tag da aliança, valor de depósito), enquanto o Histórico de Comprovantes de Depósito se transforma nas linhas de depósito que você vai revisar a seguir.",
           "tip": "Gravar Informações do Banco e Favoritos antes de rolar o histórico de depósitos dá à Sede a melhor chance de alinhar as coordenadas antes da revisão — mas a ordem não precisa ser exata."
         },
         "reviewAndCommit": {
           "title": "Revise e confirme o envio",
           "summary": "Confirme a qual banco os comprovantes pertencem, corrija leituras erradas do OCR e envie.",
-          "instructions": "Depois do processamento, abra a página de revisão do seu envio:\n\n1. Confirme se o seletor de Banco corresponde ao Banco que você gravou — a Sede pré-seleciona o banco usado mais recentemente, então confira, especialmente se você enviou vídeos de mais de um banco recentemente.\n2. Percorra cada linha de comprovante lida: prazo, valor, status (bloqueado/maturado/saqueado) e nome do comandante. Corrija o que o OCR leu errado — você pode pré-visualizar o quadro do vídeo de origem de qualquer linha.\n3. Envie quando tudo estiver correto. Os comprovantes confirmados se juntam à lista de depósitos daquele banco, e duplicatas de reenvios são removidas automaticamente.\n\nSe as coordenadas de um banco parecerem erradas, corrija-as na Gestão de Bancos antes de enviar, para que os próximos envios continuem se alinhando corretamente."
+          "instructions": "Depois do processamento, abra a página de revisão do seu envio:\n\n1. Confirme se o seletor de Banco corresponde ao Banco que você gravou — a Sede pré-seleciona o banco usado mais recentemente, então confira, especialmente se você enviou vídeos de mais de um banco recentemente.\n2. Percorra cada linha de comprovante lida: prazo, valor, status (Depositado/Maturado/Saqueado) e nome do comandante. Corrija o que o OCR leu errado — você pode pré-visualizar o quadro do vídeo de origem de qualquer linha.\n3. Envie quando tudo estiver correto. Os comprovantes confirmados se juntam à lista de depósitos daquele banco, e duplicatas de reenvios são removidas automaticamente.\n\nSe as coordenadas de um banco parecerem erradas, corrija-as na Gestão de Bancos antes de enviar, para que os próximos envios continuem se alinhando corretamente."
         },
         "ongoingOps": {
           "title": "Acompanhe os depósitos no dia a dia",
           "summary": "Use os filtros Ativos/Esgotados/Maturados/Saqueados, as estatísticas da aliança e o gráfico de queda para gerenciar um banco em operação.",
-          "instructions": "Depois que um banco tem comprovantes de depósito, a Gestão de Bancos oferece as ferramentas para operá-lo no dia a dia:\n\n• Filtros — alterne entre Ativos (bloqueados, ainda rendendo), Esgotados (prazo passou mas ainda não maturou no jogo), Maturados e Saqueados para ver exatamente a situação de cada depósito.\n• Estatísticas — Total depositado, Recuperado, Perdido em saque e Juros recebidos (depois de importar o histórico de comprovantes) resumem o desempenho do banco rapidamente.\n• Mapa de risco dos investidores — mostra quais das próximas 72 horas têm menos depósitos bloqueados em risco, para você saber quando é mais seguro abandonar.\n• Projeção de queda dos depósitos — projeta o valor bloqueado e a saída por maturidade ao longo do tempo; salve um instantâneo para comparar com o que realmente aconteceu.\n• Próximo abandono recomendado — a Sede destaca o banco de menor nível com menos valor em risco como o melhor candidato para abandonar.\n\nConfira regularmente — novos depósitos, depósitos maturando e a mudança de risco alteram a recomendação com o tempo."
+          "instructions": "Depois que um banco tem comprovantes de depósito, a Gestão de Bancos oferece as ferramentas para operá-lo no dia a dia:\n\n• Filtros — alterne entre Ativos (Depositados, ainda rendendo), Esgotados (prazo passou mas ainda não maturou no jogo), Maturados e Saqueados para ver exatamente a situação de cada depósito.\n• Estatísticas — Total depositado, Recuperado, Perdido em saque e Juros recebidos (depois de importar o histórico de comprovantes) resumem o desempenho do banco rapidamente.\n• Mapa de risco dos investidores — mostra quais das próximas 72 horas têm menos depósitos Depositados em risco, para você saber quando é mais seguro abandonar.\n• Projeção de queda dos depósitos — projeta o valor depositado e a saída por maturidade ao longo do tempo; salve um instantâneo para comparar com o que realmente aconteceu.\n• Próximo abandono recomendado — a Sede destaca o banco de menor nível com menos valor em risco como o melhor candidato para abandonar.\n\nConfira regularmente — novos depósitos, depósitos maturando e a mudança de risco alteram a recomendação com o tempo."
         },
         "abandonDrop": {
           "title": "Abandone o banco e agende a retirada",
@@ -5386,7 +5386,7 @@
           "caption": "Favoritos (opcional) dá à Sede coordenadas exatas — Favoritos tem prioridade sobre outras fontes ao alinhar o banco."
         },
         "depositSlipHistory": {
-          "alt": "Tela de Histórico de Comprovantes de Depósito rolada mostrando vários depósitos bloqueados e maturados",
+          "alt": "Tela de Histórico de Comprovantes de Depósito rolada mostrando vários depósitos Depositados e Maturados",
           "caption": "Role até o fim do Histórico de Comprovantes de Depósito para que todo comprovante seja capturado na tela."
         },
         "cityListImport": {
@@ -5766,7 +5766,7 @@
     "scheduleDrop": "Agendar abandono",
     "schedulingDrop": "Agendando…",
     "heatmapTitle": "Mapa de risco dos investidores",
-    "heatmapHint": "Próximas 72 horas. Horas mais verdes significam menos depósitos bloqueados em risco se você abandonar então.",
+    "heatmapHint": "Próximas 72 horas. Horas mais verdes significam menos depósitos Depositados em risco se você abandonar então.",
     "valueAtRisk": "Valor em risco",
     "countAtRisk": "Depósitos em risco",
     "hoursUntilClear": "Horas até todos amadurecerem",
@@ -5798,7 +5798,7 @@
       "projectionNotes": "Notas"
     },
     "status": {
-      "locked": "Bloqueado",
+      "locked": "Depositado",
       "matured": "Amadurecido",
       "looted": "Saqueado",
       "term_elapsed": "Prazo esgotado"
@@ -5839,22 +5839,28 @@
     "uploadDepositSlip": "Enviar vídeo do histórico de depósitos",
     "falloff": {
       "title": "Projeção de queda dos depósitos",
-      "hint": "Valor bloqueado projetado e saída por maturidade ao longo do tempo. Salve um instantâneo para comparar com o que realmente acontecer.",
+      "hint": "Valor depositado projetado e saída por maturidade ao longo do tempo. Salve um instantâneo para comparar com o que realmente acontecer.",
       "save": "Salvar projeção",
       "saveDialogTitle": "Salvar projeção de queda dos depósitos",
       "horizon": "Horizonte",
       "horizonOption": "{hours}h",
       "scope": "Escopo",
       "scopeBank": "Este banco",
-      "scopeAlliance": "Toda a aliança",
+      "scopeAlliance": "Todos os bancos",
+      "scopeAllianceHint": "Consolida todos os bancos que sua aliança acompanha no HQ — não apenas o selecionado acima.",
+      "investorFilter": "Investidor",
+      "investorFilterAll": "Todas as tags",
+      "investorFilterMyAlliance": "Minha aliança",
+      "investorFilterMyAllianceTagged": "Minha aliança ({tag})",
+      "investorFilterMyAllianceHint": "Apenas depósitos cuja tag de investidor corresponde à sua aliança, ou depósitos vinculados ao roster da sua aliança.",
       "localFallbackNotice": "Mostrando uma projeção calculada localmente — a sincronização ao vivo está indisponível no momento.",
       "viewingSaved": "Visualizando projeção salva: {name}",
       "clearSelection": "Voltar ao ao vivo",
       "loading": "Carregando…",
       "liveEmpty": "Ainda não há dados de depósito nesta visualização.",
-      "lockedValue": "Valor bloqueado projetado",
+      "lockedValue": "Valor depositado projetado",
       "maturingValue": "Saída por maturidade",
-      "overlayActual": "Valor bloqueado real",
+      "overlayActual": "Valor depositado real",
       "dropByMarker": "Horário planejado de abandono",
       "recommendedMarker": "Abandono recomendado",
       "deltaFinal": "Delta final",

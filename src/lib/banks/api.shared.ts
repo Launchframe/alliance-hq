@@ -201,7 +201,7 @@ export function validateDepositSlipPayload(
     return "commanderName is required.";
   }
   if (body.status != null && !isDepositStatus(body.status)) {
-    return "status must be locked, matured, or looted.";
+    return "status must be deposited, matured, or looted.";
   }
   if (body.outcomeAt != null && body.outcomeAt !== "") {
     if (Number.isNaN(new Date(body.outcomeAt).getTime())) {

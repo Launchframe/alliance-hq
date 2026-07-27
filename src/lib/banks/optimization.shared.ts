@@ -191,7 +191,7 @@ export function recommendNextDrop(
     `${best.countAtRisk} active deposit(s) at risk (${best.valueAtRisk.toLocaleString()} CrystalGold)`,
   );
   if (best.hoursUntilAllMature === 0) {
-    reasons.push("No locked deposits remain — safe to drop now");
+    reasons.push("No Deposited-status deposits remain — safe to drop now");
   } else if (best.hoursUntilAllMature != null) {
     reasons.push(
       `All current deposits mature in ~${Math.ceil(best.hoursUntilAllMature)}h`,
