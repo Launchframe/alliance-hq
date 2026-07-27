@@ -328,6 +328,80 @@ describe("commitDepositSlipsFromVideoJob", () => {
       expect.objectContaining({ preferredAshedMemberId: null }),
       expect.anything(),
     );
+    expect(resolveDepositSlipMemberLinks.mock.calls[0]?.[0]).not.toHaveProperty(
+      "skipMemberRematch",
+    );
+  });
+
+  it("skips name rematch when the officer cleared the matched member", async () => {
+    selectWhereRows.mockReturnValue([
+      {
+        id: "row-locked",
+        memberId: null,
+        matchMethod: "cleared",
+      },
+    ]);
+    resolveDepositSlipMemberLinks.mockResolvedValue({
+      depositAllianceId: "alliance-roar",
+      allianceMemberId: null,
+      commanderId: null,
+      ashedMemberId: null,
+      matchMethod: "none",
+      matchConfidence: 0,
+      candidateAshedMemberId: null,
+      candidateMemberName: null,
+      candidateMatchMethod: "none",
+      candidateConfidence: 0,
+      tagMatchMethod: "exact",
+      tagMatchConfidence: 1,
+    });
+
+    await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-locked",
+          ocrName: "Blue Investor",
+          score: "6000",
+          powerLevel: "2026-07-10T12:14:34.000Z",
+          memberLevel: 3,
+          profession: "locked",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: null,
+          frameIndex: 0,
+          deleted: false,
+          memberId: null,
+          matchMethod: "cleared",
+        },
+      ],
+    });
+
+    expect(resolveDepositSlipMemberLinks).toHaveBeenCalledWith(
+      {
+        bankAllianceId: "alliance-a",
+        depositAllianceTag: "Roar",
+        commanderName: "Blue Investor",
+        preferredAshedMemberId: null,
+        skipMemberRematch: true,
+      },
+      expect.anything(),
+    );
+    expect(createDepositSlip).toHaveBeenCalledWith("alliance-a", {
+      bankId: "bank-1",
+      depositAt: "2026-07-10T12:14:34.000Z",
+      termDays: 3,
+      amount: 6000,
+      outcomeAmount: null,
+      status: "locked",
+      outcomeAt: null,
+      depositAllianceTag: "Roar",
+      depositAllianceId: "alliance-roar",
+      commanderName: "Blue Investor",
+      commanderId: null,
+      allianceMemberId: null,
+    });
   });
 
   it("skips deleted and incomplete rows then throws when nothing valid remains", async () => {

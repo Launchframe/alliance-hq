@@ -640,8 +640,8 @@ export function DepositSlipVideoReviewTable({
                               (row.memberId === next ? row.memberName : null) ??
                               null,
                             matchConfidence: 1,
-                            // Commit honors preferredAshedMemberId only when
-                            // matchMethod is a real auto-link method (not "none").
+                            // Commit honors preferredAshedMemberId for auto-link
+                            // methods; "cleared" skips rematch; "none" rematches.
                             matchMethod: "exact",
                             ...(rosterAllianceTag?.trim()
                               ? { allianceRankTitle: rosterAllianceTag.trim() }

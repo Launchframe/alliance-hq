@@ -13,6 +13,7 @@ import {
 import {
   committedDepositSlipCommanderName,
   isDepositSlipAutoLinkedMatchMethod,
+  isDepositSlipClearedMemberMatchMethod,
 } from "@/lib/banks/deposit-slip-ocr/deposit-slip-member-match.shared";
 import { parsedRowFieldsToDepositSlipDraft } from "@/lib/banks/deposit-slip-ocr/draft-row.shared";
 import {
@@ -230,8 +231,12 @@ export async function commitDepositSlipsFromVideoJob(
 
         const matchMethod = row.matchMethod ?? meta?.matchMethod ?? null;
         const memberId = row.memberId ?? meta?.memberId ?? null;
+        const officerClearedMember =
+          isDepositSlipClearedMemberMatchMethod(matchMethod);
         const preferredAshedMemberId =
-          isDepositSlipAutoLinkedMatchMethod(matchMethod) && memberId
+          !officerClearedMember &&
+          isDepositSlipAutoLinkedMatchMethod(matchMethod) &&
+          memberId
             ? memberId
             : null;
 
@@ -241,6 +246,7 @@ export async function commitDepositSlipsFromVideoJob(
             depositAllianceTag: draft.identity.allianceTag,
             commanderName: draft.identity.commanderName,
             preferredAshedMemberId,
+            ...(officerClearedMember ? { skipMemberRematch: true } : {}),
           },
           resolverDeps,
         );

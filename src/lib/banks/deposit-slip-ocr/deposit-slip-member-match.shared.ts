@@ -43,8 +43,10 @@ export function depositSlipReviewMatchConfidence(
 }
 
 /**
- * `parsed_rows.matchMethod` is `"none"` for near-miss display-only candidates.
- * Any other non-empty method means parse-time auto-link cleared the gate.
+ * `parsed_rows.matchMethod` is `"none"` for near-miss display-only candidates
+ * and `"cleared"` when an officer explicitly unlinked the member on review.
+ * Any other non-empty method means parse-time (or officer) auto-link cleared
+ * the gate.
  */
 export function isDepositSlipAutoLinkedMatchMethod(
   matchMethod: string | null | undefined,
@@ -52,8 +54,16 @@ export function isDepositSlipAutoLinkedMatchMethod(
   return (
     matchMethod != null &&
     matchMethod !== "" &&
-    matchMethod !== "none"
+    matchMethod !== "none" &&
+    matchMethod !== "cleared"
   );
+}
+
+/** True when the officer cleared Matched Member on deposit-slip review. */
+export function isDepositSlipClearedMemberMatchMethod(
+  matchMethod: string | null | undefined,
+): boolean {
+  return matchMethod === "cleared";
 }
 
 /**
@@ -88,7 +98,8 @@ export const DEPOSIT_SLIP_CLEARED_MEMBER_MATCH = {
   memberId: null,
   memberName: null,
   matchConfidence: 0,
-  matchMethod: "none",
+  /** Distinct from `"none"` (near-miss) so commit does not rematch by OCR name. */
+  matchMethod: "cleared",
 } as const;
 
 export function depositSlipMemberMatchBorderClass(
