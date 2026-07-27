@@ -427,7 +427,11 @@ export function useRosterReviewValidation(
   options?: { existingMemberCount?: number },
 ) {
   const activeRows = rows.filter((row) => row.deleted !== 1);
-  const existingMemberCount = options?.existingMemberCount ?? 0;
+  const existingMemberCount = options?.existingMemberCount;
+  const mismatchOptions =
+    existingMemberCount !== undefined
+      ? { existingMemberCount }
+      : undefined;
 
   const duplicateMemberIssues = useMemo(
     () =>
@@ -454,9 +458,12 @@ export function useRosterReviewValidation(
 
   const unmatchedRowIds = useMemo(
     () =>
-      findUnmatchedRosterRowIds(activeRows, {
-        existingMemberCount,
-      }),
+      findUnmatchedRosterRowIds(
+        activeRows,
+        existingMemberCount !== undefined
+          ? { existingMemberCount }
+          : undefined,
+      ),
     [activeRows, existingMemberCount],
   );
 
@@ -470,6 +477,6 @@ export function useRosterReviewValidation(
     hasUnresolvedNameMismatches: unmatchedRowIds.size > 0,
     isRosterRowNameMismatch: (
       row: Parameters<typeof isRosterRowNameMismatch>[0],
-    ) => isRosterRowNameMismatch(row, { existingMemberCount }),
+    ) => isRosterRowNameMismatch(row, mismatchOptions),
   };
 }
