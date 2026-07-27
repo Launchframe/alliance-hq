@@ -1,0 +1,51 @@
+# Delete the Neon preview database branch created by the Neon ↔ Vercel
+# integration when a PR is closed (merged or abandoned).
+#
+# Neon names those branches `preview/<git-head-ref>` (e.g. preview/feat/foo).
+# Without this job, Vercel-managed cleanup can leave them for months under
+# deployment retention — counting toward branch limits and storage.
+#
+# Setup (once):
+#   Repo variable  NEON_PROJECT_ID  — Neon Console → Project Settings
+#   Repo secret    NEON_API_KEY     — Neon Console → Account Settings → API Keys
+#
+# See: https://neon.com/docs/guides/vercel-branch-cleanup
+
+name: Cleanup Neon preview branch
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  delete-neon-branch:
+    name: Delete Neon preview branch
+    runs-on: ubuntu-latest
+    env:
+      NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+    steps:
+      - name: Check Neon credentials
+        id: check
+        run: |
+          if [ -z "${NEON_PROJECT_ID}" ] || [ -z "${NEON_API_KEY}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "NEON_PROJECT_ID / NEON_API_KEY not set — skipping Neon preview cleanup."
+            echo "Set the repo variable NEON_PROJECT_ID and secret NEON_API_KEY (see docs/deploy-frontline-gay.md §2c)."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "Will delete Neon branch: preview/${{ github.head_ref }}"
+          fi
+
+      - name: Delete preview/${{ github.head_ref }}
+        if: steps.check.outputs.configured == 'true'
+        uses: neondatabase/delete-branch-action@v3
+        # Safe if the branch was already deleted by Neon/Vercel cleanup.
+        continue-on-error: true
+        with:
+          project_id: ${{ env.NEON_PROJECT_ID }}
+          branch: preview/${{ github.head_ref }}
+          api_key: ${{ env.NEON_API_KEY }}
