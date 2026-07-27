@@ -45,6 +45,12 @@ export type RosterImportCommitInput = {
   markAbsentInactive?: boolean;
   /** Rank/stat event source — defaults to roster_import. */
   source?: "roster_import" | "video_parse";
+  /**
+   * Calendar date (YYYY-MM-DD) for power/level events. Defaults to server
+   * today. Buster Day Friday/Sunday snapshots must pass the snapshot date so
+   * catch-up submits do not collapse both endpoints onto one recordedDate.
+   */
+  recordedDate?: string | null;
   /** When set on a linked Ashed alliance, name changes dual-write to Ashed Member. */
   ashedConnection?: ParsedConnection | null;
 };
@@ -113,6 +119,7 @@ async function appendStatEventsForRow(input: {
   memberLevel?: number | null;
   hqUserId: string;
   source: "roster_import" | "video_parse";
+  recordedDate?: string | null;
 }): Promise<void> {
   if (input.powerLevel) {
     const commanderId = await getCommanderIdForMember(
@@ -124,6 +131,7 @@ async function appendStatEventsForRow(input: {
         commanderId,
         allianceId: input.allianceId,
         value: input.powerLevel,
+        recordedDate: input.recordedDate ?? undefined,
         source: input.source,
         recordedByHqUserId: input.hqUserId,
       });
@@ -137,6 +145,7 @@ async function appendStatEventsForRow(input: {
         ashedMemberId: input.ashedMemberId,
         memberName: input.memberName,
         value: level,
+        recordedDate: input.recordedDate ?? undefined,
         source: input.source,
         recordedByHqUserId: input.hqUserId,
       });
@@ -252,6 +261,7 @@ export async function commitRosterImport(
         memberLevel: row.memberLevel,
         hqUserId: input.hqUserId,
         source: eventSource,
+        recordedDate: input.recordedDate,
       });
 
       if (
@@ -326,6 +336,7 @@ export async function commitRosterImport(
       memberLevel: row.memberLevel,
       hqUserId: input.hqUserId,
       source: eventSource,
+      recordedDate: input.recordedDate,
     });
 
     await syncCommanderFromAllianceMember({

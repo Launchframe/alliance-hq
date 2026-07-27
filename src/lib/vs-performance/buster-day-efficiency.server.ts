@@ -6,7 +6,9 @@ import { parsePowerLevelM } from "@/lib/commanders/power-stats.shared";
 import { getDb, schema } from "@/lib/db";
 import { formatServerCalendarDate } from "@/lib/trains/game-time";
 import { fetchAlliancePriorDayVsScoresByMember } from "@/lib/trains/vs-scores.server";
+import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-alliance.server";
 import {
+  BUSTER_DAY_SNAPSHOT_MAX_DAY_DISTANCE,
   computeBusterDayEfficiencyReport,
   pickClosestByCalendarDate,
   type SerializedBusterDayEfficiencyRow,
@@ -145,6 +147,59 @@ async function loadKillsEventsByCommander(
   return byCommander;
 }
 
+/**
+ * Powers from an attached Members+Power video job, keyed by ashed member id.
+ * Prefer these over historical power events so Sunday catch-up submits still
+ * retain distinct Friday vs Sunday OCR readings.
+ */
+async function loadPowerByAshedMemberFromRosterJob(
+  allianceId: string,
+  jobId: string | null | undefined,
+): Promise<Map<string, number>> {
+  const byMember = new Map<string, number>();
+  const trimmed = jobId?.trim();
+  if (!trimmed) return byMember;
+
+  const db = getDb();
+  const [job] = await db
+    .select({
+      parseSessionId: schema.videoJobs.parseSessionId,
+      allianceId: schema.videoJobs.allianceId,
+    })
+    .from(schema.videoJobs)
+    .where(eq(schema.videoJobs.id, trimmed))
+    .limit(1);
+
+  if (!job?.parseSessionId) {
+    return byMember;
+  }
+  const jobAllianceId = await resolveHqAllianceIdFromStoredAllianceId(
+    job.allianceId,
+  );
+  if (jobAllianceId !== allianceId) {
+    return byMember;
+  }
+
+  const rows = await db
+    .select({
+      memberId: schema.parsedRows.memberId,
+      powerLevel: schema.parsedRows.powerLevel,
+      deleted: schema.parsedRows.deleted,
+    })
+    .from(schema.parsedRows)
+    .where(eq(schema.parsedRows.parseSessionId, job.parseSessionId));
+
+  for (const row of rows) {
+    if (row.deleted === 1) continue;
+    const memberId = row.memberId?.trim();
+    if (!memberId) continue;
+    const powerM = parsePowerLevelM(row.powerLevel);
+    if (powerM == null) continue;
+    byMember.set(memberId, powerM);
+  }
+  return byMember;
+}
+
 function powerNearDate(
   events: Array<{ recordedDate: string; value: string }> | undefined,
   targetDate: string,
@@ -154,6 +209,7 @@ function powerNearDate(
     events,
     targetDate,
     (row) => row.recordedDate,
+    BUSTER_DAY_SNAPSHOT_MAX_DAY_DISTANCE,
   );
   return closest ? parsePowerLevelM(closest.value) : null;
 }
@@ -167,6 +223,7 @@ function killsNearDate(
     events,
     targetDate,
     (row) => row.recordedDate,
+    BUSTER_DAY_SNAPSHOT_MAX_DAY_DISTANCE,
   );
   return closest?.total ?? null;
 }
@@ -180,16 +237,32 @@ export async function loadBusterDayEfficiencyReport(input: {
   vsWeekMonday: string;
   preSnapshotDate: string;
   postSnapshotDate: string;
+  preRosterJobId?: string | null;
+  postRosterJobId?: string | null;
 }): Promise<BusterDayEfficiencyReportPayload> {
   const week = busterDayWeekDates(input.vsWeekMonday);
   const saturday = week.saturday;
   const memberships = await listActiveAllianceMemberships(input.allianceId);
   const commanderIds = memberships.map((row) => row.commanderId);
 
-  const [powerByCommander, killsByCommander, vsByMember] = await Promise.all([
+  const [
+    powerByCommander,
+    killsByCommander,
+    vsByMember,
+    preJobPowerByMember,
+    postJobPowerByMember,
+  ] = await Promise.all([
     loadPowerEventsByCommander(input.allianceId, commanderIds),
     loadKillsEventsByCommander(commanderIds),
     fetchAlliancePriorDayVsScoresByMember(input.allianceId, saturday),
+    loadPowerByAshedMemberFromRosterJob(
+      input.allianceId,
+      input.preRosterJobId,
+    ),
+    loadPowerByAshedMemberFromRosterJob(
+      input.allianceId,
+      input.postRosterJobId,
+    ),
   ]);
 
   const vsScoresAvailable = vsByMember.size > 0;
@@ -199,14 +272,18 @@ export async function loadBusterDayEfficiencyReport(input: {
       commanderId: member.commanderId,
       memberName: member.memberName,
       ashedMemberId: member.ashedMemberId,
-      powerStartM: powerNearDate(
-        powerByCommander.get(member.commanderId),
-        input.preSnapshotDate,
-      ),
-      powerEndM: powerNearDate(
-        powerByCommander.get(member.commanderId),
-        input.postSnapshotDate,
-      ),
+      powerStartM:
+        preJobPowerByMember.get(member.ashedMemberId) ??
+        powerNearDate(
+          powerByCommander.get(member.commanderId),
+          input.preSnapshotDate,
+        ),
+      powerEndM:
+        postJobPowerByMember.get(member.ashedMemberId) ??
+        powerNearDate(
+          powerByCommander.get(member.commanderId),
+          input.postSnapshotDate,
+        ),
       killsStart: killsNearDate(
         killsByCommander.get(member.commanderId),
         input.preSnapshotDate,

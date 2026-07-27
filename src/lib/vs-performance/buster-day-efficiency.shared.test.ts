@@ -79,6 +79,40 @@ describe("computeBusterDayEfficiencyRow", () => {
     expect(row.netVsScore).toBe(0);
     expect(row.noEngagement).toBe(true);
   });
+
+  it("does not rank missing power endpoints as god-tier ε ratios", () => {
+    const row = computeBusterDayEfficiencyRow({
+      commanderId: "c5",
+      memberName: "Echo",
+      ashedMemberId: "m5",
+      powerStartM: null,
+      powerEndM: 100,
+      killsStart: null,
+      killsEnd: null,
+      vsScoreSaturday: BUSTER_DAY_BASELINE_POINTS + 2_000_000,
+    });
+    expect(row.powerLostM).toBe(0);
+    expect(row.netVsScore).toBe(2_000_000);
+    expect(row.noEngagement).toBe(true);
+    expect(row.efficiencyRatio).toBeNull();
+  });
+
+  it("does not rank missing Saturday VS as false-weakest", () => {
+    const row = computeBusterDayEfficiencyRow({
+      commanderId: "c6",
+      memberName: "Foxtrot",
+      ashedMemberId: "m6",
+      powerStartM: 100,
+      powerEndM: 80,
+      killsStart: 10,
+      killsEnd: 20,
+      vsScoreSaturday: null,
+    });
+    expect(row.powerLostM).toBe(20);
+    expect(row.netVsScore).toBe(0);
+    expect(row.noEngagement).toBe(true);
+    expect(row.efficiencyRatio).toBeNull();
+  });
 });
 
 describe("computeBusterDayEfficiencyReport", () => {
@@ -117,6 +151,49 @@ describe("computeBusterDayEfficiencyReport", () => {
     ]);
     expect(rows.map((r) => r.commanderId)).toEqual(["weak", "strong", "idle"]);
   });
+
+  it("sinks incomplete power/VS rows instead of ranking them", () => {
+    const rows = computeBusterDayEfficiencyReport([
+      {
+        commanderId: "incomplete-power",
+        memberName: "Zulu",
+        ashedMemberId: "z",
+        powerStartM: null,
+        powerEndM: 90,
+        killsStart: 0,
+        killsEnd: 10,
+        vsScoreSaturday: BUSTER_DAY_BASELINE_POINTS + 5_000_000,
+      },
+      {
+        commanderId: "incomplete-vs",
+        memberName: "Yankee",
+        ashedMemberId: "y",
+        powerStartM: 100,
+        powerEndM: 10,
+        killsStart: 0,
+        killsEnd: 1,
+        vsScoreSaturday: null,
+      },
+      {
+        commanderId: "scored",
+        memberName: "Alpha",
+        ashedMemberId: "a",
+        powerStartM: 100,
+        powerEndM: 80,
+        killsStart: 0,
+        killsEnd: 10,
+        vsScoreSaturday: BUSTER_DAY_BASELINE_POINTS + 200_000,
+      },
+    ]);
+    expect(rows.map((r) => r.commanderId)).toEqual([
+      "scored",
+      "incomplete-vs",
+      "incomplete-power",
+    ]);
+    expect(rows[0]?.efficiencyRatio).not.toBeNull();
+    expect(rows[1]?.noEngagement).toBe(true);
+    expect(rows[2]?.noEngagement).toBe(true);
+  });
 });
 
 describe("calendarDayDistance / pickClosestByCalendarDate", () => {
@@ -132,5 +209,28 @@ describe("calendarDayDistance / pickClosestByCalendarDate", () => {
       (row) => row.recordedDate,
     );
     expect(picked?.value).toBe("b");
+  });
+
+  it("rejects readings beyond the max day distance", () => {
+    const picked = pickClosestByCalendarDate(
+      [
+        { recordedDate: "2026-07-19", value: "sunday-only" },
+        { recordedDate: "2026-07-12", value: "stale" },
+      ],
+      "2026-07-17",
+      (row) => row.recordedDate,
+      1,
+    );
+    expect(picked).toBeNull();
+  });
+
+  it("still accepts an adjacent-day reading within max distance", () => {
+    const picked = pickClosestByCalendarDate(
+      [{ recordedDate: "2026-07-18", value: "sat" }],
+      "2026-07-17",
+      (row) => row.recordedDate,
+      1,
+    );
+    expect(picked?.value).toBe("sat");
   });
 });
