@@ -57,6 +57,32 @@ function toAshedMembers(roster: RosterMember[]): AshedMember[] {
   }));
 }
 
+function historyImportStatusBadgeClass(
+  status: HistoryImportRowCommitStatus,
+): string {
+  switch (status) {
+    case "ready":
+      return "border-hq-success/40 bg-hq-success/15 text-hq-success";
+    case "overwrite_draft":
+      return "border-hq-accent/40 bg-hq-accent/15 text-hq-accent";
+    case "already_locked":
+      return "border-hq-border bg-hq-canvas text-hq-fg-muted";
+    case "blank":
+      return "border-hq-border bg-hq-surface-muted text-hq-fg-muted";
+    case "unmatched":
+    case "date_conflict":
+    case "gap":
+    case "missing_date":
+    case "not_descending":
+      return "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-200";
+    case "conflict_locked":
+    case "not_past":
+      return "border-hq-danger/40 bg-hq-danger/15 text-hq-danger";
+    default:
+      return "border-hq-border bg-hq-canvas text-hq-fg-muted";
+  }
+}
+
 export function ConductorHistoryImportDialog({
   open,
   onOpenChange,
@@ -124,9 +150,7 @@ export function ConductorHistoryImportDialog({
         case "date_conflict":
           if (row.anchorConflict) {
             return t("status.dateConflict", {
-              labeledDate: row.anchorConflict.labeledDate,
-              expectedDate: row.anchorConflict.expectedDate,
-              count: row.anchorConflict.missingDayCount,
+              date: row.anchorConflict.labeledDate,
             });
           }
           return t("status.gap");
@@ -405,91 +429,106 @@ export function ConductorHistoryImportDialog({
                 {t("gapBanner")}
               </p>
             ) : null}
-            <div className="overflow-x-auto rounded-lg border border-hq-border">
-              <table className="min-w-full text-left text-sm">
-                <thead className="bg-hq-canvas text-xs uppercase tracking-wide text-hq-fg-muted">
-                  <tr>
-                    <th className="px-3 py-2 font-medium">{t("colDate")}</th>
-                    <th className="px-3 py-2 font-medium">
-                      {t("colPastedName")}
-                    </th>
-                    <th className="px-3 py-2 font-medium">{t("colMember")}</th>
-                    <th className="px-3 py-2 font-medium">{t("colStatus")}</th>
-                    <th className="px-3 py-2 font-medium">{t("colActions")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => {
-                    const options = buildMemberMatchSelectOptions(
-                      ashedMembers,
-                      {
-                        emptyLabel: t("status.unmatched"),
-                        highlightMemberId: row.memberId,
-                        highlightConfidence: row.confidence,
-                      },
-                    );
-                    const insertCount =
-                      row.anchorConflict?.missingDayCount ?? 0;
-                    return (
-                      <tr
-                        key={row.rowKey}
-                        className={`border-t border-hq-border ${
-                          row.status === "date_conflict" ||
-                          row.status === "gap" ||
-                          row.status === "blank"
-                            ? "bg-amber-500/10"
-                            : ""
-                        }`}
-                        data-testid={`trains-history-import-row-${row.index}`}
-                        data-status={row.status}
-                      >
-                        <td className="px-3 py-2 tabular-nums text-hq-fg">
+            <div className="overflow-hidden rounded-lg border border-hq-border">
+              <div className="hidden grid-cols-[7.5rem_minmax(7rem,1fr)_minmax(10rem,1.4fr)_minmax(8rem,1fr)_auto] gap-3 bg-hq-canvas px-3 py-2 text-xs uppercase tracking-wide text-hq-fg-muted md:grid">
+                <span className="font-medium">{t("colDate")}</span>
+                <span className="font-medium">{t("colPastedName")}</span>
+                <span className="font-medium">{t("colMember")}</span>
+                <span className="font-medium">{t("colStatus")}</span>
+                <span className="font-medium">{t("colActions")}</span>
+              </div>
+              <ul className="divide-y divide-hq-border">
+                {rows.map((row) => {
+                  const options = buildMemberMatchSelectOptions(ashedMembers, {
+                    emptyLabel: t("status.unmatched"),
+                    highlightMemberId: row.memberId,
+                    highlightConfidence: row.confidence,
+                  });
+                  const insertCount = row.anchorConflict?.missingDayCount ?? 0;
+                  const highlight =
+                    row.status === "date_conflict" ||
+                    row.status === "gap" ||
+                    row.status === "blank";
+                  return (
+                    <li
+                      key={row.rowKey}
+                      className={`grid gap-3 px-3 py-3 md:grid-cols-[7.5rem_minmax(7rem,1fr)_minmax(10rem,1.4fr)_minmax(8rem,1fr)_auto] md:items-center ${
+                        highlight ? "bg-amber-500/10" : ""
+                      }`}
+                      data-testid={`trains-history-import-row-${row.index}`}
+                      data-status={row.status}
+                    >
+                      <div className="space-y-1 md:space-y-0">
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-hq-fg-muted md:hidden">
+                          {t("colDate")}
+                        </p>
+                        <p className="whitespace-nowrap tabular-nums text-hq-fg">
                           {row.date ?? "—"}
-                        </td>
-                        <td className="px-3 py-2 font-medium text-hq-fg">
+                        </p>
+                      </div>
+                      <div className="space-y-1 md:space-y-0">
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-hq-fg-muted md:hidden">
+                          {t("colPastedName")}
+                        </p>
+                        <p className="font-medium text-hq-fg">
                           {row.blank ? t("blankName") : row.name}
-                        </td>
-                        <td className="px-3 py-2">
-                          {row.blank ? (
-                            <span className="text-hq-fg-muted">—</span>
-                          ) : (
-                            <AppSelect
-                              value={row.memberId ?? ""}
-                              onChange={(value) =>
-                                setRowMember(row.rowKey, value)
-                              }
-                              options={options}
-                              searchable
-                              searchMode="fuzzy"
-                              className={memberMatchConfidenceBorderClass(
-                                row.memberId ? row.confidence : 0,
-                              )}
-                            />
-                          )}
-                        </td>
-                        <td className="px-3 py-2 text-hq-fg-muted">
-                          {statusLabel(row)}
-                        </td>
-                        <td className="px-3 py-2">
+                        </p>
+                      </div>
+                      <div className="space-y-1 md:space-y-0">
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-hq-fg-muted md:hidden">
+                          {t("colMember")}
+                        </p>
+                        {row.blank ? (
+                          <span className="text-hq-fg-muted">—</span>
+                        ) : (
+                          <AppSelect
+                            value={row.memberId ?? ""}
+                            onChange={(value) =>
+                              setRowMember(row.rowKey, value)
+                            }
+                            options={options}
+                            searchable
+                            searchMode="fuzzy"
+                            triggerClassName={memberMatchConfidenceBorderClass(
+                              row.memberId ? row.confidence : 0,
+                            )}
+                          />
+                        )}
+                      </div>
+                      <div className="col-span-full flex flex-wrap items-center gap-2 border-t border-hq-border pt-3 md:contents md:border-0 md:pt-0">
+                        <div className="space-y-1 md:space-y-0">
+                          <p className="text-[11px] font-medium uppercase tracking-wide text-hq-fg-muted md:hidden">
+                            {t("colStatus")}
+                          </p>
+                          <span
+                            className={`inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-[11px] font-medium leading-snug ${historyImportStatusBadgeClass(row.status)}`}
+                          >
+                            {statusLabel(row)}
+                          </span>
+                        </div>
+                        <div>
                           {row.status === "date_conflict" && insertCount > 0 ? (
                             <button
                               type="button"
                               disabled={busy}
                               onClick={() =>
-                                void insertBlanksBeforeRow(row.index, insertCount)
+                                void insertBlanksBeforeRow(
+                                  row.index,
+                                  insertCount,
+                                )
                               }
                               className="rounded-md border border-hq-border px-2 py-1 text-xs font-medium text-hq-fg hover:bg-hq-canvas disabled:opacity-50"
                               data-testid={`trains-history-import-insert-blanks-${row.index}`}
                             >
-                              {t("insertBlanks", { count: insertCount })}
+                              {t("fillGap")}
                             </button>
                           ) : null}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
             {error ? (
               <p className="text-sm text-hq-danger" role="alert">
