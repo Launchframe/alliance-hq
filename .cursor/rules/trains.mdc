@@ -11,9 +11,9 @@ globs:
 ## Roles
 
 - **Conductor** — one per game day; lock spawns empty train (5×6 cargo slots).
-- **VIP** — Conductor may pick; VIP chooses 2 of 4 rider cars.
+- **VIP** — boards after lock/spawn; VIP chooses 2 of 4 rider cars. HQ VIP assign/spin requires `lockedAt`.
 - **Guardian** — defends on plunder: VIP squads if `guardianIsVip`, else Conductor.
-- **Lock** — `lockedAt` set is final for that day (override = exceptional + audited).
+- **Lock** — `lockedAt` spawns the train and freezes the conductor pick; VIP may still be set afterward (unlock/override = exceptional + audited).
 
 ## Week templates
 

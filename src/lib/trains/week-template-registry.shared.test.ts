@@ -7,6 +7,7 @@ import {
   resolvePaintTemplateForCalendarDate,
   resolvePaintTemplateForDay,
   segmentTemplateForDayIndex,
+  shouldExpandCompositeByDayIndex,
   usesCombinedSegmentDisplay,
 } from "@/lib/trains/week-template-registry.shared";
 
@@ -97,5 +98,26 @@ describe("week template registry", () => {
     // `custom` is a PIR weekend segment and also a selectable whole-week preset;
     // reverse-map still finds the composite that uses it as a segment.
     expect(compositeParentForSegment("custom")).toBe("price_is_right");
+  });
+
+  it("expands composite templates for week apply or multi-day paints", () => {
+    expect(
+      shouldExpandCompositeByDayIndex({
+        updateWeekTemplate: true,
+        dateCount: 1,
+      }),
+    ).toBe(true);
+    expect(
+      shouldExpandCompositeByDayIndex({
+        updateWeekTemplate: false,
+        dateCount: 2,
+      }),
+    ).toBe(true);
+    expect(
+      shouldExpandCompositeByDayIndex({
+        updateWeekTemplate: false,
+        dateCount: 1,
+      }),
+    ).toBe(false);
   });
 });

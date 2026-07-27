@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   canSpinConductorForDay,
+  canSpinVipForDay,
   conductorDrawChanged,
   effectiveConductorMechanism,
   hasValidConductorPickForDay,
@@ -128,5 +129,14 @@ describe("conductor draw identity", () => {
         date: "2026-06-10",
       }),
     ).toBe(true);
+  });
+});
+
+describe("canSpinVipForDay", () => {
+  it("requires the conductor day to be locked", () => {
+    expect(canSpinVipForDay("event_top_x_lottery", false)).toBe(false);
+    expect(canSpinVipForDay("event_top_x_lottery", true)).toBe(true);
+    expect(canSpinVipForDay("donations_second", true)).toBe(true);
+    expect(canSpinVipForDay("conductor_pick", true)).toBe(false);
   });
 });

@@ -18,6 +18,7 @@ import {
   resolveLiteralDayPaintTemplate,
   resolvePaintTemplateForCalendarDate,
   resolvePaintTemplateForDay,
+  shouldExpandCompositeByDayIndex,
 } from "@/lib/trains/week-template-registry.shared";
 
 export type TrainsDashboardSnapshot = {
@@ -299,7 +300,7 @@ function clearConductorPicksWhenDrawChanges(
     if (
       !dateSet.has(record.date) ||
       record.lockedAt ||
-      !record.conductorMemberId
+      (!record.conductorMemberId && !record.vipMemberId)
     ) {
       return record;
     }
@@ -350,6 +351,8 @@ function clearConductorPicksWhenDrawChanges(
       conductorMemberName: null,
       substituteForMemberId: null,
       substituteForMemberName: null,
+      vipMemberId: null,
+      vipMemberName: null,
     };
   });
 }
@@ -363,13 +366,17 @@ export function applyOptimisticPaint(
   const trainWeekConfig = allianceTrainWeekFromRow({
     trainWeekStartDow: snap.data.trainWeekStartDow,
   });
+  const expandCompositeByDayIndex = shouldExpandCompositeByDayIndex({
+    updateWeekTemplate: options?.updateWeekTemplate,
+    dateCount: dates.length,
+  });
   const paintOptions =
     options?.topN != null
       ? {
           topN: options.topN,
-          weekTemplateApply: options?.updateWeekTemplate === true,
+          weekTemplateApply: expandCompositeByDayIndex,
         }
-      : { weekTemplateApply: options?.updateWeekTemplate === true };
+      : { weekTemplateApply: expandCompositeByDayIndex };
   const clearRecords = (
     records: WeekConductorRecordSummary[],
     dayConfigs: WeekScheduleDayConfig[],
@@ -393,13 +400,15 @@ export function applyOptimisticPaint(
         trainWeekConfig,
         {
           ...paintOptions,
-          weekTemplateApply: options?.updateWeekTemplate === true,
+          weekTemplateApply: expandCompositeByDayIndex,
         },
       ),
       weekRecords: clearRecords(snap.data.weekRecords, snap.data.dayConfigs),
       conductorRecord:
         dates.includes(snap.data.today) &&
-        snap.data.conductorRecord?.conductorMemberId
+        snap.data.conductorRecord &&
+        (snap.data.conductorRecord.conductorMemberId ||
+          snap.data.conductorRecord.vipMemberId)
           ? clearRecords(
               [snap.data.conductorRecord],
               snap.data.dayConfigs,
@@ -415,7 +424,7 @@ export function applyOptimisticPaint(
         trainWeekConfig,
         {
           ...paintOptions,
-          weekTemplateApply: options?.updateWeekTemplate === true,
+          weekTemplateApply: expandCompositeByDayIndex,
         },
       ),
       weekRecords: clearRecords(
@@ -432,7 +441,7 @@ export function applyOptimisticPaint(
         trainWeekConfig,
         {
           ...paintOptions,
-          weekTemplateApply: options?.updateWeekTemplate === true,
+          weekTemplateApply: expandCompositeByDayIndex,
         },
       ),
       monthRecords: clearRecords(

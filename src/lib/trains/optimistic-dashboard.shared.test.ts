@@ -122,6 +122,160 @@ describe("optimistic dashboard state", () => {
     expect(painted.data.dayConfigs[0]?.conductorMechanism).toBe("r3_lottery");
   });
 
+  it("clears VIP picks when the draw mechanism changes", () => {
+    const base = {
+      data: {
+        today: "2026-06-10",
+        weekStart: "2026-06-08",
+        weekEnd: "2026-06-14",
+        trainWeekStartDow: 1,
+        weekRecords: [
+          {
+            id: "r1",
+            date: "2026-06-10",
+            conductorMemberId: "m1",
+            conductorMemberName: "Alice",
+            conductorMechanism: "vs_top_10",
+            vipMemberId: "m2",
+            vipMemberName: "Bob",
+            vipMechanism: "conductor_pick",
+            guardianIsVip: false,
+            lockedAt: null,
+            substituteForMemberId: null,
+            substituteForMemberName: null,
+          },
+        ],
+        dayConfigs: [
+          {
+            id: "d1",
+            date: "2026-06-10",
+            conductorMechanism: "vs_top_10",
+            vipMechanism: "conductor_pick",
+            vipConfig: null,
+            isOverride: false,
+            paintTemplate: "vs_push_weekdays",
+          },
+        ],
+        conductorRecord: null,
+      },
+      viewedWeek: {
+        weekStart: "2026-06-08",
+        weekEnd: "2026-06-14",
+        templateType: "vs_push_week",
+        dayConfigs: [
+          {
+            id: "d1",
+            date: "2026-06-10",
+            conductorMechanism: "vs_top_10",
+            vipMechanism: "conductor_pick",
+            vipConfig: null,
+            isOverride: false,
+            paintTemplate: "vs_push_weekdays",
+          },
+        ],
+        weekRecords: [
+          {
+            id: "r1",
+            date: "2026-06-10",
+            conductorMemberId: "m1",
+            conductorMemberName: "Alice",
+            conductorMechanism: "vs_top_10",
+            vipMemberId: "m2",
+            vipMemberName: "Bob",
+            vipMechanism: "conductor_pick",
+            guardianIsVip: false,
+            lockedAt: null,
+            substituteForMemberId: null,
+            substituteForMemberName: null,
+          },
+        ],
+      },
+      viewedMonth: {
+        monthKey: "2026-06",
+        monthStart: "2026-06-01",
+        monthEnd: "2026-06-30",
+        dayConfigs: [],
+        monthRecords: [],
+      },
+    } as unknown as Parameters<typeof applyOptimisticPaint>[0];
+
+    const painted = applyOptimisticPaint(base, ["2026-06-10"], "economy_week");
+    expect(painted.data.weekRecords[0]?.conductorMemberId).toBeNull();
+    expect(painted.data.weekRecords[0]?.vipMemberId).toBeNull();
+    expect(painted.viewedWeek.weekRecords[0]?.vipMemberId).toBeNull();
+  });
+
+  it("expands composite templates when painting multiple days", () => {
+    const base = {
+      data: {
+        today: "2026-06-09",
+        weekStart: "2026-06-09",
+        weekEnd: "2026-06-15",
+        weekRecords: [],
+        dayConfigs: [],
+        conductorRecord: null,
+      },
+      viewedWeek: {
+        weekStart: "2026-06-09",
+        weekEnd: "2026-06-15",
+        templateType: "custom",
+        dayConfigs: [],
+        weekRecords: [],
+      },
+      viewedMonth: {
+        monthKey: "2026-06",
+        monthStart: "2026-06-01",
+        monthEnd: "2026-06-30",
+        dayConfigs: [],
+        monthRecords: [],
+      },
+    } as unknown as Parameters<typeof applyOptimisticPaint>[0];
+
+    const painted = applyOptimisticPaint(
+      base,
+      ["2026-06-09", "2026-06-13"],
+      "price_is_right",
+    );
+    const byDate = new Map(
+      painted.viewedWeek.dayConfigs.map((day) => [day.date, day.paintTemplate]),
+    );
+    expect(byDate.get("2026-06-09")).toBe("price_is_right_weekdays");
+    expect(byDate.get("2026-06-13")).toBe("takedown_week");
+  });
+
+  it("uses literal segment for single-day composite paint", () => {
+    const base = {
+      data: {
+        today: "2026-06-13",
+        weekStart: "2026-06-09",
+        weekEnd: "2026-06-15",
+        trainWeekStartDow: 1,
+        weekRecords: [],
+        dayConfigs: [],
+        conductorRecord: null,
+      },
+      viewedWeek: {
+        weekStart: "2026-06-09",
+        weekEnd: "2026-06-15",
+        templateType: "price_is_right",
+        dayConfigs: [],
+        weekRecords: [],
+      },
+      viewedMonth: {
+        monthKey: "2026-06",
+        monthStart: "2026-06-01",
+        monthEnd: "2026-06-30",
+        dayConfigs: [],
+        monthRecords: [],
+      },
+    } as unknown as Parameters<typeof applyOptimisticPaint>[0];
+
+    const painted = applyOptimisticPaint(base, ["2026-06-13"], "price_is_right");
+    expect(painted.viewedWeek.dayConfigs[0]?.paintTemplate).toBe(
+      "price_is_right_weekdays",
+    );
+  });
+
   it("paints Saturday TPIF as eligible-VS raffle, not heavy-hitter", () => {
     const base = {
       data: {

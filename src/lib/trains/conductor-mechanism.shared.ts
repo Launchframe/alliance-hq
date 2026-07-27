@@ -112,7 +112,8 @@ export function canSpinVipForDay(
   vipMechanism: string | null | undefined,
   locked: boolean,
 ): boolean {
-  if (locked || !vipMechanism) return false;
+  // VIP boards after the conductor is locked/spawned in-game.
+  if (!locked || !vipMechanism) return false;
   return (
     vipMechanism === "donations_second" || vipMechanism === "event_top_x_lottery"
   );

@@ -3209,7 +3209,8 @@
     "dayTemplateMenu": {
       "title": "Alterar modelo do dia",
       "ariaLabel": "Escolher um modelo para {date}",
-      "holdHint": "Pressione longamente um dia para alterar o modelo desse dia."
+      "holdHint": "Pressione longamente um dia para alterar o modelo desse dia.",
+      "dialogSubtitle": "Isso altera apenas a escolha de hoje — o modelo da semana permanece o mesmo."
     },
     "weekdays": {
       "mon": "Seg",
@@ -3390,7 +3391,7 @@
           "pickManual": "Escolher VIP manualmente",
           "assigned": "VIP: {name}",
           "change": "Alterar",
-          "skipped": "VIP não é usado neste dia"
+          "skipped": "Deixar o condutor decidir"
         },
         "lock": {
           "title": "Confirmar",
@@ -3467,10 +3468,12 @@
     "swap": {
       "action": "Trocar / Dia de reposição",
       "title": "Trocar Condutores",
-      "body": "Mova um rascunho de Condutor destravado para outro dia ou troque entre dois dias destravados — útil para dias de reposição. Os dias de destino atribuídos serão confirmados após você confirmar.",
+      "body": "Mova um rascunho de Condutor destravado para outro dia ou troque entre dois dias destravados — útil para dias de reposição. Você pode escolher um dia próximo ou qualquer data futura. Os dias de destino atribuídos serão confirmados após você confirmar.",
       "thisDay": "Este dia",
-      "swapWith": "Trocar com",
-      "noCandidates": "Não há outros dias nesta semana para trocar.",
+      "swapWith": "Próximos dias",
+      "pickDate": "Ou escolha uma data",
+      "dateLabel": "Data futura",
+      "noCandidates": "Nenhuma sugestão rápida disponível. Use o seletor de data abaixo.",
       "noConductorYet": "Sem Condutor ainda",
       "preview": "{dayA}: {nameA} ↔ {dayB}: {nameB}",
       "previewMoveToOpen": "{nameA} vai para {dayB}. {dayA} ficará sem Condutor.",
@@ -3771,6 +3774,22 @@
         "top10Title": "Top 10 Pontuações VS",
         "topNVsTitle": "Top {count} Pontuações VS",
         "topNVrTitle": "Top {count} Pontuações VR"
+      },
+      "share": {
+        "action": "Compartilhar imagem",
+        "exporting": "Preparando imagem…",
+        "failed": "Não foi possível exportar a imagem.",
+        "previewTitle": "Compartilhar imagem",
+        "copyMedia": "Copiar mídia",
+        "download": "Baixar",
+        "copied": "Copiado",
+        "copyFailed": "Não foi possível copiar a imagem.",
+        "closePreview": "Fechar",
+        "statsLine": "Último: {lastDate} · {count} este ano",
+        "eligibilityVsMinimum": "Elegível: {score} (mín. {minimum})",
+        "eligibilityTpif": "VS do dia anterior {score} — mais perto de {sweetSpot}",
+        "eligibilityVsLeaderboardRank": "#{rank} · {score} {suffix}",
+        "eligibilityVsLeaderboardScore": "{score} {suffix}"
       }
     },
     "season": {

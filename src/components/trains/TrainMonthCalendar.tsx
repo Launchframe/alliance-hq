@@ -33,10 +33,11 @@ import {
   isTopNPaintTemplate,
   type ConductorTopN,
 } from "@/lib/trains/conductor-top-n.shared";
-import { PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
+import { DAY_PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
+import { SELECTABLE_WEEK_TEMPLATES } from "@/lib/trains/week-template-registry.shared";
 import type { WeekTemplateType } from "@/lib/trains/types";
 
-export { PAINT_TEMPLATES };
+export { DAY_PAINT_TEMPLATES };
 
 type Props = {
   today: string;
@@ -379,6 +380,9 @@ export function TrainMonthCalendar({
     [dayConfigs],
   );
   const draftAriaSuffix = navLabels.draftScheduleAriaLabel ?? "Draft schedule";
+  const selectedDateCount = selectionPreviewDates?.size ?? 0;
+  const paletteTemplates =
+    selectedDateCount > 1 ? SELECTABLE_WEEK_TEMPLATES : DAY_PAINT_TEMPLATES;
 
   return (
     <div className="flex flex-col gap-3">
@@ -415,7 +419,7 @@ export function TrainMonthCalendar({
             {navLabels.paletteHint}
           </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {PAINT_TEMPLATES.map((template) => {
+            {paletteTemplates.map((template) => {
               const palette = TEMPLATE_PALETTE_STYLES[template];
               return (
                 <button

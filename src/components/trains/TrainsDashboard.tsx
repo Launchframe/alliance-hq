@@ -8,8 +8,18 @@ import { ConductorPickModal } from "@/components/trains/ConductorPickModal";
 import { ConductorSwapDialog } from "@/components/trains/ConductorSwapDialog";
 import { ConductorHistoryTable } from "@/components/trains/ConductorHistoryTable";
 import { ConductorWheelModal } from "@/components/trains/ConductorWheelModal";
+import {
+  ConductorWheelSharePreviewDialog,
+  type ConductorWheelSharePreview,
+} from "@/components/trains/ConductorWheelSharePreviewDialog";
 import { TrainsHelpPanel } from "@/components/trains/TrainsHelpPanel";
 import { TrainsGuidedConductorFlow } from "@/components/trains/TrainsGuidedConductorFlow";
+import { renderConductorWheelSharePngBlob } from "@/lib/client/conductor-wheel-share-image.client";
+import { buildShareViewportForWinner } from "@/lib/trains/conductor-wheel-reel.shared";
+import {
+  formatWheelShareEligibilityLine,
+  resolveWheelShareEligibility,
+} from "@/lib/trains/conductor-wheel-share.shared";
 import { SpinWeekConductorFlow } from "@/components/trains/SpinWeekConductorFlow";
 import { ClearWeekScheduleDialog } from "@/components/trains/ClearWeekScheduleDialog";
 import { TrainPivotBanner } from "@/components/trains/TrainPivotBanner";
@@ -25,6 +35,7 @@ import { PriceIsRightPodiumLeaderboard } from "@/components/trains/PriceIsRightP
 import { PriceIsRightTicketsPanel } from "@/components/trains/PriceIsRightTicketsPanel";
 import { TodayConductorCard } from "@/components/trains/TodayConductorCard";
 import { WeekTemplateChangeDialog } from "@/components/trains/WeekTemplateChangeDialog";
+import { DayMechanismPickerDialog } from "@/components/trains/DayMechanismPickerDialog";
 import { WeekTemplatePickerDialog } from "@/components/trains/WeekTemplatePickerDialog";
 import { useHotkeys } from "@/components/hotkeys/HotkeyProvider";
 import {
@@ -37,7 +48,8 @@ import {
   type PoolDetailsOption,
 } from "@/components/trains/TrainPoolDetailsDialog";
 import { TrainSpinSourcePanel } from "@/components/trains/TrainSpinSourcePanel";
-import { TrainMonthCalendar, PAINT_TEMPLATES } from "@/components/trains/TrainMonthCalendar";
+import { TrainMonthCalendar } from "@/components/trains/TrainMonthCalendar";
+import { DAY_PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
 import {
   TrainScheduleViewToggle,
   type ScheduleView,
@@ -190,6 +202,7 @@ export function TrainsDashboard({ initial }: Props) {
   >([]);
   const [wheelQualification, setWheelQualification] =
     useState<MemberQualificationPayload | null>(null);
+  const [wheelMechanism, setWheelMechanism] = useState<string | null>(null);
   const [wheelDayLabel, setWheelDayLabel] = useState<string | null>(null);
   const [conductorDisqualified, setConductorDisqualified] =
     useState<RollResult | null>(null);
@@ -229,7 +242,12 @@ export function TrainsDashboard({ initial }: Props) {
   const [wheelBlockedRole, setWheelBlockedRole] = useState<
     "conductor" | "vip"
   >("conductor");
+  const [shareExportBusy, setShareExportBusy] = useState(false);
+  const [shareExportError, setShareExportError] = useState<string | null>(null);
+  const [shareExportPreview, setShareExportPreview] =
+    useState<ConductorWheelSharePreview | null>(null);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [dayMechanismPickerOpen, setDayMechanismPickerOpen] = useState(false);
   const [pendingTemplateChange, setPendingTemplateChange] = useState<{
     templateType: WeekTemplateType;
     weekStart: string;
@@ -364,6 +382,7 @@ export function TrainsDashboard({ initial }: Props) {
   const handleWheelClose = useCallback(() => {
     setWheelOpen(false);
     setWheelQualification(null);
+    setWheelMechanism(null);
     setWheelDayLabel(null);
     const pending = pendingWheelRollRef.current;
     pendingWheelRollRef.current = null;
@@ -907,6 +926,7 @@ export function TrainsDashboard({ initial }: Props) {
             ],
       );
       setWheelWinner(body.result);
+      setWheelMechanism(body.result.mechanism);
       setWheelStats(body.stats ?? null);
       setWheelQualification(body.result.qualification ?? null);
       setWheelDayLabel(spinWeekDayLabel(selectedDate));
@@ -928,6 +948,7 @@ export function TrainsDashboard({ initial }: Props) {
     pendingWheelRollRef.current = null;
     setWheelOpen(false);
     setWheelQualification(null);
+    setWheelMechanism(null);
     setWheelWinner(null);
     void runRollRef.current("conductor");
   }, []);
@@ -1348,7 +1369,7 @@ export function TrainsDashboard({ initial }: Props) {
         handleScheduleViewChange("month");
       }),
       registerPageHandler("trains.goToToday", goToToday),
-      ...PAINT_TEMPLATES.map((template, index) =>
+      ...DAY_PAINT_TEMPLATES.map((template, index) =>
         registerPageHandler(trainTemplateHotkeyIds[index]!, () => {
           if (!data.canManageTrains) return;
           void paintDates([selectedDate], template);
@@ -1421,6 +1442,88 @@ export function TrainsDashboard({ initial }: Props) {
     conductorPaint,
     selectedDate,
   );
+  function closeShareExportPreview() {
+    setShareExportPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+  }
+
+  async function handleShareExportImage() {
+    if (
+      !selectedRecord?.conductorMemberId ||
+      !selectedRecord.conductorMemberName ||
+      shareExportBusy
+    ) {
+      return;
+    }
+    setShareExportBusy(true);
+    setShareExportError(null);
+    try {
+      const winner = {
+        memberId: selectedRecord.conductorMemberId,
+        memberName: selectedRecord.conductorMemberName,
+      };
+      const viewport = buildShareViewportForWinner(winner, data.roster);
+      const dayLabel = spinWeekDayLabel(selectedDate);
+      const statsForShare =
+        selectedDate === data.today &&
+        selectedRecord.conductorMemberId ===
+          data.conductorRecord?.conductorMemberId
+          ? data.conductorStats
+          : null;
+      const statsLine =
+        statsForShare != null
+          ? t("wheel.share.statsLine", {
+              lastDate: statsForShare.lastConductedDate ?? t("wheel.never"),
+              count: statsForShare.conductsThisYear,
+            })
+          : null;
+      const eligibilityLine = formatWheelShareEligibilityLine(
+        resolveWheelShareEligibility({
+          mechanism: selectedRecord.conductorMechanism ?? conductorMech,
+          paintTemplate: conductorPaint,
+          winner,
+        }),
+        {
+          vsMinimum: (score, minimum) =>
+            t("wheel.share.eligibilityVsMinimum", { score, minimum }),
+          tpif: (score, sweetSpot) =>
+            t("wheel.share.eligibilityTpif", { score, sweetSpot }),
+          vsLeaderboardRank: (rank, score, suffix) =>
+            t("wheel.share.eligibilityVsLeaderboardRank", {
+              rank,
+              score,
+              suffix,
+            }),
+          vsLeaderboardScore: (score, suffix) =>
+            t("wheel.share.eligibilityVsLeaderboardScore", { score, suffix }),
+        },
+        locale,
+      );
+      const blob = await renderConductorWheelSharePngBlob({
+        title: t("wheel.title"),
+        dayLabel,
+        names: viewport.names,
+        winnerIndex: viewport.winnerIndex,
+        eligibilityLine,
+        statsLine,
+      });
+      const safeDate =
+        dayLabel.replace(/[^\w-]+/g, "-").toLowerCase() || "conductor";
+      const filename = `conductor-wheel-${safeDate}.png`;
+      const url = URL.createObjectURL(blob);
+      setShareExportPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev.url);
+        return { blob, url, filename };
+      });
+    } catch {
+      setShareExportError(t("wheel.share.failed"));
+    } finally {
+      setShareExportBusy(false);
+    }
+  }
+
   const vipMech = selectedDayConfig?.vipMechanism;
   const canPaintTemplate =
     data.canUnlockConductor ||
@@ -1431,7 +1534,7 @@ export function TrainsDashboard({ initial }: Props) {
     supportsManualConductorPick(conductorMech) &&
     canManualPickForDate();
   const canManualPickVip =
-    !locked &&
+    locked &&
     supportsManualVipPick(vipMech) &&
     canManualPickForDate();
   const rosterBlocking =
@@ -1478,7 +1581,6 @@ export function TrainsDashboard({ initial }: Props) {
   const guidedVipNeeded = Boolean(vipMech) && vipMech !== "none";
   const guidedHasVip = Boolean(selectedRecord?.vipMemberId);
   const guidedStep = currentGuidedStep({
-    schedulePersisted: data.schedulePersisted,
     hasConductor: hasValidConductor,
     vipNeeded: guidedVipNeeded,
     hasVip: guidedHasVip,
@@ -1872,8 +1974,29 @@ export function TrainsDashboard({ initial }: Props) {
                     })
                   : null
               }
+              shareActionLabel={
+                !data.simpleModeEnabled && hasValidConductor
+                  ? t("wheel.share.action")
+                  : undefined
+              }
+              shareBusyLabel={t("wheel.share.exporting")}
+              shareBusy={shareExportBusy}
+              onShareImage={
+                !data.simpleModeEnabled && hasValidConductor
+                  ? () => void handleShareExportImage()
+                  : undefined
+              }
               data-testid="trains-conductor-card"
             />
+          ) : null}
+          {shareExportError ? (
+            <p
+              className="text-sm text-hq-danger"
+              role="alert"
+              data-testid="trains-share-export-error"
+            >
+              {shareExportError}
+            </p>
           ) : null}
 
           {isPriceIsRightPaintTemplate(conductorPaint) ? (
@@ -1889,7 +2012,6 @@ export function TrainsDashboard({ initial }: Props) {
             data.simpleModeEnabled ? (
               <>
               <TrainsGuidedConductorFlow
-                schedulePersisted={data.schedulePersisted}
                 templateType={activeWeekTemplate}
                 paintTemplate={conductorPaint}
                 vsDataStatus={
@@ -1912,7 +2034,7 @@ export function TrainsDashboard({ initial }: Props) {
                 conductorMech={conductorMech}
                 vipMech={vipMech}
                 busy={trainQuickActionBusy}
-                onChangeTemplate={() => setTemplatePickerOpen(true)}
+                onChangeTemplate={() => setDayMechanismPickerOpen(true)}
                 onRollConductor={() => void runRoll("conductor")}
                 onPickTopScorer={() => void runRoll("conductor")}
                 onPickConductorManual={() => {
@@ -1935,6 +2057,12 @@ export function TrainsDashboard({ initial }: Props) {
                 rosterSyncNotice={rosterSyncNotice}
                 rosterSyncNoticeTone={rosterSyncNoticeTone}
                 onSyncRoster={() => void handleRosterSync()}
+                onShareImage={
+                  hasValidConductor
+                    ? () => void handleShareExportImage()
+                    : undefined
+                }
+                shareBusy={shareExportBusy}
                 poolPanel={
                   isPoolSpinSource(selectedConductorSpinSource) ||
                   isPoolSpinSource(selectedVipSpinSource) ? (
@@ -1972,10 +2100,7 @@ export function TrainsDashboard({ initial }: Props) {
                       }}
                       onRefresh={refresh}
                     />
-                    {canStartConductorSwap(selectedRecord) &&
-                    spinWeekContext.dayConfigs.some(
-                      (day) => day.date !== selectedDate,
-                    ) ? (
+                    {canStartConductorSwap(selectedRecord) ? (
                       <button
                         type="button"
                         onClick={() => setSwapOpen(true)}
@@ -2226,8 +2351,7 @@ export function TrainsDashboard({ initial }: Props) {
                     {t("pickConductorManually")}
                   </button>
                 ) : null}
-                {canStartConductorSwap(selectedRecord) &&
-                spinWeekContext.dayConfigs.some((day) => day.date !== selectedDate) ? (
+                {canStartConductorSwap(selectedRecord) ? (
                   <button
                     type="button"
                     onClick={() => setSwapOpen(true)}
@@ -2453,10 +2577,19 @@ export function TrainsDashboard({ initial }: Props) {
         stats={wheelStats ?? null}
         qualification={wheelQualification}
         dayLabel={wheelDayLabel}
+        mechanism={wheelMechanism}
+        paintTemplate={conductorPaint}
         speedMultiplier={wheelAnimMultiplier}
         onClose={handleWheelClose}
         onSpinAgain={handleWheelSpinAgain}
         onOverride={(reason) => void handleWheelOverride(reason)}
+      />
+
+      <ConductorWheelSharePreviewDialog
+        open={shareExportPreview != null}
+        preview={shareExportPreview}
+        onClose={closeShareExportPreview}
+        zIndexClassName="z-[200]"
       />
 
       <Dialog
@@ -2615,6 +2748,31 @@ export function TrainsDashboard({ initial }: Props) {
         }}
       />
 
+      <DayMechanismPickerDialog
+        key={
+          dayMechanismPickerOpen
+            ? `day-mechanism-picker:open:${conductorPaint ?? activeWeekTemplate}:${data.today}`
+            : "day-mechanism-picker:closed"
+        }
+        open={dayMechanismPickerOpen}
+        currentTemplate={(conductorPaint ?? activeWeekTemplate) as WeekTemplateType}
+        date={data.today}
+        weekStart={targetTrainWeekStart}
+        vrReporterCount={data.vrReporterCount}
+        disabled={!data.canManageTrains}
+        weightingEnabled={data.priceIsRightWeightingEnabled}
+        onWeightingEnabledChange={handleWeightingEnabledChange}
+        onClose={() => setDayMechanismPickerOpen(false)}
+        onSelect={(templateType, topN) => {
+          setDayMechanismPickerOpen(false);
+          void paintDates(
+            [data.today],
+            templateType,
+            topN != null ? { topN } : undefined,
+          );
+        }}
+      />
+
       <WeekTemplatePickerDialog
         key={
           templatePickerOpen
@@ -2760,8 +2918,8 @@ export function TrainsDashboard({ initial }: Props) {
         <ConductorSwapDialog
           open={swapOpen}
           sourceDate={selectedDate}
+          today={data.today}
           sourceRecord={selectedRecord}
-          dayConfigs={spinWeekContext.dayConfigs}
           weekRecords={spinWeekContext.weekRecords}
           busy={swapBusy}
           onConfirm={(targetDate) => void confirmConductorSwap(targetDate)}

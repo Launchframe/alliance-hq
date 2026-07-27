@@ -3263,7 +3263,8 @@
     "dayTemplateMenu": {
       "title": "Change day template",
       "ariaLabel": "Choose a template for {date}",
-      "holdHint": "Long press a day to change its template."
+      "holdHint": "Long press a day to change its template.",
+      "dialogSubtitle": "This changes today's pick only — this week's template stays the same."
     },
     "weekdays": {
       "mon": "Mon",
@@ -3444,7 +3445,7 @@
           "pickManual": "Pick VIP manually",
           "assigned": "VIP: {name}",
           "change": "Change",
-          "skipped": "VIP not used for this day"
+          "skipped": "Let the conductor decide"
         },
         "lock": {
           "title": "Lock",
@@ -3521,10 +3522,12 @@
     "swap": {
       "action": "Swap / Make-up day",
       "title": "Swap conductors",
-      "body": "Move an unlocked conductor draft to another day or swap between two unlocked days — useful for make-up days. Assigned target days will be locked after you confirm.",
+      "body": "Move an unlocked conductor draft to another day or swap between two unlocked days — useful for make-up days. You can choose an upcoming day or pick any future date. Assigned target days will be locked after you confirm.",
       "thisDay": "This day",
-      "swapWith": "Swap with",
-      "noCandidates": "No other days in this week to swap with.",
+      "swapWith": "Upcoming days",
+      "pickDate": "Or pick a date",
+      "dateLabel": "Future date",
+      "noCandidates": "No quick picks available. Use the date picker below.",
       "noConductorYet": "No conductor yet",
       "preview": "{dayA}: {nameA} ↔ {dayB}: {nameB}",
       "previewMoveToOpen": "{nameA} moves to {dayB}. {dayA} will have no conductor.",
@@ -3825,6 +3828,22 @@
         "top10Title": "Top 10 VS Scores",
         "topNVsTitle": "Top {count} VS Scores",
         "topNVrTitle": "Top {count} VR Scores"
+      },
+      "share": {
+        "action": "Share image",
+        "exporting": "Preparing image…",
+        "failed": "Could not export the share image.",
+        "previewTitle": "Share image",
+        "copyMedia": "Copy Media",
+        "download": "Download",
+        "copied": "Copied",
+        "copyFailed": "Could not copy the image.",
+        "closePreview": "Close",
+        "statsLine": "Last: {lastDate} · {count} this year",
+        "eligibilityVsMinimum": "Eligible: {score} (min {minimum})",
+        "eligibilityTpif": "Prior-day VS {score} — closest to {sweetSpot}",
+        "eligibilityVsLeaderboardRank": "#{rank} · {score} {suffix}",
+        "eligibilityVsLeaderboardScore": "{score} {suffix}"
       }
     },
     "season": {

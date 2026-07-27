@@ -222,6 +222,8 @@ test.describe("Week strip day template menu", () => {
 
     const menu = page.getByTestId("trains-day-template-menu");
     await expect(menu).toBeVisible();
+    await expect(page.getByTestId("trains-day-template-vs_push_week")).toHaveCount(0);
+    await expect(page.getByTestId("trains-day-template-price_is_right")).toHaveCount(0);
     // Initial focus lands on the checked template, else the first item.
     await expect
       .poll(async () =>

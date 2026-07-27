@@ -4,18 +4,21 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
-import { conductorSwapCandidates } from "@/lib/trains/conductor-swap.shared";
+import {
+  conductorSwapCandidates,
+  earliestConductorSwapTargetDate,
+  isValidConductorSwapTargetDate,
+  resolveConductorSwapCandidate,
+} from "@/lib/trains/conductor-swap.shared";
 import { spinWeekDayLabel } from "@/lib/trains/spin-week.shared";
-import type {
-  WeekConductorRecordSummary,
-  WeekScheduleDayConfig,
-} from "@/lib/trains/load-dashboard";
+import type { WeekConductorRecordSummary } from "@/lib/trains/load-dashboard";
 
 type Props = {
   open: boolean;
   sourceDate: string;
+  /** Server calendar today — swap targets must be after this date. */
+  today: string;
   sourceRecord: WeekConductorRecordSummary;
-  dayConfigs: WeekScheduleDayConfig[];
   weekRecords: WeekConductorRecordSummary[];
   busy?: boolean;
   onConfirm: (targetDate: string) => void;
@@ -25,8 +28,8 @@ type Props = {
 export function ConductorSwapDialog({
   open,
   sourceDate,
+  today,
   sourceRecord,
-  dayConfigs,
   weekRecords,
   busy = false,
   onConfirm,
@@ -34,21 +37,61 @@ export function ConductorSwapDialog({
 }: Props) {
   const t = useTranslations("trains.swap");
   const [targetDate, setTargetDate] = useState<string | null>(null);
+  const [pickedDate, setPickedDate] = useState("");
+
+  const minTargetDate = earliestConductorSwapTargetDate(today);
 
   const candidates = useMemo(
-    () => conductorSwapCandidates({ sourceDate, dayConfigs, weekRecords }),
-    [dayConfigs, sourceDate, weekRecords],
+    () => conductorSwapCandidates({ sourceDate, today, weekRecords }),
+    [sourceDate, today, weekRecords],
   );
 
-  const selectedTarget = candidates.find((record) => record.date === targetDate);
+  const selectedTarget = useMemo(() => {
+    if (!targetDate) return null;
+    return (
+      candidates.find((record) => record.date === targetDate) ??
+      resolveConductorSwapCandidate(targetDate, weekRecords)
+    );
+  }, [candidates, targetDate, weekRecords]);
+
+  function resetAndClose() {
+    setTargetDate(null);
+    setPickedDate("");
+    onClose();
+  }
+
+  function selectQuickPick(date: string) {
+    setTargetDate(date);
+    setPickedDate("");
+  }
+
+  function selectPickedDate(date: string) {
+    setPickedDate(date);
+    if (
+      !date ||
+      !isValidConductorSwapTargetDate({
+        targetDate: date,
+        sourceDate,
+        today,
+      })
+    ) {
+      setTargetDate(null);
+      return;
+    }
+    const resolved = resolveConductorSwapCandidate(date, weekRecords);
+    if (resolved.lockedAt != null) {
+      setTargetDate(null);
+      return;
+    }
+    setTargetDate(date);
+  }
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
         if (!next) {
-          setTargetDate(null);
-          onClose();
+          resetAndClose();
         }
       }}
       title={t("title")}
@@ -80,14 +123,18 @@ export function ConductorSwapDialog({
           {candidates.length === 0 ? (
             <p className="text-sm text-hq-fg-muted">{t("noCandidates")}</p>
           ) : (
-            <ul className="max-h-48 space-y-2 overflow-y-auto">
+            <ul
+              className="space-y-2"
+              data-testid="trains-swap-quick-picks"
+            >
               {candidates.map((record) => {
                 const selected = targetDate === record.date;
                 return (
                   <li key={record.date}>
                     <button
                       type="button"
-                      onClick={() => setTargetDate(record.date)}
+                      data-testid={`trains-swap-day-${record.date}`}
+                      onClick={() => selectQuickPick(record.date)}
                       className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${
                         selected
                           ? "border-[#8957e5] bg-[#8957e5]/10"
@@ -108,8 +155,23 @@ export function ConductorSwapDialog({
           )}
         </div>
 
+        <label className="block space-y-1.5">
+          <span className="text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
+            {t("pickDate")}
+          </span>
+          <input
+            type="date"
+            value={pickedDate}
+            min={minTargetDate}
+            data-testid="trains-swap-date-picker"
+            aria-label={t("dateLabel")}
+            onChange={(event) => selectPickedDate(event.target.value)}
+            className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
+          />
+        </label>
+
         {selectedTarget ? (
-          <p className="text-sm text-[#c9d1d9]">
+          <p className="text-sm text-[#c9d1d9]" data-testid="trains-swap-preview">
             {selectedTarget.conductorMemberName
               ? t("preview", {
                   dayA: spinWeekDayLabel(sourceDate),
@@ -129,10 +191,7 @@ export function ConductorSwapDialog({
           <button
             type="button"
             disabled={busy}
-            onClick={() => {
-              setTargetDate(null);
-              onClose();
-            }}
+            onClick={resetAndClose}
             className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas disabled:opacity-60"
           >
             {t("cancel")}
@@ -140,6 +199,7 @@ export function ConductorSwapDialog({
           <button
             type="button"
             disabled={busy || !targetDate}
+            data-testid="trains-swap-confirm"
             onClick={() => {
               if (!targetDate) return;
               onConfirm(targetDate);

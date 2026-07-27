@@ -21,7 +21,6 @@ import type { WeekTemplateType } from "@/lib/trains/types";
 const DEFAULT_VIDEO_UPLOAD_HREF = "/tools/video-upload";
 
 export type TrainsGuidedConductorFlowProps = {
-  schedulePersisted: boolean;
   templateType: WeekTemplateType | null;
   paintTemplate?: WeekTemplateType | null;
   /** Pre-translated template explainer; falls back to `trains.templateDetails.*` when omitted. */
@@ -61,6 +60,9 @@ export type TrainsGuidedConductorFlowProps = {
   rosterSyncNotice?: string | null;
   rosterSyncNoticeTone?: "success" | "warning" | "error";
   onSyncRoster?: () => void;
+  /** Share image export when a conductor is already assigned. */
+  onShareImage?: () => void;
+  shareBusy?: boolean;
 };
 
 type StepId =
@@ -78,8 +80,8 @@ const STEP_ORDER: StepId[] = [
   "roster",
   "prerequisites",
   "conductor",
-  "vip",
   "lock",
+  "vip",
   "done",
 ];
 
@@ -199,7 +201,6 @@ function StepRow({
 
 export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps) {
   const {
-    schedulePersisted,
     templateType,
     paintTemplate,
     templateDetailHint,
@@ -232,7 +233,10 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     rosterSyncNotice = null,
     rosterSyncNoticeTone = "success",
     onSyncRoster,
+    onShareImage,
+    shareBusy = false,
   } = props;
+  const tWheel = useTranslations("trains.wheel");
 
   const connectAshedHref = buildConnectHref("/trains");
 
@@ -244,7 +248,6 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   const vsRequired = Boolean(vsDataStatus?.required && !canManualPick);
   const rosterRequired = Boolean(rosterDataStatus?.required);
   const guidedInput = {
-    schedulePersisted,
     hasConductor,
     vipNeeded,
     hasVip,
@@ -364,16 +367,11 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
             {conductorPickLabel ? (
               <span className="text-sm text-hq-fg-muted">{conductorPickLabel}</span>
             ) : null}
-            {templateStatus === "current" ? (
-              <PrimaryCtaButton
-                action={{ label: t("steps.template.change"), onClick: onChangeTemplate }}
-                busy={busy}
-              />
-            ) : (
+            {!locked ? (
               <ChangeLink label={t("steps.template.change")} onClick={onChangeTemplate} />
-            )}
+            ) : null}
           </div>
-          {templateStatus === "current" && conductorPickHint ? (
+          {conductorPickHint ? (
             <p className="mt-1.5 text-xs leading-relaxed text-hq-fg-muted">
               {conductorPickHint}
             </p>
@@ -492,15 +490,30 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
 
         <StepRow status={conductorStatus} title={t("steps.conductor.title")}>
           {conductorStatus === "completed" ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-hq-fg-muted">
-                {t("steps.conductor.assigned", { name: conductorName ?? "—" })}
-              </span>
-              {!locked && canManualPick ? (
-                <ChangeLink
-                  label={t("steps.conductor.change")}
-                  onClick={onPickConductorManual}
-                />
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-hq-fg-muted">
+                  {t("steps.conductor.assigned", { name: conductorName ?? "—" })}
+                </span>
+                {!locked && canManualPick ? (
+                  <ChangeLink
+                    label={t("steps.conductor.change")}
+                    onClick={onPickConductorManual}
+                  />
+                ) : null}
+              </div>
+              {onShareImage ? (
+                <button
+                  type="button"
+                  disabled={shareBusy || busy}
+                  data-testid="trains-guided-share-image"
+                  onClick={onShareImage}
+                  className="inline-flex w-full items-center justify-center rounded-lg border border-[#8957e5]/50 bg-[#8957e5]/10 px-4 py-2 text-sm font-medium text-[#8250df] hover:bg-[#8957e5]/20 disabled:opacity-50 sm:w-auto dark:text-[#d2a8ff]"
+                >
+                  {shareBusy
+                    ? tWheel("share.exporting")
+                    : tWheel("share.action")}
+                </button>
               ) : null}
             </div>
           ) : conductorStatus === "current" ? (
@@ -517,23 +530,6 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
           ) : null}
         </StepRow>
 
-        <StepRow status={vipStatus} title={t("steps.vip.title")}>
-          {vipStatus === "skipped" ? (
-            <p className="text-sm text-hq-fg-muted">{t("steps.vip.skipped")}</p>
-          ) : vipStatus === "completed" ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-hq-fg-muted">
-                {t("steps.vip.assigned", { name: vipName ?? "—" })}
-              </span>
-              {!locked && canManualPickVip ? (
-                <ChangeLink label={t("steps.vip.change")} onClick={onPickVipManual} />
-              ) : null}
-            </div>
-          ) : vipStatus === "current" ? (
-            <PrimaryCtaButton action={vipAction} busy={busy} />
-          ) : null}
-        </StepRow>
-
         <StepRow status={lockStatus} title={t("steps.lock.title")}>
           {lockStatus === "current" ? (
             <div className="flex flex-col gap-2">
@@ -543,6 +539,23 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                 busy={busy}
               />
             </div>
+          ) : null}
+        </StepRow>
+
+        <StepRow status={vipStatus} title={t("steps.vip.title")}>
+          {vipStatus === "skipped" ? (
+            <p className="text-sm text-hq-fg-muted">{t("steps.vip.skipped")}</p>
+          ) : vipStatus === "completed" ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-hq-fg-muted">
+                {t("steps.vip.assigned", { name: vipName ?? "—" })}
+              </span>
+              {canManualPickVip ? (
+                <ChangeLink label={t("steps.vip.change")} onClick={onPickVipManual} />
+              ) : null}
+            </div>
+          ) : vipStatus === "current" ? (
+            <PrimaryCtaButton action={vipAction} busy={busy} />
           ) : null}
         </StepRow>
 
