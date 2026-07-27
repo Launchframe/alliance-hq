@@ -34,6 +34,9 @@ describe("video OCR tracing — Phase 2a queue slim", () => {
     ]) {
       const budget = functionTraceBudgets.find((row) => row.route === route);
       expect(budget, route).toBeDefined();
+      if (!budget) {
+        continue;
+      }
       expect(budget.requireWorkerScript, route).toBe(true);
     }
   });

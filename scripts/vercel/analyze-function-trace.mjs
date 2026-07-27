@@ -79,8 +79,10 @@ function main() {
       excludes: videoOcrFileTracingExcludes,
     });
 
+    const fileList = [...files];
+
     if (budget.requireLibvips) {
-      const hasLibvips = [...files].some((file) =>
+      const hasLibvips = fileList.some((file) =>
         file.includes("libvips-cpp.so"),
       );
       if (!hasLibvips) {
@@ -92,10 +94,10 @@ function main() {
     }
 
     if (budget.requireWorkerScript) {
-      const hasWorkerScript = [...files].some((file) =>
+      const hasWorkerScript = fileList.some((file) =>
         file.includes("tesseract.js/src/worker-script/node/index.js"),
       );
-      const hasWorkerConstants = [...files].some((file) =>
+      const hasWorkerConstants = fileList.some((file) =>
         file.includes("tesseract.js/src/constants/"),
       );
       if (!hasWorkerScript) {
@@ -113,7 +115,7 @@ function main() {
     }
 
     if (Array.isArray(budget.forbidPathSubstrings)) {
-      const forbiddenHits = [...files].filter((file) =>
+      const forbiddenHits = fileList.filter((file) =>
         budget.forbidPathSubstrings.some((needle) => file.includes(needle)),
       );
       if (forbiddenHits.length > 0) {
