@@ -79,7 +79,7 @@ import {
   isAutomaticTopNBoard,
   resolveConductorTopNBoard,
 } from "@/lib/trains/conductor-top-n.shared";
-import { isPriceIsRightPaintTemplate } from "@/lib/trains/heavy-hitter-pool.shared";
+import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
   conductorSpinSource,
   isPoolSpinSource,
@@ -1999,11 +1999,11 @@ export function TrainsDashboard({ initial }: Props) {
             </p>
           ) : null}
 
-          {isPriceIsRightPaintTemplate(conductorPaint) ? (
+          {usesPriceIsFreightConductorRoll(conductorPaint) ? (
             <PriceIsRightPodiumLeaderboard trainDate={selectedDate} />
           ) : null}
 
-          {isPriceIsRightPaintTemplate(conductorPaint) ? (
+          {usesPriceIsFreightConductorRoll(conductorPaint) ? (
             <PriceIsRightTicketsPanel trainDate={selectedDate} />
           ) : null}
 
@@ -2146,7 +2146,7 @@ export function TrainsDashboard({ initial }: Props) {
                         </button>
                       )
                     ) : null}
-                    {!isPriceIsRightPaintTemplate(conductorPaint) &&
+                    {!usesPriceIsFreightConductorRoll(conductorPaint) &&
                     (conductorMech === "r3_lottery" ||
                       conductorMech === "heavy_hitter_lottery" ||
                       conductorMech === "r4_sequence") ? (
@@ -2474,7 +2474,7 @@ export function TrainsDashboard({ initial }: Props) {
                 ) : null}
               </div>
 
-              {!isPriceIsRightPaintTemplate(conductorPaint) &&
+              {!usesPriceIsFreightConductorRoll(conductorPaint) &&
               (conductorMech === "r3_lottery" ||
                 conductorMech === "heavy_hitter_lottery" ||
                 conductorMech === "r4_sequence") ? (

@@ -6,7 +6,7 @@ import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import {
   isPriceIsRightHeavyHitterSaturday,
-  isPriceIsRightPaintTemplate,
+  usesPriceIsFreightConductorRoll,
 } from "@/lib/trains/heavy-hitter-pool.shared";
 import { buildHeavyHitterPoolCandidates } from "@/lib/trains/heavy-hitter-pool.server";
 import {
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
     trainDate,
     seasonKey,
   );
-  if (!isPriceIsRightPaintTemplate(dayConfig.paintTemplate)) {
+  if (!usesPriceIsFreightConductorRoll(dayConfig.paintTemplate)) {
     return NextResponse.json(
       { error: "Selected day is not a Price Is Freight train day." },
       { status: 400 },

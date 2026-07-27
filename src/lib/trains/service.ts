@@ -45,7 +45,10 @@ import {
   loadPriceIsRightTicketSettings,
 } from "@/lib/trains/train-economy-threshold.server";
 import { buildHeavyHitterPoolCandidates } from "@/lib/trains/heavy-hitter-pool.server";
-import { isPriceIsRightPaintTemplate } from "@/lib/trains/heavy-hitter-pool.shared";
+import {
+  isPriceIsRightPaintTemplate,
+  usesPriceIsFreightConductorRoll,
+} from "@/lib/trains/heavy-hitter-pool.shared";
 import { rollPriceIsFreightConductor } from "@/lib/trains/price-is-freight-roll.server";
 import { priceIsRightWeightingActive } from "@/lib/trains/train-price-is-right-tickets.shared";
 import {
@@ -570,7 +573,7 @@ export async function confirmConductorMinimumOverride(input: {
     seasonKey,
   );
 
-  const poolType = isPriceIsRightPaintTemplate(dayConfig.paintTemplate)
+  const poolType = usesPriceIsFreightConductorRoll(dayConfig.paintTemplate)
     ? null
     : conductorMechanismPoolType(input.mechanism);
   if (poolType) {
@@ -999,7 +1002,7 @@ export async function rollForConductor(input: {
       }
 
       if (
-        isPriceIsRightPaintTemplate(dayConfig.paintTemplate) &&
+        usesPriceIsFreightConductorRoll(dayConfig.paintTemplate) &&
         (mechanism === "r3_lottery" || mechanism === "heavy_hitter_lottery")
       ) {
         // Clear any historical depleting-pool marks from older TPIF rolls.

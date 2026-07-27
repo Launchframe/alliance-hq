@@ -108,15 +108,21 @@ export async function fetchVsTopScorersForRecordedDate(
     allianceId,
     recordedDate,
   );
-  return rows
-    .map((row) => ({ row, score: scoreValue(row) }))
-    .filter(
-      (entry): entry is { row: AshedVsScoreRow; score: number } =>
-        memberFromScore(entry.row) != null,
-    )
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
-    .map((entry) => memberFromScore(entry.row)!);
+  // Keep max score per member (Ashed may return duplicate rows on re-upload).
+  const bestByMember = new Map<string, RollCandidate>();
+  for (const row of rows) {
+    const candidate = memberFromScore(row);
+    if (!candidate) continue;
+    const previous = bestByMember.get(candidate.memberId);
+    const score = candidate.priorDayVsScore ?? 0;
+    const previousScore = previous?.priorDayVsScore ?? 0;
+    if (!previous || score > previousScore) {
+      bestByMember.set(candidate.memberId, candidate);
+    }
+  }
+  return [...bestByMember.values()]
+    .sort((a, b) => (b.priorDayVsScore ?? 0) - (a.priorDayVsScore ?? 0))
+    .slice(0, limit);
 }
 
 export async function fetchVsTopScorersForTrainDate(
