@@ -14,6 +14,13 @@ export const BUSTER_DAY_EFFICIENCY_EPSILON = 1e-6;
 /** Treat near-zero power loss + near-zero net score as “No engagement”. */
 export const BUSTER_DAY_NO_ENGAGEMENT_POWER_M = 1e-6;
 
+/**
+ * Max calendar-day distance when resolving power/kills near Friday/Sunday.
+ * Broader matches accept stale readings (or same-day dual stamps) as both
+ * endpoints and inflate efficiency to netVs/ε.
+ */
+export const BUSTER_DAY_SNAPSHOT_MAX_DAY_DISTANCE = 1;
+
 export const BUSTER_DAY_KILL_POINTS_PER_KILL_MIN = 33;
 export const BUSTER_DAY_KILL_POINTS_PER_KILL_MAX = 165;
 
@@ -74,7 +81,7 @@ export function computeBusterDayEfficiencyRow(
     : 0;
 
   // Missing power or Saturday VS must not rank as measured 0 / ε — that
-  // produced god-tier ratios (null power) or false-weakest (null VS).
+  // produced god-tier ratios (null/same-endpoint power) or false-weakest (null VS).
   const canScore = hasPowerPair && hasVsScore;
   const incompleteSnapshot = !canScore;
   const noEngagement =
@@ -155,6 +162,7 @@ export function pickClosestByCalendarDate<T>(
   items: readonly T[],
   targetDate: string,
   getDate: (item: T) => string | null | undefined,
+  maxDistanceDays: number = Number.POSITIVE_INFINITY,
 ): T | null {
   let best: T | null = null;
   let bestDist = Number.POSITIVE_INFINITY;
@@ -162,6 +170,7 @@ export function pickClosestByCalendarDate<T>(
     const date = getDate(item)?.trim();
     if (!date) continue;
     const dist = calendarDayDistance(date, targetDate);
+    if (dist > maxDistanceDays) continue;
     if (dist < bestDist) {
       best = item;
       bestDist = dist;

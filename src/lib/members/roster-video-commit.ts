@@ -21,6 +21,8 @@ export type CommitRosterFromVideoInput = {
   hqUserId: string;
   parseSessionId: string;
   markAbsentInactive?: boolean;
+  /** Snapshot calendar date for power events (Buster Day Friday/Sunday). */
+  recordedDate?: string | null;
   ashedConnection?: ParsedConnection | null;
 };
 
@@ -90,6 +92,7 @@ export async function commitRosterFromVideoJob(
     rows: commitRows,
     markAbsentInactive: input.markAbsentInactive,
     source: "video_parse",
+    recordedDate: input.recordedDate,
     ashedConnection: input.ashedConnection,
   });
 }

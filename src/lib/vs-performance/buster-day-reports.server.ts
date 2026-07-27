@@ -327,6 +327,8 @@ async function efficiencyForCompletedReport(
     vsWeekMonday: report.vsWeekMonday,
     preSnapshotDate,
     postSnapshotDate,
+    preRosterJobId: report.preRosterJobId,
+    postRosterJobId: report.postRosterJobId,
   });
 }
 

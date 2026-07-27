@@ -80,13 +80,13 @@ describe("computeBusterDayEfficiencyRow", () => {
     expect(row.noEngagement).toBe(true);
   });
 
-  it("does not treat missing power as zero loss (god-tier ratio)", () => {
+  it("does not rank missing power endpoints as god-tier ε ratios", () => {
     const row = computeBusterDayEfficiencyRow({
       commanderId: "c5",
       memberName: "Echo",
       ashedMemberId: "m5",
       powerStartM: null,
-      powerEndM: null,
+      powerEndM: 100,
       killsStart: null,
       killsEnd: null,
       vsScoreSaturday: BUSTER_DAY_BASELINE_POINTS + 2_000_000,
@@ -98,18 +98,18 @@ describe("computeBusterDayEfficiencyRow", () => {
     expect(row.efficiencyRatio).toBeNull();
   });
 
-  it("does not treat missing Saturday VS as measured zero net score", () => {
+  it("does not rank missing Saturday VS as false-weakest", () => {
     const row = computeBusterDayEfficiencyRow({
       commanderId: "c6",
       memberName: "Foxtrot",
       ashedMemberId: "m6",
       powerStartM: 100,
-      powerEndM: 50,
-      killsStart: 0,
-      killsEnd: 10,
+      powerEndM: 80,
+      killsStart: 10,
+      killsEnd: 20,
       vsScoreSaturday: null,
     });
-    expect(row.powerLostM).toBe(50);
+    expect(row.powerLostM).toBe(20);
     expect(row.netVsScore).toBe(0);
     expect(row.incompleteSnapshot).toBe(true);
     expect(row.noEngagement).toBe(false);
@@ -157,40 +157,40 @@ describe("computeBusterDayEfficiencyReport", () => {
   it("sinks incomplete power/VS rows instead of ranking them", () => {
     const rows = computeBusterDayEfficiencyReport([
       {
-        commanderId: "missingPower",
-        memberName: "MissingPower",
-        ashedMemberId: "mp",
+        commanderId: "incomplete-power",
+        memberName: "Zulu",
+        ashedMemberId: "z",
         powerStartM: null,
-        powerEndM: null,
-        killsStart: null,
-        killsEnd: null,
-        vsScoreSaturday: BUSTER_DAY_BASELINE_POINTS + 2_000_000,
+        powerEndM: 90,
+        killsStart: 0,
+        killsEnd: 10,
+        vsScoreSaturday: BUSTER_DAY_BASELINE_POINTS + 5_000_000,
       },
       {
-        commanderId: "trueWeak",
-        memberName: "TrueWeak",
-        ashedMemberId: "tw",
+        commanderId: "incomplete-vs",
+        memberName: "Yankee",
+        ashedMemberId: "y",
         powerStartM: 100,
         powerEndM: 10,
         killsStart: 0,
         killsEnd: 1,
-        vsScoreSaturday: BUSTER_DAY_BASELINE_POINTS + 100_000,
+        vsScoreSaturday: null,
       },
       {
-        commanderId: "missingVs",
-        memberName: "MissingVs",
-        ashedMemberId: "mv",
+        commanderId: "scored",
+        memberName: "Alpha",
+        ashedMemberId: "a",
         powerStartM: 100,
-        powerEndM: 50,
+        powerEndM: 80,
         killsStart: 0,
         killsEnd: 10,
-        vsScoreSaturday: null,
+        vsScoreSaturday: BUSTER_DAY_BASELINE_POINTS + 200_000,
       },
     ]);
     expect(rows.map((r) => r.commanderId)).toEqual([
-      "trueWeak",
-      "missingPower",
-      "missingVs",
+      "scored",
+      "incomplete-vs",
+      "incomplete-power",
     ]);
     expect(rows[0]?.efficiencyRatio).not.toBeNull();
     expect(rows[1]?.incompleteSnapshot).toBe(true);
@@ -241,5 +241,28 @@ describe("calendarDayDistance / pickClosestByCalendarDate", () => {
       (row) => row.recordedDate,
     );
     expect(picked?.value).toBe("b");
+  });
+
+  it("rejects readings beyond the max day distance", () => {
+    const picked = pickClosestByCalendarDate(
+      [
+        { recordedDate: "2026-07-19", value: "sunday-only" },
+        { recordedDate: "2026-07-12", value: "stale" },
+      ],
+      "2026-07-17",
+      (row) => row.recordedDate,
+      1,
+    );
+    expect(picked).toBeNull();
+  });
+
+  it("still accepts an adjacent-day reading within max distance", () => {
+    const picked = pickClosestByCalendarDate(
+      [{ recordedDate: "2026-07-18", value: "sat" }],
+      "2026-07-17",
+      (row) => row.recordedDate,
+      1,
+    );
+    expect(picked?.value).toBe("sat");
   });
 });
