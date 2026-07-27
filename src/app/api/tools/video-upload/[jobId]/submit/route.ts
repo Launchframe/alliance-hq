@@ -24,7 +24,7 @@ import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-a
 import { commitRosterFromVideoJob } from "@/lib/members/roster-video-commit";
 import {
   commitAllianceKillsFromVideoSubmit,
-  listPriorAllianceKillsVideoMemberIds,
+  listPriorAllianceKillsVideoMembers,
 } from "@/lib/kills/alliance-kills-video-commit.server";
 import { commitDepositSlipsFromVideoJob } from "@/lib/banks/deposit-slip-ocr/deposit-slip-video-commit.server";
 import {
@@ -897,9 +897,9 @@ export async function POST(request: Request, { params }: Props) {
     const replaceScores = shouldReplaceAshedScoresOnSubmit(target, {
       eventId: submitContext.eventId,
     });
-    const priorAllianceKillsMemberIds =
+    const priorAllianceKillsMembers =
       replaceScores && isAllianceKillsVideoTarget(target.id)
-        ? await listPriorAllianceKillsVideoMemberIds({
+        ? await listPriorAllianceKillsVideoMembers({
             allianceId,
             recordedDate: submitContext.recordedDate,
           })
@@ -952,7 +952,8 @@ export async function POST(request: Request, { params }: Props) {
       await commitAllianceKillsFromVideoSubmit({
         allianceId,
         hqUserId: session.hqUserId ?? job.enqueuedByHqUserId ?? null,
-        previousMemberIds: priorAllianceKillsMemberIds,
+        recordedDate: submitContext.recordedDate,
+        previousMembers: priorAllianceKillsMembers,
         rows: activeRows.map((row) => ({
           memberId: row.memberId,
           memberName: row.memberName,

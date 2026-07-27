@@ -196,9 +196,15 @@ export async function markLatestVideoParseKillsAshedSynced(
 /**
  * Discard the latest video_parse kills event and restore previousTotal when it
  * still matches commander.currentKills (re-submit removed this member).
+ *
+ * When `expectedTotal` is provided, only revert if both current kills and the
+ * latest event total still equal that prior-batch score. This prevents
+ * re-submitting an older KillScore date from discarding a newer day's event
+ * (same commander, higher/different total).
  */
 export async function revertLatestVideoParseKillsIfStillCurrent(
   commanderId: string,
+  expectedTotal?: number,
 ): Promise<boolean> {
   const db = getDb();
   const state = await getCommanderKillsState(commanderId);
@@ -215,6 +221,12 @@ export async function revertLatestVideoParseKillsIfStillCurrent(
     .limit(1);
 
   if (!latest || latest.source !== "video_parse") {
+    return false;
+  }
+  if (
+    expectedTotal != null &&
+    (latest.total !== expectedTotal || state?.currentKills !== expectedTotal)
+  ) {
     return false;
   }
   if (state?.currentKills !== latest.total) {
