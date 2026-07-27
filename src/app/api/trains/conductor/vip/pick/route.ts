@@ -8,6 +8,7 @@ import {
   getConductorRecord,
 } from "@/lib/trains/repository";
 import { getMemberRankAsOf } from "@/lib/trains/rank-history";
+import { withConductorPoolClaimLock } from "@/lib/trains/conductor-pool-claim-lock.server";
 import {
   listPoolEntries,
   listUnselectedPoolEntries,
@@ -108,30 +109,36 @@ export async function POST(request: Request) {
         useSequence: false,
         eventTopN: vipConfig.topN ?? 10,
       });
-      // Mirror conductor manual pick: consume an unselected event_top_x slot so
-      // Sun/Mon VIP cannot re-award the same commander or silently no-op mark.
-      const [unselected, poolEntries] = await Promise.all([
-        listUnselectedPoolEntries(ctx.allianceId, poolType),
-        listPoolEntries(ctx.allianceId, poolType),
-      ]);
-      const gate = evaluateDepletingManualPick({
-        memberId,
-        unselectedMemberIds: unselected.map((row) => row.memberId),
-        poolMemberIds: poolEntries.map((row) => row.memberId),
-      });
-      if (!gate.ok) {
-        return NextResponse.json(
-          { error: depletingManualPickErrorMessage(gate.reason) },
-          { status: 400 },
-        );
-      }
-      // Claim the replacement first; only release the prior VIP after assign.
-      await markPoolMemberSelectedForDate(
-        ctx.allianceId,
-        poolType,
-        memberId,
-        date,
+      const claimError = await withConductorPoolClaimLock(
+        { allianceId: ctx.allianceId, poolType },
+        async () => {
+          const [unselected, poolEntries] = await Promise.all([
+            listUnselectedPoolEntries(ctx.allianceId, poolType),
+            listPoolEntries(ctx.allianceId, poolType),
+          ]);
+          const gate = evaluateDepletingManualPick({
+            memberId,
+            unselectedMemberIds: unselected.map((row) => row.memberId),
+            poolMemberIds: poolEntries.map((row) => row.memberId),
+          });
+          if (!gate.ok) {
+            return depletingManualPickErrorMessage(gate.reason);
+          }
+          const claimed = await markPoolMemberSelectedForDate(
+            ctx.allianceId,
+            poolType,
+            memberId,
+            date,
+          );
+          if (!claimed) {
+            return depletingManualPickErrorMessage("already_awarded");
+          }
+          return null;
+        },
       );
+      if (claimError) {
+        return NextResponse.json({ error: claimError }, { status: 409 });
+      }
     }
 
     const record = await assignVipOnLockedConductor({

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
+import { withConductorPoolClaimLock } from "@/lib/trains/conductor-pool-claim-lock.server";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import {
   depletingManualPickErrorMessage,
@@ -109,23 +110,31 @@ export async function applyManualConductorDraft(input: {
         paintTemplate: dayConfig.paintTemplate,
         respectConductorMinimums: false,
       });
-      const [unselected, poolEntries] = await Promise.all([
-        listUnselectedPoolEntries(input.allianceId, poolType),
-        listPoolEntries(input.allianceId, poolType),
-      ]);
-      const gate = evaluateDepletingManualPick({
-        memberId: input.memberId,
-        unselectedMemberIds: unselected.map((row) => row.memberId),
-        poolMemberIds: poolEntries.map((row) => row.memberId),
-      });
-      if (!gate.ok) {
-        throw new Error(depletingManualPickErrorMessage(gate.reason));
-      }
-      await markPoolMemberSelectedForDate(
-        input.allianceId,
-        poolType,
-        input.memberId,
-        input.date,
+      await withConductorPoolClaimLock(
+        { allianceId: input.allianceId, poolType },
+        async () => {
+          const [unselected, poolEntries] = await Promise.all([
+            listUnselectedPoolEntries(input.allianceId, poolType),
+            listPoolEntries(input.allianceId, poolType),
+          ]);
+          const gate = evaluateDepletingManualPick({
+            memberId: input.memberId,
+            unselectedMemberIds: unselected.map((row) => row.memberId),
+            poolMemberIds: poolEntries.map((row) => row.memberId),
+          });
+          if (!gate.ok) {
+            throw new Error(depletingManualPickErrorMessage(gate.reason));
+          }
+          const claimed = await markPoolMemberSelectedForDate(
+            input.allianceId,
+            poolType,
+            input.memberId,
+            input.date,
+          );
+          if (!claimed) {
+            throw new Error(depletingManualPickErrorMessage("already_awarded"));
+          }
+        },
       );
     }
   }

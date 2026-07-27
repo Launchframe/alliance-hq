@@ -294,18 +294,30 @@ export async function pickWeightedRandomPoolEntry(
   return pickWeightedPoolEntryFromRows(rows);
 }
 
+/**
+ * Atomically claim a pool entry for `date`.
+ * Returns true only when this caller won the claim (`selected_at` was null).
+ * Concurrent rolls must treat false as "already taken — pick again".
+ */
 export async function markPoolEntrySelected(
   entryId: string,
   date: string,
-): Promise<void> {
+): Promise<boolean> {
   const db = getDb();
-  await db
+  const claimed = await db
     .update(schema.conductorPoolEntries)
     .set({
       selectedAt: new Date(),
       selectedForDate: date,
     })
-    .where(eq(schema.conductorPoolEntries.id, entryId));
+    .where(
+      and(
+        eq(schema.conductorPoolEntries.id, entryId),
+        isNull(schema.conductorPoolEntries.selectedAt),
+      ),
+    )
+    .returning({ id: schema.conductorPoolEntries.id });
+  return claimed.length > 0;
 }
 
 export async function updateCurrentPoolEntryTicketWeights(
@@ -374,12 +386,16 @@ export async function resolvePoolGenerationForHistoricalDate(
   return activePoolGenerationForDate(generationNumbers, rows, date);
 }
 
+/**
+ * Claim the current (or historical) generation row for `memberId`.
+ * Returns false when no row exists or another caller already claimed it.
+ */
 export async function markPoolMemberSelectedForDate(
   allianceId: string,
   poolType: PoolType,
   memberId: string,
   date: string,
-): Promise<void> {
+): Promise<boolean> {
   const today = getServerCalendarDate();
   const generation =
     date < today
@@ -395,13 +411,13 @@ export async function markPoolMemberSelectedForDate(
         eq(schema.conductorPoolEntries.poolType, poolType),
         eq(schema.conductorPoolEntries.generation, generation),
         eq(schema.conductorPoolEntries.memberId, memberId),
+        isNull(schema.conductorPoolEntries.selectedAt),
       ),
     )
     .limit(1);
 
-  if (entry) {
-    await markPoolEntrySelected(entry.id, date);
-  }
+  if (!entry) return false;
+  return markPoolEntrySelected(entry.id, date);
 }
 
 /**

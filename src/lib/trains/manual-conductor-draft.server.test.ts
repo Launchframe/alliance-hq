@@ -42,6 +42,13 @@ vi.mock("@/lib/trains/pool", () => ({
   releasePoolSelectionForDate: mocks.releasePoolSelectionForDate,
 }));
 
+vi.mock("@/lib/trains/conductor-pool-claim-lock.server", () => ({
+  withConductorPoolClaimLock: async (
+    _key: unknown,
+    run: () => Promise<unknown>,
+  ) => run(),
+}));
+
 vi.mock("@/lib/trains/service", () => ({
   ensureConductorPoolSeeded: mocks.ensureConductorPoolSeeded,
 }));
@@ -64,7 +71,7 @@ describe("applyManualConductorDraft", () => {
       lockedAt: null,
     });
     mocks.ensureConductorPoolSeeded.mockResolvedValue(undefined);
-    mocks.markPoolMemberSelectedForDate.mockResolvedValue(undefined);
+    mocks.markPoolMemberSelectedForDate.mockResolvedValue(true);
     mocks.releasePoolSelectionForDate.mockResolvedValue(undefined);
   });
 
