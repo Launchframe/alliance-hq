@@ -29,7 +29,9 @@ Follow this checklist when implementing a new trains feature (mechanism, templat
 Canonical step order: `this day's conductor pick → roster → prerequisites → conductor → lock → vip → done` (**lock before VIP**). See [trains-simple-advanced-modes.mdc](../rules/trains-simple-advanced-modes.mdc) and [trains-conductor-ux.mdc](../rules/trains-conductor-ux.mdc).
 
 - [ ] Update `currentGuidedStep()` and `guidedFlowPrerequisitesBlocking()` in `src/lib/trains/guided-flow.shared.ts` if the feature adds or changes step gates. Never put VIP before lock.
-- [ ] Update `classifyVsDataNeed()` / `buildVsDataStatus()` in `src/lib/trains/vs-data-status.shared.ts` when the mechanism needs VS or prior-day VS scores. Pass `trainDate` — Monday skips prior-day VS for every mechanism.
+- [ ] Update `classifyVsDataNeed()` / `buildVsDataStatus()` in `src/lib/trains/vs-data-status.shared.ts` when the mechanism needs VS or prior-day VS scores. Pass `trainDate` — Monday skips prior-day VS for every mechanism. Prior-day fetches must exclude `is_weekly` totals (`vs-scores.server.ts`).
+- [ ] Pool / Top VS changes: HQ rank events win over stale synced rank (`rank-history.ts`); Top VS intersects active roster (`vs-scores.server.ts`). Conductor minimums use season HQ VR — not VS upload readiness (`train-conductor-minimums.*`).
+- [ ] Composite templates: segment day index is calendar Tue=0…Mon=6 (`compositeSegmentDayIndex`), not `trainWeekStartDow`. `takedown_week` → with-replacement PIF (`usesPriceIsFreightConductorRoll`).
 - [ ] Update `canSpinConductorForDay()` / `canSpinVipForDay()` in `src/lib/trains/conductor-mechanism.shared.ts` when spin eligibility changes. VIP spin requires lock.
 - [ ] Update `mechanismNeedsWheel()` in `templates.ts` — does this mechanism spin or only manual pick? (`r3_recognition` = manual only.)
 - [ ] If the mechanism has score prerequisites, wire the blocking CTA on the `prerequisites` step in `TrainsGuidedConductorFlow.tsx` (upload scores — not a generic Members CTA when scores unblock).

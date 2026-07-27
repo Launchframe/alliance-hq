@@ -37,8 +37,10 @@ Canonical lists: `DAY_PAINT_TEMPLATES` vs selectable week/composites in `paint-t
 | Guided **"Change pick"** | **This day** via `DayMechanismPickerDialog` — never `WeekTemplatePickerDialog` |
 
 - Do **not** put composites (e.g. `vs_push_week`) in single-day pickers.
+- **Composite segment resolution** uses **calendar DOW relative to Tuesday** (Tue=0 … Mon=6) via `compositeSegmentDayIndex` — **not** alliance `trainWeekStartDow`. A Monday-start train week must still paint Tue–Sat push and Sun–Mon R4 segments on the correct calendar days.
 - Day-painted mechanism **sticks** unless impossible for that server date (e.g. TPIF on Monday bounces; Saturday **day** TPIF must not auto-rewrite to the week’s heavy-hitter segment).
 - Changing a day’s conductor mechanism **releases** any unlocked pending conductor/VIP draft so the officer can spin again under the new mechanism.
+- Composite Saturday segment **`takedown_week`** is **with-replacement** Price Is Freight heavy-hitter (`usesPriceIsFreightConductorRoll`) — same path as legacy whole-week `price_is_right` Saturday, **not** a depleting pool.
 
 ## Lifecycle: conductor → lock → VIP
 
@@ -51,10 +53,17 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 ## Dates (server calendar)
 
 - “Today” / eligibility uses **game server calendar** (`game-time`, UTC−2), not the browser local date.
-- **Monday:** no prior-day VS for any conductor mechanism (Sunday is the VS break).
+- **Monday:** no prior-day **daily** VS for any conductor mechanism (T−1 Sunday is the VS break). Top VS / prior-day maps **short-circuit empty** — do not query Ashed for Sunday week-ending totals.
 - **Sunday** draws that need prior-day VS use **Saturday** (Enemy Buster Day).
+- Prior-day VS for wheels and PIF uses **daily** Ashed `VSScore` rows only. Exclude **`is_weekly` / `isWeekly`** week-ending totals (uploaded on Sunday `recorded_date`); they must never feed Monday trains or daily Top VS / ticket math.
 - **Manual picks** (e.g. `r3_recognition`) are never blocked on missing/low VS scores.
 - `r3_recognition` is **manual award only** — no R3 pool wheel.
+
+## Pool rank, Top VS roster, conductor minimums
+
+- **Pool rank eligibility** (`resolveMemberPoolAllianceRank`): when an HQ **`member_alliance_rank_events`** row exists, use that rank — **do not** `Math.max` with a stale **higher** synced Ashed roster rank after an in-game demotion. Fall back to synced roster / Ashed rank raw only when there is no HQ event yet.
+- **Top VS** (`fetchAllianceVsTopScorersForTrainDate`): intersect prior-day Ashed scores with the **active HQ roster** (`listActiveAllianceMembersForPool`, exclude `former`) — same spirit as Top VR; departed members must not win the wheel.
+- **Conductor minimums** (season HQ VR thresholds on `r3` / `heavy_hitter` pools): post-roll DQ and pool seed filtering apply when minimums are enabled — **independent** of VS upload readiness (`classifyVsDataNeed` / guided `prerequisites`). Monday and non-VS lottery days still enforce minimums when configured.
 
 ## Swap / make-up day
 
