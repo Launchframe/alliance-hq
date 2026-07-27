@@ -1,9 +1,9 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
-import type { PoolType, RollCandidate } from "@/lib/trains/types";
+import { POOL_TYPES, type PoolType, type RollCandidate } from "@/lib/trains/types";
 
 /** Only R4+ officer pools advance in fixed sequence; lottery pools draw randomly. */
 export function poolTypeUsesSequence(poolType: PoolType): boolean {
@@ -129,6 +129,7 @@ export async function peekNextPoolEntry(
   allianceId: string,
   poolType: PoolType,
 ): Promise<(typeof schema.conductorPoolEntries.$inferSelect) | null> {
+  await pruneFormerUnselectedPoolEntries(allianceId, poolType);
   const db = getDb();
   const generation = await getCurrentPoolGeneration(allianceId, poolType);
 
@@ -160,6 +161,7 @@ export async function listUnselectedPoolEntries(
   allianceId: string,
   poolType: PoolType,
 ): Promise<Array<(typeof schema.conductorPoolEntries.$inferSelect)>> {
+  await pruneFormerUnselectedPoolEntries(allianceId, poolType);
   const db = getDb();
   const generation = await getCurrentPoolGeneration(allianceId, poolType);
 
@@ -175,6 +177,71 @@ export async function listUnselectedPoolEntries(
       ),
     )
     .orderBy(asc(schema.conductorPoolEntries.sequencePosition));
+}
+
+/**
+ * Drop unselected depleting-pool slots for members who are `former` or gone.
+ * Does not touch already-selected generation history.
+ */
+export async function pruneFormerUnselectedPoolEntries(
+  allianceId: string,
+  poolType?: PoolType,
+): Promise<number> {
+  const db = getDb();
+  const poolTypes = poolType ? [poolType] : [...POOL_TYPES];
+  let pruned = 0;
+
+  for (const type of poolTypes) {
+    const generation = await getCurrentPoolGeneration(allianceId, type);
+    const unselected = await db
+      .select({
+        id: schema.conductorPoolEntries.id,
+        memberId: schema.conductorPoolEntries.memberId,
+      })
+      .from(schema.conductorPoolEntries)
+      .where(
+        and(
+          eq(schema.conductorPoolEntries.allianceId, allianceId),
+          eq(schema.conductorPoolEntries.poolType, type),
+          eq(schema.conductorPoolEntries.generation, generation),
+          isNull(schema.conductorPoolEntries.selectedAt),
+        ),
+      );
+
+    if (unselected.length === 0) continue;
+
+    const memberIds = [...new Set(unselected.map((row) => row.memberId))];
+    const activeRows = await db
+      .select({ ashedMemberId: schema.allianceMembers.ashedMemberId })
+      .from(schema.allianceMembers)
+      .where(
+        and(
+          eq(schema.allianceMembers.allianceId, allianceId),
+          inArray(schema.allianceMembers.ashedMemberId, memberIds),
+          sql`${schema.allianceMembers.status} IS DISTINCT FROM 'former'`,
+        ),
+      );
+    const activeIds = new Set(activeRows.map((row) => row.ashedMemberId));
+    const toDelete = unselected
+      .filter((row) => !activeIds.has(row.memberId))
+      .map((row) => row.id);
+
+    if (toDelete.length === 0) continue;
+
+    await db
+      .delete(schema.conductorPoolEntries)
+      .where(inArray(schema.conductorPoolEntries.id, toDelete));
+    pruned += toDelete.length;
+  }
+
+  return pruned;
+}
+
+/** Prune all depleting pool types after roster members become former. */
+export async function pruneFormerMembersFromOpenPools(
+  allianceId: string,
+): Promise<number> {
+  return pruneFormerUnselectedPoolEntries(allianceId);
 }
 
 export async function pickRandomPoolEntry(
@@ -369,6 +436,7 @@ export async function getPoolSummary(
   exhausted: boolean;
   nextInSequence: { memberId: string; memberName: string } | null;
 }> {
+  await pruneFormerUnselectedPoolEntries(allianceId, poolType);
   const db = getDb();
   const generation = await getCurrentPoolGeneration(allianceId, poolType);
 

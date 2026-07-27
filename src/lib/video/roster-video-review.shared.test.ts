@@ -1,16 +1,26 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildShortNameMatchRoster,
+  SHORT_NAME_MEMBER_MATCH_CASES,
+} from "@/lib/video/member-match-short-name.fixtures";
+import { MEMBER_FUZZY_AUTO_MATCH_MIN } from "@/lib/video/member-matcher";
+import {
   formatHeroPowerMForStorage,
   findUnmatchedRosterRowIds,
   isRosterRowNameMismatch,
   parsedRowsToRosterReviewRows,
+  ROSTER_NAME_MATCH_CONFIDENCE_MIN,
 } from "@/lib/video/roster-video-review.shared";
 
 describe("roster-video-review.shared", () => {
   it("formats hero power for storage", () => {
     expect(formatHeroPowerMForStorage(94.1)).toBe("94.1M");
     expect(formatHeroPowerMForStorage(null)).toBeNull();
+  });
+
+  it("shares the member auto-match confidence floor", () => {
+    expect(ROSTER_NAME_MATCH_CONFIDENCE_MIN).toBe(MEMBER_FUZZY_AUTO_MATCH_MIN);
   });
 
   it("fuzzy-matches roster rows to HQ members on hydrate", () => {
@@ -38,6 +48,34 @@ describe("roster-video-review.shared", () => {
     expect(rows[0]?.memberId).toBe("m1");
     expect(rows[0]?.matchConfidence).toBeGreaterThan(0.6);
   });
+
+  it.each(SHORT_NAME_MEMBER_MATCH_CASES)(
+    "hydrates short OCR name $query → $rosterName (video rematch path)",
+    ({ query, rosterName, memberId }) => {
+      const rows = parsedRowsToRosterReviewRows(
+        [
+          {
+            id: "1",
+            ocrName: query,
+            memberId: null,
+            memberName: null,
+            matchConfidence: 0,
+            deleted: 0,
+          },
+        ],
+        buildShortNameMatchRoster(),
+        "LFgo",
+      );
+
+      expect(rows[0]?.memberId).toBe(memberId);
+      expect(rows[0]?.memberName).toBe(rosterName);
+      expect(rows[0]?.matchConfidence).toBeGreaterThanOrEqual(
+        ROSTER_NAME_MATCH_CONFIDENCE_MIN,
+      );
+      expect(rows[0]?.matchMethod).toBe("fuzzy");
+      expect(isRosterRowNameMismatch(rows[0]!)).toBe(false);
+    },
+  );
 
   it("never hydrates profession or OCR level onto review rows", () => {
     const rows = parsedRowsToRosterReviewRows(

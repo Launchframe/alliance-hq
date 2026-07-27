@@ -4,6 +4,8 @@ type MemberLike = {
   id: string;
   current_name: string;
   previous_names?: string[];
+  /** When true, append inactiveOptionSuffix to the visible label. */
+  inactive?: boolean;
 };
 
 type SelectedMemberLike = {
@@ -29,6 +31,8 @@ export function buildMemberMatchSelectOptions(
      * `highlightMemberId` so the current row can keep / clear its match.
      */
     excludeMemberIds?: Iterable<string>;
+    /** Appended to labels for `inactive` members (e.g. "(inactive)"). */
+    inactiveOptionSuffix?: string;
   },
 ): AppSelectOption[] {
   const excluded = new Set<string>();
@@ -60,6 +64,8 @@ export function buildMemberMatchSelectOptions(
     }),
   );
 
+  const inactiveSuffix = config.inactiveOptionSuffix?.trim() ?? "";
+
   return [
     {
       value: "",
@@ -70,16 +76,21 @@ export function buildMemberMatchSelectOptions(
       const searchText = [
         member.current_name,
         ...(member.previous_names ?? []),
-      ].join(" ");
+        member.inactive && inactiveSuffix ? inactiveSuffix : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
       const confidenceSuffix =
         config.highlightMemberId === member.id &&
         config.highlightConfidence != null &&
         config.highlightConfidence < 1
           ? ` (${Math.round(config.highlightConfidence * 100)}%)`
           : "";
+      const inactiveLabel =
+        member.inactive && inactiveSuffix ? ` ${inactiveSuffix}` : "";
       return {
         value: member.id,
-        label: `${member.current_name}${confidenceSuffix}`,
+        label: `${member.current_name}${inactiveLabel}${confidenceSuffix}`,
         searchText,
       };
     }),
