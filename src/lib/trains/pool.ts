@@ -374,17 +374,27 @@ export async function resolvePoolGenerationForHistoricalDate(
   return activePoolGenerationForDate(generationNumbers, rows, date);
 }
 
+/**
+ * Mark a member selected in a depleting pool for `date`.
+ * Past dates normally resolve the generation that was active then; pass
+ * `forceCurrentGeneration` when backfilling history so already-conducted
+ * members leave the **current** open R3 / R4 generation (import path).
+ */
 export async function markPoolMemberSelectedForDate(
   allianceId: string,
   poolType: PoolType,
   memberId: string,
   date: string,
+  options?: { forceCurrentGeneration?: boolean },
 ): Promise<void> {
   const today = getServerCalendarDate();
-  const generation =
-    date < today
-      ? await resolvePoolGenerationForHistoricalDate(allianceId, poolType, date)
-      : await getCurrentPoolGeneration(allianceId, poolType);
+  const generation = shouldMarkCurrentPoolGeneration(
+    date,
+    today,
+    options?.forceCurrentGeneration,
+  )
+    ? await getCurrentPoolGeneration(allianceId, poolType)
+    : await resolvePoolGenerationForHistoricalDate(allianceId, poolType, date);
   const db = getDb();
   const [entry] = await db
     .select({ id: schema.conductorPoolEntries.id })
@@ -401,6 +411,38 @@ export async function markPoolMemberSelectedForDate(
 
   if (entry) {
     await markPoolEntrySelected(entry.id, date);
+  }
+}
+
+/** Pure: whether `markPoolMemberSelectedForDate` targets the current generation. */
+export function shouldMarkCurrentPoolGeneration(
+  date: string,
+  today: string,
+  forceCurrentGeneration?: boolean,
+): boolean {
+  return Boolean(forceCurrentGeneration) || date >= today;
+}
+
+/** Rank-based depleting pools history import should consume in the current generation. */
+export const HISTORY_IMPORT_DEPLETING_POOL_TYPES = [
+  "r3",
+  "r4_plus",
+] as const satisfies readonly PoolType[];
+
+/**
+ * Remove an imported conductor from the current open R3 / R4+ generations when
+ * they still have a pool entry. No-ops per pool type when the member is absent
+ * from that generation.
+ */
+export async function markHistoryImportPoolsForMember(
+  allianceId: string,
+  memberId: string,
+  date: string,
+): Promise<void> {
+  for (const poolType of HISTORY_IMPORT_DEPLETING_POOL_TYPES) {
+    await markPoolMemberSelectedForDate(allianceId, poolType, memberId, date, {
+      forceCurrentGeneration: true,
+    });
   }
 }
 
