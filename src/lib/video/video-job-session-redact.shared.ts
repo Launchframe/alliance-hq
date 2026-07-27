@@ -13,7 +13,8 @@ export type VideoJobSessionFields = {
 export function omitVideoJobSessionIds<T extends VideoJobSessionFields>(
   job: T,
 ): Omit<T, "sessionId" | "processingSessionId"> {
-  const { sessionId: _sessionId, processingSessionId: _processing, ...rest } =
-    job;
-  return rest;
+  const rest = { ...job } as T & Record<string, unknown>;
+  delete rest.sessionId;
+  delete rest.processingSessionId;
+  return rest as Omit<T, "sessionId" | "processingSessionId">;
 }
