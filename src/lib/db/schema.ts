@@ -56,6 +56,18 @@ export const alliances = pgTable("alliances", {
   trainConductorMinimumsWindow: text("train_conductor_minimums_window")
     .notNull()
     .default("weekly"),
+  /** Minimum weekly VS points a member must post to satisfy alliance VS membership requirements (null/0 = off). */
+  vsMembershipMinPoints: integer("vs_membership_min_points"),
+  /** Consecutive non-excused misses before the officer task recommends kick instead of demotion. */
+  vsMembershipMissStrikesBeforeKick: integer(
+    "vs_membership_miss_strikes_before_kick",
+  )
+    .notNull()
+    .default(3),
+  /** Leeway % below the VS membership minimum still counts as a pass (0–100). */
+  vsMembershipLeewayPct: integer("vs_membership_leeway_pct")
+    .notNull()
+    .default(0),
   /**
    * Max prior-day VS for Price Is Freight economy-band eligibility (before fudge).
    * Null = VS filtering off for non-raffle draws.
@@ -3539,3 +3551,62 @@ export const memberTimeOff = pgTable(
 );
 
 export type MemberTimeOff = typeof memberTimeOff.$inferSelect;
+
+/**
+ * Weekly VS membership-minimum compliance evaluation per member (PR4).
+ * Informational only — officers demote/kick in-game; HQ never calls
+ * `confirmMemberRank` from this table. One row per (alliance, member, week).
+ */
+export const memberVsComplianceEvents = pgTable(
+  "member_vs_compliance_events",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    memberName: text("member_name").notNull(),
+    /** Sunday week-ending date (YYYY-MM-DD) for the Mon–Sat VS week evaluated. */
+    vsWeekEnding: text("vs_week_ending").notNull(),
+    /** Summed Mon–Sat VS score for the member that week. */
+    score: integer("score").notNull(),
+    /** Effective threshold after leeway at evaluation time. */
+    threshold: integer("threshold").notNull(),
+    /** True when an active time-off entry excused this week's minimum. */
+    excused: boolean("excused").notNull().default(false),
+    /** ok | miss | waived */
+    outcome: text("outcome").notNull(),
+    /** Count of prior non-waived misses (inclusive of this one) when outcome = miss. */
+    strikeNumber: integer("strike_number"),
+    /** none | open | completed | waived — mirrors the officer inbox task lifecycle. */
+    officerTaskStatus: text("officer_task_status").notNull().default("none"),
+    waiveReason: text("waive_reason"),
+    completedByHqUserId: text("completed_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    waivedByHqUserId: text("waived_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("member_vs_compliance_events_alliance_member_week_unique").on(
+      table.allianceId,
+      table.ashedMemberId,
+      table.vsWeekEnding,
+    ),
+    index("member_vs_compliance_events_alliance_status_idx").on(
+      table.allianceId,
+      table.officerTaskStatus,
+    ),
+  ],
+);
+
+export type MemberVsComplianceEvent = typeof memberVsComplianceEvents.$inferSelect;

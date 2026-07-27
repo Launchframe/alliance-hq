@@ -5,6 +5,7 @@ import {
   allianceTagPathSegment,
   allianceTrainMinimumsApiPath,
   allianceTrainWeekApiPath,
+  allianceVsMembershipMinimumsApiPath,
 } from "@/lib/alliance/alliance-settings-path.shared";
 
 describe("alliance-settings-path", () => {
@@ -16,6 +17,9 @@ describe("alliance-settings-path", () => {
     );
     expect(allianceTrainWeekApiPath("LFgo")).toBe(
       "/api/alliance/lfgo/train-week",
+    );
+    expect(allianceVsMembershipMinimumsApiPath("LFgo")).toBe(
+      "/api/alliance/lfgo/vs-membership-minimums",
     );
   });
 });

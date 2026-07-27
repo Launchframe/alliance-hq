@@ -1970,6 +1970,9 @@
     "trainsSectionTitle": "Trens",
     "trainsSectionBody": "Configure o início da semana de trem, anúncios no Discord e mínimos do condutor.",
     "trainsSectionLink": "Abrir configurações de trem",
+    "vsMembershipSectionTitle": "Requisitos de VS da aliança",
+    "vsMembershipSectionBody": "Defina uma pontuação semanal mínima obrigatória de VS. Membros que não atingirem o mínimo geram uma tarefa para o oficial rebaixar ou remover o membro no jogo — o Alliance HQ nunca altera patentes automaticamente.",
+    "vsMembershipSectionLink": "Abrir configurações de VS da aliança",
     "gameSeasonsSectionTitle": "Temporada do jogo",
     "gameSeasonsSectionBody": "Temporada de Last War usada em registros de trem e pontuação, além do modo sandbox de VR.",
     "gameSeasonsSectionLink": "Abrir configurações de temporada",
@@ -1983,6 +1986,11 @@
     "trains": {
       "title": "Trens",
       "subtitle": "Configuração de trem para {tag}."
+    },
+    "vsCompliancePage": {
+      "title": "Requisitos de VS da aliança",
+      "subtitle": "Configuração do mínimo semanal de VS para {tag}.",
+      "viewOpenTasksLink": "Ver tarefas abertas de fiscalização de VS"
     },
     "gameSeasons": {
       "title": "Temporada do jogo",
@@ -2085,6 +2093,23 @@
       "saving": "Salvando…",
       "saveFailed": "Não foi possível salvar os mínimos do condutor.",
       "officersOnly": "Somente oficiais do trem podem alterar estas configurações."
+    },
+    "vsMembershipMinimums": {
+      "sectionTitle": "Requisitos de VS da aliança",
+      "sectionBody": "Membros precisam registrar pelo menos esta quantidade de pontos de VS por semana (seg–sáb) para ficar em dia. Oficiais continuam rebaixando ou removendo membros no jogo — o Alliance HQ apenas acompanha uma tarefa para o oficial.",
+      "loading": "Carregando requisitos de VS…",
+      "loadFailed": "Não foi possível carregar os requisitos de VS.",
+      "minPointsLabel": "Pontos VS semanais obrigatórios",
+      "minPointsPlaceholder": "Deixe em branco para desativar",
+      "minPointsHint": "Deixe em branco para desativar a fiscalização semanal de VS nesta aliança.",
+      "strikesLabel": "Faltas antes de recomendar remoção",
+      "strikesHint": "Após esta quantidade de faltas seguidas (não perdoadas), a tarefa do oficial passa a recomendar remoção em vez de rebaixamento.",
+      "leewayLabel": "Margem (%)",
+      "leewayHint": "Membros dentro desta porcentagem do mínimo ainda se qualificam.",
+      "save": "Salvar",
+      "saving": "Salvando…",
+      "saveFailed": "Não foi possível salvar os requisitos de VS.",
+      "ownersOnly": "Somente administradores da aliança podem alterar estas configurações."
     },
     "trainEconomyThreshold": {
       "sectionTitle": "The Price Is Freight",
@@ -5116,7 +5141,11 @@
       "captureReminderBody": "Esta Fortaleza foi capturada com sucesso?",
       "captureYes": "Sim — criar banco",
       "captureNo": "Não",
-      "captureSnooze": "Adiar 30 min"
+      "captureSnooze": "Adiar 30 min",
+      "vsComplianceTask": "Fiscalização de VS",
+      "vsComplianceTaskBody": "Este membro não atingiu o mínimo semanal de VS da aliança. Resolva no jogo e depois marque esta tarefa como concluída ou perdoe a falta.",
+      "vsDemotionTaskTitle": "Rebaixar {name} (falta de VS)",
+      "vsKickTaskTitle": "Remover {name} (faltas de VS)"
     },
     "confirmCaptureFailed": "Falha ao confirmar captura."
   },
@@ -5954,7 +5983,30 @@
       "reportFailed": "Não foi possível carregar o relatório de ausências inesperadas.",
       "fieldsRequired": "Comandante e datas são obrigatórios.",
       "ashedSyncFailed": "Salvo no HQ, mas a sincronização com o Ashed falhou. Um oficial pode precisar adicionar também no Ashed."
-    }
+    },
+    "vsComplianceLink": "Ver tarefas abertas de fiscalização de VS"
+  },
+  "vsCompliance": {
+    "title": "Fiscalização de VS",
+    "subtitle": "Membros que não atingiram o mínimo semanal de VS da aliança. Rebaixe ou remova-os no jogo e depois marque a tarefa como concluída — ou perdoe a falta se ela deve ser desconsiderada.",
+    "empty": "Nenhuma tarefa aberta de fiscalização de VS.",
+    "kindDemotion": "Rebaixamento recomendado",
+    "kindKick": "Remoção recomendada",
+    "taskDemotionTitle": "Rebaixar {name} (falta de VS)",
+    "taskKickTitle": "Remover {name} (faltas de VS)",
+    "weekSummary": "Semana encerrada em {weekEnding}: {score} de VS (mínimo {threshold})",
+    "strikeCount": "{count, plural, one {# falta registrada} other {# faltas registradas}}",
+    "markComplete": "Marcar como concluída",
+    "markCompleteFailed": "Não foi possível marcar esta tarefa como concluída.",
+    "waive": "Perdoar",
+    "waiveFailed": "Não foi possível perdoar esta tarefa.",
+    "waiveDialogTitle": "Perdoar tarefa de fiscalização de VS",
+    "waiveDialogBody": "Desconsidere a falta de VS de {name} nesta semana, sem rebaixamento ou remoção. Isso não contará para futuras faltas.",
+    "waiveReasonLabel": "Motivo",
+    "waiveReasonRequired": "É necessário informar um motivo para perdoar esta tarefa.",
+    "cancel": "Cancelar",
+    "waiveConfirm": "Perdoar tarefa",
+    "waiving": "Perdoando…"
   },
   "statSync": {
     "title": "Sincronização HQ ↔ Ashed",
