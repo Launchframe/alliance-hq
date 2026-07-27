@@ -98,6 +98,18 @@ export function parseSlashOptionString(
   return typeof option?.value === "string" ? option.value : undefined;
 }
 
+/** Discord USER option (type 6) — value is a snowflake user id string. */
+export function parseSlashOptionUser(
+  payload: DiscordInteractionPayload,
+  name: string,
+): string | undefined {
+  const option = payload.data?.options?.find((o) => o.name === name);
+  if (typeof option?.value === "string" && option.value.trim()) {
+    return option.value.trim();
+  }
+  return undefined;
+}
+
 /** Optional `with` / `with-2` … args on `/what-is-my-vr-chart`. */
 export const VR_CHART_WITH_OPTION_NAMES = [
   "with",
@@ -167,7 +179,9 @@ export type ParsedButton =
   | { kind: "train_pick"; memberId: string; date: string }
   | { kind: "train_confirm"; memberId: string; date: string; answer: "yes" | "no" }
   | { kind: "profession_select"; profession: "Engineer" | "War Leader" }
-  | { kind: "profession_switch_confirm"; answer: "yes" | "no" };
+  | { kind: "profession_switch_confirm"; answer: "yes" | "no" }
+  | { kind: "whois_pick"; memberId: string }
+  | { kind: "whois_claim"; memberId: string };
 
 export function parseButtonCustomId(
   customId: string | undefined,
@@ -241,6 +255,10 @@ export function parseButtonCustomId(
       answer: profSwitchConfirm[1] as "yes" | "no",
     };
   }
+  const whoisPick = /^whois:pick:(.+)$/.exec(customId);
+  if (whoisPick) return { kind: "whois_pick", memberId: whoisPick[1]! };
+  const whoisClaim = /^whois:claim:(.+)$/.exec(customId);
+  if (whoisClaim) return { kind: "whois_claim", memberId: whoisClaim[1]! };
   return null;
 }
 
@@ -453,6 +471,38 @@ export function buildTrainPickButtons(
         label: c.name.slice(0, 80),
         custom_id: `train:pick:${c.memberId}:${c.date}`,
       })),
+    },
+  ];
+}
+
+export function buildWhoIsPickButtons(
+  candidates: Array<{ memberId: string; name: string }>,
+) {
+  return [
+    {
+      type: 1,
+      components: candidates.slice(0, 5).map((candidate) => ({
+        type: 2,
+        style: 1,
+        label: candidate.name.slice(0, 80),
+        custom_id: `whois:pick:${candidate.memberId}`,
+      })),
+    },
+  ];
+}
+
+export function buildWhoIsClaimButton(label: string, ashedMemberId: string) {
+  return [
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 1,
+          label: label.slice(0, 80),
+          custom_id: `whois:claim:${ashedMemberId}`,
+        },
+      ],
     },
   ];
 }

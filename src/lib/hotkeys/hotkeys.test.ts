@@ -14,6 +14,7 @@ import {
   checkHotkeyRegistryIntegrity,
   sanitizeHotkeyOverrides,
 } from "@/lib/hotkeys/registry-integrity.shared";
+import { DEFAULT_HOTKEY_BINDINGS } from "@/lib/hotkeys/defaults";
 import { TRAINS_HOTKEY_ACTION_IDS } from "@/lib/hotkeys/trains-hotkeys.shared";
 import { safeRunHotkeyHandler } from "@/lib/hotkeys/safe-execute.shared";
 import {
@@ -207,6 +208,15 @@ describe("hotkey registry integrity", () => {
     expect(checkHotkeyRegistryIntegrity()).toEqual({
       missingDefaults: [],
       orphanDefaults: [],
+      sequencePrefixConflicts: [],
+    });
+  });
+
+  it("does not make longer default sequences unreachable via shorter prefixes", () => {
+    expect(checkHotkeyRegistryIntegrity().sequencePrefixConflicts).toEqual([]);
+    // History import must remain reachable alongside trains (`g` then `t`).
+    expect(DEFAULT_HOTKEY_BINDINGS["nav.trainsHistoryImport"]).toEqual({
+      sequence: ["g", "0"],
     });
   });
 

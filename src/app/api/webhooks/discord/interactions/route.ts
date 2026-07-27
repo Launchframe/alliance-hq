@@ -22,6 +22,8 @@ import {
   buildKillsConfirmButtons,
   buildTrainConfirmButtons,
   buildTrainPickButtons,
+  buildWhoIsClaimButton,
+  buildWhoIsPickButtons,
   buildVrConfirmButtons,
   buildWalkthroughDoneButton,
   discordComponentMessageResponse,
@@ -39,6 +41,7 @@ import {
   parseSlashOptionBoolean,
   parseSlashOptionInteger,
   parseSlashOptionString,
+  parseSlashOptionUser,
   parseVrChartSlashCommanderNames,
   parseVrSlashLevel,
   resolveDiscordPublicKey,
@@ -130,6 +133,10 @@ import {
   handleDiscordMyTimeOff,
   handleDiscordIsAllyOffline,
 } from "@/lib/time-off/discord-bot-handlers.server";
+import {
+  handleDiscordWhoIs,
+  handleDiscordWhoIsClaimInvite,
+} from "@/lib/discord/who-is-bot-handlers.server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -798,6 +805,34 @@ async function handleSlashCommand(
     return discordMessageResponse(result.reply, undefined, { ephemeral: false });
   }
 
+  if (commandName === "who-is") {
+    const result = await handleDiscordWhoIs({
+      allianceId,
+      discordUserId,
+      locale,
+      targetDiscordUserId: parseSlashOptionUser(payload, "discord"),
+      commanderName: parseSlashOptionString(payload, "commander"),
+    });
+    if (result.pickCandidates?.length) {
+      return discordMessageResponse(
+        result.reply,
+        buildWhoIsPickButtons(result.pickCandidates),
+        EPHEMERAL,
+      );
+    }
+    if (result.claimInvite) {
+      return discordMessageResponse(
+        result.reply,
+        buildWhoIsClaimButton(
+          t("whoIs.createClaimInvite"),
+          result.claimInvite.ashedMemberId,
+        ),
+        EPHEMERAL,
+      );
+    }
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
+  }
+
   if (commandName === "is-ally-offline") {
     const commander = parseSlashOptionString(payload, "commander");
     const date = parseSlashOptionString(payload, "date");
@@ -1054,6 +1089,35 @@ async function handleButton(payload: DiscordInteractionPayload) {
       handles: [discordUsername ?? discordUserId],
     });
     return discordButtonResponse(t("officerNotified"), []);
+  }
+
+  if (parsed.kind === "whois_pick") {
+    const result = await handleDiscordWhoIs({
+      allianceId,
+      discordUserId,
+      locale,
+      resolvedMemberId: parsed.memberId,
+    });
+    if (result.claimInvite) {
+      return discordButtonResponse(
+        result.reply,
+        buildWhoIsClaimButton(
+          t("whoIs.createClaimInvite"),
+          result.claimInvite.ashedMemberId,
+        ),
+      );
+    }
+    return discordButtonResponse(result.reply);
+  }
+
+  if (parsed.kind === "whois_claim") {
+    const result = await handleDiscordWhoIsClaimInvite({
+      allianceId,
+      discordUserId,
+      locale,
+      ashedMemberId: parsed.memberId,
+    });
+    return discordButtonResponse(result.reply);
   }
 
   if (parsed.kind === "train_pick") {

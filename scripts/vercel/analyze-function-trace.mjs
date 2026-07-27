@@ -79,8 +79,10 @@ function main() {
       excludes: videoOcrFileTracingExcludes,
     });
 
+    const fileList = [...files];
+
     if (budget.requireLibvips) {
-      const hasLibvips = [...files].some((file) =>
+      const hasLibvips = fileList.some((file) =>
         file.includes("libvips-cpp.so"),
       );
       if (!hasLibvips) {
@@ -91,8 +93,29 @@ function main() {
       }
     }
 
+    if (budget.requireWorkerScript) {
+      const hasWorkerScript = fileList.some((file) =>
+        file.includes("tesseract.js/src/worker-script/node/index.js"),
+      );
+      const hasWorkerConstants = fileList.some((file) =>
+        file.includes("tesseract.js/src/constants/"),
+      );
+      if (!hasWorkerScript) {
+        failed = true;
+        console.error(
+          `\n${budget.route} trace is missing tesseract worker-script entry (videoOcrFileTracing).`,
+        );
+      }
+      if (!hasWorkerConstants) {
+        failed = true;
+        console.error(
+          `\n${budget.route} trace is missing tesseract.js/src/constants (worker relative requires).`,
+        );
+      }
+    }
+
     if (Array.isArray(budget.forbidPathSubstrings)) {
-      const forbiddenHits = [...files].filter((file) =>
+      const forbiddenHits = fileList.filter((file) =>
         budget.forbidPathSubstrings.some((needle) => file.includes(needle)),
       );
       if (forbiddenHits.length > 0) {

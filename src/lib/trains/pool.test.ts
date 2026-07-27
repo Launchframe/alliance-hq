@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { activePoolGenerationForDate, poolTypeUsesSequence } from "@/lib/trains/pool";
+import {
+  activePoolGenerationForDate,
+  HISTORY_IMPORT_DEPLETING_POOL_TYPES,
+  poolTypeUsesSequence,
+  shouldMarkCurrentPoolGeneration,
+} from "@/lib/trains/pool";
 
 describe("activePoolGenerationForDate", () => {
   it("returns generation 1 when no rows exist", () => {
@@ -49,5 +54,31 @@ describe("poolTypeUsesSequence", () => {
     expect(poolTypeUsesSequence("all_members")).toBe(false);
     expect(poolTypeUsesSequence("event_top_x")).toBe(false);
     expect(poolTypeUsesSequence("heavy_hitter")).toBe(false);
+  });
+});
+
+describe("shouldMarkCurrentPoolGeneration", () => {
+  it("uses current generation for today and future dates", () => {
+    expect(shouldMarkCurrentPoolGeneration("2026-07-27", "2026-07-27")).toBe(
+      true,
+    );
+    expect(shouldMarkCurrentPoolGeneration("2026-07-28", "2026-07-27")).toBe(
+      true,
+    );
+  });
+
+  it("uses historical generation for past dates unless forced", () => {
+    expect(shouldMarkCurrentPoolGeneration("2026-07-20", "2026-07-27")).toBe(
+      false,
+    );
+    expect(
+      shouldMarkCurrentPoolGeneration("2026-07-20", "2026-07-27", true),
+    ).toBe(true);
+  });
+});
+
+describe("HISTORY_IMPORT_DEPLETING_POOL_TYPES", () => {
+  it("covers R3 lottery and R4+ sequence pools only", () => {
+    expect([...HISTORY_IMPORT_DEPLETING_POOL_TYPES]).toEqual(["r3", "r4_plus"]);
   });
 });

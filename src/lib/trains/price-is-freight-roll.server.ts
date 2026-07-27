@@ -10,6 +10,7 @@ import {
 import {
   getAllianceRanksAsOf,
   isMemberEligibleForPool,
+  resolveMemberPoolAllianceRank,
 } from "@/lib/trains/rank-history";
 import { throwPoolEmpty } from "@/lib/trains/roll-errors.server";
 import {
@@ -59,7 +60,7 @@ export async function loadPriceIsFreightR3Candidates(input: {
   const candidates: RollCandidate[] = [];
   for (const member of members) {
     const rankEvent = rankByMember.get(member.ashedMemberId);
-    const rank = rankEvent?.allianceRank ?? member.allianceRank ?? null;
+    const rank = resolveMemberPoolAllianceRank(member, rankEvent);
     if (!isMemberEligibleForPool("r3", rank)) continue;
     candidates.push({
       memberId: member.ashedMemberId,

@@ -26,4 +26,18 @@ describe("video OCR tracing — Phase 2a queue slim", () => {
       ]),
     );
   });
+
+  it("requires tesseract worker-script + constants on Discord and THP OCR routes", () => {
+    for (const route of [
+      "/api/webhooks/discord/interactions",
+      "/api/thp/me/submit",
+    ]) {
+      const budget = functionTraceBudgets.find((row) => row.route === route);
+      expect(budget, route).toBeDefined();
+      if (!budget) {
+        continue;
+      }
+      expect(budget.requireWorkerScript, route).toBe(true);
+    }
+  });
 });

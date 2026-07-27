@@ -14,6 +14,7 @@ const NATIVE_MODE_EXTRA_HREFS = new Set([
   "/settings/team",
   "/settings/discord",
   "/settings/trains",
+  "/trains/history-import",
   "/settings/game-seasons",
   "/settings/upload-reminders",
   "/settings/hotkeys",
@@ -137,6 +138,15 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     scope: "global",
     kind: "navigate",
     href: "/trains",
+  },
+  {
+    id: "nav.trainsHistoryImport",
+    labelKey: "actions.nav.trainsHistoryImport",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/trains/history-import",
+    requiredPermission: "trains:write",
   },
   {
     id: "nav.battlePlan",
