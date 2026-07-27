@@ -62,7 +62,9 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 ## Pool rank, Top VS roster, conductor minimums
 
 - **Pool rank eligibility** (`resolveMemberPoolAllianceRank`): when an HQ **`member_alliance_rank_events`** row exists, use that rank — **do not** `Math.max` with a stale **higher** synced Ashed roster rank after an in-game demotion. Fall back to synced roster / Ashed rank raw only when there is no HQ event yet.
-- **Top VS** (`fetchAllianceVsTopScorersForTrainDate`): intersect prior-day Ashed scores with the **active HQ roster** (`listActiveAllianceMembersForPool`, exclude `former`) — same spirit as Top VR; departed members must not win the wheel.
+- **Top VS** (`fetchAllianceVsTopScorersForTrainDate` / `fetchVsTopScorersForRecordedDate`):
+  - **Dedupe** Ashed `VSScore` rows by member — keep the **max** score per `member_id` before sorting/slicing Top N (re-uploads must not inflate odds or push the true Nth scorer off the board).
+  - **Intersect** with the **active HQ roster** (`listActiveAllianceMembersForPool`, exclude `former`) — same spirit as Top VR; departed members must not win the wheel.
 - **Conductor minimums** (season HQ VR thresholds on `r3` / `heavy_hitter` pools): post-roll DQ and pool seed filtering apply when minimums are enabled — **independent** of VS upload readiness (`classifyVsDataNeed` / guided `prerequisites`). Monday and non-VS lottery days still enforce minimums when configured.
 
 ## Swap / make-up day
@@ -79,11 +81,12 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 - Every day tile always shows the conductor name or **"—"** (not only when selected).
 - Long-press day paint uses `DAY_PAINT_TEMPLATES`.
 
-## Share image
+## Share image / wheel readability
 
 - Share → generate PNG → **preview** → **Copy Media** / **Download** / Close. Never auto-download on Share click.
 - Re-export from guided Conductor step and advanced Today’s Conductor when a conductor exists (pending or locked).
 - Frame: winner + surrounding pool names + confetti; eligibility stats when the draw required a score threshold; locale-format large numbers.
+- **Conductor wheel UI** (`ConductorWheelModal`): use theme tokens (`text-hq-accent`, `text-hq-fg-muted`, dual-mode score colors) so names and VS scores stay readable in **light** theme — do not hardcode white-on-dark-only reel text.
 
 ## Wizard recovery (stay on `/trains`)
 

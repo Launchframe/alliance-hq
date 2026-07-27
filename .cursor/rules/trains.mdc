@@ -77,7 +77,7 @@ Alliance settings may require minimum season HQ VR for `r3` and `heavy_hitter` p
 
 ### Price Is Freight (`price_is_right`)
 
-TPIF conductor rolls are **with-replacement** daily draws (`rollPriceIsFreightConductor`). They do **not** seed, mark, or reseed `conductor_pool_entries`. The same member may win consecutive days. Non-TPIF `r3_lottery` / `heavy_hitter_lottery` (e.g. `economy_week`, `r3_recognition`) still use depleting pools. **`takedown_week`** (composite Saturday segment) uses the same with-replacement PIF conductor path as weekday `price_is_right` / `price_is_right_weekdays`.
+TPIF conductor rolls are **with-replacement** daily draws (`rollPriceIsFreightConductor`). They do **not** seed, mark, or reseed `conductor_pool_entries`. The same member may win consecutive days. Non-TPIF `r3_lottery` / `heavy_hitter_lottery` (e.g. `economy_week`, `r3_recognition`) still use depleting pools. **`takedown_week`** (composite Saturday segment) uses the same with-replacement PIF conductor path as weekday `price_is_right` / `price_is_right_weekdays` — gate via `usesPriceIsFreightConductorRoll` (not `isPriceIsRightPaintTemplate` alone, which excludes `takedown_week`).
 
 Two alliance-configurable modes (settings → **The Price Is Freight**):
 
@@ -122,7 +122,7 @@ Paint ids `top_vs` / `top_vr` open a scope picker. `conductor_config.topN` is me
 
 ## Data sources
 
-- **Top VS** (`vs_high_score` / `vs_top_10` / `vs_top_n`) — prior-day **daily** Ashed `VSScore` for T−1 (`vsScoreReferenceDate(trainDate)`); filter out `is_weekly` week-ending rows; **intersect with active HQ roster** (exclude former members). Empty when T−1 is Sunday (VS break). Readiness `prior_day_vs`.
+- **Top VS** (`vs_high_score` / `vs_top_10` / `vs_top_n`) — prior-day **daily** Ashed `VSScore` for T−1 (`vsScoreReferenceDate(trainDate)`); filter out `is_weekly` week-ending rows; **dedupe by member** (keep max score) before Top N slice; **intersect with active HQ roster** (exclude former members). Empty when T−1 is Sunday (VS break). Readiness `prior_day_vs`.
 - **Top VR** (`vr_top_n`) — HQ `memberSeasonVr`; readiness kind `vr`.
 - **Event Top X VIP** — HQ season VR / event scores.
 - **Pools, economy filters, Price Is Right tickets** — HQ roster + prior-day VS where applicable.
