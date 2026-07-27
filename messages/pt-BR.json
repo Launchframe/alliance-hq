@@ -3653,7 +3653,8 @@
         "unmatched": "Escolha um membro da lista",
         "overwriteDraft": "Vai substituir o rascunho desbloqueado",
         "notPast": "Tem que ser um dia passado",
-        "gap": "Lacuna ou conflito de datas"
+        "gap": "Lacuna ou conflito de datas",
+        "dateConflict": "Rotulado {labeledDate}, mas a ordem da lista espera {expectedDate}"
       },
       "gapBanner": "A quantidade de nomes não bate com os dias entre as datas âncora. Confira dias faltantes no jogo: Correio → Evento, busque por “train has departed”.",
       "commit": "Confirmar dias importados",

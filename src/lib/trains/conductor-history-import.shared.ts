@@ -52,6 +52,11 @@ export type InterpolatedHistoryRow = {
   name: string;
   date: string | null;
   flags: HistoryImportDateFlag[];
+  /** Set when an explicit date label disagrees with sequential list order. */
+  anchorConflict?: {
+    labeledDate: string;
+    expectedDate: string;
+  };
 };
 
 export type ExistingConductorSnapshot = {
@@ -198,19 +203,6 @@ export function interpolateHistoryDates(input: {
         if (!flags[anchor.index]!.includes("date_conflict")) {
           flags[anchor.index]!.push("date_conflict");
         }
-        // Also mark the segment from previous consistent expectation as a gap
-        // so the review banner shows in-game check instructions.
-        if (!flags[anchor.index]!.includes("gap")) {
-          flags[anchor.index]!.push("gap");
-        }
-      }
-    }
-
-    // If any middle/last anchor conflicts, flag all rows in the list as gap
-    // so officers know the whole span needs checking.
-    if (hasGap) {
-      for (let k = 0; k < n; k += 1) {
-        if (!flags[k]!.includes("gap")) flags[k]!.push("gap");
       }
     }
   }
@@ -222,11 +214,29 @@ export function interpolateHistoryDates(input: {
     }
   }
 
+  const conflictByIndex = new Map(
+    explicitAnchors
+      .filter((anchor) => {
+        const expected = dates[anchor.index];
+        return expected != null && anchor.date !== expected;
+      })
+      .map((anchor) => [
+        anchor.index,
+        {
+          labeledDate: anchor.date,
+          expectedDate: dates[anchor.index]!,
+        },
+      ]),
+  );
+
   const rows: InterpolatedHistoryRow[] = input.lines.map((line, index) => ({
     index,
     name: line.name,
     date: dates[index] ?? null,
     flags: flags[index] ?? [],
+    ...(conflictByIndex.has(index)
+      ? { anchorConflict: conflictByIndex.get(index) }
+      : {}),
   }));
 
   return { rows, hasGap };
@@ -238,8 +248,8 @@ export function classifyHistoryImportRow(input: {
   memberId: string | null;
   existing: ExistingConductorSnapshot | null | undefined;
 }): HistoryImportRowCommitStatus {
-  if (input.flags.includes("gap")) return "gap";
   if (input.flags.includes("date_conflict")) return "date_conflict";
+  if (input.flags.includes("gap")) return "gap";
   if (input.flags.includes("not_descending")) return "not_descending";
   if (input.flags.includes("missing_date") || !input.date) return "missing_date";
   if (input.flags.includes("not_past")) return "not_past";

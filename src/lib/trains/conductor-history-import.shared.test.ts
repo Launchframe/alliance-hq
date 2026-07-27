@@ -114,7 +114,70 @@ C (July 17)
       defaultYear: 2026,
     });
     expect(hasGap).toBe(true);
-    expect(rows.every((r) => r.flags.includes("gap"))).toBe(true);
+    expect(rows[0]?.flags).toEqual([]);
+    expect(rows[1]?.flags).toEqual([]);
+    expect(rows[2]?.flags).toEqual(["date_conflict"]);
+    expect(rows[2]?.anchorConflict).toEqual({
+      labeledDate: "2026-07-17",
+      expectedDate: "2026-07-24",
+    });
+    expect(rows[2]?.date).toBe("2026-07-24");
+  });
+
+  it("flags only the mismatched end anchor on a long sequential list", () => {
+    const lines = parseHistoryPaste(`Redd (July 26)
+SlowRider
+blackmilk
+orbs
+Fighter55555
+Crazy
+BOGGLE
+Sgt Painmaker
+Happy
+EG (july 17)
+Truth
+Podz
+Cindy
+elsa
+Podzilla (July 12)
+Control and Kaos
+EagleTN (july 10)
+EG (July 9)
+dc117
+orbs
+SheRa
+Manbridge
+Grimlock
+Red Ranger
+Fighter
+Aline
+Crazy
+CAIPIRA
+justsarah
+Nevaskina
+JBeazy
+Slackin
+Mew2407
+Eagle (june 22)
+`);
+    const { rows, hasGap } = interpolateHistoryDates({
+      lines,
+      today: "2026-07-27",
+      defaultYear: 2026,
+    });
+    expect(hasGap).toBe(true);
+    const conflictRows = rows.filter((row) =>
+      row.flags.includes("date_conflict"),
+    );
+    expect(conflictRows).toHaveLength(1);
+    expect(conflictRows[0]?.name).toBe("Eagle");
+    expect(conflictRows[0]?.anchorConflict).toEqual({
+      labeledDate: "2026-06-22",
+      expectedDate: "2026-06-23",
+    });
+    expect(rows.filter((row) => row.flags.length === 0).length).toBe(
+      rows.length - 1,
+    );
   });
 
   it("uses newest date alone and infers older days from list length", () => {

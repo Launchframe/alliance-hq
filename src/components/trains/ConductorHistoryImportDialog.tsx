@@ -101,8 +101,8 @@ export function ConductorHistoryImportDialog({
   );
 
   const statusLabel = useCallback(
-    (status: HistoryImportRowCommitStatus) => {
-      switch (status) {
+    (row: ReviewRow) => {
+      switch (row.status) {
         case "ready":
           return t("status.ok");
         case "already_locked":
@@ -115,13 +115,20 @@ export function ConductorHistoryImportDialog({
           return t("status.overwriteDraft");
         case "not_past":
           return t("status.notPast");
-        case "gap":
         case "date_conflict":
+          if (row.anchorConflict) {
+            return t("status.dateConflict", {
+              labeledDate: row.anchorConflict.labeledDate,
+              expectedDate: row.anchorConflict.expectedDate,
+            });
+          }
+          return t("status.gap");
+        case "gap":
         case "missing_date":
         case "not_descending":
           return t("status.gap");
         default:
-          return status;
+          return row.status;
       }
     },
     [t],
@@ -391,7 +398,12 @@ export function ConductorHistoryImportDialog({
                     return (
                       <tr
                         key={row.rowKey}
-                        className="border-t border-hq-border"
+                        className={`border-t border-hq-border ${
+                          row.status === "date_conflict" ||
+                          row.status === "gap"
+                            ? "bg-amber-500/10"
+                            : ""
+                        }`}
                         data-testid={`trains-history-import-row-${row.index}`}
                         data-status={row.status}
                       >
@@ -416,7 +428,7 @@ export function ConductorHistoryImportDialog({
                           />
                         </td>
                         <td className="px-3 py-2 text-hq-fg-muted">
-                          {statusLabel(row.status)}
+                          {statusLabel(row)}
                         </td>
                       </tr>
                     );

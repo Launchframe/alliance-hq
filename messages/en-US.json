@@ -3707,7 +3707,8 @@
         "unmatched": "Pick a roster member",
         "overwriteDraft": "Will replace unlocked draft",
         "notPast": "Must be a past day",
-        "gap": "Date gap or conflict"
+        "gap": "Date gap or conflict",
+        "dateConflict": "Labeled {labeledDate}, but list order expects {expectedDate}"
       },
       "gapBanner": "Name count doesn’t match the days between date anchors. Check missing days in-game: Mail → Event, search for “train has departed”.",
       "commit": "Lock imported days",
