@@ -3654,9 +3654,13 @@
         "overwriteDraft": "Vai substituir o rascunho desbloqueado",
         "notPast": "Tem que ser um dia passado",
         "gap": "Lacuna ou conflito de datas",
-        "dateConflict": "Rotulado {labeledDate}, mas a ordem da lista espera {expectedDate}"
+        "dateConflict": "Rotulado {labeledDate}, mas a ordem da lista espera {expectedDate} (faltam {count} dia(s))",
+        "blank": "Dia desconhecido / faltante (não importado)"
       },
-      "gapBanner": "A quantidade de nomes não bate com os dias entre as datas âncora. Confira dias faltantes no jogo: Correio → Evento, busque por “train has departed”.",
+      "gapBanner": "Uma ou mais datas rotuladas não batem com a ordem da lista. Insira linhas em branco antes de cada linha sinalizada para reconhecer condutores faltantes (o correio de Evento no jogo só fica ~30 dias) e continue.",
+      "blankName": "(desconhecido)",
+      "insertBlanks": "Inserir {count} dia(s) em branco",
+      "colActions": "Ações",
       "commit": "Confirmar dias importados",
       "commitPartial": "Confirmar {count} dias prontos",
       "committing": "Importando…",

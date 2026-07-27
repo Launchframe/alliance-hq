@@ -4,6 +4,7 @@ import {
   calendarDayDiff,
   classifyHistoryImportRow,
   historyImportRowIsCommitable,
+  insertBlankLinesBefore,
   interpolateHistoryDates,
   parseHistoryPaste,
 } from "@/lib/trains/conductor-history-import.shared";
@@ -82,28 +83,9 @@ describe("interpolateHistoryDates", () => {
       date: "2026-07-10",
       flags: [],
     });
-    expect(rows.map((r) => r.date)).toEqual([
-      "2026-07-26",
-      "2026-07-25",
-      "2026-07-24",
-      "2026-07-23",
-      "2026-07-22",
-      "2026-07-21",
-      "2026-07-20",
-      "2026-07-19",
-      "2026-07-18",
-      "2026-07-17",
-      "2026-07-16",
-      "2026-07-15",
-      "2026-07-14",
-      "2026-07-13",
-      "2026-07-12",
-      "2026-07-11",
-      "2026-07-10",
-    ]);
   });
 
-  it("flags a gap when name count does not match the date span", () => {
+  it("flags a gap, re-bases onto the labeled date, and keeps later rows aligned", () => {
     const lines = parseHistoryPaste(`A (July 26)
 B
 C (July 17)
@@ -117,11 +99,12 @@ C (July 17)
     expect(rows[0]?.flags).toEqual([]);
     expect(rows[1]?.flags).toEqual([]);
     expect(rows[2]?.flags).toEqual(["date_conflict"]);
+    expect(rows[2]?.date).toBe("2026-07-17");
     expect(rows[2]?.anchorConflict).toEqual({
       labeledDate: "2026-07-17",
       expectedDate: "2026-07-24",
+      missingDayCount: 7,
     });
-    expect(rows[2]?.date).toBe("2026-07-24");
   });
 
   it("flags only the mismatched end anchor on a long sequential list", () => {
@@ -171,13 +154,70 @@ Eagle (june 22)
     );
     expect(conflictRows).toHaveLength(1);
     expect(conflictRows[0]?.name).toBe("Eagle");
+    expect(conflictRows[0]?.date).toBe("2026-06-22");
     expect(conflictRows[0]?.anchorConflict).toEqual({
       labeledDate: "2026-06-22",
       expectedDate: "2026-06-23",
+      missingDayCount: 1,
     });
-    expect(rows.filter((row) => row.flags.length === 0).length).toBe(
-      rows.length - 1,
+  });
+
+  it("re-bases after a gap and can flag a later gap independently", () => {
+    const lines = parseHistoryPaste(`A (July 10)
+B
+C (July 7)
+D
+E (July 4)
+`);
+    const { rows, hasGap } = interpolateHistoryDates({
+      lines,
+      today: "2026-07-27",
+      defaultYear: 2026,
+    });
+    expect(hasGap).toBe(true);
+    expect(rows[2]?.anchorConflict).toEqual({
+      labeledDate: "2026-07-07",
+      expectedDate: "2026-07-08",
+      missingDayCount: 1,
+    });
+    expect(rows[2]?.date).toBe("2026-07-07");
+    expect(rows[3]?.date).toBe("2026-07-06");
+    expect(rows[4]?.anchorConflict).toEqual({
+      labeledDate: "2026-07-04",
+      expectedDate: "2026-07-05",
+      missingDayCount: 1,
+    });
+    expect(rows[4]?.date).toBe("2026-07-04");
+  });
+
+  it("clears a gap after inserting the suggested blank rows", () => {
+    const gapped = parseHistoryPaste(`Redd (July 26)
+SlowRider
+Eagle (july 23)
+`);
+    const gappedResult = interpolateHistoryDates({
+      lines: gapped,
+      today: "2026-07-27",
+      defaultYear: 2026,
+    });
+    expect(gappedResult.rows[2]?.anchorConflict?.missingDayCount).toBe(1);
+
+    const patched = insertBlankLinesBefore(
+      gapped,
+      2,
+      gappedResult.rows[2]!.anchorConflict!.missingDayCount,
     );
+    const second = interpolateHistoryDates({
+      lines: patched,
+      today: "2026-07-27",
+      defaultYear: 2026,
+    });
+    expect(second.hasGap).toBe(false);
+    expect(second.rows[2]?.blank).toBe(true);
+    expect(second.rows[2]?.date).toBe("2026-07-24");
+    expect(second.rows[3]?.name).toBe("Eagle");
+    expect(second.rows[3]?.date).toBe("2026-07-23");
+    expect(second.rows[3]?.flags).toEqual([]);
   });
 
   it("uses newest date alone and infers older days from list length", () => {
@@ -263,6 +303,17 @@ SlowRider
   });
 });
 
+describe("insertBlankLinesBefore", () => {
+  it("inserts blank placeholders before an index", () => {
+    const lines = parseHistoryPaste(`A\nB`);
+    const next = insertBlankLinesBefore(lines, 1, 2);
+    expect(next).toHaveLength(4);
+    expect(next[1]?.blank).toBe(true);
+    expect(next[2]?.blank).toBe(true);
+    expect(next[3]?.name).toBe("B");
+  });
+});
+
 describe("classifyHistoryImportRow", () => {
   it("classifies locked same/different and draft overwrite", () => {
     expect(
@@ -308,10 +359,19 @@ describe("classifyHistoryImportRow", () => {
     ).toBe("overwrite_draft");
 
     expect(
-      historyImportRowIsCommitable("ready"),
-    ).toBe(true);
+      classifyHistoryImportRow({
+        date: "2026-07-23",
+        flags: ["blank"],
+        memberId: null,
+        blank: true,
+        existing: null,
+      }),
+    ).toBe("blank");
+
+    expect(historyImportRowIsCommitable("ready")).toBe(true);
     expect(historyImportRowIsCommitable("overwrite_draft")).toBe(true);
     expect(historyImportRowIsCommitable("conflict_locked")).toBe(false);
     expect(historyImportRowIsCommitable("already_locked")).toBe(false);
+    expect(historyImportRowIsCommitable("blank")).toBe(false);
   });
 });

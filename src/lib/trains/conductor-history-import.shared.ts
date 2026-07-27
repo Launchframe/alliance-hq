@@ -35,6 +35,8 @@ const HEADER_RE = /^alliance\s+trains\s*$/i;
 export type ParsedHistoryLine = {
   raw: string;
   name: string;
+  /** Intentional empty placeholder for an unknown/missing conductor day. */
+  blank?: boolean;
   anchorMonth?: number;
   anchorDay?: number;
   anchorYear?: number;
@@ -45,17 +47,21 @@ export type HistoryImportDateFlag =
   | "date_conflict"
   | "missing_date"
   | "not_past"
-  | "not_descending";
+  | "not_descending"
+  | "blank";
 
 export type InterpolatedHistoryRow = {
   index: number;
   name: string;
   date: string | null;
   flags: HistoryImportDateFlag[];
-  /** Set when an explicit date label disagrees with sequential list order. */
+  blank?: boolean;
+  /** Set when an explicit date label is older than sequential list order. */
   anchorConflict?: {
     labeledDate: string;
     expectedDate: string;
+    /** How many blank rows to insert before this row to clear the gap. */
+    missingDayCount: number;
   };
 };
 
@@ -76,7 +82,8 @@ export type HistoryImportRowCommitStatus =
   | "gap"
   | "date_conflict"
   | "missing_date"
-  | "not_descending";
+  | "not_descending"
+  | "blank";
 
 /** Absolute calendar-day difference (later − earlier). */
 export function calendarDayDiff(later: string, earlier: string): number {
@@ -87,6 +94,21 @@ export function calendarDayDiff(later: string, earlier: string): number {
 
 export function padMonthDay(year: number, month: number, day: number): string {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+export function createBlankHistoryLine(): ParsedHistoryLine {
+  return { raw: "", name: "", blank: true };
+}
+
+/** Insert `count` blank placeholder lines before `index`. */
+export function insertBlankLinesBefore(
+  lines: ParsedHistoryLine[],
+  index: number,
+  count: number,
+): ParsedHistoryLine[] {
+  if (count <= 0) return lines;
+  const blanks = Array.from({ length: count }, () => createBlankHistoryLine());
+  return [...lines.slice(0, index), ...blanks, ...lines.slice(index)];
 }
 
 export function parseHistoryPaste(text: string): ParsedHistoryLine[] {
@@ -134,6 +156,7 @@ function resolveLineAnchorDate(
   line: ParsedHistoryLine,
   defaultYear: number,
 ): string | null {
+  if (line.blank) return null;
   if (line.anchorMonth == null || line.anchorDay == null) return null;
   const year = line.anchorYear ?? defaultYear;
   return padMonthDay(year, line.anchorMonth, line.anchorDay);
@@ -142,9 +165,9 @@ function resolveLineAnchorDate(
 /**
  * Interpolate descending calendar dates for a newest→oldest paste list.
  *
- * A newest date alone is enough: names are sequential day-by-day and the
- * oldest date is inferred as `newest − (n − 1)`. Optional middle/last anchors
- * and `lastDate` still validate consistency (gap / date_conflict).
+ * Newest date alone is enough for a clean list. When a later labeled date is
+ * older than the sequential expectation, that row is flagged and the timeline
+ * re-bases onto the labeled date so later anchors can be checked independently.
  */
 export function interpolateHistoryDates(input: {
   lines: ParsedHistoryLine[];
@@ -159,12 +182,23 @@ export function interpolateHistoryDates(input: {
   const n = input.lines.length;
   const dates: Array<string | null> = Array.from({ length: n }, () => null);
   const flags: HistoryImportDateFlag[][] = Array.from({ length: n }, () => []);
+  const conflicts = new Map<
+    number,
+    {
+      labeledDate: string;
+      expectedDate: string;
+      missingDayCount: number;
+    }
+  >();
 
   if (n === 0) {
     return { rows: [], hasGap: false };
   }
 
   for (let i = 0; i < n; i += 1) {
+    if (input.lines[i]?.blank) {
+      flags[i]!.push("blank");
+    }
     dates[i] = resolveLineAnchorDate(input.lines[i]!, input.defaultYear);
   }
 
@@ -175,35 +209,72 @@ export function interpolateHistoryDates(input: {
     dates[n - 1] = input.lastDate;
   }
 
-  // Snapshot explicit anchors before sequential fill (for conflict checks).
   const explicitAnchors: Array<{ index: number; date: string }> = [];
   for (let i = 0; i < n; i += 1) {
     if (dates[i]) explicitAnchors.push({ index: i, date: dates[i]! });
   }
 
   let hasGap = false;
-  const newestIndex = explicitAnchors[0]?.index;
-  const newestDate = explicitAnchors[0]?.date ?? null;
 
-  if (newestDate == null || newestIndex == null) {
+  if (explicitAnchors.length === 0) {
     for (let i = 0; i < n; i += 1) {
-      flags[i]!.push("missing_date");
+      if (!flags[i]!.includes("blank")) flags[i]!.push("missing_date");
     }
   } else {
-    // Extend newest back to row 0 when the first explicit anchor is mid-list.
-    const row0Date = addCalendarDays(newestDate, newestIndex);
-    for (let k = 0; k < n; k += 1) {
-      dates[k] = addCalendarDays(row0Date, -k);
+    let cursorIndex = explicitAnchors[0]!.index;
+    let cursorDate = explicitAnchors[0]!.date;
+
+    for (let k = 0; k <= cursorIndex; k += 1) {
+      dates[k] = addCalendarDays(cursorDate, cursorIndex - k);
     }
 
-    for (const anchor of explicitAnchors) {
-      const expected = dates[anchor.index];
-      if (expected && anchor.date !== expected) {
+    for (let a = 1; a < explicitAnchors.length; a += 1) {
+      const anchor = explicitAnchors[a]!;
+      const expected = addCalendarDays(
+        cursorDate,
+        -(anchor.index - cursorIndex),
+      );
+
+      for (let k = cursorIndex + 1; k <= anchor.index; k += 1) {
+        dates[k] = addCalendarDays(cursorDate, -(k - cursorIndex));
+      }
+
+      if (anchor.date === expected) {
+        cursorIndex = anchor.index;
+        cursorDate = anchor.date;
+        continue;
+      }
+
+      if (anchor.date < expected) {
+        const missingDayCount = calendarDayDiff(expected, anchor.date);
         hasGap = true;
         if (!flags[anchor.index]!.includes("date_conflict")) {
           flags[anchor.index]!.push("date_conflict");
         }
+        conflicts.set(anchor.index, {
+          labeledDate: anchor.date,
+          expectedDate: expected,
+          missingDayCount,
+        });
+        // Re-base onto the labeled date and keep evaluating later anchors.
+        dates[anchor.index] = anchor.date;
+        cursorIndex = anchor.index;
+        cursorDate = anchor.date;
+        continue;
       }
+
+      // Labeled date is newer than the sequence allows.
+      hasGap = true;
+      if (!flags[anchor.index]!.includes("not_descending")) {
+        flags[anchor.index]!.push("not_descending");
+      }
+      dates[anchor.index] = anchor.date;
+      cursorIndex = anchor.index;
+      cursorDate = anchor.date;
+    }
+
+    for (let k = cursorIndex + 1; k < n; k += 1) {
+      dates[k] = addCalendarDays(cursorDate, -(k - cursorIndex));
     }
   }
 
@@ -214,29 +285,13 @@ export function interpolateHistoryDates(input: {
     }
   }
 
-  const conflictByIndex = new Map(
-    explicitAnchors
-      .filter((anchor) => {
-        const expected = dates[anchor.index];
-        return expected != null && anchor.date !== expected;
-      })
-      .map((anchor) => [
-        anchor.index,
-        {
-          labeledDate: anchor.date,
-          expectedDate: dates[anchor.index]!,
-        },
-      ]),
-  );
-
   const rows: InterpolatedHistoryRow[] = input.lines.map((line, index) => ({
     index,
     name: line.name,
     date: dates[index] ?? null,
     flags: flags[index] ?? [],
-    ...(conflictByIndex.has(index)
-      ? { anchorConflict: conflictByIndex.get(index) }
-      : {}),
+    ...(line.blank ? { blank: true } : {}),
+    ...(conflicts.has(index) ? { anchorConflict: conflicts.get(index) } : {}),
   }));
 
   return { rows, hasGap };
@@ -246,8 +301,10 @@ export function classifyHistoryImportRow(input: {
   date: string | null;
   flags: HistoryImportDateFlag[];
   memberId: string | null;
+  blank?: boolean;
   existing: ExistingConductorSnapshot | null | undefined;
 }): HistoryImportRowCommitStatus {
+  if (input.blank || input.flags.includes("blank")) return "blank";
   if (input.flags.includes("date_conflict")) return "date_conflict";
   if (input.flags.includes("gap")) return "gap";
   if (input.flags.includes("not_descending")) return "not_descending";

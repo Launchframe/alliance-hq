@@ -9,11 +9,13 @@ import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared"
 import {
   classifyHistoryImportRow,
   historyImportRowIsCommitable,
+  insertBlankLinesBefore,
   interpolateHistoryDates,
   parseHistoryPaste,
   type ExistingConductorSnapshot,
   type HistoryImportRowCommitStatus,
   type InterpolatedHistoryRow,
+  type ParsedHistoryLine,
 } from "@/lib/trains/conductor-history-import.shared";
 import { memberMatchConfidenceBorderClass } from "@/lib/video/member-match-confidence-class";
 import {
@@ -67,6 +69,7 @@ export function ConductorHistoryImportDialog({
   const [pasteText, setPasteText] = useState("");
   const [firstDate, setFirstDate] = useState("");
   const [lastDate, setLastDate] = useState("");
+  const [lines, setLines] = useState<ParsedHistoryLine[]>([]);
   const [rows, setRows] = useState<ReviewRow[]>([]);
   const [existingByDate, setExistingByDate] = useState<
     Map<string, ExistingConductorSnapshot>
@@ -84,6 +87,7 @@ export function ConductorHistoryImportDialog({
     setPasteText("");
     setFirstDate("");
     setLastDate("");
+    setLines([]);
     setRows([]);
     setExistingByDate(new Map());
     setHasGap(false);
@@ -115,11 +119,14 @@ export function ConductorHistoryImportDialog({
           return t("status.overwriteDraft");
         case "not_past":
           return t("status.notPast");
+        case "blank":
+          return t("status.blank");
         case "date_conflict":
           if (row.anchorConflict) {
             return t("status.dateConflict", {
               labeledDate: row.anchorConflict.labeledDate,
               expectedDate: row.anchorConflict.expectedDate,
+              count: row.anchorConflict.missingDayCount,
             });
           }
           return t("status.gap");
@@ -144,22 +151,16 @@ export function ConductorHistoryImportDialog({
         date: row.date,
         flags: row.flags,
         memberId,
+        blank: row.blank,
         existing: row.date ? existingMap.get(row.date) : undefined,
       }),
     [],
   );
 
-  const goToReview = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const lines = parseHistoryPaste(pasteText);
-      if (lines.length === 0) {
-        throw new Error(t("pasteEmpty"));
-      }
-
+  const buildReviewFromLines = useCallback(
+    async (nextLines: ParsedHistoryLine[]) => {
       const { rows: interpolated, hasGap: gap } = interpolateHistoryDates({
-        lines,
+        lines: nextLines,
         today,
         defaultYear,
         firstDate: firstDate.trim() || null,
@@ -195,9 +196,10 @@ export function ConductorHistoryImportDialog({
         ashedMembers,
       );
 
+      setLines(nextLines);
       setRows(
         interpolated.map((row, index) => {
-          const match = matches[index];
+          const match = row.blank ? null : matches[index];
           const memberId = match?.memberId ?? null;
           return {
             ...row,
@@ -209,28 +211,58 @@ export function ConductorHistoryImportDialog({
           };
         }),
       );
+    },
+    [
+      ashedMembers,
+      classifyAgainstExisting,
+      defaultYear,
+      firstDate,
+      lastDate,
+      t,
+      today,
+    ],
+  );
+
+  const goToReview = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const parsed = parseHistoryPaste(pasteText);
+      if (parsed.length === 0) {
+        throw new Error(t("pasteEmpty"));
+      }
+      await buildReviewFromLines(parsed);
       setStep("review");
     } catch (e) {
       setError(e instanceof Error ? e.message : t("lookupFailed"));
     } finally {
       setBusy(false);
     }
-  }, [
-    ashedMembers,
-    classifyAgainstExisting,
-    defaultYear,
-    firstDate,
-    lastDate,
-    pasteText,
-    t,
-    today,
-  ]);
+  }, [buildReviewFromLines, pasteText, t]);
+
+  const insertBlanksBeforeRow = useCallback(
+    async (rowIndex: number, count: number) => {
+      if (count <= 0) return;
+      setBusy(true);
+      setError(null);
+      try {
+        await buildReviewFromLines(
+          insertBlankLinesBefore(lines, rowIndex, count),
+        );
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t("lookupFailed"));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [buildReviewFromLines, lines, t],
+  );
 
   const setRowMember = useCallback(
     (rowKey: string, memberId: string) => {
       setRows((prev) =>
         prev.map((row) => {
-          if (row.rowKey !== rowKey) return row;
+          if (row.rowKey !== rowKey || row.blank) return row;
           if (!memberId) {
             return {
               ...row,
@@ -383,6 +415,7 @@ export function ConductorHistoryImportDialog({
                     </th>
                     <th className="px-3 py-2 font-medium">{t("colMember")}</th>
                     <th className="px-3 py-2 font-medium">{t("colStatus")}</th>
+                    <th className="px-3 py-2 font-medium">{t("colActions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -395,12 +428,15 @@ export function ConductorHistoryImportDialog({
                         highlightConfidence: row.confidence,
                       },
                     );
+                    const insertCount =
+                      row.anchorConflict?.missingDayCount ?? 0;
                     return (
                       <tr
                         key={row.rowKey}
                         className={`border-t border-hq-border ${
                           row.status === "date_conflict" ||
-                          row.status === "gap"
+                          row.status === "gap" ||
+                          row.status === "blank"
                             ? "bg-amber-500/10"
                             : ""
                         }`}
@@ -411,24 +447,43 @@ export function ConductorHistoryImportDialog({
                           {row.date ?? "—"}
                         </td>
                         <td className="px-3 py-2 font-medium text-hq-fg">
-                          {row.name}
+                          {row.blank ? t("blankName") : row.name}
                         </td>
                         <td className="px-3 py-2">
-                          <AppSelect
-                            value={row.memberId ?? ""}
-                            onChange={(value) =>
-                              setRowMember(row.rowKey, value)
-                            }
-                            options={options}
-                            searchable
-                            searchMode="fuzzy"
-                            className={memberMatchConfidenceBorderClass(
-                              row.memberId ? row.confidence : 0,
-                            )}
-                          />
+                          {row.blank ? (
+                            <span className="text-hq-fg-muted">—</span>
+                          ) : (
+                            <AppSelect
+                              value={row.memberId ?? ""}
+                              onChange={(value) =>
+                                setRowMember(row.rowKey, value)
+                              }
+                              options={options}
+                              searchable
+                              searchMode="fuzzy"
+                              className={memberMatchConfidenceBorderClass(
+                                row.memberId ? row.confidence : 0,
+                              )}
+                            />
+                          )}
                         </td>
                         <td className="px-3 py-2 text-hq-fg-muted">
                           {statusLabel(row)}
+                        </td>
+                        <td className="px-3 py-2">
+                          {row.status === "date_conflict" && insertCount > 0 ? (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() =>
+                                void insertBlanksBeforeRow(row.index, insertCount)
+                              }
+                              className="rounded-md border border-hq-border px-2 py-1 text-xs font-medium text-hq-fg hover:bg-hq-canvas disabled:opacity-50"
+                              data-testid={`trains-history-import-insert-blanks-${row.index}`}
+                            >
+                              {t("insertBlanks", { count: insertCount })}
+                            </button>
+                          ) : null}
                         </td>
                       </tr>
                     );
@@ -459,7 +514,12 @@ export function ConductorHistoryImportDialog({
                 </button>
                 <button
                   type="submit"
-                  disabled={committing || commitableRows.length === 0}
+                  disabled={
+                    committing ||
+                    commitableRows.length === 0 ||
+                    hasGap ||
+                    busy
+                  }
                   className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-50"
                   data-testid="trains-history-import-commit"
                 >
