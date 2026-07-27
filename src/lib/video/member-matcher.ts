@@ -35,6 +35,13 @@ export type MemberMatchOptions = {
 /** Fuzzy name similarity floor below which `matchMemberName` returns "none". */
 export const MEMBER_FUZZY_AUTO_MATCH_MIN = 0.6;
 
+/**
+ * Minimum length of the shorter side for unique substring auto-match
+ * (e.g. "EG" ⊂ "EG Sie", "Happy" ⊂ "Happytokill"). Shorter needles are too
+ * ambiguous even when unique in a tiny roster.
+ */
+export const MEMBER_SUBSTRING_AUTO_MATCH_MIN_CHARS = 2;
+
 function normalizeForMatch(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -70,9 +77,104 @@ function similarity(a: string, b: string): number {
   return 1 - levenshtein(a, b) / maxLen;
 }
 
+/**
+ * Score for typed-search / auto-match: Levenshtein plus containment and
+ * token-prefix boosts (same idea as AppSelect fuzzy search).
+ */
+export function nameMatchScore(query: string, candidate: string): number {
+  const needle = normalizeForMatch(query);
+  const haystack = normalizeForMatch(candidate);
+  if (!needle || !haystack) return 0;
+  if (needle === haystack) return 1;
+
+  let best = similarity(needle, haystack);
+
+  const shorter =
+    needle.length <= haystack.length ? needle : haystack;
+  const longer =
+    needle.length <= haystack.length ? haystack : needle;
+  if (
+    longer.includes(shorter) &&
+    shorter.length >= MEMBER_SUBSTRING_AUTO_MATCH_MIN_CHARS
+  ) {
+    const ratio = shorter.length / longer.length;
+    // Keep below exact/high-confidence solid green so short-name expansions
+    // stay visually distinct, but clear the auto-match floor.
+    best = Math.max(best, Math.min(0.92, 0.55 + 0.45 * ratio));
+  }
+
+  for (const token of haystack.split(/\s+/)) {
+    if (!token) continue;
+    if (
+      token.startsWith(needle) &&
+      needle.length >= MEMBER_SUBSTRING_AUTO_MATCH_MIN_CHARS
+    ) {
+      best = Math.max(
+        best,
+        Math.min(0.95, 0.7 + 0.25 * (needle.length / token.length)),
+      );
+    }
+    best = Math.max(best, similarity(needle, token));
+  }
+
+  return best;
+}
+
 /** Normalized Levenshtein similarity in [0, 1] for UI fuzzy filters. */
 export function stringSimilarity(a: string, b: string): number {
   return similarity(normalizeForMatch(a), normalizeForMatch(b));
+}
+
+function containmentConfidence(needle: string, haystack: string): number {
+  const shorter =
+    needle.length <= haystack.length ? needle : haystack;
+  const longer =
+    needle.length <= haystack.length ? haystack : needle;
+  const ratio = shorter.length / longer.length;
+  return Math.min(0.92, Math.max(0.65, 0.55 + 0.45 * ratio));
+}
+
+/**
+ * When pasted/OCR name and exactly one roster name contain one another,
+ * auto-match (AppSelect search already surfaces these as typed hits).
+ */
+function findUniqueSubstringMember(
+  normalized: string,
+  active: AshedMember[],
+): { member: AshedMember; confidence: number } | null {
+  if (normalized.length < MEMBER_SUBSTRING_AUTO_MATCH_MIN_CHARS) {
+    return null;
+  }
+
+  const matches = new Map<
+    string,
+    { member: AshedMember; confidence: number }
+  >();
+
+  for (const member of active) {
+    const candidates = [
+      member.current_name,
+      ...(member.previous_names ?? []),
+    ];
+    for (const candidate of candidates) {
+      const rosterName = normalizeForMatch(candidate);
+      if (rosterName.length < MEMBER_SUBSTRING_AUTO_MATCH_MIN_CHARS) continue;
+      if (rosterName === normalized) continue;
+
+      const isSubstring =
+        normalized.includes(rosterName) || rosterName.includes(normalized);
+      if (!isSubstring) continue;
+
+      const confidence = containmentConfidence(normalized, rosterName);
+      const existing = matches.get(member.id);
+      if (!existing || confidence > existing.confidence) {
+        matches.set(member.id, { member, confidence });
+      }
+    }
+  }
+
+  if (matches.size !== 1) return null;
+  return [...matches.values()][0] ?? null;
 }
 
 export function buildMemberIndex(members: AshedMember[]) {
@@ -110,6 +212,17 @@ export function matchMemberName(
     };
   }
 
+  const substringHit = findUniqueSubstringMember(normalized, index.active);
+  if (substringHit) {
+    return {
+      ocrName,
+      memberId: substringHit.member.id,
+      memberName: substringHit.member.current_name,
+      confidence: substringHit.confidence,
+      matchMethod: "fuzzy",
+    };
+  }
+
   let best: AshedMember | null = null;
   let bestScore = 0;
   for (const member of index.active) {
@@ -118,6 +231,8 @@ export function matchMemberName(
       ...(member.previous_names ?? []),
     ];
     for (const candidate of candidates) {
+      // Pure Levenshtein only — containment is handled by the unique-substring
+      // pass above so ambiguous short names (two "Happy*" roster rows) stay unmatched.
       const score = similarity(normalized, normalizeForMatch(candidate));
       if (score > bestScore) {
         bestScore = score;
@@ -169,7 +284,7 @@ export function findFuzzyMemberCandidates(
       const candidates = [member.current_name, ...(member.previous_names ?? [])];
       let bestScore = 0;
       for (const candidate of candidates) {
-        const score = similarity(normalized, normalizeForMatch(candidate));
+        const score = nameMatchScore(normalized, candidate);
         if (score > bestScore) bestScore = score;
       }
       return {
