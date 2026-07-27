@@ -1,41 +1,20 @@
 import { NextResponse } from "next/server";
 
-import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
-import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
-import {
-  getConductorRecord,
-  upsertConductorDraft,
-} from "@/lib/trains/repository";
-import {
-  getMemberRankAsOf,
-  isMemberEligibleForPool,
-  resolveMemberAllianceRankAsOf,
-} from "@/lib/trains/rank-history";
-import {
-  listPoolEntries,
-  listUnselectedPoolEntries,
-  markPoolMemberSelectedForDate,
-  releasePoolSelectionForDate,
-} from "@/lib/trains/pool";
-import {
-  depletingManualPickErrorMessage,
-  evaluateDepletingManualPick,
-  shouldReleasePriorPoolSelection,
-} from "@/lib/trains/depleting-manual-pick.shared";
-import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
-import {
-  ensureConductorPoolSeeded,
-  getServerCalendarDate,
-} from "@/lib/trains/service";
-import {
-  conductorMechanismPoolType,
-  supportsManualConductorPick,
-} from "@/lib/trains/templates";
+import { applyManualConductorDraft } from "@/lib/trains/manual-conductor-draft.server";
+import { getServerCalendarDate } from "@/lib/trains/service";
 import { getOrCreateSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
 
 export const dynamic = "force-dynamic";
+
+function manualPickErrorStatus(message: string): number {
+  if (message.includes("already locked")) return 409;
+  if (message.includes("already selected from the current pool generation")) {
+    return 409;
+  }
+  return 400;
+}
 
 export async function POST(request: Request) {
   const session = await getOrCreateSession();
@@ -63,131 +42,12 @@ export async function POST(request: Request) {
   const date = body.date?.trim() || getServerCalendarDate();
 
   try {
-    const seasonKey = (await getEffectiveSeasonForAlliance(ctx.allianceId))
-      .seasonKey;
-    const existing = await getConductorRecord(ctx.allianceId, date, seasonKey);
-    if (existing?.lockedAt) {
-      return NextResponse.json(
-        { error: "Conductor is already locked for this day." },
-        { status: 409 },
-      );
-    }
-
-    const dayConfig = await resolveRollDayConfig(
-      ctx.allianceId,
-      date,
-      seasonKey,
-    );
-    const mechanism = dayConfig.conductorMechanism;
-    if (!supportsManualConductorPick(mechanism)) {
-      return NextResponse.json(
-        { error: "Manual conductor pick is not allowed for this day." },
-        { status: 400 },
-      );
-    }
-
-    const depletingPool =
-      !usesPriceIsFreightConductorRoll(dayConfig.paintTemplate) &&
-      Boolean(conductorMechanismPoolType(mechanism));
-
-    const rankEvent = await getMemberRankAsOf(
-      ctx.allianceId,
-      memberId,
-      date,
-    );
-
-    if (dayConfig.paintTemplate === "r3_recognition") {
-      const { loadActiveAlliancePoolMembers } = await import(
-        "@/lib/members/game-roster"
-      );
-      const members = await loadActiveAlliancePoolMembers({
-        allianceId: ctx.allianceId,
-      });
-      const rosterMember = members.find(
-        (m) => m.ashedMemberId === memberId,
-      );
-      const resolvedRank = await resolveMemberAllianceRankAsOf(
-        ctx.allianceId,
-        memberId,
-        date,
-        rosterMember?.allianceRank ?? null,
-        rosterMember?.allianceRankTitle ?? null,
-      );
-      if (!isMemberEligibleForPool("r3", resolvedRank.rank)) {
-        return NextResponse.json(
-          { error: "R3 recognition awards must pick an R3 member." },
-          { status: 400 },
-        );
-      }
-    }
-
-    const poolType = depletingPool
-      ? conductorMechanismPoolType(mechanism)
-      : null;
-    const priorConductorMemberId = existing?.conductorMemberId ?? null;
-    if (poolType) {
-      const replacingSameMember = priorConductorMemberId === memberId;
-      // Keep the prior depleting selection until the replacement draft is saved.
-      // Releasing first lets a rejected pick leave the draft conductor free to
-      // win another day while still assigned on the calendar.
-      if (!replacingSameMember) {
-        await ensureConductorPoolSeeded({
-          hqAllianceId: ctx.allianceId,
-          poolType,
-          date,
-          useSequence: mechanism === "r4_sequence",
-          paintTemplate: dayConfig.paintTemplate,
-          respectConductorMinimums: false,
-        });
-        const [unselected, poolEntries] = await Promise.all([
-          listUnselectedPoolEntries(ctx.allianceId, poolType),
-          listPoolEntries(ctx.allianceId, poolType),
-        ]);
-        const gate = evaluateDepletingManualPick({
-          memberId,
-          unselectedMemberIds: unselected.map((row) => row.memberId),
-          poolMemberIds: poolEntries.map((row) => row.memberId),
-        });
-        if (!gate.ok) {
-          return NextResponse.json(
-            { error: depletingManualPickErrorMessage(gate.reason) },
-            { status: 400 },
-          );
-        }
-        await markPoolMemberSelectedForDate(
-          ctx.allianceId,
-          poolType,
-          memberId,
-          date,
-        );
-      }
-    }
-
-    const record = await upsertConductorDraft({
+    const record = await applyManualConductorDraft({
       allianceId: ctx.allianceId,
       date,
-      seasonKey,
-      conductorMemberId: memberId,
-      conductorMemberName: memberName,
-      conductorRankEventId: rankEvent?.id ?? null,
-      conductorMechanism: mechanism,
-      vipMechanism: dayConfig.vipMechanism ?? null,
-      dayConfigId: dayConfig.dayConfigId,
+      memberId,
+      memberName,
     });
-
-    if (
-      poolType &&
-      shouldReleasePriorPoolSelection({
-        previousMemberId: priorConductorMemberId,
-        nextMemberId: memberId,
-      })
-    ) {
-      await releasePoolSelectionForDate(
-        ctx.allianceId,
-        date,
-        priorConductorMemberId!,
-      );
-    }
 
     return NextResponse.json({
       record: {
@@ -196,9 +56,10 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Pick failed.";
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Pick failed." },
-      { status: 400 },
+      { error: message },
+      { status: manualPickErrorStatus(message) },
     );
   }
 }
