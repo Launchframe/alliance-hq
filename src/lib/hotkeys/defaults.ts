@@ -32,7 +32,9 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "nav.myKills": seq("g", "8"),
   "nav.professions": seq("g", "'"),
   "nav.trains": seq("g", "t"),
-  "nav.trainsHistoryImport": seq("g", "t", "i"),
+  // Must not be a prefix extension of `g t` — sequences match immediately on
+  // exact length, so `g t i` would never fire (trains wins at `g t`).
+  "nav.trainsHistoryImport": seq("g", "0"),
   "nav.battlePlan": seq("g", "h"),
   "nav.timeOff": seq("g", "w"),
   "nav.bankManagement": seq("g", "9"),

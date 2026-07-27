@@ -128,8 +128,21 @@ export function stringSimilarity(a: string, b: string): number {
 }
 
 /**
- * When pasted/OCR name and exactly one roster name contain one another,
- * auto-match (AppSelect search already surfaces these as typed hits).
+ * Auto-match only when the shorter name is a prefix of the longer name, or of
+ * one of its whitespace tokens. Mid-word containment ("ra" ⊂ "Crazy") is too
+ * ambiguous even when unique in a small roster.
+ */
+function isPrefixOrTokenPrefix(shorter: string, longer: string): boolean {
+  if (longer.startsWith(shorter)) return true;
+  for (const token of longer.split(/\s+/)) {
+    if (token.startsWith(shorter)) return true;
+  }
+  return false;
+}
+
+/**
+ * When pasted/OCR name and exactly one roster name share a prefix containment
+ * (either direction), auto-match (AppSelect search already surfaces these).
  */
 function findUniqueSubstringMember(
   normalized: string,
@@ -154,9 +167,11 @@ function findUniqueSubstringMember(
       if (rosterName.length < MEMBER_SUBSTRING_AUTO_MATCH_MIN_CHARS) continue;
       if (rosterName === normalized) continue;
 
-      const isSubstring =
-        normalized.includes(rosterName) || rosterName.includes(normalized);
-      if (!isSubstring) continue;
+      const shorter =
+        normalized.length <= rosterName.length ? normalized : rosterName;
+      const longer =
+        normalized.length <= rosterName.length ? rosterName : normalized;
+      if (!isPrefixOrTokenPrefix(shorter, longer)) continue;
 
       const confidence = nameMatchScore(normalized, rosterName);
       const existing = matches.get(member.id);

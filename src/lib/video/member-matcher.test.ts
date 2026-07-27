@@ -103,6 +103,16 @@ describe("short-name member auto-match (shared import + video)", () => {
     expect(match.matchMethod).toBe("none");
   });
 
+  it("does not auto-match mid-word unique substrings", () => {
+    const index = buildMemberIndex([
+      { id: "c", current_name: "Crazy", status: "active" },
+      { id: "r", current_name: "Redd", status: "active" },
+    ]);
+    const match = matchMemberName("ra", index);
+    expect(match.memberId).toBeNull();
+    expect(match.matchMethod).toBe("none");
+  });
+
   it("includeFormer matches leavers and prefers active on conflict", () => {
     const roster: AshedMember[] = [
       { id: "active", current_name: "Happy", status: "active" },
