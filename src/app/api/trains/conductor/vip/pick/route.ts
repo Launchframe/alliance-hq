@@ -17,6 +17,7 @@ import {
 import {
   depletingManualPickErrorMessage,
   evaluateDepletingManualPick,
+  shouldReleasePriorPoolSelection,
 } from "@/lib/trains/depleting-manual-pick.shared";
 import { ensureConductorPoolSeeded, getServerCalendarDate } from "@/lib/trains/service";
 import {
@@ -85,14 +86,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const poolType = vipMechanismPoolType(mechanism as VipMechanismType);
-    if (existing.vipMemberId && poolType) {
-      await releasePoolSelectionForDate(
-        ctx.allianceId,
-        date,
-        existing.vipMemberId,
-      );
-    }
+    const priorVipMemberId = existing.vipMemberId ?? null;
+    const replacingSameMember = priorVipMemberId === memberId;
 
     const rankEvent = await getMemberRankAsOf(
       ctx.allianceId,
@@ -100,7 +95,8 @@ export async function POST(request: Request) {
       date,
     );
 
-    if (poolType) {
+    const poolType = vipMechanismPoolType(mechanism as VipMechanismType);
+    if (poolType && !replacingSameMember) {
       const vipConfig = (dayConfig.vipConfig ?? {
         eventKey: "capitol_war",
         topN: 10,
@@ -129,6 +125,7 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       }
+      // Claim the replacement first; only release the prior VIP after assign.
       await markPoolMemberSelectedForDate(
         ctx.allianceId,
         poolType,
@@ -148,6 +145,20 @@ export async function POST(request: Request) {
       dayConfigId: dayConfig.dayConfigId,
       guardianIsVip: body.guardianIsVip ? 1 : 0,
     });
+
+    if (
+      poolType &&
+      shouldReleasePriorPoolSelection({
+        previousMemberId: priorVipMemberId,
+        nextMemberId: memberId,
+      })
+    ) {
+      await releasePoolSelectionForDate(
+        ctx.allianceId,
+        date,
+        priorVipMemberId!,
+      );
+    }
 
     return NextResponse.json({
       record: {

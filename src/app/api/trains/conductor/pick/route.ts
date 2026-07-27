@@ -21,6 +21,7 @@ import {
 import {
   depletingManualPickErrorMessage,
   evaluateDepletingManualPick,
+  shouldReleasePriorPoolSelection,
 } from "@/lib/trains/depleting-manual-pick.shared";
 import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
@@ -89,14 +90,6 @@ export async function POST(request: Request) {
       !usesPriceIsFreightConductorRoll(dayConfig.paintTemplate) &&
       Boolean(conductorMechanismPoolType(mechanism));
 
-    if (existing?.conductorMemberId && depletingPool) {
-      await releasePoolSelectionForDate(
-        ctx.allianceId,
-        date,
-        existing.conductorMemberId,
-      );
-    }
-
     const rankEvent = await getMemberRankAsOf(
       ctx.allianceId,
       memberId,
@@ -131,39 +124,43 @@ export async function POST(request: Request) {
     const poolType = depletingPool
       ? conductorMechanismPoolType(mechanism)
       : null;
+    const priorConductorMemberId = existing?.conductorMemberId ?? null;
     if (poolType) {
-      await ensureConductorPoolSeeded({
-        hqAllianceId: ctx.allianceId,
-        poolType,
-        date,
-        useSequence: mechanism === "r4_sequence",
-        paintTemplate: dayConfig.paintTemplate,
-        respectConductorMinimums: false,
-      });
-      // After releasing today's prior pick (if any), the member must still be an
-      // unselected slot — otherwise R3 recognition / lottery "depleting" awards
-      // can re-award the same commander every day.
-      const [unselected, poolEntries] = await Promise.all([
-        listUnselectedPoolEntries(ctx.allianceId, poolType),
-        listPoolEntries(ctx.allianceId, poolType),
-      ]);
-      const gate = evaluateDepletingManualPick({
-        memberId,
-        unselectedMemberIds: unselected.map((row) => row.memberId),
-        poolMemberIds: poolEntries.map((row) => row.memberId),
-      });
-      if (!gate.ok) {
-        return NextResponse.json(
-          { error: depletingManualPickErrorMessage(gate.reason) },
-          { status: 400 },
+      const replacingSameMember = priorConductorMemberId === memberId;
+      // Keep the prior depleting selection until the replacement draft is saved.
+      // Releasing first lets a rejected pick leave the draft conductor free to
+      // win another day while still assigned on the calendar.
+      if (!replacingSameMember) {
+        await ensureConductorPoolSeeded({
+          hqAllianceId: ctx.allianceId,
+          poolType,
+          date,
+          useSequence: mechanism === "r4_sequence",
+          paintTemplate: dayConfig.paintTemplate,
+          respectConductorMinimums: false,
+        });
+        const [unselected, poolEntries] = await Promise.all([
+          listUnselectedPoolEntries(ctx.allianceId, poolType),
+          listPoolEntries(ctx.allianceId, poolType),
+        ]);
+        const gate = evaluateDepletingManualPick({
+          memberId,
+          unselectedMemberIds: unselected.map((row) => row.memberId),
+          poolMemberIds: poolEntries.map((row) => row.memberId),
+        });
+        if (!gate.ok) {
+          return NextResponse.json(
+            { error: depletingManualPickErrorMessage(gate.reason) },
+            { status: 400 },
+          );
+        }
+        await markPoolMemberSelectedForDate(
+          ctx.allianceId,
+          poolType,
+          memberId,
+          date,
         );
       }
-      await markPoolMemberSelectedForDate(
-        ctx.allianceId,
-        poolType,
-        memberId,
-        date,
-      );
     }
 
     const record = await upsertConductorDraft({
@@ -177,6 +174,20 @@ export async function POST(request: Request) {
       vipMechanism: dayConfig.vipMechanism ?? null,
       dayConfigId: dayConfig.dayConfigId,
     });
+
+    if (
+      poolType &&
+      shouldReleasePriorPoolSelection({
+        previousMemberId: priorConductorMemberId,
+        nextMemberId: memberId,
+      })
+    ) {
+      await releasePoolSelectionForDate(
+        ctx.allianceId,
+        date,
+        priorConductorMemberId!,
+      );
+    }
 
     return NextResponse.json({
       record: {

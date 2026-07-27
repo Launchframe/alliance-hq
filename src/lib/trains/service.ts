@@ -51,6 +51,7 @@ import {
 } from "@/lib/trains/heavy-hitter-pool.shared";
 import { rollPriceIsFreightConductor } from "@/lib/trains/price-is-freight-roll.server";
 import { priceIsRightWeightingActive } from "@/lib/trains/train-price-is-right-tickets.shared";
+import { shouldReleasePriorPoolSelection } from "@/lib/trains/depleting-manual-pick.shared";
 import {
   getPoolSummary,
   listPoolEntries,
@@ -1036,13 +1037,6 @@ export async function rollForConductor(input: {
       }
 
       const poolType = conductorMechanismPoolType(mechanism)!;
-      if (record?.conductorMemberId) {
-        await releasePoolSelectionForDate(
-          input.allianceId,
-          input.date,
-          record.conductorMemberId,
-        );
-      }
       const respectConductorMinimums =
         await resolvePoolRespectsConductorMinimums({
           allianceId: input.allianceId,
@@ -1057,6 +1051,9 @@ export async function rollForConductor(input: {
         respectConductorMinimums,
       });
       const useWeightedPick = false;
+      // Do not release the prior depleting selection before claiming the next
+      // winner. A failed re-roll (empty pool / qualification miss) must leave
+      // the draft conductor's pool slot consumed.
       result = await rollFromPool(
         input.allianceId,
         poolType,
@@ -1101,7 +1098,7 @@ export async function rollForConductor(input: {
     return gated;
   }
 
-  return persistConductorRoll({
+  const persisted = await persistConductorRoll({
     allianceId: input.allianceId,
     date: input.date,
     seasonKey,
@@ -1110,6 +1107,22 @@ export async function rollForConductor(input: {
     dayConfigId: dayConfig.dayConfigId,
     vipMechanism: dayConfig.vipMechanism,
   });
+
+  if (
+    gated.poolType &&
+    shouldReleasePriorPoolSelection({
+      previousMemberId: record?.conductorMemberId,
+      nextMemberId: gated.memberId,
+    })
+  ) {
+    await releasePoolSelectionForDate(
+      input.allianceId,
+      input.date,
+      record!.conductorMemberId!,
+    );
+  }
+
+  return persisted;
 }
 
 export async function rollForVip(input: {
@@ -1157,13 +1170,8 @@ export async function rollForVip(input: {
         topN: 10,
       }) as EventTopXConfig;
       const poolType: PoolType = "event_top_x";
-      if (record?.vipMemberId) {
-        await releasePoolSelectionForDate(
-          input.allianceId,
-          input.date,
-          record.vipMemberId,
-        );
-      }
+      // Keep the prior VIP depleting selection until the replacement wins and
+      // is persisted — a failed re-roll must not free the current VIP slot.
       await ensureConductorPoolSeeded({
         hqAllianceId: input.allianceId,
         poolType,
@@ -1209,6 +1217,19 @@ export async function rollForVip(input: {
     vipMechanism: mechanism,
     dayConfigId: dayConfig.dayConfigId,
   });
+
+  if (
+    shouldReleasePriorPoolSelection({
+      previousMemberId: record?.vipMemberId,
+      nextMemberId: result.memberId,
+    })
+  ) {
+    await releasePoolSelectionForDate(
+      input.allianceId,
+      input.date,
+      record!.vipMemberId!,
+    );
+  }
 
   return result;
 }
