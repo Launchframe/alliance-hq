@@ -377,10 +377,10 @@ const commandBody = [
   {
     name: "set-seasonal-events-channel",
     description:
-      "Set this channel for seasonal event announcements — bank captures, etc. (R4+ by default; owners can restrict).",
+      "Set this channel for seasonal event announcements (R4+ by default; owners can restrict).",
     description_localizations: {
       "pt-BR":
-        "Define este canal para anúncios de eventos sazonais — capturas de bancos, etc. (R4+ por padrão; o dono pode restringir).",
+        "Define este canal para anúncios de eventos sazonais (R4+ por padrão; o dono pode restringir).",
     },
   },
   {
@@ -395,10 +395,10 @@ const commandBody = [
   {
     name: "set-banking-channel",
     description:
-      "Set this channel for banking partner notifications — protection timers, etc. (R4+ by default; owners can restrict).",
+      "Set this channel for banking partner notifications (R4+ by default; owners can restrict).",
     description_localizations: {
       "pt-BR":
-        "Define este canal para notificações de parceiros bancários — timers de proteção, etc. (R4+ por padrão; o dono pode restringir).",
+        "Define este canal para avisos de parceiros bancários (R4+ por padrão; o dono pode restringir).",
     },
   },
   {
