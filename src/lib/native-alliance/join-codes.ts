@@ -199,11 +199,14 @@ export async function redeemAllianceJoinCode(
     .limit(1);
 
   if (existingRedemption) {
+    // Re-visit / auto-redeem remount: refresh session only — do not re-apply
+    // the join-code role (blocks silent re-escalation after demotion).
     return provisionAllianceMembership({
       hqUserId: input.hqUserId,
       sessionId: input.sessionId,
       allianceId: joinCode.allianceId,
       roleId: joinCode.roleId,
+      rolePolicy: "preserve_existing",
       userLabel: input.userLabel,
     });
   }
@@ -249,6 +252,7 @@ export async function redeemAllianceJoinCode(
         sessionId: input.sessionId,
         allianceId: joinCode.allianceId,
         roleId: joinCode.roleId,
+        rolePolicy: "preserve_existing",
         userLabel: input.userLabel,
       });
     }
@@ -269,6 +273,7 @@ export async function redeemAllianceJoinCode(
         sessionId: input.sessionId,
         allianceId: joinCode.allianceId,
         roleId: joinCode.roleId,
+        rolePolicy: "preserve_existing",
         userLabel: input.userLabel,
       });
     }

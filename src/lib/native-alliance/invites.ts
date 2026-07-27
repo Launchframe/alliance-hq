@@ -610,11 +610,15 @@ export async function rebindAcceptedInviteSession(input: {
     throw new Error("Alliance tag is missing.");
   }
 
+  // Already-accepted invite rebind: refresh session only — never re-apply the
+  // invite role (would demote after a later officer invite, or re-escalate
+  // after an intentional demotion).
   return provisionAllianceMembership({
     hqUserId: input.hqUserId,
     sessionId: input.sessionId,
     allianceId: invite.allianceId,
     roleId: invite.roleId,
+    rolePolicy: "preserve_existing",
     userLabel: normalizedEmail,
     ownerEmail:
       systemRoleNameForId(invite.roleId) === "owner" ? normalizedEmail : null,
