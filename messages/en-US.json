@@ -1437,6 +1437,9 @@
     "connectPrompt": "Connect your Ashed account →",
     "openMenu": "Open navigation menu",
     "closeMenu": "Close navigation menu",
+    "appearanceLabel": "Color theme",
+    "appearanceLight": "Light",
+    "appearanceDark": "Dark",
     "version": "v{version}",
     "profileMenu": {
       "openMenu": "Open profile menu",
