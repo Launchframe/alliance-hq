@@ -50,6 +50,17 @@ describe("conductorSpinSource", () => {
     expect(isPoolSpinSource(source)).toBe(false);
   });
 
+  it("maps composite takedown_week Saturday to with-replacement heavy-hitter", () => {
+    const source = conductorSpinSource(
+      "heavy_hitter_lottery",
+      "takedown_week",
+      "2026-06-13",
+    );
+    expect(source).toEqual({ kind: "price_is_right_heavy_hitter" });
+    expect(isPoolSpinSource(source)).toBe(false);
+    expect(isPriceIsRightSpinSource(source)).toBe(true);
+  });
+
   it("maps VS top 10 to a leaderboard source", () => {
     expect(conductorSpinSource("vs_top_10", null)).toEqual({
       kind: "vs_leaderboard",

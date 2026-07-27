@@ -1,6 +1,7 @@
 import {
   buildMemberIndex,
   matchMemberName,
+  MEMBER_FUZZY_AUTO_MATCH_MIN,
   type AshedMember,
 } from "@/lib/video/member-matcher";
 import { parsePowerLevelString } from "@/lib/video/roster-extract";
@@ -21,7 +22,8 @@ export type ParsedRowLike = {
   edited?: number;
 };
 
-export const ROSTER_NAME_MATCH_CONFIDENCE_MIN = 0.6;
+/** Same floor as member auto-match / history import. */
+export const ROSTER_NAME_MATCH_CONFIDENCE_MIN = MEMBER_FUZZY_AUTO_MATCH_MIN;
 
 export type RosterReviewRowShape = {
   id: string;
@@ -92,6 +94,7 @@ export function parsedRowsToRosterReviewRows(
     let memberId = row.memberId;
     let memberName = row.memberName;
     let matchConfidence = row.matchConfidence;
+    let matchMethod = row.matchMethod ?? null;
 
     if (!memberId && index) {
       const match = matchMemberName(row.ocrName, index, { allianceTag });
@@ -99,6 +102,7 @@ export function parsedRowsToRosterReviewRows(
         memberId = match.memberId;
         memberName = match.memberName;
         matchConfidence = match.confidence;
+        matchMethod = match.matchMethod;
       }
     }
 
@@ -122,7 +126,7 @@ export function parsedRowsToRosterReviewRows(
       memberId,
       memberName,
       matchConfidence,
-      matchMethod: row.matchMethod ?? null,
+      matchMethod,
       deleted: row.deleted,
     };
   });

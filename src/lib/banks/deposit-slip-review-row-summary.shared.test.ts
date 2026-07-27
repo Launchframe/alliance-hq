@@ -8,15 +8,18 @@ import {
 describe("formatDepositSlipReviewRowSummary", () => {
   it("joins commander, tag, amount, term, deposit time, and status", () => {
     expect(
-      formatDepositSlipReviewRowSummary({
-        ocrName: "Alpha",
-        allianceRankTitle: "LFgo",
-        score: "6000",
-        memberLevel: 3,
-        powerLevel: "2026-07-11T10:30:00.000Z",
-        profession: "locked",
-      }),
-    ).toBe("Alpha · LFgo · 6000 · 3d · 2026-7-11 10:30:00 · locked");
+      formatDepositSlipReviewRowSummary(
+        {
+          ocrName: "Alpha",
+          allianceRankTitle: "LFgo",
+          score: "6000",
+          memberLevel: 3,
+          powerLevel: "2026-07-11T10:30:00.000Z",
+          profession: "locked",
+        },
+        (raw) => (raw === "locked" ? "Deposited" : raw),
+      ),
+    ).toBe("Alpha · LFgo · 6000 · 3d · 2026-7-11 10:30:00 · Deposited");
   });
 
   it("uses em dashes for missing fields", () => {

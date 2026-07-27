@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildShortNameMatchRoster,
+  SHORT_NAME_MEMBER_MATCH_CASES,
+} from "@/lib/video/member-match-short-name.fixtures";
+import { MEMBER_FUZZY_AUTO_MATCH_MIN } from "@/lib/video/member-matcher";
+
+import {
   appSelectOptionFuzzyScore,
   appSelectOptionMatchesQuery,
   appSelectOptionSearchText,
+  APP_SELECT_FUZZY_MIN_SCORE,
   filterAppSelectOptions,
 } from "./app-select-search";
 
@@ -47,6 +54,20 @@ describe("appSelectOptionFuzzyScore", () => {
       appSelectOptionFuzzyScore(unrelated, "belly"),
     );
   });
+
+  it.each(SHORT_NAME_MEMBER_MATCH_CASES)(
+    "scores typed $query high enough to surface $rosterName",
+    ({ query, rosterName, memberId }) => {
+      const option = {
+        value: memberId,
+        label: rosterName,
+        searchText: rosterName,
+      };
+      const score = appSelectOptionFuzzyScore(option, query);
+      expect(score).toBeGreaterThanOrEqual(APP_SELECT_FUZZY_MIN_SCORE);
+      expect(score).toBeGreaterThanOrEqual(MEMBER_FUZZY_AUTO_MATCH_MIN);
+    },
+  );
 });
 
 describe("filterAppSelectOptions", () => {
@@ -81,5 +102,18 @@ describe("filterAppSelectOptions", () => {
     ];
     const filtered = filterAppSelectOptions(many, "alfa", "fuzzy");
     expect(filtered[1]?.value).toBe("b");
+  });
+
+  it("surfaces every short-name roster hit when typing the pasted query", () => {
+    const rosterOptions = buildShortNameMatchRoster().map((member) => ({
+      value: member.id,
+      label: member.current_name,
+      searchText: member.current_name,
+    }));
+
+    for (const { query, memberId } of SHORT_NAME_MEMBER_MATCH_CASES) {
+      const filtered = filterAppSelectOptions(rosterOptions, query, "fuzzy");
+      expect(filtered.some((row) => row.value === memberId)).toBe(true);
+    }
   });
 });

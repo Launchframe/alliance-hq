@@ -59,13 +59,17 @@ Do **not** use whole-week `setWeekTemplate` for pivot — it clears overrides.
 - **Game season** is managed under **Settings**, not on the trains page.
 - **Dates** — eligibility and “today” use game server calendar (`game-time`, UTC−2). Monday never requires prior-day VS; Sunday prior-day VS = Saturday.
 - **Swap / make-up** — future unlocked days only; next-3 quick picks may cross weeks + date picker (`conductor-swap.shared.ts`).
+- **History import** (`/trains/history-import`, `trains:write`) — paste newest→oldest conductors (optional date anchors or newest-date picker; oldest inferred from list length), review matches, batch-lock **past** days. Include **former/inactive** roster members in match + picker (label inactive; status “Matched to an inactive member”; still commitable). Prefer active when both would match. Unmatched rows are **skipped** on commit so partial history can ship. Date gaps: flag row, re-base timeline, allow blank placeholder days before the flagged row (unknown conductors; not imported). Same locked conductor = skip; different locked = conflict (no overwrite). No Discord announce. After import (and identical-lock skip), mark the member selected in the **current** `r3` / `r4_plus` generations when they still have a slot — do not leave already-conducted officers in the live depleting pools. Video rematch must **not** auto-include former. Shared parse: `conductor-history-import.shared.ts`; API: `POST/GET /api/trains/conductor/history-import`.
 - **Simple vs advanced mode** — guided stepper (default) vs quick-actions layout; parity contract in [trains-simple-advanced-modes.mdc](./trains-simple-advanced-modes.mdc).
 
 ## Pools
 
 - `r3_lottery` → `r3` pool; `heavy_hitter_lottery` → `heavy_hitter` pool; `r4_sequence` → `r4_plus`.
 - Selected members are removed from the current generation (`selectedAt` / `selectedForDate`).
-- **`train_conductor_records`** — permanent alliance audit of conductor + VIP per date.
+- History import depletes the **current** generation (not the historical generation for the past date) for `r3` / `r4_plus` so live rolls skip already-conducted members.
+- **`train_conductor_records`** — permanent alliance audit of conductor + VIP per date. Names are **denormalized** at assign/import time.
+- **History display vs churn** — History UI/API must render those denormalized conductor/VIP/guardian snapshots — **never** blank a past Conductor/VIP solely because the member later left (`former`). Do not join history reads to the active-only roster for display names. Import of former members must still write the denormalized name.
+- **Active-only eligibility** — Conductor and VIP **rolls / manual depleting picks** may only select members with roster status **not** `former` (and still on the alliance roster). Seed/reseed already use `listActiveAllianceMembersForPool`. Mid-generation: filter and **prune unselected** `conductor_pool_entries` for members who become `former` (at roll/pick time and when roster sync marks former). Do not erase already-selected slots in a generation. Incomplete history beats empty history; leavers must not stay in live Conductor/VIP pools.
 
 ### Pool rank (R3 / R4+ eligibility)
 
