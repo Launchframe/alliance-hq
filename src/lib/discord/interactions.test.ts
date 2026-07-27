@@ -11,6 +11,7 @@ import {
   discordMessageResponse,
   parseButtonCustomId,
   parseLinkSlashOptions,
+  parseSlashOptionUser,
   parseVrSlashLevel,
   verifyDiscordInteractionRequest,
 } from "@/lib/discord/interactions";
@@ -52,6 +53,21 @@ describe("discord interactions", () => {
         data: { options: [{ name: "level", type: 4, value: 7500 }] },
       }),
     ).toBe(7500);
+  });
+
+  it("parses USER slash options", () => {
+    expect(
+      parseSlashOptionUser({
+        type: 2,
+        data: { options: [{ name: "discord", type: 6, value: "1234567890" }] },
+      }, "discord"),
+    ).toBe("1234567890");
+    expect(
+      parseSlashOptionUser({
+        type: 2,
+        data: { options: [{ name: "discord", type: 6, value: "  " }] },
+      }, "discord"),
+    ).toBeUndefined();
   });
 
   it("parses link slash options", () => {
@@ -96,6 +112,14 @@ describe("discord interactions", () => {
       memberId: "member-1",
       date: "2026-06-20",
       answer: "yes",
+    });
+    expect(parseButtonCustomId("whois:pick:member-1")).toEqual({
+      kind: "whois_pick",
+      memberId: "member-1",
+    });
+    expect(parseButtonCustomId("whois:claim:member-1")).toEqual({
+      kind: "whois_claim",
+      memberId: "member-1",
     });
     expect(parseButtonCustomId("other")).toBeNull();
   });

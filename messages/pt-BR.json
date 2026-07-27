@@ -4809,6 +4809,23 @@
     "setVrReportChannel": {
       "success": "O placar noturno de VR de **{tag}** será publicado em {channel}. Oficiais podem usar `/vr-report` a qualquer momento ou `/vr-report teams:N` para planos de takedown."
     },
+    "whoIs": {
+      "usage": "Uso: `/who-is discord:@membro` ou `/who-is commander:NomeDoComandante` (informe exatamente um).",
+      "notLinked": "Vincule seu comandante com `/link-commander` antes de usar `/who-is`.",
+      "discordNoCommander": "{mention} não tem comandante vinculado nesta aliança.",
+      "discordResult": "{mention} está vinculado a: **{commanders}**.",
+      "commanderNotFound": "Nenhuma correspondência no roster para **{name}**. Confira a grafia.",
+      "pickCommander": "Várias correspondências no roster. Seja mais específico ou escolha entre: {names}",
+      "pickExpired": "Essa opção expirou. Execute `/who-is` novamente para escolher um comandante.",
+      "commanderOwner": "**{name}** está vinculado a {mention} ({handle}).",
+      "commanderHqOnly": "**{name}** está vinculado no Alliance HQ, mas ainda não no Discord.",
+      "unclaimedMember": "**{name}** está no roster, mas não vinculado a nenhuma conta.",
+      "unclaimedOfficer": "**{name}** está no roster, mas não vinculado. Você pode criar um convite de claim de comandante.",
+      "createClaimInvite": "Criar convite de claim",
+      "claimInviteCreated": "Convite de claim para **{name}**:\n\nCódigo: `{code}`\n\n{shareMessage}",
+      "claimInviteDenied": "Apenas oficiais podem criar convites de claim de comandante.",
+      "claimInviteFailed": "Não foi possível criar o convite de claim: {reason}"
+    },
     "timeOff": {
       "notLinked": "Vincule seu comandante com `/link-commander` antes de anunciar ausência.",
       "multipleCommanders": "Você tem vários comandantes vinculados ({names}). Desvincule extras com `/unlink` antes de anunciar ausência.",
@@ -4884,14 +4901,14 @@
     },
     "officerNotified": "Um oficial foi notificado no Alliance HQ. Eles podem falar com você aqui no Discord.",
     "help": {
-      "dmGeneral": "**Bot Alliance HQ** — use `/help` no servidor da aliança para passos conforme seu papel.\n\nComandos: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-vr-chart`, `/what-is-my-thp`, `/what-is-my-thp-chart`, `/who-is-conductor`, `/language`. Donos: `/link-alliance`. Oficiais (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Guia completo:** {guideUrl}",
+      "dmGeneral": "**Bot Alliance HQ** — use `/help` no servidor da aliança para passos conforme seu papel.\n\nComandos: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-vr-chart`, `/what-is-my-thp`, `/what-is-my-thp-chart`, `/who-is`, `/who-is-conductor`, `/language`. Donos: `/link-alliance`. Oficiais (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Guia completo:** {guideUrl}",
       "setupLinkHq": "Vincule sua conta Discord ao Alliance HQ: execute `/link` e conclua o login no navegador.",
       "setupOwnerLinkHq": "Este servidor ainda não está registrado. **R5:** abra o assistente de instalação no navegador (entrar, tag, Ashed, adicionar bot).\n\n**Assistente:** {installWizardUrl}\n\n**Guia:** {guideUrl}",
       "setupOwnerLinkCommander": "Registre este servidor com o assistente de instalação, depois execute **`/link-commander`**.\n\n**Assistente:** {installWizardUrl}\n\n**Guia:** {guideUrl}",
       "setupLinkAlliance": "Use o assistente de instalação para registrar este servidor, ou **`/link-alliance tag:{tag}`** se você já concluiu a configuração Ashed.\n\n**Assistente:** {installWizardUrl}\n\n**Guia:** {guideUrl}",
       "waitForOwnerAuth": "Aguardando o dono registrar este servidor com `/link-alliance`. Vincule seu comandante com `/link-commander` após o registro.",
       "linkCommander": "Vincule seu comandante: execute `/link-commander` no Discord, abra o link seguro e informe seu ID de jogador do perfil no jogo. Confirme o nome quando solicitado.\n\n**Guia:** {guideUrl}",
-      "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. `/who-is-conductor` mostra o condutor de hoje.\n\n**Guia:** {guideUrl}",
+      "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. `/who-is` consulta vínculos Discord↔comandante. `/who-is-conductor` mostra o condutor de hoje.\n\n**Guia:** {guideUrl}",
       "memberReadyMulti": "Você tem **{count}** comandantes vinculados. `/vr` e `/immunity` perguntarão qual usar. `/unlink` remove um vínculo.\n\n**Guia:** {guideUrl}",
       "ownerReady": "Você está vinculado como dono (**{tag}**). Conclua: `/set-vr-report-channel`, `/set-train-channel`, depois compartilhe `/link-commander` com os membros.\n\n**Guia:** {guideUrl}",
       "ownerReadyMulti": "Dono (**{tag}**) com **{count}** comandantes. `/vr` pergunta qual personagem. Canais: `/set-vr-report-channel`, `/set-train-channel`.\n\n**Guia:** {guideUrl}"

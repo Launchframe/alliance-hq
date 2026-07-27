@@ -4863,6 +4863,23 @@
     "setVrReportChannel": {
       "success": "Nightly VR standings for **{tag}** will post in {channel}. Officers can run `/vr-report` anytime for a fresh top-25 or `/vr-report teams:N` for takedown plans."
     },
+    "whoIs": {
+      "usage": "Usage: `/who-is discord:@member` or `/who-is commander:CommanderName` (provide exactly one).",
+      "notLinked": "Link your commander with `/link-commander` before using `/who-is`.",
+      "discordNoCommander": "{mention} has no linked commander in this alliance.",
+      "discordResult": "{mention} is linked to: **{commanders}**.",
+      "commanderNotFound": "No roster match for **{name}**. Check spelling against your alliance members list.",
+      "pickCommander": "Multiple roster matches. Be more specific or pick from: {names}",
+      "pickExpired": "That option expired. Run `/who-is` again to choose a commander.",
+      "commanderOwner": "**{name}** is linked to {mention} ({handle}).",
+      "commanderHqOnly": "**{name}** is linked on Alliance HQ but has no Discord link yet.",
+      "unclaimedMember": "**{name}** is on the roster but not linked to any account.",
+      "unclaimedOfficer": "**{name}** is on the roster but not linked. You can create a commander claim invite.",
+      "createClaimInvite": "Create claim invite",
+      "claimInviteCreated": "Claim invite for **{name}**:\n\nCode: `{code}`\n\n{shareMessage}",
+      "claimInviteDenied": "Only officers can create commander claim invites.",
+      "claimInviteFailed": "Could not create a claim invite: {reason}"
+    },
     "timeOff": {
       "notLinked": "Link your commander with `/link-commander` before announcing time off.",
       "multipleCommanders": "You have multiple linked commanders ({names}). Unlink extras with `/unlink` before announcing time off.",
@@ -4938,14 +4955,14 @@
     },
     "officerNotified": "An officer has been notified. They can reach out to you here on Discord.",
     "help": {
-      "dmGeneral": "**Alliance HQ bot** — run `/help` in your alliance server for steps matched to your role.\n\nQuick list: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-vr-chart`, `/what-is-my-thp`, `/what-is-my-thp-chart`, `/who-is-conductor`, `/language`. Owners set up with `/link-alliance`. Officers (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Full setup guide:** {guideUrl}",
+      "dmGeneral": "**Alliance HQ bot** — run `/help` in your alliance server for steps matched to your role.\n\nQuick list: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-vr-chart`, `/what-is-my-thp`, `/what-is-my-thp-chart`, `/who-is`, `/who-is-conductor`, `/language`. Owners set up with `/link-alliance`. Officers (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Full setup guide:** {guideUrl}",
       "setupLinkHq": "Link your Discord account to Alliance HQ: run `/link` and complete the browser sign-in.",
       "setupOwnerLinkHq": "This server isn't registered yet. **R5:** open the install wizard in your browser (sign in, tag, Ashed, add bot).\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
       "setupOwnerLinkCommander": "Register this server with the install wizard, then run **`/link-commander`**.\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
       "setupLinkAlliance": "Use the install wizard to register this server, or **`/link-alliance tag:{tag}`** if you already completed Ashed setup.\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
       "waitForOwnerAuth": "Waiting for the alliance owner to register this server with `/link-alliance`. Link your commander with `/link-commander` once the server is registered.",
       "linkCommander": "Link your commander: run `/link-commander` in Discord, open the secure link, and enter your player ID from your in-game profile. Confirm the commander name when prompted.\n\n**Guide:** {guideUrl}",
-      "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. `/who-is-conductor` shows today's train conductor.\n\n**Guide:** {guideUrl}",
+      "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. `/who-is` looks up Discord↔commander links. `/who-is-conductor` shows today's train conductor.\n\n**Guide:** {guideUrl}",
       "memberReadyMulti": "You have **{count}** linked commanders. `/vr` and `/immunity` will ask which one. `/unlink` removes a link.\n\n**Guide:** {guideUrl}",
       "ownerReady": "You're linked as owner (**{tag}**). Finish setup: `/set-vr-report-channel`, `/set-train-channel`, then share `/link-commander` with members.\n\n**Guide:** {guideUrl}",
       "ownerReadyMulti": "Owner (**{tag}**) with **{count}** commanders. `/vr` asks which character. Channel setup: `/set-vr-report-channel`, `/set-train-channel`.\n\n**Guide:** {guideUrl}"
