@@ -40,13 +40,20 @@ export type RosterReviewRowShape = {
   deleted: number;
 };
 
-export function isRosterRowNameMismatch(row: {
-  memberId: string | null;
-  matchConfidence: number | null;
-  matchMethod?: string | null;
-  deleted: number;
-}): boolean {
+export function isRosterRowNameMismatch(
+  row: {
+    memberId: string | null;
+    matchConfidence: number | null;
+    matchMethod?: string | null;
+    deleted: number;
+  },
+  options?: { existingMemberCount?: number },
+): boolean {
   if (row.deleted === 1) return false;
+  // Brand-new / empty HQ roster: null memberId means "Create new", not a mismatch.
+  if ((options?.existingMemberCount ?? 1) <= 0) {
+    if (!row.memberId) return false;
+  }
   if (!row.memberId) return true;
   if (row.matchMethod === "none") return true;
   if (row.matchConfidence == null || row.matchConfidence < ROSTER_NAME_MATCH_CONFIDENCE_MIN) {
@@ -63,10 +70,11 @@ export function findUnmatchedRosterRowIds(
     matchMethod?: string | null;
     deleted: number;
   }>,
+  options?: { existingMemberCount?: number },
 ): Set<string> {
   const ids = new Set<string>();
   for (const row of rows) {
-    if (isRosterRowNameMismatch(row)) {
+    if (isRosterRowNameMismatch(row, options)) {
       ids.add(row.id);
     }
   }
@@ -106,10 +114,6 @@ export function parsedRowsToRosterReviewRows(
       }
     }
 
-    const level = null;
-
-    const profession: string | null = null;
-
     return {
       id: row.id,
       ocrName: row.ocrName,
@@ -120,8 +124,11 @@ export function parsedRowsToRosterReviewRows(
           ? row.allianceRank
           : null,
       heroPowerM,
-      memberLevel: level,
-      profession,
+      memberLevel:
+        row.memberLevel != null && Number.isFinite(row.memberLevel)
+          ? row.memberLevel
+          : null,
+      profession: null,
       frameIndex: row.frameIndex,
       memberId,
       memberName,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  cleanMemberName,
   parseLineTokens,
   parseOfficersRows,
   parseRankListRows,
@@ -8,7 +9,7 @@ import {
 } from "@/lib/members/roster-ocr/parse-rows";
 
 // ---------------------------------------------------------------------------
-// parseLineTokens
+// parseLineTokens / cleanMemberName
 // ---------------------------------------------------------------------------
 
 describe("parseLineTokens", () => {
@@ -52,6 +53,22 @@ describe("parseLineTokens", () => {
     const result = parseLineTokens("Big Daddy 123 8.0M");
     expect(result.heroPowerM).toBe(8.0);
     expect(result.extractedName).toBe("Big Daddy 123");
+  });
+
+  it("strips R5 badge prefixes and last-online suffixes", () => {
+    expect(cleanMemberName("R5| Corn Goo Smeller").name).toBe(
+      "Corn Goo Smeller",
+    );
+    expect(cleanMemberName("R5| Corn Goo Smeller").rankHint).toBe(5);
+    expect(cleanMemberName("Nobell 1h ago").name).toBe("Nobell");
+    expect(cleanMemberName("@ Nobell 61 ago").name).toBe("Nobell");
+  });
+
+  it("parses Power: labeled stats lines", () => {
+    const result = parseLineTokens("Power: 94.1M Lv.26");
+    expect(result.heroPowerM).toBeCloseTo(94.1);
+    expect(result.memberLevel).toBe(26);
+    expect(result.extractedName).toBe("");
   });
 });
 
@@ -101,6 +118,14 @@ describe("parseRankListRows", () => {
     expect(leader?.memberLevel).toBe(95);
   });
 
+  it("strips officer titles from list names and never sets title", () => {
+    const rows = parseRankListRows(lines);
+    const fox = rows.find((r) => r.extractedName.includes("ShadowFox"));
+    expect(fox?.extractedName).toBe("ShadowFox");
+    expect(fox?.allianceRankTitle).toBeUndefined();
+    expect(fox?.allianceRank).toBe(4);
+  });
+
   it("sets layout='rank_list' on all rows", () => {
     const rows = parseRankListRows(lines);
     expect(rows.every((r) => r.layout === "rank_list")).toBe(true);
@@ -110,6 +135,51 @@ describe("parseRankListRows", () => {
     const linesNoHeader = ["Player1 1.0M", "Player2"];
     const rows = parseRankListRows(linesNoHeader);
     expect(rows).toHaveLength(0);
+  });
+
+  it("excludes header chrome and merges Power/Lv onto the prior name", () => {
+    const membersPage = [
+      "R5| Corn Goo Smeller",
+      "Warlord",
+      "Recruiter Muse Butler",
+      "Cmoney1985 urmom90 RodDadBod Lumplicious",
+      "Search for Members",
+      "R4 0/10",
+      "R3 9/78",
+      "C Price",
+      "Power: 94.1M Lv.26",
+      "Online",
+      "Manage",
+      "Nobell 1h ago",
+      "Power: 112.0M Lv.30",
+    ];
+    const rows = parseRankListRows(membersPage);
+    const names = rows.map((r) => r.extractedName);
+
+    expect(names.some((n) => /recruiter|muse|butler|warlord/i.test(n))).toBe(
+      false,
+    );
+    expect(names.some((n) => /Corn Goo/i.test(n))).toBe(false);
+
+    const price = rows.find((r) => r.extractedName === "C Price");
+    expect(price?.allianceRank).toBe(3);
+    expect(price?.heroPowerM).toBeCloseTo(94.1);
+    expect(price?.memberLevel).toBe(26);
+
+    const nobell = rows.find((r) => r.extractedName === "Nobell");
+    expect(nobell?.allianceRank).toBe(3);
+    expect(nobell?.heroPowerM).toBeCloseTo(112);
+    expect(nobell?.memberLevel).toBe(30);
+  });
+
+  it("uses quota-bearing rank headers", () => {
+    const rows = parseRankListRows([
+      "R4 0/10",
+      "R3 9/78",
+      "ForkingELITE 203.6M Lv.32",
+    ]);
+    expect(rows[0]?.allianceRank).toBe(3);
+    expect(rows[0]?.extractedName).toBe("ForkingELITE");
   });
 });
 
@@ -158,6 +228,11 @@ describe("parseOfficersRows", () => {
     const rows = parseOfficersRows(lines);
     expect(rows.every((r) => r.layout === "officers")).toBe(true);
   });
+
+  it("skips title-only chrome with no commander name", () => {
+    const rows = parseOfficersRows(["Recruiter Muse Butler", "Warlord"]);
+    expect(rows).toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -172,7 +247,11 @@ describe("parseRosterRows", () => {
   });
 
   it("auto-detects officers layout", () => {
-    const lines = ["Leader BigBoss 5.0M", "Warlord ShadowFox", "Recruiter StarDust"];
+    const lines = [
+      "Leader BigBoss 5.0M",
+      "Warlord ShadowFox",
+      "Recruiter StarDust",
+    ];
     const { layout } = parseRosterRows(lines);
     expect(layout).toBe("officers");
   });
@@ -191,5 +270,20 @@ describe("parseRosterRows", () => {
       expect(row.allianceRank).toBeGreaterThanOrEqual(1);
       expect(row.allianceRank).toBeLessThanOrEqual(5);
     }
+  });
+
+  it("forces rank_list after Search crop", () => {
+    const { layout, rows } = parseRosterRows(
+      [
+        "Warlord ShadowFox",
+        "Search for Members",
+        "R3 9/78",
+        "Player1 2.5M",
+      ],
+      undefined,
+      { forceRankList: true },
+    );
+    expect(layout).toBe("rank_list");
+    expect(rows.every((r) => r.allianceRank === 3)).toBe(true);
   });
 });
