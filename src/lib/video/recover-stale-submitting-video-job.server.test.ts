@@ -62,12 +62,17 @@ describe("recoverStaleSubmittingVideoJob", () => {
     expect(updateReturning).not.toHaveBeenCalled();
   });
 
-  it("no-ops when submitting is still fresh", async () => {
+  it("exposes an 8-minute default so live Ashed replace submits are not recovered", () => {
+    expect(VIDEO_SUBMITTING_STALE_MS).toBe(8 * 60 * 1000);
+  });
+
+  it("no-ops when submitting is still fresh (under 8 minutes)", async () => {
     selectLimit.mockResolvedValueOnce([
       {
         id: "job-1",
         status: "submitting",
-        updatedAt: new Date("2026-07-19T03:59:00.000Z"),
+        // 5 minutes ago — old 2-minute threshold would wrongly recover this
+        updatedAt: new Date("2026-07-19T03:55:00.000Z"),
       },
     ]);
 
