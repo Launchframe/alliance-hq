@@ -15,6 +15,8 @@ globs:
 - **Guardian** — defends on plunder: VIP squads if `guardianIsVip`, else Conductor.
 - **Lock** — `lockedAt` spawns the train and freezes the conductor pick; VIP may still be set afterward (unlock/override = exceptional + audited).
 
+**Lifecycle order:** assign conductor → **lock** → assign VIP. Guided Simple Mode follows the same order. Product UX invariants (day vs week paint, swap dates, share preview, wizard recovery): [trains-conductor-ux.mdc](./trains-conductor-ux.mdc).
+
 ## Week templates
 
 | Template | Typical use |
@@ -31,7 +33,9 @@ globs:
 
 Templates expand to **per-day** `train_day_configs` (conductor + VIP mechanisms).
 
-**Composite templates** (`COMPOSITE_WEEK_TEMPLATES` in `week-template-registry.shared.ts`) map a whole-week preset to segment templates per weekday index. Segment paint is stored on each day's `conductorConfig.paintTemplate`. User-defined reusable composites can extend the same registry later.
+**Composite templates** (`COMPOSITE_WEEK_TEMPLATES` in `week-template-registry.shared.ts`) map a whole-week preset to segment templates per **calendar DOW relative to Tuesday** (Tue=0 … Mon=6 via `compositeSegmentDayIndex`) — independent of alliance `trainWeekStartDow`. Segment paint is stored on each day's `conductorConfig.paintTemplate`. User-defined reusable composites can extend the same registry later.
+
+**`takedown_week`** — composite Saturday segment for Price Is Freight heavy-hitter (max-ticket list). Conductor rolls use the **with-replacement** PIF path (`usesPriceIsFreightConductorRoll`), not depleting `heavy_hitter` pool consumption.
 
 ## Economy-week pivot (per-day overrides)
 
@@ -46,12 +50,15 @@ Do **not** use whole-week `setWeekTemplate` for pivot — it clears overrides.
 ## Scheduling UX (product direction)
 
 - Officers plan on a **calendar** with template palette + per-day paint (Phase B).
-- **Week strip:** long-press or right-click a day tile → scrollable day-template menu (same `PAINT_TEMPLATES` as month) → `paintDates([date], template)`. Tap still selects the day.
-- When the roster has members (`activeMemberCount > 0`), show **preview** day configs from the anchor template — never a blank “create week” gate.
+- **Day vs week paint are exclusive:** single-day paint / long-press / guided “Change pick” use `DAY_PAINT_TEMPLATES` (no composites). Whole-week or multi-day paint uses week/composite templates. Details: [trains-conductor-ux.mdc](./trains-conductor-ux.mdc).
+- **Week strip:** every tile always shows conductor name or "—". Long-press or right-click → day-mechanism menu (`DAY_PAINT_TEMPLATES`) → `paintDates([date], template)`. Tap still selects the day. Week-template control stays separate (composites OK).
+- When the roster has members (`activeMemberCount > 0`), show **preview** day configs from the anchor template — never a blank “create week” gate. Missing week template must **not** block the guided day funnel.
 - Persist `train_week_schedules` on the **first officer schedule mutation** (paint, template change, lock) via `ensureWeekScheduleBaseline` — not on page load.
 - **Clear week schedule** (`DELETE /api/trains/schedule`) is **pre-production only** (`isDevOrPreviewEnvironment`): train managers (`trains:write`) may discard a persisted week back to draft preview. Hidden and 404-gated in production. Does **not** delete conductor records.
 - Do **not** show schedulable train UI when **`activeMemberCount === 0`** (native alliances need roster first).
 - **Game season** is managed under **Settings**, not on the trains page.
+- **Dates** — eligibility and “today” use game server calendar (`game-time`, UTC−2). Monday never requires prior-day VS; Sunday prior-day VS = Saturday.
+- **Swap / make-up** — future unlocked days only; next-3 quick picks may cross weeks + date picker (`conductor-swap.shared.ts`).
 - **History import** (`/trains/history-import`, `trains:write`) — paste newest→oldest conductors (optional date anchors or newest-date picker; oldest inferred from list length), review matches, batch-lock **past** days. Include **former/inactive** roster members in match + picker (label inactive; status “Matched to an inactive member”; still commitable). Prefer active when both would match. Unmatched rows are **skipped** on commit so partial history can ship. Date gaps: flag row, re-base timeline, allow blank placeholder days before the flagged row (unknown conductors; not imported). Same locked conductor = skip; different locked = conflict (no overwrite). No Discord announce. After import (and identical-lock skip), mark the member selected in the **current** `r3` / `r4_plus` generations when they still have a slot — do not leave already-conducted officers in the live depleting pools. Video rematch must **not** auto-include former. Shared parse: `conductor-history-import.shared.ts`; API: `POST/GET /api/trains/conductor/history-import`.
 - **Simple vs advanced mode** — guided stepper (default) vs quick-actions layout; parity contract in [trains-simple-advanced-modes.mdc](./trains-simple-advanced-modes.mdc).
 
@@ -64,9 +71,17 @@ Do **not** use whole-week `setWeekTemplate` for pivot — it clears overrides.
 - **History display vs churn** — History UI/API must render those denormalized conductor/VIP/guardian snapshots — **never** blank a past Conductor/VIP solely because the member later left (`former`). Do not join history reads to the active-only roster for display names. Import of former members must still write the denormalized name.
 - **Active-only eligibility** — Conductor and VIP **rolls / manual depleting picks** may only select members with roster status **not** `former` (and still on the alliance roster). Seed/reseed already use `listActiveAllianceMembersForPool`. Mid-generation: filter and **prune unselected** `conductor_pool_entries` for members who become `former` (at roll/pick time and when roster sync marks former). Do not erase already-selected slots in a generation. Incomplete history beats empty history; leavers must not stay in live Conductor/VIP pools.
 
+### Pool rank (R3 / R4+ eligibility)
+
+`resolveMemberPoolAllianceRank` in `rank-history.ts`: **prefer HQ rank events** when present (`member_alliance_rank_events`); do **not** take `Math.max(event, synced)` — a stale higher Ashed-synced rank must not override a confirmed HQ demotion. Use synced roster / `ashedRankRaw` only when no HQ event exists yet.
+
+### Conductor minimums (season HQ VR)
+
+Alliance settings may require minimum season HQ VR for `r3` and `heavy_hitter` pool spins (`train-conductor-minimums.*`). Enforcement (pool seed filter + post-roll DQ) is **independent of prior-day VS upload** — do not gate minimums on `classifyVsDataNeed` or guided `prerequisites` readiness. R4+ pools ignore minimums.
+
 ### Price Is Freight (`price_is_right`)
 
-TPIF conductor rolls are **with-replacement** daily draws (`rollPriceIsFreightConductor`). They do **not** seed, mark, or reseed `conductor_pool_entries`. The same member may win consecutive days. Non-TPIF `r3_lottery` / `heavy_hitter_lottery` (e.g. `economy_week`, `r3_recognition`) still use depleting pools.
+TPIF conductor rolls are **with-replacement** daily draws (`rollPriceIsFreightConductor`). They do **not** seed, mark, or reseed `conductor_pool_entries`. The same member may win consecutive days. Non-TPIF `r3_lottery` / `heavy_hitter_lottery` (e.g. `economy_week`, `r3_recognition`) still use depleting pools. **`takedown_week`** (composite Saturday segment) uses the same with-replacement PIF conductor path as weekday `price_is_right` / `price_is_right_weekdays` — gate via `usesPriceIsFreightConductorRoll` (not `isPriceIsRightPaintTemplate` alone, which excludes `takedown_week`).
 
 Two alliance-configurable modes (settings → **The Price Is Freight**):
 
@@ -104,14 +119,14 @@ All queries filter by session **`allianceId`**.
 
 | Surface | Mechanism | Scopes | Score source | Template-time lock |
 |--------|-----------|--------|--------------|--------------------|
-| **Top VS** | `vs_top_n` (+ legacy `vs_high_score`→1, `vs_top_10`→10) | 1, 3, 5, 10 | Prior-day Ashed VS | **Never** by reporter/score count — spin gated by `prior_day_vs` upload readiness |
+| **Top VS** | `vs_top_n` (+ legacy `vs_high_score`→1, `vs_top_10`→10) | 1, 3, 5, 10 | Prior-day **daily** Ashed VS (active roster only) | **Never** by reporter/score count — spin gated by `prior_day_vs` upload readiness |
 | **Top VR** | `vr_top_n` | 3, 5, 10 only | Season HQ VR | Scope N locked until `vrReporterCount >= 2×N` |
 
 Paint ids `top_vs` / `top_vr` open a scope picker. `conductor_config.topN` is merged with `paintTemplate` (do not wipe `topN` in `withPaintTemplateConfig`).
 
 ## Data sources
 
-- **Top VS** (`vs_high_score` / `vs_top_10` / `vs_top_n`) — prior-day Ashed `VSScore` (`vsScoreReferenceDate(trainDate)`). Readiness `prior_day_vs`.
+- **Top VS** (`vs_high_score` / `vs_top_10` / `vs_top_n`) — prior-day **daily** Ashed `VSScore` for T−1 (`vsScoreReferenceDate(trainDate)`); filter out `is_weekly` week-ending rows; **dedupe by member** (keep max score) before Top N slice; **intersect with active HQ roster** (exclude former members). Empty when T−1 is Sunday (VS break). Readiness `prior_day_vs`.
 - **Top VR** (`vr_top_n`) — HQ `memberSeasonVr`; readiness kind `vr`.
 - **Event Top X VIP** — HQ season VR / event scores.
 - **Pools, economy filters, Price Is Right tickets** — HQ roster + prior-day VS where applicable.

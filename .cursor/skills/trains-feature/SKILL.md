@@ -7,7 +7,7 @@ description: Checklist-driven guide for implementing new trains features — mec
 
 Follow this checklist when implementing a new trains feature (mechanism, template, pool type, guided flow step, dashboard action, or wheel behavior). Not every section applies to every feature — skip sections that are irrelevant, but **read each heading** to confirm.
 
-**Related rules:** [trains.mdc](../rules/trains.mdc) (domain + RBAC), [trains-simple-advanced-modes.mdc](../rules/trains-simple-advanced-modes.mdc) (guided vs advanced parity — lands with Simple Mode).
+**Related rules:** [trains.mdc](../rules/trains.mdc) (domain + RBAC), [trains-simple-advanced-modes.mdc](../rules/trains-simple-advanced-modes.mdc) (guided vs advanced parity), [trains-conductor-ux.mdc](../rules/trains-conductor-ux.mdc) (day-vs-week paint, lock-before-VIP, dates, swap, share, wizard recovery — **read before UX changes**).
 
 ## 1. Mechanism / template definition
 
@@ -26,19 +26,22 @@ Follow this checklist when implementing a new trains feature (mechanism, templat
 
 ## 3. Guided flow integration (Simple Mode)
 
-Canonical step order: `template → prerequisites → conductor → vip → lock → done`. See [trains-simple-advanced-modes.mdc](../rules/trains-simple-advanced-modes.mdc).
+Canonical step order: `this day's conductor pick → roster → prerequisites → conductor → lock → vip → done` (**lock before VIP**). See [trains-simple-advanced-modes.mdc](../rules/trains-simple-advanced-modes.mdc) and [trains-conductor-ux.mdc](../rules/trains-conductor-ux.mdc).
 
-- [ ] Update `currentGuidedStep()` and `guidedFlowPrerequisitesBlocking()` in `src/lib/trains/guided-flow.shared.ts` if the feature adds or changes step gates.
-- [ ] Update `classifyVsDataNeed()` / `buildVsDataStatus()` in `src/lib/trains/vs-data-status.shared.ts` when the mechanism needs VS or prior-day VS scores.
-- [ ] Update `canSpinConductorForDay()` / `canSpinVipForDay()` in `src/lib/trains/conductor-mechanism.shared.ts` when spin eligibility changes.
-- [ ] Update `mechanismNeedsWheel()` in `templates.ts` — does this mechanism spin or only manual pick?
-- [ ] If the mechanism has score prerequisites, wire the blocking CTA on the `prerequisites` step in `TrainsGuidedConductorFlow.tsx` (link to `/tools/video-upload`).
+- [ ] Update `currentGuidedStep()` and `guidedFlowPrerequisitesBlocking()` in `src/lib/trains/guided-flow.shared.ts` if the feature adds or changes step gates. Never put VIP before lock.
+- [ ] Update `classifyVsDataNeed()` / `buildVsDataStatus()` in `src/lib/trains/vs-data-status.shared.ts` when the mechanism needs VS or prior-day VS scores. Pass `trainDate` — Monday skips prior-day VS for every mechanism. Prior-day fetches must exclude `is_weekly` totals (`vs-scores.server.ts`).
+- [ ] Pool / Top VS changes: HQ rank events win over stale synced rank (`rank-history.ts`); Top VS **dedupes by member (max score) before Top N** and intersects active roster (`vs-scores.server.ts`). Conductor minimums use season HQ VR — not VS upload readiness (`train-conductor-minimums.*`).
+- [ ] Composite templates: segment day index is calendar Tue=0…Mon=6 (`compositeSegmentDayIndex`), not `trainWeekStartDow`. `takedown_week` → with-replacement PIF (`usesPriceIsFreightConductorRoll` — not `isPriceIsRightPaintTemplate` alone).
+- [ ] Update `canSpinConductorForDay()` / `canSpinVipForDay()` in `src/lib/trains/conductor-mechanism.shared.ts` when spin eligibility changes. VIP spin requires lock.
+- [ ] Update `mechanismNeedsWheel()` in `templates.ts` — does this mechanism spin or only manual pick? (`r3_recognition` = manual only.)
+- [ ] If the mechanism has score prerequisites, wire the blocking CTA on the `prerequisites` step in `TrainsGuidedConductorFlow.tsx` (upload scores — not a generic Members CTA when scores unblock).
+- [ ] Day overrides use `DayMechanismPickerDialog` / `DAY_PAINT_TEMPLATES`; week composites stay on `WeekTemplatePickerDialog`. Changing day mechanism releases unlocked drafts.
 
 ## 4. Dashboard wiring (both modes)
 
 **Guided mode:**
 
-- [ ] Add the action to the appropriate guided flow step (`template`, `prerequisites`, `conductor`, `vip`, or `lock`).
+- [ ] Add the action to the appropriate guided flow step (`conductor pick`, `roster`, `prerequisites`, `conductor`, `lock`, or `vip`).
 - [ ] Render primary/secondary buttons per the mode contract (see `trains-simple-advanced-modes.mdc`).
 
 **Advanced mode:**
@@ -57,6 +60,7 @@ Canonical step order: `template → prerequisites → conductor → vip → lock
 - [ ] Add entries to `MECHANISM_STYLES` (`mechanism-styles.ts`) with both light and dark mode classes.
 - [ ] Add entries to `TEMPLATE_CELL_STYLES` (`calendar-cell-styles.shared.ts`) if the template needs calendar cell styling.
 - [ ] Follow the dual-mode pattern from `hq-theming.mdc` § Domain-colored components: solid pastel light, translucent tint dark.
+- [ ] Conductor wheel reel / score colors stay readable in **light** theme (`ConductorWheelModal` — theme tokens, not white-on-dark-only).
 - [ ] Spot-check in both light and dark themes.
 
 ## 6. I18n
@@ -101,3 +105,4 @@ Canonical step order: `template → prerequisites → conductor → vip → lock
 
 - [ ] Update `.cursor/rules/trains.mdc` with the new mechanism/template details, including its conductor and VIP mechanisms, spin source, and any special rules.
 - [ ] If the feature changes guided flow steps or mode parity, update `.cursor/rules/trains-simple-advanced-modes.mdc`.
+- [ ] If the feature changes day-vs-week paint, lock/VIP order, swap dates, share export, or wizard recovery CTAs, update `.cursor/rules/trains-conductor-ux.mdc` in the same PR.
