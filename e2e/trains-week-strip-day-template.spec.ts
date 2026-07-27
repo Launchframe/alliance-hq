@@ -34,6 +34,7 @@ type TrainsScheduleFixture = {
   cookies: ReturnType<typeof playwrightAuthCookies>;
   cookieHeader: string;
   weekStart: string;
+  weekEnd: string;
   today: string;
 };
 
@@ -87,6 +88,7 @@ async function setupPersistedTrainsWeek(
   expect(dashboardRes.ok(), await dashboardRes.text()).toBeTruthy();
   const dashboard = (await dashboardRes.json()) as {
     weekStart: string;
+    weekEnd: string;
     today: string;
   };
 
@@ -107,6 +109,7 @@ async function setupPersistedTrainsWeek(
     cookies,
     cookieHeader,
     weekStart: dashboard.weekStart,
+    weekEnd: dashboard.weekEnd,
     today: dashboard.today,
   };
 }
@@ -137,6 +140,40 @@ function weekDayLocator(page: Page, date: string): Locator {
     .first();
 }
 
+/** Prefer tomorrow when it stays in the visible train week; else use today. */
+function pickPaintDateInWeek(fixture: TrainsScheduleFixture): string {
+  const tomorrow = addCalendarDays(fixture.today, 1);
+  if (
+    isCalendarDateOnOrAfter(tomorrow, fixture.weekStart) &&
+    isCalendarDateOnOrAfter(fixture.weekEnd, tomorrow)
+  ) {
+    return tomorrow;
+  }
+  return fixture.today;
+}
+
+/** Week strip is interactive once the target day is a paintable menu button. */
+async function waitForWeekScheduleInteractive(page: Page, date: string) {
+  const shell = page.locator("#hq-app-shell");
+  await expect(shell.getByTestId("trains-schedule-section")).toBeVisible({
+    timeout: 15_000,
+  });
+
+  const carousel = shell.getByTestId("trains-week-carousel");
+  if (await carousel.isVisible()) {
+    await waitForWeekCarouselReady(page);
+  }
+
+  const day = weekDayLocator(page, date);
+  await expect
+    .poll(async () => {
+      if (!(await day.isVisible())) return false;
+      const popup = await day.getAttribute("aria-haspopup");
+      return popup === "menu";
+    })
+    .toBe(true);
+}
+
 /**
  * Open via a real right-click at viewport coords so clientX/Y are trustworthy.
  * page.mouse bypasses locator hit-testing overlays on short viewports.
@@ -146,6 +183,7 @@ async function openDayTemplateMenu(
   date: string,
   position?: { x: number; y: number },
 ) {
+  await waitForWeekScheduleInteractive(page, date);
   const day = weekDayLocator(page, date);
   await expect(day).toBeVisible();
   await day.scrollIntoViewIfNeeded();
@@ -228,10 +266,6 @@ test.describe("Week strip day template menu", () => {
     await page.context().addCookies(fixture.cookies);
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/trains");
-    await expect(page.getByTestId("trains-schedule-section")).toBeVisible({
-      timeout: 15_000,
-    });
-
     await openDayTemplateMenu(page, fixture.today);
 
     const menu = page.getByTestId("trains-day-template-menu");
@@ -268,11 +302,8 @@ test.describe("Week strip day template menu", () => {
     await page.context().addCookies(fixture.cookies);
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/trains");
-    await expect(page.getByTestId("trains-schedule-section")).toBeVisible({
-      timeout: 15_000,
-    });
 
-    const paintDate = paintDateInCurrentWeek(fixture.today, fixture.weekStart);
+    const paintDate = pickPaintDateInWeek(fixture);
 
     await openDayTemplateMenu(page, paintDate);
     await selectDayTemplate(page, "economy_week");
@@ -293,11 +324,8 @@ test.describe("Week strip day template menu", () => {
     await page.context().addCookies(fixture.cookies);
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/trains");
-    await expect(page.getByTestId("trains-schedule-section")).toBeVisible({
-      timeout: 15_000,
-    });
 
-    const paintDate = paintDateInCurrentWeek(fixture.today, fixture.weekStart);
+    const paintDate = pickPaintDateInWeek(fixture);
 
     await openDayTemplateMenu(page, paintDate);
     await selectDayTemplate(page, "top_vs");
@@ -327,9 +355,7 @@ test.describe("Week strip day template menu", () => {
     // bottom-right open still requires clamp (menu max-height ≈ 20rem).
     await page.setViewportSize({ width: 1280, height: 640 });
     await page.goto("/trains");
-    await expect(page.getByTestId("trains-schedule-section")).toBeVisible({
-      timeout: 15_000,
-    });
+    await waitForWeekScheduleInteractive(page, fixture.today);
 
     const day = weekDayLocator(page, fixture.today);
     const box = await day.boundingBox();
@@ -367,18 +393,9 @@ test.describe("Week strip day template menu", () => {
     await page.context().addCookies(fixture.cookies);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/trains");
-    await expect(page.getByTestId("trains-schedule-section")).toBeVisible({
-      timeout: 15_000,
-    });
-    // Neighbor-week bootstrap remounts the day buffer; long-press timers are
-    // cancelled if we press while data-ready is still false.
-    await waitForWeekCarouselReady(page);
+    await waitForWeekScheduleInteractive(page, fixture.today);
 
     const day = weekDayLocator(page, fixture.today);
-    await expect(day).toBeVisible();
-    await expect(day).toHaveAttribute("aria-haspopup", "menu", {
-      timeout: 15_000,
-    });
     await longPressDay(page, day);
 
     await expect(page.getByTestId("trains-day-template-menu")).toBeVisible({
@@ -402,9 +419,6 @@ test.describe("Week strip day template menu", () => {
     await page.context().addCookies(fixture.cookies);
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/trains");
-    await expect(page.getByTestId("trains-schedule-section")).toBeVisible({
-      timeout: 15_000,
-    });
 
     await openDayTemplateMenu(page, pastDate);
     await selectDayTemplate(page, "economy_week");

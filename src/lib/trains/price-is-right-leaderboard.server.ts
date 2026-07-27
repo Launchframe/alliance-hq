@@ -13,6 +13,7 @@ import { isPriceIsRightPaintTemplate } from "@/lib/trains/heavy-hitter-pool.shar
 import {
   getAllianceRanksAsOf,
   isMemberEligibleForPool,
+  resolveMemberPoolAllianceRank,
 } from "@/lib/trains/rank-history";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 
@@ -54,7 +55,7 @@ export async function loadPriceIsRightVsLeaderboard(input: {
 
   const candidates = members.flatMap((member) => {
     const rankEvent = rankByMember.get(member.ashedMemberId);
-    const rank = rankEvent?.allianceRank ?? member.allianceRank ?? null;
+    const rank = resolveMemberPoolAllianceRank(member, rankEvent);
     if (!isMemberEligibleForPool("r3", rank)) return [];
     return [
       {
