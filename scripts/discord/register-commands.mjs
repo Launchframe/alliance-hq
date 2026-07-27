@@ -573,6 +573,34 @@ const commandBody = [
     ],
   },
   {
+    name: "who-is",
+    description: "Look up which commander a Discord user owns, or who owns a commander.",
+    description_localizations: {
+      "pt-BR":
+        "Descubra qual comandante um usuário do Discord possui, ou quem possui um comandante.",
+    },
+    options: [
+      {
+        name: "discord",
+        description: "Discord member to look up.",
+        description_localizations: {
+          "pt-BR": "Membro do Discord para consultar.",
+        },
+        type: 6,
+        required: false,
+      },
+      {
+        name: "commander",
+        description: "In-game commander name to look up.",
+        description_localizations: {
+          "pt-BR": "Nome do comandante no jogo para consultar.",
+        },
+        type: 3,
+        required: false,
+      },
+    ],
+  },
+  {
     name: "is-ally-offline",
     description: "Check whether an alliance commander is on scheduled time off.",
     description_localizations: {

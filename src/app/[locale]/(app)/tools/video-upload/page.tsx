@@ -10,6 +10,7 @@ import {
   jobMatchesScoreTarget,
   parseVideoUploadBankIdParam,
   parseVideoUploadBoardKeyParam,
+  parseVideoUploadRecordedDateParam,
   parseVideoUploadScoreTargetParam,
 } from "@/lib/video/score-target-nav";
 import { resolveSurveyPlayerNameFromSources } from "@/lib/video/survey-player-name";
@@ -27,6 +28,7 @@ type Props = {
     scoreTarget?: string;
     bankId?: string;
     boardKey?: string;
+    recordedDate?: string;
   }>;
 };
 
@@ -60,7 +62,7 @@ async function resolveSurveyMemberName(
 }
 
 export default async function VideoUploadPage({ searchParams }: Props) {
-  const { scoreTarget: scoreTargetParam, bankId: bankIdParam, boardKey: boardKeyParam } =
+  const { scoreTarget: scoreTargetParam, bankId: bankIdParam, boardKey: boardKeyParam, recordedDate: recordedDateParam } =
     await searchParams;
   const contextScoreTarget = parseVideoUploadScoreTargetParam(scoreTargetParam);
   const contextBankId = parseVideoUploadBankIdParam(bankIdParam);
@@ -68,6 +70,7 @@ export default async function VideoUploadPage({ searchParams }: Props) {
     boardKeyParam,
     contextScoreTarget,
   );
+  const contextRecordedDate = parseVideoUploadRecordedDateParam(recordedDateParam);
   const session = await requirePageSession();
   const db = getDb();
   const [rows, memberName, canProcess, ashedConnection] = await Promise.all([
@@ -176,6 +179,7 @@ export default async function VideoUploadPage({ searchParams }: Props) {
       contextScoreTarget={contextScoreTarget}
       contextBankId={contextBankId}
       contextBoardKey={contextBoardKey}
+      contextRecordedDate={contextRecordedDate}
       allianceTag={allianceTag}
       allianceName={allianceName}
       canProcess={canProcess}

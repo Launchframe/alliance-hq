@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, max, ne } from "drizzle-orm";
+import { and, eq, max, ne, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { base44ListMemberRecords } from "@/lib/base44/fetch";
@@ -183,6 +183,18 @@ export async function listAllianceMembers(
     .select()
     .from(schema.allianceMembers)
     .where(eq(schema.allianceMembers.allianceId, hqAllianceId));
+}
+
+/** Cheap roster size for VS early-shadow heuristics (avoids loading full rows). */
+export async function countAllianceMembers(
+  hqAllianceId: string,
+): Promise<number> {
+  const db = getDb();
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(schema.allianceMembers)
+    .where(eq(schema.allianceMembers.allianceId, hqAllianceId));
+  return row?.count ?? 0;
 }
 
 /** Sync from Ashed when empty, stale (>24h), or forced; reuse local rows on cache hits. */

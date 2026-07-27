@@ -1,6 +1,9 @@
 import { and, desc, eq, lte, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import type { AllianceMember } from "@/lib/db/schema";
+import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
+import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
 import type { PoolType } from "@/lib/trains/types";
 
 export type ResolvedMemberAllianceRank = {
@@ -9,6 +12,29 @@ export type ResolvedMemberAllianceRank = {
   rankEventId: string | null;
   source: "hq" | "synced" | null;
 };
+
+/**
+ * Effective rank for train pool eligibility. Prefer the HQ rank event when present
+ * (same rule as {@link resolveMemberAllianceRankAsOf}) so confirmed demotions are
+ * not overwritten by a stale higher Ashed roster rank after sync. Fall back to the
+ * synced roster / Ashed rank raw when there is no event yet.
+ */
+export function resolveMemberPoolAllianceRank(
+  member: AllianceMember,
+  rankEvent?: { allianceRank: number } | null,
+): number | null {
+  const eventRank = rankEvent?.allianceRank ?? null;
+  if (eventRank != null) {
+    return eventRank;
+  }
+
+  return (
+    member.allianceRank ??
+    parseAshedMemberAllianceRank(allianceMemberRowToAshedMember(member))
+      .rank ??
+    null
+  );
+}
 
 export function isMemberEligibleForPool(
   poolType: PoolType,

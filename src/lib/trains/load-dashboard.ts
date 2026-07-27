@@ -51,10 +51,14 @@ import {
   loadTrainsVsDataStatus,
   type TrainsVsDataStatus,
 } from "@/lib/trains/vs-data-status.server";
+import {
+  loadTrainsRosterDataStatus,
+  type TrainsRosterDataStatus,
+} from "@/lib/trains/roster-data-status.server";
 import { getServerCalendarDate } from "@/lib/trains/service";
 import type { ConductorMechanismType, WeekTemplateType } from "@/lib/trains/types";
 
-export type { TrainsVsDataStatus };
+export type { TrainsVsDataStatus, TrainsRosterDataStatus };
 
 export type WeekConductorRecordSummary = {
   id: string;
@@ -204,6 +208,8 @@ export type TrainsDashboardPayload = {
    * Null when there is no alliance / day context to evaluate.
    */
   vsDataStatus: TrainsVsDataStatus | null;
+  /** Non-blocking roster readiness for today's conductor actions. */
+  rosterDataStatus: TrainsRosterDataStatus | null;
   /** Season VR reporters with highest_base_vr > 0 — Top VR scope locks. */
   vrReporterCount: number;
   pools: Record<
@@ -236,6 +242,7 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   | "conductorRecord"
   | "todayDayConfig"
   | "vsDataStatus"
+  | "rosterDataStatus"
   | "vrReporterCount"
   | "pools"
   | "conductorHistory"
@@ -254,6 +261,7 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   conductorRecord: null,
   todayDayConfig: null,
   vsDataStatus: null,
+  rosterDataStatus: null,
   vrReporterCount: 0,
   pools: {},
   conductorHistory: [],
@@ -328,21 +336,6 @@ export async function loadTrainsDashboard(
   const members = await loadActiveAlliancePoolMembers({ allianceId });
   const activeMemberCount = members.length;
 
-  if (activeMemberCount === 0) {
-    return {
-      today,
-      weekStart,
-      weekEnd: addCalendarDays(weekStart, 6),
-      ...preferenceFields,
-      canManageTrains,
-      canClearWeekSchedule,
-      canUnlockConductor,
-      ...trainDiscordFields,
-      activeMemberCount: 0,
-      ...EMPTY_DASHBOARD_FIELDS,
-    };
-  }
-
   const effectiveSeason = await getEffectiveSeasonForAlliance(allianceId);
   const operatingMode = await getAllianceOperatingMode(allianceId);
   const scheduleRow = await getWeekSchedule(
@@ -406,7 +399,7 @@ export async function loadTrainsDashboard(
   );
   const conductorHistory = historyRows.map(mapRecord);
   const pirSettings = await loadPriceIsRightTicketSettings(allianceId);
-  const [vsDataStatus, vrReporterCount] = await Promise.all([
+  const [vsDataStatus, rosterDataStatus, vrReporterCount] = await Promise.all([
     todayDayConfig
       ? loadTrainsVsDataStatus({
           allianceId,
@@ -415,6 +408,23 @@ export async function loadTrainsDashboard(
           paintTemplate: todayDayConfig.paintTemplate ?? dashboardTemplateType,
         })
       : Promise.resolve(null),
+    todayDayConfig
+      ? loadTrainsRosterDataStatus({
+          sessionId,
+          allianceId,
+          trainDate: today,
+          conductorMechanism: todayDayConfig.conductorMechanism,
+          paintTemplate: todayDayConfig.paintTemplate ?? dashboardTemplateType,
+          activeMemberCount,
+        })
+      : loadTrainsRosterDataStatus({
+          sessionId,
+          allianceId,
+          trainDate: today,
+          conductorMechanism: null,
+          paintTemplate: dashboardTemplateType,
+          activeMemberCount,
+        }),
     countAllianceVrReporters(allianceId),
   ]);
 
@@ -453,6 +463,7 @@ export async function loadTrainsDashboard(
         }
       : null,
     vsDataStatus,
+    rosterDataStatus,
     vrReporterCount,
     pools,
     conductorHistory,

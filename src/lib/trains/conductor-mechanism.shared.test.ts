@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   canSpinConductorForDay,
+  canSpinVipForDay,
+  conductorDrawChanged,
   effectiveConductorMechanism,
+  hasValidConductorPickForDay,
 } from "@/lib/trains/conductor-mechanism.shared";
 
 describe("effectiveConductorMechanism", () => {
@@ -90,5 +93,50 @@ describe("canSpinConductorForDay", () => {
     expect(
       canSpinConductorForDay("vr_top_n", false, "top_vr", null, { topN: 3 }),
     ).toBe(true);
+  });
+});
+
+describe("conductor draw identity", () => {
+  it("detects mechanism changes", () => {
+    expect(
+      conductorDrawChanged(
+        { conductorMechanism: "custom", paintTemplate: null, date: "2026-06-10" },
+        {
+          conductorMechanism: "r3_lottery",
+          paintTemplate: "economy_week",
+          date: "2026-06-10",
+        },
+      ),
+    ).toBe(true);
+  });
+
+  it("treats stale picks as invalid for the current day", () => {
+    expect(
+      hasValidConductorPickForDay({
+        conductorMemberId: "m1",
+        recordConductorMechanism: "custom",
+        dayConductorMechanism: "r3_lottery",
+        paintTemplate: "economy_week",
+        date: "2026-06-10",
+      }),
+    ).toBe(false);
+    expect(
+      hasValidConductorPickForDay({
+        conductorMemberId: "m1",
+        recordConductorMechanism: "r3_lottery",
+        dayConductorMechanism: "r3_lottery",
+        paintTemplate: "economy_week",
+        date: "2026-06-10",
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("canSpinVipForDay", () => {
+  it("requires the conductor day to be locked", () => {
+    expect(canSpinVipForDay("event_top_x_lottery", false)).toBe(false);
+    expect(canSpinVipForDay("event_top_x_lottery", true)).toBe(true);
+    expect(canSpinVipForDay("donations_second", true)).toBe(true);
+    expect(canSpinVipForDay("conductor_pick", true)).toBe(false);
   });
 });

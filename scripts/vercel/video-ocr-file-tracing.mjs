@@ -173,11 +173,13 @@ export const functionTraceBudgets = [
       ".next/server/app/api/webhooks/discord/interactions/route.js.nft.json",
     maxUncompressedBytes: 250 * 1024 * 1024,
     requireLibvips: true,
+    requireWorkerScript: true,
   },
   {
     route: "/api/thp/me/submit",
     nftPath: ".next/server/app/api/thp/me/submit/route.js.nft.json",
     maxUncompressedBytes: 200 * 1024 * 1024,
     requireLibvips: true,
+    requireWorkerScript: true,
   },
 ];

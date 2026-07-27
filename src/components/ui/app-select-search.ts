@@ -1,4 +1,4 @@
-import { stringSimilarity } from "@/lib/video/member-matcher";
+import { nameMatchScore } from "@/lib/video/member-matcher";
 
 import type { AppSelectOption } from "./AppSelect";
 
@@ -21,32 +21,22 @@ export function appSelectOptionMatchesQuery(
   return appSelectOptionSearchText(option).toLowerCase().includes(needle);
 }
 
-/** Fuzzy similarity score in [0, 1] for ranking AppSelect options. */
+/**
+ * Fuzzy similarity score in [0, 1] for ranking AppSelect options.
+ * Delegates to the same scorer used by member auto-match / video rematch.
+ */
 export function appSelectOptionFuzzyScore(
   option: AppSelectOption,
   query: string,
 ): number {
-  const needle = query.trim().toLowerCase();
-  if (!needle) {
+  if (!query.trim()) {
     return 1;
   }
-  const haystack = appSelectOptionSearchText(option).toLowerCase();
-  if (!haystack) {
+  const haystack = appSelectOptionSearchText(option);
+  if (!haystack.trim()) {
     return 0;
   }
-  if (haystack.includes(needle)) {
-    return 1;
-  }
-
-  let best = stringSimilarity(needle, haystack);
-  for (const token of haystack.split(/\s+/)) {
-    if (!token) continue;
-    if (token.startsWith(needle)) {
-      best = Math.max(best, 0.95);
-    }
-    best = Math.max(best, stringSimilarity(needle, token));
-  }
-  return best;
+  return nameMatchScore(query, haystack);
 }
 
 export const APP_SELECT_FUZZY_MIN_SCORE = 0.45;

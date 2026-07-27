@@ -2,14 +2,24 @@
 
 import { ChevronDown, Info } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { ConductorPickModal } from "@/components/trains/ConductorPickModal";
 import { ConductorSwapDialog } from "@/components/trains/ConductorSwapDialog";
 import { ConductorHistoryTable } from "@/components/trains/ConductorHistoryTable";
 import { ConductorWheelModal } from "@/components/trains/ConductorWheelModal";
+import {
+  ConductorWheelSharePreviewDialog,
+  type ConductorWheelSharePreview,
+} from "@/components/trains/ConductorWheelSharePreviewDialog";
 import { TrainsHelpPanel } from "@/components/trains/TrainsHelpPanel";
 import { TrainsGuidedConductorFlow } from "@/components/trains/TrainsGuidedConductorFlow";
+import { renderConductorWheelSharePngBlob } from "@/lib/client/conductor-wheel-share-image.client";
+import { buildShareViewportForWinner } from "@/lib/trains/conductor-wheel-reel.shared";
+import {
+  formatWheelShareEligibilityLine,
+  resolveWheelShareEligibility,
+} from "@/lib/trains/conductor-wheel-share.shared";
 import { SpinWeekConductorFlow } from "@/components/trains/SpinWeekConductorFlow";
 import { ClearWeekScheduleDialog } from "@/components/trains/ClearWeekScheduleDialog";
 import { TrainPivotBanner } from "@/components/trains/TrainPivotBanner";
@@ -25,6 +35,7 @@ import { PriceIsRightPodiumLeaderboard } from "@/components/trains/PriceIsRightP
 import { PriceIsRightTicketsPanel } from "@/components/trains/PriceIsRightTicketsPanel";
 import { TodayConductorCard } from "@/components/trains/TodayConductorCard";
 import { WeekTemplateChangeDialog } from "@/components/trains/WeekTemplateChangeDialog";
+import { DayMechanismPickerDialog } from "@/components/trains/DayMechanismPickerDialog";
 import { WeekTemplatePickerDialog } from "@/components/trains/WeekTemplatePickerDialog";
 import { useHotkeys } from "@/components/hotkeys/HotkeyProvider";
 import {
@@ -37,7 +48,8 @@ import {
   type PoolDetailsOption,
 } from "@/components/trains/TrainPoolDetailsDialog";
 import { TrainSpinSourcePanel } from "@/components/trains/TrainSpinSourcePanel";
-import { TrainMonthCalendar, PAINT_TEMPLATES } from "@/components/trains/TrainMonthCalendar";
+import { TrainMonthCalendar } from "@/components/trains/TrainMonthCalendar";
+import { DAY_PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
 import {
   TrainScheduleViewToggle,
   type ScheduleView,
@@ -67,7 +79,7 @@ import {
   isAutomaticTopNBoard,
   resolveConductorTopNBoard,
 } from "@/lib/trains/conductor-top-n.shared";
-import { isPriceIsRightPaintTemplate } from "@/lib/trains/heavy-hitter-pool.shared";
+import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
   conductorSpinSource,
   isPoolSpinSource,
@@ -75,12 +87,17 @@ import {
 } from "@/lib/trains/spin-source.shared";
 import { canStartConductorSwap } from "@/lib/trains/conductor-swap.shared";
 import { currentGuidedStep } from "@/lib/trains/guided-flow.shared";
+import { rosterSyncCapabilityAllowsInPageSync } from "@/lib/trains/roster-data-status.shared";
+import { buildTrainsGuidedVideoUploadHref } from "@/lib/trains/guided-video-upload.shared";
 import type { PoolRefreshedInfo, PoolType, RollResult, WeekTemplateType } from "@/lib/trains/types";
 import {
   compositeParentForSegment,
   isWeekTemplateSegment,
 } from "@/lib/trains/week-template-registry.shared";
-import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
+import {
+  formatTrainPointCount,
+  type MemberQualificationPayload,
+} from "@/lib/trains/train-conductor-minimums.shared";
 import {
   applyOptimisticConductorPick,
   applyOptimisticConductorRoll,
@@ -98,6 +115,9 @@ import {
 } from "@/lib/trains/roll-errors.shared";
 import { latestLockedDateInWeek, pivotEconomyTargetDates } from "@/lib/trains/week-template-change.shared";
 import { spinWeekDayLabel } from "@/lib/trains/spin-week.shared";
+import {
+  hasValidConductorPickForDay,
+} from "@/lib/trains/conductor-mechanism.shared";
 import { supportsManualConductorPick, supportsManualVipPick } from "@/lib/trains/templates";
 import {
   allianceTrainWeekFromRow,
@@ -164,6 +184,7 @@ function inferWeekTemplateFromDayConfigs(
 
 export function TrainsDashboard({ initial }: Props) {
   const t = useTranslations("trains");
+  const locale = useLocale();
   const [data, setData] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [unlockConfirm, setUnlockConfirm] = useState(false);
@@ -181,6 +202,7 @@ export function TrainsDashboard({ initial }: Props) {
   >([]);
   const [wheelQualification, setWheelQualification] =
     useState<MemberQualificationPayload | null>(null);
+  const [wheelMechanism, setWheelMechanism] = useState<string | null>(null);
   const [wheelDayLabel, setWheelDayLabel] = useState<string | null>(null);
   const [conductorDisqualified, setConductorDisqualified] =
     useState<RollResult | null>(null);
@@ -220,7 +242,12 @@ export function TrainsDashboard({ initial }: Props) {
   const [wheelBlockedRole, setWheelBlockedRole] = useState<
     "conductor" | "vip"
   >("conductor");
+  const [shareExportBusy, setShareExportBusy] = useState(false);
+  const [shareExportError, setShareExportError] = useState<string | null>(null);
+  const [shareExportPreview, setShareExportPreview] =
+    useState<ConductorWheelSharePreview | null>(null);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [dayMechanismPickerOpen, setDayMechanismPickerOpen] = useState(false);
   const [pendingTemplateChange, setPendingTemplateChange] = useState<{
     templateType: WeekTemplateType;
     weekStart: string;
@@ -259,6 +286,11 @@ export function TrainsDashboard({ initial }: Props) {
     memberName: string;
     role: "conductor" | "vip";
   } | null>(null);
+  const [rosterSyncBusy, setRosterSyncBusy] = useState(false);
+  const [rosterSyncNotice, setRosterSyncNotice] = useState<string | null>(null);
+  const [rosterSyncNoticeTone, setRosterSyncNoticeTone] = useState<
+    "success" | "warning" | "error"
+  >("success");
 
   const trainWeekConfig = useMemo(
     () => allianceTrainWeekFromRow({ trainWeekStartDow: data.trainWeekStartDow }),
@@ -350,6 +382,7 @@ export function TrainsDashboard({ initial }: Props) {
   const handleWheelClose = useCallback(() => {
     setWheelOpen(false);
     setWheelQualification(null);
+    setWheelMechanism(null);
     setWheelDayLabel(null);
     const pending = pendingWheelRollRef.current;
     pendingWheelRollRef.current = null;
@@ -661,6 +694,115 @@ export function TrainsDashboard({ initial }: Props) {
     refreshRef.current = refresh;
   }, [refresh]);
 
+  const handleRosterSync = useCallback(async () => {
+    setRosterSyncBusy(true);
+    setRosterSyncNotice(null);
+    try {
+      const res = await fetch("/api/trains/roster-sync", { method: "POST" });
+      const body = (await res.json()) as {
+        error?: string;
+        synced?: number;
+        activeMemberCount?: number;
+        rosterDataStatus?: TrainsDashboardPayload["rosterDataStatus"];
+      };
+      if (!res.ok) {
+        const message = body.error ?? t("guidedFlow.steps.roster.syncFailed");
+        setRosterSyncNoticeTone("error");
+        setRosterSyncNotice(message);
+        setError(message);
+        return;
+      }
+
+      const syncSnapshot =
+        body.rosterDataStatus != null && body.activeMemberCount != null
+          ? {
+              activeMemberCount: body.activeMemberCount,
+              rosterDataStatus: body.rosterDataStatus,
+            }
+          : null;
+
+      await refreshRef.current();
+
+      if (syncSnapshot) {
+        setData((current) => ({
+          ...current,
+          activeMemberCount: syncSnapshot.activeMemberCount,
+          rosterDataStatus: syncSnapshot.rosterDataStatus,
+        }));
+      }
+
+      const status = body.rosterDataStatus;
+      const rankLabel =
+        status?.poolType != null
+          ? t(`guidedFlow.steps.roster.rankLabels.${status.poolType}`)
+          : "";
+
+      if (body.synced === 0 && (body.activeMemberCount ?? 0) === 0) {
+        const message = t("guidedFlow.steps.roster.syncFailed");
+        setRosterSyncNoticeTone("error");
+        setRosterSyncNotice(message);
+        setError(message);
+        return;
+      }
+
+      if (status?.ready) {
+        setRosterSyncNotice(
+          t("guidedFlow.steps.roster.syncReady", {
+            eligibleCount: status.eligiblePoolCount,
+            rankLabel,
+          }),
+        );
+        setRosterSyncNoticeTone("success");
+        setError(null);
+        return;
+      }
+
+      if ((body.activeMemberCount ?? 0) > 0 && status) {
+        if (status.blockerKind === "conductor_minimums") {
+          setRosterSyncNotice(
+            t("guidedFlow.steps.roster.syncStillBlockedMinimums", {
+              count: status.activeMemberCount,
+              rankEligible: status.rankEligiblePoolCount,
+              rankLabel,
+            }),
+          );
+        } else if (status.blockerKind === "missing_rank_pool") {
+          setRosterSyncNotice(
+            t("guidedFlow.steps.roster.syncStillBlockedRanks", {
+              count: status.activeMemberCount,
+              rankLabel,
+            }),
+          );
+        } else {
+          setRosterSyncNotice(
+            t("guidedFlow.steps.roster.syncSuccess", {
+              count: body.activeMemberCount ?? 0,
+            }),
+          );
+        }
+        setRosterSyncNoticeTone("warning");
+        setError(null);
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : t("guidedFlow.steps.roster.syncFailed");
+      setRosterSyncNoticeTone("error");
+      setRosterSyncNotice(message);
+      setError(message);
+    } finally {
+      setRosterSyncBusy(false);
+    }
+  }, [
+    t,
+    setData,
+    setError,
+    setRosterSyncBusy,
+    setRosterSyncNotice,
+    setRosterSyncNoticeTone,
+  ]);
+
   // Revalidate dashboard data when the tab becomes visible again (e.g. after
   // uploading scores on /tools/video-upload and returning).
   useEffect(() => {
@@ -784,6 +926,7 @@ export function TrainsDashboard({ initial }: Props) {
             ],
       );
       setWheelWinner(body.result);
+      setWheelMechanism(body.result.mechanism);
       setWheelStats(body.stats ?? null);
       setWheelQualification(body.result.qualification ?? null);
       setWheelDayLabel(spinWeekDayLabel(selectedDate));
@@ -805,6 +948,7 @@ export function TrainsDashboard({ initial }: Props) {
     pendingWheelRollRef.current = null;
     setWheelOpen(false);
     setWheelQualification(null);
+    setWheelMechanism(null);
     setWheelWinner(null);
     void runRollRef.current("conductor");
   }, []);
@@ -1225,7 +1369,7 @@ export function TrainsDashboard({ initial }: Props) {
         handleScheduleViewChange("month");
       }),
       registerPageHandler("trains.goToToday", goToToday),
-      ...PAINT_TEMPLATES.map((template, index) =>
+      ...DAY_PAINT_TEMPLATES.map((template, index) =>
         registerPageHandler(trainTemplateHotkeyIds[index]!, () => {
           if (!data.canManageTrains) return;
           void paintDates([selectedDate], template);
@@ -1298,6 +1442,88 @@ export function TrainsDashboard({ initial }: Props) {
     conductorPaint,
     selectedDate,
   );
+  function closeShareExportPreview() {
+    setShareExportPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+  }
+
+  async function handleShareExportImage() {
+    if (
+      !selectedRecord?.conductorMemberId ||
+      !selectedRecord.conductorMemberName ||
+      shareExportBusy
+    ) {
+      return;
+    }
+    setShareExportBusy(true);
+    setShareExportError(null);
+    try {
+      const winner = {
+        memberId: selectedRecord.conductorMemberId,
+        memberName: selectedRecord.conductorMemberName,
+      };
+      const viewport = buildShareViewportForWinner(winner, data.roster);
+      const dayLabel = spinWeekDayLabel(selectedDate);
+      const statsForShare =
+        selectedDate === data.today &&
+        selectedRecord.conductorMemberId ===
+          data.conductorRecord?.conductorMemberId
+          ? data.conductorStats
+          : null;
+      const statsLine =
+        statsForShare != null
+          ? t("wheel.share.statsLine", {
+              lastDate: statsForShare.lastConductedDate ?? t("wheel.never"),
+              count: statsForShare.conductsThisYear,
+            })
+          : null;
+      const eligibilityLine = formatWheelShareEligibilityLine(
+        resolveWheelShareEligibility({
+          mechanism: selectedRecord.conductorMechanism ?? conductorMech,
+          paintTemplate: conductorPaint,
+          winner,
+        }),
+        {
+          vsMinimum: (score, minimum) =>
+            t("wheel.share.eligibilityVsMinimum", { score, minimum }),
+          tpif: (score, sweetSpot) =>
+            t("wheel.share.eligibilityTpif", { score, sweetSpot }),
+          vsLeaderboardRank: (rank, score, suffix) =>
+            t("wheel.share.eligibilityVsLeaderboardRank", {
+              rank,
+              score,
+              suffix,
+            }),
+          vsLeaderboardScore: (score, suffix) =>
+            t("wheel.share.eligibilityVsLeaderboardScore", { score, suffix }),
+        },
+        locale,
+      );
+      const blob = await renderConductorWheelSharePngBlob({
+        title: t("wheel.title"),
+        dayLabel,
+        names: viewport.names,
+        winnerIndex: viewport.winnerIndex,
+        eligibilityLine,
+        statsLine,
+      });
+      const safeDate =
+        dayLabel.replace(/[^\w-]+/g, "-").toLowerCase() || "conductor";
+      const filename = `conductor-wheel-${safeDate}.png`;
+      const url = URL.createObjectURL(blob);
+      setShareExportPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev.url);
+        return { blob, url, filename };
+      });
+    } catch {
+      setShareExportError(t("wheel.share.failed"));
+    } finally {
+      setShareExportBusy(false);
+    }
+  }
+
   const vipMech = selectedDayConfig?.vipMechanism;
   const canPaintTemplate =
     data.canUnlockConductor ||
@@ -1308,16 +1534,20 @@ export function TrainsDashboard({ initial }: Props) {
     supportsManualConductorPick(conductorMech) &&
     canManualPickForDate();
   const canManualPickVip =
-    !locked &&
+    locked &&
     supportsManualVipPick(vipMech) &&
     canManualPickForDate();
+  const rosterBlocking =
+    Boolean(data.rosterDataStatus?.required) && !data.rosterDataStatus?.ready;
   const showQuickActions =
     data.canManageTrains &&
     (canRoll ||
       canManualPick ||
       canManualPickVip ||
       Boolean(selectedRecord?.conductorMemberId) ||
-      locked);
+      locked ||
+      rosterBlocking ||
+      !data.schedulePersisted);
   const selectedConductorConfig =
     selectedDayConfig?.conductorConfig ??
     (selectedDayConfig?.topN != null
@@ -1329,6 +1559,15 @@ export function TrainsDashboard({ initial }: Props) {
     selectedDayConfig?.conductorMechanism,
     selectedConductorConfig,
   );
+  const hasValidConductor = hasValidConductorPickForDay({
+    conductorMemberId: selectedRecord?.conductorMemberId,
+    recordConductorMechanism: selectedRecord?.conductorMechanism,
+    dayConductorMechanism: selectedDayConfig?.conductorMechanism,
+    paintTemplate: conductorPaint,
+    date: selectedDate,
+    conductorConfig: selectedConductorConfig,
+    topN: selectedDayConfig?.topN,
+  });
   const canSpinConductorWheel =
     canRoll &&
     canSpinConductor(
@@ -1342,11 +1581,19 @@ export function TrainsDashboard({ initial }: Props) {
   const guidedVipNeeded = Boolean(vipMech) && vipMech !== "none";
   const guidedHasVip = Boolean(selectedRecord?.vipMemberId);
   const guidedStep = currentGuidedStep({
-    schedulePersisted: data.schedulePersisted,
-    hasConductor: Boolean(selectedRecord?.conductorMemberId),
+    hasConductor: hasValidConductor,
     vipNeeded: guidedVipNeeded,
     hasVip: guidedHasVip,
     locked,
+    rosterDataRequired:
+      selectedDate === data.today ? data.rosterDataStatus?.required : false,
+    rosterDataReady:
+      selectedDate === data.today ? data.rosterDataStatus?.ready : true,
+    vsDataRequired:
+      selectedDate === data.today ? data.vsDataStatus?.required : false,
+    vsDataReady:
+      selectedDate === data.today ? data.vsDataStatus?.ready : true,
+    conductorManualPickAvailable: canManualPick,
   });
   const showConductorCard =
     !data.simpleModeEnabled || guidedStep === "done";
@@ -1425,25 +1672,40 @@ export function TrainsDashboard({ initial }: Props) {
     [conductorShortLabels, vipShortLabels],
   );
 
-  if (data.activeMemberCount === 0) {
-    return (
-      <div className="mx-auto flex w-full max-w-lg flex-col gap-4 p-4 sm:p-6">
-        <header>
-          <h1 className="text-2xl font-semibold text-foreground">{t("title")}</h1>
-          <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
-        </header>
-        <section className="rounded-2xl border border-hq-border bg-hq-surface p-6 text-center">
-          <p className="text-sm text-[#c9d1d9]">{t("emptyRosterBody")}</p>
-          <Link
-            href="/members"
-            className="mt-4 inline-flex rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover"
-          >
-            {t("emptyRosterCta")}
-          </Link>
-        </section>
-      </div>
-    );
-  }
+  const rosterRankLabel =
+    data.rosterDataStatus?.poolType != null
+      ? t(`guidedFlow.steps.roster.rankLabels.${data.rosterDataStatus.poolType}`)
+      : null;
+  const rosterBannerBodyKey =
+    data.rosterDataStatus?.blockerKind === "conductor_minimums"
+      ? "guidedFlow.steps.roster.bodyConductorMinimums"
+      : data.rosterDataStatus?.blockerKind === "missing_rank_pool"
+        ? "rosterSyncBanner.bodyMissingRanks"
+        : data.rosterDataStatus?.activeMemberCount === 0
+          ? "rosterSyncBanner.bodyEmpty"
+          : "rosterSyncBanner.bodyEmpty";
+  const canInPageRosterSync =
+    data.rosterDataStatus != null &&
+    rosterSyncCapabilityAllowsInPageSync(data.rosterDataStatus.syncCapability);
+  const canOfferRosterSync =
+    canInPageRosterSync &&
+    (data.rosterDataStatus?.blockerKind === "empty_roster" ||
+      data.rosterDataStatus?.blockerKind === "missing_rank_pool");
+  const showRosterBannerSync = canOfferRosterSync;
+  const showWheelRosterSync =
+    canOfferRosterSync ||
+    (canInPageRosterSync &&
+      wheelBlocked?.code === "POOL_EMPTY" &&
+      (wheelBlocked.poolType === "r3" ||
+        wheelBlocked.poolType === "r4_plus"));
+  const guidedVideoUploadHref = useMemo(
+    () =>
+      buildTrainsGuidedVideoUploadHref({
+        trainDate: data.today,
+        vsDataStatus: data.vsDataStatus,
+      }),
+    [data.today, data.vsDataStatus],
+  );
 
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 p-4 sm:p-6">
@@ -1608,6 +1870,17 @@ export function TrainsDashboard({ initial }: Props) {
             </div>
           </div>
 
+          {data.simpleModeEnabled &&
+          scheduleView === "week" &&
+          data.canManageTrains ? (
+            <p
+              className="text-xs text-hq-fg-muted"
+              data-testid="trains-day-template-hold-hint"
+            >
+              {t("dayTemplateMenu.holdHint")}
+            </p>
+          ) : null}
+
           {scheduleView === "week" ? (
             <WeekScheduleStrip
               today={data.today}
@@ -1701,15 +1974,36 @@ export function TrainsDashboard({ initial }: Props) {
                     })
                   : null
               }
+              shareActionLabel={
+                !data.simpleModeEnabled && hasValidConductor
+                  ? t("wheel.share.action")
+                  : undefined
+              }
+              shareBusyLabel={t("wheel.share.exporting")}
+              shareBusy={shareExportBusy}
+              onShareImage={
+                !data.simpleModeEnabled && hasValidConductor
+                  ? () => void handleShareExportImage()
+                  : undefined
+              }
               data-testid="trains-conductor-card"
             />
           ) : null}
+          {shareExportError ? (
+            <p
+              className="text-sm text-hq-danger"
+              role="alert"
+              data-testid="trains-share-export-error"
+            >
+              {shareExportError}
+            </p>
+          ) : null}
 
-          {isPriceIsRightPaintTemplate(conductorPaint) ? (
+          {usesPriceIsFreightConductorRoll(conductorPaint) ? (
             <PriceIsRightPodiumLeaderboard trainDate={selectedDate} />
           ) : null}
 
-          {isPriceIsRightPaintTemplate(conductorPaint) ? (
+          {usesPriceIsFreightConductorRoll(conductorPaint) ? (
             <PriceIsRightTicketsPanel trainDate={selectedDate} />
           ) : null}
 
@@ -1718,13 +2012,15 @@ export function TrainsDashboard({ initial }: Props) {
             data.simpleModeEnabled ? (
               <>
               <TrainsGuidedConductorFlow
-                schedulePersisted={data.schedulePersisted}
                 templateType={activeWeekTemplate}
                 paintTemplate={conductorPaint}
                 vsDataStatus={
                   selectedDate === data.today ? data.vsDataStatus : null
                 }
-                hasConductor={Boolean(selectedRecord?.conductorMemberId)}
+                rosterDataStatus={
+                  selectedDate === data.today ? data.rosterDataStatus : null
+                }
+                hasConductor={hasValidConductor}
                 conductorName={selectedRecord?.conductorMemberName}
                 vipNeeded={guidedVipNeeded}
                 hasVip={guidedHasVip}
@@ -1738,7 +2034,7 @@ export function TrainsDashboard({ initial }: Props) {
                 conductorMech={conductorMech}
                 vipMech={vipMech}
                 busy={trainQuickActionBusy}
-                onChangeTemplate={() => setTemplatePickerOpen(true)}
+                onChangeTemplate={() => setDayMechanismPickerOpen(true)}
                 onRollConductor={() => void runRoll("conductor")}
                 onPickTopScorer={() => void runRoll("conductor")}
                 onPickConductorManual={() => {
@@ -1757,6 +2053,16 @@ export function TrainsDashboard({ initial }: Props) {
                   }
                   void lockConductor();
                 }}
+                rosterSyncBusy={rosterSyncBusy}
+                rosterSyncNotice={rosterSyncNotice}
+                rosterSyncNoticeTone={rosterSyncNoticeTone}
+                onSyncRoster={() => void handleRosterSync()}
+                onShareImage={
+                  hasValidConductor
+                    ? () => void handleShareExportImage()
+                    : undefined
+                }
+                shareBusy={shareExportBusy}
                 poolPanel={
                   isPoolSpinSource(selectedConductorSpinSource) ||
                   isPoolSpinSource(selectedVipSpinSource) ? (
@@ -1794,10 +2100,7 @@ export function TrainsDashboard({ initial }: Props) {
                       }}
                       onRefresh={refresh}
                     />
-                    {canStartConductorSwap(selectedRecord) &&
-                    spinWeekContext.dayConfigs.some(
-                      (day) => day.date !== selectedDate,
-                    ) ? (
+                    {canStartConductorSwap(selectedRecord) ? (
                       <button
                         type="button"
                         onClick={() => setSwapOpen(true)}
@@ -1843,7 +2146,7 @@ export function TrainsDashboard({ initial }: Props) {
                         </button>
                       )
                     ) : null}
-                    {!isPriceIsRightPaintTemplate(conductorPaint) &&
+                    {!usesPriceIsFreightConductorRoll(conductorPaint) &&
                     (conductorMech === "r3_lottery" ||
                       conductorMech === "heavy_hitter_lottery" ||
                       conductorMech === "r4_sequence") ? (
@@ -1876,16 +2179,16 @@ export function TrainsDashboard({ initial }: Props) {
                     ) : null}
                   </>
                 }
-                videoUploadHref="/tools/video-upload"
+                videoUploadHref={guidedVideoUploadHref}
               />
               {trainReadyConfirm &&
               data.trainDiscordConfigured &&
               !locked &&
-              selectedRecord?.conductorMemberId ? (
+              hasValidConductor ? (
                 <div className="mt-3 flex w-full flex-wrap items-center gap-2 rounded-lg border border-hq-success/40 bg-hq-success/10 px-3 py-2">
                   <span className="text-sm text-hq-green">
                     {t("trainIsReady.confirm", {
-                      name: selectedRecord.conductorMemberName ?? "—",
+                      name: selectedRecord?.conductorMemberName ?? "—",
                       date: selectedDate,
                     })}
                   </span>
@@ -1921,6 +2224,43 @@ export function TrainsDashboard({ initial }: Props) {
                 {t("quickActions")}
               </h3>
               {selectedDate === data.today &&
+              rosterBlocking &&
+              !locked ? (
+                <div
+                  className="flex flex-col gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/5 px-3 py-2.5"
+                  data-testid="trains-roster-sync-banner"
+                >
+                  <p className="text-sm text-hq-fg">
+                    {t(rosterBannerBodyKey, {
+                      rankLabel: rosterRankLabel ?? "",
+                    })}
+                  </p>
+                  {showRosterBannerSync ? (
+                    <button
+                      type="button"
+                      disabled={rosterSyncBusy}
+                      onClick={() => void handleRosterSync()}
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 disabled:opacity-50 sm:w-auto"
+                    >
+                      {rosterSyncBusy
+                        ? t("guidedFlow.steps.roster.syncing")
+                        : data.rosterDataStatus?.syncCapability === "native_reload"
+                          ? t("guidedFlow.steps.roster.refreshNative")
+                          : t("guidedFlow.steps.roster.syncAshed")}
+                    </button>
+                  ) : (
+                    <Link
+                      href="/members"
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 sm:w-auto"
+                    >
+                      {t("guidedFlow.steps.roster.goToMembers")} →
+                    </Link>
+                  )}
+                </div>
+              ) : null}
+              {selectedDate === data.today &&
+              canSpinConductorWheel &&
+              !canManualPick &&
               data.vsDataStatus?.required &&
               !data.vsDataStatus.ready &&
               !locked ? (
@@ -1932,10 +2272,10 @@ export function TrainsDashboard({ initial }: Props) {
                     {t("uploadScoresBanner.body")}
                   </p>
                   <Link
-                    href="/tools/video-upload"
+                    href={guidedVideoUploadHref}
                     className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 sm:w-auto"
                   >
-                    {t("uploadScoresBanner.link")} →
+                    {t("uploadScoresBanner.link")}
                   </Link>
                 </div>
               ) : null}
@@ -2011,8 +2351,7 @@ export function TrainsDashboard({ initial }: Props) {
                     {t("pickConductorManually")}
                   </button>
                 ) : null}
-                {canStartConductorSwap(selectedRecord) &&
-                spinWeekContext.dayConfigs.some((day) => day.date !== selectedDate) ? (
+                {canStartConductorSwap(selectedRecord) ? (
                   <button
                     type="button"
                     onClick={() => setSwapOpen(true)}
@@ -2043,13 +2382,13 @@ export function TrainsDashboard({ initial }: Props) {
                     {t("pickVipManually")}
                   </button>
                 ) : null}
-                {!locked && selectedRecord?.conductorMemberId ? (
+                {!locked && hasValidConductor ? (
                   data.trainDiscordConfigured ? (
                     trainReadyConfirm ? (
                       <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-hq-success/40 bg-hq-success/10 px-3 py-2">
                         <span className="text-sm text-hq-green">
                           {t("trainIsReady.confirm", {
-                            name: selectedRecord.conductorMemberName ?? "—",
+                            name: selectedRecord?.conductorMemberName ?? "—",
                             date: selectedDate,
                           })}
                         </span>
@@ -2135,7 +2474,7 @@ export function TrainsDashboard({ initial }: Props) {
                 ) : null}
               </div>
 
-              {!isPriceIsRightPaintTemplate(conductorPaint) &&
+              {!usesPriceIsFreightConductorRoll(conductorPaint) &&
               (conductorMech === "r3_lottery" ||
                 conductorMech === "heavy_hitter_lottery" ||
                 conductorMech === "r4_sequence") ? (
@@ -2174,7 +2513,37 @@ export function TrainsDashboard({ initial }: Props) {
         </section>
       ) : null}
 
-      {data.conductorHistory.length > 0 ? (
+      {data.canManageTrains ? (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Link
+              href="/trains/history-import"
+              className="rounded-lg border border-hq-border bg-hq-surface px-3 py-1.5 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
+              data-testid="trains-history-import-open"
+            >
+              {data.conductorHistory.length === 0
+                ? t("historyImport.emptyCta")
+                : t("historyImport.openAction")}
+            </Link>
+          </div>
+          <ConductorHistoryTable
+            rows={data.conductorHistory}
+            mechanismLabels={historyMechanismLabels}
+            labels={{
+              title: t("conductorHistory.title"),
+              empty: t("conductorHistory.empty"),
+              date: t("conductorHistory.date"),
+              conductor: t("conductorHistory.conductor"),
+              vip: t("conductorHistory.vip"),
+              guardian: t("guardian"),
+              locked: t("conductorHistory.locked"),
+              noneYet: t("noneYet"),
+              guardianIsVip: t("guardianIsVipHint"),
+              guardianIsConductor: t("guardianIsConductorHint"),
+            }}
+          />
+        </section>
+      ) : data.conductorHistory.length > 0 ? (
         <ConductorHistoryTable
           rows={data.conductorHistory}
           mechanismLabels={historyMechanismLabels}
@@ -2238,10 +2607,19 @@ export function TrainsDashboard({ initial }: Props) {
         stats={wheelStats ?? null}
         qualification={wheelQualification}
         dayLabel={wheelDayLabel}
+        mechanism={wheelMechanism}
+        paintTemplate={conductorPaint}
         speedMultiplier={wheelAnimMultiplier}
         onClose={handleWheelClose}
         onSpinAgain={handleWheelSpinAgain}
         onOverride={(reason) => void handleWheelOverride(reason)}
+      />
+
+      <ConductorWheelSharePreviewDialog
+        open={shareExportPreview != null}
+        preview={shareExportPreview}
+        onClose={closeShareExportPreview}
+        zIndexClassName="z-[200]"
       />
 
       <Dialog
@@ -2266,22 +2644,37 @@ export function TrainsDashboard({ initial }: Props) {
               {conductorDisqualified.qualification.vs.minimum > 0 ? (
                 <p className="text-xs text-hq-fg-muted">
                   {t("wheel.vsShortfall", {
-                    score: conductorDisqualified.qualification.vs.score,
-                    required:
+                    score: formatTrainPointCount(
+                      conductorDisqualified.qualification.vs.score,
+                      locale,
+                    ),
+                    required: formatTrainPointCount(
                       conductorDisqualified.qualification.vs.effectiveMinimum,
-                    shortfall: conductorDisqualified.qualification.vs.shortfall,
+                      locale,
+                    ),
+                    shortfall: formatTrainPointCount(
+                      conductorDisqualified.qualification.vs.shortfall,
+                      locale,
+                    ),
                   })}
                 </p>
               ) : null}
               {conductorDisqualified.qualification.donation.minimum > 0 ? (
                 <p className="text-xs text-hq-fg-muted">
                   {t("wheel.donationShortfall", {
-                    score: conductorDisqualified.qualification.donation.score,
-                    required:
+                    score: formatTrainPointCount(
+                      conductorDisqualified.qualification.donation.score,
+                      locale,
+                    ),
+                    required: formatTrainPointCount(
                       conductorDisqualified.qualification.donation
                         .effectiveMinimum,
-                    shortfall:
+                      locale,
+                    ),
+                    shortfall: formatTrainPointCount(
                       conductorDisqualified.qualification.donation.shortfall,
+                      locale,
+                    ),
                   })}
                 </p>
               ) : null}
@@ -2349,12 +2742,18 @@ export function TrainsDashboard({ initial }: Props) {
                 ? selectedVipSpinSource.poolType
                 : null
         }
-        busy={reseedingPool != null}
+        busy={reseedingPool != null || rosterSyncBusy}
+        rosterSyncBusy={rosterSyncBusy}
+        rosterSyncNotice={rosterSyncNotice}
+        rosterSyncNoticeTone={rosterSyncNoticeTone}
         canPickManually={
           wheelBlockedRole === "vip" ? canManualPickVip : canManualPick
         }
         onClose={() => {
-          if (reseedingPool == null) setWheelBlocked(null);
+          if (reseedingPool == null && !rosterSyncBusy) {
+            setWheelBlocked(null);
+            setRosterSyncNotice(null);
+          }
         }}
         onReseedAndRespin={(poolType) =>
           void reseedPool(poolType, { respin: wheelBlockedRole })
@@ -2364,6 +2763,8 @@ export function TrainsDashboard({ initial }: Props) {
           setPickOpen(true);
         }}
         onRetrySpin={() => void runRollRef.current(wheelBlockedRole)}
+        canSyncRoster={showWheelRosterSync}
+        onSyncRoster={() => void handleRosterSync()}
       />
 
       <TrainPoolDetailsDialog
@@ -2377,11 +2778,36 @@ export function TrainsDashboard({ initial }: Props) {
         }}
       />
 
+      <DayMechanismPickerDialog
+        key={
+          dayMechanismPickerOpen
+            ? `day-mechanism-picker:open:${conductorPaint ?? activeWeekTemplate}:${data.today}`
+            : "day-mechanism-picker:closed"
+        }
+        open={dayMechanismPickerOpen}
+        currentTemplate={(conductorPaint ?? activeWeekTemplate) as WeekTemplateType}
+        date={data.today}
+        weekStart={targetTrainWeekStart}
+        vrReporterCount={data.vrReporterCount}
+        disabled={!data.canManageTrains}
+        weightingEnabled={data.priceIsRightWeightingEnabled}
+        onWeightingEnabledChange={handleWeightingEnabledChange}
+        onClose={() => setDayMechanismPickerOpen(false)}
+        onSelect={(templateType, topN) => {
+          setDayMechanismPickerOpen(false);
+          void paintDates(
+            [data.today],
+            templateType,
+            topN != null ? { topN } : undefined,
+          );
+        }}
+      />
+
       <WeekTemplatePickerDialog
         key={
           templatePickerOpen
-            ? `open:${activeWeekTemplate}`
-            : "closed"
+            ? `template-picker:open:${activeWeekTemplate}`
+            : "template-picker:closed"
         }
         open={templatePickerOpen}
         currentTemplate={activeWeekTemplate}
@@ -2399,8 +2825,8 @@ export function TrainsDashboard({ initial }: Props) {
       <WeekTemplateChangeDialog
         key={
           pendingTemplateChange
-            ? `${pendingTemplateChange.weekStart}:${pendingTemplateChange.templateType}`
-            : "closed"
+            ? `template-change:${pendingTemplateChange.weekStart}:${pendingTemplateChange.templateType}`
+            : "template-change:closed"
         }
         open={pendingTemplateChange != null}
         templateType={pendingTemplateChange?.templateType ?? null}
@@ -2518,12 +2944,12 @@ export function TrainsDashboard({ initial }: Props) {
         ) : null}
       </Dialog>
 
-      {selectedRecord?.conductorMemberId ? (
+      {hasValidConductor && selectedRecord ? (
         <ConductorSwapDialog
           open={swapOpen}
           sourceDate={selectedDate}
+          today={data.today}
           sourceRecord={selectedRecord}
-          dayConfigs={spinWeekContext.dayConfigs}
           weekRecords={spinWeekContext.weekRecords}
           busy={swapBusy}
           onConfirm={(targetDate) => void confirmConductorSwap(targetDate)}

@@ -40,6 +40,21 @@ describe("score-target-nav", () => {
     );
   });
 
+  it("builds upload URL with optional recordedDate", () => {
+    expect(
+      buildVideoUploadHref("vs-performance", {
+        recordedDate: "2026-07-24",
+      }),
+    ).toBe(
+      "/tools/video-upload?scoreTarget=vs-performance&recordedDate=2026-07-24",
+    );
+    expect(
+      buildVideoUploadHref("vs-performance", {
+        recordedDate: "not-a-date",
+      }),
+    ).toBe("/tools/video-upload?scoreTarget=vs-performance");
+  });
+
   it("parses enabled scoreTarget query values only", () => {
     expect(parseVideoUploadScoreTargetParam("donations")).toBe("donations");
     expect(parseVideoUploadScoreTargetParam("alliance-kills-video")).toBe(

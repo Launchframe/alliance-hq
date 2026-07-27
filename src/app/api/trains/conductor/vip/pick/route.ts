@@ -4,8 +4,8 @@ import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import {
+  assignVipOnLockedConductor,
   getConductorRecord,
-  upsertConductorDraft,
 } from "@/lib/trains/repository";
 import { getMemberRankAsOf } from "@/lib/trains/rank-history";
 import {
@@ -51,10 +51,16 @@ export async function POST(request: Request) {
     const seasonKey = (await getEffectiveSeasonForAlliance(ctx.allianceId))
       .seasonKey;
     const existing = await getConductorRecord(ctx.allianceId, date, seasonKey);
-    if (existing?.lockedAt) {
+    if (!existing?.lockedAt) {
       return NextResponse.json(
-        { error: "Train is locked; VIP cannot be changed." },
+        { error: "Lock the conductor before assigning VIP." },
         { status: 409 },
+      );
+    }
+    if (!existing.conductorMemberId) {
+      return NextResponse.json(
+        { error: "No conductor set for this day." },
+        { status: 400 },
       );
     }
 
@@ -72,7 +78,7 @@ export async function POST(request: Request) {
     }
 
     if (
-      existing?.vipMemberId &&
+      existing.vipMemberId &&
       vipMechanismPoolType(mechanism as VipMechanismType)
     ) {
       await releasePoolSelectionForDate(
@@ -98,7 +104,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const record = await upsertConductorDraft({
+    const record = await assignVipOnLockedConductor({
       allianceId: ctx.allianceId,
       date,
       seasonKey,

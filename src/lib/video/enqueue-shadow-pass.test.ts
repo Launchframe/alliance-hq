@@ -208,4 +208,71 @@ describe("maybeEnqueueShadowPass", () => {
     expect(mockDb.insert).not.toHaveBeenCalled();
     expect(dispatchVideoProcessing).not.toHaveBeenCalled();
   });
+
+  it("treats concurrent unique violation as already-enqueued", async () => {
+    mockNoExistingShadow();
+    mockDb.insert.mockImplementationOnce(() => ({
+      values: vi.fn(async () => {
+        const err = Object.assign(new Error("duplicate"), { code: "23505" });
+        throw err;
+      }),
+    }));
+
+    await maybeEnqueueShadowPass({
+      job: primaryJob,
+      totalMs: 5000,
+      frameCount: 5,
+    });
+
+    expect(dispatchVideoProcessing).not.toHaveBeenCalled();
+  });
+});
+
+describe("maybeEnqueueShadowPassEarly", () => {
+  const primaryJob = {
+    id: "primary-job",
+    sessionId: "session-1",
+    allianceId: "alliance-1",
+    scoreTarget: "vs-performance",
+    category: "vs-performance",
+    storageKey: "videos/primary/source.mp4",
+    boardKey: null,
+    hqEventId: null,
+    groupId: "group-1",
+    passRole: "primary" as const,
+    frameCount: 4,
+    hqUserId: "user-1",
+  };
+
+  it("enqueues without late totalMs/frameCount gates", async () => {
+    mockNoExistingShadow();
+
+    const { maybeEnqueueShadowPassEarly } = await import(
+      "@/lib/video/enqueue-shadow-pass"
+    );
+    await maybeEnqueueShadowPassEarly({
+      job: { ...primaryJob, frameCount: 99 },
+      reason: "early_undersample",
+    });
+
+    expect(mockDb.insert).toHaveBeenCalledOnce();
+    await Promise.resolve();
+    expect(dispatchVideoProcessing).toHaveBeenCalledWith("shadow-job-id", {
+      source: "shadow_pass",
+    });
+  });
+
+  it("skips when a shadow already exists (dedupe)", async () => {
+    mockState.selectResults = [[{ id: "existing-shadow-id" }]];
+
+    const { maybeEnqueueShadowPassEarly } = await import(
+      "@/lib/video/enqueue-shadow-pass"
+    );
+    await maybeEnqueueShadowPassEarly({
+      job: primaryJob,
+      reason: "dev_force",
+    });
+
+    expect(mockDb.insert).not.toHaveBeenCalled();
+  });
 });

@@ -1522,6 +1522,7 @@
         "myKills": "Ir para Meus Kills",
         "professions": "Ir para Profissão",
         "trains": "Ir para Trem da Aliança",
+        "trainsHistoryImport": "Importar histórico de condutores",
         "battlePlan": "Ir para Plano de Batalha",
         "timeOff": "Ir para Ausências",
         "bankManagement": "Ir para Gestão de Bancos",
@@ -3209,7 +3210,8 @@
     "dayTemplateMenu": {
       "title": "Alterar modelo do dia",
       "ariaLabel": "Escolher um modelo para {date}",
-      "holdHint": "Pressione e segure um dia para alterar o modelo"
+      "holdHint": "Pressione longamente um dia para alterar o modelo desse dia.",
+      "dialogSubtitle": "Isso altera apenas a escolha de hoje — o modelo da semana permanece o mesmo."
     },
     "weekdays": {
       "mon": "Seg",
@@ -3249,8 +3251,12 @@
     "noneYet": "—",
     "quickActions": "Ações rápidas",
     "uploadScoresBanner": {
-      "body": "O modelo deste dia requer pontuações VS. Envie as pontuações de ontem antes de sortear o condutor.",
-      "link": "Enviar vídeo de pontuação"
+      "body": "Nenhuma pontuação encontrada ainda para a verificação VS deste dia.",
+      "link": "Enviar pontuações"
+    },
+    "rosterSyncBanner": {
+      "bodyEmpty": "O Alliance HQ ainda não tem o roster da sua aliança. Sincronize pelo Ashed para carregar membros e patentes antes de girar a roleta.",
+      "bodyMissingRanks": "Nenhum membro atende ao requisito de patente de hoje ({rankLabel}). Sincronize pelo Ashed caso as patentes estejam desatualizadas ou atribua patentes em Membros."
     },
     "quickActionsConductor": "Condutor",
     "quickActionsVip": "VIP",
@@ -3340,15 +3346,37 @@
     "guidedFlow": {
       "heading": "Configuração do condutor de hoje",
       "steps": {
+        "roster": {
+          "title": "Preparar roster",
+          "bodyEmpty": "O Alliance HQ ainda não tem o roster da sua aliança. Sincronize pelo Ashed para carregar membros e patentes antes de girar a roleta.",
+          "bodyMissingRanks": "Nenhum membro atende ao requisito de patente de hoje ({rankLabel}). Sincronize pelo Ashed caso as patentes estejam desatualizadas ou atribua patentes em Membros.",
+          "bodyNoSyncPath": "O HQ ainda não consegue puxar o roster pelo Ashed. Se você tem uma conta no ashed.online, conecte em Configurações e sincronize aqui. Caso contrário, peça ao dono da aliança ou a outro oficial com acesso ao Ashed para conectar em Configurações ou atualizar o roster em Membros.",
+          "syncAshed": "Sincronizar roster pelo Ashed",
+          "refreshNative": "Atualizar roster",
+          "syncing": "Sincronizando roster…",
+          "syncSuccess": "Roster atualizado ({count} membros ativos).",
+          "syncReady": "Roster pronto — {eligibleCount} membros qualificam para o pool {rankLabel} de hoje.",
+          "syncStillBlockedRanks": "Sincronizados {count} membros pelo Ashed, mas nenhum qualifica para o pool {rankLabel} de hoje. Atribua ou corrija patentes em Membros.",
+          "syncStillBlockedMinimums": "Sincronizados {count} membros. {rankEligible} correspondem a {rankLabel}, mas nenhum atende aos mínimos de condutor ainda.",
+          "syncFailed": "Não foi possível sincronizar o roster. Tente de novo ou abra Membros.",
+          "bodyConductorMinimums": "Há membros no roster, mas nenhum que corresponda ao pool {rankLabel} de hoje também atende aos mínimos de condutor.",
+          "connectAshed": "Conectar Ashed em Configurações",
+          "goToMembers": "Ir para Membros",
+          "rankLabels": {
+            "r3": "R3",
+            "r4_plus": "R4 ou R5",
+            "heavy_hitter": "heavy hitter"
+          }
+        },
         "prerequisites": {
           "title": "Enviar pontuações",
           "bodyReady": "{count} comandantes têm pontuações prontas.",
-          "bodyMissing": "As pontuações VS de ontem são necessárias antes de sortear o condutor.",
-          "uploadLink": "Enviar vídeo de pontuação"
+          "bodyMissing": "Nenhuma pontuação encontrada ainda para a verificação VS deste dia.",
+          "uploadLink": "Enviar pontuações"
         },
         "template": {
-          "title": "Modelo da semana",
-          "change": "Alterar modelo"
+          "title": "Escolha do condutor do dia",
+          "change": "Alterar escolha"
         },
         "conductor": {
           "title": "Condutor",
@@ -3364,7 +3392,7 @@
           "pickManual": "Escolher VIP manualmente",
           "assigned": "VIP: {name}",
           "change": "Alterar",
-          "skipped": "VIP não é usado neste dia"
+          "skipped": "Deixar o condutor decidir"
         },
         "lock": {
           "title": "Confirmar",
@@ -3441,10 +3469,12 @@
     "swap": {
       "action": "Trocar / Dia de reposição",
       "title": "Trocar Condutores",
-      "body": "Mova um rascunho de Condutor destravado para outro dia ou troque entre dois dias destravados — útil para dias de reposição. Os dias de destino atribuídos serão confirmados após você confirmar.",
+      "body": "Mova um rascunho de Condutor destravado para outro dia ou troque entre dois dias destravados — útil para dias de reposição. Você pode escolher um dia próximo ou qualquer data futura. Os dias de destino atribuídos serão confirmados após você confirmar.",
       "thisDay": "Este dia",
-      "swapWith": "Trocar com",
-      "noCandidates": "Não há outros dias nesta semana para trocar.",
+      "swapWith": "Próximos dias",
+      "pickDate": "Ou escolha uma data",
+      "dateLabel": "Data futura",
+      "noCandidates": "Nenhuma sugestão rápida disponível. Use o seletor de data abaixo.",
       "noConductorYet": "Sem Condutor ainda",
       "preview": "{dayA}: {nameA} ↔ {dayB}: {nameB}",
       "previewMoveToOpen": "{nameA} vai para {dayB}. {dayA} ficará sem Condutor.",
@@ -3604,6 +3634,49 @@
       "vip": "VIP",
       "locked": "Confirmado"
     },
+    "historyImport": {
+      "title": "Importar histórico de condutores",
+      "pasteLabel": "Cole os condutores (mais recente primeiro)",
+      "pasteHint": "Um nome por linha. Datas opcionais como “Redd (July 26)”. Ou cole só os nomes e defina a data mais recente abaixo — os dias mais antigos são preenchidos pela quantidade de nomes.",
+      "pasteEmpty": "Cole pelo menos um nome de condutor.",
+      "firstDate": "Data mais recente",
+      "lastDate": "Data mais antiga (opcional)",
+      "reviewTitle": "Revisar correspondências",
+      "reviewing": "Preparando revisão…",
+      "colDate": "Data",
+      "colPastedName": "Nome colado",
+      "colMember": "Membro correspondente",
+      "colStatus": "Status",
+      "status": {
+        "ok": "Pronto para confirmar",
+        "inactiveMember": "Correspondido a um membro inativo",
+        "alreadyLocked": "Já confirmado (mesmo condutor)",
+        "conflictLocked": "Confirmado com outro condutor",
+        "unmatched": "Escolha um membro da lista",
+        "overwriteDraft": "Vai substituir o rascunho desbloqueado",
+        "notPast": "Tem que ser um dia passado",
+        "gap": "Lacuna ou conflito de datas",
+        "dateConflict": "Rotulado {date}",
+        "blank": "Dia desconhecido / faltante (não importado)"
+      },
+      "gapBanner": "Uma ou mais datas rotuladas não batem com a ordem da lista. Insira linhas em branco antes de cada linha sinalizada para reconhecer condutores faltantes (o correio de Evento no jogo só fica ~30 dias) e continue.",
+      "blankName": "(desconhecido)",
+      "fillGap": "Preencher lacuna",
+      "inactiveOptionSuffix": "(inativo)",
+      "colActions": "Ações",
+      "commit": "Confirmar dias importados",
+      "commitPartial": "Confirmar {count} dias prontos",
+      "committing": "Importando…",
+      "commitFailed": "Não foi possível importar o histórico de condutores.",
+      "lookupFailed": "Não foi possível carregar os dias de condutor existentes.",
+      "success": "Importados {imported}, ignorados {skipped}, conflitos {conflicts}",
+      "openAction": "Importar histórico",
+      "emptyCta": "Importar condutores passados",
+      "pageTitle": "Importar histórico de condutores",
+      "backToTrains": "Voltar aos Trens",
+      "cancel": "Cancelar",
+      "back": "Voltar"
+    },
     "wheelBlocked": {
       "title": "Não dá para girar a roleta",
       "poolEmptyR3": "Nenhum membro da sua lista está com rank R3, então o pool da loteria está vazio. Defina ranks R3 na página Membros e tente de novo.",
@@ -3623,6 +3696,7 @@
       "goToTrainSettings": "Abrir config. de trens",
       "goToSettings": "Ir para Configurações",
       "uploadScoreVideo": "Enviar vídeo de placar",
+      "syncRoster": "Sincronizar roster pelo Ashed",
       "pickManually": "Escolher manualmente",
       "retrySpin": "Tentar girar de novo",
       "reseedPool": "Recriar pool",
@@ -3744,6 +3818,22 @@
         "top10Title": "Top 10 Pontuações VS",
         "topNVsTitle": "Top {count} Pontuações VS",
         "topNVrTitle": "Top {count} Pontuações VR"
+      },
+      "share": {
+        "action": "Compartilhar imagem",
+        "exporting": "Preparando imagem…",
+        "failed": "Não foi possível exportar a imagem.",
+        "previewTitle": "Compartilhar imagem",
+        "copyMedia": "Copiar mídia",
+        "download": "Baixar",
+        "copied": "Copiado",
+        "copyFailed": "Não foi possível copiar a imagem.",
+        "closePreview": "Fechar",
+        "statsLine": "Último: {lastDate} · {count} este ano",
+        "eligibilityVsMinimum": "Elegível: {score} (mín. {minimum})",
+        "eligibilityTpif": "VS do dia anterior {score} — mais perto de {sweetSpot}",
+        "eligibilityVsLeaderboardRank": "#{rank} · {score} {suffix}",
+        "eligibilityVsLeaderboardScore": "{score} {suffix}"
       }
     },
     "season": {
@@ -3890,6 +3980,7 @@
     "loading": "Carregando…",
     "processing": "Processando ({status})… esta página atualiza automaticamente.",
     "pendingApproval": "Aguardando um processador de vídeo aprovar este envio. O OCR começará após a aprovação — esta página atualiza automaticamente.",
+    "shadowWithhold": "Ainda podemos estar coletando frames mais densos do ranking. A revisão abre quando essa passagem terminar (ou após uma breve espera).",
     "processingFailed": "Falha no processamento. Tente enviar novamente.",
     "stageQueued": "Aguardando na fila de processamento…",
     "stageExtracting": "Extraindo quadros do vídeo…",
@@ -4718,6 +4809,23 @@
     "setVrReportChannel": {
       "success": "O placar noturno de VR de **{tag}** será publicado em {channel}. Oficiais podem usar `/vr-report` a qualquer momento ou `/vr-report teams:N` para planos de takedown."
     },
+    "whoIs": {
+      "usage": "Uso: `/who-is discord:@membro` ou `/who-is commander:NomeDoComandante` (informe exatamente um).",
+      "notLinked": "Vincule seu comandante com `/link-commander` antes de usar `/who-is`.",
+      "discordNoCommander": "{mention} não tem comandante vinculado nesta aliança.",
+      "discordResult": "{mention} está vinculado a: **{commanders}**.",
+      "commanderNotFound": "Nenhuma correspondência no roster para **{name}**. Confira a grafia.",
+      "pickCommander": "Várias correspondências no roster. Seja mais específico ou escolha entre: {names}",
+      "pickExpired": "Essa opção expirou. Execute `/who-is` novamente para escolher um comandante.",
+      "commanderOwner": "**{name}** está vinculado a {mention} ({handle}).",
+      "commanderHqOnly": "**{name}** está vinculado no Alliance HQ, mas ainda não no Discord.",
+      "unclaimedMember": "**{name}** está no roster, mas não vinculado a nenhuma conta.",
+      "unclaimedOfficer": "**{name}** está no roster, mas não vinculado. Você pode criar um convite de claim de comandante.",
+      "createClaimInvite": "Criar convite de claim",
+      "claimInviteCreated": "Convite de claim para **{name}**:\n\nCódigo: `{code}`\n\n{shareMessage}",
+      "claimInviteDenied": "Apenas oficiais podem criar convites de claim de comandante.",
+      "claimInviteFailed": "Não foi possível criar o convite de claim: {reason}"
+    },
     "timeOff": {
       "notLinked": "Vincule seu comandante com `/link-commander` antes de anunciar ausência.",
       "multipleCommanders": "Você tem vários comandantes vinculados ({names}). Desvincule extras com `/unlink` antes de anunciar ausência.",
@@ -4793,14 +4901,14 @@
     },
     "officerNotified": "Um oficial foi notificado no Alliance HQ. Eles podem falar com você aqui no Discord.",
     "help": {
-      "dmGeneral": "**Bot Alliance HQ** — use `/help` no servidor da aliança para passos conforme seu papel.\n\nComandos: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-vr-chart`, `/what-is-my-thp`, `/what-is-my-thp-chart`, `/who-is-conductor`, `/language`. Donos: `/link-alliance`. Oficiais (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Guia completo:** {guideUrl}",
+      "dmGeneral": "**Bot Alliance HQ** — use `/help` no servidor da aliança para passos conforme seu papel.\n\nComandos: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-vr-chart`, `/what-is-my-thp`, `/what-is-my-thp-chart`, `/who-is`, `/who-is-conductor`, `/language`. Donos: `/link-alliance`. Oficiais (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Guia completo:** {guideUrl}",
       "setupLinkHq": "Vincule sua conta Discord ao Alliance HQ: execute `/link` e conclua o login no navegador.",
       "setupOwnerLinkHq": "Este servidor ainda não está registrado. **R5:** abra o assistente de instalação no navegador (entrar, tag, Ashed, adicionar bot).\n\n**Assistente:** {installWizardUrl}\n\n**Guia:** {guideUrl}",
       "setupOwnerLinkCommander": "Registre este servidor com o assistente de instalação, depois execute **`/link-commander`**.\n\n**Assistente:** {installWizardUrl}\n\n**Guia:** {guideUrl}",
       "setupLinkAlliance": "Use o assistente de instalação para registrar este servidor, ou **`/link-alliance tag:{tag}`** se você já concluiu a configuração Ashed.\n\n**Assistente:** {installWizardUrl}\n\n**Guia:** {guideUrl}",
       "waitForOwnerAuth": "Aguardando o dono registrar este servidor com `/link-alliance`. Vincule seu comandante com `/link-commander` após o registro.",
       "linkCommander": "Vincule seu comandante: execute `/link-commander` no Discord, abra o link seguro e informe seu ID de jogador do perfil no jogo. Confirme o nome quando solicitado.\n\n**Guia:** {guideUrl}",
-      "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. `/who-is-conductor` mostra o condutor de hoje.\n\n**Guia:** {guideUrl}",
+      "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. `/who-is` consulta vínculos Discord↔comandante. `/who-is-conductor` mostra o condutor de hoje.\n\n**Guia:** {guideUrl}",
       "memberReadyMulti": "Você tem **{count}** comandantes vinculados. `/vr` e `/immunity` perguntarão qual usar. `/unlink` remove um vínculo.\n\n**Guia:** {guideUrl}",
       "ownerReady": "Você está vinculado como dono (**{tag}**). Conclua: `/set-vr-report-channel`, `/set-train-channel`, depois compartilhe `/link-commander` com os membros.\n\n**Guia:** {guideUrl}",
       "ownerReadyMulti": "Dono (**{tag}**) com **{count}** comandantes. `/vr` pergunta qual personagem. Canais: `/set-vr-report-channel`, `/set-train-channel`.\n\n**Guia:** {guideUrl}"

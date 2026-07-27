@@ -53,6 +53,23 @@ describe("buildWeekScheduleDayConfigs", () => {
     expect(saturday?.conductorMechanism).toBe("heavy_hitter_lottery");
   });
 
+  it("keeps officer day overrides on Saturday TPIF as r3_lottery", () => {
+    const configs = buildWeekScheduleDayConfigs("2026-06-09", "price_is_right", [
+      {
+        id: "sat",
+        date: "2026-06-13",
+        conductorMechanism: "r3_lottery",
+        conductorConfig: { paintTemplate: "price_is_right_weekdays" },
+        vipMechanism: "conductor_pick",
+        vipConfig: null,
+        isOverride: 1,
+      },
+    ]);
+    const saturday = configs.find((day) => day.date === "2026-06-13");
+    expect(saturday?.conductorMechanism).toBe("r3_lottery");
+    expect(saturday?.paintTemplate).toBe("price_is_right_weekdays");
+  });
+
   it("returns seven days when DB has six rows and the last day is missing", () => {
     const weekStart = "2026-06-16";
     const rows = [

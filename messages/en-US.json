@@ -1522,6 +1522,7 @@
         "myKills": "Go to My Kills",
         "professions": "Go to Profession",
         "trains": "Go to Alliance Train",
+        "trainsHistoryImport": "Import conductor history",
         "battlePlan": "Go to Battle Plan",
         "timeOff": "Go to Time Off",
         "bankManagement": "Go to Bank Management",
@@ -3263,7 +3264,8 @@
     "dayTemplateMenu": {
       "title": "Change day template",
       "ariaLabel": "Choose a template for {date}",
-      "holdHint": "Press and hold a day to change its template"
+      "holdHint": "Long press a day to change its template.",
+      "dialogSubtitle": "This changes today's pick only — this week's template stays the same."
     },
     "weekdays": {
       "mon": "Mon",
@@ -3303,8 +3305,12 @@
     "noneYet": "—",
     "quickActions": "Quick actions",
     "uploadScoresBanner": {
-      "body": "This day's template requires VS scores. Upload yesterday's scores before spinning for conductor.",
-      "link": "Upload score video"
+      "body": "No scores found yet for this day's VS check.",
+      "link": "Upload scores"
+    },
+    "rosterSyncBanner": {
+      "bodyEmpty": "Alliance HQ does not have your roster yet. Sync from Ashed to load members and ranks before spinning.",
+      "bodyMissingRanks": "No members match today's rank requirement ({rankLabel}). Sync from Ashed in case ranks are outdated, or assign ranks on Members."
     },
     "quickActionsConductor": "Conductor",
     "quickActionsVip": "VIP",
@@ -3394,15 +3400,37 @@
     "guidedFlow": {
       "heading": "Today’s conductor setup",
       "steps": {
+        "roster": {
+          "title": "Prepare roster",
+          "bodyEmpty": "Alliance HQ does not have your roster yet. Sync from Ashed to load members and ranks before spinning.",
+          "bodyMissingRanks": "No members match today's rank requirement ({rankLabel}). Sync from Ashed in case ranks are outdated, or assign ranks on Members.",
+          "bodyNoSyncPath": "HQ cannot pull your roster from Ashed yet. If you have an ashed.online seat, connect in Settings and sync here. Otherwise ask your alliance owner or another officer with Ashed access to connect from Settings or refresh the roster on Members.",
+          "syncAshed": "Sync roster from Ashed",
+          "refreshNative": "Refresh roster",
+          "syncing": "Syncing roster…",
+          "syncSuccess": "Roster updated ({count} active members).",
+          "syncReady": "Roster ready — {eligibleCount} members qualify for today's {rankLabel} pool.",
+          "syncStillBlockedRanks": "Synced {count} members from Ashed, but none qualify for today's {rankLabel} pool. Assign or fix ranks on Members.",
+          "syncStillBlockedMinimums": "Synced {count} members. {rankEligible} match {rankLabel}, but none meet conductor minimums yet.",
+          "syncFailed": "Could not sync the roster. Try again or open Members.",
+          "bodyConductorMinimums": "Members are on the roster, but none who match today's {rankLabel} pool also meet conductor minimums yet.",
+          "connectAshed": "Connect Ashed in Settings",
+          "goToMembers": "Go to Members",
+          "rankLabels": {
+            "r3": "R3",
+            "r4_plus": "R4 or R5",
+            "heavy_hitter": "heavy hitter"
+          }
+        },
         "prerequisites": {
           "title": "Upload scores",
           "bodyReady": "{count} commanders have scores ready.",
-          "bodyMissing": "No scores found yet for this day’s VS / Price Is Freight check.",
-          "uploadLink": "Upload score video"
+          "bodyMissing": "No scores found yet for this day's VS check.",
+          "uploadLink": "Upload scores"
         },
         "template": {
-          "title": "Week template",
-          "change": "Change template"
+          "title": "This day's conductor pick",
+          "change": "Change pick"
         },
         "conductor": {
           "title": "Conductor",
@@ -3418,7 +3446,7 @@
           "pickManual": "Pick VIP manually",
           "assigned": "VIP: {name}",
           "change": "Change",
-          "skipped": "VIP not used for this day"
+          "skipped": "Let the conductor decide"
         },
         "lock": {
           "title": "Lock",
@@ -3495,10 +3523,12 @@
     "swap": {
       "action": "Swap / Make-up day",
       "title": "Swap conductors",
-      "body": "Move an unlocked conductor draft to another day or swap between two unlocked days — useful for make-up days. Assigned target days will be locked after you confirm.",
+      "body": "Move an unlocked conductor draft to another day or swap between two unlocked days — useful for make-up days. You can choose an upcoming day or pick any future date. Assigned target days will be locked after you confirm.",
       "thisDay": "This day",
-      "swapWith": "Swap with",
-      "noCandidates": "No other days in this week to swap with.",
+      "swapWith": "Upcoming days",
+      "pickDate": "Or pick a date",
+      "dateLabel": "Future date",
+      "noCandidates": "No quick picks available. Use the date picker below.",
       "noConductorYet": "No conductor yet",
       "preview": "{dayA}: {nameA} ↔ {dayB}: {nameB}",
       "previewMoveToOpen": "{nameA} moves to {dayB}. {dayA} will have no conductor.",
@@ -3658,6 +3688,49 @@
       "vip": "VIP",
       "locked": "Locked"
     },
+    "historyImport": {
+      "title": "Import conductor history",
+      "pasteLabel": "Paste conductors (newest first)",
+      "pasteHint": "One name per line. Optional dates like “Redd (July 26)”. Or paste names only and set the newest date below — older days are filled from the list length.",
+      "pasteEmpty": "Paste at least one conductor name.",
+      "firstDate": "Newest date",
+      "lastDate": "Oldest date (optional)",
+      "reviewTitle": "Review matches",
+      "reviewing": "Preparing review…",
+      "colDate": "Date",
+      "colPastedName": "Pasted name",
+      "colMember": "Matched member",
+      "colStatus": "Status",
+      "status": {
+        "ok": "Ready to lock",
+        "inactiveMember": "Matched to an inactive member",
+        "alreadyLocked": "Already locked (same conductor)",
+        "conflictLocked": "Locked to a different conductor",
+        "unmatched": "Pick a roster member",
+        "overwriteDraft": "Will replace unlocked draft",
+        "notPast": "Must be a past day",
+        "gap": "Date gap or conflict",
+        "dateConflict": "Labeled {date}",
+        "blank": "Unknown / missing day (not imported)"
+      },
+      "gapBanner": "One or more labeled dates don’t match list order. Insert blank rows before each flagged row to acknowledge missing conductors (Event mail is only kept ~30 days), then continue.",
+      "blankName": "(unknown)",
+      "fillGap": "Fill gap",
+      "inactiveOptionSuffix": "(inactive)",
+      "colActions": "Actions",
+      "commit": "Lock imported days",
+      "commitPartial": "Lock {count} ready days",
+      "committing": "Importing…",
+      "commitFailed": "Could not import conductor history.",
+      "lookupFailed": "Could not load existing conductor days.",
+      "success": "Imported {imported}, skipped {skipped}, conflicts {conflicts}",
+      "openAction": "Import history",
+      "emptyCta": "Import past conductors",
+      "pageTitle": "Import conductor history",
+      "backToTrains": "Back to Trains",
+      "cancel": "Cancel",
+      "back": "Back"
+    },
     "wheelBlocked": {
       "title": "Can't spin the wheel",
       "poolEmptyR3": "No members on your roster are ranked R3, so the lottery pool is empty. Assign R3 ranks on the Members page, then try again.",
@@ -3677,6 +3750,7 @@
       "goToTrainSettings": "Open train settings",
       "goToSettings": "Go to Settings",
       "uploadScoreVideo": "Upload score video",
+      "syncRoster": "Sync roster from Ashed",
       "pickManually": "Pick manually",
       "retrySpin": "Try spinning again",
       "reseedPool": "Re-seed pool",
@@ -3798,6 +3872,22 @@
         "top10Title": "Top 10 VS Scores",
         "topNVsTitle": "Top {count} VS Scores",
         "topNVrTitle": "Top {count} VR Scores"
+      },
+      "share": {
+        "action": "Share image",
+        "exporting": "Preparing image…",
+        "failed": "Could not export the share image.",
+        "previewTitle": "Share image",
+        "copyMedia": "Copy Media",
+        "download": "Download",
+        "copied": "Copied",
+        "copyFailed": "Could not copy the image.",
+        "closePreview": "Close",
+        "statsLine": "Last: {lastDate} · {count} this year",
+        "eligibilityVsMinimum": "Eligible: {score} (min {minimum})",
+        "eligibilityTpif": "Prior-day VS {score} — closest to {sweetSpot}",
+        "eligibilityVsLeaderboardRank": "#{rank} · {score} {suffix}",
+        "eligibilityVsLeaderboardScore": "{score} {suffix}"
       }
     },
     "season": {
@@ -3944,6 +4034,7 @@
     "loading": "Loading…",
     "processing": "Processing ({status})… this page refreshes automatically.",
     "pendingApproval": "Waiting for a video processor to approve this upload. OCR will start after approval — this page refreshes automatically.",
+    "shadowWithhold": "We may still be gathering denser leaderboard frames. Review will open when that pass finishes (or after a short wait).",
     "processingFailed": "Processing failed. Try uploading again.",
     "stageQueued": "Waiting in the processing queue…",
     "stageExtracting": "Extracting frames from the video…",
@@ -4772,6 +4863,23 @@
     "setVrReportChannel": {
       "success": "Nightly VR standings for **{tag}** will post in {channel}. Officers can run `/vr-report` anytime for a fresh top-25 or `/vr-report teams:N` for takedown plans."
     },
+    "whoIs": {
+      "usage": "Usage: `/who-is discord:@member` or `/who-is commander:CommanderName` (provide exactly one).",
+      "notLinked": "Link your commander with `/link-commander` before using `/who-is`.",
+      "discordNoCommander": "{mention} has no linked commander in this alliance.",
+      "discordResult": "{mention} is linked to: **{commanders}**.",
+      "commanderNotFound": "No roster match for **{name}**. Check spelling against your alliance members list.",
+      "pickCommander": "Multiple roster matches. Be more specific or pick from: {names}",
+      "pickExpired": "That option expired. Run `/who-is` again to choose a commander.",
+      "commanderOwner": "**{name}** is linked to {mention} ({handle}).",
+      "commanderHqOnly": "**{name}** is linked on Alliance HQ but has no Discord link yet.",
+      "unclaimedMember": "**{name}** is on the roster but not linked to any account.",
+      "unclaimedOfficer": "**{name}** is on the roster but not linked. You can create a commander claim invite.",
+      "createClaimInvite": "Create claim invite",
+      "claimInviteCreated": "Claim invite for **{name}**:\n\nCode: `{code}`\n\n{shareMessage}",
+      "claimInviteDenied": "Only officers can create commander claim invites.",
+      "claimInviteFailed": "Could not create a claim invite: {reason}"
+    },
     "timeOff": {
       "notLinked": "Link your commander with `/link-commander` before announcing time off.",
       "multipleCommanders": "You have multiple linked commanders ({names}). Unlink extras with `/unlink` before announcing time off.",
@@ -4847,14 +4955,14 @@
     },
     "officerNotified": "An officer has been notified. They can reach out to you here on Discord.",
     "help": {
-      "dmGeneral": "**Alliance HQ bot** — run `/help` in your alliance server for steps matched to your role.\n\nQuick list: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-vr-chart`, `/what-is-my-thp`, `/what-is-my-thp-chart`, `/who-is-conductor`, `/language`. Owners set up with `/link-alliance`. Officers (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Full setup guide:** {guideUrl}",
+      "dmGeneral": "**Alliance HQ bot** — run `/help` in your alliance server for steps matched to your role.\n\nQuick list: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-vr-chart`, `/what-is-my-thp`, `/what-is-my-thp-chart`, `/who-is`, `/who-is-conductor`, `/language`. Owners set up with `/link-alliance`. Officers (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Full setup guide:** {guideUrl}",
       "setupLinkHq": "Link your Discord account to Alliance HQ: run `/link` and complete the browser sign-in.",
       "setupOwnerLinkHq": "This server isn't registered yet. **R5:** open the install wizard in your browser (sign in, tag, Ashed, add bot).\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
       "setupOwnerLinkCommander": "Register this server with the install wizard, then run **`/link-commander`**.\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
       "setupLinkAlliance": "Use the install wizard to register this server, or **`/link-alliance tag:{tag}`** if you already completed Ashed setup.\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
       "waitForOwnerAuth": "Waiting for the alliance owner to register this server with `/link-alliance`. Link your commander with `/link-commander` once the server is registered.",
       "linkCommander": "Link your commander: run `/link-commander` in Discord, open the secure link, and enter your player ID from your in-game profile. Confirm the commander name when prompted.\n\n**Guide:** {guideUrl}",
-      "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. `/who-is-conductor` shows today's train conductor.\n\n**Guide:** {guideUrl}",
+      "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. `/who-is` looks up Discord↔commander links. `/who-is-conductor` shows today's train conductor.\n\n**Guide:** {guideUrl}",
       "memberReadyMulti": "You have **{count}** linked commanders. `/vr` and `/immunity` will ask which one. `/unlink` removes a link.\n\n**Guide:** {guideUrl}",
       "ownerReady": "You're linked as owner (**{tag}**). Finish setup: `/set-vr-report-channel`, `/set-train-channel`, then share `/link-commander` with members.\n\n**Guide:** {guideUrl}",
       "ownerReadyMulti": "Owner (**{tag}**) with **{count}** commanders. `/vr` asks which character. Channel setup: `/set-vr-report-channel`, `/set-train-channel`.\n\n**Guide:** {guideUrl}"

@@ -32,25 +32,34 @@ import {
   throwPoolUnavailable,
 } from "@/lib/trains/roll-errors.server";
 import { withPaintTemplateConfig } from "@/lib/trains/calendar-cell-styles.shared";
-import { resolvePaintTemplateForDay } from "@/lib/trains/week-template-registry.shared";
+import {
+  resolveLiteralDayPaintTemplate,
+  resolvePaintTemplateForCalendarDate,
+  resolvePaintTemplateForDay,
+  shouldExpandCompositeByDayIndex,
+} from "@/lib/trains/week-template-registry.shared";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
+import { conductorDrawChanged } from "@/lib/trains/conductor-mechanism.shared";
 import {
   buildPriceIsRightWeightedCandidates,
   loadPriceIsRightTicketSettings,
 } from "@/lib/trains/train-economy-threshold.server";
 import { buildHeavyHitterPoolCandidates } from "@/lib/trains/heavy-hitter-pool.server";
-import { isPriceIsRightPaintTemplate } from "@/lib/trains/heavy-hitter-pool.shared";
+import {
+  isPriceIsRightPaintTemplate,
+  usesPriceIsFreightConductorRoll,
+} from "@/lib/trains/heavy-hitter-pool.shared";
 import { rollPriceIsFreightConductor } from "@/lib/trains/price-is-freight-roll.server";
 import { priceIsRightWeightingActive } from "@/lib/trains/train-price-is-right-tickets.shared";
 import {
   getPoolSummary,
   listPoolEntries,
   listUnselectedPoolEntries,
+  markHistoryImportPoolsForMember,
   markPoolEntrySelected,
   markPoolMemberSelectedForDate,
   pickUniformPoolEntry,
   pickWeightedPoolEntryFromRows,
-  poolHasEntries,
   releasePoolSelectionForDate,
   seedPool,
   startNewPoolGeneration,
@@ -59,10 +68,13 @@ import {
   evaluateConductorQualification,
   filterMemberIdsByConductorMinimums,
   loadTrainConductorMinimums,
+  resolveConductorQualificationGateApplies,
+  resolvePoolRespectsConductorMinimums,
 } from "@/lib/trains/train-conductor-minimums.server";
 import {
   assertConductorMinimumOverrideQualification,
   minimumsEnforcementEnabled,
+  poolTypeRespectsConductorMinimums,
 } from "@/lib/trains/train-conductor-minimums.shared";
 import { writeAuditLog } from "@/lib/bff/audit";
 import {
@@ -77,6 +89,7 @@ import { fetchAllianceVsTopScorersForTrainDate } from "@/lib/trains/vs-scores.se
 import { countAllianceVrReporters } from "@/lib/trains/vr-reporter-count.server";
 import {
   getAllianceRanksAsOf,
+  resolveMemberPoolAllianceRank,
   getMemberRankAsOf,
   isMemberEligibleForPool,
 } from "@/lib/trains/rank-history";
@@ -88,13 +101,16 @@ import {
 } from "@/lib/trains/templates";
 import {
   clearConductorAssignment,
+  clearVipAssignment,
   deleteWeekScheduleAndDayConfigs,
   getConductorRecord,
   getWeekSchedule,
   listConductorRecordsForWeek,
+  listConductorRecordsInRange,
   listDayConfigsForWeek,
   lockConductorRecord,
   replaceDayConfigs,
+  assignVipOnLockedConductor,
   upsertConductorDraft,
   upsertDayConfigOverride,
   upsertWeekSchedule,
@@ -211,7 +227,7 @@ async function buildPoolCandidates(input: {
   const candidates: RollCandidate[] = [];
   for (const member of members) {
     const rankEvent = rankByMember.get(member.ashedMemberId);
-    const rank = rankEvent?.allianceRank ?? member.allianceRank ?? null;
+    const rank = resolveMemberPoolAllianceRank(member, rankEvent);
 
     if (!isMemberEligibleForPool(input.poolType, rank)) continue;
 
@@ -254,6 +270,86 @@ async function buildPoolCandidates(input: {
   return poolCandidates.filter((candidate) => qualified.has(candidate.memberId));
 }
 
+async function countPoolCandidates(input: {
+  hqAllianceId: string;
+  poolType: PoolType;
+  date: string;
+  paintTemplate?: WeekTemplateType | null;
+  respectConductorMinimums: boolean;
+}): Promise<number> {
+  const candidates = await buildPoolCandidates({
+    hqAllianceId: input.hqAllianceId,
+    poolType: input.poolType,
+    date: input.date,
+    paintTemplate: input.paintTemplate,
+    respectConductorMinimums: input.respectConductorMinimums,
+  });
+  return candidates.length;
+}
+
+/** Non-blocking probe for roster readiness on rank-based conductor pools. */
+export async function countEligiblePoolMembers(input: {
+  hqAllianceId: string;
+  poolType: PoolType;
+  date: string;
+  paintTemplate?: WeekTemplateType | null;
+  conductorMechanism?: string | null;
+}): Promise<number> {
+  const respectConductorMinimums = await resolvePoolRespectsConductorMinimums({
+    allianceId: input.hqAllianceId,
+    trainDate: input.date,
+    poolType: input.poolType,
+    conductorMechanism: input.conductorMechanism,
+    paintTemplate: input.paintTemplate,
+  });
+  return countPoolCandidates({
+    ...input,
+    respectConductorMinimums,
+  });
+}
+
+/** Rank-only pool size before conductor minimums filter. */
+export async function countRankEligiblePoolMembers(input: {
+  hqAllianceId: string;
+  poolType: PoolType;
+  date: string;
+  paintTemplate?: WeekTemplateType | null;
+}): Promise<number> {
+  return countPoolCandidates({ ...input, respectConductorMinimums: false });
+}
+
+async function poolHasViableUnselectedEntries(input: {
+  allianceId: string;
+  poolType: PoolType;
+  date: string;
+  respectConductorMinimums: boolean;
+}): Promise<boolean> {
+  const summary = await getPoolSummary(input.allianceId, input.poolType);
+  if (summary.total === 0) {
+    return false;
+  }
+
+  let unselected = await listUnselectedPoolEntries(
+    input.allianceId,
+    input.poolType,
+  );
+  if (unselected.length === 0) {
+    return false;
+  }
+
+  if (input.respectConductorMinimums) {
+    const qualifiedIds = await filterMemberIdsByConductorMinimums(
+      input.allianceId,
+      input.date,
+      unselected.map((row) => row.memberId),
+    );
+    const qualified = new Set(qualifiedIds);
+    unselected = unselected.filter((row) => qualified.has(row.memberId));
+  }
+
+  return unselected.length > 0;
+}
+
 /** Seed a conductor pool if it has no entries yet (used by rolls and manual picks). */
 export async function ensureConductorPoolSeeded(input: {
   hqAllianceId: string;
@@ -264,8 +360,19 @@ export async function ensureConductorPoolSeeded(input: {
   paintTemplate?: WeekTemplateType | null;
   respectConductorMinimums?: boolean;
 }): Promise<void> {
-  const has = await poolHasEntries(input.hqAllianceId, input.poolType);
-  if (has) return;
+  const respectConductorMinimums =
+    input.respectConductorMinimums ??
+    poolTypeRespectsConductorMinimums(input.poolType);
+
+  const hasViable = await poolHasViableUnselectedEntries({
+    allianceId: input.hqAllianceId,
+    poolType: input.poolType,
+    date: input.date,
+    respectConductorMinimums,
+  });
+  if (hasViable) {
+    return;
+  }
 
   const candidates = await buildPoolCandidates({
     hqAllianceId: input.hqAllianceId,
@@ -273,17 +380,19 @@ export async function ensureConductorPoolSeeded(input: {
     date: input.date,
     eventTopN: input.eventTopN,
     paintTemplate: input.paintTemplate,
-    respectConductorMinimums: input.respectConductorMinimums,
+    respectConductorMinimums,
   });
   if (candidates.length === 0) {
     throwPoolEmpty(input.poolType);
   }
 
-  if (input.useSequence) {
-    await seedPool(input.hqAllianceId, input.poolType, candidates);
-  } else {
-    await seedPool(input.hqAllianceId, input.poolType, candidates);
+  const summary = await getPoolSummary(input.hqAllianceId, input.poolType);
+  if (summary.total > 0) {
+    await startNewPoolGeneration(input.hqAllianceId, input.poolType, candidates);
+    return;
   }
+
+  await seedPool(input.hqAllianceId, input.poolType, candidates);
 }
 
 async function rollFromPool(
@@ -464,7 +573,7 @@ export async function confirmConductorMinimumOverride(input: {
     seasonKey,
   );
 
-  const poolType = isPriceIsRightPaintTemplate(dayConfig.paintTemplate)
+  const poolType = usesPriceIsFreightConductorRoll(dayConfig.paintTemplate)
     ? null
     : conductorMechanismPoolType(input.mechanism);
   if (poolType) {
@@ -710,24 +819,76 @@ export async function applyTemplateToDates(
     await ensureWeekScheduleBaseline(allianceId, weekStart);
   }
 
+  const expandCompositeByDayIndex = shouldExpandCompositeByDayIndex({
+    updateWeekTemplate: options?.updateWeekTemplate,
+    dateCount: uniqueDates.length,
+  });
+
   for (const date of uniqueDates) {
     const weekStart = getTrainWeekStart(date, trainWeekConfig);
     const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
     if (!schedule) continue;
 
-    const config = generateDayConfigForDate(templateType, date, weekStart, {
-      ...(paintTopN != null ? { topN: paintTopN } : {}),
+    const previousDayConfig = await resolveRollDayConfig(
+      allianceId,
+      date,
+      seasonKey,
+    );
+    const previousDraw = {
+      conductorMechanism: previousDayConfig.conductorMechanism,
+      paintTemplate: previousDayConfig.paintTemplate,
+      date,
+      conductorConfig: previousDayConfig.conductorConfig,
+    };
+
+    const dayPaintTemplate = expandCompositeByDayIndex
+      ? templateType
+      : resolveLiteralDayPaintTemplate(templateType);
+    const config = generateDayConfigForDate(
+      dayPaintTemplate,
+      date,
+      weekStart,
+      {
+        ...(paintTopN != null ? { topN: paintTopN } : {}),
+      },
+    );
+    const segmentPaint = resolvePaintTemplateForCalendarDate({
+      templateType,
+      date,
+      weekStart,
+      weekTemplateApply: expandCompositeByDayIndex,
     });
+    const paintedConfig = withPaintTemplateConfig(
+      config,
+      segmentPaint,
+      paintTopN != null ? { topN: paintTopN } : undefined,
+    );
     await upsertDayConfigOverride(
       allianceId,
       schedule.id,
-      withPaintTemplateConfig(
-        config,
-        resolvePaintTemplateForDay(templateType, date, weekStart),
-        paintTopN != null ? { topN: paintTopN } : undefined,
-      ),
+      paintedConfig,
       true,
     );
+
+    const nextDraw = {
+      conductorMechanism: paintedConfig.conductorMechanism,
+      paintTemplate: segmentPaint,
+      date,
+      conductorConfig: paintedConfig.conductorConfig,
+      topN: paintTopN ?? null,
+    };
+
+    if (conductorDrawChanged(previousDraw, nextDraw)) {
+      const record = await getConductorRecord(allianceId, date, seasonKey);
+      if (record && !record.lockedAt) {
+        if (record.conductorMemberId) {
+          await clearConductorAssignment(allianceId, date, seasonKey);
+        }
+        if (record.vipMemberId) {
+          await clearVipAssignment(allianceId, date, seasonKey);
+        }
+      }
+    }
   }
 
   for (const weekStart of weekStarts) {
@@ -841,7 +1002,7 @@ export async function rollForConductor(input: {
       }
 
       if (
-        isPriceIsRightPaintTemplate(dayConfig.paintTemplate) &&
+        usesPriceIsFreightConductorRoll(dayConfig.paintTemplate) &&
         (mechanism === "r3_lottery" || mechanism === "heavy_hitter_lottery")
       ) {
         // Clear any historical depleting-pool marks from older TPIF rolls.
@@ -869,13 +1030,21 @@ export async function rollForConductor(input: {
           record.conductorMemberId,
         );
       }
+      const respectConductorMinimums =
+        await resolvePoolRespectsConductorMinimums({
+          allianceId: input.allianceId,
+          trainDate: input.date,
+          poolType,
+          conductorMechanism: mechanism,
+          paintTemplate: dayConfig.paintTemplate,
+        });
       await ensureConductorPoolSeeded({
         hqAllianceId: input.allianceId,
         poolType,
         date: input.date,
         useSequence: mechanism === "r4_sequence",
         paintTemplate: dayConfig.paintTemplate,
-        respectConductorMinimums: true,
+        respectConductorMinimums,
       });
       const useWeightedPick = false;
       result = await rollFromPool(
@@ -885,13 +1054,14 @@ export async function rollForConductor(input: {
         mechanism === "r4_sequence",
         mechanism,
         useWeightedPick,
-        true,
+        respectConductorMinimums,
       );
       const poolRefreshed = await refreshExhaustedPoolIfNeeded({
         allianceId: input.allianceId,
         poolType,
         date: input.date,
         paintTemplate: dayConfig.paintTemplate,
+        conductorMechanism: mechanism,
       });
       if (poolRefreshed) {
         result = { ...result, poolRefreshed };
@@ -903,11 +1073,22 @@ export async function rollForConductor(input: {
   }
   }
 
-  const gated = await applyConductorQualificationGate({
+  const gateApplies = await resolveConductorQualificationGateApplies({
     allianceId: input.allianceId,
-    date: input.date,
-    result,
+    trainDate: input.date,
+    conductorMechanism: mechanism,
+    paintTemplate: dayConfig.paintTemplate,
+    poolType:
+      result.poolType ?? conductorMechanismPoolType(mechanism) ?? null,
   });
+
+  const gated = gateApplies
+    ? await applyConductorQualificationGate({
+        allianceId: input.allianceId,
+        date: input.date,
+        result,
+      })
+    : { ...result, draftPersisted: true };
 
   if (!gated.draftPersisted) {
     return gated;
@@ -936,8 +1117,11 @@ export async function rollForVip(input: {
     input.date,
     seasonKey,
   );
-  if (record?.lockedAt) {
-    throw new Error("Train is locked; VIP cannot be changed.");
+  if (!record?.lockedAt) {
+    throw new Error("Lock the conductor before assigning VIP.");
+  }
+  if (!record.conductorMemberId) {
+    throw new Error("No conductor set for this day.");
   }
 
   const dayConfig = await resolveRollDayConfig(
@@ -1008,14 +1192,13 @@ export async function rollForVip(input: {
     input.date,
   );
 
-  await upsertConductorDraft({
+  await assignVipOnLockedConductor({
     allianceId: input.allianceId,
     date: input.date,
     seasonKey,
     vipMemberId: result.memberId,
     vipMemberName: result.memberName,
     vipRankEventId: rankEvent?.id ?? null,
-    conductorMechanism: dayConfig.conductorMechanism,
     vipMechanism: mechanism,
     dayConfigId: dayConfig.dayConfigId,
   });
@@ -1030,13 +1213,18 @@ export async function reseedPool(input: {
   useSequence?: boolean;
   eventTopN?: number;
   paintTemplate?: WeekTemplateType | null;
+  conductorMechanism?: string | null;
   respectConductorMinimums?: boolean;
 }): Promise<{ generation: number; count: number }> {
   const respectConductorMinimums =
     input.respectConductorMinimums ??
-    (input.poolType === "r3" ||
-      input.poolType === "r4_plus" ||
-      input.poolType === "heavy_hitter");
+    (await resolvePoolRespectsConductorMinimums({
+      allianceId: input.allianceId,
+      trainDate: input.date,
+      poolType: input.poolType,
+      conductorMechanism: input.conductorMechanism,
+      paintTemplate: input.paintTemplate,
+    }));
   const candidates = await buildPoolCandidates({
     hqAllianceId: input.allianceId,
     poolType: input.poolType,
@@ -1091,6 +1279,7 @@ export async function refreshExhaustedPoolsForDay(input: {
       ...base,
       poolType: conductorPool,
       paintTemplate: dayConfig.paintTemplate,
+      conductorMechanism: dayConfig.conductorMechanism,
     });
     if (next) refreshed.push(next);
   }
@@ -1112,6 +1301,168 @@ export async function refreshExhaustedPoolsForDay(input: {
   }
 
   return refreshed;
+}
+
+export type ConductorHistoryImportRowInput = {
+  date: string;
+  memberId: string;
+  memberName: string;
+};
+
+export type ConductorHistoryImportRowResult = {
+  date: string;
+  status: "imported" | "skipped" | "conflict" | "error";
+  message?: string;
+};
+
+/**
+ * Backfill past locked conductors from a reviewed import.
+ * Does not announce to Discord. Marks matching members selected in the
+ * **current** R3 / R4+ pool generations so already-conducted officers are
+ * not rolled again (re-import of an identical lock also depletes).
+ */
+export async function importConductorHistory(input: {
+  allianceId: string;
+  rows: ConductorHistoryImportRowInput[];
+}): Promise<{
+  imported: number;
+  skipped: number;
+  conflicts: number;
+  results: ConductorHistoryImportRowResult[];
+}> {
+  const today = getServerCalendarDate();
+  const seasonKey = await resolveTrainSeasonKey(input.allianceId);
+  const { loadAllianceGameRoster } = await import("@/lib/members/game-roster");
+  const roster = await loadAllianceGameRoster({ allianceId: input.allianceId });
+  const rosterById = new Map(roster.map((member) => [member.id, member]));
+
+  const results: ConductorHistoryImportRowResult[] = [];
+  let imported = 0;
+  let skipped = 0;
+  let conflicts = 0;
+
+  // Newest→oldest paste is fine; process oldest→newest so train spawn order is stable.
+  const sorted = [...input.rows].sort((a, b) => a.date.localeCompare(b.date));
+
+  for (const row of sorted) {
+    const date = row.date.trim();
+    const memberId = row.memberId.trim();
+    const memberName = row.memberName.trim();
+
+    if (!date || !memberId || !memberName) {
+      results.push({
+        date,
+        status: "error",
+        message: "date, memberId, and memberName are required.",
+      });
+      continue;
+    }
+
+    if (date >= today) {
+      results.push({
+        date,
+        status: "error",
+        message: "Import is limited to past days.",
+      });
+      continue;
+    }
+
+    if (!rosterById.has(memberId)) {
+      results.push({
+        date,
+        status: "error",
+        message: "Member is not on the alliance roster.",
+      });
+      continue;
+    }
+
+    try {
+      const existing = await getConductorRecord(
+        input.allianceId,
+        date,
+        seasonKey,
+      );
+
+      if (existing?.lockedAt) {
+        if (existing.conductorMemberId === memberId) {
+          await markHistoryImportPoolsForMember(
+            input.allianceId,
+            memberId,
+            date,
+          );
+          skipped += 1;
+          results.push({ date, status: "skipped" });
+          continue;
+        }
+        conflicts += 1;
+        results.push({
+          date,
+          status: "conflict",
+          message: existing.conductorMemberName
+            ? `Locked to ${existing.conductorMemberName}.`
+            : "Locked to a different conductor.",
+        });
+        continue;
+      }
+
+      const rankEvent = await getMemberRankAsOf(
+        input.allianceId,
+        memberId,
+        date,
+      );
+      const draft = await upsertConductorDraft({
+        allianceId: input.allianceId,
+        date,
+        seasonKey,
+        conductorMemberId: memberId,
+        conductorMemberName: memberName,
+        conductorRankEventId: rankEvent?.id ?? null,
+      });
+      await lockConductorRecord(draft.id, input.allianceId);
+      await markHistoryImportPoolsForMember(
+        input.allianceId,
+        memberId,
+        date,
+      );
+      imported += 1;
+      results.push({ date, status: "imported" });
+    } catch (error) {
+      results.push({
+        date,
+        status: "error",
+        message: error instanceof Error ? error.message : "Import failed.",
+      });
+    }
+  }
+
+  return { imported, skipped, conflicts, results };
+}
+
+export async function listConductorSnapshotsForDateRange(input: {
+  allianceId: string;
+  rangeStart: string;
+  rangeEnd: string;
+}): Promise<
+  Array<{
+    date: string;
+    conductorMemberId: string | null;
+    conductorMemberName: string | null;
+    lockedAt: string | null;
+  }>
+> {
+  const seasonKey = await resolveTrainSeasonKey(input.allianceId);
+  const rows = await listConductorRecordsInRange(
+    input.allianceId,
+    input.rangeStart,
+    input.rangeEnd,
+    seasonKey,
+  );
+  return rows.map((row) => ({
+    date: row.date,
+    conductorMemberId: row.conductorMemberId,
+    conductorMemberName: row.conductorMemberName,
+    lockedAt: row.lockedAt?.toISOString() ?? null,
+  }));
 }
 
 export async function lockConductorsForDates(input: {
@@ -1160,6 +1511,11 @@ export async function swapConductors(input: {
 }> {
   if (input.dateA === input.dateB) {
     throw new Error("Pick two different days to swap.");
+  }
+
+  const today = getServerCalendarDate();
+  if (input.dateB <= today) {
+    throw new Error("Swap targets must be a future day.");
   }
 
   const seasonKey = await resolveTrainSeasonKey(input.allianceId);

@@ -1,3 +1,4 @@
+import { isCompositeWeekTemplate } from "@/lib/trains/week-template-registry.shared";
 import type { WeekTemplateType } from "@/lib/trains/types";
 
 /** Day/week paint palette — shared by month calendar and week-strip context menu. */
@@ -16,3 +17,8 @@ export const PAINT_TEMPLATES: WeekTemplateType[] = [
   "donations_week",
   "custom",
 ];
+
+/** Single-day conductor mechanisms — excludes composite week templates. */
+export const DAY_PAINT_TEMPLATES: WeekTemplateType[] = PAINT_TEMPLATES.filter(
+  (template) => !isCompositeWeekTemplate(template),
+);

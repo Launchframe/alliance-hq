@@ -13,6 +13,7 @@ import { resolveHqAllianceIdFromSession } from "@/lib/members/resolve-hq-allianc
 import { isValidRosterOcrConfig } from "@/lib/members/roster-ocr/roster-ocr-config";
 import {
   allianceMemberRowToAshedMember,
+  countAllianceMembers,
   listAllianceMembers,
   resolveHqAllianceId,
 } from "@/lib/members/roster.server";
@@ -48,7 +49,12 @@ import {
   type VideoJobStage,
 } from "@/lib/video/video-job-stage.shared";
 import { createThrottledOcrProgressEmitter } from "@/lib/video/video-ocr-progress-emit.shared";
-import { maybeEnqueueShadowPass } from "@/lib/video/enqueue-shadow-pass";
+import { maybeEnqueueShadowPass, maybeEnqueueShadowPassEarly } from "@/lib/video/enqueue-shadow-pass";
+import { isVideoForceExtractionShadowEnabled } from "@/lib/video/early-shadow-dev.shared";
+import {
+  expectedVsRowCount,
+  shouldEnqueueEarlyExtractionShadow,
+} from "@/lib/video/early-shadow-eligibility.shared";
 import {
   AshedNotConnectedError,
   isAshedNotConnectedError,
@@ -362,6 +368,73 @@ export async function processVideoJob(
           path: `r2://${process.env.R2_BUCKET ?? "hq-videos"}/videos/${jobId}/frames/`,
           jobId,
         });
+      }
+
+      // Early / forced denser extraction shadow before OCR (overlaps with primary OCR).
+      if (
+        shouldEnqueueAshedOcrShadowPasses(ocrEngine) &&
+        !isRosterTarget &&
+        !isDepositSlipTarget
+      ) {
+        try {
+          const earlyShadowJob = {
+            id: job.id,
+            sessionId: job.sessionId,
+            processingSessionId: job.processingSessionId ?? null,
+            allianceId: jobHqAllianceId ?? job.allianceId ?? null,
+            scoreTarget: job.scoreTarget ?? null,
+            category: job.category ?? null,
+            storageKey: job.storageKey ?? null,
+            boardKey: job.boardKey ?? null,
+            hqEventId: job.hqEventId ?? null,
+            groupId: job.groupId ?? null,
+            passRole: job.passRole ?? null,
+            frameCount: frames.length,
+            hqUserId: job.hqUserId ?? null,
+          };
+
+          if (isVideoForceExtractionShadowEnabled()) {
+            await maybeEnqueueShadowPassEarly({
+              job: earlyShadowJob,
+              reason: "dev_force",
+            });
+          } else if (
+            scoreTargetId === "vs-performance" &&
+            job.passRole === "primary"
+          ) {
+            const [survey] = await db
+              .select({
+                rowCountEstimate: schema.videoJobSurveys.rowCountEstimate,
+              })
+              .from(schema.videoJobSurveys)
+              .where(eq(schema.videoJobSurveys.jobId, jobId))
+              .limit(1);
+            const rosterSize = jobHqAllianceId
+              ? await countAllianceMembers(jobHqAllianceId)
+              : 0;
+            const expectedRows = expectedVsRowCount({
+              rosterSize,
+              surveyRowCountEstimate: survey?.rowCountEstimate ?? null,
+            });
+            if (
+              shouldEnqueueEarlyExtractionShadow({
+                scoreTargetId,
+                passRole: job.passRole,
+                frameCount: frames.length,
+                denseFrameCount,
+                expectedRows,
+              })
+            ) {
+              await maybeEnqueueShadowPassEarly({
+                job: earlyShadowJob,
+                reason: "early_undersample",
+              });
+            }
+          }
+        } catch (err) {
+          // Early shadow failure must not fail primary job
+          console.error("[shadow-pass] early enqueue failed", err);
+        }
       }
 
       await setStatus(
@@ -858,6 +931,92 @@ export async function processVideoJob(
       return timings;
     }
 
+    // Sync extraction-shadow comparison before review so polls never see a
+    // stale recommendation (shadow-first finish with empty primary baseline).
+    if (job.groupId) {
+      try {
+        if (job.passRole === "primary") {
+          const [shadowSibling] = await db
+            .select({
+              id: schema.videoJobs.id,
+              status: schema.videoJobs.status,
+            })
+            .from(schema.videoJobs)
+            .where(
+              and(
+                eq(schema.videoJobs.groupId, job.groupId),
+                eq(schema.videoJobs.passRole, "shadow"),
+              ),
+            )
+            .limit(1);
+          if (
+            shadowSibling &&
+            (shadowSibling.status === "review" ||
+              shadowSibling.status === "complete" ||
+              shadowSibling.status === "submitting")
+          ) {
+            const [group] = await db
+              .select({
+                primaryJobId: schema.videoUploadGroups.primaryJobId,
+                comparisonJson: schema.videoUploadGroups.comparisonJson,
+              })
+              .from(schema.videoUploadGroups)
+              .where(eq(schema.videoUploadGroups.id, job.groupId))
+              .limit(1);
+            if (group?.primaryJobId === job.id) {
+              const comparison = await computePassComparison(
+                job.id,
+                shadowSibling.id,
+              );
+              await db
+                .update(schema.videoUploadGroups)
+                .set({
+                  comparisonJson: mergeGroupComparisons(group.comparisonJson, {
+                    extraction_shadow: comparison,
+                  }),
+                  updatedAt: new Date(),
+                })
+                .where(eq(schema.videoUploadGroups.id, job.groupId));
+            }
+          }
+        } else if (job.passRole === "shadow") {
+          const [group] = await db
+            .select({
+              primaryJobId: schema.videoUploadGroups.primaryJobId,
+              comparisonJson: schema.videoUploadGroups.comparisonJson,
+            })
+            .from(schema.videoUploadGroups)
+            .where(eq(schema.videoUploadGroups.id, job.groupId))
+            .limit(1);
+
+          if (group?.primaryJobId) {
+            const [primaryJob] = await db
+              .select({ parseSessionId: schema.videoJobs.parseSessionId })
+              .from(schema.videoJobs)
+              .where(eq(schema.videoJobs.id, group.primaryJobId))
+              .limit(1);
+            if (primaryJob?.parseSessionId) {
+              const comparison = await computePassComparison(
+                group.primaryJobId,
+                job.id,
+              );
+              await db
+                .update(schema.videoUploadGroups)
+                .set({
+                  comparisonJson: mergeGroupComparisons(group.comparisonJson, {
+                    extraction_shadow: comparison,
+                  }),
+                  updatedAt: new Date(),
+                })
+                .where(eq(schema.videoUploadGroups.id, job.groupId));
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[shadow-pass] pre-review comparison sync failed", err);
+      }
+    }
+
     await setStatus(
       "review",
       {
@@ -972,35 +1131,6 @@ export async function processVideoJob(
         });
       } catch {
         // Fingerprint shadow failure must not fail primary job
-      }
-    }
-
-    // If this is a shadow pass, compute cross-pass comparison and persist to group
-    if (job.passRole === "shadow" && job.groupId) {
-      try {
-        const [group] = await db
-          .select({
-            primaryJobId: schema.videoUploadGroups.primaryJobId,
-            comparisonJson: schema.videoUploadGroups.comparisonJson,
-          })
-          .from(schema.videoUploadGroups)
-          .where(eq(schema.videoUploadGroups.id, job.groupId))
-          .limit(1);
-
-        if (group?.primaryJobId) {
-          const comparison = await computePassComparison(group.primaryJobId, job.id);
-          await db
-            .update(schema.videoUploadGroups)
-            .set({
-              comparisonJson: mergeGroupComparisons(group.comparisonJson, {
-                extraction_shadow: comparison,
-              }),
-              updatedAt: new Date(),
-            })
-            .where(eq(schema.videoUploadGroups.id, job.groupId));
-        }
-      } catch {
-        // Comparison failure must not fail shadow job
       }
     }
 

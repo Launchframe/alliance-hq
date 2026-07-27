@@ -3,8 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   compositeParentForSegment,
   isWeekTemplateSegment,
+  resolveLiteralDayPaintTemplate,
+  resolvePaintTemplateForCalendarDate,
   resolvePaintTemplateForDay,
   segmentTemplateForDayIndex,
+  shouldExpandCompositeByDayIndex,
   usesCombinedSegmentDisplay,
 } from "@/lib/trains/week-template-registry.shared";
 
@@ -40,6 +43,28 @@ describe("week template registry", () => {
     );
   });
 
+  it("keeps TPIF on Saturday for day override paints", () => {
+    const weekStart = "2026-06-09";
+    expect(resolveLiteralDayPaintTemplate("price_is_right")).toBe(
+      "price_is_right_weekdays",
+    );
+    expect(
+      resolvePaintTemplateForCalendarDate({
+        templateType: "price_is_right",
+        date: "2026-06-13",
+        weekStart,
+      }),
+    ).toBe("price_is_right_weekdays");
+    expect(
+      resolvePaintTemplateForCalendarDate({
+        templateType: "price_is_right",
+        date: "2026-06-13",
+        weekStart,
+        weekTemplateApply: true,
+      }),
+    ).toBe("takedown_week");
+  });
+
   it("maps price_is_right composite days to weekday / takedown / custom segments", () => {
     const weekStart = "2026-06-09";
     expect(resolvePaintTemplateForDay("price_is_right", "2026-06-10", weekStart)).toBe(
@@ -73,5 +98,26 @@ describe("week template registry", () => {
     // `custom` is a PIR weekend segment and also a selectable whole-week preset;
     // reverse-map still finds the composite that uses it as a segment.
     expect(compositeParentForSegment("custom")).toBe("price_is_right");
+  });
+
+  it("expands composite templates for week apply or multi-day paints", () => {
+    expect(
+      shouldExpandCompositeByDayIndex({
+        updateWeekTemplate: true,
+        dateCount: 1,
+      }),
+    ).toBe(true);
+    expect(
+      shouldExpandCompositeByDayIndex({
+        updateWeekTemplate: false,
+        dateCount: 2,
+      }),
+    ).toBe(true);
+    expect(
+      shouldExpandCompositeByDayIndex({
+        updateWeekTemplate: false,
+        dateCount: 1,
+      }),
+    ).toBe(false);
   });
 });
