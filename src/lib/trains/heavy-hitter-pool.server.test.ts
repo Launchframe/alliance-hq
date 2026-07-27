@@ -18,9 +18,13 @@ vi.mock("@/lib/members/game-roster", () => ({
   loadActiveAlliancePoolMembers: mocks.loadActiveAlliancePoolMembers,
 }));
 
-vi.mock("@/lib/trains/rank-history", () => ({
-  getAllianceRanksAsOf: mocks.getAllianceRanksAsOf,
-}));
+vi.mock("@/lib/trains/rank-history", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/trains/rank-history")>();
+  return {
+    ...actual,
+    getAllianceRanksAsOf: mocks.getAllianceRanksAsOf,
+  };
+});
 
 vi.mock("@/lib/trains/game-time", () => ({
   getServerCalendarDate: mocks.getServerCalendarDate,

@@ -14,28 +14,26 @@ export type ResolvedMemberAllianceRank = {
 };
 
 /**
- * Effective rank for train pool eligibility. Uses the higher of HQ rank history and
- * the synced Ashed roster so officers promoted in-game are not stuck behind stale
- * R3 lottery events, while R3 members still qualify when either source says R3.
+ * Effective rank for train pool eligibility. Prefer the HQ rank event when present
+ * (same rule as {@link resolveMemberAllianceRankAsOf}) so confirmed demotions are
+ * not overwritten by a stale higher Ashed roster rank after sync. Fall back to the
+ * synced roster / Ashed rank raw when there is no event yet.
  */
 export function resolveMemberPoolAllianceRank(
   member: AllianceMember,
   rankEvent?: { allianceRank: number } | null,
 ): number | null {
-  const syncedRank =
+  const eventRank = rankEvent?.allianceRank ?? null;
+  if (eventRank != null) {
+    return eventRank;
+  }
+
+  return (
     member.allianceRank ??
     parseAshedMemberAllianceRank(allianceMemberRowToAshedMember(member))
       .rank ??
-    null;
-  const eventRank = rankEvent?.allianceRank ?? null;
-
-  if (eventRank == null && syncedRank == null) {
-    return null;
-  }
-  if (eventRank != null && syncedRank != null) {
-    return Math.max(eventRank, syncedRank);
-  }
-  return eventRank ?? syncedRank;
+    null
+  );
 }
 
 export function isMemberEligibleForPool(
