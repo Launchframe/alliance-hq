@@ -10,12 +10,18 @@ import {
   createTimeOffEntry,
   hqUserOwnsCommander,
   listLinkedCommanderIdsForHqUser,
+  setTimeOffEntryAshedExcusedIds,
 } from "@/lib/time-off/repository.server";
 import {
   requireTimeOffAllianceContext,
   requireTimeOffRead,
   requireTimeOffWrite,
 } from "@/lib/time-off/route-helpers.server";
+import {
+  pushTimeOffEntryToAshed,
+  resolveWebAshedSyncContext,
+} from "@/lib/time-off/excused-sync.server";
+import { isTimeOffActivityScope } from "@/lib/time-off/api.shared";
 import { loadAllianceMembers } from "@/lib/members/load";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 
@@ -122,7 +128,39 @@ export async function POST(request: Request) {
     createdByHqUserId: session.hqUserId ?? null,
   });
 
+  let ashedSyncFailed = false;
+  try {
+    const syncContext = await resolveWebAshedSyncContext({
+      allianceId,
+      sessionId,
+    });
+    if (syncContext) {
+      const ashedExcusedIds = await pushTimeOffEntryToAshed({
+        connection: syncContext.connection,
+        ashedAllianceId: syncContext.ashedAllianceId,
+        ashedMemberId: row.ashedMemberId,
+        activityScope: isTimeOffActivityScope(row.activityScope)
+          ? row.activityScope
+          : "all",
+        startDate: row.startDate,
+        endDate: row.endDate,
+        reason: row.notes,
+      });
+      if (ashedExcusedIds.length > 0) {
+        await setTimeOffEntryAshedExcusedIds({
+          allianceId,
+          entryId: row.id,
+          ashedExcusedIds,
+        });
+      }
+    }
+  } catch (error) {
+    console.error("[time-off] failed to push entry to Ashed", error);
+    ashedSyncFailed = true;
+  }
+
   return NextResponse.json({
     entry: serializeTimeOffEntry(row),
+    ...(ashedSyncFailed ? { ashedSyncFailed: true } : {}),
   });
 }
