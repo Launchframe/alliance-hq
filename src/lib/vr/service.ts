@@ -522,7 +522,7 @@ async function finalizeDiscordMemberLink(input: {
         confirmPending,
       );
       const result: LinkCommandResult = {
-        reply: translate("confirmHomeServerPrompt", {
+        reply: translate("link.confirmHomeServerPrompt", {
           commanderName: selfService.commanderName ?? input.lookup.gameUserName,
           lookupServer: selfService.lookupServer ?? 0,
           allianceTag: alliance?.tag ?? "alliance",
@@ -549,7 +549,7 @@ async function finalizeDiscordMemberLink(input: {
       await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
       resolvedResult = {
         ...resolvedResult,
-        reply: translate("positionNotHomeBody"),
+        reply: translate("link.positionNotHomeBody"),
         pending: null,
         needsOfficerAttention: false,
         positionNotHome: true,
