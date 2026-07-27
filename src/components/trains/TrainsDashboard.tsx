@@ -79,7 +79,7 @@ import {
   isAutomaticTopNBoard,
   resolveConductorTopNBoard,
 } from "@/lib/trains/conductor-top-n.shared";
-import { isPriceIsRightPaintTemplate } from "@/lib/trains/heavy-hitter-pool.shared";
+import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
   conductorSpinSource,
   isPoolSpinSource,
@@ -1999,11 +1999,11 @@ export function TrainsDashboard({ initial }: Props) {
             </p>
           ) : null}
 
-          {isPriceIsRightPaintTemplate(conductorPaint) ? (
+          {usesPriceIsFreightConductorRoll(conductorPaint) ? (
             <PriceIsRightPodiumLeaderboard trainDate={selectedDate} />
           ) : null}
 
-          {isPriceIsRightPaintTemplate(conductorPaint) ? (
+          {usesPriceIsFreightConductorRoll(conductorPaint) ? (
             <PriceIsRightTicketsPanel trainDate={selectedDate} />
           ) : null}
 
@@ -2146,7 +2146,7 @@ export function TrainsDashboard({ initial }: Props) {
                         </button>
                       )
                     ) : null}
-                    {!isPriceIsRightPaintTemplate(conductorPaint) &&
+                    {!usesPriceIsFreightConductorRoll(conductorPaint) &&
                     (conductorMech === "r3_lottery" ||
                       conductorMech === "heavy_hitter_lottery" ||
                       conductorMech === "r4_sequence") ? (
@@ -2474,7 +2474,7 @@ export function TrainsDashboard({ initial }: Props) {
                 ) : null}
               </div>
 
-              {!isPriceIsRightPaintTemplate(conductorPaint) &&
+              {!usesPriceIsFreightConductorRoll(conductorPaint) &&
               (conductorMech === "r3_lottery" ||
                 conductorMech === "heavy_hitter_lottery" ||
                 conductorMech === "r4_sequence") ? (
@@ -2513,7 +2513,37 @@ export function TrainsDashboard({ initial }: Props) {
         </section>
       ) : null}
 
-      {data.conductorHistory.length > 0 ? (
+      {data.canManageTrains ? (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Link
+              href="/trains/history-import"
+              className="rounded-lg border border-hq-border bg-hq-surface px-3 py-1.5 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
+              data-testid="trains-history-import-open"
+            >
+              {data.conductorHistory.length === 0
+                ? t("historyImport.emptyCta")
+                : t("historyImport.openAction")}
+            </Link>
+          </div>
+          <ConductorHistoryTable
+            rows={data.conductorHistory}
+            mechanismLabels={historyMechanismLabels}
+            labels={{
+              title: t("conductorHistory.title"),
+              empty: t("conductorHistory.empty"),
+              date: t("conductorHistory.date"),
+              conductor: t("conductorHistory.conductor"),
+              vip: t("conductorHistory.vip"),
+              guardian: t("guardian"),
+              locked: t("conductorHistory.locked"),
+              noneYet: t("noneYet"),
+              guardianIsVip: t("guardianIsVipHint"),
+              guardianIsConductor: t("guardianIsConductorHint"),
+            }}
+          />
+        </section>
+      ) : data.conductorHistory.length > 0 ? (
         <ConductorHistoryTable
           rows={data.conductorHistory}
           mechanismLabels={historyMechanismLabels}

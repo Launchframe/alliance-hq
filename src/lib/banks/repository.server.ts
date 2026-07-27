@@ -32,6 +32,16 @@ export async function loadAllianceGameServerNumber(
   return rows[0]?.gameServerNumber ?? null;
 }
 
+export async function loadAllianceTag(allianceId: string): Promise<string | null> {
+  const rows = await getDb()
+    .select({ tag: schema.alliances.tag })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+  const tag = rows[0]?.tag?.trim();
+  return tag || null;
+}
+
 export type AllianceBankCityListSnapshot = {
   bankCapturesRemainingToday: number | null;
   bankCapturesLimitToday: number | null;
@@ -242,6 +252,7 @@ export function buildBankManagementPayload(
   banks: BankWithSlips[],
   options: {
     allianceId: string;
+    allianceTag?: string | null;
     canWrite: boolean;
     todayServerDate: string;
     effectiveSeasonKey?: string;
@@ -264,6 +275,7 @@ export function buildBankManagementPayload(
     canWrite: options.canWrite,
     todayServerDate: options.todayServerDate,
     allianceId: options.allianceId,
+    allianceTag: options.allianceTag ?? null,
     effectiveSeasonKey: options.effectiveSeasonKey,
     nextCaptureLevel,
     allianceGameServerNumber: options.allianceGameServerNumber ?? null,

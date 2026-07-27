@@ -236,9 +236,10 @@ export function RosterVideoReviewTable({
           <thead className="bg-hq-surface text-left text-hq-fg-muted">
             <tr>
               <th className="w-[22%] px-3 py-3 sm:px-4">{t("colName")}</th>
-              <th className="w-[34%] px-3 py-3 sm:px-4">{t("colMember")}</th>
+              <th className="w-[30%] px-3 py-3 sm:px-4">{t("colMember")}</th>
               <th className="w-[5.5rem] px-2 py-3 sm:w-24">{t("colAllianceRank")}</th>
               <th className="w-[5.5rem] px-2 py-3 sm:w-28">{t("colPower")}</th>
+              <th className="w-[4.5rem] px-2 py-3 sm:w-24">{t("colLevel")}</th>
               <th className="w-[4.5rem] px-2 py-3" />
             </tr>
           </thead>
@@ -370,6 +371,24 @@ export function RosterVideoReviewTable({
                     />
                   </td>
                   <td className="px-2 py-3">
+                    <input
+                      type="number"
+                      step={1}
+                      min={1}
+                      className="w-full max-w-[4.5rem] rounded border border-hq-border bg-hq-canvas px-2 py-1.5"
+                      value={row.memberLevel ?? ""}
+                      placeholder="—"
+                      onChange={(e) =>
+                        onUpdateRow(row.id, {
+                          memberLevel: e.target.value
+                            ? Number(e.target.value)
+                            : null,
+                        })
+                      }
+                      aria-label={t("colLevel")}
+                    />
+                  </td>
+                  <td className="px-2 py-3">
                     <div className="flex items-center justify-end gap-1">
                       {canPreview && onPreviewFrame ? (
                         <button
@@ -403,8 +422,16 @@ export function RosterVideoReviewTable({
   );
 }
 
-export function useRosterReviewValidation(rows: RosterVideoReviewRow[]) {
+export function useRosterReviewValidation(
+  rows: RosterVideoReviewRow[],
+  options?: { existingMemberCount?: number },
+) {
   const activeRows = rows.filter((row) => row.deleted !== 1);
+  const existingMemberCount = options?.existingMemberCount;
+  const mismatchOptions =
+    existingMemberCount !== undefined
+      ? { existingMemberCount }
+      : undefined;
 
   const duplicateMemberIssues = useMemo(
     () =>
@@ -430,8 +457,14 @@ export function useRosterReviewValidation(rows: RosterVideoReviewRow[]) {
   );
 
   const unmatchedRowIds = useMemo(
-    () => findUnmatchedRosterRowIds(activeRows),
-    [activeRows],
+    () =>
+      findUnmatchedRosterRowIds(
+        activeRows,
+        existingMemberCount !== undefined
+          ? { existingMemberCount }
+          : undefined,
+      ),
+    [activeRows, existingMemberCount],
   );
 
   return {
@@ -442,6 +475,8 @@ export function useRosterReviewValidation(rows: RosterVideoReviewRow[]) {
     hasDuplicateMembers: duplicateMemberIssues.length > 0,
     hasDuplicateOcrNames: duplicateOcrNameRowIds.size > 0,
     hasUnresolvedNameMismatches: unmatchedRowIds.size > 0,
-    isRosterRowNameMismatch,
+    isRosterRowNameMismatch: (
+      row: Parameters<typeof isRosterRowNameMismatch>[0],
+    ) => isRosterRowNameMismatch(row, mismatchOptions),
   };
 }

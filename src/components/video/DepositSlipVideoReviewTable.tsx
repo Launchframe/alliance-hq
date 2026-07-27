@@ -5,6 +5,8 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
+import { Button } from "@/components/ui/button";
+import { formatDepositStatusToken } from "@/lib/banks/deposit-status-label.shared";
 import {
   DEPOSIT_SLIP_CLEARED_MEMBER_MATCH,
   depositSlipMemberMatchBorderClass,
@@ -199,7 +201,10 @@ function LiveRowSummaryFields({
   row: DepositSlipReviewRowSummaryFields;
   diffKeys: Set<string>;
 }) {
-  const parts = depositSlipReviewRowSummaryParts(row, diffKeys);
+  const tBanks = useTranslations("bankManagement");
+  const formatStatus = (raw: string) =>
+    formatDepositStatusToken(raw, (status) => tBanks(`status.${status}`));
+  const parts = depositSlipReviewRowSummaryParts(row, diffKeys, formatStatus);
   return (
     <span className="inline-flex flex-wrap items-center gap-1">
       {parts.map((part, index) => (

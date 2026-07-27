@@ -10,7 +10,15 @@ import {
   slipsForProjectionActualOverlay,
   summarizeProjectionVsActual,
 } from "@/lib/banks/optimization.shared";
-import { loadBanksWithSlips } from "@/lib/banks/repository.server";
+import {
+  filterDepositSlipsByInvestor,
+  parseDepositFalloffInvestorFilterParam,
+  type DepositFalloffInvestorFilter,
+} from "@/lib/banks/deposit-investor-filter.shared";
+import {
+  loadAllianceTag,
+  loadBanksWithSlips,
+} from "@/lib/banks/repository.server";
 import type {
   DepositFalloffScope,
   DepositProjectionCreatePayload,
@@ -49,6 +57,35 @@ export function parseHorizonHoursParam(
   return isFalloffHorizonHours(n) ? n : DEFAULT_FALLOFF_HORIZON_HOURS;
 }
 
+export function parseInvestorFilterParam(
+  raw: string | null,
+): DepositFalloffInvestorFilter {
+  return parseDepositFalloffInvestorFilterParam(raw);
+}
+
+async function resolveInvestorFilterContext(
+  allianceId: string,
+  investorFilter: DepositFalloffInvestorFilter,
+  allianceTag?: string | null,
+) {
+  if (investorFilter === "all") {
+    return { allianceId, allianceTag: null as string | null };
+  }
+  const tag =
+    allianceTag === undefined
+      ? await loadAllianceTag(allianceId)
+      : allianceTag?.trim() || null;
+  return { allianceId, allianceTag: tag };
+}
+
+function applyInvestorFilter<T extends { depositAllianceTag: string | null; depositAllianceId: string | null }>(
+  slips: readonly T[],
+  investorFilter: DepositFalloffInvestorFilter,
+  context: { allianceId: string; allianceTag: string | null },
+): T[] {
+  return filterDepositSlipsByInvestor(slips, investorFilter, context);
+}
+
 export function serializeDepositProjection(row: {
   id: string;
   bankId: string | null;
@@ -84,25 +121,42 @@ export async function buildLiveDepositFalloff(
   options: {
     bankId?: string | null;
     horizonHours?: FalloffHorizonHours;
+    investorFilter?: DepositFalloffInvestorFilter;
+    allianceTag?: string | null;
     now?: Date;
   } = {},
 ): Promise<FalloffPoint[]> {
   const banks = await loadBanksWithSlips(allianceId);
   const horizonHours = options.horizonHours ?? DEFAULT_FALLOFF_HORIZON_HOURS;
+  const investorFilter = options.investorFilter ?? "all";
   const now = options.now ?? new Date();
+  const investorContext = await resolveInvestorFilterContext(
+    allianceId,
+    investorFilter,
+    options.allianceTag,
+  );
 
   if (options.bankId) {
     const bank = banks.find((row) => row.id === options.bankId);
     if (!bank) {
       throw new Error("Bank not found.");
     }
-    return buildDepositFalloffSeries(bank.depositSlips, {
+    const slips = applyInvestorFilter(
+      bank.depositSlips,
+      investorFilter,
+      investorContext,
+    );
+    return buildDepositFalloffSeries(slips, {
       hours: horizonHours,
       now,
     });
   }
 
-  const allSlips = banks.flatMap((bank) => bank.depositSlips);
+  const allSlips = applyInvestorFilter(
+    banks.flatMap((bank) => bank.depositSlips),
+    investorFilter,
+    investorContext,
+  );
   return buildDepositFalloffSeries(allSlips, { hours: horizonHours, now });
 }
 

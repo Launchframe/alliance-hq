@@ -14,6 +14,7 @@ const EM_DASH = "—";
 /** Live review row one-liner: commander · tag · amount · term · depositAt · status */
 export function formatDepositSlipReviewRowSummary(
   row: DepositSlipReviewRowSummaryFields,
+  formatStatus: (raw: string) => string = (raw) => raw,
 ): string {
   const commander = row.ocrName?.trim() || EM_DASH;
   const tag = row.allianceRankTitle?.trim() || EM_DASH;
@@ -23,7 +24,7 @@ export function formatDepositSlipReviewRowSummary(
       ? `${row.memberLevel}d`
       : EM_DASH;
   const depositAt = formatDepositSlipGameTimestamp(row.powerLevel);
-  const status = row.profession?.trim() || EM_DASH;
+  const status = formatStatus(row.profession?.trim() || EM_DASH);
   return `${commander} · ${tag} · ${amount} · ${term} · ${depositAt} · ${status}`;
 }
 
@@ -82,6 +83,7 @@ export function diffKeysForDepositSlipRows(
 export function depositSlipReviewRowSummaryParts(
   row: DepositSlipReviewRowSummaryFields,
   diffKeys: Set<string>,
+  formatStatus: (raw: string) => string = (raw) => raw,
 ): Array<{ key: string; text: string; differs: boolean }> {
   const commander = row.ocrName?.trim() || EM_DASH;
   const tag = row.allianceRankTitle?.trim() || EM_DASH;
@@ -91,7 +93,7 @@ export function depositSlipReviewRowSummaryParts(
       ? `${row.memberLevel}d`
       : EM_DASH;
   const depositAt = formatDepositSlipGameTimestamp(row.powerLevel);
-  const status = row.profession?.trim() || EM_DASH;
+  const status = formatStatus(row.profession?.trim() || EM_DASH);
 
   return [
     { key: "ocrName", text: commander, differs: diffKeys.has("ocrName") },

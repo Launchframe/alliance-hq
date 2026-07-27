@@ -1,6 +1,7 @@
 import {
   buildMemberIndex,
   matchMemberName,
+  MEMBER_FUZZY_AUTO_MATCH_MIN,
   type AshedMember,
 } from "@/lib/video/member-matcher";
 import { parsePowerLevelString } from "@/lib/video/roster-extract";
@@ -21,7 +22,8 @@ export type ParsedRowLike = {
   edited?: number;
 };
 
-export const ROSTER_NAME_MATCH_CONFIDENCE_MIN = 0.6;
+/** Same floor as member auto-match / history import. */
+export const ROSTER_NAME_MATCH_CONFIDENCE_MIN = MEMBER_FUZZY_AUTO_MATCH_MIN;
 
 export type RosterReviewRowShape = {
   id: string;
@@ -38,13 +40,20 @@ export type RosterReviewRowShape = {
   deleted: number;
 };
 
-export function isRosterRowNameMismatch(row: {
-  memberId: string | null;
-  matchConfidence: number | null;
-  matchMethod?: string | null;
-  deleted: number;
-}): boolean {
+export function isRosterRowNameMismatch(
+  row: {
+    memberId: string | null;
+    matchConfidence: number | null;
+    matchMethod?: string | null;
+    deleted: number;
+  },
+  options?: { existingMemberCount?: number },
+): boolean {
   if (row.deleted === 1) return false;
+  // Brand-new / empty HQ roster: null memberId means "Create new", not a mismatch.
+  if ((options?.existingMemberCount ?? 1) <= 0) {
+    if (!row.memberId) return false;
+  }
   if (!row.memberId) return true;
   if (row.matchMethod === "none") return true;
   if (row.matchConfidence == null || row.matchConfidence < ROSTER_NAME_MATCH_CONFIDENCE_MIN) {
@@ -61,10 +70,11 @@ export function findUnmatchedRosterRowIds(
     matchMethod?: string | null;
     deleted: number;
   }>,
+  options?: { existingMemberCount?: number },
 ): Set<string> {
   const ids = new Set<string>();
   for (const row of rows) {
-    if (isRosterRowNameMismatch(row)) {
+    if (isRosterRowNameMismatch(row, options)) {
       ids.add(row.id);
     }
   }
@@ -92,6 +102,7 @@ export function parsedRowsToRosterReviewRows(
     let memberId = row.memberId;
     let memberName = row.memberName;
     let matchConfidence = row.matchConfidence;
+    let matchMethod = row.matchMethod ?? null;
 
     if (!memberId && index) {
       const match = matchMemberName(row.ocrName, index, { allianceTag });
@@ -99,12 +110,9 @@ export function parsedRowsToRosterReviewRows(
         memberId = match.memberId;
         memberName = match.memberName;
         matchConfidence = match.confidence;
+        matchMethod = match.matchMethod;
       }
     }
-
-    const level = null;
-
-    const profession: string | null = null;
 
     return {
       id: row.id,
@@ -116,13 +124,16 @@ export function parsedRowsToRosterReviewRows(
           ? row.allianceRank
           : null,
       heroPowerM,
-      memberLevel: level,
-      profession,
+      memberLevel:
+        row.memberLevel != null && Number.isFinite(row.memberLevel)
+          ? row.memberLevel
+          : null,
+      profession: null,
       frameIndex: row.frameIndex,
       memberId,
       memberName,
       matchConfidence,
-      matchMethod: row.matchMethod ?? null,
+      matchMethod,
       deleted: row.deleted,
     };
   });

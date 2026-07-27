@@ -15,13 +15,15 @@
  *   "Search for Members", "Manage", "Online", timestamps ("Xm ago"), etc.
  */
 
+import { SEARCH_FOR_MEMBERS_RE } from "@/lib/members/roster-ocr/crop-list-region.shared";
 import type { AllianceRank, RosterLayout } from "@/lib/members/roster-ocr/types";
 
 // ---------------------------------------------------------------------------
 // Rank header detection
 // ---------------------------------------------------------------------------
 
-const RANK_HEADER_RE = /^\s*R\s*([1-5])\s*$/i;
+/** Bare `R3` or section headers with quota counts like `R3 9/78`. */
+const RANK_HEADER_RE = /^\s*R\s*([1-5])(?:\s+\d+\s*\/\s*\d+)?\s*$/i;
 
 /** R5 titled roles and their canonical titles. */
 const R5_TITLES: string[] = ["Leader"];
@@ -39,24 +41,41 @@ const TITLED_ROLE_MAP: Map<string, { title: string; rank: AllianceRank }> =
     ["butler", { title: "Butler", rank: 4 }],
   ]);
 
+const OFFICER_TITLE_ALT = "Warlord|Recruiter|Muse|Butler|Leader";
+
+/** Header chrome that is only officer title labels (often OCR-garbled). */
+const OFFICER_TITLE_CHROME_RE = new RegExp(
+  `^\\s*(?:${OFFICER_TITLE_ALT})(?:[\\s,./|\\]\\[)(]+(?:${OFFICER_TITLE_ALT})?)*\\s*$`,
+  "i",
+);
+
 // ---------------------------------------------------------------------------
 // Noise / UI chrome detection
 // ---------------------------------------------------------------------------
 
 const IGNORED_PATTERNS: RegExp[] = [
-  /search\s+for\s+members/i,
-  /\bmanage\b/i,
-  /\bonline\b/i,
-  /\d+\s*[mhd]\s+ago/i,      // "5m ago", "2h ago"
+  SEARCH_FOR_MEMBERS_RE,
+  /^\s*manage\s*$/i,
+  /^\s*online\s*$/i,
+  /^\s*\d+\s*[mhd]\s+ago\s*$/i, // whole-line timestamps only
+  /^\s*[mhd]\s+ago\s*$/i,
+  /^\s*id\s*ago\s*$/i,
   /^\s*members\s*$/i,
   /^\s*alliance\s*$/i,
   /^\s*rank\s*$/i,
-  /^\s*\d+\s*\/\s*\d+\s*$/,  // "45/100" member count
+  /^\s*\d+\s*\/\s*\d+\s*$/, // "45/100" member count
   /^\s*[<>]\s*$/,
+  OFFICER_TITLE_CHROME_RE,
 ];
 
 export function isIgnoredLine(line: string): boolean {
-  return IGNORED_PATTERNS.some((re) => re.test(line));
+  const trimmed = line.trim();
+  if (!trimmed) return true;
+  return IGNORED_PATTERNS.some((re) => re.test(trimmed));
+}
+
+export function isOfficerTitleChrome(line: string): boolean {
+  return OFFICER_TITLE_CHROME_RE.test(line.trim());
 }
 
 // ---------------------------------------------------------------------------
@@ -102,6 +121,17 @@ export function detectTitle(line: string): TitleMatch | null {
   return null;
 }
 
+/** Strip every leading/embedded officer title token (Members list path). */
+export function stripOfficerTitles(line: string): string {
+  let remainder = line;
+  for (let i = 0; i < 8; i++) {
+    const match = detectTitle(remainder);
+    if (!match) break;
+    remainder = match.remainder;
+  }
+  return remainder.trim();
+}
+
 // ---------------------------------------------------------------------------
 // Layout detection
 // ---------------------------------------------------------------------------
@@ -109,23 +139,24 @@ export function detectTitle(line: string): TitleMatch | null {
 /**
  * Detect whether the OCR lines represent an 'officers' or 'rank_list' layout.
  *
- * Officers layout: has at least one titled role keyword without R1–R5 headers.
- * Rank list layout: has R1–R5 collapsible header lines.
+ * Members page (Search for Members / R1–R5 section headers) is always rank_list
+ * so header titles never force the officers default-R4 path.
  */
 export function detectLayout(lines: string[]): RosterLayout {
   let rankHeaderCount = 0;
   let titleCount = 0;
+  let hasSearch = false;
 
   for (const line of lines) {
+    if (SEARCH_FOR_MEMBERS_RE.test(line)) hasSearch = true;
     if (parseRankHeader(line) !== null) rankHeaderCount++;
     if (detectTitle(line) !== null) titleCount++;
   }
 
-  if (rankHeaderCount >= 2) return "rank_list";
+  if (hasSearch) return "rank_list";
+  if (rankHeaderCount >= 1) return "rank_list";
   if (titleCount >= 1) return "officers";
-  // Fallback: if there's one rank header plus titles, treat as rank_list
-  if (rankHeaderCount === 1) return "rank_list";
-  return "rank_list"; // default
+  return "rank_list";
 }
 
 // ---------------------------------------------------------------------------

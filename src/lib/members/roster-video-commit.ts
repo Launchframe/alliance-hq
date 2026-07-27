@@ -49,6 +49,7 @@ export async function commitRosterFromVideoJob(
         allianceRank,
         allianceRankTitle: null,
         powerLevel: powerLevel ?? row.powerLevel,
+        memberLevel: row.memberLevel,
         status: "active" as const,
       };
     })

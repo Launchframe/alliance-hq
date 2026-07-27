@@ -4,6 +4,7 @@ import {
   buildBankManagementPayload,
   loadAllianceBankCityListSnapshot,
   loadAllianceGameServerNumber,
+  loadAllianceTag,
   loadBanksWithSlips,
 } from "@/lib/banks/repository.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
@@ -34,16 +35,18 @@ export async function loadBankManagementDashboard(
     return { forbidden: true as const };
   }
 
-  const [banks, effectiveSeason, allianceGameServerNumber, cityListSnapshot] =
+  const [banks, effectiveSeason, allianceGameServerNumber, allianceTag, cityListSnapshot] =
     await Promise.all([
       loadBanksWithSlips(allianceId),
       getEffectiveSeasonForAlliance(allianceId),
       loadAllianceGameServerNumber(allianceId),
+      loadAllianceTag(allianceId),
       loadAllianceBankCityListSnapshot(allianceId),
     ]);
 
   return buildBankManagementPayload(banks, {
     allianceId,
+    allianceTag,
     canWrite,
     todayServerDate: getServerCalendarDate(),
     effectiveSeasonKey: effectiveSeason.seasonKey,

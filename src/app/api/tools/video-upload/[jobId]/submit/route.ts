@@ -361,9 +361,14 @@ export async function POST(request: Request, { params }: Props) {
           row.heroPowerM != null && Number.isFinite(row.heroPowerM)
             ? row.heroPowerM
             : null;
-        // Roster video OCR cannot reliably read HQ level or profession from
-        // Strength Ranking → Power (or even member-list frames inconsistently).
-        // Never write those fields from this target so we don't clobber HQ data.
+        const memberLevel =
+          row.memberLevel != null &&
+          Number.isFinite(row.memberLevel) &&
+          row.memberLevel > 0
+            ? Math.round(row.memberLevel)
+            : null;
+        // Profession is not shown on the Members list; titles are deferred.
+        // Power + HQ level from Members-page frames are trusted when present.
         await db
           .update(schema.parsedRows)
           .set({
@@ -371,7 +376,7 @@ export async function POST(request: Request, { params }: Props) {
             memberName: row.memberName ?? null,
             allianceRank: row.allianceRank ?? null,
             allianceRankTitle: null,
-            memberLevel: null,
+            memberLevel,
             profession: null,
             powerLevel: formatHeroPowerMForStorage(heroPowerM),
             deleted: row.deleted ? 1 : 0,
