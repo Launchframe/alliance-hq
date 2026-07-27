@@ -178,6 +178,7 @@ export type ParsedButton =
   | { kind: "link_ask_officer" }
   | { kind: "train_pick"; memberId: string; date: string }
   | { kind: "train_confirm"; memberId: string; date: string; answer: "yes" | "no" }
+  | { kind: "timeoff_offline_pick"; memberId: string; date: string }
   | { kind: "profession_select"; profession: "Engineer" | "War Leader" }
   | { kind: "profession_switch_confirm"; answer: "yes" | "no" }
   | { kind: "whois_pick"; memberId: string }
@@ -239,6 +240,16 @@ export function parseButtonCustomId(
       memberId: trainConfirm[1]!,
       date: trainConfirm[2]!,
       answer: trainConfirm[3] as "yes" | "no",
+    };
+  }
+  const timeoffOfflinePick = /^timeoff:offline:([^:]+):(\d{4}-\d{2}-\d{2})$/.exec(
+    customId,
+  );
+  if (timeoffOfflinePick) {
+    return {
+      kind: "timeoff_offline_pick",
+      memberId: timeoffOfflinePick[1]!,
+      date: timeoffOfflinePick[2]!,
     };
   }
   const profSelect = /^profession:select:(Engineer|War Leader)$/.exec(customId);
@@ -486,6 +497,22 @@ export function buildWhoIsPickButtons(
         style: 1,
         label: candidate.name.slice(0, 80),
         custom_id: `whois:pick:${candidate.memberId}`,
+      })),
+    },
+  ];
+}
+
+export function buildTimeOffOfflinePickButtons(
+  candidates: Array<{ memberId: string; name: string; date: string }>,
+) {
+  return [
+    {
+      type: 1,
+      components: candidates.slice(0, 5).map((c) => ({
+        type: 2,
+        style: 1,
+        label: c.name.slice(0, 80),
+        custom_id: `timeoff:offline:${c.memberId}:${c.date}`,
       })),
     },
   ];

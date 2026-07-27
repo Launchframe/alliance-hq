@@ -20,6 +20,7 @@ import {
   buildLinkIdentityConfirmButtons,
   buildThpConfirmButtons,
   buildKillsConfirmButtons,
+  buildTimeOffOfflinePickButtons,
   buildTrainConfirmButtons,
   buildTrainPickButtons,
   buildWhoIsClaimButton,
@@ -118,6 +119,7 @@ import {
   handleDiscordSetConductor,
 } from "@/lib/trains/discord-bot-handlers.server";
 import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
+import { getServerCalendarDate } from "@/lib/trains/game-time";
 import {
   handleDiscordMyEngineers,
   handleDiscordProfessionSelect,
@@ -132,6 +134,11 @@ import {
 import {
   handleDiscordMyTimeOff,
   handleDiscordIsAllyOffline,
+  handleDiscordIsAllyOfflinePick,
+  handleDiscordMarkTimeOff,
+  handleDiscordCancelTimeOffOfficer,
+  handleDiscordWhoIsAway,
+  handleDiscordUnexpectedAbsences,
 } from "@/lib/time-off/discord-bot-handlers.server";
 import {
   handleDiscordWhoIs,
@@ -794,6 +801,8 @@ async function handleSlashCommand(
     const message = parseSlashOptionString(payload, "upcoming");
     const start = parseSlashOptionString(payload, "start");
     const end = parseSlashOptionString(payload, "end");
+    const cancel = parseSlashOptionString(payload, "cancel");
+    const commander = parseSlashOptionString(payload, "commander");
     const result = await handleDiscordMyTimeOff({
       allianceId,
       discordUserId,
@@ -801,6 +810,8 @@ async function handleSlashCommand(
       message,
       start,
       end,
+      cancel,
+      commander,
     });
     return discordMessageResponse(result.reply, undefined, { ephemeral: false });
   }
@@ -843,7 +854,74 @@ async function handleSlashCommand(
       commander,
       date,
     });
+    if (result.pickCandidates?.length) {
+      return discordMessageResponse(
+        result.reply,
+        buildTimeOffOfflinePickButtons(
+          result.pickCandidates.map((c) => ({
+            memberId: c.memberId,
+            name: c.name,
+            date: c.date ?? getServerCalendarDate(),
+          })),
+        ),
+        { ephemeral: false },
+      );
+    }
     return discordMessageResponse(result.reply, undefined, { ephemeral: false });
+  }
+
+  if (commandName === "mark-time-off") {
+    const commander = parseSlashOptionString(payload, "commander");
+    const start = parseSlashOptionString(payload, "start");
+    const end = parseSlashOptionString(payload, "end");
+    const kind = parseSlashOptionString(payload, "kind");
+    const notes = parseSlashOptionString(payload, "notes");
+    const result = await handleDiscordMarkTimeOff({
+      allianceId,
+      discordUserId,
+      locale,
+      commander,
+      start,
+      end,
+      kind,
+      notes,
+    });
+    return discordMessageResponse(result.reply, undefined, { ephemeral: false });
+  }
+
+  if (commandName === "cancel-time-off") {
+    const entryId = parseSlashOptionString(payload, "entry_id");
+    const commander = parseSlashOptionString(payload, "commander");
+    const start = parseSlashOptionString(payload, "start");
+    const result = await handleDiscordCancelTimeOffOfficer({
+      allianceId,
+      discordUserId,
+      locale,
+      entryId,
+      commander,
+      start,
+    });
+    return discordMessageResponse(result.reply, undefined, { ephemeral: false });
+  }
+
+  if (commandName === "who-is-away") {
+    const when = parseSlashOptionString(payload, "when");
+    const result = await handleDiscordWhoIsAway({
+      allianceId,
+      discordUserId,
+      locale,
+      when,
+    });
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
+  }
+
+  if (commandName === "unexpected-absences") {
+    const result = await handleDiscordUnexpectedAbsences({
+      allianceId,
+      discordUserId,
+      locale,
+    });
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
   }
 
   return discordMessageResponse(t("errors.unknownCommand"));
@@ -1147,6 +1225,17 @@ async function handleButton(payload: DiscordInteractionPayload) {
       date: parsed.date,
     });
     return discordButtonResponse(result.reply, []);
+  }
+
+  if (parsed.kind === "timeoff_offline_pick") {
+    const result = await handleDiscordIsAllyOfflinePick({
+      allianceId,
+      discordUserId,
+      locale,
+      memberId: parsed.memberId,
+      date: parsed.date,
+    });
+    return discordButtonResponse(result.reply, [], { ephemeral: false });
   }
 
   if (parsed.kind === "profession_select") {
