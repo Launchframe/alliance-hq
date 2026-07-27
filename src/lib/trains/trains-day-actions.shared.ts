@@ -8,6 +8,16 @@ export function canOfficerChangeTemplateForDate(
   return isCalendarDateOnOrAfter(date, today);
 }
 
+/**
+ * Calendar date for Simple Mode day-mechanism Change (`DayMechanismPickerDialog`).
+ * Must be the dashboard-selected day — never coerce to `today`. Painting `today`
+ * while an officer is editing a future day clears today's unlocked conductor/VIP
+ * when draw identity changes and leaves the selected day unchanged.
+ */
+export function dayMechanismPickerTargetDate(selectedDate: string): string {
+  return selectedDate;
+}
+
 /** Spin wheel, roll, pick top scorer — live ritual only. */
 export function canRollForDate(date: string, today: string): boolean {
   return isCalendarDateOnOrAfter(date, today);
