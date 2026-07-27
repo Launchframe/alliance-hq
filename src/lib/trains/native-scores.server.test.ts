@@ -77,6 +77,26 @@ describe("fetchNativeVrTopScorers", () => {
       { memberId: "m1", memberName: "Alpha", allianceRank: 4, priorDayVsScore: 50 },
     ]);
   });
+
+  it("excludes members missing from the active roster list even when season VR is high", async () => {
+    mocks.listActiveAllianceMembersForPool.mockResolvedValue([
+      {
+        ashedMemberId: "m1",
+        currentName: "Alpha",
+        allianceRank: 4,
+      },
+    ]);
+    mocks.listAllianceSeasonVrForLeaderboard.mockResolvedValue([
+      { commanderId: "cGhost", ashedMemberId: "ghost", highestBaseVr: 999 },
+      { commanderId: "c1", ashedMemberId: "m1", highestBaseVr: 40 },
+      { commanderId: "cFormer", ashedMemberId: "former", highestBaseVr: 800 },
+    ]);
+
+    const result = await fetchNativeVrTopScorers("a1", 10);
+    expect(result).toEqual([
+      { memberId: "m1", memberName: "Alpha", allianceRank: 4, priorDayVsScore: 40 },
+    ]);
+  });
 });
 
 describe("fetchHqSeasonVsScoresByMember", () => {

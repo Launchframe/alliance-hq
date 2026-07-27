@@ -979,8 +979,16 @@ export async function rollForConductor(input: {
       input.allianceId,
       topBoard.topN,
     );
+    // Fail closed if the board is short of scope N (stale paint / roster churn
+    // between unlock count and roll). Do not draw Top N from fewer candidates.
     if (top.length === 0) {
       throwNoWheelCandidates("vr", "No VR standings found for the wheel.");
+    }
+    if (top.length < topBoard.topN) {
+      throwNoWheelCandidates(
+        "vr",
+        `Only ${top.length} of ${topBoard.topN} active-roster VR standings available for Top ${topBoard.topN}.`,
+      );
     }
     const winner = top[Math.floor(Math.random() * top.length)]!;
     result = {
