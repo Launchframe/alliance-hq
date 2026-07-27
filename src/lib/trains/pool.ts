@@ -446,7 +446,11 @@ export async function markHistoryImportPoolsForMember(
   }
 }
 
-/** Platform-admin unlock: return a pool slot consumed by a mistaken lock. */
+/**
+ * Clear a depleting-pool mark for a member+date (re-roll replace, clear
+ * assignment, VIP clear). Unlock alone must not call this while the member
+ * remains assigned — otherwise they stay on the day and can win another day.
+ */
 export async function releasePoolSelectionForDate(
   allianceId: string,
   date: string,

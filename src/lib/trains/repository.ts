@@ -628,8 +628,10 @@ export async function unlockConductorRecord(
     .delete(schema.trains)
     .where(eq(schema.trains.conductorRecordId, recordId));
 
-  // Unlock undoes spawn only. Depleting-pool consumption from the roll/pick
-  // stays — officers unlock to edit or swap, not to return someone to the lottery.
+  // Keep depleting-pool consumption while the conductor assignment remains.
+  // Re-roll / clear / open-target swap release or remaps the slot only when the
+  // member is no longer assigned for this date (see roll/pick replace paths).
+
   const updatedAt = new Date();
   await db
     .update(schema.trainConductorRecords)
