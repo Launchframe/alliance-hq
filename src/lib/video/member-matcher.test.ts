@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildShortNameMatchRoster,
+  SHORT_NAME_MEMBER_MATCH_CASES,
+} from "@/lib/video/member-match-short-name.fixtures";
+import {
   buildMemberIndex,
   matchAllNames,
   matchMemberName,
@@ -63,36 +67,30 @@ describe("matchMemberName", () => {
   });
 });
 
-describe("matchMemberName unique substring auto-match", () => {
-  const roster: AshedMember[] = [
-    { id: "happy", current_name: "Happytokill", status: "active" },
-    { id: "orbs", current_name: "orbsorbsorbs", status: "active" },
-    { id: "slow", current_name: "Slow", status: "active" },
-    { id: "eg", current_name: "EG Sie", status: "active" },
-    { id: "truth", current_name: "Truthnoisulli", status: "active" },
-    { id: "podz", current_name: "PoDzilla", status: "active" },
-    { id: "elsa", current_name: "elsa 엘사", status: "active" },
-    { id: "fighter", current_name: "Fighter55555", status: "active" },
-    { id: "aline", current_name: "Aline the slayer", status: "active" },
-    { id: "other", current_name: "Redd", status: "active" },
-  ];
+describe("short-name member auto-match (shared import + video)", () => {
+  const roster = buildShortNameMatchRoster();
   const index = buildMemberIndex(roster);
 
-  it.each([
-    ["Happy", "happy"],
-    ["orbs", "orbs"],
-    ["SlowRider", "slow"],
-    ["EG", "eg"],
-    ["Truth", "truth"],
-    ["Podz", "podz"],
-    ["elsa", "elsa"],
-    ["Fighter", "fighter"],
-    ["Aline", "aline"],
-  ] as const)("matches %s uniquely to roster id %s", (pasted, memberId) => {
-    const match = matchMemberName(pasted, index);
-    expect(match.memberId).toBe(memberId);
-    expect(match.matchMethod).toBe("fuzzy");
-    expect(match.confidence).toBeGreaterThanOrEqual(MEMBER_FUZZY_AUTO_MATCH_MIN);
+  it.each(SHORT_NAME_MEMBER_MATCH_CASES)(
+    "matchMemberName: $query → $rosterName",
+    ({ query, memberId }) => {
+      const match = matchMemberName(query, index);
+      expect(match.memberId).toBe(memberId);
+      expect(match.matchMethod).toBe("fuzzy");
+      expect(match.confidence).toBeGreaterThanOrEqual(
+        MEMBER_FUZZY_AUTO_MATCH_MIN,
+      );
+    },
+  );
+
+  it("matchAllNames (history import path) resolves every short-name case", () => {
+    const results = matchAllNames(
+      SHORT_NAME_MEMBER_MATCH_CASES.map((row) => row.query),
+      roster,
+    );
+    expect(results.map((row) => row.memberId)).toEqual(
+      SHORT_NAME_MEMBER_MATCH_CASES.map((row) => row.memberId),
+    );
   });
 
   it("does not auto-match when multiple roster names contain the paste", () => {

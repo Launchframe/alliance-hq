@@ -125,15 +125,6 @@ export function stringSimilarity(a: string, b: string): number {
   return similarity(normalizeForMatch(a), normalizeForMatch(b));
 }
 
-function containmentConfidence(needle: string, haystack: string): number {
-  const shorter =
-    needle.length <= haystack.length ? needle : haystack;
-  const longer =
-    needle.length <= haystack.length ? haystack : needle;
-  const ratio = shorter.length / longer.length;
-  return Math.min(0.92, Math.max(0.65, 0.55 + 0.45 * ratio));
-}
-
 /**
  * When pasted/OCR name and exactly one roster name contain one another,
  * auto-match (AppSelect search already surfaces these as typed hits).
@@ -165,7 +156,7 @@ function findUniqueSubstringMember(
         normalized.includes(rosterName) || rosterName.includes(normalized);
       if (!isSubstring) continue;
 
-      const confidence = containmentConfidence(normalized, rosterName);
+      const confidence = nameMatchScore(normalized, rosterName);
       const existing = matches.get(member.id);
       if (!existing || confidence > existing.confidence) {
         matches.set(member.id, { member, confidence });
