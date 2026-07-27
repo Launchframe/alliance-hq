@@ -7,6 +7,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { ConductorPickModal } from "@/components/trains/ConductorPickModal";
 import { ConductorSwapDialog } from "@/components/trains/ConductorSwapDialog";
 import { ConductorHistoryTable } from "@/components/trains/ConductorHistoryTable";
+import { ConductorHistoryImportDialog } from "@/components/trains/ConductorHistoryImportDialog";
 import { ConductorWheelModal } from "@/components/trains/ConductorWheelModal";
 import {
   ConductorWheelSharePreviewDialog,
@@ -266,6 +267,7 @@ export function TrainsDashboard({ initial }: Props) {
   const [walkthroughKey, setWalkthroughKey] = useState(0);
   const [swapOpen, setSwapOpen] = useState(false);
   const [swapBusy, setSwapBusy] = useState(false);
+  const [historyImportOpen, setHistoryImportOpen] = useState(false);
   const [rollingRole, setRollingRole] = useState<"conductor" | "vip" | null>(
     null,
   );
@@ -2513,7 +2515,38 @@ export function TrainsDashboard({ initial }: Props) {
         </section>
       ) : null}
 
-      {data.conductorHistory.length > 0 ? (
+      {data.canManageTrains ? (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setHistoryImportOpen(true)}
+              className="rounded-lg border border-hq-border bg-hq-surface px-3 py-1.5 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
+              data-testid="trains-history-import-open"
+            >
+              {data.conductorHistory.length === 0
+                ? t("historyImport.emptyCta")
+                : t("historyImport.openAction")}
+            </button>
+          </div>
+          <ConductorHistoryTable
+            rows={data.conductorHistory}
+            mechanismLabels={historyMechanismLabels}
+            labels={{
+              title: t("conductorHistory.title"),
+              empty: t("conductorHistory.empty"),
+              date: t("conductorHistory.date"),
+              conductor: t("conductorHistory.conductor"),
+              vip: t("conductorHistory.vip"),
+              guardian: t("guardian"),
+              locked: t("conductorHistory.locked"),
+              noneYet: t("noneYet"),
+              guardianIsVip: t("guardianIsVipHint"),
+              guardianIsConductor: t("guardianIsConductorHint"),
+            }}
+          />
+        </section>
+      ) : data.conductorHistory.length > 0 ? (
         <ConductorHistoryTable
           rows={data.conductorHistory}
           mechanismLabels={historyMechanismLabels}
@@ -2531,6 +2564,14 @@ export function TrainsDashboard({ initial }: Props) {
           }}
         />
       ) : null}
+
+      <ConductorHistoryImportDialog
+        open={historyImportOpen}
+        onOpenChange={setHistoryImportOpen}
+        today={data.today}
+        roster={data.roster}
+        onImported={() => void refresh()}
+      />
 
       <ConductorPickModal
         open={pickOpen}

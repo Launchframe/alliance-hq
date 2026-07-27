@@ -102,6 +102,7 @@ import {
   getConductorRecord,
   getWeekSchedule,
   listConductorRecordsForWeek,
+  listConductorRecordsInRange,
   listDayConfigsForWeek,
   lockConductorRecord,
   replaceDayConfigs,
@@ -1296,6 +1297,159 @@ export async function refreshExhaustedPoolsForDay(input: {
   }
 
   return refreshed;
+}
+
+export type ConductorHistoryImportRowInput = {
+  date: string;
+  memberId: string;
+  memberName: string;
+};
+
+export type ConductorHistoryImportRowResult = {
+  date: string;
+  status: "imported" | "skipped" | "conflict" | "error";
+  message?: string;
+};
+
+/**
+ * Backfill past locked conductors from a reviewed import.
+ * Does not announce to Discord and does not mutate depleting pools.
+ */
+export async function importConductorHistory(input: {
+  allianceId: string;
+  rows: ConductorHistoryImportRowInput[];
+}): Promise<{
+  imported: number;
+  skipped: number;
+  conflicts: number;
+  results: ConductorHistoryImportRowResult[];
+}> {
+  const today = getServerCalendarDate();
+  const seasonKey = await resolveTrainSeasonKey(input.allianceId);
+  const roster = await loadActiveAlliancePoolMembers({
+    allianceId: input.allianceId,
+  });
+  const rosterById = new Map(
+    roster.map((member) => [member.ashedMemberId, member]),
+  );
+
+  const results: ConductorHistoryImportRowResult[] = [];
+  let imported = 0;
+  let skipped = 0;
+  let conflicts = 0;
+
+  // Newest→oldest paste is fine; process oldest→newest so train spawn order is stable.
+  const sorted = [...input.rows].sort((a, b) => a.date.localeCompare(b.date));
+
+  for (const row of sorted) {
+    const date = row.date.trim();
+    const memberId = row.memberId.trim();
+    const memberName = row.memberName.trim();
+
+    if (!date || !memberId || !memberName) {
+      results.push({
+        date,
+        status: "error",
+        message: "date, memberId, and memberName are required.",
+      });
+      continue;
+    }
+
+    if (date >= today) {
+      results.push({
+        date,
+        status: "error",
+        message: "Import is limited to past days.",
+      });
+      continue;
+    }
+
+    if (!rosterById.has(memberId)) {
+      results.push({
+        date,
+        status: "error",
+        message: "Member is not on the active alliance roster.",
+      });
+      continue;
+    }
+
+    try {
+      const existing = await getConductorRecord(
+        input.allianceId,
+        date,
+        seasonKey,
+      );
+
+      if (existing?.lockedAt) {
+        if (existing.conductorMemberId === memberId) {
+          skipped += 1;
+          results.push({ date, status: "skipped" });
+          continue;
+        }
+        conflicts += 1;
+        results.push({
+          date,
+          status: "conflict",
+          message: existing.conductorMemberName
+            ? `Locked to ${existing.conductorMemberName}.`
+            : "Locked to a different conductor.",
+        });
+        continue;
+      }
+
+      const rankEvent = await getMemberRankAsOf(
+        input.allianceId,
+        memberId,
+        date,
+      );
+      const draft = await upsertConductorDraft({
+        allianceId: input.allianceId,
+        date,
+        seasonKey,
+        conductorMemberId: memberId,
+        conductorMemberName: memberName,
+        conductorRankEventId: rankEvent?.id ?? null,
+      });
+      await lockConductorRecord(draft.id, input.allianceId);
+      imported += 1;
+      results.push({ date, status: "imported" });
+    } catch (error) {
+      results.push({
+        date,
+        status: "error",
+        message: error instanceof Error ? error.message : "Import failed.",
+      });
+    }
+  }
+
+  return { imported, skipped, conflicts, results };
+}
+
+export async function listConductorSnapshotsForDateRange(input: {
+  allianceId: string;
+  rangeStart: string;
+  rangeEnd: string;
+}): Promise<
+  Array<{
+    date: string;
+    conductorMemberId: string | null;
+    conductorMemberName: string | null;
+    lockedAt: string | null;
+  }>
+> {
+  const seasonKey = await resolveTrainSeasonKey(input.allianceId);
+  const rows = await listConductorRecordsInRange(
+    input.allianceId,
+    input.rangeStart,
+    input.rangeEnd,
+    seasonKey,
+  );
+  return rows.map((row) => ({
+    date: row.date,
+    conductorMemberId: row.conductorMemberId,
+    conductorMemberName: row.conductorMemberName,
+    lockedAt: row.lockedAt?.toISOString() ?? null,
+  }));
 }
 
 export async function lockConductorsForDates(input: {
