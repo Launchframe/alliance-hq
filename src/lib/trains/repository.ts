@@ -424,6 +424,7 @@ export async function clearConductorAssignment(
   allianceId: string,
   date: string,
   seasonKey?: string | null,
+  options?: { releasePool?: boolean },
 ): Promise<(typeof schema.trainConductorRecords.$inferSelect) | null> {
   const db = getDb();
   const existing = await getConductorRecord(allianceId, date, seasonKey);
@@ -432,7 +433,8 @@ export async function clearConductorAssignment(
     throw new Error("Conductor is already locked for this day.");
   }
 
-  if (existing.conductorMemberId) {
+  const releasePool = options?.releasePool !== false;
+  if (releasePool && existing.conductorMemberId) {
     await releasePoolSelectionForDate(
       allianceId,
       date,

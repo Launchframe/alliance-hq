@@ -58,6 +58,7 @@ import {
   markHistoryImportPoolsForMember,
   markPoolEntrySelected,
   markPoolMemberSelectedForDate,
+  movePoolSelectionForDate,
   pickUniformPoolEntry,
   pickWeightedPoolEntryFromRows,
   releasePoolSelectionForDate,
@@ -1572,14 +1573,16 @@ export async function swapConductors(input: {
     Boolean(recordB?.conductorMemberId && recordB.conductorMemberName);
 
   if (targetHasConductor) {
+    const memberFromA = recordA.conductorMemberId;
+    const memberFromB = recordB!.conductorMemberId!;
     const rankForA = await getMemberRankAsOf(
       input.allianceId,
-      recordB!.conductorMemberId!,
+      memberFromB,
       input.dateA,
     );
     const rankForB = await getMemberRankAsOf(
       input.allianceId,
-      recordA.conductorMemberId,
+      memberFromA,
       input.dateB,
     );
 
@@ -1604,10 +1607,25 @@ export async function swapConductors(input: {
       substituteForMemberId: recordB!.conductorMemberId,
       substituteForMemberName: recordB!.conductorMemberName,
     });
+
+    // Keep depleting-pool consumption attached to the new dates.
+    await movePoolSelectionForDate(
+      input.allianceId,
+      memberFromA,
+      input.dateA,
+      input.dateB,
+    );
+    await movePoolSelectionForDate(
+      input.allianceId,
+      memberFromB,
+      input.dateB,
+      input.dateA,
+    );
   } else {
+    const memberFromA = recordA.conductorMemberId;
     const rankForB = await getMemberRankAsOf(
       input.allianceId,
-      recordA.conductorMemberId,
+      memberFromA,
       input.dateB,
     );
 
@@ -1622,10 +1640,18 @@ export async function swapConductors(input: {
       substituteForMemberName: null,
     });
 
+    // Do not release the pool slot — the conductor is still assigned (on dateB).
     await clearConductorAssignment(
       input.allianceId,
       input.dateA,
       seasonKey,
+      { releasePool: false },
+    );
+    await movePoolSelectionForDate(
+      input.allianceId,
+      memberFromA,
+      input.dateA,
+      input.dateB,
     );
   }
 
