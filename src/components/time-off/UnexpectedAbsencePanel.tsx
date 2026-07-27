@@ -47,7 +47,7 @@ export function UnexpectedAbsencePanel({ initialReport }: Props) {
   }, [t]);
 
   return (
-    <section className="rounded-lg border border-hq-border bg-hq-bg p-4">
+    <section className="rounded-lg border border-hq-border bg-hq-surface p-4">
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold text-hq-fg">

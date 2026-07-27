@@ -46,7 +46,7 @@ export function TimeOffCalendar({
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
-          className="rounded border border-hq-border p-2 hover:bg-hq-bg-muted"
+          className="rounded border border-hq-border p-2 hover:bg-hq-surface-muted"
           aria-label={t("calendar.previousMonth")}
           onClick={() => onMonthChange(addCalendarMonths(monthKey, -1))}
         >
@@ -55,7 +55,7 @@ export function TimeOffCalendar({
         <div className="text-sm font-medium text-hq-fg">{monthKey}</div>
         <button
           type="button"
-          className="rounded border border-hq-border p-2 hover:bg-hq-bg-muted"
+          className="rounded border border-hq-border p-2 hover:bg-hq-surface-muted"
           aria-label={t("calendar.nextMonth")}
           onClick={() => onMonthChange(addCalendarMonths(monthKey, 1))}
         >
@@ -81,7 +81,7 @@ export function TimeOffCalendar({
               key={cell.date}
               className={`min-h-24 rounded border p-1 text-left ${
                 cell.inMonth
-                  ? "border-hq-border bg-hq-bg"
+                  ? "border-hq-border bg-hq-surface"
                   : "border-transparent bg-transparent text-hq-fg-subtle"
               } ${isToday ? "ring-2 ring-hq-accent" : ""}`}
             >
