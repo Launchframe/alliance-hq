@@ -105,8 +105,8 @@ export async function loadVideoJobInspectReport(
       frameCount: job.frameCount,
       uploadedFrameCount: job.uploadedFrameCount,
       errorMessage: job.errorMessage,
-      sessionId: job.sessionId,
-      processingSessionId: job.processingSessionId,
+      // Never return session cookie ids — processors can inspect any alliance
+      // job; a leaked id is enough to hijack alliance_hq_session.
       allianceId: job.allianceId,
       passKey: job.passKey,
       passRole: job.passRole,
