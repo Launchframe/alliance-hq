@@ -661,4 +661,111 @@ describe("commitDepositSlipsFromVideoJob", () => {
     expect(result.skippedDuplicateCount).toBe(1);
     expect(updateDepositSlip).toHaveBeenCalledTimes(1);
   });
+
+  it("updates a locked slip from a day-later matured-only OCR upload", async () => {
+    listDepositSlipsForBank.mockResolvedValue([
+      {
+        id: "hist-locked",
+        commanderName: "Blue Investor",
+        depositAt: new Date("2026-07-10T12:14:34.000Z"),
+        amount: 6000,
+        termDays: 3,
+        depositAllianceTag: "Roar",
+        status: "locked",
+      },
+    ]);
+
+    const result = await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-matured",
+          ocrName: "Blue Investor",
+          score: "6000",
+          powerLevel: "2026-07-13T12:14:34.000Z",
+          memberLevel: 3,
+          profession: "matured",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: "total_return",
+          rank: 6900,
+          frameIndex: 0,
+          deleted: false,
+        },
+      ],
+    });
+
+    expect(result.createdCount).toBe(0);
+    expect(result.skippedDuplicateCount).toBe(0);
+    expect(result.updatedCount).toBe(1);
+    expect(createDepositSlip).not.toHaveBeenCalled();
+    expect(updateDepositSlip).toHaveBeenCalledWith(
+      "alliance-a",
+      "hist-locked",
+      expect.objectContaining({
+        depositAt: "2026-07-10T12:14:34.000Z",
+        status: "matured",
+        outcomeAt: "2026-07-13T12:14:34.000Z",
+        outcomeAmount: 6900,
+      }),
+    );
+  });
+
+  it("does not terminate a same-minute re-deposit when closing the prior slip", async () => {
+    listDepositSlipsForBank.mockResolvedValue([
+      {
+        id: "hist-old",
+        commanderName: "Blue Investor",
+        depositAt: new Date("2026-07-10T12:14:34.000Z"),
+        amount: 6000,
+        termDays: 3,
+        depositAllianceTag: "Roar",
+        status: "locked",
+      },
+      {
+        id: "hist-redeposit",
+        commanderName: "Blue Investor",
+        depositAt: new Date("2026-07-13T12:15:00.000Z"),
+        amount: 6000,
+        termDays: 3,
+        depositAllianceTag: "Roar",
+        status: "locked",
+      },
+    ]);
+
+    const result = await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-matured",
+          ocrName: "Blue Investor",
+          score: "6000",
+          powerLevel: "2026-07-13T12:14:34.000Z",
+          memberLevel: 3,
+          profession: "matured",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: "total_return",
+          rank: 6900,
+          frameIndex: 0,
+          deleted: false,
+        },
+      ],
+    });
+
+    expect(result.updatedCount).toBe(1);
+    expect(result.createdCount).toBe(0);
+    expect(updateDepositSlip).toHaveBeenCalledWith(
+      "alliance-a",
+      "hist-old",
+      expect.objectContaining({ status: "matured" }),
+    );
+    expect(updateDepositSlip).not.toHaveBeenCalledWith(
+      "alliance-a",
+      "hist-redeposit",
+      expect.anything(),
+    );
+  });
 });

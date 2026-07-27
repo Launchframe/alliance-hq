@@ -2,9 +2,15 @@
  * High-confidence match of a video-review deposit against slips already stored
  * for the same bank. Used so iterative re-uploads append only *new* events
  * instead of duplicating history that HQ already knows about.
+ *
+ * Identity for re-reads of the same OCR event uses depositAt proximity
+ * ({@link DEPOSIT_AT_PROXIMITY_MS}). Terminal green/orange rows that close a
+ * prior locked initiate use lifecycle timing (term-aligned maturity / loot
+ * window) — never require the terminal timestamp to equal the blue depositAt.
  */
 
 import { DEPOSIT_AT_PROXIMITY_MS } from "@/lib/banks/deposit-slip-ocr/deposit-slip-dedupe.shared";
+import { canDepositSlipLifecyclePair } from "@/lib/banks/deposit-slip-ocr/deposit-slip-lifecycle.shared";
 import type { DepositStatus } from "@/lib/banks/types.shared";
 import { normalizeEntityName } from "@/lib/video/dedupe/fuzzy-name-cluster.shared";
 
@@ -15,6 +21,11 @@ export type HistoricalDepositSlipIdentity = {
   termDays: number;
   depositAllianceTag?: string | null;
   status?: DepositStatus;
+  /**
+   * When set (in-video lifecycle merge), wall-clock of the green/orange row.
+   * Terminal-only OCR leaves this null and puts the outcome time in depositAt.
+   */
+  outcomeAt?: string | null;
 };
 
 function depositAtMs(value: string | Date): number | null {
@@ -29,18 +40,20 @@ function normalizeTag(tag: string | null | undefined): string | null {
   return trimmed ? trimmed.toLowerCase() : null;
 }
 
-/**
- * True when `incoming` is a high-confidence duplicate of `existing`:
- * same normalized commander, depositAt within the OCR proximity window,
- * same amount and term, and non-conflicting alliance tags when both set.
- *
- * Status is intentionally excluded — use {@link shouldSkipHistoricalDepositDuplicate}
- * / {@link shouldUpdateHistoricalDepositOutcome} for skip vs outcome-update.
- */
-export function isHighConfidenceHistoricalDepositMatch(
+function resolveStatus(
+  slip: HistoricalDepositSlipIdentity,
+): DepositStatus {
+  return slip.status ?? "locked";
+}
+
+function isTerminalStatus(status: DepositStatus): boolean {
+  return status === "matured" || status === "looted";
+}
+
+/** Commander / amount / term / non-conflicting tags — ignores timestamps. */
+function hasHistoricalDepositIdentityFields(
   incoming: HistoricalDepositSlipIdentity,
   existing: HistoricalDepositSlipIdentity,
-  proximityMs: number = DEPOSIT_AT_PROXIMITY_MS,
 ): boolean {
   if (
     normalizeEntityName(incoming.commanderName) !==
@@ -56,6 +69,22 @@ export function isHighConfidenceHistoricalDepositMatch(
   if (incomingTag && existingTag && incomingTag !== existingTag) {
     return false;
   }
+  return true;
+}
+
+/**
+ * True when `incoming` is a high-confidence re-read of `existing` keyed on
+ * depositAt proximity (same initiate / same OCR minute noise).
+ *
+ * Status is intentionally excluded — use {@link shouldSkipHistoricalDepositDuplicate}
+ * / {@link shouldUpdateHistoricalDepositOutcome} for skip vs outcome-update.
+ */
+export function isHighConfidenceHistoricalDepositMatch(
+  incoming: HistoricalDepositSlipIdentity,
+  existing: HistoricalDepositSlipIdentity,
+  proximityMs: number = DEPOSIT_AT_PROXIMITY_MS,
+): boolean {
+  if (!hasHistoricalDepositIdentityFields(incoming, existing)) return false;
 
   const a = depositAtMs(incoming.depositAt);
   const b = depositAtMs(existing.depositAt);
@@ -63,6 +92,75 @@ export function isHighConfidenceHistoricalDepositMatch(
   return Math.abs(a - b) <= proximityMs;
 }
 
+/**
+ * Wall-clock of the terminal OCR event. Lifecycle-merged drafts keep initiate
+ * in `depositAt` and the green/orange time in `outcomeAt`; terminal-only clips
+ * put the outcome time in `depositAt`.
+ */
+function terminalOutcomeTimeIso(
+  incoming: HistoricalDepositSlipIdentity,
+): string {
+  const outcome = incoming.outcomeAt?.trim();
+  if (outcome) return outcome;
+  return incoming.depositAt;
+}
+
+/**
+ * Terminal OCR row closes (or re-states) the deposit that began at
+ * `existing.depositAt` under Season 5 lifecycle timing.
+ */
+export function isLifecycleHistoricalDepositMatch(
+  incoming: HistoricalDepositSlipIdentity,
+  existing: HistoricalDepositSlipIdentity,
+): boolean {
+  if (!hasHistoricalDepositIdentityFields(incoming, existing)) return false;
+  const incomingStatus = resolveStatus(incoming);
+  if (!isTerminalStatus(incomingStatus)) return false;
+
+  return canDepositSlipLifecyclePair(
+    { depositAt: existing.depositAt, termDays: existing.termDays },
+    {
+      depositAt: terminalOutcomeTimeIso(incoming),
+      termDays: incoming.termDays,
+      status: incomingStatus,
+    },
+  );
+}
+
+function isHistoricalDepositMatch(
+  incoming: HistoricalDepositSlipIdentity,
+  existing: HistoricalDepositSlipIdentity,
+  proximityMs: number = DEPOSIT_AT_PROXIMITY_MS,
+): boolean {
+  return (
+    isHighConfidenceHistoricalDepositMatch(incoming, existing, proximityMs) ||
+    isLifecycleHistoricalDepositMatch(incoming, existing)
+  );
+}
+
+function mostRecentByDepositAt<T extends HistoricalDepositSlipIdentity>(
+  slips: readonly T[],
+): T | null {
+  let best: T | null = null;
+  let bestMs = Number.NEGATIVE_INFINITY;
+  for (const slip of slips) {
+    const ms = depositAtMs(slip.depositAt);
+    if (ms == null) continue;
+    if (ms >= bestMs) {
+      best = slip;
+      bestMs = ms;
+    }
+  }
+  return best ?? slips[0] ?? null;
+}
+
+/**
+ * Prefer lifecycle pairing for terminal OCR (so day-later green/orange updates
+ * the locked initiate, and does not latch onto a same-minute re-deposit).
+ * Matured rows never fall back to depositAt proximity — green near a fresh
+ * blue is a re-deposit, not the prior initiate. Loot may still use proximity
+ * for same-minute re-reads after an early termination.
+ */
 export function findHighConfidenceHistoricalDepositMatch<
   T extends HistoricalDepositSlipIdentity,
 >(
@@ -70,6 +168,25 @@ export function findHighConfidenceHistoricalDepositMatch<
   existing: readonly T[],
   proximityMs: number = DEPOSIT_AT_PROXIMITY_MS,
 ): T | null {
+  const incomingStatus = resolveStatus(incoming);
+
+  if (isTerminalStatus(incomingStatus)) {
+    const lifecycleLocked: T[] = [];
+    const lifecycleTerminal: T[] = [];
+    for (const slip of existing) {
+      if (!isLifecycleHistoricalDepositMatch(incoming, slip)) continue;
+      if (resolveStatus(slip) === "locked") lifecycleLocked.push(slip);
+      else lifecycleTerminal.push(slip);
+    }
+    const locked = mostRecentByDepositAt(lifecycleLocked);
+    if (locked) return locked;
+    const closed = mostRecentByDepositAt(lifecycleTerminal);
+    if (closed) return closed;
+
+    // Matured must be term-aligned; proximity would false-match re-deposits.
+    if (incomingStatus === "matured") return null;
+  }
+
   for (const slip of existing) {
     if (isHighConfidenceHistoricalDepositMatch(incoming, slip, proximityMs)) {
       return slip;
@@ -78,24 +195,18 @@ export function findHighConfidenceHistoricalDepositMatch<
   return null;
 }
 
-function resolveStatus(
-  slip: HistoricalDepositSlipIdentity,
-): DepositStatus {
-  return slip.status ?? "locked";
-}
-
 /**
  * Skip when the OCR row is the same lifecycle event already stored (or a
  * locked re-read of a deposit that already terminated). Do **not** skip when
  * a locked slip should be advanced by a matured/looted OCR row — loot can land
- * inside {@link DEPOSIT_AT_PROXIMITY_MS} of initiate.
+ * inside {@link DEPOSIT_AT_PROXIMITY_MS} of initiate, and maturity is days later.
  */
 export function shouldSkipHistoricalDepositDuplicate(
   incoming: HistoricalDepositSlipIdentity,
   existing: HistoricalDepositSlipIdentity,
   proximityMs: number = DEPOSIT_AT_PROXIMITY_MS,
 ): boolean {
-  if (!isHighConfidenceHistoricalDepositMatch(incoming, existing, proximityMs)) {
+  if (!isHistoricalDepositMatch(incoming, existing, proximityMs)) {
     return false;
   }
   const incomingStatus = resolveStatus(incoming);
@@ -107,21 +218,25 @@ export function shouldSkipHistoricalDepositDuplicate(
 }
 
 /**
- * Locked history row + terminal OCR row within the proximity window → apply
- * outcome onto the existing slip instead of inserting a second deposit.
+ * Locked history row + terminal OCR row → apply outcome onto the existing slip
+ * instead of inserting a second deposit.
+ *
+ * Matured (green) requires term-aligned lifecycle pairing. Looted (orange) may
+ * also match via depositAt proximity when loot lands minutes after initiate.
  */
 export function shouldUpdateHistoricalDepositOutcome(
   incoming: HistoricalDepositSlipIdentity,
   existing: HistoricalDepositSlipIdentity,
   proximityMs: number = DEPOSIT_AT_PROXIMITY_MS,
 ): boolean {
-  if (!isHighConfidenceHistoricalDepositMatch(incoming, existing, proximityMs)) {
-    return false;
-  }
   const incomingStatus = resolveStatus(incoming);
   const existingStatus = resolveStatus(existing);
-  return (
-    existingStatus === "locked" &&
-    (incomingStatus === "matured" || incomingStatus === "looted")
-  );
+  if (existingStatus !== "locked") return false;
+  if (incomingStatus === "matured") {
+    return isLifecycleHistoricalDepositMatch(incoming, existing);
+  }
+  if (incomingStatus === "looted") {
+    return isHistoricalDepositMatch(incoming, existing, proximityMs);
+  }
+  return false;
 }
