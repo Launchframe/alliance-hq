@@ -5,6 +5,7 @@ import {
   validateDepositSlipPayload,
   type DepositSlipPayload,
 } from "@/lib/banks/api.shared";
+import { withBankDepositCommitLock } from "@/lib/banks/bank-deposit-commit-lock.server";
 import { resolveDepositSlipMemberLinks } from "@/lib/banks/deposit-slip-ocr/resolve-deposit-slip-member.server";
 import { createDepositSlip } from "@/lib/banks/repository.server";
 import { reloadBankManagementDashboard } from "@/lib/banks/reload-dashboard.server";
@@ -32,26 +33,31 @@ export async function POST(request: Request) {
   }
 
   try {
-    let payload = body;
-    const needsMemberResolve =
-      body.allianceMemberId == null ||
-      body.commanderId == null ||
-      body.depositAllianceId == null;
-    if (needsMemberResolve) {
-      const links = await resolveDepositSlipMemberLinks({
-        bankAllianceId: allianceId,
-        depositAllianceTag: body.depositAllianceTag,
-        commanderName: body.commanderName,
-      });
-      payload = {
-        ...body,
-        depositAllianceId: body.depositAllianceId ?? links.depositAllianceId,
-        commanderId: body.commanderId ?? links.commanderId,
-        allianceMemberId: body.allianceMemberId ?? links.allianceMemberId,
-      };
-    }
+    const row = await withBankDepositCommitLock(
+      { allianceId, bankId: body.bankId },
+      async () => {
+        let payload = body;
+        const needsMemberResolve =
+          body.allianceMemberId == null ||
+          body.commanderId == null ||
+          body.depositAllianceId == null;
+        if (needsMemberResolve) {
+          const links = await resolveDepositSlipMemberLinks({
+            bankAllianceId: allianceId,
+            depositAllianceTag: body.depositAllianceTag,
+            commanderName: body.commanderName,
+          });
+          payload = {
+            ...body,
+            depositAllianceId: body.depositAllianceId ?? links.depositAllianceId,
+            commanderId: body.commanderId ?? links.commanderId,
+            allianceMemberId: body.allianceMemberId ?? links.allianceMemberId,
+          };
+        }
 
-    const row = await createDepositSlip(allianceId, payload);
+        return createDepositSlip(allianceId, payload);
+      },
+    );
     const dashboard = await reloadBankManagementDashboard(allianceId, sessionId);
     return NextResponse.json({
       depositSlip: serializeDepositSlip(row),
