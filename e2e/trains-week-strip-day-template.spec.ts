@@ -115,6 +115,20 @@ async function setupPersistedTrainsWeek(
 }
 
 /**
+ * Prefer tomorrow when it still falls inside the current train week strip.
+ * Train weeks start Tuesday by default, so on Monday tomorrow is outside the
+ * strip and painting must use today instead.
+ */
+function paintDateInCurrentWeek(today: string, weekStart: string): string {
+  const tomorrow = addCalendarDays(today, 1);
+  const weekEnd = addCalendarDays(weekStart, 6);
+  return isCalendarDateOnOrAfter(tomorrow, weekStart) &&
+    isCalendarDateOnOrAfter(weekEnd, tomorrow)
+    ? tomorrow
+    : today;
+}
+
+/**
  * Prefer the visible week layout only (desktop grid vs mobile carousel).
  * Both mount the same testids; Soft Nav can also leave duplicates briefly.
  */
