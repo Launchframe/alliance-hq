@@ -7,7 +7,7 @@ import {
   listDiscordMemberLinks,
   upsertDiscordMemberLink,
 } from "@/lib/vr/repository";
-import { requireSessionPermission } from "@/lib/rbac/require-permission";
+import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 import { getOrCreateSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -20,29 +20,39 @@ type LinkBody = {
   gameUid?: string;
 };
 
-export async function GET() {
+/**
+ * Maintainer-only break-glass for Discord member links.
+ *
+ * Must not be officer-gated: `members:write` officers could otherwise bind an
+ * arbitrary Discord user to `ownerMemberExternalId` / R4+ without name+UID
+ * proof and inherit Discord owner/officer bot gates. UIDs in list responses
+ * are also maintainer-scoped (player-uid-privacy).
+ */
+async function requireMaintainerAlliance() {
   const session = await getOrCreateSession();
-  const denied = await requireSessionPermission(session.id, "members:write");
-  if (denied) return denied;
+  const denied = await requirePlatformMaintainer(session.id);
+  if (denied) return { denied };
 
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId) {
-    return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
+    return {
+      denied: NextResponse.json({ error: "No alliance selected." }, { status: 400 }),
+    };
   }
+  return { allianceId };
+}
 
-  const links = await listDiscordMemberLinks(allianceId);
+export async function GET() {
+  const gate = await requireMaintainerAlliance();
+  if (gate.denied) return gate.denied;
+
+  const links = await listDiscordMemberLinks(gate.allianceId);
   return NextResponse.json({ links });
 }
 
 export async function POST(request: Request) {
-  const session = await getOrCreateSession();
-  const denied = await requireSessionPermission(session.id, "members:write");
-  if (denied) return denied;
-
-  const allianceId = session.currentAllianceId ?? session.allianceId;
-  if (!allianceId) {
-    return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
-  }
+  const gate = await requireMaintainerAlliance();
+  if (gate.denied) return gate.denied;
 
   const body = (await request.json()) as LinkBody;
   const discordUserId = body.discordUserId?.trim();
@@ -56,7 +66,7 @@ export async function POST(request: Request) {
   }
 
   const link = await upsertDiscordMemberLink({
-    allianceId,
+    allianceId: gate.allianceId,
     discordUserId,
     discordUsername: body.discordUsername?.trim() || null,
     ashedMemberId,
@@ -68,14 +78,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const session = await getOrCreateSession();
-  const denied = await requireSessionPermission(session.id, "members:write");
-  if (denied) return denied;
-
-  const allianceId = session.currentAllianceId ?? session.allianceId;
-  if (!allianceId) {
-    return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
-  }
+  const gate = await requireMaintainerAlliance();
+  if (gate.denied) return gate.denied;
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id")?.trim();
@@ -90,7 +94,7 @@ export async function DELETE(request: Request) {
     .where(eq(schema.discordMemberLinks.id, id))
     .limit(1);
 
-  if (!row || row.allianceId !== allianceId) {
+  if (!row || row.allianceId !== gate.allianceId) {
     return NextResponse.json({ error: "Not found." }, { status: 404 });
   }
 
