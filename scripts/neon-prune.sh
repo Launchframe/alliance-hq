@@ -193,9 +193,13 @@ for i in "${!DELETE_IDS[@]}"; do
       -H "Authorization: Bearer ${API_KEY}" \
       "${API_HOST}/projects/${PROJECT_ID}/branches/${bid}"
   )" || http_code="000"
-  # 200 deleted; 204 already gone (per Neon API docs).
-  if [[ "${http_code}" == "200" || "${http_code}" == "204" ]]; then
-    info "  deleted ${name} (${http_code})"
+  # 200 deleted; 204/404 already gone (per Neon API docs).
+  if [[ "${http_code}" == "200" || "${http_code}" == "204" || "${http_code}" == "404" ]]; then
+    if [[ "${http_code}" == "404" ]]; then
+      info "  already gone ${name} (404)"
+    else
+      info "  deleted ${name} (${http_code})"
+    fi
   else
     info "  FAILED  ${name} (HTTP ${http_code})" >&2
     failed=1
