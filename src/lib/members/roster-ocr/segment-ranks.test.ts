@@ -307,6 +307,11 @@ describe("parseRankGroupHeader", () => {
     expect(header?.groupTitle).toBe("Crowd Control");
   });
 
+  it("preserves letter v inside group titles when stripping chevron garbage", () => {
+    expect(parseRankGroupHeader("R3 Vanguard (wv |")?.groupTitle).toBe("Vanguard");
+    expect(parseRankGroupHeader("R4 Invaders 7/83")?.groupTitle).toBe("Invaders");
+  });
+
   it("does not treat a real username with no separator after the digit as a header", () => {
     expect(parseRankGroupHeader("R3Ace")).toBeNull();
   });

@@ -140,6 +140,19 @@ function looksLikeGroupTitleContinuation(line: string): boolean {
   return false;
 }
 
+/**
+ * Strip OCR collapse-chevron / pipe garbage from a captured group title.
+ * Diagnostics only — must not truncate titles that contain the letter "v"
+ * (e.g. "Vanguard") by treating every `v` as a chevron token.
+ */
+function stripGroupTitleGarbage(title: string): string {
+  return title
+    .replace(/\s*\([vw<>|)\]].*$/i, "")
+    .replace(/\s*[|\]<>].*$/, "")
+    .replace(/\s+\b(?:wv|v)\b\s*$/i, "")
+    .trim();
+}
+
 export type RankGroupHeader = {
   rank: AllianceRank;
   /** Alliance-custom group title when OCR captured it (diagnostics only). */
@@ -180,7 +193,7 @@ export function parseRankGroupHeader(
     const combined = COMBINED_RANK_GROUP_HEADER_RE.exec(trimmed);
     if (combined) {
       const rank = parseInt(combined[1]!, 10) as AllianceRank;
-      const groupTitle = combined[2]!.replace(/\s*[<>v)\(].*$/i, "").trim();
+      const groupTitle = stripGroupTitleGarbage(combined[2]!);
       return {
         rank,
         groupTitle: groupTitle || undefined,
@@ -207,10 +220,9 @@ export function parseRankGroupHeader(
     if (loose) {
       const rank = parseInt(loose[1]!, 10) as AllianceRank;
       if (rank !== ctx?.currentRank) {
-        const groupTitle = loose[2]!
-          .replace(MEMBER_QUOTA_RE, "")
-          .replace(/\s*[<>v)\(].*$/i, "")
-          .trim();
+        const groupTitle = stripGroupTitleGarbage(
+          loose[2]!.replace(MEMBER_QUOTA_RE, ""),
+        );
         return {
           rank,
           groupTitle: groupTitle || undefined,
@@ -221,10 +233,9 @@ export function parseRankGroupHeader(
     if (hasQuotaPattern(trimmed)) {
       const rank = ctx?.badgeRank ?? ctx?.currentRank ?? null;
       if (rank != null) {
-        const groupTitle = trimmed
-          .replace(MEMBER_QUOTA_RE, "")
-          .replace(/\s*[<>v)\(].*$/i, "")
-          .trim();
+        const groupTitle = stripGroupTitleGarbage(
+          trimmed.replace(MEMBER_QUOTA_RE, ""),
+        );
         return {
           rank,
           groupTitle: groupTitle || undefined,
@@ -234,7 +245,7 @@ export function parseRankGroupHeader(
 
     if (ctx?.afterRankBadge && ctx.badgeRank != null) {
       if (looksLikeGroupTitleContinuation(trimmed)) {
-        const groupTitle = trimmed.replace(/\s*[<>v)\(].*$/i, "").trim();
+        const groupTitle = stripGroupTitleGarbage(trimmed);
         if (groupTitle && parseRankHeader(groupTitle) === null) {
           return { rank: ctx.badgeRank, groupTitle };
         }
@@ -243,7 +254,7 @@ export function parseRankGroupHeader(
 
     if (ctx?.afterRankGroupHeader && ctx.currentRank != null) {
       if (looksLikeGroupTitleContinuation(trimmed)) {
-        const groupTitle = trimmed.replace(/\s*[<>v)\(].*$/i, "").trim();
+        const groupTitle = stripGroupTitleGarbage(trimmed);
         if (groupTitle && parseRankHeader(groupTitle) === null) {
           return { rank: ctx.currentRank, groupTitle };
         }
