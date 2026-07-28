@@ -11,7 +11,6 @@ import {
   buildOcrDiagnostics,
   logOcrDiagnostics,
 } from "@/lib/ocr/ocr-diagnostics.shared";
-import { mapWithConcurrency } from "@/lib/video/map-with-concurrency";
 import type { VideoOcrProgressCallback } from "@/lib/video/ocr-provider.shared";
 import { logPipelineStep } from "@/lib/video/pipeline-step-log";
 import type { PipelineTimer } from "@/lib/video/pipeline-timer";
