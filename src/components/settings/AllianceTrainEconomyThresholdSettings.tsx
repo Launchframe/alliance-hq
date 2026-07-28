@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { PriceIsRightTicketDistributionChart } from "@/components/trains/PriceIsRightTicketDistributionChart";
@@ -35,6 +35,7 @@ type Props = {
 
 export function AllianceTrainEconomyThresholdSettings({ allianceTag }: Props) {
   const t = useTranslations("settings.trainEconomyThreshold");
+  const takedownInputRef = useRef<HTMLInputElement>(null);
   const [settings, setSettings] = useState<TrainEconomyThresholdPayload | null>(
     null,
   );
@@ -184,12 +185,19 @@ export function AllianceTrainEconomyThresholdSettings({ allianceTag }: Props) {
     [maxTicketMemberIds, roster],
   );
 
-  const toggleTakedownMember = (memberId: string) => {
+  const addTakedownMember = (memberId: string) => {
     setMaxTicketMemberIds((current) =>
-      current.includes(memberId)
-        ? current.filter((id) => id !== memberId)
-        : [...current, memberId],
+      current.includes(memberId) ? current : [...current, memberId],
     );
+    setTakedownQuery("");
+    takedownInputRef.current?.focus();
+  };
+
+  const removeTakedownMember = (memberId: string) => {
+    setMaxTicketMemberIds((current) =>
+      current.filter((id) => id !== memberId),
+    );
+    takedownInputRef.current?.focus();
   };
 
   const save = async () => {
@@ -361,53 +369,92 @@ export function AllianceTrainEconomyThresholdSettings({ allianceTag }: Props) {
         <div className="mt-4">
           <p className="text-sm font-medium text-hq-fg">{t("takedownLabel")}</p>
           <p className="mt-0.5 text-xs text-hq-fg-muted">{t("takedownHint")}</p>
-          {selectedMembers.length > 0 ? (
-            <ul className="mt-2 flex flex-wrap gap-2">
-              {selectedMembers.map((member) => (
-                <li key={member.ashedMemberId}>
-                  <button
-                    type="button"
-                    onClick={() => toggleTakedownMember(member.ashedMemberId)}
-                    disabled={!displaySettings.canManage || busy}
-                    className="rounded-full border border-violet-500/40 bg-violet-500/15 px-3 py-1 text-xs font-medium text-violet-100 hover:bg-violet-500/25 disabled:opacity-60"
-                  >
-                    {member.currentName} ×
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {displaySettings.canManage ? (
-            <>
+          <div
+            className={`mt-3 flex min-h-10 w-full flex-wrap items-center gap-1.5 rounded-lg border border-hq-border bg-hq-canvas px-2 py-1.5 ${
+              displaySettings.canManage
+                ? "focus-within:border-hq-accent focus-within:ring-1 focus-within:ring-hq-accent"
+                : ""
+            }`}
+            data-testid="takedown-team-chip-field"
+            onClick={() => {
+              if (displaySettings.canManage && !busy) {
+                takedownInputRef.current?.focus();
+              }
+            }}
+          >
+            {selectedMembers.map((member) => (
+              <button
+                key={member.ashedMemberId}
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (!displaySettings.canManage || busy) return;
+                  removeTakedownMember(member.ashedMemberId);
+                }}
+                disabled={!displaySettings.canManage || busy}
+                className="inline-flex max-w-full items-center gap-1 rounded-full border border-hq-pill-border bg-hq-pill px-2.5 py-0.5 text-xs font-medium text-hq-pill-fg hover:border-hq-accent hover:text-hq-accent disabled:cursor-default disabled:opacity-80"
+                aria-label={
+                  displaySettings.canManage
+                    ? `${member.currentName} ×`
+                    : member.currentName
+                }
+              >
+                <span className="truncate">{member.currentName}</span>
+                {displaySettings.canManage ? (
+                  <span aria-hidden className="text-hq-fg-muted">
+                    ×
+                  </span>
+                ) : null}
+              </button>
+            ))}
+            {displaySettings.canManage ? (
               <input
+                ref={takedownInputRef}
                 type="search"
                 value={takedownQuery}
                 onChange={(event) => setTakedownQuery(event.target.value)}
-                placeholder={t("takedownSearchPlaceholder")}
+                onKeyDown={(event) => {
+                  if (
+                    event.key === "Backspace" &&
+                    takedownQuery.length === 0 &&
+                    selectedMembers.length > 0
+                  ) {
+                    event.preventDefault();
+                    const last = selectedMembers[selectedMembers.length - 1];
+                    if (last) removeTakedownMember(last.ashedMemberId);
+                  }
+                }}
+                placeholder={
+                  selectedMembers.length === 0
+                    ? t("takedownSearchPlaceholder")
+                    : undefined
+                }
                 disabled={busy}
-                className="mt-3 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg disabled:opacity-60"
+                className="min-w-[8rem] flex-1 border-0 bg-transparent px-1 py-1 text-sm text-hq-fg outline-none placeholder:text-hq-fg-muted disabled:opacity-60"
               />
-              <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-hq-border bg-hq-canvas/60 p-2">
-                {filteredRoster.length === 0 ? (
-                  <li className="px-2 py-1 text-xs text-hq-fg-muted">
-                    {t("takedownEmpty")}
+            ) : null}
+          </div>
+          {displaySettings.canManage ? (
+            <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-hq-border bg-hq-canvas/60 p-2">
+              {filteredRoster.length === 0 ? (
+                <li className="px-2 py-1 text-xs text-hq-fg-muted">
+                  {t("takedownEmpty")}
+                </li>
+              ) : (
+                filteredRoster.slice(0, 12).map((member) => (
+                  <li key={member.ashedMemberId}>
+                    <button
+                      type="button"
+                      onClick={() => addTakedownMember(member.ashedMemberId)}
+                      disabled={busy}
+                      className="w-full rounded-md px-2 py-1.5 text-left text-sm text-hq-fg hover:bg-hq-surface"
+                    >
+                      {member.currentName}
+                    </button>
                   </li>
-                ) : (
-                  filteredRoster.slice(0, 12).map((member) => (
-                    <li key={member.ashedMemberId}>
-                      <button
-                        type="button"
-                        onClick={() => toggleTakedownMember(member.ashedMemberId)}
-                        disabled={busy}
-                        className="w-full rounded-md px-2 py-1.5 text-left text-sm text-hq-fg hover:bg-hq-surface"
-                      >
-                        {member.currentName}
-                      </button>
-                    </li>
-                  ))
-                )}
-              </ul>
-            </>
+                ))
+              )}
+            </ul>
           ) : null}
         </div>
 
