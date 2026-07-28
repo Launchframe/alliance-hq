@@ -297,10 +297,7 @@ export async function countEligiblePoolMembers(input: {
 }): Promise<number> {
   const respectConductorMinimums = await resolvePoolRespectsConductorMinimums({
     allianceId: input.hqAllianceId,
-    trainDate: input.date,
     poolType: input.poolType,
-    conductorMechanism: input.conductorMechanism,
-    paintTemplate: input.paintTemplate,
   });
   return countPoolCandidates({
     ...input,
@@ -1033,10 +1030,7 @@ export async function rollForConductor(input: {
       const respectConductorMinimums =
         await resolvePoolRespectsConductorMinimums({
           allianceId: input.allianceId,
-          trainDate: input.date,
           poolType,
-          conductorMechanism: mechanism,
-          paintTemplate: dayConfig.paintTemplate,
         });
       await ensureConductorPoolSeeded({
         hqAllianceId: input.allianceId,
@@ -1075,9 +1069,6 @@ export async function rollForConductor(input: {
 
   const gateApplies = await resolveConductorQualificationGateApplies({
     allianceId: input.allianceId,
-    trainDate: input.date,
-    conductorMechanism: mechanism,
-    paintTemplate: dayConfig.paintTemplate,
     poolType:
       result.poolType ?? conductorMechanismPoolType(mechanism) ?? null,
   });
@@ -1220,10 +1211,7 @@ export async function reseedPool(input: {
     input.respectConductorMinimums ??
     (await resolvePoolRespectsConductorMinimums({
       allianceId: input.allianceId,
-      trainDate: input.date,
       poolType: input.poolType,
-      conductorMechanism: input.conductorMechanism,
-      paintTemplate: input.paintTemplate,
     }));
   const candidates = await buildPoolCandidates({
     hqAllianceId: input.allianceId,
