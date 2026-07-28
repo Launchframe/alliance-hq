@@ -119,6 +119,38 @@ export function evaluateVsWeekOutcome(
   };
 }
 
+export type PriorVsComplianceWeek = {
+  vsWeekEnding: string;
+  outcome: VsComplianceOutcome;
+};
+
+/**
+ * Count of consecutive non-waived "miss" weeks immediately preceding
+ * `beforeVsWeekEnding` — i.e. misses "in a row" as described to officers in
+ * the settings copy, not a lifetime total. Walks `rows` (expected sorted by
+ * `vsWeekEnding` descending, strictly before `beforeVsWeekEnding`) back one
+ * week (7 days) at a time and stops at the first gap (missing week — e.g.
+ * minimums were off, or the member wasn't on the roster) or non-miss
+ * ("ok"/"waived") week, so an old isolated miss can never inflate a current
+ * streak.
+ */
+export function countConsecutiveVsComplianceMisses(
+  rows: readonly PriorVsComplianceWeek[],
+  beforeVsWeekEnding: string,
+): number {
+  let streak = 0;
+  let expectedWeekEnding = beforeVsWeekEnding;
+  for (const row of rows) {
+    const priorWeekEnding = addCalendarDays(expectedWeekEnding, -7);
+    if (row.vsWeekEnding !== priorWeekEnding || row.outcome !== "miss") {
+      break;
+    }
+    streak += 1;
+    expectedWeekEnding = row.vsWeekEnding;
+  }
+  return streak;
+}
+
 /** Kick recommendation once accumulated strikes reach the alliance's configured limit. */
 export function vsComplianceTaskKindForStrike(
   strikeNumber: number,

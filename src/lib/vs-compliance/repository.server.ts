@@ -1,15 +1,19 @@
 import "server-only";
 
-import { and, asc, desc, eq, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, lt } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import type { MemberVsComplianceEvent } from "@/lib/db/schema";
 import {
+  countConsecutiveVsComplianceMisses,
   evaluateVsWeekOutcome,
   officerTaskStatusForOutcome,
 } from "@/lib/vs-compliance/evaluate.shared";
-import type { SerializedVsComplianceEvent } from "@/lib/vs-compliance/types.shared";
+import type {
+  SerializedVsComplianceEvent,
+  VsComplianceOutcome,
+} from "@/lib/vs-compliance/types.shared";
 
 export type ActiveRosterMemberForCompliance = {
   ashedMemberId: string;
@@ -96,24 +100,40 @@ export async function findComplianceEventById(input: {
   return row ?? null;
 }
 
-/** Count of prior non-waived "miss" weeks strictly before `beforeVsWeekEnding` (YYYY-MM-DD sorts chronologically). */
-export async function countPriorVsComplianceMisses(input: {
+/**
+ * Count of consecutive non-waived "miss" weeks immediately preceding
+ * `beforeVsWeekEnding` (misses "in a row", not a lifetime total — an old
+ * isolated miss followed by an "ok" week does not carry forward). Looks back
+ * at most 60 weeks, comfortably above the max configurable kick threshold (20).
+ */
+export async function countConsecutivePriorVsComplianceMisses(input: {
   allianceId: string;
   ashedMemberId: string;
   beforeVsWeekEnding: string;
 }): Promise<number> {
-  const [row] = await getDb()
-    .select({ count: sql<number>`count(*)::int` })
+  const rows = await getDb()
+    .select({
+      vsWeekEnding: schema.memberVsComplianceEvents.vsWeekEnding,
+      outcome: schema.memberVsComplianceEvents.outcome,
+    })
     .from(schema.memberVsComplianceEvents)
     .where(
       and(
         eq(schema.memberVsComplianceEvents.allianceId, input.allianceId),
         eq(schema.memberVsComplianceEvents.ashedMemberId, input.ashedMemberId),
-        eq(schema.memberVsComplianceEvents.outcome, "miss"),
         lt(schema.memberVsComplianceEvents.vsWeekEnding, input.beforeVsWeekEnding),
       ),
-    );
-  return row?.count ?? 0;
+    )
+    .orderBy(desc(schema.memberVsComplianceEvents.vsWeekEnding))
+    .limit(60);
+
+  return countConsecutiveVsComplianceMisses(
+    rows.map((row) => ({
+      vsWeekEnding: row.vsWeekEnding,
+      outcome: row.outcome as VsComplianceOutcome,
+    })),
+    input.beforeVsWeekEnding,
+  );
 }
 
 export type UpsertVsComplianceEventResult = {
@@ -153,11 +173,16 @@ export async function upsertVsComplianceEventForWeek(input: {
     (existing.officerTaskStatus === "completed" ||
       existing.officerTaskStatus === "waived")
   ) {
+    // Once an officer has resolved a week, freeze `outcome`/`excused` at
+    // their resolved-time values — only refresh score/threshold bookkeeping
+    // (e.g. a late score correction or an updated leeway setting). Updating
+    // `excused` here without recomputing `outcome` would desync the two
+    // (e.g. a row could end up `excused: true` while `outcome: "miss"`).
     const { threshold } = evaluateVsWeekOutcome({
       score: input.score,
       minPoints: input.minPoints,
       leewayPct: input.leewayPct,
-      excused: input.excused,
+      excused: existing.excused,
       priorMissCount: 0,
     });
     const [updated] = await db
@@ -166,7 +191,6 @@ export async function upsertVsComplianceEventForWeek(input: {
         memberName: input.memberName,
         score: input.score,
         threshold,
-        excused: input.excused,
         updatedAt: now,
       })
       .where(eq(schema.memberVsComplianceEvents.id, existing.id))
@@ -174,7 +198,7 @@ export async function upsertVsComplianceEventForWeek(input: {
     return { event: updated!, becameMiss: false, clearedFromMiss: false };
   }
 
-  const priorMissCount = await countPriorVsComplianceMisses({
+  const priorMissCount = await countConsecutivePriorVsComplianceMisses({
     allianceId: input.allianceId,
     ashedMemberId: input.ashedMemberId,
     beforeVsWeekEnding: input.vsWeekEnding,

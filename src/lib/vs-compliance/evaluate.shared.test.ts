@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   VS_DEMOTION_TASK_KIND,
   VS_KICK_TASK_KIND,
+  countConsecutiveVsComplianceMisses,
   evaluateVsWeekOutcome,
   effectiveVsMembershipThreshold,
   isVsWeekExcusedByTimeOff,
   officerTaskStatusForOutcome,
+  type PriorVsComplianceWeek,
   previousVsWeekRange,
   timeOffEntryExcusesVsWeek,
   type TimeOffExcusalCandidate,
@@ -200,6 +202,71 @@ describe("vs-compliance/evaluate.shared", () => {
         priorMissCount: 2,
       });
       expect(result).toEqual({ threshold: 1_000_000, outcome: "miss", strikeNumber: 3 });
+    });
+  });
+
+  describe("countConsecutiveVsComplianceMisses", () => {
+    function week(
+      vsWeekEnding: string,
+      outcome: PriorVsComplianceWeek["outcome"],
+    ): PriorVsComplianceWeek {
+      return { vsWeekEnding, outcome };
+    }
+
+    it("returns 0 with no prior weeks", () => {
+      expect(countConsecutiveVsComplianceMisses([], "2026-08-16")).toBe(0);
+    });
+
+    it("counts a single immediately-preceding miss", () => {
+      const rows = [week("2026-08-09", "miss")];
+      expect(countConsecutiveVsComplianceMisses(rows, "2026-08-16")).toBe(1);
+    });
+
+    it("counts a run of contiguous prior misses", () => {
+      const rows = [
+        week("2026-08-09", "miss"),
+        week("2026-08-02", "miss"),
+        week("2026-07-26", "miss"),
+      ];
+      expect(countConsecutiveVsComplianceMisses(rows, "2026-08-16")).toBe(3);
+    });
+
+    it("stops at the first non-miss ('ok') week", () => {
+      const rows = [
+        week("2026-08-09", "miss"),
+        week("2026-08-02", "ok"),
+        week("2026-07-26", "miss"),
+      ];
+      expect(countConsecutiveVsComplianceMisses(rows, "2026-08-16")).toBe(1);
+    });
+
+    it("stops at the first 'waived' week (waives do not count toward strikes)", () => {
+      const rows = [
+        week("2026-08-09", "miss"),
+        week("2026-08-02", "waived"),
+        week("2026-07-26", "miss"),
+      ];
+      expect(countConsecutiveVsComplianceMisses(rows, "2026-08-16")).toBe(1);
+    });
+
+    it("stops at a gap week (e.g. minimums were off that week)", () => {
+      // Missing 2026-08-02 entirely breaks the streak even though an older
+      // miss exists further back.
+      const rows = [
+        week("2026-08-09", "miss"),
+        week("2026-07-26", "miss"),
+      ];
+      expect(countConsecutiveVsComplianceMisses(rows, "2026-08-16")).toBe(1);
+    });
+
+    it("does not count an old isolated miss with no immediately-preceding week", () => {
+      const rows = [week("2026-06-14", "miss")];
+      expect(countConsecutiveVsComplianceMisses(rows, "2026-08-16")).toBe(0);
+    });
+
+    it("returns 0 when the immediately-preceding week was ok", () => {
+      const rows = [week("2026-08-09", "ok")];
+      expect(countConsecutiveVsComplianceMisses(rows, "2026-08-16")).toBe(0);
     });
   });
 
