@@ -99,6 +99,10 @@ import {
   formatHeroPowerMForStorage,
   parsedRowsToRosterReviewRows,
 } from "@/lib/video/roster-video-review.shared";
+import {
+  isLowQualityRosterParse,
+  ROSTER_LOW_QUALITY_BANNER,
+} from "@/lib/members/roster-ocr/roster-parse-quality.shared";
 import type { AshedMember } from "@/lib/video/member-matcher";
 import { readPreferredDepositSlipBankId } from "@/lib/banks/deposit-slip-upload-context.shared";
 import { formatDepositStatusToken } from "@/lib/banks/deposit-status-label.shared";
@@ -1605,6 +1609,19 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const hasUnresolvedNameMismatches =
     scoreTargetMeta?.showRosterColumns &&
     rosterValidation.hasUnresolvedNameMismatches;
+
+  const rosterLowQuality = useMemo(() => {
+    if (!scoreTargetMeta?.showRosterColumns) return false;
+    return isLowQualityRosterParse(
+      activeRows.map((row) => ({
+        extractedName: row.ocrName,
+        allianceRank: (row.allianceRank ?? 3) as 1 | 2 | 3 | 4 | 5,
+        heroPowerM: row.heroPowerM ?? undefined,
+        memberLevel: row.memberLevel ?? undefined,
+        layout: "rank_list" as const,
+      })),
+    ).lowQuality;
+  }, [activeRows, scoreTargetMeta?.showRosterColumns]);
   const needsEventPicker =
     scoreTargetMeta?.usesHqEvents ||
     Boolean(scoreTargetMeta?.eventEntity);
@@ -2817,6 +2834,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
       {scoreTargetMeta?.showRosterColumns ? (
         <>
+          {rosterLowQuality ? (
+            <div
+              role="status"
+              className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-100"
+            >
+              {ROSTER_LOW_QUALITY_BANNER}
+            </div>
+          ) : null}
           <div className="flex items-center gap-3">
             <input
               type="search"

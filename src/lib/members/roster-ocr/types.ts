@@ -32,10 +32,18 @@ export type ParseRosterImageResult = {
   layout: RosterLayout;
   /** The parse config pass key that was active (if any). */
   configPassKey?: string;
+  /** Compact OCR line dump for per-frame debugging (video path). */
+  ocrRawLines?: string[];
   diagnostics?: {
     rawLineCount: number;
     ignoredLineCount: number;
     durationMs: number;
+    searchFound?: boolean;
+    linesBeforeCrop?: number;
+    linesAfterCrop?: number;
+    usedCropFallback?: boolean;
+    lastRank?: AllianceRank;
+    lowQuality?: boolean;
   };
 };
 

@@ -4,6 +4,8 @@ import {
   detectLayout,
   detectTitle,
   isIgnoredLine,
+  isRankGroupHeaderLine,
+  parseRankGroupHeader,
   parseRankHeader,
   segmentByRankHeaders,
 } from "@/lib/members/roster-ocr/segment-ranks";
@@ -215,5 +217,70 @@ describe("segmentByRankHeaders", () => {
     const result = segmentByRankHeaders(lines);
     const beforeHeader = result.find((r) => r.line.includes("SomeName"));
     expect(beforeHeader?.rank).toBeNull();
+  });
+
+  it("treats custom rank group title + quota as header, not member context", () => {
+    const lines = [
+      "R3",
+      "Heart of the Alliance 7/83",
+      "C Price",
+      "Power: 94.1M Lv.26",
+    ];
+    const result = segmentByRankHeaders(lines);
+
+    const titleLine = result.find((r) =>
+      r.line.includes("Heart of the Alliance"),
+    );
+    expect(titleLine?.isHeader).toBe(true);
+
+    const memberLine = result.find((r) => r.line.includes("C Price"));
+    expect(memberLine?.isHeader).toBe(false);
+    expect(memberLine?.rank).toBe(3);
+  });
+
+  it("treats OCR-split header (badge then title) as header chrome", () => {
+    const lines = ["R3 7/83", "Heart of the Alliance (v", "C Price"];
+    const result = segmentByRankHeaders(lines);
+
+    expect(
+      result.find((r) => r.line.includes("Heart of the Alliance"))?.isHeader,
+    ).toBe(true);
+    expect(result.find((r) => r.line.includes("C Price"))?.isHeader).toBe(
+      false,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseRankGroupHeader
+// ---------------------------------------------------------------------------
+
+describe("parseRankGroupHeader", () => {
+  it("parses bare badge and combined badge+title+quota", () => {
+    expect(parseRankGroupHeader("R3")?.rank).toBe(3);
+    expect(parseRankGroupHeader("R3 Heart of the Alliance 7/83")?.groupTitle).toBe(
+      "Heart of the Alliance",
+    );
+  });
+
+  it("parses title+quota after bare badge context", () => {
+    const header = parseRankGroupHeader("Heart of the Alliance 7/83", {
+      afterRankBadge: true,
+      badgeRank: 3,
+    });
+    expect(header?.rank).toBe(3);
+    expect(header?.groupTitle).toContain("Heart of the Alliance");
+  });
+
+  it("parses title-only continuation after bare badge", () => {
+    const header = parseRankGroupHeader("Heart of the Alliance (v", {
+      afterRankBadge: true,
+      badgeRank: 3,
+    });
+    expect(header?.rank).toBe(3);
+    expect(isRankGroupHeaderLine("Heart of the Alliance (v", {
+      afterRankBadge: true,
+      badgeRank: 3,
+    })).toBe(true);
   });
 });

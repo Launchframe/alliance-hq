@@ -1,13 +1,16 @@
 import "server-only";
 
 import { parseRosterImage } from "@/lib/members/roster-ocr/parse-roster-image";
-import type { ParsedRosterRow, RosterOcrConfig } from "@/lib/members/roster-ocr/types";
+import type {
+  AllianceRank,
+  ParsedRosterRow,
+  RosterOcrConfig,
+} from "@/lib/members/roster-ocr/types";
 import { DEFAULT_ROSTER_OCR_CONFIG } from "@/lib/members/roster-ocr/types";
 import {
   buildOcrDiagnostics,
   logOcrDiagnostics,
 } from "@/lib/ocr/ocr-diagnostics.shared";
-import { mapWithConcurrency } from "@/lib/video/map-with-concurrency";
 import type { VideoOcrProgressCallback } from "@/lib/video/ocr-provider.shared";
 import { logPipelineStep } from "@/lib/video/pipeline-step-log";
 import type { PipelineTimer } from "@/lib/video/pipeline-timer";
@@ -26,12 +29,14 @@ export type NativeRosterFrameTiming = {
   ms: number;
   entryCount: number;
   error: string | null;
+  rawResult?: { lines: string[] } | null;
 };
 
 export type OcrRosterNativeFramesResult = {
   members: ExtractedRosterMember[];
   frameTimings: NativeRosterFrameTiming[];
   concurrency: number;
+  lowQuality: boolean;
 };
 
 function parsedRosterRowToExtracted(
@@ -79,67 +84,84 @@ export async function ocrRosterNativeFrames(
     concurrency,
   });
 
-  const frameResults = await mapWithConcurrency(
-    frames,
-    concurrency,
-    async (frame) => {
-      const started = Date.now();
-      const result = await (async () => {
-        try {
-          const result = await parseRosterImage(frame.buffer, {
-            config,
-            configPassKey: passKey ?? undefined,
-          });
-          const ms = Date.now() - started;
-          logOcrDiagnostics(
-            buildOcrDiagnostics({
-              source: "video_roster_native",
-              durationMs: ms,
-              rawLineCount: result.diagnostics?.rawLineCount ?? 0,
-              parsedOk: result.rows.length > 0,
-              entryCount: result.rows.length,
-              frameIndex: frame.index,
-              jobId: options?.jobId,
-              scoreTarget: "member-roster-video",
-            }),
-          );
-          return {
-            frameIndex: frame.index,
-            ms,
-            rows: result.rows,
-            error: null as string | null,
-          };
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : "Tesseract OCR failed";
-          logOcrDiagnostics(
-            buildOcrDiagnostics({
-              source: "video_roster_native",
-              durationMs: Date.now() - started,
-              rawLineCount: 0,
-              parsedOk: false,
-              entryCount: 0,
-              error: message,
-              frameIndex: frame.index,
-              jobId: options?.jobId,
-              scoreTarget: "member-roster-video",
-            }),
-          );
-          return {
-            frameIndex: frame.index,
-            ms: Date.now() - started,
-            rows: [] as ParsedRosterRow[],
-            error: message,
-          };
-        }
-      })();
+  // Process frames in order so rank context can carry across scroll positions.
+  const sortedFrames = [...frames].sort((a, b) => a.index - b.index);
+  let stickyRank: AllianceRank | undefined;
+  const frameResults: Array<{
+    frameIndex: number;
+    ms: number;
+    rows: ParsedRosterRow[];
+    error: string | null;
+    rawResult: { lines: string[] } | null;
+    lowQuality: boolean;
+  }> = [];
 
-      completedCount += 1;
-      await onProgress?.(completedCount, frames.length);
+  for (const frame of sortedFrames) {
+    const started = Date.now();
+    try {
+      const result = await parseRosterImage(frame.buffer, {
+        config,
+        configPassKey: passKey ?? undefined,
+        stickyRank,
+      });
+      const ms = Date.now() - started;
 
-      return result;
-    },
-  );
+      if (result.diagnostics?.lastRank != null) {
+        stickyRank = result.diagnostics.lastRank;
+      }
+
+      logOcrDiagnostics(
+        buildOcrDiagnostics({
+          source: "video_roster_native",
+          durationMs: ms,
+          rawLineCount: result.diagnostics?.rawLineCount ?? 0,
+          parsedOk: result.rows.length > 0,
+          entryCount: result.rows.length,
+          frameIndex: frame.index,
+          jobId: options?.jobId,
+          scoreTarget: "member-roster-video",
+        }),
+      );
+
+      frameResults.push({
+        frameIndex: frame.index,
+        ms,
+        rows: result.rows,
+        error: null,
+        rawResult: result.ocrRawLines
+          ? { lines: result.ocrRawLines }
+          : null,
+        lowQuality: result.diagnostics?.lowQuality ?? false,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Tesseract OCR failed";
+      logOcrDiagnostics(
+        buildOcrDiagnostics({
+          source: "video_roster_native",
+          durationMs: Date.now() - started,
+          rawLineCount: 0,
+          parsedOk: false,
+          entryCount: 0,
+          error: message,
+          frameIndex: frame.index,
+          jobId: options?.jobId,
+          scoreTarget: "member-roster-video",
+        }),
+      );
+      frameResults.push({
+        frameIndex: frame.index,
+        ms: Date.now() - started,
+        rows: [],
+        error: message,
+        rawResult: null,
+        lowQuality: true,
+      });
+    }
+
+    completedCount += 1;
+    await onProgress?.(completedCount, frames.length);
+  }
 
   const members = collapseRosterMembersByNameRank(
     frameResults.flatMap((frame) =>
@@ -147,21 +169,26 @@ export async function ocrRosterNativeFrames(
     ),
   );
 
-  const frameTimings: NativeRosterFrameTiming[] = frameResults
-    .sort((a, b) => a.frameIndex - b.frameIndex)
-    .map((frame) => ({
-      frameIndex: frame.frameIndex,
-      ms: frame.ms,
-      entryCount: frame.rows.length,
-      error: frame.error,
-    }));
+  const frameTimings: NativeRosterFrameTiming[] = frameResults.map((frame) => ({
+    frameIndex: frame.frameIndex,
+    ms: frame.ms,
+    entryCount: frame.rows.length,
+    error: frame.error,
+    rawResult: frame.rawResult,
+  }));
+
+  const lowQuality =
+    members.length === 0 ||
+    frameResults.filter((f) => f.lowQuality).length >
+      Math.max(1, Math.floor(frameResults.length * 0.5));
 
   const errorFrames = frameTimings.filter((frame) => frame.error);
-  if (members.length === 0 || errorFrames.length > 0) {
+  if (members.length === 0 || errorFrames.length > 0 || lowQuality) {
     logPipelineStep("tesseract.roster_batch_summary", 0, {
       jobId: options?.jobId,
       rowCount: members.length,
       errorFrameCount: errorFrames.length,
+      lowQuality,
       errors: errorFrames.map((frame) => ({
         frameIndex: frame.frameIndex,
         error: frame.error,
@@ -171,5 +198,5 @@ export async function ocrRosterNativeFrames(
     });
   }
 
-  return { members, frameTimings, concurrency };
+  return { members, frameTimings, concurrency, lowQuality };
 }

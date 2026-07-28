@@ -121,7 +121,7 @@ async function runRosterOcr(
         extractMs: frame.ms,
         entryCount: frame.entryCount,
         error: frame.error,
-        rawResult: null,
+        rawResult: frame.rawResult ?? null,
       })),
       concurrency: native.concurrency,
       rawPayloads: [],

@@ -16,6 +16,7 @@ import {
 import type { AllianceRank, ParsedRosterRow, RosterLayout } from "@/lib/members/roster-ocr/types";
 import {
   detectLayout,
+  detectLastRankFromLines,
   detectTitle,
   isIgnoredLine,
   isOfficerTitleChrome,
@@ -155,11 +156,15 @@ function prepareRankListSourceLines(lines: string[]): string[] {
 /**
  * Parse member rows from a rank-list layout (collapsible R1–R5 section headers).
  */
-export function parseRankListRows(lines: string[]): ParsedRosterRow[] {
+export function parseRankListRows(
+  lines: string[],
+  options?: { stickyRank?: AllianceRank },
+): ParsedRosterRow[] {
   const source = prepareRankListSourceLines(lines);
   const segmented = segmentByRankHeaders(source);
   const rows: ParsedRosterRow[] = [];
   let pending: ParsedRosterRow | null = null;
+  const stickyRank = options?.stickyRank;
 
   const flushPending = () => {
     if (pending && isPlausibleMemberName(pending.extractedName)) {
@@ -194,16 +199,19 @@ export function parseRankListRows(lines: string[]): ParsedRosterRow[] {
       continue;
     }
 
-    if (!rank && !parseLineTokens(withoutTitles).rankHint) {
+    const effectiveRank = rank ?? stickyRank ?? null;
+    const { rankHint } = parseLineTokens(withoutTitles);
+
+    if (!effectiveRank && !rankHint) {
       // No section context and no badge hint — skip.
       continue;
     }
 
-    const { extractedName, heroPowerM, memberLevel, rankHint } =
+    const { extractedName, heroPowerM, memberLevel } =
       parseLineTokens(withoutTitles);
     if (!isPlausibleMemberName(extractedName)) continue;
 
-    const allianceRank = (rank ?? rankHint) as AllianceRank | undefined;
+    const allianceRank = (effectiveRank ?? rankHint) as AllianceRank | undefined;
     if (!allianceRank) continue;
 
     flushPending();
@@ -279,6 +287,19 @@ export function parseOfficersRows(lines: string[]): ParsedRosterRow[] {
 // Unified entry point
 // ---------------------------------------------------------------------------
 
+export type ParseRosterRowsOptions = {
+  forceRankList?: boolean;
+  /** Carry rank context from a prior video frame when the header scrolled off. */
+  stickyRank?: AllianceRank;
+};
+
+export type ParseRosterRowsResult = {
+  rows: ParsedRosterRow[];
+  layout: RosterLayout;
+  /** Last rank section seen in these lines (for cross-frame sticky context). */
+  lastRank: AllianceRank | null;
+};
+
 /**
  * Parse all rows from OCR lines, detecting the layout automatically.
  *
@@ -287,8 +308,8 @@ export function parseOfficersRows(lines: string[]): ParsedRosterRow[] {
 export function parseRosterRows(
   lines: string[],
   explicitLayout?: RosterLayout,
-  options?: { forceRankList?: boolean },
-): { rows: ParsedRosterRow[]; layout: RosterLayout } {
+  options?: ParseRosterRowsOptions,
+): ParseRosterRowsResult {
   const layout =
     explicitLayout ??
     (options?.forceRankList ? "rank_list" : detectLayout(lines));
@@ -296,7 +317,11 @@ export function parseRosterRows(
   const rows =
     layout === "officers"
       ? parseOfficersRows(lines)
-      : parseRankListRows(lines);
+      : parseRankListRows(lines, { stickyRank: options?.stickyRank });
 
-  return { rows, layout };
+  return {
+    rows,
+    layout,
+    lastRank: detectLastRankFromLines(lines) ?? options?.stickyRank ?? null,
+  };
 }
