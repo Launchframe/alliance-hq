@@ -9,15 +9,21 @@ import {
 } from "@/lib/trains/repository";
 import { getMemberRankAsOf } from "@/lib/trains/rank-history";
 import {
+  listPoolEntries,
+  listUnselectedPoolEntries,
   markPoolMemberSelectedForDate,
   releasePoolSelectionForDate,
 } from "@/lib/trains/pool";
-import { getServerCalendarDate } from "@/lib/trains/service";
+import {
+  depletingManualPickErrorMessage,
+  evaluateDepletingManualPick,
+} from "@/lib/trains/depleting-manual-pick.shared";
+import { ensureConductorPoolSeeded, getServerCalendarDate } from "@/lib/trains/service";
 import {
   supportsManualVipPick,
   vipMechanismPoolType,
 } from "@/lib/trains/templates";
-import type { VipMechanismType } from "@/lib/trains/types";
+import type { EventTopXConfig, VipMechanismType } from "@/lib/trains/types";
 import { getOrCreateSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
 
@@ -45,6 +51,8 @@ export async function POST(request: Request) {
     );
   }
 
+  const memberId = body.memberId.trim();
+  const memberName = body.memberName.trim();
   const date = body.date?.trim() || getServerCalendarDate();
 
   try {
@@ -77,10 +85,8 @@ export async function POST(request: Request) {
       );
     }
 
-    if (
-      existing.vipMemberId &&
-      vipMechanismPoolType(mechanism as VipMechanismType)
-    ) {
+    const poolType = vipMechanismPoolType(mechanism as VipMechanismType);
+    if (existing.vipMemberId && poolType) {
       await releasePoolSelectionForDate(
         ctx.allianceId,
         date,
@@ -90,16 +96,43 @@ export async function POST(request: Request) {
 
     const rankEvent = await getMemberRankAsOf(
       ctx.allianceId,
-      body.memberId.trim(),
+      memberId,
       date,
     );
 
-    const poolType = vipMechanismPoolType(mechanism as VipMechanismType);
     if (poolType) {
+      const vipConfig = (dayConfig.vipConfig ?? {
+        eventKey: "capitol_war",
+        topN: 10,
+      }) as EventTopXConfig;
+      await ensureConductorPoolSeeded({
+        hqAllianceId: ctx.allianceId,
+        poolType,
+        date,
+        useSequence: false,
+        eventTopN: vipConfig.topN ?? 10,
+      });
+      // Mirror conductor manual pick: consume an unselected event_top_x slot so
+      // Sun/Mon VIP cannot re-award the same commander or silently no-op mark.
+      const [unselected, poolEntries] = await Promise.all([
+        listUnselectedPoolEntries(ctx.allianceId, poolType),
+        listPoolEntries(ctx.allianceId, poolType),
+      ]);
+      const gate = evaluateDepletingManualPick({
+        memberId,
+        unselectedMemberIds: unselected.map((row) => row.memberId),
+        poolMemberIds: poolEntries.map((row) => row.memberId),
+      });
+      if (!gate.ok) {
+        return NextResponse.json(
+          { error: depletingManualPickErrorMessage(gate.reason) },
+          { status: 400 },
+        );
+      }
       await markPoolMemberSelectedForDate(
         ctx.allianceId,
         poolType,
-        body.memberId.trim(),
+        memberId,
         date,
       );
     }
@@ -108,8 +141,8 @@ export async function POST(request: Request) {
       allianceId: ctx.allianceId,
       date,
       seasonKey,
-      vipMemberId: body.memberId.trim(),
-      vipMemberName: body.memberName.trim(),
+      vipMemberId: memberId,
+      vipMemberName: memberName,
       vipRankEventId: rankEvent?.id ?? null,
       vipMechanism: mechanism,
       dayConfigId: dayConfig.dayConfigId,
