@@ -4720,6 +4720,8 @@
       ],
       "linkedWithReview": "Linked commander **{name}** (verified with Last War). You're ready to use /vr. An officer may confirm your roster entry later — no action needed from you.",
       "linkedWithReviewNoHq": "Linked commander **{name}** (verified with Last War). You're ready to use /vr. An officer may confirm your roster entry later. Link an Alliance HQ account anytime for web features.",
+      "confirmHomeServerPrompt": "Seu Comandante está posicionado no servidor {lookupServer}, mas [{allianceTag}] joga no servidor {allianceServer}. Qual servidor {commanderName} chama de lar?",
+      "positionNotHomeBody": "Se este não for o servidor lar do seu Comandante, envie-o de volta no jogo (retorne de um evento cross-server ou território conquistado) e tente novamente.",
       "rosterFull": "Your alliance is full. Last War verified **{gameName}**, but we could not find **{gameName}** in your alliance and there is not enough room in your alliance for us to create a new member. An officer will review your link request."
     },
     "vr": {

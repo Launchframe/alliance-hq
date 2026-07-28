@@ -4762,6 +4762,8 @@
       "awaitingOfficerResolveNoHq": "We verified your commander, but the roster name doesn't match yet. Your officers have been notified in Alliance HQ and will confirm the right roster member — you don't need to do anything else. You can link an Alliance HQ account later for web features.",
       "linkedWithReview": "Linked commander **{name}** (verified with Last War). You're ready to use /vr. An officer may confirm your roster entry later — no action needed from you.",
       "linkedWithReviewNoHq": "Linked commander **{name}** (verified with Last War). You're ready to use /vr. An officer may confirm your roster entry later. Link an Alliance HQ account anytime for web features.",
+      "confirmHomeServerPrompt": "Your Commander is currently positioned in {lookupServer}, but [{allianceTag}] lives on {allianceServer}. Which server does {commanderName} call home?",
+      "positionNotHomeBody": "If this is not your Commander's home server, send your Commander home in-game (return from a cross-server event or conquered territory) and try again.",
       "rosterFull": "Your alliance is full. Last War verified **{gameName}**, but we could not find **{gameName}** in your alliance and there is not enough room in your alliance for us to create a new member. An officer will review your link request.",
       "rosterUnavailable": "We verified your UID with the game, but couldn't load the alliance roster. Ask an officer to refresh the roster or help with setup.",
       "pickExpired": "That commander option expired. Run `/link-commander` again.",
