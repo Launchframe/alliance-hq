@@ -18,11 +18,15 @@ See also: [trains.mdc](./trains.mdc), [trains-simple-advanced-modes.mdc](./train
 
 | Term | Means | Do not confuse with |
 |------|--------|---------------------|
-| **Week template** | Whole-week / multi-day paint; may be **composite** (e.g. `vs_push_week`) | A single day's conductor mechanism |
-| **Day conductor pick** / day paint | One day's conductor (+ VIP) mechanism from `DAY_PAINT_TEMPLATES` | Week template names that contain "week" |
+| **Rule** (UI) | Conductor selection mechanism for a day (`conductorMechanism`, `ConductorMechanismType`, day paint) | Week **template** |
+| **Eligibility** (UI) | Members who can be drawn for a rule (`conductor_pool_entries`, minimums, score gates) | Code `PoolType` / API `pool` |
+| **Week template** (UI) | Collection of rules applied over a stretch of time, currently a full week (`WeekTemplateType`, composite templates) | A single day's rule |
+| **Day rule** / day paint | One day's conductor (+ VIP) rule from `DAY_PAINT_TEMPLATES` | Week template names that contain "week" |
 | **Lock** | `lockedAt` — conductor boarded / train spawned | VIP assignment |
 
-Guided flow first row: **"This day's conductor pick"** — never label it "Week template".
+**UI copy rule:** use **Rule** / **Eligibility** / **Week template** in officer-facing strings. Do **not** rename TS types, DB columns, or API fields in Phase 1-style copy-only work.
+
+Guided flow first row: **"This day's rule"** — never label it "Week template".
 
 ## Day paint vs week templates (exclusive)
 
