@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useMemo, useRef, useState, useImperativeHandle, forwardRef, type RefObject } from "react";
 import { useTranslations } from "next-intl";
 
 import { ConductorWheelModal } from "@/components/trains/ConductorWheelModal";
@@ -35,6 +35,10 @@ type RollResponse = {
   error?: string;
 };
 
+export type SpinWeekConductorFlowHandle = {
+  spinDates: (dates: string[]) => void;
+};
+
 type Props = {
   weekStart: string;
   weekEnd: string;
@@ -51,26 +55,35 @@ type Props = {
   /** Surface structured wheel/pool blocks with recovery CTAs on the dashboard. */
   onWheelBlocked?: (details: TrainRollErrorDetails) => void;
   onRefresh: () => void;
+  /** Hide the week spin trigger button (month toolbar uses imperative spin). */
+  showTrigger?: boolean;
 };
 
 type FlowPhase = "idle" | "spinning" | "confirm";
 
-export function SpinWeekConductorFlow({
-  weekStart,
-  weekEnd,
-  today,
-  dayConfigs,
-  weekRecords,
-  canManageTrains,
-  canSpinViewedWeek,
-  wheelSpeedMultiplier = 1,
-  snapshotRef,
-  applySnapshot,
-  presentPoolRefreshedHints,
-  onError,
-  onWheelBlocked,
-  onRefresh,
-}: Props) {
+export const SpinWeekConductorFlow = forwardRef<
+  SpinWeekConductorFlowHandle,
+  Props
+>(function SpinWeekConductorFlow(
+  {
+    weekStart,
+    weekEnd,
+    today,
+    dayConfigs,
+    weekRecords,
+    canManageTrains,
+    canSpinViewedWeek,
+    wheelSpeedMultiplier = 1,
+    snapshotRef,
+    applySnapshot,
+    presentPoolRefreshedHints,
+    onError,
+    onWheelBlocked,
+    onRefresh,
+    showTrigger = true,
+  },
+  ref,
+) {
   const t = useTranslations("trains.spinWeek");
   const [phase, setPhase] = useState<FlowPhase>("idle");
   const [confirmResults, setConfirmResults] = useState<SpinWeekResultRow[]>([]);
@@ -98,7 +111,7 @@ export function SpinWeekConductorFlow({
   const wheelDoneRef = useRef<(() => void) | null>(null);
   const abortRef = useRef(false);
 
-  const eligibleDates = useMemo(
+  const defaultEligibleDates = useMemo(
     () =>
       spinWheelDatesForRestOfWeek({
         today,
@@ -111,10 +124,10 @@ export function SpinWeekConductorFlow({
   );
 
   const disabled =
-    !canSpinViewedWeek || eligibleDates.length === 0 || phase !== "idle";
+    !canSpinViewedWeek || defaultEligibleDates.length === 0 || phase !== "idle";
   const disabledReason = !canSpinViewedWeek
     ? t("disabledReason.pastWeek")
-    : eligibleDates.length === 0
+    : defaultEligibleDates.length === 0
       ? t("disabledReason.noEligibleDays")
       : null;
 
@@ -184,76 +197,92 @@ export function SpinWeekConductorFlow({
     wheelDoneRef.current = null;
   }, [applySnapshot, presentPoolRefreshedHints, snapshotRef]);
 
-  const startSpinWeek = useCallback(async () => {
-    if (eligibleDates.length === 0 || phase !== "idle") return;
+  const runSpinDates = useCallback(
+    async (dates: string[]) => {
+      if (dates.length === 0 || phase !== "idle") return;
 
-    abortRef.current = false;
-    setPhase("spinning");
-    const accumulated: SpinWeekResultRow[] = [];
+      abortRef.current = false;
+      setPhase("spinning");
+      const accumulated: SpinWeekResultRow[] = [];
 
-    try {
-      for (const date of eligibleDates) {
-        if (abortRef.current) break;
+      try {
+        for (const date of dates) {
+          if (abortRef.current) break;
 
-        const body = await rollUntilQualified(date);
-        const result = body.result;
-        if (!result) continue;
+          const body = await rollUntilQualified(date);
+          const result = body.result;
+          if (!result) continue;
 
-        pendingRollRef.current = { date, result };
-        setWheelCandidates(
-          result.wheelCandidates?.length
-            ? result.wheelCandidates
-            : [{ memberId: result.memberId, memberName: result.memberName }],
-        );
-        setWheelWinner(result);
-        setWheelMechanism(result.mechanism);
-        setWheelStats(body.stats ?? null);
-        setWheelQualification(result.qualification ?? null);
-        setWheelDayLabel(spinWeekDayLabel(date));
-        setWheelOpen(true);
+          pendingRollRef.current = { date, result };
+          setWheelCandidates(
+            result.wheelCandidates?.length
+              ? result.wheelCandidates
+              : [{ memberId: result.memberId, memberName: result.memberName }],
+          );
+          setWheelWinner(result);
+          setWheelMechanism(result.mechanism);
+          setWheelStats(body.stats ?? null);
+          setWheelQualification(result.qualification ?? null);
+          setWheelDayLabel(spinWeekDayLabel(date));
+          setWheelOpen(true);
 
-        await waitForWheel();
+          await waitForWheel();
 
-        accumulated.push({
-          date,
-          dayLabel: spinWeekDayLabel(date),
-          memberId: result.memberId,
-          memberName: result.memberName,
-        });
-      }
+          accumulated.push({
+            date,
+            dayLabel: spinWeekDayLabel(date),
+            memberId: result.memberId,
+            memberName: result.memberName,
+          });
+        }
 
-      if (abortRef.current || accumulated.length === 0) {
+        if (abortRef.current || accumulated.length === 0) {
+          setPhase("idle");
+          return;
+        }
+
+        setConfirmResults(accumulated);
+        setPhase("confirm");
+      } catch (error) {
+        setWheelOpen(false);
+        setWheelQualification(null);
+        pendingRollRef.current = null;
         setPhase("idle");
-        return;
+        const wheelBlocked =
+          error instanceof Error
+            ? (error as Error & { wheelBlocked?: TrainRollErrorDetails })
+                .wheelBlocked
+            : undefined;
+        if (wheelBlocked && onWheelBlocked) {
+          onWheelBlocked(wheelBlocked);
+          return;
+        }
+        onError(error instanceof Error ? error.message : t("rollFailed"));
       }
+    },
+    [
+      onError,
+      onWheelBlocked,
+      phase,
+      rollUntilQualified,
+      t,
+      waitForWheel,
+    ],
+  );
 
-      setConfirmResults(accumulated);
-      setPhase("confirm");
-    } catch (error) {
-      setWheelOpen(false);
-      setWheelQualification(null);
-      pendingRollRef.current = null;
-      setPhase("idle");
-      const wheelBlocked =
-        error instanceof Error
-          ? (error as Error & { wheelBlocked?: TrainRollErrorDetails })
-              .wheelBlocked
-          : undefined;
-      if (wheelBlocked && onWheelBlocked) {
-        onWheelBlocked(wheelBlocked);
-        return;
-      }
-      onError(error instanceof Error ? error.message : t("rollFailed"));
-    }
-  }, [
-    eligibleDates,
-    onError,
-    onWheelBlocked,
-    phase,
-    rollUntilQualified,
-    t,
-    waitForWheel,
-  ]);
+  const startSpinWeek = useCallback(() => {
+    void runSpinDates(defaultEligibleDates);
+  }, [defaultEligibleDates, runSpinDates]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      spinDates: (dates: string[]) => {
+        void runSpinDates(dates);
+      },
+    }),
+    [runSpinDates],
+  );
 
   const dismissConfirm = useCallback(() => {
     setConfirmResults([]);
@@ -267,7 +296,7 @@ export function SpinWeekConductorFlow({
 
   return (
     <>
-      {canManageTrains ? (
+      {canManageTrains && showTrigger ? (
         <button
           type="button"
           disabled={disabled}
@@ -277,7 +306,7 @@ export function SpinWeekConductorFlow({
           className="rounded-lg bg-[#8957e5] px-4 py-2 text-sm font-medium text-white hover:bg-[#9d6ff0] disabled:cursor-not-allowed disabled:opacity-60 w-full sm:w-auto"
         >
           {phase === "spinning"
-            ? t("spinningProgress", { count: eligibleDates.length })
+            ? t("spinningProgress", { count: defaultEligibleDates.length })
             : t("spinForWeek")}
         </button>
       ) : null}
@@ -303,4 +332,4 @@ export function SpinWeekConductorFlow({
       />
     </>
   );
-}
+});

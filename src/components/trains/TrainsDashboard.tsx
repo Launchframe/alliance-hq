@@ -20,7 +20,10 @@ import {
   formatWheelShareEligibilityLine,
   resolveWheelShareEligibility,
 } from "@/lib/trains/conductor-wheel-share.shared";
-import { SpinWeekConductorFlow } from "@/components/trains/SpinWeekConductorFlow";
+import {
+  SpinWeekConductorFlow,
+  type SpinWeekConductorFlowHandle,
+} from "@/components/trains/SpinWeekConductorFlow";
 import { ClearWeekScheduleDialog } from "@/components/trains/ClearWeekScheduleDialog";
 import { TrainPivotBanner } from "@/components/trains/TrainPivotBanner";
 import { TrainPlanWeekBanner } from "@/components/trains/TrainPlanWeekBanner";
@@ -72,6 +75,7 @@ import {
 import type {
   MonthSchedulePagePayload,
   TrainsDashboardPayload,
+  WeekConductorRecordSummary,
   WeekSchedulePagePayload,
 } from "@/lib/trains/load-dashboard";
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
@@ -114,7 +118,7 @@ import {
   type TrainRollErrorResponse,
 } from "@/lib/trains/roll-errors.shared";
 import { latestLockedDateInWeek, pivotEconomyTargetDates } from "@/lib/trains/week-template-change.shared";
-import { spinWeekDayLabel } from "@/lib/trains/spin-week.shared";
+import { spinWeekDayLabel, spinWheelDatesFromList } from "@/lib/trains/spin-week.shared";
 import {
   hasValidConductorPickForDay,
 } from "@/lib/trains/conductor-mechanism.shared";
@@ -259,6 +263,11 @@ export function TrainsDashboard({ initial }: Props) {
   const [poolDetailsOpen, setPoolDetailsOpen] = useState(false);
   const [poolDetailsInitialType, setPoolDetailsInitialType] =
     useState<PoolType | null>(null);
+  const [monthMemberHistoryOpen, setMonthMemberHistoryOpen] = useState(false);
+  const [monthMemberHistoryRows, setMonthMemberHistoryRows] = useState<
+    WeekConductorRecordSummary[]
+  >([]);
+  const monthSpinFlowRef = useRef<SpinWeekConductorFlowHandle>(null);
   const [walkthroughOpen, setWalkthroughOpen] = useState(() => {
     if (typeof window === "undefined") return false;
     if (!initial.canManageTrains || initial.activeMemberCount === 0) return false;
@@ -303,6 +312,10 @@ export function TrainsDashboard({ initial }: Props) {
   const wheelAnimMultiplier = useMemo(
     () => wheelSpeedMultiplier(wheelSpinSpeed),
     [wheelSpinSpeed],
+  );
+  const spinWheelAnimMultiplier = useMemo(
+    () => wheelSpeedMultiplier("fast"),
+    [],
   );
 
   const weekdayHeaderLabels = useMemo(() => {
@@ -998,18 +1011,18 @@ export function TrainsDashboard({ initial }: Props) {
     [applySnapshot, t],
   );
 
-  const lockConductor = async () => {
+  const lockConductor = async (date = selectedDate) => {
     if (rollingRole || reseedingPool || conductorLockBusy) return;
     setConductorLockBusy("lock");
     try {
       await withOptimisticMutation(
         (snap) =>
-          applyOptimisticLock(snap, selectedDate, new Date().toISOString()),
+          applyOptimisticLock(snap, date, new Date().toISOString()),
         async () => {
           const res = await fetch("/api/trains/conductor/lock", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ date: selectedDate }),
+            body: JSON.stringify({ date }),
           });
           const body = (await res.json()) as RollResponse;
           if (res.ok && body.poolsRefreshed?.length) {
@@ -1058,18 +1071,18 @@ export function TrainsDashboard({ initial }: Props) {
     }
   };
 
-  const unlockConductor = async () => {
+  const unlockConductor = async (date = selectedDate) => {
     if (rollingRole || reseedingPool || conductorLockBusy) return;
     setUnlockConfirm(false);
     setConductorLockBusy("unlock");
     try {
       await withOptimisticMutation(
-        (snap) => applyOptimisticUnlock(snap, selectedDate),
+        (snap) => applyOptimisticUnlock(snap, date),
         async () => {
           const res = await fetch("/api/trains/conductor/unlock", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ date: selectedDate }),
+            body: JSON.stringify({ date }),
           });
           const body = (await res.json()) as { error?: string };
           return {
@@ -1751,7 +1764,7 @@ export function TrainsDashboard({ initial }: Props) {
               onError={setError}
             />
           </div>
-          {data.activeMemberCount > 0 ? (
+          {data.activeMemberCount > 0 && scheduleView === "week" ? (
             <div
               className="flex w-full min-w-0 flex-col gap-1 sm:min-w-[15rem]"
               data-testid="trains-template-selector"
@@ -1946,6 +1959,60 @@ export function TrainsDashboard({ initial }: Props) {
               onMonthChange={handleMonthChange}
               onMonthLoadError={() => setError(t("monthLoadFailed"))}
               onPaintDates={paintDates}
+              monthToolbar={{
+                today: data.today,
+                canUnlock: data.canUnlockConductor,
+                canShareImage:
+                  !data.simpleModeEnabled && hasValidConductor,
+                busy:
+                  trainQuickActionBusy ||
+                  rollingRole != null ||
+                  conductorLockBusy != null,
+                spinDisabledReason: t("spinWeek.disabledReason.noEligibleDays"),
+                canSpinDates: (dates) =>
+                  spinWheelDatesFromList({
+                    dates,
+                    dayConfigs: viewedMonth.dayConfigs,
+                    weekRecords: viewedMonth.monthRecords,
+                  }).length > 0,
+                onSpinSelected: (dates) => {
+                  const eligible = spinWheelDatesFromList({
+                    dates,
+                    dayConfigs: viewedMonth.dayConfigs,
+                    weekRecords: viewedMonth.monthRecords,
+                  });
+                  monthSpinFlowRef.current?.spinDates(eligible);
+                },
+                onManualPick: (date) => {
+                  setSelectedDate(date);
+                  setPickRole("conductor");
+                  setPickOpen(true);
+                },
+                onLockUnlock: (date, isLocked) => {
+                  setSelectedDate(date);
+                  if (isLocked) {
+                    void unlockConductor(date);
+                  } else {
+                    void lockConductor(date);
+                  }
+                },
+                onShareImage: () => void handleShareExportImage(),
+                onViewHistory: (record) => {
+                  const memberId = record.conductorMemberId;
+                  const rows = memberId
+                    ? data.conductorHistory.filter(
+                        (row) => row.conductorMemberId === memberId,
+                      )
+                    : [record];
+                  setMonthMemberHistoryRows(rows.length > 0 ? rows : [record]);
+                  setMonthMemberHistoryOpen(true);
+                },
+                onViewPool: () => {
+                  if (isPoolSpinSource(selectedConductorSpinSource)) {
+                    openPoolDetails(selectedConductorSpinSource.poolType);
+                  }
+                },
+              }}
             />
           )}
 
@@ -2091,7 +2158,7 @@ export function TrainsDashboard({ initial }: Props) {
                       weekRecords={spinWeekContext.weekRecords}
                       canManageTrains={data.canManageTrains}
                       canSpinViewedWeek={spinWeekContext.weekEnd >= data.today}
-                      wheelSpeedMultiplier={wheelAnimMultiplier}
+                      wheelSpeedMultiplier={spinWheelAnimMultiplier}
                       snapshotRef={snapshotRef}
                       applySnapshot={applySnapshot}
                       presentPoolRefreshedHints={presentPoolRefreshedHints}
@@ -2301,7 +2368,7 @@ export function TrainsDashboard({ initial }: Props) {
                   weekRecords={spinWeekContext.weekRecords}
                   canManageTrains={data.canManageTrains}
                   canSpinViewedWeek={spinWeekContext.weekEnd >= data.today}
-                  wheelSpeedMultiplier={wheelAnimMultiplier}
+                  wheelSpeedMultiplier={spinWheelAnimMultiplier}
                   snapshotRef={snapshotRef}
                   applySnapshot={applySnapshot}
                   presentPoolRefreshedHints={presentPoolRefreshedHints}
@@ -2615,6 +2682,52 @@ export function TrainsDashboard({ initial }: Props) {
         onSpinAgain={handleWheelSpinAgain}
         onOverride={(reason) => void handleWheelOverride(reason)}
       />
+
+      <SpinWeekConductorFlow
+        ref={monthSpinFlowRef}
+        showTrigger={false}
+        weekStart={viewedMonth.monthStart}
+        weekEnd={viewedMonth.monthEnd}
+        today={data.today}
+        dayConfigs={viewedMonth.dayConfigs}
+        weekRecords={viewedMonth.monthRecords}
+        canManageTrains={data.canManageTrains}
+        canSpinViewedWeek={true}
+        wheelSpeedMultiplier={spinWheelAnimMultiplier}
+        snapshotRef={snapshotRef}
+        applySnapshot={applySnapshot}
+        presentPoolRefreshedHints={presentPoolRefreshedHints}
+        onError={setError}
+        onWheelBlocked={(details) => {
+          setWheelBlocked(details);
+          setWheelBlockedRole("conductor");
+        }}
+        onRefresh={refresh}
+      />
+
+      <Dialog
+        open={monthMemberHistoryOpen}
+        onOpenChange={setMonthMemberHistoryOpen}
+        title={t("conductorHistory.title")}
+        className="max-w-2xl"
+      >
+        <ConductorHistoryTable
+          rows={monthMemberHistoryRows}
+          mechanismLabels={historyMechanismLabels}
+          labels={{
+            title: t("conductorHistory.title"),
+            empty: t("conductorHistory.empty"),
+            date: t("conductorHistory.date"),
+            conductor: t("conductorHistory.conductor"),
+            vip: t("conductorHistory.vip"),
+            guardian: t("guardian"),
+            locked: t("conductorHistory.locked"),
+            noneYet: t("noneYet"),
+            guardianIsVip: t("guardianIsVipHint"),
+            guardianIsConductor: t("guardianIsConductorHint"),
+          }}
+        />
+      </Dialog>
 
       <ConductorWheelSharePreviewDialog
         open={shareExportPreview != null}

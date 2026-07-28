@@ -71,7 +71,6 @@ test.describe("Trains schedule preview (no blank state)", () => {
     await expect(trainsRoot.getByTestId("trains-no-schedule-section")).toHaveCount(0);
     await expect(trainsRoot.getByTestId("trains-plan-week-banner")).toBeVisible();
     await expect(trainsRoot.getByTestId("trains-template-selector")).toBeVisible();
-    await expect(trainsRoot.getByTestId("trains-week-template-button")).toBeVisible();
     // Template explanations live in the picker dialog (scrollable on small screens).
     await trainsRoot.getByTestId("trains-week-template-button").click();
     await expect(page.getByTestId("trains-template-picker-list")).toBeVisible();
@@ -124,6 +123,8 @@ test.describe("Trains schedule preview (no blank state)", () => {
     await page.goto("/trains");
     await page.getByRole("tab", { name: /^month$/i }).click();
 
+    await expect(page.getByTestId("trains-month-toolbar")).toBeVisible();
+    await expect(page.getByTestId("trains-template-selector")).toHaveCount(0);
     await expect(
       page.getByText(/faded days are drafts/i),
     ).toBeVisible();
