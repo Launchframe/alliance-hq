@@ -31,6 +31,9 @@ export function TimeOffEntryModal({ open, onClose, onSaved }: Props) {
     "officer_marked",
   );
   const [availability, setAvailability] = useState("full_away");
+  const [activityScope, setActivityScope] = useState<"vs" | "donation" | "all">(
+    "all",
+  );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -70,6 +73,7 @@ export function TimeOffEntryModal({ open, onClose, onSaved }: Props) {
           availability,
           entryKind,
           source: "officer",
+          activityScope,
         }),
       });
       if (!response.ok) {
@@ -78,6 +82,12 @@ export function TimeOffEntryModal({ open, onClose, onSaved }: Props) {
         } | null;
         setError(data?.error ?? t("errors.saveFailed"));
         return;
+      }
+      const data = (await response.json().catch(() => null)) as {
+        ashedSyncFailed?: boolean;
+      } | null;
+      if (data?.ashedSyncFailed) {
+        setError(t("errors.ashedSyncFailed"));
       }
       onSaved();
     } finally {
@@ -170,6 +180,23 @@ export function TimeOffEntryModal({ open, onClose, onSaved }: Props) {
             <option value="limited">{t("availability.limited")}</option>
             <option value="minimums">{t("availability.minimums")}</option>
             <option value="hit_and_miss">{t("availability.hit_and_miss")}</option>
+          </select>
+        </label>
+
+        <label className="block text-sm">
+          <span className="text-hq-fg-muted">
+            {t("officerModal.activityScope")}
+          </span>
+          <select
+            value={activityScope}
+            onChange={(event) =>
+              setActivityScope(event.target.value as "vs" | "donation" | "all")
+            }
+            className={fieldClassName}
+          >
+            <option value="vs">{t("activityScope.vs")}</option>
+            <option value="donation">{t("activityScope.donation")}</option>
+            <option value="all">{t("activityScope.all")}</option>
           </select>
         </label>
 

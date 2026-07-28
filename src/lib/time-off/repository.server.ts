@@ -163,6 +163,7 @@ export async function createTimeOffEntry(input: {
       availability: input.payload.availability ?? "full_away",
       entryKind: input.payload.entryKind ?? "planned",
       source: input.payload.source ?? "web",
+      activityScope: input.payload.activityScope ?? "all",
       createdByHqUserId: input.createdByHqUserId ?? null,
       createdByDiscordUserId: input.createdByDiscordUserId ?? null,
       createdAt: now,
@@ -171,6 +172,26 @@ export async function createTimeOffEntry(input: {
     .returning();
 
   return row!;
+}
+
+/** Persists the Ashed ExcusedRecord id(s) an entry was pushed to (or synced from). */
+export async function setTimeOffEntryAshedExcusedIds(input: {
+  allianceId: string;
+  entryId: string;
+  ashedExcusedIds: string[];
+}) {
+  await getDb()
+    .update(schema.memberTimeOff)
+    .set({
+      ashedExcusedIds: input.ashedExcusedIds,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.memberTimeOff.id, input.entryId),
+        eq(schema.memberTimeOff.allianceId, input.allianceId),
+      ),
+    );
 }
 
 export async function cancelTimeOffEntry(input: {

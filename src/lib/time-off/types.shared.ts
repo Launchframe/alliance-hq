@@ -19,6 +19,14 @@ export const TIME_OFF_SOURCES = ["discord", "web", "officer"] as const;
 
 export type TimeOffSource = (typeof TIME_OFF_SOURCES)[number];
 
+/**
+ * Mirrors Ashed `ExcusedRecord.record_type` ("vs" | "donation"), with "all"
+ * meaning both were created together (Ashed's "All Activities" = two POSTs).
+ */
+export const TIME_OFF_ACTIVITY_SCOPES = ["vs", "donation", "all"] as const;
+
+export type TimeOffActivityScope = (typeof TIME_OFF_ACTIVITY_SCOPES)[number];
+
 export type SerializedTimeOffEntry = {
   id: string;
   ashedMemberId: string;
@@ -29,6 +37,7 @@ export type SerializedTimeOffEntry = {
   availability: TimeOffAvailability;
   entryKind: TimeOffEntryKind;
   source: TimeOffSource;
+  activityScope: TimeOffActivityScope;
   createdAt: string;
   updatedAt: string;
 };

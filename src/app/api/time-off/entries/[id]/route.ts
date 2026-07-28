@@ -10,6 +10,10 @@ import {
   requireTimeOffRead,
   requireTimeOffWrite,
 } from "@/lib/time-off/route-helpers.server";
+import {
+  deleteTimeOffEntryFromAshed,
+  resolveWebAshedSyncContext,
+} from "@/lib/time-off/excused-sync.server";
 import { getDb, schema } from "@/lib/db";
 import { and, eq } from "drizzle-orm";
 
@@ -59,6 +63,23 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
   const row = await cancelTimeOffEntry({ allianceId, entryId: id });
   if (!row) {
     return NextResponse.json({ error: "Not found." }, { status: 404 });
+  }
+
+  if (row.ashedExcusedIds && row.ashedExcusedIds.length > 0) {
+    try {
+      const syncContext = await resolveWebAshedSyncContext({
+        allianceId,
+        sessionId,
+      });
+      if (syncContext) {
+        await deleteTimeOffEntryFromAshed(
+          syncContext.connection,
+          row.ashedExcusedIds,
+        );
+      }
+    } catch (error) {
+      console.error("[time-off] failed to delete entry from Ashed", error);
+    }
   }
 
   return NextResponse.json({ entry: serializeTimeOffEntry(row) });

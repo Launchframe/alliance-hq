@@ -18,7 +18,15 @@ import {
   listActiveTimeOffEntries,
   listTimeOffForMember,
   listUnexpectedAbsenceReport,
+  setTimeOffEntryAshedExcusedIds,
 } from "@/lib/time-off/repository.server";
+import { isTimeOffActivityScope } from "@/lib/time-off/api.shared";
+import {
+  deleteTimeOffEntryFromAshed,
+  pushTimeOffEntryToAshed,
+  resolveBotAshedSyncContext,
+} from "@/lib/time-off/excused-sync.server";
+import { shouldPushEntryKindToAshed } from "@/lib/time-off/excused-sync.shared";
 import type { SerializedTimeOffEntry } from "@/lib/time-off/types.shared";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { callerCanRunVrReport } from "@/lib/vr/bot-officer-auth";
@@ -66,6 +74,72 @@ function formatEntrySummary(
     availability,
     notes,
   });
+}
+
+/**
+ * Dual-writes a freshly created HQ entry to Ashed when the alliance has a
+ * live Ashed link and credential. Native alliances and alliances without an
+ * alliance-level Ashed credential are skipped silently — the HQ row is kept
+ * either way (see `.cursor/rules` Ashed-optional-auth pattern).
+ */
+async function pushDiscordCreatedEntryToAshed(input: {
+  allianceId: string;
+  row: {
+    id: string;
+    ashedMemberId: string;
+    startDate: string;
+    endDate: string;
+    notes: string | null;
+    activityScope: string;
+    entryKind: string;
+  };
+}): Promise<void> {
+  if (!shouldPushEntryKindToAshed(input.row.entryKind)) return;
+  try {
+    const syncContext = await resolveBotAshedSyncContext(input.allianceId);
+    if (!syncContext) return;
+    const ashedExcusedIds = await pushTimeOffEntryToAshed({
+      connection: syncContext.connection,
+      ashedAllianceId: syncContext.ashedAllianceId,
+      ashedMemberId: input.row.ashedMemberId,
+      activityScope: isTimeOffActivityScope(input.row.activityScope)
+        ? input.row.activityScope
+        : "all",
+      startDate: input.row.startDate,
+      endDate: input.row.endDate,
+      reason: input.row.notes,
+    });
+    if (ashedExcusedIds.length > 0) {
+      await setTimeOffEntryAshedExcusedIds({
+        allianceId: input.allianceId,
+        entryId: input.row.id,
+        ashedExcusedIds,
+      });
+    }
+  } catch (error) {
+    console.error("[time-off] discord bot failed to push entry to Ashed", error);
+  }
+}
+
+/** Deletes a cancelled HQ entry's Ashed record(s), when it has any and Ashed is linked. */
+async function deleteDiscordCancelledEntryFromAshed(input: {
+  allianceId: string;
+  ashedExcusedIds: string[] | null | undefined;
+}): Promise<void> {
+  if (!input.ashedExcusedIds || input.ashedExcusedIds.length === 0) return;
+  try {
+    const syncContext = await resolveBotAshedSyncContext(input.allianceId);
+    if (!syncContext) return;
+    await deleteTimeOffEntryFromAshed(
+      syncContext.connection,
+      input.ashedExcusedIds,
+    );
+  } catch (error) {
+    console.error(
+      "[time-off] discord bot failed to delete entry from Ashed",
+      error,
+    );
+  }
 }
 
 /** Roster-based commander lookup shared by the officer commands below. */
@@ -194,6 +268,11 @@ export async function handleDiscordMyTimeOff(input: {
       return { reply };
     }
 
+    await deleteDiscordCancelledEntryFromAshed({
+      allianceId: input.allianceId,
+      ashedExcusedIds: cancelled.ashedExcusedIds,
+    });
+
     const reply = t("timeOff.cancelled", {
       name: owned.memberName,
       start: owned.startDate,
@@ -293,6 +372,8 @@ export async function handleDiscordMyTimeOff(input: {
     createdByDiscordUserId: input.discordUserId,
   });
 
+  await pushDiscordCreatedEntryToAshed({ allianceId: input.allianceId, row });
+
   const reply = t("timeOff.saved", {
     summary: formatEntrySummary(t, {
       id: row.id,
@@ -304,6 +385,9 @@ export async function handleDiscordMyTimeOff(input: {
       availability: row.availability as SerializedTimeOffEntry["availability"],
       entryKind: "planned",
       source: "discord",
+      activityScope: isTimeOffActivityScope(row.activityScope)
+        ? row.activityScope
+        : "all",
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     }),
@@ -524,6 +608,8 @@ export async function handleDiscordMarkTimeOff(input: {
     createdByDiscordUserId: input.discordUserId,
   });
 
+  await pushDiscordCreatedEntryToAshed({ allianceId: input.allianceId, row });
+
   const reply = t("timeOff.markSaved", {
     summary: formatEntrySummary(t, {
       id: row.id,
@@ -535,6 +621,9 @@ export async function handleDiscordMarkTimeOff(input: {
       availability: row.availability as SerializedTimeOffEntry["availability"],
       entryKind: row.entryKind as SerializedTimeOffEntry["entryKind"],
       source: "officer",
+      activityScope: isTimeOffActivityScope(row.activityScope)
+        ? row.activityScope
+        : "all",
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     }),
@@ -622,6 +711,11 @@ export async function handleDiscordCancelTimeOffOfficer(input: {
     const reply = t("timeOff.cancelNotFound");
     return { reply };
   }
+
+  await deleteDiscordCancelledEntryFromAshed({
+    allianceId: input.allianceId,
+    ashedExcusedIds: cancelled.ashedExcusedIds,
+  });
 
   const reply = t("timeOff.cancelled", {
     name: entry.memberName,
