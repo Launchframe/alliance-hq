@@ -37,6 +37,39 @@ describe("week template registry", () => {
     );
   });
 
+  it("keeps vs_push_week calendar segments when train week starts on Monday", () => {
+    // Alliance trainWeekStartDow=1 → weekStart Monday; must not collapse to composite id.
+    const weekStart = "2026-06-08";
+    expect(resolvePaintTemplateForDay("vs_push_week", "2026-06-08", weekStart)).toBe(
+      "r4_event_vip",
+    );
+    expect(resolvePaintTemplateForDay("vs_push_week", "2026-06-09", weekStart)).toBe(
+      "vs_push_weekdays",
+    );
+    expect(resolvePaintTemplateForDay("vs_push_week", "2026-06-13", weekStart)).toBe(
+      "vs_push_weekdays",
+    );
+    expect(resolvePaintTemplateForDay("vs_push_week", "2026-06-14", weekStart)).toBe(
+      "r4_event_vip",
+    );
+  });
+
+  it("keeps price_is_right calendar segments when train week starts on Monday", () => {
+    const weekStart = "2026-06-08";
+    expect(resolvePaintTemplateForDay("price_is_right", "2026-06-08", weekStart)).toBe(
+      "custom",
+    );
+    expect(resolvePaintTemplateForDay("price_is_right", "2026-06-09", weekStart)).toBe(
+      "price_is_right_weekdays",
+    );
+    expect(resolvePaintTemplateForDay("price_is_right", "2026-06-13", weekStart)).toBe(
+      "takedown_week",
+    );
+    expect(resolvePaintTemplateForDay("price_is_right", "2026-06-14", weekStart)).toBe(
+      "custom",
+    );
+  });
+
   it("returns the template itself for non-composite weeks", () => {
     expect(resolvePaintTemplateForDay("economy_week", "2026-06-10", "2026-06-09")).toBe(
       "economy_week",

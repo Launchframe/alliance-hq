@@ -4,6 +4,7 @@ import { decryptSecret } from "@/lib/crypto/encrypt";
 import { base44Json } from "@/lib/base44/fetch";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { DEFAULT_APP_ID } from "@/lib/connectionString";
+import { listActiveAllianceMembersForPool } from "@/lib/members/roster.server";
 import { addCalendarDays } from "@/lib/trains/game-time";
 import type { RollCandidate } from "@/lib/trains/types";
 import { priorDayVsAppliesForTrainDate } from "@/lib/trains/vs-data-status.shared";
@@ -234,6 +235,8 @@ export async function fetchAlliancePriorDayVsScoresByMember(
 /**
  * Top prior-day Ashed VS scorers for a train date (T−1 `recorded_date`).
  * Used by `vs_high_score` / `vs_top_10` conductor rolls — not season VR.
+ * Intersects Ashed scores with the active HQ roster (excludes `former`), matching
+ * Top VR's `fetchNativeVrTopScorers` so departed members cannot win the wheel.
  * Empty when T−1 is the Sunday VS break (weekly totals are not used).
  */
 export async function fetchAllianceVsTopScorersForTrainDate(
@@ -241,18 +244,40 @@ export async function fetchAllianceVsTopScorersForTrainDate(
   trainDate: string,
   limit: number,
 ): Promise<RollCandidate[]> {
+  if (limit <= 0) return [];
+
   if (!priorDayVsAppliesForTrainDate(trainDate)) {
     return [];
   }
   const resolved = await resolveAllianceAshedConnection(allianceId);
   if (!resolved) return [];
 
-  return fetchVsTopScorersForTrainDate(
-    resolved.connection,
-    resolved.ashedAllianceId,
-    trainDate,
-    limit,
+  const [activeMembers, scores] = await Promise.all([
+    listActiveAllianceMembersForPool(allianceId),
+    fetchVsScoresByRecordedDate(
+      resolved.connection,
+      resolved.ashedAllianceId,
+      vsScoreReferenceDate(trainDate),
+    ),
+  ]);
+
+  const activeById = new Map(
+    activeMembers.map((member) => [member.ashedMemberId, member]),
   );
+
+  return [...scores.entries()]
+    .filter(([memberId, score]) => score > 0 && activeById.has(memberId))
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([memberId, score]) => {
+      const member = activeById.get(memberId)!;
+      return {
+        memberId,
+        memberName: member.currentName,
+        allianceRank: member.allianceRank ?? null,
+        priorDayVsScore: score,
+      };
+    });
 }
 
 /** Daily VS scores for the calendar day before trainDate (never weekly totals). */

@@ -2,7 +2,10 @@ import {
   dayIndexInTrainWeek,
   weekDatesInTrainWeek,
 } from "@/lib/trains/train-week-calendar.shared";
-import { weekDatesFromMonday } from "@/lib/trains/game-time";
+import {
+  getServerDayOfWeek,
+  weekDatesFromMonday,
+} from "@/lib/trains/game-time";
 import type { WeekTemplateType } from "@/lib/trains/types";
 import { WEEK_TEMPLATES } from "@/lib/trains/types";
 
@@ -45,9 +48,21 @@ export const WEEK_TEMPLATES_WITH_DETAIL_HINTS: readonly WeekTemplateType[] = [
 
 export type CompositeWeekTemplateSegment = {
   template: WeekTemplateType;
-  /** Train week index: Tue=0 … Mon=6 (alliance default). */
+  /**
+   * Calendar DOW index relative to Tuesday: Tue=0 … Mon=6.
+   * Composite segments follow the VS match week (not alliance `trainWeekStartDow`).
+   */
   dayIndices: readonly number[];
 };
+
+/**
+ * Composite segment day index for a calendar date (Tue=0 … Mon=6).
+ * Independent of alliance train-week start so Monday-start schedules still paint
+ * Tue–Sat push / Sun–Mon R4 segments correctly.
+ */
+export function compositeSegmentDayIndex(date: string): number {
+  return (getServerDayOfWeek(date) - 2 + 7) % 7;
+}
 
 export type CompositeWeekTemplateDefinition = {
   segments: readonly CompositeWeekTemplateSegment[];
@@ -131,9 +146,17 @@ export function resolvePaintTemplateForDay(
   date: string,
   weekStart: string,
 ): WeekTemplateType {
-  const dayIndex = dayIndexInTrainWeek(date, weekStart);
-  if (dayIndex < 0) return templateType;
-  return segmentTemplateForDayIndex(templateType, dayIndex);
+  if (!isCompositeWeekTemplate(templateType)) {
+    return templateType;
+  }
+  // Accept any alliance train-week window; segment lookup is calendar-DOW based.
+  if (!weekDatesInTrainWeek(weekStart).includes(date)) {
+    return templateType;
+  }
+  return segmentTemplateForDayIndex(
+    templateType,
+    compositeSegmentDayIndex(date),
+  );
 }
 
 /**
