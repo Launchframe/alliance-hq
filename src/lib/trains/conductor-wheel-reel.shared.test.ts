@@ -5,6 +5,7 @@ import {
   buildShareViewportForWinner,
   restingShareViewport,
   restingViewportNames,
+  seededShuffle,
   uniqueWheelCandidateNames,
 } from "@/lib/trains/conductor-wheel-reel.shared";
 
@@ -134,6 +135,44 @@ describe("buildShareViewportForWinner", () => {
     expect(viewport.names.filter((name) => name === "Winner")).toHaveLength(1);
   });
 
+  it("varies surrounding names by seed so different draws do not share one layout", () => {
+    const winner = { memberId: "w", memberName: "Winner" };
+    const candidates = [
+      winner,
+      ...Array.from({ length: 8 }, (_, i) => ({
+        memberId: `m${i}`,
+        memberName: `Member${i}`,
+      })),
+    ];
+    const a = buildShareViewportForWinner(winner, candidates, {
+      seed: "2026-07-29:w",
+    });
+    const b = buildShareViewportForWinner(winner, candidates, {
+      seed: "2026-07-30:w",
+    });
+    expect(a.names[a.winnerIndex]).toBe("Winner");
+    expect(b.names[b.winnerIndex]).toBe("Winner");
+    expect(a.names).not.toEqual(b.names);
+  });
+
+  it("is stable for the same seed", () => {
+    const winner = { memberId: "w", memberName: "Winner" };
+    const candidates = [
+      winner,
+      { memberId: "a", memberName: "Alpha" },
+      { memberId: "b", memberName: "Bravo" },
+      { memberId: "c", memberName: "Charlie" },
+      { memberId: "d", memberName: "Delta" },
+    ];
+    const first = buildShareViewportForWinner(winner, candidates, {
+      seed: "2026-07-29:w",
+    });
+    const second = buildShareViewportForWinner(winner, candidates, {
+      seed: "2026-07-29:w",
+    });
+    expect(second).toEqual(first);
+  });
+
   it("pads when the roster is thin", () => {
     const winner = { memberId: "w", memberName: "Solo" };
     const viewport = buildShareViewportForWinner(winner, [winner]);
@@ -150,5 +189,17 @@ describe("buildShareViewportForWinner", () => {
     expect(viewport.names).toHaveLength(5);
     expect(viewport.names[viewport.winnerIndex]).toBe("Winner");
     expect(viewport.winnerIndex).toBe(2);
+  });
+});
+
+describe("seededShuffle", () => {
+  it("returns a permutation stable for the same seed", () => {
+    const input = ["a", "b", "c", "d", "e"];
+    expect(seededShuffle(input, "draw-1")).toEqual(
+      seededShuffle(input, "draw-1"),
+    );
+    expect(seededShuffle(input, "draw-2")).not.toEqual(
+      seededShuffle(input, "draw-1"),
+    );
   });
 });

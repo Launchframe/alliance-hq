@@ -1464,7 +1464,9 @@ export function TrainsDashboard({ initial }: Props) {
         memberId: selectedRecord.conductorMemberId,
         memberName: selectedRecord.conductorMemberName,
       };
-      const viewport = buildShareViewportForWinner(winner, data.roster);
+      const viewport = buildShareViewportForWinner(winner, data.roster, {
+        seed: `${selectedDate}:${winner.memberId}`,
+      });
       const dayLabel = spinWeekDayLabel(selectedDate);
       const statsForShare =
         selectedDate === data.today &&
