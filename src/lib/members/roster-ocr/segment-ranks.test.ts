@@ -314,4 +314,23 @@ describe("parseRankGroupHeader", () => {
   it("does not treat a badge+stats merged line as a header", () => {
     expect(parseRankGroupHeader("R3 SomePlayer 94.1M Lv.26")).toBeNull();
   });
+
+  it("does not treat a member row after a combined header as title continuation", () => {
+    expect(
+      parseRankGroupHeader("| urmom90 Online", {
+        afterRankGroupHeader: true,
+        currentRank: 4,
+      }),
+    ).toBeNull();
+  });
+
+  it("parses maintainer screenshot headers with quota on the same line", () => {
+    expect(parseRankGroupHeader("R4 Crowd Control 4/10")?.rank).toBe(4);
+    expect(parseRankGroupHeader("R4 Crowd Control 4/10")?.groupTitle).toBe(
+      "Crowd Control",
+    );
+    expect(parseRankGroupHeader("R3 Heart of the Alliance 8/83")?.groupTitle).toBe(
+      "Heart of the Alliance",
+    );
+  });
 });

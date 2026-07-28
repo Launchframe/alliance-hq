@@ -130,6 +130,10 @@ function looksLikeGroupTitleContinuation(line: string): boolean {
   const trimmed = line.trim();
   if (hasQuotaPattern(trimmed)) return true;
   if (/\([v<>]|[<>v]\s*$/i.test(trimmed)) return true;
+  // Member rows often follow a header on the next line — never treat them as title continuations.
+  if (/\bonline\b/i.test(trimmed)) return false;
+  if (/\bago\b/i.test(trimmed)) return false;
+  if (hasMemberStats(trimmed)) return false;
   const words = trimmed.split(/\s+/).filter(Boolean);
   if (words.length >= 3) return true;
   if (trimmed.length > 20) return true;

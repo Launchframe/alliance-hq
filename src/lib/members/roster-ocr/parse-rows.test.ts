@@ -64,6 +64,12 @@ describe("parseLineTokens", () => {
     expect(cleanMemberName("@ Nobell 61 ago").name).toBe("Nobell");
   });
 
+  it("strips gender-icon OCR glue before usernames", () => {
+    expect(cleanMemberName("♂CoolPlayer Online").name).toBe("CoolPlayer");
+    expect(cleanMemberName("♀ ShadowFox 41m ago").name).toBe("ShadowFox");
+    expect(cleanMemberName("| urmom90 Online |").name).toBe("urmom90");
+  });
+
   it("parses Power: labeled stats lines", () => {
     const result = parseLineTokens("Power: 94.1M Lv.26");
     expect(result.heroPowerM).toBeCloseTo(94.1);
@@ -290,6 +296,37 @@ describe("parseRankListRows", () => {
     expect(rows.find((r) => r.extractedName === "urmom90")?.allianceRank).toBe(
       4,
     );
+  });
+
+  // Maintainer screenshot pattern: quota-bearing combined header + icon-glued name
+  // + white-outlined Power/Lv on the next line.
+  it("parses R4 Crowd Control header with icon-glued name and split stats", () => {
+    const rows = parseRankListRows([
+      "Search for Members",
+      "R4 Crowd Control 4/10",
+      "| urmom90 Online",
+      "Power: 210.4M Lv.34",
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.extractedName).toBe("urmom90");
+    expect(rows[0]?.allianceRank).toBe(4);
+    expect(rows[0]?.heroPowerM).toBeCloseTo(210.4);
+    expect(rows[0]?.memberLevel).toBe(34);
+  });
+
+  // Maintainer screenshot pattern: R3 Heart of the Alliance with quota on same line.
+  it("parses R3 Heart of the Alliance quota header from maintainer screenshots", () => {
+    const rows = parseRankListRows([
+      "Search for Members",
+      "R3 Heart of the Alliance 8/83",
+      "C Price",
+      "Power: 94.1M Lv.26",
+    ]);
+    expect(rows.map((r) => r.extractedName)).not.toContain("Heart of the Alliance");
+    const price = rows.find((r) => r.extractedName === "C Price");
+    expect(price?.allianceRank).toBe(3);
+    expect(price?.heroPowerM).toBeCloseTo(94.1);
+    expect(price?.memberLevel).toBe(26);
   });
 });
 
