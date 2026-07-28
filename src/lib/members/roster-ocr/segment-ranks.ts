@@ -38,6 +38,16 @@ const MEMBER_STATS_RE = /\bpower\s*[:}]?|\d+(?:\.\d+)?\s*M\b|\bLv\.?\s*\d+/i;
 /** Bare rank badge only (`R3`), not `R3 Something`. */
 const BARE_RANK_BADGE_RE = /^\s*R\s*([1-5])\s*$/i;
 
+/**
+ * Badge + arbitrary trailing text (title, quota, chevron garbage) glued onto
+ * ONE line, with no quota required. Tolerates a few leading OCR-noise chars
+ * (e.g. a stray "[" from an adjacent collapse icon) and requires a real
+ * separator right after the digit — not another letter/digit — so real
+ * usernames like "R3Ace" (no separator) still fall through to member parsing.
+ */
+const LOOSE_RANK_BADGE_LINE_RE =
+  /^[^A-Za-z0-9]{0,3}R\s*([1-5])(?:\s+|[|)\]]+\s*)(.+)$/i;
+
 /** R5 titled roles and their canonical titles. */
 const R5_TITLES: string[] = ["Leader"];
 
@@ -167,6 +177,24 @@ export function parseRankGroupHeader(
     if (combined) {
       const rank = parseInt(combined[1]!, 10) as AllianceRank;
       const groupTitle = combined[2]!.replace(/\s*[<>v)\(].*$/i, "").trim();
+      return {
+        rank,
+        groupTitle: groupTitle || undefined,
+      };
+    }
+
+    // Same-line badge + title/garbage with NO quota — the most common
+    // real-world OCR rendering ("R3 Heart of the Alliance (wv |", "R3) on M",
+    // "[R4 Crowd Control 14/10 (|"). Quota is optional supporting evidence,
+    // not a requirement: OCR frequently fails to capture the quota digits at
+    // all even when the same alliance's other rank headers do show them.
+    const loose = LOOSE_RANK_BADGE_LINE_RE.exec(trimmed);
+    if (loose) {
+      const rank = parseInt(loose[1]!, 10) as AllianceRank;
+      const groupTitle = loose[2]!
+        .replace(MEMBER_QUOTA_RE, "")
+        .replace(/\s*[<>v)\(].*$/i, "")
+        .trim();
       return {
         rank,
         groupTitle: groupTitle || undefined,

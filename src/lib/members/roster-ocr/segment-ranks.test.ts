@@ -283,4 +283,35 @@ describe("parseRankGroupHeader", () => {
       badgeRank: 3,
     })).toBe(true);
   });
+
+  // -------------------------------------------------------------------------
+  // Real-world OCR strings captured from jobs _PUUrjOcByVE3qSc and
+  // dtSB32xtMr39bpHH (post-#456 regression) — combined badge+title lines
+  // with NO quota digits ever captured.
+  // -------------------------------------------------------------------------
+
+  it("parses a combined badge+title line with no quota and trailing chevron garbage", () => {
+    const header = parseRankGroupHeader("R3 Heart of the Alliance (wv |");
+    expect(header?.rank).toBe(3);
+    expect(header?.groupTitle).toBe("Heart of the Alliance");
+  });
+
+  it("parses a combined badge+garbage-title line with no quota", () => {
+    const header = parseRankGroupHeader("R3) on M");
+    expect(header?.rank).toBe(3);
+  });
+
+  it("tolerates leading OCR bracket noise before the badge", () => {
+    const header = parseRankGroupHeader("[R4 Crowd Control 14/10 (|");
+    expect(header?.rank).toBe(4);
+    expect(header?.groupTitle).toBe("Crowd Control");
+  });
+
+  it("does not treat a real username with no separator after the digit as a header", () => {
+    expect(parseRankGroupHeader("R3Ace")).toBeNull();
+  });
+
+  it("does not treat a badge+stats merged line as a header", () => {
+    expect(parseRankGroupHeader("R3 SomePlayer 94.1M Lv.26")).toBeNull();
+  });
 });

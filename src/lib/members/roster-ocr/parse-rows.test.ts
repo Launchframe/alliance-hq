@@ -222,6 +222,75 @@ describe("parseRankListRows", () => {
     expect(names.some((n) => /heart of the alliance/i.test(n))).toBe(false);
     expect(names).toContain("C Price");
   });
+
+  // -------------------------------------------------------------------------
+  // Real-world regression: job _PUUrjOcByVE3qSc (post-#456). Header renders
+  // as ONE combined line with no quota digits ever captured by OCR.
+  // -------------------------------------------------------------------------
+
+  it("does not leak a same-line combined header (no quota) as a member row", () => {
+    const rows = parseRankListRows([
+      "Search for Members",
+      "R3 Heart of the Alliance (wv |",
+      "C Price",
+      "Power: 94.1M Lv.26",
+    ]);
+    const names = rows.map((r) => r.extractedName);
+    expect(names.some((n) => /heart of the alliance/i.test(n))).toBe(false);
+    expect(names).toContain("C Price");
+
+    const price = rows.find((r) => r.extractedName === "C Price");
+    expect(price?.allianceRank).toBe(3);
+  });
+
+  // -------------------------------------------------------------------------
+  // Real-world regression: job dtSB32xtMr39bpHH frame 3 (post-#456). Header
+  // "R3) on M" was previously unrecognized, leaked as a fake member, and
+  // starved rank context for every real member later in the frame.
+  // -------------------------------------------------------------------------
+
+  it("replays job dtSB32xtMr39bpHH frame 3 raw OCR: header sets context, no leak", () => {
+    const frame3Lines = [
+      "9",
+      "bang]",
+      "RS) Corn Goo Smeller",
+      "Warlord Recruiter, Muse Butler",
+      "Cmoney1985 urmom90 RodDadBod Lumplicious",
+      "Q, Search for Members",
+      "R3) on M",
+      "Costaeluz Online",
+      "Bradock2025 Online |",
+      "@ Blackie Nut Online",
+    ];
+    const rows = parseRankListRows(frame3Lines);
+    const names = rows.map((r) => r.extractedName);
+
+    expect(names).not.toContain("on M");
+    expect(names.some((n) => /corn goo/i.test(n))).toBe(false);
+
+    expect(names).toContain("Costaeluz");
+    expect(names).toContain("Bradock2025");
+    expect(names).toContain("Blackie Nut");
+
+    for (const name of ["Costaeluz", "Bradock2025", "Blackie Nut"]) {
+      const row = rows.find((r) => r.extractedName === name);
+      expect(row?.allianceRank).toBe(3);
+    }
+  });
+
+  it("tolerates leading OCR bracket noise on the header without dropping real members", () => {
+    const rows = parseRankListRows([
+      "Search for Members",
+      "[R4 Crowd Control 14/10 (|",
+      "urmom90",
+    ]);
+    const names = rows.map((r) => r.extractedName);
+    expect(names.some((n) => /crowd control/i.test(n))).toBe(false);
+    expect(names).toContain("urmom90");
+    expect(rows.find((r) => r.extractedName === "urmom90")?.allianceRank).toBe(
+      4,
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
