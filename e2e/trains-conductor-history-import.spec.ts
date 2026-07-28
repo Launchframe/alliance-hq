@@ -102,12 +102,13 @@ async function setupHistoryImportOfficer(
   };
 }
 
-async function pickAndLockConductor(
+/** Lock a past conductor without manual pick (avoids depleting-pool seed on r4+ days). */
+async function lockConductorForDate(
   request: APIRequestContext,
   cookieHeader: string,
   input: { date: string; memberId: string; memberName: string },
 ) {
-  const pickRes = await request.post("/api/trains/conductor/pick", {
+  const lockRes = await request.post("/api/trains/conductor/lock", {
     headers: {
       Cookie: cookieHeader,
       "Content-Type": "application/json",
@@ -117,15 +118,6 @@ async function pickAndLockConductor(
       memberId: input.memberId,
       memberName: input.memberName,
     },
-  });
-  expect(pickRes.ok(), await pickRes.text()).toBeTruthy();
-
-  const lockRes = await request.post("/api/trains/conductor/lock", {
-    headers: {
-      Cookie: cookieHeader,
-      "Content-Type": "application/json",
-    },
-    data: { date: input.date },
   });
   expect(lockRes.ok(), await lockRes.text()).toBeTruthy();
 }
@@ -205,7 +197,7 @@ test.describe("Conductor history import", () => {
       "Need a past calendar day for conflict import.",
     );
 
-    await pickAndLockConductor(request, fixture.cookieHeader, {
+    await lockConductorForDate(request, fixture.cookieHeader, {
       date: targetDate,
       memberId: fixture.memberA.ashedMemberId,
       memberName: fixture.memberA.name,
