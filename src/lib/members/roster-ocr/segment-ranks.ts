@@ -38,6 +38,16 @@ const MEMBER_STATS_RE = /\bpower\s*[:}]?|\d+(?:\.\d+)?\s*M\b|\bLv\.?\s*\d+/i;
 /** Bare rank badge only (`R3`), not `R3 Something`. */
 const BARE_RANK_BADGE_RE = /^\s*R\s*([1-5])\s*$/i;
 
+/**
+ * Badge + arbitrary trailing text (title, quota, chevron garbage) glued onto
+ * ONE line, with no quota required. Tolerates a few leading OCR-noise chars
+ * (e.g. a stray "[" from an adjacent collapse icon) and requires a real
+ * separator right after the digit — not another letter/digit — so real
+ * usernames like "R3Ace" (no separator) still fall through to member parsing.
+ */
+const LOOSE_RANK_BADGE_LINE_RE =
+  /^[^A-Za-z0-9]{0,3}R\s*([1-5])(?:\s+|[|)\]]+\s*)(.+)$/i;
+
 /** R5 titled roles and their canonical titles. */
 const R5_TITLES: string[] = ["Leader"];
 
@@ -120,10 +130,27 @@ function looksLikeGroupTitleContinuation(line: string): boolean {
   const trimmed = line.trim();
   if (hasQuotaPattern(trimmed)) return true;
   if (/\([v<>]|[<>v]\s*$/i.test(trimmed)) return true;
+  // Member rows often follow a header on the next line — never treat them as title continuations.
+  if (/\bonline\b/i.test(trimmed)) return false;
+  if (/\bago\b/i.test(trimmed)) return false;
+  if (hasMemberStats(trimmed)) return false;
   const words = trimmed.split(/\s+/).filter(Boolean);
   if (words.length >= 3) return true;
   if (trimmed.length > 20) return true;
   return false;
+}
+
+/**
+ * Strip OCR collapse-chevron / pipe garbage from a captured group title.
+ * Diagnostics only — must not truncate titles that contain the letter "v"
+ * (e.g. "Vanguard") by treating every `v` as a chevron token.
+ */
+function stripGroupTitleGarbage(title: string): string {
+  return title
+    .replace(/\s*\([vw<>|)\]].*$/i, "")
+    .replace(/\s*[|\]<>].*$/, "")
+    .replace(/\s+\b(?:wv|v)\b\s*$/i, "")
+    .trim();
 }
 
 export type RankGroupHeader = {
@@ -166,20 +193,49 @@ export function parseRankGroupHeader(
     const combined = COMBINED_RANK_GROUP_HEADER_RE.exec(trimmed);
     if (combined) {
       const rank = parseInt(combined[1]!, 10) as AllianceRank;
-      const groupTitle = combined[2]!.replace(/\s*[<>v)\(].*$/i, "").trim();
+      const groupTitle = stripGroupTitleGarbage(combined[2]!);
       return {
         rank,
         groupTitle: groupTitle || undefined,
       };
     }
 
+    // Same-line badge + title/garbage with NO quota — the most common
+    // real-world OCR rendering ("R3 Heart of the Alliance (wv |", "R3) on M",
+    // "[R4 Crowd Control 14/10 (|"). Quota is optional supporting evidence,
+    // not a requirement: OCR frequently fails to capture the quota digits at
+    // all even when the same alliance's other rank headers do show them.
+    //
+    // BUT: this pattern is structurally identical to a per-row rank badge
+    // glued onto a member's name (e.g. "R5|BigLeader", "R3| Ace Ventura" —
+    // the same OCR artifact `RANK_BADGE_PREFIX_RE` in parse-rows.ts strips
+    // from member rows) whenever that member's Power/Lv stats land on a
+    // separate line, so this line alone has no stats to disqualify it via
+    // `hasMemberStats`. Once a rank section is already established, a
+    // same-rank "R<n> ..." line is a member row, not a *new* header — real
+    // headers only ever introduce a *different* rank than the one already
+    // in effect. Only headers whose digit differs from the already-current
+    // rank (or when no rank context exists yet) win this branch.
+    const loose = LOOSE_RANK_BADGE_LINE_RE.exec(trimmed);
+    if (loose) {
+      const rank = parseInt(loose[1]!, 10) as AllianceRank;
+      if (rank !== ctx?.currentRank) {
+        const groupTitle = stripGroupTitleGarbage(
+          loose[2]!.replace(MEMBER_QUOTA_RE, ""),
+        );
+        return {
+          rank,
+          groupTitle: groupTitle || undefined,
+        };
+      }
+    }
+
     if (hasQuotaPattern(trimmed)) {
       const rank = ctx?.badgeRank ?? ctx?.currentRank ?? null;
       if (rank != null) {
-        const groupTitle = trimmed
-          .replace(MEMBER_QUOTA_RE, "")
-          .replace(/\s*[<>v)\(].*$/i, "")
-          .trim();
+        const groupTitle = stripGroupTitleGarbage(
+          trimmed.replace(MEMBER_QUOTA_RE, ""),
+        );
         return {
           rank,
           groupTitle: groupTitle || undefined,
@@ -189,7 +245,7 @@ export function parseRankGroupHeader(
 
     if (ctx?.afterRankBadge && ctx.badgeRank != null) {
       if (looksLikeGroupTitleContinuation(trimmed)) {
-        const groupTitle = trimmed.replace(/\s*[<>v)\(].*$/i, "").trim();
+        const groupTitle = stripGroupTitleGarbage(trimmed);
         if (groupTitle && parseRankHeader(groupTitle) === null) {
           return { rank: ctx.badgeRank, groupTitle };
         }
@@ -198,7 +254,7 @@ export function parseRankGroupHeader(
 
     if (ctx?.afterRankGroupHeader && ctx.currentRank != null) {
       if (looksLikeGroupTitleContinuation(trimmed)) {
-        const groupTitle = trimmed.replace(/\s*[<>v)\(].*$/i, "").trim();
+        const groupTitle = stripGroupTitleGarbage(trimmed);
         if (groupTitle && parseRankHeader(groupTitle) === null) {
           return { rank: ctx.currentRank, groupTitle };
         }
@@ -332,9 +388,18 @@ export type LineWithRankContext = {
 /**
  * Walk OCR lines and assign a rank context to each member line based on the
  * nearest preceding R1–R5 header.
+ *
+ * `initialRank` seeds the context with a sticky rank carried over from a
+ * prior video frame (e.g. the header scrolled off-screen). This lets the
+ * same-rank guard in `parseRankGroupHeader` correctly treat a badge-prefixed
+ * member row as the very first line of a frame, instead of mistaking it for
+ * a brand-new section header.
  */
-export function segmentByRankHeaders(lines: string[]): LineWithRankContext[] {
-  let currentRank: AllianceRank | null = null;
+export function segmentByRankHeaders(
+  lines: string[],
+  initialRank?: AllianceRank | null,
+): LineWithRankContext[] {
+  let currentRank: AllianceRank | null = initialRank ?? null;
   const result: LineWithRankContext[] = [];
   let afterRankBadge = false;
   let afterRankGroupHeader = false;

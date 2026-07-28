@@ -86,8 +86,8 @@ export function cleanMemberName(raw: string): CleanedMemberName {
   name = name.replace(TRAILING_LAST_ONLINE_RE, "").trim();
   name = name.replace(TRAILING_ONLINE_RE, "").trim();
   name = name.replace(POWER_LABEL_RE, "").trim();
-  // Drop leftover punctuation wrappers from OCR.
-  name = name.replace(/^[\s|@\[\](){},.]+|[\s|@\[\](){},.]+$/g, "").trim();
+  // Drop gender icons, @ prefixes, and other OCR glue before/after the username.
+  name = name.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "").trim();
 
   return { name, rankHint };
 }
@@ -161,10 +161,10 @@ export function parseRankListRows(
   options?: { stickyRank?: AllianceRank },
 ): ParsedRosterRow[] {
   const source = prepareRankListSourceLines(lines);
-  const segmented = segmentByRankHeaders(source);
+  const stickyRank = options?.stickyRank;
+  const segmented = segmentByRankHeaders(source, stickyRank);
   const rows: ParsedRosterRow[] = [];
   let pending: ParsedRosterRow | null = null;
-  const stickyRank = options?.stickyRank;
 
   const flushPending = () => {
     if (pending && isPlausibleMemberName(pending.extractedName)) {

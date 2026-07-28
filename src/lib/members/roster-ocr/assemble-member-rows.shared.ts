@@ -31,7 +31,12 @@ function isHeaderBandLine(line: RosterOcrLineLike): boolean {
   const text = line.text.trim();
   if (!text) return true;
   if (isBareRankBadge(text)) return true;
-  if (parseRankGroupHeader(text, { currentRank: 3 }) !== null) return true;
+  // No real section context exists at this geometry-clustering stage — probe
+  // with no ctx so the same-rank guard in `parseRankGroupHeader` (which only
+  // matters once a real rank is already established) never suppresses a
+  // structurally header-shaped line here. Quota-only lines without a badge
+  // are covered by the explicit check below regardless.
+  if (parseRankGroupHeader(text) !== null) return true;
   if (hasQuotaPattern(text) && !hasMemberStats(text)) return true;
   return false;
 }

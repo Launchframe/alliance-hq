@@ -283,4 +283,91 @@ describe("parseRankGroupHeader", () => {
       badgeRank: 3,
     })).toBe(true);
   });
+
+  // -------------------------------------------------------------------------
+  // Real-world OCR strings captured from jobs _PUUrjOcByVE3qSc and
+  // dtSB32xtMr39bpHH (post-#456 regression) — combined badge+title lines
+  // with NO quota digits ever captured.
+  // -------------------------------------------------------------------------
+
+  it("parses a combined badge+title line with no quota and trailing chevron garbage", () => {
+    const header = parseRankGroupHeader("R3 Heart of the Alliance (wv |");
+    expect(header?.rank).toBe(3);
+    expect(header?.groupTitle).toBe("Heart of the Alliance");
+  });
+
+  it("parses a combined badge+garbage-title line with no quota", () => {
+    const header = parseRankGroupHeader("R3) on M");
+    expect(header?.rank).toBe(3);
+  });
+
+  it("tolerates leading OCR bracket noise before the badge", () => {
+    const header = parseRankGroupHeader("[R4 Crowd Control 14/10 (|");
+    expect(header?.rank).toBe(4);
+    expect(header?.groupTitle).toBe("Crowd Control");
+  });
+
+  it("preserves letter v inside group titles when stripping chevron garbage", () => {
+    expect(parseRankGroupHeader("R3 Vanguard (wv |")?.groupTitle).toBe("Vanguard");
+    expect(parseRankGroupHeader("R4 Invaders 7/83")?.groupTitle).toBe("Invaders");
+  });
+
+  it("does not treat a real username with no separator after the digit as a header", () => {
+    expect(parseRankGroupHeader("R3Ace")).toBeNull();
+  });
+
+  it("does not treat a badge+stats merged line as a header", () => {
+    expect(parseRankGroupHeader("R3 SomePlayer 94.1M Lv.26")).toBeNull();
+  });
+
+  it("does not treat a member row after a combined header as title continuation", () => {
+    expect(
+      parseRankGroupHeader("| urmom90 Online", {
+        afterRankGroupHeader: true,
+        currentRank: 4,
+      }),
+    ).toBeNull();
+  });
+
+  it("parses maintainer screenshot headers with quota on the same line", () => {
+    expect(parseRankGroupHeader("R4 Crowd Control 4/10")?.rank).toBe(4);
+    expect(parseRankGroupHeader("R4 Crowd Control 4/10")?.groupTitle).toBe(
+      "Crowd Control",
+    );
+    expect(parseRankGroupHeader("R3 Heart of the Alliance 8/83")?.groupTitle).toBe(
+      "Heart of the Alliance",
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Real Steel pass 2 (Sonnet): LOOSE_RANK_BADGE_LINE_RE regressed member rows
+  // whose own rank-badge icon glues onto the name ("R5|BigLeader"), exactly
+  // the pattern RANK_BADGE_PREFIX_RE in parse-rows.ts was already designed to
+  // strip, whenever that member's Power/Lv stats land on a separate line.
+  // -------------------------------------------------------------------------
+
+  it("does not treat a same-rank badge-prefixed member row as a new header", () => {
+    // Section already established as rank 5 — "R5|BigLeader" is a member row
+    // with a glued badge icon, not a duplicate section header.
+    expect(
+      parseRankGroupHeader("R5|BigLeader", { currentRank: 5 }),
+    ).toBeNull();
+    expect(
+      parseRankGroupHeader("R3| Ace Ventura", { currentRank: 3 }),
+    ).toBeNull();
+  });
+
+  it("still treats a same-line badge+title as a header when the rank differs from the established section", () => {
+    // Scrolling from the R4 section into a new R3 section — different digit,
+    // so this is a genuine new header, not a member row.
+    const header = parseRankGroupHeader("R3 Heart of the Alliance (wv |", {
+      currentRank: 4,
+    });
+    expect(header?.rank).toBe(3);
+  });
+
+  it("still treats a same-line badge+title as a header when no rank context exists yet", () => {
+    // No ctx at all (or ctx.currentRank undefined) — first header in the frame.
+    expect(parseRankGroupHeader("R5|BigLeader")?.rank).toBe(5);
+  });
 });
