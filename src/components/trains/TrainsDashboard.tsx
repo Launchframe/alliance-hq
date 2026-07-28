@@ -2091,7 +2091,6 @@ export function TrainsDashboard({ initial }: Props) {
                       wheelSpeedMultiplier={wheelAnimMultiplier}
                       snapshotRef={snapshotRef}
                       applySnapshot={applySnapshot}
-                      withOptimisticMutation={withOptimisticMutation}
                       presentPoolRefreshedHints={presentPoolRefreshedHints}
                       onError={setError}
                       onWheelBlocked={(details) => {
@@ -2302,7 +2301,6 @@ export function TrainsDashboard({ initial }: Props) {
                   wheelSpeedMultiplier={wheelAnimMultiplier}
                   snapshotRef={snapshotRef}
                   applySnapshot={applySnapshot}
-                  withOptimisticMutation={withOptimisticMutation}
                   presentPoolRefreshedHints={presentPoolRefreshedHints}
                   onError={setError}
                   onWheelBlocked={(details) => {

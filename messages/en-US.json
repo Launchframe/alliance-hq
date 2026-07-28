@@ -3493,13 +3493,10 @@
       "spinForWeek": "Spin for the week",
       "spinningProgress": "Spinning the week…",
       "rollFailed": "Could not roll for Conductor.",
-      "lockFailed": "Could not lock conductors.",
       "disqualifiedExhausted": "Could not find a qualified conductor after several spins. Try again or pick manually.",
-      "confirmTitle": "Lock conductors for the week?",
-      "confirmBody": "Review {count} conductors drawn from the pool. Locking spawns empty trains for each day.",
-      "confirmLockAll": "Confirm and lock all",
-      "confirmLocking": "Locking…",
-      "confirmCancel": "Keep as drafts",
+      "confirmTitle": "Week conductors ready",
+      "confirmBody": "Review {count} conductors drawn from the pool. They stay as drafts until you lock each day when the train is set in-game.",
+      "confirmDone": "Done",
       "disabledReason": {
         "pastWeek": "This train week is entirely in the past.",
         "noEligibleDays": "No remaining days in this week need a wheel spin."
@@ -3518,12 +3515,12 @@
       "stepViewToggle": "Switch between week and month view. Month view is best for painting templates ahead.",
       "stepConductorCard": "Today’s conductor card shows the VIP, guardian, and lock status. Locking spawns the train for that day.",
       "stepQuickActions": "Roll or spin the wheel, pick the top scorer, or choose someone manually from quick actions.",
-      "stepSpinWeek": "Spin for the Week rolls and locks every remaining wheel-eligible day in one pass."
+      "stepSpinWeek": "Spin for the Week rolls every remaining wheel-eligible day in one pass. Lock each day separately when the train is set in-game."
     },
     "swap": {
       "action": "Swap / Make-up day",
       "title": "Swap conductors",
-      "body": "Move an unlocked conductor draft to another day or swap between two unlocked days — useful for make-up days. You can choose an upcoming day or pick any future date. Assigned target days will be locked after you confirm.",
+      "body": "Move an unlocked conductor draft to another day or swap between two unlocked days — useful for make-up days. You can choose an upcoming day or pick any future date. Days stay unlocked until you lock them when the train is set in-game.",
       "thisDay": "This day",
       "swapWith": "Upcoming days",
       "pickDate": "Or pick a date",

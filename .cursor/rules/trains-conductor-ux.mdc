@@ -75,6 +75,12 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 - Offer a date picker for farther future dates.
 - Do **not** hide Swap on the last day of the current week.
 - Both days must be unlocked (`swapConductors`).
+- Swap **only moves drafts** — do **not** auto-lock. Lock when the train is set in-game.
+
+## Spin for the week
+
+- Rolls remaining wheel-eligible days and leaves them as **unlocked drafts**.
+- Do **not** batch-lock from this flow — lock is the irreversible in-game spawn action.
 
 ## Week strip
 

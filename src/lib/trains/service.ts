@@ -1495,7 +1495,7 @@ export async function swapConductors(input: {
   dateA: string;
   dateB: string;
 }): Promise<{
-  records: Awaited<ReturnType<typeof lockConductorRecord>>[];
+  records: NonNullable<Awaited<ReturnType<typeof getConductorRecord>>>[];
 }> {
   if (input.dateA === input.dateB) {
     throw new Error("Pick two different days to swap.");
@@ -1598,27 +1598,18 @@ export async function swapConductors(input: {
     seasonKey,
   );
 
-  const lockedRecords: Awaited<ReturnType<typeof lockConductorRecord>>[] = [];
-
-  if (draftB?.conductorMemberId && draftB.conductorMemberName) {
-    lockedRecords.push(
-      await lockConductorRecord(draftB.id, input.allianceId),
-    );
-  }
-
-  if (
-    targetHasConductor &&
-    draftA?.conductorMemberId &&
-    draftA.conductorMemberName
-  ) {
-    lockedRecords.push(await lockConductorRecord(draftA.id, input.allianceId));
-  }
-
-  if (lockedRecords.length === 0) {
+  // Lock is irreversible spawn — swap only moves drafts. Officers lock when
+  // the train is actually set in-game.
+  if (!draftB?.conductorMemberId || !draftB.conductorMemberName) {
     throw new Error("Swap failed to persist conductor assignment.");
   }
 
-  return { records: lockedRecords };
+  const records = [draftA, draftB].filter(
+    (row): row is NonNullable<typeof row> =>
+      Boolean(row?.conductorMemberId && row.conductorMemberName),
+  );
+
+  return { records };
 }
 
 export { getServerCalendarDate };
