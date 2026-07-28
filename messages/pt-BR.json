@@ -1437,6 +1437,9 @@
     "connectPrompt": "Conecte sua conta Ashed →",
     "openMenu": "Abrir menu de navegação",
     "closeMenu": "Fechar menu de navegação",
+    "appearanceLabel": "Tema de cores",
+    "appearanceLight": "Claro",
+    "appearanceDark": "Escuro",
     "version": "v{version}",
     "profileMenu": {
       "openMenu": "Abrir menu do perfil",

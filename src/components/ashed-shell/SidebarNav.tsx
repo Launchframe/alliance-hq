@@ -6,6 +6,7 @@ import { useLinkStatus } from "next/link";
 import { useTranslations } from "next-intl";
 
 import { Link, usePathname } from "@/i18n/navigation";
+import { SidebarAppearanceToggle } from "@/components/appearance/SidebarAppearanceToggle";
 import { useBeginNavigation } from "@/components/ashed-shell/ShellActivityProvider";
 import { ashedLink } from "@/components/i18n/richText";
 import { APP_VERSION } from "@/lib/feedback/constants";
@@ -342,6 +343,7 @@ export function SidebarNav({
       </nav>
 
       <div className="shrink-0 border-t border-hq-border p-3 text-xs text-hq-fg-muted">
+        <SidebarAppearanceToggle />
         <p>{t.rich("dataPoweredBy", { link: ashedLink })}</p>
         <p className="mt-1.5 font-mono text-[10px] text-hq-fg-subtle">
           {t("version", { version: APP_VERSION })}
