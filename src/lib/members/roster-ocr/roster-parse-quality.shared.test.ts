@@ -32,6 +32,21 @@ describe("assembleMemberRowLines", () => {
     ]);
     expect(lines).toHaveLength(2);
   });
+
+  // Real Steel pass 2 (Sonnet): isHeaderBandLine used to probe
+  // parseRankGroupHeader with a hardcoded `{ currentRank: 3 }` context, which
+  // collided with the new same-rank guard for exactly rank-3 loose headers
+  // (e.g. "R3) on M"), causing them to merge into the following member band
+  // instead of staying separate. Probing with no ctx fixes this.
+  it("does not merge a loose same-line rank-3 header (no quota) with an adjacent line in the same y-band", () => {
+    // Both lines fall within Y_CLUSTER_TOLERANCE_PX so they'd normally merge
+    // into one combined-text row — unless isHeaderBandLine flags the header.
+    const lines = assembleMemberRowLines([
+      { text: "R3) on M", bbox: { y0: 50, y1: 70 } },
+      { text: "some noise", bbox: { y0: 55, y1: 75 } },
+    ]);
+    expect(lines.map((l) => l.text)).toEqual(["R3) on M", "some noise"]);
+  });
 });
 
 describe("isLowQualityRosterParse", () => {

@@ -333,4 +333,36 @@ describe("parseRankGroupHeader", () => {
       "Heart of the Alliance",
     );
   });
+
+  // -------------------------------------------------------------------------
+  // Real Steel pass 2 (Sonnet): LOOSE_RANK_BADGE_LINE_RE regressed member rows
+  // whose own rank-badge icon glues onto the name ("R5|BigLeader"), exactly
+  // the pattern RANK_BADGE_PREFIX_RE in parse-rows.ts was already designed to
+  // strip, whenever that member's Power/Lv stats land on a separate line.
+  // -------------------------------------------------------------------------
+
+  it("does not treat a same-rank badge-prefixed member row as a new header", () => {
+    // Section already established as rank 5 — "R5|BigLeader" is a member row
+    // with a glued badge icon, not a duplicate section header.
+    expect(
+      parseRankGroupHeader("R5|BigLeader", { currentRank: 5 }),
+    ).toBeNull();
+    expect(
+      parseRankGroupHeader("R3| Ace Ventura", { currentRank: 3 }),
+    ).toBeNull();
+  });
+
+  it("still treats a same-line badge+title as a header when the rank differs from the established section", () => {
+    // Scrolling from the R4 section into a new R3 section — different digit,
+    // so this is a genuine new header, not a member row.
+    const header = parseRankGroupHeader("R3 Heart of the Alliance (wv |", {
+      currentRank: 4,
+    });
+    expect(header?.rank).toBe(3);
+  });
+
+  it("still treats a same-line badge+title as a header when no rank context exists yet", () => {
+    // No ctx at all (or ctx.currentRank undefined) — first header in the frame.
+    expect(parseRankGroupHeader("R5|BigLeader")?.rank).toBe(5);
+  });
 });

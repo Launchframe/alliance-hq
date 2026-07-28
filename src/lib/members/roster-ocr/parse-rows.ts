@@ -161,10 +161,10 @@ export function parseRankListRows(
   options?: { stickyRank?: AllianceRank },
 ): ParsedRosterRow[] {
   const source = prepareRankListSourceLines(lines);
-  const segmented = segmentByRankHeaders(source);
+  const stickyRank = options?.stickyRank;
+  const segmented = segmentByRankHeaders(source, stickyRank);
   const rows: ParsedRosterRow[] = [];
   let pending: ParsedRosterRow | null = null;
-  const stickyRank = options?.stickyRank;
 
   const flushPending = () => {
     if (pending && isPlausibleMemberName(pending.extractedName)) {

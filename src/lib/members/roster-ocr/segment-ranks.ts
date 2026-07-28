@@ -192,17 +192,30 @@ export function parseRankGroupHeader(
     // "[R4 Crowd Control 14/10 (|"). Quota is optional supporting evidence,
     // not a requirement: OCR frequently fails to capture the quota digits at
     // all even when the same alliance's other rank headers do show them.
+    //
+    // BUT: this pattern is structurally identical to a per-row rank badge
+    // glued onto a member's name (e.g. "R5|BigLeader", "R3| Ace Ventura" —
+    // the same OCR artifact `RANK_BADGE_PREFIX_RE` in parse-rows.ts strips
+    // from member rows) whenever that member's Power/Lv stats land on a
+    // separate line, so this line alone has no stats to disqualify it via
+    // `hasMemberStats`. Once a rank section is already established, a
+    // same-rank "R<n> ..." line is a member row, not a *new* header — real
+    // headers only ever introduce a *different* rank than the one already
+    // in effect. Only headers whose digit differs from the already-current
+    // rank (or when no rank context exists yet) win this branch.
     const loose = LOOSE_RANK_BADGE_LINE_RE.exec(trimmed);
     if (loose) {
       const rank = parseInt(loose[1]!, 10) as AllianceRank;
-      const groupTitle = loose[2]!
-        .replace(MEMBER_QUOTA_RE, "")
-        .replace(/\s*[<>v)\(].*$/i, "")
-        .trim();
-      return {
-        rank,
-        groupTitle: groupTitle || undefined,
-      };
+      if (rank !== ctx?.currentRank) {
+        const groupTitle = loose[2]!
+          .replace(MEMBER_QUOTA_RE, "")
+          .replace(/\s*[<>v)\(].*$/i, "")
+          .trim();
+        return {
+          rank,
+          groupTitle: groupTitle || undefined,
+        };
+      }
     }
 
     if (hasQuotaPattern(trimmed)) {
@@ -364,9 +377,18 @@ export type LineWithRankContext = {
 /**
  * Walk OCR lines and assign a rank context to each member line based on the
  * nearest preceding R1–R5 header.
+ *
+ * `initialRank` seeds the context with a sticky rank carried over from a
+ * prior video frame (e.g. the header scrolled off-screen). This lets the
+ * same-rank guard in `parseRankGroupHeader` correctly treat a badge-prefixed
+ * member row as the very first line of a frame, instead of mistaking it for
+ * a brand-new section header.
  */
-export function segmentByRankHeaders(lines: string[]): LineWithRankContext[] {
-  let currentRank: AllianceRank | null = null;
+export function segmentByRankHeaders(
+  lines: string[],
+  initialRank?: AllianceRank | null,
+): LineWithRankContext[] {
+  let currentRank: AllianceRank | null = initialRank ?? null;
   const result: LineWithRankContext[] = [];
   let afterRankBadge = false;
   let afterRankGroupHeader = false;

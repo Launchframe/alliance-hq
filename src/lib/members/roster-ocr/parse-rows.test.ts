@@ -328,6 +328,60 @@ describe("parseRankListRows", () => {
     expect(price?.heroPowerM).toBeCloseTo(94.1);
     expect(price?.memberLevel).toBe(26);
   });
+
+  // -------------------------------------------------------------------------
+  // Real Steel pass 2 (Sonnet) regression: a same-rank badge-prefixed member
+  // row (e.g. "R5|BigLeader") was misclassified as a brand-new section header
+  // by LOOSE_RANK_BADGE_LINE_RE whenever the member's own Power/Lv landed on
+  // a separate line — silently dropping the member entirely.
+  // -------------------------------------------------------------------------
+
+  it("recovers a same-rank badge-prefixed member row instead of treating it as a duplicate header", () => {
+    const rows = parseRankListRows([
+      "Search for Members",
+      "R5",
+      "R5|BigLeader",
+      "8.5M Lv.95",
+    ]);
+    const names = rows.map((r) => r.extractedName);
+    expect(names).toContain("BigLeader");
+    const leader = rows.find((r) => r.extractedName === "BigLeader");
+    expect(leader?.allianceRank).toBe(5);
+    expect(leader?.heroPowerM).toBeCloseTo(8.5);
+    expect(leader?.memberLevel).toBe(95);
+  });
+
+  it("recovers a badge-prefixed member as the first line of a scrolled frame via stickyRank", () => {
+    // No "Search for Members" and no header in view — header scrolled
+    // off-screen, so context must come entirely from the prior frame's sticky
+    // rank. Without it, "R3|Ace Ventura" would be ambiguous with a new header.
+    const rows = parseRankListRows(
+      ["R3|Ace Ventura", "Power: 40.1M Lv.50"],
+      { stickyRank: 3 },
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.extractedName).toBe("Ace Ventura");
+    expect(rows[0]?.allianceRank).toBe(3);
+    expect(rows[0]?.heroPowerM).toBeCloseTo(40.1);
+  });
+
+  it("still detects a genuine new-section header even when a differently-ranked section is already established", () => {
+    const rows = parseRankListRows([
+      "Search for Members",
+      "R4",
+      "Officer1 4.2M",
+      "R3 Heart of the Alliance (wv |",
+      "C Price",
+      "Power: 94.1M Lv.26",
+    ]);
+    const names = rows.map((r) => r.extractedName);
+    expect(names).not.toContain("Heart of the Alliance");
+    expect(names).toContain("Officer1");
+    expect(names).toContain("C Price");
+    expect(rows.find((r) => r.extractedName === "C Price")?.allianceRank).toBe(
+      3,
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
