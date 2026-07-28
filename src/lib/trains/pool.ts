@@ -468,6 +468,33 @@ export async function releasePoolSelectionForDate(
     );
 }
 
+/**
+ * Keep a depleting-pool consumption when a conductor moves between dates
+ * (e.g. swap to an open day). No-ops when no matching selection exists.
+ */
+export async function movePoolSelectionForDate(
+  allianceId: string,
+  memberId: string,
+  fromDate: string,
+  toDate: string,
+): Promise<void> {
+  if (fromDate === toDate) return;
+  const db = getDb();
+  await db
+    .update(schema.conductorPoolEntries)
+    .set({
+      selectedForDate: toDate,
+      selectedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.conductorPoolEntries.allianceId, allianceId),
+        eq(schema.conductorPoolEntries.selectedForDate, fromDate),
+        eq(schema.conductorPoolEntries.memberId, memberId),
+      ),
+    );
+}
+
 export async function getPoolSummary(
   allianceId: string,
   poolType: PoolType,

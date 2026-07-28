@@ -25,6 +25,33 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+/** Stable per-seed shuffle for share viewports (varies by day/winner, reproducible on re-export). */
+export function seededShuffle<T>(arr: T[], seed: string): T[] {
+  const a = [...arr];
+  if (a.length <= 1) return a;
+
+  let state = hashSeed(seed) || 1;
+  const random = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 0x1_0000_0000;
+  };
+
+  for (let i = a.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [a[i], a[j]] = [a[j]!, a[i]!];
+  }
+  return a;
+}
+
+function hashSeed(seed: string): number {
+  let hash = 2_166_136_261;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return hash >>> 0;
+}
+
 export type ReelBuildOptions = {
   fastSpeed?: number;
   fastSecs?: number;
@@ -67,7 +94,7 @@ export function buildConductorWheelReelSession(
   for (let i = 0; i < fastPasses; i += 1) items.push(...shuffle(names));
   for (let i = 0; i < slowPasses; i += 1) items.push(...shuffle(names));
 
-  const alternates = names.filter((name) => name !== winner.memberName);
+  const alternates = shuffle(names.filter((name) => name !== winner.memberName));
 
   // Ensure the item immediately before the winner is not the winner's name.
   if (items.length > 0 && alternates.length > 0 && items[items.length - 1] === winner.memberName) {
@@ -186,21 +213,28 @@ export function restingShareViewport(
 }
 
 /**
- * Deterministic share viewport for re-export after the wheel closes.
- * Winner is centered; surrounding names come from other candidates in order.
+ * Share viewport for re-export after the wheel closes.
+ * Winner is centered; surrounding names are shuffled so repeat exports do not
+ * always show the same roster-order neighbors (looks rigged). Pass `seed` (e.g.
+ * `${date}:${memberId}`) so re-export for the same day is stable but different
+ * draws vary.
  */
 export function buildShareViewportForWinner(
   winner: WheelReelCandidate,
   candidates: WheelReelCandidate[],
-  surroundingCount = 4,
+  options?: { surroundingCount?: number; seed?: string },
 ): { names: string[]; winnerIndex: number } {
+  const surroundingCount = options?.surroundingCount ?? 4;
   const half = Math.ceil(surroundingCount / 2);
-  const others = uniqueWheelCandidateNames(
-    candidates.filter(
-      (candidate) =>
-        candidate.memberId !== winner.memberId &&
-        candidate.memberName !== winner.memberName,
+  const others = seededShuffle(
+    uniqueWheelCandidateNames(
+      candidates.filter(
+        (candidate) =>
+          candidate.memberId !== winner.memberId &&
+          candidate.memberName !== winner.memberName,
+      ),
     ),
+    options?.seed ?? `${winner.memberId}:${winner.memberName}`,
   );
   const above = others.slice(0, half);
   const below = others.slice(half, half + half);
