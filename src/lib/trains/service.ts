@@ -371,6 +371,14 @@ export async function ensureConductorPoolSeeded(input: {
     return;
   }
 
+  const summary = await getPoolSummary(input.hqAllianceId, input.poolType);
+  // Mid-generation leftovers that fail conductor minimums must not trigger a
+  // reseed — that re-admits already-selected winners into a new generation.
+  // rollFromPool throws POOL_UNAVAILABLE when none of the leftovers qualify.
+  if (summary.total > 0 && !summary.exhausted) {
+    return;
+  }
+
   const candidates = await buildPoolCandidates({
     hqAllianceId: input.hqAllianceId,
     poolType: input.poolType,
@@ -383,7 +391,6 @@ export async function ensureConductorPoolSeeded(input: {
     throwPoolEmpty(input.poolType);
   }
 
-  const summary = await getPoolSummary(input.hqAllianceId, input.poolType);
   if (summary.total > 0) {
     await startNewPoolGeneration(input.hqAllianceId, input.poolType, candidates);
     return;
