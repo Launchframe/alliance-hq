@@ -4,6 +4,7 @@ import {
   handleDiscordWhoIs,
   handleDiscordWhoIsClaimInvite,
 } from "@/lib/discord/who-is-bot-handlers.server";
+import { CommanderClaimInviteError } from "@/lib/native-alliance/invites";
 
 vi.mock("@/lib/discord/claim-invite-auth.server", () => ({
   callerCanIssueClaimInviteFromDiscord: vi.fn(),
@@ -300,6 +301,56 @@ describe("handleDiscordWhoIsClaimInvite", () => {
       targetAshedMemberId: "m1",
     });
     expect(result.reply).toContain("TAG-ABC123");
+  });
+
+  it("returns localized message when commander is not on roster", async () => {
+    vi.mocked(createAllianceJoinCode).mockRejectedValue(
+      new CommanderClaimInviteError(
+        "commander_not_found",
+        "Commander is not an active roster member.",
+      ),
+    );
+    const en = await handleDiscordWhoIsClaimInvite({
+      allianceId: "a1",
+      discordUserId: "d-caller",
+      locale: "en-US",
+      ashedMemberId: "m1",
+    });
+    expect(en.reply).toMatch(/not on the active roster/i);
+    expect(en.reply).not.toContain("Commander is not");
+
+    const pt = await handleDiscordWhoIsClaimInvite({
+      allianceId: "a1",
+      discordUserId: "d-caller",
+      locale: "pt-BR",
+      ashedMemberId: "m1",
+    });
+    expect(pt.reply).toMatch(/roster ativo/i);
+  });
+
+  it("returns localized message when commander is already claimed", async () => {
+    vi.mocked(createAllianceJoinCode).mockRejectedValue(
+      new CommanderClaimInviteError(
+        "commander_already_claimed",
+        "This commander is already linked to an account.",
+      ),
+    );
+    const en = await handleDiscordWhoIsClaimInvite({
+      allianceId: "a1",
+      discordUserId: "d-caller",
+      locale: "en-US",
+      ashedMemberId: "m1",
+    });
+    expect(en.reply).toMatch(/already linked/i);
+    expect(en.reply).not.toContain("This commander is");
+
+    const pt = await handleDiscordWhoIsClaimInvite({
+      allianceId: "a1",
+      discordUserId: "d-caller",
+      locale: "pt-BR",
+      ashedMemberId: "m1",
+    });
+    expect(pt.reply).toMatch(/já está vinculado/i);
   });
 
   it("returns a generic server error for unexpected claim failures", async () => {

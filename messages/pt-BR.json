@@ -4826,7 +4826,8 @@
       "createClaimInvite": "Criar convite de claim",
       "claimInviteCreated": "Convite de claim para **{name}**:\n\nCódigo: `{code}`\n\n{shareMessage}",
       "claimInviteDenied": "Apenas oficiais podem criar convites de claim de comandante.",
-      "claimInviteFailed": "Não foi possível criar o convite de claim: {reason}"
+      "claimInviteFailedCommanderNotFound": "Esse comandante não está no roster ativo.",
+      "claimInviteFailedCommanderAlreadyClaimed": "Esse comandante já está vinculado a uma conta."
     },
     "timeOff": {
       "notLinked": "Vincule seu comandante com `/link-commander` antes de anunciar ausência.",
