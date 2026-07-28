@@ -128,6 +128,7 @@ import {
   canManualPickForDate,
   canOfficerChangeTemplateForDate,
   canRollForDate,
+  dayMechanismPickerTargetDate,
 } from "@/lib/trains/trains-day-actions.shared";
 import {
   TRAINS_DISPLAY_WEEK_STARTS,
@@ -2781,12 +2782,12 @@ export function TrainsDashboard({ initial }: Props) {
       <DayMechanismPickerDialog
         key={
           dayMechanismPickerOpen
-            ? `day-mechanism-picker:open:${conductorPaint ?? activeWeekTemplate}:${data.today}`
+            ? `day-mechanism-picker:open:${conductorPaint ?? activeWeekTemplate}:${dayMechanismPickerTargetDate(selectedDate)}`
             : "day-mechanism-picker:closed"
         }
         open={dayMechanismPickerOpen}
         currentTemplate={(conductorPaint ?? activeWeekTemplate) as WeekTemplateType}
-        date={data.today}
+        date={dayMechanismPickerTargetDate(selectedDate)}
         weekStart={targetTrainWeekStart}
         vrReporterCount={data.vrReporterCount}
         disabled={!data.canManageTrains}
@@ -2796,7 +2797,7 @@ export function TrainsDashboard({ initial }: Props) {
         onSelect={(templateType, topN) => {
           setDayMechanismPickerOpen(false);
           void paintDates(
-            [data.today],
+            [dayMechanismPickerTargetDate(selectedDate)],
             templateType,
             topN != null ? { topN } : undefined,
           );
