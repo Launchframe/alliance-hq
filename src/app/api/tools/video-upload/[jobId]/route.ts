@@ -295,6 +295,8 @@ export async function GET(_request: Request, { params }: Props) {
         allianceId: allianceIdForJob ?? job.allianceId,
         rating: job.rating,
         timingsJson,
+        passKey: job.passKey ?? null,
+        extractionConfigJson: job.extractionConfigJson ?? null,
       },
       hasSourceVideo: storageKey != null,
       frameTimestamps,
