@@ -14,6 +14,7 @@ import {
   activityScopeToRecordTypes,
   groupParsedExcusedRecordsIntoEntries,
   parseAshedExcusedRecord,
+  shouldPushEntryKindToAshed,
 } from "@/lib/time-off/excused-sync.shared";
 import type { TimeOffActivityScope } from "@/lib/time-off/types.shared";
 import { isTimeOffActivityScope } from "@/lib/time-off/api.shared";
@@ -297,7 +298,7 @@ export async function dualWriteTimeOffToAshed(input: {
       await deleteTimeOffEntryFromAshed(ctx.connection, row.ashedExcusedIds ?? []);
       return false;
     }
-    if (row.entryKind === "unexpected") return false;
+    if (!shouldPushEntryKindToAshed(row.entryKind)) return false;
     const activityScope = isTimeOffActivityScope(row.activityScope)
       ? row.activityScope
       : "all";
