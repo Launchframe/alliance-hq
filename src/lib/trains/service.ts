@@ -1486,6 +1486,12 @@ export async function lockConductorsForDates(input: {
 
     const locked = await lockConductorRecord(record.id, input.allianceId);
     records.push(locked);
+    await syncDepletingPoolSelectionForConductorDay({
+      allianceId: input.allianceId,
+      date,
+      seasonKey,
+      memberId: locked.conductorMemberId,
+    });
     const refreshed = await refreshExhaustedPoolsForDay({
       allianceId: input.allianceId,
       date,
@@ -1497,12 +1503,41 @@ export async function lockConductorsForDates(input: {
   return { records, poolsRefreshed };
 }
 
+/**
+ * Stamp (or refresh) depleting-pool selection for a day's conductor when the
+ * day uses a depleting mechanism. No-op for TPIF with-replacement / non-pool days.
+ */
+export async function syncDepletingPoolSelectionForConductorDay(input: {
+  allianceId: string;
+  date: string;
+  seasonKey: string;
+  memberId: string | null | undefined;
+}): Promise<void> {
+  if (!input.memberId) return;
+  const dayConfig = await resolveRollDayConfig(
+    input.allianceId,
+    input.date,
+    input.seasonKey,
+  );
+  if (usesPriceIsFreightConductorRoll(dayConfig.paintTemplate)) return;
+  const poolType = conductorMechanismPoolType(
+    dayConfig.conductorMechanism as ConductorMechanismType,
+  );
+  if (!poolType) return;
+  await markPoolMemberSelectedForDate(
+    input.allianceId,
+    poolType,
+    input.memberId,
+    input.date,
+  );
+}
+
 export async function swapConductors(input: {
   allianceId: string;
   dateA: string;
   dateB: string;
 }): Promise<{
-  records: Awaited<ReturnType<typeof lockConductorRecord>>[];
+  records: NonNullable<Awaited<ReturnType<typeof getConductorRecord>>>[];
 }> {
   if (input.dateA === input.dateB) {
     throw new Error("Pick two different days to swap.");
@@ -1605,27 +1640,33 @@ export async function swapConductors(input: {
     seasonKey,
   );
 
-  const lockedRecords: Awaited<ReturnType<typeof lockConductorRecord>>[] = [];
-
-  if (draftB?.conductorMemberId && draftB.conductorMemberName) {
-    lockedRecords.push(
-      await lockConductorRecord(draftB.id, input.allianceId),
-    );
-  }
-
-  if (
-    targetHasConductor &&
-    draftA?.conductorMemberId &&
-    draftA.conductorMemberName
-  ) {
-    lockedRecords.push(await lockConductorRecord(draftA.id, input.allianceId));
-  }
-
-  if (lockedRecords.length === 0) {
+  // Lock is irreversible spawn — swap only moves drafts. Officers lock when
+  // the train is actually set in-game.
+  if (!draftB?.conductorMemberId || !draftB.conductorMemberName) {
     throw new Error("Swap failed to persist conductor assignment.");
   }
 
-  return { records: lockedRecords };
+  // Keep depleting-pool consumption aligned with the new dates (unlock used to
+  // wipe selection; even without that, selectedForDate must follow the swap).
+  await syncDepletingPoolSelectionForConductorDay({
+    allianceId: input.allianceId,
+    date: input.dateA,
+    seasonKey,
+    memberId: draftA?.conductorMemberId,
+  });
+  await syncDepletingPoolSelectionForConductorDay({
+    allianceId: input.allianceId,
+    date: input.dateB,
+    seasonKey,
+    memberId: draftB.conductorMemberId,
+  });
+
+  const records = [draftA, draftB].filter(
+    (row): row is NonNullable<typeof row> =>
+      Boolean(row?.conductorMemberId && row.conductorMemberName),
+  );
+
+  return { records };
 }
 
 export { getServerCalendarDate };

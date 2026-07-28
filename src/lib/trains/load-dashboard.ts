@@ -388,6 +388,7 @@ export async function loadTrainsDashboard(
     conductorStats = await getConductorStats(
       allianceId,
       record.conductorMemberId,
+      { beforeDate: today },
     );
   }
 

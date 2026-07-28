@@ -2,6 +2,7 @@ import { and, desc, eq, gte, isNotNull, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { resolveConductorLastConductedDate } from "@/lib/trains/conductor-stats.shared";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { releasePoolSelectionForDate } from "@/lib/trains/pool";
 import type { DayConfigInput, WeekTemplateType } from "@/lib/trains/types";
@@ -625,14 +626,8 @@ export async function unlockConductorRecord(
     .delete(schema.trains)
     .where(eq(schema.trains.conductorRecordId, recordId));
 
-  if (existing.conductorMemberId) {
-    await releasePoolSelectionForDate(
-      allianceId,
-      existing.date,
-      existing.conductorMemberId,
-    );
-  }
-
+  // Unlock undoes spawn only. Depleting-pool consumption from the roll/pick
+  // stays — officers unlock to edit or swap, not to return someone to the lottery.
   const updatedAt = new Date();
   await db
     .update(schema.trainConductorRecords)
@@ -685,6 +680,7 @@ export async function spawnEmptyTrain(
 export async function getConductorStats(
   allianceId: string,
   memberId: string,
+  options?: { beforeDate?: string | null },
 ): Promise<{ lastConductedDate: string | null; conductsThisYear: number }> {
   const db = getDb();
   const year = getServerCalendarDate().slice(0, 4);
@@ -700,7 +696,10 @@ export async function getConductorStats(
     .orderBy(desc(schema.trainConductorRecords.date));
 
   const locked = rows.filter((r) => r.lockedAt);
-  const lastConductedDate = locked[0]?.date ?? null;
+  const lastConductedDate = resolveConductorLastConductedDate(
+    locked.map((r) => r.date),
+    options?.beforeDate,
+  );
   const conductsThisYear = locked.filter((r) =>
     r.date.startsWith(year),
   ).length;
