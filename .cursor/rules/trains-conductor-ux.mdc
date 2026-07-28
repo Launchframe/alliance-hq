@@ -76,6 +76,7 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 - Do **not** hide Swap on the last day of the current week.
 - Both days must be unlocked (`swapConductors`).
 - Swap **only moves drafts** — do **not** auto-lock. Lock when the train is set in-game.
+- After swap, **re-stamp depleting-pool selection** for each day’s conductor (`selectedForDate` follows the new date). Unlock must **not** return a rolled member to the lottery — only clear/re-roll does.
 
 ## Spin for the week
 

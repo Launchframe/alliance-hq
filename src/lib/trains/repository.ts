@@ -626,14 +626,8 @@ export async function unlockConductorRecord(
     .delete(schema.trains)
     .where(eq(schema.trains.conductorRecordId, recordId));
 
-  if (existing.conductorMemberId) {
-    await releasePoolSelectionForDate(
-      allianceId,
-      existing.date,
-      existing.conductorMemberId,
-    );
-  }
-
+  // Unlock undoes spawn only. Depleting-pool consumption from the roll/pick
+  // stays — officers unlock to edit or swap, not to return someone to the lottery.
   const updatedAt = new Date();
   await db
     .update(schema.trainConductorRecords)

@@ -12,6 +12,7 @@ import { maybeAnnounceTrainReady } from "@/lib/trains/discord-bot.server";
 import {
   getServerCalendarDate,
   refreshExhaustedPoolsForDay,
+  syncDepletingPoolSelectionForConductorDay,
 } from "@/lib/trains/service";
 import { getOrCreateSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
@@ -63,6 +64,12 @@ export async function POST(request: Request) {
     }
 
     const locked = await lockConductorRecord(record.id, ctx.allianceId);
+    await syncDepletingPoolSelectionForConductorDay({
+      allianceId: ctx.allianceId,
+      date,
+      seasonKey,
+      memberId: locked.conductorMemberId,
+    });
     const poolsRefreshed = await refreshExhaustedPoolsForDay({
       allianceId: ctx.allianceId,
       date,
