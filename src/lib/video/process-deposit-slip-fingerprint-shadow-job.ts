@@ -29,7 +29,7 @@ import { depositSlipDraftToParsedRowFields } from "@/lib/banks/deposit-slip-ocr/
 import { maybeCompareDepositSlipFingerprintShadow } from "@/lib/banks/deposit-slip-ocr/deposit-slip-shadow-comparison.server";
 import {
   depositSlipOcrChunkWindow,
-  fingerprintShadowChunkNeedsMoreWork,
+  fingerprintShadowHasPersistedChunkState,
   readDepositSlipFingerprintShadowChunkState,
   resolveDepositSlipOcrFrameChunkSize,
   writeDepositSlipFingerprintShadowChunkState,
@@ -200,7 +200,7 @@ export async function processDepositSlipFingerprintShadowJob(
   );
   const isChunkContinuation =
     job.status === "parsing" &&
-    fingerprintShadowChunkNeedsMoreWork(existingChunk);
+    fingerprintShadowHasPersistedChunkState(existingChunk);
 
   // Claim queued/failed → parsing. Continuation chunks stay in `parsing` and
   // re-enter here via the next-chunk worker dispatch (same as primary).
@@ -397,7 +397,11 @@ export async function processDepositSlipFingerprintShadowJob(
       });
       if (!dispatched) {
         // Cron/queue backup — keep chunk progress, leave job claimable.
-        await setStatus("queued", { timingsJson: nextTimings });
+        await setStatus("queued", {
+          timingsJson: nextTimings,
+          frameCount: totalFrames,
+          uploadedFrameCount: ocrCompletedThrough,
+        });
       }
 
       timer.log(

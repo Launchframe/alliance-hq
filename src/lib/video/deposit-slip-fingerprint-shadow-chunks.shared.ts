@@ -158,6 +158,12 @@ export function clearDepositSlipFingerprintShadowChunkState(
   return next;
 }
 
+export function fingerprintShadowHasPersistedChunkState(
+  state: DepositSlipFingerprintShadowChunkState | null,
+): boolean {
+  return state != null;
+}
+
 export function fingerprintShadowChunkNeedsMoreWork(
   state: DepositSlipFingerprintShadowChunkState | null,
 ): boolean {

@@ -4,6 +4,7 @@ import {
   DEPOSIT_SLIP_FINGERPRINT_SHADOW_CHUNK_KEY,
   clearDepositSlipFingerprintShadowChunkState,
   fingerprintShadowChunkNeedsMoreWork,
+  fingerprintShadowHasPersistedChunkState,
   readDepositSlipFingerprintShadowChunkState,
   writeDepositSlipFingerprintShadowChunkState,
 } from "@/lib/video/deposit-slip-fingerprint-shadow-chunks.shared";
@@ -69,5 +70,16 @@ describe("deposit-slip fingerprint shadow chunk state", () => {
         nextFrameOffset: 90,
       }),
     ).toBe(false);
+  });
+
+  it("detects persisted chunk state for continuation", () => {
+    expect(fingerprintShadowHasPersistedChunkState(null)).toBe(false);
+    expect(fingerprintShadowHasPersistedChunkState(sampleState)).toBe(true);
+    expect(
+      fingerprintShadowHasPersistedChunkState({
+        ...sampleState,
+        nextFrameOffset: 90,
+      }),
+    ).toBe(true);
   });
 });

@@ -289,5 +289,57 @@ describe("processDepositSlipFingerprintShadowJob chunking", () => {
     expect(
       payload.timingsJson[DEPOSIT_SLIP_FINGERPRINT_SHADOW_CHUNK_KEY],
     ).toBeTruthy();
+    expect((queuedUpdate![0] as { uploadedFrameCount?: number }).uploadedFrameCount).toBe(2);
+    expect((queuedUpdate![0] as { frameCount?: number }).frameCount).toBe(3);
+  });
+
+  it("finalizes from persisted lines when OCR cursor is past the last frame", async () => {
+    const priorTimings = {
+      [DEPOSIT_SLIP_FINGERPRINT_SHADOW_CHUNK_KEY]: {
+        version: 1,
+        nextFrameOffset: 3,
+        totalFrames: 3,
+        chunkSize: 2,
+        frameLines: [
+          {
+            frameIndex: 0,
+            frameHeight: 100,
+            lines: [{ text: "Alice 100", confidence: 90, bbox: null, rowHeight: null }],
+          },
+          {
+            frameIndex: 1,
+            frameHeight: 100,
+            lines: [{ text: "Bob 50", confidence: 88, bbox: null, rowHeight: null }],
+          },
+          {
+            frameIndex: 2,
+            frameHeight: 100,
+            lines: [{ text: "Carol 25", confidence: 87, bbox: null, rowHeight: null }],
+          },
+        ],
+        ocrFrameMs: [10, 11, 12],
+      },
+    };
+
+    mockSelectLimit
+      .mockResolvedValueOnce([
+        baseJob({ status: "parsing", timingsJson: priorTimings }),
+      ])
+      .mockResolvedValueOnce([{ primaryJobId: "primary-1" }])
+      .mockResolvedValueOnce([{ allianceId: "ally-1" }]);
+
+    mockSelectOrderBy.mockResolvedValue([
+      { frameIndex: 0, storageKey: "f0" },
+      { frameIndex: 1, storageKey: "f1" },
+      { frameIndex: 2, storageKey: "f2" },
+    ]);
+
+    const timings = await processDepositSlipFingerprintShadowJob("shadow-1");
+
+    expect(mockUpdateReturning).not.toHaveBeenCalled();
+    expect(mockGetObject).not.toHaveBeenCalled();
+    expect(mockTesseract).not.toHaveBeenCalled();
+    expect(mockInsertValues).toHaveBeenCalled();
+    expect(timings.frameCount).toBe(3);
   });
 });
