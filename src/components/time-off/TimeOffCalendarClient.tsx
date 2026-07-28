@@ -105,7 +105,7 @@ export function TimeOffCalendarClient({ initial }: Props) {
       ) : null}
 
       {canSelfReport ? (
-        <section className="rounded-lg border border-hq-border bg-hq-bg p-4">
+        <section className="rounded-lg border border-hq-border bg-hq-surface p-4">
           <h2 className="text-sm font-medium text-hq-fg">{t("form.title")}</h2>
           <p className="mt-1 text-xs text-hq-fg-muted">{t("form.hint")}</p>
           <form
@@ -121,7 +121,7 @@ export function TimeOffCalendarClient({ initial }: Props) {
               rows={3}
               enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
               placeholder={t("form.placeholder")}
-              className="w-full rounded border border-hq-border bg-hq-bg px-3 py-2 text-sm text-hq-fg"
+              className="w-full rounded border border-hq-border bg-hq-surface px-3 py-2 text-sm text-hq-fg"
             />
             <div className="flex flex-wrap gap-2">
               <button
@@ -138,7 +138,7 @@ export function TimeOffCalendarClient({ initial }: Props) {
                     setSelectedEntry(null);
                     setModalOpen(true);
                   }}
-                  className="rounded border border-hq-border px-3 py-2 text-sm text-hq-fg hover:bg-hq-bg-muted"
+                  className="rounded border border-hq-border px-3 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted"
                 >
                   {t("form.officerEntry")}
                 </button>
@@ -161,7 +161,7 @@ export function TimeOffCalendarClient({ initial }: Props) {
       ) : null}
 
       {selectedEntry ? (
-        <section className="rounded-lg border border-hq-border bg-hq-bg p-4">
+        <section className="rounded-lg border border-hq-border bg-hq-surface p-4">
           <h2 className="text-sm font-semibold text-hq-fg">
             {selectedEntry.memberName}
           </h2>
