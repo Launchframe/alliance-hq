@@ -362,6 +362,7 @@ export function ConductorHistoryImportClient({ today, roster }: Props) {
             }}
           >
             <p className="text-sm text-hq-fg-muted">{t("pasteHint")}</p>
+            <p className="text-sm text-hq-fg-muted">{t("poolNote")}</p>
             <label className="block space-y-1 text-sm">
               <span className="font-medium text-hq-fg">{t("pasteLabel")}</span>
               <textarea
