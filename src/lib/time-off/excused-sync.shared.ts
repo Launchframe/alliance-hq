@@ -75,6 +75,16 @@ export function parseAshedExcusedRecord(
   };
 }
 
+/**
+ * `entryKind: "unexpected"` marks a member who went absent *without* being
+ * excused (see `listUnexpectedAbsenceReport`) — the opposite of an Ashed
+ * `ExcusedRecord`. Every other entry kind (`planned`, `officer_marked`) is an
+ * actual excuse and should dual-write to Ashed.
+ */
+export function shouldPushEntryKindToAshed(entryKind: string): boolean {
+  return entryKind !== "unexpected";
+}
+
 /** Maps an HQ activity scope to the Ashed `record_type`(s) POSTed for it. */
 export function activityScopeToRecordTypes(
   scope: TimeOffActivityScope,

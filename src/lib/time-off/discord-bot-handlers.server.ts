@@ -26,6 +26,7 @@ import {
   pushTimeOffEntryToAshed,
   resolveBotAshedSyncContext,
 } from "@/lib/time-off/excused-sync.server";
+import { shouldPushEntryKindToAshed } from "@/lib/time-off/excused-sync.shared";
 import type { SerializedTimeOffEntry } from "@/lib/time-off/types.shared";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { callerCanRunVrReport } from "@/lib/vr/bot-officer-auth";
@@ -90,8 +91,10 @@ async function pushDiscordCreatedEntryToAshed(input: {
     endDate: string;
     notes: string | null;
     activityScope: string;
+    entryKind: string;
   };
 }): Promise<void> {
+  if (!shouldPushEntryKindToAshed(input.row.entryKind)) return;
   try {
     const syncContext = await resolveBotAshedSyncContext(input.allianceId);
     if (!syncContext) return;

@@ -4,6 +4,7 @@ import {
   activityScopeToRecordTypes,
   groupParsedExcusedRecordsIntoEntries,
   parseAshedExcusedRecord,
+  shouldPushEntryKindToAshed,
   type ParsedAshedExcusedRecord,
 } from "@/lib/time-off/excused-sync.shared";
 
@@ -109,6 +110,17 @@ describe("parseAshedExcusedRecord", () => {
         start_date: "2026-08-01",
       }),
     ).toBeNull();
+  });
+});
+
+describe("shouldPushEntryKindToAshed", () => {
+  it("blocks unexpected-absence entries — they must not be excused in Ashed", () => {
+    expect(shouldPushEntryKindToAshed("unexpected")).toBe(false);
+  });
+
+  it("allows planned and officer_marked entries", () => {
+    expect(shouldPushEntryKindToAshed("planned")).toBe(true);
+    expect(shouldPushEntryKindToAshed("officer_marked")).toBe(true);
   });
 });
 

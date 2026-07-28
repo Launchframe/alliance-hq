@@ -21,6 +21,7 @@ import {
   pushTimeOffEntryToAshed,
   resolveWebAshedSyncContext,
 } from "@/lib/time-off/excused-sync.server";
+import { shouldPushEntryKindToAshed } from "@/lib/time-off/excused-sync.shared";
 import { isTimeOffActivityScope } from "@/lib/time-off/api.shared";
 import { loadAllianceMembers } from "@/lib/members/load";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
@@ -130,10 +131,12 @@ export async function POST(request: Request) {
 
   let ashedSyncFailed = false;
   try {
-    const syncContext = await resolveWebAshedSyncContext({
-      allianceId,
-      sessionId,
-    });
+    const syncContext = shouldPushEntryKindToAshed(entryKind)
+      ? await resolveWebAshedSyncContext({
+          allianceId,
+          sessionId,
+        })
+      : null;
     if (syncContext) {
       const ashedExcusedIds = await pushTimeOffEntryToAshed({
         connection: syncContext.connection,
