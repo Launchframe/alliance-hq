@@ -181,6 +181,47 @@ describe("parseRankListRows", () => {
     expect(rows[0]?.allianceRank).toBe(3);
     expect(rows[0]?.extractedName).toBe("ForkingELITE");
   });
+
+  it("does not emit custom rank group titles as member rows", () => {
+    const rows = parseRankListRows([
+      "Search for Members",
+      "R3",
+      "Heart of the Alliance 7/83",
+      "C Price",
+      "Power: 94.1M Lv.26",
+    ]);
+    const names = rows.map((r) => r.extractedName);
+    expect(names).not.toContain("Heart of the Alliance");
+    expect(names).toContain("C Price");
+
+    const price = rows.find((r) => r.extractedName === "C Price");
+    expect(price?.allianceRank).toBe(3);
+    expect(price?.heroPowerM).toBeCloseTo(94.1);
+    expect(price?.memberLevel).toBe(26);
+  });
+
+  it("uses sticky rank when header scrolled off frame", () => {
+    const rows = parseRankListRows(
+      ["C Price", "Power: 94.1M Lv.26"],
+      { stickyRank: 3 },
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.extractedName).toBe("C Price");
+    expect(rows[0]?.allianceRank).toBe(3);
+    expect(rows[0]?.heroPowerM).toBeCloseTo(94.1);
+  });
+
+  it("handles OCR-split rank group header before members", () => {
+    const rows = parseRankListRows([
+      "R3 7/83",
+      "Heart of the Alliance (v",
+      "C Price",
+      "Power: 94.1M Lv.26",
+    ]);
+    const names = rows.map((r) => r.extractedName);
+    expect(names.some((n) => /heart of the alliance/i.test(n))).toBe(false);
+    expect(names).toContain("C Price");
+  });
 });
 
 // ---------------------------------------------------------------------------

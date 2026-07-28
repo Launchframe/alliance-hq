@@ -25,6 +25,19 @@ import type { AllianceRank, RosterLayout } from "@/lib/members/roster-ocr/types"
 /** Bare `R3` or section headers with quota counts like `R3 9/78`. */
 const RANK_HEADER_RE = /^\s*R\s*([1-5])(?:\s+\d+\s*\/\s*\d+)?\s*$/i;
 
+/** Member quota on rank group headers, e.g. `7/83`. */
+export const MEMBER_QUOTA_RE = /\d+\s*\/\s*\d+/;
+
+/** Badge + custom group title + quota on one line. */
+const COMBINED_RANK_GROUP_HEADER_RE =
+  /^\s*R\s*([1-5])\s+(.+?)\s+\d+\s*\/\s*\d+/i;
+
+/** Member stat tokens — absent on section header bars. */
+const MEMBER_STATS_RE = /\bpower\s*[:}]?|\d+(?:\.\d+)?\s*M\b|\bLv\.?\s*\d+/i;
+
+/** Bare rank badge only (`R3`), not `R3 Something`. */
+const BARE_RANK_BADGE_RE = /^\s*R\s*([1-5])\s*$/i;
+
 /** R5 titled roles and their canonical titles. */
 const R5_TITLES: string[] = ["Leader"];
 
@@ -64,7 +77,8 @@ const IGNORED_PATTERNS: RegExp[] = [
   /^\s*alliance\s*$/i,
   /^\s*rank\s*$/i,
   /^\s*\d+\s*\/\s*\d+\s*$/, // "45/100" member count
-  /^\s*[<>]\s*$/,
+  /^\s*[<>v]\s*$/i,
+  /^\s*timeout\b/i,
   OFFICER_TITLE_CHROME_RE,
 ];
 
@@ -88,6 +102,151 @@ export function parseRankHeader(line: string): AllianceRank | null {
   const n = parseInt(m[1]!, 10);
   if (n >= 1 && n <= 5) return n as AllianceRank;
   return null;
+}
+
+export function hasMemberStats(line: string): boolean {
+  return MEMBER_STATS_RE.test(line);
+}
+
+export function hasQuotaPattern(line: string): boolean {
+  return MEMBER_QUOTA_RE.test(line);
+}
+
+export function isBareRankBadge(line: string): boolean {
+  return BARE_RANK_BADGE_RE.test(line.trim());
+}
+
+function looksLikeGroupTitleContinuation(line: string): boolean {
+  const trimmed = line.trim();
+  if (hasQuotaPattern(trimmed)) return true;
+  if (/\([v<>]|[<>v]\s*$/i.test(trimmed)) return true;
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length >= 3) return true;
+  if (trimmed.length > 20) return true;
+  return false;
+}
+
+export type RankGroupHeader = {
+  rank: AllianceRank;
+  /** Alliance-custom group title when OCR captured it (diagnostics only). */
+  groupTitle?: string;
+};
+
+export type RankGroupHeaderContext = {
+  /** Previous non-ignored line was a bare `R3` badge. */
+  afterRankBadge?: boolean;
+  /** Previous non-ignored line was any rank group header. */
+  afterRankGroupHeader?: boolean;
+  /** Rank from the preceding bare badge line. */
+  badgeRank?: AllianceRank;
+  /** Current section rank from an earlier header in this frame. */
+  currentRank?: AllianceRank | null;
+};
+
+/**
+ * Detect collapsible rank-group section headers.
+ *
+ * Headers set rank context but must never become roster member rows. Custom
+ * group titles (e.g. "Heart of the Alliance") vary per alliance — match on
+ * structure (R-badge, quota, title continuation) not fixed strings.
+ */
+export function parseRankGroupHeader(
+  line: string,
+  ctx?: RankGroupHeaderContext,
+): RankGroupHeader | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+
+  const bare = parseRankHeader(trimmed);
+  if (bare !== null) {
+    return { rank: bare };
+  }
+
+  if (!hasMemberStats(trimmed)) {
+    const combined = COMBINED_RANK_GROUP_HEADER_RE.exec(trimmed);
+    if (combined) {
+      const rank = parseInt(combined[1]!, 10) as AllianceRank;
+      const groupTitle = combined[2]!.replace(/\s*[<>v)\(].*$/i, "").trim();
+      return {
+        rank,
+        groupTitle: groupTitle || undefined,
+      };
+    }
+
+    if (hasQuotaPattern(trimmed)) {
+      const rank = ctx?.badgeRank ?? ctx?.currentRank ?? null;
+      if (rank != null) {
+        const groupTitle = trimmed
+          .replace(MEMBER_QUOTA_RE, "")
+          .replace(/\s*[<>v)\(].*$/i, "")
+          .trim();
+        return {
+          rank,
+          groupTitle: groupTitle || undefined,
+        };
+      }
+    }
+
+    if (ctx?.afterRankBadge && ctx.badgeRank != null) {
+      if (looksLikeGroupTitleContinuation(trimmed)) {
+        const groupTitle = trimmed.replace(/\s*[<>v)\(].*$/i, "").trim();
+        if (groupTitle && parseRankHeader(groupTitle) === null) {
+          return { rank: ctx.badgeRank, groupTitle };
+        }
+      }
+    }
+
+    if (ctx?.afterRankGroupHeader && ctx.currentRank != null) {
+      if (looksLikeGroupTitleContinuation(trimmed)) {
+        const groupTitle = trimmed.replace(/\s*[<>v)\(].*$/i, "").trim();
+        if (groupTitle && parseRankHeader(groupTitle) === null) {
+          return { rank: ctx.currentRank, groupTitle };
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+export function isRankGroupHeaderLine(
+  line: string,
+  ctx?: RankGroupHeaderContext,
+): boolean {
+  return parseRankGroupHeader(line, ctx) !== null;
+}
+
+/** Last rank section seen while walking lines (for cross-frame sticky context). */
+export function detectLastRankFromLines(lines: string[]): AllianceRank | null {
+  let currentRank: AllianceRank | null = null;
+  let afterRankBadge = false;
+  let afterRankGroupHeader = false;
+  let badgeRank: AllianceRank | undefined;
+
+  for (const line of lines) {
+    if (isIgnoredLine(line)) continue;
+
+    const header = parseRankGroupHeader(line, {
+      afterRankBadge,
+      afterRankGroupHeader,
+      badgeRank,
+      currentRank,
+    });
+
+    if (header) {
+      currentRank = header.rank;
+      afterRankBadge = isBareRankBadge(line);
+      badgeRank = afterRankBadge ? header.rank : undefined;
+      afterRankGroupHeader = true;
+      continue;
+    }
+
+    afterRankBadge = false;
+    badgeRank = undefined;
+    afterRankGroupHeader = false;
+  }
+
+  return currentRank;
 }
 
 // ---------------------------------------------------------------------------
@@ -177,17 +336,32 @@ export type LineWithRankContext = {
 export function segmentByRankHeaders(lines: string[]): LineWithRankContext[] {
   let currentRank: AllianceRank | null = null;
   const result: LineWithRankContext[] = [];
+  let afterRankBadge = false;
+  let afterRankGroupHeader = false;
+  let badgeRank: AllianceRank | undefined;
 
   for (const line of lines) {
     if (isIgnoredLine(line)) continue;
 
-    const headerRank = parseRankHeader(line);
-    if (headerRank !== null) {
-      currentRank = headerRank;
-      result.push({ line, rank: headerRank, isHeader: true });
+    const header = parseRankGroupHeader(line, {
+      afterRankBadge,
+      afterRankGroupHeader,
+      badgeRank,
+      currentRank,
+    });
+
+    if (header) {
+      currentRank = header.rank;
+      afterRankBadge = isBareRankBadge(line);
+      badgeRank = afterRankBadge ? header.rank : undefined;
+      afterRankGroupHeader = true;
+      result.push({ line, rank: header.rank, isHeader: true });
       continue;
     }
 
+    afterRankBadge = false;
+    badgeRank = undefined;
+    afterRankGroupHeader = false;
     result.push({ line, rank: currentRank, isHeader: false });
   }
 
