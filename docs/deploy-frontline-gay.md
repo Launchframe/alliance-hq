@@ -100,7 +100,20 @@ Configure once on the GitHub repo:
 | Repository **variable** | `NEON_PROJECT_ID` | Neon Console → Project Settings |
 | Repository **secret** | `NEON_API_KEY` | Neon Console → Account Settings → API Keys |
 
-Until both are set, the workflow job is skipped (no red X). After setup, closing or merging a PR deletes `preview/<head_ref>` if it still exists.
+Until both are set, the PR-close job is skipped (no red X). After setup, closing or merging a PR deletes `preview/<head_ref>` if it still exists.
+
+**Bulk cleanup (all non-protected Neon branches):**
+
+```bash
+# Local dry-run / apply
+NEON_PROJECT_ID=… NEON_API_KEY=… ./scripts/neon-prune.sh
+NEON_PROJECT_ID=… NEON_API_KEY=… ./scripts/neon-prune.sh --apply --yes
+
+# Or Actions → "Cleanup Neon preview branch" → Run workflow
+# (unchecked = dry-run; check "apply" to delete)
+```
+
+`neon-prune.sh` keeps Neon `default` / `primary` / `protected` branches plus name keep-list `main`, `production`, `vercel-dev` (add more with `--keep <name>`).
 
 ### 3. Resend — verify frontline.gay
 
