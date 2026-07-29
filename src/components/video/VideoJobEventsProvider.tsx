@@ -155,12 +155,6 @@ export function VideoJobEventsProvider({
     currentAllianceIdRef.current = currentAllianceId;
   }, [currentAllianceId]);
 
-  useEffect(() => {
-    setJobsById({});
-    setBanners([]);
-    setDismissedJobIds(new Set());
-  }, [currentAllianceId]);
-
   const [jobsById, setJobsById] = useState<Record<string, VideoJobStatusEvent>>(
     {},
   );

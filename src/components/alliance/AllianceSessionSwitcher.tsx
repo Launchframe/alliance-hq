@@ -53,18 +53,6 @@ export function AllianceSessionSwitcher({
   const [switching, setSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setCurrentAllianceId(initialCurrentAllianceId ?? "");
-  }, [initialCurrentAllianceId]);
-
-  useEffect(() => {
-    if (initialAlliances.length > 0) {
-      setAlliances(initialAlliances);
-      setLoading(false);
-    }
-    setIsPlatformMaintainer(initialIsPlatformMaintainer);
-  }, [initialAlliances, initialIsPlatformMaintainer]);
-
   useAllianceSessionContextSync({
     displayedAllianceId: currentAllianceId,
     onStaleSession: () => window.location.reload(),
