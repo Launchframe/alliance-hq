@@ -25,6 +25,16 @@ export type ParsedRowLike = {
 /** Same floor as member auto-match / history import. */
 export const ROSTER_NAME_MATCH_CONFIDENCE_MIN = MEMBER_FUZZY_AUTO_MATCH_MIN;
 
+/**
+ * Alliances importing their first roster almost always already have a few HQ
+ * accounts (the officer/owner driving onboarding, or a platform admin
+ * spinning things up on their behalf) — real membership at that point is
+ * usually 0-2, never zero exactly. Treat anything up to roughly
+ * "leadership team" size as still a fresh/empty roster so a bulk of
+ * unmatched rows defaults to "create new" instead of a hard mismatch error.
+ */
+export const ROSTER_FRESH_ALLIANCE_MEMBER_COUNT_MAX = 10;
+
 export type RosterReviewRowShape = {
   id: string;
   ocrName: string;
@@ -50,8 +60,13 @@ export function isRosterRowNameMismatch(
   options?: { existingMemberCount?: number },
 ): boolean {
   if (row.deleted === 1) return false;
-  // Brand-new / empty HQ roster: null memberId means "Create new", not a mismatch.
-  if ((options?.existingMemberCount ?? 1) <= 0) {
+  // Brand-new alliance (roster ≈ leadership-team size or smaller): null
+  // memberId means "Create new", not a mismatch. When the caller doesn't
+  // know the roster size, stay conservative and treat it as non-fresh.
+  if (
+    (options?.existingMemberCount ?? Number.POSITIVE_INFINITY) <=
+    ROSTER_FRESH_ALLIANCE_MEMBER_COUNT_MAX
+  ) {
     if (!row.memberId) return false;
   }
   if (!row.memberId) return true;

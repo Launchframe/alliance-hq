@@ -142,12 +142,16 @@ export function appendShowinfoFilter(vf: string): string {
  * frame (n=0) has no score and is never selected by `gt(scene,…)` alone. We OR
  * in one forced opening frame (~100ms in) so leaderboard rows visible before
  * the user scrolls are captured without t=0 encoder/recording junk.
+ *
+ * No `scale=` filter here on purpose: these frames are what OCR reads, so they
+ * must stay at source resolution. Downsampling happens later, only for the
+ * long-term playback archive (see `archive-source.ts`).
  */
 export function buildSceneSelectFilter(
   sceneThreshold: number,
   forcedFirstFrameIndex: number,
 ): string {
-  return `select='eq(n,${forcedFirstFrameIndex})+gt(scene,${sceneThreshold})',scale=720:-1`;
+  return `select='eq(n,${forcedFirstFrameIndex})+gt(scene,${sceneThreshold})'`;
 }
 
 /** Parse pts_time values emitted by ffmpeg's showinfo filter (one per output frame). */
@@ -286,7 +290,7 @@ export async function extractLeaderboardFrames(
         ffmpeg,
         videoPath,
         pattern,
-        `fps=${sampleFps},scale=720:-1`,
+        `fps=${sampleFps}`,
       );
       lastStderr = result.stderr;
       logPipelineStep("ffmpeg.fps_extract", Date.now() - fpsStarted, {
@@ -337,7 +341,7 @@ export async function extractLeaderboardFrames(
           ffmpeg,
           videoPath,
           pattern,
-          `fps=${sampleFps},scale=720:-1`,
+          `fps=${sampleFps}`,
         );
         lastStderr = fallback.stderr;
         logPipelineStep("ffmpeg.fps_fallback", Date.now() - fallbackStarted, {
@@ -362,7 +366,7 @@ export async function extractLeaderboardFrames(
           ffmpeg,
           videoPath,
           pattern,
-          `fps=${sampleFps},scale=720:-1`,
+          `fps=${sampleFps}`,
         );
         lastStderr = fallback.stderr;
         logPipelineStep("ffmpeg.fps_fallback", Date.now() - fallbackStarted, {

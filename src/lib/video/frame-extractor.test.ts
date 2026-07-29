@@ -63,13 +63,17 @@ describe("forcedFirstFrameIndexForFps", () => {
 describe("buildSceneSelectFilter", () => {
   it("forces one opening frame ~100ms in (not n=0)", () => {
     expect(buildSceneSelectFilter(0.25, 3)).toBe(
-      "select='eq(n,3)+gt(scene,0.25)',scale=720:-1",
+      "select='eq(n,3)+gt(scene,0.25)'",
     );
   });
 
   it("threads the configured scene threshold", () => {
     expect(buildSceneSelectFilter(0.1, 6)).toContain("gt(scene,0.1)");
     expect(buildSceneSelectFilter(0.1, 6)).toContain("eq(n,6)");
+  });
+
+  it("never downscales OCR frames (no scale= filter)", () => {
+    expect(buildSceneSelectFilter(0.25, 3)).not.toContain("scale=");
   });
 });
 
