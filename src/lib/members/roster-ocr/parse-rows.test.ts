@@ -189,6 +189,20 @@ describe("parseRankListRows", () => {
     expect(rows).toHaveLength(0);
   });
 
+  it("parses a member name with an inline last-seen timestamp without bogus power", () => {
+    const rows = parseRankListRows([
+      "Search for Members",
+      "R3 9/78",
+      "capt Atano 1m ago",
+      "Power: 69.8M Lv.126",
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.extractedName).toBe("capt Atano");
+    expect(rows[0]?.allianceRank).toBe(3);
+    expect(rows[0]?.heroPowerM).toBeCloseTo(69.8);
+    expect(rows[0]?.memberLevel).toBe(126);
+  });
+
   it("excludes header chrome and merges Power/Lv onto the prior name", () => {
     const membersPage = [
       "R5| Corn Goo Smeller",
