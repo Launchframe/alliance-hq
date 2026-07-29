@@ -93,7 +93,8 @@ describe("computeBusterDayEfficiencyRow", () => {
     });
     expect(row.powerLostM).toBe(0);
     expect(row.netVsScore).toBe(2_000_000);
-    expect(row.noEngagement).toBe(true);
+    expect(row.incompleteSnapshot).toBe(true);
+    expect(row.noEngagement).toBe(false);
     expect(row.efficiencyRatio).toBeNull();
   });
 
@@ -110,7 +111,8 @@ describe("computeBusterDayEfficiencyRow", () => {
     });
     expect(row.powerLostM).toBe(50);
     expect(row.netVsScore).toBe(0);
-    expect(row.noEngagement).toBe(true);
+    expect(row.incompleteSnapshot).toBe(true);
+    expect(row.noEngagement).toBe(false);
     expect(row.efficiencyRatio).toBeNull();
   });
 });
@@ -191,8 +193,38 @@ describe("computeBusterDayEfficiencyReport", () => {
       "missingVs",
     ]);
     expect(rows[0]?.efficiencyRatio).not.toBeNull();
-    expect(rows[1]?.efficiencyRatio).toBeNull();
-    expect(rows[2]?.efficiencyRatio).toBeNull();
+    expect(rows[1]?.incompleteSnapshot).toBe(true);
+    expect(rows[1]?.noEngagement).toBe(false);
+    expect(rows[2]?.incompleteSnapshot).toBe(true);
+    expect(rows[2]?.noEngagement).toBe(false);
+  });
+
+  it("ranks incomplete snapshot rows above no-engagement idle rows", () => {
+    const rows = computeBusterDayEfficiencyReport([
+      {
+        commanderId: "idle",
+        memberName: "Idle",
+        ashedMemberId: "i",
+        powerStartM: 80,
+        powerEndM: 80,
+        killsStart: 5,
+        killsEnd: 5,
+        vsScoreSaturday: BUSTER_DAY_BASELINE_POINTS,
+      },
+      {
+        commanderId: "missingVs",
+        memberName: "MissingVs",
+        ashedMemberId: "mv",
+        powerStartM: 100,
+        powerEndM: 50,
+        killsStart: 0,
+        killsEnd: 10,
+        vsScoreSaturday: null,
+      },
+    ]);
+    expect(rows.map((r) => r.commanderId)).toEqual(["missingVs", "idle"]);
+    expect(rows[0]?.incompleteSnapshot).toBe(true);
+    expect(rows[1]?.noEngagement).toBe(true);
   });
 });
 

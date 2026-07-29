@@ -151,9 +151,11 @@ function EfficiencyReportTable({
                     {formatCompactNumber(row.netVsScore, locale)}
                   </td>
                   <td className="px-2 py-2 tabular-nums">
-                    {row.noEngagement || row.efficiencyRatio == null
-                      ? t("report.noEngagement")
-                      : formatEfficiency(row.efficiencyRatio, locale)}
+                    {row.incompleteSnapshot
+                      ? t("report.incompleteSnapshot")
+                      : row.noEngagement || row.efficiencyRatio == null
+                        ? t("report.noEngagement")
+                        : formatEfficiency(row.efficiencyRatio, locale)}
                   </td>
                 </tr>
               ))}
