@@ -3583,6 +3583,28 @@
         "heavy_hitter": "Elegibilidade loteria heavy-hitter"
       }
     },
+    "scoreLeaderboard": {
+      "loading": "Carregando ranking de pontuação…",
+      "loadFailed": "Não foi possível carregar o ranking de pontuação.",
+      "podium": {
+        "empty": "Sem pontuação ainda",
+        "rankScore": "#{rank} · {score}"
+      },
+      "tpif": {
+        "title": "Mais perto de 7,2M",
+        "subtitle": "VS do dia anterior (R3) em {day} — classificados pelo mais próximo de 7,2M por cima.",
+        "podiumAria": "Três maiores VS do dia anterior mais próximos de 7,2M"
+      },
+      "vsPush": {
+        "title": "Maiores VS",
+        "subtitle": "VS do dia anterior em {day} — maiores pontuações primeiro.",
+        "podiumAria": "Três maiores VS do dia anterior"
+      },
+      "donations": {
+        "unavailableTitle": "Pontuação de doações ainda indisponível",
+        "unavailableBody": "O HQ ainda não armazena totais de doação. Use escolha manual do condutor até a pontuação de doações estar disponível."
+      }
+    },
     "priceIsRight": {
       "title": "Tickets de rifa",
       "decayHint": "Mais perto de 7,2M → mais tickets.",
