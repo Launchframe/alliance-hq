@@ -7,6 +7,7 @@ import { BattlePlanAnnouncementDialog } from "@/components/battle-plan/BattlePla
 import { BattlePlanCalendar } from "@/components/battle-plan/BattlePlanCalendar";
 import { BattlePlanSettingsMenu } from "@/components/battle-plan/BattlePlanSettingsMenu";
 import { BattlePlanTimeDisplayToggle } from "@/components/battle-plan/BattlePlanTimeDisplayToggle";
+import { AllianceSafeTimeSetupBanner } from "@/components/alliance/AllianceSafeTimeSetupBanner";
 import {
   CaptureEventModal,
   captureEventFormToPayload,
@@ -41,6 +42,7 @@ export function BattlePlanClient({ initial }: Props) {
     null,
   );
   const [selectedServerDate, setSelectedServerDate] = useState<string | null>(null);
+  const [settingsOpenToken, setSettingsOpenToken] = useState(0);
   const noteSuggestions = useMemo(
     () => extractHistoricalNotes(dashboard.events),
     [dashboard.events],
@@ -196,9 +198,19 @@ export function BattlePlanClient({ initial }: Props) {
           <BattlePlanSettingsMenu
             key={dashboard.settings.planRevision}
             settings={dashboard.settings}
+            allianceTag={dashboard.allianceTag}
+            allianceSafeTimeSlot={dashboard.allianceSafeTimeSlot}
             canWrite={dashboard.canWrite}
             saving={saving}
             onSaveSettings={saveSettings}
+            onSafeTimeSaved={(slot) =>
+              setDashboard((current) => ({
+                ...current,
+                allianceSafeTimeSlot: slot,
+              }))
+            }
+            onSafeTimeError={(message) => setError(message)}
+            openRequestToken={settingsOpenToken}
           />
           {dashboard.canWrite ? (
             <button
@@ -225,6 +237,12 @@ export function BattlePlanClient({ initial }: Props) {
         <div className="rounded-lg border border-hq-danger/40 bg-hq-danger/10 px-4 py-3 text-sm text-hq-danger">
           {error}
         </div>
+      ) : null}
+
+      {dashboard.canWrite && dashboard.allianceSafeTimeSlot == null ? (
+        <AllianceSafeTimeSetupBanner
+          onOpenSettings={() => setSettingsOpenToken((token) => token + 1)}
+        />
       ) : null}
 
       <div className="space-y-6">

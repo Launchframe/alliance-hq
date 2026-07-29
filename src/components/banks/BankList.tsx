@@ -6,9 +6,13 @@ import { ImageUp, Pencil, Plus, Video } from "lucide-react";
 
 import { Link } from "@/i18n/navigation";
 
+import { DepositTermRiskGauges } from "@/components/banks/DepositTermRiskGauge";
 import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import { bankMatchesCoordQuery } from "@/lib/banks/bank-list-search.shared";
 import { activeDeposits, isPastDropDeadline } from "@/lib/banks/optimization.shared";
+import { resolveProtectionExpiresAt } from "@/lib/banks/protection-timer.shared";
+import { computeDepositTermRiskGauges } from "@/lib/banks/risk-profile.shared";
+import type { AllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.shared";
 import type { BankWithSlips } from "@/lib/banks/types.shared";
 import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
@@ -23,6 +27,7 @@ type Props = {
   banks: BankWithSlips[];
   selectedBankId: string | null;
   canWrite: boolean;
+  allianceSafeTimeSlot?: AllianceSafeTimeSlot | null;
   onSelect: (bankId: string) => void;
   onEdit: (bank: BankWithSlips) => void;
   onAdd: () => void;
@@ -44,6 +49,7 @@ type BankListItemProps = {
   selected: boolean;
   muted?: boolean;
   canWrite: boolean;
+  allianceSafeTimeSlot: AllianceSafeTimeSlot | null;
   t: ReturnType<typeof useTranslations<"bankManagement">>;
   onSelect: (bankId: string) => void;
   onEdit: (bank: BankWithSlips) => void;
@@ -54,11 +60,26 @@ function BankListItem({
   selected,
   muted = false,
   canWrite,
+  allianceSafeTimeSlot,
   t,
   onSelect,
   onEdit,
 }: BankListItemProps) {
   const active = activeDeposits(bank.depositSlips).length;
+  const riskGauges = useMemo(
+    () =>
+      computeDepositTermRiskGauges({
+        now: new Date(),
+        protectionExpiresAt: resolveProtectionExpiresAt({
+          explicit: bank.protectionExpiresAt,
+          capturedAt: bank.capturedAt ? new Date(bank.capturedAt) : null,
+          safeTimeSlot: allianceSafeTimeSlot,
+        }),
+        dropByAt: bank.dropByAt ? new Date(bank.dropByAt) : null,
+        counterpartyRiskScore: bank.counterpartyRiskScore,
+      }),
+    [allianceSafeTimeSlot, bank],
+  );
 
   return (
     <li>
@@ -117,6 +138,7 @@ function BankListItem({
               </span>
             ) : null}
           </div>
+          <DepositTermRiskGauges gauges={riskGauges} size="sm" />
           {bank.notes ? (
             <p
               className={`mt-1 line-clamp-2 text-xs ${
@@ -155,6 +177,7 @@ export function BankList({
   banks,
   selectedBankId,
   canWrite,
+  allianceSafeTimeSlot = null,
   onSelect,
   onEdit,
   onAdd,
@@ -243,6 +266,7 @@ export function BankList({
                   bank={bank}
                   selected={bank.id === selectedBankId}
                   canWrite={canWrite}
+                  allianceSafeTimeSlot={allianceSafeTimeSlot}
                   t={t}
                   onSelect={onSelect}
                   onEdit={onEdit}
@@ -269,6 +293,7 @@ export function BankList({
                     selected={bank.id === selectedBankId}
                     muted
                     canWrite={canWrite}
+                    allianceSafeTimeSlot={allianceSafeTimeSlot}
                     t={t}
                     onSelect={onSelect}
                     onEdit={onEdit}

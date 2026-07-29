@@ -1,4 +1,3 @@
-import type { AllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.shared";
 import { loadAllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.server";
 import {
   loadBattlePlanRows,

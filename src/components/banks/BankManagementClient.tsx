@@ -5,7 +5,9 @@ import { useTranslations } from "next-intl";
 
 import { BankEditorModal } from "@/components/banks/BankEditorModal";
 import { BankList } from "@/components/banks/BankList";
+import { BankManagementSettingsMenu } from "@/components/banks/BankManagementSettingsMenu";
 import { CityListImportModal } from "@/components/banks/CityListImportModal";
+import { AllianceSafeTimeSetupBanner } from "@/components/alliance/AllianceSafeTimeSetupBanner";
 import { DepositFalloffChart } from "@/components/banks/DepositFalloffChart";
 import { DepositSlipEditorModal } from "@/components/banks/DepositSlipEditorModal";
 import { DepositSlipList } from "@/components/banks/DepositSlipList";
@@ -61,6 +63,10 @@ export function BankManagementClient({ initial }: Props) {
   const [bankCityListServerTime, setBankCityListServerTime] = useState(
     initial.bankCityListServerTime,
   );
+  const [allianceSafeTimeSlot, setAllianceSafeTimeSlot] = useState(
+    initial.allianceSafeTimeSlot,
+  );
+  const [settingsOpenToken, setSettingsOpenToken] = useState(0);
   const [cityListModalOpen, setCityListModalOpen] = useState(false);
 
   const [selectedBankId, setSelectedBankId] = useState<string | null>(
@@ -106,6 +112,7 @@ export function BankManagementClient({ initial }: Props) {
     setBankCapturesRemainingToday(dashboard.bankCapturesRemainingToday);
     setBankCapturesLimitToday(dashboard.bankCapturesLimitToday);
     setBankCityListServerTime(dashboard.bankCityListServerTime);
+    setAllianceSafeTimeSlot(dashboard.allianceSafeTimeSlot);
     setError(null);
   }, []);
 
@@ -321,12 +328,24 @@ export function BankManagementClient({ initial }: Props) {
             <h1 className="text-2xl font-semibold text-hq-fg">{t("title")}</h1>
             <p className="mt-1 text-sm text-hq-fg-muted">{t("subtitle")}</p>
           </div>
-          <Link
-            href="/guides/bank-lifecycle"
-            className="text-xs text-hq-accent hover:underline"
-          >
-            {t("lifecycleGuideLink")}
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {canWrite ? (
+              <BankManagementSettingsMenu
+                allianceTag={allianceTag}
+                allianceSafeTimeSlot={allianceSafeTimeSlot}
+                canWrite={canWrite}
+                onSaved={setAllianceSafeTimeSlot}
+                onError={(message) => setError(message)}
+                openRequestToken={settingsOpenToken}
+              />
+            ) : null}
+            <Link
+              href="/guides/bank-lifecycle"
+              className="text-xs text-hq-accent hover:underline"
+            >
+              {t("lifecycleGuideLink")}
+            </Link>
+          </div>
         </div>
         {bankCityListServerTime || bankCapturesRemainingToday != null ? (
           <div className="mt-2 flex flex-wrap gap-2 text-xs text-hq-fg-muted">
@@ -360,12 +379,19 @@ export function BankManagementClient({ initial }: Props) {
         </div>
       ) : null}
 
+      {canWrite && allianceSafeTimeSlot == null ? (
+        <AllianceSafeTimeSetupBanner
+          onOpenSettings={() => setSettingsOpenToken((token) => token + 1)}
+        />
+      ) : null}
+
       <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="min-w-0 space-y-6">
           <BankList
             banks={banks}
             selectedBankId={selectedBankId}
             canWrite={canWrite}
+            allianceSafeTimeSlot={allianceSafeTimeSlot}
             onSelect={setSelectedBankId}
             onEdit={openEditBankModal}
             onAdd={openCreateBankModal}
@@ -415,6 +441,7 @@ export function BankManagementClient({ initial }: Props) {
         open={bankModalOpen}
         initial={editingBank}
         defaultGameServerNumber={allianceGameServerNumber}
+        allianceSafeTimeSlot={allianceSafeTimeSlot}
         saving={saving}
         error={bankModalOpen ? error : null}
         onClose={() => {

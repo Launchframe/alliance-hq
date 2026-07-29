@@ -5,6 +5,8 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
+import { AllianceSafeTimeSettingsField } from "@/components/alliance/AllianceSafeTimeSettingsField";
+import type { AllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.shared";
 import type {
   CapturePolicy,
   SerializedBattlePlanSettings,
@@ -14,23 +16,38 @@ const CAPTURE_POLICY_OPTIONS = ["peace", "war"] as const satisfies readonly Capt
 
 type Props = {
   settings: SerializedBattlePlanSettings;
+  allianceTag: string | null;
+  allianceSafeTimeSlot: AllianceSafeTimeSlot | null;
   canWrite: boolean;
   saving: boolean;
   onSaveSettings: (input: {
     defaultCapturePolicy: CapturePolicy;
   }) => Promise<void>;
+  onSafeTimeSaved: (slot: AllianceSafeTimeSlot) => void;
+  onSafeTimeError?: (message: string) => void;
+  openRequestToken?: number;
 };
 
 export function BattlePlanSettingsMenu({
   settings,
+  allianceTag,
+  allianceSafeTimeSlot,
   canWrite,
   saving,
   onSaveSettings,
+  onSafeTimeSaved,
+  onSafeTimeError,
+  openRequestToken,
 }: Props) {
   const t = useTranslations("battlePlan.settings");
   const menuId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
+  const [safeTimeSaving, setSafeTimeSaving] = useState(false);
+  const [pendingSafeTimeSlot, setPendingSafeTimeSlot] =
+    useState<AllianceSafeTimeSlot | null>(null);
+  const lastOpenTokenRef = useRef(0);
+  const displaySafeTimeSlot = pendingSafeTimeSlot ?? allianceSafeTimeSlot;
   const [menuRect, setMenuRect] = useState<{
     top: number;
     right: number;
@@ -49,6 +66,46 @@ export function BattlePlanSettingsMenu({
   }, []);
 
   const closeMenu = useCallback(() => setOpen(false), []);
+
+  useEffect(() => {
+    if (openRequestToken == null || openRequestToken <= lastOpenTokenRef.current) {
+      return;
+    }
+    lastOpenTokenRef.current = openRequestToken;
+    const frame = requestAnimationFrame(() => setOpen(true));
+    return () => cancelAnimationFrame(frame);
+  }, [openRequestToken]);
+
+  const saveSafeTimeSlot = async (next: AllianceSafeTimeSlot) => {
+    if (!allianceTag || !canWrite || safeTimeSaving) return;
+    setSafeTimeSaving(true);
+    setPendingSafeTimeSlot(next);
+    try {
+      const response = await fetch(
+        `/api/alliance/${encodeURIComponent(allianceTag)}/safe-time`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ allianceSafeTimeSlot: next }),
+        },
+      );
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        onSafeTimeError?.(data?.error ?? t("saveFailed"));
+        setPendingSafeTimeSlot(null);
+        return;
+      }
+      setPendingSafeTimeSlot(null);
+      onSafeTimeSaved(next);
+    } catch {
+      onSafeTimeError?.(t("saveFailed"));
+      setPendingSafeTimeSlot(null);
+    } finally {
+      setSafeTimeSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -162,6 +219,13 @@ export function BattlePlanSettingsMenu({
                 </div>
               </div>
             </fieldset>
+            <div className="my-3 border-t border-hq-border" />
+            <AllianceSafeTimeSettingsField
+              value={displaySafeTimeSlot}
+              disabled={!canWrite}
+              saving={safeTimeSaving}
+              onChange={(next) => void saveSafeTimeSlot(next)}
+            />
           </div>,
           document.body,
         )
