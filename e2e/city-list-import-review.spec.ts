@@ -51,7 +51,7 @@ const UNDERCOUNT_PARSE_BODY = {
   snapshot: {
     ...PARSE_BODY.snapshot,
     // Header says 3 banks were captured, but OCR only recovered 2 tiles —
-    // the review page should pad with a blank placeholder card.
+    // review shows incomplete warning only (no auto-padded placeholder rows).
     capturedCount: 3,
     isComplete: false,
   },
