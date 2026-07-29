@@ -64,6 +64,7 @@ export type DepositSlipVideoReviewRow = {
   dedupeClusterId?: string | null;
   dedupeFlag?: boolean;
   deleted: number;
+  scoreDefaulted?: boolean;
 };
 
 export type DepositSlipMemberOption = {
@@ -683,6 +684,11 @@ export function DepositSlipVideoReviewTable({
                       }
                       className="w-full min-w-[5rem] rounded-md border border-hq-border bg-hq-canvas px-2 py-1.5 font-mono"
                     />
+                    {row.scoreDefaulted ? (
+                      <p className="mt-1 text-xs text-[#e3b341]">
+                        {t("depositSlipScoreDefaultedWarning")}
+                      </p>
+                    ) : null}
                   </td>
                   <td className="w-[4.5rem] min-w-[4.5rem] px-2 py-2 align-top">
                     <AppSelect

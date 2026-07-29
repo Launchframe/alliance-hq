@@ -62,6 +62,7 @@ function bank(
     priorCaptureCount: 1,
     currentDepositCount: null,
     currentDepositValue: null,
+    cityListSnapshotAt: null,
     notes: null,
     createdAt: "2026-07-01T00:00:00.000Z",
     updatedAt: "2026-07-01T00:00:00.000Z",

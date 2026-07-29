@@ -41,6 +41,50 @@ function isPlausibleCoord(
   );
 }
 
+function parseWarzoneLine(
+  line: string,
+): { gameServerNumber: number; coordX: number; coordY: number } | null {
+  const warzoneMatch = line.match(WARZONE_COORDS_RE);
+  if (!warzoneMatch) return null;
+  const gameServerNumber = Number(warzoneMatch[1]);
+  const coordX = Number(warzoneMatch[2]);
+  const coordY = Number(warzoneMatch[3]);
+  if (!isPlausibleCoord(gameServerNumber, coordX, coordY)) return null;
+  return { gameServerNumber, coordX, coordY };
+}
+
+function findBannerLineIndex(lines: readonly string[]): number {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (LEVEL_RE.test(line) && TAG_NAME_RE.test(line)) return i;
+  }
+  for (let i = 0; i < lines.length; i++) {
+    if (LEVEL_RE.test(lines[i]!)) return i;
+  }
+  return -1;
+}
+
+function findPrimerWarzone(
+  lines: readonly string[],
+  bannerLineIndex: number,
+): { gameServerNumber: number; coordX: number; coordY: number } | null {
+  if (bannerLineIndex >= 0) {
+    for (const delta of [-1, 0, 1]) {
+      const index = bannerLineIndex + delta;
+      if (index < 0 || index >= lines.length) continue;
+      const parsed = parseWarzoneLine(lines[index]!);
+      if (parsed) return parsed;
+    }
+  }
+
+  for (const line of lines) {
+    const parsed = parseWarzoneLine(line);
+    if (parsed) return parsed;
+  }
+
+  return null;
+}
+
 /**
  * Parse OCR lines from the Add to Favorites menu.
  * Returns null when warzone coordinates are not found or implausible.
@@ -48,36 +92,26 @@ function isPlausibleCoord(
 export function parseFavoritesText(
   lines: readonly string[],
 ): ParsedFavoritesFrame | null {
-  let gameServerNumber: number | null = null;
-  let coordX: number | null = null;
-  let coordY: number | null = null;
+  const normalized = lines
+    .map((rawLine) => rawLine.replace(/\s+/g, " ").trim())
+    .filter((line) => line.length > 0);
+
+  const bannerLineIndex = findBannerLineIndex(normalized);
+  const warzone = findPrimerWarzone(normalized, bannerLineIndex);
+  if (!warzone) return null;
+
   let level: number | null = null;
   let owningAllianceTag: string | null = null;
   let bankName: string | null = null;
 
-  for (const rawLine of lines) {
-    const line = rawLine.replace(/\s+/g, " ").trim();
-    if (!line) continue;
-
-    const warzoneMatch = line.match(WARZONE_COORDS_RE);
-    if (warzoneMatch) {
-      const server = Number(warzoneMatch[1]);
-      const x = Number(warzoneMatch[2]);
-      const y = Number(warzoneMatch[3]);
-      if (isPlausibleCoord(server, x, y)) {
-        gameServerNumber = server;
-        coordX = x;
-        coordY = y;
-      }
-    }
-
-    const levelMatch = line.match(LEVEL_RE);
-    if (levelMatch && level == null) {
+  if (bannerLineIndex >= 0) {
+    const bannerLine = normalized[bannerLineIndex]!;
+    const levelMatch = bannerLine.match(LEVEL_RE);
+    if (levelMatch) {
       const parsed = Number(levelMatch[1]);
       if (Number.isFinite(parsed) && parsed > 0) level = parsed;
     }
-
-    const tagNameMatch = line.match(TAG_NAME_RE);
+    const tagNameMatch = bannerLine.match(TAG_NAME_RE);
     if (tagNameMatch) {
       const tag = tagNameMatch[1]!.trim();
       const name = tagNameMatch[2]!.trim();
@@ -86,18 +120,10 @@ export function parseFavoritesText(
     }
   }
 
-  if (
-    gameServerNumber == null ||
-    coordX == null ||
-    coordY == null
-  ) {
-    return null;
-  }
-
   return {
-    gameServerNumber,
-    coordX,
-    coordY,
+    gameServerNumber: warzone.gameServerNumber,
+    coordX: warzone.coordX,
+    coordY: warzone.coordY,
     level,
     owningAllianceTag,
     bankName,

@@ -408,7 +408,6 @@ export function BankManagementClient({ initial }: Props) {
         open={cityListModalOpen}
         onOpenChange={setCityListModalOpen}
         allianceId={allianceId}
-        existingBanks={banks}
       />
 
       <BankEditorModal

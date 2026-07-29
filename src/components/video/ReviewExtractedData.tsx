@@ -120,7 +120,17 @@ import {
 import type { DetectedBankContext } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
 import { matchDetectedBankContextToBanks } from "@/lib/banks/bank-context-ocr/detected-bank-context-match.shared";
 import { DepositSlipBankContextPanel } from "@/components/video/DepositSlipBankContextPanel";
-import type { SerializedBank } from "@/lib/banks/types.shared";
+import { DepositSlipReviewHeroCards } from "@/components/video/DepositSlipReviewHeroCards";
+import type { BankWithSlips } from "@/lib/banks/types.shared";
+import {
+  compareTargetedBankToDetected,
+  type BankTargetMismatchResolution,
+} from "@/lib/banks/deposit-slip-bank-target-mismatch.shared";
+import {
+  applyDepositSlipScoreDefaults,
+  depositSlipScoreDefaultedRowIds,
+} from "@/lib/banks/deposit-slip-score-default.shared";
+import { computeDepositSlipReviewHeroMetrics } from "@/lib/banks/deposit-slip-review-hero-metrics.shared";
 import { VideoJobProgressBar } from "@/components/video/VideoJobProgressBar";
 import {
   isIndeterminateVideoJobStage,
@@ -160,6 +170,7 @@ type ParsedRow = {
   dedupeFlag?: boolean;
   deleted: number;
   manuallyAdded?: number;
+  scoreDefaulted?: boolean;
 };
 
 type MemberOption = {
@@ -380,8 +391,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [allianceStale, setAllianceStale] = useState(false);
   const [canProcessVideo, setCanProcessVideo] = useState(false);
   const [rosterQuotaCanSubmit, setRosterQuotaCanSubmit] = useState(false);
-  const [banks, setBanks] = useState<SerializedBank[]>([]);
+  const [banks, setBanks] = useState<BankWithSlips[]>([]);
+  const [bankCityListImportedAt, setBankCityListImportedAt] = useState<
+    string | null
+  >(null);
   const [bankId, setBankId] = useState("");
+  const [uploadTargetBankId, setUploadTargetBankId] = useState<string | null>(
+    null,
+  );
+  const [bankTargetMismatchResolution, setBankTargetMismatchResolution] =
+    useState<BankTargetMismatchResolution | null>(null);
   /** OCR-detected bank coords/info from deposit-slip video frames (Create-bank UI). */
   const [detectedBankContext, setDetectedBankContext] =
     useState<DetectedBankContext | null>(null);
@@ -389,6 +408,34 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     () => matchDetectedBankContextToBanks(detectedBankContext, banks),
     [detectedBankContext, banks],
   );
+  const selectedBank = useMemo(
+    () => banks.find((bank) => bank.id === bankId) ?? null,
+    [banks, bankId],
+  );
+  const uploadTargetBank = useMemo(
+    () =>
+      uploadTargetBankId
+        ? (banks.find((bank) => bank.id === uploadTargetBankId) ?? null)
+        : null,
+    [banks, uploadTargetBankId],
+  );
+  const bankTargetMismatchState = useMemo(() => {
+    if (!uploadTargetBank || !detectedBankContext) return "aligned" as const;
+    return compareTargetedBankToDetected(
+      {
+        gameServerNumber: uploadTargetBank.gameServerNumber,
+        coordX: uploadTargetBank.coordX,
+        coordY: uploadTargetBank.coordY,
+      },
+      detectedBankContext,
+    );
+  }, [uploadTargetBank, detectedBankContext]);
+  const showBankTargetMismatchBanner =
+    bankTargetMismatchState === "mismatch" && bankTargetMismatchResolution == null;
+  const suppressUnmatchedBankCreate =
+    bankTargetMismatchState === "mismatch" &&
+    (bankTargetMismatchResolution == null ||
+      bankTargetMismatchResolution === "targeted");
   /**
    * Sticky bank choice from draft restore, preferred upload context, or officer
    * picker — must not be overwritten when OCR context arrives later.
@@ -415,8 +462,18 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       recordedDate,
       bankId,
       vsPeriod,
+      bankTargetMismatchResolution: bankTargetMismatchResolution ?? undefined,
     }),
-    [bankId, boardKey, eventId, hqEventId, recordedDate, team, vsPeriod],
+    [
+      bankId,
+      boardKey,
+      eventId,
+      hqEventId,
+      recordedDate,
+      team,
+      vsPeriod,
+      bankTargetMismatchResolution,
+    ],
   );
 
   const draftEnabled =
@@ -692,12 +749,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             ? data.devShadowUx.withholdEscapeMs
             : VS_SHADOW_WITHHOLD_DEFAULT_MS,
         );
-        const serverRows = (data.rows ?? []).map((row) => ({
+        const rawServerRows = (data.rows ?? []).map((row) => ({
           ...row,
           scoreConflict: row.scoreConflict ?? 0,
           dedupeClusterId: row.dedupeClusterId ?? null,
           dedupeFlag: Boolean(row.dedupeFlag ?? row.dedupeClusterId),
         }));
+        const serverRows =
+          data.scoreTargetMeta?.showDepositSlipColumns === true
+            ? applyDepositSlipScoreDefaults(rawServerRows)
+            : rawServerRows;
         const restored = restoreVideoReviewDraftIfPresent(
           jobId,
           viewMode,
@@ -729,6 +790,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           if (restored.form.bankId) {
             bankIdLockedRef.current = true;
             setBankId(restored.form.bankId);
+          }
+          if (
+            restored.form.bankTargetMismatchResolution === "targeted" ||
+            restored.form.bankTargetMismatchResolution === "video"
+          ) {
+            setBankTargetMismatchResolution(
+              restored.form.bankTargetMismatchResolution,
+            );
           }
         } else {
           if (data.job?.hqEventId) {
@@ -1029,12 +1098,20 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     void (async () => {
       const res = await fetch("/api/banks");
       if (!res.ok) return;
-      const data = (await res.json()) as { banks?: SerializedBank[] };
+      const data = (await res.json()) as {
+        banks?: BankWithSlips[];
+        bankCityListImportedAt?: string | null;
+      };
       const list = data.banks ?? [];
       setBanks(list);
+      setBankCityListImportedAt(data.bankCityListImportedAt ?? null);
+      const preferredId = readPreferredDepositSlipBankId();
+      // Keep deep-link upload target even when draft restore locked bankId.
+      if (preferredId != null) {
+        setUploadTargetBankId(preferredId);
+      }
       // Draft / officer / preferred upload context wins over OCR auto-align.
       if (bankIdLockedRef.current) return;
-      const preferredId = readPreferredDepositSlipBankId();
       const preferred =
         preferredId != null
           ? list.find((bank) => bank.id === preferredId)
@@ -1323,6 +1400,21 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [rows],
   );
 
+  const depositSlipHeroMetrics = useMemo(() => {
+    if (!scoreTargetMeta?.showDepositSlipColumns || !bankId) return null;
+    return computeDepositSlipReviewHeroMetrics({
+      bank: selectedBank,
+      reviewRows: activeRows,
+      allianceCityListImportedAt: bankCityListImportedAt,
+    });
+  }, [
+    scoreTargetMeta?.showDepositSlipColumns,
+    bankId,
+    selectedBank,
+    activeRows,
+    bankCityListImportedAt,
+  ]);
+
   const activeRowById = useMemo(
     () => new Map(activeRows.map((row) => [row.id, row])),
     [activeRows],
@@ -1553,6 +1645,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         problemIds.add(row.id);
       }
     }
+    for (const id of depositSlipScoreDefaultedRowIds(activeRows)) {
+      problemIds.add(id);
+    }
     return depositSlipVisibleRowIds.filter((id) => problemIds.has(id));
   }, [
     scoreTargetMeta?.showDepositSlipColumns,
@@ -1697,7 +1792,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   function updateRow(id: string, patch: Partial<ParsedRow>) {
     markDraftDirty();
     setRows((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+      prev.map((r) => {
+        if (r.id !== id) return r;
+        const next = { ...r, ...patch };
+        if ("score" in patch) {
+          next.scoreDefaulted = false;
+        }
+        return next;
+      }),
     );
   }
 
@@ -2420,7 +2522,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           </div>
         </div>
         <h1 className="mt-2 text-2xl font-semibold">
-          {isEventView ? t("eventTitle") : t("title")}
+          {isEventView
+            ? t("eventTitle")
+            : scoreTargetMeta?.showDepositSlipColumns
+              ? t("depositSlipReviewTitle")
+              : t("title")}
         </h1>
         <p className="mt-1 text-sm text-hq-fg-muted">
           {isEventView
@@ -2864,17 +2970,67 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
       {scoreTargetMeta?.showBankSelector ? (
         <>
+          {showBankTargetMismatchBanner && uploadTargetBank ? (
+            <div className="space-y-3 rounded-xl border border-[#d29922]/40 bg-[#d29922]/10 p-4 text-sm">
+              <p className="text-[#e3b341]">
+                {t("depositSlipBankTargetMismatch", {
+                  level: uploadTargetBank.level,
+                  x: uploadTargetBank.coordX,
+                  y: uploadTargetBank.coordY,
+                })}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-hq-border bg-hq-surface px-4 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted"
+                  onClick={() => {
+                    setBankTargetMismatchResolution("targeted");
+                    markDraftDirty();
+                  }}
+                >
+                  {t("depositSlipBankTargetUseTargeted")}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-hq-accent bg-hq-accent/20 px-4 py-2 text-sm text-hq-accent hover:bg-hq-accent/30"
+                  onClick={() => {
+                    setBankTargetMismatchResolution("video");
+                    bankIdLockedRef.current = false;
+                    markDraftDirty();
+                    const match = matchDetectedBankContextToBanks(
+                      detectedBankContext,
+                      banks,
+                    );
+                    if (match.kind === "matched") {
+                      setBankId(match.bankId);
+                    } else {
+                      setBankId("");
+                    }
+                  }}
+                >
+                  {t("depositSlipBankTargetUseVideo")}
+                </button>
+              </div>
+            </div>
+          ) : null}
           {detectedBankContext ? (
             <DepositSlipBankContextPanel
               context={detectedBankContext}
               match={bankContextMatch}
+              suppressUnmatchedCreate={suppressUnmatchedBankCreate}
               onBankCreated={(bank) => {
-                setBanks((prev) => [...prev, bank]);
+                setBanks((prev) => [
+                  ...prev,
+                  { ...bank, depositSlips: [] },
+                ]);
                 bankIdLockedRef.current = true;
                 markDraftDirty();
                 setBankId(bank.id);
               }}
             />
+          ) : null}
+          {depositSlipHeroMetrics ? (
+            <DepositSlipReviewHeroCards metrics={depositSlipHeroMetrics} />
           ) : null}
           <div className="rounded-xl border border-hq-border bg-hq-surface p-4">
             <label className="block text-sm">
