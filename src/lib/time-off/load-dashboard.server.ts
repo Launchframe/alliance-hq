@@ -71,6 +71,10 @@ export async function loadTimeOffCalendar(input: {
     input.sessionId,
     TIME_OFF_WRITE_PERMISSION,
   );
+  const canManageVsCompliance = await sessionHasPermission(
+    input.sessionId,
+    "members:write",
+  );
 
   const [entries, canWrite, linkedCommanderIds, unexpectedReport] =
     await Promise.all([
@@ -96,6 +100,7 @@ export async function loadTimeOffCalendar(input: {
     entries,
     canWrite,
     canManageOthers,
+    canManageVsCompliance,
     linkedCommanderIds,
     unexpectedReport,
   };

@@ -15,9 +15,15 @@ export async function generateMetadata() {
   return { title: t("title") };
 }
 
-export default async function VsCompliancePage() {
+export default async function VsCompliancePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ event?: string }>;
+}) {
   const session = await requirePageSession("/vs-compliance");
   await requirePagePermission(session.id, "members:write", "/time-off");
+
+  const { event: highlightEventId } = await searchParams;
 
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId) {
@@ -31,6 +37,7 @@ export default async function VsCompliancePage() {
 
   return (
     <VsComplianceClient
+      highlightEventId={highlightEventId?.trim() || null}
       initialEvents={events.map((event) => ({
         ...event,
         taskKind: vsComplianceTaskKindForStrike(

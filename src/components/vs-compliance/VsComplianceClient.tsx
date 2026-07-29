@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
@@ -16,6 +16,7 @@ type EventWithKind = SerializedVsComplianceEvent & {
 
 type Props = {
   initialEvents: EventWithKind[];
+  highlightEventId?: string | null;
 };
 
 /**
@@ -24,15 +25,24 @@ type Props = {
  * and only supports Mark complete (they handled it) or Waive (excuse the
  * miss). It never calls confirmMemberRank or any other Ashed write.
  */
-export function VsComplianceClient({ initialEvents }: Props) {
+export function VsComplianceClient({
+  initialEvents,
+  highlightEventId = null,
+}: Props) {
   const t = useTranslations("vsCompliance");
   const [events, setEvents] = useState<EventWithKind[]>(initialEvents);
+  const highlightedRef = useRef<HTMLLIElement | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [waiveTarget, setWaiveTarget] = useState<EventWithKind | null>(null);
   const [waiveReason, setWaiveReason] = useState("");
   const [waiveBusy, setWaiveBusy] = useState(false);
   const [waiveError, setWaiveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!highlightEventId || !highlightedRef.current) return;
+    highlightedRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [highlightEventId, events.length]);
 
   const removeEvent = useCallback((id: string) => {
     setEvents((prev) => prev.filter((event) => event.id !== id));
@@ -110,8 +120,16 @@ export function VsComplianceClient({ initialEvents }: Props) {
         <p className="text-sm text-hq-fg-muted">{t("empty")}</p>
       ) : (
         <ul className="divide-y divide-hq-border rounded-xl border border-hq-border bg-hq-surface">
-          {events.map((event) => (
-            <li key={event.id} className="flex flex-col gap-3 px-4 py-3">
+          {events.map((event) => {
+            const highlighted = highlightEventId === event.id;
+            return (
+            <li
+              key={event.id}
+              ref={highlighted ? highlightedRef : undefined}
+              className={`flex flex-col gap-3 px-4 py-3${
+                highlighted ? " bg-hq-accent/10 ring-2 ring-inset ring-hq-accent" : ""
+              }`}
+            >
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium uppercase tracking-wide text-hq-accent">
                   {event.taskKind === VS_KICK_TASK_KIND
@@ -151,7 +169,8 @@ export function VsComplianceClient({ initialEvents }: Props) {
                 </button>
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
 

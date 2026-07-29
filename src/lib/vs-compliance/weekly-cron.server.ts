@@ -57,19 +57,3 @@ export async function runVsComplianceWeeklyEvaluation(
 
   return { vsWeekEnding: weekEnding, alliances };
 }
-
-/** Evaluate a single alliance's previously completed week — for manual/officer-triggered re-runs. */
-export async function runVsComplianceWeeklyEvaluationForAlliance(
-  allianceId: string,
-  now = new Date(),
-): Promise<VsComplianceWeeklyEvaluationResult> {
-  const todayServerDate = getServerCalendarDate(now);
-  const { weekStartMonday, weekEndSaturday, weekEnding } =
-    previousVsWeekRange(todayServerDate);
-  return evaluateAllianceVsComplianceForWeek({
-    allianceId,
-    weekStartMonday,
-    weekEndSaturday,
-    vsWeekEnding: weekEnding,
-  });
-}

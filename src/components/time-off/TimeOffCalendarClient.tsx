@@ -168,7 +168,7 @@ export function TimeOffCalendarClient({ initial }: Props) {
         <UnexpectedAbsencePanel initialReport={dashboard.unexpectedReport} />
       ) : null}
 
-      {dashboard.canManageOthers ? (
+      {dashboard.canManageVsCompliance ? (
         <p className="text-sm text-hq-fg-muted">
           <Link href="/vs-compliance" className="text-hq-accent hover:underline">
             {t("vsComplianceLink")}
