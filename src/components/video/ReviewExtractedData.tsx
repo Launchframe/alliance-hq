@@ -2955,6 +2955,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               memberName: row.memberName,
               matchConfidence: row.matchConfidence,
               matchMethod: row.matchMethod,
+              dedupeClusterId: row.dedupeClusterId ?? null,
               deleted: row.deleted,
             }))}
             members={rosterMembers}

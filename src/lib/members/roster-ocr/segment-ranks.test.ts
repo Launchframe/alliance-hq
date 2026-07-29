@@ -371,3 +371,69 @@ describe("parseRankGroupHeader", () => {
     expect(parseRankGroupHeader("R5|BigLeader")?.rank).toBe(5);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Shield badge + quota structural headers (alliance-set custom titles)
+// ---------------------------------------------------------------------------
+
+describe("parseRankGroupHeader — shield + quota structure", () => {
+  it("matches on shield badge + quota regardless of the custom title text", () => {
+    // "Timeout" is alliance-set free text, never a keyword.
+    const header = parseRankGroupHeader("R1 Timeout 0/1");
+    expect(header?.rank).toBe(1);
+    expect(header?.groupTitle).toBe("Timeout");
+  });
+
+  it("matches a blank custom title (badge + quota only, with OCR punctuation)", () => {
+    // This alliance left its R2 group title empty.
+    const header = parseRankGroupHeader("R2) 0/4");
+    expect(header?.rank).toBe(2);
+    expect(header?.groupTitle).toBeUndefined();
+  });
+
+  it("treats a garbled badge digit + quota as a header with unknown rank", () => {
+    // Job PwbbPR7NgQOnni3F frame 39: R1/R2 shield OCR'd as "Ra".
+    const header = parseRankGroupHeader("Ra) Timeout 0/1", { currentRank: 3 });
+    expect(header).not.toBeNull();
+    expect(header?.rank).toBeNull();
+    expect(header?.groupTitle).toBe("Timeout");
+  });
+
+  it("maps an OCR'd 'RS' shield to rank 5", () => {
+    const header = parseRankGroupHeader("RS Vanguard 1/1");
+    expect(header?.rank).toBe(5);
+    expect(header?.groupTitle).toBe("Vanguard");
+  });
+
+  it("wins over the same-rank member-row guard when a quota is present", () => {
+    // The same section header re-appears across overlapping scroll frames
+    // while its rank is already sticky — quota makes it a header regardless.
+    const header = parseRankGroupHeader("R3 Heart of the Alliance 7/83", {
+      currentRank: 3,
+    });
+    expect(header?.rank).toBe(3);
+  });
+
+  it("never matches member names starting with R and lacking a badge separator", () => {
+    expect(parseRankGroupHeader("Rambo")).toBeNull();
+    expect(parseRankGroupHeader("Rat King 0/1")).toBeNull();
+    expect(parseRankGroupHeader("R2D2 fan club")).toBeNull();
+  });
+
+  it("does not ignore 'Timeout' via a fixed denylist (could be a member name)", () => {
+    expect(isIgnoredLine("Timeout")).toBe(false);
+  });
+});
+
+describe("segmentByRankHeaders — garbled-badge headers", () => {
+  it("marks a garbled-badge quota line as a header and clears rank context", () => {
+    const segmented = segmentByRankHeaders([
+      "R3 Heart of the Alliance 7/83",
+      "Alice",
+      "Ra) Timeout 0/1",
+    ]);
+    expect(segmented[0]).toMatchObject({ isHeader: true, rank: 3 });
+    expect(segmented[1]).toMatchObject({ isHeader: false, rank: 3 });
+    expect(segmented[2]).toMatchObject({ isHeader: true, rank: null });
+  });
+});
