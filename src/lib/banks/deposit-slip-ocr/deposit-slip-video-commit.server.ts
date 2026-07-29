@@ -212,6 +212,9 @@ export async function commitDepositSlipsFromVideoJob(
       termDays: draft.termDays,
       depositAllianceTag: draft.identity.allianceTag,
       status: draft.status,
+      // Lifecycle-merged drafts keep initiate in depositAt; terminal-only
+      // clips leave outcomeAt null and put the green/orange time in depositAt.
+      outcomeAt: draft.outcomeAt ?? null,
     };
     const historicalMatch = findHighConfidenceHistoricalDepositMatch(
       incoming,

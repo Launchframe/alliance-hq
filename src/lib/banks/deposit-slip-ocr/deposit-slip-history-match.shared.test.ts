@@ -4,6 +4,7 @@ import { DEPOSIT_AT_PROXIMITY_MS } from "@/lib/banks/deposit-slip-ocr/deposit-sl
 import {
   findHighConfidenceHistoricalDepositMatch,
   isHighConfidenceHistoricalDepositMatch,
+  isLifecycleHistoricalDepositMatch,
   shouldSkipHistoricalDepositDuplicate,
   shouldUpdateHistoricalDepositOutcome,
 } from "@/lib/banks/deposit-slip-ocr/deposit-slip-history-match.shared";
@@ -18,6 +19,7 @@ function identity(
     termDays: number;
     depositAllianceTag: string | null;
     status: "locked" | "matured" | "looted";
+    outcomeAt: string | null;
   }> = {},
 ) {
   return {
@@ -130,6 +132,21 @@ describe("shouldSkipHistoricalDepositDuplicate / shouldUpdateHistoricalDepositOu
     expect(shouldUpdateHistoricalDepositOutcome(looted, locked)).toBe(true);
   });
 
+  it("updates a locked slip from a day-later matured OCR row", () => {
+    const locked = identity({
+      status: "locked",
+      depositAt: "2026-07-10T12:14:34.000Z",
+      termDays: 3,
+    });
+    const matured = identity({
+      status: "matured",
+      depositAt: "2026-07-13T12:14:34.000Z",
+      termDays: 3,
+    });
+    expect(shouldSkipHistoricalDepositDuplicate(matured, locked)).toBe(false);
+    expect(shouldUpdateHistoricalDepositOutcome(matured, locked)).toBe(true);
+  });
+
   it("skips a locked re-upload when history already terminated", () => {
     expect(
       shouldSkipHistoricalDepositDuplicate(
@@ -164,6 +181,48 @@ describe("shouldSkipHistoricalDepositDuplicate / shouldUpdateHistoricalDepositOu
   });
 });
 
+describe("isLifecycleHistoricalDepositMatch", () => {
+  it("pairs a day-later matured OCR row with the locked initiate", () => {
+    const locked = identity({
+      status: "locked",
+      depositAt: "2026-07-10T12:14:34.000Z",
+      termDays: 3,
+    });
+    const matured = identity({
+      status: "matured",
+      depositAt: "2026-07-13T12:14:34.000Z",
+      termDays: 3,
+    });
+    expect(isHighConfidenceHistoricalDepositMatch(matured, locked)).toBe(false);
+    expect(isLifecycleHistoricalDepositMatch(matured, locked)).toBe(true);
+  });
+
+  it("uses outcomeAt when the draft already split initiate vs terminal time", () => {
+    const locked = identity({
+      status: "locked",
+      depositAt: "2026-07-10T12:14:34.000Z",
+    });
+    const matured = identity({
+      status: "matured",
+      depositAt: "2026-07-10T12:14:34.000Z",
+      outcomeAt: "2026-07-13T12:14:34.000Z",
+    });
+    expect(isLifecycleHistoricalDepositMatch(matured, locked)).toBe(true);
+  });
+
+  it("rejects a matured row that is only minutes after initiate", () => {
+    expect(
+      isLifecycleHistoricalDepositMatch(
+        identity({
+          status: "matured",
+          depositAt: "2026-07-10T12:20:00.000Z",
+        }),
+        identity({ status: "locked" }),
+      ),
+    ).toBe(false);
+  });
+});
+
 describe("findHighConfidenceHistoricalDepositMatch", () => {
   it("returns the matching history row", () => {
     const history = [
@@ -173,6 +232,53 @@ describe("findHighConfidenceHistoricalDepositMatch", () => {
     expect(findHighConfidenceHistoricalDepositMatch(identity(), history)).toBe(
       history[1],
     );
+  });
+
+  it("prefers a lifecycle-locked initiate over a proximity re-deposit", () => {
+    // Day-0 blue still locked; commander re-deposited the same amount/term at
+    // maturity. Green OCR is near the new blue — must close the old slip.
+    const oldLocked = identity({
+      status: "locked",
+      depositAt: "2026-07-10T12:14:34.000Z",
+      termDays: 3,
+    });
+    const redeposit = identity({
+      status: "locked",
+      depositAt: "2026-07-13T12:15:00.000Z",
+      termDays: 3,
+    });
+    const matured = identity({
+      status: "matured",
+      depositAt: "2026-07-13T12:14:34.000Z",
+      termDays: 3,
+    });
+    expect(
+      findHighConfidenceHistoricalDepositMatch(matured, [redeposit, oldLocked]),
+    ).toBe(oldLocked);
+    expect(shouldUpdateHistoricalDepositOutcome(matured, oldLocked)).toBe(true);
+    expect(shouldUpdateHistoricalDepositOutcome(matured, redeposit)).toBe(false);
+  });
+
+  it("skips a term-aligned matured re-upload against already-closed history", () => {
+    const maturedHistory = identity({
+      status: "matured",
+      depositAt: "2026-07-10T12:14:34.000Z",
+      termDays: 3,
+    });
+    const maturedOcr = identity({
+      status: "matured",
+      depositAt: "2026-07-13T12:14:34.000Z",
+      termDays: 3,
+    });
+    expect(
+      findHighConfidenceHistoricalDepositMatch(maturedOcr, [maturedHistory]),
+    ).toBe(maturedHistory);
+    expect(shouldSkipHistoricalDepositDuplicate(maturedOcr, maturedHistory)).toBe(
+      true,
+    );
+    expect(
+      shouldUpdateHistoricalDepositOutcome(maturedOcr, maturedHistory),
+    ).toBe(false);
   });
 });
 
