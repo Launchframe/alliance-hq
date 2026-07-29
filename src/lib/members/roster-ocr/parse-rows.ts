@@ -29,11 +29,24 @@ import {
 // Regexes for stat tokens
 // ---------------------------------------------------------------------------
 
-/** Hero power in millions: "4.2M", "4M", "12.5M" */
-const POWER_RE = /(\d+(?:\.\d+)?)\s*M\b/i;
+/**
+ * Hero power in millions: "4.2M", "4M", "12.5M". OCR frequently misreads the
+ * decimal point as an apostrophe or straight quote (e.g. "160'0M", `148"4M`),
+ * so the fractional separator accepts those too.
+ */
+const POWER_RE = /(\d+)(?:[.'"](\d+))?\s*M\b/i;
 
 /** Member level: "Lv.85", "Lv 100", "Lv85" */
 const LEVEL_RE = /\bLv\.?\s*(\d+)\b/i;
+
+/**
+ * Fallback for member level when OCR drops the "v" in "Lv" entirely (e.g.
+ * "L126" instead of "Lv126"). Bare "L" is too ambiguous to match on its own
+ * (it collides with ordinary name text), so this only applies when the line
+ * also contains a "Power" label — the two stats are always OCR'd together.
+ */
+const LEVEL_NO_V_RE = /\bL\.?\s*(\d+)\b/i;
+const POWER_LABEL_CONTEXT_RE = /\bpower\b/i;
 
 /** Leading rank badge glued onto the R5 card / list name (`R5|`, `RS)`, …). */
 const RANK_BADGE_PREFIX_RE =
@@ -98,12 +111,20 @@ export function cleanMemberName(raw: string): CleanedMemberName {
  * The name is whatever remains after removing matched stat tokens.
  */
 export function parseLineTokens(line: string): ParsedLineTokens {
-  let remainder = line;
+  // Strip last-seen timestamps ("Xm ago", "Xh ago") before touching power/level:
+  // POWER_RE's case-insensitive "M" matches the "m" in "1m ago" as if it were a
+  // power reading, which both fabricates a bogus power value AND leaves a
+  // dangling "ago" in the name once the digit+unit it depended on is gone.
+  let remainder = line
+    .replace(TRAILING_LAST_ONLINE_RE, "")
+    .replace(TRAILING_ONLINE_RE, "");
 
   let heroPowerM: number | undefined;
   const powerMatch = POWER_RE.exec(remainder);
   if (powerMatch) {
-    heroPowerM = parseFloat(powerMatch[1]!);
+    const whole = powerMatch[1]!;
+    const frac = powerMatch[2];
+    heroPowerM = parseFloat(frac ? `${whole}.${frac}` : whole);
     remainder = remainder.replace(powerMatch[0]!, " ");
   }
 
@@ -112,6 +133,12 @@ export function parseLineTokens(line: string): ParsedLineTokens {
   if (levelMatch) {
     memberLevel = parseInt(levelMatch[1]!, 10);
     remainder = remainder.replace(levelMatch[0]!, " ");
+  } else if (POWER_LABEL_CONTEXT_RE.test(remainder)) {
+    const looseLevelMatch = LEVEL_NO_V_RE.exec(remainder);
+    if (looseLevelMatch) {
+      memberLevel = parseInt(looseLevelMatch[1]!, 10);
+      remainder = remainder.replace(looseLevelMatch[0]!, " ");
+    }
   }
 
   const cleaned = cleanMemberName(remainder);
