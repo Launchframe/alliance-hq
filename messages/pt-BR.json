@@ -4070,6 +4070,8 @@
     "depositSlipBankTargetUseTargeted": "Usar banco alvo",
     "depositSlipBankTargetUseVideo": "Usar coordenadas do vídeo",
     "depositSlipScoreDefaultedWarning": "Não foi possível ler o CrystalGold. Foi aplicado o padrão de 6000.",
+    "depositSlipHistoryPreviewTitle": "{count, plural, one {# linha já coincide com o histórico salvo deste banco} other {# linhas já coincidem com o histórico salvo deste banco}}",
+    "depositSlipHistoryPreviewHint": "Ao salvar, linhas coincidentes serão ignoradas ou atualizadas em vez de adicionadas novamente.",
     "bankLabel": "Bank Stronghold",
     "bankPlaceholder": "Selecione o banco…",
     "bankContextMatched": "Banco #{server} (X:{x}, Y:{y}) detectado no vídeo e selecionado.",

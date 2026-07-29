@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import type { DepositSlipPayload } from "@/lib/banks/api.shared";
 import { validateDepositSlipPayload } from "@/lib/banks/api.shared";
 import {
-  findHighConfidenceHistoricalDepositMatch,
+  findHistoricalDepositMatch,
   shouldSkipHistoricalDepositDuplicate,
   shouldUpdateHistoricalDepositOutcome,
 } from "@/lib/banks/deposit-slip-ocr/deposit-slip-history-match.shared";
@@ -161,6 +161,7 @@ export async function commitDepositSlipsFromVideoJob(
     depositAllianceTag: string | null;
     status: DepositStatus;
     allianceMemberId: string | null;
+    outcomeAt: string | null;
   };
   const history: HistoryRow[] = existingSlips.map((slip) => ({
     id: slip.id,
@@ -174,6 +175,12 @@ export async function commitDepositSlipsFromVideoJob(
     depositAllianceTag: slip.depositAllianceTag,
     status: slip.status as DepositStatus,
     allianceMemberId: slip.allianceMemberId ?? null,
+    outcomeAt:
+      slip.outcomeAt == null
+        ? null
+        : slip.outcomeAt instanceof Date
+          ? slip.outcomeAt.toISOString()
+          : String(slip.outcomeAt),
   }));
 
   let createdCount = 0;
@@ -242,10 +249,7 @@ export async function commitDepositSlipsFromVideoJob(
       outcomeAt: draft.outcomeAt ?? null,
       allianceMemberId: links.allianceMemberId,
     };
-    const historicalMatch = findHighConfidenceHistoricalDepositMatch(
-      incoming,
-      history,
-    );
+    const historicalMatch = findHistoricalDepositMatch(incoming, history);
     if (
       historicalMatch &&
       shouldSkipHistoricalDepositDuplicate(incoming, historicalMatch)
@@ -331,6 +335,10 @@ export async function commitDepositSlipsFromVideoJob(
       termDays: incoming.termDays,
       depositAllianceTag: incoming.depositAllianceTag?.trim() || null,
       status: incoming.status,
+      outcomeAt:
+        incoming.status === "matured" || incoming.status === "looted"
+          ? (incoming.outcomeAt ?? incoming.depositAt)
+          : null,
       allianceMemberId: links.allianceMemberId,
     });
   }
