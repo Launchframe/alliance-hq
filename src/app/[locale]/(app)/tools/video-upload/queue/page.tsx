@@ -1,7 +1,6 @@
 import { getLocale, getTranslations } from "next-intl/server";
 
 import { redirect } from "@/i18n/navigation";
-import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 import { getRbacContext } from "@/lib/rbac/context";
 import { getAshedConnection, requirePageSession } from "@/lib/session";
 import {
@@ -29,7 +28,7 @@ export default async function VideoQueuePage() {
 
   const t = await getTranslations("videoQueue");
 
-  const allianceId = resolveSessionAllianceId(session);
+  const allianceId = session.currentAllianceId;
 
   const [jobs, canProcess, connection, hqOcrOnly, hqOcrOnlyLocked, rbac] =
     await Promise.all([

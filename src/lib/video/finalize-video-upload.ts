@@ -102,6 +102,7 @@ export async function finalizeVideoUploadEnqueue(
       enqueuedByHqUserId: input.enqueuedByHqUserId,
       hqUserId: input.enqueuedByHqUserId,
     }),
+    allianceId: input.allianceId,
     jobId: input.jobId,
     status: "pending_approval",
     fileName: input.fileName,

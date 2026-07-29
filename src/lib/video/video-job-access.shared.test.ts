@@ -137,4 +137,34 @@ describe("isVideoJobStatusEventForViewer", () => {
       ),
     ).toBe(false);
   });
+
+  it("rejects jobs from another alliance when currentAllianceId is set", () => {
+    expect(
+      isVideoJobStatusEventForViewer(
+        {
+          sessionId: "phone",
+          enqueuedByHqUserId: "user-a",
+          allianceId: "alliance-b",
+        },
+        "phone",
+        "user-a",
+        "alliance-a",
+      ),
+    ).toBe(false);
+  });
+
+  it("allows jobs for the current alliance", () => {
+    expect(
+      isVideoJobStatusEventForViewer(
+        {
+          sessionId: "phone",
+          enqueuedByHqUserId: "user-a",
+          allianceId: "alliance-a",
+        },
+        "phone",
+        "user-a",
+        "alliance-a",
+      ),
+    ).toBe(true);
+  });
 });

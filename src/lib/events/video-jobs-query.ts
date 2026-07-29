@@ -3,20 +3,26 @@ import { and, desc, eq, ne } from "drizzle-orm";
 import type { VideoJobStatusEvent } from "@/lib/events/video-jobs-types";
 import { defaultStageForJobStatus } from "@/lib/video/video-job-stage.shared";
 import { getDb, schema } from "@/lib/db";
-import { videoJobsOwnedByViewerWhere } from "@/lib/video/video-job-ownership.server";
+import { videoJobsOwnedByViewerInAllianceWhere } from "@/lib/video/video-job-ownership.server";
 
 export async function getRecentOwnedVideoJobs(
   sessionId: string,
   hqUserId: string | null,
-  limit = 20,
+  options?: { limit?: number; currentAllianceId?: string | null },
 ): Promise<VideoJobStatusEvent[]> {
+  const limit = options?.limit ?? 20;
+  const currentAllianceId = options?.currentAllianceId ?? null;
   const db = getDb();
   const jobs = await db
     .select()
     .from(schema.videoJobs)
     .where(
       and(
-        videoJobsOwnedByViewerWhere(sessionId, hqUserId),
+        videoJobsOwnedByViewerInAllianceWhere(
+          sessionId,
+          hqUserId,
+          currentAllianceId,
+        ),
         ne(schema.videoJobs.status, "discarded"),
         ne(schema.videoJobs.status, "pending_upload"),
       ),
@@ -46,6 +52,7 @@ export async function getRecentOwnedVideoJobs(
       sessionId: job.sessionId,
       enqueuedByHqUserId: job.enqueuedByHqUserId,
       hqUserId: job.hqUserId,
+      allianceId: job.allianceId,
       jobId: job.id,
       status: job.status,
       fileName: job.fileName,
@@ -68,7 +75,7 @@ export async function getRecentSessionVideoJobs(
   sessionId: string,
   limit = 20,
 ): Promise<VideoJobStatusEvent[]> {
-  return getRecentOwnedVideoJobs(sessionId, null, limit);
+  return getRecentOwnedVideoJobs(sessionId, null, { limit });
 }
 
 export async function getVideoJobStatusEvent(
@@ -104,6 +111,7 @@ export async function getVideoJobStatusEvent(
     sessionId: job.sessionId,
     enqueuedByHqUserId: job.enqueuedByHqUserId,
     hqUserId: job.hqUserId,
+    allianceId: job.allianceId,
     jobId: job.id,
     status: job.status,
     fileName: job.fileName,

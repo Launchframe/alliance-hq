@@ -1,4 +1,4 @@
-import { eq, and, inArray, notInArray } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 import { resolveSessionAllianceId, getSessionAllianceTag } from "@/lib/alliance/session-alliance";
 import {
@@ -75,7 +75,6 @@ import {
 } from "@/lib/video/ocr-provider.shared";
 import { resolveJobVideoStorageKey } from "@/lib/video/resolve-job-video-storage";
 import type { ExtractionConfig } from "@/lib/video/pass-definitions";
-import { VIDEO_JOB_FAIL_PROTECTED_STATUSES } from "@/lib/video/video-lifecycle.shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -117,7 +116,6 @@ export async function processVideoJob(
   const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
   const isRosterTarget = isMemberRosterVideoTarget(scoreTargetId);
   const isDepositSlipTarget = isBankDepositSlipHistoryTarget(scoreTargetId);
-  const isExtractionShadow = job.passRole === "shadow";
   const jobHqAllianceId = await resolveHqAllianceIdFromStoredAllianceId(
     job.allianceId,
   );
@@ -145,80 +143,6 @@ export async function processVideoJob(
   let liveFrameCount: number | null = job.frameCount ?? null;
   let liveUploadedFrameCount: number | null = job.uploadedFrameCount ?? null;
 
-  const emptyExtractionTimings = (): VideoProcessTimings => ({
-    jobId,
-    scoreTarget: scoreTargetId,
-    fileSizeBytes: job.fileSizeBytes,
-    frameCount: job.frameCount ?? 0,
-    rowCount: 0,
-    matchedCount: 0,
-    totalMs: 0,
-    phases: {},
-    ocrFrameMs: [],
-    ocrFrameAvgMs: null,
-    ocrConcurrency: 1,
-    ashedUploadTotalMs: null,
-    ashedExtractTotalMs: null,
-    videoDurationSeconds: null,
-    denseFrameCount: null,
-    framesSkipped: null,
-    totalRawOcrRows: null,
-  });
-
-  // Extraction shadows are inserted as `queued` and fire-and-forget dispatched
-  // while the minute cron also drains `queued`. Claim before any OCR so a
-  // duplicate worker cannot wipe a successful `review` on failure.
-  if (isExtractionShadow) {
-    if (
-      job.status === "review" ||
-      job.status === "complete" ||
-      job.status === "submitting"
-    ) {
-      if (
-        job.timingsJson &&
-        typeof job.timingsJson === "object" &&
-        "totalMs" in job.timingsJson &&
-        typeof (job.timingsJson as { totalMs?: unknown }).totalMs === "number"
-      ) {
-        return job.timingsJson as VideoProcessTimings;
-      }
-      return emptyExtractionTimings();
-    }
-
-    const [claimed] = await db
-      .update(schema.videoJobs)
-      .set({
-        status: "extracting",
-        errorMessage: null,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(schema.videoJobs.id, jobId),
-          inArray(schema.videoJobs.status, ["queued", "failed"]),
-        ),
-      )
-      .returning({ id: schema.videoJobs.id });
-
-    if (!claimed) {
-      return emptyExtractionTimings();
-    }
-
-    await emitVideoJobStatus({
-      ...videoJobStatusOwnerFields(job),
-      jobId,
-      status: "extracting",
-      fileName: job.fileName,
-      scoreTarget: scoreTargetId,
-      frameCount: liveFrameCount,
-      uploadedFrameCount: liveUploadedFrameCount,
-      errorMessage: null,
-      stage: "extracting_frames",
-      ocrEngine,
-      updatedAt: new Date().toISOString(),
-    });
-  }
-
   const setStatus = async (
     status: string,
     extra: Partial<typeof schema.videoJobs.$inferInsert> = {},
@@ -241,6 +165,7 @@ export async function processVideoJob(
 
     await emitVideoJobStatus({
       ...videoJobStatusOwnerFields(job),
+      allianceId: job.allianceId,
       jobId,
       status,
       fileName: job.fileName,
@@ -305,15 +230,6 @@ export async function processVideoJob(
     })) as ParsedConnection | null;
 
     if (engineRequiresAshed(ocrEngine) && !connection) {
-      // Extraction shadows are never shown on the primary approval queue and
-      // cannot be re-approved; fail closed so withhold does not stick forever.
-      if (isExtractionShadow) {
-        await setStatus("failed", {
-          errorMessage: "awaiting_ashed_connection",
-        });
-        throw new Error("Extraction shadow requires an Ashed connection");
-      }
-
       // Recoverable: revert to pending so a connected processor can re-approve.
       await db
         .update(schema.videoJobs)
@@ -1228,58 +1144,26 @@ export async function processVideoJob(
     }
     const message =
       error instanceof Error ? error.message : "Video processing failed";
-    // Do not let a losing duplicate worker overwrite review/complete.
-    const updatedAt = new Date();
-    const [failedRow] = await db
-      .update(schema.videoJobs)
-      .set({ status: "failed", errorMessage: message, updatedAt })
-      .where(
-        and(
-          eq(schema.videoJobs.id, jobId),
-          notInArray(schema.videoJobs.status, [
-            ...VIDEO_JOB_FAIL_PROTECTED_STATUSES,
-          ]),
-        ),
-      )
-      .returning({ id: schema.videoJobs.id });
-    if (failedRow) {
-      await emitVideoJobStatus({
-        ...videoJobStatusOwnerFields(job),
-        jobId,
-        status: "failed",
-        fileName: job.fileName,
-        scoreTarget: scoreTargetId,
-        frameCount: liveFrameCount,
-        uploadedFrameCount: liveUploadedFrameCount,
-        errorMessage: message,
-        stage: "failed",
-        ocrEngine,
-        updatedAt: updatedAt.toISOString(),
-      });
-      timer.log(`job ${jobId} failed`, { error: message });
-      void trackVideoPipelineFailure(
-        jobId,
-        scoreTargetId,
-        message,
-        timer.getTotalMs(),
-      );
-      await writeAuditLog({
-        sessionId: job.sessionId,
-        allianceId: jobHqAllianceId ?? job.allianceId,
-        action: "video.failed",
-        resourceType: "video_job",
-        resourceId: jobId,
-        metadata: {
-          error: message,
-          totalMs: timer.getTotalMs(),
-          phases: timer.getPhases(),
-        },
-      });
-    } else {
-      timer.log(`job ${jobId} failed after protected status; left unchanged`, {
+    await setStatus("failed", { errorMessage: message });
+    timer.log(`job ${jobId} failed`, { error: message });
+    void trackVideoPipelineFailure(
+      jobId,
+      scoreTargetId,
+      message,
+      timer.getTotalMs(),
+    );
+    await writeAuditLog({
+      sessionId: job.sessionId,
+      allianceId: jobHqAllianceId ?? job.allianceId,
+      action: "video.failed",
+      resourceType: "video_job",
+      resourceId: jobId,
+      metadata: {
         error: message,
-      });
-    }
+        totalMs: timer.getTotalMs(),
+        phases: timer.getPhases(),
+      },
+    });
     throw error;
   }
 }

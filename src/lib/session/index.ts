@@ -559,10 +559,7 @@ export async function getSessionStateFor(
     (connection !== null && isAshedConnectAllowed);
 
   const membershipAlliances = effectiveHqUserId
-    ? await listAlliancePickerOptions(
-        effectiveHqUserId,
-        rbac?.isPlatformMaintainer ?? false,
-      )
+    ? await listAlliancePickerOptions(effectiveHqUserId)
     : [];
 
   const resolvedAllianceId = resolveSessionAllianceId(session);
@@ -580,7 +577,7 @@ export async function getSessionStateFor(
     currentAlliance = await loadAlliancePickerOptionById(
       resolvedAllianceId,
       effectiveHqUserId,
-      true,
+      { allowNonMembership: true },
     );
   }
 

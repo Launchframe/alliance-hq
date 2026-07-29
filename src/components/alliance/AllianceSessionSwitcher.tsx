@@ -8,7 +8,9 @@ import { AlliancePickerOptionLabel } from "@/components/alliance/AlliancePickerO
 import { useShellActivityOptional } from "@/components/ashed-shell/ShellActivityProvider";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { alliancePickerOptionSearchText } from "@/lib/alliance/alliance-picker-label.shared";
+import { notifyAllianceSessionContextChanged } from "@/lib/alliance/session-context-sync.shared";
 import { resolveAllianceSwitchTargetPath } from "@/lib/alliance/switch-nav.shared";
+import { useAllianceSessionContextSync } from "@/lib/alliance/use-alliance-session-context-sync";
 import type { SessionAllianceOption } from "@/lib/alliance/types";
 import { pathsMatchForNavigation } from "@/lib/shell-activity/navigation-progress.shared";
 import { getPathname, usePathname } from "@/i18n/navigation";
@@ -50,6 +52,23 @@ export function AllianceSessionSwitcher({
   const [loading, setLoading] = useState(initialAlliances.length === 0);
   const [switching, setSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCurrentAllianceId(initialCurrentAllianceId ?? "");
+  }, [initialCurrentAllianceId]);
+
+  useEffect(() => {
+    if (initialAlliances.length > 0) {
+      setAlliances(initialAlliances);
+      setLoading(false);
+    }
+    setIsPlatformMaintainer(initialIsPlatformMaintainer);
+  }, [initialAlliances, initialIsPlatformMaintainer]);
+
+  useAllianceSessionContextSync({
+    displayedAllianceId: currentAllianceId,
+    onStaleSession: () => window.location.reload(),
+  });
 
   const switchTarget = switchTargetAllianceId
     ? alliances.find((row) => row.id === switchTargetAllianceId)
@@ -131,6 +150,7 @@ export function AllianceSessionSwitcher({
           throw new Error(data.error ?? t("switchFailed"));
         }
         const nextId = data.currentAllianceId ?? allianceId;
+        notifyAllianceSessionContextChanged(nextId);
         setCurrentAllianceId(nextId);
         onSwitched?.(nextId);
 

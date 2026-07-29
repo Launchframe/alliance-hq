@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 import { getAshedConnection, getOrCreateSession } from "@/lib/session";
 import {
   isAllianceHqOcrOnlyLockedOnDeploy,
@@ -30,7 +29,7 @@ export async function GET() {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const allianceId = resolveSessionAllianceId(session);
+    const allianceId = session.currentAllianceId;
     const [jobs, canProcess, connection, hqOcrOnly] = await Promise.all([
       listVideoQueueJobsForSession(session.id),
       sessionCanProcessVideo(session.id),

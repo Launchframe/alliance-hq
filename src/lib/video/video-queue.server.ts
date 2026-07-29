@@ -2,7 +2,6 @@ import "server-only";
 
 import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 
-import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 import { getDb, schema } from "@/lib/db";
 import { loadSession } from "@/lib/session";
 import { sessionCanReadAllianceVideoQueue } from "@/lib/video/processor-slots.server";
@@ -113,7 +112,7 @@ export async function listVideoQueueJobsForSession(
     return [];
   }
 
-  const allianceId = resolveSessionAllianceId(session);
+  const allianceId = session.currentAllianceId;
   if (allianceId) {
     return listAllianceActiveVideoJobs(allianceId);
   }

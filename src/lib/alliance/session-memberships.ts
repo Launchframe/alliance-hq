@@ -82,29 +82,26 @@ export async function loadLinkedCommanderAllianceIds(
   return new Set(rows.map((row) => row.allianceId));
 }
 
-async function listAllAllianceSummaries(): Promise<
-  Array<{
-    id: string;
-    tag: string | null;
-    name: string;
-    slug: string;
-  }>
-> {
+async function loadAllianceSummaryById(
+  allianceId: string,
+): Promise<{
+  id: string;
+  tag: string | null;
+  name: string;
+  slug: string;
+} | null> {
   const db = getDb();
-  const rows = await db
+  const [row] = await db
     .select({
       id: schema.alliances.id,
       tag: schema.alliances.tag,
       name: schema.alliances.name,
       slug: schema.alliances.slug,
     })
-    .from(schema.alliances);
-
-  return rows.sort((a, b) => {
-    const tagA = a.tag ?? a.slug;
-    const tagB = b.tag ?? b.slug;
-    return tagA.localeCompare(tagB);
-  });
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+  return row ?? null;
 }
 
 function attachLinkedCommanderFlags(
@@ -117,45 +114,50 @@ function attachLinkedCommanderFlags(
   }));
 }
 
+/** Membership-only options for the sidebar alliance picker (all users, including platform maintainers). */
 export async function listAlliancePickerOptions(
   hqUserId: string,
-  isPlatformMaintainer: boolean,
 ): Promise<SessionAllianceOption[]> {
   const commanderAllianceIds = await loadLinkedCommanderAllianceIds(hqUserId);
   const memberships = await listSessionAlliances(hqUserId);
-
-  if (!isPlatformMaintainer) {
-    return attachLinkedCommanderFlags(memberships, commanderAllianceIds);
-  }
-
-  const membershipById = new Map(memberships.map((row) => [row.id, row]));
-  const allAlliances = await listAllAllianceSummaries();
-
-  return attachLinkedCommanderFlags(
-    allAlliances.map((alliance) => {
-      const membership = membershipById.get(alliance.id);
-      return {
-        id: alliance.id,
-        tag: alliance.tag,
-        name: alliance.name,
-        slug: alliance.slug,
-        roleName: membership?.roleName ?? "",
-      };
-    }),
-    commanderAllianceIds,
-  );
+  return attachLinkedCommanderFlags(memberships, commanderAllianceIds);
 }
 
 export async function loadAlliancePickerOptionById(
   allianceId: string,
   hqUserId: string,
-  isPlatformMaintainer: boolean,
+  options?: { allowNonMembership?: boolean },
 ): Promise<SessionAllianceOption | null> {
-  const options = await listAlliancePickerOptions(
-    hqUserId,
-    isPlatformMaintainer,
+  const membership = (await listSessionAlliances(hqUserId)).find(
+    (row) => row.id === allianceId,
   );
-  return options.find((row) => row.id === allianceId) ?? null;
+  if (membership) {
+    const commanderAllianceIds = await loadLinkedCommanderAllianceIds(hqUserId);
+    return attachLinkedCommanderFlags([membership], commanderAllianceIds)[0]!;
+  }
+
+  if (!options?.allowNonMembership) {
+    return null;
+  }
+
+  const alliance = await loadAllianceSummaryById(allianceId);
+  if (!alliance) {
+    return null;
+  }
+
+  const commanderAllianceIds = await loadLinkedCommanderAllianceIds(hqUserId);
+  return attachLinkedCommanderFlags(
+    [
+      {
+        id: alliance.id,
+        tag: alliance.tag,
+        name: alliance.name,
+        slug: alliance.slug,
+        roleName: "",
+      },
+    ],
+    commanderAllianceIds,
+  )[0]!;
 }
 
 export async function allianceExists(allianceId: string): Promise<boolean> {

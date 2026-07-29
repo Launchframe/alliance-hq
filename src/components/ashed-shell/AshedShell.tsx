@@ -155,7 +155,7 @@ export function AshedShell({
   }, [mobileNavOpen]);
 
   return (
-    <VideoJobEventsProvider>
+    <VideoJobEventsProvider currentAllianceId={currentAllianceId}>
       <ReleaseNotesProvider sessionId={sessionId}>
         <FeedbackProvider>
           <HotkeyProvider

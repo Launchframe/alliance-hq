@@ -67,10 +67,20 @@ export function isVideoJobStatusEventForViewer(
     sessionId: string;
     hqUserId?: string | null;
     enqueuedByHqUserId?: string | null;
+    allianceId?: string | null;
   },
   sessionId: string,
   hqUserId: string | null | undefined,
+  currentAllianceId?: string | null,
 ): boolean {
+  if (
+    currentAllianceId &&
+    event.allianceId &&
+    event.allianceId !== currentAllianceId
+  ) {
+    return false;
+  }
+
   if (isVideoJobOwningHqUser(hqUserId, event)) {
     return true;
   }

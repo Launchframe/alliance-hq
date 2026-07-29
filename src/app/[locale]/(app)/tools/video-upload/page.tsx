@@ -19,7 +19,7 @@ import {
   shouldShowRecentUploadJob,
 } from "@/lib/video/recent-upload-jobs.shared";
 import { isSurveyComplete, surveyRowToPayload } from "@/lib/video/survey";
-import { videoJobsOwnedByViewerWhere } from "@/lib/video/video-job-ownership.server";
+import { videoJobsOwnedByViewerInAllianceWhere } from "@/lib/video/video-job-ownership.server";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +79,11 @@ export default async function VideoUploadPage({ searchParams }: Props) {
       .from(schema.videoJobs)
       .where(
         and(
-          videoJobsOwnedByViewerWhere(session.id, session.hqUserId),
+          videoJobsOwnedByViewerInAllianceWhere(
+            session.id,
+            session.hqUserId,
+            session.currentAllianceId,
+          ),
           ne(schema.videoJobs.status, "pending_upload"),
           or(
             eq(schema.videoJobs.passRole, "primary"),

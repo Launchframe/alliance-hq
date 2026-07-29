@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useShellActivityOptional } from "@/components/ashed-shell/ShellActivityProvider";
 import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
 import { AppSelect } from "@/components/ui/AppSelect";
+import { notifyAllianceSessionContextChanged } from "@/lib/alliance/session-context-sync.shared";
 import type { SessionAllianceOption } from "@/lib/alliance/types";
 
 type Props = {
@@ -41,6 +42,7 @@ export function AllianceContextRequired({ alliances }: Props) {
         if (!res.ok) {
           throw new Error(data.error ?? t("switchFailed"));
         }
+        notifyAllianceSessionContextChanged(nextAllianceId);
         setAllianceId(nextAllianceId);
         refresh();
       } catch (err) {

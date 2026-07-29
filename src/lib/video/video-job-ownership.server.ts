@@ -25,3 +25,18 @@ export function videoJobsOwnedByViewerWhere(
     ),
   )!;
 }
+
+/**
+ * Viewer-owned jobs scoped to the session's current HQ alliance (matches enqueue).
+ */
+export function videoJobsOwnedByViewerInAllianceWhere(
+  sessionId: string,
+  hqUserId: string | null,
+  allianceId: string | null,
+): SQL {
+  const ownership = videoJobsOwnedByViewerWhere(sessionId, hqUserId);
+  if (!allianceId) {
+    return ownership;
+  }
+  return and(ownership, eq(schema.videoJobs.allianceId, allianceId))!;
+}
