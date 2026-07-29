@@ -148,4 +148,22 @@ describe("resolvePrimaryExtractionStamp", () => {
       experimentArmId: "arm-roster",
     });
   });
+
+  it("uses denser roster video defaults when no standing assignment exists", () => {
+    expect(
+      resolvePrimaryExtractionStamp({
+        standing: null,
+        experiment: null,
+        scoreTarget: "member-roster-video",
+      }),
+    ).toMatchObject({
+      passKey: "scene_0.1_roster",
+      configJson: {
+        mode: "scene",
+        sceneThreshold: 0.1,
+        sampleFps: 2,
+        supplementFps: 2,
+      },
+    });
+  });
 });

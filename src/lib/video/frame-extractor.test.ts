@@ -75,6 +75,12 @@ describe("buildSceneSelectFilter", () => {
   it("never downscales OCR frames (no scale= filter)", () => {
     expect(buildSceneSelectFilter(0.25, 3)).not.toContain("scale=");
   });
+
+  it("adds periodic fps supplement when configured", () => {
+    expect(buildSceneSelectFilter(0.1, 3, 15)).toBe(
+      "select='eq(n,3)+gt(scene,0.1)+eq(mod(n\\,15),0)'",
+    );
+  });
 });
 
 describe("listFrameJpegFiles", () => {

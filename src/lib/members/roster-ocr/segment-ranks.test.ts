@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   detectLayout,
   detectTitle,
+  inferRankFromQuotaNumerator,
   isIgnoredLine,
   isRankGroupHeaderLine,
   parseRankGroupHeader,
@@ -212,11 +213,11 @@ describe("segmentByRankHeaders", () => {
     expect(mem1?.rank).toBe(3);
   });
 
-  it("lines before any header have null rank", () => {
+  it("infers the next-higher rank for lines before the first header", () => {
     const lines = ["SomeName 3.0M", "R3", "Player"];
     const result = segmentByRankHeaders(lines);
     const beforeHeader = result.find((r) => r.line.includes("SomeName"));
-    expect(beforeHeader?.rank).toBeNull();
+    expect(beforeHeader?.rank).toBe(4);
   });
 
   it("treats custom rank group title + quota as header, not member context", () => {
@@ -426,14 +427,84 @@ describe("parseRankGroupHeader — shield + quota structure", () => {
 });
 
 describe("segmentByRankHeaders — garbled-badge headers", () => {
-  it("marks a garbled-badge quota line as a header and clears rank context", () => {
+  it("marks a garbled-badge quota line as a header without clearing rank context", () => {
     const segmented = segmentByRankHeaders([
       "R3 Heart of the Alliance 7/83",
       "Alice",
       "Ra) Timeout 0/1",
+      "Bob",
     ]);
     expect(segmented[0]).toMatchObject({ isHeader: true, rank: 3 });
     expect(segmented[1]).toMatchObject({ isHeader: false, rank: 3 });
     expect(segmented[2]).toMatchObject({ isHeader: true, rank: null });
+    expect(segmented[3]).toMatchObject({ isHeader: false, rank: 3 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Job FP_NS8-9H28pRPLi fixtures
+// ---------------------------------------------------------------------------
+
+describe("parseRankGroupHeader — FP_NS8-9H28pRPLi fixtures", () => {
+  it("matches garbled R4 shield + garbled quota (G/108)", () => {
+    const header = parseRankGroupHeader("Ra Crowd Control G/108\\v)");
+    expect(header).not.toBeNull();
+    expect(header?.groupTitle).toBe("Crowd Control");
+  });
+
+  it("infers R4 from OCR-garbled quota numerator 14/10", () => {
+    const header = parseRankGroupHeader("(ry Crowd Control 14/10 v |");
+    expect(header?.rank).toBe(4);
+    expect(header?.groupTitle).toBe("Crowd Control");
+  });
+
+  it("treats title-only scroll continuation as header chrome", () => {
+    expect(
+      parseRankGroupHeader("Crowd Control iD v", {
+        currentRank: 4,
+        currentGroupTitle: "Crowd Control",
+      })?.rank,
+    ).toBe(4);
+    expect(
+      parseRankGroupHeader("LE Heart of the Alliance Ed", {
+        currentRank: 3,
+        currentGroupTitle: "Heart of the Alliance",
+      })?.rank,
+    ).toBe(3);
+    expect(
+      parseRankGroupHeader("m1) Timeout Qn 54", {
+        currentRank: 1,
+        currentGroupTitle: "Timeout",
+      })?.rank,
+    ).toBe(1);
+  });
+});
+
+describe("segmentByRankHeaders — pre-header rank inference", () => {
+  it("assigns R4 to members above the first readable R3 header", () => {
+    const lines = [
+      "Q, Search for Members",
+      "Ra Crowd Control G/108\\v)",
+      "ta # ExoticButters 7h ago",
+      "[PF] urmom90 13h ago",
+      "R3 Heart of the Alliance 8/83 vv",
+      "| @'shingon12345",
+    ];
+    const segmented = segmentByRankHeaders(lines);
+    expect(
+      segmented.find((r) => r.line.includes("ExoticButters"))?.rank,
+    ).toBe(4);
+    expect(segmented.find((r) => r.line.includes("urmom90"))?.rank).toBe(4);
+    expect(
+      segmented.find((r) => r.line.includes("shingon12345"))?.rank,
+    ).toBe(3);
+  });
+});
+
+describe("inferRankFromQuotaNumerator", () => {
+  it("reads clean and garbled quota numerators", () => {
+    expect(inferRankFromQuotaNumerator(4)).toBe(4);
+    expect(inferRankFromQuotaNumerator(14)).toBe(4);
+    expect(inferRankFromQuotaNumerator(8)).toBeNull();
   });
 });

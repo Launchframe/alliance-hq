@@ -46,13 +46,58 @@ const COMBINED_RANK_GROUP_HEADER_RE =
  * whose rank we can't trust.
  */
 const SHIELD_QUOTA_HEADER_RE =
-  /^[^A-Za-z0-9]{0,3}R\s*([0-9A-Za-z])(?:\s+|[|)\],.:]+\s*)(.*?)\s*\d+\s*\/\s*\d+/i;
+  /^[^A-Za-z0-9]{0,3}R\s*([0-9A-Za-z])(?:\s+|[|)\],.:]+\s*)(.*?)\s+[A-Za-z0-9]{1,3}\s*\/\s*\d+/i;
 
 /** Map an OCR'd shield badge char to a rank; null when unreadable. */
 function resolveRankBadgeChar(ch: string): AllianceRank | null {
   if (/^[1-5]$/.test(ch)) return parseInt(ch, 10) as AllianceRank;
   if (/^[Ss]$/.test(ch)) return 5; // "RS" — common OCR reading of the R5 shield
   return null;
+}
+
+/**
+ * Infer rank from a quota numerator when OCR glues an extra leading digit
+ * (e.g. "14/10" for an R4 section whose true quota is "4/10").
+ */
+export function inferRankFromQuotaNumerator(numerator: number): AllianceRank | null {
+  if (numerator >= 1 && numerator <= 5) return numerator as AllianceRank;
+  if (numerator >= 10 && numerator <= 59) {
+    const lastDigit = numerator % 10;
+    if (lastDigit >= 1 && lastDigit <= 5) return lastDigit as AllianceRank;
+  }
+  return null;
+}
+
+function normalizeGroupTitleForMatch(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * True when a scroll-transition line is a title-only continuation of the
+ * current section header (badge/quota scrolled off, custom title remains).
+ */
+export function looksLikeKnownGroupTitleLine(
+  line: string,
+  knownTitle: string,
+): boolean {
+  const normTitle = normalizeGroupTitleForMatch(knownTitle);
+  if (!normTitle || normTitle.length < 4) return false;
+
+  const normLine = normalizeGroupTitleForMatch(stripGroupTitleGarbage(line));
+  if (!normLine) return false;
+  if (normLine === normTitle) return true;
+  if (normLine.includes(normTitle) || normTitle.includes(normLine)) {
+    return normLine.length >= normTitle.length * 0.4;
+  }
+
+  const titleTokens = normTitle.split(" ").filter((t) => t.length >= 3);
+  if (titleTokens.length === 0) return false;
+  const matched = titleTokens.filter((t) => normLine.includes(t)).length;
+  return matched >= Math.ceil(titleTokens.length * 0.6);
 }
 
 /** Member stat tokens — absent on section header bars. */
@@ -195,6 +240,8 @@ export type RankGroupHeaderContext = {
   badgeRank?: AllianceRank;
   /** Current section rank from an earlier header in this frame. */
   currentRank?: AllianceRank | null;
+  /** Custom group title for the current sticky rank section. */
+  currentGroupTitle?: string;
 };
 
 /**
@@ -235,7 +282,19 @@ export function parseRankGroupHeader(
     // row never carries an `online/total` quota.
     const shieldQuota = SHIELD_QUOTA_HEADER_RE.exec(trimmed);
     if (shieldQuota) {
-      const rank = resolveRankBadgeChar(shieldQuota[1]!);
+      let rank = resolveRankBadgeChar(shieldQuota[1]!);
+      if (rank == null) {
+        const quotaInLine = /[A-Za-z0-9]{1,3}\s*\/\s*\d+/.exec(trimmed);
+        if (quotaInLine) {
+          const numerator = parseInt(
+            quotaInLine[0]!.split("/")[0]!.trim(),
+            10,
+          );
+          if (!Number.isNaN(numerator)) {
+            rank = inferRankFromQuotaNumerator(numerator);
+          }
+        }
+      }
       const groupTitle = stripGroupTitleGarbage(shieldQuota[2] ?? "");
       return {
         rank,
@@ -303,6 +362,43 @@ export function parseRankGroupHeader(
         }
       }
     }
+
+    // Title-only continuation of the current section while scrolling (badge/quota
+    // scrolled off-screen but the alliance-set custom title is still visible).
+    if (
+      ctx?.currentGroupTitle &&
+      ctx.currentRank != null &&
+      !/\bago\b/i.test(trimmed) &&
+      !/^@/.test(trimmed) &&
+      looksLikeKnownGroupTitleLine(trimmed, ctx.currentGroupTitle)
+    ) {
+      return {
+        rank: ctx.currentRank,
+        groupTitle: ctx.currentGroupTitle,
+      };
+    }
+
+    // Badge scrolled off but quota digits remain (e.g. "(ry Crowd Control 14/10").
+    const quotaOnlyMatch = MEMBER_QUOTA_RE.exec(trimmed);
+    if (
+      quotaOnlyMatch &&
+      !/\bago\b/i.test(trimmed) &&
+      !/^@/.test(trimmed)
+    ) {
+      const numerator = parseInt(quotaOnlyMatch[0]!.split("/")[0]!.trim(), 10);
+      const inferredRank = inferRankFromQuotaNumerator(numerator);
+      if (inferredRank != null && inferredRank !== ctx?.currentRank) {
+        const groupTitle = stripGroupTitleGarbage(
+          trimmed
+            .slice(0, quotaOnlyMatch.index)
+            .replace(/^[^A-Za-z0-9]{0,5}\(?\s*[A-Za-z]{0,3}\s*/, ""),
+        );
+        return {
+          rank: inferredRank,
+          groupTitle: groupTitle || undefined,
+        };
+      }
+    }
   }
 
   return null;
@@ -333,9 +429,9 @@ export function detectLastRankFromLines(lines: string[]): AllianceRank | null {
     });
 
     if (header) {
-      // A garbled-badge header (rank null) clears the section context — the
-      // rank genuinely changed, we just can't read what it changed to.
-      currentRank = header.rank;
+      if (header.rank != null) {
+        currentRank = header.rank;
+      }
       afterRankBadge = isBareRankBadge(line);
       badgeRank = afterRankBadge ? (header.rank ?? undefined) : undefined;
       afterRankGroupHeader = true;
@@ -445,6 +541,7 @@ export function segmentByRankHeaders(
   initialRank?: AllianceRank | null,
 ): LineWithRankContext[] {
   let currentRank: AllianceRank | null = initialRank ?? null;
+  let currentGroupTitle: string | undefined;
   const result: LineWithRankContext[] = [];
   let afterRankBadge = false;
   let afterRankGroupHeader = false;
@@ -458,10 +555,16 @@ export function segmentByRankHeaders(
       afterRankGroupHeader,
       badgeRank,
       currentRank,
+      currentGroupTitle,
     });
 
     if (header) {
-      currentRank = header.rank;
+      if (header.rank != null) {
+        currentRank = header.rank;
+      }
+      if (header.groupTitle) {
+        currentGroupTitle = header.groupTitle;
+      }
       afterRankBadge = isBareRankBadge(line);
       badgeRank = afterRankBadge ? (header.rank ?? undefined) : undefined;
       afterRankGroupHeader = true;
@@ -475,5 +578,30 @@ export function segmentByRankHeaders(
     result.push({ line, rank: currentRank, isHeader: false });
   }
 
+  if (initialRank == null) {
+    applyPreHeaderRankInference(result);
+  }
+
   return result;
+}
+
+/**
+ * Members listed above the first readable rank header belong to the next-higher
+ * rank section (e.g. R4 members appear before the first R3 header when
+ * scrolling top-down through the Members list).
+ */
+function applyPreHeaderRankInference(result: LineWithRankContext[]): void {
+  const firstRankIdx = result.findIndex((r) => r.isHeader && r.rank != null);
+  if (firstRankIdx <= 0) return;
+
+  const firstRank = result[firstRankIdx]!.rank!;
+  if (firstRank >= 5) return;
+
+  const inferredPreRank = (firstRank + 1) as AllianceRank;
+  for (let i = 0; i < firstRankIdx; i++) {
+    const row = result[i]!;
+    if (!row.isHeader && row.rank == null) {
+      row.rank = inferredPreRank;
+    }
+  }
 }

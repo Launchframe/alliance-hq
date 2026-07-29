@@ -150,8 +150,25 @@ export function appendShowinfoFilter(vf: string): string {
 export function buildSceneSelectFilter(
   sceneThreshold: number,
   forcedFirstFrameIndex: number,
+  supplementFrameInterval?: number | null,
 ): string {
-  return `select='eq(n,${forcedFirstFrameIndex})+gt(scene,${sceneThreshold})'`;
+  const triggers = [
+    `eq(n,${forcedFirstFrameIndex})`,
+    `gt(scene,${sceneThreshold})`,
+  ];
+  if (supplementFrameInterval != null && supplementFrameInterval > 0) {
+    triggers.push(`eq(mod(n\\,${supplementFrameInterval}),0)`);
+  }
+  return `select='${triggers.join("+")}'`;
+}
+
+/** Frame interval for periodic sampling at a target fps given source fps. */
+export function supplementFrameIntervalForFps(
+  videoFps: number | null,
+  supplementFps: number,
+): number | null {
+  if (videoFps == null || videoFps <= 0 || supplementFps <= 0) return null;
+  return Math.max(1, Math.round(videoFps / supplementFps));
 }
 
 /** Parse pts_time values emitted by ffmpeg's showinfo filter (one per output frame). */
@@ -262,6 +279,10 @@ export async function extractLeaderboardFrames(
     Number.isFinite(config.sampleFps) && (config.sampleFps as number) > 0
       ? (config.sampleFps as number)
       : 1;
+  const supplementFps =
+    Number.isFinite(config.supplementFps) && (config.supplementFps as number) > 0
+      ? (config.supplementFps as number)
+      : null;
 
   if (!(await ffmpegAvailable())) {
     throw new Error(
@@ -274,6 +295,10 @@ export async function extractLeaderboardFrames(
   const forcedFirstFrameIndex = forcedFirstFrameIndexForFps(
     videoProbe.frameRateFps,
   );
+  const supplementFrameInterval =
+    supplementFps != null
+      ? supplementFrameIntervalForFps(videoProbe.frameRateFps, supplementFps)
+      : null;
 
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "hq-frames-"));
   const pattern = path.join(tmpDir, "frame_%04d.jpg");
@@ -317,7 +342,11 @@ export async function extractLeaderboardFrames(
         ffmpeg,
         videoPath,
         pattern,
-        buildSceneSelectFilter(sceneThreshold, forcedFirstFrameIndex),
+        buildSceneSelectFilter(
+          sceneThreshold,
+          forcedFirstFrameIndex,
+          supplementFrameInterval,
+        ),
       );
       lastStderr = result.stderr;
       const sceneFrameCount = (await listExtractedFrameFiles(tmpDir)).length;
