@@ -16,7 +16,10 @@ import { AppSelect } from "@/components/ui/AppSelect";
 import { Dialog } from "@/components/ui/dialog";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { useVideoJob } from "@/components/video/VideoJobEventsProvider";
-import { canReprocessVideoJob } from "@/lib/video/admin-job-actions";
+import {
+  canReprocessVideoJob,
+  resolveReprocessGateStatus,
+} from "@/lib/video/admin-job-actions";
 import type { AdminReprocessFpsAdjustment } from "@/lib/video/admin-reprocess-extraction.shared";
 import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import {
@@ -1990,7 +1993,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const showReprocessAction =
     canProcessVideo &&
     !allianceStale &&
-    canReprocessVideoJob(jobStatus);
+    canReprocessVideoJob(
+      resolveReprocessGateStatus(jobStatus, liveJob?.status),
+    );
 
   async function handleDiscard() {
     setDiscarding(true);

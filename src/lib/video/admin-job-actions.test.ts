@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   canReprocessVideoJob,
   canRequeueVideoJob,
+  resolveReprocessGateStatus,
 } from "@/lib/video/admin-job-actions";
 
 describe("canRequeueVideoJob", () => {
@@ -28,5 +29,19 @@ describe("canReprocessVideoJob", () => {
   it("blocks reprocess while extracting or parsing", () => {
     expect(canReprocessVideoJob("extracting")).toBe(false);
     expect(canReprocessVideoJob("parsing")).toBe(false);
+  });
+});
+
+describe("resolveReprocessGateStatus", () => {
+  it("prefers live SSE status over stale REST status", () => {
+    expect(resolveReprocessGateStatus("queued", "parsing")).toBe("parsing");
+    expect(resolveReprocessGateStatus("queued", "extracting")).toBe(
+      "extracting",
+    );
+  });
+
+  it("falls back to REST when live status is absent", () => {
+    expect(resolveReprocessGateStatus("review", null)).toBe("review");
+    expect(resolveReprocessGateStatus("failed", undefined)).toBe("failed");
   });
 });

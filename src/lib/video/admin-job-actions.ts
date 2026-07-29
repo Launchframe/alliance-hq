@@ -9,3 +9,11 @@ export function canRequeueVideoJob(status: string): boolean {
 export function canReprocessVideoJob(status: string): boolean {
   return !VIDEO_JOB_IN_FLIGHT_STATUSES.has(status);
 }
+
+/** Prefer SSE live status; REST job status lags after reprocess on the review page. */
+export function resolveReprocessGateStatus(
+  restStatus: string,
+  liveStatus: string | null | undefined,
+): string {
+  return liveStatus ?? restStatus;
+}
