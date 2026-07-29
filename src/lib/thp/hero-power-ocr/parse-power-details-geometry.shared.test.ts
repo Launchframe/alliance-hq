@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   assembleGeometryParse,
   coalesceLabelLines,
+  isHeroPowerHeaderLabel,
+  isPowerDetailsModalTitle,
   normalizeDigitsOnlyComponent,
   normalizeGeometryLines,
   parseDigitsOnlyComponent,
   parseDigitsOnlyHeaderTotal,
+  parseDigitsOnlyHeaderTotalLoose,
   zipLabelsToValues,
 } from "@/lib/thp/hero-power-ocr/parse-power-details-geometry.shared";
 import { sumThpBreakdown } from "@/lib/thp/breakdown.shared";
@@ -47,6 +50,28 @@ describe("parseDigitsOnlyValue", () => {
     expect(normalizeDigitsOnlyComponent("974081080")).toBe(9_408_080);
     expect(normalizeDigitsOnlyComponent("17051707")).toBe(7_051_707);
     expect(normalizeDigitsOnlyComponent("65811990")).toBe(6_581_990);
+  });
+
+  it("parseDigitsOnlyHeaderTotalLoose recovers one extra header digit", () => {
+    expect(parseDigitsOnlyHeaderTotalLoose("1665817498")).toBe(166_581_498);
+  });
+
+  it("parseDigitsOnlyHeaderTotalLoose accepts clean 9-digit header totals", () => {
+    expect(parseDigitsOnlyHeaderTotalLoose("166581498")).toBe(166_581_498);
+  });
+
+  it("parseDigitsOnlyHeaderTotalLoose returns null when no header can be recovered", () => {
+    expect(parseDigitsOnlyHeaderTotalLoose("123")).toBeNull();
+    expect(parseDigitsOnlyHeaderTotalLoose("164376153505")).toBeNull();
+  });
+});
+
+describe("label guards", () => {
+  it("detects OCR-noisy hero header and modal title lines", () => {
+    expect(isHeroPowerHeaderLabel("(BJ [HerolPower")).toBe(true);
+    expect(isHeroPowerHeaderLabel("HerolPower")).toBe(true);
+    expect(isPowerDetailsModalTitle("POWER DETH")).toBe(true);
+    expect(isPowerDetailsModalTitle("POWER DETAILS")).toBe(true);
   });
 });
 
@@ -155,5 +180,74 @@ describe("zipLabelsToValues + assembleGeometryParse", () => {
     });
     expect(parsed.complete).toBe(false);
     expect(parsed.pairedCount).toBe(7);
+  });
+
+  it("does not consume a value row for unknown OCR label garbage", () => {
+    const cropHeight = 1000;
+    const labels = normalizeGeometryLines(
+      [
+        { text: "(BJ [HerolPower", bbox: { x0: 0, y0: 280, x1: 200, y1: 320 } },
+        { text: "Hero Level", bbox: { x0: 0, y0: 340, x1: 200, y1: 380 } },
+        { text: "Gear", bbox: { x0: 0, y0: 450, x1: 100, y1: 490 } },
+      ],
+      cropHeight,
+    );
+    const values = normalizeGeometryLines(
+      [
+        { text: "166581498", bbox: { x0: 0, y0: 280, x1: 120, y1: 320 } },
+        { text: "87659312", bbox: { x0: 0, y0: 340, x1: 120, y1: 380 } },
+        { text: "13383341", bbox: { x0: 0, y0: 450, x1: 120, y1: 490 } },
+      ],
+      cropHeight,
+    );
+
+    const pairs = zipLabelsToValues({ labels, values });
+    expect(pairs.map((p) => p.key)).toEqual(["heroLevel", "gear"]);
+    expect(pairs[0]?.value).toBe(87_659_312);
+  });
+
+  it("skips modal title and orphan Stats labels without consuming values", () => {
+    const cropHeight = 400;
+    const labels = normalizeGeometryLines(
+      [
+        { text: "POWER DETH", bbox: { x0: 0, y0: 10, x1: 200, y1: 30 } },
+        { text: "Hero Level", bbox: { x0: 0, y0: 50, x1: 200, y1: 70 } },
+        { text: "Stats", bbox: { x0: 0, y0: 90, x1: 80, y1: 110 } },
+        { text: "Gear", bbox: { x0: 0, y0: 130, x1: 100, y1: 150 } },
+      ],
+      cropHeight,
+    );
+    const values = normalizeGeometryLines(
+      [
+        { text: "166581498", bbox: { x0: 0, y0: 10, x1: 120, y1: 30 } },
+        { text: "87659312", bbox: { x0: 0, y0: 50, x1: 120, y1: 70 } },
+        { text: "37811658", bbox: { x0: 0, y0: 90, x1: 120, y1: 110 } },
+        { text: "13190850", bbox: { x0: 0, y0: 130, x1: 120, y1: 150 } },
+      ],
+      cropHeight,
+    );
+
+    const pairs = zipLabelsToValues({ labels, values });
+    expect(pairs.map((p) => p.key)).toEqual(["heroLevel", "gear"]);
+    expect(pairs[0]?.value).toBe(87_659_312);
+    expect(pairs[1]?.value).toBe(13_190_850);
+  });
+
+  it("coalesces split decorations label at row midpoint yNorm", () => {
+    const merged = coalesceLabelLines(
+      normalizeGeometryLines(
+        [
+          {
+            text: "Decorations & Building",
+            bbox: { x0: 0, y0: 200, x1: 280, y1: 230 },
+          },
+          { text: "Stats", bbox: { x0: 0, y0: 250, x1: 80, y1: 280 } },
+        ],
+        1000,
+      ),
+    );
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.text).toContain("Stats");
+    expect(merged[0]?.yNorm).toBeCloseTo(0.24, 2);
   });
 });
