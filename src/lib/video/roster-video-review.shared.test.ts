@@ -165,6 +165,43 @@ describe("roster-video-review.shared", () => {
     expect(ids.size).toBe(0);
   });
 
+  it("does not flag unmatched rows for leadership-team-sized rosters (<= 10)", () => {
+    // Real-world case: alliance owner/officer or admin already has an HQ
+    // account before the first roster import ever runs.
+    expect(
+      isRosterRowNameMismatch(
+        { memberId: null, matchConfidence: 0, matchMethod: "none", deleted: 0 },
+        { existingMemberCount: 1 },
+      ),
+    ).toBe(false);
+    expect(
+      isRosterRowNameMismatch(
+        { memberId: null, matchConfidence: 0, matchMethod: "none", deleted: 0 },
+        { existingMemberCount: 10 },
+      ),
+    ).toBe(false);
+  });
+
+  it("flags unmatched rows once the roster is past leadership-team size", () => {
+    expect(
+      isRosterRowNameMismatch(
+        { memberId: null, matchConfidence: 0, matchMethod: "none", deleted: 0 },
+        { existingMemberCount: 11 },
+      ),
+    ).toBe(true);
+  });
+
+  it("stays conservative (flags mismatches) when roster size is unknown", () => {
+    expect(
+      isRosterRowNameMismatch({
+        memberId: null,
+        matchConfidence: 0,
+        matchMethod: "none",
+        deleted: 0,
+      }),
+    ).toBe(true);
+  });
+
   it("collects unmatched row ids", () => {
     const ids = findUnmatchedRosterRowIds([
       {
