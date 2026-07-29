@@ -138,7 +138,7 @@ test.describe("City List import review (dedicated page)", () => {
     await expect(cards).toHaveCount(2);
   });
 
-  test("pads a missing placeholder card when OCR undercounts capturedCount", async ({
+  test("shows an incomplete warning without auto-inserting placeholder rows when OCR undercounts capturedCount", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -153,13 +153,13 @@ test.describe("City List import review (dedicated page)", () => {
     await openCityListReview(page, UNDERCOUNT_PARSE_BODY);
 
     const cards = page.getByTestId("city-list-review-card");
-    await expect(cards).toHaveCount(3);
+    await expect(cards).toHaveCount(2);
     await expect(
       page.locator('[data-testid="city-list-review-card"][data-placeholder="true"]'),
-    ).toHaveCount(1);
-
-    await page.getByRole("button", { name: "Import banks", exact: true }).click();
-    await expect(page.getByText(/required/i).first()).toBeVisible();
+    ).toHaveCount(0);
+    await expect(
+      page.getByText(/imported banks are fewer than the captured count/i),
+    ).toBeVisible();
   });
 });
 

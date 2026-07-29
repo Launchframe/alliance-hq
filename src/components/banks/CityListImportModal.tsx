@@ -16,14 +16,9 @@ import {
   type CityListImportDraftRow,
 } from "@/lib/banks/city-list-import-draft.shared";
 import {
-  defaultPlaceholderGameServerNumber,
-  missingRowCountForCapturedCount,
-} from "@/lib/banks/city-list-import-review.shared";
-import {
   clearCityListImportScreenshotPreviews,
   setCityListImportScreenshotPreviews,
 } from "@/lib/banks/city-list-import-session.client";
-import type { BankWithSlips } from "@/lib/banks/types.shared";
 
 type ParseCityListResponse = {
   snapshot?: {
@@ -48,7 +43,6 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   allianceId: string;
-  existingBanks: BankWithSlips[];
 };
 
 function newRowKey(): string {
@@ -71,18 +65,6 @@ function rowsFromParse(banks: ParsedCityListBank[]): CityListImportDraftRow[] {
   }));
 }
 
-function buildPlaceholderRow(gameServerNumber: number): CityListImportDraftRow {
-  return {
-    rowKey: newRowKey(),
-    gameServerNumber,
-    coordX: 0,
-    coordY: 0,
-    level: 1,
-    currentDepositValue: null,
-    currentDepositCount: null,
-  };
-}
-
 /**
  * Upload-only modal: parse City List screenshots, write the review draft,
  * then navigate to `/bank-management/import-review`.
@@ -91,7 +73,6 @@ export function CityListImportModal({
   open,
   onOpenChange,
   allianceId,
-  existingBanks,
 }: Props) {
   const t = useTranslations("bankManagement");
   const router = useRouter();
@@ -197,29 +178,10 @@ export function CityListImportModal({
         throw new Error(t("cityListParseFailed"));
       }
 
-      const missingCount = missingRowCountForCapturedCount(
-        parsedRows.length,
-        body.snapshot?.capturedCount ?? null,
-        body.snapshot?.capturedLimit ?? null,
-      );
-      const defaultGameServerNumber = defaultPlaceholderGameServerNumber(
-        parsedRows.map((row) => row.gameServerNumber),
-        existingBanks.map((bank) => bank.gameServerNumber),
-      );
-      const paddedRows =
-        missingCount > 0
-          ? [
-              ...parsedRows,
-              ...Array.from({ length: missingCount }, () =>
-                buildPlaceholderRow(defaultGameServerNumber),
-              ),
-            ]
-          : parsedRows;
-
       clearCityListImportDraft(allianceId);
       writeCityListImportDraft(allianceId, {
         version: 1,
-        rows: paddedRows,
+        rows: parsedRows,
         snapshot: body.snapshot ?? null,
       });
 
@@ -244,7 +206,6 @@ export function CityListImportModal({
     }
   }, [
     allianceId,
-    existingBanks,
     handleOpenChange,
     router,
     screenshots,

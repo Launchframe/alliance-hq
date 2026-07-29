@@ -7,7 +7,6 @@ import {
   clampReviewIndexAfterRemove,
   defaultPlaceholderGameServerNumber,
   isCityListPlaceholderCoords,
-  missingRowCountForCapturedCount,
   validateCityListReviewRow,
 } from "@/lib/banks/city-list-import-review.shared";
 
@@ -35,38 +34,6 @@ describe("isCityListPlaceholderCoords", () => {
     expect(isCityListPlaceholderCoords(0, 499)).toBe(false);
     expect(isCityListPlaceholderCoords(599, 0)).toBe(false);
     expect(isCityListPlaceholderCoords(599, 499)).toBe(false);
-  });
-});
-
-describe("missingRowCountForCapturedCount", () => {
-  it("returns 0 when captured count is unavailable", () => {
-    expect(missingRowCountForCapturedCount(5, null)).toBe(0);
-  });
-
-  it("returns 0 when captured count is non-positive", () => {
-    expect(missingRowCountForCapturedCount(5, 0)).toBe(0);
-    expect(missingRowCountForCapturedCount(0, 0)).toBe(0);
-    expect(missingRowCountForCapturedCount(2, -1)).toBe(0);
-  });
-
-  it("returns 0 when parsed rows already meet or exceed the captured count", () => {
-    expect(missingRowCountForCapturedCount(6, 6)).toBe(0);
-    expect(missingRowCountForCapturedCount(7, 6)).toBe(0);
-  });
-
-  it("returns the gap when OCR parsed fewer tiles than the captured count", () => {
-    expect(missingRowCountForCapturedCount(5, 7)).toBe(2);
-    expect(missingRowCountForCapturedCount(0, 3)).toBe(3);
-  });
-
-  it("clamps the pad target to capturedLimit when N exceeds M", () => {
-    expect(missingRowCountForCapturedCount(2, 33, 6)).toBe(4);
-    expect(missingRowCountForCapturedCount(6, 33, 6)).toBe(0);
-  });
-
-  it("ignores a non-positive capturedLimit and pads to capturedCount", () => {
-    expect(missingRowCountForCapturedCount(2, 5, 0)).toBe(3);
-    expect(missingRowCountForCapturedCount(2, 5, null)).toBe(3);
   });
 });
 
