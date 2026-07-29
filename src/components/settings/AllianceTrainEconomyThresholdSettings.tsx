@@ -395,7 +395,7 @@ export function AllianceTrainEconomyThresholdSettings({ allianceTag }: Props) {
                 className="inline-flex max-w-full items-center gap-1 rounded-full border border-hq-pill-border bg-hq-pill px-2.5 py-0.5 text-xs font-medium text-hq-pill-fg hover:border-hq-accent hover:text-hq-accent disabled:cursor-default disabled:opacity-80"
                 aria-label={
                   displaySettings.canManage
-                    ? `${member.currentName} ×`
+                    ? t("takedownRemoveMember", { name: member.currentName })
                     : member.currentName
                 }
               >
@@ -416,7 +416,7 @@ export function AllianceTrainEconomyThresholdSettings({ allianceTag }: Props) {
                 onKeyDown={(event) => {
                   if (
                     event.key === "Backspace" &&
-                    takedownQuery.length === 0 &&
+                    takedownQuery.trim().length === 0 &&
                     selectedMembers.length > 0
                   ) {
                     event.preventDefault();
