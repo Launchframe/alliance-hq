@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Lightbox, { type Slide } from "yet-another-react-lightbox";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
 
@@ -20,6 +21,19 @@ export function ScreenshotLightbox({
   onClose,
   closeLabel,
 }: Props) {
+  // Capture-phase Escape so parent Dialog / page handlers do not also fire.
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [onClose, open]);
+
   if (slides.length === 0) {
     return null;
   }

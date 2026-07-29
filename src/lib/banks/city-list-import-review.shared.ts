@@ -44,18 +44,28 @@ export function missingRowCountForCapturedCount(
 
 /**
  * Default game server number for a freshly added (manual or captured-count
- * padded) review row: reuse the alliance's server from other rows already
- * in the review list, falling back to an existing HQ bank's server.
+ * padded) review row: prefer the **majority** positive server among already
+ * parsed review rows (mixed-server imports must not inherit the first row's
+ * server for every pad), then fall back to an existing HQ bank's server.
  */
 export function defaultPlaceholderGameServerNumber(
   rowServerNumbers: readonly number[],
   existingBankServerNumbers: readonly number[],
 ): number {
-  return (
-    rowServerNumbers.find((n) => n > 0) ??
-    existingBankServerNumbers.find((n) => n > 0) ??
-    0
-  );
+  const counts = new Map<number, number>();
+  for (const n of rowServerNumbers) {
+    if (n > 0) counts.set(n, (counts.get(n) ?? 0) + 1);
+  }
+  let bestServer = 0;
+  let bestCount = 0;
+  for (const [server, count] of counts) {
+    if (count > bestCount) {
+      bestCount = count;
+      bestServer = server;
+    }
+  }
+  if (bestServer > 0) return bestServer;
+  return existingBankServerNumbers.find((n) => n > 0) ?? 0;
 }
 
 export type CityListRowFieldName =

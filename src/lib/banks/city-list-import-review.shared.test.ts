@@ -71,10 +71,10 @@ describe("missingRowCountForCapturedCount", () => {
 });
 
 describe("defaultPlaceholderGameServerNumber", () => {
-  it("prefers an existing review row's server number", () => {
-    expect(defaultPlaceholderGameServerNumber([1211, 1211], [999])).toBe(
-      1211,
-    );
+  it("prefers the majority server among review rows", () => {
+    expect(
+      defaultPlaceholderGameServerNumber([8150, 1211, 1211, 1211], [999]),
+    ).toBe(1211);
   });
 
   it("falls back to an existing HQ bank's server number", () => {
