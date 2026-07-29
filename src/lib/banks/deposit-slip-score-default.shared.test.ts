@@ -23,6 +23,21 @@ describe("deposit-slip-score-default", () => {
     });
   });
 
+  it("defaults whitespace-only scores", () => {
+    expect(
+      applyDepositSlipScoreDefault({
+        id: "r1",
+        score: "   ",
+        deleted: 0,
+      }),
+    ).toEqual({
+      id: "r1",
+      score: String(DEPOSIT_SLIP_DEFAULT_CRYSTAL_GOLD_AMOUNT),
+      deleted: 0,
+      scoreDefaulted: true,
+    });
+  });
+
   it("does not default deleted rows", () => {
     expect(
       applyDepositSlipScoreDefault({

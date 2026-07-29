@@ -1106,16 +1106,19 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       const list = data.banks ?? [];
       setBanks(list);
       setBankCityListImportedAt(data.bankCityListImportedAt ?? null);
+      const preferredId = readPreferredDepositSlipBankId();
+      // Keep deep-link upload target even when draft restore locked bankId.
+      if (preferredId != null) {
+        setUploadTargetBankId(preferredId);
+      }
       // Draft / officer / preferred upload context wins over OCR auto-align.
       if (bankIdLockedRef.current) return;
-      const preferredId = readPreferredDepositSlipBankId();
       const preferred =
         preferredId != null
           ? list.find((bank) => bank.id === preferredId)
           : undefined;
       if (preferred) {
         bankIdLockedRef.current = true;
-        setUploadTargetBankId(preferred.id);
         setBankId(preferred.id);
         return;
       }
