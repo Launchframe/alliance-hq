@@ -223,6 +223,25 @@ describe("isLifecycleHistoricalDepositMatch", () => {
       ),
     ).toBe(false);
   });
+
+  it("pairs terminal OCR with locked initiate via roster member id when names differ", () => {
+    const locked = identity({
+      commanderName: "Banla QC",
+      allianceMemberId: "am-bania",
+      status: "locked",
+      depositAt: "2026-07-10T12:14:34.000Z",
+      termDays: 3,
+    });
+    const matured = identity({
+      commanderName: "Bania QC",
+      allianceMemberId: "am-bania",
+      status: "matured",
+      depositAt: "2026-07-13T12:14:34.000Z",
+      termDays: 3,
+    });
+    expect(isLifecycleHistoricalDepositMatch(matured, locked)).toBe(true);
+    expect(shouldUpdateHistoricalDepositOutcome(matured, locked)).toBe(true);
+  });
 });
 
 describe("isMemberLinkedHistoricalDepositMatch", () => {
@@ -244,6 +263,13 @@ describe("isMemberLinkedHistoricalDepositMatch", () => {
     const a = identity({ allianceMemberId: "am-1" });
     const b = identity({ allianceMemberId: "am-2" });
     expect(isMemberLinkedHistoricalDepositMatch(a, b)).toBe(false);
+  });
+
+  it("requires allianceMemberId on both sides", () => {
+    const linked = identity({ allianceMemberId: "am-1" });
+    const unlinked = identity({ allianceMemberId: null });
+    expect(isMemberLinkedHistoricalDepositMatch(linked, unlinked)).toBe(false);
+    expect(isMemberLinkedHistoricalDepositMatch(unlinked, linked)).toBe(false);
   });
 });
 

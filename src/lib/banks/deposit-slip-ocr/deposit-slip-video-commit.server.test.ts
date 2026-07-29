@@ -731,6 +731,47 @@ describe("commitDepositSlipsFromVideoJob", () => {
     );
   });
 
+  it("skips re-upload duplicates when stored history shares roster member id", async () => {
+    listDepositSlipsForBank.mockResolvedValue([
+      {
+        id: "hist-banla",
+        commanderName: "Banla QC",
+        depositAt: new Date("2026-07-28T21:11:22.000Z"),
+        amount: 6000,
+        termDays: 5,
+        depositAllianceTag: "Roar",
+        status: "locked",
+        allianceMemberId: "am-bania",
+      },
+    ]);
+
+    const result = await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-bania",
+          ocrName: "Bania QC",
+          score: "6000",
+          powerLevel: "2026-07-28T21:11:22.000Z",
+          memberLevel: 5,
+          profession: "locked",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: null,
+          frameIndex: 8,
+          deleted: false,
+          memberId: "ashed-bania",
+          matchMethod: "fuzzy",
+        },
+      ],
+    });
+
+    expect(result.createdCount).toBe(0);
+    expect(result.skippedDuplicateCount).toBe(1);
+    expect(createDepositSlip).not.toHaveBeenCalled();
+  });
+
   it("skips OCR name-variant duplicates within one batch when roster member matches", async () => {
     const result = await commitDepositSlipsFromVideoJob({
       allianceId: "alliance-a",

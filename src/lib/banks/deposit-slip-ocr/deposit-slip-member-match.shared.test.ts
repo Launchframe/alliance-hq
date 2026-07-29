@@ -60,6 +60,16 @@ describe("committedDepositSlipCommanderName", () => {
       }),
     ).toBe("Bania QC");
   });
+
+  it("keeps OCR text when roster canonical name is missing", () => {
+    expect(
+      committedDepositSlipCommanderName("Bania QC", {
+        allianceMemberId: "am-1",
+        matchMethod: "fuzzy",
+        candidateMemberName: null,
+      }),
+    ).toBe("Bania QC");
+  });
 });
 
 describe("DEPOSIT_SLIP_CLEARED_MEMBER_MATCH", () => {
