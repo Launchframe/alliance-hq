@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
+import { revokeActiveTipLinksForCommander } from "@/lib/members/commander-donation.server";
 
 export type UnlinkCommanderTarget = "hq" | "discord";
 
@@ -69,6 +70,13 @@ export async function unlinkCommanderHqAccount(input: {
   if (!link) {
     return { ok: false, reason: "not_linked" };
   }
+
+  // Kill tip-jar QR codes before the HQ binding is removed so a later claimer
+  // cannot inherit a live public store redirect for this roster slot.
+  await revokeActiveTipLinksForCommander({
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+  });
 
   await db
     .delete(schema.hqMemberLinks)

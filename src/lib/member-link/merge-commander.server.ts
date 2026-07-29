@@ -3,6 +3,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import { revokeActiveTipLinksForCommander } from "@/lib/members/commander-donation.server";
 import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
 import { reconcileAllianceMemberForRosterLink } from "@/lib/member-link/roster-link-resolve.server";
 import {
@@ -123,6 +124,13 @@ export async function mergeSelfServiceMemberIntoRosterTarget(input: {
   }
 
   const now = new Date();
+
+  // Source roster row becomes former; revoke its tip codes so public QR cannot
+  // keep resolving against a dead/mismatched slot after the merge.
+  await revokeActiveTipLinksForCommander({
+    allianceId: input.allianceId,
+    ashedMemberId: input.sourceAshedMemberId,
+  });
 
   if (input.hqUserId) {
     const [sourceHqLink] = await db
