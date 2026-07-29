@@ -393,12 +393,13 @@ export async function loadTrainsDashboard(
   }
 
   const inventory = await listInventoryItems();
-  const historyRows = await listLockedConductorHistory(
+  const historyResult = await listLockedConductorHistory({
     allianceId,
-    effectiveSeason.seasonKey,
-    30,
-  );
-  const conductorHistory = historyRows.map(mapRecord);
+    seasonKey: effectiveSeason.seasonKey,
+    maxDate: today,
+    limit: 10,
+  });
+  const conductorHistory = historyResult.rows.map(mapRecord);
   const pirSettings = await loadPriceIsRightTicketSettings(allianceId);
   const [vsDataStatus, rosterDataStatus, vrReporterCount] = await Promise.all([
     todayDayConfig

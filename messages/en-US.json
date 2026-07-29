@@ -3621,6 +3621,9 @@
       "eventScoreContext": "VS Day {dayNumber}: {dayName} · scores from {scoreDate} (yesterday's VS day)",
       "scorePoints": "{score, number}",
       "scoreUnavailable": "—",
+      "resetConfirmBody": "Reset eligibility for this rule? Everyone becomes eligible again in a new generation.",
+      "resetConfirmAction": "Reset eligibility",
+      "resetConfirmCancel": "Cancel",
       "vsWeekDays": {
         "radarTraining": "Radar Training",
         "baseExpansion": "Base Expansion",
@@ -3717,11 +3720,30 @@
     },
     "conductorHistory": {
       "title": "Conductor history",
+      "fullTitle": "Conductor history",
+      "viewAll": "View all history",
       "empty": "Locked conductor days will appear here.",
+      "loading": "Loading history…",
+      "loadingMore": "Loading more…",
+      "loadMore": "Load more",
+      "loadFailed": "Could not load conductor history.",
+      "memberScope": "Showing days for {name}",
+      "resultCount": "Showing {shown} of {total}",
       "date": "Date",
       "conductor": "Conductor",
       "vip": "VIP",
-      "locked": "Locked"
+      "locked": "Locked",
+      "filters": {
+        "dateFrom": "From",
+        "dateTo": "To",
+        "member": "Member",
+        "memberAll": "All members",
+        "rank": "Conductor rank",
+        "rankAll": "All ranks",
+        "rankOption": "R{rank}",
+        "apply": "Apply filters",
+        "clear": "Clear filters"
+      }
     },
     "historyImport": {
       "title": "Import conductor history",

@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNotNull, lte } from "drizzle-orm";
+import { and, count, desc, eq, gte, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
@@ -299,28 +299,97 @@ export async function listConductorRecordsInRange(
   return rows.filter((row) => !row.seasonKey || row.seasonKey === seasonKey);
 }
 
+export type LockedConductorHistoryQuery = {
+  allianceId: string;
+  seasonKey?: string | null;
+  /** Inclusive upper bound — typically server today. Excludes future-locked rows. */
+  maxDate: string;
+  dateFrom?: string;
+  dateTo?: string;
+  /** Matches conductor or VIP on the locked day. */
+  memberId?: string;
+  allianceRank?: number;
+  offset?: number;
+  limit?: number;
+};
+
+function lockedConductorHistoryWhere(
+  input: LockedConductorHistoryQuery,
+) {
+  const conditions = [
+    eq(schema.trainConductorRecords.allianceId, input.allianceId),
+    isNotNull(schema.trainConductorRecords.lockedAt),
+    lte(schema.trainConductorRecords.date, input.maxDate),
+  ];
+
+  if (input.seasonKey) {
+    conditions.push(
+      or(
+        isNull(schema.trainConductorRecords.seasonKey),
+        eq(schema.trainConductorRecords.seasonKey, input.seasonKey),
+      )!,
+    );
+  }
+  if (input.dateFrom) {
+    conditions.push(gte(schema.trainConductorRecords.date, input.dateFrom));
+  }
+  if (input.dateTo) {
+    conditions.push(lte(schema.trainConductorRecords.date, input.dateTo));
+  }
+  if (input.memberId) {
+    conditions.push(
+      or(
+        eq(schema.trainConductorRecords.conductorMemberId, input.memberId),
+        eq(schema.trainConductorRecords.vipMemberId, input.memberId),
+      )!,
+    );
+  }
+  if (input.allianceRank != null) {
+    conditions.push(
+      sql`(
+        EXISTS (
+          SELECT 1 FROM ${schema.memberAllianceRankEvents} re
+          WHERE re.id = ${schema.trainConductorRecords.conductorRankEventId}
+            AND re.alliance_rank = ${input.allianceRank}
+        )
+        OR EXISTS (
+          SELECT 1 FROM ${schema.allianceMembers} am
+          WHERE am.alliance_id = ${input.allianceId}
+            AND am.ashed_member_id = ${schema.trainConductorRecords.conductorMemberId}
+            AND am.alliance_rank = ${input.allianceRank}
+        )
+      )`,
+    );
+  }
+
+  return and(...conditions);
+}
+
 export async function listLockedConductorHistory(
-  allianceId: string,
-  seasonKey: string | null | undefined,
-  limit: number,
-): Promise<Array<(typeof schema.trainConductorRecords.$inferSelect)>> {
+  input: LockedConductorHistoryQuery,
+): Promise<{
+  rows: Array<(typeof schema.trainConductorRecords.$inferSelect)>;
+  total: number;
+}> {
   const db = getDb();
+  const where = lockedConductorHistoryWhere(input);
+  const offset = Math.max(0, input.offset ?? 0);
+  const limit = Math.max(1, input.limit ?? 30);
+
+  const [totalRow] = await db
+    .select({ total: count() })
+    .from(schema.trainConductorRecords)
+    .where(where);
+
   const rows = await db
     .select()
     .from(schema.trainConductorRecords)
-    .where(
-      and(
-        eq(schema.trainConductorRecords.allianceId, allianceId),
-        isNotNull(schema.trainConductorRecords.lockedAt),
-      ),
-    )
+    .where(where)
     .orderBy(desc(schema.trainConductorRecords.date))
+    .offset(offset)
     .limit(limit);
 
-  const scoped = seasonKey
-    ? rows.filter((row) => !row.seasonKey || row.seasonKey === seasonKey)
-    : rows;
-  return scoped;
+  return { rows, total: Number(totalRow?.total ?? 0) };
 }
 
 export async function upsertConductorDraft(input: {
