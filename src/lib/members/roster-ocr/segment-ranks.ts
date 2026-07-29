@@ -32,6 +32,29 @@ export const MEMBER_QUOTA_RE = /\d+\s*\/\s*\d+/;
 const COMBINED_RANK_GROUP_HEADER_RE =
   /^\s*R\s*([1-5])\s+(.+?)\s+\d+\s*\/\s*\d+/i;
 
+/**
+ * Structural rank-group header: `R#` shield badge + ANYTHING (or nothing) +
+ * `online/total` member quota. Group titles are alliance-set free text
+ * ("Timeout", "Heart of the Alliance", or blank) so the text between the
+ * shield and the quota carries zero signal — only the badge and the quota do.
+ *
+ * The badge digit is a single character right after `R`, followed by a real
+ * separator (whitespace or OCR punctuation from the shield edge) so member
+ * names like "Rambo" or "Rat King" can never match. OCR frequently garbles
+ * the digit itself ("Ra) Timeout 0/1" for an R1/R2 shield) — a quota-bearing
+ * line with an unreadable badge digit is still definitely a header, just one
+ * whose rank we can't trust.
+ */
+const SHIELD_QUOTA_HEADER_RE =
+  /^[^A-Za-z0-9]{0,3}R\s*([0-9A-Za-z])(?:\s+|[|)\],.:]+\s*)(.*?)\s*\d+\s*\/\s*\d+/i;
+
+/** Map an OCR'd shield badge char to a rank; null when unreadable. */
+function resolveRankBadgeChar(ch: string): AllianceRank | null {
+  if (/^[1-5]$/.test(ch)) return parseInt(ch, 10) as AllianceRank;
+  if (/^[Ss]$/.test(ch)) return 5; // "RS" — common OCR reading of the R5 shield
+  return null;
+}
+
 /** Member stat tokens — absent on section header bars. */
 const MEMBER_STATS_RE = /\bpower\s*[:}]?|\d+(?:\.\d+)?\s*M\b|\bLv\.?\s*\d+/i;
 
@@ -88,7 +111,6 @@ const IGNORED_PATTERNS: RegExp[] = [
   /^\s*rank\s*$/i,
   /^\s*\d+\s*\/\s*\d+\s*$/, // "45/100" member count
   /^\s*[<>v]\s*$/i,
-  /^\s*timeout\b/i,
   OFFICER_TITLE_CHROME_RE,
 ];
 
@@ -154,7 +176,12 @@ function stripGroupTitleGarbage(title: string): string {
 }
 
 export type RankGroupHeader = {
-  rank: AllianceRank;
+  /**
+   * null when the line is structurally a header (shield badge + quota) but
+   * OCR garbled the badge digit — the line must never become a member row,
+   * yet it cannot establish a trustworthy rank context either.
+   */
+  rank: AllianceRank | null;
   /** Alliance-custom group title when OCR captured it (diagnostics only). */
   groupTitle?: string;
 };
@@ -194,6 +221,22 @@ export function parseRankGroupHeader(
     if (combined) {
       const rank = parseInt(combined[1]!, 10) as AllianceRank;
       const groupTitle = stripGroupTitleGarbage(combined[2]!);
+      return {
+        rank,
+        groupTitle: groupTitle || undefined,
+      };
+    }
+
+    // Shield badge + quota is conclusive header structure no matter what the
+    // alliance-set title in between says (or whether the badge digit was
+    // OCR'd correctly). NOT gated on the same-rank guard below: the same
+    // section header legitimately re-appears across overlapping scroll
+    // frames while its rank is already the sticky/current rank, and a member
+    // row never carries an `online/total` quota.
+    const shieldQuota = SHIELD_QUOTA_HEADER_RE.exec(trimmed);
+    if (shieldQuota) {
+      const rank = resolveRankBadgeChar(shieldQuota[1]!);
+      const groupTitle = stripGroupTitleGarbage(shieldQuota[2] ?? "");
       return {
         rank,
         groupTitle: groupTitle || undefined,
@@ -290,9 +333,11 @@ export function detectLastRankFromLines(lines: string[]): AllianceRank | null {
     });
 
     if (header) {
+      // A garbled-badge header (rank null) clears the section context — the
+      // rank genuinely changed, we just can't read what it changed to.
       currentRank = header.rank;
       afterRankBadge = isBareRankBadge(line);
-      badgeRank = afterRankBadge ? header.rank : undefined;
+      badgeRank = afterRankBadge ? (header.rank ?? undefined) : undefined;
       afterRankGroupHeader = true;
       continue;
     }
@@ -418,7 +463,7 @@ export function segmentByRankHeaders(
     if (header) {
       currentRank = header.rank;
       afterRankBadge = isBareRankBadge(line);
-      badgeRank = afterRankBadge ? header.rank : undefined;
+      badgeRank = afterRankBadge ? (header.rank ?? undefined) : undefined;
       afterRankGroupHeader = true;
       result.push({ line, rank: header.rank, isHeader: true });
       continue;
