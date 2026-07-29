@@ -9,7 +9,10 @@ import {
   shouldSkipHistoricalDepositDuplicate,
   shouldUpdateHistoricalDepositOutcome,
 } from "@/lib/banks/deposit-slip-ocr/deposit-slip-history-match.shared";
-import { isDepositSlipAutoLinkedMatchMethod } from "@/lib/banks/deposit-slip-ocr/deposit-slip-member-match.shared";
+import {
+  committedDepositSlipCommanderName,
+  isDepositSlipAutoLinkedMatchMethod,
+} from "@/lib/banks/deposit-slip-ocr/deposit-slip-member-match.shared";
 import { parsedRowFieldsToDepositSlipDraft } from "@/lib/banks/deposit-slip-ocr/draft-row.shared";
 import {
   createDepositSlipMemberResolverCache,
@@ -157,6 +160,7 @@ export async function commitDepositSlipsFromVideoJob(
     termDays: number;
     depositAllianceTag: string | null;
     status: DepositStatus;
+    allianceMemberId: string | null;
   };
   const history: HistoryRow[] = existingSlips.map((slip) => ({
     id: slip.id,
@@ -169,6 +173,7 @@ export async function commitDepositSlipsFromVideoJob(
     termDays: slip.termDays,
     depositAllianceTag: slip.depositAllianceTag,
     status: slip.status as DepositStatus,
+    allianceMemberId: slip.allianceMemberId ?? null,
   }));
 
   let createdCount = 0;
@@ -205,29 +210,6 @@ export async function commitDepositSlipsFromVideoJob(
       continue;
     }
 
-    const incoming = {
-      commanderName: draft.identity.commanderName,
-      depositAt: draft.depositAt,
-      amount: draft.amount,
-      termDays: draft.termDays,
-      depositAllianceTag: draft.identity.allianceTag,
-      status: draft.status,
-      // Lifecycle-merged drafts keep initiate in depositAt; terminal-only
-      // clips leave outcomeAt null and put the green/orange time in depositAt.
-      outcomeAt: draft.outcomeAt ?? null,
-    };
-    const historicalMatch = findHighConfidenceHistoricalDepositMatch(
-      incoming,
-      history,
-    );
-    if (
-      historicalMatch &&
-      shouldSkipHistoricalDepositDuplicate(incoming, historicalMatch)
-    ) {
-      skippedDuplicateCount += 1;
-      continue;
-    }
-
     const matchMethod = row.matchMethod ?? meta?.matchMethod ?? null;
     const memberId = row.memberId ?? meta?.memberId ?? null;
     const preferredAshedMemberId =
@@ -245,6 +227,33 @@ export async function commitDepositSlipsFromVideoJob(
       resolverDeps,
     );
 
+    const commanderName = committedDepositSlipCommanderName(
+      draft.identity.commanderName,
+      links,
+    );
+
+    const incoming = {
+      commanderName,
+      depositAt: draft.depositAt,
+      amount: draft.amount,
+      termDays: draft.termDays,
+      depositAllianceTag: draft.identity.allianceTag,
+      status: draft.status,
+      outcomeAt: draft.outcomeAt ?? null,
+      allianceMemberId: links.allianceMemberId,
+    };
+    const historicalMatch = findHighConfidenceHistoricalDepositMatch(
+      incoming,
+      history,
+    );
+    if (
+      historicalMatch &&
+      shouldSkipHistoricalDepositDuplicate(incoming, historicalMatch)
+    ) {
+      skippedDuplicateCount += 1;
+      continue;
+    }
+
     if (
       historicalMatch &&
       shouldUpdateHistoricalDepositOutcome(incoming, historicalMatch)
@@ -261,7 +270,7 @@ export async function commitDepositSlipsFromVideoJob(
         outcomeAt: draft.outcomeAt ?? draft.depositAt,
         depositAllianceTag: draft.identity.allianceTag,
         depositAllianceId: links.depositAllianceId,
-        commanderName: draft.identity.commanderName,
+        commanderName,
         commanderId: links.commanderId,
         allianceMemberId: links.allianceMemberId,
       };
@@ -278,6 +287,8 @@ export async function commitDepositSlipsFromVideoJob(
       );
       updatedCount += 1;
       historicalMatch.status = draft.status;
+      historicalMatch.commanderName = commanderName;
+      historicalMatch.allianceMemberId = links.allianceMemberId;
       historicalMatch.depositAllianceTag =
         draft.identity.allianceTag?.trim() || null;
       continue;
@@ -296,7 +307,7 @@ export async function commitDepositSlipsFromVideoJob(
           : null,
       depositAllianceTag: draft.identity.allianceTag,
       depositAllianceId: links.depositAllianceId,
-      commanderName: draft.identity.commanderName,
+      commanderName,
       commanderId: links.commanderId,
       allianceMemberId: links.allianceMemberId,
     };
@@ -314,12 +325,13 @@ export async function commitDepositSlipsFromVideoJob(
     // duplicate OCR survivor in one video does not insert twice.
     history.push({
       id: created.id,
-      commanderName: incoming.commanderName,
+      commanderName,
       depositAt: incoming.depositAt,
       amount: incoming.amount,
       termDays: incoming.termDays,
       depositAllianceTag: incoming.depositAllianceTag?.trim() || null,
       status: incoming.status,
+      allianceMemberId: links.allianceMemberId,
     });
   }
 
