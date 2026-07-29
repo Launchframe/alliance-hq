@@ -4496,6 +4496,7 @@
       "netVs": "Net VS score",
       "efficiency": "Efficiency",
       "noEngagement": "No engagement",
+      "incompleteSnapshot": "Incomplete snapshot",
       "empty": "Not enough snapshot data to rank members yet.",
       "vsUnavailable": "Saturday VS scores unavailable from Ashed."
     }

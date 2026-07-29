@@ -42,8 +42,11 @@ export type SerializedBusterDayEfficiencyRow = {
   estimatedKillPointsMax: number;
   vsScoreSaturday: number | null;
   netVsScore: number;
-  /** Null when noEngagement — do not display as a numeric ratio. */
+  /** Null when unscored (incomplete snapshot or no engagement). */
   efficiencyRatio: number | null;
+  /** Missing pre/post power or Saturday VS — cannot rank; re-upload snapshots. */
+  incompleteSnapshot: boolean;
+  /** Scorable row with near-zero power loss and net VS. */
   noEngagement: boolean;
 };
 
@@ -56,26 +59,33 @@ export function computeBusterDayEfficiencyRow(
   const killsEnd = input.killsEnd;
   const vsScoreSaturday = input.vsScoreSaturday;
 
-  const powerLostM =
-    powerStartM != null && powerEndM != null
-      ? Math.max(0, powerStartM - powerEndM)
-      : 0;
+  const hasPowerPair = powerStartM != null && powerEndM != null;
+  const hasVsScore = vsScoreSaturday != null;
+
+  const powerLostM = hasPowerPair
+    ? Math.max(0, powerStartM - powerEndM)
+    : 0;
   const killsDelta =
     killsStart != null && killsEnd != null
       ? Math.max(0, killsEnd - killsStart)
       : 0;
-  const netVsScore =
-    vsScoreSaturday != null
-      ? Math.max(0, vsScoreSaturday - BUSTER_DAY_BASELINE_POINTS)
-      : 0;
+  const netVsScore = hasVsScore
+    ? Math.max(0, vsScoreSaturday - BUSTER_DAY_BASELINE_POINTS)
+    : 0;
 
+  // Missing power or Saturday VS must not rank as measured 0 / ε — that
+  // produced god-tier ratios (null power) or false-weakest (null VS).
+  const canScore = hasPowerPair && hasVsScore;
+  const incompleteSnapshot = !canScore;
   const noEngagement =
+    canScore &&
     netVsScore <= BUSTER_DAY_EFFICIENCY_EPSILON &&
     powerLostM <= BUSTER_DAY_NO_ENGAGEMENT_POWER_M;
 
-  const efficiencyRatio = noEngagement
-    ? null
-    : netVsScore / Math.max(powerLostM, BUSTER_DAY_EFFICIENCY_EPSILON);
+  const efficiencyRatio =
+    incompleteSnapshot || noEngagement
+      ? null
+      : netVsScore / Math.max(powerLostM, BUSTER_DAY_EFFICIENCY_EPSILON);
 
   return {
     commanderId: input.commanderId,
@@ -92,19 +102,28 @@ export function computeBusterDayEfficiencyRow(
     vsScoreSaturday,
     netVsScore,
     efficiencyRatio,
+    incompleteSnapshot,
     noEngagement,
   };
 }
 
-/** Weakest efficiency first; no-engagement rows sink to the bottom. */
+function busterDayEfficiencySortTier(
+  row: SerializedBusterDayEfficiencyRow,
+): number {
+  if (row.efficiencyRatio != null) return 0;
+  if (row.incompleteSnapshot) return 1;
+  return 2;
+}
+
+/** Weakest efficiency first; incomplete and no-engagement rows sink below ranked. */
 export function sortBusterDayEfficiencyRows(
   rows: SerializedBusterDayEfficiencyRow[],
 ): SerializedBusterDayEfficiencyRow[] {
   return [...rows].sort((a, b) => {
-    if (a.noEngagement !== b.noEngagement) {
-      return a.noEngagement ? 1 : -1;
-    }
-    if (a.noEngagement && b.noEngagement) {
+    const tierA = busterDayEfficiencySortTier(a);
+    const tierB = busterDayEfficiencySortTier(b);
+    if (tierA !== tierB) return tierA - tierB;
+    if (tierA > 0) {
       return a.memberName.localeCompare(b.memberName);
     }
     const ar = a.efficiencyRatio ?? Number.POSITIVE_INFINITY;

@@ -4442,6 +4442,7 @@
       "netVs": "Pontuação VS líquida",
       "efficiency": "Eficiência",
       "noEngagement": "Sem engajamento",
+      "incompleteSnapshot": "Snapshot incompleto",
       "empty": "Ainda não há dados de instantâneo suficientes para ranquear os membros.",
       "vsUnavailable": "Pontuações VS de sábado indisponíveis no Ashed."
     }
