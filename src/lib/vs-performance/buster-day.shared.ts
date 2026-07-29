@@ -74,6 +74,40 @@ export function normalizeOptionalBusterDayJobId(
   return { ok: true, value: trimmed };
 }
 
+export type BusterDaySnapshotKind = "pre" | "post";
+
+export type BusterDaySnapshotLockedJobs = {
+  preRosterJobId: string | null;
+  preKillsJobId: string | null;
+  postRosterJobId: string | null;
+  postKillsJobId: string | null;
+};
+
+/**
+ * Merge a partial roster/kills attach into the locked snapshot row.
+ * `undefined` on a job id means leave that column unchanged; `null` clears it.
+ */
+export function resolveBusterDayPartialAttach(input: {
+  kind: BusterDaySnapshotKind;
+  locked: BusterDaySnapshotLockedJobs;
+  rosterJobId: string | null | undefined;
+  killsJobId: string | null | undefined;
+}): { nextRoster: string | null; nextKills: string | null } {
+  const nextRoster =
+    input.rosterJobId !== undefined
+      ? input.rosterJobId
+      : input.kind === "pre"
+        ? input.locked.preRosterJobId
+        : input.locked.postRosterJobId;
+  const nextKills =
+    input.killsJobId !== undefined
+      ? input.killsJobId
+      : input.kind === "pre"
+        ? input.locked.preKillsJobId
+        : input.locked.postKillsJobId;
+  return { nextRoster, nextKills };
+}
+
 export type SerializedBusterDayReport = {
   id: string;
   allianceId: string;

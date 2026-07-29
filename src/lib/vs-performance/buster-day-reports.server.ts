@@ -10,7 +10,9 @@ import {
   busterDayWeekMondayForDate,
   isBusterDaySnapshotComplete,
   normalizeOptionalBusterDayJobId,
+  resolveBusterDayPartialAttach,
   resolveBusterDayWizardPhase,
+  type BusterDaySnapshotKind,
   type SerializedBusterDayReport,
 } from "@/lib/vs-performance/buster-day.shared";
 import {
@@ -173,8 +175,6 @@ export async function getOrCreateBusterDayReport(
   }
 }
 
-export type BusterDaySnapshotKind = "pre" | "post";
-
 export async function attachBusterDaySnapshotJob(input: {
   allianceId: string;
   vsWeekMonday: string;
@@ -234,18 +234,12 @@ export async function attachBusterDaySnapshotJob(input: {
       .limit(1);
     if (!locked) return null;
 
-    const nextRoster =
-      rosterNorm.value !== undefined
-        ? rosterNorm.value
-        : input.kind === "pre"
-          ? locked.preRosterJobId
-          : locked.postRosterJobId;
-    const nextKills =
-      killsNorm.value !== undefined
-        ? killsNorm.value
-        : input.kind === "pre"
-          ? locked.preKillsJobId
-          : locked.postKillsJobId;
+    const { nextRoster, nextKills } = resolveBusterDayPartialAttach({
+      kind: input.kind,
+      locked,
+      rosterJobId: rosterNorm.value,
+      killsJobId: killsNorm.value,
+    });
     const complete = isBusterDaySnapshotComplete({
       rosterJobId: nextRoster,
       killsJobId: nextKills,
