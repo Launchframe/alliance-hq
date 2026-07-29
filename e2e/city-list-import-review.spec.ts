@@ -51,7 +51,7 @@ const UNDERCOUNT_PARSE_BODY = {
   snapshot: {
     ...PARSE_BODY.snapshot,
     // Header says 3 banks were captured, but OCR only recovered 2 tiles —
-    // the modal should pad the review list with a blank placeholder row.
+    // the review page should pad with a blank placeholder card.
     capturedCount: 3,
     isComplete: false,
   },
@@ -89,46 +89,19 @@ async function openCityListReview(
   await expect(page.getByText(/1 screenshot selected/i)).toBeVisible();
 
   await page.getByRole("button", { name: /read screenshots/i }).click();
-  await expect(
-    page.getByRole("button", { name: "Import banks", exact: true }),
-  ).toBeVisible({
+  await expect(page).toHaveURL(/\/bank-management\/import-review/, {
     timeout: 15_000,
   });
+  await expect(
+    page.getByRole("heading", { name: /review imported banks/i }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Import banks", exact: true }),
+  ).toBeVisible();
 }
 
-test.describe("City List import review (responsive)", () => {
-  test("mobile card stepper advances banks and opens screenshot lightbox", async ({
-    page,
-  }) => {
-    const sql = getE2eSql();
-    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
-    await createHqMemberLink(sql, {
-      allianceId: scenario.allianceId,
-      hqUserId: scenario.officer.hqUserId,
-    });
-    await page.context().addCookies(playwrightAuthCookies(scenario.officer));
-    await page.setViewportSize({ width: 390, height: 844 });
-
-    await openCityListReview(page);
-
-    await expect(page.getByText(/Bank 1 of 2/i)).toBeVisible();
-    await expect(page.getByRole("progressbar")).toBeVisible();
-    // Desktop table stays in the DOM with `hidden md:block`.
-    await expect(page.locator("table")).toBeHidden();
-
-    await page.getByRole("button", { name: /^next$/i }).click();
-    await expect(page.getByText(/Bank 2 of 2/i)).toBeVisible();
-
-    await page.getByRole("button", { name: /^previous$/i }).click();
-    await expect(page.getByText(/Bank 1 of 2/i)).toBeVisible();
-
-    await page
-      .getByRole("button", { name: /preview screenshots/i })
-      .click();
-    await expect(page.locator(".yarl__root")).toBeVisible({ timeout: 10_000 });
-  });
-
-  test("desktop shows table and left screenshot preview pane", async ({
+test.describe("City List import review (dedicated page)", () => {
+  test("shows a 3-col card grid with K amounts and opens screenshot lightbox", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -142,21 +115,30 @@ test.describe("City List import review (responsive)", () => {
 
     await openCityListReview(page);
 
-    const reviewTable = page.locator("table");
-    await expect(reviewTable).toBeVisible();
-    await expect(reviewTable.getByText(/stronghold level/i)).toBeVisible();
-    // Mobile stepper copy is `md:hidden`.
-    await expect(page.getByText(/Bank 1 of 2/i)).toBeHidden();
-    await expect(page.getByRole("progressbar")).toBeHidden();
+    const cards = page.getByTestId("city-list-review-card");
+    await expect(cards).toHaveCount(2);
+    await expect(page.locator("table")).toHaveCount(0);
 
     await expect(
-      page.getByRole("button", { name: /preview screenshot/i }).first(),
-    ).toBeVisible();
-  });
-});
+      cards.first().getByRole("textbox", { name: /amount \(k\)/i }),
+    ).toHaveValue("600.00K");
 
-test.describe("City List import review (captured count padding)", () => {
-  test("pads a blank row when OCR parses fewer tiles than the captured count", async ({
+    await page
+      .getByRole("button", { name: /preview screenshots/i })
+      .click();
+    await expect(page.locator(".yarl__root")).toBeVisible({ timeout: 10_000 });
+
+    // Escape closes lightbox only — review page stays put with draft intact.
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".yarl__root")).toBeHidden();
+    await expect(page).toHaveURL(/\/bank-management\/import-review/);
+    await expect(
+      page.getByRole("heading", { name: /review imported banks/i }),
+    ).toBeVisible();
+    await expect(cards).toHaveCount(2);
+  });
+
+  test("pads a missing placeholder card when OCR undercounts capturedCount", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -170,23 +152,19 @@ test.describe("City List import review (captured count padding)", () => {
 
     await openCityListReview(page, UNDERCOUNT_PARSE_BODY);
 
-    // Header said 3 banks captured; OCR only returned 2 — a 3rd blank row
-    // is padded in so the officer can fill it in manually.
-    await expect(page.getByText(/Bank 1 of 3/i)).toBeVisible();
+    const cards = page.getByTestId("city-list-review-card");
+    await expect(cards).toHaveCount(3);
+    await expect(
+      page.locator('[data-testid="city-list-review-card"][data-placeholder="true"]'),
+    ).toHaveCount(1);
 
-    await page.getByRole("button", { name: /^next$/i }).click();
-    await page.getByRole("button", { name: /^next$/i }).click();
-    await expect(page.getByText(/Bank 3 of 3/i)).toBeVisible();
-
-    // Submitting without filling in the padded row's coordinates surfaces
-    // validation errors instead of silently importing a (0, 0) bank.
     await page.getByRole("button", { name: "Import banks", exact: true }).click();
     await expect(page.getByText(/required/i).first()).toBeVisible();
   });
 });
 
 test.describe("City List import review (draft restore)", () => {
-  test("restores edited review after close and Reset clears sessionStorage", async ({
+  test("restores edited review via Continue and Reset clears sessionStorage", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -202,13 +180,8 @@ test.describe("City List import review (draft restore)", () => {
 
     await openCityListReview(page);
 
-    const reviewTable = page.locator("table");
-    await expect(reviewTable).toBeVisible();
-
-    // Columns: level, server, X, Y, amount, deposits — edit first-row X.
-    const xInput = reviewTable.locator("tbody tr").first().locator(
-      'input[type="number"]',
-    ).nth(2);
+    const firstCard = page.getByTestId("city-list-review-card").first();
+    const xInput = firstCard.getByRole("spinbutton", { name: /^x$/i });
     await xInput.fill("777");
     await expect
       .poll(async () =>
@@ -216,11 +189,8 @@ test.describe("City List import review (draft restore)", () => {
       )
       .not.toBeNull();
 
-    // Accidental close (Escape) — in-memory state clears, draft stays.
-    await page.keyboard.press("Escape");
-    await expect(
-      page.getByRole("heading", { name: /import banks from screenshots/i }),
-    ).toBeHidden();
+    await page.getByRole("button", { name: /^cancel$/i }).click();
+    await expect(page).toHaveURL(/\/bank-management\/?$/);
 
     await page
       .getByRole("button", { name: /import banks from screenshot/i })
@@ -228,23 +198,87 @@ test.describe("City List import review (draft restore)", () => {
     await expect(
       page.getByText(/Restored your unsaved review from last time/i),
     ).toBeVisible();
+    await page
+      .getByRole("button", { name: /review imported banks/i })
+      .click();
+    await expect(page).toHaveURL(/\/bank-management\/import-review/);
     await expect(
-      reviewTable.locator("tbody tr").first().locator('input[type="number"]').nth(2),
+      page
+        .getByTestId("city-list-review-card")
+        .first()
+        .getByRole("spinbutton", { name: /^x$/i }),
     ).toHaveValue("777");
 
     await page.getByRole("button", { name: /^reset$/i }).click();
     await page.getByTestId("city-list-import-reset-confirm").click();
 
-    await expect(
-      page.getByRole("heading", { name: /import banks from screenshots/i }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /read screenshots/i }),
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\/bank-management\/?$/);
     await expect
       .poll(async () =>
         page.evaluate((key) => window.sessionStorage.getItem(key), draftKey),
       )
       .toBeNull();
+  });
+});
+
+test.describe("Bank Management coord search", () => {
+  test("filters banks by X/Y query across the list", async ({ page }) => {
+    const sql = getE2eSql();
+    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    await createHqMemberLink(sql, {
+      allianceId: scenario.allianceId,
+      hqUserId: scenario.officer.hqUserId,
+    });
+
+    const now = new Date();
+    await sql`
+      INSERT INTO banks (
+        id, alliance_id, game_server_number, coord_x, coord_y, level,
+        prior_capture_count, created_at, updated_at
+      ) VALUES
+        (
+          ${`bank_${Date.now()}_a`},
+          ${scenario.allianceId},
+          ${1211},
+          ${100},
+          ${200},
+          ${2},
+          ${0},
+          ${now},
+          ${now}
+        ),
+        (
+          ${`bank_${Date.now()}_b`},
+          ${scenario.allianceId},
+          ${1211},
+          ${150},
+          ${250},
+          ${3},
+          ${0},
+          ${now},
+          ${now}
+        )
+    `;
+
+    await page.context().addCookies(playwrightAuthCookies(scenario.officer));
+    await page.goto("/bank-management");
+    await expect(
+      page.getByRole("heading", { name: /bank management/i }),
+    ).toBeVisible();
+
+    const search = page.getByTestId("bank-coord-search");
+    await expect(search).toBeVisible();
+    await search.fill("100 200");
+    await expect(
+      page.getByRole("button", { name: /#1211 \(X:100, Y:200\)/i }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /#1211 \(X:150, Y:250\)/i }),
+    ).toBeHidden();
+
+    await search.fill("999 999");
+    await expect(
+      page.getByText(/No banks match those coordinates/i),
+    ).toBeVisible();
   });
 });

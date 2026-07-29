@@ -409,7 +409,6 @@ export function BankManagementClient({ initial }: Props) {
         onOpenChange={setCityListModalOpen}
         allianceId={allianceId}
         existingBanks={banks}
-        onImported={(dashboard) => applyDashboard(dashboard)}
       />
 
       <BankEditorModal

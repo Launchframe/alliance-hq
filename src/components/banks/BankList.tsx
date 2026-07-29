@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ImageUp, Pencil, Plus, Video } from "lucide-react";
 
 import { Link } from "@/i18n/navigation";
 
 import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
+import { bankMatchesCoordQuery } from "@/lib/banks/bank-list-search.shared";
 import { activeDeposits, isPastDropDeadline } from "@/lib/banks/optimization.shared";
 import type { BankWithSlips } from "@/lib/banks/types.shared";
 import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
@@ -118,42 +119,33 @@ function BankListItem({
           </div>
           {bank.notes ? (
             <p
-              className={`mt-1 truncate text-xs ${
-                muted ? "text-hq-fg-subtle/80" : "text-hq-fg-subtle"
+              className={`mt-1 line-clamp-2 text-xs ${
+                muted ? "text-hq-fg-subtle" : "text-hq-fg-muted"
               }`}
             >
               {bank.notes}
             </p>
           ) : null}
         </button>
-        {canWrite ? (
+        <div className="flex shrink-0 flex-col gap-1">
+          {canWrite ? (
+            <button
+              type="button"
+              className="rounded border border-hq-border p-1.5 text-hq-fg-muted hover:border-hq-accent hover:text-hq-fg"
+              aria-label={t("actions.edit")}
+              onClick={() => onEdit(bank)}
+            >
+              <Pencil className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          ) : null}
           <Link
             href={depositSlipUploadHref(bank.id)}
-            aria-label={t("uploadDepositSlip")}
-            title={t("uploadDepositSlip")}
-            className={`shrink-0 rounded border p-2 hover:border-hq-accent hover:text-hq-fg ${
-              muted
-                ? "border-hq-fg-muted/40 text-hq-fg-subtle"
-                : "border-hq-border text-hq-fg-muted"
-            }`}
+            className="rounded border border-hq-border p-1.5 text-hq-fg-muted hover:border-hq-accent hover:text-hq-fg"
+            aria-label={t("uploadDepositSlips")}
           >
             <Video className="h-3.5 w-3.5" aria-hidden />
           </Link>
-        ) : null}
-        {canWrite ? (
-          <button
-            type="button"
-            aria-label={t("editBank")}
-            className={`shrink-0 rounded border p-2 hover:border-hq-accent hover:text-hq-fg ${
-              muted
-                ? "border-hq-fg-muted/40 text-hq-fg-subtle"
-                : "border-hq-border text-hq-fg-muted"
-            }`}
-            onClick={() => onEdit(bank)}
-          >
-            <Pencil className="h-3.5 w-3.5" aria-hidden />
-          </button>
-        ) : null}
+        </div>
       </div>
     </li>
   );
@@ -169,10 +161,17 @@ export function BankList({
   onImportFromScreenshot,
 }: Props) {
   const t = useTranslations("bankManagement");
+  const [coordQuery, setCoordQuery] = useState("");
+
+  const filteredBanks = useMemo(
+    () => banks.filter((bank) => bankMatchesCoordQuery(bank, coordQuery)),
+    [banks, coordQuery],
+  );
+
   const { activeBanks, pastDropBanks } = useMemo(() => {
     const active: BankWithSlips[] = [];
     const pastDrop: BankWithSlips[] = [];
-    for (const bank of banks) {
+    for (const bank of filteredBanks) {
       if (isPastDropDeadline(bank)) {
         pastDrop.push(bank);
       } else {
@@ -180,12 +179,16 @@ export function BankList({
       }
     }
     return { activeBanks: active, pastDropBanks: pastDrop };
-  }, [banks]);
+  }, [filteredBanks]);
+
+  const queryActive = coordQuery.trim().length > 0;
 
   return (
     <div className="min-w-0 space-y-3">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-        <h2 className="min-w-0 text-sm font-semibold text-hq-fg">{t("banksTitle")}</h2>
+        <h2 className="min-w-0 text-sm font-semibold text-hq-fg">
+          {t("banksTitle")}
+        </h2>
         {canWrite ? (
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -208,9 +211,27 @@ export function BankList({
         ) : null}
       </div>
 
+      {banks.length > 0 ? (
+        <label className="block space-y-1">
+          <span className="sr-only">{t("bankCoordSearchPlaceholder")}</span>
+          <input
+            type="search"
+            value={coordQuery}
+            onChange={(event) => setCoordQuery(event.target.value)}
+            placeholder={t("bankCoordSearchPlaceholder")}
+            className="w-full rounded border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg placeholder:text-hq-fg-subtle"
+            data-testid="bank-coord-search"
+          />
+        </label>
+      ) : null}
+
       {banks.length === 0 ? (
         <div className="rounded-lg border border-hq-border bg-hq-surface p-4 text-sm text-hq-fg-muted">
           {t("emptyBanks")}
+        </div>
+      ) : filteredBanks.length === 0 && queryActive ? (
+        <div className="rounded-lg border border-hq-border bg-hq-surface p-4 text-sm text-hq-fg-muted">
+          {t("bankCoordSearchEmpty")}
         </div>
       ) : (
         <>
