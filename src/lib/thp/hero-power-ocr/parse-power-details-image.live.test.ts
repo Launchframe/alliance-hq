@@ -11,6 +11,7 @@ import type { ThpBreakdown } from "@/lib/thp/my-thp.shared";
 
 const fixtureDir = path.dirname(fileURLToPath(import.meta.url));
 const JUL20_FIXTURE = path.join(fixtureDir, "fixtures/power-details-2026-07-20.png");
+const JUL29_FIXTURE = path.join(fixtureDir, "fixtures/power-details-2026-07-29.png");
 
 /**
  * Live geometry-first OCR against a real phone screenshot.
@@ -61,6 +62,24 @@ describe("parsePowerDetailsImage live fixture", () => {
           164_615_505,
         );
       }
+    },
+    120_000,
+  );
+
+  it.skipIf(process.env.THP_OCR_LIVE !== "1")(
+    "pairs Jul 29 two-line decorations label without row shift",
+    async () => {
+      const buffer = readFileSync(JUL29_FIXTURE);
+      const parsed = await parsePowerDetailsImage(buffer);
+
+      expect(parsed.heroPowerTotal).toBe(166_581_498);
+      expect(parsed.diagnostics.pairedCount ?? 0).toBeGreaterThanOrEqual(6);
+      expect(parsed.diagnostics.sampleLines.some((line) =>
+        /heroLevel=3719831637/.test(line),
+      )).toBe(false);
+      expect(parsed.diagnostics.sampleLines.some((line) =>
+        /heroLevel=871659312/.test(line),
+      )).toBe(true);
     },
     120_000,
   );

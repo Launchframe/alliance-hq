@@ -22,6 +22,7 @@ import {
   normalizeDigitsOnlyComponent,
   normalizeGeometryLines,
   parseDigitsOnlyHeaderTotal,
+  parseDigitsOnlyHeaderTotalLoose,
   zipLabelsToValues,
   type GeometryOcrLine,
 } from "@/lib/thp/hero-power-ocr/parse-power-details-geometry.shared";
@@ -56,38 +57,55 @@ function toGeometryLines(lines: OcrLineResult[]): GeometryOcrLine[] {
   }));
 }
 
+function lineYNorm(line: OcrLineResult, cropHeight: number): number | null {
+  const box = line.bbox;
+  if (!box || !Number.isFinite(box.y0) || !Number.isFinite(box.y1)) {
+    return null;
+  }
+  return (box.y0 + box.y1) / 2 / Math.max(1, cropHeight);
+}
+
 function pickHeaderTotal(
   headerLines: OcrLineResult[],
+  headerCropHeight: number,
   invertedValueLines: OcrLineResult[],
+  invertedCropHeight: number,
   valueLines: OcrLineResult[],
+  valueCropHeight: number,
 ): number | null {
   return (
-    pickBestHeaderCandidate(headerLines) ??
-    pickBestHeaderCandidate(invertedValueLines.slice(0, 4)) ??
-    pickBestHeaderCandidate(valueLines.slice(0, 3))
+    pickBestHeaderCandidate(headerLines, headerCropHeight) ??
+    pickBestHeaderCandidate(invertedValueLines.slice(0, 6), invertedCropHeight) ??
+    pickBestHeaderCandidate(valueLines.slice(0, 4), valueCropHeight)
   );
 }
 
-function pickBestHeaderCandidate(lines: OcrLineResult[]): number | null {
-  let best: number | null = null;
-  for (const line of lines) {
-    // Prefer a direct header parse first. Component normalization can drop an
-    // interior `1` on a valid 9-digit total (e.g. `164615505` → 8 digits) and
-    // discard the real Hero Power reading. Only normalize when digit length
-    // indicates separator-slot pollution (commas mapped into extra digits).
+function pickBestHeaderCandidate(
+  lines: OcrLineResult[],
+  cropHeight: number,
+): number | null {
+  const candidates: Array<{ yNorm: number; value: number }> = [];
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]!;
     const digitLen = line.text.replace(/\D/g, "").length;
-    let normalized = parseDigitsOnlyHeaderTotal(line.text);
+    let normalized =
+      parseDigitsOnlyHeaderTotalLoose(line.text) ??
+      parseDigitsOnlyHeaderTotal(line.text);
     if (normalized == null && digitLen > 9) {
       normalized = normalizeDigitsOnlyComponent(line.text);
     }
     if (normalized == null) continue;
-    // Hero Power totals dominate individual components (typically ≥100M once
-    // accounts leave early game). Reject component-sized readings that appear
-    // in the value column (gear / exclusive weapon / etc.).
     if (normalized < 100_000_000 || normalized > 1_000_000_000) continue;
-    if (best == null || normalized > best) best = normalized;
+
+    const yNorm =
+      lineYNorm(line, cropHeight) ??
+      (lines.length > 1 ? index / (lines.length - 1) : 0);
+    candidates.push({ yNorm, value: normalized });
   }
-  return best;
+
+  candidates.sort((a, b) => a.yNorm - b.yNorm);
+  return candidates[0]?.value ?? null;
 }
 
 
@@ -142,18 +160,22 @@ export async function parsePowerDetailsImage(
 
   const headerTotal = pickHeaderTotal(
     headerLinesRaw,
+    headerPre.height,
     valueInvLinesRaw,
+    valueInvPre.height,
     valueLinesRaw,
+    valuePre.height,
   );
 
   // The value column still contains the header-row total on the right. Drop it
   // so it cannot be y-zipped onto Hero Level (same failure mode as freeform
   // attaching the total to the wrong row).
   const values = valuesRaw.filter((line) => {
-    const asHeader = parseDigitsOnlyHeaderTotal(line.text);
-    if (headerTotal != null && asHeader === headerTotal) return false;
-    if (line.yNorm < 0.12 && asHeader != null) return false;
-    return true;
+    const asHeader =
+      parseDigitsOnlyHeaderTotalLoose(line.text) ??
+      parseDigitsOnlyHeaderTotal(line.text);
+    // Only drop the grey-bar total itself — not component rows misread as headers.
+    return !(headerTotal != null && asHeader === headerTotal);
   });
 
   const pairs = zipLabelsToValues({ labels, values });
