@@ -3693,6 +3693,7 @@
       "title": "Import conductor history",
       "pasteLabel": "Paste conductors (newest first)",
       "pasteHint": "One name per line. Optional dates like “Redd (July 26)”. Or paste names only and set the newest date below — older days are filled from the list length.",
+      "poolNote": "Importing a member will not remove them from any lottery pools.",
       "pasteEmpty": "Paste at least one conductor name.",
       "firstDate": "Newest date",
       "lastDate": "Oldest date (optional)",

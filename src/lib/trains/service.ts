@@ -56,7 +56,6 @@ import {
   getPoolSummary,
   listPoolEntries,
   listUnselectedPoolEntries,
-  markHistoryImportPoolsForMember,
   markPoolEntrySelected,
   markPoolMemberSelectedForDate,
   movePoolSelectionForDate,
@@ -1333,9 +1332,8 @@ export type ConductorHistoryImportRowResult = {
 
 /**
  * Backfill past locked conductors from a reviewed import.
- * Does not announce to Discord. Marks matching members selected in the
- * **current** R3 / R4+ pool generations so already-conducted officers are
- * not rolled again (re-import of an identical lock also depletes).
+ * Does not announce to Discord and does not mutate depleting pools — import
+ * has no reliable historical mechanism (VS Push vs Economy Week, etc.).
  */
 export async function importConductorHistory(input: {
   allianceId: string;
@@ -1401,11 +1399,6 @@ export async function importConductorHistory(input: {
 
       if (existing?.lockedAt) {
         if (existing.conductorMemberId === memberId) {
-          await markHistoryImportPoolsForMember(
-            input.allianceId,
-            memberId,
-            date,
-          );
           skipped += 1;
           results.push({ date, status: "skipped" });
           continue;
@@ -1435,11 +1428,6 @@ export async function importConductorHistory(input: {
         conductorRankEventId: rankEvent?.id ?? null,
       });
       await lockConductorRecord(draft.id, input.allianceId);
-      await markHistoryImportPoolsForMember(
-        input.allianceId,
-        memberId,
-        date,
-      );
       imported += 1;
       results.push({ date, status: "imported" });
     } catch (error) {
