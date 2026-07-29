@@ -109,6 +109,15 @@ describe("isHighConfidenceHistoricalDepositMatch", () => {
       ),
     ).toBe(true);
   });
+
+  it("rejects an unparsable depositAt instead of throwing", () => {
+    expect(
+      isHighConfidenceHistoricalDepositMatch(
+        identity({ depositAt: "not-a-date" }),
+        identity(),
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("shouldSkipHistoricalDepositDuplicate / shouldUpdateHistoricalDepositOutcome", () => {
@@ -189,6 +198,18 @@ describe("isMemberLinkedHistoricalDepositMatch", () => {
   it("does not match different roster members with the same financials", () => {
     const a = identity({ allianceMemberId: "am-1" });
     const b = identity({ allianceMemberId: "am-2" });
+    expect(isMemberLinkedHistoricalDepositMatch(a, b)).toBe(false);
+  });
+
+  it("does not match the same roster member when amount or term differs", () => {
+    const a = identity({ allianceMemberId: "am-bania", amount: 7000 });
+    const b = identity({ allianceMemberId: "am-bania" });
+    expect(isMemberLinkedHistoricalDepositMatch(a, b)).toBe(false);
+  });
+
+  it("does not match the same roster member when depositAt is unparsable", () => {
+    const a = identity({ allianceMemberId: "am-bania", depositAt: "not-a-date" });
+    const b = identity({ allianceMemberId: "am-bania" });
     expect(isMemberLinkedHistoricalDepositMatch(a, b)).toBe(false);
   });
 });
@@ -299,6 +320,58 @@ describe("findHistoricalDepositMatch — cross-job lifecycle", () => {
     });
     expect(shouldSkipHistoricalDepositDuplicate(reupload, stored)).toBe(true);
     expect(shouldUpdateHistoricalDepositOutcome(reupload, stored)).toBe(false);
+  });
+});
+
+describe("canHistoricalOutcomeUpdateLocked / shouldUpdateHistoricalDepositOutcome — non-matches", () => {
+  it("rejects a locked pairing candidate when amount or term does not match", () => {
+    const locked = identity({ status: "locked" });
+    const looted = identity({
+      status: "looted",
+      amount: 7000,
+      depositAt: "2026-07-10T12:20:00.000Z",
+    });
+    expect(canHistoricalOutcomeUpdateLocked(looted, locked)).toBe(false);
+  });
+
+  it("does not update a locked slip when a looted OCR row shares no identity fields", () => {
+    const locked = identity({ status: "locked" });
+    const unrelatedLooted = identity({
+      status: "looted",
+      commanderName: "Someone Else",
+      allianceMemberId: null,
+      amount: 9999,
+      depositAt: "2026-07-10T12:20:00.000Z",
+    });
+    expect(shouldUpdateHistoricalDepositOutcome(unrelatedLooted, locked)).toBe(
+      false,
+    );
+  });
+
+  it("rejects an unparsable outcome timestamp instead of throwing", () => {
+    const locked = identity({ status: "locked" });
+    const garbledLooted = identity({
+      status: "looted",
+      depositAt: "not-a-date",
+      outcomeAt: null,
+    });
+    expect(canHistoricalOutcomeUpdateLocked(garbledLooted, locked)).toBe(
+      false,
+    );
+  });
+
+  it("does not treat two terminal rows as duplicates when a timestamp is unparsable", () => {
+    const garbledStored = identity({
+      status: "looted",
+      depositAt: "not-a-date",
+    });
+    const incomingLooted = identity({
+      status: "looted",
+      depositAt: "2026-07-10T12:20:00.000Z",
+    });
+    expect(
+      shouldSkipHistoricalDepositDuplicate(incomingLooted, garbledStored),
+    ).toBe(false);
   });
 });
 

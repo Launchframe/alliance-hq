@@ -38,4 +38,28 @@ describe("formatDepositSlipSubmitSuccessMessage", () => {
       "Saved 1 deposit slips to Bank Management. Skipped 2 that already matched history.",
     );
   });
+
+  it("omits the skipped clause when nothing was skipped", () => {
+    expect(
+      formatDepositSlipSubmitSuccessMessage(t, { createdCount: 3 }),
+    ).toBe("Added 3 new deposit slip(s) to this bank.");
+    expect(
+      formatDepositSlipSubmitSuccessMessage(t, {
+        createdCount: 0,
+        updatedCount: 2,
+      }),
+    ).toBe("Saved 2 deposit slips to Bank Management.");
+  });
+
+  it("falls back to submitted when createdCount is omitted", () => {
+    expect(
+      formatDepositSlipSubmitSuccessMessage(t, { submitted: 4 }),
+    ).toBe("Added 4 new deposit slip(s) to this bank.");
+  });
+
+  it("defaults every count to zero when the payload is empty", () => {
+    expect(formatDepositSlipSubmitSuccessMessage(t, {})).toBe(
+      "Added 0 new deposit slip(s) to this bank.",
+    );
+  });
 });

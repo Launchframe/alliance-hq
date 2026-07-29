@@ -295,6 +295,10 @@ export async function commitDepositSlipsFromVideoJob(
       historicalMatch.allianceMemberId = links.allianceMemberId;
       historicalMatch.depositAllianceTag =
         draft.identity.allianceTag?.trim() || null;
+      // Keep in-memory outcomeAt in sync with what was just persisted so a
+      // later row in this same batch that re-reads this terminal event is
+      // matched against the real outcome instant, not the stale locked value.
+      historicalMatch.outcomeAt = updatePayload.outcomeAt ?? null;
       continue;
     }
 

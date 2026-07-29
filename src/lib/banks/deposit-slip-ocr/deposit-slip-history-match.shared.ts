@@ -5,12 +5,9 @@
  */
 
 import { DEPOSIT_AT_PROXIMITY_MS } from "@/lib/banks/deposit-slip-ocr/deposit-slip-dedupe.shared";
+import { canDepositSlipLifecyclePair } from "@/lib/banks/deposit-slip-ocr/deposit-slip-lifecycle.shared";
 import type { DepositStatus } from "@/lib/banks/types.shared";
 import { normalizeEntityName } from "@/lib/video/dedupe/fuzzy-name-cluster.shared";
-
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-/** OCR slack around exact term maturity (green is termDays after blue). */
-const MATURITY_ALIGNMENT_SLACK_MS = 12 * 60 * 60 * 1000;
 
 export type HistoricalDepositSlipIdentity = {
   commanderName: string;
@@ -183,20 +180,17 @@ export function canHistoricalOutcomeUpdateLocked(
   if (resolveStatus(existingLocked) !== "locked") return false;
   if (!historicalIdentityMatch(incoming, existingLocked)) return false;
 
-  const depositMs = depositAtMs(existingLocked.depositAt);
   const outcomeMs = incomingOutcomeMs(incoming);
-  if (depositMs == null || outcomeMs == null) return false;
-  if (outcomeMs < depositMs) return false;
+  if (outcomeMs == null) return false;
 
-  const termDays = incoming.termDays;
-  const span = outcomeMs - depositMs;
-  if (span > termDays * MS_PER_DAY + MS_PER_DAY) return false;
-
-  if (incomingStatus === "matured") {
-    const expected = termDays * MS_PER_DAY;
-    return span >= expected - MATURITY_ALIGNMENT_SLACK_MS;
-  }
-  return true;
+  return canDepositSlipLifecyclePair(
+    { depositAt: existingLocked.depositAt, termDays: existingLocked.termDays },
+    {
+      depositAt: new Date(outcomeMs).toISOString(),
+      termDays: incoming.termDays,
+      status: incomingStatus,
+    },
+  );
 }
 
 function isTerminalOutcomeDuplicate(
@@ -280,27 +274,14 @@ export function findHistoricalDepositMatch<
     }
   }
 
-  for (const slip of existing) {
-    if (isTerminalOutcomeDuplicate(incoming, slip, proximityMs)) {
-      return slip;
-    }
-  }
-
-  if (incomingStatus !== "looted") {
-    return null;
-  }
-
-  let best: T | null = null;
-  let bestDepositMs = Number.NEGATIVE_INFINITY;
-  for (const slip of existing) {
-    if (!canHistoricalOutcomeUpdateLocked(incoming, slip)) continue;
-    const ms = depositAtMs(slip.depositAt) ?? Number.NEGATIVE_INFINITY;
-    if (ms > bestDepositMs) {
-      bestDepositMs = ms;
-      best = slip;
-    }
-  }
-  return best;
+  // NB: a second isTerminalOutcomeDuplicate pass here would be dead code —
+  // for matured/looted incoming, the loop above (line ~256) already checked
+  // every slip with the same predicate and returned early on any match; for
+  // locked incoming, isTerminalOutcomeDuplicate always returns false (it
+  // excludes locked rows on either side). Same reasoning rules out a final
+  // canHistoricalOutcomeUpdateLocked rescan: the lifecycleLocked loop above
+  // already tried that exact predicate over the same `existing` list.
+  return null;
 }
 
 /** @deprecated Prefer {@link findHistoricalDepositMatch}. */

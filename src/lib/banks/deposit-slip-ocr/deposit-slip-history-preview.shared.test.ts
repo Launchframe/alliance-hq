@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { countReviewRowsMatchingBankHistory } from "@/lib/banks/deposit-slip-ocr/deposit-slip-history-preview.shared";
+import {
+  countReviewRowsMatchingBankHistory,
+  reviewRowToHistoricalIdentity,
+} from "@/lib/banks/deposit-slip-ocr/deposit-slip-history-preview.shared";
 import type { DepositSlipReviewValidationRow } from "@/lib/banks/deposit-slip-review-validation.shared";
 import type { SerializedDepositSlip } from "@/lib/banks/types.shared";
 
@@ -87,5 +90,87 @@ describe("countReviewRowsMatchingBankHistory", () => {
     );
 
     expect(counts).toEqual({ skipCount: 0, updateCount: 1 });
+  });
+
+  it("ignores rows with no matching history and rows that fail to produce a draft", () => {
+    const history = [historySlip({ id: "stored" })];
+    const counts = countReviewRowsMatchingBankHistory(
+      [
+        row({ id: "unrelated", ocrName: "Nobody Here" }),
+        row({ id: "incomplete", score: null }),
+      ],
+      history,
+    );
+
+    expect(counts).toEqual({ skipCount: 0, updateCount: 0 });
+  });
+});
+
+describe("reviewRowToHistoricalIdentity", () => {
+  it("returns null when the row cannot produce a complete draft", () => {
+    expect(
+      reviewRowToHistoricalIdentity(row({ id: "incomplete", score: null })),
+    ).toBeNull();
+  });
+
+  it("returns null for deleted rows without inspecting draft fields", () => {
+    expect(
+      reviewRowToHistoricalIdentity(row({ id: "gone", deleted: true })),
+    ).toBeNull();
+  });
+
+  it("returns null when powerLevel/memberLevel/profession are all unset", () => {
+    expect(
+      reviewRowToHistoricalIdentity(
+        row({
+          id: "bare",
+          powerLevel: undefined,
+          memberLevel: undefined,
+          profession: undefined,
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("resolves allianceMemberId from history when the row is roster-linked", () => {
+    const history = [
+      historySlip({
+        id: "stored",
+        commanderName: "Banla QC",
+        allianceMemberId: "am-bania",
+      }),
+    ];
+    const identity = reviewRowToHistoricalIdentity(
+      row({
+        id: "new",
+        ocrName: "Bania QC",
+        memberId: "ashed-bania",
+        memberName: "Banla QC",
+      }),
+      history,
+    );
+
+    expect(identity?.allianceMemberId).toBe("am-bania");
+  });
+
+  it("leaves allianceMemberId null when no history slip matches the roster name", () => {
+    const history = [
+      historySlip({
+        id: "stored",
+        commanderName: "Someone Else",
+        allianceMemberId: "am-other",
+      }),
+    ];
+    const identity = reviewRowToHistoricalIdentity(
+      row({
+        id: "new",
+        ocrName: "Bania QC",
+        memberId: "ashed-bania",
+        memberName: "Banla QC",
+      }),
+      history,
+    );
+
+    expect(identity?.allianceMemberId).toBeNull();
   });
 });

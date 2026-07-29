@@ -681,6 +681,64 @@ describe("commitDepositSlipsFromVideoJob", () => {
     expect(updateDepositSlip).toHaveBeenCalledTimes(1);
   });
 
+  it("does not double-insert when a repeated terminal row lands >15m from the initiate but near the just-applied outcome", async () => {
+    listDepositSlipsForBank.mockResolvedValue([
+      {
+        id: "hist-locked",
+        commanderName: "Blue Investor",
+        depositAt: new Date("2026-07-10T12:14:34.000Z"),
+        amount: 6000,
+        termDays: 3,
+        depositAllianceTag: "Roar",
+        status: "locked",
+      },
+    ]);
+
+    const result = await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-loot-1",
+          ocrName: "Blue Investor",
+          score: "6000",
+          // ~5m26s after initiate — matches the locked slip via lifecycle timing.
+          powerLevel: "2026-07-10T12:20:00.000Z",
+          memberLevel: 3,
+          profession: "looted",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: "early_termination_refund",
+          rank: 3000,
+          frameIndex: 0,
+          deleted: false,
+        },
+        {
+          id: "row-loot-2",
+          ocrName: "Blue Investor",
+          score: "6000",
+          // ~19m26s after initiate (outside DEPOSIT_AT_PROXIMITY_MS from the
+          // locked initiate) but only 14m after row-loot-1's outcome — a
+          // second OCR read of the same terminal event, not a new deposit.
+          powerLevel: "2026-07-10T12:34:00.000Z",
+          memberLevel: 3,
+          profession: "looted",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: "early_termination_refund",
+          rank: 3000,
+          frameIndex: 1,
+          deleted: false,
+        },
+      ],
+    });
+
+    expect(result.createdCount).toBe(0);
+    expect(result.updatedCount).toBe(1);
+    expect(result.skippedDuplicateCount).toBe(1);
+    expect(createDepositSlip).not.toHaveBeenCalled();
+    expect(updateDepositSlip).toHaveBeenCalledTimes(1);
+  });
+
   it("updates a locked slip from a day-later matured-only OCR upload", async () => {
     listDepositSlipsForBank.mockResolvedValue([
       {
