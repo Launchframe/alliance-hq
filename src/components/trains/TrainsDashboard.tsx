@@ -1971,12 +1971,14 @@ export function TrainsDashboard({ initial }: Props) {
                 spinDisabledReason: t("spinWeek.disabledReason.noEligibleDays"),
                 canSpinDates: (dates) =>
                   spinWheelDatesFromList({
+                    today: data.today,
                     dates,
                     dayConfigs: viewedMonth.dayConfigs,
                     weekRecords: viewedMonth.monthRecords,
                   }).length > 0,
                 onSpinSelected: (dates) => {
                   const eligible = spinWheelDatesFromList({
+                    today: data.today,
                     dates,
                     dayConfigs: viewedMonth.dayConfigs,
                     weekRecords: viewedMonth.monthRecords,

@@ -357,8 +357,8 @@ export function TrainMonthCalendar({
         ? [...selectionPreviewDates].sort()
         : selectedRange
           ? expandPaintRange(selectedRange.anchor, selectedRange.focus)
-          : [],
-    [selectionPreviewDates, selectedRange],
+          : [selectedDate],
+    [selectionPreviewDates, selectedDate, selectedRange],
   );
   const focusRecord = recordForDate(displayPage.monthRecords, selectedDate);
 

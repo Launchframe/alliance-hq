@@ -69,12 +69,14 @@ export function spinWheelDatesForRestOfWeek(input: {
 
 /** Wheel-eligible dates from an explicit list (month multi-select toolbar). */
 export function spinWheelDatesFromList(input: {
+  today: string;
   dates: string[];
   dayConfigs: SpinWeekDayConfig[];
   weekRecords: SpinWeekDayRecord[];
 }): string[] {
   const unique = [...new Set(input.dates)].sort();
   return unique.filter((date) => {
+    if (date < input.today) return false;
     const config = input.dayConfigs.find((row) => row.date === date);
     const record = input.weekRecords.find((row) => row.date === date);
     const locked = Boolean(record?.lockedAt);
