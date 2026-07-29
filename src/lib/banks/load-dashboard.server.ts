@@ -7,6 +7,7 @@ import {
   loadAllianceTag,
   loadBanksWithSlips,
 } from "@/lib/banks/repository.server";
+import { loadAllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import {
   BANK_READ_PERMISSION,
@@ -35,13 +36,14 @@ export async function loadBankManagementDashboard(
     return { forbidden: true as const };
   }
 
-  const [banks, effectiveSeason, allianceGameServerNumber, allianceTag, cityListSnapshot] =
+  const [banks, effectiveSeason, allianceGameServerNumber, allianceTag, cityListSnapshot, allianceSafeTimeSlot] =
     await Promise.all([
       loadBanksWithSlips(allianceId),
       getEffectiveSeasonForAlliance(allianceId),
       loadAllianceGameServerNumber(allianceId),
       loadAllianceTag(allianceId),
       loadAllianceBankCityListSnapshot(allianceId),
+      loadAllianceSafeTimeSlot(allianceId),
     ]);
 
   return buildBankManagementPayload(banks, {
@@ -59,5 +61,6 @@ export async function loadBankManagementDashboard(
       cityListSnapshot?.bankCityListServerTime?.toISOString() ?? null,
     bankCityListImportedAt:
       cityListSnapshot?.bankCityListImportedAt?.toISOString() ?? null,
+    allianceSafeTimeSlot,
   });
 }

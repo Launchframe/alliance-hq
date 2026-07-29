@@ -134,6 +134,11 @@ export const alliances = pgTable("alliances", {
   bankCityListImportedAt: timestamp("bank_city_list_imported_at", {
     withTimezone: true,
   }),
+  /**
+   * In-game Alliance Safe Time window start hour (server time): 04, 12, or 20.
+   * Protection resets on Wed/Sat at this hour.
+   */
+  allianceSafeTimeSlot: text("alliance_safe_time_slot"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -3169,6 +3174,11 @@ export const banks = pgTable(
     currentDepositValue: doublePrecision("current_deposit_value"),
     /** When this bank's City List deposit count/value was last imported. */
     cityListSnapshotAt: timestamp("city_list_snapshot_at", {
+      withTimezone: true,
+    }),
+    /** Officer-assessed counterparty risk (0–100); null = not yet assessed. */
+    counterpartyRiskScore: real("counterparty_risk_score"),
+    counterpartyRiskUpdatedAt: timestamp("counterparty_risk_updated_at", {
       withTimezone: true,
     }),
     notes: text("notes"),

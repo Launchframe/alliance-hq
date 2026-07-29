@@ -21,6 +21,7 @@ export type BankPayload = {
   priorCaptureCount?: number;
   currentDepositCount?: number | null;
   currentDepositValue?: number | null;
+  counterpartyRiskScore?: number | null;
   notes?: string | null;
 };
 
@@ -69,6 +70,8 @@ export function serializeBank(row: {
   currentDepositCount: number | null;
   currentDepositValue: number | null;
   cityListSnapshotAt?: Date | null;
+  counterpartyRiskScore?: number | null;
+  counterpartyRiskUpdatedAt?: Date | null;
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -90,6 +93,9 @@ export function serializeBank(row: {
     currentDepositCount: row.currentDepositCount,
     currentDepositValue: row.currentDepositValue,
     cityListSnapshotAt: row.cityListSnapshotAt?.toISOString() ?? null,
+    counterpartyRiskScore: row.counterpartyRiskScore ?? null,
+    counterpartyRiskUpdatedAt:
+      row.counterpartyRiskUpdatedAt?.toISOString() ?? null,
     notes: row.notes,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -167,6 +173,15 @@ export function validateBankPayload(body: BankPayload): string | null {
   if (body.dropByAt != null && body.dropByAt !== "") {
     if (Number.isNaN(new Date(body.dropByAt).getTime())) {
       return "dropByAt must be a valid ISO timestamp.";
+    }
+  }
+  if (body.counterpartyRiskScore != null) {
+    if (
+      typeof body.counterpartyRiskScore !== "number" ||
+      body.counterpartyRiskScore < 0 ||
+      body.counterpartyRiskScore > 100
+    ) {
+      return "counterpartyRiskScore must be between 0 and 100.";
     }
   }
   return null;

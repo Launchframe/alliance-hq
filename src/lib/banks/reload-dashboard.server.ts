@@ -1,5 +1,6 @@
 import "server-only";
 
+import { loadAllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.server";
 import {
   buildBankManagementPayload,
   loadAllianceBankCityListSnapshot,
@@ -25,6 +26,7 @@ export async function reloadBankManagementDashboard(
     allianceGameServerNumber,
     allianceTag,
     cityListSnapshot,
+    allianceSafeTimeSlot,
   ] = await Promise.all([
     loadBanksWithSlips(allianceId),
     sessionHasPermission(sessionId, BANK_WRITE_PERMISSION),
@@ -32,6 +34,7 @@ export async function reloadBankManagementDashboard(
     loadAllianceGameServerNumber(allianceId),
     loadAllianceTag(allianceId),
     loadAllianceBankCityListSnapshot(allianceId),
+    loadAllianceSafeTimeSlot(allianceId),
   ]);
 
   return buildBankManagementPayload(banks, {
@@ -48,5 +51,6 @@ export async function reloadBankManagementDashboard(
       cityListSnapshot?.bankCityListServerTime?.toISOString() ?? null,
     bankCityListImportedAt:
       cityListSnapshot?.bankCityListImportedAt?.toISOString() ?? null,
+    allianceSafeTimeSlot,
   });
 }

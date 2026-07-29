@@ -1,3 +1,6 @@
+import type { AllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.shared";
+import { loadAllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.server";
+import { loadAllianceTag } from "@/lib/banks/repository.server";
 import { and, asc, eq, ne } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
@@ -339,7 +342,12 @@ export async function deleteCaptureEvent(
 
 export function serializeBattlePlanDashboard(
   rows: Awaited<ReturnType<typeof loadBattlePlanRows>>,
-  options: { canWrite: boolean; todayServerDate: string },
+  options: {
+    canWrite: boolean;
+    todayServerDate: string;
+    allianceTag?: string | null;
+    allianceSafeTimeSlot?: AllianceSafeTimeSlot | null;
+  },
 ) {
   const settings = serializeBattlePlanSettings(rows.settings);
   return {
@@ -349,6 +357,8 @@ export function serializeBattlePlanDashboard(
     ),
     canWrite: options.canWrite,
     todayServerDate: options.todayServerDate,
+    allianceTag: options.allianceTag ?? null,
+    allianceSafeTimeSlot: options.allianceSafeTimeSlot ?? null,
   };
 }
 
@@ -357,6 +367,15 @@ export async function reloadSerializedDashboard(
   canWrite: boolean,
   todayServerDate: string,
 ) {
-  const rows = await loadBattlePlanRows(allianceId);
-  return serializeBattlePlanDashboard(rows, { canWrite, todayServerDate });
+  const [rows, allianceTag, allianceSafeTimeSlot] = await Promise.all([
+    loadBattlePlanRows(allianceId),
+    loadAllianceTag(allianceId),
+    loadAllianceSafeTimeSlot(allianceId),
+  ]);
+  return serializeBattlePlanDashboard(rows, {
+    canWrite,
+    todayServerDate,
+    allianceTag,
+    allianceSafeTimeSlot,
+  });
 }
