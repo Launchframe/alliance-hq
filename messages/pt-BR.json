@@ -2107,6 +2107,7 @@
       "takedownLabel": "Equipe takedown (tickets máximos)",
       "takedownHint": "Membros que continuam elegíveis mesmo acima da faixa de economia e sempre recebem o máximo de tickets no modo rifa — assim podem subir bem além de 7,2M sem perder acesso ao sorteio de condutor. Nos sábados do Price Is Freight, a loteria do condutor sorteia só desta lista (chance igual).",
       "takedownSearchPlaceholder": "Buscar no roster para adicionar membros…",
+      "takedownRemoveMember": "Remover {name} da equipe takedown",
       "takedownEmpty": "Nenhum membro correspondente no roster.",
       "chartCaption": "Curva de tickets e chance de vitória para o cliff configurado. Os pontos mostram as pontuações R3 do dia anterior (se disponíveis).",
       "chartCaptionUniform": "Chance igual para pontuações na faixa de economia. Membros da equipe takedown seguem elegíveis acima do teto. Os pontos mostram as pontuações R3 do dia anterior (se disponíveis).",

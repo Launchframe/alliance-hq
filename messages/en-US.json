@@ -2193,6 +2193,7 @@
       "takedownLabel": "Takedown team (max tickets)",
       "takedownHint": "Members who stay eligible even above the economy range, and always get max tickets in raffle mode — so they can push well past 7.2M without losing conductor draw access. On Price Is Freight Saturdays, the conductor lottery is drawn only from this list (equal chance).",
       "takedownSearchPlaceholder": "Search roster to add members…",
+      "takedownRemoveMember": "Remove {name} from takedown team",
       "takedownEmpty": "No matching roster members.",
       "chartCaption": "Ticket and win-chance curve for your cliff setting. Dots show yesterday's R3 scores (if available).",
       "chartCaptionUniform": "Equal chance for scores in the economy range. Takedown members stay eligible above the upper cap. Dots show yesterday's R3 scores (if available).",
