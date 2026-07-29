@@ -11,6 +11,7 @@ import {
   BUSTER_DAY_SNAPSHOT_MAX_DAY_DISTANCE,
   computeBusterDayEfficiencyReport,
   pickClosestByCalendarDate,
+  powerByAshedMemberFromParsedRows,
   type SerializedBusterDayEfficiencyRow,
 } from "@/lib/vs-performance/buster-day-efficiency.shared";
 import { busterDayWeekDates } from "@/lib/vs-performance/buster-day.shared";
@@ -152,7 +153,7 @@ async function loadKillsEventsByCommander(
  * Prefer these over historical power events so Sunday catch-up submits still
  * retain distinct Friday vs Sunday OCR readings.
  */
-async function loadPowerByAshedMemberFromRosterJob(
+export async function loadPowerByAshedMemberFromRosterJob(
   allianceId: string,
   jobId: string | null | undefined,
 ): Promise<Map<string, number>> {
@@ -189,15 +190,7 @@ async function loadPowerByAshedMemberFromRosterJob(
     .from(schema.parsedRows)
     .where(eq(schema.parsedRows.parseSessionId, job.parseSessionId));
 
-  for (const row of rows) {
-    if (row.deleted === 1) continue;
-    const memberId = row.memberId?.trim();
-    if (!memberId) continue;
-    const powerM = parsePowerLevelM(row.powerLevel);
-    if (powerM == null) continue;
-    byMember.set(memberId, powerM);
-  }
-  return byMember;
+  return powerByAshedMemberFromParsedRows(rows);
 }
 
 function powerNearDate(

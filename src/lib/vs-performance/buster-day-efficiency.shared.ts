@@ -1,3 +1,5 @@
+import { parsePowerLevelM } from "@/lib/commanders/power-stats.shared";
+
 /**
  * Pure Buster Day efficiency math (unit-testable without DB).
  *
@@ -156,6 +158,26 @@ export function calendarDayDistance(a: string, b: string): number {
     return Number.POSITIVE_INFINITY;
   }
   return Math.abs(Math.round((msA - msB) / 86_400_000));
+}
+
+/** Powers from roster video OCR rows, keyed by ashed member id. */
+export function powerByAshedMemberFromParsedRows(
+  rows: ReadonlyArray<{
+    memberId?: string | null;
+    powerLevel?: string | null;
+    deleted?: number | null;
+  }>,
+): Map<string, number> {
+  const byMember = new Map<string, number>();
+  for (const row of rows) {
+    if (row.deleted === 1) continue;
+    const memberId = row.memberId?.trim();
+    if (!memberId) continue;
+    const powerM = parsePowerLevelM(row.powerLevel);
+    if (powerM == null) continue;
+    byMember.set(memberId, powerM);
+  }
+  return byMember;
 }
 
 export function pickClosestByCalendarDate<T>(

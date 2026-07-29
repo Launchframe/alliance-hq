@@ -6,6 +6,7 @@ import {
   computeBusterDayEfficiencyReport,
   computeBusterDayEfficiencyRow,
   pickClosestByCalendarDate,
+  powerByAshedMemberFromParsedRows,
 } from "./buster-day-efficiency.shared";
 
 describe("computeBusterDayEfficiencyRow", () => {
@@ -264,5 +265,35 @@ describe("calendarDayDistance / pickClosestByCalendarDate", () => {
       1,
     );
     expect(picked?.value).toBe("sat");
+  });
+});
+
+describe("powerByAshedMemberFromParsedRows", () => {
+  it("maps OCR power rows by ashed member id", () => {
+    const powers = powerByAshedMemberFromParsedRows([
+      { memberId: "m1", powerLevel: "200.5M", deleted: 0 },
+      { memberId: "m2", powerLevel: "180M", deleted: 0 },
+    ]);
+    expect(powers.get("m1")).toBe(200.5);
+    expect(powers.get("m2")).toBe(180);
+  });
+
+  it("skips deleted, blank, and unparseable rows", () => {
+    const powers = powerByAshedMemberFromParsedRows([
+      { memberId: "m1", powerLevel: "100M", deleted: 1 },
+      { memberId: "  ", powerLevel: "100M", deleted: 0 },
+      { memberId: "m2", powerLevel: "n/a", deleted: 0 },
+      { memberId: "m3", powerLevel: "90M", deleted: 0 },
+    ]);
+    expect(powers.size).toBe(1);
+    expect(powers.get("m3")).toBe(90);
+  });
+
+  it("overwrites duplicate member ids with the last valid row", () => {
+    const powers = powerByAshedMemberFromParsedRows([
+      { memberId: "m1", powerLevel: "100M", deleted: 0 },
+      { memberId: "m1", powerLevel: "95M", deleted: 0 },
+    ]);
+    expect(powers.get("m1")).toBe(95);
   });
 });
