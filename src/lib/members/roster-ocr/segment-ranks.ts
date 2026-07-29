@@ -559,11 +559,14 @@ export function segmentByRankHeaders(
     });
 
     if (header) {
+      const previousRank = currentRank;
       if (header.rank != null) {
         currentRank = header.rank;
       }
       if (header.groupTitle) {
         currentGroupTitle = header.groupTitle;
+      } else if (header.rank != null && header.rank !== previousRank) {
+        currentGroupTitle = undefined;
       }
       afterRankBadge = isBareRankBadge(line);
       badgeRank = afterRankBadge ? (header.rank ?? undefined) : undefined;

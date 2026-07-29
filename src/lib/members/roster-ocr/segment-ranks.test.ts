@@ -499,6 +499,18 @@ describe("segmentByRankHeaders — pre-header rank inference", () => {
       segmented.find((r) => r.line.includes("shingon12345"))?.rank,
     ).toBe(3);
   });
+
+  it("clears sticky group title when the rank section changes without a new title", () => {
+    const segmented = segmentByRankHeaders([
+      "R4 Crowd Control 4/10",
+      "Alice",
+      "R2) 0/4",
+      "Crowd Control",
+    ]);
+    const continuation = segmented.find((r) => r.line === "Crowd Control");
+    expect(continuation?.isHeader).toBe(false);
+    expect(continuation?.rank).toBe(2);
+  });
 });
 
 describe("inferRankFromQuotaNumerator", () => {

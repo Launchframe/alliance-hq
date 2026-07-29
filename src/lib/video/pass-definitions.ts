@@ -4,8 +4,8 @@ export type ExtractionConfig = {
   sampleFps?: number;
   /**
    * In scene mode, also capture a frame every N source frames so fast scrolls
-   * through short rank sections are not missed. Derived from video fps and
-   * `sampleFps` when not set explicitly.
+   * through short rank sections are not missed. Set explicitly on roster
+   * defaults; otherwise omitted (scene-only).
    */
   supplementFps?: number;
 };

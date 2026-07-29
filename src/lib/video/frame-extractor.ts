@@ -168,7 +168,7 @@ export function supplementFrameIntervalForFps(
   supplementFps: number,
 ): number | null {
   if (videoFps == null || videoFps <= 0 || supplementFps <= 0) return null;
-  return Math.max(1, Math.round(videoFps / supplementFps));
+  return Math.max(1, Math.floor(videoFps / supplementFps));
 }
 
 /** Parse pts_time values emitted by ffmpeg's showinfo filter (one per output frame). */
