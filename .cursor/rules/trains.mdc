@@ -33,9 +33,9 @@ globs:
 
 Templates expand to **per-day** `train_day_configs` (conductor + VIP mechanisms).
 
-**Composite templates** (`COMPOSITE_WEEK_TEMPLATES` in `week-template-registry.shared.ts`) map a whole-week preset to segment templates per **calendar DOW relative to Tuesday** (Tue=0 … Mon=6 via `compositeSegmentDayIndex`) — independent of alliance `trainWeekStartDow`. Segment paint is stored on each day's `conductorConfig.paintTemplate`. User-defined reusable composites can extend the same registry later.
+**Composite templates** (`COMPOSITE_WEEK_TEMPLATES` in `week-template-registry.shared.ts`) map a whole-week preset to segment templates per **calendar DOW relative to Tuesday** (Tue=0 … Mon=6 via `compositeSegmentDayIndex` in `src/lib/trains/week-template-registry.shared.ts`) — independent of alliance `trainWeekStartDow`. Segment paint is stored on each day's `conductorConfig.paintTemplate`. User-defined reusable composites can extend the same registry later.
 
-**`takedown_week`** — composite Saturday segment for Price Is Freight heavy-hitter (max-ticket list). Conductor rolls use the **with-replacement** PIF path (`usesPriceIsFreightConductorRoll`), not depleting `heavy_hitter` pool consumption.
+**`takedown_week`** — composite Saturday segment for Price Is Freight heavy-hitter (max-ticket list). Conductor rolls use the **with-replacement** PIF path (`usesPriceIsFreightConductorRoll` in `src/lib/trains/heavy-hitter-pool.shared.ts`), not depleting `heavy_hitter` pool consumption.
 
 ## Economy-week pivot (per-day overrides)
 
@@ -83,7 +83,7 @@ Alliance settings may require minimum season HQ VR for `r3` and `heavy_hitter` p
 
 ### Price Is Freight (`price_is_right`)
 
-TPIF conductor rolls are **with-replacement** daily draws (`rollPriceIsFreightConductor`). They do **not** seed, mark, or reseed `conductor_pool_entries`. The same member may win consecutive days. Non-TPIF `r3_lottery` / `heavy_hitter_lottery` (e.g. `economy_week`, `r3_recognition`) still use depleting pools. **`takedown_week`** (composite Saturday segment) uses the same with-replacement PIF conductor path as weekday `price_is_right` / `price_is_right_weekdays` — gate via `usesPriceIsFreightConductorRoll` (not `isPriceIsRightPaintTemplate` alone, which excludes `takedown_week`).
+TPIF conductor rolls are **with-replacement** daily draws (`rollPriceIsFreightConductor`). They do **not** seed, mark, or reseed `conductor_pool_entries`. The same member may win consecutive days. Non-TPIF `r3_lottery` / `heavy_hitter_lottery` (e.g. `economy_week`, `r3_recognition`) still use depleting pools. **`takedown_week`** (composite Saturday segment) uses the same with-replacement PIF conductor path as weekday `price_is_right` / `price_is_right_weekdays` — gate via `usesPriceIsFreightConductorRoll` in `src/lib/trains/heavy-hitter-pool.shared.ts` (not `isPriceIsRightPaintTemplate` alone, which excludes `takedown_week`).
 
 Two alliance-configurable modes (settings → **The Price Is Freight**):
 
