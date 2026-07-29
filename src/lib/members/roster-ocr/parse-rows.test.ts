@@ -55,6 +55,52 @@ describe("parseLineTokens", () => {
     expect(result.extractedName).toBe("Big Daddy 123");
   });
 
+  it("does not mistake a last-seen timestamp for hero power (Xm ago)", () => {
+    // Regression: POWER_RE is case-insensitive, so "1m ago" was matched as
+    // "1M" power, leaving a dangling "ago" behind in the name once the
+    // digit+unit it depended on was stripped away.
+    const result = parseLineTokens("capt Atano 1m ago");
+    expect(result.heroPowerM).toBeUndefined();
+    expect(result.extractedName).toBe("capt Atano");
+  });
+
+  it("strips timestamps of various units without fabricating power", () => {
+    expect(parseLineTokens("ARC YDNA 14m ago").heroPowerM).toBeUndefined();
+    expect(parseLineTokens("ARC YDNA 14m ago").extractedName).toBe("ARC YDNA");
+    expect(parseLineTokens("BroHawk 1h ago").extractedName).toBe("BroHawk");
+    expect(parseLineTokens("Boozwell 38m ago").heroPowerM).toBeUndefined();
+  });
+
+  it("still extracts a real power reading alongside a timestamp elsewhere", () => {
+    const result = parseLineTokens("SomeName 5.3M 14m ago");
+    expect(result.heroPowerM).toBeCloseTo(5.3);
+    expect(result.extractedName).toBe("SomeName");
+  });
+
+  it("tolerates OCR misreading the power decimal point as an apostrophe or quote", () => {
+    expect(parseLineTokens("Gitolitosito Power:}160'0M").heroPowerM).toBeCloseTo(
+      160.0,
+    );
+    expect(
+      parseLineTokens('usagi Power:}148"4M').heroPowerM,
+    ).toBeCloseTo(148.4);
+    expect(parseLineTokens("SomeName 69'8M").heroPowerM).toBeCloseTo(69.8);
+  });
+
+  it("falls back to a bare L for member level when Power is on the same line", () => {
+    // OCR sometimes drops the "v" in "Lv" entirely. Real capture: the stats
+    // line is separate from the name line and merged in via isStatsOnlyLine.
+    const result = parseLineTokens("(as! Power]69'8M L126!");
+    expect(result.heroPowerM).toBeCloseTo(69.8);
+    expect(result.memberLevel).toBe(126);
+  });
+
+  it("does not treat a bare L in a name as level without Power context", () => {
+    const result = parseLineTokens("L33tHaxor");
+    expect(result.memberLevel).toBeUndefined();
+    expect(result.extractedName).toBe("L33tHaxor");
+  });
+
   it("strips R5 badge prefixes and last-online suffixes", () => {
     expect(cleanMemberName("R5| Corn Goo Smeller").name).toBe(
       "Corn Goo Smeller",
@@ -141,6 +187,20 @@ describe("parseRankListRows", () => {
     const linesNoHeader = ["Player1 1.0M", "Player2"];
     const rows = parseRankListRows(linesNoHeader);
     expect(rows).toHaveLength(0);
+  });
+
+  it("parses a member name with an inline last-seen timestamp without bogus power", () => {
+    const rows = parseRankListRows([
+      "Search for Members",
+      "R3 9/78",
+      "capt Atano 1m ago",
+      "Power: 69.8M Lv.126",
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.extractedName).toBe("capt Atano");
+    expect(rows[0]?.allianceRank).toBe(3);
+    expect(rows[0]?.heroPowerM).toBeCloseTo(69.8);
+    expect(rows[0]?.memberLevel).toBe(126);
   });
 
   it("excludes header chrome and merges Power/Lv onto the prior name", () => {
