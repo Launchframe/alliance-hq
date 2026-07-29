@@ -11,10 +11,17 @@ import {
   preventDefaultFormSubmit,
 } from "@/lib/client/form-enter-submit.shared";
 import { useFeedback } from "@/components/feedback";
+import { AdminReprocessDialog } from "@/components/admin/AdminReprocessDialog";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { Dialog } from "@/components/ui/dialog";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { useVideoJob } from "@/components/video/VideoJobEventsProvider";
+import {
+  canReprocessVideoJob,
+  resolveReprocessGateStatus,
+} from "@/lib/video/admin-job-actions";
+import type { AdminReprocessFpsAdjustment } from "@/lib/video/admin-reprocess-extraction.shared";
+import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import {
   formatAshedEventOptionLabel,
   formatEventOptionLabel,
@@ -307,6 +314,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [overlappingLockedConfirmOpen, setOverlappingLockedConfirmOpen] =
     useState(false);
   const [reprocessPending, setReprocessPending] = useState(false);
+  const [reprocessDialogOpen, setReprocessDialogOpen] = useState(false);
+  const [jobPassKey, setJobPassKey] = useState<string | null>(null);
+  const [jobExtractionConfigJson, setJobExtractionConfigJson] =
+    useState<unknown>(null);
   const [rematching, setRematching] = useState(false);
   const [groupActionBusy, setGroupActionBusy] = useState<string | null>(null);
   const [addingRowBusy, setAddingRowBusy] = useState<ManualRowPosition | null>(
@@ -574,6 +585,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             hqEventId?: string | null;
             rating?: string | null;
             timingsJson?: VideoProcessTimings | null;
+            passKey?: string | null;
+            extractionConfigJson?: unknown;
           };
           hasSourceVideo?: boolean;
           frameTimestamps?: FrameTimestampMap;
@@ -745,6 +758,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setAllianceName(data.alliance?.jobName ?? null);
         setAllianceStale(Boolean(data.alliance?.stale));
         setCanProcessVideo(Boolean(data.canProcessVideo));
+        setJobPassKey(data.job?.passKey ?? null);
+        setJobExtractionConfigJson(data.job?.extractionConfigJson ?? null);
       } catch (err) {
         if (isStale()) {
           return;
@@ -1925,13 +1940,19 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     );
   }
 
-  async function reprocess() {
+  async function reprocessWithOptions(body: {
+    adjustment?: AdminReprocessFpsAdjustment;
+    extraction?: ExtractionConfig;
+    parseConfigId?: string;
+  }) {
     setReprocessPending(true);
     clearActionError();
     setSuccess(null);
     try {
-      const res = await fetch(`/api/tools/video-upload/${jobId}/reprocess`, {
+      const res = await fetch(`/api/tools/video-jobs/${jobId}/reprocess`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
       const data = (await res.json()) as {
         error?: string;
@@ -1952,6 +1973,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setActionError(data.error ?? tc("uploadFailed"), data.connectUrl);
         return;
       }
+      setReprocessDialogOpen(false);
       clearDraft();
       setRows([]);
       // Seed the live-status ref so SSE review after queued triggers a refetch
@@ -1967,6 +1989,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       setReprocessPending(false);
     }
   }
+
+  const showReprocessAction =
+    canProcessVideo &&
+    !allianceStale &&
+    canReprocessVideoJob(
+      resolveReprocessGateStatus(jobStatus, liveJob?.status),
+    );
 
   async function handleDiscard() {
     setDiscarding(true);
@@ -2163,9 +2192,50 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           onDismiss={clearActionError}
           dismissLabel={t("comparisonClose")}
         />
-        <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
-          {t("backToUploads")}
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/tools/video-upload"
+            className="text-sm text-hq-accent hover:underline"
+          >
+            {t("backToUploads")}
+          </Link>
+          {showReprocessAction ? (
+            <button
+              type="button"
+              onClick={() => setReprocessDialogOpen(true)}
+              disabled={reprocessPending}
+              className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
+            >
+              {reprocessPending ? t("reprocessing") : t("reprocess")}
+            </button>
+          ) : null}
+          {canProcessVideo && !allianceStale ? (
+            <Link
+              href={`/tools/video-jobs/${jobId}`}
+              className="text-sm text-hq-accent hover:underline"
+            >
+              {tJobs("inspect")}
+            </Link>
+          ) : null}
+        </div>
+        {reprocessDialogOpen ? (
+          <AdminReprocessDialog
+            key={jobId}
+            open
+            jobId={jobId}
+            passKey={jobPassKey}
+            extractionConfigJson={jobExtractionConfigJson}
+            busy={reprocessPending}
+            onOpenChange={(nextOpen) => {
+              if (!nextOpen && !reprocessPending) {
+                setReprocessDialogOpen(false);
+              }
+            }}
+            onConfirm={(body) => {
+              void reprocessWithOptions(body);
+            }}
+          />
+        ) : null}
       </div>
     );
   }
@@ -2248,6 +2318,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               >
                 {tJobs("inspect")}
               </Link>
+            ) : null}
+            {showReprocessAction ? (
+              <button
+                type="button"
+                onClick={() => setReprocessDialogOpen(true)}
+                disabled={reprocessPending}
+                className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted disabled:opacity-50"
+              >
+                {reprocessPending ? t("reprocessing") : t("reprocess")}
+              </button>
             ) : null}
             {canComparePasses ? (
               <button
@@ -2377,14 +2457,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       {activeRows.length === 0 && !isEventView && (
         <div className="rounded-xl border border-[#d29922]/40 bg-[#d29922]/10 p-4 text-sm">
           <p className="text-[#e3b341]">{t("noEntriesHint")}</p>
-          <button
-            type="button"
-            onClick={() => void reprocess()}
-            disabled={reprocessPending}
-            className="mt-3 rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
-          >
-            {reprocessPending ? t("reprocessing") : t("reprocess")}
-          </button>
+          {showReprocessAction ? (
+            <button
+              type="button"
+              onClick={() => setReprocessDialogOpen(true)}
+              disabled={reprocessPending}
+              className="mt-3 rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
+            >
+              {reprocessPending ? t("reprocessing") : t("reprocess")}
+            </button>
+          ) : null}
           {actionErrorNearReprocess ? (
             <div className="mt-3">{renderActionErrorBanner()}</div>
           ) : null}
@@ -3413,6 +3495,24 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           <MonitorPlay className="h-4 w-4 shrink-0" aria-hidden />
           {t("previewVideo")}
         </button>
+      ) : null}
+      {reprocessDialogOpen ? (
+        <AdminReprocessDialog
+          key={jobId}
+          open
+          jobId={jobId}
+          passKey={jobPassKey}
+          extractionConfigJson={jobExtractionConfigJson}
+          busy={reprocessPending}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen && !reprocessPending) {
+              setReprocessDialogOpen(false);
+            }
+          }}
+          onConfirm={(body) => {
+            void reprocessWithOptions(body);
+          }}
+        />
       ) : null}
     </div>
   );
