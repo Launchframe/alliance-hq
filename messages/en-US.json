@@ -4885,7 +4885,8 @@
       "createClaimInvite": "Create claim invite",
       "claimInviteCreated": "Claim invite for **{name}**:\n\nCode: `{code}`\n\n{shareMessage}",
       "claimInviteDenied": "Only officers can create commander claim invites.",
-      "claimInviteFailed": "Could not create a claim invite: {reason}"
+      "claimInviteFailedCommanderNotFound": "That commander is not on the active roster.",
+      "claimInviteFailedCommanderAlreadyClaimed": "That commander is already linked to an account."
     },
     "timeOff": {
       "notLinked": "Link your commander with `/link-commander` before announcing time off.",

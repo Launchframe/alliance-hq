@@ -2,6 +2,7 @@ import "server-only";
 
 import { discordBotAppOrigin } from "@/lib/discord/app-url.shared";
 import { callerCanIssueClaimInviteFromDiscord } from "@/lib/discord/claim-invite-auth.server";
+import { whoIsClaimInviteFailedMessageKey } from "@/lib/discord/who-is-claim-invite-errors.shared";
 import {
   createDiscordTranslator,
   type DiscordBotLocale,
@@ -348,7 +349,7 @@ export async function handleDiscordWhoIsClaimInvite(input: {
     return { reply };
   } catch (error) {
     if (error instanceof CommanderClaimInviteError) {
-      const reply = t("whoIs.claimInviteFailed", { reason: error.message });
+      const reply = t(whoIsClaimInviteFailedMessageKey(error.code));
       await auditWhoIs(
         input.allianceId,
         input.discordUserId,
