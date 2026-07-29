@@ -57,3 +57,20 @@ export function isInFlightProcessingStatus(status: string): boolean {
     status === "queued" || status === "extracting" || status === "parsing"
   );
 }
+
+/**
+ * Successful / operator-owned statuses that must not be overwritten by a
+ * losing duplicate worker calling {@link markVideoJobFailed}.
+ */
+export const VIDEO_JOB_FAIL_PROTECTED_STATUSES = [
+  "review",
+  "complete",
+  "submitting",
+  "discarded",
+] as const;
+
+export function isVideoJobFailProtectedStatus(status: string): boolean {
+  return (VIDEO_JOB_FAIL_PROTECTED_STATUSES as readonly string[]).includes(
+    status,
+  );
+}
