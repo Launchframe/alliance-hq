@@ -76,7 +76,6 @@ import {
 import type {
   MonthSchedulePagePayload,
   TrainsDashboardPayload,
-  WeekConductorRecordSummary,
   WeekSchedulePagePayload,
 } from "@/lib/trains/load-dashboard";
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
