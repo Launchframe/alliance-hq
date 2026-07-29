@@ -167,6 +167,29 @@ describe("runWebMemberLinkSubmit onboarding unblockers", () => {
     expect(roster.tryBootstrapOwnerColdStartMember).not.toHaveBeenCalled();
   });
 
+  it("rejects ownerLookupFallback when UID is not found", async () => {
+    vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
+      ok: false,
+      reason: "not_found",
+      message: "That UID was not found.",
+    });
+
+    const result = await runWebMemberLinkSubmit({
+      sessionId: "sess-1",
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+      reportedName: "Fabricated Name",
+      gameUid: "1234567890121203",
+      ownerProvidedServerNumber: 1203,
+      ownerLookupFallback: true,
+    });
+
+    expect(result.outcome).toBe("lookup_error");
+    expect(result.message).toBe("That UID was not found.");
+    expect(roster.tryBootstrapOwnerColdStartMember).not.toHaveBeenCalled();
+  });
+
   it("never echoes the submitted player UID in the success response", async () => {
     vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
       ok: false,
