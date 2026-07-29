@@ -37,6 +37,12 @@ describe("parseTrainRollError", () => {
         error: "No VR standings found for the wheel.",
       }),
     ).toEqual({ code: "NO_WHEEL_CANDIDATES", candidateKind: "vr" });
+    expect(
+      parseTrainRollError({
+        error:
+          "Only 2 of 5 active-roster VR standings available for Top 5.",
+      }),
+    ).toEqual({ code: "NO_WHEEL_CANDIDATES", candidateKind: "vr" });
   });
 
   it("returns null for unrelated errors", () => {

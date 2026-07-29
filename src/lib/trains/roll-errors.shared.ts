@@ -54,6 +54,13 @@ export function parseTrainRollError(
     return { code: "NO_WHEEL_CANDIDATES", candidateKind: "vr" };
   }
 
+  if (
+    message.startsWith("Only ") &&
+    message.includes(" active-roster VR standings available for Top ")
+  ) {
+    return { code: "NO_WHEEL_CANDIDATES", candidateKind: "vr" };
+  }
+
   if (message === "No event scores found for VIP wheel.") {
     return { code: "NO_WHEEL_CANDIDATES", candidateKind: "event" };
   }

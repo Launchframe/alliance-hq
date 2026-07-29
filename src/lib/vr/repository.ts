@@ -1,4 +1,16 @@
-import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNull,
+  lt,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
@@ -712,7 +724,13 @@ export async function countSeasonReporters(
   return allianceRows.length;
 }
 
-/** Active alliance members with season VR `highest_base_vr > 0`. */
+/**
+ * Active roster members (`alliance_members.status != former`, non-empty name)
+ * with open membership and season VR `highest_base_vr > 0`.
+ *
+ * Must match `fetchNativeVrTopScorers` eligibility — Top VR scope unlock uses
+ * this count against the same population the wheel draws from.
+ */
 export async function countAllianceSeasonVrReporters(
   allianceId: string,
   seasonKey: string,
@@ -732,6 +750,18 @@ export async function countAllianceSeasonVrReporters(
         ),
         eq(schema.commanderAllianceMemberships.allianceId, allianceId),
         isNull(schema.commanderAllianceMemberships.leftAt),
+      ),
+    )
+    .innerJoin(
+      schema.allianceMembers,
+      and(
+        eq(schema.allianceMembers.allianceId, allianceId),
+        eq(
+          schema.allianceMembers.ashedMemberId,
+          schema.commanderAllianceMemberships.ashedMemberId,
+        ),
+        ne(schema.allianceMembers.status, "former"),
+        sql`length(trim(${schema.allianceMembers.currentName})) > 0`,
       ),
     )
     .where(

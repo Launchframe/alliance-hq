@@ -122,14 +122,14 @@ All queries filter by session **`allianceId`**.
 | Surface | Mechanism | Scopes | Score source | Template-time lock |
 |--------|-----------|--------|--------------|--------------------|
 | **Top VS** | `vs_top_n` (+ legacy `vs_high_score`→1, `vs_top_10`→10) | 1, 3, 5, 10 | Prior-day **daily** Ashed VS (active roster only) | **Never** by reporter/score count — spin gated by `prior_day_vs` upload readiness |
-| **Top VR** | `vr_top_n` | 3, 5, 10 only | Season HQ VR | Scope N locked until `vrReporterCount >= 2×N` |
+| **Top VR** | `vr_top_n` | 3, 5, 10 only | Season HQ VR (active roster only) | Scope N locked until active-roster `vrReporterCount >= 2×N` |
 
 Paint ids `top_vs` / `top_vr` open a scope picker. `conductor_config.topN` is merged with `paintTemplate` (do not wipe `topN` in `withPaintTemplateConfig`).
 
 ## Data sources
 
 - **Top VS** (`vs_high_score` / `vs_top_10` / `vs_top_n`) — prior-day **daily** Ashed `VSScore` for T−1 (`vsScoreReferenceDate(trainDate)`); filter out `is_weekly` week-ending rows; **dedupe by member** (keep max score) before Top N slice; **intersect with active HQ roster** (exclude former members). Empty when T−1 is Sunday (VS break). Readiness `prior_day_vs`.
-- **Top VR** (`vr_top_n`) — HQ `memberSeasonVr`; readiness kind `vr`.
+- **Top VR** (`vr_top_n`) — HQ `memberSeasonVr` among active roster members; readiness kind `vr`.
 - **Event Top X VIP** — HQ season VR / event scores.
 - **Pools, economy filters, Price Is Right tickets** — HQ roster + prior-day VS where applicable.
 - Donation wheels require manual officer picks until HQ stores donation scores.
