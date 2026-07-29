@@ -103,6 +103,13 @@ describe("dedupeRosterMembersAcrossFrames", () => {
     expect(result.report.clusters[0]?.disposition).toBe("auto_merged");
     expect(result.report.inputCount).toBe(2);
     expect(result.report.outputCount).toBe(1);
+
+    // The destination's snapshot must reflect the absorbed stats, not its
+    // pre-merge reading, so dedupeReportJson matches the persisted row.
+    const destinationSnapshot = result.report.clusters[0]!.members.find(
+      (m) => m.slipId === survivor.rowId,
+    );
+    expect(destinationSnapshot?.snapshot.powerLevel).toBe("12.4M");
   });
 
   it("clusters across a null rank (early frame before any header was seen)", () => {

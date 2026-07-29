@@ -69,29 +69,25 @@ function ranksCompatible(
   return a.allianceRank === b.allianceRank;
 }
 
-function inNeighboringFrames(
-  a: ExtractedRosterMember,
-  b: ExtractedRosterMember,
-  window: number,
-): boolean {
-  const fa = a._sourceFrameIndex;
-  const fb = b._sourceFrameIndex;
-  if (fa == null || fb == null) return false;
-  const distance = Math.abs(fa - fb);
-  // Same-frame near-misses are two visually distinct list rows — two real
-  // members — so only pair rows from *different* nearby frames.
-  return distance > 0 && distance <= window;
-}
-
-function snapshotOf(row: IndexedRow): DedupeClusterMemberSnapshot {
+/**
+ * `memberOverride` lets a survivor's snapshot reflect its post-absorption
+ * state (the fields it picked up from dropped duplicates) instead of its
+ * original pre-merge reading, so the report stays consistent with what
+ * actually gets persisted for that row.
+ */
+function snapshotOf(
+  row: IndexedRow,
+  memberOverride?: ExtractedRosterMember,
+): DedupeClusterMemberSnapshot {
+  const member = memberOverride ?? row.member;
   return {
     slipId: row.rowId,
     snapshot: {
-      currentName: row.member.currentName,
-      allianceRank: row.member.allianceRank,
-      powerLevel: row.member.powerLevel,
-      memberLevel: row.member.memberLevel,
-      frameIndex: row.member._sourceFrameIndex ?? null,
+      currentName: member.currentName,
+      allianceRank: member.allianceRank,
+      powerLevel: member.powerLevel,
+      memberLevel: member.memberLevel,
+      frameIndex: member._sourceFrameIndex ?? null,
     },
   };
 }
@@ -174,20 +170,63 @@ export function dedupeRosterMembersAcrossFrames(
   }));
 
   const uf = new UnionFind(rows.length);
-  for (let i = 0; i < rows.length; i += 1) {
-    for (let j = i + 1; j < rows.length; j += 1) {
-      const a = rows[i]!;
-      const b = rows[j]!;
-      if (!a.normalized || !b.normalized) continue;
-      if (!ranksCompatible(a.member, b.member)) continue;
 
-      if (a.normalized === b.normalized) {
-        uf.union(i, j);
-        continue;
+  // Exact-normalized-name duplicates can be many frames apart (a member
+  // scrolls off-screen and back later), so they are intentionally NOT
+  // frame-windowed — but grouping by name first keeps this O(n) instead of
+  // comparing every row against every other row for an exact-string check.
+  const byNormalizedName = new Map<string, number[]>();
+  for (const row of rows) {
+    if (!row.normalized) continue;
+    const bucket = byNormalizedName.get(row.normalized);
+    if (bucket) bucket.push(row.index);
+    else byNormalizedName.set(row.normalized, [row.index]);
+  }
+  for (const indices of byNormalizedName.values()) {
+    if (indices.length < 2) continue;
+    // Same-name buckets are small (a handful of repeated sightings of one
+    // member), so pairwise comparison here is cheap regardless of roster size.
+    for (let i = 0; i < indices.length; i += 1) {
+      for (let j = i + 1; j < indices.length; j += 1) {
+        const a = rows[indices[i]!]!;
+        const b = rows[indices[j]!]!;
+        if (ranksCompatible(a.member, b.member)) {
+          uf.union(a.index, b.index);
+        }
       }
-      if (!inNeighboringFrames(a.member, b.member, frameWindow)) continue;
-      if (stringSimilarity(a.normalized, b.normalized) >= flagThreshold) {
-        uf.union(i, j);
+    }
+  }
+
+  // Fuzzy near-miss matching is restricted to `frameWindow` neighboring
+  // frames by design (see `inNeighboringFrames`'s original semantics), so
+  // bucket rows by frame index and only compare frames within the window
+  // instead of scanning every row pair — roster videos can carry hundreds
+  // of frames, and an all-pairs scan there was an avoidable O(n^2) hot spot.
+  const rowsByFrame = new Map<number, IndexedRow[]>();
+  for (const row of rows) {
+    const frame = row.member._sourceFrameIndex;
+    if (frame == null) continue;
+    const bucket = rowsByFrame.get(frame);
+    if (bucket) bucket.push(row);
+    else rowsByFrame.set(frame, [row]);
+  }
+  const frameIndices = [...rowsByFrame.keys()].sort((a, b) => a - b);
+  for (const frame of frameIndices) {
+    const currentRows = rowsByFrame.get(frame)!;
+    // Only look forward: the pair (frame, frame + distance) is covered once
+    // here and never needs to be revisited from the neighbor's own pass.
+    for (let distance = 1; distance <= frameWindow; distance += 1) {
+      const neighborRows = rowsByFrame.get(frame + distance);
+      if (!neighborRows) continue;
+      for (const a of currentRows) {
+        if (!a.normalized) continue;
+        for (const b of neighborRows) {
+          if (!b.normalized || a.normalized === b.normalized) continue;
+          if (!ranksCompatible(a.member, b.member)) continue;
+          if (stringSimilarity(a.normalized, b.normalized) >= flagThreshold) {
+            uf.union(a.index, b.index);
+          }
+        }
       }
     }
   }
@@ -244,6 +283,18 @@ export function dedupeRosterMembersAcrossFrames(
       (a, b) => completeness(b.member) - completeness(a.member),
     )[0]!;
 
+    // Survivors may carry absorbed fields from dropped same-name duplicates
+    // (see `absorbInto`) — snapshot each surviving row's *post-absorption*
+    // state so the report matches what actually gets persisted, instead of
+    // the pre-merge reading `bucket` still holds for that row.
+    const survivorMemberByRowId = new Map<string, ExtractedRosterMember>();
+    for (const survivor of survivors) {
+      survivorMemberByRowId.set(survivor.rowId, survivor.member);
+    }
+    const clusterMembers = bucket.map((row) =>
+      snapshotOf(row, survivorMemberByRowId.get(row.rowId)),
+    );
+
     if (survivors.length === 1) {
       // Pure duplicate readings — auto-merge, no officer action needed.
       survivorByIndex.set(destination.index, {
@@ -256,7 +307,7 @@ export function dedupeRosterMembersAcrossFrames(
         disposition: "auto_merged",
         reason: "identical_roster_name_variants",
         destinationSlipId: destination.rowId,
-        members: bucket.map(snapshotOf),
+        members: clusterMembers,
         ...(correctedFields.size > 0
           ? { correctedFields: [...correctedFields] }
           : {}),
@@ -278,7 +329,7 @@ export function dedupeRosterMembersAcrossFrames(
       disposition: "flagged",
       reason: ROSTER_FUZZY_FLAG_REASON,
       destinationSlipId: destination.rowId,
-      members: bucket.map(snapshotOf),
+      members: clusterMembers,
     });
   }
 
