@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import { DEPOSIT_AT_PROXIMITY_MS } from "@/lib/banks/deposit-slip-ocr/deposit-slip-dedupe.shared";
 import {
   findHighConfidenceHistoricalDepositMatch,
+  findHistoricalDepositMatch,
   isHighConfidenceHistoricalDepositMatch,
   isLifecycleHistoricalDepositMatch,
+  isMemberLinkedHistoricalDepositMatch,
   shouldSkipHistoricalDepositDuplicate,
   shouldUpdateHistoricalDepositOutcome,
 } from "@/lib/banks/deposit-slip-ocr/deposit-slip-history-match.shared";
@@ -20,6 +22,7 @@ function identity(
     depositAllianceTag: string | null;
     status: "locked" | "matured" | "looted";
     outcomeAt: string | null;
+    allianceMemberId: string | null;
   }> = {},
 ) {
   return {
@@ -29,6 +32,8 @@ function identity(
     termDays: 3,
     depositAllianceTag: "Roar",
     status: "locked" as const,
+    outcomeAt: null as string | null,
+    allianceMemberId: null as string | null,
     ...overrides,
   };
 }
@@ -163,9 +168,6 @@ describe("shouldSkipHistoricalDepositDuplicate / shouldUpdateHistoricalDepositOu
   });
 
   it("skips without downgrading when two different terminal statuses match", () => {
-    // Only locked->matured/looted is a valid outcome update; a deposit cannot
-    // legitimately flip between matured and looted, so a proximity match
-    // between two different terminal statuses should skip, not overwrite.
     const matured = identity({
       status: "matured",
       depositAt: "2026-07-10T12:14:34.000Z",
@@ -221,6 +223,54 @@ describe("isLifecycleHistoricalDepositMatch", () => {
       ),
     ).toBe(false);
   });
+
+  it("pairs terminal OCR with locked initiate via roster member id when names differ", () => {
+    const locked = identity({
+      commanderName: "Banla QC",
+      allianceMemberId: "am-bania",
+      status: "locked",
+      depositAt: "2026-07-10T12:14:34.000Z",
+      termDays: 3,
+    });
+    const matured = identity({
+      commanderName: "Bania QC",
+      allianceMemberId: "am-bania",
+      status: "matured",
+      depositAt: "2026-07-13T12:14:34.000Z",
+      termDays: 3,
+    });
+    expect(isLifecycleHistoricalDepositMatch(matured, locked)).toBe(true);
+    expect(shouldUpdateHistoricalDepositOutcome(matured, locked)).toBe(true);
+  });
+});
+
+describe("isMemberLinkedHistoricalDepositMatch", () => {
+  it("matches the same roster member when OCR commander names differ", () => {
+    const banla = identity({
+      commanderName: "Banla QC",
+      allianceMemberId: "am-bania",
+    });
+    const bania = identity({
+      commanderName: "Bania QC",
+      allianceMemberId: "am-bania",
+    });
+    expect(isMemberLinkedHistoricalDepositMatch(bania, banla)).toBe(true);
+    expect(isHighConfidenceHistoricalDepositMatch(bania, banla)).toBe(false);
+    expect(shouldSkipHistoricalDepositDuplicate(bania, banla)).toBe(true);
+  });
+
+  it("does not match different roster members with the same financials", () => {
+    const a = identity({ allianceMemberId: "am-1" });
+    const b = identity({ allianceMemberId: "am-2" });
+    expect(isMemberLinkedHistoricalDepositMatch(a, b)).toBe(false);
+  });
+
+  it("requires allianceMemberId on both sides", () => {
+    const linked = identity({ allianceMemberId: "am-1" });
+    const unlinked = identity({ allianceMemberId: null });
+    expect(isMemberLinkedHistoricalDepositMatch(linked, unlinked)).toBe(false);
+    expect(isMemberLinkedHistoricalDepositMatch(unlinked, linked)).toBe(false);
+  });
 });
 
 describe("findHighConfidenceHistoricalDepositMatch", () => {
@@ -235,8 +285,6 @@ describe("findHighConfidenceHistoricalDepositMatch", () => {
   });
 
   it("prefers a lifecycle-locked initiate over a proximity re-deposit", () => {
-    // Day-0 blue still locked; commander re-deposited the same amount/term at
-    // maturity. Green OCR is near the new blue — must close the old slip.
     const oldLocked = identity({
       status: "locked",
       depositAt: "2026-07-10T12:14:34.000Z",
@@ -279,6 +327,27 @@ describe("findHighConfidenceHistoricalDepositMatch", () => {
     expect(
       shouldUpdateHistoricalDepositOutcome(maturedOcr, maturedHistory),
     ).toBe(false);
+  });
+
+  it("finds member-linked history when commander OCR differs", () => {
+    const history = [
+      identity({
+        commanderName: "Banla QC",
+        allianceMemberId: "am-bania",
+      }),
+    ];
+    expect(
+      findHistoricalDepositMatch(
+        identity({ commanderName: "Bania QC", allianceMemberId: "am-bania" }),
+        history,
+      ),
+    ).toBe(history[0]);
+    expect(
+      findHighConfidenceHistoricalDepositMatch(
+        identity({ commanderName: "Bania QC", allianceMemberId: "am-bania" }),
+        history,
+      ),
+    ).toBe(history[0]);
   });
 });
 

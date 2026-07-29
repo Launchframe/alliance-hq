@@ -57,19 +57,38 @@ describe("commitDepositSlipsFromVideoJob", () => {
     createDepositSlip.mockResolvedValue({ id: "slip-1" });
     updateDepositSlip.mockResolvedValue({ id: "slip-1" });
     createDepositSlipMemberResolverCache.mockReturnValue({});
-    resolveDepositSlipMemberLinks.mockResolvedValue({
-      depositAllianceId: "alliance-roar",
-      allianceMemberId: "am-1",
-      commanderId: "cmd-1",
-      ashedMemberId: "ashed-1",
-      matchMethod: "exact",
-      matchConfidence: 1,
-      candidateAshedMemberId: "ashed-1",
-      candidateMemberName: "Blue Investor",
-      candidateMatchMethod: "exact",
-      candidateConfidence: 1,
-      tagMatchMethod: "exact",
-      tagMatchConfidence: 1,
+    resolveDepositSlipMemberLinks.mockImplementation(async (input) => {
+      const linked =
+        Boolean(input.preferredAshedMemberId) ||
+        Boolean(input.commanderName?.trim());
+      const rosterName =
+        input.commanderName === "Bania QC"
+          ? "Banla QC"
+          : input.commanderName;
+      return {
+        depositAllianceId: "alliance-roar",
+        rosterAllianceId: "alliance-roar",
+        resolvedAllianceTag: "Roar",
+        allianceMemberId: linked
+          ? input.preferredAshedMemberId === "ashed-bania"
+            ? "am-bania"
+            : "am-1"
+          : null,
+        commanderId: linked ? "cmd-1" : null,
+        ashedMemberId: input.preferredAshedMemberId,
+        matchMethod: linked
+          ? input.commanderName === "Bania QC"
+            ? "fuzzy"
+            : "exact"
+          : "none",
+        matchConfidence: linked ? 1 : 0,
+        candidateAshedMemberId: input.preferredAshedMemberId,
+        candidateMemberName: rosterName,
+        candidateMatchMethod: linked ? "exact" : "none",
+        candidateConfidence: linked ? 1 : 0,
+        tagMatchMethod: "exact",
+        tagMatchConfidence: 1,
+      };
     });
   });
 
@@ -712,6 +731,96 @@ describe("commitDepositSlipsFromVideoJob", () => {
     );
   });
 
+  it("skips re-upload duplicates when stored history shares roster member id", async () => {
+    listDepositSlipsForBank.mockResolvedValue([
+      {
+        id: "hist-banla",
+        commanderName: "Banla QC",
+        depositAt: new Date("2026-07-28T21:11:22.000Z"),
+        amount: 6000,
+        termDays: 5,
+        depositAllianceTag: "Roar",
+        status: "locked",
+        allianceMemberId: "am-bania",
+      },
+    ]);
+
+    const result = await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-bania",
+          ocrName: "Bania QC",
+          score: "6000",
+          powerLevel: "2026-07-28T21:11:22.000Z",
+          memberLevel: 5,
+          profession: "locked",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: null,
+          frameIndex: 8,
+          deleted: false,
+          memberId: "ashed-bania",
+          matchMethod: "fuzzy",
+        },
+      ],
+    });
+
+    expect(result.createdCount).toBe(0);
+    expect(result.skippedDuplicateCount).toBe(1);
+    expect(createDepositSlip).not.toHaveBeenCalled();
+  });
+
+  it("skips OCR name-variant duplicates within one batch when roster member matches", async () => {
+    const result = await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-banla",
+          ocrName: "Banla QC",
+          score: "6000",
+          powerLevel: "2026-07-28T21:11:22.000Z",
+          memberLevel: 5,
+          profession: "locked",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: null,
+          frameIndex: 7,
+          deleted: false,
+          memberId: "ashed-bania",
+          matchMethod: "exact",
+        },
+        {
+          id: "row-bania",
+          ocrName: "Bania QC",
+          score: "6000",
+          powerLevel: "2026-07-28T21:11:22.000Z",
+          memberLevel: 5,
+          profession: "locked",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: null,
+          frameIndex: 8,
+          deleted: false,
+          memberId: "ashed-bania",
+          matchMethod: "fuzzy",
+        },
+      ],
+    });
+
+    expect(result.createdCount).toBe(1);
+    expect(result.skippedDuplicateCount).toBe(1);
+    expect(createDepositSlip).toHaveBeenCalledTimes(1);
+    expect(createDepositSlip).toHaveBeenCalledWith(
+      "alliance-a",
+      expect.objectContaining({
+        commanderName: "Banla QC",
+        allianceMemberId: "am-bania",
+      }),
+    );
+  });
+
   it("does not terminate a same-minute re-deposit when closing the prior slip", async () => {
     listDepositSlipsForBank.mockResolvedValue([
       {
@@ -766,6 +875,38 @@ describe("commitDepositSlipsFromVideoJob", () => {
       "alliance-a",
       "hist-redeposit",
       expect.anything(),
+    );
+  });
+
+  it("persists roster canonical commander name for fuzzy auto-linked rows", async () => {
+    await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-bania",
+          ocrName: "Bania QC",
+          score: "6000",
+          powerLevel: "2026-07-28T21:11:22.000Z",
+          memberLevel: 5,
+          profession: "locked",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: null,
+          frameIndex: 8,
+          deleted: false,
+          memberId: "ashed-bania",
+          matchMethod: "fuzzy",
+        },
+      ],
+    });
+
+    expect(createDepositSlip).toHaveBeenCalledWith(
+      "alliance-a",
+      expect.objectContaining({
+        commanderName: "Banla QC",
+        allianceMemberId: "am-bania",
+      }),
     );
   });
 });

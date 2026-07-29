@@ -57,6 +57,28 @@ export function isDepositSlipAutoLinkedMatchMethod(
 }
 
 /**
+ * Persist roster canonical name when parse-time or commit-time member linking
+ * cleared the auto-link gate — not the raw OCR commander string.
+ */
+export function committedDepositSlipCommanderName(
+  ocrCommanderName: string,
+  links: {
+    allianceMemberId: string | null;
+    matchMethod: string;
+    candidateMemberName: string | null;
+  },
+): string {
+  if (
+    links.allianceMemberId &&
+    isDepositSlipAutoLinkedMatchMethod(links.matchMethod) &&
+    links.candidateMemberName?.trim()
+  ) {
+    return links.candidateMemberName.trim();
+  }
+  return ocrCommanderName.trim();
+}
+
+/**
  * Border class for deposit-slip Matched Member selects — uses the same
  * auto-link / near-miss thresholds as parse-time matching so officers are
  * not misled by the generic score-review border helper (≥0.9 solid).

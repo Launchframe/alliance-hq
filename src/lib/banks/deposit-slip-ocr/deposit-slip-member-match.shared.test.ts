@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEPOSIT_SLIP_CLEARED_MEMBER_MATCH,
+  committedDepositSlipCommanderName,
   depositSlipMemberMatchBorderClass,
   depositSlipReviewMatchConfidence,
   isDepositSlipAutoLinkedMatchMethod,
@@ -36,6 +37,38 @@ describe("isDepositSlipAutoLinkedMatchMethod", () => {
     expect(isDepositSlipAutoLinkedMatchMethod("exact")).toBe(true);
     expect(isDepositSlipAutoLinkedMatchMethod("fuzzy")).toBe(true);
     expect(isDepositSlipAutoLinkedMatchMethod("previous_name")).toBe(true);
+  });
+});
+
+describe("committedDepositSlipCommanderName", () => {
+  it("uses roster canonical name when auto-linked", () => {
+    expect(
+      committedDepositSlipCommanderName("Bania QC", {
+        allianceMemberId: "am-1",
+        matchMethod: "fuzzy",
+        candidateMemberName: "Banla QC",
+      }),
+    ).toBe("Banla QC");
+  });
+
+  it("keeps OCR text when member is not auto-linked", () => {
+    expect(
+      committedDepositSlipCommanderName("Bania QC", {
+        allianceMemberId: null,
+        matchMethod: "none",
+        candidateMemberName: "Banla QC",
+      }),
+    ).toBe("Bania QC");
+  });
+
+  it("keeps OCR text when roster canonical name is missing", () => {
+    expect(
+      committedDepositSlipCommanderName("Bania QC", {
+        allianceMemberId: "am-1",
+        matchMethod: "fuzzy",
+        candidateMemberName: null,
+      }),
+    ).toBe("Bania QC");
   });
 });
 
