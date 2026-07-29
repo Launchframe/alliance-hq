@@ -10,10 +10,11 @@ import { isVideoInFlightStale } from "@/lib/video/fail-stale-in-flight-video-job
  * killed mid-Ashed write (timeout / "Failed to fetch"), catch never runs and
  * the job stays submitting forever — discard and re-submit both refuse it.
  *
- * Default Vercel function limit is far below OCR's 300s; 2 minutes is enough
- * to assume a submit claim is abandoned.
+ * Must exceed a live replace submit (Ashed delete + bulk) so recovery cannot
+ * re-claim a job that is still writing. 8 minutes sits under the lock
+ * connection max_lifetime (10m) and above typical Vercel submit budgets.
  */
-export const VIDEO_SUBMITTING_STALE_MS = 2 * 60 * 1000;
+export const VIDEO_SUBMITTING_STALE_MS = 8 * 60 * 1000;
 
 /**
  * Reset a single job from stale `submitting` → `review` so officers can
