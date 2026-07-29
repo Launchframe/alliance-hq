@@ -40,6 +40,8 @@ function makeBank(id: string, amount: number): BankWithSlips {
     currentDepositCount: 1,
     currentDepositValue: amount,
     cityListSnapshotAt: null,
+    counterpartyRiskScore: null,
+    counterpartyRiskUpdatedAt: null,
     notes: null,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),

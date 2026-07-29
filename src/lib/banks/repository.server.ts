@@ -3,6 +3,8 @@ import "server-only";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
+import { loadAllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.server";
+import type { AllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.shared";
 import {
   computeMaturesAt,
   serializeBank,
@@ -10,7 +12,7 @@ import {
   type BankPayload,
   type DepositSlipPayload,
 } from "@/lib/banks/api.shared";
-import { BANK_PROTECTION_DURATION_MS } from "@/lib/banks/types.shared";
+import { resolveProtectionExpiresAt } from "@/lib/banks/protection-timer.shared";
 import {
   buildHeatmapsForBanks,
   recommendNextDrop,
@@ -272,6 +274,7 @@ export function buildBankManagementPayload(
     bankCapturesLimitToday?: number | null;
     bankCityListServerTime?: string | null;
     bankCityListImportedAt?: string | null;
+    allianceSafeTimeSlot?: AllianceSafeTimeSlot | null;
     now?: Date;
   },
 ): BankManagementPayload {
@@ -294,26 +297,63 @@ export function buildBankManagementPayload(
     bankCapturesLimitToday: options.bankCapturesLimitToday ?? null,
     bankCityListServerTime: options.bankCityListServerTime ?? null,
     bankCityListImportedAt: options.bankCityListImportedAt ?? null,
+    allianceSafeTimeSlot: options.allianceSafeTimeSlot ?? null,
   };
 }
 
-function resolveProtectionExpiresAt(
-  explicit: string | null | undefined,
+async function resolveBankProtectionExpiresAt(
+  allianceId: string,
+  body: BankPayload,
   capturedAt: Date | null,
-): Date | null {
-  if (explicit) return new Date(explicit);
-  if (capturedAt) {
-    return new Date(capturedAt.getTime() + BANK_PROTECTION_DURATION_MS);
+): Promise<Date | null> {
+  const safeTimeSlot = await loadAllianceSafeTimeSlot(allianceId);
+  return resolveProtectionExpiresAt({
+    explicit: body.protectionExpiresAt,
+    capturedAt,
+    safeTimeSlot,
+  });
+}
+
+function resolveCounterpartyRiskForCreate(body: BankPayload): {
+  counterpartyRiskScore: number | null;
+  counterpartyRiskUpdatedAt: Date | null;
+} {
+  if (
+    body.counterpartyRiskScore == null ||
+    body.counterpartyRiskScore === undefined
+  ) {
+    return { counterpartyRiskScore: null, counterpartyRiskUpdatedAt: null };
   }
-  return null;
+  return {
+    counterpartyRiskScore: body.counterpartyRiskScore,
+    counterpartyRiskUpdatedAt: new Date(),
+  };
+}
+
+function resolveCounterpartyRiskForUpdate(body: BankPayload): {
+  counterpartyRiskScore: number | null;
+  counterpartyRiskUpdatedAt: Date | null;
+} | null {
+  if (body.counterpartyRiskScore === undefined) {
+    return null;
+  }
+  if (body.counterpartyRiskScore === null) {
+    return { counterpartyRiskScore: null, counterpartyRiskUpdatedAt: null };
+  }
+  return {
+    counterpartyRiskScore: body.counterpartyRiskScore,
+    counterpartyRiskUpdatedAt: new Date(),
+  };
 }
 
 export async function createBank(allianceId: string, body: BankPayload) {
   const capturedAt = body.capturedAt ? new Date(body.capturedAt) : null;
-  const protectionExpiresAt = resolveProtectionExpiresAt(
-    body.protectionExpiresAt,
+  const protectionExpiresAt = await resolveBankProtectionExpiresAt(
+    allianceId,
+    body,
     capturedAt,
   );
+  const riskPatch = resolveCounterpartyRiskForCreate(body);
   const db = getDb();
   const inserted = await db
     .insert(schema.banks)
@@ -331,6 +371,8 @@ export async function createBank(allianceId: string, body: BankPayload) {
       priorCaptureCount: body.priorCaptureCount ?? 0,
       currentDepositCount: body.currentDepositCount ?? null,
       currentDepositValue: body.currentDepositValue ?? null,
+      counterpartyRiskScore: riskPatch.counterpartyRiskScore,
+      counterpartyRiskUpdatedAt: riskPatch.counterpartyRiskUpdatedAt,
       notes: body.notes?.trim() || null,
     })
     .returning();
@@ -343,11 +385,13 @@ export async function updateBank(
   body: BankPayload,
 ) {
   const capturedAt = body.capturedAt ? new Date(body.capturedAt) : null;
-  const protectionExpiresAt = resolveProtectionExpiresAt(
-    body.protectionExpiresAt,
+  const protectionExpiresAt = await resolveBankProtectionExpiresAt(
+    allianceId,
+    body,
     capturedAt,
   );
   const db = getDb();
+  const riskPatch = resolveCounterpartyRiskForUpdate(body);
   const updated = await db
     .update(schema.banks)
     .set({
@@ -362,6 +406,12 @@ export async function updateBank(
       priorCaptureCount: body.priorCaptureCount ?? 0,
       currentDepositCount: body.currentDepositCount ?? null,
       currentDepositValue: body.currentDepositValue ?? null,
+      ...(riskPatch
+        ? {
+            counterpartyRiskScore: riskPatch.counterpartyRiskScore,
+            counterpartyRiskUpdatedAt: riskPatch.counterpartyRiskUpdatedAt,
+          }
+        : {}),
       notes: body.notes?.trim() || null,
       updatedAt: new Date(),
     })

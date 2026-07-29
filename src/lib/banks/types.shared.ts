@@ -2,6 +2,8 @@
  * In-game deposit slot capacity by bank level.
  * Levels 1–5: 100 slots. Level 6+: 110 slots.
  */
+import type { AllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.shared";
+
 export function bankDepositCapacity(level: number): number {
   return level >= 6 ? 110 : 100;
 }
@@ -15,7 +17,7 @@ export type DepositTermDays = (typeof DEPOSIT_TERMS)[number];
 export const DEPOSIT_STATUSES = ["locked", "matured", "looted"] as const;
 export type DepositStatus = (typeof DEPOSIT_STATUSES)[number];
 
-export const BATTLE_PLAN_EVENT_TYPES = ["capture", "drop"] as const;
+export const BATTLE_PLAN_EVENT_TYPES = ["capture", "drop", "deposit_window"] as const;
 export type BattlePlanEventType = (typeof BATTLE_PLAN_EVENT_TYPES)[number];
 
 /** Default bank protection duration: 3 days and 12 hours. */
@@ -35,6 +37,8 @@ export type SerializedBank = {
   currentDepositCount: number | null;
   currentDepositValue: number | null;
   cityListSnapshotAt: string | null;
+  counterpartyRiskScore: number | null;
+  counterpartyRiskUpdatedAt: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -100,6 +104,8 @@ export type BankManagementPayload = {
   bankCityListServerTime: string | null;
   /** Alliance-wide City List import wall time (fallback for per-bank snapshot). */
   bankCityListImportedAt: string | null;
+  /** In-game Alliance Safe Time slot (04 / 12 / 20 server-time hour). */
+  allianceSafeTimeSlot: AllianceSafeTimeSlot | null;
 };
 
 /** Deposit falloff projection horizons offered in the chart control. */
