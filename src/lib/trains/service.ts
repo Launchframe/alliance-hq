@@ -1019,14 +1019,6 @@ export async function rollForConductor(input: {
         usesPriceIsFreightConductorRoll(dayConfig.paintTemplate) &&
         (mechanism === "r3_lottery" || mechanism === "heavy_hitter_lottery")
       ) {
-        // Clear any historical depleting-pool marks from older TPIF rolls.
-        if (record?.conductorMemberId) {
-          await releasePoolSelectionForDate(
-            input.allianceId,
-            input.date,
-            record.conductorMemberId,
-          );
-        }
         result = await rollPriceIsFreightConductor({
           allianceId: input.allianceId,
           date: input.date,
@@ -1109,7 +1101,6 @@ export async function rollForConductor(input: {
   });
 
   if (
-    gated.poolType &&
     shouldReleasePriorPoolSelection({
       previousMemberId: record?.conductorMemberId,
       nextMemberId: gated.memberId,
