@@ -132,7 +132,7 @@ function BankListItem({
             <button
               type="button"
               className="rounded border border-hq-border p-1.5 text-hq-fg-muted hover:border-hq-accent hover:text-hq-fg"
-              aria-label={t("actions.edit")}
+              aria-label={t("editBank")}
               onClick={() => onEdit(bank)}
             >
               <Pencil className="h-3.5 w-3.5" aria-hidden />
@@ -141,7 +141,7 @@ function BankListItem({
           <Link
             href={depositSlipUploadHref(bank.id)}
             className="rounded border border-hq-border p-1.5 text-hq-fg-muted hover:border-hq-accent hover:text-hq-fg"
-            aria-label={t("uploadDepositSlips")}
+            aria-label={t("uploadDepositSlip")}
           >
             <Video className="h-3.5 w-3.5" aria-hidden />
           </Link>
