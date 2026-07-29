@@ -189,9 +189,12 @@ describe("VIP pick depleting event_top_x gate", () => {
     expect(assignVipOnLockedConductor).not.toHaveBeenCalled();
   });
 
-  it("releases the prior VIP pool slot before gating the new pick", async () => {
-    const { releasePoolSelectionForDate, markPoolMemberSelectedForDate } =
-      await setupEventTopXDay({ vipMemberId: "m-prior" });
+  it("releases the prior VIP pool slot only after a successful assign", async () => {
+    const {
+      releasePoolSelectionForDate,
+      markPoolMemberSelectedForDate,
+      assignVipOnLockedConductor,
+    } = await setupEventTopXDay({ vipMemberId: "m-prior" });
 
     const res = await POST(
       new Request("http://localhost/api/trains/conductor/vip/pick", {
@@ -202,12 +205,42 @@ describe("VIP pick depleting event_top_x gate", () => {
     );
 
     expect(res.status).toBe(200);
+    expect(markPoolMemberSelectedForDate).toHaveBeenCalled();
+    expect(assignVipOnLockedConductor).toHaveBeenCalled();
     expect(releasePoolSelectionForDate).toHaveBeenCalledWith(
       "ally-1",
       "2026-07-27",
       "m-prior",
     );
-    expect(markPoolMemberSelectedForDate).toHaveBeenCalled();
+    expect(
+      vi.mocked(markPoolMemberSelectedForDate).mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      vi.mocked(assignVipOnLockedConductor).mock.invocationCallOrder[0]!,
+    );
+    expect(
+      vi.mocked(assignVipOnLockedConductor).mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      vi.mocked(releasePoolSelectionForDate).mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("does not release the prior VIP slot when the depleting gate rejects", async () => {
+    const { releasePoolSelectionForDate } = await setupEventTopXDay({
+      vipMemberId: "m-prior",
+      unselected: ["m-bob"],
+      pool: ["m-alice", "m-bob"],
+    });
+
+    const res = await POST(
+      new Request("http://localhost/api/trains/conductor/vip/pick", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(BASE_BODY),
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(releasePoolSelectionForDate).not.toHaveBeenCalled();
   });
 
   it("skips depleting pool gates for conductor_pick VIP days", async () => {

@@ -30,3 +30,18 @@ export function depletingManualPickErrorMessage(
   }
   return "This member is not in the current conductor pool.";
 }
+
+/**
+ * When replacing a depleting-pool conductor/VIP, release the prior member only
+ * after the replacement is successfully claimed. Releasing first lets a failed
+ * re-roll / manual pick leave the draft assignment in place while the prior
+ * member is free to win another day in the same generation.
+ */
+export function shouldReleasePriorPoolSelection(input: {
+  previousMemberId: string | null | undefined;
+  nextMemberId: string;
+}): boolean {
+  const previous = input.previousMemberId?.trim();
+  const next = input.nextMemberId.trim();
+  return Boolean(previous && next && previous !== next);
+}
