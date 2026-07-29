@@ -169,6 +169,113 @@ export function parseDigitsOnlyHeaderTotalLoose(text: string): number | null {
   return null;
 }
 
+function parseHeaderCandidate(text: string): number | null {
+  return (
+    parseDigitsOnlyHeaderTotalLoose(text) ?? parseDigitsOnlyHeaderTotal(text)
+  );
+}
+
+/** Hero Power header is typically ~1.2–2.4× Hero Level (largest component). */
+const HERO_HEADER_TO_LEVEL_MIN_RATIO = 1.12;
+const HERO_HEADER_TO_LEVEL_MAX_RATIO = 2.45;
+
+export function isPlausibleHeroPowerHeaderTotal(
+  headerTotal: number,
+  heroLevel: number | null | undefined,
+): boolean {
+  if (heroLevel == null || heroLevel <= 0) return true;
+  const ratio = headerTotal / heroLevel;
+  return (
+    ratio >= HERO_HEADER_TO_LEVEL_MIN_RATIO &&
+    ratio <= HERO_HEADER_TO_LEVEL_MAX_RATIO
+  );
+}
+
+/** Pick the value on the Hero Power grey bar via label↔value y-alignment. */
+export function pickHeroPowerHeaderFromLabelRow(
+  labels: NormalizedGeometryLine[],
+  values: NormalizedGeometryLine[],
+  maxYNormDistance = 0.06,
+): number | null {
+  const headerLabel = labels
+    .filter((label) => isHeroPowerHeaderLabel(label.text))
+    .sort((a, b) => a.yNorm - b.yNorm)[0];
+  if (!headerLabel) return null;
+
+  let best: { dist: number; value: number } | null = null;
+  for (const value of values) {
+    const parsed = parseHeaderCandidate(value.text);
+    if (parsed == null || parsed < 100_000_000 || parsed > 1_000_000_000) {
+      continue;
+    }
+    const dist = Math.abs(value.yNorm - headerLabel.yNorm);
+    if (dist > maxYNormDistance) continue;
+    if (best == null || dist < best.dist) {
+      best = { dist, value: parsed };
+    }
+  }
+  return best?.value ?? null;
+}
+
+export function sumPairedBreakdown(pairs: LabelValuePair[]): number {
+  let sum = 0;
+  for (const pair of pairs) {
+    if (pair.key != null && pair.value != null) {
+      sum += pair.value;
+    }
+  }
+  return sum;
+}
+
+/**
+ * When the inverted header pass picks hero-level noise (~870M) instead of the
+ * grey-bar total (~166M), prefer a component sum that matches hero-level ratio.
+ */
+export function reconcileHeroPowerHeaderTotal(input: {
+  headerTotal: number | null;
+  pairs: LabelValuePair[];
+}): number | null {
+  const heroLevel =
+    input.pairs.find((pair) => pair.key === "heroLevel")?.value ?? null;
+
+  if (
+    input.headerTotal != null &&
+    isPlausibleHeroPowerHeaderTotal(input.headerTotal, heroLevel)
+  ) {
+    return input.headerTotal;
+  }
+
+  const pairedKeys = new Set(
+    input.pairs
+      .filter((pair) => pair.key != null && pair.value != null)
+      .map((pair) => pair.key as ThpBreakdownKey),
+  );
+  if (pairedKeys.size >= 6) {
+    const partialSum = sumPairedBreakdown(input.pairs);
+    if (
+      partialSum >= 50_000_000 &&
+      isPlausibleHeroPowerHeaderTotal(partialSum, heroLevel)
+    ) {
+      return partialSum;
+    }
+  }
+
+  if (pairedKeys.size === THP_BREAKDOWN_KEYS.length) {
+    const breakdown: Partial<ThpBreakdown> = {};
+    for (const pair of input.pairs) {
+      if (pair.key != null && pair.value != null) {
+        breakdown[pair.key] = pair.value;
+      }
+    }
+    const sum = sumThpBreakdown(breakdown as ThpBreakdown);
+    if (isPlausibleHeroPowerHeaderTotal(sum, heroLevel)) {
+      return sum;
+    }
+  }
+
+  return input.headerTotal;
+}
+
 /** Component rows are typically 7–8 digits. */
 export function parseDigitsOnlyComponent(text: string): number | null {
   return parseDigitsOnlyValue(text, {

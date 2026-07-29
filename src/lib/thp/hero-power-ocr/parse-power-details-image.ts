@@ -23,6 +23,8 @@ import {
   normalizeGeometryLines,
   parseDigitsOnlyHeaderTotal,
   parseDigitsOnlyHeaderTotalLoose,
+  pickHeroPowerHeaderFromLabelRow,
+  reconcileHeroPowerHeaderTotal,
   zipLabelsToValues,
   type GeometryOcrLine,
 } from "@/lib/thp/hero-power-ocr/parse-power-details-geometry.shared";
@@ -158,14 +160,16 @@ export async function parsePowerDetailsImage(
       ? invertedValues
       : normalValues;
 
-  const headerTotal = pickHeaderTotal(
-    headerLinesRaw,
-    headerPre.height,
-    valueInvLinesRaw,
-    valueInvPre.height,
-    valueLinesRaw,
-    valuePre.height,
-  );
+  let headerTotal =
+    pickHeroPowerHeaderFromLabelRow(labels, valuesRaw) ??
+    pickHeaderTotal(
+      headerLinesRaw,
+      headerPre.height,
+      valueInvLinesRaw,
+      valueInvPre.height,
+      valueLinesRaw,
+      valuePre.height,
+    );
 
   // The value column still contains the header-row total on the right. Drop it
   // so it cannot be y-zipped onto Hero Level (same failure mode as freeform
@@ -179,6 +183,7 @@ export async function parsePowerDetailsImage(
   });
 
   const pairs = zipLabelsToValues({ labels, values });
+  headerTotal = reconcileHeroPowerHeaderTotal({ headerTotal, pairs });
   const assembled = assembleGeometryParse({ pairs, headerTotal });
 
   const sampleLines = [
