@@ -19,7 +19,7 @@ Alliance HQ serves a deeply international audience. **Any copy a human can read 
 
 ## Hard rules
 
-- **No hardcoded English** in TS/TSX for user-facing strings when i18n exists (see `user-facing-copy-review.mdc` for approval + en-US/pt-BR together).
+- **No hardcoded English** in TS/TSX for user-facing strings when i18n exists (see `user-facing-copy-review.mdc` for approval + en-US/pt-BR together; async review agents disclose proposed copy on the PR).
 - **No English-only formatters** for visible dates/numbers on localized surfaces — use the active BCP 47 locale (`toLocaleString(locale)`, `Intl.NumberFormat(locale)`, shared chart formatters).
 - **Shared render paths** (web chart + Discord PNG, etc.) must take `locale` (and translated labels) so one plot definition stays locale-correct on every consumer.
 - When adding a new surface that shows text (including pixels), ask: *what is the user’s locale, and does every string/formatter use it?*

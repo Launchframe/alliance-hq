@@ -79,10 +79,11 @@ Read the Real Steel issue comment (and any follow-up threads).
 | **Deferred** | Valid, not merge-blocking | Note follow-up (issue/TODO); do not block merge |
 | **Won't do** | Invalid, out of scope, or intentional | Record rationale; no code change |
 
-**Copy / i18n (hard gate):**
+**Copy / i18n:**
 
-- Any change to user-facing English (or new keys) → present proposals to the maintainer **first**; wait for approval (see copy-review rule). Agents never approve copy.
-- Temporary / inaccurate copy called out by Real Steel counts as Blocking until soft/count-accurate wording is **approved**, then implemented in en-US + hand pt-BR together.
+- **Interactive close-the-loop** (maintainer in chat): new or changed user-facing English → present proposals **first**; wait for approval (see copy-review rule). Agents never approve copy.
+- **Already on the PR from Real Steel / async agents:** if a pass landed copy under the [async review exception](../../rules/user-facing-copy-review.mdc) with a `Copy (pending maintainer review)` block, treat as **proposed** — maintainer may edit `en-US` or approve as-is; not a merge blocker unless they reject the wording.
+- Temporary / inaccurate copy called out by Real Steel but **not yet fixed** counts as Blocking until accurate wording is landed (async exception + PR disclosure, or interactive approval first).
 - Do **not** run `npm run i18n:translate` or other auto-translate.
 - After locale edits: `npm run i18n:validate`.
 
@@ -135,7 +136,7 @@ Auto-merge (`gh pr merge --auto`) only when the repo supports it; otherwise watc
 | User says | Start at |
 | --- | --- |
 | “close the loop on the PR” + PR URL / Real Steel comment | Step 4 (assume 1–3 done; step 2 satisfied) |
-| “address these suggestions and nits” | Step 4 → 5; hold copy until approved |
+| “address these suggestions and nits” | Step 4 → 5; hold **new** copy until approved unless applying async-review disclosure rules |
 | “post the reply and finalize” | Post approved reply → step 7 |
 | “/real-steel …” | Step 3 only (handoff back here for 4–7) |
 

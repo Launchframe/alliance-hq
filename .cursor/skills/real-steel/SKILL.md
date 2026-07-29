@@ -33,7 +33,8 @@ After **every** completed Real Steel run in this repo — **one pass or many** �
 | Chain finished (1 pass, multi-pass, post-mortem included) | Unresolved **Critical** findings agents could not fix in-chain |
 | Only Suggestion/Nit items left open | Merge conflicts with base that could not be resolved |
 | Critical issues were found **and fixed** in-chain | In-scope CI still red after passes; cannot fix without weakening gates |
-| Clean pass (no code changes) | i18n / user-facing copy blocked on maintainer approval (per [`.cursor/rules/user-facing-copy-review.mdc`](../rules/user-facing-copy-review.mdc)) |
+| Clean pass (no code changes) | — |
+| Copy fixes landed in-chain | Apply label when disclosed on the PR per async copy exception in [user-facing-copy-review.mdc](../rules/user-facing-copy-review.mdc) — not a withhold reason |
 | Open items are manual QA or follow-ups, not code blockers | Explicit product/security decisions only the maintainer can make |
 
 **Not optional for single-pass runs.** `/real-steel composer` gets the same label step as `/real-steel chat sonnet composer`.
@@ -45,6 +46,16 @@ gh api repos/Launchframe/alliance-hq/issues/<number>/labels -f "labels[]=real-st
 ```
 
 If the label does not exist, create it first or tell the maintainer. Record in the local run log (`.cursor/real-steel/pr-<number>-<YYYYMMDD>.md`) whether the label was applied or withheld and why. Mention label status in the final summary.
+
+## Copy in applied fixes
+
+When a pass fixes a finding that needs new or changed user-facing strings, **apply the fix** — do not defer for interactive copy approval. Follow the **asynchronous review agents** exception in [user-facing-copy-review.mdc](../rules/user-facing-copy-review.mdc):
+
+1. Land `en-US` + hand `pt-BR` (and Discord localizations if applicable) in the fix commit.
+2. In that pass’s PR comment, add `## Copy (pending maintainer review)` listing every key, English value, and surface.
+3. Run `npm run i18n:validate` before commit.
+
+Include the copy-disclosure requirement in each pass Task prompt when the repo has `user-facing-copy-review.mdc`.
 
 ## Orchestrator checklist (Alliance HQ)
 
