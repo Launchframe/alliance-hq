@@ -3167,6 +3167,10 @@ export const banks = pgTable(
     priorCaptureCount: integer("prior_capture_count").notNull().default(0),
     currentDepositCount: integer("current_deposit_count"),
     currentDepositValue: doublePrecision("current_deposit_value"),
+    /** When this bank's City List deposit count/value was last imported. */
+    cityListSnapshotAt: timestamp("city_list_snapshot_at", {
+      withTimezone: true,
+    }),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()

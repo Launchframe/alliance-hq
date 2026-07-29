@@ -81,11 +81,19 @@ export type CityListBankUpsertInput = {
 export async function upsertBanksFromCityList(
   allianceId: string,
   banks: CityListBankUpsertInput[],
+  options?: { cityListSnapshotAt?: Date | null },
 ) {
   const db = getDb();
   const results = [];
+  const snapshotAt = options?.cityListSnapshotAt ?? new Date();
 
   for (const bank of banks) {
+    const shouldStampSnapshot =
+      bank.currentDepositCount != null || bank.currentDepositValue != null;
+    const snapshotPatch = shouldStampSnapshot
+      ? { cityListSnapshotAt: snapshotAt }
+      : {};
+
     const existing = await db
       .select()
       .from(schema.banks)
@@ -106,6 +114,7 @@ export async function upsertBanksFromCityList(
           level: bank.level,
           currentDepositCount: bank.currentDepositCount,
           currentDepositValue: bank.currentDepositValue,
+          ...snapshotPatch,
           updatedAt: new Date(),
         })
         .where(eq(schema.banks.id, existing[0].id))
@@ -128,6 +137,7 @@ export async function upsertBanksFromCityList(
         priorCaptureCount: 1,
         currentDepositCount: bank.currentDepositCount,
         currentDepositValue: bank.currentDepositValue,
+        ...snapshotPatch,
       })
       .returning();
     results.push(inserted[0]!);
@@ -261,6 +271,7 @@ export function buildBankManagementPayload(
     bankCapturesRemainingToday?: number | null;
     bankCapturesLimitToday?: number | null;
     bankCityListServerTime?: string | null;
+    bankCityListImportedAt?: string | null;
     now?: Date;
   },
 ): BankManagementPayload {
@@ -282,6 +293,7 @@ export function buildBankManagementPayload(
     bankCapturesRemainingToday: options.bankCapturesRemainingToday ?? null,
     bankCapturesLimitToday: options.bankCapturesLimitToday ?? null,
     bankCityListServerTime: options.bankCityListServerTime ?? null,
+    bankCityListImportedAt: options.bankCityListImportedAt ?? null,
   };
 }
 

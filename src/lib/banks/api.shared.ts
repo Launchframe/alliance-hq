@@ -68,6 +68,7 @@ export function serializeBank(row: {
   priorCaptureCount: number;
   currentDepositCount: number | null;
   currentDepositValue: number | null;
+  cityListSnapshotAt?: Date | null;
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -88,6 +89,7 @@ export function serializeBank(row: {
     priorCaptureCount: row.priorCaptureCount,
     currentDepositCount: row.currentDepositCount,
     currentDepositValue: row.currentDepositValue,
+    cityListSnapshotAt: row.cityListSnapshotAt?.toISOString() ?? null,
     notes: row.notes,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

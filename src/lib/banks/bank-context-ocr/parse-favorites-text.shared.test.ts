@@ -68,4 +68,22 @@ describe("parseFavoritesText", () => {
       bankName: null,
     });
   });
+
+  it("uses primer warzone coords when list entries appear below the banner", () => {
+    const lines = [
+      "ADD TO FAVORITES",
+      "Warzone #8150 X:699 Y:99",
+      "Lv.7 [Roar]Trailblazer Bank",
+      "Warzone #8150 X:699 Y:20",
+      "Lv.7 [Roar]Other Bank",
+    ];
+    expect(parseFavoritesText(lines)).toEqual({
+      gameServerNumber: 8150,
+      coordX: 699,
+      coordY: 99,
+      level: 7,
+      owningAllianceTag: "Roar",
+      bankName: "Trailblazer Bank",
+    });
+  });
 });

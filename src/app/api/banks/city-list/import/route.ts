@@ -199,7 +199,9 @@ export async function POST(request: Request) {
 
   try {
     const existingBanks = await listBanksForAlliance(allianceId);
-    await upsertBanksFromCityList(allianceId, parsed.banks);
+    await upsertBanksFromCityList(allianceId, parsed.banks, {
+      cityListSnapshotAt: serverTime ?? new Date(),
+    });
     await updateAllianceBankCityListSnapshot(allianceId, {
       bankCapturesRemainingToday: capturesRemainingToday,
       bankCapturesLimitToday: capturesLimitToday,

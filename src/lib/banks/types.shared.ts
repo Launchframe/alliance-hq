@@ -34,6 +34,7 @@ export type SerializedBank = {
   priorCaptureCount: number;
   currentDepositCount: number | null;
   currentDepositValue: number | null;
+  cityListSnapshotAt: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -97,6 +98,8 @@ export type BankManagementPayload = {
   bankCapturesRemainingToday: number | null;
   bankCapturesLimitToday: number | null;
   bankCityListServerTime: string | null;
+  /** Alliance-wide City List import wall time (fallback for per-bank snapshot). */
+  bankCityListImportedAt: string | null;
 };
 
 /** Deposit falloff projection horizons offered in the chart control. */

@@ -21,6 +21,7 @@ export type VideoReviewDraftRow = {
   scoreConflict: number;
   deleted: number;
   manuallyAdded?: number;
+  scoreDefaulted?: boolean;
 };
 
 export type VideoReviewDraftForm = {
@@ -31,6 +32,7 @@ export type VideoReviewDraftForm = {
   recordedDate: string;
   bankId?: string;
   vsPeriod?: "daily" | "weekly";
+  bankTargetMismatchResolution?: "targeted" | "video";
 };
 
 export type VideoReviewDraftV1 = VideoReviewDraftForm & {
@@ -98,6 +100,13 @@ export function parseVideoReviewDraft(raw: string): VideoReviewDraftV1 | null {
     if (draft.team !== "A" && draft.team !== "B") return null;
     if (typeof draft.recordedDate !== "string") return null;
     if (draft.bankId != null && typeof draft.bankId !== "string") return null;
+    if (
+      draft.bankTargetMismatchResolution != null &&
+      draft.bankTargetMismatchResolution !== "targeted" &&
+      draft.bankTargetMismatchResolution !== "video"
+    ) {
+      return null;
+    }
     if (
       draft.vsPeriod != null &&
       draft.vsPeriod !== "daily" &&
@@ -223,6 +232,7 @@ export function restoreVideoReviewDraftIfPresent<T extends VideoReviewDraftRow>(
       recordedDate: draft.recordedDate,
       bankId: draft.bankId ?? "",
       vsPeriod: draft.vsPeriod,
+      bankTargetMismatchResolution: draft.bankTargetMismatchResolution,
     },
     restored: true,
     savedAt: draft.savedAt ?? null,

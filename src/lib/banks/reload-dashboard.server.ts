@@ -46,5 +46,7 @@ export async function reloadBankManagementDashboard(
     bankCapturesLimitToday: cityListSnapshot?.bankCapturesLimitToday ?? null,
     bankCityListServerTime:
       cityListSnapshot?.bankCityListServerTime?.toISOString() ?? null,
+    bankCityListImportedAt:
+      cityListSnapshot?.bankCityListImportedAt?.toISOString() ?? null,
   });
 }
