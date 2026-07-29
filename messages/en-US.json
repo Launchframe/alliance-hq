@@ -5589,6 +5589,17 @@
     "chooseProfessionTitle": "Choose your profession",
     "chooseProfessionBody": "Your profession has not been set. Choose your role to get started."
   },
+  "allianceSafeTime": {
+    "title": "Alliance Safe Time",
+    "subtitle": "Choose the one-hour window when your alliance is safe on Wednesday and Saturday reset days (server time). The other two windows stay open for attack.",
+    "slot04": "04:00 – 05:00",
+    "slot12": "12:00 – 13:00",
+    "slot20": "20:00 – 21:00",
+    "serverTimeNote": "Times are server time (UTC−2).",
+    "setupBannerTitle": "Set your Alliance Safe Time",
+    "setupBannerBody": "Protection timers and deposit risk profiles need your in-game safe hour. Pick the window that matches your alliance settings.",
+    "setupBannerCta": "Open settings"
+  },
   "battlePlan": {
     "title": "Battle Plan",
     "subtitle": "Schedule territory captures so members know when and where to show up.",
@@ -5642,7 +5653,8 @@
       "defaultPolicy": "Default capture policy",
       "policyPeace": "Peace — In-and-out",
       "policyWar": "War — All gas, no brakes",
-      "savePolicy": "Save default policy"
+      "savePolicy": "Save default policy",
+      "saveFailed": "Could not save settings."
     },
     "markers": {
       "presets": {
@@ -5867,6 +5879,28 @@
       "falloffSaveFailed": "Could not save the deposit falloff projection."
     },
     "dropScheduled": "Drop scheduled on Battle Plan.",
+    "settings": {
+      "menuLabel": "Bank management settings",
+      "saveFailed": "Could not save Alliance Safe Time."
+    },
+    "markers": {
+      "pickHint": "Pick a marker for this event."
+    },
+    "riskProfile": {
+      "title": "Investor risk profile",
+      "subtitle": "How risky new deposits are if you hold this bank, based on protection timing and nearby enemy pressure.",
+      "counterpartyRiskLabel": "At risk",
+      "counterpartyRiskHint": "Your read of how likely enemies are to pressure this bank before deposits mature.",
+      "protectionUnset": "Set Alliance Safe Time and capture time to compute protection.",
+      "protectionExpires": "Protection resets {date}.",
+      "reconfirmHint": "Recheck this after {date} and update this bank's risk profile based on recent enemy movements.",
+      "gaugeTermLabel": "{days}-day term",
+      "bandUnknown": "Unknown — protection not configured",
+      "bandRiskFree": "Risk-free for this term",
+      "bandLow": "Low risk",
+      "bandMaterial": "Material risk",
+      "bandImminent": "Imminent — drop may come first"
+    },
     "uploadDepositSlip": "Upload deposit slip video",
     "falloff": {
       "title": "Deposit falloff projection",

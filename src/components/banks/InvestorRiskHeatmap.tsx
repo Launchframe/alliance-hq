@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { useTranslations } from "next-intl";
 
 import type { BankWithSlips, RiskHeatmapCell } from "@/lib/banks/types.shared";
+import { riskIntensityColor } from "@/lib/banks/risk-color.shared";
 import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 
 type Props = {
@@ -14,9 +15,8 @@ type Props = {
 const HOURS_PER_ROW = 24;
 
 function cellStyle(intensity: number): CSSProperties {
-  const clamped = Math.max(0, Math.min(1, intensity));
   return {
-    backgroundColor: `color-mix(in srgb, var(--hq-danger) ${Math.round(clamped * 100)}%, var(--hq-success))`,
+    backgroundColor: riskIntensityColor(intensity),
   };
 }
 

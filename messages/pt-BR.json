@@ -5589,6 +5589,17 @@
     "chooseProfessionTitle": "Escolha sua profissão",
     "chooseProfessionBody": "Sua profissão ainda não foi definida. Escolha seu papel para começar."
   },
+  "allianceSafeTime": {
+    "title": "Horário seguro da aliança",
+    "subtitle": "Escolha a janela de uma hora em que sua aliança está segura nos dias de reset de quarta e sábado (horário do servidor). As outras duas janelas permanecem abertas para ataque.",
+    "slot04": "04:00 – 05:00",
+    "slot12": "12:00 – 13:00",
+    "slot20": "20:00 – 21:00",
+    "serverTimeNote": "Horários no fuso do servidor (UTC−2).",
+    "setupBannerTitle": "Defina o horário seguro da aliança",
+    "setupBannerBody": "Os temporizadores de proteção e os perfis de risco de depósito precisam da sua hora segura no jogo. Escolha a janela que corresponde às configurações da aliança.",
+    "setupBannerCta": "Abrir configurações"
+  },
   "battlePlan": {
     "title": "Plano de Batalha",
     "subtitle": "Agende capturas de território para que os membros saibam quando e onde comparecer.",
@@ -5642,7 +5653,8 @@
       "defaultPolicy": "Política padrão de captura",
       "policyPeace": "Paz — Entrada e saída",
       "policyWar": "Guerra — Acelerar ao máximo",
-      "savePolicy": "Salvar política padrão"
+      "savePolicy": "Salvar política padrão",
+      "saveFailed": "Não foi possível salvar as configurações."
     },
     "markers": {
       "presets": {
@@ -5867,6 +5879,28 @@
       "falloffSaveFailed": "Não foi possível salvar a projeção de queda dos depósitos."
     },
     "dropScheduled": "Abandono agendado no Plano de Batalha.",
+    "settings": {
+      "menuLabel": "Configurações de gestão de bancos",
+      "saveFailed": "Não foi possível salvar o horário seguro da aliança."
+    },
+    "markers": {
+      "pickHint": "Escolha um marcador para este evento."
+    },
+    "riskProfile": {
+      "title": "Perfil de risco do investidor",
+      "subtitle": "Quão arriscados são novos depósitos se você mantiver este banco, com base no tempo de proteção e na pressão inimiga próxima.",
+      "counterpartyRiskLabel": "Em risco",
+      "counterpartyRiskHint": "Sua leitura de quão provável é que inimigos pressionem este banco antes dos depósitos vencerem.",
+      "protectionUnset": "Defina o horário seguro da aliança e a hora da captura para calcular a proteção.",
+      "protectionExpires": "A proteção reinicia em {date}.",
+      "reconfirmHint": "Revise isso após {date} e atualize o perfil de risco deste banco com base nos movimentos recentes do inimigo.",
+      "gaugeTermLabel": "Prazo de {days} dias",
+      "bandUnknown": "Desconhecido — proteção não configurada",
+      "bandRiskFree": "Sem risco para este prazo",
+      "bandLow": "Risco baixo",
+      "bandMaterial": "Risco material",
+      "bandImminent": "Iminente — o abandono pode vir primeiro"
+    },
     "uploadDepositSlip": "Enviar vídeo do histórico de depósitos",
     "falloff": {
       "title": "Projeção de queda dos depósitos",

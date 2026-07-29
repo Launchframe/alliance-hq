@@ -2,7 +2,6 @@ import type { AllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.sha
 import { allianceSafeTimeSlotStartHour } from "@/lib/alliance/alliance-safe-time.shared";
 import {
   addCalendarDays,
-  formatServerCalendarDate,
   getServerCalendarDate,
   getServerDayOfWeek,
 } from "@/lib/trains/game-time";

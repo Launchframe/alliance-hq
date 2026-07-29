@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { DepositTermRiskGauges } from "@/components/banks/DepositTermRiskGauge";
 import { Dialog } from "@/components/ui/dialog";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,7 +11,14 @@ import {
   fromDatetimeLocalValue,
   toDatetimeLocalValue,
 } from "@/components/banks/datetime-local";
+import type { AllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.shared";
 import type { BankPayload } from "@/lib/banks/api.shared";
+import { resolveProtectionExpiresAt } from "@/lib/banks/protection-timer.shared";
+import {
+  computeDepositTermRiskGauges,
+  shouldShowRiskReconfirmHint,
+} from "@/lib/banks/risk-profile.shared";
+import { riskIntensityColor } from "@/lib/banks/risk-color.shared";
 import {
   DEPOSIT_POLICIES,
   type DepositPolicy,
@@ -20,6 +28,7 @@ import {
   preventDefaultFormSubmit,
   FORM_SUBMIT_ENTER_KEY_HINT,
 } from "@/lib/client/form-enter-submit.shared";
+import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 
 type BankFormValues = {
   gameServerNumber: string;
@@ -31,6 +40,7 @@ type BankFormValues = {
   capturedAt: string;
   dropByAt: string;
   notes: string;
+  counterpartyRiskScore: string;
 };
 
 function buildInitialValues(
@@ -49,6 +59,7 @@ function buildInitialValues(
       capturedAt: "",
       dropByAt: "",
       notes: "",
+      counterpartyRiskScore: "",
     };
   }
   return {
@@ -61,6 +72,10 @@ function buildInitialValues(
     capturedAt: toDatetimeLocalValue(initial.capturedAt),
     dropByAt: toDatetimeLocalValue(initial.dropByAt),
     notes: initial.notes ?? "",
+    counterpartyRiskScore:
+      initial.counterpartyRiskScore != null
+        ? String(initial.counterpartyRiskScore)
+        : "",
   };
 }
 
@@ -68,6 +83,7 @@ type Props = {
   open: boolean;
   initial?: SerializedBank | null;
   defaultGameServerNumber?: number | null;
+  allianceSafeTimeSlot?: AllianceSafeTimeSlot | null;
   saving: boolean;
   error?: string | null;
   onClose: () => void;
@@ -79,6 +95,7 @@ export function BankEditorModal({
   open,
   initial,
   defaultGameServerNumber,
+  allianceSafeTimeSlot = null,
   saving,
   error,
   onClose,
@@ -86,9 +103,46 @@ export function BankEditorModal({
   onDelete,
 }: Props) {
   const t = useTranslations("bankManagement");
+  const tRisk = useTranslations("bankManagement.riskProfile");
   const [values, setValues] = useState<BankFormValues>(() =>
     buildInitialValues(initial, defaultGameServerNumber),
   );
+
+  const capturedAtIso = fromDatetimeLocalValue(values.capturedAt);
+  const dropByAtIso = fromDatetimeLocalValue(values.dropByAt);
+  const counterpartyRiskScore =
+    values.counterpartyRiskScore.trim() === ""
+      ? null
+      : Number(values.counterpartyRiskScore);
+
+  const protectionExpiresAt = useMemo(
+    () =>
+      resolveProtectionExpiresAt({
+        explicit: null,
+        capturedAt: capturedAtIso ? new Date(capturedAtIso) : null,
+        safeTimeSlot: allianceSafeTimeSlot,
+      }),
+    [allianceSafeTimeSlot, capturedAtIso],
+  );
+
+  const riskGauges = useMemo(
+    () =>
+      computeDepositTermRiskGauges({
+        now: new Date(),
+        protectionExpiresAt,
+        dropByAt: dropByAtIso ? new Date(dropByAtIso) : null,
+        counterpartyRiskScore,
+      }),
+    [counterpartyRiskScore, dropByAtIso, protectionExpiresAt],
+  );
+
+  const showReconfirm = shouldShowRiskReconfirmHint({
+    protectionExpiresAt,
+    capturedAt: capturedAtIso ? new Date(capturedAtIso) : null,
+    counterpartyRiskUpdatedAt: initial?.counterpartyRiskUpdatedAt
+      ? new Date(initial.counterpartyRiskUpdatedAt)
+      : null,
+  });
 
   if (!open) return null;
 
@@ -102,11 +156,12 @@ export function BankEditorModal({
       priorCaptureCount: values.priorCaptureCount
         ? Number(values.priorCaptureCount)
         : 0,
-      capturedAt: fromDatetimeLocalValue(values.capturedAt),
-      dropByAt: fromDatetimeLocalValue(values.dropByAt),
+      capturedAt: capturedAtIso,
+      dropByAt: dropByAtIso,
       notes: values.notes.trim() || null,
       currentDepositCount: initial?.currentDepositCount ?? null,
       currentDepositValue: initial?.currentDepositValue ?? null,
+      counterpartyRiskScore,
     };
     void onSubmit(payload);
   };
@@ -260,6 +315,66 @@ export function BankEditorModal({
             }
           />
         </label>
+
+        <section className="space-y-3 rounded-lg border border-hq-border bg-hq-canvas/40 px-3 py-3">
+          <div>
+            <h3 className="text-sm font-semibold text-hq-fg">{tRisk("title")}</h3>
+            <p className="mt-1 text-xs text-hq-fg-muted">{tRisk("subtitle")}</p>
+          </div>
+
+          {protectionExpiresAt ? (
+            <p className="text-xs text-hq-fg-muted">
+              {tRisk("protectionExpires", {
+                date: formatBrowserLocalDateTime(protectionExpiresAt.toISOString(), {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                }),
+              })}
+            </p>
+          ) : (
+            <p className="text-xs text-hq-fg-subtle">{tRisk("protectionUnset")}</p>
+          )}
+
+          <DepositTermRiskGauges gauges={riskGauges} size="md" />
+
+          <label className="block space-y-2 text-sm">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-hq-fg-muted">{tRisk("counterpartyRiskLabel")}</span>
+              <span className="font-mono text-xs text-hq-fg">
+                {counterpartyRiskScore == null ? "—" : counterpartyRiskScore}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={counterpartyRiskScore ?? 50}
+              className="w-full accent-[#8957e5]"
+              style={{
+                background: `linear-gradient(to right, ${riskIntensityColor(0)} 0%, ${riskIntensityColor((counterpartyRiskScore ?? 50) / 100)} ${counterpartyRiskScore ?? 50}%, var(--hq-border) ${counterpartyRiskScore ?? 50}%)`,
+              }}
+              onChange={(event) =>
+                setValues((current) => ({
+                  ...current,
+                  counterpartyRiskScore: event.target.value,
+                }))
+              }
+            />
+            <p className="text-xs text-hq-fg-subtle">{tRisk("counterpartyRiskHint")}</p>
+          </label>
+
+          {showReconfirm && protectionExpiresAt ? (
+            <p className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs text-hq-fg">
+              {tRisk("reconfirmHint", {
+                date: formatBrowserLocalDateTime(protectionExpiresAt.toISOString(), {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                }),
+              })}
+            </p>
+          ) : null}
+        </section>
 
         <details className="rounded-lg border border-hq-border bg-hq-canvas/40 px-3 py-2">
           <summary className="cursor-pointer text-sm font-medium text-hq-fg">
