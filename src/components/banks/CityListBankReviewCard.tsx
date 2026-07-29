@@ -96,7 +96,7 @@ export function CityListBankReviewCard({
           <button
             type="button"
             aria-label={deleteLabel}
-            className="rounded border border-hq-border/60 p-1 text-hq-fg-muted hover:border-hq-danger hover:text-hq-danger"
+            className="rounded border border-hq-danger/40 p-1 text-hq-danger hover:border-hq-danger hover:bg-hq-danger/10 focus-visible:border-hq-danger"
             onClick={onRemove}
           >
             <Trash2 className="h-3.5 w-3.5" aria-hidden />
