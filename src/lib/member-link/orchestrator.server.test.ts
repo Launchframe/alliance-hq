@@ -111,7 +111,12 @@ describe("runWebMemberLinkSubmit onboarding unblockers", () => {
     expect(result.outcome).toBe("lookup_fallback");
   });
 
-  it("bootstraps with owner lookup fallback and provided server", async () => {
+  it("bootstraps with owner lookup fallback only when Last War API is down", async () => {
+    vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
+      ok: false,
+      reason: "request_failed",
+      message: "Could not reach the game server. Try again in a moment.",
+    });
     vi.mocked(roster.tryBootstrapOwnerColdStartMember).mockResolvedValue({
       outcome: "linked",
       message: "Linked",
@@ -131,16 +136,43 @@ describe("runWebMemberLinkSubmit onboarding unblockers", () => {
     });
 
     expect(result.outcome).toBe("linked");
+    expect(lookup.lookupPlayerByUid).toHaveBeenCalledWith("1234567890121203");
     expect(roster.tryBootstrapOwnerColdStartMember).toHaveBeenCalledWith(
       expect.objectContaining({
         ownerProvidedServerNumber: 1203,
         lookup: expect.objectContaining({ gameUserName: "Commander" }),
       }),
     );
-    expect(lookup.lookupPlayerByUid).not.toHaveBeenCalled();
+  });
+
+  it("ignores ownerLookupFallback when Last War API is reachable", async () => {
+    vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
+      ok: true,
+      gameUserName: "Exact Commander",
+      gameServerNumber: 1203,
+    });
+
+    const result = await runWebMemberLinkSubmit({
+      sessionId: "sess-1",
+      allianceId: "a1",
+      hqUserId: "u1",
+      locale: "en-US",
+      reportedName: "Fake Name",
+      gameUid: "1234567890121203",
+      ownerProvidedServerNumber: 9999,
+      ownerLookupFallback: true,
+    });
+
+    expect(result.outcome).toBe("name_mismatch");
+    expect(roster.tryBootstrapOwnerColdStartMember).not.toHaveBeenCalled();
   });
 
   it("never echoes the submitted player UID in the success response", async () => {
+    vi.mocked(lookup.lookupPlayerByUid).mockResolvedValue({
+      ok: false,
+      reason: "request_failed",
+      message: "Could not reach the game server. Try again in a moment.",
+    });
     vi.mocked(roster.tryBootstrapOwnerColdStartMember).mockResolvedValue({
       outcome: "linked",
       message: "Linked",

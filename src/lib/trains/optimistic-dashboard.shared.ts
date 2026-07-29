@@ -206,6 +206,9 @@ export function applyOptimisticConductorSwap(
     conductorMemberName: null,
     substituteForMemberId: null,
     substituteForMemberName: null,
+    vipMemberId: null,
+    vipMemberName: null,
+    guardianIsVip: false,
     lockedAt: null,
   });
 

@@ -616,11 +616,11 @@ describe("optimistic dashboard state", () => {
       date: "2026-06-10",
       conductorMemberId: "m1",
       conductorMemberName: "Alice",
-      vipMemberId: null,
-      vipMemberName: null,
+      vipMemberId: "m9",
+      vipMemberName: "VIP Nine",
       conductorMechanism: "r3_lottery",
-      vipMechanism: null,
-      guardianIsVip: false,
+      vipMechanism: "event_top_x_lottery",
+      guardianIsVip: true,
       lockedAt: null,
       substituteForMemberId: null,
       substituteForMemberName: null,
@@ -657,6 +657,9 @@ describe("optimistic dashboard state", () => {
     const dayA = swapped.viewedWeek.weekRecords.find((r) => r.date === "2026-06-10");
     const dayB = swapped.viewedWeek.weekRecords.find((r) => r.date === "2026-06-12");
     expect(dayA?.conductorMemberId).toBeNull();
+    expect(dayA?.vipMemberId).toBeNull();
+    expect(dayA?.vipMemberName).toBeNull();
+    expect(dayA?.guardianIsVip).toBe(false);
     expect(dayA?.lockedAt).toBeNull();
     expect(dayB?.conductorMemberName).toBe("Alice");
     expect(dayB?.lockedAt).toBe("2026-06-12T12:00:00.000Z");

@@ -1661,6 +1661,11 @@ export async function swapConductors(input: {
       input.dateA,
       input.dateB,
     );
+    // VIP stays day-scoped; do not leave an orphan VIP on the emptied source.
+    // Also releases any depleting event_top_x mark for that date.
+    if (recordA.vipMemberId) {
+      await clearVipAssignment(input.allianceId, input.dateA, seasonKey);
+    }
   }
 
   const draftA = await getConductorRecord(
