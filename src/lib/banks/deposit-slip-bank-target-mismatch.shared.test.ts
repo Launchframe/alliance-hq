@@ -7,10 +7,9 @@ describe("compareTargetedBankToDetected", () => {
     gameServerNumber: 8150,
     coordX: 699,
     coordY: 20,
-    level: 7,
   };
 
-  it("returns aligned when coords and level match", () => {
+  it("returns aligned when coords match", () => {
     expect(
       compareTargetedBankToDetected(targeted, {
         gameServerNumber: 8150,
@@ -44,7 +43,7 @@ describe("compareTargetedBankToDetected", () => {
     ).toBe("mismatch");
   });
 
-  it("returns mismatch when level differs", () => {
+  it("returns aligned when only level differs — level is not part of bank identity", () => {
     expect(
       compareTargetedBankToDetected(targeted, {
         gameServerNumber: 8150,
@@ -58,7 +57,24 @@ describe("compareTargetedBankToDetected", () => {
         firstCaptureDate: null,
         sources: { bankInfo: false, favorites: true },
       }),
-    ).toBe("mismatch");
+    ).toBe("aligned");
+  });
+
+  it("returns aligned when detected level is null and coords match", () => {
+    expect(
+      compareTargetedBankToDetected(targeted, {
+        gameServerNumber: 8150,
+        coordX: 699,
+        coordY: 20,
+        level: null,
+        bankName: null,
+        owningAllianceTag: null,
+        currentDepositValue: null,
+        depositCapacity: null,
+        firstCaptureDate: null,
+        sources: { bankInfo: false, favorites: true },
+      }),
+    ).toBe("aligned");
   });
 
   it("returns insufficient_detected when detected coords are incomplete", () => {

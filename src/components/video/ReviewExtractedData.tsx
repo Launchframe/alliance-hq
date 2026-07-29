@@ -426,7 +426,6 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         gameServerNumber: uploadTargetBank.gameServerNumber,
         coordX: uploadTargetBank.coordX,
         coordY: uploadTargetBank.coordY,
-        level: uploadTargetBank.level,
       },
       detectedBankContext,
     );

@@ -87,6 +87,36 @@ describe("computeDepositSlipReviewHeroMetrics", () => {
     });
   });
 
+  it("does not double-count a video-locked row that is a re-OCR of an existing active HQ slip", () => {
+    const metrics = computeDepositSlipReviewHeroMetrics({
+      bank,
+      reviewRows: [
+        // Same deposit as HQ slip s1 (Alpha, 1000, 3d, same depositAt) —
+        // deposits are unique by [bank, commander, depositAt], so this
+        // re-OCR must not add to the Active count on top of hqActive.
+        {
+          deleted: 0,
+          profession: "locked",
+          ocrName: "Alpha",
+          score: "1000",
+          powerLevel: "2026-07-01T00:00:00.000Z",
+          memberLevel: 3,
+        },
+        // A genuinely new locked deposit — must still be counted.
+        {
+          deleted: 0,
+          profession: "locked",
+          ocrName: "Delta",
+          score: "2000",
+          powerLevel: "2026-07-14T00:00:00.000Z",
+          memberLevel: 1,
+        },
+      ],
+      now: NOW,
+    });
+    expect(metrics?.active.known).toBe(2);
+  });
+
   it("falls back to alliance import time when per-bank snapshot is missing", () => {
     const metrics = computeDepositSlipReviewHeroMetrics({
       bank: { ...bank, cityListSnapshotAt: null },
