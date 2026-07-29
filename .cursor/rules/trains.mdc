@@ -33,7 +33,7 @@ globs:
 
 Templates expand to **per-day** `train_day_configs` (conductor + VIP mechanisms).
 
-**Composite templates** (`COMPOSITE_WEEK_TEMPLATES` in `week-template-registry.shared.ts`) map a whole-week preset to segment templates per **calendar DOW relative to Tuesday** (Tue=0 … Mon=6 via `compositeSegmentDayIndex` in `src/lib/trains/week-template-registry.shared.ts`) — independent of alliance `trainWeekStartDow`. Segment paint is stored on each day's `conductorConfig.paintTemplate`. User-defined reusable composites can extend the same registry later.
+**Composite templates** (`COMPOSITE_WEEK_TEMPLATES` in `src/lib/trains/week-template-registry.shared.ts`) map a whole-week preset to segment templates per **calendar DOW relative to Tuesday** (Tue=0 … Mon=6 via `compositeSegmentDayIndex` in `src/lib/trains/week-template-registry.shared.ts`) — independent of alliance `trainWeekStartDow`. Segment paint is stored on each day's `conductorConfig.paintTemplate`. User-defined reusable composites can extend the same registry later.
 
 **`takedown_week`** — composite Saturday segment for Price Is Freight heavy-hitter (max-ticket list). Conductor rolls use the **with-replacement** PIF path (`usesPriceIsFreightConductorRoll` in `src/lib/trains/heavy-hitter-pool.shared.ts`), not depleting `heavy_hitter` pool consumption.
 
