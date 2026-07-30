@@ -5884,7 +5884,20 @@
       "saveFailed": "Não foi possível salvar o horário seguro da aliança."
     },
     "markers": {
-      "pickHint": "Escolha um marcador para este evento."
+      "pickHint": "Escolha um marcador para este evento.",
+      "depositWindowLabel": "Marcador da janela de depósito",
+      "depositWindowUnset": "Defina a hora de captura e o Horário Seguro da aliança para fixar um marcador de janela de depósito."
+    },
+    "scheduleDropMarker": {
+      "title": "Agendar abandono do banco",
+      "scheduledAt": "Hora do abandono",
+      "markerLabel": "Marcador no mapa",
+      "markerRequired": "Escolha um marcador no mapa para este abandono.",
+      "confirm": "Agendar no Plano de Batalha",
+      "confirmConflict": "Este marcador já está agendado em outro lugar. Salve novamente para movê-lo aqui.",
+      "confirmConflictAction": "Mover marcador e agendar",
+      "scheduling": "Agendando…",
+      "cancel": "Cancelar"
     },
     "riskProfile": {
       "title": "Perfil de risco do investidor",

@@ -2,6 +2,10 @@
  * In-game deposit slot capacity by bank level.
  * Levels 1–5: 100 slots. Level 6+: 110 slots.
  */
+import type {
+  SerializedBattlePlanSettings,
+  SerializedCaptureEvent,
+} from "@/lib/battle-plan/types.shared";
 import type { AllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.shared";
 
 export function bankDepositCapacity(level: number): number {
@@ -84,6 +88,11 @@ export type RiskHeatmapCell = {
   intensity: number;
 };
 
+export type BankBattlePlanSnapshot = {
+  settings: SerializedBattlePlanSettings;
+  events: SerializedCaptureEvent[];
+};
+
 export type BankManagementPayload = {
   banks: BankWithSlips[];
   recommendation: RecommendedDropMetrics | null;
@@ -106,6 +115,8 @@ export type BankManagementPayload = {
   bankCityListImportedAt: string | null;
   /** In-game Alliance Safe Time slot (04 / 12 / 20 server-time hour). */
   allianceSafeTimeSlot: AllianceSafeTimeSlot | null;
+  /** Battle-plan events for marker assignment on bank management (null when unreadable). */
+  battlePlan: BankBattlePlanSnapshot | null;
 };
 
 /** Deposit falloff projection horizons offered in the chart control. */

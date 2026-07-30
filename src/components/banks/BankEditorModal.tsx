@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { DepositTermRiskGauges } from "@/components/banks/DepositTermRiskGauge";
+import { MarkerAssignmentField } from "@/components/banks/MarkerAssignmentField";
 import { Dialog } from "@/components/ui/dialog";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +14,7 @@ import {
 } from "@/components/banks/datetime-local";
 import type { AllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.shared";
 import type { BankPayload } from "@/lib/banks/api.shared";
+import { findScheduledBankBattlePlanEvent } from "@/lib/banks/bank-battle-plan-markers.shared";
 import { resolveProtectionExpiresAt } from "@/lib/banks/protection-timer.shared";
 import {
   computeDepositTermRiskGauges,
@@ -24,6 +26,9 @@ import {
   type DepositPolicy,
   type SerializedBank,
 } from "@/lib/banks/types.shared";
+import type { MarkerIconPreset } from "@/lib/battle-plan/marker-icons.shared";
+import type { BattlePlanTimeDisplay } from "@/lib/battle-plan/time-display.shared";
+import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
 import {
   preventDefaultFormSubmit,
   FORM_SUBMIT_ENTER_KEY_HINT,
@@ -84,10 +89,15 @@ type Props = {
   initial?: SerializedBank | null;
   defaultGameServerNumber?: number | null;
   allianceSafeTimeSlot?: AllianceSafeTimeSlot | null;
+  battlePlanEvents?: readonly SerializedCaptureEvent[];
+  timeDisplay?: BattlePlanTimeDisplay;
   saving: boolean;
   error?: string | null;
   onClose: () => void;
-  onSubmit: (payload: BankPayload) => Promise<void>;
+  onSubmit: (
+    payload: BankPayload,
+    options?: { depositWindowIconPreset: MarkerIconPreset | null },
+  ) => Promise<void>;
   onDelete?: () => Promise<void>;
 };
 
@@ -96,6 +106,8 @@ export function BankEditorModal({
   initial,
   defaultGameServerNumber,
   allianceSafeTimeSlot = null,
+  battlePlanEvents = [],
+  timeDisplay = "local",
   saving,
   error,
   onClose,
@@ -104,9 +116,21 @@ export function BankEditorModal({
 }: Props) {
   const t = useTranslations("bankManagement");
   const tRisk = useTranslations("bankManagement.riskProfile");
+  const tMarkers = useTranslations("bankManagement.markers");
   const [values, setValues] = useState<BankFormValues>(() =>
     buildInitialValues(initial, defaultGameServerNumber),
   );
+  const existingDepositWindowEvent = initial
+    ? findScheduledBankBattlePlanEvent(
+        battlePlanEvents,
+        initial.id,
+        "deposit_window",
+      )
+    : null;
+  const [depositWindowIconPreset, setDepositWindowIconPreset] =
+    useState<MarkerIconPreset | null>(
+      () => existingDepositWindowEvent?.iconPreset ?? null,
+    );
 
   const capturedAtIso = fromDatetimeLocalValue(values.capturedAt);
   const dropByAtIso = fromDatetimeLocalValue(values.dropByAt);
@@ -163,7 +187,7 @@ export function BankEditorModal({
       currentDepositValue: initial?.currentDepositValue ?? null,
       counterpartyRiskScore,
     };
-    void onSubmit(payload);
+    void onSubmit(payload, { depositWindowIconPreset });
   };
 
   return (
@@ -374,6 +398,27 @@ export function BankEditorModal({
               })}
             </p>
           ) : null}
+        </section>
+
+        <section className="space-y-2 rounded-lg border border-hq-border bg-hq-canvas/40 px-3 py-3">
+          {protectionExpiresAt ? (
+            <MarkerAssignmentField
+              label={tMarkers("depositWindowLabel")}
+              value={depositWindowIconPreset}
+              events={battlePlanEvents}
+              timeDisplay={timeDisplay}
+              excludeEventId={existingDepositWindowEvent?.id}
+              disabled={saving}
+              onChange={setDepositWindowIconPreset}
+            />
+          ) : (
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-hq-fg">
+                {tMarkers("depositWindowLabel")}
+              </p>
+              <p className="text-xs text-hq-fg-subtle">{tMarkers("depositWindowUnset")}</p>
+            </div>
+          )}
         </section>
 
         <details className="rounded-lg border border-hq-border bg-hq-canvas/40 px-3 py-2">

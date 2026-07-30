@@ -7,13 +7,17 @@ import { ImageUp, Pencil, Plus, Video } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 
 import { DepositTermRiskGauges } from "@/components/banks/DepositTermRiskGauge";
+import { MarkerBadge } from "@/components/battle-plan/MarkerBadge";
 import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import { bankMatchesCoordQuery } from "@/lib/banks/bank-list-search.shared";
+import { resolveBankListMarkerPreset } from "@/lib/banks/bank-battle-plan-markers.shared";
 import { activeDeposits, isPastDropDeadline } from "@/lib/banks/optimization.shared";
 import { resolveProtectionExpiresAt } from "@/lib/banks/protection-timer.shared";
 import { computeDepositTermRiskGauges } from "@/lib/banks/risk-profile.shared";
 import type { AllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.shared";
 import type { BankWithSlips } from "@/lib/banks/types.shared";
+import type { MarkerIconPreset } from "@/lib/battle-plan/marker-icons.shared";
+import type { SerializedCaptureEvent } from "@/lib/battle-plan/types.shared";
 import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
 
@@ -28,6 +32,7 @@ type Props = {
   selectedBankId: string | null;
   canWrite: boolean;
   allianceSafeTimeSlot?: AllianceSafeTimeSlot | null;
+  battlePlanEvents?: readonly SerializedCaptureEvent[];
   onSelect: (bankId: string) => void;
   onEdit: (bank: BankWithSlips) => void;
   onAdd: () => void;
@@ -50,6 +55,7 @@ type BankListItemProps = {
   muted?: boolean;
   canWrite: boolean;
   allianceSafeTimeSlot: AllianceSafeTimeSlot | null;
+  markerPreset: MarkerIconPreset | null;
   t: ReturnType<typeof useTranslations<"bankManagement">>;
   onSelect: (bankId: string) => void;
   onEdit: (bank: BankWithSlips) => void;
@@ -61,6 +67,7 @@ function BankListItem({
   muted = false,
   canWrite,
   allianceSafeTimeSlot,
+  markerPreset,
   t,
   onSelect,
   onEdit,
@@ -100,6 +107,9 @@ function BankListItem({
           onClick={() => onSelect(bank.id)}
         >
           <div className="flex flex-wrap items-center gap-2">
+            {markerPreset ? (
+              <MarkerBadge iconPreset={markerPreset} size="sm" />
+            ) : null}
             <span
               className={`font-medium ${muted ? "text-hq-fg-muted" : "text-hq-fg"}`}
             >
@@ -178,6 +188,7 @@ export function BankList({
   selectedBankId,
   canWrite,
   allianceSafeTimeSlot = null,
+  battlePlanEvents = [],
   onSelect,
   onEdit,
   onAdd,
@@ -267,6 +278,7 @@ export function BankList({
                   selected={bank.id === selectedBankId}
                   canWrite={canWrite}
                   allianceSafeTimeSlot={allianceSafeTimeSlot}
+                  markerPreset={resolveBankListMarkerPreset(battlePlanEvents, bank.id)}
                   t={t}
                   onSelect={onSelect}
                   onEdit={onEdit}
@@ -294,6 +306,7 @@ export function BankList({
                     muted
                     canWrite={canWrite}
                     allianceSafeTimeSlot={allianceSafeTimeSlot}
+                    markerPreset={resolveBankListMarkerPreset(battlePlanEvents, bank.id)}
                     t={t}
                     onSelect={onSelect}
                     onEdit={onEdit}

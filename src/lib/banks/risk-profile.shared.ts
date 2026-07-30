@@ -94,6 +94,30 @@ export function computeDepositTermRiskGauges(params: {
   );
 }
 
+/** Discord / officer copy for recommended deposit term from gauge bands. */
+export function depositTermAdviceFromRiskGauges(
+  gauges: DepositTermRiskGauge[],
+): string | null {
+  const byTerm = new Map(gauges.map((gauge) => [gauge.termDays, gauge]));
+  const oneDay = byTerm.get(1);
+  const threeDay = byTerm.get(3);
+  if (!oneDay || oneDay.band === "unknown") {
+    return null;
+  }
+  if (oneDay.band === "imminent" || oneDay.fillPercent >= 75) {
+    return "Limit all new deposits to **1 day**.";
+  }
+  if (
+    threeDay &&
+    (threeDay.band === "low" ||
+      threeDay.band === "material" ||
+      threeDay.band === "imminent")
+  ) {
+    return "Safe deposit term is now **3 days** max.";
+  }
+  return null;
+}
+
 export function shouldShowRiskReconfirmHint(params: {
   protectionExpiresAt: Date | null;
   capturedAt: Date | null;

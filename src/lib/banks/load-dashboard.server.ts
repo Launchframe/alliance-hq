@@ -1,5 +1,10 @@
 import "server-only";
 
+import { loadAllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.server";
+import {
+  loadBattlePlanRows,
+  serializeBattlePlanDashboard,
+} from "@/lib/battle-plan/repository.server";
 import {
   buildBankManagementPayload,
   loadAllianceBankCityListSnapshot,
@@ -7,11 +12,11 @@ import {
   loadAllianceTag,
   loadBanksWithSlips,
 } from "@/lib/banks/repository.server";
-import { loadAllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import {
   BANK_READ_PERMISSION,
   BANK_WRITE_PERMISSION,
+  BATTLE_PLAN_READ_PERMISSION,
 } from "@/lib/rbac/constants";
 import { sessionHasPermission } from "@/lib/rbac/context";
 import { getOrCreateSession } from "@/lib/session";
@@ -27,16 +32,17 @@ export async function loadBankManagementDashboard(
     return null;
   }
 
-  const [canRead, canWrite] = await Promise.all([
+  const [canRead, canWrite, canReadBattlePlan] = await Promise.all([
     sessionHasPermission(sessionId, BANK_READ_PERMISSION),
     sessionHasPermission(sessionId, BANK_WRITE_PERMISSION),
+    sessionHasPermission(sessionId, BATTLE_PLAN_READ_PERMISSION),
   ]);
 
   if (!canRead) {
     return { forbidden: true as const };
   }
 
-  const [banks, effectiveSeason, allianceGameServerNumber, allianceTag, cityListSnapshot, allianceSafeTimeSlot] =
+  const [banks, effectiveSeason, allianceGameServerNumber, allianceTag, cityListSnapshot, allianceSafeTimeSlot, battlePlanRows] =
     await Promise.all([
       loadBanksWithSlips(allianceId),
       getEffectiveSeasonForAlliance(allianceId),
@@ -44,7 +50,23 @@ export async function loadBankManagementDashboard(
       loadAllianceTag(allianceId),
       loadAllianceBankCityListSnapshot(allianceId),
       loadAllianceSafeTimeSlot(allianceId),
+      canReadBattlePlan ? loadBattlePlanRows(allianceId) : Promise.resolve(null),
     ]);
+
+  const battlePlan = battlePlanRows
+    ? (() => {
+        const serialized = serializeBattlePlanDashboard(battlePlanRows, {
+          canWrite,
+          todayServerDate: getServerCalendarDate(),
+          allianceTag,
+          allianceSafeTimeSlot,
+        });
+        return {
+          settings: serialized.settings,
+          events: serialized.events,
+        };
+      })()
+    : null;
 
   return buildBankManagementPayload(banks, {
     allianceId,
@@ -62,5 +84,6 @@ export async function loadBankManagementDashboard(
     bankCityListImportedAt:
       cityListSnapshot?.bankCityListImportedAt?.toISOString() ?? null,
     allianceSafeTimeSlot,
+    battlePlan,
   });
 }

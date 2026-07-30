@@ -5884,7 +5884,20 @@
       "saveFailed": "Could not save Alliance Safe Time."
     },
     "markers": {
-      "pickHint": "Pick a marker for this event."
+      "pickHint": "Pick a marker for this event.",
+      "depositWindowLabel": "Deposit-window marker",
+      "depositWindowUnset": "Set capture time and Alliance Safe Time to pin a deposit-window marker."
+    },
+    "scheduleDropMarker": {
+      "title": "Schedule bank drop",
+      "scheduledAt": "Drop time",
+      "markerLabel": "Map marker",
+      "markerRequired": "Pick a map marker for this drop.",
+      "confirm": "Schedule on Battle Plan",
+      "confirmConflict": "This marker is already scheduled elsewhere. Save again to move it here.",
+      "confirmConflictAction": "Move marker and schedule",
+      "scheduling": "Scheduling…",
+      "cancel": "Cancel"
     },
     "riskProfile": {
       "title": "Investor risk profile",

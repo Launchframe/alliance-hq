@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { computeDepositTermRiskGauges } from "@/lib/banks/risk-profile.shared";
+import {
+  computeDepositTermRiskGauges,
+  depositTermAdviceFromRiskGauges,
+} from "@/lib/banks/risk-profile.shared";
 
 const NOW = new Date("2026-07-27T12:00:00.000-02:00");
 const PROTECTION = new Date("2026-07-29T12:00:00.000-02:00"); // Wed +2d
@@ -47,5 +50,27 @@ describe("risk-profile.shared", () => {
       counterpartyRiskScore: 10,
     });
     expect(gauges.every((g) => g.band === "imminent")).toBe(true);
+  });
+
+  it("derives discord deposit-term advice from gauges", () => {
+    const imminent = computeDepositTermRiskGauges({
+      now: NOW,
+      protectionExpiresAt: PROTECTION,
+      dropByAt: new Date("2026-07-28T06:00:00.000-02:00"),
+      counterpartyRiskScore: 10,
+    });
+    expect(depositTermAdviceFromRiskGauges(imminent)).toBe(
+      "Limit all new deposits to **1 day**.",
+    );
+
+    const threeDayRisk = computeDepositTermRiskGauges({
+      now: NOW,
+      protectionExpiresAt: PROTECTION,
+      dropByAt: null,
+      counterpartyRiskScore: 80,
+    });
+    expect(depositTermAdviceFromRiskGauges(threeDayRisk)).toBe(
+      "Safe deposit term is now **3 days** max.",
+    );
   });
 });

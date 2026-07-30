@@ -18,6 +18,7 @@ import {
   recommendNextDrop,
 } from "@/lib/banks/optimization.shared";
 import type {
+  BankBattlePlanSnapshot,
   BankManagementPayload,
   BankWithSlips,
 } from "@/lib/banks/types.shared";
@@ -275,6 +276,7 @@ export function buildBankManagementPayload(
     bankCityListServerTime?: string | null;
     bankCityListImportedAt?: string | null;
     allianceSafeTimeSlot?: AllianceSafeTimeSlot | null;
+    battlePlan?: BankBattlePlanSnapshot | null;
     now?: Date;
   },
 ): BankManagementPayload {
@@ -298,6 +300,7 @@ export function buildBankManagementPayload(
     bankCityListServerTime: options.bankCityListServerTime ?? null,
     bankCityListImportedAt: options.bankCityListImportedAt ?? null,
     allianceSafeTimeSlot: options.allianceSafeTimeSlot ?? null,
+    battlePlan: options.battlePlan ?? null,
   };
 }
 
