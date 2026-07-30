@@ -27,8 +27,9 @@ describe("depositSlipReviewMatchConfidence", () => {
 });
 
 describe("isDepositSlipAutoLinkedMatchMethod", () => {
-  it("treats none/empty as not auto-linked", () => {
+  it("treats none/cleared/empty as not auto-linked", () => {
     expect(isDepositSlipAutoLinkedMatchMethod("none")).toBe(false);
+    expect(isDepositSlipAutoLinkedMatchMethod("cleared")).toBe(false);
     expect(isDepositSlipAutoLinkedMatchMethod(null)).toBe(false);
     expect(isDepositSlipAutoLinkedMatchMethod("")).toBe(false);
   });
@@ -73,12 +74,12 @@ describe("committedDepositSlipCommanderName", () => {
 });
 
 describe("DEPOSIT_SLIP_CLEARED_MEMBER_MATCH", () => {
-  it("nulls member fields and resets match metadata", () => {
+  it("nulls member fields and marks matchMethod cleared (not near-miss none)", () => {
     expect(DEPOSIT_SLIP_CLEARED_MEMBER_MATCH).toEqual({
       memberId: null,
       memberName: null,
       matchConfidence: 0,
-      matchMethod: "none",
+      matchMethod: "cleared",
     });
   });
 });

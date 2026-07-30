@@ -169,6 +169,37 @@ describe("resolveDepositSlipMemberLinks", () => {
     );
   });
 
+  it("skips member rematch when skipMemberRematch is set (officer clear)", async () => {
+    const loadRosterMembers = vi.fn().mockResolvedValue(members);
+    const findAllianceMemberId = vi.fn();
+    const resolveCommanderId = vi.fn();
+
+    const result = await resolveDepositSlipMemberLinks(
+      {
+        bankAllianceId: "alliance-bank",
+        depositAllianceTag: "Roar",
+        commanderName: "Blue Investor",
+        preferredAshedMemberId: "ashed-blue",
+        skipMemberRematch: true,
+      },
+      {
+        listAlliancesByTag: vi.fn().mockResolvedValue([roarAlliance]),
+        listAlliancesWithTags: vi.fn().mockResolvedValue([roarAlliance]),
+        loadRosterMembers,
+        findAllianceMemberId,
+        resolveCommanderId,
+      },
+    );
+
+    expect(result.depositAllianceId).toBe("alliance-roar");
+    expect(result.ashedMemberId).toBeNull();
+    expect(result.allianceMemberId).toBeNull();
+    expect(result.commanderId).toBeNull();
+    expect(loadRosterMembers).not.toHaveBeenCalled();
+    expect(findAllianceMemberId).not.toHaveBeenCalled();
+    expect(resolveCommanderId).not.toHaveBeenCalled();
+  });
+
   it("leaves depositAllianceId null when the tag is ambiguous and matches against the bank alliance roster", async () => {
     const loadRosterMembers = vi.fn().mockResolvedValue(members);
     const findAllianceMemberId = vi.fn().mockResolvedValue("am-orange");

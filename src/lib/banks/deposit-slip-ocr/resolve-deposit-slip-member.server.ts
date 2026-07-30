@@ -246,6 +246,11 @@ export async function resolveDepositSlipMemberLinks(
     commanderName: string;
     /** Parse-time auto-linked ashed member — preferred over name rematch. */
     preferredAshedMemberId?: string | null;
+    /**
+     * Officer cleared Matched Member on review — resolve tag/alliance only;
+     * do not rematch commander FKs from OCR name.
+     */
+    skipMemberRematch?: boolean;
   },
   deps: ResolveDepositSlipMemberLinksDeps = {},
 ): Promise<ResolvedDepositSlipLinks> {
@@ -310,6 +315,16 @@ export async function resolveDepositSlipMemberLinks(
   const rosterAllianceId = depositAllianceId ?? input.bankAllianceId;
   const resolvedAllianceTag =
     allianceCatalog.find((a) => a.id === rosterAllianceId)?.tag?.trim() || null;
+
+  if (input.skipMemberRematch) {
+    return empty(
+      depositAllianceId,
+      tagMatchMethod,
+      tagMatchConfidence,
+      rosterAllianceId,
+      resolvedAllianceTag,
+    );
+  }
 
   const members = await loadRosterMembers(rosterAllianceId);
   if (members.length === 0) {
