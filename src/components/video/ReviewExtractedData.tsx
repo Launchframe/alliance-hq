@@ -131,6 +131,7 @@ import {
   depositSlipScoreDefaultedRowIds,
 } from "@/lib/banks/deposit-slip-score-default.shared";
 import { computeDepositSlipReviewHeroMetrics } from "@/lib/banks/deposit-slip-review-hero-metrics.shared";
+import { formatDepositSlipSubmitSuccessMessage } from "@/lib/banks/deposit-slip-submit-success.shared";
 import { VideoJobProgressBar } from "@/components/video/VideoJobProgressBar";
 import {
   isIndeterminateVideoJobStage,
@@ -436,6 +437,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     bankTargetMismatchState === "mismatch" &&
     (bankTargetMismatchResolution == null ||
       bankTargetMismatchResolution === "targeted");
+  const selectedBankDepositSlips = useMemo(
+    () => banks.find((bank) => bank.id === bankId)?.depositSlips ?? [],
+    [banks, bankId],
+  );
   /**
    * Sticky bank choice from draft restore, preferred upload context, or officer
    * picker — must not be overwritten when OCR context arrives later.
@@ -1933,40 +1938,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       }
       clearDraft();
       setSuccess(
-        isEventView
-          ? t("updateSuccess", { count: data.submitted ?? 0 })
-          : scoreTargetMeta?.showRosterColumns
-            ? t("rosterSubmitSuccess", { count: data.submitted ?? 0 })
-            : scoreTargetMeta?.showDepositSlipColumns
-              ? (() => {
-                  const created = data.createdCount ?? data.submitted ?? 0;
-                  const updated = data.updatedCount ?? 0;
-                  const skipped = data.skippedDuplicateCount ?? 0;
-                  // Reuse existing "Saved {count}" when only outcomes were applied
-                  // (no new en-US string without maintainer copy approval).
-                  if (created === 0 && updated > 0) {
-                    return [
-                      t("depositSlipSubmitSuccess", { count: updated }),
-                      skipped > 0
-                        ? t("depositSlipSubmitSkippedDuplicates", {
-                            count: skipped,
-                          })
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" ");
-                  }
-                  return [
-                    t("depositSlipSubmitAdded", { count: created }),
-                    skipped > 0
-                      ? t("depositSlipSubmitSkippedDuplicates", {
-                          count: skipped,
-                        })
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" ");
-                })()
+        scoreTargetMeta?.showDepositSlipColumns
+          ? formatDepositSlipSubmitSuccessMessage(t, data)
+          : isEventView
+            ? t("updateSuccess", { count: data.submitted ?? 0 })
+            : scoreTargetMeta?.showRosterColumns
+              ? t("rosterSubmitSuccess", { count: data.submitted ?? 0 })
               : isAllianceKillsTarget
                 ? t("killsSubmitSuccess", { count: data.submitted ?? 0 })
                 : t("submitSuccess", { count: data.submitted ?? 0 }),
@@ -3019,10 +2996,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               match={bankContextMatch}
               suppressUnmatchedCreate={suppressUnmatchedBankCreate}
               onBankCreated={(bank) => {
-                setBanks((prev) => [
-                  ...prev,
-                  { ...bank, depositSlips: [] },
-                ]);
+                setBanks((prev) => [...prev, { ...bank, depositSlips: [] }]);
                 bankIdLockedRef.current = true;
                 markDraftDirty();
                 setBankId(bank.id);
@@ -3241,6 +3215,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               scoreTableFollowMeEnabled ? activateFollowMeRow : undefined
             }
             onJumpToRow={scrollToDepositSlipRow}
+            bankDepositSlips={selectedBankDepositSlips}
           />
         </>
       ) : (

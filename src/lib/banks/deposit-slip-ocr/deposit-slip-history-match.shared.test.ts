@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { DEPOSIT_AT_PROXIMITY_MS } from "@/lib/banks/deposit-slip-ocr/deposit-slip-dedupe.shared";
 import {
-  findHighConfidenceHistoricalDepositMatch,
+  canHistoricalOutcomeUpdateLocked,
   findHistoricalDepositMatch,
+  findHighConfidenceHistoricalDepositMatch,
   isHighConfidenceHistoricalDepositMatch,
-  isLifecycleHistoricalDepositMatch,
   isMemberLinkedHistoricalDepositMatch,
   shouldSkipHistoricalDepositDuplicate,
   shouldUpdateHistoricalDepositOutcome,
@@ -21,8 +21,8 @@ function identity(
     termDays: number;
     depositAllianceTag: string | null;
     status: "locked" | "matured" | "looted";
-    outcomeAt: string | null;
     allianceMemberId: string | null;
+    outcomeAt: string | null;
   }> = {},
 ) {
   return {
@@ -32,8 +32,8 @@ function identity(
     termDays: 3,
     depositAllianceTag: "Roar",
     status: "locked" as const,
-    outcomeAt: null as string | null,
     allianceMemberId: null as string | null,
+    outcomeAt: null as string | null,
     ...overrides,
   };
 }
@@ -109,6 +109,15 @@ describe("isHighConfidenceHistoricalDepositMatch", () => {
       ),
     ).toBe(true);
   });
+
+  it("rejects an unparsable depositAt instead of throwing", () => {
+    expect(
+      isHighConfidenceHistoricalDepositMatch(
+        identity({ depositAt: "not-a-date" }),
+        identity(),
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("shouldSkipHistoricalDepositDuplicate / shouldUpdateHistoricalDepositOutcome", () => {
@@ -137,21 +146,6 @@ describe("shouldSkipHistoricalDepositDuplicate / shouldUpdateHistoricalDepositOu
     expect(shouldUpdateHistoricalDepositOutcome(looted, locked)).toBe(true);
   });
 
-  it("updates a locked slip from a day-later matured OCR row", () => {
-    const locked = identity({
-      status: "locked",
-      depositAt: "2026-07-10T12:14:34.000Z",
-      termDays: 3,
-    });
-    const matured = identity({
-      status: "matured",
-      depositAt: "2026-07-13T12:14:34.000Z",
-      termDays: 3,
-    });
-    expect(shouldSkipHistoricalDepositDuplicate(matured, locked)).toBe(false);
-    expect(shouldUpdateHistoricalDepositOutcome(matured, locked)).toBe(true);
-  });
-
   it("skips a locked re-upload when history already terminated", () => {
     expect(
       shouldSkipHistoricalDepositDuplicate(
@@ -168,6 +162,9 @@ describe("shouldSkipHistoricalDepositDuplicate / shouldUpdateHistoricalDepositOu
   });
 
   it("skips without downgrading when two different terminal statuses match", () => {
+    // Only locked->matured/looted is a valid outcome update; a deposit cannot
+    // legitimately flip between matured and looted, so a proximity match
+    // between two different terminal statuses should skip, not overwrite.
     const matured = identity({
       status: "matured",
       depositAt: "2026-07-10T12:14:34.000Z",
@@ -180,67 +177,6 @@ describe("shouldSkipHistoricalDepositDuplicate / shouldUpdateHistoricalDepositOu
     expect(shouldUpdateHistoricalDepositOutcome(looted, matured)).toBe(false);
     expect(shouldSkipHistoricalDepositDuplicate(matured, looted)).toBe(true);
     expect(shouldUpdateHistoricalDepositOutcome(matured, looted)).toBe(false);
-  });
-});
-
-describe("isLifecycleHistoricalDepositMatch", () => {
-  it("pairs a day-later matured OCR row with the locked initiate", () => {
-    const locked = identity({
-      status: "locked",
-      depositAt: "2026-07-10T12:14:34.000Z",
-      termDays: 3,
-    });
-    const matured = identity({
-      status: "matured",
-      depositAt: "2026-07-13T12:14:34.000Z",
-      termDays: 3,
-    });
-    expect(isHighConfidenceHistoricalDepositMatch(matured, locked)).toBe(false);
-    expect(isLifecycleHistoricalDepositMatch(matured, locked)).toBe(true);
-  });
-
-  it("uses outcomeAt when the draft already split initiate vs terminal time", () => {
-    const locked = identity({
-      status: "locked",
-      depositAt: "2026-07-10T12:14:34.000Z",
-    });
-    const matured = identity({
-      status: "matured",
-      depositAt: "2026-07-10T12:14:34.000Z",
-      outcomeAt: "2026-07-13T12:14:34.000Z",
-    });
-    expect(isLifecycleHistoricalDepositMatch(matured, locked)).toBe(true);
-  });
-
-  it("rejects a matured row that is only minutes after initiate", () => {
-    expect(
-      isLifecycleHistoricalDepositMatch(
-        identity({
-          status: "matured",
-          depositAt: "2026-07-10T12:20:00.000Z",
-        }),
-        identity({ status: "locked" }),
-      ),
-    ).toBe(false);
-  });
-
-  it("pairs terminal OCR with locked initiate via roster member id when names differ", () => {
-    const locked = identity({
-      commanderName: "Banla QC",
-      allianceMemberId: "am-bania",
-      status: "locked",
-      depositAt: "2026-07-10T12:14:34.000Z",
-      termDays: 3,
-    });
-    const matured = identity({
-      commanderName: "Bania QC",
-      allianceMemberId: "am-bania",
-      status: "matured",
-      depositAt: "2026-07-13T12:14:34.000Z",
-      termDays: 3,
-    });
-    expect(isLifecycleHistoricalDepositMatch(matured, locked)).toBe(true);
-    expect(shouldUpdateHistoricalDepositOutcome(matured, locked)).toBe(true);
   });
 });
 
@@ -265,11 +201,16 @@ describe("isMemberLinkedHistoricalDepositMatch", () => {
     expect(isMemberLinkedHistoricalDepositMatch(a, b)).toBe(false);
   });
 
-  it("requires allianceMemberId on both sides", () => {
-    const linked = identity({ allianceMemberId: "am-1" });
-    const unlinked = identity({ allianceMemberId: null });
-    expect(isMemberLinkedHistoricalDepositMatch(linked, unlinked)).toBe(false);
-    expect(isMemberLinkedHistoricalDepositMatch(unlinked, linked)).toBe(false);
+  it("does not match the same roster member when amount or term differs", () => {
+    const a = identity({ allianceMemberId: "am-bania", amount: 7000 });
+    const b = identity({ allianceMemberId: "am-bania" });
+    expect(isMemberLinkedHistoricalDepositMatch(a, b)).toBe(false);
+  });
+
+  it("does not match the same roster member when depositAt is unparsable", () => {
+    const a = identity({ allianceMemberId: "am-bania", depositAt: "not-a-date" });
+    const b = identity({ allianceMemberId: "am-bania" });
+    expect(isMemberLinkedHistoricalDepositMatch(a, b)).toBe(false);
   });
 });
 
@@ -282,6 +223,21 @@ describe("findHighConfidenceHistoricalDepositMatch", () => {
     expect(findHighConfidenceHistoricalDepositMatch(identity(), history)).toBe(
       history[1],
     );
+  });
+
+  it("finds member-linked history when commander OCR differs", () => {
+    const history = [
+      identity({
+        commanderName: "Banla QC",
+        allianceMemberId: "am-bania",
+      }),
+    ];
+    expect(
+      findHistoricalDepositMatch(
+        identity({ commanderName: "Bania QC", allianceMemberId: "am-bania" }),
+        history,
+      ),
+    ).toBe(history[0]);
   });
 
   it("prefers a lifecycle-locked initiate over a proximity re-deposit", () => {
@@ -301,53 +257,121 @@ describe("findHighConfidenceHistoricalDepositMatch", () => {
       termDays: 3,
     });
     expect(
-      findHighConfidenceHistoricalDepositMatch(matured, [redeposit, oldLocked]),
+      findHistoricalDepositMatch(matured, [redeposit, oldLocked]),
     ).toBe(oldLocked);
     expect(shouldUpdateHistoricalDepositOutcome(matured, oldLocked)).toBe(true);
     expect(shouldUpdateHistoricalDepositOutcome(matured, redeposit)).toBe(false);
   });
+});
 
-  it("skips a term-aligned matured re-upload against already-closed history", () => {
-    const maturedHistory = identity({
-      status: "matured",
-      depositAt: "2026-07-10T12:14:34.000Z",
+describe("findHistoricalDepositMatch — cross-job lifecycle", () => {
+  it("pairs a matured OCR row with a locked slip when green is days after blue", () => {
+    const locked = identity({
+      status: "locked",
+      depositAt: "2026-07-10T12:00:00.000Z",
       termDays: 3,
     });
-    const maturedOcr = identity({
+    const maturedIncoming = identity({
       status: "matured",
-      depositAt: "2026-07-13T12:14:34.000Z",
+      depositAt: "2026-07-13T12:05:00.000Z",
       termDays: 3,
     });
-    expect(
-      findHighConfidenceHistoricalDepositMatch(maturedOcr, [maturedHistory]),
-    ).toBe(maturedHistory);
-    expect(shouldSkipHistoricalDepositDuplicate(maturedOcr, maturedHistory)).toBe(
+    expect(canHistoricalOutcomeUpdateLocked(maturedIncoming, locked)).toBe(true);
+    expect(findHistoricalDepositMatch(maturedIncoming, [locked])?.status).toBe(
+      "locked",
+    );
+    expect(shouldUpdateHistoricalDepositOutcome(maturedIncoming, locked)).toBe(
       true,
     );
-    expect(
-      shouldUpdateHistoricalDepositOutcome(maturedOcr, maturedHistory),
-    ).toBe(false);
+    expect(shouldSkipHistoricalDepositDuplicate(maturedIncoming, locked)).toBe(
+      false,
+    );
   });
 
-  it("finds member-linked history when commander OCR differs", () => {
-    const history = [
-      identity({
-        commanderName: "Banla QC",
-        allianceMemberId: "am-bania",
+  it("pairs looted OCR with locked when outcome is after initiate within term", () => {
+    const locked = {
+      id: "h1",
+      ...identity({
+        status: "locked",
+        depositAt: "2026-07-10T12:00:00.000Z",
+        termDays: 3,
       }),
-    ];
+    };
+    const lootedIncoming = identity({
+      status: "looted",
+      depositAt: "2026-07-11T08:00:00.000Z",
+      termDays: 3,
+    });
+    expect(canHistoricalOutcomeUpdateLocked(lootedIncoming, locked)).toBe(true);
+    expect(findHistoricalDepositMatch(lootedIncoming, [locked])?.id).toBe("h1");
+  });
+
+  it("skips re-upload of the same terminal outcome across jobs", () => {
+    const stored = identity({
+      status: "matured",
+      depositAt: "2026-07-10T12:00:00.000Z",
+      outcomeAt: "2026-07-13T12:05:00.000Z",
+      termDays: 3,
+    });
+    const reupload = identity({
+      status: "matured",
+      depositAt: "2026-07-13T12:06:00.000Z",
+      termDays: 3,
+    });
+    expect(shouldSkipHistoricalDepositDuplicate(reupload, stored)).toBe(true);
+    expect(shouldUpdateHistoricalDepositOutcome(reupload, stored)).toBe(false);
+  });
+});
+
+describe("canHistoricalOutcomeUpdateLocked / shouldUpdateHistoricalDepositOutcome — non-matches", () => {
+  it("rejects a locked pairing candidate when amount or term does not match", () => {
+    const locked = identity({ status: "locked" });
+    const looted = identity({
+      status: "looted",
+      amount: 7000,
+      depositAt: "2026-07-10T12:20:00.000Z",
+    });
+    expect(canHistoricalOutcomeUpdateLocked(looted, locked)).toBe(false);
+  });
+
+  it("does not update a locked slip when a looted OCR row shares no identity fields", () => {
+    const locked = identity({ status: "locked" });
+    const unrelatedLooted = identity({
+      status: "looted",
+      commanderName: "Someone Else",
+      allianceMemberId: null,
+      amount: 9999,
+      depositAt: "2026-07-10T12:20:00.000Z",
+    });
+    expect(shouldUpdateHistoricalDepositOutcome(unrelatedLooted, locked)).toBe(
+      false,
+    );
+  });
+
+  it("rejects an unparsable outcome timestamp instead of throwing", () => {
+    const locked = identity({ status: "locked" });
+    const garbledLooted = identity({
+      status: "looted",
+      depositAt: "not-a-date",
+      outcomeAt: null,
+    });
+    expect(canHistoricalOutcomeUpdateLocked(garbledLooted, locked)).toBe(
+      false,
+    );
+  });
+
+  it("does not treat two terminal rows as duplicates when a timestamp is unparsable", () => {
+    const garbledStored = identity({
+      status: "looted",
+      depositAt: "not-a-date",
+    });
+    const incomingLooted = identity({
+      status: "looted",
+      depositAt: "2026-07-10T12:20:00.000Z",
+    });
     expect(
-      findHistoricalDepositMatch(
-        identity({ commanderName: "Bania QC", allianceMemberId: "am-bania" }),
-        history,
-      ),
-    ).toBe(history[0]);
-    expect(
-      findHighConfidenceHistoricalDepositMatch(
-        identity({ commanderName: "Bania QC", allianceMemberId: "am-bania" }),
-        history,
-      ),
-    ).toBe(history[0]);
+      shouldSkipHistoricalDepositDuplicate(incomingLooted, garbledStored),
+    ).toBe(false);
   });
 });
 

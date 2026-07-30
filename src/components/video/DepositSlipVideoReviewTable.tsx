@@ -16,7 +16,9 @@ import {
   DEPOSIT_TERMS,
   type DepositStatus,
   type DepositTermDays,
+  type SerializedDepositSlip,
 } from "@/lib/banks/types.shared";
+import { countReviewRowsMatchingBankHistory } from "@/lib/banks/deposit-slip-ocr/deposit-slip-history-preview.shared";
 import { formatDepositSlipGameTimestamp } from "@/lib/banks/deposit-slip-ocr/deposit-slip-game-timestamp.shared";
 import {
   flaggedClusterIdsWithSingleSurvivor,
@@ -100,6 +102,8 @@ type Props = {
   onFollowMeActivateRow?: (rowId: string) => void;
   /** Scroll the table to a row (flagged-cluster / warning banners). */
   onJumpToRow?: (rowId: string) => void;
+  /** Saved slips for the selected bank — powers pre-save history preview. */
+  bankDepositSlips?: readonly SerializedDepositSlip[];
 };
 
 const FLAG_REASON_KEYS = [
@@ -236,6 +240,7 @@ export function DepositSlipVideoReviewTable({
   highlightedRowId,
   onFollowMeActivateRow,
   onJumpToRow,
+  bankDepositSlips = [],
 }: Props) {
   const t = useTranslations("videoReview");
   const tBanks = useTranslations("bankManagement");
@@ -309,6 +314,14 @@ export function DepositSlipVideoReviewTable({
       missingTsClusters.reduce((n, c) => n + absorbedMemberCount(c), 0),
     [missingTsClusters],
   );
+
+  const bankHistoryPreview = useMemo(
+    () =>
+      countReviewRowsMatchingBankHistory(activeRows, bankDepositSlips ?? []),
+    [activeRows, bankDepositSlips],
+  );
+  const bankHistoryMatchCount =
+    bankHistoryPreview.skipCount + bankHistoryPreview.updateCount;
 
   const flaggedClusterIds = useMemo(
     () =>
@@ -782,6 +795,19 @@ export function DepositSlipVideoReviewTable({
           </tbody>
         </table>
       </div>
+
+      {bankHistoryMatchCount > 0 ? (
+        <div className="rounded-xl border border-[#d29922]/40 bg-[#d29922]/10 p-4 text-sm text-[#e3b341]">
+          <p className="font-medium">
+            {t("depositSlipHistoryPreviewTitle", {
+              count: bankHistoryMatchCount,
+            })}
+          </p>
+          <p className="mt-1 text-hq-fg">
+            {t("depositSlipHistoryPreviewHint")}
+          </p>
+        </div>
+      ) : null}
 
       {autoMergedAbsorbedCount > 0 ? (
         <div className="rounded-xl border border-hq-border bg-hq-surface-muted/40 p-4 text-sm">

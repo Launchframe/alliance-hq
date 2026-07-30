@@ -4124,6 +4124,8 @@
     "depositSlipBankTargetUseTargeted": "Use targeted bank",
     "depositSlipBankTargetUseVideo": "Use video coordinates",
     "depositSlipScoreDefaultedWarning": "CrystalGold could not be parsed. Default of 6000 has been applied.",
+    "depositSlipHistoryPreviewTitle": "{count, plural, one {# row matches this bank's saved history} other {# rows match this bank's saved history}}",
+    "depositSlipHistoryPreviewHint": "On save, matching rows will be skipped or updated instead of added again.",
     "bankLabel": "Bank Stronghold",
     "bankPlaceholder": "Select bank…",
     "bankContextMatched": "Matched bank #{server} (X:{x}, Y:{y}) detected from the video.",

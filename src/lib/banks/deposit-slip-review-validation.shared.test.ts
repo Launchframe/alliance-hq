@@ -332,6 +332,37 @@ describe("findOverlappingLockedDepositSlips", () => {
     expect(issues).toEqual([]);
   });
 
+  it("flags overlapping locked rows for the same linked roster member with different OCR names", () => {
+    const issues = findOverlappingLockedDepositSlips([
+      {
+        id: "banla",
+        ocrName: "Banla QC",
+        memberId: "ashed-bania",
+        memberName: "Banla QC",
+        score: "6000",
+        powerLevel: "2026-07-09T12:00:00.000Z",
+        memberLevel: 3,
+        profession: "locked",
+        deleted: false,
+      },
+      {
+        id: "bania",
+        ocrName: "Bania QC",
+        memberId: "ashed-bania",
+        memberName: "Banla QC",
+        score: "6000",
+        powerLevel: "2026-07-09T12:05:00.000Z",
+        memberLevel: 3,
+        profession: "locked",
+        deleted: false,
+      },
+    ]);
+
+    expect(issues).toHaveLength(1);
+    expect(new Set(issues[0]!.rowIds)).toEqual(new Set(["banla", "bania"]));
+    expect(issues[0]!.memberName).toBe("Banla QC");
+  });
+
   it("flags all pairwise-overlapping locked rows in a three-way cluster", () => {
     const issues = findOverlappingLockedDepositSlips([
       {
