@@ -26,10 +26,11 @@ describe("bank deposit commit advisory lock key", () => {
   });
 
   it("does not collide with the Ashed score-replace lock namespace", () => {
-    const bankPair = advisoryLockPair("alliance-1\0bank-1");
+    const material = "alliance-1\0bank-1";
+    const bankPair = advisoryLockPair(material);
     const ashedDigest = createHash("sha256")
       .update("ashed-score-replace:")
-      .update("alliance-1\0bank-deposit-slip-history\x002026-07-10")
+      .update(material)
       .digest();
     const ashedPair: [number, number] = [
       ashedDigest.readInt32BE(0),
