@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { ConductorHistoryTable } from "@/components/trains/ConductorHistoryTable";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { Dialog } from "@/components/ui/dialog";
-import type { WeekConductorRecordSummary } from "@/lib/trains/load-dashboard";
+import type { WeekConductorRecordSummary } from "@/lib/trains/conductor-record.shared";
 
 type HistoryApiRecord = {
   id: string;
@@ -73,8 +73,8 @@ export function ConductorHistoryDialog({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [memberId, setMemberId] = useState<string>("");
-  const [allianceRank, setAllianceRank] = useState<string>("");
+  const [memberId, setMemberId] = useState(initialMemberId ?? "");
+  const [allianceRank, setAllianceRank] = useState("");
 
   const memberOptions = useMemo(
     () => [

@@ -59,21 +59,8 @@ import { getServerCalendarDate } from "@/lib/trains/service";
 import type { ConductorMechanismType, WeekTemplateType } from "@/lib/trains/types";
 
 export type { TrainsVsDataStatus, TrainsRosterDataStatus };
-
-export type WeekConductorRecordSummary = {
-  id: string;
-  date: string;
-  conductorMemberId: string | null;
-  conductorMemberName: string | null;
-  vipMemberId: string | null;
-  vipMemberName: string | null;
-  conductorMechanism: string | null;
-  vipMechanism: string | null;
-  guardianIsVip: boolean;
-  lockedAt: string | null;
-  substituteForMemberId: string | null;
-  substituteForMemberName: string | null;
-};
+export type { WeekConductorRecordSummary } from "@/lib/trains/conductor-record.shared";
+import type { WeekConductorRecordSummary } from "@/lib/trains/conductor-record.shared";
 
 export type WeekScheduleDayConfig = TrainsDashboardPayload["dayConfigs"][number];
 

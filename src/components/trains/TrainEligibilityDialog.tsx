@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Info } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ScoreLeaderboardPodium } from "@/components/trains/ScoreLeaderboardPodium";
@@ -56,6 +57,7 @@ type Props = {
   canResetPool?: boolean;
   resetBusy?: boolean;
   onResetPool?: () => void;
+  onOpenReseedHint?: () => void;
   onClose: () => void;
 };
 
@@ -92,6 +94,7 @@ export function TrainEligibilityDialog({
   canResetPool = false,
   resetBusy = false,
   onResetPool,
+  onOpenReseedHint,
   onClose,
 }: Props) {
   const t = useTranslations("trains.poolDetails");
@@ -456,15 +459,28 @@ export function TrainEligibilityDialog({
                 </div>
               </div>
             ) : (
-              <button
-                type="button"
-                disabled={resetBusy}
-                onClick={() => setResetConfirm(true)}
-                className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg-muted hover:text-hq-fg disabled:opacity-50"
-                data-testid="trains-eligibility-reset"
-              >
-                {resetBusy ? tRoot("reseedingPool") : tRoot("reseedPool")}
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={resetBusy}
+                  onClick={() => setResetConfirm(true)}
+                  className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg-muted hover:text-hq-fg disabled:opacity-50"
+                  data-testid="trains-eligibility-reset"
+                >
+                  {resetBusy ? tRoot("reseedingPool") : tRoot("reseedPool")}
+                </button>
+                {onOpenReseedHint ? (
+                  <button
+                    type="button"
+                    onClick={onOpenReseedHint}
+                    aria-label={tRoot("reseedPoolHint.infoLabel")}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-hq-fg-muted hover:bg-hq-canvas hover:text-hq-fg"
+                    data-testid="trains-eligibility-reset-hint"
+                  >
+                    <Info className="h-4 w-4" aria-hidden />
+                  </button>
+                ) : null}
+              </div>
             )}
           </div>
         ) : null}

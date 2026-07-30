@@ -2854,6 +2854,7 @@ export function TrainsDashboard({ initial }: Props) {
             void reseedPool(conductorReseedPoolType);
           }
         }}
+        onOpenReseedHint={() => setReseedHintOpen(true)}
         onClose={() => {
           setPoolDetailsOpen(false);
           setPoolDetailsInitialType(null);
