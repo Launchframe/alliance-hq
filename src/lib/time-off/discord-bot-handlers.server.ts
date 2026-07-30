@@ -450,11 +450,11 @@ export async function handleDiscordIsAllyOfflinePick(input: {
   return { reply };
 }
 
-export async function handleDiscordMarkTimeOff(input: {
+export async function handleDiscordSetTimeOff(input: {
   allianceId: string;
   discordUserId: string;
   locale: DiscordBotLocale;
-  commander?: string;
+  member?: string;
   start?: string;
   end?: string;
   kind?: string;
@@ -470,14 +470,14 @@ export async function handleDiscordMarkTimeOff(input: {
     await writeDiscordBotAudit({
       allianceId: input.allianceId,
       discordUserId: input.discordUserId,
-      command: "mark_time_off",
+      command: "set_time_off",
       payload: input,
       result: { reply },
     });
     return { reply };
   }
 
-  const name = input.commander?.trim();
+  const name = input.member?.trim();
   const startDate = input.start?.trim();
   if (!name || !startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
     const reply = t("timeOff.invalidDate");
@@ -501,7 +501,7 @@ export async function handleDiscordMarkTimeOff(input: {
     await writeDiscordBotAudit({
       allianceId: input.allianceId,
       discordUserId: input.discordUserId,
-      command: "mark_time_off",
+      command: "set_time_off",
       payload: input,
       result: { reply: target.reply },
     });
@@ -543,7 +543,7 @@ export async function handleDiscordMarkTimeOff(input: {
   await writeDiscordBotAudit({
     allianceId: input.allianceId,
     discordUserId: input.discordUserId,
-    command: "mark_time_off",
+    command: "set_time_off",
     payload: input,
     result: { reply, entryId: row.id },
   });

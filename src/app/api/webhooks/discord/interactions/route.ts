@@ -135,7 +135,7 @@ import {
   handleDiscordMyTimeOff,
   handleDiscordIsAllyOffline,
   handleDiscordIsAllyOfflinePick,
-  handleDiscordMarkTimeOff,
+  handleDiscordSetTimeOff,
   handleDiscordCancelTimeOffOfficer,
   handleDiscordWhoIsAway,
   handleDiscordUnexpectedAbsences,
@@ -870,17 +870,17 @@ async function handleSlashCommand(
     return discordMessageResponse(result.reply, undefined, { ephemeral: false });
   }
 
-  if (commandName === "mark-time-off") {
-    const commander = parseSlashOptionString(payload, "commander");
+  if (commandName === "set-time-off") {
+    const member = parseSlashOptionString(payload, "member");
     const start = parseSlashOptionString(payload, "start");
     const end = parseSlashOptionString(payload, "end");
     const kind = parseSlashOptionString(payload, "kind");
     const notes = parseSlashOptionString(payload, "notes");
-    const result = await handleDiscordMarkTimeOff({
+    const result = await handleDiscordSetTimeOff({
       allianceId,
       discordUserId,
       locale,
-      commander,
+      member,
       start,
       end,
       kind,

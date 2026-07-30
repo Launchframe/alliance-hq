@@ -4981,8 +4981,8 @@
       "linkCommander": "Link your commander: run `/link-commander` in Discord, open the secure link, and enter your player ID from your in-game profile. Confirm the commander name when prompted.\n\n**Guide:** {guideUrl}",
       "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. `/who-is` looks up Discord↔commander links. `/who-is-conductor` shows today's train conductor. `/my-time-off` announces or lists your time off.\n\n**Guide:** {guideUrl}",
       "memberReadyMulti": "You have **{count}** linked commanders. `/vr` and `/immunity` will ask which one. `/unlink` removes a link. `/my-time-off` announces or lists your time off.\n\n**Guide:** {guideUrl}",
-      "ownerReady": "You're linked as owner (**{tag}**). Finish setup: `/set-vr-report-channel`, `/set-train-channel`, then share `/link-commander` with members. Officers can use `/mark-time-off` and `/who-is-away`.\n\n**Guide:** {guideUrl}",
-      "ownerReadyMulti": "Owner (**{tag}**) with **{count}** commanders. `/vr` asks which character. Channel setup: `/set-vr-report-channel`, `/set-train-channel`. Officers can use `/mark-time-off` and `/who-is-away`.\n\n**Guide:** {guideUrl}"
+      "ownerReady": "You're linked as owner (**{tag}**). Finish setup: `/set-vr-report-channel`, `/set-train-channel`, then share `/link-commander` with members. Officers can use `/set-time-off` and `/who-is-away`.\n\n**Guide:** {guideUrl}",
+      "ownerReadyMulti": "Owner (**{tag}**) with **{count}** commanders. `/vr` asks which character. Channel setup: `/set-vr-report-channel`, `/set-train-channel`. Officers can use `/set-time-off` and `/who-is-away`.\n\n**Guide:** {guideUrl}"
     },
     "unlink": {
       "none": "You don't have any linked commanders on this server. Run `/link-commander` first.",

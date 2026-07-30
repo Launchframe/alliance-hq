@@ -4927,8 +4927,8 @@
       "linkCommander": "Vincule seu comandante: execute `/link-commander` no Discord, abra o link seguro e informe seu ID de jogador do perfil no jogo. Confirme o nome quando solicitado.\n\n**Guia:** {guideUrl}",
       "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. `/who-is` consulta vínculos Discord↔comandante. `/who-is-conductor` mostra o condutor de hoje. `/my-time-off` anuncia ou lista suas ausências.\n\n**Guia:** {guideUrl}",
       "memberReadyMulti": "Você tem **{count}** comandantes vinculados. `/vr` e `/immunity` perguntarão qual usar. `/unlink` remove um vínculo. `/my-time-off` anuncia ou lista suas ausências.\n\n**Guia:** {guideUrl}",
-      "ownerReady": "Você está vinculado como dono (**{tag}**). Conclua: `/set-vr-report-channel`, `/set-train-channel`, depois compartilhe `/link-commander` com os membros. Oficiais podem usar `/mark-time-off` e `/who-is-away`.\n\n**Guia:** {guideUrl}",
-      "ownerReadyMulti": "Dono (**{tag}**) com **{count}** comandantes. `/vr` pergunta qual personagem. Canais: `/set-vr-report-channel`, `/set-train-channel`. Oficiais podem usar `/mark-time-off` e `/who-is-away`.\n\n**Guia:** {guideUrl}"
+      "ownerReady": "Você está vinculado como dono (**{tag}**). Conclua: `/set-vr-report-channel`, `/set-train-channel`, depois compartilhe `/link-commander` com os membros. Oficiais podem usar `/set-time-off` e `/who-is-away`.\n\n**Guia:** {guideUrl}",
+      "ownerReadyMulti": "Dono (**{tag}**) com **{count}** comandantes. `/vr` pergunta qual personagem. Canais: `/set-vr-report-channel`, `/set-train-channel`. Oficiais podem usar `/set-time-off` e `/who-is-away`.\n\n**Guia:** {guideUrl}"
     },
     "unlink": {
       "none": "Nenhum comandante vinculado neste servidor. Execute `/link-commander` primeiro.",

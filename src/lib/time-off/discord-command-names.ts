@@ -6,7 +6,7 @@ export const TIME_OFF_MEMBER_SLASH_COMMANDS = [
 
 /** Officer-gated time-off slash commands (R4+ / owner via `callerCanRunVrReport`). */
 export const TIME_OFF_OFFICER_SLASH_COMMANDS = [
-  "mark-time-off",
+  "set-time-off",
   "cancel-time-off",
   "who-is-away",
   "unexpected-absences",

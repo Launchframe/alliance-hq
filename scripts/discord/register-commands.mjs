@@ -647,17 +647,17 @@ const commandBody = [
     ],
   },
   {
-    name: "mark-time-off",
-    description: "Officers: log time off for another commander (R4+).",
+    name: "set-time-off",
+    description: "Officers: set time off for an alliance member (R4+).",
     description_localizations: {
-      "pt-BR": "Oficiais: registre ausência para outro comandante (R4+).",
+      "pt-BR": "Oficiais: defina ausência para um membro da aliança (R4+).",
     },
     options: [
       {
-        name: "commander",
-        description: "Alliance commander this time off is for.",
+        name: "member",
+        description: "Alliance member name from your roster.",
         description_localizations: {
-          "pt-BR": "Comandante da aliança para o qual é a ausência.",
+          "pt-BR": "Nome do membro no roster da aliança.",
         },
         type: 3,
         required: true,
