@@ -57,7 +57,9 @@ export function AdminPortalShell({ children }: Props) {
 
   // Video jobs tables are wide (many columns); give that section ~50% more room
   // than the default admin shell without widening every admin page.
-  const wideContent = pathname.startsWith("/admin/video-jobs");
+  const wideContent =
+    pathname.startsWith("/admin/video-jobs") ||
+    pathname.startsWith("/admin/screenshot-jobs");
 
   return (
     <div

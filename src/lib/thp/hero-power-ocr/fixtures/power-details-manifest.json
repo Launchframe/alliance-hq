@@ -1,0 +1,44 @@
+[
+  {
+    "id": "mobile-jul20",
+    "file": "power-details-2026-07-20.png",
+    "heroPowerTotal": 164615505,
+    "breakdown": {
+      "heroLevel": 85868520,
+      "decorationsAndBuildings": 37811658,
+      "gear": 13190850,
+      "exclusiveWeapons": 9408080,
+      "heroTier": 7051707,
+      "heroSkill": 6581990,
+      "wallOfHonor": 4702700
+    }
+  },
+  {
+    "id": "mobile-jul29",
+    "file": "power-details-2026-07-29.png",
+    "heroPowerTotal": 166581498,
+    "breakdown": {
+      "heroLevel": 87659312,
+      "decorationsAndBuildings": 37983637,
+      "gear": 13383341,
+      "exclusiveWeapons": 9459898,
+      "heroTier": 6960050,
+      "heroSkill": 6525560,
+      "wallOfHonor": 4609700
+    }
+  },
+  {
+    "id": "pc-portrait-jul29",
+    "file": "power-details-pc-portrait-2026-07-29.png",
+    "heroPowerTotal": 126813645,
+    "breakdown": {
+      "heroLevel": 69138632,
+      "decorationsAndBuildings": 27757255,
+      "gear": 11563710,
+      "heroSkill": 5909650,
+      "heroTier": 5889085,
+      "exclusiveWeapons": 5060338,
+      "wallOfHonor": 1494975
+    }
+  }
+]

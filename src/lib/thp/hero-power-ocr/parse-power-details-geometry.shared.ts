@@ -27,6 +27,15 @@ import {
 import type { ThpBreakdown } from "@/lib/thp/my-thp.shared";
 import type { ParsePowerDetailsResult } from "@/lib/thp/hero-power-ocr/parse-power-details";
 import { stripOcrCommaSevens } from "@/lib/thp/hero-power-ocr/parse-power-details";
+import type { CropRect } from "@/lib/ocr/game-modal-detect.shared";
+import {
+  assignOverlayIndices,
+  breakdownKeyToFieldKey,
+  mapCropBboxToSource,
+  modalRectToBbox,
+  type BboxRect,
+  type ScreenshotOcrBboxOverlay,
+} from "@/lib/ocr/screenshot-ocr-geometry.shared";
 
 /** Line with optional geometry from Tesseract `blocks`. */
 export type GeometryOcrLine = {
@@ -41,6 +50,7 @@ export type NormalizedGeometryLine = {
   yNorm: number;
   /** Raw y-center in crop pixels (diagnostics). */
   yCenterPx: number | null;
+  bbox?: { x0: number; y0: number; x1: number; y1: number } | null;
 };
 
 export type LabelValuePair = {
@@ -49,6 +59,9 @@ export type LabelValuePair = {
   key: ThpBreakdownKey | null;
   value: number | null;
   yNorm: number;
+  labelBbox?: BboxRect | null;
+  valueBbox?: BboxRect | null;
+  zipDist?: number;
 };
 
 /** Hero Power / Heldenkampfkraft / … header row (not a breakdown component). */
@@ -169,6 +182,113 @@ export function parseDigitsOnlyHeaderTotalLoose(text: string): number | null {
   return null;
 }
 
+function parseHeaderCandidate(text: string): number | null {
+  return (
+    parseDigitsOnlyHeaderTotalLoose(text) ?? parseDigitsOnlyHeaderTotal(text)
+  );
+}
+
+/** Hero Power header is typically ~1.2–2.4× Hero Level (largest component). */
+const HERO_HEADER_TO_LEVEL_MIN_RATIO = 1.12;
+const HERO_HEADER_TO_LEVEL_MAX_RATIO = 2.45;
+
+export function isPlausibleHeroPowerHeaderTotal(
+  headerTotal: number,
+  heroLevel: number | null | undefined,
+): boolean {
+  if (heroLevel == null || heroLevel <= 0) return true;
+  const ratio = headerTotal / heroLevel;
+  return (
+    ratio >= HERO_HEADER_TO_LEVEL_MIN_RATIO &&
+    ratio <= HERO_HEADER_TO_LEVEL_MAX_RATIO
+  );
+}
+
+/** Pick the value on the Hero Power grey bar via label↔value y-alignment. */
+export function pickHeroPowerHeaderFromLabelRow(
+  labels: NormalizedGeometryLine[],
+  values: NormalizedGeometryLine[],
+  maxYNormDistance = 0.06,
+): number | null {
+  const headerLabel = labels
+    .filter((label) => isHeroPowerHeaderLabel(label.text))
+    .sort((a, b) => a.yNorm - b.yNorm)[0];
+  if (!headerLabel) return null;
+
+  let best: { dist: number; value: number } | null = null;
+  for (const value of values) {
+    const parsed = parseHeaderCandidate(value.text);
+    if (parsed == null || parsed < 100_000_000 || parsed > 1_000_000_000) {
+      continue;
+    }
+    const dist = Math.abs(value.yNorm - headerLabel.yNorm);
+    if (dist > maxYNormDistance) continue;
+    if (best == null || dist < best.dist) {
+      best = { dist, value: parsed };
+    }
+  }
+  return best?.value ?? null;
+}
+
+export function sumPairedBreakdown(pairs: LabelValuePair[]): number {
+  let sum = 0;
+  for (const pair of pairs) {
+    if (pair.key != null && pair.value != null) {
+      sum += pair.value;
+    }
+  }
+  return sum;
+}
+
+/**
+ * When the inverted header pass picks hero-level noise (~870M) instead of the
+ * grey-bar total (~166M), prefer a component sum that matches hero-level ratio.
+ */
+export function reconcileHeroPowerHeaderTotal(input: {
+  headerTotal: number | null;
+  pairs: LabelValuePair[];
+}): number | null {
+  const heroLevel =
+    input.pairs.find((pair) => pair.key === "heroLevel")?.value ?? null;
+
+  if (
+    input.headerTotal != null &&
+    isPlausibleHeroPowerHeaderTotal(input.headerTotal, heroLevel)
+  ) {
+    return input.headerTotal;
+  }
+
+  const pairedKeys = new Set(
+    input.pairs
+      .filter((pair) => pair.key != null && pair.value != null)
+      .map((pair) => pair.key as ThpBreakdownKey),
+  );
+  if (pairedKeys.size >= 6) {
+    const partialSum = sumPairedBreakdown(input.pairs);
+    if (
+      partialSum >= 50_000_000 &&
+      isPlausibleHeroPowerHeaderTotal(partialSum, heroLevel)
+    ) {
+      return partialSum;
+    }
+  }
+
+  if (pairedKeys.size === THP_BREAKDOWN_KEYS.length) {
+    const breakdown: Partial<ThpBreakdown> = {};
+    for (const pair of input.pairs) {
+      if (pair.key != null && pair.value != null) {
+        breakdown[pair.key] = pair.value;
+      }
+    }
+    const sum = sumThpBreakdown(breakdown as ThpBreakdown);
+    if (isPlausibleHeroPowerHeaderTotal(sum, heroLevel)) {
+      return sum;
+    }
+  }
+
+  return input.headerTotal;
+}
+
 /** Component rows are typically 7–8 digits. */
 export function parseDigitsOnlyComponent(text: string): number | null {
   return parseDigitsOnlyValue(text, {
@@ -282,9 +402,17 @@ export function normalizeGeometryLines(
       const text = line.text.replace(/\s+/g, " ").trim();
       if (!text) return null;
       const yCenterPx = lineYCenterPx(line);
-      return { text, yCenterPx };
+      return { text, yCenterPx, bbox: line.bbox ?? null };
     })
-    .filter((row): row is { text: string; yCenterPx: number | null } => row != null);
+    .filter(
+      (
+        row,
+      ): row is {
+        text: string;
+        yCenterPx: number | null;
+        bbox: { x0: number; y0: number; x1: number; y1: number } | null;
+      } => row != null,
+    );
 
   const height = Math.max(1, cropHeightPx);
   const anyBbox = withCenters.some((row) => row.yCenterPx != null);
@@ -295,6 +423,7 @@ export function normalizeGeometryLines(
       text: row.text,
       yNorm: (index + 0.5) / n,
       yCenterPx: null,
+      bbox: row.bbox,
     }));
   }
 
@@ -305,6 +434,7 @@ export function normalizeGeometryLines(
       text: row.text,
       yNorm: Math.min(1, Math.max(0, yCenterPx / height)),
       yCenterPx: row.yCenterPx,
+      bbox: row.bbox,
     };
   });
 }
@@ -361,6 +491,9 @@ export function zipLabelsToValues(input: {
       key,
       value,
       yNorm: label.yNorm,
+      labelBbox: label.bbox ?? null,
+      valueBbox: valueLine.bbox ?? null,
+      zipDist: bestDist,
     });
   }
 
@@ -392,6 +525,7 @@ export function coalesceLabelLines(
           current.yCenterPx != null && next.yCenterPx != null
             ? (current.yCenterPx + next.yCenterPx) / 2
             : current.yCenterPx,
+        bbox: current.bbox ?? next.bbox ?? null,
       });
       i += 1;
       continue;
@@ -471,4 +605,119 @@ export function assembleGeometryParse(input: {
     complete,
     pairedCount: input.pairs.filter((p) => p.key != null && p.value != null).length,
   };
+}
+
+export function buildThpBboxOverlays(input: {
+  modal: CropRect;
+  sourceWidth: number;
+  sourceHeight: number;
+  pairs: LabelValuePair[];
+  labelCrop: CropRect;
+  valueCrop: CropRect;
+  labelCropWidth: number;
+  labelCropHeight: number;
+  valueCropWidth: number;
+  valueCropHeight: number;
+  headerTotal: number | null;
+  headerLine?: GeometryOcrLine | null;
+  headerCrop?: CropRect;
+  headerCropWidth?: number;
+  headerCropHeight?: number;
+  unmatchedValueLines?: Array<{
+    text: string;
+    bbox?: BboxRect | null;
+  }>;
+}): ScreenshotOcrBboxOverlay[] {
+  const overlays: ScreenshotOcrBboxOverlay[] = [
+    {
+      index: 0,
+      fieldKey: "MODAL",
+      rect: modalRectToBbox(input.modal),
+      role: "modal",
+    },
+  ];
+
+  if (
+    input.headerTotal != null &&
+    input.headerLine?.bbox &&
+    input.headerCrop &&
+    input.headerCropWidth != null &&
+    input.headerCropHeight != null
+  ) {
+    overlays.push({
+      index: 0,
+      fieldKey: "TOTAL_HERO_POWER",
+      rect: mapCropBboxToSource(
+        input.headerLine.bbox,
+        input.headerCrop,
+        input.headerCropWidth,
+        input.headerCropHeight,
+        input.sourceWidth,
+        input.sourceHeight,
+      ),
+      parsedText: input.headerLine.text,
+      parsedValue: input.headerTotal,
+      role: "header",
+    });
+  }
+
+  for (const pair of input.pairs) {
+    if (pair.key == null) continue;
+
+    if (pair.labelBbox) {
+      overlays.push({
+        index: 0,
+        fieldKey: breakdownKeyToFieldKey(pair.key),
+        rect: mapCropBboxToSource(
+          pair.labelBbox,
+          input.labelCrop,
+          input.labelCropWidth,
+          input.labelCropHeight,
+          input.sourceWidth,
+          input.sourceHeight,
+        ),
+        parsedText: pair.label,
+        parsedValue: pair.value,
+        role: "label",
+      });
+    }
+
+    if (pair.valueBbox) {
+      overlays.push({
+        index: 0,
+        fieldKey: breakdownKeyToFieldKey(pair.key),
+        rect: mapCropBboxToSource(
+          pair.valueBbox,
+          input.valueCrop,
+          input.valueCropWidth,
+          input.valueCropHeight,
+          input.sourceWidth,
+          input.sourceHeight,
+        ),
+        parsedText: pair.valueText,
+        parsedValue: pair.value,
+        role: "value",
+      });
+    }
+  }
+
+  for (const line of input.unmatchedValueLines ?? []) {
+    if (!line.bbox) continue;
+    overlays.push({
+      index: 0,
+      fieldKey: "UNMATCHED_VALUE",
+      rect: mapCropBboxToSource(
+        line.bbox,
+        input.valueCrop,
+        input.valueCropWidth,
+        input.valueCropHeight,
+        input.sourceWidth,
+        input.sourceHeight,
+      ),
+      parsedText: line.text,
+      role: "value",
+    });
+  }
+
+  return assignOverlayIndices(overlays);
 }

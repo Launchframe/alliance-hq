@@ -5,6 +5,7 @@ import { createDiscordTranslator } from "@/lib/discord/i18n";
 import { isThpConfirmPending, thpConfirmEventSource } from "@/lib/discord/bot-pending-guards.shared";
 import { ensureDiscordMemberLinksFromHq } from "@/lib/member-link/inherit-hq-to-discord.server";
 import { peerMaxThpExcludingCommander } from "@/lib/thp/anomaly";
+import { recordScreenshotOcrJob } from "@/lib/ocr/record-screenshot-ocr-job.server";
 import {
   processThpCommand,
   processThpConfirmation,
@@ -105,7 +106,19 @@ async function runThpForLink(input: {
     const { parsePowerDetailsImage } = await import(
       "@/lib/thp/hero-power-ocr/parse-power-details-image"
     );
-    const ocr = await parsePowerDetailsImage(input.screenshotBuffer);
+    const { nanoid } = await import("nanoid");
+    const jobId = nanoid(16);
+    const ocr = await parsePowerDetailsImage(input.screenshotBuffer, { jobId });
+    void recordScreenshotOcrJob({
+      source: "thp_screenshot",
+      screenshotBuffer: input.screenshotBuffer,
+      allianceId: input.allianceId,
+      discordUserId: input.discordUserId,
+      ocr,
+      jobId,
+    }).catch((error: unknown) => {
+      console.error("[screenshot-ocr-job] persist failed", error);
+    });
     // Only trust a full breakdown when rows reconcile to the Hero Power header.
     // Unreconciled rows must not feed resolveProposed (it prefers breakdown sum).
     explicitBreakdown = ocr.complete ? toThpBreakdown(ocr.breakdown) : null;

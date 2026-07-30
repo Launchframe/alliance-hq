@@ -128,4 +128,25 @@ export function archiveStorageKey(jobId: string): string {
   return `videos/${jobId}/archive.mp4`;
 }
 
+export function screenshotOcrArtifactsPrefix(jobId: string): string {
+  return `screenshot-ocr/${jobId}`;
+}
+
+export type ScreenshotOcrPreviewKind =
+  | "preview-full"
+  | "preview-modal"
+  | "preview-label-band"
+  | "preview-value-band"
+  | "diagnostics"
+  | "crop-candidates";
+
+export function screenshotOcrPreviewKey(
+  jobId: string,
+  kind: ScreenshotOcrPreviewKind,
+): string {
+  const ext =
+    kind === "diagnostics" || kind === "crop-candidates" ? "json" : "webp";
+  return `${screenshotOcrArtifactsPrefix(jobId)}/${kind}.${ext}`;
+}
+
 export { prefersLocalStorage, r2Configured };

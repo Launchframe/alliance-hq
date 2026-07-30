@@ -1,5 +1,8 @@
 /** Shared OCR diagnostics payload for screenshot + video parse logging. */
 
+import type { CropRect } from "@/lib/ocr/game-modal-detect.shared";
+import type { ScreenshotOcrFailureCode } from "@/lib/ocr/screenshot-ocr-quality.shared";
+
 export type OcrDiagnosticsSource =
   | "thp_screenshot"
   | "kills_screenshot"
@@ -21,6 +24,11 @@ export type OcrDiagnostics = {
   jobId?: string;
   frameIndex?: number;
   scoreTarget?: string | null;
+  modalRect?: CropRect | null;
+  modalMethod?: string | null;
+  failureCodes?: ScreenshotOcrFailureCode[];
+  qualityParsedOk?: boolean;
+  qualityComplete?: boolean;
 };
 
 export const OCR_DIAGNOSTICS_SAMPLE_LINE_LIMIT = 12;

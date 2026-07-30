@@ -2875,6 +2875,38 @@ export type ExperimentCampaign = typeof experimentCampaigns.$inferSelect;
 export type ExperimentArm = typeof experimentArms.$inferSelect;
 export type ConfigAssignment = typeof configAssignments.$inferSelect;
 
+export const screenshotOcrJobs = pgTable(
+  "screenshot_ocr_jobs",
+  {
+    id: text("id").primaryKey(),
+    source: text("source").notNull(),
+    allianceId: text("alliance_id"),
+    hqUserId: text("hq_user_id"),
+    discordUserId: text("discord_user_id"),
+    sourceWidth: integer("source_width").notNull(),
+    sourceHeight: integer("source_height").notNull(),
+    modalRectJson: jsonb("modal_rect_json"),
+    modalMethod: text("modal_method"),
+    parsedOk: integer("parsed_ok").notNull().default(0),
+    parsedValue: bigint("parsed_value", { mode: "number" }),
+    entryCount: integer("entry_count"),
+    complete: integer("complete").notNull().default(0),
+    qualityJson: jsonb("quality_json"),
+    diagnosticsJson: jsonb("diagnostics_json"),
+    artifactsPrefix: text("artifacts_prefix").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("screenshot_ocr_jobs_created_at_idx").on(table.createdAt),
+    index("screenshot_ocr_jobs_source_idx").on(table.source),
+  ],
+);
+
+export type ScreenshotOcrJob = typeof screenshotOcrJobs.$inferSelect;
+export type NewScreenshotOcrJob = typeof screenshotOcrJobs.$inferInsert;
+
 /** Append-only tandem OCR eval rows (Ashed primary vs native shadow). */
 export const ocrEvalSnapshots = pgTable("ocr_eval_snapshots", {
   id: text("id").primaryKey(),
