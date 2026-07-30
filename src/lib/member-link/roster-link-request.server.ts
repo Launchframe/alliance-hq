@@ -714,6 +714,22 @@ export async function tryRouteRosterMissToOwnerApproval(input: {
   };
 }
 
+export type DiscordRosterMissLinkRequestResult =
+  | { status: "created"; requestId: string }
+  | {
+      status: "confirm_home";
+      lookupServer: number;
+      allianceServer: number;
+    }
+  | { status: "position_not_home" }
+  | { status: "wrong_server" }
+  | { status: "failed" };
+
+/**
+ * Discord roster-miss → owner queue. Applies the same server eligibility gate as
+ * web `tryRouteRosterMissToOwnerApproval` so wrong-server commanders cannot open
+ * an owner-approval request when self-service was skipped (`not_eligible`).
+ */
 export async function createDiscordRosterMissLinkRequest(input: {
   allianceId: string;
   allianceTag: string;
@@ -729,7 +745,38 @@ export async function createDiscordRosterMissLinkRequest(input: {
   suggestedTargetAshedMemberId?: string | null;
   suggestionMethod?: string | null;
   suggestedMatchedRosterName?: string | null;
-}): Promise<string | null> {
+  allianceHomeConfirmed?: boolean;
+  userClaimedLookupAsHome?: boolean;
+}): Promise<DiscordRosterMissLinkRequestResult> {
+  const lookupServer =
+    input.gameServerNumber ?? parseGameServerNumberFromUid(input.gameUid);
+  const eligibility = await resolveMemberLinkServerEligibilityForUid({
+    allianceId: input.allianceId,
+    gameUid: input.gameUid,
+    lookupServer,
+    allianceHomeConfirmed: input.allianceHomeConfirmed,
+    userClaimedLookupAsHome: input.userClaimedLookupAsHome,
+  });
+
+  if (eligibility.kind === "confirm_home") {
+    return {
+      status: "confirm_home",
+      lookupServer: eligibility.lookupServer,
+      allianceServer: eligibility.allianceServer,
+    };
+  }
+  if (eligibility.kind === "rejected") {
+    if (eligibility.reason === "user_claimed_lookup_home") {
+      return { status: "position_not_home" };
+    }
+    return { status: "wrong_server" };
+  }
+
+  const playerServer = eligibility.allianceServer ?? lookupServer;
+  if (playerServer == null) {
+    return { status: "wrong_server" };
+  }
+
   try {
     const { requestId } = await createRosterLinkRequest({
       allianceId: input.allianceId,
@@ -739,7 +786,7 @@ export async function createDiscordRosterMissLinkRequest(input: {
       reportedName: input.reportedName,
       gameUid: input.gameUid,
       gameUserName: input.gameUserName,
-      gameServerNumber: input.gameServerNumber ?? null,
+      gameServerNumber: playerServer,
       gameUserLevel: input.gameUserLevel,
       origin: "discord",
       discordUserId: input.discordUserId,
@@ -748,10 +795,10 @@ export async function createDiscordRosterMissLinkRequest(input: {
       suggestionMethod: input.suggestionMethod ?? null,
       suggestedMatchedRosterName: input.suggestedMatchedRosterName ?? null,
     });
-    return requestId;
+    return { status: "created", requestId };
   } catch (error) {
     console.error("[roster-link] discord roster miss request failed", error);
-    return null;
+    return { status: "failed" };
   }
 }
 

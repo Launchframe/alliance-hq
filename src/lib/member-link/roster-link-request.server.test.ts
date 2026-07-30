@@ -576,6 +576,49 @@ describe("createDiscordRosterMissLinkRequest", () => {
       onFulfilled?: (value: unknown[]) => unknown,
       onRejected?: (reason: unknown) => unknown,
     ) => Promise.resolve([]).then(onFulfilled, onRejected);
+    vi.mocked(gameServers.resolveAllianceGameServerNumber).mockResolvedValue(1203);
+    vi.mocked(serverEligibility.resolveMemberLinkServerEligibilityForUid).mockImplementation(
+      async (input) => {
+        const allianceServer = await gameServers.resolveAllianceGameServerNumber(
+          input.allianceId,
+        );
+        const lookupServer = input.lookupServer ?? null;
+        if (input.userClaimedLookupAsHome) {
+          return {
+            kind: "rejected",
+            reason: "user_claimed_lookup_home",
+            allianceServer,
+            knownCommanderHomeServer: null,
+          };
+        }
+        if (
+          allianceServer != null &&
+          lookupServer != null &&
+          lookupServer !== allianceServer
+        ) {
+          return {
+            kind: "confirm_home",
+            lookupServer,
+            allianceServer,
+            knownCommanderHomeServer: null,
+          };
+        }
+        if (lookupServer == null) {
+          return {
+            kind: "rejected",
+            reason: "missing_server",
+            allianceServer,
+            knownCommanderHomeServer: null,
+          };
+        }
+        return {
+          kind: "eligible",
+          reason: "lookup_matches",
+          allianceServer,
+          knownCommanderHomeServer: null,
+        };
+      },
+    );
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({ ok: true, text: async () => "" }),
@@ -583,7 +626,7 @@ describe("createDiscordRosterMissLinkRequest", () => {
   });
 
   it("creates a discord-origin request with a null hq user when unlinked", async () => {
-    const requestId = await createDiscordRosterMissLinkRequest({
+    const result = await createDiscordRosterMissLinkRequest({
       allianceId: "a1",
       allianceTag: "LFgo",
       discordUserId: "discord-1",
@@ -598,18 +641,105 @@ describe("createDiscordRosterMissLinkRequest", () => {
       suggestedMatchedRosterName: "Mew",
     });
 
-    expect(requestId).toBeTruthy();
+    expect(result).toEqual(
+      expect.objectContaining({ status: "created", requestId: expect.any(String) }),
+    );
     expect(dbModule.insertValues).toHaveBeenCalledWith(
       expect.objectContaining({
         origin: "discord",
         hqUserId: null,
         discordUserId: "discord-1",
+        gameServerNumber: 1203,
         suggestedTargetAshedMemberId: "member-mew",
         suggestedMatchedRosterName: "Mew",
       }),
     );
     // No HQ pending state is written for an unlinked Discord user.
     expect(repository.saveHqMemberLinkPending).not.toHaveBeenCalled();
+  });
+
+  it("returns confirm_home instead of creating a request on server mismatch", async () => {
+    vi.mocked(gameServers.resolveAllianceGameServerNumber).mockResolvedValue(1211);
+
+    const result = await createDiscordRosterMissLinkRequest({
+      allianceId: "a1",
+      allianceTag: "LFgo",
+      discordUserId: "discord-1",
+      discordUsername: "cmdr#1",
+      hqUserId: null,
+      reportedName: "Visitor",
+      gameUid: "1234567890121205",
+      gameUserName: "Visitor",
+      gameServerNumber: 1205,
+    });
+
+    expect(result).toEqual({
+      status: "confirm_home",
+      lookupServer: 1205,
+      allianceServer: 1211,
+    });
+    expect(dbModule.insertValues).not.toHaveBeenCalled();
+  });
+
+  it("returns wrong_server when lookup server cannot be resolved", async () => {
+    const result = await createDiscordRosterMissLinkRequest({
+      allianceId: "a1",
+      allianceTag: "LFgo",
+      discordUserId: "discord-1",
+      reportedName: "Visitor",
+      gameUid: "1234567890120000",
+      gameUserName: "Visitor",
+    });
+
+    expect(result).toEqual({ status: "wrong_server" });
+    expect(dbModule.insertValues).not.toHaveBeenCalled();
+  });
+
+  it("returns position_not_home when user claims lookup as home", async () => {
+    vi.mocked(gameServers.resolveAllianceGameServerNumber).mockResolvedValue(1211);
+
+    const result = await createDiscordRosterMissLinkRequest({
+      allianceId: "a1",
+      allianceTag: "LFgo",
+      discordUserId: "discord-1",
+      reportedName: "Visitor",
+      gameUid: "1234567890121205",
+      gameUserName: "Visitor",
+      gameServerNumber: 1205,
+      userClaimedLookupAsHome: true,
+    });
+
+    expect(result).toEqual({ status: "position_not_home" });
+    expect(dbModule.insertValues).not.toHaveBeenCalled();
+  });
+
+  it("creates after alliance-home confirmation on a mismatched lookup", async () => {
+    vi.mocked(gameServers.resolveAllianceGameServerNumber).mockResolvedValue(1211);
+    vi.mocked(serverEligibility.resolveMemberLinkServerEligibilityForUid).mockResolvedValue({
+      kind: "eligible",
+      reason: "user_confirmed_alliance_home",
+      allianceServer: 1211,
+      knownCommanderHomeServer: null,
+    });
+
+    const result = await createDiscordRosterMissLinkRequest({
+      allianceId: "a1",
+      allianceTag: "LFgo",
+      discordUserId: "discord-1",
+      reportedName: "Visitor",
+      gameUid: "1234567890121205",
+      gameUserName: "Visitor",
+      gameServerNumber: 1205,
+      allianceHomeConfirmed: true,
+    });
+
+    expect(result.status).toBe("created");
+    expect(dbModule.insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        gameServerNumber: 1211,
+        origin: "discord",
+      }),
+    );
   });
 
   it("supersedes prior discord-only pending when the same user links HQ and retries", async () => {
