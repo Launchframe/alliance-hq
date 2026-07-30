@@ -63,6 +63,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "admin.nav.users": { key: "6" },
   "admin.nav.audit": { key: "7" },
   "admin.nav.videoJobs": { key: "8" },
+  "admin.nav.screenshotJobs": { key: "j" },
   "admin.nav.videoJobAnalytics": { key: "9" },
   "admin.nav.parseConfigs": { key: "0" },
   "admin.nav.experiments": { key: "a" },

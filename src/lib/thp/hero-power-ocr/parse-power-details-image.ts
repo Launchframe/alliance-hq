@@ -1,36 +1,50 @@
 /**
  * Geometry-first Power Details image OCR.
  *
- * Pipeline (see plan):
- * 1. Label-band OCR (letters) → row names
- * 2. Value-band OCR (digits-only) → component numbers without comma→digit damage
- * 3. Header-value OCR (digits-only, inverted) → Hero Power total
- * 4. Zip by normalized y-center → `matchThpLabel` → assemble
+ * Pipeline:
+ * 1. Modal detect + label-band probe scoring
+ * 2. Label-band OCR (letters) → row names
+ * 3. Value-band OCR (digits-only) → component numbers without comma→digit damage
+ * 4. Header-value OCR (digits-only, inverted) → Hero Power total
+ * 5. Zip by normalized y-center → `matchThpLabel` → assemble
  *
- * Discord/web callers still gate on `complete` (sum === header). This module does
- * not run freeform dual-pass merge or separator-digit surgery.
+ * Discord/web callers still gate on `complete` (sum === header).
  */
 
 import {
   buildOcrDiagnostics,
   logOcrDiagnostics,
 } from "@/lib/ocr/ocr-diagnostics.shared";
+import type { CropRect } from "@/lib/ocr/game-modal-detect.shared";
+import {
+  computeThpScreenshotQuality,
+  type CropCandidateScore,
+  type ScreenshotOcrQualityMetrics,
+} from "@/lib/ocr/screenshot-ocr-quality.shared";
+import type { ScreenshotOcrBboxOverlay } from "@/lib/ocr/screenshot-ocr-geometry.shared";
 import { runTesseract, type OcrLineResult } from "@/lib/members/roster-ocr/tesseract";
+import { resolvePowerDetailsModal } from "@/lib/thp/hero-power-ocr/detect-power-details-modal";
 import {
   assembleGeometryParse,
+  buildThpBboxOverlays,
   coalesceLabelLines,
   normalizeDigitsOnlyComponent,
   normalizeGeometryLines,
   parseDigitsOnlyHeaderTotal,
   parseDigitsOnlyHeaderTotalLoose,
+  pickHeroPowerHeaderFromLabelRow,
+  reconcileHeroPowerHeaderTotal,
   zipLabelsToValues,
   type GeometryOcrLine,
+  type LabelValuePair,
+  type NormalizedGeometryLine,
 } from "@/lib/thp/hero-power-ocr/parse-power-details-geometry.shared";
 import {
   toThpBreakdown,
   type ParsePowerDetailsResult,
 } from "@/lib/thp/hero-power-ocr/parse-power-details";
 import {
+  getPowerDetailsBandCrops,
   POWER_DETAILS_HEADER_VALUE_OCR_CONFIG,
   POWER_DETAILS_LABEL_OCR_CONFIG,
   POWER_DETAILS_VALUE_OCR_CONFIG,
@@ -40,6 +54,10 @@ import {
   preprocessPowerDetailsValueBandInverted,
 } from "@/lib/thp/hero-power-ocr/preprocess-power-details";
 
+export type ParsePowerDetailsImageOptions = {
+  jobId?: string;
+};
+
 export type ParsePowerDetailsImageResult = ParsePowerDetailsResult & {
   diagnostics: {
     rawLineCount: number;
@@ -47,6 +65,13 @@ export type ParsePowerDetailsImageResult = ParsePowerDetailsResult & {
     sampleLines: string[];
     /** How many label↔value pairs mapped to a breakdown key with a numeric value. */
     pairedCount?: number;
+    modalRect?: CropRect;
+    modalMethod?: string;
+    quality?: ScreenshotOcrQualityMetrics;
+    bboxOverlays?: ScreenshotOcrBboxOverlay[];
+    bandCrops?: ReturnType<typeof getPowerDetailsBandCrops>;
+    cropCandidates?: CropCandidateScore[];
+    phaseTimings?: ScreenshotOcrQualityMetrics["phaseTimings"];
   };
 };
 
@@ -108,24 +133,76 @@ function pickBestHeaderCandidate(
   return candidates[0]?.value ?? null;
 }
 
+function findHeaderLine(
+  headerTotal: number | null,
+  headerLines: OcrLineResult[],
+  valueInvLines: OcrLineResult[],
+  valueLines: OcrLineResult[],
+): GeometryOcrLine | null {
+  if (headerTotal == null) return null;
+
+  const allLines = [...headerLines, ...valueInvLines.slice(0, 6), ...valueLines.slice(0, 4)];
+  for (const line of allLines) {
+    const parsed =
+      parseDigitsOnlyHeaderTotalLoose(line.text) ??
+      parseDigitsOnlyHeaderTotal(line.text);
+    if (parsed === headerTotal) {
+      return { text: line.text, bbox: line.bbox ?? null };
+    }
+  }
+  return null;
+}
+
+function collectUnmatchedValues(
+  values: NormalizedGeometryLine[],
+  pairs: LabelValuePair[],
+): NormalizedGeometryLine[] {
+  const used = new Set(
+    pairs
+      .map((pair) => pair.valueText)
+      .filter((text) => text.length > 0),
+  );
+  return values.filter((line) => !used.has(line.text));
+}
 
 export async function parsePowerDetailsImage(
   imageBuffer: Buffer,
+  options: ParsePowerDetailsImageOptions = {},
 ): Promise<ParsePowerDetailsImageResult> {
   const t0 = Date.now();
+  const phaseTimings: ScreenshotOcrQualityMetrics["phaseTimings"] = {
+    preprocessMs: 0,
+    modalDetectMs: 0,
+    labelOcrMs: 0,
+    valueOcrMs: 0,
+    headerOcrMs: 0,
+    zipMs: 0,
+    totalMs: 0,
+  };
 
+  const modalT0 = Date.now();
+  const modalResolution = await resolvePowerDetailsModal(imageBuffer);
+  phaseTimings.modalDetectMs = Date.now() - modalT0;
+  const modal = modalResolution.modal;
+  const bandCrops = getPowerDetailsBandCrops(modal);
+
+  const preprocessT0 = Date.now();
   const [labelPre, valuePre, valueInvPre, headerPre] = await Promise.all([
-    preprocessPowerDetailsLabelBand(imageBuffer),
-    preprocessPowerDetailsValueBand(imageBuffer),
-    preprocessPowerDetailsValueBandInverted(imageBuffer),
-    preprocessPowerDetailsHeaderValue(imageBuffer),
+    preprocessPowerDetailsLabelBand(imageBuffer, modal),
+    preprocessPowerDetailsValueBand(imageBuffer, modal),
+    preprocessPowerDetailsValueBandInverted(imageBuffer, modal),
+    preprocessPowerDetailsHeaderValue(imageBuffer, modal),
   ]);
+  phaseTimings.preprocessMs = Date.now() - preprocessT0;
 
-  // Tesseract worker is serialized internally — await sequentially for clarity.
+  const labelT0 = Date.now();
   const labelLinesRaw = await runTesseract(
     labelPre.buffer,
     POWER_DETAILS_LABEL_OCR_CONFIG,
   );
+  phaseTimings.labelOcrMs = Date.now() - labelT0;
+
+  const valueT0 = Date.now();
   const valueLinesRaw = await runTesseract(
     valuePre.buffer,
     POWER_DETAILS_VALUE_OCR_CONFIG,
@@ -134,16 +211,19 @@ export async function parsePowerDetailsImage(
     valueInvPre.buffer,
     POWER_DETAILS_VALUE_OCR_CONFIG,
   );
+  phaseTimings.valueOcrMs = Date.now() - valueT0;
+
+  const headerT0 = Date.now();
   const headerLinesRaw = await runTesseract(
     headerPre.buffer,
     POWER_DETAILS_HEADER_VALUE_OCR_CONFIG,
   );
+  phaseTimings.headerOcrMs = Date.now() - headerT0;
 
+  const zipT0 = Date.now();
   const labels = coalesceLabelLines(
     normalizeGeometryLines(toGeometryLines(labelLinesRaw), labelPre.height),
   );
-  // Inverted value column recovers white outlined digits better on this UI.
-  // Fall back to the non-inverted pass when inverted yields fewer digit lines.
   const invertedValues = normalizeGeometryLines(
     toGeometryLines(valueInvLinesRaw),
     valueInvPre.height,
@@ -158,30 +238,114 @@ export async function parsePowerDetailsImage(
       ? invertedValues
       : normalValues;
 
-  const headerTotal = pickHeaderTotal(
-    headerLinesRaw,
-    headerPre.height,
-    valueInvLinesRaw,
-    valueInvPre.height,
-    valueLinesRaw,
-    valuePre.height,
-  );
+  let headerSource: ScreenshotOcrQualityMetrics["headerSource"] = null;
+  const labelAnchoredHeader = pickHeroPowerHeaderFromLabelRow(labels, valuesRaw);
+  let headerTotal =
+    labelAnchoredHeader ??
+    pickHeaderTotal(
+      headerLinesRaw,
+      headerPre.height,
+      valueInvLinesRaw,
+      valueInvPre.height,
+      valueLinesRaw,
+      valuePre.height,
+    );
+  if (headerTotal != null) {
+    headerSource = "grey_bar";
+  }
 
-  // The value column still contains the header-row total on the right. Drop it
-  // so it cannot be y-zipped onto Hero Level (same failure mode as freeform
-  // attaching the total to the wrong row).
   const values = valuesRaw.filter((line) => {
     const asHeader =
       parseDigitsOnlyHeaderTotalLoose(line.text) ??
       parseDigitsOnlyHeaderTotal(line.text);
-    // Only drop the grey-bar total itself — not component rows misread as headers.
     return !(headerTotal != null && asHeader === headerTotal);
   });
 
   const pairs = zipLabelsToValues({ labels, values });
+  const reconciledHeader = reconcileHeroPowerHeaderTotal({ headerTotal, pairs });
+  const reconciledFromSum =
+    reconciledHeader != null &&
+    headerTotal != null &&
+    reconciledHeader !== headerTotal;
+  if (reconciledFromSum) {
+    headerSource = "reconciled_sum";
+  }
+  headerTotal = reconciledHeader;
   const assembled = assembleGeometryParse({ pairs, headerTotal });
+  phaseTimings.zipMs = Date.now() - zipT0;
+
+  const unmatchedValues = collectUnmatchedValues(values, pairs);
+  const maxZipYNormDistance = pairs.reduce(
+    (max, pair) => Math.max(max, pair.zipDist ?? 0),
+    0,
+  );
+
+  const sharp = (await import("sharp")).default;
+  const meta = await sharp(imageBuffer).metadata();
+  const sourceWidth = meta.width ?? 1080;
+  const sourceHeight = meta.height ?? 1920;
+
+  const headerLine = findHeaderLine(
+    headerTotal,
+    headerLinesRaw,
+    valueInvLinesRaw,
+    valueLinesRaw,
+  );
+
+  const bboxOverlays = buildThpBboxOverlays({
+    modal,
+    sourceWidth,
+    sourceHeight,
+    pairs,
+    labelCrop: bandCrops.labelCrop,
+    valueCrop: bandCrops.valueCrop,
+    labelCropWidth: labelPre.width,
+    labelCropHeight: labelPre.height,
+    valueCropWidth: valuePre.width,
+    valueCropHeight: valuePre.height,
+    headerTotal,
+    headerLine,
+    headerCrop: bandCrops.headerCrop,
+    headerCropWidth: headerPre.width,
+    headerCropHeight: headerPre.height,
+    unmatchedValueLines: unmatchedValues.map((line) => ({
+      text: line.text,
+      bbox: line.bbox ?? null,
+    })),
+  });
+
+  const rawLineCount =
+    labelLinesRaw.length +
+    valueLinesRaw.length +
+    valueInvLinesRaw.length +
+    headerLinesRaw.length;
+
+  const quality = computeThpScreenshotQuality({
+    heroPowerTotal: assembled.heroPowerTotal,
+    breakdown: assembled.breakdown,
+    complete: assembled.complete,
+    pairedCount: assembled.pairedCount,
+    unmatchedValueLineCount: unmatchedValues.length,
+    maxZipYNormDistance,
+    headerSource,
+    sourceWidth,
+    sourceHeight,
+    modalRect: modal,
+    modalMethod: modalResolution.method,
+    modalDetectConfidence: modalResolution.confidence,
+    cropCandidateScores: modalResolution.candidates,
+    rawLineCount,
+    labelLineCount: labelLinesRaw.length,
+    valueLineCount: valueLinesRaw.length,
+    invertedValueLineCount: valueInvLinesRaw.length,
+    headerLineCount: headerLinesRaw.length,
+    phaseTimings,
+    reconciledFromSum,
+  });
 
   const sampleLines = [
+    ...(options.jobId ? [`job:${options.jobId}`] : []),
+    `modal:${modalResolution.method}`,
     ...headerLinesRaw.map((line) => `hdr:${line.text}`),
     ...valueInvLinesRaw.slice(0, 3).map((line) => `inv:${line.text}`),
     ...pairs.map(
@@ -191,19 +355,23 @@ export async function parsePowerDetailsImage(
     ...valueLinesRaw.slice(0, 4).map((line) => `val:${line.text}`),
   ];
 
-  const durationMs = Date.now() - t0;
+  phaseTimings.totalMs = Date.now() - t0;
+  const durationMs = phaseTimings.totalMs;
+
   const diagnostics = buildOcrDiagnostics({
     source: "thp_screenshot",
     durationMs,
-    rawLineCount:
-      labelLinesRaw.length +
-      valueLinesRaw.length +
-      valueInvLinesRaw.length +
-      headerLinesRaw.length,
+    rawLineCount,
     lines: sampleLines,
-    parsedOk: assembled.complete && assembled.heroPowerTotal != null,
+    parsedOk: quality.parsedOk,
     parsedValue: assembled.heroPowerTotal,
     entryCount: assembled.pairedCount,
+    jobId: options.jobId,
+    modalRect: modal,
+    modalMethod: modalResolution.method,
+    failureCodes: quality.failureCodes,
+    qualityParsedOk: quality.parsedOk,
+    qualityComplete: quality.complete,
   });
   logOcrDiagnostics(diagnostics);
 
@@ -216,6 +384,13 @@ export async function parsePowerDetailsImage(
       durationMs: diagnostics.durationMs,
       sampleLines: diagnostics.sampleLines,
       pairedCount: assembled.pairedCount,
+      modalRect: modal,
+      modalMethod: modalResolution.method,
+      quality,
+      bboxOverlays,
+      bandCrops,
+      cropCandidates: modalResolution.candidates,
+      phaseTimings,
     },
   };
 }

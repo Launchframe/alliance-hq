@@ -24,12 +24,21 @@
  * pairs label↔value by y-center.
  */
 
+import type { CropRect } from "@/lib/ocr/game-modal-detect.shared";
 import type { RosterOcrConfig } from "@/lib/members/roster-ocr/types";
+
+export type { CropRect };
 
 export type PowerDetailsPreprocessResult = {
   buffer: Buffer;
   width: number;
   height: number;
+};
+
+export type PowerDetailsModalContext = {
+  srcWidth: number;
+  srcHeight: number;
+  modal: CropRect;
 };
 
 /** Label column: letters + light punctuation. Digits are allowed so OCR does not
@@ -113,6 +122,14 @@ export const POWER_DETAILS_MODAL_CROP = {
   height: 0.55,
 } as const;
 
+/** Centered PC / widescreen fallback when grey CC misses the panel. */
+export const POWER_DETAILS_PC_CENTERED_CROP = {
+  left: 0.18,
+  top: 0.06,
+  width: 0.64,
+  height: 0.88,
+} as const;
+
 /** Label band as fractions of the modal width. */
 export const POWER_DETAILS_LABEL_BAND = { left: 0, width: 0.6 } as const;
 
@@ -131,11 +148,24 @@ export const POWER_DETAILS_HEADER_VALUE_BAND = {
   width: 0.55,
 } as const;
 
-function modalCropBox(srcWidth: number, srcHeight: number) {
-  const cropLeft = Math.round(srcWidth * POWER_DETAILS_MODAL_CROP.left);
-  const cropTop = Math.round(srcHeight * POWER_DETAILS_MODAL_CROP.top);
-  const cropWidth = Math.round(srcWidth * POWER_DETAILS_MODAL_CROP.width);
-  const cropHeight = Math.round(srcHeight * POWER_DETAILS_MODAL_CROP.height);
+type RelativeBand = { left: number; width: number; top?: number; height?: number };
+
+type ModalPreset = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+export function modalCropBox(
+  srcWidth: number,
+  srcHeight: number,
+  preset: ModalPreset = POWER_DETAILS_MODAL_CROP,
+): CropRect {
+  const cropLeft = Math.round(srcWidth * preset.left);
+  const cropTop = Math.round(srcHeight * preset.top);
+  const cropWidth = Math.round(srcWidth * preset.width);
+  const cropHeight = Math.round(srcHeight * preset.height);
   return {
     left: Math.max(0, cropLeft),
     top: Math.max(0, cropTop),
@@ -144,12 +174,7 @@ function modalCropBox(srcWidth: number, srcHeight: number) {
   };
 }
 
-type RelativeBand = { left: number; width: number; top?: number; height?: number };
-
-function bandWithinModal(
-  modal: { left: number; top: number; width: number; height: number },
-  band: RelativeBand,
-) {
+export function bandWithinModal(modal: CropRect, band: RelativeBand): CropRect {
   const left = modal.left + Math.round(modal.width * band.left);
   const width = Math.round(modal.width * band.width);
   const top =
@@ -168,9 +193,41 @@ function bandWithinModal(
   };
 }
 
+export function getPowerDetailsBandCrops(modal: CropRect): {
+  labelCrop: CropRect;
+  valueCrop: CropRect;
+  headerCrop: CropRect;
+} {
+  return {
+    labelCrop: bandWithinModal(modal, POWER_DETAILS_LABEL_BAND),
+    valueCrop: bandWithinModal(modal, POWER_DETAILS_VALUE_BAND),
+    headerCrop: bandWithinModal(modal, POWER_DETAILS_HEADER_VALUE_BAND),
+  };
+}
+
+async function readImageSize(input: Buffer): Promise<{ width: number; height: number }> {
+  const sharp = (await import("sharp")).default;
+  const meta = await sharp(input).metadata();
+  return {
+    width: meta.width ?? 1080,
+    height: meta.height ?? 1920,
+  };
+}
+
+function resolveModal(
+  input: Buffer,
+  modal?: CropRect,
+): Promise<{ modal: CropRect; srcWidth: number; srcHeight: number }> {
+  return readImageSize(input).then(({ width, height }) => ({
+    modal: modal ?? modalCropBox(width, height),
+    srcWidth: width,
+    srcHeight: height,
+  }));
+}
+
 async function extractScaledGreyscale(input: {
   buffer: Buffer;
-  crop: { left: number; top: number; width: number; height: number };
+  crop: CropRect;
   scale: number;
   invert?: boolean;
   normalizeLower?: number;
@@ -227,16 +284,13 @@ async function extractScaledGreyscale(input: {
 /** Full modal soft greyscale — legacy freeform body pass. */
 export async function preprocessPowerDetailsImage(
   input: Buffer,
+  modal?: CropRect,
   scale = POWER_DETAILS_BODY_OCR_CONFIG.preprocessScale ?? 2.75,
 ): Promise<PowerDetailsPreprocessResult> {
-  const sharp = (await import("sharp")).default;
-  const meta = await sharp(input).metadata();
-  const srcWidth = meta.width ?? 1080;
-  const srcHeight = meta.height ?? 1920;
-  const crop = modalCropBox(srcWidth, srcHeight);
+  const { modal: resolvedModal } = await resolveModal(input, modal);
   return extractScaledGreyscale({
     buffer: input,
-    crop,
+    crop: resolvedModal,
     scale,
     sharpenSigma: 0.55,
   });
@@ -248,19 +302,16 @@ export async function preprocessPowerDetailsImage(
  */
 export async function preprocessPowerDetailsHeaderBand(
   input: Buffer,
+  modal?: CropRect,
   scale = POWER_DETAILS_HEADER_OCR_CONFIG.preprocessScale ?? 3,
 ): Promise<PowerDetailsPreprocessResult> {
-  const sharp = (await import("sharp")).default;
-  const meta = await sharp(input).metadata();
-  const srcWidth = meta.width ?? 1080;
-  const srcHeight = meta.height ?? 1920;
-  const modal = modalCropBox(srcWidth, srcHeight);
-  const headerHeight = Math.max(48, Math.round(modal.height * 0.22));
-  const crop = {
-    left: modal.left,
-    top: modal.top,
-    width: modal.width,
-    height: Math.min(headerHeight, modal.height),
+  const { modal: resolvedModal } = await resolveModal(input, modal);
+  const headerHeight = Math.max(48, Math.round(resolvedModal.height * 0.22));
+  const crop: CropRect = {
+    left: resolvedModal.left,
+    top: resolvedModal.top,
+    width: resolvedModal.width,
+    height: Math.min(headerHeight, resolvedModal.height),
   };
   return extractScaledGreyscale({
     buffer: input,
@@ -274,14 +325,11 @@ export async function preprocessPowerDetailsHeaderBand(
 /** Left column of the modal — row labels for `matchThpLabel`. */
 export async function preprocessPowerDetailsLabelBand(
   input: Buffer,
+  modal?: CropRect,
   scale = POWER_DETAILS_LABEL_OCR_CONFIG.preprocessScale ?? 2.75,
 ): Promise<PowerDetailsPreprocessResult> {
-  const sharp = (await import("sharp")).default;
-  const meta = await sharp(input).metadata();
-  const srcWidth = meta.width ?? 1080;
-  const srcHeight = meta.height ?? 1920;
-  const modal = modalCropBox(srcWidth, srcHeight);
-  const crop = bandWithinModal(modal, POWER_DETAILS_LABEL_BAND);
+  const { modal: resolvedModal } = await resolveModal(input, modal);
+  const crop = bandWithinModal(resolvedModal, POWER_DETAILS_LABEL_BAND);
   return extractScaledGreyscale({
     buffer: input,
     crop,
@@ -297,14 +345,11 @@ export async function preprocessPowerDetailsLabelBand(
  */
 export async function preprocessPowerDetailsValueBand(
   input: Buffer,
+  modal?: CropRect,
   scale = POWER_DETAILS_VALUE_OCR_CONFIG.preprocessScale ?? 3,
 ): Promise<PowerDetailsPreprocessResult> {
-  const sharp = (await import("sharp")).default;
-  const meta = await sharp(input).metadata();
-  const srcWidth = meta.width ?? 1080;
-  const srcHeight = meta.height ?? 1920;
-  const modal = modalCropBox(srcWidth, srcHeight);
-  const crop = bandWithinModal(modal, POWER_DETAILS_VALUE_BAND);
+  const { modal: resolvedModal } = await resolveModal(input, modal);
+  const crop = bandWithinModal(resolvedModal, POWER_DETAILS_VALUE_BAND);
   return extractScaledGreyscale({
     buffer: input,
     crop,
@@ -323,14 +368,11 @@ export async function preprocessPowerDetailsValueBand(
  */
 export async function preprocessPowerDetailsValueBandInverted(
   input: Buffer,
+  modal?: CropRect,
   scale = POWER_DETAILS_VALUE_OCR_CONFIG.preprocessScale ?? 3,
 ): Promise<PowerDetailsPreprocessResult> {
-  const sharp = (await import("sharp")).default;
-  const meta = await sharp(input).metadata();
-  const srcWidth = meta.width ?? 1080;
-  const srcHeight = meta.height ?? 1920;
-  const modal = modalCropBox(srcWidth, srcHeight);
-  const crop = bandWithinModal(modal, POWER_DETAILS_VALUE_BAND);
+  const { modal: resolvedModal } = await resolveModal(input, modal);
+  const crop = bandWithinModal(resolvedModal, POWER_DETAILS_VALUE_BAND);
   return extractScaledGreyscale({
     buffer: input,
     crop,
@@ -351,14 +393,11 @@ export async function preprocessPowerDetailsValueBandInverted(
  */
 export async function preprocessPowerDetailsHeaderValue(
   input: Buffer,
+  modal?: CropRect,
   scale = POWER_DETAILS_HEADER_VALUE_OCR_CONFIG.preprocessScale ?? 3.25,
 ): Promise<PowerDetailsPreprocessResult> {
-  const sharp = (await import("sharp")).default;
-  const meta = await sharp(input).metadata();
-  const srcWidth = meta.width ?? 1080;
-  const srcHeight = meta.height ?? 1920;
-  const modal = modalCropBox(srcWidth, srcHeight);
-  const crop = bandWithinModal(modal, POWER_DETAILS_HEADER_VALUE_BAND);
+  const { modal: resolvedModal } = await resolveModal(input, modal);
+  const crop = bandWithinModal(resolvedModal, POWER_DETAILS_HEADER_VALUE_BAND);
   return extractScaledGreyscale({
     buffer: input,
     crop,

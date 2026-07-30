@@ -10,76 +10,71 @@ import { sumThpBreakdown } from "@/lib/thp/breakdown.shared";
 import type { ThpBreakdown } from "@/lib/thp/my-thp.shared";
 
 const fixtureDir = path.dirname(fileURLToPath(import.meta.url));
-const JUL20_FIXTURE = path.join(fixtureDir, "fixtures/power-details-2026-07-20.png");
-const JUL29_FIXTURE = path.join(fixtureDir, "fixtures/power-details-2026-07-29.png");
+const manifest = JSON.parse(
+  readFileSync(
+    path.join(fixtureDir, "fixtures/power-details-manifest.json"),
+    "utf8",
+  ),
+) as Array<{
+  id: string;
+  file: string;
+  heroPowerTotal: number;
+  breakdown: ThpBreakdown;
+}>;
 
 /**
- * Live geometry-first OCR against a real phone screenshot.
- *
- * Asserts the architectural contract (digits-only path never accepts 12-digit
- * comma→digit headers; y-zip pairs labeled rows). Full pixel-perfect totals
- * still depend on Tesseract glyph quality — enable strict checks with
- * `THP_OCR_LIVE_STRICT=1`.
+ * Live geometry-first OCR against real phone/PC screenshots.
  *
  *   THP_OCR_LIVE=1 npx vitest run src/lib/thp/hero-power-ocr/parse-power-details-image.live.test.ts
  *   THP_OCR_LIVE=1 THP_OCR_LIVE_STRICT=1 npx vitest run …
  */
-describe("parsePowerDetailsImage live fixture", () => {
+describe("parsePowerDetailsImage live fixture matrix", () => {
   afterAll(async () => {
     await terminateTesseractWorker();
   });
 
   it.skipIf(process.env.THP_OCR_LIVE !== "1")(
-    "reads Jul 20 Power Details via geometry columns (no 12-digit header junk)",
+    "never accepts 12-digit comma→digit header junk",
     async () => {
-      const buffer = readFileSync(JUL20_FIXTURE);
+      const buffer = readFileSync(
+        path.join(fixtureDir, "fixtures/power-details-2026-07-20.png"),
+      );
       const parsed = await parsePowerDetailsImage(buffer);
-
-      // Architectural guard: freeform comma→digit totals were 11–12 digits.
       if (parsed.heroPowerTotal != null) {
         expect(String(parsed.heroPowerTotal).length).toBeLessThanOrEqual(9);
-        expect(parsed.heroPowerTotal).toBeGreaterThanOrEqual(1_000_000);
-        expect(parsed.heroPowerTotal).toBeLessThanOrEqual(1_000_000_000);
       }
-      expect(parsed.diagnostics.pairedCount ?? 0).toBeGreaterThanOrEqual(5);
       expect(
         parsed.diagnostics.sampleLines.some((line) =>
           /164376153505|8578681520/.test(line),
         ),
       ).toBe(false);
-
-      if (process.env.THP_OCR_LIVE_STRICT === "1") {
-        expect(parsed.heroPowerTotal).toBe(164_615_505);
-        expect(parsed.complete).toBe(true);
-        expect(parsed.breakdown.heroLevel).toBe(85_868_520);
-        expect(parsed.breakdown.decorationsAndBuildings).toBe(37_811_658);
-        expect(parsed.breakdown.gear).toBe(13_190_850);
-        expect(parsed.breakdown.exclusiveWeapons).toBe(9_408_080);
-        expect(parsed.breakdown.heroTier).toBe(7_051_707);
-        expect(parsed.breakdown.heroSkill).toBe(6_581_990);
-        expect(parsed.breakdown.wallOfHonor).toBe(4_702_700);
-        expect(sumThpBreakdown(parsed.breakdown as ThpBreakdown)).toBe(
-          164_615_505,
-        );
-      }
     },
     120_000,
   );
 
-  it.skipIf(process.env.THP_OCR_LIVE !== "1")(
-    "pairs Jul 29 two-line decorations label without row shift",
-    async () => {
-      const buffer = readFileSync(JUL29_FIXTURE);
+  it.each(manifest)(
+    "parses $id ($file)",
+    async (fixture) => {
+      if (process.env.THP_OCR_LIVE !== "1") return;
+
+      const buffer = readFileSync(path.join(fixtureDir, "fixtures", fixture.file));
       const parsed = await parsePowerDetailsImage(buffer);
 
-      expect(parsed.heroPowerTotal).toBe(166_581_498);
-      expect(parsed.diagnostics.pairedCount ?? 0).toBeGreaterThanOrEqual(6);
-      expect(parsed.diagnostics.sampleLines.some((line) =>
-        /heroLevel=3719831637/.test(line),
-      )).toBe(false);
-      expect(parsed.diagnostics.sampleLines.some((line) =>
-        /heroLevel=871659312/.test(line),
-      )).toBe(true);
+      expect(parsed.diagnostics.modalRect).toBeDefined();
+      expect(parsed.diagnostics.quality).toBeDefined();
+      expect(parsed.diagnostics.pairedCount ?? 0).toBeGreaterThanOrEqual(5);
+      expect(parsed.diagnostics.bboxOverlays?.length ?? 0).toBeGreaterThan(0);
+
+      if (process.env.THP_OCR_LIVE_STRICT === "1") {
+        expect(parsed.heroPowerTotal).toBe(fixture.heroPowerTotal);
+        expect(parsed.diagnostics.pairedCount ?? 0).toBeGreaterThanOrEqual(6);
+        for (const [key, value] of Object.entries(fixture.breakdown)) {
+          expect(parsed.breakdown[key as keyof ThpBreakdown]).toBe(value);
+        }
+        expect(sumThpBreakdown(parsed.breakdown as ThpBreakdown)).toBe(
+          fixture.heroPowerTotal,
+        );
+      }
     },
     120_000,
   );

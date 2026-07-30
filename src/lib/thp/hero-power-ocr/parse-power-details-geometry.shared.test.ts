@@ -10,6 +10,8 @@ import {
   parseDigitsOnlyComponent,
   parseDigitsOnlyHeaderTotal,
   parseDigitsOnlyHeaderTotalLoose,
+  pickHeroPowerHeaderFromLabelRow,
+  reconcileHeroPowerHeaderTotal,
   zipLabelsToValues,
 } from "@/lib/thp/hero-power-ocr/parse-power-details-geometry.shared";
 import { sumThpBreakdown } from "@/lib/thp/breakdown.shared";
@@ -249,5 +251,68 @@ describe("zipLabelsToValues + assembleGeometryParse", () => {
     expect(merged).toHaveLength(1);
     expect(merged[0]?.text).toContain("Stats");
     expect(merged[0]?.yNorm).toBeCloseTo(0.24, 2);
+  });
+
+  it("picks header total aligned to Hero Power label row", () => {
+    const cropHeight = 1000;
+    const labels = normalizeGeometryLines(
+      [
+        { text: "Hero Power", bbox: { x0: 0, y0: 280, x1: 200, y1: 320 } },
+        { text: "Hero Level", bbox: { x0: 0, y0: 340, x1: 200, y1: 380 } },
+      ],
+      cropHeight,
+    );
+    const values = normalizeGeometryLines(
+      [
+        { text: "8706591312", bbox: { x0: 0, y0: 270, x1: 120, y1: 310 } },
+        { text: "166581498", bbox: { x0: 0, y0: 285, x1: 120, y1: 325 } },
+        { text: "87659312", bbox: { x0: 0, y0: 340, x1: 120, y1: 380 } },
+      ],
+      cropHeight,
+    );
+    expect(pickHeroPowerHeaderFromLabelRow(labels, values)).toBe(166_581_498);
+  });
+
+  it("rejects hero-level noise as header when component sum is plausible", () => {
+    const cropHeight = 1000;
+    const labelRows = [
+      { text: "Hero Level", y0: 340, y1: 380 },
+      { text: "Decorations & Building Stats", y0: 400, y1: 440 },
+      { text: "Gear", y0: 460, y1: 500 },
+      { text: "Exclusive Weapon", y0: 520, y1: 560 },
+      { text: "Hero Tier", y0: 580, y1: 620 },
+      { text: "Hero Skill", y0: 640, y1: 680 },
+      { text: "Wall of Honor", y0: 700, y1: 740 },
+    ];
+    const valueRows = [
+      { text: "87659312", y0: 340, y1: 380 },
+      { text: "37983637", y0: 400, y1: 440 },
+      { text: "13383341", y0: 460, y1: 500 },
+      { text: "9459898", y0: 520, y1: 560 },
+      { text: "6960050", y0: 580, y1: 620 },
+      { text: "6525560", y0: 640, y1: 680 },
+      { text: "4609700", y0: 700, y1: 740 },
+    ];
+    const labels = normalizeGeometryLines(
+      labelRows.map((row) => ({
+        text: row.text,
+        bbox: { x0: 0, y0: row.y0, x1: 200, y1: row.y1 },
+      })),
+      cropHeight,
+    );
+    const values = normalizeGeometryLines(
+      valueRows.map((row) => ({
+        text: row.text,
+        bbox: { x0: 0, y0: row.y0, x1: 120, y1: row.y1 },
+      })),
+      cropHeight,
+    );
+    const pairs = zipLabelsToValues({ labels, values });
+    expect(
+      reconcileHeroPowerHeaderTotal({
+        headerTotal: 870_659_312,
+        pairs,
+      }),
+    ).toBe(166_581_498);
   });
 });
