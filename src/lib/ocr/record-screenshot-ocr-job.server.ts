@@ -22,6 +22,10 @@ import {
   screenshotOcrPreviewKey,
 } from "@/lib/storage";
 import type { ParsePowerDetailsImageResult } from "@/lib/thp/hero-power-ocr/parse-power-details-image";
+import {
+  emitScreenshotHygieneEvent,
+  emitScreenshotParseCompleteEvent,
+} from "@/lib/ocr/screenshot-hygiene-events.server";
 
 export type RecordScreenshotOcrJobInput = {
   source: string;
@@ -184,6 +188,17 @@ export async function recordScreenshotOcrJob(
     createdAt: new Date(),
   });
 
+  void emitScreenshotParseCompleteEvent({
+    jobId,
+    source: input.source,
+    allianceId: input.allianceId,
+    hqUserId: input.hqUserId,
+    discordUserId: input.discordUserId,
+    quality,
+  }).catch((error: unknown) => {
+    console.error("[screenshot-hygiene] parse_complete failed", jobId, error);
+  });
+
   void uploadScreenshotOcrArtifacts({
     jobId,
     screenshotBuffer: input.screenshotBuffer,
@@ -201,10 +216,22 @@ export async function updateScreenshotOcrJobUserOutcome(
   jobId: string,
   confirmed: boolean,
   reason?: string,
+  context?: {
+    source?: string;
+    allianceId?: string | null;
+    hqUserId?: string | null;
+    discordUserId?: string | null;
+  },
 ): Promise<void> {
   const db = getDb();
   const [row] = await db
-    .select({ qualityJson: schema.screenshotOcrJobs.qualityJson })
+    .select({
+      qualityJson: schema.screenshotOcrJobs.qualityJson,
+      source: schema.screenshotOcrJobs.source,
+      allianceId: schema.screenshotOcrJobs.allianceId,
+      hqUserId: schema.screenshotOcrJobs.hqUserId,
+      discordUserId: schema.screenshotOcrJobs.discordUserId,
+    })
     .from(schema.screenshotOcrJobs)
     .where(eq(schema.screenshotOcrJobs.id, jobId))
     .limit(1);
@@ -228,4 +255,21 @@ export async function updateScreenshotOcrJobUserOutcome(
     .update(schema.screenshotOcrJobs)
     .set({ qualityJson: updated })
     .where(eq(schema.screenshotOcrJobs.id, jobId));
+
+  void emitScreenshotHygieneEvent({
+    eventType: confirmed
+      ? "screenshot_user_confirmed"
+      : "screenshot_user_rejected",
+    source: context?.source ?? row.source,
+    screenshotOcrJobId: jobId,
+    allianceId: context?.allianceId ?? row.allianceId,
+    hqUserId: context?.hqUserId ?? row.hqUserId,
+    discordUserId: context?.discordUserId ?? row.discordUserId,
+    payload: {
+      reason: reason ?? null,
+      failureCodes: updated.failureCodes,
+    },
+  }).catch((error: unknown) => {
+    console.error("[screenshot-hygiene] user_outcome failed", jobId, error);
+  });
 }

@@ -79,6 +79,14 @@ export function ScreenshotJobsConsolePage() {
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [listLoading, setListLoading] = useState(true);
+  const [kpis, setKpis] = useState<{
+    jobCount: number;
+    parseOkRate: number;
+    completeRate: number;
+    avgPairedCount: number;
+    confirmRejectRate: number;
+    topFailureCodes: Array<{ code: string; count: number }>;
+  } | null>(null);
 
   const setFilters = useCallback(
     (patch: { source?: string; parsedOk?: string }) => {
@@ -132,6 +140,28 @@ export function ScreenshotJobsConsolePage() {
     };
   }, [loadJobs, tJobs]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams();
+    if (sourceFilter !== "all") params.set("source", sourceFilter);
+    void fetch(`/api/admin/screenshot-jobs/hygiene?${params.toString()}`)
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return (await res.json()) as {
+          kpis: NonNullable<typeof kpis>;
+        };
+      })
+      .then((data) => {
+        if (!cancelled && data?.kpis) setKpis(data.kpis);
+      })
+      .catch(() => {
+        if (!cancelled) setKpis(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceFilter]);
+
   const empty = jobs.length === 0;
   const summary = useMemo(
     () => tJobs("resultCount", { shown: jobs.length, total }),
@@ -148,6 +178,40 @@ export function ScreenshotJobsConsolePage() {
         <h2 className="text-xl font-semibold">{tJobs("title")}</h2>
         <p className="text-sm text-hq-fg-muted">{tJobs("subtitle")}</p>
       </div>
+
+      {kpis ? (
+        <div className="grid gap-3 rounded-xl border border-hq-border bg-hq-surface p-4 text-sm sm:grid-cols-2 lg:grid-cols-5">
+          <div>
+            <p className="text-xs text-hq-fg-muted">{tJobs("hygieneJobCount")}</p>
+            <p>{kpis.jobCount}</p>
+          </div>
+          <div>
+            <p className="text-xs text-hq-fg-muted">{tJobs("hygieneParseOkRate")}</p>
+            <p>{Math.round(kpis.parseOkRate * 100)}%</p>
+          </div>
+          <div>
+            <p className="text-xs text-hq-fg-muted">{tJobs("hygieneCompleteRate")}</p>
+            <p>{Math.round(kpis.completeRate * 100)}%</p>
+          </div>
+          <div>
+            <p className="text-xs text-hq-fg-muted">{tJobs("hygieneAvgPaired")}</p>
+            <p>{kpis.avgPairedCount.toFixed(1)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-hq-fg-muted">{tJobs("hygieneTopFailures")}</p>
+            <p className="text-xs">
+              {kpis.topFailureCodes.length > 0
+                ? kpis.topFailureCodes
+                    .map(
+                      (row) =>
+                        `${SCREENSHOT_OCR_FAILURE_LABELS[row.code as keyof typeof SCREENSHOT_OCR_FAILURE_LABELS] ?? row.code} (${row.count})`,
+                    )
+                    .join(", ")
+                : "—"}
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
