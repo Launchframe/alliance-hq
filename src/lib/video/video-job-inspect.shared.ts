@@ -1,3 +1,5 @@
+import type { VideoJobHqGeometrySummary } from "@/lib/ocr/video-frame-hq-geometry.shared";
+
 export type VideoJobInspectHintCode =
   | "stuck_parsing_no_ocr"
   | "stuck_parsing_native_ocr"
@@ -21,6 +23,14 @@ export type VideoJobInspectFrameRow = {
   uploadMs: number | null;
   extractMs: number | null;
   hasRaw: boolean;
+  hqGeometry?: {
+    kind: string;
+    parsedOk: boolean;
+    entryCount: number;
+    failureCodes: string[];
+    lowQuality: boolean;
+    framePreviewUrl: string;
+  } | null;
 };
 
 export type VideoJobInspectReport = {
@@ -70,6 +80,7 @@ export type VideoJobInspectReport = {
     status: string;
   }>;
   parsedRowsInDb: number;
+  hqGeometrySummary: VideoJobHqGeometrySummary | null;
   hints: VideoJobInspectHint[];
 };
 

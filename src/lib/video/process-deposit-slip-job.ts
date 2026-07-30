@@ -22,6 +22,13 @@ import {
   resolveDepositSlipMemberLinks,
 } from "@/lib/banks/deposit-slip-ocr/resolve-deposit-slip-member.server";
 import { getDb, schema } from "@/lib/db";
+import {
+  attachHqGeometryToOcrRawJson,
+  aggregateVideoJobHqGeometry,
+  buildDepositSlipFrameHqGeometry,
+  type VideoFrameHqGeometry,
+  type VideoJobHqGeometrySummary,
+} from "@/lib/ocr/video-frame-hq-geometry.shared";
 import { resolveHqAllianceIdFromSession } from "@/lib/members/resolve-hq-alliance";
 import {
   emptyDedupeReport,
@@ -66,6 +73,7 @@ export type OcrDepositSlipVideoChunkResult = {
   frameHistories: ParsedDepositSlipHistory[];
   /** Coalesced bank info + favorites OCR for this chunk (null when mock / none). */
   detectedBankContext: DetectedBankContext | null;
+  hqGeometrySummary?: VideoJobHqGeometrySummary;
 };
 
 export type ProcessDepositSlipVideoParseResult = OcrDepositSlipVideoChunkResult & {
@@ -162,6 +170,7 @@ export async function ocrDepositSlipVideoFrameChunk(
     error: string | null;
     rawLines: string[];
     history: ParsedDepositSlipHistory;
+    hqGeometry: VideoFrameHqGeometry;
   }>;
   let detectedBankContext: DetectedBankContext | null = null;
 
@@ -194,6 +203,13 @@ export async function ocrDepositSlipVideoFrameChunk(
         error: null,
         rawLines: [],
         history,
+        hqGeometry: buildDepositSlipFrameHqGeometry({
+          sourceWidth: 1080,
+          sourceHeight: 1920,
+          slipCount: history.slips.length,
+          rawLineCount: 0,
+          durationMs: 1,
+        }),
       };
     });
     totalRawOcrRows = frameTimings.reduce((sum, f) => sum + f.entryCount, 0);
@@ -235,10 +251,13 @@ export async function ocrDepositSlipVideoFrameChunk(
           extractMs: timing.ms,
           ocrEntryCount: timing.entryCount,
           ocrError: timing.error,
-          ocrRawJson: {
-            lines: timing.rawLines,
-            history: timing.history,
-          },
+          ocrRawJson: attachHqGeometryToOcrRawJson(
+            {
+              lines: timing.rawLines,
+              history: timing.history,
+            },
+            timing.hqGeometry,
+          ),
         })
         .where(
           and(
@@ -249,10 +268,28 @@ export async function ocrDepositSlipVideoFrameChunk(
     ),
   );
 
+  const hqGeometrySummary = aggregateVideoJobHqGeometry(
+    frameTimings.map((timing) => ({
+      frameIndex: timing.frameIndex,
+      hq: timing.hqGeometry,
+    })),
+  );
+
+  const [existingJob] = await db
+    .select({ timingsJson: schema.videoJobs.timingsJson })
+    .from(schema.videoJobs)
+    .where(eq(schema.videoJobs.id, input.jobId))
+    .limit(1);
+  const mergedTimings = {
+    ...((existingJob?.timingsJson as Record<string, unknown> | null) ?? {}),
+    hqGeometrySummary,
+  };
+
   await db
     .update(schema.videoJobs)
     .set({
       allianceId: hqAllianceId,
+      timingsJson: mergedTimings,
       updatedAt: input.now,
     })
     .where(eq(schema.videoJobs.id, input.jobId));
@@ -265,6 +302,7 @@ export async function ocrDepositSlipVideoFrameChunk(
     framesOcrComplete: frameTimings.length,
     frameHistories: frameTimings.map((timing) => timing.history),
     detectedBankContext,
+    hqGeometrySummary,
   };
 }
 

@@ -9,6 +9,10 @@ import {
   summarizeOcrRaw,
   type VideoJobInspectReport,
 } from "@/lib/video/video-job-inspect.shared";
+import {
+  readHqGeometryFromOcrRawJson,
+  type VideoJobHqGeometrySummary,
+} from "@/lib/ocr/video-frame-hq-geometry.shared";
 
 export async function loadVideoJobInspectReport(
   jobId: string,
@@ -25,18 +29,41 @@ export async function loadVideoJobInspectReport(
     return null;
   }
 
-  const frames = await db
+  const frameRows = await db
     .select({
       frameIndex: schema.videoFrames.frameIndex,
       ocrEntryCount: schema.videoFrames.ocrEntryCount,
       ocrError: schema.videoFrames.ocrError,
       uploadMs: schema.videoFrames.uploadMs,
       extractMs: schema.videoFrames.extractMs,
+      ocrRawJson: schema.videoFrames.ocrRawJson,
       hasRaw: sql<boolean>`ocr_raw_json IS NOT NULL`,
     })
     .from(schema.videoFrames)
     .where(eq(schema.videoFrames.jobId, jobId))
     .orderBy(schema.videoFrames.frameIndex);
+
+  const frames = frameRows.map((frame) => {
+    const hq = readHqGeometryFromOcrRawJson(frame.ocrRawJson);
+    return {
+      frameIndex: frame.frameIndex,
+      ocrEntryCount: frame.ocrEntryCount,
+      ocrError: frame.ocrError,
+      uploadMs: frame.uploadMs,
+      extractMs: frame.extractMs,
+      hasRaw: frame.hasRaw,
+      hqGeometry: hq
+        ? {
+            kind: hq.kind,
+            parsedOk: hq.parsedOk,
+            entryCount: hq.entryCount,
+            failureCodes: hq.failureCodes,
+            lowQuality: hq.lowQuality,
+            framePreviewUrl: `/api/admin/video-jobs/${jobId}/frames/${frame.frameIndex}`,
+          }
+        : null,
+    };
+  });
 
   const [firstRaw] = await db
     .select({ ocrRawJson: schema.videoFrames.ocrRawJson })
@@ -95,6 +122,10 @@ export async function loadVideoJobInspectReport(
     alliance?.videoHqOcrOnly,
   );
 
+  const hqGeometrySummary =
+    (timings?.hqGeometrySummary as VideoJobHqGeometrySummary | undefined) ??
+    null;
+
   const report: VideoJobInspectReport = {
     job: {
       id: job.id,
@@ -134,6 +165,7 @@ export async function loadVideoJobInspectReport(
       status: session.status,
     })),
     parsedRowsInDb,
+    hqGeometrySummary,
     hints: [],
   };
 

@@ -16,6 +16,10 @@ import {
   buildOcrDiagnostics,
   logOcrDiagnostics,
 } from "@/lib/ocr/ocr-diagnostics.shared";
+import {
+  buildDepositSlipFrameHqGeometry,
+  type VideoFrameHqGeometry,
+} from "@/lib/ocr/video-frame-hq-geometry.shared";
 import type { DedupeReport } from "@/lib/video/dedupe/merge-report.shared";
 import { mapWithConcurrency } from "@/lib/video/map-with-concurrency";
 import type { VideoOcrProgressCallback } from "@/lib/video/ocr-provider.shared";
@@ -31,8 +35,8 @@ export type NativeDepositSlipFrameTiming = {
   entryCount: number;
   error: string | null;
   rawLines: string[];
-  /** Per-frame parse — persisted so chunked OCR can finalize later. */
   history: ParsedDepositSlipHistory;
+  hqGeometry: VideoFrameHqGeometry;
 };
 
 export type OcrDepositSlipNativeFramesResult = {
@@ -77,6 +81,16 @@ export async function ocrDepositSlipNativeFrames(
     concurrency,
     async (frame) => {
       const started = Date.now();
+      let sourceWidth = 1080;
+      let sourceHeight = 1920;
+      try {
+        const sharp = (await import("sharp")).default;
+        const meta = await sharp(frame.buffer).metadata();
+        sourceWidth = meta.width ?? sourceWidth;
+        sourceHeight = meta.height ?? sourceHeight;
+      } catch {
+        // Tests may pass non-image buffers; default dimensions are fine for metrics.
+      }
       const result = await (async () => {
         try {
           const result = await parseDepositSlipImage(frame.buffer);
@@ -109,6 +123,13 @@ export async function ocrDepositSlipNativeFrames(
               minimumDeposit: result.minimumDeposit,
               slips,
             } satisfies ParsedDepositSlipHistory,
+            hqGeometry: buildDepositSlipFrameHqGeometry({
+              sourceWidth,
+              sourceHeight,
+              slipCount: slips.length,
+              rawLineCount: result.rawLines.length,
+              durationMs: ms,
+            }),
           };
         } catch (error) {
           const message =
@@ -142,6 +163,13 @@ export async function ocrDepositSlipNativeFrames(
               minimumDeposit: null,
               slips: [],
             } satisfies ParsedDepositSlipHistory,
+            hqGeometry: buildDepositSlipFrameHqGeometry({
+              sourceWidth,
+              sourceHeight,
+              slipCount: 0,
+              rawLineCount: 0,
+              durationMs: Date.now() - started,
+            }),
           };
         }
       })();
@@ -175,6 +203,7 @@ export async function ocrDepositSlipNativeFrames(
       error: frame.error,
       rawLines: frame.rawLines,
       history: frame.history,
+      hqGeometry: frame.hqGeometry,
     })),
     concurrency,
     detectedBankContext,

@@ -212,6 +212,91 @@ export function VideoJobDiagnosticsPanel({
         </div>
       </div>
 
+      {report.hqGeometrySummary ? (
+        <div className="space-y-3 rounded-xl border border-hq-border bg-hq-surface p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-hq-fg-muted">
+            {t("diagnosticsHqGeometryTitle")}
+          </p>
+          <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <p className="text-xs text-hq-fg-muted">
+                {t("diagnosticsHqFramesWithGeometry")}
+              </p>
+              <p>
+                {report.hqGeometrySummary.framesWithGeometry} /{" "}
+                {report.hqGeometrySummary.frameCount}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-hq-fg-muted">
+                {t("diagnosticsHqWorstEntryCount")}
+              </p>
+              <p>{report.hqGeometrySummary.worstEntryCount}</p>
+            </div>
+            <div>
+              <p className="text-xs text-hq-fg-muted">
+                {t("diagnosticsHqLowQualityFrames")}
+              </p>
+              <p>{report.hqGeometrySummary.lowQualityFrameCount}</p>
+            </div>
+            <div>
+              <p className="text-xs text-hq-fg-muted">
+                {t("diagnosticsHqDominantFailure")}
+              </p>
+              <p className="font-mono text-xs">
+                {report.hqGeometrySummary.dominantFailureCode ?? "—"}
+              </p>
+            </div>
+          </div>
+          {report.frameSummary.frames.some((frame) => frame.hqGeometry) ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-hq-border text-xs text-hq-fg-muted">
+                    <th className="px-2 py-1">{t("diagnosticsHqColFrame")}</th>
+                    <th className="px-2 py-1">{t("diagnosticsHqColKind")}</th>
+                    <th className="px-2 py-1">{t("diagnosticsHqColEntries")}</th>
+                    <th className="px-2 py-1">{t("diagnosticsHqColFailures")}</th>
+                    <th className="px-2 py-1">{t("diagnosticsHqColPreview")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.frameSummary.frames
+                    .filter((frame) => frame.hqGeometry)
+                    .map((frame) => (
+                      <tr
+                        key={frame.frameIndex}
+                        className="border-b border-hq-border/60"
+                      >
+                        <td className="px-2 py-1 font-mono text-xs">
+                          {frame.frameIndex}
+                        </td>
+                        <td className="px-2 py-1">{frame.hqGeometry?.kind}</td>
+                        <td className="px-2 py-1">
+                          {frame.hqGeometry?.entryCount}
+                        </td>
+                        <td className="px-2 py-1 font-mono text-xs">
+                          {frame.hqGeometry?.failureCodes.join(", ") || "—"}
+                        </td>
+                        <td className="px-2 py-1">
+                          <a
+                            href={frame.hqGeometry?.framePreviewUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-hq-accent hover:underline"
+                          >
+                            {t("diagnosticsHqOpenFrame")}
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <CopyToClipboardField
         label={t("diagnosticsJsonTitle")}
         value={json}
