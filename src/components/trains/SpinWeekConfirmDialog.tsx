@@ -8,18 +8,10 @@ import type { SpinWeekResultRow } from "@/lib/trains/spin-week.shared";
 type Props = {
   open: boolean;
   results: SpinWeekResultRow[];
-  busy?: boolean;
-  onConfirm: () => void;
   onClose: () => void;
 };
 
-export function SpinWeekConfirmDialog({
-  open,
-  results,
-  busy = false,
-  onConfirm,
-  onClose,
-}: Props) {
+export function SpinWeekConfirmDialog({ open, results, onClose }: Props) {
   const t = useTranslations("trains.spinWeek");
 
   return (
@@ -35,7 +27,7 @@ export function SpinWeekConfirmDialog({
           <h2 className="text-lg font-semibold text-hq-fg">
             {t("confirmTitle")}
           </h2>
-          <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
+          <p className="mt-2 text-sm leading-relaxed text-hq-fg-muted">
             {t("confirmBody", { count: results.length })}
           </p>
         </div>
@@ -54,22 +46,13 @@ export function SpinWeekConfirmDialog({
           ))}
         </ul>
 
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <div className="flex justify-end">
           <button
             type="button"
-            disabled={busy}
             onClick={onClose}
-            className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas disabled:opacity-60"
+            className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover"
           >
-            {t("confirmCancel")}
-          </button>
-          <button
-            type="button"
-            disabled={busy || results.length === 0}
-            onClick={onConfirm}
-            className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-60"
-          >
-            {busy ? t("confirmLocking") : t("confirmLockAll")}
+            {t("confirmDone")}
           </button>
         </div>
       </div>

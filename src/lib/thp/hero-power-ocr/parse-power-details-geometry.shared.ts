@@ -62,8 +62,18 @@ const SECTION_STOP_RE =
 const SECTION_STOP_FUZZY_RE =
   /(?:drone|dron|10ne)\s*powers?|building\s*powers?/i;
 
+/** Modal chrome above the Hero Power section (OCR: "POWER DETH", etc.). */
+export function isPowerDetailsModalTitle(line: string): boolean {
+  const collapsed = line.trim().replace(/[^a-z]/gi, "");
+  return /^powerdet/i.test(collapsed);
+}
+
 export function isHeroPowerHeaderLabel(line: string): boolean {
-  return HERO_POWER_HEADER_RE.test(line.trim());
+  const trimmed = line.trim();
+  if (HERO_POWER_HEADER_RE.test(trimmed)) return true;
+  // OCR junk still anchors the grey header row: "(BJ [HerolPower", "HerolPower".
+  const collapsed = trimmed.replace(/[^a-z]/gi, "");
+  return /herol?pow/i.test(collapsed) || /heldenkampfkraft/i.test(collapsed);
 }
 
 export function isPowerDetailsSectionStop(line: string): boolean {
@@ -108,6 +118,55 @@ export function parseDigitsOnlyHeaderTotal(text: string): number | null {
     minDigits: 7,
     maxDigits: 9,
   });
+}
+
+/**
+ * Header totals after digits-only OCR sometimes pick up one extra digit
+ * (comma/separator mapped into the string). Try normalization, then a single
+ * interior digit drop on 10-digit blobs before giving up.
+ */
+export function parseDigitsOnlyHeaderTotalLoose(text: string): number | null {
+  const direct = parseDigitsOnlyHeaderTotal(text);
+  if (direct != null) return direct;
+
+  const digits = text.replace(/\D/g, "");
+  if (!digits) return null;
+
+  const normalized = normalizeDigitsOnlyComponent(digits);
+  if (
+    normalized != null &&
+    normalized >= 100_000_000 &&
+    normalized <= 1_000_000_000
+  ) {
+    return normalized;
+  }
+
+  if (digits.length === 10) {
+    const head = digits.slice(0, 3);
+    const tail = digits.slice(-3);
+    const commaLike = new Set(["1", "7", "8"]);
+    const anchored: Array<{ parsed: number; index: number }> = [];
+    const fallback: number[] = [];
+    // Thousand-separator slots in XXX,XXX,XXX — extra OCR digit usually lands here.
+    for (const i of [2, 3, 5, 6, 7]) {
+      const candidateDigits = `${digits.slice(0, i)}${digits.slice(i + 1)}`;
+      const parsed = parseDigitsOnlyHeaderTotal(candidateDigits);
+      if (parsed == null) continue;
+      if (candidateDigits.startsWith(head) && candidateDigits.endsWith(tail)) {
+        anchored.push({ parsed, index: i });
+        continue;
+      }
+      fallback.push(parsed);
+    }
+    const commaAnchored = anchored.filter((row) => commaLike.has(digits[row.index]!));
+    if (commaAnchored.length > 0) {
+      return commaAnchored[commaAnchored.length - 1]!.parsed;
+    }
+    if (anchored.length > 0) return anchored[0]!.parsed;
+    if (fallback.length > 0) return fallback[0]!;
+  }
+
+  return null;
 }
 
 /** Component rows are typically 7–8 digits. */
@@ -272,9 +331,13 @@ export function zipLabelsToValues(input: {
   for (const label of labelsSorted) {
     if (isPowerDetailsSectionStop(label.text)) break;
     if (isHeroPowerHeaderLabel(label.text)) continue;
-    // "POWER DETAILS" title / "Stats" orphan continuation — no value of their own.
-    if (/^power\s*details$/i.test(label.text)) continue;
+    if (isPowerDetailsModalTitle(label.text)) continue;
+    // "Stats" orphan when coalesce did not merge a split label — no value row.
     if (/^stats$/i.test(label.text.trim())) continue;
+
+    const key = matchThpLabel(label.text);
+    // Unknown / garbage label lines must not consume a value (shifts every row down).
+    if (key == null) continue;
 
     let bestIdx = -1;
     let bestDist = Number.POSITIVE_INFINITY;
@@ -291,9 +354,6 @@ export function zipLabelsToValues(input: {
     const [valueLine] = unusedValues.splice(bestIdx, 1);
     if (!valueLine) continue;
 
-    // Prefer coalesced "Decorations & Building" + following "Stats" already in text;
-    // matchThpLabel handles both "Decorations & Building Stats" and split forms via aliases.
-    const key = matchThpLabel(label.text);
     const value = normalizeDigitsOnlyComponent(valueLine.text);
     pairs.push({
       label: label.text,
@@ -326,8 +386,12 @@ export function coalesceLabelLines(
     ) {
       out.push({
         text: `${current.text} Stats`,
-        yNorm: current.yNorm,
-        yCenterPx: current.yCenterPx,
+        // Value is vertically centered on the full two-line row — use midpoint.
+        yNorm: (current.yNorm + next.yNorm) / 2,
+        yCenterPx:
+          current.yCenterPx != null && next.yCenterPx != null
+            ? (current.yCenterPx + next.yCenterPx) / 2
+            : current.yCenterPx,
       });
       i += 1;
       continue;

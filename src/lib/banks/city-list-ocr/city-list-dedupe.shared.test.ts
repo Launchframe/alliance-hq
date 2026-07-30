@@ -323,4 +323,72 @@ describe("mergeCityListParses", () => {
     ]);
     expect(dedupeReport.autoMergedCount).toBe(1);
   });
+
+  it("merges ±1–2 coordinate drift across screenshots without duplicate tiles", () => {
+    const shotA = parseCityListText([
+      "Bank Strongholds captured: 2/8",
+      "600.00K 500.00K",
+      "Lv.6 Lv.5",
+      "#8150 (X:699, Y:20) #1211 (X:978, Y:978)",
+      "110/110 75/100",
+    ]);
+    const shotB = parseCityListText([
+      "Bank Strongholds captured: 2/8",
+      "600.00K 500.00K",
+      "Lv.6 Lv.5",
+      "#8150 (X:698, Y:20) #1211 (X:978, Y:979)",
+      "110/110 75/100",
+    ]);
+    const { snapshot } = mergeCityListParses([shotA, shotB]);
+    expect(snapshot.banks).toHaveLength(2);
+    expect(snapshot.banks[0]).toMatchObject({
+      coordX: 699,
+      coordY: 20,
+      crystalGoldValue: 600_000,
+    });
+    expect(snapshot.banks[1]).toMatchObject({
+      coordX: 978,
+      coordY: 978,
+      crystalGoldValue: 500_000,
+    });
+  });
+
+  it("uses the max capturedCount across screenshots", () => {
+    const shotA = parseCityListText([
+      "Bank Strongholds captured: 6/8",
+      "600.00K",
+      "Lv.2",
+      "#1211 (X:1, Y:1)",
+    ]);
+    const shotB = parseCityListText([
+      "Bank Strongholds captured: 11/12",
+      "500.00K",
+      "Lv.2",
+      "#1211 (X:2, Y:2)",
+    ]);
+    const { snapshot } = mergeCityListParses([shotA, shotB]);
+    expect(snapshot.capturedCount).toBe(11);
+    expect(snapshot.capturedLimit).toBe(12);
+  });
+
+  it("does not let a noisier overlap overwrite a positive CrystalGold amount", () => {
+    const shotA = parseCityListText([
+      "Bank Strongholds captured: 1/8",
+      "660.00K",
+      "Lv.6",
+      "#8150 (X:699, Y:20)",
+      "110/110",
+    ]);
+    const shotB = parseCityListText([
+      "Bank Strongholds captured: 1/8",
+      "200.00K",
+      "Lv.1",
+      "#8150 (X:699, Y:21)",
+      "110/110",
+    ]);
+    const { snapshot } = mergeCityListParses([shotA, shotB]);
+    expect(snapshot.banks).toHaveLength(1);
+    expect(snapshot.banks[0]?.crystalGoldValue).toBe(660_000);
+    expect(snapshot.banks[0]?.level).toBe(6);
+  });
 });

@@ -28,6 +28,10 @@ type Props = {
     noneYet: string;
   };
   substituteBadge?: string | null;
+  shareActionLabel?: string;
+  shareBusyLabel?: string;
+  shareBusy?: boolean;
+  onShareImage?: () => void;
   "data-testid"?: string;
 };
 
@@ -37,6 +41,10 @@ export function TodayConductorCard({
   dayLabel,
   labels,
   substituteBadge,
+  shareActionLabel,
+  shareBusyLabel,
+  shareBusy = false,
+  onShareImage,
   "data-testid": dataTestId,
 }: Props) {
   const locked = Boolean(record?.lockedAt);
@@ -46,6 +54,10 @@ export function TodayConductorCard({
   const hasGuardianContext = Boolean(
     record?.conductorMemberName || record?.vipMemberName,
   );
+  const showShare =
+    Boolean(record?.conductorMemberName) &&
+    onShareImage != null &&
+    shareActionLabel != null;
 
   return (
     <section
@@ -64,15 +76,28 @@ export function TodayConductorCard({
             </p>
           ) : null}
         </div>
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-medium ${
-            locked
-              ? "bg-emerald-500/15 text-emerald-300"
-              : "bg-amber-500/15 text-amber-300"
-          }`}
-        >
-          {locked ? labels.locked : labels.unlocked}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {showShare ? (
+            <button
+              type="button"
+              disabled={shareBusy}
+              data-testid="trains-conductor-card-share"
+              onClick={onShareImage}
+              className="rounded-lg border border-[#8957e5]/50 bg-[#8957e5]/10 px-3 py-1.5 text-xs font-medium text-[#8250df] hover:bg-[#8957e5]/20 disabled:opacity-50 dark:text-[#d2a8ff]"
+            >
+              {shareBusy ? (shareBusyLabel ?? shareActionLabel) : shareActionLabel}
+            </button>
+          ) : null}
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-medium ${
+              locked
+                ? "bg-emerald-500/15 text-emerald-300"
+                : "bg-amber-500/15 text-amber-300"
+            }`}
+          >
+            {locked ? labels.locked : labels.unlocked}
+          </span>
+        </div>
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

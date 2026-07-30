@@ -89,6 +89,32 @@ EMAIL_FROM="Alliance HQ <onboarding@resend.dev>"
 NEXT_PUBLIC_APP_URL=http://localhost:5175
 ```
 
+### 2c. Neon preview branch cleanup on PR close
+
+The Neon ↔ Vercel integration creates a Neon branch named `preview/<git-branch>` for each preview deployment. Vercel-managed automatic cleanup can leave those branches for months (deployment retention). Immediate cleanup is handled by [`.github/workflows/neon-preview-cleanup.yml`](../.github/workflows/neon-preview-cleanup.yml), which runs `neondatabase/delete-branch-action` when a PR is closed.
+
+Configure once on the GitHub repo:
+
+| Kind | Name | Where to get it |
+| ---- | ---- | --------------- |
+| Repository **variable** | `NEON_PROJECT_ID` | Neon Console → Project Settings |
+| Repository **secret** | `NEON_API_KEY` | Neon Console → Account Settings → API Keys |
+
+Until both are set, the PR-close job is skipped (no red X). After setup, closing or merging a PR deletes `preview/<head_ref>` if it still exists.
+
+**Bulk cleanup (all non-protected Neon branches):**
+
+```bash
+# Local dry-run / apply
+NEON_PROJECT_ID=… NEON_API_KEY=… ./scripts/neon-prune.sh
+NEON_PROJECT_ID=… NEON_API_KEY=… ./scripts/neon-prune.sh --apply --yes
+
+# Or Actions → "Cleanup Neon preview branch" → Run workflow
+# (unchecked = dry-run; check "apply" to delete)
+```
+
+`neon-prune.sh` keeps Neon `default` / `primary` / `protected` branches plus name keep-list `main`, `production`, `vercel-dev` (add more with `--keep <name>`).
+
 ### 3. Resend — verify frontline.gay
 
 - [ ] Resend dashboard → **Domains** → Add **`frontline.gay`**.

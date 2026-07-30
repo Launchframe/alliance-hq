@@ -377,10 +377,10 @@ const commandBody = [
   {
     name: "set-seasonal-events-channel",
     description:
-      "Set this channel for seasonal event announcements — bank captures, etc. (R4+ by default; owners can restrict).",
+      "Set this channel for seasonal event announcements (R4+ by default; owners can restrict).",
     description_localizations: {
       "pt-BR":
-        "Define este canal para anúncios de eventos sazonais — capturas de bancos, etc. (R4+ por padrão; o dono pode restringir).",
+        "Define este canal para anúncios de eventos sazonais (R4+ por padrão; o dono pode restringir).",
     },
   },
   {
@@ -395,10 +395,10 @@ const commandBody = [
   {
     name: "set-banking-channel",
     description:
-      "Set this channel for banking partner notifications — protection timers, etc. (R4+ by default; owners can restrict).",
+      "Set this channel for banking partner notifications (R4+ by default; owners can restrict).",
     description_localizations: {
       "pt-BR":
-        "Define este canal para notificações de parceiros bancários — timers de proteção, etc. (R4+ por padrão; o dono pode restringir).",
+        "Define este canal para avisos de parceiros bancários (R4+ por padrão; o dono pode restringir).",
     },
   },
   {
@@ -566,6 +566,34 @@ const commandBody = [
         description: "Optional end date (YYYY-MM-DD). Defaults to start.",
         description_localizations: {
           "pt-BR": "Data de fim opcional (AAAA-MM-DD). Padrão: início.",
+        },
+        type: 3,
+        required: false,
+      },
+    ],
+  },
+  {
+    name: "who-is",
+    description: "Look up which commander a Discord user owns, or who owns a commander.",
+    description_localizations: {
+      "pt-BR":
+        "Descubra qual comandante um usuário do Discord possui, ou quem possui um comandante.",
+    },
+    options: [
+      {
+        name: "discord",
+        description: "Discord member to look up.",
+        description_localizations: {
+          "pt-BR": "Membro do Discord para consultar.",
+        },
+        type: 6,
+        required: false,
+      },
+      {
+        name: "commander",
+        description: "In-game commander name to look up.",
+        description_localizations: {
+          "pt-BR": "Nome do comandante no jogo para consultar.",
         },
         type: 3,
         required: false,

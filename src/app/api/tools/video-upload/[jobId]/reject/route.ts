@@ -8,6 +8,7 @@ import { getDb, schema } from "@/lib/db";
 import { deleteObject } from "@/lib/storage";
 import { getOrCreateSession } from "@/lib/session";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
+import { filterJobStorageKeysSafeToDelete } from "@/lib/video/shared-job-storage.server";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -90,11 +91,14 @@ export async function POST(request: Request, { params }: Props) {
       errorMessage: reason,
     });
 
-    const keysToDelete = new Set<string>();
-    if (job.storageKey) keysToDelete.add(job.storageKey);
-    if (job.archiveStorageKey) keysToDelete.add(job.archiveStorageKey);
+    const keysToDelete = await filterJobStorageKeysSafeToDelete({
+      jobId,
+      groupId: job.groupId ?? null,
+      storageKey: job.storageKey ?? null,
+      archiveStorageKey: job.archiveStorageKey ?? null,
+    });
     await Promise.all(
-      [...keysToDelete].map((key) => deleteObject(key).catch(() => undefined)),
+      keysToDelete.map((key) => deleteObject(key).catch(() => undefined)),
     );
 
     return NextResponse.json({ ok: true, jobId, status: "discarded" });

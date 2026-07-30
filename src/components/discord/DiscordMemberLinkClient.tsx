@@ -297,9 +297,10 @@ export function DiscordMemberLinkClient({
     return (
       <div className="space-y-4">
         {renderHeader()}
-        <p className="text-sm text-hq-fg-muted">
-          {message ?? labels.confirmHomeHeading}
-        </p>
+        <p className="text-sm text-hq-fg-muted">{labels.confirmHomeHeading}</p>
+        {message ? (
+          <p className="text-sm text-hq-fg-muted">{message}</p>
+        ) : null}
         <p className="text-lg font-semibold text-hq-fg">{gameUserName}</p>
         <div className="flex flex-col gap-2">
           <button

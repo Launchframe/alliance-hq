@@ -5,6 +5,8 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
+import { Button } from "@/components/ui/button";
+import { formatDepositStatusToken } from "@/lib/banks/deposit-status-label.shared";
 import {
   DEPOSIT_SLIP_CLEARED_MEMBER_MATCH,
   depositSlipMemberMatchBorderClass,
@@ -14,7 +16,9 @@ import {
   DEPOSIT_TERMS,
   type DepositStatus,
   type DepositTermDays,
+  type SerializedDepositSlip,
 } from "@/lib/banks/types.shared";
+import { countReviewRowsMatchingBankHistory } from "@/lib/banks/deposit-slip-ocr/deposit-slip-history-preview.shared";
 import { formatDepositSlipGameTimestamp } from "@/lib/banks/deposit-slip-ocr/deposit-slip-game-timestamp.shared";
 import {
   flaggedClusterIdsWithSingleSurvivor,
@@ -62,6 +66,7 @@ export type DepositSlipVideoReviewRow = {
   dedupeClusterId?: string | null;
   dedupeFlag?: boolean;
   deleted: number;
+  scoreDefaulted?: boolean;
 };
 
 export type DepositSlipMemberOption = {
@@ -97,6 +102,8 @@ type Props = {
   onFollowMeActivateRow?: (rowId: string) => void;
   /** Scroll the table to a row (flagged-cluster / warning banners). */
   onJumpToRow?: (rowId: string) => void;
+  /** Saved slips for the selected bank — powers pre-save history preview. */
+  bankDepositSlips?: readonly SerializedDepositSlip[];
 };
 
 const FLAG_REASON_KEYS = [
@@ -199,7 +206,10 @@ function LiveRowSummaryFields({
   row: DepositSlipReviewRowSummaryFields;
   diffKeys: Set<string>;
 }) {
-  const parts = depositSlipReviewRowSummaryParts(row, diffKeys);
+  const tBanks = useTranslations("bankManagement");
+  const formatStatus = (raw: string) =>
+    formatDepositStatusToken(raw, (status) => tBanks(`status.${status}`));
+  const parts = depositSlipReviewRowSummaryParts(row, diffKeys, formatStatus);
   return (
     <span className="inline-flex flex-wrap items-center gap-1">
       {parts.map((part, index) => (
@@ -230,6 +240,7 @@ export function DepositSlipVideoReviewTable({
   highlightedRowId,
   onFollowMeActivateRow,
   onJumpToRow,
+  bankDepositSlips = [],
 }: Props) {
   const t = useTranslations("videoReview");
   const tBanks = useTranslations("bankManagement");
@@ -303,6 +314,14 @@ export function DepositSlipVideoReviewTable({
       missingTsClusters.reduce((n, c) => n + absorbedMemberCount(c), 0),
     [missingTsClusters],
   );
+
+  const bankHistoryPreview = useMemo(
+    () =>
+      countReviewRowsMatchingBankHistory(activeRows, bankDepositSlips ?? []),
+    [activeRows, bankDepositSlips],
+  );
+  const bankHistoryMatchCount =
+    bankHistoryPreview.skipCount + bankHistoryPreview.updateCount;
 
   const flaggedClusterIds = useMemo(
     () =>
@@ -678,6 +697,11 @@ export function DepositSlipVideoReviewTable({
                       }
                       className="w-full min-w-[5rem] rounded-md border border-hq-border bg-hq-canvas px-2 py-1.5 font-mono"
                     />
+                    {row.scoreDefaulted ? (
+                      <p className="mt-1 text-xs text-[#e3b341]">
+                        {t("depositSlipScoreDefaultedWarning")}
+                      </p>
+                    ) : null}
                   </td>
                   <td className="w-[4.5rem] min-w-[4.5rem] px-2 py-2 align-top">
                     <AppSelect
@@ -771,6 +795,19 @@ export function DepositSlipVideoReviewTable({
           </tbody>
         </table>
       </div>
+
+      {bankHistoryMatchCount > 0 ? (
+        <div className="rounded-xl border border-[#d29922]/40 bg-[#d29922]/10 p-4 text-sm text-[#e3b341]">
+          <p className="font-medium">
+            {t("depositSlipHistoryPreviewTitle", {
+              count: bankHistoryMatchCount,
+            })}
+          </p>
+          <p className="mt-1 text-hq-fg">
+            {t("depositSlipHistoryPreviewHint")}
+          </p>
+        </div>
+      ) : null}
 
       {autoMergedAbsorbedCount > 0 ? (
         <div className="rounded-xl border border-hq-border bg-hq-surface-muted/40 p-4 text-sm">

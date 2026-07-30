@@ -4,6 +4,8 @@ import {
   isActiveQueueVideoJobStatus,
   isHiddenFromActiveQueue,
   isInFlightProcessingStatus,
+  isVideoJobFailProtectedStatus,
+  VIDEO_JOB_FAIL_PROTECTED_STATUSES,
   videoJobLifecycleStage,
 } from "@/lib/video/video-lifecycle.shared";
 
@@ -37,5 +39,16 @@ describe("video lifecycle queue helpers", () => {
     expect(isInFlightProcessingStatus("queued")).toBe(true);
     expect(isInFlightProcessingStatus("extracting")).toBe(true);
     expect(isInFlightProcessingStatus("review")).toBe(false);
+  });
+});
+
+describe("isVideoJobFailProtectedStatus", () => {
+  it("protects successful and operator-owned statuses from fail overwrites", () => {
+    for (const status of VIDEO_JOB_FAIL_PROTECTED_STATUSES) {
+      expect(isVideoJobFailProtectedStatus(status)).toBe(true);
+    }
+    for (const status of ["queued", "extracting", "parsing", "failed"]) {
+      expect(isVideoJobFailProtectedStatus(status)).toBe(false);
+    }
   });
 });

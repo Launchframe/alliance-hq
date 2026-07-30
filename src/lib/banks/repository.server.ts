@@ -33,6 +33,16 @@ export async function loadAllianceGameServerNumber(
   return rows[0]?.gameServerNumber ?? null;
 }
 
+export async function loadAllianceTag(allianceId: string): Promise<string | null> {
+  const rows = await getDb()
+    .select({ tag: schema.alliances.tag })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+  const tag = rows[0]?.tag?.trim();
+  return tag || null;
+}
+
 export type AllianceBankCityListSnapshot = {
   bankCapturesRemainingToday: number | null;
   bankCapturesLimitToday: number | null;
@@ -72,11 +82,19 @@ export type CityListBankUpsertInput = {
 export async function upsertBanksFromCityList(
   allianceId: string,
   banks: CityListBankUpsertInput[],
+  options?: { cityListSnapshotAt?: Date | null },
 ) {
   const db = getDb();
   const results = [];
+  const snapshotAt = options?.cityListSnapshotAt ?? new Date();
 
   for (const bank of banks) {
+    const shouldStampSnapshot =
+      bank.currentDepositCount != null || bank.currentDepositValue != null;
+    const snapshotPatch = shouldStampSnapshot
+      ? { cityListSnapshotAt: snapshotAt }
+      : {};
+
     const existing = await db
       .select()
       .from(schema.banks)
@@ -102,11 +120,12 @@ export async function upsertBanksFromCityList(
           level: bank.level,
           currentDepositCount: bank.currentDepositCount,
           currentDepositValue: bank.currentDepositValue,
+          updatedAt: now,
+          ...snapshotPatch,
           // Re-pictured banks are currently held — undo soft-archive so they
           // re-enter active inventory / recommendNextDrop. Keep future
           // officer-planned drop deadlines.
           ...(clearSoftArchive ? { dropByAt: null } : {}),
-          updatedAt: now,
         })
         .where(eq(schema.banks.id, existing[0].id))
         .returning();
@@ -128,6 +147,7 @@ export async function upsertBanksFromCityList(
         priorCaptureCount: 1,
         currentDepositCount: bank.currentDepositCount,
         currentDepositValue: bank.currentDepositValue,
+        ...snapshotPatch,
       })
       .returning();
     results.push(inserted[0]!);
@@ -256,6 +276,7 @@ export function buildBankManagementPayload(
   banks: BankWithSlips[],
   options: {
     allianceId: string;
+    allianceTag?: string | null;
     canWrite: boolean;
     todayServerDate: string;
     effectiveSeasonKey?: string;
@@ -264,6 +285,7 @@ export function buildBankManagementPayload(
     bankCapturesRemainingToday?: number | null;
     bankCapturesLimitToday?: number | null;
     bankCityListServerTime?: string | null;
+    bankCityListImportedAt?: string | null;
     now?: Date;
   },
 ): BankManagementPayload {
@@ -278,12 +300,14 @@ export function buildBankManagementPayload(
     canWrite: options.canWrite,
     todayServerDate: options.todayServerDate,
     allianceId: options.allianceId,
+    allianceTag: options.allianceTag ?? null,
     effectiveSeasonKey: options.effectiveSeasonKey,
     nextCaptureLevel,
     allianceGameServerNumber: options.allianceGameServerNumber ?? null,
     bankCapturesRemainingToday: options.bankCapturesRemainingToday ?? null,
     bankCapturesLimitToday: options.bankCapturesLimitToday ?? null,
     bankCityListServerTime: options.bankCityListServerTime ?? null,
+    bankCityListImportedAt: options.bankCityListImportedAt ?? null,
   };
 }
 

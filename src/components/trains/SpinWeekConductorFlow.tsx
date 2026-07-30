@@ -7,7 +7,6 @@ import { ConductorWheelModal } from "@/components/trains/ConductorWheelModal";
 import { SpinWeekConfirmDialog } from "@/components/trains/SpinWeekConfirmDialog";
 import {
   applyOptimisticConductorRoll,
-  applyOptimisticLock,
   type TrainsDashboardSnapshot,
 } from "@/lib/trains/optimistic-dashboard.shared";
 import {
@@ -47,10 +46,6 @@ type Props = {
   wheelSpeedMultiplier?: number;
   snapshotRef: RefObject<TrainsDashboardSnapshot>;
   applySnapshot: (next: TrainsDashboardSnapshot) => void;
-  withOptimisticMutation: (
-    apply: (snap: TrainsDashboardSnapshot) => TrainsDashboardSnapshot,
-    request: () => Promise<{ ok: boolean; error?: string }>,
-  ) => Promise<boolean>;
   presentPoolRefreshedHints: (items: PoolRefreshedInfo[]) => void;
   onError: (message: string) => void;
   /** Surface structured wheel/pool blocks with recovery CTAs on the dashboard. */
@@ -58,7 +53,7 @@ type Props = {
   onRefresh: () => void;
 };
 
-type FlowPhase = "idle" | "spinning" | "confirm" | "locking";
+type FlowPhase = "idle" | "spinning" | "confirm";
 
 export function SpinWeekConductorFlow({
   weekStart,
@@ -71,7 +66,6 @@ export function SpinWeekConductorFlow({
   wheelSpeedMultiplier = 1,
   snapshotRef,
   applySnapshot,
-  withOptimisticMutation,
   presentPoolRefreshedHints,
   onError,
   onWheelBlocked,
@@ -267,52 +261,6 @@ export function SpinWeekConductorFlow({
     void onRefresh();
   }, [onRefresh]);
 
-  const confirmLockAll = useCallback(async () => {
-    if (confirmResults.length === 0) return;
-    const dates = confirmResults.map((row) => row.date);
-    setPhase("locking");
-
-    const ok = await withOptimisticMutation(
-      (snap) => {
-        const lockedAt = new Date().toISOString();
-        return dates.reduce(
-          (next, date) => applyOptimisticLock(next, date, lockedAt),
-          snap,
-        );
-      },
-      async () => {
-        const res = await fetch("/api/trains/conductor/lock/batch", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dates }),
-        });
-        const body = (await res.json()) as {
-          error?: string;
-          poolsRefreshed?: PoolRefreshedInfo[];
-        };
-        if (res.ok && body.poolsRefreshed?.length) {
-          presentPoolRefreshedHints(body.poolsRefreshed);
-        }
-        return {
-          ok: res.ok,
-          error: res.ok ? undefined : (body.error ?? t("lockFailed")),
-        };
-      },
-    );
-
-    setConfirmResults([]);
-    setPhase("idle");
-    if (ok) {
-      void onRefresh();
-    }
-  }, [
-    confirmResults,
-    onRefresh,
-    presentPoolRefreshedHints,
-    t,
-    withOptimisticMutation,
-  ]);
-
   if (!canManageTrains && phase === "idle") {
     return null;
   }
@@ -349,10 +297,8 @@ export function SpinWeekConductorFlow({
       />
 
       <SpinWeekConfirmDialog
-        open={phase === "confirm" || phase === "locking"}
+        open={phase === "confirm"}
         results={confirmResults}
-        busy={phase === "locking"}
-        onConfirm={() => void confirmLockAll()}
         onClose={dismissConfirm}
       />
     </>

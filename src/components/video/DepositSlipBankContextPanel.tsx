@@ -17,12 +17,14 @@ import type { DetectedBankContextMatch } from "@/lib/banks/bank-context-ocr/dete
 type Props = {
   context: DetectedBankContext;
   match: DetectedBankContextMatch;
+  suppressUnmatchedCreate?: boolean;
   onBankCreated: (bank: SerializedBank) => void;
 };
 
 export function DepositSlipBankContextPanel({
   context,
   match,
+  suppressUnmatchedCreate = false,
   onBankCreated,
 }: Props) {
   const t = useTranslations("videoReview");
@@ -62,6 +64,9 @@ export function DepositSlipBankContextPanel({
   }
 
   if (match.kind === "unmatched_coords") {
+    if (suppressUnmatchedCreate) {
+      return null;
+    }
     const canSubmit =
       server.trim() !== "" &&
       coordX.trim() !== "" &&

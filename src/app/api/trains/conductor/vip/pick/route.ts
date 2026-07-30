@@ -4,20 +4,28 @@ import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import {
+  assignVipOnLockedConductor,
   getConductorRecord,
-  upsertConductorDraft,
 } from "@/lib/trains/repository";
 import { getMemberRankAsOf } from "@/lib/trains/rank-history";
+import { withConductorPoolClaimLock } from "@/lib/trains/conductor-pool-claim-lock.server";
 import {
+  listPoolEntries,
+  listUnselectedPoolEntries,
   markPoolMemberSelectedForDate,
   releasePoolSelectionForDate,
 } from "@/lib/trains/pool";
-import { getServerCalendarDate } from "@/lib/trains/service";
+import {
+  depletingManualPickErrorMessage,
+  evaluateDepletingManualPick,
+  shouldReleasePriorPoolSelection,
+} from "@/lib/trains/depleting-manual-pick.shared";
+import { ensureConductorPoolSeeded, getServerCalendarDate } from "@/lib/trains/service";
 import {
   supportsManualVipPick,
   vipMechanismPoolType,
 } from "@/lib/trains/templates";
-import type { VipMechanismType } from "@/lib/trains/types";
+import type { EventTopXConfig, VipMechanismType } from "@/lib/trains/types";
 import { getOrCreateSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
 
@@ -45,16 +53,24 @@ export async function POST(request: Request) {
     );
   }
 
+  const memberId = body.memberId.trim();
+  const memberName = body.memberName.trim();
   const date = body.date?.trim() || getServerCalendarDate();
 
   try {
     const seasonKey = (await getEffectiveSeasonForAlliance(ctx.allianceId))
       .seasonKey;
     const existing = await getConductorRecord(ctx.allianceId, date, seasonKey);
-    if (existing?.lockedAt) {
+    if (!existing?.lockedAt) {
       return NextResponse.json(
-        { error: "Train is locked; VIP cannot be changed." },
+        { error: "Lock the conductor before assigning VIP." },
         { status: 409 },
+      );
+    }
+    if (!existing.conductorMemberId) {
+      return NextResponse.json(
+        { error: "No conductor set for this day." },
+        { status: 400 },
       );
     }
 
@@ -71,44 +87,85 @@ export async function POST(request: Request) {
       );
     }
 
-    if (
-      existing?.vipMemberId &&
-      vipMechanismPoolType(mechanism as VipMechanismType)
-    ) {
-      await releasePoolSelectionForDate(
-        ctx.allianceId,
-        date,
-        existing.vipMemberId,
-      );
-    }
+    const priorVipMemberId = existing.vipMemberId ?? null;
+    const replacingSameMember = priorVipMemberId === memberId;
 
     const rankEvent = await getMemberRankAsOf(
       ctx.allianceId,
-      body.memberId.trim(),
+      memberId,
       date,
     );
 
     const poolType = vipMechanismPoolType(mechanism as VipMechanismType);
-    if (poolType) {
-      await markPoolMemberSelectedForDate(
-        ctx.allianceId,
+    if (poolType && !replacingSameMember) {
+      const vipConfig = (dayConfig.vipConfig ?? {
+        eventKey: "capitol_war",
+        topN: 10,
+      }) as EventTopXConfig;
+      await ensureConductorPoolSeeded({
+        hqAllianceId: ctx.allianceId,
         poolType,
-        body.memberId.trim(),
         date,
+        useSequence: false,
+        eventTopN: vipConfig.topN ?? 10,
+      });
+      const claimError = await withConductorPoolClaimLock(
+        { allianceId: ctx.allianceId, poolType },
+        async () => {
+          const [unselected, poolEntries] = await Promise.all([
+            listUnselectedPoolEntries(ctx.allianceId, poolType),
+            listPoolEntries(ctx.allianceId, poolType),
+          ]);
+          const gate = evaluateDepletingManualPick({
+            memberId,
+            unselectedMemberIds: unselected.map((row) => row.memberId),
+            poolMemberIds: poolEntries.map((row) => row.memberId),
+          });
+          if (!gate.ok) {
+            return depletingManualPickErrorMessage(gate.reason);
+          }
+          const claimed = await markPoolMemberSelectedForDate(
+            ctx.allianceId,
+            poolType,
+            memberId,
+            date,
+          );
+          if (!claimed) {
+            return depletingManualPickErrorMessage("already_awarded");
+          }
+          return null;
+        },
       );
+      if (claimError) {
+        return NextResponse.json({ error: claimError }, { status: 409 });
+      }
     }
 
-    const record = await upsertConductorDraft({
+    const record = await assignVipOnLockedConductor({
       allianceId: ctx.allianceId,
       date,
       seasonKey,
-      vipMemberId: body.memberId.trim(),
-      vipMemberName: body.memberName.trim(),
+      vipMemberId: memberId,
+      vipMemberName: memberName,
       vipRankEventId: rankEvent?.id ?? null,
       vipMechanism: mechanism,
       dayConfigId: dayConfig.dayConfigId,
       guardianIsVip: body.guardianIsVip ? 1 : 0,
     });
+
+    if (
+      poolType &&
+      shouldReleasePriorPoolSelection({
+        previousMemberId: priorVipMemberId,
+        nextMemberId: memberId,
+      })
+    ) {
+      await releasePoolSelectionForDate(
+        ctx.allianceId,
+        date,
+        priorVipMemberId!,
+      );
+    }
 
     return NextResponse.json({
       record: {

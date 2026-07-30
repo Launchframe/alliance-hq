@@ -168,25 +168,21 @@ export function formatTrainPointCount(value: number, locale: string): string {
 
 /**
  * Whether a wheel spin should run the post-roll conductor minimums gate.
- * Skips R4+ pools, days without VS prerequisites, and days where the officer
- * did not complete the VS upload step (prerequisites were skipped).
+ * Skips R4+ pools and alliances with no minimums configured.
+ *
+ * Minimums evaluate season HQ VR (`fetchHqSeasonVsScoresByMember`), not
+ * prior-day Ashed VS — so VS upload readiness / `classifyVsDataNeed` must
+ * not gate enforcement. Otherwise Monday (Sunday break → `required: false`)
+ * and non-VS `r3_lottery` days silently admit below-threshold winners.
  */
 export function conductorQualificationGateApplies(input: {
   poolType: PoolType | null | undefined;
   minimumsEnabled: boolean;
-  vsDataRequired: boolean;
-  vsDataReady: boolean;
 }): boolean {
   if (input.poolType != null && !poolTypeRespectsConductorMinimums(input.poolType)) {
     return false;
   }
   if (!input.minimumsEnabled) {
-    return false;
-  }
-  if (!input.vsDataRequired) {
-    return false;
-  }
-  if (!input.vsDataReady) {
     return false;
   }
   return true;

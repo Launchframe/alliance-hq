@@ -8,12 +8,15 @@ import {
   getExtractionPassComparison,
   getRosterTesseractEvalComparison,
 } from "@/lib/video/group-comparisons.shared";
+import { omitVideoJobSessionIds } from "@/lib/video/video-job-session-redact.shared";
+
+type VideoJobRow = typeof schema.videoJobs.$inferSelect;
 
 export type VideoJobDetailPayload = {
   job: {
     uploadedBy: string | null;
     timingsJson: VideoProcessTimings | null;
-  } & (typeof schema.videoJobs.$inferSelect);
+  } & Omit<VideoJobRow, "sessionId" | "processingSessionId">;
   frames: Array<{
     frameIndex: number;
     uploadMs: number | null;
@@ -202,7 +205,7 @@ export async function loadVideoJobDetail(
 
   return {
     job: {
-      ...job,
+      ...omitVideoJobSessionIds(job),
       uploadedBy,
       timingsJson: (job.timingsJson as VideoProcessTimings | null) ?? null,
     },

@@ -10,7 +10,7 @@ export function clampReviewIndexAfterRemove(
 }
 
 /**
- * Sentinel coordinates used for manual "Add row" and captured-count padding.
+ * Sentinel coordinates used for manual "Add row" placeholder rows.
  * A real City List bank never sits at the map origin.
  */
 export function isCityListPlaceholderCoords(
@@ -21,41 +21,29 @@ export function isCityListPlaceholderCoords(
 }
 
 /**
- * Number of placeholder rows to add so the review list matches the "Bank
- * Strongholds captured: N/M" header count when OCR parsed fewer tiles than
- * N (e.g. a tile's coordinate line was fully unreadable and its bank could
- * not be recovered by the parser at all). Returns 0 when the header count
- * is unavailable, non-positive, or already met/exceeded. When `capturedLimit`
- * (M) is present, the pad target is `min(N, M)` so a garbled oversized N
- * cannot flood the review list.
- */
-export function missingRowCountForCapturedCount(
-  parsedRowCount: number,
-  capturedCount: number | null,
-  capturedLimit: number | null = null,
-): number {
-  if (capturedCount == null || capturedCount <= 0) return 0;
-  const target =
-    capturedLimit != null && capturedLimit > 0
-      ? Math.min(capturedCount, capturedLimit)
-      : capturedCount;
-  return Math.max(0, target - parsedRowCount);
-}
-
-/**
- * Default game server number for a freshly added (manual or captured-count
- * padded) review row: reuse the alliance's server from other rows already
- * in the review list, falling back to an existing HQ bank's server.
+ * Default game server number for a freshly added manual review row: prefer the
+ * **majority** positive server among already parsed review rows (mixed-server
+ * imports must not inherit the first row's server for every pad), then fall
+ * back to an existing HQ bank's server.
  */
 export function defaultPlaceholderGameServerNumber(
   rowServerNumbers: readonly number[],
   existingBankServerNumbers: readonly number[],
 ): number {
-  return (
-    rowServerNumbers.find((n) => n > 0) ??
-    existingBankServerNumbers.find((n) => n > 0) ??
-    0
-  );
+  const counts = new Map<number, number>();
+  for (const n of rowServerNumbers) {
+    if (n > 0) counts.set(n, (counts.get(n) ?? 0) + 1);
+  }
+  let bestServer = 0;
+  let bestCount = 0;
+  for (const [server, count] of counts) {
+    if (count > bestCount) {
+      bestCount = count;
+      bestServer = server;
+    }
+  }
+  if (bestServer > 0) return bestServer;
+  return existingBankServerNumbers.find((n) => n > 0) ?? 0;
 }
 
 export type CityListRowFieldName =
@@ -78,8 +66,8 @@ export type CityListReviewRowValidationInput = {
 /**
  * Validates one review row's required fields before import. Coordinates at
  * exactly (0, 0) are flagged as unfilled — that's the sentinel placeholder
- * value used for both the manual "Add row" button and captured-count
- * padding, and a real City List bank never sits at the map origin.
+ * value used for the manual "Add row" button; a real City List bank never
+ * sits at the map origin.
  */
 export function validateCityListReviewRow(
   row: CityListReviewRowValidationInput,

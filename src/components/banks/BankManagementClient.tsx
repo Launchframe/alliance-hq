@@ -48,6 +48,7 @@ export function BankManagementClient({ initial }: Props) {
   const [heatmaps, setHeatmaps] = useState(initial.heatmaps);
   const [canWrite, setCanWrite] = useState(initial.canWrite);
   const [allianceId, setAllianceId] = useState(initial.allianceId);
+  const [allianceTag, setAllianceTag] = useState(initial.allianceTag);
   const [allianceGameServerNumber, setAllianceGameServerNumber] = useState(
     initial.allianceGameServerNumber,
   );
@@ -100,6 +101,7 @@ export function BankManagementClient({ initial }: Props) {
     setHeatmaps(dashboard.heatmaps);
     setCanWrite(dashboard.canWrite);
     setAllianceId(dashboard.allianceId);
+    setAllianceTag(dashboard.allianceTag);
     setAllianceGameServerNumber(dashboard.allianceGameServerNumber);
     setBankCapturesRemainingToday(dashboard.bankCapturesRemainingToday);
     setBankCapturesLimitToday(dashboard.bankCapturesLimitToday);
@@ -392,6 +394,8 @@ export function BankManagementClient({ initial }: Props) {
             />
           ) : null}
           <DepositFalloffChart
+            allianceId={allianceId}
+            allianceTag={allianceTag}
             bank={selectedBank}
             banks={banks}
             recommendedDropAtIso={recommendedDropAtIso}
@@ -404,8 +408,6 @@ export function BankManagementClient({ initial }: Props) {
         open={cityListModalOpen}
         onOpenChange={setCityListModalOpen}
         allianceId={allianceId}
-        existingBanks={banks}
-        onImported={(dashboard) => applyDashboard(dashboard)}
       />
 
       <BankEditorModal

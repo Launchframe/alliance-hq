@@ -11,10 +11,17 @@ import {
   preventDefaultFormSubmit,
 } from "@/lib/client/form-enter-submit.shared";
 import { useFeedback } from "@/components/feedback";
+import { AdminReprocessDialog } from "@/components/admin/AdminReprocessDialog";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { Dialog } from "@/components/ui/dialog";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { useVideoJob } from "@/components/video/VideoJobEventsProvider";
+import {
+  canReprocessVideoJob,
+  resolveReprocessGateStatus,
+} from "@/lib/video/admin-job-actions";
+import type { AdminReprocessFpsAdjustment } from "@/lib/video/admin-reprocess-extraction.shared";
+import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import {
   formatAshedEventOptionLabel,
   formatEventOptionLabel,
@@ -99,8 +106,13 @@ import {
   formatHeroPowerMForStorage,
   parsedRowsToRosterReviewRows,
 } from "@/lib/video/roster-video-review.shared";
+import {
+  isLowQualityRosterParse,
+  ROSTER_LOW_QUALITY_BANNER,
+} from "@/lib/members/roster-ocr/roster-parse-quality.shared";
 import type { AshedMember } from "@/lib/video/member-matcher";
 import { readPreferredDepositSlipBankId } from "@/lib/banks/deposit-slip-upload-context.shared";
+import { formatDepositStatusToken } from "@/lib/banks/deposit-status-label.shared";
 import {
   depositSlipReviewRowSummaryParts,
   diffKeysForDepositSlipRows,
@@ -108,7 +120,18 @@ import {
 import type { DetectedBankContext } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
 import { matchDetectedBankContextToBanks } from "@/lib/banks/bank-context-ocr/detected-bank-context-match.shared";
 import { DepositSlipBankContextPanel } from "@/components/video/DepositSlipBankContextPanel";
-import type { SerializedBank } from "@/lib/banks/types.shared";
+import { DepositSlipReviewHeroCards } from "@/components/video/DepositSlipReviewHeroCards";
+import type { BankWithSlips } from "@/lib/banks/types.shared";
+import {
+  compareTargetedBankToDetected,
+  type BankTargetMismatchResolution,
+} from "@/lib/banks/deposit-slip-bank-target-mismatch.shared";
+import {
+  applyDepositSlipScoreDefaults,
+  depositSlipScoreDefaultedRowIds,
+} from "@/lib/banks/deposit-slip-score-default.shared";
+import { computeDepositSlipReviewHeroMetrics } from "@/lib/banks/deposit-slip-review-hero-metrics.shared";
+import { formatDepositSlipSubmitSuccessMessage } from "@/lib/banks/deposit-slip-submit-success.shared";
 import { VideoJobProgressBar } from "@/components/video/VideoJobProgressBar";
 import {
   isIndeterminateVideoJobStage,
@@ -148,6 +171,7 @@ type ParsedRow = {
   dedupeFlag?: boolean;
   deleted: number;
   manuallyAdded?: number;
+  scoreDefaulted?: boolean;
 };
 
 type MemberOption = {
@@ -253,6 +277,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const tNav = useTranslations("nav");
   const tMembers = useTranslations("members");
   const tBanks = useTranslations("bankManagement");
+  const formatDepositSlipStatus = useCallback(
+    (raw: string) =>
+      formatDepositStatusToken(raw, (status) => tBanks(`status.${status}`)),
+    [tBanks],
+  );
   const locale = useLocale();
   const { timezoneId } = useAccountTimezone();
   const searchParams = useSearchParams();
@@ -297,6 +326,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [overlappingLockedConfirmOpen, setOverlappingLockedConfirmOpen] =
     useState(false);
   const [reprocessPending, setReprocessPending] = useState(false);
+  const [reprocessDialogOpen, setReprocessDialogOpen] = useState(false);
+  const [jobPassKey, setJobPassKey] = useState<string | null>(null);
+  const [jobExtractionConfigJson, setJobExtractionConfigJson] =
+    useState<unknown>(null);
   const [rematching, setRematching] = useState(false);
   const [groupActionBusy, setGroupActionBusy] = useState<string | null>(null);
   const [addingRowBusy, setAddingRowBusy] = useState<ManualRowPosition | null>(
@@ -359,14 +392,54 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [allianceStale, setAllianceStale] = useState(false);
   const [canProcessVideo, setCanProcessVideo] = useState(false);
   const [rosterQuotaCanSubmit, setRosterQuotaCanSubmit] = useState(false);
-  const [banks, setBanks] = useState<SerializedBank[]>([]);
+  const [banks, setBanks] = useState<BankWithSlips[]>([]);
+  const [bankCityListImportedAt, setBankCityListImportedAt] = useState<
+    string | null
+  >(null);
   const [bankId, setBankId] = useState("");
+  const [uploadTargetBankId, setUploadTargetBankId] = useState<string | null>(
+    null,
+  );
+  const [bankTargetMismatchResolution, setBankTargetMismatchResolution] =
+    useState<BankTargetMismatchResolution | null>(null);
   /** OCR-detected bank coords/info from deposit-slip video frames (Create-bank UI). */
   const [detectedBankContext, setDetectedBankContext] =
     useState<DetectedBankContext | null>(null);
   const bankContextMatch = useMemo(
     () => matchDetectedBankContextToBanks(detectedBankContext, banks),
     [detectedBankContext, banks],
+  );
+  const selectedBank = useMemo(
+    () => banks.find((bank) => bank.id === bankId) ?? null,
+    [banks, bankId],
+  );
+  const uploadTargetBank = useMemo(
+    () =>
+      uploadTargetBankId
+        ? (banks.find((bank) => bank.id === uploadTargetBankId) ?? null)
+        : null,
+    [banks, uploadTargetBankId],
+  );
+  const bankTargetMismatchState = useMemo(() => {
+    if (!uploadTargetBank || !detectedBankContext) return "aligned" as const;
+    return compareTargetedBankToDetected(
+      {
+        gameServerNumber: uploadTargetBank.gameServerNumber,
+        coordX: uploadTargetBank.coordX,
+        coordY: uploadTargetBank.coordY,
+      },
+      detectedBankContext,
+    );
+  }, [uploadTargetBank, detectedBankContext]);
+  const showBankTargetMismatchBanner =
+    bankTargetMismatchState === "mismatch" && bankTargetMismatchResolution == null;
+  const suppressUnmatchedBankCreate =
+    bankTargetMismatchState === "mismatch" &&
+    (bankTargetMismatchResolution == null ||
+      bankTargetMismatchResolution === "targeted");
+  const selectedBankDepositSlips = useMemo(
+    () => banks.find((bank) => bank.id === bankId)?.depositSlips ?? [],
+    [banks, bankId],
   );
   /**
    * Sticky bank choice from draft restore, preferred upload context, or officer
@@ -394,8 +467,18 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       recordedDate,
       bankId,
       vsPeriod,
+      bankTargetMismatchResolution: bankTargetMismatchResolution ?? undefined,
     }),
-    [bankId, boardKey, eventId, hqEventId, recordedDate, team, vsPeriod],
+    [
+      bankId,
+      boardKey,
+      eventId,
+      hqEventId,
+      recordedDate,
+      team,
+      vsPeriod,
+      bankTargetMismatchResolution,
+    ],
   );
 
   const draftEnabled =
@@ -564,6 +647,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             hqEventId?: string | null;
             rating?: string | null;
             timingsJson?: VideoProcessTimings | null;
+            passKey?: string | null;
+            extractionConfigJson?: unknown;
           };
           hasSourceVideo?: boolean;
           frameTimestamps?: FrameTimestampMap;
@@ -669,12 +754,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             ? data.devShadowUx.withholdEscapeMs
             : VS_SHADOW_WITHHOLD_DEFAULT_MS,
         );
-        const serverRows = (data.rows ?? []).map((row) => ({
+        const rawServerRows = (data.rows ?? []).map((row) => ({
           ...row,
           scoreConflict: row.scoreConflict ?? 0,
           dedupeClusterId: row.dedupeClusterId ?? null,
           dedupeFlag: Boolean(row.dedupeFlag ?? row.dedupeClusterId),
         }));
+        const serverRows =
+          data.scoreTargetMeta?.showDepositSlipColumns === true
+            ? applyDepositSlipScoreDefaults(rawServerRows)
+            : rawServerRows;
         const restored = restoreVideoReviewDraftIfPresent(
           jobId,
           viewMode,
@@ -707,6 +796,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             bankIdLockedRef.current = true;
             setBankId(restored.form.bankId);
           }
+          if (
+            restored.form.bankTargetMismatchResolution === "targeted" ||
+            restored.form.bankTargetMismatchResolution === "video"
+          ) {
+            setBankTargetMismatchResolution(
+              restored.form.bankTargetMismatchResolution,
+            );
+          }
         } else {
           if (data.job?.hqEventId) {
             setHqEventId(data.job.hqEventId);
@@ -735,6 +832,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setAllianceName(data.alliance?.jobName ?? null);
         setAllianceStale(Boolean(data.alliance?.stale));
         setCanProcessVideo(Boolean(data.canProcessVideo));
+        setJobPassKey(data.job?.passKey ?? null);
+        setJobExtractionConfigJson(data.job?.extractionConfigJson ?? null);
       } catch (err) {
         if (isStale()) {
           return;
@@ -819,9 +918,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   // Roster review: enrich stored rows from the job-alliance local roster once
   // members arrive with the job payload (no personal Ashed credential required).
+  // Also runs for empty rosters so powerLevel → heroPowerM still hydrates.
   useEffect(() => {
     if (!scoreTargetMeta?.showRosterColumns) return;
-    if (rosterMembers.length === 0) return;
     if (rosterMembersHydratedRef.current) return;
     rosterMembersHydratedRef.current = true;
     setRows((prev) => {
@@ -838,6 +937,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           memberId: next.memberId,
           memberName: next.memberName,
           matchConfidence: next.matchConfidence,
+          matchMethod: next.matchMethod ?? row.matchMethod,
           allianceRank: next.allianceRank,
           heroPowerM: next.heroPowerM,
           memberLevel: next.memberLevel,
@@ -1003,12 +1103,20 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     void (async () => {
       const res = await fetch("/api/banks");
       if (!res.ok) return;
-      const data = (await res.json()) as { banks?: SerializedBank[] };
+      const data = (await res.json()) as {
+        banks?: BankWithSlips[];
+        bankCityListImportedAt?: string | null;
+      };
       const list = data.banks ?? [];
       setBanks(list);
+      setBankCityListImportedAt(data.bankCityListImportedAt ?? null);
+      const preferredId = readPreferredDepositSlipBankId();
+      // Keep deep-link upload target even when draft restore locked bankId.
+      if (preferredId != null) {
+        setUploadTargetBankId(preferredId);
+      }
       // Draft / officer / preferred upload context wins over OCR auto-align.
       if (bankIdLockedRef.current) return;
-      const preferredId = readPreferredDepositSlipBankId();
       const preferred =
         preferredId != null
           ? list.find((bank) => bank.id === preferredId)
@@ -1297,6 +1405,21 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [rows],
   );
 
+  const depositSlipHeroMetrics = useMemo(() => {
+    if (!scoreTargetMeta?.showDepositSlipColumns || !bankId) return null;
+    return computeDepositSlipReviewHeroMetrics({
+      bank: selectedBank,
+      reviewRows: activeRows,
+      allianceCityListImportedAt: bankCityListImportedAt,
+    });
+  }, [
+    scoreTargetMeta?.showDepositSlipColumns,
+    bankId,
+    selectedBank,
+    activeRows,
+    bankCityListImportedAt,
+  ]);
+
   const activeRowById = useMemo(
     () => new Map(activeRows.map((row) => [row.id, row])),
     [activeRows],
@@ -1488,6 +1611,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       deleted: row.deleted,
       matchMethod: row.matchMethod,
     })),
+    { existingMemberCount: rosterMembers.length },
   );
 
   const depositSlipValidation = useDepositSlipReviewValidation(
@@ -1525,6 +1649,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       ) {
         problemIds.add(row.id);
       }
+    }
+    for (const id of depositSlipScoreDefaultedRowIds(activeRows)) {
+      problemIds.add(id);
     }
     return depositSlipVisibleRowIds.filter((id) => problemIds.has(id));
   }, [
@@ -1597,6 +1724,19 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const hasUnresolvedNameMismatches =
     scoreTargetMeta?.showRosterColumns &&
     rosterValidation.hasUnresolvedNameMismatches;
+
+  const rosterLowQuality = useMemo(() => {
+    if (!scoreTargetMeta?.showRosterColumns) return false;
+    return isLowQualityRosterParse(
+      activeRows.map((row) => ({
+        extractedName: row.ocrName,
+        allianceRank: (row.allianceRank ?? 3) as 1 | 2 | 3 | 4 | 5,
+        heroPowerM: row.heroPowerM ?? undefined,
+        memberLevel: row.memberLevel ?? undefined,
+        layout: "rank_list" as const,
+      })),
+    ).lowQuality;
+  }, [activeRows, scoreTargetMeta?.showRosterColumns]);
   const needsEventPicker =
     scoreTargetMeta?.usesHqEvents ||
     Boolean(scoreTargetMeta?.eventEntity);
@@ -1657,7 +1797,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   function updateRow(id: string, patch: Partial<ParsedRow>) {
     markDraftDirty();
     setRows((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+      prev.map((r) => {
+        if (r.id !== id) return r;
+        const next = { ...r, ...patch };
+        if ("score" in patch) {
+          next.scoreDefaulted = false;
+        }
+        return next;
+      }),
     );
   }
 
@@ -1791,40 +1938,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       }
       clearDraft();
       setSuccess(
-        isEventView
-          ? t("updateSuccess", { count: data.submitted ?? 0 })
-          : scoreTargetMeta?.showRosterColumns
-            ? t("rosterSubmitSuccess", { count: data.submitted ?? 0 })
-            : scoreTargetMeta?.showDepositSlipColumns
-              ? (() => {
-                  const created = data.createdCount ?? data.submitted ?? 0;
-                  const updated = data.updatedCount ?? 0;
-                  const skipped = data.skippedDuplicateCount ?? 0;
-                  // Reuse existing "Saved {count}" when only outcomes were applied
-                  // (no new en-US string without maintainer copy approval).
-                  if (created === 0 && updated > 0) {
-                    return [
-                      t("depositSlipSubmitSuccess", { count: updated }),
-                      skipped > 0
-                        ? t("depositSlipSubmitSkippedDuplicates", {
-                            count: skipped,
-                          })
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" ");
-                  }
-                  return [
-                    t("depositSlipSubmitAdded", { count: created }),
-                    skipped > 0
-                      ? t("depositSlipSubmitSkippedDuplicates", {
-                          count: skipped,
-                        })
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" ");
-                })()
+        scoreTargetMeta?.showDepositSlipColumns
+          ? formatDepositSlipSubmitSuccessMessage(t, data)
+          : isEventView
+            ? t("updateSuccess", { count: data.submitted ?? 0 })
+            : scoreTargetMeta?.showRosterColumns
+              ? t("rosterSubmitSuccess", { count: data.submitted ?? 0 })
               : isAllianceKillsTarget
                 ? t("killsSubmitSuccess", { count: data.submitted ?? 0 })
                 : t("submitSuccess", { count: data.submitted ?? 0 }),
@@ -1900,13 +2019,19 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     );
   }
 
-  async function reprocess() {
+  async function reprocessWithOptions(body: {
+    adjustment?: AdminReprocessFpsAdjustment;
+    extraction?: ExtractionConfig;
+    parseConfigId?: string;
+  }) {
     setReprocessPending(true);
     clearActionError();
     setSuccess(null);
     try {
-      const res = await fetch(`/api/tools/video-upload/${jobId}/reprocess`, {
+      const res = await fetch(`/api/tools/video-jobs/${jobId}/reprocess`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
       const data = (await res.json()) as {
         error?: string;
@@ -1927,6 +2052,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setActionError(data.error ?? tc("uploadFailed"), data.connectUrl);
         return;
       }
+      setReprocessDialogOpen(false);
       clearDraft();
       setRows([]);
       // Seed the live-status ref so SSE review after queued triggers a refetch
@@ -1942,6 +2068,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       setReprocessPending(false);
     }
   }
+
+  const showReprocessAction =
+    canProcessVideo &&
+    !allianceStale &&
+    canReprocessVideoJob(
+      resolveReprocessGateStatus(jobStatus, liveJob?.status),
+    );
 
   async function handleDiscard() {
     setDiscarding(true);
@@ -2138,9 +2271,50 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           onDismiss={clearActionError}
           dismissLabel={t("comparisonClose")}
         />
-        <Link href="/tools/video-upload" className="text-sm text-hq-accent hover:underline">
-          {t("backToUploads")}
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/tools/video-upload"
+            className="text-sm text-hq-accent hover:underline"
+          >
+            {t("backToUploads")}
+          </Link>
+          {showReprocessAction ? (
+            <button
+              type="button"
+              onClick={() => setReprocessDialogOpen(true)}
+              disabled={reprocessPending}
+              className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
+            >
+              {reprocessPending ? t("reprocessing") : t("reprocess")}
+            </button>
+          ) : null}
+          {canProcessVideo && !allianceStale ? (
+            <Link
+              href={`/tools/video-jobs/${jobId}`}
+              className="text-sm text-hq-accent hover:underline"
+            >
+              {tJobs("inspect")}
+            </Link>
+          ) : null}
+        </div>
+        {reprocessDialogOpen ? (
+          <AdminReprocessDialog
+            key={jobId}
+            open
+            jobId={jobId}
+            passKey={jobPassKey}
+            extractionConfigJson={jobExtractionConfigJson}
+            busy={reprocessPending}
+            onOpenChange={(nextOpen) => {
+              if (!nextOpen && !reprocessPending) {
+                setReprocessDialogOpen(false);
+              }
+            }}
+            onConfirm={(body) => {
+              void reprocessWithOptions(body);
+            }}
+          />
+        ) : null}
       </div>
     );
   }
@@ -2223,6 +2397,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               >
                 {tJobs("inspect")}
               </Link>
+            ) : null}
+            {showReprocessAction ? (
+              <button
+                type="button"
+                onClick={() => setReprocessDialogOpen(true)}
+                disabled={reprocessPending}
+                className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted disabled:opacity-50"
+              >
+                {reprocessPending ? t("reprocessing") : t("reprocess")}
+              </button>
             ) : null}
             {canComparePasses ? (
               <button
@@ -2315,7 +2499,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           </div>
         </div>
         <h1 className="mt-2 text-2xl font-semibold">
-          {isEventView ? t("eventTitle") : t("title")}
+          {isEventView
+            ? t("eventTitle")
+            : scoreTargetMeta?.showDepositSlipColumns
+              ? t("depositSlipReviewTitle")
+              : t("title")}
         </h1>
         <p className="mt-1 text-sm text-hq-fg-muted">
           {isEventView
@@ -2352,14 +2540,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       {activeRows.length === 0 && !isEventView && (
         <div className="rounded-xl border border-[#d29922]/40 bg-[#d29922]/10 p-4 text-sm">
           <p className="text-[#e3b341]">{t("noEntriesHint")}</p>
-          <button
-            type="button"
-            onClick={() => void reprocess()}
-            disabled={reprocessPending}
-            className="mt-3 rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
-          >
-            {reprocessPending ? t("reprocessing") : t("reprocess")}
-          </button>
+          {showReprocessAction ? (
+            <button
+              type="button"
+              onClick={() => setReprocessDialogOpen(true)}
+              disabled={reprocessPending}
+              className="mt-3 rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
+            >
+              {reprocessPending ? t("reprocessing") : t("reprocess")}
+            </button>
+          ) : null}
           {actionErrorNearReprocess ? (
             <div className="mt-3">{renderActionErrorBanner()}</div>
           ) : null}
@@ -2401,7 +2591,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                         className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-hq-surface-muted/40 px-2 py-1.5"
                       >
                         <span className="inline-flex flex-wrap items-center gap-1 text-sm">
-                          {depositSlipReviewRowSummaryParts(row, diffKeys).map(
+                          {depositSlipReviewRowSummaryParts(
+                            row,
+                            diffKeys,
+                            formatDepositSlipStatus,
+                          ).map(
                             (part, index, parts) => (
                               <span key={part.key} className="inline-flex items-center gap-1">
                                 <span
@@ -2753,17 +2947,64 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
       {scoreTargetMeta?.showBankSelector ? (
         <>
+          {showBankTargetMismatchBanner && uploadTargetBank ? (
+            <div className="space-y-3 rounded-xl border border-[#d29922]/40 bg-[#d29922]/10 p-4 text-sm">
+              <p className="text-[#e3b341]">
+                {t("depositSlipBankTargetMismatch", {
+                  level: uploadTargetBank.level,
+                  x: uploadTargetBank.coordX,
+                  y: uploadTargetBank.coordY,
+                })}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-hq-border bg-hq-surface px-4 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted"
+                  onClick={() => {
+                    setBankTargetMismatchResolution("targeted");
+                    markDraftDirty();
+                  }}
+                >
+                  {t("depositSlipBankTargetUseTargeted")}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-hq-accent bg-hq-accent/20 px-4 py-2 text-sm text-hq-accent hover:bg-hq-accent/30"
+                  onClick={() => {
+                    setBankTargetMismatchResolution("video");
+                    bankIdLockedRef.current = false;
+                    markDraftDirty();
+                    const match = matchDetectedBankContextToBanks(
+                      detectedBankContext,
+                      banks,
+                    );
+                    if (match.kind === "matched") {
+                      setBankId(match.bankId);
+                    } else {
+                      setBankId("");
+                    }
+                  }}
+                >
+                  {t("depositSlipBankTargetUseVideo")}
+                </button>
+              </div>
+            </div>
+          ) : null}
           {detectedBankContext ? (
             <DepositSlipBankContextPanel
               context={detectedBankContext}
               match={bankContextMatch}
+              suppressUnmatchedCreate={suppressUnmatchedBankCreate}
               onBankCreated={(bank) => {
-                setBanks((prev) => [...prev, bank]);
+                setBanks((prev) => [...prev, { ...bank, depositSlips: [] }]);
                 bankIdLockedRef.current = true;
                 markDraftDirty();
                 setBankId(bank.id);
               }}
             />
+          ) : null}
+          {depositSlipHeroMetrics ? (
+            <DepositSlipReviewHeroCards metrics={depositSlipHeroMetrics} />
           ) : null}
           <div className="rounded-xl border border-hq-border bg-hq-surface p-4">
             <label className="block text-sm">
@@ -2805,6 +3046,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
       {scoreTargetMeta?.showRosterColumns ? (
         <>
+          {rosterLowQuality ? (
+            <div
+              role="status"
+              className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-100"
+            >
+              {ROSTER_LOW_QUALITY_BANNER}
+            </div>
+          ) : null}
           <div className="flex items-center gap-3">
             <input
               type="search"
@@ -2836,6 +3085,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               memberName: row.memberName,
               matchConfidence: row.matchConfidence,
               matchMethod: row.matchMethod,
+              dedupeClusterId: row.dedupeClusterId ?? null,
               deleted: row.deleted,
             }))}
             members={rosterMembers}
@@ -2965,6 +3215,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               scoreTableFollowMeEnabled ? activateFollowMeRow : undefined
             }
             onJumpToRow={scrollToDepositSlipRow}
+            bankDepositSlips={selectedBankDepositSlips}
           />
         </>
       ) : (
@@ -3316,7 +3567,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   <ul className="mt-1.5 space-y-1">
                     {issueRows.map((row) => (
                       <li key={row.id} className="text-sm text-hq-fg">
-                        {depositSlipReviewRowSummaryParts(row, diffKeys).map(
+                        {depositSlipReviewRowSummaryParts(
+                          row,
+                          diffKeys,
+                          formatDepositSlipStatus,
+                        ).map(
                           (part, index, parts) => (
                             <span key={part.key}>
                               <span
@@ -3372,6 +3627,24 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           <MonitorPlay className="h-4 w-4 shrink-0" aria-hidden />
           {t("previewVideo")}
         </button>
+      ) : null}
+      {reprocessDialogOpen ? (
+        <AdminReprocessDialog
+          key={jobId}
+          open
+          jobId={jobId}
+          passKey={jobPassKey}
+          extractionConfigJson={jobExtractionConfigJson}
+          busy={reprocessPending}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen && !reprocessPending) {
+              setReprocessDialogOpen(false);
+            }
+          }}
+          onConfirm={(body) => {
+            void reprocessWithOptions(body);
+          }}
+        />
       ) : null}
     </div>
   );

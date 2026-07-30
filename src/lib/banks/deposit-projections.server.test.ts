@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getDb } from "@/lib/db";
 import { loadBanksWithSlips } from "@/lib/banks/repository.server";
 import {
+  buildLiveDepositFalloff,
   createDepositProjection,
   parseHorizonHoursParam,
   serializeDepositProjection,
@@ -38,6 +39,7 @@ function makeBank(id: string, amount: number): BankWithSlips {
     priorCaptureCount: 0,
     currentDepositCount: 1,
     currentDepositValue: amount,
+    cityListSnapshotAt: null,
     notes: null,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
@@ -222,5 +224,33 @@ describe("serializeDepositProjection", () => {
         createdByHqUserId: null,
       }).scope,
     ).toBe("alliance");
+  });
+});
+
+describe("buildLiveDepositFalloff", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("filters alliance rollup to my-alliance investor tags", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const roarBank = makeBank("bank_roar", 1000);
+    roarBank.depositSlips[0]!.depositAllianceTag = "Roar";
+    const partnerBank = makeBank("bank_partner", 5000);
+    partnerBank.depositSlips[0]!.depositAllianceTag = "bOoM";
+    vi.mocked(loadBanksWithSlips).mockResolvedValue([roarBank, partnerBank]);
+
+    const allPoints = await buildLiveDepositFalloff("alliance_1", {
+      allianceTag: "Roar",
+    });
+    const myPoints = await buildLiveDepositFalloff("alliance_1", {
+      investorFilter: "myAlliance",
+      allianceTag: "Roar",
+    });
+
+    expect(allPoints[0]?.lockedValue).toBe(6000);
+    expect(myPoints[0]?.lockedValue).toBe(1000);
+    vi.useRealTimers();
   });
 });

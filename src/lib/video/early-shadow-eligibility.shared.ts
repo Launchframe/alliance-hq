@@ -14,6 +14,9 @@ export const VIDEO_SHADOW_PASS_TERMINAL_STATUSES = [
   "submitting",
   "failed",
   "discarded",
+  // Extraction shadows are not re-approved via the primary queue; treat as done
+  // so withhold cannot stick if a shadow was incorrectly reverted here.
+  "pending_approval",
 ] as const;
 
 export function isShadowPassTerminalStatus(status: string): boolean {

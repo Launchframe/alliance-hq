@@ -2,6 +2,7 @@ import { and, desc, eq, gte, isNotNull, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { resolveConductorLastConductedDate } from "@/lib/trains/conductor-stats.shared";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { releasePoolSelectionForDate } from "@/lib/trains/pool";
 import type { DayConfigInput, WeekTemplateType } from "@/lib/trains/types";
@@ -423,6 +424,7 @@ export async function clearConductorAssignment(
   allianceId: string,
   date: string,
   seasonKey?: string | null,
+  options?: { releasePool?: boolean },
 ): Promise<(typeof schema.trainConductorRecords.$inferSelect) | null> {
   const db = getDb();
   const existing = await getConductorRecord(allianceId, date, seasonKey);
@@ -431,7 +433,8 @@ export async function clearConductorAssignment(
     throw new Error("Conductor is already locked for this day.");
   }
 
-  if (existing.conductorMemberId) {
+  const releasePool = options?.releasePool !== false;
+  if (releasePool && existing.conductorMemberId) {
     await releasePoolSelectionForDate(
       allianceId,
       date,
@@ -447,6 +450,96 @@ export async function clearConductorAssignment(
       conductorRankEventId: null,
       substituteForMemberId: null,
       substituteForMemberName: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.trainConductorRecords.id, existing.id));
+
+  const [row] = await db
+    .select()
+    .from(schema.trainConductorRecords)
+    .where(eq(schema.trainConductorRecords.id, existing.id))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Assign or replace VIP on a locked conductor day. Draft upserts reject
+ * locked rows; VIP boarding happens after lock/spawn.
+ */
+export async function assignVipOnLockedConductor(input: {
+  allianceId: string;
+  date: string;
+  seasonKey?: string | null;
+  vipMemberId: string;
+  vipMemberName: string;
+  vipRankEventId?: string | null;
+  vipMechanism?: string | null;
+  dayConfigId?: string | null;
+  guardianIsVip?: number | null;
+}): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
+  const db = getDb();
+  const existing = await getConductorRecord(
+    input.allianceId,
+    input.date,
+    input.seasonKey,
+  );
+  if (!existing?.lockedAt) {
+    throw new Error("Lock the conductor before assigning VIP.");
+  }
+  if (!existing.conductorMemberId) {
+    throw new Error("No conductor set for this day.");
+  }
+
+  await db
+    .update(schema.trainConductorRecords)
+    .set({
+      vipMemberId: input.vipMemberId,
+      vipMemberName: input.vipMemberName,
+      vipRankEventId: input.vipRankEventId ?? null,
+      vipMechanism: input.vipMechanism ?? existing.vipMechanism,
+      dayConfigId: input.dayConfigId ?? existing.dayConfigId,
+      guardianIsVip:
+        input.guardianIsVip != null
+          ? input.guardianIsVip
+          : existing.guardianIsVip,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.trainConductorRecords.id, existing.id));
+
+  const [row] = await db
+    .select()
+    .from(schema.trainConductorRecords)
+    .where(eq(schema.trainConductorRecords.id, existing.id))
+    .limit(1);
+  return row!;
+}
+
+export async function clearVipAssignment(
+  allianceId: string,
+  date: string,
+  seasonKey?: string | null,
+): Promise<(typeof schema.trainConductorRecords.$inferSelect) | null> {
+  const db = getDb();
+  const existing = await getConductorRecord(allianceId, date, seasonKey);
+  if (!existing) return null;
+  if (existing.lockedAt) {
+    throw new Error("Conductor is already locked for this day.");
+  }
+
+  if (existing.vipMemberId) {
+    await releasePoolSelectionForDate(
+      allianceId,
+      date,
+      existing.vipMemberId,
+    );
+  }
+
+  await db
+    .update(schema.trainConductorRecords)
+    .set({
+      vipMemberId: null,
+      vipMemberName: null,
+      vipRankEventId: null,
       updatedAt: new Date(),
     })
     .where(eq(schema.trainConductorRecords.id, existing.id));
@@ -535,13 +628,9 @@ export async function unlockConductorRecord(
     .delete(schema.trains)
     .where(eq(schema.trains.conductorRecordId, recordId));
 
-  if (existing.conductorMemberId) {
-    await releasePoolSelectionForDate(
-      allianceId,
-      existing.date,
-      existing.conductorMemberId,
-    );
-  }
+  // Keep depleting-pool consumption while the conductor assignment remains.
+  // Re-roll / clear / open-target swap release or remaps the slot only when the
+  // member is no longer assigned for this date (see roll/pick replace paths).
 
   const updatedAt = new Date();
   await db
@@ -595,6 +684,7 @@ export async function spawnEmptyTrain(
 export async function getConductorStats(
   allianceId: string,
   memberId: string,
+  options?: { beforeDate?: string | null },
 ): Promise<{ lastConductedDate: string | null; conductsThisYear: number }> {
   const db = getDb();
   const year = getServerCalendarDate().slice(0, 4);
@@ -610,7 +700,10 @@ export async function getConductorStats(
     .orderBy(desc(schema.trainConductorRecords.date));
 
   const locked = rows.filter((r) => r.lockedAt);
-  const lastConductedDate = locked[0]?.date ?? null;
+  const lastConductedDate = resolveConductorLastConductedDate(
+    locked.map((r) => r.date),
+    options?.beforeDate,
+  );
   const conductsThisYear = locked.filter((r) =>
     r.date.startsWith(year),
   ).length;

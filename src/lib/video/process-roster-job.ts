@@ -28,6 +28,7 @@ import type {
 } from "@/lib/video/ocr-provider.shared";
 import type { ScoreTargetDef } from "@/lib/video/score-targets";
 import type { ExtractedRosterMember } from "@/lib/video/roster-extract";
+import { dedupeRosterMembersAcrossFrames } from "@/lib/video/roster-frame-dedupe.shared";
 
 export type ProcessRosterVideoParseInput = {
   jobId: string;
@@ -121,7 +122,7 @@ async function runRosterOcr(
         extractMs: frame.ms,
         entryCount: frame.entryCount,
         error: frame.error,
-        rawResult: null,
+        rawResult: frame.rawResult ?? null,
       })),
       concurrency: native.concurrency,
       rawPayloads: [],
@@ -219,6 +220,15 @@ export async function processRosterVideoParse(
   const memberIndex = members.length ? buildMemberIndex(members) : null;
   const parseSessionId = nanoid(16);
 
+  // Collapse near-miss OCR name variants from neighboring frames
+  // ("Gitolitosito" vs "G1tolitosito"): identical normalized readings merge
+  // into the richest row; fuzzy variants are all kept but share a
+  // dedupeClusterId so review can offer a keep-one choice.
+  const dedupe = dedupeRosterMembersAcrossFrames(rosterMembers, {
+    allianceTag,
+  });
+  const dedupedMembers = dedupe.members;
+
   await input.timer.measureStep("db.create_parse_session", async () => {
     await db.insert(schema.parseSessions).values({
       id: parseSessionId,
@@ -226,20 +236,21 @@ export async function processRosterVideoParse(
       sessionId: input.sessionId,
       scoreTarget: input.scoreTargetId,
       allianceId: hqAllianceId,
-      rowCount: rosterMembers.length,
+      rowCount: dedupedMembers.length,
       matchedCount: 0,
       status: "open",
       rawExtractJson: rawPayloads,
+      dedupeReportJson: dedupe.report,
       createdAt: input.now,
       updatedAt: input.now,
     });
-  }, { rowCount: rosterMembers.length });
+  }, { rowCount: dedupedMembers.length });
 
   let matchedCount = 0;
   await input.timer.measureStep(
     "parse.match_and_persist_roster",
     async () => {
-      for (const entry of rosterMembers) {
+      for (const entry of dedupedMembers) {
         const match = memberIndex
           ? matchMemberName(entry.currentName, memberIndex, { allianceTag })
           : {
@@ -253,7 +264,7 @@ export async function processRosterVideoParse(
         if (match.memberId) matchedCount++;
 
         await db.insert(schema.parsedRows).values({
-          id: nanoid(16),
+          id: entry.rowId,
           parseSessionId,
           ocrName: entry.currentName,
           score: null,
@@ -270,6 +281,7 @@ export async function processRosterVideoParse(
           matchMethod: match.matchMethod,
           scoreConflict: 0,
           frameIndex: entry._sourceFrameIndex ?? null,
+          dedupeClusterId: entry.dedupeClusterId,
           deleted: 0,
           edited: 0,
           createdAt: input.now,
@@ -278,7 +290,7 @@ export async function processRosterVideoParse(
       }
       return matchedCount;
     },
-    (count) => ({ matchedCount: count, rowCount: rosterMembers.length }),
+    (count) => ({ matchedCount: count, rowCount: dedupedMembers.length }),
   );
 
   await input.timer.measureStep("db.update_parse_session", async () => {
@@ -286,7 +298,7 @@ export async function processRosterVideoParse(
       .update(schema.parseSessions)
       .set({
         matchedCount,
-        rowCount: rosterMembers.length,
+        rowCount: dedupedMembers.length,
         updatedAt: new Date(),
       })
       .where(eq(schema.parseSessions.id, parseSessionId));
@@ -295,7 +307,7 @@ export async function processRosterVideoParse(
   return {
     parseSessionId,
     hqAllianceId,
-    rowCount: rosterMembers.length,
+    rowCount: dedupedMembers.length,
     matchedCount,
     ocrFrameMs,
     ocrConcurrency: concurrency,

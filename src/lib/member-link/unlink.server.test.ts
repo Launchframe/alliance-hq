@@ -1,13 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/lib/bff/audit", () => ({
+  writeAuditLog: vi.fn().mockResolvedValue(undefined),
+}));
+
+const revokeActiveTipLinksForCommander = vi.fn().mockResolvedValue(undefined);
+
+vi.mock("@/lib/members/commander-donation.server", () => ({
+  revokeActiveTipLinksForCommander: (...args: unknown[]) =>
+    revokeActiveTipLinksForCommander(...args),
+}));
+
 import {
   unlinkCommanderDiscordLinks,
   unlinkCommanderHqAccount,
 } from "./unlink.server";
-
-vi.mock("@/lib/bff/audit", () => ({
-  writeAuditLog: vi.fn().mockResolvedValue(undefined),
-}));
 
 const dbState: {
   limitResults: unknown[][];
@@ -66,15 +73,20 @@ describe("unlinkCommanderHqAccount", () => {
     const result = await unlinkCommanderHqAccount(baseInput);
     expect(result).toEqual({ ok: false, reason: "not_linked" });
     expect(audit.writeAuditLog).not.toHaveBeenCalled();
+    expect(revokeActiveTipLinksForCommander).not.toHaveBeenCalled();
   });
 
-  it("unlinks the HQ account and writes an audit entry", async () => {
+  it("unlinks the HQ account, revokes tip links, and writes an audit entry", async () => {
     dbState.limitResults = [
       [{ id: "link-1", hqUserId: "u-prev", gameUid: "1001369694001203" }],
       [{ commanderId: "cmd-1" }],
     ];
     const result = await unlinkCommanderHqAccount(baseInput);
     expect(result).toEqual({ ok: true, target: "hq", removed: 1 });
+    expect(revokeActiveTipLinksForCommander).toHaveBeenCalledWith({
+      allianceId: "a1",
+      ashedMemberId: "m-1",
+    });
     expect(audit.writeAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "member_link.hq_unlinked",

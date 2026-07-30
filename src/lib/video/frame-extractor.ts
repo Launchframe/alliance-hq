@@ -142,12 +142,33 @@ export function appendShowinfoFilter(vf: string): string {
  * frame (n=0) has no score and is never selected by `gt(scene,…)` alone. We OR
  * in one forced opening frame (~100ms in) so leaderboard rows visible before
  * the user scrolls are captured without t=0 encoder/recording junk.
+ *
+ * No `scale=` filter here on purpose: these frames are what OCR reads, so they
+ * must stay at source resolution. Downsampling happens later, only for the
+ * long-term playback archive (see `archive-source.ts`).
  */
 export function buildSceneSelectFilter(
   sceneThreshold: number,
   forcedFirstFrameIndex: number,
+  supplementFrameInterval?: number | null,
 ): string {
-  return `select='eq(n,${forcedFirstFrameIndex})+gt(scene,${sceneThreshold})',scale=720:-1`;
+  const triggers = [
+    `eq(n,${forcedFirstFrameIndex})`,
+    `gt(scene,${sceneThreshold})`,
+  ];
+  if (supplementFrameInterval != null && supplementFrameInterval > 0) {
+    triggers.push(`eq(mod(n\\,${supplementFrameInterval}),0)`);
+  }
+  return `select='${triggers.join("+")}'`;
+}
+
+/** Frame interval for periodic sampling at a target fps given source fps. */
+export function supplementFrameIntervalForFps(
+  videoFps: number | null,
+  supplementFps: number,
+): number | null {
+  if (videoFps == null || videoFps <= 0 || supplementFps <= 0) return null;
+  return Math.max(1, Math.floor(videoFps / supplementFps));
 }
 
 /** Parse pts_time values emitted by ffmpeg's showinfo filter (one per output frame). */
@@ -258,6 +279,10 @@ export async function extractLeaderboardFrames(
     Number.isFinite(config.sampleFps) && (config.sampleFps as number) > 0
       ? (config.sampleFps as number)
       : 1;
+  const supplementFps =
+    Number.isFinite(config.supplementFps) && (config.supplementFps as number) > 0
+      ? (config.supplementFps as number)
+      : null;
 
   if (!(await ffmpegAvailable())) {
     throw new Error(
@@ -270,6 +295,10 @@ export async function extractLeaderboardFrames(
   const forcedFirstFrameIndex = forcedFirstFrameIndexForFps(
     videoProbe.frameRateFps,
   );
+  const supplementFrameInterval =
+    supplementFps != null
+      ? supplementFrameIntervalForFps(videoProbe.frameRateFps, supplementFps)
+      : null;
 
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "hq-frames-"));
   const pattern = path.join(tmpDir, "frame_%04d.jpg");
@@ -286,7 +315,7 @@ export async function extractLeaderboardFrames(
         ffmpeg,
         videoPath,
         pattern,
-        `fps=${sampleFps},scale=720:-1`,
+        `fps=${sampleFps}`,
       );
       lastStderr = result.stderr;
       logPipelineStep("ffmpeg.fps_extract", Date.now() - fpsStarted, {
@@ -313,7 +342,11 @@ export async function extractLeaderboardFrames(
         ffmpeg,
         videoPath,
         pattern,
-        buildSceneSelectFilter(sceneThreshold, forcedFirstFrameIndex),
+        buildSceneSelectFilter(
+          sceneThreshold,
+          forcedFirstFrameIndex,
+          supplementFrameInterval,
+        ),
       );
       lastStderr = result.stderr;
       const sceneFrameCount = (await listExtractedFrameFiles(tmpDir)).length;
@@ -337,7 +370,7 @@ export async function extractLeaderboardFrames(
           ffmpeg,
           videoPath,
           pattern,
-          `fps=${sampleFps},scale=720:-1`,
+          `fps=${sampleFps}`,
         );
         lastStderr = fallback.stderr;
         logPipelineStep("ffmpeg.fps_fallback", Date.now() - fallbackStarted, {
@@ -362,7 +395,7 @@ export async function extractLeaderboardFrames(
           ffmpeg,
           videoPath,
           pattern,
-          `fps=${sampleFps},scale=720:-1`,
+          `fps=${sampleFps}`,
         );
         lastStderr = fallback.stderr;
         logPipelineStep("ffmpeg.fps_fallback", Date.now() - fallbackStarted, {

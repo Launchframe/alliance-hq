@@ -8,6 +8,7 @@ type AshedDonationRow = {
   member_id?: string;
   memberId?: string;
   id?: string;
+  amount?: number;
   score?: number;
   points?: number;
   total?: number;
@@ -20,7 +21,7 @@ function memberIdFromRow(row: AshedDonationRow): string | null {
 }
 
 function scoreValue(row: AshedDonationRow): number {
-  return Number(row.score ?? row.points ?? row.total ?? 0);
+  return Number(row.amount ?? row.score ?? row.points ?? row.total ?? 0);
 }
 
 async function fetchDonationRowsForRecordedDate(

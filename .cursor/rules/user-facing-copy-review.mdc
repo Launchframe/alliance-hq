@@ -52,7 +52,27 @@ After English is approved, implement in one pass:
 
 If the maintainer approves copy mid-session (“approved”, “ship it”, “translate them”), that counts as step 2 complete — proceed to step 3 without re-asking.
 
+## Asynchronous review agents (exception)
+
+**Default (unchanged):** Interactive sessions — feature implementation, planning chats, close-the-loop when the maintainer is in the loop — still require step 2 approval **before** editing locale files or shipping new user-facing strings.
+
+**Exception:** Agents running **without a maintainer reply in that turn** may land copy as part of an applied fix when pre-approval would block a valid review fix. This covers Real Steel passes, Bugbot, security-review, cloud/background agents, and Multitask workers addressing PR feedback.
+
+| Requirement | Detail |
+| --- | --- |
+| **Disclose on the PR** | In the same turn (pass comment, review reply, or PR body update), post **every** new or changed string: i18n key path (or Discord key), English value, and where it appears |
+| **Use a copy block** | Heading `## Copy (pending maintainer review)` (or `### Proposed copy` in a threaded reply) with a table or bullet list of keys + English |
+| **Locales together** | Still implement `en-US` + hand-translated `pt-BR` (and Discord `description_localizations` when applicable) in the **same commit** as the fix — no inline English, no `npm run i18n:translate` |
+| **Real wording in code** | Locale files hold the proposed English — not `TODO: copy pending maintainer` placeholders |
+| **Maintainer owns final wording** | Treat disclosed copy as **proposed** until the maintainer edits or approves in a follow-up; do not revert maintainer edits to `en-US` |
+
+**Does not qualify:** greenfield feature work in an interactive chat; taste-only rewrites not required to fix a review finding; new marketing/onboarding voice without maintainer direction.
+
+**`real-steel-ready`:** Copy landed under this exception with PR disclosure is **not** a reason to withhold the label — the maintainer reviews proposed wording on the PR after the chain.
+
 ## Hard stops (never without maintainer approval)
+
+Unless the **asynchronous review agents** exception above applies:
 
 - **Do not write or edit `messages/en-US.*`** until English was approved in the copy-review phase (step 2).
 - **Do not write or edit `messages/pt-BR.*`** except from **already-approved** English during implementation (step 3).
@@ -74,7 +94,7 @@ When the maintainer edits English locally, **read their committed or saved `en-U
 
 ## Agent checklist before any PR with copy
 
-- [ ] Every new/changed English string was approved in chat (or copied from maintainer-edited `en-US.json`) **before** implementation
+- [ ] Every new/changed English string was approved in chat (or copied from maintainer-edited `en-US.json`) **before** implementation — **or** landed under the async review exception with a PR **Copy (pending maintainer review)** block
 - [ ] No inline user-facing English or copy TODO placeholders in TS/TSX (unless maintainer explicitly agreed to structure-first draft PR)
 - [ ] `en-US` and `pt-BR` (and Discord localizations if applicable) updated in the implementation pass from approved English
 - [ ] No automated translation used
@@ -82,5 +102,5 @@ When the maintainer edits English locally, **read their committed or saved `en-U
 
 ## Related
 
-- Real Steel / AGENTS.md: new UI strings need en-US + pt-BR — **after** copy-review approval, **during** implementation
+- Real Steel / AGENTS.md: new UI strings need en-US + pt-BR in the same commit; interactive work waits for step 2 approval — async review agents use the exception above and disclose copy on the PR
 - Player UID privacy: never expose UID in copy shown to non-owners (see `player-uid-privacy.mdc`)

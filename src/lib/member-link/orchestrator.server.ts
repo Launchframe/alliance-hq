@@ -5,7 +5,10 @@ import {
   recordMemberLinkHelpRequest,
   resolveWebHelpContext,
 } from "@/lib/member-link/member-link-help-queue.server";
-import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
+import {
+  lookupPlayerByUid,
+  type LastWarPlayerLookupResult,
+} from "@/lib/lastwar/player-lookup";
 import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-member-game-level.server";
 import {
   getHqMemberLinkForUser,
@@ -30,6 +33,7 @@ import {
   tryRouteRosterMissToOwnerApproval,
   getRosterLinkRequestById,
   isOwnerColdStartEligible,
+  resolveMemberLinkServerGate,
   supersedePendingRosterLinkRequests,
 } from "@/lib/member-link/roster-link-request.server";
 import { trySelfServiceMemberLink } from "@/lib/member-link/self-service-onboarding.server";
@@ -469,34 +473,54 @@ export async function runWebMemberLinkSubmit(input: {
   const linkHandle =
     input.displayName?.trim() || input.userEmail?.trim() || input.hqUserId;
 
+  // Manual name+server cold-start is only for genuine Last War API outages.
+  // Never trust `ownerLookupFallback` while the UID lookup is reachable — that
+  // would let an invitee bind a fabricated identity (and adopt a game server)
+  // without proving the UID owns the reported name.
+  let lookup: LastWarPlayerLookupResult | null = null;
   if (
     input.ownerLookupFallback &&
     input.ownerProvidedServerNumber != null &&
     ownerColdStartEligible
   ) {
-    const bootstrapped = await tryBootstrapOwnerColdStartMember({
-      allianceId: input.allianceId,
-      hqUserId: input.hqUserId,
-      locale: input.locale,
-      reportedName: name,
-      gameUid: uid,
-      lookup: {
-        ok: true,
-        gameUserName: name,
-        gameServerNumber: input.ownerProvidedServerNumber,
-      },
-      rosterCount: rosterLoad.members.length,
-      sessionId: input.sessionId,
-      auditBag: ctx.auditBag,
-      ownerProvidedServerNumber: input.ownerProvidedServerNumber,
-      handle: linkHandle,
-    });
-    if (bootstrapped) {
-      return finishMemberLinkSubmit(ctx, bootstrapped);
+    lookup = await lookupPlayerByUid(uid);
+    if (!lookup.ok && lookup.reason === "request_failed") {
+      const bootstrapped = await tryBootstrapOwnerColdStartMember({
+        allianceId: input.allianceId,
+        hqUserId: input.hqUserId,
+        locale: input.locale,
+        reportedName: name,
+        gameUid: uid,
+        lookup: {
+          ok: true,
+          gameUserName: name,
+          gameServerNumber: input.ownerProvidedServerNumber,
+        },
+        rosterCount: rosterLoad.members.length,
+        sessionId: input.sessionId,
+        auditBag: ctx.auditBag,
+        ownerProvidedServerNumber: input.ownerProvidedServerNumber,
+        handle: linkHandle,
+      });
+      if (bootstrapped) {
+        return finishMemberLinkSubmit(ctx, bootstrapped);
+      }
+    } else if (!lookup.ok) {
+      await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
+      return finishMemberLinkSubmit(
+        ctx,
+        toMemberLinkApiResponse(
+          { reply: lookup.message, pending: null },
+          { lookupError: true },
+        ),
+      );
     }
+    // lookup.ok → fall through and use the verified Last War identity below.
   }
 
-  const lookup = await lookupPlayerByUid(uid);
+  if (!lookup) {
+    lookup = await lookupPlayerByUid(uid);
+  }
   if (!lookup.ok) {
     if (lookup.reason === "request_failed" && ownerColdStartEligible) {
       await saveHqMemberLinkPending(input.allianceId, input.hqUserId, null);
@@ -749,6 +773,25 @@ export async function runWebMemberLinkSubmit(input: {
         });
       }
       return finishMemberLinkSubmit(ctx, routed);
+    }
+  }
+
+  // Exact roster match returns linkTarget with needsOfficerAttention=false, so
+  // it never enters the self-service / owner-approval block above. Gate here so
+  // a same-name commander from another server cannot skip confirm_home /
+  // wrong_server (and cannot claim sole-R5 native ownership via Discord mirror).
+  if (resolvedResult.linkTarget) {
+    const serverGate = await resolveMemberLinkServerGate({
+      allianceId: input.allianceId,
+      allianceTag: alliance?.tag ?? "alliance",
+      gameUid: uid,
+      lookup,
+      translate,
+      allianceHomeConfirmed: input.allianceHomeConfirmed,
+      userClaimedLookupAsHome: input.userClaimedLookupAsHome,
+    });
+    if (!serverGate.ok) {
+      return finishMemberLinkSubmit(ctx, serverGate.response);
     }
   }
 

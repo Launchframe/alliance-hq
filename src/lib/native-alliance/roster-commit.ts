@@ -373,6 +373,10 @@ export async function commitRosterImport(
         });
       }
       inactivated = toInactivate.length;
+      const { pruneFormerMembersFromOpenPools } = await import(
+        "@/lib/trains/pool"
+      );
+      await pruneFormerMembersFromOpenPools(input.allianceId);
     }
   }
 

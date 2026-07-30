@@ -8,7 +8,6 @@ import {
   clampReviewIndexAfterRemove,
   defaultPlaceholderGameServerNumber,
   isCityListPlaceholderCoords,
-  missingRowCountForCapturedCount,
   validateCityListReviewRow,
 } from "@/lib/banks/city-list-import-review.shared";
 
@@ -39,43 +38,11 @@ describe("isCityListPlaceholderCoords", () => {
   });
 });
 
-describe("missingRowCountForCapturedCount", () => {
-  it("returns 0 when captured count is unavailable", () => {
-    expect(missingRowCountForCapturedCount(5, null)).toBe(0);
-  });
-
-  it("returns 0 when captured count is non-positive", () => {
-    expect(missingRowCountForCapturedCount(5, 0)).toBe(0);
-    expect(missingRowCountForCapturedCount(0, 0)).toBe(0);
-    expect(missingRowCountForCapturedCount(2, -1)).toBe(0);
-  });
-
-  it("returns 0 when parsed rows already meet or exceed the captured count", () => {
-    expect(missingRowCountForCapturedCount(6, 6)).toBe(0);
-    expect(missingRowCountForCapturedCount(7, 6)).toBe(0);
-  });
-
-  it("returns the gap when OCR parsed fewer tiles than the captured count", () => {
-    expect(missingRowCountForCapturedCount(5, 7)).toBe(2);
-    expect(missingRowCountForCapturedCount(0, 3)).toBe(3);
-  });
-
-  it("clamps the pad target to capturedLimit when N exceeds M", () => {
-    expect(missingRowCountForCapturedCount(2, 33, 6)).toBe(4);
-    expect(missingRowCountForCapturedCount(6, 33, 6)).toBe(0);
-  });
-
-  it("ignores a non-positive capturedLimit and pads to capturedCount", () => {
-    expect(missingRowCountForCapturedCount(2, 5, 0)).toBe(3);
-    expect(missingRowCountForCapturedCount(2, 5, null)).toBe(3);
-  });
-});
-
 describe("defaultPlaceholderGameServerNumber", () => {
-  it("prefers an existing review row's server number", () => {
-    expect(defaultPlaceholderGameServerNumber([1211, 1211], [999])).toBe(
-      1211,
-    );
+  it("prefers the majority server among review rows", () => {
+    expect(
+      defaultPlaceholderGameServerNumber([8150, 1211, 1211, 1211], [999]),
+    ).toBe(1211);
   });
 
   it("falls back to an existing HQ bank's server number", () => {

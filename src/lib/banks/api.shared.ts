@@ -68,6 +68,7 @@ export function serializeBank(row: {
   priorCaptureCount: number;
   currentDepositCount: number | null;
   currentDepositValue: number | null;
+  cityListSnapshotAt?: Date | null;
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -88,6 +89,7 @@ export function serializeBank(row: {
     priorCaptureCount: row.priorCaptureCount,
     currentDepositCount: row.currentDepositCount,
     currentDepositValue: row.currentDepositValue,
+    cityListSnapshotAt: row.cityListSnapshotAt?.toISOString() ?? null,
     notes: row.notes,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -201,7 +203,7 @@ export function validateDepositSlipPayload(
     return "commanderName is required.";
   }
   if (body.status != null && !isDepositStatus(body.status)) {
-    return "status must be locked, matured, or looted.";
+    return "status must be deposited, matured, or looted.";
   }
   if (body.outcomeAt != null && body.outcomeAt !== "") {
     if (Number.isNaN(new Date(body.outcomeAt).getTime())) {

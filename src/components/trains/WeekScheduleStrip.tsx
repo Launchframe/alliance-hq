@@ -211,6 +211,14 @@ function WeekScheduleDayCell({
     },
   });
 
+  const mechanismSummary = combinedSegmentLabel
+    ? conductorLineLabel
+    : showDetail
+      ? `${conductorLabels[day.conductorMechanism] ?? day.conductorMechanism}${
+          vipLabel ? ` · ${vipLabel}` : ""
+        }`
+      : conductorLineLabel;
+
   const cellInner = (
     <>
       <div className="min-w-0">
@@ -220,50 +228,47 @@ function WeekScheduleDayCell({
         <div className="text-xs font-semibold tabular-nums">{day.date.slice(5)}</div>
       </div>
       <div className="min-w-0 space-y-0.5">
-        {!showDetail ? (
-          <>
-            <div className="truncate text-[10px] font-bold uppercase leading-tight">
-              {conductorLineLabel}
-            </div>
-            {vipLabel && !combinedSegmentLabel ? (
-              <div className="truncate text-[9px] font-medium uppercase leading-tight opacity-90">
-                {vipLabel}
-              </div>
-            ) : null}
-          </>
+        <div
+          className={`truncate uppercase leading-tight ${
+            showDetail
+              ? "text-[9px] font-medium opacity-75"
+              : "text-[10px] font-bold"
+          }`}
+        >
+          {mechanismSummary}
+        </div>
+        {conductorName ? (
+          <div
+            className={`truncate text-[11px] font-bold leading-tight ${
+              locked ? "text-white light:text-hq-fg" : "text-hq-fg-muted"
+            }`}
+            title={conductorName}
+            data-testid={`trains-week-day-conductor-${day.date}`}
+          >
+            {conductorName}
+          </div>
         ) : (
-          <>
-            <div className="truncate text-[9px] font-medium uppercase leading-tight opacity-75">
-              {combinedSegmentLabel
-                ? conductorLineLabel
-                : `${conductorLabels[day.conductorMechanism] ?? day.conductorMechanism}${vipLabel ? ` · ${vipLabel}` : ""}`}
-            </div>
-            {conductorName ? (
-              <div
-                className={`truncate text-[11px] font-bold leading-tight ${
-                  locked ? "text-white light:text-hq-fg" : "text-hq-fg-muted"
-                }`}
-                title={conductorName}
-              >
-                {conductorName}
-              </div>
-            ) : (
-              <div className="truncate text-[10px] italic leading-tight text-hq-fg-muted">
-                —
-              </div>
-            )}
-            {vipName ? (
-              <div
-                className={`truncate text-[9px] font-medium leading-tight ${
-                  locked ? "opacity-95" : "text-hq-fg-subtle"
-                }`}
-                title={vipName}
-              >
-                {vipName}
-              </div>
-            ) : null}
-          </>
+          <div
+            className="truncate text-[10px] italic leading-tight text-hq-fg-muted"
+            data-testid={`trains-week-day-conductor-${day.date}`}
+          >
+            —
+          </div>
         )}
+        {vipName ? (
+          <div
+            className={`truncate text-[9px] font-medium leading-tight ${
+              locked ? "opacity-95" : "text-hq-fg-subtle"
+            }`}
+            title={vipName}
+          >
+            {vipName}
+          </div>
+        ) : !showDetail && vipLabel && !combinedSegmentLabel ? (
+          <div className="truncate text-[9px] font-medium uppercase leading-tight opacity-90">
+            {vipLabel}
+          </div>
+        ) : null}
       </div>
     </>
   );
@@ -298,9 +303,14 @@ function WeekScheduleDayCell({
         aria-pressed={showDetail}
         aria-haspopup={canPaint ? "menu" : undefined}
         aria-label={
-          isProvisional && draftScheduleAriaLabel
-            ? `${weekday} ${day.date.slice(5)}, ${draftScheduleAriaLabel}`
-            : `${weekday} ${day.date.slice(5)}`
+          [
+            weekday,
+            day.date.slice(5),
+            conductorName ?? undefined,
+            isProvisional ? draftScheduleAriaLabel : undefined,
+          ]
+            .filter(Boolean)
+            .join(", ")
         }
         data-testid={`trains-week-day-${day.date}`}
         className={`${baseClass} transition-opacity hover:opacity-95`}

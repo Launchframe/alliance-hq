@@ -36,6 +36,7 @@ import {
   resolveLiteralDayPaintTemplate,
   resolvePaintTemplateForCalendarDate,
   resolvePaintTemplateForDay,
+  shouldExpandCompositeByDayIndex,
 } from "@/lib/trains/week-template-registry.shared";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import { conductorDrawChanged } from "@/lib/trains/conductor-mechanism.shared";
@@ -44,15 +45,21 @@ import {
   loadPriceIsRightTicketSettings,
 } from "@/lib/trains/train-economy-threshold.server";
 import { buildHeavyHitterPoolCandidates } from "@/lib/trains/heavy-hitter-pool.server";
-import { isPriceIsRightPaintTemplate } from "@/lib/trains/heavy-hitter-pool.shared";
+import {
+  isPriceIsRightPaintTemplate,
+  usesPriceIsFreightConductorRoll,
+} from "@/lib/trains/heavy-hitter-pool.shared";
 import { rollPriceIsFreightConductor } from "@/lib/trains/price-is-freight-roll.server";
 import { priceIsRightWeightingActive } from "@/lib/trains/train-price-is-right-tickets.shared";
+import { shouldReleasePriorPoolSelection } from "@/lib/trains/depleting-manual-pick.shared";
+import { withConductorPoolClaimLock } from "@/lib/trains/conductor-pool-claim-lock.server";
 import {
   getPoolSummary,
   listPoolEntries,
   listUnselectedPoolEntries,
   markPoolEntrySelected,
   markPoolMemberSelectedForDate,
+  movePoolSelectionForDate,
   pickUniformPoolEntry,
   pickWeightedPoolEntryFromRows,
   releasePoolSelectionForDate,
@@ -96,13 +103,16 @@ import {
 } from "@/lib/trains/templates";
 import {
   clearConductorAssignment,
+  clearVipAssignment,
   deleteWeekScheduleAndDayConfigs,
   getConductorRecord,
   getWeekSchedule,
   listConductorRecordsForWeek,
+  listConductorRecordsInRange,
   listDayConfigsForWeek,
   lockConductorRecord,
   replaceDayConfigs,
+  assignVipOnLockedConductor,
   upsertConductorDraft,
   upsertDayConfigOverride,
   upsertWeekSchedule,
@@ -289,10 +299,7 @@ export async function countEligiblePoolMembers(input: {
 }): Promise<number> {
   const respectConductorMinimums = await resolvePoolRespectsConductorMinimums({
     allianceId: input.hqAllianceId,
-    trainDate: input.date,
     poolType: input.poolType,
-    conductorMechanism: input.conductorMechanism,
-    paintTemplate: input.paintTemplate,
   });
   return countPoolCandidates({
     ...input,
@@ -366,6 +373,14 @@ export async function ensureConductorPoolSeeded(input: {
     return;
   }
 
+  const summary = await getPoolSummary(input.hqAllianceId, input.poolType);
+  // Mid-generation leftovers that fail conductor minimums must not trigger a
+  // reseed — that re-admits already-selected winners into a new generation.
+  // rollFromPool throws POOL_UNAVAILABLE when none of the leftovers qualify.
+  if (summary.total > 0 && !summary.exhausted) {
+    return;
+  }
+
   const candidates = await buildPoolCandidates({
     hqAllianceId: input.hqAllianceId,
     poolType: input.poolType,
@@ -378,7 +393,6 @@ export async function ensureConductorPoolSeeded(input: {
     throwPoolEmpty(input.poolType);
   }
 
-  const summary = await getPoolSummary(input.hqAllianceId, input.poolType);
   if (summary.total > 0) {
     await startNewPoolGeneration(input.hqAllianceId, input.poolType, candidates);
     return;
@@ -396,71 +410,93 @@ async function rollFromPool(
   useWeightedPick = false,
   respectConductorMinimums = false,
 ): Promise<RollResult> {
-  const summary = await getPoolSummary(allianceId, poolType);
+  // Serialize list→pick→claim so parallel spins for different dates cannot
+  // both mark the same pool row. Conditional claim + retry is defense in depth
+  // if a manual pick races outside this lock.
+  return withConductorPoolClaimLock({ allianceId, poolType }, async () => {
+    const summary = await getPoolSummary(allianceId, poolType);
+    const maxAttempts = Math.max(summary.remaining, 1) + 2;
 
-  let unselected = await listUnselectedPoolEntries(allianceId, poolType);
-  const qualifiedIds = respectConductorMinimums
-    ? await filterMemberIdsByConductorMinimums(
-        allianceId,
-        date,
-        unselected.map((row) => row.memberId),
-      )
-    : null;
-  if (qualifiedIds != null) {
-    const qualified = new Set(qualifiedIds);
-    unselected = unselected.filter((row) => qualified.has(row.memberId));
-  }
+    let entry: Awaited<
+      ReturnType<typeof listUnselectedPoolEntries>
+    >[number] | null = null;
+    let qualifiedIds: string[] | null = null;
 
-  let entry: (typeof unselected)[number] | null = null;
-  if (unselected.length > 0) {
-    if (useSequence) {
-      entry =
-        [...unselected].sort(
-          (a, b) => (a.sequencePosition ?? 0) - (b.sequencePosition ?? 0),
-        )[0] ?? null;
-    } else if (useWeightedPick) {
-      entry = pickWeightedPoolEntryFromRows(unselected);
-    } else {
-      entry = pickUniformPoolEntry(unselected);
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      let unselected = await listUnselectedPoolEntries(allianceId, poolType);
+      qualifiedIds = respectConductorMinimums
+        ? await filterMemberIdsByConductorMinimums(
+            allianceId,
+            date,
+            unselected.map((row) => row.memberId),
+          )
+        : null;
+      if (qualifiedIds != null) {
+        const qualified = new Set(qualifiedIds);
+        unselected = unselected.filter((row) => qualified.has(row.memberId));
+      }
+
+      let candidate: (typeof unselected)[number] | null = null;
+      if (unselected.length > 0) {
+        if (useSequence) {
+          candidate =
+            [...unselected].sort(
+              (a, b) => (a.sequencePosition ?? 0) - (b.sequencePosition ?? 0),
+            )[0] ?? null;
+        } else if (useWeightedPick) {
+          candidate = pickWeightedPoolEntryFromRows(unselected);
+        } else {
+          candidate = pickUniformPoolEntry(unselected);
+        }
+      }
+
+      if (!candidate) {
+        break;
+      }
+
+      const claimed = await markPoolEntrySelected(candidate.id, date);
+      if (claimed) {
+        entry = candidate;
+        break;
+      }
+      // Lost the race to another claim — re-list and try the next eligible row.
     }
-  }
 
-  if (!entry && summary.exhausted) {
-    throwPoolExhausted(poolType);
-  }
+    if (!entry && summary.exhausted) {
+      throwPoolExhausted(poolType);
+    }
 
-  if (!entry) {
-    throwPoolUnavailable(poolType);
-  }
+    if (!entry) {
+      throwPoolUnavailable(poolType);
+    }
 
-  await markPoolEntrySelected(entry.id, date);
+    const generationEntries = await listPoolEntries(allianceId, poolType);
+    const reelMemberIds =
+      qualifiedIds ?? generationEntries.map((row) => row.memberId);
+    const reelAllowed = new Set(reelMemberIds);
+    const seenMemberIds = new Set<string>();
+    const wheelCandidates = generationEntries.flatMap((row) => {
+      if (!reelAllowed.has(row.memberId)) return [];
+      if (seenMemberIds.has(row.memberId)) return [];
+      seenMemberIds.add(row.memberId);
+      return [
+        {
+          memberId: row.memberId,
+          memberName: row.memberName,
+          allianceRank: row.allianceRank,
+        },
+      ];
+    });
 
-  const generationEntries = await listPoolEntries(allianceId, poolType);
-  const reelMemberIds =
-    qualifiedIds ?? generationEntries.map((row) => row.memberId);
-  const reelAllowed = new Set(reelMemberIds);
-  const seenMemberIds = new Set<string>();
-  const wheelCandidates = generationEntries.flatMap((row) => {
-    if (!reelAllowed.has(row.memberId)) return [];
-    if (seenMemberIds.has(row.memberId)) return [];
-    seenMemberIds.add(row.memberId);
-    return [
-      {
-        memberId: row.memberId,
-        memberName: row.memberName,
-        allianceRank: row.allianceRank,
-      },
-    ];
+    return {
+      memberId: entry.memberId,
+      memberName: entry.memberName,
+      mechanism,
+      isAutomatic: false,
+      poolType,
+      wheelCandidates,
+    };
   });
-
-  return {
-    memberId: entry.memberId,
-    memberName: entry.memberName,
-    mechanism,
-    isAutomatic: false,
-    poolType,
-    wheelCandidates,
-  };
 }
 
 async function applyConductorQualificationGate(input: {
@@ -565,16 +601,21 @@ export async function confirmConductorMinimumOverride(input: {
     seasonKey,
   );
 
-  const poolType = isPriceIsRightPaintTemplate(dayConfig.paintTemplate)
+  const poolType = usesPriceIsFreightConductorRoll(dayConfig.paintTemplate)
     ? null
     : conductorMechanismPoolType(input.mechanism);
   if (poolType) {
-    await markPoolMemberSelectedForDate(
+    const claimed = await markPoolMemberSelectedForDate(
       input.allianceId,
       poolType,
       input.memberId,
       input.date,
     );
+    if (!claimed) {
+      throw new Error(
+        "This member was already selected from the current pool generation.",
+      );
+    }
   }
 
   const result: RollResult = {
@@ -811,7 +852,10 @@ export async function applyTemplateToDates(
     await ensureWeekScheduleBaseline(allianceId, weekStart);
   }
 
-  const weekTemplateApply = options?.updateWeekTemplate === true;
+  const expandCompositeByDayIndex = shouldExpandCompositeByDayIndex({
+    updateWeekTemplate: options?.updateWeekTemplate,
+    dateCount: uniqueDates.length,
+  });
 
   for (const date of uniqueDates) {
     const weekStart = getTrainWeekStart(date, trainWeekConfig);
@@ -830,7 +874,7 @@ export async function applyTemplateToDates(
       conductorConfig: previousDayConfig.conductorConfig,
     };
 
-    const dayPaintTemplate = weekTemplateApply
+    const dayPaintTemplate = expandCompositeByDayIndex
       ? templateType
       : resolveLiteralDayPaintTemplate(templateType);
     const config = generateDayConfigForDate(
@@ -845,7 +889,7 @@ export async function applyTemplateToDates(
       templateType,
       date,
       weekStart,
-      weekTemplateApply,
+      weekTemplateApply: expandCompositeByDayIndex,
     });
     const paintedConfig = withPaintTemplateConfig(
       config,
@@ -869,8 +913,13 @@ export async function applyTemplateToDates(
 
     if (conductorDrawChanged(previousDraw, nextDraw)) {
       const record = await getConductorRecord(allianceId, date, seasonKey);
-      if (record?.conductorMemberId && !record.lockedAt) {
-        await clearConductorAssignment(allianceId, date, seasonKey);
+      if (record && !record.lockedAt) {
+        if (record.conductorMemberId) {
+          await clearConductorAssignment(allianceId, date, seasonKey);
+        }
+        if (record.vipMemberId) {
+          await clearVipAssignment(allianceId, date, seasonKey);
+        }
       }
     }
   }
@@ -958,8 +1007,16 @@ export async function rollForConductor(input: {
       input.allianceId,
       topBoard.topN,
     );
+    // Fail closed if the board is short of scope N (stale paint / roster churn
+    // between unlock count and roll). Do not draw Top N from fewer candidates.
     if (top.length === 0) {
       throwNoWheelCandidates("vr", "No VR standings found for the wheel.");
+    }
+    if (top.length < topBoard.topN) {
+      throwNoWheelCandidates(
+        "vr",
+        `Only ${top.length} of ${topBoard.topN} active-roster VR standings available for Top ${topBoard.topN}.`,
+      );
     }
     const winner = top[Math.floor(Math.random() * top.length)]!;
     result = {
@@ -986,17 +1043,9 @@ export async function rollForConductor(input: {
       }
 
       if (
-        isPriceIsRightPaintTemplate(dayConfig.paintTemplate) &&
+        usesPriceIsFreightConductorRoll(dayConfig.paintTemplate) &&
         (mechanism === "r3_lottery" || mechanism === "heavy_hitter_lottery")
       ) {
-        // Clear any historical depleting-pool marks from older TPIF rolls.
-        if (record?.conductorMemberId) {
-          await releasePoolSelectionForDate(
-            input.allianceId,
-            input.date,
-            record.conductorMemberId,
-          );
-        }
         result = await rollPriceIsFreightConductor({
           allianceId: input.allianceId,
           date: input.date,
@@ -1007,20 +1056,10 @@ export async function rollForConductor(input: {
       }
 
       const poolType = conductorMechanismPoolType(mechanism)!;
-      if (record?.conductorMemberId) {
-        await releasePoolSelectionForDate(
-          input.allianceId,
-          input.date,
-          record.conductorMemberId,
-        );
-      }
       const respectConductorMinimums =
         await resolvePoolRespectsConductorMinimums({
           allianceId: input.allianceId,
-          trainDate: input.date,
           poolType,
-          conductorMechanism: mechanism,
-          paintTemplate: dayConfig.paintTemplate,
         });
       await ensureConductorPoolSeeded({
         hqAllianceId: input.allianceId,
@@ -1031,6 +1070,9 @@ export async function rollForConductor(input: {
         respectConductorMinimums,
       });
       const useWeightedPick = false;
+      // Do not release the prior depleting selection before claiming the next
+      // winner. A failed re-roll (empty pool / qualification miss) must leave
+      // the draft conductor's pool slot consumed.
       result = await rollFromPool(
         input.allianceId,
         poolType,
@@ -1059,9 +1101,6 @@ export async function rollForConductor(input: {
 
   const gateApplies = await resolveConductorQualificationGateApplies({
     allianceId: input.allianceId,
-    trainDate: input.date,
-    conductorMechanism: mechanism,
-    paintTemplate: dayConfig.paintTemplate,
     poolType:
       result.poolType ?? conductorMechanismPoolType(mechanism) ?? null,
   });
@@ -1078,7 +1117,7 @@ export async function rollForConductor(input: {
     return gated;
   }
 
-  return persistConductorRoll({
+  const persisted = await persistConductorRoll({
     allianceId: input.allianceId,
     date: input.date,
     seasonKey,
@@ -1087,6 +1126,21 @@ export async function rollForConductor(input: {
     dayConfigId: dayConfig.dayConfigId,
     vipMechanism: dayConfig.vipMechanism,
   });
+
+  if (
+    shouldReleasePriorPoolSelection({
+      previousMemberId: record?.conductorMemberId,
+      nextMemberId: gated.memberId,
+    })
+  ) {
+    await releasePoolSelectionForDate(
+      input.allianceId,
+      input.date,
+      record!.conductorMemberId!,
+    );
+  }
+
+  return persisted;
 }
 
 export async function rollForVip(input: {
@@ -1101,8 +1155,11 @@ export async function rollForVip(input: {
     input.date,
     seasonKey,
   );
-  if (record?.lockedAt) {
-    throw new Error("Train is locked; VIP cannot be changed.");
+  if (!record?.lockedAt) {
+    throw new Error("Lock the conductor before assigning VIP.");
+  }
+  if (!record.conductorMemberId) {
+    throw new Error("No conductor set for this day.");
   }
 
   const dayConfig = await resolveRollDayConfig(
@@ -1131,13 +1188,8 @@ export async function rollForVip(input: {
         topN: 10,
       }) as EventTopXConfig;
       const poolType: PoolType = "event_top_x";
-      if (record?.vipMemberId) {
-        await releasePoolSelectionForDate(
-          input.allianceId,
-          input.date,
-          record.vipMemberId,
-        );
-      }
+      // Keep the prior VIP depleting selection until the replacement wins and
+      // is persisted — a failed re-roll must not free the current VIP slot.
       await ensureConductorPoolSeeded({
         hqAllianceId: input.allianceId,
         poolType,
@@ -1173,17 +1225,29 @@ export async function rollForVip(input: {
     input.date,
   );
 
-  await upsertConductorDraft({
+  await assignVipOnLockedConductor({
     allianceId: input.allianceId,
     date: input.date,
     seasonKey,
     vipMemberId: result.memberId,
     vipMemberName: result.memberName,
     vipRankEventId: rankEvent?.id ?? null,
-    conductorMechanism: dayConfig.conductorMechanism,
     vipMechanism: mechanism,
     dayConfigId: dayConfig.dayConfigId,
   });
+
+  if (
+    shouldReleasePriorPoolSelection({
+      previousMemberId: record?.vipMemberId,
+      nextMemberId: result.memberId,
+    })
+  ) {
+    await releasePoolSelectionForDate(
+      input.allianceId,
+      input.date,
+      record!.vipMemberId!,
+    );
+  }
 
   return result;
 }
@@ -1202,10 +1266,7 @@ export async function reseedPool(input: {
     input.respectConductorMinimums ??
     (await resolvePoolRespectsConductorMinimums({
       allianceId: input.allianceId,
-      trainDate: input.date,
       poolType: input.poolType,
-      conductorMechanism: input.conductorMechanism,
-      paintTemplate: input.paintTemplate,
     }));
   const candidates = await buildPoolCandidates({
     hqAllianceId: input.allianceId,
@@ -1285,6 +1346,157 @@ export async function refreshExhaustedPoolsForDay(input: {
   return refreshed;
 }
 
+export type ConductorHistoryImportRowInput = {
+  date: string;
+  memberId: string;
+  memberName: string;
+};
+
+export type ConductorHistoryImportRowResult = {
+  date: string;
+  status: "imported" | "skipped" | "conflict" | "error";
+  message?: string;
+};
+
+/**
+ * Backfill past locked conductors from a reviewed import.
+ * Does not announce to Discord and does not mutate depleting pools — import
+ * has no reliable historical mechanism (VS Push vs Economy Week, etc.).
+ */
+export async function importConductorHistory(input: {
+  allianceId: string;
+  rows: ConductorHistoryImportRowInput[];
+}): Promise<{
+  imported: number;
+  skipped: number;
+  conflicts: number;
+  results: ConductorHistoryImportRowResult[];
+}> {
+  const today = getServerCalendarDate();
+  const seasonKey = await resolveTrainSeasonKey(input.allianceId);
+  const { loadAllianceGameRoster } = await import("@/lib/members/game-roster");
+  const roster = await loadAllianceGameRoster({ allianceId: input.allianceId });
+  const rosterById = new Map(roster.map((member) => [member.id, member]));
+
+  const results: ConductorHistoryImportRowResult[] = [];
+  let imported = 0;
+  let skipped = 0;
+  let conflicts = 0;
+
+  // Newest→oldest paste is fine; process oldest→newest so train spawn order is stable.
+  const sorted = [...input.rows].sort((a, b) => a.date.localeCompare(b.date));
+
+  for (const row of sorted) {
+    const date = row.date.trim();
+    const memberId = row.memberId.trim();
+    const memberName = row.memberName.trim();
+
+    if (!date || !memberId || !memberName) {
+      results.push({
+        date,
+        status: "error",
+        message: "date, memberId, and memberName are required.",
+      });
+      continue;
+    }
+
+    if (date >= today) {
+      results.push({
+        date,
+        status: "error",
+        message: "Import is limited to past days.",
+      });
+      continue;
+    }
+
+    if (!rosterById.has(memberId)) {
+      results.push({
+        date,
+        status: "error",
+        message: "Member is not on the alliance roster.",
+      });
+      continue;
+    }
+
+    try {
+      const existing = await getConductorRecord(
+        input.allianceId,
+        date,
+        seasonKey,
+      );
+
+      if (existing?.lockedAt) {
+        if (existing.conductorMemberId === memberId) {
+          skipped += 1;
+          results.push({ date, status: "skipped" });
+          continue;
+        }
+        conflicts += 1;
+        results.push({
+          date,
+          status: "conflict",
+          message: existing.conductorMemberName
+            ? `Locked to ${existing.conductorMemberName}.`
+            : "Locked to a different conductor.",
+        });
+        continue;
+      }
+
+      const rankEvent = await getMemberRankAsOf(
+        input.allianceId,
+        memberId,
+        date,
+      );
+      const draft = await upsertConductorDraft({
+        allianceId: input.allianceId,
+        date,
+        seasonKey,
+        conductorMemberId: memberId,
+        conductorMemberName: memberName,
+        conductorRankEventId: rankEvent?.id ?? null,
+      });
+      await lockConductorRecord(draft.id, input.allianceId);
+      imported += 1;
+      results.push({ date, status: "imported" });
+    } catch (error) {
+      results.push({
+        date,
+        status: "error",
+        message: error instanceof Error ? error.message : "Import failed.",
+      });
+    }
+  }
+
+  return { imported, skipped, conflicts, results };
+}
+
+export async function listConductorSnapshotsForDateRange(input: {
+  allianceId: string;
+  rangeStart: string;
+  rangeEnd: string;
+}): Promise<
+  Array<{
+    date: string;
+    conductorMemberId: string | null;
+    conductorMemberName: string | null;
+    lockedAt: string | null;
+  }>
+> {
+  const seasonKey = await resolveTrainSeasonKey(input.allianceId);
+  const rows = await listConductorRecordsInRange(
+    input.allianceId,
+    input.rangeStart,
+    input.rangeEnd,
+    seasonKey,
+  );
+  return rows.map((row) => ({
+    date: row.date,
+    conductorMemberId: row.conductorMemberId,
+    conductorMemberName: row.conductorMemberName,
+    lockedAt: row.lockedAt?.toISOString() ?? null,
+  }));
+}
+
 export async function lockConductorsForDates(input: {
   allianceId: string;
   dates: string[];
@@ -1311,6 +1523,12 @@ export async function lockConductorsForDates(input: {
 
     const locked = await lockConductorRecord(record.id, input.allianceId);
     records.push(locked);
+    await syncDepletingPoolSelectionForConductorDay({
+      allianceId: input.allianceId,
+      date,
+      seasonKey,
+      memberId: locked.conductorMemberId,
+    });
     const refreshed = await refreshExhaustedPoolsForDay({
       allianceId: input.allianceId,
       date,
@@ -1322,15 +1540,49 @@ export async function lockConductorsForDates(input: {
   return { records, poolsRefreshed };
 }
 
+/**
+ * Stamp (or refresh) depleting-pool selection for a day's conductor when the
+ * day uses a depleting mechanism. No-op for TPIF with-replacement / non-pool days.
+ */
+export async function syncDepletingPoolSelectionForConductorDay(input: {
+  allianceId: string;
+  date: string;
+  seasonKey: string;
+  memberId: string | null | undefined;
+}): Promise<void> {
+  if (!input.memberId) return;
+  const dayConfig = await resolveRollDayConfig(
+    input.allianceId,
+    input.date,
+    input.seasonKey,
+  );
+  if (usesPriceIsFreightConductorRoll(dayConfig.paintTemplate)) return;
+  const poolType = conductorMechanismPoolType(
+    dayConfig.conductorMechanism as ConductorMechanismType,
+  );
+  if (!poolType) return;
+  await markPoolMemberSelectedForDate(
+    input.allianceId,
+    poolType,
+    input.memberId,
+    input.date,
+  );
+}
+
 export async function swapConductors(input: {
   allianceId: string;
   dateA: string;
   dateB: string;
 }): Promise<{
-  records: Awaited<ReturnType<typeof lockConductorRecord>>[];
+  records: NonNullable<Awaited<ReturnType<typeof getConductorRecord>>>[];
 }> {
   if (input.dateA === input.dateB) {
     throw new Error("Pick two different days to swap.");
+  }
+
+  const today = getServerCalendarDate();
+  if (input.dateB <= today) {
+    throw new Error("Swap targets must be a future day.");
   }
 
   const seasonKey = await resolveTrainSeasonKey(input.allianceId);
@@ -1357,14 +1609,16 @@ export async function swapConductors(input: {
     Boolean(recordB?.conductorMemberId && recordB.conductorMemberName);
 
   if (targetHasConductor) {
+    const memberFromA = recordA.conductorMemberId;
+    const memberFromB = recordB!.conductorMemberId!;
     const rankForA = await getMemberRankAsOf(
       input.allianceId,
-      recordB!.conductorMemberId!,
+      memberFromB,
       input.dateA,
     );
     const rankForB = await getMemberRankAsOf(
       input.allianceId,
-      recordA.conductorMemberId,
+      memberFromA,
       input.dateB,
     );
 
@@ -1389,10 +1643,25 @@ export async function swapConductors(input: {
       substituteForMemberId: recordB!.conductorMemberId,
       substituteForMemberName: recordB!.conductorMemberName,
     });
+
+    // Keep depleting-pool consumption attached to the new dates.
+    await movePoolSelectionForDate(
+      input.allianceId,
+      memberFromA,
+      input.dateA,
+      input.dateB,
+    );
+    await movePoolSelectionForDate(
+      input.allianceId,
+      memberFromB,
+      input.dateB,
+      input.dateA,
+    );
   } else {
+    const memberFromA = recordA.conductorMemberId;
     const rankForB = await getMemberRankAsOf(
       input.allianceId,
-      recordA.conductorMemberId,
+      memberFromA,
       input.dateB,
     );
 
@@ -1407,11 +1676,24 @@ export async function swapConductors(input: {
       substituteForMemberName: null,
     });
 
+    // Do not release the pool slot — the conductor is still assigned (on dateB).
     await clearConductorAssignment(
       input.allianceId,
       input.dateA,
       seasonKey,
+      { releasePool: false },
     );
+    await movePoolSelectionForDate(
+      input.allianceId,
+      memberFromA,
+      input.dateA,
+      input.dateB,
+    );
+    // VIP stays day-scoped; do not leave an orphan VIP on the emptied source.
+    // Also releases any depleting event_top_x mark for that date.
+    if (recordA.vipMemberId) {
+      await clearVipAssignment(input.allianceId, input.dateA, seasonKey);
+    }
   }
 
   const draftA = await getConductorRecord(
@@ -1425,27 +1707,33 @@ export async function swapConductors(input: {
     seasonKey,
   );
 
-  const lockedRecords: Awaited<ReturnType<typeof lockConductorRecord>>[] = [];
-
-  if (draftB?.conductorMemberId && draftB.conductorMemberName) {
-    lockedRecords.push(
-      await lockConductorRecord(draftB.id, input.allianceId),
-    );
-  }
-
-  if (
-    targetHasConductor &&
-    draftA?.conductorMemberId &&
-    draftA.conductorMemberName
-  ) {
-    lockedRecords.push(await lockConductorRecord(draftA.id, input.allianceId));
-  }
-
-  if (lockedRecords.length === 0) {
+  // Lock is irreversible spawn — swap only moves drafts. Officers lock when
+  // the train is actually set in-game.
+  if (!draftB?.conductorMemberId || !draftB.conductorMemberName) {
     throw new Error("Swap failed to persist conductor assignment.");
   }
 
-  return { records: lockedRecords };
+  // Keep depleting-pool consumption aligned with the new dates (unlock used to
+  // wipe selection; even without that, selectedForDate must follow the swap).
+  await syncDepletingPoolSelectionForConductorDay({
+    allianceId: input.allianceId,
+    date: input.dateA,
+    seasonKey,
+    memberId: draftA?.conductorMemberId,
+  });
+  await syncDepletingPoolSelectionForConductorDay({
+    allianceId: input.allianceId,
+    date: input.dateB,
+    seasonKey,
+    memberId: draftB.conductorMemberId,
+  });
+
+  const records = [draftA, draftB].filter(
+    (row): row is NonNullable<typeof row> =>
+      Boolean(row?.conductorMemberId && row.conductorMemberName),
+  );
+
+  return { records };
 }
 
 export { getServerCalendarDate };

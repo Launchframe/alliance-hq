@@ -1,6 +1,7 @@
 /**
  * Merge City List Bank Stronghold parses across overlapping screenshots.
- * Banks are keyed by exact server + coordinates (unique tile identity).
+ * Banks match by server + coordinates within OCR drift tolerance (±2), the
+ * same window used for same-image dual-pass merges.
  */
 
 import {
@@ -53,6 +54,8 @@ export function coalesceCityListBanks(
   const ranked = [...banks].sort(
     (a, b) => completenessScore(b) - completenessScore(a),
   );
+  // Prefer the highest-scoring tile as the base, but never let a noisier
+  // sibling overwrite an already-positive CrystalGold amount or deposit count.
   const dest: ParsedCityListBank = { ...ranked[0]! };
 
   for (const bank of ranked.slice(1)) {
@@ -87,6 +90,18 @@ function firstNonNullNumber(
     if (value != null) return value;
   }
   return null;
+}
+
+/** Prefer the largest positive header count across overlapping screenshots. */
+function maxNonNullNumber(
+  values: Array<number | null | undefined>,
+): number | null {
+  let max: number | null = null;
+  for (const value of values) {
+    if (value == null) continue;
+    if (max == null || value > max) max = value;
+  }
+  return max;
 }
 
 function firstNonNullString(
@@ -217,18 +232,19 @@ export function mergeCityListOcrPasses(
 
 /**
  * Collapse overlapping City List screenshots into one snapshot.
- * Duplicate tiles (same server + X/Y) are auto-merged; conflicting extras
- * that somehow share a key are still coalesced (coords are the identity).
+ * Duplicate tiles (same server + X/Y within OCR drift tolerance) are
+ * auto-merged; conflicting extras that somehow share a key are still
+ * coalesced (coords are the identity).
  *
- * Output order follows Map first-encounter order while scanning `parts` in
- * array order: the first time a tile (server + coords) appears fixes its
- * position; duplicates in later screenshots coalesce in place without moving.
+ * Output order follows first-encounter order while scanning `parts` in
+ * array order: the first time a tile appears fixes its position; near-
+ * duplicates in later screenshots coalesce in place without moving.
  * Tiles seen only in a later part append in the order they are first
  * encountered. Each part's banks are already in that screenshot's reading
  * order (top-to-bottom, left-to-right). This is intentionally NOT a
  * game-coordinate sort — map X/Y do not reliably increase left-to-right/
  * top-to-bottom on screen, so sorting by them would scramble the on-screen
- * grid order officers expect in the review table.
+ * grid order officers expect in the review UI.
  */
 export function mergeCityListParses(
   parts: readonly ParsedCityListSnapshot[],
@@ -249,55 +265,60 @@ export function mergeCityListParses(
     };
   }
 
-  const byKey = new Map<string, ParsedCityListBank[]>();
+  const banks: ParsedCityListBank[] = [];
+  const clusters: DedupeCluster[] = [];
   let inputBankCount = 0;
+  let clusterSeq = 0;
+
   for (const part of parts) {
-    for (const bank of part.banks) {
+    for (const candidate of part.banks) {
       inputBankCount += 1;
-      const key = cityListBankKey(bank);
-      const bucket = byKey.get(key);
-      if (bucket) {
-        bucket.push(bank);
+      const idx = findNearestPassBankIndex(
+        banks,
+        candidate,
+        CITY_LIST_OCR_PASS_COORD_TOLERANCE,
+      );
+      if (idx >= 0) {
+        const kept = banks[idx]!;
+        const merged = coalesceCityListBanks([kept, candidate]);
+        banks[idx] = {
+          ...merged,
+          // Keep the first-seen identity coords (shot 1 wins the pin).
+          gameServerNumber: kept.gameServerNumber,
+          coordX: kept.coordX,
+          coordY: kept.coordY,
+        };
+
+        clusterSeq += 1;
+        const clusterId = `bank_${clusterSeq}_${cityListBankKey(kept)}`;
+        const destinationSlipId = `dest_${clusterId}`;
+        clusters.push({
+          clusterId,
+          disposition: "auto_merged",
+          reason: "same_server_and_coordinates",
+          destinationSlipId,
+          members: [
+            {
+              slipId: `src_${clusterId}_0`,
+              snapshot: bankSnapshot(kept),
+            },
+            {
+              slipId: `src_${clusterId}_1`,
+              snapshot: bankSnapshot(candidate),
+            },
+            {
+              slipId: destinationSlipId,
+              snapshot: bankSnapshot(banks[idx]!),
+            },
+          ],
+        });
       } else {
-        byKey.set(key, [bank]);
+        banks.push({ ...candidate });
       }
     }
   }
 
-  const clusters: DedupeCluster[] = [];
-  const banks: ParsedCityListBank[] = [];
-  let clusterSeq = 0;
-
-  for (const [key, group] of byKey) {
-    if (group.length === 1) {
-      banks.push(group[0]!);
-      continue;
-    }
-
-    clusterSeq += 1;
-    const clusterId = `bank_${clusterSeq}_${key}`;
-    const merged = coalesceCityListBanks(group);
-    const destinationSlipId = `dest_${clusterId}`;
-    clusters.push({
-      clusterId,
-      disposition: "auto_merged",
-      reason: "same_server_and_coordinates",
-      destinationSlipId,
-      members: [
-        ...group.map((bank, index) => ({
-          slipId: `src_${clusterId}_${index}`,
-          snapshot: bankSnapshot(bank),
-        })),
-        {
-          slipId: destinationSlipId,
-          snapshot: bankSnapshot(merged),
-        },
-      ],
-    });
-    banks.push(merged);
-  }
-
-  const capturedCount = firstNonNullNumber(
+  const capturedCount = maxNonNullNumber(
     parts.map((part) => part.capturedCount),
   );
   const snapshot: ParsedCityListSnapshot = {
@@ -306,7 +327,7 @@ export function mergeCityListParses(
       parts.map((part) => part.totalCrystalGoldDeposited),
     ),
     capturedCount,
-    capturedLimit: firstNonNullNumber(parts.map((part) => part.capturedLimit)),
+    capturedLimit: maxNonNullNumber(parts.map((part) => part.capturedLimit)),
     capturesRemainingToday: firstNonNullNumber(
       parts.map((part) => part.capturesRemainingToday),
     ),

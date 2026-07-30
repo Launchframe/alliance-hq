@@ -4,6 +4,7 @@ import {
   buildBankManagementPayload,
   loadAllianceBankCityListSnapshot,
   loadAllianceGameServerNumber,
+  loadAllianceTag,
   loadBanksWithSlips,
 } from "@/lib/banks/repository.server";
 import type { BankManagementPayload } from "@/lib/banks/types.shared";
@@ -22,17 +23,20 @@ export async function reloadBankManagementDashboard(
     canWrite,
     effectiveSeason,
     allianceGameServerNumber,
+    allianceTag,
     cityListSnapshot,
   ] = await Promise.all([
     loadBanksWithSlips(allianceId),
     sessionHasPermission(sessionId, BANK_WRITE_PERMISSION),
     getEffectiveSeasonForAlliance(allianceId),
     loadAllianceGameServerNumber(allianceId),
+    loadAllianceTag(allianceId),
     loadAllianceBankCityListSnapshot(allianceId),
   ]);
 
   return buildBankManagementPayload(banks, {
     allianceId,
+    allianceTag,
     canWrite,
     todayServerDate: getServerCalendarDate(),
     effectiveSeasonKey: effectiveSeason.seasonKey,
@@ -42,5 +46,7 @@ export async function reloadBankManagementDashboard(
     bankCapturesLimitToday: cityListSnapshot?.bankCapturesLimitToday ?? null,
     bankCityListServerTime:
       cityListSnapshot?.bankCityListServerTime?.toISOString() ?? null,
+    bankCityListImportedAt:
+      cityListSnapshot?.bankCityListImportedAt?.toISOString() ?? null,
   });
 }

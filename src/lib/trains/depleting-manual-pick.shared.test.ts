@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   depletingManualPickErrorMessage,
   evaluateDepletingManualPick,
+  shouldReleasePriorPoolSelection,
 } from "@/lib/trains/depleting-manual-pick.shared";
 
 describe("evaluateDepletingManualPick", () => {
@@ -45,5 +46,28 @@ describe("depletingManualPickErrorMessage", () => {
     expect(depletingManualPickErrorMessage("not_in_pool")).toMatch(
       /not in the current conductor pool/i,
     );
+  });
+});
+
+describe("shouldReleasePriorPoolSelection", () => {
+  it("releases only when replacing with a different member", () => {
+    expect(
+      shouldReleasePriorPoolSelection({
+        previousMemberId: "alice",
+        nextMemberId: "bob",
+      }),
+    ).toBe(true);
+    expect(
+      shouldReleasePriorPoolSelection({
+        previousMemberId: "alice",
+        nextMemberId: "alice",
+      }),
+    ).toBe(false);
+    expect(
+      shouldReleasePriorPoolSelection({
+        previousMemberId: null,
+        nextMemberId: "bob",
+      }),
+    ).toBe(false);
   });
 });

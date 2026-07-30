@@ -36,6 +36,14 @@ After setup, **`discord_guild_alliances.guild_id`** is the runtime tenant key. R
 - Register pt-BR **`description_localizations`** when adding slash commands.
 - Run `npm run i18n:validate` after message changes.
 
+### Slash command description budget (Discord API)
+
+- Command and option `description` / `description_localizations` must be **1–100 characters**.
+- Write en-US first, then pt-BR. Prefer **≤90 en-US** so Portuguese expansion still fits.
+- When space is tight, keep the shared gate suffix (`(R4+ by default; owners can restrict.)` / `(R4+ por padrão; o dono pode restringir.)`) and drop long purpose examples.
+- `validateDiscordCommandDescriptions` in `scripts/discord/register-commands.mjs` enforces this at script load — do not bypass or weaken it.
+- Reply/message copy under `discordBot` is **not** subject to this 100-char API limit (still validate with `npm run i18n:validate`).
+
 ## Writes
 
 - Guild registration: `upsertGuildAlliance` (owner-gated).

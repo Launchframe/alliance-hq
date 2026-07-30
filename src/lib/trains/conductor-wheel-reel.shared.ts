@@ -25,6 +25,33 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+/** Stable per-seed shuffle for share viewports (varies by day/winner, reproducible on re-export). */
+export function seededShuffle<T>(arr: T[], seed: string): T[] {
+  const a = [...arr];
+  if (a.length <= 1) return a;
+
+  let state = hashSeed(seed) || 1;
+  const random = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 0x1_0000_0000;
+  };
+
+  for (let i = a.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [a[i], a[j]] = [a[j]!, a[i]!];
+  }
+  return a;
+}
+
+function hashSeed(seed: string): number {
+  let hash = 2_166_136_261;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return hash >>> 0;
+}
+
 export type ReelBuildOptions = {
   fastSpeed?: number;
   fastSecs?: number;
@@ -67,7 +94,7 @@ export function buildConductorWheelReelSession(
   for (let i = 0; i < fastPasses; i += 1) items.push(...shuffle(names));
   for (let i = 0; i < slowPasses; i += 1) items.push(...shuffle(names));
 
-  const alternates = names.filter((name) => name !== winner.memberName);
+  const alternates = shuffle(names.filter((name) => name !== winner.memberName));
 
   // Ensure the item immediately before the winner is not the winner's name.
   if (items.length > 0 && alternates.length > 0 && items[items.length - 1] === winner.memberName) {
@@ -131,4 +158,100 @@ export function restingViewportNames(
   const centerOffset = Math.floor(visible / 2);
   const start = session.winnerIdx - centerOffset;
   return session.items.slice(start, start + visible);
+}
+
+/**
+ * Pad a short share viewport to `surroundingCount + 1` slots while keeping the
+ * winner near center. Front-padding must bump `winnerIndex` so the highlight
+ * stays on the winner name.
+ */
+function finalizeShareViewport(
+  names: string[],
+  winnerIndex: number,
+  surroundingCount: number,
+): { names: string[]; winnerIndex: number } {
+  const targetLength = surroundingCount + 1;
+  if (names.length >= targetLength) {
+    return { names: names.slice(0, targetLength), winnerIndex };
+  }
+
+  const desiredWinnerIndex = Math.ceil(surroundingCount / 2);
+  const padded = [...names];
+  let adjustedWinnerIndex = winnerIndex;
+
+  // Pad above until the winner sits at the centered slot (or we run out of room).
+  while (
+    adjustedWinnerIndex < desiredWinnerIndex &&
+    padded.length < targetLength
+  ) {
+    padded.unshift(padded[0]!);
+    adjustedWinnerIndex += 1;
+  }
+
+  // Pad below (or further above if still short and winner is already centered).
+  while (padded.length < targetLength) {
+    padded.push(padded[padded.length - 1]!);
+  }
+
+  return {
+    names: padded.slice(0, targetLength),
+    winnerIndex: adjustedWinnerIndex,
+  };
+}
+
+/** Winner plus surrounding names for share images (default: 2 above + 2 below). */
+export function restingShareViewport(
+  session: ReelSession,
+  surroundingCount = 4,
+): { names: string[]; winnerIndex: number } {
+  const half = Math.ceil(surroundingCount / 2);
+  const start = Math.max(0, session.winnerIdx - half);
+  const end = Math.min(session.items.length - 1, session.winnerIdx + half);
+  const names = session.items.slice(start, end + 1);
+  const winnerIndex = session.winnerIdx - start;
+  return finalizeShareViewport(names, winnerIndex, surroundingCount);
+}
+
+/**
+ * Share viewport for re-export after the wheel closes.
+ * Winner is centered; surrounding names are shuffled so repeat exports do not
+ * always show the same roster-order neighbors (looks rigged). Pass `seed` (e.g.
+ * `${date}:${memberId}`) so re-export for the same day is stable but different
+ * draws vary.
+ */
+export function buildShareViewportForWinner(
+  winner: WheelReelCandidate,
+  candidates: WheelReelCandidate[],
+  options?: { surroundingCount?: number; seed?: string },
+): { names: string[]; winnerIndex: number } {
+  const surroundingCount = options?.surroundingCount ?? 4;
+  const half = Math.ceil(surroundingCount / 2);
+  const others = seededShuffle(
+    uniqueWheelCandidateNames(
+      candidates.filter(
+        (candidate) =>
+          candidate.memberId !== winner.memberId &&
+          candidate.memberName !== winner.memberName,
+      ),
+    ),
+    options?.seed ?? `${winner.memberId}:${winner.memberName}`,
+  );
+  const above = others.slice(0, half);
+  const below = others.slice(half, half + half);
+  const names = [...above, winner.memberName, ...below];
+  return finalizeShareViewport(names, above.length, surroundingCount);
+}
+
+export function restingShareViewportNames(
+  session: ReelSession,
+  surroundingCount = 4,
+): string[] {
+  return restingShareViewport(session, surroundingCount).names;
+}
+
+export function winnerIndexInShareViewport(
+  session: ReelSession,
+  surroundingCount = 4,
+): number {
+  return restingShareViewport(session, surroundingCount).winnerIndex;
 }

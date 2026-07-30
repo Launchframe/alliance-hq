@@ -7,6 +7,7 @@ import {
   resolvePaintTemplateForCalendarDate,
   resolvePaintTemplateForDay,
   segmentTemplateForDayIndex,
+  shouldExpandCompositeByDayIndex,
   usesCombinedSegmentDisplay,
 } from "@/lib/trains/week-template-registry.shared";
 
@@ -33,6 +34,39 @@ describe("week template registry", () => {
     );
     expect(resolvePaintTemplateForDay("vs_push_week", "2026-06-15", weekStart)).toBe(
       "r4_event_vip",
+    );
+  });
+
+  it("keeps vs_push_week calendar segments when train week starts on Monday", () => {
+    // Alliance trainWeekStartDow=1 → weekStart Monday; must not collapse to composite id.
+    const weekStart = "2026-06-08";
+    expect(resolvePaintTemplateForDay("vs_push_week", "2026-06-08", weekStart)).toBe(
+      "r4_event_vip",
+    );
+    expect(resolvePaintTemplateForDay("vs_push_week", "2026-06-09", weekStart)).toBe(
+      "vs_push_weekdays",
+    );
+    expect(resolvePaintTemplateForDay("vs_push_week", "2026-06-13", weekStart)).toBe(
+      "vs_push_weekdays",
+    );
+    expect(resolvePaintTemplateForDay("vs_push_week", "2026-06-14", weekStart)).toBe(
+      "r4_event_vip",
+    );
+  });
+
+  it("keeps price_is_right calendar segments when train week starts on Monday", () => {
+    const weekStart = "2026-06-08";
+    expect(resolvePaintTemplateForDay("price_is_right", "2026-06-08", weekStart)).toBe(
+      "custom",
+    );
+    expect(resolvePaintTemplateForDay("price_is_right", "2026-06-09", weekStart)).toBe(
+      "price_is_right_weekdays",
+    );
+    expect(resolvePaintTemplateForDay("price_is_right", "2026-06-13", weekStart)).toBe(
+      "takedown_week",
+    );
+    expect(resolvePaintTemplateForDay("price_is_right", "2026-06-14", weekStart)).toBe(
+      "custom",
     );
   });
 
@@ -97,5 +131,26 @@ describe("week template registry", () => {
     // `custom` is a PIR weekend segment and also a selectable whole-week preset;
     // reverse-map still finds the composite that uses it as a segment.
     expect(compositeParentForSegment("custom")).toBe("price_is_right");
+  });
+
+  it("expands composite templates for week apply or multi-day paints", () => {
+    expect(
+      shouldExpandCompositeByDayIndex({
+        updateWeekTemplate: true,
+        dateCount: 1,
+      }),
+    ).toBe(true);
+    expect(
+      shouldExpandCompositeByDayIndex({
+        updateWeekTemplate: false,
+        dateCount: 2,
+      }),
+    ).toBe(true);
+    expect(
+      shouldExpandCompositeByDayIndex({
+        updateWeekTemplate: false,
+        dateCount: 1,
+      }),
+    ).toBe(false);
   });
 });

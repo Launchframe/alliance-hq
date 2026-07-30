@@ -24,7 +24,7 @@ import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-a
 import { commitRosterFromVideoJob } from "@/lib/members/roster-video-commit";
 import {
   commitAllianceKillsFromVideoSubmit,
-  listPriorAllianceKillsVideoMemberIds,
+  listPriorAllianceKillsVideoMembers,
 } from "@/lib/kills/alliance-kills-video-commit.server";
 import { commitDepositSlipsFromVideoJob } from "@/lib/banks/deposit-slip-ocr/deposit-slip-video-commit.server";
 import {
@@ -361,9 +361,14 @@ export async function POST(request: Request, { params }: Props) {
           row.heroPowerM != null && Number.isFinite(row.heroPowerM)
             ? row.heroPowerM
             : null;
-        // Roster video OCR cannot reliably read HQ level or profession from
-        // Strength Ranking → Power (or even member-list frames inconsistently).
-        // Never write those fields from this target so we don't clobber HQ data.
+        const memberLevel =
+          row.memberLevel != null &&
+          Number.isFinite(row.memberLevel) &&
+          row.memberLevel > 0
+            ? Math.round(row.memberLevel)
+            : null;
+        // Profession is not shown on the Members list; titles are deferred.
+        // Power + HQ level from Members-page frames are trusted when present.
         await db
           .update(schema.parsedRows)
           .set({
@@ -371,7 +376,7 @@ export async function POST(request: Request, { params }: Props) {
             memberName: row.memberName ?? null,
             allianceRank: row.allianceRank ?? null,
             allianceRankTitle: null,
-            memberLevel: null,
+            memberLevel,
             profession: null,
             powerLevel: formatHeroPowerMForStorage(heroPowerM),
             deleted: row.deleted ? 1 : 0,
@@ -689,6 +694,25 @@ export async function POST(request: Request, { params }: Props) {
       );
     }
 
+    const hqAllianceId = await resolveHqAllianceIdFromStoredAllianceId(
+      job.allianceId,
+    );
+    if (!hqAllianceId) {
+      return NextResponse.json(
+        { error: "Alliance context missing on job." },
+        { status: 400 },
+      );
+    }
+    // Processors may review OCR via processor slots / hq:video:*, but Ashed
+    // score replace+insert (and HQ kills dual-write) still require scores:write —
+    // same gate as the BFF VSScore/KillScore catalog.
+    const scoresDenied = await requireAlliancePermission(
+      session.id,
+      hqAllianceId,
+      "scores:write",
+    );
+    if (scoresDenied) return scoresDenied;
+
     const connection = await getAshedConnection(session.id);
     if (!connection) {
       const reviewPath = `/tools/video-upload/${jobId}/review`;
@@ -702,15 +726,6 @@ export async function POST(request: Request, { params }: Props) {
       );
     }
 
-    const hqAllianceId = await resolveHqAllianceIdFromStoredAllianceId(
-      job.allianceId,
-    );
-    if (!hqAllianceId) {
-      return NextResponse.json(
-        { error: "Alliance context missing on job." },
-        { status: 400 },
-      );
-    }
     const { ashedAllianceId } = await assertAllianceAshedLinked(hqAllianceId);
     const allianceId = hqAllianceId;
 
@@ -892,9 +907,9 @@ export async function POST(request: Request, { params }: Props) {
     const replaceScores = shouldReplaceAshedScoresOnSubmit(target, {
       eventId: submitContext.eventId,
     });
-    const priorAllianceKillsMemberIds =
+    const priorAllianceKillsMembers =
       replaceScores && isAllianceKillsVideoTarget(target.id)
-        ? await listPriorAllianceKillsVideoMemberIds({
+        ? await listPriorAllianceKillsVideoMembers({
             allianceId,
             recordedDate: submitContext.recordedDate,
           })
@@ -947,7 +962,8 @@ export async function POST(request: Request, { params }: Props) {
       await commitAllianceKillsFromVideoSubmit({
         allianceId,
         hqUserId: session.hqUserId ?? job.enqueuedByHqUserId ?? null,
-        previousMemberIds: priorAllianceKillsMemberIds,
+        recordedDate: submitContext.recordedDate,
+        previousMembers: priorAllianceKillsMembers,
         rows: activeRows.map((row) => ({
           memberId: row.memberId,
           memberName: row.memberName,

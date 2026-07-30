@@ -8,7 +8,6 @@ import {
 } from "@/lib/trains/guided-flow.shared";
 
 const base: GuidedFlowInput = {
-  schedulePersisted: true,
   hasConductor: true,
   vipNeeded: true,
   hasVip: true,
@@ -16,19 +15,7 @@ const base: GuidedFlowInput = {
 };
 
 describe("currentGuidedStep", () => {
-  it("returns template when schedule is not persisted", () => {
-    expect(
-      currentGuidedStep({
-        ...base,
-        schedulePersisted: false,
-        hasConductor: false,
-        hasVip: false,
-        locked: false,
-      }),
-    ).toBe("template");
-  });
-
-  it("returns conductor when schedule exists but no conductor", () => {
+  it("returns conductor when no conductor assigned", () => {
     expect(
       currentGuidedStep({
         ...base,
@@ -39,17 +26,27 @@ describe("currentGuidedStep", () => {
     ).toBe("conductor");
   });
 
-  it("returns vip when conductor assigned and VIP needed but missing", () => {
+  it("returns lock when conductor assigned but unlocked", () => {
     expect(
       currentGuidedStep({
         ...base,
         hasVip: false,
         locked: false,
       }),
+    ).toBe("lock");
+  });
+
+  it("returns vip when locked and VIP needed but missing", () => {
+    expect(
+      currentGuidedStep({
+        ...base,
+        hasVip: false,
+        locked: true,
+      }),
     ).toBe("vip");
   });
 
-  it("skips vip when vipNeeded is false", () => {
+  it("skips vip when vipNeeded is false after lock", () => {
     expect(
       currentGuidedStep({
         ...base,
@@ -58,13 +55,17 @@ describe("currentGuidedStep", () => {
         locked: false,
       }),
     ).toBe("lock");
+    expect(
+      currentGuidedStep({
+        ...base,
+        vipNeeded: false,
+        hasVip: false,
+        locked: true,
+      }),
+    ).toBe("done");
   });
 
-  it("returns lock when assignments complete but unlocked", () => {
-    expect(currentGuidedStep({ ...base, locked: false })).toBe("lock");
-  });
-
-  it("returns done when locked", () => {
+  it("returns done when locked and VIP complete", () => {
     expect(currentGuidedStep(base)).toBe("done");
   });
 
@@ -133,33 +134,33 @@ describe("currentGuidedStep", () => {
     ).toBe("conductor");
   });
 
-  it("does not block prerequisites when template not yet chosen", () => {
+  it("blocks prerequisites when VS data missing even without persisted week schedule", () => {
     expect(
       currentGuidedStep({
         ...base,
-        schedulePersisted: false,
         hasConductor: false,
         locked: false,
         vsDataRequired: true,
         vsDataReady: false,
       }),
-    ).toBe("template");
+    ).toBe("prerequisites");
   });
 
-  it("does not block prerequisites when already locked", () => {
+  it("returns vip when locked with missing VIP even if scores are missing", () => {
     expect(
       currentGuidedStep({
         ...base,
+        hasVip: false,
         locked: true,
         vsDataRequired: true,
         vsDataReady: false,
       }),
-    ).toBe("done");
+    ).toBe("vip");
   });
 });
 
 describe("guidedFlowRosterBlocking", () => {
-  it("is true when roster required, not ready, template chosen, not locked", () => {
+  it("is true when roster required, not ready, not locked", () => {
     expect(
       guidedFlowRosterBlocking({
         ...base,
@@ -183,7 +184,7 @@ describe("guidedFlowRosterBlocking", () => {
 });
 
 describe("guidedFlowPrerequisitesBlocking", () => {
-  it("is true when VS data required, not ready, template chosen, not locked", () => {
+  it("is true when VS data required, not ready, not locked", () => {
     expect(
       guidedFlowPrerequisitesBlocking({
         ...base,
@@ -235,18 +236,6 @@ describe("guidedFlowPrerequisitesBlocking", () => {
         vsDataRequired: true,
         vsDataReady: false,
         conductorManualPickAvailable: true,
-      }),
-    ).toBe(false);
-  });
-
-  it("is false when template not yet persisted", () => {
-    expect(
-      guidedFlowPrerequisitesBlocking({
-        ...base,
-        schedulePersisted: false,
-        locked: false,
-        vsDataRequired: true,
-        vsDataReady: false,
       }),
     ).toBe(false);
   });

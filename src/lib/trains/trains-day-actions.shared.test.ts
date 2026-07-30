@@ -4,6 +4,7 @@ import {
   canManualPickForDate,
   canOfficerChangeTemplateForDate,
   canRollForDate,
+  dayMechanismPickerTargetDate,
 } from "@/lib/trains/trains-day-actions.shared";
 
 describe("trains-day-actions", () => {
@@ -22,5 +23,10 @@ describe("trains-day-actions", () => {
 
   it("allows manual pick on past days", () => {
     expect(canManualPickForDate()).toBe(true);
+  });
+
+  it("keeps day-mechanism Change on the selected day, not today", () => {
+    expect(dayMechanismPickerTargetDate("2026-06-18")).toBe("2026-06-18");
+    expect(dayMechanismPickerTargetDate(today)).toBe(today);
   });
 });

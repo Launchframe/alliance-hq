@@ -165,6 +165,22 @@ function normalizeCommanderIdentityKey(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+function lockedDepositCommanderIdentityKey(
+  row: Pick<DepositSlipReviewValidationRow, "memberId" | "memberName" | "ocrName">,
+): string | null {
+  const memberId = row.memberId?.trim();
+  if (memberId) return `member:${memberId}`;
+  const name = row.ocrName?.trim();
+  if (!name) return null;
+  return `name:${normalizeCommanderIdentityKey(name)}`;
+}
+
+function lockedDepositCommanderDisplayName(
+  row: Pick<DepositSlipReviewValidationRow, "memberName" | "ocrName">,
+): string {
+  return row.memberName?.trim() || row.ocrName?.trim() || "";
+}
+
 type LockedDepositWindow = { start: number; end: number };
 
 /**
@@ -225,17 +241,20 @@ export function findOverlappingLockedDepositSlips(
   for (const row of rows) {
     if (isDeleted(row)) continue;
     if (row.profession !== "locked") continue;
-    const name = row.ocrName?.trim();
-    if (!name) continue;
+    const key = lockedDepositCommanderIdentityKey(row);
+    if (!key) continue;
     const window = lockedWindowForRow(row);
     if (!window) continue;
 
-    const key = normalizeCommanderIdentityKey(name);
+    const displayName = lockedDepositCommanderDisplayName(row);
     const existing = byIdentity.get(key);
     if (existing) {
       existing.entries.push({ id: row.id, window });
     } else {
-      byIdentity.set(key, { displayName: name, entries: [{ id: row.id, window }] });
+      byIdentity.set(key, {
+        displayName,
+        entries: [{ id: row.id, window }],
+      });
     }
   }
 

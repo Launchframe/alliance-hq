@@ -5,6 +5,7 @@ import {
   busterDayWeekMondayForDate,
   isBusterDaySnapshotComplete,
   normalizeOptionalBusterDayJobId,
+  resolveBusterDayPartialAttach,
   resolveBusterDayWizardPhase,
 } from "./buster-day.shared";
 
@@ -100,5 +101,47 @@ describe("busterDayWeekMondayForDate normalization", () => {
   it("maps mid-week dates to the VS week Monday", () => {
     expect(busterDayWeekMondayForDate("2026-07-15")).toBe("2026-07-13");
     expect(busterDayWeekMondayForDate("2026-07-13")).toBe("2026-07-13");
+  });
+});
+
+describe("resolveBusterDayPartialAttach", () => {
+  const locked = {
+    preRosterJobId: "pre-r",
+    preKillsJobId: null,
+    postRosterJobId: null,
+    postKillsJobId: "post-k",
+  };
+
+  it("keeps the sibling job id when only roster is attached", () => {
+    expect(
+      resolveBusterDayPartialAttach({
+        kind: "pre",
+        locked,
+        rosterJobId: "pre-r-new",
+        killsJobId: undefined,
+      }),
+    ).toEqual({ nextRoster: "pre-r-new", nextKills: null });
+  });
+
+  it("keeps the sibling job id when only kills is attached", () => {
+    expect(
+      resolveBusterDayPartialAttach({
+        kind: "pre",
+        locked,
+        rosterJobId: undefined,
+        killsJobId: "pre-k-new",
+      }),
+    ).toEqual({ nextRoster: "pre-r", nextKills: "pre-k-new" });
+  });
+
+  it("does not read pre columns when attaching post snapshot jobs", () => {
+    expect(
+      resolveBusterDayPartialAttach({
+        kind: "post",
+        locked,
+        rosterJobId: "post-r",
+        killsJobId: undefined,
+      }),
+    ).toEqual({ nextRoster: "post-r", nextKills: "post-k" });
   });
 });

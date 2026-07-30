@@ -64,7 +64,11 @@ export function getLastWarStoreLoginToken(): string | null {
   return token && token.length > 0 ? token : null;
 }
 
-/** Build Last War office gold-brick URL. Never log the result (contains UID ± token). */
+/**
+ * Build Last War office gold-brick URL.
+ * Never log the result (contains UID ± token). Never return this URL in a JSON
+ * API body — launch routes must 302 so clients navigate the HQ path instead.
+ */
 export function buildLastWarStoreUrl(uid: string): string | null {
   const token = getLastWarStoreLoginToken();
   if (!token) return null;
@@ -381,6 +385,32 @@ function tipCodeHint(code: string): string {
   return code.length <= 4 ? code : `…${code.slice(-4)}`;
 }
 
+/**
+ * Revoke active tip-jar codes for a roster commander. Call on HQ unlink /
+ * roster merge so orphaned public QR codes cannot redirect purchases to a
+ * later claimer's UID.
+ */
+export async function revokeActiveTipLinksForCommander(input: {
+  allianceId: string;
+  ashedMemberId: string;
+  ownerHqUserId?: string;
+}): Promise<void> {
+  const conditions = [
+    eq(schema.commanderStoreTipLinks.allianceId, input.allianceId),
+    eq(schema.commanderStoreTipLinks.ashedMemberId, input.ashedMemberId),
+    isNull(schema.commanderStoreTipLinks.revokedAt),
+  ];
+  if (input.ownerHqUserId) {
+    conditions.push(
+      eq(schema.commanderStoreTipLinks.ownerHqUserId, input.ownerHqUserId),
+    );
+  }
+  await getDb()
+    .update(schema.commanderStoreTipLinks)
+    .set({ revokedAt: new Date() })
+    .where(and(...conditions));
+}
+
 export async function createOrRotateTipLink(input: {
   sessionId: string;
 }): Promise<{
@@ -511,6 +541,7 @@ export async function getActiveTipLinkForSession(sessionId: string): Promise<{
       and(
         eq(schema.commanderStoreTipLinks.allianceId, allianceId),
         eq(schema.commanderStoreTipLinks.ashedMemberId, link.ashedMemberId),
+        eq(schema.commanderStoreTipLinks.ownerHqUserId, hqUserId),
         isNull(schema.commanderStoreTipLinks.revokedAt),
       ),
     )
@@ -554,6 +585,7 @@ export async function revokeActiveTipLink(sessionId: string): Promise<void> {
       and(
         eq(schema.commanderStoreTipLinks.allianceId, allianceId),
         eq(schema.commanderStoreTipLinks.ashedMemberId, link.ashedMemberId),
+        eq(schema.commanderStoreTipLinks.ownerHqUserId, hqUserId),
         isNull(schema.commanderStoreTipLinks.revokedAt),
       ),
     );
@@ -565,16 +597,23 @@ export async function loadPublicTipLink(code: string): Promise<{
   allianceTag: string | null;
   ashedMemberId: string;
   allianceId: string;
+  ownerHqUserId: string;
+  ownerGameUid: string | null;
 } | null> {
   const trimmed = code.trim();
   if (!trimmed) return null;
   const db = getDb();
+  // Require the tip owner to still hold the HQ member-link for this commander.
+  // Without this, break-glass unlink + reclaim can leave a live QR that resolves
+  // to a different player's gameUid via denormalized alliance_members.
   const [row] = await db
     .select({
       code: schema.commanderStoreTipLinks.code,
       displayNameSnapshot: schema.commanderStoreTipLinks.displayNameSnapshot,
       ashedMemberId: schema.commanderStoreTipLinks.ashedMemberId,
       allianceId: schema.commanderStoreTipLinks.allianceId,
+      ownerHqUserId: schema.commanderStoreTipLinks.ownerHqUserId,
+      ownerGameUid: schema.hqMemberLinks.gameUid,
       allianceTag: schema.alliances.tag,
       memberName: schema.allianceMembers.currentName,
     })
@@ -582,6 +621,23 @@ export async function loadPublicTipLink(code: string): Promise<{
     .innerJoin(
       schema.alliances,
       eq(schema.commanderStoreTipLinks.allianceId, schema.alliances.id),
+    )
+    .innerJoin(
+      schema.hqMemberLinks,
+      and(
+        eq(
+          schema.hqMemberLinks.allianceId,
+          schema.commanderStoreTipLinks.allianceId,
+        ),
+        eq(
+          schema.hqMemberLinks.ashedMemberId,
+          schema.commanderStoreTipLinks.ashedMemberId,
+        ),
+        eq(
+          schema.hqMemberLinks.hqUserId,
+          schema.commanderStoreTipLinks.ownerHqUserId,
+        ),
+      ),
     )
     .leftJoin(
       schema.allianceMembers,
@@ -611,6 +667,8 @@ export async function loadPublicTipLink(code: string): Promise<{
     allianceTag: row.allianceTag,
     ashedMemberId: row.ashedMemberId,
     allianceId: row.allianceId,
+    ownerHqUserId: row.ownerHqUserId,
+    ownerGameUid: row.ownerGameUid?.trim() || null,
   };
 }
 
@@ -619,7 +677,11 @@ export async function resolvePublicTipStoreUrl(code: string): Promise<{ url: str
   if (!tip) {
     throw new CommanderDonationError("Tip link unavailable.", 404, "not_found");
   }
-  const uid = await resolveRecipientGameUid(tip.allianceId, tip.ashedMemberId);
+  // Prefer the owner's linked UID (proven by the ownership join) over live
+  // denormalized roster UID lookups that can drift after reclaim.
+  const uid =
+    tip.ownerGameUid ||
+    (await resolveRecipientGameUid(tip.allianceId, tip.ashedMemberId));
   if (!uid) {
     throw new CommanderDonationError(
       "Recipient UID unavailable.",

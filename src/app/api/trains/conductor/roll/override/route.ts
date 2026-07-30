@@ -43,7 +43,9 @@ export async function POST(request: Request) {
       hqUserId: session.hqUserId,
     });
 
-    const stats = await getConductorStats(ctx.allianceId, result.memberId);
+    const stats = await getConductorStats(ctx.allianceId, result.memberId, {
+      beforeDate: parsed.data.date,
+    });
 
     return NextResponse.json({ result, stats });
   } catch (error) {

@@ -22,6 +22,8 @@ import {
   buildDepositFalloffSeries,
   summarizeProjectionVsActual,
 } from "@/lib/banks/optimization.shared";
+import { filterDepositSlipsByInvestor } from "@/lib/banks/deposit-investor-filter.shared";
+import type { DepositFalloffInvestorFilter } from "@/lib/banks/deposit-investor-filter.shared";
 import {
   FALLOFF_HORIZON_HOURS_OPTIONS,
   DEFAULT_FALLOFF_HORIZON_HOURS,
@@ -50,6 +52,10 @@ const DROP_BY_COLOR = "#f85149";
 const RECOMMENDED_COLOR = "#d29922";
 
 type Props = {
+  /** Session alliance — scopes the My alliance investor filter. */
+  allianceId: string;
+  /** In-game alliance tag shown on the My alliance filter chip when set. */
+  allianceTag: string | null;
   /** Currently selected bank — drives bank-scope fetch, dropByAt marker, and local fallback data. */
   bank: BankWithSlips | null;
   /** All held banks — used for the alliance-scope local fallback aggregate while the live API is unavailable. */
@@ -121,6 +127,8 @@ function buildChartRows(
 }
 
 export function DepositFalloffChart({
+  allianceId,
+  allianceTag,
   bank,
   banks,
   recommendedDropAtIso,
@@ -129,6 +137,8 @@ export function DepositFalloffChart({
   const t = useTranslations("bankManagement");
 
   const [scope, setScope] = useState<DepositFalloffScope>(bank ? "bank" : "alliance");
+  const [investorFilter, setInvestorFilter] =
+    useState<DepositFalloffInvestorFilter>("all");
   const [horizonHours, setHorizonHours] = useState<FalloffHorizonHours>(
     DEFAULT_FALLOFF_HORIZON_HOURS,
   );
@@ -161,32 +171,46 @@ export function DepositFalloffChart({
   // Reset the saved-projection selection whenever the underlying series
   // changes shape (scope or bank switch) — computed during render per React's
   // "adjusting state when a prop changes" pattern, so no effect is needed.
-  const scopeBankKey = `${effectiveScope}:${bank?.id ?? ""}`;
+  const scopeBankKey = `${effectiveScope}:${bank?.id ?? ""}:${investorFilter}`;
   const [lastScopeBankKey, setLastScopeBankKey] = useState(scopeBankKey);
   if (scopeBankKey !== lastScopeBankKey) {
     setLastScopeBankKey(scopeBankKey);
     setSelectedProjectionId(null);
   }
 
+  const investorContext = useMemo(
+    () => ({ allianceId, allianceTag }),
+    [allianceId, allianceTag],
+  );
+
   const buildLocalFallback = useCallback((): FalloffPoint[] => {
-    const slips =
+    const rawSlips =
       effectiveScope === "bank" && bank
         ? bank.depositSlips
         : banks.flatMap((row) => row.depositSlips);
+    const slips = filterDepositSlipsByInvestor(
+      rawSlips,
+      investorFilter,
+      investorContext,
+    );
     return buildDepositFalloffSeries(slips, {
       hours: horizonHours,
       stepHours: DEFAULT_FALLOFF_STEP_HOURS,
     });
-  }, [bank, banks, effectiveScope, horizonHours]);
+  }, [bank, banks, effectiveScope, horizonHours, investorContext, investorFilter]);
 
   const fetchLive = useCallback(async () => {
     if (effectiveScope === "bank" && !bank) return;
     setLiveLoading(true);
     try {
+      const investorParams =
+        investorFilter === "myAlliance"
+          ? `&investorFilter=${investorFilter}`
+          : "";
       const url =
         effectiveScope === "bank"
-          ? `/api/banks/${bank!.id}/deposit-falloff?horizonHours=${horizonHours}`
-          : `/api/banks/deposit-falloff?horizonHours=${horizonHours}`;
+          ? `/api/banks/${bank!.id}/deposit-falloff?horizonHours=${horizonHours}${investorParams}`
+          : `/api/banks/deposit-falloff?horizonHours=${horizonHours}${investorParams}`;
       const response = await fetch(url);
       if (!response.ok) throw new Error(`status ${response.status}`);
       const data = (await response.json()) as DepositFalloffLiveResponse;
@@ -200,7 +224,7 @@ export function DepositFalloffChart({
     } finally {
       setLiveLoading(false);
     }
-  }, [bank, buildLocalFallback, effectiveScope, horizonHours]);
+  }, [bank, buildLocalFallback, effectiveScope, horizonHours, investorFilter]);
 
   const fetchProjections = useCallback(async () => {
     setProjectionsError(null);
@@ -354,6 +378,10 @@ export function DepositFalloffChart({
 
   const viewingSaved = activeDetail?.projection ?? null;
 
+  const myAllianceLabel = allianceTag
+    ? t("falloff.investorFilterMyAllianceTagged", { tag: allianceTag })
+    : t("falloff.investorFilterMyAlliance");
+
   return (
     <div className="min-w-0 space-y-3 rounded-lg border border-hq-border bg-hq-surface p-4">
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
@@ -424,6 +452,42 @@ export function DepositFalloffChart({
           </div>
         ) : null}
       </div>
+
+      <div className="flex min-w-0 flex-wrap items-center gap-1 text-xs">
+        <span className="text-hq-fg-muted">{t("falloff.investorFilter")}:</span>
+        <div className="flex flex-wrap gap-1">
+          <button
+            type="button"
+            className={`rounded border px-2 py-1 ${
+              investorFilter === "all"
+                ? "border-hq-accent bg-hq-accent/10 text-hq-accent"
+                : "border-hq-border text-hq-fg-muted hover:text-hq-fg"
+            }`}
+            onClick={() => setInvestorFilter("all")}
+          >
+            {t("falloff.investorFilterAll")}
+          </button>
+          <button
+            type="button"
+            className={`rounded border px-2 py-1 ${
+              investorFilter === "myAlliance"
+                ? "border-hq-accent bg-hq-accent/10 text-hq-accent"
+                : "border-hq-border text-hq-fg-muted hover:text-hq-fg"
+            }`}
+            onClick={() => setInvestorFilter("myAlliance")}
+          >
+            {myAllianceLabel}
+          </button>
+        </div>
+      </div>
+
+      {investorFilter === "myAlliance" ? (
+        <p className="text-xs text-hq-fg-subtle">{t("falloff.investorFilterMyAllianceHint")}</p>
+      ) : null}
+
+      {bank && effectiveScope === "alliance" ? (
+        <p className="text-xs text-hq-fg-subtle">{t("falloff.scopeAllianceHint")}</p>
+      ) : null}
 
       {liveIsFallback ? (
         <p className="text-xs text-hq-fg-subtle">{t("falloff.localFallbackNotice")}</p>

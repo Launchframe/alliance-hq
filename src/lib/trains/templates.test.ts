@@ -66,6 +66,21 @@ describe("vs_push_week template", () => {
     expect(configs[6]?.conductorMechanism).toBe("r4_sequence");
     expect(configs[6]?.vipMechanism).toBe("event_top_x_lottery");
   });
+
+  it("assigns calendar mechanisms when train week starts on Monday", () => {
+    const weekStart = "2026-06-08";
+    const configs = generateWeekDayConfigs("vs_push_week", weekStart);
+    expect(configs.map((c) => c.conductorMechanism)).toEqual([
+      "r4_sequence", // Mon
+      "vs_high_score", // Tue
+      "vs_top_10", // Wed
+      "vs_top_10", // Thu
+      "vs_high_score", // Fri
+      "vs_top_10", // Sat
+      "r4_sequence", // Sun
+    ]);
+    expect(configs.every((c) => c.conductorMechanism !== "custom")).toBe(true);
+  });
 });
 
 describe("r4_event_vip segment", () => {
@@ -81,8 +96,8 @@ describe("r4_event_vip segment", () => {
 });
 
 describe("generateDayConfigForDate", () => {
-  it("does not recurse when weekStart is a Monday grid anchor on a Tuesday-start train week", () => {
-    const date = "2026-06-10";
+  it("resolves composite segments by calendar DOW even with a Monday weekStart", () => {
+    const date = "2026-06-10"; // Wednesday
     const mondayWeekStart = getWeekStartMonday(date);
     expect(mondayWeekStart).toBe("2026-06-08");
     expect(() =>
@@ -93,7 +108,8 @@ describe("generateDayConfigForDate", () => {
       date,
       mondayWeekStart,
     );
-    expect(config.conductorMechanism).toBe("custom");
+    expect(config.conductorMechanism).toBe("vs_top_10");
+    expect(config.vipMechanism).toBe("conductor_pick");
   });
 
   it("returns the Tuesday slot from vs_push_week", () => {

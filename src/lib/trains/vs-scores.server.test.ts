@@ -2,14 +2,33 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   base44Json: vi.fn(),
+  listActiveAllianceMembersForPool: vi.fn(),
+  getAllianceById: vi.fn(),
+  getAllianceAshedCredential: vi.fn(),
+  decryptSecret: vi.fn(),
 }));
 
 vi.mock("@/lib/base44/fetch", () => ({
   base44Json: mocks.base44Json,
 }));
 
+vi.mock("@/lib/members/roster.server", () => ({
+  listActiveAllianceMembersForPool: mocks.listActiveAllianceMembersForPool,
+}));
+
+vi.mock("@/lib/vr/repository", () => ({
+  getAllianceById: mocks.getAllianceById,
+  getAllianceAshedCredential: mocks.getAllianceAshedCredential,
+}));
+
+vi.mock("@/lib/crypto/encrypt", () => ({
+  decryptSecret: mocks.decryptSecret,
+}));
+
 import {
+  fetchAllianceVsTopScorersForTrainDate,
   fetchVsScoresByRecordedDate,
+  fetchVsTopScorersForRecordedDate,
   fetchVsTopScorersForTrainDate,
 } from "@/lib/trains/vs-scores.server";
 
@@ -40,6 +59,24 @@ describe("fetchVsScoresByRecordedDate", () => {
     expect(scores.get("m1")).toBe(7_500_000);
     expect(scores.get("m2")).toBe(6_000_000);
   });
+
+  it("excludes weekly week-ending totals from daily score maps", async () => {
+    mocks.base44Json.mockResolvedValue([
+      { member_id: "m1", score: 50_000_000, is_weekly: true },
+      { member_id: "m2", score: 8_000_000, is_weekly: false },
+      { member_id: "m3", score: 7_500_000 },
+    ]);
+
+    const scores = await fetchVsScoresByRecordedDate(
+      CONNECTION,
+      "alliance-1",
+      "2026-07-12",
+    );
+
+    expect(scores.has("m1")).toBe(false);
+    expect(scores.get("m2")).toBe(8_000_000);
+    expect(scores.get("m3")).toBe(7_500_000);
+  });
 });
 
 describe("fetchVsTopScorersForTrainDate", () => {
@@ -68,6 +105,138 @@ describe("fetchVsTopScorersForTrainDate", () => {
     expect(top).toEqual([
       { memberId: "m1", memberName: "Alpha", priorDayVsScore: 9_000_000 },
       { memberId: "m2", memberName: "Beta", priorDayVsScore: 8_500_000 },
+    ]);
+  });
+  
+  it("dedupes duplicate Ashed rows for the same member before slicing Top N", async () => {
+    mocks.base44Json.mockResolvedValue([
+      { member_id: "m1", member_name: "Alpha", score: 9_000_000 },
+      { member_id: "m1", member_name: "Alpha", score: 8_900_000 },
+      { member_id: "m2", member_name: "Beta", score: 8_500_000 },
+      { member_id: "m3", member_name: "Gamma", score: 8_000_000 },
+    ]);
+
+    const top = await fetchVsTopScorersForTrainDate(
+      CONNECTION,
+      "alliance-1",
+      "2026-07-09",
+      2,
+    );
+
+    expect(top).toEqual([
+      { memberId: "m1", memberName: "Alpha", priorDayVsScore: 9_000_000 },
+      { memberId: "m2", memberName: "Beta", priorDayVsScore: 8_500_000 },
+    ]);
+  });
+  
+  it("does not use Sunday weekly totals for Monday Top VS rolls", async () => {
+    mocks.base44Json.mockResolvedValue([
+      {
+        member_id: "m1",
+        member_name: "WeekWinner",
+        score: 80_000_000,
+        is_weekly: true,
+      },
+      {
+        member_id: "m2",
+        member_name: "AlsoWeekly",
+        score: 70_000_000,
+        isWeekly: true,
+      },
+    ]);
+
+    // 2026-07-13 is Monday → T−1 Sunday week-ending date.
+    const top = await fetchVsTopScorersForTrainDate(
+      CONNECTION,
+      "alliance-1",
+      "2026-07-13",
+      10,
+    );
+
+    expect(top).toEqual([]);
+    expect(mocks.base44Json).not.toHaveBeenCalled();
+  });
+
+  it("ignores weekly rows if Ashed is queried for a Sunday recorded_date", async () => {
+    mocks.base44Json.mockResolvedValue([
+      {
+        member_id: "m1",
+        member_name: "WeekWinner",
+        score: 80_000_000,
+        is_weekly: true,
+      },
+      {
+        member_id: "m2",
+        member_name: "DailyOnly",
+        score: 9_000_000,
+        is_weekly: false,
+      },
+    ]);
+
+    const top = await fetchVsTopScorersForRecordedDate(
+      CONNECTION,
+      "alliance-1",
+      "2026-07-12",
+      10,
+    );
+
+    expect(top).toEqual([
+      { memberId: "m2", memberName: "DailyOnly", priorDayVsScore: 9_000_000 },
+    ]);
+  });
+});
+
+describe("fetchAllianceVsTopScorersForTrainDate", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getAllianceById.mockResolvedValue({
+      ashedAllianceId: "ashed-1",
+      tag: "TAG",
+    });
+    mocks.getAllianceAshedCredential.mockResolvedValue({
+      encryptedToken: "enc",
+      appId: "app",
+      originUrl: "https://ashed.online",
+    });
+    mocks.decryptSecret.mockReturnValue("token");
+    mocks.listActiveAllianceMembersForPool.mockResolvedValue([
+      {
+        ashedMemberId: "m2",
+        currentName: "Beta",
+        allianceRank: 3,
+      },
+      {
+        ashedMemberId: "m3",
+        currentName: "Gamma",
+        allianceRank: 4,
+      },
+    ]);
+  });
+
+  it("excludes former / non-roster Ashed scorers and fills Top N from active members", async () => {
+    mocks.base44Json.mockResolvedValue([
+      { member_id: "m1", member_name: "Departed", score: 12_000_000 },
+      { member_id: "m2", member_name: "StaleName", score: 9_000_000 },
+      { member_id: "m3", member_name: "Gamma", score: 8_000_000 },
+      { member_id: "m4", member_name: "AlsoGone", score: 7_500_000 },
+    ]);
+
+    const top = await fetchAllianceVsTopScorersForTrainDate("hq-1", "2026-07-09", 2);
+
+    expect(mocks.listActiveAllianceMembersForPool).toHaveBeenCalledWith("hq-1");
+    expect(top).toEqual([
+      {
+        memberId: "m2",
+        memberName: "Beta",
+        allianceRank: 3,
+        priorDayVsScore: 9_000_000,
+      },
+      {
+        memberId: "m3",
+        memberName: "Gamma",
+        allianceRank: 4,
+        priorDayVsScore: 8_000_000,
+      },
     ]);
   });
 });

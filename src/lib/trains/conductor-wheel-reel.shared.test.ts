@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildConductorWheelReelSession,
+  buildShareViewportForWinner,
+  restingShareViewport,
   restingViewportNames,
+  seededShuffle,
   uniqueWheelCandidateNames,
 } from "@/lib/trains/conductor-wheel-reel.shared";
 
@@ -85,5 +88,118 @@ describe("buildConductorWheelReelSession", () => {
       const unique = new Set(visible);
       expect(unique.size).toBe(3);
     }
+  });
+});
+
+describe("restingShareViewport", () => {
+  it("returns five names with the winner centered when enough pool members exist", () => {
+    const candidates = Array.from({ length: 8 }, (_, i) => ({
+      memberId: String(i),
+      memberName: `Member${i}`,
+    }));
+    const winner = candidates[4]!;
+    const session = buildConductorWheelReelSession(candidates, winner);
+    const viewport = restingShareViewport(session);
+    expect(viewport.names).toHaveLength(5);
+    expect(viewport.names[viewport.winnerIndex]).toBe(winner.memberName);
+  });
+
+  it("adjusts winnerIndex when front-padding a short early-reel slice", () => {
+    const session = {
+      items: ["Alpha", "Winner", "Bravo"],
+      winnerIdx: 1,
+      fastEndY: 0,
+      targetY: 0,
+      key: "early",
+    };
+    const viewport = restingShareViewport(session);
+    expect(viewport.names).toHaveLength(5);
+    expect(viewport.names[viewport.winnerIndex]).toBe("Winner");
+    expect(viewport.winnerIndex).toBe(2);
+  });
+});
+
+describe("buildShareViewportForWinner", () => {
+  it("centers the winner and fills surrounding slots from candidates", () => {
+    const winner = { memberId: "w", memberName: "Winner" };
+    const candidates = [
+      { memberId: "a", memberName: "Alpha" },
+      { memberId: "b", memberName: "Bravo" },
+      winner,
+      { memberId: "c", memberName: "Charlie" },
+      { memberId: "d", memberName: "Delta" },
+    ];
+    const viewport = buildShareViewportForWinner(winner, candidates);
+    expect(viewport.names).toHaveLength(5);
+    expect(viewport.names[viewport.winnerIndex]).toBe("Winner");
+    expect(viewport.names.filter((name) => name === "Winner")).toHaveLength(1);
+  });
+
+  it("varies surrounding names by seed so different draws do not share one layout", () => {
+    const winner = { memberId: "w", memberName: "Winner" };
+    const candidates = [
+      winner,
+      ...Array.from({ length: 8 }, (_, i) => ({
+        memberId: `m${i}`,
+        memberName: `Member${i}`,
+      })),
+    ];
+    const a = buildShareViewportForWinner(winner, candidates, {
+      seed: "2026-07-29:w",
+    });
+    const b = buildShareViewportForWinner(winner, candidates, {
+      seed: "2026-07-30:w",
+    });
+    expect(a.names[a.winnerIndex]).toBe("Winner");
+    expect(b.names[b.winnerIndex]).toBe("Winner");
+    expect(a.names).not.toEqual(b.names);
+  });
+
+  it("is stable for the same seed", () => {
+    const winner = { memberId: "w", memberName: "Winner" };
+    const candidates = [
+      winner,
+      { memberId: "a", memberName: "Alpha" },
+      { memberId: "b", memberName: "Bravo" },
+      { memberId: "c", memberName: "Charlie" },
+      { memberId: "d", memberName: "Delta" },
+    ];
+    const first = buildShareViewportForWinner(winner, candidates, {
+      seed: "2026-07-29:w",
+    });
+    const second = buildShareViewportForWinner(winner, candidates, {
+      seed: "2026-07-29:w",
+    });
+    expect(second).toEqual(first);
+  });
+
+  it("pads when the roster is thin", () => {
+    const winner = { memberId: "w", memberName: "Solo" };
+    const viewport = buildShareViewportForWinner(winner, [winner]);
+    expect(viewport.names).toHaveLength(5);
+    expect(viewport.names[viewport.winnerIndex]).toBe("Solo");
+  });
+
+  it("keeps winnerIndex aligned when padding a one-alternate roster", () => {
+    const winner = { memberId: "w", memberName: "Winner" };
+    const viewport = buildShareViewportForWinner(winner, [
+      winner,
+      { memberId: "a", memberName: "Alpha" },
+    ]);
+    expect(viewport.names).toHaveLength(5);
+    expect(viewport.names[viewport.winnerIndex]).toBe("Winner");
+    expect(viewport.winnerIndex).toBe(2);
+  });
+});
+
+describe("seededShuffle", () => {
+  it("returns a permutation stable for the same seed", () => {
+    const input = ["a", "b", "c", "d", "e"];
+    expect(seededShuffle(input, "draw-1")).toEqual(
+      seededShuffle(input, "draw-1"),
+    );
+    expect(seededShuffle(input, "draw-2")).not.toEqual(
+      seededShuffle(input, "draw-1"),
+    );
   });
 });

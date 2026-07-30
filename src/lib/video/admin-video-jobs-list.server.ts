@@ -16,6 +16,7 @@ import {
   videoJobStoredAllianceIdIn,
 } from "@/lib/video/video-job-alliance.server";
 import { parseAdminVideoJobsStatusFilter } from "@/lib/video/admin-video-jobs-query.shared";
+import { omitVideoJobSessionIds } from "@/lib/video/video-job-session-redact.shared";
 
 export type AdminVideoJobsListQuery = {
   status: string | null;
@@ -183,7 +184,7 @@ async function expandUploadGroupSiblings<
 export async function listAdminVideoJobs(query: AdminVideoJobsListQuery) {
   const matched = await queryMatchedAdminVideoJobs(query);
   const withSiblings = await expandUploadGroupSiblings(matched, query);
-  return orderAdminVideoJobsForIndex(withSiblings);
+  return orderAdminVideoJobsForIndex(withSiblings).map(omitVideoJobSessionIds);
 }
 
 /**

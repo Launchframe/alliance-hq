@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import {
   buildLiveDepositFalloff,
   parseHorizonHoursParam,
+  parseInvestorFilterParam,
 } from "@/lib/banks/deposit-projections.server";
 import {
   requireBankAllianceContext,
@@ -28,11 +29,15 @@ export async function GET(request: Request, context: RouteContext) {
   const horizonHours = parseHorizonHoursParam(
     url.searchParams.get("horizonHours"),
   );
+  const investorFilter = parseInvestorFilterParam(
+    url.searchParams.get("investorFilter"),
+  );
 
   try {
     const points = await buildLiveDepositFalloff(auth.allianceId, {
       bankId,
       horizonHours,
+      investorFilter,
     });
     return NextResponse.json({ points });
   } catch (error) {

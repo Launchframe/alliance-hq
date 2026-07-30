@@ -48,7 +48,9 @@ export async function POST(request: Request) {
     const record = await getConductorRecord(ctx.allianceId, date);
     const stats =
       result.memberId && role === "conductor"
-        ? await getConductorStats(ctx.allianceId, result.memberId)
+        ? await getConductorStats(ctx.allianceId, result.memberId, {
+            beforeDate: date,
+          })
         : null;
 
     return NextResponse.json({ result, record, stats });

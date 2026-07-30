@@ -40,6 +40,7 @@ export type RosterVideoReviewRow = {
   memberName: string | null;
   matchConfidence: number | null;
   matchMethod?: string | null;
+  dedupeClusterId?: string | null;
   deleted: number;
 };
 
@@ -115,6 +116,57 @@ export function RosterVideoReviewTable({
     () => findDuplicateOcrNameRowIds(activeRows),
     [activeRows],
   );
+
+  // Near-miss OCR name variants from neighboring frames share a
+  // dedupeClusterId (see roster-frame-dedupe.shared.ts). A cluster is
+  // unresolved while two or more of its rows are still live.
+  const flaggedClusterGroups = useMemo(() => {
+    const byCluster = new Map<string, RosterVideoReviewRow[]>();
+    for (const row of activeRows) {
+      const clusterId = row.dedupeClusterId;
+      if (!clusterId) continue;
+      const bucket = byCluster.get(clusterId) ?? [];
+      bucket.push(row);
+      byCluster.set(clusterId, bucket);
+    }
+    return [...byCluster.entries()]
+      .filter(([, liveRows]) => liveRows.length >= 2)
+      .map(([clusterId, liveRows]) => ({ clusterId, liveRows }));
+  }, [activeRows]);
+
+  const flaggedRowIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const group of flaggedClusterGroups) {
+      for (const row of group.liveRows) ids.add(row.id);
+    }
+    return ids;
+  }, [flaggedClusterGroups]);
+
+  // Hygiene: once a cluster collapses to a single live row, clear its flag.
+  useEffect(() => {
+    const byCluster = new Map<string, string[]>();
+    for (const row of activeRows) {
+      if (!row.dedupeClusterId) continue;
+      const ids = byCluster.get(row.dedupeClusterId) ?? [];
+      ids.push(row.id);
+      byCluster.set(row.dedupeClusterId, ids);
+    }
+    for (const ids of byCluster.values()) {
+      if (ids.length === 1) {
+        onUpdateRow(ids[0]!, { dedupeClusterId: null });
+      }
+    }
+  }, [activeRows, onUpdateRow]);
+
+  function handleKeepClusterRow(
+    group: { liveRows: RosterVideoReviewRow[] },
+    keepRowId: string,
+  ) {
+    for (const row of group.liveRows) {
+      if (row.id !== keepRowId) onDeleteRow(row.id);
+    }
+    onUpdateRow(keepRowId, { dedupeClusterId: null });
+  }
 
   const existingForQuota = useMemo(
     () =>
@@ -198,6 +250,64 @@ export function RosterVideoReviewTable({
 
   return (
     <div className="space-y-4">
+      {flaggedClusterGroups.length > 0 ? (
+        <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
+          <p className="font-medium">
+            {t("rosterDedupeFlaggedTitle", {
+              count: flaggedClusterGroups.length,
+            })}
+          </p>
+          <p className="mt-2 text-hq-fg">{t("rosterDedupeFlaggedHint")}</p>
+          <ul className="mt-3 space-y-3">
+            {flaggedClusterGroups.map((group) => (
+              <li
+                key={group.clusterId}
+                className="rounded-lg border border-hq-border bg-hq-canvas p-3"
+              >
+                <p className="text-xs font-medium uppercase tracking-wide text-hq-danger">
+                  {t("rosterDedupeFlaggedReason")}
+                </p>
+                <ul className="mt-2 space-y-2">
+                  {group.liveRows.map((row) => (
+                    <li
+                      key={row.id}
+                      className="flex flex-wrap items-center justify-between gap-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="break-words font-medium text-hq-fg">
+                          {row.ocrName}
+                        </p>
+                        <p className="text-xs text-hq-fg-muted">
+                          {[
+                            row.allianceRank != null
+                              ? `R${row.allianceRank}`
+                              : null,
+                            row.heroPowerM != null
+                              ? `${row.heroPowerM}M`
+                              : null,
+                            row.memberLevel != null
+                              ? `Lv.${row.memberLevel}`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || "—"}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleKeepClusterRow(group, row.id)}
+                        className="whitespace-nowrap rounded-md border border-hq-border px-2 py-1 text-xs text-hq-fg hover:bg-hq-surface-muted"
+                      >
+                        {t("rosterDedupeKeepThisOne")}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <div className="rounded-xl border border-hq-border bg-hq-surface p-4 text-sm">
         <p className="font-medium text-hq-fg">{t("rosterQuotaTitle")}</p>
         <p className="mt-2 text-hq-fg-muted">
@@ -236,9 +346,10 @@ export function RosterVideoReviewTable({
           <thead className="bg-hq-surface text-left text-hq-fg-muted">
             <tr>
               <th className="w-[22%] px-3 py-3 sm:px-4">{t("colName")}</th>
-              <th className="w-[34%] px-3 py-3 sm:px-4">{t("colMember")}</th>
+              <th className="w-[30%] px-3 py-3 sm:px-4">{t("colMember")}</th>
               <th className="w-[5.5rem] px-2 py-3 sm:w-24">{t("colAllianceRank")}</th>
               <th className="w-[5.5rem] px-2 py-3 sm:w-28">{t("colPower")}</th>
+              <th className="w-[4.5rem] px-2 py-3 sm:w-24">{t("colLevel")}</th>
               <th className="w-[4.5rem] px-2 py-3" />
             </tr>
           </thead>
@@ -290,6 +401,11 @@ export function RosterVideoReviewTable({
                     {isDuplicateName ? (
                       <p className="mt-1 text-xs text-hq-danger">
                         {t("duplicateOcrNameRow")}
+                      </p>
+                    ) : null}
+                    {flaggedRowIds.has(row.id) ? (
+                      <p className="mt-1 text-xs text-[#d29922]">
+                        {t("rosterDedupeFlaggedRow")}
                       </p>
                     ) : null}
                   </td>
@@ -370,6 +486,24 @@ export function RosterVideoReviewTable({
                     />
                   </td>
                   <td className="px-2 py-3">
+                    <input
+                      type="number"
+                      step={1}
+                      min={1}
+                      className="w-full max-w-[4.5rem] rounded border border-hq-border bg-hq-canvas px-2 py-1.5"
+                      value={row.memberLevel ?? ""}
+                      placeholder="—"
+                      onChange={(e) =>
+                        onUpdateRow(row.id, {
+                          memberLevel: e.target.value
+                            ? Number(e.target.value)
+                            : null,
+                        })
+                      }
+                      aria-label={t("colLevel")}
+                    />
+                  </td>
+                  <td className="px-2 py-3">
                     <div className="flex items-center justify-end gap-1">
                       {canPreview && onPreviewFrame ? (
                         <button
@@ -403,8 +537,16 @@ export function RosterVideoReviewTable({
   );
 }
 
-export function useRosterReviewValidation(rows: RosterVideoReviewRow[]) {
+export function useRosterReviewValidation(
+  rows: RosterVideoReviewRow[],
+  options?: { existingMemberCount?: number },
+) {
   const activeRows = rows.filter((row) => row.deleted !== 1);
+  const existingMemberCount = options?.existingMemberCount;
+  const mismatchOptions =
+    existingMemberCount !== undefined
+      ? { existingMemberCount }
+      : undefined;
 
   const duplicateMemberIssues = useMemo(
     () =>
@@ -430,8 +572,14 @@ export function useRosterReviewValidation(rows: RosterVideoReviewRow[]) {
   );
 
   const unmatchedRowIds = useMemo(
-    () => findUnmatchedRosterRowIds(activeRows),
-    [activeRows],
+    () =>
+      findUnmatchedRosterRowIds(
+        activeRows,
+        existingMemberCount !== undefined
+          ? { existingMemberCount }
+          : undefined,
+      ),
+    [activeRows, existingMemberCount],
   );
 
   return {
@@ -442,6 +590,8 @@ export function useRosterReviewValidation(rows: RosterVideoReviewRow[]) {
     hasDuplicateMembers: duplicateMemberIssues.length > 0,
     hasDuplicateOcrNames: duplicateOcrNameRowIds.size > 0,
     hasUnresolvedNameMismatches: unmatchedRowIds.size > 0,
-    isRosterRowNameMismatch,
+    isRosterRowNameMismatch: (
+      row: Parameters<typeof isRosterRowNameMismatch>[0],
+    ) => isRosterRowNameMismatch(row, mismatchOptions),
   };
 }

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 type PageProps = {
   params: Promise<{ code: string; locale: string }>;
-  searchParams: Promise<{ go?: string }>;
+  searchParams: Promise<{ go?: string; launchError?: string }>;
 };
 
 export async function generateMetadata({ params }: PageProps) {
@@ -42,6 +42,7 @@ export default async function StoreTipPublicPage({ params, searchParams }: PageP
       displayName={tip.displayName}
       allianceTag={tip.allianceTag}
       autoOpen={sp.go === "1"}
+      launchFailed={Boolean(sp.launchError?.trim())}
     />
   );
 }

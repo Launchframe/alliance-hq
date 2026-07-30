@@ -27,37 +27,37 @@ describe("train-conductor-minimums", () => {
     expect(poolTypeRespectsConductorMinimums("all_members")).toBe(false);
   });
 
-  it("conductorQualificationGateApplies only when minimums and VS prerequisites are satisfied", () => {
+  it("conductorQualificationGateApplies for R3/heavy-hitter when minimums enabled", () => {
     expect(
       conductorQualificationGateApplies({
         poolType: "r4_plus",
         minimumsEnabled: true,
-        vsDataRequired: true,
-        vsDataReady: true,
+      }),
+    ).toBe(false);
+    expect(
+      conductorQualificationGateApplies({
+        poolType: "r3",
+        minimumsEnabled: false,
       }),
     ).toBe(false);
     expect(
       conductorQualificationGateApplies({
         poolType: "r3",
         minimumsEnabled: true,
-        vsDataRequired: true,
-        vsDataReady: false,
       }),
-    ).toBe(false);
+    ).toBe(true);
+    expect(
+      conductorQualificationGateApplies({
+        poolType: "heavy_hitter",
+        minimumsEnabled: true,
+      }),
+    ).toBe(true);
+    // Season HQ VR minimums apply even when prior-day VS is not required
+    // (e.g. Monday / economy week with Sunday break).
     expect(
       conductorQualificationGateApplies({
         poolType: "r3",
         minimumsEnabled: true,
-        vsDataRequired: false,
-        vsDataReady: false,
-      }),
-    ).toBe(false);
-    expect(
-      conductorQualificationGateApplies({
-        poolType: "r3",
-        minimumsEnabled: true,
-        vsDataRequired: true,
-        vsDataReady: true,
       }),
     ).toBe(true);
   });

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import {
   buildLiveDepositFalloff,
   parseHorizonHoursParam,
+  parseInvestorFilterParam,
 } from "@/lib/banks/deposit-projections.server";
 import {
   requireBankAllianceContext,
@@ -11,7 +12,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-/** Alliance-wide live deposit falloff series. */
+/** Live deposit falloff for all bank strongholds in the session alliance. */
 export async function GET(request: Request) {
   const auth = await requireBankAllianceContext();
   if ("error" in auth && auth.error) {
@@ -25,10 +26,14 @@ export async function GET(request: Request) {
   const horizonHours = parseHorizonHoursParam(
     url.searchParams.get("horizonHours"),
   );
+  const investorFilter = parseInvestorFilterParam(
+    url.searchParams.get("investorFilter"),
+  );
 
   try {
     const points = await buildLiveDepositFalloff(auth.allianceId, {
       horizonHours,
+      investorFilter,
     });
     return NextResponse.json({ points });
   } catch (error) {

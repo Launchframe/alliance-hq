@@ -27,6 +27,7 @@ import {
 import { ensureDiscordMemberLinksFromHq } from "@/lib/member-link/inherit-hq-to-discord.server";
 import { tryPreApprovedMemberLink } from "@/lib/member-link/preapproved-link.server";
 import { createDiscordRosterMissLinkRequest } from "@/lib/member-link/roster-link-request.server";
+import { resolveMemberLinkServerEligibilityForUid } from "@/lib/member-link/server-eligibility.server";
 import { trySelfServiceMemberLink } from "@/lib/member-link/self-service-onboarding.server";
 import {
   loadAllianceMembersForBot,
@@ -321,9 +322,16 @@ async function finalizeDiscordMemberLink(input: {
     gameUserName,
   };
 
+  // Exact roster match from processLinkCommand — must gate before persist so a
+  // same-name commander on another server cannot skip confirm_home / wrong_server
+  // (and cannot sole-R5 native-owner claim via maybeClaimNativeOwnerFromDiscordLink).
+  const exactMatchLinkTarget = Boolean(
+    "linkTarget" in resolvedResult && resolvedResult.linkTarget,
+  );
+
   // Already linked on HQ web, or accepted a commander claim invite: do not send
   // officers through roster-link approval again.
-  if (!("linkTarget" in resolvedResult && resolvedResult.linkTarget)) {
+  if (!exactMatchLinkTarget) {
     const hqLink = await getDiscordHqLink(input.discordUserId);
     if (hqLink?.hqUserId) {
       const preapproved = await tryPreApprovedMemberLink({
@@ -365,6 +373,75 @@ async function finalizeDiscordMemberLink(input: {
   }
 
   if ("linkTarget" in resolvedResult && resolvedResult.linkTarget) {
+    if (exactMatchLinkTarget) {
+      const serverEligibility = await resolveMemberLinkServerEligibilityForUid({
+        allianceId: input.allianceId,
+        gameUid: uid,
+        lookupServer: input.lookup.gameServerNumber,
+        allianceHomeConfirmed: input.allianceHomeConfirmed,
+        userClaimedLookupAsHome: input.userClaimedLookupAsHome,
+      });
+      if (serverEligibility.kind === "confirm_home") {
+        const confirmPending: LinkPendingState = {
+          kind: "link_confirm_home_server",
+          gameUid: uid,
+          gameUserName: input.lookup.gameUserName,
+          lookupServer: serverEligibility.lookupServer,
+          allianceServer: serverEligibility.allianceServer,
+          ...(input.lookup.gameUserLevel != null
+            ? { gameUserLevel: input.lookup.gameUserLevel }
+            : {}),
+          ...(input.replaceAll ? { replaceAll: true } : {}),
+        };
+        await saveDiscordBotPending(
+          input.allianceId,
+          input.discordUserId,
+          confirmPending,
+        );
+        const result: LinkCommandResult = {
+          reply: translate("confirmHomeServerPrompt", {
+            commanderName: input.lookup.gameUserName,
+            lookupServer: serverEligibility.lookupServer,
+            allianceTag: alliance?.tag ?? "alliance",
+            allianceServer: serverEligibility.allianceServer,
+          }),
+          pending: confirmPending,
+          needsHomeServerConfirmation: true,
+        };
+        await audit(
+          input.allianceId,
+          input.discordUserId,
+          input.auditAction ?? "link",
+          input,
+          { ...result, diagnostics: linkDiagnostics },
+        );
+        return result;
+      }
+      if (serverEligibility.kind === "rejected") {
+        await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+        const rejected: LinkCommandResult =
+          serverEligibility.reason === "user_claimed_lookup_home"
+            ? {
+                reply: translate("positionNotHomeBody"),
+                pending: null,
+                positionNotHome: true,
+              }
+            : {
+                reply: translate("helpTopics.wrongServer.body"),
+                pending: null,
+                wrongServer: true,
+              };
+        await audit(
+          input.allianceId,
+          input.discordUserId,
+          input.auditAction ?? "link",
+          input,
+          { ...rejected, diagnostics: linkDiagnostics },
+        );
+        return rejected;
+      }
+    }
+
     const persisted = await persistLinkTarget({
       allianceId: input.allianceId,
       discordUserId: input.discordUserId,
@@ -522,7 +599,7 @@ async function finalizeDiscordMemberLink(input: {
         confirmPending,
       );
       const result: LinkCommandResult = {
-        reply: translate("confirmHomeServerPrompt", {
+        reply: translate("link.confirmHomeServerPrompt", {
           commanderName: selfService.commanderName ?? input.lookup.gameUserName,
           lookupServer: selfService.lookupServer ?? 0,
           allianceTag: alliance?.tag ?? "alliance",
@@ -549,7 +626,7 @@ async function finalizeDiscordMemberLink(input: {
       await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
       resolvedResult = {
         ...resolvedResult,
-        reply: translate("positionNotHomeBody"),
+        reply: translate("link.positionNotHomeBody"),
         pending: null,
         needsOfficerAttention: false,
         positionNotHome: true,
@@ -617,7 +694,7 @@ async function finalizeDiscordMemberLink(input: {
       finalRosterMembers,
       gameUserName,
     );
-    const requestId = await createDiscordRosterMissLinkRequest({
+    const rosterMiss = await createDiscordRosterMissLinkRequest({
       allianceId: input.allianceId,
       allianceTag: alliance?.tag ?? "alliance",
       discordUserId: input.discordUserId,
@@ -631,8 +708,98 @@ async function finalizeDiscordMemberLink(input: {
       suggestedTargetAshedMemberId: suggestion?.ashedMemberId ?? null,
       suggestionMethod: suggestion?.method ?? null,
       suggestedMatchedRosterName: suggestion?.matchedRosterName ?? null,
+      allianceHomeConfirmed: input.allianceHomeConfirmed,
+      userClaimedLookupAsHome: input.userClaimedLookupAsHome,
     });
-    if (requestId) {
+
+    if (rosterMiss.status === "confirm_home") {
+      const confirmPending: LinkPendingState = {
+        kind: "link_confirm_home_server",
+        gameUid: uid,
+        gameUserName: input.lookup.gameUserName,
+        lookupServer: rosterMiss.lookupServer,
+        allianceServer: rosterMiss.allianceServer,
+        ...(input.lookup.gameUserLevel != null
+          ? { gameUserLevel: input.lookup.gameUserLevel }
+          : {}),
+        ...(input.replaceAll ? { replaceAll: true } : {}),
+      };
+      await saveDiscordBotPending(
+        input.allianceId,
+        input.discordUserId,
+        confirmPending,
+      );
+      const result: LinkCommandResult = {
+        reply: translate("confirmHomeServerPrompt", {
+          commanderName: input.lookup.gameUserName,
+          lookupServer: rosterMiss.lookupServer,
+          allianceTag: alliance?.tag ?? "alliance",
+          allianceServer: rosterMiss.allianceServer,
+        }),
+        pending: confirmPending,
+        needsHomeServerConfirmation: true,
+      };
+      await audit(
+        input.allianceId,
+        input.discordUserId,
+        input.auditAction ?? "link",
+        input,
+        {
+          ...result,
+          selfService: false,
+          diagnostics: linkDiagnostics,
+        },
+      );
+      return result;
+    }
+
+    if (rosterMiss.status === "position_not_home") {
+      await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+      resolvedResult = {
+        ...resolvedResult,
+        reply: translate("positionNotHomeBody"),
+        pending: null,
+        needsOfficerAttention: false,
+        positionNotHome: true,
+      };
+      await audit(
+        input.allianceId,
+        input.discordUserId,
+        input.auditAction ?? "link",
+        input,
+        {
+          ...resolvedResult,
+          selfService: false,
+          diagnostics: linkDiagnostics,
+        },
+      );
+      return resolvedResult;
+    }
+
+    if (rosterMiss.status === "wrong_server") {
+      await saveDiscordBotPending(input.allianceId, input.discordUserId, null);
+      resolvedResult = {
+        ...resolvedResult,
+        reply: translate("helpTopics.wrongServer.body"),
+        pending: null,
+        needsOfficerAttention: false,
+        wrongServer: true,
+      };
+      await audit(
+        input.allianceId,
+        input.discordUserId,
+        input.auditAction ?? "link",
+        input,
+        {
+          ...resolvedResult,
+          selfService: false,
+          diagnostics: linkDiagnostics,
+        },
+      );
+      return resolvedResult;
+    }
+
+    if (rosterMiss.status === "created") {
       rosterLinkRequestCreated = true;
       const rosterFull = selfService.reason === "roster_full";
       resolvedResult = {

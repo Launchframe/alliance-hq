@@ -4,12 +4,10 @@ import type { DiscordBotLocale } from "@/lib/discord/i18n";
 import { buildDiscordBotAppUrl } from "@/lib/discord/app-url.shared";
 import { postDiscordChannelMessage } from "@/lib/discord/post-message.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
-import { getMemberRankAsOf } from "@/lib/trains/rank-history";
 import {
   getConductorRecord,
   lockConductorRecord,
   markConductorDepartingSoonAnnounced,
-  upsertConductorDraft,
 } from "@/lib/trains/repository";
 import { getServerCalendarDate, refreshExhaustedPoolsForDay } from "@/lib/trains/service";
 import {
@@ -170,31 +168,12 @@ export async function draftConductorForAlliance(input: {
   memberId: string;
   memberName: string;
 }): Promise<(typeof import("@/lib/db/schema").trainConductorRecords.$inferSelect)> {
-  const seasonKey = (await getEffectiveSeasonForAlliance(input.allianceId))
-    .seasonKey;
-  const existing = await getConductorRecord(
-    input.allianceId,
-    input.date,
-    seasonKey,
+  // Same depleting-pool consume / gates as HQ web manual pick.
+  // Dynamic import avoids a cycle: service ↔ discord-bot.server.
+  const { applyManualConductorDraft } = await import(
+    "@/lib/trains/manual-conductor-draft.server"
   );
-  if (existing?.lockedAt) {
-    throw new Error("Conductor is already locked for this day.");
-  }
-
-  const rankEvent = await getMemberRankAsOf(
-    input.allianceId,
-    input.memberId,
-    input.date,
-  );
-
-  return upsertConductorDraft({
-    allianceId: input.allianceId,
-    date: input.date,
-    seasonKey,
-    conductorMemberId: input.memberId,
-    conductorMemberName: input.memberName,
-    conductorRankEventId: rankEvent?.id ?? null,
-  });
+  return applyManualConductorDraft(input);
 }
 
 export async function processDepartingSoonReminders(): Promise<{

@@ -1437,6 +1437,9 @@
     "connectPrompt": "Conecte sua conta Ashed →",
     "openMenu": "Abrir menu de navegação",
     "closeMenu": "Fechar menu de navegação",
+    "appearanceLabel": "Tema de cores",
+    "appearanceLight": "Claro",
+    "appearanceDark": "Escuro",
     "version": "v{version}",
     "profileMenu": {
       "openMenu": "Abrir menu do perfil",
@@ -1522,6 +1525,7 @@
         "myKills": "Ir para Meus Kills",
         "professions": "Ir para Profissão",
         "trains": "Ir para Trem da Aliança",
+        "trainsHistoryImport": "Importar histórico de condutores",
         "battlePlan": "Ir para Plano de Batalha",
         "timeOff": "Ir para Ausências",
         "bankManagement": "Ir para Gestão de Bancos",
@@ -2103,6 +2107,7 @@
       "takedownLabel": "Equipe takedown (tickets máximos)",
       "takedownHint": "Membros que continuam elegíveis mesmo acima da faixa de economia e sempre recebem o máximo de tickets no modo rifa — assim podem subir bem além de 7,2M sem perder acesso ao sorteio de condutor. Nos sábados do Price Is Freight, a loteria do condutor sorteia só desta lista (chance igual).",
       "takedownSearchPlaceholder": "Buscar no roster para adicionar membros…",
+      "takedownRemoveMember": "Remover {name} da equipe takedown",
       "takedownEmpty": "Nenhum membro correspondente no roster.",
       "chartCaption": "Curva de tickets e chance de vitória para o cliff configurado. Os pontos mostram as pontuações R3 do dia anterior (se disponíveis).",
       "chartCaptionUniform": "Chance igual para pontuações na faixa de economia. Membros da equipe takedown seguem elegíveis acima do teto. Os pontos mostram as pontuações R3 do dia anterior (se disponíveis).",
@@ -3209,7 +3214,8 @@
     "dayTemplateMenu": {
       "title": "Alterar modelo do dia",
       "ariaLabel": "Escolher um modelo para {date}",
-      "holdHint": "Pressione longamente um dia para alterar o modelo desse dia."
+      "holdHint": "Pressione longamente um dia para alterar o modelo desse dia.",
+      "dialogSubtitle": "Isso altera apenas a escolha de hoje — o modelo da semana permanece o mesmo."
     },
     "weekdays": {
       "mon": "Seg",
@@ -3390,7 +3396,7 @@
           "pickManual": "Escolher VIP manualmente",
           "assigned": "VIP: {name}",
           "change": "Alterar",
-          "skipped": "VIP não é usado neste dia"
+          "skipped": "Deixar o condutor decidir"
         },
         "lock": {
           "title": "Confirmar",
@@ -3437,13 +3443,10 @@
       "spinForWeek": "Sortear a semana",
       "spinningProgress": "Sorteando a semana…",
       "rollFailed": "Não foi possível sortear o Condutor.",
-      "lockFailed": "Não foi possível confirmar os Condutores.",
       "disqualifiedExhausted": "Não encontramos um Condutor qualificado após várias tentativas. Tente de novo ou escolha manualmente.",
-      "confirmTitle": "Confirmar Condutores da semana?",
-      "confirmBody": "Revise {count} Condutores sorteados do pool. Confirmar cria trens vazios para cada dia.",
-      "confirmLockAll": "Confirmar e travar todos",
-      "confirmLocking": "Travando…",
-      "confirmCancel": "Manter como rascunho",
+      "confirmTitle": "Condutores da semana prontos",
+      "confirmBody": "Revise {count} Condutores sorteados do pool. Eles ficam como rascunho até você confirmar cada dia quando o trem for definido no jogo.",
+      "confirmDone": "Concluir",
       "disabledReason": {
         "pastWeek": "Esta semana de trem já passou por completo.",
         "noEligibleDays": "Não há dias restantes nesta semana que precisem de sorteio na roleta."
@@ -3462,15 +3465,17 @@
       "stepViewToggle": "Alterne entre visão semanal e mensal. A visão mensal é ideal para pintar modelos com antecedência.",
       "stepConductorCard": "O card do Condutor mostra VIP, guardião e status de confirmação. Confirmar cria o trem daquele dia.",
       "stepQuickActions": "Sorteie ou gire a roleta, escolha o maior pontuador ou selecione alguém manualmente nas ações rápidas.",
-      "stepSpinWeek": "Sortear a Semana sorteia e confirma todos os dias elegíveis restantes de uma vez."
+      "stepSpinWeek": "Sortear a Semana sorteia todos os dias elegíveis restantes de uma vez. Confirme cada dia separadamente quando o trem for definido no jogo."
     },
     "swap": {
       "action": "Trocar / Dia de reposição",
       "title": "Trocar Condutores",
-      "body": "Mova um rascunho de Condutor destravado para outro dia ou troque entre dois dias destravados — útil para dias de reposição. Os dias de destino atribuídos serão confirmados após você confirmar.",
+      "body": "Mova um rascunho de Condutor destravado para outro dia ou troque entre dois dias destravados — útil para dias de reposição. Você pode escolher um dia próximo ou qualquer data futura. Os dias ficam destravados até você confirmá-los quando o trem for definido no jogo.",
       "thisDay": "Este dia",
-      "swapWith": "Trocar com",
-      "noCandidates": "Não há outros dias nesta semana para trocar.",
+      "swapWith": "Próximos dias",
+      "pickDate": "Ou escolha uma data",
+      "dateLabel": "Data futura",
+      "noCandidates": "Nenhuma sugestão rápida disponível. Use o seletor de data abaixo.",
       "noConductorYet": "Sem Condutor ainda",
       "preview": "{dayA}: {nameA} ↔ {dayB}: {nameB}",
       "previewMoveToOpen": "{nameA} vai para {dayB}. {dayA} ficará sem Condutor.",
@@ -3630,6 +3635,50 @@
       "vip": "VIP",
       "locked": "Confirmado"
     },
+    "historyImport": {
+      "title": "Importar histórico de condutores",
+      "pasteLabel": "Cole os condutores (mais recente primeiro)",
+      "pasteHint": "Um nome por linha. Datas opcionais como “Redd (July 26)”. Ou cole só os nomes e defina a data mais recente abaixo — os dias mais antigos são preenchidos pela quantidade de nomes.",
+      "poolNote": "Importar um membro não o remove de nenhum pool de loteria.",
+      "pasteEmpty": "Cole pelo menos um nome de condutor.",
+      "firstDate": "Data mais recente",
+      "lastDate": "Data mais antiga (opcional)",
+      "reviewTitle": "Revisar correspondências",
+      "reviewing": "Preparando revisão…",
+      "colDate": "Data",
+      "colPastedName": "Nome colado",
+      "colMember": "Membro correspondente",
+      "colStatus": "Status",
+      "status": {
+        "ok": "Pronto para confirmar",
+        "inactiveMember": "Correspondido a um membro inativo",
+        "alreadyLocked": "Já confirmado (mesmo condutor)",
+        "conflictLocked": "Confirmado com outro condutor",
+        "unmatched": "Escolha um membro da lista",
+        "overwriteDraft": "Vai substituir o rascunho desbloqueado",
+        "notPast": "Tem que ser um dia passado",
+        "gap": "Lacuna ou conflito de datas",
+        "dateConflict": "Rotulado {date}",
+        "blank": "Dia desconhecido / faltante (não importado)"
+      },
+      "gapBanner": "Uma ou mais datas rotuladas não batem com a ordem da lista. Insira linhas em branco antes de cada linha sinalizada para reconhecer condutores faltantes (o correio de Evento no jogo só fica ~30 dias) e continue.",
+      "blankName": "(desconhecido)",
+      "fillGap": "Preencher lacuna",
+      "inactiveOptionSuffix": "(inativo)",
+      "colActions": "Ações",
+      "commit": "Confirmar dias importados",
+      "commitPartial": "Confirmar {count} dias prontos",
+      "committing": "Importando…",
+      "commitFailed": "Não foi possível importar o histórico de condutores.",
+      "lookupFailed": "Não foi possível carregar os dias de condutor existentes.",
+      "success": "Importados {imported}, ignorados {skipped}, conflitos {conflicts}",
+      "openAction": "Importar histórico",
+      "emptyCta": "Importar condutores passados",
+      "pageTitle": "Importar histórico de condutores",
+      "backToTrains": "Voltar aos Trens",
+      "cancel": "Cancelar",
+      "back": "Voltar"
+    },
     "wheelBlocked": {
       "title": "Não dá para girar a roleta",
       "poolEmptyR3": "Nenhum membro da sua lista está com rank R3, então o pool da loteria está vazio. Defina ranks R3 na página Membros e tente de novo.",
@@ -3771,6 +3820,22 @@
         "top10Title": "Top 10 Pontuações VS",
         "topNVsTitle": "Top {count} Pontuações VS",
         "topNVrTitle": "Top {count} Pontuações VR"
+      },
+      "share": {
+        "action": "Compartilhar imagem",
+        "exporting": "Preparando imagem…",
+        "failed": "Não foi possível exportar a imagem.",
+        "previewTitle": "Compartilhar imagem",
+        "copyMedia": "Copiar mídia",
+        "download": "Baixar",
+        "copied": "Copiado",
+        "copyFailed": "Não foi possível copiar a imagem.",
+        "closePreview": "Fechar",
+        "statsLine": "Último: {lastDate} · {count} este ano",
+        "eligibilityVsMinimum": "Elegível: {score} (mín. {minimum})",
+        "eligibilityTpif": "VS do dia anterior {score} — mais perto de {sweetSpot}",
+        "eligibilityVsLeaderboardRank": "#{rank} · {score} {suffix}",
+        "eligibilityVsLeaderboardScore": "{score} {suffix}"
       }
     },
     "season": {
@@ -3994,6 +4059,19 @@
     "depositSlipSubmitSuccess": "{count} comprovantes de depósito salvos em Bank Management.",
     "depositSlipSubmitAdded": "{count} novo(s) comprovante(s) de depósito adicionado(s) a este banco.",
     "depositSlipSubmitSkippedDuplicates": "{count} ignorado(s) por já coincidir com o histórico.",
+    "depositSlipReviewTitle": "Depósitos no banco",
+    "depositSlipHeroActive": "Depósitos ativos",
+    "depositSlipHeroMatured": "Depósitos maduros",
+    "depositSlipHeroLooted": "Depósitos saqueados",
+    "depositSlipHeroActiveVsGoal": "{known} / {goal}",
+    "depositSlipHeroCityListSnapshot": "Captura da City List: {time}",
+    "depositSlipHeroInVideo": "(+{count} neste vídeo)",
+    "depositSlipBankTargetMismatch": "Este vídeo foi enviado para o seu banco Nv.{level} em X:{x}, Y:{y}, mas o vídeo mostrou outro nível e/ou coordenadas. Qual devemos usar?",
+    "depositSlipBankTargetUseTargeted": "Usar banco alvo",
+    "depositSlipBankTargetUseVideo": "Usar coordenadas do vídeo",
+    "depositSlipScoreDefaultedWarning": "Não foi possível ler o CrystalGold. Foi aplicado o padrão de 6000.",
+    "depositSlipHistoryPreviewTitle": "{count, plural, one {# linha já coincide com o histórico salvo deste banco} other {# linhas já coincidem com o histórico salvo deste banco}}",
+    "depositSlipHistoryPreviewHint": "Ao salvar, linhas coincidentes serão ignoradas ou atualizadas em vez de adicionadas novamente.",
     "bankLabel": "Bank Stronghold",
     "bankPlaceholder": "Selecione o banco…",
     "bankContextMatched": "Banco #{server} (X:{x}, Y:{y}) detectado no vídeo e selecionado.",
@@ -4078,6 +4156,11 @@
     "rosterNameMismatchRosterName": "Roster mostra: {name}",
     "rosterNameMismatchClosest": "Correspondência mais próxima: {name}",
     "rosterNameMismatchBlocked": "{count, plural, one {# linha ainda precisa de um membro confirmado.} other {# linhas ainda precisam de membros confirmados.}}",
+    "rosterDedupeFlaggedTitle": "{count, plural, one {# possível nome duplicado precisa de revisão.} other {# possíveis nomes duplicados precisam de revisão.}}",
+    "rosterDedupeFlaggedHint": "O OCR leu esses nomes de forma ligeiramente diferente em quadros vizinhos do vídeo — provavelmente são o mesmo membro. Mantenha a grafia correta, ou mantenha ambos se realmente forem dois membros.",
+    "rosterDedupeFlaggedReason": "Nomes semelhantes em quadros vizinhos",
+    "rosterDedupeFlaggedRow": "Possível duplicata de outra linha — veja o aviso acima.",
+    "rosterDedupeKeepThisOne": "Manter esta, excluir as demais",
     "rosterQuotaTitle": "Limites de rank (após salvar)",
     "rosterQuotaSummary": "Projetado: R5 {r5} · R4 {r4}/{maxR4} · R3 {r3} · R2 {r2} · R1 {r1} · {total}/{maxMembers} membros",
     "rosterQuotaOk": "Contagens de rank dentro dos limites da aliança.",
@@ -4118,11 +4201,11 @@
     "depositSlipFlaggedTitle": "{count, plural, one {# agrupamento ainda precisa de revisão.} other {# agrupamentos ainda precisam de revisão.}}",
     "depositSlipFlaggedHint": "Revise ou exclua as linhas abaixo para que cada depósito apareça uma vez. Você ainda pode salvar quando todas as linhas estiverem completas.",
     "depositSlipStaleClusterNote": "O relatório salvo do agrupamento não corresponde mais a estes IDs de linha. As ações abaixo afetam apenas a tabela ao vivo.",
-    "depositSlipOverlappingLockedTitle": "Depósitos bloqueados sobrepostos",
-    "depositSlipOverlappingLockedHint": "Dois ou mais depósitos bloqueados do mesmo comandante têm prazos sobrepostos. O jogo só permite um depósito aberto por vez. Revise as linhas abaixo e exclua ou corrija qualquer erro. Você ainda pode salvar se tiver certeza de que os dados estão corretos.",
+    "depositSlipOverlappingLockedTitle": "Depósitos sobrepostos",
+    "depositSlipOverlappingLockedHint": "Dois ou mais depósitos Depositados do mesmo comandante têm prazos sobrepostos. O jogo só permite um depósito aberto por vez. Revise as linhas abaixo e exclua ou corrija qualquer erro. Você ainda pode salvar se tiver certeza de que os dados estão corretos.",
     "depositSlipOverlappingLockedGroup": "{commander} — {count, plural, one {# linha sobreposta} other {# linhas sobrepostas}}",
     "depositSlipWarningRowJump": "Ir para a linha",
-    "depositSlipOverlappingLockedConfirmTitle": "Salvar com depósitos bloqueados sobrepostos?",
+    "depositSlipOverlappingLockedConfirmTitle": "Salvar com depósitos Depositados sobrepostos?",
     "depositSlipOverlappingLockedConfirmSave": "Salvar mesmo assim",
     "depositSlipOverlappingLockedConfirmBack": "Voltar",
     "depositSlipReviewNavPrev": "Problema anterior",
@@ -4372,6 +4455,7 @@
       "netVs": "Pontuação VS líquida",
       "efficiency": "Eficiência",
       "noEngagement": "Sem engajamento",
+      "incompleteSnapshot": "Snapshot incompleto",
       "empty": "Ainda não há dados de instantâneo suficientes para ranquear os membros.",
       "vsUnavailable": "Pontuações VS de sábado indisponíveis no Ashed."
     }
@@ -4657,6 +4741,8 @@
       ],
       "linkedWithReview": "Linked commander **{name}** (verified with Last War). You're ready to use /vr. An officer may confirm your roster entry later — no action needed from you.",
       "linkedWithReviewNoHq": "Linked commander **{name}** (verified with Last War). You're ready to use /vr. An officer may confirm your roster entry later. Link an Alliance HQ account anytime for web features.",
+      "confirmHomeServerPrompt": "Seu Comandante está posicionado no servidor {lookupServer}, mas [{allianceTag}] joga no servidor {allianceServer}. Qual servidor {commanderName} chama de lar?",
+      "positionNotHomeBody": "Se este não for o servidor lar do seu Comandante, envie-o de volta no jogo (retorne de um evento cross-server ou território conquistado) e tente novamente.",
       "rosterFull": "Your alliance is full. Last War verified **{gameName}**, but we could not find **{gameName}** in your alliance and there is not enough room in your alliance for us to create a new member. An officer will review your link request."
     },
     "vr": {
@@ -4746,6 +4832,24 @@
     "setVrReportChannel": {
       "success": "O placar noturno de VR de **{tag}** será publicado em {channel}. Oficiais podem usar `/vr-report` a qualquer momento ou `/vr-report teams:N` para planos de takedown."
     },
+    "whoIs": {
+      "usage": "Uso: `/who-is discord:@membro` ou `/who-is commander:NomeDoComandante` (informe exatamente um).",
+      "notLinked": "Vincule seu comandante com `/link-commander` antes de usar `/who-is`.",
+      "discordNoCommander": "{mention} não tem comandante vinculado nesta aliança.",
+      "discordResult": "{mention} está vinculado a: **{commanders}**.",
+      "commanderNotFound": "Nenhuma correspondência no roster para **{name}**. Confira a grafia.",
+      "pickCommander": "Várias correspondências no roster. Seja mais específico ou escolha entre: {names}",
+      "pickExpired": "Essa opção expirou. Execute `/who-is` novamente para escolher um comandante.",
+      "commanderOwner": "**{name}** está vinculado a {mention} ({handle}).",
+      "commanderHqOnly": "**{name}** está vinculado no Alliance HQ, mas ainda não no Discord.",
+      "unclaimedMember": "**{name}** está no roster, mas não vinculado a nenhuma conta.",
+      "unclaimedOfficer": "**{name}** está no roster, mas não vinculado. Você pode criar um convite de claim de comandante.",
+      "createClaimInvite": "Criar convite de claim",
+      "claimInviteCreated": "Convite de claim para **{name}**:\n\nCódigo: `{code}`\n\n{shareMessage}",
+      "claimInviteDenied": "Apenas oficiais podem criar convites de claim de comandante.",
+      "claimInviteFailedCommanderNotFound": "Esse comandante não está no roster ativo.",
+      "claimInviteFailedCommanderAlreadyClaimed": "Esse comandante já está vinculado a uma conta."
+    },
     "timeOff": {
       "notLinked": "Vincule seu comandante com `/link-commander` antes de anunciar ausência.",
       "multipleCommanders": "Você tem vários comandantes vinculados ({names}). Desvincule extras com `/unlink` antes de anunciar ausência.",
@@ -4821,14 +4925,14 @@
     },
     "officerNotified": "Um oficial foi notificado no Alliance HQ. Eles podem falar com você aqui no Discord.",
     "help": {
-      "dmGeneral": "**Bot Alliance HQ** — use `/help` no servidor da aliança para passos conforme seu papel.\n\nComandos: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-vr-chart`, `/what-is-my-thp`, `/what-is-my-thp-chart`, `/who-is-conductor`, `/language`. Donos: `/link-alliance`. Oficiais (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Guia completo:** {guideUrl}",
+      "dmGeneral": "**Bot Alliance HQ** — use `/help` no servidor da aliança para passos conforme seu papel.\n\nComandos: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-vr-chart`, `/what-is-my-thp`, `/what-is-my-thp-chart`, `/who-is`, `/who-is-conductor`, `/language`. Donos: `/link-alliance`. Oficiais (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Guia completo:** {guideUrl}",
       "setupLinkHq": "Vincule sua conta Discord ao Alliance HQ: execute `/link` e conclua o login no navegador.",
       "setupOwnerLinkHq": "Este servidor ainda não está registrado. **R5:** abra o assistente de instalação no navegador (entrar, tag, Ashed, adicionar bot).\n\n**Assistente:** {installWizardUrl}\n\n**Guia:** {guideUrl}",
       "setupOwnerLinkCommander": "Registre este servidor com o assistente de instalação, depois execute **`/link-commander`**.\n\n**Assistente:** {installWizardUrl}\n\n**Guia:** {guideUrl}",
       "setupLinkAlliance": "Use o assistente de instalação para registrar este servidor, ou **`/link-alliance tag:{tag}`** se você já concluiu a configuração Ashed.\n\n**Assistente:** {installWizardUrl}\n\n**Guia:** {guideUrl}",
       "waitForOwnerAuth": "Aguardando o dono registrar este servidor com `/link-alliance`. Vincule seu comandante com `/link-commander` após o registro.",
       "linkCommander": "Vincule seu comandante: execute `/link-commander` no Discord, abra o link seguro e informe seu ID de jogador do perfil no jogo. Confirme o nome quando solicitado.\n\n**Guia:** {guideUrl}",
-      "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. `/who-is-conductor` mostra o condutor de hoje.\n\n**Guia:** {guideUrl}",
+      "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. `/who-is` consulta vínculos Discord↔comandante. `/who-is-conductor` mostra o condutor de hoje.\n\n**Guia:** {guideUrl}",
       "memberReadyMulti": "Você tem **{count}** comandantes vinculados. `/vr` e `/immunity` perguntarão qual usar. `/unlink` remove um vínculo.\n\n**Guia:** {guideUrl}",
       "ownerReady": "Você está vinculado como dono (**{tag}**). Conclua: `/set-vr-report-channel`, `/set-train-channel`, depois compartilhe `/link-commander` com os membros.\n\n**Guia:** {guideUrl}",
       "ownerReadyMulti": "Dono (**{tag}**) com **{count}** comandantes. `/vr` pergunta qual personagem. Canais: `/set-vr-report-channel`, `/set-train-channel`.\n\n**Guia:** {guideUrl}"
@@ -5271,18 +5375,18 @@
         "recordDepositVideo": {
           "title": "Grave e envie o vídeo de depósito",
           "summary": "Um único vídeo: abra Informações do Banco, passe por Favoritos (opcional) para coordenadas exatas, depois role o Histórico de Comprovantes de Depósito — a Sede lê os três.",
-          "instructions": "No Banco, dentro do jogo, grave um único vídeo passando por:\n\n1. Informações do Banco — abra o painel de informações do banco para que a Sede leia seu nível, tag da aliança dona, valor atual de depósito e capacidade de depósito.\n2. Favoritos (opcional, mas recomendado) — se o banco estiver marcado com estrela nos seus Favoritos, abra essa tela também. Favoritos mostra coordenadas X/Y exatas, que a Sede prioriza sobre outras fontes ao alinhar o banco.\n3. Histórico de Comprovantes de Depósito — role até o fim do histórico de comprovantes para que todo depósito bloqueado, maturado e saqueado apareça na tela.\n\nEnvie o vídeo em Ferramentas → Envio de vídeo, ou toque no ícone de vídeo ao lado de um banco na Gestão de Bancos para ir direto ao envio com esse banco já selecionado.\n\nO OCR da Sede lê os três tipos de tela no mesmo vídeo: Informações do Banco e Favoritos alimentam o contexto do banco (coordenadas, nível, tag da aliança, valor de depósito), enquanto o Histórico de Comprovantes de Depósito se transforma nas linhas de depósito que você vai revisar a seguir.",
+          "instructions": "No Banco, dentro do jogo, grave um único vídeo passando por:\n\n1. Informações do Banco — abra o painel de informações do banco para que a Sede leia seu nível, tag da aliança dona, valor atual de depósito e capacidade de depósito.\n2. Favoritos (opcional, mas recomendado) — se o banco estiver marcado com estrela nos seus Favoritos, abra essa tela também. Favoritos mostra coordenadas X/Y exatas, que a Sede prioriza sobre outras fontes ao alinhar o banco.\n3. Histórico de Comprovantes de Depósito — role até o fim do histórico de comprovantes para que todo depósito Depositado, Maturado e Saqueado apareça na tela.\n\nEnvie o vídeo em Ferramentas → Envio de vídeo, ou toque no ícone de vídeo ao lado de um banco na Gestão de Bancos para ir direto ao envio com esse banco já selecionado.\n\nO OCR da Sede lê os três tipos de tela no mesmo vídeo: Informações do Banco e Favoritos alimentam o contexto do banco (coordenadas, nível, tag da aliança, valor de depósito), enquanto o Histórico de Comprovantes de Depósito se transforma nas linhas de depósito que você vai revisar a seguir.",
           "tip": "Gravar Informações do Banco e Favoritos antes de rolar o histórico de depósitos dá à Sede a melhor chance de alinhar as coordenadas antes da revisão — mas a ordem não precisa ser exata."
         },
         "reviewAndCommit": {
           "title": "Revise e confirme o envio",
           "summary": "Confirme a qual banco os comprovantes pertencem, corrija leituras erradas do OCR e envie.",
-          "instructions": "Depois do processamento, abra a página de revisão do seu envio:\n\n1. Confirme se o seletor de Banco corresponde ao Banco que você gravou — a Sede pré-seleciona o banco usado mais recentemente, então confira, especialmente se você enviou vídeos de mais de um banco recentemente.\n2. Percorra cada linha de comprovante lida: prazo, valor, status (bloqueado/maturado/saqueado) e nome do comandante. Corrija o que o OCR leu errado — você pode pré-visualizar o quadro do vídeo de origem de qualquer linha.\n3. Envie quando tudo estiver correto. Os comprovantes confirmados se juntam à lista de depósitos daquele banco, e duplicatas de reenvios são removidas automaticamente.\n\nSe as coordenadas de um banco parecerem erradas, corrija-as na Gestão de Bancos antes de enviar, para que os próximos envios continuem se alinhando corretamente."
+          "instructions": "Depois do processamento, abra a página de revisão do seu envio:\n\n1. Confirme se o seletor de Banco corresponde ao Banco que você gravou — a Sede pré-seleciona o banco usado mais recentemente, então confira, especialmente se você enviou vídeos de mais de um banco recentemente.\n2. Percorra cada linha de comprovante lida: prazo, valor, status (Depositado/Maturado/Saqueado) e nome do comandante. Corrija o que o OCR leu errado — você pode pré-visualizar o quadro do vídeo de origem de qualquer linha.\n3. Envie quando tudo estiver correto. Os comprovantes confirmados se juntam à lista de depósitos daquele banco, e duplicatas de reenvios são removidas automaticamente.\n\nSe as coordenadas de um banco parecerem erradas, corrija-as na Gestão de Bancos antes de enviar, para que os próximos envios continuem se alinhando corretamente."
         },
         "ongoingOps": {
           "title": "Acompanhe os depósitos no dia a dia",
           "summary": "Use os filtros Ativos/Esgotados/Maturados/Saqueados, as estatísticas da aliança e o gráfico de queda para gerenciar um banco em operação.",
-          "instructions": "Depois que um banco tem comprovantes de depósito, a Gestão de Bancos oferece as ferramentas para operá-lo no dia a dia:\n\n• Filtros — alterne entre Ativos (bloqueados, ainda rendendo), Esgotados (prazo passou mas ainda não maturou no jogo), Maturados e Saqueados para ver exatamente a situação de cada depósito.\n• Estatísticas — Total depositado, Recuperado, Perdido em saque e Juros recebidos (depois de importar o histórico de comprovantes) resumem o desempenho do banco rapidamente.\n• Mapa de risco dos investidores — mostra quais das próximas 72 horas têm menos depósitos bloqueados em risco, para você saber quando é mais seguro abandonar.\n• Projeção de queda dos depósitos — projeta o valor bloqueado e a saída por maturidade ao longo do tempo; salve um instantâneo para comparar com o que realmente aconteceu.\n• Próximo abandono recomendado — a Sede destaca o banco de menor nível com menos valor em risco como o melhor candidato para abandonar.\n\nConfira regularmente — novos depósitos, depósitos maturando e a mudança de risco alteram a recomendação com o tempo."
+          "instructions": "Depois que um banco tem comprovantes de depósito, a Gestão de Bancos oferece as ferramentas para operá-lo no dia a dia:\n\n• Filtros — alterne entre Ativos (Depositados, ainda rendendo), Esgotados (prazo passou mas ainda não maturou no jogo), Maturados e Saqueados para ver exatamente a situação de cada depósito.\n• Estatísticas — Total depositado, Recuperado, Perdido em saque e Juros recebidos (depois de importar o histórico de comprovantes) resumem o desempenho do banco rapidamente.\n• Mapa de risco dos investidores — mostra quais das próximas 72 horas têm menos depósitos Depositados em risco, para você saber quando é mais seguro abandonar.\n• Projeção de queda dos depósitos — projeta o valor depositado e a saída por maturidade ao longo do tempo; salve um instantâneo para comparar com o que realmente aconteceu.\n• Próximo abandono recomendado — a Sede destaca o banco de menor nível com menos valor em risco como o melhor candidato para abandonar.\n\nConfira regularmente — novos depósitos, depósitos maturando e a mudança de risco alteram a recomendação com o tempo."
         },
         "abandonDrop": {
           "title": "Abandone o banco e agende a retirada",
@@ -5306,7 +5410,7 @@
           "caption": "Favoritos (opcional) dá à Sede coordenadas exatas — Favoritos tem prioridade sobre outras fontes ao alinhar o banco."
         },
         "depositSlipHistory": {
-          "alt": "Tela de Histórico de Comprovantes de Depósito rolada mostrando vários depósitos bloqueados e maturados",
+          "alt": "Tela de Histórico de Comprovantes de Depósito rolada mostrando vários depósitos Depositados e Maturados",
           "caption": "Role até o fim do Histórico de Comprovantes de Depósito para que todo comprovante seja capturado na tela."
         },
         "cityListImport": {
@@ -5665,9 +5769,18 @@
     "cityListNextBank": "Próximo",
     "cityListReset": "Redefinir",
     "cityListResetTitle": "Redefinir esta importação?",
-    "cityListResetBody": "Remove tudo o que você revisou até agora e volta para a etapa de envio.",
-    "cityListResetHint": "Isso não pode ser desfeito — você precisará enviar as capturas de tela novamente para recomeçar.",
+    "cityListResetBody": "Limpa esta revisão e volta para Gestão de Bancos.",
+    "cityListResetHint": "Isso não pode ser desfeito — envie as capturas de novo em Gestão de Bancos para recomeçar.",
     "cityListResetConfirm": "Redefinir importação",
+    "cityListReviewPageTitle": "Revisar bancos importados",
+    "cityListReviewEmpty": "Nenhuma importação para revisar. Envie capturas em Gestão de Bancos.",
+    "cityListBackToBanks": "Voltar para Gestão de Bancos",
+    "cityListRowMissing": "Ausente",
+    "cityListAmountKLabel": "Valor (K)",
+    "cityListAmountKInvalid": "Informe um valor como 660.00K",
+    "cityListDepositCountLabel": "Quantidade de depósitos",
+    "bankCoordSearchPlaceholder": "Buscar por X, Y…",
+    "bankCoordSearchEmpty": "Nenhum banco corresponde a essas coordenadas.",
     "capturesLeftToday": "Capturas restantes hoje: {remaining}/{limit}",
     "cityListServerTime": "Horário do servidor na captura: {time}",
     "editBank": "Editar banco",
@@ -5686,7 +5799,7 @@
     "scheduleDrop": "Agendar abandono",
     "schedulingDrop": "Agendando…",
     "heatmapTitle": "Mapa de risco dos investidores",
-    "heatmapHint": "Próximas 72 horas. Horas mais verdes significam menos depósitos bloqueados em risco se você abandonar então.",
+    "heatmapHint": "Próximas 72 horas. Horas mais verdes significam menos depósitos Depositados em risco se você abandonar então.",
     "valueAtRisk": "Valor em risco",
     "countAtRisk": "Depósitos em risco",
     "hoursUntilClear": "Horas até todos amadurecerem",
@@ -5718,7 +5831,7 @@
       "projectionNotes": "Notas"
     },
     "status": {
-      "locked": "Bloqueado",
+      "locked": "Depositado",
       "matured": "Amadurecido",
       "looted": "Saqueado",
       "term_elapsed": "Prazo esgotado"
@@ -5759,22 +5872,28 @@
     "uploadDepositSlip": "Enviar vídeo do histórico de depósitos",
     "falloff": {
       "title": "Projeção de queda dos depósitos",
-      "hint": "Valor bloqueado projetado e saída por maturidade ao longo do tempo. Salve um instantâneo para comparar com o que realmente acontecer.",
+      "hint": "Valor depositado projetado e saída por maturidade ao longo do tempo. Salve um instantâneo para comparar com o que realmente acontecer.",
       "save": "Salvar projeção",
       "saveDialogTitle": "Salvar projeção de queda dos depósitos",
       "horizon": "Horizonte",
       "horizonOption": "{hours}h",
       "scope": "Escopo",
       "scopeBank": "Este banco",
-      "scopeAlliance": "Toda a aliança",
+      "scopeAlliance": "Todos os bancos",
+      "scopeAllianceHint": "Consolida todos os bancos que sua aliança acompanha no HQ — não apenas o selecionado acima.",
+      "investorFilter": "Investidor",
+      "investorFilterAll": "Todas as tags",
+      "investorFilterMyAlliance": "Minha aliança",
+      "investorFilterMyAllianceTagged": "Minha aliança ({tag})",
+      "investorFilterMyAllianceHint": "Apenas depósitos cuja tag de investidor corresponde à sua aliança, ou depósitos vinculados ao roster da sua aliança.",
       "localFallbackNotice": "Mostrando uma projeção calculada localmente — a sincronização ao vivo está indisponível no momento.",
       "viewingSaved": "Visualizando projeção salva: {name}",
       "clearSelection": "Voltar ao ao vivo",
       "loading": "Carregando…",
       "liveEmpty": "Ainda não há dados de depósito nesta visualização.",
-      "lockedValue": "Valor bloqueado projetado",
+      "lockedValue": "Valor depositado projetado",
       "maturingValue": "Saída por maturidade",
-      "overlayActual": "Valor bloqueado real",
+      "overlayActual": "Valor depositado real",
       "dropByMarker": "Horário planejado de abandono",
       "recommendedMarker": "Abandono recomendado",
       "deltaFinal": "Delta final",

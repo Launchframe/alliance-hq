@@ -33,8 +33,6 @@ export type VideoJobInspectReport = {
     frameCount: number | null;
     uploadedFrameCount: number | null;
     errorMessage: string | null;
-    sessionId: string;
-    processingSessionId: string | null;
     allianceId: string | null;
     passKey: string | null;
     passRole: string | null;

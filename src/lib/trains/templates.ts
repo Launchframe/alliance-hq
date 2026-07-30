@@ -16,7 +16,7 @@ import {
   type ConductorTopN,
 } from "@/lib/trains/conductor-top-n.shared";
 import {
-  dayIndexInTrainWeekForSchedule,
+  compositeSegmentDayIndex,
   isCompositeWeekTemplate,
   segmentTemplateForDayIndex,
 } from "@/lib/trains/week-template-registry.shared";
@@ -38,10 +38,6 @@ const DEFAULT_WEEKEND_VIP_EVENT: EventTopXConfig = {
   eventKey: "capitol_war",
   topN: 10,
 };
-
-function dayNameIndex(dateStr: string, weekStart: string): number {
-  return dayIndexInTrainWeekForSchedule(dateStr, weekStart);
-}
 
 function pushWeekDay(
   date: string,
@@ -143,7 +139,7 @@ export function generateWeekDayConfigs(
     return dates.map((date) => {
       const segment = segmentTemplateForDayIndex(
         templateType,
-        dayNameIndex(date, weekStart),
+        compositeSegmentDayIndex(date),
       );
       if (isCompositeWeekTemplate(segment)) {
         return {
