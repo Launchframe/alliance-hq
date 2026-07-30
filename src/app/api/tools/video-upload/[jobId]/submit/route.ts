@@ -694,6 +694,25 @@ export async function POST(request: Request, { params }: Props) {
       );
     }
 
+    const hqAllianceId = await resolveHqAllianceIdFromStoredAllianceId(
+      job.allianceId,
+    );
+    if (!hqAllianceId) {
+      return NextResponse.json(
+        { error: "Alliance context missing on job." },
+        { status: 400 },
+      );
+    }
+    // Processors may review OCR via processor slots / hq:video:*, but Ashed
+    // score replace+insert (and HQ kills dual-write) still require scores:write —
+    // same gate as the BFF VSScore/KillScore catalog.
+    const scoresDenied = await requireAlliancePermission(
+      session.id,
+      hqAllianceId,
+      "scores:write",
+    );
+    if (scoresDenied) return scoresDenied;
+
     const connection = await getAshedConnection(session.id);
     if (!connection) {
       const reviewPath = `/tools/video-upload/${jobId}/review`;
@@ -707,15 +726,6 @@ export async function POST(request: Request, { params }: Props) {
       );
     }
 
-    const hqAllianceId = await resolveHqAllianceIdFromStoredAllianceId(
-      job.allianceId,
-    );
-    if (!hqAllianceId) {
-      return NextResponse.json(
-        { error: "Alliance context missing on job." },
-        { status: 400 },
-      );
-    }
     const { ashedAllianceId } = await assertAllianceAshedLinked(hqAllianceId);
     const allianceId = hqAllianceId;
 
