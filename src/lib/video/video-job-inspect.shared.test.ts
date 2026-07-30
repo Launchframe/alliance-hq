@@ -84,3 +84,14 @@ describe("buildVideoJobInspectHints", () => {
     expect(hints.map((h) => h.code)).toContain("queued_stale");
   });
 });
+
+describe("VideoJobInspectReport session privacy", () => {
+  it("does not declare raw session cookie fields on the report job shape", () => {
+    // Compile-time lock: assignability fails if sessionId / processingSessionId
+    // are re-added to VideoJobInspectReport["job"].
+    type JobKeys = keyof import("@/lib/video/video-job-inspect.shared").VideoJobInspectReport["job"];
+    type Forbidden = Extract<JobKeys, "sessionId" | "processingSessionId">;
+    const forbidden: Forbidden extends never ? true : false = true;
+    expect(forbidden).toBe(true);
+  });
+});
