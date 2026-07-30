@@ -34,7 +34,7 @@ import {
  * decimal point as an apostrophe or straight quote (e.g. "160'0M", `148"4M`),
  * so the fractional separator accepts those too.
  */
-const POWER_RE = /(\d+)(?:[.'"](\d+))?\s*M\b/i;
+const POWER_RE = /(\d+)(?:[.'"%](\d+))?\s*M\b/i;
 
 /** Member level: "Lv.85", "Lv 100", "Lv85" */
 const LEVEL_RE = /\bLv\.?\s*(\d+)\b/i;
@@ -155,8 +155,20 @@ export function isPlausibleMemberName(name: string): boolean {
   if (trimmed.length < 2) return false;
   // Mostly punctuation / digits / symbols — not a commander name.
   const alnum = trimmed.replace(/[^\p{L}\p{N}]/gu, "");
-  if (alnum.length < 2) return false;
+  if (alnum.length < 3) return false;
   if (/^power$/i.test(trimmed)) return false;
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  // Single very short token ("yn", "AG") — OCR junk, not a commander name.
+  if (words.length === 1 && trimmed.length <= 3 && !/\d/.test(trimmed)) {
+    return false;
+  }
+  // All tokens are tiny fragments ("4 UT", "w EB") — column bleed, not a name.
+  if (
+    words.length >= 2 &&
+    words.every((w) => w.replace(/[^\p{L}\p{N}]/gu, "").length <= 2)
+  ) {
+    return false;
+  }
   return true;
 }
 

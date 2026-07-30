@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   cleanMemberName,
+  isPlausibleMemberName,
   parseLineTokens,
   parseOfficersRows,
   parseRankListRows,
@@ -121,6 +122,27 @@ describe("parseLineTokens", () => {
     expect(result.heroPowerM).toBeCloseTo(94.1);
     expect(result.memberLevel).toBe(26);
     expect(result.extractedName).toBe("");
+  });
+
+  it("tolerates OCR misreading the power decimal point as a percent sign", () => {
+    expect(parseLineTokens("3 Pouwer:}114%2M ED)").heroPowerM).toBeCloseTo(
+      114.2,
+    );
+  });
+});
+
+describe("isPlausibleMemberName", () => {
+  it("rejects short OCR junk fragments", () => {
+    expect(isPlausibleMemberName("yn")).toBe(false);
+    expect(isPlausibleMemberName("AG")).toBe(false);
+    expect(isPlausibleMemberName("4 UT")).toBe(false);
+    expect(isPlausibleMemberName("w EB")).toBe(false);
+  });
+
+  it("still accepts real short names with enough substance", () => {
+    expect(isPlausibleMemberName("Bo")).toBe(false);
+    expect(isPlausibleMemberName("rd Raiden")).toBe(true);
+    expect(isPlausibleMemberName("capt Atano")).toBe(true);
   });
 });
 
@@ -441,6 +463,25 @@ describe("parseRankListRows", () => {
     expect(rows.find((r) => r.extractedName === "C Price")?.allianceRank).toBe(
       3,
     );
+  });
+
+  it("captures pre-header R4 members from FP_NS8-9H28pRPLi frame 0", () => {
+    const rows = parseRankListRows([
+      "Q, Search for Members",
+      "Ra Crowd Control G/108\\v)",
+      "ta # ExoticButters 7h ago",
+      "[PF] urmom90 13h ago",
+      "R3 Heart of the Alliance 8/83 vv",
+      "| @'shingon12345",
+    ]);
+    const exotic = rows.find((r) => r.extractedName.includes("ExoticButters"));
+    const urmom = rows.find((r) => r.extractedName.includes("urmom90"));
+    expect(exotic?.allianceRank).toBe(4);
+    expect(urmom?.allianceRank).toBe(4);
+    expect(rows.find((r) => r.extractedName.includes("shingon"))?.allianceRank).toBe(
+      3,
+    );
+    expect(rows.some((r) => /crowd control/i.test(r.extractedName))).toBe(false);
   });
 });
 

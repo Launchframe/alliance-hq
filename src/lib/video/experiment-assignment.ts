@@ -3,8 +3,10 @@ import { and, asc, eq, isNull, or } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import {
   DEFAULT_PRIMARY_PASS,
+  DEFAULT_ROSTER_VIDEO_PASS,
   type ExtractionConfig,
 } from "@/lib/video/pass-definitions";
+import { isMemberRosterVideoTarget } from "@/lib/video/score-targets";
 
 /** Frame-extraction configs only (scene/fps) — not roster-ocr knobs. */
 export function isFrameExtractionConfig(
@@ -22,6 +24,22 @@ export type PrimaryExtractionStamp = {
   experimentArmId: string | null;
 };
 
+function defaultExtractionForScoreTarget(scoreTarget: string | null | undefined): {
+  passKey: string;
+  configJson: ExtractionConfig;
+} {
+  if (scoreTarget && isMemberRosterVideoTarget(scoreTarget)) {
+    return {
+      passKey: "scene_0.1_roster",
+      configJson: DEFAULT_ROSTER_VIDEO_PASS,
+    };
+  }
+  return {
+    passKey: "scene_0.25",
+    configJson: DEFAULT_PRIMARY_PASS,
+  };
+}
+
 /**
  * Pure resolver: standing assignment/default vs active experiment arm.
  * Variant arms with a frame-extraction parse config override the primary.
@@ -35,9 +53,11 @@ export function resolvePrimaryExtractionStamp(params: {
     configId: string | null;
     armConfig: { passKey: string; configJson: unknown } | null;
   } | null;
+  scoreTarget?: string | null;
 }): PrimaryExtractionStamp {
-  const standingPassKey = params.standing?.passKey ?? "scene_0.25";
-  const standingConfig = params.standing?.configJson ?? DEFAULT_PRIMARY_PASS;
+  const defaults = defaultExtractionForScoreTarget(params.scoreTarget);
+  const standingPassKey = params.standing?.passKey ?? defaults.passKey;
+  const standingConfig = params.standing?.configJson ?? defaults.configJson;
 
   if (!params.experiment) {
     return {
@@ -274,6 +294,7 @@ export async function resolvePrimaryExtractionForUpload(params: {
     return resolvePrimaryExtractionStamp({
       standing,
       experiment: null,
+      scoreTarget: params.scoreTarget,
     });
   }
 
@@ -312,5 +333,6 @@ export async function resolvePrimaryExtractionForUpload(params: {
       configId: arm?.configId ?? null,
       armConfig,
     },
+    scoreTarget: params.scoreTarget,
   });
 }
