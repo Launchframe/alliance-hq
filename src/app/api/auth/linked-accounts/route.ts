@@ -49,6 +49,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
+  // Discord OAuth unlink must also clear `discord_hq_links` and revoke
+  // HQ-mirrored `discord_member_links`; otherwise a later rebind keeps the
+  // prior HQ's commanders (owner/officer Discord gates).
+  if (body.provider === "discord") {
+    const { unlinkDiscordHqLinkForUser } = await import(
+      "@/lib/auth/discord-hq-link.server"
+    );
+    const result = await unlinkDiscordHqLinkForUser(session.user.id);
+    if (!result.ok) {
+      const status = result.reason === "last_sign_in_method" ? 409 : 404;
+      const code =
+        result.reason === "last_sign_in_method" ? "last_method" : "not_linked";
+      return NextResponse.json({ error: code }, { status });
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   const { unlinkOAuthProviderForUser } = await import(
     "@/lib/auth/account-linking.server"
   );
