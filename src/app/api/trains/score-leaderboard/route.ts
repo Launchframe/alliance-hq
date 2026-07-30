@@ -48,26 +48,26 @@ export async function GET(request: Request) {
     seasonKey,
   );
 
-  const resolvedKind =
-    kindParam ??
-    resolveScoreLeaderboardKind({
-      paintTemplate: dayConfig.paintTemplate,
-      conductorMechanism: dayConfig.conductorMechanism,
-    });
+  const dayKind = resolveScoreLeaderboardKind({
+    paintTemplate: dayConfig.paintTemplate,
+    conductorMechanism: dayConfig.conductorMechanism,
+  });
 
-  if (!resolvedKind) {
+  if (!dayKind) {
     return NextResponse.json(
       { error: "This day does not use a score leaderboard." },
       { status: 400 },
     );
   }
 
-  if (kindParam && kindParam !== resolvedKind) {
+  if (kindParam && kindParam !== dayKind) {
     return NextResponse.json(
       { error: "Score leaderboard kind does not match this day's rules." },
       { status: 400 },
     );
   }
+
+  const resolvedKind = kindParam ?? dayKind;
 
   try {
     const payload = await loadScoreLeaderboard({
