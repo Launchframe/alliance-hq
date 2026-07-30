@@ -9,6 +9,17 @@ import {
 } from "@/lib/video/admin-job-actions";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 
+export type VideoJobReprocessProcessorBinding = {
+  processingSessionId: string;
+  approvedByHqUserId?: string | null;
+  approvedAt: Date;
+};
+
+export type ResetVideoJobForReprocessOptions = {
+  /** Bind the processor session in the same claim write as `queued`. */
+  processorBinding?: VideoJobReprocessProcessorBinding;
+};
+
 export class VideoJobReprocessConflictError extends Error {
   readonly statusCode = 409;
 
@@ -23,7 +34,10 @@ export class VideoJobReprocessConflictError extends Error {
  * orphaned parse/frame rows. The status claim is conditional so a concurrent
  * submit/extract cannot lose Ashed writes or review rows underfoot.
  */
-export async function resetVideoJobForReprocess(jobId: string): Promise<void> {
+export async function resetVideoJobForReprocess(
+  jobId: string,
+  options?: ResetVideoJobForReprocessOptions,
+): Promise<void> {
   const db = getDb();
   const [job] = await db
     .select()
@@ -41,18 +55,26 @@ export async function resetVideoJobForReprocess(jobId: string): Promise<void> {
 
   const parseSessionId = job.parseSessionId;
   const now = new Date();
+  const claimFields: Partial<typeof schema.videoJobs.$inferInsert> = {
+    status: "queued",
+    parseSessionId: null,
+    frameCount: null,
+    uploadedFrameCount: 0,
+    errorMessage: null,
+    timingsJson: null,
+    totalFileSizeBytes: null,
+    updatedAt: now,
+  };
+  if (options?.processorBinding) {
+    claimFields.processingSessionId =
+      options.processorBinding.processingSessionId;
+    claimFields.approvedByHqUserId =
+      options.processorBinding.approvedByHqUserId ?? null;
+    claimFields.approvedAt = options.processorBinding.approvedAt;
+  }
   const claimed = await db
     .update(schema.videoJobs)
-    .set({
-      status: "queued",
-      parseSessionId: null,
-      frameCount: null,
-      uploadedFrameCount: 0,
-      errorMessage: null,
-      timingsJson: null,
-      totalFileSizeBytes: null,
-      updatedAt: now,
-    })
+    .set(claimFields)
     .where(
       and(
         eq(schema.videoJobs.id, jobId),

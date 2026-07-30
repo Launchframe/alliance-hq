@@ -96,18 +96,16 @@ export async function POST(_request: Request, { params }: Props) {
       }
     }
 
-    // Claim queued first so a concurrent submit cannot be half-overwritten.
-    await resetVideoJobForReprocess(jobId);
-
-    await db
-      .update(schema.videoJobs)
-      .set({
+    // Claim queued and bind processor session atomically so dispatch cannot
+    // observe stale processingSessionId between reset and approval fields.
+    const approvedAt = new Date();
+    await resetVideoJobForReprocess(jobId, {
+      processorBinding: {
         processingSessionId: session.id,
         approvedByHqUserId: session.hqUserId,
-        approvedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.videoJobs.id, jobId));
+        approvedAt,
+      },
+    });
 
     await writeAuditLog({
       sessionId: session.id,

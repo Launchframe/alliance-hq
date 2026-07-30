@@ -113,7 +113,13 @@ describe("POST /api/tools/video-upload/[jobId]/reprocess", () => {
       status: "queued",
     });
     expect(getAshedConnection).not.toHaveBeenCalled();
-    expect(resetVideoJobForReprocess).toHaveBeenCalledWith("job-1");
+    expect(resetVideoJobForReprocess).toHaveBeenCalledWith("job-1", {
+      processorBinding: {
+        processingSessionId: "sess-1",
+        approvedByHqUserId: "hq-1",
+        approvedAt: expect.any(Date),
+      },
+    });
     expect(dispatchVideoProcessing).toHaveBeenCalledWith("job-1", {
       source: "reprocess",
     });
