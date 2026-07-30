@@ -33,6 +33,28 @@ export function isTimeOffSource(value: string): value is TimeOffSource {
   return (TIME_OFF_SOURCES as readonly string[]).includes(value);
 }
 
+/** Officer-only kinds: create and cancel require `time_off:write`. */
+export function timeOffEntryKindRequiresWrite(
+  entryKind: TimeOffEntryKind,
+): boolean {
+  return entryKind === "unexpected" || entryKind === "officer_marked";
+}
+
+/**
+ * Cancel auth mirrors create: members may cancel their own planned entries;
+ * unexpected / officer_marked require write (officer) permission.
+ */
+export function canCancelTimeOffEntry(input: {
+  entryKind: TimeOffEntryKind;
+  canManageOthers: boolean;
+  ownsCommander: boolean;
+}): boolean {
+  if (timeOffEntryKindRequiresWrite(input.entryKind)) {
+    return input.canManageOthers;
+  }
+  return input.canManageOthers || input.ownsCommander;
+}
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function validateTimeOffEntryPayload(

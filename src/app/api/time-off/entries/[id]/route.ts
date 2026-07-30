@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { serializeTimeOffEntry } from "@/lib/time-off/api.shared";
+import {
+  canCancelTimeOffEntry,
+  isTimeOffEntryKind,
+  serializeTimeOffEntry,
+} from "@/lib/time-off/api.shared";
 import {
   cancelTimeOffEntry,
   hqUserOwnsCommander,
@@ -43,6 +47,12 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "Not found." }, { status: 404 });
   }
 
+  const entryKind = isTimeOffEntryKind(existing.entryKind)
+    ? existing.entryKind
+    : null;
+  if (!entryKind) {
+    return NextResponse.json({ error: "Invalid entry kind." }, { status: 500 });
+  }
   const canManageOthers = !(await requireTimeOffWrite(sessionId));
   const ownsCommander =
     session.hqUserId != null &&
@@ -52,7 +62,13 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
       ashedMemberId: existing.ashedMemberId,
     }));
 
-  if (!canManageOthers && !ownsCommander) {
+  if (
+    !canCancelTimeOffEntry({
+      entryKind,
+      canManageOthers,
+      ownsCommander,
+    })
+  ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
