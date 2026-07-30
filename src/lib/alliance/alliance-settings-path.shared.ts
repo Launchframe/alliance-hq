@@ -30,3 +30,7 @@ export function allianceVrSandboxApiPath(tag: string): string {
 export function allianceMemberOnboardingApiPath(tag: string): string {
   return `/api/alliance/${encodeURIComponent(allianceTagPathSegment(tag))}/member-onboarding`;
 }
+
+export function allianceVsMembershipMinimumsApiPath(tag: string): string {
+  return `/api/alliance/${encodeURIComponent(allianceTagPathSegment(tag))}/vs-membership-minimums`;
+}

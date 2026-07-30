@@ -1528,6 +1528,7 @@
         "trainsHistoryImport": "Import conductor history",
         "battlePlan": "Go to Battle Plan",
         "timeOff": "Go to Time Off",
+        "vsCompliance": "Go to VS enforcement tasks",
         "bankManagement": "Go to Bank Management",
         "desertStorm": "Go to Desert Storm",
         "canyonStorm": "Go to Canyon Storm",
@@ -2024,6 +2025,9 @@
     "trainsSectionTitle": "Trains",
     "trainsSectionBody": "Configure train week start, Discord announcements, and conductor minimums.",
     "trainsSectionLink": "Open train settings",
+    "vsMembershipSectionTitle": "VS minimum requirements",
+    "vsMembershipSectionBody": "Set a mandatory weekly VS score. Members who miss it get an officer task to demote or remove them in-game — Alliance HQ never changes ranks automatically.",
+    "vsMembershipSectionLink": "Open VS minimum settings",
     "gameSeasonsSectionTitle": "Game season",
     "gameSeasonsSectionBody": "Last War season used for train records and scoring, plus VR sandbox practice mode.",
     "gameSeasonsSectionLink": "Open game season settings",
@@ -2042,6 +2046,11 @@
     "trains": {
       "title": "Trains",
       "subtitle": "Train configuration for {tag}."
+    },
+    "vsCompliancePage": {
+      "title": "VS minimum requirements",
+      "subtitle": "Weekly VS minimum configuration for {tag}.",
+      "viewOpenTasksLink": "View open VS enforcement tasks"
     },
     "gameSeasons": {
       "title": "Game season",
@@ -2171,6 +2180,23 @@
       "saving": "Saving…",
       "saveFailed": "Could not save train conductor minimums.",
       "officersOnly": "Only train officers can change these settings."
+    },
+    "vsMembershipMinimums": {
+      "sectionTitle": "VS minimum requirements",
+      "sectionBody": "Members must post at least this many VS points each week (Mon–Sat) to stay in good standing. HQ will recommend demotion or removal based on underperformance.",
+      "loading": "Loading VS minimum requirements…",
+      "loadFailed": "Could not load VS minimum requirements.",
+      "minPointsLabel": "Mandatory weekly VS points",
+      "minPointsPlaceholder": "Leave blank to disable",
+      "minPointsHint": "Leave blank to turn off weekly VS enforcement for this alliance.",
+      "strikesLabel": "Misses before kick recommendation",
+      "strikesHint": "After this many non-waived misses in a row, the officer task recommends removal instead of demotion.",
+      "leewayLabel": "Leeway (%)",
+      "leewayHint": "Members within this percentage of the minimum still qualify.",
+      "save": "Save",
+      "saving": "Saving…",
+      "saveFailed": "Could not save VS minimum requirements.",
+      "ownersOnly": "Only alliance admins can change these settings."
     },
     "trainEconomyThreshold": {
       "sectionTitle": "The Price Is Freight",
@@ -5170,7 +5196,11 @@
       "captureReminderBody": "Was this Stronghold successfully captured?",
       "captureYes": "Yes — create bank",
       "captureNo": "No",
-      "captureSnooze": "Snooze 30 min"
+      "captureSnooze": "Snooze 30 min",
+      "vsComplianceTask": "VS enforcement",
+      "vsComplianceTaskBody": "This member missed the alliance's weekly VS minimum. Handle it in-game, then mark this task complete or waive it.",
+      "vsDemotionTaskTitle": "Demote {name} (VS miss)",
+      "vsKickTaskTitle": "Remove {name} (VS strikes)"
     },
     "confirmCaptureFailed": "Failed to confirm capture."
   },
@@ -5954,7 +5984,29 @@
       "reportFailed": "Could not load the unexpected absence report.",
       "fieldsRequired": "Commander and dates are required.",
       "ashedSyncFailed": "Saved in HQ, but syncing with Ashed failed. An officer may need to add it in Ashed as well."
-    }
+    },
+    "vsComplianceLink": "View open VS enforcement tasks"
+  },
+  "vsCompliance": {
+    "title": "VS enforcement",
+    "subtitle": "Members who missed the alliance's weekly VS minimum. Tasks are informational only -- any enforcement must be done in-game.",
+    "empty": "No open VS enforcement tasks.",
+    "kindDemotion": "Demote",
+    "kindKick": "Kick",
+    "taskDemotionTitle": "Demote {name} (VS miss)",
+    "taskKickTitle": "Remove {name} (VS strikes)",
+    "weekSummary": "Week ending {weekEnding}: {score} VS (minimum {threshold})",
+    "strikeCount": "{count, plural, one {# consecutive miss} other {# consecutive misses}}",
+    "markComplete": "Mark complete",
+    "markCompleteFailed": "Could not mark this task complete.",
+    "waive": "Waive",
+    "waiveFailed": "Could not waive this task.",
+    "waiveDialogTitle": "Waive VS enforcement task",
+    "waiveReasonLabel": "Reason",
+    "waiveReasonRequired": "A reason is required to waive this task.",
+    "cancel": "Cancel",
+    "waiveConfirm": "Waive task",
+    "waiving": "Waiving…"
   },
   "statSync": {
     "title": "HQ ↔ Ashed sync",

@@ -233,6 +233,28 @@ export async function fetchAlliancePriorDayVsScoresByMember(
 }
 
 /**
+ * Summed VS score per member across a Mon–Sat date range (inclusive).
+ * Used by VS membership compliance evaluation — `null` means the alliance
+ * has no usable Ashed connection (credential missing or alliance not
+ * Ashed-linked), which callers should treat as "cannot evaluate this week."
+ */
+export async function fetchAllianceVsTotalsForDateRange(
+  allianceId: string,
+  startDate: string,
+  endDate: string,
+): Promise<Map<string, number> | null> {
+  const resolved = await resolveAllianceAshedConnection(allianceId);
+  if (!resolved) return null;
+
+  return fetchVsTotalsForDateRange(
+    resolved.connection,
+    resolved.ashedAllianceId,
+    startDate,
+    endDate,
+  );
+}
+
+/**
  * Top prior-day Ashed VS scorers for a train date (T−1 `recorded_date`).
  * Used by `vs_high_score` / `vs_top_10` conductor rolls — not season VR.
  * Intersects Ashed scores with the active HQ roster (excludes `former`), matching

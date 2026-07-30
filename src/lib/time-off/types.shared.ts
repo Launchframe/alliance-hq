@@ -48,6 +48,8 @@ export type TimeOffCalendarPayload = {
   entries: SerializedTimeOffEntry[];
   canWrite: boolean;
   canManageOthers: boolean;
+  /** Matches `/vs-compliance` page gate (`members:write`). */
+  canManageVsCompliance: boolean;
   linkedCommanderIds: string[];
   unexpectedReport?: {
     unexpected: SerializedTimeOffEntry[];

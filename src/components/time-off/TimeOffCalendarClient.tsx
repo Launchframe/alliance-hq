@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { TimeOffCalendar } from "@/components/time-off/TimeOffCalendar";
 import { TimeOffEntryModal } from "@/components/time-off/TimeOffEntryModal";
 import { UnexpectedAbsencePanel } from "@/components/time-off/UnexpectedAbsencePanel";
+import { Link } from "@/i18n/navigation";
 import {
   FORM_SUBMIT_ENTER_KEY_HINT,
   preventDefaultFormSubmit,
@@ -165,6 +166,14 @@ export function TimeOffCalendarClient({ initial }: Props) {
 
       {dashboard.canManageOthers ? (
         <UnexpectedAbsencePanel initialReport={dashboard.unexpectedReport} />
+      ) : null}
+
+      {dashboard.canManageVsCompliance ? (
+        <p className="text-sm text-hq-fg-muted">
+          <Link href="/vs-compliance" className="text-hq-accent hover:underline">
+            {t("vsComplianceLink")}
+          </Link>
+        </p>
       ) : null}
 
       {selectedMemberPeriods.length > 0 ? (
