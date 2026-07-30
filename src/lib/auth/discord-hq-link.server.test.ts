@@ -21,8 +21,8 @@ import {
 
 vi.mock("@/lib/vr/repository", () => ({
   deleteDiscordHqLinkForHqUser: vi.fn(),
-  getDiscordHqLink: vi.fn(),
-  getDiscordHqLinkByHqUserId: vi.fn(),
+  getDiscordHqLink: vi.fn().mockResolvedValue(null as never),
+  getDiscordHqLinkByHqUserId: vi.fn().mockResolvedValue(null as never),
   upsertDiscordHqLink: vi.fn(),
 }));
 
