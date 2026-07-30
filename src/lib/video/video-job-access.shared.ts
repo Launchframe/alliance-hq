@@ -46,15 +46,18 @@ export function videoJobStatusOwnerFields(job: {
   sessionId: string;
   hqUserId?: string | null;
   enqueuedByHqUserId?: string | null;
+  allianceId?: string | null;
 }): {
   sessionId: string;
   hqUserId: string | null;
   enqueuedByHqUserId: string | null;
+  allianceId: string | null;
 } {
   return {
     sessionId: job.sessionId,
     hqUserId: job.hqUserId ?? null,
     enqueuedByHqUserId: job.enqueuedByHqUserId ?? null,
+    allianceId: job.allianceId ?? null,
   };
 }
 

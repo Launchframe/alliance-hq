@@ -4,6 +4,7 @@ import {
   isVideoJobAccessibleViaSession,
   isVideoJobOwningHqUser,
   isVideoJobStatusEventForViewer,
+  videoJobStatusOwnerFields,
 } from "@/lib/video/video-job-access.shared";
 
 describe("isVideoJobOwningHqUser", () => {
@@ -166,5 +167,19 @@ describe("isVideoJobStatusEventForViewer", () => {
         "alliance-a",
       ),
     ).toBe(true);
+  });
+
+  it("includes allianceId in owner fields for SSE payloads", () => {
+    expect(
+      videoJobStatusOwnerFields({
+        sessionId: "s1",
+        hqUserId: "user-a",
+        enqueuedByHqUserId: "user-a",
+        allianceId: "alliance-a",
+      }),
+    ).toMatchObject({
+      sessionId: "s1",
+      allianceId: "alliance-a",
+    });
   });
 });

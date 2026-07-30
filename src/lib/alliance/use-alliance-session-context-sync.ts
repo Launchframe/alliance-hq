@@ -14,12 +14,16 @@ type Options = {
 };
 
 async function fetchSessionAllianceId(): Promise<string | null> {
-  const res = await fetch("/api/session/alliances");
-  if (!res.ok) {
+  try {
+    const res = await fetch("/api/session/alliances", { cache: "no-store" });
+    if (!res.ok) {
+      return null;
+    }
+    const data = (await res.json()) as { currentAllianceId?: string | null };
+    return data.currentAllianceId ?? null;
+  } catch {
     return null;
   }
-  const data = (await res.json()) as { currentAllianceId?: string | null };
-  return data.currentAllianceId ?? null;
 }
 
 /**
@@ -42,14 +46,14 @@ export function useAllianceSessionContextSync({
 
   useEffect(() => {
     return subscribeAllianceSessionContextChanged(() => {
-      void reconcile();
+      void reconcile().catch(() => undefined);
     });
   }, [reconcile]);
 
   useEffect(() => {
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
-        void reconcile();
+        void reconcile().catch(() => undefined);
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
