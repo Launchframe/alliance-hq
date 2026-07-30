@@ -15,6 +15,10 @@ import { syncAllianceMemberGameLevelFromLastWar } from "@/lib/lastwar/sync-membe
 import { peerMaxExcludingMember } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER } from "@/lib/vr/constants";
 import { processVrCommand, processVrConfirmation } from "@/lib/vr/command";
+import {
+  discordBotPendingMatchesCaller,
+  gameUidFromDiscordLinkPending,
+} from "@/lib/vr/discord-bot-pending-binding.shared";
 import { effectiveBaseVr } from "@/lib/vr/effective-vr.shared";
 import {
   processLinkCommand,
@@ -948,12 +952,24 @@ export async function handleDiscordLinkIdentityConfirm(input: {
   discordUsername?: string;
   answer: "yes" | "no";
   locale: DiscordBotLocale;
+  /** When set (web confirm UI), must match the pending UID shown to the user. */
+  expectedGameUid?: string | null;
 }): Promise<LinkCommandResult> {
   const { translate } = botContext(input.locale);
   const pendingRow = await getDiscordBotPending(input.discordUserId);
   const pending = pendingRow?.pending;
 
-  if (!pending || pending.kind !== "link_confirm_identity") {
+  if (
+    !pendingRow ||
+    !pending ||
+    pending.kind !== "link_confirm_identity" ||
+    !discordBotPendingMatchesCaller({
+      pendingAllianceId: pendingRow.allianceId,
+      callerAllianceId: input.allianceId,
+      pendingGameUid: gameUidFromDiscordLinkPending(pending),
+      expectedGameUid: input.expectedGameUid,
+    })
+  ) {
     const result: LinkCommandResult = {
       reply: translate("link.confirmExpired"),
       pending: null,
@@ -1004,12 +1020,24 @@ export async function handleDiscordLinkHomeServerConfirm(input: {
   discordUsername?: string;
   choice: "alliance" | "lookup";
   locale: DiscordBotLocale;
+  /** When set (web confirm UI), must match the pending UID shown to the user. */
+  expectedGameUid?: string | null;
 }): Promise<LinkCommandResult> {
   const { translate } = botContext(input.locale);
   const pendingRow = await getDiscordBotPending(input.discordUserId);
   const pending = pendingRow?.pending;
 
-  if (!pending || pending.kind !== "link_confirm_home_server") {
+  if (
+    !pendingRow ||
+    !pending ||
+    pending.kind !== "link_confirm_home_server" ||
+    !discordBotPendingMatchesCaller({
+      pendingAllianceId: pendingRow.allianceId,
+      callerAllianceId: input.allianceId,
+      pendingGameUid: gameUidFromDiscordLinkPending(pending),
+      expectedGameUid: input.expectedGameUid,
+    })
+  ) {
     const result: LinkCommandResult = {
       reply: translate("link.confirmExpired"),
       pending: null,
@@ -1066,11 +1094,23 @@ export async function handleDiscordLinkFuzzyPick(input: {
   discordUsername?: string;
   memberId: string;
   locale: DiscordBotLocale;
+  /** When set (web confirm UI), must match the pending UID shown to the user. */
+  expectedGameUid?: string | null;
 }): Promise<LinkCommandResult> {
   const { translate } = botContext(input.locale);
   const pendingRow = await getDiscordBotPending(input.discordUserId);
   const pending = pendingRow?.pending;
-  if (!pending || pending.kind !== "link_fuzzy_pick") {
+  if (
+    !pendingRow ||
+    !pending ||
+    pending.kind !== "link_fuzzy_pick" ||
+    !discordBotPendingMatchesCaller({
+      pendingAllianceId: pendingRow.allianceId,
+      callerAllianceId: input.allianceId,
+      pendingGameUid: gameUidFromDiscordLinkPending(pending),
+      expectedGameUid: input.expectedGameUid,
+    })
+  ) {
     const result: LinkCommandResult = {
       reply: translate("errors.nothingPending"),
       pending: null,

@@ -14,6 +14,7 @@ import type { DiscordBotLocale } from "@/lib/discord/i18n";
 import { isValidGameUid } from "@/lib/lastwar/player-lookup";
 import type { DiscordMemberLinkWebOutcome } from "@/lib/vr/discord-member-link-web.shared";
 import { memberLinkReplaceAllFromNonceTag } from "@/lib/vr/discord-member-link-nonce.shared";
+import { gameUidFromDiscordLinkPending } from "@/lib/vr/discord-bot-pending-binding.shared";
 import {
   getAllianceById,
   getDiscordBotPending,
@@ -65,6 +66,22 @@ async function resolveMemberLinkAllianceId(
   if (ctx.allianceId) return ctx.allianceId;
 
   const gameUid = options?.gameUid?.trim();
+
+  // Confirm/pick: prefer the pending row created by preview when its UID still
+  // matches — avoids dual-tab overwrite and keeps cold-start on the same alliance.
+  if (options?.pendingFallback) {
+    const pendingRow = await getDiscordBotPending(ctx.nonceRow.discordUserId);
+    if (pendingRow) {
+      const pendingUid = gameUidFromDiscordLinkPending(
+        pendingRow.pending as { gameUid?: string | null } | null,
+      );
+      if (gameUid && pendingUid && pendingUid === gameUid) {
+        return pendingRow.allianceId;
+      }
+      // Pending missing UID or overwritten — do not trust alliance from this row.
+    }
+  }
+
   if (gameUid && ctx.nonceRow.guildId) {
     const lookup = await lookupPlayerByUid(gameUid);
     if (lookup.ok) {
@@ -76,11 +93,6 @@ async function resolveMemberLinkAllianceId(
       });
       if (resolved) return resolved;
     }
-  }
-
-  if (options?.pendingFallback) {
-    const pendingRow = await getDiscordBotPending(ctx.nonceRow.discordUserId);
-    return pendingRow?.allianceId ?? null;
   }
 
   return null;
@@ -233,6 +245,7 @@ export async function previewDiscordMemberLinkFromWeb(
 const confirmSchema = z.object({
   nonce: z.string().trim().min(1),
   answer: z.enum(["yes", "no"]),
+  gameUid: z.string().trim().min(1).max(20),
 });
 
 export async function confirmDiscordMemberLinkFromWeb(
@@ -247,7 +260,18 @@ export async function confirmDiscordMemberLinkFromWeb(
     return sessionDenyOutcome("invalid_nonce");
   }
 
-  const allianceId = await resolveMemberLinkAllianceId(ctx, { pendingFallback: true });
+  const gameUid = body.gameUid.trim();
+  if (!isValidGameUid(gameUid)) {
+    return {
+      outcome: "error",
+      message: "Enter a 12–16 digit player ID from your in-game profile.",
+    };
+  }
+
+  const allianceId = await resolveMemberLinkAllianceId(ctx, {
+    gameUid,
+    pendingFallback: true,
+  });
   if (!allianceId) {
     return { outcome: "guild_not_registered" };
   }
@@ -259,6 +283,7 @@ export async function confirmDiscordMemberLinkFromWeb(
     discordUserId: ctx.nonceRow.discordUserId,
     answer: body.answer,
     locale: ctx.locale,
+    expectedGameUid: gameUid,
   });
 
   if (body.answer === "no") {
@@ -278,6 +303,7 @@ export async function confirmDiscordMemberLinkFromWeb(
 const confirmHomeSchema = z.object({
   nonce: z.string().trim().min(1),
   choice: z.enum(["alliance", "lookup"]),
+  gameUid: z.string().trim().min(1).max(20),
 });
 
 export async function confirmDiscordMemberLinkHomeFromWeb(
@@ -292,7 +318,18 @@ export async function confirmDiscordMemberLinkHomeFromWeb(
     return sessionDenyOutcome("invalid_nonce");
   }
 
-  const allianceId = await resolveMemberLinkAllianceId(ctx, { pendingFallback: true });
+  const gameUid = body.gameUid.trim();
+  if (!isValidGameUid(gameUid)) {
+    return {
+      outcome: "error",
+      message: "Enter a 12–16 digit player ID from your in-game profile.",
+    };
+  }
+
+  const allianceId = await resolveMemberLinkAllianceId(ctx, {
+    gameUid,
+    pendingFallback: true,
+  });
   if (!allianceId) {
     return { outcome: "guild_not_registered" };
   }
@@ -304,6 +341,7 @@ export async function confirmDiscordMemberLinkHomeFromWeb(
     discordUserId: ctx.nonceRow.discordUserId,
     choice: body.choice,
     locale: ctx.locale,
+    expectedGameUid: gameUid,
   });
 
   return await mapLinkCommandResultToWebOutcome(
@@ -319,6 +357,7 @@ export async function confirmDiscordMemberLinkHomeFromWeb(
 const pickSchema = z.object({
   nonce: z.string().trim().min(1),
   memberId: z.string().trim().min(1),
+  gameUid: z.string().trim().min(1).max(20),
 });
 
 export async function pickDiscordMemberLinkFromWeb(
@@ -333,7 +372,18 @@ export async function pickDiscordMemberLinkFromWeb(
     return sessionDenyOutcome("invalid_nonce");
   }
 
-  const allianceId = await resolveMemberLinkAllianceId(ctx, { pendingFallback: true });
+  const gameUid = body.gameUid.trim();
+  if (!isValidGameUid(gameUid)) {
+    return {
+      outcome: "error",
+      message: "Enter a 12–16 digit player ID from your in-game profile.",
+    };
+  }
+
+  const allianceId = await resolveMemberLinkAllianceId(ctx, {
+    gameUid,
+    pendingFallback: true,
+  });
   if (!allianceId) {
     return { outcome: "guild_not_registered" };
   }
@@ -344,6 +394,7 @@ export async function pickDiscordMemberLinkFromWeb(
     discordUserId: ctx.nonceRow.discordUserId,
     memberId: body.memberId,
     locale: ctx.locale,
+    expectedGameUid: gameUid,
   });
 
   return await mapLinkCommandResultToWebOutcome(
