@@ -35,6 +35,10 @@ import {
   TrainsWalkthroughOverlay,
   trainsWalkthroughSeen,
 } from "@/components/trains/TrainsWalkthroughOverlay";
+import {
+  TrainsWalkthroughProvider,
+  type WalkthroughContextValue,
+} from "@/lib/trains/walkthrough-context";
 import { ScoreLeaderboardPodium } from "@/components/trains/ScoreLeaderboardPodium";
 import { PriceIsRightTicketsPanel } from "@/components/trains/PriceIsRightTicketsPanel";
 import { TodayConductorCard } from "@/components/trains/TodayConductorCard";
@@ -278,6 +282,11 @@ export function TrainsDashboard({ initial }: Props) {
     return !trainsWalkthroughSeen();
   });
   const [walkthroughKey, setWalkthroughKey] = useState(0);
+  const walkthroughRef = useRef<WalkthroughContextValue | null>(null);
+  const [walkthroughSandbox, setWalkthroughSandbox] = useState<{
+    weekTemplate: WeekTemplateType | null;
+    dayOverrides: Record<string, WeekTemplateType>;
+  }>({ weekTemplate: null, dayOverrides: {} });
   const [swapOpen, setSwapOpen] = useState(false);
   const [swapBusy, setSwapBusy] = useState(false);
   const [rollingRole, setRollingRole] = useState<"conductor" | "vip" | null>(
@@ -531,6 +540,7 @@ export function TrainsDashboard({ initial }: Props) {
     (view: ScheduleView) => {
       setScheduleView(view);
       if (view === "month") {
+        walkthroughRef.current?.emitAction({ type: "schedule-view-month" });
         void fetchMonth(getMonthKey(selectedDateRef.current));
         return;
       }
@@ -544,34 +554,57 @@ export function TrainsDashboard({ initial }: Props) {
   const targetTrainWeekStart = getTrainWeekStart(selectedDate, trainWeekConfig);
   const targetTrainWeekEnd = addCalendarDays(targetTrainWeekStart, 6);
   const weekViewSeed = useMemo((): WeekSchedulePagePayload => {
+    let seed: WeekSchedulePagePayload;
     if (viewedWeek.weekStart === targetTrainWeekStart) {
-      return viewedWeek;
-    }
-    const dayConfigs = viewedMonth.dayConfigs.filter(
-      (day) => day.date >= targetTrainWeekStart && day.date <= targetTrainWeekEnd,
-    );
-    const weekRecords = viewedMonth.monthRecords.filter(
-      (record) =>
-        record.date >= targetTrainWeekStart && record.date <= targetTrainWeekEnd,
-    );
-    if (dayConfigs.length === 0) {
-      return buildProvisionalWeekPage(
-        targetTrainWeekStart,
-        inferWeekTemplateFromDayConfigs([]),
+      seed = viewedWeek;
+    } else {
+      const dayConfigs = viewedMonth.dayConfigs.filter(
+        (day) => day.date >= targetTrainWeekStart && day.date <= targetTrainWeekEnd,
       );
+      const weekRecords = viewedMonth.monthRecords.filter(
+        (record) =>
+          record.date >= targetTrainWeekStart && record.date <= targetTrainWeekEnd,
+      );
+      if (dayConfigs.length === 0) {
+        seed = buildProvisionalWeekPage(
+          targetTrainWeekStart,
+          inferWeekTemplateFromDayConfigs([]),
+        );
+      } else {
+        seed = {
+          weekStart: targetTrainWeekStart,
+          weekEnd: targetTrainWeekEnd,
+          templateType: inferWeekTemplateFromDayConfigs(dayConfigs),
+          dayConfigs,
+          weekRecords,
+        };
+      }
     }
-    return {
-      weekStart: targetTrainWeekStart,
-      weekEnd: targetTrainWeekEnd,
-      templateType: inferWeekTemplateFromDayConfigs(dayConfigs),
-      dayConfigs,
-      weekRecords,
-    };
+
+    if (walkthroughSandbox.weekTemplate) {
+      seed = { ...seed, templateType: walkthroughSandbox.weekTemplate };
+    }
+
+    const overrideEntries = Object.entries(walkthroughSandbox.dayOverrides);
+    if (overrideEntries.length === 0) {
+      return seed;
+    }
+
+    const dayConfigs = [...seed.dayConfigs];
+    for (const [date, templateType] of overrideEntries) {
+      const index = dayConfigs.findIndex((day) => day.date === date);
+      if (index >= 0) {
+        dayConfigs[index] = { ...dayConfigs[index], paintTemplate: templateType };
+      }
+    }
+
+    return { ...seed, dayConfigs };
   }, [
     targetTrainWeekStart,
     targetTrainWeekEnd,
     viewedWeek,
     viewedMonth,
+    walkthroughSandbox,
   ]);
 
   const activeDayConfigs =
@@ -650,6 +683,9 @@ export function TrainsDashboard({ initial }: Props) {
   );
 
   const activeWeekTemplate = useMemo((): WeekTemplateType => {
+    if (walkthroughSandbox.weekTemplate) {
+      return walkthroughSandbox.weekTemplate;
+    }
     const weekPage =
       viewedWeek.weekStart === targetTrainWeekStart ? viewedWeek : weekViewSeed;
     if (weekPage.templateType) {
@@ -668,6 +704,7 @@ export function TrainsDashboard({ initial }: Props) {
     targetTrainWeekStart,
     viewedWeek,
     weekViewSeed,
+    walkthroughSandbox.weekTemplate,
   ]);
 
   const refresh = useCallback(async () => {
@@ -1199,6 +1236,24 @@ export function TrainsDashboard({ initial }: Props) {
       templateType: WeekTemplateType,
       options?: { updateWeekTemplate?: boolean; topN?: number },
     ) => {
+      const walkthrough = walkthroughRef.current;
+      if (walkthrough?.sandboxActive) {
+        if (
+          walkthrough.currentStepId === "week-template" &&
+          options?.updateWeekTemplate &&
+          walkthrough.tryInterceptWeekTemplateApply(templateType)
+        ) {
+          setPendingTemplateChange(null);
+          return Promise.resolve(true);
+        }
+        if (
+          walkthrough.currentStepId === "day-long-press" &&
+          walkthrough.tryInterceptDayPaint(dates, templateType, data.today)
+        ) {
+          return Promise.resolve(true);
+        }
+      }
+
       const allowedDates = data.canUnlockConductor
         ? dates
         : dates.filter((date) =>
@@ -1231,6 +1286,7 @@ export function TrainsDashboard({ initial }: Props) {
       executePaintDates,
       setError,
       setPendingPastPaint,
+      setPendingTemplateChange,
       t,
     ],
   );
@@ -1291,6 +1347,14 @@ export function TrainsDashboard({ initial }: Props) {
     (options: { dates: string[] }) => {
       if (!pendingTemplateChange) return;
       const { templateType } = pendingTemplateChange;
+      const walkthrough = walkthroughRef.current;
+      if (
+        walkthrough?.tryInterceptWeekTemplateApply(templateType) &&
+        options.dates.length > 0
+      ) {
+        setPendingTemplateChange(null);
+        return;
+      }
       setPendingTemplateChange(null);
       if (options.dates.length === 0) {
         setError(t("templateChangeConfirm.noDatesBody"));
@@ -1745,6 +1809,11 @@ export function TrainsDashboard({ initial }: Props) {
   );
 
   return (
+    <TrainsWalkthroughProvider
+      active={walkthroughOpen}
+      contextRef={walkthroughRef}
+      onSandboxVisualChange={setWalkthroughSandbox}
+    >
     <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 p-4 sm:p-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
@@ -2191,6 +2260,11 @@ export function TrainsDashboard({ initial }: Props) {
                         setWheelBlockedRole("conductor");
                       }}
                       onRefresh={refresh}
+                      onSpinBatchComplete={() => {
+                        walkthroughRef.current?.emitAction({
+                          type: "spin-week-finished",
+                        });
+                      }}
                     />
                     {canStartConductorSwap(selectedRecord) ? (
                       <button
@@ -3055,8 +3129,13 @@ export function TrainsDashboard({ initial }: Props) {
         key={walkthroughKey}
         open={walkthroughOpen}
         dashboardReady={data.activeMemberCount > 0}
-        onComplete={() => setWalkthroughOpen(false)}
+        today={data.today}
+        onComplete={() => {
+          setWalkthroughSandbox({ weekTemplate: null, dayOverrides: {} });
+          setWalkthroughOpen(false);
+        }}
       />
     </div>
+    </TrainsWalkthroughProvider>
   );
 }
