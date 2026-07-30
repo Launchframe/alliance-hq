@@ -114,12 +114,16 @@ export async function provisionAllianceMembership(
 
   const now = new Date();
   const roleName = systemRoleNameForId(roleId);
-  if (roleName === "owner") {
+  // Only stamp owner alliance fields when this call applies the invite/code
+  // owner role — not when an existing owner is preserved on a lower-role rebind.
+  if (roleName === "owner" && roleId === input.roleId) {
+    const ownerEmail =
+      input.ownerEmail?.trim() || alliance.ownerEmail?.trim() || null;
     await db
       .update(schema.alliances)
       .set({
         ownerHqUserId: input.hqUserId,
-        ownerEmail: input.ownerEmail ?? null,
+        ownerEmail,
         updatedAt: now,
       })
       .where(eq(schema.alliances.id, input.allianceId));
