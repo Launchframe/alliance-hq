@@ -53,6 +53,7 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
   if (!entryKind) {
     return NextResponse.json({ error: "Invalid entry kind." }, { status: 500 });
   }
+  const canManageOthers = !(await requireTimeOffWrite(sessionId));
   const ownsCommander =
     session.hqUserId != null &&
     (await hqUserOwnsCommander({
