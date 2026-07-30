@@ -200,6 +200,104 @@ describe("resolveDepositSlipMemberLinks", () => {
     expect(resolveCommanderId).not.toHaveBeenCalled();
   });
 
+  it("links preferredAshedMemberId from the bank roster when tag resolves elsewhere", async () => {
+    const bankOnly: AshedMember[] = [
+      {
+        id: "ashed-bank-alice",
+        current_name: "Alice",
+        previous_names: [],
+        status: "active",
+      },
+    ];
+    const foreignRoster: AshedMember[] = [
+      {
+        id: "ashed-foreign-bob",
+        current_name: "Alice",
+        previous_names: [],
+        status: "active",
+      },
+    ];
+    const loadRosterMembers = vi.fn(async (allianceId: string) =>
+      allianceId === "alliance-bank" ? bankOnly : foreignRoster,
+    );
+    const findAllianceMemberId = vi.fn().mockResolvedValue("am-alice");
+    const resolveCommanderId = vi.fn().mockResolvedValue("cmd-alice");
+
+    const result = await resolveDepositSlipMemberLinks(
+      {
+        bankAllianceId: "alliance-bank",
+        depositAllianceTag: "Roar",
+        commanderName: "Alice",
+        preferredAshedMemberId: "ashed-bank-alice",
+      },
+      {
+        listAlliancesByTag: vi.fn().mockResolvedValue([roarAlliance]),
+        listAlliancesWithTags: vi.fn().mockResolvedValue([
+          roarAlliance,
+          {
+            id: "alliance-bank",
+            tag: "LFgo",
+            name: "LFgo",
+            ownerAshedUserId: null,
+          },
+        ]),
+        loadRosterMembers,
+        findAllianceMemberId,
+        resolveCommanderId,
+      },
+    );
+
+    expect(result.ashedMemberId).toBe("ashed-bank-alice");
+    expect(result.allianceMemberId).toBe("am-alice");
+    expect(result.commanderId).toBe("cmd-alice");
+    expect(result.rosterAllianceId).toBe("alliance-bank");
+    expect(result.resolvedAllianceTag).toBe("LFgo");
+    expect(findAllianceMemberId).toHaveBeenCalledWith(
+      "alliance-bank",
+      "ashed-bank-alice",
+    );
+    // Must not rematch to foreign Bob who shares the OCR name.
+    expect(result.ashedMemberId).not.toBe("ashed-foreign-bob");
+  });
+
+  it("does not name-rematch when preferredAshedMemberId is absent from both rosters", async () => {
+    const loadRosterMembers = vi.fn().mockResolvedValue(members);
+    const findAllianceMemberId = vi.fn();
+    const resolveCommanderId = vi.fn();
+
+    const result = await resolveDepositSlipMemberLinks(
+      {
+        bankAllianceId: "alliance-bank",
+        depositAllianceTag: "Roar",
+        commanderName: "Blue Investor",
+        preferredAshedMemberId: "ashed-gone",
+      },
+      {
+        listAlliancesByTag: vi.fn().mockResolvedValue([roarAlliance]),
+        listAlliancesWithTags: vi.fn().mockResolvedValue([
+          roarAlliance,
+          {
+            id: "alliance-bank",
+            tag: "LFgo",
+            name: "LFgo",
+            ownerAshedUserId: null,
+          },
+        ]),
+        loadRosterMembers,
+        findAllianceMemberId,
+        resolveCommanderId,
+      },
+    );
+
+    expect(result.depositAllianceId).toBe("alliance-roar");
+    expect(result.ashedMemberId).toBeNull();
+    expect(result.allianceMemberId).toBeNull();
+    expect(result.commanderId).toBeNull();
+    expect(result.matchMethod).toBe("none");
+    expect(findAllianceMemberId).not.toHaveBeenCalled();
+    expect(resolveCommanderId).not.toHaveBeenCalled();
+  });
+
   it("leaves depositAllianceId null when the tag is ambiguous and matches against the bank alliance roster", async () => {
     const loadRosterMembers = vi.fn().mockResolvedValue(members);
     const findAllianceMemberId = vi.fn().mockResolvedValue("am-orange");

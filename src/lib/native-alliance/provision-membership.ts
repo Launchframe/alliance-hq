@@ -1,12 +1,17 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { grantHqAccess } from "@/lib/access/invite-gate";
 import { getDb, schema } from "@/lib/db";
 import { assignManualMembership } from "@/lib/rbac/admin-users";
 import type { SystemRoleName } from "@/lib/rbac/constants";
-import { systemRoleNameForId } from "@/lib/rbac/system-roles";
+import {
+  shouldUpgradeSystemRole,
+  systemRoleNameForId,
+} from "@/lib/rbac/system-roles";
+
+export type ProvisionRolePolicy = "never_demote" | "preserve_existing";
 
 export type ProvisionAllianceMembershipInput = {
   hqUserId: string;
@@ -15,6 +20,15 @@ export type ProvisionAllianceMembershipInput = {
   roleId: string;
   userLabel?: string | null;
   ownerEmail?: string | null;
+  /**
+   * How to treat an already-active membership for this alliance:
+   * - `never_demote` (default): apply invite/code role only when it is a
+   *   privilege upgrade (officer invite after member). Blocks silent demotion
+   *   when an officer later accepts a member/claim invite.
+   * - `preserve_existing`: never change roleId (rebind / join-code re-redeem).
+   *   Blocks silent re-escalation after an intentional demotion.
+   */
+  rolePolicy?: ProvisionRolePolicy;
 };
 
 export type ProvisionAllianceMembershipResult = {
@@ -24,6 +38,36 @@ export type ProvisionAllianceMembershipResult = {
   hqUserId: string;
   roleName: SystemRoleName | null;
 };
+
+/**
+ * Resolve which roleId to write when provisioning via invite/join-code.
+ * Exported for unit tests.
+ */
+export function resolveProvisionRoleId(input: {
+  inviteRoleId: string;
+  existingRoleId: string | null | undefined;
+  existingStatus: string | null | undefined;
+  rolePolicy: ProvisionRolePolicy;
+}): string {
+  if (input.existingStatus !== "active" || !input.existingRoleId) {
+    return input.inviteRoleId;
+  }
+
+  if (input.rolePolicy === "preserve_existing") {
+    return input.existingRoleId;
+  }
+
+  const currentName = systemRoleNameForId(input.existingRoleId);
+  const nextName = systemRoleNameForId(input.inviteRoleId);
+  if (
+    currentName &&
+    nextName &&
+    !shouldUpgradeSystemRole(currentName, nextName)
+  ) {
+    return input.existingRoleId;
+  }
+  return input.inviteRoleId;
+}
 
 export async function provisionAllianceMembership(
   input: ProvisionAllianceMembershipInput,
@@ -39,21 +83,47 @@ export async function provisionAllianceMembership(
     throw new Error("Alliance tag is missing.");
   }
 
+  const [existing] = await db
+    .select({
+      roleId: schema.allianceMemberships.roleId,
+      status: schema.allianceMemberships.status,
+    })
+    .from(schema.allianceMemberships)
+    .where(
+      and(
+        eq(schema.allianceMemberships.hqUserId, input.hqUserId),
+        eq(schema.allianceMemberships.allianceId, input.allianceId),
+      ),
+    )
+    .limit(1);
+
+  const rolePolicy = input.rolePolicy ?? "never_demote";
+  const roleId = resolveProvisionRoleId({
+    inviteRoleId: input.roleId,
+    existingRoleId: existing?.roleId,
+    existingStatus: existing?.status,
+    rolePolicy,
+  });
+
   await grantHqAccess(input.hqUserId);
   await assignManualMembership({
     hqUserId: input.hqUserId,
     allianceId: input.allianceId,
-    roleId: input.roleId,
+    roleId,
   });
 
   const now = new Date();
-  const roleName = systemRoleNameForId(input.roleId);
-  if (roleName === "owner") {
+  const roleName = systemRoleNameForId(roleId);
+  // Only stamp owner alliance fields when this call applies the invite/code
+  // owner role — not when an existing owner is preserved on a lower-role rebind.
+  if (roleName === "owner" && roleId === input.roleId) {
+    const ownerEmail =
+      input.ownerEmail?.trim() || alliance.ownerEmail?.trim() || null;
     await db
       .update(schema.alliances)
       .set({
         ownerHqUserId: input.hqUserId,
-        ownerEmail: input.ownerEmail ?? null,
+        ownerEmail,
         updatedAt: now,
       })
       .where(eq(schema.alliances.id, input.allianceId));

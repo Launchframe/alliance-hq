@@ -236,8 +236,10 @@ export function applyResolvedAllianceTagToDepositSlip<
  *   bank-owning alliance when the tag is missing/ambiguous) →
  *   `allianceMemberId` + `commanderId` when confidence clears the auto-link gate
  *
- * When `preferredAshedMemberId` is set (parse-time auto-link), skip name matching
- * and link that roster member on the tag-resolved alliance when present.
+ * When `preferredAshedMemberId` is set (parse-time auto-link or officer pick),
+ * skip name matching and link that member on the tag-resolved roster, else the
+ * bank roster. If preferred is on neither roster, leave member FKs null —
+ * never name-rematch to a different commander.
  */
 export async function resolveDepositSlipMemberLinks(
   input: {
@@ -339,11 +341,39 @@ export async function resolveDepositSlipMemberLinks(
 
   const preferredId = input.preferredAshedMemberId?.trim() || null;
   if (preferredId) {
-    const preferred = members.find((member) => member.id === preferredId);
-    if (preferred) {
+    // Honor parse/officer preferred member. Search tag-resolved roster first,
+    // then bank roster (officer picker is bank-scoped; warzone tags may differ).
+    // If preferred is absent from both, fail closed — never name-rematch to a
+    // different commander (silent wrong attribution).
+    type PreferredHit = {
+      member: (typeof members)[number];
+      linkAllianceId: string;
+    };
+    let preferredHit: PreferredHit | null = null;
+    const onTagRoster = members.find((member) => member.id === preferredId);
+    if (onTagRoster) {
+      preferredHit = { member: onTagRoster, linkAllianceId: rosterAllianceId };
+    } else if (input.bankAllianceId !== rosterAllianceId) {
+      const bankMembers = await loadRosterMembers(input.bankAllianceId);
+      const onBank = bankMembers.find((member) => member.id === preferredId);
+      if (onBank) {
+        preferredHit = {
+          member: onBank,
+          linkAllianceId: input.bankAllianceId,
+        };
+      }
+    }
+
+    if (preferredHit) {
       const [allianceMemberId, commanderId] = await Promise.all([
-        findAllianceMemberId(rosterAllianceId, preferred.id),
-        resolveCommanderId(rosterAllianceId, preferred.id),
+        findAllianceMemberId(
+          preferredHit.linkAllianceId,
+          preferredHit.member.id,
+        ),
+        resolveCommanderId(
+          preferredHit.linkAllianceId,
+          preferredHit.member.id,
+        ),
       ]);
       const reviewConfidence = depositSlipReviewMatchConfidence(
         1,
@@ -352,21 +382,31 @@ export async function resolveDepositSlipMemberLinks(
       );
       return {
         depositAllianceId,
-        rosterAllianceId,
-        resolvedAllianceTag,
+        rosterAllianceId: preferredHit.linkAllianceId,
+        resolvedAllianceTag:
+          allianceCatalog.find((a) => a.id === preferredHit!.linkAllianceId)
+            ?.tag?.trim() || null,
         allianceMemberId,
         commanderId,
-        ashedMemberId: preferred.id,
+        ashedMemberId: preferredHit.member.id,
         matchMethod: "exact",
         matchConfidence: reviewConfidence,
-        candidateAshedMemberId: preferred.id,
-        candidateMemberName: preferred.current_name,
+        candidateAshedMemberId: preferredHit.member.id,
+        candidateMemberName: preferredHit.member.current_name,
         candidateMatchMethod: "exact",
         candidateConfidence: reviewConfidence,
         tagMatchMethod,
         tagMatchConfidence,
       };
     }
+
+    return empty(
+      depositAllianceId,
+      tagMatchMethod,
+      tagMatchConfidence,
+      rosterAllianceId,
+      resolvedAllianceTag,
+    );
   }
 
   if (!input.commanderName.trim()) {
