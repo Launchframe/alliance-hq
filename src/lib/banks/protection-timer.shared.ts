@@ -1,5 +1,6 @@
 import type { AllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.shared";
 import { allianceSafeTimeSlotStartHour } from "@/lib/alliance/alliance-safe-time.shared";
+import { BANK_PROTECTION_DURATION_MS } from "@/lib/banks/types.shared";
 import {
   addCalendarDays,
   getServerCalendarDate,
@@ -53,6 +54,15 @@ export function computeProtectionExpiresAt(
   return nextProtectionResetAt(capturedAt, safeTimeSlot);
 }
 
+/**
+ * Resolves the protection expiry for a bank capture.
+ *
+ * Alliances that have not configured Alliance Safe Time yet (`safeTimeSlot`
+ * is `null`) fall back to the legacy fixed-duration window so existing
+ * behavior — including the Discord protection-expiry announcements, which
+ * key off `banks.protectionExpiresAt` being populated — is not silently
+ * disabled the moment this feature ships.
+ */
 export function resolveProtectionExpiresAt(params: {
   explicit: string | null | undefined;
   capturedAt: Date | null;
@@ -61,8 +71,11 @@ export function resolveProtectionExpiresAt(params: {
   if (params.explicit) {
     return new Date(params.explicit);
   }
-  if (!params.capturedAt || !params.safeTimeSlot) {
+  if (!params.capturedAt) {
     return null;
+  }
+  if (!params.safeTimeSlot) {
+    return new Date(params.capturedAt.getTime() + BANK_PROTECTION_DURATION_MS);
   }
   return computeProtectionExpiresAt(params.capturedAt, params.safeTimeSlot);
 }
