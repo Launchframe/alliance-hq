@@ -74,18 +74,6 @@ export async function archiveVideoJobSource(jobId: string): Promise<void> {
     const archiveBuffer = await fs.readFile(tmpArchive);
     await putObject(archiveKey, archiveBuffer);
 
-    // Shadow / sibling jobs often share this storageKey. Deleting while they
-    // still need the source makes early/late extraction shadows fail with no
-    // clean retry (one-shadow-per-group unique index).
-    const keepSharedSource = await sourceStillNeededBySiblings(
-      jobId,
-      job.groupId ?? null,
-      sourceKey,
-    );
-    if (!keepSharedSource) {
-      await deleteObject(sourceKey);
-    }
-
     await db
       .update(schema.videoJobs)
       .set({
@@ -95,6 +83,19 @@ export async function archiveVideoJobSource(jobId: string): Promise<void> {
         updatedAt: new Date(),
       })
       .where(eq(schema.videoJobs.id, jobId));
+
+    // Shadow / sibling jobs often share this storageKey. Deleting while they
+    // still need the source makes early/late extraction shadows fail with no
+    // clean retry (one-shadow-per-group unique index). Persist this job's
+    // archive first so concurrent archivers observe it before deciding delete.
+    const keepSharedSource = await sourceStillNeededBySiblings(
+      jobId,
+      job.groupId ?? null,
+      sourceKey,
+    );
+    if (!keepSharedSource) {
+      await deleteObject(sourceKey);
+    }
 
     logPipelineStep("ffmpeg.archive_source", Date.now() - started, {
       jobId,
