@@ -5,6 +5,7 @@ import {
   resolveCommanderDonationStoreUrl,
 } from "@/lib/members/commander-donation.server";
 import { CommanderAccessError } from "@/lib/members/commander-access.server";
+import { isBrowserDocumentNavigation } from "@/lib/members/store-launch-navigation.shared";
 import { getOrCreateSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,13 @@ type RouteContext = {
  * client logs cannot scrape `loginToken` from a fetch body.
  */
 export async function GET(request: Request, context: RouteContext) {
+  if (!isBrowserDocumentNavigation(request)) {
+    return new NextResponse("Launch requires a browser navigation.", {
+      status: 403,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+
   const session = await getOrCreateSession();
   const { ashedMemberId } = await context.params;
   const id = ashedMemberId.trim();

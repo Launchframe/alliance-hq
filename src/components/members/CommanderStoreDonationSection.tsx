@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -9,10 +9,16 @@ import {
 } from "@/lib/client/form-enter-submit.shared";
 import { Link } from "@/i18n/navigation";
 import { commanderDonationStoreLaunchPath } from "@/lib/members/store-tip-launch.shared";
+import {
+  donationLaunchErrorMessageKey,
+  donationLaunchPendingKey,
+} from "@/lib/members/store-launch-navigation.shared";
 
 type Props = {
   ashedMemberId: string;
   canGift: boolean;
+  /** Set when `/donation-store` redirected back after a failure. */
+  donationLaunchErrorCode?: string;
 };
 
 function todayIsoDate(): string {
@@ -23,7 +29,11 @@ function todayIsoDate(): string {
   return `${y}-${m}-${day}`;
 }
 
-export function CommanderStoreDonationSection({ ashedMemberId, canGift }: Props) {
+export function CommanderStoreDonationSection({
+  ashedMemberId,
+  canGift,
+  donationLaunchErrorCode,
+}: Props) {
   const t = useTranslations("members.profile");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [launchBusy, setLaunchBusy] = useState(false);
@@ -37,28 +47,38 @@ export function CommanderStoreDonationSection({ ashedMemberId, canGift }: Props)
   const [recordMessage, setRecordMessage] = useState<string | null>(null);
   const [recordError, setRecordError] = useState<string | null>(null);
 
+  const redirectLaunchError = donationLaunchErrorCode
+    ? t(donationLaunchErrorMessageKey(donationLaunchErrorCode))
+    : null;
+  const displayLaunchError = launchError ?? redirectLaunchError;
+  const showConfirm = confirmOpen || Boolean(donationLaunchErrorCode);
+
+  useEffect(() => {
+    if (donationLaunchErrorCode) {
+      sessionStorage.removeItem(donationLaunchPendingKey(ashedMemberId));
+      return;
+    }
+    const pendingKey = donationLaunchPendingKey(ashedMemberId);
+    if (!sessionStorage.getItem(pendingKey)) return;
+    sessionStorage.removeItem(pendingKey);
+    const id = requestAnimationFrame(() => setShowRecord(true));
+    return () => cancelAnimationFrame(id);
+  }, [ashedMemberId, donationLaunchErrorCode]);
+
   if (!canGift) return null;
 
   function launchStore() {
     setLaunchBusy(true);
     setLaunchError(null);
     try {
-      // Open the redirect route directly — never fetch JSON `{ url }` (would
-      // put loginToken + uid into the page's JS / response body).
-      const popup = window.open(
-        commanderDonationStoreLaunchPath(ashedMemberId),
-        "_blank",
-        "noopener,noreferrer",
-      );
-      if (!popup) {
-        setLaunchError(t("donationLaunchFailed"));
-        return;
-      }
-      setConfirmOpen(false);
-      setShowRecord(true);
+      sessionStorage.setItem(donationLaunchPendingKey(ashedMemberId), String(Date.now()));
+      // Same-tab navigation — never fetch JSON `{ url }` (would put loginToken + uid
+      // into JS / network response bodies). On success the user leaves HQ for Last War;
+      // on failure the launch route redirects back with `donationLaunchError`.
+      window.location.assign(commanderDonationStoreLaunchPath(ashedMemberId));
     } catch {
+      sessionStorage.removeItem(donationLaunchPendingKey(ashedMemberId));
       setLaunchError(t("donationLaunchFailed"));
-    } finally {
       setLaunchBusy(false);
     }
   }
@@ -106,7 +126,7 @@ export function CommanderStoreDonationSection({ ashedMemberId, canGift }: Props)
         </Link>
       </div>
 
-      {!confirmOpen ? (
+      {!showConfirm ? (
         <button
           type="button"
           className="mt-3 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white hover:bg-sky-500"
@@ -121,9 +141,9 @@ export function CommanderStoreDonationSection({ ashedMemberId, canGift }: Props)
         <div className="mt-3 space-y-3 rounded-lg border border-hq-border bg-hq-bg/40 p-4">
           <p className="text-sm font-medium text-hq-fg">{t("donationDialogTitle")}</p>
           <p className="text-sm text-hq-fg-muted">{t("donationDialogBody")}</p>
-          {launchError ? (
+          {displayLaunchError ? (
             <p className="text-sm text-red-400" role="alert">
-              {launchError}
+              {displayLaunchError}
             </p>
           ) : null}
           <div className="flex flex-wrap gap-2">
@@ -146,7 +166,7 @@ export function CommanderStoreDonationSection({ ashedMemberId, canGift }: Props)
         </div>
       )}
 
-      {(showRecord || confirmOpen) && (
+      {showRecord ? (
         <div className="mt-5 border-t border-hq-border pt-4">
           <h3 className="text-sm font-medium text-hq-fg">{t("recordPurchaseTitle")}</h3>
           <form
@@ -207,7 +227,7 @@ export function CommanderStoreDonationSection({ ashedMemberId, canGift }: Props)
             </div>
           </form>
         </div>
-      )}
+      ) : null}
     </section>
   );
 }

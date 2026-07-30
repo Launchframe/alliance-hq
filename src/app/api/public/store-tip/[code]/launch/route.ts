@@ -4,6 +4,7 @@ import {
   CommanderDonationError,
   resolvePublicTipStoreUrl,
 } from "@/lib/members/commander-donation.server";
+import { isBrowserDocumentNavigation } from "@/lib/members/store-launch-navigation.shared";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,13 @@ type RouteContext = {
  * exfiltrate `LAST_WAR_STORE_LOGIN_TOKEN` + recipient UID to anyone with a tip code).
  */
 export async function GET(request: Request, context: RouteContext) {
+  if (!isBrowserDocumentNavigation(request)) {
+    return new NextResponse("Launch requires a browser navigation.", {
+      status: 403,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+
   const { code } = await context.params;
   const trimmed = code.trim();
   try {
