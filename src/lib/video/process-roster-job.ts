@@ -10,6 +10,10 @@ import { getDb, schema } from "@/lib/db";
 import { DEFAULT_ROSTER_OCR_CONFIG, type RosterOcrConfig } from "@/lib/members/roster-ocr/types";
 import { resolveHqAllianceIdFromSession } from "@/lib/members/resolve-hq-alliance";
 import {
+  aggregateVideoJobHqGeometry,
+  readHqGeometryFromOcrRawJson,
+} from "@/lib/ocr/video-frame-hq-geometry.shared";
+import {
   allianceMemberRowToAshedMember,
   listAllianceMembers,
   syncAllianceMembersFromAshed,
@@ -203,6 +207,28 @@ export async function processRosterVideoParse(
         ),
     ),
   );
+
+  const hqGeometrySummary = aggregateVideoJobHqGeometry(
+    frameTimings.map((timing) => ({
+      frameIndex: timing.frameIndex,
+      hq: readHqGeometryFromOcrRawJson(timing.rawResult),
+    })),
+  );
+  const [existingJob] = await db
+    .select({ timingsJson: schema.videoJobs.timingsJson })
+    .from(schema.videoJobs)
+    .where(eq(schema.videoJobs.id, input.jobId))
+    .limit(1);
+  await db
+    .update(schema.videoJobs)
+    .set({
+      timingsJson: {
+        ...((existingJob?.timingsJson as Record<string, unknown> | null) ?? {}),
+        hqGeometrySummary,
+      },
+      updatedAt: input.now,
+    })
+    .where(eq(schema.videoJobs.id, input.jobId));
 
   let hqMembers = await listAllianceMembers(hqAllianceId);
   const linkedAshedId = await getAshedAllianceIdIfLinked(hqAllianceId);

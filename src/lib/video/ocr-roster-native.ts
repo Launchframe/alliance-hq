@@ -11,6 +11,10 @@ import {
   buildOcrDiagnostics,
   logOcrDiagnostics,
 } from "@/lib/ocr/ocr-diagnostics.shared";
+import {
+  attachHqGeometryToOcrRawJson,
+  buildRosterFrameHqGeometry,
+} from "@/lib/ocr/video-frame-hq-geometry.shared";
 import type { VideoOcrProgressCallback } from "@/lib/video/ocr-provider.shared";
 import { logPipelineStep } from "@/lib/video/pipeline-step-log";
 import type { PipelineTimer } from "@/lib/video/pipeline-timer";
@@ -29,7 +33,7 @@ export type NativeRosterFrameTiming = {
   ms: number;
   entryCount: number;
   error: string | null;
-  rawResult?: { lines: string[] } | null;
+  rawResult?: Record<string, unknown> | null;
 };
 
 export type OcrRosterNativeFramesResult = {
@@ -92,12 +96,22 @@ export async function ocrRosterNativeFrames(
     ms: number;
     rows: ParsedRosterRow[];
     error: string | null;
-    rawResult: { lines: string[] } | null;
+    rawResult: Record<string, unknown> | null;
     lowQuality: boolean;
   }> = [];
 
   for (const frame of sortedFrames) {
     const started = Date.now();
+    let sourceWidth = 1080;
+    let sourceHeight = 1920;
+    try {
+      const sharp = (await import("sharp")).default;
+      const meta = await sharp(frame.buffer).metadata();
+      sourceWidth = meta.width ?? sourceWidth;
+      sourceHeight = meta.height ?? sourceHeight;
+    } catch {
+      // Tests may pass non-image buffers; default dimensions are fine for metrics.
+    }
     try {
       const result = await parseRosterImage(frame.buffer, {
         config,
@@ -128,9 +142,17 @@ export async function ocrRosterNativeFrames(
         ms,
         rows: result.rows,
         error: null,
-        rawResult: result.ocrRawLines
-          ? { lines: result.ocrRawLines }
-          : null,
+        rawResult: attachHqGeometryToOcrRawJson(
+          result.ocrRawLines ? { lines: result.ocrRawLines } : null,
+          buildRosterFrameHqGeometry({
+            sourceWidth,
+            sourceHeight,
+            entryCount: result.rows.length,
+            rawLineCount: result.diagnostics?.rawLineCount ?? 0,
+            durationMs: ms,
+            lowQuality: result.diagnostics?.lowQuality ?? false,
+          }),
+        ),
         lowQuality: result.diagnostics?.lowQuality ?? false,
       });
     } catch (error) {
@@ -154,7 +176,18 @@ export async function ocrRosterNativeFrames(
         ms: Date.now() - started,
         rows: [],
         error: message,
-        rawResult: null,
+        rawResult: attachHqGeometryToOcrRawJson(
+          null,
+          buildRosterFrameHqGeometry({
+            sourceWidth,
+            sourceHeight,
+            entryCount: 0,
+            rawLineCount: 0,
+            durationMs: Date.now() - started,
+            lowQuality: true,
+            lowQualityReason: message,
+          }),
+        ),
         lowQuality: true,
       });
     }
