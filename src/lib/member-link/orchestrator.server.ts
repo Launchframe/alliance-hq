@@ -33,6 +33,7 @@ import {
   tryRouteRosterMissToOwnerApproval,
   getRosterLinkRequestById,
   isOwnerColdStartEligible,
+  resolveMemberLinkServerGate,
   supersedePendingRosterLinkRequests,
 } from "@/lib/member-link/roster-link-request.server";
 import { trySelfServiceMemberLink } from "@/lib/member-link/self-service-onboarding.server";
@@ -772,6 +773,25 @@ export async function runWebMemberLinkSubmit(input: {
         });
       }
       return finishMemberLinkSubmit(ctx, routed);
+    }
+  }
+
+  // Exact roster match returns linkTarget with needsOfficerAttention=false, so
+  // it never enters the self-service / owner-approval block above. Gate here so
+  // a same-name commander from another server cannot skip confirm_home /
+  // wrong_server (and cannot claim sole-R5 native ownership via Discord mirror).
+  if (resolvedResult.linkTarget) {
+    const serverGate = await resolveMemberLinkServerGate({
+      allianceId: input.allianceId,
+      allianceTag: alliance?.tag ?? "alliance",
+      gameUid: uid,
+      lookup,
+      translate,
+      allianceHomeConfirmed: input.allianceHomeConfirmed,
+      userClaimedLookupAsHome: input.userClaimedLookupAsHome,
+    });
+    if (!serverGate.ok) {
+      return finishMemberLinkSubmit(ctx, serverGate.response);
     }
   }
 
