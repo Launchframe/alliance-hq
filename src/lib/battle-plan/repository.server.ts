@@ -159,8 +159,8 @@ async function listLimitRowsWith(
             territoryType: row.territoryType,
             status: row.status,
             eventType:
-              row.eventType === "drop"
-                ? ("drop" as const)
+              row.eventType === "drop" || row.eventType === "deposit_window"
+                ? row.eventType
                 : ("capture" as const),
           },
         ]

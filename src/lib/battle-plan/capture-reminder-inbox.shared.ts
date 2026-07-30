@@ -1,5 +1,16 @@
 export const CAPTURE_REMINDER_INBOX_KIND = "capture_reminder" as const;
 
+export const DEPOSIT_WINDOW_REMINDER_INBOX_KIND = "deposit_window_reminder" as const;
+
+export type BattlePlanReminderInboxKind =
+  | typeof CAPTURE_REMINDER_INBOX_KIND
+  | typeof DEPOSIT_WINDOW_REMINDER_INBOX_KIND;
+
+export const BATTLE_PLAN_REMINDER_INBOX_KINDS = [
+  CAPTURE_REMINDER_INBOX_KIND,
+  DEPOSIT_WINDOW_REMINDER_INBOX_KIND,
+] as const;
+
 export const CAPTURE_REMINDER_DELAY_MS = 30 * 60 * 1000;
 
 export const CAPTURE_REMINDER_SNOOZE_MS = 30 * 60 * 1000;

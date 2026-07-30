@@ -141,7 +141,7 @@ export function validateCaptureEventPayload(
   }
   const eventType = body.eventType ?? "capture";
   if (!isBattlePlanEventType(eventType)) {
-    return "eventType must be capture or drop.";
+    return "eventType must be capture, drop, or deposit_window.";
   }
   if (!body.territoryType || !isTerritoryType(body.territoryType)) {
     return "territoryType must be stronghold or city.";
@@ -165,6 +165,9 @@ export function validateCaptureEventPayload(
   }
   if (eventType === "drop" && !body.bankId?.trim()) {
     return "bankId is required for drop events.";
+  }
+  if (eventType === "deposit_window" && !body.bankId?.trim()) {
+    return "bankId is required for deposit_window events.";
   }
   if (body.status != null && !isCaptureEventStatus(body.status)) {
     return "status must be scheduled, completed, or cancelled.";

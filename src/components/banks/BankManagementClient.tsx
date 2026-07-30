@@ -13,20 +13,32 @@ import { DepositSlipEditorModal } from "@/components/banks/DepositSlipEditorModa
 import { DepositSlipList } from "@/components/banks/DepositSlipList";
 import { InvestorRiskHeatmap } from "@/components/banks/InvestorRiskHeatmap";
 import { RecommendedDropCard } from "@/components/banks/RecommendedDropCard";
-import { fromDatetimeLocalValue } from "@/components/banks/datetime-local";
+import { ScheduleDropMarkerModal } from "@/components/banks/ScheduleDropMarkerModal";
+import {
+  defaultDatetimeLocalValue,
+  fromDatetimeLocalValue,
+} from "@/components/banks/datetime-local";
 import { Dialog } from "@/components/ui/dialog";
 import { Link } from "@/i18n/navigation";
 import { formatCityListServerTime } from "@/lib/banks/city-list-server-time.shared";
 import type { BankPayload, DepositSlipPayload } from "@/lib/banks/api.shared";
+import { findScheduledBankBattlePlanEvent } from "@/lib/banks/bank-battle-plan-markers.shared";
+import { resolveProtectionExpiresAt } from "@/lib/banks/protection-timer.shared";
+import {
+  createScheduledDropBattlePlanEvent,
+  syncDepositWindowBattlePlanEvent,
+} from "@/lib/banks/sync-bank-battle-plan-events.client";
 import { findNextAvailableMarkerPreset } from "@/lib/battle-plan/marker-conflict.shared";
+import type { MarkerIconPreset } from "@/lib/battle-plan/marker-icons.shared";
+import { readStoredBattlePlanTimeDisplay } from "@/lib/battle-plan/time-display.shared";
 import { estimateDropSafeAtIso, recommendNextDrop } from "@/lib/banks/optimization.shared";
 import type {
+  BankBattlePlanSnapshot,
   BankManagementPayload,
   BankWithSlips,
   SerializedBank,
   SerializedDepositSlip,
 } from "@/lib/banks/types.shared";
-import type { BattlePlanDashboardPayload } from "@/lib/battle-plan/types.shared";
 
 type Props = {
   initial: BankManagementPayload;
@@ -66,6 +78,10 @@ export function BankManagementClient({ initial }: Props) {
   const [allianceSafeTimeSlot, setAllianceSafeTimeSlot] = useState(
     initial.allianceSafeTimeSlot,
   );
+  const [battlePlan, setBattlePlan] = useState<BankBattlePlanSnapshot | null>(
+    initial.battlePlan,
+  );
+  const [timeDisplay] = useState(() => readStoredBattlePlanTimeDisplay());
   const [settingsOpenToken, setSettingsOpenToken] = useState(0);
   const [cityListModalOpen, setCityListModalOpen] = useState(false);
 
@@ -87,6 +103,11 @@ export function BankManagementClient({ initial }: Props) {
   const [editingSlip, setEditingSlip] = useState<SerializedDepositSlip | null>(null);
   const [slipModalToken, setSlipModalToken] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  const [scheduleDropModal, setScheduleDropModal] = useState<{
+    bankId: string;
+    scheduledAt: string;
+    iconPreset: MarkerIconPreset | null;
+  } | null>(null);
 
   const recommendation = useMemo(() => recommendNextDrop(banks), [banks]);
 
@@ -113,6 +134,9 @@ export function BankManagementClient({ initial }: Props) {
     setBankCapturesLimitToday(dashboard.bankCapturesLimitToday);
     setBankCityListServerTime(dashboard.bankCityListServerTime);
     setAllianceSafeTimeSlot(dashboard.allianceSafeTimeSlot);
+    if (dashboard.battlePlan) {
+      setBattlePlan(dashboard.battlePlan);
+    }
     setError(null);
   }, []);
 
@@ -138,7 +162,10 @@ export function BankManagementClient({ initial }: Props) {
     setBankModalOpen(true);
   };
 
-  const saveBank = async (payload: BankPayload) => {
+  const saveBank = async (
+    payload: BankPayload,
+    options?: { depositWindowIconPreset: MarkerIconPreset | null },
+  ) => {
     setSaving(true);
     setError(null);
     try {
@@ -156,11 +183,36 @@ export function BankManagementClient({ initial }: Props) {
       }
       const data = (await response.json()) as BankMutationResponse;
       applyDashboard(data.dashboard);
-      setSelectedBankId(data.bank.id);
+      const bank = data.bank;
+
+      if (options && battlePlan) {
+        const protectionExpiresAt = resolveProtectionExpiresAt({
+          explicit: null,
+          capturedAt: bank.capturedAt ? new Date(bank.capturedAt) : null,
+          safeTimeSlot: data.dashboard.allianceSafeTimeSlot,
+        });
+        const existingEvent = findScheduledBankBattlePlanEvent(
+          battlePlan.events,
+          bank.id,
+          "deposit_window",
+        );
+        const updatedBattlePlan = await syncDepositWindowBattlePlanEvent({
+          bank,
+          iconPreset: options.depositWindowIconPreset,
+          protectionExpiresAt,
+          existingEvent,
+          battlePlan,
+        });
+        setBattlePlan(updatedBattlePlan);
+      }
+
+      setSelectedBankId(bank.id);
       setBankModalOpen(false);
       setEditingBank(null);
-    } catch {
-      setError(t("errors.saveFailed"));
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : t("errors.saveFailed"),
+      );
     } finally {
       setSaving(false);
     }
@@ -273,9 +325,24 @@ export function BankManagementClient({ initial }: Props) {
     }
   };
 
-  const scheduleDrop = async (bankId: string, scheduledAtLocalValue: string) => {
-    const scheduledAtIso = fromDatetimeLocalValue(scheduledAtLocalValue);
-    if (!scheduledAtIso) {
+  const openScheduleDropModal = (bankId: string) => {
+    if (!battlePlan) {
+      setError(t("errors.scheduleFailed"));
+      return;
+    }
+    setScheduleDropModal({
+      bankId,
+      scheduledAt: defaultDatetimeLocalValue(30),
+      iconPreset: findNextAvailableMarkerPreset(battlePlan.events),
+    });
+  };
+
+  const confirmScheduleDrop = async () => {
+    if (!scheduleDropModal || !battlePlan) {
+      return;
+    }
+    const scheduledAtIso = fromDatetimeLocalValue(scheduleDropModal.scheduledAt);
+    if (!scheduledAtIso || !scheduleDropModal.iconPreset) {
       setError(t("errors.scheduleFailed"));
       return;
     }
@@ -283,42 +350,38 @@ export function BankManagementClient({ initial }: Props) {
     setError(null);
     setSuccessMessage(null);
     try {
-      const planResponse = await fetch("/api/battle-plan");
-      if (!planResponse.ok) {
-        setError(t("errors.scheduleFailed"));
-        return;
-      }
-      const planDashboard =
-        (await planResponse.json()) as BattlePlanDashboardPayload;
-      const iconPreset = findNextAvailableMarkerPreset(planDashboard.events);
-
-      const response = await fetch("/api/battle-plan/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          scheduledAt: scheduledAtIso,
-          territoryType: "stronghold",
-          iconPreset,
-          eventType: "drop",
-          bankId,
-          status: "scheduled",
-          planRevision: planDashboard.settings.planRevision,
-        }),
+      const updated = await createScheduledDropBattlePlanEvent({
+        bankId: scheduleDropModal.bankId,
+        scheduledAtIso,
+        iconPreset: scheduleDropModal.iconPreset,
+        battlePlan,
       });
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        setError(data?.error ?? t("errors.scheduleFailed"));
-        return;
-      }
+      setBattlePlan(updated);
+      setScheduleDropModal(null);
       setSuccessMessage(t("dropScheduled"));
-    } catch {
-      setError(t("errors.scheduleFailed"));
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : t("errors.scheduleFailed"),
+      );
     } finally {
       setScheduling(false);
     }
   };
+
+  const scheduleDropBankLabel = useMemo(() => {
+    if (!scheduleDropModal) {
+      return "";
+    }
+    const bank = banks.find((row) => row.id === scheduleDropModal.bankId);
+    if (!bank) {
+      return "";
+    }
+    return t("coords", {
+      server: bank.gameServerNumber,
+      x: bank.coordX,
+      y: bank.coordY,
+    });
+  }, [banks, scheduleDropModal, t]);
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-6">
@@ -392,6 +455,7 @@ export function BankManagementClient({ initial }: Props) {
             selectedBankId={selectedBankId}
             canWrite={canWrite}
             allianceSafeTimeSlot={allianceSafeTimeSlot}
+            battlePlanEvents={battlePlan?.events ?? []}
             onSelect={setSelectedBankId}
             onEdit={openEditBankModal}
             onAdd={openCreateBankModal}
@@ -411,7 +475,7 @@ export function BankManagementClient({ initial }: Props) {
             recommendation={recommendation}
             canWrite={canWrite}
             scheduling={scheduling}
-            onScheduleDrop={scheduleDrop}
+            onRequestScheduleDrop={openScheduleDropModal}
           />
           {selectedBank ? (
             <InvestorRiskHeatmap
@@ -442,6 +506,8 @@ export function BankManagementClient({ initial }: Props) {
         initial={editingBank}
         defaultGameServerNumber={allianceGameServerNumber}
         allianceSafeTimeSlot={allianceSafeTimeSlot}
+        battlePlanEvents={battlePlan?.events ?? []}
+        timeDisplay={timeDisplay}
         saving={saving}
         error={bankModalOpen ? error : null}
         onClose={() => {
@@ -466,6 +532,28 @@ export function BankManagementClient({ initial }: Props) {
         }}
         onSubmit={saveSlip}
         onDelete={editingSlip ? deleteSlip : undefined}
+      />
+
+      <ScheduleDropMarkerModal
+        open={scheduleDropModal != null}
+        bankLabel={scheduleDropBankLabel}
+        scheduledAt={scheduleDropModal?.scheduledAt ?? ""}
+        iconPreset={scheduleDropModal?.iconPreset ?? null}
+        events={battlePlan?.events ?? []}
+        timeDisplay={timeDisplay}
+        saving={scheduling}
+        onScheduledAtChange={(value) =>
+          setScheduleDropModal((current) =>
+            current ? { ...current, scheduledAt: value } : current,
+          )
+        }
+        onIconPresetChange={(preset) =>
+          setScheduleDropModal((current) =>
+            current ? { ...current, iconPreset: preset } : current,
+          )
+        }
+        onClose={() => setScheduleDropModal(null)}
+        onConfirm={() => void confirmScheduleDrop()}
       />
 
       <Dialog

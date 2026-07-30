@@ -27,4 +27,16 @@ describe("validateCaptureEventPayload", () => {
       }),
     ).toBeNull();
   });
+
+  it("requires bankId for deposit_window events", () => {
+    expect(
+      validateCaptureEventPayload({
+        scheduledAt: validBase.scheduledAt,
+        territoryType: "stronghold",
+        iconPreset: "hammer",
+        eventType: "deposit_window",
+        status: "scheduled",
+      }),
+    ).toBe("bankId is required for deposit_window events.");
+  });
 });

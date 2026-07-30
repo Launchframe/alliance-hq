@@ -3,6 +3,10 @@ import "server-only";
 import { and, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import {
+  computeDepositTermRiskGauges,
+  depositTermAdviceFromRiskGauges,
+} from "@/lib/banks/risk-profile.shared";
 import { postDiscordChannelMessage } from "@/lib/discord/post-message.server";
 
 // ---------------------------------------------------------------------------
@@ -154,12 +158,18 @@ function currentMilestone(hoursRemaining: number): number | null {
   return null;
 }
 
-function depositTermAdvice(hoursRemaining: number): string | null {
-  if (hoursRemaining <= 0) return "Protection expired — bank is vulnerable!";
-  if (hoursRemaining <= 24) return "Limit all new deposits to **1 day**.";
-  if (hoursRemaining <= 48) return "Safe deposit term is now **3 days** max.";
-  if (hoursRemaining <= 72) return "Safe deposit term is now **3 days**.";
-  return null;
+function depositTermAdviceForBank(bank: {
+  protectionExpiresAt: Date | null;
+  dropByAt: Date | null;
+  counterpartyRiskScore: number | null;
+}): string | null {
+  const gauges = computeDepositTermRiskGauges({
+    now: new Date(),
+    protectionExpiresAt: bank.protectionExpiresAt,
+    dropByAt: bank.dropByAt,
+    counterpartyRiskScore: bank.counterpartyRiskScore,
+  });
+  return depositTermAdviceFromRiskGauges(gauges);
 }
 
 export async function processBankProtectionAnnouncements(): Promise<{
@@ -213,7 +223,10 @@ export async function processBankProtectionAnnouncements(): Promise<{
           ? `⚠️ **${bankLabel}** — protection has expired!`
           : `⏱️ **${bankLabel}** — protection timer down to **${milestone}h**.`;
 
-      const advice = depositTermAdvice(hoursRemaining);
+      const advice =
+        milestone === 0
+          ? "Protection expired — bank is vulnerable!"
+          : depositTermAdviceForBank(bank);
       const message = advice ? `${timerLine}\n${advice}` : timerLine;
 
       for (const channelId of channels) {

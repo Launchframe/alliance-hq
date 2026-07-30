@@ -1,23 +1,27 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
-import { getDb, schema } from "@/lib/db";
 import {
+  BATTLE_PLAN_REMINDER_INBOX_KINDS,
   CAPTURE_REMINDER_DELAY_MS,
   CAPTURE_REMINDER_INBOX_KIND,
+  DEPOSIT_WINDOW_REMINDER_INBOX_KIND,
+  type BattlePlanReminderInboxKind,
 } from "@/lib/battle-plan/capture-reminder-inbox.shared";
+import { getDb, schema } from "@/lib/db";
 
 /**
- * Create (or refresh) an inbox reminder for a stronghold capture event.
+ * Create (or refresh) an inbox reminder for a battle-plan capture event.
  * The item becomes visible 30 minutes after the event's `scheduledAt`.
  */
-export async function materializeCaptureReminderInboxItem(input: {
+export async function materializeBattlePlanReminderInboxItem(input: {
   allianceId: string;
   captureEventId: string;
   scheduledAt: Date;
   title: string;
+  kind: BattlePlanReminderInboxKind;
 }): Promise<string> {
   const db = getDb();
   const itemId = nanoid(16);
@@ -28,7 +32,7 @@ export async function materializeCaptureReminderInboxItem(input: {
     .where(
       and(
         eq(schema.inboxReminderItems.allianceId, input.allianceId),
-        eq(schema.inboxReminderItems.kind, CAPTURE_REMINDER_INBOX_KIND),
+        eq(schema.inboxReminderItems.kind, input.kind),
         eq(schema.inboxReminderItems.captureEventId, input.captureEventId),
       ),
     );
@@ -40,7 +44,7 @@ export async function materializeCaptureReminderInboxItem(input: {
   await db.insert(schema.inboxReminderItems).values({
     id: itemId,
     allianceId: input.allianceId,
-    kind: CAPTURE_REMINDER_INBOX_KIND,
+    kind: input.kind,
     title: input.title,
     body: null,
     href: null,
@@ -54,8 +58,33 @@ export async function materializeCaptureReminderInboxItem(input: {
   return itemId;
 }
 
-/** Deactivate the capture reminder when the event is cancelled or deleted. */
-export async function deactivateCaptureReminderInboxItem(
+/** @deprecated Use materializeBattlePlanReminderInboxItem */
+export async function materializeCaptureReminderInboxItem(input: {
+  allianceId: string;
+  captureEventId: string;
+  scheduledAt: Date;
+  title: string;
+}): Promise<string> {
+  return materializeBattlePlanReminderInboxItem({
+    ...input,
+    kind: CAPTURE_REMINDER_INBOX_KIND,
+  });
+}
+
+export async function materializeDepositWindowReminderInboxItem(input: {
+  allianceId: string;
+  captureEventId: string;
+  scheduledAt: Date;
+  title: string;
+}): Promise<string> {
+  return materializeBattlePlanReminderInboxItem({
+    ...input,
+    kind: DEPOSIT_WINDOW_REMINDER_INBOX_KIND,
+  });
+}
+
+/** Deactivate all battle-plan reminders tied to an event. */
+export async function deactivateBattlePlanReminderInboxItems(
   captureEventId: string,
 ): Promise<void> {
   const db = getDb();
@@ -64,8 +93,15 @@ export async function deactivateCaptureReminderInboxItem(
     .set({ active: 0 })
     .where(
       and(
-        eq(schema.inboxReminderItems.kind, CAPTURE_REMINDER_INBOX_KIND),
+        inArray(schema.inboxReminderItems.kind, [...BATTLE_PLAN_REMINDER_INBOX_KINDS]),
         eq(schema.inboxReminderItems.captureEventId, captureEventId),
       ),
     );
+}
+
+/** @deprecated Use deactivateBattlePlanReminderInboxItems */
+export async function deactivateCaptureReminderInboxItem(
+  captureEventId: string,
+): Promise<void> {
+  return deactivateBattlePlanReminderInboxItems(captureEventId);
 }
