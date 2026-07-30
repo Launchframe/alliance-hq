@@ -69,7 +69,9 @@ export async function GET(request: Request) {
       };
 
       try {
-        const jobs = await getRecentOwnedVideoJobs(sessionId, hqUserId);
+        const jobs = await getRecentOwnedVideoJobs(sessionId, hqUserId, {
+          currentAllianceId: session.currentAllianceId,
+        });
         send("snapshot", { jobs });
       } catch (error) {
         send("error", {
@@ -96,7 +98,12 @@ export async function GET(request: Request) {
           const event = parseVideoJobStatusEvent(payload);
           if (
             !event ||
-            !isVideoJobStatusEventForViewer(event, sessionId, hqUserId)
+            !isVideoJobStatusEventForViewer(
+              event,
+              sessionId,
+              hqUserId,
+              session.currentAllianceId,
+            )
           ) {
             return;
           }

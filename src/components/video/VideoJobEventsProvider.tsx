@@ -26,6 +26,20 @@ import {
   mergeVideoJobStatusEvent,
 } from "@/lib/events/video-jobs-types";
 
+function isVideoJobEventForAlliance(
+  event: VideoJobStatusEvent,
+  currentAllianceId: string | null,
+): boolean {
+  if (
+    currentAllianceId &&
+    event.allianceId &&
+    event.allianceId !== currentAllianceId
+  ) {
+    return false;
+  }
+  return true;
+}
+
 type VideoJobBanner = {
   jobId: string;
   kind: "review" | "failed";
@@ -126,9 +140,20 @@ export function VideoJobStatusBanners() {
   );
 }
 
-export function VideoJobEventsProvider({ children }: { children: ReactNode }) {
+export function VideoJobEventsProvider({
+  children,
+  currentAllianceId = null,
+}: {
+  children: ReactNode;
+  currentAllianceId?: string | null;
+}) {
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
+  const currentAllianceIdRef = useRef(currentAllianceId);
+
+  useEffect(() => {
+    currentAllianceIdRef.current = currentAllianceId;
+  }, [currentAllianceId]);
 
   const [jobsById, setJobsById] = useState<Record<string, VideoJobStatusEvent>>(
     {},
@@ -180,6 +205,11 @@ export function VideoJobEventsProvider({ children }: { children: ReactNode }) {
 
   const applyJobEvent = useCallback(
     (event: VideoJobStatusEvent, options?: { notify?: boolean }) => {
+      if (
+        !isVideoJobEventForAlliance(event, currentAllianceIdRef.current ?? null)
+      ) {
+        return;
+      }
       setJobsById((prev) => ({
         ...prev,
         [event.jobId]: mergeVideoJobStatusEvent(prev[event.jobId], event),
@@ -216,6 +246,14 @@ export function VideoJobEventsProvider({ children }: { children: ReactNode }) {
         setJobsById((prev) => {
           const next = { ...prev };
           for (const job of data.jobs!) {
+            if (
+              !isVideoJobEventForAlliance(
+                job,
+                currentAllianceIdRef.current ?? null,
+              )
+            ) {
+              continue;
+            }
             next[job.jobId] = mergeVideoJobStatusEvent(next[job.jobId], job);
           }
           return next;

@@ -5,6 +5,8 @@ export type VideoJobStatusEvent = {
   /** HQ user who uploaded — present so other devices for the same user receive events. */
   enqueuedByHqUserId?: string | null;
   hqUserId?: string | null;
+  /** HQ alliance tenant id — scopes upload lists and live SSE to current alliance. */
+  allianceId?: string | null;
   jobId: string;
   status: string;
   fileName: string | null;

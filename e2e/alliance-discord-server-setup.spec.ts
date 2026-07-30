@@ -120,7 +120,7 @@ test.describe("Alliance Discord server setup panel", () => {
     ).toHaveCount(0);
   });
 
-  test("platform maintainer picks alliance then can install Discord bot", async ({
+  test("platform maintainer switches alliance via API then can install Discord bot", async ({
     page,
     request,
   }) => {
@@ -132,6 +132,12 @@ test.describe("Alliance Discord server setup panel", () => {
     });
     const auth = await createPlatformMaintainerSession(sql);
 
+    const switchRes = await request.patch("/api/session/current-alliance", {
+      headers: { Cookie: `alliance_hq_session=${auth.sessionId}` },
+      data: { allianceId: alliance.allianceId },
+    });
+    expect(switchRes.ok(), await switchRes.text()).toBeTruthy();
+
     await page.context().addCookies(
       playwrightAuthCookies({
         sessionId: auth.sessionId,
@@ -140,18 +146,6 @@ test.describe("Alliance Discord server setup panel", () => {
     );
 
     await page.goto("/settings/discord");
-
-    await expect(
-      page.getByRole("heading", { name: /choose an alliance/i }),
-    ).toBeVisible();
-
-    const switchRes = await request.patch("/api/session/current-alliance", {
-      headers: { Cookie: `alliance_hq_session=${auth.sessionId}` },
-      data: { allianceId: alliance.allianceId },
-    });
-    expect(switchRes.ok(), await switchRes.text()).toBeTruthy();
-
-    await page.reload();
 
     await expect(
       page.getByRole("heading", { name: /Discord bot — add another server/i }),

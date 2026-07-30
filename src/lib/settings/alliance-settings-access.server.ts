@@ -3,7 +3,6 @@ import "server-only";
 import { redirect } from "@/i18n/navigation";
 
 import {
-  listAlliancePickerOptions,
   listSessionAlliances,
   findSessionAllianceMembership,
   pickAllianceMembershipForSession,
@@ -117,12 +116,8 @@ export async function requireAllianceSettingsSession(
         access.session.id,
         access.session.hqUserId,
       );
-      const isMaintainer = await sessionHasPermission(
-        access.session.id,
-        "hq:admin",
-      );
       const alliances = effectiveHqUserId
-        ? await listAlliancePickerOptions(effectiveHqUserId, isMaintainer)
+        ? await listSessionAlliances(effectiveHqUserId)
         : [];
       if (alliances.length > 0) {
         return { pickAlliance: alliances };

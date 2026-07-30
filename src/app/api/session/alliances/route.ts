@@ -20,10 +20,7 @@ export async function GET() {
 
     const rbac = await getRbacContext(session.id);
     const isPlatformMaintainer = rbac?.isPlatformMaintainer ?? false;
-    const alliances = await listAlliancePickerOptions(
-      session.hqUserId,
-      isPlatformMaintainer,
-    );
+    const alliances = await listAlliancePickerOptions(session.hqUserId);
 
     return NextResponse.json({
       alliances,
