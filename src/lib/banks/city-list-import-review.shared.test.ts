@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   cityListImportBankIdentityError,
   cityListReviewRowsHaveErrors,
+  cityListUpsertClearsDropByAt,
   classifyCityListImportRowsAgainstHq,
   clampReviewIndexAfterRemove,
   defaultPlaceholderGameServerNumber,
@@ -173,5 +174,36 @@ describe("classifyCityListImportRowsAgainstHq", () => {
         coordY: 400,
       }),
     ).toBe(false);
+  });
+});
+
+describe("cityListUpsertClearsDropByAt", () => {
+  const now = new Date("2026-07-27T12:00:00.000Z");
+
+  it("does not clear when dropByAt is null", () => {
+    expect(cityListUpsertClearsDropByAt(null, now)).toBe(false);
+    expect(cityListUpsertClearsDropByAt(undefined, now)).toBe(false);
+  });
+
+  it("clears soft-archived / past drop deadlines", () => {
+    expect(
+      cityListUpsertClearsDropByAt(new Date("2026-07-27T12:00:00.000Z"), now),
+    ).toBe(true);
+    expect(
+      cityListUpsertClearsDropByAt(new Date("2026-07-20T00:00:00.000Z"), now),
+    ).toBe(true);
+    expect(cityListUpsertClearsDropByAt("2026-07-26T18:00:00.000Z", now)).toBe(
+      true,
+    );
+  });
+
+  it("preserves future officer-planned drop deadlines", () => {
+    expect(
+      cityListUpsertClearsDropByAt(new Date("2026-07-28T00:00:00.000Z"), now),
+    ).toBe(false);
+  });
+
+  it("does not clear unparseable values", () => {
+    expect(cityListUpsertClearsDropByAt("not-a-date", now)).toBe(false);
   });
 });
