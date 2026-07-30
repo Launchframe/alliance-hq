@@ -49,8 +49,10 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
 
   const entryKind = isTimeOffEntryKind(existing.entryKind)
     ? existing.entryKind
-    : "planned";
-  const canManageOthers = !(await requireTimeOffWrite(sessionId));
+    : null;
+  if (!entryKind) {
+    return NextResponse.json({ error: "Invalid entry kind." }, { status: 500 });
+  }
   const ownsCommander =
     session.hqUserId != null &&
     (await hqUserOwnsCommander({
