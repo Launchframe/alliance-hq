@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 
 import type { DepositSlipPayload } from "@/lib/banks/api.shared";
 import { validateDepositSlipPayload } from "@/lib/banks/api.shared";
+import { withBankDepositCommitLock } from "@/lib/banks/bank-deposit-commit-lock.server";
 import {
   findHistoricalDepositMatch,
   shouldSkipHistoricalDepositDuplicate,
@@ -148,220 +149,230 @@ export async function commitDepositSlipsFromVideoJob(
     }));
   }
 
-  const existingSlips = await listDepositSlipsForBank(
-    input.allianceId,
-    input.bankId,
-  );
-  type HistoryRow = {
-    id: string;
-    commanderName: string;
-    depositAt: string;
-    amount: number;
-    termDays: number;
-    depositAllianceTag: string | null;
-    status: DepositStatus;
-    allianceMemberId: string | null;
-    outcomeAt: string | null;
-  };
-  const history: HistoryRow[] = existingSlips.map((slip) => ({
-    id: slip.id,
-    commanderName: slip.commanderName,
-    depositAt:
-      slip.depositAt instanceof Date
-        ? slip.depositAt.toISOString()
-        : String(slip.depositAt),
-    amount: slip.amount,
-    termDays: slip.termDays,
-    depositAllianceTag: slip.depositAllianceTag,
-    status: slip.status as DepositStatus,
-    allianceMemberId: slip.allianceMemberId ?? null,
-    outcomeAt:
-      slip.outcomeAt == null
-        ? null
-        : slip.outcomeAt instanceof Date
-          ? slip.outcomeAt.toISOString()
-          : String(slip.outcomeAt),
-  }));
-
-  let createdCount = 0;
-  let skippedCount = 0;
-  let skippedDuplicateCount = 0;
-  let updatedCount = 0;
-  const errors: string[] = [];
-
-  // Share one alliance-tag fetch and one roster fetch per alliance across the
-  // whole commit instead of re-querying per row.
-  const resolverDeps = createDepositSlipMemberResolverCache();
-
-  for (const row of rows) {
-    const meta = linkMetaByRowId.get(row.id);
-    // Prefer submit/body rank; fall back to persisted OCR scratchpad so
-    // callers that omit rank (legacy review payloads) still persist outcomeAmount.
-    const rank = row.rank !== undefined ? row.rank : (meta?.rank ?? null);
-    const draft = parsedRowFieldsToDepositSlipDraft({
-      ocrName: row.ocrName,
-      score: row.score,
-      powerLevel: row.powerLevel,
-      memberLevel: row.memberLevel,
-      profession: row.profession,
-      allianceRankTitle: row.allianceRankTitle,
-      rosterRankRaw: row.rosterRankRaw,
-      rank,
-      frameIndex: row.frameIndex,
-    });
-    if (!draft || draft.amount == null || !draft.depositAt || draft.termDays == null) {
-      skippedCount += 1;
-      errors.push(
-        `Row ${row.id}: missing commander, amount, deposit time, or term.`,
-      );
-      continue;
-    }
-
-    const matchMethod = row.matchMethod ?? meta?.matchMethod ?? null;
-    const memberId = row.memberId ?? meta?.memberId ?? null;
-    const preferredAshedMemberId =
-      isDepositSlipAutoLinkedMatchMethod(matchMethod) && memberId
-        ? memberId
-        : null;
-
-    const links = await resolveDepositSlipMemberLinks(
-      {
-        bankAllianceId: input.allianceId,
-        depositAllianceTag: draft.identity.allianceTag,
-        commanderName: draft.identity.commanderName,
-        preferredAshedMemberId,
-      },
-      resolverDeps,
-    );
-
-    const commanderName = committedDepositSlipCommanderName(
-      draft.identity.commanderName,
-      links,
-    );
-
-    const incoming = {
-      commanderName,
-      depositAt: draft.depositAt,
-      amount: draft.amount,
-      termDays: draft.termDays,
-      depositAllianceTag: draft.identity.allianceTag,
-      status: draft.status,
-      outcomeAt: draft.outcomeAt ?? null,
-      allianceMemberId: links.allianceMemberId,
-    };
-    const historicalMatch = findHistoricalDepositMatch(incoming, history);
-    if (
-      historicalMatch &&
-      shouldSkipHistoricalDepositDuplicate(incoming, historicalMatch)
-    ) {
-      skippedDuplicateCount += 1;
-      continue;
-    }
-
-    if (
-      historicalMatch &&
-      shouldUpdateHistoricalDepositOutcome(incoming, historicalMatch)
-    ) {
-      const updatePayload: DepositSlipPayload = {
-        bankId: input.bankId,
-        // Keep the initiate timestamp; OCR time on green/orange is outcomeAt
-        // (lifecycle merges may already split depositAt vs outcomeAt).
-        depositAt: historicalMatch.depositAt,
-        termDays: draft.termDays,
-        amount: draft.amount,
-        outcomeAmount: draft.outcomeAmount ?? null,
-        status: draft.status,
-        outcomeAt: draft.outcomeAt ?? draft.depositAt,
-        depositAllianceTag: draft.identity.allianceTag,
-        depositAllianceId: links.depositAllianceId,
-        commanderName,
-        commanderId: links.commanderId,
-        allianceMemberId: links.allianceMemberId,
-      };
-      const validationError = validateDepositSlipPayload(updatePayload);
-      if (validationError) {
-        skippedCount += 1;
-        errors.push(`Row ${row.id}: ${validationError}`);
-        continue;
-      }
-      await updateDepositSlip(
+  // Serialize history snapshot + match + create/update across concurrent
+  // video submits (and manual POST) for this bank — job claims alone do not.
+  return withBankDepositCommitLock(
+    { allianceId: input.allianceId, bankId: input.bankId },
+    async () => {
+      const existingSlips = await listDepositSlipsForBank(
         input.allianceId,
-        historicalMatch.id,
-        updatePayload,
+        input.bankId,
       );
-      updatedCount += 1;
-      historicalMatch.status = draft.status;
-      historicalMatch.commanderName = commanderName;
-      historicalMatch.allianceMemberId = links.allianceMemberId;
-      historicalMatch.depositAllianceTag =
-        draft.identity.allianceTag?.trim() || null;
-      // Keep in-memory outcomeAt in sync with what was just persisted so a
-      // later row in this same batch that re-reads this terminal event is
-      // matched against the real outcome instant, not the stale locked value.
-      historicalMatch.outcomeAt = updatePayload.outcomeAt ?? null;
-      continue;
-    }
+      type HistoryRow = {
+        id: string;
+        commanderName: string;
+        depositAt: string;
+        amount: number;
+        termDays: number;
+        depositAllianceTag: string | null;
+        status: DepositStatus;
+        allianceMemberId: string | null;
+        outcomeAt: string | null;
+      };
+      const history: HistoryRow[] = existingSlips.map((slip) => ({
+        id: slip.id,
+        commanderName: slip.commanderName,
+        depositAt:
+          slip.depositAt instanceof Date
+            ? slip.depositAt.toISOString()
+            : String(slip.depositAt),
+        amount: slip.amount,
+        termDays: slip.termDays,
+        depositAllianceTag: slip.depositAllianceTag,
+        status: slip.status as DepositStatus,
+        allianceMemberId: slip.allianceMemberId ?? null,
+        outcomeAt:
+          slip.outcomeAt == null
+            ? null
+            : slip.outcomeAt instanceof Date
+              ? slip.outcomeAt.toISOString()
+              : String(slip.outcomeAt),
+      }));
 
-    const payload: DepositSlipPayload = {
-      bankId: input.bankId,
-      depositAt: draft.depositAt,
-      termDays: draft.termDays,
-      amount: draft.amount,
-      outcomeAmount: draft.outcomeAmount ?? null,
-      status: draft.status,
-      outcomeAt:
-        draft.status === "matured" || draft.status === "looted"
-          ? (draft.outcomeAt ?? draft.depositAt)
-          : null,
-      depositAllianceTag: draft.identity.allianceTag,
-      depositAllianceId: links.depositAllianceId,
-      commanderName,
-      commanderId: links.commanderId,
-      allianceMemberId: links.allianceMemberId,
-    };
+      let createdCount = 0;
+      let skippedCount = 0;
+      let skippedDuplicateCount = 0;
+      let updatedCount = 0;
+      const errors: string[] = [];
 
-    const validationError = validateDepositSlipPayload(payload);
-    if (validationError) {
-      skippedCount += 1;
-      errors.push(`Row ${row.id}: ${validationError}`);
-      continue;
-    }
+      // Share one alliance-tag fetch and one roster fetch per alliance across the
+      // whole commit instead of re-querying per row.
+      const resolverDeps = createDepositSlipMemberResolverCache();
 
-    const created = await createDepositSlip(input.allianceId, payload);
-    createdCount += 1;
-    // Later rows in this same commit must see the slip we just wrote so a
-    // duplicate OCR survivor in one video does not insert twice.
-    history.push({
-      id: created.id,
-      commanderName,
-      depositAt: incoming.depositAt,
-      amount: incoming.amount,
-      termDays: incoming.termDays,
-      depositAllianceTag: incoming.depositAllianceTag?.trim() || null,
-      status: incoming.status,
-      outcomeAt:
-        incoming.status === "matured" || incoming.status === "looted"
-          ? (incoming.outcomeAt ?? incoming.depositAt)
-          : null,
-      allianceMemberId: links.allianceMemberId,
-    });
-  }
+      for (const row of rows) {
+        const meta = linkMetaByRowId.get(row.id);
+        // Prefer submit/body rank; fall back to persisted OCR scratchpad so
+        // callers that omit rank (legacy review payloads) still persist outcomeAmount.
+        const rank = row.rank !== undefined ? row.rank : (meta?.rank ?? null);
+        const draft = parsedRowFieldsToDepositSlipDraft({
+          ocrName: row.ocrName,
+          score: row.score,
+          powerLevel: row.powerLevel,
+          memberLevel: row.memberLevel,
+          profession: row.profession,
+          allianceRankTitle: row.allianceRankTitle,
+          rosterRankRaw: row.rosterRankRaw,
+          rank,
+          frameIndex: row.frameIndex,
+        });
+        if (
+          !draft ||
+          draft.amount == null ||
+          !draft.depositAt ||
+          draft.termDays == null
+        ) {
+          skippedCount += 1;
+          errors.push(
+            `Row ${row.id}: missing commander, amount, deposit time, or term.`,
+          );
+          continue;
+        }
 
-  if (
-    createdCount === 0 &&
-    skippedDuplicateCount === 0 &&
-    updatedCount === 0
-  ) {
-    throw new Error(
-      errors[0] ?? "No valid deposit slips to commit.",
-    );
-  }
+        const matchMethod = row.matchMethod ?? meta?.matchMethod ?? null;
+        const memberId = row.memberId ?? meta?.memberId ?? null;
+        const preferredAshedMemberId =
+          isDepositSlipAutoLinkedMatchMethod(matchMethod) && memberId
+            ? memberId
+            : null;
 
-  return {
-    createdCount,
-    skippedCount,
-    skippedDuplicateCount,
-    updatedCount,
-    errors,
-  };
+        const links = await resolveDepositSlipMemberLinks(
+          {
+            bankAllianceId: input.allianceId,
+            depositAllianceTag: draft.identity.allianceTag,
+            commanderName: draft.identity.commanderName,
+            preferredAshedMemberId,
+          },
+          resolverDeps,
+        );
+
+        const commanderName = committedDepositSlipCommanderName(
+          draft.identity.commanderName,
+          links,
+        );
+
+        const incoming = {
+          commanderName,
+          depositAt: draft.depositAt,
+          amount: draft.amount,
+          termDays: draft.termDays,
+          depositAllianceTag: draft.identity.allianceTag,
+          status: draft.status,
+          outcomeAt: draft.outcomeAt ?? null,
+          allianceMemberId: links.allianceMemberId,
+        };
+        const historicalMatch = findHistoricalDepositMatch(incoming, history);
+        if (
+          historicalMatch &&
+          shouldSkipHistoricalDepositDuplicate(incoming, historicalMatch)
+        ) {
+          skippedDuplicateCount += 1;
+          continue;
+        }
+
+        if (
+          historicalMatch &&
+          shouldUpdateHistoricalDepositOutcome(incoming, historicalMatch)
+        ) {
+          const updatePayload: DepositSlipPayload = {
+            bankId: input.bankId,
+            // Keep the initiate timestamp; OCR time on green/orange is outcomeAt
+            // (lifecycle merges may already split depositAt vs outcomeAt).
+            depositAt: historicalMatch.depositAt,
+            termDays: draft.termDays,
+            amount: draft.amount,
+            outcomeAmount: draft.outcomeAmount ?? null,
+            status: draft.status,
+            outcomeAt: draft.outcomeAt ?? draft.depositAt,
+            depositAllianceTag: draft.identity.allianceTag,
+            depositAllianceId: links.depositAllianceId,
+            commanderName,
+            commanderId: links.commanderId,
+            allianceMemberId: links.allianceMemberId,
+          };
+          const validationError = validateDepositSlipPayload(updatePayload);
+          if (validationError) {
+            skippedCount += 1;
+            errors.push(`Row ${row.id}: ${validationError}`);
+            continue;
+          }
+          await updateDepositSlip(
+            input.allianceId,
+            historicalMatch.id,
+            updatePayload,
+          );
+          updatedCount += 1;
+          historicalMatch.status = draft.status;
+          historicalMatch.commanderName = commanderName;
+          historicalMatch.allianceMemberId = links.allianceMemberId;
+          historicalMatch.depositAllianceTag =
+            draft.identity.allianceTag?.trim() || null;
+          // Keep in-memory outcomeAt in sync with what was just persisted so a
+          // later row in this same batch that re-reads this terminal event is
+          // matched against the real outcome instant, not the stale locked value.
+          historicalMatch.outcomeAt = updatePayload.outcomeAt ?? null;
+          continue;
+        }
+
+        const payload: DepositSlipPayload = {
+          bankId: input.bankId,
+          depositAt: draft.depositAt,
+          termDays: draft.termDays,
+          amount: draft.amount,
+          outcomeAmount: draft.outcomeAmount ?? null,
+          status: draft.status,
+          outcomeAt:
+            draft.status === "matured" || draft.status === "looted"
+              ? (draft.outcomeAt ?? draft.depositAt)
+              : null,
+          depositAllianceTag: draft.identity.allianceTag,
+          depositAllianceId: links.depositAllianceId,
+          commanderName,
+          commanderId: links.commanderId,
+          allianceMemberId: links.allianceMemberId,
+        };
+
+        const validationError = validateDepositSlipPayload(payload);
+        if (validationError) {
+          skippedCount += 1;
+          errors.push(`Row ${row.id}: ${validationError}`);
+          continue;
+        }
+
+        const created = await createDepositSlip(input.allianceId, payload);
+        createdCount += 1;
+        // Later rows in this same commit must see the slip we just wrote so a
+        // duplicate OCR survivor in one video does not insert twice.
+        history.push({
+          id: created.id,
+          commanderName,
+          depositAt: incoming.depositAt,
+          amount: incoming.amount,
+          termDays: incoming.termDays,
+          depositAllianceTag: incoming.depositAllianceTag?.trim() || null,
+          status: incoming.status,
+          outcomeAt:
+            incoming.status === "matured" || incoming.status === "looted"
+              ? (incoming.outcomeAt ?? incoming.depositAt)
+              : null,
+          allianceMemberId: links.allianceMemberId,
+        });
+      }
+
+      if (
+        createdCount === 0 &&
+        skippedDuplicateCount === 0 &&
+        updatedCount === 0
+      ) {
+        throw new Error(errors[0] ?? "No valid deposit slips to commit.");
+      }
+
+      return {
+        createdCount,
+        skippedCount,
+        skippedDuplicateCount,
+        updatedCount,
+        errors,
+      };
+    },
+  );
 }

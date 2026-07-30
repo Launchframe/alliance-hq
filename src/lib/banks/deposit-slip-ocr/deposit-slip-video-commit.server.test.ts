@@ -7,11 +7,18 @@ const selectLimit = vi.hoisted(() => vi.fn());
 const selectWhereRows = vi.hoisted(() => vi.fn());
 const resolveDepositSlipMemberLinks = vi.hoisted(() => vi.fn());
 const createDepositSlipMemberResolverCache = vi.hoisted(() => vi.fn());
+const withBankDepositCommitLock = vi.hoisted(() =>
+  vi.fn(async (_key: unknown, run: () => Promise<unknown>) => run()),
+);
 
 vi.mock("@/lib/banks/repository.server", () => ({
   createDepositSlip,
   updateDepositSlip,
   listDepositSlipsForBank,
+}));
+
+vi.mock("@/lib/banks/bank-deposit-commit-lock.server", () => ({
+  withBankDepositCommitLock,
 }));
 
 vi.mock(
@@ -51,6 +58,9 @@ import { commitDepositSlipsFromVideoJob } from "@/lib/banks/deposit-slip-ocr/dep
 describe("commitDepositSlipsFromVideoJob", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    withBankDepositCommitLock.mockImplementation(
+      async (_key: unknown, run: () => Promise<unknown>) => run(),
+    );
     selectLimit.mockResolvedValue([{ id: "bank-1" }]);
     selectWhereRows.mockReturnValue([]);
     listDepositSlipsForBank.mockResolvedValue([]);
@@ -116,6 +126,56 @@ describe("commitDepositSlipsFromVideoJob", () => {
         ],
       }),
     ).rejects.toThrow("Bank not found.");
+    expect(withBankDepositCommitLock).not.toHaveBeenCalled();
+  });
+
+  it("serializes history load and create under the bank deposit commit lock", async () => {
+    const order: string[] = [];
+    withBankDepositCommitLock.mockImplementation(
+      async (key: unknown, run: () => Promise<unknown>) => {
+        const typed = key as { allianceId: string; bankId: string };
+        order.push(`lock:${typed.allianceId}:${typed.bankId}`);
+        return run();
+      },
+    );
+    listDepositSlipsForBank.mockImplementation(async () => {
+      order.push("list");
+      return [];
+    });
+    createDepositSlip.mockImplementation(async () => {
+      order.push("create");
+      return { id: "slip-1" };
+    });
+
+    await commitDepositSlipsFromVideoJob({
+      allianceId: "alliance-a",
+      bankId: "bank-1",
+      parseSessionId: "parse-1",
+      rows: [
+        {
+          id: "row-1",
+          ocrName: "Blue Investor",
+          score: "6000",
+          powerLevel: "2026-07-10T12:14:34.000Z",
+          memberLevel: 3,
+          profession: "locked",
+          allianceRankTitle: "Roar",
+          rosterRankRaw: null,
+          frameIndex: 0,
+          deleted: false,
+        },
+      ],
+    });
+
+    expect(withBankDepositCommitLock).toHaveBeenCalledWith(
+      { allianceId: "alliance-a", bankId: "bank-1" },
+      expect.any(Function),
+    );
+    expect(order).toEqual([
+      "lock:alliance-a:bank-1",
+      "list",
+      "create",
+    ]);
   });
 
   it("creates locked and looted slips with resolved member FKs", async () => {
