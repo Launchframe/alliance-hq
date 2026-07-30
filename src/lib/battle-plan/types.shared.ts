@@ -18,6 +18,8 @@ export const MAX_CAPTURES_PER_SERVER_DAY = 2;
 
 export type { BattlePlanEventType };
 
+import type { AllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.shared";
+
 export type SerializedBattlePlanSettings = {
   defaultCapturePolicy: CapturePolicy;
   planRevision: number;
@@ -51,4 +53,6 @@ export type BattlePlanDashboardPayload = {
   canWrite: boolean;
   todayServerDate: string;
   effectiveSeasonKey?: string;
+  allianceTag: string | null;
+  allianceSafeTimeSlot: AllianceSafeTimeSlot | null;
 };

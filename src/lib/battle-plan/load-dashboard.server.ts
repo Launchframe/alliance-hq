@@ -1,7 +1,9 @@
+import { loadAllianceSafeTimeSlot } from "@/lib/alliance/alliance-safe-time.server";
 import {
   loadBattlePlanRows,
   serializeBattlePlanDashboard,
 } from "@/lib/battle-plan/repository.server";
+import { loadAllianceTag } from "@/lib/banks/repository.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { sessionHasPermission } from "@/lib/rbac/context";
@@ -24,14 +26,18 @@ export async function loadBattlePlanDashboard(sessionId: string) {
     return { forbidden: true as const };
   }
 
-  const [rows, effectiveSeason] = await Promise.all([
+  const [rows, effectiveSeason, allianceTag, allianceSafeTimeSlot] = await Promise.all([
     loadBattlePlanRows(allianceId),
     getEffectiveSeasonForAlliance(allianceId),
+    loadAllianceTag(allianceId),
+    loadAllianceSafeTimeSlot(allianceId),
   ]);
   return {
     ...serializeBattlePlanDashboard(rows, {
       canWrite,
       todayServerDate: getServerCalendarDate(),
+      allianceTag,
+      allianceSafeTimeSlot,
     }),
     effectiveSeasonKey: effectiveSeason.seasonKey,
   };
