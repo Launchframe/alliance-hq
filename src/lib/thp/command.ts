@@ -20,6 +20,7 @@ export type ProcessThpCommandInput = {
   reporterCount: number;
   peerMax: number;
   translate: DiscordTranslate;
+  screenshotOcrJobId?: string | null;
 };
 
 export type ProcessThpConfirmationInput = {
@@ -92,6 +93,9 @@ function applyProposed(
         proposedTotal: proposed.total,
         proposedBreakdown: proposed.breakdown,
         commanderId: input.commanderId,
+        ...(input.screenshotOcrJobId
+          ? { screenshotOcrJobId: input.screenshotOcrJobId }
+          : {}),
       },
       action: { type: "none" },
       needsConfirmation: true,

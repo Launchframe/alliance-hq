@@ -22,6 +22,10 @@ export function parseStoredThpPending(value: unknown): ThpPendingState | null {
       proposedTotal: row.proposedTotal,
       proposedBreakdown: parseThpBreakdownInput(row.proposedBreakdown),
       commanderId: row.commanderId.trim(),
+      ...(typeof row.screenshotOcrJobId === "string" &&
+      row.screenshotOcrJobId.trim().length > 0
+        ? { screenshotOcrJobId: row.screenshotOcrJobId.trim() }
+        : {}),
     };
   }
 

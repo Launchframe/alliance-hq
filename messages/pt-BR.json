@@ -793,7 +793,12 @@
       "colYNorm": "Y norm",
       "diagnostics": "JSON de diagnóstico",
       "yes": "Sim",
-      "no": "Não"
+      "no": "Não",
+      "hygieneJobCount": "Jobs (30d)",
+      "hygieneParseOkRate": "Taxa parse OK",
+      "hygieneCompleteRate": "Taxa completa",
+      "hygieneAvgPaired": "Média de linhas pareadas",
+      "hygieneTopFailures": "Principais códigos de falha"
     },
     "videoJobsPage": {
       "actions": "Ações",

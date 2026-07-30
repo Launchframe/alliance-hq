@@ -820,6 +820,13 @@
       "when": 1790121600000,
       "tag": "0119_screenshot_ocr_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1790208000000,
+      "tag": "0120_screenshot_hygiene_events",
+      "breakpoints": true
     }
   ]
 }

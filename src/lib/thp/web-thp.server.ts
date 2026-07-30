@@ -7,7 +7,10 @@ import {
   validateThpTotal,
 } from "@/lib/thp/breakdown.shared";
 import { peerMaxThpExcludingCommander } from "@/lib/thp/anomaly";
-import { recordScreenshotOcrJob } from "@/lib/ocr/record-screenshot-ocr-job.server";
+import { recordScreenshotOcrJob, updateScreenshotOcrJobUserOutcome } from "@/lib/ocr/record-screenshot-ocr-job.server";
+import { buildScreenshotHygieneCoachTip } from "@/lib/ocr/screenshot-hygiene-coach.shared";
+import { countRecentCropMisalignedStreak } from "@/lib/ocr/screenshot-hygiene-rewards.server";
+import type { ScreenshotOcrFailureCode } from "@/lib/ocr/screenshot-ocr-quality.shared";
 import {
   processThpCommand,
   processThpConfirmation,
@@ -66,6 +69,8 @@ export async function handleWebThpCommand(input: {
 
   let explicitTotal = input.total ?? null;
   let explicitBreakdown = input.breakdown ?? null;
+  let screenshotOcrJobId: string | null = null;
+  let latestFailureCodes: ScreenshotOcrFailureCode[] = [];
 
   if (input.screenshotBuffer) {
     const { parsePowerDetailsImage } = await import(
@@ -73,6 +78,7 @@ export async function handleWebThpCommand(input: {
     );
     const { nanoid } = await import("nanoid");
     const jobId = nanoid(16);
+    screenshotOcrJobId = jobId;
     const ocr = await parsePowerDetailsImage(input.screenshotBuffer, { jobId });
     void recordScreenshotOcrJob({
       source: "thp_screenshot",
@@ -108,6 +114,7 @@ export async function handleWebThpCommand(input: {
         message: translate("thp.ocrFailed"),
       };
     }
+    latestFailureCodes = ocr.diagnostics.quality?.failureCodes ?? [];
   }
 
   if (explicitTotal != null && !validateThpTotal(explicitTotal)) {
@@ -141,11 +148,27 @@ export async function handleWebThpCommand(input: {
     reporterCount,
     peerMax,
     translate,
+    screenshotOcrJobId,
   };
 
   const result = input.screenshotBuffer
     ? processThpOcrResult(commandInput)
     : processThpCommand(commandInput);
+
+  let reply = result.reply;
+  if (input.screenshotBuffer) {
+    const streak = await countRecentCropMisalignedStreak({
+      hqUserId: input.hqUserId,
+      source: "thp_screenshot",
+    });
+    const coachTip = buildScreenshotHygieneCoachTip({
+      cropMisalignedStreak: streak,
+      latestFailureCodes,
+    });
+    if (coachTip) {
+      reply = `${reply}\n\n${coachTip}`;
+    }
+  }
 
   await saveHqThpPending(input.allianceId, input.hqUserId, result.pending);
 
@@ -163,7 +186,7 @@ export async function handleWebThpCommand(input: {
     await saveHqThpPending(input.allianceId, input.hqUserId, null);
     return {
       status: "set_thp",
-      message: result.reply,
+      message: reply,
       newThp: result.action.total,
     };
   }
@@ -171,7 +194,7 @@ export async function handleWebThpCommand(input: {
   if (result.needsConfirmation && result.proposedTotal != null) {
     return {
       status: input.screenshotBuffer ? "ocr_confirm" : "anomaly_confirm",
-      message: result.reply,
+      message: reply,
       proposedThp: result.proposedTotal,
       proposedBreakdown: result.proposedBreakdown ?? null,
     };
@@ -179,7 +202,7 @@ export async function handleWebThpCommand(input: {
 
   return {
     status: "error",
-    message: result.reply,
+    message: reply,
   };
 }
 
@@ -229,6 +252,19 @@ async function handleWebThpConfirm(input: {
     commanderName: input.memberName,
   });
   await saveHqThpPending(input.allianceId, input.hqUserId, result.pending);
+
+  if (pending.screenshotOcrJobId) {
+    void updateScreenshotOcrJobUserOutcome(
+      pending.screenshotOcrJobId,
+      input.answer === "yes",
+      input.answer === "no" ? "web_rejected" : undefined,
+      {
+        source: "thp_screenshot",
+        allianceId: input.allianceId,
+        hqUserId: input.hqUserId,
+      },
+    );
+  }
 
   if (result.action.type === "set_thp") {
     await upsertCommanderThp({

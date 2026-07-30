@@ -5,7 +5,10 @@ import { createDiscordTranslator } from "@/lib/discord/i18n";
 import { isThpConfirmPending, thpConfirmEventSource } from "@/lib/discord/bot-pending-guards.shared";
 import { ensureDiscordMemberLinksFromHq } from "@/lib/member-link/inherit-hq-to-discord.server";
 import { peerMaxThpExcludingCommander } from "@/lib/thp/anomaly";
-import { recordScreenshotOcrJob } from "@/lib/ocr/record-screenshot-ocr-job.server";
+import { recordScreenshotOcrJob, updateScreenshotOcrJobUserOutcome } from "@/lib/ocr/record-screenshot-ocr-job.server";
+import { buildScreenshotHygieneCoachTip } from "@/lib/ocr/screenshot-hygiene-coach.shared";
+import { countRecentCropMisalignedStreak } from "@/lib/ocr/screenshot-hygiene-rewards.server";
+import type { ScreenshotOcrFailureCode } from "@/lib/ocr/screenshot-ocr-quality.shared";
 import {
   processThpCommand,
   processThpConfirmation,
@@ -102,12 +105,15 @@ async function runThpForLink(input: {
 
   let explicitTotal = input.explicitTotal ?? null;
   let explicitBreakdown = null;
+  let screenshotOcrJobId: string | null = null;
+  let latestFailureCodes: ScreenshotOcrFailureCode[] = [];
   if (input.screenshotBuffer) {
     const { parsePowerDetailsImage } = await import(
       "@/lib/thp/hero-power-ocr/parse-power-details-image"
     );
     const { nanoid } = await import("nanoid");
     const jobId = nanoid(16);
+    screenshotOcrJobId = jobId;
     const ocr = await parsePowerDetailsImage(input.screenshotBuffer, { jobId });
     void recordScreenshotOcrJob({
       source: "thp_screenshot",
@@ -133,6 +139,7 @@ async function runThpForLink(input: {
         action: { type: "none" },
       };
     }
+    latestFailureCodes = ocr.diagnostics.quality?.failureCodes ?? [];
   }
 
   const pendingRow = await getDiscordBotPending(input.discordUserId);
@@ -161,11 +168,26 @@ async function runThpForLink(input: {
     reporterCount,
     peerMax,
     translate,
+    screenshotOcrJobId,
   };
 
   const result = input.screenshotBuffer
     ? processThpOcrResult(commandInput)
     : processThpCommand(commandInput);
+
+  if (input.screenshotBuffer) {
+    const streak = await countRecentCropMisalignedStreak({
+      discordUserId: input.discordUserId,
+      source: "thp_screenshot",
+    });
+    const coachTip = buildScreenshotHygieneCoachTip({
+      cropMisalignedStreak: streak,
+      latestFailureCodes,
+    });
+    if (coachTip) {
+      result.reply = `${result.reply}\n\n${coachTip}`;
+    }
+  }
 
   await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
 
@@ -311,6 +333,19 @@ export async function handleDiscordThpButtonConfirm(input: {
       pending.commanderId,
   });
   await saveDiscordBotPending(input.allianceId, input.discordUserId, result.pending);
+
+  if (pending.screenshotOcrJobId) {
+    void updateScreenshotOcrJobUserOutcome(
+      pending.screenshotOcrJobId,
+      input.answer === "yes",
+      input.answer === "no" ? "discord_rejected" : undefined,
+      {
+        source: "thp_screenshot",
+        allianceId: input.allianceId,
+        discordUserId: input.discordUserId,
+      },
+    );
+  }
 
   if (result.action.type === "set_thp") {
     await upsertCommanderThp({

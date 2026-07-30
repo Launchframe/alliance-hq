@@ -2907,6 +2907,37 @@ export const screenshotOcrJobs = pgTable(
 export type ScreenshotOcrJob = typeof screenshotOcrJobs.$inferSelect;
 export type NewScreenshotOcrJob = typeof screenshotOcrJobs.$inferInsert;
 
+export const screenshotHygieneEvents = pgTable(
+  "screenshot_hygiene_events",
+  {
+    id: text("id").primaryKey(),
+    eventType: text("event_type").notNull(),
+    source: text("source").notNull(),
+    screenshotOcrJobId: text("screenshot_ocr_job_id"),
+    allianceId: text("alliance_id"),
+    hqUserId: text("hq_user_id"),
+    discordUserId: text("discord_user_id"),
+    payloadJson: jsonb("payload_json"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("screenshot_hygiene_events_created_at_idx").on(table.createdAt),
+    index("screenshot_hygiene_events_hq_user_idx").on(
+      table.hqUserId,
+      table.createdAt,
+    ),
+    index("screenshot_hygiene_events_discord_user_idx").on(
+      table.discordUserId,
+      table.createdAt,
+    ),
+    index("screenshot_hygiene_events_job_idx").on(table.screenshotOcrJobId),
+  ],
+);
+
+export type ScreenshotHygieneEvent = typeof screenshotHygieneEvents.$inferSelect;
+
 /** Append-only tandem OCR eval rows (Ashed primary vs native shadow). */
 export const ocrEvalSnapshots = pgTable("ocr_eval_snapshots", {
   id: text("id").primaryKey(),

@@ -6,12 +6,14 @@ export type ThpPendingState =
       proposedTotal: number;
       proposedBreakdown: ThpBreakdown | null;
       commanderId: string;
+      screenshotOcrJobId?: string | null;
     }
   | {
       kind: "ocr_confirm";
       proposedTotal: number;
       proposedBreakdown: ThpBreakdown | null;
       commanderId: string;
+      screenshotOcrJobId?: string | null;
     }
   | { kind: "pick_character"; linkIds: string[] };
 
