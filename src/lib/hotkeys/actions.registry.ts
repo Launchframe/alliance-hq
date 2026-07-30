@@ -169,6 +169,15 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     requiredPermission: "time_off:read",
   },
   {
+    id: "nav.vsCompliance",
+    labelKey: "actions.nav.vsCompliance",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/vs-compliance",
+    requiredPermission: "members:write",
+  },
+  {
     id: "nav.bankManagement",
     labelKey: "actions.nav.bankManagement",
     category: "navigation",
