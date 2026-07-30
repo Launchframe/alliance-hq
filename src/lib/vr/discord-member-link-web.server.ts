@@ -75,10 +75,10 @@ async function resolveMemberLinkAllianceId(
       const pendingUid = gameUidFromDiscordLinkPending(
         pendingRow.pending as { gameUid?: string | null } | null,
       );
-      if (!gameUid || !pendingUid || pendingUid === gameUid) {
+      if (gameUid && pendingUid && pendingUid === gameUid) {
         return pendingRow.allianceId;
       }
-      // Pending was overwritten with a different UID — do not use it.
+      // Pending missing UID or overwritten — do not trust alliance from this row.
     }
   }
 
@@ -357,7 +357,7 @@ export async function confirmDiscordMemberLinkHomeFromWeb(
 const pickSchema = z.object({
   nonce: z.string().trim().min(1),
   memberId: z.string().trim().min(1),
-  gameUid: z.string().trim().min(1).max(20).optional(),
+  gameUid: z.string().trim().min(1).max(20),
 });
 
 export async function pickDiscordMemberLinkFromWeb(
@@ -372,8 +372,8 @@ export async function pickDiscordMemberLinkFromWeb(
     return sessionDenyOutcome("invalid_nonce");
   }
 
-  const gameUid = body.gameUid?.trim();
-  if (gameUid && !isValidGameUid(gameUid)) {
+  const gameUid = body.gameUid.trim();
+  if (!isValidGameUid(gameUid)) {
     return {
       outcome: "error",
       message: "Enter a 12–16 digit player ID from your in-game profile.",

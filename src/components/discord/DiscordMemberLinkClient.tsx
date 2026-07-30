@@ -231,7 +231,7 @@ export function DiscordMemberLinkClient({
         action: "pick",
         nonce,
         memberId,
-        gameUid: gameUid.trim() || undefined,
+        gameUid: gameUid.trim(),
       });
     } catch {
       setPhase("error");

@@ -28,7 +28,7 @@ const pickBodySchema = z.object({
   action: z.literal("pick"),
   nonce: z.string().trim().min(1),
   memberId: z.string().trim().min(1),
-  gameUid: z.string().trim().min(1).max(20).optional(),
+  gameUid: z.string().trim().min(1).max(20),
 });
 
 const confirmHomeBodySchema = z.object({

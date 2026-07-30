@@ -181,6 +181,25 @@ describe("discord-member-link-web.server", () => {
     expect(handleDiscordLinkIdentityConfirm).not.toHaveBeenCalled();
   });
 
+  it("does not use pending alliance when pending row has no gameUid", async () => {
+    vi.mocked(getDiscordBotPending).mockResolvedValue({
+      allianceId: "alliance-from-pending",
+      pending: {
+        kind: "link_roster_miss",
+      },
+    } as never);
+    vi.mocked(lookupPlayerByUid).mockResolvedValue({ ok: false, message: "nope" } as never);
+    vi.mocked(resolveAllianceIdForDiscordMemberLink).mockResolvedValue(null);
+
+    const result = await confirmDiscordMemberLinkFromWeb(
+      { nonce: "abc123", answer: "yes", gameUid: "1234567890121203" },
+      "hq-user-1",
+    );
+
+    expect(result).toEqual({ outcome: "guild_not_registered" });
+    expect(handleDiscordLinkIdentityConfirm).not.toHaveBeenCalled();
+  });
+
   it("passes expectedGameUid so the service can reject a stale pending row", async () => {
     vi.mocked(getGuildAllianceId).mockResolvedValue("alliance-registered");
     vi.mocked(getDiscordUserLocale).mockResolvedValue("en-US");
