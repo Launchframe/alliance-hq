@@ -1,17 +1,22 @@
 import { NextResponse } from "next/server";
 
+import { resolveMembersApiContext } from "@/lib/members/members-api-context";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import { getOrCreateSession } from "@/lib/session";
+import { enforceVsComplianceTaskOnComplete } from "@/lib/vs-compliance/vs-compliance-enforcement.server";
+import {
+  findComplianceEventById,
+  markVsComplianceEventComplete,
+} from "@/lib/vs-compliance/repository.server";
+import { loadVsMembershipSettings } from "@/lib/vs-compliance/vs-membership-settings.server";
 import { deactivateVsComplianceInboxItem } from "@/lib/vs-compliance/vs-compliance-inbox.server";
-import { markVsComplianceEventComplete } from "@/lib/vs-compliance/repository.server";
 
 export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ id: string }> };
 
 /**
- * Officer confirms they handled the demotion/kick in-game. HQ never calls
- * confirmMemberRank — this only closes the informational task.
+ * Apply the recommended VS enforcement (demote or kick), then close the task.
  */
 export async function POST(_request: Request, { params }: Props) {
   const session = await getOrCreateSession();
@@ -23,7 +28,38 @@ export async function POST(_request: Request, { params }: Props) {
     return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
   }
 
+  const membersCtx = await resolveMembersApiContext();
+  if (membersCtx instanceof NextResponse) return membersCtx;
+
   const { id } = await params;
+  const existing = await findComplianceEventById({ allianceId, eventId: id });
+  if (!existing || existing.officerTaskStatus !== "open") {
+    return NextResponse.json(
+      { error: "Task not found or already resolved." },
+      { status: 404 },
+    );
+  }
+
+  const settings = await loadVsMembershipSettings(allianceId, true);
+
+  try {
+    await enforceVsComplianceTaskOnComplete({
+      event: existing,
+      allianceId,
+      hqUserId: session.hqUserId,
+      missStrikesBeforeKick: settings.missStrikesBeforeKick,
+      membersCtx,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error ? error.message : "Could not apply enforcement.",
+      },
+      { status: 502 },
+    );
+  }
+
   const event = await markVsComplianceEventComplete({
     allianceId,
     eventId: id,

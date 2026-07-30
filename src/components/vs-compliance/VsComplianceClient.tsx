@@ -20,10 +20,9 @@ type Props = {
 };
 
 /**
- * Officer-facing list of open VS membership compliance tasks. Officers
- * demote/kick the member in-game themselves — this page is informational
- * and only supports Mark complete (they handled it) or Waive (excuse the
- * miss). It never calls confirmMemberRank or any other Ashed write.
+ * Officer-facing list of open VS minimum compliance tasks. Confirming demotes
+ * dual-writes rank (HQ + Ashed when connected) or marks the member inactive
+ * (`former`) for kick tasks.
  */
 export function VsComplianceClient({
   initialEvents,
@@ -35,6 +34,7 @@ export function VsComplianceClient({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [waiveTarget, setWaiveTarget] = useState<EventWithKind | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<EventWithKind | null>(null);
   const [waiveReason, setWaiveReason] = useState("");
   const [waiveBusy, setWaiveBusy] = useState(false);
   const [waiveError, setWaiveError] = useState<string | null>(null);
@@ -48,7 +48,7 @@ export function VsComplianceClient({
     setEvents((prev) => prev.filter((event) => event.id !== id));
   }, []);
 
-  async function markComplete(event: EventWithKind) {
+  async function confirmEnforcement(event: EventWithKind) {
     setBusyId(event.id);
     setError(null);
     try {
@@ -60,11 +60,23 @@ export function VsComplianceClient({
         throw new Error(body.error || t("markCompleteFailed"));
       }
       removeEvent(event.id);
+      setConfirmTarget(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("markCompleteFailed"));
     } finally {
       setBusyId(null);
     }
+  }
+
+  function openConfirmDialog(event: EventWithKind) {
+    setConfirmTarget(event);
+    setError(null);
+  }
+
+  function enforcementActionLabel(event: EventWithKind): string {
+    return event.taskKind === VS_KICK_TASK_KIND
+      ? t("kindKick")
+      : t("kindDemotion");
   }
 
   function openWaiveDialog(event: EventWithKind) {
@@ -154,10 +166,10 @@ export function VsComplianceClient({
                 <button
                   type="button"
                   disabled={busyId === event.id}
-                  onClick={() => void markComplete(event)}
+                  onClick={() => openConfirmDialog(event)}
                   className="rounded-lg border border-hq-success bg-hq-success px-3 py-1.5 text-sm font-medium text-white hover:brightness-110 disabled:opacity-50"
                 >
-                  {t("markComplete")}
+                  {enforcementActionLabel(event)}
                 </button>
                 <button
                   type="button"
@@ -175,6 +187,50 @@ export function VsComplianceClient({
       )}
 
       <Dialog
+        open={confirmTarget != null}
+        onOpenChange={(next) => {
+          if (!next && busyId == null) setConfirmTarget(null);
+        }}
+        title={confirmTarget ? taskTitle(confirmTarget) : ""}
+      >
+        {confirmTarget ? (
+          <div className="flex flex-col gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-hq-fg">
+                {taskTitle(confirmTarget)}
+              </h2>
+              <p className="mt-2 text-sm text-hq-fg-muted">
+                {t("weekSummary", {
+                  weekEnding: confirmTarget.vsWeekEnding,
+                  score: confirmTarget.score.toLocaleString(),
+                  threshold: confirmTarget.threshold.toLocaleString(),
+                })}
+              </p>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={busyId === confirmTarget.id}
+                onClick={() => setConfirmTarget(null)}
+                className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas disabled:opacity-50"
+              >
+                {t("cancel")}
+              </button>
+              <button
+                type="button"
+                disabled={busyId === confirmTarget.id}
+                onClick={() => void confirmEnforcement(confirmTarget)}
+                className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-50"
+              >
+                {enforcementActionLabel(confirmTarget)}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </Dialog>
+
+      <Dialog
         open={waiveTarget != null}
         onOpenChange={(next) => {
           if (!next && !waiveBusy) setWaiveTarget(null);
@@ -186,11 +242,6 @@ export function VsComplianceClient({
             <h2 className="text-lg font-semibold text-hq-fg">
               {t("waiveDialogTitle")}
             </h2>
-            {waiveTarget ? (
-              <p className="mt-2 text-sm text-hq-fg-muted">
-                {t("waiveDialogBody", { name: waiveTarget.memberName })}
-              </p>
-            ) : null}
           </div>
 
           <label className="block text-sm">

@@ -26,10 +26,9 @@ export type VsComplianceWeeklyEvaluationResult = {
 };
 
 /**
- * Evaluate one alliance's VS membership compliance for a single Mon–Sat week.
- * Pure orchestration over Ashed VS totals + local roster + time-off; never
- * calls confirmMemberRank or any Ashed write — HQ only tracks an
- * informational officer task (Mark complete / Waive).
+ * Evaluate one alliance's VS minimum compliance for a single Mon–Sat week.
+ * Pure orchestration over VS totals + local roster + time-off; enforcement
+ * runs when an officer confirms the task on `/vs-compliance`.
  */
 export async function evaluateAllianceVsComplianceForWeek(input: {
   allianceId: string;

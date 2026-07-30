@@ -302,6 +302,48 @@ export async function setAllianceMemberRank(input: {
   });
 }
 
+/** Mark a roster member inactive (`former`) and mirror commander tenure / train pools. */
+export async function markAllianceMemberFormer(input: {
+  hqAllianceId: string;
+  ashedMemberId: string;
+  gameUid?: string | null;
+}): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+
+  const [updated] = await db
+    .update(schema.allianceMembers)
+    .set({ status: "former", updatedAt: now })
+    .where(
+      and(
+        eq(schema.allianceMembers.allianceId, input.hqAllianceId),
+        eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
+        ne(schema.allianceMembers.status, "former"),
+      ),
+    )
+    .returning({ ashedMemberId: schema.allianceMembers.ashedMemberId });
+
+  if (!updated) {
+    throw new Error("Member not found on roster or already inactive.");
+  }
+
+  await syncTenureFromMemberStatus({
+    allianceId: input.hqAllianceId,
+    ashedMemberId: input.ashedMemberId,
+    status: "former",
+    gameUid: input.gameUid,
+  });
+
+  await syncCommanderFromAllianceMember({
+    allianceId: input.hqAllianceId,
+    ashedMemberId: input.ashedMemberId,
+    leftAt: now,
+  });
+
+  const { pruneFormerMembersFromOpenPools } = await import("@/lib/trains/pool");
+  await pruneFormerMembersFromOpenPools(input.hqAllianceId);
+}
+
 export async function clearAllianceMemberRank(input: {
   hqAllianceId: string;
   ashedMemberId: string;

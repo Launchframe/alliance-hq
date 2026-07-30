@@ -3553,9 +3553,9 @@ export const memberTimeOff = pgTable(
 export type MemberTimeOff = typeof memberTimeOff.$inferSelect;
 
 /**
- * Weekly VS membership-minimum compliance evaluation per member (PR4).
- * Informational only — officers demote/kick in-game; HQ never calls
- * `confirmMemberRank` from this table. One row per (alliance, member, week).
+ * Weekly VS minimum compliance evaluation per member (PR4). One row per
+ * (alliance, member, week). Officer tasks demote (HQ + Ashed rank) or kick
+ * (roster `former`) when confirmed on `/vs-compliance`.
  */
 export const memberVsComplianceEvents = pgTable(
   "member_vs_compliance_events",
