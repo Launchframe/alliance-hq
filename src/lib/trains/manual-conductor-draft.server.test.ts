@@ -53,6 +53,12 @@ vi.mock("@/lib/trains/service", () => ({
   ensureConductorPoolSeeded: mocks.ensureConductorPoolSeeded,
 }));
 
+vi.mock("@/lib/trains/conductor-pool-claim-lock.server", () => ({
+  withConductorPoolClaimLock: vi.fn(
+    async (_key: unknown, run: () => Promise<unknown>) => run(),
+  ),
+}));
+
 vi.mock("@/lib/members/game-roster", () => ({
   loadActiveAlliancePoolMembers: mocks.loadActiveAlliancePoolMembers,
 }));
