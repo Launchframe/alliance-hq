@@ -47,6 +47,12 @@ vi.mock("@/lib/trains/service", () => ({
   getServerCalendarDate: vi.fn().mockReturnValue("2026-07-27"),
 }));
 
+vi.mock("@/lib/trains/conductor-pool-claim-lock.server", () => ({
+  withConductorPoolClaimLock: vi.fn(
+    async (_key: unknown, run: () => Promise<unknown>) => run(),
+  ),
+}));
+
 const BASE_BODY = {
   date: "2026-07-27",
   memberId: "m-alice",
@@ -102,6 +108,7 @@ describe("VIP pick depleting event_top_x gate", () => {
       lockedAt: new Date("2026-07-27T12:00:00Z"),
       vipMemberId: "m-alice",
     } as never);
+    vi.mocked(markPoolMemberSelectedForDate).mockResolvedValue(true);
 
     return {
       ensureConductorPoolSeeded,
@@ -160,7 +167,7 @@ describe("VIP pick depleting event_top_x gate", () => {
       }),
     );
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(409);
     const body = await res.json();
     expect(body.error).toMatch(/already selected/i);
     expect(markPoolMemberSelectedForDate).not.toHaveBeenCalled();
@@ -182,7 +189,7 @@ describe("VIP pick depleting event_top_x gate", () => {
       }),
     );
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(409);
     const body = await res.json();
     expect(body.error).toMatch(/not in the current conductor pool/i);
     expect(markPoolMemberSelectedForDate).not.toHaveBeenCalled();
@@ -239,7 +246,7 @@ describe("VIP pick depleting event_top_x gate", () => {
       }),
     );
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(409);
     expect(releasePoolSelectionForDate).not.toHaveBeenCalled();
   });
 

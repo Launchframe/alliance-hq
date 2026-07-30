@@ -67,6 +67,12 @@ vi.mock("@/lib/trains/heavy-hitter-pool.server", () => ({
   buildHeavyHitterPoolCandidates: vi.fn(async () => []),
 }));
 
+vi.mock("@/lib/trains/conductor-pool-claim-lock.server", () => ({
+  withConductorPoolClaimLock: vi.fn(
+    async (_key: unknown, run: () => Promise<unknown>) => run(),
+  ),
+}));
+
 vi.mock("@/lib/trains/native-scores.server", () => ({
   fetchNativeVrTopScorers: vi.fn(async () => []),
 }));
@@ -125,6 +131,7 @@ describe("rollForConductor depleting pool release ordering", () => {
     mocks.getPoolSummary.mockResolvedValue({
       total: 3,
       selected: 1,
+      remaining: 2,
       exhausted: false,
     });
     mocks.listUnselectedPoolEntries.mockResolvedValue([
@@ -140,6 +147,7 @@ describe("rollForConductor depleting pool release ordering", () => {
       memberName: "Bob",
       allianceRank: 3,
     });
+    mocks.markPoolEntrySelected.mockResolvedValue(true);
     mocks.resolvePoolRespectsConductorMinimums.mockResolvedValue(false);
     mocks.filterMemberIdsByConductorMinimums.mockResolvedValue(null);
     mocks.resolveConductorQualificationGateApplies.mockResolvedValue(false);
@@ -222,6 +230,7 @@ describe("rollForVip depleting pool release ordering", () => {
     mocks.getPoolSummary.mockResolvedValue({
       total: 3,
       selected: 1,
+      remaining: 2,
       exhausted: false,
     });
     mocks.listUnselectedPoolEntries.mockResolvedValue([
@@ -237,6 +246,7 @@ describe("rollForVip depleting pool release ordering", () => {
       memberName: "Bob",
       allianceRank: 4,
     });
+    mocks.markPoolEntrySelected.mockResolvedValue(true);
     mocks.getMemberRankAsOf.mockResolvedValue({ id: "rank-1" });
     mocks.assignVipOnLockedConductor.mockResolvedValue({
       vipMemberId: "m-bob",

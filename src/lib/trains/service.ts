@@ -52,6 +52,7 @@ import {
 import { rollPriceIsFreightConductor } from "@/lib/trains/price-is-freight-roll.server";
 import { priceIsRightWeightingActive } from "@/lib/trains/train-price-is-right-tickets.shared";
 import { shouldReleasePriorPoolSelection } from "@/lib/trains/depleting-manual-pick.shared";
+import { withConductorPoolClaimLock } from "@/lib/trains/conductor-pool-claim-lock.server";
 import {
   getPoolSummary,
   listPoolEntries,
@@ -409,71 +410,93 @@ async function rollFromPool(
   useWeightedPick = false,
   respectConductorMinimums = false,
 ): Promise<RollResult> {
-  const summary = await getPoolSummary(allianceId, poolType);
+  // Serialize list→pick→claim so parallel spins for different dates cannot
+  // both mark the same pool row. Conditional claim + retry is defense in depth
+  // if a manual pick races outside this lock.
+  return withConductorPoolClaimLock({ allianceId, poolType }, async () => {
+    const summary = await getPoolSummary(allianceId, poolType);
+    const maxAttempts = Math.max(summary.remaining, 1) + 2;
 
-  let unselected = await listUnselectedPoolEntries(allianceId, poolType);
-  const qualifiedIds = respectConductorMinimums
-    ? await filterMemberIdsByConductorMinimums(
-        allianceId,
-        date,
-        unselected.map((row) => row.memberId),
-      )
-    : null;
-  if (qualifiedIds != null) {
-    const qualified = new Set(qualifiedIds);
-    unselected = unselected.filter((row) => qualified.has(row.memberId));
-  }
+    let entry: Awaited<
+      ReturnType<typeof listUnselectedPoolEntries>
+    >[number] | null = null;
+    let qualifiedIds: string[] | null = null;
 
-  let entry: (typeof unselected)[number] | null = null;
-  if (unselected.length > 0) {
-    if (useSequence) {
-      entry =
-        [...unselected].sort(
-          (a, b) => (a.sequencePosition ?? 0) - (b.sequencePosition ?? 0),
-        )[0] ?? null;
-    } else if (useWeightedPick) {
-      entry = pickWeightedPoolEntryFromRows(unselected);
-    } else {
-      entry = pickUniformPoolEntry(unselected);
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      let unselected = await listUnselectedPoolEntries(allianceId, poolType);
+      qualifiedIds = respectConductorMinimums
+        ? await filterMemberIdsByConductorMinimums(
+            allianceId,
+            date,
+            unselected.map((row) => row.memberId),
+          )
+        : null;
+      if (qualifiedIds != null) {
+        const qualified = new Set(qualifiedIds);
+        unselected = unselected.filter((row) => qualified.has(row.memberId));
+      }
+
+      let candidate: (typeof unselected)[number] | null = null;
+      if (unselected.length > 0) {
+        if (useSequence) {
+          candidate =
+            [...unselected].sort(
+              (a, b) => (a.sequencePosition ?? 0) - (b.sequencePosition ?? 0),
+            )[0] ?? null;
+        } else if (useWeightedPick) {
+          candidate = pickWeightedPoolEntryFromRows(unselected);
+        } else {
+          candidate = pickUniformPoolEntry(unselected);
+        }
+      }
+
+      if (!candidate) {
+        break;
+      }
+
+      const claimed = await markPoolEntrySelected(candidate.id, date);
+      if (claimed) {
+        entry = candidate;
+        break;
+      }
+      // Lost the race to another claim — re-list and try the next eligible row.
     }
-  }
 
-  if (!entry && summary.exhausted) {
-    throwPoolExhausted(poolType);
-  }
+    if (!entry && summary.exhausted) {
+      throwPoolExhausted(poolType);
+    }
 
-  if (!entry) {
-    throwPoolUnavailable(poolType);
-  }
+    if (!entry) {
+      throwPoolUnavailable(poolType);
+    }
 
-  await markPoolEntrySelected(entry.id, date);
+    const generationEntries = await listPoolEntries(allianceId, poolType);
+    const reelMemberIds =
+      qualifiedIds ?? generationEntries.map((row) => row.memberId);
+    const reelAllowed = new Set(reelMemberIds);
+    const seenMemberIds = new Set<string>();
+    const wheelCandidates = generationEntries.flatMap((row) => {
+      if (!reelAllowed.has(row.memberId)) return [];
+      if (seenMemberIds.has(row.memberId)) return [];
+      seenMemberIds.add(row.memberId);
+      return [
+        {
+          memberId: row.memberId,
+          memberName: row.memberName,
+          allianceRank: row.allianceRank,
+        },
+      ];
+    });
 
-  const generationEntries = await listPoolEntries(allianceId, poolType);
-  const reelMemberIds =
-    qualifiedIds ?? generationEntries.map((row) => row.memberId);
-  const reelAllowed = new Set(reelMemberIds);
-  const seenMemberIds = new Set<string>();
-  const wheelCandidates = generationEntries.flatMap((row) => {
-    if (!reelAllowed.has(row.memberId)) return [];
-    if (seenMemberIds.has(row.memberId)) return [];
-    seenMemberIds.add(row.memberId);
-    return [
-      {
-        memberId: row.memberId,
-        memberName: row.memberName,
-        allianceRank: row.allianceRank,
-      },
-    ];
+    return {
+      memberId: entry.memberId,
+      memberName: entry.memberName,
+      mechanism,
+      isAutomatic: false,
+      poolType,
+      wheelCandidates,
+    };
   });
-
-  return {
-    memberId: entry.memberId,
-    memberName: entry.memberName,
-    mechanism,
-    isAutomatic: false,
-    poolType,
-    wheelCandidates,
-  };
 }
 
 async function applyConductorQualificationGate(input: {
@@ -582,12 +605,17 @@ export async function confirmConductorMinimumOverride(input: {
     ? null
     : conductorMechanismPoolType(input.mechanism);
   if (poolType) {
-    await markPoolMemberSelectedForDate(
+    const claimed = await markPoolMemberSelectedForDate(
       input.allianceId,
       poolType,
       input.memberId,
       input.date,
     );
+    if (!claimed) {
+      throw new Error(
+        "This member was already selected from the current pool generation.",
+      );
+    }
   }
 
   const result: RollResult = {
