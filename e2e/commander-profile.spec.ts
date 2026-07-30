@@ -156,16 +156,8 @@ test.describe("Commander profile and admin commanders", () => {
     `;
     await page.context().addCookies(playwrightAuthCookies(session));
 
-    await page.route(`**/api/members/${peerId}/donation-store`, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          url: "https://lastwar-us-platform.lastwar.com/pay/v1/officeGoldBrickPaymentLoginServlet?uid=x&loginToken=y&website_platform=new_office",
-        }),
-      });
-    });
-
+    // Launch is a 302 redirect route — do not fulfill JSON `{ url }` (that
+    // pattern leaked loginToken). E2E only asserts the confirm dialog opens.
     await page.goto(`/members/${peerId}`);
     await expect(page.getByRole("heading", { name: "E2E Donate Peer" })).toBeVisible();
     await expect(page.getByText("555566667777")).not.toBeVisible();

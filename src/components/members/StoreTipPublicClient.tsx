@@ -4,12 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { StoreTipCardShell } from "@/components/members/StoreTipCardShell";
+import { publicStoreTipLaunchPath } from "@/lib/members/store-tip-launch.shared";
 
 type Props = {
   code: string;
   displayName: string;
   allianceTag: string | null;
   autoOpen: boolean;
+  /** Set when `/launch` redirected back after a failure. */
+  launchFailed?: boolean;
 };
 
 export function StoreTipPublicClient({
@@ -17,46 +20,38 @@ export function StoreTipPublicClient({
   displayName,
   allianceTag,
   autoOpen,
+  launchFailed = false,
 }: Props) {
   const t = useTranslations("storeTipPublic");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(
+    launchFailed ? t("tipPublicUnavailable") : null,
+  );
   const opened = useRef(false);
 
-  async function openStore(options?: { sameTab?: boolean }) {
-    setBusy(true);
+  function openStore(options?: { sameTab?: boolean }) {
     setError(null);
-    try {
-      const res = await fetch(
-        `/api/public/store-tip/${encodeURIComponent(code)}/launch`,
-      );
-      const body = (await res.json()) as { url?: string; error?: string };
-      if (!res.ok || !body.url) {
-        setError(body.error ?? t("tipPublicUnavailable"));
-        return;
-      }
-      // QR `?go=1` auto-open is not a user gesture — same-tab avoids popup blockers.
-      if (options?.sameTab) {
-        window.location.assign(body.url);
-        return;
-      }
-      window.open(body.url, "_blank", "noopener,noreferrer");
-    } catch {
+    const launchUrl = publicStoreTipLaunchPath(code);
+    // Navigate the launch route itself — never fetch JSON `{ url }` (would
+    // put loginToken + uid into JS / network response bodies).
+    if (options?.sameTab) {
+      window.location.assign(launchUrl);
+      return;
+    }
+    const popup = window.open(launchUrl, "_blank", "noopener,noreferrer");
+    if (!popup) {
       setError(t("tipPublicUnavailable"));
-    } finally {
-      setBusy(false);
     }
   }
 
   useEffect(() => {
-    if (!autoOpen || opened.current) return;
+    if (!autoOpen || opened.current || launchFailed) return;
     opened.current = true;
     const id = requestAnimationFrame(() => {
-      void openStore({ sameTab: true });
+      openStore({ sameTab: true });
     });
     return () => cancelAnimationFrame(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot on mount
-  }, [autoOpen]);
+  }, [autoOpen, launchFailed]);
 
   return (
     <StoreTipCardShell>
@@ -77,11 +72,10 @@ export function StoreTipPublicClient({
       <button
         type="button"
         autoFocus
-        disabled={busy}
-        onClick={() => void openStore()}
-        className="mt-8 w-full rounded-xl bg-gradient-to-r from-sky-500 to-amber-400 px-4 py-3 text-base font-semibold text-slate-950 shadow-lg shadow-sky-900/30 transition hover:brightness-110 disabled:opacity-60"
+        onClick={() => openStore()}
+        className="mt-8 w-full rounded-xl bg-gradient-to-r from-sky-500 to-amber-400 px-4 py-3 text-base font-semibold text-slate-950 shadow-lg shadow-sky-900/30 transition hover:brightness-110"
       >
-        {busy ? "…" : t("tipPublicOpenStore")}
+        {t("tipPublicOpenStore")}
       </button>
     </StoreTipCardShell>
   );

@@ -25,6 +25,7 @@ import { CommanderTipJarCard } from "@/components/members/CommanderTipJarCard";
 
 type Props = {
   initial: CommanderProfilePayload;
+  donationLaunchError?: string;
 };
 
 import {
@@ -32,7 +33,7 @@ import {
   formatThpDisplay,
 } from "@/lib/commanders/power-stats.shared";
 
-export function CommanderProfileView({ initial }: Props) {
+export function CommanderProfileView({ initial, donationLaunchError }: Props) {
   const t = useTranslations("members.profile");
   const tInvites = useTranslations("team.invites");
   const { member, alliance } = initial;
@@ -128,6 +129,7 @@ export function CommanderProfileView({ initial }: Props) {
       <CommanderStoreDonationSection
         ashedMemberId={member.ashedMemberId}
         canGift={member.canGiftStoreBricks}
+        donationLaunchErrorCode={donationLaunchError}
       />
       {member.canManageTipJar ? <CommanderTipJarCard /> : null}
 

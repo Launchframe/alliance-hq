@@ -80,6 +80,10 @@ import {
   STORE_BRICK_GIFT_PERMISSION,
 } from "@/lib/members/commander-donation.server";
 import { buildStoreTipBadgeSvg } from "@/lib/members/store-tip-badge.shared";
+import {
+  commanderDonationStoreLaunchPath,
+  publicStoreTipLaunchPath,
+} from "@/lib/members/store-tip-launch.shared";
 
 describe("STORE_BRICK_GIFT_PERMISSION", () => {
   it("is members:write at launch", () => {
@@ -103,6 +107,17 @@ describe("buildLastWarStoreUrl", () => {
     expect(url).toContain("uid=123456789012");
     expect(url).toContain("website_platform=new_office");
     expect(url).toContain("loginToken=test-token");
+  });
+});
+
+describe("store tip launch paths", () => {
+  it("builds opaque HQ launch paths (clients must not fetch JSON store URLs)", () => {
+    expect(publicStoreTipLaunchPath("abc/../x")).toBe(
+      "/api/public/store-tip/abc%2F..%2Fx/launch",
+    );
+    expect(commanderDonationStoreLaunchPath("mem-1")).toBe(
+      "/api/members/mem-1/donation-store",
+    );
   });
 });
 

@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ ashedMemberId: string }>;
+  searchParams: Promise<{ donationLaunchError?: string }>;
 };
 
 export async function generateMetadata({ params }: Props) {
@@ -19,11 +20,13 @@ export async function generateMetadata({ params }: Props) {
   return { title: t("titleWithId", { id: ashedMemberId }) };
 }
 
-export default async function CommanderProfilePage({ params }: Props) {
+export default async function CommanderProfilePage({ params, searchParams }: Props) {
   const session = await requirePageSession("/members");
   await requirePagePermission(session.id, "members:read", "/members");
 
   const { ashedMemberId } = await params;
+  const sp = await searchParams;
+  const donationLaunchError = sp.donationLaunchError?.trim() || undefined;
   let profile;
   try {
     profile = await loadCommanderProfile(session.id, ashedMemberId.trim());
@@ -36,5 +39,10 @@ export default async function CommanderProfilePage({ params }: Props) {
   if (!profile) {
     notFound();
   }
-  return <CommanderProfileView initial={profile} />;
+  return (
+    <CommanderProfileView
+      initial={profile}
+      donationLaunchError={donationLaunchError}
+    />
+  );
 }
