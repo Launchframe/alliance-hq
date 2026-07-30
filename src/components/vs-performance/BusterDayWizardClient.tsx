@@ -197,6 +197,12 @@ export function BusterDayWizardClient() {
       : state.phase === "post_snapshot"
         ? state.report?.postComplete
         : false;
+  const snapshotRecordedDate =
+    state.phase === "pre_snapshot"
+      ? state.week.friday
+      : state.phase === "post_snapshot"
+        ? state.week.sunday
+        : null;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 pb-8">
@@ -223,13 +229,17 @@ export function BusterDayWizardClient() {
           <div className="mt-4 space-y-3">
             <div className="flex flex-wrap gap-2">
               <Link
-                href={buildVideoUploadHref(MEMBER_ROSTER_VIDEO_SCORE_TARGET)}
+                href={buildVideoUploadHref(MEMBER_ROSTER_VIDEO_SCORE_TARGET, {
+                  recordedDate: snapshotRecordedDate,
+                })}
                 className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white hover:bg-hq-success-hover"
               >
                 {t("uploadRoster")}
               </Link>
               <Link
-                href={buildVideoUploadHref(ALLIANCE_KILLS_VIDEO_SCORE_TARGET)}
+                href={buildVideoUploadHref(ALLIANCE_KILLS_VIDEO_SCORE_TARGET, {
+                  recordedDate: snapshotRecordedDate,
+                })}
                 className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white hover:bg-hq-success-hover"
               >
                 {t("uploadKills")}

@@ -37,6 +37,7 @@ import {
   validateRosterRankQuota,
 } from "@/lib/members/roster-rank-quota.shared";
 import { formatHeroPowerMForStorage } from "@/lib/video/roster-video-review.shared";
+import { parseVideoUploadRecordedDateParam } from "@/lib/video/score-target-nav";
 import { getRbacContext } from "@/lib/rbac/context";
 import { BANK_WRITE_PERMISSION } from "@/lib/rbac/constants";
 import { requireAlliancePermission } from "@/lib/rbac/require-permission";
@@ -109,7 +110,7 @@ type SubmitRow = {
 type SubmitBody = {
   eventId?: string;
   team?: "A" | "B";
-  recordedDate: string;
+  recordedDate?: string;
   hqEventId?: string;
   boardKey?: string;
   commendationId?: string;
@@ -391,6 +392,7 @@ export async function POST(request: Request, { params }: Props) {
         sessionId: session.id,
         hqUserId: ctx.hqUserId,
         parseSessionId: job.parseSessionId,
+        recordedDate: parseVideoUploadRecordedDateParam(body.recordedDate),
         ashedConnection: await getAshedConnection(session.id),
       });
 
