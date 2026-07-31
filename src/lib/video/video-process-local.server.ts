@@ -22,8 +22,7 @@ export async function runVideoProcessJobLocally(
       .from(schema.videoJobs)
       .where(eq(schema.videoJobs.id, jobId))
       .limit(1);
-    // Chunked deposit-slip OCR leaves the job in-flight (`parsing`) while the
-    // next slice is dispatched; otherwise expect `review` (or failed upstream).
+    // Chunked deposit-slip OCR requeues between slices; otherwise expect `review`.
     const status = job?.status ?? "review";
     return {
       ok: true,

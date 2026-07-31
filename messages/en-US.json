@@ -4052,6 +4052,18 @@
     "noEntriesHint": "OCR finished but no rows were parsed. This was usually a response-format bug — try re-running OCR.",
     "reprocess": "Re-run OCR",
     "reprocessing": "Re-running OCR…",
+    "reprocessDialog": {
+      "reprocessDialogTitle": "Adjust frame capture before re-running OCR?",
+      "reprocessDialogBody": "Current extraction: {passKey} ({summary}). Choose a denser or sparser rate, or keep the current settings.",
+      "reprocessKeep": "Keep current rate",
+      "reprocessIncrease": "Increase (denser — better for fast scrolls)",
+      "reprocessDecrease": "Decrease (sparser — better for slow scrolls)",
+      "reprocessConfirm": "Re-run OCR",
+      "reprocessCancel": "Cancel",
+      "reprocessAtMax": "Already at the densest simple rate",
+      "reprocessAtMin": "Already at the sparsest simple rate",
+      "actionFailed": "Action failed"
+    },
     "rematchingMembers": "Updating member matches for your current alliance…",
     "eventLabel": "Event",
     "boardLabel": "Leaderboard type",

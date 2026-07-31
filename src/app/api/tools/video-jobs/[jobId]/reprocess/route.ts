@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { sessionHasPermission } from "@/lib/rbac/context";
 import { readSessionId } from "@/lib/session";
 import {
   canReprocessVideoJob,
@@ -50,11 +51,14 @@ export async function POST(request: Request, { params }: Props) {
     }
   }
 
+  const allowAdvanced = await sessionHasPermission(ops.sessionId, "hq:admin");
+
   try {
     const result = await adminReprocessVideoJob({
       jobId,
       sessionId: ops.sessionId,
       body,
+      allowAdvanced,
     });
     dispatchVideoProcessing(jobId, { source: "reprocess" });
     return NextResponse.json({ ok: true, ...result });

@@ -39,8 +39,6 @@ import {
   writeDepositSlipFingerprintShadowChunkState,
   type DepositSlipFingerprintShadowChunkState,
 } from "@/lib/video/deposit-slip-fingerprint-shadow-chunks.shared";
-import { dispatchVideoProcessing } from "@/lib/video/trigger-processing";
-
 async function loadPrimaryFrameMeta(primaryJobId: string) {
   const db = getDb();
   return db
@@ -203,11 +201,10 @@ export async function processDepositSlipFingerprintShadowJob(
     job.timingsJson,
   );
   const isChunkContinuation =
-    job.status === "parsing" &&
     fingerprintShadowHasPersistedChunkState(existingChunk);
 
-  // Claim queued/failed → parsing. Continuation chunks stay in `parsing` and
-  // re-enter here via the next-chunk worker dispatch (same as primary).
+  // Claim queued/failed → parsing. Mid-chunk continuations re-enter via cron
+  // (`queued` + persisted chunk cursor) without HTTP self-invoke.
   if (!isChunkContinuation) {
     const [claimed] = await db
       .update(schema.videoJobs)
@@ -408,23 +405,11 @@ export async function processDepositSlipFingerprintShadowJob(
         claim.timingsJson,
         chunkState,
       );
-      await setStatus("parsing", {
+      await setStatus("queued", {
         frameCount: totalFrames,
         uploadedFrameCount: ocrCompletedThrough,
         timingsJson: nextTimings,
       });
-
-      const dispatched = await dispatchVideoProcessing(jobId, {
-        source: "deposit_slip_fingerprint_shadow_chunk",
-      });
-      if (!dispatched) {
-        // Cron/queue backup — keep chunk progress, leave job claimable.
-        await setStatus("queued", {
-          timingsJson: nextTimings,
-          frameCount: totalFrames,
-          uploadedFrameCount: ocrCompletedThrough,
-        });
-      }
 
       timer.log(
         `deposit-slip fingerprint shadow job ${jobId} OCR chunk complete; continuing`,

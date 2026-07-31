@@ -29,7 +29,6 @@ import {
   ocrDepositSlipVideoFrameChunk,
 } from "@/lib/video/process-deposit-slip-job";
 import type { ScoreTargetDef } from "@/lib/video/score-targets";
-import { dispatchVideoProcessing } from "@/lib/video/trigger-processing";
 
 export type DepositSlipOcrPhaseResult =
   | {
@@ -99,16 +98,16 @@ export async function runDepositSlipOcrPhase(input: {
     completedThrough: number;
   }) => Promise<void>;
   /**
-   * Persist chunk cursor + progress. Keep status in-flight (`parsing`) so the
-   * queue cron does not double-dispatch the same job while we fire-and-forget
-   * the next worker invocation.
+   * Persist chunk cursor and requeue for the video-process cron. Same-deployment
+   * worker HTTP self-invoke hits Vercel INFINITE_LOOP_DETECTED (508) even via
+   * waitUntil — cron is the safe continuation path.
    */
   setContinueChunk: (params: {
     totalFrames: number;
     nextFrameOffset: number;
     timingsJson: Record<string, unknown>;
   }) => Promise<void>;
-  /** When the next-chunk worker trigger fails, requeue for cron backup. */
+  /** @deprecated Use setContinueChunk (always requeues). Kept for callers/tests. */
   requeueAfterChunkDispatchFailed?: (params: {
     timingsJson: Record<string, unknown>;
   }) => Promise<void>;
@@ -267,14 +266,6 @@ export async function runDepositSlipOcrPhase(input: {
       nextFrameOffset: ocrCompletedThrough,
       timingsJson: nextTimings,
     });
-    const dispatched = await dispatchVideoProcessing(input.jobId, {
-      source: "deposit_slip_ocr_chunk",
-    });
-    if (!dispatched) {
-      await input.requeueAfterChunkDispatchFailed?.({
-        timingsJson: nextTimings,
-      });
-    }
     return {
       kind: "continue",
       hqAllianceId: chunkResult.hqAllianceId,

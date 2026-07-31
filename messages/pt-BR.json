@@ -3998,6 +3998,18 @@
     "noEntriesHint": "O OCR terminou, mas nenhuma linha foi interpretada. Geralmente era um bug de formato de resposta — tente executar o OCR novamente.",
     "reprocess": "Executar OCR novamente",
     "reprocessing": "Executando OCR novamente…",
+    "reprocessDialog": {
+      "reprocessDialogTitle": "Ajustar a captura de frames antes de executar o OCR novamente?",
+      "reprocessDialogBody": "Extração atual: {passKey} ({summary}). Escolha uma taxa mais densa ou mais esparsa, ou mantenha as configurações atuais.",
+      "reprocessKeep": "Manter a taxa atual",
+      "reprocessIncrease": "Aumentar (mais densa — melhor para rolagem rápida)",
+      "reprocessDecrease": "Diminuir (mais esparsa — melhor para rolagem lenta)",
+      "reprocessConfirm": "Executar OCR novamente",
+      "reprocessCancel": "Cancelar",
+      "reprocessAtMax": "Já está na taxa simples mais densa",
+      "reprocessAtMin": "Já está na taxa simples mais esparsa",
+      "actionFailed": "Ação falhou"
+    },
     "rematchingMembers": "Atualizando correspondências de membros para sua aliança atual…",
     "eventLabel": "Evento",
     "boardLabel": "Tipo de placar",
