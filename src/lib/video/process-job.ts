@@ -655,6 +655,32 @@ export async function processVideoJob(
       totalRawOcrRows = slipPhase.totalRawOcrRows;
       frameCount = slipPhase.totalFrames;
 
+      if (slipPhase.kind === "lost_claim") {
+        timer.log(`job ${jobId} deposit-slip OCR chunk lost claim; no-op`, {
+          scoreTarget: scoreTargetId,
+          frameCount: slipPhase.totalFrames,
+        });
+        return {
+          jobId,
+          scoreTarget: scoreTargetId,
+          fileSizeBytes: job.fileSizeBytes,
+          frameCount: slipPhase.totalFrames,
+          rowCount: 0,
+          matchedCount: 0,
+          totalMs: timer.getTotalMs(),
+          phases: timer.getPhases(),
+          ocrFrameMs: [],
+          ocrFrameAvgMs: null,
+          ocrConcurrency: 0,
+          ashedUploadTotalMs: null,
+          ashedExtractTotalMs: null,
+          videoDurationSeconds: null,
+          denseFrameCount: null,
+          framesSkipped: null,
+          totalRawOcrRows: null,
+        };
+      }
+
       if (slipPhase.kind === "continue") {
         depositSlipAwaitingNextChunk = true;
         parseSessionId = "";

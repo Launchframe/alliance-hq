@@ -13,9 +13,19 @@ const mockCompare = vi.fn();
 const mockEmit = vi.fn();
 const mockTrackTimings = vi.fn();
 const mockTrackFailure = vi.fn();
+const mockClaimShadow = vi.fn();
 
 vi.mock("server-only", () => ({}));
 vi.mock("nanoid", () => ({ nanoid: () => "nano-1" }));
+
+vi.mock("@/lib/video/deposit-slip-ocr-chunk-claim.server", () => ({
+  claimDepositSlipFingerprintShadowChunk: (...args: unknown[]) =>
+    mockClaimShadow(...args),
+  releaseDepositSlipFingerprintShadowChunkClaim: (state: unknown) => ({
+    ...(state as object),
+    claimToken: null,
+  }),
+}));
 
 vi.mock("@/lib/storage", () => ({
   getObject: (...args: unknown[]) => mockGetObject(...args),
@@ -151,6 +161,30 @@ describe("processDepositSlipFingerprintShadowJob chunking", () => {
         rowHeight: 10,
       },
     ]);
+    mockClaimShadow.mockImplementation(
+      async (params: {
+        priorTimingsJson: unknown;
+        expectedOffset: number;
+        totalFrames: number;
+        chunkSize: number;
+        priorChunk: { frameLines: unknown[]; ocrFrameMs: number[] } | null;
+      }) => ({
+        claimed: true as const,
+        claimToken: "claim-1",
+        timingsJson: {
+          ...(params.priorTimingsJson as Record<string, unknown> | null),
+          depositSlipFingerprintShadowChunk: {
+            version: 1,
+            nextFrameOffset: params.expectedOffset,
+            totalFrames: params.totalFrames,
+            chunkSize: params.chunkSize,
+            claimToken: "claim-1",
+            frameLines: params.priorChunk?.frameLines ?? [],
+            ocrFrameMs: params.priorChunk?.ocrFrameMs ?? [],
+          },
+        },
+      }),
+    );
   });
 
   it("OCRs one chunk and dispatches continuation when frames remain", async () => {
@@ -174,7 +208,6 @@ describe("processDepositSlipFingerprintShadowJob chunking", () => {
     expect(mockTesseract).toHaveBeenCalledTimes(2);
     expect(mockDispatch).toHaveBeenCalledWith("shadow-1", {
       source: "deposit_slip_fingerprint_shadow_chunk",
-      awaitResult: true,
     });
     expect(mockInsertValues).not.toHaveBeenCalled();
     expect(timings.rowCount).toBe(0);
@@ -341,5 +374,24 @@ describe("processDepositSlipFingerprintShadowJob chunking", () => {
     expect(mockTesseract).not.toHaveBeenCalled();
     expect(mockInsertValues).toHaveBeenCalled();
     expect(timings.frameCount).toBe(3);
+  });
+
+  it("no-ops when another worker already claimed the chunk", async () => {
+    mockClaimShadow.mockResolvedValueOnce({ claimed: false });
+    mockSelectLimit
+      .mockResolvedValueOnce([baseJob()])
+      .mockResolvedValueOnce([{ primaryJobId: "primary-1" }])
+      .mockResolvedValueOnce([{ allianceId: "ally-1" }]);
+    mockSelectOrderBy.mockResolvedValue([
+      { frameIndex: 0, storageKey: "f0" },
+      { frameIndex: 1, storageKey: "f1" },
+    ]);
+
+    const timings = await processDepositSlipFingerprintShadowJob("shadow-1");
+
+    expect(mockGetObject).not.toHaveBeenCalled();
+    expect(mockTesseract).not.toHaveBeenCalled();
+    expect(mockDispatch).not.toHaveBeenCalled();
+    expect(timings.rowCount).toBe(0);
   });
 });

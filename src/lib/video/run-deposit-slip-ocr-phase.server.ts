@@ -5,6 +5,10 @@ import { asc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { getObject } from "@/lib/storage";
 import {
+  claimDepositSlipOcrChunk,
+  releaseDepositSlipOcrChunkClaim,
+} from "@/lib/video/deposit-slip-ocr-chunk-claim.server";
+import {
   clearDepositSlipOcrChunkState,
   depositSlipOcrChunkWindow,
   readDepositSlipOcrChunkState,
@@ -49,6 +53,14 @@ export type DepositSlipOcrPhaseResult =
       totalFrames: number;
       ocrCompletedThrough: number;
       nextFrameOffset: number;
+    }
+  | {
+      kind: "lost_claim";
+      hqAllianceId: string;
+      ocrFrameMs: number[];
+      ocrConcurrency: number;
+      totalRawOcrRows: number;
+      totalFrames: number;
     };
 
 async function loadStoredDepositFrames(jobId: string) {
@@ -158,6 +170,27 @@ export async function runDepositSlipOcrPhase(input: {
     chunkSize,
   });
 
+  const priorTimings =
+    (input.timingsJson as Record<string, unknown> | null) ?? null;
+  const claim = await claimDepositSlipOcrChunk({
+    jobId: input.jobId,
+    expectedOffset: nextFrameOffset,
+    totalFrames,
+    chunkSize,
+    priorTimingsJson: priorTimings,
+    now: input.now,
+  });
+  if (!claim.claimed) {
+    return {
+      kind: "lost_claim",
+      hqAllianceId: "",
+      ocrFrameMs: [],
+      ocrConcurrency: 0,
+      totalRawOcrRows: 0,
+      totalFrames,
+    };
+  }
+
   await input.setChunkProgress({
     totalFrames,
     completedThrough: nextFrameOffset,
@@ -219,14 +252,14 @@ export async function runDepositSlipOcrPhase(input: {
   const ocrCompletedThrough = window.end;
 
   if (!window.isFinal) {
-    const chunkState: DepositSlipOcrChunkState = {
+    const chunkState: DepositSlipOcrChunkState = releaseDepositSlipOcrChunkClaim({
       version: 1,
       nextFrameOffset: ocrCompletedThrough,
       totalFrames,
       chunkSize,
-    };
+    });
     const nextTimings = writeDepositSlipOcrChunkState(
-      (input.timingsJson as Record<string, unknown> | null) ?? {},
+      claim.timingsJson,
       chunkState,
     );
     await input.setContinueChunk({
@@ -236,7 +269,6 @@ export async function runDepositSlipOcrPhase(input: {
     });
     const dispatched = await dispatchVideoProcessing(input.jobId, {
       source: "deposit_slip_ocr_chunk",
-      awaitResult: true,
     });
     if (!dispatched) {
       await input.requeueAfterChunkDispatchFailed?.({
