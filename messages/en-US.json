@@ -1573,7 +1573,7 @@
         "pickConductor": "Pick conductor manually",
         "pickVip": "Pick VIP manually",
         "lockConductor": "Lock conductor",
-        "viewPool": "View conductor pool",
+        "viewPool": "View eligibility",
         "scheduleWeek": "Switch to week view",
         "scheduleMonth": "Switch to month view",
         "goToToday": "Jump to today",
@@ -3264,12 +3264,12 @@
     "monthNavNext": "Next month",
     "monthLoadFailed": "Could not load that month.",
     "paintPaletteTitle": "Paint days",
-    "paintPaletteHint": "Select days on the calendar (tap, drag, or Shift+click a range), then choose a template to paint them.",
+    "paintPaletteHint": "Select days on the calendar (tap, drag, or Shift+click a range), then choose a rule or week template to apply.",
     "dayTemplateMenu": {
-      "title": "Change day template",
-      "ariaLabel": "Choose a template for {date}",
-      "holdHint": "Long press a day to change its template.",
-      "dialogSubtitle": "This changes today's pick only — this week's template stays the same."
+      "title": "Change this day's rule",
+      "ariaLabel": "Choose a rule for {date}",
+      "holdHint": "Long press a day to change its rule.",
+      "dialogSubtitle": "This changes today's rule only — this week's template stays the same."
     },
     "weekdays": {
       "mon": "Mon",
@@ -3413,11 +3413,11 @@
           "refreshNative": "Refresh roster",
           "syncing": "Syncing roster…",
           "syncSuccess": "Roster updated ({count} active members).",
-          "syncReady": "Roster ready — {eligibleCount} members qualify for today's {rankLabel} pool.",
-          "syncStillBlockedRanks": "Synced {count} members from Ashed, but none qualify for today's {rankLabel} pool. Assign or fix ranks on Members.",
+          "syncReady": "Roster ready — {eligibleCount} members qualify for today's {rankLabel} eligibility.",
+          "syncStillBlockedRanks": "Synced {count} members from Ashed, but none qualify for today's {rankLabel} eligibility. Assign or fix ranks on Members.",
           "syncStillBlockedMinimums": "Synced {count} members. {rankEligible} match {rankLabel}, but none meet conductor minimums yet.",
           "syncFailed": "Could not sync the roster. Try again or open Members.",
-          "bodyConductorMinimums": "Members are on the roster, but none who match today's {rankLabel} pool also meet conductor minimums yet.",
+          "bodyConductorMinimums": "Members are on the roster, but none who match today's {rankLabel} eligibility also meet conductor minimums yet.",
           "connectAshed": "Connect Ashed in Settings",
           "goToMembers": "Go to Members",
           "rankLabels": {
@@ -3433,8 +3433,8 @@
           "uploadLink": "Upload scores"
         },
         "template": {
-          "title": "This day's conductor pick",
-          "change": "Change pick"
+          "title": "This day's rule",
+          "change": "Change rule"
         },
         "conductor": {
           "title": "Conductor",
@@ -3499,7 +3499,7 @@
       "rollFailed": "Could not roll for Conductor.",
       "disqualifiedExhausted": "Could not find a qualified conductor after several spins. Try again or pick manually.",
       "confirmTitle": "Week conductors ready",
-      "confirmBody": "Review {count} conductors drawn from the pool. They stay as drafts until you lock each day when the train is set in-game.",
+      "confirmBody": "Review {count} conductors drawn from eligibility. They stay as drafts until you lock each day when the train is set in-game.",
       "confirmDone": "Done",
       "disabledReason": {
         "pastWeek": "This train week is entirely in the past.",
@@ -3513,8 +3513,8 @@
       "next": "Next →",
       "done": "Done",
       "stepServerTime": "Train days follow game server time (UTC−2). The badge above always shows the current server date and time — use it when planning rolls and locks.",
-      "stepSchedule": "This is your train scheduling hub — pick a week, paint day templates, and see who is conducting each day.",
-      "stepWeekStrip": "Each cell shows the day template color, conductor mechanism, and whether the conductor is locked in.",
+      "stepSchedule": "This is your train scheduling hub — pick a week, paint day rules, and see who is conducting each day.",
+      "stepWeekStrip": "Each cell shows the day rule color, conductor rule, and whether the conductor is locked in.",
       "stepTemplate": "Change the whole week’s template from this dropdown — economy, lottery, VS week, and more.",
       "stepViewToggle": "Switch between week and month view. Month view is best for painting templates ahead.",
       "stepConductorCard": "Today’s conductor card shows the VIP, guardian, and lock status. Locking spawns the train for that day.",
@@ -3538,18 +3538,18 @@
       "swapping": "Swapping…",
       "substitutingFor": "Substituting for {name}"
     },
-    "reseedPool": "Re-seed pool",
-    "reseedingPool": "Reseeding pool…",
+    "reseedPool": "Reset eligibility",
+    "reseedingPool": "Resetting eligibility…",
     "reseedPoolHint": {
-      "infoLabel": "What does re-seed pool do?",
-      "title": "Re-seed pool",
-      "body": "Lottery and sequence rolls draw from a pool of eligible members. Each roll marks someone as picked for the current generation. Re-seeding rebuilds that list from your roster and immediately begins a new generation -— useful after rank changes, or when everyone in the pool has had their turn.",
+      "infoLabel": "What does reset eligibility do?",
+      "title": "Reset eligibility",
+      "body": "Lottery and sequence rolls draw from eligible members. Each roll marks someone as picked for the current generation. Resetting rebuilds that list from your roster and immediately begins a new generation — useful after rank changes, or when everyone eligible has had their turn.",
       "close": "Got it"
     },
     "poolRefreshedHint": {
-      "title": "Pool refreshed",
-      "conductorBody": "Everyone in the {poolName} has had a turn as Conductor. The pool was rebuilt automatically for the next rotation.",
-      "vipBody": "Everyone in the {poolName} has had a turn as VIP. The pool was rebuilt automatically for the next rotation.",
+      "title": "Eligibility refreshed",
+      "conductorBody": "Everyone in the {poolName} has had a turn as Conductor. Eligibility was rebuilt automatically for the next rotation.",
+      "vipBody": "Everyone in the {poolName} has had a turn as VIP. Eligibility was rebuilt automatically for the next rotation.",
       "generationLine": "New generation {generation} · {count} members",
       "close": "Got it"
     },
@@ -3560,27 +3560,27 @@
     "swapFailed": "Could not swap conductors.",
     "scheduleFailed": "Could not update schedule.",
     "emptyPoolScheduleBlocked": "Import alliance members before creating a train schedule.",
-    "poolFailed": "Could not re-seed pool.",
+    "poolFailed": "Could not reset eligibility.",
     "spinSource": {
       "heading": "Spin sources",
       "conductorRole": "Conductor spin",
       "vipRole": "VIP spin",
-      "viewPool": "View pool",
-      "poolNotSeeded": "Pool not built yet — spin or re-seed to create it.",
+      "viewPool": "View eligibility",
+      "poolNotSeeded": "Eligibility not built yet — spin or reset to create it.",
       "poolRemaining": "{remaining} of {total} remaining · generation {generation}",
       "nextInSequence": "Next in sequence: {name}",
       "poolExhausted": "· exhausted",
-      "liveLeaderboardHint": "Drawn from live scores, not the member pool.",
+      "liveLeaderboardHint": "Drawn from live scores, not the member eligibility list.",
       "priceIsRightRaffle": "R3 Lottery: The Price Is Freight",
       "priceIsRightRaffleHint": "Daily draw — winners stay eligible for later days.",
       "priceIsRightHeavyHitter": "Heavy-hitter lottery: The Price Is Freight",
       "priceIsRightHeavyHitterHint": "Saturday draw among the takedown team — equal chance; winners stay eligible.",
       "poolTypes": {
-        "r3": "R3 lottery pool",
-        "r4_plus": "R4 officer sequence pool",
-        "all_members": "All members pool",
-        "event_top_x": "Event top scorers pool",
-        "heavy_hitter": "Heavy-hitter lottery pool"
+        "r3": "R3 lottery eligibility",
+        "r4_plus": "R4 officer sequence eligibility",
+        "all_members": "All members eligibility",
+        "event_top_x": "Event top scorers eligibility",
+        "heavy_hitter": "Heavy-hitter lottery eligibility"
       },
       "vsLeaderboardTop1": "VS #1 (prior-day high score)",
       "vsLeaderboardTopN": "VS top {count}",
@@ -3590,20 +3590,20 @@
       "eventLeaderboard": "Event top scorers (VIP wheel)"
     },
     "poolDetails": {
-      "title": "Pool details",
-      "loading": "Loading pool…",
-      "loadFailed": "Could not load pool.",
-      "emptyEligible": "No eligible members left in this pool.",
-      "emptyChosen": "No one has been picked from this pool yet.",
-      "emptyUnseeded": "Pool not built yet — spin or re-seed to create it.",
+      "title": "Eligibility",
+      "loading": "Loading eligibility…",
+      "loadFailed": "Could not load eligibility.",
+      "emptyEligible": "No eligible members left.",
+      "emptyChosen": "No one has been picked from eligibility yet.",
+      "emptyUnseeded": "Eligibility not built yet — spin or reset to create it.",
       "summaryLine": "{remaining} of {total} remaining · generation {generation}",
       "exhausted": "· exhausted",
       "rankLabel": "Rank R{rank}",
       "close": "Close",
-      "conductorPool": "Conductor pool",
-      "vipPool": "VIP pool",
-      "poolSwitcherLabel": "Pool role",
-      "memberTabsLabel": "Pool members",
+      "conductorPool": "Conductor eligibility",
+      "vipPool": "VIP eligibility",
+      "poolSwitcherLabel": "Eligibility role",
+      "memberTabsLabel": "Members",
       "tabEligible": "Eligible",
       "tabChosen": "Already chosen",
       "eventScoreContext": "VS Day {dayNumber}: {dayName} · scores from {scoreDate} (yesterday's VS day)",
@@ -3618,11 +3618,11 @@
         "busterDay": "Buster Day"
       },
       "poolTypes": {
-        "r3": "R3 lottery pool",
-        "r4_plus": "R4 officer sequence pool",
-        "all_members": "All members pool",
-        "event_top_x": "Event top scorers pool",
-        "heavy_hitter": "Heavy-hitter lottery pool"
+        "r3": "R3 lottery eligibility",
+        "r4_plus": "R4 officer sequence eligibility",
+        "all_members": "All members eligibility",
+        "event_top_x": "Event top scorers eligibility",
+        "heavy_hitter": "Heavy-hitter lottery eligibility"
       }
     },
     "priceIsRight": {
@@ -3669,7 +3669,7 @@
         "takedownBadge": "Takedown",
         "rowMeta": "VS {score} · {probability} chance",
         "chanceOnlyMeta": "{probability} chance",
-        "expand": "Show full raffle pool",
+        "expand": "Show full eligibility list",
         "collapse": "Show fewer rows"
       },
       "missedFloor": {
@@ -3735,18 +3735,18 @@
     },
     "wheelBlocked": {
       "title": "Can't spin the wheel",
-      "poolEmptyR3": "No members on your roster are ranked R3, so the lottery pool is empty. Assign R3 ranks on the Members page, then try again.",
-      "poolEmptyR4Plus": "No members on your roster are ranked R4 or R5, so the officer sequence pool is empty. Assign those ranks on the Members page, then try again.",
+      "poolEmptyR3": "No members on your roster are ranked R3, so R3 lottery eligibility is empty. Assign R3 ranks on the Members page, then try again.",
+      "poolEmptyR4Plus": "No members on your roster are ranked R4 or R5, so officer sequence eligibility is empty. Assign those ranks on the Members page, then try again.",
       "poolEmptyHeavyHitter": "No heavy hitters are configured for Saturday's Price Is Freight lottery. Add members under Settings → Trains (Takedown team / max tickets), then try again.",
-      "poolEmptyGeneric": "No eligible members were found for this pool. Check member ranks on the Members page, then try again.",
-      "poolExhausted": "Everyone eligible for this pool has already been picked in the current generation. Re-seed the pool to start a fresh rotation.",
-      "poolUnavailable": "The wheel pool isn't ready yet. Re-seed it to rebuild the eligible members, then we'll spin again.",
+      "poolEmptyGeneric": "No eligible members were found. Check member ranks on the Members page, then try again.",
+      "poolExhausted": "Everyone eligible has already been picked in the current generation. Reset eligibility to start a fresh rotation.",
+      "poolUnavailable": "Eligibility isn't ready yet. Reset it to rebuild eligible members, then we'll spin again.",
       "noVsScores": "There aren't enough VS scores to fill the wheel yet. Enter VS scores for this week, then try again.",
       "noVrStandings": "There aren't enough season VR standings to fill the wheel yet. Report VR on the Members page, then try again.",
       "noEventScores": "There aren't enough event scores to fill the VIP wheel yet. Enter scores for this event, then try again.",
       "noDonationScores": "Donation scores aren't tracked in Alliance HQ yet. Pick the donor manually from your roster.",
       "noCandidatesGeneric": "There aren't enough eligible members to spin the wheel right now.",
-      "ashedRequired": "This roll needs an Ashed connection to read live scores. Connect Ashed in Settings, or use a roster-based mechanism instead.",
+      "ashedRequired": "This roll needs an Ashed connection to read live scores. Connect Ashed in Settings, or use a roster-based rule instead.",
       "generic": "The wheel can't spin right now. Fix the underlying issue and try again.",
       "goToMembers": "Go to Members",
       "goToTrainSettings": "Open train settings",
@@ -3755,9 +3755,9 @@
       "syncRoster": "Sync roster from Ashed",
       "pickManually": "Pick manually",
       "retrySpin": "Try spinning again",
-      "reseedPool": "Re-seed pool",
-      "reseedAndRespin": "Re-seed pool & re-spin",
-      "reseedAndRespinBusy": "Re-seeding…",
+      "reseedPool": "Reset eligibility",
+      "reseedAndRespin": "Reset eligibility & re-spin",
+      "reseedAndRespinBusy": "Resetting eligibility…",
       "close": "Close"
     },
     "errorBanner": {
@@ -3822,7 +3822,7 @@
       "top_vr": "Top VR",
       "price_is_right": "Closest to 7.2M",
       "price_is_right_weekdays": "Eligible VS",
-      "takedown_week": "Takedown pool"
+      "takedown_week": "Takedown eligibility"
     },
     "topNScope": {
       "titleVs": "Top VS scope",
@@ -3832,9 +3832,9 @@
       "vrLocked": "Need {required} VR reports for Top {count} (have {have})"
     },
     "templateShapeLegend": {
-      "economy_week": "R3 pool",
+      "economy_week": "R3 eligibility",
       "price_is_right_weekdays": "Eligible VS scores",
-      "takedown_week": "Takedown team pool",
+      "takedown_week": "Takedown team eligibility",
       "custom": "Custom",
       "r3_recognition": "R3 Conductor award",
       "r4_train_week": "R4 random draw",
@@ -3845,10 +3845,10 @@
       "vs_push_weekdays": "Conductor: Mon = top weekly donations; Tue and Fri = prior-day VS #1; Wed, Thu, and Sat = random from VS top 10. VIP: Mon = 2nd donor; Tue–Sat = conductor free pick.",
       "r4_event_vip": "Conductor: R4+ officer rotation. VIP: Custom event top-10 lottery wheel (Capitol War, Meteorite, etc). Typical for weekend train days.",
       "economy_week": "Conductor: R3 wheel every day. VIP: Conductor's pick.",
-      "price_is_right": "Conductor: Tue–Fri = raffle from eligible prior-day VS scores. Saturday = random draw from the takedown team pool. Sun–Mon = Custom (manual). VIP: Conductor's pick on raffle/takedown days.",
+      "price_is_right": "Conductor: Tue–Fri = raffle from eligible prior-day VS scores. Saturday = random draw from takedown team eligibility. Sun–Mon = Custom (manual). VIP: Conductor's pick on raffle/takedown days.",
       "price_is_right_weekdays": "Conductor: raffle from eligible prior-day VS scores (Equal chance or Closer is Better). VIP: Conductor's pick.",
-      "takedown_week": "Conductor: random draw from the takedown team roster every day (depleting pool). VIP: Conductor's pick.",
-      "r3_recognition": "Conductor: manual pick from the R3 pool every day — selected members are depleted from the pool. VIP: Conductor's pick.",
+      "takedown_week": "Conductor: random draw from the takedown team roster every day (depleting eligibility). VIP: Conductor's pick.",
+      "r3_recognition": "Conductor: manual pick from R3 eligibility every day — selected members are removed from eligibility. VIP: Conductor's pick.",
       "r4_train_week": "Conductor: Random R4 officer rotation. VIP: Conductor's pick.",
       "donations_week": "Conductor: Prior day top donor. VIP: Second-place donor.",
       "custom": "Conductor / VIP: No preset rules. Choose each day's conductor template on the calendar, or pick manually ."
