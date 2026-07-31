@@ -29,6 +29,7 @@ import { countReviewRowsMatchingBankHistory } from "@/lib/banks/deposit-slip-ocr
 import { formatDepositSlipGameTimestamp } from "@/lib/banks/deposit-slip-ocr/deposit-slip-game-timestamp.shared";
 import {
   flaggedClusterIdsWithSingleSurvivor,
+  groupFlaggedClustersByReason,
   groupUnresolvedFlaggedClusters,
   otherLiveClusterRowIds,
 } from "@/lib/banks/deposit-slip-flagged-clusters.shared";
@@ -363,6 +364,11 @@ export function DepositSlipVideoReviewTable({
     ],
   );
 
+  const liveFlaggedReasonGroups = useMemo(
+    () => groupFlaggedClustersByReason(liveFlaggedClusterGroups),
+    [liveFlaggedClusterGroups],
+  );
+
   useLayoutEffect(() => {
     const survivors = flaggedClusterIdsWithSingleSurvivor(
       activeRows,
@@ -475,56 +481,76 @@ export function DepositSlipVideoReviewTable({
             })}
           </p>
           <p className="mt-2 text-hq-fg">{t("depositSlipFlaggedHint")}</p>
-          <ul className="mt-3 space-y-3">
-            {liveFlaggedClusterGroups.map((clusterGroup) => {
-              const diffKeys = diffKeysForDepositSlipRows(clusterGroup.liveRows);
-              const reason = clusterGroup.reason ?? "";
-              return (
-                <li
-                  key={clusterGroup.clusterId}
-                  className="rounded-lg border border-hq-danger/30 bg-hq-canvas p-3 text-hq-fg"
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-hq-danger">
-                    {reason ? flagReasonLabel(reason) : t("depositSlipFlaggedRow")}
-                  </p>
-                  {clusterGroup.staleReport ? (
-                    <p className="mt-2 text-xs text-hq-fg-muted">
-                      {t("depositSlipStaleClusterNote")}
-                    </p>
-                  ) : null}
-                  <ul className="mt-2 space-y-1.5">
-                    {clusterGroup.liveRows.map((row) => (
+          <ul className="mt-3 space-y-4">
+            {liveFlaggedReasonGroups.map((reasonGroup) => (
+              <li key={reasonGroup.reason || "_unknown"}>
+                <p className="text-xs font-medium uppercase tracking-wide text-hq-danger">
+                  {reasonGroup.reason
+                    ? flagReasonLabel(reasonGroup.reason)
+                    : t("depositSlipFlaggedRow")}
+                </p>
+                <p className="mt-1 text-xs text-hq-fg-muted">
+                  {t("depositSlipFlaggedReasonClusterCount", {
+                    count: reasonGroup.clusters.length,
+                  })}
+                </p>
+                <ul className="mt-2 space-y-3">
+                  {reasonGroup.clusters.map((clusterGroup) => {
+                    const diffKeys = diffKeysForDepositSlipRows(
+                      clusterGroup.liveRows,
+                    );
+                    return (
                       <li
-                        key={row.id}
-                        className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-hq-surface-muted/40 px-2 py-1.5"
+                        key={clusterGroup.clusterId}
+                        className="rounded-lg border border-hq-danger/30 bg-hq-canvas p-3 text-hq-fg"
                       >
-                        <LiveRowSummaryFields row={row} diffKeys={diffKeys} />
-                        <div className="flex flex-wrap items-center gap-2">
-                          {onJumpToRow ? (
-                            <button
-                              type="button"
-                              onClick={() => onJumpToRow(row.id)}
-                              className="whitespace-nowrap rounded-md border border-hq-border px-2 py-1 text-xs text-hq-fg hover:bg-hq-surface-muted"
+                        {clusterGroup.staleReport ? (
+                          <p className="text-xs text-hq-fg-muted">
+                            {t("depositSlipStaleClusterNote")}
+                          </p>
+                        ) : null}
+                        <ul className="mt-2 space-y-1.5">
+                          {clusterGroup.liveRows.map((row) => (
+                            <li
+                              key={row.id}
+                              className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-hq-surface-muted/40 px-2 py-1.5"
                             >
-                              {t("depositSlipWarningRowJump")}
-                            </button>
-                          ) : null}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleKeepFlaggedClusterRow(clusterGroup, row.id)
-                            }
-                            className="whitespace-nowrap rounded-md border border-hq-border px-2 py-1 text-xs text-hq-fg hover:bg-hq-surface-muted"
-                          >
-                            {t("depositSlipFlaggedKeepThisOne")}
-                          </button>
-                        </div>
+                              <LiveRowSummaryFields
+                                row={row}
+                                diffKeys={diffKeys}
+                              />
+                              <div className="flex flex-wrap items-center gap-2">
+                                {onJumpToRow ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => onJumpToRow(row.id)}
+                                    className="whitespace-nowrap rounded-md border border-hq-border px-2 py-1 text-xs text-hq-fg hover:bg-hq-surface-muted"
+                                  >
+                                    {t("depositSlipWarningRowJump")}
+                                  </button>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleKeepFlaggedClusterRow(
+                                      clusterGroup,
+                                      row.id,
+                                    )
+                                  }
+                                  className="whitespace-nowrap rounded-md border border-hq-border px-2 py-1 text-xs text-hq-fg hover:bg-hq-surface-muted"
+                                >
+                                  {t("depositSlipFlaggedKeepThisOne")}
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
                       </li>
-                    ))}
-                  </ul>
-                </li>
-              );
-            })}
+                    );
+                  })}
+                </ul>
+              </li>
+            ))}
           </ul>
         </div>
       ) : null}

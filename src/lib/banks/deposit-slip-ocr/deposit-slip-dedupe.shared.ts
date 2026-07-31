@@ -56,6 +56,7 @@ import {
 } from "@/lib/video/dedupe/timestamp-collision.shared";
 import { partitionPlausibleTimestamps } from "@/lib/video/dedupe/timestamp-plausibility.shared";
 import { stringSimilarity } from "@/lib/video/member-matcher";
+import { isDepositSlipAutoLinkedMatchMethod } from "@/lib/banks/deposit-slip-ocr/deposit-slip-member-match.shared";
 
 /**
  * Max gap between consecutive depositAts (and max span of a proximity group)
@@ -350,12 +351,20 @@ function buildDepositSlipConflictFields(
         canResolve: (winner, alternatives) =>
           alternatives.every((alternative) =>
             areLikelyAllianceTagOcrVariants(winner, alternative),
-          ),
+          ) ||
+          alternatives.every((alternative) => {
+            const winnerKey = normalizeTagForFrequency(
+              typeof winner === "string" ? winner : null,
+            );
+            const altKey = normalizeTagForFrequency(
+              typeof alternative === "string" ? alternative : null,
+            );
+            if (!winnerKey || !altKey) return false;
+            const winnerScore = tagFrequency.get(winnerKey) ?? 0;
+            const altScore = tagFrequency.get(altKey) ?? 0;
+            return winnerScore > altScore;
+          }),
       },
-    },
-    {
-      key: "gameServerNumber",
-      get: (s) => s.identity.gameServerNumber,
     },
     {
       key: "amount",
@@ -368,7 +377,7 @@ function buildDepositSlipConflictFields(
   ];
 }
 
-const IDENTITY_CONFLICT_FIELD_KEYS = new Set(["allianceTag", "gameServerNumber"]);
+const IDENTITY_CONFLICT_FIELD_KEYS = new Set(["allianceTag"]);
 
 /** Mirrors the historical two-reason split so existing UI copy keeps working. */
 function pickConflictFlagReason(conflictingFields: readonly string[]): string {
@@ -1488,5 +1497,140 @@ export function dedupeDepositSlips(
   return {
     slips: sortByDepositAtDesc(accum.output),
     report,
+  };
+}
+
+/** Member metadata parallel to {@link DedupedDepositSlip} rows after parse-time matching. */
+export type DepositSlipMemberLinkForDedupe = {
+  ashedMemberId: string | null;
+  matchMethod: string;
+};
+
+const BORDERLINE_MEMBER_MERGE_REASON = "same_member_auto_link_same_minute";
+
+/**
+ * After roster matching, borderline same-minute OCR name variants that all
+ * auto-linked to the same commander are duplicate frames — merge them even
+ * when commander-string similarity sits in the flag band.
+ */
+export function reconcileMemberMatchedBorderlineClusters(
+  slips: DedupedDepositSlip[],
+  memberLinks: readonly DepositSlipMemberLinkForDedupe[],
+  report: DedupeReport,
+): { slips: DedupedDepositSlip[]; report: DedupeReport } {
+  if (slips.length !== memberLinks.length) {
+    throw new Error("reconcileMemberMatchedBorderlineClusters: length mismatch");
+  }
+  if (report.clusters.length === 0) {
+    return { slips, report };
+  }
+
+  const linkBySlipId = new Map(
+    slips.map((slip, index) => [slip.slipId, memberLinks[index]!] as const),
+  );
+  const slipById = new Map(slips.map((slip) => [slip.slipId, slip] as const));
+  const removeIds = new Set<string>();
+  const conflictFields = buildDepositSlipConflictFields(
+    buildAllianceTagFrequency(slips),
+  );
+
+  let autoMergedAdded = 0;
+  const updatedClusters = report.clusters.map((cluster) => {
+    if (
+      cluster.disposition !== "flagged" ||
+      cluster.reason !== "borderline_commander_name_same_minute" ||
+      cluster.members.length < 2
+    ) {
+      return cluster;
+    }
+
+    const group = cluster.members
+      .map((member) => slipById.get(member.slipId))
+      .filter((slip): slip is DedupedDepositSlip => slip != null);
+    if (group.length < 2) {
+      return cluster;
+    }
+
+    const memberIds = group.map((slip) => {
+      const link = linkBySlipId.get(slip.slipId);
+      if (!link || !isDepositSlipAutoLinkedMatchMethod(link.matchMethod)) {
+        return null;
+      }
+      return link.ashedMemberId;
+    });
+    if (memberIds.some((id) => !id)) {
+      return cluster;
+    }
+    if (new Set(memberIds).size !== 1) {
+      return cluster;
+    }
+
+    const conflictResolution = resolveGroupConflicts(group, conflictFields);
+    if (!conflictResolution.resolved) {
+      return cluster;
+    }
+
+    const destinationId = pickBestSlipId(group);
+    const corrections = conflictResolution.corrections;
+    const merged = applyDepositSlipCorrections(
+      coalesceDepositSlips(group),
+      corrections,
+    );
+    const rebuilt: DedupedDepositSlip = {
+      ...merged,
+      identity: { ...merged.identity },
+      slipId: destinationId,
+      dedupeClusterId: cluster.clusterId,
+    };
+    slipById.set(destinationId, rebuilt);
+
+    for (const slip of group) {
+      if (slip.slipId !== destinationId) {
+        removeIds.add(slip.slipId);
+      }
+    }
+    autoMergedAdded += group.length - 1;
+
+    return {
+      ...cluster,
+      disposition: "auto_merged" as const,
+      reason: BORDERLINE_MEMBER_MERGE_REASON,
+      destinationSlipId: destinationId,
+      ...(corrections.length > 0
+        ? { correctedFields: corrections.map((c) => c.key) }
+        : {}),
+      members: [
+        ...group.map((slip) => ({
+          slipId: slip.slipId,
+          snapshot: slipSnapshot(slip),
+        })),
+        {
+          slipId: destinationId,
+          snapshot: slipSnapshot(rebuilt),
+        },
+      ],
+    };
+  });
+
+  if (autoMergedAdded === 0) {
+    return { slips, report };
+  }
+
+  const nextSlips = sortByDepositAtDesc(
+    slips
+      .filter((slip) => !removeIds.has(slip.slipId))
+      .map((slip) => slipById.get(slip.slipId) ?? slip),
+  );
+
+  return {
+    slips: nextSlips,
+    report: {
+      ...report,
+      clusters: updatedClusters,
+      autoMergedCount: report.autoMergedCount + autoMergedAdded,
+      flaggedCount: updatedClusters.filter((c) => c.disposition === "flagged")
+        .length,
+      outputCount: report.outputCount - autoMergedAdded,
+    },
   };
 }

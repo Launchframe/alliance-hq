@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   coalesceDepositSlips,
   dedupeDepositSlips,
+  reconcileMemberMatchedBorderlineClusters,
   resetDepositSlipIdCounterForTests,
   splitByDepositAtProximity,
 } from "@/lib/banks/deposit-slip-ocr/deposit-slip-dedupe.shared";
@@ -365,6 +366,57 @@ describe("dedupeDepositSlips", () => {
     expect(report.clusters[0]?.disposition).toBe("flagged");
     expect(report.clusters[0]?.reason).toBe("borderline_commander_name_same_minute");
     expect(slips.every((s) => s.dedupeClusterId)).toBe(true);
+  });
+
+  it("auto-merges borderline OCR name variants when roster auto-link agrees", () => {
+    const depositAt = "2026-07-29T23:50:00.000Z";
+    const { slips: flaggedSlips, report: flaggedReport } = dedupeDepositSlips([
+      slip({
+        commanderName: "Moo Deny Bang",
+        depositAt,
+        amount: 6000,
+        termDays: 1,
+        status: "locked",
+        identity: {
+          gameServerNumber: 1203,
+          allianceTag: "Roar",
+          commanderName: "Moo Deny Bang",
+          rawIdentity: "#1203[Roar]Moo Deny Bang",
+        },
+      }),
+      slip({
+        commanderName: "Moc Deng Bang",
+        depositAt,
+        amount: 6000,
+        termDays: 1,
+        status: "locked",
+        identity: {
+          gameServerNumber: 1203,
+          allianceTag: "Roar",
+          commanderName: "Moc Deng Bang",
+          rawIdentity: "#1203[Roar]Moc Deng Bang",
+        },
+      }),
+    ]);
+
+    expect(flaggedReport.flaggedCount).toBe(1);
+    expect(flaggedReport.clusters[0]?.reason).toBe(
+      "borderline_commander_name_same_minute",
+    );
+
+    const { slips, report } = reconcileMemberMatchedBorderlineClusters(
+      flaggedSlips,
+      [
+        { ashedMemberId: "member-moo", matchMethod: "fuzzy" },
+        { ashedMemberId: "member-moo", matchMethod: "fuzzy" },
+      ],
+      flaggedReport,
+    );
+
+    expect(slips).toHaveLength(1);
+    expect(report.flaggedCount).toBe(0);
+    expect(report.clusters[0]?.disposition).toBe("auto_merged");
+    expect(report.clusters[0]?.reason).toBe("same_member_auto_link_same_minute");
   });
 
   it("leaves distinct minutes alone", () => {
