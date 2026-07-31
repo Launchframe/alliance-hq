@@ -672,6 +672,49 @@ describe("parseDepositSlipHistoryText — fuzzy outcome OCR", () => {
     });
   });
 
+  it("keeps unrepaired depositAtTimePendingDate when merge cannot anchor a date", () => {
+    const merged = mergeDepositSlipHistoryParses([
+      {
+        depositPolicy: null,
+        minimumDeposit: null,
+        slips: [
+          {
+            depositAt: null,
+            depositAtTimePendingDate: {
+              hour: 12,
+              minute: 14,
+              second: 34,
+              round: "none",
+            },
+            termDays: 1,
+            amount: 6000,
+            status: "locked",
+            outcomeAmount: null,
+            outcomeKind: null,
+            outcomeAt: null,
+            identity: {
+              gameServerNumber: 1211,
+              allianceTag: "Roar",
+              commanderName: "Solo",
+              rawIdentity: "#1211[Roar]Solo",
+            },
+            sourceFrameIndex: 5,
+            confidence: 90,
+          },
+        ],
+      },
+    ]);
+
+    const solo = merged.history.slips[0];
+    expect(solo?.depositAt).toBeNull();
+    expect(solo?.depositAtTimePendingDate).toEqual({
+      hour: 12,
+      minute: 14,
+      second: 34,
+      round: "none",
+    });
+  });
+
   it("infers missing timestamps from frame indices during merge", () => {
     const merged = mergeDepositSlipHistoryParses([
       {

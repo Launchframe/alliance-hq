@@ -90,4 +90,37 @@ describe("draft-row outcomeAmount round-trip", () => {
     expect(restored?.outcomeKind).toBeNull();
     expect(restored?.outcomeAt).toBeNull();
   });
+
+  it("round-trips depositAtTimePendingDate via pending powerLevel token", () => {
+    const draft: ParsedDepositSlipDraft = {
+      depositAt: null,
+      depositAtTimePendingDate: {
+        hour: 12,
+        minute: 14,
+        second: 34,
+        round: "none",
+      },
+      termDays: 1,
+      amount: 6000,
+      status: "locked",
+      outcomeAmount: null,
+      outcomeKind: null,
+      identity: {
+        gameServerNumber: null,
+        allianceTag: "Roar",
+        commanderName: "Solo",
+        rawIdentity: "Solo",
+      },
+    };
+    const fields = depositSlipDraftToParsedRowFields(draft);
+    expect(fields.powerLevel).toBe("pending:12:14:34");
+    const restored = parsedRowFieldsToDepositSlipDraft(fields);
+    expect(restored?.depositAt).toBeNull();
+    expect(restored?.depositAtTimePendingDate).toEqual({
+      hour: 12,
+      minute: 14,
+      second: 34,
+      round: "none",
+    });
+  });
 });

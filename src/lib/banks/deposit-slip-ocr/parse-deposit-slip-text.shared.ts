@@ -1011,7 +1011,9 @@ export function mergeDepositSlipHistoryParses(
   repairInvalidDepositSlipDates(slips);
   inferMissingDepositSlipTimestamps(slips);
   for (const slip of slips) {
-    delete slip.depositAtTimePendingDate;
+    if (slip.depositAt != null) {
+      delete slip.depositAtTimePendingDate;
+    }
   }
 
   const { slips: deduped, report } = dedupeDepositSlips(slips);

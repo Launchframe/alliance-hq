@@ -223,11 +223,6 @@ function inferDepositAtFromFrameNeighbors(
       new Date(prev.depositAtMs).toISOString(),
     );
   }
-  if (next && next.frameIndex === frameIndex) {
-    return roundDepositSlipUtcToNearestTenMinutes(
-      new Date(next.depositAtMs).toISOString(),
-    );
-  }
 
   return null;
 }
