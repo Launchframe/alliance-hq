@@ -4,7 +4,7 @@
  * Convention (no schema migration in MVP):
  * - ocrName ← commanderName
  * - score ← amount
- * - powerLevel ← depositAt ISO
+ * - powerLevel ← depositAt ISO, or pending:HH:MM:SS when only time survived OCR
  * - memberLevel ← termDays
  * - profession ← status
  * - allianceRankTitle ← alliance tag
@@ -13,6 +13,10 @@
  */
 
 import type { ParsedDepositSlipDraft } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
+import {
+  decodeDepositAtPowerLevel,
+  encodeDepositAtForParsedRow,
+} from "@/lib/banks/deposit-slip-ocr/deposit-slip-game-timestamp.shared";
 import type { DepositStatus, DepositTermDays } from "@/lib/banks/types.shared";
 import { DEPOSIT_STATUSES, DEPOSIT_TERMS } from "@/lib/banks/types.shared";
 
@@ -66,7 +70,7 @@ export function depositSlipDraftToParsedRowFields(
   return {
     ocrName: draft.identity.commanderName,
     score: draft.amount != null ? String(draft.amount) : null,
-    powerLevel: draft.depositAt,
+    powerLevel: encodeDepositAtForParsedRow(draft),
     memberLevel: draft.termDays,
     profession: draft.status,
     allianceRankTitle: draft.identity.allianceTag,
@@ -101,9 +105,15 @@ export function parsedRowFieldsToDepositSlipDraft(
       : "locked";
 
   const { outcomeKind, outcomeAt } = decodeRosterRankRaw(row.rosterRankRaw);
+  const { depositAt, depositAtTimePendingDate } = decodeDepositAtPowerLevel(
+    row.powerLevel,
+  );
 
   return {
-    depositAt: row.powerLevel?.trim() || null,
+    depositAt,
+    ...(depositAtTimePendingDate
+      ? { depositAtTimePendingDate }
+      : {}),
     termDays,
     amount: amount != null && Number.isFinite(amount) ? Math.trunc(amount) : null,
     status,

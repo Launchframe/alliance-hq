@@ -27,6 +27,13 @@ import {
   parseDepositSlipOutcomeLine,
 } from "@/lib/banks/deposit-slip-ocr/deposit-slip-outcome-parse.shared";
 import {
+  buildDepositSlipUtcIso,
+  inferMissingDepositSlipTimestamps,
+  repairInvalidDepositSlipDates,
+  resolveDepositSlipSeasonYear,
+  roundDepositSlipUtcToHour,
+} from "@/lib/banks/deposit-slip-ocr/deposit-slip-infer-missing-timestamps.shared";
+import {
   emptyDedupeReport,
   type DedupeReport,
 } from "@/lib/video/dedupe/merge-report.shared";
@@ -63,7 +70,33 @@ export type ParsedDepositSlipDraft = {
    * completeness.
    */
   confidence?: number | null;
+  /**
+   * OCR recovered a plausible time-of-day but month/day were invalid. Cleared
+   * after {@link repairInvalidDepositSlipDates} borrows YYYY-MM-DD from
+   * neighboring frames during merge.
+   */
+  depositAtTimePendingDate?: DepositSlipTimePendingDate | null;
 };
+
+export type DepositSlipTimestampRound = "ten_minutes" | "hour" | "none";
+
+/** Wall-clock components when OCR date digits are out of range. */
+export type DepositSlipTimePendingDate = {
+  hour: number;
+  minute: number;
+  second: number;
+  round: DepositSlipTimestampRound;
+};
+
+export type DepositSlipTimestampParts =
+  | { kind: "valid"; iso: string }
+  | {
+      kind: "invalid_date";
+      hour: number;
+      minute: number;
+      second: number;
+      round: DepositSlipTimestampRound;
+    };
 
 /** Line bbox in processed-image pixel space (from Tesseract blocks). */
 export type DepositSlipOcrLineBbox = {
@@ -166,6 +199,13 @@ export type MergeDepositSlipHistoryResult = {
 
 const TIMESTAMP_RE =
   /(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})/;
+const TIMESTAMP_NO_SECONDS_RE =
+  /(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})\b/;
+const TIMESTAMP_HOUR_ONLY_RE =
+  /(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2})\b/;
+const TIMESTAMP_DATE_ONLY_RE = /^(\d{4})-(\d{1,2})-(\d{1,2})$/;
+const TIMESTAMP_MONTH_DAY_RE =
+  /(?:^|\s)(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\b/;
 
 const IDENTITY_RE = /#(\d{3,5})\s*\[\s*([^\]]+?)\s*\]\s*(.+?)\s*$/;
 
@@ -255,22 +295,89 @@ function promoteDraftStatusFromOutcome(draft: DraftBuilder): void {
  * Find the timestamp line for the deposit-slip row whose identity line is
  * at `identityIndex` (reading-order path).
  */
+function isValidDepositSlipCalendarDate(
+  year: number,
+  month: number,
+  day: number,
+): boolean {
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return false;
+  }
+  if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const iso = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T00:00:00.000Z`;
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return false;
+  const parsed = new Date(ms);
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() + 1 === month &&
+    parsed.getUTCDate() === day
+  );
+}
+
+function isValidDepositSlipTimeOfDay(
+  hour: number,
+  minute: number,
+  second: number,
+): boolean {
+  return (
+    hour >= 0 &&
+    hour <= 23 &&
+    minute >= 0 &&
+    minute <= 59 &&
+    second >= 0 &&
+    second <= 59
+  );
+}
+
+function depositSlipTimestampPartsFromYmdHms(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+  round: DepositSlipTimestampRound,
+): DepositSlipTimestampParts | null {
+  if (!isValidDepositSlipTimeOfDay(hour, minute, second)) return null;
+  if (isValidDepositSlipCalendarDate(year, month, day)) {
+    const iso = buildDepositSlipUtcIso(
+      year,
+      month,
+      day,
+      hour,
+      minute,
+      second,
+      round,
+    );
+    return iso ? { kind: "valid", iso } : null;
+  }
+  return { kind: "invalid_date", hour, minute, second, round };
+}
+
+type NearbyDepositSlipTimestamp = {
+  confidence: number | null;
+  lineIndex: number;
+  parts: DepositSlipTimestampParts;
+};
+
 function findNearbyDepositSlipTimestamp(
   lines: readonly NormalizedOcrLine[],
   identityIndex: number,
   claimedLineIndexes: ReadonlySet<number>,
-): { depositAt: string; confidence: number | null; lineIndex: number } | null {
+  seasonYear?: number | null,
+): NearbyDepositSlipTimestamp | null {
   for (let k = 1; k <= TIMESTAMP_SEARCH_BACK_LINES; k += 1) {
     const j = identityIndex - k;
     if (j < 0) break;
     const probe = lines[j]!.text.trim();
-    // Boundaries before claimed-skip: identity lines are always pre-claimed,
-    // so checking claimed first would `continue` past the previous row.
     if (parseDepositSlipIdentity(probe)) break;
     if (isDepositSlipRowContentLine(probe)) break;
     if (claimedLineIndexes.has(j)) continue;
-    const ts = parseDepositSlipTimestamp(probe);
-    if (ts) return { depositAt: ts, confidence: lines[j]!.confidence, lineIndex: j };
+    const parts = parseDepositSlipTimestampParts(probe, seasonYear);
+    if (parts) {
+      return { parts, confidence: lines[j]!.confidence, lineIndex: j };
+    }
   }
   for (let k = 1; k <= TIMESTAMP_SEARCH_FORWARD_LINES; k += 1) {
     const j = identityIndex + k;
@@ -279,20 +386,143 @@ function findNearbyDepositSlipTimestamp(
     if (parseDepositSlipIdentity(probe)) break;
     if (isDepositSlipRowContentLine(probe)) break;
     if (claimedLineIndexes.has(j)) continue;
-    const ts = parseDepositSlipTimestamp(probe);
-    if (ts) return { depositAt: ts, confidence: lines[j]!.confidence, lineIndex: j };
+    const parts = parseDepositSlipTimestampParts(probe, seasonYear);
+    if (parts) {
+      return { parts, confidence: lines[j]!.confidence, lineIndex: j };
+    }
   }
   return null;
 }
 
-/** Game timestamps are wall-clock without TZ; treat as UTC for storage. */
-export function parseDepositSlipTimestamp(raw: string): string | null {
+function applyDepositSlipTimestampPartsToDraft(
+  draft: DraftBuilder,
+  parts: DepositSlipTimestampParts,
+  confidence: number | null,
+): boolean {
+  if (draft.depositAt != null || draft.depositAtTimePendingDate != null) {
+    return false;
+  }
+  if (parts.kind === "valid") {
+    draft.depositAt = parts.iso;
+    draft.confidenceParts.push(confidence);
+    return true;
+  }
+  draft.depositAtTimePendingDate = {
+    hour: parts.hour,
+    minute: parts.minute,
+    second: parts.second,
+    round: parts.round,
+  };
+  draft.confidenceParts.push(confidence);
+  return true;
+}
+
+/** True when OCR text looks like a deposit-slip timestamp (including bad dates). */
+export function isDepositSlipTimestampProbe(
+  raw: string,
+  seasonYear?: number | null,
+): boolean {
+  return parseDepositSlipTimestampParts(raw, seasonYear) != null;
+}
+
+/**
+ * Low-level timestamp parse: returns a valid ISO, or time-only salvage when
+ * month/day are out of range but hour/minute/second look plausible.
+ */
+export function parseDepositSlipTimestampParts(
+  raw: string,
+  seasonYear?: number | null,
+): DepositSlipTimestampParts | null {
   const match = raw.match(TIMESTAMP_RE);
-  if (!match) return null;
-  const [, y, mo, d, h, mi, s] = match;
-  const iso = `${y}-${mo!.padStart(2, "0")}-${d!.padStart(2, "0")}T${h!.padStart(2, "0")}:${mi}:${s}.000Z`;
-  const ms = Date.parse(iso);
-  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
+  if (match) {
+    const [, y, mo, d, h, mi, s] = match;
+    return depositSlipTimestampPartsFromYmdHms(
+      Number(y),
+      Number(mo),
+      Number(d),
+      Number(h),
+      Number(mi),
+      Number(s),
+      "none",
+    );
+  }
+
+  const noSeconds = raw.match(TIMESTAMP_NO_SECONDS_RE);
+  if (noSeconds) {
+    const [, y, mo, d, h, mi] = noSeconds;
+    return depositSlipTimestampPartsFromYmdHms(
+      Number(y),
+      Number(mo),
+      Number(d),
+      Number(h),
+      Number(mi),
+      0,
+      "ten_minutes",
+    );
+  }
+
+  const hourOnly = raw.match(TIMESTAMP_HOUR_ONLY_RE);
+  if (hourOnly) {
+    const [, y, mo, d, h] = hourOnly;
+    const parts = depositSlipTimestampPartsFromYmdHms(
+      Number(y),
+      Number(mo),
+      Number(d),
+      Number(h),
+      0,
+      0,
+      "hour",
+    );
+    if (parts?.kind === "valid") {
+      return { kind: "valid", iso: roundDepositSlipUtcToHour(parts.iso) };
+    }
+    return parts;
+  }
+
+  const dateOnly = raw.trim().match(TIMESTAMP_DATE_ONLY_RE);
+  if (dateOnly) {
+    const [, y, mo, d] = dateOnly;
+    if (!isValidDepositSlipCalendarDate(Number(y), Number(mo), Number(d))) {
+      return null;
+    }
+    const iso = buildDepositSlipUtcIso(
+      Number(y),
+      Number(mo),
+      Number(d),
+      0,
+      0,
+      0,
+      "hour",
+    );
+    return iso ? { kind: "valid", iso } : null;
+  }
+
+  if (seasonYear != null) {
+    const monthDay = raw.match(TIMESTAMP_MONTH_DAY_RE);
+    if (monthDay) {
+      const [, mo, d, h, mi, s] = monthDay;
+      return depositSlipTimestampPartsFromYmdHms(
+        seasonYear,
+        Number(mo),
+        Number(d),
+        Number(h),
+        Number(mi),
+        s ? Number(s) : 0,
+        "ten_minutes",
+      );
+    }
+  }
+
+  return null;
+}
+
+/** Game timestamps are wall-clock without TZ; treat as UTC for storage. */
+export function parseDepositSlipTimestamp(
+  raw: string,
+  seasonYear?: number | null,
+): string | null {
+  const parts = parseDepositSlipTimestampParts(raw, seasonYear);
+  return parts?.kind === "valid" ? parts.iso : null;
 }
 
 export function parseDepositSlipIdentity(
@@ -353,6 +583,7 @@ type DraftBuilder = {
   identity: ParsedDepositSlipIdentity;
   identityConfidence: number | null;
   depositAt: string | null;
+  depositAtTimePendingDate: DepositSlipTimePendingDate | null;
   termDays: DepositTermDays | null;
   amount: number | null;
   status: DepositStatus;
@@ -366,6 +597,7 @@ function emptyDraft(anchor: IdentityAnchor): DraftBuilder {
     identity: anchor.identity,
     identityConfidence: anchor.confidence,
     depositAt: null,
+    depositAtTimePendingDate: null,
     termDays: null,
     amount: null,
     status: "locked",
@@ -377,11 +609,17 @@ function emptyDraft(anchor: IdentityAnchor): DraftBuilder {
 
 function finalizeDraft(draft: DraftBuilder): ParsedDepositSlipDraft | null {
   promoteDraftStatusFromOutcome(draft);
-  if (draft.amount == null && draft.depositAt == null && draft.outcomeKind == null) {
+  if (
+    draft.amount == null &&
+    draft.depositAt == null &&
+    draft.depositAtTimePendingDate == null &&
+    draft.outcomeKind == null
+  ) {
     return null;
   }
   return {
     depositAt: draft.depositAt,
+    depositAtTimePendingDate: draft.depositAtTimePendingDate ?? undefined,
     termDays: draft.termDays,
     amount: draft.amount,
     status: draft.status,
@@ -411,7 +649,7 @@ function shouldUseVerticalGeometry(
     if (line.yCenter == null) return false;
     const t = line.text.trim();
     return (
-      Boolean(parseDepositSlipTimestamp(t)) ||
+      isDepositSlipTimestampProbe(t) ||
       isDepositSlipRowContentProbe(t)
     );
   });
@@ -496,17 +734,15 @@ function assignFieldsByVerticalProximity(
     if (!probe) continue;
     if (parseDepositSlipIdentity(probe)) continue;
 
-    const ts = parseDepositSlipTimestamp(probe);
-    if (ts) {
+    const tsParts = parseDepositSlipTimestampParts(probe);
+    if (tsParts) {
       fields.push({
         lineIndex: i,
         yCenter: line.yCenter,
         kind: "timestamp",
         confidence: line.confidence,
         apply: (draft) => {
-          if (draft.depositAt != null) return;
-          draft.depositAt = ts;
-          draft.confidenceParts.push(line.confidence);
+          applyDepositSlipTimestampPartsToDraft(draft, tsParts, line.confidence);
         },
       });
       continue;
@@ -573,7 +809,8 @@ function assignFieldsByVerticalProximity(
     if (!draft) continue;
 
     const slotFull =
-      (field.kind === "timestamp" && draft.depositAt != null) ||
+      (field.kind === "timestamp" &&
+        (draft.depositAt != null || draft.depositAtTimePendingDate != null)) ||
       (field.kind === "deposit" && draft.amount != null) ||
       (field.kind === "outcome" && draft.outcomeKind != null);
     if (!slotFull) {
@@ -600,15 +837,18 @@ function fillDraftsFromReadingOrder(
     if (!draft) continue;
     const i = anchor.lineIndex;
 
-    if (draft.depositAt == null) {
+    if (draft.depositAt == null && draft.depositAtTimePendingDate == null) {
       const nearbyTimestamp = findNearbyDepositSlipTimestamp(
         lines,
         i,
         claimedLineIndexes,
       );
       if (nearbyTimestamp) {
-        draft.depositAt = nearbyTimestamp.depositAt;
-        draft.confidenceParts.push(nearbyTimestamp.confidence);
+        applyDepositSlipTimestampPartsToDraft(
+          draft,
+          nearbyTimestamp.parts,
+          nearbyTimestamp.confidence,
+        );
         claimedLineIndexes.add(nearbyTimestamp.lineIndex);
       }
     }
@@ -699,6 +939,37 @@ export function parseDepositSlipHistoryText(
 
   fillDraftsFromReadingOrder(anchors, normalized, drafts, claimedLineIndexes);
 
+  const seasonYear = resolveDepositSlipSeasonYear(
+    [...drafts.values()].map((draft) => ({ depositAt: draft.depositAt })),
+    new Date(),
+  );
+  if (seasonYear != null) {
+    for (const anchor of anchors) {
+      const draft = drafts.get(anchor.lineIndex);
+      if (
+        !draft ||
+        draft.depositAt != null ||
+        draft.depositAtTimePendingDate != null
+      ) {
+        continue;
+      }
+      const nearbyTimestamp = findNearbyDepositSlipTimestamp(
+        normalized,
+        anchor.lineIndex,
+        claimedLineIndexes,
+        seasonYear,
+      );
+      if (nearbyTimestamp) {
+        applyDepositSlipTimestampPartsToDraft(
+          draft,
+          nearbyTimestamp.parts,
+          nearbyTimestamp.confidence,
+        );
+        claimedLineIndexes.add(nearbyTimestamp.lineIndex);
+      }
+    }
+  }
+
   const slips: ParsedDepositSlipDraft[] = [];
   for (const anchor of anchors) {
     const draft = drafts.get(anchor.lineIndex);
@@ -735,6 +1006,14 @@ export function mergeDepositSlipHistoryParses(
       history: { depositPolicy, minimumDeposit, slips: [] },
       dedupeReport: emptyDedupeReport(0),
     };
+  }
+
+  repairInvalidDepositSlipDates(slips);
+  inferMissingDepositSlipTimestamps(slips);
+  for (const slip of slips) {
+    if (slip.depositAt != null) {
+      delete slip.depositAtTimePendingDate;
+    }
   }
 
   const { slips: deduped, report } = dedupeDepositSlips(slips);
