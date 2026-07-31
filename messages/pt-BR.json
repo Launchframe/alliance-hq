@@ -3923,6 +3923,7 @@
       "lowQuality": "Os oficiais precisaram corrigir muitas linhas nos seus envios recentes. Mantenha o placar inteiro na tela, evite saltos bruscos e role linha por linha.",
       "longReview": "As revisões deste placar estão demorando mais que o usual. Diminua a rolagem e pause em cada nome e pontuação para o OCR ler com clareza.",
       "thumbsDown": "Avaliações negativas recentes apontam para a qualidade da captura. Confira a iluminação, mantenha o celular nivelado e role em ritmo constante antes do próximo envio.",
+      "scenePageByPage": "Para este placar detectamos mudanças de cena entre as linhas. Role uma página por vez, pause brevemente em cada linha e continue. No PC ou Mac, use a roda do mouse ou os controles de rolagem na tela para passos uniformes em vez de arrastar.",
       "defaultSteady": "Sua rolagem constante está funcionando bem — mantenha o placar inteiro na tela e o mesmo ritmo."
     }
   },

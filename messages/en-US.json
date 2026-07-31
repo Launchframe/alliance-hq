@@ -3977,6 +3977,7 @@
       "lowQuality": "Officers had to fix many rows on your recent uploads. Keep the full leaderboard on screen, avoid sudden jumps, and scroll one row at a time.",
       "longReview": "Reviews for this score type are taking longer than usual. Slow your scroll and pause on each name and score so OCR can read them clearly.",
       "thumbsDown": "Recent thumbs-down ratings point to capture quality. Check lighting, hold the phone level, and scroll at a steady pace before your next upload.",
+      "scenePageByPage": "For this score type we detect scene changes between rows. Scroll one page at a time, pause briefly on each row, then continue. On PC or Mac, use the mouse wheel or on-screen scroll controls for even steps instead of dragging.",
       "defaultSteady": "Your steady scroll is working well — keep the full board on screen and maintain that same pace."
     }
   },

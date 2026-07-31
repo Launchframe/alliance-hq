@@ -58,6 +58,7 @@ export async function pickVideoHygieneCoachTipForUploader(params: {
   if (!row) return null;
 
   const tipId = selectVideoHygieneCoachTip({
+    scoreTarget: params.scoreTarget,
     jobCount: row.jobCount,
     thumbsUpRate: row.thumbsUpRate,
     avgQualityScore: row.avgQualityScore,

@@ -5,6 +5,7 @@ import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
 import { resolvePrimaryExtractionForUpload } from "@/lib/video/experiment-assignment";
+import { resolveAdaptedPrimaryExtraction } from "@/lib/video/video-hygiene-adapt.server";
 
 export type FinalizeVideoUploadInput = {
   sessionId: string;
@@ -27,6 +28,8 @@ export type FinalizeVideoUploadInput = {
  *
  * When an active extraction experiment applies, the primary job is stamped with
  * the assigned arm's parse config (control → standing assignment / default).
+ * Per-uploader hygiene adapt may overlay a denser extraction for that
+ * user×scoreTarget without changing alliance-wide experiment assignments.
  */
 export async function finalizeVideoUploadEnqueue(
   input: FinalizeVideoUploadInput,
@@ -37,6 +40,17 @@ export async function finalizeVideoUploadEnqueue(
   const primary = await resolvePrimaryExtractionForUpload({
     scoreTarget: input.scoreTarget,
     boardKey: input.boardKey,
+  });
+
+  const adapted = await resolveAdaptedPrimaryExtraction({
+    hqUserId: input.enqueuedByHqUserId,
+    scoreTarget: input.scoreTarget,
+    allianceId: input.allianceId,
+    jobId: input.jobId,
+    primary: {
+      passKey: primary.passKey,
+      configJson: primary.configJson,
+    },
   });
 
   await db.insert(schema.videoUploadGroups).values({
@@ -77,10 +91,10 @@ export async function finalizeVideoUploadEnqueue(
     frameCount: null,
     uploadedFrameCount: 0,
     groupId: input.groupId,
-    passKey: primary.passKey,
+    passKey: adapted.passKey,
     passIndex: 0,
     passRole: "primary",
-    extractionConfigJson: primary.configJson,
+    extractionConfigJson: adapted.configJson,
     r2UploadId: null,
     expectedFileSizeBytes: null,
     createdAt: now,
