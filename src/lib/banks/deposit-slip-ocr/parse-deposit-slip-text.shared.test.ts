@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   mergeDepositSlipHistoryParses,
   parseDepositSlipHistoryText,
   parseDepositSlipIdentity,
   parseDepositSlipTimestamp,
+  parseDepositSlipTimestampParts,
 } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 
 /** Golden lines transcribed from all-slips-warzone.png fixture. */
@@ -64,6 +65,56 @@ describe("parseDepositSlipTimestamp", () => {
     expect(parseDepositSlipTimestamp("2026-7-10 12:14:34")).toBe(
       "2026-07-10T12:14:34.000Z",
     );
+  });
+
+  it("returns null when month/day are out of range", () => {
+    expect(parseDepositSlipTimestamp("2026-77-25 17:12:48")).toBeNull();
+  });
+});
+
+describe("parseDepositSlipTimestampParts", () => {
+  it("salvages time-of-day when the OCR date is invalid (frame 143 fixture)", () => {
+    expect(parseDepositSlipTimestampParts("2026-77-25 17:12:48")).toEqual({
+      kind: "invalid_date",
+      hour: 17,
+      minute: 12,
+      second: 48,
+      round: "none",
+    });
+  });
+
+  it("repairs garbled-date timestamps during merge using neighbor frame dates", () => {
+    const frame143 = parseDepositSlipHistoryText([
+      "2026-77-25 17:12:48",
+      "#1211[Roar]azukaheh",
+      "Deposit: CrystalGold x 6000, Term: 5 days.",
+    ]);
+    expect(frame143.slips[0]?.depositAt).toBeNull();
+    expect(frame143.slips[0]?.depositAtTimePendingDate).toEqual({
+      hour: 17,
+      minute: 12,
+      second: 48,
+      round: "none",
+    });
+
+    const neighborFrame = parseDepositSlipHistoryText([
+      "2026-07-25 16:55:12",
+      "#1211[Roar]Neighbor",
+      "Deposit: CrystalGold x 6000, Term: 5 days.",
+    ]);
+    for (const slip of neighborFrame.slips) {
+      slip.sourceFrameIndex = 140;
+    }
+    for (const slip of frame143.slips) {
+      slip.sourceFrameIndex = 143;
+    }
+
+    const merged = mergeDepositSlipHistoryParses([neighborFrame, frame143]);
+    const repaired = merged.history.slips.find(
+      (slip) => slip.identity.commanderName === "azukaheh",
+    );
+    expect(repaired?.depositAt).toBe("2026-07-25T17:12:48.000Z");
+    expect(repaired?.depositAtTimePendingDate).toBeUndefined();
   });
 });
 
@@ -559,5 +610,93 @@ describe("parseDepositSlipHistoryText — fuzzy outcome OCR", () => {
     ]);
     expect(parsed.slips[0]?.status).toBe("looted");
     expect(parsed.slips[0]?.amount).toBeNull();
+  });
+
+  it("parses minute-only timestamps rounded to the nearest 10 minutes", () => {
+    expect(parseDepositSlipTimestamp("2026-7-10 12:16")).toBe(
+      "2026-07-10T12:20:00.000Z",
+    );
+  });
+
+  it("fills month-day timestamps using the season year on or after March 1", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-15T12:00:00.000Z"));
+    try {
+      const parsed = parseDepositSlipHistoryText([
+        "7-10 12:14:34",
+        "#1211[Roar]Capt Grim",
+        "Deposit: CrystalGold x 6000, Term: 1 days.",
+      ]);
+      expect(parsed.slips[0]?.depositAt).toBe("2026-07-10T12:10:00.000Z");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("infers missing timestamps from frame indices during merge", () => {
+    const merged = mergeDepositSlipHistoryParses([
+      {
+        depositPolicy: null,
+        minimumDeposit: null,
+        slips: [
+          {
+            depositAt: "2026-07-10T12:00:00.000Z",
+            termDays: 1,
+            amount: 6000,
+            status: "locked",
+            outcomeAmount: null,
+            outcomeKind: null,
+            outcomeAt: null,
+            identity: {
+              gameServerNumber: 1211,
+              allianceTag: "Roar",
+              commanderName: "Alpha",
+              rawIdentity: "#1211[Roar]Alpha",
+            },
+            sourceFrameIndex: 10,
+            confidence: 90,
+          },
+          {
+            depositAt: null,
+            termDays: 1,
+            amount: 6000,
+            status: "locked",
+            outcomeAmount: null,
+            outcomeKind: null,
+            outcomeAt: null,
+            identity: {
+              gameServerNumber: 1211,
+              allianceTag: "Roar",
+              commanderName: "Bravo",
+              rawIdentity: "#1211[Roar]Bravo",
+            },
+            sourceFrameIndex: 20,
+            confidence: 90,
+          },
+          {
+            depositAt: "2026-07-10T13:00:00.000Z",
+            termDays: 1,
+            amount: 6000,
+            status: "locked",
+            outcomeAmount: null,
+            outcomeKind: null,
+            outcomeAt: null,
+            identity: {
+              gameServerNumber: 1211,
+              allianceTag: "Roar",
+              commanderName: "Charlie",
+              rawIdentity: "#1211[Roar]Charlie",
+            },
+            sourceFrameIndex: 30,
+            confidence: 90,
+          },
+        ],
+      },
+    ]);
+
+    const bravo = merged.history.slips.find(
+      (s) => s.identity.commanderName === "Bravo",
+    );
+    expect(bravo?.depositAt).toBe("2026-07-10T12:30:00.000Z");
   });
 });
