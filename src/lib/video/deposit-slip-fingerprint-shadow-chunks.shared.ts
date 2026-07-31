@@ -26,6 +26,8 @@ export type DepositSlipFingerprintShadowChunkState = {
   chunkSize: number;
   /** See {@link DepositSlipOcrChunkState.claimToken}. */
   claimToken?: string | null;
+  /** See {@link DepositSlipOcrChunkState.claimIssuedAt}. */
+  claimIssuedAt?: string | null;
   /** OCR lines completed in prior chunks (instrumentation / resume). */
   frameLines: OcrFrameLines[];
   ocrFrameMs: number[];
@@ -107,10 +109,18 @@ export function readDepositSlipFingerprintShadowChunkState(
   const totalFrames = record.totalFrames;
   const chunkSize = record.chunkSize;
   const claimToken = record.claimToken;
+  const claimIssuedAt = record.claimIssuedAt;
   if (
     claimToken !== undefined &&
     claimToken !== null &&
     typeof claimToken !== "string"
+  ) {
+    return null;
+  }
+  if (
+    claimIssuedAt !== undefined &&
+    claimIssuedAt !== null &&
+    typeof claimIssuedAt !== "string"
   ) {
     return null;
   }
@@ -151,6 +161,12 @@ export function readDepositSlipFingerprintShadowChunkState(
         : claimToken === null
           ? null
           : claimToken,
+    claimIssuedAt:
+      claimIssuedAt === undefined
+        ? undefined
+        : claimIssuedAt === null
+          ? null
+          : claimIssuedAt,
     frameLines,
     ocrFrameMs,
   };

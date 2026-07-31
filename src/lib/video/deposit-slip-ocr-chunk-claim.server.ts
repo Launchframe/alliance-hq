@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import {
+  DEPOSIT_SLIP_OCR_CHUNK_CLAIM_STALE_MS,
   DEPOSIT_SLIP_OCR_CHUNK_STATE_KEY,
   type DepositSlipOcrChunkState,
   writeDepositSlipOcrChunkState,
@@ -30,18 +31,30 @@ export type DepositSlipOcrChunkClaimResult =
 function unclaimedChunkWhere(
   stateKey: string,
   expectedOffset: number,
+  staleClaimCutoffIso: string,
 ) {
   const chunkJson = sql`${schema.videoJobs.timingsJson}->${stateKey}`;
   const offsetJson = sql`(${chunkJson}->>'nextFrameOffset')::int`;
   const claimJson = sql`coalesce(${chunkJson}->>'claimToken', '')`;
+  const claimIssuedAtJson = sql`coalesce(${chunkJson}->>'claimIssuedAt', '')`;
 
   return sql`(
     ${chunkJson} IS NULL
     OR (
       ${offsetJson} = ${expectedOffset}
-      AND ${claimJson} = ''
+      AND (
+        ${claimJson} = ''
+        OR ${claimIssuedAtJson} = ''
+        OR (${claimIssuedAtJson})::timestamptz < ${staleClaimCutoffIso}::timestamptz
+      )
     )
   )`;
+}
+
+function staleClaimCutoffIso(now: Date): string {
+  return new Date(
+    now.getTime() - DEPOSIT_SLIP_OCR_CHUNK_CLAIM_STALE_MS,
+  ).toISOString();
 }
 
 /**
@@ -64,6 +77,7 @@ export async function claimDepositSlipOcrChunk(params: {
     totalFrames: params.totalFrames,
     chunkSize: params.chunkSize,
     claimToken,
+    claimIssuedAt: params.now.toISOString(),
   };
   const nextTimings = writeDepositSlipOcrChunkState(
     params.priorTimingsJson,
@@ -77,7 +91,11 @@ export async function claimDepositSlipOcrChunk(params: {
     .where(
       and(
         eq(schema.videoJobs.id, params.jobId),
-        unclaimedChunkWhere(DEPOSIT_SLIP_OCR_CHUNK_STATE_KEY, params.expectedOffset),
+        unclaimedChunkWhere(
+          DEPOSIT_SLIP_OCR_CHUNK_STATE_KEY,
+          params.expectedOffset,
+          staleClaimCutoffIso(params.now),
+        ),
       ),
     )
     .returning({ id: schema.videoJobs.id });
@@ -108,6 +126,7 @@ export async function claimDepositSlipFingerprintShadowChunk(params: {
     totalFrames: params.totalFrames,
     chunkSize: params.chunkSize,
     claimToken,
+    claimIssuedAt: params.now.toISOString(),
     frameLines: params.priorChunk?.frameLines ?? [],
     ocrFrameMs: params.priorChunk?.ocrFrameMs ?? [],
   };
@@ -126,6 +145,7 @@ export async function claimDepositSlipFingerprintShadowChunk(params: {
         unclaimedChunkWhere(
           DEPOSIT_SLIP_FINGERPRINT_SHADOW_CHUNK_KEY,
           params.expectedOffset,
+          staleClaimCutoffIso(params.now),
         ),
       ),
     )
@@ -141,11 +161,11 @@ export async function claimDepositSlipFingerprintShadowChunk(params: {
 export function releaseDepositSlipOcrChunkClaim(
   state: DepositSlipOcrChunkState,
 ): DepositSlipOcrChunkState {
-  return { ...state, claimToken: null };
+  return { ...state, claimToken: null, claimIssuedAt: null };
 }
 
 export function releaseDepositSlipFingerprintShadowChunkClaim(
   state: DepositSlipFingerprintShadowChunkState,
 ): DepositSlipFingerprintShadowChunkState {
-  return { ...state, claimToken: null };
+  return { ...state, claimToken: null, claimIssuedAt: null };
 }

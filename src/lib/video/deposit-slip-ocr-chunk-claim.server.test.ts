@@ -61,6 +61,7 @@ describe("deposit-slip OCR chunk claim", () => {
       totalFrames: 181,
       chunkSize: 25,
       claimToken: "claim-token-1",
+      claimIssuedAt: "2026-07-30T00:00:00.000Z",
     });
   });
 
@@ -125,6 +126,7 @@ describe("deposit-slip OCR chunk claim", () => {
       totalFrames: 181,
       chunkSize: 25,
       claimToken: null,
+      claimIssuedAt: null,
     });
   });
 });
