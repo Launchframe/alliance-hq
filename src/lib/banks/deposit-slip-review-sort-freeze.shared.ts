@@ -14,6 +14,20 @@ export function applyFrozenDepositSlipRowOrder<T extends { id: string }>(
     .filter((row): row is T => row != null);
 }
 
+function eventTargetIsContainedIn(
+  tbody: HTMLElement,
+  target: EventTarget | null,
+): boolean {
+  if (target == null) return false;
+  const node = target as Node;
+  if (typeof node.nodeType !== "number") return false;
+  try {
+    return tbody.contains(node);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Native `datetime-local` pickers move focus outside the table on blur. Defer
  * unfreezing until we know focus did not return to another cell in the tbody.
@@ -24,10 +38,10 @@ export function shouldKeepDepositSlipSortFrozenOnTbodyBlur(
   activeElement: Element | null,
 ): boolean {
   if (!tbody) return false;
-  if (relatedTarget != null && tbody.contains(relatedTarget as Node)) {
+  if (eventTargetIsContainedIn(tbody, relatedTarget)) {
     return true;
   }
-  if (activeElement != null && tbody.contains(activeElement)) {
+  if (eventTargetIsContainedIn(tbody, activeElement)) {
     return true;
   }
   return false;

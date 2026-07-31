@@ -5,6 +5,14 @@ import {
   shouldKeepDepositSlipSortFrozenOnTbodyBlur,
 } from "@/lib/banks/deposit-slip-review-sort-freeze.shared";
 
+function mockDomNode(): Node {
+  return { nodeType: 1 } as Node;
+}
+
+function mockDomElement(): Element {
+  return { nodeType: 1 } as Element;
+}
+
 function mockTbody(contained: EventTarget[] = []): HTMLElement {
   const members = new Set(contained);
   return {
@@ -38,15 +46,15 @@ describe("applyFrozenDepositSlipRowOrder", () => {
 
 describe("shouldKeepDepositSlipSortFrozenOnTbodyBlur", () => {
   it("keeps freeze when focus stays inside tbody via relatedTarget", () => {
-    const input = {} as Node;
+    const input = mockDomNode();
     const tbody = mockTbody([input]);
     expect(
-      shouldKeepDepositSlipSortFrozenOnTbodyBlur(tbody, input, {} as Element),
+      shouldKeepDepositSlipSortFrozenOnTbodyBlur(tbody, input, mockDomElement()),
     ).toBe(true);
   });
 
   it("keeps freeze when activeElement returned to tbody after picker blur", () => {
-    const input = {} as Element;
+    const input = mockDomElement();
     const tbody = mockTbody([input]);
     expect(
       shouldKeepDepositSlipSortFrozenOnTbodyBlur(tbody, null, input),
@@ -54,10 +62,21 @@ describe("shouldKeepDepositSlipSortFrozenOnTbodyBlur", () => {
   });
 
   it("releases freeze when focus left the table", () => {
-    const outside = {} as Element;
+    const outside = mockDomElement();
     const tbody = mockTbody();
     expect(
       shouldKeepDepositSlipSortFrozenOnTbodyBlur(tbody, outside, outside),
+    ).toBe(false);
+  });
+
+  it("does not throw when relatedTarget is not a Node (e.g. window)", () => {
+    const tbody = mockTbody();
+    const nonNodeTarget = { notANode: true } as unknown as EventTarget;
+    expect(() =>
+      shouldKeepDepositSlipSortFrozenOnTbodyBlur(tbody, nonNodeTarget, null),
+    ).not.toThrow();
+    expect(
+      shouldKeepDepositSlipSortFrozenOnTbodyBlur(tbody, nonNodeTarget, null),
     ).toBe(false);
   });
 });
