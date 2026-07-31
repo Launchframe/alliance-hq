@@ -3968,6 +3968,18 @@
       }
     }
   },
+  "videoHygieneCoach": {
+    "title": "Tip for your next recording",
+    "dismiss": "Dismiss",
+    "tips": {
+      "chaoticScroll": "Your recent uploads for this score type look rushed. Scroll slower in one direction and hold the phone steady so each row stays sharp.",
+      "fastScroll": "Try scrolling a bit slower — fast pans often skip frames the OCR needs. Pause briefly on each row.",
+      "lowQuality": "Officers had to fix many rows on your recent uploads. Keep the full leaderboard on screen, avoid sudden jumps, and scroll one row at a time.",
+      "longReview": "Reviews for this score type are taking longer than usual. Slow your scroll and pause on each name and score so OCR can read them clearly.",
+      "thumbsDown": "Recent thumbs-down ratings point to capture quality. Check lighting, hold the phone level, and scroll at a steady pace before your next upload.",
+      "defaultSteady": "Your steady scroll is working well — keep the full board on screen and maintain that same pace."
+    }
+  },
   "video": {
     "title": "Upload from video",
     "subtitle": "Record yourself scrolling a Last War leaderboard. We extract frames, OCR scores, and let you review before submitting to Ashed.",
