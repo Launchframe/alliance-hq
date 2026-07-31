@@ -16,7 +16,52 @@ export type DepositSlipOcrChunkState = {
   nextFrameOffset: number;
   totalFrames: number;
   chunkSize: number;
+  /**
+   * When set, a worker owns OCR for `nextFrameOffset`. Cleared when the chunk
+   * finishes so the next invocation can claim the following window.
+   */
+  claimToken?: string | null;
+  /** ISO timestamp when `claimToken` was issued; stale leases may be reclaimed. */
+  claimIssuedAt?: string | null;
 };
+
+/** Keep in sync with {@link VIDEO_IN_FLIGHT_STALE_MS} in fail-stale-in-flight-video-jobs.server.ts */
+export const DEPOSIT_SLIP_OCR_CHUNK_CLAIM_STALE_MS = 6 * 60 * 1000;
+
+export type DepositSlipOcrChunkClaimLeaseFields = Pick<
+  DepositSlipOcrChunkState,
+  "nextFrameOffset" | "claimToken" | "claimIssuedAt"
+>;
+
+/** Whether compare-and-swap may claim `expectedOffset` (mirrors SQL in chunk-claim.server). */
+export function isDepositSlipOcrChunkClaimCasEligible(params: {
+  chunk: DepositSlipOcrChunkClaimLeaseFields | null;
+  expectedOffset: number;
+  nowMs: number;
+  staleAfterMs?: number;
+}): boolean {
+  if (params.chunk == null) {
+    return true;
+  }
+  if (params.chunk.nextFrameOffset !== params.expectedOffset) {
+    return false;
+  }
+  const claimToken = params.chunk.claimToken ?? "";
+  if (claimToken === "") {
+    return true;
+  }
+  const issuedAt = params.chunk.claimIssuedAt;
+  if (!issuedAt) {
+    return true;
+  }
+  const issuedMs = Date.parse(issuedAt);
+  if (!Number.isFinite(issuedMs)) {
+    return true;
+  }
+  const staleAfterMs =
+    params.staleAfterMs ?? DEPOSIT_SLIP_OCR_CHUNK_CLAIM_STALE_MS;
+  return params.nowMs - issuedMs >= staleAfterMs;
+}
 
 export function resolveDepositSlipOcrFrameChunkSize(
   envValue: string | undefined = process.env.DEPOSIT_SLIP_OCR_FRAME_CHUNK_SIZE,
@@ -50,6 +95,22 @@ export function readDepositSlipOcrChunkState(
   const nextFrameOffset = record.nextFrameOffset;
   const totalFrames = record.totalFrames;
   const chunkSize = record.chunkSize;
+  const claimToken = record.claimToken;
+  const claimIssuedAt = record.claimIssuedAt;
+  if (
+    claimToken !== undefined &&
+    claimToken !== null &&
+    typeof claimToken !== "string"
+  ) {
+    return null;
+  }
+  if (
+    claimIssuedAt !== undefined &&
+    claimIssuedAt !== null &&
+    typeof claimIssuedAt !== "string"
+  ) {
+    return null;
+  }
   if (
     typeof nextFrameOffset !== "number" ||
     !Number.isInteger(nextFrameOffset) ||
@@ -68,6 +129,18 @@ export function readDepositSlipOcrChunkState(
     nextFrameOffset,
     totalFrames,
     chunkSize,
+    claimToken:
+      claimToken === undefined
+        ? undefined
+        : claimToken === null
+          ? null
+          : claimToken,
+    claimIssuedAt:
+      claimIssuedAt === undefined
+        ? undefined
+        : claimIssuedAt === null
+          ? null
+          : claimIssuedAt,
   };
 }
 

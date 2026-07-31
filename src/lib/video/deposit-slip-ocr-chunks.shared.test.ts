@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   clearDepositSlipOcrChunkState,
   depositSlipOcrChunkWindow,
+  isDepositSlipOcrChunkClaimCasEligible,
   readDepositSlipOcrChunkState,
   resolveDepositSlipOcrFrameChunkSize,
   resolveDepositSlipOcrOffsetFromFrames,
@@ -150,5 +151,66 @@ describe("videoFrameHasDepositSlipHistory", () => {
     expect(videoFrameHasDepositSlipHistory({ history: { slips: [] } })).toBe(
       true,
     );
+  });
+});
+
+describe("isDepositSlipOcrChunkClaimCasEligible", () => {
+  const issuedAt = "2026-07-30T12:00:00.000Z";
+
+  it("allows claim when unclaimed at the expected offset", () => {
+    expect(
+      isDepositSlipOcrChunkClaimCasEligible({
+        chunk: {
+          nextFrameOffset: 25,
+          claimToken: null,
+          claimIssuedAt: null,
+        },
+        expectedOffset: 25,
+        nowMs: Date.parse(issuedAt),
+      }),
+    ).toBe(true);
+  });
+
+  it("blocks claim while lease is fresh", () => {
+    expect(
+      isDepositSlipOcrChunkClaimCasEligible({
+        chunk: {
+          nextFrameOffset: 25,
+          claimToken: "busy",
+          claimIssuedAt: issuedAt,
+        },
+        expectedOffset: 25,
+        nowMs: Date.parse(issuedAt) + 60_000,
+      }),
+    ).toBe(false);
+  });
+
+  it("allows reclaim after lease stale threshold", () => {
+    expect(
+      isDepositSlipOcrChunkClaimCasEligible({
+        chunk: {
+          nextFrameOffset: 25,
+          claimToken: "busy",
+          claimIssuedAt: issuedAt,
+        },
+        expectedOffset: 25,
+        nowMs: Date.parse(issuedAt) + 6 * 60 * 1000,
+        staleAfterMs: 6 * 60 * 1000,
+      }),
+    ).toBe(true);
+  });
+
+  it("allows reclaim when token exists without claimIssuedAt", () => {
+    expect(
+      isDepositSlipOcrChunkClaimCasEligible({
+        chunk: {
+          nextFrameOffset: 25,
+          claimToken: "orphan",
+          claimIssuedAt: null,
+        },
+        expectedOffset: 25,
+        nowMs: Date.parse(issuedAt),
+      }),
+    ).toBe(true);
   });
 });

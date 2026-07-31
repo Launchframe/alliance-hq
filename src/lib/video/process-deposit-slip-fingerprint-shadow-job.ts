@@ -28,6 +28,10 @@ import {
 import { depositSlipDraftToParsedRowFields } from "@/lib/banks/deposit-slip-ocr/draft-row.shared";
 import { maybeCompareDepositSlipFingerprintShadow } from "@/lib/banks/deposit-slip-ocr/deposit-slip-shadow-comparison.server";
 import {
+  claimDepositSlipFingerprintShadowChunk,
+  releaseDepositSlipFingerprintShadowChunkClaim,
+} from "@/lib/video/deposit-slip-ocr-chunk-claim.server";
+import {
   depositSlipOcrChunkWindow,
   fingerprintShadowHasPersistedChunkState,
   readDepositSlipFingerprintShadowChunkState,
@@ -332,6 +336,24 @@ export async function processDepositSlipFingerprintShadowJob(
       chunkSize,
     });
 
+    const claim = await claimDepositSlipFingerprintShadowChunk({
+      jobId,
+      expectedOffset: nextFrameOffset,
+      totalFrames,
+      chunkSize,
+      priorChunk: existingChunk,
+      priorTimingsJson:
+        (job.timingsJson as Record<string, unknown> | null) ?? null,
+      now,
+    });
+    if (!claim.claimed) {
+      timer.log(
+        `deposit-slip fingerprint shadow job ${jobId} lost chunk claim; no-op`,
+        { nextFrameOffset, totalFrames },
+      );
+      return emptyTimings();
+    }
+
     await setStatus("parsing", {
       frameCount: totalFrames,
       uploadedFrameCount: nextFrameOffset,
@@ -373,16 +395,17 @@ export async function processDepositSlipFingerprintShadowJob(
     const ocrCompletedThrough = window.end;
 
     if (!window.isFinal) {
-      const chunkState: DepositSlipFingerprintShadowChunkState = {
-        version: 1,
-        nextFrameOffset: ocrCompletedThrough,
-        totalFrames,
-        chunkSize,
-        frameLines,
-        ocrFrameMs,
-      };
+      const chunkState: DepositSlipFingerprintShadowChunkState =
+        releaseDepositSlipFingerprintShadowChunkClaim({
+          version: 1,
+          nextFrameOffset: ocrCompletedThrough,
+          totalFrames,
+          chunkSize,
+          frameLines,
+          ocrFrameMs,
+        });
       const nextTimings = writeDepositSlipFingerprintShadowChunkState(
-        (job.timingsJson as Record<string, unknown> | null) ?? {},
+        claim.timingsJson,
         chunkState,
       );
       await setStatus("parsing", {
@@ -393,7 +416,6 @@ export async function processDepositSlipFingerprintShadowJob(
 
       const dispatched = await dispatchVideoProcessing(jobId, {
         source: "deposit_slip_fingerprint_shadow_chunk",
-        awaitResult: true,
       });
       if (!dispatched) {
         // Cron/queue backup — keep chunk progress, leave job claimable.

@@ -6,8 +6,18 @@ const mockOcrChunk = vi.fn();
 const mockFinalize = vi.fn();
 const mockDispatch = vi.fn();
 const mockUpdateWhere = vi.fn();
+const mockUpdateReturning = vi.fn();
+const mockClaim = vi.fn();
 
 vi.mock("server-only", () => ({}));
+
+vi.mock("@/lib/video/deposit-slip-ocr-chunk-claim.server", () => ({
+  claimDepositSlipOcrChunk: (...args: unknown[]) => mockClaim(...args),
+  releaseDepositSlipOcrChunkClaim: (state: unknown) => ({
+    ...(state as object),
+    claimToken: null,
+  }),
+}));
 
 vi.mock("@/lib/storage", () => ({
   getObject: (...args: unknown[]) => mockGetObject(...args),
@@ -37,7 +47,12 @@ vi.mock("@/lib/db", () => ({
     }),
     update: () => ({
       set: (payload: unknown) => ({
-        where: (condition: unknown) => mockUpdateWhere(payload, condition),
+        where: (condition: unknown) => {
+          mockUpdateWhere(payload, condition);
+          return {
+            returning: (...args: unknown[]) => mockUpdateReturning(...args),
+          };
+        },
       }),
     }),
   }),
@@ -67,6 +82,28 @@ describe("runDepositSlipOcrPhase", () => {
     vi.stubEnv("DEPOSIT_SLIP_OCR_FRAME_CHUNK_SIZE", "2");
     mockDispatch.mockResolvedValue(true);
     mockUpdateWhere.mockResolvedValue(undefined);
+    mockUpdateReturning.mockResolvedValue([{ id: "job-1" }]);
+    mockClaim.mockImplementation(
+      async (params: {
+        priorTimingsJson: unknown;
+        expectedOffset: number;
+        totalFrames: number;
+        chunkSize: number;
+      }) => ({
+        claimed: true as const,
+        claimToken: "claim-1",
+        timingsJson: {
+          ...(params.priorTimingsJson as Record<string, unknown> | null),
+          depositSlipOcrChunk: {
+            version: 1,
+            nextFrameOffset: params.expectedOffset,
+            totalFrames: params.totalFrames,
+            chunkSize: params.chunkSize,
+            claimToken: "claim-1",
+          },
+        },
+      }),
+    );
     mockGetObject.mockImplementation(async (key: string) =>
       Buffer.from(key),
     );
@@ -146,7 +183,6 @@ describe("runDepositSlipOcrPhase", () => {
     );
     expect(mockDispatch).toHaveBeenCalledWith("job-1", {
       source: "deposit_slip_ocr_chunk",
-      awaitResult: true,
     });
     expect(mockFinalize).not.toHaveBeenCalled();
   });
@@ -261,6 +297,43 @@ describe("runDepositSlipOcrPhase", () => {
     expect(result.rowCount).toBe(3);
     expect(mockDispatch).not.toHaveBeenCalled();
     expect(mockFinalize).toHaveBeenCalled();
+  });
+
+  it("returns lost_claim without OCR when another worker owns the chunk", async () => {
+    mockLoadFrames.mockResolvedValue([
+      {
+        frameIndex: 0,
+        storageKey: "f0",
+        ocrRawJson: null,
+        videoTimestampSeconds: 0,
+      },
+      {
+        frameIndex: 1,
+        storageKey: "f1",
+        ocrRawJson: null,
+        videoTimestampSeconds: 1,
+      },
+    ]);
+    mockClaim.mockResolvedValueOnce({ claimed: false });
+
+    const result = await runDepositSlipOcrPhase({
+      jobId: "job-1",
+      sessionId: "session-1",
+      scoreTargetId: "bank-deposit-slip-history",
+      target: { id: "bank-deposit-slip-history" } as never,
+      engine: "native",
+      extractedFrames: [],
+      timingsJson: null,
+      timer,
+      now: new Date("2026-07-18T00:00:00.000Z"),
+      onOcrProgress: vi.fn(),
+      setChunkProgress: vi.fn(),
+      setContinueChunk: vi.fn(),
+    });
+
+    expect(result.kind).toBe("lost_claim");
+    expect(mockOcrChunk).not.toHaveBeenCalled();
+    expect(mockDispatch).not.toHaveBeenCalled();
   });
 
   it("rewinds a stale cursor that skipped frames still missing history", async () => {
