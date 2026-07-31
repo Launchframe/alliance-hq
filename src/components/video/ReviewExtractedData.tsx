@@ -860,6 +860,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     });
   }, [load]);
 
+  useEffect(() => {
+    if (jobStatus !== "review" && jobStatus !== "failed") return;
+    void fetch(`/api/tools/video-upload/${jobId}/review-opened`, {
+      method: "POST",
+    }).catch(() => undefined);
+  }, [jobId, jobStatus]);
+
   const displayJobStatus = useMemo(() => {
     const restTerminalStatuses = new Set([
       "review",

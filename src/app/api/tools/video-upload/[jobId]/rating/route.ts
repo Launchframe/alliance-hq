@@ -29,7 +29,14 @@ export async function PATCH(request: Request, { params }: Props) {
 
   await db
     .update(schema.videoJobs)
-    .set({ rating, ratingAt: new Date(), ratingReason })
+    .set({
+      rating,
+      ratingAt: new Date(),
+      ratingReason,
+      ...(session.hqUserId
+        ? { ratedByHqUserId: session.hqUserId }
+        : {}),
+    })
     .where(eq(schema.videoJobs.id, jobId));
 
   return NextResponse.json({ ok: true });
