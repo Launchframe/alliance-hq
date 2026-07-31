@@ -12,6 +12,70 @@ export type AdminReprocessExtractionRequest = {
   parseConfigId?: string;
 };
 
+export class ReprocessRequestParseError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ReprocessRequestParseError";
+  }
+}
+
+/** Parse a reprocess POST body. Officers may only send simple adjustment choices. */
+export function parseReprocessRequestBody(
+  raw: unknown,
+  options: { allowAdvanced: boolean },
+): AdminReprocessExtractionRequest {
+  if (raw == null || typeof raw !== "object") {
+    return {};
+  }
+  const body = raw as Record<string, unknown>;
+  const result: AdminReprocessExtractionRequest = {};
+
+  if (!options.allowAdvanced) {
+    if (body.extraction !== undefined || body.parseConfigId !== undefined) {
+      throw new ReprocessRequestParseError(
+        "Advanced reprocess settings require platform maintainer access.",
+        403,
+      );
+    }
+  }
+
+  if (body.adjustment !== undefined) {
+    if (!isAdminReprocessFpsAdjustment(body.adjustment)) {
+      throw new ReprocessRequestParseError(
+        'adjustment must be "keep", "increase", or "decrease".',
+        400,
+      );
+    }
+    result.adjustment = body.adjustment;
+  }
+
+  if (body.extraction !== undefined) {
+    const extraction = normalizeExtractionConfig(body.extraction);
+    if (!extraction) {
+      throw new ReprocessRequestParseError(
+        "extraction must include valid mode and sampling values.",
+        400,
+      );
+    }
+    result.extraction = extraction;
+  }
+
+  if (body.parseConfigId !== undefined) {
+    if (typeof body.parseConfigId !== "string" || !body.parseConfigId.trim()) {
+      throw new ReprocessRequestParseError(
+        "parseConfigId must be a non-empty string.",
+        400,
+      );
+    }
+    result.parseConfigId = body.parseConfigId.trim();
+  }
+
+  return result;
+}
+
 export function isAdminReprocessFpsAdjustment(
   value: unknown,
 ): value is AdminReprocessFpsAdjustment {

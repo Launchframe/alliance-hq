@@ -6,7 +6,9 @@ import {
   canIncreaseFps,
   extractionConfigsEqual,
   normalizeExtractionConfig,
+  parseReprocessRequestBody,
   passKeyForExtractionConfig,
+  ReprocessRequestParseError,
   resolveAdminReprocessExtraction,
   resolveSimpleReprocessExtraction,
   stepFpsLadder,
@@ -138,5 +140,37 @@ describe("normalizeExtractionConfig / helpers", () => {
     expect(adHocReprocessCampaignName("bank-deposit-slip-history")).toBe(
       "Ad-hoc reprocess · bank-deposit-slip-history",
     );
+  });
+});
+
+describe("parseReprocessRequestBody", () => {
+  it("accepts simple adjustment for officers", () => {
+    expect(
+      parseReprocessRequestBody({ adjustment: "increase" }, { allowAdvanced: false }),
+    ).toEqual({ adjustment: "increase" });
+  });
+
+  it("rejects advanced fields for officers", () => {
+    expect(() =>
+      parseReprocessRequestBody(
+        { extraction: { mode: "fps", sampleFps: 4 } },
+        { allowAdvanced: false },
+      ),
+    ).toThrow(ReprocessRequestParseError);
+    expect(() =>
+      parseReprocessRequestBody(
+        { parseConfigId: "cfg-1" },
+        { allowAdvanced: false },
+      ),
+    ).toThrow(ReprocessRequestParseError);
+  });
+
+  it("allows advanced fields for maintainers", () => {
+    expect(
+      parseReprocessRequestBody(
+        { extraction: { mode: "fps", sampleFps: 4 } },
+        { allowAdvanced: true },
+      ),
+    ).toEqual({ extraction: { mode: "fps", sampleFps: 4 } });
   });
 });

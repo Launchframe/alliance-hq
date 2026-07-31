@@ -13,9 +13,10 @@ import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import {
   adHocReprocessCampaignName,
   extractionConfigsEqual,
-  isAdminReprocessFpsAdjustment,
   normalizeExtractionConfig,
+  parseReprocessRequestBody,
   passKeyForExtractionConfig,
+  ReprocessRequestParseError,
   resolveAdminReprocessExtraction,
   type AdminReprocessExtractionRequest,
   type AdminReprocessFpsAdjustment,
@@ -54,42 +55,18 @@ export type AdminReprocessResult = {
   armId: string | null;
 };
 
-function parseRequestBody(raw: unknown): AdminReprocessExtractionRequest {
-  if (raw == null || typeof raw !== "object") {
-    return {};
-  }
-  const body = raw as Record<string, unknown>;
-  const result: AdminReprocessExtractionRequest = {};
-
-  if (body.adjustment !== undefined) {
-    if (!isAdminReprocessFpsAdjustment(body.adjustment)) {
-      throw new AdminReprocessError(
-        'adjustment must be "keep", "increase", or "decrease".',
-        400,
-      );
+function parseRequestBody(
+  raw: unknown,
+  allowAdvanced: boolean,
+): AdminReprocessExtractionRequest {
+  try {
+    return parseReprocessRequestBody(raw, { allowAdvanced });
+  } catch (err) {
+    if (err instanceof ReprocessRequestParseError) {
+      throw new AdminReprocessError(err.message, err.status);
     }
-    result.adjustment = body.adjustment;
+    throw err;
   }
-
-  if (body.extraction !== undefined) {
-    const extraction = normalizeExtractionConfig(body.extraction);
-    if (!extraction) {
-      throw new AdminReprocessError(
-        "extraction must include valid mode and sampling values.",
-        400,
-      );
-    }
-    result.extraction = extraction;
-  }
-
-  if (body.parseConfigId !== undefined) {
-    if (typeof body.parseConfigId !== "string" || !body.parseConfigId.trim()) {
-      throw new AdminReprocessError("parseConfigId must be a non-empty string.", 400);
-    }
-    result.parseConfigId = body.parseConfigId.trim();
-  }
-
-  return result;
 }
 
 /**
@@ -274,8 +251,10 @@ export async function adminReprocessVideoJob(params: {
   jobId: string;
   sessionId: string;
   body: unknown;
+  /** When false, rejects extraction / parseConfigId (officer tools route). */
+  allowAdvanced?: boolean;
 }): Promise<AdminReprocessResult> {
-  const request = parseRequestBody(params.body);
+  const request = parseRequestBody(params.body, params.allowAdvanced ?? true);
   const db = getDb();
 
   const [job] = await db

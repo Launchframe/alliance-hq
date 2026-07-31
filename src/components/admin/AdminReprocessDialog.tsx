@@ -29,6 +29,10 @@ type Props = {
   passKey: string | null;
   extractionConfigJson: unknown;
   busy: boolean;
+  /** Hide advanced extraction + parse-config picker (officer review). */
+  allowAdvanced?: boolean;
+  /** Processor review uses simpler copy without maintainer experiment language. */
+  copyVariant?: "admin" | "processor";
   onOpenChange: (open: boolean) => void;
   onConfirm: (body: {
     adjustment?: AdminReprocessFpsAdjustment;
@@ -43,10 +47,16 @@ export function AdminReprocessDialog({
   passKey,
   extractionConfigJson,
   busy,
+  allowAdvanced = true,
+  copyVariant = "admin",
   onOpenChange,
   onConfirm,
 }: Props) {
-  const t = useTranslations("admin.videoJobsPage");
+  const t = useTranslations(
+    copyVariant === "processor"
+      ? "videoReview.reprocessDialog"
+      : "admin.videoJobsPage",
+  );
   const current = useMemo(
     () => normalizeExtractionConfig(extractionConfigJson),
     [extractionConfigJson],
@@ -79,8 +89,10 @@ export function AdminReprocessDialog({
   const [parseConfigs, setParseConfigs] = useState<ParseConfigOption[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const showAdvanced = allowAdvanced && advancedOpen;
+
   useEffect(() => {
-    if (!open || !advancedOpen) return;
+    if (!open || !showAdvanced) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -103,7 +115,7 @@ export function AdminReprocessDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, advancedOpen, t]);
+  }, [open, showAdvanced, t]);
 
   const ladderBase = current ? simpleLadderBaseFps(current) : null;
   const increaseDisabled =
@@ -132,7 +144,7 @@ export function AdminReprocessDialog({
     };
   }, [mode, sampleFps, sceneThreshold]);
 
-  const previewPassKey = advancedOpen
+  const previewPassKey = showAdvanced
     ? advancedConfig
       ? passKeyForExtractionConfig(advancedConfig)
       : "—"
@@ -153,7 +165,7 @@ export function AdminReprocessDialog({
   }
 
   function handleConfirm() {
-    if (advancedOpen) {
+    if (showAdvanced) {
       if (!advancedConfig) return;
       onConfirm({
         extraction: advancedConfig,
@@ -184,7 +196,7 @@ export function AdminReprocessDialog({
           </p>
         </div>
 
-        {!advancedOpen ? (
+        {!showAdvanced ? (
           <fieldset className="space-y-2">
             <legend className="sr-only">{t("reprocessDialogTitle")}</legend>
             {(
@@ -314,13 +326,17 @@ export function AdminReprocessDialog({
         </p>
 
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-hq-border pt-3">
-          <button
-            type="button"
-            onClick={() => setAdvancedOpen((v) => !v)}
-            className="text-xs text-hq-accent hover:underline"
-          >
-            {t("reprocessAdvanced")}
-          </button>
+          {allowAdvanced ? (
+            <button
+              type="button"
+              onClick={() => setAdvancedOpen((v) => !v)}
+              className="text-xs text-hq-accent hover:underline"
+            >
+              {t("reprocessAdvanced")}
+            </button>
+          ) : (
+            <span />
+          )}
           <div className="flex gap-2">
             <button
               type="button"
@@ -332,7 +348,7 @@ export function AdminReprocessDialog({
             </button>
             <button
               type="button"
-              disabled={busy || (advancedOpen && !advancedConfig)}
+              disabled={busy || (showAdvanced && !advancedConfig)}
               onClick={handleConfirm}
               className="rounded-lg bg-hq-accent px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >

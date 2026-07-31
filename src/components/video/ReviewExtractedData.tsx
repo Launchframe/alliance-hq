@@ -391,6 +391,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [allianceName, setAllianceName] = useState<string | null>(null);
   const [allianceStale, setAllianceStale] = useState(false);
   const [canProcessVideo, setCanProcessVideo] = useState(false);
+  const [canReprocessAdvanced, setCanReprocessAdvanced] = useState(false);
   const [rosterQuotaCanSubmit, setRosterQuotaCanSubmit] = useState(false);
   const [banks, setBanks] = useState<BankWithSlips[]>([]);
   const [bankCityListImportedAt, setBankCityListImportedAt] = useState<
@@ -639,6 +640,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         const data = (await res.json()) as {
           error?: string;
           canProcessVideo?: boolean;
+          canReprocessAdvanced?: boolean;
           job?: {
             status: string;
             fileName?: string | null;
@@ -832,6 +834,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setAllianceName(data.alliance?.jobName ?? null);
         setAllianceStale(Boolean(data.alliance?.stale));
         setCanProcessVideo(Boolean(data.canProcessVideo));
+        setCanReprocessAdvanced(Boolean(data.canReprocessAdvanced));
         setJobPassKey(data.job?.passKey ?? null);
         setJobExtractionConfigJson(data.job?.extractionConfigJson ?? null);
       } catch (err) {
@@ -2305,6 +2308,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             passKey={jobPassKey}
             extractionConfigJson={jobExtractionConfigJson}
             busy={reprocessPending}
+            allowAdvanced={canReprocessAdvanced}
+            copyVariant={canReprocessAdvanced ? "admin" : "processor"}
             onOpenChange={(nextOpen) => {
               if (!nextOpen && !reprocessPending) {
                 setReprocessDialogOpen(false);
@@ -3636,6 +3641,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           passKey={jobPassKey}
           extractionConfigJson={jobExtractionConfigJson}
           busy={reprocessPending}
+          allowAdvanced={canReprocessAdvanced}
+          copyVariant={canReprocessAdvanced ? "admin" : "processor"}
           onOpenChange={(nextOpen) => {
             if (!nextOpen && !reprocessPending) {
               setReprocessDialogOpen(false);

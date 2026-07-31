@@ -187,7 +187,7 @@ describe("processDepositSlipFingerprintShadowJob chunking", () => {
     );
   });
 
-  it("OCRs one chunk and dispatches continuation when frames remain", async () => {
+  it("OCRs one chunk and requeues for cron when frames remain", async () => {
     // 1) initial job load
     // 2) group load
     // 3) primary job load
@@ -206,9 +206,7 @@ describe("processDepositSlipFingerprintShadowJob chunking", () => {
 
     expect(mockGetObject).toHaveBeenCalledTimes(2);
     expect(mockTesseract).toHaveBeenCalledTimes(2);
-    expect(mockDispatch).toHaveBeenCalledWith("shadow-1", {
-      source: "deposit_slip_fingerprint_shadow_chunk",
-    });
+    expect(mockDispatch).not.toHaveBeenCalled();
     expect(mockInsertValues).not.toHaveBeenCalled();
     expect(timings.rowCount).toBe(0);
 
@@ -217,7 +215,7 @@ describe("processDepositSlipFingerprintShadowJob chunking", () => {
         payload &&
         typeof payload === "object" &&
         (payload as { timingsJson?: unknown }).timingsJson != null &&
-        (payload as { status?: string }).status === "parsing",
+        (payload as { status?: string }).status === "queued",
     );
     expect(continueUpdate).toBeTruthy();
     const payload = continueUpdate![0] as {
@@ -295,8 +293,7 @@ describe("processDepositSlipFingerprintShadowJob chunking", () => {
     expect(completeUpdate).toBeTruthy();
   });
 
-  it("requeues when next-chunk dispatch fails", async () => {
-    mockDispatch.mockResolvedValue(false);
+  it("requeues mid-chunk jobs for cron continuation", async () => {
     mockSelectLimit
       .mockResolvedValueOnce([baseJob()])
       .mockResolvedValueOnce([{ primaryJobId: "primary-1" }])
@@ -309,6 +306,7 @@ describe("processDepositSlipFingerprintShadowJob chunking", () => {
 
     await processDepositSlipFingerprintShadowJob("shadow-1");
 
+    expect(mockDispatch).not.toHaveBeenCalled();
     const queuedUpdate = mockUpdateWhere.mock.calls.find(
       ([payload]) =>
         payload &&

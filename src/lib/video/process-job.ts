@@ -627,20 +627,12 @@ export async function processVideoJob(
         }) => {
           frameCount = totalFrames;
           await setStatus(
-            "parsing",
+            "queued",
             {
               frameCount: totalFrames,
               uploadedFrameCount: nextFrameOffset,
               timingsJson,
             },
-            undefined,
-            "ocr_running",
-          );
-        },
-        requeueAfterChunkDispatchFailed: async ({ timingsJson }) => {
-          await setStatus(
-            "queued",
-            { timingsJson },
             undefined,
             "ocr_running",
           );
@@ -1030,8 +1022,8 @@ export async function processVideoJob(
       totalRawOcrRows,
     };
 
-    // More deposit-slip OCR chunks remain — stay in `parsing` (in-flight) and
-    // the phase already dispatched the next worker invocation.
+    // More deposit-slip OCR chunks remain — requeued for cron; next slice resumes
+    // from timingsJson.depositSlipOcrChunk (no same-deployment HTTP chain).
     if (depositSlipAwaitingNextChunk) {
       timer.log(`job ${jobId} deposit-slip OCR chunk complete; continuing`, {
         scoreTarget: scoreTargetId,

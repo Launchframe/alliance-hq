@@ -7,6 +7,7 @@ import {
   listAllianceMembers,
 } from "@/lib/members/roster.server";
 import { getOrCreateSession } from "@/lib/session";
+import { sessionHasPermission } from "@/lib/rbac/context";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import type { AshedMember } from "@/lib/video/member-matcher";
 import {
@@ -241,6 +242,7 @@ export async function GET(_request: Request, { params }: Props) {
     }
 
     const canProcessVideo = await sessionCanProcessVideo(session.id);
+    const canReprocessAdvanced = await sessionHasPermission(session.id, "hq:admin");
 
     let expectedRowCount: number | null = null;
     let shadowPassInFlight = false;
@@ -281,6 +283,7 @@ export async function GET(_request: Request, { params }: Props) {
 
     return NextResponse.json({
       canProcessVideo,
+      canReprocessAdvanced,
       job: {
         id: job.id,
         status: job.status,
