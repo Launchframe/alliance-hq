@@ -3211,6 +3211,18 @@
     "monthLoadFailed": "Não foi possível carregar esse mês.",
     "paintPaletteTitle": "Pintar dias",
     "paintPaletteHint": "Selecione dias no calendário (toque, arraste ou Shift+clique em um intervalo) e depois escolha uma regra ou modelo da semana para aplicar.",
+    "monthToolbar": {
+      "title": "Ferramentas do mês",
+      "hint": "Selecione dias no calendário e use uma ferramenta abaixo.",
+      "palette": "Escolher regra",
+      "spinSelected": "Girar dias selecionados",
+      "manualPick": "Escolher condutor manualmente",
+      "lock": "Confirmar condutor",
+      "unlock": "Desbloquear condutor",
+      "shareImage": "Exportar imagem do condutor",
+      "viewHistory": "Ver histórico do condutor",
+      "viewEligibility": "Ver elegibilidade"
+    },
     "dayTemplateMenu": {
       "title": "Alterar regra do dia",
       "ariaLabel": "Escolher uma regra para {date}",

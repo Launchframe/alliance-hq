@@ -3265,6 +3265,18 @@
     "monthLoadFailed": "Could not load that month.",
     "paintPaletteTitle": "Paint days",
     "paintPaletteHint": "Select days on the calendar (tap, drag, or Shift+click a range), then choose a rule or week template to apply.",
+    "monthToolbar": {
+      "title": "Month tools",
+      "hint": "Select days on the calendar, then use a tool below.",
+      "palette": "Choose rule",
+      "spinSelected": "Spin selected days",
+      "manualPick": "Pick conductor manually",
+      "lock": "Lock conductor",
+      "unlock": "Unlock conductor",
+      "shareImage": "Export conductor image",
+      "viewHistory": "View conductor history",
+      "viewEligibility": "View eligibility"
+    },
     "dayTemplateMenu": {
       "title": "Change this day's rule",
       "ariaLabel": "Choose a rule for {date}",

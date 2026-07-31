@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -24,18 +24,9 @@ import {
   isProvisionalDayConfig,
   provisionalDayConfigClass,
 } from "@/lib/trains/week-schedule-day-configs.shared";
-import { TemplatePaletteBadge } from "@/components/trains/TemplatePaletteBadge";
-import { TopNScopePicker } from "@/components/trains/TopNScopePicker";
-import {
-  TEMPLATE_PALETTE_STYLES,
-} from "@/lib/trains/mechanism-styles";
-import {
-  isTopNPaintTemplate,
-  type ConductorTopN,
-} from "@/lib/trains/conductor-top-n.shared";
-import { DAY_PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
-import { SELECTABLE_WEEK_TEMPLATES } from "@/lib/trains/week-template-registry.shared";
+import { TrainMonthToolbar } from "@/components/trains/TrainMonthToolbar";
 import type { WeekTemplateType } from "@/lib/trains/types";
+import { DAY_PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
 
 export { DAY_PAINT_TEMPLATES };
 
@@ -69,6 +60,20 @@ type Props = {
     template: WeekTemplateType,
     options?: { topN?: number },
   ) => void;
+  monthToolbar?: {
+    today: string;
+    canUnlock: boolean;
+    canShareImage: boolean;
+    busy?: boolean;
+    onSpinSelected: (dates: string[]) => void;
+    onManualPick: (date: string) => void;
+    onLockUnlock: (date: string, locked: boolean) => void;
+    onShareImage: () => void;
+    onViewHistory: (record: WeekConductorRecordSummary) => void;
+    onViewPool: () => void;
+    spinDisabledReason?: string | null;
+    canSpinDates: (dates: string[]) => boolean;
+  };
 };
 
 function recordForDate(
@@ -111,6 +116,7 @@ export function TrainMonthCalendar({
   onMonthChange,
   onMonthLoadError,
   onPaintDates,
+  monthToolbar,
   vrReporterCount = 0,
 }: Props) {
   const tc = useTranslations("common");
@@ -268,42 +274,6 @@ export function TrainMonthCalendar({
     [onSelectDate, selectedDate],
   );
 
-  const [pendingScopeTemplate, setPendingScopeTemplate] = useState<
-    "top_vs" | "top_vr" | null
-  >(null);
-
-  const applyTemplateToSelection = useCallback(
-    (template: WeekTemplateType, options?: { topN?: number }) => {
-      const paint = onPaintDatesRef.current;
-      const range = selectedRangeRef.current;
-      if (!paint || !range) return;
-      const dates = expandPaintRange(range.anchor, range.focus);
-      if (dates.length === 0) return;
-      paint(dates, template, options);
-    },
-    [],
-  );
-
-  const handlePaletteClick = useCallback(
-    (template: WeekTemplateType) => {
-      if (isTopNPaintTemplate(template)) {
-        setPendingScopeTemplate(template);
-        return;
-      }
-      applyTemplateToSelection(template);
-    },
-    [applyTemplateToSelection],
-  );
-
-  const handleScopeSelect = useCallback(
-    (topN: ConductorTopN) => {
-      if (!pendingScopeTemplate) return;
-      applyTemplateToSelection(pendingScopeTemplate, { topN });
-      setPendingScopeTemplate(null);
-    },
-    [applyTemplateToSelection, pendingScopeTemplate],
-  );
-
   const handleSelectionPointerDown = useCallback(
     (date: string, event: ReactPointerEvent<HTMLButtonElement>) => {
       if (!selectionMode) return;
@@ -381,8 +351,16 @@ export function TrainMonthCalendar({
   );
   const draftAriaSuffix = navLabels.draftScheduleAriaLabel ?? "Draft schedule";
   const selectedDateCount = selectionPreviewDates?.size ?? 0;
-  const paletteTemplates =
-    selectedDateCount > 1 ? SELECTABLE_WEEK_TEMPLATES : DAY_PAINT_TEMPLATES;
+  const selectedDatesList = useMemo(
+    () =>
+      selectionPreviewDates
+        ? [...selectionPreviewDates].sort()
+        : selectedRange
+          ? expandPaintRange(selectedRange.anchor, selectedRange.focus)
+          : [selectedDate],
+    [selectionPreviewDates, selectedDate, selectedRange],
+  );
+  const focusRecord = recordForDate(displayPage.monthRecords, selectedDate);
 
   return (
     <div className="flex flex-col gap-3">
@@ -410,50 +388,39 @@ export function TrainMonthCalendar({
         </button>
       </div>
 
-      {canPaint ? (
-        <div className="rounded-xl border border-hq-border bg-hq-canvas/60 p-3">
-          <p className="text-xs font-medium text-hq-fg-muted">
-            {navLabels.paletteTitle}
-          </p>
-          <p className="mt-0.5 text-[10px] text-hq-fg-subtle">
-            {navLabels.paletteHint}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {paletteTemplates.map((template) => {
-              const palette = TEMPLATE_PALETTE_STYLES[template];
-              return (
-                <button
-                  key={template}
-                  type="button"
-                  disabled={!hasSelection}
-                  data-testid={`trains-month-paint-${template}`}
-                  onClick={() => handlePaletteClick(template)}
-                  className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                    hasSelection
-                      ? `border-hq-border text-[#c9d1d9] hover:bg-hq-surface hover:ring-1 ${palette.ring}`
-                      : "border-hq-border text-[#c9d1d9]"
-                  }`}
-                >
-                  <TemplatePaletteBadge template={template} shape="square" />
-                  {templateLabels[template] ?? template}
-                </button>
-              );
-            })}
-          </div>
-          {pendingScopeTemplate ? (
-            <div
-              className="mt-2 overflow-hidden rounded-lg border border-hq-border bg-hq-surface"
-              data-testid="trains-month-topn-scope"
-            >
-              <TopNScopePicker
-                paintTemplate={pendingScopeTemplate}
-                vrReporterCount={vrReporterCount}
-                onBack={() => setPendingScopeTemplate(null)}
-                onSelect={handleScopeSelect}
-              />
-            </div>
-          ) : null}
-        </div>
+      {canPaint && monthToolbar ? (
+        <TrainMonthToolbar
+          selectedDates={selectedDatesList}
+          focusDate={selectedDate}
+          today={monthToolbar.today}
+          hasConductor={Boolean(focusRecord?.conductorMemberId)}
+          locked={Boolean(focusRecord?.lockedAt)}
+          canUnlock={monthToolbar.canUnlock}
+          canShareImage={monthToolbar.canShareImage}
+          canSpinSelected={monthToolbar.canSpinDates(selectedDatesList)}
+          spinDisabledReason={monthToolbar.spinDisabledReason}
+          templateLabels={templateLabels}
+          vrReporterCount={vrReporterCount}
+          busy={monthToolbar.busy}
+          onPaint={(dates, template, options) => {
+            onPaintDates?.(dates, template, options);
+          }}
+          onSpinSelected={() =>
+            monthToolbar.onSpinSelected(selectedDatesList)
+          }
+          onManualPick={() => monthToolbar.onManualPick(selectedDate)}
+          onLockUnlock={() =>
+            monthToolbar.onLockUnlock(
+              selectedDate,
+              Boolean(focusRecord?.lockedAt),
+            )
+          }
+          onShareImage={monthToolbar.onShareImage}
+          onViewHistory={() => {
+            if (focusRecord) monthToolbar.onViewHistory(focusRecord);
+          }}
+          onViewPool={monthToolbar.onViewPool}
+        />
       ) : null}
 
       <div className="relative">
@@ -508,21 +475,31 @@ export function TrainMonthCalendar({
                 : null;
 
             const inSelectionPreview = Boolean(selectionPreviewDates?.has(date));
-            const ringClass = inSelectionPreview
-              ? "ring-2 ring-[#d29922] ring-offset-1 ring-offset-hq-canvas"
+            const isSelectionActive = inSelectionPreview || isSelected;
+            const selectionClass = inSelectionPreview
+              ? "!bg-[#d29922]/30 border-[#d29922]"
               : isSelected
-                ? "ring-2 ring-hq-accent ring-offset-1 ring-offset-hq-canvas"
-                : isToday
-                  ? "ring-1 ring-hq-accent/50 ring-offset-1 ring-offset-hq-canvas"
-                  : "";
+                ? "!bg-hq-accent/35 border-hq-accent"
+                : "";
+            const todayRingClass = isToday
+              ? "ring-1 ring-hq-accent/60 ring-offset-1 ring-offset-hq-canvas"
+              : "";
 
             const isProvisional = day ? isProvisionalDayConfig(day.id) : false;
-            const cellClass = `flex min-h-[4.75rem] min-w-0 flex-col rounded-lg border-2 p-1 text-left ${style} ${ringClass} ${provisionalDayConfigClass(isProvisional)} ${
+            const cellClass = `relative flex min-h-[4.75rem] min-w-0 flex-col rounded-lg border-2 p-1 text-left ${style} ${selectionClass} ${todayRingClass} ${provisionalDayConfigClass(isProvisional)} ${
               inMonth ? "opacity-100" : "pointer-events-none opacity-25"
             }`;
 
             const inner = (
               <>
+                {isSelectionActive ? (
+                  <span
+                    className="absolute right-0.5 top-0.5 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-hq-accent text-white shadow-sm"
+                    aria-hidden
+                  >
+                    <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                  </span>
+                ) : null}
                 <div className="flex items-start justify-between gap-0.5">
                   <span className="text-xs font-semibold tabular-nums">
                     {dayNumber}

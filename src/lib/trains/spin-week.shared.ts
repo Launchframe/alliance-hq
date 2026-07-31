@@ -15,6 +15,7 @@ export type SpinWeekDayConfig = {
 export type SpinWeekDayRecord = {
   date: string;
   lockedAt?: string | null;
+  conductorMemberId?: string | null;
 };
 
 export type SpinWeekResultRow = {
@@ -64,6 +65,30 @@ export function spinWheelDatesForRestOfWeek(input: {
         date,
       );
     });
+}
+
+/** Wheel-eligible dates from an explicit list (month multi-select toolbar). */
+export function spinWheelDatesFromList(input: {
+  today: string;
+  dates: string[];
+  dayConfigs: SpinWeekDayConfig[];
+  weekRecords: SpinWeekDayRecord[];
+}): string[] {
+  const unique = [...new Set(input.dates)].sort();
+  return unique.filter((date) => {
+    if (date < input.today) return false;
+    const config = input.dayConfigs.find((row) => row.date === date);
+    const record = input.weekRecords.find((row) => row.date === date);
+    const locked = Boolean(record?.lockedAt);
+    if (locked) return false;
+    if (record?.conductorMemberId) return false;
+    return showsConductorSpinWheel(
+      config?.conductorMechanism ?? null,
+      locked,
+      config?.paintTemplate,
+      date,
+    );
+  });
 }
 
 /** True when the viewed week still has at least one actionable calendar day (today or later). */

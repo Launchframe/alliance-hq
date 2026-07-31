@@ -4,6 +4,7 @@ import {
   canSpinConductorWeek,
   showsConductorSpinWheel,
   spinWheelDatesForRestOfWeek,
+  spinWheelDatesFromList,
 } from "@/lib/trains/spin-week.shared";
 
 describe("showsConductorSpinWheel", () => {
@@ -127,6 +128,50 @@ describe("spinWheelDatesForRestOfWeek", () => {
         weekRecords: [],
       }),
     ).toEqual(["2026-06-13"]);
+  });
+});
+
+describe("spinWheelDatesFromList", () => {
+  const dayConfigs = [
+    {
+      date: "2026-06-10",
+      conductorMechanism: "vs_top_10",
+      paintTemplate: "vs_push_weekdays" as const,
+    },
+    {
+      date: "2026-06-11",
+      conductorMechanism: "vs_top_10",
+      paintTemplate: "vs_push_weekdays" as const,
+    },
+    {
+      date: "2026-06-12",
+      conductorMechanism: "r4_sequence",
+      paintTemplate: null,
+    },
+  ];
+
+  it("skips past dates, locked days, and days that already have a conductor", () => {
+    expect(
+      spinWheelDatesFromList({
+        today: "2026-06-11",
+        dates: ["2026-06-10", "2026-06-11", "2026-06-12"],
+        dayConfigs,
+        weekRecords: [
+          { date: "2026-06-11", conductorMemberId: "member-1" },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  it("returns wheel-eligible future dates from the explicit selection", () => {
+    expect(
+      spinWheelDatesFromList({
+        today: "2026-06-10",
+        dates: ["2026-06-10", "2026-06-11", "2026-06-12"],
+        dayConfigs,
+        weekRecords: [],
+      }),
+    ).toEqual(["2026-06-10", "2026-06-11"]);
   });
 });
 
