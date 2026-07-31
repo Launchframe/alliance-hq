@@ -404,6 +404,23 @@ describe("parseDepositSlipHistoryText — vertical line-bbox association", () =>
     expect(byName.CheesyD03?.depositAt).toBe("2026-07-11T10:01:00.000Z");
   });
 
+  it("does not assign a timestamp across another row's deposit line (azukaheh fixture)", () => {
+    const lines = [
+      geoLine("2026-07-25 16:55:12", 40),
+      geoLine("#1211[Roar]Neighbor", 80),
+      geoLine("Deposit: CrystalGold x 5000, Term: 5 days.", 120),
+      geoLine("#1211[Roar]azukaheh", 200),
+      geoLine("Deposit: CrystalGold x 6000, Term: 5 days.", 240),
+    ];
+    const parsed = parseDepositSlipHistoryText(lines);
+    const byName = Object.fromEntries(
+      parsed.slips.map((s) => [s.identity.commanderName, s]),
+    );
+    expect(byName.Neighbor?.depositAt).toBe("2026-07-25T16:55:12.000Z");
+    expect(byName.azukaheh?.depositAt).toBeNull();
+    expect(byName.azukaheh?.amount).toBe(6000);
+  });
+
   it("still uses reading-order association when line bboxes are absent", () => {
     const lines = [
       "2026-7-11 10:00:00",

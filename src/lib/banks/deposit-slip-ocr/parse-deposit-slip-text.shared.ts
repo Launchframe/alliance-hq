@@ -273,6 +273,23 @@ function isDepositSlipRowContentLine(probe: string): boolean {
   return isDepositSlipRowContentProbe(probe);
 }
 
+/** Mirror reading-order timestamp hunt: do not zip across row content or identities. */
+function isDepositSlipFieldBlockedFromIdentity(
+  lines: readonly NormalizedOcrLine[],
+  fieldLineIndex: number,
+  anchorLineIndex: number,
+): boolean {
+  const lo = Math.min(fieldLineIndex, anchorLineIndex);
+  const hi = Math.max(fieldLineIndex, anchorLineIndex);
+  for (let j = lo + 1; j < hi; j += 1) {
+    const probe = lines[j]!.text.trim();
+    if (!probe) continue;
+    if (parseDepositSlipIdentity(probe)) return true;
+    if (isDepositSlipRowContentLine(probe)) return true;
+  }
+  return false;
+}
+
 function applyOutcomeToDraft(
   draft: DraftBuilder,
   outcome: NonNullable<ReturnType<typeof parseDepositSlipOutcomeLine>>,
@@ -805,6 +822,16 @@ function assignFieldsByVerticalProximity(
 
   for (const { field, anchor } of scored) {
     if (claimedLineIndexes.has(field.lineIndex)) continue;
+    if (
+      field.kind === "timestamp" &&
+      isDepositSlipFieldBlockedFromIdentity(
+        lines,
+        field.lineIndex,
+        anchor.lineIndex,
+      )
+    ) {
+      continue;
+    }
     const draft = drafts.get(anchor.lineIndex);
     if (!draft) continue;
 
