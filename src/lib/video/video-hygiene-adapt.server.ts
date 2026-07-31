@@ -146,27 +146,23 @@ async function maybeRecordAdaptTransitions(params: {
         overlayApplied: params.overlayApplied,
       },
     });
+    if (
+      params.overlayApplied &&
+      params.fromPassKey !== params.toPassKey
+    ) {
+      await recordVideoHygieneEvent({
+        ...base,
+        kind: "adapt_arm_change",
+        payload: {
+          fromPassKey: params.fromPassKey,
+          toPassKey: params.toPassKey,
+        },
+      });
+    }
   } else if (params.previouslyOn && !params.biasOn) {
     await recordVideoHygieneEvent({
       ...base,
       kind: "adapt_bias_off",
-      payload: {
-        fromPassKey: params.fromPassKey,
-        toPassKey: params.toPassKey,
-      },
-    });
-  }
-
-  if (
-    params.biasOn &&
-    params.overlayApplied &&
-    params.fromPassKey !== params.toPassKey
-  ) {
-    // Always log arm change when overlay mutates the primary pass key
-    // (including first bias-on).
-    await recordVideoHygieneEvent({
-      ...base,
-      kind: "adapt_arm_change",
       payload: {
         fromPassKey: params.fromPassKey,
         toPassKey: params.toPassKey,

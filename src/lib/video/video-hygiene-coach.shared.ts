@@ -3,12 +3,15 @@
  * Tip IDs map to i18n keys under videoHygieneCoach.tips.*.
  */
 
+import { isMemberRosterVideoTarget } from "@/lib/video/score-targets";
+
 export const VIDEO_HYGIENE_COACH_TIP_IDS = [
   "chaoticScroll",
   "fastScroll",
   "lowQuality",
   "longReview",
   "thumbsDown",
+  "scenePageByPage",
   "defaultSteady",
 ] as const;
 
@@ -16,12 +19,18 @@ export type VideoHygieneCoachTipId =
   (typeof VIDEO_HYGIENE_COACH_TIP_IDS)[number];
 
 export type CoachTipInput = {
+  scoreTarget: string;
   jobCount: number;
   thumbsUpRate: number | null;
   avgQualityScore: number | null;
   medianReviewDurationMs: number | null;
   scrollStyleCounts: Record<string, number>;
 };
+
+/** Scene-threshold capture (not roster supplementFps path). */
+export function prefersSceneFrameCapture(scoreTarget: string): boolean {
+  return !isMemberRosterVideoTarget(scoreTarget);
+}
 
 const MIN_JOBS_FOR_COACH = 2;
 /** Reviews longer than 4 minutes median → longReview tip. */
@@ -73,6 +82,13 @@ export function selectVideoHygieneCoachTip(
     input.medianReviewDurationMs >= LONG_REVIEW_MS
   ) {
     return "longReview";
+  }
+
+  if (
+    prefersSceneFrameCapture(input.scoreTarget) &&
+    scroll === "slow_steady"
+  ) {
+    return "scenePageByPage";
   }
 
   if (scroll === "slow_steady" || scroll === "page_by_page") {
