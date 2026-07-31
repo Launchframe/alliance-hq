@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
+import { VIDEO_ENQUEUE_PERMISSION } from "@/lib/rbac/constants";
+import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import { getOrCreateSession } from "@/lib/session";
 import {
+  pickVideoHygieneCoachTipForUploader,
   recordCoachDismissed,
   recordCoachShown,
   resolveVideoHygieneCoachTip,
@@ -33,6 +36,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ tip: null });
   }
 
+  const denied = await requireSessionPermission(
+    session.id,
+    VIDEO_ENQUEUE_PERMISSION,
+  );
+  if (denied) return denied;
+
   const url = new URL(request.url);
   const scoreTarget = url.searchParams.get("scoreTarget");
   if (!scoreTarget || !getScoreTarget(scoreTarget)) {
@@ -54,6 +63,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const denied = await requireSessionPermission(
+    session.id,
+    VIDEO_ENQUEUE_PERMISSION,
+  );
+  if (denied) return denied;
+
   const body = (await request.json()) as CoachBody;
   if (!body.scoreTarget || !getScoreTarget(body.scoreTarget)) {
     return NextResponse.json({ error: "Invalid scoreTarget" }, { status: 400 });
@@ -61,6 +76,14 @@ export async function POST(request: Request) {
   const tipId = parseTipId(body.tipId);
   if (!tipId) {
     return NextResponse.json({ error: "Invalid tipId" }, { status: 400 });
+  }
+
+  const expected = await pickVideoHygieneCoachTipForUploader({
+    hqUserId: session.hqUserId,
+    scoreTarget: body.scoreTarget,
+  });
+  if (!expected || expected.tipId !== tipId) {
+    return NextResponse.json({ error: "Tip no longer applies" }, { status: 400 });
   }
 
   const allianceId = resolveSessionAllianceId(session);

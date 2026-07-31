@@ -23,6 +23,28 @@ export async function resolveVideoHygieneCoachTip(params: {
   scoreTarget: string;
   days?: number;
 }): Promise<ResolveCoachTipResult> {
+  const picked = await pickVideoHygieneCoachTipForUploader(params);
+  if (!picked) return null;
+
+  if (
+    await wasTipRecentlyDismissed(
+      params.hqUserId,
+      params.scoreTarget,
+      picked.tipId,
+    )
+  ) {
+    return null;
+  }
+
+  return picked;
+}
+
+/** Current coach signal for uploader × score target (ignores dismiss cooldown). */
+export async function pickVideoHygieneCoachTipForUploader(params: {
+  hqUserId: string;
+  scoreTarget: string;
+  days?: number;
+}): Promise<ResolveCoachTipResult> {
   const days = params.days ?? 60;
   const rows = await loadUploaderScoreTargetRewards({
     days,
@@ -43,10 +65,6 @@ export async function resolveVideoHygieneCoachTip(params: {
     scrollStyleCounts: row.scrollStyleCounts,
   });
   if (!tipId) return null;
-
-  if (await wasTipRecentlyDismissed(params.hqUserId, params.scoreTarget, tipId)) {
-    return null;
-  }
 
   return {
     tipId,

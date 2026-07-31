@@ -3917,15 +3917,13 @@
   "videoHygieneCoach": {
     "title": "Dica para sua próxima gravação",
     "dismiss": "Dispensar",
-    "openFramesHint": "Depois do OCR, abra um job e use Quadros analisados com Follow Me para ver o que o HQ realmente capturou.",
-    "openQueueLink": "Abrir fila de vídeo",
     "tips": {
-      "chaoticScroll": "Seus envios recentes deste placar parecem apressados. Role mais devagar e de forma constante para cada linha ficar nítida.",
-      "fastScroll": "Tente rolar um pouco mais devagar — pans rápidos costumam perder frames que o OCR precisa.",
-      "lowQuality": "As revisões recentes precisaram de muitas correções. Mantenha o placar inteiro na tela e evite saltos bruscos.",
-      "longReview": "As revisões deste placar estão demorando. Uma captura mais limpa (rolagem constante, menos blur) costuma acelerar a revisão.",
-      "thumbsDown": "Avaliações negativas recentes apontam para a qualidade da captura. Confira a iluminação e a consistência da rolagem antes do próximo envio.",
-      "defaultSteady": "Continue com uma rolagem lenta e constante — funciona bem com a extração de frames do HQ."
+      "chaoticScroll": "Seus envios recentes deste placar parecem apressados. Role mais devagar em uma direção e segure o celular firme para cada linha ficar nítida.",
+      "fastScroll": "Tente rolar um pouco mais devagar — pans rápidos costumam pular frames que o OCR precisa. Pause brevemente em cada linha.",
+      "lowQuality": "Os oficiais precisaram corrigir muitas linhas nos seus envios recentes. Mantenha o placar inteiro na tela, evite saltos bruscos e role linha por linha.",
+      "longReview": "As revisões deste placar estão demorando mais que o usual. Diminua a rolagem e pause em cada nome e pontuação para o OCR ler com clareza.",
+      "thumbsDown": "Avaliações negativas recentes apontam para a qualidade da captura. Confira a iluminação, mantenha o celular nivelado e role em ritmo constante antes do próximo envio.",
+      "defaultSteady": "Sua rolagem constante está funcionando bem — mantenha o placar inteiro na tela e o mesmo ritmo."
     }
   },
   "video": {

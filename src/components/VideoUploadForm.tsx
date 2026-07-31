@@ -433,8 +433,6 @@ export function VideoUploadForm({
         ) : null}
       </div>
 
-      <VideoHygieneCoachBanner scoreTarget={scoreTarget} />
-
       <form
         onSubmit={(e) => void handleSubmit(e)}
         className="min-w-0 rounded-xl border border-hq-border bg-hq-surface p-4 sm:p-5"
@@ -492,6 +490,8 @@ export function VideoUploadForm({
             {t("ocrAccuracy.label")}
           </p>
         </label>
+
+        <VideoHygieneCoachBanner scoreTarget={scoreTarget} />
 
         {needsBoardPicker ? (
           <label className="mt-4 block">

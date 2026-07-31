@@ -3971,15 +3971,13 @@
   "videoHygieneCoach": {
     "title": "Tip for your next recording",
     "dismiss": "Dismiss",
-    "openFramesHint": "After OCR, open a job and use Parsed frames with Follow Me to see what HQ actually grabbed.",
-    "openQueueLink": "Open video queue",
     "tips": {
-      "chaoticScroll": "Your recent uploads for this score type look rushed. Scroll slower and steadier so every row stays sharp.",
-      "fastScroll": "Try a slightly slower scroll — fast pans often drop frames the OCR needs.",
-      "lowQuality": "Recent reviews needed a lot of fixes. Keep the leaderboard fully on screen and avoid sudden jumps.",
-      "longReview": "Reviews for this score type have been taking a while. Cleaner capture (steady scroll, less blur) usually means faster review.",
-      "thumbsDown": "Recent thumbs-down ratings point at capture quality. Re-check lighting and scroll consistency before the next upload.",
-      "defaultSteady": "Keep using a slow, steady scroll — it works well with HQ's frame extraction."
+      "chaoticScroll": "Your recent uploads for this score type look rushed. Scroll slower in one direction and hold the phone steady so each row stays sharp.",
+      "fastScroll": "Try scrolling a bit slower — fast pans often skip frames the OCR needs. Pause briefly on each row.",
+      "lowQuality": "Officers had to fix many rows on your recent uploads. Keep the full leaderboard on screen, avoid sudden jumps, and scroll one row at a time.",
+      "longReview": "Reviews for this score type are taking longer than usual. Slow your scroll and pause on each name and score so OCR can read them clearly.",
+      "thumbsDown": "Recent thumbs-down ratings point to capture quality. Check lighting, hold the phone level, and scroll at a steady pace before your next upload.",
+      "defaultSteady": "Your steady scroll is working well — keep the full board on screen and maintain that same pace."
     }
   },
   "video": {

@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import type { VideoHygieneCoachTipId } from "@/lib/video/video-hygiene-coach.shared";
 
 type CoachTipPayload = {
   tipId: VideoHygieneCoachTipId;
-  titleKey: string;
-  bodyKey: string;
 };
 
 type Props = {
@@ -22,6 +20,7 @@ export function VideoHygieneCoachBanner({ scoreTarget }: Props) {
     tip: CoachTipPayload | null;
   } | null>(null);
   const [dismissing, setDismissing] = useState(false);
+  const shownRecordedRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!scoreTarget) return;
@@ -40,15 +39,19 @@ export function VideoHygieneCoachBanner({ scoreTarget }: Props) {
         if (cancelled) return;
         setLoaded({ scoreTarget: target, tip: data.tip ?? null });
         if (data.tip) {
-          void fetch("/api/tools/video-hygiene/coach", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "shown",
-              tipId: data.tip.tipId,
-              scoreTarget: target,
-            }),
-          });
+          const shownKey = `${target}:${data.tip.tipId}`;
+          if (shownRecordedRef.current !== shownKey) {
+            shownRecordedRef.current = shownKey;
+            void fetch("/api/tools/video-hygiene/coach", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "shown",
+                tipId: data.tip.tipId,
+                scoreTarget: target,
+              }),
+            });
+          }
         }
       } catch {
         if (!cancelled) setLoaded({ scoreTarget: target, tip: null });
@@ -85,17 +88,19 @@ export function VideoHygieneCoachBanner({ scoreTarget }: Props) {
 
   return (
     <div
-      className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm text-foreground"
+      className="mt-4 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm text-foreground"
       role="status"
+      aria-live="polite"
     >
-      <p className="font-medium">{t(tip.titleKey)}</p>
-      <p className="mt-1 text-muted-foreground">{t(tip.bodyKey)}</p>
+      <p className="font-medium">{t("title")}</p>
+      <p className="mt-1 text-muted-foreground">{t(`tips.${tip.tipId}`)}</p>
       <div className="mt-2 flex justify-end">
         <Button
           type="button"
           variant="ghost"
           size="sm"
           disabled={dismissing}
+          aria-label={t("dismiss")}
           onClick={() => void onDismiss()}
         >
           {t("dismiss")}
