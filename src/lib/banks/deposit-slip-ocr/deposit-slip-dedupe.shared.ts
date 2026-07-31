@@ -32,9 +32,6 @@
 
 import { nanoid } from "nanoid";
 
-import {
-  canDepositSlipLifecyclePair,
-} from "@/lib/banks/deposit-slip-ocr/deposit-slip-lifecycle.shared";
 import type { ParsedDepositSlipDraft } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import {
   resolveGroupConflicts,
@@ -151,10 +148,50 @@ export function haveExactDisplayIdentity(
   );
 }
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+/** OCR slack around exact term maturity (green is termDays after blue). */
+const MATURITY_ALIGNMENT_SLACK_MS = 12 * 60 * 60 * 1000;
+
 function parseDepositAtMs(value: string | null | undefined): number | null {
   if (!value) return null;
   const ms = Date.parse(value);
   return Number.isFinite(ms) ? ms : null;
+}
+
+/**
+ * Peel locked rows timed **after** the latest terminal (matured/looted) OCR
+ * row into separate subgroups — a post-payout re-deposit, not a dedupe
+ * conflict with the prior lifecycle event.
+ */
+function splitPostOutcomeRedepositLifecycle<T extends IndexedSlip>(
+  group: readonly T[],
+): T[][] | null {
+  const terminals = group.filter(
+    (s) => s.status === "matured" || s.status === "looted",
+  );
+  if (terminals.length === 0) return null;
+
+  let latestTerminalMs = Number.NEGATIVE_INFINITY;
+  for (const t of terminals) {
+    const ms = parseDepositAtMs(t.depositAt);
+    if (ms != null && ms > latestTerminalMs) latestTerminalMs = ms;
+  }
+  if (!Number.isFinite(latestTerminalMs)) return null;
+
+  const primary: T[] = [];
+  const redeposits: T[] = [];
+  for (const slip of group) {
+    if (slip.status === "locked") {
+      const ms = parseDepositAtMs(slip.depositAt);
+      if (ms != null && ms > latestTerminalMs) {
+        redeposits.push(slip);
+        continue;
+      }
+    }
+    primary.push(slip);
+  }
+  if (redeposits.length === 0 || primary.length === 0) return null;
+  return [primary, ...redeposits.map((s) => [s])];
 }
 
 /**
@@ -165,14 +202,22 @@ function canLifecycleMergePair(
   locked: ParsedDepositSlipDraft,
   outcome: ParsedDepositSlipDraft,
 ): boolean {
-  return canDepositSlipLifecyclePair(
-    { depositAt: locked.depositAt, termDays: locked.termDays },
-    {
-      depositAt: outcome.depositAt,
-      termDays: outcome.termDays,
-      status: outcome.status,
-    },
-  );
+  if (outcome.status !== "matured" && outcome.status !== "looted") return false;
+  const depositMs = parseDepositAtMs(locked.depositAt);
+  const outcomeMs = parseDepositAtMs(outcome.depositAt);
+  if (depositMs == null || outcomeMs == null) return false;
+  // Outcome cannot precede initiate; a later locked vs earlier loot is a re-deposit.
+  if (outcomeMs < depositMs) return false;
+  const termDays = locked.termDays ?? outcome.termDays ?? 1;
+  const span = outcomeMs - depositMs;
+  // Full term plus a day of OCR slack (upper bound).
+  if (span > termDays * MS_PER_DAY + MS_PER_DAY) return false;
+  if (outcome.status === "matured") {
+    // Green must land near depositAt + termDays — not minutes/hours later.
+    const expected = termDays * MS_PER_DAY;
+    return span >= expected - MATURITY_ALIGNMENT_SLACK_MS;
+  }
+  return true;
 }
 
 function applyLifecycleTimestamps(
@@ -816,6 +861,14 @@ function resolveNameTimestampGroup(
       return;
     }
     emitAutoMerged(accum, group, "exact_display_identity", []);
+    return;
+  }
+
+  const lifecycleRedepositSplit = splitPostOutcomeRedepositLifecycle(group);
+  if (lifecycleRedepositSplit && lifecycleRedepositSplit.length > 1) {
+    for (const part of lifecycleRedepositSplit) {
+      resolveNameTimestampGroup(accum, part, autoMergeReason);
+    }
     return;
   }
 
