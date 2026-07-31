@@ -1386,6 +1386,7 @@
     "reject": "Reject",
     "approveFailed": "Could not approve the job.",
     "rejectFailed": "Could not reject the job.",
+    "needsAttentionPlatformHint": "Needs a platform maintainer — retrying won't help.",
     "table": {
       "time": "Uploaded",
       "uploadedBy": "Uploaded by",
@@ -4038,6 +4039,8 @@
     "pendingApproval": "Waiting for a video processor to approve this upload. OCR will start after approval — this page refreshes automatically.",
     "shadowWithhold": "We may still be gathering denser leaderboard frames. Review will open when that pass finishes (or after a short wait).",
     "processingFailed": "Processing failed. Try uploading again.",
+    "processingFailedRetryable": "Processing failed. You can try uploading again.",
+    "processingFailedPlatform": "This upload hit a platform-side error and retrying won't fix it. A platform maintainer needs to look into it — you can discard this job to clear it from your queue in the meantime.",
     "stageQueued": "Waiting in the processing queue…",
     "stageExtracting": "Extracting frames from the video…",
     "stageOcrRunning": "Running OCR — {completed} of {total} frames",

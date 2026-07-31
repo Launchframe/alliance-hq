@@ -56,6 +56,10 @@ import {
   shouldRefetchOnLiveJobStatus,
 } from "@/lib/video/live-job-refresh.shared";
 import {
+  classifyVideoJobFailure,
+  videoJobFailureReviewMessageKey,
+} from "@/lib/video/video-job-failure-classification.shared";
+import {
   buildConnectHref,
   stashConnectReturnPath,
 } from "@/lib/connect/connect-return-path.shared";
@@ -297,6 +301,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [scoreTargetMeta, setScoreTargetMeta] =
     useState<ScoreTargetMeta | null>(null);
   const [jobStatus, setJobStatus] = useState<string>("loading");
+  const [jobErrorMessage, setJobErrorMessage] = useState<string | null>(null);
   const [allianceId, setAllianceId] = useState<string | null>(null);
   const [ashedAllianceId, setAshedAllianceId] = useState<string | null>(null);
   const [eventId, setEventId] = useState("");
@@ -642,6 +647,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           job?: {
             status: string;
             fileName?: string | null;
+            errorMessage?: string | null;
             allianceId?: string | null;
             boardKey?: string | null;
             hqEventId?: string | null;
@@ -722,6 +728,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         setRosterMembers(jobMembers);
 
         setJobStatus(data.job?.status ?? "unknown");
+        setJobErrorMessage(data.job?.errorMessage ?? null);
         if (
           data.job?.rating === "thumbs_up" ||
           data.job?.rating === "thumbs_down"
@@ -2262,10 +2269,18 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }
 
   if (displayJobStatus === "failed") {
+    const storedFailureMessage = liveJob?.errorMessage ?? jobErrorMessage;
+    const failureBannerMessage =
+      error ??
+      t(
+        videoJobFailureReviewMessageKey(
+          classifyVideoJobFailure(storedFailureMessage),
+        ),
+      );
     return (
       <div className="space-y-4">
         <ReviewActionErrorBanner
-          message={error ?? t("processingFailed")}
+          message={failureBannerMessage}
           connectUrl={errorConnectUrl ?? undefined}
           connectLabel={tQueue("connectCta")}
           onDismiss={clearActionError}

@@ -1386,6 +1386,7 @@
     "reject": "Rejeitar",
     "approveFailed": "Não foi possível aprovar o trabalho.",
     "rejectFailed": "Não foi possível rejeitar o trabalho.",
+    "needsAttentionPlatformHint": "Precisa de um mantenedor da plataforma — tentar de novo não vai ajudar.",
     "table": {
       "time": "Enviado",
       "uploadedBy": "Enviado por",
@@ -3984,6 +3985,8 @@
     "pendingApproval": "Aguardando um processador de vídeo aprovar este envio. O OCR começará após a aprovação — esta página atualiza automaticamente.",
     "shadowWithhold": "Ainda podemos estar coletando frames mais densos do ranking. A revisão abre quando essa passagem terminar (ou após uma breve espera).",
     "processingFailed": "Falha no processamento. Tente enviar novamente.",
+    "processingFailedRetryable": "Falha no processamento. Você pode tentar enviar novamente.",
+    "processingFailedPlatform": "Este envio encontrou um erro do lado da plataforma e tentar de novo não vai resolver. Um mantenedor da plataforma precisa investigar — você pode descartar este trabalho para removê-lo da fila enquanto isso.",
     "stageQueued": "Aguardando na fila de processamento…",
     "stageExtracting": "Extraindo quadros do vídeo…",
     "stageOcrRunning": "Executando OCR — {completed} de {total} quadros",

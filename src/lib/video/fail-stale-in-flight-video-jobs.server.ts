@@ -4,6 +4,9 @@ import { and, inArray, lt } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { markVideoJobFailed } from "@/lib/video/mark-video-job-failed";
+import { STALE_IN_FLIGHT_FAILURE_MESSAGE } from "@/lib/video/video-job-failure-classification.shared";
+
+export { STALE_IN_FLIGHT_FAILURE_MESSAGE };
 
 /**
  * Vercel video worker `maxDuration` is 300s. Jobs still in extracting/parsing
@@ -14,9 +17,6 @@ import { markVideoJobFailed } from "@/lib/video/mark-video-job-failed";
 export const VIDEO_IN_FLIGHT_STALE_MS = 6 * 60 * 1000;
 
 export const STALE_IN_FLIGHT_VIDEO_STATUSES = ["extracting", "parsing"] as const;
-
-export const STALE_IN_FLIGHT_FAILURE_MESSAGE =
-  "Worker timed out or crashed during processing. Requeue to try again.";
 
 export function isVideoInFlightStale(
   updatedAt: Date | string | null | undefined,
