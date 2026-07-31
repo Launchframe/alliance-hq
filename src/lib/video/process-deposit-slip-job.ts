@@ -4,6 +4,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import type { DedupedDepositSlip } from "@/lib/banks/deposit-slip-ocr/deposit-slip-dedupe.shared";
+import { reconcileMemberMatchedBorderlineClusters } from "@/lib/banks/deposit-slip-ocr/deposit-slip-dedupe.shared";
 import { depositSlipDraftToParsedRowFields } from "@/lib/banks/deposit-slip-ocr/draft-row.shared";
 import { parseBankInfoText } from "@/lib/banks/bank-context-ocr/parse-bank-info-text.shared";
 import { parseFavoritesText } from "@/lib/banks/bank-context-ocr/parse-favorites-text.shared";
@@ -407,7 +408,24 @@ export async function finalizeDepositSlipVideoParse(input: {
     applyResolvedAllianceTagToDepositSlip(dedupedSlips[i]!, resolvedLinks[i]!);
   }
 
-  const matchedCount = resolvedLinks.filter(
+  const reconciled = reconcileMemberMatchedBorderlineClusters(
+    dedupedSlips,
+    resolvedLinks.map((links) => ({
+      ashedMemberId: links.ashedMemberId,
+      matchMethod: links.matchMethod,
+    })),
+    dedupeReport,
+  );
+  const linkBySlipId = new Map(
+    dedupedSlips.map((slip, index) => [slip.slipId, resolvedLinks[index]!] as const),
+  );
+  const slipsForSession = reconciled.slips;
+  dedupeReport = reconciled.report;
+  const linksForSession = slipsForSession.map(
+    (slip) => linkBySlipId.get(slip.slipId)!,
+  );
+
+  const matchedCount = linksForSession.filter(
     (links) => links.candidateAshedMemberId != null,
   ).length;
 
@@ -418,12 +436,12 @@ export async function finalizeDepositSlipVideoParse(input: {
       sessionId: input.sessionId,
       scoreTarget: input.scoreTargetId,
       allianceId: hqAllianceId,
-      rowCount: dedupedSlips.length,
+      rowCount: slipsForSession.length,
       matchedCount,
       status: "open",
       rawExtractJson: {
         ...history,
-        slips: dedupedSlips,
+        slips: slipsForSession,
         // detectedBankContext: OCR bank coords/info for review Create-bank UI
         detectedBankContext,
       },
@@ -433,12 +451,12 @@ export async function finalizeDepositSlipVideoParse(input: {
     });
   });
 
-  if (dedupedSlips.length > 0) {
+  if (slipsForSession.length > 0) {
     await input.timer.measureStep("db.insert_parsed_rows", async () => {
       await db.insert(schema.parsedRows).values(
-        dedupedSlips.map((slip, index) => {
+        slipsForSession.map((slip, index) => {
           const fields = depositSlipDraftToParsedRowFields(slip);
-          const links = resolvedLinks[index]!;
+          const links = linksForSession[index]!;
           return {
             id: slip.slipId,
             parseSessionId,
@@ -488,7 +506,7 @@ export async function finalizeDepositSlipVideoParse(input: {
   return {
     parseSessionId,
     hqAllianceId,
-    rowCount: dedupedSlips.length,
+    rowCount: slipsForSession.length,
     matchedCount,
   };
 }

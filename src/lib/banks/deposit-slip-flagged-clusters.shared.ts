@@ -15,6 +15,28 @@ export type LiveFlaggedClusterGroup = {
   staleReport: boolean;
 };
 
+export type LiveFlaggedReasonGroup = {
+  reason: string;
+  clusters: LiveFlaggedClusterGroup[];
+};
+
+/** Collapse flagged clusters that share the same reason for review UI grouping. */
+export function groupFlaggedClustersByReason(
+  clusterGroups: readonly LiveFlaggedClusterGroup[],
+): LiveFlaggedReasonGroup[] {
+  const byReason = new Map<string, LiveFlaggedClusterGroup[]>();
+  for (const group of clusterGroups) {
+    const reason = group.reason ?? "";
+    const bucket = byReason.get(reason) ?? [];
+    bucket.push(group);
+    byReason.set(reason, bucket);
+  }
+  return [...byReason.entries()].map(([reason, clusters]) => ({
+    reason,
+    clusters,
+  }));
+}
+
 /** Group active review rows by unresolved flagged dedupe cluster id. */
 export function groupUnresolvedFlaggedClusters<
   TRow extends LiveFlaggedClusterRow,

@@ -4337,6 +4337,7 @@
     "depositSlipMissingTsCoveredKept": "Already kept",
     "depositSlipMissingTsCoveredAbsorbed": "Missing time (duplicate)",
     "depositSlipFlaggedTitle": "{count, plural, one {# cluster still needs review.} other {# clusters still need review.}}",
+    "depositSlipFlaggedReasonClusterCount": "{count, plural, one {# duplicate group} other {# duplicate groups}}",
     "depositSlipFlaggedHint": "Review or delete the rows below so each deposit appears once. You can still save when every row is complete.",
     "depositSlipStaleClusterNote": "The saved cluster report no longer matches these row IDs. Actions below apply to the live table only.",
     "depositSlipOverlappingLockedTitle": "Overlapping deposits",
@@ -4360,7 +4361,7 @@
       "same_commander_timestamp_conflicting_amount_or_term": "Same commander and time, but amount or term doesn’t match.",
       "borderline_commander_name_same_minute": "Similar commander names at the same time — confirm they’re the same person.",
       "timestamp_collision_different_commanders": "Different commanders share the same deposit minute — confirm these aren’t OCR mistakes.",
-      "same_commander_timestamp_conflicting_identity": "Same commander and time, but alliance tag or server doesn’t match.",
+      "same_commander_timestamp_conflicting_identity": "Same commander and time, but alliance tag doesn't match.",
       "commander_match_missing_timestamp_ambiguous": "Matches a commander with no deposit time recorded, but the details don’t line up — confirm which one is correct."
     },
     "statsNerds": {

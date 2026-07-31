@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   flaggedClusterIdsWithSingleSurvivor,
+  groupFlaggedClustersByReason,
   groupUnresolvedFlaggedClusters,
   otherLiveClusterRowIds,
 } from "@/lib/banks/deposit-slip-flagged-clusters.shared";
@@ -68,6 +69,36 @@ describe("groupUnresolvedFlaggedClusters", () => {
     );
 
     expect(groups[0]?.staleReport).toBe(false);
+  });
+});
+
+describe("groupFlaggedClustersByReason", () => {
+  it("groups cluster panels by reason string", () => {
+    const groups = groupFlaggedClustersByReason([
+      {
+        clusterId: "c1",
+        liveRows: [{ id: "a", ocrName: "A" }],
+        reason: "borderline_commander_name_same_minute",
+        staleReport: false,
+      },
+      {
+        clusterId: "c2",
+        liveRows: [{ id: "b", ocrName: "B" }],
+        reason: "borderline_commander_name_same_minute",
+        staleReport: false,
+      },
+      {
+        clusterId: "c3",
+        liveRows: [{ id: "c", ocrName: "C" }],
+        reason: "same_commander_timestamp_conflicting_amount_or_term",
+        staleReport: false,
+      },
+    ]);
+    expect(groups).toHaveLength(2);
+    const borderline = groups.find(
+      (g) => g.reason === "borderline_commander_name_same_minute",
+    );
+    expect(borderline?.clusters).toHaveLength(2);
   });
 });
 
