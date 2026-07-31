@@ -1676,6 +1676,42 @@ describe("dedupeDepositSlips — slipId uniqueness", () => {
     ).toBe(false);
   });
 
+  it("merges multi-frame OCR duplicates of post-maturity re-deposits peeled before conflict resolution", () => {
+    const { slips, report } = dedupeDepositSlips([
+      slip({
+        commanderName: "cmta",
+        depositAt: "2026-07-25T21:08:00.000Z",
+        amount: 6000,
+        termDays: 5,
+        status: "matured",
+        outcomeKind: "total_return",
+        outcomeAmount: 6840,
+      }),
+      slip({
+        commanderName: "cmta",
+        depositAt: "2026-07-25T21:10:00.000Z",
+        amount: 5000,
+        termDays: 5,
+        status: "locked",
+        sourceFrameIndex: 10,
+      }),
+      slip({
+        commanderName: "cmta",
+        depositAt: "2026-07-25T21:10:05.000Z",
+        amount: 5000,
+        termDays: 5,
+        status: "locked",
+        sourceFrameIndex: 11,
+      }),
+    ]);
+
+    expect(slips).toHaveLength(2);
+    expect(report.flaggedCount).toBe(0);
+    const lockedRedeposits = slips.filter((s) => s.status === "locked");
+    expect(lockedRedeposits).toHaveLength(1);
+    expect(lockedRedeposits[0]?.amount).toBe(5000);
+  });
+
   it("does not flag matured then re-deposit minutes apart (cmta-style cycle)", () => {
     const { slips, report } = dedupeDepositSlips([
       slip({

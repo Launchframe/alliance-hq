@@ -191,7 +191,7 @@ function splitPostOutcomeRedepositLifecycle<T extends IndexedSlip>(
     primary.push(slip);
   }
   if (redeposits.length === 0 || primary.length === 0) return null;
-  return [primary, ...redeposits.map((s) => [s])];
+  return [primary, redeposits];
 }
 
 /**
