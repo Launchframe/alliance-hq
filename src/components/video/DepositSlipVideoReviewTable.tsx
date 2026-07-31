@@ -1,7 +1,14 @@
 "use client";
 
 import { ChevronDown, ChevronRight, Trash2, Video, X } from "lucide-react";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslations } from "next-intl";
 
 import { AppSelect } from "@/components/ui/AppSelect";
@@ -31,6 +38,10 @@ import {
   type DepositSlipReviewRowSummaryFields,
 } from "@/lib/banks/deposit-slip-review-row-summary.shared";
 import { validateDepositSlipReviewRows } from "@/lib/banks/deposit-slip-review-validation.shared";
+import {
+  applyFrozenDepositSlipRowOrder,
+  shouldKeepDepositSlipSortFrozenOnTbodyBlur,
+} from "@/lib/banks/deposit-slip-review-sort-freeze.shared";
 import {
   filterAndSortDepositSlipReviewRows,
   type DepositSlipVisibleSortKey,
@@ -253,6 +264,9 @@ export function DepositSlipVideoReviewTable({
     null,
   );
   const tbodyRef = useRef<HTMLTableSectionElement>(null);
+  const sortUnfreezeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const report = isDedupeReport(dedupeReport) ? dedupeReport : null;
   const followMeCompatible = depositSlipFollowMeCompatible(sortKey);
@@ -386,13 +400,49 @@ export function DepositSlipVideoReviewTable({
     [activeRows, filterQuery, sortKey],
   );
 
-  const displayRows = useMemo(() => {
-    if (!sortFrozenRowIds) return filteredRows;
-    const byId = new Map(filteredRows.map((row) => [row.id, row]));
-    return sortFrozenRowIds
-      .map((id) => byId.get(id))
-      .filter((row): row is DepositSlipVideoReviewRow => row != null);
-  }, [filteredRows, sortFrozenRowIds]);
+  const displayRows = useMemo(
+    () => applyFrozenDepositSlipRowOrder(filteredRows, sortFrozenRowIds),
+    [filteredRows, sortFrozenRowIds],
+  );
+
+  const cancelDeferredSortUnfreeze = useCallback(() => {
+    if (sortUnfreezeTimerRef.current != null) {
+      clearTimeout(sortUnfreezeTimerRef.current);
+      sortUnfreezeTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(
+    () => () => cancelDeferredSortUnfreeze(),
+    [cancelDeferredSortUnfreeze],
+  );
+
+  const freezeDepositSlipRowOrder = useCallback(() => {
+    cancelDeferredSortUnfreeze();
+    setSortFrozenRowIds((prev) =>
+      prev ?? filteredRows.map((row) => row.id),
+    );
+  }, [cancelDeferredSortUnfreeze, filteredRows]);
+
+  const scheduleDepositSlipSortUnfreeze = useCallback(
+    (relatedTarget: EventTarget | null) => {
+      cancelDeferredSortUnfreeze();
+      sortUnfreezeTimerRef.current = setTimeout(() => {
+        sortUnfreezeTimerRef.current = null;
+        if (
+          shouldKeepDepositSlipSortFrozenOnTbodyBlur(
+            tbodyRef.current,
+            relatedTarget,
+            document.activeElement,
+          )
+        ) {
+          return;
+        }
+        setSortFrozenRowIds(null);
+      }, 0);
+    },
+    [cancelDeferredSortUnfreeze],
+  );
 
   useLayoutEffect(() => {
     onVisibleRowIdsChange?.(displayRows.map((row) => row.id));
@@ -533,20 +583,9 @@ export function DepositSlipVideoReviewTable({
           </thead>
           <tbody
             ref={tbodyRef}
-            onFocusCapture={() => {
-              setSortFrozenRowIds(filteredRows.map((row) => row.id));
-            }}
+            onFocusCapture={freezeDepositSlipRowOrder}
             onBlurCapture={(event) => {
-              const tbody = tbodyRef.current;
-              const next = event.relatedTarget;
-              if (
-                tbody &&
-                next instanceof Node &&
-                tbody.contains(next)
-              ) {
-                return;
-              }
-              setSortFrozenRowIds(null);
+              scheduleDepositSlipSortUnfreeze(event.relatedTarget);
             }}
           >
             {displayRows.map((row) => {
@@ -581,7 +620,6 @@ export function DepositSlipVideoReviewTable({
                     followMeCompatible ? row.id : undefined
                   }
                   onClick={() => onFollowMeActivateRow?.(row.id)}
-                  onFocusCapture={() => onFollowMeActivateRow?.(row.id)}
                 >
                   <td className="px-3 py-2 align-top">
                     <input
@@ -733,6 +771,10 @@ export function DepositSlipVideoReviewTable({
                     <input
                       type="datetime-local"
                       value={isoToDatetimeLocalValue(row.powerLevel)}
+                      onFocus={freezeDepositSlipRowOrder}
+                      onBlur={(event) => {
+                        scheduleDepositSlipSortUnfreeze(event.relatedTarget);
+                      }}
                       onChange={(e) =>
                         onUpdateRow(row.id, {
                           powerLevel: datetimeLocalToIso(e.target.value),
