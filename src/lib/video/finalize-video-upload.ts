@@ -1,4 +1,4 @@
-import { nanoid } from "nanoid";
+import { newReadableVideoJobId } from "@/lib/video/video-job-readable-id";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
@@ -128,5 +128,5 @@ export async function finalizeVideoUploadEnqueue(
 }
 
 export function newVideoUploadIds(): { jobId: string; groupId: string } {
-  return { jobId: nanoid(16), groupId: nanoid(16) };
+  return { jobId: newReadableVideoJobId(), groupId: newReadableVideoJobId() };
 }
