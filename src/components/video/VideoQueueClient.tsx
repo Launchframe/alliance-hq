@@ -247,7 +247,7 @@ export function VideoQueueClient({
       }
       return null;
     }
-    if (job.status === "failed" && job.errorMessage) {
+    if (job.status === "failed") {
       const classification = classifyVideoJobFailure(job.errorMessage);
       if (classification.audience === "needs_platform_attention") {
         return t("needsAttentionPlatformHint");
