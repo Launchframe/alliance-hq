@@ -75,4 +75,12 @@ describe("parseDepositSlipDepositLine", () => {
       ),
     ).toEqual({ amount: 6000, termDays: 5 });
   });
+
+  it("does not treat Termination as a deposit Term divider", () => {
+    expect(
+      parseDepositSlipDepositLine(
+        "Deposit: CrystalGold x 6000, Termination pending",
+      ),
+    ).toBeNull();
+  });
 });
