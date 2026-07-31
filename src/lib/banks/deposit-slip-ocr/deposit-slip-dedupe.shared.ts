@@ -351,19 +351,7 @@ function buildDepositSlipConflictFields(
         canResolve: (winner, alternatives) =>
           alternatives.every((alternative) =>
             areLikelyAllianceTagOcrVariants(winner, alternative),
-          ) ||
-          alternatives.every((alternative) => {
-            const winnerKey = normalizeTagForFrequency(
-              typeof winner === "string" ? winner : null,
-            );
-            const altKey = normalizeTagForFrequency(
-              typeof alternative === "string" ? alternative : null,
-            );
-            if (!winnerKey || !altKey) return false;
-            const winnerScore = tagFrequency.get(winnerKey) ?? 0;
-            const altScore = tagFrequency.get(altKey) ?? 0;
-            return winnerScore > altScore;
-          }),
+          ),
       },
     },
     {
