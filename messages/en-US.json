@@ -3637,6 +3637,28 @@
         "heavy_hitter": "Heavy-hitter lottery eligibility"
       }
     },
+    "scoreLeaderboard": {
+      "loading": "Loading score leaderboard…",
+      "loadFailed": "Could not load the score leaderboard.",
+      "podium": {
+        "empty": "No score yet",
+        "rankScore": "#{rank} · {score}"
+      },
+      "tpif": {
+        "title": "Closest to 7.2M",
+        "subtitle": "R3 prior-day VS from {day} — ranked nearest 7.2M from above.",
+        "podiumAria": "Top three prior-day VS scores closest to 7.2M"
+      },
+      "vsPush": {
+        "title": "Top VS scores",
+        "subtitle": "Prior-day VS from {day} — highest scores first.",
+        "podiumAria": "Top three prior-day VS scores"
+      },
+      "donations": {
+        "unavailableTitle": "Donation scores not available yet",
+        "unavailableBody": "HQ does not store donation totals yet. Use manual conductor picks until donation scoring is wired."
+      }
+    },
     "priceIsRight": {
       "title": "Raffle tickets",
       "decayHint": "Closer to 7.2M → more tickets.",

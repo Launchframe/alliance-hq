@@ -34,7 +34,7 @@ import {
   TrainsWalkthroughOverlay,
   trainsWalkthroughSeen,
 } from "@/components/trains/TrainsWalkthroughOverlay";
-import { PriceIsRightPodiumLeaderboard } from "@/components/trains/PriceIsRightPodiumLeaderboard";
+import { ScoreLeaderboardPodium } from "@/components/trains/ScoreLeaderboardPodium";
 import { PriceIsRightTicketsPanel } from "@/components/trains/PriceIsRightTicketsPanel";
 import { TodayConductorCard } from "@/components/trains/TodayConductorCard";
 import { WeekTemplateChangeDialog } from "@/components/trains/WeekTemplateChangeDialog";
@@ -84,6 +84,7 @@ import {
   resolveConductorTopNBoard,
 } from "@/lib/trains/conductor-top-n.shared";
 import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
+import { resolveScoreLeaderboardKind } from "@/lib/trains/score-leaderboard-podium.shared";
 import {
   conductorSpinSource,
   isPoolSpinSource,
@@ -1456,6 +1457,14 @@ export function TrainsDashboard({ initial }: Props) {
     conductorPaint,
     selectedDate,
   );
+  const scoreLeaderboardKind = useMemo(
+    () =>
+      resolveScoreLeaderboardKind({
+        paintTemplate: conductorPaint,
+        conductorMechanism: conductorMech,
+      }),
+    [conductorMech, conductorPaint],
+  );
   function closeShareExportPreview() {
     setShareExportPreview((prev) => {
       if (prev) URL.revokeObjectURL(prev.url);
@@ -2071,8 +2080,11 @@ export function TrainsDashboard({ initial }: Props) {
             </p>
           ) : null}
 
-          {usesPriceIsFreightConductorRoll(conductorPaint) ? (
-            <PriceIsRightPodiumLeaderboard trainDate={selectedDate} />
+          {scoreLeaderboardKind ? (
+            <ScoreLeaderboardPodium
+              trainDate={selectedDate}
+              kind={scoreLeaderboardKind}
+            />
           ) : null}
 
           {usesPriceIsFreightConductorRoll(conductorPaint) ? (
