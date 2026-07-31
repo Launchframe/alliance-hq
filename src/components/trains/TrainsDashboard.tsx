@@ -1,11 +1,12 @@
 "use client";
 
-import { ChevronDown, Info } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { ConductorPickModal } from "@/components/trains/ConductorPickModal";
 import { ConductorSwapDialog } from "@/components/trains/ConductorSwapDialog";
+import { ConductorHistoryDialog } from "@/components/trains/ConductorHistoryDialog";
 import { ConductorHistoryTable } from "@/components/trains/ConductorHistoryTable";
 import { ConductorWheelModal } from "@/components/trains/ConductorWheelModal";
 import {
@@ -47,9 +48,9 @@ import {
 } from "@/lib/hotkeys/trains-hotkeys.shared";
 import { WheelBlockedDialog } from "@/components/trains/WheelBlockedDialog";
 import {
-  TrainPoolDetailsDialog,
+  TrainEligibilityDialog,
   type PoolDetailsOption,
-} from "@/components/trains/TrainPoolDetailsDialog";
+} from "@/components/trains/TrainEligibilityDialog";
 import { TrainSpinSourcePanel } from "@/components/trains/TrainSpinSourcePanel";
 import { TrainMonthCalendar } from "@/components/trains/TrainMonthCalendar";
 import { DAY_PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
@@ -75,7 +76,6 @@ import {
 import type {
   MonthSchedulePagePayload,
   TrainsDashboardPayload,
-  WeekConductorRecordSummary,
   WeekSchedulePagePayload,
 } from "@/lib/trains/load-dashboard";
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
@@ -264,10 +264,13 @@ export function TrainsDashboard({ initial }: Props) {
   const [poolDetailsOpen, setPoolDetailsOpen] = useState(false);
   const [poolDetailsInitialType, setPoolDetailsInitialType] =
     useState<PoolType | null>(null);
-  const [monthMemberHistoryOpen, setMonthMemberHistoryOpen] = useState(false);
-  const [monthMemberHistoryRows, setMonthMemberHistoryRows] = useState<
-    WeekConductorRecordSummary[]
-  >([]);
+  const [conductorHistoryOpen, setConductorHistoryOpen] = useState(false);
+  const [historyDialogMemberId, setHistoryDialogMemberId] = useState<
+    string | null
+  >(null);
+  const [historyDialogMemberName, setHistoryDialogMemberName] = useState<
+    string | null
+  >(null);
   const monthSpinFlowRef = useRef<SpinWeekConductorFlowHandle>(null);
   const [walkthroughOpen, setWalkthroughOpen] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -1336,8 +1339,8 @@ export function TrainsDashboard({ initial }: Props) {
     }
   }
 
-  const openPoolDetails = useCallback((poolType: PoolType) => {
-    setPoolDetailsInitialType(poolType);
+  const openPoolDetails = useCallback((poolType?: PoolType | null) => {
+    setPoolDetailsInitialType(poolType ?? null);
     setPoolDetailsOpen(true);
   }, [setPoolDetailsInitialType, setPoolDetailsOpen]);
 
@@ -1465,6 +1468,15 @@ export function TrainsDashboard({ initial }: Props) {
       }),
     [conductorMech, conductorPaint],
   );
+  const conductorReseedPoolType = useMemo((): PoolType | null => {
+    if (usesPriceIsFreightConductorRoll(conductorPaint)) return null;
+    if (conductorMech === "r3_lottery") return "r3";
+    if (conductorMech === "heavy_hitter_lottery") return "heavy_hitter";
+    if (conductorMech === "r4_sequence") return "r4_plus";
+    return null;
+  }, [conductorMech, conductorPaint]);
+  const canResetConductorPool =
+    data.canManageTrains && conductorReseedPoolType != null;
   function closeShareExportPreview() {
     setShareExportPreview((prev) => {
       if (prev) URL.revokeObjectURL(prev.url);
@@ -2009,18 +2021,15 @@ export function TrainsDashboard({ initial }: Props) {
                 },
                 onShareImage: () => void handleShareExportImage(),
                 onViewHistory: (record) => {
-                  const memberId = record.conductorMemberId;
-                  const rows = memberId
-                    ? data.conductorHistory.filter(
-                        (row) => row.conductorMemberId === memberId,
-                      )
-                    : [record];
-                  setMonthMemberHistoryRows(rows.length > 0 ? rows : [record]);
-                  setMonthMemberHistoryOpen(true);
+                  setHistoryDialogMemberId(record.conductorMemberId);
+                  setHistoryDialogMemberName(record.conductorMemberName);
+                  setConductorHistoryOpen(true);
                 },
                 onViewPool: () => {
                   if (isPoolSpinSource(selectedConductorSpinSource)) {
                     openPoolDetails(selectedConductorSpinSource.poolType);
+                  } else if (scoreLeaderboardKind) {
+                    openPoolDetails(null);
                   }
                 },
               }}
@@ -2228,37 +2237,6 @@ export function TrainsDashboard({ initial }: Props) {
                             : t("unlockConductor")}
                         </button>
                       )
-                    ) : null}
-                    {!usesPriceIsFreightConductorRoll(conductorPaint) &&
-                    (conductorMech === "r3_lottery" ||
-                      conductorMech === "heavy_hitter_lottery" ||
-                      conductorMech === "r4_sequence") ? (
-                      <div className="flex items-center gap-1.5 self-start">
-                        <button
-                          type="button"
-                          disabled={trainQuickActionBusy}
-                          onClick={() =>
-                            void reseedPool(
-                              conductorMech === "r3_lottery"
-                                ? "r3"
-                                : conductorMech === "heavy_hitter_lottery"
-                                  ? "heavy_hitter"
-                                  : "r4_plus",
-                            )
-                          }
-                          className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg-muted hover:text-hq-fg disabled:opacity-50"
-                        >
-                          {reseedingPool ? t("reseedingPool") : t("reseedPool")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setReseedHintOpen(true)}
-                          aria-label={t("reseedPoolHint.infoLabel")}
-                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-hq-fg-muted hover:bg-hq-canvas hover:text-hq-fg"
-                        >
-                          <Info className="h-4 w-4" aria-hidden />
-                        </button>
-                      </div>
                     ) : null}
                   </>
                 }
@@ -2555,40 +2533,6 @@ export function TrainsDashboard({ initial }: Props) {
                   )
                 ) : null}
               </div>
-
-              {!usesPriceIsFreightConductorRoll(conductorPaint) &&
-              (conductorMech === "r3_lottery" ||
-                conductorMech === "heavy_hitter_lottery" ||
-                conductorMech === "r4_sequence") ? (
-                <div className="flex items-center gap-1.5 self-start">
-                  <button
-                    type="button"
-                    disabled={trainQuickActionBusy}
-                    onClick={() =>
-                      void reseedPool(
-                        conductorMech === "r3_lottery"
-                          ? "r3"
-                          : conductorMech === "heavy_hitter_lottery"
-                            ? "heavy_hitter"
-                            : "r4_plus",
-                      )
-                    }
-                    className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg-muted hover:text-hq-fg disabled:opacity-50"
-                  >
-                    {reseedingPool
-                      ? t("reseedingPool")
-                      : t("reseedPool")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setReseedHintOpen(true)}
-                    aria-label={t("reseedPoolHint.infoLabel")}
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-hq-fg-muted hover:bg-hq-canvas hover:text-hq-fg"
-                  >
-                    <Info className="h-4 w-4" aria-hidden />
-                  </button>
-                </div>
-              ) : null}
             </div>
             )
           ) : null}
@@ -2598,6 +2542,18 @@ export function TrainsDashboard({ initial }: Props) {
       {data.canManageTrains ? (
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setHistoryDialogMemberId(null);
+                setHistoryDialogMemberName(null);
+                setConductorHistoryOpen(true);
+              }}
+              className="rounded-lg border border-hq-border bg-hq-surface px-3 py-1.5 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
+              data-testid="trains-conductor-history-view-all"
+            >
+              {t("conductorHistory.viewAll")}
+            </button>
             <Link
               href="/trains/history-import"
               className="rounded-lg border border-hq-border bg-hq-surface px-3 py-1.5 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
@@ -2719,29 +2675,19 @@ export function TrainsDashboard({ initial }: Props) {
         onRefresh={refresh}
       />
 
-      <Dialog
-        open={monthMemberHistoryOpen}
-        onOpenChange={setMonthMemberHistoryOpen}
-        title={t("conductorHistory.title")}
-        className="max-w-2xl"
-      >
-        <ConductorHistoryTable
-          rows={monthMemberHistoryRows}
-          mechanismLabels={historyMechanismLabels}
-          labels={{
-            title: t("conductorHistory.title"),
-            empty: t("conductorHistory.empty"),
-            date: t("conductorHistory.date"),
-            conductor: t("conductorHistory.conductor"),
-            vip: t("conductorHistory.vip"),
-            guardian: t("guardian"),
-            locked: t("conductorHistory.locked"),
-            noneYet: t("noneYet"),
-            guardianIsVip: t("guardianIsVipHint"),
-            guardianIsConductor: t("guardianIsConductorHint"),
-          }}
-        />
-      </Dialog>
+      <ConductorHistoryDialog
+        key={`${historyDialogMemberId ?? "all"}:${conductorHistoryOpen}`}
+        open={conductorHistoryOpen}
+        onOpenChange={setConductorHistoryOpen}
+        mechanismLabels={historyMechanismLabels}
+        roster={data.roster.map((member) => ({
+          memberId: member.memberId,
+          name: member.memberName,
+          allianceRank: member.allianceRank ?? null,
+        }))}
+        initialMemberId={historyDialogMemberId}
+        initialMemberName={historyDialogMemberName}
+      />
 
       <ConductorWheelSharePreviewDialog
         open={shareExportPreview != null}
@@ -2895,11 +2841,20 @@ export function TrainsDashboard({ initial }: Props) {
         onSyncRoster={() => void handleRosterSync()}
       />
 
-      <TrainPoolDetailsDialog
+      <TrainEligibilityDialog
         open={poolDetailsOpen}
         options={selectedPoolDetailOptions}
         initialPoolType={poolDetailsInitialType}
         trainDate={selectedDate}
+        scoreLeaderboardKind={scoreLeaderboardKind}
+        canResetPool={canResetConductorPool}
+        resetBusy={reseedingPool != null}
+        onResetPool={() => {
+          if (conductorReseedPoolType) {
+            void reseedPool(conductorReseedPoolType);
+          }
+        }}
+        onOpenReseedHint={() => setReseedHintOpen(true)}
         onClose={() => {
           setPoolDetailsOpen(false);
           setPoolDetailsInitialType(null);

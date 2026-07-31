@@ -3567,6 +3567,9 @@
       "eventScoreContext": "Dia VS {dayNumber}: {dayName} · pontos de {scoreDate} (VS de ontem)",
       "scorePoints": "{score, number}",
       "scoreUnavailable": "—",
+      "resetConfirmBody": "Redefinir a elegibilidade desta regra? Todos voltam a ser elegíveis em uma nova geração.",
+      "resetConfirmAction": "Redefinir elegibilidade",
+      "resetConfirmCancel": "Cancelar",
       "vsWeekDays": {
         "radarTraining": "Treino de Radar",
         "baseExpansion": "Expansão da Base",
@@ -3663,11 +3666,30 @@
     },
     "conductorHistory": {
       "title": "Histórico de condutores",
+      "fullTitle": "Histórico de condutores",
+      "viewAll": "Ver histórico completo",
       "empty": "Dias com condutor confirmado aparecerão aqui.",
+      "loading": "Carregando histórico…",
+      "loadingMore": "Carregando mais…",
+      "loadMore": "Carregar mais",
+      "loadFailed": "Não foi possível carregar o histórico de condutores.",
+      "memberScope": "Mostrando dias de {name}",
+      "resultCount": "Mostrando {shown} de {total}",
       "date": "Data",
       "conductor": "Condutor",
       "vip": "VIP",
-      "locked": "Confirmado"
+      "locked": "Confirmado",
+      "filters": {
+        "dateFrom": "De",
+        "dateTo": "Até",
+        "member": "Membro",
+        "memberAll": "Todos os membros",
+        "rank": "Patente do condutor",
+        "rankAll": "Todas as patentes",
+        "rankOption": "R{rank}",
+        "apply": "Aplicar filtros",
+        "clear": "Limpar filtros"
+      }
     },
     "historyImport": {
       "title": "Importar histórico de condutores",

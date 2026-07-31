@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
 
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
+import { getServerCalendarDate } from "@/lib/trains/game-time";
+import { parseConductorHistoryQueryParams } from "@/lib/trains/conductor-history-query.shared";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { listLockedConductorHistory } from "@/lib/trains/repository";
 import { getOrCreateSession } from "@/lib/session";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 
 export const dynamic = "force-dynamic";
-
-const DEFAULT_LIMIT = 30;
-const MAX_LIMIT = 100;
 
 export async function GET(request: Request) {
   const session = await getOrCreateSession();
@@ -20,20 +19,22 @@ export async function GET(request: Request) {
   if (ctx instanceof NextResponse) return ctx;
 
   const url = new URL(request.url);
-  const limitParam = Number(url.searchParams.get("limit") ?? DEFAULT_LIMIT);
-  const limit = Number.isFinite(limitParam)
-    ? Math.min(Math.max(1, Math.floor(limitParam)), MAX_LIMIT)
-    : DEFAULT_LIMIT;
-
+  const query = parseConductorHistoryQueryParams(url.searchParams);
   const seasonKey = (await getEffectiveSeasonForAlliance(ctx.allianceId))
     .seasonKey;
-  const rows = await listLockedConductorHistory(
-    ctx.allianceId,
+  const maxDate = getServerCalendarDate();
+
+  const { rows, total } = await listLockedConductorHistory({
+    allianceId: ctx.allianceId,
     seasonKey,
-    limit,
-  );
+    maxDate,
+    ...query,
+  });
 
   return NextResponse.json({
+    total,
+    offset: query.offset,
+    limit: query.limit,
     records: rows.map((row) => ({
       id: row.id,
       date: row.date,
