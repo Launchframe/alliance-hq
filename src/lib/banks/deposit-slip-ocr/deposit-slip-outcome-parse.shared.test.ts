@@ -51,4 +51,28 @@ describe("parseDepositSlipDepositLine", () => {
       "Deposit: CrystalGold x 6000, early termination refund",
     )).toBe(true);
   });
+
+  it("parses garbled deposit keyword (Oepasit)", () => {
+    expect(
+      parseDepositSlipDepositLine(
+        "| 2 Oepasit: CrystalGold x 6000, Term: 5 days.",
+      ),
+    ).toEqual({ amount: 6000, termDays: 5 });
+  });
+
+  it("parses term when amount token is garbled letters", () => {
+    expect(
+      parseDepositSlipDepositLine(
+        "ty Oepasit: CrystalGald x BODO, Term: 5 day(s)",
+      ),
+    ).toEqual({ amount: null, termDays: 5 });
+  });
+
+  it("parses period separator between amount and term", () => {
+    expect(
+      parseDepositSlipDepositLine(
+        "| Deposit: CrystalGold x 6000. Term: 5 day(s).",
+      ),
+    ).toEqual({ amount: 6000, termDays: 5 });
+  });
 });
