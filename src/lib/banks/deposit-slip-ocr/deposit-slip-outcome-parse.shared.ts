@@ -18,8 +18,31 @@ const TOTAL_RETURN_STRICT_RE =
 const EARLY_REFUND_STRICT_RE =
   /Early\s+termination\s+refund:\s*CrystalGold\s*x\s*([\d,]+)/i;
 
-const DEPOSIT_STRICT_RE =
-  /Deposit:\s*CrystalGold\s*x\s*([\d,]+)\s*,\s*Term:\s*(\d+)\s*day/i;
+/**
+ * Tolerant "Deposit:" keyword — Tesseract commonly misreads D/O and e/a in this
+ * word (observed: "Oepasit:", "Oeposit:", "Depasit:"). Char classes cover the
+ * observed confusions without matching unrelated words.
+ */
+const DEPOSIT_KEYWORD_RE = /[doq][ea]p[oa][s5][i1l]t\s*:/i;
+
+/**
+ * Tolerant "CrystalGold" — g[oa0] covers o/a/0 confusions (e.g. "CrystalGald");
+ * l/1 covers l/1 confusions in the suffix.
+ */
+const CRYSTALGOLD_TOLERANT_RE = /crystal\s*g[oa0][l1]d/i;
+
+/**
+ * Amount token right after the "x" separator, up to the Term: divider.
+ * Deliberately requires the token to be *all* digits/commas immediately after
+ * "x" — a partially-garbled token (e.g. "BODO", "BO00") intentionally fails
+ * here rather than guessing digits from letters; see file header.
+ * Requires `Term:` (not a bare `Term` prefix) so outcome lines like
+ * "Termination refund" cannot be mistaken for deposit-initiate rows.
+ */
+const AMOUNT_AFTER_X_RE = /\bx\s*([\d,]+)\s*[,.]?\s*Term\s*:/i;
+
+/** Term-days is almost always clean OCR even when the amount/keyword garble. */
+const TERM_DAYS_RE = /Term:\s*(\d+)\s*day/i;
 
 function parseIntAmount(raw: string): number | null {
   const n = Number(raw.replace(/,/g, ""));
@@ -87,16 +110,36 @@ export function parseDepositSlipOutcomeLine(
   return null;
 }
 
-/** Deposit initiate line — skipped when probe is already an outcome line. */
+/** True when the probe reads as a deposit-initiate line, tolerant of Tesseract
+ * garbling in the "Deposit"/"CrystalGold" keywords and punctuation. */
+function isDepositSlipDepositLineProbe(trimmed: string): boolean {
+  return (
+    DEPOSIT_KEYWORD_RE.test(trimmed) && CRYSTALGOLD_TOLERANT_RE.test(trimmed)
+  );
+}
+
+/**
+ * Deposit initiate line — skipped when probe is already an outcome line.
+ *
+ * Amount and term-days are extracted independently: a garbled amount token
+ * (letters where digits belong) must not also null out an otherwise-clean
+ * term-days read, and vice versa. Amount only ever comes from a token that is
+ * already all digits/commas — see `AMOUNT_AFTER_X_RE`.
+ */
 export function parseDepositSlipDepositLine(
   probe: string,
 ): { amount: number | null; termDays: number | null } | null {
   if (isDepositSlipOutcomeProbe(probe)) return null;
-  const match = probe.trim().match(DEPOSIT_STRICT_RE);
-  if (!match) return null;
+  const trimmed = probe.trim();
+  if (!isDepositSlipDepositLineProbe(trimmed)) return null;
+
+  const amountMatch = trimmed.match(AMOUNT_AFTER_X_RE);
+  const termMatch = trimmed.match(TERM_DAYS_RE);
+  if (!amountMatch && !termMatch) return null;
+
   return {
-    amount: parseIntAmount(match[1]!),
-    termDays: Number(match[2]),
+    amount: amountMatch ? parseIntAmount(amountMatch[1]!) : null,
+    termDays: termMatch ? Number(termMatch[1]!) : null,
   };
 }
 
@@ -105,6 +148,6 @@ export function isDepositSlipRowContentProbe(probe: string): boolean {
   if (!trimmed) return false;
   return (
     Boolean(parseDepositSlipOutcomeLine(trimmed)) ||
-    DEPOSIT_STRICT_RE.test(trimmed)
+    isDepositSlipDepositLineProbe(trimmed)
   );
 }
