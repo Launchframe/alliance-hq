@@ -83,6 +83,38 @@ describe("parseDepositSlipTimestampParts", () => {
     });
   });
 
+  it("parses hour-only timestamps at the top of the UTC hour", () => {
+    expect(parseDepositSlipTimestampParts("2026-7-10 12")).toEqual({
+      kind: "valid",
+      iso: "2026-07-10T12:00:00.000Z",
+    });
+  });
+
+  it("salvages hour-only timestamps with invalid OCR dates", () => {
+    expect(parseDepositSlipTimestampParts("2026-77-25 17")).toEqual({
+      kind: "invalid_date",
+      hour: 17,
+      minute: 0,
+      second: 0,
+      round: "hour",
+    });
+  });
+
+  it("parses date-only timestamps at midnight UTC", () => {
+    expect(parseDepositSlipTimestampParts("2026-7-10")).toEqual({
+      kind: "valid",
+      iso: "2026-07-10T00:00:00.000Z",
+    });
+  });
+
+  it("returns null for invalid date-only timestamps", () => {
+    expect(parseDepositSlipTimestampParts("2026-77-25")).toBeNull();
+  });
+
+  it("returns null when calendar components are non-finite", () => {
+    expect(parseDepositSlipTimestampParts("NaN-7-10")).toBeNull();
+  });
+
   it("repairs garbled-date timestamps during merge using neighbor frame dates", () => {
     const frame143 = parseDepositSlipHistoryText([
       "2026-77-25 17:12:48",
@@ -631,6 +663,13 @@ describe("parseDepositSlipHistoryText — fuzzy outcome OCR", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("returns early when merge input has no slips", () => {
+    expect(mergeDepositSlipHistoryParses([])).toEqual({
+      history: { depositPolicy: null, minimumDeposit: null, slips: [] },
+      dedupeReport: expect.objectContaining({ inputCount: 0 }),
+    });
   });
 
   it("infers missing timestamps from frame indices during merge", () => {

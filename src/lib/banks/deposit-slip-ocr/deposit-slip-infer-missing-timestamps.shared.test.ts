@@ -4,6 +4,7 @@ import {
   inferMissingDepositSlipTimestamps,
   repairInvalidDepositSlipDates,
   resolveDepositSlipSeasonYear,
+  roundDepositSlipUtcToHour,
   roundDepositSlipUtcToNearestTenMinutes,
 } from "@/lib/banks/deposit-slip-ocr/deposit-slip-infer-missing-timestamps.shared";
 import type { ParsedDepositSlipDraft } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
@@ -71,6 +72,14 @@ describe("roundDepositSlipUtcToNearestTenMinutes", () => {
     expect(
       roundDepositSlipUtcToNearestTenMinutes("2026-07-10T12:16:34.000Z"),
     ).toBe("2026-07-10T12:20:00.000Z");
+  });
+});
+
+describe("roundDepositSlipUtcToHour", () => {
+  it("truncates minutes and seconds to the top of the UTC hour", () => {
+    expect(roundDepositSlipUtcToHour("2026-07-10T12:14:34.000Z")).toBe(
+      "2026-07-10T12:00:00.000Z",
+    );
   });
 });
 
@@ -159,6 +168,49 @@ describe("repairInvalidDepositSlipDates", () => {
 });
 
 describe("inferMissingDepositSlipTimestamps", () => {
+  it("interpolates timestamps between neighboring frames", () => {
+    const slips = [
+      slip({
+        commanderName: "Alpha",
+        depositAt: "2026-07-10T12:00:00.000Z",
+        sourceFrameIndex: 10,
+      }),
+      slip({
+        commanderName: "Bravo",
+        depositAt: null,
+        sourceFrameIndex: 20,
+      }),
+      slip({
+        commanderName: "Charlie",
+        depositAt: "2026-07-10T13:00:00.000Z",
+        sourceFrameIndex: 30,
+      }),
+    ];
+
+    inferMissingDepositSlipTimestamps(slips);
+
+    expect(slips[1]?.depositAt).toBe("2026-07-10T12:30:00.000Z");
+  });
+
+  it("reuses a same-frame anchor when one exists", () => {
+    const slips = [
+      slip({
+        commanderName: "Anchor",
+        depositAt: "2026-07-10T12:07:00.000Z",
+        sourceFrameIndex: 20,
+      }),
+      slip({
+        commanderName: "Missing",
+        depositAt: null,
+        sourceFrameIndex: 20,
+      }),
+    ];
+
+    inferMissingDepositSlipTimestamps(slips);
+
+    expect(slips[1]?.depositAt).toBe("2026-07-10T12:10:00.000Z");
+  });
+
   it("does not overwrite slips waiting on date repair", () => {
     const slips = [
       slip({
