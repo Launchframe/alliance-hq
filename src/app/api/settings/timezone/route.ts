@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getLocale } from "next-intl/server";
 import { z } from "zod";
 
-import { getAshedConnectionMeta, readSessionId, requireApiSession } from "@/lib/session";
+import { getAshedConnectionMeta, loadApiSession, requireApiSession } from "@/lib/session";
 import { isValidAccountTimezoneId } from "@/lib/timezone/account";
 import { DEFAULT_ACCOUNT_TIMEZONE_ID } from "@/lib/timezone/constants";
 import {
@@ -16,21 +16,14 @@ const patchSchema = z.object({
 
 export async function GET() {
   try {
-    const sessionId = await readSessionId();
-    if (!sessionId) {
+    const session = await loadApiSession();
+    if (!session) {
       return NextResponse.json({
         timezone: DEFAULT_ACCOUNT_TIMEZONE_ID,
         canEdit: false,
       });
     }
 
-    const sessionOrError = await requireApiSession();
-
-
-    if (sessionOrError instanceof NextResponse) return sessionOrError;
-
-
-    const session = sessionOrError;
     const timezone = await getAccountTimezoneIdForSession(session.id);
 
     return NextResponse.json({

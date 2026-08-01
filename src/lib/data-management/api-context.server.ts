@@ -4,42 +4,19 @@ import { NextResponse } from "next/server";
 
 import { getRbacContext, type RbacContext } from "@/lib/rbac/context";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { loadSession, requireApiSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 
-/** Legacy sessions (no hq_user_id) keep allow-all behavior until reconnect. */
-export function legacyAllowAllDataManagementRbac(
-  sessionId: string,
-  allianceId: string,
-): RbacContext {
-  return {
-    sessionId,
-    hqUserId: "",
-    email: "",
-    displayName: null,
-    avatarUrl: null,
-    isPlatformMaintainer: false,
-    currentAllianceId: allianceId,
-    roleName: "owner",
-    permissions: new Set(["alliance:admin", "data:read"]),
-  };
-}
-
+/**
+ * Sessions without a linked `hq_user_id` never resolve to an RBAC context
+ * (see `getRbacContext`) — there is no "legacy owner" fallback here. A
+ * missing/anonymous session must deny data-management access, not inherit
+ * `alliance:admin` + `data:read`.
+ */
 export async function resolveDataManagementRbac(
   sessionId: string,
-  allianceId: string,
 ): Promise<RbacContext | null> {
-  const rbac = await getRbacContext(sessionId);
-  if (rbac) {
-    return rbac;
-  }
-
-  const session = await loadSession(sessionId);
-  if (!session?.hqUserId) {
-    return legacyAllowAllDataManagementRbac(sessionId, allianceId);
-  }
-
-  return null;
+  return getRbacContext(sessionId);
 }
 
 export async function resolveDataManagementApiContext(): Promise<
@@ -66,7 +43,7 @@ export async function resolveDataManagementApiContext(): Promise<
     return denied;
   }
 
-  const rbac = await resolveDataManagementRbac(session.id, allianceId);
+  const rbac = await resolveDataManagementRbac(session.id);
   if (!rbac) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -74,7 +51,7 @@ export async function resolveDataManagementApiContext(): Promise<
   return {
     sessionId: session.id,
     allianceId,
-    auditHqUserId: session.hqUserId ?? (rbac.hqUserId || null),
+    auditHqUserId: session.hqUserId ?? rbac.hqUserId,
     rbac,
   };
 }

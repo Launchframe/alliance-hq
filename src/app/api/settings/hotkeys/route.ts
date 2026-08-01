@@ -19,7 +19,7 @@ import {
   validateHotkeyBinding,
 } from "@/lib/hotkeys/reserved";
 import type { HotkeyBinding } from "@/lib/hotkeys/types";
-import { readSessionId, requireApiSession } from "@/lib/session";
+import { loadApiSession, requireApiSession } from "@/lib/session";
 
 const bindingSchema = z.object({
   modifiers: z
@@ -41,8 +41,8 @@ const patchSchema = z.union([
 
 export async function GET() {
   try {
-    const sessionId = await readSessionId();
-    if (!sessionId) {
+    const session = await loadApiSession();
+    if (!session) {
       return NextResponse.json({
         defaults: DEFAULT_HOTKEY_BINDINGS,
         overrides: {},
@@ -51,13 +51,6 @@ export async function GET() {
       });
     }
 
-    const sessionOrError = await requireApiSession();
-
-
-    if (sessionOrError instanceof NextResponse) return sessionOrError;
-
-
-    const session = sessionOrError;
     const payload = await loadHotkeyBindings(session.hqUserId);
     const effective = resolveEffectiveBindings(payload.overrides);
 

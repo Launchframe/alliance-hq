@@ -37,7 +37,7 @@ export default async function DataManagementPage({ searchParams }: PageProps) {
   const params = await searchParams;
 
   const [rbac, canUseAshedEmbeds] = await Promise.all([
-    resolveDataManagementRbac(session.id, allianceId),
+    resolveDataManagementRbac(session.id),
     resolveCanUseAshedEmbedsForSession(session.id),
   ]);
   if (!rbac) {

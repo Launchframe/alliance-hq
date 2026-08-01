@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { authCookieHeader, getE2eSql } from "./fixtures/db";
+import { authCookieHeader, createBrowserSession, getE2eSql } from "./fixtures/db";
 import {
   createDataManagementScenario,
   insertDataUploadBatch,
@@ -110,6 +110,42 @@ test.describe("Data management batch RBAC", () => {
       { headers: { Cookie: authCookieHeader(scenario.dataEntry) } },
     );
     expect(del.status()).toBe(403);
+    expect(await loadDataBatchStatus(sql, batchId)).toBe("active");
+  });
+
+  test("anonymous workspace session (no hq_user_id) cannot list or delete batches", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const scenario = await createDataManagementScenario(sql, e2eBaseUrl());
+    const batchId = await insertDataUploadBatch(sql, {
+      allianceId: scenario.allianceId,
+      createdByHqUserId: scenario.officerA.hqUserId,
+    });
+
+    // Anonymous browser session bound to the alliance but with no linked HQ
+    // user — regression guard for the removed "legacy allow-all" RBAC
+    // fallback that used to grant this shape owner-level alliance:admin.
+    const { sessionId } = await createBrowserSession(sql, { hqUserId: null });
+    await sql`
+      UPDATE sessions
+      SET alliance_id = ${scenario.allianceId},
+          current_alliance_id = ${scenario.allianceId}
+      WHERE id = ${sessionId}
+    `;
+    const anonymousCookie = `alliance_hq_session=${sessionId}`;
+
+    const list = await request.get(
+      "/api/data-management/batches?scoreTarget=desert-storm",
+      { headers: { Cookie: anonymousCookie } },
+    );
+    expect(list.status(), await list.text()).toBe(403);
+
+    const del = await request.post(
+      `/api/data-management/batches/${batchId}/delete`,
+      { headers: { Cookie: anonymousCookie } },
+    );
+    expect(del.status(), await del.text()).toBe(403);
     expect(await loadDataBatchStatus(sql, batchId)).toBe("active");
   });
 });
