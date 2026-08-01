@@ -13,8 +13,8 @@ describe("reviewRowPrimarySortKey", () => {
     expect(reviewRowPrimarySortKey("member-roster-video")).toBe("allianceRank");
   });
 
-  it("uses rank for vs-performance and podium targets", () => {
-    expect(reviewRowPrimarySortKey("vs-performance")).toBe("rank");
+  it("uses rank for podium targets only", () => {
+    expect(reviewRowPrimarySortKey("vs-performance")).toBeNull();
     expect(reviewRowPrimarySortKey("alliance-star")).toBe("rank");
   });
 
@@ -32,14 +32,14 @@ describe("sortsInitialReviewByScoreDesc", () => {
 });
 
 describe("compareParsedRowsForReview", () => {
-  it("sorts by rank then frameIndex for vs-performance", () => {
+  it("sorts by frameIndex for vs-performance (rank is display-only)", () => {
     const rows = [
-      { rank: 2, frameIndex: 0 },
-      { rank: 1, frameIndex: 5 },
+      { rank: 2, frameIndex: 5 },
+      { rank: 1, frameIndex: 0 },
       { rank: null, frameIndex: -1 },
     ];
     rows.sort((a, b) => compareParsedRowsForReview(a, b, "vs-performance"));
-    expect(rows.map((row) => row.rank)).toEqual([1, 2, null]);
+    expect(rows.map((row) => row.frameIndex)).toEqual([-1, 0, 5]);
   });
 
   it("sorts by frameIndex when rank is unset for all rows (edit/merge path)", () => {
@@ -80,13 +80,13 @@ describe("sortParsedRowsForInitialReview", () => {
 });
 
 describe("mergeParsedRowInReviewOrder", () => {
-  it("inserts a manual row at the start when rank is below existing rows", () => {
+  it("inserts a manual row at the start when frameIndex is below existing rows", () => {
     const merged = mergeParsedRowInReviewOrder(
       [
         { id: "a", rank: 1, frameIndex: 0 },
         { id: "b", rank: 2, frameIndex: 1 },
       ],
-      { id: "new", rank: 0, frameIndex: -1 },
+      { id: "new", rank: null, frameIndex: -1 },
       "vs-performance",
     );
     expect(merged.map((row) => row.id)).toEqual(["new", "a", "b"]);

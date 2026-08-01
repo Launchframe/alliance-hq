@@ -93,7 +93,6 @@ describe("buildSubmitPayloads", () => {
       member_name: "Alice",
       competition_id: "2026-07-10",
       score: 8956952,
-      rank: 1,
       recorded_date: "2026-07-10",
     });
   });

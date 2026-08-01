@@ -22,10 +22,7 @@ export function reviewRowPrimarySortKey(
   if (isMemberRosterVideoTarget(scoreTargetId)) return "allianceRank";
   const target = getScoreTarget(scoreTargetId);
   if (!target) return null;
-  if (
-    target.id === "vs-performance" ||
-    target.leaderboardModel === "podium-commendation"
-  ) {
+  if (target.leaderboardModel === "podium-commendation") {
     return "rank";
   }
   return null;
@@ -83,7 +80,7 @@ export function compareParsedRowsForReview(
   if (primary === "allianceRank") {
     const byAllianceRank = compareNullableIntAsc(a.allianceRank, b.allianceRank);
     if (byAllianceRank !== 0) return byAllianceRank;
-  } else {
+  } else if (primary === "rank") {
     const byRank = compareNullableIntAsc(a.rank, b.rank);
     if (byRank !== 0) return byRank;
   }
