@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
+import { loadAshedConnectionForAllianceCapability } from "@/lib/ashed/load-ashed-connection.server";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { forwardBulkDeleteBatch } from "@/lib/data-management/batch-actions.server";
 import { canManageDataBatch } from "@/lib/data-management/batch-authorization.shared";
@@ -9,7 +10,6 @@ import {
   getAllianceDataBatch,
   markDataBatchDeleted,
 } from "@/lib/data-management/batch-ledger.server";
-import { getAshedConnection } from "@/lib/session";
 
 type Props = {
   params: Promise<{ batchId: string }>;
@@ -34,7 +34,12 @@ export async function POST(_request: Request, { params }: Props) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const connection = await getAshedConnection(ctx.sessionId);
+  const connection = await loadAshedConnectionForAllianceCapability({
+    sessionId: ctx.sessionId,
+    allianceId: ctx.allianceId,
+    capability: "data_management:write",
+    delegatedAction: "data_management.batch_delete",
+  });
   if (!connection) {
     return NextResponse.json({ error: "Ashed not connected" }, { status: 503 });
   }

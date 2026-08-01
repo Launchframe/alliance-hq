@@ -573,6 +573,84 @@ export async function revokeCredentialShare(input: {
   });
 }
 
+export async function extendCredentialShare(input: {
+  shareId: string;
+  sessionId: string;
+  ttlHours: number;
+}): Promise<CredentialShareSummary> {
+  const ttlHours = validateTtlHours(input.ttlHours);
+  const db = getDb();
+
+  const [row] = await db
+    .select()
+    .from(schema.ashedCredentialShares)
+    .where(eq(schema.ashedCredentialShares.id, input.shareId))
+    .limit(1);
+
+  if (!row || row.status !== "active") {
+    throw new CredentialShareError("This share is not active.", "NOT_FOUND");
+  }
+
+  const { hqUserId: ownerHqUserId, credential } =
+    await assertOwnerSessionCredential(input.sessionId, row.allianceId);
+
+  if (row.ownerHqUserId !== ownerHqUserId) {
+    throw new CredentialShareError(
+      "Only the credential owner can extend access.",
+      "FORBIDDEN",
+    );
+  }
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + ttlHours * 60 * 60 * 1000);
+  const maxExpiresAt = new Date(now.getTime() + MAX_SHARE_TTL_MS);
+  if (expiresAt > maxExpiresAt) {
+    throw new CredentialShareError(
+      "Access cannot extend more than 7 days from now.",
+      "INVALID",
+    );
+  }
+
+  await db
+    .update(schema.ashedCredentialShares)
+    .set({
+      expiresAt,
+      encryptedToken: credential.encryptedToken,
+      appId: credential.appId,
+      originUrl: credential.originUrl,
+      tokenExpiresAt: credential.tokenExpiresAt,
+      ashedUserId: credential.ashedUserId,
+      updatedAt: now,
+    })
+    .where(eq(schema.ashedCredentialShares.id, row.id));
+
+  await writeCredentialShareAudit({
+    sessionId: input.sessionId,
+    allianceId: row.allianceId,
+    hqUserId: ownerHqUserId,
+    shareId: row.id,
+    action: "ashed_share.extended",
+    metadata: {
+      expiresAt: expiresAt.toISOString(),
+      ttlHours,
+      delegateHqUserId: row.delegateHqUserId,
+    },
+  });
+
+  const [updated] = await db
+    .select()
+    .from(schema.ashedCredentialShares)
+    .where(eq(schema.ashedCredentialShares.id, row.id))
+    .limit(1);
+
+  const users = await loadUserMap(
+    [row.ownerHqUserId, row.delegateHqUserId, row.invitedHqUserId].filter(
+      (id): id is string => Boolean(id),
+    ),
+  );
+  return toSummary(updated!, users);
+}
+
 export async function getActiveShareForDelegate(
   allianceId: string,
   delegateHqUserId: string,
