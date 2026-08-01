@@ -55,43 +55,18 @@ describe("filterAndSortDepositSlipReviewRows", () => {
     ).toEqual(["c"]);
   });
 
-  it("sorts by deposit time newest-first or commander name", () => {
-    const rows = [
-      row({
-        id: "old",
-        ocrName: "Zed",
-        powerLevel: "2026-07-10T10:00:00.000Z",
-      }),
-      row({
-        id: "new",
-        ocrName: "Ann",
-        powerLevel: "2026-07-12T10:00:00.000Z",
-      }),
-    ];
-    expect(
-      filterAndSortDepositSlipReviewRows(rows, {
-        filterQuery: "",
-        sortKey: "depositAt",
-      }).map((r) => r.id),
-    ).toEqual(["new", "old"]);
-    expect(
-      filterAndSortDepositSlipReviewRows(rows, {
-        filterQuery: "",
-        sortKey: "commander",
-      }).map((r) => r.id),
-    ).toEqual(["new", "old"]);
-  });
-
-  it("tie-breaks equal depositAt by ascending frameIndex", () => {
+  it("sorts deposit time mode by ascending frame order (in-game row order)", () => {
     const rows = [
       row({
         id: "later-frame",
+        ocrName: "Zed",
         powerLevel: "2026-07-12T10:00:00.000Z",
         frameIndex: 20,
       }),
       row({
         id: "earlier-frame",
-        powerLevel: "2026-07-12T10:00:00.000Z",
+        ocrName: "Ann",
+        powerLevel: "2026-07-10T10:00:00.000Z",
         frameIndex: 5,
       }),
     ];
@@ -101,5 +76,32 @@ describe("filterAndSortDepositSlipReviewRows", () => {
         sortKey: "depositAt",
       }).map((r) => r.id),
     ).toEqual(["earlier-frame", "later-frame"]);
+    expect(
+      filterAndSortDepositSlipReviewRows(rows, {
+        filterQuery: "",
+        sortKey: "commander",
+      }).map((r) => r.id),
+    ).toEqual(["earlier-frame", "later-frame"]);
+  });
+
+  it("tie-breaks equal frameIndex by id when sorting deposit time mode", () => {
+    const rows = [
+      row({
+        id: "b-row",
+        powerLevel: "2026-07-12T10:00:00.000Z",
+        frameIndex: 5,
+      }),
+      row({
+        id: "a-row",
+        powerLevel: "2026-07-10T10:00:00.000Z",
+        frameIndex: 5,
+      }),
+    ];
+    expect(
+      filterAndSortDepositSlipReviewRows(rows, {
+        filterQuery: "",
+        sortKey: "depositAt",
+      }).map((r) => r.id),
+    ).toEqual(["a-row", "b-row"]);
   });
 });
