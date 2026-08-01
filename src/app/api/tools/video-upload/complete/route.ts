@@ -9,7 +9,7 @@ import {
   headR2ObjectSize,
   r2Configured,
 } from "@/lib/storage/r2";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { activatePendingVideoUpload } from "@/lib/video/activate-pending-upload";
 import {
   getMaxVideoUploadBytes,
@@ -26,7 +26,11 @@ type CompleteBody = {
 
 export async function POST(request: Request) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const denied = await requireSessionPermission(
       session.id,
       VIDEO_ENQUEUE_PERMISSION,

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { markVideoJobReviewOpened } from "@/lib/video/video-hygiene-instrumentation.server";
 import {
   resolveVideoJobAccess,
@@ -11,7 +11,11 @@ type Props = { params: Promise<{ jobId: string }> };
 
 /** Idempotently record the first open of the review UI for latency metrics. */
 export async function POST(_request: Request, { params }: Props) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const { jobId } = await params;
   const access = await resolveVideoJobAccess(jobId, session.id, "read");
   if (!access.ok) {

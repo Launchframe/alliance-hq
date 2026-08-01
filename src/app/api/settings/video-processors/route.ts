@@ -7,7 +7,7 @@ import {
   sessionHasPermission,
   sessionIsAllianceAdmin,
 } from "@/lib/rbac/context";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import {
   MAX_VIDEO_PROCESSORS,
   grantVideoProcessor,
@@ -30,7 +30,13 @@ type MemberContext =
   | { ok: false; response: NextResponse };
 
 async function resolveAllianceMemberContext(): Promise<MemberContext> {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) {
+    return { ok: false, response: sessionOrError };
+  }
+
+  const session = sessionOrError;
   if (!session.currentAllianceId) {
     return {
       ok: false,
@@ -64,7 +70,13 @@ async function resolveAdminAlliance(): Promise<
   | { ok: true; sessionId: string; hqUserId: string | null; allianceId: string }
   | { ok: false; response: NextResponse }
 > {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) {
+    return { ok: false, response: sessionOrError };
+  }
+
+  const session = sessionOrError;
   const denied = await requireAllianceAdmin(session.id);
   if (denied) {
     return { ok: false, response: denied };

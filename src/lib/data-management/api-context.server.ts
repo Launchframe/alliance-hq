@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 import { getRbacContext, type RbacContext } from "@/lib/rbac/context";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { getOrCreateSession, loadSession } from "@/lib/session";
+import { loadSession, requireApiSession } from "@/lib/session";
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 
 /** Legacy sessions (no hq_user_id) keep allow-all behavior until reconnect. */
@@ -51,7 +51,11 @@ export async function resolveDataManagementApiContext(): Promise<
     }
   | NextResponse
 > {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const allianceId = resolveSessionAllianceId(session);
   if (!allianceId) {
     return NextResponse.json({ error: "Alliance context required." }, { status: 400 });

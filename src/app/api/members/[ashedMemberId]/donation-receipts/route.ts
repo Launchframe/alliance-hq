@@ -5,7 +5,7 @@ import {
   createDonationReceipt,
 } from "@/lib/members/commander-donation.server";
 import { CommanderAccessError } from "@/lib/members/commander-access.server";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +41,11 @@ function parseAmountCents(body: {
 }
 
 export async function POST(request: Request, context: RouteContext) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const { ashedMemberId } = await context.params;
 
   let body: { amountCents?: unknown; amountUsd?: unknown; purchasedAt?: unknown; note?: unknown };

@@ -2,12 +2,7 @@ import { NextResponse } from "next/server";
 
 import type { ParsedConnection } from "@/lib/connectionString";
 import { DEFAULT_APP_ID } from "@/lib/connectionString";
-import {
-  getAshedConnection,
-  getOrCreateSession,
-  loadSession,
-  readSessionId,
-} from "@/lib/session";
+import { getAshedConnection, loadSession, readSessionId, requireApiSession } from "@/lib/session";
 
 export type BffContext = {
   sessionId: string;
@@ -89,5 +84,5 @@ export async function sanitizeUpstreamResponse(
 }
 
 export async function ensureSessionForApi() {
-  return getOrCreateSession();
+  return requireApiSession();
 }

@@ -7,7 +7,7 @@ import {
   SCREENSHOT_TOO_LARGE_ERROR,
 } from "@/lib/ocr/screenshot-upload.shared";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 /** Screenshot OCR can be slow on cold start. */
@@ -15,7 +15,11 @@ export const maxDuration = 60;
 
 /** Mutations only — JSON total / confirm, or multipart screenshot. */
 export async function POST(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireSessionPermission(session.id, "members:read");
   if (denied) return denied;
 

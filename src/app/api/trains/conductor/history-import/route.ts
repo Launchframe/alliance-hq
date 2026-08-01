@@ -5,14 +5,18 @@ import {
   importConductorHistory,
   listConductorSnapshotsForDateRange,
 } from "@/lib/trains/service";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
 
 export const dynamic = "force-dynamic";
 
 /** Lookup existing conductor drafts/locks for a date range (review conflicts). */
 export async function GET(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireTrainOfficer(session.id);
   if (denied) return denied;
 
@@ -38,7 +42,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireTrainOfficer(session.id);
   if (denied) return denied;
 

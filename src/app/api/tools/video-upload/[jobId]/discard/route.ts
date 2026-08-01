@@ -5,7 +5,7 @@ import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
 import { deleteObject } from "@/lib/storage";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { computeQualityScore } from "@/lib/video/quality-score";
 import { filterJobStorageKeysSafeToDelete } from "@/lib/video/shared-job-storage.server";
 import { buildReviewOutcomePatch } from "@/lib/video/video-hygiene-instrumentation.shared";
@@ -18,7 +18,11 @@ import { recoverStaleSubmittingVideoJob } from "@/lib/video/recover-stale-submit
 type Props = { params: Promise<{ jobId: string }> };
 
 export async function PATCH(_request: Request, { params }: Props) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const { jobId } = await params;
   const db = getDb();
 

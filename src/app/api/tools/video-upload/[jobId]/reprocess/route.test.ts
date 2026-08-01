@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POST } from "./route";
 
-const getOrCreateSession = vi.fn();
+const requireApiSession = vi.fn();
 const getAshedConnection = vi.fn();
 const sessionCanProcessVideo = vi.fn();
 const loadEffectiveAllianceHqOcrOnly = vi.fn();
@@ -13,7 +13,7 @@ const updateWhere = vi.fn().mockResolvedValue(undefined);
 const selectLimit = vi.fn();
 
 vi.mock("@/lib/session", () => ({
-  getOrCreateSession: (...args: unknown[]) => getOrCreateSession(...args),
+  requireApiSession: (...args: unknown[]) => requireApiSession(...args),
   getAshedConnection: (...args: unknown[]) => getAshedConnection(...args),
 }));
 
@@ -89,7 +89,7 @@ describe("POST /api/tools/video-upload/[jobId]/reprocess", () => {
   });
 
   it("skips Ashed for native-only deposit-slip targets and queues async", async () => {
-    getOrCreateSession.mockResolvedValue(SESSION);
+    requireApiSession.mockResolvedValue(SESSION);
     sessionCanProcessVideo.mockResolvedValue(true);
     selectLimit.mockResolvedValue([
       {
@@ -126,7 +126,7 @@ describe("POST /api/tools/video-upload/[jobId]/reprocess", () => {
   });
 
   it("returns connectUrl with review next for Ashed-required targets", async () => {
-    getOrCreateSession.mockResolvedValue(SESSION);
+    requireApiSession.mockResolvedValue(SESSION);
     sessionCanProcessVideo.mockResolvedValue(true);
     getAshedConnection.mockResolvedValue(null);
     selectLimit.mockResolvedValue([
@@ -153,7 +153,7 @@ describe("POST /api/tools/video-upload/[jobId]/reprocess", () => {
   });
 
   it("forwards processor-slot denial", async () => {
-    getOrCreateSession.mockResolvedValue(SESSION);
+    requireApiSession.mockResolvedValue(SESSION);
     sessionCanProcessVideo.mockResolvedValue(false);
 
     const res = await POST(new Request("http://localhost/reprocess"), {
@@ -163,7 +163,7 @@ describe("POST /api/tools/video-upload/[jobId]/reprocess", () => {
   });
 
   it("returns 409 when job is submitting", async () => {
-    getOrCreateSession.mockResolvedValue(SESSION);
+    requireApiSession.mockResolvedValue(SESSION);
     sessionCanProcessVideo.mockResolvedValue(true);
     selectLimit.mockResolvedValue([
       {

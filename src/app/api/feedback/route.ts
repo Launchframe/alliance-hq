@@ -10,7 +10,7 @@ import {
   type SurveyFeedbackSource,
 } from "@/lib/feedback/constants";
 import { feedbackErrorResponse } from "@/lib/feedback/api-errors";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 type FeedbackBody = {
   feedbackId?: string;
@@ -38,7 +38,11 @@ function isSurveySource(value: unknown): value is SurveyFeedbackSource {
 
 export async function POST(request: Request) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     if (!session.hqUserId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

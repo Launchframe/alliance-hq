@@ -8,13 +8,17 @@ import {
   unlockConductorRecord,
 } from "@/lib/trains/repository";
 import { getServerCalendarDate } from "@/lib/trains/service";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requirePlatformMaintainer(session.id);
   if (denied) return denied;
 

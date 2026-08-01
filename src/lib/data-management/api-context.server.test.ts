@@ -16,7 +16,7 @@ vi.mock("@/lib/rbac/require-permission", () => ({
 }));
 
 vi.mock("@/lib/session", () => ({
-  getOrCreateSession: vi.fn(),
+  requireApiSession: vi.fn(),
   loadSession: vi.fn(),
 }));
 
@@ -26,12 +26,12 @@ vi.mock("@/lib/alliance/session-memberships", () => ({
 
 import { getRbacContext } from "@/lib/rbac/context";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { getOrCreateSession, loadSession } from "@/lib/session";
+import { requireApiSession, loadSession } from "@/lib/session";
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 
 const mockedGetRbacContext = vi.mocked(getRbacContext);
 const mockedRequireSessionPermission = vi.mocked(requireSessionPermission);
-const mockedGetOrCreateSession = vi.mocked(getOrCreateSession);
+const mockedGetOrCreateSession = vi.mocked(requireApiSession);
 const mockedLoadSession = vi.mocked(loadSession);
 const mockedResolveSessionAllianceId = vi.mocked(resolveSessionAllianceId);
 

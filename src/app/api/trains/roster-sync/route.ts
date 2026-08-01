@@ -7,7 +7,7 @@ import {
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { loadTrainsRosterDataStatus } from "@/lib/trains/roster-data-status.server";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { getServerCalendarDate } from "@/lib/trains/service";
 import { getWeekSchedule, listDayConfigsForWeek } from "@/lib/trains/repository";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
@@ -51,7 +51,11 @@ async function todayConductorContext(allianceId: string, today: string) {
 }
 
 export async function POST() {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireTrainOfficer(session.id);
   if (denied) return denied;
 

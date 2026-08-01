@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { buildConnectHref } from "@/lib/connect/connect-return-path.shared";
 import { getDb, schema } from "@/lib/db";
-import { getAshedConnection, getOrCreateSession } from "@/lib/session";
+import { getAshedConnection, requireApiSession } from "@/lib/session";
 import { loadEffectiveAllianceHqOcrOnly } from "@/lib/video/alliance-ocr-settings.server";
 import {
   engineRequiresAshed,
@@ -36,7 +36,11 @@ type Props = {
  */
 export async function POST(_request: Request, { params }: Props) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const { jobId } = await params;
     const db = getDb();
 

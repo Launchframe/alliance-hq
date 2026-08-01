@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import {
   loadTrainEconomyThreshold,
@@ -18,7 +18,11 @@ const patchSchema = z.object({
 
 /** Patch only Price Is Freight draw mode (Equal chance vs Closer is Better). */
 export async function PATCH(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireTrainOfficer(session.id);
   if (denied) return denied;
 

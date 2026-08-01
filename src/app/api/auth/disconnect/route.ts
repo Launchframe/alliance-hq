@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 
-import { getOrCreateSession, clearAshedConnection } from "@/lib/session";
+import { clearAshedConnection, requireApiSession } from "@/lib/session";
 
 export async function POST() {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     await clearAshedConnection(session.id);
     return NextResponse.json({ ok: true, isConnected: false });
   } catch (error) {

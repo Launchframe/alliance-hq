@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POST } from "./route";
 
-const getOrCreateSession = vi.fn();
+const requireApiSession = vi.fn();
 const getAshedConnection = vi.fn();
 const resolveVideoJobAccess = vi.fn();
 const requireAlliancePermission = vi.fn();
 const resolveHqAllianceIdFromStoredAllianceId = vi.fn();
 
 vi.mock("@/lib/session", () => ({
-  getOrCreateSession: (...args: unknown[]) => getOrCreateSession(...args),
+  requireApiSession: (...args: unknown[]) => requireApiSession(...args),
   getAshedConnection: (...args: unknown[]) => getAshedConnection(...args),
 }));
 
@@ -85,7 +85,7 @@ function scoreSubmitRequest(jobId = "job-1") {
 describe("POST /api/tools/video-upload/[jobId]/submit", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getOrCreateSession.mockResolvedValue(SESSION);
+    requireApiSession.mockResolvedValue(SESSION);
     resolveHqAllianceIdFromStoredAllianceId.mockResolvedValue("hq-ally-1");
     requireAlliancePermission.mockResolvedValue(null);
   });

@@ -14,7 +14,7 @@ import {
   AllianceNotAshedLinkedError,
   assertAllianceAshedLinked,
 } from "@/lib/alliance/ashed-write-guard";
-import { getAshedConnection, getOrCreateSession } from "@/lib/session";
+import { getAshedConnection, requireApiSession } from "@/lib/session";
 import {
   resolveVideoJobAccess,
   videoJobAccessErrorResponse,
@@ -182,7 +182,11 @@ async function claimVideoJobForSubmit(
 }
 
 export async function POST(request: Request, { params }: Props) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const { jobId } = await params;
   let advancedToSubmitting = false;
   /** True only after bulkDeleteByDate succeeded — insert may still fail. */

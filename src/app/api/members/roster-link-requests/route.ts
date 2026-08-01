@@ -4,12 +4,16 @@ import { canReviewMemberLinks } from "@/lib/member-link/invite-onboarding-access
 import { listPendingRosterLinkRequests } from "@/lib/member-link/roster-link-resolve.server";
 import { loadAllianceMemberOnboardingRow } from "@/lib/member-link/self-service-onboarding.server";
 import { getRbacContext } from "@/lib/rbac/context";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId) {
     return NextResponse.json({ error: "No alliance selected." }, { status: 400 });

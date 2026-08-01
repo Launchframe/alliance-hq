@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getAshedConnection, getOrCreateSession } from "@/lib/session";
+import { getAshedConnection, requireApiSession } from "@/lib/session";
 import {
   isAllianceHqOcrOnlyLockedOnDeploy,
   loadEffectiveAllianceHqOcrOnly,
@@ -23,7 +23,11 @@ export type { AllianceQueueJob };
 
 export async function GET() {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
 
     if (!(await sessionCanReadAllianceVideoQueue(session.id))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

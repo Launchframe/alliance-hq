@@ -5,12 +5,16 @@ import {
   buildAllianceSetupStatusPayload,
   updateAllianceSetupGuidePrefs,
 } from "@/lib/alliance-setup-guide-status-api";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId || !session.hqUserId) {
     return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
@@ -35,7 +39,11 @@ const patchSchema = z.object({
 });
 
 export async function PATCH(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId || !session.hqUserId) {
     return NextResponse.json({ error: "No alliance selected." }, { status: 400 });

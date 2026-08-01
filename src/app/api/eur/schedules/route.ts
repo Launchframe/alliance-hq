@@ -9,7 +9,7 @@ import {
   type EurSchedulePayload,
 } from "@/lib/eur/schedule-api";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { getOrCreateSession, readSessionId } from "@/lib/session";
+import { readSessionId, requireApiSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +22,13 @@ export async function GET() {
   const denied = await requireSessionPermission(sessionId, "inbox:read");
   if (denied) return denied;
 
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+
+  const session = sessionOrError;
   const allianceId = session.currentAllianceId;
   if (!allianceId) {
     return NextResponse.json({ schedules: [] });
@@ -49,7 +55,13 @@ export async function POST(request: Request) {
   const denied = await requireSessionPermission(sessionId, "eur:schedules:write");
   if (denied) return denied;
 
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+
+  const session = sessionOrError;
   const allianceId = session.currentAllianceId;
   if (!allianceId) {
     return NextResponse.json({ error: "No alliance context" }, { status: 400 });

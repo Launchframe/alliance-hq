@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
-import { getOrCreateSession, loadSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { updateDiscordBotInstallSessionAllianceByNonce } from "@/lib/vr/bot-install-session.server";
 import { isTagEligible } from "@/lib/vr/bot-setup";
 import {
@@ -52,13 +52,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const browserSession = await loadSession((await getOrCreateSession()).id);
+  const sessionOrError = await requireApiSession();
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
 
   const result = await setupAshedCredentialsForDiscord({
     allianceTag: tag,
     connectionKey: parseConnectionKeyInput(body),
     discordUserId: hqLink.discordUserId,
-    sessionExpiresAt: browserSession?.expiresAt ?? null,
+    sessionExpiresAt: sessionOrError.expiresAt,
   });
 
   if (!result.ok) {

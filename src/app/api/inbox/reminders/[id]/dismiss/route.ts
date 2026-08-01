@@ -2,12 +2,16 @@ import { NextResponse } from "next/server";
 
 import { dismissReminderItemForAlliance } from "@/lib/eur/satisfaction";
 import { getRbacContext } from "@/lib/rbac/require-permission";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 type Props = { params: Promise<{ id: string }> };
 
 export async function POST(_request: Request, { params }: Props) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const ctx = await getRbacContext(session.id);
   if (!ctx?.permissions.has("inbox:read")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

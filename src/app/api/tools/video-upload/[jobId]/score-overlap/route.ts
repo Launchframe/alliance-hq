@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
-import { getAshedConnection, getOrCreateSession } from "@/lib/session";
+import { getAshedConnection, requireApiSession } from "@/lib/session";
 import { getScoreTargetOrThrow } from "@/lib/video/score-targets";
 import { isStormTeam } from "@/lib/video/storm-score-overlap.shared";
 import { findStormScoreOverlap } from "@/lib/video/storm-score-overlap.server";
@@ -26,7 +26,11 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
  */
 export async function GET(request: Request, { params }: Props) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const { jobId } = await params;
     const access = await resolveVideoJobAccess(jobId, session.id, "read");
     if (!access.ok) {

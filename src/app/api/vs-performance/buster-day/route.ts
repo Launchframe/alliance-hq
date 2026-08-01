@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import {
   attachBusterDaySnapshotJob,
@@ -19,7 +19,13 @@ export const dynamic = "force-dynamic";
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 async function requireBusterDayAllianceContext() {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) {
+    return { error: sessionOrError };
+  }
+
+  const session = sessionOrError;
   const denied = await requireSessionPermission(session.id, "scores:read");
   if (denied) return { error: denied as NextResponse };
 
@@ -45,7 +51,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireSessionPermission(session.id, "scores:write");
   if (denied) return denied;
 

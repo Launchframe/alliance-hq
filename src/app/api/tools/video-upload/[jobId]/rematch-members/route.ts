@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { AllianceNotAshedLinkedError } from "@/lib/alliance/ashed-write-guard";
 import { buildConnectHref } from "@/lib/connect/connect-return-path.shared";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { isAshedNotConnectedError } from "@/lib/video/errors";
 import { rematchVideoJobMembers } from "@/lib/video/rematch-members";
 import {
@@ -16,7 +16,11 @@ type Props = {
 
 export async function POST(_request: Request, { params }: Props) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const { jobId } = await params;
 
     const access = await resolveVideoJobAccess(jobId, session.id, "mutate");

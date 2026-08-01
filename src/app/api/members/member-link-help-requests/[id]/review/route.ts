@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { loadMemberLinkHelpRequestReview } from "@/lib/member-link/member-link-help-review.server";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -11,7 +11,11 @@ type Props = {
 export const dynamic = "force-dynamic";
 
 export async function GET(_request: Request, { params }: Props) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireSessionPermission(session.id, "members:write");
   if (denied) return denied;
 

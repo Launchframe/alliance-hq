@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getOrCreateSessionMock = vi.fn();
+const requireApiSessionMock = vi.fn();
 const resolveAllianceRouteForSessionMock = vi.fn();
 const requireAllianceRoutePermissionMock = vi.fn();
 const getRbacContextMock = vi.fn();
@@ -11,7 +11,7 @@ const saveTrainDiscordSettingsMock = vi.fn();
 const writeAuditLogMock = vi.fn();
 
 vi.mock("@/lib/session", () => ({
-  getOrCreateSession: () => getOrCreateSessionMock(),
+  requireApiSession: () => requireApiSessionMock(),
 }));
 
 vi.mock("@/lib/alliance/alliance-route-context.server", () => ({
@@ -101,7 +101,7 @@ function patchTrainDiscord(body: Record<string, unknown>) {
 describe("PATCH /api/alliance/[tag]/train-discord", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getOrCreateSessionMock.mockResolvedValue({
+    requireApiSessionMock.mockResolvedValue({
       id: "sess-1",
       hqUserId: "hq-1",
     });

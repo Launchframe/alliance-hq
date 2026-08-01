@@ -8,7 +8,7 @@ import {
   type EurSchedulePayload,
 } from "@/lib/eur/schedule-api";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { getOrCreateSession, readSessionId } from "@/lib/session";
+import { readSessionId, requireApiSession } from "@/lib/session";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -23,7 +23,13 @@ export async function PUT(request: Request, { params }: Props) {
   const denied = await requireSessionPermission(sessionId, "eur:schedules:write");
   if (denied) return denied;
 
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+
+  const session = sessionOrError;
   const allianceId = session.currentAllianceId;
   if (!allianceId) {
     return NextResponse.json({ error: "No alliance context" }, { status: 400 });
@@ -83,7 +89,13 @@ export async function DELETE(_request: Request, { params }: Props) {
   const denied = await requireSessionPermission(sessionId, "eur:schedules:write");
   if (denied) return denied;
 
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+
+  const session = sessionOrError;
   const allianceId = session.currentAllianceId;
   if (!allianceId) {
     return NextResponse.json({ error: "No alliance context" }, { status: 400 });

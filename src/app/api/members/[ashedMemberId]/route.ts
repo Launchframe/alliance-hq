@@ -15,7 +15,7 @@ import {
   commanderConflictResponseBody,
 } from "@/lib/members/commander-identity-conflicts.shared";
 import { getRbacContext } from "@/lib/rbac/context";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +29,11 @@ type Props = {
 
 export async function GET(_request: Request, { params }: Props) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const { ashedMemberId } = await params;
     const trimmed = ashedMemberId.trim();
     if (!trimmed) {
@@ -54,7 +58,11 @@ export async function GET(_request: Request, { params }: Props) {
 
 export async function PATCH(request: Request, { params }: Props) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const { allianceId } = await resolveCommanderSessionContext(session.id);
     await assertCommanderReadAccess(session.id, allianceId);
 

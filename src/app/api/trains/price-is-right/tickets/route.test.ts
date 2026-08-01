@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { GET } from "./route";
 
 vi.mock("@/lib/session", () => ({
-  getOrCreateSession: vi.fn().mockResolvedValue({ id: "sess-1", hqUserId: "hq-1" }),
+  requireApiSession: vi.fn().mockResolvedValue({ id: "sess-1", hqUserId: "hq-1" }),
 }));
 
 vi.mock("@/lib/rbac/require-permission", () => ({

@@ -16,7 +16,7 @@ import {
   loadTrainDiscordSettings,
   saveTrainDiscordSettings,
 } from "@/lib/trains/train-discord-settings.server";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +50,11 @@ async function sessionIsAllianceOwner(
 
 export async function GET(_request: Request, context: RouteContext) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const { tag } = await context.params;
     const alliance = await resolveAllianceRouteForSession(session.id, tag);
 
@@ -87,7 +91,11 @@ export async function GET(_request: Request, context: RouteContext) {
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const { tag } = await context.params;
     const alliance = await resolveAllianceRouteForSession(session.id, tag);
 

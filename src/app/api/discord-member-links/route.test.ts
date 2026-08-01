@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DELETE, GET, POST } from "./route";
 
-const getOrCreateSession = vi.fn();
+const requireApiSession = vi.fn();
 const requirePlatformMaintainer = vi.fn();
 const listDiscordMemberLinks = vi.fn();
 const upsertDiscordMemberLink = vi.fn();
@@ -11,7 +11,7 @@ const deleteDiscordMemberLink = vi.fn();
 const selectLimit = vi.fn();
 
 vi.mock("@/lib/session", () => ({
-  getOrCreateSession: (...args: unknown[]) => getOrCreateSession(...args),
+  requireApiSession: (...args: unknown[]) => requireApiSession(...args),
 }));
 
 vi.mock("@/lib/rbac/require-permission", () => ({
@@ -46,7 +46,7 @@ vi.mock("@/lib/db", () => ({
 describe("/api/discord-member-links", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getOrCreateSession.mockResolvedValue({
+    requireApiSession.mockResolvedValue({
       id: "sess-1",
       currentAllianceId: "ally-1",
       allianceId: "ally-1",

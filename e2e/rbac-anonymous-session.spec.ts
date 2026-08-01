@@ -116,4 +116,11 @@ test.describe("Anonymous bootstrap session RBAC", () => {
     const body = (await list.json()) as { users?: unknown[] };
     expect(Array.isArray(body.users)).toBe(true);
   });
+
+  test("protected API routes return 401 without a session cookie", async ({
+    request,
+  }) => {
+    const summary = await request.get("/api/dashboard/summary");
+    expect(summary.status(), await summary.text()).toBe(401);
+  });
 });

@@ -11,7 +11,7 @@ import {
   inviteAcceptReasonFromApiCode,
   inviteAcceptReasonFromMessage,
 } from "@/lib/onboarding/invite-accept-reasons.shared";
-import { getOrCreateSession } from "@/lib/session";
+import { loadApiSession, requireApiSession } from "@/lib/session";
 
 const bodySchema = z.object({
   email: z.string().trim().email().optional(),
@@ -30,7 +30,7 @@ export async function POST(
   try {
     body = bodySchema.parse(await request.json());
   } catch {
-    const session = await getOrCreateSession().catch(() => null);
+    const session = await loadApiSession();
     await auditInviteAcceptFailed({
       sessionId: session?.id,
       reasonCode: "invalid_body",
@@ -40,7 +40,7 @@ export async function POST(
 
   const authSession = await requireAuthSession();
   if (!authSession?.user?.id || !authSession.user.email) {
-    const session = await getOrCreateSession().catch(() => null);
+    const session = await loadApiSession();
     await auditInviteAcceptFailed({
       sessionId: session?.id,
       reasonCode: "auth_required",
@@ -51,7 +51,13 @@ export async function POST(
     );
   }
 
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+
+  const session = sessionOrError;
 
   try {
     const result = await acceptHqInvite({

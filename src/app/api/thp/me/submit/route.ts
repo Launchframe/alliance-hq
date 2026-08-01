@@ -8,7 +8,7 @@ import {
 import { parseThpBreakdownInput } from "@/lib/thp/breakdown.shared";
 import { handleWebThpCommand } from "@/lib/thp/web-thp.server";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 /** Screenshot OCR can be slow on cold start. */
@@ -16,7 +16,11 @@ export const maxDuration = 60;
 
 /** Mutations only — isolated from GET /api/thp/me so read routes avoid sharp/OCR bundle. */
 export async function POST(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireSessionPermission(session.id, "members:read");
   if (denied) return denied;
 

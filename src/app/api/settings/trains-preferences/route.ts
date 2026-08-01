@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getOrCreateSession, readSessionId } from "@/lib/session";
+import { readSessionId, requireApiSession } from "@/lib/session";
 import {
   DEFAULT_TRAINS_DISPLAY_WEEK_START_DOW,
   normalizeDisplayWeekStartDow,
@@ -41,7 +41,13 @@ export async function GET() {
       });
     }
 
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+
+    const session = sessionOrError;
     const preferences = await loadTrainsUserPreferences(session.hqUserId);
 
     return NextResponse.json({
@@ -64,7 +70,11 @@ export async function GET() {
 export async function PATCH(request: Request) {
   try {
     const body = patchSchema.parse(await request.json());
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
 
     if (!session.hqUserId) {
       return NextResponse.json(

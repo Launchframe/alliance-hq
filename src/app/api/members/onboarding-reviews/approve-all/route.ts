@@ -4,12 +4,16 @@ import {
   approveAllOnboardingReviews,
   canSessionReviewOnboardingLinks,
 } from "@/lib/member-link/onboarding-review.server";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function POST() {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId || !session.hqUserId) {
     return NextResponse.json({ error: "No alliance selected." }, { status: 400 });

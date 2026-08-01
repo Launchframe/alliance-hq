@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 
-const getOrCreateSessionMock = vi.fn();
+const requireApiSessionMock = vi.fn();
 const getAshedConnectionMock = vi.fn();
 const resolveVideoJobAccessMock = vi.fn();
 const videoJobAccessErrorResponseMock = vi.fn();
@@ -10,7 +10,7 @@ const resolveSessionAllianceIdMock = vi.fn();
 const getAshedAllianceIdIfLinkedMock = vi.fn();
 
 vi.mock("@/lib/session", () => ({
-  getOrCreateSession: () => getOrCreateSessionMock(),
+  requireApiSession: () => requireApiSessionMock(),
   getAshedConnection: (sessionId: string) => getAshedConnectionMock(sessionId),
 }));
 
@@ -70,7 +70,7 @@ function request(
 describe("GET /api/tools/video-upload/[jobId]/score-overlap", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getOrCreateSessionMock.mockResolvedValue(session);
+    requireApiSessionMock.mockResolvedValue(session);
     getAshedConnectionMock.mockResolvedValue(null);
     resolveSessionAllianceIdMock.mockReturnValue("alliance-1");
     getAshedAllianceIdIfLinkedMock.mockResolvedValue("ashed-alliance-1");
