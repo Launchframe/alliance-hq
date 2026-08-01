@@ -18,6 +18,11 @@ export const COVERED_LIB_FILES = [
 export default defineConfig({
   test: {
     environment: "node",
+    server: {
+      deps: {
+        inline: ["next-intl"],
+      },
+    },
     include: [
       "src/**/*.test.ts",
       "scripts/**/*.test.ts",
@@ -38,6 +43,11 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "server-only": path.resolve(__dirname, "./src/test/server-only-stub.ts"),
+      "next/navigation": path.resolve(__dirname, "./src/test/next-navigation-stub.ts"),
+      "@/i18n/navigation": path.resolve(
+        __dirname,
+        "./src/test/i18n-navigation-stub.ts",
+      ),
     },
   },
 });
