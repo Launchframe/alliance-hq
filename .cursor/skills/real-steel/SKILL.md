@@ -66,7 +66,7 @@ After the global skill's pass loop completes:
 
 ## Auth boundary review (Real Steel)
 
-When the PR touches `src/lib/rbac/**`, `src/lib/session/**`, `src/lib/auth/**`, `/api/auth/**`, `/api/admin/**`, or e2e auth/RBAC specs, **at least one pass** must follow [`.cursor/rules/auth-boundary-review.mdc`](../rules/auth-boundary-review.mdc):
+When the PR touches `src/lib/rbac/**`, `src/lib/session/**`, `src/lib/auth/**`, `/api/auth/**`, `/api/admin/**`, or e2e auth/RBAC specs, **at least one pass** must follow [`.cursor/rules/auth-boundary-review.mdc`](../../rules/auth-boundary-review.mdc):
 
 | Pass | Mode | Required work |
 | --- | --- | --- |
