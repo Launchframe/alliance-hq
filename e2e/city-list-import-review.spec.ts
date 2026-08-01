@@ -161,6 +161,78 @@ test.describe("City List import review (dedicated page)", () => {
       page.getByText(/imported banks are fewer than the captured count/i),
     ).toBeVisible();
   });
+
+  test("re-import hides archive-missing warning when extra HQ banks are already archived", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    await createHqMemberLink(sql, {
+      allianceId: scenario.allianceId,
+      hqUserId: scenario.officer.hqUserId,
+    });
+
+    const now = new Date();
+    const pastDrop = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    await sql`
+      INSERT INTO banks (
+        id, alliance_id, game_server_number, coord_x, coord_y, level,
+        prior_capture_count, drop_by_at, created_at, updated_at
+      ) VALUES
+        (
+          ${`bank_${Date.now()}_match_a`},
+          ${scenario.allianceId},
+          ${1211},
+          ${100},
+          ${200},
+          ${2},
+          ${0},
+          ${null},
+          ${now},
+          ${now}
+        ),
+        (
+          ${`bank_${Date.now()}_match_b`},
+          ${scenario.allianceId},
+          ${1211},
+          ${150},
+          ${250},
+          ${3},
+          ${0},
+          ${null},
+          ${now},
+          ${now}
+        ),
+        (
+          ${`bank_${Date.now()}_archived`},
+          ${scenario.allianceId},
+          ${1211},
+          ${300},
+          ${400},
+          ${2},
+          ${0},
+          ${pastDrop},
+          ${now},
+          ${now}
+        )
+    `;
+
+    await page.context().addCookies(playwrightAuthCookies(scenario.officer));
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    await openCityListReview(page);
+
+    await expect(
+      page.getByText(/banks already exist in HQ/i),
+    ).toBeVisible();
+    await expect(page.getByTestId("city-list-review-card")).toHaveCount(0);
+    await expect(
+      page.getByText(/Archive .* bank.* not in this import/i),
+    ).toHaveCount(0);
+
+    await page.getByRole("button", { name: /show matched banks/i }).click();
+    await expect(page.getByTestId("city-list-review-card")).toHaveCount(2);
+  });
 });
 
 test.describe("City List import review (draft restore)", () => {

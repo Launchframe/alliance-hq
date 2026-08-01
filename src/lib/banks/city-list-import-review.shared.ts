@@ -1,3 +1,5 @@
+import { isPastDropDeadline } from "@/lib/banks/optimization.shared";
+
 /** Clamp mobile stepper index after a review row is removed. */
 export function clampReviewIndexAfterRemove(
   currentIndex: number,
@@ -204,4 +206,64 @@ export function classifyCityListImportRowsAgainstHq(
   }
 
   return { existingCount, newCount, existingKeys, rowExistsInHq };
+}
+
+export type CityListBankCoordIdentity = {
+  gameServerNumber: number;
+  coordX: number;
+  coordY: number;
+};
+
+export type CityListExtraHqBank = CityListBankCoordIdentity & {
+  dropByAt: string | null;
+};
+
+/**
+ * HQ banks not pictured in a complete City List import that are still eligible
+ * for archive-missing. Excludes banks already past drop deadline (soft-archived
+ * by a prior import). Future: also exclude `abandonedAt`.
+ */
+export function listExtraHqBanksForCityListImport<
+  TBank extends CityListExtraHqBank,
+>(
+  existingBanks: readonly TBank[],
+  importedCoordKeys: ReadonlySet<string>,
+  now: Date = new Date(),
+): TBank[] {
+  return existingBanks.filter((bank) => {
+    const key = cityListBankCoordKey(
+      bank.gameServerNumber,
+      bank.coordX,
+      bank.coordY,
+    );
+    if (importedCoordKeys.has(key)) return false;
+    return !isPastDropDeadline(bank, now);
+  });
+}
+
+export type PartitionedCityListReviewRows<TRow extends CityListBankCoordIdentity> =
+  {
+    newRows: TRow[];
+    existingRows: TRow[];
+    placeholderRows: TRow[];
+  };
+
+/** Split review rows for UI: placeholders and new banks visible; matched HQ rows cluster. */
+export function partitionCityListReviewRows<TRow extends CityListBankCoordIdentity>(
+  rows: readonly TRow[],
+  rowExistsInHq: (row: TRow) => boolean,
+): PartitionedCityListReviewRows<TRow> {
+  const newRows: TRow[] = [];
+  const existingRows: TRow[] = [];
+  const placeholderRows: TRow[] = [];
+  for (const row of rows) {
+    if (isCityListPlaceholderCoords(row.coordX, row.coordY)) {
+      placeholderRows.push(row);
+    } else if (rowExistsInHq(row)) {
+      existingRows.push(row);
+    } else {
+      newRows.push(row);
+    }
+  }
+  return { newRows, existingRows, placeholderRows };
 }
