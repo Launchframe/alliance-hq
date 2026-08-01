@@ -56,7 +56,9 @@ Before wiring a client component to shared logic, trace the import chain:
 Apply on every Real Steel pass for this repo:
 
 - **Client bundle hygiene** — `"use client"` files must not transitively import `@/lib/db`, `@/lib/session`, rank-sync, or other server-only modules; use `*.shared.ts` + API routes (see **Client vs server imports** above)
-- **RBAC enforcement** — every new/changed BFF route calls `requireSessionPermission` or equivalent; platform maintainer checks on `/admin/*` and `/api/admin/*`
+- **RBAC enforcement** — every new/changed BFF route calls `requireSessionPermission` or equivalent; platform maintainer checks on `/admin/*` and `/api/admin/*`. **Also run the permission primitive pass** — audit `sessionHasPermission` / `sessionHasPermissionForAlliance`, not only route-level guards ([`.cursor/rules/auth-boundary-review.mdc`](.cursor/rules/auth-boundary-review.mdc) § A).
+- **Auth architecture pass** — on auth/RBAC/session/admin PRs: trace session mint (bootstrap, `getOrCreateSession`) → bind (`hq_user_id`) → primitive → handler; prove anonymous sessions cannot reach privileged routes ([`.cursor/rules/auth-boundary-review.mdc`](.cursor/rules/auth-boundary-review.mdc) § A, F).
+- **Privilege boundary e2e** — new/changed `/api/admin/*` or maintainer guards ship negative Playwright cases (bootstrap cookie → 403, under-privileged user → 403, maintainer positive control); template [`e2e/rbac-anonymous-session.spec.ts`](e2e/rbac-anonymous-session.spec.ts) ([`.cursor/rules/auth-boundary-review.mdc`](.cursor/rules/auth-boundary-review.mdc) § C).
 - **Tenant isolation** — alliance-scoped queries filter by session alliance; admin cross-tenant reads are intentional and read-only where documented
 - **Ashed sync vs manual roles** — `source: manual` memberships must not be overwritten by connect/settings sync
 - **Anonymous sessions** — `sessions` rows with `hq_user_id` null (bootstrap / pre-sign-in) must **deny** all RBAC checks; `sessionHasPermission` and `sessionHasPermissionForAlliance` return false until Auth.js links an HQ user
