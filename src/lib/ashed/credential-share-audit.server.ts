@@ -15,6 +15,25 @@ export type CredentialShareAuditEntry = {
   createdAt: string;
 };
 
+/** Client-safe audit row — omits actor ids and metadata payloads. */
+export type PublicCredentialShareAuditEntry = {
+  id: string;
+  action: string;
+  shareId: string | null;
+  createdAt: string;
+};
+
+export function toPublicCredentialShareAuditEntry(
+  entry: CredentialShareAuditEntry,
+): PublicCredentialShareAuditEntry {
+  return {
+    id: entry.id,
+    action: entry.action,
+    shareId: entry.shareId,
+    createdAt: entry.createdAt,
+  };
+}
+
 export async function writeCredentialShareAudit(input: {
   sessionId: string | null;
   allianceId: string;
@@ -91,12 +110,12 @@ export async function listCredentialShareActivity(input: {
 export async function listRecentAllianceShareActivity(
   allianceId: string,
   limit = 5,
-): Promise<CredentialShareAuditEntry[]> {
+): Promise<PublicCredentialShareAuditEntry[]> {
   const { items } = await listCredentialShareActivity({
     allianceId,
     limit,
   });
-  return items;
+  return items.map(toPublicCredentialShareAuditEntry);
 }
 
 export async function userCanViewFullCredentialShareHistory(input: {

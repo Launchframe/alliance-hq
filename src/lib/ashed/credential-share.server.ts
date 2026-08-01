@@ -214,6 +214,14 @@ async function assertOwnerSessionCredential(
   return { hqUserId, credential };
 }
 
+export async function assertCredentialShareOwnerForAlliance(
+  sessionId: string,
+  allianceId: string,
+): Promise<{ hqUserId: string }> {
+  const { hqUserId } = await assertOwnerSessionCredential(sessionId, allianceId);
+  return { hqUserId };
+}
+
 function validateCapabilities(capabilities: string[]): CredentialShareCapability[] {
   const parsed = capabilities.filter(isCredentialShareCapability);
   if (parsed.length === 0) {

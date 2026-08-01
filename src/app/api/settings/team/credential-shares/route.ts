@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import {
+  assertCredentialShareOwnerForAlliance,
   createCredentialShareInvite,
   CredentialShareError,
   listCredentialSharesForAlliance,
@@ -60,6 +61,15 @@ export async function GET(request: Request) {
 
   if (!access.allianceId) {
     return NextResponse.json({ error: "Alliance context required." }, { status: 400 });
+  }
+
+  try {
+    await assertCredentialShareOwnerForAlliance(sessionId, access.allianceId);
+  } catch (error) {
+    if (error instanceof CredentialShareError) {
+      return credentialShareErrorResponse(error);
+    }
+    throw error;
   }
 
   const [shares, recentActivity] = await Promise.all([

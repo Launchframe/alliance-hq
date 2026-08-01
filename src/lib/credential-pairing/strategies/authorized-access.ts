@@ -9,7 +9,7 @@ import { verifyBase44Connection } from "@/lib/base44/server";
 import type { PairingStrategy } from "@/lib/credential-pairing/strategies/types";
 import { PairingError } from "@/lib/credential-pairing/types";
 import { getDb, schema } from "@/lib/db";
-import { getAshedConnection, loadSession } from "@/lib/session";
+import { getAshedConnection, loadSession, resolveEffectiveHqUserIdForSession } from "@/lib/session";
 
 const INVITE_PAIRING_TTL_MINUTES = 72 * 60;
 
@@ -59,7 +59,14 @@ export const authorizedAccessStrategy: PairingStrategy = {
       throw new PairingError("This credential share is no longer pending.", "INVALID");
     }
 
-    if (share.ownerHqUserId !== sourceSession.hqUserId) {
+    const effectiveOwnerHqUserId = await resolveEffectiveHqUserIdForSession(
+      sourceSession.id,
+      sourceSession.hqUserId,
+    );
+    if (
+      !effectiveOwnerHqUserId ||
+      share.ownerHqUserId !== effectiveOwnerHqUserId
+    ) {
       throw new PairingError("Only the credential owner can share this invite.", "FORBIDDEN");
     }
   },
