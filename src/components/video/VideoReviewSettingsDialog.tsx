@@ -1,6 +1,7 @@
 "use client";
 
 import { Settings2 } from "lucide-react";
+import { useId } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
@@ -24,18 +25,27 @@ function SettingsToggle({
   disabled,
   onPressedChange,
 }: SettingsToggleProps) {
+  const labelId = useId();
+  const descriptionId = useId();
+
   return (
     <div className="flex items-start justify-between gap-3 border-b border-hq-border py-3 last:border-b-0">
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-hq-fg">{label}</p>
+        <p id={labelId} className="text-sm font-medium text-hq-fg">
+          {label}
+        </p>
         {description ? (
-          <p className="mt-0.5 text-xs text-hq-fg-muted">{description}</p>
+          <p id={descriptionId} className="mt-0.5 text-xs text-hq-fg-muted">
+            {description}
+          </p>
         ) : null}
       </div>
       <button
         type="button"
         role="switch"
         aria-checked={pressed}
+        aria-labelledby={labelId}
+        aria-describedby={description ? descriptionId : undefined}
         disabled={disabled}
         onClick={() => onPressedChange(!pressed)}
         className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${

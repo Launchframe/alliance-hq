@@ -134,7 +134,7 @@ import {
   compareTargetedBankToDetected,
   type BankTargetMismatchResolution,
 } from "@/lib/banks/deposit-slip-bank-target-mismatch.shared";
-import { applyDepositSlipReviewEnhancements } from "@/lib/banks/deposit-slip-review-enhancements.shared";
+import { mergeDepositSlipDisplayEnhancements } from "@/lib/banks/deposit-slip-review-enhancements.shared";
 import { depositSlipScoreDefaultedRowIds } from "@/lib/banks/deposit-slip-score-default.shared";
 import { useVideoReviewSettings } from "@/lib/video/use-video-review-settings";
 import { computeDepositSlipReviewHeroMetrics } from "@/lib/banks/deposit-slip-review-hero-metrics.shared";
@@ -1437,21 +1437,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const depositSlipDisplayRows = useMemo(() => {
     if (!scoreTargetMeta?.showDepositSlipColumns) return activeRows;
-    const enhanced = applyDepositSlipReviewEnhancements(activeRows, {
+    return mergeDepositSlipDisplayEnhancements(activeRows, {
       fillMissingDepositAmounts: videoReviewSettings.fillMissingDepositAmounts,
       fillMissingDepositTimes: videoReviewSettings.fillMissingDepositTimes,
-    });
-    const enhancedById = new Map(enhanced.map((row) => [row.id, row]));
-    return activeRows.map((row) => {
-      const patch = enhancedById.get(row.id);
-      if (!patch) return row;
-      return {
-        ...row,
-        score: patch.score,
-        powerLevel: patch.powerLevel,
-        scoreDefaulted: patch.scoreDefaulted,
-        depositAtInterpolated: patch.depositAtInterpolated,
-      };
     });
   }, [
     activeRows,
@@ -1459,6 +1447,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     videoReviewSettings.fillMissingDepositAmounts,
     videoReviewSettings.fillMissingDepositTimes,
   ]);
+
+  const depositSlipDisplayRowsById = useMemo(
+    () => new Map(depositSlipDisplayRows.map((row) => [row.id, row])),
+    [depositSlipDisplayRows],
+  );
 
   const depositSlipRowsForUi =
     scoreTargetMeta?.showDepositSlipColumns ? depositSlipDisplayRows : activeRows;
@@ -1936,7 +1929,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           rows: rows.map((r) => {
             const enhanced =
               isDepositSlip && scoreTargetMeta?.showDepositSlipColumns
-                ? depositSlipDisplayRows.find((row) => row.id === r.id)
+                ? depositSlipDisplayRowsById.get(r.id)
                 : null;
             const source = enhanced ? { ...r, ...enhanced } : r;
             return isRoster
