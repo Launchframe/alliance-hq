@@ -53,6 +53,32 @@ export async function GET(request: Request) {
   const shareId = url.searchParams.get("shareId") ?? undefined;
   const allianceId = url.searchParams.get("allianceId") ?? undefined;
 
+  if (shareId) {
+    const [share] = await db
+      .select({
+        ownerHqUserId: schema.ashedCredentialShares.ownerHqUserId,
+        delegateHqUserId: schema.ashedCredentialShares.delegateHqUserId,
+        invitedHqUserId: schema.ashedCredentialShares.invitedHqUserId,
+      })
+      .from(schema.ashedCredentialShares)
+      .where(eq(schema.ashedCredentialShares.id, shareId))
+      .limit(1);
+
+    if (!share) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const canAccessShare =
+      (rbac?.isPlatformMaintainer ?? false) ||
+      share.ownerHqUserId === hqUserId ||
+      share.delegateHqUserId === hqUserId ||
+      share.invitedHqUserId === hqUserId;
+
+    if (!canAccessShare) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+
   const result = await listCredentialShareActivity({
     hqUserId,
     shareId,

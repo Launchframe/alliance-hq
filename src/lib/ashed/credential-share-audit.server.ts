@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, lt, or, sql, type SQL } from "drizzle-orm";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
@@ -56,6 +56,13 @@ export async function writeCredentialShareAudit(input: {
   });
 }
 
+function viewerCredentialShareActivityCondition(viewerHqUserId: string): SQL {
+  return or(
+    eq(schema.auditLog.hqUserId, viewerHqUserId),
+    sql`${schema.auditLog.metadata}->>'ownerHqUserId' = ${viewerHqUserId}`,
+  )!;
+}
+
 export async function listCredentialShareActivity(input: {
   shareId?: string;
   allianceId?: string;
@@ -77,7 +84,7 @@ export async function listCredentialShareActivity(input: {
     conditions.push(eq(schema.auditLog.allianceId, input.allianceId));
   }
   if (input.hqUserId) {
-    conditions.push(eq(schema.auditLog.hqUserId, input.hqUserId));
+    conditions.push(viewerCredentialShareActivityCondition(input.hqUserId));
   }
   if (input.cursor) {
     conditions.push(lt(schema.auditLog.id, input.cursor));
@@ -148,11 +155,7 @@ export async function countShareActivityForOwnerOnDate(
     .where(
       and(
         eq(schema.auditLog.resourceType, "ashed_credential_share"),
-        eq(schema.auditLog.hqUserId, ownerHqUserId),
-        or(
-          eq(schema.auditLog.action, "ashed_share.used"),
-          eq(schema.auditLog.action, "ashed_share.accepted"),
-        ),
+        viewerCredentialShareActivityCondition(ownerHqUserId),
         sql`${schema.auditLog.createdAt} >= ${dayStart}`,
         sql`${schema.auditLog.createdAt} < ${dayEnd}`,
       ),
