@@ -1,5 +1,3 @@
-import { isPastDropDeadline } from "@/lib/banks/optimization.shared";
-
 export type BankLifecycleStage = "active" | "dropping_soon" | "abandoned";
 
 export type BankLifecycleInput = {
@@ -34,7 +32,11 @@ export function resolveBankLifecycleStage(
   if (bank.abandonedAt != null) {
     return "abandoned";
   }
-  if (isPastDropDeadline({ dropByAt: dropByAtIso(bank.dropByAt) }, now)) {
+  const dropByIso = dropByAtIso(bank.dropByAt);
+  if (
+    dropByIso != null &&
+    new Date(dropByIso).getTime() <= now.getTime()
+  ) {
     return "abandoned";
   }
   if (bank.dropByAt != null) {

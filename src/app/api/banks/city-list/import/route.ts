@@ -37,7 +37,7 @@ type ImportCityListBody = {
   capturesRemainingToday?: number | null;
   capturesLimitToday?: number | null;
   serverTime?: string | null;
-  /** When true, set dropByAt=now on HQ banks not present in this import. */
+  /** When true, set abandonedAt=now on HQ banks not present in this import. */
   archiveMissingBanks?: boolean;
 };
 
