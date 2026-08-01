@@ -249,6 +249,18 @@ function validateTtlHours(ttlHours: number): number {
   return ttlHours;
 }
 
+export function resolveExtendedShareExpiresAt(
+  now: Date,
+  currentExpiresAt: Date | null | undefined,
+  ttlHours: number,
+): Date {
+  const base =
+    currentExpiresAt && currentExpiresAt.getTime() > now.getTime()
+      ? currentExpiresAt
+      : now;
+  return new Date(base.getTime() + ttlHours * 60 * 60 * 1000);
+}
+
 export async function createCredentialShareInvite(input: {
   sessionId: string;
   allianceId: string;
