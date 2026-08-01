@@ -4283,6 +4283,7 @@
     "depositSlipMissingTsCoveredKept": "Já mantida",
     "depositSlipMissingTsCoveredAbsorbed": "Sem horário (duplicata)",
     "depositSlipFlaggedTitle": "{count, plural, one {# agrupamento ainda precisa de revisão.} other {# agrupamentos ainda precisam de revisão.}}",
+    "depositSlipFlaggedReasonClusterCount": "{count, plural, one {# grupo de duplicatas} other {# grupos de duplicatas}}",
     "depositSlipFlaggedHint": "Revise ou exclua as linhas abaixo para que cada depósito apareça uma vez. Você ainda pode salvar quando todas as linhas estiverem completas.",
     "depositSlipStaleClusterNote": "O relatório salvo do agrupamento não corresponde mais a estes IDs de linha. As ações abaixo afetam apenas a tabela ao vivo.",
     "depositSlipOverlappingLockedTitle": "Depósitos sobrepostos",
@@ -4306,7 +4307,7 @@
       "same_commander_timestamp_conflicting_amount_or_term": "Mesmo comandante e horário, mas o valor ou o prazo não coincidem.",
       "borderline_commander_name_same_minute": "Nomes de comandante parecidos no mesmo horário — confirme se são a mesma pessoa.",
       "timestamp_collision_different_commanders": "Comandantes diferentes compartilham o mesmo minuto de depósito — confirme se não são erros de OCR.",
-      "same_commander_timestamp_conflicting_identity": "Mesmo comandante e horário, mas a tag da aliança ou o servidor não coincidem.",
+      "same_commander_timestamp_conflicting_identity": "Mesmo comandante e horário, mas a tag da aliança não coincide.",
       "commander_match_missing_timestamp_ambiguous": "Corresponde a um comandante sem horário de depósito registrado, mas os detalhes não coincidem — confirme qual está correto."
     },
     "statsNerds": {

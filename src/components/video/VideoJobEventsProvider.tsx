@@ -434,6 +434,18 @@ export function useMergedVideoJobs<T extends { id: string; status: string }>(
       } as unknown as T);
     }
 
+    merged.sort((a, b) => {
+      const aCreated =
+        "createdAt" in a
+          ? Date.parse(String((a as { createdAt?: string }).createdAt ?? ""))
+          : 0;
+      const bCreated =
+        "createdAt" in b
+          ? Date.parse(String((b as { createdAt?: string }).createdAt ?? ""))
+          : 0;
+      return bCreated - aCreated;
+    });
+
     return merged;
   }, [initialJobs, jobsById]);
 }

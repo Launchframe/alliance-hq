@@ -38,5 +38,11 @@ export function videoJobsOwnedByViewerInAllianceWhere(
   if (!allianceId) {
     return ownership;
   }
-  return and(ownership, eq(schema.videoJobs.allianceId, allianceId))!;
+  return and(
+    ownership,
+    or(
+      eq(schema.videoJobs.allianceId, allianceId),
+      isNull(schema.videoJobs.allianceId),
+    ),
+  )!;
 }
