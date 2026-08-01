@@ -22,6 +22,7 @@ import {
 } from "@/lib/video/upload-limit";
 import { newVideoUploadIds } from "@/lib/video/finalize-video-upload";
 import { videoContentTypeFromFileName } from "@/lib/video/resolve-job-video-storage";
+import { resolveDepositSlipUploadBankId } from "@/lib/banks/resolve-deposit-slip-upload-bank-id.server";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,7 @@ type InitBody = {
   scoreTarget?: string;
   boardKey?: string | null;
   hqEventId?: string | null;
+  bankId?: string | null;
 };
 
 export async function POST(request: Request) {
@@ -86,6 +88,11 @@ export async function POST(request: Request) {
       videoContentTypeFromFileName(fileName);
     const boardKeyStr = body.boardKey ? String(body.boardKey) : null;
     const hqEventIdStr = body.hqEventId ? String(body.hqEventId) : null;
+    const bankId = await resolveDepositSlipUploadBankId(
+      session.currentAllianceId,
+      scoreTarget,
+      body.bankId,
+    );
     const now = new Date();
 
     const db = getDb();
@@ -122,6 +129,7 @@ export async function POST(request: Request) {
       hqEventId: hqEventIdStr,
       storageKey,
       allianceId: session.currentAllianceId,
+      bankId,
       enqueuedByHqUserId: session.hqUserId,
       ingestMethod: "video",
       frameCount: null,

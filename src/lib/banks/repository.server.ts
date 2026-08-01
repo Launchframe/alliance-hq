@@ -18,6 +18,7 @@ import {
 } from "@/lib/banks/optimization.shared";
 import type {
   BankManagementPayload,
+  BankPendingDepositSlipVideoReview,
   BankWithSlips,
 } from "@/lib/banks/types.shared";
 import { getDb, schema } from "@/lib/db";
@@ -286,6 +287,10 @@ export function buildBankManagementPayload(
     bankCapturesLimitToday?: number | null;
     bankCityListServerTime?: string | null;
     bankCityListImportedAt?: string | null;
+    pendingDepositSlipVideoReviewsByBankId?: Record<
+      string,
+      BankPendingDepositSlipVideoReview
+    >;
     now?: Date;
   },
 ): BankManagementPayload {
@@ -308,6 +313,8 @@ export function buildBankManagementPayload(
     bankCapturesLimitToday: options.bankCapturesLimitToday ?? null,
     bankCityListServerTime: options.bankCityListServerTime ?? null,
     bankCityListImportedAt: options.bankCityListImportedAt ?? null,
+    pendingDepositSlipVideoReviewsByBankId:
+      options.pendingDepositSlipVideoReviewsByBankId ?? {},
   };
 }
 

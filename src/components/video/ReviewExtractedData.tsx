@@ -1158,6 +1158,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }, [scoreTargetMeta?.showBankSelector, bankId, detectedBankContext]);
 
   useEffect(() => {
+    if (!scoreTargetMeta?.showBankSelector || !bankId.trim()) return;
+    void fetch(`/api/tools/video-upload/${jobId}/bank-context`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bankId }),
+    });
+  }, [bankId, jobId, scoreTargetMeta?.showBankSelector]);
+
+  useEffect(() => {
     const groupFetchStatuses = new Set(["review", "complete", "discarded"]);
     if (!groupFetchStatuses.has(jobStatus)) return;
 

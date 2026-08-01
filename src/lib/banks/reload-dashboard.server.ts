@@ -7,6 +7,7 @@ import {
   loadAllianceTag,
   loadBanksWithSlips,
 } from "@/lib/banks/repository.server";
+import { loadPendingDepositSlipVideoReviewsByBank } from "@/lib/banks/pending-deposit-slip-video-reviews.server";
 import type { BankManagementPayload } from "@/lib/banks/types.shared";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { BANK_WRITE_PERMISSION } from "@/lib/rbac/constants";
@@ -25,6 +26,7 @@ export async function reloadBankManagementDashboard(
     allianceGameServerNumber,
     allianceTag,
     cityListSnapshot,
+    pendingDepositSlipVideoReviewsByBankId,
   ] = await Promise.all([
     loadBanksWithSlips(allianceId),
     sessionHasPermission(sessionId, BANK_WRITE_PERMISSION),
@@ -32,6 +34,7 @@ export async function reloadBankManagementDashboard(
     loadAllianceGameServerNumber(allianceId),
     loadAllianceTag(allianceId),
     loadAllianceBankCityListSnapshot(allianceId),
+    loadPendingDepositSlipVideoReviewsByBank(allianceId),
   ]);
 
   return buildBankManagementPayload(banks, {
@@ -48,5 +51,6 @@ export async function reloadBankManagementDashboard(
       cityListSnapshot?.bankCityListServerTime?.toISOString() ?? null,
     bankCityListImportedAt:
       cityListSnapshot?.bankCityListImportedAt?.toISOString() ?? null,
+    pendingDepositSlipVideoReviewsByBankId,
   });
 }

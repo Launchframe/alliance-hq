@@ -446,6 +446,8 @@ export const videoJobs = pgTable("video_jobs", {
   scoreTarget: text("score_target"),
   storageKey: text("storage_key"),
   allianceId: text("alliance_id"),
+  /** Deposit Slip History uploads: bank the officer selected at upload/review. */
+  bankId: text("bank_id").references(() => banks.id, { onDelete: "set null" }),
   parseSessionId: text("parse_session_id"),
   /** Multi-board seasonal: kills | resources | points */
   boardKey: text("board_key"),

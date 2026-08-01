@@ -100,6 +100,16 @@ export type BankManagementPayload = {
   bankCityListServerTime: string | null;
   /** Alliance-wide City List import wall time (fallback for per-bank snapshot). */
   bankCityListImportedAt: string | null;
+  /** Deposit Slip History videos awaiting officer review, keyed by bank id. */
+  pendingDepositSlipVideoReviewsByBankId: Record<
+    string,
+    BankPendingDepositSlipVideoReview
+  >;
+};
+
+export type BankPendingDepositSlipVideoReview = {
+  count: number;
+  firstJobId: string;
 };
 
 /** Deposit falloff projection horizons offered in the chart control. */

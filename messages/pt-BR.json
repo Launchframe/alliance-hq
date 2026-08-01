@@ -5820,6 +5820,8 @@
     "latestDepositSlipHero": "Último comprovante de depósito deste banco: [{allianceTag}] {commanderName} em {depositEventTime}",
     "latestDepositSlipHeroNoTag": "Último comprovante de depósito deste banco: {commanderName} em {depositEventTime}",
     "uploadDepositSlip": "Enviar vídeo de comprovante de depósito",
+    "pendingDepositSlipVideoReview": "{count, plural, one {# vídeo aguardando revisão} other {# vídeos aguardando revisão}}",
+    "reviewPendingDepositSlipVideo": "Revisar vídeo de comprovante de depósito",
     "addBank": "Adicionar banco",
     "importBanksFromScreenshot": "Importar bancos da captura de tela",
     "cityListImportTitle": "Importar bancos das capturas de tela",

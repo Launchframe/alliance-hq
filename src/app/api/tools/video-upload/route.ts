@@ -17,6 +17,7 @@ import {
   MULTIPART_UPLOAD_THRESHOLD_BYTES,
 } from "@/lib/video/upload-limit";
 import { finalizeVideoUploadEnqueue } from "@/lib/video/finalize-video-upload";
+import { resolveDepositSlipUploadBankId } from "@/lib/banks/resolve-deposit-slip-upload-bank-id.server";
 import { videoJobsOwnedByViewerInAllianceWhere } from "@/lib/video/video-job-ownership.server";
 
 export async function POST(request: Request) {
@@ -53,6 +54,7 @@ export async function POST(request: Request) {
     );
     const boardKey = formData.get("boardKey");
     const hqEventId = formData.get("hqEventId");
+    const bankIdRaw = formData.get("bankId");
     const target = getScoreTarget(scoreTarget);
     if (!target?.enabled) {
       return NextResponse.json(
@@ -85,6 +87,12 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(await file.arrayBuffer());
     await putObject(storageKey, buffer);
 
+    const bankId = await resolveDepositSlipUploadBankId(
+      session.currentAllianceId,
+      scoreTarget,
+      bankIdRaw ? String(bankIdRaw) : null,
+    );
+
     await finalizeVideoUploadEnqueue({
       sessionId: session.id,
       jobId,
@@ -97,6 +105,7 @@ export async function POST(request: Request) {
       hqEventId: hqEventId ? String(hqEventId) : null,
       allianceId: session.currentAllianceId,
       enqueuedByHqUserId: session.hqUserId,
+      bankId,
     });
 
     return NextResponse.json({

@@ -19,6 +19,7 @@ export type FinalizeVideoUploadInput = {
   hqEventId: string | null;
   allianceId: string | null;
   enqueuedByHqUserId: string | null;
+  bankId?: string | null;
 };
 
 /**
@@ -86,6 +87,7 @@ export async function finalizeVideoUploadEnqueue(
     hqEventId: input.hqEventId,
     storageKey: input.storageKey,
     allianceId: input.allianceId,
+    bankId: input.bankId ?? null,
     enqueuedByHqUserId: input.enqueuedByHqUserId,
     ingestMethod: "video",
     frameCount: null,

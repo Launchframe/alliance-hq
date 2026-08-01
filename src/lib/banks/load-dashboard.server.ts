@@ -7,6 +7,7 @@ import {
   loadAllianceTag,
   loadBanksWithSlips,
 } from "@/lib/banks/repository.server";
+import { loadPendingDepositSlipVideoReviewsByBank } from "@/lib/banks/pending-deposit-slip-video-reviews.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import {
   BANK_READ_PERMISSION,
@@ -35,14 +36,21 @@ export async function loadBankManagementDashboard(
     return { forbidden: true as const };
   }
 
-  const [banks, effectiveSeason, allianceGameServerNumber, allianceTag, cityListSnapshot] =
-    await Promise.all([
-      loadBanksWithSlips(allianceId),
-      getEffectiveSeasonForAlliance(allianceId),
-      loadAllianceGameServerNumber(allianceId),
-      loadAllianceTag(allianceId),
-      loadAllianceBankCityListSnapshot(allianceId),
-    ]);
+  const [
+    banks,
+    effectiveSeason,
+    allianceGameServerNumber,
+    allianceTag,
+    cityListSnapshot,
+    pendingDepositSlipVideoReviewsByBankId,
+  ] = await Promise.all([
+    loadBanksWithSlips(allianceId),
+    getEffectiveSeasonForAlliance(allianceId),
+    loadAllianceGameServerNumber(allianceId),
+    loadAllianceTag(allianceId),
+    loadAllianceBankCityListSnapshot(allianceId),
+    loadPendingDepositSlipVideoReviewsByBank(allianceId),
+  ]);
 
   return buildBankManagementPayload(banks, {
     allianceId,
@@ -59,5 +67,6 @@ export async function loadBankManagementDashboard(
       cityListSnapshot?.bankCityListServerTime?.toISOString() ?? null,
     bankCityListImportedAt:
       cityListSnapshot?.bankCityListImportedAt?.toISOString() ?? null,
+    pendingDepositSlipVideoReviewsByBankId,
   });
 }
