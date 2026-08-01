@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { resolveSessionAllianceId, listSessionAlliances } from "@/lib/alliance/session-memberships";
@@ -8,6 +8,7 @@ import { getDb, schema } from "@/lib/db";
 import type { Session } from "@/lib/db/schema";
 import { formatAllianceRankLabel } from "@/lib/members/alliance-rank";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
+import { listVideoShareDelegateCandidates } from "@/lib/ashed/credential-share.server";
 import {
   getAllianceMembershipRbac,
   getRbacContext,
@@ -42,6 +43,8 @@ export type AllianceVideoProcessorEntry = {
   displayName: string | null;
   grantedByHqUserId: string | null;
   grantedAt: string;
+  viaCredentialShareId: string | null;
+  viaShareOwnerLabel: string | null;
 };
 
 export async function listAllianceVideoProcessors(
@@ -56,14 +59,44 @@ export async function listAllianceVideoProcessors(
       displayName: schema.hqUsers.displayName,
       grantedByHqUserId: schema.allianceVideoProcessors.grantedByHqUserId,
       grantedAt: schema.allianceVideoProcessors.grantedAt,
+      viaCredentialShareId: schema.allianceVideoProcessors.viaCredentialShareId,
+      shareOwnerHqUserId: schema.ashedCredentialShares.ownerHqUserId,
     })
     .from(schema.allianceVideoProcessors)
     .innerJoin(
       schema.hqUsers,
       eq(schema.hqUsers.id, schema.allianceVideoProcessors.hqUserId),
     )
+    .leftJoin(
+      schema.ashedCredentialShares,
+      eq(
+        schema.ashedCredentialShares.id,
+        schema.allianceVideoProcessors.viaCredentialShareId,
+      ),
+    )
     .where(eq(schema.allianceVideoProcessors.allianceId, allianceId))
     .orderBy(schema.allianceVideoProcessors.grantedAt);
+
+  const ownerIds = rows
+    .map((row) => row.shareOwnerHqUserId)
+    .filter((id): id is string => Boolean(id));
+  const ownerLabels = new Map<string, string>();
+  if (ownerIds.length > 0) {
+    const owners = await db
+      .select({
+        id: schema.hqUsers.id,
+        email: schema.hqUsers.email,
+        displayName: schema.hqUsers.displayName,
+      })
+      .from(schema.hqUsers)
+      .where(inArray(schema.hqUsers.id, ownerIds));
+    for (const owner of owners) {
+      ownerLabels.set(
+        owner.id,
+        owner.displayName?.trim() || owner.email,
+      );
+    }
+  }
 
   return rows.map((row) => ({
     id: row.id,
@@ -72,6 +105,10 @@ export async function listAllianceVideoProcessors(
     displayName: row.displayName,
     grantedByHqUserId: row.grantedByHqUserId,
     grantedAt: row.grantedAt.toISOString(),
+    viaCredentialShareId: row.viaCredentialShareId,
+    viaShareOwnerLabel: row.shareOwnerHqUserId
+      ? (ownerLabels.get(row.shareOwnerHqUserId) ?? null)
+      : null,
   }));
 }
 
@@ -219,8 +256,30 @@ export async function listVideoProcessorCandidates(
       eligibilityMode: "native_r4_r5",
     };
   }
+
+  const [ashedOfficers, shareDelegates] = await Promise.all([
+    listAshedConnectedOfficerCandidates(allianceId),
+    listVideoShareDelegateCandidates(allianceId),
+  ]);
+
+  const seen = new Set(ashedOfficers.map((row) => row.hqUserId));
+  const merged = [...ashedOfficers];
+  for (const delegate of shareDelegates) {
+    if (seen.has(delegate.hqUserId)) continue;
+    merged.push({
+      hqUserId: delegate.hqUserId,
+      email: delegate.email,
+      displayName: delegate.displayName,
+      subtitle: delegate.ownerDisplayName
+        ? `via ${delegate.ownerDisplayName}'s credentials`
+        : `via ${delegate.ownerEmail}'s credentials`,
+      viaCredentialShareId: delegate.shareId,
+    });
+    seen.add(delegate.hqUserId);
+  }
+
   return {
-    candidates: await listAshedConnectedOfficerCandidates(allianceId),
+    candidates: merged,
     eligibilityMode: "ashed_connected_officers",
   };
 }
@@ -232,7 +291,12 @@ export async function countAllianceVideoProcessors(
   const rows = await db
     .select({ id: schema.allianceVideoProcessors.id })
     .from(schema.allianceVideoProcessors)
-    .where(eq(schema.allianceVideoProcessors.allianceId, allianceId));
+    .where(
+      and(
+        eq(schema.allianceVideoProcessors.allianceId, allianceId),
+        isNull(schema.allianceVideoProcessors.viaCredentialShareId),
+      ),
+    );
   return rows.length;
 }
 
@@ -427,16 +491,20 @@ export async function grantVideoProcessor(params: {
   allianceId: string;
   hqUserId: string;
   grantedByHqUserId: string | null;
+  viaCredentialShareId?: string | null;
 }): Promise<GrantVideoProcessorResult> {
-  const { allianceId, hqUserId, grantedByHqUserId } = params;
+  const { allianceId, hqUserId, grantedByHqUserId, viaCredentialShareId } =
+    params;
 
   if (await isAllianceVideoProcessor(allianceId, hqUserId)) {
     return { ok: true, alreadyGranted: true };
   }
 
-  const count = await countAllianceVideoProcessors(allianceId);
-  if (count >= MAX_VIDEO_PROCESSORS) {
-    return { ok: false, code: "slots_full" };
+  if (!viaCredentialShareId) {
+    const count = await countAllianceVideoProcessors(allianceId);
+    if (count >= MAX_VIDEO_PROCESSORS) {
+      return { ok: false, code: "slots_full" };
+    }
   }
 
   const db = getDb();
@@ -445,6 +513,7 @@ export async function grantVideoProcessor(params: {
     allianceId,
     hqUserId,
     grantedByHqUserId,
+    viaCredentialShareId: viaCredentialShareId ?? null,
   });
 
   return { ok: true, alreadyGranted: false };

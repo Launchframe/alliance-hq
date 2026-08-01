@@ -605,6 +605,10 @@ export const allianceVideoProcessors = pgTable(
     grantedAt: timestamp("granted_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    viaCredentialShareId: text("via_credential_share_id").references(
+      () => ashedCredentialShares.id,
+      { onDelete: "set null" },
+    ),
   },
   (table) => ({
     allianceUserUnique: uniqueIndex("alliance_video_processors_alliance_user_idx").on(

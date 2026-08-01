@@ -18,6 +18,7 @@ import {
   resolveHqAllianceId,
 } from "@/lib/members/roster.server";
 import { getDb, schema } from "@/lib/db";
+import { loadAshedConnectionForAllianceCapability } from "@/lib/ashed/load-ashed-connection.server";
 import { getAshedConnection } from "@/lib/session";
 import { loadEffectiveAllianceHqOcrOnly } from "@/lib/video/alliance-ocr-settings.server";
 import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-alliance.server";
@@ -301,7 +302,15 @@ export async function processVideoJob(
 
     const connection = (await resolveVideoJobAshedConnection({
       engine: ocrEngine,
-      loadConnection: () => getAshedConnection(processingSessionId),
+      loadConnection: () =>
+        jobHqAllianceId
+          ? loadAshedConnectionForAllianceCapability({
+              sessionId: processingSessionId,
+              allianceId: jobHqAllianceId,
+              capability: "video:process",
+              delegatedAction: "video.process",
+            })
+          : getAshedConnection(processingSessionId),
     })) as ParsedConnection | null;
 
     if (engineRequiresAshed(ocrEngine) && !connection) {

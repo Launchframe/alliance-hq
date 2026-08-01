@@ -69,6 +69,13 @@ vi.mock("@/lib/rbac/constants", () => ({
   BANK_READ_PERMISSION: "bank:read",
 }));
 
+const sessionCanProcessVideoMock = vi.fn();
+
+vi.mock("@/lib/video/processor-slots.server", () => ({
+  sessionCanProcessVideo: (...args: unknown[]) =>
+    sessionCanProcessVideoMock(...args),
+}));
+
 vi.mock("@/lib/db", () => ({
   getDb: () => ({
     select: () => ({
@@ -146,6 +153,7 @@ describe("GET /api/tools/video-upload/[jobId]", () => {
       },
     ]);
     parsedRowsOrderByMock.mockResolvedValue([]);
+    sessionCanProcessVideoMock.mockResolvedValue(false);
   });
 
   it("requires bank read before returning deposit-slip review rows", async () => {

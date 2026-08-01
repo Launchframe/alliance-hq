@@ -128,18 +128,21 @@ export async function GET() {
   });
 }
 
-type PostBody = { hqUserId?: string };
+type PostBody = { hqUserId?: string; viaCredentialShareId?: string };
 
 export async function POST(request: Request) {
   const ctx = await resolveAdminAlliance();
   if (!ctx.ok) return ctx.response;
 
   let hqUserId: string | undefined;
+  let viaCredentialShareId: string | undefined;
   try {
     const body = (await request.json()) as PostBody;
     hqUserId = body.hqUserId?.trim();
+    viaCredentialShareId = body.viaCredentialShareId?.trim();
   } catch {
     hqUserId = undefined;
+    viaCredentialShareId = undefined;
   }
 
   if (!hqUserId) {
@@ -147,7 +150,8 @@ export async function POST(request: Request) {
   }
 
   const candidateList = await listVideoProcessorCandidates(ctx.allianceId);
-  if (!candidateList.candidates.some((c) => c.hqUserId === hqUserId)) {
+  const candidate = candidateList.candidates.find((c) => c.hqUserId === hqUserId);
+  if (!candidate) {
     return NextResponse.json(
       { error: "User is not an eligible processor." },
       { status: 400 },
@@ -158,6 +162,8 @@ export async function POST(request: Request) {
     allianceId: ctx.allianceId,
     hqUserId,
     grantedByHqUserId: ctx.hqUserId,
+    viaCredentialShareId:
+      viaCredentialShareId ?? candidate.viaCredentialShareId ?? null,
   });
 
   if (!result.ok) {

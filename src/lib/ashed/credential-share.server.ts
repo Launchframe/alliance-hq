@@ -859,6 +859,69 @@ export async function expireStaleCredentialShares(): Promise<{
   return { expired, tokenExpired, membershipEnded };
 }
 
+export async function listVideoShareDelegateCandidates(
+  allianceId: string,
+): Promise<
+  Array<{
+    hqUserId: string;
+    email: string;
+    displayName: string | null;
+    shareId: string;
+    ownerDisplayName: string | null;
+    ownerEmail: string;
+  }>
+> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      shareId: schema.ashedCredentialShares.id,
+      delegateHqUserId: schema.ashedCredentialShares.delegateHqUserId,
+      ownerEmail: schema.hqUsers.email,
+      ownerDisplayName: schema.hqUsers.displayName,
+      capabilities: schema.ashedCredentialShares.capabilities,
+    })
+    .from(schema.ashedCredentialShares)
+    .innerJoin(
+      schema.hqUsers,
+      eq(schema.hqUsers.id, schema.ashedCredentialShares.ownerHqUserId),
+    )
+    .where(
+      and(
+        eq(schema.ashedCredentialShares.allianceId, allianceId),
+        eq(schema.ashedCredentialShares.status, "active"),
+      ),
+    );
+
+  const candidates = [];
+  for (const row of rows) {
+    if (!row.delegateHqUserId) continue;
+    const capabilities = parseCredentialShareCapabilities(row.capabilities);
+    if (!capabilities.includes("video:process")) continue;
+
+    const [delegate] = await db
+      .select({
+        email: schema.hqUsers.email,
+        displayName: schema.hqUsers.displayName,
+      })
+      .from(schema.hqUsers)
+      .where(eq(schema.hqUsers.id, row.delegateHqUserId))
+      .limit(1);
+
+    if (!delegate) continue;
+
+    candidates.push({
+      hqUserId: row.delegateHqUserId,
+      email: delegate.email,
+      displayName: delegate.displayName,
+      shareId: row.shareId,
+      ownerDisplayName: row.ownerDisplayName,
+      ownerEmail: row.ownerEmail,
+    });
+  }
+
+  return candidates.filter(() => true);
+}
+
 export async function findShareByPairingMetadata(
   metadata: Record<string, unknown>,
 ): Promise<AshedCredentialShare | null> {
