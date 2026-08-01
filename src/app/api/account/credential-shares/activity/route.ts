@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
 
-import { listCredentialShareActivity } from "@/lib/ashed/credential-share-audit.server";
+import {
+  listCredentialShareActivity,
+  toPublicCredentialShareAuditEntry,
+  userCanViewFullCredentialShareHistory,
+} from "@/lib/ashed/credential-share-audit.server";
+import { getDb, schema } from "@/lib/db";
+import { getRbacContext } from "@/lib/rbac/context";
 import {
   loadSession,
   readSessionId,
   resolveEffectiveHqUserIdForSession,
 } from "@/lib/session";
-import { getRbacContext } from "@/lib/rbac/context";
-import { eq } from "drizzle-orm";
-import { getDb, schema } from "@/lib/db";
-import { userCanViewFullCredentialShareHistory } from "@/lib/ashed/credential-share-audit.server";
 
 export async function GET(request: Request) {
   const sessionId = await readSessionId();
@@ -87,5 +90,8 @@ export async function GET(request: Request) {
     limit: 50,
   });
 
-  return NextResponse.json(result);
+  return NextResponse.json({
+    items: result.items.map(toPublicCredentialShareAuditEntry),
+    nextCursor: result.nextCursor,
+  });
 }
