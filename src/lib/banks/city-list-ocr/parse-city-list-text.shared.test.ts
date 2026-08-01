@@ -426,6 +426,52 @@ describe("parseCityListBanks", () => {
     expect(banks[2]?.currentDepositCount).toBe(50);
   });
 
+  it("parses deposit counts when OCR drops the slash (space-separated capacity)", () => {
+    const banks = parseCityListBanks([
+      "600.00K 500.00K 400.00K",
+      "Lv.3 Lv.3 Lv.2",
+      "#1211 (X:1, Y:1) #1211 (X:2, Y:2) #1211 (X:3, Y:3)",
+      "81 100 95 110 50 100",
+    ]);
+    expect(banks).toHaveLength(3);
+    expect(banks[0]?.currentDepositCount).toBe(81);
+    expect(banks[1]?.currentDepositCount).toBe(95);
+    expect(banks[2]?.currentDepositCount).toBe(50);
+  });
+
+  it("parses eight captured banks in a 3-column grid", () => {
+    const banks = parseCityListBanks([
+      "Bank Strongholds captured: 8/8",
+      "600.00K 580.00K 560.00K",
+      "Lv.3 Lv.3 Lv.2",
+      "#1211 (X:100, Y:100) #1211 (X:200, Y:200) #1211 (X:300, Y:300)",
+      "80 100 75 100 70 100",
+      "540.00K 520.00K 500.00K",
+      "Lv.2 Lv.2 Lv.2",
+      "#1211 (X:400, Y:400) #1211 (X:500, Y:500) #1211 (X:600, Y:600)",
+      "65 100 60 100 55 100",
+      "480.00K 460.00K",
+      "Lv.2 Lv.1",
+      "#1211 (X:700, Y:700) #1211 (X:800, Y:800)",
+      "50 100 45 100",
+    ]);
+    expect(banks).toHaveLength(8);
+    expect(banks.every((b) => b.crystalGoldValue != null)).toBe(true);
+    expect(banks.every((b) => b.currentDepositCount != null)).toBe(true);
+    expect(banks[0]).toMatchObject({
+      coordX: 100,
+      coordY: 100,
+      crystalGoldValue: 600_000,
+      currentDepositCount: 80,
+    });
+    expect(banks[7]).toMatchObject({
+      coordX: 800,
+      coordY: 800,
+      crystalGoldValue: 460_000,
+      currentDepositCount: 45,
+    });
+  });
+
   it("does not misassign an orphaned row's amounts when its own coordinate line is fully unreadable", () => {
     // The middle tile-row's coordinate line is completely unreadable (no
     // match on either the labeled or glued coordinate patterns), so it has
