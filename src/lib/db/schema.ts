@@ -3212,6 +3212,8 @@ export const banks = pgTable(
       "discord_protection_last_milestone",
     ),
     dropByAt: timestamp("drop_by_at", { withTimezone: true }),
+    /** When HQ marked this bank abandoned (City List archive-missing or officer action). */
+    abandonedAt: timestamp("abandoned_at", { withTimezone: true }),
     depositPolicy: text("deposit_policy"),
     priorCaptureCount: integer("prior_capture_count").notNull().default(0),
     currentDepositCount: integer("current_deposit_count"),

@@ -30,6 +30,7 @@ export type SerializedBank = {
   capturedAt: string | null;
   protectionExpiresAt: string | null;
   dropByAt: string | null;
+  abandonedAt: string | null;
   depositPolicy: DepositPolicy | null;
   priorCaptureCount: number;
   currentDepositCount: number | null;

@@ -208,20 +208,22 @@ describe("listExtraHqBanksForCityListImport", () => {
 
   it("counts only active HQ banks not in the import", () => {
     const banks = [
-      { gameServerNumber: 1211, coordX: 100, coordY: 200, dropByAt: null },
-      { gameServerNumber: 1211, coordX: 150, coordY: 250, dropByAt: null },
-      { gameServerNumber: 1211, coordX: 300, coordY: 400, dropByAt: null },
+      { gameServerNumber: 1211, coordX: 100, coordY: 200, dropByAt: null, abandonedAt: null },
+      { gameServerNumber: 1211, coordX: 150, coordY: 250, dropByAt: null, abandonedAt: null },
+      { gameServerNumber: 1211, coordX: 300, coordY: 400, dropByAt: null, abandonedAt: null },
       {
         gameServerNumber: 1211,
         coordX: 500,
         coordY: 600,
         dropByAt: "2026-07-28T00:00:00.000Z",
+        abandonedAt: null,
       },
       {
         gameServerNumber: 1211,
         coordX: 600,
         coordY: 700,
         dropByAt: "2026-07-20T00:00:00.000Z",
+        abandonedAt: null,
       },
     ];
     const extra = listExtraHqBanksForCityListImport(banks, importedKeys, now);
@@ -229,6 +231,28 @@ describe("listExtraHqBanksForCityListImport", () => {
     expect(extra.map((b) => cityListBankCoordKey(b.gameServerNumber, b.coordX, b.coordY))).toEqual(
       ["1211:300:400", "1211:500:600"],
     );
+  });
+
+  it("excludes banks with abandonedAt set from extra-HQ count", () => {
+    const banks = [
+      {
+        gameServerNumber: 1211,
+        coordX: 300,
+        coordY: 400,
+        dropByAt: null,
+        abandonedAt: "2026-07-25T00:00:00.000Z",
+      },
+      {
+        gameServerNumber: 1211,
+        coordX: 400,
+        coordY: 500,
+        dropByAt: null,
+        abandonedAt: null,
+      },
+    ];
+    const extra = listExtraHqBanksForCityListImport(banks, importedKeys, now);
+    expect(extra).toHaveLength(1);
+    expect(extra[0]?.coordX).toBe(400);
   });
 });
 

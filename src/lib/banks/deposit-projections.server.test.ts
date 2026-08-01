@@ -35,6 +35,7 @@ function makeBank(id: string, amount: number): BankWithSlips {
     capturedAt: null,
     protectionExpiresAt: null,
     dropByAt: null,
+    abandonedAt: null,
     depositPolicy: "alliance",
     priorCaptureCount: 0,
     currentDepositCount: 1,

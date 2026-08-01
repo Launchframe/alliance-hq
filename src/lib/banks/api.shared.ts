@@ -64,6 +64,7 @@ export function serializeBank(row: {
   capturedAt: Date | null;
   protectionExpiresAt?: Date | null;
   dropByAt: Date | null;
+  abandonedAt?: Date | null;
   depositPolicy: string | null;
   priorCaptureCount: number;
   currentDepositCount: number | null;
@@ -82,6 +83,7 @@ export function serializeBank(row: {
     capturedAt: row.capturedAt?.toISOString() ?? null,
     protectionExpiresAt: row.protectionExpiresAt?.toISOString() ?? null,
     dropByAt: row.dropByAt?.toISOString() ?? null,
+    abandonedAt: row.abandonedAt?.toISOString() ?? null,
     depositPolicy:
       row.depositPolicy && isDepositPolicy(row.depositPolicy)
         ? row.depositPolicy

@@ -8,8 +8,15 @@ import { Link } from "@/i18n/navigation";
 
 import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import { bankMatchesCoordQuery } from "@/lib/banks/bank-list-search.shared";
-import { activeDeposits, isPastDropDeadline } from "@/lib/banks/optimization.shared";
-import type { BankPendingDepositSlipVideoReview, BankWithSlips } from "@/lib/banks/types.shared";
+import {
+  type BankLifecycleStage,
+  resolveBankLifecycleStage,
+} from "@/lib/banks/bank-lifecycle.shared";
+import { activeDeposits } from "@/lib/banks/optimization.shared";
+import type {
+  BankPendingDepositSlipVideoReview,
+  BankWithSlips,
+} from "@/lib/banks/types.shared";
 import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
 
@@ -33,6 +40,12 @@ type Props = {
   onImportFromScreenshot: () => void;
 };
 
+const LIFECYCLE_TABS: BankLifecycleStage[] = [
+  "active",
+  "dropping_soon",
+  "abandoned",
+];
+
 function policyLabel(
   policy: BankWithSlips["depositPolicy"],
   t: ReturnType<typeof useTranslations>,
@@ -43,10 +56,32 @@ function policyLabel(
   return t("policyUnset");
 }
 
+function lifecycleRowClasses(
+  stage: BankLifecycleStage,
+  selected: boolean,
+): string {
+  if (selected) {
+    if (stage === "dropping_soon") {
+      return "border-hq-warning/60 bg-hq-warning/15";
+    }
+    if (stage === "abandoned") {
+      return "border-hq-fg-muted/50 bg-hq-fg-muted/10";
+    }
+    return "border-hq-accent bg-hq-accent/10";
+  }
+  if (stage === "dropping_soon") {
+    return "border-hq-warning/40 bg-hq-warning/10";
+  }
+  if (stage === "abandoned") {
+    return "border-hq-fg-muted/40 bg-hq-surface/60";
+  }
+  return "border-hq-border bg-hq-surface";
+}
+
 type BankListItemProps = {
   bank: BankWithSlips;
+  stage: BankLifecycleStage;
   selected: boolean;
-  muted?: boolean;
   canWrite: boolean;
   pendingReview: BankPendingDepositSlipVideoReview | null;
   t: ReturnType<typeof useTranslations<"bankManagement">>;
@@ -56,8 +91,8 @@ type BankListItemProps = {
 
 function BankListItem({
   bank,
+  stage,
   selected,
-  muted = false,
   canWrite,
   pendingReview,
   t,
@@ -65,19 +100,12 @@ function BankListItem({
   onEdit,
 }: BankListItemProps) {
   const active = activeDeposits(bank.depositSlips).length;
+  const muted = stage === "abandoned";
 
   return (
     <li>
       <div
-        className={`flex items-center gap-2 rounded-lg border p-3 text-left text-sm transition-colors ${
-          selected
-            ? muted
-              ? "border-hq-accent/60 bg-hq-accent/5"
-              : "border-hq-accent bg-hq-accent/10"
-            : muted
-              ? "border-hq-fg-muted/40 bg-hq-surface/60"
-              : "border-hq-border bg-hq-surface"
-        }`}
+        className={`flex items-center gap-2 rounded-lg border p-3 text-left text-sm transition-colors ${lifecycleRowClasses(stage, selected)}`}
       >
         <button
           type="button"
@@ -173,6 +201,15 @@ function BankListItem({
   );
 }
 
+function lifecycleTabLabel(
+  stage: BankLifecycleStage,
+  t: ReturnType<typeof useTranslations<"bankManagement">>,
+): string {
+  if (stage === "active") return t("bankLifecycleTabActive");
+  if (stage === "dropping_soon") return t("bankLifecycleTabDroppingSoon");
+  return t("bankLifecycleTabAbandoned");
+}
+
 export function BankList({
   banks,
   selectedBankId,
@@ -185,25 +222,35 @@ export function BankList({
 }: Props) {
   const t = useTranslations("bankManagement");
   const [coordQuery, setCoordQuery] = useState("");
+  const [lifecycleTab, setLifecycleTab] = useState<BankLifecycleStage>("active");
 
   const filteredBanks = useMemo(
     () => banks.filter((bank) => bankMatchesCoordQuery(bank, coordQuery)),
     [banks, coordQuery],
   );
 
-  const { activeBanks, pastDropBanks } = useMemo(() => {
-    const active: BankWithSlips[] = [];
-    const pastDrop: BankWithSlips[] = [];
+  const banksByLifecycle = useMemo(() => {
+    const grouped: Record<BankLifecycleStage, BankWithSlips[]> = {
+      active: [],
+      dropping_soon: [],
+      abandoned: [],
+    };
     for (const bank of filteredBanks) {
-      if (isPastDropDeadline(bank)) {
-        pastDrop.push(bank);
-      } else {
-        active.push(bank);
-      }
+      const stage = resolveBankLifecycleStage(bank);
+      grouped[stage].push(bank);
     }
-    return { activeBanks: active, pastDropBanks: pastDrop };
+    return grouped;
   }, [filteredBanks]);
 
+  const tabCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        LIFECYCLE_TABS.map((tab) => [tab, banksByLifecycle[tab].length]),
+      ) as Record<BankLifecycleStage, number>,
+    [banksByLifecycle],
+  );
+
+  const visibleBanks = banksByLifecycle[lifecycleTab];
   const queryActive = coordQuery.trim().length > 0;
 
   return (
@@ -248,6 +295,31 @@ export function BankList({
         </label>
       ) : null}
 
+      {banks.length > 0 ? (
+        <div
+          className="flex flex-wrap gap-2"
+          role="tablist"
+          aria-label={t("banksTitle")}
+        >
+          {LIFECYCLE_TABS.map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              aria-selected={lifecycleTab === tab}
+              className={
+                lifecycleTab === tab
+                  ? "rounded-md border border-hq-accent bg-hq-accent/10 px-3 py-1.5 text-xs font-medium text-hq-fg"
+                  : "rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg-muted hover:border-hq-accent hover:text-hq-fg"
+              }
+              onClick={() => setLifecycleTab(tab)}
+            >
+              {lifecycleTabLabel(tab, t)} ({tabCounts[tab]})
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       {banks.length === 0 ? (
         <div className="rounded-lg border border-hq-border bg-hq-surface p-4 text-sm text-hq-fg-muted">
           {t("emptyBanks")}
@@ -256,57 +328,28 @@ export function BankList({
         <div className="rounded-lg border border-hq-border bg-hq-surface p-4 text-sm text-hq-fg-muted">
           {t("bankCoordSearchEmpty")}
         </div>
+      ) : visibleBanks.length === 0 ? (
+        <div className="rounded-lg border border-hq-border bg-hq-surface p-4 text-sm text-hq-fg-muted">
+          {t("bankLifecycleTabEmpty")}
+        </div>
       ) : (
-        <>
-          {activeBanks.length > 0 ? (
-            <ul className="space-y-2">
-              {activeBanks.map((bank) => (
-                <BankListItem
-                  key={bank.id}
-                  bank={bank}
-                  selected={bank.id === selectedBankId}
-                  canWrite={canWrite}
-                  pendingReview={
-                    pendingDepositSlipVideoReviewsByBankId[bank.id] ?? null
-                  }
-                  t={t}
-                  onSelect={onSelect}
-                  onEdit={onEdit}
-                />
-              ))}
-            </ul>
-          ) : null}
-
-          {pastDropBanks.length > 0 ? (
-            <div className="space-y-2 pt-2">
-              <div>
-                <h3 className="text-sm font-semibold text-hq-fg-muted">
-                  {t("pastDropDeadlineTitle")}
-                </h3>
-                <p className="mt-0.5 text-xs text-hq-fg-subtle">
-                  {t("pastDropDeadlineHint")}
-                </p>
-              </div>
-              <ul className="space-y-2">
-                {pastDropBanks.map((bank) => (
-                  <BankListItem
-                    key={bank.id}
-                    bank={bank}
-                    selected={bank.id === selectedBankId}
-                    muted
-                    canWrite={canWrite}
-                    pendingReview={
-                      pendingDepositSlipVideoReviewsByBankId[bank.id] ?? null
-                    }
-                    t={t}
-                    onSelect={onSelect}
-                    onEdit={onEdit}
-                  />
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </>
+        <ul className="space-y-2" role="tabpanel">
+          {visibleBanks.map((bank) => (
+            <BankListItem
+              key={bank.id}
+              bank={bank}
+              stage={lifecycleTab}
+              selected={bank.id === selectedBankId}
+              canWrite={canWrite}
+              pendingReview={
+                pendingDepositSlipVideoReviewsByBankId[bank.id] ?? null
+              }
+              t={t}
+              onSelect={onSelect}
+              onEdit={onEdit}
+            />
+          ))}
+        </ul>
       )}
     </div>
   );
