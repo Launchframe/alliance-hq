@@ -2354,7 +2354,18 @@
         "rejected": "Rejected",
         "owner_token_expired": "Owner token expired",
         "membership_ended": "Membership ended"
-      }
+      },
+      "activityTitle": "Audit activity",
+      "activityAction": {
+        "ashed_share.invite_created": "Invite created",
+        "ashed_share.accepted": "Accepted",
+        "ashed_share.rejected": "Rejected",
+        "ashed_share.revoked": "Revoked",
+        "ashed_share.expired": "Ended",
+        "ashed_share.used": "Used",
+        "ashed_share.extended": "Extended"
+      },
+      "restrictedHint": "Full audit history is available to credential owners and officers with a linked Ashed identity."
     }
   },
   "account": {

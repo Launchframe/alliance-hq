@@ -8,6 +8,7 @@ import {
   CredentialShareError,
   listCredentialSharesForAlliance,
 } from "@/lib/ashed/credential-share.server";
+import { sendCredentialShareInviteEmail } from "@/lib/ashed/credential-share-email.server";
 import { listRecentAllianceShareActivity } from "@/lib/ashed/credential-share-audit.server";
 import { CREDENTIAL_SHARE_CAPABILITIES } from "@/lib/ashed/credential-share-capabilities.shared";
 import { createPairingCode } from "@/lib/credential-pairing";
@@ -153,6 +154,19 @@ export async function POST(request: Request) {
       ttlMinutes: AUTHORIZED_ACCESS_PAIRING_TTL_MINUTES,
       locale: body.locale,
     });
+
+    if (share.expiresAt) {
+      void sendCredentialShareInviteEmail({
+        invitedHqUserId: body.invitedHqUserId,
+        ownerHqUserId: share.ownerHqUserId,
+        allianceId: access.allianceId,
+        inviteUrl: pairing.linkUrl,
+        capabilities: body.capabilities,
+        expiresAt: new Date(share.expiresAt),
+      }).catch((error) => {
+        console.error("[credential-share] invite email failed", error);
+      });
+    }
 
     return NextResponse.json({
       share,

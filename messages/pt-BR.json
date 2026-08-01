@@ -2371,7 +2371,18 @@
         "rejected": "Rejeitado",
         "owner_token_expired": "Token do proprietário expirou",
         "membership_ended": "Associação encerrada"
-      }
+      },
+      "activityTitle": "Atividade de auditoria",
+      "activityAction": {
+        "ashed_share.invite_created": "Convite criado",
+        "ashed_share.accepted": "Aceito",
+        "ashed_share.rejected": "Recusado",
+        "ashed_share.revoked": "Revogado",
+        "ashed_share.expired": "Encerrado",
+        "ashed_share.used": "Usado",
+        "ashed_share.extended": "Prorrogado"
+      },
+      "restrictedHint": "O histórico completo de auditoria está disponível para proprietários de credenciais e oficiais com identidade Ashed vinculada."
     }
   },
   "deviceLink": {

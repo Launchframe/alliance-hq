@@ -85,15 +85,20 @@ export default async function CredentialShareHistoryPage() {
 
       {canViewFull && activity.length > 0 ? (
         <div>
-          <h2 className="text-lg font-semibold text-hq-fg">{t("title")}</h2>
+          <h2 className="text-lg font-semibold text-hq-fg">{t("activityTitle")}</h2>
           <ul className="mt-3 space-y-2 text-sm text-hq-fg-muted">
             {activity.map((entry) => (
               <li key={entry.id}>
-                {entry.action} · {new Date(entry.createdAt).toLocaleString(locale)}
+                {t.has(`activityAction.${entry.action}`)
+                  ? t(`activityAction.${entry.action}`)
+                  : entry.action}{" "}
+                · {new Date(entry.createdAt).toLocaleString(locale)}
               </li>
             ))}
           </ul>
         </div>
+      ) : !canViewFull ? (
+        <p className="text-sm text-hq-fg-muted">{t("restrictedHint")}</p>
       ) : null}
     </div>
   );
