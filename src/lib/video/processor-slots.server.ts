@@ -9,6 +9,7 @@ import type { Session } from "@/lib/db/schema";
 import { formatAllianceRankLabel } from "@/lib/members/alliance-rank";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { listVideoShareDelegateCandidates } from "@/lib/ashed/credential-share.server";
+import { parseCredentialShareCapabilities } from "@/lib/ashed/credential-share-capabilities.shared";
 import {
   getAllianceMembershipRbac,
   getRbacContext,
@@ -484,7 +485,7 @@ export async function sessionCanReadAllianceVideoQueue(
 
 export type GrantVideoProcessorResult =
   | { ok: true; alreadyGranted: boolean }
-  | { ok: false; code: "slots_full" };
+  | { ok: false; code: "slots_full" | "invalid_share_link" };
 
 /** Grant a processor slot, enforcing the per-alliance cap. Idempotent. */
 export async function grantVideoProcessor(params: {
@@ -504,6 +505,31 @@ export async function grantVideoProcessor(params: {
     const count = await countAllianceVideoProcessors(allianceId);
     if (count >= MAX_VIDEO_PROCESSORS) {
       return { ok: false, code: "slots_full" };
+    }
+  } else {
+    const db = getDb();
+    const [share] = await db
+      .select({
+        allianceId: schema.ashedCredentialShares.allianceId,
+        delegateHqUserId: schema.ashedCredentialShares.delegateHqUserId,
+        status: schema.ashedCredentialShares.status,
+        capabilities: schema.ashedCredentialShares.capabilities,
+      })
+      .from(schema.ashedCredentialShares)
+      .where(eq(schema.ashedCredentialShares.id, viaCredentialShareId))
+      .limit(1);
+
+    const capabilities = share
+      ? parseCredentialShareCapabilities(share.capabilities)
+      : [];
+    if (
+      !share ||
+      share.status !== "active" ||
+      share.allianceId !== allianceId ||
+      share.delegateHqUserId !== hqUserId ||
+      !capabilities.includes("video:process")
+    ) {
+      return { ok: false, code: "invalid_share_link" };
     }
   }
 

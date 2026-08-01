@@ -74,12 +74,7 @@ export function VideoProcessorsPanel({
       const res = await fetch("/api/settings/video-processors", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          hqUserId: selected,
-          viaCredentialShareId:
-            candidates.find((candidate) => candidate.hqUserId === selected)
-              ?.viaCredentialShareId ?? undefined,
-        }),
+        body: JSON.stringify({ hqUserId: selected }),
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string; code?: string };

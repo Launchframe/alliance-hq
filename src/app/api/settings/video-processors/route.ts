@@ -128,21 +128,18 @@ export async function GET() {
   });
 }
 
-type PostBody = { hqUserId?: string; viaCredentialShareId?: string };
+type PostBody = { hqUserId?: string };
 
 export async function POST(request: Request) {
   const ctx = await resolveAdminAlliance();
   if (!ctx.ok) return ctx.response;
 
   let hqUserId: string | undefined;
-  let viaCredentialShareId: string | undefined;
   try {
     const body = (await request.json()) as PostBody;
     hqUserId = body.hqUserId?.trim();
-    viaCredentialShareId = body.viaCredentialShareId?.trim();
   } catch {
     hqUserId = undefined;
-    viaCredentialShareId = undefined;
   }
 
   if (!hqUserId) {
@@ -162,14 +159,19 @@ export async function POST(request: Request) {
     allianceId: ctx.allianceId,
     hqUserId,
     grantedByHqUserId: ctx.hqUserId,
-    viaCredentialShareId:
-      viaCredentialShareId ?? candidate.viaCredentialShareId ?? null,
+    viaCredentialShareId: candidate.viaCredentialShareId ?? null,
   });
 
   if (!result.ok) {
     return NextResponse.json(
-      { error: "Processor slots are full.", code: "slots_full" },
-      { status: 409 },
+      {
+        error:
+          result.code === "invalid_share_link"
+            ? "Share-linked processor grant is invalid."
+            : "Processor slots are full.",
+        code: result.code,
+      },
+      { status: result.code === "invalid_share_link" ? 400 : 409 },
     );
   }
 
