@@ -81,11 +81,11 @@ export function CityListBankReviewCard({
       data-placeholder={isPlaceholder ? "true" : "false"}
     >
       {/* Header: status/delete + CrystalGold K */}
-      <div className="flex items-start justify-between gap-2 px-3 pt-3">
+      <div className="flex items-start justify-between gap-1 px-2 pt-2 sm:gap-2 sm:px-3 sm:pt-3">
         <div className="flex min-w-0 items-center gap-1.5">
           <span
             className={cn(
-              "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+              "rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide sm:px-2 sm:text-[10px]",
               isPlaceholder
                 ? "border-hq-warning/40 text-hq-warning"
                 : "border-hq-border bg-hq-canvas/80 text-hq-fg-muted",
@@ -109,7 +109,7 @@ export function CityListBankReviewCard({
             aria-label={t("cityListAmountKLabel")}
             placeholder="0.00K"
             className={cn(
-              "w-full max-w-[7.5rem] rounded border bg-white/80 px-2 py-1 text-right font-mono text-sm font-semibold text-amber-900 dark:bg-hq-canvas/80 dark:text-amber-100",
+              "w-full max-w-[5.5rem] rounded border bg-white/80 px-1.5 py-0.5 text-right font-mono text-xs font-semibold text-amber-900 sm:max-w-[7.5rem] sm:px-2 sm:py-1 sm:text-sm dark:bg-hq-canvas/80 dark:text-amber-100",
               (amountLocalError ||
                 (showErrors("currentDepositValue") &&
                   errors.currentDepositValue)) &&
@@ -148,15 +148,15 @@ export function CityListBankReviewCard({
       </div>
 
       {/* Art / crop slot (reserved) */}
-      <div className="mx-3 mt-2 flex aspect-[4/3] items-center justify-center rounded-lg border border-hq-border/40 bg-hq-canvas/50">
+      <div className="mx-2 mt-1.5 flex aspect-[4/3] max-h-14 items-center justify-center rounded-lg border border-hq-border/40 bg-hq-canvas/50 sm:mx-3 sm:mt-2 sm:max-h-none">
         <Building2
-          className="h-10 w-10 text-hq-fg-subtle/60"
+          className="h-7 w-7 text-hq-fg-subtle/60 sm:h-10 sm:w-10"
           aria-hidden
         />
       </div>
 
       {/* Level */}
-      <div className="mt-2 flex items-center justify-center gap-1 px-3">
+      <div className="mt-1.5 flex items-center justify-center gap-1 px-2 sm:mt-2 sm:px-3">
         <span className="text-sm font-semibold text-hq-fg" aria-hidden>
           Lv.
         </span>
@@ -183,7 +183,7 @@ export function CityListBankReviewCard({
       ) : null}
 
       {/* Coords bar */}
-      <div className="mx-3 mt-2 flex flex-wrap items-center gap-1 rounded-md bg-emerald-800/90 px-2 py-1.5 font-mono text-xs text-emerald-50">
+      <div className="mx-2 mt-1.5 flex flex-wrap items-center gap-0.5 rounded-md bg-emerald-800/90 px-1.5 py-1 font-mono text-[10px] text-emerald-50 sm:mx-3 sm:mt-2 sm:gap-1 sm:px-2 sm:py-1.5 sm:text-xs">
         <span aria-hidden>#</span>
         <input
           type="number"
@@ -251,7 +251,7 @@ export function CityListBankReviewCard({
       ) : null}
 
       {/* Deposits footer */}
-      <div className="mt-2 flex items-center justify-center gap-1 border-t border-hq-border/40 bg-white/70 px-3 py-2 dark:bg-hq-canvas/40">
+      <div className="mt-1.5 flex items-center justify-center gap-1 border-t border-hq-border/40 bg-white/70 px-2 py-1.5 dark:bg-hq-canvas/40 sm:mt-2 sm:px-3 sm:py-2">
         <input
           type="number"
           min={0}

@@ -241,6 +241,31 @@ test.describe("City List import review (dedicated page)", () => {
     await page.getByRole("button", { name: /show matched banks/i }).click();
     await expect(page.getByTestId("city-list-review-card")).toHaveCount(2);
   });
+
+  test("keeps a 3-column card grid on narrow mobile viewports", async ({
+    page,
+  }) => {
+    const sql = getE2eSql();
+    const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    await createHqMemberLink(sql, {
+      allianceId: scenario.allianceId,
+      hqUserId: scenario.officer.hqUserId,
+    });
+    await page.context().addCookies(playwrightAuthCookies(scenario.officer));
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    await openCityListReview(page);
+
+    const cards = page.getByTestId("city-list-review-card");
+    await expect(cards).toHaveCount(2);
+    const first = await cards.nth(0).boundingBox();
+    const second = await cards.nth(1).boundingBox();
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+    if (!first || !second) return;
+    expect(second.x).toBeGreaterThan(first.x);
+    expect(Math.abs(second.y - first.y)).toBeLessThan(40);
+  });
 });
 
 test.describe("City List import review (draft restore)", () => {
