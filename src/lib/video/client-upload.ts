@@ -48,6 +48,7 @@ export async function uploadVideoFile(options: {
   scoreTarget: string;
   boardKey?: string;
   hqEventId?: string;
+  bankId?: string | null;
   uploadConfig: UploadConfig;
   onProgress?: (loaded: number, total: number) => void;
   /** Fires once a server-side job row exists (R2 init or direct POST). */
@@ -62,6 +63,7 @@ export async function uploadVideoFile(options: {
     formData.set("scoreTarget", scoreTarget);
     if (boardKey) formData.set("boardKey", boardKey);
     if (options.hqEventId) formData.set("hqEventId", options.hqEventId);
+    if (options.bankId) formData.set("bankId", options.bankId);
 
     onProgress?.(0, file.size);
     const res = await fetch("/api/tools/video-upload", {
@@ -93,6 +95,7 @@ export async function uploadVideoFile(options: {
       scoreTarget,
       boardKey: boardKey ?? null,
       hqEventId: options.hqEventId ?? null,
+      bankId: options.bankId ?? null,
     }),
   });
   const init = (await initRes.json()) as InitUploadResponse & { error?: string };

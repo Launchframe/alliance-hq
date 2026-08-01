@@ -5820,6 +5820,8 @@
     "latestDepositSlipHero": "Latest deposit slip for this bank: [{allianceTag}] {commanderName} on {depositEventTime}",
     "latestDepositSlipHeroNoTag": "Latest deposit slip for this bank: {commanderName} on {depositEventTime}",
     "uploadDepositSlip": "Upload deposit slip video",
+    "pendingDepositSlipVideoReview": "{count, plural, one {# video pending review} other {# videos pending review}}",
+    "reviewPendingDepositSlipVideo": "Review deposit slip video",
     "addBank": "Add bank",
     "importBanksFromScreenshot": "Import banks from screenshot",
     "cityListImportTitle": "Import banks from screenshots",

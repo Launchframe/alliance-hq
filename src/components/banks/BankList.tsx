@@ -9,7 +9,7 @@ import { Link } from "@/i18n/navigation";
 import { BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET } from "@/lib/banks/deposit-slip-ocr/parse-deposit-slip-text.shared";
 import { bankMatchesCoordQuery } from "@/lib/banks/bank-list-search.shared";
 import { activeDeposits, isPastDropDeadline } from "@/lib/banks/optimization.shared";
-import type { BankWithSlips } from "@/lib/banks/types.shared";
+import type { BankPendingDepositSlipVideoReview, BankWithSlips } from "@/lib/banks/types.shared";
 import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import { buildVideoUploadHref } from "@/lib/video/score-target-nav";
 
@@ -23,6 +23,10 @@ type Props = {
   banks: BankWithSlips[];
   selectedBankId: string | null;
   canWrite: boolean;
+  pendingDepositSlipVideoReviewsByBankId?: Record<
+    string,
+    BankPendingDepositSlipVideoReview
+  >;
   onSelect: (bankId: string) => void;
   onEdit: (bank: BankWithSlips) => void;
   onAdd: () => void;
@@ -44,6 +48,7 @@ type BankListItemProps = {
   selected: boolean;
   muted?: boolean;
   canWrite: boolean;
+  pendingReview: BankPendingDepositSlipVideoReview | null;
   t: ReturnType<typeof useTranslations<"bankManagement">>;
   onSelect: (bankId: string) => void;
   onEdit: (bank: BankWithSlips) => void;
@@ -54,6 +59,7 @@ function BankListItem({
   selected,
   muted = false,
   canWrite,
+  pendingReview,
   t,
   onSelect,
   onEdit,
@@ -107,6 +113,22 @@ function BankListItem({
             <span>
               {t("depositsTitle")}: {active}/{bank.depositSlips.length}
             </span>
+            {pendingReview ? (
+              <Link
+                href={`/tools/video-upload/${pendingReview.firstJobId}/review`}
+                className={`rounded-full border px-2 py-0.5 font-medium hover:border-hq-accent ${
+                  muted
+                    ? "border-hq-warning/50 text-hq-warning/80"
+                    : "border-hq-warning/70 bg-hq-warning/10 text-hq-warning"
+                }`}
+                aria-label={t("reviewPendingDepositSlipVideo")}
+                onClick={(event) => event.stopPropagation()}
+              >
+                {t("pendingDepositSlipVideoReview", {
+                  count: pendingReview.count,
+                })}
+              </Link>
+            ) : null}
             {bank.dropByAt ? (
               <span>
                 {t("fields.dropByAt")}:{" "}
@@ -155,6 +177,7 @@ export function BankList({
   banks,
   selectedBankId,
   canWrite,
+  pendingDepositSlipVideoReviewsByBankId = {},
   onSelect,
   onEdit,
   onAdd,
@@ -243,6 +266,9 @@ export function BankList({
                   bank={bank}
                   selected={bank.id === selectedBankId}
                   canWrite={canWrite}
+                  pendingReview={
+                    pendingDepositSlipVideoReviewsByBankId[bank.id] ?? null
+                  }
                   t={t}
                   onSelect={onSelect}
                   onEdit={onEdit}
@@ -269,6 +295,9 @@ export function BankList({
                     selected={bank.id === selectedBankId}
                     muted
                     canWrite={canWrite}
+                    pendingReview={
+                      pendingDepositSlipVideoReviewsByBankId[bank.id] ?? null
+                    }
                     t={t}
                     onSelect={onSelect}
                     onEdit={onEdit}

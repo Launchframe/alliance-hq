@@ -16,6 +16,7 @@ import { VideoProcessAfterUploadPanel } from "@/components/video/VideoProcessAft
 import { VideoHygieneCoachBanner } from "@/components/video/VideoHygieneCoachBanner";
 import {
   clearPreferredDepositSlipBankId,
+  readPreferredDepositSlipBankId,
   writePreferredDepositSlipBankId,
 } from "@/lib/banks/deposit-slip-upload-context.shared";
 import type { VideoJobRow } from "@/lib/types/video";
@@ -254,6 +255,14 @@ export function VideoUploadForm({
   const effectiveBoardKey =
     boardKey || selectedTarget?.boardTypes?.[0] || "";
 
+  const uploadBankId = useMemo(() => {
+    if (contextBankId) return contextBankId;
+    if (isBankDepositSlipHistoryTarget(scoreTarget)) {
+      return readPreferredDepositSlipBankId();
+    }
+    return null;
+  }, [contextBankId, scoreTarget]);
+
   function handleScoreTargetChange(nextId: string) {
     setScoreTarget(nextId);
     const next = scoreTargets.find((target) => target.id === nextId);
@@ -319,6 +328,7 @@ export function VideoUploadForm({
         file: uploadFile,
         scoreTarget,
         boardKey: effectiveBoardKey || undefined,
+        bankId: uploadBankId,
         uploadConfig,
         onProgress: (loaded, total) => {
           setUploadProgress({ loaded, total });

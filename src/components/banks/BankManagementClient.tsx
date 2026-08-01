@@ -61,6 +61,8 @@ export function BankManagementClient({ initial }: Props) {
   const [bankCityListServerTime, setBankCityListServerTime] = useState(
     initial.bankCityListServerTime,
   );
+  const [pendingDepositSlipVideoReviewsByBankId, setPendingDepositSlipVideoReviewsByBankId] =
+    useState(initial.pendingDepositSlipVideoReviewsByBankId);
   const [cityListModalOpen, setCityListModalOpen] = useState(false);
 
   const [selectedBankId, setSelectedBankId] = useState<string | null>(
@@ -106,6 +108,9 @@ export function BankManagementClient({ initial }: Props) {
     setBankCapturesRemainingToday(dashboard.bankCapturesRemainingToday);
     setBankCapturesLimitToday(dashboard.bankCapturesLimitToday);
     setBankCityListServerTime(dashboard.bankCityListServerTime);
+    setPendingDepositSlipVideoReviewsByBankId(
+      dashboard.pendingDepositSlipVideoReviewsByBankId,
+    );
     setError(null);
   }, []);
 
@@ -366,6 +371,9 @@ export function BankManagementClient({ initial }: Props) {
             banks={banks}
             selectedBankId={selectedBankId}
             canWrite={canWrite}
+            pendingDepositSlipVideoReviewsByBankId={
+              pendingDepositSlipVideoReviewsByBankId
+            }
             onSelect={setSelectedBankId}
             onEdit={openEditBankModal}
             onAdd={openCreateBankModal}

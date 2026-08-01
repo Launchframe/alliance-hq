@@ -27,6 +27,7 @@ import {
   listPriorAllianceKillsVideoMembers,
 } from "@/lib/kills/alliance-kills-video-commit.server";
 import { commitDepositSlipsFromVideoJob } from "@/lib/banks/deposit-slip-ocr/deposit-slip-video-commit.server";
+import { resolveDepositSlipUploadBankId } from "@/lib/banks/resolve-deposit-slip-upload-bank-id.server";
 import { buildReviewOutcomePatch } from "@/lib/video/video-hygiene-instrumentation.shared";
 import { computeQualityScore } from "@/lib/video/quality-score";
 import {
@@ -481,6 +482,23 @@ export async function POST(request: Request, { params }: Props) {
         );
       }
 
+      const resolvedBankId = await resolveDepositSlipUploadBankId(
+        allianceId,
+        scoreTargetId,
+        bankId,
+      );
+      if (!resolvedBankId) {
+        return NextResponse.json(
+          { error: "bankId is invalid for this alliance." },
+          { status: 400 },
+        );
+      }
+
+      await db
+        .update(schema.videoJobs)
+        .set({ bankId: resolvedBankId, updatedAt: new Date() })
+        .where(eq(schema.videoJobs.id, jobId));
+
       const [parseSessionForReview] = await db
         .select({
           dedupeReportJson: schema.parseSessions.dedupeReportJson,
@@ -614,7 +632,7 @@ export async function POST(request: Request, { params }: Props) {
 
       const result = await commitDepositSlipsFromVideoJob({
         allianceId,
-        bankId,
+        bankId: resolvedBankId,
         parseSessionId: job.parseSessionId,
         rows: reviewRows.map((row) => ({
           id: row.id,
@@ -681,7 +699,7 @@ export async function POST(request: Request, { params }: Props) {
         metadata: {
           rowCount: activeRows.length,
           scoreTarget: scoreTargetId,
-          bankId,
+          bankId: resolvedBankId,
           createdCount: result.createdCount,
           skippedCount: result.skippedCount,
           skippedDuplicateCount: result.skippedDuplicateCount,
