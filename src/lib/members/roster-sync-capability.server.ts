@@ -5,6 +5,7 @@ import { resolveAshedConnectionForAlliance } from "@/lib/ashed/credential-share.
 import { canRefreshRosterFromAshed } from "@/lib/connect/ashed-shell-prompts.shared";
 import type { RosterSyncCapabilityKind } from "@/lib/trains/roster-data-status.shared";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
+import { resolveAllianceTagForSession } from "@/lib/settings/alliance-settings-access.server";
 import { getAshedConnection, loadSession } from "@/lib/session";
 import { getAllianceById } from "@/lib/vr/repository";
 import { resolveAllianceAshedBotConnection } from "@/lib/vr/member-roster";
@@ -53,9 +54,6 @@ export async function assertOfficerAshedSessionForSync(
   if (!session) {
     throw new Error("Session not found.");
   }
-  if (!session.allianceTag?.trim()) {
-    throw new Error("Alliance tag not set in session.");
-  }
 
   const resolved = await resolveAshedConnectionForAlliance(sessionId, allianceId);
   if (!resolved?.connection) {
@@ -69,14 +67,19 @@ export async function resolveOfficerAshedAllianceId(
   sessionId: string,
 ): Promise<{ connection: NonNullable<Awaited<ReturnType<typeof getAshedConnection>>>; ashedAllianceId: string }> {
   const session = await loadSession(sessionId);
-  if (!session?.allianceTag?.trim()) {
+  if (!session?.currentAllianceId) {
+    throw new Error("Alliance context not set in session.");
+  }
+
+  const allianceTag = session ? await resolveAllianceTagForSession(session) : null;
+  if (!allianceTag?.trim()) {
     throw new Error("Alliance tag not set in session.");
   }
 
   const connection = await assertOfficerAshedSessionForSync(
     sessionId,
-    session.currentAllianceId!,
+    session.currentAllianceId,
   );
-  const alliance = await resolveAllianceByTag(connection, session.allianceTag);
+  const alliance = await resolveAllianceByTag(connection, allianceTag);
   return { connection, ashedAllianceId: alliance.id };
 }
