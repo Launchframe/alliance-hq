@@ -602,7 +602,7 @@ export async function extendCredentialShare(input: {
   }
 
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + ttlHours * 60 * 60 * 1000);
+  const expiresAt = resolveExtendedShareExpiresAt(now, row.expiresAt, ttlHours);
   const maxExpiresAt = new Date(now.getTime() + MAX_SHARE_TTL_MS);
   if (expiresAt > maxExpiresAt) {
     throw new CredentialShareError(
@@ -631,6 +631,7 @@ export async function extendCredentialShare(input: {
     shareId: row.id,
     action: "ashed_share.extended",
     metadata: {
+      ownerHqUserId,
       expiresAt: expiresAt.toISOString(),
       ttlHours,
       delegateHqUserId: row.delegateHqUserId,
