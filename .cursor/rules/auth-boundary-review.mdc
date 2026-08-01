@@ -1,0 +1,149 @@
+---
+description: Auth boundary review — permission primitives, session lifecycle, negative privilege e2e, and dual-mode security review (route vs architecture). Use for RBAC, session, bootstrap, connect, admin API, and security-review / Real Steel auth passes.
+globs:
+  - src/lib/rbac/**
+  - src/lib/session/**
+  - src/lib/auth/**
+  - src/lib/bff/session.ts
+  - src/app/api/auth/**
+  - src/app/api/admin/**
+  - src/middleware.ts
+  - e2e/**/*rbac*
+  - e2e/**/*auth*
+  - e2e/**/*session*
+alwaysApply: false
+---
+
+# Auth boundary review
+
+Alliance HQ has **two session layers**: `authjs.session-token` (HQ identity) and `alliance_hq_session` (browser workspace — Ashed creds, alliance context, correlation ids). **Authorization must never treat a workspace row without `hq_user_id` as a principal.**
+
+Pair with [`.cursor/rules/e2e-plan-completion.mdc`](e2e-plan-completion.mdc) for Playwright gates. Reference implementation: [`e2e/rbac-anonymous-session.spec.ts`](../../e2e/rbac-anonymous-session.spec.ts).
+
+---
+
+## A. Permission primitive pass (mandatory)
+
+Route handlers calling `requireSessionPermission` / `requirePlatformMaintainer` is **necessary, not sufficient**. Always audit the **shared primitives** the guards delegate to.
+
+### Files (grep on every auth-touching PR)
+
+| File | What to verify |
+| --- | --- |
+| [`src/lib/rbac/context.ts`](../../src/lib/rbac/context.ts) | `sessionHasPermission`, `sessionHasPermissionForAlliance`, `getRbacContext` |
+| [`src/lib/rbac/require-permission.ts`](../../src/lib/rbac/require-permission.ts) | Wrappers return 403 when primitive denies |
+| [`src/lib/session/index.ts`](../../src/lib/session/index.ts) | Mint paths: `bootstrapSessionResponse`, `getOrCreateSession`, `requirePageSession` |
+
+### Invariants
+
+- **`hq_user_id` null → deny all RBAC** in `sessionHasPermission` and `sessionHasPermissionForAlliance` (return `false`, never `true`).
+- **`return true` in an auth helper is Critical** unless narrowly scoped (documented cutoff, explicit flag, and **never** satisfies `hq:admin`).
+- **No “compat” branch** keyed only on `!session.hqUserId` without a maintainer-approved, time-bounded exemption.
+- **`getRbacContext` returns null** when `hqUserId` is missing — callers must not treat null context as allow.
+
+### Session lifecycle trace (answer on every auth PR)
+
+1. **Mint** — How can this change create or refresh a session? (`/api/auth/bootstrap`, `getOrCreateSession`, invite/connect flows)
+2. **Bind** — When does `hq_user_id` get set? (NextAuth, connect sync, bridge)
+3. **Enforce** — Which permission helper runs? What happens when `hqUserId` is null?
+4. **Prove denial** — Can a fresh bootstrap / anonymous cookie reach admin or alliance mutations?
+
+### Red flags (grep)
+
+```bash
+rg 'if \(!session\.hqUserId\)' src/lib/rbac src/lib/session src/app/api
+rg 'return true' src/lib/rbac
+rg 'sessionHasPermission.*true|resolves\.toBe\(true\)' src/lib/rbac e2e
+```
+
+Flag tests that expect **allow** for `hqUserId: null` unless the test documents a **narrow legacy exemption** that cannot grant `hq:admin`.
+
+---
+
+## C. Mandatory negative e2e for privilege boundaries
+
+When adding or changing **`/api/admin/*`**, **`requirePlatformMaintainer`**, or any **new high-privilege mutation**, ship **negative** Playwright coverage in the same PR — not only unit tests.
+
+### Minimum matrix (per new admin surface or guard change)
+
+| Actor | Expected |
+| --- | --- |
+| **Bootstrap / anonymous** (`GET /api/auth/bootstrap` or `createBrowserSession({ hqUserId: null })`) | **403** on protected route |
+| **Authenticated non-maintainer** (member/officer without `hq:admin`) | **403** on maintainer-only routes |
+| **Platform maintainer** | **200** (or domain-appropriate success) — positive control |
+
+### Bootstrap path (required for admin)
+
+Exercise the **real HTTP mint** when the vulnerability class is bootstrap → admin:
+
+```typescript
+const bootstrap = await request.get("/api/auth/bootstrap?next=/", { maxRedirects: 0 });
+// parse alliance_hq_session from Set-Cookie → call protected API → expect 403
+```
+
+Do not rely only on DB fixtures for admin escalation tests — fixtures miss bootstrap cookie behavior.
+
+### Fixtures
+
+- Anonymous cookie: `alliance_hq_session=<id>` only (no `authjs.session-token`) — see [`e2e/rbac-anonymous-session.spec.ts`](../../e2e/rbac-anonymous-session.spec.ts).
+- Authenticated: `authCookieHeader` / `playwrightAuthCookies` from [`e2e/fixtures/db.ts`](../../e2e/fixtures/db.ts) + [`e2e/fixtures/auth.ts`](../../e2e/fixtures/auth.ts).
+
+### Checklist before merge
+
+- [ ] Negative case for anonymous session on new/changed privileged route
+- [ ] Negative case for under-privileged authenticated user when applicable
+- [ ] Positive control for intended role
+- [ ] `npm run test:e2e` includes new spec or extended describe block
+
+---
+
+## F. Dual-mode security review
+
+Split auth review into **two explicit modes**. Diff-only “does this route call the guard?” misses composition bugs (bootstrap + primitive allow-all was one example).
+
+| Mode | Question | When to run |
+| --- | --- | --- |
+| **Route compliance** | Does every new/changed handler call the correct guard (`requireSessionPermission`, `requirePlatformMaintainer`, `requireAlliancePermission`, explicit `hqUserId` check)? | Every PR touching `src/app/api/**` |
+| **Auth architecture** | Can any **session shape** reach a handler despite the guard? Trace mint → bind → primitive → handler. | Auth/RBAC/session PRs; **any** change to `context.ts`, bootstrap, connect, middleware; periodic audit of `main` |
+
+### Real Steel
+
+On auth-touching PRs, at least one pass must run **Auth architecture** mode using sections **A** and **C** above. Route compliance alone is insufficient for `real-steel-ready` when the PR touches `src/lib/rbac/**`, `src/lib/session/**`, or `/api/admin/**`.
+
+### `/review-security` Custom Instructions
+
+When launching the security-review subagent on this repo, include **Auth architecture** unless the PR is docs-only:
+
+```text
+Custom Instructions: Alliance HQ auth architecture pass per .cursor/rules/auth-boundary-review.mdc:
+(1) Permission primitive pass — sessionHasPermission / sessionHasPermissionForAlliance; no allow on hqUserId null; flag return true in rbac/.
+(2) Trace session mint paths (bootstrap, getOrCreateSession) to privileged routes in the diff.
+(3) Confirm negative e2e exists or is required for new admin/privilege surfaces (bootstrap cookie → 403).
+(4) Flag unit tests that assert permissive auth for hqUserId null.
+```
+
+For non-auth PRs, route compliance mode is enough:
+
+```text
+Custom Instructions: Route compliance only — verify new/changed API handlers call requireSessionPermission or equivalent; tenant scope by alliance id.
+```
+
+---
+
+## Workspace vs principal (mental model)
+
+| Concept | `alliance_hq_session` without `hq_user_id` | After sign-in |
+| --- | --- | --- |
+| **Purpose** | Browser workspace (Ashed cred staging, pairing, job correlation) | Workspace + linked HQ user |
+| **RBAC** | **Deny all** | Evaluate memberships + maintainer flag |
+| **NextAuth** | May be absent | Required for invite accept and many identity-bound flows |
+
+Do not document anonymous workspace rows as “allow-all until reconnect” invariants.
+
+---
+
+## Related
+
+- [`.cursor/rules/discord-identity-auth-layers.mdc`](discord-identity-auth-layers.mdc) — identity graph
+- [`.cursor/rules/player-uid-privacy.mdc`](player-uid-privacy.mdc) — UID exposure
+- [`docs/multi-tenant-schema.md`](../../docs/multi-tenant-schema.md) — target: alliance-scoped Ashed creds, less session coupling

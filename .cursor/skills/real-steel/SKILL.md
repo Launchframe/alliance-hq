@@ -64,6 +64,24 @@ After the global skill's pass loop completes:
 1. Apply or withhold `real-steel-ready` per the table above.
 2. Include label status in the user-facing summary alongside remaining risks, run log path, CI status, and Task vs orchestrator-inline execution notes.
 
+## Auth boundary review (Real Steel)
+
+When the PR touches `src/lib/rbac/**`, `src/lib/session/**`, `src/lib/auth/**`, `/api/auth/**`, `/api/admin/**`, or e2e auth/RBAC specs, **at least one pass** must follow [`.cursor/rules/auth-boundary-review.mdc`](../rules/auth-boundary-review.mdc):
+
+| Pass | Mode | Required work |
+| --- | --- | --- |
+| **Permission primitive** | Auth architecture | § A — `sessionHasPermission*`; no `return true` on `hqUserId` null; grep red flags |
+| **Privilege e2e** | Auth architecture | § C — negative bootstrap → admin (or extend `e2e/rbac-anonymous-session.spec.ts`); maintainer positive control |
+| **Route compliance** | Route compliance | Handler calls correct `require*`; tenant filter by alliance |
+
+**Security-review / Bugbot-style passes** on auth PRs: use **Auth architecture** `Custom Instructions` from § F of the rule. Route-compliance-only review is insufficient for `real-steel-ready` on those PRs.
+
+Include in each auth-touching Task prompt:
+
+```text
+Read .cursor/rules/auth-boundary-review.mdc. Run permission primitive pass (§ A) and confirm privilege e2e (§ C) for any new admin or high-privilege surface in the diff.
+```
+
 ## When to stop early
 
 Follow the global skill. Additionally for this repo:
