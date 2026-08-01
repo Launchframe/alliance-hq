@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ChevronDown, ChevronRight, Eye, Plus } from "lucide-react";
-import type { Slide } from "yet-another-react-lightbox";
+import { ChevronDown, ChevronRight, ImageIcon, Plus } from "lucide-react";
 
 import { CityListBankReviewCard } from "@/components/banks/CityListBankReviewCard";
 import { CityListImportResetDialog } from "@/components/banks/CityListImportResetDialog";
-import { ScreenshotLightbox } from "@/components/ui/ScreenshotLightbox";
+import { CityListScreenshotPreviewPane } from "@/components/banks/CityListScreenshotPreviewPane";
+import { useCityListPreviewLayout } from "@/components/banks/useCityListPreviewLayout";
 import { Link, useRouter } from "@/i18n/navigation";
 import {
   clearCityListImportDraft,
@@ -88,8 +88,7 @@ export function CityListImportReviewClient({
   const [screenshots, setScreenshots] = useState<
     CityListImportScreenshotPreview[]
   >([]);
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [previewIndex, setPreviewIndex] = useState(0);
+  const [screenshotIndex, setScreenshotIndex] = useState(0);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState<Set<string>>(new Set());
@@ -98,6 +97,35 @@ export function CityListImportReviewClient({
   const [matchedBanksOpen, setMatchedBanksOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const previewAutoOpenedRef = useRef(false);
+
+  const {
+    device: previewDevice,
+    placement: previewPlacement,
+    available: previewPlacements,
+    open: previewOpen,
+    sideWidthPx: previewSideWidthPx,
+    dockHeightPx: previewDockHeightPx,
+    setOpen: setPreviewOpen,
+    setPlacement: setPreviewPlacement,
+    setSideWidthPx: setPreviewSideWidthPx,
+    setDockHeightPx: setPreviewDockHeightPx,
+    getImageTransform,
+    setImageTransform,
+  } = useCityListPreviewLayout();
+
+  const effectivePreviewPlacement =
+    previewPlacement === "side" && previewDevice === "mobile"
+      ? "bottom"
+      : previewPlacement;
+
+  const hasScreenshots = screenshots.length > 0;
+  const clampedScreenshotIndex =
+    screenshots.length === 0
+      ? 0
+      : Math.min(screenshotIndex, screenshots.length - 1);
+  const activeScreenshot =
+    screenshots[clampedScreenshotIndex] ?? screenshots[0];
 
   useEffect(() => {
     // Defer sessionStorage read past the first paint so SSR hydration matches
@@ -125,6 +153,14 @@ export function CityListImportReviewClient({
       snapshot,
     });
   }, [allianceId, hydrated, rows, snapshot]);
+
+  useEffect(() => {
+    if (!hydrated || !hasScreenshots || previewAutoOpenedRef.current) return;
+    previewAutoOpenedRef.current = true;
+    if (previewDevice === "desktop") {
+      setPreviewOpen(true);
+    }
+  }, [hasScreenshots, hydrated, previewDevice, setPreviewOpen]);
 
   const requiredMsg = t("cityListValidationRequired");
   const levelMinMsg = t("cityListValidationLevelMin");
@@ -203,11 +239,6 @@ export function CityListImportReviewClient({
   const showExtraHqWarning = isCompleteImport && extraHqBankCount > 0;
   const effectiveArchiveMissingBanks =
     showExtraHqWarning && archiveMissingBanks;
-
-  const lightboxSlides = useMemo<Slide[]>(
-    () => screenshots.map((shot) => ({ src: shot.previewUrl })),
-    [screenshots],
-  );
 
   const updateRow = useCallback((rowKey: string, patch: Partial<ReviewRow>) => {
     setRows((prev) =>
@@ -344,8 +375,51 @@ export function CityListImportReviewClient({
     isCityListPlaceholderCoords(r.coordX, r.coordY),
   ).length;
 
+  const showSidePreview =
+    hasScreenshots && previewOpen && effectivePreviewPlacement === "side";
+  const showTopPreview =
+    hasScreenshots && previewOpen && effectivePreviewPlacement === "top";
+  const showBottomPreview =
+    hasScreenshots && previewOpen && effectivePreviewPlacement === "bottom";
+
+  const previewNode =
+    hasScreenshots && previewOpen && activeScreenshot ? (
+      <CityListScreenshotPreviewPane
+        screenshots={screenshots}
+        screenshotIndex={clampedScreenshotIndex}
+        onScreenshotIndexChange={setScreenshotIndex}
+        placement={effectivePreviewPlacement}
+        available={previewPlacements}
+        onPlacementChange={setPreviewPlacement}
+        onClose={() => setPreviewOpen(false)}
+        sideWidthPx={previewSideWidthPx}
+        dockHeightPx={previewDockHeightPx}
+        onSideWidthChange={setPreviewSideWidthPx}
+        onDockHeightChange={setPreviewDockHeightPx}
+        imageTransform={getImageTransform(activeScreenshot.id)}
+        onImageTransformChange={(transform) =>
+          setImageTransform(activeScreenshot.id, transform)
+        }
+      />
+    ) : null;
+
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-6xl flex-col gap-4 p-4 pb-28">
+    <div
+      className={`relative flex min-w-0 w-full max-w-full overflow-x-clip ${
+        showSidePreview ? "flex-row" : "flex-col"
+      }`}
+    >
+      {showTopPreview ? previewNode : null}
+      <div
+        className={`mx-auto flex min-w-0 w-full max-w-6xl flex-1 flex-col gap-4 p-4 pb-28 ${
+          showSidePreview ? "min-w-0" : ""
+        }`}
+        style={
+          showBottomPreview
+            ? { paddingBottom: previewDockHeightPx + 112 }
+            : undefined
+        }
+      >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <h1 className="text-xl font-semibold text-hq-fg">
@@ -377,13 +451,17 @@ export function CityListImportReviewClient({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {screenshots.length > 0 ? (
+          {hasScreenshots ? (
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 rounded border border-hq-border px-3 py-2 text-sm text-hq-fg"
-              onClick={() => setLightboxIndex(previewIndex)}
+              className={`inline-flex items-center gap-1.5 rounded border px-3 py-2 text-sm ${
+                previewOpen
+                  ? "border-hq-accent bg-hq-accent/10 text-hq-accent"
+                  : "border-hq-border text-hq-fg"
+              }`}
+              onClick={() => setPreviewOpen((open) => !open)}
             >
-              <Eye className="h-4 w-4" aria-hidden />
+              <ImageIcon className="h-4 w-4" aria-hidden />
               {t("cityListPreviewScreenshots")}
             </button>
           ) : null}
@@ -450,35 +528,6 @@ export function CityListImportReviewClient({
               : t("cityListExistingBanksClusterShow")}
           </button>
         </div>
-      ) : null}
-
-      {screenshots.length > 1 ? (
-        <ul className="flex flex-wrap gap-2">
-          {screenshots.map((shot, index) => (
-            <li key={shot.id}>
-              <button
-                type="button"
-                className={
-                  index === previewIndex
-                    ? "overflow-hidden rounded border border-hq-accent"
-                    : "overflow-hidden rounded border border-hq-border"
-                }
-                onClick={() => {
-                  setPreviewIndex(index);
-                  setLightboxIndex(index);
-                }}
-                aria-label={t("cityListThumbnailPreview")}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={shot.previewUrl}
-                  alt=""
-                  className="h-16 w-12 object-cover"
-                />
-              </button>
-            </li>
-          ))}
-        </ul>
       ) : null}
 
       <form
@@ -569,15 +618,19 @@ export function CityListImportReviewClient({
         }}
       />
 
-      <ScreenshotLightbox
-        open={
-          lightboxIndex !== null && lightboxIndex < lightboxSlides.length
-        }
-        index={lightboxIndex ?? 0}
-        slides={lightboxSlides}
-        onClose={() => setLightboxIndex(null)}
-        closeLabel={t("cityListClosePreview")}
-      />
+      {hasScreenshots && !previewOpen ? (
+        <button
+          type="button"
+          onClick={() => setPreviewOpen(true)}
+          className="fixed bottom-28 right-4 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full border border-hq-accent bg-[#0c2d6b] text-hq-fg shadow-lg hover:bg-[#1a4480] sm:bottom-24"
+          aria-label={t("cityListPreviewScreenshots")}
+        >
+          <ImageIcon className="h-5 w-5 shrink-0" aria-hidden />
+        </button>
+      ) : null}
+      </div>
+      {showSidePreview ? previewNode : null}
+      {showBottomPreview ? previewNode : null}
     </div>
   );
 }

@@ -25,8 +25,14 @@ export type PreviewZoom = "fit" | "width";
 
 const PREVIEW_ZOOMS: readonly PreviewZoom[] = ["fit", "width"];
 
-/** localStorage key for persisted preview preferences (bump suffix on shape change). */
-export const PREVIEW_PREFS_STORAGE_KEY = "hq-video-preview-prefs-v2";
+/** localStorage key for persisted video review preview prefs (bump suffix on shape change). */
+export const VIDEO_PREVIEW_PREFS_STORAGE_KEY = "hq-video-preview-prefs-v2";
+
+/** @deprecated Use {@link VIDEO_PREVIEW_PREFS_STORAGE_KEY}. */
+export const PREVIEW_PREFS_STORAGE_KEY = VIDEO_PREVIEW_PREFS_STORAGE_KEY;
+
+/** localStorage key for city-list import review screenshot preview prefs. */
+export const CITY_LIST_PREVIEW_PREFS_STORAGE_KEY = "hq-city-list-preview-prefs-v1";
 
 export type Viewport = { width: number; height: number };
 
@@ -135,6 +141,36 @@ export function clampPreviewSize(
   };
 }
 
+/** Pan/zoom transform for a screenshot preview image (city-list review). */
+export type PreviewImageTransform = {
+  scale: number;
+  x: number;
+  y: number;
+};
+
+export const DEFAULT_PREVIEW_IMAGE_TRANSFORM: PreviewImageTransform = {
+  scale: 1,
+  x: 0,
+  y: 0,
+};
+
+const MIN_IMAGE_SCALE = 1;
+const MAX_IMAGE_SCALE = 6;
+
+export function clampPreviewImageTransform(
+  raw: Partial<PreviewImageTransform> | undefined | null,
+): PreviewImageTransform {
+  const scale =
+    typeof raw?.scale === "number" && Number.isFinite(raw.scale)
+      ? Math.min(MAX_IMAGE_SCALE, Math.max(MIN_IMAGE_SCALE, raw.scale))
+      : DEFAULT_PREVIEW_IMAGE_TRANSFORM.scale;
+  const x =
+    typeof raw?.x === "number" && Number.isFinite(raw.x) ? raw.x : 0;
+  const y =
+    typeof raw?.y === "number" && Number.isFinite(raw.y) ? raw.y : 0;
+  return { scale, x, y };
+}
+
 export type PreviewPrefs = {
   open: boolean;
   placement: Record<PreviewDeviceClass, PreviewPlacement>;
@@ -142,6 +178,8 @@ export type PreviewPrefs = {
   size: Record<PreviewDeviceClass, PreviewPaneSize>;
   /** Score review: auto-seek preview to the row scrolled into view. */
   followMe: boolean;
+  /** City-list review: per-screenshot pan/zoom (keyed by screenshot id). */
+  imageTransforms: Record<string, PreviewImageTransform>;
 };
 
 const FALLBACK_VIEWPORT = { width: 1280, height: 800 };
@@ -156,6 +194,7 @@ export const DEFAULT_PREVIEW_PREFS: PreviewPrefs = {
     mobile: clampPreviewSize(null, { width: 390, height: 844 }),
   },
   followMe: false,
+  imageTransforms: {},
 };
 
 /** Coerce a (possibly stale/invalid) zoom into a known value. */
@@ -186,6 +225,7 @@ export function parsePreviewPrefs(
         mobile: clampPreviewSize(null, viewport),
       },
       followMe: false,
+      imageTransforms: {},
     };
   }
   try {
@@ -196,6 +236,14 @@ export function parsePreviewPrefs(
     const size = (parsed?.size ?? {}) as Partial<
       Record<PreviewDeviceClass, Partial<PreviewPaneSize>>
     >;
+    const rawTransforms = (parsed?.imageTransforms ?? {}) as Record<
+      string,
+      Partial<PreviewImageTransform>
+    >;
+    const imageTransforms: Record<string, PreviewImageTransform> = {};
+    for (const [id, transform] of Object.entries(rawTransforms)) {
+      imageTransforms[id] = clampPreviewImageTransform(transform);
+    }
     return {
       open: typeof parsed?.open === "boolean" ? parsed.open : true,
       placement: {
@@ -210,6 +258,7 @@ export function parsePreviewPrefs(
         mobile: parseStoredSize(size.mobile, viewport),
       },
       followMe: typeof parsed?.followMe === "boolean" ? parsed.followMe : false,
+      imageTransforms,
     };
   } catch {
     return parsePreviewPrefs(null, viewport);
