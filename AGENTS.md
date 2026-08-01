@@ -59,7 +59,7 @@ Apply on every Real Steel pass for this repo:
 - **RBAC enforcement** — every new/changed BFF route calls `requireSessionPermission` or equivalent; platform maintainer checks on `/admin/*` and `/api/admin/*`
 - **Tenant isolation** — alliance-scoped queries filter by session alliance; admin cross-tenant reads are intentional and read-only where documented
 - **Ashed sync vs manual roles** — `source: manual` memberships must not be overwritten by connect/settings sync
-- **Legacy sessions** — behavior when `hq_user_id` is null (allow-all until reconnect) must remain consistent
+- **Anonymous sessions** — `sessions` rows with `hq_user_id` null (bootstrap / pre-sign-in) must **deny** all RBAC checks; `sessionHasPermission` and `sessionHasPermissionForAlliance` return false until Auth.js links an HQ user
 - **Bootstrap safety** — `PLATFORM_BOOTSTRAP_EMAIL` only promotes when zero platform maintainers exist; no privilege escalation on reconnect
 - **Deploy seeds** — `db:prepare` migrations/seeds idempotent; safe to run on every Vercel build; every `drizzle/NNNN_*.sql` must appear in `drizzle/meta/_journal.json` (`npm run db:validate-journal`)
 - **i18n** — interactive work: maintainer approves English before `messages/en-US.*` or `messages/pt-BR.*` change (see [`.cursor/rules/user-facing-copy-review.mdc`](.cursor/rules/user-facing-copy-review.mdc)). Real Steel / async review agents may land proposed copy with the same commit when they post a PR **Copy (pending maintainer review)** block. Always en-US + hand pt-BR together; run `npm run i18n:validate`. Every user-visible surface (web, Discord, generated images) must use the active locale — see [`.cursor/rules/i18n-all-surfaces.mdc`](.cursor/rules/i18n-all-surfaces.mdc).
@@ -132,7 +132,7 @@ Name+UID member link (`/onboard`, `/link-commander`, `/link-last-war-profile`) p
 | Discord officer gate | R4+ checks use the alliance-scoped local roster when present. Optional Ashed credentials may supply roster reads for Ashed-sourced alliances that have no local roster yet. |
 | Token storage | Web connects and `/link-ashed` credentials cap `tokenExpiresAt` at **min(JWT exp, browser session expiresAt)**. |
 
-Legacy sessions (`hqUserId` null): allow-all until reconnect (unchanged). Regular `member` / `data_entry` / `viewer` invites: name+UID link only.
+Anonymous sessions (`hqUserId` null): deny all RBAC until sign-in links an HQ user. Regular `member` / `data_entry` / `viewer` invites: name+UID link only.
 
 **Commander vs HQ user vs roster:** Invite accept creates **`alliance_memberships` (RBAC)** only; **`hq_member_links`** is a separate exact UID + roster bind. Three name sources (typed, Last War API, `alliance_members`) must not be fuzzy-merged — see [`.cursor/rules/invite-commander-identity.mdc`](.cursor/rules/invite-commander-identity.mdc).
 
