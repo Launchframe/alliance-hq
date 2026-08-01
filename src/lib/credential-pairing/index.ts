@@ -215,7 +215,10 @@ export async function claimPairingCode(
 export async function completePairing(
   code: string,
   targetSessionId: string,
-  options?: { clientInfo?: PairingClientInfo },
+  options?: {
+    clientInfo?: PairingClientInfo;
+    completeOptions?: import("@/lib/credential-pairing/types").PairingCompleteOptions;
+  },
 ): Promise<PairingCompleteResult> {
   const db = getDb();
   const [preview] = await db
@@ -247,6 +250,7 @@ export async function completePairing(
     metadata,
     pairingCodeId: row.id,
     clientInfo: options?.clientInfo,
+    completeOptions: options?.completeOptions,
   });
 
   return { ok: true, purpose: row.purpose };

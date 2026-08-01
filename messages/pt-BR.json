@@ -2299,6 +2299,81 @@
     "searchNoMatches": "Nenhuma aliança corresponde à busca.",
     "switchToSelected": "Usar {tag} nesta sessão"
   },
+  "credentialShare": {
+    "team": {
+      "title": "Compartilhamento de credenciais Ashed",
+      "description": "Convide um oficial nomeado para usar suas credenciais Ashed em tarefas do escopo da aliança. As ações ficam registradas nos logs de auditoria do HQ.",
+      "loading": "Carregando compartilhamentos…",
+      "loadFailed": "Não foi possível carregar os compartilhamentos.",
+      "createFailed": "Não foi possível criar o compartilhamento.",
+      "revokeFailed": "Não foi possível revogar o acesso.",
+      "empty": "Nenhum compartilhamento ativo nesta aliança.",
+      "pendingInvite": "Convite pendente para {name}",
+      "activeShare": "Acesso ativo para {name}",
+      "unknownOfficer": "oficial",
+      "capabilities": "Capacidades: {list}",
+      "expiresAt": "Expira em {date}",
+      "lastAccessed": "Último acesso {date}",
+      "revoke": "Revogar acesso",
+      "recentActivity": "Atividade recente",
+      "createTitle": "Compartilhar suas credenciais",
+      "officerLabel": "Oficial",
+      "officerPlaceholder": "Selecione um oficial",
+      "capabilitiesLabel": "Capacidades",
+      "capability": {
+        "roster:sync": "Sincronização de elenco",
+        "video:process": "Processamento de vídeo",
+        "alliance_credentials:manage": "Credenciais do bot da aliança",
+        "data_management:write": "Gravações de gestão de dados"
+      },
+      "ttlLabel": "Duração do acesso",
+      "ttl24h": "24 horas",
+      "ttl72h": "3 dias",
+      "ttl7d": "7 dias",
+      "ownerAcknowledgment": "Entendo que este oficial agirá como eu no Ashed para as capacidades selecionadas até o acesso expirar ou eu revogá-lo.",
+      "ownerAckRequired": "Confirme o reconhecimento antes de criar o compartilhamento.",
+      "creating": "Criando…",
+      "createCta": "Criar convite",
+      "inviteLinkLabel": "Link do convite",
+      "scanHint": "Envie este link ou QR code ao oficial convidado. Ele deve entrar como esse oficial para aceitar."
+    },
+    "account": {
+      "title": "Compartilhamento de credenciais",
+      "description": "Vínculos ativos de credenciais que você concedeu ou recebeu.",
+      "loading": "Carregando compartilhamentos…",
+      "viewHistory": "Ver histórico",
+      "grantedTo": "Concedido a {name}",
+      "receivedFrom": "Recebido de {name}",
+      "pendingOfficer": "oficial convidado",
+      "lastAccessed": "Último acesso {date}"
+    },
+    "accept": {
+      "title": "Aceitar acesso às credenciais",
+      "body": "{owner} convidou você para usar as credenciais Ashed dele nesta aliança.",
+      "unknownOwner": "Um oficial da aliança",
+      "acknowledgment": "Entendo que minhas ações no Ashed aparecerão como este oficial no Ashed e não abusarei deste acesso.",
+      "ackRequired": "Você deve aceitar o reconhecimento antes de continuar.",
+      "acceptCta": "Aceitar acesso",
+      "submitting": "Aceitando acesso…",
+      "success": "O acesso às credenciais está ativo nesta aliança."
+    },
+    "history": {
+      "title": "Histórico de compartilhamento de credenciais",
+      "subtitle": "Revise vínculos ativos e anteriores em todas as suas alianças.",
+      "loading": "Carregando histórico…",
+      "empty": "Ainda não há histórico de compartilhamento.",
+      "roleGranted": "Concedido",
+      "roleReceived": "Recebido",
+      "ended": "Encerrado em {date}",
+      "endReason": {
+        "expired": "Expirado",
+        "revoked": "Revogado",
+        "rejected": "Rejeitado",
+        "owner_token_expired": "Token do proprietário expirou",
+        "membership_ended": "Associação encerrada"
+      }
+    }
+  },
   "deviceLink": {
     "pageTitle": "Vincular dispositivo",
     "pageSubtitle": "Copie sua conexão Ashed para outro celular ou navegador com um QR code.",

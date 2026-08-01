@@ -4,6 +4,7 @@ import { and, eq, ne } from "drizzle-orm";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getDb, schema } from "@/lib/db";
+import { refreshActiveShareSnapshotsForOwner } from "@/lib/ashed/credential-share.server";
 
 export async function revokeAshedMembershipsForHqUser(
   hqUserId: string,
@@ -101,6 +102,11 @@ export async function rebindAshedIdentityToSession(input: {
       mergedFromHqUserId: input.mergedFromHqUserId ?? null,
     },
   });
+
+  await refreshActiveShareSnapshotsForOwner(
+    input.canonicalHqUserId,
+    input.sessionId,
+  );
 
   return {
     revokedCredentialSessions: duplicateCredentials.length,

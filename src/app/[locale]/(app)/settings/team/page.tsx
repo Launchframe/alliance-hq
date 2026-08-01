@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 
 import { Link } from "@/i18n/navigation";
+import { CredentialSharePanel } from "@/components/settings/CredentialSharePanel";
 import { SettingsTeamClient } from "@/components/SettingsTeamClient";
 import { TeamInvitePanel } from "@/components/settings/TeamInvitePanel";
 import { VideoProcessorsPanel } from "@/components/settings/VideoProcessorsPanel";
@@ -22,7 +23,8 @@ import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { requireAllianceSettingsSession } from "@/lib/settings/alliance-settings-access.server";
 import { getRbacContext, sessionIsAllianceAdmin } from "@/lib/rbac/context";
 import { getAllianceTeam } from "@/lib/rbac/sync-ashed-roles";
-import { getAshedConnection, requirePageSession } from "@/lib/session";
+import { getAshedConnection, requirePageSession, resolveEffectiveHqUserIdForSession } from "@/lib/session";
+import { sessionHoldsAshedIdentityForHqUser } from "@/lib/rbac/ashed-session-membership";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +53,18 @@ export default async function SettingsTeamPage({
   const isAllianceAdmin = await sessionIsAllianceAdmin(access.session.id);
   const operatingMode = await getAllianceOperatingMode(allianceId);
   const ashedConnection = await getAshedConnection(access.session.id);
+  const effectiveHqUserId = await resolveEffectiveHqUserIdForSession(
+    access.session.id,
+    access.session.hqUserId,
+  );
+  const canManageCredentialShares = Boolean(
+    ashedConnection &&
+      effectiveHqUserId &&
+      (await sessionHoldsAshedIdentityForHqUser(
+        access.session.id,
+        effectiveHqUserId,
+      )),
+  );
   const canRefreshFromAshed =
     isAllianceAdmin &&
     canRefreshRosterFromAshed({
@@ -114,6 +128,11 @@ export default async function SettingsTeamPage({
           max={MAX_VIDEO_PROCESSORS}
         />
       ) : null}
+
+      <CredentialSharePanel
+        canManage={canManageCredentialShares}
+        currentHqUserId={effectiveHqUserId}
+      />
 
       <SettingsTeamClient
         initialTeam={team}

@@ -387,6 +387,70 @@ export const linkedDevices = pgTable("linked_devices", {
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
 });
 
+export const ashedCredentialShareStatuses = [
+  "pending",
+  "active",
+  "rejected",
+  "revoked",
+  "expired",
+] as const;
+
+export type AshedCredentialShareStatus =
+  (typeof ashedCredentialShareStatuses)[number];
+
+export const ashedCredentialShareEndReasons = [
+  "expired",
+  "revoked",
+  "rejected",
+  "owner_token_expired",
+  "membership_ended",
+] as const;
+
+export type AshedCredentialShareEndReason =
+  (typeof ashedCredentialShareEndReasons)[number];
+
+export const ashedCredentialShares = pgTable(
+  "ashed_credential_shares",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    ownerHqUserId: text("owner_hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    delegateHqUserId: text("delegate_hq_user_id").references(() => hqUsers.id, {
+      onDelete: "set null",
+    }),
+    invitedHqUserId: text("invited_hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    status: text("status").$type<AshedCredentialShareStatus>().notNull(),
+    capabilities: jsonb("capabilities")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    encryptedToken: text("encrypted_token"),
+    appId: text("app_id"),
+    originUrl: text("origin_url"),
+    tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+    ashedUserId: text("ashed_user_id"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    endReason: text("end_reason").$type<AshedCredentialShareEndReason | null>(),
+    inviteTokenHash: text("invite_token_hash"),
+    lastAccessedAt: timestamp("last_accessed_at", { withTimezone: true }),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    rejectedAt: timestamp("rejected_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+);
+
 export const ashedCredentials = pgTable("ashed_credentials", {
   id: text("id").primaryKey(),
   sessionId: text("session_id")
@@ -1495,6 +1559,7 @@ export type Role = typeof roles.$inferSelect;
 export type Permission = typeof permissions.$inferSelect;
 export type CredentialPairingCode = typeof credentialPairingCodes.$inferSelect;
 export type LinkedDevice = typeof linkedDevices.$inferSelect;
+export type AshedCredentialShare = typeof ashedCredentialShares.$inferSelect;
 export type AshedCredential = typeof ashedCredentials.$inferSelect;
 export type VideoUploadGroup = typeof videoUploadGroups.$inferSelect;
 export type VideoJob = typeof videoJobs.$inferSelect;

@@ -11,6 +11,7 @@ import { getOrCreateSession } from "@/lib/session";
 
 const bodySchema = z.object({
   code: z.string().trim().min(1),
+  acknowledged: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
 
     const result = await completePairing(body.code, session.id, {
       clientInfo: { userAgent: request.headers.get("user-agent") },
+      completeOptions: { acknowledged: body.acknowledged },
     });
     return NextResponse.json(result);
   } catch (error) {

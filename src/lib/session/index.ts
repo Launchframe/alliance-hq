@@ -41,6 +41,7 @@ import {
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { shouldShowTeamAccessNav } from "@/lib/settings/team-access-nav.shared";
 import { shouldShowVideoProcessorsNav } from "@/lib/video/video-processors-nav.shared";
+import { sessionUsesDelegatedCredential } from "@/lib/ashed/credential-share.server";
 import { getAccountTimezoneIdForHqUser } from "@/lib/timezone/server";
 
 export const SESSION_COOKIE = "alliance_hq_session";
@@ -585,15 +586,20 @@ export async function getSessionStateFor(
     ? await getAllianceOperatingMode(session.currentAllianceId)
     : null;
   const isAshedConnectAllowed = rbacAllowsAshedConnect(rbac, hasActiveMembership);
-  const canUseAshedEmbeds =
-    Boolean(rbac?.isPlatformMaintainer) ||
-    (connection !== null && isAshedConnectAllowed);
 
   const membershipAlliances = effectiveHqUserId
     ? await listAlliancePickerOptions(effectiveHqUserId)
     : [];
 
   const resolvedAllianceId = resolveSessionAllianceId(session);
+  const usesDelegatedCredential = resolvedAllianceId
+    ? await sessionUsesDelegatedCredential(session.id, resolvedAllianceId)
+    : false;
+  const canUseAshedEmbeds =
+    !usesDelegatedCredential &&
+    (Boolean(rbac?.isPlatformMaintainer) ||
+      (connection !== null && isAshedConnectAllowed));
+
   let currentAlliance =
     membershipAlliances.find((a) => a.id === resolvedAllianceId) ??
     membershipAlliances.find((a) => a.id === session.currentAllianceId) ??
@@ -641,6 +647,7 @@ export async function getSessionStateFor(
     requiresMemberLink,
     hasAllianceMemberLink,
     canUseAshedEmbeds,
+    usesDelegatedCredential,
     isNativeAlliance: isNativeMembership,
     operatingMode,
     expiresAt: session.expiresAt.toISOString(),
