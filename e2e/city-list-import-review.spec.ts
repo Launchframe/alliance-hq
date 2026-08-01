@@ -131,7 +131,11 @@ test.describe("City List import review (dedicated page)", () => {
     await expect(closePreview).toBeHidden();
 
     // Toggle reopens the docked preview without leaving the review page.
-    await page.getByRole("button", { name: /preview screenshots/i }).click();
+    // Two controls share the label when closed (header + FAB) — either opens preview.
+    await page
+      .getByRole("button", { name: /preview screenshots/i })
+      .first()
+      .click();
     await expect(closePreview).toBeVisible();
     await closePreview.click();
     await expect(closePreview).toBeHidden();
