@@ -10,6 +10,7 @@ import {
   type BankPayload,
   type DepositSlipPayload,
 } from "@/lib/banks/api.shared";
+import { sortBanksForManagementDisplay } from "@/lib/banks/bank-list-sort.shared";
 import { cityListUpsertClearsDropByAt } from "@/lib/banks/city-list-import-review.shared";
 import { BANK_PROTECTION_DURATION_MS } from "@/lib/banks/types.shared";
 import {
@@ -299,10 +300,12 @@ export async function loadBanksWithSlips(
     slipsByBank.set(slip.bankId, list);
   }
 
-  return banks.map((bank) => ({
-    ...serializeBank(bank),
-    depositSlips: slipsByBank.get(bank.id) ?? [],
-  }));
+  return sortBanksForManagementDisplay(
+    banks.map((bank) => ({
+      ...serializeBank(bank),
+      depositSlips: slipsByBank.get(bank.id) ?? [],
+    })),
+  );
 }
 
 export function buildBankManagementPayload(
