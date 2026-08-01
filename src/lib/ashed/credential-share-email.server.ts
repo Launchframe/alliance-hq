@@ -32,9 +32,6 @@ function formatCapabilityList(capabilities: string[]): string {
   return capabilities.join(", ");
 }
 
-function pairingUrl(token: string): string {
-  return `${resolveAppOrigin()}/pair?token=${encodeURIComponent(token)}`;
-}
 
 function accountSharesUrl(): string {
   return `${resolveAppOrigin()}/account/credential-shares`;
