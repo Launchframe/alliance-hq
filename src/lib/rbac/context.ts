@@ -141,7 +141,7 @@ export async function getRbacContext(
   };
 }
 
-/** Legacy sessions without hq_user_id keep prior allow-all behavior until reconnect. */
+/** Sessions without a linked HQ user cannot exercise RBAC permissions. */
 export async function sessionHasPermission(
   sessionId: string,
   permission: string | null,
@@ -156,7 +156,7 @@ export async function sessionHasPermission(
   }
 
   if (!session.hqUserId) {
-    return true;
+    return false;
   }
 
   const ctx = await getRbacContext(sessionId);
@@ -195,7 +195,7 @@ export async function sessionHasPermissionForAlliance(
   }
 
   if (!session.hqUserId) {
-    return true;
+    return false;
   }
 
   const ctx = await getRbacContext(sessionId);

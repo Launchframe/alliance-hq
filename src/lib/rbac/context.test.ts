@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as sessionModule from "@/lib/session";
 
-import { getRbacContext, sessionHasPermission, sessionHasPermissionForAlliance } from "./context";
+import {
+  getRbacContext,
+  sessionHasPermission,
+  sessionHasPermissionForAlliance,
+} from "./context";
+import { requirePlatformMaintainer } from "./require-permission";
 
 const selectMock = vi.fn();
 
@@ -288,12 +293,46 @@ describe("getRbacContext", () => {
 });
 
 describe("sessionHasPermission", () => {
-  it("allows legacy sessions without hqUserId until reconnect", async () => {
+  const anonymousSession = {
+    id: "sess-bootstrap",
+    hqUserId: null,
+    allianceId: null,
+    allianceTag: null,
+    currentAllianceId: null,
+    userLabel: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    expiresAt: new Date(Date.now() + 60_000),
+  };
+
+  beforeEach(() => {
+    vi.spyOn(sessionModule, "loadSession").mockResolvedValue(anonymousSession);
+  });
+
+  it("denies anonymous bootstrap sessions for alliance permissions", async () => {
+    await expect(
+      sessionHasPermission("sess-bootstrap", "members:write"),
+    ).resolves.toBe(false);
+  });
+
+  it("denies anonymous bootstrap sessions for hq:admin", async () => {
+    await expect(
+      sessionHasPermission("sess-bootstrap", "hq:admin"),
+    ).resolves.toBe(false);
+  });
+
+  it("denies when permission is null", async () => {
+    await expect(sessionHasPermission("sess-1", null)).resolves.toBe(false);
+  });
+});
+
+describe("requirePlatformMaintainer", () => {
+  it("returns 403 for anonymous bootstrap sessions", async () => {
     vi.spyOn(sessionModule, "loadSession").mockResolvedValue({
-      id: "sess-1",
+      id: "sess-bootstrap",
       hqUserId: null,
-      allianceId: "a1",
-      allianceTag: "LFgo",
+      allianceId: null,
+      allianceTag: null,
       currentAllianceId: null,
       userLabel: null,
       createdAt: new Date(),
@@ -301,13 +340,8 @@ describe("sessionHasPermission", () => {
       expiresAt: new Date(Date.now() + 60_000),
     });
 
-    await expect(
-      sessionHasPermission("sess-1", "members:write"),
-    ).resolves.toBe(true);
-  });
-
-  it("denies when permission is null", async () => {
-    await expect(sessionHasPermission("sess-1", null)).resolves.toBe(false);
+    const denied = await requirePlatformMaintainer("sess-bootstrap");
+    expect(denied?.status).toBe(403);
   });
 });
 
@@ -401,6 +435,24 @@ describe("sessionHasPermissionForAlliance", () => {
     await expect(
       sessionHasPermissionForAlliance("sess-1", "a1", "scores:read"),
     ).resolves.toBe(true);
+  });
+
+  it("denies anonymous sessions without hqUserId", async () => {
+    vi.spyOn(sessionModule, "loadSession").mockResolvedValue({
+      id: "sess-bootstrap",
+      hqUserId: null,
+      allianceId: null,
+      allianceTag: null,
+      currentAllianceId: null,
+      userLabel: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    await expect(
+      sessionHasPermissionForAlliance("sess-bootstrap", "a1", "scores:read"),
+    ).resolves.toBe(false);
   });
 
   it("denies non-maintainers without the requested alliance permission", async () => {
