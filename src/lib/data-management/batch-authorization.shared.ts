@@ -61,3 +61,56 @@ export function batchActionFlags(
   const allowed = canManageDataBatch(ctx, batch);
   return { canMove: allowed, canDelete: allowed };
 }
+
+export type DataDateSummary = {
+  recordedDate: string;
+  rowCount: number;
+  teamACount: number;
+  teamBCount: number;
+  latestSubmittedAt: string | null;
+  canMove: boolean;
+  canDelete: boolean;
+};
+
+/**
+ * Date-level delete/move mirrors Ashed: entire recorded_date for the entity type.
+ * Officers may act only when every active HQ ledger batch on that date is theirs.
+ * Ashed-only rows (no ledger batch) require alliance-wide manage permission.
+ */
+export function canManageDataDate(
+  ctx: Pick<RbacContext, "hqUserId" | "roleName" | "permissions">,
+  batchesOnDate: ReadonlyArray<
+    Pick<DataBatchRow, "createdByHqUserId" | "status">
+  >,
+  hasScoresWithoutLedger: boolean,
+): boolean {
+  if (canManageAnyDataBatch(ctx)) {
+    return true;
+  }
+  const activeBatches = batchesOnDate.filter((batch) => batch.status === "active");
+  if (hasScoresWithoutLedger && activeBatches.length === 0) {
+    return false;
+  }
+  if (ctx.roleName !== "officer" || !ctx.hqUserId) {
+    return false;
+  }
+  if (activeBatches.length === 0) {
+    return false;
+  }
+  return activeBatches.every(
+    (batch) =>
+      batch.createdByHqUserId != null &&
+      batch.createdByHqUserId === ctx.hqUserId,
+  );
+}
+
+export function dateActionFlags(
+  ctx: Pick<RbacContext, "hqUserId" | "roleName" | "permissions">,
+  batchesOnDate: ReadonlyArray<
+    Pick<DataBatchRow, "createdByHqUserId" | "status">
+  >,
+  hasScoresWithoutLedger: boolean,
+): { canMove: boolean; canDelete: boolean } {
+  const allowed = canManageDataDate(ctx, batchesOnDate, hasScoresWithoutLedger);
+  return { canMove: allowed, canDelete: allowed };
+}

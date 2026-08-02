@@ -981,6 +981,9 @@ export async function POST(request: Request, { params }: Props) {
           allianceId,
           scoreTarget: target.id,
           recordedDate: submitContext.recordedDate,
+          eventId: submitContext.eventId ?? null,
+          team: submitContext.team ?? null,
+          boardKey: submitContext.boardKey ?? null,
         },
         runReplaceAndInsert,
       );

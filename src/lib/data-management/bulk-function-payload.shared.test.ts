@@ -1,11 +1,44 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildAshedDateBulkDeletePayload,
+  buildAshedDateBulkMovePayload,
   buildBulkDeletePayload,
   buildBulkMovePayload,
 } from "./bulk-function-payload.shared";
 
 describe("bulk function payloads", () => {
+  it("builds Ashed date-level delete payload without team or event_id", () => {
+    expect(
+      buildAshedDateBulkDeletePayload({
+        submitEntity: "DesertStormScore",
+        recordedDate: "2026-07-31",
+        allianceId: "alliance-1",
+      }),
+    ).toEqual({
+      alliance_id: "alliance-1",
+      entity_type: "DesertStormScore",
+      recorded_date: "2026-07-31",
+      confirm: true,
+    });
+  });
+
+  it("builds Ashed date-level move payload without team or event_id", () => {
+    expect(
+      buildAshedDateBulkMovePayload({
+        submitEntity: "DesertStormScore",
+        recordedDate: "2026-07-31",
+        newRecordedDate: "2026-08-01",
+        allianceId: "alliance-1",
+      }),
+    ).toEqual({
+      alliance_id: "alliance-1",
+      entity_type: "DesertStormScore",
+      from_date: "2026-07-31",
+      to_date: "2026-08-01",
+    });
+  });
+
   it("builds delete payload with Ashed field names and optional context", () => {
     expect(
       buildBulkDeletePayload({

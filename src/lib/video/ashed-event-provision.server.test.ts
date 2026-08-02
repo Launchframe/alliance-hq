@@ -2,15 +2,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const base44Json = vi.hoisted(() => vi.fn());
 const base44EntityPost = vi.hoisted(() => vi.fn());
+const base44EntityDelete = vi.hoisted(() => vi.fn());
 const base44CallFunction = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/base44/fetch", () => ({
   base44Json,
   base44EntityPost,
+  base44EntityDelete,
   base44CallFunction,
 }));
 
 import {
+  deleteAshedScoreRowsForContext,
   replaceAshedScoresForContext,
   resolveOrCreateAshedEvent,
 } from "./ashed-event-provision.server";
@@ -80,9 +83,88 @@ describe("resolveOrCreateAshedEvent", () => {
   });
 });
 
+describe("deleteAshedScoreRowsForContext", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("deletes only rows matching event, date, and team", async () => {
+    base44Json.mockResolvedValueOnce([
+      {
+        id: "row-a",
+        event_id: "ev-1",
+        recorded_date: "2026-07-10",
+        team: "A",
+      },
+      {
+        id: "row-b",
+        event_id: "ev-1",
+        recorded_date: "2026-07-10",
+        team: "B",
+      },
+      {
+        id: "row-other-date",
+        event_id: "ev-1",
+        recorded_date: "2026-07-09",
+        team: "A",
+      },
+    ]);
+
+    const deleted = await deleteAshedScoreRowsForContext({
+      connection: connection as never,
+      submitEntity: "DesertStormScore",
+      ashedAllianceId: "ashed-1",
+      recordedDate: "2026-07-10",
+      context: { eventId: "ev-1", team: "A" },
+    });
+
+    expect(deleted).toBe(1);
+    expect(base44EntityDelete).toHaveBeenCalledTimes(1);
+    expect(base44EntityDelete).toHaveBeenCalledWith(
+      connection,
+      "DesertStormScore",
+      "row-a",
+    );
+  });
+
+  it("skips delete calls when no rows match (first upload)", async () => {
+    base44Json.mockResolvedValueOnce([
+      {
+        id: "row-b",
+        event_id: "ev-1",
+        recorded_date: "2026-07-10",
+        team: "B",
+      },
+    ]);
+
+    const deleted = await deleteAshedScoreRowsForContext({
+      connection: connection as never,
+      submitEntity: "DesertStormScore",
+      ashedAllianceId: "ashed-1",
+      recordedDate: "2026-07-10",
+      context: { eventId: "ev-1", team: "A" },
+    });
+
+    expect(deleted).toBe(0);
+    expect(base44EntityDelete).not.toHaveBeenCalled();
+  });
+});
+
 describe("replaceAshedScoresForContext", () => {
-  it("calls bulkDeleteByDate with event and team context", async () => {
-    base44CallFunction.mockResolvedValueOnce({});
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("uses row-scoped delete for storm team submits (not bulkDeleteByDate)", async () => {
+    base44Json.mockResolvedValueOnce([
+      {
+        id: "row-a",
+        event_id: "ev-1",
+        recorded_date: "2026-07-10",
+        team: "A",
+      },
+    ]);
+
     await replaceAshedScoresForContext({
       connection: connection as never,
       target: {
@@ -92,17 +174,12 @@ describe("replaceAshedScoresForContext", () => {
       recordedDate: "2026-07-10",
       context: { eventId: "ev-1", team: "A" },
     });
-    expect(base44CallFunction).toHaveBeenCalledWith(
+
+    expect(base44CallFunction).not.toHaveBeenCalled();
+    expect(base44EntityDelete).toHaveBeenCalledWith(
       connection,
-      "bulkDeleteByDate",
-      {
-        alliance_id: "ashed-1",
-        entity_type: "DesertStormScore",
-        recorded_date: "2026-07-10",
-        confirm: true,
-        event_id: "ev-1",
-        team: "A",
-      },
+      "DesertStormScore",
+      "row-a",
     );
   });
 
@@ -127,6 +204,7 @@ describe("replaceAshedScoresForContext", () => {
         confirm: true,
       },
     );
+    expect(base44EntityDelete).not.toHaveBeenCalled();
   });
 
   it("calls bulkDeleteByDate with alliance + date for KillScore (no event)", async () => {
