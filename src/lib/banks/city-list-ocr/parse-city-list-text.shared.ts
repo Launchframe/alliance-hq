@@ -198,8 +198,8 @@ function parseGluedServerAndX(
   return matchingMagnitude ?? candidates[0]!;
 }
 
-/** Deposit slot usage token, e.g. "81/100" or "95/110" (level 6+ banks). */
-const DEPOSIT_TOKEN_RE = /\b(\d{1,3})\s*\/\s*(100|110)\b/g;
+/** Deposit slot usage token, e.g. "81/100", "95/110", or OCR "81 100" (slash lost). */
+const DEPOSIT_TOKEN_RE = /\b(\d{1,3})\s*(?:\/\s*)?(100|110)\b/g;
 
 /** Absolute maximum deposit slot capacity across all bank levels. */
 const BANK_DEPOSIT_CAPACITY_MAX = 110;

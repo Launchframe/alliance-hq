@@ -121,12 +121,18 @@ export const CITY_LIST_OCR_PASS_COORD_TOLERANCE = 2;
 
 /**
  * Skip the green-channel OCR pass when greyscale already recovered every
- * captured tile — halves Tesseract latency on clean screenshots.
+ * captured tile with readable amounts and deposit counts — halves Tesseract
+ * latency on clean screenshots. Re-run when tile count is short or any bank
+ * is missing CrystalGold K amounts / active deposit counts.
  */
 export function shouldRunCityListGreenOcrPass(
-  primary: Pick<ParsedCityListSnapshot, "isComplete">,
+  primary: Pick<ParsedCityListSnapshot, "isComplete" | "banks">,
 ): boolean {
-  return !primary.isComplete;
+  if (!primary.isComplete) return true;
+  return primary.banks.some(
+    (bank) =>
+      bank.crystalGoldValue == null || bank.currentDepositCount == null,
+  );
 }
 
 /**

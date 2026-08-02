@@ -83,9 +83,51 @@ describe("coalesceCityListBanks", () => {
 });
 
 describe("shouldRunCityListGreenOcrPass", () => {
-  it("skips the green pass when the primary parse is already complete", () => {
-    expect(shouldRunCityListGreenOcrPass({ isComplete: true })).toBe(false);
-    expect(shouldRunCityListGreenOcrPass({ isComplete: false })).toBe(true);
+  it("skips the green pass when every captured tile has K amount and deposit count", () => {
+    expect(
+      shouldRunCityListGreenOcrPass({
+        isComplete: true,
+        banks: [
+          {
+            level: 2,
+            crystalGoldValue: 600_000,
+            gameServerNumber: 1211,
+            coordX: 100,
+            coordY: 200,
+            currentDepositCount: 80,
+          },
+        ],
+      }),
+    ).toBe(false);
+    expect(shouldRunCityListGreenOcrPass({ isComplete: false, banks: [] })).toBe(
+      true,
+    );
+  });
+
+  it("runs the green pass when tile count is complete but fields are missing", () => {
+    expect(
+      shouldRunCityListGreenOcrPass({
+        isComplete: true,
+        banks: [
+          {
+            level: 2,
+            crystalGoldValue: null,
+            gameServerNumber: 1211,
+            coordX: 100,
+            coordY: 200,
+            currentDepositCount: 80,
+          },
+          {
+            level: 3,
+            crystalGoldValue: 500_000,
+            gameServerNumber: 1211,
+            coordX: 150,
+            coordY: 250,
+            currentDepositCount: null,
+          },
+        ],
+      }),
+    ).toBe(true);
   });
 });
 
