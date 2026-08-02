@@ -1479,6 +1479,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [activeRows, filterQuery],
   );
 
+  const reviewRowNumberById = useMemo(() => {
+    const map = new Map<string, number>();
+    activeRows.forEach((row, index) => {
+      map.set(row.id, index + 1);
+    });
+    return map;
+  }, [activeRows]);
+
   const onDepositSlipVisibleRowIdsChange = useCallback(
     (ids: readonly string[]) => {
       setDepositSlipVisibleRowIds((prev) => {
@@ -3288,7 +3296,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           <thead className="bg-hq-surface text-left text-hq-fg-muted">
             <tr>
               {scoreTargetMeta?.showRankColumn ? (
-                <th className="w-14 px-3 py-3">{t("colRank")}</th>
+                <th className="w-14 px-3 py-3">
+                  {isVsPerformanceTarget ? t("colRowNumber") : t("colRank")}
+                </th>
               ) : null}
               <th className="min-w-0 px-3 py-3">{t("colName")}</th>
               <th className="min-w-[8rem] px-3 py-3 sm:min-w-[11rem]">
@@ -3339,18 +3349,29 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               >
                 {scoreTargetMeta?.showRankColumn ? (
                   <td className="px-3 py-3 align-top">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={row.rank ?? ""}
-                      onChange={(e) => {
-                        updateRow(row.id, {
-                          rank: parsePodiumRankInput(e.target.value),
-                        });
-                      }}
-                      aria-label={t("colRank")}
-                      className="w-12 rounded-lg border border-hq-border bg-hq-canvas px-2 py-1.5"
-                    />
+                    {isVsPerformanceTarget ? (
+                      <span
+                        className="inline-flex min-w-[2rem] tabular-nums text-hq-fg-muted"
+                        aria-label={t("reviewRowNumber", {
+                          n: reviewRowNumberById.get(row.id) ?? 0,
+                        })}
+                      >
+                        {reviewRowNumberById.get(row.id)}
+                      </span>
+                    ) : (
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={row.rank ?? ""}
+                        onChange={(e) => {
+                          updateRow(row.id, {
+                            rank: parsePodiumRankInput(e.target.value),
+                          });
+                        }}
+                        aria-label={t("colRank")}
+                        className="w-12 rounded-lg border border-hq-border bg-hq-canvas px-2 py-1.5"
+                      />
+                    )}
                   </td>
                 ) : null}
                 <td className="min-w-0 max-w-[9rem] px-3 py-3 align-top font-medium">

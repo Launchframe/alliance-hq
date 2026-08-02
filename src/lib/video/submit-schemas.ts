@@ -97,7 +97,6 @@ export function buildSubmitPayloads(
         // Ashed keys VS days by competition_id (same calendar date as recorded_date).
         competition_id: recordedDate,
         score: parseScoreNumber(row.score),
-        rank: row.rank ?? null,
         recorded_date: recordedDate,
       }));
 

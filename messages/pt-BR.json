@@ -4122,6 +4122,8 @@
     "colName": "Nome",
     "colMember": "Membro correspondido",
     "colRank": "Posição",
+    "colRowNumber": "#",
+    "reviewRowNumber": "Linha {n}",
     "colAllianceRank": "Patente na aliança",
     "colPower": "Poder",
     "colLevel": "Nível",

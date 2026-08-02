@@ -37,7 +37,6 @@ export async function dispatchScoreSubmit(
       member_id: row.member_id,
       member_name: row.member_name,
       score: row.score,
-      ...(row.rank != null ? { rank: row.rank } : {}),
     }));
     const allianceId = payloads[0]?.alliance_id;
     if (typeof allianceId !== "string" || !allianceId) {

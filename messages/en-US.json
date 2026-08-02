@@ -4176,6 +4176,8 @@
     "colName": "Name",
     "colMember": "Matched member",
     "colRank": "Rank",
+    "colRowNumber": "#",
+    "reviewRowNumber": "Row {n}",
     "colAllianceRank": "Alliance rank",
     "colPower": "Power",
     "colLevel": "Level",
