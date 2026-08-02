@@ -8,6 +8,10 @@ import {
   base44Json,
 } from "@/lib/base44/fetch";
 import {
+  fetchAshedScoreRowsRaw,
+  type RawAshedScoreRow,
+} from "@/lib/data-management/ashed-date-scores.server";
+import {
   buildAshedDateBulkDeletePayload,
 } from "@/lib/data-management/bulk-function-payload.shared";
 import type { DataBatchContext } from "@/lib/data-management/batch-authorization.shared";
@@ -88,15 +92,7 @@ export async function resolveOrCreateAshedEvent(params: {
   return { eventId: created.id, created: true };
 }
 
-type AshedScoreRowForDelete = {
-  id?: string;
-  team?: string | null;
-  recorded_date?: string | null;
-  event_id?: string | null;
-  board_key?: string | null;
-  hq_event_id?: string | null;
-  commendation_id?: string | null;
-};
+type AshedScoreRowForDelete = RawAshedScoreRow;
 
 function scoreRowMatchesReplaceContext(
   row: AshedScoreRowForDelete,
@@ -146,18 +142,12 @@ export async function deleteAshedScoreRowsForContext(params: {
   recordedDate: string;
   context: DataBatchContext;
 }): Promise<number> {
-  const q: Record<string, string> = {
-    alliance_id: params.ashedAllianceId,
-  };
-  if (params.context.eventId) {
-    q.event_id = params.context.eventId;
-  }
-
-  const rows = await base44Json<AshedScoreRowForDelete[]>(
-    params.connection,
-    `/entities/${params.submitEntity}?q=${encodeURIComponent(JSON.stringify(q))}`,
-  );
-  const list = Array.isArray(rows) ? rows : [];
+  const list = await fetchAshedScoreRowsRaw({
+    connection: params.connection,
+    submitEntity: params.submitEntity,
+    ashedAllianceId: params.ashedAllianceId,
+    eventId: params.context.eventId,
+  });
   const matching = list.filter((row) =>
     scoreRowMatchesReplaceContext(row, params.recordedDate, params.context),
   );

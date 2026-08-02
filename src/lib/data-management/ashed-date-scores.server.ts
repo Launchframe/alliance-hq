@@ -13,7 +13,13 @@ export type AshedDateScoreRow = {
   recordedDate: string | null;
 };
 
-type RawAshedScoreRow = {
+/** Matches Ashed admin list calls in HAR (e.g. desert_storm_bulk_delete_scores). */
+export const ASHED_SCORE_LIST_LIMIT = 2000;
+
+export const ASHED_SCORE_LIST_FIELDS =
+  "id,member_id,member_name,recorded_date,score,rank,team,event_id,board_key,hq_event_id,commendation_id,created_date";
+
+export type RawAshedScoreRow = {
   id?: string;
   member_id?: string;
   member_name?: string | null;
@@ -21,6 +27,10 @@ type RawAshedScoreRow = {
   rank?: number | null;
   team?: string | null;
   recorded_date?: string | null;
+  event_id?: string | null;
+  board_key?: string | null;
+  hq_event_id?: string | null;
+  commendation_id?: string | null;
 };
 
 function mapAshedScoreRow(row: RawAshedScoreRow): AshedDateScoreRow {
@@ -33,6 +43,46 @@ function mapAshedScoreRow(row: RawAshedScoreRow): AshedDateScoreRow {
     team: row.team ?? null,
     recordedDate: row.recorded_date ?? null,
   };
+}
+
+export function buildAshedScoreListPath(input: {
+  submitEntity: string;
+  ashedAllianceId: string;
+  eventId?: string | null;
+  limit?: number;
+  fields?: string;
+}): string {
+  const q: Record<string, string> = { alliance_id: input.ashedAllianceId };
+  if (input.eventId) {
+    q.event_id = input.eventId;
+  }
+  const params = new URLSearchParams();
+  params.set("q", JSON.stringify(q));
+  params.set("sort", "-recorded_date");
+  params.set("limit", String(input.limit ?? ASHED_SCORE_LIST_LIMIT));
+  params.set("fields", input.fields ?? ASHED_SCORE_LIST_FIELDS);
+  return `/entities/${input.submitEntity}?${params.toString()}`;
+}
+
+export async function fetchAshedScoreRowsRaw(input: {
+  connection: ParsedConnection;
+  submitEntity: string;
+  ashedAllianceId: string;
+  eventId?: string | null;
+  limit?: number;
+  fields?: string;
+}): Promise<RawAshedScoreRow[]> {
+  const rows = await base44Json<RawAshedScoreRow[]>(
+    input.connection,
+    buildAshedScoreListPath({
+      submitEntity: input.submitEntity,
+      ashedAllianceId: input.ashedAllianceId,
+      eventId: input.eventId,
+      limit: input.limit,
+      fields: input.fields,
+    }),
+  );
+  return Array.isArray(rows) ? rows : [];
 }
 
 export function normalizeRecordedDate(value: string | null | undefined): string | null {
@@ -48,13 +98,12 @@ export async function fetchAshedScoresForAlliance(
   submitEntity: string,
   ashedAllianceId: string,
 ): Promise<AshedDateScoreRow[]> {
-  const q = encodeURIComponent(JSON.stringify({ alliance_id: ashedAllianceId }));
-  const rows = await base44Json<RawAshedScoreRow[]>(
+  const rows = await fetchAshedScoreRowsRaw({
     connection,
-    `/entities/${submitEntity}?q=${q}&sort=-recorded_date&limit=5000`,
-  );
-  const list = Array.isArray(rows) ? rows : [];
-  return list.map(mapAshedScoreRow);
+    submitEntity,
+    ashedAllianceId,
+  });
+  return rows.map(mapAshedScoreRow);
 }
 
 export function filterAshedScoresByDate(
