@@ -2,7 +2,7 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 
-import { getOrCreateSession, readSessionId } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import {
   TIME_OFF_READ_PERMISSION,
   TIME_OFF_WRITE_PERMISSION,
@@ -10,14 +10,12 @@ import {
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 
 export async function requireTimeOffAllianceContext() {
-  const sessionId = await readSessionId();
-  if (!sessionId) {
-    return {
-      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-    } as const;
+  const sessionOrError = await requireApiSession();
+  if (sessionOrError instanceof NextResponse) {
+    return { error: sessionOrError } as const;
   }
 
-  const session = await getOrCreateSession();
+  const session = sessionOrError;
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId) {
     return {
@@ -25,7 +23,7 @@ export async function requireTimeOffAllianceContext() {
     } as const;
   }
 
-  return { sessionId, session, allianceId } as const;
+  return { sessionId: session.id, session, allianceId } as const;
 }
 
 export async function requireTimeOffRead(sessionId: string) {

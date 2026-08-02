@@ -15,7 +15,7 @@ import {
   truncateBugReportConsoleLogs,
 } from "@/lib/feedback/constants";
 import { feedbackErrorResponse } from "@/lib/feedback/api-errors";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { putObject } from "@/lib/storage";
 
 function formField(form: FormData, key: string): string | undefined {
@@ -25,7 +25,11 @@ function formField(form: FormData, key: string): string | undefined {
 
 export async function POST(request: Request) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     if (!session.hqUserId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

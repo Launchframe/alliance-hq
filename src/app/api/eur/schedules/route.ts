@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, asc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
@@ -9,20 +9,18 @@ import {
   type EurSchedulePayload,
 } from "@/lib/eur/schedule-api";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { getOrCreateSession, readSessionId } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const sessionId = await readSessionId();
-  if (!sessionId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const sessionOrError = await requireApiSession();
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
 
-  const denied = await requireSessionPermission(sessionId, "inbox:read");
+  const session = sessionOrError;
+  const denied = await requireSessionPermission(session.id, "inbox:read");
   if (denied) return denied;
 
-  const session = await getOrCreateSession();
   const allianceId = session.currentAllianceId;
   if (!allianceId) {
     return NextResponse.json({ schedules: [] });
@@ -41,15 +39,13 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const sessionId = await readSessionId();
-  if (!sessionId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const sessionOrError = await requireApiSession();
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
 
-  const denied = await requireSessionPermission(sessionId, "eur:schedules:write");
+  const session = sessionOrError;
+  const denied = await requireSessionPermission(session.id, "eur:schedules:write");
   if (denied) return denied;
 
-  const session = await getOrCreateSession();
   const allianceId = session.currentAllianceId;
   if (!allianceId) {
     return NextResponse.json({ error: "No alliance context" }, { status: 400 });

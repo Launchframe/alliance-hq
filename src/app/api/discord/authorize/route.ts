@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { parseConnectionInput } from "@/lib/connectionString";
-import { getOrCreateSession, loadSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import {
   consumeDiscordAuthNonce,
   getValidDiscordAuthNonce,
@@ -10,7 +10,8 @@ import { setupAshedCredentialsForDiscord } from "@/lib/vr/discord-ashed-credenti
 
 /** POST /api/discord/authorize — `alliance_credentials` only (`/link-ashed`). HQ login uses OAuth on `/discord/authorize/complete`. */
 export async function POST(request: Request) {
-  await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
 
   let body: {
     nonce?: string;
@@ -74,13 +75,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const browserSession = await loadSession((await getOrCreateSession()).id);
+  const browserSession = sessionOrError;
 
   const result = await setupAshedCredentialsForDiscord({
     allianceTag: nonceRow.tag,
     connectionKey,
     discordUserId: nonceRow.discordUserId,
-    sessionExpiresAt: browserSession?.expiresAt ?? null,
+    sessionExpiresAt: browserSession.expiresAt,
   });
 
   if (!result.ok) {

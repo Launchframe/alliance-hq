@@ -11,13 +11,17 @@ import {
   resolveSeasonKey,
   updateCommanderSeasonVrEvent,
 } from "@/lib/vr/repository";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireSessionPermission(session.id, "members:write");
   if (denied) return denied;
 
@@ -68,7 +72,11 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireSessionPermission(session.id, "members:write");
   if (denied) return denied;
 
@@ -116,7 +124,11 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireSessionPermission(session.id, "members:write");
   if (denied) return denied;
 

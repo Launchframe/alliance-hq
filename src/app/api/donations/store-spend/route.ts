@@ -7,7 +7,7 @@ import {
   type StoreSpendScope,
 } from "@/lib/members/commander-donation.server";
 import { CommanderAccessError } from "@/lib/members/commander-access.server";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,11 @@ function parseIsoDate(raw: string | null, endOfDay: boolean): Date | null {
 }
 
 export async function GET(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const url = new URL(request.url);
   const scopeRaw = url.searchParams.get("scope") ?? "me";
   const scope: StoreSpendScope = scopeRaw === "alliance" ? "alliance" : "me";
@@ -59,7 +63,11 @@ export async function GET(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const url = new URL(request.url);
   const receiptId = url.searchParams.get("id")?.trim();
   if (!receiptId) {

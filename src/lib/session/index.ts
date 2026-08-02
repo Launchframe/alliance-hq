@@ -124,7 +124,38 @@ export async function bootstrapSessionResponse(
   return response;
 }
 
-/** For Route Handlers — read or create session (cookies may be set). */
+/** Load an existing browser session from the cookie — does not mint a new row. */
+export async function loadApiSession(): Promise<Session | null> {
+  const sessionId = await readSessionId();
+  if (!sessionId) {
+    return null;
+  }
+  return loadSession(sessionId);
+}
+
+export type ApiSessionResult = Session | NextResponse;
+
+/** For authenticated API routes — returns 401 when no valid session cookie exists. */
+export async function requireApiSession(): Promise<ApiSessionResult> {
+  const session = await loadApiSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return session;
+}
+
+/**
+ * Mint a workspace session when none exists. **Allowlist only** — do not call from
+ * general API routes (use `requireApiSession` / `loadApiSession` instead).
+ *
+ * Permitted call sites:
+ * - `bootstrapSessionResponse` / explicit bootstrap
+ * - `/api/auth/connect` (Ashed credential staging before HQ bind)
+ * - `/api/auth/pairing/complete` (target device receives paired creds)
+ * - `bridge-session` / `resolveBrowserSessionHqUserId` (sign-in bridge)
+ * - Pre-auth Discord connect pages (`link-commander`, `authorize/complete`)
+ * - `getSessionState()` for connect-flow session polling
+ */
 export async function getOrCreateSession(): Promise<Session> {
   const sessionId = await readSessionId();
   if (sessionId) {

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 
-const getOrCreateSessionMock = vi.fn();
+const requireApiSessionMock = vi.fn();
 const resolveVideoJobAccessMock = vi.fn();
 const videoJobAccessErrorResponseMock = vi.fn();
 const resolveHqAllianceIdFromStoredAllianceIdMock = vi.fn();
@@ -10,7 +10,7 @@ const parseSessionLimitMock = vi.fn();
 const parsedRowsOrderByMock = vi.fn();
 
 vi.mock("@/lib/session", () => ({
-  getOrCreateSession: () => getOrCreateSessionMock(),
+  requireApiSession: () => requireApiSessionMock(),
 }));
 
 vi.mock("@/lib/video/video-job-access.server", () => ({
@@ -110,7 +110,7 @@ import { GET } from "./route";
 describe("GET /api/tools/video-upload/[jobId]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getOrCreateSessionMock.mockResolvedValue({
+    requireApiSessionMock.mockResolvedValue({
       id: "sess-1",
       allianceTag: "LFgo",
       currentAllianceId: "alliance-1",

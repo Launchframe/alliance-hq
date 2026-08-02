@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 
-const getOrCreateSessionMock = vi.fn();
+const requireApiSessionMock = vi.fn();
 const resolveVideoJobAccessMock = vi.fn();
 const videoJobAccessErrorResponseMock = vi.fn();
 const resolveHqAllianceIdFromStoredAllianceIdMock = vi.fn();
@@ -14,7 +14,7 @@ vi.mock("nanoid", () => ({
 }));
 
 vi.mock("@/lib/session", () => ({
-  getOrCreateSession: () => getOrCreateSessionMock(),
+  requireApiSession: () => requireApiSessionMock(),
 }));
 
 vi.mock("@/lib/video/video-job-access.server", () => ({
@@ -84,7 +84,7 @@ import { POST } from "./route";
 describe("POST /api/tools/video-upload/[jobId]/rows", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getOrCreateSessionMock.mockResolvedValue({ id: "sess-1" });
+    requireApiSessionMock.mockResolvedValue({ id: "sess-1" });
     resolveVideoJobAccessMock.mockResolvedValue({
       ok: true,
       job: {

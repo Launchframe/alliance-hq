@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 
 import { getPairingStatus } from "@/lib/credential-pairing";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export async function GET(request: Request) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const code = new URL(request.url).searchParams.get("code")?.trim();
 
     if (!code) {

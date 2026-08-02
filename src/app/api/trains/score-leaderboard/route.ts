@@ -8,7 +8,7 @@ import {
 import { loadScoreLeaderboard } from "@/lib/trains/score-leaderboard.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,11 @@ function parseKind(value: string | null): ScoreLeaderboardKind | null {
 }
 
 export async function GET(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireSessionPermission(session.id, "scores:read");
   if (denied) return denied;
 

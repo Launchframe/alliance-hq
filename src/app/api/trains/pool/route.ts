@@ -12,7 +12,7 @@ import {
   type VsScoreContext,
 } from "@/lib/trains/vs-week-days.shared";
 import { fetchHqSeasonVsScoresByMember } from "@/lib/trains/native-scores.server";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import {
   requireSessionPermission,
   requireTrainOfficer,
@@ -24,7 +24,11 @@ export const dynamic = "force-dynamic";
 export type EventPoolContextPayload = VsScoreContext;
 
 export async function GET(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireSessionPermission(session.id, "scores:read");
   if (denied) return denied;
 
@@ -60,7 +64,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireTrainOfficer(session.id);
   if (denied) return denied;
 

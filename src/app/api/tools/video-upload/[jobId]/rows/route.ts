@@ -9,7 +9,7 @@ import {
   type ManualRowPosition,
 } from "@/lib/video/manual-row-position";
 import { reviewRowPrimarySortKey } from "@/lib/video/parsed-row-review-order";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import {
   resolveVideoJobAccess,
   videoJobAccessErrorResponse,
@@ -22,7 +22,11 @@ import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 type Props = { params: Promise<{ jobId: string }> };
 
 export async function POST(request: Request, { params }: Props) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const { jobId } = await params;
   const db = getDb();
 

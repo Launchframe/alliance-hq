@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 import {
   setVideoUploadGroupExperiment,
@@ -22,7 +22,11 @@ type Body = {
 
 export async function PATCH(request: Request, { params }: Props) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const { jobId } = await params;
 
     if (!(await sessionCanProcessVideo(session.id))) {

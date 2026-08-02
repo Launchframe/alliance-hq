@@ -5,11 +5,15 @@ import {
   resolveSessionAllianceId,
 } from "@/lib/alliance/session-memberships";
 import { getRbacContext } from "@/lib/rbac/context";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export async function GET() {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     if (!session.hqUserId) {
       return NextResponse.json({
         alliances: [],

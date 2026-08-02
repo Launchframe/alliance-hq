@@ -6,7 +6,7 @@ import { getDb, schema } from "@/lib/db";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import { VIDEO_ENQUEUE_PERMISSION } from "@/lib/rbac/constants";
 import { putObject, videoStorageKey, r2Configured } from "@/lib/storage";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { getScoreTarget, ENABLED_SCORE_TARGETS } from "@/lib/video/score-targets";
 import {
   getMaxVideoUploadBytes,
@@ -22,7 +22,11 @@ import { videoJobsOwnedByViewerInAllianceWhere } from "@/lib/video/video-job-own
 
 export async function POST(request: Request) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const denied = await requireSessionPermission(
       session.id,
       VIDEO_ENQUEUE_PERMISSION,
@@ -127,7 +131,11 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const denied = await requireSessionPermission(
       session.id,
       VIDEO_ENQUEUE_PERMISSION,

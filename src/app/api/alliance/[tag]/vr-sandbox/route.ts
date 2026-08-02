@@ -8,7 +8,7 @@ import {
 } from "@/lib/alliance/alliance-route-context.server";
 import { writeAuditLog } from "@/lib/bff/audit";
 import { sessionHasPermissionForAlliance } from "@/lib/rbac/context";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import {
   loadVrSandboxSettings,
   saveVrSandboxSettings,
@@ -24,7 +24,11 @@ type RouteContext = { params: Promise<{ tag: string }> };
 
 export async function GET(_request: Request, context: RouteContext) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const { tag } = await context.params;
     const alliance = await resolveAllianceRouteForSession(session.id, tag);
 
@@ -56,7 +60,11 @@ export async function GET(_request: Request, context: RouteContext) {
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const { tag } = await context.params;
     const alliance = await resolveAllianceRouteForSession(session.id, tag);
 

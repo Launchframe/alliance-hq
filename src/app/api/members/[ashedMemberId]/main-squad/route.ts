@@ -4,7 +4,7 @@ import {
   MainSquadAccessError,
   setMemberMainSquad,
 } from "@/lib/commanders/main-squad.server";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +25,11 @@ async function handleMainSquadUpdate(
   context: RouteContext,
   asOfficerOverride: boolean,
 ) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const { ashedMemberId } = await context.params;
 
   let body: { mainSquad?: unknown };

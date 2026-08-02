@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 import { VIDEO_ENQUEUE_PERMISSION } from "@/lib/rbac/constants";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import {
   pickVideoHygieneCoachTipForUploader,
   recordCoachDismissed,
@@ -31,7 +31,11 @@ type CoachBody = {
 
 /** Resolve a hygiene coach tip for the signed-in uploader × score target. */
 export async function GET(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   if (!session.hqUserId) {
     return NextResponse.json({ tip: null });
   }
@@ -58,7 +62,11 @@ export async function GET(request: Request) {
 
 /** Record coach_shown or coach_dismissed for the learning dashboard. */
 export async function POST(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   if (!session.hqUserId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

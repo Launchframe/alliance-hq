@@ -7,17 +7,15 @@ import {
   BANK_WRITE_PERMISSION,
 } from "@/lib/rbac/constants";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { getOrCreateSession, readSessionId } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export async function requireBankAllianceContext() {
-  const sessionId = await readSessionId();
-  if (!sessionId) {
-    return {
-      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-    };
+  const sessionOrError = await requireApiSession();
+  if (sessionOrError instanceof NextResponse) {
+    return { error: sessionOrError };
   }
 
-  const session = await getOrCreateSession();
+  const session = sessionOrError;
   const allianceId = session.currentAllianceId;
   if (!allianceId) {
     return {
@@ -28,7 +26,7 @@ export async function requireBankAllianceContext() {
     };
   }
 
-  return { sessionId, session, allianceId };
+  return { sessionId: session.id, session, allianceId };
 }
 
 export async function requireBankRead(sessionId: string) {

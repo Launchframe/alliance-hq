@@ -6,13 +6,17 @@ import {
   resolveCommanderSessionContext,
 } from "@/lib/members/commander-access.server";
 import { loadAllianceMembers } from "@/lib/members/load";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const { allianceId } = await resolveCommanderSessionContext(session.id);
     await assertCommanderReadAccess(session.id, allianceId);
 

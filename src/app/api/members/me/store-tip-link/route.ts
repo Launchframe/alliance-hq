@@ -7,12 +7,16 @@ import {
   revokeActiveTipLink,
 } from "@/lib/members/commander-donation.server";
 import { CommanderAccessError } from "@/lib/members/commander-access.server";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   try {
     const tip = await getActiveTipLinkForSession(session.id);
     return NextResponse.json({ tip });
@@ -31,7 +35,11 @@ export async function GET() {
 }
 
 export async function POST() {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   try {
     const tip = await createOrRotateTipLink({ sessionId: session.id });
     return NextResponse.json(tip);
@@ -50,7 +58,11 @@ export async function POST() {
 }
 
 export async function DELETE() {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   try {
     await revokeActiveTipLink(session.id);
     return NextResponse.json({ ok: true });

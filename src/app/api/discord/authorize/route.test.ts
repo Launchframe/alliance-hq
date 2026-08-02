@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getOrCreateSessionMock = vi.fn();
+const requireApiSessionMock = vi.fn();
 const loadSessionMock = vi.fn();
 const getValidDiscordAuthNonceMock = vi.fn();
 const consumeDiscordAuthNonceMock = vi.fn();
@@ -8,7 +8,7 @@ const parseConnectionInputMock = vi.fn();
 const setupAshedCredentialsForDiscordMock = vi.fn();
 
 vi.mock("@/lib/session", () => ({
-  getOrCreateSession: () => getOrCreateSessionMock(),
+  requireApiSession: () => requireApiSessionMock(),
   loadSession: (id: string) => loadSessionMock(id),
 }));
 
@@ -41,7 +41,7 @@ function postAuthorize(body: Record<string, string>) {
 describe("POST /api/discord/authorize — alliance_credentials", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getOrCreateSessionMock.mockResolvedValue({
+    requireApiSessionMock.mockResolvedValue({
       id: "sess-1",
       expiresAt: new Date("2030-06-01T00:00:00.000Z"),
     });

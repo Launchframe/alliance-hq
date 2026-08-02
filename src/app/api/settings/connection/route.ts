@@ -10,14 +10,7 @@ import {
 } from "@/lib/alliance/connect-alliance";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import { syncAshedAllianceRoles } from "@/lib/rbac/sync-ashed-roles";
-import {
-  getAshedConnection,
-  getAshedConnectionMeta,
-  getOrCreateSession,
-  loadSession,
-  updateExpiryReminderDays,
-  updateSessionAlliance,
-} from "@/lib/session";
+import { getAshedConnection, getAshedConnectionMeta, loadSession, updateExpiryReminderDays, updateSessionAlliance, requireApiSession } from "@/lib/session";
 
 const patchSchema = z
   .object({
@@ -36,7 +29,11 @@ const patchSchema = z
 export async function GET() {
   try {
     const locale = await getLocale();
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const ashed = await getAshedConnectionMeta(session.id, locale);
     const connection = await getAshedConnection(session.id);
 
@@ -79,7 +76,11 @@ export async function PATCH(request: Request) {
   try {
     const locale = await getLocale();
     const body = patchSchema.parse(await request.json());
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const existing = await getAshedConnectionMeta(session.id, locale);
 
     if (!existing) {

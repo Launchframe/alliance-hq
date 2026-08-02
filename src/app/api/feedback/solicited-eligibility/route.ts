@@ -4,11 +4,15 @@ import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { feedbackErrorResponse } from "@/lib/feedback/api-errors";
 import { getSolicitedEligibility } from "@/lib/feedback/solicited-eligibility";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export async function GET(request: Request) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     if (!session.hqUserId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getOrCreateSessionMock = vi.fn();
+const requireApiSessionMock = vi.fn();
 const requireSessionPermissionMock = vi.fn();
 const resolveVideoHygieneCoachTipMock = vi.fn();
 const pickVideoHygieneCoachTipForUploaderMock = vi.fn();
@@ -10,7 +10,7 @@ const resolveSessionAllianceIdMock = vi.fn();
 const getScoreTargetMock = vi.fn();
 
 vi.mock("@/lib/session", () => ({
-  getOrCreateSession: () => getOrCreateSessionMock(),
+  requireApiSession: () => requireApiSessionMock(),
 }));
 
 vi.mock("@/lib/rbac/require-permission", () => ({
@@ -47,13 +47,13 @@ const SESSION = {
 describe("GET /api/tools/video-hygiene/coach", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getOrCreateSessionMock.mockResolvedValue(SESSION);
+    requireApiSessionMock.mockResolvedValue(SESSION);
     requireSessionPermissionMock.mockResolvedValue(null);
     getScoreTargetMock.mockReturnValue({ id: "desert-storm" });
   });
 
   it("returns null tip when session has no hq user", async () => {
-    getOrCreateSessionMock.mockResolvedValue({ id: "sess-1", hqUserId: null });
+    requireApiSessionMock.mockResolvedValue({ id: "sess-1", hqUserId: null });
 
     const res = await GET(
       new Request(
@@ -113,7 +113,7 @@ describe("GET /api/tools/video-hygiene/coach", () => {
 describe("POST /api/tools/video-hygiene/coach", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getOrCreateSessionMock.mockResolvedValue(SESSION);
+    requireApiSessionMock.mockResolvedValue(SESSION);
     requireSessionPermissionMock.mockResolvedValue(null);
     getScoreTargetMock.mockReturnValue({ id: "desert-storm" });
     resolveSessionAllianceIdMock.mockReturnValue("alliance-1");

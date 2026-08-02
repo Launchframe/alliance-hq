@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import {
   resolveVideoJobAccess,
   videoJobAccessErrorResponse,
@@ -12,7 +12,11 @@ type Props = { params: Promise<{ jobId: string }> };
 
 export async function GET(_request: Request, { params }: Props) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const { jobId } = await params;
     const db = getDb();
 

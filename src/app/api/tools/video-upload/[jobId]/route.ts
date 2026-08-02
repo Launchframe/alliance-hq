@@ -6,7 +6,7 @@ import {
   allianceMemberRowToAshedMember,
   listAllianceMembers,
 } from "@/lib/members/roster.server";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { sessionHasPermission } from "@/lib/rbac/context";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import type { AshedMember } from "@/lib/video/member-matcher";
@@ -53,7 +53,11 @@ type Props = {
 
 export async function GET(_request: Request, { params }: Props) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const { jobId } = await params;
     const access = await resolveVideoJobAccess(jobId, session.id, "read");
     if (!access.ok) {

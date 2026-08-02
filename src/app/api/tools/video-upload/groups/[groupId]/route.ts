@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import {
   resolveVideoUploadGroupAccess,
   videoJobAccessErrorResponse,
@@ -11,7 +11,11 @@ type Props = { params: Promise<{ groupId: string }> };
 
 export async function PATCH(request: Request, { params }: Props) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const { groupId } = await params;
     const body = (await request.json()) as {
       selectedJobId?: string;

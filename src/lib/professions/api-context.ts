@@ -2,7 +2,7 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { resolveCommanderForHqUser } from "./service";
 
 export type ProfessionRequestContext = {
@@ -16,7 +16,11 @@ export type ProfessionRequestContext = {
 export async function resolveProfessionRequestContext(): Promise<
   ProfessionRequestContext | NextResponse
 > {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId) {
     return NextResponse.json({ error: "No alliance selected." }, { status: 400 });

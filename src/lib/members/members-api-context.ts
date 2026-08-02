@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { resolveAllianceByTag } from "@/lib/alliance/resolve";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
-import { getAshedConnection, getOrCreateSession } from "@/lib/session";
+import { getAshedConnection, requireApiSession } from "@/lib/session";
 
 export type MembersApiContext = {
   sessionId: string;
@@ -16,7 +16,11 @@ export type MembersApiContext = {
 export async function resolveMembersApiContext(): Promise<
   MembersApiContext | NextResponse
 > {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const hqAllianceId = session.currentAllianceId ?? session.allianceId;
   if (!hqAllianceId) {
     return NextResponse.json({ error: "No alliance selected." }, { status: 400 });

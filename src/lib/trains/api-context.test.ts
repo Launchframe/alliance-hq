@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const getOrCreateSessionMock = vi.fn();
+const requireApiSessionMock = vi.fn();
 const getAllianceOperatingModeMock = vi.fn();
 
 vi.mock("@/lib/session", () => ({
-  getOrCreateSession: () => getOrCreateSessionMock(),
+  requireApiSession: () => requireApiSessionMock(),
 }));
 
 vi.mock("@/lib/native-alliance/operating-mode", () => ({
@@ -21,7 +21,7 @@ describe("resolveTrainRequestContext", () => {
   });
 
   it("returns HQ-only context for native alliances", async () => {
-    getOrCreateSessionMock.mockResolvedValue({
+    requireApiSessionMock.mockResolvedValue({
       id: "sess-native",
       allianceId: "hq-native",
       currentAllianceId: "hq-native",
@@ -38,7 +38,7 @@ describe("resolveTrainRequestContext", () => {
   });
 
   it("returns HQ-only context for ashed-mode alliances", async () => {
-    getOrCreateSessionMock.mockResolvedValue({
+    requireApiSessionMock.mockResolvedValue({
       id: "sess-ashed",
       allianceId: "hq-ashed",
       currentAllianceId: "hq-ashed",
@@ -55,7 +55,7 @@ describe("resolveTrainRequestContext", () => {
   });
 
   it("returns 400 when no alliance is selected", async () => {
-    getOrCreateSessionMock.mockResolvedValue({
+    requireApiSessionMock.mockResolvedValue({
       id: "sess-empty",
       allianceId: null,
       currentAllianceId: null,

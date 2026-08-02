@@ -1,4 +1,5 @@
-import { getOrCreateSession } from "@/lib/session";
+import { NextResponse } from "next/server";
+import { requireApiSession } from "@/lib/session";
 import { startPostgresListen } from "@/lib/db/postgres-listen";
 import {
   createVideoJobListenClient,
@@ -20,7 +21,11 @@ export function sseChunk(event: string, data: unknown): string {
 }
 
 export async function GET(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const sessionId = session.id;
   const hqUserId = session.hqUserId;
 

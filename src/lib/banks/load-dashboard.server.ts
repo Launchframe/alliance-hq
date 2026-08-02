@@ -14,14 +14,17 @@ import {
   BANK_WRITE_PERMISSION,
 } from "@/lib/rbac/constants";
 import { sessionHasPermission } from "@/lib/rbac/context";
-import { getOrCreateSession } from "@/lib/session";
+import { loadSession } from "@/lib/session";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 
 export async function loadBankManagementDashboard(
   sessionId: string,
   options: { nextCaptureLevel?: number | null } = {},
 ) {
-  const session = await getOrCreateSession();
+  const session = await loadSession(sessionId);
+  if (!session) {
+    return null;
+  }
   const allianceId = session.currentAllianceId;
   if (!allianceId) {
     return null;

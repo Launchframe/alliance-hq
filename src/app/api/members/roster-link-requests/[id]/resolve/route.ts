@@ -9,7 +9,7 @@ import {
 import { canReviewMemberLinks } from "@/lib/member-link/invite-onboarding-access.server";
 import { loadAllianceMemberOnboardingRow } from "@/lib/member-link/self-service-onboarding.server";
 import { getRbacContext } from "@/lib/rbac/context";
-import { getAshedConnection, getOrCreateSession } from "@/lib/session";
+import { getAshedConnection, requireApiSession } from "@/lib/session";
 
 const bodySchema = z.object({
   action: z.enum(["accept", "reject"]),
@@ -21,7 +21,11 @@ type Props = {
 };
 
 export async function POST(request: Request, { params }: Props) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId || !session.hqUserId) {
     return NextResponse.json({ error: "No alliance selected." }, { status: 400 });

@@ -6,7 +6,7 @@ import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
 import { assignRosterOcrExperiment } from "@/lib/members/roster-ocr/assign-roster-config";
-import { getAshedConnection, getOrCreateSession } from "@/lib/session";
+import { getAshedConnection, requireApiSession } from "@/lib/session";
 import { loadEffectiveAllianceHqOcrOnly } from "@/lib/video/alliance-ocr-settings.server";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 import {
@@ -31,7 +31,11 @@ type Props = {
  */
 export async function POST(_request: Request, { params }: Props) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const { jobId } = await params;
 
     if (!(await sessionCanProcessVideo(session.id))) {

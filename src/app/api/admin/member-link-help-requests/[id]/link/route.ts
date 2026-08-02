@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { linkMemberLinkHelpRequest } from "@/lib/member-link/member-link-help-review.server";
 import { requirePlatformMaintainer } from "@/lib/rbac/require-permission";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 const bodySchema = z.object({
   targetAshedMemberId: z.string().trim().min(1),
@@ -16,7 +16,11 @@ type Props = {
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request, { params }: Props) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requirePlatformMaintainer(session.id);
   if (denied) return denied;
 

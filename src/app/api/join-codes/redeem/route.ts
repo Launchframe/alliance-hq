@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireAuthSession } from "@/lib/auth";
 import { redeemAllianceJoinCode } from "@/lib/native-alliance/join-codes";
 import { resolvePostInviteOnboardingRedirect } from "@/lib/navigation/safe-redirect.shared";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 const bodySchema = z.object({
   code: z.string().trim().min(1).max(64),
@@ -26,7 +26,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+
+  const session = sessionOrError;
 
   try {
     const result = await redeemAllianceJoinCode({

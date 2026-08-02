@@ -2,13 +2,17 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireSessionPermission(session.id, "alliance:admin");
   if (denied) return denied;
 
@@ -30,7 +34,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireSessionPermission(session.id, "alliance:admin");
   if (denied) return denied;
 

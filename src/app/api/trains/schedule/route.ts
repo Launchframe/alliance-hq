@@ -12,7 +12,7 @@ import {
 } from "@/lib/trains/service";
 import type { WeekTemplateType } from "@/lib/trains/types";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import {
   requireSessionPermission,
   requireTrainOfficer,
@@ -23,7 +23,11 @@ export const dynamic = "force-dynamic";
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function GET() {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireSessionPermission(session.id, "scores:read");
   if (denied) return denied;
 
@@ -32,7 +36,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireTrainOfficer(session.id);
   if (denied) return denied;
 
@@ -101,7 +109,13 @@ export async function DELETE(request: Request) {
     );
   }
 
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+
+  const session = sessionOrError;
   const denied = await requireTrainOfficer(session.id);
   if (denied) return denied;
 

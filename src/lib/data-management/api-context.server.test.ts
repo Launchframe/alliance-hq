@@ -2,7 +2,6 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextResponse } from "next/server";
 
 import {
-  legacyAllowAllDataManagementRbac,
   resolveDataManagementApiContext,
   resolveDataManagementRbac,
 } from "./api-context.server";
@@ -16,8 +15,7 @@ vi.mock("@/lib/rbac/require-permission", () => ({
 }));
 
 vi.mock("@/lib/session", () => ({
-  getOrCreateSession: vi.fn(),
-  loadSession: vi.fn(),
+  requireApiSession: vi.fn(),
 }));
 
 vi.mock("@/lib/alliance/session-memberships", () => ({
@@ -26,13 +24,12 @@ vi.mock("@/lib/alliance/session-memberships", () => ({
 
 import { getRbacContext } from "@/lib/rbac/context";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { getOrCreateSession, loadSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 
 const mockedGetRbacContext = vi.mocked(getRbacContext);
 const mockedRequireSessionPermission = vi.mocked(requireSessionPermission);
-const mockedGetOrCreateSession = vi.mocked(getOrCreateSession);
-const mockedLoadSession = vi.mocked(loadSession);
+const mockedGetOrCreateSession = vi.mocked(requireApiSession);
 const mockedResolveSessionAllianceId = vi.mocked(resolveSessionAllianceId);
 
 describe("resolveDataManagementRbac", () => {
@@ -49,23 +46,14 @@ describe("resolveDataManagementRbac", () => {
     };
     mockedGetRbacContext.mockResolvedValue(rbac as never);
 
-    await expect(
-      resolveDataManagementRbac("sess-1", "alliance-1"),
-    ).resolves.toBe(rbac);
+    await expect(resolveDataManagementRbac("sess-1")).resolves.toBe(rbac);
   });
 
-  it("returns owner-level legacy rbac when hq_user_id is missing", async () => {
+  it("denies (returns null) when hq_user_id is missing — no legacy owner fallback", async () => {
     mockedGetRbacContext.mockResolvedValue(null);
-    mockedLoadSession.mockResolvedValue({
-      id: "sess-legacy",
-      hqUserId: null,
-    } as never);
 
-    const rbac = await resolveDataManagementRbac("sess-legacy", "alliance-1");
-    expect(rbac).toEqual(
-      legacyAllowAllDataManagementRbac("sess-legacy", "alliance-1"),
-    );
-    expect(rbac?.roleName).toBe("owner");
+    const rbac = await resolveDataManagementRbac("sess-legacy");
+    expect(rbac).toBeNull();
   });
 });
 
@@ -101,7 +89,9 @@ describe("resolveDataManagementApiContext", () => {
     expect((result as NextResponse).status).toBe(403);
   });
 
-  it("returns legacy audit hq user id as null", async () => {
+  it("denies with 401 for a hq_user_id-less session even if the permission gate is bypassed", async () => {
+    // Defense in depth: resolveDataManagementRbac must independently deny
+    // hqUserId-less sessions rather than trust requireSessionPermission alone.
     mockedGetOrCreateSession.mockResolvedValue({
       id: "sess-legacy",
       hqUserId: null,
@@ -109,16 +99,9 @@ describe("resolveDataManagementApiContext", () => {
     mockedResolveSessionAllianceId.mockReturnValue("alliance-1");
     mockedRequireSessionPermission.mockResolvedValue(null);
     mockedGetRbacContext.mockResolvedValue(null);
-    mockedLoadSession.mockResolvedValue({
-      id: "sess-legacy",
-      hqUserId: null,
-    } as never);
 
     const result = await resolveDataManagementApiContext();
-    expect(result).toMatchObject({
-      sessionId: "sess-legacy",
-      allianceId: "alliance-1",
-      auditHqUserId: null,
-    });
+    expect(result).toBeInstanceOf(NextResponse);
+    expect((result as NextResponse).status).toBe(401);
   });
 });

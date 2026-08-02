@@ -7,7 +7,7 @@ import {
   isPairingPurpose,
 } from "@/lib/credential-pairing";
 import { PairingError, pairingErrorStatus } from "@/lib/credential-pairing/types";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 const createSchema = z.object({
   purpose: z.string().trim().min(1),
@@ -17,7 +17,11 @@ const createSchema = z.object({
 export async function POST(request: Request) {
   try {
     const locale = await getLocale();
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const body = createSchema.parse(await request.json());
 
     if (!isPairingPurpose(body.purpose)) {

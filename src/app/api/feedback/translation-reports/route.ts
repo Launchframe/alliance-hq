@@ -6,7 +6,7 @@ import { getDb, schema } from "@/lib/db";
 import { feedbackErrorResponse } from "@/lib/feedback/api-errors";
 import { mergeServerTranslationKeyResolution } from "@/lib/feedback/translation-key-resolve";
 import { resolveTranslationKeys } from "@/lib/feedback/translation-key-resolve-server";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 type Body = {
   locale?: string;
@@ -19,7 +19,11 @@ type Body = {
 
 export async function POST(request: Request) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     if (!session.hqUserId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

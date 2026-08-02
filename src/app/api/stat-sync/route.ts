@@ -9,7 +9,7 @@ import {
 import type { MonotonicStatId } from "@/lib/hq-ashed-stat-sync/types";
 import { getCommanderMembershipInAlliance } from "@/lib/thp/repository";
 import { getRbacContext, requireSessionPermission } from "@/lib/rbac/require-permission";
-import { getAshedConnection, getOrCreateSession } from "@/lib/session";
+import { getAshedConnection, requireApiSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,11 @@ function parseStat(value: unknown): MonotonicStatId | null {
 }
 
 export async function GET(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireSessionPermission(session.id, "members:write");
   if (denied) return denied;
 
@@ -38,7 +42,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireSessionPermission(session.id, "members:write");
   if (denied) return denied;
 

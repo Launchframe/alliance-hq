@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getOrCreateSession, readSessionId } from "@/lib/session";
+import { loadApiSession, requireApiSession } from "@/lib/session";
 import {
   DEFAULT_TRAINS_DISPLAY_WEEK_START_DOW,
   normalizeDisplayWeekStartDow,
@@ -31,8 +31,8 @@ const patchSchema = z
 
 export async function GET() {
   try {
-    const sessionId = await readSessionId();
-    if (!sessionId) {
+    const session = await loadApiSession();
+    if (!session) {
       return NextResponse.json({
         displayWeekStartDow: DEFAULT_TRAINS_DISPLAY_WEEK_START_DOW,
         wheelSpinSpeed: DEFAULT_TRAINS_WHEEL_SPIN_SPEED,
@@ -41,7 +41,6 @@ export async function GET() {
       });
     }
 
-    const session = await getOrCreateSession();
     const preferences = await loadTrainsUserPreferences(session.hqUserId);
 
     return NextResponse.json({
@@ -64,7 +63,11 @@ export async function GET() {
 export async function PATCH(request: Request) {
   try {
     const body = patchSchema.parse(await request.json());
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
 
     if (!session.hqUserId) {
       return NextResponse.json(

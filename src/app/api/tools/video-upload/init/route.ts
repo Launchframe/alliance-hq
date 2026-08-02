@@ -11,7 +11,7 @@ import {
   r2Configured,
 } from "@/lib/storage/r2";
 import { videoStorageKey } from "@/lib/storage";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { getScoreTarget } from "@/lib/video/score-targets";
 import {
   getMaxVideoUploadBytes,
@@ -38,7 +38,11 @@ type InitBody = {
 
 export async function POST(request: Request) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const denied = await requireSessionPermission(
       session.id,
       VIDEO_ENQUEUE_PERMISSION,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getObjectRange, getObjectSize, getObjectStream } from "@/lib/storage";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import {
   resolveVideoJobAccess,
   videoJobAccessErrorResponse,
@@ -97,7 +97,11 @@ async function buildVideoResponse(
 
 export async function HEAD(request: Request, { params }: Props) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const { jobId } = await params;
     const resolved = await resolveAccessibleJobVideo(jobId, session.id);
     if ("error" in resolved) return resolved.error;
@@ -118,7 +122,11 @@ export async function HEAD(request: Request, { params }: Props) {
 
 export async function GET(request: Request, { params }: Props) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const { jobId } = await params;
     const resolved = await resolveAccessibleJobVideo(jobId, session.id);
     if ("error" in resolved) return resolved.error;

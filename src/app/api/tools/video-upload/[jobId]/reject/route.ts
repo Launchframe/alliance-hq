@@ -6,7 +6,7 @@ import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
 import { deleteObject } from "@/lib/storage";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 import { filterJobStorageKeysSafeToDelete } from "@/lib/video/shared-job-storage.server";
 
@@ -21,7 +21,11 @@ type RejectBody = {
 /** A video processor rejects a pending job, discarding it with an optional reason. */
 export async function POST(request: Request, { params }: Props) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     const { jobId } = await params;
 
     if (!(await sessionCanProcessVideo(session.id))) {

@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POST } from "./route";
 
-const getOrCreateSession = vi.fn();
+const requireApiSession = vi.fn();
 const resolveVideoJobAccess = vi.fn();
 const rematchVideoJobMembers = vi.fn();
 
 vi.mock("@/lib/session", () => ({
-  getOrCreateSession: (...args: unknown[]) => getOrCreateSession(...args),
+  requireApiSession: (...args: unknown[]) => requireApiSession(...args),
 }));
 
 vi.mock("@/lib/video/video-job-access.server", () => ({
@@ -25,7 +25,7 @@ const SESSION = { id: "sess-1", hqUserId: "hq-1" };
 describe("POST /api/tools/video-upload/[jobId]/rematch-members", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getOrCreateSession.mockResolvedValue(SESSION);
+    requireApiSession.mockResolvedValue(SESSION);
   });
 
   it("returns 409 with connectUrl when Ashed is not connected", async () => {

@@ -3,11 +3,17 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { resolveEffectiveHqUserIdForSession } from "@/lib/session";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { sessionHasActiveMembership } from "@/lib/native-alliance/access";
 
 export async function requireMemberLinkSession() {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) {
+    return { error: sessionOrError };
+  }
+
+  const session = sessionOrError;
   const effectiveHqUserId = await resolveEffectiveHqUserIdForSession(
     session.id,
     session.hqUserId,

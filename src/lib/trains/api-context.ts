@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export type TrainRequestContext = {
   sessionId: string;
@@ -13,7 +13,11 @@ export type TrainRequestContext = {
 export async function resolveTrainRequestContext(): Promise<
   TrainRequestContext | NextResponse
 > {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId) {
     return NextResponse.json({ error: "No alliance selected." }, { status: 400 });

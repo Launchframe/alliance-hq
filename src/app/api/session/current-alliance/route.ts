@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { switchSessionCurrentAlliance } from "@/lib/alliance/session-memberships";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 const patchSchema = z.object({
   allianceId: z.string().trim().min(1),
@@ -10,7 +10,11 @@ const patchSchema = z.object({
 
 export async function PATCH(request: Request) {
   try {
-    const session = await getOrCreateSession();
+    const sessionOrError = await requireApiSession();
+
+    if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+    const session = sessionOrError;
     if (!session.hqUserId) {
       return NextResponse.json(
         { error: "Sign in required to switch alliance." },

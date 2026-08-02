@@ -5,12 +5,16 @@ import { applyBulkMemberRanks } from "@/lib/members/bulk-rank-update.server";
 import { loadAllianceMembers } from "@/lib/members/load";
 import { resolveMembersApiContext } from "@/lib/members/members-api-context";
 import { getRbacContext, requireSessionPermission } from "@/lib/rbac/require-permission";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+
+  const session = sessionOrError;
   const denied = await requireSessionPermission(session.id, "members:write");
   if (denied) return denied;
 

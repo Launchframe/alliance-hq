@@ -105,6 +105,21 @@ test.describe("Anonymous bootstrap session RBAC", () => {
     expect(list.status(), await list.text()).toBe(403);
   });
 
+  test("authenticated non-maintainer cannot list admin users", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const member = await createAuthenticatedHqSession(
+      sql,
+      `rbac-member-${nanoid(6)}@e2e.test`,
+    );
+
+    const list = await request.get("/api/admin/users", {
+      headers: { Cookie: authCookieHeader(member) },
+    });
+    expect(list.status(), await list.text()).toBe(403);
+  });
+
   test("platform maintainer can list admin users", async ({ request }) => {
     const sql = getE2eSql();
     const maintainer = await createPlatformMaintainerSession(sql);
@@ -115,5 +130,12 @@ test.describe("Anonymous bootstrap session RBAC", () => {
     expect(list.status(), await list.text()).toBe(200);
     const body = (await list.json()) as { users?: unknown[] };
     expect(Array.isArray(body.users)).toBe(true);
+  });
+
+  test("protected API routes return 401 without a session cookie", async ({
+    request,
+  }) => {
+    const summary = await request.get("/api/dashboard/summary");
+    expect(summary.status(), await summary.text()).toBe(401);
   });
 });
