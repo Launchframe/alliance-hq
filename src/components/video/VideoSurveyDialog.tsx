@@ -157,23 +157,53 @@ export function VideoSurveyDialog({
     return draft.schoolingTuitionAnswer !== "";
   }
 
-  function mergeStepIntoAccumulated(currentStep: number): SurveyAccumulated {
-    if (currentStep === 1 && isValidRowCountInput(draft.rowCountEstimate)) {
+  function mergeStepIntoAccumulated(
+    currentStep: number,
+    draftOverride?: Partial<StepDraft>,
+  ): SurveyAccumulated {
+    const rowCountEstimate = draftOverride?.rowCountEstimate ?? draft.rowCountEstimate;
+    const scrollStyle = draftOverride?.scrollStyle ?? draft.scrollStyle;
+    const schoolingTuitionAnswer =
+      draftOverride?.schoolingTuitionAnswer ?? draft.schoolingTuitionAnswer;
+
+    if (currentStep === 1 && isValidRowCountInput(rowCountEstimate)) {
       return {
         ...accumulated,
-        rowCountEstimate: parseInt(draft.rowCountEstimate, 10),
+        rowCountEstimate: parseInt(rowCountEstimate, 10),
       };
     }
-    if (currentStep === 2 && draft.scrollStyle) {
-      return { ...accumulated, scrollStyle: draft.scrollStyle };
+    if (currentStep === 2 && scrollStyle) {
+      return { ...accumulated, scrollStyle };
     }
-    if (currentStep === 3 && draft.schoolingTuitionAnswer) {
+    if (currentStep === 3 && schoolingTuitionAnswer) {
       return {
         ...accumulated,
-        schoolingTuitionAnswer: draft.schoolingTuitionAnswer,
+        schoolingTuitionAnswer,
       };
     }
     return accumulated;
+  }
+
+  function draftFromAccumulated(source: SurveyAccumulated): StepDraft {
+    return {
+      rowCountEstimate:
+        source.rowCountEstimate != null ? String(source.rowCountEstimate) : "",
+      scrollStyle: source.scrollStyle ?? "",
+      schoolingTuitionAnswer: source.schoolingTuitionAnswer ?? "",
+    };
+  }
+
+  function commitStepAndAdvance(
+    currentStep: number,
+    nextAccumulated: SurveyAccumulated,
+  ) {
+    setAccumulated(nextAccumulated);
+    if (currentStep >= TOTAL_STEPS) {
+      void postAndClose(nextAccumulated);
+      return;
+    }
+    setStep(currentStep + 1);
+    setDraft(draftFromAccumulated(nextAccumulated));
   }
 
   async function postPayload(nextAccumulated: SurveyAccumulated) {
@@ -236,15 +266,7 @@ export function VideoSurveyDialog({
         return;
       }
       setStep((s) => s + 1);
-      setDraft((prev) => ({
-        ...prev,
-        rowCountEstimate:
-          nextAccumulated.rowCountEstimate != null
-            ? String(nextAccumulated.rowCountEstimate)
-            : prev.rowCountEstimate,
-        scrollStyle: nextAccumulated.scrollStyle ?? "",
-        schoolingTuitionAnswer: nextAccumulated.schoolingTuitionAnswer ?? "",
-      }));
+      setDraft(draftFromAccumulated(nextAccumulated));
       return;
     }
 
@@ -255,20 +277,30 @@ export function VideoSurveyDialog({
     setStep((s) => s + 1);
   }
 
+  function handleBack() {
+    if (step <= 1 || submitting) return;
+    setStep((s) => s - 1);
+    setDraft(draftFromAccumulated(accumulated));
+  }
+
   function handleNext() {
     if (!stepHasValidAnswer(step)) return;
-    const nextAccumulated = mergeStepIntoAccumulated(step);
-    setAccumulated(nextAccumulated);
-    if (step >= TOTAL_STEPS) {
-      void postAndClose(nextAccumulated);
-      return;
-    }
-    setStep((s) => s + 1);
-    setDraft((prev) => ({
-      ...prev,
-      scrollStyle: nextAccumulated.scrollStyle ?? "",
-      schoolingTuitionAnswer: nextAccumulated.schoolingTuitionAnswer ?? "",
-    }));
+    commitStepAndAdvance(step, mergeStepIntoAccumulated(step));
+  }
+
+  function handleScrollStyleSelect(style: SurveyScrollStyle) {
+    if (submitting) return;
+    setDraft((prev) => ({ ...prev, scrollStyle: style }));
+    commitStepAndAdvance(2, mergeStepIntoAccumulated(2, { scrollStyle: style }));
+  }
+
+  function handleSchoolingAnswerSelect(answer: SurveySchoolingAnswer) {
+    if (submitting) return;
+    setDraft((prev) => ({ ...prev, schoolingTuitionAnswer: answer }));
+    commitStepAndAdvance(
+      3,
+      mergeStepIntoAccumulated(3, { schoolingTuitionAnswer: answer }),
+    );
   }
 
   const q3Label =
@@ -360,9 +392,7 @@ export function VideoSurveyDialog({
                   <button
                     key={style}
                     type="button"
-                    onClick={() =>
-                      setDraft((prev) => ({ ...prev, scrollStyle: style }))
-                    }
+                    onClick={() => handleScrollStyleSelect(style)}
                     className={`w-full rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
                       selected
                         ? "border-hq-accent bg-hq-accent/10 text-hq-fg"
@@ -395,12 +425,7 @@ export function VideoSurveyDialog({
                   <button
                     key={answer}
                     type="button"
-                    onClick={() =>
-                      setDraft((prev) => ({
-                        ...prev,
-                        schoolingTuitionAnswer: answer,
-                      }))
-                    }
+                    onClick={() => handleSchoolingAnswerSelect(answer)}
                     className={`w-full rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
                       selected
                         ? "border-hq-accent bg-hq-accent/10 text-hq-fg"
@@ -417,18 +442,30 @@ export function VideoSurveyDialog({
       </div>
 
       <div className="mt-auto flex items-center justify-between gap-3 pt-2">
-        <button
-          type="button"
-          onClick={handleSkip}
-          disabled={submitting}
-          className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted disabled:opacity-50"
-        >
-          {t("skip")}
-        </button>
+        <div className="flex min-w-0 items-center gap-2">
+          {step > 1 ? (
+            <button
+              type="button"
+              onClick={handleBack}
+              disabled={submitting}
+              className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted disabled:opacity-50"
+            >
+              {t("back")}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleSkip}
+            disabled={submitting}
+            className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted disabled:opacity-50"
+          >
+            {t("skip")}
+          </button>
+        </div>
         <button
           type="submit"
           disabled={!nextEnabled}
-          className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
+          className="shrink-0 rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white disabled:opacity-50"
         >
           {submitting ? t("submitting") : t("next")}
         </button>

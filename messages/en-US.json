@@ -4651,6 +4651,7 @@
     "q3No": "No",
     "q3Idk": "idk 🤷‍♂️",
     "stepIndicator": "Step {current} / {total}",
+    "back": "Back",
     "skip": "Skip",
     "next": "Next",
     "submitting": "Saving…"
