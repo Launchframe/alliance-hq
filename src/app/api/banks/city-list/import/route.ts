@@ -7,7 +7,7 @@
 
 import { NextResponse } from "next/server";
 
-import { cityListImportBankIdentityError } from "@/lib/banks/city-list-import-review.shared";
+import { cityListImportBankIdentityError, cityListBankCoordKey, listExtraHqBanksForCityListImport } from "@/lib/banks/city-list-import-review.shared";
 import { reloadBankManagementDashboard } from "@/lib/banks/reload-dashboard.server";
 import {
   listBanksForAlliance,
@@ -212,14 +212,18 @@ export async function POST(request: Request) {
 
     const importedKeys = new Set(
       parsed.banks.map((bank) =>
-        bankKey(bank.gameServerNumber, bank.coordX, bank.coordY),
+        cityListBankCoordKey(bank.gameServerNumber, bank.coordX, bank.coordY),
       ),
     );
-    const extraHq = existingBanks.filter(
-      (bank) =>
-        !importedKeys.has(
-          bankKey(bank.gameServerNumber, bank.coordX, bank.coordY),
-        ),
+    const extraHq = listExtraHqBanksForCityListImport(
+      existingBanks.map((bank) => ({
+        id: bank.id,
+        gameServerNumber: bank.gameServerNumber,
+        coordX: bank.coordX,
+        coordY: bank.coordY,
+        dropByAt: bank.dropByAt?.toISOString() ?? null,
+      })),
+      importedKeys,
     );
 
     const warnings: string[] = [];

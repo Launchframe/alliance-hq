@@ -5,9 +5,12 @@ import {
   cityListReviewRowsHaveErrors,
   cityListUpsertClearsDropByAt,
   classifyCityListImportRowsAgainstHq,
+  cityListBankCoordKey,
   clampReviewIndexAfterRemove,
   defaultPlaceholderGameServerNumber,
   isCityListPlaceholderCoords,
+  listExtraHqBanksForCityListImport,
+  partitionCityListReviewRows,
   validateCityListReviewRow,
 } from "@/lib/banks/city-list-import-review.shared";
 
@@ -174,6 +177,78 @@ describe("classifyCityListImportRowsAgainstHq", () => {
         coordY: 400,
       }),
     ).toBe(false);
+  });
+});
+
+describe("listExtraHqBanksForCityListImport", () => {
+  const now = new Date("2026-07-27T12:00:00.000Z");
+  const importedKeys = new Set(["1211:100:200", "1211:150:250"]);
+
+  it("excludes HQ banks already past drop deadline from extra-HQ count", () => {
+    const banks = [
+      { gameServerNumber: 1211, coordX: 100, coordY: 200, dropByAt: null },
+      { gameServerNumber: 1211, coordX: 150, coordY: 250, dropByAt: null },
+      {
+        gameServerNumber: 1211,
+        coordX: 300,
+        coordY: 400,
+        dropByAt: "2026-07-20T00:00:00.000Z",
+      },
+      {
+        gameServerNumber: 1211,
+        coordX: 400,
+        coordY: 500,
+        dropByAt: "2026-07-26T00:00:00.000Z",
+      },
+    ];
+    expect(
+      listExtraHqBanksForCityListImport(banks, importedKeys, now),
+    ).toHaveLength(0);
+  });
+
+  it("counts only active HQ banks not in the import", () => {
+    const banks = [
+      { gameServerNumber: 1211, coordX: 100, coordY: 200, dropByAt: null },
+      { gameServerNumber: 1211, coordX: 150, coordY: 250, dropByAt: null },
+      { gameServerNumber: 1211, coordX: 300, coordY: 400, dropByAt: null },
+      {
+        gameServerNumber: 1211,
+        coordX: 500,
+        coordY: 600,
+        dropByAt: "2026-07-28T00:00:00.000Z",
+      },
+      {
+        gameServerNumber: 1211,
+        coordX: 600,
+        coordY: 700,
+        dropByAt: "2026-07-20T00:00:00.000Z",
+      },
+    ];
+    const extra = listExtraHqBanksForCityListImport(banks, importedKeys, now);
+    expect(extra).toHaveLength(2);
+    expect(extra.map((b) => cityListBankCoordKey(b.gameServerNumber, b.coordX, b.coordY))).toEqual(
+      ["1211:300:400", "1211:500:600"],
+    );
+  });
+});
+
+describe("partitionCityListReviewRows", () => {
+  const rowExistsInHq = (row: {
+    gameServerNumber: number;
+    coordX: number;
+    coordY: number;
+  }) => row.coordX === 100 && row.coordY === 200;
+
+  it("splits placeholder, new, and existing rows", () => {
+    const rows = [
+      { gameServerNumber: 1211, coordX: 100, coordY: 200 },
+      { gameServerNumber: 1211, coordX: 150, coordY: 250 },
+      { gameServerNumber: 1211, coordX: 0, coordY: 0 },
+    ];
+    const parts = partitionCityListReviewRows(rows, rowExistsInHq);
+    expect(parts.existingRows).toHaveLength(1);
+    expect(parts.newRows).toHaveLength(1);
+    expect(parts.placeholderRows).toHaveLength(1);
   });
 });
 

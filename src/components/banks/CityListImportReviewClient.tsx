@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Eye, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Eye, Plus } from "lucide-react";
 import type { Slide } from "yet-another-react-lightbox";
 
 import { CityListBankReviewCard } from "@/components/banks/CityListBankReviewCard";
@@ -21,6 +21,7 @@ import {
   classifyCityListImportRowsAgainstHq,
   defaultPlaceholderGameServerNumber,
   isCityListPlaceholderCoords,
+  listExtraHqBanksForCityListImport,
   validateCityListReviewRow,
   type CityListRowErrors,
   type CityListRowFieldName,
@@ -94,6 +95,7 @@ export function CityListImportReviewClient({
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [archiveMissingBanks, setArchiveMissingBanks] = useState(false);
+  const [matchedBanksOpen, setMatchedBanksOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
@@ -175,14 +177,18 @@ export function CityListImportReviewClient({
 
   const extraHqBankCount = useMemo(
     () =>
-      existingBanks.filter(
-        (bank) =>
-          !rowKeys.has(
-            bankKey(bank.gameServerNumber, bank.coordX, bank.coordY),
-          ),
-      ).length,
+      listExtraHqBanksForCityListImport(existingBanks, rowKeys).length,
     [existingBanks, rowKeys],
   );
+
+  const visibleRows = useMemo(() => {
+    if (!rows) return [];
+    return rows.filter((row) => {
+      if (isCityListPlaceholderCoords(row.coordX, row.coordY)) return true;
+      if (!presence.rowExistsInHq(row)) return true;
+      return matchedBanksOpen;
+    });
+  }, [rows, presence, matchedBanksOpen]);
 
   const showIncompleteWarning =
     snapshot?.capturedCount != null &&
@@ -421,6 +427,31 @@ export function CityListImportReviewClient({
         </div>
       ) : null}
 
+      {presence.existingCount > 0 ? (
+        <div className="rounded-xl border border-[#d29922]/40 bg-[#d29922]/10 p-4 text-sm text-[#e3b341]">
+          <p className="font-medium">
+            {t("cityListExistingBanksClusterTitle", {
+              count: presence.existingCount,
+            })}
+          </p>
+          <p className="mt-1 text-hq-fg">{t("cityListExistingBanksClusterHint")}</p>
+          <button
+            type="button"
+            onClick={() => setMatchedBanksOpen((open) => !open)}
+            className="mt-3 inline-flex items-center gap-1 rounded-md border border-hq-border px-2 py-1 text-xs text-hq-fg hover:bg-hq-canvas"
+          >
+            {matchedBanksOpen ? (
+              <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+            )}
+            {matchedBanksOpen
+              ? t("cityListExistingBanksClusterHide")
+              : t("cityListExistingBanksClusterShow")}
+          </button>
+        </div>
+      ) : null}
+
       {screenshots.length > 1 ? (
         <ul className="flex flex-wrap gap-2">
           {screenshots.map((shot, index) => (
@@ -458,7 +489,7 @@ export function CityListImportReviewClient({
         }}
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {rows.map((row) => {
+          {visibleRows.map((row) => {
             const isPlaceholder = isCityListPlaceholderCoords(
               row.coordX,
               row.coordY,
