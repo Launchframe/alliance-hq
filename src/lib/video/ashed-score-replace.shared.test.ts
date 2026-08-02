@@ -4,12 +4,17 @@ import { shouldReplaceAshedScoresOnSubmit } from "./ashed-score-replace.shared";
 import { getScoreTargetOrThrow } from "./score-targets";
 
 describe("shouldReplaceAshedScoresOnSubmit", () => {
-  it("replaces desert-storm when event id is present", () => {
+  it("does not replace team-scoped storm targets (native Ashed bulk-only upload)", () => {
     expect(
       shouldReplaceAshedScoresOnSubmit(getScoreTargetOrThrow("desert-storm"), {
         eventId: "ev-1",
       }),
-    ).toBe(true);
+    ).toBe(false);
+    expect(
+      shouldReplaceAshedScoresOnSubmit(getScoreTargetOrThrow("canyon-storm"), {
+        eventId: "ev-1",
+      }),
+    ).toBe(false);
   });
 
   it("does not replace desert-storm without event id", () => {
@@ -18,6 +23,15 @@ describe("shouldReplaceAshedScoresOnSubmit", () => {
         eventId: null,
       }),
     ).toBe(false);
+  });
+
+  it("replaces alliance-exercise by event when event id is present", () => {
+    expect(
+      shouldReplaceAshedScoresOnSubmit(
+        getScoreTargetOrThrow("alliance-exercise"),
+        { eventId: "ev-1" },
+      ),
+    ).toBe(true);
   });
 
   it("replaces vs-performance by recorded date (no event)", () => {

@@ -209,3 +209,46 @@ export async function markDataBatchMoved(
       ),
     );
 }
+
+export async function markDataBatchesDeletedForDate(input: {
+  allianceId: string;
+  scoreTarget: string;
+  recordedDate: string;
+}): Promise<number> {
+  const rows = await listAllianceDataBatches({
+    allianceId: input.allianceId,
+    scoreTarget: input.scoreTarget,
+    status: "active",
+  });
+  const matching = rows.filter(
+    (batch) => batch.recordedDate === input.recordedDate,
+  );
+  for (const batch of matching) {
+    await markDataBatchDeleted(batch.id, input.allianceId);
+  }
+  return matching.length;
+}
+
+export async function markDataBatchesMovedForDate(input: {
+  allianceId: string;
+  scoreTarget: string;
+  recordedDate: string;
+  newRecordedDate: string;
+}): Promise<number> {
+  const rows = await listAllianceDataBatches({
+    allianceId: input.allianceId,
+    scoreTarget: input.scoreTarget,
+    status: "active",
+  });
+  const matching = rows.filter(
+    (batch) => batch.recordedDate === input.recordedDate,
+  );
+  for (const batch of matching) {
+    await markDataBatchMoved(
+      batch.id,
+      input.allianceId,
+      input.newRecordedDate,
+    );
+  }
+  return matching.length;
+}

@@ -68,6 +68,7 @@ export async function insertDataUploadBatch(
     scoreTarget?: string;
     submitEntity?: string;
     rowCount?: number;
+    contextJson?: Record<string, unknown>;
   },
 ): Promise<string> {
   const id = nanoid(16);
@@ -76,6 +77,7 @@ export async function insertDataUploadBatch(
   const scoreTarget = input.scoreTarget ?? "desert-storm";
   const submitEntity = input.submitEntity ?? "DesertStormScore";
   const rowCount = input.rowCount ?? 49;
+  const contextJson = input.contextJson ?? { eventId: "event-1", team: "A" };
 
   await sql`
     INSERT INTO data_upload_batches (
@@ -97,7 +99,7 @@ export async function insertDataUploadBatch(
       ${scoreTarget},
       ${submitEntity},
       ${recordedDate},
-      ${sql.json({ eventId: "event-1", team: "A" })},
+      ${sql.json(contextJson)},
       ${rowCount},
       ${input.createdByHqUserId},
       ${now},

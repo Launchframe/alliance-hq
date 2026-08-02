@@ -1,6 +1,37 @@
 import type { DataBatchContext } from "./batch-authorization.shared";
 
 /**
+ * Ashed admin UI deletes/moves by recorded date only (no team / event_id).
+ * Matches `har/ashed.online-desert_storm_bulk_delete_scores.har`.
+ */
+export function buildAshedDateBulkDeletePayload(input: {
+  submitEntity: string;
+  recordedDate: string;
+  allianceId: string;
+}): Record<string, unknown> {
+  return {
+    alliance_id: input.allianceId,
+    entity_type: input.submitEntity,
+    recorded_date: input.recordedDate,
+    confirm: true,
+  };
+}
+
+export function buildAshedDateBulkMovePayload(input: {
+  submitEntity: string;
+  recordedDate: string;
+  newRecordedDate: string;
+  allianceId: string;
+}): Record<string, unknown> {
+  return {
+    alliance_id: input.allianceId,
+    entity_type: input.submitEntity,
+    from_date: input.recordedDate,
+    to_date: input.newRecordedDate,
+  };
+}
+
+/**
  * Ashed `bulkDeleteByDate` / `bulkMoveByDate` request shapes (from Ashed HAR).
  * Field names must match the Ashed function contract (`entity_type`, not `entity`).
  */

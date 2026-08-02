@@ -3,10 +3,17 @@ import "server-only";
 import type { ParsedConnection } from "@/lib/connectionString";
 import {
   base44CallFunction,
+  base44EntityDelete,
   base44EntityPost,
   base44Json,
 } from "@/lib/base44/fetch";
-import { buildBulkDeletePayload } from "@/lib/data-management/bulk-function-payload.shared";
+import {
+  fetchAshedScoreRowsRaw,
+  type RawAshedScoreRow,
+} from "@/lib/data-management/ashed-date-scores.server";
+import {
+  buildAshedDateBulkDeletePayload,
+} from "@/lib/data-management/bulk-function-payload.shared";
 import type { DataBatchContext } from "@/lib/data-management/batch-authorization.shared";
 import type { ScoreTargetDef } from "@/lib/video/score-targets";
 import {
@@ -85,6 +92,75 @@ export async function resolveOrCreateAshedEvent(params: {
   return { eventId: created.id, created: true };
 }
 
+type AshedScoreRowForDelete = RawAshedScoreRow;
+
+function scoreRowMatchesReplaceContext(
+  row: AshedScoreRowForDelete,
+  recordedDate: string,
+  context: DataBatchContext,
+): boolean {
+  const rowDate = row.recorded_date?.slice(0, 10);
+  if (rowDate !== recordedDate) {
+    return false;
+  }
+  if (context.eventId && row.event_id !== context.eventId) {
+    return false;
+  }
+  if (context.team && row.team !== context.team) {
+    return false;
+  }
+  if (context.boardKey && row.board_key !== context.boardKey) {
+    return false;
+  }
+  if (context.hqEventId && row.hq_event_id !== context.hqEventId) {
+    return false;
+  }
+  if (context.commendationId && row.commendation_id !== context.commendationId) {
+    return false;
+  }
+  return true;
+}
+
+function usesRowScopedAshedScoreDelete(context: DataBatchContext): boolean {
+  return Boolean(
+    context.eventId ||
+      context.team ||
+      context.boardKey ||
+      context.hqEventId ||
+      context.commendationId,
+  );
+}
+
+/**
+ * Delete existing Ashed score rows that match the submit context.
+ * Skips upstream calls when nothing matches (first upload — mirrors native Ashed).
+ */
+export async function deleteAshedScoreRowsForContext(params: {
+  connection: ParsedConnection;
+  submitEntity: string;
+  ashedAllianceId: string;
+  recordedDate: string;
+  context: DataBatchContext;
+}): Promise<number> {
+  const list = await fetchAshedScoreRowsRaw({
+    connection: params.connection,
+    submitEntity: params.submitEntity,
+    ashedAllianceId: params.ashedAllianceId,
+    eventId: params.context.eventId,
+  });
+  const matching = list.filter((row) =>
+    scoreRowMatchesReplaceContext(row, params.recordedDate, params.context),
+  );
+
+  let deleted = 0;
+  for (const row of matching) {
+    if (!row.id) continue;
+    await base44EntityDelete(params.connection, params.submitEntity, row.id);
+    deleted += 1;
+  }
+  return deleted;
+}
+
 /** Clear prior Ashed score rows for this submit context before re-insert. */
 export async function replaceAshedScoresForContext(params: {
   connection: ParsedConnection;
@@ -93,14 +169,24 @@ export async function replaceAshedScoresForContext(params: {
   recordedDate: string;
   context: DataBatchContext;
 }): Promise<void> {
+  if (usesRowScopedAshedScoreDelete(params.context)) {
+    await deleteAshedScoreRowsForContext({
+      connection: params.connection,
+      submitEntity: params.target.submitEntity,
+      ashedAllianceId: params.ashedAllianceId,
+      recordedDate: params.recordedDate,
+      context: params.context,
+    });
+    return;
+  }
+
   await base44CallFunction(
     params.connection,
     "bulkDeleteByDate",
-    buildBulkDeletePayload({
+    buildAshedDateBulkDeletePayload({
       submitEntity: params.target.submitEntity,
       recordedDate: params.recordedDate,
       allianceId: params.ashedAllianceId,
-      contextJson: params.context,
     }),
   );
 }

@@ -938,9 +938,9 @@ export async function POST(request: Request, { params }: Props) {
       errorMessage: null,
     });
 
-    // Clear prior Ashed rows for this day/event before insert so re-submit
-    // (Update scores) replaces instead of stacking to 2×. Serialize concurrent
-    // same-alliance/date replaces so two officers cannot interleave delete/insert.
+    // Date-keyed bulk targets still delete-before-insert; team-scoped storm
+    // uploads bulk-insert only (native Ashed parity). Use Data Management to
+    // bulk-delete a date/team when officers need a clean slate.
     const replaceScores = shouldReplaceAshedScoresOnSubmit(target, {
       eventId: submitContext.eventId,
     });
@@ -981,6 +981,9 @@ export async function POST(request: Request, { params }: Props) {
           allianceId,
           scoreTarget: target.id,
           recordedDate: submitContext.recordedDate,
+          eventId: submitContext.eventId ?? null,
+          team: submitContext.team ?? null,
+          boardKey: submitContext.boardKey ?? null,
         },
         runReplaceAndInsert,
       );

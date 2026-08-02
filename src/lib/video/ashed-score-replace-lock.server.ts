@@ -18,6 +18,9 @@ export type ScoreReplaceLockKey = {
   allianceId: string;
   scoreTarget: string;
   recordedDate: string;
+  eventId?: string | null;
+  team?: string | null;
+  boardKey?: string | null;
 };
 
 /**
@@ -45,7 +48,14 @@ export async function withAshedScoreReplaceLock<T>(
   key: ScoreReplaceLockKey,
   run: () => Promise<T>,
 ): Promise<T> {
-  const material = `${key.allianceId}\0${key.scoreTarget}\0${key.recordedDate}`;
+  const material = [
+    key.allianceId,
+    key.scoreTarget,
+    key.recordedDate,
+    key.eventId ?? "",
+    key.team ?? "",
+    key.boardKey ?? "",
+  ].join("\0");
   const [k1, k2] = advisoryLockPair(material);
   const sql = postgres(getDatabaseUrl(), ashedScoreReplaceLockClientOptions());
   try {

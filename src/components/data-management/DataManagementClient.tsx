@@ -7,7 +7,7 @@ import { ArrowRight, Database, Trash2 } from "lucide-react";
 
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import { Dialog } from "@/components/ui/dialog";
-import type { DataBatchRow } from "@/lib/data-management/batch-authorization.shared";
+import type { DataDateSummary } from "@/lib/data-management/batch-authorization.shared";
 
 type ScoreTargetOption = {
   id: string;
@@ -15,9 +15,7 @@ type ScoreTargetOption = {
   submitEntity: string;
 };
 
-type BatchRow = DataBatchRow & { canMove: boolean; canDelete: boolean };
-
-type BatchScoreRow = {
+type DateScoreRow = {
   id: string | null;
   memberId: string | null;
   memberName: string | null;
@@ -27,13 +25,13 @@ type BatchScoreRow = {
 };
 
 type Props = {
-  initialBatches: BatchRow[];
+  initialDates: DataDateSummary[];
   scoreTargets: ScoreTargetOption[];
   initialScoreTarget: string;
 };
 
 export function DataManagementClient({
-  initialBatches,
+  initialDates,
   scoreTargets,
   initialScoreTarget,
 }: Props) {
@@ -49,60 +47,57 @@ export function DataManagementClient({
       ? queryTarget
       : initialScoreTarget,
   );
-  const [batches, setBatches] = useState(initialBatches);
-  const [selectedId, setSelectedId] = useState<string | null>(() => {
-    if (queryDate) {
-      const match = initialBatches.find(
-        (batch) => batch.recordedDate === queryDate,
-      );
-      if (match) return match.id;
+  const [dates, setDates] = useState(initialDates);
+  const [selectedDate, setSelectedDate] = useState<string | null>(() => {
+    if (queryDate && initialDates.some((date) => date.recordedDate === queryDate)) {
+      return queryDate;
     }
-    return initialBatches[0]?.id ?? null;
+    return initialDates[0]?.recordedDate ?? null;
   });
   const [moveDate, setMoveDate] = useState("");
   const [acting, setActing] = useState<"move" | "delete" | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<BatchRow | null>(null);
+  const [pendingDeleteDate, setPendingDeleteDate] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [scores, setScores] = useState<BatchScoreRow[]>([]);
+  const [scores, setScores] = useState<DateScoreRow[]>([]);
   const [scoresLoading, setScoresLoading] = useState(false);
   const [scoresError, setScoresError] = useState<string | null>(null);
 
   const selected = useMemo(
-    () => batches.find((batch) => batch.id === selectedId) ?? null,
-    [batches, selectedId],
+    () => dates.find((date) => date.recordedDate === selectedDate) ?? null,
+    [dates, selectedDate],
   );
 
-  const displayedScores = selectedId ? scores : [];
+  const targetDef = useMemo(
+    () => scoreTargets.find((target) => target.id === scoreTarget),
+    [scoreTargets, scoreTarget],
+  );
 
-  const refreshBatches = useCallback(
+  const refreshDates = useCallback(
     async (nextScoreTarget: string, preferDate?: string | null) => {
       setLoading(true);
       setError(null);
       try {
         const res = await fetch(
-          `/api/data-management/batches?scoreTarget=${encodeURIComponent(nextScoreTarget)}`,
+          `/api/data-management/dates?scoreTarget=${encodeURIComponent(nextScoreTarget)}`,
         );
         const data = (await res.json()) as {
-          batches?: BatchRow[];
+          dates?: DataDateSummary[];
           error?: string;
         };
         if (!res.ok) {
           throw new Error(data.error ?? t("loadFailed"));
         }
-        const nextBatches = data.batches ?? [];
-        setBatches(nextBatches);
-        setSelectedId((current) => {
-          if (preferDate) {
-            const byDate = nextBatches.find(
-              (batch) => batch.recordedDate === preferDate,
-            );
-            if (byDate) return byDate.id;
+        const nextDates = data.dates ?? [];
+        setDates(nextDates);
+        setSelectedDate((current) => {
+          if (preferDate && nextDates.some((date) => date.recordedDate === preferDate)) {
+            return preferDate;
           }
-          return nextBatches.some((batch) => batch.id === current)
+          return nextDates.some((date) => date.recordedDate === current)
             ? current
-            : (nextBatches[0]?.id ?? null);
+            : (nextDates[0]?.recordedDate ?? null);
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : t("loadFailed"));
@@ -114,7 +109,7 @@ export function DataManagementClient({
   );
 
   useEffect(() => {
-    if (!selectedId) return;
+    if (!selectedDate) return;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       void (async () => {
@@ -123,11 +118,11 @@ export function DataManagementClient({
         setScores([]);
         try {
           const res = await fetch(
-            `/api/data-management/batches/${selectedId}/scores`,
+            `/api/data-management/dates/${encodeURIComponent(selectedDate)}/scores?scoreTarget=${encodeURIComponent(scoreTarget)}`,
             { signal: controller.signal },
           );
           const data = (await res.json()) as {
-            scores?: BatchScoreRow[];
+            scores?: DateScoreRow[];
             error?: string;
           };
           if (!res.ok) {
@@ -153,29 +148,31 @@ export function DataManagementClient({
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [selectedId, t]);
+  }, [selectedDate, scoreTarget, t]);
 
   async function handleTargetChange(nextTarget: string) {
     setScoreTarget(nextTarget);
-    await refreshBatches(nextTarget);
+    await refreshDates(nextTarget);
   }
 
-  async function handleDelete(batch: BatchRow) {
+  async function handleDelete(recordedDate: string) {
     setActing("delete");
     setDeleteError(null);
     setError(null);
     try {
-      const res = await fetch(`/api/data-management/batches/${batch.id}/delete`, {
-        method: "POST",
-      });
+      const res = await fetch(
+        `/api/data-management/dates/${encodeURIComponent(recordedDate)}/delete?scoreTarget=${encodeURIComponent(scoreTarget)}`,
+        { method: "POST" },
+      );
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         throw new Error(data.error ?? t("deleteFailed"));
       }
-      setPendingDelete(null);
+      setPendingDeleteDate(null);
       setDeleteError(null);
-      await refreshBatches(scoreTarget);
-      setSelectedId(null);
+      await refreshDates(scoreTarget);
+      setSelectedDate(null);
+      setScores([]);
     } catch (err) {
       const message = err instanceof Error ? err.message : t("deleteFailed");
       setDeleteError(message);
@@ -185,7 +182,7 @@ export function DataManagementClient({
     }
   }
 
-  async function handleMove(batch: BatchRow) {
+  async function handleMove(recordedDate: string) {
     if (!moveDate) {
       setError(t("moveDateRequired"));
       return;
@@ -193,18 +190,20 @@ export function DataManagementClient({
     setActing("move");
     setError(null);
     try {
-      const res = await fetch(`/api/data-management/batches/${batch.id}/move`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newRecordedDate: moveDate }),
-      });
+      const res = await fetch(
+        `/api/data-management/dates/${encodeURIComponent(recordedDate)}/move?scoreTarget=${encodeURIComponent(scoreTarget)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ newRecordedDate: moveDate }),
+        },
+      );
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         throw new Error(data.error ?? t("moveFailed"));
       }
       setMoveDate("");
-      await refreshBatches(scoreTarget);
-      setSelectedId(null);
+      await refreshDates(scoreTarget, moveDate);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("moveFailed"));
     } finally {
@@ -212,10 +211,21 @@ export function DataManagementClient({
     }
   }
 
-  function teamLabel(team: string | undefined): string | null {
+  function teamLabel(team: string | null | undefined): string | null {
     if (team === "A") return tReview("teamA");
     if (team === "B") return tReview("teamB");
     return null;
+  }
+
+  function teamSummary(date: DataDateSummary): string | null {
+    const parts: string[] = [];
+    if (date.teamACount > 0) {
+      parts.push(`${tReview("teamA")}: ${date.teamACount}`);
+    }
+    if (date.teamBCount > 0) {
+      parts.push(`${tReview("teamB")}: ${date.teamBCount}`);
+    }
+    return parts.length > 0 ? parts.join(" · ") : null;
   }
 
   return (
@@ -256,18 +266,18 @@ export function DataManagementClient({
           <div className="max-h-[70vh] space-y-3 overflow-y-auto p-3">
             {loading ? (
               <p className="px-2 py-6 text-sm text-muted-foreground">{t("loading")}</p>
-            ) : batches.length === 0 ? (
+            ) : dates.length === 0 ? (
               <p className="px-2 py-6 text-sm text-muted-foreground">{t("empty")}</p>
             ) : (
-              batches.map((batch) => {
-                const active = batch.id === selectedId;
-                const team = teamLabel(batch.contextJson.team);
+              dates.map((date) => {
+                const active = date.recordedDate === selectedDate;
+                const teams = teamSummary(date);
                 return (
                   <button
-                    key={batch.id}
+                    key={date.recordedDate}
                     type="button"
                     onClick={() => {
-                      setSelectedId(batch.id);
+                      setSelectedDate(date.recordedDate);
                       setMoveDate("");
                     }}
                     className={`w-full rounded-xl border p-4 text-left transition ${
@@ -278,35 +288,35 @@ export function DataManagementClient({
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-medium">{batch.recordedDate}</p>
-                        {team ? (
+                        <p className="font-medium">{date.recordedDate}</p>
+                        {teams ? (
+                          <p className="mt-1 text-xs text-muted-foreground">{teams}</p>
+                        ) : null}
+                        {date.latestSubmittedAt ? (
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {team}
+                            {t("uploadedAt")}:{" "}
+                            <FormattedDateTime
+                              value={date.latestSubmittedAt}
+                              dateStyle="medium"
+                            />
                           </p>
                         ) : null}
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {t("uploadedAt")}:{" "}
-                          <FormattedDateTime
-                            value={batch.submittedAt}
-                            dateStyle="medium"
-                          />
-                        </p>
                       </div>
                       <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
-                        {t("recordCount", { count: batch.rowCount })}
+                        {t("recordCount", { count: date.rowCount })}
                       </span>
                     </div>
                     <p className="mt-3 text-lg font-semibold">
-                      {t("totalRows", { count: batch.rowCount })}
+                      {t("totalRows", { count: date.rowCount })}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {batch.canMove ? (
+                      {date.canMove ? (
                         <span className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs">
                           <ArrowRight className="h-3.5 w-3.5" />
                           {t("move")}
                         </span>
                       ) : null}
-                      {batch.canDelete ? (
+                      {date.canDelete ? (
                         <span className="inline-flex items-center gap-1 rounded-md border border-destructive/40 px-2 py-1 text-xs text-destructive">
                           <Trash2 className="h-3.5 w-3.5" />
                           {t("delete")}
@@ -326,40 +336,26 @@ export function DataManagementClient({
               <div className="flex items-center gap-2">
                 <Database className="h-5 w-5 text-muted-foreground" />
                 <h2 className="text-lg font-semibold">{selected.recordedDate}</h2>
-                {teamLabel(selected.contextJson.team) ? (
-                  <span className="rounded-full border border-border px-2 py-0.5 text-xs">
-                    {teamLabel(selected.contextJson.team)}
-                  </span>
-                ) : null}
               </div>
               <dl className="grid gap-3 text-sm sm:grid-cols-2">
                 <div>
                   <dt className="text-muted-foreground">{t("scoreTarget")}</dt>
-                  <dd>
-                    {tNav(
-                      scoreTargets.find((t) => t.id === selected.scoreTarget)
-                        ?.labelKey ?? "desertStorm",
-                    )}
-                  </dd>
+                  <dd>{tNav(targetDef?.labelKey ?? "desertStorm")}</dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">{t("entity")}</dt>
-                  <dd>{selected.submitEntity}</dd>
+                  <dd>{targetDef?.submitEntity ?? "—"}</dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">{t("recordCountLabel")}</dt>
                   <dd>{selected.rowCount}</dd>
                 </div>
-                <div>
-                  <dt className="text-muted-foreground">{t("submittedAt")}</dt>
-                  <dd>
-                    <FormattedDateTime
-                      value={selected.submittedAt}
-                      dateStyle="medium"
-                      timeStyle="short"
-                    />
-                  </dd>
-                </div>
+                {teamSummary(selected) ? (
+                  <div>
+                    <dt className="text-muted-foreground">{t("scoresTeam")}</dt>
+                    <dd>{teamSummary(selected)}</dd>
+                  </div>
+                ) : null}
               </dl>
 
               <div className="border-t border-border pt-4">
@@ -370,7 +366,7 @@ export function DataManagementClient({
                   </p>
                 ) : scoresError ? (
                   <p className="mt-2 text-sm text-destructive">{scoresError}</p>
-                ) : displayedScores.length === 0 ? (
+                ) : scores.length === 0 ? (
                   <p className="mt-2 text-sm text-muted-foreground">
                     {t("scoresEmpty")}
                   </p>
@@ -383,6 +379,9 @@ export function DataManagementClient({
                             {t("scoresMember")}
                           </th>
                           <th className="px-3 py-2 font-medium">
+                            {t("scoresTeam")}
+                          </th>
+                          <th className="px-3 py-2 font-medium">
                             {t("scoresScore")}
                           </th>
                           <th className="px-3 py-2 font-medium">
@@ -391,22 +390,34 @@ export function DataManagementClient({
                         </tr>
                       </thead>
                       <tbody>
-                        {displayedScores.map((row, index) => (
-                          <tr
-                            key={row.id ?? `${row.memberId}-${index}`}
-                            className="border-t border-border"
-                          >
-                            <td className="px-3 py-2">
-                              {row.memberName ?? "—"}
-                            </td>
-                            <td className="px-3 py-2 tabular-nums">
-                              {row.score ?? "—"}
-                            </td>
-                            <td className="px-3 py-2 tabular-nums">
-                              {row.rank ?? "—"}
-                            </td>
-                          </tr>
-                        ))}
+                        {scores.map((row, index) => {
+                          const team = teamLabel(row.team);
+                          return (
+                            <tr
+                              key={row.id ?? `${row.memberId}-${row.team}-${index}`}
+                              className="border-t border-border"
+                            >
+                              <td className="px-3 py-2">
+                                {row.memberName ?? "—"}
+                              </td>
+                              <td className="px-3 py-2">
+                                {team ? (
+                                  <span className="rounded-full border border-border px-2 py-0.5 text-xs">
+                                    {team}
+                                  </span>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+                              <td className="px-3 py-2 tabular-nums">
+                                {row.score ?? "—"}
+                              </td>
+                              <td className="px-3 py-2 tabular-nums">
+                                {row.rank ?? "—"}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -431,7 +442,7 @@ export function DataManagementClient({
                       <button
                         type="button"
                         disabled={acting !== null}
-                        onClick={() => void handleMove(selected)}
+                        onClick={() => void handleMove(selected.recordedDate)}
                         className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm hover:bg-muted disabled:opacity-60"
                       >
                         <ArrowRight className="h-4 w-4" />
@@ -445,7 +456,7 @@ export function DataManagementClient({
                       disabled={acting !== null}
                       onClick={() => {
                         setDeleteError(null);
-                        setPendingDelete(selected);
+                        setPendingDeleteDate(selected.recordedDate);
                       }}
                       className="inline-flex items-center gap-2 rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 disabled:opacity-60"
                     >
@@ -456,7 +467,7 @@ export function DataManagementClient({
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  {t("readOnlyBatch")}
+                  {t("readOnlyDate")}
                 </p>
               )}
             </div>
@@ -473,11 +484,11 @@ export function DataManagementClient({
       </div>
 
       <Dialog
-        open={pendingDelete !== null}
+        open={pendingDeleteDate !== null}
         onOpenChange={(open) => {
           if (!open && acting === "delete") return;
           if (!open) {
-            setPendingDelete(null);
+            setPendingDeleteDate(null);
             setDeleteError(null);
           }
         }}
@@ -498,7 +509,7 @@ export function DataManagementClient({
               type="button"
               disabled={acting === "delete"}
               onClick={() => {
-                setPendingDelete(null);
+                setPendingDeleteDate(null);
                 setDeleteError(null);
               }}
               className="rounded-lg border border-border px-4 py-2 text-sm hover:bg-muted disabled:opacity-60"
@@ -507,9 +518,9 @@ export function DataManagementClient({
             </button>
             <button
               type="button"
-              disabled={acting === "delete" || !pendingDelete}
+              disabled={acting === "delete" || !pendingDeleteDate}
               onClick={() => {
-                if (pendingDelete) void handleDelete(pendingDelete);
+                if (pendingDeleteDate) void handleDelete(pendingDeleteDate);
               }}
               className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2 text-sm text-destructive hover:bg-destructive/20 disabled:opacity-60"
             >

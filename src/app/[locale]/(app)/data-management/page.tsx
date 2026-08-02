@@ -3,16 +3,15 @@ import { getTranslations } from "next-intl/server";
 
 import { DataManagementClient } from "@/components/data-management/DataManagementClient";
 import { HybridAshedPageShell } from "@/components/hybrid-ashed/HybridAshedPageShell";
-import {
-  decorateBatchForViewer,
-  listAllianceDataBatches,
-} from "@/lib/data-management/batch-ledger.server";
+import { buildDataDateSummaries } from "@/lib/data-management/batch-actions.server";
+import { listAllianceDataBatches } from "@/lib/data-management/batch-ledger.server";
 import { resolveDataManagementRbac } from "@/lib/data-management/api-context.server";
 import { resolveCanUseAshedEmbedsForSession } from "@/lib/dashboard/page-context.server";
+import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
 import { requirePagePermission } from "@/lib/rbac/page-permission";
-import { requirePageSession } from "@/lib/session";
+import { requirePageSession, getAshedConnection } from "@/lib/session";
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
-import { SCORE_TARGETS } from "@/lib/video/score-targets";
+import { getScoreTarget, SCORE_TARGETS } from "@/lib/video/score-targets";
 
 export const dynamic = "force-dynamic";
 
@@ -36,10 +35,13 @@ export default async function DataManagementPage({ searchParams }: PageProps) {
 
   const params = await searchParams;
 
-  const [rbac, canUseAshedEmbeds] = await Promise.all([
-    resolveDataManagementRbac(session.id),
-    resolveCanUseAshedEmbedsForSession(session.id),
-  ]);
+  const [rbac, canUseAshedEmbeds, connection, ashedAllianceId] =
+    await Promise.all([
+      resolveDataManagementRbac(session.id),
+      resolveCanUseAshedEmbedsForSession(session.id),
+      getAshedConnection(session.id),
+      getAshedAllianceIdIfLinked(allianceId),
+    ]);
   if (!rbac) {
     return null;
   }
@@ -58,11 +60,23 @@ export default async function DataManagementPage({ searchParams }: PageProps) {
       requestedTarget) ||
     scoreTargets[0]?.id ||
     "desert-storm";
-  const batches = await listAllianceDataBatches({
-    allianceId,
-    scoreTarget: initialScoreTarget,
-    status: "active",
-  });
+  const targetDef = getScoreTarget(initialScoreTarget);
+  const ledgerBatches = targetDef
+    ? await listAllianceDataBatches({
+        allianceId,
+        scoreTarget: targetDef.id,
+        status: "active",
+      })
+    : [];
+  const initialDates = targetDef
+    ? await buildDataDateSummaries({
+        connection,
+        ashedAllianceId,
+        submitEntity: targetDef.submitEntity,
+        ledgerBatches,
+        rbac,
+      })
+    : [];
 
   return (
     <HybridAshedPageShell
@@ -72,9 +86,7 @@ export default async function DataManagementPage({ searchParams }: PageProps) {
       <div className="px-4 py-6 md:px-0">
         <Suspense fallback={null}>
           <DataManagementClient
-            initialBatches={batches.map((batch) =>
-              decorateBatchForViewer(batch, rbac),
-            )}
+            initialDates={initialDates}
             scoreTargets={scoreTargets}
             initialScoreTarget={initialScoreTarget}
           />

@@ -151,6 +151,16 @@ export async function base44EntityPost<T>(
   });
 }
 
+export async function base44EntityDelete(
+  connection: ParsedConnection,
+  entity: string,
+  id: string,
+): Promise<void> {
+  await base44Json(connection, `/entities/${entity}/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export async function base44CallFunction<TBody extends Record<string, unknown>, TResult>(
   connection: ParsedConnection,
   name: string,

@@ -4,7 +4,9 @@ import {
   batchActionFlags,
   canManageAnyDataBatch,
   canManageDataBatch,
+  canManageDataDate,
   canViewDataManagement,
+  dateActionFlags,
 } from "./batch-authorization.shared";
 
 function ctx(input: {
@@ -61,5 +63,32 @@ describe("batch authorization", () => {
         status: "deleted",
       }),
     ).toEqual({ canMove: false, canDelete: false });
+  });
+
+  it("lets officers manage a date only when all ledger batches on that date are theirs", () => {
+    const officer = ctx({ roleName: "officer", hqUserId: "officer-1" });
+    const ownBatches = [
+      { createdByHqUserId: "officer-1", status: "active" },
+    ];
+    const mixedBatches = [
+      { createdByHqUserId: "officer-1", status: "active" },
+      { createdByHqUserId: "officer-2", status: "active" },
+    ];
+
+    expect(canManageDataDate(officer, ownBatches, false)).toBe(true);
+    expect(dateActionFlags(officer, ownBatches, false)).toEqual({
+      canMove: true,
+      canDelete: true,
+    });
+    expect(canManageDataDate(officer, mixedBatches, false)).toBe(false);
+    expect(dateActionFlags(officer, mixedBatches, false)).toEqual({
+      canMove: false,
+      canDelete: false,
+    });
+  });
+
+  it("blocks officers from deleting Ashed-only dates without ledger batches", () => {
+    const officer = ctx({ roleName: "officer", hqUserId: "officer-1" });
+    expect(canManageDataDate(officer, [], true)).toBe(false);
   });
 });
