@@ -4,6 +4,7 @@ import { isVideoOcrAccuracy } from "@/lib/video/ocr-accuracy";
 import {
   ENABLED_SCORE_TARGETS,
   SCORE_TARGETS,
+  REVIEW_ROW_NUMBER_SCORE_TARGETS,
   getScoreTarget,
   getScoreTargetOrThrow,
   isBankDepositSlipHistoryTarget,
@@ -12,6 +13,7 @@ import {
   isNativeOnlyVideoTarget,
   isZeroScoreWarningDisabled,
   toScoreTargetClientMeta,
+  usesReviewRowNumberIndicator,
 } from "@/lib/video/score-targets";
 
 describe("score targets", () => {
@@ -89,5 +91,23 @@ describe("score targets", () => {
     expect(getScoreTargetOrThrow("alliance-star").inHouseOcrAccuracy).toBe(
       "none",
     );
+  });
+
+  it("shows read-only row numbers for linear leaderboard video targets", () => {
+    for (const id of REVIEW_ROW_NUMBER_SCORE_TARGETS) {
+      expect(usesReviewRowNumberIndicator(id)).toBe(true);
+      const meta = toScoreTargetClientMeta(getScoreTargetOrThrow(id));
+      expect(meta.showReviewRowNumber).toBe(true);
+      expect(meta.showRankColumn).toBe(true);
+    }
+    expect(usesReviewRowNumberIndicator("zombie-siege")).toBe(false);
+    expect(
+      toScoreTargetClientMeta(getScoreTargetOrThrow("alliance-star"))
+        .showReviewRowNumber,
+    ).toBe(false);
+    expect(
+      toScoreTargetClientMeta(getScoreTargetOrThrow("alliance-star"))
+        .showRankColumn,
+    ).toBe(true);
   });
 });

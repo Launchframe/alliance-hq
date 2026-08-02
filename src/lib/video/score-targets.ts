@@ -123,6 +123,31 @@ const STORM_SUBMIT_CONTEXT: SubmitContextField[] = [
 /** Alliance-wide kill totals from Strength Ranking → Kills (Ashed KillScore). */
 export const ALLIANCE_KILLS_VIDEO_SCORE_TARGET = "alliance-kills-video" as const;
 
+/**
+ * Score targets whose review table shows a read-only `#` column (row position in
+ * the list) so reviewers can align rows with the video and spot gaps. Not the
+ * same as podium rank (editable 1–3).
+ */
+export const REVIEW_ROW_NUMBER_SCORE_TARGETS = [
+  "vs-performance",
+  "desert-storm",
+  "canyon-storm",
+  "alliance-exercise",
+  "donations",
+  ALLIANCE_KILLS_VIDEO_SCORE_TARGET,
+] as const;
+
+export type ReviewRowNumberScoreTarget =
+  (typeof REVIEW_ROW_NUMBER_SCORE_TARGETS)[number];
+
+export function usesReviewRowNumberIndicator(
+  scoreTargetId: string,
+): scoreTargetId is ReviewRowNumberScoreTarget {
+  return (REVIEW_ROW_NUMBER_SCORE_TARGETS as readonly string[]).includes(
+    scoreTargetId,
+  );
+}
+
 export const SCORE_TARGETS: ScoreTargetDef[] = [
   {
     id: "desert-storm",
@@ -396,6 +421,8 @@ export type ScoreTargetClientMeta = {
   boardTypes?: SeasonalBoardType[];
   maxSubmitRows?: number;
   usesHqEvents: boolean;
+  /** Read-only `#` row index for video alignment (see REVIEW_ROW_NUMBER_SCORE_TARGETS). */
+  showReviewRowNumber: boolean;
   showRankColumn: boolean;
   showTeamSelector: boolean;
   showRosterColumns: boolean;
@@ -409,6 +436,9 @@ export function toScoreTargetClientMeta(
 ): ScoreTargetClientMeta {
   const isDepositSlip = isBankDepositSlipHistoryTarget(target.id);
   const isRoster = isMemberRosterVideoTarget(target.id);
+  const showReviewRowNumber = usesReviewRowNumberIndicator(target.id);
+  const showEditablePodiumRank =
+    target.leaderboardModel === "podium-commendation";
   return {
     id: target.id,
     labelKey: target.labelKey,
@@ -419,9 +449,8 @@ export function toScoreTargetClientMeta(
     boardTypes: target.boardTypes,
     maxSubmitRows: target.maxSubmitRows,
     usesHqEvents: usesHqEventStore(target),
-    showRankColumn:
-      target.id === "vs-performance" ||
-      target.leaderboardModel === "podium-commendation",
+    showReviewRowNumber,
+    showRankColumn: showReviewRowNumber || showEditablePodiumRank,
     showTeamSelector: target.submitContext.includes("team"),
     showRosterColumns: isRoster,
     showScoreColumn: !isRoster && !isDepositSlip,

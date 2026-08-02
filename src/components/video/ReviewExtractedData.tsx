@@ -198,6 +198,7 @@ type ScoreTargetMeta = {
   boardTypes?: string[];
   maxSubmitRows?: number;
   usesHqEvents: boolean;
+  showReviewRowNumber: boolean;
   showRankColumn: boolean;
   showTeamSelector: boolean;
   showRosterColumns: boolean;
@@ -3297,7 +3298,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             <tr>
               {scoreTargetMeta?.showRankColumn ? (
                 <th className="w-14 px-3 py-3">
-                  {isVsPerformanceTarget ? t("colRowNumber") : t("colRank")}
+                  {scoreTargetMeta.showReviewRowNumber
+                    ? t("colRowNumber")
+                    : t("colRank")}
                 </th>
               ) : null}
               <th className="min-w-0 px-3 py-3">{t("colName")}</th>
@@ -3349,7 +3352,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               >
                 {scoreTargetMeta?.showRankColumn ? (
                   <td className="px-3 py-3 align-top">
-                    {isVsPerformanceTarget ? (
+                    {scoreTargetMeta.showReviewRowNumber ? (
                       <span
                         className="inline-flex min-w-[2rem] tabular-nums text-hq-fg-muted"
                         aria-label={t("reviewRowNumber", {
