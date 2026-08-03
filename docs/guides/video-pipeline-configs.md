@@ -56,8 +56,9 @@ Default primary pass when nothing is assigned:
 
 ### First and last frames
 
-- Scene mode **forces an early frame** (~100 ms into the video). That is intentional so the top of a list is not skipped.
-- There is **no forced last frame** today. If the last on-screen rows are missing, denser fps sampling usually helps; a code change would be required to always pin the final frame.
+- Scene mode **seeks and captures one frame ~100 ms after start** and **one frame ~100 ms before end** (accurate time seeks, not frame-index math). That pins the top and bottom of the list even when scene detection does not fire until the user scrolls.
+- If probed fps is wrong (e.g. a 3 fps clip with a default frame index of 3), the old `eq(n,…)` approach could land the “opening” capture at ~1 s — bookend seeks avoid that.
+- Roster videos also use `supplementFps` for periodic samples between scene changes.
 
 ### How assignments apply
 
@@ -222,7 +223,7 @@ On `/admin/video-jobs/<id>`:
 | Frames tab | First list rows visible near the start; last rows near the end |
 | Parse results | Far fewer blank required fields before officer edit |
 
-If the **end** of the list is still missing after denser fps, note it for a forced-last-frame code change — config alone cannot pin the final timestamp today.
+If the **end** of the list is still missing after reprocess, try denser fps sampling or check that the closing bookend (~100 ms before EOF) is present in the job inspector.
 
 ### Step 5 — Incomplete fields after denser capture
 
