@@ -10,7 +10,7 @@ export type DepositSlipVisibleRowFields = {
   id: string;
   ocrName: string;
   score: string | null;
-  /** ISO deposit timestamp when present (table sorts newest-first by this). */
+  /** ISO deposit timestamp when present (display only; sort uses frame order). */
   powerLevel: string | null;
   profession: string | null;
   allianceRankTitle: string | null;
@@ -47,11 +47,9 @@ export function filterAndSortDepositSlipReviewRows<
         sensitivity: "base",
       });
     }
-    const aMs = a.powerLevel ? Date.parse(a.powerLevel) : 0;
-    const bMs = b.powerLevel ? Date.parse(b.powerLevel) : 0;
-    if (bMs !== aMs) return bMs - aMs;
     const aFrame = a.frameIndex ?? Number.MAX_SAFE_INTEGER;
     const bFrame = b.frameIndex ?? Number.MAX_SAFE_INTEGER;
-    return aFrame - bFrame;
+    if (aFrame !== bFrame) return aFrame - bFrame;
+    return a.id.localeCompare(b.id);
   });
 }

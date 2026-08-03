@@ -54,7 +54,7 @@ import {
 } from "@/lib/video/dedupe/merge-report.shared";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
 
-/** Follow-me scrubbing only works when rows are ordered by deposit time. */
+/** Follow-me scrubbing only works when rows follow in-game frame order. */
 export function depositSlipFollowMeCompatible(
   sortKey: DepositSlipVisibleSortKey,
 ): boolean {
@@ -79,6 +79,7 @@ export type DepositSlipVideoReviewRow = {
   dedupeFlag?: boolean;
   deleted: number;
   scoreDefaulted?: boolean;
+  depositAtInterpolated?: boolean;
 };
 
 export type DepositSlipMemberOption = {
@@ -806,8 +807,17 @@ export function DepositSlipVideoReviewTable({
                           powerLevel: datetimeLocalToIso(e.target.value),
                         })
                       }
-                      className="w-full min-w-[11rem] rounded-md border border-hq-border bg-hq-canvas px-2 py-1.5"
+                      className={`w-full min-w-[11rem] rounded-md border bg-hq-canvas px-2 py-1.5 ${
+                        row.depositAtInterpolated
+                          ? "border-[#e3b341] ring-1 ring-inset ring-[#e3b341]/60"
+                          : "border-hq-border"
+                      }`}
                     />
+                    {row.depositAtInterpolated ? (
+                      <p className="mt-1 text-xs text-[#e3b341]">
+                        {t("depositSlipDepositAtInterpolatedWarning")}
+                      </p>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2 align-top">
                     <AppSelect

@@ -2,7 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
-import { Crosshair, LocateFixed, MonitorPlay, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Crosshair, MonitorPlay, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link, useRouter } from "@/i18n/navigation";
@@ -71,12 +71,16 @@ import {
   isShadowPassTerminalStatus,
   VS_SHADOW_WITHHOLD_DEFAULT_MS,
 } from "@/lib/video/early-shadow-eligibility.shared";
-import { VideoPipelineStatsButton } from "@/components/video/VideoPipelineStatsDialog";
 import {
   ReviewVideoPreview,
   type VideoSeekRequest,
   type VideoSeekController,
 } from "@/components/video/ReviewVideoPreview";
+import {
+  VideoReviewSettingsDialog,
+  VideoReviewSettingsFab,
+  VideoReviewSettingsTrigger,
+} from "@/components/video/VideoReviewSettingsDialog";
 import { useVideoPreviewLayout } from "@/components/video/useVideoPreviewLayout";
 import { useVideoReviewFollowMe } from "@/components/video/useVideoReviewFollowMe";
 import {
@@ -130,10 +134,9 @@ import {
   compareTargetedBankToDetected,
   type BankTargetMismatchResolution,
 } from "@/lib/banks/deposit-slip-bank-target-mismatch.shared";
-import {
-  applyDepositSlipScoreDefaults,
-  depositSlipScoreDefaultedRowIds,
-} from "@/lib/banks/deposit-slip-score-default.shared";
+import { mergeDepositSlipDisplayEnhancements } from "@/lib/banks/deposit-slip-review-enhancements.shared";
+import { depositSlipScoreDefaultedRowIds } from "@/lib/banks/deposit-slip-score-default.shared";
+import { useVideoReviewSettings } from "@/lib/video/use-video-review-settings";
 import { computeDepositSlipReviewHeroMetrics } from "@/lib/banks/deposit-slip-review-hero-metrics.shared";
 import { formatDepositSlipSubmitSuccessMessage } from "@/lib/banks/deposit-slip-submit-success.shared";
 import { VideoJobProgressBar } from "@/components/video/VideoJobProgressBar";
@@ -176,6 +179,7 @@ type ParsedRow = {
   deleted: number;
   manuallyAdded?: number;
   scoreDefaulted?: boolean;
+  depositAtInterpolated?: boolean;
 };
 
 type MemberOption = {
@@ -325,6 +329,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [depositSlipPreviewMode, setDepositSlipPreviewMode] = useState<
     "video" | "frames"
   >("video");
+  const [reviewSettingsOpen, setReviewSettingsOpen] = useState(false);
+  const { settings: videoReviewSettings, patchSettings: patchVideoReviewSettings } =
+    useVideoReviewSettings();
   const [error, setError] = useState<string | null>(null);
   const [errorConnectUrl, setErrorConnectUrl] = useState<string | null>(null);
   const actionErrorAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -770,10 +777,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           dedupeClusterId: row.dedupeClusterId ?? null,
           dedupeFlag: Boolean(row.dedupeFlag ?? row.dedupeClusterId),
         }));
-        const serverRows =
-          data.scoreTargetMeta?.showDepositSlipColumns === true
-            ? applyDepositSlipScoreDefaults(rawServerRows)
-            : rawServerRows;
+        const serverRows = rawServerRows;
         const restored = restoreVideoReviewDraftIfPresent(
           jobId,
           viewMode,
@@ -1432,18 +1436,39 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [rows],
   );
 
+  const depositSlipDisplayRows = useMemo(() => {
+    if (!scoreTargetMeta?.showDepositSlipColumns) return activeRows;
+    return mergeDepositSlipDisplayEnhancements(activeRows, {
+      fillMissingDepositAmounts: videoReviewSettings.fillMissingDepositAmounts,
+      fillMissingDepositTimes: videoReviewSettings.fillMissingDepositTimes,
+    });
+  }, [
+    activeRows,
+    scoreTargetMeta?.showDepositSlipColumns,
+    videoReviewSettings.fillMissingDepositAmounts,
+    videoReviewSettings.fillMissingDepositTimes,
+  ]);
+
+  const depositSlipDisplayRowsById = useMemo(
+    () => new Map(depositSlipDisplayRows.map((row) => [row.id, row])),
+    [depositSlipDisplayRows],
+  );
+
+  const depositSlipRowsForUi =
+    scoreTargetMeta?.showDepositSlipColumns ? depositSlipDisplayRows : activeRows;
+
   const depositSlipHeroMetrics = useMemo(() => {
     if (!scoreTargetMeta?.showDepositSlipColumns || !bankId) return null;
     return computeDepositSlipReviewHeroMetrics({
       bank: selectedBank,
-      reviewRows: activeRows,
+      reviewRows: depositSlipRowsForUi,
       allianceCityListImportedAt: bankCityListImportedAt,
     });
   }, [
     scoreTargetMeta?.showDepositSlipColumns,
     bankId,
     selectedBank,
-    activeRows,
+    depositSlipRowsForUi,
     bankCityListImportedAt,
   ]);
 
@@ -1509,14 +1534,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     if (!scoreTargetMeta?.showDepositSlipColumns) {
       return filteredRows;
     }
-    const byId = new Map(activeRows.map((row) => [row.id, row]));
+    const byId = new Map(depositSlipRowsForUi.map((row) => [row.id, row]));
     return depositSlipVisibleRowIds
       .map((id) => byId.get(id))
       .filter((row): row is ParsedRow => row != null);
   }, [
     scoreTargetMeta?.showDepositSlipColumns,
     filteredRows,
-    activeRows,
+    depositSlipRowsForUi,
     depositSlipVisibleRowIds,
   ]);
 
@@ -1650,7 +1675,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   );
 
   const depositSlipValidation = useDepositSlipReviewValidation(
-    activeRows.map((row) => ({
+    depositSlipRowsForUi.map((row) => ({
       id: row.id,
       ocrName: row.ocrName,
       score: row.score,
@@ -1676,7 +1701,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     for (const id of depositSlipValidation.duplicateRowIds) {
       problemIds.add(id);
     }
-    for (const row of activeRows) {
+    for (const row of depositSlipRowsForUi) {
       const clusterId = row.dedupeClusterId;
       if (
         clusterId &&
@@ -1685,8 +1710,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         problemIds.add(row.id);
       }
     }
-    for (const id of depositSlipScoreDefaultedRowIds(activeRows)) {
+    for (const id of depositSlipScoreDefaultedRowIds(depositSlipRowsForUi)) {
       problemIds.add(id);
+    }
+    for (const row of depositSlipRowsForUi) {
+      if (row.depositAtInterpolated) problemIds.add(row.id);
     }
     return depositSlipVisibleRowIds.filter((id) => problemIds.has(id));
   }, [
@@ -1694,7 +1722,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     depositSlipValidation.incompleteRowIds,
     depositSlipValidation.duplicateRowIds,
     depositSlipValidation.unresolvedClusterIds,
-    activeRows,
+    depositSlipRowsForUi,
     depositSlipVisibleRowIds,
   ]);
 
@@ -1838,6 +1866,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         if ("score" in patch) {
           next.scoreDefaulted = false;
         }
+        if ("powerLevel" in patch) {
+          next.depositAtInterpolated = false;
+        }
         return next;
       }),
     );
@@ -1904,8 +1935,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             : recordedDate,
           vsPeriod: isVsPerformanceTarget ? vsPeriod : undefined,
           bankId: scoreTargetMeta?.showBankSelector ? bankId : undefined,
-          rows: rows.map((r) =>
-            isRoster
+          rows: rows.map((r) => {
+            const enhanced =
+              isDepositSlip && scoreTargetMeta?.showDepositSlipColumns
+                ? depositSlipDisplayRowsById.get(r.id)
+                : null;
+            const source = enhanced ? { ...r, ...enhanced } : r;
+            return isRoster
               ? {
                   id: r.id,
                   memberId: r.memberId,
@@ -1919,31 +1955,33 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 }
               : isDepositSlip
                 ? {
-                    id: r.id,
-                    ocrName: r.ocrName,
-                    memberId: r.memberId,
-                    memberName: r.memberName,
-                    matchConfidence: r.matchConfidence,
-                    matchMethod: r.matchMethod,
-                    score: r.score ?? "",
-                    powerLevel: r.powerLevel ?? null,
-                    memberLevel: r.memberLevel,
-                    profession: r.profession,
-                    allianceRankTitle: r.allianceRankTitle ?? null,
-                    rosterRankRaw: r.rosterRankRaw ?? null,
-                    frameIndex: r.frameIndex ?? null,
-                    deleted: r.deleted === 1,
+                    id: source.id,
+                    ocrName: source.ocrName,
+                    memberId: source.memberId,
+                    memberName: source.memberName,
+                    matchConfidence: source.matchConfidence,
+                    matchMethod: source.matchMethod,
+                    score: source.score ?? "",
+                    powerLevel: source.powerLevel ?? null,
+                    memberLevel: source.memberLevel,
+                    profession: source.profession,
+                    allianceRankTitle: source.allianceRankTitle ?? null,
+                    rosterRankRaw: source.rosterRankRaw ?? null,
+                    frameIndex: source.frameIndex ?? null,
+                    deleted: source.deleted === 1,
                   }
                 : {
-                    id: r.id,
-                    memberId: r.memberId,
+                    id: source.id,
+                    memberId: source.memberId,
                     memberName:
-                      r.deleted === 1 ? r.memberName : r.memberName ?? r.ocrName,
-                    score: r.score ?? "",
-                    rank: r.rank,
-                    deleted: r.deleted === 1,
-                  },
-          ),
+                      source.deleted === 1
+                        ? source.memberName
+                        : source.memberName ?? source.ocrName,
+                    score: source.score ?? "",
+                    rank: source.rank,
+                    deleted: source.deleted === 1,
+                  };
+          }),
         }),
       });
       const data = (await res.json()) as {
@@ -2435,24 +2473,6 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             {t("backToUploads")}
           </Link>
           <div className="flex flex-wrap items-center gap-2">
-            {canProcessVideo && !allianceStale ? (
-              <Link
-                href={`/tools/video-jobs/${jobId}`}
-                className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted"
-              >
-                {tJobs("inspect")}
-              </Link>
-            ) : null}
-            {showReprocessAction ? (
-              <button
-                type="button"
-                onClick={() => setReprocessDialogOpen(true)}
-                disabled={reprocessPending}
-                className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted disabled:opacity-50"
-              >
-                {reprocessPending ? t("reprocessing") : t("reprocess")}
-              </button>
-            ) : null}
             {canComparePasses ? (
               <button
                 type="button"
@@ -2476,70 +2496,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 {t("previewVideo")}
               </button>
             ) : null}
-            {hasSourceVideo && !scoreTargetMeta?.showRosterColumns ? (
-              <button
-                type="button"
-                disabled={
-                  !!scoreTargetMeta?.showDepositSlipColumns &&
-                  !depositSlipFollowMeCompatible(depositSlipSortKey)
-                }
-                onClick={() => {
-                  setPreviewFollowMe((on) => {
-                    const next = !on;
-                    if (next) setPreviewOpen(true);
-                    return next;
-                  });
-                }}
-                aria-pressed={previewFollowMe}
-                title={t("followMeHint")}
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm ${
-                  previewFollowMe
-                    ? "border-hq-accent bg-[#0c2d6b]/40 text-hq-accent"
-                    : "border-hq-border text-hq-fg hover:bg-hq-surface-muted"
-                } disabled:cursor-not-allowed disabled:opacity-50`}
-              >
-                <LocateFixed className="h-4 w-4 shrink-0" aria-hidden />
-                {t("followMe")}
-              </button>
-            ) : null}
-            {scoreTargetMeta?.showDepositSlipColumns && hasSourceVideo && previewOpen ? (
-              <div
-                className="inline-flex rounded-lg border border-hq-border p-0.5"
-                role="group"
-                aria-label={t("depositSlipPreviewModeGroup")}
-              >
-                <button
-                  type="button"
-                  onClick={() => setDepositSlipPreviewMode("video")}
-                  aria-pressed={depositSlipPreviewMode === "video"}
-                  className={`rounded-md px-2.5 py-1 text-sm ${
-                    depositSlipPreviewMode === "video"
-                      ? "bg-hq-accent/20 text-hq-accent"
-                      : "text-hq-fg hover:bg-hq-surface-muted"
-                  }`}
-                >
-                  {t("depositSlipPreviewModeFullVideo")}
-                </button>
-                <button
-                  type="button"
-                  disabled={!scoreTableFollowMeEnabled}
-                  onClick={() => setDepositSlipPreviewMode("frames")}
-                  aria-pressed={depositSlipPreviewMode === "frames"}
-                  className={`rounded-md px-2.5 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50 ${
-                    depositSlipPreviewMode === "frames"
-                      ? "bg-hq-accent/20 text-hq-accent"
-                      : "text-hq-fg hover:bg-hq-surface-muted"
-                  }`}
-                >
-                  {t("depositSlipPreviewModeFrames")}
-                </button>
-              </div>
-            ) : null}
-            <VideoPipelineStatsButton
-              timings={timings}
-              fileName={fileName}
-              comparisonJson={groupInfo?.group?.comparisonJson ?? null}
-              onOpenComparison={canComparePasses ? openComparisonSheet : undefined}
+            <VideoReviewSettingsTrigger
+              onClick={() => setReviewSettingsOpen(true)}
             />
           </div>
         </div>
@@ -3210,7 +3168,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             </div>
           ) : null}
           <DepositSlipVideoReviewTable
-            rows={activeRows.map((row) => ({
+            rows={depositSlipRowsForUi.map((row) => ({
               id: row.id,
               ocrName: row.ocrName,
               score: row.score,
@@ -3227,6 +3185,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               dedupeClusterId: row.dedupeClusterId ?? null,
               dedupeFlag: row.dedupeFlag,
               deleted: row.deleted,
+              scoreDefaulted: row.scoreDefaulted,
+              depositAtInterpolated: row.depositAtInterpolated,
             }))}
             members={members}
             rosterAllianceTag={allianceTag}
@@ -3688,6 +3648,47 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           {t("previewVideo")}
         </button>
       ) : null}
+      <VideoReviewSettingsFab onClick={() => setReviewSettingsOpen(true)} />
+      <VideoReviewSettingsDialog
+        open={reviewSettingsOpen}
+        onOpenChange={setReviewSettingsOpen}
+        showDepositSlipToggles={Boolean(scoreTargetMeta?.showDepositSlipColumns)}
+        fillMissingDepositTimes={videoReviewSettings.fillMissingDepositTimes}
+        onFillMissingDepositTimesChange={(next) =>
+          patchVideoReviewSettings({ fillMissingDepositTimes: next })
+        }
+        fillMissingDepositAmounts={videoReviewSettings.fillMissingDepositAmounts}
+        onFillMissingDepositAmountsChange={(next) =>
+          patchVideoReviewSettings({ fillMissingDepositAmounts: next })
+        }
+        showFollowMe={hasSourceVideo && !scoreTargetMeta?.showRosterColumns}
+        followMeEnabled={previewFollowMe}
+        followMeDisabled={
+          Boolean(
+            scoreTargetMeta?.showDepositSlipColumns &&
+              !depositSlipFollowMeCompatible(depositSlipSortKey),
+          )
+        }
+        onFollowMeChange={(next) => {
+          setPreviewFollowMe(next);
+          if (next) setPreviewOpen(true);
+        }}
+        showDepositSlipPreviewMode={Boolean(
+          scoreTargetMeta?.showDepositSlipColumns && hasSourceVideo && previewOpen,
+        )}
+        depositSlipPreviewMode={depositSlipPreviewMode}
+        depositSlipPreviewModeFramesDisabled={!scoreTableFollowMeEnabled}
+        onDepositSlipPreviewModeChange={setDepositSlipPreviewMode}
+        timings={timings}
+        fileName={fileName}
+        comparisonJson={groupInfo?.group?.comparisonJson ?? null}
+        onOpenComparison={canComparePasses ? openComparisonSheet : undefined}
+        showInspect={canProcessVideo && !allianceStale}
+        inspectHref={`/tools/video-jobs/${jobId}`}
+        showReprocess={showReprocessAction}
+        reprocessPending={reprocessPending}
+        onReprocessClick={() => setReprocessDialogOpen(true)}
+      />
       {reprocessDialogOpen ? (
         <AdminReprocessDialog
           key={jobId}
