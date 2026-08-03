@@ -886,7 +886,7 @@ async function handleSlashCommand(
       kind,
       notes,
     });
-    return discordMessageResponse(result.reply, undefined, { ephemeral: false });
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
   }
 
   if (commandName === "cancel-time-off") {
@@ -901,7 +901,7 @@ async function handleSlashCommand(
       commander,
       start,
     });
-    return discordMessageResponse(result.reply, undefined, { ephemeral: false });
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
   }
 
   if (commandName === "who-is-away") {
