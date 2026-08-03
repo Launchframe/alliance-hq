@@ -320,6 +320,21 @@ export function TrainsWalkthroughOverlay({
   }, [stepIndex, activeSteps.length, finish]);
 
   useEffect(() => {
+    if (!open || !currentStep?.skipIfMissingTarget) return;
+
+    const candidates = resolveStepTargetCandidates(currentStep, today);
+    if (candidates.length === 0) return;
+
+    const timer = setTimeout(() => {
+      if (!findTargetElement(candidates)) {
+        advance();
+      }
+    }, SCROLL_SETTLE_MS);
+
+    return () => clearTimeout(timer);
+  }, [advance, currentStep, open, today]);
+
+  useEffect(() => {
     if (!open || !walkthrough || !currentStep?.awaitAction) return;
 
     return walkthrough.subscribe((action) => {
