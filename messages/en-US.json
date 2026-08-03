@@ -4179,6 +4179,8 @@
     "colRank": "Rank",
     "colRowNumber": "#",
     "reviewRowNumber": "Row {n}",
+    "reviewLeaderboardRank": "Rank {n}",
+    "reviewLeaderboardRankUnknown": "Unranked",
     "colAllianceRank": "Alliance rank",
     "colPower": "Power",
     "colLevel": "Level",

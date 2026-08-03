@@ -64,7 +64,10 @@ import {
   stashConnectReturnPath,
 } from "@/lib/connect/connect-return-path.shared";
 import type { ManualRowPosition } from "@/lib/video/manual-row-position";
-import { mergeParsedRowInReviewOrder } from "@/lib/video/parsed-row-review-order";
+import {
+  mergeParsedRowInReviewOrder,
+  reviewLeaderboardRankByScoreDesc,
+} from "@/lib/video/parsed-row-review-order";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 import {
   isPrimaryParseInadequate,
@@ -1505,13 +1508,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [activeRows, filterQuery],
   );
 
-  const reviewRowNumberById = useMemo(() => {
-    const map = new Map<string, number>();
-    activeRows.forEach((row, index) => {
-      map.set(row.id, index + 1);
-    });
-    return map;
-  }, [activeRows]);
+  const reviewLeaderboardRankById = useMemo(() => {
+    if (!scoreTargetMeta?.showReviewRowNumber) return null;
+    return reviewLeaderboardRankByScoreDesc(activeRows);
+  }, [activeRows, scoreTargetMeta?.showReviewRowNumber]);
 
   const onDepositSlipVisibleRowIdsChange = useCallback(
     (ids: readonly string[]) => {
@@ -3315,11 +3315,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     {scoreTargetMeta.showReviewRowNumber ? (
                       <span
                         className="inline-flex min-w-[2rem] tabular-nums text-hq-fg-muted"
-                        aria-label={t("reviewRowNumber", {
-                          n: reviewRowNumberById.get(row.id) ?? 0,
-                        })}
+                        aria-label={
+                          reviewLeaderboardRankById?.get(row.id) != null
+                            ? t("reviewLeaderboardRank", {
+                                n: reviewLeaderboardRankById.get(row.id)!,
+                              })
+                            : t("reviewLeaderboardRankUnknown")
+                        }
                       >
-                        {reviewRowNumberById.get(row.id)}
+                        {reviewLeaderboardRankById?.get(row.id) ?? "—"}
                       </span>
                     ) : (
                       <input

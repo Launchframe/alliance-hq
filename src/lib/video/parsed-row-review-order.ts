@@ -116,3 +116,35 @@ export function mergeParsedRowInReviewOrder<T extends ParsedRowSortFields>(
     compareParsedRowsForReview(a, b, scoreTargetId),
   );
 }
+
+
+/**
+ * Leaderboard rank (1 = highest score) using competition ranking for ties.
+ * Rows without a parseable score are unranked (null).
+ */
+export function reviewLeaderboardRankByScoreDesc(
+  rows: readonly { id: string; score?: string | null }[],
+): Map<string, number | null> {
+  const sorted = [...rows].sort((a, b) => compareScoreDesc(a.score, b.score));
+
+  const map = new Map<string, number | null>();
+  let rank = 0;
+  let position = 0;
+  let lastScore: number | null | undefined;
+
+  for (const row of sorted) {
+    position++;
+    const scoreNum = parseScoreNumberSoft(row.score);
+    if (scoreNum == null) {
+      map.set(row.id, null);
+      continue;
+    }
+    if (scoreNum !== lastScore) {
+      rank = position;
+      lastScore = scoreNum;
+    }
+    map.set(row.id, rank);
+  }
+
+  return map;
+}
