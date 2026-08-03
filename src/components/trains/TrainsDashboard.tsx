@@ -1335,6 +1335,8 @@ export function TrainsDashboard({ initial }: Props) {
         ) {
           return Promise.resolve(true);
         }
+        // Sandbox steps only allow the guided intercept actions — never persist.
+        return Promise.resolve(true);
       }
 
       const allowedDates = data.canUnlockConductor
@@ -1431,10 +1433,14 @@ export function TrainsDashboard({ initial }: Props) {
       if (!pendingTemplateChange) return;
       const { templateType } = pendingTemplateChange;
       const walkthrough = walkthroughRef.current;
-      if (
-        walkthrough?.tryInterceptWeekTemplateApply(templateType) &&
-        options.dates.length > 0
-      ) {
+      if (walkthrough?.sandboxActive) {
+        if (
+          walkthrough.tryInterceptWeekTemplateApply(templateType) &&
+          options.dates.length > 0
+        ) {
+          setPendingTemplateChange(null);
+          return;
+        }
         setPendingTemplateChange(null);
         return;
       }

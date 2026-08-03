@@ -310,8 +310,9 @@ export function filterWalkthroughSteps(
 
     const hasTarget = candidates.some((id) => capabilities.has(id));
 
-    if (step.skipIfMissingTarget && !hasTarget) {
-      return false;
+    // Keep deferred steps in the tour; overlay auto-skips when the anchor is still missing.
+    if (step.skipIfMissingTarget) {
+      return true;
     }
 
     if (step.required && !hasTarget) {

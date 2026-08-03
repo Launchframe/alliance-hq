@@ -39,7 +39,7 @@ describe("filterWalkthroughSteps", () => {
   it("drops required steps when their anchor is missing", () => {
     expect(
       filterWalkthroughSteps(steps, new Set(["trains-template-selector"]), today),
-    ).toEqual([steps[1]]);
+    ).toEqual([steps[1], steps[2]]);
   });
 
   it("keeps optional steps only when their anchor exists", () => {
@@ -49,17 +49,17 @@ describe("filterWalkthroughSteps", () => {
         new Set(["trains-schedule-section", "trains-template-selector"]),
         today,
       ),
-    ).toEqual([steps[0], steps[1]]);
+    ).toEqual([steps[0], steps[1], steps[2]]);
   });
 
-  it("drops skipIfMissingTarget steps when their anchor is missing", () => {
+  it("keeps skipIfMissingTarget steps when their anchor is missing at snapshot time", () => {
     expect(
       filterWalkthroughSteps(
         steps,
         new Set(["trains-schedule-section", "trains-template-selector"]),
         today,
       ),
-    ).not.toContainEqual(steps[2]);
+    ).toContainEqual(steps[2]);
   });
 
   it("includes skipIfMissingTarget steps when their anchor exists", () => {
