@@ -570,6 +570,25 @@ const commandBody = [
         type: 3,
         required: false,
       },
+      {
+        name: "cancel",
+        description: "Entry id to cancel, or \"latest\" for your newest upcoming entry.",
+        description_localizations: {
+          "pt-BR":
+            'ID da ausência para cancelar, ou "latest" para a mais recente.',
+        },
+        type: 3,
+        required: false,
+      },
+      {
+        name: "commander",
+        description: "Which linked commander this applies to (if you have several).",
+        description_localizations: {
+          "pt-BR": "Qual comandante vinculado usar (se você tiver mais de um).",
+        },
+        type: 3,
+        required: false,
+      },
     ],
   },
   {
@@ -626,6 +645,129 @@ const commandBody = [
         required: false,
       },
     ],
+  },
+  {
+    name: "set-time-off",
+    description: "Officers: set time off for an alliance member (R4+).",
+    description_localizations: {
+      "pt-BR": "Oficiais: defina ausência para um membro da aliança (R4+).",
+    },
+    options: [
+      {
+        name: "member",
+        description: "Alliance member name from your roster.",
+        description_localizations: {
+          "pt-BR": "Nome do membro no roster da aliança.",
+        },
+        type: 3,
+        required: true,
+      },
+      {
+        name: "start",
+        description: "Start date (YYYY-MM-DD).",
+        description_localizations: {
+          "pt-BR": "Data de início (AAAA-MM-DD).",
+        },
+        type: 3,
+        required: true,
+      },
+      {
+        name: "end",
+        description: "Optional end date (YYYY-MM-DD). Defaults to start.",
+        description_localizations: {
+          "pt-BR": "Data de fim opcional (AAAA-MM-DD). Padrão: início.",
+        },
+        type: 3,
+        required: false,
+      },
+      {
+        name: "kind",
+        description: "Officer-marked (planned) or unexpected (no-show).",
+        description_localizations: {
+          "pt-BR": "Marcado pelo oficial (planejado) ou inesperado (sumiço).",
+        },
+        type: 3,
+        required: true,
+        choices: [
+          { name: "Officer marked", value: "officer_marked" },
+          { name: "Unexpected", value: "unexpected" },
+        ],
+      },
+      {
+        name: "notes",
+        description: "Optional notes about this time off.",
+        description_localizations: {
+          "pt-BR": "Notas opcionais sobre esta ausência.",
+        },
+        type: 3,
+        required: false,
+      },
+    ],
+  },
+  {
+    name: "cancel-time-off",
+    description: "Officers: cancel any commander's time-off entry (R4+).",
+    description_localizations: {
+      "pt-BR": "Oficiais: cancele a ausência de qualquer comandante (R4+).",
+    },
+    options: [
+      {
+        name: "entry_id",
+        description: "Time-off entry id to cancel (see /who-is-away).",
+        description_localizations: {
+          "pt-BR": "ID da ausência a cancelar (veja /who-is-away).",
+        },
+        type: 3,
+        required: false,
+      },
+      {
+        name: "commander",
+        description: "Commander name, used with start when entry_id is unknown.",
+        description_localizations: {
+          "pt-BR": "Nome do comandante, com start quando não souber o entry_id.",
+        },
+        type: 3,
+        required: false,
+      },
+      {
+        name: "start",
+        description: "Start date (YYYY-MM-DD) of the entry, used with commander.",
+        description_localizations: {
+          "pt-BR": "Data de início (AAAA-MM-DD) da ausência, usada com commander.",
+        },
+        type: 3,
+        required: false,
+      },
+    ],
+  },
+  {
+    name: "who-is-away",
+    description: "Officers: list commanders on time off today or this week (R4+).",
+    description_localizations: {
+      "pt-BR": "Oficiais: liste comandantes ausentes hoje ou nesta semana (R4+).",
+    },
+    options: [
+      {
+        name: "when",
+        description: "Show today's or this server week's time off.",
+        description_localizations: {
+          "pt-BR": "Mostrar ausências de hoje ou da semana do servidor.",
+        },
+        type: 3,
+        required: false,
+        choices: [
+          { name: "Today", value: "today" },
+          { name: "This week", value: "week" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "unexpected-absences",
+    description: "Officers: list today's unexpected / unannounced absences (R4+).",
+    description_localizations: {
+      "pt-BR": "Oficiais: liste ausências inesperadas de hoje (R4+).",
+    },
   },
 ];
 
