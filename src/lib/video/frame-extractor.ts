@@ -15,10 +15,10 @@ import {
 const execFileAsync = promisify(execFile);
 
 /** Skip encoder/recording startup artifacts; still one forced frame (no extra OCR). */
-export const FORCED_FIRST_FRAME_OFFSET_SECONDS = 0.1;
+export const FORCED_FIRST_FRAME_OFFSET_SECONDS = 0.05;
 
 /** Capture the tail of the scroll so the last on-screen rows are not missed. */
-export const FORCED_LAST_FRAME_OFFSET_SECONDS = 0.1;
+export const FORCED_LAST_FRAME_OFFSET_SECONDS = 0.05;
 
 /** Treat bookend frames within this window as duplicates of scene captures. */
 export const BOOKEND_FRAME_DEDUPE_SECONDS = 0.05;
@@ -61,13 +61,13 @@ export function parseFfprobeFrameRate(value: string | undefined): number | null 
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-/** Input frame index for the forced opening capture (~100ms; one frame only). */
+/** Input frame index for the forced opening capture (~50ms; one frame only). */
 export function forcedFirstFrameIndexForFps(fps: number | null): number {
   if (fps != null && fps > 0) {
     return Math.max(1, Math.round(FORCED_FIRST_FRAME_OFFSET_SECONDS * fps));
   }
-  // ~100ms at 30fps when frame rate cannot be read from the container.
-  return 3;
+  // ~50ms at 30fps when frame rate cannot be read from the container.
+  return 2;
 }
 
 /** Parse `Duration: HH:MM:SS.xx` from ffmpeg `-i` stderr. */
@@ -146,7 +146,7 @@ export function appendShowinfoFilter(vf: string): string {
  *
  * ffmpeg's `scene` metric compares each frame to its predecessor, so the first
  * frame (n=0) has no score and is never selected by `gt(scene,…)` alone.
- * Opening/closing bookends (~100ms from each end) are extracted separately via
+ * Opening/closing bookends (~50ms from each end) are extracted separately via
  * accurate time seeks so fps mis-probes cannot push the first capture to ~1s.
  *
  * No `scale=` filter here on purpose: these frames are what OCR reads, so they

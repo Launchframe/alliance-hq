@@ -49,16 +49,16 @@ describe("parseFfprobeFrameRate", () => {
 });
 
 describe("forcedFirstFrameIndexForFps", () => {
-  it("targets ~100ms from probed frame rate", () => {
-    expect(forcedFirstFrameIndexForFps(30)).toBe(3);
-    expect(forcedFirstFrameIndexForFps(60)).toBe(6);
+  it("targets ~50ms from probed frame rate", () => {
+    expect(forcedFirstFrameIndexForFps(30)).toBe(2);
+    expect(forcedFirstFrameIndexForFps(60)).toBe(3);
     expect(
       forcedFirstFrameIndexForFps(parseFfprobeFrameRate("30000/1001")),
-    ).toBe(3);
+    ).toBe(1);
   });
 
-  it("falls back to frame 3 when fps is unknown", () => {
-    expect(forcedFirstFrameIndexForFps(null)).toBe(3);
+  it("falls back to frame 2 when fps is unknown", () => {
+    expect(forcedFirstFrameIndexForFps(null)).toBe(2);
   });
 });
 
