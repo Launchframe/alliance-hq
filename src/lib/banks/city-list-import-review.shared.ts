@@ -1,4 +1,4 @@
-import { isPastDropDeadline } from "@/lib/banks/optimization.shared";
+import { resolveBankLifecycleStage } from "@/lib/banks/bank-lifecycle.shared";
 
 /** Clamp mobile stepper index after a review row is removed. */
 export function clampReviewIndexAfterRemove(
@@ -216,12 +216,13 @@ export type CityListBankCoordIdentity = {
 
 export type CityListExtraHqBank = CityListBankCoordIdentity & {
   dropByAt: string | null;
+  abandonedAt?: string | null;
 };
 
 /**
  * HQ banks not pictured in a complete City List import that are still eligible
- * for archive-missing. Excludes banks already past drop deadline (soft-archived
- * by a prior import). Future: also exclude `abandonedAt`.
+ * for archive-missing. Excludes banks already abandoned (explicit or legacy
+ * past `dropByAt`).
  */
 export function listExtraHqBanksForCityListImport<
   TBank extends CityListExtraHqBank,
@@ -237,7 +238,7 @@ export function listExtraHqBanksForCityListImport<
       bank.coordY,
     );
     if (importedCoordKeys.has(key)) return false;
-    return !isPastDropDeadline(bank, now);
+    return resolveBankLifecycleStage(bank, now) !== "abandoned";
   });
 }
 

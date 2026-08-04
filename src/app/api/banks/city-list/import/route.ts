@@ -11,7 +11,7 @@ import { cityListImportBankIdentityError, cityListBankCoordKey, listExtraHqBanks
 import { reloadBankManagementDashboard } from "@/lib/banks/reload-dashboard.server";
 import {
   listBanksForAlliance,
-  markBanksDropDeadlineAt,
+  markBanksAbandonedAt,
   updateAllianceBankCityListSnapshot,
   upsertBanksFromCityList,
   type CityListBankUpsertInput,
@@ -37,7 +37,7 @@ type ImportCityListBody = {
   capturesRemainingToday?: number | null;
   capturesLimitToday?: number | null;
   serverTime?: string | null;
-  /** When true, set dropByAt=now on HQ banks not present in this import. */
+  /** When true, set abandonedAt=now on HQ banks not present in this import. */
   archiveMissingBanks?: boolean;
 };
 
@@ -222,6 +222,7 @@ export async function POST(request: Request) {
         coordX: bank.coordX,
         coordY: bank.coordY,
         dropByAt: bank.dropByAt?.toISOString() ?? null,
+        abandonedAt: bank.abandonedAt?.toISOString() ?? null,
       })),
       importedKeys,
     );
@@ -230,7 +231,7 @@ export async function POST(request: Request) {
     const archiveMissingBanks = body.archiveMissingBanks === true;
 
     if (archiveMissingBanks && isComplete && extraHq.length > 0) {
-      await markBanksDropDeadlineAt(
+      await markBanksAbandonedAt(
         allianceId,
         extraHq.map((bank) => bank.id),
         new Date(),

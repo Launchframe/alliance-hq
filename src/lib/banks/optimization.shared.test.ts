@@ -58,6 +58,7 @@ function bank(
     capturedAt: null,
     protectionExpiresAt: null,
     dropByAt: null,
+    abandonedAt: null,
     depositPolicy: "warzone",
     priorCaptureCount: 1,
     currentDepositCount: null,

@@ -8,6 +8,7 @@ import type {
   SerializedBank,
   SerializedDepositSlip,
 } from "@/lib/banks/types.shared";
+import { resolveBankLifecycleStage } from "@/lib/banks/bank-lifecycle.shared";
 import {
   DEFAULT_FALLOFF_HORIZON_HOURS,
   DEFAULT_FALLOFF_STEP_HOURS,
@@ -143,7 +144,9 @@ export function recommendNextDrop(
   } = {},
 ): RecommendedDropMetrics | null {
   const now = options.now ?? new Date();
-  const activeBanks = banks.filter((bank) => !isPastDropDeadline(bank, now));
+  const activeBanks = banks.filter(
+    (bank) => resolveBankLifecycleStage(bank, now) !== "abandoned",
+  );
   if (activeBanks.length === 0) {
     return null;
   }

@@ -127,6 +127,7 @@ export async function upsertBanksFromCityList(
           // re-enter active inventory / recommendNextDrop. Keep future
           // officer-planned drop deadlines.
           ...(clearSoftArchive ? { dropByAt: null } : {}),
+          abandonedAt: null,
         })
         .where(eq(schema.banks.id, existing[0].id))
         .returning();
@@ -158,9 +159,40 @@ export async function upsertBanksFromCityList(
 }
 
 /**
+ * Mark HQ banks as abandoned (not pictured in a complete City List import).
+ * Sets `abandonedAt` and clears `dropByAt` when it was only used for legacy
+ * archive-missing soft-archive. Deposit history is retained; never hard-deletes.
+ *
+ * Re-importing a pictured bank clears `abandonedAt` via `upsertBanksFromCityList`.
+ */
+export async function markBanksAbandonedAt(
+  allianceId: string,
+  bankIds: readonly string[],
+  at: Date = new Date(),
+): Promise<typeof schema.banks.$inferSelect[]> {
+  if (bankIds.length === 0) return [];
+  const db = getDb();
+  const now = new Date();
+  return db
+    .update(schema.banks)
+    .set({
+      abandonedAt: at,
+      dropByAt: null,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(schema.banks.allianceId, allianceId),
+        inArray(schema.banks.id, [...bankIds]),
+      ),
+    )
+    .returning();
+}
+
+/**
  * Soft-archive HQ banks not pictured in a City List import by setting
- * `dropByAt` to `at` (typically now). Banks move into the Past drop deadline
- * section; deposit history is retained. Never hard-deletes.
+ * `dropByAt` to `at` (typically now). Prefer `markBanksAbandonedAt` for
+ * archive-missing flows — this remains for explicit drop-deadline scheduling.
  *
  * Re-importing a pictured bank clears a past `dropByAt` via
  * `upsertBanksFromCityList` so re-captured / still-held banks return to
