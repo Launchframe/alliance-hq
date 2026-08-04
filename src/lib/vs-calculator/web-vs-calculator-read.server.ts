@@ -1,0 +1,95 @@
+import "server-only";
+
+import { addCalendarDays, getServerCalendarDate } from "@/lib/trains/game-time";
+import {
+  catalogDefsForDay,
+  sumCapacityForDay,
+} from "@/lib/vs-calculator/capacity.shared";
+import {
+  getCommanderVsInventory,
+  listActiveVsCatalogDefs,
+  loadShinyWeekdaysForAlliance,
+  resolveCommanderForVsCalculator,
+} from "@/lib/vs-calculator/inventory.server";
+import type { VsCalculatorPayload } from "@/lib/vs-calculator/vs-calculator.shared";
+import { isCalculatorDay } from "@/lib/vs-calculator/vs-calculator.shared";
+import {
+  VS_CALCULATOR_DAY_NUMBERS,
+  vsMatchDayNumberFromDate,
+  type VsCalculatorDayNumber,
+} from "@/lib/vs-calculator/vs-calendar.shared";
+import {
+  getRadarSaveHintKey,
+  getShinySaveHintKeys,
+} from "@/lib/vs-calculator/vs-save-intelligence.shared";
+import { VS_WEEK_DAY_MESSAGE_KEYS } from "@/lib/trains/vs-week-days.shared";
+import { dateForVsMatchDayInWeek, mondayOfVsWeekContaining } from "@/lib/vs-calculator/vs-calendar.shared";
+
+function resolvePinnedDate(
+  queryDate: string | null | undefined,
+  now = new Date(),
+): string {
+  const today = getServerCalendarDate(now);
+  if (!queryDate?.trim()) return today;
+  return /^\d{4}-\d{2}-\d{2}$/.test(queryDate.trim()) ? queryDate.trim() : today;
+}
+
+export async function loadVsCalculatorForUser(input: {
+  allianceId: string;
+  hqUserId: string;
+  pinnedDate?: string | null;
+}): Promise<VsCalculatorPayload | null> {
+  const commanderId = await resolveCommanderForVsCalculator(input);
+  if (!commanderId) return null;
+
+  const [catalog, quantities, shinyWeekdays] = await Promise.all([
+    listActiveVsCatalogDefs(),
+    getCommanderVsInventory(commanderId),
+    loadShinyWeekdaysForAlliance(input.allianceId),
+  ]);
+
+  const pinnedDate = resolvePinnedDate(input.pinnedDate);
+  const pinnedDay = vsMatchDayNumberFromDate(pinnedDate);
+  const dayTotal =
+    isCalculatorDay(pinnedDay)
+      ? sumCapacityForDay(pinnedDay, quantities, catalog)
+      : 0;
+
+  const weekMonday = mondayOfVsWeekContaining(pinnedDate);
+  const weekly = VS_CALCULATOR_DAY_NUMBERS.map((day) => {
+    const date = dateForVsMatchDayInWeek(weekMonday, day);
+    const radarKey = getRadarSaveHintKey(addCalendarDays(date, -1));
+    const shinyKeys =
+      shinyWeekdays != null
+        ? getShinySaveHintKeys(shinyWeekdays, addCalendarDays(date, -1))
+        : [];
+    return {
+      day,
+      themeKey: VS_WEEK_DAY_MESSAGE_KEYS[day],
+      totalPoints: sumCapacityForDay(day, quantities, catalog),
+      saveHints: {
+        radar: radarKey,
+        shiny: shinyKeys,
+      },
+    };
+  });
+
+  return {
+    commanderId,
+    pinnedDate,
+    pinnedDay,
+    quantities,
+    catalog,
+    dayTotal,
+    weekly,
+    shinyWeekdays,
+  };
+}
+
+export function catalogDefsForPinnedDay(
+  pinnedDay: VsCalculatorDayNumber | null,
+  catalog: VsCalculatorPayload["catalog"],
+) {
+  if (pinnedDay == null) return [];
+  return catalogDefsForDay(pinnedDay, catalog);
+}
