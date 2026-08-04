@@ -95,6 +95,8 @@
     "myThpDescription": "Acompanhe e atualize seu poder total de heróis",
     "myKills": "Meus Kills",
     "myKillsDescription": "Acompanhe e atualize seu total de kills",
+    "vsCalculator": "Calculadora VS",
+    "vsCalculatorDescription": "Planeje a capacidade da mochila para cada dia de VS",
     "trains": "Trem da Aliança",
     "trainsDescription": "Agenda diária do Condutor, roleta e confirmação",
     "battlePlan": "Plano de Batalha",
@@ -1525,6 +1527,7 @@
         "myVr": "Ir para Meu VR",
         "myThp": "Ir para Meu THP",
         "myKills": "Ir para Meus Kills",
+        "vsCalculator": "Ir para Calculadora VS",
         "professions": "Ir para Profissão",
         "trains": "Ir para Trem da Aliança",
         "trainsHistoryImport": "Importar histórico de condutores",
@@ -6088,6 +6091,28 @@
     "keepHq": "Manter HQ",
     "keepAshed": "Manter Ashed",
     "discard": "Descartar relatório HQ"
+  },
+  "vsCalculator": {
+    "pageTitle": "Calculadora VS",
+    "pageSubtitle": "Conte o que está na sua mochila e veja quantos pontos pode ganhar em cada dia de VS.",
+    "tabs": {
+      "day": "Dia",
+      "weekly": "Semana",
+      "upload": "Enviar"
+    },
+    "prevDay": "Anterior",
+    "nextDay": "Próximo",
+    "dayTotalLabel": "Total do dia",
+    "restDay": "Dia de descanso",
+    "restDayHint": "Domingo é folga — use Semana para revisar a semana ou escolha outro dia.",
+    "pointsEach": "{points} pts cada",
+    "clearItem": "Zerado",
+    "weeklySubtitle": "Totais de cada dia de VS nesta semana, com lembretes do que guardar.",
+    "dayLabel": "Dia {day}",
+    "openDay": "Abrir dia",
+    "uploadComingSoon": "Envio de foto da mochila chega na próxima atualização. Use a aba Dia para digitar as quantidades por enquanto.",
+    "loadFailed": "Não foi possível carregar a calculadora VS.",
+    "saveFailed": "Não foi possível salvar as quantidades da mochila."
   },
   "vsAnnouncements": {
     "matchDayHeader": "Dia VS {day} — {theme} ({date})",
