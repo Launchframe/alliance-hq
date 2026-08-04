@@ -43,6 +43,10 @@
     {
       "path": "/api/internal/lastrank/sync",
       "schedule": "30 8 * * *"
+    },
+    {
+      "path": "/api/internal/vs/daily-announcement",
+      "schedule": "50 1 * * *"
     }
   ]
 }
