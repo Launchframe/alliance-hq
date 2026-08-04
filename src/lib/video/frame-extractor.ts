@@ -530,7 +530,7 @@ export async function extractLeaderboardFrames(
   }
 
   const files = await listExtractedFrameFiles(tmpDir);
-  if (files.length === 0) {
+  if (files.length === 0 && mode !== "scene") {
     const probe = await probeVideo(ffmpeg, videoPath);
     throw new Error(
       [

@@ -83,6 +83,30 @@ describe("buildSceneSelectFilter", () => {
 });
 
 describe("mergeSceneFramesWithBookends", () => {
+  it("returns bookends when scene detection produced no frames", () => {
+    const merged = mergeSceneFramesWithBookends(
+      [],
+      [
+        {
+          index: 0,
+          filePath: "/tmp/open.jpg",
+          buffer: Buffer.from("open"),
+          videoTimestampSeconds: 0.05,
+        },
+        {
+          index: 0,
+          filePath: "/tmp/close.jpg",
+          buffer: Buffer.from("close"),
+          videoTimestampSeconds: 9.95,
+        },
+      ],
+    );
+    expect(merged).toHaveLength(2);
+    expect(merged.map((frame) => frame.videoTimestampSeconds)).toEqual([
+      0.05, 9.95,
+    ]);
+  });
+
   it("sorts by timestamp and dedupes near-duplicate bookends", () => {
     const merged = mergeSceneFramesWithBookends(
       [
