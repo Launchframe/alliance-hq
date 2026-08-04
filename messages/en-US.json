@@ -6088,5 +6088,31 @@
     "keepHq": "Keep HQ",
     "keepAshed": "Keep Ashed",
     "discard": "Discard HQ report"
+  },
+  "vsAnnouncements": {
+    "matchDayHeader": "VS Day {day} — {theme} ({date})",
+    "restDayHeader": "VS rest day ({date})",
+    "earnPointsHeading": "Earn points",
+    "saveHeading": "What to save",
+    "footer": "Plan your bag: {url}",
+    "vsWeekDays": {
+      "radarTraining": "Radar Training",
+      "baseExpansion": "Base Expansion",
+      "ageOfScience": "Age of Science",
+      "heroDay": "Hero Day",
+      "totalMobilization": "Total Mobilization",
+      "busterDay": "Enemy Buster"
+    },
+    "saveHints": {
+      "saveRadarForMonday": "Save radar intel for Monday Radar Training.",
+      "saveRadarForWednesday": "Save radar intel for Wednesday Age of Science.",
+      "saveRadarForFriday": "Save radar intel for Friday Total Mobilization.",
+      "shinySpawnToday": "Shiny tasks spawn today — finish or save for the right VS day.",
+      "shinySpawnTomorrow": "Shiny tasks spawn tomorrow — plan before you complete them.",
+      "saveShinyForTuesday": "Save shiny tasks for Tuesday Base Expansion.",
+      "saveShinyForSaturday": "Save shiny tasks for Saturday Enemy Buster.",
+      "shinyRolloverTuesday": "Rollover shiny tasks into Tuesday Base Expansion.",
+      "shinyRolloverSaturday": "Rollover shiny tasks into Saturday Enemy Buster."
+    }
   }
 }
