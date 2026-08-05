@@ -21,11 +21,13 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const pinnedDate = searchParams.get("date");
+  const locale = searchParams.get("locale");
 
   const payload = await loadVsCalculatorForUser({
     allianceId,
     hqUserId: session.hqUserId,
     pinnedDate,
+    locale: locale ?? undefined,
   });
 
   if (!payload) {

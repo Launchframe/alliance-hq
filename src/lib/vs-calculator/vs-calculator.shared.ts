@@ -22,6 +22,11 @@ export type VsCalculatorDaySummary = {
   saveHints: VsCalculatorSaveHints;
 };
 
+export type VsCalculatorAnnouncementPreview = {
+  targetDate: string;
+  message: string;
+};
+
 export type VsCalculatorPayload = {
   commanderId: string;
   pinnedDate: string;
@@ -31,4 +36,5 @@ export type VsCalculatorPayload = {
   dayTotal: number;
   weekly: VsCalculatorDaySummary[];
   shinyWeekdays: [number, number] | null;
+  announcementPreview: VsCalculatorAnnouncementPreview;
 };

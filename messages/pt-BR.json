@@ -5080,6 +5080,7 @@
       "deniedOwnerOnly": "Esta aliança exige que o R5 / dono defina canais de anúncio no Discord. Peça ao dono, ou peça para voltar a permitir R4+ em Alliance HQ → Configurações → Trens.",
       "seasonalEventsSuccess": "✅ Canal de eventos sazonais definido para **{tag}**. Contagens regressivas de captura serão publicadas em {channel}.",
       "regularEventsSuccess": "✅ Canal de eventos regulares definido para **{tag}**. Anúncios de eventos serão publicados em {channel}.",
+      "vsAnnouncementsSuccess": "✅ Canal de anúncios de VS definido para **{tag}**. Prévias noturnas do dia de VS serão publicadas em {channel}.",
       "bankingSuccess": "✅ Canal bancário definido para **{tag}**. Alertas de timer de proteção serão publicados em {channel}."
     },
     "link": {
@@ -6392,6 +6393,9 @@
     "dayLabel": "Dia {day}",
     "openDay": "Abrir dia",
     "uploadComingSoon": "Envio de foto da mochila chega na próxima atualização. Use a aba Dia para digitar as quantidades por enquanto.",
+    "announcementTitle": "Anúncio no Discord",
+    "announcementHint": "Copie e cole esta prévia para amanhã ({date}). Os posts automáticos noturnos começam depois que um oficial executar /set-vs-announcements-channel no Discord.",
+    "announcementCopy": "Copiar anúncio",
     "loadFailed": "Não foi possível carregar a calculadora VS.",
     "saveFailed": "Não foi possível salvar as quantidades da mochila."
   },

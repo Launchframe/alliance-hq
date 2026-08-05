@@ -1,7 +1,8 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-import { useCallback, useMemo, useState } from "react";
+import { Check, Copy } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { addCalendarDays } from "@/lib/trains/game-time";
 import {
@@ -24,13 +25,20 @@ type Props = {
 };
 
 export function VsCalculatorView({ initial }: Props) {
+  const locale = useLocale();
   const t = useTranslations("vsCalculator");
+  const tCommon = useTranslations("common");
   const tTrains = useTranslations("trains.vsWeekDays");
   const tSave = useTranslations("vsAnnouncements.saveHints");
   const [data, setData] = useState(initial);
   const [tab, setTab] = useState<TabId>("day");
   const [busySlug, setBusySlug] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [announcementCopied, setAnnouncementCopied] = useState(false);
+  const [announcementCopyFailed, setAnnouncementCopyFailed] = useState(false);
+  const announcementCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const pinnedDay = data.pinnedDay;
   const calculatorDay = isCalculatorDay(pinnedDay) ? pinnedDay : null;
@@ -43,14 +51,30 @@ export function VsCalculatorView({ initial }: Props) {
   const refresh = useCallback(
     async (pinnedDate = data.pinnedDate) => {
       const res = await fetch(
-        `/api/tools/vs-calculator/me?date=${encodeURIComponent(pinnedDate)}`,
+        `/api/tools/vs-calculator/me?date=${encodeURIComponent(pinnedDate)}&locale=${encodeURIComponent(locale)}`,
       );
       const body = (await res.json()) as VsCalculatorPayload & { error?: string };
       if (!res.ok) throw new Error(body.error ?? t("loadFailed"));
       setData(body);
     },
-    [data.pinnedDate, t],
+    [data.pinnedDate, locale, t],
   );
+
+  const copyAnnouncement = useCallback(async () => {
+    setAnnouncementCopyFailed(false);
+    try {
+      await navigator.clipboard.writeText(data.announcementPreview.message);
+      setAnnouncementCopied(true);
+      if (announcementCopiedTimerRef.current) {
+        clearTimeout(announcementCopiedTimerRef.current);
+      }
+      announcementCopiedTimerRef.current = setTimeout(() => {
+        setAnnouncementCopied(false);
+      }, 2000);
+    } catch {
+      setAnnouncementCopyFailed(true);
+    }
+  }, [data.announcementPreview.message]);
 
   const shiftPinnedDate = useCallback(
     async (deltaDays: number) => {
@@ -78,6 +102,7 @@ export function VsCalculatorView({ initial }: Props) {
           body: JSON.stringify({
             quantities,
             pinnedDate: data.pinnedDate,
+            locale,
           }),
         });
         const body = (await res.json()) as VsCalculatorPayload & {
@@ -91,7 +116,7 @@ export function VsCalculatorView({ initial }: Props) {
         setBusySlug(null);
       }
     },
-    [data.pinnedDate, data.quantities, t],
+    [data.pinnedDate, data.quantities, locale, t],
   );
 
   const clearItem = useCallback(
@@ -102,7 +127,7 @@ export function VsCalculatorView({ initial }: Props) {
         const res = await fetch("/api/tools/vs-calculator/inventory/clear", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ slug, pinnedDate: data.pinnedDate }),
+          body: JSON.stringify({ slug, pinnedDate: data.pinnedDate, locale }),
         });
         const body = (await res.json()) as VsCalculatorPayload & {
           error?: string;
@@ -115,7 +140,7 @@ export function VsCalculatorView({ initial }: Props) {
         setBusySlug(null);
       }
     },
-    [data.pinnedDate, t],
+    [data.pinnedDate, locale, t],
   );
 
   const themeLabel =
@@ -129,6 +154,49 @@ export function VsCalculatorView({ initial }: Props) {
         </h1>
         <p className="text-sm text-hq-fg-muted">{t("pageSubtitle")}</p>
       </header>
+
+      <section className="space-y-2 rounded-xl border border-hq-border bg-hq-surface p-4">
+        <div className="space-y-1">
+          <h2 className="text-sm font-medium text-hq-fg">
+            {t("announcementTitle")}
+          </h2>
+          <p className="text-xs text-hq-fg-muted">
+            {t("announcementHint", {
+              date: data.announcementPreview.targetDate,
+            })}
+          </p>
+        </div>
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => void copyAnnouncement()}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-hq-border bg-hq-surface-muted px-3 py-2 text-xs text-hq-fg sm:w-auto"
+            aria-label={tCommon("copyToClipboard")}
+          >
+            {announcementCopied ? (
+              <>
+                <Check aria-hidden className="h-3.5 w-3.5 text-hq-green" />
+                <span className="text-hq-green">{tCommon("copied")}</span>
+              </>
+            ) : (
+              <>
+                <Copy aria-hidden className="h-3.5 w-3.5" />
+                <span>{t("announcementCopy")}</span>
+              </>
+            )}
+          </button>
+          <div className="max-h-48 overflow-y-auto rounded-lg border border-hq-border bg-hq-canvas p-3">
+            <p className="whitespace-pre-wrap break-words font-mono text-xs text-hq-fg">
+              {data.announcementPreview.message}
+            </p>
+          </div>
+          {announcementCopyFailed ? (
+            <p className="text-xs text-hq-danger" role="alert">
+              {tCommon("copyFailed")}
+            </p>
+          ) : null}
+        </div>
+      </section>
 
       <div
         className="flex gap-1 rounded-lg border border-hq-border bg-hq-canvas p-1"
