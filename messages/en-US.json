@@ -95,6 +95,8 @@
     "myThpDescription": "Track and update your total hero power",
     "myKills": "My Kills",
     "myKillsDescription": "Track and update your total kill count",
+    "vsCalculator": "VS Calculator",
+    "vsCalculatorDescription": "Plan bag capacity for each VS match day",
     "trains": "Alliance Train",
     "trainsDescription": "Daily Conductor schedule, wheel rolls, and train lock-in",
     "battlePlan": "Battle Plan",
@@ -1525,6 +1527,7 @@
         "myVr": "Go to My VR",
         "myThp": "Go to My THP",
         "myKills": "Go to My Kills",
+        "vsCalculator": "Go to VS Calculator",
         "professions": "Go to Profession",
         "trains": "Go to Alliance Train",
         "trainsHistoryImport": "Import conductor history",
@@ -4850,6 +4853,7 @@
       "deniedOwnerOnly": "This alliance requires the R5 / alliance owner to set Discord announcement channels. Ask your owner, or have them switch the setting back to R4+ in Alliance HQ → Settings → Trains.",
       "seasonalEventsSuccess": "✅ Seasonal events channel set for **{tag}**. Capture countdowns will be posted to {channel}.",
       "regularEventsSuccess": "✅ Regular events channel set for **{tag}**. Event announcements will be posted to {channel}.",
+      "vsAnnouncementsSuccess": "✅ VS announcements channel set for **{tag}**. Nightly VS match-day previews will be posted to {channel}.",
       "bankingSuccess": "✅ Banking channel set for **{tag}**. Protection timer alerts will be posted to {channel}."
     },
     "link": {
@@ -6088,6 +6092,31 @@
     "keepHq": "Keep HQ",
     "keepAshed": "Keep Ashed",
     "discard": "Discard HQ report"
+  },
+  "vsCalculator": {
+    "pageTitle": "VS Calculator",
+    "pageSubtitle": "Count what is in your bag and see how many points you can earn each match day.",
+    "tabs": {
+      "day": "Day",
+      "weekly": "Weekly",
+      "upload": "Upload"
+    },
+    "prevDay": "Previous",
+    "nextDay": "Next",
+    "dayTotalLabel": "Day total",
+    "restDay": "Rest day",
+    "restDayHint": "Sunday is off — use Weekly to review the upcoming week or pick another day.",
+    "pointsEach": "{points} pts each",
+    "clearItem": "Cleared",
+    "weeklySubtitle": "Totals for each match day this week, with save reminders.",
+    "dayLabel": "Day {day}",
+    "openDay": "Open day",
+    "uploadComingSoon": "Bag photo upload is coming in the next update. Use Day view to enter counts manually for now.",
+    "announcementTitle": "Discord announcement",
+    "announcementHint": "Copy and paste this preview for tomorrow ({date}). Nightly bot posts start after an officer runs /set-vs-announcements-channel in Discord.",
+    "announcementCopy": "Copy announcement",
+    "loadFailed": "Could not load your VS calculator.",
+    "saveFailed": "Could not save your bag counts."
   },
   "vsAnnouncements": {
     "matchDayHeader": "VS Day {day} — {theme} ({date})",
