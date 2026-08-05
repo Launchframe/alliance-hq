@@ -5,6 +5,7 @@ import {
   buildSceneSelectFilter,
   forcedFirstFrameIndexForFps,
   listFrameJpegFiles,
+  mergeSceneFramesWithBookends,
   parseFfprobeFrameRate,
   parseFfmpegDurationSeconds,
   parseFfmpegFrameRateFromStderr,
@@ -48,39 +49,117 @@ describe("parseFfprobeFrameRate", () => {
 });
 
 describe("forcedFirstFrameIndexForFps", () => {
-  it("targets ~100ms from probed frame rate", () => {
-    expect(forcedFirstFrameIndexForFps(30)).toBe(3);
-    expect(forcedFirstFrameIndexForFps(60)).toBe(6);
+  it("targets ~50ms from probed frame rate", () => {
+    expect(forcedFirstFrameIndexForFps(30)).toBe(2);
+    expect(forcedFirstFrameIndexForFps(60)).toBe(3);
     expect(
       forcedFirstFrameIndexForFps(parseFfprobeFrameRate("30000/1001")),
-    ).toBe(3);
+    ).toBe(1);
   });
 
-  it("falls back to frame 3 when fps is unknown", () => {
-    expect(forcedFirstFrameIndexForFps(null)).toBe(3);
+  it("falls back to frame 2 when fps is unknown", () => {
+    expect(forcedFirstFrameIndexForFps(null)).toBe(2);
   });
 });
 
 describe("buildSceneSelectFilter", () => {
-  it("forces one opening frame ~100ms in (not n=0)", () => {
-    expect(buildSceneSelectFilter(0.25, 3)).toBe(
-      "select='eq(n,3)+gt(scene,0.25)'",
-    );
+  it("selects scene changes only (bookends are extracted separately)", () => {
+    expect(buildSceneSelectFilter(0.25)).toBe("select='gt(scene,0.25)'");
   });
 
   it("threads the configured scene threshold", () => {
-    expect(buildSceneSelectFilter(0.1, 6)).toContain("gt(scene,0.1)");
-    expect(buildSceneSelectFilter(0.1, 6)).toContain("eq(n,6)");
+    expect(buildSceneSelectFilter(0.1)).toContain("gt(scene,0.1)");
   });
 
   it("never downscales OCR frames (no scale= filter)", () => {
-    expect(buildSceneSelectFilter(0.25, 3)).not.toContain("scale=");
+    expect(buildSceneSelectFilter(0.25)).not.toContain("scale=");
   });
 
   it("adds periodic fps supplement when configured", () => {
-    expect(buildSceneSelectFilter(0.1, 3, 15)).toBe(
-      "select='eq(n,3)+gt(scene,0.1)+eq(mod(n\\,15),0)'",
+    expect(buildSceneSelectFilter(0.1, 15)).toBe(
+      "select='gt(scene,0.1)+eq(mod(n\\,15),0)'",
     );
+  });
+});
+
+describe("mergeSceneFramesWithBookends", () => {
+  it("returns bookends when scene detection produced no frames", () => {
+    const merged = mergeSceneFramesWithBookends(
+      [],
+      [
+        {
+          index: 0,
+          filePath: "/tmp/open.jpg",
+          buffer: Buffer.from("open"),
+          videoTimestampSeconds: 0.05,
+        },
+        {
+          index: 0,
+          filePath: "/tmp/close.jpg",
+          buffer: Buffer.from("close"),
+          videoTimestampSeconds: 9.95,
+        },
+      ],
+    );
+    expect(merged).toHaveLength(2);
+    expect(merged.map((frame) => frame.videoTimestampSeconds)).toEqual([
+      0.05, 9.95,
+    ]);
+  });
+
+  it("sorts by timestamp and dedupes near-duplicate bookends", () => {
+    const merged = mergeSceneFramesWithBookends(
+      [
+        {
+          index: 0,
+          filePath: "/tmp/scene.jpg",
+          buffer: Buffer.from("scene"),
+          videoTimestampSeconds: 1,
+        },
+      ],
+      [
+        {
+          index: 0,
+          filePath: "/tmp/open.jpg",
+          buffer: Buffer.from("open"),
+          videoTimestampSeconds: 0.1,
+        },
+        {
+          index: 0,
+          filePath: "/tmp/dup.jpg",
+          buffer: Buffer.from("dup"),
+          videoTimestampSeconds: 0.11,
+        },
+      ],
+    );
+    expect(merged.map((frame) => frame.videoTimestampSeconds)).toEqual([
+      0.1, 1,
+    ]);
+    expect(merged.map((frame) => frame.index)).toEqual([0, 1]);
+  });
+
+  it("does not dedupe distinct scene frames that are close together", () => {
+    const merged = mergeSceneFramesWithBookends(
+      [
+        {
+          index: 0,
+          filePath: "/tmp/scene-1.jpg",
+          buffer: Buffer.from("scene-1"),
+          videoTimestampSeconds: 1,
+        },
+        {
+          index: 1,
+          filePath: "/tmp/scene-2.jpg",
+          buffer: Buffer.from("scene-2"),
+          videoTimestampSeconds: 1.03,
+        },
+      ],
+      [],
+    );
+    expect(merged.map((frame) => frame.videoTimestampSeconds)).toEqual([
+      1, 1.03,
+    ]);
+    expect(merged.map((frame) => frame.index)).toEqual([0, 1]);
   });
 });
 
