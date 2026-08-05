@@ -7,6 +7,7 @@ import { postDiscordChannelMessage } from "@/lib/discord/post-message.server";
 import { getDb, schema } from "@/lib/db";
 import { addCalendarDays, getServerCalendarDate } from "@/lib/trains/game-time";
 import { buildVsDailyAnnouncementPreview } from "@/lib/vs-calculator/announcement-build.server";
+import { resolveVsAnnouncementLocaleForAlliance } from "@/lib/vs-calculator/announcement-locale.server";
 import { listActiveVsCatalogDefs } from "@/lib/vs-calculator/inventory.server";
 
 type ChannelTarget = {
@@ -94,9 +95,10 @@ export async function processVsDailyAnnouncements(options?: {
       continue;
     }
 
+    const locale = await resolveVsAnnouncementLocaleForAlliance(allianceId);
     const { message } = await buildVsDailyAnnouncementPreview({
       allianceId,
-      locale: "en-US",
+      locale,
       now: options?.now,
       catalog,
     });
