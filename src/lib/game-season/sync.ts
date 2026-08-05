@@ -207,6 +207,7 @@ export async function applyGameServerSeasonSync(
         updatedAt: now,
       })
       .where(eq(schema.gameServers.id, gameServerId));
+    await syncShinySpawnWeekdaysForGameServer(gameServerId, openTs);
     await mirrorServerSeasonToAlliances(gameServerId, {
       currentSeasonKey: resolved.seasonKey,
       seasonKeySynced: resolved.seasonKey,
