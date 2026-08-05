@@ -15,19 +15,32 @@ type ChannelTarget = {
   channelId: string;
 };
 
+/** Prefer dedicated VS channel; fall back to regular-events channel from `/set-regular-events-channel`. */
+function vsAnnouncementsChannelExpr() {
+  return sql<string>`coalesce(nullif(trim(${schema.discordGuildAlliances.vsAnnouncementsChannelId}), ''), nullif(trim(${schema.discordGuildAlliances.regularEventsChannelId}), ''))`;
+}
+
 export async function listGuildsWithVsAnnouncementsChannel(): Promise<
   ChannelTarget[]
 > {
   const db = getDb();
+  const channelId = vsAnnouncementsChannelExpr();
   const rows = await db
     .select({
       guildId: schema.discordGuildAlliances.guildId,
       allianceId: schema.discordGuildAlliances.allianceId,
-      channelId: schema.discordGuildAlliances.vsAnnouncementsChannelId,
+      channelId,
     })
     .from(schema.discordGuildAlliances)
+    .innerJoin(
+      schema.alliances,
+      eq(schema.discordGuildAlliances.allianceId, schema.alliances.id),
+    )
     .where(
-      sql`${schema.discordGuildAlliances.vsAnnouncementsChannelId} is not null`,
+      and(
+        eq(schema.alliances.vsAnnouncementsEnabled, 1),
+        sql`${channelId} is not null`,
+      ),
     );
   return rows.filter(
     (r): r is ChannelTarget => Boolean(r.channelId?.trim()),
@@ -60,18 +73,23 @@ export async function processVsDailyAnnouncements(options?: {
   const catalog = await listActiveVsCatalogDefs();
 
   for (const [allianceId, channels] of channelsByAlliance) {
-    const [existing] = await db
-      .select({ id: schema.vsAnnouncementPosts.id })
-      .from(schema.vsAnnouncementPosts)
-      .where(
-        and(
-          eq(schema.vsAnnouncementPosts.allianceId, allianceId),
-          eq(schema.vsAnnouncementPosts.targetDate, targetDate),
-        ),
-      )
-      .limit(1);
+    const claimId = nanoid();
+    const [claimed] = await db
+      .insert(schema.vsAnnouncementPosts)
+      .values({
+        id: claimId,
+        allianceId,
+        targetDate,
+      })
+      .onConflictDoNothing({
+        target: [
+          schema.vsAnnouncementPosts.allianceId,
+          schema.vsAnnouncementPosts.targetDate,
+        ],
+      })
+      .returning({ id: schema.vsAnnouncementPosts.id });
 
-    if (existing) {
+    if (!claimed) {
       skipped += channels.length;
       continue;
     }
@@ -83,23 +101,13 @@ export async function processVsDailyAnnouncements(options?: {
       catalog,
     });
 
-    let alliancePosted = false;
     for (const channelId of channels) {
       const ok = await postDiscordChannelMessage(channelId, message);
       if (ok) {
-        alliancePosted = true;
         posted += 1;
       } else {
         skipped += 1;
       }
-    }
-
-    if (alliancePosted) {
-      await db.insert(schema.vsAnnouncementPosts).values({
-        id: nanoid(),
-        allianceId,
-        targetDate,
-      });
     }
   }
 
