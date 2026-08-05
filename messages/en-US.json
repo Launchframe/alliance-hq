@@ -3526,14 +3526,18 @@
       "skip": "Skip tour",
       "next": "Next →",
       "done": "Done",
-      "stepServerTime": "Train days follow game server time (UTC−2). The badge above always shows the current server date and time — use it when planning rolls and locks.",
-      "stepSchedule": "This is your train scheduling hub — pick a week, paint day rules, and see who is conducting each day.",
-      "stepWeekStrip": "Each cell shows the day rule color, conductor rule, and whether the conductor is locked in.",
-      "stepTemplate": "Change the whole week’s template from this dropdown — economy, lottery, VS week, and more.",
-      "stepViewToggle": "Switch between week and month view. Month view is best for painting templates ahead.",
-      "stepConductorCard": "Today’s conductor card shows the VIP, guardian, and lock status. Locking spawns the train for that day.",
-      "stepQuickActions": "Roll or spin the wheel, pick the top scorer, or choose someone manually from quick actions.",
-      "stepSpinWeek": "Spin for the Week rolls every remaining wheel-eligible day in one pass. Lock each day separately when the train is set in-game."
+      "step1": "This is your train scheduling hub. Train days follow game server time (UTC−2). The badge above always shows the current server date and time — use it when planning rolls and locks.",
+      "step2": "You can set the conductor and VIP rules for a whole week. Try changing this week's train to Economy Week (R3 Lottery) — changes won't take effect while this tour is active.",
+      "step3": "Great! Now let's change the rules for today's train. Press and hold today's tile, and then choose a different rule from the menu.",
+      "step4": "This is where you set up the day's Conductor and VIP. You can do this for the current day, or for any future day.",
+      "step5": "The Conductor step is where you draw the conductor. If a prerequisite, like VS scores or donations, is missing, you'll upload those as part of the Conductor flow.",
+      "step6": "Random walk pools get depleted as each member gets their turn for Conductor. You can check who is left in the current pool by clicking here.",
+      "step7": "Easily plan out a whole week's worth of conductors with one tap. Give it a try!",
+      "step8": "Now let's switch to Month view for longer term planning.",
+      "step9": "Select days on the calendar, then pick a rule from the palette to paint them. Tap or drag on mobile; click, drag, or Shift+click a range on desktop.",
+      "step10": "All your past conductors, VIPs, and what rules won them the train are searchable here.",
+      "step11": "You can adjust your preferred start of week, score and donation minimums, Discord announcements and more in the Settings menu.",
+      "step12": "That's it! Please enjoy, and take a moment to leave us feedback."
     },
     "swap": {
       "action": "Swap / Make-up day",
@@ -5977,7 +5981,6 @@
       "falloffSaveFailed": "Could not save the deposit falloff projection."
     },
     "dropScheduled": "Drop scheduled on Battle Plan.",
-    "uploadDepositSlip": "Upload deposit slip video",
     "falloff": {
       "title": "Deposit falloff projection",
       "hint": "Projected deposited value and maturity outflow over time. Save a snapshot to compare against what actually happens.",
@@ -6029,7 +6032,15 @@
     "calendar": {
       "previousMonth": "Previous month",
       "nextMonth": "Next month",
-      "weekdayHeaders": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      "weekdayHeaders": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri",
+        "Sat",
+        "Sun"
+      ],
       "more": "+{count} more"
     },
     "availability": {
