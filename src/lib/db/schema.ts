@@ -238,6 +238,7 @@ export const vsInventoryItemDefs = pgTable(
       .notNull(),
     status: text("status").notNull().default("active"),
     iconTemplateUrl: text("icon_template_url"),
+    iconPhash: text("icon_phash"),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()

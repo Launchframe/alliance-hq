@@ -897,6 +897,13 @@
       "when": 1790900000130,
       "tag": "0130_vs_calculator",
       "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1790380800000,
+      "tag": "0123_vs_inventory_icon_phash",
+      "breakpoints": true
     }
   ]
 }
