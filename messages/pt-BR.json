@@ -6093,8 +6093,14 @@
     "matchDayHeader": "Dia VS {day} — {theme} ({date})",
     "restDayHeader": "Dia de descanso VS ({date})",
     "earnPointsHeading": "Ganhe pontos",
+    "reminderHeading": "Lembretes",
     "saveHeading": "O que guardar",
     "footer": "Planeje sua mochila: {url}",
+    "reminders": {
+      "busterDayShinyReminder": "Chegou o Dia do Destruidor — use ou guarde as tarefas shiny conforme necessário.",
+      "restDayShinyReminder": "Finalize ou guarde as tarefas shiny antes do reset da semana.",
+      "gatherBeforeReset": "As tropas devem estar coletando antes do Reset."
+    },
     "vsWeekDays": {
       "radarTraining": "Treino de Radar",
       "baseExpansion": "Expansão da Base",

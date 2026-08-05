@@ -6093,8 +6093,14 @@
     "matchDayHeader": "VS Day {day} — {theme} ({date})",
     "restDayHeader": "VS rest day ({date})",
     "earnPointsHeading": "Earn points",
+    "reminderHeading": "Reminders",
     "saveHeading": "What to save",
     "footer": "Plan your bag: {url}",
+    "reminders": {
+      "busterDayShinyReminder": "Buster Day is here — spend or save shiny tasks as needed.",
+      "restDayShinyReminder": "Wrap up or save shiny tasks before the week resets.",
+      "gatherBeforeReset": "Troops should be out gathering before Reset."
+    },
     "vsWeekDays": {
       "radarTraining": "Radar Training",
       "baseExpansion": "Base Expansion",
