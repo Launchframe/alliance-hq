@@ -101,7 +101,7 @@ async function openCityListReview(
 }
 
 test.describe("City List import review (dedicated page)", () => {
-  test("shows a 3-col card grid with K amounts and opens screenshot lightbox", async ({
+  test("shows a 3-col card grid with K amounts and docked screenshot preview pane", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -123,14 +123,22 @@ test.describe("City List import review (dedicated page)", () => {
       cards.first().getByRole("textbox", { name: /amount \(k\)/i }),
     ).toHaveValue("600.00K");
 
+    // Desktop auto-opens the side preview pane when screenshots exist.
+    const closePreview = page.getByRole("button", { name: /close preview/i });
+    await expect(closePreview).toBeVisible({ timeout: 10_000 });
+
+    await closePreview.click();
+    await expect(closePreview).toBeHidden();
+
+    // Toggle reopens the docked preview without leaving the review page.
+    // Two controls share the label when closed (header + FAB) — either opens preview.
     await page
       .getByRole("button", { name: /preview screenshots/i })
+      .first()
       .click();
-    await expect(page.locator(".yarl__root")).toBeVisible({ timeout: 10_000 });
-
-    // Escape closes lightbox only — review page stays put with draft intact.
-    await page.keyboard.press("Escape");
-    await expect(page.locator(".yarl__root")).toBeHidden();
+    await expect(closePreview).toBeVisible();
+    await closePreview.click();
+    await expect(closePreview).toBeHidden();
     await expect(page).toHaveURL(/\/bank-management\/import-review/);
     await expect(
       page.getByRole("heading", { name: /review imported banks/i }),

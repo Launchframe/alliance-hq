@@ -30,6 +30,7 @@ function expectedDefaultPrefs() {
     zoom: "fit" as const,
     size,
     followMe: false,
+    imageTransforms: {},
   };
 }
 
@@ -142,6 +143,9 @@ describe("parsePreviewPrefs", () => {
       placement: { desktop: "side", tablet: "bottom", mobile: "top" },
       zoom: "width",
       followMe: true,
+      imageTransforms: {
+        shot1: { scale: 2, x: 10, y: -5 },
+      },
       size: {
         desktop: { sideWidthPx: 400, dockHeightPx: 400 },
         tablet: { sideWidthPx: 380, dockHeightPx: 350 },
@@ -153,6 +157,9 @@ describe("parsePreviewPrefs", () => {
       placement: { desktop: "side", tablet: "bottom", mobile: "top" },
       zoom: "width",
       followMe: true,
+      imageTransforms: {
+        shot1: { scale: 2, x: 10, y: -5 },
+      },
       size: {
         desktop: { sideWidthPx: 400, dockHeightPx: 400 },
         tablet: { sideWidthPx: 380, dockHeightPx: 350 },
