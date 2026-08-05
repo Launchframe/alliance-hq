@@ -1722,6 +1722,17 @@ export async function setGuildRegularEventsChannel(
     .where(eq(schema.discordGuildAlliances.guildId, guildId));
 }
 
+export async function setGuildVsAnnouncementsChannel(
+  guildId: string,
+  channelId: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.discordGuildAlliances)
+    .set({ vsAnnouncementsChannelId: channelId })
+    .where(eq(schema.discordGuildAlliances.guildId, guildId));
+}
+
 export async function setGuildBankingChannel(
   guildId: string,
   channelId: string,

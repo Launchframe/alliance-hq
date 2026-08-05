@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 type Body = {
   quantities?: VsInventoryQuantities;
   pinnedDate?: string | null;
+  locale?: string | null;
 };
 
 export async function PUT(request: Request) {
@@ -62,6 +63,7 @@ export async function PUT(request: Request) {
     allianceId,
     hqUserId: session.hqUserId,
     pinnedDate: body.pinnedDate,
+    locale: body.locale ?? undefined,
   });
 
   return NextResponse.json(payload);

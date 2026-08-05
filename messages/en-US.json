@@ -4853,6 +4853,7 @@
       "deniedOwnerOnly": "This alliance requires the R5 / alliance owner to set Discord announcement channels. Ask your owner, or have them switch the setting back to R4+ in Alliance HQ → Settings → Trains.",
       "seasonalEventsSuccess": "✅ Seasonal events channel set for **{tag}**. Capture countdowns will be posted to {channel}.",
       "regularEventsSuccess": "✅ Regular events channel set for **{tag}**. Event announcements will be posted to {channel}.",
+      "vsAnnouncementsSuccess": "✅ VS announcements channel set for **{tag}**. Nightly VS match-day previews will be posted to {channel}.",
       "bankingSuccess": "✅ Banking channel set for **{tag}**. Protection timer alerts will be posted to {channel}."
     },
     "link": {
@@ -6111,6 +6112,9 @@
     "dayLabel": "Day {day}",
     "openDay": "Open day",
     "uploadComingSoon": "Bag photo upload is coming in the next update. Use Day view to enter counts manually for now.",
+    "announcementTitle": "Discord announcement",
+    "announcementHint": "Copy and paste this preview for tomorrow ({date}). Nightly bot posts start after an officer runs /set-vs-announcements-channel in Discord.",
+    "announcementCopy": "Copy announcement",
     "loadFailed": "Could not load your VS calculator.",
     "saveFailed": "Could not save your bag counts."
   },

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { normalizeDiscordBotLocale } from "@/lib/discord/i18n";
 import { addCalendarDays, getServerCalendarDate } from "@/lib/trains/game-time";
 import {
   catalogDefsForDay,
@@ -18,6 +19,7 @@ import {
   vsMatchDayNumberFromDate,
   type VsCalculatorDayNumber,
 } from "@/lib/vs-calculator/vs-calendar.shared";
+import { buildVsDailyAnnouncementPreview } from "@/lib/vs-calculator/announcement-build.server";
 import {
   getRadarSaveHintKey,
   getShinySaveHintKeys,
@@ -38,6 +40,7 @@ export async function loadVsCalculatorForUser(input: {
   allianceId: string;
   hqUserId: string;
   pinnedDate?: string | null;
+  locale?: string;
 }): Promise<VsCalculatorPayload | null> {
   const commanderId = await resolveCommanderForVsCalculator(input);
   if (!commanderId) return null;
@@ -74,6 +77,13 @@ export async function loadVsCalculatorForUser(input: {
     };
   });
 
+  const botLocale = normalizeDiscordBotLocale(input.locale);
+  const announcementPreview = await buildVsDailyAnnouncementPreview({
+    allianceId: input.allianceId,
+    locale: botLocale,
+    catalog,
+  });
+
   return {
     commanderId,
     pinnedDate,
@@ -83,6 +93,7 @@ export async function loadVsCalculatorForUser(input: {
     dayTotal,
     weekly,
     shinyWeekdays,
+    announcementPreview,
   };
 }
 

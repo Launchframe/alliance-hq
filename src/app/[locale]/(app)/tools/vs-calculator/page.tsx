@@ -1,4 +1,4 @@
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 
 import { VsCalculatorView } from "@/components/vs-calculator/vs-calculator-view";
@@ -19,9 +19,11 @@ export default async function VsCalculatorPage() {
     redirect("/get-started");
   }
 
+  const locale = await getLocale();
   const initial = await loadVsCalculatorForUser({
     allianceId,
     hqUserId: session.hqUserId,
+    locale,
   });
   if (!initial) {
     redirect("/onboard?next=%2Ftools%2Fvs-calculator");

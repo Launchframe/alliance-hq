@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 type ClearBody = {
   slug?: string;
   pinnedDate?: string | null;
+  locale?: string | null;
 };
 
 export async function POST(request: Request) {
@@ -60,6 +61,7 @@ export async function POST(request: Request) {
     allianceId,
     hqUserId: session.hqUserId,
     pinnedDate: body.pinnedDate,
+    locale: body.locale ?? undefined,
   });
 
   return NextResponse.json(payload);
