@@ -1716,10 +1716,46 @@ export async function setGuildRegularEventsChannel(
   channelId: string,
 ): Promise<void> {
   const db = getDb();
+  const [row] = await db
+    .select({ allianceId: schema.discordGuildAlliances.allianceId })
+    .from(schema.discordGuildAlliances)
+    .where(eq(schema.discordGuildAlliances.guildId, guildId))
+    .limit(1);
   await db
     .update(schema.discordGuildAlliances)
     .set({ regularEventsChannelId: channelId })
     .where(eq(schema.discordGuildAlliances.guildId, guildId));
+  if (row?.allianceId) {
+    await setAllianceVsAnnouncementsEnabled(row.allianceId, true);
+  }
+}
+
+export async function getAllianceVsAnnouncementsEnabled(
+  allianceId: string,
+): Promise<boolean> {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      enabled: schema.alliances.vsAnnouncementsEnabled,
+    })
+    .from(schema.alliances)
+    .where(eq(schema.alliances.id, allianceId))
+    .limit(1);
+  return row?.enabled === 1;
+}
+
+export async function setAllianceVsAnnouncementsEnabled(
+  allianceId: string,
+  enabled: boolean,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.alliances)
+    .set({
+      vsAnnouncementsEnabled: enabled ? 1 : 0,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.alliances.id, allianceId));
 }
 
 export async function setGuildBankingChannel(

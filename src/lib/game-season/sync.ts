@@ -15,6 +15,7 @@ import {
 } from "@/lib/game-season/resolve";
 import type { AllianceSeasonRow, EffectiveSeason } from "@/lib/game-season/types";
 import { getDb, schema } from "@/lib/db";
+import { syncShinySpawnWeekdaysForGameServer } from "@/lib/vs-calculator/shiny-sync.server";
 
 const allianceSeasonSelect = {
   id: schema.alliances.id,
@@ -164,6 +165,10 @@ export async function applyGameServerSeasonSync(
           updatedAt: now,
         })
         .where(eq(schema.gameServers.id, gameServerId));
+      await syncShinySpawnWeekdaysForGameServer(
+        gameServerId,
+        resolved.openTimestampMs,
+      );
       await mirrorServerSeasonToAlliances(gameServerId, {
         currentSeasonKey: resolved.seasonKey,
         seasonKeySynced: resolved.seasonKey,
@@ -202,6 +207,7 @@ export async function applyGameServerSeasonSync(
         updatedAt: now,
       })
       .where(eq(schema.gameServers.id, gameServerId));
+    await syncShinySpawnWeekdaysForGameServer(gameServerId, openTs);
     await mirrorServerSeasonToAlliances(gameServerId, {
       currentSeasonKey: resolved.seasonKey,
       seasonKeySynced: resolved.seasonKey,

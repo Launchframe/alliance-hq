@@ -6088,5 +6088,37 @@
     "keepHq": "Manter HQ",
     "keepAshed": "Manter Ashed",
     "discard": "Descartar relatório HQ"
+  },
+  "vsAnnouncements": {
+    "matchDayHeader": "Dia VS {day} — {theme} ({date})",
+    "restDayHeader": "Dia de descanso VS ({date})",
+    "earnPointsHeading": "Ganhe pontos",
+    "reminderHeading": "Lembretes",
+    "saveHeading": "O que guardar",
+    "footer": "Planeje sua mochila: {url}",
+    "reminders": {
+      "busterDayShinyReminder": "Chegou o Dia do Destruidor — use ou guarde as tarefas shiny conforme necessário.",
+      "restDayShinyReminder": "Finalize ou guarde as tarefas shiny antes do reset da semana.",
+      "gatherBeforeReset": "As tropas devem estar coletando antes do Reset."
+    },
+    "vsWeekDays": {
+      "radarTraining": "Treino de Radar",
+      "baseExpansion": "Expansão da Base",
+      "ageOfScience": "Era da Ciência",
+      "heroDay": "Dia do Herói",
+      "totalMobilization": "Mobilização Total",
+      "busterDay": "Destruidor de Inimigos"
+    },
+    "saveHints": {
+      "saveRadarForMonday": "Guarde intel de radar para a segunda (Treino de Radar).",
+      "saveRadarForWednesday": "Guarde intel de radar para quarta (Era da Ciência).",
+      "saveRadarForFriday": "Guarde intel de radar para sexta (Mobilização Total).",
+      "shinySpawnToday": "Tarefas shiny aparecem hoje — conclua ou guarde para o dia VS certo.",
+      "shinySpawnTomorrow": "Tarefas shiny aparecem amanhã — planeje antes de concluir.",
+      "saveShinyForTuesday": "Guarde tarefas shiny para terça (Expansão da Base).",
+      "saveShinyForSaturday": "Guarde tarefas shiny para sábado (Destruidor de Inimigos).",
+      "shinyRolloverTuesday": "Acumule tarefas shiny para terça (Expansão da Base).",
+      "shinyRolloverSaturday": "Acumule tarefas shiny para sábado (Destruidor de Inimigos)."
+    }
   }
 }

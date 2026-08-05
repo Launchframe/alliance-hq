@@ -834,6 +834,13 @@
       "when": 1790208000000,
       "tag": "0121_bank_abandoned_at",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1790294400000,
+      "tag": "0122_vs_calculator",
+      "breakpoints": true
     }
   ]
 }
