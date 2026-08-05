@@ -173,7 +173,7 @@ function discordButtonResponse(
   return discordComponentMessageResponse(content, components, options ?? EPHEMERAL);
 }
 
-function setCommandResponse(
+function channelVisibleCommandResponse(
   content: string,
   components?: ReturnType<typeof buildWalkthroughDoneButton>,
 ) {
@@ -280,11 +280,11 @@ async function handleSlashCommand(
 
   if (commandName === "set-vr-report-channel") {
     if (!guildId) {
-      return setCommandResponse(t("errors.guildNotRegistered"));
+      return channelVisibleCommandResponse(t("errors.guildNotRegistered"));
     }
     const channelId = interactionChannelId(payload);
     if (!channelId) {
-      return setCommandResponse(t("errors.serverError"));
+      return channelVisibleCommandResponse(t("errors.serverError"));
     }
     const result = await handleDiscordSetVrReportChannel({
       guildId,
@@ -292,16 +292,16 @@ async function handleSlashCommand(
       discordUserId,
       locale,
     });
-    return setCommandResponse(result.reply);
+    return channelVisibleCommandResponse(result.reply);
   }
 
   if (commandName === "set-train-channel") {
     if (!guildId) {
-      return setCommandResponse(t("errors.guildNotRegistered"));
+      return channelVisibleCommandResponse(t("errors.guildNotRegistered"));
     }
     const channelId = interactionChannelId(payload);
     if (!channelId) {
-      return setCommandResponse(t("errors.serverError"));
+      return channelVisibleCommandResponse(t("errors.serverError"));
     }
     const result = await handleDiscordSetTrainChannel({
       guildId,
@@ -309,16 +309,16 @@ async function handleSlashCommand(
       discordUserId,
       locale,
     });
-    return setCommandResponse(result.reply);
+    return channelVisibleCommandResponse(result.reply);
   }
 
   if (commandName === "set-seasonal-events-channel") {
     if (!guildId) {
-      return setCommandResponse(t("errors.guildNotRegistered"));
+      return channelVisibleCommandResponse(t("errors.guildNotRegistered"));
     }
     const channelId = interactionChannelId(payload);
     if (!channelId) {
-      return setCommandResponse(t("errors.serverError"));
+      return channelVisibleCommandResponse(t("errors.serverError"));
     }
     const result = await handleDiscordSetSeasonalEventsChannel({
       guildId,
@@ -326,16 +326,16 @@ async function handleSlashCommand(
       discordUserId,
       locale,
     });
-    return setCommandResponse(result.reply);
+    return channelVisibleCommandResponse(result.reply);
   }
 
   if (commandName === "set-regular-events-channel") {
     if (!guildId) {
-      return setCommandResponse(t("errors.guildNotRegistered"));
+      return channelVisibleCommandResponse(t("errors.guildNotRegistered"));
     }
     const channelId = interactionChannelId(payload);
     if (!channelId) {
-      return setCommandResponse(t("errors.serverError"));
+      return channelVisibleCommandResponse(t("errors.serverError"));
     }
     const result = await handleDiscordSetRegularEventsChannel({
       guildId,
@@ -343,16 +343,16 @@ async function handleSlashCommand(
       discordUserId,
       locale,
     });
-    return setCommandResponse(result.reply);
+    return channelVisibleCommandResponse(result.reply);
   }
 
   if (commandName === "set-banking-channel") {
     if (!guildId) {
-      return setCommandResponse(t("errors.guildNotRegistered"));
+      return channelVisibleCommandResponse(t("errors.guildNotRegistered"));
     }
     const channelId = interactionChannelId(payload);
     if (!channelId) {
-      return setCommandResponse(t("errors.serverError"));
+      return channelVisibleCommandResponse(t("errors.serverError"));
     }
     const result = await handleDiscordSetBankingChannel({
       guildId,
@@ -360,7 +360,7 @@ async function handleSlashCommand(
       discordUserId,
       locale,
     });
-    return setCommandResponse(result.reply);
+    return channelVisibleCommandResponse(result.reply);
   }
 
   if (commandName === "link-ashed") {
@@ -699,12 +699,12 @@ async function handleSlashCommand(
 
   if (commandName === "set-conductor") {
     if (!guildId) {
-      return setCommandResponse(t("errors.guildNotRegistered"));
+      return channelVisibleCommandResponse(t("errors.guildNotRegistered"));
     }
     const name = parseSlashOptionString(payload, "name");
     const date = parseSlashOptionString(payload, "date");
     if (!name?.trim()) {
-      return setCommandResponse(t("train.usageSetConductor"));
+      return channelVisibleCommandResponse(t("train.usageSetConductor"));
     }
     const result = await handleDiscordSetConductor({
       allianceId,
@@ -715,13 +715,13 @@ async function handleSlashCommand(
       date,
     });
     if (result.pickCandidates?.length) {
-      return setCommandResponse(
+      return channelVisibleCommandResponse(
         result.reply,
         buildTrainPickButtons(result.pickCandidates),
       );
     }
     if (result.pendingPick) {
-      return setCommandResponse(
+      return channelVisibleCommandResponse(
         result.reply,
         buildTrainConfirmButtons(
           result.pendingPick.memberId,
@@ -730,12 +730,12 @@ async function handleSlashCommand(
         ),
       );
     }
-    return setCommandResponse(result.reply);
+    return channelVisibleCommandResponse(result.reply);
   }
 
   if (commandName === "train-is-ready") {
     if (!guildId) {
-      return discordMessageResponse(t("errors.guildNotRegistered"));
+      return channelVisibleCommandResponse(t("errors.guildNotRegistered"));
     }
     const date = parseSlashOptionString(payload, "date");
     const result = await handleDiscordTrainIsReady({
@@ -745,7 +745,7 @@ async function handleSlashCommand(
       locale,
       date,
     });
-    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
+    return channelVisibleCommandResponse(result.reply);
   }
 
   if (commandName === "switch-profession") {
@@ -782,11 +782,11 @@ async function handleSlashCommand(
 
   if (commandName === "set-profession-channel") {
     if (!guildId) {
-      return setCommandResponse(t("errors.guildNotRegistered"));
+      return channelVisibleCommandResponse(t("errors.guildNotRegistered"));
     }
     const channelId = interactionChannelId(payload);
     if (!channelId) {
-      return setCommandResponse(t("errors.serverError"));
+      return channelVisibleCommandResponse(t("errors.serverError"));
     }
     const result = await handleDiscordSetProfessionChannel({
       guildId,
@@ -794,7 +794,7 @@ async function handleSlashCommand(
       discordUserId,
       locale,
     });
-    return setCommandResponse(result.reply);
+    return channelVisibleCommandResponse(result.reply);
   }
 
   if (commandName === "my-time-off") {

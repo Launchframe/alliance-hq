@@ -46,8 +46,8 @@ After setup, **`discord_guild_alliances.guild_id`** is the runtime tenant key. R
 
 ## Channel visibility
 
-- All `/set-*` slash commands (channel setters, `/set-conductor`, etc.) must reply **channel-visible** (`ephemeral: false`) so officers can audit configuration in-channel.
-- Use `setCommandResponse` / `CHANNEL_VISIBLE` in `interactions/route.ts` for these handlers — do not use `EPHEMERAL`.
+- Auditable officer setup commands (`/set-*`, `/set-conductor`, `/train-is-ready`, etc.) must reply **channel-visible** (`ephemeral: false`) so the alliance can see configuration and lock actions in-channel.
+- Use `channelVisibleCommandResponse` / `CHANNEL_VISIBLE` in `interactions/route.ts` for these handlers — do not use `EPHEMERAL`.
 
 ## Writes
 
