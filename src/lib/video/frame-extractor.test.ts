@@ -137,6 +137,30 @@ describe("mergeSceneFramesWithBookends", () => {
     ]);
     expect(merged.map((frame) => frame.index)).toEqual([0, 1]);
   });
+
+  it("does not dedupe distinct scene frames that are close together", () => {
+    const merged = mergeSceneFramesWithBookends(
+      [
+        {
+          index: 0,
+          filePath: "/tmp/scene-1.jpg",
+          buffer: Buffer.from("scene-1"),
+          videoTimestampSeconds: 1,
+        },
+        {
+          index: 1,
+          filePath: "/tmp/scene-2.jpg",
+          buffer: Buffer.from("scene-2"),
+          videoTimestampSeconds: 1.03,
+        },
+      ],
+      [],
+    );
+    expect(merged.map((frame) => frame.videoTimestampSeconds)).toEqual([
+      1, 1.03,
+    ]);
+    expect(merged.map((frame) => frame.index)).toEqual([0, 1]);
+  });
 });
 
 describe("supplementFrameIntervalForFps", () => {

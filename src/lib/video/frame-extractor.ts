@@ -14,7 +14,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 
-/** Skip encoder/recording startup artifacts; still one forced frame (no extra OCR). */
+/** Skip encoder/recording startup artifacts; capture opening/closing bookend frames near the ends. */
 export const FORCED_FIRST_FRAME_OFFSET_SECONDS = 0.05;
 
 /** Capture the tail of the scroll so the last on-screen rows are not missed. */
