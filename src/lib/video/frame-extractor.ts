@@ -206,37 +206,42 @@ export function assignVideoTimestampsToFrames(
 }
 
 /** Merge scene captures with time-seeked opening/closing bookends; dedupe near duplicates. */
+function compareFramesByTimestamp(a: ExtractedFrame, b: ExtractedFrame): number {
+  const ta = a.videoTimestampSeconds;
+  const tb = b.videoTimestampSeconds;
+  if (ta != null && tb != null && ta !== tb) return ta - tb;
+  if (ta == null && tb != null) return 1;
+  if (ta != null && tb == null) return -1;
+  return a.index - b.index;
+}
+
+function isNearDuplicateTimestamp(
+  timestamp: number,
+  frames: readonly ExtractedFrame[],
+): boolean {
+  return frames.some(
+    (existing) =>
+      existing.videoTimestampSeconds != null &&
+      Math.abs(existing.videoTimestampSeconds - timestamp) <
+        BOOKEND_FRAME_DEDUPE_SECONDS,
+  );
+}
+
 export function mergeSceneFramesWithBookends(
   sceneFrames: ExtractedFrame[],
   bookends: readonly ExtractedFrame[],
 ): ExtractedFrame[] {
-  const combined = [...sceneFrames, ...bookends];
-  combined.sort((a, b) => {
-    const ta = a.videoTimestampSeconds;
-    const tb = b.videoTimestampSeconds;
-    if (ta != null && tb != null && ta !== tb) return ta - tb;
-    if (ta == null && tb != null) return 1;
-    if (ta != null && tb == null) return -1;
-    return a.index - b.index;
-  });
+  const kept = [...sceneFrames].sort(compareFramesByTimestamp);
 
-  const kept: ExtractedFrame[] = [];
-  for (const frame of combined) {
-    const t = frame.videoTimestampSeconds;
-    if (
-      t != null &&
-      kept.some(
-        (existing) =>
-          existing.videoTimestampSeconds != null &&
-          Math.abs(existing.videoTimestampSeconds - t) <
-            BOOKEND_FRAME_DEDUPE_SECONDS,
-      )
-    ) {
+  for (const bookend of [...bookends].sort(compareFramesByTimestamp)) {
+    const t = bookend.videoTimestampSeconds;
+    if (t != null && isNearDuplicateTimestamp(t, kept)) {
       continue;
     }
-    kept.push(frame);
+    kept.push(bookend);
   }
 
+  kept.sort(compareFramesByTimestamp);
   return kept.map((frame, index) => ({ ...frame, index }));
 }
 
