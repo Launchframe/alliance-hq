@@ -17,6 +17,7 @@ import {
   dateForVsMatchDayInWeek,
   mondayOfVsWeekContaining,
 } from "@/lib/vs-calculator/vs-calendar.shared";
+import { VsCalculatorUploadPanel } from "@/components/vs-calculator/vs-calculator-upload-panel";
 
 type TabId = "day" | "weekly" | "upload";
 
@@ -381,12 +382,14 @@ export function VsCalculatorView({ initial }: Props) {
       ) : null}
 
       {tab === "upload" ? (
-        <section
-          className="rounded-xl border border-dashed border-hq-border bg-hq-surface p-6 text-center"
-          role="tabpanel"
-        >
-          <p className="text-sm text-hq-fg-muted">{t("uploadComingSoon")}</p>
-        </section>
+        <VsCalculatorUploadPanel
+          pinnedDate={data.pinnedDate}
+          locale={locale}
+          onConfirmed={(payload) => {
+            setData(payload);
+            setTab("day");
+          }}
+        />
       ) : null}
     </div>
   );
