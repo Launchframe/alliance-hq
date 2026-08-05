@@ -44,6 +44,11 @@ After setup, **`discord_guild_alliances.guild_id`** is the runtime tenant key. R
 - `validateDiscordCommandDescriptions` in `scripts/discord/register-commands.mjs` enforces this at script load — do not bypass or weaken it.
 - Reply/message copy under `discordBot` is **not** subject to this 100-char API limit (still validate with `npm run i18n:validate`).
 
+## Channel visibility
+
+- Auditable officer setup commands (`/set-*`, `/set-conductor`, `/train-is-ready`, etc.) must reply **channel-visible** (`ephemeral: false`) so the alliance can see configuration and lock actions in-channel.
+- Use `channelVisibleCommandResponse` / `CHANNEL_VISIBLE` in `interactions/route.ts` for these handlers — do not use `EPHEMERAL`.
+
 ## Writes
 
 - Guild registration: `upsertGuildAlliance` (owner-gated).
