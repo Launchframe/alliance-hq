@@ -35,6 +35,10 @@ import {
   findDuplicateMemberAssignments,
 } from "@/lib/video/review-validation";
 import {
+  findScoreGhostClusters,
+  scoreGhostRowIdsToDiscard,
+} from "@/lib/video/score-ghost-clusters.shared";
+import {
   isAllianceKillsVideoTarget,
   isZeroScoreWarningDisabled,
 } from "@/lib/video/score-targets";
@@ -1656,6 +1660,36 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [activeRows],
   );
 
+  const scoreGhostClusters = useMemo(() => {
+    if (
+      scoreTargetMeta?.showRosterColumns ||
+      scoreTargetMeta?.showDepositSlipColumns ||
+      scoreTargetMeta?.showScoreColumn === false
+    ) {
+      return [];
+    }
+    return findScoreGhostClusters(
+      activeRows.map((row) => ({
+        id: row.id,
+        ocrName: row.ocrName,
+        score: row.score,
+        memberId: row.memberId,
+        memberName: row.memberName,
+        deleted: row.deleted,
+      })),
+    );
+  }, [activeRows, scoreTargetMeta]);
+
+  const scoreGhostDiscardRowIds = useMemo(
+    () => scoreGhostRowIdsToDiscard(scoreGhostClusters),
+    [scoreGhostClusters],
+  );
+
+  const scoreGhostKeeperRowIds = useMemo(
+    () => new Set(scoreGhostClusters.map((cluster) => cluster.keeperRowId)),
+    [scoreGhostClusters],
+  );
+
   const rosterValidation = useRosterReviewValidation(
     activeRows.map((row) => ({
       id: row.id,
@@ -1936,6 +1970,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           vsPeriod: isVsPerformanceTarget ? vsPeriod : undefined,
           bankId: scoreTargetMeta?.showBankSelector ? bankId : undefined,
           rows: rows.map((r) => {
+            const autoDiscardScoreGhost = scoreGhostDiscardRowIds.has(r.id);
             const enhanced =
               isDepositSlip && scoreTargetMeta?.showDepositSlipColumns
                 ? depositSlipDisplayRowsById.get(r.id)
@@ -1979,7 +2014,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                         : source.memberName ?? source.ocrName,
                     score: source.score ?? "",
                     rank: source.rank,
-                    deleted: source.deleted === 1,
+                    deleted: source.deleted === 1 || autoDiscardScoreGhost,
                   };
           }),
         }),
@@ -2010,6 +2045,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         return;
       }
       clearDraft();
+      if (scoreGhostDiscardRowIds.size > 0) {
+        setRows((prev) =>
+          prev.map((row) =>
+            scoreGhostDiscardRowIds.has(row.id) ? { ...row, deleted: 1 } : row,
+          ),
+        );
+      }
       setSuccess(
         scoreTargetMeta?.showDepositSlipColumns
           ? formatDepositSlipSubmitSuccessMessage(t, data)
@@ -2564,6 +2606,38 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           <p>{t("scoreConflictHint")}</p>
         </div>
       )}
+
+      {scoreGhostClusters.length > 0 ? (
+        <div className="rounded-xl border border-[#388bfd]/40 bg-[#388bfd10] p-4 text-sm text-hq-fg">
+          <p className="font-medium text-hq-fg">{t("scoreGhostClusterTitle")}</p>
+          <p className="mt-2 text-hq-fg-muted">{t("scoreGhostClusterHint")}</p>
+          <ul className="mt-3 space-y-3">
+            {scoreGhostClusters.map((cluster) => (
+              <li
+                key={cluster.normalizedScore}
+                className="rounded-lg border border-[#388bfd]/30 bg-hq-canvas p-3"
+              >
+                <p className="text-xs font-medium uppercase tracking-wide text-[#58a6ff]">
+                  {t("scoreGhostClusterGroup", {
+                    score: cluster.normalizedScore,
+                    member:
+                      cluster.keeperMemberName ?? cluster.keeperOcrName,
+                    ghostCount: cluster.ghostOcrNames.length,
+                  })}
+                </p>
+                <p className="mt-2 text-sm text-hq-fg-muted">
+                  {t("scoreGhostClusterKeep", {
+                    name: cluster.keeperOcrName,
+                  })}
+                </p>
+                <p className="mt-1 text-sm text-hq-fg">
+                  {cluster.ghostOcrNames.join(" · ")}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {hasDuplicateMembers &&
       scoreTargetMeta?.showDepositSlipColumns ? (
@@ -3283,15 +3357,21 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           <tbody>
             {filteredRows.map((row) => {
               const isDuplicateMember = duplicateRowIds.has(row.id);
+              const isScoreGhost = scoreGhostDiscardRowIds.has(row.id);
+              const isScoreGhostKeeper = scoreGhostKeeperRowIds.has(row.id);
               const rowCanVideoPreview =
                 hasSourceVideo &&
                 previewSeekSecondsForFrame(row.frameIndex, frameTimestamps) !=
                   null;
               const rowClass = isDuplicateMember
                 ? "border-t border-hq-border bg-[#f8514910]"
-                : row.scoreConflict
-                  ? "border-t border-hq-border bg-[#d2992210]"
-                  : "border-t border-hq-border";
+                : isScoreGhost
+                  ? "border-t border-hq-border bg-[#388bfd10]"
+                  : isScoreGhostKeeper
+                    ? "border-t border-hq-border bg-[#388bfd08]"
+                    : row.scoreConflict
+                      ? "border-t border-hq-border bg-[#d2992210]"
+                      : "border-t border-hq-border";
 
               return (
               <tr
@@ -3353,6 +3433,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   {isDuplicateMember ? (
                     <p className="mt-1 text-xs text-hq-danger">
                       {t("duplicateMemberRow")}
+                    </p>
+                  ) : null}
+                  {isScoreGhost ? (
+                    <p className="mt-1 text-xs text-[#58a6ff]">
+                      {t("scoreGhostRow")}
+                    </p>
+                  ) : null}
+                  {isScoreGhostKeeper && !isDuplicateMember ? (
+                    <p className="mt-1 text-xs text-[#58a6ff]">
+                      {t("scoreGhostKeeperRow")}
                     </p>
                   ) : null}
                 </td>
