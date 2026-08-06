@@ -2315,6 +2315,8 @@
       "expiresAt": "Expira em {date}",
       "lastAccessed": "Último acesso {date}",
       "revoke": "Revogar acesso",
+      "extend": "Prorrogar acesso",
+      "extendFailed": "Não foi possível prorrogar o compartilhamento de credenciais.",
       "recentActivity": "Atividade recente",
       "createTitle": "Compartilhar suas credenciais",
       "officerLabel": "Oficial",

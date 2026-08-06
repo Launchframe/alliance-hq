@@ -2298,6 +2298,8 @@
       "expiresAt": "Expires {date}",
       "lastAccessed": "Last accessed {date}",
       "revoke": "Revoke access",
+      "extend": "Extend access",
+      "extendFailed": "Could not extend credential share.",
       "recentActivity": "Recent activity",
       "createTitle": "Share your credentials",
       "officerLabel": "Officer",

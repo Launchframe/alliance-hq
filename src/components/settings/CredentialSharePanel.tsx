@@ -181,6 +181,21 @@ export function CredentialSharePanel({ canManage, currentHqUserId }: Props) {
     await load();
   };
 
+  const extendShare = async (shareId: string) => {
+    setError(null);
+    const res = await fetch(`/api/settings/credential-shares/${shareId}/extend`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ttlHours }),
+    });
+    const data = (await res.json()) as { error?: string };
+    if (!res.ok) {
+      setError(data.error ?? t("extendFailed"));
+      return;
+    }
+    await load();
+  };
+
   const activeShares = shares.filter((share) =>
     ["pending", "active"].includes(share.status),
   );
@@ -240,13 +255,24 @@ export function CredentialSharePanel({ canManage, currentHqUserId }: Props) {
                 </div>
               ) : null}
               {canManage && share.ownerHqUserId === currentHqUserId ? (
-                <button
-                  type="button"
-                  className="mt-2 text-hq-accent hover:underline"
-                  onClick={() => void revokeShare(share.id)}
-                >
-                  {t("revoke")}
-                </button>
+                <div className="mt-2 flex flex-wrap gap-3">
+                  {share.status === "active" ? (
+                    <button
+                      type="button"
+                      className="text-hq-accent hover:underline"
+                      onClick={() => void extendShare(share.id)}
+                    >
+                      {t("extend")}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="text-hq-accent hover:underline"
+                    onClick={() => void revokeShare(share.id)}
+                  >
+                    {t("revoke")}
+                  </button>
+                </div>
               ) : null}
             </div>
           ))}
