@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { redirect } from "@/i18n/navigation";
 
 import { Link } from "@/i18n/navigation";
@@ -10,6 +11,10 @@ import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("uploadReminders");
+  return await allianceScopedMetadata(t("title"));
+}
 export default async function UploadRemindersPage({
   params,
 }: {

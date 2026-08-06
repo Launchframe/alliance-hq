@@ -1,15 +1,15 @@
 import { Link } from "@/i18n/navigation";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { ReleaseNoteMarkdown } from "@/components/release-notes/ReleaseNoteMarkdown";
 import { loadGuideMarkdown } from "@/lib/guides/load-guide.server";
 import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Ashed-sync alliance — member onboarding",
-  description:
-    "Link HQ accounts to roster members when your alliance syncs from Ashed.",
-};
+export async function generateMetadata() {
+  const meta = allianceScopedMetadata("Ashed-sync alliance — member onboarding");
+  return { ...meta, description: "Link HQ accounts to roster members when your alliance syncs from Ashed." };
+}
 
 export default async function AshedSyncAllianceOnboardingGuidePage() {
   await requirePageSession("/guides/alliance-onboarding/ashed-sync");

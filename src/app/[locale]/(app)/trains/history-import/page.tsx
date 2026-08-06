@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { ConductorHistoryImportClient } from "@/components/trains/ConductorHistoryImportClient";
 import { loadAllianceGameRoster } from "@/lib/members/game-roster";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata() {
   const t = await getTranslations("trains.historyImport");
-  return { title: t("pageTitle") };
+  return await allianceScopedMetadata(t("pageTitle"));
 }
 
 export default async function TrainsHistoryImportPage() {

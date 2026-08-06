@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { ViralResistanceView } from "@/components/vr/ViralResistanceView";
 import { requirePagePermission } from "@/lib/rbac/page-permission";
@@ -20,7 +21,7 @@ const EMPTY_PROGRESS_CHART: VrProgressChartPayload = {
 
 export async function generateMetadata() {
   const t = await getTranslations("viralResistance");
-  return { title: t("title") };
+  return await allianceScopedMetadata(t("title"));
 }
 
 export default async function ViralResistancePage() {

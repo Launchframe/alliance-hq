@@ -6,7 +6,21 @@
     "privacyTitle": "Política de Privacidade",
     "privacyDescription": "Como o Alliance HQ lida com seus dados e protege sua chave de conexão do Ashed.",
     "termsTitle": "Termos de Uso",
-    "termsDescription": "Regras para usar o Alliance HQ hospedado, aplicação das regras e licenciamento de código aberto."
+    "termsDescription": "Regras para usar o Alliance HQ hospedado, aplicação das regras e licenciamento de código aberto.",
+    "pages": {
+      "welcome": "Boas-vindas",
+      "authCheckEmail": "Verifique seu e-mail",
+      "authError": "Erro ao entrar",
+      "discordAuthorize": "Autorização do Discord",
+      "discordAuthorizeComplete": "Discord vinculado",
+      "discordSetup": "Configuração do bot Discord",
+      "discordInstallComplete": "Bot Discord instalado",
+      "discordHqLinkComplete": "Discord vinculado",
+      "discordLinkCommander": "Vincular comandante",
+      "discordTrainChannel": "Canal de anúncios de trem",
+      "discordChartPreview": "Prévia de gráfico Discord",
+      "commandersIndex": "Índice de comandantes"
+    }
   },
   "landing": {
     "metaTitle": "Alliance HQ — ferramentas de aliança Last War",

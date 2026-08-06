@@ -1,4 +1,6 @@
 import { and, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
+import { getTranslations } from "next-intl/server";
 
 import { VideoUploadForm } from "@/components/VideoUploadForm";
 import { verifyBase44Connection } from "@/lib/base44/server";
@@ -23,6 +25,10 @@ import { videoJobsOwnedByViewerInAllianceWhere } from "@/lib/video/video-job-own
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("nav");
+  return await allianceScopedMetadata(t("videoUpload"));
+}
 type Props = {
   searchParams: Promise<{
     scoreTarget?: string;

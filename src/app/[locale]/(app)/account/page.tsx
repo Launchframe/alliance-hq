@@ -1,4 +1,6 @@
 import { getLocale } from "next-intl/server";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
+import { getTranslations } from "next-intl/server";
 
 import { CredentialSharesCard } from "@/components/account/CredentialSharesCard";
 import { AccountSettingsForm } from "@/components/AccountSettingsForm";
@@ -16,6 +18,10 @@ import { getDiscordHqLinkByHqUserId } from "@/lib/vr/repository";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("account");
+  return standalonePageMetadata(t("title"));
+}
 type Props = {
   searchParams: Promise<{
     discordLinked?: string;

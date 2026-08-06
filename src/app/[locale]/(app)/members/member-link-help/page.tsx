@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { MemberLinkHelpRequestsClient } from "@/components/members/MemberLinkHelpRequestsClient";
 import { listMemberLinkHelpRequestsForAlliance } from "@/lib/member-link/member-link-help-queue.server";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata() {
   const t = await getTranslations("memberLinkHelpRequests");
-  return { title: t("title") };
+  return await allianceScopedMetadata(t("title"));
 }
 
 export default async function MemberLinkHelpPage({

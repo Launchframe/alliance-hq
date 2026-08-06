@@ -1,4 +1,5 @@
 import { getLocale, getTranslations } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { redirect } from "@/i18n/navigation";
 import { getRbacContext } from "@/lib/rbac/context";
@@ -18,6 +19,10 @@ import { VideoQueueClient } from "@/components/video/VideoQueueClient";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("videoQueue");
+  return await allianceScopedMetadata(t("title"));
+}
 export default async function VideoQueuePage() {
   const locale = await getLocale();
   const session = await requirePageSession("/tools/video-upload/queue");

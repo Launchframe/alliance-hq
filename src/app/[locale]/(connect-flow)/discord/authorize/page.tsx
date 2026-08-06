@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { getTranslations } from "next-intl/server";
 
 import { ConnectionWalkthrough } from "@/components/ConnectionWalkthrough";
@@ -9,6 +10,10 @@ import { getValidDiscordAuthNonce } from "@/lib/vr/auth-nonce";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("metadata");
+  return standalonePageMetadata(t("pages.discordAuthorize"));
+}
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }

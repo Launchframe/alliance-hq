@@ -1,15 +1,15 @@
 import { Link } from "@/i18n/navigation";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { ReleaseNoteMarkdown } from "@/components/release-notes/ReleaseNoteMarkdown";
 import { loadGuideMarkdown } from "@/lib/guides/load-guide.server";
 import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Fresh native alliance — onboarding",
-  description:
-    "Onboard a native alliance from owner-only to a fully linked roster on HQ.",
-};
+export async function generateMetadata() {
+  const meta = allianceScopedMetadata("Fresh native alliance — onboarding");
+  return { ...meta, description: "Onboard a native alliance from owner-only to a fully linked roster on HQ." };
+}
 
 export default async function FreshNativeAllianceOnboardingGuidePage() {
   await requirePageSession("/guides/alliance-onboarding/fresh-native");
