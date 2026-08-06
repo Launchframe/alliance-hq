@@ -4200,6 +4200,8 @@
     "colRank": "Posição",
     "colRowNumber": "#",
     "reviewRowNumber": "Linha {n}",
+    "reviewLeaderboardRank": "Posição {n}",
+    "reviewLeaderboardRankUnknown": "Sem posição",
     "colAllianceRank": "Patente na aliança",
     "colPower": "Poder",
     "colLevel": "Nível",

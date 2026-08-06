@@ -125,8 +125,9 @@ export const ALLIANCE_KILLS_VIDEO_SCORE_TARGET = "alliance-kills-video" as const
 
 /**
  * Score targets whose review table shows a read-only `#` column (row position in
- * the list) so reviewers can align rows with the video and spot gaps. Not the
- * same as podium rank (editable 1–3).
+ * Read-only `#` leaderboard rank (score DESC, competition ties) for targets in
+ * REVIEW_ROW_NUMBER_SCORE_TARGETS — matches in-game order even when table rows
+ * follow video frame order.
  */
 export const REVIEW_ROW_NUMBER_SCORE_TARGETS = [
   "vs-performance",
@@ -421,7 +422,7 @@ export type ScoreTargetClientMeta = {
   boardTypes?: SeasonalBoardType[];
   maxSubmitRows?: number;
   usesHqEvents: boolean;
-  /** Read-only `#` row index for video alignment (see REVIEW_ROW_NUMBER_SCORE_TARGETS). */
+  /** Read-only `#` leaderboard rank by score (see REVIEW_ROW_NUMBER_SCORE_TARGETS). */
   showReviewRowNumber: boolean;
   showRankColumn: boolean;
   showTeamSelector: boolean;

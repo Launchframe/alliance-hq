@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   compareParsedRowsForReview,
   mergeParsedRowInReviewOrder,
+  reviewLeaderboardRankByScoreDesc,
   reviewRowPrimarySortKey,
   sortParsedRowsForInitialReview,
   sortsInitialReviewByScoreDesc,
@@ -103,5 +104,40 @@ describe("mergeParsedRowInReviewOrder", () => {
     );
     // Manual rows use frameIndex -1; merge keeps rank/frameIndex rules, not score.
     expect(merged.map((row) => row.id)).toEqual(["new", "a", "b"]);
+  });
+});
+
+describe("reviewLeaderboardRankByScoreDesc", () => {
+  it("ranks by score descending regardless of input order", () => {
+    const ranks = reviewLeaderboardRankByScoreDesc([
+      { id: "boggle", score: "8,669,329" },
+      { id: "eagle", score: "13,904,210" },
+      { id: "orbs", score: "13,245,266" },
+    ]);
+    expect(ranks.get("eagle")).toBe(1);
+    expect(ranks.get("orbs")).toBe(2);
+    expect(ranks.get("boggle")).toBe(3);
+  });
+
+  it("uses competition ranking for tied scores", () => {
+    const ranks = reviewLeaderboardRankByScoreDesc([
+      { id: "a", score: "100" },
+      { id: "b", score: "100" },
+      { id: "c", score: "50" },
+    ]);
+    expect(ranks.get("a")).toBe(1);
+    expect(ranks.get("b")).toBe(1);
+    expect(ranks.get("c")).toBe(3);
+  });
+
+  it("returns null for rows without a parseable score", () => {
+    const ranks = reviewLeaderboardRankByScoreDesc([
+      { id: "a", score: "100" },
+      { id: "b", score: "" },
+      { id: "c", score: "n/a" },
+    ]);
+    expect(ranks.get("a")).toBe(1);
+    expect(ranks.get("b")).toBeNull();
+    expect(ranks.get("c")).toBeNull();
   });
 });
