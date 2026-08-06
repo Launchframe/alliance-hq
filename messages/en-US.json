@@ -6,7 +6,21 @@
     "privacyTitle": "Privacy Policy",
     "privacyDescription": "How Alliance HQ handles your data and protects your Ashed connection key.",
     "termsTitle": "Terms of Service",
-    "termsDescription": "Rules for using the hosted Alliance HQ service, enforcement, and open-source licensing."
+    "termsDescription": "Rules for using the hosted Alliance HQ service, enforcement, and open-source licensing.",
+    "pages": {
+      "welcome": "Welcome",
+      "authCheckEmail": "Check your email",
+      "authError": "Sign-in error",
+      "discordAuthorize": "Discord authorization",
+      "discordAuthorizeComplete": "Discord linked",
+      "discordSetup": "Discord bot setup",
+      "discordInstallComplete": "Discord bot installed",
+      "discordHqLinkComplete": "Discord linked",
+      "discordLinkCommander": "Link commander",
+      "discordTrainChannel": "Train announcement channel",
+      "discordChartPreview": "Discord chart preview",
+      "commandersIndex": "Commanders index"
+    }
   },
   "landing": {
     "metaTitle": "Alliance HQ — Last War alliance tools",

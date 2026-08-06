@@ -1,3 +1,4 @@
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { getTranslations } from "next-intl/server";
 
 import { MembersListViewOrSetup } from "@/components/members/MembersListView";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata() {
   const t = await getTranslations("members");
-  return { title: t("title") };
+  return await allianceScopedMetadata(t("title"));
 }
 
 export default async function MembersPage() {

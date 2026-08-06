@@ -10,6 +10,7 @@ import {
   isStepInRole,
 } from "@/lib/guides/discord-bot-guide.shared";
 import { getTranslations } from "next-intl/server";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 type Props = {
   params: Promise<{ locale: string; role: string; step: string }>;
@@ -24,14 +25,12 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: Props) {
   const { locale, role, step } = await params;
   if (!isDiscordBotGuideRoleSlug(role) || !isStepInRole(role, step)) {
-    return { title: "Guide" };
+    return standalonePageMetadata("Guide");
   }
   const t = await getTranslations({ locale, namespace: "guides.discordBot" });
   const messageKey = step.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
-  return {
-    title: t(`steps.${messageKey}.title`),
-    description: t(`steps.${messageKey}.summary`),
-  };
+  const meta = standalonePageMetadata(t(`steps.${messageKey}.title`));
+  return { ...meta, description: t(`steps.${messageKey}.summary`) };
 }
 
 export default async function DiscordBotGuideStepRoute({ params }: Props) {

@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { notFound } from "next/navigation";
 
 import { CityListImportReviewClient } from "@/components/banks/CityListImportReviewClient";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata() {
   const t = await getTranslations("bankManagement");
-  return { title: t("cityListReviewPageTitle") };
+  return await allianceScopedMetadata(t("cityListReviewPageTitle"));
 }
 
 export default async function CityListImportReviewPage() {

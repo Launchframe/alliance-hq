@@ -1,4 +1,5 @@
 import { DiscordBotGuideHub } from "@/components/guides/DiscordBotGuideHub";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { Link } from "@/i18n/navigation";
 import { getTranslations } from "next-intl/server";
 
@@ -10,10 +11,8 @@ export async function generateMetadata({ params }: Props) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "guides.discordBot" });
 
-  return {
-    title: t("hub.title"),
-    description: t("hub.subtitle"),
-  };
+  const meta = standalonePageMetadata(t("hub.title"));
+  return { ...meta, description: t("hub.subtitle") };
 }
 
 export default async function DiscordBotGuidePage() {

@@ -8,6 +8,7 @@ import {
 } from "@/lib/guides/bank-lifecycle-guide.shared";
 import { requirePageSession } from "@/lib/session";
 import { getTranslations } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 type Props = {
   params: Promise<{ locale: string; step: string }>;
@@ -20,14 +21,12 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: Props) {
   const { locale, step } = await params;
   if (!isBankLifecycleGuideStepSlug(step)) {
-    return { title: "Guide" };
+    return await allianceScopedMetadata("Guide");
   }
   const t = await getTranslations({ locale, namespace: "guides.bankLifecycle" });
   const messageKey = stepSlugToMessageKey(step);
-  return {
-    title: t(`steps.${messageKey}.title`),
-    description: t(`steps.${messageKey}.summary`),
-  };
+  const meta = await allianceScopedMetadata(t(`steps.${messageKey}.title`));
+  return { ...meta, description: t(`steps.${messageKey}.summary`) };
 }
 
 export default async function BankLifecycleGuideStepRoute({ params }: Props) {

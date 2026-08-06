@@ -1,4 +1,6 @@
 import { getLocale } from "next-intl/server";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
+import { getTranslations } from "next-intl/server";
 
 import { auth } from "@/lib/auth";
 import { syncDiscordHqLinkFromSignedInUser } from "@/lib/auth/discord-hq-link.server";
@@ -7,6 +9,10 @@ import { sanitizeInternalRedirectPath } from "@/lib/navigation/safe-redirect.sha
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("metadata");
+  return standalonePageMetadata(t("pages.discordHqLinkComplete"));
+}
 type Props = {
   searchParams: Promise<{ return?: string }>;
 };

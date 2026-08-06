@@ -1,4 +1,6 @@
 import { AuthSignInClient } from "@/components/auth/AuthSignInClient";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
+import { getTranslations } from "next-intl/server";
 import { parseOAuthSignInRequiredSearchParams } from "@/lib/auth/email-sign-in-restriction.shared";
 import { getAuthSsoAvailability } from "@/lib/auth/sso-config.server";
 import { isInviteAuthFlow } from "@/lib/navigation/invite-auth-flow.shared";
@@ -6,6 +8,10 @@ import { sanitizeInternalRedirectPath } from "@/lib/navigation/safe-redirect.sha
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("auth");
+  return standalonePageMetadata(t("title"));
+}
 type Props = {
   searchParams: Promise<{
     callbackUrl?: string;

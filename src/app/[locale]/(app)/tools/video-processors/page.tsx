@@ -1,4 +1,5 @@
 import { getLocale, getTranslations } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { redirect } from "@/i18n/navigation";
 import { VideoProcessorsPanel } from "@/components/settings/VideoProcessorsPanel";
@@ -22,6 +23,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("videoProcessors");
+  return await allianceScopedMetadata(t("title"));
+}
 export default async function VideoProcessorsPage() {
   const locale = await getLocale();
   const session = await requirePageSession("/tools/video-processors");

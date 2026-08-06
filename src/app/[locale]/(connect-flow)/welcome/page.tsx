@@ -1,9 +1,15 @@
 import { redirect } from "next/navigation";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
+import { getTranslations } from "next-intl/server";
 
 import { resolveWelcomeRedirect } from "@/lib/native-alliance/welcome-redirect.shared";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("metadata");
+  return standalonePageMetadata(t("pages.welcome"));
+}
 type Props = {
   searchParams: Promise<{
     tag?: string;

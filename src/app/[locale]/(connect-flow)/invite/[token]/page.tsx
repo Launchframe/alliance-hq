@@ -1,9 +1,15 @@
 import { auth } from "@/lib/auth";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
+import { getTranslations } from "next-intl/server";
 import { InviteAcceptClient } from "@/components/native-alliance/InviteAcceptClient";
 import { getAuthSsoAvailability } from "@/lib/auth/sso-config.server";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("invite");
+  return standalonePageMetadata(t("title"));
+}
 export default async function InvitePage({
   params,
   searchParams,

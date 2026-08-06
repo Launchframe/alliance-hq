@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { adminScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
+import { getTranslations } from "next-intl/server";
 import { useTranslations } from "next-intl";
 
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
@@ -33,6 +35,10 @@ type HqBoard = {
   name: string | null;
 };
 
+export async function generateMetadata() {
+  const t = await getTranslations("admin");
+  return adminScopedMetadata(t("hqEventsTitle"));
+}
 export default function AdminHqEventsPage() {
   const t = useTranslations("admin");
   const tEvents = useTranslations("admin.hqEventsPage");

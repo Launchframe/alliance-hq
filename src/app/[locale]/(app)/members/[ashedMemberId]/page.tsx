@@ -1,4 +1,6 @@
 import { getTranslations } from "next-intl/server";
+import { readSessionId } from "@/lib/session";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { notFound, redirect } from "next/navigation";
 
 import { CommanderProfileView } from "@/components/members/CommanderProfileView";
@@ -17,7 +19,20 @@ type Props = {
 export async function generateMetadata({ params }: Props) {
   const t = await getTranslations("members.profile");
   const { ashedMemberId } = await params;
-  return { title: t("titleWithId", { id: ashedMemberId }) };
+  const trimmedId = ashedMemberId.trim();
+  let pageTitle = t("titleWithId");
+  const sessionId = await readSessionId();
+  if (sessionId) {
+    try {
+      const profile = await loadCommanderProfile(sessionId, trimmedId);
+      if (profile?.member.currentName?.trim()) {
+        pageTitle = profile.member.currentName.trim();
+      }
+    } catch {
+      // Fall back to generic commander profile title.
+    }
+  }
+  return await allianceScopedMetadata(pageTitle);
 }
 
 export default async function CommanderProfilePage({ params, searchParams }: Props) {
