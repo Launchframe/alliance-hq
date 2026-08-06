@@ -1,6 +1,33 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { toPublicCredentialShareAuditEntry } from "@/lib/ashed/credential-share-audit.server";
+import {
+  countShareActivityForOwnerOnDate,
+  toPublicCredentialShareAuditEntry,
+} from "@/lib/ashed/credential-share-audit.server";
+
+const selectMock = vi.fn();
+
+vi.mock("@/lib/db", () => ({
+  getDb: () => ({
+    select: selectMock,
+  }),
+  schema: {
+    auditLog: {
+      resourceType: "auditLog.resourceType",
+      hqUserId: "auditLog.hqUserId",
+      metadata: "auditLog.metadata",
+      createdAt: "auditLog.createdAt",
+    },
+  },
+}));
+
+function chainSelectCount(count: number) {
+  return {
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockResolvedValue([{ count }]),
+    }),
+  };
+}
 
 describe("credential-share-audit", () => {
   it("strips actor ids from public audit entries", () => {
@@ -22,5 +49,36 @@ describe("credential-share-audit", () => {
     });
     expect(publicEntry).not.toHaveProperty("hqUserId");
     expect(publicEntry).not.toHaveProperty("metadata");
+  });
+});
+
+describe("countShareActivityForOwnerOnDate", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("counts owner-attributed activity including delegate usage", async () => {
+    selectMock.mockReturnValueOnce(chainSelectCount(4));
+
+    const count = await countShareActivityForOwnerOnDate(
+      "owner-user",
+      new Date("2026-07-30T00:00:00.000Z"),
+      new Date("2026-07-31T00:00:00.000Z"),
+    );
+
+    expect(count).toBe(4);
+    expect(selectMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns zero when no rows match", async () => {
+    selectMock.mockReturnValueOnce(chainSelectCount(0));
+
+    const count = await countShareActivityForOwnerOnDate(
+      "owner-user",
+      new Date("2026-07-30T00:00:00.000Z"),
+      new Date("2026-07-31T00:00:00.000Z"),
+    );
+
+    expect(count).toBe(0);
   });
 });

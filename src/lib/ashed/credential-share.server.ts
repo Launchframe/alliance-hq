@@ -11,6 +11,12 @@ import {
   parseCredentialShareCapabilities,
 } from "@/lib/ashed/credential-share-capabilities.shared";
 import { writeCredentialShareAudit } from "@/lib/ashed/credential-share-audit.server";
+import {
+  sendCredentialShareAcceptedEmail,
+  sendCredentialShareExpiredEmails,
+  sendCredentialShareRejectedEmail,
+  sendCredentialShareRevokedEmail,
+} from "@/lib/ashed/credential-share-email.server";
 import { writeAuditLog } from "@/lib/bff/audit";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { decryptSecret } from "@/lib/crypto/encrypt";
@@ -243,6 +249,18 @@ function validateTtlHours(ttlHours: number): number {
   return ttlHours;
 }
 
+export function resolveExtendedShareExpiresAt(
+  now: Date,
+  currentExpiresAt: Date | null | undefined,
+  ttlHours: number,
+): Date {
+  const base =
+    currentExpiresAt && currentExpiresAt.getTime() > now.getTime()
+      ? currentExpiresAt
+      : now;
+  return new Date(base.getTime() + ttlHours * 60 * 60 * 1000);
+}
+
 export async function createCredentialShareInvite(input: {
   sessionId: string;
   allianceId: string;
@@ -434,7 +452,17 @@ export async function acceptCredentialShare(input: {
     row.ownerHqUserId,
     delegateHqUserId,
   ]);
-  return toSummary(updated!, users);
+  const summary = toSummary(updated!, users);
+
+  void sendCredentialShareAcceptedEmail({
+    ownerHqUserId: row.ownerHqUserId,
+    delegateHqUserId,
+    allianceId: row.allianceId,
+  }).catch((error) => {
+    console.error("[credential-share] accept email failed", error);
+  });
+
+  return summary;
 }
 
 export async function rejectCredentialShare(input: {
@@ -479,6 +507,14 @@ export async function rejectCredentialShare(input: {
     shareId: row.id,
     action: "ashed_share.rejected",
     metadata: { ownerHqUserId: row.ownerHqUserId },
+  });
+
+  void sendCredentialShareRejectedEmail({
+    ownerHqUserId: row.ownerHqUserId,
+    invitedHqUserId: row.invitedHqUserId,
+    allianceId: row.allianceId,
+  }).catch((error) => {
+    console.error("[credential-share] reject email failed", error);
   });
 }
 
@@ -525,6 +561,15 @@ export async function revokeCredentialShare(input: {
       ownerHqUserId: row.ownerHqUserId,
       delegateHqUserId: row.delegateHqUserId,
     },
+  });
+
+  void sendCredentialShareRevokedEmail({
+    ownerHqUserId: row.ownerHqUserId,
+    delegateHqUserId: row.delegateHqUserId,
+    invitedHqUserId: row.invitedHqUserId,
+    allianceId: row.allianceId,
+  }).catch((error) => {
+    console.error("[credential-share] revoke email failed", error);
   });
 }
 
@@ -849,6 +894,15 @@ export async function expireStaleCredentialShares(): Promise<{
         endReason,
         delegateHqUserId: row.delegateHqUserId,
       },
+    });
+
+    void sendCredentialShareExpiredEmails({
+      ownerHqUserId: row.ownerHqUserId,
+      delegateHqUserId: row.delegateHqUserId,
+      allianceId: row.allianceId,
+      endReason,
+    }).catch((error) => {
+      console.error("[credential-share] expire email failed", error);
     });
 
     if (endReason === "expired") expired += 1;
