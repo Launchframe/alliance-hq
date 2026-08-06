@@ -6,18 +6,20 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import type { VideoProcessorEligibilityMode } from "@/lib/video/processor-slots.shared";
 
-type Processor = {
-  id: string;
-  hqUserId: string;
-  email: string;
-  displayName: string | null;
-};
-
 type Candidate = {
   hqUserId: string;
   email: string;
   displayName: string | null;
   subtitle: string | null;
+  viaCredentialShareId?: string | null;
+};
+
+type Processor = {
+  id: string;
+  hqUserId: string;
+  email: string;
+  displayName: string | null;
+  viaShareOwnerLabel?: string | null;
 };
 
 type Props = {
@@ -109,7 +111,8 @@ export function VideoProcessorsPanel({
     }
   }
 
-  const slotsFull = processors.length >= max;
+  const occupyingCount = processors.filter((p) => !p.viaShareOwnerLabel).length;
+  const slotsFull = occupyingCount >= max;
   const name = (p: { displayName: string | null; email: string }) =>
     p.displayName ?? p.email;
   const optionLabel = (c: Candidate) =>
@@ -147,6 +150,11 @@ export function VideoProcessorsPanel({
             >
               <span className="min-w-0 truncate text-sm text-hq-fg">
                 {name(p)}
+                {p.viaShareOwnerLabel ? (
+                  <span className="block text-xs text-hq-fg-muted">
+                    {p.viaShareOwnerLabel}
+                  </span>
+                ) : null}
               </span>
               {!readOnly ? (
                 <button

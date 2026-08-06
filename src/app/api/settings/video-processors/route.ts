@@ -147,7 +147,8 @@ export async function POST(request: Request) {
   }
 
   const candidateList = await listVideoProcessorCandidates(ctx.allianceId);
-  if (!candidateList.candidates.some((c) => c.hqUserId === hqUserId)) {
+  const candidate = candidateList.candidates.find((c) => c.hqUserId === hqUserId);
+  if (!candidate) {
     return NextResponse.json(
       { error: "User is not an eligible processor." },
       { status: 400 },
@@ -158,12 +159,19 @@ export async function POST(request: Request) {
     allianceId: ctx.allianceId,
     hqUserId,
     grantedByHqUserId: ctx.hqUserId,
+    viaCredentialShareId: candidate.viaCredentialShareId ?? null,
   });
 
   if (!result.ok) {
     return NextResponse.json(
-      { error: "Processor slots are full.", code: "slots_full" },
-      { status: 409 },
+      {
+        error:
+          result.code === "invalid_share_link"
+            ? "Share-linked processor grant is invalid."
+            : "Processor slots are full.",
+        code: result.code,
+      },
+      { status: result.code === "invalid_share_link" ? 400 : 409 },
     );
   }
 

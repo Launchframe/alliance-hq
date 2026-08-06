@@ -51,6 +51,7 @@ vi.mock("drizzle-orm", () => ({
   and: vi.fn((...clauses: unknown[]) => clauses),
   eq: vi.fn((left: unknown, right: unknown) => ({ left, right })),
   inArray: vi.fn((col: unknown, values: unknown[]) => ({ col, values })),
+  isNull: vi.fn((col: unknown) => ({ isNull: col })),
 }));
 
 vi.mock("@/lib/native-alliance/operating-mode", () => ({
@@ -78,6 +79,7 @@ vi.mock("@/lib/db", () => ({
       hqUserId: "avp.hqUserId",
       grantedByHqUserId: "avp.grantedByHqUserId",
       grantedAt: "avp.grantedAt",
+      viaCredentialShareId: "avp.viaCredentialShareId",
     },
     hqUsers: {
       id: "hqUsers.id",
@@ -117,6 +119,10 @@ vi.mock("@/lib/rbac/context", () => ({
 
 vi.mock("@/lib/session", () => ({
   loadSession,
+}));
+
+vi.mock("@/lib/ashed/credential-share.server", () => ({
+  listVideoShareDelegateCandidates: vi.fn(async () => []),
 }));
 
 import {

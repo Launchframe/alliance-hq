@@ -841,6 +841,13 @@
       "when": 1790294400000,
       "tag": "0122_ashed_credential_shares",
       "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1790380800000,
+      "tag": "0123_video_processor_credential_share",
+      "breakpoints": true
     }
   ]
 }
