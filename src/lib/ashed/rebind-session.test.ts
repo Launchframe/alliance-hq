@@ -11,6 +11,10 @@ const selectMock = vi.fn();
 const updateMock = vi.fn();
 const deleteMock = vi.fn();
 
+vi.mock("@/lib/ashed/credential-share.server", () => ({
+  refreshActiveShareSnapshotsForOwner: vi.fn().mockResolvedValue(0),
+}));
+
 vi.mock("@/lib/bff/audit", () => ({
   writeAuditLog: (...args: unknown[]) => writeAuditLogMock(...args),
 }));

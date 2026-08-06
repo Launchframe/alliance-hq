@@ -1,5 +1,6 @@
 import { getLocale } from "next-intl/server";
 
+import { CredentialSharesCard } from "@/components/account/CredentialSharesCard";
 import { AccountSettingsForm } from "@/components/AccountSettingsForm";
 import { hqUserHasOAuthProvider, loadSignInMethodSnapshot } from "@/lib/auth/account-linking.server";
 import type { LinkedOAuthProvider } from "@/lib/auth/account-linking.shared";
@@ -75,7 +76,9 @@ export default async function AccountPage({ searchParams }: Props) {
     : null;
 
   return (
-    <AccountSettingsForm
+    <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
+      {hqUserId ? <CredentialSharesCard currentHqUserId={hqUserId} /> : null}
+      <AccountSettingsForm
       initialAshed={ashed}
       initialTimezoneId={timezone}
       discordLinked={discordLinked}
@@ -88,5 +91,6 @@ export default async function AccountPage({ searchParams }: Props) {
       ssoAvailability={ssoAvailability}
       isAshedConnectAllowed={sessionState.rbac?.isAshedConnectAllowed ?? false}
     />
+    </div>
   );
 }

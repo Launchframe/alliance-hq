@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { authorizedAccessStrategy } from "@/lib/credential-pairing/strategies/authorized-access";
 
 describe("authorizedAccessStrategy", () => {
-  it("rejects create until follow-up PR", async () => {
+  it("requires share metadata on create", async () => {
     await expect(
       authorizedAccessStrategy.validateCreate({
         sourceSession: {
@@ -20,7 +20,7 @@ describe("authorizedAccessStrategy", () => {
         metadata: {},
       }),
     ).rejects.toMatchObject({
-      code: "NOT_IMPLEMENTED",
+      code: "INVALID",
     });
   });
 });

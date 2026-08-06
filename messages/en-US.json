@@ -2282,6 +2282,81 @@
       "guideLink": "Discord bot setup guide"
     }
   },
+  "credentialShare": {
+    "team": {
+      "title": "Ashed credential sharing",
+      "description": "Invite a named officer to use your Ashed credentials for alliance-scoped tasks. Actions are attributed in HQ audit logs.",
+      "loading": "Loading credential shares…",
+      "loadFailed": "Could not load credential shares.",
+      "createFailed": "Could not create credential share.",
+      "revokeFailed": "Could not revoke credential share.",
+      "empty": "No active credential shares for this alliance.",
+      "pendingInvite": "Pending invite for {name}",
+      "activeShare": "Active access for {name}",
+      "unknownOfficer": "officer",
+      "capabilities": "Capabilities: {list}",
+      "expiresAt": "Expires {date}",
+      "lastAccessed": "Last accessed {date}",
+      "revoke": "Revoke access",
+      "recentActivity": "Recent activity",
+      "createTitle": "Share your credentials",
+      "officerLabel": "Officer",
+      "officerPlaceholder": "Select an officer",
+      "capabilitiesLabel": "Capabilities",
+      "capability": {
+        "roster:sync": "Roster sync",
+        "video:process": "Video processing",
+        "alliance_credentials:manage": "Alliance bot credentials",
+        "data_management:write": "Data management writes"
+      },
+      "ttlLabel": "Access duration",
+      "ttl24h": "24 hours",
+      "ttl72h": "3 days",
+      "ttl7d": "7 days",
+      "ownerAcknowledgment": "I understand this officer will act as me in Ashed for the selected capabilities until access expires or I revoke it.",
+      "ownerAckRequired": "Confirm the acknowledgment before creating a share.",
+      "creating": "Creating…",
+      "createCta": "Create invite",
+      "inviteLinkLabel": "Invite link",
+      "scanHint": "Send this link or QR code to the invited officer. They must sign in as that officer to accept."
+    },
+    "account": {
+      "title": "Credential sharing",
+      "description": "Active credential links you granted or received.",
+      "loading": "Loading credential shares…",
+      "viewHistory": "View history",
+      "grantedTo": "Granted to {name}",
+      "receivedFrom": "Received from {name}",
+      "pendingOfficer": "invited officer",
+      "lastAccessed": "Last accessed {date}"
+    },
+    "accept": {
+      "title": "Accept credential access",
+      "body": "{owner} invited you to use their Ashed credentials in this alliance.",
+      "unknownOwner": "An alliance officer",
+      "acknowledgment": "I understand actions I take through Ashed will appear as this officer in Ashed, and I will not abuse this access.",
+      "ackRequired": "You must accept the acknowledgment before continuing.",
+      "acceptCta": "Accept access",
+      "submitting": "Accepting access…",
+      "success": "Credential access is active for this alliance."
+    },
+    "history": {
+      "title": "Credential share history",
+      "subtitle": "Review active and past credential links across your alliances.",
+      "loading": "Loading history…",
+      "empty": "No credential share history yet.",
+      "roleGranted": "Granted",
+      "roleReceived": "Received",
+      "ended": "Ended {date}",
+      "endReason": {
+        "expired": "Expired",
+        "revoked": "Revoked",
+        "rejected": "Rejected",
+        "owner_token_expired": "Owner token expired",
+        "membership_ended": "Membership ended"
+      }
+    }
+  },
   "account": {
     "title": "Account",
     "subtitle": "Your personal preferences, Ashed connection, and linked devices.",

@@ -30,6 +30,10 @@ export type PairingClientInfo = {
   userAgent: string | null;
 };
 
+export type PairingCompleteOptions = {
+  acknowledged?: boolean;
+};
+
 export class PairingError extends Error {
   constructor(
     message: string,
