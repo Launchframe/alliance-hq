@@ -46,6 +46,10 @@ import { BANK_WRITE_PERMISSION } from "@/lib/rbac/constants";
 import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 import { findDuplicateMemberAssignments } from "@/lib/video/review-validation";
 import {
+  findScoreGhostClusters,
+  scoreGhostRowIdsToDiscard,
+} from "@/lib/video/score-ghost-clusters.shared";
+import {
   getScoreTargetOrThrow,
   isAllianceKillsVideoTarget,
   isBankDepositSlipHistoryTarget,
@@ -204,7 +208,7 @@ export async function POST(request: Request, { params }: Props) {
   } | null = null;
 
   try {
-    const body = (await request.json()) as SubmitBody;
+    let body = (await request.json()) as SubmitBody;
 
     const db = getDb();
     const access = await resolveVideoJobAccess(jobId, session.id, "mutate");
@@ -251,6 +255,33 @@ export async function POST(request: Request, { params }: Props) {
 
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
     const target = getScoreTargetOrThrow(scoreTargetId);
+
+    if (
+      !isMemberRosterVideoTarget(scoreTargetId) &&
+      !isBankDepositSlipHistoryTarget(scoreTargetId)
+    ) {
+      const scoreGhostDiscardIds = scoreGhostRowIdsToDiscard(
+        findScoreGhostClusters(
+          body.rows.map((row) => ({
+            id: row.id,
+            ocrName: row.ocrName ?? row.memberName ?? "",
+            score: row.score ?? null,
+            memberId: row.memberId ?? null,
+            memberName: row.memberName ?? null,
+            frameIndex: row.frameIndex ?? null,
+            deleted: row.deleted,
+          })),
+        ),
+      );
+      if (scoreGhostDiscardIds.size > 0) {
+        body = {
+          ...body,
+          rows: body.rows.map((row) =>
+            scoreGhostDiscardIds.has(row.id) ? { ...row, deleted: true } : row,
+          ),
+        };
+      }
+    }
 
     if (isMemberRosterVideoTarget(scoreTargetId)) {
       const ctx = await getRbacContext(session.id);
