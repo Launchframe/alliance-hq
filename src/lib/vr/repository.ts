@@ -1664,6 +1664,25 @@ export async function setGuildTrainChannel(
     .where(eq(schema.discordGuildAlliances.guildId, guildId));
 }
 
+/** Clears train channel for a guild scoped to an alliance; returns false if not linked. */
+export async function clearGuildTrainChannelForAlliance(
+  allianceId: string,
+  guildId: string,
+): Promise<boolean> {
+  const db = getDb();
+  const rows = await db
+    .update(schema.discordGuildAlliances)
+    .set({ trainChannelId: null })
+    .where(
+      and(
+        eq(schema.discordGuildAlliances.guildId, guildId),
+        eq(schema.discordGuildAlliances.allianceId, allianceId),
+      ),
+    )
+    .returning({ guildId: schema.discordGuildAlliances.guildId });
+  return rows.length > 0;
+}
+
 export async function getGuildTrainChannel(
   guildId: string,
 ): Promise<string | null> {
@@ -1794,6 +1813,7 @@ export async function listAllianceDiscordGuildTrainSetup(
 ): Promise<
   Array<{
     guildId: string;
+    trainChannelId: string | null;
     hasTrainChannel: boolean;
     discordOpenUrl: string;
   }>
@@ -1807,11 +1827,17 @@ export async function listAllianceDiscordGuildTrainSetup(
     .from(schema.discordGuildAlliances)
     .where(eq(schema.discordGuildAlliances.allianceId, allianceId));
 
-  return rows.map((row) => ({
-    guildId: row.guildId,
-    hasTrainChannel: Boolean(row.trainChannelId?.trim()),
-    discordOpenUrl: `https://discord.com/channels/${row.guildId}`,
-  }));
+  return rows.map((row) => {
+    const trainChannelId = row.trainChannelId?.trim() || null;
+    return {
+      guildId: row.guildId,
+      trainChannelId,
+      hasTrainChannel: Boolean(trainChannelId),
+      discordOpenUrl: trainChannelId
+        ? `https://discord.com/channels/${row.guildId}/${trainChannelId}`
+        : `https://discord.com/channels/${row.guildId}`,
+    };
+  });
 }
 
 export async function listGuildTrainChannelsForAlliance(
