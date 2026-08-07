@@ -1675,6 +1675,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         score: row.score,
         memberId: row.memberId,
         memberName: row.memberName,
+        frameIndex: row.frameIndex,
         deleted: row.deleted,
       })),
     );

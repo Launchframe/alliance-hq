@@ -4,6 +4,7 @@ import type { MemberMatch } from "@/lib/video/member-matcher";
 import { dedupeMatchedParseEntries } from "@/lib/video/parse-row-dedup";
 import {
   findScoreGhostClusters,
+  isLikelyScoreGhostRow,
   scoreGhostRowIdsToDiscard,
   stripUnmatchedScoreGhostEntries,
 } from "@/lib/video/score-ghost-clusters.shared";
@@ -21,6 +22,85 @@ function match(
   };
 }
 
+describe("isLikelyScoreGhostRow", () => {
+  const keeper = {
+    id: "keeper",
+    ocrName: "CAIPIRA",
+    score: "7288512",
+    memberId: "m1",
+    memberName: "CAIPIRA",
+    frameIndex: 36,
+  };
+
+  it("flags unmatched rows on later frames with a different name", () => {
+    expect(
+      isLikelyScoreGhostRow(keeper, {
+        id: "ghost",
+        ocrName: "SAITAMA",
+        score: "7288512",
+        memberId: null,
+        memberName: null,
+        frameIndex: 39,
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects same-frame rows (likely tied scores)", () => {
+    expect(
+      isLikelyScoreGhostRow(keeper, {
+        id: "tie",
+        ocrName: "OTHER PLAYER",
+        score: "7288512",
+        memberId: null,
+        memberName: null,
+        frameIndex: 36,
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects rows on earlier or equal frames", () => {
+    expect(
+      isLikelyScoreGhostRow(keeper, {
+        id: "earlier",
+        ocrName: "NOISE",
+        score: "7288512",
+        memberId: null,
+        memberName: null,
+        frameIndex: 35,
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects keeper OCR aliases on later frames", () => {
+    expect(
+      isLikelyScoreGhostRow(keeper, {
+        id: "alias",
+        ocrName: "CAIPIR",
+        score: "7288512",
+        memberId: null,
+        memberName: null,
+        frameIndex: 37,
+      }),
+    ).toBe(false);
+  });
+
+  it("requires both frame indices", () => {
+    expect(
+      isLikelyScoreGhostRow(
+        { ...keeper, frameIndex: null },
+        {
+          id: "ghost",
+          ocrName: "SAITAMA",
+          score: "7288512",
+          memberId: null,
+          memberName: null,
+          frameIndex: 39,
+        },
+      ),
+    ).toBe(false);
+  });
+});
+
 describe("findScoreGhostClusters", () => {
   it("detects one matched keeper and unmatched OCR ghosts for the same score", () => {
     const clusters = findScoreGhostClusters([
@@ -30,6 +110,7 @@ describe("findScoreGhostClusters", () => {
         score: "7,288,512",
         memberId: "m1",
         memberName: "CAIPIRA",
+        frameIndex: 36,
       },
       {
         id: "ghost-1",
@@ -37,6 +118,7 @@ describe("findScoreGhostClusters", () => {
         score: "7288512",
         memberId: null,
         memberName: null,
+        frameIndex: 39,
       },
       {
         id: "ghost-2",
@@ -44,6 +126,7 @@ describe("findScoreGhostClusters", () => {
         score: "7288512",
         memberId: null,
         memberName: null,
+        frameIndex: 40,
       },
     ]);
 
@@ -55,6 +138,29 @@ describe("findScoreGhostClusters", () => {
     });
   });
 
+  it("ignores tied players captured on the same frame", () => {
+    expect(
+      findScoreGhostClusters([
+        {
+          id: "keeper",
+          ocrName: "PLAYER A",
+          score: "100",
+          memberId: "m1",
+          memberName: "PLAYER A",
+          frameIndex: 10,
+        },
+        {
+          id: "tie",
+          ocrName: "PLAYER B",
+          score: "100",
+          memberId: null,
+          memberName: null,
+          frameIndex: 10,
+        },
+      ]),
+    ).toHaveLength(0);
+  });
+
   it("ignores clusters with multiple matched members (duplicate-member issue)", () => {
     expect(
       findScoreGhostClusters([
@@ -64,6 +170,7 @@ describe("findScoreGhostClusters", () => {
           score: "100",
           memberId: "m1",
           memberName: "A",
+          frameIndex: 1,
         },
         {
           id: "b",
@@ -71,6 +178,7 @@ describe("findScoreGhostClusters", () => {
           score: "100",
           memberId: "m2",
           memberName: "B",
+          frameIndex: 2,
         },
         {
           id: "ghost",
@@ -78,6 +186,7 @@ describe("findScoreGhostClusters", () => {
           score: "100",
           memberId: null,
           memberName: null,
+          frameIndex: 3,
         },
       ]),
     ).toHaveLength(0);
@@ -92,11 +201,34 @@ describe("findScoreGhostClusters", () => {
           score: "100",
           memberId: null,
           memberName: null,
+          frameIndex: 1,
         },
         {
           id: "b",
           ocrName: "B",
           score: "100",
+          memberId: null,
+          memberName: null,
+          frameIndex: 2,
+        },
+      ]),
+    ).toHaveLength(0);
+  });
+
+  it("does not cluster when frame indices are missing", () => {
+    expect(
+      findScoreGhostClusters([
+        {
+          id: "keeper",
+          ocrName: "CAIPIRA",
+          score: "7288512",
+          memberId: "m1",
+          memberName: "CAIPIRA",
+        },
+        {
+          id: "ghost",
+          ocrName: "SAITAMA",
+          score: "7288512",
           memberId: null,
           memberName: null,
         },
@@ -115,16 +247,32 @@ describe("scoreGhostRowIdsToDiscard", () => {
           score: "7288512",
           memberId: "m1",
           memberName: "CAIPIRA",
+          frameIndex: 36,
         },
-        { id: "g1", ocrName: "SAITAMA", score: "7288512", memberId: null, memberName: null },
+        {
+          id: "g1",
+          ocrName: "SAITAMA",
+          score: "7288512",
+          memberId: null,
+          memberName: null,
+          frameIndex: 39,
+        },
         {
           id: "k2",
           ocrName: "March2104",
           score: "9822050",
           memberId: "m2",
           memberName: "March2104",
+          frameIndex: 20,
         },
-        { id: "g2", ocrName: "dwdX", score: "9822050", memberId: null, memberName: null },
+        {
+          id: "g2",
+          ocrName: "dwdX",
+          score: "9822050",
+          memberId: null,
+          memberName: null,
+          frameIndex: 22,
+        },
       ]),
     );
     expect(ids).toEqual(new Set(["g1", "g2"]));
@@ -150,6 +298,24 @@ describe("stripUnmatchedScoreGhostEntries", () => {
     ]);
 
     expect(stripped.map((row) => row.entry.name)).toEqual(["CAIPIRA"]);
+  });
+
+  it("keeps same-frame unmatched ties", () => {
+    const stripped = stripUnmatchedScoreGhostEntries([
+      {
+        entry: { name: "PLAYER A", score: "100", _sourceFrameIndex: 5 },
+        match: match("m1", "PLAYER A"),
+      },
+      {
+        entry: { name: "PLAYER B", score: "100", _sourceFrameIndex: 5 },
+        match: match(null, null),
+      },
+    ]);
+
+    expect(stripped.map((row) => row.entry.name)).toEqual([
+      "PLAYER A",
+      "PLAYER B",
+    ]);
   });
 
   it("composes with dedupeMatchedParseEntries for matched alias rows", () => {

@@ -268,6 +268,7 @@ export async function POST(request: Request, { params }: Props) {
             score: row.score ?? null,
             memberId: row.memberId ?? null,
             memberName: row.memberName ?? null,
+            frameIndex: row.frameIndex ?? null,
             deleted: row.deleted,
           })),
         ),
