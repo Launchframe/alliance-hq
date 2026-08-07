@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { StoreTipCardShell } from "@/components/members/StoreTipCardShell";
 import { StoreTipPublicClient } from "@/components/members/StoreTipPublicClient";
@@ -15,11 +16,9 @@ export async function generateMetadata({ params }: PageProps) {
   const { code, locale } = await params;
   const t = await getTranslations({ locale, namespace: "storeTipPublic" });
   const tip = await loadPublicTipLink(code);
-  return {
-    title: tip
+  return standalonePageMetadata(tip
       ? t("tipPublicTitle", { name: tip.displayName })
-      : t("tipPublicUnavailable"),
-  };
+      : t("tipPublicUnavailable"));
 }
 
 export default async function StoreTipPublicPage({ params, searchParams }: PageProps) {

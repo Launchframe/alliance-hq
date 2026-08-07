@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { adminScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
+import { getTranslations } from "next-intl/server";
 import { useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
@@ -24,6 +26,10 @@ type Summary = {
   memberLinkHelpOpen: number;
 };
 
+export async function generateMetadata() {
+  const t = await getTranslations("admin");
+  return adminScopedMetadata(t("opsInbox.title"));
+}
 export default function AdminOpsInboxPage() {
   const t = useTranslations("admin.opsInbox");
   const [items, setItems] = useState<InboxItem[]>([]);

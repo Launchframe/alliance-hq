@@ -1,13 +1,13 @@
 import { ReleaseNoteMarkdown } from "@/components/release-notes/ReleaseNoteMarkdown";
+import { adminScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { loadGuideMarkdown } from "@/lib/guides/load-guide.server";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Video pipeline configs and experiments",
-  description:
-    "Platform guide for frame extraction parse configs, OCR knobs, and score-target experiments.",
-};
+export async function generateMetadata() {
+  const meta = adminScopedMetadata("Video pipeline configs and experiments");
+  return { ...meta, description: "Platform guide for frame extraction parse configs, OCR knobs, and score-target experiments." };
+}
 
 /**
  * Platform-maintainer guide (English-only markdown). Admin layout already

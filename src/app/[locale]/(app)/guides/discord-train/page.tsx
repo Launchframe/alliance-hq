@@ -1,14 +1,14 @@
 import { ReleaseNoteMarkdown } from "@/components/release-notes/ReleaseNoteMarkdown";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { loadGuideMarkdown } from "@/lib/guides/load-guide.server";
 import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Discord train bot — operator guide",
-  description:
-    "Set up and run Alliance HQ train conductor announcements in Discord.",
-};
+export async function generateMetadata() {
+  const meta = allianceScopedMetadata("Discord train bot — operator guide");
+  return { ...meta, description: "Set up and run Alliance HQ train conductor announcements in Discord." };
+}
 
 export default async function DiscordTrainGuidePage() {
   await requirePageSession("/guides/discord-train");

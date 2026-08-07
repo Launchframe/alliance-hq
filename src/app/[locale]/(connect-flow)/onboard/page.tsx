@@ -1,4 +1,6 @@
 import { getLocale } from "next-intl/server";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
+import { getTranslations } from "next-intl/server";
 import { eq } from "drizzle-orm";
 
 import { MemberLinkOnboardingWizard } from "@/components/onboarding/MemberLinkOnboardingWizard";
@@ -22,6 +24,10 @@ import { getDiscordHqLinkByHqUserId } from "@/lib/vr/repository";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("onboard");
+  return standalonePageMetadata(t("title"));
+}
 type Props = {
   searchParams: Promise<{ next?: string; source?: string }>;
 };

@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { ReleaseNoteMarkdown } from "@/components/release-notes/ReleaseNoteMarkdown";
 import { loadReleaseNotesFromEdgeConfig } from "@/lib/release-notes/edge-config";
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata() {
   const t = await getTranslations("releaseNotes");
-  return { title: t("pageTitle") };
+  return await allianceScopedMetadata(t("pageTitle"));
 }
 
 export default async function ReleasesPage() {

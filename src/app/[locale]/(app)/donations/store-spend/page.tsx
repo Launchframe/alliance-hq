@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { StoreSpendClient } from "@/components/members/StoreSpendClient";
 import { requirePagePermission } from "@/lib/rbac/page-permission";
@@ -8,6 +9,10 @@ import { STORE_BRICK_GIFT_PERMISSION } from "@/lib/members/commander-donation.se
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("members.profile");
+  return await allianceScopedMetadata(t("storeSpendTitle"));
+}
 export default async function StoreSpendPage() {
   const session = await requirePageSession();
   await requirePagePermission(session.id, STORE_BRICK_GIFT_PERMISSION);
