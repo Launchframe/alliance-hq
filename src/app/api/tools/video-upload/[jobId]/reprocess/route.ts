@@ -16,6 +16,10 @@ import {
   videoJobReprocessInFlightMessage,
 } from "@/lib/video/admin-job-actions";
 import {
+  assertJobVideoStorageAvailable,
+  VideoJobStorageUnavailableError,
+} from "@/lib/video/assert-job-video-storage.server";
+import {
   resetVideoJobForReprocess,
   VideoJobReprocessConflictError,
 } from "@/lib/video/reset-video-job-for-reprocess";
@@ -100,6 +104,13 @@ export async function POST(_request: Request, { params }: Props) {
       }
     }
 
+    await assertJobVideoStorageAvailable({
+      storageKey: job.storageKey,
+      archiveStorageKey: job.archiveStorageKey,
+      groupId: job.groupId,
+      fileName: job.fileName,
+    });
+
     // Claim queued and bind processor session atomically so dispatch cannot
     // observe stale processingSessionId between reset and approval fields.
     const approvedAt = new Date();
@@ -125,6 +136,9 @@ export async function POST(_request: Request, { params }: Props) {
 
     return NextResponse.json({ ok: true, jobId, status: "queued" });
   } catch (error) {
+    if (error instanceof VideoJobStorageUnavailableError) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
     if (error instanceof VideoJobReprocessConflictError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }

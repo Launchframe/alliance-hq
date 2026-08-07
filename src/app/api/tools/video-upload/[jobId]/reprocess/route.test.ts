@@ -12,6 +12,20 @@ const writeAuditLog = vi.fn();
 const updateWhere = vi.fn().mockResolvedValue(undefined);
 const selectLimit = vi.fn();
 
+const assertJobVideoStorageAvailable = vi.fn();
+
+vi.mock("@/lib/video/assert-job-video-storage.server", () => ({
+  assertJobVideoStorageAvailable: (...args: unknown[]) =>
+    assertJobVideoStorageAvailable(...args),
+  VideoJobStorageUnavailableError: class VideoJobStorageUnavailableError extends Error {
+    readonly statusCode = 404;
+    constructor(message: string) {
+      super(message);
+      this.name = "VideoJobStorageUnavailableError";
+    }
+  },
+}));
+
 vi.mock("@/lib/session", () => ({
   requireApiSession: (...args: unknown[]) => requireApiSession(...args),
   getAshedConnection: (...args: unknown[]) => getAshedConnection(...args),
@@ -86,6 +100,7 @@ describe("POST /api/tools/video-upload/[jobId]/reprocess", () => {
     resetVideoJobForReprocess.mockResolvedValue(undefined);
     writeAuditLog.mockResolvedValue(undefined);
     updateWhere.mockResolvedValue(undefined);
+    assertJobVideoStorageAvailable.mockResolvedValue("videos/job-1/source.mp4");
   });
 
   it("skips Ashed for native-only deposit-slip targets and queues async", async () => {
