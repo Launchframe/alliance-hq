@@ -2,7 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
-import { Crosshair, MonitorPlay, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Crosshair, MonitorPlay, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link, useRouter } from "@/i18n/navigation";
@@ -105,7 +105,7 @@ import { useVideoReviewExtractDraft } from "@/components/video/useVideoReviewExt
 import { accountTodayCalendarDate } from "@/lib/timezone/format";
 import { PassComparisonSheet } from "@/components/video/PassComparisonSheet";
 import { OcrRatingPrompt, type OcrRatingReason } from "@/components/video/OcrRatingPrompt";
-import { RosterAllianceBanner } from "@/components/video/RosterAllianceBanner";
+import { ReviewIssueNav } from "@/components/video/ReviewIssueNav";
 import {
   RosterVideoReviewTable,
   useRosterReviewValidation,
@@ -142,7 +142,15 @@ import {
   type BankTargetMismatchResolution,
 } from "@/lib/banks/deposit-slip-bank-target-mismatch.shared";
 import { mergeDepositSlipDisplayEnhancements } from "@/lib/banks/deposit-slip-review-enhancements.shared";
-import { depositSlipScoreDefaultedRowIds } from "@/lib/banks/deposit-slip-score-default.shared";
+import type { DepositSlipReviewValidationRow } from "@/lib/banks/deposit-slip-review-validation.shared";
+import {
+  buildDepositSlipReviewProblemRowIds,
+  buildRosterReviewProblemRowIds,
+  buildScoreReviewProblemRowIds,
+  scrollToReviewRow,
+} from "@/lib/video/review-problem-rows.shared";
+import { useReviewIssueNav } from "@/lib/video/use-review-issue-nav";
+import { RosterAllianceBanner } from "@/components/video/RosterAllianceBanner";
 import { useVideoReviewSettings } from "@/lib/video/use-video-review-settings";
 import { computeDepositSlipReviewHeroMetrics } from "@/lib/banks/deposit-slip-review-hero-metrics.shared";
 import { formatDepositSlipSubmitSuccessMessage } from "@/lib/banks/deposit-slip-submit-success.shared";
@@ -331,8 +339,6 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   >([]);
   const [depositSlipSortKey, setDepositSlipSortKey] =
     useState<DepositSlipVisibleSortKey>("depositAt");
-  const [depositSlipProblemNavIndex, setDepositSlipProblemNavIndex] =
-    useState(0);
   const [depositSlipPreviewMode, setDepositSlipPreviewMode] = useState<
     "video" | "frames"
   >("video");
@@ -1485,9 +1491,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   );
 
   const scrollToDepositSlipRow = useCallback((rowId: string) => {
-    document
-      .querySelector(`[data-deposit-slip-row-id="${rowId}"]`)
-      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    scrollToReviewRow(rowId);
   }, []);
 
   const assignedMemberIds = useMemo(() => {
@@ -1511,6 +1515,24 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         : activeRows,
     [activeRows, filterQuery],
   );
+
+  const reviewFilterCount = useMemo(() => {
+    if (scoreTargetMeta?.showDepositSlipColumns) {
+      return {
+        shown: depositSlipVisibleRowIds.length,
+        total: activeRows.length,
+      };
+    }
+    return {
+      shown: filteredRows.length,
+      total: activeRows.length,
+    };
+  }, [
+    scoreTargetMeta?.showDepositSlipColumns,
+    depositSlipVisibleRowIds.length,
+    filteredRows.length,
+    activeRows.length,
+  ]);
 
   const reviewLeaderboardRankById = useMemo(() => {
     if (!scoreTargetMeta?.showReviewRowNumber) return null;
@@ -1727,74 +1749,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     dedupeReport,
   );
 
-  const depositSlipProblemRowIds = useMemo(() => {
-    if (!scoreTargetMeta?.showDepositSlipColumns) return [];
-    const problemIds = new Set<string>();
-    for (const id of depositSlipValidation.incompleteRowIds) {
-      problemIds.add(id);
-    }
-    for (const id of depositSlipValidation.duplicateRowIds) {
-      problemIds.add(id);
-    }
-    for (const row of depositSlipRowsForUi) {
-      const clusterId = row.dedupeClusterId;
-      if (
-        clusterId &&
-        depositSlipValidation.unresolvedClusterIds.has(clusterId)
-      ) {
-        problemIds.add(row.id);
-      }
-    }
-    for (const id of depositSlipScoreDefaultedRowIds(depositSlipRowsForUi)) {
-      problemIds.add(id);
-    }
-    for (const row of depositSlipRowsForUi) {
-      if (row.depositAtInterpolated) problemIds.add(row.id);
-    }
-    return depositSlipVisibleRowIds.filter((id) => problemIds.has(id));
-  }, [
-    scoreTargetMeta?.showDepositSlipColumns,
-    depositSlipValidation.incompleteRowIds,
-    depositSlipValidation.duplicateRowIds,
-    depositSlipValidation.unresolvedClusterIds,
-    depositSlipRowsForUi,
-    depositSlipVisibleRowIds,
-  ]);
-
-  const depositSlipProblemRowIdsKey = depositSlipProblemRowIds.join(",");
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      setDepositSlipProblemNavIndex(0);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [depositSlipProblemRowIdsKey]);
-
   const followMeFrameIndex = useMemo(() => {
     if (!activeFollowMeRowId) return null;
     return activeRowById.get(activeFollowMeRowId)?.frameIndex ?? null;
   }, [activeFollowMeRowId, activeRowById]);
-
-  const jumpToDepositSlipProblem = useCallback(
-    (index: number) => {
-      if (depositSlipProblemRowIds.length === 0) return;
-      const wrapped =
-        ((index % depositSlipProblemRowIds.length) +
-          depositSlipProblemRowIds.length) %
-        depositSlipProblemRowIds.length;
-      setDepositSlipProblemNavIndex(wrapped);
-      scrollToDepositSlipRow(depositSlipProblemRowIds[wrapped]!);
-    },
-    [depositSlipProblemRowIds, scrollToDepositSlipRow],
-  );
-
-  const goToNextDepositSlipProblem = useCallback(() => {
-    jumpToDepositSlipProblem(depositSlipProblemNavIndex + 1);
-  }, [depositSlipProblemNavIndex, jumpToDepositSlipProblem]);
-
-  const goToPrevDepositSlipProblem = useCallback(() => {
-    jumpToDepositSlipProblem(depositSlipProblemNavIndex - 1);
-  }, [depositSlipProblemNavIndex, jumpToDepositSlipProblem]);
 
   const scoreDuplicateRowIds = useMemo(
     () => duplicateMemberRowIds(scoreDuplicateMemberIssues),
@@ -1812,6 +1770,74 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     : scoreTargetMeta?.showDepositSlipColumns
       ? depositSlipValidation.duplicateRowIds
       : scoreDuplicateRowIds;
+
+  const reviewProblemRowIds = useMemo(() => {
+    if (scoreTargetMeta?.showRosterColumns) {
+      return buildRosterReviewProblemRowIds(
+        filteredRows.map((row) => row.id),
+        activeRows.map((row) => ({
+          id: row.id,
+          ocrName: row.ocrName,
+          allianceRank: row.allianceRank ?? null,
+          memberId: row.memberId,
+          memberName: row.memberName,
+          matchConfidence: row.matchConfidence,
+          matchMethod: row.matchMethod,
+          dedupeClusterId: row.dedupeClusterId ?? null,
+          deleted: row.deleted,
+        })),
+        {
+          duplicateRowIds,
+          unmatchedRowIds: rosterValidation.unmatchedRowIds,
+          existingMemberCount: rosterMembers.length,
+        },
+      );
+    }
+    if (scoreTargetMeta?.showDepositSlipColumns) {
+      return buildDepositSlipReviewProblemRowIds(
+        depositSlipVisibleRowIds,
+        depositSlipRowsForUi as DepositSlipReviewValidationRow[],
+        dedupeReport,
+      );
+    }
+    const rowsById = new Map(
+      activeRows.map((row) => [
+        row.id,
+        {
+          id: row.id,
+          memberId: row.memberId,
+          score: row.score,
+          scoreConflict: row.scoreConflict,
+        },
+      ]),
+    );
+    return buildScoreReviewProblemRowIds(
+      filteredRows.map((row) => row.id),
+      rowsById,
+      {
+        duplicateRowIds,
+        zeroScoreWarningDisabled,
+      },
+    );
+  }, [
+    scoreTargetMeta?.showRosterColumns,
+    scoreTargetMeta?.showDepositSlipColumns,
+    filteredRows,
+    activeRows,
+    duplicateRowIds,
+    rosterValidation.unmatchedRowIds,
+    rosterMembers.length,
+    depositSlipVisibleRowIds,
+    depositSlipRowsForUi,
+    dedupeReport,
+    zeroScoreWarningDisabled,
+  ]);
+
+  const {
+    currentIndex: reviewProblemNavIndex,
+    goToNext: goToNextReviewProblem,
+    goToPrev: goToPrevReviewProblem,
+  } = useReviewIssueNav(reviewProblemRowIds, scrollToReviewRow);
 
   const hasScoreConflicts =
     scoreTargetMeta?.showScoreColumn !== false &&
@@ -2247,7 +2273,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ position }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setActionError(data.error ?? tc("uploadFailed"));
+        return;
+      }
       const data = (await res.json()) as { row: ParsedRow };
       markDraftDirty();
       setRows((prev) =>
@@ -2602,137 +2634,6 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         </div>
       )}
 
-      {hasScoreConflicts && (
-        <div className="rounded-xl border border-[#d29922]/40 bg-[#d29922]/10 p-4 text-sm text-[#e3b341]">
-          <p>{t("scoreConflictHint")}</p>
-        </div>
-      )}
-
-      {scoreGhostClusters.length > 0 ? (
-        <div className="rounded-xl border border-[#388bfd]/40 bg-[#388bfd10] p-4 text-sm text-hq-fg">
-          <p className="font-medium text-hq-fg">{t("scoreGhostClusterTitle")}</p>
-          <p className="mt-2 text-hq-fg-muted">{t("scoreGhostClusterHint")}</p>
-          <ul className="mt-3 space-y-3">
-            {scoreGhostClusters.map((cluster) => (
-              <li
-                key={cluster.normalizedScore}
-                className="rounded-lg border border-[#388bfd]/30 bg-hq-canvas p-3"
-              >
-                <p className="text-xs font-medium uppercase tracking-wide text-[#58a6ff]">
-                  {t("scoreGhostClusterGroup", {
-                    score: cluster.normalizedScore,
-                    member:
-                      cluster.keeperMemberName ?? cluster.keeperOcrName,
-                    ghostCount: cluster.ghostOcrNames.length,
-                  })}
-                </p>
-                <p className="mt-2 text-sm text-hq-fg-muted">
-                  {t("scoreGhostClusterKeep", {
-                    name: cluster.keeperOcrName,
-                  })}
-                </p>
-                <p className="mt-1 text-sm text-hq-fg">
-                  {cluster.ghostOcrNames.join(" · ")}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {hasDuplicateMembers &&
-      scoreTargetMeta?.showDepositSlipColumns ? (
-        <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
-          <p className="font-medium">{t("depositSlipOverlappingLockedTitle")}</p>
-          <p className="mt-2 text-hq-fg">{t("depositSlipOverlappingLockedHint")}</p>
-          <ul className="mt-3 space-y-3">
-            {duplicateMemberIssues.map((issue) => {
-              const issueRows = issue.rowIds
-                .map((id) => activeRowById.get(id))
-                .filter((row): row is ParsedRow => row != null);
-              const diffKeys = diffKeysForDepositSlipRows(issueRows);
-              return (
-                <li
-                  key={issue.memberId}
-                  className="rounded-lg border border-hq-danger/30 bg-hq-canvas p-3 text-hq-fg"
-                >
-                  <p className="text-xs font-medium uppercase tracking-wide text-hq-danger">
-                    {t("depositSlipOverlappingLockedGroup", {
-                      commander: issue.memberName,
-                      count: issue.rowIds.length,
-                    })}
-                  </p>
-                  <ul className="mt-2 space-y-1.5">
-                    {issueRows.map((row) => (
-                      <li
-                        key={row.id}
-                        className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-hq-surface-muted/40 px-2 py-1.5"
-                      >
-                        <span className="inline-flex flex-wrap items-center gap-1 text-sm">
-                          {depositSlipReviewRowSummaryParts(
-                            row,
-                            diffKeys,
-                            formatDepositSlipStatus,
-                          ).map(
-                            (part, index, parts) => (
-                              <span key={part.key} className="inline-flex items-center gap-1">
-                                <span
-                                  className={
-                                    part.differs
-                                      ? "font-semibold text-hq-danger"
-                                      : undefined
-                                  }
-                                >
-                                  {part.text}
-                                </span>
-                                {index < parts.length - 1 ? (
-                                  <span aria-hidden>·</span>
-                                ) : null}
-                              </span>
-                            ),
-                          )}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => scrollToDepositSlipRow(row.id)}
-                          className="whitespace-nowrap rounded-md border border-hq-border px-2 py-1 text-xs text-hq-fg hover:bg-hq-surface-muted"
-                        >
-                          {t("depositSlipWarningRowJump")}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ) : null}
-
-      {hasDuplicateMembers &&
-      !scoreTargetMeta?.showDepositSlipColumns ? (
-        <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
-          <p className="font-medium">{t("duplicateMemberTitle")}</p>
-          <ul className="mt-2 list-inside list-disc space-y-1">
-            {duplicateMemberIssues.map((issue) => (
-              <li key={issue.memberId}>
-                {t("duplicateMemberItem", {
-                  member: issue.memberName,
-                  count: issue.rowIds.length,
-                })}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 text-hq-fg">{t("duplicateMemberHint")}</p>
-        </div>
-      ) : null}
-
-      {hasDuplicateOcrNames && (
-        <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
-          <p>{t("duplicateOcrNameRow")}</p>
-        </div>
-      )}
-
       {showComparisonPrompt &&
         !isEventView &&
         groupInfo?.group &&
@@ -2996,6 +2897,35 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       </div>
       ) : null}
 
+      {activeRows.length > 0 ? (
+        <div className="flex items-center gap-3">
+          <input
+            type="search"
+            form=""
+            value={filterQuery}
+            onChange={(e) => setFilterQuery(e.target.value)}
+            placeholder={t("filterPlaceholder")}
+            className="flex-1 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm placeholder:text-hq-fg-muted"
+          />
+          {filterQuery ? (
+            <p className="shrink-0 text-xs text-hq-fg-muted">
+              {t("filterCount", reviewFilterCount)}
+            </p>
+          ) : null}
+          {!scoreTargetMeta?.showRosterColumns &&
+          !scoreTargetMeta?.showDepositSlipColumns ? (
+            <button
+              type="button"
+              disabled={!!addingRowBusy}
+              onClick={() => void handleAddRow("start")}
+              className="shrink-0 rounded-lg border border-hq-border px-3 py-2 text-sm hover:bg-hq-surface-muted disabled:opacity-50"
+            >
+              {addingRowBusy === "start" ? t("addingRow") : t("addRow")}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       {stormOverlapWarning &&
       viewMode === "review" &&
       scoreTargetMeta?.showTeamSelector ? (
@@ -3122,6 +3052,138 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         </>
       ) : null}
 
+      <div className="space-y-4">
+        {hasScoreConflicts ? (
+          <div className="rounded-xl border border-[#d29922]/40 bg-[#d29922]/10 p-4 text-sm text-[#e3b341]">
+            <p>{t("scoreConflictHint")}</p>
+          </div>
+        ) : null}
+
+        {scoreGhostClusters.length > 0 ? (
+          <div className="rounded-xl border border-[#388bfd]/40 bg-[#388bfd10] p-4 text-sm text-hq-fg">
+            <p className="font-medium text-hq-fg">{t("scoreGhostClusterTitle")}</p>
+            <p className="mt-2 text-hq-fg-muted">{t("scoreGhostClusterHint")}</p>
+            <ul className="mt-3 space-y-3">
+              {scoreGhostClusters.map((cluster) => (
+                <li
+                  key={cluster.normalizedScore}
+                  className="rounded-lg border border-[#388bfd]/30 bg-hq-canvas p-3"
+                >
+                  <p className="text-xs font-medium uppercase tracking-wide text-[#58a6ff]">
+                    {t("scoreGhostClusterGroup", {
+                      score: cluster.normalizedScore,
+                      member:
+                        cluster.keeperMemberName ?? cluster.keeperOcrName,
+                      ghostCount: cluster.ghostOcrNames.length,
+                    })}
+                  </p>
+                  <p className="mt-2 text-sm text-hq-fg-muted">
+                    {t("scoreGhostClusterKeep", {
+                      name: cluster.keeperOcrName,
+                    })}
+                  </p>
+                  <p className="mt-1 text-sm text-hq-fg">
+                    {cluster.ghostOcrNames.join(" · ")}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {hasDuplicateMembers && scoreTargetMeta?.showDepositSlipColumns ? (
+          <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
+            <p className="font-medium">{t("depositSlipOverlappingLockedTitle")}</p>
+            <p className="mt-2 text-hq-fg">{t("depositSlipOverlappingLockedHint")}</p>
+            <ul className="mt-3 space-y-3">
+              {duplicateMemberIssues.map((issue) => {
+                const issueRows = issue.rowIds
+                  .map((id) => activeRowById.get(id))
+                  .filter((row): row is ParsedRow => row != null);
+                const diffKeys = diffKeysForDepositSlipRows(issueRows);
+                return (
+                  <li
+                    key={issue.memberId}
+                    className="rounded-lg border border-hq-danger/30 bg-hq-canvas p-3 text-hq-fg"
+                  >
+                    <p className="text-xs font-medium uppercase tracking-wide text-hq-danger">
+                      {t("depositSlipOverlappingLockedGroup", {
+                        commander: issue.memberName,
+                        count: issue.rowIds.length,
+                      })}
+                    </p>
+                    <ul className="mt-2 space-y-1.5">
+                      {issueRows.map((row) => (
+                        <li
+                          key={row.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-hq-surface-muted/40 px-2 py-1.5"
+                        >
+                          <span className="inline-flex flex-wrap items-center gap-1 text-sm">
+                            {depositSlipReviewRowSummaryParts(
+                              row,
+                              diffKeys,
+                              formatDepositSlipStatus,
+                            ).map((part, index, parts) => (
+                              <span
+                                key={part.key}
+                                className="inline-flex items-center gap-1"
+                              >
+                                <span
+                                  className={
+                                    part.differs
+                                      ? "font-semibold text-hq-danger"
+                                      : undefined
+                                  }
+                                >
+                                  {part.text}
+                                </span>
+                                {index < parts.length - 1 ? (
+                                  <span aria-hidden>·</span>
+                                ) : null}
+                              </span>
+                            ))}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => scrollToDepositSlipRow(row.id)}
+                            className="whitespace-nowrap rounded-md border border-hq-border px-2 py-1 text-xs text-hq-fg hover:bg-hq-surface-muted"
+                          >
+                            {t("depositSlipWarningRowJump")}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
+
+        {hasDuplicateMembers && !scoreTargetMeta?.showDepositSlipColumns ? (
+          <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
+            <p className="font-medium">{t("duplicateMemberTitle")}</p>
+            <ul className="mt-2 list-inside list-disc space-y-1">
+              {duplicateMemberIssues.map((issue) => (
+                <li key={issue.memberId}>
+                  {t("duplicateMemberItem", {
+                    member: issue.memberName,
+                    count: issue.rowIds.length,
+                  })}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-hq-fg">{t("duplicateMemberHint")}</p>
+          </div>
+        ) : null}
+
+        {hasDuplicateOcrNames ? (
+          <div className="rounded-xl border border-hq-danger/40 bg-[#f8514915] p-4 text-sm text-hq-danger">
+            <p>{t("duplicateOcrNameRow")}</p>
+          </div>
+        ) : null}
+      </div>
+
       {scoreTargetMeta?.showRosterColumns ? (
         <>
           {rosterLowQuality ? (
@@ -3132,24 +3194,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               {ROSTER_LOW_QUALITY_BANNER}
             </div>
           ) : null}
-          <div className="flex items-center gap-3">
-            <input
-              type="search"
-              form=""
-              value={filterQuery}
-              onChange={(e) => setFilterQuery(e.target.value)}
-              placeholder={t("filterPlaceholder")}
-              className="flex-1 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm placeholder:text-hq-fg-muted"
-            />
-            {filterQuery ? (
-              <p className="shrink-0 text-xs text-hq-fg-muted">
-                {t("filterCount", {
-                  shown: filteredRows.length,
-                  total: activeRows.length,
-                })}
-              </p>
-            ) : null}
-          </div>
+          <ReviewIssueNav
+            currentIndex={reviewProblemNavIndex}
+            total={reviewProblemRowIds.length}
+            onPrev={goToPrevReviewProblem}
+            onNext={goToNextReviewProblem}
+          />
           <RosterVideoReviewTable
             rows={activeRows.map((row) => ({
               id: row.id,
@@ -3195,53 +3245,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         </>
       ) : scoreTargetMeta?.showDepositSlipColumns ? (
         <>
-          <div className="flex items-center gap-3">
-            <input
-              type="search"
-              form=""
-              value={filterQuery}
-              onChange={(e) => setFilterQuery(e.target.value)}
-              placeholder={t("filterPlaceholder")}
-              className="flex-1 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm placeholder:text-hq-fg-muted"
-            />
-            {filterQuery ? (
-              <p className="shrink-0 text-xs text-hq-fg-muted">
-                {t("filterCount", {
-                  shown: depositSlipVisibleRowIds.length,
-                  total: activeRows.length,
-                })}
-              </p>
-            ) : null}
-          </div>
-          {depositSlipProblemRowIds.length > 0 ? (
-            <div
-              className="sticky z-20 -mx-4 flex flex-wrap items-center gap-2 border-b border-hq-border bg-hq-canvas/95 px-4 py-2 backdrop-blur md:-mx-0 md:px-0"
-              style={{ top: "3.25rem" }}
-            >
-              <span className="text-sm text-hq-fg-muted">
-                {t("depositSlipReviewNavCounter", {
-                  current: depositSlipProblemNavIndex + 1,
-                  total: depositSlipProblemRowIds.length,
-                })}
-              </span>
-              <button
-                type="button"
-                onClick={goToPrevDepositSlipProblem}
-                aria-label={t("depositSlipReviewNavPrev")}
-                className="inline-flex items-center rounded-md border border-hq-border p-1.5 text-hq-fg hover:bg-hq-surface-muted"
-              >
-                <ChevronLeft className="h-4 w-4" aria-hidden />
-              </button>
-              <button
-                type="button"
-                onClick={goToNextDepositSlipProblem}
-                aria-label={t("depositSlipReviewNavNext")}
-                className="inline-flex items-center rounded-md border border-hq-border p-1.5 text-hq-fg hover:bg-hq-surface-muted"
-              >
-                <ChevronRight className="h-4 w-4" aria-hidden />
-              </button>
-            </div>
-          ) : null}
+          <ReviewIssueNav
+            currentIndex={reviewProblemNavIndex}
+            total={reviewProblemRowIds.length}
+            onPrev={goToPrevReviewProblem}
+            onNext={goToNextReviewProblem}
+          />
           <DepositSlipVideoReviewTable
             rows={depositSlipRowsForUi.map((row) => ({
               id: row.id,
@@ -3300,32 +3309,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         </>
       ) : (
         <>
-      <div className="flex items-center gap-3">
-        <input
-          type="search"
-          form=""
-          value={filterQuery}
-          onChange={(e) => setFilterQuery(e.target.value)}
-          placeholder={t("filterPlaceholder")}
-          className="flex-1 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm placeholder:text-hq-fg-muted"
-        />
-        {filterQuery && (
-          <p className="shrink-0 text-xs text-hq-fg-muted">
-            {t("filterCount", {
-              shown: filteredRows.length,
-              total: activeRows.length,
-            })}
-          </p>
-        )}
-        <button
-          type="button"
-          disabled={!!addingRowBusy}
-          onClick={() => void handleAddRow("start")}
-          className="shrink-0 rounded-lg border border-hq-border px-3 py-2 text-sm hover:bg-hq-surface-muted disabled:opacity-50"
-        >
-          {addingRowBusy === "start" ? t("addingRow") : t("addRow")}
-        </button>
-      </div>
+      <ReviewIssueNav
+        currentIndex={reviewProblemNavIndex}
+        total={reviewProblemRowIds.length}
+        onPrev={goToPrevReviewProblem}
+        onNext={goToNextReviewProblem}
+      />
 
       <div className="min-w-0 max-w-full overflow-x-auto rounded-xl border border-hq-border">
         <table className="w-full min-w-full text-sm">
@@ -3378,6 +3367,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               <tr
                 key={row.id}
                 className={rowClass}
+                data-review-row-id={row.id}
                 ref={registerFollowAnchor(row.id)}
                 data-video-follow-anchor={row.id}
                 onClick={() => {

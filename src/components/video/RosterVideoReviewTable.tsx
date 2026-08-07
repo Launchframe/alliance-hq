@@ -27,6 +27,7 @@ import {
   findUnmatchedRosterRowIds,
   isRosterRowNameMismatch,
 } from "@/lib/video/roster-video-review.shared";
+import { findDuplicateOcrNameRowIds } from "@/lib/video/review-problem-rows.shared";
 
 export type RosterVideoReviewRow = {
   id: string;
@@ -62,28 +63,6 @@ type Props = {
 };
 
 const RANK_OPTIONS = [1, 2, 3, 4, 5] as const;
-
-function normalizeOcrName(name: string): string {
-  return name.trim().toLowerCase();
-}
-
-function findDuplicateOcrNameRowIds(rows: RosterVideoReviewRow[]): Set<string> {
-  const byName = new Map<string, string[]>();
-  for (const row of rows) {
-    if (row.deleted === 1) continue;
-    const key = normalizeOcrName(row.ocrName);
-    const list = byName.get(key) ?? [];
-    list.push(row.id);
-    byName.set(key, list);
-  }
-  const dupes = new Set<string>();
-  for (const ids of byName.values()) {
-    if (ids.length > 1) {
-      for (const id of ids) dupes.add(id);
-    }
-  }
-  return dupes;
-}
 
 export function RosterVideoReviewTable({
   rows,
@@ -371,7 +350,7 @@ export function RosterVideoReviewTable({
                   : "border-t border-hq-border";
 
               return (
-                <tr key={row.id} className={rowClass}>
+                <tr key={row.id} className={rowClass} data-review-row-id={row.id}>
                   <td className="px-3 py-3 font-medium sm:px-4">
                     <div className="break-words">{row.ocrName}</div>
                     {isNameMismatch ? (

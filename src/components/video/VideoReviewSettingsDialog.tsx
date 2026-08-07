@@ -118,7 +118,7 @@ export function VideoReviewSettingsDialog({
   onReprocessClick,
 }: VideoReviewSettingsDialogProps) {
   const t = useTranslations("videoReview");
-  const tJobs = useTranslations("videoJobs");
+  const tJobs = useTranslations("admin.videoJobsPage");
 
   return (
     <Dialog
