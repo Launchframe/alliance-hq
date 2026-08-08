@@ -1771,10 +1771,21 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       ? depositSlipValidation.duplicateRowIds
       : scoreDuplicateRowIds;
 
+  const allReviewRowIds = useMemo(() => {
+    if (scoreTargetMeta?.showDepositSlipColumns) {
+      return depositSlipRowsForUi.map((row) => row.id);
+    }
+    return activeRows.map((row) => row.id);
+  }, [
+    scoreTargetMeta?.showDepositSlipColumns,
+    depositSlipRowsForUi,
+    activeRows,
+  ]);
+
   const reviewProblemRowIds = useMemo(() => {
     if (scoreTargetMeta?.showRosterColumns) {
       return buildRosterReviewProblemRowIds(
-        filteredRows.map((row) => row.id),
+        allReviewRowIds,
         activeRows.map((row) => ({
           id: row.id,
           ocrName: row.ocrName,
@@ -1795,7 +1806,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     }
     if (scoreTargetMeta?.showDepositSlipColumns) {
       return buildDepositSlipReviewProblemRowIds(
-        depositSlipVisibleRowIds,
+        allReviewRowIds,
         depositSlipRowsForUi as DepositSlipReviewValidationRow[],
         dedupeReport,
       );
@@ -1812,7 +1823,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       ]),
     );
     return buildScoreReviewProblemRowIds(
-      filteredRows.map((row) => row.id),
+      allReviewRowIds,
       rowsById,
       {
         duplicateRowIds,
@@ -1822,22 +1833,51 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }, [
     scoreTargetMeta?.showRosterColumns,
     scoreTargetMeta?.showDepositSlipColumns,
-    filteredRows,
+    allReviewRowIds,
     activeRows,
     duplicateRowIds,
     rosterValidation.unmatchedRowIds,
     rosterMembers.length,
-    depositSlipVisibleRowIds,
     depositSlipRowsForUi,
     dedupeReport,
     zeroScoreWarningDisabled,
   ]);
 
+  const scrollToReviewProblemRow = useCallback(
+    (rowId: string) => {
+      const filter = filterQuery.trim().toLowerCase();
+      const rowVisible = scoreTargetMeta?.showDepositSlipColumns
+        ? depositSlipVisibleRowIds.includes(rowId)
+        : activeRows.some(
+            (row) =>
+              row.id === rowId &&
+              (!filter ||
+                row.ocrName.toLowerCase().includes(filter) ||
+                (row.memberName?.toLowerCase().includes(filter) ?? false)),
+          );
+
+      if (!rowVisible && filter) {
+        setFilterQuery("");
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => scrollToReviewRow(rowId));
+        });
+        return;
+      }
+      scrollToReviewRow(rowId);
+    },
+    [
+      scoreTargetMeta?.showDepositSlipColumns,
+      depositSlipVisibleRowIds,
+      activeRows,
+      filterQuery,
+    ],
+  );
+
   const {
     currentIndex: reviewProblemNavIndex,
     goToNext: goToNextReviewProblem,
     goToPrev: goToPrevReviewProblem,
-  } = useReviewIssueNav(reviewProblemRowIds, scrollToReviewRow);
+  } = useReviewIssueNav(reviewProblemRowIds, scrollToReviewProblemRow);
 
   const hasScoreConflicts =
     scoreTargetMeta?.showScoreColumn !== false &&
@@ -1879,6 +1919,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const submitReadinessStatus =
     liveJob?.status === "submitting" ? "submitting" : displayJobStatus;
+
+  const addRowDisabled =
+    !!addingRowBusy || submitReadinessStatus === "submitting";
 
   const duplicateMembersBlockSubmit =
     hasDuplicateMembers && !scoreTargetMeta?.showDepositSlipColumns;
@@ -2916,7 +2959,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           !scoreTargetMeta?.showDepositSlipColumns ? (
             <button
               type="button"
-              disabled={!!addingRowBusy}
+              disabled={addRowDisabled}
               onClick={() => void handleAddRow("start")}
               className="shrink-0 rounded-lg border border-hq-border px-3 py-2 text-sm hover:bg-hq-surface-muted disabled:opacity-50"
             >
@@ -3543,7 +3586,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       <div className="flex justify-end">
         <button
           type="button"
-          disabled={!!addingRowBusy}
+          disabled={addRowDisabled}
           onClick={() => void handleAddRow("end")}
           className="rounded-lg border border-hq-border px-3 py-2 text-sm hover:bg-hq-surface-muted disabled:opacity-50"
         >
