@@ -14,17 +14,19 @@ const selectLimit = vi.fn();
 
 const assertJobVideoStorageAvailable = vi.fn();
 
-vi.mock("@/lib/video/assert-job-video-storage.server", () => ({
-  assertJobVideoStorageAvailable: (...args: unknown[]) =>
-    assertJobVideoStorageAvailable(...args),
-  VideoJobStorageUnavailableError: class VideoJobStorageUnavailableError extends Error {
-    readonly statusCode = 404;
-    constructor(message: string) {
-      super(message);
-      this.name = "VideoJobStorageUnavailableError";
-    }
-  },
-}));
+vi.mock("@/lib/video/assert-job-video-storage.server", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("@/lib/video/assert-job-video-storage.server")
+    >();
+  return {
+    ...actual,
+    assertJobVideoStorageAvailable: (...args: unknown[]) =>
+      assertJobVideoStorageAvailable(...args),
+  };
+});
+
+import { VideoJobStorageUnavailableError } from "@/lib/video/assert-job-video-storage.server";
 
 vi.mock("@/lib/session", () => ({
   requireApiSession: (...args: unknown[]) => requireApiSession(...args),
@@ -175,6 +177,48 @@ describe("POST /api/tools/video-upload/[jobId]/reprocess", () => {
       params: Promise.resolve({ jobId: "job-x" }),
     });
     expect(res.status).toBe(403);
+  });
+
+  it("returns 404 and skips reset when source video is missing", async () => {
+    requireApiSession.mockResolvedValue(SESSION);
+    sessionCanProcessVideo.mockResolvedValue(true);
+    selectLimit.mockResolvedValue([
+      {
+        id: "job-4",
+        allianceId: "ally-1",
+        scoreTarget: "bank-deposit-slip-history",
+        category: "bank-deposit-slip-history",
+        fileName: "slip.mp4",
+        enqueuedByHqUserId: "hq-uploader",
+        status: "review",
+        storageKey: "videos/shadow/source.mp4",
+        archiveStorageKey: null,
+        groupId: "group-1",
+      },
+    ]);
+    assertJobVideoStorageAvailable.mockRejectedValue(
+      new VideoJobStorageUnavailableError(
+        "The source video is no longer in storage. Reprocess the primary pass or re-upload the clip.",
+      ),
+    );
+
+    const res = await POST(new Request("http://localhost/reprocess"), {
+      params: Promise.resolve({ jobId: "job-4" }),
+    });
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error:
+        "The source video is no longer in storage. Reprocess the primary pass or re-upload the clip.",
+    });
+    expect(assertJobVideoStorageAvailable).toHaveBeenCalledWith({
+      storageKey: "videos/shadow/source.mp4",
+      archiveStorageKey: null,
+      groupId: "group-1",
+      fileName: "slip.mp4",
+    });
+    expect(resetVideoJobForReprocess).not.toHaveBeenCalled();
+    expect(dispatchVideoProcessing).not.toHaveBeenCalled();
   });
 
   it("returns 409 when job is submitting", async () => {

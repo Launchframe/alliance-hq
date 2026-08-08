@@ -376,6 +376,20 @@ export async function adminReprocessVideoJob(params: {
   }
   assertJobCanReprocess(freshStatus.status);
 
+  try {
+    await assertJobVideoStorageAvailable({
+      storageKey: job.storageKey,
+      archiveStorageKey: job.archiveStorageKey,
+      groupId: job.groupId,
+      fileName: job.fileName,
+    });
+  } catch (err) {
+    if (err instanceof VideoJobStorageUnavailableError) {
+      throw new AdminReprocessError(err.message, 404);
+    }
+    throw err;
+  }
+
   if (pendingStamp) {
     const groupId = await ensureJobHasGroup(job);
     const now = new Date();
@@ -401,17 +415,8 @@ export async function adminReprocessVideoJob(params: {
   }
 
   try {
-    await assertJobVideoStorageAvailable({
-      storageKey: job.storageKey,
-      archiveStorageKey: job.archiveStorageKey,
-      groupId: job.groupId,
-      fileName: job.fileName,
-    });
     await resetVideoJobForReprocess(job.id);
   } catch (err) {
-    if (err instanceof VideoJobStorageUnavailableError) {
-      throw new AdminReprocessError(err.message, 404);
-    }
     if (err instanceof VideoJobReprocessConflictError) {
       throw new AdminReprocessError(err.message, 409);
     }
