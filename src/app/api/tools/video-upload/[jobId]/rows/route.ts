@@ -16,6 +16,7 @@ import {
 } from "@/lib/video/video-job-access.server";
 import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-alliance.server";
 import { isBankDepositSlipHistoryTarget } from "@/lib/video/score-targets";
+import { isVideoJobReadyForSubmit } from "@/lib/video/submit-job-ready.shared";
 import { BANK_WRITE_PERMISSION } from "@/lib/rbac/constants";
 import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 
@@ -46,9 +47,11 @@ export async function POST(request: Request, { params }: Props) {
   }
   const job = access.job;
 
-  if (job.status !== "review") {
+  if (!isVideoJobReadyForSubmit(job.status)) {
     return NextResponse.json(
-      { error: "Manual rows can only be added during review." },
+      {
+        error: `Can't add rows — this job's status is "${job.status}". Add rows during review or after scores are saved.`,
+      },
       { status: 400 },
     );
   }
