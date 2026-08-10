@@ -4263,6 +4263,8 @@
     "vsPeriodWeekly": "Semanal",
     "vsPeriodDailyHint": "Pontuações do dia de VS (segunda a sábado).",
     "vsPeriodWeeklyHint": "Totais da semana enviados no domingo. O Ashed preenche dias faltantes; o HQ não interpola.",
+    "vsDay6DerivedNote": "Dia 6 detectado — esta tela costuma mostrar um total acumulado, então calculamos a pontuação só do Dia 6 subtraindo os Dias 1–5 ({day1To5Total}). Total bruto do vídeo: {rawScore}.",
+    "vsDay6InsufficientDataWarning": "Não encontramos todos os Dias 1–5 deste membro nesta semana, então não dá para calcular o Dia 6 com segurança — mostrando o número bruto do vídeo. Confira antes de enviar.",
     "vsDayOption": "Dia {dayNumber} - {dayName} · {date}",
     "vsWeeklyDateOption": "Semana terminando no domingo · {date}",
     "vsSundayInvalid": "Não há dia de VS no domingo. Escolha de segunda a sábado.",

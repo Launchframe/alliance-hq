@@ -4317,6 +4317,8 @@
     "vsPeriodWeekly": "Weekly",
     "vsPeriodDailyHint": "Match-day scores (Monday–Saturday).",
     "vsPeriodWeeklyHint": "Week totals uploaded on Sunday. Ashed fills missing daily scores; HQ does not interpolate.",
+    "vsDay6DerivedNote": "Day 6 detected — this screen usually shows a running total, so we calculated the Day 6-only score by subtracting Days 1–5 ({day1To5Total}). Raw video total: {rawScore}.",
+    "vsDay6InsufficientDataWarning": "Couldn't find all of Days 1–5 for this member this week, so we can't safely calculate Day 6 — showing the raw number from the video. Double-check it before submitting.",
     "vsDayOption": "Day {dayNumber} - {dayName} · {date}",
     "vsWeeklyDateOption": "Week ending Sunday · {date}",
     "vsSundayInvalid": "VS has no Sunday match day. Pick Monday–Saturday.",

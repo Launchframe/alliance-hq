@@ -49,8 +49,15 @@ import {
   isValidVsPerformanceRecordedDate,
   listRecentVsPerformanceDates,
   vsPerformanceDayMetaForDate,
+  vsPerformanceDayNumberForDate,
   type VsScorePeriod,
 } from "@/lib/video/vs-recorded-date.shared";
+import {
+  deriveVsDay6Score,
+  formatVsDay6DerivedScore,
+  parseVsReviewScoreText,
+  type VsDay6Coverage,
+} from "@/lib/video/vs-day6-derivation.shared";
 import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
@@ -333,6 +340,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     () => presetRecordedDate ?? accountTodayCalendarDate(timezoneId),
   );
   const [stormOverlapWarning, setStormOverlapWarning] = useState(false);
+  const [vsDay6CoverageTotals, setVsDay6CoverageTotals] = useState<
+    Record<string, VsDay6Coverage> | null
+  >(null);
+  const [vsDay6ManualScoreRowIds, setVsDay6ManualScoreRowIds] = useState(
+    () => new Set<string>(),
+  );
+  const vsDay6RawScoresRef = useRef<Map<string, string>>(new Map());
   const [filterQuery, setFilterQuery] = useState("");
   const [depositSlipVisibleRowIds, setDepositSlipVisibleRowIds] = useState<
     string[]
@@ -577,6 +591,19 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     if (!isVsPerformanceTarget) return recordedDate;
     return coerceVsPerformanceRecordedDate(recordedDate, vsPeriod);
   }, [isVsPerformanceTarget, recordedDate, vsPeriod]);
+
+  const isDay6DailyUpload = useMemo(
+    () =>
+      isVsPerformanceTarget &&
+      vsPeriod === "daily" &&
+      vsPerformanceDayNumberForDate(vsSafeRecordedDate) === 6,
+    [isVsPerformanceTarget, vsPeriod, vsSafeRecordedDate],
+  );
+
+  const formatVsDay6Amount = useCallback(
+    (value: number) => new Intl.NumberFormat(locale).format(value),
+    [locale],
+  );
 
   const vsRecordedDateOptions = useMemo(() => {
     if (!isVsPerformanceTarget) return [];
@@ -1131,6 +1158,117 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     eventId,
     team,
     recordedDate,
+  ]);
+
+  useEffect(() => {
+    vsDay6RawScoresRef.current.clear();
+    const frame = requestAnimationFrame(() => {
+      setVsDay6ManualScoreRowIds(new Set());
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [vsSafeRecordedDate, vsPeriod, isVsPerformanceTarget]);
+
+  const wasDay6DailyUploadRef = useRef(false);
+  useEffect(() => {
+    const wasDay6 = wasDay6DailyUploadRef.current;
+    wasDay6DailyUploadRef.current = isDay6DailyUpload;
+    if (!wasDay6 || isDay6DailyUpload) return;
+
+    const rawMap = vsDay6RawScoresRef.current;
+    if (rawMap.size === 0) {
+      setVsDay6CoverageTotals(null);
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      setRows((prev) =>
+        prev.map((row) => {
+          if (vsDay6ManualScoreRowIds.has(row.id)) return row;
+          const raw = rawMap.get(row.id);
+          if (raw != null) return { ...row, score: raw };
+          return row;
+        }),
+      );
+      rawMap.clear();
+      setVsDay6ManualScoreRowIds(new Set());
+      setVsDay6CoverageTotals(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isDay6DailyUpload, vsDay6ManualScoreRowIds]);
+
+  useEffect(() => {
+    if (viewMode !== "review" || !isDay6DailyUpload) {
+      return;
+    }
+
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/tools/video-upload/${jobId}/vs-day6-totals?recordedDate=${encodeURIComponent(vsSafeRecordedDate)}`,
+          { signal: controller.signal },
+        );
+        if (!res.ok) {
+          if (!controller.signal.aborted) {
+            setVsDay6CoverageTotals(null);
+          }
+          return;
+        }
+        const data = (await res.json()) as {
+          totals?: Record<string, VsDay6Coverage>;
+        };
+        if (!controller.signal.aborted) {
+          setVsDay6CoverageTotals(data.totals ?? {});
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (!controller.signal.aborted) {
+          setVsDay6CoverageTotals(null);
+        }
+      }
+    })();
+
+    return () => controller.abort();
+  }, [viewMode, isDay6DailyUpload, jobId, vsSafeRecordedDate]);
+
+  useEffect(() => {
+    if (!isDay6DailyUpload || !vsDay6CoverageTotals) return;
+
+    const frame = requestAnimationFrame(() => {
+      setRows((prev) => {
+        const rawMap = vsDay6RawScoresRef.current;
+        let changed = false;
+        const next = prev.map((row) => {
+          if (row.deleted || vsDay6ManualScoreRowIds.has(row.id)) return row;
+          if (row.score && !rawMap.has(row.id)) {
+            rawMap.set(row.id, row.score);
+          }
+          const rawText = rawMap.get(row.id) ?? row.score;
+          if (rawText && !rawMap.has(row.id)) {
+            rawMap.set(row.id, rawText);
+          }
+          const rawNum = parseVsReviewScoreText(rawText);
+          if (!row.memberId || rawNum == null) return row;
+          const result = deriveVsDay6Score(
+            rawNum,
+            vsDay6CoverageTotals[row.memberId],
+          );
+          if (result.status !== "derived") return row;
+          const formatted = formatVsDay6DerivedScore(result.derivedScore);
+          if (row.score === formatted) return row;
+          changed = true;
+          return { ...row, score: formatted };
+        });
+        return changed ? next : prev;
+      });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [
+    isDay6DailyUpload,
+    vsDay6CoverageTotals,
+    vsSafeRecordedDate,
+    rows,
+    vsDay6ManualScoreRowIds,
   ]);
 
   useEffect(() => {
@@ -1963,6 +2101,13 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   function updateRow(id: string, patch: Partial<ParsedRow>) {
     markDraftDirty();
+    if (isDay6DailyUpload && "score" in patch) {
+      setVsDay6ManualScoreRowIds((prev) => {
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+      });
+    }
     setRows((prev) =>
       prev.map((r) => {
         if (r.id !== id) return r;
@@ -3521,6 +3666,30 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     const showZeroWarning = isZero && !zeroScoreWarningDisabled;
                     const isNegative =
                       !Number.isNaN(scoreNum) && scoreNum < 0;
+                    let vsDay6DerivedNote: string | null = null;
+                    let vsDay6InsufficientNote = false;
+                    if (
+                      isDay6DailyUpload &&
+                      !vsDay6ManualScoreRowIds.has(row.id) &&
+                      row.memberId
+                    ) {
+                      const rawText =
+                        vsDay6RawScoresRef.current.get(row.id) ?? row.score;
+                      const rawNum = parseVsReviewScoreText(rawText);
+                      if (rawNum != null) {
+                        const coverage =
+                          vsDay6CoverageTotals?.[row.memberId];
+                        const derivation = deriveVsDay6Score(rawNum, coverage);
+                        if (derivation.status === "derived") {
+                          vsDay6DerivedNote = t("vsDay6DerivedNote", {
+                            day1To5Total: formatVsDay6Amount(coverage!.total),
+                            rawScore: formatVsDay6Amount(rawNum),
+                          });
+                        } else if (vsDay6CoverageTotals != null) {
+                          vsDay6InsufficientNote = true;
+                        }
+                      }
+                    }
                     return (
                       <>
                         <input
@@ -3538,6 +3707,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                                 : "border-hq-border"
                           }`}
                         />
+                        {vsDay6DerivedNote ? (
+                          <p className="mt-1 text-xs text-hq-fg-muted">
+                            {vsDay6DerivedNote}
+                          </p>
+                        ) : null}
+                        {vsDay6InsufficientNote ? (
+                          <p className="mt-1 text-xs text-[#d29922]">
+                            {t("vsDay6InsufficientDataWarning")}
+                          </p>
+                        ) : null}
                         {showZeroWarning && (
                           <p className="mt-1 text-xs text-[#d29922]">
                             {t("scoreZeroWarning")}

@@ -9,6 +9,7 @@ import { addCalendarDays } from "@/lib/trains/game-time";
 import type { RollCandidate } from "@/lib/trains/types";
 import { priorDayVsAppliesForTrainDate } from "@/lib/trains/vs-data-status.shared";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
+import type { VsDay6Coverage } from "@/lib/video/vs-day6-derivation.shared";
 import {
   getAllianceAshedCredential,
   getAllianceById,
@@ -215,6 +216,41 @@ async function resolveAllianceAshedConnection(
   const connection = buildLegacyBotAshedConnection();
   if (!connection) return null;
   return { connection, ashedAllianceId };
+}
+
+/**
+ * Per-member Days 1–5 (Mon–Fri) VSScore total and how many of those five days
+ * had a row, for the week ending in `day6RecordedDate` (Saturday). Used to
+ * derive the true Day 6 delta from a cumulative post-match screenshot.
+ */
+export async function fetchAllianceVsDay1To5CoverageForDay6(
+  allianceId: string,
+  day6RecordedDate: string,
+): Promise<Map<string, VsDay6Coverage>> {
+  const resolved = await resolveAllianceAshedConnection(allianceId);
+  if (!resolved) return new Map();
+
+  const coverage = new Map<string, VsDay6Coverage>();
+  let cursor = addCalendarDays(day6RecordedDate, -5);
+  const friday = addCalendarDays(day6RecordedDate, -1);
+
+  while (cursor <= friday) {
+    const dayScores = await fetchVsScoresByRecordedDate(
+      resolved.connection,
+      resolved.ashedAllianceId,
+      cursor,
+    );
+    for (const [memberId, score] of dayScores) {
+      const prev = coverage.get(memberId) ?? { total: 0, daysCovered: 0 };
+      coverage.set(memberId, {
+        total: prev.total + score,
+        daysCovered: prev.daysCovered + 1,
+      });
+    }
+    cursor = addCalendarDays(cursor, 1);
+  }
+
+  return coverage;
 }
 
 /** Daily VS scores keyed by roster member id (Ashed VSScore for recorded_date). */
