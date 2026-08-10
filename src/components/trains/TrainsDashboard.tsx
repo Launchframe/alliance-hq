@@ -1087,6 +1087,7 @@ export function TrainsDashboard({ initial }: Props) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               date,
+              locale,
               ...(options?.announce === false ? { announce: false } : {}),
             }),
           });
