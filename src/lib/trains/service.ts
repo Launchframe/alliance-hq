@@ -38,7 +38,10 @@ import {
   resolvePaintTemplateForDay,
   shouldExpandCompositeByDayIndex,
 } from "@/lib/trains/week-template-registry.shared";
-import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
+import {
+  resolveAnchorTemplateType,
+  resolveRollDayConfig,
+} from "@/lib/trains/day-config-resolve.server";
 import { conductorDrawChanged } from "@/lib/trains/conductor-mechanism.shared";
 import {
   buildPriceIsRightWeightedCandidates,
@@ -730,25 +733,27 @@ export async function setWeekTemplate(
   }
 }
 
+/**
+ * Ensure a `train_week_schedules` row exists before day-level mutations.
+ * Does not bulk-seed day configs — single-day paints upsert overrides only.
+ */
 export async function ensureWeekScheduleBaseline(
   allianceId: string,
   weekStart: string,
-  templateType: WeekTemplateType = "vs_push_week",
+  preferredTemplateType?: WeekTemplateType | null,
 ): Promise<(typeof import("@/lib/db/schema").trainWeekSchedules.$inferSelect)> {
   const seasonKey = await resolveTrainSeasonKey(allianceId);
   let schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
   if (!schedule) {
+    const templateType =
+      preferredTemplateType ??
+      (await resolveAnchorTemplateType(allianceId, seasonKey));
     schedule = await upsertWeekSchedule({
       allianceId,
       weekStart,
       templateType,
       seasonKey,
     });
-    await replaceDayConfigs(
-      allianceId,
-      schedule.id,
-      weekDayConfigsForTemplate(templateType, weekStart),
-    );
   }
   return schedule;
 }
@@ -806,6 +811,8 @@ export async function applyTemplateToDates(
     updateWeekTemplate?: boolean;
     /** Scope when painting top_vs / top_vr. */
     topN?: ConductorTopN;
+    /** Week template to persist when materializing a draft week on first paint. */
+    preferredWeekTemplate?: WeekTemplateType;
   },
 ): Promise<void> {
   if (dates.length === 0) return;
@@ -849,7 +856,11 @@ export async function applyTemplateToDates(
     ...new Set(uniqueDates.map((d) => getTrainWeekStart(d, trainWeekConfig))),
   ];
   for (const weekStart of weekStarts) {
-    await ensureWeekScheduleBaseline(allianceId, weekStart);
+    await ensureWeekScheduleBaseline(
+      allianceId,
+      weekStart,
+      options?.preferredWeekTemplate,
+    );
   }
 
   const expandCompositeByDayIndex = shouldExpandCompositeByDayIndex({

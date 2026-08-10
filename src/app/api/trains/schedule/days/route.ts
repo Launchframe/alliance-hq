@@ -60,6 +60,7 @@ export async function PATCH(request: Request) {
     templateType?: WeekTemplateType;
     updateWeekTemplate?: boolean;
     topN?: number;
+    preferredWeekTemplate?: WeekTemplateType;
   };
 
   const dates = (body.dates ?? []).filter(
@@ -128,6 +129,9 @@ export async function PATCH(request: Request) {
       platformAdminPastOverride: isPlatformAdmin,
       updateWeekTemplate: body.updateWeekTemplate === true,
       ...(topN != null ? { topN } : {}),
+      ...(body.preferredWeekTemplate
+        ? { preferredWeekTemplate: body.preferredWeekTemplate }
+        : {}),
     });
     return NextResponse.json({ ok: true, dates, templateType, topN });
   } catch (error) {

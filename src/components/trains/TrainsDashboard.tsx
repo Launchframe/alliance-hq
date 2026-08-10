@@ -1087,7 +1087,6 @@ export function TrainsDashboard({ initial }: Props) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               date,
-              locale,
               ...(options?.announce === false ? { announce: false } : {}),
             }),
           });
@@ -1226,7 +1225,11 @@ export function TrainsDashboard({ initial }: Props) {
     (
       dates: string[],
       templateType: WeekTemplateType,
-      options?: { updateWeekTemplate?: boolean; topN?: number },
+      options?: {
+        updateWeekTemplate?: boolean;
+        topN?: number;
+        preferredWeekTemplate?: WeekTemplateType;
+      },
     ) => {
       return withOptimisticMutation(
         (snap) =>
@@ -1243,6 +1246,9 @@ export function TrainsDashboard({ initial }: Props) {
               templateType,
               updateWeekTemplate: options?.updateWeekTemplate === true,
               ...(options?.topN != null ? { topN: options.topN } : {}),
+              ...(options?.preferredWeekTemplate
+                ? { preferredWeekTemplate: options.preferredWeekTemplate }
+                : {}),
             }),
           });
           const body = (await res.json()) as { error?: string };
@@ -1260,7 +1266,11 @@ export function TrainsDashboard({ initial }: Props) {
     (
       dates: string[],
       templateType: WeekTemplateType,
-      options?: { updateWeekTemplate?: boolean; topN?: number },
+      options?: {
+        updateWeekTemplate?: boolean;
+        topN?: number;
+        preferredWeekTemplate?: WeekTemplateType;
+      },
     ) => {
       const allowedDates = data.canUnlockConductor
         ? dates
@@ -2115,7 +2125,13 @@ export function TrainsDashboard({ initial }: Props) {
               }
               vrReporterCount={data.vrReporterCount}
               onPaintDate={(date, template, options) => {
-                void paintDates([date], template, options);
+                const weekStart = getTrainWeekStart(date, trainWeekConfig);
+                const weekPage =
+                  viewedWeek.weekStart === weekStart ? viewedWeek : weekViewSeed;
+                void paintDates([date], template, {
+                  ...options,
+                  preferredWeekTemplate: weekPage.templateType ?? undefined,
+                });
               }}
               navLabels={{
                 previousWeek: t("weekNavPrevious"),

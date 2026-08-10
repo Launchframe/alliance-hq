@@ -251,6 +251,24 @@ async function readPaintTemplate(
   return payload.dayConfigs.find((day) => day.date === date)?.paintTemplate ?? null;
 }
 
+async function readWeekPaintTemplates(
+  request: APIRequestContext,
+  cookieHeader: string,
+  weekStart: string,
+): Promise<Map<string, string | null>> {
+  const res = await request.get(
+    `/api/trains/schedule/week?weekStart=${encodeURIComponent(weekStart)}`,
+    { headers: { Cookie: cookieHeader } },
+  );
+  expect(res.ok(), await res.text()).toBeTruthy();
+  const payload = (await res.json()) as {
+    dayConfigs: Array<{ date: string; paintTemplate: string | null }>;
+  };
+  return new Map(
+    payload.dayConfigs.map((day) => [day.date, day.paintTemplate ?? null]),
+  );
+}
+
 test.describe("Week strip day template menu", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
@@ -314,6 +332,63 @@ test.describe("Week strip day template menu", () => {
         readPaintTemplate(request, fixture.cookieHeader, fixture.weekStart, paintDate),
       )
       .toBe("economy_week");
+  });
+
+  test("painting one day does not change sibling days in the same week", async ({
+    page,
+    request,
+  }) => {
+    const fixture = await setupPersistedTrainsWeek(request);
+    const economyRes = await request.post("/api/trains/schedule", {
+      headers: {
+        Cookie: fixture.cookieHeader,
+        "Content-Type": "application/json",
+      },
+      data: {
+        weekStart: fixture.weekStart,
+        templateType: "economy_week",
+      },
+    });
+    expect(economyRes.ok(), await economyRes.text()).toBeTruthy();
+
+    const before = await readWeekPaintTemplates(
+      request,
+      fixture.cookieHeader,
+      fixture.weekStart,
+    );
+    const paintDate = pickPaintDateInWeek(fixture);
+    const siblingDate = [...before.keys()].find((date) => date !== paintDate);
+    expect(siblingDate).toBeTruthy();
+    expect(before.get(paintDate)).toBe("economy_week");
+    expect(before.get(siblingDate!)).toBe("economy_week");
+
+    await page.context().addCookies(fixture.cookies);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/trains");
+
+    await openDayTemplateMenu(page, paintDate);
+    await selectDayTemplate(page, "r4_event_vip");
+    await expect(page.getByTestId("trains-day-template-menu")).toHaveCount(0);
+
+    await expect
+      .poll(async () =>
+        readPaintTemplate(request, fixture.cookieHeader, fixture.weekStart, paintDate),
+      )
+      .toBe("r4_event_vip");
+
+    const after = await readWeekPaintTemplates(
+      request,
+      fixture.cookieHeader,
+      fixture.weekStart,
+    );
+    expect(after.get(siblingDate!)).toBe("economy_week");
+    for (const [date, template] of after) {
+      if (date === paintDate) {
+        expect(template).toBe("r4_event_vip");
+      } else {
+        expect(template).toBe("economy_week");
+      }
+    }
   });
 
   test("Top VS paint opens scope picker then paints with topN", async ({
