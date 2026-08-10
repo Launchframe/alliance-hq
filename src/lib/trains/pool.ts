@@ -513,6 +513,66 @@ export async function getPoolSummary(
   };
 }
 
+export type PriorPoolGenerationSnapshot = {
+  generation: number;
+  total: number;
+  picked: number;
+  remaining: number;
+  exhausted: boolean;
+  unpickedMemberNames: string[];
+};
+
+/** Summaries for superseded generations (current max gen excluded). */
+export async function listPriorPoolGenerationSnapshots(
+  allianceId: string,
+  poolType: PoolType,
+): Promise<PriorPoolGenerationSnapshot[]> {
+  const db = getDb();
+  const currentGeneration = await getCurrentPoolGeneration(allianceId, poolType);
+  if (currentGeneration <= 1) {
+    return [];
+  }
+
+  const rows = await db
+    .select()
+    .from(schema.conductorPoolEntries)
+    .where(
+      and(
+        eq(schema.conductorPoolEntries.allianceId, allianceId),
+        eq(schema.conductorPoolEntries.poolType, poolType),
+      ),
+    )
+    .orderBy(
+      asc(schema.conductorPoolEntries.generation),
+      asc(schema.conductorPoolEntries.sequencePosition),
+    );
+
+  const byGeneration = new Map<
+    number,
+    Array<(typeof schema.conductorPoolEntries.$inferSelect)>
+  >();
+  for (const row of rows) {
+    if (row.generation >= currentGeneration) continue;
+    const list = byGeneration.get(row.generation) ?? [];
+    list.push(row);
+    byGeneration.set(row.generation, list);
+  }
+
+  return [...byGeneration.entries()]
+    .sort(([a], [b]) => b - a)
+    .map(([generation, genRows]) => {
+      const unpicked = genRows.filter((row) => !row.selectedAt);
+      return {
+        generation,
+        total: genRows.length,
+        picked: genRows.length - unpicked.length,
+        remaining: unpicked.length,
+        exhausted: genRows.length > 0 && unpicked.length === 0,
+        unpickedMemberNames: unpicked.map((row) => row.memberName),
+      };
+    });
+}
+
 export async function listPoolEntries(
   allianceId: string,
   poolType: PoolType,

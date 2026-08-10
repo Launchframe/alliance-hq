@@ -14,6 +14,7 @@ import {
   formatTrainDepartingSoonMessage,
   formatTrainReadyMessage,
   groupTrainChannelsByAlliance,
+  shouldAnnounceTrainLockForDate,
   TRAIN_DEPARTING_SOON_ELAPSED_HOURS,
   TRAIN_PLATFORM_WINDOW_HOURS,
 } from "@/lib/trains/discord-bot.shared";
@@ -111,6 +112,12 @@ export async function maybeAnnounceTrainReady(input: {
   vipName?: string | null;
   locale?: DiscordBotLocale;
 }): Promise<{ posted: number; skipped: number }> {
+  if (
+    !shouldAnnounceTrainLockForDate(input.date, getServerCalendarDate())
+  ) {
+    return { posted: 0, skipped: 0 };
+  }
+
   let conductorName = input.conductorName?.trim();
   let vipName = input.vipName;
   if (!conductorName) {

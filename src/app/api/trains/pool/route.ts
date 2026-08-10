@@ -3,7 +3,11 @@ import { NextResponse } from "next/server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
-import { listPoolEntries, getPoolSummary } from "@/lib/trains/pool";
+import {
+  listPoolEntries,
+  getPoolSummary,
+  listPriorPoolGenerationSnapshots,
+} from "@/lib/trains/pool";
 import { reseedPool } from "@/lib/trains/service";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import type { PoolType } from "@/lib/trains/types";
@@ -44,7 +48,10 @@ export async function GET(request: Request) {
   }
 
   const summary = await getPoolSummary(ctx.allianceId, poolType);
-  const entries = await listPoolEntries(ctx.allianceId, poolType);
+  const [entries, priorGenerations] = await Promise.all([
+    listPoolEntries(ctx.allianceId, poolType),
+    listPriorPoolGenerationSnapshots(ctx.allianceId, poolType),
+  ]);
 
   if (poolType === "event_top_x" && trainDate) {
     const eventContext = vsScoreContextForTrainDate(trainDate);
@@ -52,6 +59,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       summary,
+      priorGenerations,
       eventContext,
       entries: entries.map((entry) => ({
         ...entry,
@@ -60,7 +68,7 @@ export async function GET(request: Request) {
     });
   }
 
-  return NextResponse.json({ summary, entries });
+  return NextResponse.json({ summary, priorGenerations, entries });
 }
 
 export async function POST(request: Request) {

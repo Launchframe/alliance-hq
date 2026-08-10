@@ -5,6 +5,14 @@ export type TrainDiscordStatusRecord = {
   lockedAt: string | null;
 };
 
+/** Discord "train is ready" posts only apply to today's conductor (server calendar date). */
+export function shouldAnnounceTrainLockForDate(
+  lockDate: string,
+  today: string,
+): boolean {
+  return lockDate === today;
+}
+
 export function formatTrainReadyMessage(input: {
   conductorName: string;
   vipName?: string | null;

@@ -26,6 +26,7 @@ vi.mock("@/lib/crypto/encrypt", () => ({
 }));
 
 import {
+  fetchAllianceVsScoresForEvaluationPeriod,
   fetchAllianceVsTopScorersForTrainDate,
   fetchVsScoresByRecordedDate,
   fetchVsTopScorersForRecordedDate,
@@ -238,5 +239,52 @@ describe("fetchAllianceVsTopScorersForTrainDate", () => {
         priorDayVsScore: 8_000_000,
       },
     ]);
+  });
+});
+
+describe("fetchAllianceVsScoresForEvaluationPeriod", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getAllianceById.mockResolvedValue({
+      ashedAllianceId: "ashed-1",
+      tag: "TAG",
+    });
+    mocks.getAllianceAshedCredential.mockResolvedValue({
+      encryptedToken: "enc",
+      appId: "app",
+      originUrl: "https://ashed.online",
+    });
+    mocks.decryptSecret.mockReturnValue("token");
+  });
+
+  it("uses a single recorded_date for daily windows", async () => {
+    mocks.base44Json.mockResolvedValue([
+      { member_id: "m1", score: 7_500_000 },
+      { member_id: "m2", score: 6_000_000 },
+    ]);
+
+    const scores = await fetchAllianceVsScoresForEvaluationPeriod(
+      "hq-1",
+      "2026-08-09",
+      "2026-08-09",
+    );
+
+    expect(scores.get("m1")).toBe(7_500_000);
+    expect(mocks.base44Json).toHaveBeenCalledTimes(1);
+  });
+
+  it("sums daily VS across multi-day evaluation windows", async () => {
+    mocks.base44Json
+      .mockResolvedValueOnce([{ member_id: "m1", score: 4_000_000 }])
+      .mockResolvedValueOnce([{ member_id: "m1", score: 3_500_000 }]);
+
+    const scores = await fetchAllianceVsScoresForEvaluationPeriod(
+      "hq-1",
+      "2026-08-04",
+      "2026-08-05",
+    );
+
+    expect(scores.get("m1")).toBe(7_500_000);
+    expect(mocks.base44Json).toHaveBeenCalledTimes(2);
   });
 });

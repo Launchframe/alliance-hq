@@ -69,7 +69,7 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 - **Top VS** (`fetchAllianceVsTopScorersForTrainDate` / `fetchVsTopScorersForRecordedDate`):
   - **Dedupe** Ashed `VSScore` rows by member — keep the **max** score per `member_id` before sorting/slicing Top N (re-uploads must not inflate odds or push the true Nth scorer off the board).
   - **Intersect** with the **active HQ roster** (`listActiveAllianceMembersForPool`, exclude `former`) — same spirit as Top VR; departed members must not win the wheel.
-- **Conductor minimums** (season HQ VR thresholds on `r3` / `heavy_hitter` pools): post-roll DQ and pool seed filtering apply when minimums are enabled — **independent** of VS upload readiness (`classifyVsDataNeed` / guided `prerequisites`). Monday and non-VS lottery days still enforce minimums when configured.
+- **Conductor minimums** (alliance VS / donation thresholds on `r3` / `heavy_hitter` pools): evaluate **Ashed daily VS** over the configured window (not season VR). Post-roll DQ and pool seed filtering apply when minimums are enabled — do not block the check on `classifyVsDataNeed` / guided `prerequisites`; missing VS data counts as zero for that period.
 
 ## Swap / make-up day
 
@@ -104,6 +104,8 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 - Roster/pool blockers: in-flow Ashed sync when alliance + session allow; **Members** CTA only as last resort.
 - Sync/upload dialogs: loading → success/error → next-step CTAs; refresh guided step state after success.
 - `WheelBlockedDialog` CTAs must match the real blocker (upload prior-day VS vs sync roster vs reseed) — not a generic Members link when scores or Ashed sync would unblock.
+- **Never offer reseed / “start new rotation” for `POOL_UNAVAILABLE`** — members remain in the current generation but none qualify (minimums, etc.). Offer manual pick instead. Reseed only for `POOL_EMPTY` or `POOL_EXHAUSTED`.
+- Pool details **“Start new rotation”** is a new generation; confirm copy must warn when unpicked members remain. Show **prior generation** summaries when `generation > 1`.
 - Disqualified-winner UI only when that mechanism actually required VS. If the wizard skipped scores (e.g. R4), do not show VS disqualification for a 0-score roster.
 
 ## Before implementing UX changes

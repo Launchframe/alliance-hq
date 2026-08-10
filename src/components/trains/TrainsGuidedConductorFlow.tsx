@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -51,6 +51,8 @@ export type TrainsGuidedConductorFlowProps = {
   onRollVip: () => void;
   onPickVipManual: () => void;
   onLock: () => void;
+  /** Inline lock confirmation (e.g. Discord announce) — replaces the lock CTA in the Lock step. */
+  lockConfirm?: ReactNode;
   /** Pool remaining + View pool — same panel as advanced mode, for depleting pools. */
   poolPanel?: ReactNode;
   /** Rendered inside the "Show advanced actions" disclosure (swap / reseed / unlock, etc). */
@@ -226,6 +228,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     onRollVip,
     onPickVipManual,
     onLock,
+    lockConfirm,
     poolPanel,
     advancedActions,
     videoUploadHref,
@@ -244,6 +247,12 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   const tTemplates = useTranslations("trains.templates");
   const tTemplateDetails = useTranslations("trains.templateDetails");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const lockStepRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!lockConfirm || !lockStepRef.current) return;
+    lockStepRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [lockConfirm]);
 
   const vsRequired = Boolean(vsDataStatus?.required && !canManualPick);
   const rosterRequired = Boolean(rosterDataStatus?.required);
@@ -532,12 +541,14 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
 
         <StepRow status={lockStatus} title={t("steps.lock.title")}>
           {lockStatus === "current" ? (
-            <div className="flex flex-col gap-2">
+            <div ref={lockStepRef} className="flex flex-col gap-2">
               <p className="text-sm text-hq-fg-muted">{t("steps.lock.ready")}</p>
-              <PrimaryCtaButton
-                action={{ label: t("steps.lock.lockCta"), onClick: onLock }}
-                busy={busy}
-              />
+              {lockConfirm ?? (
+                <PrimaryCtaButton
+                  action={{ label: t("steps.lock.lockCta"), onClick: onLock }}
+                  busy={busy}
+                />
+              )}
             </div>
           ) : null}
         </StepRow>

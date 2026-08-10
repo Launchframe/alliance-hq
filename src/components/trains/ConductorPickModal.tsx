@@ -2,6 +2,11 @@
 
 import { useMemo, useState } from "react";
 
+export type ConductorPickMemberHint = {
+  relativeLastConducted: string;
+  mechanismLabel: string | null;
+};
+
 type RosterMember = {
   memberId: string;
   memberName: string;
@@ -10,11 +15,14 @@ type RosterMember = {
 type Props = {
   open: boolean;
   members: RosterMember[];
+  memberHints?: Record<string, ConductorPickMemberHint>;
+  hintsLoading?: boolean;
   title: string;
   searchPlaceholder: string;
   emptyLabel: string;
   cancelLabel: string;
   confirmLabel: string;
+  hintsLoadingLabel?: string;
   showGuardianToggle?: boolean;
   guardianIsVipLabel?: string;
   onClose: () => void;
@@ -24,11 +32,14 @@ type Props = {
 export function ConductorPickModal({
   open,
   members,
+  memberHints,
+  hintsLoading = false,
   title,
   searchPlaceholder,
   emptyLabel,
   cancelLabel,
   confirmLabel,
+  hintsLoadingLabel,
   showGuardianToggle = false,
   guardianIsVipLabel,
   onClose,
@@ -88,18 +99,47 @@ export function ConductorPickModal({
           ) : (
             filtered.map((member) => {
               const isSelected = member.memberId === selectedId;
+              const hint = memberHints?.[member.memberId];
               return (
                 <li key={member.memberId}>
                   <button
                     type="button"
                     onClick={() => setSelectedId(member.memberId)}
-                    className={`w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium ${
+                    className={`w-full rounded-lg px-3 py-2.5 text-left ${
                       isSelected
                         ? "bg-hq-accent/15 text-hq-accent"
                         : "text-hq-fg hover:bg-hq-canvas"
                     }`}
                   >
-                    {member.memberName}
+                    <div className="text-sm font-medium">{member.memberName}</div>
+                    {memberHints ? (
+                      hintsLoading && !hint ? (
+                        <div className="mt-0.5 text-xs text-hq-fg-muted">
+                          {hintsLoadingLabel}
+                        </div>
+                      ) : hint ? (
+                        <div className="mt-0.5 space-y-0.5">
+                          <div
+                            className={`text-xs ${
+                              isSelected ? "text-hq-accent/80" : "text-hq-fg-muted"
+                            }`}
+                          >
+                            {hint.relativeLastConducted}
+                          </div>
+                          {hint.mechanismLabel ? (
+                            <div
+                              className={`text-xs ${
+                                isSelected
+                                  ? "text-hq-accent/70"
+                                  : "text-hq-fg-subtle"
+                              }`}
+                            >
+                              {hint.mechanismLabel}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null
+                    ) : null}
                   </button>
                 </li>
               );

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { normalizeDiscordBotLocale } from "@/lib/discord/i18n";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import {
@@ -35,6 +36,8 @@ export async function POST(request: Request) {
     date?: string;
     memberId?: string;
     memberName?: string;
+    announce?: boolean;
+    locale?: string;
   };
 
   const date = body.date?.trim() || getServerCalendarDate();
@@ -80,12 +83,15 @@ export async function POST(request: Request) {
       seasonKey,
     });
 
-    await maybeAnnounceTrainReady({
-      allianceId: ctx.allianceId,
-      date,
-      conductorName: locked.conductorMemberName,
-      vipName: locked.vipMemberName,
-    });
+    if (body.announce !== false) {
+      await maybeAnnounceTrainReady({
+        allianceId: ctx.allianceId,
+        date,
+        conductorName: locked.conductorMemberName,
+        vipName: locked.vipMemberName,
+        locale: normalizeDiscordBotLocale(body.locale),
+      });
+    }
 
     return NextResponse.json({ record: locked, poolsRefreshed });
   } catch (error) {
