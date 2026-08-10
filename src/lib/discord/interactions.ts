@@ -51,12 +51,24 @@ export type DiscordInteractionPayload = {
   locale?: string;
   data?: {
     name?: string;
+    /** Application command type: 1 slash, 2 user context menu, 3 message context menu. */
+    type?: number;
+    /** Target message id for message context-menu commands. */
+    target_id?: string;
     options?: Array<{ name: string; type: number; value?: unknown }>;
     custom_id?: string;
     resolved?: {
       attachments?: Record<
         string,
         { url?: string; filename?: string; content_type?: string }
+      >;
+      messages?: Record<
+        string,
+        {
+          id?: string;
+          content?: string;
+          author?: { id?: string; bot?: boolean };
+        }
       >;
     };
   };
@@ -88,6 +100,27 @@ export function interactionDiscordUsername(
   payload: DiscordInteractionPayload,
 ): string | undefined {
   return payload.member?.user?.username ?? payload.user?.username;
+}
+
+export type ResolvedTargetMessage = {
+  id: string;
+  content: string;
+  authorIsBot: boolean;
+};
+
+/** Target message of a message context-menu command (delivered in `resolved.messages`). */
+export function parseResolvedTargetMessage(
+  payload: DiscordInteractionPayload,
+): ResolvedTargetMessage | null {
+  const targetId = payload.data?.target_id;
+  if (!targetId) return null;
+  const message = payload.data?.resolved?.messages?.[targetId];
+  if (!message) return null;
+  return {
+    id: message.id ?? targetId,
+    content: typeof message.content === "string" ? message.content : "",
+    authorIsBot: message.author?.bot === true,
+  };
 }
 
 export function parseSlashOptionString(

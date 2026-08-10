@@ -28,6 +28,8 @@ export const HQ_PERMISSIONS = [
   { id: "bank:write", description: "Manage alliance bank strongholds and deposit slips" },
   { id: "time_off:read", description: "View alliance time-off calendar" },
   { id: "time_off:write", description: "Manage time-off entries for alliance members" },
+  { id: "officer_intel:read", description: "View officer intelligence sessions and ingested chat" },
+  { id: "officer_intel:write", description: "Upload and manage officer intelligence chat sessions" },
 ] as const;
 
 export const BATTLE_PLAN_READ_PERMISSION = "battle_plan:read";
@@ -38,6 +40,9 @@ export const BANK_WRITE_PERMISSION = "bank:write";
 
 export const TIME_OFF_READ_PERMISSION = "time_off:read";
 export const TIME_OFF_WRITE_PERMISSION = "time_off:write";
+
+export const OFFICER_INTEL_READ_PERMISSION = "officer_intel:read";
+export const OFFICER_INTEL_WRITE_PERMISSION = "officer_intel:write";
 
 export const TRAINS_WRITE_PERMISSION = "trains:write";
 
