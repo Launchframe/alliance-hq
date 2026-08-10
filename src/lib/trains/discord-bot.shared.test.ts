@@ -5,6 +5,7 @@ import {
   formatTrainReadyMessage,
   formatTrainStatusReply,
   groupTrainChannelsByAlliance,
+  shouldAnnounceTrainLockForDate,
   TRAIN_DEPARTING_SOON_ELAPSED_HOURS,
 } from "@/lib/trains/discord-bot.shared";
 
@@ -43,6 +44,15 @@ describe("discord train message formatting", () => {
 
   it("uses 3h elapsed before departing-soon window", () => {
     expect(TRAIN_DEPARTING_SOON_ELAPSED_HOURS).toBe(3);
+  });
+
+  it("announces lock-in only for today's server calendar date", () => {
+    expect(shouldAnnounceTrainLockForDate("2026-07-23", "2026-07-23")).toBe(
+      true,
+    );
+    expect(shouldAnnounceTrainLockForDate("2026-07-22", "2026-07-23")).toBe(
+      false,
+    );
   });
 
   it("groups train channels by alliance for departing-soon cron", () => {

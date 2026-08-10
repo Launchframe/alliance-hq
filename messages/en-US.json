@@ -3435,8 +3435,13 @@
     "lockConductor": "Lock in Conductor",
     "trainIsReady": {
       "action": "Train is ready",
-      "confirm": "Lock **{name}** for **{date}** and announce in Discord?",
+      "confirm": "Lock **{name}** for **{date}**?",
+      "confirmHint": "Announce in Discord, copy the message for a manual post, or lock quietly.",
       "confirmAction": "Lock & announce",
+      "lockOnlyAction": "Lock only",
+      "announcePreviewLabel": "Discord announcement",
+      "copyAnnouncement": "Copy",
+      "copiedAnnouncement": "Copied",
       "cancel": "Cancel"
     },
     "locking": "Locking…",
@@ -3453,6 +3458,16 @@
     "pickConductorEmpty": "No members match your search.",
     "pickConductorCancel": "Cancel",
     "pickConductorConfirm": "Confirm conductor",
+    "pickConductorLastConducted": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "daysAgo": "{count, plural, one {# day ago} other {# days ago}}",
+      "weeksAgo": "{count, plural, one {# week ago} other {# weeks ago}}",
+      "monthsAgo": "{count, plural, one {# month ago} other {# months ago}}",
+      "yearsAgo": "{count, plural, one {# year ago} other {# years ago}}",
+      "never": "Never conducted",
+      "loading": "Loading conduct history…"
+    },
     "pickVipManually": "Pick VIP",
     "pickVipTitle": "Pick VIP · {date}",
     "pickVipSearch": "Search members…",

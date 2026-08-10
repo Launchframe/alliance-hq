@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { ConductorPickModal } from "@/components/trains/ConductorPickModal";
+import type { ConductorPickMemberHint } from "@/components/trains/ConductorPickModal";
 import { ConductorSwapDialog } from "@/components/trains/ConductorSwapDialog";
 import { ConductorHistoryDialog } from "@/components/trains/ConductorHistoryDialog";
 import { ConductorHistoryTable } from "@/components/trains/ConductorHistoryTable";
@@ -15,6 +16,7 @@ import {
 } from "@/components/trains/ConductorWheelSharePreviewDialog";
 import { TrainsHelpPanel } from "@/components/trains/TrainsHelpPanel";
 import { TrainsGuidedConductorFlow } from "@/components/trains/TrainsGuidedConductorFlow";
+import { TrainLockConfirmBanner } from "@/components/trains/TrainLockConfirmBanner";
 import { renderConductorWheelSharePngBlob } from "@/lib/client/conductor-wheel-share-image.client";
 import { buildShareViewportForWinner } from "@/lib/trains/conductor-wheel-reel.shared";
 import {
@@ -54,6 +56,14 @@ import {
 import { TrainSpinSourcePanel } from "@/components/trains/TrainSpinSourcePanel";
 import { TrainMonthCalendar } from "@/components/trains/TrainMonthCalendar";
 import { DAY_PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
+import {
+  formatTrainReadyMessage,
+  shouldAnnounceTrainLockForDate,
+} from "@/lib/trains/discord-bot.shared";
+import { buildDiscordBotAppUrl } from "@/lib/discord/app-url.shared";
+import type { DiscordBotLocale } from "@/lib/discord/i18n";
+import { formatRelativeConductorLastConducted } from "@/lib/trains/conductor-last-conducted-display.shared";
+import { resolveConductorMechanismLabel } from "@/lib/trains/conductor-mechanism-labels.shared";
 import {
   TrainScheduleViewToggle,
   type ScheduleView,
@@ -238,6 +248,18 @@ export function TrainsDashboard({ initial }: Props) {
   const viewedMonthKeyRef = useRef(initialMonthKey);
   const [pickOpen, setPickOpen] = useState(false);
   const [pickRole, setPickRole] = useState<"conductor" | "vip">("conductor");
+  const [pickHintsLoading, setPickHintsLoading] = useState(false);
+  const [pickHintsRaw, setPickHintsRaw] = useState<
+    Record<
+      string,
+      { lastConductedDate: string; conductorMechanism: string | null }
+    >
+  >({});
+  const closePickModal = () => {
+    setPickOpen(false);
+    setPickHintsRaw({});
+    setPickHintsLoading(false);
+  };
   const [reseedHintOpen, setReseedHintOpen] = useState(false);
   const [poolRefreshedHint, setPoolRefreshedHint] =
     useState<PoolRefreshedHint | null>(null);
@@ -604,6 +626,40 @@ export function TrainsDashboard({ initial }: Props) {
       officer_pick: t("mechanismsShort.officerPick"),
       event_top_x_lottery: t("mechanismsShort.eventTopX"),
       custom: t("mechanismsShort.custom"),
+    }),
+    [t],
+  );
+
+  const conductorMechanismLabels = useMemo(
+    () => ({
+      vs_high_score: t("mechanisms.vsHighScore"),
+      vs_top_10: t("mechanisms.vsTop10"),
+      vs_top_n: t("mechanisms.vsTopN"),
+      vr_top_n: t("mechanisms.vrTopN"),
+      r3_lottery: t("mechanisms.r3Lottery"),
+      heavy_hitter_lottery: t("mechanisms.heavyHitterLottery"),
+      r4_sequence: t("mechanisms.r4Sequence"),
+      donations_top: t("mechanisms.donationsTop"),
+      officer_pick: t("mechanisms.officerPick"),
+      event_top_x_lottery: t("mechanisms.eventTopX"),
+      custom: t("mechanisms.custom"),
+    }),
+    [t],
+  );
+
+  const relativeConductLabels = useMemo(
+    () => ({
+      today: t("pickConductorLastConducted.today"),
+      yesterday: t("pickConductorLastConducted.yesterday"),
+      daysAgo: (count: number) =>
+        t("pickConductorLastConducted.daysAgo", { count }),
+      weeksAgo: (count: number) =>
+        t("pickConductorLastConducted.weeksAgo", { count }),
+      monthsAgo: (count: number) =>
+        t("pickConductorLastConducted.monthsAgo", { count }),
+      yearsAgo: (count: number) =>
+        t("pickConductorLastConducted.yearsAgo", { count }),
+      never: t("pickConductorLastConducted.never"),
     }),
     [t],
   );
@@ -1015,7 +1071,10 @@ export function TrainsDashboard({ initial }: Props) {
     [applySnapshot, t],
   );
 
-  const lockConductor = async (date = selectedDate) => {
+  const lockConductor = async (
+    date = selectedDate,
+    options?: { announce?: boolean },
+  ) => {
     if (rollingRole || reseedingPool || conductorLockBusy) return;
     setConductorLockBusy("lock");
     try {
@@ -1026,7 +1085,10 @@ export function TrainsDashboard({ initial }: Props) {
           const res = await fetch("/api/trains/conductor/lock", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ date }),
+            body: JSON.stringify({
+              date,
+              ...(options?.announce === false ? { announce: false } : {}),
+            }),
           });
           const body = (await res.json()) as RollResponse;
           if (res.ok && body.poolsRefreshed?.length) {
@@ -1104,7 +1166,7 @@ export function TrainsDashboard({ initial }: Props) {
     memberId: string;
     memberName: string;
   }) => {
-    setPickOpen(false);
+    closePickModal();
     await withOptimisticMutation(
       (snap) => applyOptimisticConductorPick(snap, selectedDate, member),
       async () => {
@@ -1133,7 +1195,7 @@ export function TrainsDashboard({ initial }: Props) {
     },
     guardianIsVip: boolean,
   ) => {
-    setPickOpen(false);
+    closePickModal();
     await withOptimisticMutation(
       (snap) =>
         applyOptimisticConductorRoll(snap, selectedDate, "vip", member, {
@@ -1605,6 +1667,120 @@ export function TrainsDashboard({ initial }: Props) {
     conductorConfig: selectedConductorConfig,
     topN: selectedDayConfig?.topN,
   });
+  const announceOnLock =
+    data.trainDiscordConfigured &&
+    shouldAnnounceTrainLockForDate(selectedDate, data.today);
+  const trainReadyAnnouncementText = useMemo(() => {
+    const conductorName = selectedRecord?.conductorMemberName?.trim();
+    if (!conductorName) return "";
+    return formatTrainReadyMessage({
+      conductorName,
+      vipName: selectedRecord?.vipMemberName,
+      date: selectedDate,
+      trainsUrl: buildDiscordBotAppUrl(locale as DiscordBotLocale, "/trains"),
+    });
+  }, [
+    locale,
+    selectedDate,
+    selectedRecord?.conductorMemberName,
+    selectedRecord?.vipMemberName,
+  ]);
+  const lockConfirmBanner =
+    trainReadyConfirm && announceOnLock && !locked && hasValidConductor ? (
+      <TrainLockConfirmBanner
+        message={t("trainIsReady.confirm", {
+          name: selectedRecord?.conductorMemberName ?? "—",
+          date: selectedDate,
+        })}
+        hint={t("trainIsReady.confirmHint")}
+        announcementText={trainReadyAnnouncementText}
+        announcementPreviewLabel={t("trainIsReady.announcePreviewLabel")}
+        cancelLabel={t("trainIsReady.cancel")}
+        confirmAnnounceLabel={t("trainIsReady.confirmAction")}
+        lockOnlyLabel={t("trainIsReady.lockOnlyAction")}
+        copyAnnouncementLabel={t("trainIsReady.copyAnnouncement")}
+        copiedAnnouncementLabel={t("trainIsReady.copiedAnnouncement")}
+        copyFailedLabel={t("common.copyFailed")}
+        confirmingLabel={t("locking")}
+        confirming={conductorLockBusy === "lock"}
+        busy={trainQuickActionBusy}
+        onCancel={() => setTrainReadyConfirm(false)}
+        onConfirmAnnounce={() => {
+          setTrainReadyConfirm(false);
+          void lockConductor();
+        }}
+        onConfirmLockOnly={() => {
+          setTrainReadyConfirm(false);
+          void lockConductor(selectedDate, { announce: false });
+        }}
+      />
+    ) : null;
+  const pickRosterMembers = useMemo(
+    () =>
+      pickRole === "conductor" && conductorPaint === "r3_recognition"
+        ? data.roster.filter((member) => member.allianceRank === 3)
+        : data.roster,
+    [pickRole, conductorPaint, data.roster],
+  );
+  useEffect(() => {
+    if (!pickOpen || pickRole !== "conductor") return;
+
+    let cancelled = false;
+    void (async () => {
+      setPickHintsLoading(true);
+      try {
+        const res = await fetch(
+          `/api/trains/conductor/pick-hints?date=${encodeURIComponent(selectedDate)}`,
+        );
+        const body = (await res.json()) as {
+          members?: Record<
+            string,
+            { lastConductedDate: string; conductorMechanism: string | null }
+          >;
+        };
+        if (!cancelled && res.ok && body.members) {
+          setPickHintsRaw(body.members);
+        }
+      } finally {
+        if (!cancelled) setPickHintsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pickOpen, pickRole, selectedDate]);
+  const pickMemberHints = useMemo((): Record<
+    string,
+    ConductorPickMemberHint
+  > | undefined => {
+    if (pickRole !== "conductor" || !pickOpen) return undefined;
+
+    const hints: Record<string, ConductorPickMemberHint> = {};
+    for (const member of pickRosterMembers) {
+      const raw = pickHintsRaw[member.memberId];
+      hints[member.memberId] = {
+        relativeLastConducted: formatRelativeConductorLastConducted(
+          raw?.lastConductedDate ?? null,
+          selectedDate,
+          relativeConductLabels,
+        ),
+        mechanismLabel: resolveConductorMechanismLabel(
+          raw?.conductorMechanism ?? null,
+          conductorMechanismLabels,
+        ),
+      };
+    }
+    return hints;
+  }, [
+    pickRole,
+    pickOpen,
+    pickRosterMembers,
+    pickHintsRaw,
+    selectedDate,
+    relativeConductLabels,
+    conductorMechanismLabels,
+  ]);
   const canSpinConductorWheel =
     canRoll &&
     canSpinConductor(
@@ -2140,7 +2316,7 @@ export function TrainsDashboard({ initial }: Props) {
                   setPickOpen(true);
                 }}
                 onLock={() => {
-                  if (data.trainDiscordConfigured) {
+                  if (announceOnLock) {
                     setTrainReadyConfirm(true);
                     return;
                   }
@@ -2156,6 +2332,7 @@ export function TrainsDashboard({ initial }: Props) {
                     : undefined
                 }
                 shareBusy={shareExportBusy}
+                lockConfirm={lockConfirmBanner}
                 poolPanel={
                   isPoolSpinSource(selectedConductorSpinSource) ||
                   isPoolSpinSource(selectedVipSpinSource) ? (
@@ -2242,39 +2419,6 @@ export function TrainsDashboard({ initial }: Props) {
                 }
                 videoUploadHref={guidedVideoUploadHref}
               />
-              {trainReadyConfirm &&
-              data.trainDiscordConfigured &&
-              !locked &&
-              hasValidConductor ? (
-                <div className="mt-3 flex w-full flex-wrap items-center gap-2 rounded-lg border border-hq-success/40 bg-hq-success/10 px-3 py-2">
-                  <span className="text-sm text-hq-green">
-                    {t("trainIsReady.confirm", {
-                      name: selectedRecord?.conductorMemberName ?? "—",
-                      date: selectedDate,
-                    })}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setTrainReadyConfirm(false)}
-                    className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg hover:bg-hq-canvas"
-                  >
-                    {t("trainIsReady.cancel")}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={trainQuickActionBusy}
-                    onClick={() => {
-                      setTrainReadyConfirm(false);
-                      void lockConductor();
-                    }}
-                    className="rounded-md bg-hq-success px-3 py-1.5 text-xs font-medium text-white hover:bg-hq-success-hover disabled:opacity-50"
-                  >
-                    {conductorLockBusy === "lock"
-                      ? t("locking")
-                      : t("trainIsReady.confirmAction")}
-                  </button>
-                </div>
-              ) : null}
               </>
             ) : (
             <div
@@ -2443,36 +2587,9 @@ export function TrainsDashboard({ initial }: Props) {
                   </button>
                 ) : null}
                 {!locked && hasValidConductor ? (
-                  data.trainDiscordConfigured ? (
+                  announceOnLock ? (
                     trainReadyConfirm ? (
-                      <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-hq-success/40 bg-hq-success/10 px-3 py-2">
-                        <span className="text-sm text-hq-green">
-                          {t("trainIsReady.confirm", {
-                            name: selectedRecord?.conductorMemberName ?? "—",
-                            date: selectedDate,
-                          })}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setTrainReadyConfirm(false)}
-                          className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg hover:bg-hq-canvas"
-                        >
-                          {t("trainIsReady.cancel")}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={trainQuickActionBusy}
-                          onClick={() => {
-                            setTrainReadyConfirm(false);
-                            void lockConductor();
-                          }}
-                          className="rounded-md bg-hq-success px-3 py-1.5 text-xs font-medium text-white hover:bg-hq-success-hover disabled:opacity-50"
-                        >
-                          {conductorLockBusy === "lock"
-                            ? t("locking")
-                            : t("trainIsReady.confirmAction")}
-                        </button>
-                      </div>
+                      lockConfirmBanner
                     ) : (
                       <button
                         type="button"
@@ -2602,11 +2719,10 @@ export function TrainsDashboard({ initial }: Props) {
 
       <ConductorPickModal
         open={pickOpen}
-        members={
-          pickRole === "conductor" && conductorPaint === "r3_recognition"
-            ? data.roster.filter((member) => member.allianceRank === 3)
-            : data.roster
-        }
+        members={pickRosterMembers}
+        memberHints={pickMemberHints}
+        hintsLoading={pickHintsLoading}
+        hintsLoadingLabel={t("pickConductorLastConducted.loading")}
         title={
           pickRole === "vip"
             ? t("pickVipTitle", { date: selectedDate.slice(5) })
@@ -2630,7 +2746,7 @@ export function TrainsDashboard({ initial }: Props) {
         guardianIsVipLabel={
           pickRole === "vip" ? t("guardianIsVip") : undefined
         }
-        onClose={() => setPickOpen(false)}
+        onClose={closePickModal}
         onPick={(member, guardianIsVip) =>
           void (pickRole === "vip"
             ? pickVip(member, guardianIsVip)

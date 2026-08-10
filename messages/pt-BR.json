@@ -3381,8 +3381,13 @@
     "lockConductor": "Confirmar Condutor",
     "trainIsReady": {
       "action": "Trem pronto",
-      "confirm": "Travar **{name}** para **{date}** e anunciar no Discord?",
+      "confirm": "Travar **{name}** para **{date}**?",
+      "confirmHint": "Anuncie no Discord, copie a mensagem para um post manual ou trave em silêncio.",
       "confirmAction": "Travar e anunciar",
+      "lockOnlyAction": "Só travar",
+      "announcePreviewLabel": "Anúncio no Discord",
+      "copyAnnouncement": "Copiar",
+      "copiedAnnouncement": "Copiado",
       "cancel": "Cancelar"
     },
     "locking": "Confirmando…",
@@ -3399,6 +3404,16 @@
     "pickConductorEmpty": "Nenhum membro corresponde à busca.",
     "pickConductorCancel": "Cancelar",
     "pickConductorConfirm": "Confirmar condutor",
+    "pickConductorLastConducted": {
+      "today": "Hoje",
+      "yesterday": "Ontem",
+      "daysAgo": "{count, plural, one {# dia atrás} other {# dias atrás}}",
+      "weeksAgo": "{count, plural, one {# semana atrás} other {# semanas atrás}}",
+      "monthsAgo": "{count, plural, one {# mês atrás} other {# meses atrás}}",
+      "yearsAgo": "{count, plural, one {# ano atrás} other {# anos atrás}}",
+      "never": "Nunca conduziu",
+      "loading": "Carregando histórico…"
+    },
     "pickVipManually": "Escolher VIP",
     "pickVipTitle": "Escolher VIP · {date}",
     "pickVipSearch": "Buscar membros…",

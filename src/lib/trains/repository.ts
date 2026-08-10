@@ -780,6 +780,43 @@ export async function getConductorStats(
   return { lastConductedDate, conductsThisYear };
 }
 
+export type MemberLastLockedConductorSummary = {
+  memberId: string;
+  date: string;
+  conductorMechanism: string | null;
+};
+
+/** Latest locked conduct per member strictly before `beforeDate`. */
+export async function listMemberLastLockedConducts(
+  allianceId: string,
+  beforeDate: string,
+): Promise<MemberLastLockedConductorSummary[]> {
+  const db = getDb();
+  const result = await db.execute<{
+    member_id: string;
+    date: string;
+    conductor_mechanism: string | null;
+  }>(sql`
+    SELECT DISTINCT ON (${schema.trainConductorRecords.conductorMemberId})
+      ${schema.trainConductorRecords.conductorMemberId} AS member_id,
+      ${schema.trainConductorRecords.date} AS date,
+      ${schema.trainConductorRecords.conductorMechanism} AS conductor_mechanism
+    FROM ${schema.trainConductorRecords}
+    WHERE ${schema.trainConductorRecords.allianceId} = ${allianceId}
+      AND ${schema.trainConductorRecords.lockedAt} IS NOT NULL
+      AND ${schema.trainConductorRecords.conductorMemberId} IS NOT NULL
+      AND ${schema.trainConductorRecords.date} < ${beforeDate}
+    ORDER BY ${schema.trainConductorRecords.conductorMemberId},
+             ${schema.trainConductorRecords.date} DESC
+  `);
+
+  return result.map((row) => ({
+    memberId: row.member_id,
+    date: row.date,
+    conductorMechanism: row.conductor_mechanism,
+  }));
+}
+
 export async function listInventoryItems(): Promise<
   Array<(typeof schema.inventoryItems.$inferSelect)>
 > {
