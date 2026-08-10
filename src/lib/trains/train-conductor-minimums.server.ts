@@ -3,7 +3,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
-import { fetchHqSeasonVsScoresByMember } from "@/lib/trains/native-scores.server";
+import { fetchAllianceVsScoresForEvaluationPeriod } from "@/lib/trains/vs-scores.server";
 import {
   buildMemberQualification,
   conductorQualificationGateApplies,
@@ -92,8 +92,11 @@ export async function evaluateConductorQualification(input: {
     trainWeekConfig,
   );
 
-  // HQ stores season VR totals only (no per-day VS or donation ledger yet).
-  const vsTotals = await fetchHqSeasonVsScoresByMember(input.allianceId);
+  const vsTotals = await fetchAllianceVsScoresForEvaluationPeriod(
+    input.allianceId,
+    start,
+    end,
+  );
 
   return buildMemberQualification({
     vsScore: vsTotals.get(input.memberId) ?? 0,
@@ -126,7 +129,11 @@ export async function filterMemberIdsByConductorMinimums(
     trainWeekConfig,
   );
   const evalSettings = minimumsSettingsForHqLocalEval(settings);
-  const vsTotals = await fetchHqSeasonVsScoresByMember(allianceId);
+  const vsTotals = await fetchAllianceVsScoresForEvaluationPeriod(
+    allianceId,
+    start,
+    end,
+  );
 
   return memberIds.filter((memberId) => {
     const qualification = buildMemberQualification({
@@ -142,7 +149,7 @@ export async function filterMemberIdsByConductorMinimums(
 
 /**
  * Whether pool seed/reseed should filter candidates by conductor minimums.
- * Matches post-roll DQ gating (season HQ VR — independent of VS upload).
+ * Matches post-roll DQ gating (prior-day / prior-week Ashed VS totals).
  */
 export async function resolvePoolRespectsConductorMinimums(input: {
   allianceId: string;

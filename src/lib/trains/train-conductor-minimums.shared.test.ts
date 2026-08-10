@@ -52,8 +52,8 @@ describe("train-conductor-minimums", () => {
         minimumsEnabled: true,
       }),
     ).toBe(true);
-    // Season HQ VR minimums apply even when prior-day VS is not required
-    // (e.g. Monday / economy week with Sunday break).
+    // VS minimums apply to r3/heavy_hitter pools when enabled (score source is
+    // Ashed VS for the evaluation window, not season VR).
     expect(
       conductorQualificationGateApplies({
         poolType: "r3",

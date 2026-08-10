@@ -7,6 +7,11 @@ import { useTranslations } from "next-intl";
 import { ScoreLeaderboardPodium } from "@/components/trains/ScoreLeaderboardPodium";
 import { Dialog } from "@/components/ui/dialog";
 import { poolUsesSequenceDraw } from "@/lib/trains/pool-draw-mode.shared";
+import {
+  poolResetConfirmActionKey,
+  poolResetConfirmBodyKey,
+  poolResetTriggerLabelKey,
+} from "@/lib/trains/pool-reset-copy.shared";
 import type { ScoreLeaderboardKind } from "@/lib/trains/score-leaderboard-podium.shared";
 import type { PoolType } from "@/lib/trains/types";
 
@@ -34,9 +39,19 @@ type EventPoolContext = {
   vsDayKey: string | null;
 };
 
+type PriorGenerationSnapshot = {
+  generation: number;
+  total: number;
+  picked: number;
+  remaining: number;
+  exhausted: boolean;
+  unpickedMemberNames: string[];
+};
+
 type PoolPayload = {
   summary: PoolSummary;
   entries: PoolEntryRow[];
+  priorGenerations?: PriorGenerationSnapshot[];
   eventContext?: EventPoolContext | null;
   error?: string;
 };
@@ -105,6 +120,9 @@ export function TrainEligibilityDialog({
   const [payload, setPayload] = useState<PoolPayload | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [resetConfirm, setResetConfirm] = useState(false);
+  const [expandedPriorGeneration, setExpandedPriorGeneration] = useState<
+    number | null
+  >(null);
 
   const defaultPoolType = useMemo(
     () => resolveInitialPoolType(open, options, initialPoolType),
@@ -168,6 +186,7 @@ export function TrainEligibilityDialog({
     setPayload(null);
     setFetchError(null);
     setResetConfirm(false);
+    setExpandedPriorGeneration(null);
     onClose();
   }, [onClose]);
 
@@ -247,6 +266,17 @@ export function TrainEligibilityDialog({
         ? t("conductorPool")
         : null;
 
+  const priorGenerations = payload?.priorGenerations ?? [];
+  const resetConfirmBodyKey = payload
+    ? poolResetConfirmBodyKey(payload.summary)
+    : "resetConfirmBodyExhausted";
+  const resetConfirmActionKey = payload
+    ? poolResetConfirmActionKey(payload.summary)
+    : "resetConfirmActionStartRotation";
+  const resetTriggerLabelKey = payload
+    ? poolResetTriggerLabelKey(payload.summary)
+    : "startNewRotation";
+
   return (
     <Dialog
       open={open}
@@ -281,6 +311,63 @@ export function TrainEligibilityDialog({
             </p>
           ) : null}
         </div>
+
+        {priorGenerations.length > 0 ? (
+          <div
+            className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2"
+            data-testid="trains-eligibility-prior-generations"
+          >
+            <p className="text-sm font-medium text-hq-fg">
+              {t("priorGenerationsTitle")}
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-hq-fg-muted">
+              {t("priorGenerationsHint")}
+            </p>
+            <ul className="mt-2 space-y-2">
+              {priorGenerations.map((prior) => {
+                const expanded = expandedPriorGeneration === prior.generation;
+                return (
+                  <li
+                    key={prior.generation}
+                    className="rounded-md border border-hq-border/80 bg-hq-canvas/40 px-2.5 py-2"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm text-hq-fg">
+                        {t("priorGenerationSummary", {
+                          generation: prior.generation,
+                          picked: prior.picked,
+                          remaining: prior.remaining,
+                        })}
+                      </p>
+                      {prior.remaining > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedPriorGeneration(
+                              expanded ? null : prior.generation,
+                            )
+                          }
+                          className="text-xs font-medium text-cyan-400 hover:text-cyan-300"
+                        >
+                          {expanded
+                            ? t("priorGenerationHideUnpicked")
+                            : t("priorGenerationShowUnpicked", {
+                                count: prior.remaining,
+                              })}
+                        </button>
+                      ) : null}
+                    </div>
+                    {expanded && prior.unpickedMemberNames.length > 0 ? (
+                      <p className="mt-2 text-xs leading-relaxed text-hq-fg-muted">
+                        {prior.unpickedMemberNames.join(", ")}
+                      </p>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
 
         {showScorePodium ? (
           <ScoreLeaderboardPodium
@@ -434,7 +521,13 @@ export function TrainEligibilityDialog({
           <div className="border-t border-hq-border pt-3">
             {resetConfirm ? (
               <div className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-                <p className="text-sm text-hq-fg">{t("resetConfirmBody")}</p>
+                <p className="text-sm text-hq-fg">
+                  {t(resetConfirmBodyKey, {
+                    generation: payload?.summary.generation ?? 1,
+                    nextGeneration: (payload?.summary.generation ?? 1) + 1,
+                    remaining: payload?.summary.remaining ?? 0,
+                  })}
+                </p>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -454,7 +547,7 @@ export function TrainEligibilityDialog({
                     className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
                     data-testid="trains-eligibility-reset-confirm"
                   >
-                    {resetBusy ? tRoot("reseedingPool") : t("resetConfirmAction")}
+                    {resetBusy ? tRoot("reseedingPool") : t(resetConfirmActionKey)}
                   </button>
                 </div>
               </div>
@@ -467,7 +560,7 @@ export function TrainEligibilityDialog({
                   className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg-muted hover:text-hq-fg disabled:opacity-50"
                   data-testid="trains-eligibility-reset"
                 >
-                  {resetBusy ? tRoot("reseedingPool") : tRoot("reseedPool")}
+                  {resetBusy ? tRoot("reseedingPool") : tRoot(resetTriggerLabelKey)}
                 </button>
                 {onOpenReseedHint ? (
                   <button

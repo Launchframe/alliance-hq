@@ -170,10 +170,9 @@ export function formatTrainPointCount(value: number, locale: string): string {
  * Whether a wheel spin should run the post-roll conductor minimums gate.
  * Skips R4+ pools and alliances with no minimums configured.
  *
- * Minimums evaluate season HQ VR (`fetchHqSeasonVsScoresByMember`), not
- * prior-day Ashed VS — so VS upload readiness / `classifyVsDataNeed` must
- * not gate enforcement. Otherwise Monday (Sunday break → `required: false`)
- * and non-VS `r3_lottery` days silently admit below-threshold winners.
+ * Minimums evaluate Ashed daily VS over the configured window (prior calendar
+ * day or prior train week). Donation thresholds are not enforced until HQ
+ * stores donation scores. VS upload gaps yield zero scores for missing days.
  */
 export function conductorQualificationGateApplies(input: {
   poolType: PoolType | null | undefined;

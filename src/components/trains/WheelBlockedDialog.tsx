@@ -7,6 +7,11 @@ import { Dialog } from "@/components/ui/dialog";
 import { Link } from "@/i18n/navigation";
 import type { TrainRollErrorDetails } from "@/lib/trains/roll-errors.shared";
 import type { PoolType } from "@/lib/trains/types";
+import {
+  resolveWheelBlockedReseedPoolType,
+  shouldShowWheelBlockedManualPick,
+  wheelBlockedReseedLabelKey,
+} from "@/lib/trains/wheel-blocked-cta.shared";
 
 type Props = {
   open: boolean;
@@ -64,28 +69,6 @@ function bodyMessageKey(details: TrainRollErrorDetails): string {
   }
 }
 
-function resolveReseedPoolType(
-  details: TrainRollErrorDetails,
-  fallbackPoolType?: PoolType | null,
-): PoolType | null {
-  const poolType = details.poolType ?? fallbackPoolType ?? null;
-  if (
-    poolType !== "r3" &&
-    poolType !== "r4_plus" &&
-    poolType !== "heavy_hitter"
-  ) {
-    return null;
-  }
-  if (
-    details.code === "POOL_EXHAUSTED" ||
-    details.code === "POOL_UNAVAILABLE" ||
-    details.code === "POOL_EMPTY"
-  ) {
-    return poolType;
-  }
-  return null;
-}
-
 function primaryLinkCta(
   details: TrainRollErrorDetails,
   options?: { canSyncRoster?: boolean; rosterSyncSucceeded?: boolean },
@@ -118,12 +101,6 @@ function primaryLinkCta(
     };
   }
   return null;
-}
-
-function showPickManuallyCta(details: TrainRollErrorDetails): boolean {
-  return (
-    details.code === "NO_WHEEL_CANDIDATES" || details.code === "ASHED_REQUIRED"
-  );
 }
 
 function showRetrySpinCta(details: TrainRollErrorDetails): boolean {
@@ -167,8 +144,12 @@ export function WheelBlockedDialog({
   const dialogBusy = busy || rosterSyncBusy;
   const rosterSyncSucceeded = rosterSyncNoticeTone === "success";
   const bodyKey = bodyMessageKey(details);
-  const reseedPoolType = resolveReseedPoolType(details, fallbackPoolType);
+  const reseedPoolType = resolveWheelBlockedReseedPoolType(
+    details,
+    fallbackPoolType,
+  );
   const showReseed = reseedPoolType != null && onReseedAndRespin != null;
+  const reseedLabelKey = wheelBlockedReseedLabelKey(details);
   const linkCta = primaryLinkCta(details, {
     canSyncRoster,
     rosterSyncSucceeded,
@@ -182,7 +163,7 @@ export function WheelBlockedDialog({
     !rosterSyncSucceeded;
   const showPick =
     canPickManually &&
-    showPickManuallyCta(details) &&
+    shouldShowWheelBlockedManualPick(details) &&
     onPickManually != null;
   const showRetry =
     showRetrySpinCta(details) && onRetrySpin != null && !showReseed;
@@ -295,7 +276,7 @@ export function WheelBlockedDialog({
             >
               {busy
                 ? t("wheelBlocked.reseedAndRespinBusy")
-                : t("wheelBlocked.reseedAndRespin")}
+                : t(reseedLabelKey)}
             </button>
           ) : null}
         </div>

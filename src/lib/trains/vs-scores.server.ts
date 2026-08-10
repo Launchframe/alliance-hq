@@ -280,6 +280,35 @@ export async function fetchAllianceVsTopScorersForTrainDate(
     });
 }
 
+/**
+ * VS totals for conductor-minimum evaluation over `periodStart`…`periodEnd`
+ * (inclusive). Single-day periods use that day's daily Ashed VSScore; multi-day
+ * periods sum daily scores (never weekly `is_weekly` totals).
+ */
+export async function fetchAllianceVsScoresForEvaluationPeriod(
+  allianceId: string,
+  periodStart: string,
+  periodEnd: string,
+): Promise<Map<string, number>> {
+  const resolved = await resolveAllianceAshedConnection(allianceId);
+  if (!resolved) return new Map();
+
+  if (periodStart === periodEnd) {
+    return fetchVsScoresByRecordedDate(
+      resolved.connection,
+      resolved.ashedAllianceId,
+      periodStart,
+    );
+  }
+
+  return fetchVsTotalsForDateRange(
+    resolved.connection,
+    resolved.ashedAllianceId,
+    periodStart,
+    periodEnd,
+  );
+}
+
 /** Daily VS scores for the calendar day before trainDate (never weekly totals). */
 export async function fetchAlliancePriorDayVsScoresForTrainDate(
   allianceId: string,

@@ -76,9 +76,9 @@ Do **not** use whole-week `setWeekTemplate` for pivot — it clears overrides.
 
 `resolveMemberPoolAllianceRank` in `rank-history.ts`: **prefer HQ rank events** when present (`member_alliance_rank_events`); do **not** take `Math.max(event, synced)` — a stale higher Ashed-synced rank must not override a confirmed HQ demotion. Use synced roster / `ashedRankRaw` only when no HQ event exists yet.
 
-### Conductor minimums (season HQ VR)
+### Conductor minimums (VS / donation settings)
 
-Alliance settings may require minimum season HQ VR for `r3` and `heavy_hitter` pool spins (`train-conductor-minimums.*`). Enforcement (pool seed filter + post-roll DQ) is **independent of prior-day VS upload** — do not gate minimums on `classifyVsDataNeed` or guided `prerequisites` readiness. R4+ pools ignore minimums.
+Alliance settings may require minimum **VS** (and donation, when HQ stores donation scores) for `r3` and `heavy_hitter` pool spins (`train-conductor-minimums.*`). Enforcement uses **Ashed daily VS** summed over the evaluation window (prior calendar day or prior train week) — **not** season VR. Do not gate minimum checks on `classifyVsDataNeed` / guided `prerequisites`; missing VS rows count as zero. R4+ pools ignore minimums.
 
 ### Price Is Freight (`price_is_right`)
 
