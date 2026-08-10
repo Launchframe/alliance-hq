@@ -151,6 +151,48 @@ describe("applyManualConductorDraft", () => {
     expect(mocks.upsertConductorDraft).not.toHaveBeenCalled();
   });
 
+  it("consumes an r4_plus pool slot when paint template is r4_event_vip", async () => {
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorMechanism: "r3_lottery",
+      vipMechanism: "event_top_x_lottery",
+      paintTemplate: "r4_event_vip",
+      dayConfigId: "dc-1",
+    });
+    mocks.listUnselectedPoolEntries.mockResolvedValue([
+      { memberId: "m-aline" },
+      { memberId: "m-bob" },
+    ]);
+    mocks.listPoolEntries.mockResolvedValue([
+      { memberId: "m-aline" },
+      { memberId: "m-bob" },
+    ]);
+
+    await applyManualConductorDraft({
+      allianceId: "ally-1",
+      date: "2026-08-16",
+      memberId: "m-aline",
+      memberName: "Aline the slayer",
+    });
+
+    expect(mocks.ensureConductorPoolSeeded).toHaveBeenCalledWith(
+      expect.objectContaining({
+        poolType: "r4_plus",
+        useSequence: true,
+      }),
+    );
+    expect(mocks.markPoolMemberSelectedForDate).toHaveBeenCalledWith(
+      "ally-1",
+      "r4_plus",
+      "m-aline",
+      "2026-08-16",
+    );
+    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conductorMechanism: "r4_sequence",
+      }),
+    );
+  });
+
   it("does not mark depleting pools for Price Is Freight paint templates", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
       conductorMechanism: "r3_lottery",

@@ -3,6 +3,7 @@ import "server-only";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { withConductorPoolClaimLock } from "@/lib/trains/conductor-pool-claim-lock.server";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
+import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
 import {
   depletingManualPickErrorMessage,
   evaluateDepletingManualPick,
@@ -58,7 +59,12 @@ export async function applyManualConductorDraft(input: {
     input.date,
     seasonKey,
   );
-  const mechanism = dayConfig.conductorMechanism;
+  const mechanism =
+    effectiveConductorMechanism(
+      dayConfig.conductorMechanism,
+      dayConfig.paintTemplate,
+      input.date,
+    ) ?? dayConfig.conductorMechanism;
   if (!supportsManualConductorPick(mechanism)) {
     throw new Error("Manual conductor pick is not allowed for this day.");
   }

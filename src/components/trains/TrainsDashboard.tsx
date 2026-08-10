@@ -1727,11 +1727,17 @@ export function TrainsDashboard({ initial }: Props) {
       />
     ) : null;
   const pickRosterMembers = useMemo(
-    () =>
-      pickRole === "conductor" && conductorPaint === "r3_recognition"
-        ? data.roster.filter((member) => member.allianceRank === 3)
-        : data.roster,
-    [pickRole, conductorPaint, data.roster],
+    () => {
+      if (pickRole !== "conductor") return data.roster;
+      if (conductorPaint === "r3_recognition") {
+        return data.roster.filter((member) => member.allianceRank === 3);
+      }
+      if (conductorMech === "r4_sequence") {
+        return data.roster.filter((member) => (member.allianceRank ?? 0) >= 4);
+      }
+      return data.roster;
+    },
+    [pickRole, conductorPaint, conductorMech, data.roster],
   );
   useEffect(() => {
     if (!pickOpen || pickRole !== "conductor") return;
