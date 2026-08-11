@@ -19,10 +19,11 @@ export type ResolvedMemberAllianceRank = {
 };
 
 /**
- * Effective rank for train pool eligibility. Prefer the HQ rank event when present
- * (same rule as {@link resolveMemberAllianceRankAsOf}) so confirmed demotions are
- * not overwritten by a stale higher Ashed roster rank after sync. Fall back to the
- * synced roster / Ashed rank raw when there is no event yet.
+ * Effective rank for train pool eligibility. HQ rank events win when the roster
+ * has not synced since the event's effective date; a newer {@link AllianceMember.syncedAt}
+ * overrides a stale lower HQ event (promotions). Without both dates, the HQ event
+ * wins on mismatch so confirmed demotions are not overwritten by stale roster rank.
+ * Falls back to synced roster / Ashed rank when there is no event yet.
  */
 export function resolveMemberPoolAllianceRank(
   member: AllianceMember,
