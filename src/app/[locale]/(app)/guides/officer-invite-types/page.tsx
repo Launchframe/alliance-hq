@@ -1,14 +1,14 @@
 import { ReleaseNoteMarkdown } from "@/components/release-notes/ReleaseNoteMarkdown";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { loadGuideMarkdown } from "@/lib/guides/load-guide.server";
 import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Officer invite types",
-  description:
-    "When to use invite links, join codes, and commander claim invites on Alliance HQ.",
-};
+export async function generateMetadata() {
+  const meta = allianceScopedMetadata("Officer invite types");
+  return { ...meta, description: "When to use invite links, join codes, and commander claim invites on Alliance HQ." };
+}
 
 export default async function OfficerInviteTypesGuidePage() {
   await requirePageSession("/guides/officer-invite-types");

@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 
@@ -15,6 +16,10 @@ import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("settings.trains");
+  return await allianceScopedMetadata(t("title"));
+}
 export default async function SettingsTrainsPage({
   params,
 }: {

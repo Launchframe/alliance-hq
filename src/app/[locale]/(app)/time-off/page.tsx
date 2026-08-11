@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { notFound } from "next/navigation";
 
 import { TimeOffCalendarClient } from "@/components/time-off/TimeOffCalendarClient";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata() {
   const t = await getTranslations("timeOff");
-  return { title: t("title") };
+  return await allianceScopedMetadata(t("title"));
 }
 
 export default async function TimeOffPage() {

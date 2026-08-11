@@ -1,4 +1,6 @@
 import { AllianceSettingsForm } from "@/components/AllianceSettingsForm";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
+import { getTranslations } from "next-intl/server";
 import { AllianceSettingsSetupGuideSection } from "@/components/settings/AllianceSettingsSetupGuideSection";
 import { AllianceContextRequired } from "@/components/settings/AllianceContextRequired";
 import { buildAllianceSetupStatusPayload } from "@/lib/alliance-setup-guide-status-api";
@@ -7,6 +9,10 @@ import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("settings");
+  return await allianceScopedMetadata(t("titleAlliance"));
+}
 export default async function SettingsPage({
   params,
 }: {

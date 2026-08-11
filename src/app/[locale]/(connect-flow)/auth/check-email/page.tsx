@@ -1,9 +1,15 @@
 import { getTranslations } from "next-intl/server";
+import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { Link } from "@/i18n/navigation";
 import { sanitizeInternalRedirectPath } from "@/lib/navigation/safe-redirect.shared";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata() {
+  const t = await getTranslations("metadata");
+  return standalonePageMetadata(t("pages.authCheckEmail"));
+}
 
 type Props = {
   searchParams: Promise<{ email?: string; callbackUrl?: string }>;

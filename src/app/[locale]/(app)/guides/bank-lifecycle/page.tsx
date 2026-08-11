@@ -1,4 +1,5 @@
 import { BankLifecycleGuideHub } from "@/components/guides/BankLifecycleGuideHub";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { requirePageSession } from "@/lib/session";
 import { getTranslations } from "next-intl/server";
 
@@ -12,10 +13,8 @@ export async function generateMetadata({ params }: Props) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "guides.bankLifecycle" });
 
-  return {
-    title: t("hub.title"),
-    description: t("hub.subtitle"),
-  };
+  const meta = await allianceScopedMetadata(t("hub.title"));
+  return { ...meta, description: t("hub.subtitle") };
 }
 
 export default async function BankLifecycleGuideHubPage() {

@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { OnboardingReviewsClient } from "@/components/members/OnboardingReviewsClient";
 import { canSessionReviewOnboardingLinks } from "@/lib/member-link/onboarding-review.server";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata() {
   const t = await getTranslations("onboardingReviews");
-  return { title: t("title") };
+  return await allianceScopedMetadata(t("title"));
 }
 
 export default async function OnboardingReviewsPage({

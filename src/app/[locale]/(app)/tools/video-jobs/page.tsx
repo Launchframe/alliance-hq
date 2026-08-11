@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { Link } from "@/i18n/navigation";
 import { VideoJobsConsolePage } from "@/components/video/VideoJobsConsolePage";
@@ -6,6 +7,10 @@ import { TOOLS_VIDEO_JOBS_CONSOLE } from "@/lib/video/video-jobs-console.shared"
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("toolsVideoJobs");
+  return await allianceScopedMetadata(t("title"));
+}
 export default async function ToolsVideoJobsPage() {
   const t = await getTranslations("toolsVideoJobs");
 

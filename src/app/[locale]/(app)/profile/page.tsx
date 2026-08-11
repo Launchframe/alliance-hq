@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { allianceScopedMetadata } from "@/lib/metadata/generate-page-metadata.server";
 
 import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import { Link } from "@/i18n/navigation";
@@ -7,6 +8,10 @@ import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata() {
+  const t = await getTranslations("profile");
+  return await allianceScopedMetadata(t("title"));
+}
 export default async function ProfilePage() {
   const session = await requirePageSession("/profile");
   const rbac = await getRbacContext(session.id);
