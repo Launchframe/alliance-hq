@@ -3769,6 +3769,13 @@
       "priorGenerationSummary": "Generation {generation}: {picked} chosen · {remaining} unpicked",
       "priorGenerationShowUnpicked": "Show {count} unpicked",
       "priorGenerationHideUnpicked": "Hide unpicked",
+      "restorePreviousTrigger": "Restore generation {generation}",
+      "restorePreviousConfirmBody": "Delete generation {current} and return to generation {prior}? Unpicked members from generation {prior} become eligible again.",
+      "restorePreviousConfirmBodyWithDrafts": "Delete generation {current} and return to generation {prior}? This discards {count} unlocked draft conductor(s) from generation {current}.",
+      "restorePreviousConfirmAction": "Restore generation {generation}",
+      "restorePreviousBusy": "Restoring…",
+      "restorePreviousBlockedLocked": "Unlock and discard locked conductors from this generation first ({dates}).",
+      "restorePreviousBlockedOverlap": "Cannot restore generation {prior} — someone picked there was also picked in generation {current}.",
       "vsWeekDays": {
         "radarTraining": "Radar Training",
         "baseExpansion": "Base Expansion",

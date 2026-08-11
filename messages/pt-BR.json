@@ -3715,6 +3715,13 @@
       "priorGenerationSummary": "Geração {generation}: {picked} escolhidos · {remaining} não escolhidos",
       "priorGenerationShowUnpicked": "Mostrar {count} não escolhidos",
       "priorGenerationHideUnpicked": "Ocultar não escolhidos",
+      "restorePreviousTrigger": "Restaurar geração {generation}",
+      "restorePreviousConfirmBody": "Excluir a geração {current} e voltar à geração {prior}? Os não escolhidos da geração {prior} voltam a ser elegíveis.",
+      "restorePreviousConfirmBodyWithDrafts": "Excluir a geração {current} e voltar à geração {prior}? Isso descarta {count} rascunho(s) de condutor da geração {current}.",
+      "restorePreviousConfirmAction": "Restaurar geração {generation}",
+      "restorePreviousBusy": "Restaurando…",
+      "restorePreviousBlockedLocked": "Desbloqueie e descarte os condutores bloqueados desta geração primeiro ({dates}).",
+      "restorePreviousBlockedOverlap": "Não é possível restaurar a geração {prior} — alguém escolhido nela também foi escolhido na geração {current}.",
       "vsWeekDays": {
         "radarTraining": "Treino de Radar",
         "baseExpansion": "Expansão da Base",
