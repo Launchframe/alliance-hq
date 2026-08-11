@@ -2609,7 +2609,9 @@ export function TrainsDashboard({ initial }: Props) {
                         ? t("assignNextInSequence", {
                             name: nextInSequence.memberName,
                           })
-                        : t("spinWheel")}
+                        : hasValidConductor
+                          ? t("wheel.spinAgain")
+                          : t("spinWheel")}
                   </button>
                 ) : null}
                 {canRoll &&

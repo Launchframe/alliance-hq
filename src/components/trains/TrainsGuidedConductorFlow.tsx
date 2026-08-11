@@ -151,11 +151,20 @@ function PrimaryCtaButton({
   );
 }
 
-function ChangeLink({ label, onClick }: { label: string; onClick: () => void }) {
+function ChangeLink({
+  label,
+  onClick,
+  testId,
+}: {
+  label: string;
+  onClick: () => void;
+  testId?: string;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
+      data-testid={testId}
       className="text-xs font-medium text-cyan-300 hover:text-cyan-200 hover:underline"
     >
       {label}
@@ -505,6 +514,23 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                 <span className="text-sm text-hq-fg-muted">
                   {t("steps.conductor.assigned", { name: conductorName ?? "—" })}
                 </span>
+                {!locked && canSpinConductorWheel ? (
+                  <ChangeLink
+                    label={tWheel("spinAgain")}
+                    onClick={onRollConductor}
+                    testId="trains-guided-spin-again"
+                  />
+                ) : null}
+                {!locked &&
+                canRoll &&
+                (conductorMech === "vs_high_score" ||
+                  conductorMech === "vs_top_n") &&
+                !canSpinConductorWheel ? (
+                  <ChangeLink
+                    label={t("steps.conductor.pickTop")}
+                    onClick={onPickTopScorer}
+                  />
+                ) : null}
                 {!locked && canManualPick ? (
                   <ChangeLink
                     label={t("steps.conductor.change")}
