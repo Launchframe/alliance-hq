@@ -33,6 +33,20 @@ describe("resolveMemberPoolAllianceRank", () => {
     expect(isMemberEligibleForPool("r4_plus", demotedRank)).toBe(false);
   });
 
+  it("prefers a newer synced roster rank over a stale lower HQ rank event", () => {
+    const promotedRank = resolveMemberPoolAllianceRank(
+      {
+        ...baseMember,
+        allianceRank: 5,
+        syncedAt: new Date("2026-08-10T12:00:00Z"),
+      } as AllianceMember,
+      { allianceRank: 3, effectiveDate: "2026-01-01" },
+    );
+    expect(promotedRank).toBe(5);
+    expect(isMemberEligibleForPool("r3", promotedRank)).toBe(false);
+    expect(isMemberEligibleForPool("r4_plus", promotedRank)).toBe(true);
+  });
+
   it("falls back to synced roster rank when no HQ event exists", () => {
     expect(
       resolveMemberPoolAllianceRank(

@@ -285,9 +285,10 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
           conductorMech === "donations_top") &&
         !canSpinConductorWheel
       ? { label: t("steps.conductor.pickTop"), onClick: onPickTopScorer }
-      : canManualPick
-        ? { label: t("steps.conductor.pickManual"), onClick: onPickConductorManual }
-        : null;
+      : null;
+
+  const showSecondaryPickConductor =
+    canManualPick && conductorAction?.onClick !== onPickConductorManual;
 
   const vipAction: PrimaryAction = canSpinVipWheel
     ? { label: t("steps.vip.spin"), onClick: onRollVip }
@@ -534,7 +535,29 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                   })}
                 </p>
               ) : null}
-              <PrimaryCtaButton action={conductorAction} busy={busy} />
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                {conductorAction ? (
+                  <PrimaryCtaButton action={conductorAction} busy={busy} />
+                ) : canManualPick ? (
+                  <PrimaryCtaButton
+                    action={{
+                      label: t("steps.conductor.pickManual"),
+                      onClick: onPickConductorManual,
+                    }}
+                    busy={busy}
+                  />
+                ) : null}
+                {showSecondaryPickConductor ? (
+                  <button
+                    type="button"
+                    onClick={onPickConductorManual}
+                    data-testid="trains-guided-pick-conductor"
+                    className="inline-flex w-full items-center justify-center rounded-lg border border-hq-border bg-hq-canvas px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-surface sm:w-auto"
+                  >
+                    {t("steps.conductor.pickManual")}
+                  </button>
+                ) : null}
+              </div>
             </div>
           ) : null}
         </StepRow>

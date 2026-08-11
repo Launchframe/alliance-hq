@@ -42,6 +42,8 @@ export async function applyManualConductorDraft(input: {
   date: string;
   memberId: string;
   memberName: string;
+  /** Officer confirmed re-using a member already picked in this pool generation. */
+  allowSameGenerationReuse?: boolean;
 }): Promise<typeof import("@/lib/db/schema").trainConductorRecords.$inferSelect> {
   const seasonKey = (await getEffectiveSeasonForAlliance(input.allianceId))
     .seasonKey;
@@ -128,17 +130,23 @@ export async function applyManualConductorDraft(input: {
             unselectedMemberIds: unselected.map((row) => row.memberId),
             poolMemberIds: poolEntries.map((row) => row.memberId),
           });
-          if (!gate.ok) {
+          if (gate.ok) {
+            const claimed = await markPoolMemberSelectedForDate(
+              input.allianceId,
+              poolType,
+              input.memberId,
+              input.date,
+            );
+            if (!claimed) {
+              throw new Error(depletingManualPickErrorMessage("already_awarded"));
+            }
+          } else if (
+            gate.reason === "already_awarded" &&
+            input.allowSameGenerationReuse
+          ) {
+            // Pool slot already consumed on another day in this generation.
+          } else {
             throw new Error(depletingManualPickErrorMessage(gate.reason));
-          }
-          const claimed = await markPoolMemberSelectedForDate(
-            input.allianceId,
-            poolType,
-            input.memberId,
-            input.date,
-          );
-          if (!claimed) {
-            throw new Error(depletingManualPickErrorMessage("already_awarded"));
           }
         },
       );

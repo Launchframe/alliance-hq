@@ -1,9 +1,10 @@
-import type {
-  ConductorMechanismType,
-  DayConfigInput,
-  EventTopXConfig,
-  VipMechanismType,
-  WeekTemplateType,
+import {
+  CONDUCTOR_MECHANISMS,
+  type ConductorMechanismType,
+  type DayConfigInput,
+  type EventTopXConfig,
+  type VipMechanismType,
+  type WeekTemplateType,
 } from "@/lib/trains/types";
 import {
   addCalendarDays,
@@ -249,19 +250,8 @@ export function supportsManualVipPick(
 export function supportsManualConductorPick(
   mechanism: ConductorMechanismType | string | null | undefined,
 ): boolean {
-  if (!mechanism) return false;
-  return (
-    mechanism === "r3_lottery" ||
-    mechanism === "heavy_hitter_lottery" ||
-    mechanism === "vs_high_score" ||
-    mechanism === "vs_top_10" ||
-    mechanism === "vs_top_n" ||
-    mechanism === "vr_top_n" ||
-    mechanism === "donations_top" ||
-    mechanism === "r4_sequence" ||
-    mechanism === "officer_pick" ||
-    mechanism === "custom"
-  );
+  if (mechanism == null || mechanism === "") return true;
+  return (CONDUCTOR_MECHANISMS as readonly string[]).includes(mechanism);
 }
 
 export function conductorMechanismPoolType(

@@ -94,6 +94,7 @@ import { fetchAllianceVsTopScorersForTrainDate } from "@/lib/trains/vs-scores.se
 import { countAllianceVrReporters } from "@/lib/trains/vr-reporter-count.server";
 import {
   getAllianceRanksAsOf,
+  memberIdsEligibleForPoolType,
   resolveMemberPoolAllianceRank,
   getMemberRankAsOf,
   isMemberEligibleForPool,
@@ -349,6 +350,16 @@ async function poolHasViableUnselectedEntries(input: {
     unselected = unselected.filter((row) => qualified.has(row.memberId));
   }
 
+  if (input.poolType === "r3" || input.poolType === "r4_plus") {
+    const rankEligible = await memberIdsEligibleForPoolType(
+      input.allianceId,
+      input.poolType,
+      input.date,
+      unselected.map((row) => row.memberId),
+    );
+    unselected = unselected.filter((row) => rankEligible.has(row.memberId));
+  }
+
   return unselected.length > 0;
 }
 
@@ -437,6 +448,16 @@ async function rollFromPool(
       if (qualifiedIds != null) {
         const qualified = new Set(qualifiedIds);
         unselected = unselected.filter((row) => qualified.has(row.memberId));
+      }
+
+      if (poolType === "r3" || poolType === "r4_plus") {
+        const rankEligible = await memberIdsEligibleForPoolType(
+          allianceId,
+          poolType,
+          date,
+          unselected.map((row) => row.memberId),
+        );
+        unselected = unselected.filter((row) => rankEligible.has(row.memberId));
       }
 
       let candidate: (typeof unselected)[number] | null = null;

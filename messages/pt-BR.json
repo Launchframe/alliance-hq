@@ -3404,6 +3404,7 @@
     "pickConductorEmpty": "Nenhum membro corresponde à busca.",
     "pickConductorCancel": "Cancelar",
     "pickConductorConfirm": "Confirmar condutor",
+    "pickConductorSameGenerationWarning": "Este membro já foi condutor na geração atual do pool. Confirme apenas se você quer escolhê-lo de novo antes de todos terem tido a vez.",
     "pickConductorLastConducted": {
       "today": "Hoje",
       "yesterday": "Ontem",

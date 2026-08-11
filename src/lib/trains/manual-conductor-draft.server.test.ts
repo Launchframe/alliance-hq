@@ -151,6 +151,35 @@ describe("applyManualConductorDraft", () => {
     expect(mocks.upsertConductorDraft).not.toHaveBeenCalled();
   });
 
+  it("allows same-generation reuse when the officer confirms the override", async () => {
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorMechanism: "r3_lottery",
+      vipMechanism: "conductor_pick",
+      paintTemplate: "economy_week",
+      dayConfigId: "dc-1",
+    });
+    mocks.listUnselectedPoolEntries.mockResolvedValue([{ memberId: "m-bob" }]);
+    mocks.listPoolEntries.mockResolvedValue([
+      { memberId: "m-alice" },
+      { memberId: "m-bob" },
+    ]);
+
+    await applyManualConductorDraft({
+      allianceId: "ally-1",
+      date: "2026-07-27",
+      memberId: "m-alice",
+      memberName: "Alice",
+      allowSameGenerationReuse: true,
+    });
+
+    expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
+    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conductorMemberId: "m-alice",
+      }),
+    );
+  });
+
   it("consumes an r4_plus pool slot when paint template is r4_event_vip", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
       conductorMechanism: "r3_lottery",

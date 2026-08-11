@@ -6,6 +6,11 @@ import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
 import type { PoolType } from "@/lib/trains/types";
 
+type PoolRankEvent = {
+  allianceRank: number;
+  effectiveDate?: string | null;
+};
+
 export type ResolvedMemberAllianceRank = {
   rank: number | null;
   title: string | null;
@@ -21,19 +26,80 @@ export type ResolvedMemberAllianceRank = {
  */
 export function resolveMemberPoolAllianceRank(
   member: AllianceMember,
-  rankEvent?: { allianceRank: number } | null,
+  rankEvent?: PoolRankEvent | null,
 ): number | null {
-  const eventRank = rankEvent?.allianceRank ?? null;
-  if (eventRank != null) {
-    return eventRank;
-  }
-
-  return (
+  const syncedRank =
     member.allianceRank ??
     parseAshedMemberAllianceRank(allianceMemberRowToAshedMember(member))
       .rank ??
-    null
+    null;
+
+  const eventRank = rankEvent?.allianceRank ?? null;
+  if (eventRank == null) {
+    return syncedRank;
+  }
+  if (syncedRank == null) {
+    return eventRank;
+  }
+  if (syncedRank === eventRank) {
+    return eventRank;
+  }
+
+  const eventDate = rankEvent?.effectiveDate?.trim();
+  const syncedAt = member.syncedAt;
+  if (eventDate && syncedAt) {
+    const eventMs = Date.parse(`${eventDate}T23:59:59.999Z`);
+    const syncedMs = syncedAt.getTime();
+    if (syncedMs > eventMs) {
+      return syncedRank;
+    }
+    return eventRank;
+  }
+
+  return eventRank;
+}
+
+/** Drop pool rows whose current roster rank no longer matches the pool type. */
+export async function memberIdsEligibleForPoolType(
+  allianceId: string,
+  poolType: PoolType,
+  date: string,
+  memberIds: readonly string[],
+): Promise<Set<string>> {
+  if (poolType !== "r3" && poolType !== "r4_plus") {
+    return new Set(memberIds);
+  }
+  if (memberIds.length === 0) {
+    return new Set();
+  }
+
+  const { loadActiveAlliancePoolMembers } = await import(
+    "@/lib/members/game-roster"
   );
+  const [members, rankEvents] = await Promise.all([
+    loadActiveAlliancePoolMembers({ allianceId }),
+    getAllianceRanksAsOf(allianceId, date),
+  ]);
+  const rankByMember = new Map(
+    rankEvents.map((event) => [event.ashedMemberId, event]),
+  );
+  const memberById = new Map(
+    members.map((member) => [member.ashedMemberId, member]),
+  );
+
+  const eligible = new Set<string>();
+  for (const memberId of memberIds) {
+    const member = memberById.get(memberId);
+    if (!member) continue;
+    const rank = resolveMemberPoolAllianceRank(
+      member,
+      rankByMember.get(memberId),
+    );
+    if (isMemberEligibleForPool(poolType, rank)) {
+      eligible.add(memberId);
+    }
+  }
+  return eligible;
 }
 
 export function isMemberEligibleForPool(

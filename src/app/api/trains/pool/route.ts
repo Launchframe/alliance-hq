@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
+import { memberIdsEligibleForPoolType } from "@/lib/trains/rank-history";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import {
   listPoolEntries,
@@ -48,10 +49,25 @@ export async function GET(request: Request) {
   }
 
   const summary = await getPoolSummary(ctx.allianceId, poolType);
-  const [entries, priorGenerations] = await Promise.all([
+  const [rawEntries, priorGenerations] = await Promise.all([
     listPoolEntries(ctx.allianceId, poolType),
     listPriorPoolGenerationSnapshots(ctx.allianceId, poolType),
   ]);
+
+  let entries = rawEntries;
+  if (
+    (poolType === "r3" || poolType === "r4_plus") &&
+    trainDate &&
+    rawEntries.length > 0
+  ) {
+    const eligibleIds = await memberIdsEligibleForPoolType(
+      ctx.allianceId,
+      poolType,
+      trainDate,
+      rawEntries.map((entry) => entry.memberId),
+    );
+    entries = rawEntries.filter((entry) => eligibleIds.has(entry.memberId));
+  }
 
   if (poolType === "event_top_x" && trainDate) {
     const eventContext = vsScoreContextForTrainDate(trainDate);

@@ -3458,6 +3458,7 @@
     "pickConductorEmpty": "No members match your search.",
     "pickConductorCancel": "Cancel",
     "pickConductorConfirm": "Confirm conductor",
+    "pickConductorSameGenerationWarning": "This member already conducted in the current pool generation. Confirm only if you mean to pick them again before everyone else has had a turn.",
     "pickConductorLastConducted": {
       "today": "Today",
       "yesterday": "Yesterday",
