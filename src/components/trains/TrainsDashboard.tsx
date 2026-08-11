@@ -3052,6 +3052,13 @@ export function TrainsDashboard({ initial }: Props) {
         scoreLeaderboardKind={scoreLeaderboardKind}
         canResetPool={canResetConductorPool}
         resetBusy={reseedingPool != null}
+        canPickConductor={canPickConductor}
+        pickBusy={trainQuickActionBusy}
+        onPickConductor={(member) => {
+          setPoolDetailsOpen(false);
+          setPoolDetailsInitialType(null);
+          void pickConductor(member);
+        }}
         onResetPool={() => {
           if (conductorReseedPoolType) {
             void reseedPool(conductorReseedPoolType);
