@@ -120,6 +120,9 @@ export async function filterMemberIdsByConductorMinimums(
   if (!minimumsEnforcementEnabled(settings)) {
     return null;
   }
+  if (memberIds.length === 0) {
+    return [];
+  }
 
   const allianceRow = await loadAllianceRow(allianceId);
   const trainWeekConfig = allianceTrainWeekFromRow(allianceRow ?? {});

@@ -43,6 +43,10 @@ vi.mock("@/lib/trains/rank-history", () => ({
   getMemberRankAsOf: vi.fn(),
   resolveMemberPoolAllianceRank: mocks.resolveMemberPoolAllianceRank,
   isMemberEligibleForPool: mocks.isMemberEligibleForPool,
+  memberIdsEligibleForPoolType: vi.fn(
+    async (_allianceId: string, _poolType: string, _date: string, memberIds: string[]) =>
+      new Set(memberIds),
+  ),
 }));
 
 vi.mock("@/lib/trains/heavy-hitter-pool.server", () => ({

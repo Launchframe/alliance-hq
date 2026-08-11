@@ -74,4 +74,19 @@ describe("filterMemberIdsByConductorMinimums", () => {
     );
     expect(qualified).toEqual(["m-pass"]);
   });
+
+  it("does not fetch Ashed VS when the candidate list is empty", async () => {
+    const { filterMemberIdsByConductorMinimums } = await import(
+      "@/lib/trains/train-conductor-minimums.server"
+    );
+
+    const qualified = await filterMemberIdsByConductorMinimums(
+      "ally-1",
+      "2026-08-10",
+      [],
+    );
+
+    expect(qualified).toEqual([]);
+    expect(mocks.fetchAllianceVsScoresForEvaluationPeriod).not.toHaveBeenCalled();
+  });
 });

@@ -6,14 +6,12 @@ const mocks = vi.hoisted(() => ({
   getConductorRecord: vi.fn(),
   upsertConductorDraft: vi.fn(),
   getMemberRankAsOf: vi.fn(),
-  resolveMemberAllianceRankAsOf: vi.fn(),
-  isMemberEligibleForPool: vi.fn(),
+  memberIdsEligibleForPoolType: vi.fn(),
   listUnselectedPoolEntries: vi.fn(),
   listPoolEntries: vi.fn(),
   markPoolMemberSelectedForDate: vi.fn(),
   releasePoolSelectionForDate: vi.fn(),
   ensureConductorPoolSeeded: vi.fn(),
-  loadActiveAlliancePoolMembers: vi.fn(),
 }));
 
 vi.mock("@/lib/game-season/sync", () => ({
@@ -31,8 +29,7 @@ vi.mock("@/lib/trains/repository", () => ({
 
 vi.mock("@/lib/trains/rank-history", () => ({
   getMemberRankAsOf: mocks.getMemberRankAsOf,
-  resolveMemberAllianceRankAsOf: mocks.resolveMemberAllianceRankAsOf,
-  isMemberEligibleForPool: mocks.isMemberEligibleForPool,
+  memberIdsEligibleForPoolType: mocks.memberIdsEligibleForPoolType,
 }));
 
 vi.mock("@/lib/trains/pool", () => ({
@@ -40,13 +37,6 @@ vi.mock("@/lib/trains/pool", () => ({
   listPoolEntries: mocks.listPoolEntries,
   markPoolMemberSelectedForDate: mocks.markPoolMemberSelectedForDate,
   releasePoolSelectionForDate: mocks.releasePoolSelectionForDate,
-}));
-
-vi.mock("@/lib/trains/conductor-pool-claim-lock.server", () => ({
-  withConductorPoolClaimLock: async (
-    _key: unknown,
-    run: () => Promise<unknown>,
-  ) => run(),
 }));
 
 vi.mock("@/lib/trains/service", () => ({
@@ -57,10 +47,6 @@ vi.mock("@/lib/trains/conductor-pool-claim-lock.server", () => ({
   withConductorPoolClaimLock: vi.fn(
     async (_key: unknown, run: () => Promise<unknown>) => run(),
   ),
-}));
-
-vi.mock("@/lib/members/game-roster", () => ({
-  loadActiveAlliancePoolMembers: mocks.loadActiveAlliancePoolMembers,
 }));
 
 import { applyManualConductorDraft } from "@/lib/trains/manual-conductor-draft.server";
@@ -79,6 +65,14 @@ describe("applyManualConductorDraft", () => {
     mocks.ensureConductorPoolSeeded.mockResolvedValue(undefined);
     mocks.markPoolMemberSelectedForDate.mockResolvedValue(true);
     mocks.releasePoolSelectionForDate.mockResolvedValue(undefined);
+    mocks.memberIdsEligibleForPoolType.mockImplementation(
+      async (
+        _allianceId: string,
+        _poolType: string,
+        _date: string,
+        memberIds: string[],
+      ) => new Set(memberIds),
+    );
   });
 
   it("consumes a depleting r3 pool slot on Discord/web manual draft", async () => {
@@ -149,6 +143,58 @@ describe("applyManualConductorDraft", () => {
 
     expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
     expect(mocks.upsertConductorDraft).not.toHaveBeenCalled();
+  });
+
+  it("rejects manual picks when current roster rank is ineligible for the pool", async () => {
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorMechanism: "r3_lottery",
+      vipMechanism: "conductor_pick",
+      paintTemplate: "economy_week",
+      dayConfigId: "dc-1",
+    });
+    mocks.memberIdsEligibleForPoolType.mockResolvedValue(new Set());
+
+    await expect(
+      applyManualConductorDraft({
+        allianceId: "ally-1",
+        date: "2026-07-27",
+        memberId: "m-alice",
+        memberName: "Alice",
+      }),
+    ).rejects.toThrow(/R3 pool manual picks must select an R3 member/i);
+
+    expect(mocks.ensureConductorPoolSeeded).not.toHaveBeenCalled();
+    expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
+    expect(mocks.upsertConductorDraft).not.toHaveBeenCalled();
+  });
+
+  it("allows same-generation reuse when the officer confirms the override", async () => {
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorMechanism: "r3_lottery",
+      vipMechanism: "conductor_pick",
+      paintTemplate: "economy_week",
+      dayConfigId: "dc-1",
+    });
+    mocks.listUnselectedPoolEntries.mockResolvedValue([{ memberId: "m-bob" }]);
+    mocks.listPoolEntries.mockResolvedValue([
+      { memberId: "m-alice" },
+      { memberId: "m-bob" },
+    ]);
+
+    await applyManualConductorDraft({
+      allianceId: "ally-1",
+      date: "2026-07-27",
+      memberId: "m-alice",
+      memberName: "Alice",
+      allowSameGenerationReuse: true,
+    });
+
+    expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
+    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conductorMemberId: "m-alice",
+      }),
+    );
   });
 
   it("consumes an r4_plus pool slot when paint template is r4_event_vip", async () => {

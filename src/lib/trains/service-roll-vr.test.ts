@@ -33,6 +33,11 @@ vi.mock("@/lib/trains/native-scores.server", () => ({
   fetchNativeVrTopScorers: mocks.fetchNativeVrTopScorers,
 }));
 
+vi.mock("@/lib/trains/day-spin-exclusions.server", () => ({
+  listDaySpinExcludedMemberIds: vi.fn(async () => []),
+  recordDaySpinExclusion: vi.fn(async () => undefined),
+}));
+
 vi.mock("@/lib/trains/game-time", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@/lib/trains/game-time")>();

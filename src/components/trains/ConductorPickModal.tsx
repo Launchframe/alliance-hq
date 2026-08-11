@@ -23,10 +23,16 @@ type Props = {
   cancelLabel: string;
   confirmLabel: string;
   hintsLoadingLabel?: string;
+  sameGenerationMemberIds?: ReadonlySet<string>;
+  sameGenerationWarningLabel?: string;
   showGuardianToggle?: boolean;
   guardianIsVipLabel?: string;
   onClose: () => void;
-  onPick: (member: RosterMember, guardianIsVip: boolean) => void;
+  onPick: (
+    member: RosterMember,
+    guardianIsVip: boolean,
+    options?: { allowSameGenerationReuse?: boolean },
+  ) => void;
 };
 
 export function ConductorPickModal({
@@ -40,6 +46,8 @@ export function ConductorPickModal({
   cancelLabel,
   confirmLabel,
   hintsLoadingLabel,
+  sameGenerationMemberIds,
+  sameGenerationWarningLabel,
   showGuardianToggle = false,
   guardianIsVipLabel,
   onClose,
@@ -56,6 +64,10 @@ export function ConductorPickModal({
   }, [members, query]);
 
   const selected = members.find((m) => m.memberId === selectedId) ?? null;
+  const showSameGenerationWarning =
+    selected != null &&
+    sameGenerationMemberIds?.has(selected.memberId) === true &&
+    Boolean(sameGenerationWarningLabel);
 
   if (!open) return null;
 
@@ -159,6 +171,15 @@ export function ConductorPickModal({
           </label>
         ) : null}
 
+        {showSameGenerationWarning ? (
+          <p
+            className="border-t border-hq-border px-4 py-3 text-sm text-hq-warning"
+            data-testid="conductor-pick-same-generation-warning"
+          >
+            {sameGenerationWarningLabel}
+          </p>
+        ) : null}
+
         <div className="flex flex-col-reverse gap-2 border-t border-hq-border p-3 sm:flex-row sm:justify-end">
           <button
             type="button"
@@ -172,7 +193,13 @@ export function ConductorPickModal({
             disabled={!selected}
             onClick={() => {
               if (!selected) return;
-              onPick(selected, guardianIsVip);
+              onPick(
+                selected,
+                guardianIsVip,
+                showSameGenerationWarning
+                  ? { allowSameGenerationReuse: true }
+                  : undefined,
+              );
               setQuery("");
               setSelectedId(null);
               setGuardianIsVip(false);

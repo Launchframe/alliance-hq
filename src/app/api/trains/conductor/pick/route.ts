@@ -32,6 +32,7 @@ export async function POST(request: Request) {
     date?: string;
     memberId?: string;
     memberName?: string;
+    allowSameGenerationReuse?: boolean;
   };
 
   const memberId = body.memberId?.trim();
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
       date,
       memberId,
       memberName,
+      allowSameGenerationReuse: body.allowSameGenerationReuse === true,
     });
 
     return NextResponse.json({

@@ -18,9 +18,9 @@ import {
 } from "@/lib/trains/pool";
 import {
   getMemberRankAsOf,
-  isMemberEligibleForPool,
-  resolveMemberAllianceRankAsOf,
+  memberIdsEligibleForPoolType,
 } from "@/lib/trains/rank-history";
+import type { PoolType } from "@/lib/trains/types";
 import {
   getConductorRecord,
   upsertConductorDraft,
@@ -42,6 +42,8 @@ export async function applyManualConductorDraft(input: {
   date: string;
   memberId: string;
   memberName: string;
+  /** Officer confirmed re-using a member already picked in this pool generation. */
+  allowSameGenerationReuse?: boolean;
 }): Promise<typeof import("@/lib/db/schema").trainConductorRecords.$inferSelect> {
   const seasonKey = (await getEffectiveSeasonForAlliance(input.allianceId))
     .seasonKey;
@@ -79,31 +81,25 @@ export async function applyManualConductorDraft(input: {
     input.date,
   );
 
-  if (dayConfig.paintTemplate === "r3_recognition") {
-    const { loadActiveAlliancePoolMembers } = await import(
-      "@/lib/members/game-roster"
-    );
-    const members = await loadActiveAlliancePoolMembers({
-      allianceId: input.allianceId,
-    });
-    const rosterMember = members.find(
-      (m) => m.ashedMemberId === input.memberId,
-    );
-    const resolvedRank = await resolveMemberAllianceRankAsOf(
-      input.allianceId,
-      input.memberId,
-      input.date,
-      rosterMember?.allianceRank ?? null,
-      rosterMember?.allianceRankTitle ?? null,
-    );
-    if (!isMemberEligibleForPool("r3", resolvedRank.rank)) {
-      throw new Error("R3 recognition awards must pick an R3 member.");
-    }
-  }
-
-  const poolType = depletingPool
+  const poolType: PoolType | null = depletingPool
     ? conductorMechanismPoolType(mechanism)
     : null;
+
+  if (poolType === "r3" || poolType === "r4_plus") {
+    const eligible = await memberIdsEligibleForPoolType(
+      input.allianceId,
+      poolType,
+      input.date,
+      [input.memberId],
+    );
+    if (!eligible.has(input.memberId)) {
+      throw new Error(
+        poolType === "r3"
+          ? "R3 pool manual picks must select an R3 member."
+          : "R4+ pool manual picks must select an R4 or R5 member.",
+      );
+    }
+  }
   const priorConductorMemberId = existing?.conductorMemberId ?? null;
   if (poolType) {
     const replacingSameMember = priorConductorMemberId === input.memberId;
@@ -128,17 +124,23 @@ export async function applyManualConductorDraft(input: {
             unselectedMemberIds: unselected.map((row) => row.memberId),
             poolMemberIds: poolEntries.map((row) => row.memberId),
           });
-          if (!gate.ok) {
+          if (gate.ok) {
+            const claimed = await markPoolMemberSelectedForDate(
+              input.allianceId,
+              poolType,
+              input.memberId,
+              input.date,
+            );
+            if (!claimed) {
+              throw new Error(depletingManualPickErrorMessage("already_awarded"));
+            }
+          } else if (
+            gate.reason === "already_awarded" &&
+            input.allowSameGenerationReuse
+          ) {
+            // Pool slot already consumed on another day in this generation.
+          } else {
             throw new Error(depletingManualPickErrorMessage(gate.reason));
-          }
-          const claimed = await markPoolMemberSelectedForDate(
-            input.allianceId,
-            poolType,
-            input.memberId,
-            input.date,
-          );
-          if (!claimed) {
-            throw new Error(depletingManualPickErrorMessage("already_awarded"));
           }
         },
       );

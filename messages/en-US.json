@@ -3472,6 +3472,7 @@
     "pickConductorEmpty": "No members match your search.",
     "pickConductorCancel": "Cancel",
     "pickConductorConfirm": "Confirm conductor",
+    "pickConductorSameGenerationWarning": "This member already conducted in the current pool generation. Confirm only if you mean to pick them again before everyone else has had a turn.",
     "pickConductorLastConducted": {
       "today": "Today",
       "yesterday": "Yesterday",
@@ -3747,6 +3748,11 @@
       "memberTabsLabel": "Members",
       "tabEligible": "Eligible",
       "tabChosen": "Already chosen",
+      "searchLabel": "Search members",
+      "searchEligiblePlaceholder": "Search eligible members…",
+      "searchChosenPlaceholder": "Search chosen members…",
+      "searchEmpty": "No members match your search.",
+      "pickMember": "Pick",
       "eventScoreContext": "VS Day {dayNumber}: {dayName} · scores from {scoreDate} (yesterday's VS day)",
       "scorePoints": "{score, number}",
       "scoreUnavailable": "—",
@@ -3880,7 +3886,6 @@
         "rank": "Conductor rank",
         "rankAll": "All ranks",
         "rankOption": "R{rank}",
-        "apply": "Apply filters",
         "clear": "Clear filters"
       }
     },

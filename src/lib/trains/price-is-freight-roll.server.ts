@@ -7,6 +7,7 @@ import {
   pickUniformRollCandidate,
   pickWeightedRollCandidate,
 } from "@/lib/trains/price-is-freight-roll.shared";
+import { filterDaySpinCandidates } from "@/lib/trains/day-spin-exclusions.shared";
 import {
   getAllianceRanksAsOf,
   isMemberEligibleForPool,
@@ -80,17 +81,23 @@ export async function rollPriceIsFreightConductor(input: {
   date: string;
   paintTemplate: WeekTemplateType | null | undefined;
   mechanism: ConductorMechanismType;
+  /** Day-scoped re-spin exclusions (does not touch depleting pools). */
+  excludedMemberIds?: ReadonlySet<string>;
 }): Promise<RollResult> {
   const isSaturday = isPriceIsRightHeavyHitterSaturday(
     input.paintTemplate,
     input.date,
   );
+  const excluded = input.excludedMemberIds ?? new Set<string>();
 
   if (isSaturday || input.mechanism === "heavy_hitter_lottery") {
-    const wheelCandidates = await applyConductorMinimumsFilter(
-      input.allianceId,
-      input.date,
-      await buildHeavyHitterPoolCandidates(input.allianceId, input.date),
+    const wheelCandidates = filterDaySpinCandidates(
+      await applyConductorMinimumsFilter(
+        input.allianceId,
+        input.date,
+        await buildHeavyHitterPoolCandidates(input.allianceId, input.date),
+      ),
+      excluded,
     );
     if (wheelCandidates.length === 0) {
       throwPoolEmpty("heavy_hitter");
@@ -109,10 +116,13 @@ export async function rollPriceIsFreightConductor(input: {
   }
 
   const ticketSettings = await loadPriceIsRightTicketSettings(input.allianceId);
-  const r3Candidates = await loadPriceIsFreightR3Candidates({
-    allianceId: input.allianceId,
-    date: input.date,
-  });
+  const r3Candidates = filterDaySpinCandidates(
+    await loadPriceIsFreightR3Candidates({
+      allianceId: input.allianceId,
+      date: input.date,
+    }),
+    excluded,
+  );
 
   if (priceIsRightWeightingActive(ticketSettings)) {
     const weighted = await buildPriceIsRightWeightedCandidates({

@@ -207,13 +207,15 @@ describe("generateDayConfigForDate", () => {
 });
 
 describe("supportsManualConductorPick", () => {
-  it("allows manual override on leaderboard and pool days", () => {
+  it("allows manual override on all conductor mechanisms", () => {
     expect(supportsManualConductorPick("r3_lottery")).toBe(true);
     expect(supportsManualConductorPick("heavy_hitter_lottery")).toBe(true);
     expect(supportsManualConductorPick("vs_high_score")).toBe(true);
     expect(supportsManualConductorPick("vs_top_10")).toBe(true);
     expect(supportsManualConductorPick("donations_top")).toBe(true);
-    expect(supportsManualConductorPick("event_top_x_lottery")).toBe(false);
+    expect(supportsManualConductorPick("event_top_x_lottery")).toBe(true);
+    expect(supportsManualConductorPick("officer_pick")).toBe(true);
+    expect(supportsManualConductorPick(null)).toBe(true);
   });
 });
 

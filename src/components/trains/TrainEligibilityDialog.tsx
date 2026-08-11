@@ -61,6 +61,11 @@ export type PoolDetailsOption = {
   poolType: PoolType;
 };
 
+export type EligibilityPickMember = {
+  memberId: string;
+  memberName: string;
+};
+
 type MemberTab = "eligible" | "chosen";
 
 type Props = {
@@ -73,6 +78,10 @@ type Props = {
   resetBusy?: boolean;
   onResetPool?: () => void;
   onOpenReseedHint?: () => void;
+  /** Manual conductor pick from the eligible (unpicked) list. */
+  canPickConductor?: boolean;
+  pickBusy?: boolean;
+  onPickConductor?: (member: EligibilityPickMember) => void;
   onClose: () => void;
 };
 
@@ -110,12 +119,16 @@ export function TrainEligibilityDialog({
   resetBusy = false,
   onResetPool,
   onOpenReseedHint,
+  canPickConductor = false,
+  pickBusy = false,
+  onPickConductor,
   onClose,
 }: Props) {
   const t = useTranslations("trains.poolDetails");
   const tRoot = useTranslations("trains");
   const [poolSwitch, setPoolSwitch] = useState<PoolType | null>(null);
   const [memberTab, setMemberTab] = useState<MemberTab>("eligible");
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [payload, setPayload] = useState<PoolPayload | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -183,6 +196,7 @@ export function TrainEligibilityDialog({
   const handleClose = useCallback(() => {
     setPoolSwitch(null);
     setMemberTab("eligible");
+    setSearchQuery("");
     setPayload(null);
     setFetchError(null);
     setResetConfirm(false);
@@ -216,6 +230,14 @@ export function TrainEligibilityDialog({
     }
     return rows;
   }, [activePoolType, memberTab, payload]);
+
+  const visibleEntries = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return filteredEntries;
+    return filteredEntries.filter((entry) =>
+      entry.memberName.toLowerCase().includes(q),
+    );
+  }, [filteredEntries, searchQuery]);
 
   const eventContextLine = useMemo(() => {
     const ctx = payload?.eventContext;
@@ -266,6 +288,12 @@ export function TrainEligibilityDialog({
         ? t("conductorPool")
         : null;
 
+  const showPickActions =
+    canPickConductor &&
+    Boolean(onPickConductor) &&
+    activeOption?.role === "conductor" &&
+    memberTab === "eligible";
+
   const priorGenerations = payload?.priorGenerations ?? [];
   const resetConfirmBodyKey = payload
     ? poolResetConfirmBodyKey(payload.summary)
@@ -284,308 +312,368 @@ export function TrainEligibilityDialog({
         if (!next) handleClose();
       }}
       title={t("title")}
-      className="max-w-lg"
+      className="flex min-h-0 max-h-[min(90dvh,720px)] max-w-lg flex-col overflow-hidden"
       data-testid="trains-eligibility-dialog"
     >
-      <div className="flex flex-col gap-4">
-        <div>
-          <h2 className="text-lg font-semibold text-hq-fg">{t("title")}</h2>
-          {roleLabel && showPoolList ? (
-            <p className="mt-0.5 text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
-              {roleLabel}
-            </p>
-          ) : null}
-          {eventContextLine ? (
-            <p className="mt-2 text-sm text-hq-fg-muted">{eventContextLine}</p>
-          ) : null}
-          {payload && showPoolList ? (
-            <p className="mt-1 text-sm text-hq-fg-muted">
-              {t("summaryLine", {
-                remaining: payload.summary.remaining,
-                total: payload.summary.total,
-                generation: payload.summary.generation,
-              })}
-              {payload.summary.exhausted ? (
-                <span className="ml-1 text-[#d29922]">{t("exhausted")}</span>
-              ) : null}
-            </p>
-          ) : null}
-        </div>
-
-        {priorGenerations.length > 0 ? (
-          <div
-            className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2"
-            data-testid="trains-eligibility-prior-generations"
-          >
-            <p className="text-sm font-medium text-hq-fg">
-              {t("priorGenerationsTitle")}
-            </p>
-            <p className="mt-1 text-xs leading-relaxed text-hq-fg-muted">
-              {t("priorGenerationsHint")}
-            </p>
-            <ul className="mt-2 space-y-2">
-              {priorGenerations.map((prior) => {
-                const expanded = expandedPriorGeneration === prior.generation;
-                return (
-                  <li
-                    key={prior.generation}
-                    className="rounded-md border border-hq-border/80 bg-hq-canvas/40 px-2.5 py-2"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm text-hq-fg">
-                        {t("priorGenerationSummary", {
-                          generation: prior.generation,
-                          picked: prior.picked,
-                          remaining: prior.remaining,
-                        })}
-                      </p>
-                      {prior.remaining > 0 ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setExpandedPriorGeneration(
-                              expanded ? null : prior.generation,
-                            )
-                          }
-                          className="text-xs font-medium text-cyan-400 hover:text-cyan-300"
-                        >
-                          {expanded
-                            ? t("priorGenerationHideUnpicked")
-                            : t("priorGenerationShowUnpicked", {
-                                count: prior.remaining,
-                              })}
-                        </button>
-                      ) : null}
-                    </div>
-                    {expanded && prior.unpickedMemberNames.length > 0 ? (
-                      <p className="mt-2 text-xs leading-relaxed text-hq-fg-muted">
-                        {prior.unpickedMemberNames.join(", ")}
-                      </p>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <div className="shrink-0 space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold text-hq-fg">{t("title")}</h2>
+            {roleLabel && showPoolList ? (
+              <p className="mt-0.5 text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
+                {roleLabel}
+              </p>
+            ) : null}
+            {eventContextLine ? (
+              <p className="mt-2 text-sm text-hq-fg-muted">{eventContextLine}</p>
+            ) : null}
+            {payload && showPoolList ? (
+              <p className="mt-1 text-sm text-hq-fg-muted">
+                {t("summaryLine", {
+                  remaining: payload.summary.remaining,
+                  total: payload.summary.total,
+                  generation: payload.summary.generation,
+                })}
+                {payload.summary.exhausted ? (
+                  <span className="ml-1 text-[#d29922]">{t("exhausted")}</span>
+                ) : null}
+              </p>
+            ) : null}
           </div>
-        ) : null}
 
-        {showScorePodium ? (
-          <ScoreLeaderboardPodium
-            trainDate={trainDate}
-            kind={scoreLeaderboardKind}
-          />
-        ) : null}
+          {priorGenerations.length > 0 ? (
+            <div
+              className="max-h-[min(28vh,12rem)] overflow-y-auto rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2"
+              data-testid="trains-eligibility-prior-generations"
+            >
+              <p className="text-sm font-medium text-hq-fg">
+                {t("priorGenerationsTitle")}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-hq-fg-muted">
+                {t("priorGenerationsHint")}
+              </p>
+              <ul className="mt-2 space-y-2">
+                {priorGenerations.map((prior) => {
+                  const expanded = expandedPriorGeneration === prior.generation;
+                  return (
+                    <li
+                      key={prior.generation}
+                      className="rounded-md border border-hq-border/80 bg-hq-canvas/40 px-2.5 py-2"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm text-hq-fg">
+                          {t("priorGenerationSummary", {
+                            generation: prior.generation,
+                            picked: prior.picked,
+                            remaining: prior.remaining,
+                          })}
+                        </p>
+                        {prior.remaining > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedPriorGeneration(
+                                expanded ? null : prior.generation,
+                              )
+                            }
+                            className="text-xs font-medium text-cyan-400 hover:text-cyan-300"
+                          >
+                            {expanded
+                              ? t("priorGenerationHideUnpicked")
+                              : t("priorGenerationShowUnpicked", {
+                                  count: prior.remaining,
+                                })}
+                          </button>
+                        ) : null}
+                      </div>
+                      {expanded && prior.unpickedMemberNames.length > 0 ? (
+                        <p className="mt-2 text-xs leading-relaxed text-hq-fg-muted">
+                          {prior.unpickedMemberNames.join(", ")}
+                        </p>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
 
-        {showPoolList ? (
-          <>
-        {options.length > 1 ? (
-          <div
-            className="inline-flex w-full rounded-lg border border-hq-border bg-hq-canvas p-0.5 sm:w-auto"
-            role="tablist"
-            aria-label={t("poolSwitcherLabel")}
-          >
-            {options.map((option) => (
+          {showScorePodium ? (
+            <ScoreLeaderboardPodium
+              trainDate={trainDate}
+              kind={scoreLeaderboardKind}
+            />
+          ) : null}
+
+          {showPoolList && options.length > 1 ? (
+            <div
+              className="inline-flex w-full rounded-lg border border-hq-border bg-hq-canvas p-0.5 sm:w-auto"
+              role="tablist"
+              aria-label={t("poolSwitcherLabel")}
+            >
+              {options.map((option) => (
+                <button
+                  key={`${option.role}-${option.poolType}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={activePoolType === option.poolType}
+                  onClick={() => {
+                    setPoolSwitch(option.poolType);
+                    setMemberTab("eligible");
+                    setSearchQuery("");
+                  }}
+                  className={`min-w-0 flex-1 sm:flex-initial ${tabButtonClass(
+                    activePoolType === option.poolType,
+                  )}`}
+                >
+                  {option.role === "vip" ? t("vipPool") : t("conductorPool")}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {showPoolList ? (
+            <div
+              className="inline-flex w-full rounded-lg border border-hq-border bg-hq-canvas p-0.5 sm:w-auto"
+              role="tablist"
+              aria-label={t("memberTabsLabel")}
+            >
               <button
-                key={`${option.role}-${option.poolType}`}
                 type="button"
                 role="tab"
-                aria-selected={activePoolType === option.poolType}
+                aria-selected={memberTab === "eligible"}
                 onClick={() => {
-                  setPoolSwitch(option.poolType);
                   setMemberTab("eligible");
+                  setSearchQuery("");
                 }}
                 className={`min-w-0 flex-1 sm:flex-initial ${tabButtonClass(
-                  activePoolType === option.poolType,
+                  memberTab === "eligible",
                 )}`}
               >
-                {option.role === "vip" ? t("vipPool") : t("conductorPool")}
+                {t("tabEligible")}
+                {payload ? (
+                  <span className="ml-1 tabular-nums text-hq-fg-muted">
+                    ({payload.summary.remaining})
+                  </span>
+                ) : null}
               </button>
-            ))}
-          </div>
-        ) : null}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={memberTab === "chosen"}
+                onClick={() => {
+                  setMemberTab("chosen");
+                  setSearchQuery("");
+                }}
+                className={`min-w-0 flex-1 sm:flex-initial ${tabButtonClass(
+                  memberTab === "chosen",
+                )}`}
+              >
+                {t("tabChosen")}
+                {payload ? (
+                  <span className="ml-1 tabular-nums text-hq-fg-muted">
+                    ({payload.summary.total - payload.summary.remaining})
+                  </span>
+                ) : null}
+              </button>
+            </div>
+          ) : null}
 
-        <div
-          className="inline-flex w-full rounded-lg border border-hq-border bg-hq-canvas p-0.5 sm:w-auto"
-          role="tablist"
-          aria-label={t("memberTabsLabel")}
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={memberTab === "eligible"}
-            onClick={() => setMemberTab("eligible")}
-            className={`min-w-0 flex-1 sm:flex-initial ${tabButtonClass(
-              memberTab === "eligible",
-            )}`}
-          >
-            {t("tabEligible")}
-            {payload ? (
-              <span className="ml-1 tabular-nums text-hq-fg-muted">
-                ({payload.summary.remaining})
-              </span>
-            ) : null}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={memberTab === "chosen"}
-            onClick={() => setMemberTab("chosen")}
-            className={`min-w-0 flex-1 sm:flex-initial ${tabButtonClass(
-              memberTab === "chosen",
-            )}`}
-          >
-            {t("tabChosen")}
-            {payload ? (
-              <span className="ml-1 tabular-nums text-hq-fg-muted">
-                ({payload.summary.total - payload.summary.remaining})
-              </span>
-            ) : null}
-          </button>
+          {showPoolList && !loading && filteredEntries.length > 0 ? (
+            <label className="block">
+              <span className="sr-only">{t("searchLabel")}</span>
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={
+                  memberTab === "eligible"
+                    ? t("searchEligiblePlaceholder")
+                    : t("searchChosenPlaceholder")
+                }
+                className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg placeholder:text-hq-fg-muted"
+                data-testid="trains-eligibility-search"
+              />
+            </label>
+          ) : null}
         </div>
 
-        {loading ? (
-          <p className="text-sm text-hq-fg-muted">{t("loading")}</p>
-        ) : null}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          {showPoolList ? (
+            <>
+              {loading ? (
+                <p className="text-sm text-hq-fg-muted">{t("loading")}</p>
+              ) : null}
 
-        {fetchError ? (
-          <p className="rounded-lg border border-hq-danger/40 bg-hq-danger/10 px-3 py-2 text-sm text-hq-danger">
-            {fetchError}
-          </p>
-        ) : null}
-
-        {!loading && payload && filteredEntries.length === 0 ? (
-          <p className="text-sm text-hq-fg-muted">
-            {payload.summary.total === 0
-              ? t("emptyUnseeded")
-              : memberTab === "eligible"
-                ? t("emptyEligible")
-                : t("emptyChosen")}
-          </p>
-        ) : null}
-
-        {!loading && filteredEntries.length > 0 ? (
-          <ul className="max-h-[min(50vh,24rem)] space-y-2 overflow-y-auto">
-            {filteredEntries.map((entry) => {
-              const listPosition =
-                showEventScores
-                  ? null
-                  : usesSequenceDraw && entry.sequencePosition != null
-                    ? entry.sequencePosition
-                    : memberTab === "chosen"
-                      ? chosenPickOrder.get(entry.id)
-                      : null;
-
-              return (
-              <li
-                key={entry.id}
-                className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-hq-border bg-hq-canvas/60 px-3 py-2"
-              >
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-hq-fg">
-                    {listPosition != null ? (
-                      <span className="mr-2 tabular-nums text-hq-fg-muted">
-                        #{listPosition}
-                      </span>
-                    ) : null}
-                    {entry.memberName}
-                  </div>
-                  {entry.allianceRank != null ? (
-                    <div className="text-xs text-hq-fg-muted">
-                      {t("rankLabel", { rank: entry.allianceRank })}
-                    </div>
-                  ) : null}
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-0.5">
-                  {showEventScores ? (
-                    <span className="font-mono text-sm tabular-nums text-hq-fg">
-                      {entry.vsScore != null
-                        ? t("scorePoints", { score: entry.vsScore })
-                        : t("scoreUnavailable")}
-                    </span>
-                  ) : null}
-                  {memberTab === "chosen" && entry.selectedForDate ? (
-                    <span className="text-xs tabular-nums text-hq-fg-muted">
-                      {entry.selectedForDate.slice(5)}
-                    </span>
-                  ) : null}
-                </div>
-              </li>
-              );
-            })}
-          </ul>
-        ) : null}
-          </>
-        ) : null}
-
-        {canResetPool && onResetPool ? (
-          <div className="border-t border-hq-border pt-3">
-            {resetConfirm ? (
-              <div className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-                <p className="text-sm text-hq-fg">
-                  {t(resetConfirmBodyKey, {
-                    generation: payload?.summary.generation ?? 1,
-                    nextGeneration: (payload?.summary.generation ?? 1) + 1,
-                    remaining: payload?.summary.remaining ?? 0,
-                  })}
+              {fetchError ? (
+                <p className="rounded-lg border border-hq-danger/40 bg-hq-danger/10 px-3 py-2 text-sm text-hq-danger">
+                  {fetchError}
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={resetBusy}
-                    onClick={() => setResetConfirm(false)}
-                    className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg hover:bg-hq-canvas"
-                  >
-                    {t("resetConfirmCancel")}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={resetBusy}
-                    onClick={() => {
-                      onResetPool();
-                      setResetConfirm(false);
-                    }}
-                    className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
-                    data-testid="trains-eligibility-reset-confirm"
-                  >
-                    {resetBusy ? tRoot("reseedingPool") : t(resetConfirmActionKey)}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  disabled={resetBusy}
-                  onClick={() => setResetConfirm(true)}
-                  className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg-muted hover:text-hq-fg disabled:opacity-50"
-                  data-testid="trains-eligibility-reset"
-                >
-                  {resetBusy ? tRoot("reseedingPool") : tRoot(resetTriggerLabelKey)}
-                </button>
-                {onOpenReseedHint ? (
-                  <button
-                    type="button"
-                    onClick={onOpenReseedHint}
-                    aria-label={tRoot("reseedPoolHint.infoLabel")}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-hq-fg-muted hover:bg-hq-canvas hover:text-hq-fg"
-                    data-testid="trains-eligibility-reset-hint"
-                  >
-                    <Info className="h-4 w-4" aria-hidden />
-                  </button>
-                ) : null}
-              </div>
-            )}
-          </div>
-        ) : null}
+              ) : null}
 
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={handleClose}
-            className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
-          >
-            {t("close")}
-          </button>
+              {!loading && payload && filteredEntries.length === 0 ? (
+                <p className="text-sm text-hq-fg-muted">
+                  {payload.summary.total === 0
+                    ? t("emptyUnseeded")
+                    : memberTab === "eligible"
+                      ? t("emptyEligible")
+                      : t("emptyChosen")}
+                </p>
+              ) : null}
+
+              {!loading &&
+              filteredEntries.length > 0 &&
+              visibleEntries.length === 0 ? (
+                <p className="text-sm text-hq-fg-muted">{t("searchEmpty")}</p>
+              ) : null}
+
+              {!loading && visibleEntries.length > 0 ? (
+                <ul className="space-y-2 pb-1">
+                  {visibleEntries.map((entry) => {
+                    const listPosition = showEventScores
+                      ? null
+                      : usesSequenceDraw && entry.sequencePosition != null
+                        ? entry.sequencePosition
+                        : memberTab === "chosen"
+                          ? chosenPickOrder.get(entry.id)
+                          : null;
+
+                    return (
+                      <li
+                        key={entry.id}
+                        className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-hq-border bg-hq-canvas/60 px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium text-hq-fg">
+                            {listPosition != null ? (
+                              <span className="mr-2 tabular-nums text-hq-fg-muted">
+                                #{listPosition}
+                              </span>
+                            ) : null}
+                            {entry.memberName}
+                          </div>
+                          {entry.allianceRank != null ? (
+                            <div className="text-xs text-hq-fg-muted">
+                              {t("rankLabel", { rank: entry.allianceRank })}
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <div className="flex flex-col items-end gap-0.5">
+                            {showEventScores ? (
+                              <span className="font-mono text-sm tabular-nums text-hq-fg">
+                                {entry.vsScore != null
+                                  ? t("scorePoints", { score: entry.vsScore })
+                                  : t("scoreUnavailable")}
+                              </span>
+                            ) : null}
+                            {memberTab === "chosen" && entry.selectedForDate ? (
+                              <span className="text-xs tabular-nums text-hq-fg-muted">
+                                {entry.selectedForDate.slice(5)}
+                              </span>
+                            ) : null}
+                          </div>
+                          {showPickActions ? (
+                            <button
+                              type="button"
+                              disabled={pickBusy}
+                              onClick={() =>
+                                onPickConductor?.({
+                                  memberId: entry.memberId,
+                                  memberName: entry.memberName,
+                                })
+                              }
+                              className="rounded-md border border-hq-border bg-hq-surface px-2.5 py-1 text-xs font-medium text-hq-fg hover:bg-hq-canvas disabled:opacity-50"
+                              data-testid={`trains-eligibility-pick-${entry.memberId}`}
+                            >
+                              {t("pickMember")}
+                            </button>
+                          ) : null}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+
+        <div className="shrink-0 space-y-3 border-t border-hq-border pt-3">
+          {canResetPool && onResetPool ? (
+            <div>
+              {resetConfirm ? (
+                <div className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+                  <p className="text-sm text-hq-fg">
+                    {t(resetConfirmBodyKey, {
+                      generation: payload?.summary.generation ?? 1,
+                      nextGeneration: (payload?.summary.generation ?? 1) + 1,
+                      remaining: payload?.summary.remaining ?? 0,
+                    })}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={resetBusy}
+                      onClick={() => setResetConfirm(false)}
+                      className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg hover:bg-hq-canvas"
+                    >
+                      {t("resetConfirmCancel")}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={resetBusy}
+                      onClick={() => {
+                        onResetPool();
+                        setResetConfirm(false);
+                      }}
+                      className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                      data-testid="trains-eligibility-reset-confirm"
+                    >
+                      {resetBusy
+                        ? tRoot("reseedingPool")
+                        : t(resetConfirmActionKey)}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={resetBusy}
+                    onClick={() => setResetConfirm(true)}
+                    className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg-muted hover:text-hq-fg disabled:opacity-50"
+                    data-testid="trains-eligibility-reset"
+                  >
+                    {resetBusy
+                      ? tRoot("reseedingPool")
+                      : tRoot(resetTriggerLabelKey)}
+                  </button>
+                  {onOpenReseedHint ? (
+                    <button
+                      type="button"
+                      onClick={onOpenReseedHint}
+                      aria-label={tRoot("reseedPoolHint.infoLabel")}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-hq-fg-muted hover:bg-hq-canvas hover:text-hq-fg"
+                      data-testid="trains-eligibility-reset-hint"
+                    >
+                      <Info className="h-4 w-4" aria-hidden />
+                    </button>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
+            >
+              {t("close")}
+            </button>
+          </div>
         </div>
       </div>
     </Dialog>

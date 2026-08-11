@@ -61,6 +61,10 @@ vi.mock("@/lib/trains/rank-history", () => ({
   getMemberRankAsOf: mocks.getMemberRankAsOf,
   resolveMemberPoolAllianceRank: vi.fn(),
   isMemberEligibleForPool: vi.fn(),
+  memberIdsEligibleForPoolType: vi.fn(
+    async (_allianceId: string, _poolType: string, _date: string, memberIds: string[]) =>
+      new Set(memberIds),
+  ),
 }));
 
 vi.mock("@/lib/trains/heavy-hitter-pool.server", () => ({
@@ -84,6 +88,11 @@ vi.mock("@/lib/trains/train-economy-threshold.server", () => ({
 
 vi.mock("@/lib/trains/price-is-freight-roll.server", () => ({
   rollPriceIsFreightConductor: vi.fn(),
+}));
+
+vi.mock("@/lib/trains/day-spin-exclusions.server", () => ({
+  listDaySpinExcludedMemberIds: vi.fn(async () => []),
+  recordDaySpinExclusion: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/lib/trains/vs-scores.server", () => ({
@@ -210,6 +219,26 @@ describe("rollForConductor depleting pool release ordering", () => {
       "2099-06-20",
       "m-alice",
     );
+  });
+
+  it("filters conductor minimums once outside the claim loop and skips post-roll Ashed DQ", async () => {
+    mocks.getConductorRecord.mockResolvedValue({
+      conductorMemberId: null,
+      lockedAt: null,
+    });
+    mocks.resolvePoolRespectsConductorMinimums.mockResolvedValue(true);
+    mocks.filterMemberIdsByConductorMinimums.mockResolvedValue(["m-bob"]);
+    mocks.resolveConductorQualificationGateApplies.mockResolvedValue(true);
+    mocks.markPoolEntrySelected
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    await rollForConductor({ allianceId: "a1", date: "2099-06-20" });
+
+    expect(mocks.filterMemberIdsByConductorMinimums).toHaveBeenCalledTimes(1);
+    expect(mocks.evaluateConductorQualification).not.toHaveBeenCalled();
+    expect(mocks.markPoolEntrySelected).toHaveBeenCalledTimes(2);
+    expect(mocks.upsertConductorDraft).toHaveBeenCalled();
   });
 });
 

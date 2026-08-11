@@ -38,6 +38,8 @@ type Props = {
 };
 
 const PAGE_SIZE = 30;
+/** Coalesce open-reset + rapid filter edits into one request. */
+const FILTER_FETCH_DEBOUNCE_MS = 150;
 
 function mapApiRecord(row: HistoryApiRecord): WeekConductorRecordSummary {
   return {
@@ -167,25 +169,27 @@ export function ConductorHistoryDialog({
     [allianceRank, dateFrom, dateTo, memberId, t],
   );
 
+  // Parent remounts this dialog on each open (key includes open + member scope),
+  // so initial useState already matches the session — only refetch on filter edits.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    const frame = requestAnimationFrame(() => {
+    const timer = window.setTimeout(() => {
       if (cancelled) return;
-      void fetchPage(0, false, {
-        dateFrom: "",
-        dateTo: "",
-        memberId: initialMemberId ?? "",
-        allianceRank: "",
-      });
-    });
+      void fetchPage(0, false);
+    }, FILTER_FETCH_DEBOUNCE_MS);
     return () => {
       cancelled = true;
-      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
     };
-  }, [open, initialMemberId, fetchPage]);
+  }, [open, dateFrom, dateTo, memberId, allianceRank, fetchPage]);
 
   const hasMore = rows.length < total;
+  const filtersActive =
+    Boolean(dateFrom) ||
+    Boolean(dateTo) ||
+    Boolean(memberId) ||
+    Boolean(allianceRank);
 
   const subtitle =
     initialMemberName && memberId === initialMemberId
@@ -205,84 +209,70 @@ export function ConductorHistoryDialog({
           <p className="text-sm text-hq-fg-muted">{subtitle}</p>
         ) : null}
 
-        <div
-          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
-          data-testid="trains-conductor-history-filters"
-        >
-          <label className="flex flex-col gap-1 text-xs text-hq-fg-muted">
-            {t("filters.dateFrom")}
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="rounded-lg border border-hq-border bg-hq-canvas px-2 py-1.5 text-sm text-hq-fg"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-hq-fg-muted">
-            {t("filters.dateTo")}
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="rounded-lg border border-hq-border bg-hq-canvas px-2 py-1.5 text-sm text-hq-fg"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-hq-fg-muted">
-            {t("filters.member")}
-            <AppSelect
-              value={memberId}
-              onChange={setMemberId}
-              options={memberOptions}
-              searchable
-              searchMode="fuzzy"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-hq-fg-muted">
-            {t("filters.rank")}
-            <AppSelect
-              value={allianceRank}
-              onChange={setAllianceRank}
-              options={rankOptions}
-            />
-          </label>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => void fetchPage(0, false)}
-            className="rounded-lg border border-hq-border bg-hq-surface px-3 py-1.5 text-sm font-medium text-hq-fg hover:bg-hq-canvas disabled:opacity-50"
-            data-testid="trains-conductor-history-apply"
+        <div className="flex flex-col gap-3 md:flex-row md:items-end">
+          <div
+            className="grid min-w-0 flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
+            data-testid="trains-conductor-history-filters"
           >
-            {t("filters.apply")}
-          </button>
+            <label className="flex flex-col gap-1 text-xs text-hq-fg-muted">
+              {t("filters.dateFrom")}
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="rounded-lg border border-hq-border bg-hq-canvas px-2 py-1.5 text-sm text-hq-fg"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-hq-fg-muted">
+              {t("filters.dateTo")}
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="rounded-lg border border-hq-border bg-hq-canvas px-2 py-1.5 text-sm text-hq-fg"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-hq-fg-muted">
+              {t("filters.member")}
+              <AppSelect
+                value={memberId}
+                onChange={setMemberId}
+                options={memberOptions}
+                searchable
+                searchMode="fuzzy"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-hq-fg-muted">
+              {t("filters.rank")}
+              <AppSelect
+                value={allianceRank}
+                onChange={setAllianceRank}
+                options={rankOptions}
+              />
+            </label>
+          </div>
+
           <button
             type="button"
-            disabled={loading}
+            disabled={loading || !filtersActive}
             onClick={() => {
-              const cleared = {
-                dateFrom: "",
-                dateTo: "",
-                memberId: "",
-                allianceRank: "",
-              };
               setDateFrom("");
               setDateTo("");
               setMemberId("");
               setAllianceRank("");
-              void fetchPage(0, false, cleared);
             }}
-            className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg-muted hover:text-hq-fg disabled:opacity-50"
+            className="shrink-0 rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg-muted hover:text-hq-fg disabled:opacity-50 md:self-auto"
+            data-testid="trains-conductor-history-clear"
           >
             {t("filters.clear")}
           </button>
-          {total > 0 ? (
-            <span className="text-xs text-hq-fg-muted">
-              {t("resultCount", { shown: rows.length, total })}
-            </span>
-          ) : null}
         </div>
+
+        {total > 0 ? (
+          <span className="text-xs text-hq-fg-muted">
+            {t("resultCount", { shown: rows.length, total })}
+          </span>
+        ) : null}
 
         {loadError ? (
           <p className="rounded-lg border border-hq-danger/40 bg-hq-danger/10 px-3 py-2 text-sm text-hq-danger">
@@ -328,4 +318,3 @@ export function ConductorHistoryDialog({
     </Dialog>
   );
 }
-

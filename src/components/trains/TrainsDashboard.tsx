@@ -133,7 +133,7 @@ import { spinWeekDayLabel, spinWheelDatesFromList } from "@/lib/trains/spin-week
 import {
   hasValidConductorPickForDay,
 } from "@/lib/trains/conductor-mechanism.shared";
-import { supportsManualConductorPick, supportsManualVipPick } from "@/lib/trains/templates";
+import { supportsManualVipPick } from "@/lib/trains/templates";
 import {
   allianceTrainWeekFromRow,
   getTrainWeekStart,
@@ -255,10 +255,14 @@ export function TrainsDashboard({ initial }: Props) {
       { lastConductedDate: string; conductorMechanism: string | null }
     >
   >({});
+  const [pickPoolPickedMemberIds, setPickPoolPickedMemberIds] = useState<
+    Set<string>
+  >(new Set());
   const closePickModal = () => {
     setPickOpen(false);
     setPickHintsRaw({});
     setPickHintsLoading(false);
+    setPickPoolPickedMemberIds(new Set());
   };
   const [reseedHintOpen, setReseedHintOpen] = useState(false);
   const [poolRefreshedHint, setPoolRefreshedHint] =
@@ -1087,7 +1091,6 @@ export function TrainsDashboard({ initial }: Props) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               date,
-              locale,
               ...(options?.announce === false ? { announce: false } : {}),
             }),
           });
@@ -1163,10 +1166,13 @@ export function TrainsDashboard({ initial }: Props) {
     }
   };
 
-  const pickConductor = async (member: {
-    memberId: string;
-    memberName: string;
-  }) => {
+  const pickConductor = async (
+    member: {
+      memberId: string;
+      memberName: string;
+    },
+    options?: { allowSameGenerationReuse?: boolean },
+  ) => {
     closePickModal();
     await withOptimisticMutation(
       (snap) => applyOptimisticConductorPick(snap, selectedDate, member),
@@ -1178,6 +1184,9 @@ export function TrainsDashboard({ initial }: Props) {
             date: selectedDate,
             memberId: member.memberId,
             memberName: member.memberName,
+            ...(options?.allowSameGenerationReuse
+              ? { allowSameGenerationReuse: true }
+              : {}),
           }),
         });
         const body = (await res.json()) as { error?: string };
@@ -1640,10 +1649,7 @@ export function TrainsDashboard({ initial }: Props) {
     data.canUnlockConductor ||
     canOfficerChangeTemplateForDate(selectedDate, data.today);
   const canRoll = canRollForDate(selectedDate, data.today);
-  const canManualPick =
-    !locked &&
-    supportsManualConductorPick(conductorMech) &&
-    canManualPickForDate();
+  const canPickConductor = !locked && canManualPickForDate();
   const canManualPickVip =
     locked &&
     supportsManualVipPick(vipMech) &&
@@ -1653,7 +1659,7 @@ export function TrainsDashboard({ initial }: Props) {
   const showQuickActions =
     data.canManageTrains &&
     (canRoll ||
-      canManualPick ||
+      canPickConductor ||
       canManualPickVip ||
       Boolean(selectedRecord?.conductorMemberId) ||
       locked ||
@@ -1729,17 +1735,68 @@ export function TrainsDashboard({ initial }: Props) {
     ) : null;
   const pickRosterMembers = useMemo(
     () => {
-      if (pickRole !== "conductor") return data.roster;
-      if (conductorPaint === "r3_recognition") {
-        return data.roster.filter((member) => member.allianceRank === 3);
+      let roster = data.roster;
+      if (pickRole === "conductor") {
+        if (
+          conductorPaint === "r3_recognition" ||
+          conductorReseedPoolType === "r3"
+        ) {
+          roster = roster.filter((member) => member.allianceRank === 3);
+        } else if (
+          conductorMech === "r4_sequence" ||
+          conductorReseedPoolType === "r4_plus"
+        ) {
+          roster = roster.filter(
+            (member) => (member.allianceRank ?? 0) >= 4,
+          );
+        }
       }
-      if (conductorMech === "r4_sequence") {
-        return data.roster.filter((member) => (member.allianceRank ?? 0) >= 4);
-      }
-      return data.roster;
+      return [...roster].sort((a, b) =>
+        a.memberName.localeCompare(b.memberName, undefined, {
+          sensitivity: "base",
+        }),
+      );
     },
-    [pickRole, conductorPaint, conductorMech, data.roster],
+    [
+      pickRole,
+      conductorPaint,
+      conductorMech,
+      conductorReseedPoolType,
+      data.roster,
+    ],
   );
+  useEffect(() => {
+    if (!pickOpen || pickRole !== "conductor" || !conductorReseedPoolType) {
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/trains/pool?poolType=${encodeURIComponent(conductorReseedPoolType)}&date=${encodeURIComponent(selectedDate)}`,
+        );
+        const body = (await res.json()) as {
+          entries?: Array<{ memberId: string; selectedAt: string | null }>;
+        };
+        if (!cancelled && res.ok && body.entries) {
+          setPickPoolPickedMemberIds(
+            new Set(
+              body.entries
+                .filter((entry) => entry.selectedAt != null)
+                .map((entry) => entry.memberId),
+            ),
+          );
+        }
+      } catch {
+        // Pool hints are optional for the pick modal.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pickOpen, pickRole, conductorReseedPoolType, selectedDate]);
   useEffect(() => {
     if (!pickOpen || pickRole !== "conductor") return;
 
@@ -1824,7 +1881,7 @@ export function TrainsDashboard({ initial }: Props) {
       selectedDate === data.today ? data.vsDataStatus?.required : false,
     vsDataReady:
       selectedDate === data.today ? data.vsDataStatus?.ready : true,
-    conductorManualPickAvailable: canManualPick,
+    conductorManualPickAvailable: canPickConductor,
   });
   const showConductorCard =
     !data.simpleModeEnabled || guidedStep === "done";
@@ -2320,7 +2377,7 @@ export function TrainsDashboard({ initial }: Props) {
                 vipName={selectedRecord?.vipMemberName}
                 locked={locked}
                 canRoll={canRoll}
-                canManualPick={canManualPick}
+                canManualPick={canPickConductor}
                 canManualPickVip={canManualPickVip}
                 canSpinConductorWheel={canSpinConductorWheel}
                 canSpinVipWheel={canSpinVipWheel}
@@ -2489,7 +2546,7 @@ export function TrainsDashboard({ initial }: Props) {
               ) : null}
               {selectedDate === data.today &&
               canSpinConductorWheel &&
-              !canManualPick &&
+              !canPickConductor &&
               data.vsDataStatus?.required &&
               !data.vsDataStatus.ready &&
               !locked ? (
@@ -2508,7 +2565,7 @@ export function TrainsDashboard({ initial }: Props) {
                   </Link>
                 </div>
               ) : null}
-              {(canRoll || canManualPick || canManualPickVip) &&
+              {(canRoll || canPickConductor || canManualPickVip) &&
               (selectedConductorSpinSource != null || selectedVipSpinSource != null) ? (
                 <TrainSpinSourcePanel
                   conductorSource={selectedConductorSpinSource}
@@ -2552,7 +2609,9 @@ export function TrainsDashboard({ initial }: Props) {
                         ? t("assignNextInSequence", {
                             name: nextInSequence.memberName,
                           })
-                        : t("spinWheel")}
+                        : hasValidConductor
+                          ? t("wheel.spinAgain")
+                          : t("spinWheel")}
                   </button>
                 ) : null}
                 {canRoll &&
@@ -2567,7 +2626,7 @@ export function TrainsDashboard({ initial }: Props) {
                     {rollingRole === "conductor" ? t("spinning") : t("pickTopScorer")}
                   </button>
                 ) : null}
-                {canManualPick ? (
+                {canPickConductor ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -2766,15 +2825,19 @@ export function TrainsDashboard({ initial }: Props) {
         confirmLabel={
           pickRole === "vip" ? t("pickVipConfirm") : t("pickConductorConfirm")
         }
+        sameGenerationMemberIds={
+          pickRole === "conductor" ? pickPoolPickedMemberIds : undefined
+        }
+        sameGenerationWarningLabel={t("pickConductorSameGenerationWarning")}
         showGuardianToggle={pickRole === "vip"}
         guardianIsVipLabel={
           pickRole === "vip" ? t("guardianIsVip") : undefined
         }
         onClose={closePickModal}
-        onPick={(member, guardianIsVip) =>
+        onPick={(member, guardianIsVip, options) =>
           void (pickRole === "vip"
             ? pickVip(member, guardianIsVip)
-            : pickConductor(member))
+            : pickConductor(member, options))
         }
       />
 
@@ -2904,7 +2967,7 @@ export function TrainsDashboard({ initial }: Props) {
               >
                 {t("autoDq.close")}
               </button>
-              {canManualPick ? (
+              {canPickConductor ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -2961,7 +3024,7 @@ export function TrainsDashboard({ initial }: Props) {
         rosterSyncNotice={rosterSyncNotice}
         rosterSyncNoticeTone={rosterSyncNoticeTone}
         canPickManually={
-          wheelBlockedRole === "vip" ? canManualPickVip : canManualPick
+          wheelBlockedRole === "vip" ? canManualPickVip : canPickConductor
         }
         onClose={() => {
           if (reseedingPool == null && !rosterSyncBusy) {
@@ -2989,6 +3052,13 @@ export function TrainsDashboard({ initial }: Props) {
         scoreLeaderboardKind={scoreLeaderboardKind}
         canResetPool={canResetConductorPool}
         resetBusy={reseedingPool != null}
+        canPickConductor={canPickConductor}
+        pickBusy={trainQuickActionBusy}
+        onPickConductor={(member) => {
+          setPoolDetailsOpen(false);
+          setPoolDetailsInitialType(null);
+          void pickConductor(member);
+        }}
         onResetPool={() => {
           if (conductorReseedPoolType) {
             void reseedPool(conductorReseedPoolType);

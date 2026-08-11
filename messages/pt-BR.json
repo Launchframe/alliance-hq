@@ -3418,6 +3418,7 @@
     "pickConductorEmpty": "Nenhum membro corresponde à busca.",
     "pickConductorCancel": "Cancelar",
     "pickConductorConfirm": "Confirmar condutor",
+    "pickConductorSameGenerationWarning": "Este membro já foi condutor na geração atual do pool. Confirme apenas se você quer escolhê-lo de novo antes de todos terem tido a vez.",
     "pickConductorLastConducted": {
       "today": "Hoje",
       "yesterday": "Ontem",
@@ -3693,6 +3694,11 @@
       "memberTabsLabel": "Membros",
       "tabEligible": "Elegíveis",
       "tabChosen": "Já escolhidos",
+      "searchLabel": "Buscar membros",
+      "searchEligiblePlaceholder": "Buscar elegíveis…",
+      "searchChosenPlaceholder": "Buscar já escolhidos…",
+      "searchEmpty": "Nenhum membro corresponde à busca.",
+      "pickMember": "Escolher",
       "eventScoreContext": "Dia VS {dayNumber}: {dayName} · pontos de {scoreDate} (VS de ontem)",
       "scorePoints": "{score, number}",
       "scoreUnavailable": "—",
@@ -3826,7 +3832,6 @@
         "rank": "Patente do condutor",
         "rankAll": "Todas as patentes",
         "rankOption": "R{rank}",
-        "apply": "Aplicar filtros",
         "clear": "Limpar filtros"
       }
     },
