@@ -853,7 +853,7 @@
       "idx": 121,
       "version": "7",
       "when": 1790467200000,
-      "tag": "0124_train_day_top_score_spin_exclusions",
+      "tag": "0124_train_day_spin_exclusions",
       "breakpoints": true
     }
   ]

@@ -5,8 +5,8 @@ const mocks = vi.hoisted(() => ({
   getConductorRecord: vi.fn(),
   resolveRollDayConfig: vi.fn(),
   fetchAllianceVsTopScorersForTrainDate: vi.fn(),
-  listTopScoreSpinExcludedMemberIds: vi.fn(),
-  recordTopScoreSpinExclusion: vi.fn(),
+  listDaySpinExcludedMemberIds: vi.fn(),
+  recordDaySpinExclusion: vi.fn(),
   upsertConductorDraft: vi.fn(),
   getMemberRankAsOf: vi.fn(),
   resolveConductorQualificationGateApplies: vi.fn(),
@@ -36,9 +36,9 @@ vi.mock("@/lib/trains/vs-scores.server", () => ({
     mocks.fetchAllianceVsTopScorersForTrainDate,
 }));
 
-vi.mock("@/lib/trains/top-score-spin-exclusions.server", () => ({
-  listTopScoreSpinExcludedMemberIds: mocks.listTopScoreSpinExcludedMemberIds,
-  recordTopScoreSpinExclusion: mocks.recordTopScoreSpinExclusion,
+vi.mock("@/lib/trains/day-spin-exclusions.server", () => ({
+  listDaySpinExcludedMemberIds: mocks.listDaySpinExcludedMemberIds,
+  recordDaySpinExclusion: mocks.recordDaySpinExclusion,
 }));
 
 vi.mock("@/lib/trains/pool", async (importOriginal) => {
@@ -87,7 +87,7 @@ const top3 = [
   { memberId: "m-c", memberName: "Carol", allianceRank: 3, priorDayVsScore: 100 },
 ];
 
-describe("rollForConductor Top VS day-scoped exclusions", () => {
+describe("rollForConductor day-scoped spin exclusions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getEffectiveSeasonForAlliance.mockResolvedValue({ seasonKey: "3" });
@@ -100,14 +100,14 @@ describe("rollForConductor Top VS day-scoped exclusions", () => {
       paintTemplate: "top_vs",
     });
     mocks.fetchAllianceVsTopScorersForTrainDate.mockResolvedValue(top3);
-    mocks.listTopScoreSpinExcludedMemberIds.mockResolvedValue([]);
-    mocks.recordTopScoreSpinExclusion.mockResolvedValue(undefined);
+    mocks.listDaySpinExcludedMemberIds.mockResolvedValue([]);
+    mocks.recordDaySpinExclusion.mockResolvedValue(undefined);
     mocks.upsertConductorDraft.mockResolvedValue({});
     mocks.getMemberRankAsOf.mockResolvedValue(null);
     mocks.resolveConductorQualificationGateApplies.mockResolvedValue(false);
   });
 
-  it("records the drawn winner for the rest of the calendar day", async () => {
+  it("records the drawn Top VS winner for the rest of the calendar day", async () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
 
     const result = await rollForConductor({
@@ -116,7 +116,7 @@ describe("rollForConductor Top VS day-scoped exclusions", () => {
     });
 
     expect(result.memberId).toBe("m-a");
-    expect(mocks.recordTopScoreSpinExclusion).toHaveBeenCalledWith({
+    expect(mocks.recordDaySpinExclusion).toHaveBeenCalledWith({
       allianceId: "a1",
       date: "2099-06-20",
       memberId: "m-a",
@@ -125,8 +125,8 @@ describe("rollForConductor Top VS day-scoped exclusions", () => {
     vi.spyOn(Math, "random").mockRestore();
   });
 
-  it("excludes previously drawn members on re-spin", async () => {
-    mocks.listTopScoreSpinExcludedMemberIds.mockResolvedValue(["m-a"]);
+  it("excludes previously drawn Top VS members on re-spin", async () => {
+    mocks.listDaySpinExcludedMemberIds.mockResolvedValue(["m-a"]);
     mocks.getConductorRecord.mockResolvedValue({
       conductorMemberId: "m-a",
       lockedAt: null,
@@ -147,7 +147,7 @@ describe("rollForConductor Top VS day-scoped exclusions", () => {
   });
 
   it("fails when every Top VS member was already drawn today", async () => {
-    mocks.listTopScoreSpinExcludedMemberIds.mockResolvedValue([
+    mocks.listDaySpinExcludedMemberIds.mockResolvedValue([
       "m-a",
       "m-b",
       "m-c",
@@ -159,6 +159,21 @@ describe("rollForConductor Top VS day-scoped exclusions", () => {
       name: "TrainRollError",
       details: { code: "NO_WHEEL_CANDIDATES", candidateKind: "vs" },
     });
-    expect(mocks.recordTopScoreSpinExclusion).not.toHaveBeenCalled();
+    expect(mocks.recordDaySpinExclusion).not.toHaveBeenCalled();
+  });
+
+  it("does not record day exclusions for Top VS scope 1", async () => {
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorMechanism: "vs_high_score",
+      vipMechanism: "none",
+      dayConfigId: "dc1",
+      paintTemplate: null,
+    });
+    mocks.fetchAllianceVsTopScorersForTrainDate.mockResolvedValue([top3[0]]);
+
+    await rollForConductor({ allianceId: "a1", date: "2099-06-20" });
+
+    expect(mocks.listDaySpinExcludedMemberIds).not.toHaveBeenCalled();
+    expect(mocks.recordDaySpinExclusion).not.toHaveBeenCalled();
   });
 });

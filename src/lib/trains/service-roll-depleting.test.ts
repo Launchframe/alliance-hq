@@ -90,6 +90,11 @@ vi.mock("@/lib/trains/price-is-freight-roll.server", () => ({
   rollPriceIsFreightConductor: vi.fn(),
 }));
 
+vi.mock("@/lib/trains/day-spin-exclusions.server", () => ({
+  listDaySpinExcludedMemberIds: vi.fn(async () => []),
+  recordDaySpinExclusion: vi.fn(async () => undefined),
+}));
+
 vi.mock("@/lib/trains/vs-scores.server", () => ({
   fetchAllianceVsTopScorersForTrainDate: vi.fn(),
 }));

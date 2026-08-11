@@ -5,26 +5,26 @@ import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 
-/** Member ids already drawn from today's Top VS / Top VR wheel (server calendar date). */
-export async function listTopScoreSpinExcludedMemberIds(
+/** Member ids already drawn from today's non-deterministic conductor spin. */
+export async function listDaySpinExcludedMemberIds(
   allianceId: string,
   date: string,
 ): Promise<string[]> {
   const db = getDb();
   const rows = await db
-    .select({ memberId: schema.trainDayTopScoreSpinExclusions.memberId })
-    .from(schema.trainDayTopScoreSpinExclusions)
+    .select({ memberId: schema.trainDaySpinExclusions.memberId })
+    .from(schema.trainDaySpinExclusions)
     .where(
       and(
-        eq(schema.trainDayTopScoreSpinExclusions.allianceId, allianceId),
-        eq(schema.trainDayTopScoreSpinExclusions.date, date),
+        eq(schema.trainDaySpinExclusions.allianceId, allianceId),
+        eq(schema.trainDaySpinExclusions.date, date),
       ),
     );
   return rows.map((row) => row.memberId);
 }
 
-/** Record a drawn Top VS / Top VR winner for the rest of this calendar day. */
-export async function recordTopScoreSpinExclusion(input: {
+/** Record a drawn winner for the rest of this calendar day (server date). */
+export async function recordDaySpinExclusion(input: {
   allianceId: string;
   date: string;
   memberId: string;
@@ -32,7 +32,7 @@ export async function recordTopScoreSpinExclusion(input: {
 }): Promise<void> {
   const db = getDb();
   await db
-    .insert(schema.trainDayTopScoreSpinExclusions)
+    .insert(schema.trainDaySpinExclusions)
     .values({
       id: nanoid(),
       allianceId: input.allianceId,

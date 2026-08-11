@@ -93,13 +93,14 @@ import { fetchNativeVrTopScorers } from "@/lib/trains/native-scores.server";
 import { fetchAllianceVsTopScorersForTrainDate } from "@/lib/trains/vs-scores.server";
 import { countAllianceVrReporters } from "@/lib/trains/vr-reporter-count.server";
 import {
-  buildTopScoreSpinExclusionSet,
-  filterTopScoreSpinCandidates,
-} from "@/lib/trains/top-score-spin-exclusions.shared";
+  buildDaySpinExclusionSet,
+  filterDaySpinCandidates,
+  usesDaySpinExclusions,
+} from "@/lib/trains/day-spin-exclusions.shared";
 import {
-  listTopScoreSpinExcludedMemberIds,
-  recordTopScoreSpinExclusion,
-} from "@/lib/trains/top-score-spin-exclusions.server";
+  listDaySpinExcludedMemberIds,
+  recordDaySpinExclusion,
+} from "@/lib/trains/day-spin-exclusions.server";
 import {
   getAllianceRanksAsOf,
   memberIdsEligibleForPoolType,
@@ -431,6 +432,7 @@ async function rollFromPool(
   mechanism: ConductorMechanismType | VipMechanismType,
   useWeightedPick = false,
   respectConductorMinimums = false,
+  dayExcludedMemberIds?: ReadonlySet<string>,
 ): Promise<RollResult> {
   // Serialize list→pick→claim so parallel spins for different dates cannot
   // both mark the same pool row. Conditional claim + retry is defense in depth
@@ -466,6 +468,10 @@ async function rollFromPool(
           unselected.map((row) => row.memberId),
         );
         unselected = unselected.filter((row) => rankEligible.has(row.memberId));
+      }
+
+      if (dayExcludedMemberIds && dayExcludedMemberIds.size > 0) {
+        unselected = filterDaySpinCandidates(unselected, dayExcludedMemberIds);
       }
 
       let candidate: (typeof unselected)[number] | null = null;
@@ -506,9 +512,11 @@ async function rollFromPool(
     const reelMemberIds =
       qualifiedIds ?? generationEntries.map((row) => row.memberId);
     const reelAllowed = new Set(reelMemberIds);
+    const dayExcluded = dayExcludedMemberIds ?? new Set<string>();
     const seenMemberIds = new Set<string>();
     const wheelCandidates = generationEntries.flatMap((row) => {
       if (!reelAllowed.has(row.memberId)) return [];
+      if (dayExcluded.has(row.memberId)) return [];
       if (seenMemberIds.has(row.memberId)) return [];
       seenMemberIds.add(row.memberId);
       return [
@@ -1010,7 +1018,20 @@ export async function rollForConductor(input: {
   );
 
   let result: RollResult;
-  let recordTopScoreExclusion = false;
+  const applyDaySpinExclusion = usesDaySpinExclusions({
+    mechanism,
+    topBoard,
+    paintTemplate: dayConfig.paintTemplate,
+  });
+  const dayExcluded = applyDaySpinExclusion
+    ? buildDaySpinExclusionSet({
+        storedMemberIds: await listDaySpinExcludedMemberIds(
+          input.allianceId,
+          input.date,
+        ),
+        currentDraftMemberId: record?.conductorMemberId,
+      })
+    : new Set<string>();
 
   if (topBoard?.kind === "vs") {
     const top = await fetchVsTopScorersForTrainDateResolved({
@@ -1029,15 +1050,7 @@ export async function rollForConductor(input: {
         isAutomatic: true,
       };
     } else {
-      const storedExcluded = await listTopScoreSpinExcludedMemberIds(
-        input.allianceId,
-        input.date,
-      );
-      const excluded = buildTopScoreSpinExclusionSet({
-        storedMemberIds: storedExcluded,
-        currentDraftMemberId: record?.conductorMemberId,
-      });
-      const eligible = filterTopScoreSpinCandidates(top, excluded);
+      const eligible = filterDaySpinCandidates(top, dayExcluded);
       if (eligible.length === 0) {
         throwNoWheelCandidates(
           "vs",
@@ -1051,7 +1064,6 @@ export async function rollForConductor(input: {
         isAutomatic: false,
         wheelCandidates: eligible,
       };
-      recordTopScoreExclusion = true;
     }
   } else if (topBoard?.kind === "vr") {
     const reporterCount = await countAllianceVrReporters(input.allianceId);
@@ -1075,15 +1087,7 @@ export async function rollForConductor(input: {
         `Only ${top.length} of ${topBoard.topN} active-roster VR standings available for Top ${topBoard.topN}.`,
       );
     }
-    const storedExcluded = await listTopScoreSpinExcludedMemberIds(
-      input.allianceId,
-      input.date,
-    );
-    const excluded = buildTopScoreSpinExclusionSet({
-      storedMemberIds: storedExcluded,
-      currentDraftMemberId: record?.conductorMemberId,
-    });
-    const eligible = filterTopScoreSpinCandidates(top, excluded);
+    const eligible = filterDaySpinCandidates(top, dayExcluded);
     if (eligible.length === 0) {
       throwNoWheelCandidates(
         "vr",
@@ -1097,7 +1101,6 @@ export async function rollForConductor(input: {
       isAutomatic: false,
       wheelCandidates: eligible,
     };
-    recordTopScoreExclusion = true;
   } else {
   switch (mechanism) {
     case "donations_top": {
@@ -1124,6 +1127,7 @@ export async function rollForConductor(input: {
           date: input.date,
           paintTemplate: dayConfig.paintTemplate,
           mechanism,
+          excludedMemberIds: dayExcluded,
         });
         break;
       }
@@ -1154,6 +1158,7 @@ export async function rollForConductor(input: {
         mechanism,
         useWeightedPick,
         respectConductorMinimums,
+        applyDaySpinExclusion ? dayExcluded : undefined,
       );
       const poolRefreshed = await refreshExhaustedPoolIfNeeded({
         allianceId: input.allianceId,
@@ -1186,10 +1191,10 @@ export async function rollForConductor(input: {
       })
     : { ...result, draftPersisted: true };
 
-  // Record drawn Top VS / Top VR winners even when qualification rejects the
-  // draft — a re-spin means that member is unavailable for the rest of today.
-  if (recordTopScoreExclusion) {
-    await recordTopScoreSpinExclusion({
+  // Record drawn winners for non-deterministic spins even when qualification
+  // rejects the draft — a re-spin means that member is unavailable today.
+  if (applyDaySpinExclusion) {
+    await recordDaySpinExclusion({
       allianceId: input.allianceId,
       date: input.date,
       memberId: gated.memberId,

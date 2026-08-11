@@ -2693,12 +2693,13 @@ export const conductorPoolEntries = pgTable(
 );
 
 /**
- * Day-scoped Top VS / Top VR spin exclusions (scope > 1).
- * Rows are keyed by calendar date so eligibility resets at the next server day —
- * not part of the long-running R3 / R4+ depleting pools.
+ * Day-scoped exclusions for non-deterministic conductor spins (Top VS/VR N>1,
+ * R3 / heavy-hitter lottery, Price Is Freight). Keyed by calendar date so
+ * eligibility resets at the next server day — not part of long-running
+ * R3 / R4+ depleting generations.
  */
-export const trainDayTopScoreSpinExclusions = pgTable(
-  "train_day_top_score_spin_exclusions",
+export const trainDaySpinExclusions = pgTable(
+  "train_day_spin_exclusions",
   {
     id: text("id").primaryKey(),
     allianceId: text("alliance_id")
@@ -2712,12 +2713,12 @@ export const trainDayTopScoreSpinExclusions = pgTable(
       .notNull(),
   },
   (table) => [
-    unique("train_day_top_score_spin_exclusions_unique").on(
+    unique("train_day_spin_exclusions_unique").on(
       table.allianceId,
       table.date,
       table.memberId,
     ),
-    index("train_day_top_score_spin_exclusions_alliance_date_idx").on(
+    index("train_day_spin_exclusions_alliance_date_idx").on(
       table.allianceId,
       table.date,
     ),
@@ -2913,8 +2914,7 @@ export type TrainWeekSchedule = typeof trainWeekSchedules.$inferSelect;
 export type TrainDayConfig = typeof trainDayConfigs.$inferSelect;
 export type TrainConductorRecord = typeof trainConductorRecords.$inferSelect;
 export type ConductorPoolEntry = typeof conductorPoolEntries.$inferSelect;
-export type TrainDayTopScoreSpinExclusion =
-  typeof trainDayTopScoreSpinExclusions.$inferSelect;
+export type TrainDaySpinExclusion = typeof trainDaySpinExclusions.$inferSelect;
 export type InventoryItem = typeof inventoryItems.$inferSelect;
 export type Train = typeof trains.$inferSelect;
 export type TrainCar = typeof trainCars.$inferSelect;
