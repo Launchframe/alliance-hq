@@ -9,6 +9,11 @@ import {
   getPoolSummary,
   listPriorPoolGenerationSnapshots,
 } from "@/lib/trains/pool";
+import {
+  assessRestorePreviousPoolGeneration,
+  PoolGenerationMergeError,
+  restorePreviousPoolGeneration,
+} from "@/lib/trains/pool-generation-merge.server";
 import { reseedPool } from "@/lib/trains/service";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import type { PoolType } from "@/lib/trains/types";
@@ -49,10 +54,15 @@ export async function GET(request: Request) {
   }
 
   const summary = await getPoolSummary(ctx.allianceId, poolType);
-  const [rawEntries, priorGenerations] = await Promise.all([
-    listPoolEntries(ctx.allianceId, poolType),
-    listPriorPoolGenerationSnapshots(ctx.allianceId, poolType),
-  ]);
+  const [rawEntries, priorGenerations, restorePreviousGeneration] =
+    await Promise.all([
+      listPoolEntries(ctx.allianceId, poolType),
+      listPriorPoolGenerationSnapshots(ctx.allianceId, poolType),
+      assessRestorePreviousPoolGeneration({
+        allianceId: ctx.allianceId,
+        poolType,
+      }),
+    ]);
 
   let entries = rawEntries;
   if (
@@ -76,6 +86,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       summary,
       priorGenerations,
+      restorePreviousGeneration,
       eventContext,
       entries: entries.map((entry) => ({
         ...entry,
@@ -84,7 +95,12 @@ export async function GET(request: Request) {
     });
   }
 
-  return NextResponse.json({ summary, priorGenerations, entries });
+  return NextResponse.json({
+    summary,
+    priorGenerations,
+    restorePreviousGeneration,
+    entries,
+  });
 }
 
 export async function POST(request: Request) {
@@ -102,6 +118,7 @@ export async function POST(request: Request) {
   const body = (await request.json()) as {
     poolType?: PoolType;
     date?: string;
+    action?: "reseed" | "restorePreviousGeneration";
   };
 
   if (!body.poolType) {
@@ -109,6 +126,14 @@ export async function POST(request: Request) {
   }
 
   try {
+    if (body.action === "restorePreviousGeneration") {
+      const result = await restorePreviousPoolGeneration({
+        allianceId: ctx.allianceId,
+        poolType: body.poolType,
+      });
+      return NextResponse.json(result);
+    }
+
     const date = body.date?.trim() || getServerCalendarDate();
     const { seasonKey } = await getEffectiveSeasonForAlliance(ctx.allianceId);
     const dayConfig = await resolveRollDayConfig(
@@ -125,6 +150,16 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof PoolGenerationMergeError) {
+      const status =
+        error.code === "LOCKED_DRAFT" || error.code === "SELECTED_OVERLAP"
+          ? (409 as const)
+          : (400 as const);
+      return NextResponse.json(
+        { error: error.message, mergeError: { code: error.code } },
+        { status },
+      );
+    }
     const { status, body } = trainRollErrorResponse(error);
     return NextResponse.json(body, { status });
   }
