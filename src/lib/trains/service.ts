@@ -330,18 +330,80 @@ export async function countRankEligiblePoolMembers(input: {
   return countPoolCandidates({ ...input, respectConductorMinimums: false });
 }
 
+type DepletingPoolClaimEligibility = {
+  /** `null` means conductor minimums are off — treat every member as qualified. */
+  minimumsQualifiedIds: string[] | null;
+  /** `null` means rank filter does not apply for this pool type. */
+  rankEligibleIds: Set<string> | null;
+};
+
+/**
+ * Resolve Ashed-minimums + roster-rank filters once per roll.
+ * Must run outside {@link withConductorPoolClaimLock} — those fetches are slow
+ * and must not pin the advisory lock across gateway timeouts.
+ */
+async function resolveDepletingPoolClaimEligibility(input: {
+  allianceId: string;
+  poolType: PoolType;
+  date: string;
+  respectConductorMinimums: boolean;
+  memberIds: readonly string[];
+}): Promise<DepletingPoolClaimEligibility> {
+  let minimumsQualifiedIds: string[] | null = null;
+  if (input.respectConductorMinimums) {
+    minimumsQualifiedIds = await filterMemberIdsByConductorMinimums(
+      input.allianceId,
+      input.date,
+      input.memberIds,
+    );
+  }
+
+  let rankEligibleIds: Set<string> | null = null;
+  if (input.poolType === "r3" || input.poolType === "r4_plus") {
+    const idsForRank =
+      minimumsQualifiedIds != null ? minimumsQualifiedIds : input.memberIds;
+    rankEligibleIds = await memberIdsEligibleForPoolType(
+      input.allianceId,
+      input.poolType,
+      input.date,
+      idsForRank,
+    );
+  }
+
+  return { minimumsQualifiedIds, rankEligibleIds };
+}
+
+function applyDepletingPoolClaimEligibility<T extends { memberId: string }>(
+  rows: T[],
+  eligibility: DepletingPoolClaimEligibility,
+): T[] {
+  let next = rows;
+  if (eligibility.minimumsQualifiedIds != null) {
+    const qualified = new Set(eligibility.minimumsQualifiedIds);
+    next = next.filter((row) => qualified.has(row.memberId));
+  }
+  if (eligibility.rankEligibleIds != null) {
+    next = next.filter((row) =>
+      eligibility.rankEligibleIds!.has(row.memberId),
+    );
+  }
+  return next;
+}
+
 async function poolHasViableUnselectedEntries(input: {
   allianceId: string;
   poolType: PoolType;
   date: string;
   respectConductorMinimums: boolean;
+  /** When provided, skip a second Ashed/rank pass (caller already resolved). */
+  claimEligibility?: DepletingPoolClaimEligibility;
 }): Promise<boolean> {
   const summary = await getPoolSummary(input.allianceId, input.poolType);
   if (summary.total === 0) {
     return false;
   }
 
-  let unselected = await listUnselectedPoolEntries(
+  const unselected = await listUnselectedPoolEntries(
     input.allianceId,
     input.poolType,
   );
@@ -349,27 +411,17 @@ async function poolHasViableUnselectedEntries(input: {
     return false;
   }
 
-  if (input.respectConductorMinimums) {
-    const qualifiedIds = await filterMemberIdsByConductorMinimums(
-      input.allianceId,
-      input.date,
-      unselected.map((row) => row.memberId),
-    );
-    const qualified = new Set(qualifiedIds);
-    unselected = unselected.filter((row) => qualified.has(row.memberId));
-  }
+  const eligibility =
+    input.claimEligibility ??
+    (await resolveDepletingPoolClaimEligibility({
+      allianceId: input.allianceId,
+      poolType: input.poolType,
+      date: input.date,
+      respectConductorMinimums: input.respectConductorMinimums,
+      memberIds: unselected.map((row) => row.memberId),
+    }));
 
-  if (input.poolType === "r3" || input.poolType === "r4_plus") {
-    const rankEligible = await memberIdsEligibleForPoolType(
-      input.allianceId,
-      input.poolType,
-      input.date,
-      unselected.map((row) => row.memberId),
-    );
-    unselected = unselected.filter((row) => rankEligible.has(row.memberId));
-  }
-
-  return unselected.length > 0;
+  return applyDepletingPoolClaimEligibility(unselected, eligibility).length > 0;
 }
 
 /** Seed a conductor pool if it has no entries yet (used by rolls and manual picks). */
@@ -381,6 +433,8 @@ export async function ensureConductorPoolSeeded(input: {
   eventTopN?: number;
   paintTemplate?: WeekTemplateType | null;
   respectConductorMinimums?: boolean;
+  /** Precomputed claim filters — avoids a duplicate Ashed/rank fetch on roll. */
+  claimEligibility?: DepletingPoolClaimEligibility;
 }): Promise<void> {
   const respectConductorMinimums =
     input.respectConductorMinimums ??
@@ -391,6 +445,7 @@ export async function ensureConductorPoolSeeded(input: {
     poolType: input.poolType,
     date: input.date,
     respectConductorMinimums,
+    claimEligibility: input.claimEligibility,
   });
   if (hasViable) {
     return;
@@ -433,7 +488,25 @@ async function rollFromPool(
   useWeightedPick = false,
   respectConductorMinimums = false,
   dayExcludedMemberIds?: ReadonlySet<string>,
+  claimEligibility?: DepletingPoolClaimEligibility,
 ): Promise<RollResult> {
+  // Ashed VS + roster rank filters run once outside the claim lock. Holding
+  // the lock across those fetches is what stacked swap→spin cycles into 504s
+  // (next spin blocked on pg_advisory_lock until the gateway gave up).
+  const unselectedSnapshot = await listUnselectedPoolEntries(
+    allianceId,
+    poolType,
+  );
+  const eligibility =
+    claimEligibility ??
+    (await resolveDepletingPoolClaimEligibility({
+      allianceId,
+      poolType,
+      date,
+      respectConductorMinimums,
+      memberIds: unselectedSnapshot.map((row) => row.memberId),
+    }));
+
   // Serialize list→pick→claim so parallel spins for different dates cannot
   // both mark the same pool row. Conditional claim + retry is defense in depth
   // if a manual pick races outside this lock.
@@ -444,31 +517,12 @@ async function rollFromPool(
     let entry: Awaited<
       ReturnType<typeof listUnselectedPoolEntries>
     >[number] | null = null;
-    let qualifiedIds: string[] | null = null;
 
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-      let unselected = await listUnselectedPoolEntries(allianceId, poolType);
-      qualifiedIds = respectConductorMinimums
-        ? await filterMemberIdsByConductorMinimums(
-            allianceId,
-            date,
-            unselected.map((row) => row.memberId),
-          )
-        : null;
-      if (qualifiedIds != null) {
-        const qualified = new Set(qualifiedIds);
-        unselected = unselected.filter((row) => qualified.has(row.memberId));
-      }
-
-      if (poolType === "r3" || poolType === "r4_plus") {
-        const rankEligible = await memberIdsEligibleForPoolType(
-          allianceId,
-          poolType,
-          date,
-          unselected.map((row) => row.memberId),
-        );
-        unselected = unselected.filter((row) => rankEligible.has(row.memberId));
-      }
+      let unselected = applyDepletingPoolClaimEligibility(
+        await listUnselectedPoolEntries(allianceId, poolType),
+        eligibility,
+      );
 
       if (dayExcludedMemberIds && dayExcludedMemberIds.size > 0) {
         unselected = filterDaySpinCandidates(unselected, dayExcludedMemberIds);
@@ -510,7 +564,8 @@ async function rollFromPool(
 
     const generationEntries = await listPoolEntries(allianceId, poolType);
     const reelMemberIds =
-      qualifiedIds ?? generationEntries.map((row) => row.memberId);
+      eligibility.minimumsQualifiedIds ??
+      generationEntries.map((row) => row.memberId);
     const reelAllowed = new Set(reelMemberIds);
     const dayExcluded = dayExcludedMemberIds ?? new Set<string>();
     const seenMemberIds = new Set<string>();
@@ -1018,6 +1073,8 @@ export async function rollForConductor(input: {
   );
 
   let result: RollResult;
+  /** Pool claim already applied conductor minimums — skip post-roll Ashed DQ. */
+  let poolRollEnforcedMinimums = false;
   const applyDaySpinExclusion = usesDaySpinExclusions({
     mechanism,
     topBoard,
@@ -1138,6 +1195,23 @@ export async function rollForConductor(input: {
           allianceId: input.allianceId,
           poolType,
         });
+      // One Ashed + rank pass shared by seed check and claim (not under lock).
+      const unselectedForEligibility = await listUnselectedPoolEntries(
+        input.allianceId,
+        poolType,
+      );
+      let claimEligibility = await resolveDepletingPoolClaimEligibility({
+        allianceId: input.allianceId,
+        poolType,
+        date: input.date,
+        respectConductorMinimums,
+        memberIds: unselectedForEligibility.map((row) => row.memberId),
+      });
+      const hadViableBeforeSeed =
+        applyDepletingPoolClaimEligibility(
+          unselectedForEligibility,
+          claimEligibility,
+        ).length > 0;
       await ensureConductorPoolSeeded({
         hqAllianceId: input.allianceId,
         poolType,
@@ -1145,7 +1219,22 @@ export async function rollForConductor(input: {
         useSequence: mechanism === "r4_sequence",
         paintTemplate: dayConfig.paintTemplate,
         respectConductorMinimums,
+        claimEligibility,
       });
+      // Reseed/new generation changes the unselected set — refresh filters.
+      if (!hadViableBeforeSeed) {
+        const refreshedUnselected = await listUnselectedPoolEntries(
+          input.allianceId,
+          poolType,
+        );
+        claimEligibility = await resolveDepletingPoolClaimEligibility({
+          allianceId: input.allianceId,
+          poolType,
+          date: input.date,
+          respectConductorMinimums,
+          memberIds: refreshedUnselected.map((row) => row.memberId),
+        });
+      }
       const useWeightedPick = false;
       // Do not release the prior depleting selection before claiming the next
       // winner. A failed re-roll (empty pool / qualification miss) must leave
@@ -1159,6 +1248,7 @@ export async function rollForConductor(input: {
         useWeightedPick,
         respectConductorMinimums,
         applyDaySpinExclusion ? dayExcluded : undefined,
+        claimEligibility,
       );
       const poolRefreshed = await refreshExhaustedPoolIfNeeded({
         allianceId: input.allianceId,
@@ -1170,6 +1260,7 @@ export async function rollForConductor(input: {
       if (poolRefreshed) {
         result = { ...result, poolRefreshed };
       }
+      poolRollEnforcedMinimums = respectConductorMinimums;
       break;
     }
     default:
@@ -1177,11 +1268,13 @@ export async function rollForConductor(input: {
   }
   }
 
-  const gateApplies = await resolveConductorQualificationGateApplies({
-    allianceId: input.allianceId,
-    poolType:
-      result.poolType ?? conductorMechanismPoolType(mechanism) ?? null,
-  });
+  const gateApplies =
+    !poolRollEnforcedMinimums &&
+    (await resolveConductorQualificationGateApplies({
+      allianceId: input.allianceId,
+      poolType:
+        result.poolType ?? conductorMechanismPoolType(mechanism) ?? null,
+    }));
 
   const gated = gateApplies
     ? await applyConductorQualificationGate({

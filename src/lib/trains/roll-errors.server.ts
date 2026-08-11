@@ -37,6 +37,13 @@ export function throwPoolUnavailable(poolType?: PoolType): never {
   });
 }
 
+export function throwPoolBusy(poolType?: PoolType): never {
+  throw new TrainRollError(
+    "Another officer is spinning this pool right now. Try again in a moment.",
+    { code: "POOL_BUSY", poolType },
+  );
+}
+
 export function throwNoWheelCandidates(
   candidateKind: WheelCandidateKind,
   message: string,
@@ -53,8 +60,9 @@ export function throwAshedRequired(message: string): never {
 
 export function trainRollErrorResponse(error: unknown) {
   if (error instanceof TrainRollError) {
+    const status = error.details.code === "POOL_BUSY" ? (503 as const) : (400 as const);
     return {
-      status: 400 as const,
+      status,
       body: { error: error.message, rollError: error.details },
     };
   }

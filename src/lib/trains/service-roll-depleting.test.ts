@@ -220,6 +220,26 @@ describe("rollForConductor depleting pool release ordering", () => {
       "m-alice",
     );
   });
+
+  it("filters conductor minimums once outside the claim loop and skips post-roll Ashed DQ", async () => {
+    mocks.getConductorRecord.mockResolvedValue({
+      conductorMemberId: null,
+      lockedAt: null,
+    });
+    mocks.resolvePoolRespectsConductorMinimums.mockResolvedValue(true);
+    mocks.filterMemberIdsByConductorMinimums.mockResolvedValue(["m-bob"]);
+    mocks.resolveConductorQualificationGateApplies.mockResolvedValue(true);
+    mocks.markPoolEntrySelected
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    await rollForConductor({ allianceId: "a1", date: "2099-06-20" });
+
+    expect(mocks.filterMemberIdsByConductorMinimums).toHaveBeenCalledTimes(1);
+    expect(mocks.evaluateConductorQualification).not.toHaveBeenCalled();
+    expect(mocks.markPoolEntrySelected).toHaveBeenCalledTimes(2);
+    expect(mocks.upsertConductorDraft).toHaveBeenCalled();
+  });
 });
 
 describe("rollForVip depleting pool release ordering", () => {

@@ -3867,7 +3867,6 @@
         "rank": "Conductor rank",
         "rankAll": "All ranks",
         "rankOption": "R{rank}",
-        "apply": "Apply filters",
         "clear": "Clear filters"
       }
     },
