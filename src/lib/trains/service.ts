@@ -93,6 +93,14 @@ import { fetchNativeVrTopScorers } from "@/lib/trains/native-scores.server";
 import { fetchAllianceVsTopScorersForTrainDate } from "@/lib/trains/vs-scores.server";
 import { countAllianceVrReporters } from "@/lib/trains/vr-reporter-count.server";
 import {
+  buildTopScoreSpinExclusionSet,
+  filterTopScoreSpinCandidates,
+} from "@/lib/trains/top-score-spin-exclusions.shared";
+import {
+  listTopScoreSpinExcludedMemberIds,
+  recordTopScoreSpinExclusion,
+} from "@/lib/trains/top-score-spin-exclusions.server";
+import {
   getAllianceRanksAsOf,
   memberIdsEligibleForPoolType,
   resolveMemberPoolAllianceRank,
@@ -1002,6 +1010,7 @@ export async function rollForConductor(input: {
   );
 
   let result: RollResult;
+  let recordTopScoreExclusion = false;
 
   if (topBoard?.kind === "vs") {
     const top = await fetchVsTopScorersForTrainDateResolved({
@@ -1020,13 +1029,29 @@ export async function rollForConductor(input: {
         isAutomatic: true,
       };
     } else {
-      const winner = top[Math.floor(Math.random() * top.length)]!;
+      const storedExcluded = await listTopScoreSpinExcludedMemberIds(
+        input.allianceId,
+        input.date,
+      );
+      const excluded = buildTopScoreSpinExclusionSet({
+        storedMemberIds: storedExcluded,
+        currentDraftMemberId: record?.conductorMemberId,
+      });
+      const eligible = filterTopScoreSpinCandidates(top, excluded);
+      if (eligible.length === 0) {
+        throwNoWheelCandidates(
+          "vs",
+          "Everyone in today's Top VS board was already drawn. Try again tomorrow or pick manually.",
+        );
+      }
+      const winner = eligible[Math.floor(Math.random() * eligible.length)]!;
       result = {
         ...winner,
         mechanism,
         isAutomatic: false,
-        wheelCandidates: top,
+        wheelCandidates: eligible,
       };
+      recordTopScoreExclusion = true;
     }
   } else if (topBoard?.kind === "vr") {
     const reporterCount = await countAllianceVrReporters(input.allianceId);
@@ -1050,13 +1075,29 @@ export async function rollForConductor(input: {
         `Only ${top.length} of ${topBoard.topN} active-roster VR standings available for Top ${topBoard.topN}.`,
       );
     }
-    const winner = top[Math.floor(Math.random() * top.length)]!;
+    const storedExcluded = await listTopScoreSpinExcludedMemberIds(
+      input.allianceId,
+      input.date,
+    );
+    const excluded = buildTopScoreSpinExclusionSet({
+      storedMemberIds: storedExcluded,
+      currentDraftMemberId: record?.conductorMemberId,
+    });
+    const eligible = filterTopScoreSpinCandidates(top, excluded);
+    if (eligible.length === 0) {
+      throwNoWheelCandidates(
+        "vr",
+        "Everyone in today's Top VR board was already drawn. Try again tomorrow or pick manually.",
+      );
+    }
+    const winner = eligible[Math.floor(Math.random() * eligible.length)]!;
     result = {
       ...winner,
       mechanism,
       isAutomatic: false,
-      wheelCandidates: top,
+      wheelCandidates: eligible,
     };
+    recordTopScoreExclusion = true;
   } else {
   switch (mechanism) {
     case "donations_top": {
@@ -1144,6 +1185,17 @@ export async function rollForConductor(input: {
         result,
       })
     : { ...result, draftPersisted: true };
+
+  // Record drawn Top VS / Top VR winners even when qualification rejects the
+  // draft — a re-spin means that member is unavailable for the rest of today.
+  if (recordTopScoreExclusion) {
+    await recordTopScoreSpinExclusion({
+      allianceId: input.allianceId,
+      date: input.date,
+      memberId: gated.memberId,
+      memberName: gated.memberName,
+    });
+  }
 
   if (!gated.draftPersisted) {
     return gated;
