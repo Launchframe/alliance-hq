@@ -55,6 +55,8 @@ type Props = {
   /** Surface structured wheel/pool blocks with recovery CTAs on the dashboard. */
   onWheelBlocked?: (details: TrainRollErrorDetails) => void;
   onRefresh: () => void;
+  /** Fires when every wheel animation in a batch finishes and the confirm dialog opens. */
+  onSpinBatchComplete?: () => void;
   /** Hide the week spin trigger button (month toolbar uses imperative spin). */
   showTrigger?: boolean;
 };
@@ -80,6 +82,7 @@ export const SpinWeekConductorFlow = forwardRef<
     onError,
     onWheelBlocked,
     onRefresh,
+    onSpinBatchComplete,
     showTrigger = true,
   },
   ref,
@@ -243,6 +246,7 @@ export const SpinWeekConductorFlow = forwardRef<
 
         setConfirmResults(accumulated);
         setPhase("confirm");
+        onSpinBatchComplete?.();
       } catch (error) {
         setWheelOpen(false);
         setWheelQualification(null);
@@ -262,6 +266,7 @@ export const SpinWeekConductorFlow = forwardRef<
     },
     [
       onError,
+      onSpinBatchComplete,
       onWheelBlocked,
       phase,
       rollUntilQualified,
