@@ -1533,8 +1533,10 @@ export function TrainsDashboard({ initial }: Props) {
     }
   };
 
-  const restorePreviousPoolGeneration = async (poolType: PoolType) => {
-    if (rollingRole || reseedingPool || conductorLockBusy) return;
+  const restorePreviousPoolGeneration = async (
+    poolType: PoolType,
+  ): Promise<boolean> => {
+    if (rollingRole || reseedingPool || conductorLockBusy) return false;
     setError(null);
     setReseedingPool(poolType);
     try {
@@ -1549,11 +1551,13 @@ export function TrainsDashboard({ initial }: Props) {
       const body = (await res.json()) as { error?: string };
       if (!res.ok) {
         setError(body.error ?? t("poolFailed"));
-        return;
+        return false;
       }
       void refreshRef.current();
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : t("poolFailed"));
+      return false;
     } finally {
       setReseedingPool(null);
     }
@@ -3087,9 +3091,9 @@ export function TrainsDashboard({ initial }: Props) {
           setPoolDetailsInitialType(null);
           void pickConductor(member);
         }}
-        onRestorePreviousGeneration={async (poolType) => {
-          await restorePreviousPoolGeneration(poolType);
-        }}
+        onRestorePreviousGeneration={(poolType) =>
+          restorePreviousPoolGeneration(poolType)
+        }
         onResetPool={() => {
           if (conductorReseedPoolType) {
             void reseedPool(conductorReseedPoolType);

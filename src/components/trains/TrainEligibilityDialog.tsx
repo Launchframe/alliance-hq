@@ -91,7 +91,9 @@ type Props = {
   /** Undo an accidental new generation when selected members do not overlap. */
   canRestorePreviousGeneration?: boolean;
   restoreBusy?: boolean;
-  onRestorePreviousGeneration?: (poolType: PoolType) => void | Promise<void>;
+  onRestorePreviousGeneration?: (
+    poolType: PoolType,
+  ) => boolean | Promise<boolean>;
   /** Manual conductor pick from the eligible (unpicked) list. */
   canPickConductor?: boolean;
   pickBusy?: boolean;
@@ -336,8 +338,7 @@ export function TrainEligibilityDialog({
     Boolean(restoreInfo?.available) &&
     (restoreInfo?.lockedDraftDates?.length ?? 0) > 0;
   const restoreBlockedOverlap =
-    restoreInfo?.blockReason === "selected_overlap" &&
-    (payload?.priorGenerations?.length ?? 0) > 0;
+    restoreInfo?.blockReason === "selected_overlap";
   const footerBusy = resetBusy || restoreBusy;
 
   return (
@@ -667,7 +668,10 @@ export function TrainEligibilityDialog({
                   onClick={() => {
                     void (async () => {
                       if (!activePoolType) return;
-                      await onRestorePreviousGeneration?.(activePoolType);
+                      const ok = await onRestorePreviousGeneration?.(
+                        activePoolType,
+                      );
+                      if (!ok) return;
                       setRestoreConfirm(false);
                       setReloadNonce((n) => n + 1);
                     })();

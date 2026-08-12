@@ -22,6 +22,7 @@ import {
   type VsScoreContext,
 } from "@/lib/trains/vs-week-days.shared";
 import { fetchHqSeasonVsScoresByMember } from "@/lib/trains/native-scores.server";
+import { sessionHasPermission } from "@/lib/rbac/context";
 import { requireApiSession } from "@/lib/session";
 import {
   requireSessionPermission,
@@ -54,14 +55,17 @@ export async function GET(request: Request) {
   }
 
   const summary = await getPoolSummary(ctx.allianceId, poolType);
+  const canManageTrains = await sessionHasPermission(session.id, "trains:write");
   const [rawEntries, priorGenerations, restorePreviousGeneration] =
     await Promise.all([
       listPoolEntries(ctx.allianceId, poolType),
       listPriorPoolGenerationSnapshots(ctx.allianceId, poolType),
-      assessRestorePreviousPoolGeneration({
-        allianceId: ctx.allianceId,
-        poolType,
-      }),
+      canManageTrains
+        ? assessRestorePreviousPoolGeneration({
+            allianceId: ctx.allianceId,
+            poolType,
+          })
+        : Promise.resolve(null),
     ]);
 
   let entries = rawEntries;
