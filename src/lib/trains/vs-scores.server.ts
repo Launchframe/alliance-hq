@@ -220,8 +220,8 @@ async function resolveAllianceAshedConnection(
 
 /**
  * Per-member Days 1–5 (Mon–Fri) VSScore total and how many of those five days
- * had a row, for the week ending in `day6RecordedDate` (Saturday). Used to
- * derive the true Day 6 delta from a cumulative post-match screenshot.
+ * had a row, for the week whose Day 6 is `day6RecordedDate` (Saturday). Used
+ * to interpolate Day 6 from a weekly-total upload: Day 6 = weekly − Days 1–5.
  */
 export async function fetchAllianceVsDay1To5CoverageForDay6(
   allianceId: string,

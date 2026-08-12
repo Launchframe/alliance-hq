@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   deriveVsDay6Score,
   formatVsDay6DerivedScore,
+  interpolateVsDay6SubmitPayloads,
   parseVsReviewScoreText,
 } from "@/lib/video/vs-day6-derivation.shared";
 
@@ -54,5 +55,41 @@ describe("parseVsReviewScoreText", () => {
 describe("formatVsDay6DerivedScore", () => {
   it("rounds to an integer string", () => {
     expect(formatVsDay6DerivedScore(50_000_000.4)).toBe("50000000");
+  });
+});
+
+describe("interpolateVsDay6SubmitPayloads", () => {
+  const fullCoverage = new Map([
+    ["m1", { total: 100_000_000, daysCovered: 5 }],
+    ["m2", { total: 40_000_000, daysCovered: 4 }],
+  ]);
+
+  it("replaces weekly scores with Day 6 deltas for fully covered members", () => {
+    expect(
+      interpolateVsDay6SubmitPayloads(
+        [
+          {
+            alliance_id: "a1",
+            member_id: "m1",
+            member_name: "Alice",
+            score: 150_000_000,
+          },
+          {
+            alliance_id: "a1",
+            member_id: "m2",
+            member_name: "Bob",
+            score: 80_000_000,
+          },
+        ],
+        fullCoverage,
+      ),
+    ).toEqual([
+      {
+        alliance_id: "a1",
+        member_id: "m1",
+        member_name: "Alice",
+        score: 50_000_000,
+      },
+    ]);
   });
 });

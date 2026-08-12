@@ -99,14 +99,14 @@ describe("GET /api/tools/video-upload/[jobId]/vs-day6-totals", () => {
     });
   });
 
-  it("400s when recordedDate is not VS Day 6 (Saturday)", async () => {
+  it("400s when recordedDate is not a weekly Sunday", async () => {
     const { request: req, params } = request({
-      recordedDate: "2026-08-07",
+      recordedDate: "2026-08-08",
     });
     const res = await GET(req, { params });
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toEqual({
-      error: "recordedDate must be a VS Day 6 (Saturday) match date.",
+      error: "recordedDate must be a weekly VS week-ending Sunday.",
     });
     expect(fetchAllianceVsDay1To5CoverageForDay6Mock).not.toHaveBeenCalled();
   });
@@ -114,7 +114,7 @@ describe("GET /api/tools/video-upload/[jobId]/vs-day6-totals", () => {
   it("returns access error when resolveVideoJobAccess fails", async () => {
     resolveVideoJobAccessMock.mockResolvedValue({ ok: false, status: 404 });
     const { request: req, params } = request({
-      recordedDate: "2026-08-08",
+      recordedDate: "2026-08-09",
     });
     const res = await GET(req, { params });
     expect(videoJobAccessErrorResponseMock).toHaveBeenCalledWith({
@@ -124,9 +124,9 @@ describe("GET /api/tools/video-upload/[jobId]/vs-day6-totals", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns Day 1–5 coverage totals for a Saturday VS date", async () => {
+  it("returns Day 1–5 coverage totals for a weekly Sunday date", async () => {
     const { request: req, params } = request({
-      recordedDate: "2026-08-08",
+      recordedDate: "2026-08-09",
     });
     const res = await GET(req, { params });
     expect(res.status).toBe(200);

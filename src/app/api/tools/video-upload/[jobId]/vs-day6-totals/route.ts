@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
 import { requireApiSession } from "@/lib/session";
 import { fetchAllianceVsDay1To5CoverageForDay6 } from "@/lib/trains/vs-scores.server";
-import { vsPerformanceDayNumberForDate } from "@/lib/video/vs-recorded-date.shared";
+import { vsSaturdayForWeeklySunday } from "@/lib/video/vs-recorded-date.shared";
 import {
   resolveVideoJobAccess,
   videoJobAccessErrorResponse,
@@ -17,10 +17,10 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * GET /api/tools/video-upload/[jobId]/vs-day6-totals
- * ?recordedDate=YYYY-MM-DD (Saturday / VS Day 6)
+ * ?recordedDate=YYYY-MM-DD (Sunday week-ending weekly date)
  *
- * Returns per-member Days 1–5 totals for deriving Day 6-only scores from
- * cumulative post-match screenshots.
+ * Returns per-member Days 1–5 totals so a weekly VS upload can interpolate
+ * Day 6 = weekly total − sum(Days 1–5).
  */
 export async function GET(request: Request, { params }: Props) {
   try {
@@ -52,9 +52,13 @@ export async function GET(request: Request, { params }: Props) {
       );
     }
 
-    if (vsPerformanceDayNumberForDate(recordedDate) !== 6) {
+    const saturday = vsSaturdayForWeeklySunday(recordedDate);
+    if (!saturday) {
       return NextResponse.json(
-        { error: "recordedDate must be a VS Day 6 (Saturday) match date." },
+        {
+          error:
+            "recordedDate must be a weekly VS week-ending Sunday.",
+        },
         { status: 400 },
       );
     }
@@ -73,7 +77,7 @@ export async function GET(request: Request, { params }: Props) {
 
     const coverageMap = await fetchAllianceVsDay1To5CoverageForDay6(
       allianceId,
-      recordedDate,
+      saturday,
     );
 
     const totals: Record<string, { total: number; daysCovered: number }> = {};

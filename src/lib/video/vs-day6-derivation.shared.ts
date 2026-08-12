@@ -19,6 +19,31 @@ export function deriveVsDay6Score(
   };
 }
 
+/**
+ * From weekly-total Ashed payloads, keep only members with full Days 1–5
+ * coverage and replace `score` with the interpolated Day 6 delta.
+ */
+export function interpolateVsDay6SubmitPayloads(
+  weeklyPayloads: Record<string, unknown>[],
+  coverageByMemberId: ReadonlyMap<string, VsDay6Coverage>,
+): Record<string, unknown>[] {
+  const interpolated: Record<string, unknown>[] = [];
+  for (const row of weeklyPayloads) {
+    const memberId =
+      typeof row.member_id === "string" ? row.member_id : null;
+    const weeklyScore =
+      typeof row.score === "number" ? row.score : Number(row.score);
+    if (!memberId || !Number.isFinite(weeklyScore)) continue;
+    const result = deriveVsDay6Score(
+      weeklyScore,
+      coverageByMemberId.get(memberId),
+    );
+    if (result.status !== "derived") continue;
+    interpolated.push({ ...row, score: result.derivedScore });
+  }
+  return interpolated;
+}
+
 /** Parse OCR/review score text to a finite number, or null when invalid. */
 export function parseVsReviewScoreText(scoreText: string | null | undefined): number | null {
   if (scoreText == null || scoreText.trim() === "") return null;

@@ -57,6 +57,7 @@ Composite templates (`vs_push_weekdays` + `r4_event_vip`) paint weekend segments
 
 - **Daily** `recorded_date`: Mon–Sat match day (server calendar).
 - **Weekly** `recorded_date`: the **Sunday** that ends that VS week (“week ending Sunday”). Sunday is not a match day; it is the week-end marker for totals.
+- **Weekly Day 6 interpolation:** a weekly upload writes Sunday `is_weekly` totals **and** interpolates Saturday Day 6 daily scores as `weekly − sum(Days 1–5)` per member when Days 1–5 are all present. HQ owns this math; do not assume Ashed `bulkUpsertVSScores` derives Day 6.
 - **Weekly upload window:** Sunday **00:00** → Monday **00:00** server time. An upload in that window may be treated as the weekly totals video for the week ending that Sunday (when no weekly batch exists yet). Officer-local Saturday night often falls in this window.
 - Defaults and period toggles must use **`getServerCalendarDate` / `defaultVsPerformanceRecordedDate`**, never the officer’s account-local “today” alone — account Sat + server Sun otherwise snaps weekly to the **previous** Sunday.
 

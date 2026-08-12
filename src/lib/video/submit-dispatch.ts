@@ -15,8 +15,8 @@ export type DispatchScoreSubmitOptions = {
 
 /**
  * Ashed VS uploads go through bulkUpsertVSScores (same as ashed.online), with
- * is_weekly so weekly totals are tagged. HQ does not interpolate missing daily
- * scores — Ashed owns that when officers upload in Ashed UI / on sync.
+ * is_weekly so weekly totals are tagged. Weekly HQ submits also interpolate
+ * Day 6 (Saturday daily) as weekly − sum(Days 1–5) in the submit route.
  */
 export async function dispatchScoreSubmit(
   connection: ParsedConnection,
