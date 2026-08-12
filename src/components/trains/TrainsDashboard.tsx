@@ -1533,6 +1533,36 @@ export function TrainsDashboard({ initial }: Props) {
     }
   };
 
+  const restorePreviousPoolGeneration = async (
+    poolType: PoolType,
+  ): Promise<boolean> => {
+    if (rollingRole || reseedingPool || conductorLockBusy) return false;
+    setError(null);
+    setReseedingPool(poolType);
+    try {
+      const res = await fetch("/api/trains/pool", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          poolType,
+          action: "restorePreviousGeneration",
+        }),
+      });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setError(body.error ?? t("poolFailed"));
+        return false;
+      }
+      void refreshRef.current();
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("poolFailed"));
+      return false;
+    } finally {
+      setReseedingPool(null);
+    }
+  };
+
   const trainQuickActionBusy =
     rollingRole !== null || reseedingPool !== null || conductorLockBusy !== null;
 
@@ -3052,6 +3082,8 @@ export function TrainsDashboard({ initial }: Props) {
         scoreLeaderboardKind={scoreLeaderboardKind}
         canResetPool={canResetConductorPool}
         resetBusy={reseedingPool != null}
+        canRestorePreviousGeneration={data.canManageTrains}
+        restoreBusy={reseedingPool != null}
         canPickConductor={canPickConductor}
         pickBusy={trainQuickActionBusy}
         onPickConductor={(member) => {
@@ -3059,6 +3091,9 @@ export function TrainsDashboard({ initial }: Props) {
           setPoolDetailsInitialType(null);
           void pickConductor(member);
         }}
+        onRestorePreviousGeneration={(poolType) =>
+          restorePreviousPoolGeneration(poolType)
+        }
         onResetPool={() => {
           if (conductorReseedPoolType) {
             void reseedPool(conductorReseedPoolType);

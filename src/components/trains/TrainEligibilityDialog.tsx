@@ -48,10 +48,20 @@ type PriorGenerationSnapshot = {
   unpickedMemberNames: string[];
 };
 
+type RestorePreviousGenerationInfo = {
+  available: boolean;
+  priorGeneration: number | null;
+  currentGeneration: number;
+  pendingDraftCount: number;
+  lockedDraftDates?: string[];
+  blockReason?: string | null;
+};
+
 type PoolPayload = {
   summary: PoolSummary;
   entries: PoolEntryRow[];
   priorGenerations?: PriorGenerationSnapshot[];
+  restorePreviousGeneration?: RestorePreviousGenerationInfo | null;
   eventContext?: EventPoolContext | null;
   error?: string;
 };
@@ -78,6 +88,12 @@ type Props = {
   resetBusy?: boolean;
   onResetPool?: () => void;
   onOpenReseedHint?: () => void;
+  /** Undo an accidental new generation when selected members do not overlap. */
+  canRestorePreviousGeneration?: boolean;
+  restoreBusy?: boolean;
+  onRestorePreviousGeneration?: (
+    poolType: PoolType,
+  ) => boolean | Promise<boolean>;
   /** Manual conductor pick from the eligible (unpicked) list. */
   canPickConductor?: boolean;
   pickBusy?: boolean;
@@ -119,6 +135,9 @@ export function TrainEligibilityDialog({
   resetBusy = false,
   onResetPool,
   onOpenReseedHint,
+  canRestorePreviousGeneration = false,
+  restoreBusy = false,
+  onRestorePreviousGeneration,
   canPickConductor = false,
   pickBusy = false,
   onPickConductor,
@@ -133,6 +152,8 @@ export function TrainEligibilityDialog({
   const [payload, setPayload] = useState<PoolPayload | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [resetConfirm, setResetConfirm] = useState(false);
+  const [restoreConfirm, setRestoreConfirm] = useState(false);
+  const [reloadNonce, setReloadNonce] = useState(0);
   const [expandedPriorGeneration, setExpandedPriorGeneration] = useState<
     number | null
   >(null);
@@ -191,7 +212,7 @@ export function TrainEligibilityDialog({
       cancelled = true;
       cancelAnimationFrame(frame);
     };
-  }, [activePoolType, open, t, trainDate]);
+  }, [activePoolType, open, reloadNonce, t, trainDate]);
 
   const handleClose = useCallback(() => {
     setPoolSwitch(null);
@@ -200,6 +221,7 @@ export function TrainEligibilityDialog({
     setPayload(null);
     setFetchError(null);
     setResetConfirm(false);
+    setRestoreConfirm(false);
     setExpandedPriorGeneration(null);
     onClose();
   }, [onClose]);
@@ -304,6 +326,20 @@ export function TrainEligibilityDialog({
   const resetTriggerLabelKey = payload
     ? poolResetTriggerLabelKey(payload.summary)
     : "startNewRotation";
+
+  const restoreInfo = payload?.restorePreviousGeneration ?? null;
+  const restoreAvailable =
+    canRestorePreviousGeneration &&
+    Boolean(onRestorePreviousGeneration) &&
+    Boolean(activePoolType) &&
+    Boolean(restoreInfo?.available) &&
+    (restoreInfo?.lockedDraftDates?.length ?? 0) === 0;
+  const restoreBlockedLocked =
+    Boolean(restoreInfo?.available) &&
+    (restoreInfo?.lockedDraftDates?.length ?? 0) > 0;
+  const restoreBlockedOverlap =
+    restoreInfo?.blockReason === "selected_overlap";
+  const footerBusy = resetBusy || restoreBusy;
 
   return (
     <Dialog
@@ -600,10 +636,103 @@ export function TrainEligibilityDialog({
         </div>
 
         <div className="shrink-0 space-y-3 border-t border-hq-border pt-3">
-          {canResetPool && onResetPool ? (
-            <div>
-              {resetConfirm ? (
-                <div className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+          {restoreConfirm && restoreInfo?.priorGeneration != null ? (
+            <div
+              className="flex flex-col gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-2"
+              data-testid="trains-eligibility-restore-confirm"
+            >
+              <p className="text-sm text-hq-fg">
+                {restoreInfo.pendingDraftCount > 0
+                  ? t("restorePreviousConfirmBodyWithDrafts", {
+                      current: restoreInfo.currentGeneration,
+                      prior: restoreInfo.priorGeneration,
+                      count: restoreInfo.pendingDraftCount,
+                    })
+                  : t("restorePreviousConfirmBody", {
+                      current: restoreInfo.currentGeneration,
+                      prior: restoreInfo.priorGeneration,
+                    })}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={footerBusy}
+                  onClick={() => setRestoreConfirm(false)}
+                  className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg hover:bg-hq-canvas"
+                >
+                  {t("resetConfirmCancel")}
+                </button>
+                <button
+                  type="button"
+                  disabled={footerBusy}
+                  onClick={() => {
+                    void (async () => {
+                      if (!activePoolType) return;
+                      const ok = await onRestorePreviousGeneration?.(
+                        activePoolType,
+                      );
+                      if (!ok) return;
+                      setRestoreConfirm(false);
+                      setReloadNonce((n) => n + 1);
+                    })();
+                  }}
+                  className="rounded-md bg-cyan-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-cyan-800 disabled:opacity-50"
+                  data-testid="trains-eligibility-restore-confirm-action"
+                >
+                  {restoreBusy
+                    ? t("restorePreviousBusy")
+                    : t("restorePreviousConfirmAction", {
+                        generation: restoreInfo.priorGeneration,
+                      })}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {restoreBlockedLocked ? (
+            <p
+              className="text-xs leading-relaxed text-hq-fg-muted"
+              data-testid="trains-eligibility-restore-blocked-locked"
+            >
+              {t("restorePreviousBlockedLocked", {
+                dates: (restoreInfo?.lockedDraftDates ?? []).join(", "),
+              })}
+            </p>
+          ) : null}
+
+          {restoreBlockedOverlap ? (
+            <p
+              className="text-xs leading-relaxed text-hq-fg-muted"
+              data-testid="trains-eligibility-restore-blocked-overlap"
+            >
+              {t("restorePreviousBlockedOverlap", {
+                prior: restoreInfo?.priorGeneration ?? 1,
+                current: restoreInfo?.currentGeneration ?? 2,
+              })}
+            </p>
+          ) : null}
+
+          <div className="flex flex-wrap items-center gap-2">
+            {restoreAvailable && !restoreConfirm ? (
+              <button
+                type="button"
+                disabled={footerBusy}
+                onClick={() => {
+                  setResetConfirm(false);
+                  setRestoreConfirm(true);
+                }}
+                className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-sm font-medium text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-50"
+                data-testid="trains-eligibility-restore"
+              >
+                {t("restorePreviousTrigger", {
+                  generation: restoreInfo!.priorGeneration!,
+                })}
+              </button>
+            ) : null}
+
+            {canResetPool && onResetPool ? (
+              resetConfirm ? (
+                <div className="flex w-full flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
                   <p className="text-sm text-hq-fg">
                     {t(resetConfirmBodyKey, {
                       generation: payload?.summary.generation ?? 1,
@@ -614,7 +743,7 @@ export function TrainEligibilityDialog({
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      disabled={resetBusy}
+                      disabled={footerBusy}
                       onClick={() => setResetConfirm(false)}
                       className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg hover:bg-hq-canvas"
                     >
@@ -622,7 +751,7 @@ export function TrainEligibilityDialog({
                     </button>
                     <button
                       type="button"
-                      disabled={resetBusy}
+                      disabled={footerBusy}
                       onClick={() => {
                         onResetPool();
                         setResetConfirm(false);
@@ -636,12 +765,15 @@ export function TrainEligibilityDialog({
                     </button>
                   </div>
                 </div>
-              ) : (
+              ) : !restoreConfirm ? (
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    disabled={resetBusy}
-                    onClick={() => setResetConfirm(true)}
+                    disabled={footerBusy}
+                    onClick={() => {
+                      setRestoreConfirm(false);
+                      setResetConfirm(true);
+                    }}
                     className="rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg-muted hover:text-hq-fg disabled:opacity-50"
                     data-testid="trains-eligibility-reset"
                   >
@@ -661,9 +793,9 @@ export function TrainEligibilityDialog({
                     </button>
                   ) : null}
                 </div>
-              )}
-            </div>
-          ) : null}
+              ) : null
+            ) : null}
+          </div>
 
           <div className="flex justify-end">
             <button
