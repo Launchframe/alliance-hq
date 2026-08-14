@@ -125,6 +125,63 @@ export function clampDockHeightPx(
   return Math.max(min, Math.min(max, Math.round(height)));
 }
 
+/** App shell header height; sticky preview/issue chrome sits just below it. */
+export const PREVIEW_HEADER_OFFSET = "3.25rem";
+
+/** Pixel equivalent of {@link PREVIEW_HEADER_OFFSET} at a 16px root. */
+export const PREVIEW_HEADER_OFFSET_PX = 52;
+
+/** Approximate height of the review issue stepper bar (padding + controls). */
+export const REVIEW_ISSUE_NAV_BAR_PX = 44;
+
+function topPreviewDockPx(options: {
+  previewOpen: boolean;
+  placement: PreviewPlacement;
+  dockHeightPx: number;
+}): number {
+  if (
+    options.previewOpen &&
+    options.placement === "top" &&
+    options.dockHeightPx > 0
+  ) {
+    return options.dockHeightPx;
+  }
+  return 0;
+}
+
+/**
+ * Sticky `top` for the review issue bar. When the preview is docked at the
+ * top, offset by the dock height so the bar cannot cover the video.
+ */
+export function reviewIssueNavStickyTop(options: {
+  previewOpen: boolean;
+  placement: PreviewPlacement;
+  dockHeightPx: number;
+}): string {
+  const dockPx = topPreviewDockPx(options);
+  if (dockPx > 0) {
+    return `calc(${PREVIEW_HEADER_OFFSET} + ${dockPx}px)`;
+  }
+  return PREVIEW_HEADER_OFFSET;
+}
+
+/**
+ * Window-scroll offset so a jumped-to review row sits below sticky chrome
+ * (header, optional top preview dock, issue stepper).
+ */
+export function reviewIssueNavScrollOffsetPx(options: {
+  previewOpen: boolean;
+  placement: PreviewPlacement;
+  dockHeightPx: number;
+  issueBarPx?: number;
+}): number {
+  return (
+    PREVIEW_HEADER_OFFSET_PX +
+    topPreviewDockPx(options) +
+    (options.issueBarPx ?? REVIEW_ISSUE_NAV_BAR_PX)
+  );
+}
+
 export function clampPreviewSize(
   size: Partial<PreviewPaneSize> | undefined | null,
   viewport: { width: number; height: number },

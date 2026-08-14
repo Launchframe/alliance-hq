@@ -182,14 +182,41 @@ export function buildDepositSlipReviewProblemRowIds(
   return visibleRowIds.filter((id) => problems.has(id));
 }
 
-export function scrollToReviewRow(rowId: string): void {
+/** Window Y so `rowTop` (getBoundingClientRect) sits below sticky chrome. */
+export function reviewRowWindowScrollTop(options: {
+  rowTop: number;
+  scrollY: number;
+  stickyOffsetPx: number;
+  gapPx?: number;
+}): number {
+  const gap = options.gapPx ?? 8;
+  return Math.max(
+    0,
+    options.scrollY + options.rowTop - options.stickyOffsetPx - gap,
+  );
+}
+
+/**
+ * Scroll the window to a review row. Do not use `scrollIntoView` — the score
+ * table's `overflow-x-auto` wrapper becomes a scrollport and traps it, so
+ * mobile Next looks like a no-op.
+ */
+export function scrollToReviewRow(
+  rowId: string,
+  stickyOffsetPx = 96,
+): void {
   const escaped =
     typeof CSS !== "undefined" && "escape" in CSS
       ? CSS.escape(rowId)
       : rowId.replace(/"/g, '\\"');
-  document
-    .querySelector(
-      `[data-review-row-id="${escaped}"], [data-deposit-slip-row-id="${escaped}"]`,
-    )
-    ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  const el = document.querySelector(
+    `[data-review-row-id="${escaped}"], [data-deposit-slip-row-id="${escaped}"]`,
+  );
+  if (!(el instanceof HTMLElement)) return;
+  const top = reviewRowWindowScrollTop({
+    rowTop: el.getBoundingClientRect().top,
+    scrollY: window.scrollY,
+    stickyOffsetPx,
+  });
+  window.scrollTo({ top, behavior: "smooth" });
 }
