@@ -3572,34 +3572,26 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 {scoreTargetMeta?.showScoreColumn !== false ? (
                 <td className="px-3 py-3 align-top">
                   {(() => {
-                    const scoreText = row.score ?? "";
-                    const scoreNum = parseFloat(
-                      scoreText.replace(/,/g, ""),
-                    );
-                    const isZero =
-                      !Number.isNaN(scoreNum) && scoreNum === 0;
+                    const scoreNum = parseVsReviewScoreText(row.score);
+                    const isZero = scoreNum === 0;
                     const showZeroWarning = isZero && !zeroScoreWarningDisabled;
-                    const isNegative =
-                      !Number.isNaN(scoreNum) && scoreNum < 0;
+                    const isNegative = scoreNum != null && scoreNum < 0;
                     let vsDay6DerivedNote: string | null = null;
                     let vsDay6InsufficientNote = false;
-                    if (isWeeklyVsUpload && row.memberId) {
-                      const rawNum = parseVsReviewScoreText(row.score);
-                      if (rawNum != null) {
-                        const coverage =
-                          vsDay6CoverageTotals?.[row.memberId];
-                        const derivation = deriveVsDay6Score(rawNum, coverage);
-                        if (derivation.status === "derived") {
-                          vsDay6DerivedNote = t("vsDay6DerivedNote", {
-                            derivedScore: formatVsDay6Amount(
-                              derivation.derivedScore,
-                            ),
-                            day1To5Total: formatVsDay6Amount(coverage!.total),
-                            rawScore: formatVsDay6Amount(rawNum),
-                          });
-                        } else if (vsDay6CoverageTotals != null) {
-                          vsDay6InsufficientNote = true;
-                        }
+                    if (isWeeklyVsUpload && row.memberId && scoreNum != null) {
+                      const coverage =
+                        vsDay6CoverageTotals?.[row.memberId];
+                      const derivation = deriveVsDay6Score(scoreNum, coverage);
+                      if (derivation.status === "derived") {
+                        vsDay6DerivedNote = t("vsDay6DerivedNote", {
+                          derivedScore: formatVsDay6Amount(
+                            derivation.derivedScore,
+                          ),
+                          day1To5Total: formatVsDay6Amount(coverage!.total),
+                          rawScore: formatVsDay6Amount(scoreNum),
+                        });
+                      } else if (vsDay6CoverageTotals != null) {
+                        vsDay6InsufficientNote = true;
                       }
                     }
                     return (
