@@ -9,6 +9,7 @@ import {
   nearestValidVsPerformanceDate,
   vsPerformanceDayMetaForDate,
   vsPerformanceDayNumberForDate,
+  vsSaturdayForWeeklySunday,
 } from "@/lib/video/vs-recorded-date.shared";
 
 describe("vsPerformanceDayNumberForDate", () => {
@@ -21,6 +22,16 @@ describe("vsPerformanceDayNumberForDate", () => {
     expect(vsPerformanceDayNumberForDate("2026-07-10")).toBe(5);
     expect(vsPerformanceDayNumberForDate("2026-07-11")).toBe(6);
     expect(vsPerformanceDayNumberForDate("2026-07-12")).toBeNull();
+  });
+});
+
+describe("vsSaturdayForWeeklySunday", () => {
+  it("returns the Saturday before a week-ending Sunday", () => {
+    expect(vsSaturdayForWeeklySunday("2026-08-09")).toBe("2026-08-08");
+  });
+
+  it("returns null for non-Sunday dates", () => {
+    expect(vsSaturdayForWeeklySunday("2026-08-08")).toBeNull();
   });
 });
 

@@ -26,6 +26,7 @@ vi.mock("@/lib/crypto/encrypt", () => ({
 }));
 
 import {
+  fetchAllianceVsDay1To5CoverageForDay6,
   fetchAllianceVsScoresForEvaluationPeriod,
   fetchAllianceVsTopScorersForTrainDate,
   fetchVsScoresByRecordedDate,
@@ -286,5 +287,114 @@ describe("fetchAllianceVsScoresForEvaluationPeriod", () => {
 
     expect(scores.get("m1")).toBe(7_500_000);
     expect(mocks.base44Json).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("fetchAllianceVsDay1To5CoverageForDay6", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getAllianceById.mockResolvedValue({
+      ashedAllianceId: "ashed-1",
+      tag: "TAG",
+    });
+    mocks.getAllianceAshedCredential.mockResolvedValue({
+      encryptedToken: "enc",
+      appId: "app",
+      originUrl: "https://ashed.online",
+    });
+    mocks.decryptSecret.mockReturnValue("token");
+  });
+
+  it("sums Mon–Fri daily scores and counts covered days per member", async () => {
+    mocks.base44Json.mockImplementation((_conn, path: string) => {
+      if (path.includes("2026-08-03")) {
+        return Promise.resolve([{ member_id: "m1", score: 10_000_000 }]);
+      }
+      if (path.includes("2026-08-04")) {
+        return Promise.resolve([{ member_id: "m1", score: 20_000_000 }]);
+      }
+      if (path.includes("2026-08-05")) {
+        return Promise.resolve([{ member_id: "m1", score: 30_000_000 }]);
+      }
+      if (path.includes("2026-08-06")) {
+        return Promise.resolve([{ member_id: "m1", score: 40_000_000 }]);
+      }
+      if (path.includes("2026-08-07")) {
+        return Promise.resolve([{ member_id: "m1", score: 50_000_000 }]);
+      }
+      return Promise.resolve([]);
+    });
+
+    const coverage = await fetchAllianceVsDay1To5CoverageForDay6(
+      "hq-1",
+      "2026-08-08",
+    );
+
+    expect(coverage.get("m1")).toEqual({
+      total: 150_000_000,
+      daysCovered: 5,
+    });
+    expect(mocks.base44Json).toHaveBeenCalledTimes(5);
+  });
+
+  it("reports partial coverage when a member is missing days", async () => {
+    mocks.base44Json.mockImplementation((_conn, path: string) => {
+      if (path.includes("2026-08-03")) {
+        return Promise.resolve([{ member_id: "m1", score: 10_000_000 }]);
+      }
+      if (path.includes("2026-08-04")) {
+        return Promise.resolve([{ member_id: "m1", score: 20_000_000 }]);
+      }
+      if (path.includes("2026-08-05")) {
+        return Promise.resolve([]);
+      }
+      if (path.includes("2026-08-06")) {
+        return Promise.resolve([{ member_id: "m1", score: 40_000_000 }]);
+      }
+      if (path.includes("2026-08-07")) {
+        return Promise.resolve([{ member_id: "m1", score: 50_000_000 }]);
+      }
+      return Promise.resolve([]);
+    });
+
+    const coverage = await fetchAllianceVsDay1To5CoverageForDay6(
+      "hq-1",
+      "2026-08-08",
+    );
+
+    expect(coverage.get("m1")).toEqual({
+      total: 120_000_000,
+      daysCovered: 4,
+    });
+  });
+
+  it("excludes weekly rows from day coverage totals", async () => {
+    mocks.base44Json.mockImplementation((_conn, path: string) => {
+      if (path.includes("2026-08-03")) {
+        return Promise.resolve([
+          { member_id: "m1", score: 99_000_000, is_weekly: true },
+          { member_id: "m1", score: 10_000_000, is_weekly: false },
+        ]);
+      }
+      if (
+        path.includes("2026-08-04") ||
+        path.includes("2026-08-05") ||
+        path.includes("2026-08-06") ||
+        path.includes("2026-08-07")
+      ) {
+        return Promise.resolve([{ member_id: "m1", score: 10_000_000 }]);
+      }
+      return Promise.resolve([]);
+    });
+
+    const coverage = await fetchAllianceVsDay1To5CoverageForDay6(
+      "hq-1",
+      "2026-08-08",
+    );
+
+    expect(coverage.get("m1")).toEqual({
+      total: 50_000_000,
+      daysCovered: 5,
+    });
   });
 });

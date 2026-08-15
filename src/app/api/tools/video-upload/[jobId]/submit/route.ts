@@ -73,7 +73,9 @@ import {
   validateSubmitContext,
   type SubmitContext,
 } from "@/lib/video/submit-schemas";
-import { isValidVsPerformanceRecordedDate } from "@/lib/video/vs-recorded-date.shared";
+import { isValidVsPerformanceRecordedDate, vsSaturdayForWeeklySunday } from "@/lib/video/vs-recorded-date.shared";
+import { interpolateVsDay6SubmitPayloads } from "@/lib/video/vs-day6-derivation.shared";
+import { fetchAllianceVsDay1To5CoverageForDay6 } from "@/lib/trains/vs-scores.server";
 import {
   isVideoJobReadyForSubmit,
   resolveVideoSubmitRollbackStatus,
@@ -982,6 +984,7 @@ export async function POST(request: Request, { params }: Props) {
             recordedDate: submitContext.recordedDate,
           })
         : [];
+    const allianceSizeAtRecord = (await listAllianceMembers(allianceId)).length;
     const runReplaceAndInsert = async () => {
       if (replaceScores) {
         await replaceAshedScoresForContext({
@@ -1001,10 +1004,34 @@ export async function POST(request: Request, { params }: Props) {
       }
       await dispatchScoreSubmit(connection, target, payloads, {
         submitContext,
-        allianceSizeAtRecord: (
-          await listAllianceMembers(allianceId)
-        ).length,
+        allianceSizeAtRecord,
       });
+      if (
+        scoreTargetId === "vs-performance" &&
+        submitContext.vsPeriod === "weekly"
+      ) {
+        const saturday = vsSaturdayForWeeklySunday(submitContext.recordedDate);
+        if (saturday) {
+          const coverage = await fetchAllianceVsDay1To5CoverageForDay6(
+            allianceId,
+            saturday,
+          );
+          const day6Payloads = interpolateVsDay6SubmitPayloads(
+            payloads,
+            coverage,
+          );
+          if (day6Payloads.length > 0) {
+            await dispatchScoreSubmit(connection, target, day6Payloads, {
+              submitContext: {
+                ...submitContext,
+                recordedDate: saturday,
+                vsPeriod: "daily",
+              },
+              allianceSizeAtRecord,
+            });
+          }
+        }
+      }
     };
     if (replaceScores) {
       await withAshedScoreReplaceLock(

@@ -51,6 +51,11 @@ import {
   vsPerformanceDayMetaForDate,
   type VsScorePeriod,
 } from "@/lib/video/vs-recorded-date.shared";
+import {
+  deriveVsDay6Score,
+  parseVsReviewScoreText,
+  type VsDay6Coverage,
+} from "@/lib/video/vs-day6-derivation.shared";
 import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
@@ -333,6 +338,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     () => presetRecordedDate ?? accountTodayCalendarDate(timezoneId),
   );
   const [stormOverlapWarning, setStormOverlapWarning] = useState(false);
+  const [vsDay6CoverageTotals, setVsDay6CoverageTotals] = useState<
+    Record<string, VsDay6Coverage> | null
+  >(null);
   const [filterQuery, setFilterQuery] = useState("");
   const [depositSlipVisibleRowIds, setDepositSlipVisibleRowIds] = useState<
     string[]
@@ -577,6 +585,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     if (!isVsPerformanceTarget) return recordedDate;
     return coerceVsPerformanceRecordedDate(recordedDate, vsPeriod);
   }, [isVsPerformanceTarget, recordedDate, vsPeriod]);
+
+  const isWeeklyVsUpload = useMemo(
+    () => isVsPerformanceTarget && vsPeriod === "weekly",
+    [isVsPerformanceTarget, vsPeriod],
+  );
+
+  const formatVsDay6Amount = useCallback(
+    (value: number) => new Intl.NumberFormat(locale).format(value),
+    [locale],
+  );
 
   const vsRecordedDateOptions = useMemo(() => {
     if (!isVsPerformanceTarget) return [];
@@ -1132,6 +1150,48 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     team,
     recordedDate,
   ]);
+
+  useEffect(() => {
+    if (!isWeeklyVsUpload) {
+      const frame = requestAnimationFrame(() => {
+        setVsDay6CoverageTotals(null);
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+
+    if (viewMode !== "review") {
+      return;
+    }
+
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/tools/video-upload/${jobId}/vs-day6-totals?recordedDate=${encodeURIComponent(vsSafeRecordedDate)}`,
+          { signal: controller.signal },
+        );
+        if (!res.ok) {
+          if (!controller.signal.aborted) {
+            setVsDay6CoverageTotals(null);
+          }
+          return;
+        }
+        const data = (await res.json()) as {
+          totals?: Record<string, VsDay6Coverage>;
+        };
+        if (!controller.signal.aborted) {
+          setVsDay6CoverageTotals(data.totals ?? {});
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (!controller.signal.aborted) {
+          setVsDay6CoverageTotals(null);
+        }
+      }
+    })();
+
+    return () => controller.abort();
+  }, [viewMode, isWeeklyVsUpload, jobId, vsSafeRecordedDate]);
 
   useEffect(() => {
     if (!scoreTargetMeta?.showBankSelector) return;
@@ -3512,15 +3572,28 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 {scoreTargetMeta?.showScoreColumn !== false ? (
                 <td className="px-3 py-3 align-top">
                   {(() => {
-                    const scoreText = row.score ?? "";
-                    const scoreNum = parseFloat(
-                      scoreText.replace(/,/g, ""),
-                    );
-                    const isZero =
-                      !Number.isNaN(scoreNum) && scoreNum === 0;
+                    const scoreNum = parseVsReviewScoreText(row.score);
+                    const isZero = scoreNum === 0;
                     const showZeroWarning = isZero && !zeroScoreWarningDisabled;
-                    const isNegative =
-                      !Number.isNaN(scoreNum) && scoreNum < 0;
+                    const isNegative = scoreNum != null && scoreNum < 0;
+                    let vsDay6DerivedNote: string | null = null;
+                    let vsDay6InsufficientNote = false;
+                    if (isWeeklyVsUpload && row.memberId && scoreNum != null) {
+                      const coverage =
+                        vsDay6CoverageTotals?.[row.memberId];
+                      const derivation = deriveVsDay6Score(scoreNum, coverage);
+                      if (derivation.status === "derived") {
+                        vsDay6DerivedNote = t("vsDay6DerivedNote", {
+                          derivedScore: formatVsDay6Amount(
+                            derivation.derivedScore,
+                          ),
+                          day1To5Total: formatVsDay6Amount(coverage!.total),
+                          rawScore: formatVsDay6Amount(scoreNum),
+                        });
+                      } else if (vsDay6CoverageTotals != null) {
+                        vsDay6InsufficientNote = true;
+                      }
+                    }
                     return (
                       <>
                         <input
@@ -3538,6 +3611,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                                 : "border-hq-border"
                           }`}
                         />
+                        {vsDay6DerivedNote ? (
+                          <p className="mt-1 text-xs text-hq-fg-muted">
+                            {vsDay6DerivedNote}
+                          </p>
+                        ) : null}
+                        {vsDay6InsufficientNote ? (
+                          <p className="mt-1 text-xs text-[#d29922]">
+                            {t("vsDay6InsufficientDataWarning")}
+                          </p>
+                        ) : null}
                         {showZeroWarning && (
                           <p className="mt-1 text-xs text-[#d29922]">
                             {t("scoreZeroWarning")}
