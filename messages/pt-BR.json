@@ -3382,6 +3382,12 @@
       "body": "Nenhuma pontuação encontrada ainda para a verificação VS deste dia.",
       "link": "Enviar pontuações"
     },
+    "economyScoresOptional": {
+      "body": "As pontuações não foram enviadas, então todos são elegíveis. Continuar mesmo assim?",
+      "continue": "Continuar mesmo assim",
+      "cancel": "Cancelar",
+      "uploadLink": "Enviar pontuações"
+    },
     "rosterSyncBanner": {
       "bodyEmpty": "O Alliance HQ ainda não tem o roster da sua aliança. Sincronize pelo Ashed para carregar membros e patentes antes de girar a roleta.",
       "bodyMissingRanks": "Nenhum membro atende ao requisito de patente de hoje ({rankLabel}). Sincronize pelo Ashed caso as patentes estejam desatualizadas ou atribua patentes em Membros."

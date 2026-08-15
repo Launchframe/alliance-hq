@@ -27,11 +27,11 @@ export function usesPriceIsFreightConductorRoll(
   );
 }
 
-/** Economy / Price Is Freight weeks use prior-day VS for conductor pools. */
+/** Price Is Freight conductor rolls require prior-day VS. Economy Week does not. */
 export function paintTemplateUsesPriorDayVs(
   paintTemplate: WeekTemplateType | string | null | undefined,
 ): boolean {
-  return paintTemplate === "economy_week" || isPriceIsRightPaintTemplate(paintTemplate);
+  return usesPriceIsFreightConductorRoll(paintTemplate);
 }
 
 /**

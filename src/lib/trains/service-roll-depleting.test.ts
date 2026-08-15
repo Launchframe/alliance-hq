@@ -168,6 +168,29 @@ describe("rollForConductor depleting pool release ordering", () => {
     mocks.refreshExhaustedPoolIfNeeded.mockResolvedValue(false);
   });
 
+  it("passes paintTemplate when resolving conductor minimums", async () => {
+    mocks.getConductorRecord.mockResolvedValue({
+      conductorMemberId: null,
+      lockedAt: null,
+    });
+
+    await rollForConductor({ allianceId: "a1", date: "2099-06-20" });
+
+    expect(mocks.resolvePoolRespectsConductorMinimums).toHaveBeenCalledWith({
+      allianceId: "a1",
+      poolType: "r3",
+      paintTemplate: "economy_week",
+    });
+    expect(mocks.filterMemberIdsByConductorMinimums).not.toHaveBeenCalled();
+    expect(mocks.resolveConductorQualificationGateApplies).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allianceId: "a1",
+        poolType: "r3",
+        paintTemplate: "economy_week",
+      }),
+    );
+  });
+
   it("releases the prior conductor only after a successful depleting roll", async () => {
     mocks.getConductorRecord.mockResolvedValue({
       conductorMemberId: "m-alice",

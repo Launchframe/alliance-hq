@@ -62,6 +62,30 @@ describe("train-conductor-minimums", () => {
     ).toBe(true);
   });
 
+  it("skips conductor minimums off Price Is Freight paints", () => {
+    expect(
+      conductorQualificationGateApplies({
+        poolType: "r3",
+        minimumsEnabled: true,
+        paintTemplate: "economy_week",
+      }),
+    ).toBe(false);
+    expect(
+      conductorQualificationGateApplies({
+        poolType: "r3",
+        minimumsEnabled: true,
+        paintTemplate: "price_is_right_weekdays",
+      }),
+    ).toBe(true);
+    expect(
+      conductorQualificationGateApplies({
+        poolType: "heavy_hitter",
+        minimumsEnabled: true,
+        paintTemplate: "takedown_week",
+      }),
+    ).toBe(true);
+  });
+
   it("formatTrainPointCount uses locale grouping", () => {
     expect(formatTrainPointCount(6_480_000, "en-US")).toBe("6,480,000");
     expect(formatTrainPointCount(6_480_000, "pt-BR")).toBe("6.480.000");

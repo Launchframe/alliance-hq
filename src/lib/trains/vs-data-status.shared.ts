@@ -38,7 +38,8 @@ export function priorDayVsAppliesForTrainDate(trainDate: string): boolean {
 /**
  * Decide whether today's conductor flow needs score data and which source.
  * Top VS (`vs_high_score` / `vs_top_10` / `vs_top_n`) and Price Is Freight use
- * prior-day Ashed VS. Top VR (`vr_top_n`) uses season HQ VR.
+ * prior-day Ashed VS. Economy Week probes the same source without requiring it.
+ * Top VR (`vr_top_n`) uses season HQ VR.
  */
 export function classifyVsDataNeed(
   input: ClassifyVsDataNeedInput,
@@ -72,6 +73,12 @@ export function classifyVsDataNeed(
     return { kind: "prior_day_vs", required: true };
   }
 
+  // Economy Week still probes prior-day VS so officers can confirm “everyone
+  // is eligible,” but missing scores must not block the spin.
+  if (mech === "r3_lottery" && input.paintTemplate === "economy_week") {
+    return { kind: "prior_day_vs", required: false };
+  }
+
   if (
     mech === "r3_lottery" &&
     paintTemplateUsesPriorDayVs(input.paintTemplate)
@@ -80,6 +87,21 @@ export function classifyVsDataNeed(
   }
 
   return { kind: "none", required: false };
+}
+
+/**
+ * Economy Week may spin without scores. Prompt only when we probed prior-day
+ * VS and the count is zero.
+ */
+export function shouldConfirmEconomyWeekWithoutScores(input: {
+  paintTemplate?: string | null;
+  vsDataStatus?: Pick<TrainsVsDataStatus, "kind" | "scoreCount"> | null;
+}): boolean {
+  return (
+    input.paintTemplate === "economy_week" &&
+    input.vsDataStatus?.kind === "prior_day_vs" &&
+    input.vsDataStatus.scoreCount === 0
+  );
 }
 
 /** Build a status object from a classified need + fetched score count. */

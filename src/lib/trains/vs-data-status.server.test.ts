@@ -33,7 +33,7 @@ describe("loadTrainsVsDataStatus", () => {
 
     expect(fetchPrior).toHaveBeenCalledWith("a1", "2026-06-12");
     expect(status).toEqual({
-      required: true,
+      required: false,
       ready: true,
       scoreCount: 1,
       kind: "prior_day_vs",
@@ -122,6 +122,23 @@ describe("loadTrainsVsDataStatus", () => {
     expect(status.scoreCount).toBe(0);
   });
 
+  it("keeps Economy Week ready when prior-day VS is empty", async () => {
+    fetchPrior.mockResolvedValue(new Map());
+    const status = await loadTrainsVsDataStatus({
+      allianceId: "a1",
+      trainDate: "2026-06-13",
+      conductorMechanism: "r3_lottery",
+      paintTemplate: "economy_week",
+    });
+    expect(status).toEqual({
+      required: false,
+      ready: true,
+      scoreCount: 0,
+      kind: "prior_day_vs",
+      scoreDate: "2026-06-12",
+    });
+  });
+
   it("loads Saturday VS for Sunday r3 lottery (Buster Day prior)", async () => {
     fetchPrior.mockResolvedValue(new Map([["m1", 500_000]]));
 
@@ -134,7 +151,7 @@ describe("loadTrainsVsDataStatus", () => {
 
     expect(fetchPrior).toHaveBeenCalledWith("a1", "2026-06-13");
     expect(status).toEqual({
-      required: true,
+      required: false,
       ready: true,
       scoreCount: 1,
       kind: "prior_day_vs",

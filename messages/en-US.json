@@ -3436,6 +3436,12 @@
       "body": "No scores found yet for this day's VS check.",
       "link": "Upload scores"
     },
+    "economyScoresOptional": {
+      "body": "Scores are not uploaded, so everyone is eligible. Continue anyway?",
+      "continue": "Continue anyway",
+      "cancel": "Cancel",
+      "uploadLink": "Upload scores"
+    },
     "rosterSyncBanner": {
       "bodyEmpty": "Alliance HQ does not have your roster yet. Sync from Ashed to load members and ranks before spinning.",
       "bodyMissingRanks": "No members match today's rank requirement ({rankLabel}). Sync from Ashed in case ranks are outdated, or assign ranks on Members."
