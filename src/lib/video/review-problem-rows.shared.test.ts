@@ -4,6 +4,7 @@ import {
   buildRosterReviewProblemRowIds,
   buildScoreReviewProblemRowIds,
   isScoreReviewProblemRow,
+  reviewRowWindowScrollTop,
 } from "@/lib/video/review-problem-rows.shared";
 
 describe("isScoreReviewProblemRow", () => {
@@ -124,5 +125,27 @@ describe("buildRosterReviewProblemRowIds", () => {
         },
       ),
     ).toEqual(["a", "b"]);
+  });
+});
+
+describe("reviewRowWindowScrollTop", () => {
+  it("places the row just below sticky chrome using window coordinates", () => {
+    expect(
+      reviewRowWindowScrollTop({
+        rowTop: 400,
+        scrollY: 200,
+        stickyOffsetPx: 96,
+      }),
+    ).toBe(496);
+  });
+
+  it("does not scroll above the page top", () => {
+    expect(
+      reviewRowWindowScrollTop({
+        rowTop: 10,
+        scrollY: 0,
+        stickyOffsetPx: 96,
+      }),
+    ).toBe(0);
   });
 });

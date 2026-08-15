@@ -23,13 +23,14 @@ import {
 import type { AdminReprocessFpsAdjustment } from "@/lib/video/admin-reprocess-extraction.shared";
 import type { ExtractionConfig } from "@/lib/video/pass-definitions";
 import {
-  formatAshedEventOptionLabel,
   formatEventOptionLabel,
   formatHqEventOptionLabel,
-  resolveAshedEventDate,
   type AshedEventLike,
 } from "@/lib/video/event-option-label";
-import { pickAshedEventMatchingDate } from "@/lib/video/ashed-event-provision";
+import {
+  buildReviewAshedEventOptions,
+  isAshedEventAutoCreateId,
+} from "@/lib/video/ashed-event-review-options.shared";
 import {
   duplicateMemberRowIds,
   findDuplicateMemberAssignments,
@@ -57,6 +58,7 @@ import {
   type VsDay6Coverage,
 } from "@/lib/video/vs-day6-derivation.shared";
 import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
+import { getServerCalendarDate } from "@/lib/trains/game-time";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
 import { memberMatchConfidenceBorderClass } from "@/lib/video/member-match-confidence-class";
@@ -94,6 +96,10 @@ import {
   VideoReviewSettingsTrigger,
 } from "@/components/video/VideoReviewSettingsDialog";
 import { useVideoPreviewLayout } from "@/components/video/useVideoPreviewLayout";
+import {
+  reviewIssueNavScrollOffsetPx,
+  reviewIssueNavStickyTop,
+} from "@/lib/video/preview-layout";
 import { useVideoReviewFollowMe } from "@/components/video/useVideoReviewFollowMe";
 import {
   previewSeekSecondsForFrame,
@@ -107,7 +113,6 @@ import {
 } from "@/lib/video/dedupe/merge-report.shared";
 import { isVideoJobReadyForSubmit } from "@/lib/video/submit-job-ready.shared";
 import { useVideoReviewExtractDraft } from "@/components/video/useVideoReviewExtractDraft";
-import { accountTodayCalendarDate } from "@/lib/timezone/format";
 import { PassComparisonSheet } from "@/components/video/PassComparisonSheet";
 import { OcrRatingPrompt, type OcrRatingReason } from "@/components/video/OcrRatingPrompt";
 import { ReviewIssueNav } from "@/components/video/ReviewIssueNav";
@@ -211,6 +216,7 @@ type MemberOption = {
 type EventOption = {
   id: string;
   label: string;
+  eventDate?: string | null;
 };
 
 type ScoreTargetMeta = {
@@ -335,7 +341,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [team, setTeam] = useState<"A" | "B">("A");
   const [vsPeriod, setVsPeriod] = useState<VsScorePeriod>("daily");
   const [recordedDate, setRecordedDate] = useState(
-    () => presetRecordedDate ?? accountTodayCalendarDate(timezoneId),
+    () => presetRecordedDate ?? getServerCalendarDate(),
   );
   const [stormOverlapWarning, setStormOverlapWarning] = useState(false);
   const [vsDay6CoverageTotals, setVsDay6CoverageTotals] = useState<
@@ -1006,15 +1012,19 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     : "";
 
   useEffect(() => {
-    async function fetchEvents() {
-      if (!scoreTargetMeta) return;
+    if (!scoreTargetMeta) return;
+    const meta = scoreTargetMeta;
+    const controller = new AbortController();
 
-      if (scoreTargetMeta.usesHqEvents) {
-        if (!allianceId) return;
-        const res = await fetch(
-          `/api/hq-events?scoreTarget=${encodeURIComponent(scoreTargetMeta.id)}`,
-        );
-        if (res.ok) {
+    void (async () => {
+      try {
+        if (meta.usesHqEvents) {
+          if (!allianceId) return;
+          const res = await fetch(
+            `/api/hq-events?scoreTarget=${encodeURIComponent(meta.id)}`,
+            { signal: controller.signal },
+          );
+          if (!res.ok || controller.signal.aborted) return;
           const data = (await res.json()) as {
             events?: Array<{
               id: string;
@@ -1023,6 +1033,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               endDate?: string | null;
             }>;
           };
+          if (controller.signal.aborted) return;
           const list = (data.events ?? []).map((ev) => ({
             id: ev.id,
             label: formatHqEventOptionLabel({
@@ -1036,62 +1047,50 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           if (list[0] && !hqEventId) {
             setHqEventId(list[0].id);
           }
+          return;
         }
-        return;
-      }
 
-      if (!scoreTargetMeta.eventEntity) {
-        setEvents([]);
-        return;
-      }
+        if (!meta.eventEntity) {
+          if (!controller.signal.aborted) setEvents([]);
+          return;
+        }
 
-      // Ashed entity queries must use the Ashed alliance id, not the HQ pk.
-      const queryAllianceId = ashedAllianceId;
-      if (!queryAllianceId) {
-        setEvents([]);
-        return;
-      }
+        // Ashed entity queries must use the Ashed alliance id, not the HQ pk.
+        const queryAllianceId = ashedAllianceId;
+        if (!queryAllianceId) {
+          if (!controller.signal.aborted) setEvents([]);
+          return;
+        }
 
-      const q = encodeURIComponent(
-        JSON.stringify({ alliance_id: queryAllianceId }),
-      );
-      const res = await fetch(
-        `/api/bff/v1/entities/${scoreTargetMeta.eventEntity}?q=${q}`,
-      );
-      if (res.ok) {
-        const data = (await res.json()) as AshedEventLike[];
-        const list = data.map((ev) => ({
-          id: ev.id,
-          label: formatAshedEventOptionLabel({
-            eventTypeLabel,
-            event: ev,
-            locale,
-            timezoneId,
-          }),
-          eventDate: resolveAshedEventDate(ev),
-        }));
-        setEvents(
-          list.map(({ id, label }) => ({
-            id,
-            label,
-          })),
+        const q = encodeURIComponent(
+          JSON.stringify({ alliance_id: queryAllianceId }),
         );
-        if (!eventId) {
-          const matched = pickAshedEventMatchingDate(data, recordedDate);
-          if (matched?.id) {
-            setEventId(matched.id);
-          } else if (list[0]) {
-            setEventId(list[0].id);
-          }
-        }
+        const res = await fetch(
+          `/api/bff/v1/entities/${meta.eventEntity}?q=${q}`,
+          { signal: controller.signal },
+        );
+        if (!res.ok || controller.signal.aborted) return;
+        const data = (await res.json()) as AshedEventLike[];
+        if (controller.signal.aborted) return;
+        const built = buildReviewAshedEventOptions({
+          events: data,
+          recordedDate,
+          eventTypeLabel,
+          locale,
+          timezoneId,
+        });
+        setEvents(built.options);
+        setEventId(built.selectedEventId);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
       }
-    }
-    void fetchEvents();
+    })();
+
+    return () => controller.abort();
   }, [
     allianceId,
     ashedAllianceId,
     scoreTargetMeta,
-    eventId,
     hqEventId,
     eventTypeLabel,
     locale,
@@ -1550,9 +1549,18 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [activeRows],
   );
 
-  const scrollToDepositSlipRow = useCallback((rowId: string) => {
-    scrollToReviewRow(rowId);
-  }, []);
+  const issueNavScrollOffsetPx = reviewIssueNavScrollOffsetPx({
+    previewOpen,
+    placement: effectivePreviewPlacement,
+    dockHeightPx: previewDockHeightPx,
+  });
+
+  const scrollToDepositSlipRow = useCallback(
+    (rowId: string) => {
+      scrollToReviewRow(rowId, issueNavScrollOffsetPx);
+    },
+    [issueNavScrollOffsetPx],
+  );
 
   const assignedMemberIds = useMemo(() => {
     const ids = new Set<string>();
@@ -1919,17 +1927,20 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       if (!rowVisible && filter) {
         setFilterQuery("");
         requestAnimationFrame(() => {
-          requestAnimationFrame(() => scrollToReviewRow(rowId));
+          requestAnimationFrame(() =>
+            scrollToReviewRow(rowId, issueNavScrollOffsetPx),
+          );
         });
         return;
       }
-      scrollToReviewRow(rowId);
+      scrollToReviewRow(rowId, issueNavScrollOffsetPx);
     },
     [
       scoreTargetMeta?.showDepositSlipColumns,
       depositSlipVisibleRowIds,
       activeRows,
       filterQuery,
+      issueNavScrollOffsetPx,
     ],
   );
 
@@ -1968,13 +1979,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     scoreTargetMeta?.leaderboardModel === "multi-board";
   const selectedEventId = scoreTargetMeta?.usesHqEvents ? hqEventId : eventId;
 
-  // For non-HQ-native event targets (e.g. alliance-exercise, zombie-siege),
-  // the server auto-provisions an Ashed event entity when none is selected —
-  // so we don't block save when the events list is empty.
+  // For non-HQ-native event targets, submit resolve-or-creates the Ashed
+  // event for recordedDate. Empty lists and the auto-create sentinel both
+  // count as ready.
   const eventGateSatisfied =
     !needsEventPicker ||
     selectedEventId !== "" ||
-    (!scoreTargetMeta?.usesHqEvents && events.length === 0);
+    (!scoreTargetMeta?.usesHqEvents &&
+      (events.length === 0 || isAshedEventAutoCreateId(selectedEventId)));
 
 
   const submitReadinessStatus =
@@ -2090,7 +2102,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          eventId: scoreTargetMeta?.usesHqEvents ? undefined : eventId,
+          eventId: scoreTargetMeta?.usesHqEvents
+            ? undefined
+            : isAshedEventAutoCreateId(eventId)
+              ? undefined
+              : eventId,
           hqEventId: scoreTargetMeta?.usesHqEvents ? hqEventId : undefined,
           boardKey: needsBoardPicker ? boardKey : undefined,
           team: scoreTargetMeta?.showTeamSelector ? team : undefined,
@@ -2585,6 +2601,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const showTopPreview = previewOpen && effectivePreviewPlacement === "top";
   const showBottomPreview =
     previewOpen && effectivePreviewPlacement === "bottom";
+  const issueNavStickyTop = reviewIssueNavStickyTop({
+    previewOpen,
+    placement: effectivePreviewPlacement,
+    dockHeightPx: previewDockHeightPx,
+  });
   const actionErrorNearReprocess = activeRows.length === 0 && !isEventView;
   const previewNode = previewOpen ? (
     <ReviewVideoPreview
@@ -2812,8 +2833,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   markDraftDirty();
                   if (scoreTargetMeta?.usesHqEvents) {
                     setHqEventId(next);
-                  } else {
-                    setEventId(next);
+                    return;
+                  }
+                  setEventId(next);
+                  if (isAshedEventAutoCreateId(next)) return;
+                  const selectedDate = events
+                    .find((ev) => ev.id === next)
+                    ?.eventDate?.trim()
+                    .slice(0, 10);
+                  if (selectedDate) {
+                    setRecordedDate(selectedDate);
                   }
                 }}
                 aria-label={t("eventLabel")}
@@ -2988,6 +3017,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             <input
               type="date"
               value={recordedDate}
+              max={getServerCalendarDate()}
               onChange={(e) => {
                 markDraftDirty();
                 setRecordedDate(e.target.value);
@@ -3302,6 +3332,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             total={reviewProblemRowIds.length}
             onPrev={goToPrevReviewProblem}
             onNext={goToNextReviewProblem}
+            stickyTop={issueNavStickyTop}
           />
           <RosterVideoReviewTable
             rows={activeRows.map((row) => ({
@@ -3353,6 +3384,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             total={reviewProblemRowIds.length}
             onPrev={goToPrevReviewProblem}
             onNext={goToNextReviewProblem}
+            stickyTop={issueNavStickyTop}
           />
           <DepositSlipVideoReviewTable
             rows={depositSlipRowsForUi.map((row) => ({
@@ -3417,6 +3449,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         total={reviewProblemRowIds.length}
         onPrev={goToPrevReviewProblem}
         onNext={goToNextReviewProblem}
+        stickyTop={issueNavStickyTop}
       />
 
       <div className="min-w-0 max-w-full overflow-x-auto rounded-xl border border-hq-border">
