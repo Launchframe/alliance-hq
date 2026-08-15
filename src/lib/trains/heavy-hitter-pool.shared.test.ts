@@ -53,5 +53,6 @@ describe("usesPriceIsFreightConductorRoll", () => {
     expect(paintTemplateUsesPriorDayVs("economy_week")).toBe(false);
     expect(paintTemplateUsesPriorDayVs("price_is_right")).toBe(true);
     expect(paintTemplateUsesPriorDayVs("price_is_right_weekdays")).toBe(true);
+    expect(paintTemplateUsesPriorDayVs("takedown_week")).toBe(true);
   });
 });

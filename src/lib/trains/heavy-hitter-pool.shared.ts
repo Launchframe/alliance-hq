@@ -31,7 +31,7 @@ export function usesPriceIsFreightConductorRoll(
 export function paintTemplateUsesPriorDayVs(
   paintTemplate: WeekTemplateType | string | null | undefined,
 ): boolean {
-  return isPriceIsRightPaintTemplate(paintTemplate);
+  return usesPriceIsFreightConductorRoll(paintTemplate);
 }
 
 /**

@@ -60,6 +60,13 @@ describe("classifyVsDataNeed", () => {
         trainDate: "2026-06-13",
       }),
     ).toEqual({ kind: "prior_day_vs", required: true });
+    expect(
+      classifyVsDataNeed({
+        conductorMechanism: "r3_lottery",
+        paintTemplate: "takedown_week",
+        trainDate: "2026-06-13",
+      }),
+    ).toEqual({ kind: "prior_day_vs", required: true });
   });
 
   it("keeps prior-day VS when vs_* mechanism and PIF paint both apply", () => {
