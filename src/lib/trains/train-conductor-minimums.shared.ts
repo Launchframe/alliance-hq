@@ -5,11 +5,24 @@ import {
   type AllianceTrainWeekConfig,
 } from "@/lib/trains/train-week-calendar.shared";
 
+import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
 import type { PoolType } from "@/lib/trains/types";
 
 /** R3 and heavy-hitter pools honor alliance conductor minimums; R4+ sequence does not. */
 export function poolTypeRespectsConductorMinimums(poolType: PoolType): boolean {
   return poolType === "r3" || poolType === "heavy_hitter";
+}
+
+/**
+ * Alliance VS/donation floors apply only on Price Is Freight paints
+ * (“spin for today”). Economy Week and other depleting-pool paints skip them.
+ *
+ * Future: per-spin UI toggle (“eligible scores” vs “overall pool”).
+ */
+export function conductorMinimumsApplyForPaintTemplate(
+  paintTemplate: string | null | undefined,
+): boolean {
+  return usesPriceIsFreightConductorRoll(paintTemplate);
 }
 
 export const TRAIN_MINIMUMS_WINDOWS = ["daily", "weekly"] as const;
@@ -177,7 +190,14 @@ export function formatTrainPointCount(value: number, locale: string): string {
 export function conductorQualificationGateApplies(input: {
   poolType: PoolType | null | undefined;
   minimumsEnabled: boolean;
+  paintTemplate?: string | null;
 }): boolean {
+  if (
+    input.paintTemplate !== undefined &&
+    !conductorMinimumsApplyForPaintTemplate(input.paintTemplate)
+  ) {
+    return false;
+  }
   if (input.poolType != null && !poolTypeRespectsConductorMinimums(input.poolType)) {
     return false;
   }

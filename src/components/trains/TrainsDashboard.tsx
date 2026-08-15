@@ -14,6 +14,7 @@ import {
   ConductorWheelSharePreviewDialog,
   type ConductorWheelSharePreview,
 } from "@/components/trains/ConductorWheelSharePreviewDialog";
+import { EconomyWeekScoresOptionalDialog } from "@/components/trains/EconomyWeekScoresOptionalDialog";
 import { TrainsHelpPanel } from "@/components/trains/TrainsHelpPanel";
 import { TrainsGuidedConductorFlow } from "@/components/trains/TrainsGuidedConductorFlow";
 import { TrainLockConfirmBanner } from "@/components/trains/TrainLockConfirmBanner";
@@ -108,6 +109,7 @@ import { canStartConductorSwap } from "@/lib/trains/conductor-swap.shared";
 import { currentGuidedStep } from "@/lib/trains/guided-flow.shared";
 import { rosterSyncCapabilityAllowsInPageSync } from "@/lib/trains/roster-data-status.shared";
 import { buildTrainsGuidedVideoUploadHref } from "@/lib/trains/guided-video-upload.shared";
+import { shouldConfirmEconomyWeekWithoutScores } from "@/lib/trains/vs-data-status.shared";
 import type { PoolRefreshedInfo, PoolType, RollResult, WeekTemplateType } from "@/lib/trains/types";
 import {
   compositeParentForSegment,
@@ -275,6 +277,9 @@ export function TrainsDashboard({ initial }: Props) {
   const [wheelBlocked, setWheelBlocked] = useState<TrainRollErrorDetails | null>(
     null,
   );
+  const [economyScoresConfirmOpen, setEconomyScoresConfirmOpen] =
+    useState(false);
+  const requestConductorSpinRef = useRef<() => void>(() => {});
   const [wheelBlockedRole, setWheelBlockedRole] = useState<
     "conductor" | "vip"
   >("conductor");
@@ -1509,7 +1514,7 @@ export function TrainsDashboard({ initial }: Props) {
 
     const cleanups = [
       registerPageHandler("trains.spinWheel", () => {
-        void runRollRef.current("conductor");
+        requestConductorSpinRef.current();
       }),
       registerPageHandler("trains.spinWeek", () => {
         document
@@ -1638,6 +1643,22 @@ export function TrainsDashboard({ initial }: Props) {
 
   const locked = Boolean(selectedRecord?.lockedAt);
   const conductorPaint = selectedDayConfig?.paintTemplate;
+  const requestConductorSpin = () => {
+    const vsStatus = selectedDate === data.today ? data.vsDataStatus : null;
+    if (
+      shouldConfirmEconomyWeekWithoutScores({
+        paintTemplate: conductorPaint,
+        vsDataStatus: vsStatus,
+      })
+    ) {
+      setEconomyScoresConfirmOpen(true);
+      return;
+    }
+    void runRollRef.current("conductor");
+  };
+  useEffect(() => {
+    requestConductorSpinRef.current = requestConductorSpin;
+  });
   const conductorMech = effectiveConductorMechanism(
     selectedDayConfig?.conductorMechanism,
     conductorPaint,
@@ -2490,7 +2511,7 @@ export function TrainsDashboard({ initial }: Props) {
                 vipMech={vipMech}
                 busy={trainQuickActionBusy}
                 onChangeTemplate={() => setDayMechanismPickerOpen(true)}
-                onRollConductor={() => void runRoll("conductor")}
+                onRollConductor={requestConductorSpin}
                 onPickTopScorer={() => void runRoll("conductor")}
                 onPickConductorManual={() => {
                   setPickRole("conductor");
@@ -2554,6 +2575,8 @@ export function TrainsDashboard({ initial }: Props) {
                         setWheelBlockedRole("conductor");
                       }}
                       onRefresh={refresh}
+                      vsDataStatus={data.vsDataStatus}
+                      videoUploadHref={guidedVideoUploadHref}
                       onSpinBatchComplete={() => {
                         walkthroughRef.current?.emitAction({
                           type: "spin-week-finished",
@@ -2705,12 +2728,14 @@ export function TrainsDashboard({ initial }: Props) {
                     setWheelBlockedRole("conductor");
                   }}
                   onRefresh={refresh}
+                  vsDataStatus={data.vsDataStatus}
+                  videoUploadHref={guidedVideoUploadHref}
                 />
                 {canRoll && canSpinConductorWheel ? (
                   <button
                     type="button"
                     disabled={trainQuickActionBusy}
-                    onClick={() => void runRoll("conductor")}
+                    onClick={requestConductorSpin}
                     className="rounded-lg bg-[#8957e5] px-4 py-2 text-sm font-medium text-white hover:bg-[#9d6ff0] disabled:opacity-50 w-full sm:w-auto"
                   >
                     {rollingRole === "conductor"
@@ -2986,6 +3011,8 @@ export function TrainsDashboard({ initial }: Props) {
           setWheelBlockedRole("conductor");
         }}
         onRefresh={refresh}
+        vsDataStatus={data.vsDataStatus}
+        videoUploadHref={guidedVideoUploadHref}
       />
 
       <ConductorHistoryDialog
@@ -3115,6 +3142,16 @@ export function TrainsDashboard({ initial }: Props) {
           </div>
         ) : null}
       </Dialog>
+
+      <EconomyWeekScoresOptionalDialog
+        open={economyScoresConfirmOpen}
+        uploadHref={guidedVideoUploadHref}
+        onCancel={() => setEconomyScoresConfirmOpen(false)}
+        onContinue={() => {
+          setEconomyScoresConfirmOpen(false);
+          void runRollRef.current("conductor");
+        }}
+      />
 
       <WheelBlockedDialog
         open={wheelBlocked != null}

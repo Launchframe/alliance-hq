@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState, useImperativeHandle, forwardRef
 import { useTranslations } from "next-intl";
 
 import { ConductorWheelModal } from "@/components/trains/ConductorWheelModal";
+import { EconomyWeekScoresOptionalDialog } from "@/components/trains/EconomyWeekScoresOptionalDialog";
 import { SpinWeekConfirmDialog } from "@/components/trains/SpinWeekConfirmDialog";
 import {
   applyOptimisticConductorRoll,
@@ -23,6 +24,10 @@ import {
   type SpinWeekDayRecord,
   type SpinWeekResultRow,
 } from "@/lib/trains/spin-week.shared";
+import {
+  shouldConfirmEconomyWeekWithoutScores,
+  type TrainsVsDataStatus,
+} from "@/lib/trains/vs-data-status.shared";
 
 const MAX_DISQUALIFIED_RETRIES = 10;
 
@@ -59,6 +64,8 @@ type Props = {
   onSpinBatchComplete?: () => void;
   /** Hide the week spin trigger button (month toolbar uses imperative spin). */
   showTrigger?: boolean;
+  vsDataStatus?: TrainsVsDataStatus | null;
+  videoUploadHref?: string;
 };
 
 type FlowPhase = "idle" | "spinning" | "confirm";
@@ -84,6 +91,8 @@ export const SpinWeekConductorFlow = forwardRef<
     onRefresh,
     onSpinBatchComplete,
     showTrigger = true,
+    vsDataStatus = null,
+    videoUploadHref = "/tools/video-upload",
   },
   ref,
 ) {
@@ -106,6 +115,9 @@ export const SpinWeekConductorFlow = forwardRef<
   const [wheelQualification, setWheelQualification] =
     useState<MemberQualificationPayload | null>(null);
   const [wheelDayLabel, setWheelDayLabel] = useState<string | null>(null);
+  const [pendingEconomyConfirmDates, setPendingEconomyConfirmDates] = useState<
+    string[] | null
+  >(null);
 
   const pendingRollRef = useRef<{
     date: string;
@@ -275,18 +287,39 @@ export const SpinWeekConductorFlow = forwardRef<
     ],
   );
 
+  const startSpinDates = useCallback(
+    (dates: string[]) => {
+      const firstDate = dates[0];
+      const firstPaint = firstDate
+        ? dayConfigs.find((row) => row.date === firstDate)?.paintTemplate
+        : null;
+      if (
+        firstDate === today &&
+        shouldConfirmEconomyWeekWithoutScores({
+          paintTemplate: firstPaint,
+          vsDataStatus,
+        })
+      ) {
+        setPendingEconomyConfirmDates(dates);
+        return;
+      }
+      void runSpinDates(dates);
+    },
+    [dayConfigs, runSpinDates, today, vsDataStatus],
+  );
+
   const startSpinWeek = useCallback(() => {
-    void runSpinDates(defaultEligibleDates);
-  }, [defaultEligibleDates, runSpinDates]);
+    startSpinDates(defaultEligibleDates);
+  }, [defaultEligibleDates, startSpinDates]);
 
   useImperativeHandle(
     ref,
     () => ({
       spinDates: (dates: string[]) => {
-        void runSpinDates(dates);
+        startSpinDates(dates);
       },
     }),
-    [runSpinDates],
+    [startSpinDates],
   );
 
   const dismissConfirm = useCallback(() => {
@@ -328,6 +361,17 @@ export const SpinWeekConductorFlow = forwardRef<
         automated
         onAutomatedRevealComplete={handleAutomatedRevealComplete}
         onClose={handleAutomatedRevealComplete}
+      />
+
+      <EconomyWeekScoresOptionalDialog
+        open={pendingEconomyConfirmDates != null}
+        uploadHref={videoUploadHref}
+        onCancel={() => setPendingEconomyConfirmDates(null)}
+        onContinue={() => {
+          const dates = pendingEconomyConfirmDates;
+          setPendingEconomyConfirmDates(null);
+          if (dates) void runSpinDates(dates);
+        }}
       />
 
       <SpinWeekConfirmDialog

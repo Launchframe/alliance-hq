@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   isPriceIsRightHeavyHitterSaturday,
   isPriceIsRightPaintTemplate,
+  paintTemplateUsesPriorDayVs,
   usesPriceIsFreightConductorRoll,
 } from "@/lib/trains/heavy-hitter-pool.shared";
 
@@ -46,5 +47,11 @@ describe("usesPriceIsFreightConductorRoll", () => {
 
   it("does not widen weekday raffle helper to takedown_week", () => {
     expect(isPriceIsRightPaintTemplate("takedown_week")).toBe(false);
+  });
+
+  it("does not treat Economy Week as a required prior-day VS paint", () => {
+    expect(paintTemplateUsesPriorDayVs("economy_week")).toBe(false);
+    expect(paintTemplateUsesPriorDayVs("price_is_right")).toBe(true);
+    expect(paintTemplateUsesPriorDayVs("price_is_right_weekdays")).toBe(true);
   });
 });

@@ -69,7 +69,7 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 - **Top VS** (`fetchAllianceVsTopScorersForTrainDate` / `fetchVsTopScorersForRecordedDate`):
   - **Dedupe** Ashed `VSScore` rows by member — keep the **max** score per `member_id` before sorting/slicing Top N (re-uploads must not inflate odds or push the true Nth scorer off the board).
   - **Intersect** with the **active HQ roster** (`listActiveAllianceMembersForPool`, exclude `former`) — same spirit as Top VR; departed members must not win the wheel.
-- **Conductor minimums** (alliance VS / donation thresholds on `r3` / `heavy_hitter` pools): evaluate **Ashed daily VS** over the configured window (not season VR). Post-roll DQ and pool seed filtering apply when minimums are enabled — do not block the check on `classifyVsDataNeed` / guided `prerequisites`; missing VS data counts as zero for that period.
+- **Conductor minimums** (alliance VS / donation thresholds): apply on **Price Is Freight paints only** (`usesPriceIsFreightConductorRoll`). Evaluate **Ashed daily VS** over the configured window (not season VR). Post-roll DQ and pool seed filtering apply when that paint gate is on — do not block the check on `classifyVsDataNeed` / guided `prerequisites`; missing VS data counts as zero for that period. Economy Week skips minimums and may spin after an optional “everyone is eligible” confirm when scores are missing.
 
 ## Swap / make-up day
 

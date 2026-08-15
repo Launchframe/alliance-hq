@@ -4,6 +4,7 @@ import {
   buildVsDataStatus,
   classifyVsDataNeed,
   priorDayVsAppliesForTrainDate,
+  shouldConfirmEconomyWeekWithoutScores,
 } from "@/lib/trains/vs-data-status.shared";
 
 describe("priorDayVsAppliesForTrainDate", () => {
@@ -71,24 +72,24 @@ describe("classifyVsDataNeed", () => {
     ).toEqual({ kind: "prior_day_vs", required: true });
   });
 
-  it("requires prior-day VS for economy week paint with r3 lottery", () => {
+  it("probes prior-day VS for economy week paint without requiring an upload", () => {
     expect(
       classifyVsDataNeed({
         conductorMechanism: "r3_lottery",
         paintTemplate: "economy_week",
         trainDate: "2026-06-13",
       }),
-    ).toEqual({ kind: "prior_day_vs", required: true });
+    ).toEqual({ kind: "prior_day_vs", required: false });
   });
 
-  it("requires Saturday VS for r3 lottery on Sunday (Buster Day prior)", () => {
+  it("probes Saturday VS for economy week on Sunday without requiring an upload", () => {
     expect(
       classifyVsDataNeed({
         conductorMechanism: "r3_lottery",
         paintTemplate: "economy_week",
         trainDate: "2026-06-14",
       }),
-    ).toEqual({ kind: "prior_day_vs", required: true });
+    ).toEqual({ kind: "prior_day_vs", required: false });
   });
 
   it("does not require scores for r3 recognition manual award days", () => {
@@ -181,5 +182,54 @@ describe("buildVsDataStatus", () => {
       kind: "prior_day_vs",
       scoreDate: "2026-06-12",
     });
+  });
+
+  it("marks ready when prior-day VS is optional and empty", () => {
+    expect(
+      buildVsDataStatus({
+        kind: "prior_day_vs",
+        required: false,
+        scoreCount: 0,
+        scoreDate: "2026-06-12",
+      }),
+    ).toEqual({
+      required: false,
+      ready: true,
+      scoreCount: 0,
+      kind: "prior_day_vs",
+      scoreDate: "2026-06-12",
+    });
+  });
+});
+
+describe("shouldConfirmEconomyWeekWithoutScores", () => {
+  it("prompts when Economy Week probed prior-day VS and found none", () => {
+    expect(
+      shouldConfirmEconomyWeekWithoutScores({
+        paintTemplate: "economy_week",
+        vsDataStatus: { kind: "prior_day_vs", scoreCount: 0 },
+      }),
+    ).toBe(true);
+  });
+
+  it("does not prompt when scores exist or paint is not Economy Week", () => {
+    expect(
+      shouldConfirmEconomyWeekWithoutScores({
+        paintTemplate: "economy_week",
+        vsDataStatus: { kind: "prior_day_vs", scoreCount: 4 },
+      }),
+    ).toBe(false);
+    expect(
+      shouldConfirmEconomyWeekWithoutScores({
+        paintTemplate: "price_is_right",
+        vsDataStatus: { kind: "prior_day_vs", scoreCount: 0 },
+      }),
+    ).toBe(false);
+    expect(
+      shouldConfirmEconomyWeekWithoutScores({
+        paintTemplate: "economy_week",
+        vsDataStatus: { kind: "none", scoreCount: 0 },
+      }),
+    ).toBe(false);
   });
 });

@@ -38,7 +38,9 @@ Each blocking step blocks until its prerequisite is satisfied. Canonical step lo
 | `lock` | Conductor record locked for the day (spawn / board **before** VIP) |
 | `vip` | VIP assigned when mechanism requires one; skipped when `vipNeeded` is false. VIP actions require the day to be locked. |
 
-The `prerequisites` step links officers to **`/tools/video-upload`** when prior-day VS is missing for Top VS (`vs_high_score` / `vs_top_10` / `vs_top_n`, `vsDataStatus.kind === "prior_day_vs"`) or Price Is Freight. Do **not** lock Top VS scopes by VS reporter count. Top VR scopes use the 2×N VR reporter lock at paint/roll time (separate from this upload step). There is no score bypass — officers must upload or pick manually in advanced mode.
+The `prerequisites` step links officers to **`/tools/video-upload`** when prior-day VS is missing for Top VS (`vs_high_score` / `vs_top_10` / `vs_top_n`, `vsDataStatus.kind === "prior_day_vs"`) or Price Is Freight. Do **not** lock Top VS scopes by VS reporter count. Top VR scopes use the 2×N VR reporter lock at paint/roll time (separate from this upload step). There is no score bypass for Top VS / Price Is Freight — officers must upload or pick manually in advanced mode.
+
+**Economy Week** (`economy_week` + `r3_lottery`) does **not** block on scores. `classifyVsDataNeed` probes prior-day VS with `required: false`. If the count is zero, spinning shows a confirm (`data-testid="trains-economy-scores-optional-confirm"`): scores are not uploaded, so everyone is eligible — continue anyway? Then spin the full unpicked R3 generation.
 
 ### Primary action on Conductor step
 

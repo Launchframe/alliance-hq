@@ -157,10 +157,12 @@ export async function filterMemberIdsByConductorMinimums(
 export async function resolvePoolRespectsConductorMinimums(input: {
   allianceId: string;
   poolType: PoolType;
+  paintTemplate?: string | null;
 }): Promise<boolean> {
   return resolveConductorQualificationGateApplies({
     allianceId: input.allianceId,
     poolType: input.poolType,
+    paintTemplate: input.paintTemplate,
   });
 }
 
@@ -168,10 +170,12 @@ export async function resolvePoolRespectsConductorMinimums(input: {
 export async function resolveConductorQualificationGateApplies(input: {
   allianceId: string;
   poolType?: PoolType | null;
+  paintTemplate?: string | null;
 }): Promise<boolean> {
   const settings = await loadTrainConductorMinimums(input.allianceId, false);
   return conductorQualificationGateApplies({
     poolType: input.poolType,
     minimumsEnabled: minimumsEnforcementEnabled(settings),
+    paintTemplate: input.paintTemplate,
   });
 }

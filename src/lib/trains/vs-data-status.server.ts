@@ -16,7 +16,8 @@ export type { TrainsVsDataStatus };
 
 /**
  * Non-blocking VS / Price Is Freight score readiness for the guided flow.
- * Only fetches when today's mechanism/paint requires scores.
+ * Fetches when today's mechanism/paint needs scores, including Economy Week
+ * optional probes (`required: false`).
  */
 export async function loadTrainsVsDataStatus(input: {
   allianceId: string;
@@ -66,14 +67,14 @@ export async function loadTrainsVsDataStatus(input: {
     );
     return buildVsDataStatus({
       kind: "prior_day_vs",
-      required: true,
+      required: need.required,
       scoreCount: scores.size,
       scoreDate,
     });
   } catch {
     return buildVsDataStatus({
       kind: "prior_day_vs",
-      required: true,
+      required: need.required,
       scoreCount: 0,
       scoreDate,
     });

@@ -79,7 +79,6 @@ import {
 import {
   assertConductorMinimumOverrideQualification,
   minimumsEnforcementEnabled,
-  poolTypeRespectsConductorMinimums,
 } from "@/lib/trains/train-conductor-minimums.shared";
 import { writeAuditLog } from "@/lib/bff/audit";
 import {
@@ -313,6 +312,7 @@ export async function countEligiblePoolMembers(input: {
   const respectConductorMinimums = await resolvePoolRespectsConductorMinimums({
     allianceId: input.hqAllianceId,
     poolType: input.poolType,
+    paintTemplate: input.paintTemplate,
   });
   return countPoolCandidates({
     ...input,
@@ -438,7 +438,11 @@ export async function ensureConductorPoolSeeded(input: {
 }): Promise<void> {
   const respectConductorMinimums =
     input.respectConductorMinimums ??
-    poolTypeRespectsConductorMinimums(input.poolType);
+    (await resolvePoolRespectsConductorMinimums({
+      allianceId: input.hqAllianceId,
+      poolType: input.poolType,
+      paintTemplate: input.paintTemplate,
+    }));
 
   const hasViable = await poolHasViableUnselectedEntries({
     allianceId: input.hqAllianceId,
@@ -1194,6 +1198,7 @@ export async function rollForConductor(input: {
         await resolvePoolRespectsConductorMinimums({
           allianceId: input.allianceId,
           poolType,
+          paintTemplate: dayConfig.paintTemplate,
         });
       // One Ashed + rank pass shared by seed check and claim (not under lock).
       const unselectedForEligibility = await listUnselectedPoolEntries(
@@ -1274,6 +1279,7 @@ export async function rollForConductor(input: {
       allianceId: input.allianceId,
       poolType:
         result.poolType ?? conductorMechanismPoolType(mechanism) ?? null,
+      paintTemplate: dayConfig.paintTemplate,
     }));
 
   const gated = gateApplies
@@ -1449,6 +1455,7 @@ export async function reseedPool(input: {
     (await resolvePoolRespectsConductorMinimums({
       allianceId: input.allianceId,
       poolType: input.poolType,
+      paintTemplate: input.paintTemplate,
     }));
   const candidates = await buildPoolCandidates({
     hqAllianceId: input.allianceId,
