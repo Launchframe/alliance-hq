@@ -994,15 +994,19 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     : "";
 
   useEffect(() => {
-    async function fetchEvents() {
-      if (!scoreTargetMeta) return;
+    if (!scoreTargetMeta) return;
+    const meta = scoreTargetMeta;
+    const controller = new AbortController();
 
-      if (scoreTargetMeta.usesHqEvents) {
-        if (!allianceId) return;
-        const res = await fetch(
-          `/api/hq-events?scoreTarget=${encodeURIComponent(scoreTargetMeta.id)}`,
-        );
-        if (res.ok) {
+    void (async () => {
+      try {
+        if (meta.usesHqEvents) {
+          if (!allianceId) return;
+          const res = await fetch(
+            `/api/hq-events?scoreTarget=${encodeURIComponent(meta.id)}`,
+            { signal: controller.signal },
+          );
+          if (!res.ok || controller.signal.aborted) return;
           const data = (await res.json()) as {
             events?: Array<{
               id: string;
@@ -1011,6 +1015,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               endDate?: string | null;
             }>;
           };
+          if (controller.signal.aborted) return;
           const list = (data.events ?? []).map((ev) => ({
             id: ev.id,
             label: formatHqEventOptionLabel({
@@ -1024,30 +1029,31 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           if (list[0] && !hqEventId) {
             setHqEventId(list[0].id);
           }
+          return;
         }
-        return;
-      }
 
-      if (!scoreTargetMeta.eventEntity) {
-        setEvents([]);
-        return;
-      }
+        if (!meta.eventEntity) {
+          if (!controller.signal.aborted) setEvents([]);
+          return;
+        }
 
-      // Ashed entity queries must use the Ashed alliance id, not the HQ pk.
-      const queryAllianceId = ashedAllianceId;
-      if (!queryAllianceId) {
-        setEvents([]);
-        return;
-      }
+        // Ashed entity queries must use the Ashed alliance id, not the HQ pk.
+        const queryAllianceId = ashedAllianceId;
+        if (!queryAllianceId) {
+          if (!controller.signal.aborted) setEvents([]);
+          return;
+        }
 
-      const q = encodeURIComponent(
-        JSON.stringify({ alliance_id: queryAllianceId }),
-      );
-      const res = await fetch(
-        `/api/bff/v1/entities/${scoreTargetMeta.eventEntity}?q=${q}`,
-      );
-      if (res.ok) {
+        const q = encodeURIComponent(
+          JSON.stringify({ alliance_id: queryAllianceId }),
+        );
+        const res = await fetch(
+          `/api/bff/v1/entities/${meta.eventEntity}?q=${q}`,
+          { signal: controller.signal },
+        );
+        if (!res.ok || controller.signal.aborted) return;
         const data = (await res.json()) as AshedEventLike[];
+        if (controller.signal.aborted) return;
         const built = buildReviewAshedEventOptions({
           events: data,
           recordedDate,
@@ -1057,9 +1063,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         });
         setEvents(built.options);
         setEventId(built.selectedEventId);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
       }
-    }
-    void fetchEvents();
+    })();
+
+    return () => controller.abort();
   }, [
     allianceId,
     ashedAllianceId,
