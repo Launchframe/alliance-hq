@@ -152,6 +152,28 @@ describe("parseVideoReviewDraft", () => {
       parseVideoReviewDraft(JSON.stringify({ ...makeDraft(), rows: [null] })),
     ).toBeNull();
   });
+
+  it("keeps Desert Storm match fields and still accepts older drafts without them", () => {
+    const withMatch = makeDraft({
+      form: {
+        ...baseForm,
+        matchOutcome: "loss",
+        opponentServer: "1229",
+        opponentTag: "KPOP",
+        opponentName: "Keep Partner On Path",
+      },
+    });
+    expect(parseVideoReviewDraft(JSON.stringify(withMatch))).toMatchObject({
+      matchOutcome: "loss",
+      opponentServer: "1229",
+      opponentTag: "KPOP",
+      opponentName: "Keep Partner On Path",
+    });
+    expect(parseVideoReviewDraft(JSON.stringify(makeDraft()))).toMatchObject({
+      eventId: "ev-1",
+      team: "A",
+    });
+  });
 });
 
 describe("isVideoReviewDraftApplicable", () => {

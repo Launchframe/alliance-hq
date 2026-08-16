@@ -154,6 +154,12 @@ import {
 import { mergeDepositSlipDisplayEnhancements } from "@/lib/banks/deposit-slip-review-enhancements.shared";
 import type { DepositSlipReviewValidationRow } from "@/lib/banks/deposit-slip-review-validation.shared";
 import {
+  blankDesertStormMatchHeader,
+  compareDesertStormRowSumToTeamTotal,
+  isDesertStormMatchOutcome,
+  type DesertStormMatchOutcome,
+} from "@/lib/video/desert-storm-match-header.shared";
+import {
   buildDepositSlipReviewProblemRowIds,
   buildRosterReviewProblemRowIds,
   buildScoreReviewProblemRowIds,
@@ -235,6 +241,7 @@ type ScoreTargetMeta = {
   showScoreColumn: boolean;
   showDepositSlipColumns: boolean;
   showBankSelector: boolean;
+  showMatchOutcome: boolean;
 };
 
 type Props = {
@@ -339,6 +346,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [hqEventId, setHqEventId] = useState("");
   const [boardKey, setBoardKey] = useState("");
   const [team, setTeam] = useState<"A" | "B">("A");
+  const [matchOutcome, setMatchOutcome] =
+    useState<DesertStormMatchOutcome>("pending");
+  const [opponentServer, setOpponentServer] = useState("");
+  const [opponentTag, setOpponentTag] = useState("");
+  const [opponentName, setOpponentName] = useState("");
+  const [matchOursTotal, setMatchOursTotal] = useState<number | null>(null);
+  const [matchTheirsTotal, setMatchTheirsTotal] = useState<number | null>(
+    null,
+  );
+  const [matchFilledFromOcr, setMatchFilledFromOcr] = useState(false);
   const [vsPeriod, setVsPeriod] = useState<VsScorePeriod>("daily");
   const [recordedDate, setRecordedDate] = useState(
     () => presetRecordedDate ?? getServerCalendarDate(),
@@ -509,6 +526,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       bankId,
       vsPeriod,
       bankTargetMismatchResolution: bankTargetMismatchResolution ?? undefined,
+      matchOutcome,
+      opponentServer,
+      opponentTag,
+      opponentName,
     }),
     [
       bankId,
@@ -519,6 +540,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       team,
       vsPeriod,
       bankTargetMismatchResolution,
+      matchOutcome,
+      opponentServer,
+      opponentTag,
+      opponentName,
     ],
   );
 
@@ -717,6 +742,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           parseSession?: {
             allianceId?: string | null;
             dedupeReport?: unknown;
+            desertStormMatch?: {
+              outcome?: string;
+              opponentServer?: string;
+              opponentTag?: string;
+              opponentName?: string;
+              oursTotal?: number | null;
+              theirsTotal?: number | null;
+              filledFromOcr?: boolean;
+            };
           };
           detectedBankContext?: DetectedBankContext | null;
           dedupeReport?: unknown;
@@ -822,6 +856,24 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         );
         setRows(restored.rows);
         const loadedIsVs = data.scoreTargetMeta?.id === "vs-performance";
+        const ocrMatch = data.parseSession?.desertStormMatch;
+        const ocrHeader =
+          ocrMatch?.filledFromOcr === true
+            ? {
+                outcome: isDesertStormMatchOutcome(ocrMatch.outcome)
+                  ? ocrMatch.outcome
+                  : "pending",
+                opponentServer: ocrMatch.opponentServer ?? "",
+                opponentTag: ocrMatch.opponentTag ?? "",
+                opponentName: ocrMatch.opponentName ?? "",
+                oursTotal: ocrMatch.oursTotal ?? null,
+                theirsTotal: ocrMatch.theirsTotal ?? null,
+                filledFromOcr: true,
+              }
+            : blankDesertStormMatchHeader();
+        setMatchOursTotal(ocrHeader.oursTotal);
+        setMatchTheirsTotal(ocrHeader.theirsTotal);
+        setMatchFilledFromOcr(ocrHeader.filledFromOcr);
         if (restored.form) {
           setEventId(restored.form.eventId);
           setHqEventId(restored.form.hqEventId);
@@ -855,6 +907,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               restored.form.bankTargetMismatchResolution,
             );
           }
+          if (isDesertStormMatchOutcome(restored.form.matchOutcome)) {
+            setMatchOutcome(restored.form.matchOutcome);
+            setOpponentServer(restored.form.opponentServer ?? "");
+            setOpponentTag(restored.form.opponentTag ?? "");
+            setOpponentName(restored.form.opponentName ?? "");
+          } else {
+            setMatchOutcome(ocrHeader.outcome);
+            setOpponentServer(ocrHeader.opponentServer);
+            setOpponentTag(ocrHeader.opponentTag);
+            setOpponentName(ocrHeader.opponentName);
+          }
         } else {
           if (data.job?.hqEventId) {
             setHqEventId(data.job.hqEventId);
@@ -867,6 +930,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             // (Sat night officer-local can already be Sunday ST).
             setRecordedDate(defaultVsPerformanceRecordedDate("daily"));
           }
+          setMatchOutcome(ocrHeader.outcome);
+          setOpponentServer(ocrHeader.opponentServer);
+          setOpponentTag(ocrHeader.opponentTag);
+          setOpponentName(ocrHeader.opponentName);
         }
         setDraftRestored(restored.restored);
         markAutosaveReady(draftDirtyVersionRef.current, restored.savedAt);
@@ -1737,6 +1804,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
   const matchedCount = activeRows.filter((r) => r.memberId).length;
 
+  const desertStormRowSumCheck = useMemo(() => {
+    if (!scoreTargetMeta?.showMatchOutcome) return null;
+    return compareDesertStormRowSumToTeamTotal({
+      teamTotal: matchOursTotal,
+      scores: activeRows.map((row) => row.score),
+    });
+  }, [activeRows, matchOursTotal, scoreTargetMeta?.showMatchOutcome]);
+
   const scoreDuplicateMemberIssues = useMemo(
     () =>
       findDuplicateMemberAssignments(
@@ -2110,6 +2185,18 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           hqEventId: scoreTargetMeta?.usesHqEvents ? hqEventId : undefined,
           boardKey: needsBoardPicker ? boardKey : undefined,
           team: scoreTargetMeta?.showTeamSelector ? team : undefined,
+          matchOutcome: scoreTargetMeta?.showMatchOutcome
+            ? matchOutcome
+            : undefined,
+          opponentServer: scoreTargetMeta?.showMatchOutcome
+            ? opponentServer
+            : undefined,
+          opponentTag: scoreTargetMeta?.showMatchOutcome
+            ? opponentTag
+            : undefined,
+          opponentName: scoreTargetMeta?.showMatchOutcome
+            ? opponentName
+            : undefined,
           recordedDate: isVsPerformanceTarget
             ? vsSafeRecordedDate
             : recordedDate,
@@ -2947,6 +3034,101 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             </div>
           </div>
         ) : null}
+        {scoreTargetMeta?.showMatchOutcome ? (
+          <div className="block text-sm md:col-span-2">
+            <span className="mb-1 block text-hq-fg-muted">
+              {t("opponentSection")}
+            </span>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="block text-sm">
+                <span className="mb-1 block text-hq-fg-muted">
+                  {t("matchOutcomeLabel")}
+                </span>
+                <AppSelect
+                  value={matchOutcome}
+                  onChange={(next) => {
+                    if (!isDesertStormMatchOutcome(next)) return;
+                    markDraftDirty();
+                    setMatchOutcome(next);
+                  }}
+                  aria-label={t("matchOutcomeLabel")}
+                  options={[
+                    {
+                      value: "pending",
+                      label: t("matchOutcomePending"),
+                    },
+                    { value: "win", label: t("matchOutcomeWin") },
+                    { value: "loss", label: t("matchOutcomeLoss") },
+                  ]}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block text-hq-fg-muted">
+                  {t("opponentServerLabel")}
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={opponentServer}
+                  onChange={(e) => {
+                    markDraftDirty();
+                    setOpponentServer(e.target.value);
+                  }}
+                  enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+                  className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
+                  aria-label={t("opponentServerLabel")}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block text-hq-fg-muted">
+                  {t("opponentTagLabel")}
+                </span>
+                <input
+                  type="text"
+                  value={opponentTag}
+                  onChange={(e) => {
+                    markDraftDirty();
+                    setOpponentTag(e.target.value);
+                  }}
+                  enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+                  className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
+                  aria-label={t("opponentTagLabel")}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block text-hq-fg-muted">
+                  {t("opponentNameLabel")}
+                </span>
+                <input
+                  type="text"
+                  value={opponentName}
+                  onChange={(e) => {
+                    markDraftDirty();
+                    setOpponentName(e.target.value);
+                  }}
+                  enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+                  className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
+                  aria-label={t("opponentNameLabel")}
+                />
+              </label>
+            </div>
+            {matchFilledFromOcr &&
+            matchOursTotal != null &&
+            matchTheirsTotal != null ? (
+              <>
+                <p className="mt-2 text-xs text-hq-fg-muted">
+                  {t("matchTotalsNote", {
+                    ours: matchOursTotal.toLocaleString(locale),
+                    theirs: matchTheirsTotal.toLocaleString(locale),
+                  })}
+                </p>
+                <p className="mt-1 text-xs text-hq-fg-muted">
+                  {t("matchHeaderOcrHint")}
+                </p>
+              </>
+            ) : null}
+          </div>
+        ) : null}
         {isVsPerformanceTarget ? (
           <div className="block text-sm">
             <span className="mb-1 block text-hq-fg-muted">
@@ -3056,6 +3238,29 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               {addingRowBusy === "start" ? t("addingRow") : t("addRow")}
             </button>
           ) : null}
+        </div>
+      ) : null}
+
+      {desertStormRowSumCheck &&
+      desertStormRowSumCheck.status !== "ok" &&
+      viewMode === "review" ? (
+        <div
+          role="status"
+          className="rounded-xl border border-hq-warning/40 bg-hq-warning/10 px-4 py-3 text-sm text-hq-warning"
+        >
+          <p>
+            {t(
+              desertStormRowSumCheck.status === "short"
+                ? "matchRowSumShort"
+                : "matchRowSumOver",
+              {
+                sum: desertStormRowSumCheck.rowSum.toLocaleString(locale),
+                delta: desertStormRowSumCheck.delta.toLocaleString(locale),
+                teamTotal:
+                  desertStormRowSumCheck.teamTotal.toLocaleString(locale),
+              },
+            )}
+          </p>
         </div>
       ) : null}
 

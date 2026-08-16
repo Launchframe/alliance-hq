@@ -36,6 +36,7 @@ import {
 import { BANK_READ_PERMISSION } from "@/lib/rbac/constants";
 import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 import { readDetectedBankContextFromRawExtract } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
+import { readDesertStormMatchFromRawExtract } from "@/lib/video/desert-storm-match-header.shared";
 import type { DetectedBankContext } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 import {
@@ -116,6 +117,9 @@ export async function GET(_request: Request, { params }: Props) {
             allianceId: ps.allianceId,
             status: ps.status,
             dedupeReport: ps.dedupeReportJson ?? null,
+            desertStormMatch: readDesertStormMatchFromRawExtract(
+              ps.rawExtractJson,
+            ),
           }
         : null;
       parseSessionIdForRows = ps?.id ?? null;

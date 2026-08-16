@@ -151,6 +151,18 @@ export async function base44EntityPost<T>(
   });
 }
 
+export async function base44EntityPut<T>(
+  connection: ParsedConnection,
+  entity: string,
+  id: string,
+  row: T,
+): Promise<unknown> {
+  return base44Json(connection, `/entities/${entity}/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(row),
+  });
+}
+
 export async function base44EntityDelete(
   connection: ParsedConnection,
   entity: string,

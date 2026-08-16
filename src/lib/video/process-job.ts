@@ -41,6 +41,7 @@ import { PipelineTimer } from "@/lib/video/pipeline-timer";
 import {
   getScoreTargetOrThrow,
   isBankDepositSlipHistoryTarget,
+  isDesertStormVideoTarget,
   isMemberRosterVideoTarget,
   isNativeOnlyVideoTarget,
 } from "@/lib/video/score-targets";
@@ -707,6 +708,9 @@ export async function processVideoJob(
         );
       }
     } else {
+      const firstFrameBuffer = frames[0]?.buffer
+        ? Buffer.from(frames[0].buffer)
+        : undefined;
       if (ocrEngine === "mock") {
         allianceId = await timer.measureStep("alliance.resolve_hq", () =>
           resolveHqAllianceIdFromSession(processingSessionId),
@@ -750,6 +754,26 @@ export async function processVideoJob(
         unresolvedConflicts = collapsedConflicts;
         rowCount = entries.length;
 
+        const hqMembers = await listAllianceMembers(allianceId);
+        const members = hqMembers.map(allianceMemberRowToAshedMember);
+
+        const desertStormRawExtract = isDesertStormVideoTarget(scoreTargetId)
+          ? await timer.measureStep(
+              "ocr.desert_storm_match_header",
+              async () => {
+                const { desertStormMatchRawExtractJson } = await import(
+                  "@/lib/video/parse-desert-storm-match-header-image.server"
+                );
+                return desertStormMatchRawExtractJson({
+                  scoreTargetId,
+                  firstFrame: firstFrameBuffer,
+                  hqAllianceId: allianceId,
+                  jobId,
+                });
+              },
+            )
+          : undefined;
+
         await timer.measureStep("storage.cleanup_frame_temp", () =>
           cleanupFrameTempDir(frames),
           { frameCount: frames.length },
@@ -762,9 +786,6 @@ export async function processVideoJob(
           "finalizing_rows",
         );
 
-        const hqMembers = await listAllianceMembers(allianceId);
-        const members = hqMembers.map(allianceMemberRowToAshedMember);
-
         parseSessionId = nanoid(16);
         await timer.measureStep("db.create_parse_session", async () => {
           await db.insert(schema.parseSessions).values({
@@ -776,6 +797,7 @@ export async function processVideoJob(
             rowCount: entries.length,
             matchedCount: 0,
             status: "open",
+            rawExtractJson: desertStormRawExtract,
             createdAt: now,
             updatedAt: now,
           });
@@ -912,6 +934,23 @@ export async function processVideoJob(
     unresolvedConflicts = collapsedConflicts;
     rowCount = entries.length;
 
+    const desertStormRawExtract = isDesertStormVideoTarget(scoreTargetId)
+      ? await timer.measureStep(
+          "ocr.desert_storm_match_header",
+          async () => {
+            const { desertStormMatchRawExtractJson } = await import(
+              "@/lib/video/parse-desert-storm-match-header-image.server"
+            );
+            return desertStormMatchRawExtractJson({
+              scoreTargetId,
+              firstFrame: firstFrameBuffer,
+              hqAllianceId: allianceId,
+              jobId,
+            });
+          },
+        )
+      : undefined;
+
     await timer.measureStep("storage.cleanup_frame_temp", () =>
       cleanupFrameTempDir(frames),
       { frameCount: frames.length },
@@ -946,6 +985,7 @@ export async function processVideoJob(
         rowCount: entries.length,
         matchedCount: 0,
         status: "open",
+        rawExtractJson: desertStormRawExtract,
         createdAt: now,
         updatedAt: now,
       });

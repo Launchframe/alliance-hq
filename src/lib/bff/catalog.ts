@@ -7,6 +7,7 @@ const ENTITY_OPS: EntityOp[] = [
   { entity: "Alliance", method: "GET", permission: "alliance:read" },
   { entity: "User", method: "GET", permission: "auth:read" },
   { entity: "DesertStormEvent", method: "GET", permission: "events:read" },
+  { entity: "DesertStormEvent", method: "PUT", permission: "events:write" },
   { entity: "DesertStormScore", method: "GET", permission: "events:read" },
   { entity: "DesertStormScore", method: "POST", permission: "events:write" },
   { entity: "CanyonStormEvent", method: "GET", permission: "events:read" },
