@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
+import { isRankEligibilityPoolType } from "@/lib/trains/pool-rank-eligibility.shared";
 import { POOL_TYPES, type PoolType, type RollCandidate } from "@/lib/trains/types";
 
 /** Only R4+ officer pools advance in fixed sequence; lottery pools draw randomly. */
@@ -125,11 +126,23 @@ export async function startNewPoolGeneration(
   return { generation: nextGen, count: shuffled.length };
 }
 
+async function reconcileCurrentGenerationEligibility(
+  allianceId: string,
+  poolType: PoolType,
+): Promise<void> {
+  await pruneFormerUnselectedPoolEntries(allianceId, poolType);
+  if (!isRankEligibilityPoolType(poolType)) return;
+  const { syncRankEligibilityForCurrentGeneration } = await import(
+    "@/lib/trains/pool-rank-eligibility.server"
+  );
+  await syncRankEligibilityForCurrentGeneration(allianceId, poolType);
+}
+
 export async function peekNextPoolEntry(
   allianceId: string,
   poolType: PoolType,
 ): Promise<(typeof schema.conductorPoolEntries.$inferSelect) | null> {
-  await pruneFormerUnselectedPoolEntries(allianceId, poolType);
+  await reconcileCurrentGenerationEligibility(allianceId, poolType);
   const db = getDb();
   const generation = await getCurrentPoolGeneration(allianceId, poolType);
 
@@ -161,7 +174,7 @@ export async function listUnselectedPoolEntries(
   allianceId: string,
   poolType: PoolType,
 ): Promise<Array<(typeof schema.conductorPoolEntries.$inferSelect)>> {
-  await pruneFormerUnselectedPoolEntries(allianceId, poolType);
+  await reconcileCurrentGenerationEligibility(allianceId, poolType);
   const db = getDb();
   const generation = await getCurrentPoolGeneration(allianceId, poolType);
 
@@ -483,7 +496,7 @@ export async function getPoolSummary(
   exhausted: boolean;
   nextInSequence: { memberId: string; memberName: string } | null;
 }> {
-  await pruneFormerUnselectedPoolEntries(allianceId, poolType);
+  await reconcileCurrentGenerationEligibility(allianceId, poolType);
   const db = getDb();
   const generation = await getCurrentPoolGeneration(allianceId, poolType);
 
@@ -577,6 +590,7 @@ export async function listPoolEntries(
   allianceId: string,
   poolType: PoolType,
 ): Promise<Array<(typeof schema.conductorPoolEntries.$inferSelect)>> {
+  await reconcileCurrentGenerationEligibility(allianceId, poolType);
   const db = getDb();
   const generation = await getCurrentPoolGeneration(allianceId, poolType);
   return db

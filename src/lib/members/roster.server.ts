@@ -155,7 +155,16 @@ export async function syncAllianceMembersFromAshed(input: {
     synced += 1;
   }
 
+  await syncCurrentRankPoolGenerations(input.hqAllianceId);
+
   return { synced, commanderConflicts };
+}
+
+async function syncCurrentRankPoolGenerations(hqAllianceId: string): Promise<void> {
+  const { syncRankEligibilityForCurrentGenerations } = await import(
+    "@/lib/trains/pool-rank-eligibility.server"
+  );
+  await syncRankEligibilityForCurrentGenerations(hqAllianceId);
 }
 
 function parseAshedTimestamp(value: string | null | undefined): Date | null {
@@ -300,6 +309,7 @@ export async function setAllianceMemberRank(input: {
     allianceId: input.hqAllianceId,
     ashedMemberId: input.ashedMemberId,
   });
+  await syncCurrentRankPoolGenerations(input.hqAllianceId);
 }
 
 export async function clearAllianceMemberRank(input: {
@@ -326,4 +336,5 @@ export async function clearAllianceMemberRank(input: {
     allianceId: input.hqAllianceId,
     ashedMemberId: input.ashedMemberId,
   });
+  await syncCurrentRankPoolGenerations(input.hqAllianceId);
 }
