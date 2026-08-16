@@ -391,6 +391,11 @@ export async function commitRosterImport(
     }
   }
 
+  const { syncRankEligibilityForCurrentGenerations } = await import(
+    "@/lib/trains/pool-rank-eligibility.server"
+  );
+  await syncRankEligibilityForCurrentGenerations(input.allianceId);
+
   await writeAuditLog({
     sessionId: input.sessionId,
     allianceId: input.allianceId,

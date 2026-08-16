@@ -66,6 +66,7 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 ## Pool rank, Top VS roster, conductor minimums
 
 - **Pool rank eligibility** (`resolveMemberPoolAllianceRank`): when an HQ **`member_alliance_rank_events`** row exists, use that rank — **do not** `Math.max` with a stale **higher** synced Ashed roster rank after an in-game demotion. Fall back to synced roster / Ashed rank raw only when there is no HQ event yet.
+- **Current R3 / R4+ generation vs roster rank**: rank dual-write and roster sync must update the **eligibility (unselected)** side of the current generation — remove members who left that rank band; add newly eligible members **unless they already have a selected row** in that generation (do not refresh a spent slot by thrashing ranks). Missing rank-eligible roster members (new accounts) are inserted as unselected so Pick Conductor is not `not_in_pool`.
 - **Top VS** (`fetchAllianceVsTopScorersForTrainDate` / `fetchVsTopScorersForRecordedDate`):
   - **Dedupe** Ashed `VSScore` rows by member — keep the **max** score per `member_id` before sorting/slicing Top N (re-uploads must not inflate odds or push the true Nth scorer off the board).
   - **Intersect** with the **active HQ roster** (`listActiveAllianceMembersForPool`, exclude `former`) — same spirit as Top VR; departed members must not win the wheel.
