@@ -103,14 +103,18 @@ export async function syncRankEligibilityForCurrentGeneration(
   });
 
   if (plan.unselectedEntryIdsToRemove.length > 0) {
-    await db
-      .delete(schema.conductorPoolEntries)
-      .where(
+    await db.delete(schema.conductorPoolEntries).where(
+      and(
+        eq(schema.conductorPoolEntries.allianceId, allianceId),
+        eq(schema.conductorPoolEntries.poolType, poolType),
+        eq(schema.conductorPoolEntries.generation, generation),
+        sql`${schema.conductorPoolEntries.selectedAt} is null`,
         inArray(
           schema.conductorPoolEntries.id,
           plan.unselectedEntryIdsToRemove,
         ),
-      );
+      ),
+    );
   }
 
   for (const update of plan.unselectedNameUpdates) {
@@ -120,7 +124,15 @@ export async function syncRankEligibilityForCurrentGeneration(
         memberName: update.memberName,
         allianceRank: update.allianceRank,
       })
-      .where(eq(schema.conductorPoolEntries.id, update.id));
+      .where(
+        and(
+          eq(schema.conductorPoolEntries.id, update.id),
+          eq(schema.conductorPoolEntries.allianceId, allianceId),
+          eq(schema.conductorPoolEntries.poolType, poolType),
+          eq(schema.conductorPoolEntries.generation, generation),
+          sql`${schema.conductorPoolEntries.selectedAt} is null`,
+        ),
+      );
   }
 
   const maxSequence = entries.reduce(
