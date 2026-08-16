@@ -4,6 +4,8 @@ type EntityOp = { entity: string; method: string; permission: string };
 
 const ENTITY_OPS: EntityOp[] = [
   { entity: "Member", method: "GET", permission: "members:read" },
+  { entity: "Member", method: "POST", permission: "members:write" },
+  { entity: "Member", method: "PUT", permission: "members:write" },
   { entity: "Alliance", method: "GET", permission: "alliance:read" },
   { entity: "User", method: "GET", permission: "auth:read" },
   { entity: "DesertStormEvent", method: "GET", permission: "events:read" },

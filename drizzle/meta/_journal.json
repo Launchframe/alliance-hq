@@ -855,6 +855,13 @@
       "when": 1790467200000,
       "tag": "0124_train_day_spin_exclusions",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1790553600000,
+      "tag": "0125_scoreboard_member_offers",
+      "breakpoints": true
     }
   ]
 }

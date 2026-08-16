@@ -7,7 +7,7 @@ import {
   listAllianceMembers,
 } from "@/lib/members/roster.server";
 import { requireApiSession } from "@/lib/session";
-import { sessionHasPermission } from "@/lib/rbac/context";
+import { getRbacContext, sessionHasPermission } from "@/lib/rbac/context";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import type { AshedMember } from "@/lib/video/member-matcher";
 import {
@@ -47,6 +47,11 @@ import {
   isVideoDevShadowWithholdUxEnabled,
   resolveShadowWithholdEscapeMs,
 } from "@/lib/video/early-shadow-dev.shared";
+import {
+  canEditScoreboardReviewPreferences,
+  loadScoreboardReviewPreferences,
+} from "@/lib/video/scoreboard-review-preferences.server";
+import { DEFAULT_SCOREBOARD_REVIEW_PREFERENCES } from "@/lib/video/scoreboard-review-preferences.shared";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -251,6 +256,19 @@ export async function GET(_request: Request, { params }: Props) {
 
     const canProcessVideo = await sessionCanProcessVideo(session.id);
     const canReprocessAdvanced = await sessionHasPermission(session.id, "hq:admin");
+    const rbac = await getRbacContext(session.id);
+    const canOfferScoreboardMembers = canEditScoreboardReviewPreferences({
+      roleName: rbac?.roleName,
+      isPlatformMaintainer: rbac?.isPlatformMaintainer ?? false,
+    });
+    const scoreboardPrefs = canOfferScoreboardMembers
+      ? await loadScoreboardReviewPreferences(rbac?.hqUserId)
+      : DEFAULT_SCOREBOARD_REVIEW_PREFERENCES;
+    const scoreboardMemberOffers = {
+      canOffer: canOfferScoreboardMembers,
+      offerCreate: canOfferScoreboardMembers && scoreboardPrefs.offerCreate,
+      offerRename: canOfferScoreboardMembers && scoreboardPrefs.offerRename,
+    };
 
     let expectedRowCount: number | null = null;
     let shadowPassInFlight = false;
@@ -332,6 +350,7 @@ export async function GET(_request: Request, { params }: Props) {
       detectedBankContext,
       rows,
       members,
+      scoreboardMemberOffers,
       expectedRowCount,
       surveyRowCountEstimate,
       shadowPassInFlight,

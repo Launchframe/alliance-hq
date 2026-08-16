@@ -14,6 +14,7 @@ import {
   resolveEffectiveHqUserIdForSession,
 } from "@/lib/session";
 import { getAccountTimezoneIdForSession } from "@/lib/timezone/server";
+import { canEditScoreboardReviewPreferences, loadScoreboardReviewPreferences } from "@/lib/video/scoreboard-review-preferences.server";
 import { getDiscordHqLinkByHqUserId } from "@/lib/vr/repository";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +56,13 @@ export default async function AccountPage({ searchParams }: Props) {
     : null;
 
   const discordLinked = Boolean(discordBotLink || hasDiscordOAuth);
+  const canEditScoreboardOffers = canEditScoreboardReviewPreferences({
+    roleName: sessionState.rbac?.roleName,
+    isPlatformMaintainer: sessionState.rbac?.isPlatformMaintainer ?? false,
+  });
+  const initialScoreboardOffers = canEditScoreboardOffers
+    ? await loadScoreboardReviewPreferences(hqUserId)
+    : null;
   const linkNotice =
     params.discordLinked === "1"
       ? ("linked" as const)
@@ -96,6 +104,8 @@ export default async function AccountPage({ searchParams }: Props) {
       signInLinkError={params.linkError?.trim() || null}
       ssoAvailability={ssoAvailability}
       isAshedConnectAllowed={sessionState.rbac?.isAshedConnectAllowed ?? false}
+      canEditScoreboardOffers={canEditScoreboardOffers}
+      initialScoreboardOffers={initialScoreboardOffers ?? undefined}
     />
     </div>
   );

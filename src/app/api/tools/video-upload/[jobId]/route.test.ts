@@ -65,8 +65,22 @@ vi.mock("@/lib/video/video-job-alliance.shared", () => ({
   VIDEO_JOB_ALLIANCE_UNRESOLVED_ERROR: "Alliance context missing on job.",
 }));
 
-vi.mock("@/lib/rbac/constants", () => ({
-  BANK_READ_PERMISSION: "bank:read",
+vi.mock("@/lib/rbac/constants", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/rbac/constants")>();
+  return {
+    ...actual,
+    BANK_READ_PERMISSION: "bank:read",
+  };
+});
+
+vi.mock("@/lib/rbac/context", () => ({
+  sessionHasPermission: vi.fn(),
+  getRbacContext: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock("@/lib/video/scoreboard-review-preferences.server", () => ({
+  canEditScoreboardReviewPreferences: () => false,
+  loadScoreboardReviewPreferences: vi.fn(),
 }));
 
 const sessionCanProcessVideoMock = vi.fn();
