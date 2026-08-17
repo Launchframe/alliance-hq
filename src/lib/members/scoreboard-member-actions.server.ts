@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
@@ -41,12 +41,19 @@ type ParsedScoreboardRow = {
   deleted: number;
 };
 
-async function loadParsedRowsForJob(input: {
-  parseSessionId: string;
-  rowIds: string[];
-}): Promise<ParsedScoreboardRow[]> {
+type ScoreboardDb = Pick<
+  ReturnType<typeof getDb>,
+  "select" | "insert" | "update" | "execute"
+>;
+
+async function lockParsedRowsForJob(
+  db: ScoreboardDb,
+  input: {
+    parseSessionId: string;
+    rowIds: string[];
+  },
+): Promise<ParsedScoreboardRow[]> {
   if (input.rowIds.length === 0) return [];
-  const db = getDb();
   const rows = await db
     .select({
       id: schema.parsedRows.id,
@@ -62,17 +69,21 @@ async function loadParsedRowsForJob(input: {
         eq(schema.parsedRows.parseSessionId, input.parseSessionId),
         inArray(schema.parsedRows.id, input.rowIds),
       ),
-    );
+    )
+    .orderBy(asc(schema.parsedRows.id))
+    .for("update");
   return rows.filter((row) => row.deleted !== 1);
 }
 
-async function persistParsedRowMatch(input: {
-  rowId: string;
-  memberId: string;
-  memberName: string;
-  matchMethod: string;
-}): Promise<void> {
-  const db = getDb();
+async function persistParsedRowMatch(
+  db: ScoreboardDb,
+  input: {
+    rowId: string;
+    memberId: string;
+    memberName: string;
+    matchMethod: string;
+  },
+): Promise<void> {
   await db
     .update(schema.parsedRows)
     .set({
@@ -104,14 +115,16 @@ async function createAshedMember(input: {
   return id;
 }
 
-async function insertHqAllianceMember(input: {
-  allianceId: string;
-  ashedMemberId: string;
-  ashedAllianceId: string;
-  currentName: string;
-  previousNames?: string[];
-}): Promise<void> {
-  const db = getDb();
+async function insertHqAllianceMember(
+  db: ScoreboardDb,
+  input: {
+    allianceId: string;
+    ashedMemberId: string;
+    ashedAllianceId: string;
+    currentName: string;
+    previousNames?: string[];
+  },
+): Promise<void> {
   const now = new Date();
   await db.insert(schema.allianceMembers).values({
     id: nanoid(),
@@ -125,12 +138,25 @@ async function insertHqAllianceMember(input: {
     createdAt: now,
     updatedAt: now,
   });
+}
 
-  await syncCommanderFromAllianceMember({
-    allianceId: input.allianceId,
-    ashedMemberId: input.ashedMemberId,
-    memberDisplayName: input.currentName,
-  });
+async function findHqMemberIdByNormalizedName(
+  db: ScoreboardDb,
+  allianceId: string,
+  normalizedName: string,
+): Promise<string | null> {
+  const roster = await db
+    .select({
+      ashedMemberId: schema.allianceMembers.ashedMemberId,
+      currentName: schema.allianceMembers.currentName,
+    })
+    .from(schema.allianceMembers)
+    .where(eq(schema.allianceMembers.allianceId, allianceId));
+  const match = roster.find(
+    (member) =>
+      normalizeScoreboardMemberName(member.currentName) === normalizedName,
+  );
+  return match?.ashedMemberId ?? null;
 }
 
 export async function createScoreboardMembersFromReview(input: {
@@ -139,17 +165,6 @@ export async function createScoreboardMembersFromReview(input: {
   parseSessionId: string;
   rowIds: string[];
 }): Promise<ScoreboardMemberActionResult> {
-  const rows = await loadParsedRowsForJob({
-    parseSessionId: input.parseSessionId,
-    rowIds: input.rowIds,
-  });
-  const unmatched = rows.filter(
-    (row) => !row.memberId && normalizeScoreboardMemberName(row.ocrName),
-  );
-  if (unmatched.length === 0) {
-    return { members: [], rows: [] };
-  }
-
   const ashedAllianceId =
     (await getAshedAllianceIdIfLinked(input.allianceId)) ??
     nativeRosterAshedAllianceId(input.allianceId);
@@ -164,53 +179,112 @@ export async function createScoreboardMembersFromReview(input: {
     throw new Error("Connect Ashed before creating members from a scoreboard.");
   }
 
-  const createdByName = new Map<string, string>();
-  const members: ScoreboardMemberActionResult["members"] = [];
-  const patchedRows: ScoreboardMemberActionResult["rows"] = [];
+  const db = getDb();
+  const createdIds = new Set<string>();
+  const result = await db.transaction(async (tx) => {
+    const rows = await lockParsedRowsForJob(tx, {
+      parseSessionId: input.parseSessionId,
+      rowIds: input.rowIds,
+    });
+    const unmatched = rows.filter(
+      (row) => !row.memberId && normalizeScoreboardMemberName(row.ocrName),
+    );
+    if (unmatched.length === 0) {
+      return { members: [], rows: [] } satisfies ScoreboardMemberActionResult;
+    }
 
-  for (const row of unmatched) {
-    const name = row.ocrName.trim();
-    const key = normalizeScoreboardMemberName(name);
-    let ashedMemberId = createdByName.get(key);
-    if (!ashedMemberId) {
-      ashedMemberId =
-        linkedAshedId && connection
-          ? await createAshedMember({
-              connection,
-              ashedAllianceId: linkedAshedId,
-              currentName: name,
-            })
-          : nanoid(16);
-      await insertHqAllianceMember({
-        allianceId: input.allianceId,
-        ashedMemberId,
-        ashedAllianceId,
-        currentName: name,
+    const createdByName = new Map<string, string>();
+    const members: ScoreboardMemberActionResult["members"] = [];
+    const patchedRows: ScoreboardMemberActionResult["rows"] = [];
+
+    for (const row of unmatched) {
+      const name = row.ocrName.trim();
+      const key = normalizeScoreboardMemberName(name);
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`${input.allianceId}:${key}`}))`,
+      );
+
+      const [fresh] = await tx
+        .select({
+          id: schema.parsedRows.id,
+          memberId: schema.parsedRows.memberId,
+          memberName: schema.parsedRows.memberName,
+          matchMethod: schema.parsedRows.matchMethod,
+        })
+        .from(schema.parsedRows)
+        .where(eq(schema.parsedRows.id, row.id))
+        .limit(1);
+      if (fresh?.memberId) {
+        patchedRows.push({
+          id: row.id,
+          memberId: fresh.memberId,
+          memberName: fresh.memberName ?? name,
+          matchMethod: fresh.matchMethod ?? "exact",
+          matchConfidence: 1,
+        });
+        continue;
+      }
+
+      let ashedMemberId = createdByName.get(key);
+      if (!ashedMemberId) {
+        ashedMemberId =
+          (await findHqMemberIdByNormalizedName(tx, input.allianceId, key)) ??
+          undefined;
+      }
+      if (!ashedMemberId) {
+        ashedMemberId =
+          linkedAshedId && connection
+            ? await createAshedMember({
+                connection,
+                ashedAllianceId: linkedAshedId,
+                currentName: name,
+              })
+            : nanoid(16);
+        await insertHqAllianceMember(tx, {
+          allianceId: input.allianceId,
+          ashedMemberId,
+          ashedAllianceId,
+          currentName: name,
+        });
+        createdByName.set(key, ashedMemberId);
+        createdIds.add(ashedMemberId);
+        members.push({
+          id: ashedMemberId,
+          current_name: name,
+          previous_names: [],
+        });
+      } else if (!createdByName.has(key)) {
+        createdByName.set(key, ashedMemberId);
+      }
+
+      await persistParsedRowMatch(tx, {
+        rowId: row.id,
+        memberId: ashedMemberId,
+        memberName: name,
+        matchMethod: "exact",
       });
-      createdByName.set(key, ashedMemberId);
-      members.push({
-        id: ashedMemberId,
-        current_name: name,
-        previous_names: [],
+      patchedRows.push({
+        id: row.id,
+        memberId: ashedMemberId,
+        memberName: name,
+        matchMethod: "exact",
+        matchConfidence: 1,
       });
     }
 
-    await persistParsedRowMatch({
-      rowId: row.id,
-      memberId: ashedMemberId,
-      memberName: name,
-      matchMethod: "exact",
-    });
-    patchedRows.push({
-      id: row.id,
-      memberId: ashedMemberId,
-      memberName: name,
-      matchMethod: "exact",
-      matchConfidence: 1,
+    return { members, rows: patchedRows };
+  });
+
+  for (const member of result.members) {
+    if (!createdIds.has(member.id)) continue;
+    await syncCommanderFromAllianceMember({
+      allianceId: input.allianceId,
+      ashedMemberId: member.id,
+      memberDisplayName: member.current_name,
     });
   }
 
-  return { members, rows: patchedRows };
+  return result;
 }
 
 export async function applyScoreboardMemberNamesFromReview(input: {
@@ -219,20 +293,6 @@ export async function applyScoreboardMemberNamesFromReview(input: {
   parseSessionId: string;
   rowIds: string[];
 }): Promise<ScoreboardMemberActionResult> {
-  const rows = await loadParsedRowsForJob({
-    parseSessionId: input.parseSessionId,
-    rowIds: input.rowIds,
-  });
-  const renameRows = rows.filter(
-    (row) =>
-      row.memberId &&
-      row.matchMethod === SCOREBOARD_MANUAL_MATCH_METHOD &&
-      normalizeScoreboardMemberName(row.ocrName),
-  );
-  if (renameRows.length === 0) {
-    return { members: [], rows: [] };
-  }
-
   const connection = await loadAshedConnectionForAllianceCapability({
     sessionId: input.sessionId,
     allianceId: input.allianceId,
@@ -241,103 +301,118 @@ export async function applyScoreboardMemberNamesFromReview(input: {
   });
   const linkedAshedId = await getAshedAllianceIdIfLinked(input.allianceId);
   if (linkedAshedId && !connection) {
-    throw new Error("Connect Ashed before updating member names from a scoreboard.");
+    throw new Error(
+      "Connect Ashed before updating member names from a scoreboard.",
+    );
   }
 
   const db = getDb();
-  const members: ScoreboardMemberActionResult["members"] = [];
-  const patchedRows: ScoreboardMemberActionResult["rows"] = [];
-  const renamedMemberIds = new Set<string>();
-
-  for (const row of renameRows) {
-    const memberId = row.memberId!;
-    const nextName = row.ocrName.trim();
-    if (renamedMemberIds.has(memberId)) {
-      await persistParsedRowMatch({
-        rowId: row.id,
-        memberId,
-        memberName: nextName,
-        matchMethod: SCOREBOARD_MANUAL_MATCH_METHOD,
-      });
-      patchedRows.push({
-        id: row.id,
-        memberId,
-        memberName: nextName,
-        matchMethod: SCOREBOARD_MANUAL_MATCH_METHOD,
-        matchConfidence: 1,
-      });
-      continue;
-    }
-
-    const [existing] = await db
-      .select()
-      .from(schema.allianceMembers)
-      .where(
-        and(
-          eq(schema.allianceMembers.allianceId, input.allianceId),
-          eq(schema.allianceMembers.ashedMemberId, memberId),
-        ),
-      )
-      .limit(1);
-    if (!existing) {
-      throw new Error("Matched member not found.");
-    }
-
-    const previousNames = existing.previousNamesJson ?? [];
-    const nextPrevious = nextPreviousNames(
-      existing.currentName,
-      previousNames,
-      nextName,
+  const commanderSync: Array<{ memberId: string; nextName: string }> = [];
+  const result = await db.transaction(async (tx) => {
+    const rows = await lockParsedRowsForJob(tx, {
+      parseSessionId: input.parseSessionId,
+      rowIds: input.rowIds,
+    });
+    const renameRows = rows.filter(
+      (row) =>
+        row.memberId &&
+        row.matchMethod === SCOREBOARD_MANUAL_MATCH_METHOD &&
+        normalizeScoreboardMemberName(row.ocrName),
     );
-    if (nextPrevious === previousNames && existing.currentName === nextName) {
-      continue;
+    if (renameRows.length === 0) {
+      return { members: [], rows: [] } satisfies ScoreboardMemberActionResult;
     }
 
-    await db
-      .update(schema.allianceMembers)
-      .set({
-        currentName: nextName,
-        previousNamesJson: nextPrevious,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.allianceMembers.id, existing.id));
+    const grouped = new Map<string, ParsedScoreboardRow[]>();
+    for (const row of renameRows) {
+      const memberId = row.memberId!;
+      const list = grouped.get(memberId) ?? [];
+      list.push(row);
+      grouped.set(memberId, list);
+    }
 
+    const members: ScoreboardMemberActionResult["members"] = [];
+    const patchedRows: ScoreboardMemberActionResult["rows"] = [];
+
+    for (const [memberId, group] of grouped) {
+      const nextName = group[0]!.ocrName.trim();
+      const [existing] = await tx
+        .select()
+        .from(schema.allianceMembers)
+        .where(
+          and(
+            eq(schema.allianceMembers.allianceId, input.allianceId),
+            eq(schema.allianceMembers.ashedMemberId, memberId),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      if (!existing) {
+        throw new Error("Matched member not found.");
+      }
+
+      const previousNames = existing.previousNamesJson ?? [];
+      const nextPrevious = nextPreviousNames(
+        existing.currentName,
+        previousNames,
+        nextName,
+      );
+      const needsHqWrite =
+        existing.currentName !== nextName || nextPrevious !== previousNames;
+
+      if (linkedAshedId && connection) {
+        await syncMemberNameToAshed(
+          connection,
+          memberId,
+          nextName,
+          nextPrevious,
+        );
+      }
+
+      if (needsHqWrite) {
+        await tx
+          .update(schema.allianceMembers)
+          .set({
+            currentName: nextName,
+            previousNamesJson: nextPrevious,
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.allianceMembers.id, existing.id));
+        commanderSync.push({ memberId, nextName });
+        members.push({
+          id: memberId,
+          current_name: nextName,
+          previous_names: nextPrevious,
+        });
+      }
+
+      for (const row of group) {
+        await persistParsedRowMatch(tx, {
+          rowId: row.id,
+          memberId,
+          memberName: nextName,
+          matchMethod: SCOREBOARD_MANUAL_MATCH_METHOD,
+        });
+        patchedRows.push({
+          id: row.id,
+          memberId,
+          memberName: nextName,
+          matchMethod: SCOREBOARD_MANUAL_MATCH_METHOD,
+          matchConfidence: 1,
+        });
+      }
+    }
+
+    return { members, rows: patchedRows };
+  });
+
+  for (const item of commanderSync) {
     await syncCommanderFromAllianceMember({
       allianceId: input.allianceId,
-      ashedMemberId: memberId,
-      memberDisplayName: nextName,
-    });
-
-    if (linkedAshedId && connection) {
-      await syncMemberNameToAshed(
-        connection,
-        memberId,
-        nextName,
-        nextPrevious,
-      );
-    }
-
-    renamedMemberIds.add(memberId);
-    members.push({
-      id: memberId,
-      current_name: nextName,
-      previous_names: nextPrevious,
-    });
-
-    await persistParsedRowMatch({
-      rowId: row.id,
-      memberId,
-      memberName: nextName,
-      matchMethod: SCOREBOARD_MANUAL_MATCH_METHOD,
-    });
-    patchedRows.push({
-      id: row.id,
-      memberId,
-      memberName: nextName,
-      matchMethod: SCOREBOARD_MANUAL_MATCH_METHOD,
-      matchConfidence: 1,
+      ashedMemberId: item.memberId,
+      memberDisplayName: item.nextName,
     });
   }
 
-  return { members, rows: patchedRows };
+  return result;
 }

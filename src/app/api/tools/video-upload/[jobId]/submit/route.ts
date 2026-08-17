@@ -1009,10 +1009,6 @@ export async function POST(request: Request, { params }: Props) {
         });
         clearedPriorAshedScores = true;
       }
-      await dispatchScoreSubmit(connection, target, payloads, {
-        submitContext,
-        allianceSizeAtRecord,
-      });
       if (
         isDesertStormVideoTarget(target.id) &&
         ashedEventId &&
@@ -1030,6 +1026,10 @@ export async function POST(request: Request, { params }: Props) {
           }),
         });
       }
+      await dispatchScoreSubmit(connection, target, payloads, {
+        submitContext,
+        allianceSizeAtRecord,
+      });
       if (
         scoreTargetId === "vs-performance" &&
         submitContext.vsPeriod === "weekly"

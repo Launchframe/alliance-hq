@@ -377,11 +377,11 @@ function splitConcatenatedNames(
 
   const oursName = us.name.trim();
   if (oursName.length < 4) return null;
-  const idx = indexOfNormalized(trimmed, oursName);
-  if (idx < 0) return null;
+  const span = findNormalizedNeedleSpan(trimmed, oursName);
+  if (!span) return null;
 
-  const before = trimmed.slice(0, idx).trim();
-  const after = trimmed.slice(idx + oursName.length).trim();
+  const before = trimmed.slice(0, span.start).trim();
+  const after = trimmed.slice(span.end).trim();
   if (before && after) return null;
   if (after) return [oursName, after];
   if (before) return [before, oursName];
@@ -405,14 +405,36 @@ function normalizeAllianceName(value: string): string {
     .trim();
 }
 
-function indexOfNormalized(haystack: string, needle: string): number {
-  const hayNorm = normalizeAllianceName(haystack);
+function findNormalizedNeedleSpan(
+  haystack: string,
+  needle: string,
+): { start: number; end: number } | null {
   const needleNorm = normalizeAllianceName(needle);
-  if (!hayNorm || !needleNorm || needleNorm.length < 4) return -1;
+  if (!needleNorm || needleNorm.length < 4) return null;
+
+  const map: number[] = [];
+  let hayNorm = "";
+  let pendingSpace = false;
+  for (let i = 0; i < haystack.length; i++) {
+    const lower = haystack[i]!.toLowerCase();
+    if (/[a-z0-9]/.test(lower)) {
+      if (pendingSpace && hayNorm.length > 0) {
+        hayNorm += " ";
+        map.push(i);
+      }
+      hayNorm += lower;
+      map.push(i);
+      pendingSpace = false;
+    } else {
+      pendingSpace = true;
+    }
+  }
   const pos = hayNorm.indexOf(needleNorm);
-  if (pos < 0) return -1;
-  // Map normalized index back approximately by scanning original tokens.
-  return haystack.toLowerCase().indexOf(needle.toLowerCase());
+  if (pos < 0) return null;
+  const start = map[pos];
+  const last = map[pos + needleNorm.length - 1];
+  if (start == null || last == null) return null;
+  return { start, end: last + 1 };
 }
 
 function namesMatch(a: string, b: string): boolean {

@@ -92,6 +92,20 @@ describe("parseDesertStormMatchHeaderLines", () => {
     expect(parsed.opponentName).toBe("Keep Partner On Path");
   });
 
+  it("zips column-layout names when OCR punctuation differs from the stored alliance name", () => {
+    const parsed = parseDesertStormMatchHeaderLines(
+      [
+        "#1203 #1229",
+        "Live-Free Die Hard Keep Partner On Path",
+        "253,498 325,382",
+      ],
+      US,
+    );
+    expect(parsed.filledFromOcr).toBe(true);
+    expect(parsed.opponentServer).toBe("1229");
+    expect(parsed.opponentName).toBe("Keep Partner On Path");
+  });
+
   it("parses stacked per-card blocks", () => {
     const parsed = parseDesertStormMatchHeaderLines(
       ["#1203", "Live Free Die Hard", "253,498", "#1229", "Keep Partner On Path", "325,382"],

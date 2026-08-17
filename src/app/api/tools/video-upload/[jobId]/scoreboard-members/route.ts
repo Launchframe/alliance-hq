@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { writeAuditLog } from "@/lib/bff/audit";
-import { getRbacContext } from "@/lib/rbac/context";
 import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 import { requireApiSession } from "@/lib/session";
 import {
@@ -10,7 +9,7 @@ import {
   createScoreboardMembersFromReview,
 } from "@/lib/members/scoreboard-member-actions.server";
 import {
-  canEditScoreboardReviewPreferences,
+  canOfferScoreboardMemberActionsForAlliance,
   loadScoreboardReviewPreferences,
 } from "@/lib/video/scoreboard-review-preferences.server";
 import {
@@ -68,14 +67,11 @@ export async function POST(request: Request, { params }: Props) {
       );
     }
 
-    const rbac = await getRbacContext(session.id);
-    if (
-      !rbac ||
-      !canEditScoreboardReviewPreferences({
-        roleName: rbac.roleName,
-        isPlatformMaintainer: rbac.isPlatformMaintainer,
-      })
-    ) {
+    const offerAccess = await canOfferScoreboardMemberActionsForAlliance(
+      session.id,
+      allianceId,
+    );
+    if (!offerAccess.canOffer) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -86,7 +82,9 @@ export async function POST(request: Request, { params }: Props) {
     );
     if (forbidden) return forbidden;
 
-    const preferences = await loadScoreboardReviewPreferences(rbac.hqUserId);
+    const preferences = await loadScoreboardReviewPreferences(
+      offerAccess.hqUserId,
+    );
     const body = bodySchema.parse(await request.json());
     if (body.action === "create" && !preferences.offerCreate) {
       return NextResponse.json(

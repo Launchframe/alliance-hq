@@ -7,7 +7,7 @@ import {
   listAllianceMembers,
 } from "@/lib/members/roster.server";
 import { requireApiSession } from "@/lib/session";
-import { getRbacContext, sessionHasPermission } from "@/lib/rbac/context";
+import { sessionHasPermission } from "@/lib/rbac/context";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import type { AshedMember } from "@/lib/video/member-matcher";
 import {
@@ -48,7 +48,7 @@ import {
   resolveShadowWithholdEscapeMs,
 } from "@/lib/video/early-shadow-dev.shared";
 import {
-  canEditScoreboardReviewPreferences,
+  canOfferScoreboardMemberActionsForAlliance,
   loadScoreboardReviewPreferences,
 } from "@/lib/video/scoreboard-review-preferences.server";
 import { DEFAULT_SCOREBOARD_REVIEW_PREFERENCES } from "@/lib/video/scoreboard-review-preferences.shared";
@@ -256,13 +256,13 @@ export async function GET(_request: Request, { params }: Props) {
 
     const canProcessVideo = await sessionCanProcessVideo(session.id);
     const canReprocessAdvanced = await sessionHasPermission(session.id, "hq:admin");
-    const rbac = await getRbacContext(session.id);
-    const canOfferScoreboardMembers = canEditScoreboardReviewPreferences({
-      roleName: rbac?.roleName,
-      isPlatformMaintainer: rbac?.isPlatformMaintainer ?? false,
-    });
+    const scoreboardOfferAccess = await canOfferScoreboardMemberActionsForAlliance(
+      session.id,
+      allianceIdForJob,
+    );
+    const canOfferScoreboardMembers = scoreboardOfferAccess.canOffer;
     const scoreboardPrefs = canOfferScoreboardMembers
-      ? await loadScoreboardReviewPreferences(rbac?.hqUserId)
+      ? await loadScoreboardReviewPreferences(scoreboardOfferAccess.hqUserId)
       : DEFAULT_SCOREBOARD_REVIEW_PREFERENCES;
     const scoreboardMemberOffers = {
       canOffer: canOfferScoreboardMembers,

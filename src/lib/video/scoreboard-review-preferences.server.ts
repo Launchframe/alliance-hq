@@ -4,6 +4,11 @@ import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import {
+  getAllianceMembershipRbac,
+  getRbacContext,
+} from "@/lib/rbac/context";
+import {
+  canEditScoreboardReviewPreferences,
   DEFAULT_SCOREBOARD_REVIEW_PREFERENCES,
   normalizeScoreboardOfferFlag,
   type ScoreboardReviewPreferences,
@@ -12,6 +17,35 @@ import {
 export {
   canEditScoreboardReviewPreferences,
 } from "@/lib/video/scoreboard-review-preferences.shared";
+
+/** Officer-or-above on the job alliance, not the session's current alliance. */
+export async function canOfferScoreboardMemberActionsForAlliance(
+  sessionId: string,
+  allianceId: string | null | undefined,
+): Promise<{ canOffer: boolean; hqUserId: string | null }> {
+  if (!allianceId) {
+    return { canOffer: false, hqUserId: null };
+  }
+  const rbac = await getRbacContext(sessionId);
+  if (!rbac) {
+    return { canOffer: false, hqUserId: null };
+  }
+  if (rbac.isPlatformMaintainer) {
+    return { canOffer: true, hqUserId: rbac.hqUserId };
+  }
+  const membership = await getAllianceMembershipRbac(
+    sessionId,
+    rbac.hqUserId,
+    allianceId,
+  );
+  return {
+    canOffer: canEditScoreboardReviewPreferences({
+      roleName: membership.roleName,
+      isPlatformMaintainer: false,
+    }),
+    hqUserId: rbac.hqUserId,
+  };
+}
 
 export async function loadScoreboardReviewPreferences(
   hqUserId: string | null | undefined,

@@ -80,6 +80,9 @@ vi.mock("@/lib/rbac/context", () => ({
 
 vi.mock("@/lib/video/scoreboard-review-preferences.server", () => ({
   canEditScoreboardReviewPreferences: () => false,
+  canOfferScoreboardMemberActionsForAlliance: vi
+    .fn()
+    .mockResolvedValue({ canOffer: false, hqUserId: null }),
   loadScoreboardReviewPreferences: vi.fn(),
 }));
 
