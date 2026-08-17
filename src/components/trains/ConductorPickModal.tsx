@@ -25,13 +25,19 @@ type Props = {
   hintsLoadingLabel?: string;
   sameGenerationMemberIds?: ReadonlySet<string>;
   sameGenerationWarningLabel?: string;
+  eligibilityOverrideMemberIds?: ReadonlySet<string>;
+  eligibilityOverrideWarningLabel?: string;
+  forceEligibilityMemberId?: string | null;
   showGuardianToggle?: boolean;
   guardianIsVipLabel?: string;
   onClose: () => void;
   onPick: (
     member: RosterMember,
     guardianIsVip: boolean,
-    options?: { allowSameGenerationReuse?: boolean },
+    options?: {
+      allowSameGenerationReuse?: boolean;
+      allowEligibilityOverride?: boolean;
+    },
   ) => void;
 };
 
@@ -48,6 +54,9 @@ export function ConductorPickModal({
   hintsLoadingLabel,
   sameGenerationMemberIds,
   sameGenerationWarningLabel,
+  eligibilityOverrideMemberIds,
+  eligibilityOverrideWarningLabel,
+  forceEligibilityMemberId = null,
   showGuardianToggle = false,
   guardianIsVipLabel,
   onClose,
@@ -64,10 +73,20 @@ export function ConductorPickModal({
   }, [members, query]);
 
   const selected = members.find((m) => m.memberId === selectedId) ?? null;
-  const showSameGenerationWarning =
+  const sameGenerationSelected =
     selected != null &&
-    sameGenerationMemberIds?.has(selected.memberId) === true &&
-    Boolean(sameGenerationWarningLabel);
+    sameGenerationMemberIds?.has(selected.memberId) === true;
+  const eligibilityOverrideSelected =
+    selected != null &&
+    eligibilityOverrideMemberIds?.has(selected.memberId) === true;
+  const warningLabel = sameGenerationSelected
+    ? sameGenerationWarningLabel
+    : eligibilityOverrideSelected ||
+        (forceEligibilityMemberId != null &&
+          selected?.memberId === forceEligibilityMemberId)
+      ? eligibilityOverrideWarningLabel
+      : undefined;
+  const showEligibilityWarning = Boolean(warningLabel);
 
   if (!open) return null;
 
@@ -171,12 +190,12 @@ export function ConductorPickModal({
           </label>
         ) : null}
 
-        {showSameGenerationWarning ? (
+        {showEligibilityWarning ? (
           <p
             className="border-t border-hq-border px-4 py-3 text-sm text-hq-warning"
-            data-testid="conductor-pick-same-generation-warning"
+            data-testid="conductor-pick-eligibility-warning"
           >
-            {sameGenerationWarningLabel}
+            {warningLabel}
           </p>
         ) : null}
 
@@ -196,13 +215,13 @@ export function ConductorPickModal({
               onPick(
                 selected,
                 guardianIsVip,
-                showSameGenerationWarning
-                  ? { allowSameGenerationReuse: true }
+                showEligibilityWarning
+                  ? {
+                      allowSameGenerationReuse: true,
+                      allowEligibilityOverride: true,
+                    }
                   : undefined,
               );
-              setQuery("");
-              setSelectedId(null);
-              setGuardianIsVip(false);
             }}
             className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
