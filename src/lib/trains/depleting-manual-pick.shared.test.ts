@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ManualPickEligibilityError,
   depletingManualPickErrorMessage,
   evaluateDepletingManualPick,
+  isManualPickEligibilityError,
+  officerConfirmedManualPickOverride,
   shouldReleasePriorPoolSelection,
 } from "@/lib/trains/depleting-manual-pick.shared";
 
@@ -46,6 +49,29 @@ describe("depletingManualPickErrorMessage", () => {
     expect(depletingManualPickErrorMessage("not_in_pool")).toMatch(
       /not in the current conductor pool/i,
     );
+  });
+});
+
+describe("officerConfirmedManualPickOverride", () => {
+  it("accepts the dedicated override flag or the same-generation alias", () => {
+    expect(officerConfirmedManualPickOverride({})).toBe(false);
+    expect(
+      officerConfirmedManualPickOverride({ allowEligibilityOverride: true }),
+    ).toBe(true);
+    expect(
+      officerConfirmedManualPickOverride({ allowSameGenerationReuse: true }),
+    ).toBe(true);
+  });
+});
+
+describe("isManualPickEligibilityError", () => {
+  it("recognizes typed eligibility override errors", () => {
+    const error = new ManualPickEligibilityError(
+      "already_awarded",
+      depletingManualPickErrorMessage("already_awarded"),
+    );
+    expect(isManualPickEligibilityError(error)).toBe(true);
+    expect(isManualPickEligibilityError(new Error("nope"))).toBe(false);
   });
 });
 

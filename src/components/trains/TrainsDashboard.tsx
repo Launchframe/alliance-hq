@@ -6,6 +6,10 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { ConductorPickModal } from "@/components/trains/ConductorPickModal";
 import type { ConductorPickMemberHint } from "@/components/trains/ConductorPickModal";
+import {
+  MANUAL_PICK_ELIGIBILITY_OVERRIDE_CODE,
+  type ManualPickEligibilityReason,
+} from "@/lib/trains/depleting-manual-pick.shared";
 import { ConductorSwapDialog } from "@/components/trains/ConductorSwapDialog";
 import { ConductorHistoryDialog } from "@/components/trains/ConductorHistoryDialog";
 import { ConductorHistoryTable } from "@/components/trains/ConductorHistoryTable";
@@ -264,11 +268,17 @@ export function TrainsDashboard({ initial }: Props) {
   const [pickPoolPickedMemberIds, setPickPoolPickedMemberIds] = useState<
     Set<string>
   >(new Set());
+  const [pickPoolUnselectedMemberIds, setPickPoolUnselectedMemberIds] =
+    useState<Set<string> | null>(null);
+  const [pickEligibilityOverrideMemberId, setPickEligibilityOverrideMemberId] =
+    useState<string | null>(null);
   const closePickModal = () => {
     setPickOpen(false);
     setPickHintsRaw({});
     setPickHintsLoading(false);
     setPickPoolPickedMemberIds(new Set());
+    setPickPoolUnselectedMemberIds(null);
+    setPickEligibilityOverrideMemberId(null);
   };
   const [reseedHintOpen, setReseedHintOpen] = useState(false);
   const [poolRefreshedHint, setPoolRefreshedHint] =
@@ -1213,9 +1223,14 @@ export function TrainsDashboard({ initial }: Props) {
       memberId: string;
       memberName: string;
     },
-    options?: { allowSameGenerationReuse?: boolean },
+    options?: {
+      allowSameGenerationReuse?: boolean;
+      allowEligibilityOverride?: boolean;
+    },
   ) => {
-    closePickModal();
+    const overrideConfirmed = Boolean(
+      options?.allowEligibilityOverride || options?.allowSameGenerationReuse,
+    );
     await withOptimisticMutation(
       (snap) => applyOptimisticConductorPick(snap, selectedDate, member),
       async () => {
@@ -1226,12 +1241,36 @@ export function TrainsDashboard({ initial }: Props) {
             date: selectedDate,
             memberId: member.memberId,
             memberName: member.memberName,
-            ...(options?.allowSameGenerationReuse
-              ? { allowSameGenerationReuse: true }
+            ...(overrideConfirmed
+              ? {
+                  allowSameGenerationReuse: true,
+                  allowEligibilityOverride: true,
+                }
               : {}),
           }),
         });
-        const body = (await res.json()) as { error?: string };
+        const body = (await res.json()) as {
+          error?: string;
+          code?: string;
+          reason?: ManualPickEligibilityReason;
+        };
+        if (
+          !res.ok &&
+          !overrideConfirmed &&
+          body.code === MANUAL_PICK_ELIGIBILITY_OVERRIDE_CODE
+        ) {
+          const reason = body.reason ?? "not_in_pool";
+          setPickEligibilityOverrideMemberId(member.memberId);
+          if (reason === "already_awarded") {
+            setPickPoolPickedMemberIds(
+              (prev) => new Set(prev).add(member.memberId),
+            );
+          }
+          return { ok: false };
+        }
+        if (res.ok) {
+          closePickModal();
+        }
         return {
           ok: res.ok,
           error: res.ok ? undefined : (body.error ?? t("pickFailed")),
@@ -1856,35 +1895,13 @@ export function TrainsDashboard({ initial }: Props) {
     ) : null;
   const pickRosterMembers = useMemo(
     () => {
-      let roster = data.roster;
-      if (pickRole === "conductor") {
-        if (
-          conductorPaint === "r3_recognition" ||
-          conductorReseedPoolType === "r3"
-        ) {
-          roster = roster.filter((member) => member.allianceRank === 3);
-        } else if (
-          conductorMech === "r4_sequence" ||
-          conductorReseedPoolType === "r4_plus"
-        ) {
-          roster = roster.filter(
-            (member) => (member.allianceRank ?? 0) >= 4,
-          );
-        }
-      }
-      return [...roster].sort((a, b) =>
+      return [...data.roster].sort((a, b) =>
         a.memberName.localeCompare(b.memberName, undefined, {
           sensitivity: "base",
         }),
       );
     },
-    [
-      pickRole,
-      conductorPaint,
-      conductorMech,
-      conductorReseedPoolType,
-      data.roster,
-    ],
+    [data.roster],
   );
   useEffect(() => {
     if (!pickOpen || pickRole !== "conductor" || !conductorReseedPoolType) {
@@ -1905,6 +1922,13 @@ export function TrainsDashboard({ initial }: Props) {
             new Set(
               body.entries
                 .filter((entry) => entry.selectedAt != null)
+                .map((entry) => entry.memberId),
+            ),
+          );
+          setPickPoolUnselectedMemberIds(
+            new Set(
+              body.entries
+                .filter((entry) => entry.selectedAt == null)
                 .map((entry) => entry.memberId),
             ),
           );
@@ -1976,6 +2000,38 @@ export function TrainsDashboard({ initial }: Props) {
     selectedDate,
     relativeConductLabels,
     conductorMechanismLabels,
+  ]);
+  const pickEligibilityOverrideMemberIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (pickRole !== "conductor") return ids;
+    const rankGatedR3 =
+      conductorPaint === "r3_recognition" || conductorReseedPoolType === "r3";
+    const rankGatedR4 =
+      conductorMech === "r4_sequence" || conductorReseedPoolType === "r4_plus";
+    for (const member of pickRosterMembers) {
+      if (pickPoolPickedMemberIds.has(member.memberId)) continue;
+      if (rankGatedR3 && member.allianceRank !== 3) {
+        ids.add(member.memberId);
+      }
+      if (rankGatedR4 && (member.allianceRank ?? 0) < 4) {
+        ids.add(member.memberId);
+      }
+      if (
+        pickPoolUnselectedMemberIds &&
+        !pickPoolUnselectedMemberIds.has(member.memberId)
+      ) {
+        ids.add(member.memberId);
+      }
+    }
+    return ids;
+  }, [
+    pickRole,
+    conductorPaint,
+    conductorMech,
+    conductorReseedPoolType,
+    pickRosterMembers,
+    pickPoolPickedMemberIds,
+    pickPoolUnselectedMemberIds,
   ]);
   const canSpinConductorWheel =
     canRoll &&
@@ -2964,6 +3020,13 @@ export function TrainsDashboard({ initial }: Props) {
           pickRole === "conductor" ? pickPoolPickedMemberIds : undefined
         }
         sameGenerationWarningLabel={t("pickConductorSameGenerationWarning")}
+        eligibilityOverrideMemberIds={
+          pickRole === "conductor" ? pickEligibilityOverrideMemberIds : undefined
+        }
+        eligibilityOverrideWarningLabel={t(
+          "pickConductorEligibilityOverrideWarning",
+        )}
+        forceEligibilityMemberId={pickEligibilityOverrideMemberId}
         showGuardianToggle={pickRole === "vip"}
         guardianIsVipLabel={
           pickRole === "vip" ? t("guardianIsVip") : undefined

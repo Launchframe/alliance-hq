@@ -257,6 +257,8 @@ export async function handleDiscordTrainConductorPick(input: {
       date: input.date,
       memberId: member.id,
       memberName: member.current_name,
+      // Discord Yes already confirmed assigning this member as conductor.
+      allowEligibilityOverride: true,
     });
     const reply = t("train.draftSaved", {
       name: member.current_name,

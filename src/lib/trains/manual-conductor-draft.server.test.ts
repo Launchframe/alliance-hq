@@ -50,6 +50,7 @@ vi.mock("@/lib/trains/conductor-pool-claim-lock.server", () => ({
 }));
 
 import { applyManualConductorDraft } from "@/lib/trains/manual-conductor-draft.server";
+import { ManualPickEligibilityError } from "@/lib/trains/depleting-manual-pick.shared";
 
 describe("applyManualConductorDraft", () => {
   beforeEach(() => {
@@ -139,7 +140,13 @@ describe("applyManualConductorDraft", () => {
         memberId: "m-alice",
         memberName: "Alice",
       }),
-    ).rejects.toThrow(/already selected from the current pool generation/i);
+    ).rejects.toSatisfy((error: unknown) => {
+      expect(error).toBeInstanceOf(ManualPickEligibilityError);
+      expect((error as ManualPickEligibilityError).reason).toBe(
+        "already_awarded",
+      );
+      return true;
+    });
 
     expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
     expect(mocks.upsertConductorDraft).not.toHaveBeenCalled();
@@ -161,7 +168,13 @@ describe("applyManualConductorDraft", () => {
         memberId: "m-alice",
         memberName: "Alice",
       }),
-    ).rejects.toThrow(/R3 pool manual picks must select an R3 member/i);
+    ).rejects.toSatisfy((error: unknown) => {
+      expect(error).toBeInstanceOf(ManualPickEligibilityError);
+      expect((error as ManualPickEligibilityError).reason).toBe(
+        "rank_ineligible",
+      );
+      return true;
+    });
 
     expect(mocks.ensureConductorPoolSeeded).not.toHaveBeenCalled();
     expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
@@ -187,6 +200,59 @@ describe("applyManualConductorDraft", () => {
       memberId: "m-alice",
       memberName: "Alice",
       allowSameGenerationReuse: true,
+    });
+
+    expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
+    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conductorMemberId: "m-alice",
+      }),
+    );
+  });
+
+  it("drafts a member missing from the pool when the officer confirms override", async () => {
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorMechanism: "r4_sequence",
+      vipMechanism: "conductor_pick",
+      paintTemplate: "r4_event_vip",
+      dayConfigId: "dc-1",
+    });
+    mocks.listUnselectedPoolEntries.mockResolvedValue([{ memberId: "m-bob" }]);
+    mocks.listPoolEntries.mockResolvedValue([{ memberId: "m-bob" }]);
+
+    await applyManualConductorDraft({
+      allianceId: "ally-1",
+      date: "2026-08-16",
+      memberId: "m-shera",
+      memberName: "SheRa",
+      allowEligibilityOverride: true,
+    });
+
+    expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
+    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conductorMemberId: "m-shera",
+      }),
+    );
+  });
+
+  it("drafts a rank-ineligible member when the officer confirms override", async () => {
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorMechanism: "r3_lottery",
+      vipMechanism: "conductor_pick",
+      paintTemplate: "economy_week",
+      dayConfigId: "dc-1",
+    });
+    mocks.memberIdsEligibleForPoolType.mockResolvedValue(new Set());
+    mocks.listUnselectedPoolEntries.mockResolvedValue([{ memberId: "m-bob" }]);
+    mocks.listPoolEntries.mockResolvedValue([{ memberId: "m-bob" }]);
+
+    await applyManualConductorDraft({
+      allianceId: "ally-1",
+      date: "2026-07-27",
+      memberId: "m-alice",
+      memberName: "Alice",
+      allowEligibilityOverride: true,
     });
 
     expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
