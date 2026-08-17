@@ -2,7 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
-import { Crosshair, MonitorPlay, Trash2 } from "lucide-react";
+import { Crosshair, MonitorPlay, Trash2, UserPen, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link, useRouter } from "@/i18n/navigation";
@@ -13,6 +13,7 @@ import {
 import { useFeedback } from "@/components/feedback";
 import { AdminReprocessDialog } from "@/components/admin/AdminReprocessDialog";
 import { AppSelect } from "@/components/ui/AppSelect";
+import { ReviewSegmentedToggle } from "@/components/ui/ReviewSegmentedToggle";
 import { Dialog } from "@/components/ui/dialog";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { useVideoJob } from "@/components/video/VideoJobEventsProvider";
@@ -62,6 +63,13 @@ import { getServerCalendarDate } from "@/lib/trains/game-time";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
 import { memberMatchConfidenceBorderClass } from "@/lib/video/member-match-confidence-class";
+import {
+  SCOREBOARD_MANUAL_MATCH_METHOD,
+  scoreboardCreateRowIds,
+  scoreboardRenameRowIds,
+  scoreboardRowOffersCreate,
+  scoreboardRowOffersRename,
+} from "@/lib/video/scoreboard-member-actions.shared";
 import {
   isTerminalLiveJobStatus,
   shouldRefetchOnLiveJobStatus,
@@ -154,6 +162,12 @@ import {
 import { mergeDepositSlipDisplayEnhancements } from "@/lib/banks/deposit-slip-review-enhancements.shared";
 import type { DepositSlipReviewValidationRow } from "@/lib/banks/deposit-slip-review-validation.shared";
 import {
+  blankDesertStormMatchHeader,
+  compareDesertStormRowSumToTeamTotal,
+  isDesertStormMatchOutcome,
+  type DesertStormMatchOutcome,
+} from "@/lib/video/desert-storm-match-header.shared";
+import {
   buildDepositSlipReviewProblemRowIds,
   buildRosterReviewProblemRowIds,
   buildScoreReviewProblemRowIds,
@@ -235,6 +249,7 @@ type ScoreTargetMeta = {
   showScoreColumn: boolean;
   showDepositSlipColumns: boolean;
   showBankSelector: boolean;
+  showMatchOutcome: boolean;
 };
 
 type Props = {
@@ -339,6 +354,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [hqEventId, setHqEventId] = useState("");
   const [boardKey, setBoardKey] = useState("");
   const [team, setTeam] = useState<"A" | "B">("A");
+  const [matchOutcome, setMatchOutcome] =
+    useState<DesertStormMatchOutcome>("pending");
+  const [opponentServer, setOpponentServer] = useState("");
+  const [opponentTag, setOpponentTag] = useState("");
+  const [opponentName, setOpponentName] = useState("");
+  const [matchOursTotal, setMatchOursTotal] = useState<number | null>(null);
+  const [matchTheirsTotal, setMatchTheirsTotal] = useState<number | null>(
+    null,
+  );
+  const [matchFilledFromOcr, setMatchFilledFromOcr] = useState(false);
   const [vsPeriod, setVsPeriod] = useState<VsScorePeriod>("daily");
   const [recordedDate, setRecordedDate] = useState(
     () => presetRecordedDate ?? getServerCalendarDate(),
@@ -359,6 +384,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [reviewSettingsOpen, setReviewSettingsOpen] = useState(false);
   const { settings: videoReviewSettings, patchSettings: patchVideoReviewSettings } =
     useVideoReviewSettings();
+  const [scoreboardOffers, setScoreboardOffers] = useState({
+    canOffer: false,
+    offerCreate: false,
+    offerRename: false,
+  });
+  const [scoreboardMemberBusy, setScoreboardMemberBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorConnectUrl, setErrorConnectUrl] = useState<string | null>(null);
   const actionErrorAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -509,6 +540,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       bankId,
       vsPeriod,
       bankTargetMismatchResolution: bankTargetMismatchResolution ?? undefined,
+      matchOutcome,
+      opponentServer,
+      opponentTag,
+      opponentName,
     }),
     [
       bankId,
@@ -519,6 +554,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       team,
       vsPeriod,
       bankTargetMismatchResolution,
+      matchOutcome,
+      opponentServer,
+      opponentTag,
+      opponentName,
     ],
   );
 
@@ -717,6 +756,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           parseSession?: {
             allianceId?: string | null;
             dedupeReport?: unknown;
+            desertStormMatch?: {
+              outcome?: string;
+              opponentServer?: string;
+              opponentTag?: string;
+              opponentName?: string;
+              oursTotal?: number | null;
+              theirsTotal?: number | null;
+              filledFromOcr?: boolean;
+            };
           };
           detectedBankContext?: DetectedBankContext | null;
           dedupeReport?: unknown;
@@ -728,6 +776,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             }
           >;
           members?: AshedMember[];
+          scoreboardMemberOffers?: {
+            canOffer?: boolean;
+            offerCreate?: boolean;
+            offerRename?: boolean;
+          };
           expectedRowCount?: number | null;
           shadowPassInFlight?: boolean;
           devShadowUx?: {
@@ -773,6 +826,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           })),
         );
         setRosterMembers(jobMembers);
+        setScoreboardOffers({
+          canOffer: Boolean(data.scoreboardMemberOffers?.canOffer),
+          offerCreate: Boolean(data.scoreboardMemberOffers?.offerCreate),
+          offerRename: Boolean(data.scoreboardMemberOffers?.offerRename),
+        });
 
         setJobStatus(data.job?.status ?? "unknown");
         setJobErrorMessage(data.job?.errorMessage ?? null);
@@ -822,6 +880,24 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         );
         setRows(restored.rows);
         const loadedIsVs = data.scoreTargetMeta?.id === "vs-performance";
+        const ocrMatch = data.parseSession?.desertStormMatch;
+        const ocrHeader =
+          ocrMatch?.filledFromOcr === true
+            ? {
+                outcome: isDesertStormMatchOutcome(ocrMatch.outcome)
+                  ? ocrMatch.outcome
+                  : "pending",
+                opponentServer: ocrMatch.opponentServer ?? "",
+                opponentTag: ocrMatch.opponentTag ?? "",
+                opponentName: ocrMatch.opponentName ?? "",
+                oursTotal: ocrMatch.oursTotal ?? null,
+                theirsTotal: ocrMatch.theirsTotal ?? null,
+                filledFromOcr: true,
+              }
+            : blankDesertStormMatchHeader();
+        setMatchOursTotal(ocrHeader.oursTotal);
+        setMatchTheirsTotal(ocrHeader.theirsTotal);
+        setMatchFilledFromOcr(ocrHeader.filledFromOcr);
         if (restored.form) {
           setEventId(restored.form.eventId);
           setHqEventId(restored.form.hqEventId);
@@ -855,6 +931,17 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               restored.form.bankTargetMismatchResolution,
             );
           }
+          if (isDesertStormMatchOutcome(restored.form.matchOutcome)) {
+            setMatchOutcome(restored.form.matchOutcome);
+            setOpponentServer(restored.form.opponentServer ?? "");
+            setOpponentTag(restored.form.opponentTag ?? "");
+            setOpponentName(restored.form.opponentName ?? "");
+          } else {
+            setMatchOutcome(ocrHeader.outcome);
+            setOpponentServer(ocrHeader.opponentServer);
+            setOpponentTag(ocrHeader.opponentTag);
+            setOpponentName(ocrHeader.opponentName);
+          }
         } else {
           if (data.job?.hqEventId) {
             setHqEventId(data.job.hqEventId);
@@ -867,6 +954,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             // (Sat night officer-local can already be Sunday ST).
             setRecordedDate(defaultVsPerformanceRecordedDate("daily"));
           }
+          setMatchOutcome(ocrHeader.outcome);
+          setOpponentServer(ocrHeader.opponentServer);
+          setOpponentTag(ocrHeader.opponentTag);
+          setOpponentName(ocrHeader.opponentName);
         }
         setDraftRestored(restored.restored);
         markAutosaveReady(draftDirtyVersionRef.current, restored.savedAt);
@@ -1736,6 +1827,47 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   }, [hasSourceVideo, jobId, setPreviewOpen]);
 
   const matchedCount = activeRows.filter((r) => r.memberId).length;
+  const showScoreboardMemberActions =
+    viewMode === "review" &&
+    Boolean(scoreTargetMeta) &&
+    scoreTargetMeta?.showScoreColumn !== false &&
+    !scoreTargetMeta?.showRosterColumns &&
+    !scoreTargetMeta?.showDepositSlipColumns;
+  const scoreboardCreateIds = useMemo(
+    () =>
+      showScoreboardMemberActions
+        ? scoreboardCreateRowIds(activeRows, scoreboardOffers.offerCreate)
+        : [],
+    [
+      activeRows,
+      scoreboardOffers.offerCreate,
+      showScoreboardMemberActions,
+    ],
+  );
+  const scoreboardRenameIds = useMemo(
+    () =>
+      showScoreboardMemberActions
+        ? scoreboardRenameRowIds(
+            activeRows,
+            members,
+            scoreboardOffers.offerRename,
+          )
+        : [],
+    [
+      activeRows,
+      members,
+      scoreboardOffers.offerRename,
+      showScoreboardMemberActions,
+    ],
+  );
+
+  const desertStormRowSumCheck = useMemo(() => {
+    if (!scoreTargetMeta?.showMatchOutcome) return null;
+    return compareDesertStormRowSumToTeamTotal({
+      teamTotal: matchOursTotal,
+      scores: activeRows.map((row) => row.score),
+    });
+  }, [activeRows, matchOursTotal, scoreTargetMeta?.showMatchOutcome]);
 
   const scoreDuplicateMemberIssues = useMemo(
     () =>
@@ -2057,6 +2189,97 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     );
   }
 
+  async function runScoreboardMemberAction(
+    action: "create" | "rename",
+    rowIds: string[],
+  ) {
+    if (rowIds.length === 0 || scoreboardMemberBusy) return;
+    setScoreboardMemberBusy(true);
+    clearActionError();
+    try {
+      const res = await fetch(
+        `/api/tools/video-upload/${jobId}/scoreboard-members`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, rowIds }),
+        },
+      );
+      const data = (await res.json()) as {
+        error?: string;
+        members?: Array<{
+          id: string;
+          current_name: string;
+          previous_names?: string[];
+        }>;
+        rows?: Array<{
+          id: string;
+          memberId: string;
+          memberName: string;
+          matchMethod: string;
+          matchConfidence: number;
+        }>;
+      };
+      if (!res.ok) {
+        setActionError(data.error ?? tc("uploadFailed"));
+        return;
+      }
+      const nextMembers = data.members ?? [];
+      if (nextMembers.length > 0) {
+        setMembers((prev) => {
+          const byId = new Map(prev.map((member) => [member.id, member]));
+          for (const member of nextMembers) {
+            byId.set(member.id, {
+              id: member.id,
+              current_name: member.current_name,
+              previous_names: member.previous_names,
+            });
+          }
+          return [...byId.values()].sort((a, b) =>
+            a.current_name.localeCompare(b.current_name, undefined, {
+              sensitivity: "base",
+            }),
+          );
+        });
+        setRosterMembers((prev) => {
+          const byId = new Map(prev.map((member) => [member.id, member]));
+          for (const member of nextMembers) {
+            const existing = byId.get(member.id);
+            byId.set(member.id, {
+              ...existing,
+              id: member.id,
+              current_name: member.current_name,
+              previous_names: member.previous_names,
+            });
+          }
+          return [...byId.values()];
+        });
+      }
+      const patched = data.rows ?? [];
+      if (patched.length > 0) {
+        markDraftDirty();
+        const byId = new Map(patched.map((row) => [row.id, row]));
+        setRows((prev) =>
+          prev.map((row) => {
+            const next = byId.get(row.id);
+            if (!next) return row;
+            return {
+              ...row,
+              memberId: next.memberId,
+              memberName: next.memberName,
+              matchMethod: next.matchMethod,
+              matchConfidence: next.matchConfidence,
+            };
+          }),
+        );
+      }
+    } catch {
+      setActionError(tc("uploadFailed"));
+    } finally {
+      setScoreboardMemberBusy(false);
+    }
+  }
+
   async function handleSubmit(options?: { skipOverlappingLockedConfirm?: boolean }) {
     const skipOverlappingLockedConfirm =
       options?.skipOverlappingLockedConfirm === true;
@@ -2110,6 +2333,18 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           hqEventId: scoreTargetMeta?.usesHqEvents ? hqEventId : undefined,
           boardKey: needsBoardPicker ? boardKey : undefined,
           team: scoreTargetMeta?.showTeamSelector ? team : undefined,
+          matchOutcome: scoreTargetMeta?.showMatchOutcome
+            ? matchOutcome
+            : undefined,
+          opponentServer: scoreTargetMeta?.showMatchOutcome
+            ? opponentServer
+            : undefined,
+          opponentTag: scoreTargetMeta?.showMatchOutcome
+            ? opponentTag
+            : undefined,
+          opponentName: scoreTargetMeta?.showMatchOutcome
+            ? opponentName
+            : undefined,
           recordedDate: isVsPerformanceTarget
             ? vsSafeRecordedDate
             : recordedDate,
@@ -2707,14 +2942,58 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               ? t("depositSlipReviewTitle")
               : t("title")}
         </h1>
-        <p className="mt-1 text-sm text-hq-fg-muted">
-          {isEventView
-            ? t("eventSubtitle")
-            : t("summary", {
-                matched: matchedCount,
-                total: activeRows.length,
-              })}
-        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <p className="text-sm text-hq-fg-muted">
+            {isEventView
+              ? t("eventSubtitle")
+              : t("summary", {
+                  matched: matchedCount,
+                  total: activeRows.length,
+                })}
+          </p>
+          {scoreTargetMeta?.showTeamSelector ? (
+            <ReviewSegmentedToggle
+              size="sm"
+              ariaLabel={t("teamLabel")}
+              value={team}
+              options={[
+                { value: "A", label: t("teamA") },
+                { value: "B", label: t("teamB") },
+              ]}
+              onChange={(next) => {
+                if (next !== "A" && next !== "B") return;
+                markDraftDirty();
+                setTeam(next);
+              }}
+            />
+          ) : null}
+          {showScoreboardMemberActions && scoreboardCreateIds.length > 0 ? (
+            <button
+              type="button"
+              disabled={scoreboardMemberBusy}
+              onClick={() =>
+                void runScoreboardMemberAction("create", scoreboardCreateIds)
+              }
+              className="inline-flex items-center gap-1.5 rounded-lg border border-hq-success px-3 py-1.5 text-sm text-hq-success hover:bg-hq-success/10 disabled:opacity-50"
+            >
+              <UserPlus className="h-4 w-4 shrink-0" aria-hidden />
+              {t("createAllAsMembers", { count: scoreboardCreateIds.length })}
+            </button>
+          ) : null}
+          {showScoreboardMemberActions && scoreboardRenameIds.length > 0 ? (
+            <button
+              type="button"
+              disabled={scoreboardMemberBusy}
+              onClick={() =>
+                void runScoreboardMemberAction("rename", scoreboardRenameIds)
+              }
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[#d29922] px-3 py-1.5 text-sm text-[#e3b341] hover:bg-[#d29922]/10 disabled:opacity-50"
+            >
+              <UserPen className="h-4 w-4 shrink-0" aria-hidden />
+              {t("addNamesForMembers", { count: scoreboardRenameIds.length })}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {scoreTargetMeta?.showRosterColumns && allianceTag ? (
@@ -2915,36 +3194,96 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             />
           </label>
         ) : null}
-        {scoreTargetMeta?.showTeamSelector ? (
-          <div className="block text-sm">
-            <span className="mb-1 block text-hq-fg-muted">{t("teamLabel")}</span>
-            <div
-              role="group"
-              aria-label={t("teamLabel")}
-              className="flex items-center gap-0.5 rounded-lg border border-hq-border p-0.5"
-            >
-              {(["A", "B"] as const).map((option) => {
-                const active = team === option;
-                return (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => {
-                      markDraftDirty();
-                      setTeam(option);
-                    }}
-                    aria-pressed={active}
-                    className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                      active
-                        ? "bg-hq-border text-hq-fg"
-                        : "text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg"
-                    }`}
-                  >
-                    {option === "A" ? t("teamA") : t("teamB")}
-                  </button>
-                );
-              })}
+        {scoreTargetMeta?.showMatchOutcome ? (
+          <div className="block text-sm md:col-span-2">
+            <span className="mb-1 block text-hq-fg-muted">
+              {t("opponentSection")}
+            </span>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="block text-sm">
+                <span className="mb-1 block text-hq-fg-muted">
+                  {t("matchOutcomeLabel")}
+                </span>
+                <ReviewSegmentedToggle
+                  className="flex w-full"
+                  ariaLabel={t("matchOutcomeLabel")}
+                  allowDeselect
+                  value={matchOutcome === "pending" ? null : matchOutcome}
+                  options={[
+                    { value: "win", label: t("matchOutcomeWin") },
+                    { value: "loss", label: t("matchOutcomeLoss") },
+                  ]}
+                  onChange={(next) => {
+                    markDraftDirty();
+                    setMatchOutcome(next === "win" || next === "loss" ? next : "pending");
+                  }}
+                />
+              </div>
+              <label className="block text-sm">
+                <span className="mb-1 block text-hq-fg-muted">
+                  {t("opponentServerLabel")}
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={opponentServer}
+                  onChange={(e) => {
+                    markDraftDirty();
+                    setOpponentServer(e.target.value);
+                  }}
+                  enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+                  className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
+                  aria-label={t("opponentServerLabel")}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block text-hq-fg-muted">
+                  {t("opponentTagLabel")}
+                </span>
+                <input
+                  type="text"
+                  value={opponentTag}
+                  onChange={(e) => {
+                    markDraftDirty();
+                    setOpponentTag(e.target.value);
+                  }}
+                  enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+                  className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
+                  aria-label={t("opponentTagLabel")}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block text-hq-fg-muted">
+                  {t("opponentNameLabel")}
+                </span>
+                <input
+                  type="text"
+                  value={opponentName}
+                  onChange={(e) => {
+                    markDraftDirty();
+                    setOpponentName(e.target.value);
+                  }}
+                  enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
+                  className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
+                  aria-label={t("opponentNameLabel")}
+                />
+              </label>
             </div>
+            {matchFilledFromOcr &&
+            matchOursTotal != null &&
+            matchTheirsTotal != null ? (
+              <>
+                <p className="mt-2 text-xs text-hq-fg-muted">
+                  {t("matchTotalsNote", {
+                    ours: matchOursTotal.toLocaleString(locale),
+                    theirs: matchTheirsTotal.toLocaleString(locale),
+                  })}
+                </p>
+                <p className="mt-1 text-xs text-hq-fg-muted">
+                  {t("matchHeaderOcrHint")}
+                </p>
+              </>
+            ) : null}
           </div>
         ) : null}
         {isVsPerformanceTarget ? (
@@ -3056,6 +3395,29 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               {addingRowBusy === "start" ? t("addingRow") : t("addRow")}
             </button>
           ) : null}
+        </div>
+      ) : null}
+
+      {desertStormRowSumCheck &&
+      desertStormRowSumCheck.status !== "ok" &&
+      viewMode === "review" ? (
+        <div
+          role="status"
+          className="rounded-xl border border-hq-warning/40 bg-hq-warning/10 px-4 py-3 text-sm text-hq-warning"
+        >
+          <p>
+            {t(
+              desertStormRowSumCheck.status === "short"
+                ? "matchRowSumShort"
+                : "matchRowSumOver",
+              {
+                sum: desertStormRowSumCheck.rowSum.toLocaleString(locale),
+                delta: desertStormRowSumCheck.delta.toLocaleString(locale),
+                teamTotal:
+                  desertStormRowSumCheck.teamTotal.toLocaleString(locale),
+              },
+            )}
+          </p>
         </div>
       ) : null}
 
@@ -3582,6 +3944,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                         memberId: next || null,
                         memberName: member?.current_name ?? null,
                         matchConfidence: next ? 1 : 0,
+                        matchMethod: next
+                          ? SCOREBOARD_MANUAL_MATCH_METHOD
+                          : "none",
                       });
                     }}
                     aria-label={t("colMember")}
@@ -3628,7 +3993,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                       }
                     }
                     return (
-                      <>
+                      <div className="flex items-start gap-1">
+                        <div>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -3664,7 +4030,45 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                             {t("scoreNegativeWarning")}
                           </p>
                         )}
-                      </>
+                        </div>
+                        {showScoreboardMemberActions &&
+                        scoreboardRowOffersCreate(
+                          row,
+                          scoreboardOffers.offerCreate,
+                        ) ? (
+                          <button
+                            type="button"
+                            disabled={scoreboardMemberBusy}
+                            onClick={() =>
+                              void runScoreboardMemberAction("create", [row.id])
+                            }
+                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-hq-success hover:bg-hq-success/10 disabled:opacity-50"
+                            title={t("createAllAsMembers", { count: 1 })}
+                            aria-label={t("createAllAsMembers", { count: 1 })}
+                          >
+                            <UserPlus className="h-4 w-4" aria-hidden />
+                          </button>
+                        ) : null}
+                        {showScoreboardMemberActions &&
+                        scoreboardRowOffersRename(
+                          row,
+                          members,
+                          scoreboardOffers.offerRename,
+                        ) ? (
+                          <button
+                            type="button"
+                            disabled={scoreboardMemberBusy}
+                            onClick={() =>
+                              void runScoreboardMemberAction("rename", [row.id])
+                            }
+                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#e3b341] hover:bg-[#d29922]/10 disabled:opacity-50"
+                            title={t("addNamesForMembers", { count: 1 })}
+                            aria-label={t("addNamesForMembers", { count: 1 })}
+                          >
+                            <UserPen className="h-4 w-4" aria-hidden />
+                          </button>
+                        ) : null}
+                      </div>
                     );
                   })()}
                 </td>

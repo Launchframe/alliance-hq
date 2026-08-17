@@ -36,6 +36,7 @@ import {
 import { BANK_READ_PERMISSION } from "@/lib/rbac/constants";
 import { requireAlliancePermission } from "@/lib/rbac/require-permission";
 import { readDetectedBankContextFromRawExtract } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
+import { readDesertStormMatchFromRawExtract } from "@/lib/video/desert-storm-match-header.shared";
 import type { DetectedBankContext } from "@/lib/banks/bank-context-ocr/merge-bank-context.shared";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 import {
@@ -46,6 +47,11 @@ import {
   isVideoDevShadowWithholdUxEnabled,
   resolveShadowWithholdEscapeMs,
 } from "@/lib/video/early-shadow-dev.shared";
+import {
+  canOfferScoreboardMemberActionsForAlliance,
+  loadScoreboardReviewPreferences,
+} from "@/lib/video/scoreboard-review-preferences.server";
+import { DEFAULT_SCOREBOARD_REVIEW_PREFERENCES } from "@/lib/video/scoreboard-review-preferences.shared";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -116,6 +122,9 @@ export async function GET(_request: Request, { params }: Props) {
             allianceId: ps.allianceId,
             status: ps.status,
             dedupeReport: ps.dedupeReportJson ?? null,
+            desertStormMatch: readDesertStormMatchFromRawExtract(
+              ps.rawExtractJson,
+            ),
           }
         : null;
       parseSessionIdForRows = ps?.id ?? null;
@@ -247,6 +256,19 @@ export async function GET(_request: Request, { params }: Props) {
 
     const canProcessVideo = await sessionCanProcessVideo(session.id);
     const canReprocessAdvanced = await sessionHasPermission(session.id, "hq:admin");
+    const scoreboardOfferAccess = await canOfferScoreboardMemberActionsForAlliance(
+      session.id,
+      allianceIdForJob,
+    );
+    const canOfferScoreboardMembers = scoreboardOfferAccess.canOffer;
+    const scoreboardPrefs = canOfferScoreboardMembers
+      ? await loadScoreboardReviewPreferences(scoreboardOfferAccess.hqUserId)
+      : DEFAULT_SCOREBOARD_REVIEW_PREFERENCES;
+    const scoreboardMemberOffers = {
+      canOffer: canOfferScoreboardMembers,
+      offerCreate: canOfferScoreboardMembers && scoreboardPrefs.offerCreate,
+      offerRename: canOfferScoreboardMembers && scoreboardPrefs.offerRename,
+    };
 
     let expectedRowCount: number | null = null;
     let shadowPassInFlight = false;
@@ -328,6 +350,7 @@ export async function GET(_request: Request, { params }: Props) {
       detectedBankContext,
       rows,
       members,
+      scoreboardMemberOffers,
       expectedRowCount,
       surveyRowCountEstimate,
       shadowPassInFlight,

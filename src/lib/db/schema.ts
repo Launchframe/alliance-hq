@@ -200,6 +200,14 @@ export const hqUsers = pgTable("hq_users", {
   trainsSimpleModeEnabled: boolean("trains_simple_mode_enabled")
     .notNull()
     .default(true),
+  /** Offer to dual-write unmatched scoreboard OCR names as new roster members */
+  offerScoreboardNewMembers: boolean("offer_scoreboard_new_members")
+    .notNull()
+    .default(false),
+  /** Offer to dual-write OCR names onto manually matched roster members */
+  offerScoreboardMemberNames: boolean("offer_scoreboard_member_names")
+    .notNull()
+    .default(false),
   /** Per-user customized hotkey bindings (JSON payload with overrides). */
   hotkeyBindings: jsonb("hotkey_bindings"),
   isPlatformMaintainer: integer("is_platform_maintainer").notNull().default(0),

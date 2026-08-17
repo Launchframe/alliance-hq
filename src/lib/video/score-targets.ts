@@ -400,6 +400,10 @@ export function isBankDepositSlipHistoryTarget(id: string): boolean {
   return id === BANK_DEPOSIT_SLIP_HISTORY_SCORE_TARGET;
 }
 
+export function isDesertStormVideoTarget(id: string): boolean {
+  return id === "desert-storm";
+}
+
 /** Targets that always use in-house OCR (Ashed has no schema for them). */
 export function isNativeOnlyVideoTarget(id: string): boolean {
   return isBankDepositSlipHistoryTarget(id);
@@ -430,6 +434,8 @@ export type ScoreTargetClientMeta = {
   showScoreColumn: boolean;
   showDepositSlipColumns: boolean;
   showBankSelector: boolean;
+  /** Desert Storm Event View opponent + outcome (not Canyon Storm). */
+  showMatchOutcome: boolean;
 };
 
 export function toScoreTargetClientMeta(
@@ -457,5 +463,6 @@ export function toScoreTargetClientMeta(
     showScoreColumn: !isRoster && !isDepositSlip,
     showDepositSlipColumns: isDepositSlip,
     showBankSelector: target.submitContext.includes("bankId"),
+    showMatchOutcome: isDesertStormVideoTarget(target.id),
   };
 }

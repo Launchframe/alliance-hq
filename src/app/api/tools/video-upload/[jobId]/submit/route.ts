@@ -90,6 +90,9 @@ import {
 } from "@/lib/data-management/batch-ledger.server";
 import { isDedupeReport } from "@/lib/video/dedupe/merge-report.shared";
 import { maybeCompareDepositSlipFingerprintShadow } from "@/lib/banks/deposit-slip-ocr/deposit-slip-shadow-comparison.server";
+import { isDesertStormVideoTarget } from "@/lib/video/score-targets";
+import { parseDesertStormMatchSubmitFields } from "@/lib/video/desert-storm-match-header.shared";
+import { updateAshedDesertStormMatch } from "@/lib/video/ashed-desert-storm-match.server";
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -124,6 +127,10 @@ type SubmitBody = {
   commendationId?: string;
   bankId?: string;
   vsPeriod?: "daily" | "weekly";
+  matchOutcome?: "pending" | "win" | "loss";
+  opponentServer?: string;
+  opponentTag?: string;
+  opponentName?: string;
   rows: SubmitRow[];
 };
 
@@ -1001,6 +1008,23 @@ export async function POST(request: Request, { params }: Props) {
           },
         });
         clearedPriorAshedScores = true;
+      }
+      if (
+        isDesertStormVideoTarget(target.id) &&
+        ashedEventId &&
+        (submitContext.team === "A" || submitContext.team === "B")
+      ) {
+        await updateAshedDesertStormMatch({
+          connection,
+          eventId: ashedEventId,
+          team: submitContext.team,
+          header: parseDesertStormMatchSubmitFields({
+            matchOutcome: body.matchOutcome,
+            opponentServer: body.opponentServer,
+            opponentTag: body.opponentTag,
+            opponentName: body.opponentName,
+          }),
+        });
       }
       await dispatchScoreSubmit(connection, target, payloads, {
         submitContext,

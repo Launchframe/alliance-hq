@@ -168,4 +168,5 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 - No synthetic default alliance tag (e.g. `HQ`) in invite/welcome URLs; unset `alliances.tag` needs explicit officer-visible handling, not a URL fallback.
 - Roster sync no longer upserts `hq_users` stubs for unknown roster emails — Ashed-sourced officer memberships require invite accept or SSO connect.
 - Keep native OCR deps (sharp/libvips) scoped to video-process routes; tracing or imports that pull them into other serverless handlers break unrelated endpoints.
+- Scoreboard review dual-writes new members / OCR names only when the officer enables the Account settings (both default off). Unmatched rows get a person-plus create; a manual match whose OCR name differs gets a person-pencil rename. Bulk chrome matches those row actions. Team A/B and Win/Lose use the same segmented toggle; Pending is unset (neither selected).
 

@@ -8,6 +8,7 @@ import {
   getScoreTarget,
   getScoreTargetOrThrow,
   isBankDepositSlipHistoryTarget,
+  isDesertStormVideoTarget,
   isHqOnlySubmitTarget,
   isMemberRosterVideoTarget,
   isNativeOnlyVideoTarget,
@@ -35,6 +36,19 @@ describe("score targets", () => {
 
   it("returns the target when it exists", () => {
     expect(getScoreTargetOrThrow("desert-storm").id).toBe("desert-storm");
+  });
+
+  it("shows match outcome fields only for Desert Storm", () => {
+    expect(isDesertStormVideoTarget("desert-storm")).toBe(true);
+    expect(isDesertStormVideoTarget("canyon-storm")).toBe(false);
+    expect(
+      toScoreTargetClientMeta(getScoreTargetOrThrow("desert-storm"))
+        .showMatchOutcome,
+    ).toBe(true);
+    expect(
+      toScoreTargetClientMeta(getScoreTargetOrThrow("canyon-storm"))
+        .showMatchOutcome,
+    ).toBe(false);
   });
 
   it("throws for unknown targets when required", () => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { ASHED_CONNECT_PERMISSION, HQ_PERMISSIONS, ROLE_IDS } from "@/lib/rbac/constants";
 import {
+  isOfficerOrAbove,
   isSystemRoleId,
   shouldUpgradeSystemRole,
   systemRoleIdForName,
@@ -30,5 +31,14 @@ describe("system-roles", () => {
     expect(shouldUpgradeSystemRole("member", "officer")).toBe(true);
     expect(shouldUpgradeSystemRole("officer", "member")).toBe(false);
     expect(shouldUpgradeSystemRole("officer", "maintainer")).toBe(true);
+  });
+
+  it("isOfficerOrAbove includes officer, maintainer, and owner", () => {
+    expect(isOfficerOrAbove("officer")).toBe(true);
+    expect(isOfficerOrAbove("maintainer")).toBe(true);
+    expect(isOfficerOrAbove("owner")).toBe(true);
+    expect(isOfficerOrAbove("data_entry")).toBe(false);
+    expect(isOfficerOrAbove("member")).toBe(false);
+    expect(isOfficerOrAbove(null)).toBe(false);
   });
 });
