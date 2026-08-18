@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { Trash2 } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { TimeOffCalendar } from "@/components/time-off/TimeOffCalendar";
@@ -10,7 +11,7 @@ import {
   FORM_SUBMIT_ENTER_KEY_HINT,
   preventDefaultFormSubmit,
 } from "@/lib/client/form-enter-submit.shared";
-import type { TimeOffCalendarPayload, SerializedTimeOffEntry } from "@/lib/time-off/types.shared";
+import type { TimeOffCalendarPayload } from "@/lib/time-off/types.shared";
 
 type Props = {
   initial: TimeOffCalendarPayload;
@@ -22,10 +23,17 @@ export function TimeOffCalendarClient({ initial }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [selectedEntry, setSelectedEntry] = useState<SerializedTimeOffEntry | null>(
-    null,
-  );
+  const [selectedAshedMemberId, setSelectedAshedMemberId] = useState<
+    string | null
+  >(null);
   const [naturalLanguage, setNaturalLanguage] = useState("");
+
+  const selectedMemberPeriods = useMemo(() => {
+    if (!selectedAshedMemberId) return [];
+    return dashboard.entries
+      .filter((entry) => entry.ashedMemberId === selectedAshedMemberId)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate));
+  }, [dashboard.entries, selectedAshedMemberId]);
 
   const refreshMonth = useCallback(async (monthKey: string) => {
     const response = await fetch(`/api/time-off?month=${monthKey}`);
@@ -78,7 +86,6 @@ export function TimeOffCalendarClient({ initial }: Props) {
         setError(data?.error ?? t("errors.saveFailed"));
         return;
       }
-      setSelectedEntry(null);
       await refreshMonth(dashboard.monthKey);
     } finally {
       setSaving(false);
@@ -135,7 +142,7 @@ export function TimeOffCalendarClient({ initial }: Props) {
                 <button
                   type="button"
                   onClick={() => {
-                    setSelectedEntry(null);
+                    setSelectedAshedMemberId(null);
                     setModalOpen(true);
                   }}
                   className="rounded border border-hq-border px-3 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted"
@@ -153,41 +160,70 @@ export function TimeOffCalendarClient({ initial }: Props) {
         monthKey={dashboard.monthKey}
         todayServerDate={dashboard.todayServerDate}
         onMonthChange={(monthKey) => void refreshMonth(monthKey)}
-        onSelectEntry={setSelectedEntry}
+        onSelectEntry={(entry) => setSelectedAshedMemberId(entry.ashedMemberId)}
       />
 
       {dashboard.canManageOthers ? (
         <UnexpectedAbsencePanel initialReport={dashboard.unexpectedReport} />
       ) : null}
 
-      {selectedEntry ? (
-        <section className="rounded-lg border border-hq-border bg-hq-surface p-4">
+      {selectedMemberPeriods.length > 0 ? (
+        <section className="space-y-2 rounded-lg border border-hq-border bg-hq-surface p-4">
           <h2 className="text-sm font-semibold text-hq-fg">
-            {selectedEntry.memberName}
+            {selectedMemberPeriods[0]!.memberName}
           </h2>
-          <p className="mt-1 text-sm text-hq-fg-muted">
-            {t("entry.range", {
-              start: selectedEntry.startDate,
-              end: selectedEntry.endDate,
+          <div className="space-y-2">
+            {selectedMemberPeriods.map((period) => {
+              const isActive =
+                dashboard.todayServerDate >= period.startDate &&
+                dashboard.todayServerDate <= period.endDate;
+              const canCancel =
+                dashboard.canManageOthers ||
+                dashboard.linkedCommanderIds.includes(period.ashedMemberId);
+              return (
+                <div
+                  key={period.id}
+                  className="rounded border border-hq-border bg-hq-surface p-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-hq-fg">
+                        {t("entry.range", {
+                          start: period.startDate,
+                          end: period.endDate,
+                        })}
+                      </span>
+                      {isActive ? (
+                        <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                          {t("entry.active")}
+                        </span>
+                      ) : null}
+                      <span className="rounded-full border border-hq-border px-2 py-0.5 text-[10px] font-medium text-hq-fg-muted">
+                        {t(`activityScope.${period.activityScope}`)}
+                      </span>
+                    </div>
+                    {canCancel ? (
+                      <button
+                        type="button"
+                        disabled={saving}
+                        aria-label={t("entry.cancel")}
+                        onClick={() => void cancelEntry(period.id)}
+                        className="rounded border border-rose-500/50 p-1.5 text-rose-700 hover:bg-rose-500/10 disabled:opacity-50 dark:text-rose-300"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-sm text-hq-fg-muted">
+                    {t(`availability.${period.availability}`)}
+                  </p>
+                  {period.notes ? (
+                    <p className="mt-1 text-sm text-hq-fg">{period.notes}</p>
+                  ) : null}
+                </div>
+              );
             })}
-          </p>
-          <p className="text-sm text-hq-fg-muted">
-            {t(`availability.${selectedEntry.availability}`)}
-          </p>
-          {selectedEntry.notes ? (
-            <p className="mt-2 text-sm text-hq-fg">{selectedEntry.notes}</p>
-          ) : null}
-          {(dashboard.canManageOthers ||
-            dashboard.linkedCommanderIds.includes(selectedEntry.ashedMemberId)) && (
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => void cancelEntry(selectedEntry.id)}
-              className="mt-3 rounded border border-rose-500/50 px-3 py-1.5 text-sm text-rose-700 dark:text-rose-300"
-            >
-              {t("entry.cancel")}
-            </button>
-          )}
+          </div>
         </section>
       ) : null}
 

@@ -1,8 +1,10 @@
 import {
+  TIME_OFF_ACTIVITY_SCOPES,
   TIME_OFF_AVAILABILITIES,
   TIME_OFF_ENTRY_KINDS,
   TIME_OFF_SOURCES,
   type SerializedTimeOffEntry,
+  type TimeOffActivityScope,
   type TimeOffAvailability,
   type TimeOffEntryKind,
   type TimeOffSource,
@@ -17,6 +19,7 @@ export type TimeOffEntryPayload = {
   availability?: TimeOffAvailability;
   entryKind?: TimeOffEntryKind;
   source?: TimeOffSource;
+  activityScope?: TimeOffActivityScope;
 };
 
 export function isTimeOffAvailability(
@@ -31,6 +34,12 @@ export function isTimeOffEntryKind(value: string): value is TimeOffEntryKind {
 
 export function isTimeOffSource(value: string): value is TimeOffSource {
   return (TIME_OFF_SOURCES as readonly string[]).includes(value);
+}
+
+export function isTimeOffActivityScope(
+  value: string,
+): value is TimeOffActivityScope {
+  return (TIME_OFF_ACTIVITY_SCOPES as readonly string[]).includes(value);
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -62,6 +71,9 @@ export function validateTimeOffEntryPayload(
   if (body.source && !isTimeOffSource(body.source)) {
     return "Invalid source.";
   }
+  if (body.activityScope && !isTimeOffActivityScope(body.activityScope)) {
+    return "Invalid activity scope.";
+  }
   return null;
 }
 
@@ -75,6 +87,7 @@ export function serializeTimeOffEntry(row: {
   availability: string;
   entryKind: string;
   source: string;
+  activityScope: string;
   createdAt: Date;
   updatedAt: Date;
 }): SerializedTimeOffEntry {
@@ -90,6 +103,9 @@ export function serializeTimeOffEntry(row: {
       : "full_away",
     entryKind: isTimeOffEntryKind(row.entryKind) ? row.entryKind : "planned",
     source: isTimeOffSource(row.source) ? row.source : "web",
+    activityScope: isTimeOffActivityScope(row.activityScope)
+      ? row.activityScope
+      : "all",
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

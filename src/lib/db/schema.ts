@@ -3509,6 +3509,10 @@ export const memberTimeOff = pgTable(
     entryKind: text("entry_kind").notNull().default("planned"),
     /** discord | web | officer */
     source: text("source").notNull(),
+    /** vs | donation | all — mirrors Ashed ExcusedRecord.record_type ("all" = both). */
+    activityScope: text("activity_scope").notNull().default("all"),
+    /** Ashed ExcusedRecord id(s) this row was synced from/pushed to (1 for vs/donation, 2 for all). */
+    ashedExcusedIds: jsonb("ashed_excused_ids").$type<string[]>(),
     createdByHqUserId: text("created_by_hq_user_id").references(
       () => hqUsers.id,
       { onDelete: "set null" },
