@@ -2,11 +2,9 @@
  * POST /api/officer-intel/ask
  */
 
-import { existsSync } from "node:fs";
-import { join } from "node:path";
-
 import { NextResponse } from "next/server";
 
+import { streamOfficerIntelAsk } from "@/lib/officer-intel/ask.server";
 import {
   requireOfficerIntelAllianceContext,
   requireOfficerIntelRead,
@@ -15,11 +13,6 @@ import {
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 120;
-
-const ASK_SERVER_PATH = join(
-  process.cwd(),
-  "src/lib/officer-intel/ask.server.ts",
-);
 
 export async function POST(request: Request) {
   const context = await requireOfficerIntelAllianceContext();
@@ -51,18 +44,9 @@ export async function POST(request: Request) {
         ? null
         : undefined;
 
-  if (!existsSync(ASK_SERVER_PATH)) {
-    return NextResponse.json(
-      { error: "Ask pipe not wired yet." },
-      { status: 501 },
-    );
-  }
-
-  const { streamOfficerIntelAsk } = await import("@/lib/officer-intel/ask.server");
   return streamOfficerIntelAsk({
     allianceId: context.allianceId,
     hqUserId: context.session.hqUserId ?? null,
-    sessionId: context.sessionId,
     question,
     threadId,
   });
