@@ -17,7 +17,7 @@ CREATE TABLE officer_intel_chunks (
 CREATE INDEX officer_intel_chunks_alliance_source_idx ON officer_intel_chunks (alliance_id, source_type, source_id);
 
 CREATE INDEX officer_intel_chunks_alliance_embedding_idx ON officer_intel_chunks
-  USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+  USING hnsw (embedding vector_cosine_ops);
 
 CREATE TABLE officer_intel_threads (
   id text PRIMARY KEY,

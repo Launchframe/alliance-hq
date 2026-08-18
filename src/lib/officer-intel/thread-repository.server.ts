@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
