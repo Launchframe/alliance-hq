@@ -10,6 +10,8 @@ import {
   discordDeferredEphemeralResponse,
   discordMessageResponse,
   parseButtonCustomId,
+  parseModalCustomId,
+  parseModalTextInput,
   parseLinkSlashOptions,
   parseResolvedTargetMessage,
   parseSlashOptionUser,
@@ -122,6 +124,15 @@ describe("discord interactions", () => {
       kind: "whois_claim",
       memberId: "member-1",
     });
+    expect(parseButtonCustomId("note:attach:yes")).toEqual({
+      kind: "note_attach",
+      answer: "yes",
+    });
+    expect(parseButtonCustomId("note:pick:2")).toEqual({
+      kind: "note_pick",
+      index: 2,
+    });
+    expect(parseButtonCustomId("note:skip")).toEqual({ kind: "note_skip" });
     expect(parseButtonCustomId("other")).toBeNull();
   });
 
@@ -222,5 +233,28 @@ describe("parseResolvedTargetMessage", () => {
         data: { name: "Translate", type: 3, target_id: "missing", resolved: {} },
       }),
     ).toBeNull();
+  });
+
+  it("parses note member modal fields", () => {
+    expect(parseModalCustomId("note:member-modal")).toBe("note:member-modal");
+    expect(parseModalCustomId("note:reason-modal")).toBe("note:reason-modal");
+    expect(parseModalCustomId("other")).toBeNull();
+    expect(
+      parseModalTextInput(
+        {
+          type: 5,
+          data: {
+            custom_id: "note:member-modal",
+            components: [
+              {
+                type: 1,
+                components: [{ type: 4, custom_id: "member", value: "Cookie" }],
+              },
+            ],
+          },
+        },
+        "member",
+      ),
+    ).toBe("Cookie");
   });
 });
