@@ -5926,6 +5926,19 @@
       "in_progress": "In progress",
       "done": "Done",
       "cancelled": "Cancelled"
-    }
+    },
+    "askTitle": "Ask about alliance decisions",
+    "askSubtitle": "Answers use officer-approved meeting notes and open action items — not the full chat history.",
+    "askPlaceholder": "What did we decide about banks?",
+    "askSubmit": "Ask",
+    "asking": "Searching approved meeting notes…",
+    "askEmptyCorpus": "Approve meeting notes to teach the assistant.",
+    "askLlmUnavailable": "AI Q&A is not configured on this server.",
+    "askFailed": "Could not answer that question.",
+    "askCitationNote": "Meeting notes",
+    "askCitationActionItem": "Action item",
+    "askSources": "Sources",
+    "askYou": "You",
+    "askAssistant": "Assistant"
   }
 }

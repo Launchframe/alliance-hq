@@ -62,4 +62,5 @@ export type OfficerIntelDashboardPayload = {
   translationConfigured: boolean;
   llmConfigured: boolean;
   openActionItemCount: number;
+  approvedNoteCount: number;
 };
