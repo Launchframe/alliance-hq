@@ -1,6 +1,7 @@
 import {
   bigint,
   boolean,
+  customType,
   doublePrecision,
   index,
   integer,
@@ -13,6 +14,20 @@ import {
   unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+
+const vector1536 = customType<{ data: number[]; driverData: string }>({
+  dataType() {
+    return "vector(1536)";
+  },
+  toDriver(value) {
+    return `[${value.join(",")}]`;
+  },
+  fromDriver(value) {
+    const raw = String(value).replace(/^\[/, "").replace(/\]$/, "");
+    if (!raw) return [];
+    return raw.split(",").map(Number);
+  },
+});
 
 export const alliances = pgTable("alliances", {
   id: text("id").primaryKey(),
@@ -3899,6 +3914,93 @@ export const officerActionItems = pgTable(
   ],
 );
 
+export const officerIntelChunks = pgTable(
+  "officer_intel_chunks",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    /** approved_note | action_item */
+    sourceType: text("source_type").notNull(),
+    sourceId: text("source_id").notNull(),
+    sessionId: text("session_id").references(() => officerChatSessions.id, {
+      onDelete: "cascade",
+    }),
+    localeCode: text("locale_code").notNull(),
+    chunkText: text("chunk_text").notNull(),
+    embedding: vector1536("embedding"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_intel_chunks_alliance_source_idx").on(
+      table.allianceId,
+      table.sourceType,
+      table.sourceId,
+    ),
+  ],
+);
+
+export const officerIntelThreads = pgTable(
+  "officer_intel_threads",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    runningSummary: text("running_summary"),
+    turnCount: integer("turn_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_intel_threads_alliance_updated_idx").on(
+      table.allianceId,
+      table.updatedAt,
+    ),
+  ],
+);
+
+export const officerIntelThreadMessages = pgTable(
+  "officer_intel_thread_messages",
+  {
+    id: text("id").primaryKey(),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => officerIntelThreads.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    /** user | assistant */
+    role: text("role").notNull(),
+    content: text("content").notNull(),
+    citationsJson: jsonb("citations_json").$type<unknown>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_intel_thread_messages_thread_idx").on(
+      table.threadId,
+      table.createdAt,
+    ),
+  ],
+);
+
 export type OfficerChatSession = typeof officerChatSessions.$inferSelect;
 export type OfficerChatSessionImage =
   typeof officerChatSessionImages.$inferSelect;
@@ -3906,3 +4008,7 @@ export type OfficerChatMessage = typeof officerChatMessages.$inferSelect;
 export type OfficerChatTranslation = typeof officerChatTranslations.$inferSelect;
 export type OfficerMeetingNote = typeof officerMeetingNotes.$inferSelect;
 export type OfficerActionItem = typeof officerActionItems.$inferSelect;
+export type OfficerIntelChunk = typeof officerIntelChunks.$inferSelect;
+export type OfficerIntelThread = typeof officerIntelThreads.$inferSelect;
+export type OfficerIntelThreadMessage =
+  typeof officerIntelThreadMessages.$inferSelect;
