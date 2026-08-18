@@ -22,6 +22,11 @@ import {
   materializeOfficerActionItemDueInboxItem,
 } from "@/lib/officer-intel/action-item-inbox.server";
 import {
+  dropOfficerActionItemChunks,
+  indexOfficerActionItemChunk,
+  indexOfficerMeetingNoteChunks,
+} from "@/lib/officer-intel/embed-corpus.server";
+import {
   extensionForOfficerIntelMime,
   officerIntelImageStorageKey,
 } from "@/lib/officer-intel/storage.shared";
@@ -376,6 +381,27 @@ function mapActionItemRow(
   };
 }
 
+async function resolveOfficerSessionLocaleCode(input: {
+  sessionId: string;
+  allianceId: string;
+}): Promise<string> {
+  const messages = await listOfficerChatMessages(input);
+  if (messages.length === 0) return "en-US";
+  const counts = new Map<string, number>();
+  for (const message of messages) {
+    counts.set(message.localeCode, (counts.get(message.localeCode) ?? 0) + 1);
+  }
+  let best = "en-US";
+  let bestCount = 0;
+  for (const [locale, localeCount] of counts) {
+    if (localeCount > bestCount) {
+      best = locale;
+      bestCount = localeCount;
+    }
+  }
+  return best;
+}
+
 export async function getOfficerMeetingNoteForAlliance(input: {
   noteId: string;
   allianceId: string;
@@ -608,6 +634,10 @@ export async function persistOfficerSynthesisResult(input: {
       ),
   );
 
+  await Promise.all(
+    previousItems.map((item) => dropOfficerActionItemChunks(item.id)),
+  );
+
   return { noteId };
 }
 
@@ -650,6 +680,39 @@ export async function updateOfficerMeetingNote(input: {
       updatedAt: now,
     })
     .where(eq(schema.officerMeetingNotes.id, input.noteId));
+
+  if (input.approve) {
+    try {
+      const note = mapMeetingNoteRow({
+        ...existing,
+        summary: input.summary ?? existing.summary,
+        keyDecisions: input.keyDecisions ?? existing.keyDecisions ?? [],
+        openQuestions: input.openQuestions ?? existing.openQuestions ?? [],
+        status: "approved",
+        approvedAt: now,
+        updatedAt: now,
+      });
+      const session = await getOfficerChatSessionForAlliance({
+        sessionId: existing.sessionId,
+        allianceId: input.allianceId,
+      });
+      if (session) {
+        const localeCode = await resolveOfficerSessionLocaleCode({
+          sessionId: existing.sessionId,
+          allianceId: input.allianceId,
+        });
+        await indexOfficerMeetingNoteChunks({
+          allianceId: input.allianceId,
+          note,
+          session,
+          localeCode,
+          approvedAt: now,
+        });
+      }
+    } catch (error) {
+      console.error("[officer-intel] Failed to index approved meeting note:", error);
+    }
+  }
 
   return { ok: true };
 }
@@ -739,7 +802,28 @@ export async function updateOfficerActionItem(input: {
     input.allianceId,
     updated.assigneeAllianceMemberId ? [updated.assigneeAllianceMemberId] : [],
   );
-  return { ok: true, item: mapActionItemRow(updated, names) };
+  const item = mapActionItemRow(updated, names);
+
+  try {
+    const session = await getOfficerChatSessionForAlliance({
+      sessionId: updated.sessionId,
+      allianceId: input.allianceId,
+    });
+    const localeCode = await resolveOfficerSessionLocaleCode({
+      sessionId: updated.sessionId,
+      allianceId: input.allianceId,
+    });
+    await indexOfficerActionItemChunk({
+      allianceId: input.allianceId,
+      item,
+      session,
+      localeCode,
+    });
+  } catch (error) {
+    console.error("[officer-intel] Failed to index action item chunk:", error);
+  }
+
+  return { ok: true, item };
 }
 
 export async function getOfficerActionItemForAlliance(input: {
