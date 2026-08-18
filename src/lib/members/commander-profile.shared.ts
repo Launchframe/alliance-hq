@@ -95,5 +95,11 @@ export type CommanderProfilePayload = {
     role: "conductor" | "vip" | "substitute";
     lockedAt: string | null;
   }>;
+  hqNotes: Array<{
+    id: string;
+    kind: "commendation" | "violation" | "note";
+    body: string;
+    createdAt: string;
+  }>;
   operatingMode: "ashed" | "native";
 };

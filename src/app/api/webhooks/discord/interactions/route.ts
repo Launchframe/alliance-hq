@@ -28,6 +28,7 @@ import {
   discordDeferredChannelResponse,
   discordDeferredEphemeralResponse,
   discordMessageResponse,
+  discordModalResponse,
   interactionApplicationId,
   interactionDiscordUserId,
   interactionDiscordUsername,
@@ -35,6 +36,8 @@ import {
   interactionGuildId,
   interactionToken,
   parseButtonCustomId,
+  parseModalCustomId,
+  parseModalTextInput,
   parseLinkSlashOptions,
   parseResolvedTargetMessage,
   parseSlashOptionBoolean,
@@ -131,6 +134,17 @@ import {
   handleDiscordMyTimeOff,
   handleDiscordIsAllyOffline,
 } from "@/lib/time-off/discord-bot-handlers.server";
+import { parsePerformanceNotesPending } from "@/lib/performance-notes/pending-state";
+import {
+  handlePerformanceBatchSlash,
+  handlePerformanceNoteAttachChoice,
+  handlePerformanceNoteMemberModal,
+  handlePerformanceNotePick,
+  handlePerformanceNoteSkip,
+  handlePerformanceNoteSlash,
+  handlePerformanceReasonModal,
+  type PerfInteractionResult,
+} from "@/lib/performance-notes/discord-handlers.server";
 import {
   DISCORD_SET_TRANSLATION_COMMAND,
   DISCORD_TRANSLATION_LANGUAGE_COMMAND,
@@ -173,6 +187,30 @@ function discordButtonResponse(
   options?: { ephemeral?: boolean },
 ) {
   return discordComponentMessageResponse(content, components, options ?? EPHEMERAL);
+}
+
+function serializePerfInteraction(result: PerfInteractionResult) {
+  if (result.type === "modal") {
+    return discordModalResponse({
+      customId: result.customId,
+      title: result.title,
+      fieldCustomId: result.fieldCustomId,
+      fieldLabel: result.fieldLabel,
+      paragraph: result.paragraph,
+      maxLength: result.maxLength,
+    });
+  }
+  const components = result.components as
+    | ReturnType<typeof buildWalkthroughDoneButton>
+    | undefined;
+  if (result.update) {
+    return discordComponentMessageResponse(
+      result.content,
+      components,
+      EPHEMERAL,
+    );
+  }
+  return discordMessageResponse(result.content, components, EPHEMERAL);
 }
 
 async function resolveInteractionContext(payload: DiscordInteractionPayload) {
@@ -892,6 +930,44 @@ async function handleSlashCommand(
     return discordMessageResponse(result.reply, undefined, { ephemeral: false });
   }
 
+  if (
+    commandName === "note" ||
+    commandName === "commend" ||
+    commandName === "violation"
+  ) {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"), undefined, EPHEMERAL);
+    }
+    if (!allianceId) {
+      return discordMessageResponse(
+        await setupMessage(locale, guildId, discordUserId),
+        undefined,
+        EPHEMERAL,
+      );
+    }
+    if (commandName === "note") {
+      const text = parseSlashOptionString(payload, "text");
+      return serializePerfInteraction(
+        await handlePerformanceNoteSlash({
+          allianceId,
+          discordUserId,
+          locale,
+          text,
+        }),
+      );
+    }
+    const names = parseSlashOptionString(payload, "names");
+    return serializePerfInteraction(
+      await handlePerformanceBatchSlash({
+        allianceId,
+        discordUserId,
+        locale,
+        command: commandName === "commend" ? "commend" : "violation",
+        names,
+      }),
+    );
+  }
+
   return discordMessageResponse(t("errors.unknownCommand"));
 }
 
@@ -913,6 +989,47 @@ async function handleButton(payload: DiscordInteractionPayload) {
   if (!allianceId) {
     return discordButtonResponse(
       await setupMessage(locale, interactionGuildId(payload), discordUserId),
+    );
+  }
+
+  if (
+    parsed.kind === "note_attach" ||
+    parsed.kind === "note_another" ||
+    parsed.kind === "note_pick" ||
+    parsed.kind === "note_skip"
+  ) {
+    const pendingRow = await getDiscordBotPending(discordUserId);
+    const pending = parsePerformanceNotesPending(pendingRow?.pending ?? null);
+    if (parsed.kind === "note_attach" || parsed.kind === "note_another") {
+      return serializePerfInteraction(
+        await handlePerformanceNoteAttachChoice({
+          allianceId,
+          discordUserId,
+          locale,
+          pending,
+          attach: parsed.answer === "yes",
+          update: parsed.answer === "no",
+        }),
+      );
+    }
+    if (parsed.kind === "note_pick") {
+      return serializePerfInteraction(
+        await handlePerformanceNotePick({
+          allianceId,
+          discordUserId,
+          locale,
+          pending,
+          index: parsed.index,
+        }),
+      );
+    }
+    return serializePerfInteraction(
+      await handlePerformanceNoteSkip({
+        allianceId,
+        discordUserId,
+        locale,
+        pending,
+      }),
     );
   }
 
@@ -1195,6 +1312,54 @@ async function handleButton(payload: DiscordInteractionPayload) {
   return discordButtonResponse(t("errors.unknownCommand"));
 }
 
+async function handleModalSubmit(payload: DiscordInteractionPayload) {
+  const modalId = parseModalCustomId(payload.data?.custom_id);
+  const { discordUserId, guildId, locale, allianceId } =
+    await resolveInteractionContext(payload);
+  const t = createDiscordTranslator(locale);
+
+  if (!discordUserId) {
+    return discordMessageResponse(t("errors.unknownUser"), undefined, EPHEMERAL);
+  }
+  if (!modalId) {
+    return discordMessageResponse(t("errors.unknownCommand"), undefined, EPHEMERAL);
+  }
+  if (!allianceId) {
+    return discordMessageResponse(
+      await setupMessage(locale, guildId, discordUserId),
+      undefined,
+      EPHEMERAL,
+    );
+  }
+
+  const pendingRow = await getDiscordBotPending(discordUserId);
+  const pending = parsePerformanceNotesPending(pendingRow?.pending ?? null);
+
+  if (modalId === "note:member-modal") {
+    const memberName = parseModalTextInput(payload, "member") ?? "";
+    return serializePerfInteraction(
+      await handlePerformanceNoteMemberModal({
+        allianceId,
+        discordUserId,
+        locale,
+        pending,
+        memberName,
+      }),
+    );
+  }
+
+  const reason = parseModalTextInput(payload, "reason") ?? "";
+  return serializePerfInteraction(
+    await handlePerformanceReasonModal({
+      allianceId,
+      discordUserId,
+      locale,
+      pending,
+      reason,
+    }),
+  );
+}
+
 export async function POST(request: Request) {
   const publicKey = resolveDiscordPublicKey();
   if (!publicKey) {
@@ -1255,6 +1420,15 @@ export async function POST(request: Request) {
       return NextResponse.json(await handleButton(payload));
     } catch (error) {
       console.error("[discord] button interaction failed", error);
+      const t = createDiscordTranslator("en-US");
+      return NextResponse.json(discordMessageResponse(t("errors.serverError")));
+    }
+  }
+  if (payload.type === 5) {
+    try {
+      return NextResponse.json(await handleModalSubmit(payload));
+    } catch (error) {
+      console.error("[discord] modal submit failed", error);
       const t = createDiscordTranslator("en-US");
       return NextResponse.json(discordMessageResponse(t("errors.serverError")));
     }
