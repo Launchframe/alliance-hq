@@ -3385,8 +3385,11 @@
       "palette": "Choose rule",
       "spinSelected": "Spin selected days",
       "manualPick": "Pick conductor manually",
+      "manualPickVip": "Pick VIP / Guardian manually",
       "lock": "Lock conductor",
       "unlock": "Unlock conductor",
+      "requestUnlock": "Request to unlock this conductor",
+      "clearPending": "Clear pending conductor",
       "shareImage": "Export conductor image",
       "viewHistory": "View conductor history",
       "viewEligibility": "View eligibility"
@@ -3473,6 +3476,15 @@
     "unlockCancel": "Cancel",
     "unlockConfirmAction": "Unlock",
     "unlockFailed": "Could not unlock conductor.",
+    "unlockUntilMidnight": "You can unlock this until midnight Server Time on {date}.",
+    "unlockOwnedPast": "You locked this past day, so you can unlock it.",
+    "unlockNeedsEscalation": "Midnight Server Time has passed. Ask the alliance owner or a platform maintainer to unlock this conductor.",
+    "requestUnlockConductor": "Request to unlock this conductor",
+    "unlockRequestCopied": "Copied",
+    "unlockRequestClipboard": "Please unlock {name} on {date}. Train ownership has ended (midnight Server Time).",
+    "clearPendingConductor": "Clear pending conductor",
+    "clearingPendingConductor": "Clearing…",
+    "clearPendingConductorFailed": "Could not clear the pending conductor.",
     "selectedDayConductor": "Conductor · {date}",
     "pickConductorManually": "Pick conductor",
     "pickConductorTitle": "Pick conductor · {date}",
@@ -3534,6 +3546,15 @@
       "confirming": "Painting…",
       "cancel": "Cancel"
     },
+    "paintRuleGate": {
+      "ineligibleClear": "{name} is not eligible for {rule}. Clear the conductor and change rules?",
+      "ineligibleLocked": "{name} is not eligible for {rule}.",
+      "yes": "Yes",
+      "no": "No",
+      "requestUnlockAction": "Request to unlock this conductor",
+      "copied": "Copied",
+      "requestUnlockClipboard": "Please unlock {name} on {date} so the rule can change to {rule}."
+    },
     "userSettings": {
       "menuLabel": "Train display settings",
       "calendarWeekStart": "Calendar week starts on",
@@ -3591,7 +3612,8 @@
           "pickTop": "Pick top scorer",
           "pickManual": "Pick conductor manually",
           "assigned": "Conductor: {name}",
-          "change": "Change"
+          "change": "Change",
+          "clear": "Clear pending conductor"
         },
         "vip": {
           "title": "VIP / Guardian",
@@ -3604,7 +3626,7 @@
         "lock": {
           "title": "Lock",
           "lockCta": "Lock conductor",
-          "ready": "Ready to lock and spawn today’s train"
+          "ready": "Ready to lock and spawn today’s train. If you lock it, you can unlock until midnight Server Time."
         },
         "done": {
           "title": "All set",
@@ -3622,8 +3644,10 @@
       "quickStart": {
         "paint": "Pick a week template or paint individual days on the schedule.",
         "roll": "Spin the wheel or pick a conductor for today and upcoming days.",
-        "lock": "Lock in a conductor to spawn that day's empty train."
+        "lock": "Lock in a conductor to spawn that day's empty train. If you locked it, you can unlock until midnight Server Time of that train day."
       },
+      "lockOwnershipTitle": "Train ownership",
+      "lockOwnershipBody": "The officer who locks a conductor can unlock it until midnight Server Time on that train day. Locking a past day is the exception — you can unlock that lock at any time. After midnight, only the alliance owner or a platform maintainer can unlock.",
       "takeTour": "Take the tour",
       "close": "Close"
     },
@@ -3661,7 +3685,7 @@
       "skip": "Skip tour",
       "next": "Next →",
       "done": "Done",
-      "step1": "This is your train scheduling hub. Train days follow game server time (UTC−2). The badge above always shows the current server date and time — use it when planning rolls and locks.",
+      "step1": "This is your train scheduling hub. Train days follow game server time (UTC−2). The badge above always shows the current server date and time — use it when planning rolls and locks. If you lock a conductor, you can unlock it until midnight Server Time of that train day.",
       "step2": "You can set the conductor and VIP rules for a whole week. Try changing this week's train to Economy Week (R3 Lottery) — changes won't take effect while this tour is active.",
       "step3": "Great! Now let's change the rules for today's train. Press and hold today's tile, and then choose a different rule from the menu.",
       "step4": "This is where you set up the day's Conductor and VIP. You can do this for the current day, or for any future day.",

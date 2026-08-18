@@ -1,12 +1,14 @@
 "use client";
 
 import {
+  Crown,
   History,
   ImageDown,
   Lock,
   LockOpen,
   Palette,
   UserRoundPen,
+  UserRoundX,
   Users,
   Wand2,
 } from "lucide-react";
@@ -27,6 +29,7 @@ type Props = {
   today: string;
   hasConductor: boolean;
   locked: boolean;
+  vipNeeded: boolean;
   canUnlock: boolean;
   canShareImage: boolean;
   canSpinSelected: boolean;
@@ -41,7 +44,9 @@ type Props = {
   ) => void;
   onSpinSelected: () => void;
   onManualPick: () => void;
+  onManualPickVip: () => void;
   onLockUnlock: () => void;
+  onClearPending: () => void;
   onShareImage: () => void;
   onViewHistory: () => void;
   onViewPool: () => void;
@@ -89,6 +94,7 @@ export function TrainMonthToolbar({
   today,
   hasConductor,
   locked,
+  vipNeeded,
   canUnlock,
   canShareImage,
   canSpinSelected,
@@ -99,7 +105,9 @@ export function TrainMonthToolbar({
   onPaint,
   onSpinSelected,
   onManualPick,
+  onManualPickVip,
   onLockUnlock,
+  onClearPending,
   onShareImage,
   onViewHistory,
   onViewPool,
@@ -118,11 +126,13 @@ export function TrainMonthToolbar({
   const paletteTemplates =
     selectedCount > 1 ? SELECTABLE_WEEK_TEMPLATES : DAY_PAINT_TEMPLATES;
 
-  const canManualPick = singleDay;
+  const canManualPick = singleDay && !locked;
+  const canManualPickVip = singleDay && locked && vipNeeded;
+  const canClearPending = singleDay && hasConductor && !locked;
   const canLockUnlock =
     singleDay &&
     hasConductor &&
-    (locked ? canUnlock : focusDate <= today);
+    (locked || focusDate <= today);
   const canHistory = singleDay && hasConductor;
   const canPool = singleDay;
 
@@ -202,7 +212,23 @@ export function TrainMonthToolbar({
         </ToolbarIconButton>
 
         <ToolbarIconButton
-          label={locked ? t("unlock") : t("lock")}
+          label={t("manualPickVip")}
+          disabled={!canManualPickVip}
+          busy={busy}
+          testId="trains-month-toolbar-manual-pick-vip"
+          onClick={onManualPickVip}
+        >
+          <Crown className="h-4 w-4" aria-hidden />
+        </ToolbarIconButton>
+
+        <ToolbarIconButton
+          label={
+            locked
+              ? canUnlock
+                ? t("unlock")
+                : t("requestUnlock")
+              : t("lock")
+          }
           disabled={!canLockUnlock}
           busy={busy}
           testId="trains-month-toolbar-lock"
@@ -213,6 +239,16 @@ export function TrainMonthToolbar({
           ) : (
             <Lock className="h-4 w-4" aria-hidden />
           )}
+        </ToolbarIconButton>
+
+        <ToolbarIconButton
+          label={t("clearPending")}
+          disabled={!canClearPending}
+          busy={busy}
+          testId="trains-month-toolbar-clear-pending"
+          onClick={onClearPending}
+        >
+          <UserRoundX className="h-4 w-4" aria-hidden />
         </ToolbarIconButton>
 
         <ToolbarIconButton

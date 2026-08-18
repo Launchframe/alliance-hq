@@ -11,6 +11,7 @@ import {
 import { getConductorRecord } from "@/lib/trains/repository";
 import { getServerCalendarDate } from "@/lib/trains/service";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
+import { resolveDiscordHqUserId } from "@/lib/trains/train-ownership.server";
 import { findExactMemberByName } from "@/lib/vr/link-helpers";
 import { loadAllianceMembersForBot } from "@/lib/vr/member-roster";
 import {
@@ -310,6 +311,7 @@ export async function handleDiscordTrainIsReady(input: {
       date,
       guildId: input.guildId,
       locale: input.locale,
+      lockedByHqUserId: await resolveDiscordHqUserId(input.discordUserId),
     });
     const reply =
       announce.posted > 0

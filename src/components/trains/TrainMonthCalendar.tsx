@@ -67,7 +67,9 @@ type Props = {
     busy?: boolean;
     onSpinSelected: (dates: string[]) => void;
     onManualPick: (date: string) => void;
+    onManualPickVip: (date: string) => void;
     onLockUnlock: (date: string, locked: boolean) => void;
+    onClearPending: (date: string) => void;
     onShareImage: () => void;
     onViewHistory: (record: WeekConductorRecordSummary) => void;
     onViewPool: () => void;
@@ -361,6 +363,10 @@ export function TrainMonthCalendar({
     [selectionPreviewDates, selectedDate, selectedRange],
   );
   const focusRecord = recordForDate(displayPage.monthRecords, selectedDate);
+  const focusDayConfig = configForDate(displayPage.dayConfigs, selectedDate);
+  const vipNeeded =
+    Boolean(focusDayConfig?.vipMechanism) &&
+    focusDayConfig?.vipMechanism !== "none";
 
   return (
     <div className="flex flex-col gap-3">
@@ -395,6 +401,7 @@ export function TrainMonthCalendar({
           today={monthToolbar.today}
           hasConductor={Boolean(focusRecord?.conductorMemberId)}
           locked={Boolean(focusRecord?.lockedAt)}
+          vipNeeded={vipNeeded}
           canUnlock={monthToolbar.canUnlock}
           canShareImage={monthToolbar.canShareImage}
           canSpinSelected={monthToolbar.canSpinDates(selectedDatesList)}
@@ -409,12 +416,14 @@ export function TrainMonthCalendar({
             monthToolbar.onSpinSelected(selectedDatesList)
           }
           onManualPick={() => monthToolbar.onManualPick(selectedDate)}
+          onManualPickVip={() => monthToolbar.onManualPickVip(selectedDate)}
           onLockUnlock={() =>
             monthToolbar.onLockUnlock(
               selectedDate,
               Boolean(focusRecord?.lockedAt),
             )
           }
+          onClearPending={() => monthToolbar.onClearPending(selectedDate)}
           onShareImage={monthToolbar.onShareImage}
           onViewHistory={() => {
             if (focusRecord) monthToolbar.onViewHistory(focusRecord);

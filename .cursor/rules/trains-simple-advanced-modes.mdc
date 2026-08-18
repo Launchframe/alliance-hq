@@ -50,7 +50,18 @@ The guided flow shows **one** primary CTA per step. Conductor step priority:
 2. **Pick top scorer** — when mechanism is `vs_high_score` or `donations_top`
 3. **Pick Conductor** (manual) — when manual pick is allowed
 
+When the primary is Spin or pick-top, **Pick conductor manually** stays available as a secondary button.
+
 `canSpinConductorForDay()` in **`conductor-mechanism.shared.ts`** returns false for **`r3_recognition`** paint (manual award pick only — no wheel).
+
+### Primary action on VIP / Guardian step
+
+VIP actions require lock. Priority:
+
+1. **Spin for VIP** — when `canSpinVip(...)` is true (`donations_second`, `event_top_x_lottery`)
+2. **Pick VIP manually** — when `supportsManualVipPick` (every VIP mechanism except `none`)
+
+When the primary is Spin, **Pick VIP manually** stays available as a secondary button (`data-testid="trains-guided-pick-vip"`).
 
 ## Advanced mode (opt-in)
 
@@ -73,6 +84,7 @@ Every action available in one mode must be reachable in the other:
 | Pick top scorer / Pick Conductor | Pick top scorer / Pick manually buttons |
 | Lock | Lock button |
 | Pick VIP | Pick VIP / spin VIP buttons |
+| Clear pending conductor (unlocked draft) | Clear pending conductor button |
 | Show advanced actions (swap, reseed, unlock) | Same controls in quick-actions layout |
 
 **When adding a new feature:**

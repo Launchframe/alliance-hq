@@ -531,6 +531,43 @@ export async function clearConductorAssignment(
   return row ?? null;
 }
 
+export async function restampConductorMechanisms(input: {
+  allianceId: string;
+  date: string;
+  seasonKey?: string | null;
+  conductorMechanism: string | null;
+  vipMechanism: string | null;
+  dayConfigId?: string | null;
+}): Promise<(typeof schema.trainConductorRecords.$inferSelect) | null> {
+  const existing = await getConductorRecord(
+    input.allianceId,
+    input.date,
+    input.seasonKey,
+  );
+  if (!existing) return null;
+
+  const db = getDb();
+  await db
+    .update(schema.trainConductorRecords)
+    .set({
+      conductorMechanism: input.conductorMechanism,
+      vipMechanism: input.vipMechanism,
+      dayConfigId:
+        input.dayConfigId !== undefined
+          ? input.dayConfigId
+          : existing.dayConfigId,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.trainConductorRecords.id, existing.id));
+
+  const [row] = await db
+    .select()
+    .from(schema.trainConductorRecords)
+    .where(eq(schema.trainConductorRecords.id, existing.id))
+    .limit(1);
+  return row ?? null;
+}
+
 /**
  * Assign or replace VIP on a locked conductor day. Draft upserts reject
  * locked rows; VIP boarding happens after lock/spawn.
@@ -624,6 +661,7 @@ export async function clearVipAssignment(
 export async function lockConductorRecord(
   recordId: string,
   allianceId: string,
+  lockedByHqUserId?: string | null,
 ): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
   const db = getDb();
   const [existing] = await db
@@ -645,7 +683,11 @@ export async function lockConductorRecord(
   const lockedAt = new Date();
   await db
     .update(schema.trainConductorRecords)
-    .set({ lockedAt, updatedAt: lockedAt })
+    .set({
+      lockedAt,
+      lockedByHqUserId: lockedByHqUserId ?? null,
+      updatedAt: lockedAt,
+    })
     .where(eq(schema.trainConductorRecords.id, recordId));
 
   await spawnEmptyTrain(recordId);
@@ -704,7 +746,12 @@ export async function unlockConductorRecord(
   const updatedAt = new Date();
   await db
     .update(schema.trainConductorRecords)
-    .set({ lockedAt: null, discordDepartingSoonAt: null, updatedAt })
+    .set({
+      lockedAt: null,
+      lockedByHqUserId: null,
+      discordDepartingSoonAt: null,
+      updatedAt,
+    })
     .where(eq(schema.trainConductorRecords.id, recordId));
 
   const [row] = await db

@@ -80,6 +80,7 @@ export async function announceTrainReadyToAlliance(input: {
 export async function lockTrainForAlliance(input: {
   allianceId: string;
   date: string;
+  lockedByHqUserId?: string | null;
 }): Promise<(typeof import("@/lib/db/schema").trainConductorRecords.$inferSelect)> {
   const seasonKey = (await getEffectiveSeasonForAlliance(input.allianceId))
     .seasonKey;
@@ -95,7 +96,11 @@ export async function lockTrainForAlliance(input: {
     throw new Error("Select a conductor before locking.");
   }
 
-  const locked = await lockConductorRecord(record.id, input.allianceId);
+  const locked = await lockConductorRecord(
+    record.id,
+    input.allianceId,
+    input.lockedByHqUserId,
+  );
   await refreshExhaustedPoolsForDay({
     allianceId: input.allianceId,
     date: input.date,
@@ -150,6 +155,7 @@ export async function lockTrainAndAnnounce(input: {
   date: string;
   guildId?: string | null;
   locale?: DiscordBotLocale;
+  lockedByHqUserId?: string | null;
 }): Promise<{
   record: (typeof import("@/lib/db/schema").trainConductorRecords.$inferSelect);
   announce: { posted: number; skipped: number };
@@ -157,6 +163,7 @@ export async function lockTrainAndAnnounce(input: {
   const locked = await lockTrainForAlliance({
     allianceId: input.allianceId,
     date: input.date,
+    lockedByHqUserId: input.lockedByHqUserId,
   });
   const announce = await maybeAnnounceTrainReady({
     allianceId: input.allianceId,

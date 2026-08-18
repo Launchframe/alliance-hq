@@ -36,6 +36,7 @@ import { ClearWeekScheduleDialog } from "@/components/trains/ClearWeekScheduleDi
 import { TrainPivotBanner } from "@/components/trains/TrainPivotBanner";
 import { TrainPlanWeekBanner } from "@/components/trains/TrainPlanWeekBanner";
 import { PastTemplatePaintConfirmDialog } from "@/components/trains/PastTemplatePaintConfirmDialog";
+import { PaintRuleConductorGateDialog } from "@/components/trains/PaintRuleConductorGateDialog";
 import { TrainsServerTimeClock } from "@/components/trains/TrainsServerTimeClock";
 import { TrainsUserSettingsMenu } from "@/components/trains/TrainsUserSettingsMenu";
 import {
@@ -118,12 +119,14 @@ import type { PoolRefreshedInfo, PoolType, RollResult, WeekTemplateType } from "
 import {
   compositeParentForSegment,
   isWeekTemplateSegment,
+  shouldExpandCompositeByDayIndex,
 } from "@/lib/trains/week-template-registry.shared";
 import {
   formatTrainPointCount,
   type MemberQualificationPayload,
 } from "@/lib/trains/train-conductor-minimums.shared";
 import {
+  applyOptimisticClearPendingConductor,
   applyOptimisticConductorPick,
   applyOptimisticConductorRoll,
   applyOptimisticConductorSwap,
@@ -141,8 +144,12 @@ import {
 import { latestLockedDateInWeek, pivotEconomyTargetDates } from "@/lib/trains/week-template-change.shared";
 import { spinWeekDayLabel, spinWheelDatesFromList } from "@/lib/trains/spin-week.shared";
 import {
-  hasValidConductorPickForDay,
-} from "@/lib/trains/conductor-mechanism.shared";
+  LOCKED_DAY_PAINT_BLOCKED_CODE,
+  planPaintRuleConductorGates,
+  type PaintRuleConductorBlocker,
+} from "@/lib/trains/paint-rule-conductor-gate.shared";
+import { TRAIN_OWNERSHIP_REQUIRED_CODE } from "@/lib/trains/train-ownership.shared";
+import { hasValidConductorPickForDay } from "@/lib/trains/conductor-mechanism.shared";
 import { supportsManualVipPick } from "@/lib/trains/templates";
 import {
   allianceTrainWeekFromRow,
@@ -150,6 +157,7 @@ import {
   weekDatesInTrainWeek,
 } from "@/lib/trains/train-week-calendar.shared";
 import {
+  canClearPendingConductor,
   canManualPickForDate,
   canOfficerChangeTemplateForDate,
   canRollForDate,
@@ -214,6 +222,7 @@ export function TrainsDashboard({ initial }: Props) {
   const [data, setData] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [unlockConfirm, setUnlockConfirm] = useState(false);
+  const [unlockRequestCopied, setUnlockRequestCopied] = useState(false);
   const [trainReadyConfirm, setTrainReadyConfirm] = useState(false);
   const [wheelOpen, setWheelOpen] = useState(false);
   const [wheelWinner, setWheelWinner] = useState<{
@@ -236,6 +245,8 @@ export function TrainsDashboard({ initial }: Props) {
   const selectedDateRef = useRef(selectedDate);
   useEffect(() => {
     selectedDateRef.current = selectedDate;
+    setUnlockRequestCopied(false);
+    setUnlockConfirm(false);
   }, [selectedDate]);
 
   const [scheduleView, setScheduleView] = useState<ScheduleView>("week");
@@ -335,7 +346,7 @@ export function TrainsDashboard({ initial }: Props) {
   );
   const [reseedingPool, setReseedingPool] = useState<PoolType | null>(null);
   const [conductorLockBusy, setConductorLockBusy] = useState<
-    "lock" | "unlock" | null
+    "lock" | "unlock" | "clear" | null
   >(null);
   const [clearWeekOpen, setClearWeekOpen] = useState(false);
   const [clearWeekBusy, setClearWeekBusy] = useState(false);
@@ -344,6 +355,18 @@ export function TrainsDashboard({ initial }: Props) {
     templateType: WeekTemplateType;
     topN?: number;
   } | null>(null);
+  const [pendingPaintRuleGate, setPendingPaintRuleGate] = useState<{
+    kind: "clear" | "request_unlock";
+    blockers: PaintRuleConductorBlocker[];
+    dates: string[];
+    templateType: WeekTemplateType;
+    options?: {
+      updateWeekTemplate?: boolean;
+      topN?: number;
+      preferredWeekTemplate?: WeekTemplateType;
+    };
+  } | null>(null);
+  const [paintRuleGateBusy, setPaintRuleGateBusy] = useState(false);
   const [pastPaintBusy, setPastPaintBusy] = useState(false);
   const [autoRollNotice, setAutoRollNotice] = useState<{
     date: string;
@@ -1206,10 +1229,42 @@ export function TrainsDashboard({ initial }: Props) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ date }),
           });
+          const body = (await res.json()) as {
+            error?: string;
+            code?: string;
+          };
+          return {
+            ok: res.ok,
+            error:
+              res.ok || body.code === TRAIN_OWNERSHIP_REQUIRED_CODE
+                ? undefined
+                : (body.error ?? t("unlockFailed")),
+          };
+        },
+      );
+    } finally {
+      setConductorLockBusy(null);
+    }
+  };
+
+  const clearPendingConductor = async (date = selectedDate) => {
+    if (rollingRole || reseedingPool || conductorLockBusy) return;
+    setConductorLockBusy("clear");
+    try {
+      await withOptimisticMutation(
+        (snap) => applyOptimisticClearPendingConductor(snap, date),
+        async () => {
+          const res = await fetch("/api/trains/conductor/clear", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ date }),
+          });
           const body = (await res.json()) as { error?: string };
           return {
             ok: res.ok,
-            error: res.ok ? undefined : (body.error ?? t("unlockFailed")),
+            error: res.ok
+              ? undefined
+              : (body.error ?? t("clearPendingConductorFailed")),
           };
         },
       );
@@ -1286,7 +1341,6 @@ export function TrainsDashboard({ initial }: Props) {
     },
     guardianIsVip: boolean,
   ) => {
-    closePickModal();
     await withOptimisticMutation(
       (snap) =>
         applyOptimisticConductorRoll(snap, selectedDate, "vip", member, {
@@ -1304,6 +1358,9 @@ export function TrainsDashboard({ initial }: Props) {
           }),
         });
         const body = (await res.json()) as { error?: string };
+        if (res.ok) {
+          closePickModal();
+        }
         return {
           ok: res.ok,
           error: res.ok ? undefined : (body.error ?? t("pickVipFailed")),
@@ -1342,7 +1399,37 @@ export function TrainsDashboard({ initial }: Props) {
                 : {}),
             }),
           });
-          const body = (await res.json()) as { error?: string };
+          const body = (await res.json()) as {
+            error?: string;
+            code?: string;
+            date?: string;
+            conductorName?: string | null;
+          };
+          if (!res.ok && body.code === LOCKED_DAY_PAINT_BLOCKED_CODE && body.date) {
+            const blockedRecord = [
+              ...data.weekRecords,
+              ...viewedWeek.weekRecords,
+              ...viewedMonth.monthRecords,
+            ].find((row) => row.date === body.date);
+            const canUnlockBlocked =
+              data.canUnlockConductor || Boolean(blockedRecord?.canUnlock);
+            setPendingPaintRuleGate({
+              kind: canUnlockBlocked ? "clear" : "request_unlock",
+              blockers: [
+                {
+                  date: body.date,
+                  conductorMemberId: "",
+                  conductorName: body.conductorName?.trim() || body.date,
+                  locked: true,
+                  kind: canUnlockBlocked ? "clear" : "request_unlock",
+                },
+              ],
+              dates,
+              templateType,
+              options,
+            });
+            return { ok: false };
+          }
           return {
             ok: res.ok,
             error: res.ok ? undefined : (body.error ?? t("scheduleFailed")),
@@ -1350,7 +1437,85 @@ export function TrainsDashboard({ initial }: Props) {
         },
       );
     },
-    [t, withOptimisticMutation],
+    [data.canUnlockConductor, data.weekRecords, t, viewedMonth.monthRecords, viewedWeek.weekRecords, withOptimisticMutation],
+  );
+
+  const queueOrExecutePaint = useCallback(
+    (
+      allowedDates: string[],
+      templateType: WeekTemplateType,
+      options?: {
+        updateWeekTemplate?: boolean;
+        topN?: number;
+        preferredWeekTemplate?: WeekTemplateType;
+      },
+    ) => {
+      const recordsByDate = new Map(
+        [
+          ...data.weekRecords,
+          ...viewedWeek.weekRecords,
+          ...viewedMonth.monthRecords,
+        ].map((row) => [row.date, row]),
+      );
+      const dayConfigsByDate = new Map(
+        [
+          ...data.dayConfigs,
+          ...viewedWeek.dayConfigs,
+          ...viewedMonth.dayConfigs,
+        ].map((row) => [row.date, row]),
+      );
+      const plan = planPaintRuleConductorGates({
+        dates: allowedDates,
+        templateType,
+        trainWeekConfig,
+        weekTemplateApply: shouldExpandCompositeByDayIndex({
+          updateWeekTemplate: options?.updateWeekTemplate,
+          dateCount: allowedDates.length,
+        }),
+        topN: options?.topN,
+        dayConfigs: [...dayConfigsByDate.values()],
+        records: [...recordsByDate.values()],
+        roster: data.roster,
+        canUnlockConductor: data.canUnlockConductor,
+      });
+      const requestUnlock = plan.blockers.filter(
+        (row) => row.kind === "request_unlock",
+      );
+      const clearBlockers = plan.blockers.filter((row) => row.kind === "clear");
+      if (requestUnlock.length > 0) {
+        setPendingPaintRuleGate({
+          kind: "request_unlock",
+          blockers: requestUnlock,
+          dates: allowedDates,
+          templateType,
+          options,
+        });
+        return Promise.resolve(false);
+      }
+      if (clearBlockers.length > 0) {
+        setPendingPaintRuleGate({
+          kind: "clear",
+          blockers: clearBlockers,
+          dates: allowedDates,
+          templateType,
+          options,
+        });
+        return Promise.resolve(false);
+      }
+      return executePaintDates(allowedDates, templateType, options);
+    },
+    [
+      data.canUnlockConductor,
+      data.dayConfigs,
+      data.roster,
+      data.weekRecords,
+      executePaintDates,
+      trainWeekConfig,
+      viewedMonth.dayConfigs,
+      viewedMonth.monthRecords,
+      viewedWeek.dayConfigs,
+      viewedWeek.weekRecords,
+    ],
   );
 
   const paintDates = useCallback(
@@ -1383,7 +1548,7 @@ export function TrainsDashboard({ initial }: Props) {
         return Promise.resolve(true);
       }
 
-      const allowedDates = data.canUnlockConductor
+      const allowedDates = data.canPaintPastDays
         ? dates
         : dates.filter((date) =>
             canOfficerChangeTemplateForDate(date, data.today),
@@ -1393,7 +1558,7 @@ export function TrainsDashboard({ initial }: Props) {
         return Promise.resolve(false);
       }
 
-      if (data.canUnlockConductor) {
+      if (data.canPaintPastDays) {
         const pastDates = allowedDates.filter(
           (date) => !canOfficerChangeTemplateForDate(date, data.today),
         );
@@ -1407,12 +1572,12 @@ export function TrainsDashboard({ initial }: Props) {
         }
       }
 
-      return executePaintDates(allowedDates, templateType, options);
+      return queueOrExecutePaint(allowedDates, templateType, options);
     },
     [
-      data.canUnlockConductor,
+      data.canPaintPastDays,
       data.today,
-      executePaintDates,
+      queueOrExecutePaint,
       setError,
       setPendingPastPaint,
       setPendingTemplateChange,
@@ -1681,6 +1846,76 @@ export function TrainsDashboard({ initial }: Props) {
     rollingRole !== null || reseedingPool !== null || conductorLockBusy !== null;
 
   const locked = Boolean(selectedRecord?.lockedAt);
+  const canUnlockSelected = Boolean(selectedRecord?.canUnlock);
+  const copySelectedUnlockRequest = () => {
+    const name = selectedRecord?.conductorMemberName?.trim() || selectedDate;
+    void navigator.clipboard
+      .writeText(t("unlockRequestClipboard", { name, date: selectedDate }))
+      .catch(() => undefined);
+    setUnlockRequestCopied(true);
+  };
+  const unlockOwnershipHint = !locked
+    ? null
+    : !canUnlockSelected
+      ? t("unlockNeedsEscalation")
+      : data.canUnlockConductor
+        ? null
+        : selectedDate < data.today
+          ? t("unlockOwnedPast")
+          : t("unlockUntilMidnight", { date: selectedDate });
+  const unlockControls = locked ? (
+    <div className="flex w-full flex-col gap-2" data-testid="trains-unlock-controls">
+      {unlockOwnershipHint ? (
+        <p className="text-xs text-hq-fg-muted">{unlockOwnershipHint}</p>
+      ) : null}
+      {canUnlockSelected ? (
+        unlockConfirm ? (
+          <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-hq-danger-emphasis/40 bg-hq-danger-emphasis/10 px-3 py-2">
+            <span className="text-sm text-hq-danger">{t("unlockConfirm")}</span>
+            <button
+              type="button"
+              onClick={() => setUnlockConfirm(false)}
+              className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg hover:bg-hq-canvas"
+            >
+              {t("unlockCancel")}
+            </button>
+            <button
+              type="button"
+              disabled={trainQuickActionBusy}
+              onClick={() => void unlockConductor()}
+              className="rounded-md bg-hq-danger-emphasis px-3 py-1.5 text-xs font-medium text-white hover:bg-hq-danger disabled:opacity-50"
+            >
+              {conductorLockBusy === "unlock"
+                ? t("unlocking")
+                : t("unlockConfirmAction")}
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            disabled={trainQuickActionBusy}
+            onClick={() => setUnlockConfirm(true)}
+            className="rounded-lg border border-hq-danger-emphasis/60 bg-hq-danger-emphasis/10 px-4 py-2 text-sm font-medium text-hq-danger hover:bg-hq-danger-emphasis/20 disabled:opacity-50"
+          >
+            {conductorLockBusy === "unlock"
+              ? t("unlocking")
+              : t("unlockConductor")}
+          </button>
+        )
+      ) : (
+        <button
+          type="button"
+          onClick={copySelectedUnlockRequest}
+          data-testid="trains-request-unlock"
+          className="rounded-lg border border-hq-border bg-hq-canvas px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-surface"
+        >
+          {unlockRequestCopied
+            ? t("unlockRequestCopied")
+            : t("requestUnlockConductor")}
+        </button>
+      )}
+    </div>
+  ) : null;
   const conductorPaint = selectedDayConfig?.paintTemplate;
   const requestConductorSpin = () => {
     const vsStatus = selectedDate === data.today ? data.vsDataStatus : null;
@@ -1806,7 +2041,7 @@ export function TrainsDashboard({ initial }: Props) {
 
   const vipMech = selectedDayConfig?.vipMechanism;
   const canPaintTemplate =
-    data.canUnlockConductor ||
+    data.canPaintPastDays ||
     canOfficerChangeTemplateForDate(selectedDate, data.today);
   const canRoll = canRollForDate(selectedDate, data.today);
   const canPickConductor = !locked && canManualPickForDate();
@@ -1845,6 +2080,7 @@ export function TrainsDashboard({ initial }: Props) {
     conductorConfig: selectedConductorConfig,
     topN: selectedDayConfig?.topN,
   });
+  const canClearPending = canClearPendingConductor(selectedRecord);
   const announceOnLock =
     data.trainDiscordConfigured &&
     shouldAnnounceTrainLockForDate(selectedDate, data.today);
@@ -2366,7 +2602,7 @@ export function TrainsDashboard({ initial }: Props) {
               templateLabels={templateLabels}
               canPaintDays={data.canManageTrains}
               isDatePaintable={(date) =>
-                data.canUnlockConductor ||
+                data.canPaintPastDays ||
                 canOfficerChangeTemplateForDate(date, data.today)
               }
               vrReporterCount={data.vrReporterCount}
@@ -2421,7 +2657,13 @@ export function TrainsDashboard({ initial }: Props) {
               onPaintDates={paintDates}
               monthToolbar={{
                 today: data.today,
-                canUnlock: data.canUnlockConductor,
+                canUnlock: Boolean(
+                  [
+                    ...viewedMonth.monthRecords,
+                    ...viewedWeek.weekRecords,
+                    ...data.weekRecords,
+                  ].find((row) => row.date === selectedDate)?.canUnlock,
+                ),
                 canShareImage:
                   !data.simpleModeEnabled && hasValidConductor,
                 busy:
@@ -2450,13 +2692,37 @@ export function TrainsDashboard({ initial }: Props) {
                   setPickRole("conductor");
                   setPickOpen(true);
                 },
+                onManualPickVip: (date) => {
+                  setSelectedDate(date);
+                  setPickRole("vip");
+                  setPickOpen(true);
+                },
                 onLockUnlock: (date, isLocked) => {
                   setSelectedDate(date);
-                  if (isLocked) {
-                    void unlockConductor(date);
-                  } else {
+                  if (!isLocked) {
                     void lockConductor(date);
+                    return;
                   }
+                  const record = [
+                    ...viewedMonth.monthRecords,
+                    ...viewedWeek.weekRecords,
+                    ...data.weekRecords,
+                  ].find((row) => row.date === date);
+                  if (record?.canUnlock) {
+                    void unlockConductor(date);
+                    return;
+                  }
+                  const name = record?.conductorMemberName?.trim() || date;
+                  void navigator.clipboard
+                    .writeText(
+                      t("unlockRequestClipboard", { name, date }),
+                    )
+                    .catch(() => undefined);
+                  setUnlockRequestCopied(true);
+                },
+                onClearPending: (date) => {
+                  setSelectedDate(date);
+                  void clearPendingConductor(date);
                 },
                 onShareImage: () => void handleShareExportImage(),
                 onViewHistory: (record) => {
@@ -2573,6 +2839,11 @@ export function TrainsDashboard({ initial }: Props) {
                   setPickRole("conductor");
                   setPickOpen(true);
                 }}
+                onClearPendingConductor={
+                  canClearPending
+                    ? () => void clearPendingConductor()
+                    : undefined
+                }
                 onRollVip={() => void runRoll("vip")}
                 onPickVipManual={() => {
                   setPickRole("vip");
@@ -2648,43 +2919,7 @@ export function TrainsDashboard({ initial }: Props) {
                         {t("swap.action")}
                       </button>
                     ) : null}
-                    {locked && data.canUnlockConductor ? (
-                      unlockConfirm ? (
-                        <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-hq-danger-emphasis/40 bg-hq-danger-emphasis/10 px-3 py-2">
-                          <span className="text-sm text-hq-danger">
-                            {t("unlockConfirm")}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setUnlockConfirm(false)}
-                            className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg hover:bg-hq-canvas"
-                          >
-                            {t("unlockCancel")}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={trainQuickActionBusy}
-                            onClick={() => void unlockConductor()}
-                            className="rounded-md bg-hq-danger-emphasis px-3 py-1.5 text-xs font-medium text-white hover:bg-hq-danger disabled:opacity-50"
-                          >
-                            {conductorLockBusy === "unlock"
-                              ? t("unlocking")
-                              : t("unlockConfirmAction")}
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={trainQuickActionBusy}
-                          onClick={() => setUnlockConfirm(true)}
-                          className="rounded-lg border border-hq-danger-emphasis/60 bg-hq-danger-emphasis/10 px-4 py-2 text-sm font-medium text-hq-danger hover:bg-hq-danger-emphasis/20 disabled:opacity-50"
-                        >
-                          {conductorLockBusy === "unlock"
-                            ? t("unlocking")
-                            : t("unlockConductor")}
-                        </button>
-                      )
-                    ) : null}
+                    {unlockControls}
                   </>
                 }
                 videoUploadHref={guidedVideoUploadHref}
@@ -2838,6 +3073,19 @@ export function TrainsDashboard({ initial }: Props) {
                     {t("swap.action")}
                   </button>
                 ) : null}
+                {canClearPending ? (
+                  <button
+                    type="button"
+                    disabled={trainQuickActionBusy}
+                    data-testid="trains-clear-pending-conductor"
+                    onClick={() => void clearPendingConductor()}
+                    className="rounded-lg border border-hq-border bg-hq-canvas px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-surface disabled:opacity-50 w-full sm:w-auto"
+                  >
+                    {conductorLockBusy === "clear"
+                      ? t("clearingPendingConductor")
+                      : t("clearPendingConductor")}
+                  </button>
+                ) : null}
                 {canRoll && canSpinVip(vipMech, locked) ? (
                   <button
                     type="button"
@@ -2851,6 +3099,7 @@ export function TrainsDashboard({ initial }: Props) {
                 {canManualPickVip ? (
                   <button
                     type="button"
+                    data-testid="trains-pick-vip-manually"
                     onClick={() => {
                       setPickRole("vip");
                       setPickOpen(true);
@@ -2886,43 +3135,7 @@ export function TrainsDashboard({ initial }: Props) {
                     </button>
                   )
                 ) : null}
-                {locked && data.canUnlockConductor ? (
-                  unlockConfirm ? (
-                    <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-hq-danger-emphasis/40 bg-hq-danger-emphasis/10 px-3 py-2">
-                      <span className="text-sm text-hq-danger">
-                        {t("unlockConfirm")}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setUnlockConfirm(false)}
-                        className="rounded-md border border-hq-border px-3 py-1.5 text-xs text-hq-fg hover:bg-hq-canvas"
-                      >
-                        {t("unlockCancel")}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={trainQuickActionBusy}
-                        onClick={() => void unlockConductor()}
-                        className="rounded-md bg-hq-danger-emphasis px-3 py-1.5 text-xs font-medium text-white hover:bg-hq-danger disabled:opacity-50"
-                      >
-                        {conductorLockBusy === "unlock"
-                          ? t("unlocking")
-                          : t("unlockConfirmAction")}
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={trainQuickActionBusy}
-                      onClick={() => setUnlockConfirm(true)}
-                      className="rounded-lg border border-hq-danger-emphasis/60 bg-hq-danger-emphasis/10 px-4 py-2 text-sm font-medium text-hq-danger hover:bg-hq-danger-emphasis/20 disabled:opacity-50"
-                    >
-                      {conductorLockBusy === "unlock"
-                        ? t("unlocking")
-                        : t("unlockConductor")}
-                    </button>
-                  )
-                ) : null}
+                {unlockControls}
               </div>
             </div>
             )
@@ -3026,7 +3239,9 @@ export function TrainsDashboard({ initial }: Props) {
         eligibilityOverrideWarningLabel={t(
           "pickConductorEligibilityOverrideWarning",
         )}
-        forceEligibilityMemberId={pickEligibilityOverrideMemberId}
+        forceEligibilityMemberId={
+          pickRole === "conductor" ? pickEligibilityOverrideMemberId : null
+        }
         showGuardianToggle={pickRole === "vip"}
         guardianIsVipLabel={
           pickRole === "vip" ? t("guardianIsVip") : undefined
@@ -3362,7 +3577,7 @@ export function TrainsDashboard({ initial }: Props) {
           onConfirm={() => {
             if (pastPaintBusy || !pendingPastPaint) return;
             setPastPaintBusy(true);
-            void executePaintDates(
+            void queueOrExecutePaint(
               pendingPastPaint.dates,
               pendingPastPaint.templateType,
               {
@@ -3376,6 +3591,55 @@ export function TrainsDashboard({ initial }: Props) {
                 if (ok) setPendingPastPaint(null);
               })
               .finally(() => setPastPaintBusy(false));
+          }}
+        />
+      ) : null}
+
+      {pendingPaintRuleGate ? (
+        <PaintRuleConductorGateDialog
+          open
+          kind={pendingPaintRuleGate.kind}
+          blockers={pendingPaintRuleGate.blockers}
+          ruleLabel={t(`templates.${pendingPaintRuleGate.templateType}`)}
+          busy={paintRuleGateBusy}
+          onCancel={() => {
+            if (!paintRuleGateBusy) setPendingPaintRuleGate(null);
+          }}
+          onConfirmClear={() => {
+            if (paintRuleGateBusy || !pendingPaintRuleGate) return;
+            setPaintRuleGateBusy(true);
+            const lockedDates = pendingPaintRuleGate.blockers
+              .filter((row) => row.locked)
+              .map((row) => row.date);
+            void (async () => {
+              try {
+                for (const date of lockedDates) {
+                  await unlockConductor(date);
+                }
+                const ok = await executePaintDates(
+                  pendingPaintRuleGate.dates,
+                  pendingPaintRuleGate.templateType,
+                  pendingPaintRuleGate.options,
+                );
+                if (ok) setPendingPaintRuleGate(null);
+              } finally {
+                setPaintRuleGateBusy(false);
+              }
+            })();
+          }}
+          onRequestUnlock={() => {
+            if (!pendingPaintRuleGate) return;
+            const rule = t(`templates.${pendingPaintRuleGate.templateType}`);
+            const text = pendingPaintRuleGate.blockers
+              .map((row) =>
+                t("paintRuleGate.requestUnlockClipboard", {
+                  name: row.conductorName,
+                  date: row.date,
+                  rule,
+                }),
+              )
+              .join("\n");
+            void navigator.clipboard.writeText(text).catch(() => undefined);
           }}
         />
       ) : null}
