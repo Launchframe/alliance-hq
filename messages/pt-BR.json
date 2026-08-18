@@ -5926,6 +5926,19 @@
       "in_progress": "Em andamento",
       "done": "Concluído",
       "cancelled": "Cancelado"
-    }
+    },
+    "askTitle": "Pergunte sobre decisões da aliança",
+    "askSubtitle": "As respostas usam atas aprovadas pelos oficiais e itens de ação abertos — não o histórico completo do chat.",
+    "askPlaceholder": "O que decidimos sobre os bancos?",
+    "askSubmit": "Perguntar",
+    "asking": "Buscando atas aprovadas…",
+    "askEmptyCorpus": "Aprove atas da reunião para ensinar o assistente.",
+    "askLlmUnavailable": "O Q&A por IA não está configurado neste servidor.",
+    "askFailed": "Não foi possível responder a essa pergunta.",
+    "askCitationNote": "Atas da reunião",
+    "askCitationActionItem": "Item de ação",
+    "askSources": "Fontes",
+    "askYou": "Você",
+    "askAssistant": "Assistente"
   }
 }

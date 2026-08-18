@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { Upload } from "lucide-react";
 
 import { OfficerChatImportPanel } from "@/components/officer-intel/OfficerChatImportPanel";
+import { OfficerIntelAskPanel } from "@/components/officer-intel/OfficerIntelAskPanel";
 import type { OfficerIntelDashboardPayload } from "@/lib/officer-intel/types.shared";
 
 type Props = {
@@ -54,6 +55,11 @@ export function OfficerIntelClient({ initial }: Props) {
           </button>
         ) : null}
       </div>
+
+      <OfficerIntelAskPanel
+        llmConfigured={initial.llmConfigured}
+        approvedNoteCount={initial.approvedNoteCount}
+      />
 
       {!initial.translationConfigured ? (
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-hq-fg">

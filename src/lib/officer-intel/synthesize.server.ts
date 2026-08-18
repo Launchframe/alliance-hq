@@ -13,6 +13,7 @@ import {
   listOfficerChatMessages,
   persistOfficerSynthesisResult,
 } from "@/lib/officer-intel/repository.server";
+import { truncateTranscriptForSynthesis } from "@/lib/officer-intel/format-ask-context.shared";
 import { officerSynthesisOutputSchema } from "@/lib/officer-intel/synthesis-types.shared";
 
 function formatTranscript(
@@ -56,7 +57,7 @@ export async function synthesizeOfficerMeetingNote(input: {
 
   const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const modelId = officerIntelLlmModel();
-  const transcript = formatTranscript(messages);
+  const transcript = truncateTranscriptForSynthesis(formatTranscript(messages));
 
   const { object } = await generateObject({
     model: openai(modelId),
