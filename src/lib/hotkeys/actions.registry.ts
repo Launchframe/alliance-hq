@@ -185,6 +185,15 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     requiredPermission: "officer_intel:read",
   },
   {
+    id: "nav.notes",
+    labelKey: "actions.nav.notes",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/notes",
+    requiredPermission: "members:write",
+  },
+  {
     id: "nav.desertStorm",
     labelKey: "actions.nav.desertStorm",
     category: "navigation",

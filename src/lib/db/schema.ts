@@ -4012,3 +4012,76 @@ export type OfficerIntelChunk = typeof officerIntelChunks.$inferSelect;
 export type OfficerIntelThread = typeof officerIntelThreads.$inferSelect;
 export type OfficerIntelThreadMessage =
   typeof officerIntelThreadMessages.$inferSelect;
+
+/** HQ-native officer notes — not Ashed member_commendations / hq_commendations. */
+export const performanceNotes = pgTable(
+  "performance_notes",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    /** commendation | violation | note */
+    kind: text("kind").notNull(),
+    /** batch | thought */
+    intakeMode: text("intake_mode").notNull(),
+    body: text("body").notNull(),
+    /** discord | web */
+    source: text("source").notNull(),
+    createdByDiscordUserId: text("created_by_discord_user_id"),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    expungedAt: timestamp("expunged_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("performance_notes_alliance_created_idx").on(
+      table.allianceId,
+      table.createdAt,
+    ),
+    index("performance_notes_alliance_kind_idx").on(table.allianceId, table.kind),
+  ],
+);
+
+export const performanceNoteMembers = pgTable(
+  "performance_note_members",
+  {
+    id: text("id").primaryKey(),
+    noteId: text("note_id")
+      .notNull()
+      .references(() => performanceNotes.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    allianceMemberId: text("alliance_member_id").references(
+      () => allianceMembers.id,
+      { onDelete: "set null" },
+    ),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    memberNameRaw: text("member_name_raw").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("performance_note_members_note_idx").on(table.noteId),
+    index("performance_note_members_alliance_ashed_idx").on(
+      table.allianceId,
+      table.ashedMemberId,
+    ),
+    uniqueIndex("performance_note_members_note_ashed_unique").on(
+      table.noteId,
+      table.ashedMemberId,
+    ),
+  ],
+);
+
+export type PerformanceNote = typeof performanceNotes.$inferSelect;
+export type PerformanceNoteMember = typeof performanceNoteMembers.$inferSelect;

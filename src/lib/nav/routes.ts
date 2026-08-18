@@ -265,6 +265,14 @@ export const NAV_GROUPS: NavGroupDef[] = [
         requiredPermission: "officer_intel:read",
         descriptionKey: "officerIntelDescription",
       },
+      {
+        id: "notes",
+        labelKey: "notes",
+        href: "/notes",
+        kind: "native",
+        requiredPermission: "members:write",
+        descriptionKey: "notesDescription",
+      },
     ],
   },
   {
