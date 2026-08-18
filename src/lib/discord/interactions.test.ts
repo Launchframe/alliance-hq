@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCharacterPickerButtons,
   buildLinkIdentityConfirmButtons,
+  buildTimeOffOfflinePickButtons,
   buildVrConfirmButtons,
   discordComponentMessageResponse,
   discordDeferredChannelResponse,
@@ -121,7 +122,26 @@ describe("discord interactions", () => {
       kind: "whois_claim",
       memberId: "member-1",
     });
+    expect(parseButtonCustomId("timeoff:offline:member-1:2026-06-20")).toEqual({
+      kind: "timeoff_offline_pick",
+      memberId: "member-1",
+      date: "2026-06-20",
+    });
     expect(parseButtonCustomId("other")).toBeNull();
+  });
+
+  it("builds pick buttons for is-ally-offline fuzzy matches", () => {
+    const components = buildTimeOffOfflinePickButtons([
+      { memberId: "member-1", name: "Mew2407", date: "2026-06-20" },
+      { memberId: "member-2", name: "Mewtwo", date: "2026-06-20" },
+    ]);
+    expect(components[0]?.components).toHaveLength(2);
+    expect(components[0]?.components[0]?.custom_id).toBe(
+      "timeoff:offline:member-1:2026-06-20",
+    );
+    expect(components[0]?.components[1]?.custom_id).toBe(
+      "timeoff:offline:member-2:2026-06-20",
+    );
   });
 
   it("builds yes/no buttons for link identity confirm", () => {
