@@ -12,7 +12,9 @@ export const INVITE_ACCEPT_REASON_CODES = [
   "passphrase_incorrect",
   "passphrase_consumed",
   "passphrase_missing",
-  "discord_officer_requires_auth",
+  "discord_login_required",
+  "discord_user_mismatch",
+  "discord_target_missing",
   "alliance_tag_missing",
   "invite_belongs_to_other_account",
   "accept_failed",
@@ -32,7 +34,9 @@ const MESSAGE_TO_REASON: Readonly<Record<string, InviteAcceptReasonCode>> = {
   "Passphrase already used.": "passphrase_consumed",
   "Passphrase is required.": "passphrase_required",
   "Incorrect passphrase.": "passphrase_incorrect",
-  "Discord officer invites require Auth Phase 2.": "discord_officer_requires_auth",
+  "Sign in with Discord to accept this invite.": "discord_login_required",
+  "Discord account does not match this invite.": "discord_user_mismatch",
+  "Invite Discord target is missing.": "discord_target_missing",
   "Alliance tag is missing.": "alliance_tag_missing",
   "This invite belongs to another account.": "invite_belongs_to_other_account",
 };
@@ -48,5 +52,7 @@ export function inviteAcceptReasonFromApiCode(
 ): InviteAcceptReasonCode {
   if (code === "auth_required") return "auth_required";
   if (code === "email_mismatch") return "email_mismatch";
+  if (code === "discord_login_required") return "discord_login_required";
+  if (code === "discord_user_mismatch") return "discord_user_mismatch";
   return "accept_failed";
 }
