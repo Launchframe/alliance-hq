@@ -194,6 +194,60 @@ const commandBody = [
     options: [...commanderLinkOptions],
   },
   {
+    name: "commend",
+    description: "Commend one or more members by name.",
+    description_localizations: {
+      "pt-BR": "Elogie um ou mais membros pelo nome.",
+    },
+    options: [
+      {
+        name: "names",
+        description: "Commander names, separated by commas or periods.",
+        description_localizations: {
+          "pt-BR": "Nomes de comandantes, separados por vírgulas ou pontos.",
+        },
+        type: 3,
+        required: true,
+      },
+    ],
+  },
+  {
+    name: "violation",
+    description: "Record violations for one or more members.",
+    description_localizations: {
+      "pt-BR": "Registre violações de um ou mais membros.",
+    },
+    options: [
+      {
+        name: "names",
+        description: "Commander names, separated by commas or periods.",
+        description_localizations: {
+          "pt-BR": "Nomes de comandantes, separados por vírgulas ou pontos.",
+        },
+        type: 3,
+        required: true,
+      },
+    ],
+  },
+  {
+    name: "note",
+    description: "Record your thoughts for later",
+    description_localizations: {
+      "pt-BR": "Registre suas anotações para depois",
+    },
+    options: [
+      {
+        name: "text",
+        description: "Freeform note. What's on your mind?",
+        description_localizations: {
+          "pt-BR": "Anotação livre. O que você quer registrar?",
+        },
+        type: 3,
+        required: true,
+      },
+    ],
+  },
+  {
     name: "help",
     description: "Show what to do next based on your setup progress",
     description_localizations: {

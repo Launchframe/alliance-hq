@@ -35,6 +35,7 @@ import {
 export function CommanderProfileView({ initial }: Props) {
   const t = useTranslations("members.profile");
   const tInvites = useTranslations("team.invites");
+  const tNotes = useTranslations("notes");
   const { member, alliance } = initial;
   const membersListHref = useSyncExternalStore(
     () => () => {},
@@ -482,6 +483,30 @@ export function CommanderProfileView({ initial }: Props) {
       {initial.violations.length > 0 ? (
         <ProfileSection title={t("violations")}>
           <MemberViolationCards rows={initial.violations} />
+        </ProfileSection>
+      ) : null}
+
+      {initial.hqNotes.length > 0 ? (
+        <ProfileSection title={t("hqNotes")}>
+          <ul className="space-y-3">
+            {initial.hqNotes.map((note) => (
+              <li
+                key={note.id}
+                className="rounded-lg border border-hq-border bg-hq-canvas/60 p-3"
+              >
+                <p className="text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
+                  {note.kind === "commendation"
+                    ? tNotes("kindCommendation")
+                    : note.kind === "violation"
+                      ? tNotes("kindViolation")
+                      : tNotes("kindNote")}
+                </p>
+                <p className="mt-2 whitespace-pre-wrap break-words text-sm text-hq-fg">
+                  {note.body}
+                </p>
+              </li>
+            ))}
+          </ul>
         </ProfileSection>
       ) : null}
 

@@ -30,6 +30,8 @@ import type { KillsPendingState } from "@/lib/kills/types";
 import { parseStoredKillsPending } from "@/lib/kills/pending-state";
 import type { ThpPendingState } from "@/lib/thp/types";
 import { parseStoredThpPending } from "@/lib/thp/pending-state";
+import type { PerformanceNotesPendingState } from "@/lib/performance-notes/pending-state";
+import { parsePerformanceNotesPending } from "@/lib/performance-notes/pending-state";
 import type { LinkPendingState, VrPendingState } from "@/lib/vr/types";
 import { parseStoredVrPending } from "@/lib/vr/pending-state";
 
@@ -39,7 +41,8 @@ export type DiscordBotPendingState =
   | VrPendingState
   | LinkPendingState
   | ThpPendingState
-  | KillsPendingState;
+  | KillsPendingState
+  | PerformanceNotesPendingState;
 
 function parseVrPending(value: unknown): VrPendingState | null {
   return parseStoredVrPending(value);
@@ -252,6 +255,7 @@ function parseKillsPending(value: unknown): KillsPendingState | null {
 
 function parseDiscordBotPending(value: unknown): DiscordBotPendingState | null {
   return (
+    parsePerformanceNotesPending(value) ??
     parseThpPending(value) ??
     parseKillsPending(value) ??
     parseVrPending(value) ??

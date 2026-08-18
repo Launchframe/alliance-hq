@@ -36,6 +36,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "nav.timeOff": seq("g", "w"),
   "nav.bankManagement": seq("g", "9"),
   "nav.officerIntel": seq("g", "7"),
+  "nav.notes": seq("g", "0"),
   "nav.desertStorm": seq("g", "s"),
   "nav.canyonStorm": seq("g", "c"),
   "nav.otherEvents": seq("g", "n"),
