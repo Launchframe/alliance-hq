@@ -48,6 +48,8 @@ export type TrainsGuidedConductorFlowProps = {
   onRollConductor: () => void;
   onPickTopScorer: () => void;
   onPickConductorManual: () => void;
+  /** Clear an unlocked pending conductor draft (releases the pool slot). */
+  onClearPendingConductor?: () => void;
   onRollVip: () => void;
   onPickVipManual: () => void;
   onLock: () => void;
@@ -234,6 +236,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     onRollConductor,
     onPickTopScorer,
     onPickConductorManual,
+    onClearPendingConductor,
     onRollVip,
     onPickVipManual,
     onLock,
@@ -304,6 +307,9 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     : canManualPickVip
       ? { label: t("steps.vip.pickManual"), onClick: onPickVipManual }
       : null;
+
+  const showSecondaryPickVip =
+    canManualPickVip && vipAction?.onClick !== onPickVipManual;
 
   const prerequisitesStatus = stepStatus(
     "prerequisites",
@@ -537,6 +543,17 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                     onClick={onPickConductorManual}
                   />
                 ) : null}
+                {!locked && onClearPendingConductor ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    data-testid="trains-clear-pending-conductor"
+                    onClick={onClearPendingConductor}
+                    className="rounded-lg border border-hq-border bg-hq-canvas px-3 py-1.5 text-xs font-medium text-hq-fg hover:bg-hq-surface disabled:opacity-50"
+                  >
+                    {t("steps.conductor.clear")}
+                  </button>
+                ) : null}
               </div>
               {onShareImage ? (
                 <button
@@ -615,7 +632,21 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
               ) : null}
             </div>
           ) : vipStatus === "current" ? (
-            <PrimaryCtaButton action={vipAction} busy={busy} />
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              {vipAction ? (
+                <PrimaryCtaButton action={vipAction} busy={busy} />
+              ) : null}
+              {showSecondaryPickVip ? (
+                <button
+                  type="button"
+                  onClick={onPickVipManual}
+                  data-testid="trains-guided-pick-vip"
+                  className="inline-flex w-full items-center justify-center rounded-lg border border-hq-border bg-hq-canvas px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-surface sm:w-auto"
+                >
+                  {t("steps.vip.pickManual")}
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </StepRow>
 

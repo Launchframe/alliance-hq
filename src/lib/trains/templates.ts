@@ -1,5 +1,6 @@
 import {
   CONDUCTOR_MECHANISMS,
+  VIP_MECHANISMS,
   type ConductorMechanismType,
   type DayConfigInput,
   type EventTopXConfig,
@@ -234,16 +235,15 @@ export function mechanismNeedsWheel(
   );
 }
 
-/** Officer manual pick — conductor_pick days need this to record the conductor's choice. */
+/**
+ * Officer manual VIP/Guardian pick — open roster assign for every VIP
+ * mechanism except `none`. Does not use depleting pools.
+ */
 export function supportsManualVipPick(
   mechanism: VipMechanismType | string | null | undefined,
 ): boolean {
-  if (!mechanism) return false;
-  return (
-    mechanism === "conductor_pick" ||
-    mechanism === "donations_second" ||
-    mechanism === "event_top_x_lottery"
-  );
+  if (!mechanism || mechanism === "none") return false;
+  return (VIP_MECHANISMS as readonly string[]).includes(mechanism);
 }
 
 /** Officer manual override when leaderboard data is missing or wrong. */

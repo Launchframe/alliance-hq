@@ -43,7 +43,7 @@ Canonical lists: `DAY_PAINT_TEMPLATES` vs selectable week/composites in `paint-t
 - Do **not** put composites (e.g. `vs_push_week`) in single-day pickers.
 - **Composite segment resolution** uses **calendar DOW relative to Tuesday** (Tue=0 … Mon=6) via `compositeSegmentDayIndex` in `src/lib/trains/week-template-registry.shared.ts` — **not** alliance `trainWeekStartDow`. A Monday-start train week must still paint Tue–Sat push and Sun–Mon R4 segments on the correct calendar days.
 - Day-painted mechanism **sticks** unless impossible for that server date (e.g. TPIF on Monday bounces; Saturday **day** TPIF must not auto-rewrite to the week’s heavy-hitter segment).
-- Changing a day’s conductor mechanism **releases** any unlocked pending conductor/VIP draft so the officer can spin again under the new mechanism.
+- Changing a day’s conductor mechanism **keeps** the pending or locked conductor when they are still eligible for the new rule (do not reset them). If they are **not** eligible, officers who can unlock (train owner in-window, alliance owner, or platform maintainer) confirm **Clear the conductor and change rules?**; otherwise offer **Request to unlock this conductor**. Do not leave a locked-day paint as a dead-end API error toast.
 - Composite Saturday segment **`takedown_week`** is **with-replacement** Price Is Freight heavy-hitter (`usesPriceIsFreightConductorRoll` in `src/lib/trains/heavy-hitter-pool.shared.ts`) — same path as legacy whole-week `price_is_right` Saturday, **not** a depleting pool.
 
 ## Lifecycle: conductor → lock → VIP
@@ -51,8 +51,9 @@ Canonical lists: `DAY_PAINT_TEMPLATES` vs selectable week/composites in `paint-t
 In-game: conductor boards (lock/spawn) **before** VIP can board.
 
 - Guided order: `… → conductor → lock → vip → done` (`guided-flow.shared.ts` / `currentGuidedStep`).
-- VIP assign/spin requires `lockedAt`. Server: `assignVipOnLockedConductor`; client gates: `canSpinVipForDay` / manual VIP only when locked.
+- VIP assign/spin requires `lockedAt`. Server: `assignVipOnLockedConductor`; client gates: `canSpinVipForDay` / manual VIP only when locked. Guided VIP step shows **Pick VIP manually** next to Spin (same parity as conductor). Month toolbar Crown is VIP pick after lock. **Manual VIP pick is an open roster assign** — it must not consult or consume conductor/event pools.
 - Do **not** put VIP before lock in UI, skill, or docs.
+- **Clear pending conductor** — officers may unassign an unlocked draft (`POST /api/trains/conductor/clear`). This **releases** the depleting-pool slot. Distinct from **Unlock** (undoes `lockedAt` only). **Train ownership:** the locking officer may unlock until midnight Server Time of that train day (past-day locks remain unlockable by that officer). After midnight, alliance owner or platform maintainer. Show the control in guided Conductor step, advanced quick-actions, and month toolbar when `conductorMemberId` is set and `lockedAt` is null.
 
 ## Dates (server calendar)
 
