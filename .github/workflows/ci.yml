@@ -1,9 +1,12 @@
+# TEMPORARILY DISABLED (GHA budget through 1 Sep 2026): automatic runs off;
+# manual via workflow_dispatch only. GitHub workflow is also disabled_manually.
+# Re-enable pull_request + push on main when budget allows, then:
+#   gh workflow enable "CI"
+# Until then: local Pre-PR gate — see .cursor/rules/gha-credit-freeze.mdc
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   check:
