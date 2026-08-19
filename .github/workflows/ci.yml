@@ -2,6 +2,7 @@
 # manual via workflow_dispatch only. GitHub workflow is also disabled_manually.
 # Re-enable pull_request + push on main when budget allows, then:
 #   gh workflow enable "CI"
+#   gh workflow enable "Cleanup Neon preview branch"
 # Until then: local Pre-PR gate — see .cursor/rules/gha-credit-freeze.mdc
 name: CI
 

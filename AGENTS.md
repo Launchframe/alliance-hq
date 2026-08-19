@@ -4,7 +4,7 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-## Pre-commit gates
+## Pre-commit and Pre-PR gates
 
 Before creating a commit, all checks in [`PRE_COMMIT_GATE.md`](./PRE_COMMIT_GATE.md) must pass, in order (matches `.husky/pre-commit`):
 

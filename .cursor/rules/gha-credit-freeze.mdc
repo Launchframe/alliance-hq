@@ -41,6 +41,6 @@ Record the commands in the PR body (see `.github/pull_request_template.md`). Do 
 
 ## Do not
 
-- Re-enable **CI** or bump the org Actions cap except for a **single** emergency re-run, then set the cap back to **$0**. After 1 Sep: restore `on: pull_request` + `push: main` in `ci.yml` if needed, then `gh workflow enable "CI"`.
+- Re-enable **CI** or bump the org Actions cap except for a **single** emergency re-run, then set the cap back to **$0**. After 1 Sep: restore `on: pull_request` + `push: main` in `ci.yml` if needed, then `gh workflow enable "CI"` and `gh workflow enable "Cleanup Neon preview branch"`.
 - Treat a successful Vercel preview as a substitute for the local gate.
 - Skip Husky on commit (`--no-verify`) unless the maintainer asks.
