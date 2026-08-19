@@ -7,15 +7,28 @@ This is **not** scraping LastRank’s `/api/` (robots disallows it). We fetch th
 
 Kills are **not** on the alliance page (only in the meta total). Skip kills until we have a game RPC or a cheaper path than 90+ player pages.
 
+## Matching (LastRank name is canon)
+
+1. Exact match against HQ **current** names (roster `current_name`, commander `primary_name`, stored `canonical_name`)
+2. Exact match against HQ **previous** names
+3. Fuzzy match against current names (`stringSimilarity` ≥ 0.6, unique winner)
+4. Fuzzy match against previous names
+5. Still unmatched → CLI `--interactive` prompts for the HQ name to map
+
+Cron / API never prompts; unmatched rows are skipped.
+
 ## What HQ writes
 
-Exact **normalized name** match against `alliance_members.current_name` / `previous_names` / commander primary name (same equality as member-link — no fuzzy). Then:
+On each matched row (after auto or interactive mapping):
 
 | LastRank field | HQ |
 | --- | --- |
+| `name` (canon) | `commanders.canonical_name` **only when** Last War lookup-by-UID `gameUserName` exact-matches the canon (`namesMatch`) |
 | `hero_power` | THP (`lastrank_sync`) |
 | `base_level` | HQ level (`lastrank_sync`) |
 | `power` | `commanders.power_level` (e.g. `394.4M`) |
+
+Canonical write is skipped when the commander has no `game_uid`, the lookup fails, or the API name does not exact-match LastRank. Stats still apply on the roster match.
 
 Monotonic policy matches Ashed inbound: never auto-regress a protected self-report (`web` / `discord` / `screenshot_ocr` / `video_parse`). Conflicts are skipped (not queued on `/stat-sync`).
 
@@ -29,9 +42,18 @@ npx tsx scripts/lastrank/sync-alliance.ts \
   --id e7d1eaefdcfc42c8ac6c84247d2dad9b
 ```
 
+Interactive mapping for remaining unmatched names (requires a TTY):
+
+```bash
+npx tsx scripts/lastrank/sync-alliance.ts \
+  --tag LFgo \
+  --id e7d1eaefdcfc42c8ac6c84247d2dad9b \
+  --interactive
+```
+
 `tsx` treats `import "server-only"` as a client import and throws unless the `react-server` export is used. The CLI registers `scripts/lastrank/register-server-only.cjs` (maps to `server-only/empty.js`). You can also run `npm run lastrank:sync -- --tag LFgo --id e7d1eaefdcfc42c8ac6c84247d2dad9b`.
 
-`--apply` writes matches.
+`--apply` writes matches (stats + canonical when Last War confirms).
 
 ## Nightly
 

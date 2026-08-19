@@ -1867,6 +1867,11 @@ export const commanders = pgTable(
     primaryName: text("primary_name"),
     /** Lowercase trimmed name for orphan identity (partial unique with server). */
     primaryNameNormalized: text("primary_name_normalized"),
+    /**
+     * Last War / LastRank canonical display name (exact match to Last War
+     * lookup-by-UID `gameUserName` when set).
+     */
+    canonicalName: text("canonical_name"),
     profession: text("profession"),
     professionalLevel: integer("professional_level"),
     memberLevel: integer("member_level"),

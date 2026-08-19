@@ -1,5 +1,7 @@
 "use strict";
 
+/* eslint-disable @typescript-eslint/no-require-imports -- CommonJS Module hook for tsx CLI */
+
 /**
  * `import "server-only"` throws under `tsx` because Node uses the package's
  * default export (client guard). Next/RSC uses the `react-server` condition

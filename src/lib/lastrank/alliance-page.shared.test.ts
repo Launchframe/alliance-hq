@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  applyInteractiveMatches,
   formatLastRankPowerLevel,
   matchLastRankMembersToHq,
   parseLastRankAllianceHtml,
   parseLastRankSyncMap,
+  resolveHqNameToRosterRow,
+  type LastRankHqRosterRow,
 } from "@/lib/lastrank/alliance-page.shared";
 
 function htmlWithMembers(
@@ -14,6 +17,24 @@ function htmlWithMembers(
   const inner = `1e:${JSON.stringify(tree)}`;
   const push = JSON.stringify([1, inner]);
   return `<!DOCTYPE html><html><body><script>self.__next_f.push(${push})</script></body></html>`;
+}
+
+function hqRow(
+  partial: Partial<LastRankHqRosterRow> & {
+    commanderId: string;
+    ashedMemberId: string;
+    currentNames: string[];
+  },
+): LastRankHqRosterRow {
+  return {
+    previousNames: [],
+    gameUid: null,
+    hqThp: null,
+    hqLevel: null,
+    hqPowerLevel: null,
+    existingCanonicalName: null,
+    ...partial,
+  };
 }
 
 describe("parseLastRankAllianceHtml", () => {
@@ -71,100 +92,170 @@ describe("parseLastRankAllianceHtml", () => {
   });
 });
 
-describe("matchLastRankMembersToHq", () => {
-  it("matches exact normalized names including previous names", () => {
+describe("matchLastRankMembersToHq cascade", () => {
+  const lastRankMember = {
+    publicId: 1,
+    name: "Bane Pig",
+    country: "US" as string | null,
+    power: 1 as number | null,
+    heroPower: 2 as number | null,
+    allianceRank: 3 as number | null,
+    baseLevel: 35 as number | null,
+    originServerId: 1203 as number | null,
+  };
+
+  it("exact-matches current names before previous", () => {
     const result = matchLastRankMembersToHq(
+      [lastRankMember],
       [
-        {
-          publicId: 1,
-          name: "Bane Pig",
-          country: "US",
-          power: 1,
-          heroPower: 2,
-          allianceRank: 3,
-          baseLevel: 35,
-          originServerId: 1203,
-        },
-      ],
-      [
-        {
+        hqRow({
           commanderId: "c1",
           ashedMemberId: "m1",
-          names: ["Old Name", "Bane Pig"],
-          hqThp: 100,
-          hqLevel: 34,
-          hqPowerLevel: "300M",
-        },
+          currentNames: ["Bane Pig"],
+          previousNames: ["Other"],
+        }),
       ],
     );
     expect(result.matched).toHaveLength(1);
-    expect(result.matched[0].hq.commanderId).toBe("c1");
-    expect(result.unmatched).toHaveLength(0);
+    expect(result.matched[0].matchMethod).toBe("exact_current");
   });
 
-  it("does not fuzzy-match distinct names", () => {
+  it("exact-matches previous names when current miss", () => {
+    const result = matchLastRankMembersToHq(
+      [lastRankMember],
+      [
+        hqRow({
+          commanderId: "c1",
+          ashedMemberId: "m1",
+          currentNames: ["Old Current"],
+          previousNames: ["Bane Pig"],
+        }),
+      ],
+    );
+    expect(result.matched).toHaveLength(1);
+    expect(result.matched[0].matchMethod).toBe("exact_previous");
+  });
+
+  it("fuzzy-matches current names when exact miss", () => {
     const result = matchLastRankMembersToHq(
       [
         {
-          publicId: 1,
+          ...lastRankMember,
           name: "Lil Belly",
-          country: null,
-          power: null,
-          heroPower: 1,
-          allianceRank: null,
-          baseLevel: null,
-          originServerId: null,
         },
       ],
       [
-        {
+        hqRow({
           commanderId: "c1",
           ashedMemberId: "m1",
-          names: ["Mr BELLY"],
-          hqThp: null,
-          hqLevel: null,
-          hqPowerLevel: null,
+          currentNames: ["LilBelly"],
+        }),
+      ],
+    );
+    expect(result.matched).toHaveLength(1);
+    expect(result.matched[0].matchMethod).toBe("fuzzy_current");
+    expect(result.matched[0].fuzzyScore).toBeGreaterThan(0.6);
+  });
+
+  it("fuzzy-matches previous names after current fuzzy miss", () => {
+    const result = matchLastRankMembersToHq(
+      [
+        {
+          ...lastRankMember,
+          name: "Lil Belly",
         },
+      ],
+      [
+        hqRow({
+          commanderId: "c1",
+          ashedMemberId: "m1",
+          currentNames: ["TotallyDifferent"],
+          previousNames: ["LilBelly"],
+        }),
+      ],
+    );
+    expect(result.matched).toHaveLength(1);
+    expect(result.matched[0].matchMethod).toBe("fuzzy_previous");
+  });
+
+  it("leaves distant names unmatched with suggestions", () => {
+    const result = matchLastRankMembersToHq(
+      [
+        {
+          ...lastRankMember,
+          name: "zzzz-nope",
+        },
+      ],
+      [
+        hqRow({
+          commanderId: "c1",
+          ashedMemberId: "m1",
+          currentNames: ["Alpha"],
+        }),
       ],
     );
     expect(result.matched).toHaveLength(0);
     expect(result.unmatched[0]?.status).toBe("unmatched");
+    expect(result.unmatched[0]?.suggestions.length).toBeGreaterThan(0);
   });
 
-  it("marks duplicate HQ names as ambiguous", () => {
+  it("marks duplicate HQ current names as ambiguous", () => {
     const result = matchLastRankMembersToHq(
       [
         {
-          publicId: 1,
+          ...lastRankMember,
           name: "Twin",
-          country: null,
-          power: null,
-          heroPower: 1,
-          allianceRank: null,
-          baseLevel: null,
-          originServerId: null,
         },
       ],
       [
-        {
+        hqRow({
           commanderId: "c1",
           ashedMemberId: "m1",
-          names: ["Twin"],
-          hqThp: null,
-          hqLevel: null,
-          hqPowerLevel: null,
-        },
-        {
+          currentNames: ["Twin"],
+        }),
+        hqRow({
           commanderId: "c2",
           ashedMemberId: "m2",
-          names: ["Twin"],
-          hqThp: null,
-          hqLevel: null,
-          hqPowerLevel: null,
-        },
+          currentNames: ["Twin"],
+        }),
       ],
     );
     expect(result.unmatched[0]?.status).toBe("ambiguous");
+  });
+});
+
+describe("resolveHqNameToRosterRow + interactive apply", () => {
+  it("resolves operator-typed HQ name and applies interactive match", () => {
+    const hq = hqRow({
+      commanderId: "c1",
+      ashedMemberId: "m1",
+      currentNames: ["Mr BELLY"],
+    });
+    const lastRank = {
+      publicId: 9,
+      name: "Lil Belly",
+      country: null,
+      power: null,
+      heroPower: 1,
+      allianceRank: null,
+      baseLevel: null,
+      originServerId: null,
+    };
+    const base = matchLastRankMembersToHq([lastRank], [hq], {
+      fuzzyMinScore: 0.99,
+    });
+    expect(base.unmatched).toHaveLength(1);
+
+    const resolved = resolveHqNameToRosterRow("Mr BELLY", [hq], new Set());
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) return;
+
+    const next = applyInteractiveMatches(base, [
+      { lastRankPublicId: 9, hq: resolved.hq },
+    ]);
+    expect(next.matched).toHaveLength(1);
+    expect(next.matched[0].matchMethod).toBe("interactive");
+    expect(next.unmatched).toHaveLength(0);
   });
 });
 

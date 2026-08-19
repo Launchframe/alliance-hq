@@ -1,4 +1,8 @@
 import { normalizeCommanderName } from "@/lib/members/commander-identity-conflicts.shared";
+import {
+  MEMBER_FUZZY_AUTO_MATCH_MIN,
+  stringSimilarity,
+} from "@/lib/video/member-matcher";
 
 /** LastRank's own catalog id — not a Last War game UID. */
 export type LastRankAllianceMember = {
@@ -20,11 +24,22 @@ export type LastRankAlliancePage = {
 export type LastRankHqRosterRow = {
   commanderId: string;
   ashedMemberId: string;
-  names: string[];
+  gameUid: string | null;
+  /** Current roster name, primary name, and stored canonical (when set). */
+  currentNames: string[];
+  previousNames: string[];
   hqThp: number | null;
   hqLevel: number | null;
   hqPowerLevel: string | null;
+  existingCanonicalName: string | null;
 };
+
+export type LastRankMatchMethod =
+  | "exact_current"
+  | "exact_previous"
+  | "fuzzy_current"
+  | "fuzzy_previous"
+  | "interactive";
 
 export type LastRankMatchStatus =
   | "matched"
@@ -36,12 +51,20 @@ export type LastRankMatchedRow = {
   status: "matched";
   lastRank: LastRankAllianceMember;
   hq: LastRankHqRosterRow;
+  matchMethod: LastRankMatchMethod;
+  fuzzyScore: number | null;
 };
 
 export type LastRankUnmatchedRow = {
   status: "unmatched" | "ambiguous";
   lastRank: LastRankAllianceMember;
   hqCommanderIds: string[];
+  /** Best fuzzy scores against current/previous for operator hints. */
+  suggestions: Array<{
+    commanderId: string;
+    name: string;
+    score: number;
+  }>;
 };
 
 export type LastRankMatchResult = {
@@ -49,6 +72,8 @@ export type LastRankMatchResult = {
   unmatched: LastRankUnmatchedRow[];
   unmatchedHq: LastRankHqRosterRow[];
 };
+
+export const LASTRANK_FUZZY_MATCH_MIN = MEMBER_FUZZY_AUTO_MATCH_MIN;
 
 const LASTRANK_ALLIANCE_ID_RE = /^[a-f0-9]{32}$/i;
 
@@ -162,6 +187,50 @@ function decodeNextFlightPush(rawArgs: unknown): unknown {
   }
 }
 
+/**
+ * Collapsible roster sections are headed by an `R1`–`R5` badge; members in that
+ * table inherit that rank. Returns publicId → rank (1–5).
+ */
+export function parseLastRankSectionRanks(
+  html: string,
+): Map<number, number> {
+  const out = new Map<number, number>();
+  const sectionRe = /<section\b[^>]*>[\s\S]*?<\/section>/gi;
+  let sectionMatch: RegExpExecArray | null;
+  while ((sectionMatch = sectionRe.exec(html))) {
+    const chunk = sectionMatch[0];
+    const badge =
+      chunk.match(
+        /<span\b[^>]*class="[^"]*\bfont-mono\b[^"]*\bfont-bold\b[^"]*"[^>]*>\s*R([1-5])\s*<\/span>/i,
+      ) ??
+      chunk.match(
+        /<span\b[^>]*class="[^"]*\bfont-bold\b[^"]*\bfont-mono\b[^"]*"[^>]*>\s*R([1-5])\s*<\/span>/i,
+      );
+    if (!badge?.[1]) continue;
+    const rank = Number(badge[1]);
+    if (!Number.isInteger(rank) || rank < 1 || rank > 5) continue;
+    for (const player of chunk.matchAll(/href="\/p\/(\d+)"/g)) {
+      const publicId = Number(player[1]);
+      if (Number.isFinite(publicId)) {
+        out.set(publicId, rank);
+      }
+    }
+  }
+  return out;
+}
+
+export function applySectionRanksToMembers(
+  members: LastRankAllianceMember[],
+  sectionRanks: Map<number, number>,
+): LastRankAllianceMember[] {
+  if (sectionRanks.size === 0) return members;
+  return members.map((member) => {
+    const fromSection = sectionRanks.get(member.publicId);
+    if (fromSection == null) return member;
+    return { ...member, allianceRank: fromSection };
+  });
+}
+
 export function parseLastRankAllianceHtml(
   html: string,
   lastrankAllianceId: string,
@@ -189,9 +258,10 @@ export function parseLastRankAllianceHtml(
       const tree = decodeNextFlightPush(rawArgs);
       const members = walkForMembers(tree);
       if (members && members.length > 0) {
+        const sectionRanks = parseLastRankSectionRanks(html);
         return {
           lastrankAllianceId: lastrankAllianceId.trim().toLowerCase(),
-          members,
+          members: applySectionRanksToMembers(members, sectionRanks),
         };
       }
     } catch {
@@ -212,51 +282,324 @@ export function formatLastRankPowerLevel(power: number | null): string | null {
   return `${rounded}M`;
 }
 
+function uniqueByCommander(
+  rows: LastRankHqRosterRow[],
+): LastRankHqRosterRow[] {
+  return [...new Map(rows.map((row) => [row.commanderId, row])).values()];
+}
+
+function exactHits(
+  canon: string,
+  hqRows: LastRankHqRosterRow[],
+  claimed: Set<string>,
+  field: "currentNames" | "previousNames",
+): LastRankHqRosterRow[] {
+  const key = normalizeCommanderName(canon);
+  if (!key) return [];
+  const hits: LastRankHqRosterRow[] = [];
+  for (const hq of hqRows) {
+    if (claimed.has(hq.commanderId)) continue;
+    for (const name of hq[field]) {
+      if (normalizeCommanderName(name) === key) {
+        hits.push(hq);
+        break;
+      }
+    }
+  }
+  return uniqueByCommander(hits);
+}
+
+function fuzzyHits(
+  canon: string,
+  hqRows: LastRankHqRosterRow[],
+  claimed: Set<string>,
+  field: "currentNames" | "previousNames",
+  minScore: number,
+): Array<{ hq: LastRankHqRosterRow; score: number; matchedName: string }> {
+  const scored: Array<{
+    hq: LastRankHqRosterRow;
+    score: number;
+    matchedName: string;
+  }> = [];
+  for (const hq of hqRows) {
+    if (claimed.has(hq.commanderId)) continue;
+    let bestScore = 0;
+    let bestName = "";
+    for (const name of hq[field]) {
+      const score = stringSimilarity(canon, name);
+      if (score > bestScore) {
+        bestScore = score;
+        bestName = name;
+      }
+    }
+    if (bestScore >= minScore && bestName) {
+      scored.push({ hq, score: bestScore, matchedName: bestName });
+    }
+  }
+  return scored;
+}
+
+function buildSuggestions(
+  canon: string,
+  hqRows: LastRankHqRosterRow[],
+  claimed: Set<string>,
+  limit = 5,
+): LastRankUnmatchedRow["suggestions"] {
+  const scored: LastRankUnmatchedRow["suggestions"] = [];
+  for (const hq of hqRows) {
+    if (claimed.has(hq.commanderId)) continue;
+    const names = [...hq.currentNames, ...hq.previousNames];
+    let bestScore = 0;
+    let bestName = hq.currentNames[0] ?? hq.previousNames[0] ?? "";
+    for (const name of names) {
+      const score = stringSimilarity(canon, name);
+      if (score > bestScore) {
+        bestScore = score;
+        bestName = name;
+      }
+    }
+    if (bestName) {
+      scored.push({
+        commanderId: hq.commanderId,
+        name: bestName,
+        score: bestScore,
+      });
+    }
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, limit);
+}
+
+/**
+ * Cascading match with LastRank name as canon:
+ * 1. exact current names
+ * 2. exact previous names
+ * 3. fuzzy current names
+ * 4. fuzzy previous names
+ *
+ * Does not prompt — interactive resolution is a separate pass.
+ */
 export function matchLastRankMembersToHq(
   lastRankMembers: LastRankAllianceMember[],
   hqRows: LastRankHqRosterRow[],
+  options?: { fuzzyMinScore?: number },
 ): LastRankMatchResult {
-  const byName = new Map<string, LastRankHqRosterRow[]>();
-  for (const hq of hqRows) {
-    const seen = new Set<string>();
-    for (const name of hq.names) {
-      const key = normalizeCommanderName(name);
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      const list = byName.get(key) ?? [];
-      list.push(hq);
-      byName.set(key, list);
-    }
-  }
-
-  const matchedHqIds = new Set<string>();
+  const fuzzyMin = options?.fuzzyMinScore ?? LASTRANK_FUZZY_MATCH_MIN;
+  const claimed = new Set<string>();
   const matched: LastRankMatchedRow[] = [];
   const unmatched: LastRankUnmatchedRow[] = [];
 
   for (const lastRank of lastRankMembers) {
-    const key = normalizeCommanderName(lastRank.name);
-    const hits = byName.get(key) ?? [];
-    const unique = [
-      ...new Map(hits.map((row) => [row.commanderId, row])).values(),
-    ];
-    if (unique.length === 1) {
-      matchedHqIds.add(unique[0].commanderId);
-      matched.push({ status: "matched", lastRank, hq: unique[0] });
-    } else if (unique.length === 0) {
-      unmatched.push({ status: "unmatched", lastRank, hqCommanderIds: [] });
-    } else {
+    const exactCurrent = exactHits(
+      lastRank.name,
+      hqRows,
+      claimed,
+      "currentNames",
+    );
+    if (exactCurrent.length === 1) {
+      claimed.add(exactCurrent[0].commanderId);
+      matched.push({
+        status: "matched",
+        lastRank,
+        hq: exactCurrent[0],
+        matchMethod: "exact_current",
+        fuzzyScore: null,
+      });
+      continue;
+    }
+    if (exactCurrent.length > 1) {
       unmatched.push({
         status: "ambiguous",
         lastRank,
-        hqCommanderIds: unique.map((row) => row.commanderId),
+        hqCommanderIds: exactCurrent.map((row) => row.commanderId),
+        suggestions: buildSuggestions(lastRank.name, hqRows, claimed),
       });
+      continue;
     }
+
+    const exactPrevious = exactHits(
+      lastRank.name,
+      hqRows,
+      claimed,
+      "previousNames",
+    );
+    if (exactPrevious.length === 1) {
+      claimed.add(exactPrevious[0].commanderId);
+      matched.push({
+        status: "matched",
+        lastRank,
+        hq: exactPrevious[0],
+        matchMethod: "exact_previous",
+        fuzzyScore: null,
+      });
+      continue;
+    }
+    if (exactPrevious.length > 1) {
+      unmatched.push({
+        status: "ambiguous",
+        lastRank,
+        hqCommanderIds: exactPrevious.map((row) => row.commanderId),
+        suggestions: buildSuggestions(lastRank.name, hqRows, claimed),
+      });
+      continue;
+    }
+
+    const fuzzyCurrent = fuzzyHits(
+      lastRank.name,
+      hqRows,
+      claimed,
+      "currentNames",
+      fuzzyMin,
+    );
+    if (fuzzyCurrent.length === 1) {
+      claimed.add(fuzzyCurrent[0].hq.commanderId);
+      matched.push({
+        status: "matched",
+        lastRank,
+        hq: fuzzyCurrent[0].hq,
+        matchMethod: "fuzzy_current",
+        fuzzyScore: fuzzyCurrent[0].score,
+      });
+      continue;
+    }
+    if (fuzzyCurrent.length > 1) {
+      unmatched.push({
+        status: "ambiguous",
+        lastRank,
+        hqCommanderIds: fuzzyCurrent.map((row) => row.hq.commanderId),
+        suggestions: buildSuggestions(lastRank.name, hqRows, claimed),
+      });
+      continue;
+    }
+
+    const fuzzyPrevious = fuzzyHits(
+      lastRank.name,
+      hqRows,
+      claimed,
+      "previousNames",
+      fuzzyMin,
+    );
+    if (fuzzyPrevious.length === 1) {
+      claimed.add(fuzzyPrevious[0].hq.commanderId);
+      matched.push({
+        status: "matched",
+        lastRank,
+        hq: fuzzyPrevious[0].hq,
+        matchMethod: "fuzzy_previous",
+        fuzzyScore: fuzzyPrevious[0].score,
+      });
+      continue;
+    }
+    if (fuzzyPrevious.length > 1) {
+      unmatched.push({
+        status: "ambiguous",
+        lastRank,
+        hqCommanderIds: fuzzyPrevious.map((row) => row.hq.commanderId),
+        suggestions: buildSuggestions(lastRank.name, hqRows, claimed),
+      });
+      continue;
+    }
+
+    unmatched.push({
+      status: "unmatched",
+      lastRank,
+      hqCommanderIds: [],
+      suggestions: buildSuggestions(lastRank.name, hqRows, claimed),
+    });
   }
 
   return {
     matched,
     unmatched,
-    unmatchedHq: hqRows.filter((row) => !matchedHqIds.has(row.commanderId)),
+    unmatchedHq: hqRows.filter((row) => !claimed.has(row.commanderId)),
+  };
+}
+
+/**
+ * Resolve an operator-typed HQ name against remaining roster rows.
+ * Prefers exact current, then exact previous (same uniqueness rules).
+ */
+export function resolveHqNameToRosterRow(
+  hqName: string,
+  hqRows: LastRankHqRosterRow[],
+  claimedCommanderIds: Set<string>,
+):
+  | { ok: true; hq: LastRankHqRosterRow }
+  | { ok: false; reason: "empty" | "unmatched" | "ambiguous"; hqCommanderIds: string[] } {
+  const trimmed = hqName.trim();
+  if (!trimmed) {
+    return { ok: false, reason: "empty", hqCommanderIds: [] };
+  }
+  const current = exactHits(trimmed, hqRows, claimedCommanderIds, "currentNames");
+  if (current.length === 1) return { ok: true, hq: current[0] };
+  if (current.length > 1) {
+    return {
+      ok: false,
+      reason: "ambiguous",
+      hqCommanderIds: current.map((row) => row.commanderId),
+    };
+  }
+  const previous = exactHits(
+    trimmed,
+    hqRows,
+    claimedCommanderIds,
+    "previousNames",
+  );
+  if (previous.length === 1) return { ok: true, hq: previous[0] };
+  if (previous.length > 1) {
+    return {
+      ok: false,
+      reason: "ambiguous",
+      hqCommanderIds: previous.map((row) => row.commanderId),
+    };
+  }
+  return { ok: false, reason: "unmatched", hqCommanderIds: [] };
+}
+
+export function applyInteractiveMatches(
+  match: LastRankMatchResult,
+  resolutions: Array<{
+    lastRankPublicId: number;
+    hq: LastRankHqRosterRow;
+  }>,
+): LastRankMatchResult {
+  const byPublicId = new Map(
+    resolutions.map((row) => [row.lastRankPublicId, row.hq]),
+  );
+  const claimed = new Set(match.matched.map((row) => row.hq.commanderId));
+  const matched = [...match.matched];
+  const stillUnmatched: LastRankUnmatchedRow[] = [];
+
+  for (const row of match.unmatched) {
+    const hq = byPublicId.get(row.lastRank.publicId);
+    if (!hq || claimed.has(hq.commanderId)) {
+      stillUnmatched.push(row);
+      continue;
+    }
+    claimed.add(hq.commanderId);
+    matched.push({
+      status: "matched",
+      lastRank: row.lastRank,
+      hq,
+      matchMethod: "interactive",
+      fuzzyScore: null,
+    });
+  }
+
+  const matchedIds = new Set(matched.map((row) => row.hq.commanderId));
+  const allHq = [
+    ...match.matched.map((row) => row.hq),
+    ...match.unmatchedHq,
+  ];
+  const byId = new Map(allHq.map((row) => [row.commanderId, row]));
+  for (const row of resolutions) {
+    byId.set(row.hq.commanderId, row.hq);
+  }
+
+  return {
+    matched,
+    unmatched: stillUnmatched,
+    unmatchedHq: [...byId.values()].filter((row) => !matchedIds.has(row.commanderId)),
   };
 }
 

@@ -862,6 +862,13 @@
       "when": 1790553600000,
       "tag": "0125_scoreboard_member_offers",
       "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1790640000000,
+      "tag": "0126_commanders_canonical_name",
+      "breakpoints": true
     }
   ]
 }

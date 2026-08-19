@@ -5,19 +5,24 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { fetchLastRankAlliancePage } from "@/lib/lastrank/fetch-alliance.server";
 import {
+  applyInteractiveMatches,
   formatLastRankPowerLevel,
   matchLastRankMembersToHq,
+  resolveHqNameToRosterRow,
   type LastRankHqRosterRow,
   type LastRankMatchResult,
+  type LastRankUnmatchedRow,
 } from "@/lib/lastrank/alliance-page.shared";
 import { decideInboundStatApply } from "@/lib/hq-ashed-stat-sync/policy";
 import {
   loadLatestNonDiscardedEventMeta,
   pendingUnsyncedFromMeta,
 } from "@/lib/hq-ashed-stat-sync/inbound";
+import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import { upsertCommanderThp } from "@/lib/thp/repository";
 import { upsertCommanderLevel } from "@/lib/member-level/repository";
 import { normalizeMemberHqLevel } from "@/lib/members/member-level.shared";
+import { namesMatch } from "@/lib/vr/link-helpers";
 
 export type LastRankSyncApplyCounts = {
   thpApplied: number;
@@ -27,7 +32,19 @@ export type LastRankSyncApplyCounts = {
   levelSkipped: number;
   levelConflict: number;
   powerUpdated: number;
+  canonicalWritten: number;
+  canonicalSkippedNoUid: number;
+  canonicalSkippedMismatch: number;
+  canonicalSkippedLookupFailed: number;
+  canonicalUnchanged: number;
 };
+
+export type LastRankInteractivePrompt = (ctx: {
+  lastRankName: string;
+  publicId: number;
+  suggestions: LastRankUnmatchedRow["suggestions"];
+  remainingHqNames: string[];
+}) => Promise<string | null>;
 
 export type LastRankAllianceSyncResult = {
   tag: string;
@@ -38,16 +55,19 @@ export type LastRankAllianceSyncResult = {
   apply: LastRankSyncApplyCounts | null;
 };
 
-function namesForMember(row: {
+function previousNamesFromJson(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((name): name is string => typeof name === "string");
+}
+
+function buildCurrentNames(row: {
   currentName: string;
-  previousNamesJson: unknown;
   primaryName: string | null;
+  canonicalName: string | null;
 }): string[] {
-  const previous = Array.isArray(row.previousNamesJson)
-    ? row.previousNamesJson.filter((name): name is string => typeof name === "string")
-    : [];
-  const names = [row.currentName, ...previous];
+  const names: string[] = [row.currentName];
   if (row.primaryName) names.push(row.primaryName);
+  if (row.canonicalName) names.push(row.canonicalName);
   return names;
 }
 
@@ -63,6 +83,8 @@ export async function loadHqRosterForLastRankMatch(
       previousNamesJson: schema.allianceMembers.previousNamesJson,
       status: schema.allianceMembers.status,
       primaryName: schema.commanders.primaryName,
+      gameUid: schema.commanders.gameUid,
+      canonicalName: schema.commanders.canonicalName,
       hqThp: schema.commanders.currentTotalHeroPower,
       hqLevel: schema.commanders.memberLevel,
       hqPowerLevel: schema.commanders.powerLevel,
@@ -95,11 +117,14 @@ export async function loadHqRosterForLastRankMatch(
   return rows.map((row) => ({
     commanderId: row.commanderId,
     ashedMemberId: row.ashedMemberId,
-    names: namesForMember(row),
+    gameUid: row.gameUid,
+    currentNames: buildCurrentNames(row),
+    previousNames: previousNamesFromJson(row.previousNamesJson),
     hqThp:
       row.hqThp != null && Number.isFinite(row.hqThp) ? Math.round(row.hqThp) : null,
     hqLevel: row.hqLevel,
     hqPowerLevel: row.hqPowerLevel,
+    existingCanonicalName: row.canonicalName,
   }));
 }
 
@@ -137,6 +162,38 @@ async function decideStat(
   });
 }
 
+async function writeCanonicalIfLastWarConfirms(
+  counts: LastRankSyncApplyCounts,
+  commanderId: string,
+  gameUid: string | null,
+  existingCanonicalName: string | null,
+  lastRankCanon: string,
+): Promise<void> {
+  if (!gameUid?.trim()) {
+    counts.canonicalSkippedNoUid += 1;
+    return;
+  }
+  const lookup = await lookupPlayerByUid(gameUid);
+  if (!lookup.ok) {
+    counts.canonicalSkippedLookupFailed += 1;
+    return;
+  }
+  if (!namesMatch(lastRankCanon, lookup.gameUserName)) {
+    counts.canonicalSkippedMismatch += 1;
+    return;
+  }
+  if (existingCanonicalName === lastRankCanon) {
+    counts.canonicalUnchanged += 1;
+    return;
+  }
+  const db = getDb();
+  await db
+    .update(schema.commanders)
+    .set({ canonicalName: lastRankCanon, updatedAt: new Date() })
+    .where(eq(schema.commanders.id, commanderId));
+  counts.canonicalWritten += 1;
+}
+
 async function applyMatches(
   hqAllianceId: string,
   match: LastRankMatchResult,
@@ -149,10 +206,23 @@ async function applyMatches(
     levelSkipped: 0,
     levelConflict: 0,
     powerUpdated: 0,
+    canonicalWritten: 0,
+    canonicalSkippedNoUid: 0,
+    canonicalSkippedMismatch: 0,
+    canonicalSkippedLookupFailed: 0,
+    canonicalUnchanged: 0,
   };
   const db = getDb();
 
   for (const row of match.matched) {
+    await writeCanonicalIfLastWarConfirms(
+      counts,
+      row.hq.commanderId,
+      row.hq.gameUid,
+      row.hq.existingCanonicalName,
+      row.lastRank.name,
+    );
+
     const thp = row.lastRank.heroPower;
     if (thp != null && thp > 0) {
       const decision = await decideStat(
@@ -223,15 +293,66 @@ async function applyMatches(
   return counts;
 }
 
+async function runInteractiveResolutions(
+  match: LastRankMatchResult,
+  prompt: LastRankInteractivePrompt,
+): Promise<LastRankMatchResult> {
+  const claimed = new Set(match.matched.map((row) => row.hq.commanderId));
+  const allHq = [
+    ...match.matched.map((row) => row.hq),
+    ...match.unmatchedHq,
+  ];
+  const resolutions: Array<{
+    lastRankPublicId: number;
+    hq: LastRankHqRosterRow;
+  }> = [];
+
+  for (const row of match.unmatched) {
+    if (row.status !== "unmatched" && row.status !== "ambiguous") continue;
+
+    const remainingHqNames = allHq
+      .filter((hq) => !claimed.has(hq.commanderId))
+      .map((hq) => hq.currentNames[0] ?? hq.previousNames[0] ?? hq.commanderId);
+
+    const answer = await prompt({
+      lastRankName: row.lastRank.name,
+      publicId: row.lastRank.publicId,
+      suggestions: row.suggestions,
+      remainingHqNames,
+    });
+    if (answer == null || !answer.trim()) continue;
+
+    const resolved = resolveHqNameToRosterRow(answer, allHq, claimed);
+    if (!resolved.ok) {
+      console.error(
+        `Could not map "${row.lastRank.name}" → "${answer}" (${resolved.reason})`,
+      );
+      continue;
+    }
+    claimed.add(resolved.hq.commanderId);
+    resolutions.push({
+      lastRankPublicId: row.lastRank.publicId,
+      hq: resolved.hq,
+    });
+  }
+
+  if (resolutions.length === 0) return match;
+  return applyInteractiveMatches(match, resolutions);
+}
+
 export async function syncLastRankAlliance(input: {
   tag: string;
   lastrankAllianceId: string;
   apply: boolean;
+  interactivePrompt?: LastRankInteractivePrompt;
 }): Promise<LastRankAllianceSyncResult> {
   const hqAllianceId = await resolveAllianceIdByTag(input.tag);
   const page = await fetchLastRankAlliancePage(input.lastrankAllianceId);
   const hqRows = await loadHqRosterForLastRankMatch(hqAllianceId);
-  const match = matchLastRankMembersToHq(page.members, hqRows);
+  let match = matchLastRankMembersToHq(page.members, hqRows);
+  if (input.interactivePrompt && match.unmatched.length > 0) {
+    match = await runInteractiveResolutions(match, input.interactivePrompt);
+  }
   const apply = input.apply ? await applyMatches(hqAllianceId, match) : null;
   return {
     tag: input.tag,
