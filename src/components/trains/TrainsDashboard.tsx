@@ -243,11 +243,12 @@ export function TrainsDashboard({ initial }: Props) {
     useState<RollResult | null>(null);
   const [selectedDate, setSelectedDate] = useState(initial.today);
   const selectedDateRef = useRef(selectedDate);
-  useEffect(() => {
-    selectedDateRef.current = selectedDate;
+  const selectDate = useCallback((date: string) => {
+    selectedDateRef.current = date;
     setUnlockRequestCopied(false);
     setUnlockConfirm(false);
-  }, [selectedDate]);
+    setSelectedDate(date);
+  }, []);
 
   const [scheduleView, setScheduleView] = useState<ScheduleView>("week");
   const [viewedWeek, setViewedWeek] = useState<WeekSchedulePagePayload>({
@@ -577,13 +578,13 @@ export function TrainsDashboard({ initial }: Props) {
 
   const goToToday = useCallback(() => {
     const today = data.today;
-    setSelectedDate(today);
+    selectDate(today);
     if (scheduleView === "month") {
       void fetchMonth(getMonthKey(today));
       return;
     }
     void fetchWeek(getTrainWeekStart(today, trainWeekConfig));
-  }, [data.today, fetchMonth, fetchWeek, scheduleView, trainWeekConfig]);
+  }, [data.today, fetchMonth, fetchWeek, scheduleView, selectDate, trainWeekConfig]);
 
   const isOnTodayView = useMemo(() => {
     if (selectedDate !== data.today) return false;
@@ -1437,7 +1438,15 @@ export function TrainsDashboard({ initial }: Props) {
         },
       );
     },
-    [data.canUnlockConductor, data.weekRecords, t, viewedMonth.monthRecords, viewedWeek.weekRecords, withOptimisticMutation],
+    [
+      data.canUnlockConductor,
+      data.weekRecords,
+      setPendingPaintRuleGate,
+      t,
+      viewedMonth.monthRecords,
+      viewedWeek.weekRecords,
+      withOptimisticMutation,
+    ],
   );
 
   const queueOrExecutePaint = useCallback(
@@ -1510,6 +1519,7 @@ export function TrainsDashboard({ initial }: Props) {
       data.roster,
       data.weekRecords,
       executePaintDates,
+      setPendingPaintRuleGate,
       trainWeekConfig,
       viewedMonth.dayConfigs,
       viewedMonth.monthRecords,
@@ -2624,7 +2634,7 @@ export function TrainsDashboard({ initial }: Props) {
               draftScheduleAriaLabel={t("previewDraftAriaLabel")}
               trainWeekConfig={trainWeekConfig}
               externalWeek={viewedWeek}
-              onSelectDate={setSelectedDate}
+              onSelectDate={selectDate}
               onWeekChange={handleWeekChange}
               onWeekLoadError={handleWeekLoadError}
             />
@@ -2651,7 +2661,7 @@ export function TrainsDashboard({ initial }: Props) {
                 draftScheduleAriaLabel: t("previewDraftAriaLabel"),
               }}
               externalMonth={viewedMonth}
-              onSelectDate={setSelectedDate}
+              onSelectDate={selectDate}
               onMonthChange={handleMonthChange}
               onMonthLoadError={() => setError(t("monthLoadFailed"))}
               onPaintDates={paintDates}
@@ -2688,17 +2698,17 @@ export function TrainsDashboard({ initial }: Props) {
                   monthSpinFlowRef.current?.spinDates(eligible);
                 },
                 onManualPick: (date) => {
-                  setSelectedDate(date);
+                  selectDate(date);
                   setPickRole("conductor");
                   setPickOpen(true);
                 },
                 onManualPickVip: (date) => {
-                  setSelectedDate(date);
+                  selectDate(date);
                   setPickRole("vip");
                   setPickOpen(true);
                 },
                 onLockUnlock: (date, isLocked) => {
-                  setSelectedDate(date);
+                  selectDate(date);
                   if (!isLocked) {
                     void lockConductor(date);
                     return;
@@ -2721,7 +2731,7 @@ export function TrainsDashboard({ initial }: Props) {
                   setUnlockRequestCopied(true);
                 },
                 onClearPending: (date) => {
-                  setSelectedDate(date);
+                  selectDate(date);
                   void clearPendingConductor(date);
                 },
                 onShareImage: () => void handleShareExportImage(),
