@@ -106,6 +106,7 @@ import {
   resolveMemberPoolAllianceRank,
   getMemberRankAsOf,
   isMemberEligibleForPool,
+  resolveMemberAllianceRankAsOf,
 } from "@/lib/trains/rank-history";
 import {
   conductorMechanismPoolType,
@@ -128,8 +129,10 @@ import {
   upsertConductorDraft,
   upsertDayConfigOverride,
   upsertWeekSchedule,
+  restampConductorMechanisms,
 } from "@/lib/trains/repository";
 import { latestLockedDateInWeek } from "@/lib/trains/week-template-change.shared";
+import { shouldKeepAssignedConductorOnPaint } from "@/lib/trains/paint-rule-conductor-gate.shared";
 
 async function resolveTrainSeasonKey(allianceId: string): Promise<string> {
   const effective = await getEffectiveSeasonForAlliance(allianceId);
@@ -142,6 +145,19 @@ export class TrainPastDateError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "TrainPastDateError";
+  }
+}
+
+export class LockedDayPaintBlockedError extends Error {
+  readonly status = 409 as const;
+  readonly code = "locked_day_paint_blocked" as const;
+
+  constructor(
+    readonly date: string,
+    readonly conductorName: string | null,
+  ) {
+    super(`Cannot repaint locked day ${date}.`);
+    this.name = "LockedDayPaintBlockedError";
   }
 }
 
@@ -176,10 +192,26 @@ export function assertTemplateChangeAllowed(
 
 export function trainActionErrorResponse(error: unknown): {
   status: number;
-  body: { error: string };
+  body: {
+    error: string;
+    code?: string;
+    date?: string;
+    conductorName?: string | null;
+  };
 } {
   if (error instanceof TrainPastDateError) {
     return { status: error.status, body: { error: error.message } };
+  }
+  if (error instanceof LockedDayPaintBlockedError) {
+    return {
+      status: error.status,
+      body: {
+        error: error.message,
+        code: error.code,
+        date: error.date,
+        conductorName: error.conductorName,
+      },
+    };
   }
 
   const message =
@@ -942,10 +974,6 @@ export async function applyTemplateToDates(
 
   for (const date of uniqueDates) {
     assertTemplateChangeAllowed(date, isPlatformAdmin, today);
-    const record = await getConductorRecord(allianceId, date, seasonKey);
-    if (record?.lockedAt) {
-      throw new Error(`Cannot repaint locked day ${date}.`);
-    }
   }
 
   const weekStarts = [
@@ -963,6 +991,10 @@ export async function applyTemplateToDates(
     updateWeekTemplate: options?.updateWeekTemplate,
     dateCount: uniqueDates.length,
   });
+  const activeMembers = await loadActiveAlliancePoolMembers({ allianceId });
+  const activeMemberIds = new Set(
+    activeMembers.map((member) => member.ashedMemberId),
+  );
 
   for (const date of uniqueDates) {
     const weekStart = getTrainWeekStart(date, trainWeekConfig);
@@ -1020,13 +1052,43 @@ export async function applyTemplateToDates(
 
     if (conductorDrawChanged(previousDraw, nextDraw)) {
       const record = await getConductorRecord(allianceId, date, seasonKey);
-      if (record && !record.lockedAt) {
-        if (record.conductorMemberId) {
+      if (record?.conductorMemberId) {
+        const resolved = await resolveMemberAllianceRankAsOf(
+          allianceId,
+          record.conductorMemberId,
+          date,
+        );
+        const keep = shouldKeepAssignedConductorOnPaint({
+          drawChanged: true,
+          memberId: record.conductorMemberId,
+          onRoster: activeMemberIds.has(record.conductorMemberId),
+          allianceRank: resolved.rank,
+          nextMechanism: paintedConfig.conductorMechanism,
+          nextPaintTemplate: segmentPaint,
+          date,
+          nextConductorConfig: paintedConfig.conductorConfig,
+        });
+        if (keep) {
+          await restampConductorMechanisms({
+            allianceId,
+            date,
+            seasonKey,
+            conductorMechanism: paintedConfig.conductorMechanism,
+            vipMechanism: paintedConfig.vipMechanism ?? null,
+          });
+        } else if (record.lockedAt) {
+          throw new LockedDayPaintBlockedError(
+            date,
+            record.conductorMemberName,
+          );
+        } else {
           await clearConductorAssignment(allianceId, date, seasonKey);
+          if (record.vipMemberId) {
+            await clearVipAssignment(allianceId, date, seasonKey);
+          }
         }
-        if (record.vipMemberId) {
-          await clearVipAssignment(allianceId, date, seasonKey);
-        }
+      } else if (record && !record.lockedAt && record.vipMemberId) {
+        await clearVipAssignment(allianceId, date, seasonKey);
       }
     }
   }
@@ -1555,6 +1617,7 @@ export type ConductorHistoryImportRowResult = {
 export async function importConductorHistory(input: {
   allianceId: string;
   rows: ConductorHistoryImportRowInput[];
+  lockedByHqUserId?: string | null;
 }): Promise<{
   imported: number;
   skipped: number;
@@ -1644,7 +1707,11 @@ export async function importConductorHistory(input: {
         conductorMemberName: memberName,
         conductorRankEventId: rankEvent?.id ?? null,
       });
-      await lockConductorRecord(draft.id, input.allianceId);
+      await lockConductorRecord(
+        draft.id,
+        input.allianceId,
+        input.lockedByHqUserId,
+      );
       imported += 1;
       results.push({ date, status: "imported" });
     } catch (error) {
@@ -1689,6 +1756,7 @@ export async function listConductorSnapshotsForDateRange(input: {
 export async function lockConductorsForDates(input: {
   allianceId: string;
   dates: string[];
+  lockedByHqUserId?: string | null;
 }): Promise<{
   records: Awaited<ReturnType<typeof lockConductorRecord>>[];
   poolsRefreshed: PoolRefreshedInfo[];
@@ -1710,7 +1778,11 @@ export async function lockConductorsForDates(input: {
       throw new Error(`Select a conductor for ${date} before locking.`);
     }
 
-    const locked = await lockConductorRecord(record.id, input.allianceId);
+    const locked = await lockConductorRecord(
+      record.id,
+      input.allianceId,
+      input.lockedByHqUserId,
+    );
     records.push(locked);
     await syncDepletingPoolSelectionForConductorDay({
       allianceId: input.allianceId,

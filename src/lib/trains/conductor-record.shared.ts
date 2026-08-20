@@ -9,6 +9,8 @@ export type WeekConductorRecordSummary = {
   vipMechanism: string | null;
   guardianIsVip: boolean;
   lockedAt: string | null;
+  /** True when this session may unlock this locked day right now. */
+  canUnlock?: boolean;
   substituteForMemberId: string | null;
   substituteForMemberName: string | null;
 };

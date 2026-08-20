@@ -73,6 +73,7 @@ describe("unlockConductorRecord", () => {
     expect(mocks.updateSet).toHaveBeenCalledWith(
       expect.objectContaining({
         lockedAt: null,
+        lockedByHqUserId: null,
         discordDepartingSoonAt: null,
       }),
     );
