@@ -15,6 +15,11 @@ import { resolveCliffPoints } from "@/lib/trains/train-price-is-right-tickets.sh
 import { countAllianceVrReporters } from "@/lib/trains/vr-reporter-count.server";
 import { loadSession } from "@/lib/session";
 import { sessionHasPermission, sessionIsPlatformMaintainer } from "@/lib/rbac/context";
+import { canUnlockLockedConductor } from "@/lib/trains/train-ownership.shared";
+import {
+  resolveTrainActorHqUserId,
+  sessionCanUnlimitedUnlockConductor,
+} from "@/lib/trains/train-ownership.server";
 import {
   getConductorStats,
   getWeekSchedule,
@@ -92,10 +97,17 @@ function mapConductorRecord(
     vipMechanism: string | null;
     guardianIsVip?: number | null;
     lockedAt: Date | null;
+    lockedByHqUserId?: string | null;
     substituteForMemberId?: string | null;
     substituteForMemberName?: string | null;
   },
+  access: {
+    today: string;
+    actorHqUserId: string | null;
+    unlimitedUnlock: boolean;
+  },
 ): WeekConductorRecordSummary {
+  const lockedAt = row.lockedAt?.toISOString() ?? null;
   return {
     id: row.id,
     date: row.date,
@@ -106,7 +118,15 @@ function mapConductorRecord(
     conductorMechanism: row.conductorMechanism,
     vipMechanism: row.vipMechanism,
     guardianIsVip: row.guardianIsVip === 1,
-    lockedAt: row.lockedAt?.toISOString() ?? null,
+    lockedAt,
+    canUnlock: canUnlockLockedConductor({
+      unlimitedUnlock: access.unlimitedUnlock,
+      actorHqUserId: access.actorHqUserId,
+      lockedByHqUserId: row.lockedByHqUserId,
+      trainDate: row.date,
+      today: access.today,
+      lockedAt,
+    }),
     substituteForMemberId: row.substituteForMemberId ?? null,
     substituteForMemberName: row.substituteForMemberName ?? null,
   };
@@ -154,7 +174,10 @@ export type TrainsDashboardPayload = {
   canManageTrains: boolean;
   /** Pre-production only: train managers may clear a persisted week schedule. */
   canClearWeekSchedule: boolean;
+  /** Alliance owner or platform maintainer — unlock any locked conductor. */
   canUnlockConductor: boolean;
+  /** Platform maintainer — paint / change templates on past days. */
+  canPaintPastDays: boolean;
   trainDiscordAnnouncementsEnabled: boolean;
   trainDiscordConfigured: boolean;
   activeMemberCount: number;
@@ -258,6 +281,18 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   priceIsRightCliffPoints: null,
 };
 
+async function loadConductorRecordAccess(sessionId: string, allianceId: string) {
+  const [actorHqUserId, unlimitedUnlock] = await Promise.all([
+    resolveTrainActorHqUserId(sessionId),
+    sessionCanUnlimitedUnlockConductor(sessionId, allianceId),
+  ]);
+  return {
+    today: getServerCalendarDate(),
+    actorHqUserId,
+    unlimitedUnlock,
+  };
+}
+
 async function loadTrainWeekConfigForAlliance(
   allianceId: string,
 ): Promise<AllianceTrainWeekConfig> {
@@ -279,7 +314,17 @@ export async function loadTrainsDashboard(
   const canManageTrains = await sessionHasPermission(sessionId, "trains:write");
   const canClearWeekSchedule =
     canManageTrains && isDevOrPreviewEnvironment();
-  const canUnlockConductor = await sessionIsPlatformMaintainer(sessionId);
+  const canPaintPastDays = await sessionIsPlatformMaintainer(sessionId);
+  const actorHqUserId = await resolveTrainActorHqUserId(sessionId);
+  const canUnlockConductor = await sessionCanUnlimitedUnlockConductor(
+    sessionId,
+    allianceId,
+  );
+  const recordAccess = {
+    today,
+    actorHqUserId,
+    unlimitedUnlock: canUnlockConductor,
+  };
   const trainDiscordSettings = allianceId
     ? await loadTrainDiscordSettings(allianceId, canManageTrains)
     : {
@@ -314,6 +359,7 @@ export async function loadTrainsDashboard(
       canManageTrains,
       canClearWeekSchedule,
       canUnlockConductor,
+      canPaintPastDays,
       ...trainDiscordFields,
       activeMemberCount: 0,
       ...EMPTY_DASHBOARD_FIELDS,
@@ -352,7 +398,9 @@ export async function loadTrainsDashboard(
     effectiveSeason.seasonKey,
   );
 
-  const mapRecord = mapConductorRecord;
+  const mapRecord = (
+    row: Parameters<typeof mapConductorRecord>[0],
+  ) => mapConductorRecord(row, recordAccess);
 
   const weekRecords = weekRecordRows.map(mapRecord);
   const record = weekRecords.find((r) => r.date === today) ?? null;
@@ -425,6 +473,7 @@ export async function loadTrainsDashboard(
     canManageTrains,
     canClearWeekSchedule,
     canUnlockConductor,
+    canPaintPastDays,
     ...trainDiscordFields,
     activeMemberCount,
     operatingMode,
@@ -507,13 +556,16 @@ export async function loadWeekSchedulePage(
     weekEnd,
     effectiveSeason.seasonKey,
   );
+  const recordAccess = await loadConductorRecordAccess(sessionId, allianceId);
 
   return {
     weekStart,
     weekEnd,
     templateType,
     dayConfigs,
-    weekRecords: weekRecordRows.map(mapConductorRecord),
+    weekRecords: weekRecordRows.map((row) =>
+      mapConductorRecord(row, recordAccess),
+    ),
   };
 }
 
@@ -580,13 +632,16 @@ export async function loadMonthSchedulePage(
     monthEnd,
     effectiveSeason.seasonKey,
   );
+  const recordAccess = await loadConductorRecordAccess(sessionId, allianceId);
 
   return {
     monthKey,
     monthStart,
     monthEnd,
     dayConfigs,
-    monthRecords: recordRows.map(mapConductorRecord),
+    monthRecords: recordRows.map((row) =>
+      mapConductorRecord(row, recordAccess),
+    ),
   };
 }
 

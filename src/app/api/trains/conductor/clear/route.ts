@@ -4,20 +4,12 @@ import { writeAuditLog } from "@/lib/bff/audit";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import {
+  clearConductorAssignment,
   getConductorRecord,
-  unlockConductorRecord,
 } from "@/lib/trains/repository";
 import { getServerCalendarDate } from "@/lib/trains/service";
 import { requireApiSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
-import {
-  canUnlockLockedConductor,
-  TRAIN_OWNERSHIP_REQUIRED_CODE,
-} from "@/lib/trains/train-ownership.shared";
-import {
-  resolveTrainActorHqUserId,
-  sessionCanUnlimitedUnlockConductor,
-} from "@/lib/trains/train-ownership.server";
 
 export const dynamic = "force-dynamic";
 
@@ -47,61 +39,50 @@ export async function POST(request: Request) {
         { status: 404 },
       );
     }
-
-    const actorHqUserId = await resolveTrainActorHqUserId(session.id);
-    const unlimitedUnlock = await sessionCanUnlimitedUnlockConductor(
-      session.id,
-      ctx.allianceId,
-    );
-    if (
-      !canUnlockLockedConductor({
-        unlimitedUnlock,
-        actorHqUserId,
-        lockedByHqUserId: record.lockedByHqUserId,
-        trainDate: record.date,
-        today: getServerCalendarDate(),
-        lockedAt: record.lockedAt,
-      })
-    ) {
+    if (record.lockedAt) {
       return NextResponse.json(
-        {
-          error:
-            "Ask the alliance owner or a platform maintainer to unlock this conductor.",
-          code: TRAIN_OWNERSHIP_REQUIRED_CODE,
-          date,
-          conductorName: record.conductorMemberName,
-        },
-        { status: 403 },
+        { error: "Conductor is already locked for this day." },
+        { status: 409 },
+      );
+    }
+    if (!record.conductorMemberId) {
+      return NextResponse.json(
+        { error: "No pending conductor for this day." },
+        { status: 400 },
       );
     }
 
-    const unlocked = await unlockConductorRecord(record.id, ctx.allianceId);
+    const cleared = await clearConductorAssignment(
+      ctx.allianceId,
+      date,
+      seasonKey,
+    );
 
     await writeAuditLog({
       sessionId: session.id,
       allianceId: ctx.allianceId,
       hqUserId: session.hqUserId ?? undefined,
-      action: "trains.conductor_unlock",
+      action: "trains.conductor_clear",
       resourceType: "train_conductor_record",
       resourceId: record.id,
       resourceName: record.conductorMemberName ?? undefined,
       metadata: {
         date,
         conductorMemberId: record.conductorMemberId,
-        previousLockedAt: record.lockedAt?.toISOString() ?? null,
-        previousLockedByHqUserId: record.lockedByHqUserId,
       },
     });
 
     return NextResponse.json({
-      record: {
-        ...unlocked,
-        lockedAt: unlocked.lockedAt?.toISOString() ?? null,
-      },
+      record: cleared
+        ? {
+            ...cleared,
+            lockedAt: cleared.lockedAt?.toISOString() ?? null,
+          }
+        : null,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unlock failed.";
-    const status = message.includes("not locked") ? 409 : 400;
+    const message = error instanceof Error ? error.message : "Clear failed.";
+    const status = message.includes("already locked") ? 409 : 400;
     return NextResponse.json({ error: message }, { status });
   }
 }

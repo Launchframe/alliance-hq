@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  applyOptimisticClearPendingConductor,
   applyOptimisticConductorSwap,
   applyOptimisticLock,
   applyOptimisticPaint,
@@ -120,6 +121,62 @@ describe("optimistic dashboard state", () => {
     expect(painted.data.weekRecords[0]?.conductorMemberId).toBeNull();
     expect(painted.viewedWeek.weekRecords[0]?.conductorMemberId).toBeNull();
     expect(painted.data.dayConfigs[0]?.conductorMechanism).toBe("r3_lottery");
+  });
+
+  it("keeps a pending R3 conductor when painting another R3 rule", () => {
+    const record = {
+      id: "r1",
+      date: "2026-06-10",
+      conductorMemberId: "m1",
+      conductorMemberName: "Alice",
+      conductorMechanism: "r3_lottery",
+      vipMemberId: null,
+      vipMemberName: null,
+      vipMechanism: "conductor_pick",
+      guardianIsVip: false,
+      lockedAt: null,
+      substituteForMemberId: null,
+      substituteForMemberName: null,
+    };
+    const dayConfig = {
+      id: "d1",
+      date: "2026-06-10",
+      conductorMechanism: "r3_lottery",
+      vipMechanism: "conductor_pick",
+      vipConfig: null,
+      isOverride: true,
+      paintTemplate: "r3_recognition",
+    };
+    const base = {
+      data: {
+        today: "2026-06-10",
+        weekStart: "2026-06-08",
+        weekEnd: "2026-06-14",
+        trainWeekStartDow: 1,
+        weekRecords: [record],
+        dayConfigs: [dayConfig],
+        roster: [{ memberId: "m1", memberName: "Alice", allianceRank: 3 }],
+        conductorRecord: null,
+      },
+      viewedWeek: {
+        weekStart: "2026-06-08",
+        weekEnd: "2026-06-14",
+        templateType: null,
+        dayConfigs: [dayConfig],
+        weekRecords: [record],
+      },
+      viewedMonth: {
+        monthKey: "2026-06",
+        monthStart: "2026-06-01",
+        monthEnd: "2026-06-30",
+        dayConfigs: [],
+        monthRecords: [],
+      },
+    } as unknown as Parameters<typeof applyOptimisticPaint>[0];
+
+    const painted = applyOptimisticPaint(base, ["2026-06-10"], "economy_week");
+    expect(painted.data.weekRecords[0]?.conductorMemberId).toBe("m1");
+    expect(painted.data.weekRecords[0]?.conductorMemberName).toBe("Alice");
   });
 
   it("clears VIP picks when the draw mechanism changes", () => {
@@ -359,9 +416,57 @@ describe("optimistic dashboard state", () => {
     expect(locked.viewedWeek.weekRecords[0]?.lockedAt).toBe(
       "2026-06-10T12:00:00.000Z",
     );
+    expect(locked.viewedWeek.weekRecords[0]?.canUnlock).toBe(true);
     expect(locked.viewedMonth.monthRecords[0]?.lockedAt).toBe(
       "2026-06-10T12:00:00.000Z",
     );
+  });
+
+  it("clears a pending conductor across schedule views", () => {
+    const record = {
+      id: "r1",
+      date: "2026-06-10",
+      conductorMemberId: "m1",
+      conductorMemberName: "Alice",
+      conductorMechanism: "r3_lottery",
+      vipMemberId: null,
+      vipMemberName: null,
+      vipMechanism: "none",
+      guardianIsVip: false,
+      lockedAt: null,
+      substituteForMemberId: "m0",
+      substituteForMemberName: "Bob",
+    };
+    const base = {
+      data: {
+        today: "2026-06-10",
+        weekStart: "2026-06-08",
+        weekEnd: "2026-06-14",
+        weekRecords: [record],
+        dayConfigs: [],
+      },
+      viewedWeek: {
+        weekStart: "2026-06-08",
+        weekEnd: "2026-06-14",
+        templateType: null,
+        dayConfigs: [],
+        weekRecords: [record],
+      },
+      viewedMonth: {
+        monthKey: "2026-06",
+        monthStart: "2026-06-01",
+        monthEnd: "2026-06-30",
+        dayConfigs: [],
+        monthRecords: [record],
+      },
+    } as unknown as Parameters<typeof applyOptimisticClearPendingConductor>[0];
+
+    const cleared = applyOptimisticClearPendingConductor(base, "2026-06-10");
+    expect(cleared.viewedWeek.weekRecords[0]?.conductorMemberId).toBeNull();
+    expect(cleared.viewedWeek.weekRecords[0]?.conductorMemberName).toBeNull();
+    expect(cleared.viewedWeek.weekRecords[0]?.substituteForMemberId).toBeNull();
+    expect(cleared.viewedMonth.monthRecords[0]?.conductorMemberId).toBeNull();
+    expect(cleared.data.weekRecords[0]?.conductorMemberId).toBeNull();
   });
 
   it("paints multiple dates in month and week snapshots", () => {

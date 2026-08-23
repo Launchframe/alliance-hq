@@ -17,6 +17,7 @@ import {
 } from "@/lib/trains/service";
 import { requireApiSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
+import { resolveTrainActorHqUserId } from "@/lib/trains/train-ownership.server";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const locked = await lockConductorRecord(record.id, ctx.allianceId);
+    const locked = await lockConductorRecord(
+      record.id,
+      ctx.allianceId,
+      await resolveTrainActorHqUserId(session.id),
+    );
     await syncDepletingPoolSelectionForConductorDay({
       allianceId: ctx.allianceId,
       date,

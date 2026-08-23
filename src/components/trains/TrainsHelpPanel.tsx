@@ -73,6 +73,15 @@ export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
             </ul>
           </div>
 
+          <div>
+            <h3 className="text-sm font-medium text-hq-fg">
+              {t("lockOwnershipTitle")}
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
+              {t("lockOwnershipBody")}
+            </p>
+          </div>
+
           <div className="flex flex-wrap justify-end gap-2">
             {showTakeTour && onTakeTour ? (
               <button

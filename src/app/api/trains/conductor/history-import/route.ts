@@ -7,6 +7,7 @@ import {
 } from "@/lib/trains/service";
 import { requireApiSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
+import { resolveTrainActorHqUserId } from "@/lib/trains/train-ownership.server";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +76,7 @@ export async function POST(request: Request) {
   const result = await importConductorHistory({
     allianceId: ctx.allianceId,
     rows,
+    lockedByHqUserId: await resolveTrainActorHqUserId(session.id),
   });
 
   return NextResponse.json(result);

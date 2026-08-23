@@ -1,12 +1,66 @@
 /**
  * Manual picks from depleting pools (R3 recognition, economy lottery, etc.)
- * must consume an unselected slot in the current generation — otherwise
- * officers can re-award the same member every day while the wheel correctly
- * skips them.
+ * consume an unselected slot when the member is still eligible. Officers may
+ * confirm an override to assign any **active** member — the wheel stays hard.
  */
+export const MANUAL_PICK_ELIGIBILITY_OVERRIDE_CODE =
+  "eligibility_override_required" as const;
+
+export type ManualPickEligibilityReason =
+  | "not_in_pool"
+  | "already_awarded"
+  | "rank_ineligible";
+
 export type DepletingManualPickResult =
   | { ok: true }
   | { ok: false; reason: "not_in_pool" | "already_awarded" };
+
+export class ManualPickEligibilityError extends Error {
+  readonly code: typeof MANUAL_PICK_ELIGIBILITY_OVERRIDE_CODE =
+    MANUAL_PICK_ELIGIBILITY_OVERRIDE_CODE;
+  readonly reason: ManualPickEligibilityReason;
+
+  constructor(reason: ManualPickEligibilityReason, message: string) {
+    super(message);
+    this.name = "ManualPickEligibilityError";
+    this.reason = reason;
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+export function isManualPickEligibilityError(
+  error: unknown,
+): error is ManualPickEligibilityError {
+  if (error instanceof ManualPickEligibilityError) return true;
+  if (!(error instanceof Error) || error.name !== "ManualPickEligibilityError") {
+    return false;
+  }
+  return (
+    "reason" in error &&
+    (error.reason === "not_in_pool" ||
+      error.reason === "already_awarded" ||
+      error.reason === "rank_ineligible")
+  );
+}
+
+export function officerConfirmedManualPickOverride(input: {
+  allowEligibilityOverride?: boolean;
+  /** @deprecated alias kept for the same-generation confirm payload */
+  allowSameGenerationReuse?: boolean;
+}): boolean {
+  return (
+    input.allowEligibilityOverride === true ||
+    input.allowSameGenerationReuse === true
+  );
+}
+
+export function rankIneligibleManualPickMessage(
+  poolType: "r3" | "r4_plus",
+): string {
+  return poolType === "r3"
+    ? "R3 pool manual picks must select an R3 member."
+    : "R4+ pool manual picks must select an R4 or R5 member.";
+}
 
 export function evaluateDepletingManualPick(input: {
   memberId: string;

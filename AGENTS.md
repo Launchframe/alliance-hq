@@ -4,7 +4,7 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-## Pre-commit gates
+## Pre-commit and Pre-PR gates
 
 Before creating a commit, all checks in [`PRE_COMMIT_GATE.md`](./PRE_COMMIT_GATE.md) must pass, in order (matches `.husky/pre-commit`):
 
@@ -15,6 +15,8 @@ Before creating a commit, all checks in [`PRE_COMMIT_GATE.md`](./PRE_COMMIT_GATE
 5. `npm run db:validate-journal`
 
 Do not commit while any gate is failing.
+
+**GitHub will not run CI through 1 Sep 2026** (Actions credit freeze: **CI** and **Cleanup Neon preview branch** are disabled; org budget **$0**). Empty or skipped GitHub checks are expected — they are **not** a pass. Before marking ready, merging to **`main`**, or pushing a non-draft PR: also **`npm run build`** and **`npm run test:e2e`** (skip Playwright for docs-only). Detail: **`.cursor/rules/gha-credit-freeze.mdc`**.
 
 ## Drizzle migrations and `_journal.json`
 
@@ -30,7 +32,7 @@ Do not commit while any gate is failing.
 
 ## E2E plan completion
 
-Feature work is not done until Playwright e2e is green — see [`.cursor/rules/e2e-plan-completion.mdc`](.cursor/rules/e2e-plan-completion.mdc). Update `e2e/**/*.spec.ts` and `e2e/fixtures/**` when auth, invite, connect, or session isolation changes; run `npm run test:e2e` before marking a plan complete or opening a PR.
+Feature work is not done until Playwright e2e is green — see [`.cursor/rules/e2e-plan-completion.mdc`](.cursor/rules/e2e-plan-completion.mdc). Update `e2e/**/*.spec.ts` and `e2e/fixtures/**` when auth, invite, connect, or session isolation changes; run `npm run test:e2e` locally before marking a plan complete or opening a PR. **GitHub CI e2e will not run** through **1 Sep 2026** (credit freeze).
 
 ## Parallel agents and git isolation
 
@@ -55,6 +57,7 @@ Before wiring a client component to shared logic, trace the import chain:
 
 Apply on every Real Steel pass for this repo:
 
+- **Pre-PR gate on every pass that will push** — GitHub **CI is disabled** (credit freeze). Husky covers typecheck / lint / Vitest / i18n / journal on commit. Before **push** to a non-draft PR, also run **`npm run build`** and **`npm run test:e2e`** (skip Playwright for docs-only). Do not wait for GitHub checks. See **`PRE_COMMIT_GATE.md`**, **`.cursor/rules/gha-credit-freeze.mdc`**.
 - **Client bundle hygiene** — `"use client"` files must not transitively import `@/lib/db`, `@/lib/session`, rank-sync, or other server-only modules; use `*.shared.ts` + API routes (see **Client vs server imports** above)
 - **RBAC enforcement** — every new/changed BFF route calls `requireSessionPermission` or equivalent; platform maintainer checks on `/admin/*` and `/api/admin/*`. **Also run the permission primitive pass** — audit `sessionHasPermission` / `sessionHasPermissionForAlliance`, not only route-level guards ([`.cursor/rules/auth-boundary-review.mdc`](.cursor/rules/auth-boundary-review.mdc) § A).
 - **Auth architecture pass** — on auth/RBAC/session/admin PRs: trace session mint (bootstrap, `getOrCreateSession`) → bind (`hq_user_id`) → primitive → handler; prove anonymous sessions cannot reach privileged routes ([`.cursor/rules/auth-boundary-review.mdc`](.cursor/rules/auth-boundary-review.mdc) § A, F).
@@ -152,7 +155,7 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 - Start feature work from new git worktrees off `origin/main`.
 - Hotkey changes need fault isolation and compile-time target validation for navigable pages.
 - Member-facing copy must never mention platform admins or maintainers; say alliance officers were notified instead.
-- Run `npm run test:e2e` before pushing PR branch updates.
+- Run `npm run test:e2e` locally before pushing PR branch updates. GitHub CI will not run it through 1 Sep 2026 (`.cursor/rules/gha-credit-freeze.mdc`).
 
 ## Learned Workspace Facts
 

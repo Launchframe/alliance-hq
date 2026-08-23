@@ -2,13 +2,18 @@ import { NextResponse } from "next/server";
 
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { applyManualConductorDraft } from "@/lib/trains/manual-conductor-draft.server";
+import {
+  MANUAL_PICK_ELIGIBILITY_OVERRIDE_CODE,
+  isManualPickEligibilityError,
+} from "@/lib/trains/depleting-manual-pick.shared";
 import { getServerCalendarDate } from "@/lib/trains/service";
 import { requireApiSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
 
 export const dynamic = "force-dynamic";
 
-function manualPickErrorStatus(message: string): number {
+function manualPickErrorStatus(error: unknown, message: string): number {
+  if (isManualPickEligibilityError(error)) return 409;
   if (message.includes("already locked")) return 409;
   if (message.includes("already selected from the current pool generation")) {
     return 409;
@@ -32,6 +37,7 @@ export async function POST(request: Request) {
     date?: string;
     memberId?: string;
     memberName?: string;
+    allowEligibilityOverride?: boolean;
     allowSameGenerationReuse?: boolean;
   };
 
@@ -52,6 +58,7 @@ export async function POST(request: Request) {
       date,
       memberId,
       memberName,
+      allowEligibilityOverride: body.allowEligibilityOverride === true,
       allowSameGenerationReuse: body.allowSameGenerationReuse === true,
     });
 
@@ -63,9 +70,19 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Pick failed.";
+    if (isManualPickEligibilityError(error)) {
+      return NextResponse.json(
+        {
+          error: message,
+          code: MANUAL_PICK_ELIGIBILITY_OVERRIDE_CODE,
+          reason: error.reason,
+        },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       { error: message },
-      { status: manualPickErrorStatus(message) },
+      { status: manualPickErrorStatus(error, message) },
     );
   }
 }

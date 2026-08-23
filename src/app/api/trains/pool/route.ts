@@ -80,7 +80,10 @@ export async function GET(request: Request) {
       trainDate,
       rawEntries.map((entry) => entry.memberId),
     );
-    entries = rawEntries.filter((entry) => eligibleIds.has(entry.memberId));
+    entries = rawEntries.filter(
+      (entry) =>
+        entry.selectedAt != null || eligibleIds.has(entry.memberId),
+    );
   }
 
   if (poolType === "event_top_x" && trainDate) {
