@@ -107,7 +107,7 @@ export async function resolveHqAllianceForLastRankSync(input: {
     if (choice !== "create") {
       return { allianceId: choice, created: false };
     }
-  } else if (fuzzyUnique.length === 1 && !input.allowCreate) {
+  } else if (fuzzyUnique.length === 1 && !input.alliancePrompt) {
     return { allianceId: fuzzyUnique[0].id, created: false };
   } else if (fuzzyUnique.length > 1 && !input.alliancePrompt) {
     throw new Error(
