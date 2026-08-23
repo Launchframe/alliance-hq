@@ -2321,7 +2321,15 @@
     "activeBadge": "Ativa",
     "searchPlaceholder": "Buscar alianças…",
     "searchNoMatches": "Nenhuma aliança corresponde à busca.",
-    "switchToSelected": "Usar {tag} nesta sessão"
+    "switchToSelected": "Usar {tag} nesta sessão",
+    "findAllShow": "Buscar qualquer aliança…",
+    "findAllHide": "Ocultar busca de alianças",
+    "findAllHint": "Busque qualquer aliança da plataforma por tag, nome ou servidor.",
+    "findAllSearchPlaceholder": "Tag, nome ou servidor…",
+    "findAllSearching": "Buscando…",
+    "findAllNoMatches": "Nenhuma aliança corresponde.",
+    "findAllLoadFailed": "Não foi possível buscar alianças.",
+    "findAllServer": "· S{server}"
   },
   "credentialShare": {
     "team": {
@@ -2400,13 +2408,15 @@
       },
       "activityTitle": "Atividade de auditoria",
       "activityAction": {
-        "ashed_share.invite_created": "Convite criado",
-        "ashed_share.accepted": "Aceito",
-        "ashed_share.rejected": "Recusado",
-        "ashed_share.revoked": "Revogado",
-        "ashed_share.expired": "Encerrado",
-        "ashed_share.used": "Usado",
-        "ashed_share.extended": "Prorrogado"
+        "ashed_share": {
+          "invite_created": "Convite criado",
+          "accepted": "Aceito",
+          "rejected": "Recusado",
+          "revoked": "Revogado",
+          "expired": "Encerrado",
+          "used": "Usado",
+          "extended": "Prorrogado"
+        }
       },
       "restrictedHint": "O histórico completo de auditoria está disponível para proprietários de credenciais e oficiais com identidade Ashed vinculada."
     }

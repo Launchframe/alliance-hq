@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { AllianceLinkedCommandersBadge } from "@/components/alliance/AllianceLinkedCommandersBadge";
 import { AlliancePickerOptionLabel } from "@/components/alliance/AlliancePickerOptionLabel";
+import { MaintainerAllianceSearch } from "@/components/alliance/MaintainerAllianceSearch";
 import { useShellActivityOptional } from "@/components/ashed-shell/ShellActivityProvider";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { alliancePickerOptionSearchText } from "@/lib/alliance/alliance-picker-label.shared";
@@ -20,6 +21,8 @@ type Props = {
   initialAlliances?: SessionAllianceOption[];
   /** Alliance highlighted elsewhere (e.g. admin table row) — offers a one-click switch. */
   switchTargetAllianceId?: string | null;
+  /** Display label when the target is not in the membership picker (e.g. admin non-member). */
+  switchTargetLabel?: string | null;
   /** Stay on the current page after switching instead of alliance landing redirect. */
   stayOnCurrentPage?: boolean;
   initialIsPlatformMaintainer?: boolean;
@@ -32,6 +35,7 @@ export function AllianceSessionSwitcher({
   initialCurrentAllianceId = null,
   initialAlliances = [],
   switchTargetAllianceId = null,
+  switchTargetLabel = null,
   stayOnCurrentPage = false,
   initialIsPlatformMaintainer = false,
   searchable: searchableProp,
@@ -58,14 +62,19 @@ export function AllianceSessionSwitcher({
     onStaleSession: () => window.location.reload(),
   });
 
-  const switchTarget = switchTargetAllianceId
+  const switchTargetFromList = switchTargetAllianceId
     ? alliances.find((row) => row.id === switchTargetAllianceId)
     : null;
+  const switchTargetDisplayLabel =
+    switchTargetFromList?.tag ??
+    switchTargetFromList?.slug ??
+    switchTargetLabel?.trim() ??
+    null;
   const showSwitchTargetButton =
     Boolean(
-      switchTarget &&
-        switchTargetAllianceId &&
-        switchTargetAllianceId !== currentAllianceId,
+      switchTargetAllianceId &&
+        switchTargetAllianceId !== currentAllianceId &&
+        switchTargetDisplayLabel,
     );
 
   useEffect(() => {
@@ -111,7 +120,7 @@ export function AllianceSessionSwitcher({
   }, [initialAlliances.length, t]);
 
   const onSelect = useCallback(
-    async (allianceId: string) => {
+    async (allianceId: string, activityLabel?: string | null) => {
       if (!allianceId || allianceId === currentAllianceId) {
         return;
       }
@@ -119,7 +128,10 @@ export function AllianceSessionSwitcher({
       setSwitching(true);
       setError(null);
       shellActivity?.beginAllianceSwitch(
-        selected?.tag ?? selected?.slug ?? undefined,
+        selected?.tag ??
+          selected?.slug ??
+          activityLabel ??
+          undefined,
       );
       let navigated = false;
       try {
@@ -196,6 +208,14 @@ export function AllianceSessionSwitcher({
   const searchable =
     searchableProp ?? (isPlatformMaintainer || alliances.length > 8);
 
+  const maintainerSearch = isPlatformMaintainer ? (
+    <MaintainerAllianceSearch
+      currentAllianceId={currentAllianceId}
+      switching={switching}
+      onSelect={(allianceId, label) => void onSelect(allianceId, label)}
+    />
+  ) : null;
+
   if (loading) {
     return (
       <div className={`text-xs text-hq-fg-muted ${className ?? ""}`.trim()}>
@@ -204,13 +224,36 @@ export function AllianceSessionSwitcher({
     );
   }
 
+  const switchTargetButton =
+    showSwitchTargetButton && switchTargetAllianceId && switchTargetDisplayLabel ? (
+      <button
+        type="button"
+        disabled={switching}
+        onClick={() =>
+          void onSelect(switchTargetAllianceId, switchTargetDisplayLabel)
+        }
+        className="mt-2 w-full rounded-lg border border-hq-accent bg-hq-accent/10 px-3 py-2 text-sm text-hq-accent hover:bg-hq-accent/20 disabled:opacity-50 sm:w-auto"
+      >
+        {t("switchToSelected", { tag: switchTargetDisplayLabel })}
+      </button>
+    ) : null;
+
   if (alliances.length === 0) {
-    return null;
+    if (!switchTargetButton && !error && !maintainerSearch) {
+      return null;
+    }
+    return (
+      <div className={className}>
+        {switchTargetButton}
+        {error ? <p className="mt-1 text-xs text-hq-danger">{error}</p> : null}
+        {maintainerSearch}
+      </div>
+    );
   }
 
   const activeBadgeLabel = t("activeBadge");
 
-  if (alliances.length === 1 && !isPlatformMaintainer) {
+  if (alliances.length === 1 && !isPlatformMaintainer && !showSwitchTargetButton) {
     const only = alliances[0]!;
     const label = only.tag ?? only.slug;
     return (
@@ -237,40 +280,32 @@ export function AllianceSessionSwitcher({
 
   return (
     <div className={className}>
-      <AppSelect
-        value={currentAllianceId}
-        onChange={(next) => void onSelect(next)}
-        disabled={switching}
-        searchable={searchable}
-        searchMode="substring"
-        searchPlaceholder={t("searchPlaceholder")}
-        noSearchResultsLabel={t("searchNoMatches")}
-        placeholder={t("placeholder")}
-        aria-label={t("label")}
-        options={alliances.map((alliance) => ({
-          value: alliance.id,
-          label: (
-            <AlliancePickerOptionLabel
-              alliance={alliance}
-              activeBadgeLabel={activeBadgeLabel}
-            />
-          ),
-          searchText: alliancePickerOptionSearchText(alliance),
-        }))}
-      />
-      {showSwitchTargetButton && switchTarget ? (
-        <button
-          type="button"
+      {alliances.length > 1 || isPlatformMaintainer ? (
+        <AppSelect
+          value={currentAllianceId}
+          onChange={(next) => void onSelect(next)}
           disabled={switching}
-          onClick={() => void onSelect(switchTargetAllianceId!)}
-          className="mt-2 w-full rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-3 py-2 text-sm text-hq-accent hover:bg-[#388bfd]/20 disabled:opacity-50 sm:w-auto"
-        >
-          {t("switchToSelected", {
-            tag: switchTarget.tag ?? switchTarget.slug,
-          })}
-        </button>
+          searchable={searchable}
+          searchMode="substring"
+          searchPlaceholder={t("searchPlaceholder")}
+          noSearchResultsLabel={t("searchNoMatches")}
+          placeholder={t("placeholder")}
+          aria-label={t("label")}
+          options={alliances.map((alliance) => ({
+            value: alliance.id,
+            label: (
+              <AlliancePickerOptionLabel
+                alliance={alliance}
+                activeBadgeLabel={activeBadgeLabel}
+              />
+            ),
+            searchText: alliancePickerOptionSearchText(alliance),
+          }))}
+        />
       ) : null}
+      {switchTargetButton}
       {error ? <p className="mt-1 text-xs text-hq-danger">{error}</p> : null}
+      {maintainerSearch}
     </div>
   );
 }

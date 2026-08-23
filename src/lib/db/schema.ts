@@ -1872,6 +1872,14 @@ export const commanders = pgTable(
      * lookup-by-UID `gameUserName` when set).
      */
     canonicalName: text("canonical_name"),
+    /** LastRank catalog id (public_id) — stable cross-rename match key. */
+    lastrankPublicId: integer("lastrank_public_id"),
+    /** ISO-ish country code from LastRank roster row. */
+    lastrankCountry: text("lastrank_country"),
+    /** Avatar/image URL from LastRank when available. */
+    lastrankProfileImageUrl: text("lastrank_profile_image_url"),
+    /** e.g. https://lastrank.fun/p/1314754 */
+    lastrankProfileUrl: text("lastrank_profile_url"),
     profession: text("profession"),
     professionalLevel: integer("professional_level"),
     memberLevel: integer("member_level"),
@@ -1915,6 +1923,7 @@ export const commanders = pgTable(
   },
   (table) => [
     index("commanders_game_uid_idx").on(table.gameUid),
+    index("commanders_lastrank_public_id_idx").on(table.lastrankPublicId),
     index("commanders_orphan_name_server_idx").on(
       table.primaryNameNormalized,
       table.gameServerNumber,

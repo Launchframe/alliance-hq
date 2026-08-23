@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyInteractiveMatches,
+  buildInteractiveHqChoices,
   formatLastRankPowerLevel,
   matchLastRankMembersToHq,
   parseLastRankAllianceHtml,
+  parseLastRankSectionRanks,
   parseLastRankSyncMap,
   resolveHqNameToRosterRow,
+  resolveInteractiveHqNameAnswer,
   type LastRankHqRosterRow,
 } from "@/lib/lastrank/alliance-page.shared";
 
@@ -17,6 +20,16 @@ function htmlWithMembers(
   const inner = `1e:${JSON.stringify(tree)}`;
   const push = JSON.stringify([1, inner]);
   return `<!DOCTYPE html><html><body><script>self.__next_f.push(${push})</script></body></html>`;
+}
+
+function rankSection(rank: number, publicIds: number[]): string {
+  const rows = publicIds
+    .map(
+      (id) =>
+        `<tr><td><a href="/p/${id}">Player ${id}</a></td></tr>`,
+    )
+    .join("");
+  return `<section class="rounded-md border overflow-hidden"><button type="button"><span title="Rank" class="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-mono font-bold bg-accent-amber/20">R${rank}</span><span class="flex-1"></span><span class="font-mono text-xs">${publicIds.length}</span></button><div><table><tbody>${rows}</tbody></table></div></section>`;
 }
 
 function hqRow(
@@ -32,10 +45,52 @@ function hqRow(
     hqThp: null,
     hqLevel: null,
     hqPowerLevel: null,
+    hqAllianceRank: null,
     existingCanonicalName: null,
+    lastrankPublicId: null,
+    lastrankCountry: null,
+    lastrankProfileImageUrl: null,
+    lastrankProfileUrl: null,
     ...partial,
   };
 }
+
+describe("parseLastRankSectionRanks", () => {
+  it("maps player links under R1–R5 section badges", () => {
+    const html = [
+      rankSection(5, [1314756]),
+      rankSection(4, [1314754, 1314830]),
+      rankSection(3, [1314669]),
+    ].join("\n");
+    const ranks = parseLastRankSectionRanks(html);
+    expect(ranks.get(1314756)).toBe(5);
+    expect(ranks.get(1314754)).toBe(4);
+    expect(ranks.get(1314830)).toBe(4);
+    expect(ranks.get(1314669)).toBe(3);
+  });
+
+  it("overrides RSC alliance_rank with section badge rank", () => {
+    const members = [
+      {
+        public_id: 1314756,
+        name: "Redd KOTF",
+        country: "US",
+        power: 1,
+        hero_power: 2,
+        alliance_rank: 3,
+        base_level: 35,
+        origin_server_id: 1,
+      },
+    ];
+    const html =
+      htmlWithMembers(members) + rankSection(5, [1314756]);
+    const page = parseLastRankAllianceHtml(
+      html,
+      "e7d1eaefdcfc42c8ac6c84247d2dad9b",
+    );
+    expect(page.members[0]?.allianceRank).toBe(5);
+  });
+});
 
 describe("parseLastRankAllianceHtml", () => {
   it("extracts members from Next.js flight payload", () => {
@@ -103,6 +158,22 @@ describe("matchLastRankMembersToHq cascade", () => {
     baseLevel: 35 as number | null,
     originServerId: 1203 as number | null,
   };
+
+  it("matches stored lastrank_public_id before name cascade", () => {
+    const result = matchLastRankMembersToHq(
+      [lastRankMember],
+      [
+        hqRow({
+          commanderId: "c1",
+          ashedMemberId: "m1",
+          currentNames: ["Renamed Commander"],
+          lastrankPublicId: 1,
+        }),
+      ],
+    );
+    expect(result.matched).toHaveLength(1);
+    expect(result.matched[0].matchMethod).toBe("lastrank_public_id");
+  });
 
   it("exact-matches current names before previous", () => {
     const result = matchLastRankMembersToHq(
@@ -221,6 +292,80 @@ describe("matchLastRankMembersToHq cascade", () => {
       ],
     );
     expect(result.unmatched[0]?.status).toBe("ambiguous");
+  });
+});
+
+describe("resolveInteractiveHqNameAnswer", () => {
+  const choices = [
+    { name: "Zudiedwdx", score: 0.56 },
+    { name: "Slow", score: 0.38 },
+    { name: "bdooo", score: null },
+  ];
+
+  it("returns skip for blank input", () => {
+    expect(resolveInteractiveHqNameAnswer("", choices)).toEqual({
+      kind: "skip",
+    });
+    expect(resolveInteractiveHqNameAnswer("   ", choices)).toEqual({
+      kind: "skip",
+    });
+  });
+
+  it("returns create for c / C", () => {
+    expect(resolveInteractiveHqNameAnswer("c", choices)).toEqual({
+      kind: "create",
+    });
+    expect(resolveInteractiveHqNameAnswer("C", choices)).toEqual({
+      kind: "create",
+    });
+  });
+
+  it("maps 1-based index to menu choice", () => {
+    expect(resolveInteractiveHqNameAnswer("1", choices)).toEqual({
+      kind: "match",
+      hqName: "Zudiedwdx",
+    });
+    expect(resolveInteractiveHqNameAnswer("3", choices)).toEqual({
+      kind: "match",
+      hqName: "bdooo",
+    });
+  });
+
+  it("passes through out-of-range numbers as typed names", () => {
+    expect(resolveInteractiveHqNameAnswer("99", choices)).toEqual({
+      kind: "match",
+      hqName: "99",
+    });
+  });
+
+  it("passes through non-numeric strings as HQ roster names", () => {
+    expect(resolveInteractiveHqNameAnswer("EG Sie", choices)).toEqual({
+      kind: "match",
+      hqName: "EG Sie",
+    });
+    expect(resolveInteractiveHqNameAnswer("●モりノ", choices)).toEqual({
+      kind: "match",
+      hqName: "●モりノ",
+    });
+  });
+});
+
+describe("buildInteractiveHqChoices", () => {
+  it("lists suggestions first then remaining unmatched HQ without duplicates", () => {
+    expect(
+      buildInteractiveHqChoices({
+        suggestions: [
+          { commanderId: "c1", name: "Zudiedwdx", score: 0.56 },
+          { commanderId: "c2", name: "Slow", score: 0.38 },
+        ],
+        remainingHqNames: ["Slow", "Roby", "Lulu"],
+      }),
+    ).toEqual([
+      { name: "Zudiedwdx", score: 0.56 },
+      { name: "Slow", score: 0.38 },
+      { name: "Roby", score: null },
+      { name: "Lulu", score: null },
+    ]);
   });
 });
 

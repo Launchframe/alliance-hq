@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { parseLastRankSyncMap } from "@/lib/lastrank/alliance-page.shared";
+import { resolveLastRankSyncMapTargets } from "@/lib/lastrank/sync-registry.shared";
 import { syncLastRankAlliance } from "@/lib/lastrank/sync-alliance.server";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
   let targets;
   try {
-    targets = parseLastRankSyncMap(process.env.LASTRANK_SYNC_MAP);
+    targets = resolveLastRankSyncMapTargets(process.env.LASTRANK_SYNC_MAP);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "invalid map" },
@@ -41,8 +41,7 @@ export async function GET(request: Request) {
   for (const target of targets) {
     try {
       const synced = await syncLastRankAlliance({
-        tag: target.tag,
-        lastrankAllianceId: target.lastrankAllianceId,
+        target,
         apply,
       });
       results.push({

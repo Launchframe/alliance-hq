@@ -17,7 +17,7 @@ export type ConfirmMemberRankInput = {
   allianceRank: number;
   allianceRankTitle?: string | null;
   effectiveDate: string;
-  source: "manual" | "video_parse" | "ashed_bootstrap";
+  source: "manual" | "video_parse" | "ashed_bootstrap" | "lastrank_sync";
   recordedByHqUserId?: string | null;
   connection: ParsedConnection;
 };

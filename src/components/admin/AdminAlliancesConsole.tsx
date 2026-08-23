@@ -31,6 +31,7 @@ type Alliance = {
   id: string;
   slug: string;
   name: string;
+  tag: string | null;
   ashedAllianceId: string | null;
   operatingMode: string;
   gameServerNumber: number | null;
@@ -70,7 +71,7 @@ export function AdminAlliancesConsole() {
   }, [searchParams]);
   const [alliances, setAlliances] = useState<Alliance[]>([]);
   const [inviteAllianceOptions, setInviteAllianceOptions] = useState<
-    Array<{ id: string; slug: string; name: string }>
+    Array<{ id: string; slug: string; name: string; tag: string | null }>
   >([]);
   const [inviteTargetAllianceId, setInviteTargetAllianceId] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -105,6 +106,27 @@ export function AdminAlliancesConsole() {
     ? inviteTargetAllianceId
     : "";
 
+  const sessionSwitchTargetLabel = useMemo(() => {
+    if (!effectiveInviteTargetAllianceId) return null;
+    const fromInvite = inviteAllianceOptions.find(
+      (row) => row.id === effectiveInviteTargetAllianceId,
+    );
+    if (fromInvite) {
+      return fromInvite.tag?.trim() || fromInvite.slug || fromInvite.name;
+    }
+    const fromList = alliances.find(
+      (row) => row.id === effectiveInviteTargetAllianceId,
+    );
+    if (fromList) {
+      return fromList.tag?.trim() || fromList.slug || fromList.name;
+    }
+    return null;
+  }, [
+    alliances,
+    effectiveInviteTargetAllianceId,
+    inviteAllianceOptions,
+  ]);
+
   const loadInviteAllianceOptions = useCallback(async () => {
     try {
       const qs = buildAdminAlliancesSearchParams({
@@ -122,6 +144,7 @@ export function AdminAlliancesConsole() {
           id: alliance.id,
           slug: alliance.slug,
           name: alliance.name,
+          tag: alliance.tag,
         })),
       );
     } catch {
@@ -340,6 +363,7 @@ export function AdminAlliancesConsole() {
             <AllianceSessionSwitcher
               stayOnCurrentPage
               switchTargetAllianceId={effectiveInviteTargetAllianceId}
+              switchTargetLabel={sessionSwitchTargetLabel}
               searchable
             />
           </div>

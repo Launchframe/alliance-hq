@@ -31,10 +31,16 @@ export type LastRankHqRosterRow = {
   hqThp: number | null;
   hqLevel: number | null;
   hqPowerLevel: string | null;
+  hqAllianceRank: number | null;
   existingCanonicalName: string | null;
+  lastrankPublicId: number | null;
+  lastrankCountry: string | null;
+  lastrankProfileImageUrl: string | null;
+  lastrankProfileUrl: string | null;
 };
 
 export type LastRankMatchMethod =
+  | "lastrank_public_id"
   | "exact_current"
   | "exact_previous"
   | "fuzzy_current"
@@ -83,6 +89,10 @@ export function isLastRankAllianceId(value: string): boolean {
 
 export function lastRankAllianceUrl(lastrankAllianceId: string): string {
   return `https://lastrank.fun/a/${lastrankAllianceId.trim().toLowerCase()}`;
+}
+
+export function lastRankPlayerProfileUrl(publicId: number): string {
+  return `https://lastrank.fun/p/${Math.round(publicId)}`;
 }
 
 function asFiniteNumber(value: unknown): number | null {
@@ -390,6 +400,34 @@ export function matchLastRankMembersToHq(
   const unmatched: LastRankUnmatchedRow[] = [];
 
   for (const lastRank of lastRankMembers) {
+    const publicIdHits = hqRows.filter(
+      (hq) =>
+        !claimed.has(hq.commanderId) &&
+        hq.lastrankPublicId != null &&
+        hq.lastrankPublicId === lastRank.publicId,
+    );
+    const publicUnique = uniqueByCommander(publicIdHits);
+    if (publicUnique.length === 1) {
+      claimed.add(publicUnique[0].commanderId);
+      matched.push({
+        status: "matched",
+        lastRank,
+        hq: publicUnique[0],
+        matchMethod: "lastrank_public_id",
+        fuzzyScore: null,
+      });
+      continue;
+    }
+    if (publicUnique.length > 1) {
+      unmatched.push({
+        status: "ambiguous",
+        lastRank,
+        hqCommanderIds: publicUnique.map((row) => row.commanderId),
+        suggestions: buildSuggestions(lastRank.name, hqRows, claimed),
+      });
+      continue;
+    }
+
     const exactCurrent = exactHits(
       lastRank.name,
       hqRows,
@@ -554,6 +592,63 @@ export function resolveHqNameToRosterRow(
     };
   }
   return { ok: false, reason: "unmatched", hqCommanderIds: [] };
+}
+
+export type LastRankInteractiveChoice = {
+  name: string;
+  score: number | null;
+};
+
+/** Numbered menu for `--interactive`: fuzzy suggestions, then other unmatched HQ. */
+export function buildInteractiveHqChoices(input: {
+  suggestions: LastRankUnmatchedRow["suggestions"];
+  remainingHqNames: string[];
+  maxSuggestions?: number;
+}): LastRankInteractiveChoice[] {
+  const maxSuggestions = input.maxSuggestions ?? 8;
+  const seen = new Set<string>();
+  const choices: LastRankInteractiveChoice[] = [];
+
+  for (const suggestion of input.suggestions.slice(0, maxSuggestions)) {
+    const name = suggestion.name.trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    choices.push({ name, score: suggestion.score });
+  }
+
+  for (const raw of input.remainingHqNames) {
+    const name = raw.trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    choices.push({ name, score: null });
+  }
+
+  return choices;
+}
+
+/**
+ * Parse interactive CLI input: blank → skip, `c`/`C` → create member,
+ * 1-based index → menu choice, otherwise typed HQ roster name.
+ */
+export type LastRankInteractiveAnswer =
+  | { kind: "skip" }
+  | { kind: "create" }
+  | { kind: "match"; hqName: string };
+
+export function resolveInteractiveHqNameAnswer(
+  answer: string,
+  choices: LastRankInteractiveChoice[],
+): LastRankInteractiveAnswer {
+  const trimmed = answer.trim();
+  if (!trimmed) return { kind: "skip" };
+  if (/^c$/i.test(trimmed)) return { kind: "create" };
+  if (/^\d+$/.test(trimmed)) {
+    const index = Number.parseInt(trimmed, 10);
+    if (index >= 1 && index <= choices.length) {
+      return { kind: "match", hqName: choices[index - 1]!.name };
+    }
+  }
+  return { kind: "match", hqName: trimmed };
 }
 
 export function applyInteractiveMatches(

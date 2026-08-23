@@ -2381,13 +2381,15 @@
       },
       "activityTitle": "Audit activity",
       "activityAction": {
-        "ashed_share.invite_created": "Invite created",
-        "ashed_share.accepted": "Accepted",
-        "ashed_share.rejected": "Rejected",
-        "ashed_share.revoked": "Revoked",
-        "ashed_share.expired": "Ended",
-        "ashed_share.used": "Used",
-        "ashed_share.extended": "Extended"
+        "ashed_share": {
+          "invite_created": "Invite created",
+          "accepted": "Accepted",
+          "rejected": "Rejected",
+          "revoked": "Revoked",
+          "expired": "Ended",
+          "used": "Used",
+          "extended": "Extended"
+        }
       },
       "restrictedHint": "Full audit history is available to credential owners and officers with a linked Ashed identity."
     }
@@ -2463,7 +2465,15 @@
     "activeBadge": "Active",
     "searchPlaceholder": "Search alliances…",
     "searchNoMatches": "No alliances match your search.",
-    "switchToSelected": "Switch session to {tag}"
+    "switchToSelected": "Switch session to {tag}",
+    "findAllShow": "Find any alliance…",
+    "findAllHide": "Hide alliance search",
+    "findAllHint": "Search every alliance on the platform by tag, name, or server.",
+    "findAllSearchPlaceholder": "Tag, name, or server…",
+    "findAllSearching": "Searching…",
+    "findAllNoMatches": "No alliances match.",
+    "findAllLoadFailed": "Could not search alliances.",
+    "findAllServer": "· S{server}"
   },
   "deviceLink": {
     "pageTitle": "Link a device",
