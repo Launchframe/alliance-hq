@@ -14,6 +14,7 @@ import type {
 import { generateDayConfigForDate, generateWeekDayConfigs } from "@/lib/trains/templates";
 import type { WeekTemplateType } from "@/lib/trains/types";
 import { conductorDrawChanged } from "@/lib/trains/conductor-mechanism.shared";
+import { shouldKeepAssignedConductorOnPaint } from "@/lib/trains/paint-rule-conductor-gate.shared";
 import {
   resolveLiteralDayPaintTemplate,
   resolvePaintTemplateForCalendarDate,
@@ -143,14 +144,26 @@ export function applyOptimisticLock(
   date: string,
   lockedAt: string,
 ): TrainsDashboardSnapshot {
-  return patchRecordsInSnapshot(snap, date, { lockedAt });
+  return patchRecordsInSnapshot(snap, date, { lockedAt, canUnlock: true });
 }
 
 export function applyOptimisticUnlock(
   snap: TrainsDashboardSnapshot,
   date: string,
 ): TrainsDashboardSnapshot {
-  return patchRecordsInSnapshot(snap, date, { lockedAt: null });
+  return patchRecordsInSnapshot(snap, date, { lockedAt: null, canUnlock: false });
+}
+
+export function applyOptimisticClearPendingConductor(
+  snap: TrainsDashboardSnapshot,
+  date: string,
+): TrainsDashboardSnapshot {
+  return patchRecordsInSnapshot(snap, date, {
+    conductorMemberId: null,
+    conductorMemberName: null,
+    substituteForMemberId: null,
+    substituteForMemberName: null,
+  });
 }
 
 export function applyOptimisticConductorSwap(
@@ -296,13 +309,14 @@ function clearConductorPicksWhenDrawChanges(
   templateType: WeekTemplateType,
   trainWeekConfig: AllianceTrainWeekConfig,
   paintOptions?: { topN?: number; weekTemplateApply?: boolean },
+  roster: Array<{ memberId: string; allianceRank?: number | null }> = [],
 ): WeekConductorRecordSummary[] {
   const dateSet = new Set(dates);
   const weekTemplateApply = paintOptions?.weekTemplateApply === true;
+  const rosterById = new Map(roster.map((row) => [row.memberId, row]));
   return records.map((record) => {
     if (
       !dateSet.has(record.date) ||
-      record.lockedAt ||
       (!record.conductorMemberId && !record.vipMemberId)
     ) {
       return record;
@@ -348,6 +362,30 @@ function clearConductorPicksWhenDrawChanges(
       return record;
     }
 
+    const rosterRow = record.conductorMemberId
+      ? rosterById.get(record.conductorMemberId)
+      : undefined;
+    const keep = shouldKeepAssignedConductorOnPaint({
+      drawChanged: true,
+      memberId: record.conductorMemberId,
+      onRoster: rosterRow != null,
+      allianceRank: rosterRow?.allianceRank,
+      nextMechanism: generated.conductorMechanism,
+      nextPaintTemplate,
+      date: record.date,
+      nextConductorConfig: generated.conductorConfig,
+    });
+    if (keep) {
+      return {
+        ...record,
+        conductorMechanism: generated.conductorMechanism,
+        vipMechanism: generated.vipMechanism ?? record.vipMechanism,
+      };
+    }
+    if (record.lockedAt) {
+      return record;
+    }
+
     return {
       ...record,
       conductorMemberId: null,
@@ -356,6 +394,8 @@ function clearConductorPicksWhenDrawChanges(
       substituteForMemberName: null,
       vipMemberId: null,
       vipMemberName: null,
+      conductorMechanism: generated.conductorMechanism,
+      vipMechanism: generated.vipMechanism ?? null,
     };
   });
 }
@@ -391,6 +431,7 @@ export function applyOptimisticPaint(
       templateType,
       trainWeekConfig,
       paintOptions,
+      snap.data.roster ?? [],
     );
 
   let next: TrainsDashboardSnapshot = {

@@ -5,8 +5,11 @@ import { withConductorPoolClaimLock } from "@/lib/trains/conductor-pool-claim-lo
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
 import {
+  ManualPickEligibilityError,
   depletingManualPickErrorMessage,
   evaluateDepletingManualPick,
+  officerConfirmedManualPickOverride,
+  rankIneligibleManualPickMessage,
   shouldReleasePriorPoolSelection,
 } from "@/lib/trains/depleting-manual-pick.shared";
 import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
@@ -42,7 +45,9 @@ export async function applyManualConductorDraft(input: {
   date: string;
   memberId: string;
   memberName: string;
-  /** Officer confirmed re-using a member already picked in this pool generation. */
+  /** Officer confirmed assigning a member outside this day's eligibility. */
+  allowEligibilityOverride?: boolean;
+  /** @deprecated alias of allowEligibilityOverride */
   allowSameGenerationReuse?: boolean;
 }): Promise<typeof import("@/lib/db/schema").trainConductorRecords.$inferSelect> {
   const seasonKey = (await getEffectiveSeasonForAlliance(input.allianceId))
@@ -84,6 +89,7 @@ export async function applyManualConductorDraft(input: {
   const poolType: PoolType | null = depletingPool
     ? conductorMechanismPoolType(mechanism)
     : null;
+  const overrideConfirmed = officerConfirmedManualPickOverride(input);
 
   if (poolType === "r3" || poolType === "r4_plus") {
     const eligible = await memberIdsEligibleForPoolType(
@@ -92,11 +98,10 @@ export async function applyManualConductorDraft(input: {
       input.date,
       [input.memberId],
     );
-    if (!eligible.has(input.memberId)) {
-      throw new Error(
-        poolType === "r3"
-          ? "R3 pool manual picks must select an R3 member."
-          : "R4+ pool manual picks must select an R4 or R5 member.",
+    if (!eligible.has(input.memberId) && !overrideConfirmed) {
+      throw new ManualPickEligibilityError(
+        "rank_ineligible",
+        rankIneligibleManualPickMessage(poolType),
       );
     }
   }
@@ -132,15 +137,20 @@ export async function applyManualConductorDraft(input: {
               input.date,
             );
             if (!claimed) {
-              throw new Error(depletingManualPickErrorMessage("already_awarded"));
+              throw new ManualPickEligibilityError(
+                "already_awarded",
+                depletingManualPickErrorMessage("already_awarded"),
+              );
             }
-          } else if (
-            gate.reason === "already_awarded" &&
-            input.allowSameGenerationReuse
-          ) {
-            // Pool slot already consumed on another day in this generation.
+          } else if (overrideConfirmed) {
+            // Officer confirmed: draft without consuming or refreshing the
+            // generation. Already-chosen / missing rows stay as-is so the
+            // wheel cannot land on a spent or newly inserted slot.
           } else {
-            throw new Error(depletingManualPickErrorMessage(gate.reason));
+            throw new ManualPickEligibilityError(
+              gate.reason,
+              depletingManualPickErrorMessage(gate.reason),
+            );
           }
         },
       );

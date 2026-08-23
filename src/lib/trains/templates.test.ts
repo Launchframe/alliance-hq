@@ -220,10 +220,11 @@ describe("supportsManualConductorPick", () => {
 });
 
 describe("supportsManualVipPick", () => {
-  it("allows manual VIP pick for conductor_pick, donations, and lottery days", () => {
+  it("allows manual VIP pick for every VIP mechanism except none", () => {
     expect(supportsManualVipPick("event_top_x_lottery")).toBe(true);
     expect(supportsManualVipPick("donations_second")).toBe(true);
     expect(supportsManualVipPick("conductor_pick")).toBe(true);
     expect(supportsManualVipPick("none")).toBe(false);
+    expect(supportsManualVipPick(null)).toBe(false);
   });
 });

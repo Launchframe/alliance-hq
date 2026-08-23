@@ -8,29 +8,17 @@ import {
   getConductorRecord,
 } from "@/lib/trains/repository";
 import { getMemberRankAsOf } from "@/lib/trains/rank-history";
-import { withConductorPoolClaimLock } from "@/lib/trains/conductor-pool-claim-lock.server";
-import {
-  listPoolEntries,
-  listUnselectedPoolEntries,
-  markPoolMemberSelectedForDate,
-  releasePoolSelectionForDate,
-} from "@/lib/trains/pool";
-import {
-  depletingManualPickErrorMessage,
-  evaluateDepletingManualPick,
-  shouldReleasePriorPoolSelection,
-} from "@/lib/trains/depleting-manual-pick.shared";
-import { ensureConductorPoolSeeded, getServerCalendarDate } from "@/lib/trains/service";
-import {
-  supportsManualVipPick,
-  vipMechanismPoolType,
-} from "@/lib/trains/templates";
-import type { EventTopXConfig, VipMechanismType } from "@/lib/trains/types";
+import { getServerCalendarDate } from "@/lib/trains/service";
+import { supportsManualVipPick } from "@/lib/trains/templates";
 import { requireApiSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Manual VIP / Guardian pick is an open roster assign after lock. It must not
+ * seed, claim, or release depleting pools — those are conductor-wheel only.
+ */
 export async function POST(request: Request) {
   const sessionOrError = await requireApiSession();
 
@@ -91,59 +79,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const priorVipMemberId = existing.vipMemberId ?? null;
-    const replacingSameMember = priorVipMemberId === memberId;
-
     const rankEvent = await getMemberRankAsOf(
       ctx.allianceId,
       memberId,
       date,
     );
-
-    const poolType = vipMechanismPoolType(mechanism as VipMechanismType);
-    if (poolType && !replacingSameMember) {
-      const vipConfig = (dayConfig.vipConfig ?? {
-        eventKey: "capitol_war",
-        topN: 10,
-      }) as EventTopXConfig;
-      await ensureConductorPoolSeeded({
-        hqAllianceId: ctx.allianceId,
-        poolType,
-        date,
-        useSequence: false,
-        eventTopN: vipConfig.topN ?? 10,
-      });
-      const claimError = await withConductorPoolClaimLock(
-        { allianceId: ctx.allianceId, poolType },
-        async () => {
-          const [unselected, poolEntries] = await Promise.all([
-            listUnselectedPoolEntries(ctx.allianceId, poolType),
-            listPoolEntries(ctx.allianceId, poolType),
-          ]);
-          const gate = evaluateDepletingManualPick({
-            memberId,
-            unselectedMemberIds: unselected.map((row) => row.memberId),
-            poolMemberIds: poolEntries.map((row) => row.memberId),
-          });
-          if (!gate.ok) {
-            return depletingManualPickErrorMessage(gate.reason);
-          }
-          const claimed = await markPoolMemberSelectedForDate(
-            ctx.allianceId,
-            poolType,
-            memberId,
-            date,
-          );
-          if (!claimed) {
-            return depletingManualPickErrorMessage("already_awarded");
-          }
-          return null;
-        },
-      );
-      if (claimError) {
-        return NextResponse.json({ error: claimError }, { status: 409 });
-      }
-    }
 
     const record = await assignVipOnLockedConductor({
       allianceId: ctx.allianceId,
@@ -156,20 +96,6 @@ export async function POST(request: Request) {
       dayConfigId: dayConfig.dayConfigId,
       guardianIsVip: body.guardianIsVip ? 1 : 0,
     });
-
-    if (
-      poolType &&
-      shouldReleasePriorPoolSelection({
-        previousMemberId: priorVipMemberId,
-        nextMemberId: memberId,
-      })
-    ) {
-      await releasePoolSelectionForDate(
-        ctx.allianceId,
-        date,
-        priorVipMemberId!,
-      );
-    }
 
     return NextResponse.json({
       record: {

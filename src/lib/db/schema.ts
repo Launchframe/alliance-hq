@@ -2651,6 +2651,10 @@ export const trainConductorRecords = pgTable(
     substituteForMemberId: text("substitute_for_member_id"),
     substituteForMemberName: text("substitute_for_member_name"),
     lockedAt: timestamp("locked_at", { withTimezone: true }),
+    lockedByHqUserId: text("locked_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
     discordDepartingSoonAt: timestamp("discord_departing_soon_at", {
       withTimezone: true,
     }),

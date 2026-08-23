@@ -71,7 +71,7 @@ Leadership may pivot Tue–Sun to economy-style (`r3_lottery`) after assessing D
 
 ## Pool exhaustion
 
-- Lottery/sequence pools (`r3`, `r4_plus`, `event_top_x`) remove a member once selected for a date.
+- Lottery/sequence pools (`r3`, `r4_plus`, `event_top_x`) remove a member once selected for a date. **Manual VIP pick does not consume these pools.**
 - When the last eligible member is picked, auto **re-seed** a new generation (`refreshExhaustedPoolIfNeeded`).
 - **`r4_sequence`:** when pool not exhausted, assign **next in sequence** (deterministic pick). Still show the conductor wheel animation for celebration / screenshots; do not skip `ConductorWheelModal` for R4 single-day spins.
 - Permanent **`train_conductor_records`** = alliance audit trail (conductor + VIP + lock time).
@@ -80,6 +80,7 @@ Leadership may pivot Tue–Sun to economy-style (`r3_lottery`) after assessing D
 
 - `vipConfig.eventKey`: `capitol_war`, `meteorite_war` (default `capitol_war`).
 - Event top scorers fetched from Ashed **`KillScore`** when available; falls back to dated **`VSScore`** if entity unknown.
+- The **wheel** may spin that event board (`event_top_x` pool). **Manual VIP / Guardian pick is always an open roster assign** after lock — it does not check or consume that pool.
 
 ## Native vs Ashed alliances
 
@@ -92,5 +93,5 @@ Leadership may pivot Tue–Sun to economy-style (`r3_lottery`) after assessing D
 ## API guardrails
 
 - Train mutations: `requireTrainOfficer` (`trains:write`); reads tenant-scoped by session alliance.
-- Reject schedule paint on dates with `lockedAt` set (409).
+- Reject schedule paint on **ineligible locked** conductors (409 `locked_day_paint_blocked`) unless the officer first unlocks/clears. Eligible locked conductors may keep their assignment while the day rule changes.
 - Season override: `PATCH /api/alliance/season` (`alliance:admin` only) — not on trains page.

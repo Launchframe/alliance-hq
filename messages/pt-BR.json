@@ -3331,8 +3331,11 @@
       "palette": "Escolher regra",
       "spinSelected": "Girar dias selecionados",
       "manualPick": "Escolher condutor manualmente",
+      "manualPickVip": "Escolher VIP / Guardião manualmente",
       "lock": "Confirmar condutor",
       "unlock": "Desbloquear condutor",
+      "requestUnlock": "Pedir para desbloquear este condutor",
+      "clearPending": "Limpar condutor pendente",
       "shareImage": "Exportar imagem do condutor",
       "viewHistory": "Ver histórico do condutor",
       "viewEligibility": "Ver elegibilidade"
@@ -3419,6 +3422,15 @@
     "unlockCancel": "Cancelar",
     "unlockConfirmAction": "Desbloquear",
     "unlockFailed": "Não foi possível desbloquear o condutor.",
+    "unlockUntilMidnight": "Você pode desbloquear até a meia-noite no horário do servidor em {date}.",
+    "unlockOwnedPast": "Você confirmou este dia passado, então pode desbloqueá-lo.",
+    "unlockNeedsEscalation": "A meia-noite no horário do servidor já passou. Peça ao dono da aliança ou a um mantenedor da plataforma para desbloquear este condutor.",
+    "requestUnlockConductor": "Pedir para desbloquear este condutor",
+    "unlockRequestCopied": "Copiado",
+    "unlockRequestClipboard": "Por favor, desbloqueie {name} em {date}. A posse do trem encerrou (meia-noite no horário do servidor).",
+    "clearPendingConductor": "Limpar condutor pendente",
+    "clearingPendingConductor": "Limpando…",
+    "clearPendingConductorFailed": "Não foi possível limpar o condutor pendente.",
     "selectedDayConductor": "Condutor · {date}",
     "pickConductorManually": "Escolher condutor manualmente",
     "pickConductorTitle": "Escolher condutor · {date}",
@@ -3427,6 +3439,7 @@
     "pickConductorCancel": "Cancelar",
     "pickConductorConfirm": "Confirmar condutor",
     "pickConductorSameGenerationWarning": "Este membro já foi condutor na geração atual do pool. Confirme apenas se você quer escolhê-lo de novo antes de todos terem tido a vez.",
+    "pickConductorEligibilityOverrideWarning": "Este membro não está elegível para a regra deste dia. Confirme para atribuí-lo como condutor mesmo assim.",
     "pickConductorLastConducted": {
       "today": "Hoje",
       "yesterday": "Ontem",
@@ -3478,6 +3491,15 @@
       "confirm": "Pintar dias passados",
       "confirming": "Pintando…",
       "cancel": "Cancelar"
+    },
+    "paintRuleGate": {
+      "ineligibleClear": "{name} não é elegível para {rule}. Limpar o condutor e mudar as regras?",
+      "ineligibleLocked": "{name} não é elegível para {rule}.",
+      "yes": "Sim",
+      "no": "Não",
+      "requestUnlockAction": "Pedir para desbloquear este condutor",
+      "copied": "Copiado",
+      "requestUnlockClipboard": "Por favor desbloqueie {name} em {date} para que a regra possa mudar para {rule}."
     },
     "userSettings": {
       "menuLabel": "Configurações de exibição dos trens",
@@ -3536,7 +3558,8 @@
           "pickTop": "Escolher o maior pontuador",
           "pickManual": "Escolher condutor manualmente",
           "assigned": "Condutor: {name}",
-          "change": "Alterar"
+          "change": "Alterar",
+          "clear": "Limpar condutor pendente"
         },
         "vip": {
           "title": "VIP / Guardião",
@@ -3549,7 +3572,7 @@
         "lock": {
           "title": "Confirmar",
           "lockCta": "Confirmar condutor",
-          "ready": "Pronto para confirmar e criar o trem de hoje"
+          "ready": "Pronto para confirmar e criar o trem de hoje. Se você confirmar, pode desbloquear até a meia-noite no horário do servidor."
         },
         "done": {
           "title": "Tudo pronto",
@@ -3567,8 +3590,10 @@
       "quickStart": {
         "paint": "Escolha um modelo semanal ou pinte dias individuais na agenda.",
         "roll": "Gire a roleta ou escolha um Condutor para hoje e os próximos dias.",
-        "lock": "Confirme um Condutor para gerar o trem vazio daquele dia."
+        "lock": "Confirme um Condutor para gerar o trem vazio daquele dia. Se foi você quem confirmou, pode desbloquear até a meia-noite no horário do servidor daquele dia."
       },
+      "lockOwnershipTitle": "Posse do trem",
+      "lockOwnershipBody": "O oficial que confirma um condutor pode desbloqueá-lo até a meia-noite no horário do servidor daquele dia de trem. Confirmar um dia passado é a exceção — você pode desbloquear essa confirmação a qualquer momento. Depois da meia-noite, só o dono da aliança ou um mantenedor da plataforma pode desbloquear.",
       "takeTour": "Fazer o tour",
       "close": "Fechar"
     },
@@ -3606,7 +3631,7 @@
       "skip": "Pular tour",
       "next": "Próximo →",
       "done": "Concluir",
-      "step1": "Este é o hub de agendamento de trens. Os dias de trem seguem o horário do servidor do jogo (UTC−2). O selo acima mostra sempre a data e hora atuais do servidor — use-o ao planejar sorteios e confirmações.",
+      "step1": "Este é o hub de agendamento de trens. Os dias de trem seguem o horário do servidor do jogo (UTC−2). O selo acima mostra sempre a data e hora atuais do servidor — use-o ao planejar sorteios e confirmações. Se você confirmar um condutor, pode desbloqueá-lo até a meia-noite no horário do servidor daquele dia de trem.",
       "step2": "Você pode definir as regras de Condutor e VIP para a semana inteira. Tente mudar o trem desta semana para Semana Economy (Loteria R3) — as alterações não entram em vigor enquanto este tour estiver ativo.",
       "step3": "Ótimo! Agora vamos mudar as regras do trem de hoje. Pressione e segure o bloco de hoje e escolha uma regra diferente no menu.",
       "step4": "É aqui que você configura o Condutor e o VIP do dia. Você pode fazer isso para o dia atual ou para qualquer dia futuro.",

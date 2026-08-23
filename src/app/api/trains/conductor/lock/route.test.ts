@@ -43,6 +43,10 @@ vi.mock("@/lib/trains/service", () => ({
   syncDepletingPoolSelectionForConductorDay: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock("@/lib/trains/train-ownership.server", () => ({
+  resolveTrainActorHqUserId: vi.fn().mockResolvedValue("hq-1"),
+}));
+
 const LOCKED_RECORD = {
   id: "rec-1",
   conductorMemberId: "mem-1",
@@ -92,6 +96,11 @@ describe("conductor lock POST", () => {
 
     expect(res.status).toBe(200);
     expect(maybeAnnounceTrainReady).not.toHaveBeenCalled();
+    expect(lockConductorRecord).toHaveBeenCalledWith(
+      "rec-1",
+      "ally-1",
+      "hq-1",
+    );
   });
 
   it("passes officer locale through to Discord announce", async () => {

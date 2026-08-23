@@ -4,6 +4,7 @@ import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { lockConductorsForDates } from "@/lib/trains/service";
 import { requireApiSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
+import { resolveTrainActorHqUserId } from "@/lib/trains/train-ownership.server";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
     const { records, poolsRefreshed } = await lockConductorsForDates({
       allianceId: ctx.allianceId,
       dates,
+      lockedByHqUserId: await resolveTrainActorHqUserId(session.id),
     });
     return NextResponse.json({ records, poolsRefreshed });
   } catch (error) {
