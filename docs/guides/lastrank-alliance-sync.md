@@ -85,6 +85,21 @@ LastRank is treated as source of truth for country, HQ level, base power, and TH
 npx tsx scripts/lastrank/sync-alliance.ts --server 1203 --tag BigD --apply --create-all
 ```
 
+## Profile links from a power paste
+
+Turn an officer paste list (`Name - 142M`, optional notes) into Markdown LastRank profile links. Fetches the live alliance HTML (no HQ DB write). Whitelisted `--server` + `--tag` (or `--id`); optional `--name` only labels the heading.
+
+```bash
+npx tsx scripts/lastrank/profile-links.ts --help
+# paste list, then Ctrl-D:
+npx tsx scripts/lastrank/profile-links.ts --server 1203 --tag BigD --name "Big Daddies"
+# or from a file:
+npx tsx scripts/lastrank/profile-links.ts --server 1203 --tag BigD --file list.txt
+npm run lastrank:profile-links -- --server 1203 --tag BigD --file list.txt
+```
+
+Stdout is a Markdown bullet list of `[LastRank name](https://lastrank.fun/p/{public_id})`. Unmatched / ambiguous names go to stderr.
+
 ## Dry-run locally
 
 Needs `LOCAL_DATABASE_URL` and a live roster in that DB (or an empty native alliance on the target server).
