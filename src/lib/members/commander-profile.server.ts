@@ -19,6 +19,7 @@ import {
 } from "@/lib/members/alliance-rank";
 import { sessionHasMembershipForAlliance } from "@/lib/alliance/session-memberships";
 import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
+import { assignableInviteRolesForContext } from "@/lib/native-alliance/team-invites.server";
 import { getRbacContext, sessionHasPermission } from "@/lib/rbac/context";
 import type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
 import {
@@ -372,6 +373,8 @@ export async function loadCommanderProfile(
     sessionId,
     "members:write",
   );
+  const viewerCanIssueOfficerInvite =
+    rbac != null && assignableInviteRolesForContext(rbac).includes("officer");
   const canEditMainSquad = await viewerCanEditMainSquad({
     sessionId,
     allianceId,
@@ -399,6 +402,7 @@ export async function loadCommanderProfile(
       viewerIsOwner,
       canOfficerOverrideMainSquad,
       viewerCanIssueClaimInvite: canOfficerOverrideMainSquad,
+      viewerCanIssueOfficerInvite,
       viewerCanBreakGlassUnlink,
       canGiftStoreBricks,
       canManageTipJar,

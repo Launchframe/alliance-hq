@@ -13,6 +13,7 @@ import {
 } from "@/lib/settings/invite-wizard-generate.client";
 import {
   defaultInviteWizardTargets,
+  resolveOfficerHybridInviteRole,
   type InviteWizardResult,
   type InviteWizardStep,
   type InviteWizardTargets,
@@ -73,17 +74,17 @@ export function InviteWizard({
         officerCommanderId &&
         rows.some((commander) => commander.ashedMemberId === officerCommanderId)
       ) {
-        const officerRole = assignableRoles.includes("officer")
-          ? "officer"
-          : (assignableRoles.find((role) => role !== "member") ?? "officer");
-        setInviteType("invite_link");
-        setStep(2);
-        setTargets((prev) => ({
-          ...prev,
-          inviteLinkSubtype: "protected_link",
-          inviteRole: officerRole,
-          inviteLinkCommanderId: officerCommanderId,
-        }));
+        const officerRole = resolveOfficerHybridInviteRole(assignableRoles);
+        if (officerRole) {
+          setInviteType("invite_link");
+          setStep(2);
+          setTargets((prev) => ({
+            ...prev,
+            inviteLinkSubtype: "protected_link",
+            inviteRole: officerRole,
+            inviteLinkCommanderId: officerCommanderId,
+          }));
+        }
         return;
       }
 

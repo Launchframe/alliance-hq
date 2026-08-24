@@ -108,3 +108,10 @@ export function isValidInviteEmail(value: string): boolean {
   const trimmed = value.trim();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
 }
+
+/** Hybrid officer+claim invites require an assignable officer role. */
+export function resolveOfficerHybridInviteRole(
+  assignableRoles: SystemRoleName[],
+): SystemRoleName | null {
+  return assignableRoles.includes("officer") ? "officer" : null;
+}

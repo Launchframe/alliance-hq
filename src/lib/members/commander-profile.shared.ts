@@ -25,6 +25,8 @@ export type CommanderProfilePayload = {
     canOfficerOverrideMainSquad: boolean;
     /** Viewer may generate a commander claim invite for this roster member. */
     viewerCanIssueClaimInvite: boolean;
+    /** Viewer may assign officer RBAC (owner/admin/maintainer — not alliance officer). */
+    viewerCanIssueOfficerInvite: boolean;
     /** Viewer (alliance owner or platform maintainer) may break-glass unlink. */
     viewerCanBreakGlassUnlink: boolean;
     /** Viewer may open Last War store to gift bricks to this peer Commander (requires known game UID). */
