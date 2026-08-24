@@ -378,7 +378,7 @@ export async function loadCommanderProfile(
     ashedMemberId,
   });
   const canGift = await sessionCanGiftStoreBricks(sessionId, allianceId);
-  const canGiftStoreBricks = canGift && !viewerIsOwner;
+  const canGiftStoreBricks = canGift && !viewerIsOwner && Boolean(gameUid);
   const canManageTipJar = canGift && viewerIsOwner && Boolean(gameUid);
 
   return {
@@ -387,6 +387,7 @@ export async function loadCommanderProfile(
       currentName: commanderIdentity?.primaryName ?? memberRow.currentName,
       previousNames: memberRow.previousNamesJson ?? [],
       status: commanderIdentity?.membershipStatus ?? memberRow.status,
+      allianceRank: rankForDisplay.rank,
       rankLabel,
       titleLabel,
       powerLevel: commanderIdentity?.powerLevel ?? null,

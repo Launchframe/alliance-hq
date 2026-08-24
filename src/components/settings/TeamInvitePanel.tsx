@@ -21,16 +21,19 @@ function InviteWizardWithParams({
   onGenerated,
 }: Props & { onGenerated: () => void }) {
   const searchParams = useSearchParams();
+  const inviteWizard = searchParams.get("inviteWizard");
+  const commander = searchParams.get("commander");
   const deepLinkClaimCommanderId =
-    searchParams.get("inviteWizard") === "claim"
-      ? searchParams.get("commander")
-      : null;
+    inviteWizard === "claim" ? commander : null;
+  const deepLinkOfficerCommanderId =
+    inviteWizard === "officer_claim" ? commander : null;
 
   return (
     <InviteWizard
       assignableRoles={assignableRoles}
       allianceName={allianceName}
       deepLinkClaimCommanderId={deepLinkClaimCommanderId}
+      deepLinkOfficerCommanderId={deepLinkOfficerCommanderId}
       onGenerated={onGenerated}
     />
   );

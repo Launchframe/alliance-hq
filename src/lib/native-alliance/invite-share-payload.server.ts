@@ -70,10 +70,14 @@ export function buildInviteLinkSharePayload(input: {
   allianceName: string;
   inviteUrl: string;
   passphrase?: string | null;
+  /** Embed passphrase in welcome URL so recipients need only one link. */
+  embedPassphraseInUrl?: boolean;
 }): InviteSharePayload {
   const token = extractHqInviteToken(input.inviteUrl);
+  const passphrase =
+    input.embedPassphraseInUrl !== false ? input.passphrase : null;
   const welcomeUrl = token
-    ? buildWelcomeInviteUrl(input.origin, token)
+    ? buildWelcomeInviteUrl(input.origin, token, passphrase)
     : input.inviteUrl;
   return {
     welcomeUrl,
@@ -82,7 +86,8 @@ export function buildInviteLinkSharePayload(input: {
       variant: "invite_link",
       allianceName: input.allianceName,
       welcomeUrl,
-      passphrase: input.passphrase,
+      // Passphrase is in the URL when embedded; omit "send separately" line.
+      passphrase: input.embedPassphraseInUrl === false ? input.passphrase : undefined,
     }),
   };
 }

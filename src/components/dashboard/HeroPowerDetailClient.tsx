@@ -104,13 +104,15 @@ export function HeroPowerDetailClient() {
 
       <AnalyticsCard title={t("chartTitle")}>
         <PercentileBandChart
-          data={data.series.map((row) => ({
-            date: row.recordedDate,
-            total: row.thpTotal,
-            p50: row.thpP50,
-            p90: row.thpP90,
-            p99: row.thpP99,
-          }))}
+          data={data.series
+            .filter((row) => row.thpTotal != null)
+            .map((row) => ({
+              date: row.recordedDate,
+              total: row.thpTotal,
+              p50: row.thpP50,
+              p90: row.thpP90,
+              p99: row.thpP99,
+            }))}
           showTotal
           viewerValue={data.viewer.totalHeroPower}
           viewerDate={data.today}

@@ -22,6 +22,12 @@ describe("welcome-url.shared", () => {
     );
   });
 
+  it("embeds passphrase in invite welcome URL when provided", () => {
+    expect(
+      buildWelcomeInviteUrl("https://hq.example/", "abc123", "coral-tide"),
+    ).toBe("https://hq.example/welcome?invite=abc123&p=coral-tide");
+  });
+
   it("returns null when alliance tag is missing", () => {
     expect(buildWelcomeJoinCodeUrl("https://hq.example", null, "LFGO-A1B2C3")).toBe(
       null,

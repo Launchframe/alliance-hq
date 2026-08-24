@@ -33,26 +33,38 @@ type InvitePreview = {
 type Props = {
   token: string;
   queryRedirect?: string;
+  /** Passphrase from `?p=` on the invite/welcome URL (single-link shares). */
+  initialPassphrase?: string;
   isAuthenticated: boolean;
   userEmail?: string | null;
   ssoAvailability: AuthSsoAvailability;
 };
 
-function authCallbackPath(token: string, queryRedirect?: string): string {
-  const invitePath = `/invite/${encodeURIComponent(token)}`;
-  if (!queryRedirect) {
-    return invitePath;
+function authCallbackPath(
+  token: string,
+  queryRedirect?: string,
+  passphrase?: string,
+): string {
+  const params = new URLSearchParams();
+  if (queryRedirect) {
+    params.set("next", queryRedirect);
   }
-  return `${invitePath}?next=${encodeURIComponent(queryRedirect)}`;
+  if (passphrase?.trim()) {
+    params.set("p", passphrase.trim());
+  }
+  const qs = params.toString();
+  const invitePath = `/invite/${encodeURIComponent(token)}`;
+  return qs ? `${invitePath}?${qs}` : invitePath;
 }
 
 function buildAuthHref(
   token: string,
   queryRedirect: string | undefined,
   boundEmail: string | null | undefined,
+  passphrase?: string,
 ): string {
   const params = new URLSearchParams({
-    callbackUrl: authCallbackPath(token, queryRedirect),
+    callbackUrl: authCallbackPath(token, queryRedirect, passphrase),
     from: "invite",
   });
   if (boundEmail?.trim()) {
@@ -64,6 +76,7 @@ function buildAuthHref(
 export function InviteAcceptClient({
   token,
   queryRedirect,
+  initialPassphrase,
   isAuthenticated,
   userEmail,
   ssoAvailability,
@@ -72,14 +85,19 @@ export function InviteAcceptClient({
   const { push, beginSessionChange, beginNavigation } = useShellNavigation();
   const [preview, setPreview] = useState<InvitePreview | null>(null);
   const [email, setEmail] = useState(userEmail ?? "");
-  const [passphrase, setPassphrase] = useState("");
+  const [passphrase, setPassphrase] = useState(initialPassphrase?.trim() ?? "");
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAccountHint, setShowAccountHint] = useState(false);
 
-  const authHref = buildAuthHref(token, queryRedirect, preview?.boundEmail);
+  const authHref = buildAuthHref(
+    token,
+    queryRedirect,
+    preview?.boundEmail,
+    passphrase,
+  );
 
   const postAcceptHref = useMemo(
     () =>
@@ -116,7 +134,7 @@ export function InviteAcceptClient({
     setError(null);
     try {
       await signIn("discord", {
-        callbackUrl: authCallbackPath(token, queryRedirect),
+        callbackUrl: authCallbackPath(token, queryRedirect, passphrase),
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : t("signInFailed"));

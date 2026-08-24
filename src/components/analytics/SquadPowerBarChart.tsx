@@ -13,7 +13,7 @@ import {
 
 import { analyticsTooltipProps } from "@/components/analytics/AnalyticsChartTooltip";
 
-import { YouAreHereLegend, VIEWER_MARKER_COLOR } from "@/components/analytics/YouAreHereMarker";
+import { VIEWER_MARKER_COLOR } from "@/components/analytics/YouAreHereMarker";
 
 type Row = {
   key: string;
@@ -67,7 +67,6 @@ export function SquadPowerBarChart({
           </BarChart>
         </ResponsiveContainer>
       </div>
-      {rows.some((row) => row.isViewer) ? <YouAreHereLegend /> : null}
     </div>
   );
 }

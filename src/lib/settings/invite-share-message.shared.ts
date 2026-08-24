@@ -18,7 +18,13 @@ export function buildInviteLinkShareMessage(input: ShareMessageInput): string {
   const name = input.allianceName.trim() || "your alliance";
   const url = resolveDestinationUrl(input);
   let message = `You're invited to join ${name} on Alliance HQ! Just go to ${url} to get started.`;
-  if (input.passphrase?.trim()) {
+  // When passphrase is already in the URL (`?p=`), do not ask the sender to
+  // forward a second secret.
+  const passphraseInUrl =
+    Boolean(url) &&
+    Boolean(input.passphrase?.trim()) &&
+    (url.includes("p=") || url.includes("?p=") || url.includes("&p="));
+  if (input.passphrase?.trim() && !passphraseInUrl) {
     message += ` Passphrase (send separately): ${input.passphrase.trim()}`;
   }
   return message;

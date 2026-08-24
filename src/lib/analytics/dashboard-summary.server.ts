@@ -14,9 +14,8 @@ import {
   loadLatestSnapshot,
   loadMemberThpTable,
   loadSnapshotSeries,
-  loadThpValuesForDate,
   parseDashboardRange,
-  type SnapshotRow,
+  withLiveThpSeries,
 } from "@/lib/analytics/snapshots.server";
 import {
   loadDashboardViewerContext,
@@ -63,7 +62,7 @@ export async function loadDashboardSummary(
     videoCoverage,
     squad,
     latestSnapshot,
-    snapshotSeries,
+    snapshotSeriesRaw,
     effectiveSeason,
     ashedConnection,
   ] = await Promise.all([
@@ -92,6 +91,8 @@ export async function loadDashboardSummary(
     getAshedConnection(sessionId),
   ]);
 
+  const snapshotSeries = await withLiveThpSeries(allianceId, snapshotSeriesRaw);
+
   return {
     viewer,
     inbox: inboxRows.slice(0, 5).map((item) => ({
@@ -108,9 +109,9 @@ export async function loadDashboardSummary(
     videoCoverage,
     squad,
     latestSnapshot,
-    linkProgressSeries: snapshotSeries,
+    linkProgressSeries: snapshotSeriesRaw,
     thpSeries: snapshotSeries,
-    donationSeries: snapshotSeries,
+    donationSeries: snapshotSeriesRaw,
     vrAvailable: !effectiveSeason.isPostSeason,
     canManageTrains,
     canWriteMembers,
@@ -130,13 +131,14 @@ export async function loadHeroPowerDashboard(
 
   const range = parseDashboardRange(rangeRaw);
   const today = getServerCalendarDate();
-  const [viewer, series, table] = await Promise.all([
+  const [viewer, seriesRaw, table] = await Promise.all([
     loadDashboardViewerContext(sessionId, session.hqUserId, allianceId),
     loadSnapshotSeries(allianceId, range),
     loadMemberThpTable(allianceId, today),
   ]);
 
-  const thpValues = await loadThpValuesForDate(allianceId, today);
+  const series = await withLiveThpSeries(allianceId, seriesRaw);
+  const thpValues = table.map((row) => row.totalHeroPower);
   const standing = computeViewerThpStanding(thpValues, viewer.totalHeroPower);
 
   return { viewer, series, table, standing, range, today };
