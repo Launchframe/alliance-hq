@@ -54,33 +54,69 @@ export async function generateInviteWizardResult(input: {
         roleName: targets.inviteRole,
         redirectPath: targets.inviteRedirectPath.trim() || undefined,
         adminLabel: targets.inviteAdminLabel.trim() || undefined,
+        targetAshedMemberId: targets.inviteLinkCommanderId.trim() || undefined,
       }),
     });
     const body = (await res.json()) as {
       error?: string;
+      code?: string;
       invite?: SharePayloadFields & {
         inviteUrl: string;
         passphrase?: string;
       };
+      joinCode?: SharePayloadFields & {
+        code: string;
+        targetCommanderName?: string | null;
+      };
     };
     if (!res.ok) {
+      if (body.code === "commander_already_claimed") {
+        throw Object.assign(
+          new Error(body.error ?? "Commander already claimed."),
+          { code: "commander_already_claimed" },
+        );
+      }
       throw new Error(body.error ?? "Could not create invite.");
     }
+    // Member + claim still returns a join code from the team invites API.
+    if (body.joinCode && !body.invite) {
+      const code = body.joinCode.code ?? "";
+      const resolved = resolveGeneratedWelcomeUrl(body.joinCode);
+      return {
+        kind: "claim_single",
+        code,
+        commanderName:
+          body.joinCode.targetCommanderName ??
+          commanders.find(
+            (c) => c.ashedMemberId === targets.inviteLinkCommanderId,
+          )?.name ??
+          "",
+        welcomeUrl: resolved.welcomeUrl,
+        welcomeUrlRequiresAllianceTag: resolved.welcomeUrlRequiresAllianceTag,
+        shareMessage:
+          body.joinCode.shareMessage ??
+          buildClaimCodeShareMessage({
+            allianceName,
+            welcomeUrl: resolved.welcomeUrl || undefined,
+            joinCode: code,
+          }),
+      };
+    }
     const inviteUrl = body.invite?.inviteUrl ?? "";
-    const welcomeUrl = body.invite?.welcomeUrl ?? inviteUrl;
     const passphrase = body.invite?.passphrase;
+    const resolved = resolveGeneratedWelcomeUrl(body.invite ?? {});
     return {
       kind: "invite_link",
       inviteUrl,
-      welcomeUrl,
-      welcomeUrlRequiresAllianceTag: false,
+      welcomeUrl: resolved.welcomeUrl || inviteUrl,
+      welcomeUrlRequiresAllianceTag: resolved.welcomeUrlRequiresAllianceTag,
       passphrase,
       shareMessage:
         body.invite?.shareMessage ??
         buildInviteLinkShareMessage({
           allianceName,
           inviteUrl,
-          welcomeUrl,
+          welcomeUrl: resolved.welcomeUrl || inviteUrl,
           passphrase,
         }),
     };

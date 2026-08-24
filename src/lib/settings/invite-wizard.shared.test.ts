@@ -4,6 +4,7 @@ import {
   defaultInviteWizardTargets,
   isValidInviteEmail,
   JOIN_CODE_DEFAULT_MAX_USES,
+  resolveOfficerHybridInviteRole,
 } from "@/lib/settings/invite-wizard.shared";
 import { validateInviteWizardStep2 } from "@/lib/settings/invite-wizard-generate.client";
 
@@ -27,5 +28,14 @@ describe("invite wizard shared", () => {
     expect(
       validateInviteWizardStep2({ type: "invite_link", targets }),
     ).toBe("inviteEmailRequired");
+  });
+
+  it("returns officer only when assignable for hybrid claim invites", () => {
+    expect(resolveOfficerHybridInviteRole(["officer", "member"])).toBe(
+      "officer",
+    );
+    expect(resolveOfficerHybridInviteRole(["data_entry", "viewer", "member"])).toBe(
+      null,
+    );
   });
 });

@@ -19,6 +19,7 @@ import {
 } from "@/lib/members/alliance-rank";
 import { sessionHasMembershipForAlliance } from "@/lib/alliance/session-memberships";
 import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
+import { assignableInviteRolesForContext } from "@/lib/native-alliance/team-invites.server";
 import { getRbacContext, sessionHasPermission } from "@/lib/rbac/context";
 import type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
 import {
@@ -372,13 +373,15 @@ export async function loadCommanderProfile(
     sessionId,
     "members:write",
   );
+  const viewerCanIssueOfficerInvite =
+    rbac != null && assignableInviteRolesForContext(rbac).includes("officer");
   const canEditMainSquad = await viewerCanEditMainSquad({
     sessionId,
     allianceId,
     ashedMemberId,
   });
   const canGift = await sessionCanGiftStoreBricks(sessionId, allianceId);
-  const canGiftStoreBricks = canGift && !viewerIsOwner;
+  const canGiftStoreBricks = canGift && !viewerIsOwner && Boolean(gameUid);
   const canManageTipJar = canGift && viewerIsOwner && Boolean(gameUid);
 
   return {
@@ -387,6 +390,7 @@ export async function loadCommanderProfile(
       currentName: commanderIdentity?.primaryName ?? memberRow.currentName,
       previousNames: memberRow.previousNamesJson ?? [],
       status: commanderIdentity?.membershipStatus ?? memberRow.status,
+      allianceRank: rankForDisplay.rank,
       rankLabel,
       titleLabel,
       powerLevel: commanderIdentity?.powerLevel ?? null,
@@ -398,6 +402,7 @@ export async function loadCommanderProfile(
       viewerIsOwner,
       canOfficerOverrideMainSquad,
       viewerCanIssueClaimInvite: canOfficerOverrideMainSquad,
+      viewerCanIssueOfficerInvite,
       viewerCanBreakGlassUnlink,
       canGiftStoreBricks,
       canManageTipJar,

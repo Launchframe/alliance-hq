@@ -202,6 +202,33 @@ export function InviteWizardTargetStep({
               {t("memberRoleNearFullWarning")}
             </p>
           ) : null}
+          {commanders.length > 0 ? (
+            <label className="space-y-1 text-sm sm:col-span-2">
+              <span className="text-[#8b949e]">
+                {tWizard("inviteLinkCommanderOptional")}
+              </span>
+              <select
+                value={targets.inviteLinkCommanderId}
+                onChange={(e) =>
+                  onChange({ inviteLinkCommanderId: e.target.value })
+                }
+                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              >
+                <option value="">{tWizard("inviteLinkCommanderNone")}</option>
+                {commanders.map((commander) => (
+                  <option
+                    key={commander.ashedMemberId}
+                    value={commander.ashedMemberId}
+                  >
+                    {commander.name}
+                  </option>
+                ))}
+              </select>
+              <span className="block text-xs text-[#6e7681]">
+                {tWizard("inviteLinkCommanderHint")}
+              </span>
+            </label>
+          ) : null}
           <details className="sm:col-span-2">
             <summary className="cursor-pointer text-sm text-[#8b949e] marker:content-none [&::-webkit-details-marker]:hidden">
               {tWizard("advancedOptions")}

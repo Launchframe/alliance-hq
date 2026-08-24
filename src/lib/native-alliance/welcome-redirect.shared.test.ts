@@ -26,6 +26,15 @@ describe("resolveWelcomeRedirect", () => {
     ).toBe("/invite/abc123TOKEN_with-dash");
   });
 
+  it("forwards embedded passphrase to the invite page", () => {
+    expect(
+      resolveWelcomeRedirect({
+        invite: "abc123TOKEN_with-dash",
+        p: "coral tide",
+      }),
+    ).toBe("/invite/abc123TOKEN_with-dash?p=coral%20tide");
+  });
+
   it("prefers invite over code when both are present", () => {
     expect(
       resolveWelcomeRedirect({

@@ -236,9 +236,9 @@ export async function createHqInvite(
   const targetAshedMemberId = input.targetAshedMemberId?.trim() || null;
   let targetCommanderName: string | null = null;
   if (targetAshedMemberId) {
-    if (input.roleName !== "member") {
-      throw new Error("Invalid invite role.");
-    }
+    // Privileged roles (officer, etc.) may bind an optional commander claim
+    // target — hybrid invite. Member-only claim invites stay the default for
+    // join-code claim codes; hq_invites allow any assignable role + target.
     const target = await assertCommanderClaimTargetClaimable(
       input.allianceId,
       targetAshedMemberId,
@@ -746,10 +746,25 @@ export async function acceptHqInvite(
     roleName: result.roleName,
   });
 
+  // Soft-fail claim: if the bound commander was claimed after invite create,
+  // still grant RBAC (incl. officer elevation) but drop the claim target so
+  // /onboard does not stuck on an unclaimable seat.
+  let claimTargetId = invite.targetAshedMemberId ?? null;
+  if (claimTargetId) {
+    const linkedMemberIds = await getLinkedMemberIds(invite.allianceId);
+    if (linkedMemberIds.has(claimTargetId)) {
+      await db
+        .update(schema.hqInvites)
+        .set({ targetAshedMemberId: null })
+        .where(eq(schema.hqInvites.id, invite.id));
+      claimTargetId = null;
+    }
+  }
+
   return {
     ...result,
     redirectPath: invite.redirectPath,
-    targetAshedMemberId: invite.targetAshedMemberId ?? null,
+    targetAshedMemberId: claimTargetId,
   };
 }
 

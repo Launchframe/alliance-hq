@@ -1,8 +1,9 @@
 import "server-only";
 
-import { and, asc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 
 import { computePercentile, percentileAt } from "@/lib/analytics/percentile.shared";
+import { commanderThpTotal } from "@/lib/commanders/power-stats.shared";
 import { isMissingSchemaError } from "@/lib/db/error-message";
 import { getDb, schema } from "@/lib/db";
 import { addCalendarDays, getServerCalendarDate } from "@/lib/trains/game-time";
@@ -81,37 +82,77 @@ export async function loadSnapshotSeries(
   }
 }
 
+/**
+ * Live alliance THP from commander identity (`commanders.current_total_hero_power`),
+ * matching Members / roster. The legacy `member_total_hero_power_events` table is no
+ * longer written; historical series come from `alliance_daily_snapshots` once the
+ * daily job records these values.
+ */
+export async function loadAllianceCommanderThpRows(
+  allianceId: string,
+): Promise<
+  Array<{ ashedMemberId: string; memberName: string; totalHeroPower: number }>
+> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      ashedMemberId: schema.commanderAllianceMemberships.ashedMemberId,
+      primaryName: schema.commanders.primaryName,
+      rosterName: schema.allianceMembers.currentName,
+      currentTotalHeroPower: schema.commanders.currentTotalHeroPower,
+    })
+    .from(schema.commanderAllianceMemberships)
+    .innerJoin(
+      schema.commanders,
+      eq(schema.commanders.id, schema.commanderAllianceMemberships.commanderId),
+    )
+    .leftJoin(
+      schema.allianceMembers,
+      and(
+        eq(schema.allianceMembers.allianceId, allianceId),
+        eq(
+          schema.allianceMembers.ashedMemberId,
+          schema.commanderAllianceMemberships.ashedMemberId,
+        ),
+      ),
+    )
+    .where(
+      and(
+        eq(schema.commanderAllianceMemberships.allianceId, allianceId),
+        isNull(schema.commanderAllianceMemberships.leftAt),
+      ),
+    );
+
+  const out: Array<{
+    ashedMemberId: string;
+    memberName: string;
+    totalHeroPower: number;
+  }> = [];
+  for (const row of rows) {
+    const totalHeroPower = commanderThpTotal({
+      currentTotalHeroPower: row.currentTotalHeroPower,
+    });
+    if (totalHeroPower <= 0) continue;
+    out.push({
+      ashedMemberId: row.ashedMemberId,
+      memberName:
+        row.primaryName?.trim() ||
+        row.rosterName?.trim() ||
+        row.ashedMemberId,
+      totalHeroPower,
+    });
+  }
+  return out.sort((a, b) => b.totalHeroPower - a.totalHeroPower);
+}
+
+/** Live commander THP values. Date arg kept for call-site compatibility. */
 export async function loadThpValuesForDate(
   allianceId: string,
   recordedDate: string,
 ): Promise<number[]> {
-  const db = getDb();
-  const rows = await db
-    .select({
-      ashedMemberId: schema.memberTotalHeroPowerEvents.ashedMemberId,
-      value: schema.memberTotalHeroPowerEvents.value,
-      recordedDate: schema.memberTotalHeroPowerEvents.recordedDate,
-    })
-    .from(schema.memberTotalHeroPowerEvents)
-    .where(
-      and(
-        eq(schema.memberTotalHeroPowerEvents.allianceId, allianceId),
-        sql`${schema.memberTotalHeroPowerEvents.recordedDate} <= ${recordedDate}`,
-      ),
-    )
-    .orderBy(
-      asc(schema.memberTotalHeroPowerEvents.ashedMemberId),
-      sql`${schema.memberTotalHeroPowerEvents.recordedDate} DESC`,
-    );
-
-  const latestByMember = new Map<string, number>();
-  for (const row of rows) {
-    if (!latestByMember.has(row.ashedMemberId)) {
-      latestByMember.set(row.ashedMemberId, row.value);
-    }
-  }
-
-  return [...latestByMember.values()];
+  void recordedDate;
+  const rows = await loadAllianceCommanderThpRows(allianceId);
+  return rows.map((row) => row.totalHeroPower);
 }
 
 export async function computeThpSnapshotForDate(
@@ -144,46 +185,56 @@ export function computeViewerThpStanding(
   return computePercentile(values, viewerThp);
 }
 
+/** Live commander THP table. Date arg kept for call-site compatibility. */
 export async function loadMemberThpTable(
   allianceId: string,
   recordedDate: string,
 ): Promise<
   Array<{ ashedMemberId: string; memberName: string; totalHeroPower: number }>
 > {
-  const db = getDb();
-  const rows = await db
-    .select({
-      ashedMemberId: schema.memberTotalHeroPowerEvents.ashedMemberId,
-      memberName: schema.memberTotalHeroPowerEvents.memberName,
-      value: schema.memberTotalHeroPowerEvents.value,
-    })
-    .from(schema.memberTotalHeroPowerEvents)
-    .where(
-      and(
-        eq(schema.memberTotalHeroPowerEvents.allianceId, allianceId),
-        sql`${schema.memberTotalHeroPowerEvents.recordedDate} <= ${recordedDate}`,
-      ),
-    )
-    .orderBy(
-      asc(schema.memberTotalHeroPowerEvents.ashedMemberId),
-      sql`${schema.memberTotalHeroPowerEvents.recordedDate} DESC`,
-    );
+  void recordedDate;
+  return loadAllianceCommanderThpRows(allianceId);
+}
 
-  const latest = new Map<
-    string,
-    { ashedMemberId: string; memberName: string; totalHeroPower: number }
-  >();
-  for (const row of rows) {
-    if (!latest.has(row.ashedMemberId)) {
-      latest.set(row.ashedMemberId, {
-        ashedMemberId: row.ashedMemberId,
-        memberName: row.memberName,
-        totalHeroPower: row.value,
-      });
-    }
+/** Merge live commander THP into today's snapshot row so the dashboard is not empty before cron. */
+export async function withLiveThpSeries(
+  allianceId: string,
+  series: SnapshotRow[],
+): Promise<SnapshotRow[]> {
+  const today = getServerCalendarDate();
+  const live = await computeThpSnapshotForDate(allianceId, today);
+  if (live.thpTotal == null) {
+    return series;
   }
 
-  return [...latest.values()].sort((a, b) => b.totalHeroPower - a.totalHeroPower);
+  const next = series.map((row) => ({ ...row }));
+  const idx = next.findIndex((row) => row.recordedDate === today);
+  if (idx >= 0) {
+    const existing = next[idx]!;
+    next[idx] = {
+      ...existing,
+      thpTotal: live.thpTotal,
+      thpP50: live.thpP50,
+      thpP90: live.thpP90,
+      thpP99: live.thpP99,
+    };
+  } else {
+    next.push({
+      recordedDate: today,
+      activeMemberCount: 0,
+      linkedCount: 0,
+      unlinkedCount: 0,
+      thpTotal: live.thpTotal,
+      thpP50: live.thpP50,
+      thpP90: live.thpP90,
+      thpP99: live.thpP99,
+      donationTotal: null,
+      donationP50: null,
+      donationP90: null,
+      donationP99: null,
+    });
+  }
+  return next;
 }
 
 export async function upsertAllianceDailySnapshot(input: {
@@ -242,65 +293,59 @@ export async function upsertAllianceDailySnapshot(input: {
     });
 }
 
+/** Write today's alliance THP snapshot from live commander totals. */
 export async function backfillThpSnapshotsFromEvents(
   allianceId: string,
 ): Promise<number> {
   const db = getDb();
-  const dates = await db
-    .selectDistinct({
-      recordedDate: schema.memberTotalHeroPowerEvents.recordedDate,
-    })
-    .from(schema.memberTotalHeroPowerEvents)
-    .where(eq(schema.memberTotalHeroPowerEvents.allianceId, allianceId))
-    .orderBy(asc(schema.memberTotalHeroPowerEvents.recordedDate));
+  const recordedDate = getServerCalendarDate();
+  const thp = await computeThpSnapshotForDate(allianceId, recordedDate);
+  if (thp.thpTotal == null) {
+    return 0;
+  }
 
-  let written = 0;
-  for (const { recordedDate } of dates) {
-    const thp = await computeThpSnapshotForDate(allianceId, recordedDate);
-    const [existing] = await db
-      .select({ allianceId: schema.allianceDailySnapshots.allianceId })
-      .from(schema.allianceDailySnapshots)
+  const [existing] = await db
+    .select({ allianceId: schema.allianceDailySnapshots.allianceId })
+    .from(schema.allianceDailySnapshots)
+    .where(
+      and(
+        eq(schema.allianceDailySnapshots.allianceId, allianceId),
+        eq(schema.allianceDailySnapshots.recordedDate, recordedDate),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    await db
+      .update(schema.allianceDailySnapshots)
+      .set({
+        thpTotal: thp.thpTotal,
+        thpP50: thp.thpP50,
+        thpP90: thp.thpP90,
+        thpP99: thp.thpP99,
+        computedAt: new Date(),
+      })
       .where(
         and(
           eq(schema.allianceDailySnapshots.allianceId, allianceId),
           eq(schema.allianceDailySnapshots.recordedDate, recordedDate),
         ),
-      )
-      .limit(1);
-
-    if (existing) {
-      await db
-        .update(schema.allianceDailySnapshots)
-        .set({
-          thpTotal: thp.thpTotal,
-          thpP50: thp.thpP50,
-          thpP90: thp.thpP90,
-          thpP99: thp.thpP99,
-          computedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(schema.allianceDailySnapshots.allianceId, allianceId),
-            eq(schema.allianceDailySnapshots.recordedDate, recordedDate),
-          ),
-        );
-    } else {
-      await upsertAllianceDailySnapshot({
-        allianceId,
-        recordedDate,
-        activeMemberCount: 0,
-        linkedCount: 0,
-        unlinkedCount: 0,
-        ...thp,
-        donationTotal: null,
-        donationP50: null,
-        donationP90: null,
-        donationP99: null,
-      });
-    }
-    written += 1;
+      );
+  } else {
+    await upsertAllianceDailySnapshot({
+      allianceId,
+      recordedDate,
+      activeMemberCount: 0,
+      linkedCount: 0,
+      unlinkedCount: 0,
+      ...thp,
+      donationTotal: null,
+      donationP50: null,
+      donationP90: null,
+      donationP99: null,
+    });
   }
-  return written;
+  return 1;
 }
 
 export async function listActiveAllianceIds(): Promise<string[]> {

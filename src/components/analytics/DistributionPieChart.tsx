@@ -10,7 +10,7 @@ import {
 
 import { analyticsTooltipProps } from "@/components/analytics/AnalyticsChartTooltip";
 
-import { YouAreHereLegend, VIEWER_MARKER_COLOR } from "@/components/analytics/YouAreHereMarker";
+import { VIEWER_MARKER_COLOR } from "@/components/analytics/YouAreHereMarker";
 
 const COLORS = ["#58a6ff", "#3fb950", "#ffa657", "#8b949e"];
 
@@ -79,7 +79,6 @@ export function DistributionPieChart({ slices, viewerKey }: Props) {
           </li>
         ))}
       </ul>
-      {viewerKey ? <YouAreHereLegend /> : null}
     </div>
   );
 }

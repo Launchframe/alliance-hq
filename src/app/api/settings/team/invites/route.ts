@@ -78,9 +78,10 @@ export async function POST(request: Request) {
   const origin = new URL(request.url).origin;
 
   try {
-    // Commander claims use a single-use join code (paste after Discord /link),
-    // not a second invite hyperlink + passphrase.
-    if (body.targetAshedMemberId) {
+    // Member + commander target → single-use claim join code (DM paste).
+    // Privileged role + optional commander → invite link (passphrase in URL)
+    // so officer invites can also bind a roster claim.
+    if (body.targetAshedMemberId && body.roleName === "member") {
       const joinCode = await createAllianceJoinCode({
         allianceId: access.allianceId,
         roleName: "member",
@@ -119,6 +120,7 @@ export async function POST(request: Request) {
       origin,
       redirectPath: sanitizeInternalRedirectPath(body.redirectPath),
       adminLabel: body.adminLabel,
+      targetAshedMemberId: body.targetAshedMemberId,
     });
 
     const alliance = await loadAllianceInviteShareContext(access.allianceId);
@@ -127,6 +129,7 @@ export async function POST(request: Request) {
       allianceName: alliance.allianceName,
       inviteUrl: invite.inviteUrl,
       passphrase: invite.passphrase,
+      embedPassphraseInUrl: true,
     });
 
     return NextResponse.json({

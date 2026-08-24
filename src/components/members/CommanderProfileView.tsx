@@ -498,12 +498,23 @@ export function CommanderProfileView({ initial, donationLaunchError }: Props) {
             </span>
           </div>
           <p className="mt-2 text-sm text-hq-fg-muted">{tInvites("wizard.typeClaimBody")}</p>
-          <Link
-            href={`/settings/team?inviteWizard=claim&commander=${encodeURIComponent(member.ashedMemberId)}`}
-            className="mt-3 inline-flex rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-hq-accent hover:bg-[#388bfd]/20"
-          >
-            {tInvites("wizard.openClaimWizard")}
-          </Link>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              href={`/settings/team?inviteWizard=claim&commander=${encodeURIComponent(member.ashedMemberId)}`}
+              className="inline-flex items-center justify-center rounded-lg bg-hq-accent px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:opacity-90"
+            >
+              {tInvites("wizard.openClaimWizard")}
+            </Link>
+            {member.viewerCanIssueOfficerInvite &&
+            (member.allianceRank === 4 || member.allianceRank === 5) ? (
+              <Link
+                href={`/settings/team?inviteWizard=officer_claim&commander=${encodeURIComponent(member.ashedMemberId)}`}
+                className="inline-flex items-center justify-center rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent"
+              >
+                {tInvites("wizard.openOfficerClaimWizard")}
+              </Link>
+            ) : null}
+          </div>
         </section>
       )}
 

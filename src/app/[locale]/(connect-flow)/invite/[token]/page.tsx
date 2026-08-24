@@ -15,10 +15,10 @@ export default async function InvitePage({
   searchParams,
 }: {
   params: Promise<{ token: string; locale: string }>;
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; p?: string }>;
 }) {
   const { token } = await params;
-  const { next } = await searchParams;
+  const { next, p } = await searchParams;
   const authSession = await auth();
   const ssoAvailability = getAuthSsoAvailability();
 
@@ -26,6 +26,7 @@ export default async function InvitePage({
     <InviteAcceptClient
       token={token}
       queryRedirect={next}
+      initialPassphrase={p}
       isAuthenticated={Boolean(authSession?.user?.id && authSession.user.email)}
       userEmail={authSession?.user?.email}
       ssoAvailability={ssoAvailability}

@@ -573,7 +573,7 @@ export function MembersListView({
   const bulkDisabled = selectedCount === 0 || applying;
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6">
+    <div className="mx-auto w-full min-w-0 max-w-full space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold">{t("title")}</h1>
@@ -874,7 +874,7 @@ export function MembersListView({
           </div>
         ) : null}
         <table
-          className={`w-full min-w-0 text-left text-sm ${
+          className={`w-full min-w-max text-left text-sm ${
             refreshing ? "pointer-events-none opacity-50" : ""
           }`}
         >

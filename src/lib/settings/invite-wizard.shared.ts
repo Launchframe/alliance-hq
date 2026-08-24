@@ -14,6 +14,8 @@ export type InviteWizardTargets = {
   inviteRole: SystemRoleName | "";
   inviteAdminLabel: string;
   inviteRedirectPath: string;
+  /** Optional unclaimed commander to bind on an invite_link (hybrid officer+claim). */
+  inviteLinkCommanderId: string;
   joinCodeRole: SystemRoleName;
   joinCodeMaxUses: string;
   joinCodeLabel: string;
@@ -32,7 +34,7 @@ export type InviteWizardResultInvite = {
   kind: "invite_link";
   inviteUrl: string;
   welcomeUrl: string;
-  welcomeUrlRequiresAllianceTag: false;
+  welcomeUrlRequiresAllianceTag: boolean;
   passphrase?: string;
   shareMessage: string;
 };
@@ -91,6 +93,7 @@ export function defaultInviteWizardTargets(
     inviteRole: defaultRole,
     inviteAdminLabel: "",
     inviteRedirectPath: "",
+    inviteLinkCommanderId: "",
     joinCodeRole: defaultRole,
     joinCodeMaxUses: String(JOIN_CODE_DEFAULT_MAX_USES[defaultRole] ?? 10),
     joinCodeLabel: "",
@@ -104,4 +107,11 @@ export function defaultInviteWizardTargets(
 export function isValidInviteEmail(value: string): boolean {
   const trimmed = value.trim();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+}
+
+/** Hybrid officer+claim invites require an assignable officer role. */
+export function resolveOfficerHybridInviteRole(
+  assignableRoles: SystemRoleName[],
+): SystemRoleName | null {
+  return assignableRoles.includes("officer") ? "officer" : null;
 }

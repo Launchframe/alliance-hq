@@ -18,7 +18,9 @@ Use invite links to get **leadership** onto HQ.
 
 - Share **individually in DMs**
 - **Do not** share in group chats or public forums
-- Protected links include a passphrase (send link and passphrase in separate messages)
+- Protected links include a passphrase **embedded in the welcome URL** (one link to copy)
+- Optionally **bind an unclaimed Commander** so the same invite grants officer (or other) permissions **and** claims that roster seat
+- If the Commander is claimed before redeem, the invitee still gets the HQ role
 - Email-bound links only work for the address you specify — HQ does not send the email for you
 
 ## Join codes
@@ -33,11 +35,12 @@ Join codes are multi-use. Recipients sign in to HQ and redeem the code.
 
 ## Commander claim
 
-Use commander claim when you know **exactly who** should own a specific Commander on your roster.
+Use commander claim when you know **exactly who** should own a specific Commander on your roster **and only need member access**.
 
 - Share in **in-game DM** (recommended), Discord DM, or another private message
 - **Do not** share in group or public forums
 - Each code is **single-use** and tied to one Commander
+- For **officer + claim**, prefer an **invite link** with a bound Commander (or “Invite as officer” on an R4/R5 commander profile)
 
 ## Ashed seat invites (automatic)
 

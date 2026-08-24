@@ -13,6 +13,7 @@ import {
 } from "@/lib/settings/invite-wizard-generate.client";
 import {
   defaultInviteWizardTargets,
+  resolveOfficerHybridInviteRole,
   type InviteWizardResult,
   type InviteWizardStep,
   type InviteWizardTargets,
@@ -24,6 +25,8 @@ type Props = {
   assignableRoles: SystemRoleName[];
   allianceName: string;
   deepLinkClaimCommanderId?: string | null;
+  /** Hybrid officer invite + optional claim target (from commander profile). */
+  deepLinkOfficerCommanderId?: string | null;
   onGenerated?: () => void;
 };
 
@@ -31,6 +34,7 @@ export function InviteWizard({
   assignableRoles,
   allianceName,
   deepLinkClaimCommanderId,
+  deepLinkOfficerCommanderId,
   onGenerated,
 }: Props) {
   const t = useTranslations("team.invites");
@@ -64,6 +68,26 @@ export function InviteWizard({
       defaultsAppliedRef.current = true;
 
       const commanderId = deepLinkClaimCommanderId?.trim() ?? "";
+      const officerCommanderId = deepLinkOfficerCommanderId?.trim() ?? "";
+
+      if (
+        officerCommanderId &&
+        rows.some((commander) => commander.ashedMemberId === officerCommanderId)
+      ) {
+        const officerRole = resolveOfficerHybridInviteRole(assignableRoles);
+        if (officerRole) {
+          setInviteType("invite_link");
+          setStep(2);
+          setTargets((prev) => ({
+            ...prev,
+            inviteLinkSubtype: "protected_link",
+            inviteRole: officerRole,
+            inviteLinkCommanderId: officerCommanderId,
+          }));
+        }
+        return;
+      }
+
       if (
         commanderId &&
         rows.some((commander) => commander.ashedMemberId === commanderId)
@@ -93,7 +117,7 @@ export function InviteWizard({
         joinCodeRole: preferredNonMemberRole ?? prev.joinCodeRole,
       }));
     },
-    [assignableRoles, deepLinkClaimCommanderId],
+    [assignableRoles, deepLinkClaimCommanderId, deepLinkOfficerCommanderId],
   );
 
   const loadClaimableCommanders = useCallback(async () => {
