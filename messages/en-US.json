@@ -26,6 +26,7 @@
     "metaTitle": "Alliance HQ — Last War alliance tools",
     "metaDescription": "Community tools for Last War alliance officers: roster sync, trains, VR reports, Discord bot, and video upload — built on ashed.online.",
     "title": "Alliance HQ",
+    "slogan": "Because I came for the Frontline, but found out it's totally fake and gay.",
     "tagline": "Alliance tools for Last War officers",
     "purposeTitle": "What is Alliance HQ?",
     "purposeBody": "Alliance HQ at <strong>frontline.gay</strong> is a hosted community tool for <strong>Last War</strong> alliance officers. It is a convenience layer on top of <link>ashed.online</link> — your alliance data stays on Ashed; HQ helps your team run day-to-day operations with a modern web app and Discord integration.",
@@ -1446,6 +1447,7 @@
   "shell": {
     "brand": "Alliance HQ",
     "domain": "frontline.gay",
+    "slogan": "Because I came for the Frontline, but found out it's totally fake and gay.",
     "dataPoweredBy": "Data powered by <link>Ashed</link>",
     "connectedAs": "Connected as {user}",
     "nativeSignedInAs": "Signed in as {user}",
