@@ -31,6 +31,10 @@
     {
       "path": "/api/internal/ashed-credential-shares/digest",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/internal/lastrank/sync",
+      "schedule": "30 8 * * *"
     }
   ]
 }

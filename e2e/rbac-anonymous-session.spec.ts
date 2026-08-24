@@ -132,6 +132,45 @@ test.describe("Anonymous bootstrap session RBAC", () => {
     expect(Array.isArray(body.users)).toBe(true);
   });
 
+  test("bootstrap session cannot search admin alliances", async ({ request }) => {
+    const sessionId = await mintSessionViaBootstrap(request);
+
+    const list = await request.get("/api/admin/alliances?q=LFgo&limit=5", {
+      headers: { Cookie: hqSessionOnlyCookie(sessionId) },
+    });
+    expect(list.status(), await list.text()).toBe(403);
+    const body = (await list.json()) as { error?: string };
+    expect(body.error).toMatch(/forbidden/i);
+  });
+
+  test("authenticated non-maintainer cannot search admin alliances", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const member = await createAuthenticatedHqSession(
+      sql,
+      `rbac-alliances-${nanoid(6)}@e2e.test`,
+    );
+
+    const list = await request.get("/api/admin/alliances?q=test&limit=5", {
+      headers: { Cookie: authCookieHeader(member) },
+    });
+    expect(list.status(), await list.text()).toBe(403);
+  });
+
+  test("platform maintainer can search admin alliances", async ({ request }) => {
+    const sql = getE2eSql();
+    const maintainer = await createPlatformMaintainerSession(sql);
+
+    const list = await request.get("/api/admin/alliances?limit=5&sort=name", {
+      headers: { Cookie: authCookieHeader(maintainer) },
+    });
+    expect(list.status(), await list.text()).toBe(200);
+    const body = (await list.json()) as { alliances?: unknown[]; total?: number };
+    expect(Array.isArray(body.alliances)).toBe(true);
+    expect(typeof body.total).toBe("number");
+  });
+
   test("protected API routes return 401 without a session cookie", async ({
     request,
   }) => {

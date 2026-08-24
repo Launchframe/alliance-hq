@@ -7,6 +7,7 @@ export type ThpEventSource =
   | "officer_override"
   | "video_parse"
   | "roster_import"
+  | "lastrank_sync"
   | "manual";
 
 export const THP_ANOMALY_GAP = 5_000_000;

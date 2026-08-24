@@ -51,6 +51,7 @@ export type NativeAllianceOption = {
   id: string;
   slug: string;
   name: string;
+  tag?: string | null;
 };
 
 export type NativeAllianceCreateDraft = {
