@@ -3783,6 +3783,14 @@
         "totalMobilization": "Mobilização Total",
         "busterDay": "Dia Buster"
       },
+      "dayScoreStats": {
+        "vsDayUnknown": "Dia de VS",
+        "vrLabel": "VR da temporada",
+        "considered": "{count, plural, one {# pontuação} other {# pontuações}}",
+        "eligible": "{count} elegíveis",
+        "summary": "{vsDay} · {weekday} · {considered, plural, one {# pontuação} other {# pontuações}} consideradas · {eligible} elegíveis",
+        "vrSummary": "VR da temporada · {considered, plural, one {# pontuação} other {# pontuações}} · {eligible} elegíveis"
+      },
       "poolTypes": {
         "r3": "Elegibilidade loteria R3",
         "r4_plus": "Elegibilidade sequência R4",

@@ -15,6 +15,19 @@ export type TrainsVsDataStatus = {
   kind: TrainsVsDataStatusKind;
   /** Prior-day VS recorded date when kind is `prior_day_vs`. */
   scoreDate?: string;
+  /** Members eligible under the day's rule (when score stats are loaded). */
+  eligibleCount?: number;
+  /** VS match day key for the score source date (Radar Training, …). */
+  vsDayKey?:
+    | "radarTraining"
+    | "baseExpansion"
+    | "ageOfScience"
+    | "heroDay"
+    | "totalMobilization"
+    | "busterDay"
+    | null;
+  /** Top N scope when the rule is a top board. */
+  topN?: number;
 };
 
 export type ClassifyVsDataNeedInput = {
@@ -110,6 +123,9 @@ export function buildVsDataStatus(input: {
   required: boolean;
   scoreCount: number;
   scoreDate?: string;
+  eligibleCount?: number;
+  vsDayKey?: TrainsVsDataStatus["vsDayKey"];
+  topN?: number;
 }): TrainsVsDataStatus {
   const ready = !input.required || input.scoreCount > 0;
   return {
@@ -118,5 +134,10 @@ export function buildVsDataStatus(input: {
     scoreCount: input.scoreCount,
     kind: input.kind,
     ...(input.scoreDate !== undefined ? { scoreDate: input.scoreDate } : {}),
+    ...(input.eligibleCount !== undefined
+      ? { eligibleCount: input.eligibleCount }
+      : {}),
+    ...(input.vsDayKey !== undefined ? { vsDayKey: input.vsDayKey } : {}),
+    ...(input.topN !== undefined ? { topN: input.topN } : {}),
   };
 }

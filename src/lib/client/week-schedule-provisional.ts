@@ -24,5 +24,6 @@ export function buildProvisionalWeekPage(
     templateType: resolvedTemplate,
     dayConfigs,
     weekRecords: [],
+    dayScoreStats: {},
   };
 }

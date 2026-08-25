@@ -53,9 +53,13 @@ import { loadTrainsUserPreferences } from "@/lib/trains/trains-user-preferences.
 import type { TrainsDisplayWeekStartDow } from "@/lib/trains/trains-display-calendar.shared";
 import type { TrainsWheelSpinSpeed } from "@/lib/trains/trains-wheel-speed.shared";
 import {
-  loadTrainsVsDataStatus,
-  type TrainsVsDataStatus,
-} from "@/lib/trains/vs-data-status.server";
+  loadTrainDayScoreStatsForDates,
+} from "@/lib/trains/day-score-stats.server";
+import {
+  trainDayScoreStatsToVsDataStatus,
+  type TrainDayScoreStats,
+} from "@/lib/trains/day-score-stats.shared";
+import type { TrainsVsDataStatus } from "@/lib/trains/vs-data-status.server";
 import {
   loadTrainsRosterDataStatus,
   type TrainsRosterDataStatus,
@@ -75,6 +79,8 @@ export type WeekSchedulePagePayload = {
   templateType: WeekTemplateType | null;
   dayConfigs: WeekScheduleDayConfig[];
   weekRecords: WeekConductorRecordSummary[];
+  /** Per train-date score source stats; null when the day's rule does not use scores. */
+  dayScoreStats: Record<string, TrainDayScoreStats | null>;
 };
 
 export type MonthSchedulePagePayload = {
@@ -216,8 +222,13 @@ export type TrainsDashboardPayload = {
   /**
    * Non-blocking VS / PIF score readiness for today's conductor actions.
    * Null when there is no alliance / day context to evaluate.
+   * Includes eligibleCount / vsDayKey when score stats apply.
    */
   vsDataStatus: TrainsVsDataStatus | null;
+  /** Score source stats for today (same as vsDataStatus when scores apply). */
+  todayScoreStats: TrainDayScoreStats | null;
+  /** Per-date score stats for the loaded train week (week view tiles). */
+  weekDayScoreStats: Record<string, TrainDayScoreStats | null>;
   /** Non-blocking roster readiness for today's conductor actions. */
   rosterDataStatus: TrainsRosterDataStatus | null;
   /** Season VR reporters with highest_base_vr > 0 — Top VR scope locks. */
@@ -252,6 +263,8 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   | "conductorRecord"
   | "todayDayConfig"
   | "vsDataStatus"
+  | "todayScoreStats"
+  | "weekDayScoreStats"
   | "rosterDataStatus"
   | "vrReporterCount"
   | "pools"
@@ -271,6 +284,8 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   conductorRecord: null,
   todayDayConfig: null,
   vsDataStatus: null,
+  todayScoreStats: null,
+  weekDayScoreStats: {},
   rosterDataStatus: null,
   vrReporterCount: 0,
   pools: {},
@@ -436,34 +451,43 @@ export async function loadTrainsDashboard(
   });
   const conductorHistory = historyResult.rows.map(mapRecord);
   const pirSettings = await loadPriceIsRightTicketSettings(allianceId);
-  const [vsDataStatus, rosterDataStatus, vrReporterCount] = await Promise.all([
-    todayDayConfig
-      ? loadTrainsVsDataStatus({
-          allianceId,
-          trainDate: today,
-          conductorMechanism: todayDayConfig.conductorMechanism,
-          paintTemplate: todayDayConfig.paintTemplate ?? dashboardTemplateType,
-        })
-      : Promise.resolve(null),
-    todayDayConfig
-      ? loadTrainsRosterDataStatus({
-          sessionId,
-          allianceId,
-          trainDate: today,
-          conductorMechanism: todayDayConfig.conductorMechanism,
-          paintTemplate: todayDayConfig.paintTemplate ?? dashboardTemplateType,
-          activeMemberCount,
-        })
-      : loadTrainsRosterDataStatus({
-          sessionId,
-          allianceId,
-          trainDate: today,
-          conductorMechanism: null,
-          paintTemplate: dashboardTemplateType,
-          activeMemberCount,
-        }),
-    countAllianceVrReporters(allianceId),
-  ]);
+  const [rosterDataStatus, vrReporterCount, weekDayScoreStats] =
+    await Promise.all([
+      todayDayConfig
+        ? loadTrainsRosterDataStatus({
+            sessionId,
+            allianceId,
+            trainDate: today,
+            conductorMechanism: todayDayConfig.conductorMechanism,
+            paintTemplate: todayDayConfig.paintTemplate ?? dashboardTemplateType,
+            activeMemberCount,
+          })
+        : loadTrainsRosterDataStatus({
+            sessionId,
+            allianceId,
+            trainDate: today,
+            conductorMechanism: null,
+            paintTemplate: dashboardTemplateType,
+            activeMemberCount,
+          }),
+      countAllianceVrReporters(allianceId),
+      loadTrainDayScoreStatsForDates(
+        allianceId,
+        dayConfigs.map((day) => ({
+          trainDate: day.date,
+          conductorMechanism: day.conductorMechanism,
+          paintTemplate: day.paintTemplate,
+          conductorConfig: day.conductorConfig,
+        })),
+      ),
+    ]);
+
+  const todayScoreStats = todayDayConfig
+    ? (weekDayScoreStats[today] ?? null)
+    : null;
+  const vsDataStatus = todayScoreStats
+    ? trainDayScoreStatsToVsDataStatus(todayScoreStats)
+    : null;
 
   return {
     today,
@@ -501,6 +525,8 @@ export async function loadTrainsDashboard(
         }
       : null,
     vsDataStatus,
+    todayScoreStats,
+    weekDayScoreStats,
     rosterDataStatus,
     vrReporterCount,
     pools,
@@ -558,6 +584,16 @@ export async function loadWeekSchedulePage(
   );
   const recordAccess = await loadConductorRecordAccess(sessionId, allianceId);
 
+  const dayScoreStats = await loadTrainDayScoreStatsForDates(
+    allianceId,
+    dayConfigs.map((day) => ({
+      trainDate: day.date,
+      conductorMechanism: day.conductorMechanism,
+      paintTemplate: day.paintTemplate,
+      conductorConfig: day.conductorConfig,
+    })),
+  );
+
   return {
     weekStart,
     weekEnd,
@@ -566,6 +602,7 @@ export async function loadWeekSchedulePage(
     weekRecords: weekRecordRows.map((row) =>
       mapConductorRecord(row, recordAccess),
     ),
+    dayScoreStats,
   };
 }
 

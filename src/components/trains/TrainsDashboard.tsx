@@ -21,7 +21,12 @@ import {
 import { EconomyWeekScoresOptionalDialog } from "@/components/trains/EconomyWeekScoresOptionalDialog";
 import { TrainsHelpPanel } from "@/components/trains/TrainsHelpPanel";
 import { TrainsGuidedConductorFlow } from "@/components/trains/TrainsGuidedConductorFlow";
+import { TrainDayScoreStatsSummary } from "@/components/trains/TrainDayScoreStatsSummary";
 import { TrainLockConfirmBanner } from "@/components/trains/TrainLockConfirmBanner";
+import {
+  trainDayScoreStatsFromVsDataStatus,
+  type TrainDayScoreStats,
+} from "@/lib/trains/day-score-stats.shared";
 import { renderConductorWheelSharePngBlob } from "@/lib/client/conductor-wheel-share-image.client";
 import { buildShareViewportForWinner } from "@/lib/trains/conductor-wheel-reel.shared";
 import {
@@ -257,6 +262,7 @@ export function TrainsDashboard({ initial }: Props) {
     templateType: (initial.schedule?.templateType as WeekTemplateType) ?? null,
     dayConfigs: initial.dayConfigs,
     weekRecords: initial.weekRecords,
+    dayScoreStats: initial.weekDayScoreStats ?? {},
   });
   const initialMonthKey = getMonthKey(initial.today);
   const [viewedMonth, setViewedMonth] = useState<MonthSchedulePagePayload>({
@@ -418,6 +424,7 @@ export function TrainsDashboard({ initial }: Props) {
       templateType: (initial.schedule?.templateType as WeekTemplateType) ?? null,
       dayConfigs: initial.dayConfigs,
       weekRecords: initial.weekRecords,
+      dayScoreStats: initial.weekDayScoreStats ?? {},
     },
     viewedMonth: {
       monthKey: initialMonthKey,
@@ -642,6 +649,7 @@ export function TrainsDashboard({ initial }: Props) {
           templateType: inferWeekTemplateFromDayConfigs(dayConfigs),
           dayConfigs,
           weekRecords,
+          dayScoreStats: {},
         };
       }
     }
@@ -688,6 +696,24 @@ export function TrainsDashboard({ initial }: Props) {
     () => activeRecords.find((r) => r.date === selectedDate) ?? null,
     [activeRecords, selectedDate],
   );
+
+  const selectedDayScoreStats = useMemo((): TrainDayScoreStats | null => {
+    const fromWeek = viewedWeek.dayScoreStats?.[selectedDate];
+    if (fromWeek) return fromWeek;
+    if (selectedDate === data.today) {
+      return (
+        data.todayScoreStats ??
+        trainDayScoreStatsFromVsDataStatus(data.vsDataStatus)
+      );
+    }
+    return null;
+  }, [
+    viewedWeek.dayScoreStats,
+    selectedDate,
+    data.today,
+    data.todayScoreStats,
+    data.vsDataStatus,
+  ]);
 
   const conductorShortLabels = useMemo(
     () => ({
@@ -824,6 +850,7 @@ export function TrainsDashboard({ initial }: Props) {
         templateType: (body.schedule?.templateType as WeekTemplateType) ?? null,
         dayConfigs: body.dayConfigs,
         weekRecords: body.weekRecords,
+        dayScoreStats: body.weekDayScoreStats ?? {},
       });
     } else {
       const weekRes = await fetch(
@@ -2825,6 +2852,7 @@ export function TrainsDashboard({ initial }: Props) {
                 vsDataStatus={
                   selectedDate === data.today ? data.vsDataStatus : null
                 }
+                scoreStats={selectedDayScoreStats}
                 rosterDataStatus={
                   selectedDate === data.today ? data.rosterDataStatus : null
                 }
@@ -2991,6 +3019,9 @@ export function TrainsDashboard({ initial }: Props) {
                   <p className="text-sm text-hq-fg">
                     {t("uploadScoresBanner.body")}
                   </p>
+                  {selectedDayScoreStats ? (
+                    <TrainDayScoreStatsSummary stats={selectedDayScoreStats} />
+                  ) : null}
                   <Link
                     href={guidedVideoUploadHref}
                     className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 sm:w-auto"
@@ -3001,14 +3032,22 @@ export function TrainsDashboard({ initial }: Props) {
               ) : null}
               {(canRoll || canPickConductor || canManualPickVip) &&
               (selectedConductorSpinSource != null || selectedVipSpinSource != null) ? (
-                <TrainSpinSourcePanel
-                  conductorSource={selectedConductorSpinSource}
-                  vipSource={selectedVipSpinSource}
-                  pools={data.pools}
-                  showConductorSpin={selectedConductorSpinSource != null}
-                  showVipSpin={selectedVipSpinSource != null}
-                  onViewPool={openPoolDetails}
-                />
+                <>
+                  {selectedDayScoreStats ? (
+                    <TrainDayScoreStatsSummary
+                      stats={selectedDayScoreStats}
+                      className="px-1"
+                    />
+                  ) : null}
+                  <TrainSpinSourcePanel
+                    conductorSource={selectedConductorSpinSource}
+                    vipSource={selectedVipSpinSource}
+                    pools={data.pools}
+                    showConductorSpin={selectedConductorSpinSource != null}
+                    showVipSpin={selectedVipSpinSource != null}
+                    onViewPool={openPoolDetails}
+                  />
+                </>
               ) : null}
               <div className="flex flex-wrap gap-2">
                 <SpinWeekConductorFlow

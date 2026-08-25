@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { TrainDayScoreStatsSummary } from "@/components/trains/TrainDayScoreStatsSummary";
 import { Link } from "@/i18n/navigation";
 import {
   currentGuidedStep,
@@ -14,6 +15,7 @@ import { buildConnectHref } from "@/lib/connect/connect-return-path.shared";
 import { rosterSyncCapabilityAllowsInPageSync } from "@/lib/trains/roster-data-status.shared";
 import type { TrainsRosterDataStatus } from "@/lib/trains/roster-data-status.shared";
 import { WEEK_TEMPLATES_WITH_DETAIL_HINTS } from "@/lib/trains/week-template-registry.shared";
+import type { TrainDayScoreStats } from "@/lib/trains/day-score-stats.shared";
 import type { TrainsVsDataStatus } from "@/lib/trains/vs-data-status.shared";
 import type { WeekTemplateType } from "@/lib/trains/types";
 
@@ -26,6 +28,8 @@ export type TrainsGuidedConductorFlowProps = {
   /** Pre-translated template explainer; falls back to `trains.templateDetails.*` when omitted. */
   templateDetailHint?: string | null;
   vsDataStatus: TrainsVsDataStatus | null;
+  /** Score source stats for the selected/today train day when scores apply. */
+  scoreStats?: TrainDayScoreStats | null;
   rosterDataStatus: TrainsRosterDataStatus | null;
   hasConductor: boolean;
   conductorName?: string | null;
@@ -218,6 +222,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     paintTemplate,
     templateDetailHint,
     vsDataStatus,
+    scoreStats = null,
     rosterDataStatus,
     hasConductor,
     conductorName,
@@ -495,6 +500,9 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                 <p className="text-sm text-hq-fg">
                   {t("steps.prerequisites.bodyMissing")}
                 </p>
+                {scoreStats ? (
+                  <TrainDayScoreStatsSummary stats={scoreStats} />
+                ) : null}
                 <Link
                   href={videoUploadHref ?? DEFAULT_VIDEO_UPLOAD_HREF}
                   data-testid="trains-guided-upload-link"
@@ -504,11 +512,15 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                 </Link>
               </div>
             ) : prerequisitesStatus === "completed" ? (
-              <p className="text-xs text-hq-fg-muted">
-                {t("steps.prerequisites.bodyReady", {
-                  count: vsDataStatus?.scoreCount ?? 0,
-                })}
-              </p>
+              scoreStats ? (
+                <TrainDayScoreStatsSummary stats={scoreStats} />
+              ) : (
+                <p className="text-xs text-hq-fg-muted">
+                  {t("steps.prerequisites.bodyReady", {
+                    count: vsDataStatus?.scoreCount ?? 0,
+                  })}
+                </p>
+              )
             ) : null}
           </StepRow>
         ) : null}
@@ -572,11 +584,15 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
           ) : conductorStatus === "current" ? (
             <div className="flex flex-col gap-2">
               {vsDataStatus?.required && vsDataStatus.ready ? (
-                <p className="text-xs text-hq-fg-muted">
-                  {t("steps.prerequisites.bodyReady", {
-                    count: vsDataStatus.scoreCount,
-                  })}
-                </p>
+                scoreStats ? (
+                  <TrainDayScoreStatsSummary stats={scoreStats} />
+                ) : (
+                  <p className="text-xs text-hq-fg-muted">
+                    {t("steps.prerequisites.bodyReady", {
+                      count: vsDataStatus.scoreCount,
+                    })}
+                  </p>
+                )
               ) : null}
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 {conductorAction ? (

@@ -9,6 +9,8 @@ import {
   useState,
 } from "react";
 
+import { TrainDayScoreStatsSummary } from "@/components/trains/TrainDayScoreStatsSummary";
+import type { TrainDayScoreStats } from "@/lib/trains/day-score-stats.shared";
 import type {
   WeekConductorRecordSummary,
   WeekScheduleDayConfig,
@@ -129,6 +131,7 @@ type DayCellOptions = {
   conductorLabels: Record<string, string>;
   vipLabels: Record<string, string>;
   templateShortLabels?: Partial<Record<WeekTemplateType, string>>;
+  scoreStats?: TrainDayScoreStats | null;
   className?: string;
   layout?: "grid" | "carousel";
   onSelect?: () => void;
@@ -147,6 +150,7 @@ function WeekScheduleDayCell({
   conductorLabels,
   vipLabels,
   templateShortLabels,
+  scoreStats = null,
   className = "",
   layout = "grid",
   onSelect,
@@ -268,6 +272,9 @@ function WeekScheduleDayCell({
           <div className="truncate text-[9px] font-medium uppercase leading-tight opacity-90">
             {vipLabel}
           </div>
+        ) : null}
+        {scoreStats ? (
+          <TrainDayScoreStatsSummary stats={scoreStats} variant="compact" />
         ) : null}
       </div>
     </>
@@ -532,6 +539,7 @@ function WeekScheduleInfiniteDayCarousel({
           conductorLabels={conductorLabels}
           vipLabels={vipLabels}
           templateShortLabels={templateShortLabels}
+          scoreStats={entry.scoreStats}
           layout="carousel"
           draftScheduleAriaLabel={draftScheduleAriaLabel}
           onSelect={
@@ -625,6 +633,7 @@ export function WeekScheduleStrip({
     templateType: externalWeek?.templateType ?? null,
     dayConfigs: initialDayConfigs,
     weekRecords: initialWeekRecords,
+    dayScoreStats: externalWeek?.dayScoreStats ?? {},
   });
   const [loading, setLoading] = useState(false);
   const selectedWeekRange = weekRangeForDate(selectedDate, trainWeekConfig);
@@ -638,6 +647,7 @@ export function WeekScheduleStrip({
     templateType: externalWeek?.templateType ?? null,
     dayConfigs: initialDayConfigs,
     weekRecords: initialWeekRecords,
+    dayScoreStats: externalWeek?.dayScoreStats ?? {},
   }));
   const [templateMenuAnchor, setTemplateMenuAnchor] =
     useState<DayTemplateMenuAnchor | null>(null);
@@ -722,6 +732,7 @@ export function WeekScheduleStrip({
                 templateType: null,
                 dayConfigs: initialDayConfigs,
                 weekRecords: initialWeekRecords,
+                dayScoreStats: externalWeek?.dayScoreStats ?? {},
               },
         );
         return;
@@ -783,7 +794,8 @@ export function WeekScheduleStrip({
     externalWeek.dayConfigs.length > 0
       ? externalWeek
       : resolvedPage;
-  const { weekStart, weekEnd, dayConfigs, weekRecords } = displayPage;
+  const { weekStart, weekEnd, dayConfigs, weekRecords, dayScoreStats } =
+    displayPage;
 
   const dayGrid = (
     <div className="hidden grid-cols-7 gap-1.5 week-schedule-grid:grid">
@@ -805,6 +817,7 @@ export function WeekScheduleStrip({
             conductorLabels={conductorLabels}
             vipLabels={vipLabels}
             templateShortLabels={templateShortLabels}
+            scoreStats={dayScoreStats?.[day.date] ?? null}
             className="aspect-square min-w-0 p-1.5 min-h-0 w-auto"
             onSelect={selectable ? () => onSelectDate(day.date) : undefined}
             draftScheduleAriaLabel={draftScheduleAriaLabel}

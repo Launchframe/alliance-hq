@@ -93,6 +93,7 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 
 - Every day tile always shows the conductor name or **"—"** (not only when selected).
 - Long-press day paint uses `DAY_PAINT_TEMPLATES`.
+- Week tiles may show **score-source stats** (VS day name, score-date weekday, considered count, eligible-under-rule count) when the day's rule uses VS/VR scores. Month calendar tiles do **not** show these stats.
 
 ## Share image / wheel readability
 
