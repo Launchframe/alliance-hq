@@ -24,11 +24,14 @@ export async function loadTrainsVsDataStatus(input: {
   trainDate: string;
   conductorMechanism: string | null | undefined;
   paintTemplate?: string | null;
+  leadDays?: number;
 }): Promise<TrainsVsDataStatus> {
+  const leadDays = input.leadDays ?? 0;
   const need = classifyVsDataNeed({
     conductorMechanism: input.conductorMechanism,
     paintTemplate: input.paintTemplate,
     trainDate: input.trainDate,
+    leadDays,
   });
 
   if (need.kind === "none") {
@@ -59,7 +62,7 @@ export async function loadTrainsVsDataStatus(input: {
     }
   }
 
-  const scoreDate = vsScoreReferenceDate(input.trainDate);
+  const scoreDate = vsScoreReferenceDate(input.trainDate, leadDays);
   try {
     const scores = await fetchAlliancePriorDayVsScoresByMember(
       input.allianceId,

@@ -6,8 +6,10 @@ import type { TrainsVsDataStatus } from "@/lib/trains/vs-data-status.shared";
 export function buildTrainsGuidedVideoUploadHref(input: {
   trainDate: string;
   vsDataStatus?: TrainsVsDataStatus | null;
+  leadDays?: number;
 }): string {
   const scoreDate =
-    input.vsDataStatus?.scoreDate ?? vsScoreReferenceDate(input.trainDate);
+    input.vsDataStatus?.scoreDate ??
+    vsScoreReferenceDate(input.trainDate, input.leadDays ?? 0);
   return buildVideoUploadHref("vs-performance", { recordedDate: scoreDate });
 }

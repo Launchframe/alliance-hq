@@ -353,7 +353,7 @@ export function TrainsDashboard({ initial }: Props) {
   );
   const [reseedingPool, setReseedingPool] = useState<PoolType | null>(null);
   const [conductorLockBusy, setConductorLockBusy] = useState<
-    "lock" | "unlock" | "clear" | null
+    "lock" | "unlock" | "clear" | "confirm" | null
   >(null);
   const [clearWeekOpen, setClearWeekOpen] = useState(false);
   const [clearWeekBusy, setClearWeekBusy] = useState(false);
@@ -778,6 +778,7 @@ export function TrainsDashboard({ initial }: Props) {
   const templateLabels = useMemo(
     () => ({
       vs_push_week: t("templates.vs_push_week"),
+      vs_push_week_lead_time: t("templates.vs_push_week_lead_time"),
       vs_push_weekdays: t("templates.vs_push_weekdays"),
       r4_event_vip: t("templates.r4_event_vip"),
       top_vs: t("templates.top_vs"),
@@ -1270,6 +1271,31 @@ export function TrainsDashboard({ initial }: Props) {
           };
         },
       );
+    } finally {
+      setConductorLockBusy(null);
+    }
+  };
+
+  const confirmConductorNomination = async () => {
+    if (!selectedRecord?.id || rollingRole || reseedingPool || conductorLockBusy) {
+      return;
+    }
+    setConductorLockBusy("confirm");
+    setError(null);
+    try {
+      const res = await fetch("/api/trains/conductor/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId: selectedRecord.id }),
+      });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setError(body.error ?? t("conductorConfirmation.confirmFailed"));
+        return;
+      }
+      void refreshRef.current();
+    } catch {
+      setError(t("conductorConfirmation.confirmFailed"));
     } finally {
       setConductorLockBusy(null);
     }
@@ -1883,6 +1909,14 @@ export function TrainsDashboard({ initial }: Props) {
     rollingRole !== null || reseedingPool !== null || conductorLockBusy !== null;
 
   const locked = Boolean(selectedRecord?.lockedAt);
+  const pendingConfirmation =
+    data.trainConductorConfirmationEnabled &&
+    selectedRecord?.conductorNominationStatus === "pending_confirmation";
+  const confirmationSatisfied =
+    !data.trainConductorConfirmationEnabled ||
+    selectedRecord?.conductorNominationStatus === "confirmed" ||
+    selectedRecord?.conductorNominationStatus === "fallback_r4" ||
+    selectedRecord?.conductorNominationStatus == null;
   const canUnlockSelected = Boolean(selectedRecord?.canUnlock);
   const copySelectedUnlockRequest = () => {
     const name = selectedRecord?.conductorMemberName?.trim() || selectedDate;
@@ -3158,7 +3192,33 @@ export function TrainsDashboard({ initial }: Props) {
                     {t("pickVipManually")}
                   </button>
                 ) : null}
-                {!locked && hasValidConductor ? (
+                {!locked && pendingConfirmation && data.canManageTrains ? (
+                  <div
+                    className="flex w-full flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2"
+                    data-testid="trains-conductor-pending-confirmation"
+                  >
+                    <p className="text-sm text-hq-fg">
+                      {t("conductorConfirmation.pending", {
+                        name:
+                          selectedRecord?.conductorMemberName?.trim() || "—",
+                        time:
+                          selectedRecord?.confirmationDeadlineAt?.slice(11, 16) ??
+                          "—",
+                      })}
+                    </p>
+                    <button
+                      type="button"
+                      disabled={trainQuickActionBusy}
+                      onClick={() => void confirmConductorNomination()}
+                      className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-400 disabled:opacity-50 w-full sm:w-auto"
+                    >
+                      {conductorLockBusy === "confirm"
+                        ? t("conductorConfirmation.confirming")
+                        : t("conductorConfirmation.confirmButton")}
+                    </button>
+                  </div>
+                ) : null}
+                {!locked && hasValidConductor && confirmationSatisfied ? (
                   announceOnLock ? (
                     trainReadyConfirm ? (
                       lockConfirmBanner

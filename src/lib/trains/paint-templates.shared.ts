@@ -4,6 +4,7 @@ import type { WeekTemplateType } from "@/lib/trains/types";
 /** Day/week paint palette — shared by month calendar and week-strip context menu. */
 export const PAINT_TEMPLATES: WeekTemplateType[] = [
   "vs_push_week",
+  "vs_push_week_lead_time",
   "vs_push_weekdays",
   "r4_event_vip",
   "top_vs",

@@ -2063,7 +2063,20 @@
     },
     "trains": {
       "title": "Trains",
-      "subtitle": "Train configuration for {tag}."
+      "subtitle": "Train configuration for {tag}.",
+      "leadTime": {
+        "title": "Lead time",
+        "description": "Days between the VS score day and the train day. At 1 day, Saturday scores conduct Monday's train.",
+        "daysLabel": "{count, plural, one {# day} other {# days}}",
+        "confirmationToggle": "Require R4 confirmation after nomination",
+        "applyTemplateCta": "Apply VS push (lead time) week template",
+        "loading": "Loading lead time settings…",
+        "loadFailed": "Could not load lead time settings.",
+        "save": "Save lead time",
+        "saving": "Saving…",
+        "saveFailed": "Could not save lead time settings.",
+        "adminsOnly": "Only alliance admins can change lead time."
+      }
     },
     "gameSeasons": {
       "title": "Game season",
@@ -3853,6 +3866,15 @@
       "summary": "{vsDay} · {weekday} · {considered, plural, one {# score} other {# scores}} considered · {eligible} eligible",
       "vrSummary": "Season VR · {considered, plural, one {# score} other {# scores}} · {eligible} eligible"
     },
+    "conductorConfirmation": {
+      "pending": "Waiting for R4 confirmation — {name} has until {time} server",
+      "confirmButton": "Confirm conductor",
+      "forfeited": "{name} did not confirm in time",
+      "successor": "Successor: {name} — confirm by {time}",
+      "r4Fallback": "No conductor confirmed — assigned to {name} (R4)",
+      "confirmFailed": "Could not confirm conductor.",
+      "confirming": "Confirming…"
+    },
     "scoreLeaderboard": {
       "loading": "Loading score leaderboard…",
       "loadFailed": "Could not load the score leaderboard.",
@@ -4072,6 +4094,7 @@
     },
     "templates": {
       "vs_push_week": "VS Push week",
+      "vs_push_week_lead_time": "VS push (lead time)",
       "vs_push_weekdays": "VS Push weekdays",
       "r4_event_vip": "R4 & Event VIP",
       "top_vs": "Top VS",
@@ -4112,6 +4135,7 @@
     },
     "templateDetails": {
       "vs_push_week": "Conductor: Radar Training and Train Heroes days top-scores get Conductor at Reset. Other VS days, except Enemy Buster, draw Conductor from VS top 10. Sun & Mon are R4+ officer rotation days. VIP: Conductor picks VIP on VS weekdays; custom event top-10 lottery Sun & Mon.",
+      "vs_push_week_lead_time": "Companion to lead time ≥ 1. Conductor: Mon–Tue R4+ officer rotation; Wed–Sat prior-day VS top scores (shifted by lead time). Sunday is VS break — paint manually if needed. VIP: Conductor pick on VS days; event lottery on R4 days.",
       "vs_push_weekdays": "Conductor: Mon = top weekly donations; Tue and Fri = prior-day VS #1; Wed, Thu, and Sat = random from VS top 10. VIP: Mon = 2nd donor; Tue–Sat = conductor free pick.",
       "r4_event_vip": "Conductor: R4+ officer rotation. VIP: Custom event top-10 lottery wheel (Capitol War, Meteorite, etc). Typical for weekend train days.",
       "economy_week": "Conductor: R3 wheel every day. VIP: Conductor's pick.",

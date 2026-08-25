@@ -40,6 +40,10 @@ vi.mock("@/lib/trains/vs-scores.server", () => ({
   fetchAlliancePriorDayVsScoresByMember: vi.fn(),
 }));
 
+vi.mock("@/lib/trains/alliance-train-lead-time.server", () => ({
+  loadAllianceTrainLeadTimeDays: vi.fn().mockResolvedValue(0),
+}));
+
 vi.mock("@/lib/member-link/repository.server", () => ({
   getHqMemberLinkForUser: vi.fn(),
 }));

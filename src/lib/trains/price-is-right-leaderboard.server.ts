@@ -15,6 +15,7 @@ import {
   isMemberEligibleForPool,
   resolveMemberPoolAllianceRank,
 } from "@/lib/trains/rank-history";
+import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 
 export type PriceIsRightLeaderboardPayload = {
@@ -39,13 +40,15 @@ export async function loadPriceIsRightVsLeaderboard(input: {
     throw new Error("Selected day is not a Price Is Freight train day.");
   }
 
-  const scoreDate = vsScoreReferenceDate(input.trainDate);
+  const leadDays = await loadAllianceTrainLeadTimeDays(input.allianceId);
+  const scoreDate = vsScoreReferenceDate(input.trainDate, leadDays);
   const [members, rankEvents, vsScores] = await Promise.all([
     loadActiveAlliancePoolMembers({ allianceId: input.allianceId }),
     getAllianceRanksAsOf(input.allianceId, input.trainDate),
     fetchAlliancePriorDayVsScoresForTrainDate(
       input.allianceId,
       input.trainDate,
+      leadDays,
     ),
   ]);
 

@@ -13,4 +13,9 @@ export type WeekConductorRecordSummary = {
   canUnlock?: boolean;
   substituteForMemberId: string | null;
   substituteForMemberName: string | null;
+  /** awaiting_scores | pending_confirmation | confirmed | forfeited | fallback_r4 */
+  conductorNominationStatus?: string | null;
+  nominationTrigger?: string | null;
+  confirmationDeadlineAt?: string | null;
+  successorAttempt?: number;
 };

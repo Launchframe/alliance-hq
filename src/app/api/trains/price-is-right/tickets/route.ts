@@ -23,6 +23,7 @@ import {
   priceIsRightWeightingActive,
   resolveCliffPoints,
 } from "@/lib/trains/train-price-is-right-tickets.shared";
+import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
 import { fetchAlliancePriorDayVsScoresByMember } from "@/lib/trains/vs-scores.server";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 import { requireApiSession } from "@/lib/session";
@@ -64,6 +65,7 @@ export async function GET(request: Request) {
   }
 
   const settings = await loadPriceIsRightTicketSettings(ctx.allianceId);
+  const leadDays = await loadAllianceTrainLeadTimeDays(ctx.allianceId);
 
   let viewerMemberId: string | null = null;
   if (session.hqUserId) {
@@ -98,7 +100,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       mode: "heavy_hitter" as const,
       trainDate,
-      scoreDate: vsScoreReferenceDate(trainDate),
+      scoreDate: vsScoreReferenceDate(trainDate, leadDays),
       settings: {
         weightingEnabled: settings.weightingEnabled,
         cliffPoints: settings.cliffPoints,
@@ -131,6 +133,7 @@ export async function GET(request: Request) {
       candidates,
       settings,
       viewerMemberId,
+      leadDays,
     });
 
     const viewerEntry =
@@ -167,7 +170,7 @@ export async function GET(request: Request) {
   }
 
   const economy = await loadTrainEconomyThreshold(ctx.allianceId, false);
-  const scoreDate = vsScoreReferenceDate(trainDate);
+  const scoreDate = vsScoreReferenceDate(trainDate, leadDays);
   const vsScores = await fetchAlliancePriorDayVsScoresByMember(
     ctx.allianceId,
     scoreDate,

@@ -28,6 +28,7 @@ import type {
   RollResult,
   WeekTemplateType,
 } from "@/lib/trains/types";
+import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
 import { fetchAlliancePriorDayVsScoresByMember } from "@/lib/trains/vs-scores.server";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 
@@ -116,6 +117,7 @@ export async function rollPriceIsFreightConductor(input: {
   }
 
   const ticketSettings = await loadPriceIsRightTicketSettings(input.allianceId);
+  const leadDays = await loadAllianceTrainLeadTimeDays(input.allianceId);
   const r3Candidates = filterDaySpinCandidates(
     await loadPriceIsFreightR3Candidates({
       allianceId: input.allianceId,
@@ -130,6 +132,7 @@ export async function rollPriceIsFreightConductor(input: {
       trainDate: input.date,
       candidates: r3Candidates,
       settings: ticketSettings,
+      leadDays,
     });
     if (weighted.candidates.length === 0) {
       throwPoolEmpty("r3");
@@ -148,7 +151,7 @@ export async function rollPriceIsFreightConductor(input: {
   }
 
   const economy = await loadTrainEconomyThreshold(input.allianceId, false);
-  const scoreDate = vsScoreReferenceDate(input.date);
+  const scoreDate = vsScoreReferenceDate(input.date, leadDays);
   const vsScores = await fetchAlliancePriorDayVsScoresByMember(
     input.allianceId,
     scoreDate,

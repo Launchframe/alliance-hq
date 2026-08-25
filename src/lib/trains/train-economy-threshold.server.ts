@@ -24,6 +24,7 @@ import {
   tpirEligiblePoolEntries,
   type TrainEconomyThresholdSettings,
 } from "@/lib/trains/train-economy-threshold.shared";
+import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 
 export type TrainEconomyThresholdRow = TrainEconomyThresholdSettings &
@@ -182,7 +183,8 @@ export async function pickTpirPoolEntry(input: {
   let pickFrom = unselected;
 
   if (economyThresholdEnforcementEnabled(settings)) {
-    const scoreDate = vsScoreReferenceDate(input.trainDate);
+    const leadDays = await loadAllianceTrainLeadTimeDays(input.allianceId);
+    const scoreDate = vsScoreReferenceDate(input.trainDate, leadDays);
     const vsScores = await fetchAlliancePriorDayVsScoresByMember(
       input.allianceId,
       scoreDate,
@@ -216,6 +218,7 @@ export async function buildPriceIsRightWeightedCandidates(input: {
   candidates: RollCandidate[];
   settings?: PriceIsRightTicketSettings;
   viewerMemberId?: string | null;
+  leadDays?: number;
 }): Promise<{
   candidates: RollCandidate[];
   board: PriceIsRightTicketBoardEntry[];
@@ -225,7 +228,9 @@ export async function buildPriceIsRightWeightedCandidates(input: {
   const settings =
     input.settings ??
     (await loadPriceIsRightTicketSettings(input.allianceId));
-  const scoreDate = vsScoreReferenceDate(input.trainDate);
+  const leadDays =
+    input.leadDays ?? (await loadAllianceTrainLeadTimeDays(input.allianceId));
+  const scoreDate = vsScoreReferenceDate(input.trainDate, leadDays);
   const vsScores = await fetchAlliancePriorDayVsScoresByMember(
     input.allianceId,
     scoreDate,

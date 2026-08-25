@@ -43,6 +43,7 @@ type DayScoreStatsInput = {
   conductorMechanism: string | null | undefined;
   paintTemplate?: string | null;
   conductorConfig?: unknown;
+  leadDays?: number;
   /** Optional preloaded prior-day VS map keyed by recorded date. */
   vsScoresByRecordedDate?: Map<string, Map<string, number>>;
 };
@@ -78,6 +79,7 @@ async function eligibleCountForDay(
       input.allianceId,
       input.trainDate,
       topBoard.topN,
+      input.leadDays ?? 0,
     );
     return { eligibleCount: top.length, topN: topBoard.topN };
   }
@@ -118,6 +120,7 @@ async function eligibleCountForDay(
         trainDate: input.trainDate,
         candidates,
         settings: ticketSettings,
+        leadDays: input.leadDays ?? 0,
       });
       return { eligibleCount: weighted.candidates.length };
     }
@@ -149,10 +152,12 @@ async function eligibleCountForDay(
 export async function loadTrainDayScoreStats(
   input: DayScoreStatsInput,
 ): Promise<TrainDayScoreStats | null> {
+  const leadDays = input.leadDays ?? 0;
   const need = classifyVsDataNeed({
     conductorMechanism: input.conductorMechanism,
     paintTemplate: input.paintTemplate,
     trainDate: input.trainDate,
+    leadDays,
   });
 
   if (need.kind === "none") {
@@ -190,6 +195,7 @@ export async function loadTrainDayScoreStats(
 
   const { scoreDate, vsDayKey } = scoreSourceContextForTrainDate(
     input.trainDate,
+    leadDays,
   );
   try {
     const scores = await getPriorDayScores(
@@ -231,6 +237,7 @@ export async function loadTrainDayScoreStatsForDates(
     paintTemplate?: string | null;
     conductorConfig?: unknown;
   }>,
+  leadDays = 0,
 ): Promise<Record<string, TrainDayScoreStats | null>> {
   const vsScoresByRecordedDate = new Map<string, Map<string, number>>();
   const out: Record<string, TrainDayScoreStats | null> = {};
@@ -243,6 +250,7 @@ export async function loadTrainDayScoreStatsForDates(
         conductorMechanism: day.conductorMechanism,
         paintTemplate: day.paintTemplate,
         conductorConfig: day.conductorConfig,
+        leadDays,
         vsScoresByRecordedDate,
       });
     }),

@@ -17,6 +17,14 @@
       "schedule": "0 * * * *"
     },
     {
+      "path": "/api/internal/train/nominate-conductor-scheduled",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/internal/train/conductor-confirmation-tick",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/internal/cron/eur-tick",
       "schedule": "*/10 * * * *"
     },

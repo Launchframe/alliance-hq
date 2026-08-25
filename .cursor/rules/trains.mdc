@@ -132,7 +132,7 @@ Paint ids `top_vs` / `top_vr` open a scope picker. `conductor_config.topN` is me
 
 ## Data sources
 
-- **Top VS** (`vs_high_score` / `vs_top_10` / `vs_top_n`) — prior-day **daily** Ashed `VSScore` for T−1 (`vsScoreReferenceDate(trainDate)`); filter out `is_weekly` week-ending rows; **dedupe by member** (keep max score) before Top N slice; **intersect with active HQ roster** (exclude former members). Empty when T−1 is Sunday (VS break). Readiness `prior_day_vs`.
+- **Top VS** (`vs_high_score` / `vs_top_10` / `vs_top_n`) — prior-day **daily** Ashed `VSScore` for `vsScoreReferenceDate(trainDate, leadDays)` (default leadDays=0 → T−1); filter out `is_weekly` week-ending rows; **dedupe by member** (keep max score) before Top N slice; **intersect with active HQ roster** (exclude former members). Empty when the score reference date is Sunday (VS break). Readiness `prior_day_vs`. Alliance **lead time** shifts the score date; companion week template `vs_push_week_lead_time` (R4 Mon–Tue, VS Wed–Sat).
 - **Top VR** (`vr_top_n`) — HQ `memberSeasonVr` among active roster members; readiness kind `vr`.
 - **Event Top X VIP** — HQ season VR / event scores.
 - **Pools, economy filters, Price Is Right tickets** — HQ roster + prior-day VS where applicable.

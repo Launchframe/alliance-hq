@@ -11,6 +11,10 @@ import type { AllianceOperatingMode } from "@/lib/native-alliance/constants";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { loadActiveAlliancePoolMembers, loadAllianceRow } from "@/lib/members/game-roster";
 import { loadPriceIsRightTicketSettings } from "@/lib/trains/train-economy-threshold.server";
+import {
+  loadAllianceTrainLeadTimeDays,
+  loadAllianceTrainLeadTimeSettings,
+} from "@/lib/trains/alliance-train-lead-time.server";
 import { resolveCliffPoints } from "@/lib/trains/train-price-is-right-tickets.shared";
 import { countAllianceVrReporters } from "@/lib/trains/vr-reporter-count.server";
 import { loadSession } from "@/lib/session";
@@ -106,6 +110,10 @@ function mapConductorRecord(
     lockedByHqUserId?: string | null;
     substituteForMemberId?: string | null;
     substituteForMemberName?: string | null;
+    conductorNominationStatus?: string | null;
+    nominationTrigger?: string | null;
+    confirmationDeadlineAt?: Date | null;
+    successorAttempt?: number | null;
   },
   access: {
     today: string;
@@ -135,6 +143,11 @@ function mapConductorRecord(
     }),
     substituteForMemberId: row.substituteForMemberId ?? null,
     substituteForMemberName: row.substituteForMemberName ?? null,
+    conductorNominationStatus: row.conductorNominationStatus ?? null,
+    nominationTrigger: row.nominationTrigger ?? null,
+    confirmationDeadlineAt:
+      row.confirmationDeadlineAt?.toISOString() ?? null,
+    successorAttempt: row.successorAttempt ?? 0,
   };
 }
 
@@ -251,6 +264,8 @@ export type TrainsDashboardPayload = {
   inventoryCount: number;
   priceIsRightWeightingEnabled: boolean;
   priceIsRightCliffPoints: number | null;
+  trainConductorLeadTimeDays: number;
+  trainConductorConfirmationEnabled: boolean;
 };
 
 const EMPTY_DASHBOARD_FIELDS: Pick<
@@ -274,6 +289,8 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   | "operatingMode"
   | "priceIsRightWeightingEnabled"
   | "priceIsRightCliffPoints"
+  | "trainConductorLeadTimeDays"
+  | "trainConductorConfirmationEnabled"
 > = {
   operatingMode: "ashed",
   schedule: null,
@@ -294,6 +311,8 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   inventoryCount: 0,
   priceIsRightWeightingEnabled: false,
   priceIsRightCliffPoints: null,
+  trainConductorLeadTimeDays: 0,
+  trainConductorConfirmationEnabled: false,
 };
 
 async function loadConductorRecordAccess(sessionId: string, allianceId: string) {
@@ -451,6 +470,11 @@ export async function loadTrainsDashboard(
   });
   const conductorHistory = historyResult.rows.map(mapRecord);
   const pirSettings = await loadPriceIsRightTicketSettings(allianceId);
+  const leadTimeSettings = await loadAllianceTrainLeadTimeSettings(
+    allianceId,
+    canManageTrains,
+  );
+  const leadDays = leadTimeSettings.trainConductorLeadTimeDays;
   const [rosterDataStatus, vrReporterCount, weekDayScoreStats] =
     await Promise.all([
       todayDayConfig
@@ -479,6 +503,7 @@ export async function loadTrainsDashboard(
           paintTemplate: day.paintTemplate,
           conductorConfig: day.conductorConfig,
         })),
+        leadDays,
       ),
     ]);
 
@@ -537,6 +562,9 @@ export async function loadTrainsDashboard(
     priceIsRightCliffPoints: pirSettings.weightingEnabled
       ? resolveCliffPoints(pirSettings)
       : null,
+    trainConductorLeadTimeDays: leadDays,
+    trainConductorConfirmationEnabled:
+      leadTimeSettings.trainConductorConfirmationEnabled,
   };
 }
 
@@ -584,6 +612,7 @@ export async function loadWeekSchedulePage(
   );
   const recordAccess = await loadConductorRecordAccess(sessionId, allianceId);
 
+  const leadDays = await loadAllianceTrainLeadTimeDays(allianceId);
   const dayScoreStats = await loadTrainDayScoreStatsForDates(
     allianceId,
     dayConfigs.map((day) => ({
@@ -592,6 +621,7 @@ export async function loadWeekSchedulePage(
       paintTemplate: day.paintTemplate,
       conductorConfig: day.conductorConfig,
     })),
+    leadDays,
   );
 
   return {

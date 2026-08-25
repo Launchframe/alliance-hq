@@ -27,6 +27,7 @@ export type VipMechanismType = (typeof VIP_MECHANISMS)[number];
 
 export const WEEK_TEMPLATES = [
   "vs_push_week",
+  "vs_push_week_lead_time",
   "vs_push_weekdays",
   "r4_event_vip",
   /** Paint-only: Top VS with scope (conductor_config.topN). */

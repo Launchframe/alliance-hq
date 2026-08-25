@@ -94,10 +94,13 @@ export function dayNeedsScoreStats(input: {
 }
 
 /** Score-source context for a train date (VS day name + scoreDate). */
-export function scoreSourceContextForTrainDate(trainDate: string): {
+export function scoreSourceContextForTrainDate(
+  trainDate: string,
+  leadDays = 0,
+): {
   scoreDate: string;
   vsDayKey: VsScoreContext["vsDayKey"];
 } {
-  const ctx = vsScoreContextForTrainDate(trainDate);
+  const ctx = vsScoreContextForTrainDate(trainDate, leadDays);
   return { scoreDate: ctx.scoreDate, vsDayKey: ctx.vsDayKey };
 }

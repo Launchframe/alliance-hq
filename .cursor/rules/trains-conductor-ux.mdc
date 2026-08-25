@@ -58,9 +58,10 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 ## Dates (server calendar)
 
 - “Today” / eligibility uses **game server calendar** (`game-time`, UTC−2), not the browser local date.
-- **Monday:** no prior-day **daily** VS for any conductor mechanism (T−1 Sunday is the VS break). Top VS / prior-day maps **short-circuit empty** — do not query Ashed for Sunday week-ending totals.
-- **Sunday** draws that need prior-day VS use **Saturday** (Enemy Buster Day).
-- Prior-day VS for wheels and PIF uses **daily** Ashed `VSScore` rows only. Exclude **`is_weekly` / `isWeekly`** week-ending totals (uploaded on Sunday `recorded_date`); they must never feed Monday trains or daily Top VS / ticket math.
+- **Monday:** with **lead time 0**, no prior-day **daily** VS for any conductor mechanism (T−1 Sunday is the VS break). Top VS / prior-day maps **short-circuit empty** — do not query Ashed for Sunday week-ending totals. With **lead time ≥ 1**, score reference is `trainDate − 1 − leadDays` (e.g. lead=1 Monday train uses Saturday Buster Day scores).
+- **Sunday** draws that need prior-day VS use **Saturday** (Enemy Buster Day) at lead 0.
+- Alliance setting `trainConductorLeadTimeDays` (0–7) + optional `trainConductorConfirmationEnabled` (auto-nominate → R4 confirm → lock). Score-upload rules nominate when VS lands; pool/sequence rules nominate at day-before-train reset. Cron: `/api/internal/train/nominate-conductor-scheduled`, `/api/internal/train/conductor-confirmation-tick`.
+- Prior-day VS for wheels and PIF uses **daily** Ashed `VSScore` rows only. Exclude **`is_weekly` / `isWeekly`** week-ending totals (uploaded on Sunday `recorded_date`); they must never feed Monday trains (lead=0) or daily Top VS / ticket math.
 - **Manual picks** (e.g. `r3_recognition`) are never blocked on missing/low VS scores.
 - `r3_recognition` is **manual award only** — no R3 pool wheel.
 

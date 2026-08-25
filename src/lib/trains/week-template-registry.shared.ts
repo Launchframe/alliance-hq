@@ -34,6 +34,7 @@ export const SELECTABLE_WEEK_TEMPLATES = WEEK_TEMPLATES.filter(
 /** Week templates with `trains.templateDetails.*` hint copy in the selector UI. */
 export const WEEK_TEMPLATES_WITH_DETAIL_HINTS: readonly WeekTemplateType[] = [
   "vs_push_week",
+  "vs_push_week_lead_time",
   "vs_push_weekdays",
   "r4_event_vip",
   "economy_week",
@@ -79,6 +80,13 @@ export const COMPOSITE_WEEK_TEMPLATES: Partial<
     segments: [
       { template: "vs_push_weekdays", dayIndices: [0, 1, 2, 3, 4] },
       { template: "r4_event_vip", dayIndices: [5, 6] },
+    ],
+  },
+  /** R4 Mon–Tue, VS Top Wed–Sat; companion to lead time ≥ 1 (Sun off). */
+  vs_push_week_lead_time: {
+    segments: [
+      { template: "r4_event_vip", dayIndices: [6, 0] }, // Mon, Tue (Tue=0 … Mon=6)
+      { template: "vs_push_weekdays", dayIndices: [1, 2, 3, 4] }, // Wed–Sat
     ],
   },
   price_is_right: {
@@ -170,6 +178,7 @@ export function resolveLiteralDayPaintTemplate(
 ): WeekTemplateType {
   if (templateType === "price_is_right") return "price_is_right_weekdays";
   if (templateType === "vs_push_week") return "vs_push_weekdays";
+  if (templateType === "vs_push_week_lead_time") return "vs_push_weekdays";
   return templateType;
 }
 

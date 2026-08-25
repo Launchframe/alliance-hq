@@ -36,15 +36,20 @@ export type ClassifyVsDataNeedInput = {
   paintTemplate?: string | null;
   /** Train calendar date — gates prior-day VS (e.g. Monday → Sunday break). */
   trainDate?: string | null;
+  /** Alliance lead-time days (shifts score reference date). */
+  leadDays?: number;
 };
 
 /**
- * Prior calendar day is a VS match day (Mon–Sat). Sunday is the VS break, so
- * Monday conductor picks never require yesterday's scores; Sunday picks use
- * Saturday (Buster Day) when the mechanism needs prior-day VS.
+ * Score reference date is a VS match day (Mon–Sat). With leadDays=0, Monday
+ * trains use Sunday (break) → no prior-day VS. With leadDays=1, Monday uses
+ * Saturday (Buster Day) scores.
  */
-export function priorDayVsAppliesForTrainDate(trainDate: string): boolean {
-  const { vsDayNumber } = vsScoreContextForTrainDate(trainDate);
+export function priorDayVsAppliesForTrainDate(
+  trainDate: string,
+  leadDays = 0,
+): boolean {
+  const { vsDayNumber } = vsScoreContextForTrainDate(trainDate, leadDays);
   return vsDayNumber != null;
 }
 
@@ -58,6 +63,7 @@ export function classifyVsDataNeed(
   input: ClassifyVsDataNeedInput,
 ): { kind: TrainsVsDataStatusKind; required: boolean } {
   const mech = input.conductorMechanism;
+  const leadDays = input.leadDays ?? 0;
 
   // R3 recognition is manual award pick only — no score upload gate.
   if (input.paintTemplate === "r3_recognition") {
@@ -71,7 +77,7 @@ export function classifyVsDataNeed(
   const priorDayVsOk =
     input.trainDate == null ||
     input.trainDate === "" ||
-    priorDayVsAppliesForTrainDate(input.trainDate);
+    priorDayVsAppliesForTrainDate(input.trainDate, leadDays);
 
   if (!priorDayVsOk) {
     return { kind: "none", required: false };

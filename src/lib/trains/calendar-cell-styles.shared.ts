@@ -57,7 +57,7 @@ export function calendarCellStyleClass(
   if (isPriceIsRightPaintTemplate(paintTemplate)) {
     return TEMPLATE_CELL_STYLES.price_is_right_weekdays!;
   }
-  if (paintTemplate === "vs_push_week") {
+  if (paintTemplate === "vs_push_week" || paintTemplate === "vs_push_week_lead_time") {
     return mechanismStyleClass(conductorMechanism);
   }
   if (paintTemplate) {

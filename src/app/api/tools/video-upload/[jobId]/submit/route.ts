@@ -62,6 +62,7 @@ import {
 import { dispatchScoreSubmit } from "@/lib/video/submit-dispatch";
 import { notifyEurVideoEvidence } from "@/lib/eur/satisfaction";
 import { announcePriceIsRightLeaderboardAfterVsUpload } from "@/lib/trains/price-is-right-leaderboard-discord.server";
+import { maybeNominateConductorAfterVsUpload } from "@/lib/trains/conductor-confirmation.server";
 import {
   replaceAshedScoresForContext,
   resolveOrCreateAshedEvent,
@@ -1241,6 +1242,12 @@ export async function POST(request: Request, { params }: Props) {
         vsRecordedDate: submitContext.recordedDate,
       }).catch((error) => {
         console.error("[train-pir-leaderboard] post-submit announce failed", error);
+      });
+      void maybeNominateConductorAfterVsUpload({
+        allianceId,
+        vsRecordedDate: submitContext.recordedDate,
+      }).catch((error) => {
+        console.error("[train-nomination] post-submit nominate failed", error);
       });
     }
 
