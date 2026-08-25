@@ -33,6 +33,7 @@ import {
   formatWheelShareEligibilityLine,
   resolveWheelShareEligibility,
 } from "@/lib/trains/conductor-wheel-share.shared";
+import { isConductorConfirmationSatisfied } from "@/lib/trains/conductor-record.shared";
 import {
   SpinWeekConductorFlow,
   type SpinWeekConductorFlowHandle,
@@ -1912,11 +1913,20 @@ export function TrainsDashboard({ initial }: Props) {
   const pendingConfirmation =
     data.trainConductorConfirmationEnabled &&
     selectedRecord?.conductorNominationStatus === "pending_confirmation";
-  const confirmationSatisfied =
-    !data.trainConductorConfirmationEnabled ||
-    selectedRecord?.conductorNominationStatus === "confirmed" ||
-    selectedRecord?.conductorNominationStatus === "fallback_r4" ||
-    selectedRecord?.conductorNominationStatus == null;
+  const confirmationSatisfied = isConductorConfirmationSatisfied(
+    data.trainConductorConfirmationEnabled,
+    selectedRecord?.conductorNominationStatus,
+  );
+  const confirmationDeadlineLabel = useMemo(() => {
+    const iso = selectedRecord?.confirmationDeadlineAt;
+    if (!iso) return "—";
+    return new Date(iso).toLocaleTimeString(locale, {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: "Etc/GMT+2",
+    });
+  }, [locale, selectedRecord?.confirmationDeadlineAt]);
   const canUnlockSelected = Boolean(selectedRecord?.canUnlock);
   const copySelectedUnlockRequest = () => {
     const name = selectedRecord?.conductorMemberName?.trim() || selectedDate;
@@ -2171,7 +2181,11 @@ export function TrainsDashboard({ initial }: Props) {
     selectedRecord?.vipMemberName,
   ]);
   const lockConfirmBanner =
-    trainReadyConfirm && announceOnLock && !locked && hasValidConductor ? (
+    trainReadyConfirm &&
+    announceOnLock &&
+    !locked &&
+    hasValidConductor &&
+    confirmationSatisfied ? (
       <TrainLockConfirmBanner
         message={t("trainIsReady.confirm", {
           name: selectedRecord?.conductorMemberName ?? "—",
@@ -2928,6 +2942,11 @@ export function TrainsDashboard({ initial }: Props) {
                   }
                   void lockConductor();
                 }}
+                pendingConfirmation={pendingConfirmation}
+                canConfirmNomination={data.canManageTrains}
+                confirmationDeadlineLabel={confirmationDeadlineLabel}
+                onConfirmNomination={() => void confirmConductorNomination()}
+                confirmNominationBusy={conductorLockBusy === "confirm"}
                 rosterSyncBusy={rosterSyncBusy}
                 rosterSyncNotice={rosterSyncNotice}
                 rosterSyncNoticeTone={rosterSyncNoticeTone}
@@ -3201,9 +3220,7 @@ export function TrainsDashboard({ initial }: Props) {
                       {t("conductorConfirmation.pending", {
                         name:
                           selectedRecord?.conductorMemberName?.trim() || "—",
-                        time:
-                          selectedRecord?.confirmationDeadlineAt?.slice(11, 16) ??
-                          "—",
+                        time: confirmationDeadlineLabel,
                       })}
                     </p>
                     <button

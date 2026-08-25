@@ -57,6 +57,12 @@ export type TrainsGuidedConductorFlowProps = {
   onRollVip: () => void;
   onPickVipManual: () => void;
   onLock: () => void;
+  /** R4 confirmation gate before lock when alliance auto-nomination is enabled. */
+  pendingConfirmation?: boolean;
+  canConfirmNomination?: boolean;
+  confirmationDeadlineLabel?: string;
+  onConfirmNomination?: () => void;
+  confirmNominationBusy?: boolean;
   /** Inline lock confirmation (e.g. Discord announce) — replaces the lock CTA in the Lock step. */
   lockConfirm?: ReactNode;
   /** Pool remaining + View pool — same panel as advanced mode, for depleting pools. */
@@ -245,6 +251,11 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     onRollVip,
     onPickVipManual,
     onLock,
+    pendingConfirmation = false,
+    canConfirmNomination = false,
+    confirmationDeadlineLabel,
+    onConfirmNomination,
+    confirmNominationBusy = false,
     lockConfirm,
     poolPanel,
     advancedActions,
@@ -261,6 +272,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   const connectAshedHref = buildConnectHref("/trains");
 
   const t = useTranslations("trains.guidedFlow");
+  const tConfirmation = useTranslations("trains.conductorConfirmation");
   const tTemplates = useTranslations("trains.templates");
   const tTemplateDetails = useTranslations("trains.templateDetails");
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -624,12 +636,38 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
         <StepRow status={lockStatus} title={t("steps.lock.title")}>
           {lockStatus === "current" ? (
             <div ref={lockStepRef} className="flex flex-col gap-2">
-              <p className="text-sm text-hq-fg-muted">{t("steps.lock.ready")}</p>
-              {lockConfirm ?? (
-                <PrimaryCtaButton
-                  action={{ label: t("steps.lock.lockCta"), onClick: onLock }}
-                  busy={busy}
-                />
+              {pendingConfirmation && canConfirmNomination ? (
+                <div
+                  className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2"
+                  data-testid="trains-conductor-pending-confirmation"
+                >
+                  <p className="text-sm text-hq-fg">
+                    {tConfirmation("pending", {
+                      name: conductorName?.trim() || "—",
+                      time: confirmationDeadlineLabel ?? "—",
+                    })}
+                  </p>
+                  <button
+                    type="button"
+                    disabled={busy || confirmNominationBusy}
+                    onClick={() => onConfirmNomination?.()}
+                    className="inline-flex w-full items-center justify-center rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-400 disabled:opacity-50 sm:w-auto"
+                  >
+                    {confirmNominationBusy
+                      ? tConfirmation("confirming")
+                      : tConfirmation("confirmButton")}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-hq-fg-muted">{t("steps.lock.ready")}</p>
+                  {lockConfirm ?? (
+                    <PrimaryCtaButton
+                      action={{ label: t("steps.lock.lockCta"), onClick: onLock }}
+                      busy={busy}
+                    />
+                  )}
+                </>
               )}
             </div>
           ) : null}

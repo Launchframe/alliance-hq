@@ -90,7 +90,11 @@ import {
 } from "@/lib/trains/conductor-top-n.shared";
 import { fetchNativeVrTopScorers } from "@/lib/trains/native-scores.server";
 import { fetchAllianceVsTopScorersForTrainDate } from "@/lib/trains/vs-scores.server";
-import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
+import {
+  loadAllianceTrainLeadTimeDays,
+  loadAllianceTrainLeadTimeSettings,
+} from "@/lib/trains/alliance-train-lead-time.server";
+import { conductorLockBlockedByPendingConfirmation } from "@/lib/trains/conductor-record.shared";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 import { countAllianceVrReporters } from "@/lib/trains/vr-reporter-count.server";
 import {
@@ -1786,6 +1790,21 @@ export async function lockConductorsForDates(input: {
     }
     if (!record.conductorMemberId || !record.conductorMemberName) {
       throw new Error(`Select a conductor for ${date} before locking.`);
+    }
+
+    const leadTime = await loadAllianceTrainLeadTimeSettings(
+      input.allianceId,
+      false,
+    );
+    if (
+      conductorLockBlockedByPendingConfirmation(
+        leadTime.trainConductorConfirmationEnabled,
+        record.conductorNominationStatus,
+      )
+    ) {
+      throw new Error(
+        `Confirm the nominated conductor for ${date} before locking.`,
+      );
     }
 
     const locked = await lockConductorRecord(
