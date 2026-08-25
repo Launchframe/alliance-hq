@@ -672,6 +672,8 @@ export async function createAllianceRosterMember(
     currentName: string;
     ashedMemberId?: string;
     status?: string;
+    allianceRank?: number | null;
+    allianceRankTitle?: string | null;
   },
 ): Promise<{ ashedMemberId: string }> {
   const now = new Date();
@@ -679,7 +681,8 @@ export async function createAllianceRosterMember(
   await sql`
     INSERT INTO alliance_members (
       id, alliance_id, ashed_member_id, ashed_alliance_id, current_name,
-      previous_names_json, status, synced_at, created_at, updated_at
+      previous_names_json, status, alliance_rank, alliance_rank_title,
+      synced_at, created_at, updated_at
     ) VALUES (
       ${nanoid(16)},
       ${input.allianceId},
@@ -688,6 +691,8 @@ export async function createAllianceRosterMember(
       ${input.currentName},
       ${sql.json([])},
       ${input.status ?? "active"},
+      ${input.allianceRank ?? null},
+      ${input.allianceRankTitle ?? null},
       ${now},
       ${now},
       ${now}
@@ -695,6 +700,8 @@ export async function createAllianceRosterMember(
     ON CONFLICT (alliance_id, ashed_member_id) DO UPDATE SET
       current_name = EXCLUDED.current_name,
       status = EXCLUDED.status,
+      alliance_rank = EXCLUDED.alliance_rank,
+      alliance_rank_title = EXCLUDED.alliance_rank_title,
       synced_at = EXCLUDED.synced_at,
       updated_at = EXCLUDED.updated_at
   `;

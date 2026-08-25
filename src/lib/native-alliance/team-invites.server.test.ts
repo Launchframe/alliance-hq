@@ -147,6 +147,53 @@ describe("team invite access", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("rejects officer→owner without an R5 claim target", async () => {
+    const ctx = makeCtx({ roleName: "officer" });
+    await expect(assertInviteRoleAllowed(ctx, "owner")).rejects.toThrow(/R5/);
+  });
+
+  it("rejects officer→owner when the claim target is not R5", async () => {
+    selectLimit.mockResolvedValueOnce([
+      { allianceRank: 4, status: "active" },
+    ]);
+    const ctx = makeCtx({ roleName: "officer" });
+    await expect(
+      assertInviteRoleAllowed(ctx, "owner", {
+        allianceId: "a1",
+        targetAshedMemberId: "m-r4",
+      }),
+    ).rejects.toThrow(/R5/);
+  });
+
+  it("rejects rank exceptions when the claim target is a former member", async () => {
+    selectLimit.mockResolvedValueOnce([
+      { allianceRank: 4, status: "former" },
+    ]);
+    const ctx = makeCtx({ roleName: "officer" });
+    await expect(
+      assertInviteRoleAllowed(ctx, "officer", {
+        allianceId: "a1",
+        targetAshedMemberId: "m-former",
+      }),
+    ).rejects.toThrow(/R4/);
+  });
+
+  it("allows alliance owner→owner when the claim target is R5", async () => {
+    selectLimit.mockResolvedValueOnce([
+      { allianceRank: 5, status: "active" },
+    ]);
+    const ctx = makeCtx({
+      roleName: "owner",
+      permissions: new Set(["alliance:admin", "members:write"]),
+    });
+    await expect(
+      assertInviteRoleAllowed(ctx, "owner", {
+        allianceId: "a1",
+        targetAshedMemberId: "m-r5",
+      }),
+    ).resolves.toBeUndefined();
+  });
+
   it("allows platform maintainers to invite owner without a target", async () => {
     const ctx = makeCtx({
       roleName: "member",
