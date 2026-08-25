@@ -47,7 +47,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    assertInviteRoleAllowed(access.ctx, "member");
+    await assertInviteRoleAllowed(access.ctx, "member");
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Forbidden" },

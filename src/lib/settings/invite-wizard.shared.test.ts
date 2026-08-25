@@ -30,12 +30,9 @@ describe("invite wizard shared", () => {
     ).toBe("inviteEmailRequired");
   });
 
-  it("returns officer only when assignable for hybrid claim invites", () => {
-    expect(resolveOfficerHybridInviteRole(["officer", "member"])).toBe(
-      "officer",
-    );
-    expect(resolveOfficerHybridInviteRole(["data_entry", "viewer", "member"])).toBe(
-      null,
-    );
+  it("maps hybrid leadership invite role from in-game rank", () => {
+    expect(resolveOfficerHybridInviteRole(4)).toBe("officer");
+    expect(resolveOfficerHybridInviteRole(5)).toBe("owner");
+    expect(resolveOfficerHybridInviteRole(3)).toBeNull();
   });
 });

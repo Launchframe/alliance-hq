@@ -25,7 +25,7 @@ export type CommanderProfilePayload = {
     canOfficerOverrideMainSquad: boolean;
     /** Viewer may generate a commander claim invite for this roster member. */
     viewerCanIssueClaimInvite: boolean;
-    /** Viewer may assign officer RBAC (owner/admin/maintainer — not alliance officer). */
+    /** Viewer may issue R4 officer / R5 owner hybrid claim invites (rank exceptions apply for HQ officers). */
     viewerCanIssueOfficerInvite: boolean;
     /** Viewer (alliance owner or platform maintainer) may break-glass unlink. */
     viewerCanBreakGlassUnlink: boolean;

@@ -1,4 +1,5 @@
 import type { SystemRoleName } from "@/lib/rbac/constants";
+import { hybridLeadershipInviteRoleForRank } from "@/lib/native-alliance/invite-rank-exceptions.shared";
 
 export type InviteWizardType = "invite_link" | "join_code" | "commander_claim";
 
@@ -109,9 +110,9 @@ export function isValidInviteEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
 }
 
-/** Hybrid officer+claim invites require an assignable officer role. */
+/** Hybrid leadership+claim role from in-game rank (R4→officer, R5→owner). */
 export function resolveOfficerHybridInviteRole(
-  assignableRoles: SystemRoleName[],
+  allianceRank: number | null | undefined,
 ): SystemRoleName | null {
-  return assignableRoles.includes("officer") ? "officer" : null;
+  return hybridLeadershipInviteRoleForRank(allianceRank);
 }

@@ -29,7 +29,7 @@ const bodySchema = z
   .object({
     kind: z.enum(["email", "protected_link"]).default("protected_link"),
     email: z.string().trim().email().optional(),
-    roleName: z.enum(["officer", "data_entry", "viewer", "member"]),
+    roleName: z.enum(["owner", "officer", "data_entry", "viewer", "member"]),
     redirectPath: z.string().trim().max(512).optional(),
     adminLabel: z.string().trim().max(120).optional(),
     targetAshedMemberId: z.string().trim().min(1).max(64).optional(),
@@ -67,7 +67,10 @@ export async function POST(request: Request) {
   }
 
   try {
-    assertInviteRoleAllowed(access.ctx, body.roleName as SystemRoleName);
+    await assertInviteRoleAllowed(access.ctx, body.roleName as SystemRoleName, {
+      allianceId: access.allianceId,
+      targetAshedMemberId: body.targetAshedMemberId,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Forbidden" },
