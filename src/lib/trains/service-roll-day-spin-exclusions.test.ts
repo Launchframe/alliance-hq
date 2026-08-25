@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   getMemberRankAsOf: vi.fn(),
   resolveConductorQualificationGateApplies: vi.fn(),
   releasePoolSelectionForDate: vi.fn(),
+  loadAllianceTrainLeadTimeDays: vi.fn(),
 }));
 
 vi.mock("@/lib/game-season/sync", () => ({
@@ -34,6 +35,10 @@ vi.mock("@/lib/trains/day-config-resolve.server", () => ({
 vi.mock("@/lib/trains/vs-scores.server", () => ({
   fetchAllianceVsTopScorersForTrainDate:
     mocks.fetchAllianceVsTopScorersForTrainDate,
+}));
+
+vi.mock("@/lib/trains/alliance-train-lead-time.server", () => ({
+  loadAllianceTrainLeadTimeDays: mocks.loadAllianceTrainLeadTimeDays,
 }));
 
 vi.mock("@/lib/trains/day-spin-exclusions.server", () => ({
@@ -91,6 +96,7 @@ describe("rollForConductor day-scoped spin exclusions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getEffectiveSeasonForAlliance.mockResolvedValue({ seasonKey: "3" });
+    mocks.loadAllianceTrainLeadTimeDays.mockResolvedValue(0);
     mocks.getConductorRecord.mockResolvedValue(null);
     mocks.resolveRollDayConfig.mockResolvedValue({
       conductorMechanism: "vs_top_n",

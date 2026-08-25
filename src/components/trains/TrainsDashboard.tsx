@@ -3543,6 +3543,7 @@ export function TrainsDashboard({ initial }: Props) {
       <WheelBlockedDialog
         open={wheelBlocked != null}
         details={wheelBlocked}
+        paintTemplate={conductorPaint}
         fallbackPoolType={
           wheelBlockedRole === "vip" &&
           isPoolSpinSource(selectedVipSpinSource)

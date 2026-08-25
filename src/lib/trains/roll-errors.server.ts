@@ -47,10 +47,15 @@ export function throwPoolBusy(poolType?: PoolType): never {
 export function throwNoWheelCandidates(
   candidateKind: WheelCandidateKind,
   message: string,
+  extras?: { scoreDate?: string; leadDays?: number },
 ): never {
   throw new TrainRollError(message, {
     code: "NO_WHEEL_CANDIDATES",
     candidateKind,
+    ...(extras?.scoreDate !== undefined
+      ? { scoreDate: extras.scoreDate }
+      : {}),
+    ...(extras?.leadDays !== undefined ? { leadDays: extras.leadDays } : {}),
   });
 }
 

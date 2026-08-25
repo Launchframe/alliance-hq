@@ -14,6 +14,10 @@ export type TrainRollErrorDetails = {
   code: TrainRollErrorCode;
   poolType?: PoolType;
   candidateKind?: WheelCandidateKind;
+  /** VS score calendar day when blocked on missing prior-day scores. */
+  scoreDate?: string;
+  /** Alliance conductor lead-time days when blocked on missing scores. */
+  leadDays?: number;
 };
 
 export type TrainRollErrorResponse = {

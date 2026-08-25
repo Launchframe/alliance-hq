@@ -90,6 +90,8 @@ import {
 } from "@/lib/trains/conductor-top-n.shared";
 import { fetchNativeVrTopScorers } from "@/lib/trains/native-scores.server";
 import { fetchAllianceVsTopScorersForTrainDate } from "@/lib/trains/vs-scores.server";
+import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
+import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 import { countAllianceVrReporters } from "@/lib/trains/vr-reporter-count.server";
 import {
   buildDaySpinExclusionSet,
@@ -236,11 +238,13 @@ async function fetchVsTopScorersForTrainDateResolved(input: {
   hqAllianceId: string;
   trainDate: string;
   limit: number;
+  leadDays?: number;
 }): Promise<RollCandidate[]> {
   return fetchAllianceVsTopScorersForTrainDate(
     input.hqAllianceId,
     input.trainDate,
     input.limit,
+    input.leadDays ?? 0,
   );
 }
 
@@ -1157,13 +1161,19 @@ export async function rollForConductor(input: {
     : new Set<string>();
 
   if (topBoard?.kind === "vs") {
+    const leadDays = await loadAllianceTrainLeadTimeDays(input.allianceId);
+    const scoreDate = vsScoreReferenceDate(input.date, leadDays);
     const top = await fetchVsTopScorersForTrainDateResolved({
       hqAllianceId: input.allianceId,
       trainDate: input.date,
       limit: topBoard.topN,
+      leadDays,
     });
     if (top.length === 0) {
-      throwNoWheelCandidates("vs", "No VS scores found for the wheel.");
+      throwNoWheelCandidates("vs", "No VS scores found for the wheel.", {
+        scoreDate,
+        leadDays,
+      });
     }
     if (topBoard.topN === 1) {
       const winner = top[0]!;

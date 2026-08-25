@@ -1,34 +1,40 @@
 import "server-only";
 
 import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
+import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
+import { filterDaySpinCandidates } from "@/lib/trains/day-spin-exclusions.shared";
 import { isPriceIsRightHeavyHitterSaturday } from "@/lib/trains/heavy-hitter-pool.shared";
 import { buildHeavyHitterPoolCandidates } from "@/lib/trains/heavy-hitter-pool.server";
 import {
+  classifyPriceIsFreightEmptyReason,
   pickUniformRollCandidate,
   pickWeightedRollCandidate,
 } from "@/lib/trains/price-is-freight-roll.shared";
-import { filterDaySpinCandidates } from "@/lib/trains/day-spin-exclusions.shared";
 import {
   getAllianceRanksAsOf,
   isMemberEligibleForPool,
   resolveMemberPoolAllianceRank,
 } from "@/lib/trains/rank-history";
-import { throwPoolEmpty } from "@/lib/trains/roll-errors.server";
+import {
+  throwNoWheelCandidates,
+  throwPoolEmpty,
+  throwPoolUnavailable,
+} from "@/lib/trains/roll-errors.server";
+import { filterMemberIdsByConductorMinimums } from "@/lib/trains/train-conductor-minimums.server";
 import {
   buildPriceIsRightWeightedCandidates,
   loadPriceIsRightTicketSettings,
   loadTrainEconomyThreshold,
 } from "@/lib/trains/train-economy-threshold.server";
 import { tpirEligibleLiveCandidates } from "@/lib/trains/train-economy-threshold.shared";
-import { filterMemberIdsByConductorMinimums } from "@/lib/trains/train-conductor-minimums.server";
 import { priceIsRightWeightingActive } from "@/lib/trains/train-price-is-right-tickets.shared";
 import type {
   ConductorMechanismType,
+  PoolType,
   RollCandidate,
   RollResult,
   WeekTemplateType,
 } from "@/lib/trains/types";
-import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
 import { fetchAlliancePriorDayVsScoresByMember } from "@/lib/trains/vs-scores.server";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 
@@ -45,6 +51,22 @@ async function applyConductorMinimumsFilter(
   if (qualifiedIds == null) return candidates;
   const qualified = new Set(qualifiedIds);
   return candidates.filter((candidate) => qualified.has(candidate.memberId));
+}
+
+function throwFromPriceIsFreightEmptyReason(
+  poolType: PoolType,
+  reason: NonNullable<ReturnType<typeof classifyPriceIsFreightEmptyReason>>,
+): never {
+  if (reason.kind === "no_roster_candidates") {
+    throwPoolEmpty(poolType);
+  }
+  if (reason.kind === "missing_vs_scores") {
+    throwNoWheelCandidates("vs", "No VS scores found for the wheel.", {
+      scoreDate: reason.scoreDate,
+      leadDays: reason.leadDays,
+    });
+  }
+  throwPoolUnavailable(poolType);
 }
 
 export async function loadPriceIsFreightR3Candidates(input: {
@@ -90,17 +112,18 @@ export async function rollPriceIsFreightConductor(input: {
     input.date,
   );
   const excluded = input.excludedMemberIds ?? new Set<string>();
+  const leadDays = await loadAllianceTrainLeadTimeDays(input.allianceId);
+  const scoreDate = vsScoreReferenceDate(input.date, leadDays);
 
   if (isSaturday || input.mechanism === "heavy_hitter_lottery") {
-    const wheelCandidates = filterDaySpinCandidates(
-      await applyConductorMinimumsFilter(
-        input.allianceId,
-        input.date,
-        await buildHeavyHitterPoolCandidates(input.allianceId, input.date),
-      ),
-      excluded,
+    const rosterCandidates = await applyConductorMinimumsFilter(
+      input.allianceId,
+      input.date,
+      await buildHeavyHitterPoolCandidates(input.allianceId, input.date),
     );
+    const wheelCandidates = filterDaySpinCandidates(rosterCandidates, excluded);
     if (wheelCandidates.length === 0) {
+      // Saturday HH list is settings-configured, not VS-band filtered here.
       throwPoolEmpty("heavy_hitter");
     }
     const winner = pickUniformRollCandidate(wheelCandidates);
@@ -117,7 +140,6 @@ export async function rollPriceIsFreightConductor(input: {
   }
 
   const ticketSettings = await loadPriceIsRightTicketSettings(input.allianceId);
-  const leadDays = await loadAllianceTrainLeadTimeDays(input.allianceId);
   const r3Candidates = filterDaySpinCandidates(
     await loadPriceIsFreightR3Candidates({
       allianceId: input.allianceId,
@@ -127,6 +149,9 @@ export async function rollPriceIsFreightConductor(input: {
   );
 
   if (priceIsRightWeightingActive(ticketSettings)) {
+    if (r3Candidates.length === 0) {
+      throwPoolEmpty("r3");
+    }
     const weighted = await buildPriceIsRightWeightedCandidates({
       allianceId: input.allianceId,
       trainDate: input.date,
@@ -134,12 +159,23 @@ export async function rollPriceIsFreightConductor(input: {
       settings: ticketSettings,
       leadDays,
     });
-    if (weighted.candidates.length === 0) {
-      throwPoolEmpty("r3");
+    const vsScores = await fetchAlliancePriorDayVsScoresByMember(
+      input.allianceId,
+      scoreDate,
+    );
+    const emptyReason = classifyPriceIsFreightEmptyReason({
+      rosterCandidateCount: r3Candidates.length,
+      scoreDate,
+      leadDays,
+      vsScoreMemberCount: vsScores.size,
+      eligibleCount: weighted.candidates.length,
+    });
+    if (emptyReason) {
+      throwFromPriceIsFreightEmptyReason("r3", emptyReason);
     }
     const winner = pickWeightedRollCandidate(weighted.candidates);
     if (!winner) {
-      throwPoolEmpty("r3");
+      throwPoolUnavailable("r3");
     }
     return {
       memberId: winner.memberId,
@@ -150,8 +186,11 @@ export async function rollPriceIsFreightConductor(input: {
     };
   }
 
+  if (r3Candidates.length === 0) {
+    throwPoolEmpty("r3");
+  }
+
   const economy = await loadTrainEconomyThreshold(input.allianceId, false);
-  const scoreDate = vsScoreReferenceDate(input.date, leadDays);
   const vsScores = await fetchAlliancePriorDayVsScoresByMember(
     input.allianceId,
     scoreDate,
@@ -162,12 +201,19 @@ export async function rollPriceIsFreightConductor(input: {
     economy,
     ticketSettings.maxTicketMemberIds,
   );
-  if (eligible.length === 0) {
-    throwPoolEmpty("r3");
+  const emptyReason = classifyPriceIsFreightEmptyReason({
+    rosterCandidateCount: r3Candidates.length,
+    scoreDate,
+    leadDays,
+    vsScoreMemberCount: vsScores.size,
+    eligibleCount: eligible.length,
+  });
+  if (emptyReason) {
+    throwFromPriceIsFreightEmptyReason("r3", emptyReason);
   }
   const winner = pickUniformRollCandidate(eligible);
   if (!winner) {
-    throwPoolEmpty("r3");
+    throwPoolUnavailable("r3");
   }
   return {
     memberId: winner.memberId,

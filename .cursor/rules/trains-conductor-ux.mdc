@@ -108,7 +108,9 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 - Roster/pool blockers: in-flow Ashed sync when alliance + session allow; **Members** CTA only as last resort.
 - Sync/upload dialogs: loading → success/error → next-step CTAs; refresh guided step state after success.
 - `WheelBlockedDialog` CTAs must match the real blocker (upload prior-day VS vs sync roster vs reseed) — not a generic Members link when scores or Ashed sync would unblock.
-- **Never offer reseed / “start new rotation” for `POOL_UNAVAILABLE`** — members remain in the current generation but none qualify (minimums, etc.). Offer manual pick instead. Reseed only for `POOL_EMPTY` or `POOL_EXHAUSTED`.
+- **Never offer reseed / “start new rotation” for `POOL_UNAVAILABLE`** — members remain in the current generation but none qualify (minimums, etc.). Offer manual pick instead. Reseed only for depleting-pool `POOL_EMPTY` or `POOL_EXHAUSTED`.
+- **Never offer reseed for Price Is Freight with-replacement** (`usesPriceIsFreightConductorRoll`) — empty eligibility is not a generation to reset.
+- **Missing VS** (`NO_WHEEL_CANDIDATES` + `candidateKind: "vs"`) must name the score **weekday** (e.g. “scores from Monday”); when alliance **lead time** is > 0, note that lead time sets that day and link to `/settings/trains#lead-time`. Do not mislabel missing scores as “no R3 on roster” (`POOL_EMPTY`).
 - Pool details **“Start new rotation”** is a new generation; confirm copy must warn when unpicked members remain. Show **prior generation** summaries when `generation > 1`.
 - Disqualified-winner UI only when that mechanism actually required VS. If the wizard skipped scores (e.g. R4), do not show VS disqualification for a 0-score roster.
 
