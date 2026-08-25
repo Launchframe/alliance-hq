@@ -38,6 +38,7 @@ export async function GET() {
         ashedMemberId: schema.allianceMembers.ashedMemberId,
         currentName: schema.allianceMembers.currentName,
         status: schema.allianceMembers.status,
+        allianceRank: schema.allianceMembers.allianceRank,
       })
       .from(schema.allianceMembers)
       .where(eq(schema.allianceMembers.allianceId, access.allianceId))
@@ -52,6 +53,7 @@ export async function GET() {
     .map((member) => ({
       ashedMemberId: member.ashedMemberId,
       name: member.currentName,
+      allianceRank: member.allianceRank ?? null,
     }));
 
   const activeCount = countActiveRosterMembers(members);

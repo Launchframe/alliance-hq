@@ -1296,7 +1296,8 @@
         "continue": "Continue",
         "createAnother": "Create another invite",
         "openClaimWizard": "Convidar como membro",
-        "openOfficerClaimWizard": "Convidar como officer"
+        "openOfficerClaimWizard": "Convidar como officer",
+        "openOwnerClaimWizard": "Convidar como owner"
       },
       "panelModeLabel": "Painel de convites",
       "panelTabCreate": "Criar convite",

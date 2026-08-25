@@ -1298,7 +1298,8 @@
         "continue": "Continue",
         "createAnother": "Create another invite",
         "openClaimWizard": "Invite as member",
-        "openOfficerClaimWizard": "Invite as officer"
+        "openOfficerClaimWizard": "Invite as officer",
+        "openOwnerClaimWizard": "Invite as owner"
       },
       "panelModeLabel": "Invite panel",
       "panelTabCreate": "Create invite",
