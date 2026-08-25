@@ -24,12 +24,20 @@ export function TrainDayScoreStatsSummary({
   className = "",
 }: Props) {
   const t = useTranslations("trains.dayScoreStats");
-  const tVs = useTranslations("trains.vsWeekDays");
+  const tPool = useTranslations("trains.poolDetails");
   const locale = useLocale();
 
   const vsDayName =
     stats.kind === "prior_day_vs" && stats.vsDayKey
-      ? tVs(stats.vsDayKey)
+      ? tPool(
+          `vsWeekDays.${stats.vsDayKey}` as
+            | "vsWeekDays.radarTraining"
+            | "vsWeekDays.baseExpansion"
+            | "vsWeekDays.ageOfScience"
+            | "vsWeekDays.heroDay"
+            | "vsWeekDays.totalMobilization"
+            | "vsWeekDays.busterDay",
+        )
       : null;
   const weekday =
     stats.kind === "prior_day_vs" && stats.scoreDate

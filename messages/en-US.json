@@ -3837,14 +3837,6 @@
         "totalMobilization": "Total Mobilization",
         "busterDay": "Buster Day"
       },
-      "dayScoreStats": {
-        "vsDayUnknown": "VS day",
-        "vrLabel": "Season VR",
-        "considered": "{count, plural, one {# score} other {# scores}}",
-        "eligible": "{count} eligible",
-        "summary": "{vsDay} · {weekday} · {considered, plural, one {# score} other {# scores}} considered · {eligible} eligible",
-        "vrSummary": "Season VR · {considered, plural, one {# score} other {# scores}} · {eligible} eligible"
-      },
       "poolTypes": {
         "r3": "R3 lottery eligibility",
         "r4_plus": "R4 officer sequence eligibility",
@@ -3852,6 +3844,14 @@
         "event_top_x": "Event top scorers eligibility",
         "heavy_hitter": "Heavy-hitter lottery eligibility"
       }
+    },
+    "dayScoreStats": {
+      "vsDayUnknown": "VS day",
+      "vrLabel": "Season VR",
+      "considered": "{count, plural, one {# score} other {# scores}}",
+      "eligible": "{count} eligible",
+      "summary": "{vsDay} · {weekday} · {considered, plural, one {# score} other {# scores}} considered · {eligible} eligible",
+      "vrSummary": "Season VR · {considered, plural, one {# score} other {# scores}} · {eligible} eligible"
     },
     "scoreLeaderboard": {
       "loading": "Loading score leaderboard…",
