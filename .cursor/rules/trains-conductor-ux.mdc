@@ -58,9 +58,10 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 ## Dates (server calendar)
 
 - “Today” / eligibility uses **game server calendar** (`game-time`, UTC−2), not the browser local date.
-- **Monday:** no prior-day **daily** VS for any conductor mechanism (T−1 Sunday is the VS break). Top VS / prior-day maps **short-circuit empty** — do not query Ashed for Sunday week-ending totals.
-- **Sunday** draws that need prior-day VS use **Saturday** (Enemy Buster Day).
-- Prior-day VS for wheels and PIF uses **daily** Ashed `VSScore` rows only. Exclude **`is_weekly` / `isWeekly`** week-ending totals (uploaded on Sunday `recorded_date`); they must never feed Monday trains or daily Top VS / ticket math.
+- **Monday:** with **lead time 0**, no prior-day **daily** VS for any conductor mechanism (T−1 Sunday is the VS break). Top VS / prior-day maps **short-circuit empty** — do not query Ashed for Sunday week-ending totals. With **lead time ≥ 1**, score reference is `trainDate − 1 − leadDays` (e.g. lead=1 Monday train uses Saturday Buster Day scores).
+- **Sunday** draws that need prior-day VS use **Saturday** (Enemy Buster Day) at lead 0.
+- Alliance setting `trainConductorLeadTimeDays` (0–7) + optional `trainConductorConfirmationEnabled` (auto-nominate → R4 confirm → lock). Score-upload rules nominate when VS lands; pool/sequence rules nominate at day-before-train reset. Cron: `/api/internal/train/nominate-conductor-scheduled`, `/api/internal/train/conductor-confirmation-tick`.
+- Prior-day VS for wheels and PIF uses **daily** Ashed `VSScore` rows only. Exclude **`is_weekly` / `isWeekly`** week-ending totals (uploaded on Sunday `recorded_date`); they must never feed Monday trains (lead=0) or daily Top VS / ticket math.
 - **Manual picks** (e.g. `r3_recognition`) are never blocked on missing/low VS scores.
 - `r3_recognition` is **manual award only** — no R3 pool wheel.
 
@@ -93,6 +94,7 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 
 - Every day tile always shows the conductor name or **"—"** (not only when selected).
 - Long-press day paint uses `DAY_PAINT_TEMPLATES`.
+- Week tiles may show **score-source stats** (VS day name, score-date weekday, considered count, eligible-under-rule count) when the day's rule uses VS/VR scores. Month calendar tiles do **not** show these stats.
 
 ## Share image / wheel readability
 
@@ -106,7 +108,9 @@ In-game: conductor boards (lock/spawn) **before** VIP can board.
 - Roster/pool blockers: in-flow Ashed sync when alliance + session allow; **Members** CTA only as last resort.
 - Sync/upload dialogs: loading → success/error → next-step CTAs; refresh guided step state after success.
 - `WheelBlockedDialog` CTAs must match the real blocker (upload prior-day VS vs sync roster vs reseed) — not a generic Members link when scores or Ashed sync would unblock.
-- **Never offer reseed / “start new rotation” for `POOL_UNAVAILABLE`** — members remain in the current generation but none qualify (minimums, etc.). Offer manual pick instead. Reseed only for `POOL_EMPTY` or `POOL_EXHAUSTED`.
+- **Never offer reseed / “start new rotation” for `POOL_UNAVAILABLE`** — members remain in the current generation but none qualify (minimums, etc.). Offer manual pick instead. Reseed only for depleting-pool `POOL_EMPTY` or `POOL_EXHAUSTED`.
+- **Never offer reseed for Price Is Freight with-replacement** (`usesPriceIsFreightConductorRoll`) — empty eligibility is not a generation to reset.
+- **Missing VS** (`NO_WHEEL_CANDIDATES` + `candidateKind: "vs"`) must name the score **weekday** (e.g. “scores from Monday”); when alliance **lead time** is > 0, note that lead time sets that day and link to `/settings/trains#lead-time`. Do not mislabel missing scores as “no R3 on roster” (`POOL_EMPTY`).
 - Pool details **“Start new rotation”** is a new generation; confirm copy must warn when unpicked members remain. Show **prior generation** summaries when `generation > 1`.
 - Disqualified-winner UI only when that mechanism actually required VS. If the wizard skipped scores (e.g. R4), do not show VS disqualification for a 0-score roster.
 

@@ -15,6 +15,10 @@ describe("priorDayVsAppliesForTrainDate", () => {
   it("does not apply on Monday train days (Sunday VS break)", () => {
     expect(priorDayVsAppliesForTrainDate("2026-06-15")).toBe(false);
   });
+
+  it("applies on Monday train days when leadDays=1 (Saturday scores)", () => {
+    expect(priorDayVsAppliesForTrainDate("2026-06-15", 1)).toBe(true);
+  });
 });
 
 describe("classifyVsDataNeed", () => {
@@ -142,6 +146,24 @@ describe("classifyVsDataNeed", () => {
     ).toEqual({ kind: "none", required: false });
   });
 
+  it("requires prior-day VS on Monday when leadDays=1", () => {
+    expect(
+      classifyVsDataNeed({
+        conductorMechanism: "vs_high_score",
+        trainDate: "2026-06-15",
+        leadDays: 1,
+      }),
+    ).toEqual({ kind: "prior_day_vs", required: true });
+    expect(
+      classifyVsDataNeed({
+        conductorMechanism: "heavy_hitter_lottery",
+        paintTemplate: "price_is_right",
+        trainDate: "2026-06-15",
+        leadDays: 1,
+      }),
+    ).toEqual({ kind: "prior_day_vs", required: true });
+  });
+
   it("still requires VR on Monday for vr_top_n", () => {
     expect(
       classifyVsDataNeed({
@@ -149,6 +171,36 @@ describe("classifyVsDataNeed", () => {
         trainDate: "2026-06-15",
       }),
     ).toEqual({ kind: "vr", required: true });
+  });
+
+  it("probes inherited VS on Sunday when leadDays=1 and score day is VS push", () => {
+    expect(
+      classifyVsDataNeed({
+        conductorMechanism: "custom",
+        paintTemplate: "vs_push_week_lead_time",
+        trainDate: "2026-08-30",
+        leadDays: 1,
+        scoreDateDay: {
+          conductorMechanism: "vs_top_10",
+          paintTemplate: "vs_push_weekdays",
+        },
+      }),
+    ).toEqual({ kind: "prior_day_vs", required: false });
+  });
+
+  it("probes inherited VS on Monday R4 when leadDays=1 and score day is Buster", () => {
+    expect(
+      classifyVsDataNeed({
+        conductorMechanism: "r4_sequence",
+        paintTemplate: "r4_event_vip",
+        trainDate: "2026-08-31",
+        leadDays: 1,
+        scoreDateDay: {
+          conductorMechanism: "vs_top_10",
+          paintTemplate: "vs_push_weekdays",
+        },
+      }),
+    ).toEqual({ kind: "prior_day_vs", required: false });
   });
 });
 

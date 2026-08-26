@@ -132,15 +132,16 @@ export async function fetchVsTopScorersForTrainDate(
   allianceId: string,
   trainDate: string,
   limit: number,
+  leadDays = 0,
 ): Promise<RollCandidate[]> {
-  // Sunday is the VS break — Monday trains have no prior-day daily scores.
-  if (!priorDayVsAppliesForTrainDate(trainDate)) {
+  // Sunday is the VS break — Monday trains have no prior-day daily scores (lead=0).
+  if (!priorDayVsAppliesForTrainDate(trainDate, leadDays)) {
     return [];
   }
   return fetchVsTopScorersForRecordedDate(
     connection,
     allianceId,
-    vsScoreReferenceDate(trainDate),
+    vsScoreReferenceDate(trainDate, leadDays),
     limit,
   );
 }
@@ -279,10 +280,11 @@ export async function fetchAllianceVsTopScorersForTrainDate(
   allianceId: string,
   trainDate: string,
   limit: number,
+  leadDays = 0,
 ): Promise<RollCandidate[]> {
   if (limit <= 0) return [];
 
-  if (!priorDayVsAppliesForTrainDate(trainDate)) {
+  if (!priorDayVsAppliesForTrainDate(trainDate, leadDays)) {
     return [];
   }
   const resolved = await resolveAllianceAshedConnection(allianceId);
@@ -293,7 +295,7 @@ export async function fetchAllianceVsTopScorersForTrainDate(
     fetchVsScoresByRecordedDate(
       resolved.connection,
       resolved.ashedAllianceId,
-      vsScoreReferenceDate(trainDate),
+      vsScoreReferenceDate(trainDate, leadDays),
     ),
   ]);
 
@@ -345,16 +347,17 @@ export async function fetchAllianceVsScoresForEvaluationPeriod(
   );
 }
 
-/** Daily VS scores for the calendar day before trainDate (never weekly totals). */
+/** Daily VS scores for the score-reference day before trainDate (never weekly totals). */
 export async function fetchAlliancePriorDayVsScoresForTrainDate(
   allianceId: string,
   trainDate: string,
+  leadDays = 0,
 ): Promise<Map<string, number>> {
-  if (!priorDayVsAppliesForTrainDate(trainDate)) {
+  if (!priorDayVsAppliesForTrainDate(trainDate, leadDays)) {
     return new Map();
   }
   return fetchAlliancePriorDayVsScoresByMember(
     allianceId,
-    vsScoreReferenceDate(trainDate),
+    vsScoreReferenceDate(trainDate, leadDays),
   );
 }

@@ -33,6 +33,10 @@ export const TEMPLATE_PALETTE_STYLES: Record<
     swatch: "bg-blue-500",
     ring: "ring-blue-500",
   },
+  vs_push_week_lead_time: {
+    swatch: "bg-blue-500",
+    ring: "ring-blue-500",
+  },
   vs_push_weekdays: {
     swatch: "bg-blue-500",
     ring: "ring-blue-500",

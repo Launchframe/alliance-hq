@@ -101,6 +101,8 @@ type Props = {
   contextBoardKey?: string | null;
   /** Pre-filled VS / event recorded date from deep-links (YYYY-MM-DD). */
   contextRecordedDate?: string | null;
+  /** After save, resume this same-origin path (e.g. trains hub). */
+  contextReturnTo?: string | null;
   allianceTag?: string | null;
   allianceName?: string | null;
   /** When true, show inline process prompt after upload instead of a dead-end waiting message. */
@@ -137,6 +139,7 @@ export function VideoUploadForm({
   contextBankId = null,
   contextBoardKey = null,
   contextRecordedDate = null,
+  contextReturnTo = null,
   allianceTag = null,
   allianceName = null,
   canProcess = false,
@@ -212,11 +215,17 @@ export function VideoUploadForm({
     : jobs;
 
   function reviewHref(jobId: string): string {
-    if (!contextRecordedDate) {
-      return `/tools/video-upload/${jobId}/review`;
+    const params = new URLSearchParams();
+    if (contextRecordedDate) {
+      params.set("recordedDate", contextRecordedDate);
     }
-    const params = new URLSearchParams({ recordedDate: contextRecordedDate });
-    return `/tools/video-upload/${jobId}/review?${params.toString()}`;
+    if (contextReturnTo) {
+      params.set("returnTo", contextReturnTo);
+    }
+    const qs = params.toString();
+    return qs
+      ? `/tools/video-upload/${jobId}/review?${qs}`
+      : `/tools/video-upload/${jobId}/review`;
   }
 
   useEffect(() => {

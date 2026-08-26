@@ -1,16 +1,18 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
 import { Link } from "@/i18n/navigation";
 import type { TrainRollErrorDetails } from "@/lib/trains/roll-errors.shared";
-import type { PoolType } from "@/lib/trains/types";
+import type { PoolType, WeekTemplateType } from "@/lib/trains/types";
 import {
   resolveWheelBlockedReseedPoolType,
+  shouldShowWheelBlockedLeadTimeLink,
   shouldShowWheelBlockedManualPick,
   wheelBlockedReseedLabelKey,
+  wheelBlockedVsBodyKey,
 } from "@/lib/trains/wheel-blocked-cta.shared";
 
 type Props = {
@@ -18,6 +20,10 @@ type Props = {
   details: TrainRollErrorDetails | null;
   /** Used when the error payload omitted poolType (legacy / POOL_UNAVAILABLE). */
   fallbackPoolType?: PoolType | null;
+  /** Day paint — suppresses reseed for Price Is Freight with-replacement. */
+  paintTemplate?: WeekTemplateType | string | null;
+  /** Deep-link for VS score upload (vs-performance + recorded date). */
+  uploadHref?: string;
   busy?: boolean;
   rosterSyncBusy?: boolean;
   rosterSyncNotice?: string | null;
@@ -50,7 +56,7 @@ function bodyMessageKey(details: TrainRollErrorDetails): string {
       return "wheelBlocked.poolUnavailable";
     case "NO_WHEEL_CANDIDATES":
       if (details.candidateKind === "vs") {
-        return "wheelBlocked.noVsScores";
+        return wheelBlockedVsBodyKey(details);
       }
       if (details.candidateKind === "vr") {
         return "wheelBlocked.noVrStandings";
@@ -71,7 +77,11 @@ function bodyMessageKey(details: TrainRollErrorDetails): string {
 
 function primaryLinkCta(
   details: TrainRollErrorDetails,
-  options?: { canSyncRoster?: boolean; rosterSyncSucceeded?: boolean },
+  options?: {
+    canSyncRoster?: boolean;
+    rosterSyncSucceeded?: boolean;
+    uploadHref?: string;
+  },
 ): { href: string; labelKey: string } | null {
   if (details.code === "POOL_EMPTY") {
     if (details.poolType === "heavy_hitter") {
@@ -87,7 +97,9 @@ function primaryLinkCta(
   }
   if (details.code === "NO_WHEEL_CANDIDATES" && details.candidateKind === "vs") {
     return {
-      href: "/tools/video-upload",
+      href:
+        options?.uploadHref ??
+        "/tools/video-upload?scoreTarget=vs-performance",
       labelKey: "wheelBlocked.uploadScoreVideo",
     };
   }
@@ -121,10 +133,25 @@ function noticeToneClass(
   return "text-hq-success";
 }
 
+function formatScoreWeekdayForLocale(scoreDate: string, locale: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(scoreDate);
+  if (!match) return scoreDate;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.toLocaleDateString(locale, {
+    timeZone: "UTC",
+    weekday: "long",
+  });
+}
+
 export function WheelBlockedDialog({
   open,
   details,
   fallbackPoolType = null,
+  paintTemplate = null,
+  uploadHref,
   busy = false,
   rosterSyncBusy = false,
   rosterSyncNotice = null,
@@ -138,6 +165,7 @@ export function WheelBlockedDialog({
   onSyncRoster,
 }: Props) {
   const t = useTranslations("trains");
+  const locale = useLocale();
 
   if (!details) return null;
 
@@ -147,13 +175,16 @@ export function WheelBlockedDialog({
   const reseedPoolType = resolveWheelBlockedReseedPoolType(
     details,
     fallbackPoolType,
+    { paintTemplate },
   );
   const showReseed = reseedPoolType != null && onReseedAndRespin != null;
   const reseedLabelKey = wheelBlockedReseedLabelKey(details);
   const linkCta = primaryLinkCta(details, {
     canSyncRoster,
     rosterSyncSucceeded,
+    uploadHref,
   });
+  const showLeadTimeLink = shouldShowWheelBlockedLeadTimeLink(details);
   const showSyncRoster =
     canSyncRoster &&
     details.code === "POOL_EMPTY" &&
@@ -168,6 +199,15 @@ export function WheelBlockedDialog({
   const showRetry =
     showRetrySpinCta(details) && onRetrySpin != null && !showReseed;
 
+  const bodyParams =
+    details.code === "NO_WHEEL_CANDIDATES" && details.candidateKind === "vs"
+      ? {
+          scoreWeekday: details.scoreDate
+            ? formatScoreWeekdayForLocale(details.scoreDate, locale)
+            : "",
+        }
+      : undefined;
+
   return (
     <Dialog
       open={open}
@@ -181,8 +221,11 @@ export function WheelBlockedDialog({
           <h2 className="text-lg font-semibold text-hq-fg">
             {t("wheelBlocked.title")}
           </h2>
-          <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
-            {t(bodyKey)}
+          <p
+            className="mt-2 text-sm leading-relaxed text-[#c9d1d9]"
+            data-testid="trains-wheel-blocked-body"
+          >
+            {bodyParams ? t(bodyKey, bodyParams) : t(bodyKey)}
           </p>
         </div>
 
@@ -242,6 +285,17 @@ export function WheelBlockedDialog({
             >
               {t("wheelBlocked.retrySpin")}
             </button>
+          ) : null}
+
+          {showLeadTimeLink ? (
+            <Link
+              href="/settings/trains#lead-time"
+              onClick={onClose}
+              className="inline-flex justify-center rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas"
+              data-testid="trains-wheel-blocked-lead-time"
+            >
+              {t("wheelBlocked.goToLeadTimeSettings")}
+            </Link>
           ) : null}
 
           {showSyncRoster ? (

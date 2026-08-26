@@ -83,6 +83,22 @@ export const alliances = pgTable("alliances", {
   ).$type<string[]>(),
   /** Train week start DOW in server calendar (0=Sun … 6=Sat; default Tue). */
   trainWeekStartDow: integer("train_week_start_dow").notNull().default(2),
+  /**
+   * Extra days between VS score day and train day (0 = T−1).
+   * Clamped 0–7 in the settings API.
+   */
+  trainConductorLeadTimeDays: integer("train_conductor_lead_time_days")
+    .notNull()
+    .default(0),
+  /**
+   * When 1, auto-nominate conductors and require R4 confirmation before lock.
+   * Defaults off; settings may enable when lead time > 0.
+   */
+  trainConductorConfirmationEnabled: integer(
+    "train_conductor_confirmation_enabled",
+  )
+    .notNull()
+    .default(0),
   /** When 1, locked trains may post to configured Discord train channels. */
   trainDiscordAnnouncementsEnabled: integer("train_discord_announcements_enabled")
     .notNull()
@@ -2668,6 +2684,31 @@ export const trainConductorRecords = pgTable(
     lockedByHqUserId: text("locked_by_hq_user_id").references(
       () => hqUsers.id,
       { onDelete: "set null" },
+    ),
+    /**
+     * awaiting_scores | pending_confirmation | confirmed | forfeited | fallback_r4
+     */
+    conductorNominationStatus: text("conductor_nomination_status"),
+    /** score_upload | scheduled_reset | manual */
+    nominationTrigger: text("nomination_trigger"),
+    nominatedAt: timestamp("nominated_at", { withTimezone: true }),
+    conductorConfirmedAt: timestamp("conductor_confirmed_at", {
+      withTimezone: true,
+    }),
+    conductorConfirmedByHqUserId: text(
+      "conductor_confirmed_by_hq_user_id",
+    ).references(() => hqUsers.id, { onDelete: "set null" }),
+    confirmationDeadlineAt: timestamp("confirmation_deadline_at", {
+      withTimezone: true,
+    }),
+    /** 0 = primary nominee; 1–3 = successors. */
+    successorAttempt: integer("successor_attempt").notNull().default(0),
+    successionSnapshot: jsonb("succession_snapshot").$type<
+      Array<{ memberId: string; memberName: string; rank?: number | null }>
+    >(),
+    discordNominationMentionedAt: timestamp(
+      "discord_nomination_mentioned_at",
+      { withTimezone: true },
     ),
     discordDepartingSoonAt: timestamp("discord_departing_soon_at", {
       withTimezone: true,

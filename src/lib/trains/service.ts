@@ -90,6 +90,16 @@ import {
 } from "@/lib/trains/conductor-top-n.shared";
 import { fetchNativeVrTopScorers } from "@/lib/trains/native-scores.server";
 import { fetchAllianceVsTopScorersForTrainDate } from "@/lib/trains/vs-scores.server";
+import {
+  loadAllianceTrainLeadTimeDays,
+  loadAllianceTrainLeadTimeSettings,
+} from "@/lib/trains/alliance-train-lead-time.server";
+import { conductorLockBlockedByPendingConfirmation } from "@/lib/trains/conductor-record.shared";
+import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
+import {
+  resolveVsTopBoardForTrainDate,
+  type DayMechanismConfig,
+} from "@/lib/trains/vs-score-scope.shared";
 import { countAllianceVrReporters } from "@/lib/trains/vr-reporter-count.server";
 import {
   buildDaySpinExclusionSet,
@@ -236,11 +246,13 @@ async function fetchVsTopScorersForTrainDateResolved(input: {
   hqAllianceId: string;
   trainDate: string;
   limit: number;
+  leadDays?: number;
 }): Promise<RollCandidate[]> {
   return fetchAllianceVsTopScorersForTrainDate(
     input.hqAllianceId,
     input.trainDate,
     input.limit,
+    input.leadDays ?? 0,
   );
 }
 
@@ -1133,10 +1145,29 @@ export async function rollForConductor(input: {
   );
 
   const mechanism = dayConfig.conductorMechanism as ConductorMechanismType;
-  const topBoard = resolveConductorTopNBoard(
-    mechanism,
-    dayConfig.conductorConfig,
-  );
+  const leadDays = await loadAllianceTrainLeadTimeDays(input.allianceId);
+  let scoreDateDayConfig: DayMechanismConfig | null = null;
+  if (leadDays > 0) {
+    const scoreDate = vsScoreReferenceDate(input.date, leadDays);
+    const scoreDayConfig = await resolveRollDayConfig(
+      input.allianceId,
+      scoreDate,
+      seasonKey,
+    );
+    scoreDateDayConfig = {
+      conductorMechanism: scoreDayConfig.conductorMechanism,
+      conductorConfig: scoreDayConfig.conductorConfig,
+    };
+  }
+  const topBoard = resolveVsTopBoardForTrainDate({
+    trainDate: input.date,
+    trainDay: {
+      conductorMechanism: mechanism,
+      conductorConfig: dayConfig.conductorConfig,
+    },
+    leadDays,
+    scoreDateDay: scoreDateDayConfig,
+  });
 
   let result: RollResult;
   /** Pool claim already applied conductor minimums — skip post-roll Ashed DQ. */
@@ -1157,13 +1188,18 @@ export async function rollForConductor(input: {
     : new Set<string>();
 
   if (topBoard?.kind === "vs") {
+    const scoreDate = vsScoreReferenceDate(input.date, leadDays);
     const top = await fetchVsTopScorersForTrainDateResolved({
       hqAllianceId: input.allianceId,
       trainDate: input.date,
       limit: topBoard.topN,
+      leadDays,
     });
     if (top.length === 0) {
-      throwNoWheelCandidates("vs", "No VS scores found for the wheel.");
+      throwNoWheelCandidates("vs", "No VS scores found for the wheel.", {
+        scoreDate,
+        leadDays,
+      });
     }
     if (topBoard.topN === 1) {
       const winner = top[0]!;
@@ -1776,6 +1812,21 @@ export async function lockConductorsForDates(input: {
     }
     if (!record.conductorMemberId || !record.conductorMemberName) {
       throw new Error(`Select a conductor for ${date} before locking.`);
+    }
+
+    const leadTime = await loadAllianceTrainLeadTimeSettings(
+      input.allianceId,
+      false,
+    );
+    if (
+      conductorLockBlockedByPendingConfirmation(
+        leadTime.trainConductorConfirmationEnabled,
+        record.conductorNominationStatus,
+      )
+    ) {
+      throw new Error(
+        `Confirm the nominated conductor for ${date} before locking.`,
+      );
     }
 
     const locked = await lockConductorRecord(

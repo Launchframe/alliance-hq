@@ -9,6 +9,8 @@ import {
   useState,
 } from "react";
 
+import { TrainDayScoreStatsSummary } from "@/components/trains/TrainDayScoreStatsSummary";
+import type { TrainDayScoreStats } from "@/lib/trains/day-score-stats.shared";
 import type {
   WeekConductorRecordSummary,
   WeekScheduleDayConfig,
@@ -40,6 +42,10 @@ import {
 } from "@/lib/trains/conductor-mechanism.shared";
 import type { WeekTemplateType } from "@/lib/trains/types";
 import { usesCombinedSegmentDisplay } from "@/lib/trains/week-template-registry.shared";
+import {
+  effectiveVsScopeMechanismForTrainDate,
+  scoreDateDayConfigForTrainDate,
+} from "@/lib/trains/vs-score-scope.shared";
 import { coverFlowItemStyle } from "@/lib/client/cover-flow-carousel.shared";
 import {
   DayTemplateContextMenu,
@@ -67,6 +73,8 @@ type Props = {
     options?: { topN?: number },
   ) => void;
   vrReporterCount?: number;
+  /** Conductor lead time — VS scope follows score reference day when > 0. */
+  trainConductorLeadTimeDays?: number;
   navLabels: {
     previousWeek: string;
     nextWeek: string;
@@ -122,6 +130,8 @@ function weekdayLabel(date: string): string {
 type DayCellOptions = {
   day: WeekScheduleDayConfig;
   weekRecords: WeekConductorRecordSummary[];
+  dayConfigs: WeekScheduleDayConfig[];
+  trainConductorLeadTimeDays?: number;
   today: string;
   weekStart: string;
   weekEnd: string;
@@ -129,6 +139,7 @@ type DayCellOptions = {
   conductorLabels: Record<string, string>;
   vipLabels: Record<string, string>;
   templateShortLabels?: Partial<Record<WeekTemplateType, string>>;
+  scoreStats?: TrainDayScoreStats | null;
   className?: string;
   layout?: "grid" | "carousel";
   onSelect?: () => void;
@@ -140,6 +151,8 @@ type DayCellOptions = {
 function WeekScheduleDayCell({
   day,
   weekRecords,
+  dayConfigs,
+  trainConductorLeadTimeDays = 0,
   today,
   weekStart,
   weekEnd,
@@ -147,6 +160,7 @@ function WeekScheduleDayCell({
   conductorLabels,
   vipLabels,
   templateShortLabels,
+  scoreStats = null,
   className = "",
   layout = "grid",
   onSelect,
@@ -172,9 +186,23 @@ function WeekScheduleDayCell({
     day.paintTemplate && usesCombinedSegmentDisplay(day.paintTemplate)
       ? (templateShortLabels?.[day.paintTemplate] ?? null)
       : null;
+  const scopeMechanism = effectiveVsScopeMechanismForTrainDate({
+    trainDate: day.date,
+    trainDay: {
+      conductorMechanism: day.conductorMechanism,
+      conductorConfig: day.conductorConfig,
+    },
+    leadDays: trainConductorLeadTimeDays,
+    scoreDateDay: scoreDateDayConfigForTrainDate(
+      day.date,
+      trainConductorLeadTimeDays,
+      dayConfigs,
+    ),
+    fallbackMechanism: day.conductorMechanism,
+  });
   const conductorLineLabel =
     combinedSegmentLabel ??
-    (conductorLabels[day.conductorMechanism] ?? day.conductorMechanism);
+    (conductorLabels[scopeMechanism] ?? scopeMechanism);
   const record = recordForDate(weekRecords, day.date);
   const locked = Boolean(record?.lockedAt);
   const conductorName = record?.conductorMemberName;
@@ -214,9 +242,7 @@ function WeekScheduleDayCell({
   const mechanismSummary = combinedSegmentLabel
     ? conductorLineLabel
     : showDetail
-      ? `${conductorLabels[day.conductorMechanism] ?? day.conductorMechanism}${
-          vipLabel ? ` · ${vipLabel}` : ""
-        }`
+      ? `${conductorLineLabel}${vipLabel ? ` · ${vipLabel}` : ""}`
       : conductorLineLabel;
 
   const cellInner = (
@@ -268,6 +294,9 @@ function WeekScheduleDayCell({
           <div className="truncate text-[9px] font-medium uppercase leading-tight opacity-90">
             {vipLabel}
           </div>
+        ) : null}
+        {scoreStats ? (
+          <TrainDayScoreStatsSummary stats={scoreStats} variant="compact" />
         ) : null}
       </div>
     </>
@@ -335,6 +364,7 @@ type CarouselProps = {
   conductorLabels: Record<string, string>;
   vipLabels: Record<string, string>;
   templateShortLabels?: Partial<Record<WeekTemplateType, string>>;
+  trainConductorLeadTimeDays?: number;
   canPaintDays?: boolean;
   isDatePaintable?: (date: string) => boolean;
   onOpenTemplateMenu?: (anchor: DayTemplateMenuAnchor) => void;
@@ -355,6 +385,7 @@ function WeekScheduleInfiniteDayCarousel({
   conductorLabels,
   vipLabels,
   templateShortLabels,
+  trainConductorLeadTimeDays = 0,
   canPaintDays = false,
   isDatePaintable,
   onOpenTemplateMenu,
@@ -525,6 +556,8 @@ function WeekScheduleInfiniteDayCarousel({
         <WeekScheduleDayCell
           day={entry.day}
           weekRecords={record ? [record] : []}
+          dayConfigs={entry.weekDayConfigs}
+          trainConductorLeadTimeDays={trainConductorLeadTimeDays}
           today={today}
           weekStart={entry.weekStart}
           weekEnd={entry.weekEnd}
@@ -532,6 +565,7 @@ function WeekScheduleInfiniteDayCarousel({
           conductorLabels={conductorLabels}
           vipLabels={vipLabels}
           templateShortLabels={templateShortLabels}
+          scoreStats={entry.scoreStats}
           layout="carousel"
           draftScheduleAriaLabel={draftScheduleAriaLabel}
           onSelect={
@@ -608,6 +642,7 @@ export function WeekScheduleStrip({
   isDatePaintable,
   onPaintDate,
   vrReporterCount = 0,
+  trainConductorLeadTimeDays = 0,
   navLabels,
   trainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
   externalWeek,
@@ -625,6 +660,7 @@ export function WeekScheduleStrip({
     templateType: externalWeek?.templateType ?? null,
     dayConfigs: initialDayConfigs,
     weekRecords: initialWeekRecords,
+    dayScoreStats: externalWeek?.dayScoreStats ?? {},
   });
   const [loading, setLoading] = useState(false);
   const selectedWeekRange = weekRangeForDate(selectedDate, trainWeekConfig);
@@ -638,6 +674,7 @@ export function WeekScheduleStrip({
     templateType: externalWeek?.templateType ?? null,
     dayConfigs: initialDayConfigs,
     weekRecords: initialWeekRecords,
+    dayScoreStats: externalWeek?.dayScoreStats ?? {},
   }));
   const [templateMenuAnchor, setTemplateMenuAnchor] =
     useState<DayTemplateMenuAnchor | null>(null);
@@ -722,6 +759,7 @@ export function WeekScheduleStrip({
                 templateType: null,
                 dayConfigs: initialDayConfigs,
                 weekRecords: initialWeekRecords,
+                dayScoreStats: externalWeek?.dayScoreStats ?? {},
               },
         );
         return;
@@ -783,7 +821,8 @@ export function WeekScheduleStrip({
     externalWeek.dayConfigs.length > 0
       ? externalWeek
       : resolvedPage;
-  const { weekStart, weekEnd, dayConfigs, weekRecords } = displayPage;
+  const { weekStart, weekEnd, dayConfigs, weekRecords, dayScoreStats } =
+    displayPage;
 
   const dayGrid = (
     <div className="hidden grid-cols-7 gap-1.5 week-schedule-grid:grid">
@@ -798,6 +837,8 @@ export function WeekScheduleStrip({
             key={day.id}
             day={day}
             weekRecords={weekRecords}
+            dayConfigs={dayConfigs}
+            trainConductorLeadTimeDays={trainConductorLeadTimeDays}
             today={today}
             weekStart={weekStart}
             weekEnd={weekEnd}
@@ -805,6 +846,7 @@ export function WeekScheduleStrip({
             conductorLabels={conductorLabels}
             vipLabels={vipLabels}
             templateShortLabels={templateShortLabels}
+            scoreStats={dayScoreStats?.[day.date] ?? null}
             className="aspect-square min-w-0 p-1.5 min-h-0 w-auto"
             onSelect={selectable ? () => onSelectDate(day.date) : undefined}
             draftScheduleAriaLabel={draftScheduleAriaLabel}
@@ -869,6 +911,7 @@ export function WeekScheduleStrip({
               conductorLabels={conductorLabels}
               vipLabels={vipLabels}
               templateShortLabels={templateShortLabels}
+              trainConductorLeadTimeDays={trainConductorLeadTimeDays}
               canPaintDays={canPaintDays}
               isDatePaintable={isDatePaintable}
               onOpenTemplateMenu={handleOpenTemplateMenu}

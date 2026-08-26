@@ -19,6 +19,14 @@ vi.mock("@/lib/trains/api-context", () => ({
   }),
 }));
 
+vi.mock("@/lib/trains/alliance-train-lead-time.server", () => ({
+  loadAllianceTrainLeadTimeSettings: vi.fn().mockResolvedValue({
+    trainConductorLeadTimeDays: 0,
+    trainConductorConfirmationEnabled: false,
+    canManage: false,
+  }),
+}));
+
 vi.mock("@/lib/game-season/sync", () => ({
   getEffectiveSeasonForAlliance: vi.fn().mockResolvedValue({ seasonKey: "1" }),
 }));
@@ -52,6 +60,7 @@ const LOCKED_RECORD = {
   conductorMemberId: "mem-1",
   conductorMemberName: "Alice",
   vipMemberName: "Bob",
+  conductorNominationStatus: null,
 };
 
 describe("conductor lock POST", () => {
@@ -101,6 +110,37 @@ describe("conductor lock POST", () => {
       "ally-1",
       "hq-1",
     );
+  });
+
+  it("409s when confirmation is pending and alliance confirmation is enabled", async () => {
+    const { getConductorRecord, lockConductorRecord } = await import(
+      "@/lib/trains/repository"
+    );
+    const { loadAllianceTrainLeadTimeSettings } = await import(
+      "@/lib/trains/alliance-train-lead-time.server"
+    );
+    vi.mocked(loadAllianceTrainLeadTimeSettings).mockResolvedValueOnce({
+      trainConductorLeadTimeDays: 1,
+      trainConductorConfirmationEnabled: true,
+      canManage: true,
+    });
+    vi.mocked(getConductorRecord).mockResolvedValue({
+      ...LOCKED_RECORD,
+      conductorNominationStatus: "pending_confirmation",
+    } as never);
+
+    const res = await POST(
+      new Request("http://localhost/api/trains/conductor/lock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: "2026-08-10" }),
+      }),
+    );
+
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { code?: string };
+    expect(body.code).toBe("conductor_confirmation_pending");
+    expect(lockConductorRecord).not.toHaveBeenCalled();
   });
 
   it("passes officer locale through to Discord announce", async () => {

@@ -3,8 +3,19 @@
  * Server loaders fetch scores; these classify need and build the payload shape.
  */
 
+import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
 import { paintTemplateUsesPriorDayVs } from "@/lib/trains/heavy-hitter-pool.shared";
-import { vsScoreContextForTrainDate } from "@/lib/trains/vs-week-days.shared";
+import type { WeekTemplateType } from "@/lib/trains/types";
+import {
+  vsScoreContextForTrainDate,
+  vsScoreReferenceDate,
+} from "@/lib/trains/vs-week-days.shared";
+
+export type ScoreDateDayConfig = {
+  conductorMechanism?: string | null;
+  conductorConfig?: unknown;
+  paintTemplate?: WeekTemplateType | string | null;
+};
 
 export type TrainsVsDataStatusKind = "vr" | "prior_day_vs" | "none";
 
@@ -15,6 +26,19 @@ export type TrainsVsDataStatus = {
   kind: TrainsVsDataStatusKind;
   /** Prior-day VS recorded date when kind is `prior_day_vs`. */
   scoreDate?: string;
+  /** Members eligible under the day's rule (when score stats are loaded). */
+  eligibleCount?: number;
+  /** VS match day key for the score source date (Radar Training, …). */
+  vsDayKey?:
+    | "radarTraining"
+    | "baseExpansion"
+    | "ageOfScience"
+    | "heroDay"
+    | "totalMobilization"
+    | "busterDay"
+    | null;
+  /** Top N scope when the rule is a top board. */
+  topN?: number;
 };
 
 export type ClassifyVsDataNeedInput = {
@@ -23,15 +47,71 @@ export type ClassifyVsDataNeedInput = {
   paintTemplate?: string | null;
   /** Train calendar date — gates prior-day VS (e.g. Monday → Sunday break). */
   trainDate?: string | null;
+  /** Alliance lead-time days (shifts score reference date). */
+  leadDays?: number;
+  /** Painted rule for the VS score reference date (lead time ≥ 1). */
+  scoreDateDay?: ScoreDateDayConfig | null;
 };
 
+/** True when the score reference day's paint/mechanism uses prior-day VS scores. */
+export function scoreDateDayUsesPriorDayVsScores(
+  scoreDateDay: ScoreDateDayConfig,
+  scoreDate: string,
+): boolean {
+  const paint = scoreDateDay.paintTemplate;
+  if (
+    paint === "vs_push_weekdays" ||
+    paint === "vs_push_week" ||
+    paint === "top_vs"
+  ) {
+    return true;
+  }
+  if (paintTemplateUsesPriorDayVs(paint)) {
+    return true;
+  }
+
+  const mechanism = effectiveConductorMechanism(
+    scoreDateDay.conductorMechanism,
+    paint as WeekTemplateType | null,
+    scoreDate,
+  );
+  return (
+    mechanism === "vs_high_score" ||
+    mechanism === "vs_top_10" ||
+    mechanism === "vs_top_n" ||
+    mechanism === "heavy_hitter_lottery"
+  );
+}
+
+function trainDayHasNativePriorDayVs(input: ClassifyVsDataNeedInput): boolean {
+  const mech = input.conductorMechanism;
+  if (
+    mech === "vs_high_score" ||
+    mech === "vs_top_10" ||
+    mech === "vs_top_n" ||
+    mech === "heavy_hitter_lottery"
+  ) {
+    return true;
+  }
+  if (mech === "r3_lottery" && input.paintTemplate === "economy_week") {
+    return true;
+  }
+  if (mech === "r3_lottery" && paintTemplateUsesPriorDayVs(input.paintTemplate)) {
+    return true;
+  }
+  return false;
+}
+
 /**
- * Prior calendar day is a VS match day (Mon–Sat). Sunday is the VS break, so
- * Monday conductor picks never require yesterday's scores; Sunday picks use
- * Saturday (Buster Day) when the mechanism needs prior-day VS.
+ * Score reference date is a VS match day (Mon–Sat). With leadDays=0, Monday
+ * trains use Sunday (break) → no prior-day VS. With leadDays=1, Monday uses
+ * Saturday (Buster Day) scores.
  */
-export function priorDayVsAppliesForTrainDate(trainDate: string): boolean {
-  const { vsDayNumber } = vsScoreContextForTrainDate(trainDate);
+export function priorDayVsAppliesForTrainDate(
+  trainDate: string,
+  leadDays = 0,
+): boolean {
+  const { vsDayNumber } = vsScoreContextForTrainDate(trainDate, leadDays);
   return vsDayNumber != null;
 }
 
@@ -45,6 +125,7 @@ export function classifyVsDataNeed(
   input: ClassifyVsDataNeedInput,
 ): { kind: TrainsVsDataStatusKind; required: boolean } {
   const mech = input.conductorMechanism;
+  const leadDays = input.leadDays ?? 0;
 
   // R3 recognition is manual award pick only — no score upload gate.
   if (input.paintTemplate === "r3_recognition") {
@@ -58,7 +139,7 @@ export function classifyVsDataNeed(
   const priorDayVsOk =
     input.trainDate == null ||
     input.trainDate === "" ||
-    priorDayVsAppliesForTrainDate(input.trainDate);
+    priorDayVsAppliesForTrainDate(input.trainDate, leadDays);
 
   if (!priorDayVsOk) {
     return { kind: "none", required: false };
@@ -86,6 +167,21 @@ export function classifyVsDataNeed(
     return { kind: "prior_day_vs", required: true };
   }
 
+  // Lead time ≥ 1: off-template days (Sun VS break, Mon R4, …) inherit the
+  // score reference day's VS context (e.g. Sun → Fri Total Mobilization).
+  if (
+    leadDays > 0 &&
+    priorDayVsOk &&
+    input.trainDate &&
+    input.scoreDateDay &&
+    !trainDayHasNativePriorDayVs(input)
+  ) {
+    const scoreDate = vsScoreReferenceDate(input.trainDate, leadDays);
+    if (scoreDateDayUsesPriorDayVsScores(input.scoreDateDay, scoreDate)) {
+      return { kind: "prior_day_vs", required: false };
+    }
+  }
+
   return { kind: "none", required: false };
 }
 
@@ -110,6 +206,9 @@ export function buildVsDataStatus(input: {
   required: boolean;
   scoreCount: number;
   scoreDate?: string;
+  eligibleCount?: number;
+  vsDayKey?: TrainsVsDataStatus["vsDayKey"];
+  topN?: number;
 }): TrainsVsDataStatus {
   const ready = !input.required || input.scoreCount > 0;
   return {
@@ -118,5 +217,10 @@ export function buildVsDataStatus(input: {
     scoreCount: input.scoreCount,
     kind: input.kind,
     ...(input.scoreDate !== undefined ? { scoreDate: input.scoreDate } : {}),
+    ...(input.eligibleCount !== undefined
+      ? { eligibleCount: input.eligibleCount }
+      : {}),
+    ...(input.vsDayKey !== undefined ? { vsDayKey: input.vsDayKey } : {}),
+    ...(input.topN !== undefined ? { topN: input.topN } : {}),
   };
 }

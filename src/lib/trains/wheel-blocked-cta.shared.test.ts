@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   resolveWheelBlockedReseedPoolType,
+  shouldShowWheelBlockedLeadTimeLink,
   shouldShowWheelBlockedManualPick,
   wheelBlockedReseedLabelKey,
+  wheelBlockedVsBodyKey,
 } from "@/lib/trains/wheel-blocked-cta.shared";
 
 describe("resolveWheelBlockedReseedPoolType", () => {
@@ -28,6 +30,23 @@ describe("resolveWheelBlockedReseedPoolType", () => {
         code: "POOL_UNAVAILABLE",
         poolType: "r3",
       }),
+    ).toBeNull();
+  });
+
+  it("never offers reseed for Price Is Freight with-replacement paints", () => {
+    expect(
+      resolveWheelBlockedReseedPoolType(
+        { code: "POOL_EMPTY", poolType: "r3" },
+        null,
+        { paintTemplate: "price_is_right" },
+      ),
+    ).toBeNull();
+    expect(
+      resolveWheelBlockedReseedPoolType(
+        { code: "POOL_EXHAUSTED", poolType: "r3" },
+        null,
+        { paintTemplate: "takedown_week" },
+      ),
     ).toBeNull();
   });
 
@@ -57,5 +76,60 @@ describe("wheelBlockedReseedLabelKey", () => {
     expect(
       wheelBlockedReseedLabelKey({ code: "POOL_EXHAUSTED", poolType: "r3" }),
     ).toBe("wheelBlocked.startNewRotationAndRespin");
+  });
+});
+
+describe("shouldShowWheelBlockedLeadTimeLink", () => {
+  it("shows only for missing VS with leadDays > 0", () => {
+    expect(
+      shouldShowWheelBlockedLeadTimeLink({
+        code: "NO_WHEEL_CANDIDATES",
+        candidateKind: "vs",
+        leadDays: 1,
+        scoreDate: "2026-08-10",
+      }),
+    ).toBe(true);
+    expect(
+      shouldShowWheelBlockedLeadTimeLink({
+        code: "NO_WHEEL_CANDIDATES",
+        candidateKind: "vs",
+        leadDays: 0,
+        scoreDate: "2026-08-11",
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowWheelBlockedLeadTimeLink({
+        code: "POOL_EMPTY",
+        poolType: "r3",
+        leadDays: 2,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("wheelBlockedVsBodyKey", () => {
+  it("picks lead-time copy when scoreDate and leadDays are set", () => {
+    expect(
+      wheelBlockedVsBodyKey({
+        code: "NO_WHEEL_CANDIDATES",
+        candidateKind: "vs",
+        scoreDate: "2026-08-10",
+        leadDays: 1,
+      }),
+    ).toBe("wheelBlocked.requiresVsScoresWithLeadTime");
+    expect(
+      wheelBlockedVsBodyKey({
+        code: "NO_WHEEL_CANDIDATES",
+        candidateKind: "vs",
+        scoreDate: "2026-08-11",
+        leadDays: 0,
+      }),
+    ).toBe("wheelBlocked.requiresVsScores");
+    expect(
+      wheelBlockedVsBodyKey({
+        code: "NO_WHEEL_CANDIDATES",
+        candidateKind: "vs",
+      }),
+    ).toBe("wheelBlocked.noVsScores");
   });
 });

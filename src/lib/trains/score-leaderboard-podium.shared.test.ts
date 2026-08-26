@@ -50,6 +50,48 @@ describe("resolveScoreLeaderboardKind", () => {
       }),
     ).toBeNull();
   });
+
+  it("inherits vs_push from score reference day under lead time", () => {
+    expect(
+      resolveScoreLeaderboardKind({
+        paintTemplate: "vs_push_week_lead_time",
+        conductorMechanism: "custom",
+        trainDate: "2026-08-30",
+        leadDays: 1,
+        scoreDateDay: {
+          conductorMechanism: "vs_top_10",
+          paintTemplate: "vs_push_weekdays",
+        },
+      }),
+    ).toBe("vs_push");
+  });
+
+  it("inherits tpif when train day is painted eligible VS", () => {
+    expect(
+      resolveScoreLeaderboardKind({
+        paintTemplate: "price_is_right_weekdays",
+        conductorMechanism: "r3_lottery",
+        trainDate: "2026-08-30",
+        leadDays: 1,
+        scoreDateDay: {
+          conductorMechanism: "vs_top_10",
+          paintTemplate: "vs_push_weekdays",
+        },
+      }),
+    ).toBe("tpif");
+  });
+
+  it("prefers tpif from week template when day paint is still VS push", () => {
+    expect(
+      resolveScoreLeaderboardKind({
+        paintTemplate: "vs_push_weekdays",
+        conductorMechanism: "vs_top_10",
+        trainDate: "2026-08-26",
+        weekTemplateType: "price_is_right",
+        weekStart: "2026-08-25",
+      }),
+    ).toBe("tpif");
+  });
 });
 
 describe("SCORE_LEADERBOARD_LIST_MAX", () => {

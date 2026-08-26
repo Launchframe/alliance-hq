@@ -6,6 +6,7 @@ import { redirect } from "@/i18n/navigation";
 import { Link } from "@/i18n/navigation";
 import { AllianceTrainDiscordSettings } from "@/components/settings/AllianceTrainDiscordSettings";
 import { AllianceTrainEconomyThresholdSettings } from "@/components/settings/AllianceTrainEconomyThresholdSettings";
+import { AllianceTrainLeadTimeSettings } from "@/components/settings/AllianceTrainLeadTimeSettings";
 import { AllianceTrainMinimumsSettings } from "@/components/settings/AllianceTrainMinimumsSettings";
 import { AllianceTrainWeekSettings } from "@/components/settings/AllianceTrainWeekSettings";
 import { AllianceContextRequired } from "@/components/settings/AllianceContextRequired";
@@ -69,6 +70,7 @@ export default async function SettingsTrainsPage({
       </div>
 
       <AllianceTrainWeekSettings allianceTag={allianceTag} />
+      <AllianceTrainLeadTimeSettings allianceTag={allianceTag} />
       <AllianceTrainMinimumsSettings allianceTag={allianceTag} />
       <AllianceTrainEconomyThresholdSettings allianceTag={allianceTag} />
       <AllianceTrainDiscordSettings

@@ -23,6 +23,20 @@ vi.mock("@/lib/trains/day-config-resolve.server", () => ({
   resolveRollDayConfig: vi.fn(),
 }));
 
+vi.mock("@/lib/trains/alliance-train-lead-time.server", () => ({
+  loadAllianceTrainLeadTimeDays: vi.fn().mockResolvedValue(0),
+}));
+
+vi.mock("@/lib/trains/service", () => ({
+  loadAllianceTrainWeekConfig: vi
+    .fn()
+    .mockResolvedValue({ trainWeekStartDow: 1 }),
+}));
+
+vi.mock("@/lib/trains/repository", () => ({
+  getWeekSchedule: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock("@/lib/trains/score-leaderboard.server", () => ({
   loadScoreLeaderboard: vi.fn(),
 }));
@@ -87,27 +101,40 @@ describe("score-leaderboard GET", () => {
     expect(body.error).toMatch(/score leaderboard/i);
   });
 
-  it("400s when kind param does not match day rules", async () => {
+  it("ignores mismatched kind param and uses server day kind", async () => {
     const { resolveTrainRequestContext } = await import(
       "@/lib/trains/api-context"
     );
     const { resolveRollDayConfig } = await import(
       "@/lib/trains/day-config-resolve.server"
     );
+    const { loadAllianceTrainLeadTimeDays } = await import(
+      "@/lib/trains/alliance-train-lead-time.server"
+    );
     vi.mocked(resolveTrainRequestContext).mockResolvedValue(BASE_CTX);
+    vi.mocked(loadAllianceTrainLeadTimeDays).mockResolvedValue(0);
     vi.mocked(resolveRollDayConfig).mockResolvedValue({
       paintTemplate: "vs_push_weekdays",
       conductorMechanism: "vs_top_10",
     } as never);
+    const { loadScoreLeaderboard } = await import(
+      "@/lib/trains/score-leaderboard.server"
+    );
+    vi.mocked(loadScoreLeaderboard).mockResolvedValue({
+      kind: "vs_push",
+      trainDate: "2026-07-09",
+      podium: [],
+      entries: [],
+    });
 
     const res = await GET(
       new Request(
         "http://localhost/api/trains/score-leaderboard?date=2026-07-09&kind=tpif",
       ),
     );
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.error).toMatch(/does not match/i);
+    expect(body.kind).toBe("vs_push");
   });
 
   it("returns vs_push podium payload", async () => {
@@ -155,6 +182,52 @@ describe("score-leaderboard GET", () => {
       kind: "vs_push",
       hqUserId: "hq-1",
     });
+  });
+
+  it("inherits vs_push leaderboard for off-template Sunday under lead time", async () => {
+    const { resolveTrainRequestContext } = await import(
+      "@/lib/trains/api-context"
+    );
+    const { resolveRollDayConfig } = await import(
+      "@/lib/trains/day-config-resolve.server"
+    );
+    const { loadAllianceTrainLeadTimeDays } = await import(
+      "@/lib/trains/alliance-train-lead-time.server"
+    );
+    const { loadScoreLeaderboard } = await import(
+      "@/lib/trains/score-leaderboard.server"
+    );
+    vi.mocked(resolveTrainRequestContext).mockResolvedValue(BASE_CTX);
+    vi.mocked(loadAllianceTrainLeadTimeDays).mockResolvedValueOnce(1);
+    vi.mocked(resolveRollDayConfig)
+      .mockResolvedValueOnce({
+        paintTemplate: "vs_push_week_lead_time",
+        conductorMechanism: "custom",
+      } as never)
+      .mockResolvedValueOnce({
+        paintTemplate: "vs_push_weekdays",
+        conductorMechanism: "vs_top_10",
+      } as never);
+    vi.mocked(loadScoreLeaderboard).mockResolvedValue({
+      kind: "vs_push",
+      trainDate: "2026-08-30",
+      scoreDate: "2026-08-28",
+      podium: [],
+      entries: [],
+    });
+
+    const res = await GET(
+      new Request(
+        "http://localhost/api/trains/score-leaderboard?date=2026-08-30",
+      ),
+    );
+    expect(res.status).toBe(200);
+    expect(loadScoreLeaderboard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trainDate: "2026-08-30",
+        kind: "vs_push",
+      }),
+    );
   });
 
   it("returns donations unavailable stub", async () => {

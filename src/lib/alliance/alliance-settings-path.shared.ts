@@ -19,6 +19,10 @@ export function allianceTrainWeekApiPath(tag: string): string {
   return `/api/alliance/${encodeURIComponent(allianceTagPathSegment(tag))}/train-week`;
 }
 
+export function allianceTrainLeadTimeApiPath(tag: string): string {
+  return `/api/alliance/${encodeURIComponent(allianceTagPathSegment(tag))}/train-lead-time`;
+}
+
 export function allianceTrainDiscordApiPath(tag: string): string {
   return `/api/alliance/${encodeURIComponent(allianceTagPathSegment(tag))}/train-discord`;
 }

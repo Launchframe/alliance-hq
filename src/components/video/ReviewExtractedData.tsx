@@ -44,7 +44,7 @@ import {
   isAllianceKillsVideoTarget,
   isZeroScoreWarningDisabled,
 } from "@/lib/video/score-targets";
-import { parseVideoUploadRecordedDateParam } from "@/lib/video/score-target-nav";
+import { parseVideoUploadRecordedDateParam, parseVideoUploadReturnToParam } from "@/lib/video/score-target-nav";
 import {
   defaultVsPerformanceRecordedDate,
   coerceVsPerformanceRecordedDate,
@@ -338,6 +338,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const presetRecordedDate = parseVideoUploadRecordedDateParam(
     searchParams.get("recordedDate") ?? undefined,
   );
+  const postSubmitReturnTo = parseVideoUploadReturnToParam(
+    searchParams.get("returnTo"),
+  );
   const { showExperienceFeedback } = useFeedback();
   const liveJob = useVideoJob(jobId);
 
@@ -600,6 +603,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     if (holdEventRedirect) return;
     const search = window.location.search;
     if (viewMode === "review" && jobStatus === "complete") {
+      if (postSubmitReturnTo) {
+        router.replace(postSubmitReturnTo);
+        return;
+      }
       router.replace(`/tools/video-upload/${jobId}/event${search}`);
       return;
     }
@@ -610,7 +617,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     ) {
       router.replace(`/tools/video-upload/${jobId}/review${search}`);
     }
-  }, [holdEventRedirect, jobId, jobStatus, router, viewMode]);
+  }, [
+    holdEventRedirect,
+    jobId,
+    jobStatus,
+    postSubmitReturnTo,
+    router,
+    viewMode,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -4121,7 +4135,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
       <div className="flex flex-wrap gap-3">
         <Link
-          href="/tools/video-upload"
+          href={postSubmitReturnTo ?? "/tools/video-upload"}
           className="rounded-lg border border-hq-border px-4 py-2 text-sm hover:bg-hq-surface-muted"
         >
           {tc("back")}

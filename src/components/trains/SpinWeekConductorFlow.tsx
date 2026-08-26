@@ -92,7 +92,7 @@ export const SpinWeekConductorFlow = forwardRef<
     onSpinBatchComplete,
     showTrigger = true,
     vsDataStatus = null,
-    videoUploadHref = "/tools/video-upload",
+    videoUploadHref = "/tools/video-upload?scoreTarget=vs-performance",
   },
   ref,
 ) {

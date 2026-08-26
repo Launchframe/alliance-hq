@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 
 import { normalizeDiscordBotLocale } from "@/lib/discord/i18n";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
+import { loadAllianceTrainLeadTimeSettings } from "@/lib/trains/alliance-train-lead-time.server";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
+import { conductorLockBlockedByPendingConfirmation } from "@/lib/trains/conductor-record.shared";
 import {
   getConductorRecord,
   lockConductorRecord,
@@ -68,6 +70,25 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Roll or select a conductor first." },
         { status: 400 },
+      );
+    }
+
+    const leadTime = await loadAllianceTrainLeadTimeSettings(
+      ctx.allianceId,
+      false,
+    );
+    if (
+      conductorLockBlockedByPendingConfirmation(
+        leadTime.trainConductorConfirmationEnabled,
+        record.conductorNominationStatus,
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error: "Confirm the nominated conductor before locking.",
+          code: "conductor_confirmation_pending",
+        },
+        { status: 409 },
       );
     }
 

@@ -14,11 +14,17 @@ export const VS_WEEK_DAY_MESSAGE_KEYS = {
 export type VsWeekDayNumber = keyof typeof VS_WEEK_DAY_MESSAGE_KEYS;
 
 export type VsScoreContext = {
-  /** Calendar date whose VS scores apply (train date minus one day). */
+  /** Calendar date whose VS scores apply (trainDate − 1 − leadDays). */
   scoreDate: string;
   vsDayNumber: VsWeekDayNumber | null;
   vsDayKey: (typeof VS_WEEK_DAY_MESSAGE_KEYS)[VsWeekDayNumber] | null;
 };
+
+/** Clamp alliance lead-time days to the API range. */
+export function clampTrainConductorLeadTimeDays(days: number): number {
+  if (!Number.isFinite(days)) return 0;
+  return Math.max(0, Math.min(7, Math.trunc(days)));
+}
 
 export function vsDayNumberFromWeekdayIndex(
   dayIndex: number,
@@ -27,15 +33,26 @@ export function vsDayNumberFromWeekdayIndex(
   return (dayIndex + 1) as VsWeekDayNumber;
 }
 
-export function vsScoreContextForTrainDate(trainDate: string): VsScoreContext {
-  const scoreDate = addCalendarDays(trainDate, -1);
+/**
+ * Score reference date for a train day.
+ * Default leadDays=0 → T−1; leadDays=1 → T−2 (e.g. Mon train uses Sat scores).
+ */
+export function vsScoreReferenceDate(
+  trainDate: string,
+  leadDays = 0,
+): string {
+  const lead = clampTrainConductorLeadTimeDays(leadDays);
+  return addCalendarDays(trainDate, -1 - lead);
+}
+
+export function vsScoreContextForTrainDate(
+  trainDate: string,
+  leadDays = 0,
+): VsScoreContext {
+  const scoreDate = vsScoreReferenceDate(trainDate, leadDays);
   const weekStart = getWeekStartMonday(scoreDate);
   const dayIndex = dayIndexInWeek(scoreDate, weekStart);
   const vsDayNumber = vsDayNumberFromWeekdayIndex(dayIndex);
   const vsDayKey = vsDayNumber ? VS_WEEK_DAY_MESSAGE_KEYS[vsDayNumber] : null;
   return { scoreDate, vsDayNumber, vsDayKey };
-}
-
-export function vsScoreReferenceDate(trainDate: string): string {
-  return addCalendarDays(trainDate, -1);
 }

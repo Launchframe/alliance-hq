@@ -2005,7 +2005,20 @@
     },
     "trains": {
       "title": "Trens",
-      "subtitle": "Configuração de trem para {tag}."
+      "subtitle": "Configuração de trem para {tag}.",
+      "leadTime": {
+        "title": "Antecedência",
+        "description": "Dias entre o dia de pontuação de VS e o dia do trem. Com 1 dia, as pontuações de sábado conduzem o trem de segunda.",
+        "daysLabel": "{count, plural, one {# dia} other {# dias}}",
+        "confirmationToggle": "Exigir confirmação de R4 após a indicação",
+        "applyTemplateCta": "Aplicar modelo de semana push VS (antecedência)",
+        "loading": "Carregando configurações de antecedência…",
+        "loadFailed": "Não foi possível carregar as configurações de antecedência.",
+        "save": "Salvar antecedência",
+        "saving": "Salvando…",
+        "saveFailed": "Não foi possível salvar as configurações de antecedência.",
+        "adminsOnly": "Somente administradores da aliança podem alterar a antecedência."
+      }
     },
     "gameSeasons": {
       "title": "Temporada do jogo",
@@ -3410,6 +3423,11 @@
       "cancel": "Cancelar",
       "uploadLink": "Enviar pontuações"
     },
+    "scoresReady": {
+      "body": "As pontuações estão prontas. Vamos girar a roleta!",
+      "spin": "Girar a roleta!",
+      "dismiss": "Fechar"
+    },
     "rosterSyncBanner": {
       "bodyEmpty": "O Alliance HQ ainda não tem o roster da sua aliança. Sincronize pelo Ashed para carregar membros e patentes antes de girar a roleta.",
       "bodyMissingRanks": "Nenhum membro atende ao requisito de patente de hoje ({rankLabel}). Sincronize pelo Ashed caso as patentes estejam desatualizadas ou atribua patentes em Membros."
@@ -3792,6 +3810,23 @@
         "heavy_hitter": "Elegibilidade loteria heavy-hitter"
       }
     },
+    "dayScoreStats": {
+      "vsDayUnknown": "Dia de VS",
+      "vrLabel": "VR da temporada",
+      "considered": "{count, plural, one {# pontuação} other {# pontuações}}",
+      "eligible": "{count} elegíveis",
+      "summary": "{vsDay} · {weekday} · {considered, plural, one {# pontuação} other {# pontuações}} consideradas · {eligible} elegíveis",
+      "vrSummary": "VR da temporada · {considered, plural, one {# pontuação} other {# pontuações}} · {eligible} elegíveis"
+    },
+    "conductorConfirmation": {
+      "pending": "Aguardando confirmação de R4 — {name} tem até {time} (hora do servidor)",
+      "confirmButton": "Confirmar condutor",
+      "forfeited": "{name} não confirmou a tempo",
+      "successor": "Sucessor: {name} — confirme até {time}",
+      "r4Fallback": "Nenhum condutor confirmado — atribuído a {name} (R4)",
+      "confirmFailed": "Não foi possível confirmar o condutor.",
+      "confirming": "Confirmando…"
+    },
     "scoreLeaderboard": {
       "loading": "Carregando ranking de pontuação…",
       "loadFailed": "Não foi possível carregar o ranking de pontuação.",
@@ -3949,6 +3984,8 @@
       "poolExhausted": "Todos os elegíveis já foram sorteados nesta geração. Inicie uma nova rodada para começar a próxima.",
       "poolUnavailable": "Ainda há membros na geração atual, mas nenhum se qualifica para o giro de hoje (por exemplo, VS do dia anterior abaixo do mínimo da aliança). Corrija pontuações ou mínimos, escolha manualmente ou tente de novo mais tarde — não inicie uma nova rodada a menos que todos já tenham tido vez.",
       "noVsScores": "Ainda não há pontuações VS suficientes para preencher a roleta. Informe as pontuações VS desta semana e tente de novo.",
+      "requiresVsScores": "Esta regra exige pontuações VS de {scoreWeekday}. Envie essas pontuações e tente de novo.",
+      "requiresVsScoresWithLeadTime": "Esta regra exige pontuações VS de {scoreWeekday} (definido pelo tempo de antecipação). Envie essas pontuações e tente de novo.",
       "noVrStandings": "Ainda não há classificações VR da temporada suficientes para preencher a roleta. Registre VR na página Membros e tente de novo.",
       "noEventScores": "Ainda não há pontuações de evento suficientes para a roleta VIP. Informe as pontuações do evento e tente de novo.",
       "noDonationScores": "Doações ainda não são registradas no Alliance HQ. Escolha o doador manualmente na lista.",
@@ -3958,6 +3995,7 @@
       "goToMembers": "Ir para Membros",
       "goToTrainSettings": "Abrir config. de trens",
       "goToSettings": "Ir para Configurações",
+      "goToLeadTimeSettings": "Configurações de tempo de antecipação",
       "uploadScoreVideo": "Enviar vídeo de placar",
       "syncRoster": "Sincronizar roster pelo Ashed",
       "pickManually": "Escolher manualmente",
@@ -4011,6 +4049,7 @@
     },
     "templates": {
       "vs_push_week": "Semana push VS",
+      "vs_push_week_lead_time": "Push VS (antecedência)",
       "vs_push_weekdays": "Dias úteis push VS",
       "r4_event_vip": "R4 e VIP de evento",
       "top_vs": "Top VS",
@@ -4051,6 +4090,7 @@
     },
     "templateDetails": {
       "vs_push_week": "Condutor: ter e sex = VS #1 do dia anterior (automático); qua, qui e sáb = sorteio aleatório entre o top 10 de VS; dom–seg = rodízio de oficiais R4+. VIP: condutor escolhe o VIP nos dias de VS; loteria top 10 de evento dom–seg.",
+      "vs_push_week_lead_time": "Companheiro da antecedência ≥ 1. Condutor: seg–ter rodízio R4+; qua–sáb top VS do dia de referência (deslocado pela antecedência). Domingo é folga de VS — pinte manualmente se precisar. VIP: escolha do condutor nos dias de VS; loteria de evento nos dias R4.",
       "vs_push_weekdays": "Condutor: seg = maior doador; ter e sex = VS #1 do dia anterior; qua, qui e sáb = sorteio no top 10 de VS. VIP: seg = 2º doador; ter–sáb = escolha livre do condutor.",
       "r4_event_vip": "Condutor: rodízio de oficiais R4+. VIP: roleta loteria top 10 do evento (padrão: Capitol War). Típico para dias de fim de semana.",
       "economy_week": "Condutor: roleta R3 todos os dias — elegibilidade R3 completa, sem faixa de pontuação VS. VIP: o condutor do dia escolhe o VIP diretamente (escolha livre). Use para pivotar no meio da semana quando empurrar menos VS.",

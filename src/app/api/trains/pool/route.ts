@@ -17,6 +17,7 @@ import {
 import { reseedPool } from "@/lib/trains/service";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import type { PoolType } from "@/lib/trains/types";
+import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
 import {
   vsScoreContextForTrainDate,
   type VsScoreContext,
@@ -87,7 +88,8 @@ export async function GET(request: Request) {
   }
 
   if (poolType === "event_top_x" && trainDate) {
-    const eventContext = vsScoreContextForTrainDate(trainDate);
+    const leadDays = await loadAllianceTrainLeadTimeDays(ctx.allianceId);
+    const eventContext = vsScoreContextForTrainDate(trainDate, leadDays);
     const scoresByMember = await fetchHqSeasonVsScoresByMember(ctx.allianceId);
 
     return NextResponse.json({

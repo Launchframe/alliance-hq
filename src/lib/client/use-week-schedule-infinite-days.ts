@@ -7,6 +7,7 @@ import type {
   WeekScheduleDayConfig,
   WeekSchedulePagePayload,
 } from "@/lib/trains/load-dashboard";
+import type { TrainDayScoreStats } from "@/lib/trains/day-score-stats.shared";
 import {
   addCalendarDays,
 } from "@/lib/trains/game-time";
@@ -22,7 +23,9 @@ export type WeekCarouselDayEntry = {
   day: WeekScheduleDayConfig;
   weekStart: string;
   weekEnd: string;
+  weekDayConfigs: WeekScheduleDayConfig[];
   record: WeekConductorRecordSummary | undefined;
+  scoreStats: TrainDayScoreStats | null;
 };
 
 const EDGE_THRESHOLD = 2;
@@ -55,7 +58,9 @@ function flattenWeekPage(page: WeekSchedulePagePayload): WeekCarouselDayEntry[] 
     day,
     weekStart: page.weekStart,
     weekEnd: page.weekEnd,
+    weekDayConfigs: page.dayConfigs,
     record: recordByDate.get(day.date),
+    scoreStats: page.dayScoreStats?.[day.date] ?? null,
   }));
 }
 
