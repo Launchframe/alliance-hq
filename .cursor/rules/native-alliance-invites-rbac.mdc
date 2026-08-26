@@ -101,8 +101,9 @@ Product guidance: at near-full roster, steer officers toward **commander claim i
 
 From `src/lib/native-alliance/team-invites.server.ts`:
 
-- **Owner / maintainer / alliance admin:** officer, data_entry, viewer, member (+ owner via PA only).
-- **Officer:** data_entry, viewer, member — **not** officer or owner.
+- **Owner / maintainer / alliance admin:** officer, data_entry, viewer, member. **Owner** invites only with an **R5** commander claim target (or platform maintainer without a target).
+- **Officer (base):** data_entry, viewer, member — **not** officer or owner.
+- **Officer rank exceptions (hybrid claim + UID):** may invite **officer** when the bound commander is in-game **R4**; may invite **owner** when the bound commander is in-game **R5**. Other officer grants still require the alliance owner.
 
 Invite and join-code creation does **not** require a linked game server. Server matching still happens at **member-link** time (name+UID / claim confirm).
 

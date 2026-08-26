@@ -50,7 +50,7 @@ export function InviteWizard({
   const [error, setError] = useState<string | null>(null);
 
   const [commanders, setCommanders] = useState<
-    Array<{ ashedMemberId: string; name: string }>
+    Array<{ ashedMemberId: string; name: string; allianceRank: number | null }>
   >([]);
   const [nearFullRoster, setNearFullRoster] = useState(false);
   const [activeRosterCount, setActiveRosterCount] = useState(0);
@@ -59,7 +59,11 @@ export function InviteWizard({
 
   const applyEntryDefaults = useCallback(
     (
-      rows: Array<{ ashedMemberId: string; name: string }>,
+      rows: Array<{
+        ashedMemberId: string;
+        name: string;
+        allianceRank: number | null;
+      }>,
       nearFull: boolean,
     ) => {
       if (defaultsAppliedRef.current) {
@@ -70,11 +74,13 @@ export function InviteWizard({
       const commanderId = deepLinkClaimCommanderId?.trim() ?? "";
       const officerCommanderId = deepLinkOfficerCommanderId?.trim() ?? "";
 
-      if (
-        officerCommanderId &&
-        rows.some((commander) => commander.ashedMemberId === officerCommanderId)
-      ) {
-        const officerRole = resolveOfficerHybridInviteRole(assignableRoles);
+      if (officerCommanderId) {
+        const officerTarget = rows.find(
+          (commander) => commander.ashedMemberId === officerCommanderId,
+        );
+        const officerRole = officerTarget
+          ? resolveOfficerHybridInviteRole(officerTarget.allianceRank)
+          : null;
         if (officerRole) {
           setInviteType("invite_link");
           setStep(2);
@@ -126,7 +132,11 @@ export function InviteWizard({
       if (!res.ok) return [];
 
       const data = (await res.json()) as {
-        commanders?: Array<{ ashedMemberId: string; name: string }>;
+        commanders?: Array<{
+          ashedMemberId: string;
+          name: string;
+          allianceRank?: number | null;
+        }>;
         roster?: {
           activeCount?: number;
           maxMembers?: number;
@@ -134,7 +144,11 @@ export function InviteWizard({
         };
       };
 
-      const rows = data.commanders ?? [];
+      const rows = (data.commanders ?? []).map((commander) => ({
+        ashedMemberId: commander.ashedMemberId,
+        name: commander.name,
+        allianceRank: commander.allianceRank ?? null,
+      }));
       const nearFull = Boolean(data.roster?.nearFull);
       setCommanders(rows);
       setNearFullRoster(nearFull);

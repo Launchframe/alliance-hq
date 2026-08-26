@@ -511,7 +511,9 @@ export function CommanderProfileView({ initial, donationLaunchError }: Props) {
                 href={`/settings/team?inviteWizard=officer_claim&commander=${encodeURIComponent(member.ashedMemberId)}`}
                 className="inline-flex items-center justify-center rounded-lg border border-hq-border px-4 py-2 text-sm font-medium text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent"
               >
-                {tInvites("wizard.openOfficerClaimWizard")}
+                {member.allianceRank === 5
+                  ? tInvites("wizard.openOwnerClaimWizard")
+                  : tInvites("wizard.openOfficerClaimWizard")}
               </Link>
             ) : null}
           </div>

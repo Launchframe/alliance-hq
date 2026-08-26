@@ -81,14 +81,17 @@ export function InviteWizardTargetStep({
   const t = useTranslations("team.invites");
   const tWizard = useTranslations("team.invites.wizard");
 
-  const roleOptions = useMemo(
-    () =>
-      assignableRoles.map((role) => ({
-        value: role,
-        label: t(ROLE_LABEL_KEYS[role]),
-      })),
-    [assignableRoles, t],
-  );
+  const roleOptions = useMemo(() => {
+    const roles = [...assignableRoles];
+    const selectedRole = targets.inviteRole;
+    if (selectedRole && !roles.includes(selectedRole)) {
+      roles.push(selectedRole);
+    }
+    return roles.map((role) => ({
+      value: role,
+      label: t(ROLE_LABEL_KEYS[role]),
+    }));
+  }, [assignableRoles, t, targets.inviteRole]);
 
   const bulkSelectableCap = Math.min(commanders.length, MAX_BULK_CLAIM_INVITES);
   const bulkAllSelected =

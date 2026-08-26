@@ -7,6 +7,7 @@ import {
   authCookieHeader,
   clearAllianceGameServerLink,
   createAllianceMembership,
+  createAllianceRosterMember,
   createAuthenticatedHqSession,
   createNativeAlliance,
   getE2eSql,
@@ -49,6 +50,128 @@ test.describe("Team Access — officer invites", () => {
     expect(res.ok()).toBeTruthy();
     const body = (await res.json()) as { invite?: { inviteUrl: string } };
     expect(body.invite?.inviteUrl).toContain("/invite/");
+  });
+
+  test("officer can create officer invite with R4 claim target", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `TR${nanoid(3)}`,
+      name: "Team Invite R4 Hybrid Alliance",
+    });
+    const { ashedMemberId } = await createAllianceRosterMember(sql, {
+      allianceId: alliance.allianceId,
+      currentName: "R4 Hybrid Commander",
+      allianceRank: 4,
+      allianceRankTitle: "Warlord",
+    });
+    const officer = await createAuthenticatedHqSession(sql, uniqueEmail("officer-r4"));
+    await createAllianceMembership(sql, {
+      hqUserId: officer.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "officer",
+      source: "manual",
+    });
+    await sql`
+      UPDATE sessions
+      SET current_alliance_id = ${alliance.allianceId}, alliance_tag = ${alliance.tag}
+      WHERE id = ${officer.sessionId}
+    `;
+
+    const res = await request.post("/api/settings/team/invites", {
+      headers: {
+        Cookie: authCookieHeader(officer),
+      },
+      data: {
+        kind: "protected_link",
+        roleName: "officer",
+        targetAshedMemberId: ashedMemberId,
+      },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = (await res.json()) as { ok?: boolean; invite?: { inviteUrl?: string } };
+    expect(body.ok).toBe(true);
+    expect(body.invite?.inviteUrl).toContain("/invite/");
+  });
+
+  test("officer can create owner invite with R5 claim target", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `TO${nanoid(3)}`,
+      name: "Team Invite R5 Hybrid Alliance",
+    });
+    const { ashedMemberId } = await createAllianceRosterMember(sql, {
+      allianceId: alliance.allianceId,
+      currentName: "R5 Hybrid Commander",
+      allianceRank: 5,
+      allianceRankTitle: "Leader",
+    });
+    const officer = await createAuthenticatedHqSession(sql, uniqueEmail("officer-r5"));
+    await createAllianceMembership(sql, {
+      hqUserId: officer.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "officer",
+      source: "manual",
+    });
+    await sql`
+      UPDATE sessions
+      SET current_alliance_id = ${alliance.allianceId}, alliance_tag = ${alliance.tag}
+      WHERE id = ${officer.sessionId}
+    `;
+
+    const res = await request.post("/api/settings/team/invites", {
+      headers: {
+        Cookie: authCookieHeader(officer),
+      },
+      data: {
+        kind: "protected_link",
+        roleName: "owner",
+        targetAshedMemberId: ashedMemberId,
+      },
+    });
+
+    expect(res.status()).toBe(200);
+    const body = (await res.json()) as { ok?: boolean; invite?: { inviteUrl?: string } };
+    expect(body.ok).toBe(true);
+    expect(body.invite?.inviteUrl).toContain("/invite/");
+  });
+
+  test("officer cannot assign owner role without R5 claim target", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `TW${nanoid(3)}`,
+      name: "Team Invite Owner Block Alliance",
+    });
+    const officer = await createAuthenticatedHqSession(sql, uniqueEmail("officer-owner-block"));
+    await createAllianceMembership(sql, {
+      hqUserId: officer.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "officer",
+      source: "manual",
+    });
+    await sql`
+      UPDATE sessions
+      SET current_alliance_id = ${alliance.allianceId}, alliance_tag = ${alliance.tag}
+      WHERE id = ${officer.sessionId}
+    `;
+
+    const res = await request.post("/api/settings/team/invites", {
+      headers: {
+        Cookie: authCookieHeader(officer),
+      },
+      data: {
+        kind: "protected_link",
+        roleName: "owner",
+      },
+    });
+
+    expect(res.status()).toBe(403);
   });
 
   test("officer cannot assign officer role via team API", async ({ request }) => {
