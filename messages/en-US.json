@@ -3476,6 +3476,11 @@
       "cancel": "Cancel",
       "uploadLink": "Upload scores"
     },
+    "scoresReady": {
+      "body": "Scores are ready. Let's spin this wheel!",
+      "spin": "Spin the wheel!",
+      "dismiss": "Close"
+    },
     "rosterSyncBanner": {
       "bodyEmpty": "Alliance HQ does not have your roster yet. Sync from Ashed to load members and ranks before spinning.",
       "bodyMissingRanks": "No members match today's rank requirement ({rankLabel}). Sync from Ashed in case ranks are outdated, or assign ranks on Members."

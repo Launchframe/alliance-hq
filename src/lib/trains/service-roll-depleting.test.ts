@@ -18,10 +18,15 @@ const mocks = vi.hoisted(() => ({
   assignVipOnLockedConductor: vi.fn(),
   getMemberRankAsOf: vi.fn(),
   refreshExhaustedPoolIfNeeded: vi.fn(),
+  loadAllianceTrainLeadTimeDays: vi.fn(),
 }));
 
 vi.mock("@/lib/game-season/sync", () => ({
   getEffectiveSeasonForAlliance: mocks.getEffectiveSeasonForAlliance,
+}));
+
+vi.mock("@/lib/trains/alliance-train-lead-time.server", () => ({
+  loadAllianceTrainLeadTimeDays: mocks.loadAllianceTrainLeadTimeDays,
 }));
 
 vi.mock("@/lib/trains/repository", () => ({
@@ -131,6 +136,7 @@ describe("rollForConductor depleting pool release ordering", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getEffectiveSeasonForAlliance.mockResolvedValue({ seasonKey: "1" });
+    mocks.loadAllianceTrainLeadTimeDays.mockResolvedValue(0);
     mocks.resolveRollDayConfig.mockResolvedValue({
       conductorMechanism: "r3_lottery",
       paintTemplate: "economy_week",

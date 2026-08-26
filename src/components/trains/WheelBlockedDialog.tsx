@@ -22,6 +22,8 @@ type Props = {
   fallbackPoolType?: PoolType | null;
   /** Day paint — suppresses reseed for Price Is Freight with-replacement. */
   paintTemplate?: WeekTemplateType | string | null;
+  /** Deep-link for VS score upload (vs-performance + recorded date). */
+  uploadHref?: string;
   busy?: boolean;
   rosterSyncBusy?: boolean;
   rosterSyncNotice?: string | null;
@@ -75,7 +77,11 @@ function bodyMessageKey(details: TrainRollErrorDetails): string {
 
 function primaryLinkCta(
   details: TrainRollErrorDetails,
-  options?: { canSyncRoster?: boolean; rosterSyncSucceeded?: boolean },
+  options?: {
+    canSyncRoster?: boolean;
+    rosterSyncSucceeded?: boolean;
+    uploadHref?: string;
+  },
 ): { href: string; labelKey: string } | null {
   if (details.code === "POOL_EMPTY") {
     if (details.poolType === "heavy_hitter") {
@@ -91,7 +97,9 @@ function primaryLinkCta(
   }
   if (details.code === "NO_WHEEL_CANDIDATES" && details.candidateKind === "vs") {
     return {
-      href: "/tools/video-upload",
+      href:
+        options?.uploadHref ??
+        "/tools/video-upload?scoreTarget=vs-performance",
       labelKey: "wheelBlocked.uploadScoreVideo",
     };
   }
@@ -143,6 +151,7 @@ export function WheelBlockedDialog({
   details,
   fallbackPoolType = null,
   paintTemplate = null,
+  uploadHref,
   busy = false,
   rosterSyncBusy = false,
   rosterSyncNotice = null,
@@ -173,6 +182,7 @@ export function WheelBlockedDialog({
   const linkCta = primaryLinkCta(details, {
     canSyncRoster,
     rosterSyncSucceeded,
+    uploadHref,
   });
   const showLeadTimeLink = shouldShowWheelBlockedLeadTimeLink(details);
   const showSyncRoster =

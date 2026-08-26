@@ -55,6 +55,22 @@ describe("score-target-nav", () => {
     ).toBe("/tools/video-upload?scoreTarget=vs-performance");
   });
 
+  it("builds upload URL with optional returnTo", () => {
+    expect(
+      buildVideoUploadHref("vs-performance", {
+        recordedDate: "2026-07-24",
+        returnTo: "/trains?date=2026-07-25&scoresReady=1",
+      }),
+    ).toBe(
+      "/tools/video-upload?scoreTarget=vs-performance&recordedDate=2026-07-24&returnTo=%2Ftrains%3Fdate%3D2026-07-25%26scoresReady%3D1",
+    );
+    expect(
+      buildVideoUploadHref("vs-performance", {
+        returnTo: "https://evil.example/",
+      }),
+    ).toBe("/tools/video-upload?scoreTarget=vs-performance");
+  });
+
   it("parses enabled scoreTarget query values only", () => {
     expect(parseVideoUploadScoreTargetParam("donations")).toBe("donations");
     expect(parseVideoUploadScoreTargetParam("alliance-kills-video")).toBe(

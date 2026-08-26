@@ -39,6 +39,8 @@ type TicketBoardPayload = {
 
 type Props = {
   trainDate: string;
+  /** VS score upload deep-link when the odds board is empty. */
+  uploadHref?: string;
 };
 
 const COLLAPSED_VISIBLE = 7;
@@ -54,7 +56,10 @@ function formatProbability(value: number): string {
   return "0%";
 }
 
-export function PriceIsRightTicketsPanel({ trainDate }: Props) {
+export function PriceIsRightTicketsPanel({
+  trainDate,
+  uploadHref = "/tools/video-upload?scoreTarget=vs-performance",
+}: Props) {
   const t = useTranslations("trains.priceIsRight");
   const [payload, setPayload] = useState<TicketBoardPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -163,7 +168,7 @@ export function PriceIsRightTicketsPanel({ trainDate }: Props) {
         </p>
         <div className="mt-3">
           <Link
-            href={isHeavyHitter ? "/settings/trains" : "/tools/video-upload"}
+            href={isHeavyHitter ? "/settings/trains" : uploadHref}
             className="inline-flex rounded-lg bg-cyan-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-cyan-400"
           >
             {isHeavyHitter

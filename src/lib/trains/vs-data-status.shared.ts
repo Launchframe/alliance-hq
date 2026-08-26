@@ -3,8 +3,19 @@
  * Server loaders fetch scores; these classify need and build the payload shape.
  */
 
+import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
 import { paintTemplateUsesPriorDayVs } from "@/lib/trains/heavy-hitter-pool.shared";
-import { vsScoreContextForTrainDate } from "@/lib/trains/vs-week-days.shared";
+import type { WeekTemplateType } from "@/lib/trains/types";
+import {
+  vsScoreContextForTrainDate,
+  vsScoreReferenceDate,
+} from "@/lib/trains/vs-week-days.shared";
+
+export type ScoreDateDayConfig = {
+  conductorMechanism?: string | null;
+  conductorConfig?: unknown;
+  paintTemplate?: WeekTemplateType | string | null;
+};
 
 export type TrainsVsDataStatusKind = "vr" | "prior_day_vs" | "none";
 
@@ -38,7 +49,58 @@ export type ClassifyVsDataNeedInput = {
   trainDate?: string | null;
   /** Alliance lead-time days (shifts score reference date). */
   leadDays?: number;
+  /** Painted rule for the VS score reference date (lead time ≥ 1). */
+  scoreDateDay?: ScoreDateDayConfig | null;
 };
+
+/** True when the score reference day's paint/mechanism uses prior-day VS scores. */
+export function scoreDateDayUsesPriorDayVsScores(
+  scoreDateDay: ScoreDateDayConfig,
+  scoreDate: string,
+): boolean {
+  const paint = scoreDateDay.paintTemplate;
+  if (
+    paint === "vs_push_weekdays" ||
+    paint === "vs_push_week" ||
+    paint === "top_vs"
+  ) {
+    return true;
+  }
+  if (paintTemplateUsesPriorDayVs(paint)) {
+    return true;
+  }
+
+  const mechanism = effectiveConductorMechanism(
+    scoreDateDay.conductorMechanism,
+    paint as WeekTemplateType | null,
+    scoreDate,
+  );
+  return (
+    mechanism === "vs_high_score" ||
+    mechanism === "vs_top_10" ||
+    mechanism === "vs_top_n" ||
+    mechanism === "heavy_hitter_lottery"
+  );
+}
+
+function trainDayHasNativePriorDayVs(input: ClassifyVsDataNeedInput): boolean {
+  const mech = input.conductorMechanism;
+  if (
+    mech === "vs_high_score" ||
+    mech === "vs_top_10" ||
+    mech === "vs_top_n" ||
+    mech === "heavy_hitter_lottery"
+  ) {
+    return true;
+  }
+  if (mech === "r3_lottery" && input.paintTemplate === "economy_week") {
+    return true;
+  }
+  if (mech === "r3_lottery" && paintTemplateUsesPriorDayVs(input.paintTemplate)) {
+    return true;
+  }
+  return false;
+}
 
 /**
  * Score reference date is a VS match day (Mon–Sat). With leadDays=0, Monday
@@ -103,6 +165,21 @@ export function classifyVsDataNeed(
     paintTemplateUsesPriorDayVs(input.paintTemplate)
   ) {
     return { kind: "prior_day_vs", required: true };
+  }
+
+  // Lead time ≥ 1: off-template days (Sun VS break, Mon R4, …) inherit the
+  // score reference day's VS context (e.g. Sun → Fri Total Mobilization).
+  if (
+    leadDays > 0 &&
+    priorDayVsOk &&
+    input.trainDate &&
+    input.scoreDateDay &&
+    !trainDayHasNativePriorDayVs(input)
+  ) {
+    const scoreDate = vsScoreReferenceDate(input.trainDate, leadDays);
+    if (scoreDateDayUsesPriorDayVsScores(input.scoreDateDay, scoreDate)) {
+      return { kind: "prior_day_vs", required: false };
+    }
   }
 
   return { kind: "none", required: false };

@@ -9,13 +9,16 @@ import {
   type PriceIsRightLeaderboardEntry,
 } from "@/lib/trains/price-is-right-leaderboard.shared";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
-import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
+import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
+import { resolveScoreLeaderboardKind } from "@/lib/trains/score-leaderboard-podium.shared";
 import {
   getAllianceRanksAsOf,
   isMemberEligibleForPool,
   resolveMemberPoolAllianceRank,
 } from "@/lib/trains/rank-history";
-import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
+import { loadAllianceTrainWeekConfig } from "@/lib/trains/service";
+import { getTrainWeekStart } from "@/lib/trains/train-week-calendar.shared";
+import { getWeekSchedule } from "@/lib/trains/repository";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 
 export type PriceIsRightLeaderboardPayload = {
@@ -31,17 +34,42 @@ export async function loadPriceIsRightVsLeaderboard(input: {
   hqUserId?: string | null;
 }): Promise<PriceIsRightLeaderboardPayload> {
   const { seasonKey } = await getEffectiveSeasonForAlliance(input.allianceId);
+  const leadDays = await loadAllianceTrainLeadTimeDays(input.allianceId);
+  const trainWeekConfig = await loadAllianceTrainWeekConfig(input.allianceId);
+  const weekStart = getTrainWeekStart(input.trainDate, trainWeekConfig);
+  const weekSchedule = await getWeekSchedule(
+    input.allianceId,
+    weekStart,
+    seasonKey,
+  );
   const dayConfig = await resolveRollDayConfig(
     input.allianceId,
     input.trainDate,
     seasonKey,
   );
-  if (!usesPriceIsFreightConductorRoll(dayConfig.paintTemplate)) {
+  const scoreDate = vsScoreReferenceDate(input.trainDate, leadDays);
+  const scoreDateDayConfig = await resolveRollDayConfig(
+    input.allianceId,
+    scoreDate,
+    seasonKey,
+  );
+  const leaderboardKind = resolveScoreLeaderboardKind({
+    paintTemplate: dayConfig.paintTemplate,
+    conductorMechanism: dayConfig.conductorMechanism,
+    trainDate: input.trainDate,
+    leadDays,
+    weekTemplateType: weekSchedule?.templateType ?? null,
+    weekStart,
+    scoreDateDay: {
+      conductorMechanism: scoreDateDayConfig.conductorMechanism,
+      conductorConfig: scoreDateDayConfig.conductorConfig,
+      paintTemplate: scoreDateDayConfig.paintTemplate,
+    },
+  });
+  if (leaderboardKind !== "tpif") {
     throw new Error("Selected day is not a Price Is Freight train day.");
   }
 
-  const leadDays = await loadAllianceTrainLeadTimeDays(input.allianceId);
-  const scoreDate = vsScoreReferenceDate(input.trainDate, leadDays);
   const [members, rankEvents, vsScores] = await Promise.all([
     loadActiveAlliancePoolMembers({ allianceId: input.allianceId }),
     getAllianceRanksAsOf(input.allianceId, input.trainDate),

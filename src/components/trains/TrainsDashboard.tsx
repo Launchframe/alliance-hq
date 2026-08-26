@@ -19,6 +19,7 @@ import {
   type ConductorWheelSharePreview,
 } from "@/components/trains/ConductorWheelSharePreviewDialog";
 import { EconomyWeekScoresOptionalDialog } from "@/components/trains/EconomyWeekScoresOptionalDialog";
+import { ScoresReadySpinDialog } from "@/components/trains/ScoresReadySpinDialog";
 import { TrainsHelpPanel } from "@/components/trains/TrainsHelpPanel";
 import { TrainsGuidedConductorFlow } from "@/components/trains/TrainsGuidedConductorFlow";
 import { TrainDayScoreStatsSummary } from "@/components/trains/TrainDayScoreStatsSummary";
@@ -90,7 +91,7 @@ import {
   canSpinVip,
 } from "@/components/trains/WeekScheduleStrip";
 import { Dialog } from "@/components/ui/dialog";
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { buildProvisionalWeekPage } from "@/lib/client/week-schedule-provisional";
 import {
   addCalendarDays,
@@ -119,6 +120,12 @@ import {
 import { canStartConductorSwap } from "@/lib/trains/conductor-swap.shared";
 import { currentGuidedStep } from "@/lib/trains/guided-flow.shared";
 import { rosterSyncCapabilityAllowsInPageSync } from "@/lib/trains/roster-data-status.shared";
+import {
+  canSpinConductorWithLeadScope,
+  resolveVsTopBoardForTrainDate,
+  scoreDateDayConfigForTrainDate,
+  vsLeaderboardSpinSourceForTrainDate,
+} from "@/lib/trains/vs-score-scope.shared";
 import { buildTrainsGuidedVideoUploadHref } from "@/lib/trains/guided-video-upload.shared";
 import { shouldConfirmEconomyWeekWithoutScores } from "@/lib/trains/vs-data-status.shared";
 import type { PoolRefreshedInfo, PoolType, RollResult, WeekTemplateType } from "@/lib/trains/types";
@@ -179,6 +186,10 @@ import { isProvisionalDayConfig } from "@/lib/trains/week-schedule-day-configs.s
 
 type Props = {
   initial: TrainsDashboardPayload;
+  /** From `?date=` when returning from VS score upload. */
+  initialSelectedDate?: string | null;
+  /** From `?scoresReady=1` after VS scores were saved. */
+  initialScoresReady?: boolean;
 };
 
 type RollResponse = TrainRollErrorResponse & {
@@ -222,14 +233,21 @@ function inferWeekTemplateFromDayConfigs(
   return dominant;
 }
 
-export function TrainsDashboard({ initial }: Props) {
+export function TrainsDashboard({
+  initial,
+  initialSelectedDate = null,
+  initialScoresReady = false,
+}: Props) {
   const t = useTranslations("trains");
   const locale = useLocale();
+  const router = useRouter();
+  const pathname = usePathname();
   const [data, setData] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [unlockConfirm, setUnlockConfirm] = useState(false);
   const [unlockRequestCopied, setUnlockRequestCopied] = useState(false);
   const [trainReadyConfirm, setTrainReadyConfirm] = useState(false);
+  const [scoresReadyOpen, setScoresReadyOpen] = useState(initialScoresReady);
   const [wheelOpen, setWheelOpen] = useState(false);
   const [wheelWinner, setWheelWinner] = useState<{
     memberId: string;
@@ -247,7 +265,9 @@ export function TrainsDashboard({ initial }: Props) {
   const [wheelDayLabel, setWheelDayLabel] = useState<string | null>(null);
   const [conductorDisqualified, setConductorDisqualified] =
     useState<RollResult | null>(null);
-  const [selectedDate, setSelectedDate] = useState(initial.today);
+  const [selectedDate, setSelectedDate] = useState(
+    initialSelectedDate ?? initial.today,
+  );
   const selectedDateRef = useRef(selectedDate);
   const selectDate = useCallback((date: string) => {
     selectedDateRef.current = date;
@@ -999,9 +1019,35 @@ export function TrainsDashboard({ initial }: Props) {
       void refreshRef.current();
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
-    return () =>
+    return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, []);
+
+  // Fresh VS status after returning from the score-upload funnel.
+  useEffect(() => {
+    if (!initialScoresReady) return;
+    void refreshRef.current();
+  }, [initialScoresReady]);
+
+  const clearScoresReadyQuery = useCallback(() => {
+    setScoresReadyOpen(false);
+    const params = new URLSearchParams();
+    if (selectedDateRef.current) {
+      params.set("date", selectedDateRef.current);
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  }, [pathname, router]);
+
+  const dismissScoresReadyPrompt = useCallback(() => {
+    clearScoresReadyQuery();
+  }, [clearScoresReadyQuery]);
+
+  const spinFromScoresReadyPrompt = useCallback(() => {
+    clearScoresReadyQuery();
+    requestConductorSpinRef.current();
+  }, [clearScoresReadyQuery]);
 
   const withOptimisticMutation = useCallback(
     async (
@@ -2019,14 +2065,6 @@ export function TrainsDashboard({ initial }: Props) {
     conductorPaint,
     selectedDate,
   );
-  const scoreLeaderboardKind = useMemo(
-    () =>
-      resolveScoreLeaderboardKind({
-        paintTemplate: conductorPaint,
-        conductorMechanism: conductorMech,
-      }),
-    [conductorMech, conductorPaint],
-  );
   const conductorReseedPoolType = useMemo((): PoolType | null => {
     if (usesPriceIsFreightConductorRoll(conductorPaint)) return null;
     if (conductorMech === "r3_lottery") return "r3";
@@ -2148,9 +2186,58 @@ export function TrainsDashboard({ initial }: Props) {
       : conductorPaint
         ? { paintTemplate: conductorPaint }
         : null);
-  const selectedTopBoard = resolveConductorTopNBoard(
-    selectedDayConfig?.conductorMechanism,
-    selectedConductorConfig,
+  const selectedScoreDateDayConfig = useMemo(
+    () =>
+      scoreDateDayConfigForTrainDate(
+        selectedDate,
+        data.trainConductorLeadTimeDays,
+        activeDayConfigs,
+      ),
+    [selectedDate, data.trainConductorLeadTimeDays, activeDayConfigs],
+  );
+  const scoreLeaderboardKind = useMemo(
+    () =>
+      resolveScoreLeaderboardKind({
+        paintTemplate: conductorPaint,
+        conductorMechanism: conductorMech,
+        trainDate: selectedDate,
+        leadDays: data.trainConductorLeadTimeDays,
+        scoreDateDay: selectedScoreDateDayConfig,
+        weekTemplateType: activeWeekTemplate,
+        weekStart: getTrainWeekStart(selectedDate, trainWeekConfig),
+      }),
+    [
+      conductorMech,
+      conductorPaint,
+      selectedDate,
+      data.trainConductorLeadTimeDays,
+      selectedScoreDateDayConfig,
+      activeWeekTemplate,
+      trainWeekConfig,
+    ],
+  );
+  const selectedTopBoard = useMemo(
+    () =>
+      resolveVsTopBoardForTrainDate({
+        trainDate: selectedDate,
+        trainDay: {
+          conductorMechanism: selectedDayConfig?.conductorMechanism,
+          conductorConfig: selectedConductorConfig,
+        },
+        leadDays: data.trainConductorLeadTimeDays,
+        scoreDateDay: selectedScoreDateDayConfig,
+      }) ??
+      resolveConductorTopNBoard(
+        selectedDayConfig?.conductorMechanism,
+        selectedConductorConfig,
+      ),
+    [
+      selectedDate,
+      selectedDayConfig?.conductorMechanism,
+      selectedConductorConfig,
+      data.trainConductorLeadTimeDays,
+      selectedScoreDateDayConfig,
+    ],
   );
   const hasValidConductor = hasValidConductorPickForDay({
     conductorMemberId: selectedRecord?.conductorMemberId,
@@ -2356,13 +2443,15 @@ export function TrainsDashboard({ initial }: Props) {
   ]);
   const canSpinConductorWheel =
     canRoll &&
-    canSpinConductor(
-      selectedDayConfig?.conductorMechanism,
+    canSpinConductorWithLeadScope({
+      conductorMechanism: selectedDayConfig?.conductorMechanism,
       locked,
-      conductorPaint,
-      selectedDate,
-      selectedConductorConfig,
-    );
+      paintTemplate: conductorPaint,
+      trainDate: selectedDate,
+      conductorConfig: selectedConductorConfig,
+      leadDays: data.trainConductorLeadTimeDays,
+      scoreDateDay: selectedScoreDateDayConfig,
+    });
   const canSpinVipWheel = canRoll && canSpinVip(vipMech, locked);
   const guidedVipNeeded = Boolean(vipMech) && vipMech !== "none";
   const guidedHasVip = Boolean(selectedRecord?.vipMemberId);
@@ -2383,12 +2472,34 @@ export function TrainsDashboard({ initial }: Props) {
   });
   const showConductorCard =
     !data.simpleModeEnabled || guidedStep === "done";
-  const selectedConductorSpinSource = conductorSpinSource(
+  const selectedConductorSpinSource = useMemo(() => {
+    const base = conductorSpinSource(
+      selectedDayConfig?.conductorMechanism,
+      conductorPaint,
+      selectedDate,
+      selectedConductorConfig,
+    );
+    const vsScope = vsLeaderboardSpinSourceForTrainDate({
+      trainDate: selectedDate,
+      trainDay: {
+        conductorMechanism: selectedDayConfig?.conductorMechanism,
+        conductorConfig: selectedConductorConfig,
+      },
+      leadDays: data.trainConductorLeadTimeDays,
+      scoreDateDay: selectedScoreDateDayConfig,
+    });
+    if (vsScope && base?.kind === "vs_leaderboard") {
+      return vsScope;
+    }
+    return base;
+  }, [
     selectedDayConfig?.conductorMechanism,
     conductorPaint,
     selectedDate,
     selectedConductorConfig,
-  );
+    data.trainConductorLeadTimeDays,
+    selectedScoreDateDayConfig,
+  ]);
   const selectedVipSpinSource = vipSpinSource(vipMech);
   const spinWeekContext = useMemo(() => {
     if (viewedWeek.weekStart === targetTrainWeekStart) {
@@ -2487,10 +2598,20 @@ export function TrainsDashboard({ initial }: Props) {
   const guidedVideoUploadHref = useMemo(
     () =>
       buildTrainsGuidedVideoUploadHref({
-        trainDate: data.today,
-        vsDataStatus: data.vsDataStatus,
+        trainDate: selectedDate,
+        scoreDate: selectedDayScoreStats?.scoreDate,
+        vsDataStatus:
+          selectedDate === data.today ? data.vsDataStatus : null,
+        leadDays: data.trainConductorLeadTimeDays,
+        returnTo: true,
       }),
-    [data.today, data.vsDataStatus],
+    [
+      selectedDate,
+      selectedDayScoreStats?.scoreDate,
+      data.today,
+      data.vsDataStatus,
+      data.trainConductorLeadTimeDays,
+    ],
   );
 
   return (
@@ -2691,6 +2812,7 @@ export function TrainsDashboard({ initial }: Props) {
                 canOfficerChangeTemplateForDate(date, data.today)
               }
               vrReporterCount={data.vrReporterCount}
+              trainConductorLeadTimeDays={data.trainConductorLeadTimeDays}
               onPaintDate={(date, template, options) => {
                 const weekStart = getTrainWeekStart(date, trainWeekConfig);
                 const weekPage =
@@ -2887,7 +3009,10 @@ export function TrainsDashboard({ initial }: Props) {
           ) : null}
 
           {usesPriceIsFreightConductorRoll(conductorPaint) ? (
-            <PriceIsRightTicketsPanel trainDate={selectedDate} />
+            <PriceIsRightTicketsPanel
+              trainDate={selectedDate}
+              uploadHref={guidedVideoUploadHref}
+            />
           ) : null}
 
           {/* Quick actions */}
@@ -3557,9 +3682,16 @@ export function TrainsDashboard({ initial }: Props) {
         }}
       />
 
+      <ScoresReadySpinDialog
+        open={scoresReadyOpen}
+        onDismiss={dismissScoresReadyPrompt}
+        onSpin={spinFromScoresReadyPrompt}
+      />
+
       <WheelBlockedDialog
         open={wheelBlocked != null}
         details={wheelBlocked}
+        uploadHref={guidedVideoUploadHref}
         paintTemplate={conductorPaint}
         fallbackPoolType={
           wheelBlockedRole === "vip" &&

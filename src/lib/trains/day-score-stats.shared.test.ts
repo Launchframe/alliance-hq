@@ -35,6 +35,21 @@ describe("dayNeedsScoreStats", () => {
       }),
     ).toBe(false);
   });
+
+  it("is true on Sunday off-day when lead time inherits VS scores", () => {
+    expect(
+      dayNeedsScoreStats({
+        conductorMechanism: "custom",
+        paintTemplate: "vs_push_week_lead_time",
+        trainDate: "2026-08-30",
+        leadDays: 1,
+        scoreDateDay: {
+          conductorMechanism: "vs_top_10",
+          paintTemplate: "vs_push_weekdays",
+        },
+      }),
+    ).toBe(true);
+  });
 });
 
 describe("scoreSourceContextForTrainDate", () => {

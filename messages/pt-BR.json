@@ -3422,6 +3422,11 @@
       "cancel": "Cancelar",
       "uploadLink": "Enviar pontuações"
     },
+    "scoresReady": {
+      "body": "As pontuações estão prontas. Vamos girar a roleta!",
+      "spin": "Girar a roleta!",
+      "dismiss": "Fechar"
+    },
     "rosterSyncBanner": {
       "bodyEmpty": "O Alliance HQ ainda não tem o roster da sua aliança. Sincronize pelo Ashed para carregar membros e patentes antes de girar a roleta.",
       "bodyMissingRanks": "Nenhum membro atende ao requisito de patente de hoje ({rankLabel}). Sincronize pelo Ashed caso as patentes estejam desatualizadas ou atribua patentes em Membros."

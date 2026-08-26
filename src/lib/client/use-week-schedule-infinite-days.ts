@@ -23,6 +23,7 @@ export type WeekCarouselDayEntry = {
   day: WeekScheduleDayConfig;
   weekStart: string;
   weekEnd: string;
+  weekDayConfigs: WeekScheduleDayConfig[];
   record: WeekConductorRecordSummary | undefined;
   scoreStats: TrainDayScoreStats | null;
 };
@@ -57,6 +58,7 @@ function flattenWeekPage(page: WeekSchedulePagePayload): WeekCarouselDayEntry[] 
     day,
     weekStart: page.weekStart,
     weekEnd: page.weekEnd,
+    weekDayConfigs: page.dayConfigs,
     record: recordByDate.get(day.date),
     scoreStats: page.dayScoreStats?.[day.date] ?? null,
   }));

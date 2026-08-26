@@ -20,7 +20,8 @@ import type { TrainsVsDataStatus } from "@/lib/trains/vs-data-status.shared";
 import type { WeekTemplateType } from "@/lib/trains/types";
 
 /** Default destination for the "upload score video" prerequisites link. */
-const DEFAULT_VIDEO_UPLOAD_HREF = "/tools/video-upload";
+const DEFAULT_VIDEO_UPLOAD_HREF =
+  "/tools/video-upload?scoreTarget=vs-performance";
 
 export type TrainsGuidedConductorFlowProps = {
   templateType: WeekTemplateType | null;

@@ -1,3 +1,4 @@
+import { sanitizeInternalRedirectPath } from "@/lib/navigation/safe-redirect.shared";
 import { getScoreTarget } from "@/lib/video/score-targets";
 
 /** HQ nav href → enabled score target id (iframe event / recurring pages). */
@@ -23,6 +24,8 @@ export function buildVideoUploadHref(
     bankId?: string | null;
     boardKey?: string | null;
     recordedDate?: string | null;
+    /** Safe same-origin path to resume after scores are saved (e.g. trains hub). */
+    returnTo?: string | null;
   },
 ): string {
   const params = new URLSearchParams({ scoreTarget: scoreTargetId });
@@ -37,6 +40,10 @@ export function buildVideoUploadHref(
   const recordedDate = parseVideoUploadRecordedDateParam(options?.recordedDate ?? undefined);
   if (recordedDate) {
     params.set("recordedDate", recordedDate);
+  }
+  const returnTo = parseVideoUploadReturnToParam(options?.returnTo ?? undefined);
+  if (returnTo) {
+    params.set("returnTo", returnTo);
   }
   return `/tools/video-upload?${params.toString()}`;
 }
@@ -72,6 +79,13 @@ export function parseVideoUploadRecordedDateParam(
     return null;
   }
   return trimmed;
+}
+
+/** Same-origin relative path for post-submit resume (blocks open redirects). */
+export function parseVideoUploadReturnToParam(
+  value: string | null | undefined,
+): string | null {
+  return sanitizeInternalRedirectPath(value);
 }
 
 export function resolveJobScoreTarget(job: {

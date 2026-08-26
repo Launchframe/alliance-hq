@@ -3,24 +3,19 @@ import { NextResponse } from "next/server";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import {
   resolveScoreLeaderboardKind,
-  type ScoreLeaderboardKind,
 } from "@/lib/trains/score-leaderboard-podium.shared";
 import { loadScoreLeaderboard } from "@/lib/trains/score-leaderboard.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
+import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
+import { loadAllianceTrainWeekConfig } from "@/lib/trains/service";
+import { getTrainWeekStart } from "@/lib/trains/train-week-calendar.shared";
+import { getWeekSchedule } from "@/lib/trains/repository";
+import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 import { requireApiSession } from "@/lib/session";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 
 export const dynamic = "force-dynamic";
-
-const KINDS: ScoreLeaderboardKind[] = ["tpif", "vs_push", "donations"];
-
-function parseKind(value: string | null): ScoreLeaderboardKind | null {
-  if (!value) return null;
-  return KINDS.includes(value as ScoreLeaderboardKind)
-    ? (value as ScoreLeaderboardKind)
-    : null;
-}
 
 export async function GET(request: Request) {
   const sessionOrError = await requireApiSession();
@@ -36,7 +31,7 @@ export async function GET(request: Request) {
 
   const params = new URL(request.url).searchParams;
   const trainDate = params.get("date")?.trim();
-  const kindParam = parseKind(params.get("kind")?.trim() ?? null);
+  // Optional `kind` query is ignored; the server resolves kind from day rules.
 
   if (!trainDate || !/^\d{4}-\d{2}-\d{2}$/.test(trainDate)) {
     return NextResponse.json(
@@ -46,15 +41,40 @@ export async function GET(request: Request) {
   }
 
   const { seasonKey } = await getEffectiveSeasonForAlliance(ctx.allianceId);
+  const leadDays = await loadAllianceTrainLeadTimeDays(ctx.allianceId);
+  const trainWeekConfig = await loadAllianceTrainWeekConfig(ctx.allianceId);
+  const weekStart = getTrainWeekStart(trainDate, trainWeekConfig);
+  const weekSchedule = await getWeekSchedule(
+    ctx.allianceId,
+    weekStart,
+    seasonKey,
+  );
+  const weekTemplateType = weekSchedule?.templateType ?? null;
+
   const dayConfig = await resolveRollDayConfig(
     ctx.allianceId,
     trainDate,
+    seasonKey,
+  );
+  const scoreDate = vsScoreReferenceDate(trainDate, leadDays);
+  const scoreDateDayConfig = await resolveRollDayConfig(
+    ctx.allianceId,
+    scoreDate,
     seasonKey,
   );
 
   const dayKind = resolveScoreLeaderboardKind({
     paintTemplate: dayConfig.paintTemplate,
     conductorMechanism: dayConfig.conductorMechanism,
+    trainDate,
+    leadDays,
+    weekTemplateType,
+    weekStart,
+    scoreDateDay: {
+      conductorMechanism: scoreDateDayConfig.conductorMechanism,
+      conductorConfig: scoreDateDayConfig.conductorConfig,
+      paintTemplate: scoreDateDayConfig.paintTemplate,
+    },
   });
 
   if (!dayKind) {
@@ -64,14 +84,7 @@ export async function GET(request: Request) {
     );
   }
 
-  if (kindParam && kindParam !== dayKind) {
-    return NextResponse.json(
-      { error: "Score leaderboard kind does not match this day's rules." },
-      { status: 400 },
-    );
-  }
-
-  const resolvedKind = kindParam ?? dayKind;
+  const resolvedKind = dayKind;
 
   try {
     const payload = await loadScoreLeaderboard({

@@ -6,6 +6,7 @@
 
 import {
   classifyVsDataNeed,
+  type ScoreDateDayConfig,
   type TrainsVsDataStatus,
   type TrainsVsDataStatusKind,
 } from "@/lib/trains/vs-data-status.shared";
@@ -89,6 +90,8 @@ export function dayNeedsScoreStats(input: {
   conductorMechanism: string | null | undefined;
   paintTemplate?: string | null;
   trainDate?: string | null;
+  leadDays?: number;
+  scoreDateDay?: ScoreDateDayConfig | null;
 }): boolean {
   return classifyVsDataNeed(input).kind !== "none";
 }

@@ -24,6 +24,10 @@ import {
   resolveConductorTopNBoard,
 } from "@/lib/trains/conductor-top-n.shared";
 import {
+  resolveVsTopBoardForTrainDate,
+  type DayMechanismConfig,
+} from "@/lib/trains/vs-score-scope.shared";
+import {
   buildPriceIsRightWeightedCandidates,
   loadPriceIsRightTicketSettings,
   loadTrainEconomyThreshold,
@@ -46,6 +50,8 @@ type DayScoreStatsInput = {
   leadDays?: number;
   /** Optional preloaded prior-day VS map keyed by recorded date. */
   vsScoresByRecordedDate?: Map<string, Map<string, number>>;
+  /** Score reference day's painted rule when lead time > 0. */
+  scoreDateDay?: DayMechanismConfig | null;
 };
 
 async function getPriorDayScores(
@@ -66,13 +72,20 @@ async function getPriorDayScores(
 async function eligibleCountForDay(
   input: DayScoreStatsInput,
   scores: Map<string, number>,
+  scoreDateDay?: DayMechanismConfig | null,
 ): Promise<{ eligibleCount: number; topN?: number }> {
   const mechanism = input.conductorMechanism;
   const paint = input.paintTemplate ?? null;
-  const topBoard = resolveConductorTopNBoard(
-    mechanism,
-    input.conductorConfig,
-  );
+  const leadDays = input.leadDays ?? 0;
+  const topBoard = resolveVsTopBoardForTrainDate({
+    trainDate: input.trainDate,
+    trainDay: {
+      conductorMechanism: mechanism,
+      conductorConfig: input.conductorConfig,
+    },
+    leadDays,
+    scoreDateDay,
+  });
 
   if (topBoard?.kind === "vs") {
     const top = await fetchAllianceVsTopScorersForTrainDate(
@@ -158,6 +171,7 @@ export async function loadTrainDayScoreStats(
     paintTemplate: input.paintTemplate,
     trainDate: input.trainDate,
     leadDays,
+    scoreDateDay: input.scoreDateDay,
   });
 
   if (need.kind === "none") {
@@ -203,7 +217,11 @@ export async function loadTrainDayScoreStats(
       scoreDate,
       input.vsScoresByRecordedDate,
     );
-    const { eligibleCount, topN } = await eligibleCountForDay(input, scores);
+    const { eligibleCount, topN } = await eligibleCountForDay(
+      input,
+      scores,
+      input.scoreDateDay,
+    );
     return buildTrainDayScoreStats({
       kind: "prior_day_vs",
       required: need.required,
@@ -240,10 +258,26 @@ export async function loadTrainDayScoreStatsForDates(
   leadDays = 0,
 ): Promise<Record<string, TrainDayScoreStats | null>> {
   const vsScoresByRecordedDate = new Map<string, Map<string, number>>();
+  const configByDate = new Map(
+    days.map((day) => [day.trainDate, day] as const),
+  );
   const out: Record<string, TrainDayScoreStats | null> = {};
 
   await Promise.all(
     days.map(async (day) => {
+      const scoreDateDayRow =
+        leadDays > 0
+          ? configByDate.get(
+              scoreSourceContextForTrainDate(day.trainDate, leadDays).scoreDate,
+            )
+          : undefined;
+      const scoreDateDay = scoreDateDayRow
+        ? {
+            conductorMechanism: scoreDateDayRow.conductorMechanism,
+            conductorConfig: scoreDateDayRow.conductorConfig,
+            paintTemplate: scoreDateDayRow.paintTemplate,
+          }
+        : null;
       out[day.trainDate] = await loadTrainDayScoreStats({
         allianceId,
         trainDate: day.trainDate,
@@ -252,6 +286,7 @@ export async function loadTrainDayScoreStatsForDates(
         conductorConfig: day.conductorConfig,
         leadDays,
         vsScoresByRecordedDate,
+        scoreDateDay,
       });
     }),
   );

@@ -6,10 +6,15 @@ const mocks = vi.hoisted(() => ({
   resolveRollDayConfig: vi.fn(),
   countAllianceVrReporters: vi.fn(),
   fetchNativeVrTopScorers: vi.fn(),
+  loadAllianceTrainLeadTimeDays: vi.fn(),
 }));
 
 vi.mock("@/lib/game-season/sync", () => ({
   getEffectiveSeasonForAlliance: mocks.getEffectiveSeasonForAlliance,
+}));
+
+vi.mock("@/lib/trains/alliance-train-lead-time.server", () => ({
+  loadAllianceTrainLeadTimeDays: mocks.loadAllianceTrainLeadTimeDays,
 }));
 
 vi.mock("@/lib/trains/repository", async (importOriginal) => {
@@ -54,6 +59,7 @@ describe("rollForConductor VR top board", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getEffectiveSeasonForAlliance.mockResolvedValue({ seasonKey: "3" });
+    mocks.loadAllianceTrainLeadTimeDays.mockResolvedValue(0);
     mocks.getConductorRecord.mockResolvedValue(null);
     mocks.resolveRollDayConfig.mockResolvedValue({
       conductorMechanism: "vr_top_n",
