@@ -96,6 +96,22 @@ export function dayNeedsScoreStats(input: {
   return classifyVsDataNeed(input).kind !== "none";
 }
 
+/** VS readiness for the selected train day (today payload or week tile stats). */
+export function vsDataStatusForTrainDaySelection(input: {
+  selectedDate: string;
+  today: string;
+  todayVsDataStatus: TrainsVsDataStatus | null | undefined;
+  selectedDayScoreStats: TrainDayScoreStats | null;
+}): TrainsVsDataStatus | null {
+  if (input.selectedDate === input.today && input.todayVsDataStatus) {
+    return input.todayVsDataStatus;
+  }
+  if (input.selectedDayScoreStats) {
+    return trainDayScoreStatsToVsDataStatus(input.selectedDayScoreStats);
+  }
+  return null;
+}
+
 /** Score-source context for a train date (VS day name + scoreDate). */
 export function scoreSourceContextForTrainDate(
   trainDate: string,

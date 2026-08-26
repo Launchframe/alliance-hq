@@ -504,6 +504,7 @@ export async function loadTrainsDashboard(
           conductorConfig: day.conductorConfig,
         })),
         leadDays,
+        effectiveSeason.seasonKey,
       ),
     ]);
 
@@ -622,6 +623,7 @@ export async function loadWeekSchedulePage(
       conductorConfig: day.conductorConfig,
     })),
     leadDays,
+    effectiveSeason.seasonKey,
   );
 
   return {

@@ -6,6 +6,7 @@ import {
   scoreSourceContextForTrainDate,
   trainDayScoreStatsFromVsDataStatus,
   trainDayScoreStatsToVsDataStatus,
+  vsDataStatusForTrainDaySelection,
 } from "@/lib/trains/day-score-stats.shared";
 
 describe("dayNeedsScoreStats", () => {
@@ -103,5 +104,60 @@ describe("buildTrainDayScoreStats / vsDataStatus round-trip", () => {
         scoreDate: "2026-06-08",
       }),
     ).toBeNull();
+  });
+});
+
+describe("vsDataStatusForTrainDaySelection", () => {
+  it("prefers today payload when selected date is today", () => {
+    expect(
+      vsDataStatusForTrainDaySelection({
+        selectedDate: "2026-06-10",
+        today: "2026-06-10",
+        todayVsDataStatus: {
+          kind: "prior_day_vs",
+          required: true,
+          ready: false,
+          scoreCount: 0,
+        },
+        selectedDayScoreStats: buildTrainDayScoreStats({
+          kind: "prior_day_vs",
+          required: false,
+          scoreCount: 5,
+          eligibleCount: 5,
+        }),
+      }),
+    ).toEqual({
+      kind: "prior_day_vs",
+      required: true,
+      ready: false,
+      scoreCount: 0,
+    });
+  });
+
+  it("uses week tile stats when spinning a non-today selected day", () => {
+    expect(
+      vsDataStatusForTrainDaySelection({
+        selectedDate: "2026-06-12",
+        today: "2026-06-10",
+        todayVsDataStatus: {
+          kind: "prior_day_vs",
+          required: true,
+          ready: true,
+          scoreCount: 40,
+        },
+        selectedDayScoreStats: buildTrainDayScoreStats({
+          kind: "prior_day_vs",
+          required: false,
+          scoreCount: 0,
+          eligibleCount: 0,
+          scoreDate: "2026-06-11",
+        }),
+      }),
+    ).toMatchObject({
+      kind: "prior_day_vs",
+      required: false,
+      scoreCount: 0,
+      scoreDate: "2026-06-11",
+    });
   });
 });

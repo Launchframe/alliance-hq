@@ -26,6 +26,7 @@ import { TrainDayScoreStatsSummary } from "@/components/trains/TrainDayScoreStat
 import { TrainLockConfirmBanner } from "@/components/trains/TrainLockConfirmBanner";
 import {
   trainDayScoreStatsFromVsDataStatus,
+  vsDataStatusForTrainDaySelection,
   type TrainDayScoreStats,
 } from "@/lib/trains/day-score-stats.shared";
 import { renderConductorWheelSharePngBlob } from "@/lib/client/conductor-wheel-share-image.client";
@@ -735,6 +736,17 @@ export function TrainsDashboard({
     data.todayScoreStats,
     data.vsDataStatus,
   ]);
+
+  const vsDataStatusForSelectedDay = useMemo(
+    () =>
+      vsDataStatusForTrainDaySelection({
+        selectedDate,
+        today: data.today,
+        todayVsDataStatus: data.vsDataStatus,
+        selectedDayScoreStats,
+      }),
+    [selectedDate, data.today, data.vsDataStatus, selectedDayScoreStats],
+  );
 
   const conductorShortLabels = useMemo(
     () => ({
@@ -2045,11 +2057,10 @@ export function TrainsDashboard({
   ) : null;
   const conductorPaint = selectedDayConfig?.paintTemplate;
   const requestConductorSpin = () => {
-    const vsStatus = selectedDate === data.today ? data.vsDataStatus : null;
     if (
       shouldConfirmEconomyWeekWithoutScores({
         paintTemplate: conductorPaint,
-        vsDataStatus: vsStatus,
+        vsDataStatus: vsDataStatusForSelectedDay,
       })
     ) {
       setEconomyScoresConfirmOpen(true);
