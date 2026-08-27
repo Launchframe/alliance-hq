@@ -29,6 +29,7 @@ type TicketBoardPayload = {
     priorDayVsScore: number | null;
     winProbability: number;
     missedFloor?: boolean;
+    aboveCliff?: boolean;
   } | null;
   board: PriceIsRightTicketBoardEntry[];
   missedFloor: Array<{
@@ -421,6 +422,11 @@ export function PriceIsRightTicketsPanel({
                       >
                         <td className="px-3 py-2 font-medium text-hq-fg">
                           {row.memberName}
+                          {row.isViewer ? (
+                            <span className="ml-1.5 text-xs font-normal text-amber-600 dark:text-amber-300">
+                              ({t("board.you")})
+                            </span>
+                          ) : null}
                         </td>
                         <td className="px-3 py-2 text-hq-fg-muted">
                           {formatPriceIsRightVsScore(row.priorDayVsScore)}
