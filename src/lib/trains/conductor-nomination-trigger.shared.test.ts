@@ -39,7 +39,6 @@ describe("resolveConductorNominationTrigger", () => {
     });
     expect(trigger).toEqual({ mode: "manual" });
   });
-});
 
   it("inherits score_upload from score reference day under lead time", () => {
     const trigger = resolveConductorNominationTrigger({
@@ -55,3 +54,4 @@ describe("resolveConductorNominationTrigger", () => {
       scoreDate: "2026-06-12",
     });
   });
+});

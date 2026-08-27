@@ -35,6 +35,7 @@ import {
   loadTrainEconomyThreshold,
 } from "@/lib/trains/train-economy-threshold.server";
 import { priceIsRightWeightingActive } from "@/lib/trains/train-price-is-right-tickets.shared";
+import type { WeekTemplateType } from "@/lib/trains/types";
 import { classifyVsDataNeed } from "@/lib/trains/vs-data-status.shared";
 import {
   fetchAlliancePriorDayVsScoresByMember,
@@ -128,6 +129,8 @@ async function eligibleCountForDay(
     const candidates = await loadPriceIsFreightR3Candidates({
       allianceId: input.allianceId,
       date: input.trainDate,
+      paintTemplate: paint as WeekTemplateType | null,
+      leadDays: input.leadDays ?? 0,
     });
 
     if (priceIsRightWeightingActive(ticketSettings)) {

@@ -77,6 +77,8 @@ function throwFromPriceIsFreightEmptyReason(
 export async function loadPriceIsFreightR3Candidates(input: {
   allianceId: string;
   date: string;
+  paintTemplate?: WeekTemplateType | null;
+  leadDays?: number;
 }): Promise<RollCandidate[]> {
   const [members, rankEvents] = await Promise.all([
     loadActiveAlliancePoolMembers({ allianceId: input.allianceId }),
@@ -97,7 +99,10 @@ export async function loadPriceIsFreightR3Candidates(input: {
       allianceRank: rank,
     });
   }
-  return applyConductorMinimumsFilter(input.allianceId, input.date, candidates);
+  return applyConductorMinimumsFilter(input.allianceId, input.date, candidates, {
+    paintTemplate: input.paintTemplate,
+    leadDays: input.leadDays,
+  });
 }
 
 /**
@@ -149,6 +154,8 @@ export async function rollPriceIsFreightConductor(input: {
   const rosterR3 = await loadPriceIsFreightR3Candidates({
     allianceId: input.allianceId,
     date: input.date,
+    paintTemplate: input.paintTemplate,
+    leadDays,
   });
   const r3Candidates = filterDaySpinCandidates(rosterR3, excluded);
 
