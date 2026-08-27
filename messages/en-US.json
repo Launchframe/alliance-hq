@@ -3648,7 +3648,12 @@
           "pickManual": "Pick conductor manually",
           "assigned": "Conductor: {name}",
           "change": "Change",
-          "clear": "Clear pending conductor"
+          "clear": "Clear pending conductor",
+          "minimumsMissingScores": {
+            "bodyDaily": "No VS scores are uploaded for {date}, so conductor minimums will not block today's spin. Upload scores when you can.",
+            "bodyWeekly": "No VS scores are uploaded for {start}–{end}, so conductor minimums will not block today's spin. Upload scores when you can.",
+            "uploadLink": "Upload VS scores"
+          }
         },
         "vip": {
           "title": "VIP / Guardian",
@@ -3941,6 +3946,7 @@
       },
       "board": {
         "member": "Commander",
+        "you": "You",
         "vs": "Prior-day VS",
         "tickets": "Tickets",
         "chance": "Chance",
@@ -3957,6 +3963,10 @@
         "subtitleUniform": "R3 commanders whose prior-day VS is outside the economy range — not in today's equal-chance draw.",
         "member": "Commander",
         "vs": "Prior-day VS"
+      },
+      "aboveCliff": {
+        "title": "Above cliff cutoff",
+        "subtitle": "Hard cutoff is on — prior-day VS above your cliff are excluded from today's draw."
       }
     },
     "conductorHistory": {
@@ -4161,6 +4171,7 @@
       "title": "All aboard!",
       "disqualifiedTitle": "Disqualified",
       "disqualifiedBody": "did not meet the minimum VS or donation requirements for train conductor.",
+      "disqualifiedBodyVsOnly": "did not meet the minimum VS requirements for train conductor.",
       "evaluationPeriod": "Evaluated for {period}",
       "vsShortfall": "VS: {score} pts (need {required}; short by {shortfall})",
       "donationShortfall": "Donations: {score} pts (need {required}; short by {shortfall})",

@@ -102,7 +102,7 @@ test.describe("Price Is Freight raffle tickets", () => {
     const today = getServerCalendarDate();
     // Saturday uses the heavy-hitter odds panel (still mounted). Desktop week
     // strip hides carousel "Previous day"; select Friday via the day cell so we
-    // assert the weighted VS raffle hero + chart. Train week starts Tuesday →
+    // assert the weighted VS raffle chart + eligibility list. Train week starts Tuesday →
     // Friday is weekStart + 3.
     const friday = addCalendarDays(dashboard.weekStart, 3);
     if (today !== friday) {
@@ -117,7 +117,6 @@ test.describe("Price Is Freight raffle tickets", () => {
     }
 
     await expect(page.getByTestId("price-is-right-tickets-panel")).toBeVisible();
-    await expect(page.getByTestId("price-is-right-tickets-hero")).toBeVisible();
     await expect(page.getByTestId("price-is-right-tickets-chart")).toBeVisible();
   });
 });

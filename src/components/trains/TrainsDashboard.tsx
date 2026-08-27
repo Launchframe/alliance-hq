@@ -2617,6 +2617,24 @@ export function TrainsDashboard({
       data.trainConductorLeadTimeDays,
     ],
   );
+  const conductorMinimumsDataStatus =
+    data.weekConductorMinimumsDataStatus?.[selectedDate] ?? null;
+  const conductorMinimumsUploadHref = useMemo(() => {
+    if (!conductorMinimumsDataStatus?.missingVsScores) {
+      return guidedVideoUploadHref;
+    }
+    return buildTrainsGuidedVideoUploadHref({
+      trainDate: selectedDate,
+      scoreDate: conductorMinimumsDataStatus.uploadScoreDate,
+      leadDays: data.trainConductorLeadTimeDays,
+      returnTo: true,
+    });
+  }, [
+    conductorMinimumsDataStatus,
+    guidedVideoUploadHref,
+    selectedDate,
+    data.trainConductorLeadTimeDays,
+  ]);
 
   return (
     <TrainsWalkthroughProvider
@@ -3029,6 +3047,8 @@ export function TrainsDashboard({
                 vsDataStatus={
                   selectedDate === data.today ? data.vsDataStatus : null
                 }
+                conductorMinimumsDataStatus={conductorMinimumsDataStatus}
+                conductorMinimumsUploadHref={conductorMinimumsUploadHref}
                 scoreStats={selectedDayScoreStats}
                 rosterDataStatus={
                   selectedDate === data.today ? data.rosterDataStatus : null

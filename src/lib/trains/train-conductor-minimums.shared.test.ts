@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   assertConductorMinimumOverrideQualification,
+  buildConductorMinimumsDataStatus,
   buildMemberQualification,
   effectiveMinimum,
   evaluationPeriodForTrainDate,
+  evaluationPeriodHasUploadedVsScores,
   minimumsEnforcementEnabled,
   minimumsSettingsForHqLocalEval,
   normalizeTrainMinimumsSettings,
@@ -161,6 +163,34 @@ describe("train-conductor-minimums", () => {
     expect(
       minimumsEnforcementEnabled(normalizeTrainMinimumsSettings({})),
     ).toBe(false);
+  });
+
+  it("evaluationPeriodHasUploadedVsScores is false for empty maps", () => {
+    expect(evaluationPeriodHasUploadedVsScores(new Map())).toBe(false);
+    expect(
+      evaluationPeriodHasUploadedVsScores(new Map([["m1", 0]])),
+    ).toBe(true);
+  });
+
+  it("buildConductorMinimumsDataStatus flags missing VS for PIF daily minimums", () => {
+    const settings = normalizeTrainMinimumsSettings({
+      minVsPoints: 7_200_000,
+      window: "daily",
+    });
+    const status = buildConductorMinimumsDataStatus({
+      settings,
+      trainDate: "2026-08-28",
+      paintTemplate: "price_is_right",
+      leadDays: 1,
+      vsScoreCount: 0,
+    });
+    expect(status?.missingVsScores).toBe(true);
+    expect(status?.uploadScoreDate).toBe(
+      evaluationPeriodForTrainDate("2026-08-28", "daily", undefined, {
+        leadDays: 1,
+        paintTemplate: "price_is_right",
+      }).start,
+    );
   });
 
   it("minimumsSettingsForHqLocalEval clears donation threshold without HQ ledger", () => {

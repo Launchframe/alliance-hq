@@ -143,6 +143,9 @@ export async function GET(request: Request) {
     const viewerMissedEntry =
       weighted.missedFloor.find((entry) => entry.memberId === viewerMemberId) ??
       null;
+    const viewerAboveCliffEntry =
+      weighted.aboveCliff.find((entry) => entry.memberId === viewerMemberId) ??
+      null;
 
     return NextResponse.json({
       mode: "weighted" as const,
@@ -161,13 +164,16 @@ export async function GET(request: Request) {
             priorDayVsScore:
               viewerEntry?.priorDayVsScore ??
               viewerMissedEntry?.priorDayVsScore ??
+              viewerAboveCliffEntry?.priorDayVsScore ??
               null,
             winProbability: viewerEntry?.winProbability ?? 0,
             missedFloor: viewerMissedEntry != null,
+            aboveCliff: viewerAboveCliffEntry != null,
           }
         : null,
       board: weighted.board,
       missedFloor: weighted.missedFloor,
+      aboveCliff: weighted.aboveCliff,
     });
   }
 

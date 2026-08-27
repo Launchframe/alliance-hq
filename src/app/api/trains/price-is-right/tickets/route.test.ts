@@ -205,6 +205,7 @@ describe("price-is-right tickets GET", () => {
           priorDayVsScore: 6_500_000,
         },
       ],
+      aboveCliff: [],
     });
 
     const res = await GET(
@@ -223,5 +224,73 @@ describe("price-is-right tickets GET", () => {
     expect(body.missedFloor).toHaveLength(1);
     expect(body.board[0]?.memberId).toBe("a");
     expect(body.missedFloor[0]?.memberId).toBe("b");
+  });
+
+  it("resolves viewer stats from aboveCliff when hard cutoff excludes them", async () => {
+    const { resolveTrainRequestContext } = await import(
+      "@/lib/trains/api-context"
+    );
+    const { resolveRollDayConfig } = await import(
+      "@/lib/trains/day-config-resolve.server"
+    );
+    const {
+      loadPriceIsRightTicketSettings,
+      buildPriceIsRightWeightedCandidates,
+    } = await import("@/lib/trains/train-economy-threshold.server");
+    const { loadPriceIsFreightR3Candidates } = await import(
+      "@/lib/trains/price-is-freight-roll.server"
+    );
+    const { getHqMemberLinkForUser } = await import(
+      "@/lib/member-link/repository.server"
+    );
+    vi.mocked(resolveTrainRequestContext).mockResolvedValue(BASE_CTX);
+    vi.mocked(resolveRollDayConfig).mockResolvedValue({
+      paintTemplate: "price_is_right",
+    } as never);
+    vi.mocked(loadPriceIsRightTicketSettings).mockResolvedValue({
+      weightingEnabled: true,
+      cliffPoints: 9_000_000,
+      hardCutoffEnabled: true,
+      maxTicketMemberIds: [],
+    });
+    vi.mocked(loadPriceIsFreightR3Candidates).mockResolvedValue([
+      { memberId: "viewer-1", memberName: "Viewer" },
+    ]);
+    vi.mocked(getHqMemberLinkForUser).mockResolvedValue({
+      ashedMemberId: "viewer-1",
+    } as never);
+    vi.mocked(buildPriceIsRightWeightedCandidates).mockResolvedValue({
+      scoreDate: "2026-07-08",
+      candidates: [],
+      board: [],
+      missedFloor: [],
+      aboveCliff: [
+        {
+          memberId: "viewer-1",
+          memberName: "Viewer",
+          priorDayVsScore: 9_500_000,
+          isViewer: true,
+        },
+      ],
+    });
+
+    const res = await GET(
+      new Request(
+        "http://localhost/api/trains/price-is-right/tickets?date=2026-07-09",
+      ),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      viewer: {
+        priorDayVsScore: number | null;
+        ticketCount: number;
+        missedFloor: boolean;
+        aboveCliff: boolean;
+      };
+    };
+    expect(body.viewer.priorDayVsScore).toBe(9_500_000);
+    expect(body.viewer.ticketCount).toBe(0);
+    expect(body.viewer.missedFloor).toBe(false);
+    expect(body.viewer.aboveCliff).toBe(true);
   });
 });
