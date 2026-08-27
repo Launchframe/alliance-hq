@@ -75,6 +75,27 @@ describe("filterMemberIdsByConductorMinimums", () => {
     expect(qualified).toEqual(["m-pass"]);
   });
 
+  it("returns null when no VS scores exist for the evaluation window", async () => {
+    mocks.fetchAllianceVsScoresForEvaluationPeriod.mockResolvedValue(new Map());
+
+    const { filterMemberIdsByConductorMinimums, evaluateConductorQualification } =
+      await import("@/lib/trains/train-conductor-minimums.server");
+
+    const filtered = await filterMemberIdsByConductorMinimums(
+      "ally-1",
+      "2026-08-10",
+      ["m-pass", "m-fail"],
+    );
+    expect(filtered).toBeNull();
+
+    const qualification = await evaluateConductorQualification({
+      allianceId: "ally-1",
+      memberId: "m-pass",
+      trainDate: "2026-08-10",
+    });
+    expect(qualification).toBeNull();
+  });
+
   it("does not fetch Ashed VS when the candidate list is empty", async () => {
     const { filterMemberIdsByConductorMinimums } = await import(
       "@/lib/trains/train-conductor-minimums.server"

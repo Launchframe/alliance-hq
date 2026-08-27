@@ -168,6 +168,7 @@ export async function GET(request: Request) {
         : null,
       board: weighted.board,
       missedFloor: weighted.missedFloor,
+      aboveCliff: weighted.aboveCliff,
     });
   }
 

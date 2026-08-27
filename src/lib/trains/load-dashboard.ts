@@ -63,6 +63,8 @@ import {
   type TrainDayScoreStats,
 } from "@/lib/trains/day-score-stats.shared";
 import type { TrainsVsDataStatus } from "@/lib/trains/vs-data-status.server";
+import type { ConductorMinimumsDataStatus } from "@/lib/trains/train-conductor-minimums.shared";
+import { loadWeekConductorMinimumsDataStatus } from "@/lib/trains/train-conductor-minimums.server";
 import {
   loadTrainsRosterDataStatus,
   type TrainsRosterDataStatus,
@@ -70,7 +72,7 @@ import {
 import { getServerCalendarDate } from "@/lib/trains/service";
 import type { ConductorMechanismType, WeekTemplateType } from "@/lib/trains/types";
 
-export type { TrainsVsDataStatus, TrainsRosterDataStatus };
+export type { TrainsVsDataStatus, TrainsRosterDataStatus, ConductorMinimumsDataStatus };
 export type { WeekConductorRecordSummary } from "@/lib/trains/conductor-record.shared";
 import type { WeekConductorRecordSummary } from "@/lib/trains/conductor-record.shared";
 
@@ -235,6 +237,8 @@ export type TrainsDashboardPayload = {
   priceIsRightCliffPoints: number | null;
   trainConductorLeadTimeDays: number;
   trainConductorConfirmationEnabled: boolean;
+  /** Per-date conductor minimums score readiness for the loaded train week. */
+  weekConductorMinimumsDataStatus: Record<string, ConductorMinimumsDataStatus | null>;
 };
 
 const EMPTY_DASHBOARD_FIELDS: Pick<
@@ -260,6 +264,7 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   | "priceIsRightCliffPoints"
   | "trainConductorLeadTimeDays"
   | "trainConductorConfirmationEnabled"
+  | "weekConductorMinimumsDataStatus"
 > = {
   operatingMode: "ashed",
   schedule: null,
@@ -282,6 +287,7 @@ const EMPTY_DASHBOARD_FIELDS: Pick<
   priceIsRightCliffPoints: null,
   trainConductorLeadTimeDays: 0,
   trainConductorConfirmationEnabled: false,
+  weekConductorMinimumsDataStatus: {},
 };
 
 async function loadConductorRecordAccess(sessionId: string, allianceId: string) {
@@ -444,7 +450,7 @@ export async function loadTrainsDashboard(
     canManageTrains,
   );
   const leadDays = leadTimeSettings.trainConductorLeadTimeDays;
-  const [rosterDataStatus, vrReporterCount, weekDayScoreStats] =
+  const [rosterDataStatus, vrReporterCount, weekDayScoreStats, weekConductorMinimumsDataStatus] =
     await Promise.all([
       todayDayConfig
         ? loadTrainsRosterDataStatus({
@@ -475,6 +481,14 @@ export async function loadTrainsDashboard(
         leadDays,
         effectiveSeason.seasonKey,
       ),
+      loadWeekConductorMinimumsDataStatus({
+        allianceId,
+        leadDays,
+        days: dayConfigs.map((day) => ({
+          trainDate: day.date,
+          paintTemplate: day.paintTemplate,
+        })),
+      }),
     ]);
 
   const todayScoreStats = todayDayConfig
@@ -535,6 +549,7 @@ export async function loadTrainsDashboard(
     trainConductorLeadTimeDays: leadDays,
     trainConductorConfirmationEnabled:
       leadTimeSettings.trainConductorConfirmationEnabled,
+    weekConductorMinimumsDataStatus,
   };
 }
 

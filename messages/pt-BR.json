@@ -3594,7 +3594,12 @@
           "pickManual": "Escolher condutor manualmente",
           "assigned": "Condutor: {name}",
           "change": "Alterar",
-          "clear": "Limpar condutor pendente"
+          "clear": "Limpar condutor pendente",
+          "minimumsMissingScores": {
+            "bodyDaily": "Nenhuma pontuação de VS foi enviada para {date}, então os mínimos de condutor não bloquearão o giro de hoje. Envie as pontuações quando puder.",
+            "bodyWeekly": "Nenhuma pontuação de VS foi enviada para {start}–{end}, então os mínimos de condutor não bloquearão o giro de hoje. Envie as pontuações quando puder.",
+            "uploadLink": "Enviar pontuações de VS"
+          }
         },
         "vip": {
           "title": "VIP / Guardião",
@@ -3887,6 +3892,7 @@
       },
       "board": {
         "member": "Comandante",
+        "you": "Você",
         "vs": "VS do dia anterior",
         "tickets": "Tickets",
         "chance": "Chance",
@@ -3903,6 +3909,10 @@
         "subtitleUniform": "Comandantes R3 cujo VS do dia anterior está fora da faixa econômica — não entram no sorteio de chance igual de hoje.",
         "member": "Comandante",
         "vs": "VS do dia anterior"
+      },
+      "aboveCliff": {
+        "title": "Acima do corte do cliff",
+        "subtitle": "Corte rígido ativo — VS do dia anterior acima do cliff ficam fora do sorteio de hoje."
       }
     },
     "conductorHistory": {
@@ -4107,6 +4117,7 @@
       "title": "Todos a bordo!",
       "disqualifiedTitle": "Desqualificado",
       "disqualifiedBody": "não atingiu os mínimos de VS ou doações para condutor do trem.",
+      "disqualifiedBodyVsOnly": "não atingiu os mínimos de VS para condutor do trem.",
       "evaluationPeriod": "Avaliado em {period}",
       "vsShortfall": "VS: {score} pts (precisa {required}; faltam {shortfall})",
       "donationShortfall": "Doações: {score} pts (precisa {required}; faltam {shortfall})",

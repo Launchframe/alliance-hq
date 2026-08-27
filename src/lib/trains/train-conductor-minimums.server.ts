@@ -6,12 +6,15 @@ import { getDb, schema } from "@/lib/db";
 import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
 import { fetchAllianceVsScoresForEvaluationPeriod } from "@/lib/trains/vs-scores.server";
 import {
+  buildConductorMinimumsDataStatus,
   buildMemberQualification,
   conductorQualificationGateApplies,
   evaluationPeriodForTrainDate,
+  evaluationPeriodHasUploadedVsScores,
   minimumsEnforcementEnabled,
   minimumsSettingsForHqLocalEval,
   normalizeTrainMinimumsSettings,
+  type ConductorMinimumsDataStatus,
   type MemberQualificationPayload,
   type TrainConductorMinimumsSettings,
   type TrainMinimumsWindow,
@@ -105,6 +108,10 @@ export async function evaluateConductorQualification(input: {
     end,
   );
 
+  if (!evaluationPeriodHasUploadedVsScores(vsTotals)) {
+    return null;
+  }
+
   return buildMemberQualification({
     vsScore: vsTotals.get(input.memberId) ?? 0,
     donationScore: 0,
@@ -149,6 +156,10 @@ export async function filterMemberIdsByConductorMinimums(
     end,
   );
 
+  if (!evaluationPeriodHasUploadedVsScores(vsTotals)) {
+    return null;
+  }
+
   return memberIds.filter((memberId) => {
     const qualification = buildMemberQualification({
       vsScore: vsTotals.get(memberId) ?? 0,
@@ -175,6 +186,117 @@ export async function resolvePoolRespectsConductorMinimums(input: {
     poolType: input.poolType,
     paintTemplate: input.paintTemplate,
   });
+}
+
+export async function loadConductorMinimumsDataStatusForTrainDate(input: {
+  allianceId: string;
+  trainDate: string;
+  paintTemplate?: string | null;
+  leadDays?: number;
+  /** When set, reuse a prior fetch for the same evaluation window. */
+  vsScoreCount?: number;
+}): Promise<ConductorMinimumsDataStatus | null> {
+  const settings = await loadTrainConductorMinimums(input.allianceId, false);
+  const evalSettings = minimumsSettingsForHqLocalEval(settings);
+  if (!minimumsEnforcementEnabled(evalSettings)) {
+    return null;
+  }
+
+  const allianceRow = await loadAllianceRow(input.allianceId);
+  const trainWeekConfig = allianceTrainWeekFromRow(allianceRow ?? {});
+  const leadDays =
+    input.leadDays ??
+    (await loadAllianceTrainLeadTimeDays(input.allianceId));
+  const { start, end } = evaluationPeriodForTrainDate(
+    input.trainDate,
+    evalSettings.window,
+    trainWeekConfig,
+    { leadDays, paintTemplate: input.paintTemplate },
+  );
+
+  let vsScoreCount = input.vsScoreCount;
+  if (vsScoreCount === undefined) {
+    const vsTotals = await fetchAllianceVsScoresForEvaluationPeriod(
+      input.allianceId,
+      start,
+      end,
+    );
+    vsScoreCount = vsTotals.size;
+  }
+
+  return buildConductorMinimumsDataStatus({
+    settings,
+    trainDate: input.trainDate,
+    paintTemplate: input.paintTemplate,
+    leadDays,
+    vsScoreCount,
+    trainWeekConfig,
+  });
+}
+
+export async function loadWeekConductorMinimumsDataStatus(input: {
+  allianceId: string;
+  leadDays?: number;
+  days: ReadonlyArray<{
+    trainDate: string;
+    paintTemplate?: string | null;
+  }>;
+}): Promise<Record<string, ConductorMinimumsDataStatus | null>> {
+  const settings = await loadTrainConductorMinimums(input.allianceId, false);
+  const evalSettings = minimumsSettingsForHqLocalEval(settings);
+  const out: Record<string, ConductorMinimumsDataStatus | null> = {};
+
+  if (!minimumsEnforcementEnabled(evalSettings)) {
+    for (const day of input.days) {
+      out[day.trainDate] = null;
+    }
+    return out;
+  }
+
+  const allianceRow = await loadAllianceRow(input.allianceId);
+  const trainWeekConfig = allianceTrainWeekFromRow(allianceRow ?? {});
+  const leadDays =
+    input.leadDays ??
+    (await loadAllianceTrainLeadTimeDays(input.allianceId));
+  const vsCountByPeriod = new Map<string, number>();
+
+  for (const day of input.days) {
+    const status = buildConductorMinimumsDataStatus({
+      settings,
+      trainDate: day.trainDate,
+      paintTemplate: day.paintTemplate,
+      leadDays,
+      vsScoreCount: 0,
+      trainWeekConfig,
+    });
+    if (!status) {
+      out[day.trainDate] = null;
+      continue;
+    }
+
+    const periodKey = `${status.periodStart}:${status.periodEnd}`;
+    let vsScoreCount = vsCountByPeriod.get(periodKey);
+    if (vsScoreCount === undefined) {
+      const vsTotals = await fetchAllianceVsScoresForEvaluationPeriod(
+        input.allianceId,
+        status.periodStart,
+        status.periodEnd,
+      );
+      vsScoreCount = vsTotals.size;
+      vsCountByPeriod.set(periodKey, vsScoreCount);
+    }
+
+    out[day.trainDate] = buildConductorMinimumsDataStatus({
+      settings,
+      trainDate: day.trainDate,
+      paintTemplate: day.paintTemplate,
+      leadDays,
+      vsScoreCount,
+      trainWeekConfig,
+    });
+  }
+
+  return out;
 }
 
 /** Whether post-roll minimums DQ applies for this conductor wheel spin. */

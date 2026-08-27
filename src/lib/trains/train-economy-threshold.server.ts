@@ -156,12 +156,12 @@ export async function loadPriceIsRightTicketSettings(
   allianceId: string,
 ): Promise<PriceIsRightTicketSettings> {
   const row = await loadTrainEconomyThreshold(allianceId, false);
-  return {
+  return normalizePriceIsRightTicketSettings({
     weightingEnabled: row.weightingEnabled,
     cliffPoints: row.thresholdPoints,
     hardCutoffEnabled: row.hardCutoffEnabled,
     maxTicketMemberIds: row.maxTicketMemberIds,
-  };
+  });
 }
 
 /** Pick from the alliance R3 pool at roll time — preserves generation across pivot days. */
@@ -223,6 +223,7 @@ export async function buildPriceIsRightWeightedCandidates(input: {
   candidates: RollCandidate[];
   board: PriceIsRightTicketBoardEntry[];
   missedFloor: PriceIsRightMissedFloorEntry[];
+  aboveCliff: PriceIsRightMissedFloorEntry[];
   scoreDate: string;
 }> {
   const settings =
@@ -236,7 +237,7 @@ export async function buildPriceIsRightWeightedCandidates(input: {
     scoreDate,
   );
 
-  const { board, missedFloor } = buildPriceIsRightTicketBoard(
+  const { board, missedFloor, aboveCliff } = buildPriceIsRightTicketBoard(
     input.candidates,
     vsScores,
     settings,
@@ -256,5 +257,5 @@ export async function buildPriceIsRightWeightedCandidates(input: {
     ];
   });
 
-  return { candidates, board, missedFloor, scoreDate };
+  return { candidates, board, missedFloor, aboveCliff, scoreDate };
 }

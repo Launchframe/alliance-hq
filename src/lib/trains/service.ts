@@ -646,11 +646,15 @@ async function applyConductorQualificationGate(input: {
   allianceId: string;
   date: string;
   result: RollResult;
+  paintTemplate?: string | null;
+  leadDays?: number;
 }): Promise<RollResult> {
   const qualification = await evaluateConductorQualification({
     allianceId: input.allianceId,
     memberId: input.result.memberId,
     trainDate: input.date,
+    paintTemplate: input.paintTemplate,
+    leadDays: input.leadDays,
   });
 
   if (qualification && !qualification.qualified) {
@@ -720,14 +724,6 @@ export async function confirmConductorMinimumOverride(input: {
     throw new Error("Train conductor minimums are not enabled.");
   }
 
-  const qualification = assertConductorMinimumOverrideQualification(
-    await evaluateConductorQualification({
-      allianceId: input.allianceId,
-      memberId: input.memberId,
-      trainDate: input.date,
-    }),
-  );
-
   const seasonKey = await resolveTrainSeasonKey(input.allianceId);
   const record = await getConductorRecord(
     input.allianceId,
@@ -742,6 +738,17 @@ export async function confirmConductorMinimumOverride(input: {
     input.allianceId,
     input.date,
     seasonKey,
+  );
+  const leadDays = await loadAllianceTrainLeadTimeDays(input.allianceId);
+
+  const qualification = assertConductorMinimumOverrideQualification(
+    await evaluateConductorQualification({
+      allianceId: input.allianceId,
+      memberId: input.memberId,
+      trainDate: input.date,
+      paintTemplate: dayConfig.paintTemplate,
+      leadDays,
+    }),
   );
 
   const poolType = usesPriceIsFreightConductorRoll(dayConfig.paintTemplate)
@@ -1385,6 +1392,8 @@ export async function rollForConductor(input: {
         allianceId: input.allianceId,
         date: input.date,
         result,
+        paintTemplate: dayConfig.paintTemplate,
+        leadDays,
       })
     : { ...result, draftPersisted: true };
 

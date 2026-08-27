@@ -17,6 +17,7 @@ import type { TrainsRosterDataStatus } from "@/lib/trains/roster-data-status.sha
 import { WEEK_TEMPLATES_WITH_DETAIL_HINTS } from "@/lib/trains/week-template-registry.shared";
 import type { TrainDayScoreStats } from "@/lib/trains/day-score-stats.shared";
 import type { TrainsVsDataStatus } from "@/lib/trains/vs-data-status.shared";
+import type { ConductorMinimumsDataStatus } from "@/lib/trains/train-conductor-minimums.shared";
 import type { WeekTemplateType } from "@/lib/trains/types";
 
 /** Default destination for the "upload score video" prerequisites link. */
@@ -29,6 +30,10 @@ export type TrainsGuidedConductorFlowProps = {
   /** Pre-translated template explainer; falls back to `trains.templateDetails.*` when omitted. */
   templateDetailHint?: string | null;
   vsDataStatus: TrainsVsDataStatus | null;
+  /** When minimums apply but HQ has no VS rows for the evaluation window. */
+  conductorMinimumsDataStatus?: ConductorMinimumsDataStatus | null;
+  /** VS upload deep link for the minimums evaluation window (when missing). */
+  conductorMinimumsUploadHref?: string;
   /** Score source stats for the selected/today train day when scores apply. */
   scoreStats?: TrainDayScoreStats | null;
   rosterDataStatus: TrainsRosterDataStatus | null;
@@ -229,6 +234,8 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     paintTemplate,
     templateDetailHint,
     vsDataStatus,
+    conductorMinimumsDataStatus = null,
+    conductorMinimumsUploadHref,
     scoreStats = null,
     rosterDataStatus,
     hasConductor,
@@ -596,6 +603,35 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
             </div>
           ) : conductorStatus === "current" ? (
             <div className="flex flex-col gap-2">
+              {conductorMinimumsDataStatus?.applies &&
+              conductorMinimumsDataStatus.missingVsScores ? (
+                <div
+                  className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2"
+                  data-testid="trains-conductor-minimums-warning"
+                >
+                  <p className="text-sm text-hq-fg">
+                    {conductorMinimumsDataStatus.evaluationWindow === "weekly"
+                      ? t("steps.conductor.minimumsMissingScores.bodyWeekly", {
+                          start: conductorMinimumsDataStatus.periodStart,
+                          end: conductorMinimumsDataStatus.periodEnd,
+                        })
+                      : t("steps.conductor.minimumsMissingScores.bodyDaily", {
+                          date: conductorMinimumsDataStatus.periodStart,
+                        })}
+                  </p>
+                  <Link
+                    href={
+                      conductorMinimumsUploadHref ??
+                      videoUploadHref ??
+                      DEFAULT_VIDEO_UPLOAD_HREF
+                    }
+                    data-testid="trains-conductor-minimums-upload-link"
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-400 sm:w-auto"
+                  >
+                    {t("steps.conductor.minimumsMissingScores.uploadLink")}
+                  </Link>
+                </div>
+              ) : null}
               {vsDataStatus?.required && vsDataStatus.ready ? (
                 scoreStats ? (
                   <TrainDayScoreStatsSummary stats={scoreStats} />

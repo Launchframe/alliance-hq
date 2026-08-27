@@ -8,6 +8,7 @@ import { Link } from "@/i18n/navigation";
 import {
   boardToChartPoints,
   formatPriceIsRightVsScore,
+  normalizePriceIsRightTicketSettings,
   type PriceIsRightTicketBoardEntry,
 } from "@/lib/trains/train-price-is-right-tickets.shared";
 
@@ -19,6 +20,7 @@ type TicketBoardPayload = {
   scoreDate: string;
   settings: {
     cliffPoints: number | null;
+    effectiveCliffPoints?: number;
     hardCutoffEnabled: boolean;
   };
   viewer: {
@@ -35,6 +37,12 @@ type TicketBoardPayload = {
     priorDayVsScore: number;
     isViewer?: boolean;
   }>;
+  aboveCliff?: Array<{
+    memberId: string;
+    memberName: string;
+    priorDayVsScore: number;
+    isViewer?: boolean;
+  }>;
 };
 
 type Props = {
@@ -44,11 +52,6 @@ type Props = {
 };
 
 const COLLAPSED_VISIBLE = 7;
-
-function formatDayOfWeek(scoreDate: string): string {
-  const date = new Date(`${scoreDate}T12:00:00`);
-  return date.toLocaleDateString(undefined, { weekday: "long" });
-}
 
 function formatProbability(value: number): string {
   if (value >= 0.01) return `${(value * 100).toFixed(1)}%`;
@@ -180,9 +183,18 @@ export function PriceIsRightTicketsPanel({
     );
   }
 
-  const viewerTickets = payload.viewer?.ticketCount ?? 0;
-  const viewerScore = payload.viewer?.priorDayVsScore;
-  const chartPoints = boardToChartPoints(payload.board);
+  const ticketSettings = normalizePriceIsRightTicketSettings({
+    weightingEnabled: true,
+    cliffPoints:
+      payload.settings.cliffPoints ??
+      payload.settings.effectiveCliffPoints ??
+      null,
+    hardCutoffEnabled: payload.settings.hardCutoffEnabled,
+    maxTicketMemberIds: payload.board
+      .filter((row) => row.isTakedownOverride)
+      .map((row) => row.memberId),
+  });
+  const chartPoints = boardToChartPoints(payload.board, ticketSettings);
 
   return (
     <section
@@ -207,45 +219,9 @@ export function PriceIsRightTicketsPanel({
       </div>
 
       {isWeighted ? (
-        <div
-          className="mt-4 rounded-lg border border-hq-border bg-hq-surface/80 px-4 py-3"
-          data-testid="price-is-right-tickets-hero"
-        >
-          <p className="text-lg font-semibold text-hq-fg">
-            {t("hero", {
-              count: viewerTickets,
-              dayOfWeek: formatDayOfWeek(payload.scoreDate),
-              score:
-                viewerScore != null
-                  ? formatPriceIsRightVsScore(viewerScore)
-                  : t("noScore"),
-            })}
-          </p>
-        </div>
-      ) : payload.viewer && !payload.viewer.missedFloor ? (
-        <div
-          className="mt-4 rounded-lg border border-hq-border bg-hq-surface/80 px-4 py-3"
-          data-testid="price-is-right-tickets-hero"
-        >
-          <p className="text-lg font-semibold text-hq-fg">
-            {t("oddsHeroEqual", {
-              probability: formatProbability(payload.viewer.winProbability),
-            })}
-          </p>
-        </div>
-      ) : null}
-
-      {isWeighted ? (
         <PriceIsRightTicketDistributionChart
           className="mt-5"
-          settings={{
-            weightingEnabled: true,
-            cliffPoints: payload.settings.cliffPoints,
-            hardCutoffEnabled: payload.settings.hardCutoffEnabled,
-            maxTicketMemberIds: payload.board
-              .filter((row) => row.isTakedownOverride)
-              .map((row) => row.memberId),
-          }}
+          settings={ticketSettings}
           memberPoints={chartPoints}
           data-testid="price-is-right-tickets-chart"
         />
@@ -277,6 +253,11 @@ export function PriceIsRightTicketsPanel({
                   >
                     <td className="px-3 py-2 font-medium text-hq-fg">
                       {row.memberName}
+                      {row.isViewer ? (
+                        <span className="ml-1.5 text-xs font-normal text-amber-600 dark:text-amber-300">
+                          ({t("board.you")})
+                        </span>
+                      ) : null}
                       {row.isTakedownOverride ? (
                         <span className="ml-2 rounded bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-200">
                           {t("board.takedownBadge")}
@@ -312,6 +293,11 @@ export function PriceIsRightTicketsPanel({
                   <div className="min-w-0">
                     <p className="truncate font-medium text-hq-fg">
                       {row.memberName}
+                      {row.isViewer ? (
+                        <span className="ml-1.5 text-xs font-normal text-amber-600 dark:text-amber-300">
+                          ({t("board.you")})
+                        </span>
+                      ) : null}
                       {row.isTakedownOverride ? (
                         <span className="ml-2 rounded bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-200">
                           {t("board.takedownBadge")}
@@ -337,16 +323,6 @@ export function PriceIsRightTicketsPanel({
                 </li>
               ))}
             </ul>
-            {payload.board.length > COLLAPSED_VISIBLE ? (
-              <>
-                <div
-                  className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-hq-surface via-hq-surface/95 to-transparent"
-                />
-                <div
-                  className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-hq-surface via-hq-surface/95 to-transparent"
-                />
-              </>
-            ) : null}
           </div>
         )}
 
@@ -362,8 +338,10 @@ export function PriceIsRightTicketsPanel({
         ) : null}
       </div>
 
-      {payload.missedFloor.length > 0 ? (
+      {(payload.missedFloor.length > 0 || (payload.aboveCliff?.length ?? 0) > 0) ? (
         <div className="mt-6 border-t border-cyan-500/20 pt-5">
+          {payload.missedFloor.length > 0 ? (
+          <>
           <div className="flex flex-col gap-1">
             <h4 className="text-sm font-semibold text-hq-fg">
               {mode === "uniform"
@@ -408,6 +386,52 @@ export function PriceIsRightTicketsPanel({
               </tbody>
             </table>
           </div>
+          </>
+          ) : null}
+          {(payload.aboveCliff?.length ?? 0) > 0 ? (
+            <>
+              <div className={`flex flex-col gap-1 ${payload.missedFloor.length > 0 ? "mt-6" : ""}`}>
+                <h4 className="text-sm font-semibold text-hq-fg">
+                  {t("aboveCliff.title")}
+                </h4>
+                <p className="text-xs text-hq-fg-muted">
+                  {t("aboveCliff.subtitle")}
+                </p>
+              </div>
+              <div
+                className="mt-3 overflow-x-auto rounded-lg border border-hq-border"
+                data-testid="price-is-right-above-cliff"
+              >
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-hq-canvas/80 text-xs uppercase tracking-wide text-hq-fg-muted">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">
+                        {t("missedFloor.member")}
+                      </th>
+                      <th className="px-3 py-2 font-medium">{t("missedFloor.vs")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payload.aboveCliff!.map((row) => (
+                      <tr
+                        key={row.memberId}
+                        className={`border-t border-hq-border/60 ${
+                          row.isViewer ? "bg-amber-500/10" : ""
+                        }`}
+                      >
+                        <td className="px-3 py-2 font-medium text-hq-fg">
+                          {row.memberName}
+                        </td>
+                        <td className="px-3 py-2 text-hq-fg-muted">
+                          {formatPriceIsRightVsScore(row.priorDayVsScore)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : null}
         </div>
       ) : null}
     </section>

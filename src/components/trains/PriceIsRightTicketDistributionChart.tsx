@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import {
   formatPriceIsRightVsScore,
+  resolveChartMaxScore,
   samplePriceIsRightTicketCurve,
   samplePriceIsRightUniformCurve,
   type PriceIsRightChartPoint,
@@ -50,6 +51,7 @@ export function PriceIsRightTicketDistributionChart({
   "data-testid": dataTestId,
 }: Props) {
   const t = useTranslations("trains.priceIsRight.chart");
+  const clipPathId = useId();
   const weighted = settings.weightingEnabled;
   const [yMode, setYMode] = useState<YMode>(weighted ? "tickets" : "probability");
   const [hovered, setHovered] = useState<PriceIsRightChartPoint | null>(null);
@@ -81,7 +83,9 @@ export function PriceIsRightTicketDistributionChart({
   const innerW = CHART_WIDTH - PAD.left - PAD.right;
   const innerH = CHART_HEIGHT - PAD.top - PAD.bottom;
   const minX = PRICE_IS_RIGHT_MIN_VS_SCORE;
-  const maxX = Math.max(...allPoints.map((point) => point.score), minX + 1);
+  const maxX = weighted
+    ? Math.max(resolveChartMaxScore(settings), minX + 1)
+    : Math.max(...allPoints.map((point) => point.score), minX + 1);
   const xSpan = Math.max(maxX - minX, 1);
 
   const yValues = allPoints.map((point) =>
@@ -174,6 +178,16 @@ export function PriceIsRightTicketDistributionChart({
             setTooltipPos(null);
           }}
         >
+          <defs>
+            <clipPath id={clipPathId}>
+              <rect
+                x={PAD.left}
+                y={PAD.top}
+                width={innerW}
+                height={innerH}
+              />
+            </clipPath>
+          </defs>
           <line
             x1={PAD.left}
             y1={PAD.top + innerH}
@@ -221,40 +235,44 @@ export function PriceIsRightTicketDistributionChart({
               {formatPriceIsRightVsScore(tick)}
             </text>
           ))}
-          <polyline
-            fill="none"
-            stroke="#22d3ee"
-            strokeOpacity={0.55}
-            strokeWidth={2}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-            points={curvePolyline}
-          />
-          {memberPoints.map((point) => {
-            const yValue =
-              effectiveYMode === "tickets"
-                ? point.tickets
-                : point.winProbability;
-            const fill = point.isViewer
-              ? "#fbbf24"
-              : point.isTakedownOverride
-                ? "#a78bfa"
-                : "#58a6ff";
-            return (
-              <circle
-                key={`${point.memberId ?? "member"}-${point.score}`}
-                cx={mapX(point.score)}
-                cy={mapY(yValue)}
-                r={point.isViewer ? 5 : 4}
-                fill={fill}
-                stroke="#0d1117"
-                strokeWidth={1}
-                className="cursor-pointer"
-                onMouseEnter={(event) => handlePointHover(point, event)}
-                onMouseMove={(event) => handlePointHover(point, event)}
-              />
-            );
-          })}
+          <g clipPath={`url(#${clipPathId})`}>
+            <polyline
+              fill="none"
+              stroke="#22d3ee"
+              strokeOpacity={0.55}
+              strokeWidth={2}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              points={curvePolyline}
+            />
+            {memberPoints
+              .filter((point) => point.score <= maxX)
+              .map((point) => {
+              const yValue =
+                effectiveYMode === "tickets"
+                  ? point.tickets
+                  : point.winProbability;
+              const fill = point.isViewer
+                ? "#fbbf24"
+                : point.isTakedownOverride
+                  ? "#a78bfa"
+                  : "#58a6ff";
+              return (
+                <circle
+                  key={`${point.memberId ?? "member"}-${point.score}`}
+                  cx={mapX(point.score)}
+                  cy={mapY(yValue)}
+                  r={point.isViewer ? 5 : 4}
+                  fill={fill}
+                  stroke="#0d1117"
+                  strokeWidth={1}
+                  className="cursor-pointer"
+                  onMouseEnter={(event) => handlePointHover(point, event)}
+                  onMouseMove={(event) => handlePointHover(point, event)}
+                />
+              );
+            })}
+          </g>
         </svg>
 
         {hovered && tooltipPos ? (

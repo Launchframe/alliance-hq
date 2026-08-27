@@ -205,6 +205,7 @@ describe("price-is-right tickets GET", () => {
           priorDayVsScore: 6_500_000,
         },
       ],
+      aboveCliff: [],
     });
 
     const res = await GET(

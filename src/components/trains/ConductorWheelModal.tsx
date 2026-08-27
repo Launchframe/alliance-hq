@@ -532,7 +532,11 @@ export function ConductorWheelModal({
 
         {phase === "revealed" && disqualified && qualification ? (
           <div className="mt-4 space-y-2 text-center text-sm text-hq-fg">
-            <p className="text-hq-danger">{t("disqualifiedBody")}</p>
+            <p className="text-hq-danger">
+              {qualification.donation.minimum > 0
+                ? t("disqualifiedBody")
+                : t("disqualifiedBodyVsOnly")}
+            </p>
             <p className="text-xs text-hq-fg-muted">
               {t("evaluationPeriod", { period: periodLabel ?? "" })}
             </p>

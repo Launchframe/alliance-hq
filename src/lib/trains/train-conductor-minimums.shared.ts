@@ -52,6 +52,19 @@ export type MemberQualificationPayload = {
   donation: QualificationCriterionSummary;
 };
 
+/** Dashboard / guided-flow warning when minimums apply but HQ has no VS rows for the window. */
+export type ConductorMinimumsDataStatus = {
+  applies: boolean;
+  /** No VS scores in HQ for the evaluation window — post-roll minimums checks are skipped. */
+  missingVsScores: boolean;
+  evaluationWindow: TrainMinimumsWindow;
+  periodStart: string;
+  periodEnd: string;
+  /** VS Performance upload deep-link date for the missing window. */
+  uploadScoreDate: string;
+  minVsPoints: number;
+};
+
 export function normalizeTrainMinimumsSettings(input: {
   minVsPoints?: number | null;
   minDonationPoints?: number | null;
@@ -84,6 +97,55 @@ export function minimumsEnforcementEnabled(
   return (
     (settings.minVsPoints ?? 0) > 0 || (settings.minDonationPoints ?? 0) > 0
   );
+}
+
+/** True when HQ has at least one member VS total for the evaluation window. */
+export function evaluationPeriodHasUploadedVsScores(
+  vsTotals: ReadonlyMap<string, number>,
+): boolean {
+  return vsTotals.size > 0;
+}
+
+export function buildConductorMinimumsDataStatus(input: {
+  settings: TrainConductorMinimumsSettings;
+  trainDate: string;
+  paintTemplate?: string | null;
+  leadDays?: number;
+  vsScoreCount: number;
+  trainWeekConfig?: AllianceTrainWeekConfig;
+}): ConductorMinimumsDataStatus | null {
+  const evalSettings = minimumsSettingsForHqLocalEval(input.settings);
+  if (!minimumsEnforcementEnabled(evalSettings)) {
+    return null;
+  }
+  if (
+    !conductorQualificationGateApplies({
+      poolType: null,
+      minimumsEnabled: true,
+      paintTemplate: input.paintTemplate,
+    })
+  ) {
+    return null;
+  }
+
+  const { start, end } = evaluationPeriodForTrainDate(
+    input.trainDate,
+    evalSettings.window,
+    input.trainWeekConfig ?? DEFAULT_ALLIANCE_TRAIN_WEEK,
+    { leadDays: input.leadDays, paintTemplate: input.paintTemplate },
+  );
+  const uploadScoreDate =
+    evalSettings.window === "weekly" ? end : start;
+
+  return {
+    applies: true,
+    missingVsScores: input.vsScoreCount === 0,
+    evaluationWindow: evalSettings.window,
+    periodStart: start,
+    periodEnd: end,
+    uploadScoreDate,
+    minVsPoints: evalSettings.minVsPoints ?? 0,
+  };
 }
 
 /** Donation minimums are not enforceable until HQ stores donation scores. */
