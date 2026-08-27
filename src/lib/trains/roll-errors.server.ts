@@ -2,6 +2,7 @@ import "server-only";
 
 import type {
   TrainRollErrorDetails,
+  TrainRollSpinBlockReason,
   WheelCandidateKind,
 } from "@/lib/trains/roll-errors.shared";
 import type { PoolType } from "@/lib/trains/types";
@@ -47,7 +48,11 @@ export function throwPoolBusy(poolType?: PoolType): never {
 export function throwNoWheelCandidates(
   candidateKind: WheelCandidateKind,
   message: string,
-  extras?: { scoreDate?: string; leadDays?: number },
+  extras?: {
+    scoreDate?: string;
+    leadDays?: number;
+    spinBlockReason?: TrainRollSpinBlockReason;
+  },
 ): never {
   throw new TrainRollError(message, {
     code: "NO_WHEEL_CANDIDATES",
@@ -56,6 +61,9 @@ export function throwNoWheelCandidates(
       ? { scoreDate: extras.scoreDate }
       : {}),
     ...(extras?.leadDays !== undefined ? { leadDays: extras.leadDays } : {}),
+    ...(extras?.spinBlockReason !== undefined
+      ? { spinBlockReason: extras.spinBlockReason }
+      : {}),
   });
 }
 

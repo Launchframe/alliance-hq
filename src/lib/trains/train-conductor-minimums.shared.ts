@@ -1,4 +1,5 @@
 import { addCalendarDays } from "@/lib/trains/game-time";
+import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 import {
   DEFAULT_ALLIANCE_TRAIN_WEEK,
   getTrainWeekStart,
@@ -102,13 +103,23 @@ export function effectiveMinimum(minimum: number, leewayPct: number): number {
   return Math.floor(minimum * (1 - pct / 100));
 }
 
+export type EvaluationPeriodOptions = {
+  leadDays?: number;
+  paintTemplate?: string | null;
+};
+
 export function evaluationPeriodForTrainDate(
   trainDate: string,
   window: TrainMinimumsWindow,
   trainWeekConfig: AllianceTrainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
+  options?: EvaluationPeriodOptions,
 ): { start: string; end: string } {
   if (window === "daily") {
-    const day = addCalendarDays(trainDate, -1);
+    const day =
+      options?.paintTemplate != null &&
+      conductorMinimumsApplyForPaintTemplate(options.paintTemplate)
+        ? vsScoreReferenceDate(trainDate, options.leadDays ?? 0)
+        : addCalendarDays(trainDate, -1);
     return { start: day, end: day };
   }
 

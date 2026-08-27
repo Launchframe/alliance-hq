@@ -40,3 +40,18 @@ describe("resolveConductorNominationTrigger", () => {
     expect(trigger).toEqual({ mode: "manual" });
   });
 });
+
+  it("inherits score_upload from score reference day under lead time", () => {
+    const trigger = resolveConductorNominationTrigger({
+      conductorMechanism: "r4_sequence",
+      paintTemplate: "r4_train_week",
+      trainDate: "2026-06-14",
+      leadDays: 1,
+      scoreDateDay: { conductorMechanism: "vs_top_10" },
+    });
+    expect(trigger).toEqual({
+      mode: "score_upload",
+      kind: "prior_day_vs",
+      scoreDate: "2026-06-12",
+    });
+  });

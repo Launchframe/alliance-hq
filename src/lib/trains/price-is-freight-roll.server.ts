@@ -42,11 +42,16 @@ async function applyConductorMinimumsFilter(
   allianceId: string,
   trainDate: string,
   candidates: RollCandidate[],
+  options?: {
+    paintTemplate?: WeekTemplateType | null;
+    leadDays?: number;
+  },
 ): Promise<RollCandidate[]> {
   const qualifiedIds = await filterMemberIdsByConductorMinimums(
     allianceId,
     trainDate,
     candidates.map((candidate) => candidate.memberId),
+    options,
   );
   if (qualifiedIds == null) return candidates;
   const qualified = new Set(qualifiedIds);
@@ -120,6 +125,7 @@ export async function rollPriceIsFreightConductor(input: {
       input.allianceId,
       input.date,
       await buildHeavyHitterPoolCandidates(input.allianceId, input.date),
+      { paintTemplate: input.paintTemplate, leadDays },
     );
     const wheelCandidates = filterDaySpinCandidates(rosterCandidates, excluded);
     if (wheelCandidates.length === 0) {
@@ -140,17 +146,22 @@ export async function rollPriceIsFreightConductor(input: {
   }
 
   const ticketSettings = await loadPriceIsRightTicketSettings(input.allianceId);
-  const r3Candidates = filterDaySpinCandidates(
-    await loadPriceIsFreightR3Candidates({
-      allianceId: input.allianceId,
-      date: input.date,
-    }),
-    excluded,
-  );
+  const rosterR3 = await loadPriceIsFreightR3Candidates({
+    allianceId: input.allianceId,
+    date: input.date,
+  });
+  const r3Candidates = filterDaySpinCandidates(rosterR3, excluded);
 
   if (priceIsRightWeightingActive(ticketSettings)) {
-    if (r3Candidates.length === 0) {
+    if (rosterR3.length === 0) {
       throwPoolEmpty("r3");
+    }
+    if (r3Candidates.length === 0) {
+      throwNoWheelCandidates(
+        "vs",
+        "Everyone eligible for this day's raffle was already drawn.",
+        { spinBlockReason: "day_spin_exhausted" },
+      );
     }
     const weighted = await buildPriceIsRightWeightedCandidates({
       allianceId: input.allianceId,
@@ -164,7 +175,7 @@ export async function rollPriceIsFreightConductor(input: {
       scoreDate,
     );
     const emptyReason = classifyPriceIsFreightEmptyReason({
-      rosterCandidateCount: r3Candidates.length,
+      rosterCandidateCount: rosterR3.length,
       scoreDate,
       leadDays,
       vsScoreMemberCount: vsScores.size,
@@ -186,8 +197,15 @@ export async function rollPriceIsFreightConductor(input: {
     };
   }
 
-  if (r3Candidates.length === 0) {
+  if (rosterR3.length === 0) {
     throwPoolEmpty("r3");
+  }
+  if (r3Candidates.length === 0) {
+    throwNoWheelCandidates(
+      "vs",
+      "Everyone eligible for this day's raffle was already drawn.",
+      { spinBlockReason: "day_spin_exhausted" },
+    );
   }
 
   const economy = await loadTrainEconomyThreshold(input.allianceId, false);
@@ -202,7 +220,7 @@ export async function rollPriceIsFreightConductor(input: {
     ticketSettings.maxTicketMemberIds,
   );
   const emptyReason = classifyPriceIsFreightEmptyReason({
-    rosterCandidateCount: r3Candidates.length,
+    rosterCandidateCount: rosterR3.length,
     scoreDate,
     leadDays,
     vsScoreMemberCount: vsScores.size,

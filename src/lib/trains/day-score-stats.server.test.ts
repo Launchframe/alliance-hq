@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/trains/day-config-resolve.server", () => ({
   resolveDisplayMergedDayConfigForDate:
     mocks.resolveDisplayMergedDayConfigForDate,
+  resolveRollDayConfig: mocks.resolveDisplayMergedDayConfigForDate,
 }));
 
 vi.mock("@/lib/trains/vs-scores.server", () => ({

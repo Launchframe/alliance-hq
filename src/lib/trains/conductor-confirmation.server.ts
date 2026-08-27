@@ -3,6 +3,7 @@ import "server-only";
 import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
 
 import { writeAuditLog } from "@/lib/bff/audit";
+import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { getDb, schema } from "@/lib/db";
 import { addCalendarDays, getServerCalendarDate } from "@/lib/trains/game-time";
 import { loadAllianceTrainLeadTimeSettings } from "@/lib/trains/alliance-train-lead-time.server";
@@ -11,20 +12,22 @@ import {
   type ConductorNominationTrigger,
 } from "@/lib/trains/conductor-nomination-trigger.shared";
 import {
-  listDayConfigsForWeek,
   lockConductorRecord,
   upsertConductorDraft,
 } from "@/lib/trains/repository";
 import { getPoolSummary, releasePoolSelectionForDate } from "@/lib/trains/pool";
 import { rollForConductor } from "@/lib/trains/service";
 import { fetchAllianceVsTopScorersForTrainDate } from "@/lib/trains/vs-scores.server";
-import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
-import { paintTemplateFromConductorConfig } from "@/lib/trains/calendar-cell-styles.shared";
-import { resolveConductorTopNBoard } from "@/lib/trains/conductor-top-n.shared";
 import {
-  allianceTrainWeekFromRow,
-  getTrainWeekStart,
-} from "@/lib/trains/train-week-calendar.shared";
+  resolveMergedDayConfigsForDateRange,
+  resolveTrainDayContext,
+} from "@/lib/trains/train-day-context.server";
+import {
+  resolveNominationTopBoard,
+  scoreDateForTrainDay,
+  toDayMechanismConfig,
+} from "@/lib/trains/train-day-context.shared";
+import type { DayMechanismConfig } from "@/lib/trains/vs-score-scope.shared";
 import { listActiveAllianceMembersForPool } from "@/lib/members/roster.server";
 
 export const CONFIRMATION_PRIMARY_WINDOW_MS = 15 * 60 * 1000;
@@ -61,21 +64,6 @@ async function loadAllianceRow(allianceId: string) {
   return row ?? null;
 }
 
-async function loadDayConfig(allianceId: string, trainDate: string) {
-  const db = getDb();
-  const [row] = await db
-    .select()
-    .from(schema.trainDayConfigs)
-    .where(
-      and(
-        eq(schema.trainDayConfigs.allianceId, allianceId),
-        eq(schema.trainDayConfigs.date, trainDate),
-      ),
-    )
-    .limit(1);
-  return row ?? null;
-}
-
 async function loadRecord(allianceId: string, trainDate: string) {
   const db = getDb();
   const [row] = await db
@@ -96,13 +84,21 @@ async function buildSuccessionSnapshot(input: {
   trainDate: string;
   mechanism: string | null | undefined;
   conductorConfig: unknown;
+  paintTemplate?: string | null;
   leadDays: number;
+  scoreDateDay?: DayMechanismConfig | null;
   winner: { memberId: string; memberName: string };
 }): Promise<SuccessionSnapshotEntry[]> {
-  const topBoard = resolveConductorTopNBoard(
-    input.mechanism,
-    input.conductorConfig,
-  );
+  const topBoard = resolveNominationTopBoard({
+    trainDate: input.trainDate,
+    trainDay: {
+      conductorMechanism: input.mechanism,
+      conductorConfig: input.conductorConfig,
+      paintTemplate: input.paintTemplate,
+    },
+    leadDays: input.leadDays,
+    scoreDateDay: input.scoreDateDay,
+  });
   if (topBoard?.kind === "vs") {
     const top = await fetchAllianceVsTopScorersForTrainDate(
       input.allianceId,
@@ -206,8 +202,14 @@ export async function nominateConductorForDate(input: {
     return { ok: true, recordId: existing!.id, reason: "already_nominated" };
   }
 
-  const dayConfig = await loadDayConfig(input.allianceId, input.trainDate);
-  const leadDays = alliance.trainConductorLeadTimeDays ?? 0;
+  const effectiveSeason = await getEffectiveSeasonForAlliance(input.allianceId);
+  const dayContext = await resolveTrainDayContext({
+    allianceId: input.allianceId,
+    trainDate: input.trainDate,
+    seasonKey: effectiveSeason.seasonKey,
+    leadDays: alliance.trainConductorLeadTimeDays ?? 0,
+  });
+  const { dayConfig, leadDays, scoreDateDay } = dayContext;
 
   let winner: { memberId: string; memberName: string; mechanism?: string | null };
   if (existing?.conductorMemberId && existing.conductorMemberName) {
@@ -234,9 +236,11 @@ export async function nominateConductorForDate(input: {
   const snapshot = await buildSuccessionSnapshot({
     allianceId: input.allianceId,
     trainDate: input.trainDate,
-    mechanism: winner.mechanism ?? dayConfig?.conductorMechanism,
-    conductorConfig: dayConfig?.conductorConfig,
+    mechanism: winner.mechanism ?? dayConfig.conductorMechanism,
+    conductorConfig: dayConfig.conductorConfig,
+    paintTemplate: dayConfig.paintTemplate,
     leadDays,
+    scoreDateDay,
     winner,
   });
 
@@ -250,7 +254,7 @@ export async function nominateConductorForDate(input: {
     conductorMemberId: winner.memberId,
     conductorMemberName: winner.memberName,
     conductorMechanism:
-      winner.mechanism ?? dayConfig?.conductorMechanism ?? null,
+      winner.mechanism ?? dayConfig.conductorMechanism ?? null,
   });
 
   const db = getDb();
@@ -573,35 +577,34 @@ export async function maybeNominateConductorAfterVsUpload(input: {
   }
 
   const leadDays = settings.trainConductorLeadTimeDays;
-  const alliance = await loadAllianceRow(input.allianceId);
-  if (!alliance) return { nominated: 0 };
-
-  const trainWeek = allianceTrainWeekFromRow(alliance);
+  const effectiveSeason = await getEffectiveSeasonForAlliance(input.allianceId);
   // Scan a small window of upcoming train dates (recordedDate+1 … +lead+7).
   const start = addCalendarDays(input.vsRecordedDate, 1);
   const end = addCalendarDays(input.vsRecordedDate, 1 + leadDays + 7);
-  const weekStart = getTrainWeekStart(start, trainWeek);
-  const weekEnd = addCalendarDays(getTrainWeekStart(end, trainWeek), 6);
-  const dayConfigs = await listDayConfigsForWeek(
-    input.allianceId,
-    weekStart,
-    weekEnd,
-  );
+  const mergedByDate = await resolveMergedDayConfigsForDateRange({
+    allianceId: input.allianceId,
+    startDate: start,
+    endDate: end,
+    seasonKey: effectiveSeason.seasonKey,
+  });
 
   let nominated = 0;
-  for (const day of dayConfigs) {
-    if (
-      vsScoreReferenceDate(day.date, leadDays) !== input.vsRecordedDate
-    ) {
+  for (const day of mergedByDate.values()) {
+    if (scoreDateForTrainDay(day.date, leadDays) !== input.vsRecordedDate) {
       continue;
     }
-    const paint = paintTemplateFromConductorConfig(day.conductorConfig);
+    const scoreDate = scoreDateForTrainDay(day.date, leadDays);
+    const scoreDateRow = mergedByDate.get(scoreDate);
+    const scoreDateDay = scoreDateRow
+      ? toDayMechanismConfig(scoreDateRow)
+      : null;
     const trigger = resolveConductorNominationTrigger({
       conductorMechanism: day.conductorMechanism,
-      paintTemplate: paint,
+      paintTemplate: day.paintTemplate,
       trainDate: day.date,
       leadDays,
       conductorConfig: day.conductorConfig,
+      scoreDateDay,
     });
     if (trigger.mode !== "score_upload") continue;
     if (trigger.kind === "prior_day_vs" && trigger.scoreDate !== input.vsRecordedDate) {
@@ -647,15 +650,21 @@ export async function processScheduledConductorNominations(): Promise<{
 
   let nominated = 0;
   for (const alliance of alliances) {
-    const dayConfig = await loadDayConfig(alliance.id, tomorrow);
-    if (!dayConfig) continue;
-    const paint = paintTemplateFromConductorConfig(dayConfig.conductorConfig);
+    const effectiveSeason = await getEffectiveSeasonForAlliance(alliance.id);
+    const dayContext = await resolveTrainDayContext({
+      allianceId: alliance.id,
+      trainDate: tomorrow,
+      seasonKey: effectiveSeason.seasonKey,
+      leadDays: alliance.trainConductorLeadTimeDays ?? 0,
+    });
+    const { dayConfig, scoreDateDay } = dayContext;
     const trigger = resolveConductorNominationTrigger({
       conductorMechanism: dayConfig.conductorMechanism,
-      paintTemplate: paint,
+      paintTemplate: dayConfig.paintTemplate,
       trainDate: tomorrow,
-      leadDays: alliance.trainConductorLeadTimeDays ?? 0,
+      leadDays: dayContext.leadDays,
       conductorConfig: dayConfig.conductorConfig,
+      scoreDateDay,
     });
     if (trigger.mode !== "scheduled_reset") continue;
 

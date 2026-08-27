@@ -39,6 +39,12 @@ export function resolveWheelBlockedReseedPoolType(
 export function shouldShowWheelBlockedManualPick(
   details: TrainRollErrorDetails,
 ): boolean {
+  if (
+    details.code === "NO_WHEEL_CANDIDATES" &&
+    details.spinBlockReason === "day_spin_exhausted"
+  ) {
+    return true;
+  }
   return (
     details.code === "NO_WHEEL_CANDIDATES" ||
     details.code === "ASHED_REQUIRED" ||
@@ -66,6 +72,7 @@ export function shouldShowWheelBlockedLeadTimeLink(
   return (
     details.code === "NO_WHEEL_CANDIDATES" &&
     details.candidateKind === "vs" &&
+    details.spinBlockReason !== "day_spin_exhausted" &&
     (details.leadDays ?? 0) > 0
   );
 }
