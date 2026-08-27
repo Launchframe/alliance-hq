@@ -124,6 +124,8 @@ export async function GET(request: Request) {
   const candidates = await loadPriceIsFreightR3Candidates({
     allianceId: ctx.allianceId,
     date: trainDate,
+    paintTemplate: dayConfig.paintTemplate,
+    leadDays,
   });
 
   if (priceIsRightWeightingActive(settings)) {

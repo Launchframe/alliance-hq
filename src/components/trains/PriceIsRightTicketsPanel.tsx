@@ -329,7 +329,7 @@ export function PriceIsRightTicketsPanel({
                           })}
                     </p>
                   </div>
-                  <p className="shrink-0 text-sm font-semibold text-cyan-200">
+                  <p className="shrink-0 text-sm font-semibold text-cyan-800 dark:text-cyan-200">
                     {isWeighted
                       ? row.ticketCount
                       : formatProbability(row.winProbability)}
@@ -340,18 +340,10 @@ export function PriceIsRightTicketsPanel({
             {payload.board.length > COLLAPSED_VISIBLE ? (
               <>
                 <div
-                  className="pointer-events-none absolute inset-x-0 top-0 h-20"
-                  style={{
-                    background:
-                      "linear-gradient(to bottom, #0d1117 0%, rgba(13,17,23,0.94) 20%, rgba(13,17,23,0.6) 48%, transparent 100%)",
-                  }}
+                  className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-hq-surface via-hq-surface/95 to-transparent"
                 />
                 <div
-                  className="pointer-events-none absolute inset-x-0 bottom-0 h-20"
-                  style={{
-                    background:
-                      "linear-gradient(to top, #0d1117 0%, rgba(13,17,23,0.94) 20%, rgba(13,17,23,0.6) 48%, transparent 100%)",
-                  }}
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-hq-surface via-hq-surface/95 to-transparent"
                 />
               </>
             ) : null}

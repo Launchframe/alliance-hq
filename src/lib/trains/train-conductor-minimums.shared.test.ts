@@ -97,6 +97,21 @@ describe("train-conductor-minimums", () => {
     ).toEqual({ start: "2026-06-09", end: "2026-06-15" });
   });
 
+  it("aligns daily PIF evaluation with VS score reference date under lead time", () => {
+    expect(
+      evaluationPeriodForTrainDate("2026-06-10", "daily", undefined, {
+        leadDays: 1,
+        paintTemplate: "price_is_right",
+      }),
+    ).toEqual({ start: "2026-06-08", end: "2026-06-08" });
+    expect(
+      evaluationPeriodForTrainDate("2026-06-10", "daily", undefined, {
+        leadDays: 0,
+        paintTemplate: "price_is_right",
+      }),
+    ).toEqual({ start: "2026-06-09", end: "2026-06-09" });
+  });
+
   it("daily evaluation uses prior calendar day", () => {
     expect(
       evaluationPeriodForTrainDate("2026-06-18", "daily"),

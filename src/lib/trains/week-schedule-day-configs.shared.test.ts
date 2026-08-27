@@ -166,4 +166,21 @@ describe("buildWeekScheduleDayConfigs", () => {
     expect(configs).toHaveLength(7);
     expect(configs.every((day) => !day.id.startsWith("preview-"))).toBe(true);
   });
+
+  it("reconciles non-override persisted rows with the active week template paint", () => {
+    const configs = buildWeekScheduleDayConfigs("2026-06-16", "price_is_right", [
+      {
+        id: "wed",
+        date: "2026-06-18",
+        conductorMechanism: "vs_top_n",
+        conductorConfig: { paintTemplate: "top_vs", topN: 10 },
+        vipMechanism: "conductor_pick",
+        vipConfig: null,
+        isOverride: 0,
+      },
+    ]);
+    const wednesday = configs.find((day) => day.date === "2026-06-18");
+    expect(wednesday?.paintTemplate).toBe("price_is_right_weekdays");
+    expect(wednesday?.conductorMechanism).toBe("r3_lottery");
+  });
 });

@@ -1,6 +1,7 @@
 import "server-only";
 
-import { resolveDisplayMergedDayConfigForDate } from "@/lib/trains/day-config-resolve.server";
+import { resolveScoreDateDayConfigForTrainDate } from "@/lib/trains/train-day-context.server";
+import { toDayMechanismConfig } from "@/lib/trains/train-day-context.shared";
 import {
   buildTrainDayScoreStats,
   scoreSourceContextForTrainDate,
@@ -34,6 +35,7 @@ import {
   loadTrainEconomyThreshold,
 } from "@/lib/trains/train-economy-threshold.server";
 import { priceIsRightWeightingActive } from "@/lib/trains/train-price-is-right-tickets.shared";
+import type { WeekTemplateType } from "@/lib/trains/types";
 import { classifyVsDataNeed } from "@/lib/trains/vs-data-status.shared";
 import {
   fetchAlliancePriorDayVsScoresByMember,
@@ -127,6 +129,8 @@ async function eligibleCountForDay(
     const candidates = await loadPriceIsFreightR3Candidates({
       allianceId: input.allianceId,
       date: input.trainDate,
+      paintTemplate: paint as WeekTemplateType | null,
+      leadDays: input.leadDays ?? 0,
     });
 
     if (priceIsRightWeightingActive(ticketSettings)) {
@@ -164,34 +168,20 @@ async function eligibleCountForDay(
  * Score-source stats for one train day. Returns null when the day's rule does
  * not use VS/VR scores.
  */
-async function resolveScoreDateDayConfig(
-  input: DayScoreStatsInput,
-): Promise<DayMechanismConfig | null> {
-  if (input.scoreDateDay) return input.scoreDateDay;
-  const leadDays = input.leadDays ?? 0;
-  if (leadDays <= 0 || !input.seasonKey) return null;
-
-  const scoreDate = scoreSourceContextForTrainDate(
-    input.trainDate,
-    leadDays,
-  ).scoreDate;
-  const resolved = await resolveDisplayMergedDayConfigForDate(
-    input.allianceId,
-    scoreDate,
-    input.seasonKey,
-  );
-  return {
-    conductorMechanism: resolved.conductorMechanism,
-    conductorConfig: resolved.conductorConfig,
-    paintTemplate: resolved.paintTemplate,
-  };
-}
-
 export async function loadTrainDayScoreStats(
   input: DayScoreStatsInput,
 ): Promise<TrainDayScoreStats | null> {
   const leadDays = input.leadDays ?? 0;
-  const scoreDateDay = await resolveScoreDateDayConfig(input);
+  const scoreDateDay =
+    input.seasonKey != null
+      ? await resolveScoreDateDayConfigForTrainDate({
+          allianceId: input.allianceId,
+          trainDate: input.trainDate,
+          leadDays,
+          seasonKey: input.seasonKey,
+          scoreDateDay: input.scoreDateDay,
+        })
+      : (input.scoreDateDay ?? null);
   const need = classifyVsDataNeed({
     conductorMechanism: input.conductorMechanism,
     paintTemplate: input.paintTemplate,
@@ -299,11 +289,7 @@ export async function loadTrainDayScoreStatsForDates(
             )
           : undefined;
       const scoreDateDay = scoreDateDayRow
-        ? {
-            conductorMechanism: scoreDateDayRow.conductorMechanism,
-            conductorConfig: scoreDateDayRow.conductorConfig,
-            paintTemplate: scoreDateDayRow.paintTemplate,
-          }
+        ? toDayMechanismConfig(scoreDateDayRow)
         : null;
       out[day.trainDate] = await loadTrainDayScoreStats({
         allianceId,

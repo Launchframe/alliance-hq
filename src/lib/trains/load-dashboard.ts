@@ -1,7 +1,7 @@
 import {
   resolveAnchorTemplateType,
 } from "@/lib/trains/day-config-resolve.server";
-import { paintTemplateFromConductorConfig } from "@/lib/trains/calendar-cell-styles.shared";
+import { resolveMergedDayConfigsForDateRange } from "@/lib/trains/train-day-context.server";
 import { parseConductorConfigTopN } from "@/lib/trains/conductor-top-n.shared";
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
 import { resolveWeekDisplayDayConfigs } from "@/lib/trains/week-schedule-day-configs.shared";
@@ -30,7 +30,6 @@ import {
   listConductorRecordsForWeek,
   listConductorRecordsInRange,
   listDayConfigsForWeek,
-  listDayConfigsInRange,
   listInventoryItems,
   listLockedConductorHistory,
 } from "@/lib/trains/repository";
@@ -148,36 +147,6 @@ function mapConductorRecord(
     confirmationDeadlineAt:
       row.confirmationDeadlineAt?.toISOString() ?? null,
     successorAttempt: row.successorAttempt ?? 0,
-  };
-}
-
-function mapDayConfigRow(
-  d: {
-    id: string;
-    date: string;
-    conductorMechanism: string;
-    conductorConfig?: unknown;
-    vipMechanism: string | null;
-    vipConfig: unknown;
-    isOverride?: number | null;
-  },
-): WeekScheduleDayConfig {
-  const paintTemplate = paintTemplateFromConductorConfig(d.conductorConfig);
-  return {
-    id: d.id,
-    date: d.date,
-    conductorMechanism:
-      effectiveConductorMechanism(
-        d.conductorMechanism,
-        paintTemplate,
-        d.date,
-      ) ?? d.conductorMechanism,
-    vipMechanism: d.vipMechanism,
-    vipConfig: d.vipConfig,
-    isOverride: d.isOverride === 1,
-    paintTemplate,
-    topN: parseConductorConfigTopN(d.conductorConfig),
-    conductorConfig: d.conductorConfig ?? null,
   };
 }
 
@@ -658,14 +627,12 @@ export async function loadMonthSchedulePage(
     effectiveSeason.seasonKey,
   );
 
-  const dayConfigRows = await listDayConfigsInRange(
+  const mergedByDate = await resolveMergedDayConfigsForDateRange({
     allianceId,
-    monthStart,
-    monthEnd,
-  );
-  const configByDate = new Map(
-    dayConfigRows.map((row) => [row.date, mapDayConfigRow(row)]),
-  );
+    startDate: monthStart,
+    endDate: monthEnd,
+    seasonKey: effectiveSeason.seasonKey,
+  });
 
   const dayConfigs: WeekScheduleDayConfig[] = [];
   for (
@@ -673,9 +640,9 @@ export async function loadMonthSchedulePage(
     date <= monthEnd;
     date = addCalendarDays(date, 1)
   ) {
-    const existing = configByDate.get(date);
-    if (existing) {
-      dayConfigs.push(existing);
+    const merged = mergedByDate.get(date);
+    if (merged) {
+      dayConfigs.push(merged);
       continue;
     }
     const weekStart = getTrainWeekStart(date, trainWeekConfig);

@@ -101,7 +101,26 @@ export function buildWeekScheduleDayConfigs(
 
   return generateWeekDayConfigs(templateType, weekStart).map((generated) => {
     const existing = byDate.get(generated.date);
-    if (existing) return existing;
+    const segmentPaint = resolvePaintTemplateForDay(
+      templateType,
+      generated.date,
+      weekStart,
+    );
+    if (existing) {
+      if (existing.isOverride) return existing;
+      const conductorMechanism =
+        effectiveConductorMechanism(
+          generated.conductorMechanism,
+          segmentPaint,
+          generated.date,
+        ) ?? generated.conductorMechanism;
+      return {
+        ...existing,
+        paintTemplate: segmentPaint,
+        conductorMechanism,
+        topN: parseConductorConfigTopN(generated.conductorConfig),
+      };
+    }
 
     return {
       id: `${PROVISIONAL_DAY_CONFIG_ID_PREFIX}${generated.date}`,
@@ -110,11 +129,7 @@ export function buildWeekScheduleDayConfigs(
       vipMechanism: generated.vipMechanism ?? null,
       vipConfig: generated.vipConfig ?? null,
       isOverride: false,
-      paintTemplate: resolvePaintTemplateForDay(
-        templateType,
-        generated.date,
-        weekStart,
-      ),
+      paintTemplate: segmentPaint,
       topN: parseConductorConfigTopN(generated.conductorConfig),
       conductorConfig: generated.conductorConfig ?? null,
     };

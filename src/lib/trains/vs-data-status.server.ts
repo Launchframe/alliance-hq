@@ -6,8 +6,9 @@ import {
   classifyVsDataNeed,
   type TrainsVsDataStatus,
 } from "@/lib/trains/vs-data-status.shared";
+import { resolveScoreDateDayConfigForTrainDate } from "@/lib/trains/train-day-context.server";
+import { scoreDateForTrainDay } from "@/lib/trains/train-day-context.shared";
 import { fetchAlliancePriorDayVsScoresByMember } from "@/lib/trains/vs-scores.server";
-import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 
 /** Cap for VR readiness probe — enough to show a useful score count. */
 const VR_STATUS_LIMIT = 50;
@@ -25,13 +26,24 @@ export async function loadTrainsVsDataStatus(input: {
   conductorMechanism: string | null | undefined;
   paintTemplate?: string | null;
   leadDays?: number;
+  seasonKey?: string;
 }): Promise<TrainsVsDataStatus> {
   const leadDays = input.leadDays ?? 0;
+  const scoreDateDay =
+    input.seasonKey != null
+      ? await resolveScoreDateDayConfigForTrainDate({
+          allianceId: input.allianceId,
+          trainDate: input.trainDate,
+          leadDays,
+          seasonKey: input.seasonKey,
+        })
+      : null;
   const need = classifyVsDataNeed({
     conductorMechanism: input.conductorMechanism,
     paintTemplate: input.paintTemplate,
     trainDate: input.trainDate,
     leadDays,
+    scoreDateDay,
   });
 
   if (need.kind === "none") {
@@ -62,7 +74,7 @@ export async function loadTrainsVsDataStatus(input: {
     }
   }
 
-  const scoreDate = vsScoreReferenceDate(input.trainDate, leadDays);
+  const scoreDate = scoreDateForTrainDay(input.trainDate, leadDays);
   try {
     const scores = await fetchAlliancePriorDayVsScoresByMember(
       input.allianceId,
