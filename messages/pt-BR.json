@@ -3986,6 +3986,7 @@
       "noVsScores": "Ainda não há pontuações VS suficientes para preencher a roleta. Informe as pontuações VS desta semana e tente de novo.",
       "requiresVsScores": "Esta regra exige pontuações VS de {scoreWeekday}. Envie essas pontuações e tente de novo.",
       "requiresVsScoresWithLeadTime": "Esta regra exige pontuações VS de {scoreWeekday} (definido pelo tempo de antecipação). Envie essas pontuações e tente de novo.",
+      "daySpinExhausted": "Todos os elegíveis para o sorteio deste dia já foram sorteados. Escolha o condutor manualmente ou tente de novo depois de ajustar a elegibilidade.",
       "noVrStandings": "Ainda não há classificações VR da temporada suficientes para preencher a roleta. Registre VR na página Membros e tente de novo.",
       "noEventScores": "Ainda não há pontuações de evento suficientes para a roleta VIP. Informe as pontuações do evento e tente de novo.",
       "noDonationScores": "Doações ainda não são registradas no Alliance HQ. Escolha o doador manualmente na lista.",

@@ -114,7 +114,9 @@ import {
 import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
 import { resolveScoreLeaderboardKind } from "@/lib/trains/score-leaderboard-podium.shared";
 import {
-  conductorSpinSource,
+  conductorSpinSourceForTrainDay,
+} from "@/lib/trains/train-day-context.shared";
+import {
   isPoolSpinSource,
   vipSpinSource,
 } from "@/lib/trains/spin-source.shared";
@@ -125,7 +127,6 @@ import {
   canSpinConductorWithLeadScope,
   resolveVsTopBoardForTrainDate,
   scoreDateDayConfigForTrainDate,
-  vsLeaderboardSpinSourceForTrainDate,
 } from "@/lib/trains/vs-score-scope.shared";
 import { buildTrainsGuidedVideoUploadHref } from "@/lib/trains/guided-video-upload.shared";
 import { shouldConfirmEconomyWeekWithoutScores } from "@/lib/trains/vs-data-status.shared";
@@ -2483,27 +2484,19 @@ export function TrainsDashboard({
   });
   const showConductorCard =
     !data.simpleModeEnabled || guidedStep === "done";
-  const selectedConductorSpinSource = useMemo(() => {
-    const base = conductorSpinSource(
-      selectedDayConfig?.conductorMechanism,
-      conductorPaint,
-      selectedDate,
-      selectedConductorConfig,
-    );
-    const vsScope = vsLeaderboardSpinSourceForTrainDate({
-      trainDate: selectedDate,
-      trainDay: {
-        conductorMechanism: selectedDayConfig?.conductorMechanism,
-        conductorConfig: selectedConductorConfig,
-      },
-      leadDays: data.trainConductorLeadTimeDays,
-      scoreDateDay: selectedScoreDateDayConfig,
-    });
-    if (vsScope && base?.kind === "vs_leaderboard") {
-      return vsScope;
-    }
-    return base;
-  }, [
+  const selectedConductorSpinSource = useMemo(
+    () =>
+      conductorSpinSourceForTrainDay({
+        trainDate: selectedDate,
+        trainDay: {
+          conductorMechanism: selectedDayConfig?.conductorMechanism,
+          conductorConfig: selectedConductorConfig,
+          paintTemplate: conductorPaint,
+        },
+        leadDays: data.trainConductorLeadTimeDays,
+        scoreDateDay: selectedScoreDateDayConfig,
+      }),
+    [
     selectedDayConfig?.conductorMechanism,
     conductorPaint,
     selectedDate,

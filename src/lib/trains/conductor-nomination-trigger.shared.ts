@@ -4,10 +4,11 @@
  */
 
 import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
-import { resolveConductorTopNBoard } from "@/lib/trains/conductor-top-n.shared";
 import {
-  vsScoreReferenceDate,
-} from "@/lib/trains/vs-week-days.shared";
+  resolveNominationTopBoard,
+  scoreDateForTrainDay,
+} from "@/lib/trains/train-day-context.shared";
+import type { DayMechanismConfig } from "@/lib/trains/vs-score-scope.shared";
 
 export type ConductorNominationTrigger =
   | { mode: "score_upload"; kind: "prior_day_vs" | "vr"; scoreDate: string }
@@ -20,6 +21,8 @@ export type ResolveConductorNominationTriggerInput = {
   trainDate: string;
   leadDays?: number;
   conductorConfig?: unknown;
+  /** Painted rule for the VS score reference date when lead time ≥ 1. */
+  scoreDateDay?: DayMechanismConfig | null;
 };
 
 const MANUAL_MECHANISMS = new Set([
@@ -55,19 +58,29 @@ export function resolveConductorNominationTrigger(
     return { mode: "manual" };
   }
 
-  const topBoard = resolveConductorTopNBoard(mechanism, input.conductorConfig);
+  const scoreDate = scoreDateForTrainDay(input.trainDate, leadDays);
+  const topBoard = resolveNominationTopBoard({
+    trainDate: input.trainDate,
+    trainDay: {
+      conductorMechanism: mechanism,
+      conductorConfig: input.conductorConfig,
+      paintTemplate: paint,
+    },
+    leadDays,
+    scoreDateDay: input.scoreDateDay,
+  });
   if (topBoard?.kind === "vr") {
     return {
       mode: "score_upload",
       kind: "vr",
-      scoreDate: vsScoreReferenceDate(input.trainDate, leadDays),
+      scoreDate,
     };
   }
   if (topBoard?.kind === "vs") {
     return {
       mode: "score_upload",
       kind: "prior_day_vs",
-      scoreDate: vsScoreReferenceDate(input.trainDate, leadDays),
+      scoreDate,
     };
   }
 
@@ -79,7 +92,7 @@ export function resolveConductorNominationTrigger(
     return {
       mode: "score_upload",
       kind: "prior_day_vs",
-      scoreDate: vsScoreReferenceDate(input.trainDate, leadDays),
+      scoreDate,
     };
   }
 
@@ -87,7 +100,7 @@ export function resolveConductorNominationTrigger(
     return {
       mode: "score_upload",
       kind: "vr",
-      scoreDate: vsScoreReferenceDate(input.trainDate, leadDays),
+      scoreDate,
     };
   }
 

@@ -55,6 +55,9 @@ function bodyMessageKey(details: TrainRollErrorDetails): string {
     case "POOL_UNAVAILABLE":
       return "wheelBlocked.poolUnavailable";
     case "NO_WHEEL_CANDIDATES":
+      if (details.spinBlockReason === "day_spin_exhausted") {
+        return "wheelBlocked.daySpinExhausted";
+      }
       if (details.candidateKind === "vs") {
         return wheelBlockedVsBodyKey(details);
       }
@@ -96,6 +99,9 @@ function primaryLinkCta(
     return { href: "/members", labelKey: "wheelBlocked.goToMembers" };
   }
   if (details.code === "NO_WHEEL_CANDIDATES" && details.candidateKind === "vs") {
+    if (details.spinBlockReason === "day_spin_exhausted") {
+      return null;
+    }
     return {
       href:
         options?.uploadHref ??
@@ -222,7 +228,7 @@ export function WheelBlockedDialog({
             {t("wheelBlocked.title")}
           </h2>
           <p
-            className="mt-2 text-sm leading-relaxed text-[#c9d1d9]"
+            className="mt-2 text-sm leading-relaxed text-hq-fg-muted"
             data-testid="trains-wheel-blocked-body"
           >
             {bodyParams ? t(bodyKey, bodyParams) : t(bodyKey)}
@@ -231,7 +237,7 @@ export function WheelBlockedDialog({
 
         {rosterSyncBusy ? (
           <div
-            className="flex items-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/5 px-3 py-2.5 text-sm text-cyan-100"
+            className="flex items-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/5 px-3 py-2.5 text-sm text-cyan-800 dark:text-cyan-100"
             data-testid="trains-wheel-blocked-syncing"
             role="status"
           >
@@ -281,7 +287,7 @@ export function WheelBlockedDialog({
                 onClose();
                 onRetrySpin();
               }}
-              className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50"
+              className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-medium text-cyan-800 hover:bg-cyan-500/20 dark:text-cyan-100 disabled:opacity-50"
             >
               {t("wheelBlocked.retrySpin")}
             </button>

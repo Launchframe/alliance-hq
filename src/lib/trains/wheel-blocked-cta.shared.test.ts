@@ -66,6 +66,16 @@ describe("shouldShowWheelBlockedManualPick", () => {
       shouldShowWheelBlockedManualPick({ code: "POOL_UNAVAILABLE" }),
     ).toBe(true);
   });
+
+  it("includes day-spin exhaustion so officers can pick manually", () => {
+    expect(
+      shouldShowWheelBlockedManualPick({
+        code: "NO_WHEEL_CANDIDATES",
+        candidateKind: "vs",
+        spinBlockReason: "day_spin_exhausted",
+      }),
+    ).toBe(true);
+  });
 });
 
 describe("wheelBlockedReseedLabelKey", () => {
@@ -102,6 +112,14 @@ describe("shouldShowWheelBlockedLeadTimeLink", () => {
         code: "POOL_EMPTY",
         poolType: "r3",
         leadDays: 2,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowWheelBlockedLeadTimeLink({
+        code: "NO_WHEEL_CANDIDATES",
+        candidateKind: "vs",
+        leadDays: 1,
+        spinBlockReason: "day_spin_exhausted",
       }),
     ).toBe(false);
   });

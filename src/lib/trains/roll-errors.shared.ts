@@ -10,6 +10,8 @@ export type TrainRollErrorCode =
 
 export type WheelCandidateKind = "vs" | "vr" | "event" | "donation";
 
+export type TrainRollSpinBlockReason = "day_spin_exhausted";
+
 export type TrainRollErrorDetails = {
   code: TrainRollErrorCode;
   poolType?: PoolType;
@@ -18,6 +20,8 @@ export type TrainRollErrorDetails = {
   scoreDate?: string;
   /** Alliance conductor lead-time days when blocked on missing scores. */
   leadDays?: number;
+  /** Finer-grained spin block reason for wheel-blocked copy/CTAs. */
+  spinBlockReason?: TrainRollSpinBlockReason;
 };
 
 export type TrainRollErrorResponse = {

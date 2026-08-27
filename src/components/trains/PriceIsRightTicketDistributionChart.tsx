@@ -142,7 +142,7 @@ export function PriceIsRightTicketDistributionChart({
               onClick={() => setYMode("tickets")}
               className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                 yMode === "tickets"
-                  ? "bg-cyan-500/20 text-cyan-200"
+                  ? "bg-cyan-600 text-white dark:bg-cyan-500/20 dark:text-cyan-200"
                   : "text-hq-fg-muted hover:text-hq-fg"
               }`}
             >
@@ -153,7 +153,7 @@ export function PriceIsRightTicketDistributionChart({
               onClick={() => setYMode("probability")}
               className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                 yMode === "probability"
-                  ? "bg-cyan-500/20 text-cyan-200"
+                  ? "bg-cyan-600 text-white dark:bg-cyan-500/20 dark:text-cyan-200"
                   : "text-hq-fg-muted hover:text-hq-fg"
               }`}
             >

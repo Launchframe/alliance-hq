@@ -3,6 +3,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
 import { fetchAllianceVsScoresForEvaluationPeriod } from "@/lib/trains/vs-scores.server";
 import {
   buildMemberQualification,
@@ -78,6 +79,8 @@ export async function evaluateConductorQualification(input: {
   allianceId: string;
   memberId: string;
   trainDate: string;
+  paintTemplate?: string | null;
+  leadDays?: number;
 }): Promise<MemberQualificationPayload | null> {
   const settings = await loadTrainConductorMinimums(input.allianceId, false);
   if (!minimumsEnforcementEnabled(settings)) {
@@ -86,10 +89,14 @@ export async function evaluateConductorQualification(input: {
 
   const allianceRow = await loadAllianceRow(input.allianceId);
   const trainWeekConfig = allianceTrainWeekFromRow(allianceRow ?? {});
+  const leadDays =
+    input.leadDays ??
+    (await loadAllianceTrainLeadTimeDays(input.allianceId));
   const { start, end } = evaluationPeriodForTrainDate(
     input.trainDate,
     settings.window,
     trainWeekConfig,
+    { leadDays, paintTemplate: input.paintTemplate },
   );
 
   const vsTotals = await fetchAllianceVsScoresForEvaluationPeriod(
@@ -115,6 +122,7 @@ export async function filterMemberIdsByConductorMinimums(
   allianceId: string,
   trainDate: string,
   memberIds: readonly string[],
+  options?: { paintTemplate?: string | null; leadDays?: number },
 ): Promise<string[] | null> {
   const settings = await loadTrainConductorMinimums(allianceId, false);
   if (!minimumsEnforcementEnabled(settings)) {
@@ -126,10 +134,13 @@ export async function filterMemberIdsByConductorMinimums(
 
   const allianceRow = await loadAllianceRow(allianceId);
   const trainWeekConfig = allianceTrainWeekFromRow(allianceRow ?? {});
+  const leadDays =
+    options?.leadDays ?? (await loadAllianceTrainLeadTimeDays(allianceId));
   const { start, end } = evaluationPeriodForTrainDate(
     trainDate,
     settings.window,
     trainWeekConfig,
+    { leadDays, paintTemplate: options?.paintTemplate },
   );
   const evalSettings = minimumsSettingsForHqLocalEval(settings);
   const vsTotals = await fetchAllianceVsScoresForEvaluationPeriod(
