@@ -292,6 +292,22 @@ export const commanderVsInventoryEvents = pgTable(
   ],
 );
 
+export const commanderVsPushProfiles = pgTable("commander_vs_push_profiles", {
+  commanderId: text("commander_id")
+    .primaryKey()
+    .references(() => commanders.id, { onDelete: "cascade" }),
+  payload: jsonb("payload")
+    .$type<import("@/lib/vs-calculator/planner/planner-types.shared").HeroDayPushProfilePayload>()
+    .notNull(),
+  reportedByHqUserId: text("reported_by_hq_user_id").references(
+    () => hqUsers.id,
+    { onDelete: "set null" },
+  ),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 export type VsInventoryItemDef = typeof vsInventoryItemDefs.$inferSelect;
 
 export const hqUsers = pgTable("hq_users", {

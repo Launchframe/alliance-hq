@@ -17,9 +17,10 @@ import {
   dateForVsMatchDayInWeek,
   mondayOfVsWeekContaining,
 } from "@/lib/vs-calculator/vs-calendar.shared";
+import { VsCalculatorPlanPanel } from "@/components/vs-calculator/vs-calculator-plan-panel";
 import { VsCalculatorUploadPanel } from "@/components/vs-calculator/vs-calculator-upload-panel";
 
-type TabId = "day" | "weekly" | "upload";
+type TabId = "day" | "weekly" | "upload" | "plan";
 
 type Props = {
   initial: VsCalculatorPayload;
@@ -29,7 +30,7 @@ export function VsCalculatorView({ initial }: Props) {
   const locale = useLocale();
   const t = useTranslations("vsCalculator");
   const tCommon = useTranslations("common");
-  const tTrains = useTranslations("trains.vsWeekDays");
+  const tTrains = useTranslations("vsAnnouncements.vsWeekDays");
   const tSave = useTranslations("vsAnnouncements.saveHints");
   const [data, setData] = useState(initial);
   const [tab, setTab] = useState<TabId>("day");
@@ -43,6 +44,13 @@ export function VsCalculatorView({ initial }: Props) {
 
   const pinnedDay = data.pinnedDay;
   const calculatorDay = isCalculatorDay(pinnedDay) ? pinnedDay : null;
+  const plannerEnabled = data.planner?.enabled === true;
+  const tabIds = useMemo(() => {
+    const ids: TabId[] = ["day", "weekly"];
+    if (plannerEnabled) ids.push("plan");
+    ids.push("upload");
+    return ids;
+  }, [plannerEnabled]);
   const dayDefs = useMemo(
     () =>
       calculatorDay != null ? catalogDefsForDay(calculatorDay, data.catalog) : [],
@@ -203,12 +211,13 @@ export function VsCalculatorView({ initial }: Props) {
         className="flex gap-1 rounded-lg border border-hq-border bg-hq-canvas p-1"
         role="tablist"
       >
-        {(["day", "weekly", "upload"] as const).map((id) => (
+        {tabIds.map((id) => (
           <button
             key={id}
             type="button"
             role="tab"
             aria-selected={tab === id}
+            data-testid={`vs-calculator-tab-${id}`}
             className={
               tab === id
                 ? "flex-1 rounded-md bg-hq-surface-muted px-3 py-2 text-sm font-medium text-hq-fg"
@@ -379,6 +388,14 @@ export function VsCalculatorView({ initial }: Props) {
             ))}
           </ul>
         </section>
+      ) : null}
+
+      {tab === "plan" && data.planner ? (
+        <VsCalculatorPlanPanel
+          data={data}
+          planner={data.planner}
+          onSaved={setData}
+        />
       ) : null}
 
       {tab === "upload" ? (

@@ -3,6 +3,7 @@ import type {
   VsMatchDayNumber,
 } from "@/lib/vs-calculator/vs-calendar.shared";
 import type { VsCatalogItemDef, VsInventoryQuantities } from "@/lib/vs-calculator/capacity.shared";
+import type { HeroDayPushProfilePayload } from "@/lib/vs-calculator/planner/planner-types.shared";
 
 export function isCalculatorDay(
   day: VsMatchDayNumber | null,
@@ -27,6 +28,13 @@ export type VsCalculatorAnnouncementPreview = {
   message: string;
 };
 
+export type VsCalculatorPlannerPayload = {
+  enabled: boolean;
+  tpifMode: boolean;
+  defaultTargetScore: number | null;
+  pushProfile: HeroDayPushProfilePayload;
+};
+
 export type VsCalculatorPayload = {
   commanderId: string;
   pinnedDate: string;
@@ -37,4 +45,5 @@ export type VsCalculatorPayload = {
   weekly: VsCalculatorDaySummary[];
   shinyWeekdays: [number, number] | null;
   announcementPreview: VsCalculatorAnnouncementPreview;
+  planner?: VsCalculatorPlannerPayload;
 };

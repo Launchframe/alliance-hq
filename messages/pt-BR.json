@@ -6412,7 +6412,8 @@
     "tabs": {
       "day": "Dia",
       "weekly": "Semana",
-      "upload": "Enviar"
+      "upload": "Enviar",
+      "plan": "Plano"
     },
     "prevDay": "Anterior",
     "nextDay": "Próximo",
@@ -6445,7 +6446,42 @@
     "announcementHint": "Copie e cole esta prévia para amanhã ({date}). Os posts automáticos noturnos começam depois que um oficial executar /set-vs-announcements-channel no Discord.",
     "announcementCopy": "Copiar anúncio",
     "loadFailed": "Não foi possível carregar a calculadora VS.",
-    "saveFailed": "Não foi possível salvar as quantidades da mochila."
+    "saveFailed": "Não foi possível salvar as quantidades da mochila.",
+    "plan": {
+      "tpifHint": "Sua aliança está na semana The Price Is Freight. A meta padrão do Dia do Herói é {target} VS.",
+      "spendMode": {
+        "free_to_play": "Free to play",
+        "spending": "Gastos"
+      },
+      "currentScore": "Pontuação VS atual",
+      "targetScore": "Meta VS",
+      "gapLabel": "Diferença: {gap} pts",
+      "pushSquad": "Esquadrão de push",
+      "addHero": "Adicionar herói",
+      "removeHero": "Remover herói",
+      "tier": "Tier",
+      "heroLevel": "Nível do herói",
+      "skillLevel": "Habilidade {skill}",
+      "weaponLevel": "Nível da arma exclusiva",
+      "allSkillsSame": "Todas as habilidades no mesmo nível",
+      "saveProfile": "Salvar esquadrão",
+      "saving": "Salvando…",
+      "saveFailed": "Não foi possível salvar o esquadrão.",
+      "planTitle": "Plano sugerido",
+      "noPlan": "Informe pontuações e heróis para gerar um plano.",
+      "planSummary": "+{points} pts → {projected} projetado",
+      "copyPlan": "Copiar plano",
+      "applyLevels": "Atualizar níveis salvos a partir do plano",
+      "actions": {
+        "skillUpgrade": "{hero}: Habilidade {skill} {from}→{to} ({medals} medalhas)",
+        "heroLevelUp": "{hero}: Nível {from}→{to} ({exp} EXP)",
+        "weaponUpgrade": "{hero}: Arma {from}→{to} ({shards} fragmentos)",
+        "heroShardBurn": "Queimar {count} fragmentos {tier}",
+        "recruitTicket": "Usar 1 bilhete de recrutamento",
+        "bagDiamonds": "Gastar {count} diamantes da mochila",
+        "diamondPack": "Comprar pacote de {count} diamantes"
+      }
+    }
   },
   "vsAnnouncements": {
     "matchDayHeader": "Dia VS {day} — {theme} ({date})",

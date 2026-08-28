@@ -20,6 +20,10 @@ import {
   type VsCalculatorDayNumber,
 } from "@/lib/vs-calculator/vs-calendar.shared";
 import { buildVsDailyAnnouncementPreview } from "@/lib/vs-calculator/announcement-build.server";
+import { resolveHeroDayPlannerTarget } from "@/lib/vs-calculator/hero-day-target.server";
+import {
+  getCommanderVsPushProfile,
+} from "@/lib/vs-calculator/push-profile.server";
 import {
   getRadarSaveHintKey,
   getShinySaveHintKeys,
@@ -45,14 +49,22 @@ export async function loadVsCalculatorForUser(input: {
   const commanderId = await resolveCommanderForVsCalculator(input);
   if (!commanderId) return null;
 
-  const [catalog, quantities, shinyWeekdays] = await Promise.all([
-    listActiveVsCatalogDefs(),
-    getCommanderVsInventory(commanderId),
-    loadShinyWeekdaysForAlliance(input.allianceId),
-  ]);
-
   const pinnedDate = resolvePinnedDate(input.pinnedDate);
   const pinnedDay = vsMatchDayNumberFromDate(pinnedDate);
+
+  const [catalog, quantities, shinyWeekdays, pushProfile, plannerTarget] =
+    await Promise.all([
+      listActiveVsCatalogDefs(),
+      getCommanderVsInventory(commanderId),
+      loadShinyWeekdaysForAlliance(input.allianceId),
+      getCommanderVsPushProfile(commanderId),
+      resolveHeroDayPlannerTarget({
+        allianceId: input.allianceId,
+        pinnedDate,
+        pinnedDay,
+      }),
+    ]);
+
   const dayTotal =
     isCalculatorDay(pinnedDay)
       ? sumCapacityForDay(pinnedDay, quantities, catalog)
@@ -94,6 +106,15 @@ export async function loadVsCalculatorForUser(input: {
     weekly,
     shinyWeekdays,
     announcementPreview,
+    planner:
+      pinnedDay === 4
+        ? {
+            enabled: true,
+            tpifMode: plannerTarget.tpifMode,
+            defaultTargetScore: plannerTarget.defaultTargetScore,
+            pushProfile,
+          }
+        : undefined,
   };
 }
 

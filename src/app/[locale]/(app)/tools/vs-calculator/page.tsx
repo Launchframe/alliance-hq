@@ -12,7 +12,11 @@ export async function generateMetadata() {
   return { title: t("pageTitle") };
 }
 
-export default async function VsCalculatorPage() {
+type PageProps = {
+  searchParams: Promise<{ date?: string }>;
+};
+
+export default async function VsCalculatorPage({ searchParams }: PageProps) {
   const session = await requirePageSession("/tools/vs-calculator");
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId || !session.hqUserId) {
@@ -20,9 +24,11 @@ export default async function VsCalculatorPage() {
   }
 
   const locale = await getLocale();
+  const { date: pinnedDateQuery } = await searchParams;
   const initial = await loadVsCalculatorForUser({
     allianceId,
     hqUserId: session.hqUserId,
+    pinnedDate: pinnedDateQuery,
     locale,
   });
   if (!initial) {

@@ -57,7 +57,7 @@ INSERT INTO "vs_inventory_item_defs" ("id", "slug", "display_name", "points_by_d
 VALUES
   ('vsdef_stamina', 'stamina', 'Stamina', '{"1":375}'::jsonb, 'active', 10),
   ('vsdef_radar_intel', 'radar_intel', 'Radar intel', '{"1":30000,"3":30000}'::jsonb, 'active', 20),
-  ('vsdef_hero_exp_660', 'hero_exp_660', 'Hero EXP (660)', '{"1":2.5}'::jsonb, 'active', 30),
+  ('vsdef_hero_exp_660', 'hero_exp_660', 'Hero EXP (660)', '{"1":2.5,"4":2.5}'::jsonb, 'active', 30),
   ('vsdef_drone_battle_data', 'drone_battle_data', 'Drone battle data', '{"1":7.5}'::jsonb, 'active', 40),
   ('vsdef_drone_part', 'drone_part', 'Drone part', '{"1":6250,"3":6250}'::jsonb, 'active', 50),
   ('vsdef_diamond', 'diamond', 'Diamond', '{"1":30,"2":30,"3":30,"4":30,"5":30}'::jsonb, 'active', 60),
@@ -80,7 +80,8 @@ VALUES
   ('vsdef_drone_chest_l6', 'drone_chest_l6', 'Drone chest (Lv.6)', '{"3":275000}'::jsonb, 'active', 330),
   ('vsdef_drone_chest_l5', 'drone_chest_l5', 'Drone chest (Lv.5)', '{"3":27500}'::jsonb, 'active', 340),
   ('vsdef_honor_medal', 'honor_medal', 'Honor medal', '{"4":5000}'::jsonb, 'active', 400),
-  ('vsdef_exclusive_weapon_mat', 'exclusive_weapon_mat', 'Exclusive weapon material', '{"4":12500}'::jsonb, 'active', 410),
+  ('vsdef_skill_medal', 'skill_medal', 'Skill medal', '{"4":25}'::jsonb, 'active', 405),
+  ('vsdef_exclusive_weapon_mat', 'exclusive_weapon_mat', 'Exclusive weapon shard', '{"4":25000}'::jsonb, 'active', 410),
   ('vsdef_march_speedup_1m', 'march_speedup_1m', 'March speedup (1m)', '{"5":150}'::jsonb, 'active', 500),
   ('vsdef_train_unit_lv6', 'train_unit_lv6', 'Train Lv.6 unit', '{"5":210}'::jsonb, 'active', 510)
 ON CONFLICT ("slug") DO NOTHING;

@@ -6419,7 +6419,8 @@
     "tabs": {
       "day": "Day",
       "weekly": "Weekly",
-      "upload": "Upload"
+      "upload": "Upload",
+      "plan": "Plan"
     },
     "prevDay": "Previous",
     "nextDay": "Next",
@@ -6452,7 +6453,42 @@
     "announcementHint": "Copy and paste this preview for tomorrow ({date}). Nightly bot posts start after an officer runs /set-vs-announcements-channel in Discord.",
     "announcementCopy": "Copy announcement",
     "loadFailed": "Could not load your VS calculator.",
-    "saveFailed": "Could not save your bag counts."
+    "saveFailed": "Could not save your bag counts.",
+    "plan": {
+      "tpifHint": "Your alliance runs The Price Is Freight this week. Hero Day target defaults to {target} VS.",
+      "spendMode": {
+        "free_to_play": "Free to play",
+        "spending": "Spending"
+      },
+      "currentScore": "Current VS score",
+      "targetScore": "Target VS score",
+      "gapLabel": "Gap: {gap} pts",
+      "pushSquad": "Push squad",
+      "addHero": "Add hero",
+      "removeHero": "Remove hero",
+      "tier": "Tier",
+      "heroLevel": "Hero level",
+      "skillLevel": "Skill {skill}",
+      "weaponLevel": "Exclusive weapon level",
+      "allSkillsSame": "All skills same level",
+      "saveProfile": "Save push squad",
+      "saving": "Saving…",
+      "saveFailed": "Could not save push squad.",
+      "planTitle": "Suggested plan",
+      "noPlan": "Enter scores and heroes to generate a plan.",
+      "planSummary": "+{points} pts → {projected} projected",
+      "copyPlan": "Copy plan",
+      "applyLevels": "Update saved levels from plan",
+      "actions": {
+        "skillUpgrade": "{hero}: Skill {skill} {from}→{to} ({medals} medals)",
+        "heroLevelUp": "{hero}: Level {from}→{to} ({exp} EXP)",
+        "weaponUpgrade": "{hero}: Weapon {from}→{to} ({shards} shards)",
+        "heroShardBurn": "Burn {count} {tier} hero shards",
+        "recruitTicket": "Use 1 recruit ticket",
+        "bagDiamonds": "Spend {count} bag diamonds",
+        "diamondPack": "Buy {count} diamond pack"
+      }
+    }
   },
   "vsAnnouncements": {
     "matchDayHeader": "VS Day {day} — {theme} ({date})",

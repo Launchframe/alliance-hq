@@ -26,7 +26,7 @@ export const VS_CATALOG_SEED_ITEMS: VsCatalogSeedItem[] = [
   {
     slug: "hero_exp_660",
     displayName: "Hero EXP (660)",
-    pointsByDay: { 1: 2.5 },
+    pointsByDay: { 1: 2.5, 4: 2.5 },
     sortOrder: 30,
   },
   {
@@ -162,9 +162,15 @@ export const VS_CATALOG_SEED_ITEMS: VsCatalogSeedItem[] = [
     sortOrder: 400,
   },
   {
+    slug: "skill_medal",
+    displayName: "Skill medal",
+    pointsByDay: { 4: 25 },
+    sortOrder: 405,
+  },
+  {
     slug: "exclusive_weapon_mat",
-    displayName: "Exclusive weapon material",
-    pointsByDay: { 4: 12500 },
+    displayName: "Exclusive weapon shard",
+    pointsByDay: { 4: 25000 },
     sortOrder: 410,
   },
   {
