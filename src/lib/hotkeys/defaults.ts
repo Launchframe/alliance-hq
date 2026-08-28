@@ -30,6 +30,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "nav.myThp": seq("g", "f"),
   // g+k is Connect Ashed; g+8 is free for My Kills
   "nav.myKills": seq("g", "8"),
+  "nav.vsCalculator": seq("g", "7"),
   "nav.professions": seq("g", "'"),
   "nav.trains": seq("g", "t"),
   // Must not be a prefix extension of `g t` — sequences match immediately on
@@ -65,6 +66,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "admin.nav.videoJobs": { key: "8" },
   "admin.nav.videoJobAnalytics": { key: "9" },
   "admin.nav.parseConfigs": { key: "0" },
+  "admin.nav.vsInventoryItems": { key: "j" },
   "admin.nav.experiments": { key: "a" },
   "admin.nav.hqEvents": { key: "b" },
   "admin.nav.commendations": { key: "c" },

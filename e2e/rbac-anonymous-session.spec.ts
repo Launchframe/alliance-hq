@@ -120,6 +120,33 @@ test.describe("Anonymous bootstrap session RBAC", () => {
     expect(list.status(), await list.text()).toBe(403);
   });
 
+  test("bootstrap session cannot list VS inventory item defs", async ({
+    request,
+  }) => {
+    const sessionId = await mintSessionViaBootstrap(request);
+
+    const list = await request.get("/api/admin/vs-inventory-item-defs", {
+      headers: { Cookie: hqSessionOnlyCookie(sessionId) },
+    });
+    expect(list.status(), await list.text()).toBe(403);
+  });
+
+  test("bootstrap session cannot save VS push profile", async ({ request }) => {
+    const sessionId = await mintSessionViaBootstrap(request);
+
+    const save = await request.put("/api/tools/vs-calculator/push-profile", {
+      headers: {
+        Cookie: hqSessionOnlyCookie(sessionId),
+        "Content-Type": "application/json",
+      },
+      data: {
+        payload: { heroes: [], plannerSpendMode: "free_to_play" },
+      },
+    });
+    expect(save.status(), await save.text()).toBeGreaterThanOrEqual(400);
+    expect(save.status()).toBeLessThan(500);
+  });
+
   test("platform maintainer can list admin users", async ({ request }) => {
     const sql = getE2eSql();
     const maintainer = await createPlatformMaintainerSession(sql);

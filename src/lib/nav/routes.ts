@@ -227,6 +227,15 @@ export const NAV_GROUPS: NavGroupDef[] = [
         requiresAllianceMemberLink: true,
       },
       {
+        id: "vs-calculator",
+        labelKey: "vsCalculator",
+        href: "/tools/vs-calculator",
+        kind: "native",
+        descriptionKey: "vsCalculatorDescription",
+        hideWhenPermission: "members:write",
+        requiresAllianceMemberLink: true,
+      },
+      {
         id: "trains",
         labelKey: "trains",
         href: "/trains",

@@ -393,6 +393,15 @@ const commandBody = [
     },
   },
   {
+    name: "set-vs-announcements-channel",
+    description:
+      "Set this channel for nightly VS match-day announcements (R4+ by default; owners can restrict).",
+    description_localizations: {
+      "pt-BR":
+        "Define este canal para anúncios noturnos de VS (R4+ por padrão; o dono pode restringir).",
+    },
+  },
+  {
     name: "set-banking-channel",
     description:
       "Set this channel for banking partner notifications (R4+ by default; owners can restrict).",

@@ -103,6 +103,8 @@ export const alliances = pgTable("alliances", {
   trainDiscordAnnouncementsEnabled: integer("train_discord_announcements_enabled")
     .notNull()
     .default(0),
+  /** When 1 and a VS announcements channel is set, nightly VS preview posts to Discord. */
+  vsAnnouncementsEnabled: integer("vs_announcements_enabled").notNull().default(0),
   /**
    * Who may run Discord `/set-train-channel`.
    * `officer` (default) = R4+ linked officers; `owner` = R5 / alliance owner only.
@@ -181,6 +183,9 @@ export const gameServers = pgTable(
       .notNull()
       .references(() => gameSeasons.id, { onDelete: "restrict" }),
     openTimestampMs: bigint("open_timestamp_ms", { mode: "number" }),
+    /** Cached shiny spawn weekdays (0=Sun … 6=Sat) from server open time. */
+    shinySpawnWeekdayA: integer("shiny_spawn_weekday_a"),
+    shinySpawnWeekdayB: integer("shiny_spawn_weekday_b"),
     seasonKeyOverride: text("season_key_override"),
     seasonKeySynced: text("season_key_synced"),
     seasonKeySource: text("season_key_source"),
@@ -196,6 +201,114 @@ export const gameServers = pgTable(
   },
   (table) => [index("game_servers_season_id_idx").on(table.seasonId)],
 );
+
+/** Idempotent record of VS daily Discord announcements per alliance + target date. */
+export const vsAnnouncementPosts = pgTable(
+  "vs_announcement_posts",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    /** Server calendar date (YYYY-MM-DD) being announced. */
+    targetDate: text("target_date").notNull(),
+    postedAt: timestamp("posted_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("vs_announcement_posts_alliance_target_date_unique").on(
+      table.allianceId,
+      table.targetDate,
+    ),
+    index("vs_announcement_posts_alliance_idx").on(table.allianceId),
+  ],
+);
+
+export type VsAnnouncementPost = typeof vsAnnouncementPosts.$inferSelect;
+
+export const vsInventoryItemDefs = pgTable(
+  "vs_inventory_item_defs",
+  {
+    id: text("id").primaryKey(),
+    slug: text("slug").notNull().unique(),
+    displayName: text("display_name").notNull(),
+    pointsByDay: jsonb("points_by_day")
+      .$type<Record<string, number>>()
+      .notNull(),
+    status: text("status").notNull().default("active"),
+    iconTemplateUrl: text("icon_template_url"),
+    iconPhash: text("icon_phash"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("vs_inventory_item_defs_status_sort_idx").on(
+      table.status,
+      table.sortOrder,
+    ),
+  ],
+);
+
+export const commanderVsInventories = pgTable("commander_vs_inventories", {
+  commanderId: text("commander_id")
+    .primaryKey()
+    .references(() => commanders.id, { onDelete: "cascade" }),
+  quantities: jsonb("quantities").$type<Record<string, number>>().notNull(),
+  reportedByHqUserId: text("reported_by_hq_user_id").references(
+    () => hqUsers.id,
+    { onDelete: "set null" },
+  ),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const commanderVsInventoryEvents = pgTable(
+  "commander_vs_inventory_events",
+  {
+    id: text("id").primaryKey(),
+    commanderId: text("commander_id")
+      .notNull()
+      .references(() => commanders.id, { onDelete: "cascade" }),
+    itemSlug: text("item_slug").notNull(),
+    delta: integer("delta").notNull(),
+    qtyAfter: integer("qty_after").notNull(),
+    reason: text("reason").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("commander_vs_inventory_events_commander_created_idx").on(
+      table.commanderId,
+      table.createdAt,
+    ),
+  ],
+);
+
+export const commanderVsPushProfiles = pgTable("commander_vs_push_profiles", {
+  commanderId: text("commander_id")
+    .primaryKey()
+    .references(() => commanders.id, { onDelete: "cascade" }),
+  payload: jsonb("payload")
+    .$type<import("@/lib/vs-calculator/planner/planner-types.shared").HeroDayPushProfilePayload>()
+    .notNull(),
+  reportedByHqUserId: text("reported_by_hq_user_id").references(
+    () => hqUsers.id,
+    { onDelete: "set null" },
+  ),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export type VsInventoryItemDef = typeof vsInventoryItemDefs.$inferSelect;
 
 export const hqUsers = pgTable("hq_users", {
   id: text("id").primaryKey(),
@@ -1491,6 +1604,7 @@ export const discordGuildAlliances = pgTable("discord_guild_alliances", {
   trainChannelId: text("train_channel_id"),
   seasonalEventsChannelId: text("seasonal_events_channel_id"),
   regularEventsChannelId: text("regular_events_channel_id"),
+  vsAnnouncementsChannelId: text("vs_announcements_channel_id"),
   bankingChannelId: text("banking_channel_id"),
   registeredAt: timestamp("registered_at", { withTimezone: true })
     .defaultNow()

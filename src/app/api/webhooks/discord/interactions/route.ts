@@ -104,6 +104,7 @@ import {
   handleDiscordSetRegularEventsChannel,
   handleDiscordSetSeasonalEventsChannel,
 } from "@/lib/battle-plan/discord-channel-handlers.server";
+import { handleDiscordSetVsAnnouncementsChannel } from "@/lib/vs-calculator/discord-channel-handlers.server";
 import {
   handleDiscordWhatIsMyThpChart,
   handleDiscordWhatIsMyVrChart,
@@ -344,6 +345,23 @@ async function handleSlashCommand(
       locale,
     });
     return channelVisibleCommandResponse(result.reply);
+  }
+
+  if (commandName === "set-vs-announcements-channel") {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
+    const channelId = interactionChannelId(payload);
+    if (!channelId) {
+      return discordMessageResponse(t("errors.serverError"));
+    }
+    const result = await handleDiscordSetVsAnnouncementsChannel({
+      guildId,
+      channelId,
+      discordUserId,
+      locale,
+    });
+    return discordMessageResponse(result.reply);
   }
 
   if (commandName === "set-banking-channel") {
