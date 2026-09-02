@@ -11,7 +11,8 @@ type Props = {
   reset: () => void;
 };
 
-export default function LocaleErrorPage({ error, reset }: Props) {
+/** App-shell error boundary — captures to Sentry; retry without forced sign-out. */
+export default function AppErrorPage({ error, reset }: Props) {
   const t = useTranslations("httpErrors");
 
   useEffect(() => {
@@ -27,9 +28,7 @@ export default function LocaleErrorPage({ error, reset }: Props) {
       retryLabel={t("tryAgain")}
       onRetry={reset}
       homeLabel={t("goHome")}
-      homeHref="/"
-      secondaryLabel={t("goSignIn")}
-      secondaryHref="/auth"
+      homeHref="/dashboard"
     />
   );
 }
