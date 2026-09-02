@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, gte, isNull, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import {
@@ -53,6 +53,71 @@ export async function listTimeOffForMember(input: {
     .orderBy(asc(schema.memberTimeOff.startDate));
 
   return rows.map(serializeTimeOffEntry);
+}
+
+export async function findTimeOffEntryById(input: {
+  allianceId: string;
+  entryId: string;
+}): Promise<SerializedTimeOffEntry | null> {
+  const rows = await getDb()
+    .select()
+    .from(schema.memberTimeOff)
+    .where(
+      and(
+        eq(schema.memberTimeOff.id, input.entryId),
+        eq(schema.memberTimeOff.allianceId, input.allianceId),
+        isNull(schema.memberTimeOff.cancelledAt),
+      ),
+    )
+    .limit(1);
+
+  return rows[0] ? serializeTimeOffEntry(rows[0]) : null;
+}
+
+/** Most recently created upcoming (uncancelled) entry for a member — backs `cancel:latest`. */
+export async function findLatestUpcomingTimeOffForMember(input: {
+  allianceId: string;
+  ashedMemberId: string;
+  onOrAfter: string;
+}): Promise<SerializedTimeOffEntry | null> {
+  const rows = await getDb()
+    .select()
+    .from(schema.memberTimeOff)
+    .where(
+      and(
+        eq(schema.memberTimeOff.allianceId, input.allianceId),
+        eq(schema.memberTimeOff.ashedMemberId, input.ashedMemberId),
+        isNull(schema.memberTimeOff.cancelledAt),
+        gte(schema.memberTimeOff.endDate, input.onOrAfter),
+      ),
+    )
+    .orderBy(desc(schema.memberTimeOff.createdAt))
+    .limit(1);
+
+  return rows[0] ? serializeTimeOffEntry(rows[0]) : null;
+}
+
+/** Exact start-date match for a member — backs officer `/cancel-time-off commander:+start:`. */
+export async function findTimeOffEntryByMemberAndStart(input: {
+  allianceId: string;
+  ashedMemberId: string;
+  startDate: string;
+}): Promise<SerializedTimeOffEntry | null> {
+  const rows = await getDb()
+    .select()
+    .from(schema.memberTimeOff)
+    .where(
+      and(
+        eq(schema.memberTimeOff.allianceId, input.allianceId),
+        eq(schema.memberTimeOff.ashedMemberId, input.ashedMemberId),
+        eq(schema.memberTimeOff.startDate, input.startDate),
+        isNull(schema.memberTimeOff.cancelledAt),
+      ),
+    )
+    .orderBy(desc(schema.memberTimeOff.createdAt))
+    .limit(1);
+
+  return rows[0] ? serializeTimeOffEntry(rows[0]) : null;
 }
 
 export async function findActiveTimeOffForMemberOnDate(input: {
