@@ -3632,39 +3632,32 @@
         "roll": "Gire a roleta ou escolha um Condutor para hoje e os próximos dias.",
         "lock": "Confirme um Condutor para gerar o trem vazio daquele dia. Se foi você quem confirmou, pode desbloquear até a meia-noite no horário do servidor daquele dia."
       },
-      "weekGoalsTitle": "Guias por objetivo da semana",
-      "weekGoalsIntro": "Escolha o guia que combina com o que sua aliança quer nesta semana VS e pinte essa agenda no HQ.",
+      "weekGoalsTitle": "Guias das plataformas de trem",
+      "weekGoalsIntro": "As plataformas vão da economia mais rigorosa (1), passando por semanas mistas (2–3), até o push mais rigoroso (4). Quando os R4s nomearem uma plataforma, use esse guia para saber o que fazer — e o que não fazer.",
       "weekGoals": {
-        "save": {
-          "title": "Semana de economia (guardar)",
-          "hqTemplate": "HQ: Semana de economia",
-          "when": "Use quando a aliança está guardando inventário e não queimando recursos por VS.",
-          "conductor": "Condutor: loteria R3 todos os dias em um pool que esgota (chance igual entre os R3 elegíveis restantes).",
-          "vip": "VIP: escolha do Condutor após confirmar.",
-          "scores": "Pontuações: sem exigência de VS para girar."
-        },
         "economy": {
-          "title": "Semana de vitória econômica",
-          "hqTemplate": "HQ: The Price Is Freight",
-          "when": "Use ao competir no estilo economia de VS — recompensa pontuações perto do ponto ideal, não o VS mais alto.",
-          "conductor": "Condutor: ter–sex sorteio entre VS elegíveis do dia anterior; sábado sorteio aleatório da lista de takedown / heavy-hitter; dom–seg personalizado (manual).",
-          "modes": "Modos: chance igual (faixa de VS) ou Quem chega mais perto (mais bilhetes perto de 7,2M).",
-          "vip": "VIP: escolha do Condutor nos dias de sorteio e takedown."
+          "title": "Plataforma 1 — Vitória econômica",
+          "blurb": "Plataforma de economia mais rigorosa. O Condutor se conquista chegando perto de 7,2M (o ponto ideal) — não despejando inventário pelo VS mais alto.",
+          "do": "Faça: mire perto de 7,2M (ou no alvo de economia que os oficiais anunciaram). Pontue com inteligência nos dias de sorteio. Confira o placar se for publicado. Saiba que o sábado pode favorecer a equipe de takedown.",
+          "dont": "Não faça: estoure o VS só para ostentar. Queime o armazém caçando o topo do ranking. Assuma “pontuei mais, então sou o Condutor.”"
+        },
+        "save": {
+          "title": "Plataforma 2 — Semana de guardar",
+          "blurb": "Economia relaxada. Preferimos guardar inventário, mas o Condutor é uma rotação justa de R3 — gastar tudo não compra o trem (e em geral também não atrapalha sua vez).",
+          "do": "Faça: guarde quando puder. Fique ativo para estar pronto quando chegar sua vez na rotação. Celebre turnos justos de Condutor.",
+          "dont": "Não faça: gaste pesado “para ganhar Condutor.” Discuta que o maior VS deve levar o trem. Pressione oficiais a pular a rotação por você."
         },
         "certainDays": {
-          "title": "Semana de vitória em dias certos",
-          "hqTemplate": "HQ: Pinte regras por dia",
-          "when": "Use quando só alguns dias de VS importam — configure cada dia em vez de um roteiro único para a semana inteira.",
-          "conductor": "Condutor: o que você pintar naquele dia (Top VS, top 10 de VS, doações, rotação R4, economia, personalizado, etc.).",
-          "how": "Como: selecione dias no calendário e aplique a regra para cada dia que importa."
+          "title": "Plataforma 3 — Vitória em dias certos",
+          "blurb": "Semana mista. Só alguns dias de VS importam — os oficiais dirão quais dias vamos empurrar.",
+          "do": "Faça: pergunte ou leia quais dias são de push e quais são de descanso. Dê o máximo nos dias anunciados. Descanse e guarde nos dias que não importam.",
+          "dont": "Não faça: empurrar todos os dias como se fosse all-out (você fica sem nada quando importa). Perder os dias de push anunciados. Assumir que todo dia tem a mesma regra de Condutor."
         },
         "allOut": {
-          "title": "Semana de vitória total",
-          "hqTemplate": "HQ: Push de VS a semana toda (economia opcional no sábado)",
-          "when": "Use quando a aliança está empurrando por uma vitória na semana VS em todos os dias.",
-          "conductor": "Condutor: regras de push na semana (Top VS / top 10 de VS conforme necessário). Opcionalmente pinte o sábado como Semana de economia para um trem de guardar.",
-          "strategy": "Estratégia: vencer de segunda a quinta já garante a vitória da semana VS — sexta e sábado deixam de importar, então o sábado pode ser tranquilamente um dia de economia.",
-          "vip": "VIP: siga a regra pintada de cada dia (em geral escolha do Condutor nos dias de VS)."
+          "title": "Plataforma 4 — Vitória total",
+          "blurb": "Plataforma de push mais rigorosa. Full send pela vitória da semana VS — especialmente no começo da semana.",
+          "do": "Faça: apareça forte de segunda a quinta. Siga o plano de gastos que os oficiais postarem. Lembre: se fecharmos seg–qui, sex/sáb podem ser mais leves (o sábado pode até ser um dia de guardar).",
+          "dont": "Não faça: guardar o melhor para o fim de semana e perder o fechamento cedo. Ficar AFK num dia de push anunciado. Queimar forte depois que a semana já está decidida, a menos que os oficiais digam o contrário."
         }
       },
       "lockOwnershipTitle": "Posse do trem",

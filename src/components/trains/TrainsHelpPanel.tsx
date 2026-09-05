@@ -14,15 +14,16 @@ type Props = {
   onTakeTour?: () => void;
 };
 
-const WEEK_GOAL_KEYS = ["save", "economy", "certainDays", "allOut"] as const;
+/** Platform order: strictest save → relaxed save → mixed → strictest push. */
+const WEEK_GOAL_KEYS = ["economy", "save", "certainDays", "allOut"] as const;
 
 type WeekGoalKey = (typeof WEEK_GOAL_KEYS)[number];
 
 const WEEK_GOAL_BODY_KEYS: Record<WeekGoalKey, readonly string[]> = {
-  save: ["hqTemplate", "when", "conductor", "vip", "scores"],
-  economy: ["hqTemplate", "when", "conductor", "modes", "vip"],
-  certainDays: ["hqTemplate", "when", "conductor", "how"],
-  allOut: ["hqTemplate", "when", "conductor", "strategy", "vip"],
+  economy: ["blurb", "do", "dont"],
+  save: ["blurb", "do", "dont"],
+  certainDays: ["blurb", "do", "dont"],
+  allOut: ["blurb", "do", "dont"],
 };
 
 export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {

@@ -3686,39 +3686,32 @@
         "roll": "Spin the wheel or pick a conductor for today and upcoming days.",
         "lock": "Lock in a conductor to spawn that day's empty train. If you locked it, you can unlock until midnight Server Time of that train day."
       },
-      "weekGoalsTitle": "Week goal guides",
-      "weekGoalsIntro": "Pick the guide that matches what your alliance wants this VS week, then paint that schedule in HQ.",
+      "weekGoalsTitle": "Train platform guides",
+      "weekGoalsIntro": "Platforms run from the strictest save (1) through mixed weeks (2–3) to the strictest push (4). When R4s name a platform, use that guide for what to do — and what not to do.",
       "weekGoals": {
-        "save": {
-          "title": "Save week",
-          "hqTemplate": "HQ: Economy week",
-          "when": "Use when the alliance is saving inventory and not burning for VS.",
-          "conductor": "Conductor: R3 lottery every day from a depleting pool (equal chance among remaining eligible R3).",
-          "vip": "VIP: Conductor's pick after lock.",
-          "scores": "Scores: No VS requirement to spin."
-        },
         "economy": {
-          "title": "Win economically week",
-          "hqTemplate": "HQ: The Price Is Freight",
-          "when": "Use when competing on economy-style VS — reward scores near the sweet spot, not the highest VS.",
-          "conductor": "Conductor: Tue–Fri raffle from eligible prior-day VS; Saturday random from the takedown / heavy-hitter list; Sun–Mon custom (manual).",
-          "modes": "Modes: Equal chance (VS band) or Closer is Better (more tickets nearer 7.2M).",
-          "vip": "VIP: Conductor's pick on raffle and takedown days."
+          "title": "Platform 1 — Win economically",
+          "blurb": "Strictest save platform. Conductor is earned by landing near 7.2M (the sweet spot) — not by dumping inventory for the highest VS.",
+          "do": "Do: Aim near 7.2M (or the economy target officers announce). Score smart on raffle days. Check standings if they’re posted. Know Saturday may favor the takedown crew.",
+          "dont": "Don’t: Overshoot into huge VS just to flex. Burn the warehouse chasing the top of the board. Assume “I scored most, so I get Conductor.”"
+        },
+        "save": {
+          "title": "Platform 2 — Save week",
+          "blurb": "Relaxed save. We prefer banking inventory, but Conductor is a fair R3 rotation — going all-out and burning a lot does not buy you the train (and does not usually hurt your turn either).",
+          "do": "Do: Save when you can. Stay active so you’re ready when your turn in the rotation comes up. Cheer fair Conductor turns.",
+          "dont": "Don’t: Dump huge spends “to earn Conductor.” Argue that highest VS should take the train. Guilt officers into skipping the rotation for you."
         },
         "certainDays": {
-          "title": "Win certain days week",
-          "hqTemplate": "HQ: Paint per-day rules",
-          "when": "Use when only some VS match days matter — configure each day instead of one whole-week script.",
-          "conductor": "Conductor: Whatever you paint that day (Top VS, VS top 10, donations, R4 rotation, economy, custom, and so on).",
-          "how": "How: Select days on the calendar and apply the rule for each day you care about."
+          "title": "Platform 3 — Win certain days",
+          "blurb": "Mixed week. Only some VS days matter — officers will say which days we’re pushing.",
+          "do": "Do: Ask or read which days are push days vs chill days. Bring your A-game on the days they call. Rest and save on the days they say don’t matter.",
+          "dont": "Don’t: Push every day like it’s all-out (you’ll be empty when it counts). Miss the announced push days. Assume every day has the same Conductor rule."
         },
         "allOut": {
-          "title": "Win all-out week",
-          "hqTemplate": "HQ: Full-week VS push (optional Saturday economy)",
-          "when": "Use when the alliance is pushing for a VS week win across the board.",
-          "conductor": "Conductor: Push-style rules for the week (Top VS / VS top 10 as needed). Optionally paint Saturday as Economy week for a save-style train.",
-          "strategy": "Strategy: Winning Monday through Thursday already locks a VS week win — Friday and Saturday become inconsequential, so Saturday can safely be an economy day.",
-          "vip": "VIP: Follow each day's painted rule (usually conductor's pick on VS days)."
+          "title": "Platform 4 — Win all-out",
+          "blurb": "Strictest push platform. Full send for the VS week win — especially early in the week.",
+          "do": "Do: Show up hard Monday through Thursday. Follow the spend plan officers post. Remember: if we take Mon–Thu, Fri/Sat can go quieter (Saturday may even be a save-style day).",
+          "dont": "Don’t: Save your best for the weekend and miss the early clinch. Go AFK on a called push day. Waste big burns after the week is already sealed unless officers say otherwise."
         }
       },
       "lockOwnershipTitle": "Train ownership",
