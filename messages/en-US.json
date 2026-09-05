@@ -3686,6 +3686,41 @@
         "roll": "Spin the wheel or pick a conductor for today and upcoming days.",
         "lock": "Lock in a conductor to spawn that day's empty train. If you locked it, you can unlock until midnight Server Time of that train day."
       },
+      "weekGoalsTitle": "Week goal guides",
+      "weekGoalsIntro": "Pick the guide that matches what your alliance wants this VS week, then paint that schedule in HQ.",
+      "weekGoals": {
+        "save": {
+          "title": "Save week",
+          "hqTemplate": "HQ: Economy week",
+          "when": "Use when the alliance is saving inventory and not burning for VS.",
+          "conductor": "Conductor: R3 lottery every day from a depleting pool (equal chance among remaining eligible R3).",
+          "vip": "VIP: Conductor's pick after lock.",
+          "scores": "Scores: No VS requirement to spin."
+        },
+        "economy": {
+          "title": "Win economically week",
+          "hqTemplate": "HQ: The Price Is Freight",
+          "when": "Use when competing on economy-style VS — reward scores near the sweet spot, not the highest VS.",
+          "conductor": "Conductor: Tue–Fri raffle from eligible prior-day VS; Saturday random from the takedown / heavy-hitter list; Sun–Mon custom (manual).",
+          "modes": "Modes: Equal chance (VS band) or Closer is Better (more tickets nearer 7.2M).",
+          "vip": "VIP: Conductor's pick on raffle and takedown days."
+        },
+        "certainDays": {
+          "title": "Win certain days week",
+          "hqTemplate": "HQ: Paint per-day rules",
+          "when": "Use when only some VS match days matter — configure each day instead of one whole-week script.",
+          "conductor": "Conductor: Whatever you paint that day (Top VS, VS top 10, donations, R4 rotation, economy, custom, and so on).",
+          "how": "How: Select days on the calendar and apply the rule for each day you care about."
+        },
+        "allOut": {
+          "title": "Win all-out week",
+          "hqTemplate": "HQ: Full-week VS push (optional Saturday economy)",
+          "when": "Use when the alliance is pushing for a VS week win across the board.",
+          "conductor": "Conductor: Push-style rules for the week (Top VS / VS top 10 as needed). Optionally paint Saturday as Economy week for a save-style train.",
+          "strategy": "Strategy: Winning Monday through Thursday already locks a VS week win — Friday and Saturday become inconsequential, so Saturday can safely be an economy day.",
+          "vip": "VIP: Follow each day's painted rule (usually conductor's pick on VS days)."
+        }
+      },
       "lockOwnershipTitle": "Train ownership",
       "lockOwnershipBody": "The officer who locks a conductor can unlock it until midnight Server Time on that train day. Locking a past day is the exception — you can unlock that lock at any time. After midnight, only the alliance owner or a platform maintainer can unlock.",
       "takeTour": "Take the tour",
@@ -3906,6 +3941,11 @@
       "donations": {
         "unavailableTitle": "Donation scores not available yet",
         "unavailableBody": "HQ does not store donation totals yet. Use manual conductor picks until donation scoring is wired."
+      },
+      "share": {
+        "action": "Share image",
+        "subtitle": "{day}",
+        "failed": "Could not create the leaderboard image."
       }
     },
     "priceIsRight": {
@@ -3967,6 +4007,16 @@
       "aboveCliff": {
         "title": "Above cliff cutoff",
         "subtitle": "Hard cutoff is on — prior-day VS above your cliff are excluded from today's draw."
+      },
+      "scoreList": {
+        "searchLabel": "Search members",
+        "searchPlaceholder": "Search by name…",
+        "member": "Commander",
+        "vs": "Prior-day VS",
+        "empty": "No members match this search.",
+        "pageStatus": "Page {page} of {pages} · {count} members",
+        "prev": "Previous",
+        "next": "Next"
       }
     },
     "conductorHistory": {
@@ -4203,6 +4253,7 @@
         "statsLine": "Last: {lastDate} · {count} this year",
         "eligibilityVsMinimum": "Eligible: {score} (min {minimum})",
         "eligibilityTpif": "Prior-day VS {score} — closest to {sweetSpot}",
+        "eligibilityTpifWithChance": "Prior-day VS {score} · {chance} win chance",
         "eligibilityVsLeaderboardRank": "#{rank} · {score} {suffix}",
         "eligibilityVsLeaderboardScore": "{score} {suffix}"
       }

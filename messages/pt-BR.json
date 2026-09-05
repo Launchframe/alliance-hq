@@ -3632,6 +3632,41 @@
         "roll": "Gire a roleta ou escolha um Condutor para hoje e os próximos dias.",
         "lock": "Confirme um Condutor para gerar o trem vazio daquele dia. Se foi você quem confirmou, pode desbloquear até a meia-noite no horário do servidor daquele dia."
       },
+      "weekGoalsTitle": "Guias por objetivo da semana",
+      "weekGoalsIntro": "Escolha o guia que combina com o que sua aliança quer nesta semana VS e pinte essa agenda no HQ.",
+      "weekGoals": {
+        "save": {
+          "title": "Semana de economia (guardar)",
+          "hqTemplate": "HQ: Semana de economia",
+          "when": "Use quando a aliança está guardando inventário e não queimando recursos por VS.",
+          "conductor": "Condutor: loteria R3 todos os dias em um pool que esgota (chance igual entre os R3 elegíveis restantes).",
+          "vip": "VIP: escolha do Condutor após confirmar.",
+          "scores": "Pontuações: sem exigência de VS para girar."
+        },
+        "economy": {
+          "title": "Semana de vitória econômica",
+          "hqTemplate": "HQ: The Price Is Freight",
+          "when": "Use ao competir no estilo economia de VS — recompensa pontuações perto do ponto ideal, não o VS mais alto.",
+          "conductor": "Condutor: ter–sex sorteio entre VS elegíveis do dia anterior; sábado sorteio aleatório da lista de takedown / heavy-hitter; dom–seg personalizado (manual).",
+          "modes": "Modos: chance igual (faixa de VS) ou Quem chega mais perto (mais bilhetes perto de 7,2M).",
+          "vip": "VIP: escolha do Condutor nos dias de sorteio e takedown."
+        },
+        "certainDays": {
+          "title": "Semana de vitória em dias certos",
+          "hqTemplate": "HQ: Pinte regras por dia",
+          "when": "Use quando só alguns dias de VS importam — configure cada dia em vez de um roteiro único para a semana inteira.",
+          "conductor": "Condutor: o que você pintar naquele dia (Top VS, top 10 de VS, doações, rotação R4, economia, personalizado, etc.).",
+          "how": "Como: selecione dias no calendário e aplique a regra para cada dia que importa."
+        },
+        "allOut": {
+          "title": "Semana de vitória total",
+          "hqTemplate": "HQ: Push de VS a semana toda (economia opcional no sábado)",
+          "when": "Use quando a aliança está empurrando por uma vitória na semana VS em todos os dias.",
+          "conductor": "Condutor: regras de push na semana (Top VS / top 10 de VS conforme necessário). Opcionalmente pinte o sábado como Semana de economia para um trem de guardar.",
+          "strategy": "Estratégia: vencer de segunda a quinta já garante a vitória da semana VS — sexta e sábado deixam de importar, então o sábado pode ser tranquilamente um dia de economia.",
+          "vip": "VIP: siga a regra pintada de cada dia (em geral escolha do Condutor nos dias de VS)."
+        }
+      },
       "lockOwnershipTitle": "Posse do trem",
       "lockOwnershipBody": "O oficial que confirma um condutor pode desbloqueá-lo até a meia-noite no horário do servidor daquele dia de trem. Confirmar um dia passado é a exceção — você pode desbloquear essa confirmação a qualquer momento. Depois da meia-noite, só o dono da aliança ou um mantenedor da plataforma pode desbloquear.",
       "takeTour": "Fazer o tour",
@@ -3852,6 +3887,11 @@
       "donations": {
         "unavailableTitle": "Pontuação de doações ainda indisponível",
         "unavailableBody": "O HQ ainda não armazena totais de doação. Use escolha manual do condutor até a pontuação de doações estar disponível."
+      },
+      "share": {
+        "action": "Compartilhar imagem",
+        "subtitle": "{day}",
+        "failed": "Não foi possível criar a imagem do ranking."
       }
     },
     "priceIsRight": {
@@ -3913,6 +3953,16 @@
       "aboveCliff": {
         "title": "Acima do corte do cliff",
         "subtitle": "Corte rígido ativo — VS do dia anterior acima do cliff ficam fora do sorteio de hoje."
+      },
+      "scoreList": {
+        "searchLabel": "Buscar membros",
+        "searchPlaceholder": "Buscar por nome…",
+        "member": "Comandante",
+        "vs": "VS do dia anterior",
+        "empty": "Nenhum membro corresponde a esta busca.",
+        "pageStatus": "Página {page} de {pages} · {count} membros",
+        "prev": "Anterior",
+        "next": "Próxima"
       }
     },
     "conductorHistory": {
@@ -4149,6 +4199,7 @@
         "statsLine": "Último: {lastDate} · {count} este ano",
         "eligibilityVsMinimum": "Elegível: {score} (mín. {minimum})",
         "eligibilityTpif": "VS do dia anterior {score} — mais perto de {sweetSpot}",
+        "eligibilityTpifWithChance": "VS do dia anterior {score} · {chance} de chance",
         "eligibilityVsLeaderboardRank": "#{rank} · {score} {suffix}",
         "eligibilityVsLeaderboardScore": "{score} {suffix}"
       }

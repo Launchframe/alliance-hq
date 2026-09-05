@@ -6,7 +6,9 @@ export type WheelShareCandidate = {
   memberId: string;
   memberName: string;
   priorDayVsScore?: number;
-  allianceRank?: number | null;
+  /** Ticket weight when the draw was a Price Is Freight raffle. */
+  ticketCount?: number;
+  winProbability?: number;
 };
 
 export type WheelShareEligibility =
@@ -19,11 +21,14 @@ export type WheelShareEligibility =
       kind: "tpif";
       score: number;
       sweetSpot: number;
+      /** Raffle win chance in [0, 1] when ticket weighting applies. */
+      winProbability?: number | null;
     }
   | {
       kind: "vs_leaderboard";
       score: number;
       suffix: "VS" | "VR";
+      /** Rank among alliance scoreboard entries (1-based), not alliance R-rank. */
       rank: number | null;
     }
   | null;
@@ -49,6 +54,24 @@ export function formatWheelSharePoints(
   return `${formatWheelShareScore(score, locale)} pts`;
 }
 
+export function formatWheelShareWinChance(
+  winProbability: number,
+  locale = "en-US",
+): string {
+  if (!Number.isFinite(winProbability) || winProbability <= 0) {
+    return (0).toLocaleString(locale, {
+      style: "percent",
+      maximumFractionDigits: 2,
+    });
+  }
+  const digits = winProbability >= 0.01 ? 1 : 2;
+  return winProbability.toLocaleString(locale, {
+    style: "percent",
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
 function vsLeaderboardSuffix(
   mechanism: string | null | undefined,
 ): "VS" | "VR" | null {
@@ -68,7 +91,9 @@ export function resolveWheelShareEligibility(input: {
   paintTemplate: string | null | undefined;
   winner: WheelShareCandidate;
   qualification?: MemberQualificationPayload | null;
+  /** Explicit scoreboard rank among alliance VS/VR scores (1-based). */
   leaderboardRank?: number | null;
+  winProbability?: number | null;
 }): WheelShareEligibility {
   const score =
     input.winner.priorDayVsScore != null && input.winner.priorDayVsScore > 0
@@ -90,11 +115,20 @@ export function resolveWheelShareEligibility(input: {
     };
   }
 
+  const winProbability =
+    input.winProbability ??
+    input.winner.winProbability ??
+    null;
+
   if (isPriceIsRightPaintTemplate(input.paintTemplate) && score != null) {
     return {
       kind: "tpif",
       score,
       sweetSpot: PRICE_IS_RIGHT_MIN_VS_SCORE,
+      winProbability:
+        winProbability != null && Number.isFinite(winProbability)
+          ? winProbability
+          : null,
     };
   }
 
@@ -104,7 +138,10 @@ export function resolveWheelShareEligibility(input: {
       kind: "vs_leaderboard",
       score,
       suffix,
-      rank: input.leaderboardRank ?? input.winner.allianceRank ?? null,
+      rank:
+        input.leaderboardRank != null && input.leaderboardRank >= 1
+          ? input.leaderboardRank
+          : null,
     };
   }
 
@@ -114,6 +151,7 @@ export function resolveWheelShareEligibility(input: {
 export type WheelShareEligibilityLabels = {
   vsMinimum: (score: string, minimum: string) => string;
   tpif: (score: string, sweetSpot: string) => string;
+  tpifWithChance: (score: string, chance: string) => string;
   vsLeaderboardRank: (rank: number, score: string, suffix: string) => string;
   vsLeaderboardScore: (score: string, suffix: string) => string;
 };
@@ -131,6 +169,15 @@ export function formatWheelShareEligibilityLine(
         formatWheelSharePoints(eligibility.minimum, locale),
       );
     case "tpif":
+      if (
+        eligibility.winProbability != null &&
+        eligibility.winProbability > 0
+      ) {
+        return labels.tpifWithChance(
+          formatWheelSharePoints(eligibility.score, locale),
+          formatWheelShareWinChance(eligibility.winProbability, locale),
+        );
+      }
       return labels.tpif(
         formatWheelSharePoints(eligibility.score, locale),
         formatWheelSharePoints(eligibility.sweetSpot, locale),
@@ -150,4 +197,20 @@ export function formatWheelShareEligibilityLine(
     default:
       return null;
   }
+}
+
+/** Derive raffle win chance from ticket weights on the drawn pool. */
+export function winProbabilityFromTicketPool(
+  candidates: ReadonlyArray<{ memberId: string; ticketCount?: number }>,
+  winnerMemberId: string,
+): number | null {
+  const total = candidates.reduce(
+    (sum, row) => sum + Math.max(0, row.ticketCount ?? 0),
+    0,
+  );
+  if (total <= 0) return null;
+  const winner = candidates.find((row) => row.memberId === winnerMemberId);
+  const tickets = winner?.ticketCount ?? 0;
+  if (tickets <= 0) return null;
+  return tickets / total;
 }
