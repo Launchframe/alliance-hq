@@ -30,6 +30,7 @@ import {
   type TrainDayScoreStats,
 } from "@/lib/trains/day-score-stats.shared";
 import { renderConductorWheelSharePngBlob } from "@/lib/client/conductor-wheel-share-image.client";
+import { fetchConductorShareScoreProof } from "@/lib/client/conductor-share-score-proof.client";
 import { buildShareViewportForWinner } from "@/lib/trains/conductor-wheel-reel.shared";
 import {
   formatWheelShareEligibilityLine,
@@ -2108,7 +2109,19 @@ export function TrainsDashboard({
         memberId: selectedRecord.conductorMemberId,
         memberName: selectedRecord.conductorMemberName,
       };
-      const viewport = buildShareViewportForWinner(winner, data.roster, {
+      const scoreProof = await fetchConductorShareScoreProof({
+        trainDate: selectedDate,
+        memberId: winner.memberId,
+        paintTemplate: conductorPaint,
+        mechanism: selectedRecord.conductorMechanism ?? conductorMech,
+      });
+      const winnerWithScore = {
+        ...winner,
+        ...(scoreProof.priorDayVsScore != null
+          ? { priorDayVsScore: scoreProof.priorDayVsScore }
+          : {}),
+      };
+      const viewport = buildShareViewportForWinner(winnerWithScore, data.roster, {
         seed: `${selectedDate}:${winner.memberId}`,
       });
       const dayLabel = spinWeekDayLabel(selectedDate);
@@ -2129,13 +2142,17 @@ export function TrainsDashboard({
         resolveWheelShareEligibility({
           mechanism: selectedRecord.conductorMechanism ?? conductorMech,
           paintTemplate: conductorPaint,
-          winner,
+          winner: winnerWithScore,
+          leaderboardRank: scoreProof.leaderboardRank,
+          winProbability: scoreProof.winProbability,
         }),
         {
           vsMinimum: (score, minimum) =>
             t("wheel.share.eligibilityVsMinimum", { score, minimum }),
           tpif: (score, sweetSpot) =>
             t("wheel.share.eligibilityTpif", { score, sweetSpot }),
+          tpifWithChance: (score, chance) =>
+            t("wheel.share.eligibilityTpifWithChance", { score, chance }),
           vsLeaderboardRank: (rank, score, suffix) =>
             t("wheel.share.eligibilityVsLeaderboardRank", {
               rank,
@@ -3023,20 +3040,6 @@ export function TrainsDashboard({
             </p>
           ) : null}
 
-          {scoreLeaderboardKind ? (
-            <ScoreLeaderboardPodium
-              trainDate={selectedDate}
-              kind={scoreLeaderboardKind}
-            />
-          ) : null}
-
-          {usesPriceIsFreightConductorRoll(conductorPaint) ? (
-            <PriceIsRightTicketsPanel
-              trainDate={selectedDate}
-              uploadHref={guidedVideoUploadHref}
-            />
-          ) : null}
-
           {/* Quick actions */}
           {showQuickActions ? (
             data.simpleModeEnabled ? (
@@ -3414,6 +3417,20 @@ export function TrainsDashboard({
               </div>
             </div>
             )
+          ) : null}
+
+          {scoreLeaderboardKind ? (
+            <ScoreLeaderboardPodium
+              trainDate={selectedDate}
+              kind={scoreLeaderboardKind}
+            />
+          ) : null}
+
+          {usesPriceIsFreightConductorRoll(conductorPaint) ? (
+            <PriceIsRightTicketsPanel
+              trainDate={selectedDate}
+              uploadHref={guidedVideoUploadHref}
+            />
           ) : null}
         </section>
       ) : null}
