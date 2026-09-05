@@ -3632,6 +3632,34 @@
         "roll": "Gire a roleta ou escolha um Condutor para hoje e os próximos dias.",
         "lock": "Confirme um Condutor para gerar o trem vazio daquele dia. Se foi você quem confirmou, pode desbloquear até a meia-noite no horário do servidor daquele dia."
       },
+      "weekGoalsTitle": "Guias das plataformas de trem",
+      "weekGoalsIntro": "As plataformas vão da economia mais rigorosa (1), passando por semanas mistas (2–3), até o push mais rigoroso (4). Quando os R4s nomearem uma plataforma, use esse guia para saber o que fazer — e o que não fazer.",
+      "weekGoals": {
+        "economy": {
+          "title": "Plataforma 1 — Vitória econômica",
+          "blurb": "Plataforma de economia mais rigorosa. O Condutor se conquista chegando perto de 7,2M (o ponto ideal) — não despejando inventário pelo VS mais alto.",
+          "do": "Faça: mire perto de 7,2M (ou no alvo de economia que os oficiais anunciaram). Pontue com inteligência nos dias de sorteio. Confira o placar se for publicado. Saiba que o sábado pode favorecer a equipe de takedown.",
+          "dont": "Não faça: estoure o VS só para ostentar. Queime o armazém caçando o topo do ranking. Assuma “pontuei mais, então sou o Condutor.”"
+        },
+        "save": {
+          "title": "Plataforma 2 — Semana de guardar",
+          "blurb": "Economia relaxada. Preferimos guardar inventário, mas o Condutor é uma rotação justa de R3 — gastar tudo não compra o trem (e em geral também não atrapalha sua vez).",
+          "do": "Faça: guarde quando puder. Fique ativo para estar pronto quando chegar sua vez na rotação. Celebre turnos justos de Condutor.",
+          "dont": "Não faça: gaste pesado “para ganhar Condutor.” Discuta que o maior VS deve levar o trem. Pressione oficiais a pular a rotação por você."
+        },
+        "certainDays": {
+          "title": "Plataforma 3 — Vitória em dias certos",
+          "blurb": "Semana mista. Só alguns dias de VS importam — os oficiais dirão quais dias vamos empurrar.",
+          "do": "Faça: pergunte ou leia quais dias são de push e quais são de descanso. Dê o máximo nos dias anunciados. Descanse e guarde nos dias que não importam.",
+          "dont": "Não faça: empurrar todos os dias como se fosse all-out (você fica sem nada quando importa). Perder os dias de push anunciados. Assumir que todo dia tem a mesma regra de Condutor."
+        },
+        "allOut": {
+          "title": "Plataforma 4 — Vitória total",
+          "blurb": "Plataforma de push mais rigorosa. Full send pela vitória da semana VS — especialmente no começo da semana.",
+          "do": "Faça: apareça forte de segunda a quinta. Siga o plano de gastos que os oficiais postarem. Lembre: se fecharmos seg–qui, sex/sáb podem ser mais leves (o sábado pode até ser um dia de guardar).",
+          "dont": "Não faça: guardar o melhor para o fim de semana e perder o fechamento cedo. Ficar AFK num dia de push anunciado. Queimar forte depois que a semana já está decidida, a menos que os oficiais digam o contrário."
+        }
+      },
       "lockOwnershipTitle": "Posse do trem",
       "lockOwnershipBody": "O oficial que confirma um condutor pode desbloqueá-lo até a meia-noite no horário do servidor daquele dia de trem. Confirmar um dia passado é a exceção — você pode desbloquear essa confirmação a qualquer momento. Depois da meia-noite, só o dono da aliança ou um mantenedor da plataforma pode desbloquear.",
       "takeTour": "Fazer o tour",
@@ -3852,6 +3880,11 @@
       "donations": {
         "unavailableTitle": "Pontuação de doações ainda indisponível",
         "unavailableBody": "O HQ ainda não armazena totais de doação. Use escolha manual do condutor até a pontuação de doações estar disponível."
+      },
+      "share": {
+        "action": "Compartilhar imagem",
+        "subtitle": "{day}",
+        "failed": "Não foi possível criar a imagem do ranking."
       }
     },
     "priceIsRight": {
@@ -3913,6 +3946,16 @@
       "aboveCliff": {
         "title": "Acima do corte do cliff",
         "subtitle": "Corte rígido ativo — VS do dia anterior acima do cliff ficam fora do sorteio de hoje."
+      },
+      "scoreList": {
+        "searchLabel": "Buscar membros",
+        "searchPlaceholder": "Buscar por nome…",
+        "member": "Comandante",
+        "vs": "VS do dia anterior",
+        "empty": "Nenhum membro corresponde a esta busca.",
+        "pageStatus": "Página {page} de {pages} · {count} membros",
+        "prev": "Anterior",
+        "next": "Próxima"
       }
     },
     "conductorHistory": {
@@ -4149,6 +4192,7 @@
         "statsLine": "Último: {lastDate} · {count} este ano",
         "eligibilityVsMinimum": "Elegível: {score} (mín. {minimum})",
         "eligibilityTpif": "VS do dia anterior {score} — mais perto de {sweetSpot}",
+        "eligibilityTpifWithChance": "VS do dia anterior {score} · {chance} de chance",
         "eligibilityVsLeaderboardRank": "#{rank} · {score} {suffix}",
         "eligibilityVsLeaderboardScore": "{score} {suffix}"
       }

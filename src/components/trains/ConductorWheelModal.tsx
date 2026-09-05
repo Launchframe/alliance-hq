@@ -17,6 +17,7 @@ import { renderConductorWheelSharePngBlob } from "@/lib/client/conductor-wheel-s
 import {
   formatWheelShareEligibilityLine,
   resolveWheelShareEligibility,
+  winProbabilityFromTicketPool,
 } from "@/lib/trains/conductor-wheel-share.shared";
 import {
   formatTrainPointCount,
@@ -169,20 +170,30 @@ export function ConductorWheelModal({
             (candidate) => candidate.memberId === winner.memberId,
           ) + 1 || null
         : null;
+    const winnerWithScore =
+      winnerScore != null && winnerScore > 0
+        ? { ...winner, priorDayVsScore: winnerScore }
+        : winner;
     return formatWheelShareEligibilityLine(
       resolveWheelShareEligibility({
         mechanism,
         paintTemplate,
-        winner,
+        winner: winnerWithScore,
         qualification,
         leaderboardRank:
           leaderboardRank && leaderboardRank > 0 ? leaderboardRank : null,
+        winProbability: winProbabilityFromTicketPool(
+          candidates,
+          winner.memberId,
+        ),
       }),
       {
         vsMinimum: (score, minimum) =>
           t("share.eligibilityVsMinimum", { score, minimum }),
         tpif: (score, sweetSpot) =>
           t("share.eligibilityTpif", { score, sweetSpot }),
+        tpifWithChance: (score, chance) =>
+          t("share.eligibilityTpifWithChance", { score, chance }),
         vsLeaderboardRank: (rank, score, suffix) =>
           t("share.eligibilityVsLeaderboardRank", { rank, score, suffix }),
         vsLeaderboardScore: (score, suffix) =>
@@ -192,6 +203,8 @@ export function ConductorWheelModal({
     );
   }, [
     winner,
+    winnerScore,
+    candidates,
     mechanism,
     paintTemplate,
     qualification,

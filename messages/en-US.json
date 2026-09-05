@@ -3686,6 +3686,34 @@
         "roll": "Spin the wheel or pick a conductor for today and upcoming days.",
         "lock": "Lock in a conductor to spawn that day's empty train. If you locked it, you can unlock until midnight Server Time of that train day."
       },
+      "weekGoalsTitle": "Train platform guides",
+      "weekGoalsIntro": "Platforms run from the strictest save (1) through mixed weeks (2–3) to the strictest push (4). When R4s name a platform, use that guide for what to do — and what not to do.",
+      "weekGoals": {
+        "economy": {
+          "title": "Platform 1 — Win economically",
+          "blurb": "Strictest save platform. Conductor is earned by landing near 7.2M (the sweet spot) — not by dumping inventory for the highest VS.",
+          "do": "Do: Aim near 7.2M (or the economy target officers announce). Score smart on raffle days. Check standings if they’re posted. Know Saturday may favor the takedown crew.",
+          "dont": "Don’t: Overshoot into huge VS just to flex. Burn the warehouse chasing the top of the board. Assume “I scored most, so I get Conductor.”"
+        },
+        "save": {
+          "title": "Platform 2 — Save week",
+          "blurb": "Relaxed save. We prefer banking inventory, but Conductor is a fair R3 rotation — going all-out and burning a lot does not buy you the train (and does not usually hurt your turn either).",
+          "do": "Do: Save when you can. Stay active so you’re ready when your turn in the rotation comes up. Cheer fair Conductor turns.",
+          "dont": "Don’t: Dump huge spends “to earn Conductor.” Argue that highest VS should take the train. Guilt officers into skipping the rotation for you."
+        },
+        "certainDays": {
+          "title": "Platform 3 — Win certain days",
+          "blurb": "Mixed week. Only some VS days matter — officers will say which days we’re pushing.",
+          "do": "Do: Ask or read which days are push days vs chill days. Bring your A-game on the days they call. Rest and save on the days they say don’t matter.",
+          "dont": "Don’t: Push every day like it’s all-out (you’ll be empty when it counts). Miss the announced push days. Assume every day has the same Conductor rule."
+        },
+        "allOut": {
+          "title": "Platform 4 — Win all-out",
+          "blurb": "Strictest push platform. Full send for the VS week win — especially early in the week.",
+          "do": "Do: Show up hard Monday through Thursday. Follow the spend plan officers post. Remember: if we take Mon–Thu, Fri/Sat can go quieter (Saturday may even be a save-style day).",
+          "dont": "Don’t: Save your best for the weekend and miss the early clinch. Go AFK on a called push day. Waste big burns after the week is already sealed unless officers say otherwise."
+        }
+      },
       "lockOwnershipTitle": "Train ownership",
       "lockOwnershipBody": "The officer who locks a conductor can unlock it until midnight Server Time on that train day. Locking a past day is the exception — you can unlock that lock at any time. After midnight, only the alliance owner or a platform maintainer can unlock.",
       "takeTour": "Take the tour",
@@ -3906,6 +3934,11 @@
       "donations": {
         "unavailableTitle": "Donation scores not available yet",
         "unavailableBody": "HQ does not store donation totals yet. Use manual conductor picks until donation scoring is wired."
+      },
+      "share": {
+        "action": "Share image",
+        "subtitle": "{day}",
+        "failed": "Could not create the leaderboard image."
       }
     },
     "priceIsRight": {
@@ -3967,6 +4000,16 @@
       "aboveCliff": {
         "title": "Above cliff cutoff",
         "subtitle": "Hard cutoff is on — prior-day VS above your cliff are excluded from today's draw."
+      },
+      "scoreList": {
+        "searchLabel": "Search members",
+        "searchPlaceholder": "Search by name…",
+        "member": "Commander",
+        "vs": "Prior-day VS",
+        "empty": "No members match this search.",
+        "pageStatus": "Page {page} of {pages} · {count} members",
+        "prev": "Previous",
+        "next": "Next"
       }
     },
     "conductorHistory": {
@@ -4203,6 +4246,7 @@
         "statsLine": "Last: {lastDate} · {count} this year",
         "eligibilityVsMinimum": "Eligible: {score} (min {minimum})",
         "eligibilityTpif": "Prior-day VS {score} — closest to {sweetSpot}",
+        "eligibilityTpifWithChance": "Prior-day VS {score} · {chance} win chance",
         "eligibilityVsLeaderboardRank": "#{rank} · {score} {suffix}",
         "eligibilityVsLeaderboardScore": "{score} {suffix}"
       }

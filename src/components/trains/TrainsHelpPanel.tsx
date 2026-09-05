@@ -14,6 +14,18 @@ type Props = {
   onTakeTour?: () => void;
 };
 
+/** Platform order: strictest save → relaxed save → mixed → strictest push. */
+const WEEK_GOAL_KEYS = ["economy", "save", "certainDays", "allOut"] as const;
+
+type WeekGoalKey = (typeof WEEK_GOAL_KEYS)[number];
+
+const WEEK_GOAL_BODY_KEYS: Record<WeekGoalKey, readonly string[]> = {
+  economy: ["blurb", "do", "dont"],
+  save: ["blurb", "do", "dont"],
+  certainDays: ["blurb", "do", "dont"],
+  allOut: ["blurb", "do", "dont"],
+};
+
 export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
   const t = useTranslations("trains.help");
   const tServer = useTranslations("trains.serverTimeBadge");
@@ -71,6 +83,35 @@ export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
                 <li key={item}>{item}</li>
               ))}
             </ul>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-medium text-hq-fg">
+              {t("weekGoalsTitle")}
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
+              {t("weekGoalsIntro")}
+            </p>
+            <div className="mt-3 flex flex-col gap-2">
+              {WEEK_GOAL_KEYS.map((goalKey) => (
+                <details
+                  key={goalKey}
+                  className="rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
+                  data-testid={`trains-help-week-goal-${goalKey}`}
+                >
+                  <summary className="cursor-pointer text-sm font-medium text-hq-fg">
+                    {t(`weekGoals.${goalKey}.title`)}
+                  </summary>
+                  <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-[#c9d1d9]">
+                    {WEEK_GOAL_BODY_KEYS[goalKey].map((bodyKey) => (
+                      <li key={bodyKey}>
+                        {t(`weekGoals.${goalKey}.${bodyKey}`)}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ))}
+            </div>
           </div>
 
           <div>
