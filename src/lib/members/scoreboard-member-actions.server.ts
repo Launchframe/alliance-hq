@@ -5,12 +5,10 @@ import { nanoid } from "nanoid";
 
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
 import { loadAshedConnectionForAllianceCapability } from "@/lib/ashed/load-ashed-connection.server";
-import {
-  base44EntityPost,
-  base44ListMembers,
-} from "@/lib/base44/fetch";
+import { base44ListMembers } from "@/lib/base44/fetch";
 import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
+import { createAshedMember } from "@/lib/members/ashed-member-write.server";
 import { syncCommanderFromAllianceMember } from "@/lib/members/commander-identity.server";
 import { syncMemberNameToAshed } from "@/lib/members/member-name-sync.server";
 import { nativeRosterAshedAllianceId } from "@/lib/native-alliance/provision";
@@ -98,24 +96,6 @@ async function persistParsedRowMatch(
       updatedAt: new Date(),
     })
     .where(eq(schema.parsedRows.id, input.rowId));
-}
-
-async function createAshedMember(input: {
-  connection: ParsedConnection;
-  ashedAllianceId: string;
-  currentName: string;
-}): Promise<string> {
-  const created = (await base44EntityPost(input.connection, "Member", {
-    alliance_id: input.ashedAllianceId,
-    current_name: input.currentName,
-    status: "active",
-    previous_names: [],
-  })) as { id?: string };
-  const id = created.id?.trim();
-  if (!id) {
-    throw new Error("Ashed did not return a member id.");
-  }
-  return id;
 }
 
 async function insertHqAllianceMember(

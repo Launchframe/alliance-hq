@@ -58,7 +58,7 @@ On each matched row (after auto or interactive mapping):
 | LastRank field | HQ |
 | --- | --- |
 | `name` (canon) | `commanders.canonical_name` **only when** Last War lookup-by-UID `gameUserName` exact-matches the canon (`namesMatch`) |
-| Section `R1`–`R5` badge | Appends `member_alliance_rank_events` (`source: lastrank_sync`) and updates `alliance_members` — overwrites when different. HQ-local only (no Ashed PUT). |
+| Section `R1`–`R5` badge | Appends `member_alliance_rank_events` (`source: lastrank_sync`) and updates `alliance_members` — overwrites when different. Matched apply is HQ-local; `--create-all` also PUTs rank to Ashed when dual-write is on. |
 | `hero_power` | THP — **always upsert** from LastRank (`lastrank_sync`), including regressions |
 | `base_level` | HQ level — **always upsert** from LastRank |
 | `power` | `commanders.power_level` (e.g. `394.4M`) — **always upsert** when present |
@@ -66,7 +66,7 @@ On each matched row (after auto or interactive mapping):
 | `country` | `commanders.lastrank_country` — **always upsert** |
 | profile URL | `commanders.lastrank_profile_url` (`https://lastrank.fun/p/{public_id}`) |
 
-**Ranks:** collapsible HTML sections are headed by an exact `R1`–`R5` badge; every `/p/{publicId}` link in that section inherits that rank (preferred over the RSC `alliance_rank` field). Writes are HQ-local audit events (no Ashed PUT from this sync).
+**Ranks:** collapsible HTML sections are headed by an exact `R1`–`R5` badge; every `/p/{publicId}` link in that section inherits that rank (preferred over the RSC `alliance_rank` field). Matched-member rank writes are HQ audit events; new members created with Ashed dual-write also get an Ashed rank PUT.
 
 Canonical write is skipped when the commander has no `game_uid`, the lookup fails, or the API name does not exact-match LastRank. Stats still apply on the roster match.
 
@@ -84,6 +84,28 @@ LastRank is treated as source of truth for country, HQ level, base power, and TH
 ```bash
 npx tsx scripts/lastrank/sync-alliance.ts --server 1203 --tag BigD --apply --create-all
 ```
+
+## Roster transfer (diff → create / retire)
+
+LastRank is the roster source of truth after a member transfer. Dry-run prints a **roster diff** every time:
+
+- **Excess in HQ** — active HQ members not on LastRank (too many in Ashed/HQ)
+- **Missing from HQ** — LastRank names with no HQ match (forgot to add)
+- **Ambiguous** — need `--interactive` mapping (not auto-created)
+
+```bash
+# See the diff (no writes)
+npx tsx scripts/lastrank/sync-alliance.ts --server 1203 --tag LFgo
+
+# Fix: create missing + retire excess (Ashed dual-write when bot JWT is stored)
+npx tsx scripts/lastrank/sync-alliance.ts --server 1203 --tag LFgo \
+  --ashed-connection-key "$ASHED_CONNECTION_KEY" \
+  --apply --create-all --retire-all
+```
+
+`--create-all` / `--retire-all` require `--apply`. When the alliance is Ashed-linked and `alliance_ashed_credentials` (or `--ashed-connection-key`) is available, creates `POST` Ashed Members and retires `PUT` status `former` before HQ writes. Native / missing credential → HQ-only with a stderr note.
+
+**Cron does not create or retire** (Cloudflare may block LastRank HTML from Vercel). Use the local CLI for transfer waves.
 
 ## Profile links from a power paste
 
