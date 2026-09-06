@@ -12,6 +12,8 @@ import {
 import {
   applyInteractiveMatches,
   formatLastRankPowerLevel,
+  isLastRankUnranked,
+  lastRankPlayerProfileUrl,
   matchLastRankMembersToHq,
   resolveHqNameToRosterRow,
   type LastRankHqRosterRow,
@@ -26,6 +28,7 @@ import {
   listActiveMemberIdsNotInSet,
   retireAllianceMembers,
   updateLastRankProfileFields,
+  applyInteractiveNameMapping,
   type LastRankUpsertCounts,
 } from "@/lib/lastrank/sync-upsert.server";
 import {
@@ -62,11 +65,16 @@ export type LastRankSyncApplyCounts = LastRankUpsertCounts & {
   canonicalSkippedMismatch: number;
   canonicalSkippedLookupFailed: number;
   canonicalUnchanged: number;
+  namesRenamed: number;
+  namesAshedSynced: number;
 };
 
 export type LastRankInteractivePrompt = (ctx: {
   lastRankName: string;
   publicId: number;
+  profileUrl: string;
+  /** True when not in an R1–R5 section — often a recent leaver still listed on LastRank. */
+  unranked: boolean;
   suggestions: LastRankUnmatchedRow["suggestions"];
   remainingHqNames: string[];
 }) => Promise<LastRankInteractiveAnswer>;
@@ -115,6 +123,8 @@ function emptyApplyCounts(): LastRankSyncApplyCounts {
     canonicalSkippedMismatch: 0,
     canonicalSkippedLookupFailed: 0,
     canonicalUnchanged: 0,
+    namesRenamed: 0,
+    namesAshedSynced: 0,
   };
 }
 
@@ -446,6 +456,8 @@ async function runInteractiveResolutions(
     const answer = await prompt({
       lastRankName: row.lastRank.name,
       publicId: row.lastRank.publicId,
+      profileUrl: lastRankPlayerProfileUrl(row.lastRank.publicId),
+      unranked: isLastRankUnranked(row.lastRank),
       suggestions: row.suggestions,
       remainingHqNames,
     });
@@ -720,22 +732,40 @@ export async function syncLastRankAlliance(input: {
     : null;
 
   const onInteractiveResolved: LastRankInteractiveMatchResolved = async (row) => {
-    const hqName =
+    const priorHqName =
       row.hq.currentNames[0] ??
       row.hq.previousNames[0] ??
       row.hq.commanderId;
     if (input.apply && applyCounts) {
       const partial = emptyApplyCounts();
+      const nameResult = await applyInteractiveNameMapping({
+        allianceId: hqAllianceId,
+        ashedMemberId: row.hq.ashedMemberId,
+        commanderId: row.hq.commanderId,
+        lastRankName: row.lastRank.name,
+        ashed: ashed,
+      });
+      if (nameResult.renamed) partial.namesRenamed += 1;
+      if (nameResult.ashedSynced) partial.namesAshedSynced += 1;
+      if (nameResult.canonicalWritten) {
+        partial.canonicalWritten += 1;
+        row.hq.existingCanonicalName = row.lastRank.name;
+      }
+
       const ranksChanged = await applyMatchedRows(hqAllianceId, [row], partial);
       mergeApplyCounts(applyCounts, partial);
       appliedDuringInteractive.add(row.hq.commanderId);
       await syncRankPoolIfNeeded(hqAllianceId, ranksChanged);
-      console.error(`Saved: ${row.lastRank.name} → ${hqName}`);
+      console.error(
+        `Saved: ${priorHqName} → ${row.lastRank.name} (lastrank_public_id=${row.lastRank.publicId})`,
+      );
       return;
     }
     if (applyCounts) {
       await persistInteractiveMatchMapping(row, applyCounts);
-      console.error(`Saved mapping: ${row.lastRank.name} → ${hqName}`);
+      console.error(
+        `Saved mapping: ${row.lastRank.name} → ${priorHqName} (lastrank_public_id only; re-run with --apply to rename HQ/Ashed)`,
+      );
     }
   };
 

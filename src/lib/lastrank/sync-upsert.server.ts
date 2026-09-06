@@ -21,6 +21,7 @@ import {
 } from "@/lib/members/ashed-member-write.server";
 import { syncCommanderFromAllianceMember } from "@/lib/members/commander-identity.server";
 import { formatAshedMemberRankValue } from "@/lib/members/alliance-rank";
+import { syncMemberNameToAshed } from "@/lib/members/member-name-sync.server";
 import {
   appendCommanderPowerLevelEventIfChanged,
   appendMemberGameLevelEventIfChanged,
@@ -31,6 +32,7 @@ import { upsertCommanderThp } from "@/lib/thp/repository";
 import { upsertCommanderLevel } from "@/lib/member-level/repository";
 import { normalizeMemberHqLevel } from "@/lib/members/member-level.shared";
 import { syncMemberRankToAshed } from "@/lib/trains/rank-sync";
+import { nextPreviousNames } from "@/lib/video/scoreboard-member-actions.shared";
 
 export type LastRankUpsertCounts = {
   membersCreated: number;
@@ -214,6 +216,111 @@ export async function createAllianceMemberFromLastRank(input: {
       lastrankProfileUrl: profileUrl,
     },
   };
+}
+
+/**
+ * Interactive map + `--apply`: adopt LastRank name as HQ current/canonical,
+ * push the prior HQ name into `previous_names`, and dual-write Ashed when linked.
+ */
+export async function applyInteractiveNameMapping(input: {
+  allianceId: string;
+  ashedMemberId: string;
+  commanderId: string;
+  lastRankName: string;
+  ashed?: LastRankAshedWriteContext | null;
+}): Promise<{
+  renamed: boolean;
+  ashedSynced: boolean;
+  canonicalWritten: boolean;
+}> {
+  const nextName = input.lastRankName.trim();
+  if (!nextName) {
+    return { renamed: false, ashedSynced: false, canonicalWritten: false };
+  }
+
+  const db = getDb();
+  const [member] = await db
+    .select({
+      id: schema.allianceMembers.id,
+      currentName: schema.allianceMembers.currentName,
+      previousNamesJson: schema.allianceMembers.previousNamesJson,
+      ashedAllianceId: schema.allianceMembers.ashedAllianceId,
+    })
+    .from(schema.allianceMembers)
+    .where(
+      and(
+        eq(schema.allianceMembers.allianceId, input.allianceId),
+        eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
+      ),
+    )
+    .limit(1);
+  if (!member) {
+    return { renamed: false, ashedSynced: false, canonicalWritten: false };
+  }
+
+  const previousNames = member.previousNamesJson ?? [];
+  const nextPrevious = nextPreviousNames(
+    member.currentName,
+    previousNames,
+    nextName,
+  );
+  const renamed =
+    member.currentName !== nextName || nextPrevious !== previousNames;
+
+  let ashedSynced = false;
+  if (
+    input.ashed &&
+    !isSyntheticNativeAshedAllianceId(member.ashedAllianceId) &&
+    member.ashedAllianceId === input.ashed.ashedAllianceId
+  ) {
+    try {
+      await syncMemberNameToAshed(
+        input.ashed.connection,
+        input.ashedMemberId,
+        nextName,
+        nextPrevious,
+      );
+      ashedSynced = true;
+    } catch (error) {
+      console.error(
+        `[lastrank] Ashed name PUT failed for ${member.currentName} → ${nextName}: ${
+          error instanceof Error ? error.message : "unknown"
+        }`,
+      );
+    }
+  }
+
+  if (renamed) {
+    await db
+      .update(schema.allianceMembers)
+      .set({
+        currentName: nextName,
+        previousNamesJson: nextPrevious,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.allianceMembers.id, member.id));
+    await syncCommanderFromAllianceMember({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      memberDisplayName: nextName,
+    });
+  }
+
+  const [commander] = await db
+    .select({ canonicalName: schema.commanders.canonicalName })
+    .from(schema.commanders)
+    .where(eq(schema.commanders.id, input.commanderId))
+    .limit(1);
+  let canonicalWritten = false;
+  if (commander && commander.canonicalName !== nextName) {
+    await db
+      .update(schema.commanders)
+      .set({ canonicalName: nextName, updatedAt: new Date() })
+      .where(eq(schema.commanders.id, input.commanderId));
+    canonicalWritten = true;
+  }
+
+  return { renamed, ashedSynced, canonicalWritten };
 }
 
 export async function updateLastRankProfileFields(

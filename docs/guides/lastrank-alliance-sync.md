@@ -77,7 +77,7 @@ LastRank is treated as source of truth for country, HQ level, base power, and TH
 - **Alliance:** resolves HQ alliance by exact tag on server; fuzzy tag match prompts on `--interactive`; creates a native alliance when missing and `--apply` is set.
 - **New LastRank members:** creates `alliance_members` + commander row + initial stats when no match remains after interactive mapping.
 - **Retire leavers:** with `--apply --interactive`, prompts for each active HQ member missing from LastRank; marks `former` and prunes open train pools immediately on confirmation.
-- **Interactive progress:** each manual name match is saved as you go — `lastrank_public_id` mapping always (even dry-run); full stats when `--apply` is set. Re-running skips already-mapped members via stored public id.
+- **Interactive progress:** each manual name match is saved as you go — `lastrank_public_id` mapping always (even dry-run); with `--apply`, also HQ rename + previous names + canonical + Ashed name PUT when linked. Re-running skips already-mapped members via stored public id.
 - **Create (`C`):** interactive prompt always offers `C` to create a new HQ member + commander from the LastRank row (needed for empty alliances). Unmatched rows left blank are skipped (not bulk-created).
 - **`--create-all`:** with `--apply`, auto-create every remaining **unmatched** LastRank member (ambiguous rows still skipped). Use for populating a new/thin alliance:
 
@@ -144,15 +144,22 @@ Or by LastRank alliance id:
 npx tsx scripts/lastrank/sync-alliance.ts --id e7d1eaefdcfc42c8ac6c84247d2dad9b
 ```
 
-Interactive mapping for unmatched names, fuzzy alliance tag, and retire prompts (requires a TTY). The name prompt lists numbered HQ choices (fuzzy suggestions plus other unmatched roster names); reply with a **number**, a **typed HQ name**, or blank to skip:
+Interactive mapping for unmatched names, fuzzy alliance tag, and retire prompts (requires a TTY). Each “No auto-match” prompt prints the LastRank profile URL (`https://lastrank.fun/p/<public_id>`). Unranked LastRank rows (not in an R1–R5 section) get a leaver hint — leave blank to skip; do not create.
+
+The name prompt lists numbered HQ choices (fuzzy suggestions plus other unmatched roster names); reply with a **number**, a **typed HQ name**, **`C`** to create (hidden for unranked), or blank to skip:
 
 ```bash
 npx tsx scripts/lastrank/sync-alliance.ts --server 1203 --tag LFgo --interactive
 ```
 
+Persistence:
+
+- **Always (even without `--apply`):** saving a number/name writes `commanders.lastrank_public_id` (+ profile URL/country). The next run auto-matches that member via public id — you are not re-prompted for the same LastRank row.
+- **With `--apply`:** also renames `alliance_members.current_name` to the LastRank canon, appends the prior HQ name to `previous_names_json`, sets `commanders.canonical_name`, and dual-writes Ashed `current_name` / `previous_names` when the alliance has a bot credential (unless `--hq-only`).
+
 `tsx` treats `import "server-only"` as a client import and throws unless the `react-server` export is used. The CLI registers `scripts/lastrank/register-server-only.cjs` (maps to `server-only/empty.js`). You can also run `npm run lastrank:sync -- --server 1203 --tag LFgo`.
 
-`--apply` writes matches (stats, ranks, profile fields, canonical when Last War confirms) and creates unmatched LastRank members.
+`--apply` writes matches (stats, ranks, profile fields, interactive renames above, and canonical via Last War confirm for auto-matches) and creates unmatched LastRank members when requested.
 
 ## Nightly
 

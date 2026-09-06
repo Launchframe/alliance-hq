@@ -40,7 +40,9 @@ Flags:
   --retire-all        With --apply: mark every excess HQ active (not on LastRank) as former
                       (Ashed status + HQ). Requires --apply.
   --interactive       TTY prompts: map unmatched names, pick fuzzy alliance, retire leavers
+                      Prints LastRank profile URL; unranked rows hint leavers (blank = skip).
                       Name prompt: number = HQ choice, C = create one member, blank = skip
+                      Mapping always saves lastrank_public_id; --apply also renames HQ/Ashed.
   --ashed-connection-key <key>
                       Upsert alliance bot Ashed credential (with --apply, or with
                       --save-ashed-credential on dry-run). Never logged.
@@ -92,6 +94,8 @@ function createTtyPrompts(): {
   interactivePrompt: (ctx: {
     lastRankName: string;
     publicId: number;
+    profileUrl: string;
+    unranked: boolean;
     suggestions: Array<{ name: string; score: number }>;
     remainingHqNames: string[];
   }) => Promise<
@@ -145,6 +149,12 @@ function createTtyPrompts(): {
       console.error(
         `No auto-match for LastRank canon "${ctx.lastRankName}" (public_id=${ctx.publicId}).`,
       );
+      console.error(`  Profile: ${ctx.profileUrl}`);
+      if (ctx.unranked) {
+        console.error(
+          "  Unranked on LastRank — often a recent leaver still listed; leave blank to skip (do not create).",
+        );
+      }
       console.error("HQ roster choices:");
       if (choices.length === 0) {
         console.error("  (roster empty — no existing HQ members to pick)");
@@ -157,11 +167,15 @@ function createTtyPrompts(): {
           console.error(`  ${i + 1}. ${choice.name}${score}`);
         }
       }
+      if (!ctx.unranked) {
+        console.error(
+          `  C. Create new HQ member + commander from LastRank ("${ctx.lastRankName}")`,
+        );
+      }
       console.error(
-        `  C. Create new HQ member + commander from LastRank ("${ctx.lastRankName}")`,
-      );
-      console.error(
-        "Enter a number, C to create, type an HQ roster name, or leave blank to skip.",
+        ctx.unranked
+          ? "Enter a number, type an HQ roster name, or leave blank to skip."
+          : "Enter a number, C to create, type an HQ roster name, or leave blank to skip.",
       );
       const answer = await rl.question("> ");
       return resolveInteractiveHqNameAnswer(answer, choices);
