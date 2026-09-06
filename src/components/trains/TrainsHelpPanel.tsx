@@ -14,16 +14,23 @@ type Props = {
   onTakeTour?: () => void;
 };
 
-/** Platform order: strictest save → relaxed save → mixed → strictest push. */
+/** Platform order: Hard save → Save hard → Push hard → Hard push. */
 const WEEK_GOAL_KEYS = ["economy", "save", "certainDays", "allOut"] as const;
 
 type WeekGoalKey = (typeof WEEK_GOAL_KEYS)[number];
 
+const WEEK_GOAL_SHARED_KEYS = [
+  "conductorsAtReset",
+  "leadTime",
+  "vsMinimum",
+  "donationMinimum",
+] as const;
+
 const WEEK_GOAL_BODY_KEYS: Record<WeekGoalKey, readonly string[]> = {
-  economy: ["blurb", "do", "dont"],
-  save: ["blurb", "do", "dont"],
-  certainDays: ["blurb", "do", "dont"],
-  allOut: ["blurb", "do", "dont"],
+  economy: ["blurb", "do1", "do2", "dont"],
+  save: ["blurb", "do1", "dont"],
+  certainDays: ["blurb", "do1", "do2", "do3", "dont"],
+  allOut: ["blurb", "do1", "do2", "do3", "dont1", "dont2"],
 };
 
 export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
@@ -92,6 +99,16 @@ export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
             <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
               {t("weekGoalsIntro")}
             </p>
+            <div className="mt-3 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2">
+              <p className="text-sm font-medium text-hq-fg">
+                {t("weekGoalsSharedTitle")}
+              </p>
+              <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-[#c9d1d9]">
+                {WEEK_GOAL_SHARED_KEYS.map((key) => (
+                  <li key={key}>{t(`weekGoalsShared.${key}`)}</li>
+                ))}
+              </ul>
+            </div>
             <div className="mt-3 flex flex-col gap-2">
               {WEEK_GOAL_KEYS.map((goalKey) => (
                 <details
@@ -101,6 +118,9 @@ export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
                 >
                   <summary className="cursor-pointer text-sm font-medium text-hq-fg">
                     {t(`weekGoals.${goalKey}.title`)}
+                    <span className="ml-2 font-normal text-hq-fg-muted">
+                      ({t(`weekGoals.${goalKey}.subtitle`)})
+                    </span>
                   </summary>
                   <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-[#c9d1d9]">
                     {WEEK_GOAL_BODY_KEYS[goalKey].map((bodyKey) => (

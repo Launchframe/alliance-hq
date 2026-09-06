@@ -3757,31 +3757,48 @@
         "lock": "Lock in a conductor to spawn that day's empty train. If you locked it, you can unlock until midnight Server Time of that train day."
       },
       "weekGoalsTitle": "Train platform guides",
-      "weekGoalsIntro": "Platforms run from the strictest save (1) through mixed weeks (2–3) to the strictest push (4). When R4s name a platform, use that guide for what to do — and what not to do.",
+      "weekGoalsIntro": "When leadership names a platform for the week, use that guide for what to do — and what not to do. Platforms: Hard save → Save hard → Push hard → Hard push.",
+      "weekGoalsSharedTitle": "Every platform",
+      "weekGoalsShared": {
+        "conductorsAtReset": "Conductors are drawn at Reset. Watch your DMs and Discord for conductor announcements.",
+        "leadTime": "24-hour lead time: yesterday’s winner drives tomorrow’s train.",
+        "vsMinimum": "VS score minimum to win Conductor: 7.2M points yesterday.",
+        "donationMinimum": "Donation minimum to win Conductor: 50,000 points last week."
+      },
       "weekGoals": {
         "economy": {
-          "title": "Platform 1 — Win economically",
-          "blurb": "Strictest save platform. Conductor is earned by landing near 7.2M (the sweet spot) — not by dumping inventory for the highest VS.",
-          "do": "Do: Aim near 7.2M (or the economy target officers announce). Score smart on raffle days. Check standings if they’re posted. Know Saturday may favor the takedown crew.",
-          "dont": "Don’t: Overshoot into huge VS just to flex. Burn the warehouse chasing the top of the board. Assume “I scored most, so I get Conductor.”"
+          "title": "Platform 1 — The Price Is Freight",
+          "subtitle": "Hard save",
+          "blurb": "This week means… The closer to 7.2M, the better your odds to win.",
+          "do1": "Do: Aim for 7.2M — that’s the target every time.",
+          "do2": "Do: Friday and Saturday scores are unrestricted. Train troops and fight to your heart’s content!",
+          "dont": "Don’t: Overspend on save days."
         },
         "save": {
-          "title": "Platform 2 — Save week",
-          "blurb": "Relaxed save. We prefer banking inventory, but Conductor is a fair R3 rotation — going all-out and burning a lot does not buy you the train (and does not usually hurt your turn either).",
-          "do": "Do: Save when you can. Stay active so you’re ready when your turn in the rotation comes up. Cheer fair Conductor turns.",
-          "dont": "Don’t: Dump huge spends “to earn Conductor.” Argue that highest VS should take the train. Guilt officers into skipping the rotation for you."
+          "title": "Platform 2 — Save Week",
+          "subtitle": "Save hard",
+          "blurb": "This week means… Push your power if you need to. Conductors are picked at random from R3s — you still need the 7.2M VS and last-week donation minimums.",
+          "do1": "Do: Save when you can; burn only when you need the power.",
+          "dont": "Don’t: Overspend on save days."
         },
         "certainDays": {
-          "title": "Platform 3 — Win certain days",
-          "blurb": "Mixed week. Only some VS days matter — officers will say which days we’re pushing.",
-          "do": "Do: Ask or read which days are push days vs chill days. Bring your A-game on the days they call. Rest and save on the days they say don’t matter.",
-          "dont": "Don’t: Push every day like it’s all-out (you’ll be empty when it counts). Miss the announced push days. Assume every day has the same Conductor rule."
+          "title": "Platform 3 — Strategic Victory",
+          "subtitle": "Push hard",
+          "blurb": "This week means… We throw in the towel on some days while dominating on others. The goal is to win by just enough of a margin by saving on select days this week.",
+          "do1": "Do: Ask or read which days are push days vs throw-away days.",
+          "do2": "Do: Bring your A-game when called upon.",
+          "do3": "Do: Save on throw-away days.",
+          "dont": "Don’t: Push the wrong days."
         },
         "allOut": {
-          "title": "Platform 4 — Win all-out",
-          "blurb": "Strictest push platform. Full send for the VS week win — especially early in the week.",
-          "do": "Do: Show up hard Monday through Thursday. Follow the spend plan officers post. Remember: if we take Mon–Thu, Fri/Sat can go quieter (Saturday may even be a save-style day).",
-          "dont": "Don’t: Save your best for the weekend and miss the early clinch. Go AFK on a called push day. Waste big burns after the week is already sealed unless officers say otherwise."
+          "title": "Platform 4 — All-Out Domination",
+          "subtitle": "Hard push",
+          "blurb": "This week means… All gas, no brakes. Show them what LFgo is made of.",
+          "do1": "Do: Show up hard Monday through Saturday.",
+          "do2": "Do: Keep an ear peeled for strategy pivots.",
+          "do3": "Do: Lock in the victory by Friday.",
+          "dont1": "Don’t: Slack off.",
+          "dont2": "Don’t: Go AFK without letting the crew know."
         }
       },
       "lockOwnershipTitle": "Train ownership",

@@ -3703,31 +3703,48 @@
         "lock": "Confirme um Condutor para gerar o trem vazio daquele dia. Se foi você quem confirmou, pode desbloquear até a meia-noite no horário do servidor daquele dia."
       },
       "weekGoalsTitle": "Guias das plataformas de trem",
-      "weekGoalsIntro": "As plataformas vão da economia mais rigorosa (1), passando por semanas mistas (2–3), até o push mais rigoroso (4). Quando os R4s nomearem uma plataforma, use esse guia para saber o que fazer — e o que não fazer.",
+      "weekGoalsIntro": "Quando a liderança nomear uma plataforma para a semana, use esse guia para saber o que fazer — e o que não fazer. Plataformas: Hard save → Save hard → Push hard → Hard push.",
+      "weekGoalsSharedTitle": "Toda plataforma",
+      "weekGoalsShared": {
+        "conductorsAtReset": "Os Condutores são sorteados no Reset. Fique de olho nas DMs e no Discord para os anúncios de Condutor.",
+        "leadTime": "Antecedência de 24 horas: o vencedor de ontem dirige o trem de amanhã.",
+        "vsMinimum": "Mínimo de VS para ganhar Condutor: 7,2M de pontos ontem.",
+        "donationMinimum": "Mínimo de doações para ganhar Condutor: 50.000 pontos na semana passada."
+      },
       "weekGoals": {
         "economy": {
-          "title": "Plataforma 1 — Vitória econômica",
-          "blurb": "Plataforma de economia mais rigorosa. O Condutor se conquista chegando perto de 7,2M (o ponto ideal) — não despejando inventário pelo VS mais alto.",
-          "do": "Faça: mire perto de 7,2M (ou no alvo de economia que os oficiais anunciaram). Pontue com inteligência nos dias de sorteio. Confira o placar se for publicado. Saiba que o sábado pode favorecer a equipe de takedown.",
-          "dont": "Não faça: estoure o VS só para ostentar. Queime o armazém caçando o topo do ranking. Assuma “pontuei mais, então sou o Condutor.”"
+          "title": "Plataforma 1 — The Price Is Freight",
+          "subtitle": "Hard save",
+          "blurb": "Esta semana significa… Quanto mais perto de 7,2M, melhores suas chances de ganhar.",
+          "do1": "Faça: mire 7,2M — esse é o alvo sempre.",
+          "do2": "Faça: as pontuações de sexta e sábado são livres. Treine tropas e lute à vontade!",
+          "dont": "Não faça: gastar demais nos dias de guardar."
         },
         "save": {
           "title": "Plataforma 2 — Semana de guardar",
-          "blurb": "Economia relaxada. Preferimos guardar inventário, mas o Condutor é uma rotação justa de R3 — gastar tudo não compra o trem (e em geral também não atrapalha sua vez).",
-          "do": "Faça: guarde quando puder. Fique ativo para estar pronto quando chegar sua vez na rotação. Celebre turnos justos de Condutor.",
-          "dont": "Não faça: gaste pesado “para ganhar Condutor.” Discuta que o maior VS deve levar o trem. Pressione oficiais a pular a rotação por você."
+          "subtitle": "Save hard",
+          "blurb": "Esta semana significa… Empurre seu poder se precisar. Os Condutores são escolhidos aleatoriamente entre R3s — você ainda precisa do mínimo de 7,2M de VS e do mínimo de doações da semana passada.",
+          "do1": "Faça: guarde quando puder; gaste só quando precisar do poder.",
+          "dont": "Não faça: gastar demais nos dias de guardar."
         },
         "certainDays": {
-          "title": "Plataforma 3 — Vitória em dias certos",
-          "blurb": "Semana mista. Só alguns dias de VS importam — os oficiais dirão quais dias vamos empurrar.",
-          "do": "Faça: pergunte ou leia quais dias são de push e quais são de descanso. Dê o máximo nos dias anunciados. Descanse e guarde nos dias que não importam.",
-          "dont": "Não faça: empurrar todos os dias como se fosse all-out (você fica sem nada quando importa). Perder os dias de push anunciados. Assumir que todo dia tem a mesma regra de Condutor."
+          "title": "Plataforma 3 — Vitória estratégica",
+          "subtitle": "Push hard",
+          "blurb": "Esta semana significa… Jogamos a toalha em alguns dias e dominamos em outros. O objetivo é vencer por margem justa, guardando em dias escolhidos desta semana.",
+          "do1": "Faça: pergunte ou leia quais dias são de push e quais são descartáveis.",
+          "do2": "Faça: dê o máximo quando for chamado.",
+          "do3": "Faça: guarde nos dias descartáveis.",
+          "dont": "Não faça: empurrar nos dias errados."
         },
         "allOut": {
-          "title": "Plataforma 4 — Vitória total",
-          "blurb": "Plataforma de push mais rigorosa. Full send pela vitória da semana VS — especialmente no começo da semana.",
-          "do": "Faça: apareça forte de segunda a quinta. Siga o plano de gastos que os oficiais postarem. Lembre: se fecharmos seg–qui, sex/sáb podem ser mais leves (o sábado pode até ser um dia de guardar).",
-          "dont": "Não faça: guardar o melhor para o fim de semana e perder o fechamento cedo. Ficar AFK num dia de push anunciado. Queimar forte depois que a semana já está decidida, a menos que os oficiais digam o contrário."
+          "title": "Plataforma 4 — Dominação total",
+          "subtitle": "Hard push",
+          "blurb": "Esta semana significa… Pé no fundo, sem freio. Mostre do que o LFgo é feito.",
+          "do1": "Faça: apareça forte de segunda a sábado.",
+          "do2": "Faça: fique atento a mudanças de estratégia.",
+          "do3": "Faça: feche a vitória até sexta.",
+          "dont1": "Não faça: relaxar.",
+          "dont2": "Não faça: ficar AFK sem avisar a galera."
         }
       },
       "lockOwnershipTitle": "Posse do trem",
