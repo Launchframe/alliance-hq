@@ -36,7 +36,7 @@ Feature work is not done until Playwright e2e is green — see [`.cursor/rules/e
 
 ## Parallel agents and git isolation
 
-Concurrent Cursor agents (Multitask or separate tasks) must not share one dirty working tree. **One task → one branch → one concern**; use **git worktrees** for parallel writers. Do not use `git stash` as agent handoff — commit WIP to a topic branch instead. In this repo, Real Steel reviews run in a dedicated worktree and clean it up when done. Detail: [`.cursor/rules/agent-git-hygiene.mdc`](.cursor/rules/agent-git-hygiene.mdc), global workflow in `~/.cursor/skills/real-steel/SKILL.md`, and Alliance HQ completion (including `real-steel-ready` label) in [`.cursor/skills/real-steel/SKILL.md`](.cursor/skills/real-steel/SKILL.md). After Real Steel, triage suggestions through merge with [`.cursor/skills/close-the-loop/SKILL.md`](.cursor/skills/close-the-loop/SKILL.md).
+**Prefer topic branches on the primary clone.** Do not create git worktrees unless the maintainer asks or another session is actively using the primary tree. Concurrent writers must not share one dirty working tree — **one task → one branch → one concern**; use a worktree only when a second checkout is unavoidable. Do not use `git stash` as agent handoff — commit WIP to a topic branch instead. Real Steel / close-the-loop also prefer the PR branch on primary (worktree only when primary is busy or requested). Detail: [`.cursor/rules/agent-git-hygiene.mdc`](.cursor/rules/agent-git-hygiene.mdc), global workflow in `~/.cursor/skills/real-steel/SKILL.md`, and Alliance HQ completion (including `real-steel-ready` label) in [`.cursor/skills/real-steel/SKILL.md`](.cursor/skills/real-steel/SKILL.md). After Real Steel, triage suggestions through merge with [`.cursor/skills/close-the-loop/SKILL.md`](.cursor/skills/close-the-loop/SKILL.md).
 
 ## Client vs server imports (Next.js bundles)
 
@@ -151,8 +151,8 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 - On `_journal.json` merge conflicts, keep main's migration and renumber the branch SQL + journal tag; propagate renumbers parent→child in stacked work — never drop migration SQL or journal entries on rebase or force-push.
 - Maintainer must review and approve release notes before `release:ship`; set note frontmatter `status: ready` only after approval.
 - Real Steel: when Discord or onboarding hosted-guide copy changes, verify operator guides and `e2e/discord-bot-guide.spec.ts`.
-- Real Steel: `move_agent_to_root` once into the PR worktree so edits are in-workspace (skipping the move causes per-file approval spam on sibling paths).
-- Start feature work from new git worktrees off `origin/main`.
+- Prefer feature/PR branches on the primary clone; worktrees only when requested or primary is busy ([agent-git-hygiene.mdc](.cursor/rules/agent-git-hygiene.mdc)).
+- Real Steel: if a worktree *is* used, `move_agent_to_root` once into that tree so edits are in-workspace (sibling paths cause per-file approval spam).
 - Hotkey changes need fault isolation and compile-time target validation for navigable pages.
 - Member-facing copy must never mention platform admins or maintainers; say alliance officers were notified instead.
 - Run `npm run test:e2e` locally before pushing PR branch updates. GitHub CI will not run it through 1 Sep 2026 (`.cursor/rules/gha-credit-freeze.mdc`).

@@ -1,28 +1,26 @@
 ---
 name: real-steel
-description: Alliance HQ overlay for Real Steel — applies the global multi-model PR review workflow plus repo-specific completion steps (real-steel-ready label, worktree isolation). Use when the user says /real-steel in this repo.
+description: Alliance HQ overlay for Real Steel — applies the global multi-model PR review workflow plus repo-specific completion steps (real-steel-ready label, primary-clone preference). Use when the user says /real-steel in this repo.
 disable-model-invocation: true
 ---
 
 # Real Steel — Alliance HQ overlay
 
-This repo extends the global Real Steel skill at `~/.cursor/skills/real-steel/SKILL.md`. Follow the global skill for the full workflow (Task chain, run log, PR comments, per-pass commits, worktree isolation per [`.cursor/rules/agent-git-hygiene.mdc`](../rules/agent-git-hygiene.mdc)).
+This repo extends the global Real Steel skill at `~/.cursor/skills/real-steel/SKILL.md`. Follow the global skill for the Task chain, run log, PR comments, and per-pass commits. **Git isolation for this repo** follows [`.cursor/rules/agent-git-hygiene.mdc`](../rules/agent-git-hygiene.mdc) (**primary clone first**), which **overrides** the global skill’s “always use a worktree” default.
 
 **This file adds Alliance HQ completion requirements and orchestrator isolation rules.**
 
-## Worktree isolation — move once into the PR worktree
+## Workspace — primary clone first
 
-Maintainer preference (updated 2026-07-12): **do** call `move_agent_to_root` **once** into the Real Steel worktree at the start of the run.
+Maintainer preference (updated 2026-09-05): run Real Steel on the **PR branch in the primary clone**. Do **not** create a worktree unless the maintainer asks or another session is actively using the primary tree.
 
 | Do | Don't |
 | --- | --- |
-| `./scripts/new-worktree.sh` (or refresh) for the PR branch | Leave the chat rooted in primary / another worktree while editing the PR tree |
-| `move_agent_to_root` **once** → PR worktree (accept one Smart Mode approval if needed) | Skip the move and `Edit`/`Write` absolute paths under a sibling worktree (causes **per-file** approval spam) |
-| Launch each pass `Task` with that worktree as cwd | Parent `git checkout` of the PR branch in the primary clone |
+| `git fetch` + check out the PR branch **on primary** (clean/`git status` first) | Spawn `./scripts/new-worktree.sh` for every Real Steel run |
+| Launch each pass `Task` with cwd = that tree | Check out a different branch while another agent is writing in the same tree |
+| Use a worktree **only** if primary is busy / dirty with unrelated WIP / maintainer requests it | Leave the chat rooted elsewhere while editing a sibling worktree path |
 
-**Why:** Cursor auto-approves edits **inside** the current workspace. Edits **outside** it (sibling `../alliance-hq-*` paths) require approval on every file. Skipping the move avoided one MCP prompt but made ordinary coding unusable.
-
-Parallel agents stay isolated via **separate worktree dirs + branches**. The move is so *this* chat’s write surface matches the PR worktree.
+**If a worktree is justified:** create/refresh with `./scripts/new-worktree.sh`, then call `move_agent_to_root` **once** into that path (accept one Smart Mode approval if needed). Cursor auto-approves in-workspace edits; edits under a sibling worktree while rooted elsewhere cause per-file approval spam.
 
 ## PR completion label (`real-steel-ready`)
 
@@ -93,4 +91,4 @@ Follow the global skill. Additionally for this repo:
 
 To triage suggestions/nits, land copy-approved fixes, and merge, use [close-the-loop](../close-the-loop/SKILL.md).
 
-If the maintainer will close the loop in the same session, **keep** the Real Steel worktree (do not remove it yet). Close-the-loop prefers that worktree for fixes; otherwise it refreshes via `./scripts/new-worktree.sh`.
+If the maintainer will close the loop in the same session, stay on the PR branch (primary or the worktree you already needed). Close-the-loop prefers that same tree; do not open a new worktree by default.

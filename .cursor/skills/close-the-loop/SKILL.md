@@ -45,14 +45,14 @@ Do not skip step 4. Do not skip step 2 **unless** the maintainer is already past
 | Adversarial review + `real-steel-ready` | [real-steel](../real-steel/SKILL.md) + `~/.cursor/skills/real-steel/SKILL.md` |
 | Bot-thread triage / suggested human replies | `~/.cursor/skills/address-pr-feedback/SKILL.md` |
 | User-facing English + en-US/pt-BR | [user-facing-copy-review.mdc](../../rules/user-facing-copy-review.mdc), [i18n-all-surfaces.mdc](../../rules/i18n-all-surfaces.mdc) |
-| Git / worktree isolation | [agent-git-hygiene.mdc](../../rules/agent-git-hygiene.mdc) |
+| Git / branch isolation (primary first) | [agent-git-hygiene.mdc](../../rules/agent-git-hygiene.mdc) |
 | Pre-commit gates | [`PRE_COMMIT_GATE.md`](../../../PRE_COMMIT_GATE.md) (also summarized in `AGENTS.md`) |
 
 ## Step detail
 
 ### 1. Implement, open PR
 
-- One concern per branch/worktree (`./scripts/new-worktree.sh`).
+- One concern per branch on the **primary clone** (worktree only per [agent-git-hygiene.mdc](../../rules/agent-git-hygiene.mdc)).
 - Land code + **approved** locales together; no inline user-facing English.
 - Open PR with summary + test plan. Keep draft only if maintainer agreed structure-first before copy.
 
@@ -63,7 +63,7 @@ Do not skip step 4. Do not skip step 2 **unless** the maintainer is already past
 
 ### 3. Run real-steel against the PR
 
-- Follow [real-steel](../real-steel/SKILL.md): worktree + `move_agent_to_root` once, then pass chain.
+- Follow [real-steel](../real-steel/SKILL.md): PR branch on primary (worktree only if needed), then pass chain.
 - Expect `real-steel-ready` when the chain completes without unresolved Criticals / copy blockers.
 
 ### 4. Evaluate Criticals, suggestions & nits
@@ -91,7 +91,7 @@ Read the Real Steel issue comment (and any follow-up threads).
 
 ### 5. Implement fixes to suggestions
 
-- Work in the PR worktree (not primary clone). Prefer the existing Real Steel worktree if still present; otherwise `./scripts/new-worktree.sh` (or refresh) for the PR branch. Prefer `move_agent_to_root` into that worktree when the environment allows.
+- Work on the PR branch in the **primary clone** (or the same worktree Real Steel already needed). Do not open a new worktree by default. `move_agent_to_root` only if the chat root must match a justified non-primary tree.
 - Implement **Blocking** items only (plus maintainer-explicit extras).
 - For human Real Steel comments: react (`+1` / `-1` / `eyes`), fix valid items, prepare a concise reply — **post only when the maintainer asks** (or says “post the reply”).
 - Bot feedback: follow `address-pr-feedback` (post bot replies; keep human replies suggested unless told to post).
