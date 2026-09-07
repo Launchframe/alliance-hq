@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -10,7 +10,8 @@ import {
 import { buildAdminAlliancesSearchParams } from "@/lib/admin/admin-alliances-query.shared";
 
 const SEARCH_DEBOUNCE_MS = 300;
-const RESULT_LIMIT = 20;
+/** Higher than membership picker so a full-catalog browse is obvious. */
+const RESULT_LIMIT = 40;
 
 type AdminAllianceHit = {
   id: string;
@@ -22,17 +23,41 @@ type AdminAllianceHit = {
 
 type Props = {
   currentAllianceId: string;
+  /** Session membership ids — used to sort only, never to filter results. */
+  membershipAllianceIds?: readonly string[];
   switching: boolean;
   onSelect: (allianceId: string, activityLabel?: string | null) => void;
 };
 
+function sortPlatformHits(
+  hits: AdminAllianceHit[],
+  membershipIds: ReadonlySet<string>,
+): AdminAllianceHit[] {
+  return [...hits].sort((a, b) => {
+    const aMember = membershipIds.has(a.id) ? 1 : 0;
+    const bMember = membershipIds.has(b.id) ? 1 : 0;
+    if (aMember !== bMember) {
+      // Non-membership alliances first so this is visibly not the membership list.
+      return aMember - bMember;
+    }
+    const tagA = a.tag?.trim() || a.slug;
+    const tagB = b.tag?.trim() || b.slug;
+    return tagA.localeCompare(tagB);
+  });
+}
+
 export function MaintainerAllianceSearch({
   currentAllianceId,
+  membershipAllianceIds = [],
   switching,
   onSelect,
 }: Props) {
   const t = useTranslations("alliancePicker");
   const panelId = useId();
+  const membershipIdSet = useMemo(
+    () => new Set(membershipAllianceIds),
+    [membershipAllianceIds],
+  );
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -42,19 +67,13 @@ export function MaintainerAllianceSearch({
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
-      const next = query.trim();
-      setDebouncedQuery(next);
-      if (!next) {
-        setResults([]);
-        setSearching(false);
-        setSearchError(null);
-      }
+      setDebouncedQuery(query.trim());
     }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
   }, [query]);
 
   useEffect(() => {
-    if (!open || !debouncedQuery) {
+    if (!open) {
       return;
     }
 
@@ -63,8 +82,9 @@ export function MaintainerAllianceSearch({
       setSearching(true);
       setSearchError(null);
       try {
+        // Empty query browses the platform catalog (not the membership picker).
         const qs = buildAdminAlliancesSearchParams({
-          q: debouncedQuery,
+          q: debouncedQuery || undefined,
           operatingMode: "all",
           sort: "name",
           order: "asc",
@@ -80,7 +100,7 @@ export function MaintainerAllianceSearch({
           throw new Error(data.error ?? t("findAllLoadFailed"));
         }
         if (cancelled) return;
-        setResults(data.alliances ?? []);
+        setResults(sortPlatformHits(data.alliances ?? [], membershipIdSet));
       } catch (err) {
         if (!cancelled) {
           setResults([]);
@@ -96,7 +116,7 @@ export function MaintainerAllianceSearch({
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, open, t]);
+  }, [debouncedQuery, membershipIdSet, open, t]);
 
   return (
     <div className="mt-2 border-t border-hq-border pt-2">
@@ -143,7 +163,10 @@ export function MaintainerAllianceSearch({
               {searchError}
             </p>
           ) : null}
-          {!searching && debouncedQuery && results.length === 0 && !searchError ? (
+          {!searching &&
+          results.length === 0 &&
+          !searchError &&
+          debouncedQuery ? (
             <p className="text-[11px] text-hq-fg-muted">{t("findAllNoMatches")}</p>
           ) : null}
           {results.length > 0 ? (

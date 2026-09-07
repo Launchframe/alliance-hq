@@ -205,12 +205,14 @@ export function AllianceSessionSwitcher({
     ],
   );
 
-  const searchable =
-    searchableProp ?? (isPlatformMaintainer || alliances.length > 8);
+  const searchable = searchableProp ?? alliances.length > 8;
+
+  const membershipAllianceIds = alliances.map((row) => row.id);
 
   const maintainerSearch = isPlatformMaintainer ? (
     <MaintainerAllianceSearch
       currentAllianceId={currentAllianceId}
+      membershipAllianceIds={membershipAllianceIds}
       switching={switching}
       onSelect={(allianceId, label) => void onSelect(allianceId, label)}
     />
