@@ -32,6 +32,9 @@ type Props = {
   shareBusyLabel?: string;
   shareBusy?: boolean;
   onShareImage?: () => void;
+  showAnnounceAction?: boolean;
+  onAnnounce?: () => void;
+  announceLabel: string;
   "data-testid"?: string;
 };
 
@@ -45,6 +48,9 @@ export function TodayConductorCard({
   shareBusyLabel,
   shareBusy = false,
   onShareImage,
+  showAnnounceAction = false,
+  onAnnounce,
+  announceLabel,
   "data-testid": dataTestId,
 }: Props) {
   const locked = Boolean(record?.lockedAt);
@@ -139,6 +145,19 @@ export function TodayConductorCard({
           </div>
         ) : null}
       </div>
+
+      {locked && showAnnounceAction && onAnnounce ? (
+        <div className="mt-4 border-t border-[#30363d] pt-4">
+          <button
+            type="button"
+            onClick={onAnnounce}
+            className="w-full rounded-lg bg-[#8957e5] px-4 py-2 text-sm font-medium text-white hover:bg-[#9d6ff0] sm:w-auto"
+            data-testid="trains-announce-wizard-open"
+          >
+            {announceLabel}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

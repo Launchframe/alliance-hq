@@ -4,6 +4,7 @@ import { ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { ConductorAnnouncementWizard } from "@/components/trains/ConductorAnnouncementWizard";
 import { ConductorPickModal } from "@/components/trains/ConductorPickModal";
 import type { ConductorPickMemberHint } from "@/components/trains/ConductorPickModal";
 import {
@@ -408,6 +409,7 @@ export function TrainsDashboard({
   const [rosterSyncNoticeTone, setRosterSyncNoticeTone] = useState<
     "success" | "warning" | "error"
   >("success");
+  const [announceWizardOpen, setAnnounceWizardOpen] = useState(false);
 
   const trainWeekConfig = useMemo(
     () => allianceTrainWeekFromRow({ trainWeekStartDow: data.trainWeekStartDow }),
@@ -2655,6 +2657,14 @@ export function TrainsDashboard({
         </div>
         <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:items-end">
           <div className="flex items-center justify-end gap-2">
+                {data.canManageTrains ? (
+              <Link
+                href="/trains/prompts/new"
+                className="rounded-lg border border-[#30363d] px-3 py-1.5 text-xs font-medium text-[#e6edf3] hover:bg-[#21262d]"
+              >
+                {t("promptStudioLink")}
+              </Link>
+            ) : null}
             <TrainsHelpPanel
               showTakeTour={data.canManageTrains && data.activeMemberCount > 0}
               onTakeTour={() => {
@@ -3010,6 +3020,13 @@ export function TrainsDashboard({
                   ? () => void handleShareExportImage()
                   : undefined
               }
+              showAnnounceAction={
+                locked &&
+                data.canManageTrains &&
+                Boolean(selectedRecord?.id && data.allianceTag)
+              }
+              onAnnounce={() => setAnnounceWizardOpen(true)}
+              announceLabel={t("createAnnouncementImage")}
               data-testid="trains-conductor-card"
             />
           ) : null}
@@ -4033,6 +4050,25 @@ export function TrainsDashboard({
           setWalkthroughOpen(false);
         }}
       />
+
+      {selectedRecord?.id && data.allianceTag ? (
+        <ConductorAnnouncementWizard
+          open={announceWizardOpen}
+          onOpenChange={setAnnounceWizardOpen}
+          record={{
+            id: selectedRecord.id,
+            conductorMemberId: selectedRecord.conductorMemberId,
+            conductorMemberName: selectedRecord.conductorMemberName,
+            conductorMechanism: selectedRecord.conductorMechanism,
+            vipMemberName: selectedRecord.vipMemberName,
+            date: selectedDate,
+          }}
+          allianceTag={data.allianceTag}
+          allianceName={data.allianceName ?? data.allianceTag}
+          seasonKey={data.seasonKey}
+          canManageTrains={data.canManageTrains}
+        />
+      ) : null}
     </div>
     </TrainsWalkthroughProvider>
   );
