@@ -1987,6 +1987,9 @@
     "uploadRemindersTitle": "Lembretes de upload",
     "uploadRemindersBody": "Configure quando os oficiais são lembrados de enviar pontuações de eventos e gerencie suas assinaturas pessoais.",
     "uploadRemindersLink": "Gerenciar lembretes de upload",
+    "regularEventsTitle": "Eventos regulares",
+    "regularEventsBody": "Agende lembretes no Discord e na caixa de entrada para Marshal Guard, Zombie Siege, Glacierdon e Sky Marshall.",
+    "regularEventsLink": "Gerenciar lembretes de eventos regulares",
     "discordSectionTitle": "Integração com Discord",
     "discordSectionBody": "Instale o bot da aliança e registre seu servidor Discord para anúncios de trem e ferramentas para membros.",
     "discordSectionLink": "Abrir configurações do Discord",
@@ -2209,6 +2212,31 @@
         "stepPickChannel": "Vá ao canal onde os membros devem ver os anúncios do trem.",
         "stepRunCommand": "Execute este comando no canal:",
         "stepEnableAnnouncements": "No Alliance HQ → Configurações → Trens, ative os anúncios de trem no Discord."
+      }
+    },
+    "regularEvents": {
+      "title": "Lembretes de eventos regulares",
+      "description": "Publica lembretes no Discord e na caixa de entrada do HQ uma hora antes de Marshal Guard, Zombie Siege, Glacierdon e Sky Marshall.",
+      "loading": "Carregando…",
+      "loadFailed": "Não foi possível carregar as configurações de eventos regulares.",
+      "saveFailed": "Não foi possível salvar as configurações de eventos regulares.",
+      "enableAnnouncements": "Publicar lembretes de eventos regulares no Discord",
+      "channelsConfigured": "{count, plural, one {# servidor Discord com canal de eventos regulares} other {# servidores Discord com canal de eventos regulares}}",
+      "noChannel": "Nenhum canal de eventos regulares configurado. Execute /set-regular-events-channel no Discord.",
+      "canyonStormLabel": "Canyon Storm está ativo",
+      "canyonStormHint": "Quando ativado, os lembretes de Zombie Siege usam 23:30 no horário do servidor em vez de 23:00.",
+      "readOnlyHint": "Somente oficiais da aliança podem alterar estas configurações.",
+      "scheduleTitle": "Agenda",
+      "ruleInterval": "A cada {days} dias às {time} (horário do servidor)",
+      "ruleWeeklyEmpty": "Semanal (nenhum horário configurado)",
+      "dow": {
+        "sun": "Dom",
+        "mon": "Seg",
+        "tue": "Ter",
+        "wed": "Qua",
+        "thu": "Qui",
+        "fri": "Sex",
+        "sat": "Sáb"
       }
     },
     "vrSandbox": {
@@ -5079,6 +5107,9 @@
       "regularEventsSuccess": "✅ Canal de eventos regulares definido para **{tag}**. Anúncios de eventos serão publicados em {channel}.",
       "bankingSuccess": "✅ Canal bancário definido para **{tag}**. Alertas de timer de proteção serão publicados em {channel}."
     },
+    "regularEvents": {
+      "startsInOneHour": "{event} começa em 1 hora ({time} horário do servidor)."
+    },
     "link": {
       "userPrompt": "Clique no link abaixo para vincular sua conta do Discord ao Alliance HQ (expira em 30 min):\n{url}\n\nDepois, execute `/help` no Discord para o próximo passo.",
       "commanderPrompt": "Abra este link seguro para informar seu ID de jogador (expira em 30 min):\n{url}\n\nSeu ID de jogador nunca é compartilhado no chat do Discord.",
@@ -5499,7 +5530,8 @@
       "captureReminderBody": "Esta Fortaleza foi capturada com sucesso?",
       "captureYes": "Sim — criar banco",
       "captureNo": "Não",
-      "captureSnooze": "Adiar 30 min"
+      "captureSnooze": "Adiar 30 min",
+      "regularEventReminder": "Evento regular"
     },
     "confirmCaptureFailed": "Falha ao confirmar captura."
   },

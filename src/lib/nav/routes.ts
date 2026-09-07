@@ -439,6 +439,7 @@ const ALLIANCE_SETTINGS_HUB_CHILDREN = [
   "/settings/trains",
   "/settings/game-seasons",
   "/settings/upload-reminders",
+  "/settings/regular-events",
   "/settings/team",
   "/settings/alliance",
 ] as const;
@@ -536,6 +537,7 @@ export function findActiveNavGroupId(
           "/settings/trains",
           "/settings/game-seasons",
           "/settings/upload-reminders",
+          "/settings/regular-events",
         );
       }
       if (extraHrefs.some((href) => navLinkActive(pathname, href))) {
