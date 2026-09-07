@@ -316,4 +316,91 @@ test.describe("Team Access — officer invites", () => {
 
     expect(res.status()).toBe(403);
   });
+
+  test("owner can demote officer to member; officer cannot demote", async ({
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `TD${nanoid(3)}`,
+      name: "Team Demote Alliance",
+    });
+    const owner = await createAuthenticatedHqSession(sql, uniqueEmail("owner-demote"));
+    const officer = await createAuthenticatedHqSession(
+      sql,
+      uniqueEmail("officer-demote"),
+    );
+    const otherOfficer = await createAuthenticatedHqSession(
+      sql,
+      uniqueEmail("officer-keep"),
+    );
+
+    await createAllianceMembership(sql, {
+      hqUserId: owner.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "owner",
+      source: "manual",
+    });
+    await createAllianceMembership(sql, {
+      hqUserId: officer.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "officer",
+      source: "manual",
+    });
+    await createAllianceMembership(sql, {
+      hqUserId: otherOfficer.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "officer",
+      source: "manual",
+    });
+
+    const [officerMembership] = await sql`
+      SELECT id
+      FROM alliance_memberships
+      WHERE hq_user_id = ${officer.hqUserId}
+        AND alliance_id = ${alliance.allianceId}
+      LIMIT 1
+    `;
+    expect(officerMembership?.id).toBeTruthy();
+
+    await sql`
+      UPDATE sessions
+      SET current_alliance_id = ${alliance.allianceId}, alliance_tag = ${alliance.tag}
+      WHERE id = ${owner.sessionId}
+    `;
+    await sql`
+      UPDATE sessions
+      SET current_alliance_id = ${alliance.allianceId}, alliance_tag = ${alliance.tag}
+      WHERE id = ${officer.sessionId}
+    `;
+
+    const officerDenied = await request.post(
+      `/api/settings/team/memberships/${officerMembership.id}/role`,
+      {
+        headers: { Cookie: authCookieHeader(officer) },
+        data: { roleName: "member" },
+      },
+    );
+    expect(officerDenied.status()).toBe(403);
+
+    const ownerOk = await request.post(
+      `/api/settings/team/memberships/${officerMembership.id}/role`,
+      {
+        headers: { Cookie: authCookieHeader(owner) },
+        data: { roleName: "member" },
+      },
+    );
+    expect(ownerOk.status()).toBe(200);
+    const body = (await ownerOk.json()) as { ok?: boolean };
+    expect(body.ok).toBe(true);
+
+    const rows = await sql`
+      SELECT r.name AS role_name, m.source
+      FROM alliance_memberships m
+      INNER JOIN roles r ON r.id = m.role_id
+      WHERE m.id = ${officerMembership.id}
+    `;
+    expect(rows[0]?.role_name).toBe("member");
+    expect(rows[0]?.source).toBe("manual");
+  });
 });

@@ -4,11 +4,8 @@ import { getTranslations } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 
 import { Link } from "@/i18n/navigation";
-import { CredentialSharePanel } from "@/components/settings/CredentialSharePanel";
-import { SettingsTeamClient } from "@/components/SettingsTeamClient";
-import { TeamInvitePanel } from "@/components/settings/TeamInvitePanel";
-import { VideoProcessorsPanel } from "@/components/settings/VideoProcessorsPanel";
 import { AllianceContextRequired } from "@/components/settings/AllianceContextRequired";
+import { SettingsTeamTabs } from "@/components/settings/SettingsTeamTabs";
 import {
   MAX_VIDEO_PROCESSORS,
   listAllianceVideoProcessors,
@@ -24,8 +21,13 @@ import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 import { requireAllianceSettingsSession } from "@/lib/settings/alliance-settings-access.server";
 import { getRbacContext, sessionIsAllianceAdmin } from "@/lib/rbac/context";
 import { getAllianceTeam } from "@/lib/rbac/sync-ashed-roles";
-import { getAshedConnection, requirePageSession, resolveEffectiveHqUserIdForSession } from "@/lib/session";
+import {
+  getAshedConnection,
+  requirePageSession,
+  resolveEffectiveHqUserIdForSession,
+} from "@/lib/session";
 import { sessionHoldsAshedIdentityForHqUser } from "@/lib/rbac/ashed-session-membership";
+import { canRevokeOfficerAccess } from "@/lib/settings/team-officer-revoke.shared";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +35,7 @@ export async function generateMetadata() {
   const t = await getTranslations("team");
   return await allianceScopedMetadata(t("title"));
 }
+
 export default async function SettingsTeamPage({
   params,
 }: {
@@ -77,6 +80,7 @@ export default async function SettingsTeamPage({
       isAshedConnected: ashedConnection !== null,
     });
   const canManageInvites = rbac ? canManageTeamInvites(rbac) : false;
+  const canRevokeOfficers = rbac ? canRevokeOfficerAccess(rbac) : false;
   const assignableInviteRoles = rbac ? assignableInviteRolesForContext(rbac) : [];
 
   const [videoProcessors, videoProcessorCandidateList] = isAllianceAdmin
@@ -86,9 +90,10 @@ export default async function SettingsTeamPage({
       ])
     : [[], { candidates: [], eligibilityMode: "native_r4_r5" as const }];
   const videoProcessorIds = new Set(videoProcessors.map((p) => p.hqUserId));
-  const availableVideoProcessorCandidates = videoProcessorCandidateList.candidates.filter(
-    (c) => !videoProcessorIds.has(c.hqUserId),
-  );
+  const availableVideoProcessorCandidates =
+    videoProcessorCandidateList.candidates.filter(
+      (c) => !videoProcessorIds.has(c.hqUserId),
+    );
 
   let allianceTag = access.session.allianceTag;
   let allianceName: string | null = null;
@@ -118,35 +123,24 @@ export default async function SettingsTeamPage({
         <p className="mt-2 text-sm text-hq-fg-muted">{t("description")}</p>
       </div>
 
-      {canManageInvites ? (
-        <TeamInvitePanel
-          assignableRoles={assignableInviteRoles}
-          allianceName={allianceName ?? tagLabel}
-        />
-      ) : null}
-
-      {isAllianceAdmin ? (
-        <VideoProcessorsPanel
-          initialProcessors={videoProcessors}
-          initialCandidates={availableVideoProcessorCandidates}
-          eligibilityMode={videoProcessorCandidateList.eligibilityMode}
-          max={MAX_VIDEO_PROCESSORS}
-        />
-      ) : null}
-
-      <CredentialSharePanel
-        canManage={canManageCredentialShares}
+      <SettingsTeamTabs
+        canManageInvites={canManageInvites}
+        isAllianceAdmin={isAllianceAdmin}
+        assignableInviteRoles={assignableInviteRoles}
+        allianceName={allianceName ?? tagLabel}
+        videoProcessors={videoProcessors}
+        videoProcessorCandidates={availableVideoProcessorCandidates}
+        videoProcessorEligibilityMode={
+          videoProcessorCandidateList.eligibilityMode
+        }
+        maxVideoProcessors={MAX_VIDEO_PROCESSORS}
+        canManageCredentialShares={canManageCredentialShares}
+        canRevokeOfficers={canRevokeOfficers}
         currentHqUserId={effectiveHqUserId}
-      />
-
-      <SettingsTeamClient
         initialTeam={team}
         canRefreshFromAshed={canRefreshFromAshed}
+        ashedNote={canRefreshFromAshed ? t("ashedNote") : null}
       />
-
-      {canRefreshFromAshed ? (
-        <p className="text-xs text-hq-fg-subtle">{t("ashedNote")}</p>
-      ) : null}
     </div>
   );
 }
