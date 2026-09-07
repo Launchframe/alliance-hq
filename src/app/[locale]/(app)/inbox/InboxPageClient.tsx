@@ -12,6 +12,10 @@ import {
 import { MEMBER_LINK_HELP_INBOX_KIND } from "@/lib/member-link/member-link-help-inbox.shared";
 import { ONBOARDING_REVIEW_INBOX_KIND } from "@/lib/member-link/onboarding-review-inbox.shared";
 import { ROSTER_LINK_INBOX_KIND } from "@/lib/member-link/roster-link-inbox.shared";
+import {
+  VS_DEMOTION_TASK_KIND,
+  VS_KICK_TASK_KIND,
+} from "@/lib/vs-compliance/vs-compliance-inbox.shared";
 import { Link } from "@/i18n/navigation";
 import { dispatchInboxRemindersRefresh } from "@/lib/inbox-reminders-refresh.shared";
 
@@ -133,6 +137,8 @@ export default function InboxPageClient({
     if (kind === ONBOARDING_REVIEW_INBOX_KIND) return t("kind.memberOnboardingReview");
     if (kind === MEMBER_LINK_HELP_INBOX_KIND) return t("kind.memberLinkHelp");
     if (kind === CAPTURE_REMINDER_INBOX_KIND) return t("kind.captureReminder");
+    if (kind === VS_DEMOTION_TASK_KIND) return t("kind.vsComplianceTask");
+    if (kind === VS_KICK_TASK_KIND) return t("kind.vsComplianceTask");
     return kind;
   }
 
@@ -149,6 +155,14 @@ export default function InboxPageClient({
       const name = item.scoreTarget?.trim() || item.title;
       return t("kind.memberLinkHelpTitle", { name });
     }
+    if (item.kind === VS_KICK_TASK_KIND) {
+      const name = item.scoreTarget?.trim() || item.title;
+      return t("kind.vsKickTaskTitle", { name });
+    }
+    if (item.kind === VS_DEMOTION_TASK_KIND) {
+      const name = item.scoreTarget?.trim() || item.title;
+      return t("kind.vsDemotionTaskTitle", { name });
+    }
     return item.title;
   }
 
@@ -161,6 +175,9 @@ export default function InboxPageClient({
     }
     if (item.kind === MEMBER_LINK_HELP_INBOX_KIND) {
       return t("kind.memberLinkHelpBody");
+    }
+    if (item.kind === VS_DEMOTION_TASK_KIND || item.kind === VS_KICK_TASK_KIND) {
+      return t("kind.vsComplianceTaskBody");
     }
     return item.body;
   }

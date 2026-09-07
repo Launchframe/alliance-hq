@@ -1567,7 +1567,8 @@
         "discordBotGuide": "Ir para Ajuda do bot Discord",
         "gettingStartedGuide": "Ir para Primeiros passos — R5",
         "discordTrainGuide": "Ir para Guia do trem no Discord",
-        "allianceOnboardingGuide": "Ir para Integração da aliança"
+        "allianceOnboardingGuide": "Ir para Integração da aliança",
+        "vsCompliance": "Ir para tarefas de fiscalização de VS"
       },
       "admin": {
         "overview": "Visão geral Admin",
@@ -2268,6 +2269,31 @@
       "title": "Member onboarding",
       "body": "Control how new members join, who can send invites, and who reviews commander links.",
       "link": "Open member onboarding settings"
+    },
+    "vsMembershipSectionTitle": "Requisitos mínimos de VS",
+    "vsMembershipSectionBody": "Defina uma pontuação semanal mínima obrigatória de VS. Membros que não atingirem o mínimo geram uma tarefa para o oficial rebaixar ou remover o membro no jogo — o Alliance HQ nunca altera patentes automaticamente.",
+    "vsMembershipSectionLink": "Abrir configurações de mínimos de VS",
+    "vsCompliancePage": {
+      "title": "Requisitos mínimos de VS",
+      "subtitle": "Configuração do mínimo semanal de VS para {tag}.",
+      "viewOpenTasksLink": "Ver tarefas abertas de fiscalização de VS"
+    },
+    "vsMembershipMinimums": {
+      "sectionTitle": "Requisitos mínimos de VS",
+      "sectionBody": "Os membros devem registrar pelo menos esta quantidade de pontos de VS por semana (seg–sáb) para permanecer em dia. O HQ recomendará rebaixamento ou remoção com base no desempenho abaixo do esperado.",
+      "loading": "Carregando requisitos mínimos de VS…",
+      "loadFailed": "Não foi possível carregar os requisitos mínimos de VS.",
+      "minPointsLabel": "Pontos VS semanais obrigatórios",
+      "minPointsPlaceholder": "Deixe em branco para desativar",
+      "minPointsHint": "Deixe em branco para desativar a fiscalização semanal de VS nesta aliança.",
+      "strikesLabel": "Faltas antes de recomendar remoção",
+      "strikesHint": "Após esta quantidade de faltas seguidas (não perdoadas), a tarefa do oficial passa a recomendar remoção em vez de rebaixamento.",
+      "leewayLabel": "Margem (%)",
+      "leewayHint": "Membros dentro desta porcentagem do mínimo ainda se qualificam.",
+      "save": "Salvar",
+      "saving": "Salvando…",
+      "saveFailed": "Não foi possível salvar os requisitos mínimos de VS.",
+      "ownersOnly": "Somente administradores da aliança podem alterar estas configurações."
     }
   },
   "account": {
@@ -5499,7 +5525,11 @@
       "captureReminderBody": "Esta Fortaleza foi capturada com sucesso?",
       "captureYes": "Sim — criar banco",
       "captureNo": "Não",
-      "captureSnooze": "Adiar 30 min"
+      "captureSnooze": "Adiar 30 min",
+      "vsComplianceTask": "Fiscalização de VS",
+      "vsComplianceTaskBody": "Este membro não atingiu o mínimo semanal de VS da aliança. Resolva no jogo e depois marque esta tarefa como concluída ou perdoe a falta.",
+      "vsDemotionTaskTitle": "Rebaixar {name} (falta de VS)",
+      "vsKickTaskTitle": "Remover {name} (faltas de VS)"
     },
     "confirmCaptureFailed": "Falha ao confirmar captura."
   },
@@ -6110,7 +6140,7 @@
     "emptyDepositsHint": "Envie um vídeo do Histórico de Comprovantes de Depósito para importar comprovantes deste banco.",
     "latestDepositSlipHero": "Último comprovante de depósito deste banco: [{allianceTag}] {commanderName} em {depositEventTime}",
     "latestDepositSlipHeroNoTag": "Último comprovante de depósito deste banco: {commanderName} em {depositEventTime}",
-    "uploadDepositSlip": "Enviar vídeo de comprovante de depósito",
+    "uploadDepositSlip": "Enviar vídeo do histórico de depósitos",
     "pendingDepositSlipVideoReview": "{count, plural, one {# vídeo aguardando revisão} other {# vídeos aguardando revisão}}",
     "reviewPendingDepositSlipVideo": "Revisar vídeo de comprovante de depósito",
     "addBank": "Adicionar banco",
@@ -6258,7 +6288,6 @@
       "falloffSaveFailed": "Não foi possível salvar a projeção de queda dos depósitos."
     },
     "dropScheduled": "Abandono agendado no Plano de Batalha.",
-    "uploadDepositSlip": "Enviar vídeo do histórico de depósitos",
     "falloff": {
       "title": "Projeção de queda dos depósitos",
       "hint": "Valor depositado projetado e saída por maturidade ao longo do tempo. Salve um instantâneo para comparar com o que realmente acontecer.",
@@ -6310,7 +6339,15 @@
     "calendar": {
       "previousMonth": "Mês anterior",
       "nextMonth": "Próximo mês",
-      "weekdayHeaders": ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"],
+      "weekdayHeaders": [
+        "Seg",
+        "Ter",
+        "Qua",
+        "Qui",
+        "Sex",
+        "Sáb",
+        "Dom"
+      ],
       "more": "+{count} mais"
     },
     "availability": {
@@ -6351,7 +6388,8 @@
       "saveFailed": "Não foi possível salvar a ausência.",
       "reportFailed": "Não foi possível carregar o relatório de ausências inesperadas.",
       "fieldsRequired": "Comandante e datas são obrigatórios."
-    }
+    },
+    "vsComplianceLink": "Ver tarefas abertas de fiscalização de VS"
   },
   "statSync": {
     "title": "Sincronização HQ ↔ Ashed",
@@ -6369,5 +6407,26 @@
     "keepHq": "Manter HQ",
     "keepAshed": "Manter Ashed",
     "discard": "Descartar relatório HQ"
+  },
+  "vsCompliance": {
+    "title": "Fiscalização de VS",
+    "subtitle": "Membros que não atingiram o mínimo semanal de VS da aliança. As tarefas são apenas informativas — qualquer aplicação deve ser feita no jogo.",
+    "empty": "Nenhuma tarefa aberta de fiscalização de VS.",
+    "kindDemotion": "Rebaixar",
+    "kindKick": "Remover da aliança",
+    "taskDemotionTitle": "Rebaixar {name} (falta de VS)",
+    "taskKickTitle": "Remover {name} (faltas de VS)",
+    "weekSummary": "Semana encerrada em {weekEnding}: {score} de VS (mínimo {threshold})",
+    "strikeCount": "{count, plural, one {# falta consecutiva} other {# faltas consecutivas}}",
+    "markComplete": "Marcar como concluída",
+    "markCompleteFailed": "Não foi possível marcar esta tarefa como concluída.",
+    "waive": "Perdoar",
+    "waiveFailed": "Não foi possível perdoar esta tarefa.",
+    "waiveDialogTitle": "Perdoar tarefa de fiscalização de VS",
+    "waiveReasonLabel": "Motivo",
+    "waiveReasonRequired": "É necessário informar um motivo para perdoar esta tarefa.",
+    "cancel": "Cancelar",
+    "waiveConfirm": "Perdoar tarefa",
+    "waiving": "Perdoando…"
   }
 }

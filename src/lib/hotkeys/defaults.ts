@@ -37,6 +37,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "nav.trainsHistoryImport": seq("g", "0"),
   "nav.battlePlan": seq("g", "h"),
   "nav.timeOff": seq("g", "w"),
+  "nav.vsCompliance": seq("g", "5"),
   "nav.bankManagement": seq("g", "9"),
   "nav.desertStorm": seq("g", "s"),
   "nav.canyonStorm": seq("g", "c"),

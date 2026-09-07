@@ -70,6 +70,16 @@ export function AllianceSettingsForm({
               {t("trainsSectionLink")} →
             </Link>
           </section>
+          <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+            <h2 className="font-medium">{t("vsMembershipSectionTitle")}</h2>
+            <p className="mt-2 text-sm text-hq-fg-muted">{t("vsMembershipSectionBody")}</p>
+            <Link
+              href="/settings/vs-compliance"
+              className="mt-4 inline-block text-sm text-hq-accent hover:underline"
+            >
+              {t("vsMembershipSectionLink")} →
+            </Link>
+          </section>
         </>
       ) : null}
 
