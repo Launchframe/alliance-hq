@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { AllianceLinkedCommandersBadge } from "@/components/alliance/AllianceLinkedCommandersBadge";
@@ -207,7 +207,10 @@ export function AllianceSessionSwitcher({
 
   const searchable = searchableProp ?? alliances.length > 8;
 
-  const membershipAllianceIds = alliances.map((row) => row.id);
+  const membershipAllianceIds = useMemo(
+    () => alliances.map((row) => row.id),
+    [alliances],
+  );
 
   const maintainerSearch = isPlatformMaintainer ? (
     <MaintainerAllianceSearch

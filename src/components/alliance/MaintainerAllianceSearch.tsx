@@ -54,10 +54,14 @@ export function MaintainerAllianceSearch({
 }: Props) {
   const t = useTranslations("alliancePicker");
   const panelId = useId();
-  const membershipIdSet = useMemo(
-    () => new Set(membershipAllianceIds),
-    [membershipAllianceIds],
-  );
+  // Stable when id list is unchanged (parent may pass a new array ref).
+  const membershipAllianceIdsKey = membershipAllianceIds.join("\0");
+  const membershipIdSet = useMemo(() => {
+    if (!membershipAllianceIdsKey) {
+      return new Set<string>();
+    }
+    return new Set(membershipAllianceIdsKey.split("\0"));
+  }, [membershipAllianceIdsKey]);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
