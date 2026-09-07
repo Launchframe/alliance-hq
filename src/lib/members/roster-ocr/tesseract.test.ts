@@ -1,8 +1,10 @@
 import { existsSync } from "node:fs";
+import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildTesseractWorkerOptions } from "@/lib/members/roster-ocr/tesseract";
+import { tesseractFileTracing } from "../../../../scripts/vercel/video-ocr-file-tracing.mjs";
 
 const recognizeState = { active: 0, maxConcurrent: 0 };
 
@@ -56,6 +58,40 @@ describe("buildTesseractWorkerOptions", () => {
     expect(options.workerPath.includes("node_modules")).toBe(true);
   });
 
+  it("keeps worker-script relative requires on disk (NFT must ship constants/)", () => {
+    const options = buildTesseractWorkerOptions();
+    const workerDir = path.dirname(options.workerPath);
+    // dump.js → ../../constants/imageType; getCore.js → ../../constants/OEM
+    expect(
+      existsSync(path.join(workerDir, "../../constants/imageType.js")),
+    ).toBe(true);
+    expect(existsSync(path.join(workerDir, "../../constants/OEM.js"))).toBe(true);
+  });
+
+  it("falls back to cwd when package.json resolve is a Turbopack module id", async () => {
+    vi.doMock("node:module", () => ({
+      createRequire: () => (request: string) => {
+        if (request === "tesseract.js/package.json") {
+          return 18_409;
+        }
+        throw new Error(`unexpected resolve: ${request}`);
+      },
+    }));
+
+    vi.resetModules();
+    const { resolveTesseractWorkerPath } = await import(
+      "@/lib/members/roster-ocr/tesseract"
+    );
+    const workerPath = resolveTesseractWorkerPath();
+
+    expect(typeof workerPath).toBe("string");
+    expect(workerPath).toMatch(/[/\\]worker-script[/\\]node[/\\]index\.js$/);
+    expect(existsSync(workerPath)).toBe(true);
+
+    vi.doUnmock("node:module");
+    vi.resetModules();
+  });
+
   it("passes trimmed TESSERACT_LANG_PATH when set", () => {
     vi.stubEnv(
       "TESSERACT_LANG_PATH",
@@ -63,6 +99,17 @@ describe("buildTesseractWorkerOptions", () => {
     );
     expect(buildTesseractWorkerOptions().langPath).toBe(
       "https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng/4.0.0_best_int",
+    );
+  });
+});
+
+describe("tesseractFileTracing", () => {
+  it("includes constants required by the worker thread (not only worker-script/)", () => {
+    expect(tesseractFileTracing).toEqual(
+      expect.arrayContaining([
+        "./node_modules/tesseract.js/src/constants/**/*",
+        "./node_modules/tesseract.js/src/worker-script/**/*",
+      ]),
     );
   });
 });
