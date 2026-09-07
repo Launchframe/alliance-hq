@@ -6,6 +6,7 @@ import {
   reviewLeaderboardRankByScoreDesc,
   reviewRowPrimarySortKey,
   sortParsedRowsForInitialReview,
+  sortReviewRowsByScoreDesc,
   sortsInitialReviewByScoreDesc,
 } from "@/lib/video/parsed-row-review-order";
 
@@ -104,6 +105,23 @@ describe("mergeParsedRowInReviewOrder", () => {
     );
     // Manual rows use frameIndex -1; merge keeps rank/frameIndex rules, not score.
     expect(merged.map((row) => row.id)).toEqual(["new", "a", "b"]);
+  });
+});
+
+describe("sortReviewRowsByScoreDesc", () => {
+  it("sorts active rows by score descending and keeps deleted rows last", () => {
+    const sorted = sortReviewRowsByScoreDesc([
+      { id: "low", score: "10", frameIndex: 0 },
+      { id: "high", score: "100", frameIndex: 2 },
+      { id: "deleted", score: "999", frameIndex: 1, deleted: 1 },
+      { id: "mid", score: "50", frameIndex: 3 },
+    ]);
+    expect(sorted.map((row) => row.id)).toEqual([
+      "high",
+      "mid",
+      "low",
+      "deleted",
+    ]);
   });
 });
 
