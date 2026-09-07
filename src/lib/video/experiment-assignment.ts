@@ -249,6 +249,82 @@ export async function lookupConfigAssignment(params: {
   };
 }
 
+async function loadExperimentArmParseConfig(armId: string): Promise<{
+  configId: string | null;
+  armConfig: { passKey: string; configJson: unknown } | null;
+} | null> {
+  const db = getDb();
+  const [arm] = await db
+    .select({
+      configId: schema.experimentArms.configId,
+    })
+    .from(schema.experimentArms)
+    .where(eq(schema.experimentArms.id, armId))
+    .limit(1);
+
+  if (!arm) {
+    return null;
+  }
+
+  let armConfig: { passKey: string; configJson: unknown } | null = null;
+  if (arm.configId) {
+    const [parseConfig] = await db
+      .select({
+        passKey: schema.parseConfigs.passKey,
+        configJson: schema.parseConfigs.configJson,
+      })
+      .from(schema.parseConfigs)
+      .where(eq(schema.parseConfigs.id, arm.configId))
+      .limit(1);
+    if (parseConfig) {
+      armConfig = {
+        passKey: parseConfig.passKey,
+        configJson: parseConfig.configJson,
+      };
+    }
+  }
+
+  return {
+    configId: arm.configId,
+    armConfig,
+  };
+}
+
+/**
+ * Resolve primary extraction for a known experiment assignment (no random roll).
+ * Used when processors override arm selection on pending jobs.
+ */
+export async function resolvePrimaryExtractionForAssignedArm(params: {
+  scoreTarget: string | null;
+  boardKey: string | null;
+  experimentCampaignId: string | null;
+  experimentArmId: string | null;
+}): Promise<PrimaryExtractionStamp> {
+  const standing = await lookupConfigAssignment({
+    scoreTarget: params.scoreTarget,
+    boardKey: params.boardKey,
+  });
+
+  if (!params.experimentArmId || !params.experimentCampaignId) {
+    return resolvePrimaryExtractionStamp({
+      standing,
+      experiment: null,
+    });
+  }
+
+  const armData = await loadExperimentArmParseConfig(params.experimentArmId);
+
+  return resolvePrimaryExtractionStamp({
+    standing,
+    experiment: {
+      campaignId: params.experimentCampaignId,
+      armId: params.experimentArmId,
+      configId: armData?.configId ?? null,
+      armConfig: armData?.armConfig ?? null,
+    },
+  });
+}
+
 /**
  * Resolve the primary job's extraction config for a new upload.
  * Active experiment arms drive primary A/B; standing config_assignments are
@@ -277,40 +353,15 @@ export async function resolvePrimaryExtractionForUpload(params: {
     });
   }
 
-  const db = getDb();
-  const [arm] = await db
-    .select({
-      configId: schema.experimentArms.configId,
-    })
-    .from(schema.experimentArms)
-    .where(eq(schema.experimentArms.id, expAssignment.armId))
-    .limit(1);
-
-  let armConfig: { passKey: string; configJson: unknown } | null = null;
-  if (arm?.configId) {
-    const [parseConfig] = await db
-      .select({
-        passKey: schema.parseConfigs.passKey,
-        configJson: schema.parseConfigs.configJson,
-      })
-      .from(schema.parseConfigs)
-      .where(eq(schema.parseConfigs.id, arm.configId))
-      .limit(1);
-    if (parseConfig) {
-      armConfig = {
-        passKey: parseConfig.passKey,
-        configJson: parseConfig.configJson,
-      };
-    }
-  }
+  const armData = await loadExperimentArmParseConfig(expAssignment.armId);
 
   return resolvePrimaryExtractionStamp({
     standing,
     experiment: {
       campaignId: expAssignment.campaignId,
       armId: expAssignment.armId,
-      configId: arm?.configId ?? null,
-      armConfig,
+      configId: armData?.configId ?? null,
+      armConfig: armData?.armConfig ?? null,
     },
   });
 }

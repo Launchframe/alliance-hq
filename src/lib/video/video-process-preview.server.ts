@@ -168,15 +168,14 @@ export async function buildVideoProcessPreview(params: {
     { forceNative: scoreTargetLocked },
   );
 
-  const [{ experiment, armConfigId }, experimentOptions, canProcess] =
-    await Promise.all([
-      resolveCurrentExperiment(params.job.groupId),
-      listActiveExperimentOptions({
-        scoreTarget: scoreTargetId,
-        boardKey: params.job.boardKey,
-      }),
-      sessionCanProcessVideo(params.sessionId),
-    ]);
+  const [{ experiment }, experimentOptions, canProcess] = await Promise.all([
+    resolveCurrentExperiment(params.job.groupId),
+    listActiveExperimentOptions({
+      scoreTarget: scoreTargetId,
+      boardKey: params.job.boardKey,
+    }),
+    sessionCanProcessVideo(params.sessionId),
+  ]);
 
   const envRequiresAshed = videoOcrRequiresAshedConnection();
   const requiresAshedConnection =

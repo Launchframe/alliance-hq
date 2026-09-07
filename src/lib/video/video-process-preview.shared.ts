@@ -40,23 +40,17 @@ export type VideoProcessPreview = {
 export function buildVideoProcessShadowFollowups(params: {
   primaryEngine: VideoOcrEngine;
   isRosterTarget: boolean;
-  experimentArmConfigId: string | null;
-  hasExperimentAssignment: boolean;
 }): VideoProcessShadowFollowup[] {
   if (!shouldEnqueueAshedOcrShadowPasses(params.primaryEngine)) {
     return [];
   }
 
-  const followups: VideoProcessShadowFollowup[] = [];
-  const includeExtractionShadow =
-    !params.hasExperimentAssignment || params.experimentArmConfigId != null;
-
-  if (includeExtractionShadow) {
-    followups.push({
+  const followups: VideoProcessShadowFollowup[] = [
+    {
       kind: "extraction_shadow",
       conditional: true,
-    });
-  }
+    },
+  ];
 
   if (params.isRosterTarget) {
     followups.push({
