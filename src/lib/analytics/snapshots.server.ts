@@ -3,10 +3,18 @@ import "server-only";
 import { and, asc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 
 import { computePercentile, percentileAt } from "@/lib/analytics/percentile.shared";
+import {
+  buildThpHistorySeriesFromEvents,
+  type CommanderThpHistoryEvent,
+} from "@/lib/analytics/thp-history-series.shared";
 import { commanderThpTotal } from "@/lib/commanders/power-stats.shared";
 import { isMissingSchemaError } from "@/lib/db/error-message";
 import { getDb, schema } from "@/lib/db";
-import { addCalendarDays, getServerCalendarDate } from "@/lib/trains/game-time";
+import {
+  addCalendarDays,
+  formatServerCalendarDate,
+  getServerCalendarDate,
+} from "@/lib/trains/game-time";
 
 export type SnapshotRow = {
   recordedDate: string;
@@ -196,45 +204,144 @@ export async function loadMemberThpTable(
   return loadAllianceCommanderThpRows(allianceId);
 }
 
-/** Merge live commander THP into today's snapshot row so the dashboard is not empty before cron. */
+/** Merge reconstructed + live commander THP into the snapshot series for charts. */
 export async function withLiveThpSeries(
   allianceId: string,
   series: SnapshotRow[],
+  range: DashboardRange = "90d",
 ): Promise<SnapshotRow[]> {
   const today = getServerCalendarDate();
-  const live = await computeThpSnapshotForDate(allianceId, today);
-  if (live.thpTotal == null) {
-    return series;
+  const start = rangeStartDate(range, today);
+  const [live, history] = await Promise.all([
+    computeThpSnapshotForDate(allianceId, today),
+    loadThpHistorySeriesFromCommanderEvents(allianceId, {
+      startDate: start,
+      endDate: today,
+    }),
+  ]);
+
+  const byDate = new Map(series.map((row) => [row.recordedDate, { ...row }]));
+
+  for (const point of history) {
+    const existing = byDate.get(point.recordedDate);
+    if (existing) {
+      // Prefer stored snapshot THP when the daily job already wrote it.
+      if (existing.thpTotal == null) {
+        existing.thpTotal = point.thpTotal;
+        existing.thpP50 = point.thpP50;
+        existing.thpP90 = point.thpP90;
+        existing.thpP99 = point.thpP99;
+      }
+    } else {
+      byDate.set(point.recordedDate, {
+        recordedDate: point.recordedDate,
+        activeMemberCount: 0,
+        linkedCount: 0,
+        unlinkedCount: 0,
+        thpTotal: point.thpTotal,
+        thpP50: point.thpP50,
+        thpP90: point.thpP90,
+        thpP99: point.thpP99,
+        donationTotal: null,
+        donationP50: null,
+        donationP90: null,
+        donationP99: null,
+      });
+    }
   }
 
-  const next = series.map((row) => ({ ...row }));
-  const idx = next.findIndex((row) => row.recordedDate === today);
-  if (idx >= 0) {
-    const existing = next[idx]!;
-    next[idx] = {
-      ...existing,
-      thpTotal: live.thpTotal,
-      thpP50: live.thpP50,
-      thpP90: live.thpP90,
-      thpP99: live.thpP99,
-    };
-  } else {
-    next.push({
-      recordedDate: today,
-      activeMemberCount: 0,
-      linkedCount: 0,
-      unlinkedCount: 0,
-      thpTotal: live.thpTotal,
-      thpP50: live.thpP50,
-      thpP90: live.thpP90,
-      thpP99: live.thpP99,
-      donationTotal: null,
-      donationP50: null,
-      donationP90: null,
-      donationP99: null,
+  if (live.thpTotal != null) {
+    const existing = byDate.get(today);
+    if (existing) {
+      existing.thpTotal = live.thpTotal;
+      existing.thpP50 = live.thpP50;
+      existing.thpP90 = live.thpP90;
+      existing.thpP99 = live.thpP99;
+    } else {
+      byDate.set(today, {
+        recordedDate: today,
+        activeMemberCount: 0,
+        linkedCount: 0,
+        unlinkedCount: 0,
+        thpTotal: live.thpTotal,
+        thpP50: live.thpP50,
+        thpP90: live.thpP90,
+        thpP99: live.thpP99,
+        donationTotal: null,
+        donationP50: null,
+        donationP90: null,
+        donationP99: null,
+      });
+    }
+  }
+
+  return [...byDate.values()].sort((a, b) =>
+    a.recordedDate.localeCompare(b.recordedDate),
+  );
+}
+
+async function loadThpHistorySeriesFromCommanderEvents(
+  allianceId: string,
+  options: { startDate: string | null; endDate: string },
+) {
+  const db = getDb();
+  const memberships = await db
+    .select({
+      commanderId: schema.commanderAllianceMemberships.commanderId,
+      currentTotalHeroPower: schema.commanders.currentTotalHeroPower,
+      thpUpdatedAt: schema.commanders.thpUpdatedAt,
+    })
+    .from(schema.commanderAllianceMemberships)
+    .innerJoin(
+      schema.commanders,
+      eq(schema.commanders.id, schema.commanderAllianceMemberships.commanderId),
+    )
+    .where(
+      and(
+        eq(schema.commanderAllianceMemberships.allianceId, allianceId),
+        isNull(schema.commanderAllianceMemberships.leftAt),
+      ),
+    );
+
+  if (memberships.length === 0) return [];
+
+  const commanderIds = memberships.map((row) => row.commanderId);
+  const eventRows = await db
+    .select({
+      commanderId: schema.commanderThpEvents.commanderId,
+      total: schema.commanderThpEvents.total,
+      createdAt: schema.commanderThpEvents.createdAt,
+    })
+    .from(schema.commanderThpEvents)
+    .where(
+      and(
+        inArray(schema.commanderThpEvents.commanderId, commanderIds),
+        isNull(schema.commanderThpEvents.discardedAt),
+      ),
+    )
+    .orderBy(asc(schema.commanderThpEvents.createdAt));
+
+  const events: CommanderThpHistoryEvent[] = eventRows.map((row) => ({
+    commanderId: row.commanderId,
+    total: row.total,
+    recordedDate: formatServerCalendarDate(row.createdAt),
+  }));
+
+  const commandersWithEvents = new Set(events.map((event) => event.commanderId));
+  for (const row of memberships) {
+    if (commandersWithEvents.has(row.commanderId)) continue;
+    const total = commanderThpTotal({
+      currentTotalHeroPower: row.currentTotalHeroPower,
+    });
+    if (total <= 0 || !row.thpUpdatedAt) continue;
+    events.push({
+      commanderId: row.commanderId,
+      total,
+      recordedDate: formatServerCalendarDate(row.thpUpdatedAt),
     });
   }
-  return next;
+
+  return buildThpHistorySeriesFromEvents(events, options);
 }
 
 export async function upsertAllianceDailySnapshot(input: {
