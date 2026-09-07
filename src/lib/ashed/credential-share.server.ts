@@ -299,7 +299,7 @@ export async function createCredentialShareInvite(input: {
 
   if (activeShareCount >= MAX_ACTIVE_CREDENTIAL_SHARES) {
     throw new CredentialShareError(
-      "Revoke or wait for your existing credential share before creating another.",
+      `You already have ${MAX_ACTIVE_CREDENTIAL_SHARES} active shares. Revoke one below, then try again.`,
       "CONFLICT",
     );
   }

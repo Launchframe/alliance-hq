@@ -166,7 +166,7 @@ export function CredentialSharePanel({ canManage, currentHqUserId }: Props) {
       if (!res.ok) {
         const message =
           res.status === 409 && data.code === "CONFLICT"
-            ? (data.error ?? t("conflictHint"))
+            ? t("conflictHint")
             : (data.error ?? t("createFailed"));
         if (res.status === 409 && data.code === "CONFLICT") {
           setConflictHighlight(true);
