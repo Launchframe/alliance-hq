@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { localVsScores } from "@/lib/vs-scores/data-management.server";
+import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
 
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
 import {
@@ -40,6 +42,8 @@ export async function GET(request: Request, { params }: Props) {
     if (!target) {
       return NextResponse.json({ error: "Unknown score target." }, { status: 400 });
     }
+
+    if (target.id === "vs-performance" && await getAllianceOperatingMode(ctx.allianceId) === "native") return NextResponse.json({ recordedDate, scoreTarget: target.id, scores: await localVsScores(ctx.allianceId, { recordedDate }), storage: "hq" });
 
     const connection = await getAshedConnection(ctx.sessionId);
     if (!connection) {

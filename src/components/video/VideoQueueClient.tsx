@@ -114,6 +114,7 @@ export function VideoQueueClient({
         throw new Error(data.error ?? t("ocrSettingsSaveFailed"));
       }
       setHqOcrOnly(Boolean(data.hqOcrOnly));
+      await refresh();
     } catch (err) {
       setOcrSettingsError(
         err instanceof Error ? err.message : t("ocrSettingsSaveFailed"),
@@ -212,7 +213,7 @@ export function VideoQueueClient({
     }
   }
 
-  const showConnectBanner = canProcess && ashedRequired && !ashedConnected;
+  const showConnectBanner = canProcess && !ashedConnected && jobs.some((job) => job.requiresAshedConnection ?? ashedRequired);
 
   function statusLabel(status: string): string {
     const knownStatuses = [
@@ -344,7 +345,7 @@ export function VideoQueueClient({
                 job={job}
                 acting={actingJobId === job.id}
                 canProcess={canProcess}
-                canApproveDirectly={!ashedRequired || ashedConnected}
+                canApproveDirectly={!(job.requiresAshedConnection ?? ashedRequired) || ashedConnected}
                 onApprove={() => void approve(job.id)}
                 onReject={() => void reject(job.id)}
                 onDiscard={() => void discard(job.id)}
@@ -398,7 +399,7 @@ export function VideoQueueClient({
                         job={job}
                         acting={actingJobId === job.id}
                         canProcess={canProcess}
-                        canApproveDirectly={!ashedRequired || ashedConnected}
+                        canApproveDirectly={!(job.requiresAshedConnection ?? ashedRequired) || ashedConnected}
                         onApprove={() => void approve(job.id)}
                         onReject={() => void reject(job.id)}
                         onDiscard={() => void discard(job.id)}

@@ -4436,6 +4436,8 @@
     "saveDepositSlips": "Salvar {count} comprovantes de depósito",
     "submitting": "Enviando…",
     "submitSuccess": "{count} pontuações salvas no Ashed.",
+    "vsSubmitSuccess": "{count} pontuações de VS salvas no Alliance HQ.",
+    "vsSyncPending": "Pontuações salvas no HQ. A sincronização com o Ashed está pendente.",
     "killsSubmitSuccess": "{count} contagens de kills salvas no Ashed. Comandantes vinculados no HQ foram atualizados quando disponíveis.",
     "rosterSubmitSuccess": "{count} linhas do elenco aplicadas aos membros do HQ.",
     "depositSlipSubmitSuccess": "{count} comprovantes de depósito salvos em Bank Management.",
@@ -6323,6 +6325,9 @@
       "nameRequired": "O nome é obrigatório.",
       "deleteProjection": "Excluir projeção"
     }
+  },
+  "vsCompliance": {
+    "conflict": "Evidências conflitantes"
   },
   "timeOff": {
     "title": "Minhas Ausências",

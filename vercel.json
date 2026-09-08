@@ -47,6 +47,10 @@
     {
       "path": "/api/internal/time-off/sync",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/internal/vs-scores/sync",
+      "schedule": "* * * * *"
     }
   ]
 }

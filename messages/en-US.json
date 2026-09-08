@@ -4490,6 +4490,8 @@
     "saveDepositSlips": "Save {count} deposit slips",
     "submitting": "Submitting…",
     "submitSuccess": "Saved {count} scores to Ashed.",
+    "vsSubmitSuccess": "Saved {count} VS scores in Alliance HQ.",
+    "vsSyncPending": "Scores saved in HQ. Ashed synchronization is pending.",
     "killsSubmitSuccess": "Saved {count} kill counts to Ashed. Linked HQ commanders were updated when available.",
     "rosterSubmitSuccess": "Applied {count} roster rows to HQ members.",
     "depositSlipSubmitSuccess": "Saved {count} deposit slips to Bank Management.",
@@ -6322,6 +6324,9 @@
       "nameRequired": "Name is required.",
       "deleteProjection": "Delete projection"
     }
+  },
+  "vsCompliance": {
+    "conflict": "Conflicting evidence"
   },
   "timeOff": {
     "title": "My Time Off",
