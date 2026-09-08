@@ -2058,6 +2058,9 @@
     "uploadRemindersTitle": "Upload reminders",
     "uploadRemindersBody": "Configure when officers are reminded to upload event scores, and manage your personal reminder subscriptions.",
     "uploadRemindersLink": "Manage upload reminders",
+    "regularEventsTitle": "Regular events",
+    "regularEventsBody": "Schedule Discord and inbox reminders for Alliance Exercise, Zombie Siege, Glacierdon, and Sky Predator.",
+    "regularEventsLink": "Manage regular event reminders",
     "discordSectionTitle": "Discord integration",
     "discordSectionBody": "Install the alliance bot and register your Discord server for train announcements and member tools.",
     "discordSectionLink": "Open Discord settings",
@@ -2312,6 +2315,53 @@
         "stepPickChannel": "Go to the channel where members should see train announcements.",
         "stepRunCommand": "Run this slash command in that channel:",
         "stepEnableAnnouncements": "In Alliance HQ → Settings → Trains, enable Discord train announcements."
+      }
+    },
+    "regularEvents": {
+      "title": "Regular event reminders",
+      "description": "Post Discord and HQ inbox reminders one hour before Alliance Exercise, Zombie Siege, Glacierdon, and Sky Predator.",
+      "loading": "Loading…",
+      "loadFailed": "Could not load regular event settings.",
+      "saveFailed": "Could not save regular event settings.",
+      "enableAnnouncements": "Post regular event reminders to Discord",
+      "channelsConfigured": "{count, plural, one {# registered Discord server has a regular events channel} other {# registered Discord servers have regular events channels}}",
+      "noChannel": "No regular events channel configured yet. Run /set-regular-events-channel in Discord.",
+      "canyonStormLabel": "Canyon Storm is active",
+      "canyonStormHint": "When on, Zombie Siege reminders use 23:30 server time instead of 23:00.",
+      "readOnlyHint": "Only alliance officers can change these settings.",
+      "scheduleTitle": "Schedule",
+      "scheduleHint": "Reminders use server time (UTC−2). Tap a day to add or remove the selected event.",
+      "viewWeek": "Week",
+      "viewMonth": "Month",
+      "prev": "Previous",
+      "next": "Next",
+      "repeatsLabel": "Repeats",
+      "repeatsOnce": "Just once",
+      "repeatsWeekly": "Weekly",
+      "repeatsBiweekly": "Bi-weekly",
+      "timeLabel": "Start time",
+      "timeZoneServer": "Server time",
+      "timeZoneLocal": "My local time",
+      "timeZoneHint": "Times are saved in server time (UTC−2).",
+      "validationAdjacent": "Alliance Exercise cannot be scheduled on adjacent days.",
+      "validationMinGap": "Zombie Siege needs at least two full days between events.",
+      "validationOncePerWeek": "This event can be scheduled only once per week.",
+      "validationWedFri": "Sky Predator and Glacierdon can only be scheduled Wednesday–Friday.",
+      "validationAlternating": "Sky Predator and Glacierdon cannot be scheduled in the same week.",
+      "validationBiweeklyPhase": "Bi-weekly events need at least one scheduled day to set the alternating week.",
+      "r4ChannelHint": "Officers get an in-game schedule reminder at Reset in the R4 Discord channel. Run /set-r4-channel.",
+      "r4ChannelConfigured": "R4 channel configured on {count, plural, one {# server} other {# servers}}.",
+      "noR4Channel": "No R4 channel yet. Run /set-r4-channel in Discord.",
+      "ruleInterval": "Every {days} days at {time} server time",
+      "ruleWeeklyEmpty": "Weekly (no slots configured)",
+      "dow": {
+        "sun": "Sun",
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat"
       }
     },
     "vrSandbox": {
@@ -5153,7 +5203,12 @@
       "deniedOwnerOnly": "This alliance requires the R5 / alliance owner to set Discord announcement channels. Ask your owner, or have them switch the setting back to R4+ in Alliance HQ → Settings → Trains.",
       "seasonalEventsSuccess": "✅ Seasonal events channel set for **{tag}**. Capture countdowns will be posted to {channel}.",
       "regularEventsSuccess": "✅ Regular events channel set for **{tag}**. Event announcements will be posted to {channel}.",
+      "r4Success": "✅ R4 channel set for **{tag}**. In-game schedule reminders will post to {channel}.",
       "bankingSuccess": "✅ Banking channel set for **{tag}**. Protection timer alerts will be posted to {channel}."
+    },
+    "regularEvents": {
+      "startsInOneHour": "{event} starts in 1 hour ({time} server time).",
+      "scheduleInGameAtReset": "TODO: schedule {event} for {time} Server Time."
     },
     "link": {
       "userPrompt": "Click the link below to link your Discord account to Alliance HQ (expires in 30 min):\n{url}\n\nAfter linking, run `/help` in Discord for your next step.",
@@ -5582,7 +5637,9 @@
       "captureReminderBody": "Was this Stronghold successfully captured?",
       "captureYes": "Yes — create bank",
       "captureNo": "No",
-      "captureSnooze": "Snooze 30 min"
+      "captureSnooze": "Snooze 30 min",
+      "regularEventReminder": "Regular event",
+      "regularEventUploadReminder": "Regular event score upload"
     },
     "confirmCaptureFailed": "Failed to confirm capture."
   },
