@@ -32,6 +32,19 @@ describe("buildThpHistorySeriesFromEvents", () => {
     expect(series[2]?.thpTotal).toBe(350);
   });
 
+  it("uses the last event on a day when a commander updates twice", () => {
+    const series = buildThpHistorySeriesFromEvents(
+      [
+        { commanderId: "a", total: 100, recordedDate: "2026-08-01" },
+        { commanderId: "a", total: 120, recordedDate: "2026-08-01" },
+      ],
+      { startDate: "2026-08-01", endDate: "2026-08-01" },
+    );
+
+    expect(series).toHaveLength(1);
+    expect(series[0]?.thpTotal).toBe(120);
+  });
+
   it("replays events before startDate so window carry-forward is correct", () => {
     const series = buildThpHistorySeriesFromEvents(
       [

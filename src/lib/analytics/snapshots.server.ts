@@ -288,6 +288,7 @@ async function loadThpHistorySeriesFromCommanderEvents(
   const memberships = await db
     .select({
       commanderId: schema.commanderAllianceMemberships.commanderId,
+      joinedAt: schema.commanderAllianceMemberships.joinedAt,
       currentTotalHeroPower: schema.commanders.currentTotalHeroPower,
       thpUpdatedAt: schema.commanders.thpUpdatedAt,
     })
@@ -305,6 +306,13 @@ async function loadThpHistorySeriesFromCommanderEvents(
 
   if (memberships.length === 0) return [];
 
+  const joinedDateByCommander = new Map(
+    memberships.map((row) => [
+      row.commanderId,
+      formatServerCalendarDate(row.joinedAt),
+    ]),
+  );
+
   const commanderIds = memberships.map((row) => row.commanderId);
   const eventRows = await db
     .select({
@@ -321,23 +329,34 @@ async function loadThpHistorySeriesFromCommanderEvents(
     )
     .orderBy(asc(schema.commanderThpEvents.createdAt));
 
-  const events: CommanderThpHistoryEvent[] = eventRows.map((row) => ({
-    commanderId: row.commanderId,
-    total: row.total,
-    recordedDate: formatServerCalendarDate(row.createdAt),
-  }));
+  const events: CommanderThpHistoryEvent[] = [];
+  for (const row of eventRows) {
+    const joinedDate = joinedDateByCommander.get(row.commanderId);
+    if (!joinedDate) continue;
+    const recordedDate = formatServerCalendarDate(row.createdAt);
+    if (recordedDate < joinedDate) continue;
+    events.push({
+      commanderId: row.commanderId,
+      total: row.total,
+      recordedDate,
+    });
+  }
 
   const commandersWithEvents = new Set(events.map((event) => event.commanderId));
   for (const row of memberships) {
     if (commandersWithEvents.has(row.commanderId)) continue;
+    const joinedDate = joinedDateByCommander.get(row.commanderId);
+    if (!joinedDate) continue;
     const total = commanderThpTotal({
       currentTotalHeroPower: row.currentTotalHeroPower,
     });
     if (total <= 0 || !row.thpUpdatedAt) continue;
+    const recordedDate = formatServerCalendarDate(row.thpUpdatedAt);
+    if (recordedDate < joinedDate) continue;
     events.push({
       commanderId: row.commanderId,
       total,
-      recordedDate: formatServerCalendarDate(row.thpUpdatedAt),
+      recordedDate,
     });
   }
 
