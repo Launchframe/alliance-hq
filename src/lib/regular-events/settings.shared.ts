@@ -10,6 +10,9 @@ export type RegularEventsGuildLink = {
   hasRegularEventsChannel: boolean;
   regularEventsChannelId: string | null;
   regularEventsChannelName: string | null;
+  hasR4Channel: boolean;
+  r4ChannelId: string | null;
+  r4ChannelName: string | null;
   discordOpenUrl: string | null;
 };
 
@@ -19,6 +22,8 @@ export type RegularEventRuleDto = {
   eventLabel: string;
   scheduleKind: RegularEventScheduleKind | string;
   weeklySlots: RegularEventWeeklySlot[] | null;
+  oneShotDates: string[] | null;
+  biweeklyPhaseMonday: string | null;
   intervalDays: number | null;
   anchorTimeSt: string | null;
   announceLeadMinutes: number;
@@ -29,6 +34,7 @@ export type RegularEventsSettings = {
   announcementsEnabled: boolean;
   canyonStormActive: boolean;
   guildChannelCount: number;
+  r4ChannelCount: number;
   guilds: RegularEventsGuildLink[];
   rules: RegularEventRuleDto[];
   canManage: boolean;

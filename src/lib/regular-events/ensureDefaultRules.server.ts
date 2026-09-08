@@ -28,6 +28,8 @@ export async function ensureDefaultRegularEventRules(input: {
       eventKey: rule.eventKey,
       scheduleKind: rule.scheduleKind,
       weeklySlots: rule.weeklySlots,
+      oneShotDates: rule.oneShotDates,
+      biweeklyPhaseMonday: rule.biweeklyPhaseMonday,
       intervalDays: rule.intervalDays,
       anchorTimeSt: rule.anchorTimeSt,
       announceLeadMinutes: rule.announceLeadMinutes,

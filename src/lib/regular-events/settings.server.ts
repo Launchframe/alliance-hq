@@ -30,18 +30,223 @@ import type {
   RegularEventScheduleKind,
   RegularEventWeeklySlot,
 } from "@/lib/regular-events/types.shared";
-import { parseWeeklySlots } from "@/lib/regular-events/schedule.shared";
+import {
+  parseOneShotDates,
+  parseWeeklySlots,
+} from "@/lib/regular-events/schedule.shared";
+import {
+  expandBiweeklySlotsToDates,
+  expandIntervalDatesInRange,
+  expandOneShotDatesInRange,
+  expandWeeklySlotsToDates,
+  validateBiweeklySlotsForEvent,
+  validateEventScheduleDates,
+  validateSkyGlacierAlternating,
+  validateWeeklySlotsForEvent,
+  type ScheduleValidationCode,
+} from "@/lib/regular-events/schedule-validation.shared";
 import type {
   RegularEventRuleDto,
   RegularEventsGuildLink,
   RegularEventsSettings,
 } from "@/lib/regular-events/settings.shared";
+import {
+  addCalendarDays,
+  getServerCalendarDate,
+  getWeekStartMonday,
+} from "@/lib/trains/game-time";
 
 export type {
   RegularEventRuleDto,
   RegularEventsGuildLink,
   RegularEventsSettings,
 };
+
+export type RegularEventScheduleValidationCode = ScheduleValidationCode;
+
+export class RegularEventScheduleValidationError extends Error {
+  readonly code: RegularEventScheduleValidationCode;
+
+  constructor(code: RegularEventScheduleValidationCode) {
+    super(scheduleValidationMessage(code));
+    this.name = "RegularEventScheduleValidationError";
+    this.code = code;
+  }
+}
+
+function rangeEndFromMonday(anchorMonday: string): string {
+  return addCalendarDays(anchorMonday, 7 * 8 - 1);
+}
+
+function datesForRuleDraft(input: {
+  eventKey: string;
+  scheduleKind: RegularEventScheduleKind;
+  weeklySlots?: RegularEventWeeklySlot[] | null;
+  oneShotDates?: string[] | null;
+  biweeklyPhaseMonday?: string | null;
+  intervalDays?: number | null;
+  anchorMonday: string;
+  rangeEnd: string;
+}): string[] {
+  if (input.scheduleKind === "weekly") {
+    return expandWeeklySlotsToDates(
+      input.weeklySlots ?? [],
+      input.anchorMonday,
+      input.rangeEnd,
+    );
+  }
+  if (input.scheduleKind === "biweekly") {
+    if (!input.biweeklyPhaseMonday) return [];
+    return expandBiweeklySlotsToDates(
+      input.weeklySlots ?? [],
+      input.biweeklyPhaseMonday,
+      input.anchorMonday,
+      input.rangeEnd,
+    );
+  }
+  if (input.scheduleKind === "once") {
+    return expandOneShotDatesInRange(
+      input.oneShotDates ?? [],
+      input.anchorMonday,
+      input.rangeEnd,
+    );
+  }
+  if (input.scheduleKind === "interval_after_last") {
+    return expandIntervalDatesInRange({
+      intervalDays: input.intervalDays ?? 2,
+      rangeStart: input.anchorMonday,
+      rangeEnd: input.rangeEnd,
+    });
+  }
+  return [];
+}
+
+function assertScheduleValid(input: {
+  eventKey: string;
+  scheduleKind: RegularEventScheduleKind;
+  weeklySlots?: RegularEventWeeklySlot[] | null;
+  oneShotDates?: string[] | null;
+  biweeklyPhaseMonday?: string | null;
+  intervalDays?: number | null;
+  siblingRules?: Array<{
+    eventKey: string;
+    scheduleKind: RegularEventScheduleKind | string;
+    weeklySlots: RegularEventWeeklySlot[] | null;
+    oneShotDates: string[] | null;
+    biweeklyPhaseMonday: string | null;
+    intervalDays: number | null;
+  }>;
+}): void {
+  if (!isRegularEventKey(input.eventKey)) {
+    throw new RegularEventScheduleValidationError("invalid_event");
+  }
+  const today = getServerCalendarDate();
+  const anchorMonday = getWeekStartMonday(today);
+  const rangeEnd = rangeEndFromMonday(anchorMonday);
+
+  if (input.scheduleKind === "weekly") {
+    const result = validateWeeklySlotsForEvent(
+      input.eventKey,
+      input.weeklySlots ?? [],
+      anchorMonday,
+    );
+    if (!result.ok) {
+      throw new RegularEventScheduleValidationError(result.code);
+    }
+  } else if (input.scheduleKind === "biweekly") {
+    const result = validateBiweeklySlotsForEvent(
+      input.eventKey,
+      input.weeklySlots ?? [],
+      input.biweeklyPhaseMonday,
+      anchorMonday,
+    );
+    if (!result.ok) {
+      throw new RegularEventScheduleValidationError(result.code);
+    }
+  } else if (input.scheduleKind === "once") {
+    const dates = expandOneShotDatesInRange(
+      input.oneShotDates ?? [],
+      anchorMonday,
+      rangeEnd,
+    );
+    const result = validateEventScheduleDates(input.eventKey, dates);
+    if (!result.ok) {
+      throw new RegularEventScheduleValidationError(result.code);
+    }
+  } else if (input.scheduleKind === "interval_after_last") {
+    const projectedDates = expandIntervalDatesInRange({
+      intervalDays: input.intervalDays ?? 2,
+      rangeStart: anchorMonday,
+      rangeEnd,
+    });
+    const result = validateEventScheduleDates(
+      input.eventKey,
+      projectedDates,
+    );
+    if (!result.ok) {
+      throw new RegularEventScheduleValidationError(result.code);
+    }
+  }
+
+  if (
+    input.siblingRules &&
+    (input.eventKey === "sky_marshall" || input.eventKey === "glacierdon")
+  ) {
+    const draftDates = datesForRuleDraft({
+      ...input,
+      anchorMonday,
+      rangeEnd,
+    });
+    const otherKey =
+      input.eventKey === "sky_marshall" ? "glacierdon" : "sky_marshall";
+    const other = input.siblingRules.find((r) => r.eventKey === otherKey);
+    if (other) {
+      const otherDates = datesForRuleDraft({
+        eventKey: other.eventKey,
+        scheduleKind: other.scheduleKind as RegularEventScheduleKind,
+        weeklySlots: other.weeklySlots,
+        oneShotDates: other.oneShotDates,
+        biweeklyPhaseMonday: other.biweeklyPhaseMonday,
+        intervalDays: other.intervalDays,
+        anchorMonday,
+        rangeEnd,
+      });
+      const skyDates =
+        input.eventKey === "sky_marshall" ? draftDates : otherDates;
+      const glacierdonDates =
+        input.eventKey === "glacierdon" ? draftDates : otherDates;
+      const alt = validateSkyGlacierAlternating(skyDates, glacierdonDates);
+      if (!alt.ok) {
+        throw new RegularEventScheduleValidationError(alt.code);
+      }
+    }
+  }
+}
+
+function scheduleValidationMessage(
+  code: RegularEventScheduleValidationCode,
+): string {
+  switch (code) {
+    case "adjacent_days":
+      return "Alliance Exercise cannot be scheduled on adjacent days.";
+    case "min_gap_days":
+      return "Zombie Siege needs at least two full days between events.";
+    case "once_per_week":
+      return "This event can be scheduled only once per week.";
+    case "wed_fri_only":
+      return "Sky Predator and Glacierdon can only be scheduled Wednesday–Friday.";
+    case "alternating_week":
+      return "Sky Predator and Glacierdon cannot be scheduled in the same week.";
+    case "biweekly_phase":
+      return "Bi-weekly events need at least one scheduled day to set the alternating week.";
+    case "invalid_event":
+      return "Invalid event key.";
+    default: {
+      const _exhaustive: never = code;
+      return _exhaustive;
+    }
+  }
+}
 
 async function listRegularEventsChannelsForAlliance(
   allianceId: string,
@@ -61,32 +266,62 @@ async function listRegularEventsChannelsForAlliance(
     .map((r) => ({ guildId: r.guildId, channelId: r.channelId! }));
 }
 
+async function listR4ChannelsForAlliance(
+  allianceId: string,
+): Promise<Array<{ guildId: string; channelId: string }>> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      guildId: schema.discordGuildAlliances.guildId,
+      channelId: schema.discordGuildAlliances.r4ChannelId,
+    })
+    .from(schema.discordGuildAlliances)
+    .where(eq(schema.discordGuildAlliances.allianceId, allianceId));
+  return rows
+    .filter((r): r is { guildId: string; channelId: string } =>
+      Boolean(r.channelId?.trim()),
+    )
+    .map((r) => ({ guildId: r.guildId, channelId: r.channelId! }));
+}
+
 async function enrichGuildLinks(
   allianceId: string,
 ): Promise<RegularEventsGuildLink[]> {
-  const [guildRows, channels] = await Promise.all([
+  const [guildRows, channels, r4Channels] = await Promise.all([
     listAllianceDiscordGuildTrainSetup(allianceId),
     listRegularEventsChannelsForAlliance(allianceId),
+    listR4ChannelsForAlliance(allianceId),
   ]);
   const channelByGuild = new Map(
     channels.map((c) => [c.guildId, c.channelId] as const),
+  );
+  const r4ByGuild = new Map(
+    r4Channels.map((c) => [c.guildId, c.channelId] as const),
   );
 
   return Promise.all(
     guildRows.map(async (guild) => {
       const channelId = channelByGuild.get(guild.guildId) ?? null;
-      const [guildName, regularEventsChannelName] = await Promise.all([
-        fetchDiscordGuildName(guild.guildId),
-        channelId
-          ? fetchDiscordChannelName(channelId)
-          : Promise.resolve(null),
-      ]);
+      const r4ChannelId = r4ByGuild.get(guild.guildId) ?? null;
+      const [guildName, regularEventsChannelName, r4ChannelName] =
+        await Promise.all([
+          fetchDiscordGuildName(guild.guildId),
+          channelId
+            ? fetchDiscordChannelName(channelId)
+            : Promise.resolve(null),
+          r4ChannelId
+            ? fetchDiscordChannelName(r4ChannelId)
+            : Promise.resolve(null),
+        ]);
       return {
         guildId: guild.guildId,
         guildName,
         hasRegularEventsChannel: Boolean(channelId),
         regularEventsChannelId: channelId,
         regularEventsChannelName,
+        hasR4Channel: Boolean(r4ChannelId),
+        r4ChannelId,
+        r4ChannelName,
         discordOpenUrl: channelId
           ? `https://discord.com/channels/${guild.guildId}/${channelId}`
           : guild.discordOpenUrl,
@@ -104,6 +339,8 @@ function toRuleDto(
     eventLabel: regularEventLabel(row.eventKey),
     scheduleKind: row.scheduleKind,
     weeklySlots: (row.weeklySlots as RegularEventWeeklySlot[] | null) ?? null,
+    oneShotDates: (row.oneShotDates as string[] | null) ?? null,
+    biweeklyPhaseMonday: row.biweeklyPhaseMonday ?? null,
     intervalDays: row.intervalDays,
     anchorTimeSt: row.anchorTimeSt,
     announceLeadMinutes: row.announceLeadMinutes,
@@ -115,9 +352,10 @@ export async function loadRegularEventsSettings(
   allianceId: string,
   canManage: boolean,
 ): Promise<RegularEventsSettings> {
-  const [flags, channels, guilds, rules] = await Promise.all([
+  const [flags, channels, r4Channels, guilds, rules] = await Promise.all([
     getAllianceRegularEventFlags(allianceId),
     listRegularEventsChannelsForAlliance(allianceId),
+    listR4ChannelsForAlliance(allianceId),
     enrichGuildLinks(allianceId),
     listRegularEventScheduleRules(allianceId),
   ]);
@@ -126,10 +364,43 @@ export async function loadRegularEventsSettings(
     announcementsEnabled: flags.announcementsEnabled,
     canyonStormActive: flags.canyonStormActive,
     guildChannelCount: channels.length,
+    r4ChannelCount: r4Channels.length,
     guilds,
     rules: rules.map(toRuleDto),
     canManage,
   };
+}
+
+type RulePatch = {
+  scheduleKind?: RegularEventScheduleKind;
+  weeklySlots?: unknown;
+  oneShotDates?: unknown;
+  biweeklyPhaseMonday?: string | null;
+  intervalDays?: number | null;
+  anchorTimeSt?: string | null;
+  announceLeadMinutes?: number;
+  active?: boolean;
+};
+
+function parseRuleFields(patch: RulePatch): {
+  weeklySlots: RegularEventWeeklySlot[] | null | undefined;
+  oneShotDates: string[] | null | undefined;
+} {
+  const weeklySlots =
+    patch.weeklySlots === undefined
+      ? undefined
+      : parseWeeklySlots(patch.weeklySlots);
+  if (patch.weeklySlots !== undefined && weeklySlots === null) {
+    throw new Error("Invalid weekly slots.");
+  }
+  const oneShotDates =
+    patch.oneShotDates === undefined
+      ? undefined
+      : parseOneShotDates(patch.oneShotDates);
+  if (patch.oneShotDates !== undefined && oneShotDates === null) {
+    throw new Error("Invalid one-shot dates.");
+  }
+  return { weeklySlots, oneShotDates };
 }
 
 export async function saveRegularEventsSettings(
@@ -141,6 +412,8 @@ export async function saveRegularEventsSettings(
       eventKey: string;
       scheduleKind: RegularEventScheduleKind;
       weeklySlots?: unknown;
+      oneShotDates?: unknown;
+      biweeklyPhaseMonday?: string | null;
       intervalDays?: number | null;
       anchorTimeSt?: string | null;
       announceLeadMinutes?: number;
@@ -150,6 +423,8 @@ export async function saveRegularEventsSettings(
       ruleId: string;
       scheduleKind?: RegularEventScheduleKind;
       weeklySlots?: unknown;
+      oneShotDates?: unknown;
+      biweeklyPhaseMonday?: string | null;
       intervalDays?: number | null;
       anchorTimeSt?: string | null;
       announceLeadMinutes?: number;
@@ -184,26 +459,38 @@ export async function saveRegularEventsSettings(
     });
   }
 
+  const allRules = await listRegularEventScheduleRules(allianceId);
+  const siblings = allRules.map((r) => ({
+    eventKey: r.eventKey,
+    scheduleKind: r.scheduleKind,
+    weeklySlots: (r.weeklySlots as RegularEventWeeklySlot[] | null) ?? null,
+    oneShotDates: (r.oneShotDates as string[] | null) ?? null,
+    biweeklyPhaseMonday: r.biweeklyPhaseMonday ?? null,
+    intervalDays: r.intervalDays,
+  }));
+
   if (input.upsertRule) {
     const eventKey = input.upsertRule.eventKey;
     if (!isRegularEventKey(eventKey)) {
       throw new Error("Invalid event key.");
     }
-    const weeklySlots =
-      input.upsertRule.weeklySlots === undefined
-        ? undefined
-        : parseWeeklySlots(input.upsertRule.weeklySlots);
-    if (
-      input.upsertRule.weeklySlots !== undefined &&
-      weeklySlots === null
-    ) {
-      throw new Error("Invalid weekly slots.");
-    }
+    const { weeklySlots, oneShotDates } = parseRuleFields(input.upsertRule);
+    assertScheduleValid({
+      eventKey,
+      scheduleKind: input.upsertRule.scheduleKind,
+      weeklySlots: weeklySlots ?? null,
+      oneShotDates: oneShotDates ?? null,
+      biweeklyPhaseMonday: input.upsertRule.biweeklyPhaseMonday,
+      intervalDays: input.upsertRule.intervalDays,
+      siblingRules: siblings.filter((s) => s.eventKey !== eventKey),
+    });
     await upsertRegularEventScheduleRule({
       allianceId,
       eventKey,
       scheduleKind: input.upsertRule.scheduleKind,
       weeklySlots: weeklySlots ?? null,
+      oneShotDates: oneShotDates ?? null,
+      biweeklyPhaseMonday: input.upsertRule.biweeklyPhaseMonday,
       intervalDays: input.upsertRule.intervalDays,
       anchorTimeSt: input.upsertRule.anchorTimeSt,
       announceLeadMinutes: input.upsertRule.announceLeadMinutes,
@@ -212,21 +499,45 @@ export async function saveRegularEventsSettings(
   }
 
   if (input.updateRule) {
-    const weeklySlots =
-      input.updateRule.weeklySlots === undefined
-        ? undefined
-        : parseWeeklySlots(input.updateRule.weeklySlots);
-    if (
-      input.updateRule.weeklySlots !== undefined &&
-      weeklySlots === null
-    ) {
-      throw new Error("Invalid weekly slots.");
+    const { weeklySlots, oneShotDates } = parseRuleFields(input.updateRule);
+    const existing = allRules.find((r) => r.id === input.updateRule!.ruleId);
+    if (!existing) {
+      throw new Error("Schedule rule not found.");
     }
+    const nextKind =
+      input.updateRule.scheduleKind ??
+      (existing.scheduleKind as RegularEventScheduleKind);
+    const nextWeekly =
+      weeklySlots === undefined
+        ? ((existing.weeklySlots as RegularEventWeeklySlot[] | null) ?? null)
+        : weeklySlots;
+    const nextOnce =
+      oneShotDates === undefined
+        ? ((existing.oneShotDates as string[] | null) ?? null)
+        : oneShotDates;
+    const nextPhase =
+      input.updateRule.biweeklyPhaseMonday === undefined
+        ? existing.biweeklyPhaseMonday
+        : input.updateRule.biweeklyPhaseMonday;
+    assertScheduleValid({
+      eventKey: existing.eventKey,
+      scheduleKind: nextKind,
+      weeklySlots: nextWeekly,
+      oneShotDates: nextOnce,
+      biweeklyPhaseMonday: nextPhase,
+      intervalDays:
+        input.updateRule.intervalDays === undefined
+          ? existing.intervalDays
+          : input.updateRule.intervalDays,
+      siblingRules: siblings.filter((s) => s.eventKey !== existing.eventKey),
+    });
     const updated = await updateRegularEventScheduleRuleById({
       allianceId,
       ruleId: input.updateRule.ruleId,
       scheduleKind: input.updateRule.scheduleKind,
       weeklySlots,
+      oneShotDates,
+      biweeklyPhaseMonday: input.updateRule.biweeklyPhaseMonday,
       intervalDays: input.updateRule.intervalDays,
       anchorTimeSt: input.updateRule.anchorTimeSt,
       announceLeadMinutes: input.updateRule.announceLeadMinutes,

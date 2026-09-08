@@ -11,6 +11,7 @@ import type {
   RegularEventScheduleRuleInput,
   RegularEventWeeklySlot,
 } from "@/lib/regular-events/types.shared";
+import { addCalendarDays, getServerCalendarDate, getWeekStartMonday } from "@/lib/trains/game-time";
 
 /** Zombie Siege start time: 23:30 ST while Canyon Storm is active, else 23:00. */
 export function zombieSiegeTimeSt(canyonStormActive: boolean): string {
@@ -41,9 +42,20 @@ export function announceAtFromStart(
   );
 }
 
+/** Default bi-weekly phase: current ST week Monday for Sky; next week for Glacierdon. */
+export function defaultBiweeklyPhaseMondays(todaySt: string): {
+  sky: string;
+  glacierdon: string;
+} {
+  const sky = getWeekStartMonday(todaySt);
+  return { sky, glacierdon: addCalendarDays(sky, 7) };
+}
+
 export function defaultRulesForAlliance(
   canyonStormActive: boolean,
+  todaySt: string = getServerCalendarDate(),
 ): RegularEventScheduleRuleInput[] {
+  const phases = defaultBiweeklyPhaseMondays(todaySt);
   return [
     {
       eventKey: "zombie_siege",
@@ -54,15 +66,17 @@ export function defaultRulesForAlliance(
     },
     {
       eventKey: "sky_marshall",
-      scheduleKind: "weekly",
+      scheduleKind: "biweekly",
       weeklySlots: wednesdayEventSlots(),
+      biweeklyPhaseMonday: phases.sky,
       announceLeadMinutes: DEFAULT_ANNOUNCE_LEAD_MINUTES,
       active: true,
     },
     {
       eventKey: "glacierdon",
-      scheduleKind: "weekly",
+      scheduleKind: "biweekly",
       weeklySlots: wednesdayEventSlots(),
+      biweeklyPhaseMonday: phases.glacierdon,
       announceLeadMinutes: DEFAULT_ANNOUNCE_LEAD_MINUTES,
       active: true,
     },
@@ -78,7 +92,9 @@ export function defaultRulesForAlliance(
   ];
 }
 
-export function isCanyonStormActiveFlag(value: number | boolean | null | undefined): boolean {
+export function isCanyonStormActiveFlag(
+  value: number | boolean | null | undefined,
+): boolean {
   if (typeof value === "boolean") return value;
   return value === 1;
 }
@@ -120,4 +136,16 @@ export function parseWeeklySlots(
     slots.push({ dow, timeSt });
   }
   return slots;
+}
+
+export function parseOneShotDates(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const dates: string[] = [];
+  for (const row of value) {
+    if (typeof row !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(row)) {
+      return null;
+    }
+    dates.push(row);
+  }
+  return [...new Set(dates)].sort();
 }

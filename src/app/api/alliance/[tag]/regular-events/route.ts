@@ -10,6 +10,7 @@ import { writeAuditLog } from "@/lib/bff/audit";
 import { sessionHasPermissionForAlliance } from "@/lib/rbac/context";
 import {
   loadRegularEventsSettings,
+  RegularEventScheduleValidationError,
   saveRegularEventsSettings,
 } from "@/lib/regular-events/settings.server";
 import { requireApiSession } from "@/lib/session";
@@ -21,6 +22,15 @@ const weeklySlotSchema = z.object({
   timeSt: z.string().regex(/^\d{1,2}:\d{2}$/),
 });
 
+const scheduleKindSchema = z.enum([
+  "weekly",
+  "biweekly",
+  "once",
+  "interval_after_last",
+]);
+
+const dateStSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
 const patchSchema = z
   .object({
     announcementsEnabled: z.boolean().optional(),
@@ -28,8 +38,10 @@ const patchSchema = z
     upsertRule: z
       .object({
         eventKey: z.string().min(1),
-        scheduleKind: z.enum(["weekly", "interval_after_last"]),
+        scheduleKind: scheduleKindSchema,
         weeklySlots: z.array(weeklySlotSchema).nullable().optional(),
+        oneShotDates: z.array(dateStSchema).nullable().optional(),
+        biweeklyPhaseMonday: dateStSchema.nullable().optional(),
         intervalDays: z.number().int().min(1).max(30).nullable().optional(),
         anchorTimeSt: z
           .string()
@@ -43,8 +55,10 @@ const patchSchema = z
     updateRule: z
       .object({
         ruleId: z.string().min(1),
-        scheduleKind: z.enum(["weekly", "interval_after_last"]).optional(),
+        scheduleKind: scheduleKindSchema.optional(),
         weeklySlots: z.array(weeklySlotSchema).nullable().optional(),
+        oneShotDates: z.array(dateStSchema).nullable().optional(),
+        biweeklyPhaseMonday: dateStSchema.nullable().optional(),
         intervalDays: z.number().int().min(1).max(30).nullable().optional(),
         anchorTimeSt: z
           .string()
@@ -168,6 +182,12 @@ export async function PATCH(request: Request, context: RouteContext) {
         ...saved,
       });
     } catch (err) {
+      if (err instanceof RegularEventScheduleValidationError) {
+        return NextResponse.json(
+          { error: err.message, code: err.code },
+          { status: 400 },
+        );
+      }
       const message =
         err instanceof Error ? err.message : "Could not save settings.";
       return NextResponse.json({ error: message }, { status: 400 });

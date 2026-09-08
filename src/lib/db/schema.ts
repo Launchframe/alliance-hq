@@ -1506,6 +1506,7 @@ export const discordGuildAlliances = pgTable("discord_guild_alliances", {
   trainChannelId: text("train_channel_id"),
   seasonalEventsChannelId: text("seasonal_events_channel_id"),
   regularEventsChannelId: text("regular_events_channel_id"),
+  r4ChannelId: text("r4_channel_id"),
   bankingChannelId: text("banking_channel_id"),
   registeredAt: timestamp("registered_at", { withTimezone: true })
     .defaultNow()
@@ -3319,6 +3320,8 @@ export const regularEventScheduleRules = pgTable(
     eventKey: text("event_key").notNull(),
     scheduleKind: text("schedule_kind").notNull(),
     weeklySlots: jsonb("weekly_slots"),
+    oneShotDates: jsonb("one_shot_dates"),
+    biweeklyPhaseMonday: text("biweekly_phase_monday"),
     intervalDays: integer("interval_days"),
     anchorTimeSt: text("anchor_time_st"),
     announceLeadMinutes: integer("announce_lead_minutes")
@@ -3356,6 +3359,12 @@ export const regularEventOccurrences = pgTable(
       .notNull(),
     announceAt: timestamp("announce_at", { withTimezone: true }).notNull(),
     discordAnnouncedAt: timestamp("discord_announced_at", {
+      withTimezone: true,
+    }),
+    uploadRemindedAt: timestamp("upload_reminded_at", {
+      withTimezone: true,
+    }),
+    scheduleRemindedAt: timestamp("schedule_reminded_at", {
       withTimezone: true,
     }),
     createdAt: timestamp("created_at", { withTimezone: true })

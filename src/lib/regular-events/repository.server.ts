@@ -9,6 +9,7 @@ import type {
   RegularEventScheduleKind,
   RegularEventWeeklySlot,
 } from "@/lib/regular-events/types.shared";
+import { getServerCalendarDate } from "@/lib/trains/game-time";
 
 export async function getAllianceRegularEventFlags(allianceId: string): Promise<{
   announcementsEnabled: boolean;
@@ -91,11 +92,24 @@ export async function listAlliancesWithRegularEventsAnnouncementsEnabled(): Prom
   return rows.map((row) => row.id);
 }
 
+export async function listAllianceIdsWithActiveRegularEventRules(): Promise<
+  string[]
+> {
+  const db = getDb();
+  const rows = await db
+    .selectDistinct({ allianceId: schema.regularEventScheduleRules.allianceId })
+    .from(schema.regularEventScheduleRules)
+    .where(eq(schema.regularEventScheduleRules.active, 1));
+  return rows.map((row) => row.allianceId);
+}
+
 export async function upsertRegularEventScheduleRule(input: {
   allianceId: string;
   eventKey: RegularEventKey;
   scheduleKind: RegularEventScheduleKind;
   weeklySlots?: RegularEventWeeklySlot[] | null;
+  oneShotDates?: string[] | null;
+  biweeklyPhaseMonday?: string | null;
   intervalDays?: number | null;
   anchorTimeSt?: string | null;
   announceLeadMinutes?: number;
@@ -120,6 +134,8 @@ export async function upsertRegularEventScheduleRule(input: {
       .set({
         scheduleKind: input.scheduleKind,
         weeklySlots: input.weeklySlots ?? null,
+        oneShotDates: input.oneShotDates ?? null,
+        biweeklyPhaseMonday: input.biweeklyPhaseMonday ?? null,
         intervalDays: input.intervalDays ?? null,
         anchorTimeSt: input.anchorTimeSt ?? null,
         announceLeadMinutes: input.announceLeadMinutes ?? existing[0].announceLeadMinutes,
@@ -140,6 +156,8 @@ export async function upsertRegularEventScheduleRule(input: {
       eventKey: input.eventKey,
       scheduleKind: input.scheduleKind,
       weeklySlots: input.weeklySlots ?? null,
+      oneShotDates: input.oneShotDates ?? null,
+      biweeklyPhaseMonday: input.biweeklyPhaseMonday ?? null,
       intervalDays: input.intervalDays ?? null,
       anchorTimeSt: input.anchorTimeSt ?? null,
       announceLeadMinutes: input.announceLeadMinutes ?? 60,
@@ -156,6 +174,8 @@ export async function updateRegularEventScheduleRuleById(input: {
   ruleId: string;
   scheduleKind?: RegularEventScheduleKind;
   weeklySlots?: RegularEventWeeklySlot[] | null;
+  oneShotDates?: string[] | null;
+  biweeklyPhaseMonday?: string | null;
   intervalDays?: number | null;
   anchorTimeSt?: string | null;
   announceLeadMinutes?: number;
@@ -182,6 +202,14 @@ export async function updateRegularEventScheduleRuleById(input: {
         input.weeklySlots === undefined
           ? existing.weeklySlots
           : input.weeklySlots,
+      oneShotDates:
+        input.oneShotDates === undefined
+          ? existing.oneShotDates
+          : input.oneShotDates,
+      biweeklyPhaseMonday:
+        input.biweeklyPhaseMonday === undefined
+          ? existing.biweeklyPhaseMonday
+          : input.biweeklyPhaseMonday,
       intervalDays:
         input.intervalDays === undefined
           ? existing.intervalDays
@@ -271,6 +299,37 @@ export async function listDueRegularEventOccurrences(now: Date) {
     );
 }
 
+export async function listDueRegularEventUploadReminders(
+  now: Date,
+  delayMinutes: number,
+) {
+  const db = getDb();
+  const cutoff = new Date(now.getTime() - delayMinutes * 60 * 1000);
+  return db
+    .select()
+    .from(schema.regularEventOccurrences)
+    .where(
+      and(
+        lte(schema.regularEventOccurrences.scheduledStartAt, cutoff),
+        isNull(schema.regularEventOccurrences.uploadRemindedAt),
+      ),
+    );
+}
+
+export async function listDueRegularEventScheduleReminders(now: Date) {
+  const db = getDb();
+  const todaySt = getServerCalendarDate(now);
+  return db
+    .select()
+    .from(schema.regularEventOccurrences)
+    .where(
+      and(
+        lte(schema.regularEventOccurrences.occurrenceDate, todaySt),
+        isNull(schema.regularEventOccurrences.scheduleRemindedAt),
+      ),
+    );
+}
+
 export async function markRegularEventOccurrenceAnnounced(
   occurrenceId: string,
   at: Date,
@@ -279,5 +338,27 @@ export async function markRegularEventOccurrenceAnnounced(
   await db
     .update(schema.regularEventOccurrences)
     .set({ discordAnnouncedAt: at })
+    .where(eq(schema.regularEventOccurrences.id, occurrenceId));
+}
+
+export async function markRegularEventOccurrenceUploadReminded(
+  occurrenceId: string,
+  at: Date,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.regularEventOccurrences)
+    .set({ uploadRemindedAt: at })
+    .where(eq(schema.regularEventOccurrences.id, occurrenceId));
+}
+
+export async function markRegularEventOccurrenceScheduleReminded(
+  occurrenceId: string,
+  at: Date,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.regularEventOccurrences)
+    .set({ scheduleRemindedAt: at })
     .where(eq(schema.regularEventOccurrences.id, occurrenceId));
 }

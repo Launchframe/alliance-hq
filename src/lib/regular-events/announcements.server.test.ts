@@ -30,7 +30,37 @@ describe("formatRegularEventAnnouncementMessage", () => {
       locale: "pt-BR",
     });
     expect(message).toBe(
-      "Marshal Guard começa em 1 hora (23:00 horário do servidor).",
+      "Alliance Exercise começa em 1 hora (23:00 horário do servidor).",
     );
+  });
+});
+
+describe("formatRegularEventUploadReminderTitle", () => {
+  it("uses Alliance Exercise label", async () => {
+    const { formatRegularEventUploadReminderTitle } = await import(
+      "./announcements.server"
+    );
+    expect(
+      formatRegularEventUploadReminderTitle({ eventKey: "marshal_guard" }),
+    ).toBe("Upload scores for today's Alliance Exercise");
+  });
+});
+
+describe("formatRegularEventScheduleInGameReminder", () => {
+  it("uses approved TODO copy", async () => {
+    const { formatRegularEventScheduleInGameReminder } = await import(
+      "./announcements.server"
+    );
+    const scheduledStartAt = serverTimestampFromCalendarAndTime(
+      "2026-09-09",
+      "23:00",
+    );
+    expect(
+      formatRegularEventScheduleInGameReminder({
+        eventKey: "glacierdon",
+        scheduledStartAt,
+        locale: "en-US",
+      }),
+    ).toBe("TODO: schedule Glacierdon for 23:00 Server Time.");
   });
 });
