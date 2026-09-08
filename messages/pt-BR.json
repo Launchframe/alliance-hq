@@ -157,6 +157,7 @@
   },
   "nav": {
     "supportTeams": "Equipes de apoio",
+    "teamWork": "Trabalho em equipe",
     "dashboard": "Painel",
     "alliances": "Alianças",
     "members": "Membros",
@@ -1625,6 +1626,7 @@
       },
       "nav": {
         "supportTeams": "Equipes de apoio",
+        "teamWork": "Trabalho em equipe",
         "dashboard": "Ir para Painel",
         "members": "Ir para Membros",
         "vsPerformance": "Ir para Desempenho VS",
@@ -6452,7 +6454,11 @@
     "reassign": "Reatribuir tarefa",
     "keep": "Manter atribuição",
     "keepHint": "Mantenha esta atribuição somente após confirmar a cobertura. Os bloqueios e as permissões existentes continuam valendo.",
-    "auditReason": "Nota de auditoria"
+    "auditReason": "Nota de auditoria",
+    "leadAway": "{lead} está ausente. O trabalho é encaminhado para {fallback}.",
+    "leadUnlinked": "Este líder não está vinculado ao HQ. O trabalho é encaminhado à liderança da aliança.",
+    "digest": "Resumo do trabalho em equipe",
+    "yourTeam": "Sua equipe é {team}; seu líder é {lead}."
   },
   "timeOff": {
     "title": "Minhas Ausências",

@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { getTranslations } from "next-intl/server";
 
 import { getDb, schema } from "@/lib/db";
+import { canReadTeamWorkInbox } from "@/lib/support-teams/work-inbox.server";
 import { resolveOnboardingReviewInboxHref } from "@/lib/member-link/onboarding-review-inbox.shared";
 import { resolveRosterLinkInboxHref } from "@/lib/member-link/roster-link-inbox.shared";
 
@@ -104,6 +105,7 @@ export async function loadReminderInboxForUser(options: {
   allianceId: string;
   permissions: Set<string>;
   includeDismissed?: boolean;
+  personalWorkOnly?: boolean;
 }): Promise<
   Array<{
     id: string;
@@ -137,6 +139,8 @@ export async function loadReminderInboxForUser(options: {
     )
     .orderBy(sql`${schema.inboxReminderItems.createdAt} DESC`);
 
+  const teamWorkAllowed = items.some((item) => item.kind === "team_work") && await canReadTeamWorkInbox({ allianceId: options.allianceId, hqUserId: options.principalHqUserId ?? options.hqUserId, permissions: options.permissions, personal: options.personalWorkOnly });
+  const teamWorkTranslation = teamWorkAllowed ? await getTranslations("teamWork") : null;
   let complianceAllowed = false;
   const complianceTranslation = items.some((item) => item.kind === "vs_compliance") ? await getTranslations("vsCompliance") : null;
   if (complianceTranslation && (options.permissions.has("vs_compliance:read") || options.permissions.has("hq:admin"))) {
@@ -148,7 +152,8 @@ export async function loadReminderInboxForUser(options: {
   const now = new Date();
   return items
     .filter((item) => {
-      if (item.kind === "vs_compliance" && !complianceAllowed) return false;
+      if (item.kind === "team_work" && !teamWorkAllowed) return false;
+      if (item.kind === "vs_compliance" && (!complianceAllowed || teamWorkAllowed && options.permissions.has("vs_compliance:manage"))) return false;
       if (
         item.requiredPermission &&
         !(item.kind === "vs_compliance" && complianceAllowed) &&
@@ -167,8 +172,8 @@ export async function loadReminderInboxForUser(options: {
     .map((item) => ({
       id: item.id,
       kind: item.kind,
-      title: item.kind === "vs_compliance" && complianceTranslation ? complianceTranslation("title") : item.title,
-      body: item.kind === "vs_compliance" ? null : item.body,
+      title: item.kind === "team_work" && teamWorkTranslation ? teamWorkTranslation("digest") : item.kind === "vs_compliance" && complianceTranslation ? complianceTranslation("title") : item.title,
+      body: item.kind === "vs_compliance" || item.kind === "team_work" ? null : item.body,
       href:
         resolveOnboardingReviewInboxHref({
           kind: item.kind,

@@ -89,7 +89,7 @@ export async function rebuildComplianceTx(tx: ComplianceTx, allianceId: string, 
   });
   if (reviews.length) await tx.insert(schema.vsComplianceReviews).values(reviews).onConflictDoNothing();
   if (expungeIds.length) await tx.update(schema.memberViolations).set({ expungedAt: new Date(), updatedAt: new Date() }).where(and(eq(schema.memberViolations.allianceId, allianceId), inArray(schema.memberViolations.complianceEventId, expungeIds)));
-  if (inbox.length) await tx.insert(schema.inboxReminderItems).values(inbox).onConflictDoUpdate({ target: schema.inboxReminderItems.id, set: { active: sql`excluded.active`, href: sql`excluded.href`, resourceId: sql`excluded.resource_id`, requiredPermission: VS_COMPLIANCE_READ_PERMISSION, body: null } });
+  if (inbox.length) await tx.insert(schema.inboxReminderItems).values([{ ...inbox[0], id: `vs-compliance:${complianceHash(allianceId)}`, resourceId: null, href: "/vs-compliance", active: inbox.some((item) => item.active === 1) ? 1 : 0 }]).onConflictDoUpdate({ target: schema.inboxReminderItems.id, set: { active: sql`excluded.active`, href: sql`excluded.href`, resourceId: sql`excluded.resource_id`, requiredPermission: VS_COMPLIANCE_READ_PERMISSION, body: null } });
   return { rows, actions, jobs, facts };
 }
 

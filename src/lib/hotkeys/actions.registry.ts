@@ -29,6 +29,15 @@ const NATIVE_MODE_EXTRA_HREFS = new Set([
 
 const NAV_ACTIONS: HotkeyActionDef[] = [
   {
+    id: "nav.teamWork",
+    labelKey: "actions.nav.teamWork",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/team-work",
+    requiredPermission: "members:read",
+  },
+  {
     id: "nav.supportTeams",
     labelKey: "actions.nav.supportTeams",
     category: "navigation",

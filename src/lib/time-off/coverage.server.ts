@@ -76,17 +76,21 @@ export async function professionCoverageDuties(tx: AvailabilityTransaction, alli
   return rows.map((row) => ({ assignmentId: row.id, assignmentVersion: row.version, dutyDate: date, dutyRole: "engineer", memberId: row.memberId, memberName: row.memberName ?? "", lockedAt: null }));
 }
 
+export async function listCoverageConflictsTx(tx: AvailabilityTransaction, allianceId: string, startDate: string, endDate: string) {
+  const records = await tx.select({ row: schema.trainConductorRecords, version: sql<string>`${schema.trainConductorRecords}.xmin::text` }).from(schema.trainConductorRecords)
+    .where(and(eq(schema.trainConductorRecords.allianceId, allianceId), gte(schema.trainConductorRecords.date, startDate), lte(schema.trainConductorRecords.date, endDate)));
+  const conflicts = await findCoverageConflicts(tx, allianceId, [...records.flatMap(({ row, version }) => trainCoverageDuties(row, version)), ...await professionCoverageDuties(tx, allianceId, startDate)]);
+  const audits = await tx.select({ metadata: schema.auditLog.metadata }).from(schema.auditLog).where(and(eq(schema.auditLog.allianceId, allianceId), inArray(schema.auditLog.action, ["time_off.coverage_keep", "time_off.coverage_applied"])));
+  return conflicts.filter((conflict) => !audits.some(({ metadata }) => {
+    const accepted = metadata as { conflicts?: CoverageConflict[] } | null;
+    return acceptsCoverage([conflict], { conflicts: accepted?.conflicts ?? [], note: "accepted", requestId: "accepted_coverage_1" });
+  }));
+}
+
 export async function listCoverageConflicts(allianceId: string, startDate: string, endDate: string) {
   return getDb().transaction(async (tx) => {
     await lockAllianceAvailability(tx, allianceId);
-    const records = await tx.select({ row: schema.trainConductorRecords, version: sql<string>`${schema.trainConductorRecords}.xmin::text` }).from(schema.trainConductorRecords)
-      .where(and(eq(schema.trainConductorRecords.allianceId, allianceId), gte(schema.trainConductorRecords.date, startDate), lte(schema.trainConductorRecords.date, endDate)));
-    const conflicts = await findCoverageConflicts(tx, allianceId, [...records.flatMap(({ row, version }) => trainCoverageDuties(row, version)), ...await professionCoverageDuties(tx, allianceId, startDate)]);
-    const audits = await tx.select({ metadata: schema.auditLog.metadata }).from(schema.auditLog).where(and(eq(schema.auditLog.allianceId, allianceId), inArray(schema.auditLog.action, ["time_off.coverage_keep", "time_off.coverage_applied"])));
-    return conflicts.filter((conflict) => !audits.some(({ metadata }) => {
-      const accepted = metadata as { conflicts?: CoverageConflict[] } | null;
-      return acceptsCoverage([conflict], { conflicts: accepted?.conflicts ?? [], note: "accepted", requestId: "accepted_coverage_1" });
-    }));
+    return listCoverageConflictsTx(tx, allianceId, startDate, endDate);
   });
 }
 

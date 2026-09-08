@@ -157,6 +157,7 @@
   },
   "nav": {
     "supportTeams": "Support teams",
+    "teamWork": "Team work",
     "dashboard": "Dashboard",
     "alliances": "Alliances",
     "members": "Members",
@@ -1625,6 +1626,7 @@
       },
       "nav": {
         "supportTeams": "Support teams",
+        "teamWork": "Team work",
         "dashboard": "Go to Dashboard",
         "members": "Go to Members",
         "vsPerformance": "Go to VS Performance",
@@ -6451,7 +6453,11 @@
     "reassign": "Reassign duty",
     "keep": "Keep assignment",
     "keepHint": "Only keep this assignment after confirming coverage. Existing locks and permissions still apply.",
-    "auditReason": "Audit note"
+    "auditReason": "Audit note",
+    "leadAway": "{lead} is away. Work is routed to {fallback}.",
+    "leadUnlinked": "This lead is not linked to HQ. Work is routed to alliance leadership.",
+    "digest": "Team work summary",
+    "yourTeam": "Your team is {team}; your lead is {lead}."
   },
   "timeOff": {
     "title": "My Time Off",
