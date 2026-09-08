@@ -53,6 +53,17 @@ describe("officer-confirmed native bookkeeping", () => {
     expect(mocks.writes.find((write) => write.table === "vs_compliance_sync_jobs")?.values).toMatchObject({ status: "local", actionId: result.actionId });
     expect(mocks.rebuild).toHaveBeenCalledTimes(2);
   });
+  it("appends distinct rotation positions when several members enter an existing generation", async () => {
+    mocks.results = [[row], [], [{ id: "anchor-entry", poolType: "r3", generation: 2, memberId: "anchor", memberName: "Anchor", allianceRank: 3, selectedAt: null, sequencePosition: 7 }]];
+    mocks.rebuild.mockResolvedValue({ rows: [row], actions: [], facts: { alliance: { operatingMode: "native" }, members: [
+      { memberId: "member", name: "Member", member },
+      ...["anchor", "new-one", "new-two"].map((memberId) => ({ memberId, name: memberId, member: { ...member, currentRank: 3 } })),
+    ] } });
+    await performComplianceAction("session", "tenant", "event", body, false);
+    const added = mocks.writes.filter((write) => write.table === "conductor_pool_entries" && write.kind === "insert");
+    expect(added.map((write) => write.values.sequencePosition)).toEqual([8, 9]);
+  });
+
   it("rolls back the claimed action and rank write if any local cleanup stage fails", async () => {
     for (const table of ["member_alliance_rank_events", "alliance_members", "commander_alliance_memberships", "vs_compliance_roster_guards", "member_violations", "vs_compliance_sync_jobs"]) {
       mocks.results = [[row], [], []]; mocks.failTable = table;

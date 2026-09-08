@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { nanoid } from "nanoid";
-import { authCookieHeader, createAllianceMembership, createAllianceRosterMember, createAuthenticatedHqSession, createNativeAlliance, getE2eSql } from "./fixtures/db";
+import { authCookieHeader, createAllianceMembership, createAllianceRosterMember, createAuthenticatedHqSession, createHqMemberLink, createNativeAlliance, getE2eSql, playwrightAuthCookies } from "./fixtures/db";
 import { addCalendarDays } from "../src/lib/trains/game-time";
 import { lastClosedVsWeek } from "../src/lib/vs-compliance/workflow.shared";
 
@@ -93,6 +93,103 @@ test("native removal preserves selected pool history and does not delete HQ iden
   expect(pools.map((pool) => pool.id)).toEqual([selectedId]);
   const guard = await f.sql`SELECT status FROM vs_compliance_roster_guards WHERE alliance_id = ${f.alliance.allianceId} AND member_id = ${f.member.ashedMemberId}`;
   expect(guard[0].status).toBe("former");
+});
+
+async function linkBrowserActor(f: Awaited<ReturnType<typeof fixture>>, actor = f.officer) {
+  const linked = await createAllianceRosterMember(f.sql, { allianceId: f.alliance.allianceId, currentName: "UI Officer", allianceRank: 4 });
+  await createHqMemberLink(f.sql, { allianceId: f.alliance.allianceId, hqUserId: actor.hqUserId, ashedMemberId: linked.ashedMemberId });
+}
+
+test("browser confirms the displayed in-game action and shows HQ-only success", async ({ page, context }) => {
+  const f = await fixture();
+  await linkBrowserActor(f);
+  await context.addCookies(playwrightAuthCookies(f.officer));
+  await page.goto("/en-US/vs-compliance");
+  const card = page.getByTestId("compliance-row").filter({ hasText: "Compliance Member" });
+  await expect(card.getByText("Recommend R2", { exact: true })).toBeVisible();
+  await expect(card.getByText("In-Game Rank: R3", { exact: true })).toBeVisible();
+  await card.getByRole("button", { name: "Confirm in-game action" }).click();
+  const dialog = page.getByRole("dialog", { name: "Confirm in-game action" });
+  await expect(dialog.getByText("Confirm only after performing the displayed action in-game.", { exact: false })).toBeVisible();
+  await dialog.getByRole("button", { name: "Confirm in-game action" }).click();
+  await expect(dialog.getByText("HQ only", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Action recorded.", { exact: true })).toBeVisible();
+  const rows = await f.sql`SELECT alliance_rank FROM member_alliance_rank_events WHERE alliance_id = ${f.alliance.allianceId} AND source = 'vs_compliance'`;
+  expect(rows.map((row) => row.alliance_rank)).toEqual([2]);
+});
+
+test("browser stale confirmation retains the old recommendation and requires a fresh review", async ({ page, context }) => {
+  const f = await fixture("consecutive");
+  await linkBrowserActor(f);
+  await context.addCookies(playwrightAuthCookies(f.officer));
+  await page.goto("/en-US/vs-compliance");
+  const card = page.getByTestId("compliance-row").filter({ hasText: "Compliance Member" });
+  await card.getByRole("button", { name: "Confirm in-game action" }).click();
+  const dialog = page.getByRole("dialog", { name: "Confirm in-game action" });
+  await expect(dialog.getByText("Recommend removal", { exact: true })).toBeVisible();
+  await f.sql`UPDATE vs_score_heads SET score = 40000000, version = version + 1 WHERE alliance_id = ${f.alliance.allianceId} AND recorded_date = ${f.weeks[1]}`;
+  await dialog.getByRole("button", { name: "Confirm in-game action" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("The evidence, policy, or member rank changed.");
+  await expect(dialog.getByText("Recommend removal", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Confirm in-game action" })).toBeDisabled();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(card.getByText("Recommend R2", { exact: true })).toBeVisible();
+  expect(await f.sql`SELECT id FROM vs_compliance_actions WHERE alliance_id = ${f.alliance.allianceId}`).toHaveLength(0);
+});
+
+test("browser waiver requires a private reason and retains it with a stable retry after response loss", async ({ page, context }) => {
+  const f = await fixture();
+  await linkBrowserActor(f);
+  await context.addCookies(playwrightAuthCookies(f.officer));
+  await page.goto("/en-US/vs-compliance");
+  await page.getByTestId("compliance-row").filter({ hasText: "Compliance Member" }).getByRole("button", { name: "Waive this week" }).click();
+  const dialog = page.getByRole("dialog", { name: "Waive this week" });
+  await dialog.getByRole("button", { name: "Waive this week" }).click();
+  await expect(dialog.getByRole("alert")).toHaveText("Enter a reason for this waiver.");
+  await dialog.getByLabel("Reason for waiver").fill("Private UI waiver");
+  const attempts: string[] = [];
+  await page.route("**/api/vs-compliance/tasks/*/waive", async (route) => {
+    attempts.push(route.request().postData()!);
+    const response = await route.fetch();
+    if (attempts.length === 1) await route.abort("failed"); else await route.fulfill({ response });
+  });
+  await dialog.getByRole("button", { name: "Waive this week" }).click();
+  await expect(dialog.getByRole("alert")).toBeVisible();
+  await expect(dialog.getByLabel("Reason for waiver")).toHaveValue("Private UI waiver");
+  await expect(dialog.getByLabel("Reason for waiver")).toBeDisabled();
+  await dialog.getByRole("button", { name: "Waive this week" }).click();
+  await expect(dialog.getByText("Week waived.", { exact: true })).toBeVisible();
+  expect(attempts).toHaveLength(2); expect(attempts[0]).toBe(attempts[1]);
+  expect(await f.sql`SELECT id FROM vs_compliance_actions WHERE alliance_id = ${f.alliance.allianceId} AND kind = 'waive'`).toHaveLength(1);
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.goto("/en-US/inbox");
+  await expect(page.getByText("Private UI waiver", { exact: true })).toHaveCount(0);
+});
+
+test("browser missing evidence remains pending without inventing zero or a demotion", async ({ page, context }) => {
+  const f = await fixture();
+  await linkBrowserActor(f);
+  await f.sql`DELETE FROM vs_score_heads WHERE alliance_id = ${f.alliance.allianceId}`;
+  await context.addCookies(playwrightAuthCookies(f.officer));
+  await page.goto("/en-US/vs-compliance");
+  const card = page.getByTestId("compliance-row").filter({ hasText: "Compliance Member" });
+  await expect(card.getByText("Missing evidence", { exact: true }).first()).toBeVisible();
+  await expect(card.getByText("Missing, incomplete, or conflicting evidence will not create a disciplinary miss.")).toBeVisible();
+  await expect(card.getByRole("button", { name: "Confirm in-game action" })).toHaveCount(0);
+  await expect(card).not.toContainText("0 points");
+});
+
+for (const role of ["member", "data_entry"] as const) test(`browser ${role} cannot read other discipline or mutate compliance`, async ({ page, context }) => {
+  const f = await fixture(); const actor = await f.actor(role);
+  await linkBrowserActor(f, actor);
+  await context.addCookies(playwrightAuthCookies(actor));
+  await page.goto("/en-US/vs-compliance");
+  await expect(page.getByTestId("compliance-row")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Confirm in-game action" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Waive this week" })).toHaveCount(0);
+  expect((await page.request.get("/api/vs-compliance")).status()).toBe(403);
+  await page.goto("/en-US/settings/vs-membership-minimums");
+  await expect(page.getByRole("checkbox", { name: "Enable weekly discipline" })).toHaveCount(0);
 });
 
 test("new manual rank records invalidate stale confirmation and R5 remains review-only", async ({ request }) => {

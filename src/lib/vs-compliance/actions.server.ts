@@ -31,7 +31,8 @@ async function recordNativeAction(tx: ComplianceTx, row: ComplianceRow, action: 
     const current = entries.filter((entry) => entry.poolType === poolType && entry.generation === generation);
     const plan = planCurrentGenerationRankEligibilitySync({ poolType, entries: current, members: candidates });
     if (plan.unselectedEntryIdsToRemove.length) await tx.delete(schema.conductorPoolEntries).where(and(eq(schema.conductorPoolEntries.allianceId, row.allianceId), inArray(schema.conductorPoolEntries.id, plan.unselectedEntryIdsToRemove), isNull(schema.conductorPoolEntries.selectedAt)));
-    for (const member of plan.membersToAdd) await tx.insert(schema.conductorPoolEntries).values({ id: nanoid(), allianceId: row.allianceId, poolType, generation, memberId: member.memberId, memberName: member.memberName, allianceRank: member.rank, sequencePosition: Math.max(0, ...current.map((entry) => entry.sequencePosition ?? 0)) + 1 }).onConflictDoNothing();
+    let sequencePosition = Math.max(0, ...current.map((entry) => entry.sequencePosition ?? 0));
+    for (const member of plan.membersToAdd) await tx.insert(schema.conductorPoolEntries).values({ id: nanoid(), allianceId: row.allianceId, poolType, generation, memberId: member.memberId, memberName: member.memberName, allianceRank: member.rank, sequencePosition: ++sequencePosition }).onConflictDoNothing();
   }
   if (removal) {
     const currentGenerations = new Map<string, number>();

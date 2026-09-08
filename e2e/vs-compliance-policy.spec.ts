@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { nanoid } from "nanoid";
-import { authCookieHeader, createAllianceMembership, createAuthenticatedHqSession, createNativeAlliance, getE2eSql } from "./fixtures/db";
+import { authCookieHeader, createAllianceMembership, createAllianceRosterMember, createAuthenticatedHqSession, createHqMemberLink, createNativeAlliance, getE2eSql, playwrightAuthCookies } from "./fixtures/db";
+import { firstFullVsWeek } from "../src/lib/vs-compliance/policy.shared";
+import { addCalendarDays } from "../src/lib/trains/game-time";
 
 async function fixture() {
   const sql = getE2eSql();
@@ -53,6 +55,64 @@ test("native officers can inspect policy but only owner-equivalent roles can con
   const otherOwner = await other.actor("owner");
   expect((await request.get(f.url, { headers: otherOwner.headers })).status()).toBe(403);
   expect((await request.patch(f.url, { headers: otherOwner.headers, data: { expectedVersion: 1, leewayPct: 5 } })).status()).toBe(403);
+});
+
+test("browser configures a separate weekly minimum and explicitly enables a future policy version", async ({ page, context }) => {
+  const f = await fixture(); const owner = await f.actor("owner");
+  const linked = await createAllianceRosterMember(f.sql, { allianceId: f.alliance.allianceId, currentName: "Policy Owner", allianceRank: 5 });
+  await createHqMemberLink(f.sql, { allianceId: f.alliance.allianceId, hqUserId: owner.hqUserId, ashedMemberId: linked.ashedMemberId });
+  await context.addCookies(playwrightAuthCookies(owner));
+  await page.goto("/en-US/settings/vs-membership-minimums");
+  await expect(page.getByLabel("Daily VS target", { exact: true })).toHaveValue("7200000");
+  await expect(page.getByLabel("Weekly VS minimum", { exact: true })).toHaveValue("");
+  await expect(page.getByRole("checkbox", { name: "Enable weekly discipline" })).not.toBeChecked();
+  await page.getByLabel("Weekly VS minimum", { exact: true }).fill("40000000");
+  await page.getByLabel("Penalty policy", { exact: true }).selectOption("consecutive");
+  await page.getByLabel("Consecutive misses before removal", { exact: true }).fill("5");
+  const effective = addCalendarDays(firstFullVsWeek(new Date()), 7);
+  await page.getByLabel("Effective from", { exact: true }).fill(effective);
+  await page.getByRole("checkbox", { name: "Enable weekly discipline" }).check();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Policy settings saved.", { exact: true })).toBeVisible();
+  const rows = await f.sql`SELECT version, enabled, weekly_minimum, daily_target, effective_week, preset, removal_threshold FROM vs_compliance_policies WHERE alliance_id = ${f.alliance.allianceId}`;
+  expect(rows).toHaveLength(1);
+  expect({ ...rows[0], weekly_minimum: Number(rows[0].weekly_minimum), daily_target: Number(rows[0].daily_target) }).toMatchObject({ version: 1, enabled: true, weekly_minimum: 40000000, daily_target: 7200000, effective_week: effective, preset: "consecutive", removal_threshold: 5 });
+  await page.getByLabel("Penalty policy", { exact: true }).selectOption("rank_aware");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect.poll(async () => (await f.sql`SELECT id FROM vs_compliance_policies WHERE alliance_id = ${f.alliance.allianceId}`).length).toBe(2);
+});
+
+test("browser officers inspect read-only settings and stale owner saves retain inputs", async ({ page, context }) => {
+  const f = await fixture(); const owner = await f.actor("owner"); const officer = await f.actor("officer");
+  for (const actor of [owner, officer]) {
+    const linked = await createAllianceRosterMember(f.sql, { allianceId: f.alliance.allianceId, currentName: `Policy ${actor.hqUserId}`, allianceRank: 4 });
+    await createHqMemberLink(f.sql, { allianceId: f.alliance.allianceId, hqUserId: actor.hqUserId, ashedMemberId: linked.ashedMemberId });
+  }
+  await context.addCookies(playwrightAuthCookies(officer));
+  await page.goto("/en-US/settings/vs-membership-minimums");
+  await expect(page.getByLabel("Daily VS target", { exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
+  await context.addCookies(playwrightAuthCookies(owner));
+  await page.goto("/en-US/settings/vs-membership-minimums");
+  await page.getByLabel("Weekly VS minimum", { exact: true }).fill("50000000");
+  expect((await page.request.patch(f.url, { data: { expectedVersion: 0, weeklyMinimum: 40000000 } })).status()).toBe(200);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("The evidence, policy, or member rank changed.");
+  await expect(page.getByLabel("Weekly VS minimum", { exact: true })).toHaveValue("50000000");
+});
+
+test("browser renders the empty compliance response without an actionable placeholder", async ({ page, context }) => {
+  const f = await fixture(); const officer = await f.actor("officer");
+  const linked = await createAllianceRosterMember(f.sql, { allianceId: f.alliance.allianceId, currentName: "Empty Officer", allianceRank: 4 });
+  await createHqMemberLink(f.sql, { allianceId: f.alliance.allianceId, hqUserId: officer.hqUserId, ashedMemberId: linked.ashedMemberId });
+  await context.addCookies(playwrightAuthCookies(officer));
+  await page.route("**/api/vs-compliance?*", async (route) => {
+    const weekEnding = new URL(route.request().url()).searchParams.get("weekEnding");
+    await route.fulfill({ json: { weekEnding, canManage: true, rows: [] } });
+  });
+  await page.goto("/en-US/vs-compliance");
+  await expect(page.getByText("No pending compliance actions.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Confirm in-game action" })).toHaveCount(0);
 });
 
 test("policy PATCH preserves history, rejects retroactivity, and serializes stale double submissions", async ({ request }) => {
