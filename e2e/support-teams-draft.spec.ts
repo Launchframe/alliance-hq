@@ -1,7 +1,18 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { playwrightAuthCookies } from "./fixtures/auth";
+import en from "../messages/en-US.json";
+import pt from "../messages/pt-BR.json";
 import { authCookieHeader, type SessionFixture } from "./fixtures/db";
-import { createSupportTeamFixture } from "./fixtures/support-teams";
+import { createPublishedSupportTeamFixture, createSupportTeamFixture } from "./fixtures/support-teams";
+
+test.use({ timezoneId: "UTC" });
+
+async function refreshDraft(page: Page, path: string) {
+  const refreshed = page.waitForResponse((response) => response.url().endsWith(path) && response.request().method() === "GET");
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await refreshed;
+}
 import type { DraftSnapshot } from "../src/lib/support-teams/draft.shared";
 
 async function scheduled(request: APIRequestContext) {
@@ -23,6 +34,77 @@ async function scheduled(request: APIRequestContext) {
   const pick = (actor: SessionFixture, data: ReturnType<typeof payload>) => request.post(`${path}/pick`, { headers: { Cookie: authCookieHeader(actor) }, data });
   return { ...f, ownerHeaders, officerHeaders, input, path, draftId, snapshot, payload, pick };
 }
+
+test("browser schedule, preparation, drag/search/mobile picks, round advance and publication share one board", async ({ page, context, request }) => {
+  const f = await createPublishedSupportTeamFixture(request);
+  await context.addCookies(playwrightAuthCookies(f.owner));
+  await page.setViewportSize({ width: 1500, height: 1000 });
+  await page.goto("/support-teams");
+  await page.getByRole("button", { name: en.supportTeams.draft.create, exact: true }).click();
+  const schedule = page.getByRole("dialog", { name: en.supportTeams.draft.create, exact: true });
+  await schedule.getByLabel(en.supportTeams.draft.startsAt, { exact: true }).fill(new Date(Date.now() + 120000).toISOString().slice(0, 16));
+  await schedule.getByLabel(en.supportTeams.draft.endsAt, { exact: true }).fill(new Date(Date.now() + 3600000).toISOString().slice(0, 16));
+  const created = page.waitForResponse((response) => response.url().endsWith("/api/support-teams/drafts") && response.request().method() === "POST");
+  await schedule.getByRole("button", { name: en.supportTeams.draft.create, exact: true }).click();
+  const creation = await created;
+  expect(creation.status()).toBe(200);
+  const { draftId } = await creation.json();
+  const path = `/api/support-teams/drafts/${draftId}`;
+  await expect(schedule).not.toBeVisible();
+  await expect(page.getByText(en.supportTeams.draft.preparation, { exact: true })).toBeVisible();
+  const cedar = page.locator(`[data-support-team="${f.teams[0]}"]`);
+  const harbor = page.locator(`[data-support-team="${f.teams[1]}"]`);
+  await expect(cedar.getByText(en.supportTeams.draft.notOpen, { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: en.supportTeams.replaceLead, exact: true })).toHaveCount(0);
+  await cedar.evaluate((node) => { (node as HTMLElement).dataset.instanceMarker = "retained"; });
+  const poolSearch = page.locator("aside [data-support-pool]").getByRole("searchbox");
+  await poolSearch.fill("Member");
+  const startsKey = JSON.stringify(["draft", draftId, "startsAt"]);
+  const roundKey = JSON.stringify(["draft", draftId, "roundStartedAt"]);
+  await f.sql`UPDATE support_team_fields SET value = to_jsonb((now() - interval '1 second')::text) WHERE alliance_id = ${f.allianceId} AND key IN (${startsKey}, ${roundKey})`;
+  await refreshDraft(page, path);
+  await expect(cedar.getByText(en.supportTeams.draft.notOpen, { exact: true })).toHaveCount(0);
+  const picks: Record<string, unknown>[] = [];
+  let maintenance = 0;
+  page.on("request", (req) => { if (req.method() !== "POST") return; const endpoint = new URL(req.url()).pathname; if (endpoint === `${path}/pick`) picks.push(req.postDataJSON()); if (endpoint === "/api/support-teams") maintenance++; });
+  await page.locator(`[data-support-member="${f.members[0].ashedMemberId}"]`).dragTo(cedar);
+  await expect(cedar.getByText(en.supportTeams.draft.picked, { exact: true })).toBeVisible();
+  const add = harbor.getByRole("combobox", { name: en.supportTeams.addMember, exact: true });
+  await add.fill("Member 1");
+  await page.getByRole("option", { name: /Member 1/ }).click();
+  await expect(page.getByText(/^Round 2 ·/)).toBeVisible();
+  await expect(add).toHaveValue("Member 1");
+  await expect(poolSearch).toHaveValue("Member");
+  await expect(cedar).toHaveAttribute("data-instance-marker", "retained");
+  const member = await f.actor("member");
+  const before = await (await request.get("/api/support-teams", { headers: { Cookie: authCookieHeader(member) } })).json();
+  expect(before.teams.flatMap((team: { memberIds: string[] }) => team.memberIds)).not.toContain(f.members[0].ashedMemberId);
+  expect(before).not.toHaveProperty("board");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: en.supportTeams.myTeam, exact: true }).click();
+  await expect(harbor).toBeVisible();
+  await page.getByRole("button", { name: en.supportTeams.openPool, exact: true }).click();
+  const pool = page.getByRole("dialog", { name: en.supportTeams.unsorted, exact: true });
+  await expect(pool.getByText(/^Round 2 ·/)).toBeVisible();
+  await expect(pool.getByRole("searchbox")).toHaveValue("Member");
+  await pool.locator(`[data-support-member="${f.members[2].ashedMemberId}"]`).getByRole("button", { name: "Add member: Harbor", exact: true }).click();
+  await expect(pool.getByText(en.supportTeams.draft.picked, { exact: true })).toBeVisible();
+  await pool.getByRole("button", { name: en.supportTeams.closePool, exact: true }).click();
+  await expect(harbor.locator(`[data-support-member="${f.members[2].ashedMemberId}"]`)).toBeVisible();
+  expect(maintenance).toBe(0);
+  expect(picks).toHaveLength(3);
+  for (const pick of picks) expect(pick).toMatchObject({ expectedRoundVersion: expect.any(Number), expectedSlotVersion: expect.any(Number), expectedMemberVersion: expect.any(Number), expectedRound: expect.any(Number) });
+  await page.getByRole("button", { name: en.supportTeams.draft.finishPartial, exact: true }).click();
+  const publish = page.getByRole("dialog", { name: en.supportTeams.draft.publish, exact: true });
+  await expect(publish.getByText(en.supportTeams.draft.publishConfirm, { exact: true })).toBeVisible();
+  await publish.getByRole("button", { name: en.supportTeams.draft.publish, exact: true }).click();
+  await expect(publish).not.toBeVisible();
+  await expect(page.getByText(/^Round 2 ·/)).toHaveCount(0);
+  await expect(page.locator("[data-support-team]")).toHaveCount(2);
+  await expect(harbor.locator(`[data-support-member="${f.members[2].ashedMemberId}"]`)).toBeVisible();
+  const after = await (await request.get("/api/support-teams", { headers: { Cookie: authCookieHeader(member) } })).json();
+  expect(after.teams.flatMap((team: { memberIds: string[] }) => team.memberIds)).toContain(f.members[2].ashedMemberId);
+});
 
 test("draft preparation, concurrent independent picks and same-member race preserve published allocation", async ({ request }) => {
   const f = await scheduled(request);
@@ -56,6 +138,58 @@ test("draft preparation, concurrent independent picks and same-member race prese
   expect((await replay.json()).version).toBe(view.version);
 });
 
+test("browser stale pick errors stay by the target, proxy controls follow the deadline and revocation clears the workspace", async ({ browser, request }) => {
+  const f = await scheduled(request);
+  await expect.poll(async () => (await f.snapshot()).phase).toBe("open");
+  const view = await f.snapshot();
+  const own = view.teams.find((team) => team.leadId === f.leads[0].ashedMemberId)!;
+  const other = view.teams.find((team) => team.id !== own.id)!;
+  const ownerContext = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
+  const officerContext = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
+  try {
+    await ownerContext.addCookies(playwrightAuthCookies(f.owner));
+    await officerContext.addCookies(playwrightAuthCookies(f.officer));
+    const owner = await ownerContext.newPage();
+    const officer = await officerContext.newPage();
+    await owner.goto("/support-teams");
+    await officer.goto("/support-teams");
+    const target = owner.locator(`[data-support-team="${other.id}"]`);
+    const proxy = officer.locator(`[data-support-team="${other.id}"]`);
+    await expect(proxy.getByText(/proxy window opens/)).toBeVisible();
+    const blocked = proxy.getByRole("combobox", { name: en.supportTeams.addMember, exact: true });
+    await blocked.fill("Member 0");
+    await expect(officer.getByRole("option", { name: /Member 0/ })).toHaveAttribute("aria-disabled", "true");
+    await blocked.press("Escape");
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    let arrived!: () => void;
+    const intercepted = new Promise<void>((resolve) => { arrived = resolve; });
+    await owner.route(`**${f.path}/pick`, async (route) => { arrived(); await held; await route.continue(); });
+    await target.getByRole("combobox", { name: en.supportTeams.addMember, exact: true }).fill("Member 0");
+    await owner.getByRole("option", { name: /Member 0/ }).click();
+    await intercepted;
+    expect((await f.pick(f.officer, f.payload(view, own.id, f.members[0].ashedMemberId))).status()).toBe(200);
+    release();
+    await expect(target.getByRole("alert")).toContainText("The team plan changed.");
+    await expect(owner.locator(`[data-support-team="${own.id}"] [data-support-member="${f.members[0].ashedMemberId}"]`)).toBeVisible();
+    const roundKey = JSON.stringify(["draft", f.draftId, "roundStartedAt"]);
+    await f.sql`UPDATE support_team_fields SET value = to_jsonb((now() - interval '2 minutes')::text) WHERE alliance_id = ${f.allianceId} AND key = ${roundKey}`;
+    await refreshDraft(officer, f.path);
+    await expect(proxy.getByText(/proxy window opens/)).toHaveCount(0);
+    await blocked.fill("Member 1");
+    await officer.getByRole("option", { name: /Member 1/ }).click();
+    await expect(officer.getByText(/^Round 2 ·/)).toBeVisible();
+    await expect(proxy.getByRole("button", { name: en.supportTeams.swapMembers, exact: true })).toHaveCount(0);
+    await expect(proxy.getByRole("button", { name: en.supportTeams.replaceLead, exact: true })).toHaveCount(0);
+    await f.sql`UPDATE alliance_memberships SET status = 'inactive' WHERE hq_user_id = ${f.officer.hqUserId} AND alliance_id = ${f.allianceId}`;
+    const revoked = officer.waitForResponse((response) => response.url().endsWith("/api/support-teams") && response.request().method() === "GET");
+    await officer.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await revoked;
+    await expect(officer.locator("[data-support-team]")).toHaveCount(0);
+    await expect(officer.getByText(/^Round 2 ·/)).toHaveCount(0);
+  } finally { await ownerContext.close(); await officerContext.close(); }
+});
+
 test("draft proxy deadline, hard expiry, explicit extension, atomic partial publication and session revocation", async ({ request }) => {
   const f = await scheduled(request);
   await expect.poll(async () => (await f.snapshot()).phase).toBe("open");
@@ -82,6 +216,68 @@ test("draft proxy deadline, hard expiry, explicit extension, atomic partial publ
   expect(publicView.teams.flatMap((team: { memberIds: string[] }) => team.memberIds)).toHaveLength(3);
   await f.sql`UPDATE sessions SET expires_at = now() - interval '1 minute' WHERE id = ${f.officer.sessionId}`;
   expect((await request.post(`${f.path}/pick`, { headers: f.officerHeaders, data: f.payload(view, empty.id, f.members[1].ashedMemberId) })).status()).toBe(403);
+});
+
+test("browser owner preview includes automatic draft dependencies and redo retains independent picks", async ({ page, context, request }) => {
+  const f = await scheduled(request);
+  await expect.poll(async () => (await f.snapshot()).phase).toBe("open");
+  const view = await f.snapshot();
+  const first = await (await f.pick(f.owner, f.payload(view, view.teams[0].id, f.members[0].ashedMemberId))).json();
+  const last = await (await f.pick(f.owner, f.payload(view, view.teams[1].id, f.members[1].ashedMemberId))).json();
+  await context.addCookies(playwrightAuthCookies(f.owner));
+  await page.setViewportSize({ width: 1500, height: 1000 });
+  await page.goto("/support-teams");
+  await page.getByRole("button", { name: en.supportTeams.history.title, exact: true }).click();
+  const history = page.getByRole("dialog", { name: en.supportTeams.history.title, exact: true });
+  await expect(history).not.toContainText("service:support-team-draft");
+  await expect(history.getByText(new RegExp(en.supportTeams.draft.title)).first()).toBeVisible();
+  await history.locator(`[data-support-event="${first.event.id}"]`).getByRole("button", { name: en.supportTeams.history.preview, exact: true }).click();
+  const preview = page.getByRole("dialog", { name: en.supportTeams.history.preview, exact: true });
+  await expect(preview.getByRole("heading", { name: en.supportTeams.history.cascade, exact: true })).toBeVisible();
+  await expect(preview.locator("[data-support-event]")).toHaveCount(2);
+  await expect(preview.locator(`[data-support-event="${last.event.id}"]`)).toHaveCount(0);
+  const undo = page.waitForResponse((response) => response.url().endsWith(`/history/${first.event.id}/undo`));
+  await preview.getByRole("button", { name: "Undo 2 actions", exact: true }).click();
+  const reversed = await (await undo).json();
+  await expect(preview).not.toBeVisible();
+  await expect(history.locator(`[data-support-event="${first.event.id}"]`)).toContainText(en.supportTeams.history.undone);
+  await history.locator(`[data-support-event="${reversed.event.id}"]`).getByRole("button", { name: en.supportTeams.history.preview, exact: true }).click();
+  await expect(preview.getByRole("heading", { name: en.supportTeams.history.cascade, exact: true })).toBeVisible();
+  await preview.getByRole("button", { name: /^Undo \d+ actions$/ }).click();
+  await expect(preview).not.toBeVisible();
+  await expect(history.locator(`[data-support-event="${first.event.id}"]`).getByText(en.supportTeams.history.undone, { exact: true })).toHaveCount(0);
+  const current = await f.snapshot();
+  expect(current.memberLocations[f.members[0].ashedMemberId]).toBe(view.teams[0].id);
+  expect(current.memberLocations[f.members[1].ashedMemberId]).toBe(view.teams[1].id);
+});
+
+test("Portuguese draft placeholders, extension and cancel dialogs use approved copy without persisting new teams", async ({ page, context, request }) => {
+  const f = await scheduled(request);
+  await context.addCookies(playwrightAuthCookies(f.owner));
+  await page.setViewportSize({ width: 1500, height: 1000 });
+  await page.goto("/pt-BR/support-teams");
+  await expect(page.getByRole("heading", { name: pt.supportTeams.draft.title, exact: true })).toBeVisible();
+  await expect(page.locator("[data-support-team]")).toHaveCount(2);
+  for (const [index, team] of (await f.snapshot()).teams.entries()) {
+    const slot = page.locator(`[data-support-team="${team.id}"]`);
+    await expect(slot.getByRole("heading", { name: pt.supportTeams.defaultName.replace("{number}", (index + 1).toLocaleString("pt-BR")), exact: true })).toBeVisible();
+    await expect(slot.getByRole("button", { name: pt.supportTeams.rename, exact: true })).toHaveCount(0);
+  }
+  const published = await (await request.get("/api/support-teams", { headers: f.ownerHeaders })).json();
+  expect(published.teams).toHaveLength(0);
+  await page.getByRole("button", { name: pt.supportTeams.draft.extend, exact: true }).click();
+  const extend = page.getByRole("dialog", { name: pt.supportTeams.draft.extend, exact: true });
+  await extend.getByLabel(pt.supportTeams.draft.endsAt, { exact: true }).fill(new Date(Date.now() + 7200000).toISOString().slice(0, 16));
+  await extend.getByRole("button", { name: pt.supportTeams.draft.extend, exact: true }).click();
+  await expect(extend).not.toBeVisible();
+  await page.getByRole("button", { name: pt.timeOff.officerModal.cancel, exact: true }).click();
+  const cancel = page.getByRole("dialog", { name: pt.timeOff.officerModal.cancel, exact: true });
+  await expect(cancel.getByText(pt.supportTeams.draft.title, { exact: true })).toBeVisible();
+  await cancel.getByRole("button", { name: pt.timeOff.officerModal.cancel, exact: true }).click();
+  await expect(cancel).not.toBeVisible();
+  await expect(page.locator("[data-support-team]")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: pt.supportTeams.draft.create, exact: true })).toBeVisible();
+  expect((await f.snapshot()).phase).toBe("canceled");
 });
 
 test("draft automatic advance causality and reversal cycles preserve independent picks and immutable rows", async ({ request }) => {

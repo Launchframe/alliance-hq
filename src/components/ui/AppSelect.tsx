@@ -28,6 +28,7 @@ export type AppSelectOption = {
   label: React.ReactNode;
   /** Case-insensitive substring filter text; defaults to string `label`. */
   searchText?: string;
+  selectedText?: string;
   disabled?: boolean;
 };
 
@@ -48,6 +49,8 @@ type Props = {
   searchMode?: AppSelectSearchMode;
   /** Type-to-filter directly in the trigger (requires searchable). */
   combobox?: boolean;
+  explicitSelection?: boolean;
+  retainFocusOnSelect?: boolean;
   searchPlaceholder?: string;
   noSearchResultsLabel?: string;
   /** When searchable, omit the empty-value option while a query is typed. */
@@ -92,6 +95,8 @@ export function AppSelect({
   searchable = false,
   searchMode = "substring",
   combobox = false,
+  explicitSelection = false,
+  retainFocusOnSelect = false,
   searchPlaceholder = "Search…",
   noSearchResultsLabel = "No matches.",
   hideEmptyOptionWhileSearching = false,
@@ -115,10 +120,12 @@ export function AppSelect({
   const [searchQuery, setSearchQuery] = React.useState("");
   const [comboboxFocused, setComboboxFocused] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState<number>(-1);
+  const explicitCandidateRef = React.useRef<string | null>(null);
   const [menuRect, setMenuRect] = React.useState<{
     top: number;
     left: number;
     width: number;
+    container: Element | null;
   } | null>(null);
 
   const flatOptions = React.useMemo(
@@ -146,8 +153,8 @@ export function AppSelect({
   const enabledOptions = visibleOptions.filter((option) => !option.disabled);
   const selectedOption = flatOptions.find((option) => option.value === value);
   const selectedLabel = selectedOption?.label ?? placeholder ?? "";
-  const selectedLabelText =
-    typeof selectedLabel === "string" ? selectedLabel : "";
+  const selectedLabelText = selectedOption?.selectedText ??
+    (typeof selectedLabel === "string" ? selectedLabel : "");
   const useCombobox = searchable && combobox;
 
   const updateMenuRect = React.useCallback(() => {
@@ -160,6 +167,7 @@ export function AppSelect({
       top: rect.bottom + 4,
       left: rect.left,
       width: rect.width,
+      container: anchor.closest("dialog"),
     };
   }, [useCombobox]);
 
@@ -182,6 +190,7 @@ export function AppSelect({
   }
 
   function closeMenu() {
+    explicitCandidateRef.current = null;
     setOpen(false);
     setActiveIndex(-1);
     setSearchQuery("");
@@ -216,10 +225,11 @@ export function AppSelect({
   React.useEffect(() => {
     if (!searchable) return;
     const id = window.requestAnimationFrame(() => {
-      setActiveIndex(enabledOptions.length > 0 ? 0 : -1);
+      setActiveIndex(!explicitSelection && enabledOptions.length > 0 ? 0 : -1);
+      explicitCandidateRef.current = null;
     });
     return () => window.cancelAnimationFrame(id);
-  }, [enabledOptions.length, searchQuery, searchable]);
+  }, [enabledOptions.length, explicitSelection, searchQuery, searchable]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -276,7 +286,7 @@ export function AppSelect({
       // menu, leaving the input showing a stale search query until a click
       // outside. Blurring keeps the menu closed so the display falls back to
       // the freshly selected label.
-      comboboxInputRef.current?.blur();
+      if (!retainFocusOnSelect) comboboxInputRef.current?.blur();
     } else {
       triggerRef.current?.focus();
     }
@@ -289,7 +299,7 @@ export function AppSelect({
     const currentIndex = enabledOptions.findIndex(
       (option) => option.value === value,
     );
-    setActiveIndex(currentIndex >= 0 ? currentIndex : 0);
+    setActiveIndex(currentIndex >= 0 ? currentIndex : explicitSelection ? -1 : 0);
   }
 
   function handleComboboxFocus() {
@@ -303,7 +313,7 @@ export function AppSelect({
     const currentIndex = enabledOptions.findIndex(
       (option) => option.value === value,
     );
-    setActiveIndex(currentIndex >= 0 ? currentIndex : 0);
+    setActiveIndex(currentIndex >= 0 ? currentIndex : explicitSelection ? -1 : 0);
   }
 
   function handleComboboxKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -313,6 +323,13 @@ export function AppSelect({
       event.preventDefault();
       if (!open) {
         handleComboboxFocus();
+        return;
+      }
+      if (explicitSelection) {
+        const count = enabledOptions.length;
+        const next = !count ? -1 : activeIndex < 0 ? (event.key === "ArrowDown" ? 0 : count - 1) : (activeIndex + (event.key === "ArrowDown" ? 1 : -1) + count) % count;
+        explicitCandidateRef.current = enabledOptions[next]?.value ?? null;
+        setActiveIndex(next);
         return;
       }
       setActiveIndex((current) => {
@@ -337,7 +354,7 @@ export function AppSelect({
         return;
       }
       const option = enabledOptions[activeIndex];
-      if (option) selectOption(option);
+      if (option && (!explicitSelection || explicitCandidateRef.current === option.value)) selectOption(option);
       return;
     }
 
@@ -364,6 +381,13 @@ export function AppSelect({
         openMenu();
         return;
       }
+      if (explicitSelection) {
+        const count = enabledOptions.length;
+        const next = !count ? -1 : activeIndex < 0 ? (event.key === "ArrowDown" ? 0 : count - 1) : (activeIndex + (event.key === "ArrowDown" ? 1 : -1) + count) % count;
+        explicitCandidateRef.current = enabledOptions[next]?.value ?? null;
+        setActiveIndex(next);
+        return;
+      }
       setActiveIndex((current) => {
         if (enabledOptions.length === 0) return -1;
         const delta = event.key === "ArrowDown" ? 1 : -1;
@@ -386,7 +410,7 @@ export function AppSelect({
         return;
       }
       const option = enabledOptions[activeIndex];
-      if (option) selectOption(option);
+      if (option && (!explicitSelection || explicitCandidateRef.current === option.value)) selectOption(option);
       return;
     }
 
@@ -438,6 +462,7 @@ export function AppSelect({
         <button
           type="button"
           role="option"
+          id={`${listboxId}-option-${flatOptions.indexOf(option)}`}
           aria-selected={isSelected}
           disabled={option.disabled}
           className={cn(
@@ -452,8 +477,9 @@ export function AppSelect({
             const index = enabledOptions.findIndex(
               (entry) => entry.value === option.value,
             );
-            if (index >= 0) setActiveIndex(index);
+            if (index >= 0) { setActiveIndex(index); explicitCandidateRef.current = option.value; }
           }}
+          onMouseDown={(event) => { if (useCombobox && retainFocusOnSelect) event.preventDefault(); }}
           onClick={() => selectOption(option)}
         >
           <Check
@@ -542,7 +568,7 @@ export function AppSelect({
                 : null}
             </ul>
           </div>,
-          document.body,
+          menuRect.container ?? document.body,
         )
       : null;
 
@@ -564,6 +590,7 @@ export function AppSelect({
             aria-expanded={open}
             aria-controls={open ? listboxId : undefined}
             aria-autocomplete="list"
+            aria-activedescendant={open && enabledOptions[activeIndex] ? `${listboxId}-option-${flatOptions.indexOf(enabledOptions[activeIndex])}` : undefined}
             value={comboboxDisplayValue}
             placeholder={placeholder}
             onChange={(event) => {

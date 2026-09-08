@@ -3,9 +3,14 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { DraftSnapshot } from "@/lib/support-teams/draft.shared";
+import type { SupportSnapshot } from "@/lib/support-teams/types.shared";
+import { canPickDraftMember, currentDraftPhase, workingDraftSnapshot } from "@/lib/support-teams/board-client.shared";
+import { SupportDialog } from "./SupportTeamControls";
 
 export type DraftBoardAdapter = {
   snapshot: DraftSnapshot;
+  workingDraftSnapshot: SupportSnapshot;
+  status: ReactNode;
   pick: (teamId: string, memberId: string) => Promise<boolean>;
   canPickMember: (teamId: string, memberId: string) => boolean;
   pendingTeamIds: string[];
@@ -17,7 +22,7 @@ export type DraftControlsProps = {
   publishedVersion: number;
   canManage: boolean;
   canSchedule: boolean;
-  onRefresh: () => void | Promise<void>;
+  onRefresh: (minimumVersion?: number) => void | Promise<void>;
   onCreated: (id: string) => void | Promise<void>;
   renderBoard?: (adapter: DraftBoardAdapter) => ReactNode;
 };
@@ -35,6 +40,9 @@ export function DraftControls({ snapshot, publishedVersion, canManage, canSchedu
   const [roundMinutes, setRoundMinutes] = useState(5);
   const [extension, setExtension] = useState("");
   const [confirmPartial, setConfirmPartial] = useState<boolean | null>(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [extendOpen, setExtendOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, setPending] = useState<string[]>([]);
   const [elapsed, setElapsed] = useState({ serverNow: "", milliseconds: 0 });
@@ -47,7 +55,7 @@ export function DraftControls({ snapshot, publishedVersion, canManage, canSchedu
     return () => window.clearInterval(timer);
   }, [snapshot?.serverNow]);
   const now = snapshot ? Date.parse(snapshot.serverNow) + (elapsed.serverNow === snapshot.serverNow ? elapsed.milliseconds : 0) : 0;
-  const phase = snapshot && (snapshot.phase === "open" || snapshot.phase === "scheduled" || snapshot.phase === "ready") ? now >= Date.parse(snapshot.config.endsAt) ? "expired" : snapshot.phase === "scheduled" && now >= Date.parse(snapshot.config.startsAt) ? "open" : snapshot.phase : snapshot?.phase;
+  const phase = snapshot ? currentDraftPhase(snapshot, now) : undefined;
   const time = (value: string) => new Intl.DateTimeFormat(locale, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(new Date(value));
   const number = (value: number) => new Intl.NumberFormat(locale).format(value);
   function errorNode(key: string) {
@@ -64,7 +72,7 @@ export function DraftControls({ snapshot, publishedVersion, canManage, canSchedu
     let succeeded = false;
     try {
       const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...input, idempotencyKey }) });
-      const body = await response.json().catch(() => null) as { error?: string; draftId?: string } | null;
+      const body = await response.json().catch(() => null) as { error?: string; draftId?: string; version?: number } | null;
       if (!response.ok) {
         if (response.status < 500) attempts.current.delete(fingerprint);
         setErrors((current) => ({ ...current, [key]: body?.error || root("supportTeams.changed") }));
@@ -74,7 +82,7 @@ export function DraftControls({ snapshot, publishedVersion, canManage, canSchedu
       attempts.current.delete(fingerprint);
       succeeded = true;
       if (body?.draftId) await onCreated(body.draftId);
-      await onRefresh();
+      await onRefresh(body?.version);
       return true;
     } catch {
       setErrors((current) => ({ ...current, [key]: root("discordBot.errors.serverError") }));
@@ -82,16 +90,14 @@ export function DraftControls({ snapshot, publishedVersion, canManage, canSchedu
     } finally {
       busy.current.delete(key);
       setPending([...busy.current]);
-      requestAnimationFrame(() => anchors.current.get(key)?.scrollIntoView({ block: "nearest" }));
+      if (!succeeded) requestAnimationFrame(() => anchors.current.get(key)?.scrollIntoView({ block: "nearest" }));
     }
   }
   const active = snapshot && phase !== "published" && phase !== "canceled";
   const manager = snapshot ? snapshot.actor.canManage : canManage;
   const path = snapshot ? `/api/support-teams/drafts/${encodeURIComponent(snapshot.id)}` : "/api/support-teams/drafts";
   function canPickMember(teamId: string, memberId: string) {
-    const team = snapshot?.teams.find((item) => item.id === teamId);
-    const member = snapshot?.roster.find((item) => item.id === memberId);
-    return Boolean(snapshot?.actor.canWrite && snapshot.rosterValid && phase === "open" && team && !team.picked && team.applicable && member && member.rank !== 4 && member.rank !== 5 && snapshot.memberLocations[memberId] === null && (!team.proxy || snapshot.actor.canManage || now >= Date.parse(snapshot.deadline)) && !pending.includes(teamId));
+    return snapshot ? canPickDraftMember(snapshot, teamId, memberId, now, pending) : false;
   }
   async function pick(teamId: string, memberId: string) {
     if (!snapshot) return false;
@@ -116,41 +122,44 @@ export function DraftControls({ snapshot, publishedVersion, canManage, canSchedu
   const waiting = snapshot?.teams.filter((team) => team.applicable && !team.picked).map((team) => snapshot.roster.find((m) => m.id === team.leadId)?.name ?? team.name ?? t("title")) ?? [];
   const seconds = snapshot ? Math.max(0, Math.ceil((Date.parse(snapshot.deadline) - now) / 1000)) : 0;
   const structuralBusy = pending.length > 0;
+  const status = snapshot && active ? <div className="space-y-1" role="status">
+    <p>{t("startsAt")}: {time(snapshot.config.startsAt)} · {t("endsAt")}: {time(snapshot.config.endsAt)}</p>
+    <p>{t("round", { round: number(snapshot.currentRound) })} · {t("deadline", { time: time(snapshot.deadline) })} <time aria-label={t("deadline", { time: time(snapshot.deadline) })}>{number(Math.floor(seconds / 60))}:{new Intl.NumberFormat(locale, { minimumIntegerDigits: 2 }).format(seconds % 60)}</time></p>
+    {phase === "scheduled" ? <p>{t("preparation")}</p> : phase === "expired" ? <p>{t("expired")}</p> : waiting.length ? <p>{t("waiting", { names: new Intl.ListFormat(locale).format(waiting) })}</p> : null}
+    {!snapshot.rosterValid ? <p className="text-hq-danger">{root("supportTeams.memberUnavailable")}</p> : null}
+    <p className="text-sm text-hq-fg-muted">{t("proxyHint")}</p>
+  </div> : null;
   return <section aria-label={t("title")} className="space-y-4">
     <h2 className="text-lg font-semibold">{t("title")}</h2>
-    {!active && canSchedule ? <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => { event.preventDefault(); void send("schedule", "/api/support-teams/drafts", { startsAt: new Date(startsAt).toISOString(), endsAt: new Date(endsAt).toISOString(), roundMinutes, expectedVersion: snapshot?.version ?? publishedVersion }); }}>
+    {!active && canSchedule ? <><button type="button" className={buttonClass} onClick={() => setScheduleOpen(true)}>{t("create")}</button>{scheduleOpen && <SupportDialog title={t("create")} onClose={() => { if (!structuralBusy) setScheduleOpen(false); }}><form className="flex flex-wrap items-end gap-3" onSubmit={async (event) => { event.preventDefault(); if (await send("schedule", "/api/support-teams/drafts", { startsAt: new Date(startsAt).toISOString(), endsAt: new Date(endsAt).toISOString(), roundMinutes, expectedVersion: snapshot?.version ?? publishedVersion })) setScheduleOpen(false); }}>
+      <p>{t("preparation")}</p>
       <label className="grid gap-1">{t("startsAt")}<input required type="datetime-local" className={inputClass} value={startsAt} onChange={(event) => setStartsAt(event.target.value)} /></label>
       <label className="grid gap-1">{t("endsAt")}<input required type="datetime-local" className={inputClass} value={endsAt} onChange={(event) => setEndsAt(event.target.value)} /></label>
       <label className="grid gap-1">{t("roundDuration")}<input required type="number" min={1} max={1440} className={inputClass} value={roundMinutes} onChange={(event) => setRoundMinutes(Number(event.target.value))} /></label>
       <button className={buttonClass} disabled={structuralBusy}>{t("create")}</button>
       {errorNode("schedule")}
-    </form> : null}
+    </form></SupportDialog>}</> : null}
     {snapshot && active ? <>
-      <div className="space-y-1" role="status">
-        <p>{t("startsAt")}: {time(snapshot.config.startsAt)} · {t("endsAt")}: {time(snapshot.config.endsAt)}</p>
-        <p>{t("round", { round: number(snapshot.currentRound) })} · {t("deadline", { time: time(snapshot.deadline) })} <time aria-label={t("deadline", { time: time(snapshot.deadline) })}>{number(Math.floor(seconds / 60))}:{new Intl.NumberFormat(locale, { minimumIntegerDigits: 2 }).format(seconds % 60)}</time></p>
-        {phase === "scheduled" ? <p>{t("preparation")}</p> : phase === "expired" ? <p>{t("expired")}</p> : waiting.length ? <p>{t("waiting", { names: new Intl.ListFormat(locale).format(waiting) })}</p> : null}
-        {!snapshot.rosterValid ? <p className="text-hq-danger">{root("supportTeams.memberUnavailable")}</p> : null}
-        <p className="text-sm text-hq-fg-muted">{t("proxyHint")}</p>
-      </div>
-      {renderBoard ? <DraftBoardContent renderBoard={renderBoard} adapter={{ snapshot, pick, canPickMember, pendingTeamIds: pending.filter((key) => snapshot.teams.some((team) => team.id === key)), errors, renderSlotControls }} /> : null}
+      {renderBoard ? <DraftBoardContent renderBoard={renderBoard} adapter={{ snapshot, workingDraftSnapshot: workingDraftSnapshot(snapshot), status, pick, canPickMember, pendingTeamIds: pending.filter((key) => snapshot.teams.some((team) => team.id === key)), errors, renderSlotControls }} /> : status}
       {manager ? <div className="space-y-3">
-        <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => { event.preventDefault(); void send("extend", `${path}/extend`, { endsAt: new Date(extension).toISOString(), expectedVersion: snapshot.version }); }}>
+        <button type="button" className={buttonClass} onClick={() => setExtendOpen(true)}>{t("extend")}</button>
+        {extendOpen && <SupportDialog title={t("extend")} onClose={() => { if (!structuralBusy) setExtendOpen(false); }}><form className="flex flex-wrap items-end gap-3" onSubmit={async (event) => { event.preventDefault(); if (await send("extend", `${path}/extend`, { endsAt: new Date(extension).toISOString(), expectedVersion: snapshot.version })) setExtendOpen(false); }}>
           <label className="grid gap-1">{t("endsAt")}<input required type="datetime-local" className={inputClass} value={extension} onChange={(event) => setExtension(event.target.value)} /></label>
           <button className={buttonClass} disabled={structuralBusy}>{t("extend")}</button>
           {errorNode("extend")}
-        </form>
+        </form></SupportDialog>}
         <div className="flex flex-wrap gap-2">
           <button type="button" className={buttonClass} disabled={structuralBusy || phase === "scheduled" || !snapshot.rosterValid || Object.values(snapshot.memberLocations).some((team) => team === null)} onClick={() => setConfirmPartial(false)}>{t("publish")}</button>
           <button type="button" className={buttonClass} disabled={structuralBusy || phase === "scheduled" || !snapshot.rosterValid} onClick={() => setConfirmPartial(true)}>{t("finishPartial")}</button>
-          <button type="button" className={buttonClass} disabled={structuralBusy} onClick={() => void send("cancel", `${path}/cancel`, { expectedVersion: snapshot.version })}>{root("timeOff.officerModal.cancel")}</button>
+          <button type="button" className={buttonClass} disabled={structuralBusy} onClick={() => setCancelOpen(true)}>{root("timeOff.officerModal.cancel")}</button>
         </div>
-        {confirmPartial !== null ? <div className="space-y-2" role="group" aria-label={t("publishConfirm")}>
+        {cancelOpen && <SupportDialog title={root("timeOff.officerModal.cancel")} onClose={() => { if (!structuralBusy) setCancelOpen(false); }}><p>{t("title")}</p><button type="button" className={buttonClass} disabled={structuralBusy} onClick={async () => { if (await send("cancel", `${path}/cancel`, { expectedVersion: snapshot.version })) setCancelOpen(false); }}>{root("timeOff.officerModal.cancel")}</button>{errorNode("cancel")}</SupportDialog>}
+        {confirmPartial !== null ? <SupportDialog title={t("publish")} onClose={() => { if (!structuralBusy) setConfirmPartial(null); }}><div className="space-y-2" role="group" aria-label={t("publishConfirm")}>
           <p>{t("publishConfirm")}</p>
           <button type="button" className={buttonClass} disabled={structuralBusy} onClick={async () => { if (await send("publish", `${path}/publish`, { expectedVersion: snapshot.version, allowUnsorted: confirmPartial })) setConfirmPartial(null); }}>{t("publish")}</button>
           <button type="button" className={buttonClass} onClick={() => setConfirmPartial(null)}>{root("timeOff.officerModal.cancel")}</button>
-        </div> : null}
-        {errorNode("publish")}{errorNode("cancel")}
+          {errorNode("publish")}
+        </div></SupportDialog> : null}
       </div> : null}
     </> : null}
   </section>;
