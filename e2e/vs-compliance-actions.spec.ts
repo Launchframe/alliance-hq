@@ -246,7 +246,7 @@ test("selected member history displays original actors, waiver and correction wi
   expect(await f.sql`SELECT id FROM member_alliance_rank_events WHERE alliance_id = ${f.alliance.allianceId} AND source = 'vs_compliance'`).toHaveLength(1);
 });
 
-test("legacy settings redirects to the guarded localized destination", async ({ page, context }) => {
+test("legacy settings redirects to the guarded localized destination", async ({ page, context, browser }) => {
   const f = await fixture();
   await linkBrowserActor(f);
   await context.addCookies(playwrightAuthCookies(f.officer));
@@ -255,14 +255,23 @@ test("legacy settings redirects to the guarded localized destination", async ({ 
   await expect(page.locator("fieldset").getByRole("checkbox")).toBeVisible();
   const member = await f.actor("member");
   await linkBrowserActor(f, member);
-  await context.clearCookies();
-  await context.addCookies(playwrightAuthCookies(member));
-  await page.goto("/en-US/settings/vs-compliance");
-  await expect(page.getByRole("checkbox", { name: "Enable weekly discipline" })).toHaveCount(0);
-  await context.clearCookies();
-  await page.goto("/en-US/settings/vs-compliance");
-  await expect(page.getByRole("checkbox", { name: "Enable weekly discipline" })).toHaveCount(0);
-  expect((await page.request.get("/api/vs-compliance?eventId=private-event")).status()).toBe(401);
+  const memberContext = await browser.newContext({ baseURL: new URL(page.url()).origin });
+  const anonymousContext = await browser.newContext({ baseURL: new URL(page.url()).origin });
+  try {
+    await memberContext.addCookies(playwrightAuthCookies(member));
+    const memberPage = await memberContext.newPage();
+    await memberPage.goto("/en-US/settings/vs-compliance");
+    await expect(memberPage.getByRole("heading", { name: "Page not found", exact: true })).toBeVisible();
+    await expect(memberPage.getByRole("checkbox", { name: "Enable weekly discipline" })).toHaveCount(0);
+    expect((await anonymousContext.request.get("/api/vs-compliance?eventId=private-event")).status()).toBe(401);
+    const anonymousPage = await anonymousContext.newPage();
+    await anonymousPage.goto("/en-US/settings/vs-compliance", { waitUntil: "commit" });
+    await expect(anonymousPage).toHaveURL(/\/(?:auth|get-started)(?:[/?]|$)/);
+    await expect(anonymousPage.getByRole("checkbox", { name: "Enable weekly discipline" })).toHaveCount(0);
+  } finally {
+    await memberContext.close();
+    await anonymousContext.close();
+  }
 });
 
 test("new manual rank records invalidate stale confirmation and R5 remains review-only", async ({ request }) => {
