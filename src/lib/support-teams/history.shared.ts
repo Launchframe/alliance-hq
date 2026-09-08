@@ -23,7 +23,7 @@ export function previewUndo(board: SupportBoard, history: SupportEvent[], roster
     const affected = new Set(root.reverses);
     for (const event of [...events].reverse()) {
       if (!affected.has(event.id)) continue;
-      if (event.principalId !== actor.principalId && event.principalType !== "service") throw new SupportError("forbidden");
+      if (event.principalId !== actor.principalId && event.principalType !== "service" && event.actorType !== "service") throw new SupportError("forbidden");
       event.reverses.forEach((id) => affected.add(id));
     }
   }

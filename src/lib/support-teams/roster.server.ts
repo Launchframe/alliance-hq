@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { continuousTenureDays, metric, normalizeCountry } from "./display-preferences.shared";
@@ -43,6 +44,23 @@ export async function loadSupportRoster(allianceId: string, db: SupportReader = 
     tenureDays: continuousTenureDays(stints.filter((stint) => stint.memberId === row.id).map((stint) => stint.joinedAt.toISOString()), now),
     hqLinked: hqLinked.has(row.id), discordLinked: discordLinked.has(row.id),
   }));
+}
+
+export async function loadSupportStints(allianceId: string, db: SupportReader = getDb()): Promise<Record<string, string>> {
+  const tenure = await db.select({ id: schema.memberAllianceTenure.id, memberId: schema.memberAllianceTenure.ashedMemberId, joinedAt: schema.memberAllianceTenure.joinedAt, leftAt: schema.memberAllianceTenure.leftAt })
+    .from(schema.memberAllianceTenure).where(eq(schema.memberAllianceTenure.allianceId, allianceId));
+  const memberships = await db.select({ id: schema.commanderAllianceMemberships.id, memberId: schema.commanderAllianceMemberships.ashedMemberId, joinedAt: schema.commanderAllianceMemberships.joinedAt, leftAt: schema.commanderAllianceMemberships.leftAt, status: schema.commanderAllianceMemberships.status })
+    .from(schema.commanderAllianceMemberships).where(eq(schema.commanderAllianceMemberships.allianceId, allianceId));
+  const result: Record<string, string> = {};
+  const ids = new Set([...tenure, ...memberships].map((row) => row.memberId));
+  for (const id of ids) {
+    const history = tenure.filter((row) => row.memberId === id);
+    const source = history.length ? history : memberships.filter((row) => row.memberId === id && row.status === "active");
+    const open = source.filter((row) => row.leftAt === null);
+    if (open.length !== 1 || !open[0].joinedAt || source.some((row) => row.leftAt && row.leftAt > open[0].joinedAt)) continue;
+    result[id] = createHash("sha256").update(JSON.stringify([allianceId, id, history.length ? "tenure" : "membership", open[0].id, open[0].joinedAt.toISOString()])).digest("hex");
+  }
+  return result;
 }
 
 function parseBasePower(value: string | null): number | null {

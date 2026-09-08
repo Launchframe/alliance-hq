@@ -167,6 +167,7 @@ export function advanceDraft(board: SupportBoard, roster: SupportRosterMember[],
   const changes = done ? { [draftKey(id, "status")]: "ready" } : { [draftKey(id, "round")]: view.currentRound + 1, [draftKey(id, "roundStartedAt")]: identity.at };
   const result = recordChanges(board, service, changes, [...draftReads(board, id), ...view.teams.filter((team) => team.applicable).map((team) => draftSlotKey(id, view.currentRound, team.id))], { mode: "draft", draftId: id, round: view.currentRound, sourceActionId }, "advanceDraft", identity);
   result.event.principalType = "service";
+  result.event.actorType = "service";
   return result;
 }
 

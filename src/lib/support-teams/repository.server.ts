@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { emptyBoard } from "./policy.shared";
 import { SupportError, type SupportActor, type SupportBoard, type SupportEvent } from "./types.shared";
@@ -12,10 +12,11 @@ export async function loadBoard(db: Pick<SupportTransaction, "select">, alliance
   const fields = await db.select().from(schema.supportTeamFields).where(eq(schema.supportTeamFields.allianceId, allianceId));
   return { allianceId, version: row.version, published: row.published, construction: row.construction, fields: Object.fromEntries(fields.map((field) => [field.key, { value: field.value, version: field.version, actionId: field.actionId }])) };
 }
-export async function loadHistory(db: Pick<SupportTransaction, "select">, allianceId: string): Promise<SupportEvent[]> {
-  const rows = await db.select({ event: schema.supportTeamEvents.event }).from(schema.supportTeamEvents)
-    .where(eq(schema.supportTeamEvents.allianceId, allianceId)).orderBy(asc(schema.supportTeamEvents.boardVersion));
-  return rows.map((row) => row.event);
+export async function loadHistory(db: Pick<SupportTransaction, "select">, allianceId: string, recentLimit?: number): Promise<SupportEvent[]> {
+  const query = db.select({ event: schema.supportTeamEvents.event }).from(schema.supportTeamEvents)
+    .where(eq(schema.supportTeamEvents.allianceId, allianceId)).orderBy(recentLimit ? desc(schema.supportTeamEvents.boardVersion) : asc(schema.supportTeamEvents.boardVersion));
+  const rows = recentLimit ? await query.limit(Math.max(1, Math.min(200, recentLimit))) : await query;
+  return rows.map((row) => row.event).sort((a, b) => a.boardVersion - b.boardVersion);
 }
 export async function lockBoard(db: SupportTransaction, allianceId: string) {
   await db.insert(schema.supportTeamBoards).values({ allianceId }).onConflictDoNothing();

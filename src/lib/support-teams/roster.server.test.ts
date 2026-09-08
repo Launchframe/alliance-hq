@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { loadSupportRoster, type SupportReader } from "./roster.server";
+import { loadSupportRoster, loadSupportStints, type SupportReader } from "./roster.server";
 
 function database(results: unknown[][]) {
   const select = vi.fn(() => {
@@ -23,6 +23,24 @@ it("projects UID-safe optional links and keeps THP distinct from base power", as
   for (const [projection] of select.mock.calls as unknown as [Record<string, unknown>][]) {
     expect(Object.keys(projection)).not.toContain("gameUid");
   }
+});
+it("derives stint identity from trusted tenure records, not generic updates or rounded tenure days", async () => {
+  const joinedAt = new Date("2026-09-08T00:00:00Z");
+  const stint = { id: "tenure-one", memberId: "member", joinedAt, leftAt: null, updatedAt: joinedAt };
+  const initial = await loadSupportStints("alliance", database([[stint], []]).db);
+  expect(await loadSupportStints("alliance", database([[{ ...stint, updatedAt: new Date("2026-09-09T00:00:00Z") }], []]).db)).toEqual(initial);
+  expect(await loadSupportStints("alliance", database([[{ ...stint, id: "tenure-two" }], []]).db)).not.toEqual(initial);
+  expect(await loadSupportStints("alliance", database([[{ ...stint, leftAt: joinedAt }], [{ ...stint, status: "active" }]]).db)).toEqual({});
+  expect(await loadSupportStints("alliance", database([[stint, { ...stint, id: "ambiguous" }], []]).db)).toEqual({});
+  expect(await loadSupportStints("alliance", database([[{ ...stint, leftAt: new Date("2026-09-10T00:00:00Z") }, { ...stint, id: "overlap" }], []]).db)).toEqual({});
+});
+it("uses canonical membership starts for UID-less members and fails closed for missing proof", async () => {
+  const membership = { id: "membership", memberId: "member", joinedAt: new Date("2026-09-08T00:00:00Z"), leftAt: null, status: "active" };
+  const initial = await loadSupportStints("alliance", database([[], [membership]]).db);
+  expect(initial.member).toMatch(/^[a-f0-9]{64}$/);
+  expect(await loadSupportStints("alliance", database([[], [{ ...membership, joinedAt: new Date("2026-09-08T01:00:00Z") }]]).db)).not.toEqual(initial);
+  expect(await loadSupportStints("alliance", database([[], [{ ...membership, status: "former" }]]).db)).toEqual({});
+  expect(await loadSupportStints("alliance", database([[], []]).db)).toEqual({});
 });
 it("preserves unknown stats and unknown current stint for unlinked roster members", async () => {
   const { db } = database([[{ id: "member", name: "Member", rank: 3, country: "??", basePower: "unknown", previousNames: null }], [], [], [], []]);

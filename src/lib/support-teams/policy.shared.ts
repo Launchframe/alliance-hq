@@ -60,7 +60,7 @@ function commandChanges(board: SupportBoard, roster: SupportRosterMember[], acto
     const from = memberTeam(board, command.leadId);
     if (from !== null && from !== command.teamId) throw new SupportError("forbidden");
     if (command.kind === "createTeam") {
-      if (board.fields[fieldKey("team", command.teamId, "exists")] !== undefined || board.published) throw new SupportError("changed");
+      if (board.fields[fieldKey("team", command.teamId, "exists")] !== undefined) throw new SupportError("changed");
       changes[fieldKey("team", command.teamId, "exists")] = true;
       changes[fieldKey("team", command.teamId, "name")] = null;
     } else {
@@ -106,6 +106,7 @@ export function decideCommand(board: SupportBoard, roster: SupportRosterMember[]
   catch (error) { if (error instanceof SupportError) return error.code; throw error; }
 }
 export function recordChanges(board: SupportBoard, actor: SupportActor, changes: Record<string, SupportValue>, observed: string[], context: SupportContext, kind: SupportEvent["kind"], identity: EventIdentity, reverses: string[] = []) {
+  if (context.mode === "undo" && Object.keys(changes).some((key) => JSON.parse(key)[0] === "membership")) throw new SupportError("dependencies");
   const next: SupportBoard = { ...board, version: board.version + 1, fields: { ...board.fields } };
   const keys = [...new Set([...Object.keys(changes), ...observed])].sort();
   const observedVersions = Object.fromEntries(keys.map((key) => [key, fieldVersion(board, key)]));
@@ -119,28 +120,31 @@ export function recordChanges(board: SupportBoard, actor: SupportActor, changes:
   });
   const resources = keys.map((key) => JSON.parse(key) as string[]);
   const teamResources = resources.filter(([r]) => r === "team" || r.startsWith("draftTeam:") || r.startsWith("draftSlot:"));
-  const memberResources = resources.filter(([r]) => r === "member" || r.startsWith("draftMember:"));
-  const event: SupportEvent = { ...identity, allianceId: board.allianceId, principalId: actor.principalId, principalType: "human", actorName: actor.displayName ?? null, memberNames: {}, teamNames: Object.fromEntries(teamResources.map(([, id]) => [id, readField(board, fieldKey("team", id, "name")) as string | null])), kind, context, boardVersion: next.version, patches, observedVersions, dependsOn, reverses, teamIds: [...new Set(teamResources.map(([, id]) => id))], memberIds: [...new Set(memberResources.map(([, id]) => id))] };
+  const memberResources = resources.filter(([r]) => r === "member" || r === "membership" || r.startsWith("draftMember:"));
+  const event: SupportEvent = { ...identity, allianceId: board.allianceId, principalId: actor.principalId, principalType: "human", actorType: "user", actorName: actor.displayName ?? null, memberNames: {}, teamNames: Object.fromEntries(teamResources.map(([, id]) => [id, readField(board, fieldKey("team", id, "name")) as string | null])), kind, context, boardVersion: next.version, patches, observedVersions, dependsOn, reverses, teamIds: [...new Set(teamResources.map(([, id]) => id))], memberIds: [...new Set(memberResources.map(([, id]) => id))] };
   return { board: synchronizeMetadata(next), event };
 }
 export function applyCommand(board: SupportBoard, roster: SupportRosterMember[], actor: SupportActor, command: SupportCommand, identity: EventIdentity) {
   const { changes, reads } = commandChanges(board, roster, actor, command);
-  return recordChanges(board, actor, changes, reads, { mode: command.kind === "createTeam" ? "setup" : "maintenance" }, command.kind, identity);
+  return recordChanges(board, actor, changes, reads, { mode: command.kind === "createTeam" && !board.published ? "setup" : "maintenance" }, command.kind, identity);
 }
 
 export function validateRestoration(board: SupportBoard, roster: SupportRosterMember[], changedKeys: string[]) {
   const teams = teamIds(board);
-  const leads = teams.map((id) => teamLead(board, id));
-  if (new Set(leads).size !== leads.length || leads.some((id) => !id)) throw new SupportError("invalid");
+  const leads = teams.map((id) => teamLead(board, id)).filter((id) => id !== null);
+  if (new Set(leads).size !== leads.length) throw new SupportError("invalid");
   for (const key of changedKeys) {
     const [resource, id, name] = JSON.parse(key) as string[];
     const value = readField(board, key);
     if (resource === "member" && name === "team" && value !== null) {
       if (!roster.some((m) => m.id === id) || !teams.includes(String(value))) throw new SupportError("invalid");
+      const stint = board.fields[fieldKey("membership", id, "stint")];
+      if (stint && (!stint.value || readField(board, fieldKey("member", id, "assignmentStint")) !== stint.value)) throw new SupportError("memberUnavailable");
     }
     if (resource === "team" && name === "lead" && value !== null && !eligible(roster, String(value))) throw new SupportError("invalid");
   }
   for (const team of teams) {
-    if (memberTeam(board, teamLead(board, team)!) !== team) throw new SupportError("invalid");
+    const lead = teamLead(board, team);
+    if (lead !== null && memberTeam(board, lead) !== team) throw new SupportError("invalid");
   }
 }

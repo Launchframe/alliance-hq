@@ -62,8 +62,9 @@ export type SupportEvent = {
   memberNames: Record<string, string>;
   teamNames: Record<string, string | null>;
   at: string;
-  kind: SupportCommand["kind"] | "undo" | "scheduleDraft" | "draftPick" | "advanceDraft" | "extendDraft" | "publishDraft" | "cancelDraft";
+  kind: SupportCommand["kind"] | "undo" | "reconcile" | "scheduleDraft" | "draftPick" | "advanceDraft" | "extendDraft" | "publishDraft" | "cancelDraft";
   principalType?: "human" | "service";
+  actorType?: "user" | "service";
   context: SupportContext;
   boardVersion: number;
   idempotencyKey: string;
