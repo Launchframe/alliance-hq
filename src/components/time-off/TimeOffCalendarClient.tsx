@@ -166,7 +166,11 @@ export function TimeOffCalendarClient({ initial, showComplianceLink = false }: P
       )}
       {modal ? <TimeOffEntryModal open entry={modal.entry} officerEntry={modal.officer} canManageOthers={dashboard.canManageOthers}
         commanders={modal.officer ? dashboard.commanders : dashboard.commanders.filter((member) => dashboard.linkedCommanderIds.includes(member.id))}
-        today={dashboard.todayServerDate} onClose={() => { setModal(null); void refreshCurrent(); }} onSaved={() => {
+        today={dashboard.todayServerDate} onClose={() => { setModal(null); void refreshCurrent(); }} onSaved={(saved) => {
+          loadVersion.current++;
+          const merge = (entries: SerializedTimeOffEntry[]) => entries.some((entry) => entry.id === saved.id) ? entries.map((entry) => entry.id === saved.id ? saved : entry) : [saved, ...entries];
+          setDashboard((current) => ({ ...current, entries: merge(current.entries), ownEntries: current.linkedCommanderIds.includes(saved.ashedMemberId) ? merge(current.ownEntries) : current.ownEntries }));
+          setSelectedEntry((current) => current?.id === saved.id ? saved : current);
           setNotice(t(modal.entry ? "workflow.updated" : "workflow.saved")); setModal(null); void refreshCurrent();
         }} /> : null}
       {cancelTarget ? <Dialog open title={t("entry.cancel")} onOpenChange={(next) => { if (!next && !saving) { setCancelTarget(null); void refreshCurrent(); } }}>
