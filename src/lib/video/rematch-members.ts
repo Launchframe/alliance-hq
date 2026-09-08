@@ -7,6 +7,8 @@ import { getDb, schema } from "@/lib/db";
 import { resolveHqAllianceIdFromSession } from "@/lib/members/resolve-hq-alliance";
 import { getAshedConnection } from "@/lib/session";
 import { AshedNotConnectedError } from "@/lib/video/errors";
+import { loadMembersForApiContext } from "@/lib/members/members-api-context";
+import { resolveHqAllianceIdFromStoredAllianceId } from "@/lib/video/video-job-alliance.server";
 import {
   buildMemberIndex,
   matchMemberName,
@@ -44,26 +46,32 @@ export async function rematchVideoJobMembers(
   }
 
   const { callerSessionId } = options;
-  const connection = await getAshedConnection(callerSessionId);
-  if (!connection) {
-    throw new AshedNotConnectedError(
-      "Ashed not connected for this session.",
-    );
-  }
-
   const previousAllianceId = job.allianceId;
-  const hqAllianceId = await resolveHqAllianceIdFromSession(callerSessionId);
-  const { ashedAllianceId } = await assertAllianceAshedLinked(hqAllianceId);
-
+  const jobAllianceId = (job.scoreTarget ?? job.category) === "vs-performance"
+    ? await resolveHqAllianceIdFromStoredAllianceId(job.allianceId) : null;
+  const [jobAlliance] = jobAllianceId ? await db.select({ mode: schema.alliances.operatingMode, tag: schema.alliances.tag }).from(schema.alliances).where(eq(schema.alliances.id, jobAllianceId)).limit(1) : [];
+  const nativeVs = jobAlliance?.mode === "native";
+  const hqAllianceId = nativeVs ? jobAllianceId! : await resolveHqAllianceIdFromSession(callerSessionId);
   let members: AshedMember[] = [];
-  try {
-    members = await base44ListMembers(connection, ashedAllianceId);
-  } catch {
-    members = [];
+  if (nativeVs) {
+    members = await loadMembersForApiContext({ operatingMode: "native", hqAllianceId, ashedAllianceId: hqAllianceId, connection: null });
+  } else {
+    const connection = await getAshedConnection(callerSessionId);
+    if (!connection) {
+      throw new AshedNotConnectedError(
+        "Ashed not connected for this session.",
+      );
+    }
+    const { ashedAllianceId } = await assertAllianceAshedLinked(hqAllianceId);
+    try {
+      members = await base44ListMembers(connection, ashedAllianceId);
+    } catch {
+      members = [];
+    }
   }
 
   const memberIndex = members.length ? buildMemberIndex(members) : null;
-  const allianceTag = await getSessionAllianceTag(callerSessionId);
+  const allianceTag = nativeVs ? jobAlliance?.tag : await getSessionAllianceTag(callerSessionId);
   const rows = await db
     .select()
     .from(schema.parsedRows)

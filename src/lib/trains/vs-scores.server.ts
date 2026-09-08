@@ -1,5 +1,10 @@
 import "server-only";
 
+import { and, eq } from "drizzle-orm";
+import { getDb, schema } from "@/lib/db";
+import { listVsHeads } from "@/lib/vs-scores/repository.server";
+import { mergeVsDailySources, parseVsScore } from "@/lib/vs-scores/evidence.shared";
+
 import { decryptSecret } from "@/lib/crypto/encrypt";
 import { base44Json } from "@/lib/base44/fetch";
 import type { ParsedConnection } from "@/lib/connectionString";
@@ -42,7 +47,7 @@ function memberIdFromRow(row: AshedVsScoreRow): string | null {
 }
 
 function scoreValue(row: AshedVsScoreRow): number {
-  return Number(row.score ?? row.points ?? row.total ?? 0);
+  return parseVsScore(row.score ?? row.points ?? row.total);
 }
 
 function memberFromScore(row: AshedVsScoreRow): RollCandidate | null {
@@ -228,19 +233,12 @@ export async function fetchAllianceVsDay1To5CoverageForDay6(
   allianceId: string,
   day6RecordedDate: string,
 ): Promise<Map<string, VsDay6Coverage>> {
-  const resolved = await resolveAllianceAshedConnection(allianceId);
-  if (!resolved) return new Map();
-
   const coverage = new Map<string, VsDay6Coverage>();
   let cursor = addCalendarDays(day6RecordedDate, -5);
   const friday = addCalendarDays(day6RecordedDate, -1);
 
   while (cursor <= friday) {
-    const dayScores = await fetchVsScoresByRecordedDate(
-      resolved.connection,
-      resolved.ashedAllianceId,
-      cursor,
-    );
+    const dayScores = await fetchAlliancePriorDayVsScoresByMember(allianceId, cursor);
     for (const [memberId, score] of dayScores) {
       const prev = coverage.get(memberId) ?? { total: 0, daysCovered: 0 };
       coverage.set(memberId, {
@@ -259,14 +257,17 @@ export async function fetchAlliancePriorDayVsScoresByMember(
   allianceId: string,
   recordedDate: string,
 ): Promise<Map<string, number>> {
+  const local = await listVsHeads(allianceId, { recordedDate, period: "daily" });
+  const alliance = await getAllianceById(allianceId);
+  if (alliance?.operatingMode === "native") return mergeVsDailySources(local, new Map());
   const resolved = await resolveAllianceAshedConnection(allianceId);
-  if (!resolved) return new Map();
-
-  return fetchVsScoresByRecordedDate(
-    resolved.connection,
-    resolved.ashedAllianceId,
-    recordedDate,
-  );
+  if (!resolved) return mergeVsDailySources(local, new Map());
+  let remote: Map<string, number>;
+  try { remote = await fetchVsScoresByRecordedDate(resolved.connection, resolved.ashedAllianceId, recordedDate); }
+  catch (error) { if (!local.length) throw error; remote = new Map(); }
+  const [scope] = local.some((row) => row.origin === "derived") ? await getDb().select({ managed: schema.vsScoreSyncScopes.managedScores }).from(schema.vsScoreSyncScopes)
+    .where(and(eq(schema.vsScoreSyncScopes.allianceId, allianceId), eq(schema.vsScoreSyncScopes.recordedDate, recordedDate), eq(schema.vsScoreSyncScopes.period, "daily"))).limit(1) : [];
+  return mergeVsDailySources(local, remote, scope?.managed);
 }
 
 /**
@@ -287,16 +288,9 @@ export async function fetchAllianceVsTopScorersForTrainDate(
   if (!priorDayVsAppliesForTrainDate(trainDate, leadDays)) {
     return [];
   }
-  const resolved = await resolveAllianceAshedConnection(allianceId);
-  if (!resolved) return [];
-
   const [activeMembers, scores] = await Promise.all([
     listActiveAllianceMembersForPool(allianceId),
-    fetchVsScoresByRecordedDate(
-      resolved.connection,
-      resolved.ashedAllianceId,
-      vsScoreReferenceDate(trainDate, leadDays),
-    ),
+    fetchAlliancePriorDayVsScoresByMember(allianceId, vsScoreReferenceDate(trainDate, leadDays)),
   ]);
 
   const activeById = new Map(
@@ -328,23 +322,12 @@ export async function fetchAllianceVsScoresForEvaluationPeriod(
   periodStart: string,
   periodEnd: string,
 ): Promise<Map<string, number>> {
-  const resolved = await resolveAllianceAshedConnection(allianceId);
-  if (!resolved) return new Map();
-
-  if (periodStart === periodEnd) {
-    return fetchVsScoresByRecordedDate(
-      resolved.connection,
-      resolved.ashedAllianceId,
-      periodStart,
-    );
+  const totals = new Map<string, number>();
+  for (let date = periodStart; date <= periodEnd; date = addCalendarDays(date, 1)) {
+    const scores = await fetchAlliancePriorDayVsScoresByMember(allianceId, date);
+    for (const [memberId, score] of scores) totals.set(memberId, (totals.get(memberId) ?? 0) + score);
   }
-
-  return fetchVsTotalsForDateRange(
-    resolved.connection,
-    resolved.ashedAllianceId,
-    periodStart,
-    periodEnd,
-  );
+  return totals;
 }
 
 /** Daily VS scores for the score-reference day before trainDate (never weekly totals). */

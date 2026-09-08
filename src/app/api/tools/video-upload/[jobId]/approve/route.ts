@@ -7,7 +7,7 @@ import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
 import { assignRosterOcrExperiment } from "@/lib/members/roster-ocr/assign-roster-config";
 import { getAshedConnection, requireApiSession } from "@/lib/session";
-import { loadEffectiveAllianceHqOcrOnly } from "@/lib/video/alliance-ocr-settings.server";
+import { loadAllianceVideoOcrContext } from "@/lib/video/alliance-ocr-settings.server";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 import {
   resolveVideoOcrEngineForJob,
@@ -71,10 +71,7 @@ export async function POST(_request: Request, { params }: Props) {
 
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
     const allianceId = job.allianceId ?? session.currentAllianceId;
-    const hqOcrOnly = allianceId
-      ? await loadEffectiveAllianceHqOcrOnly(allianceId)
-      : false;
-    const ocrContext = { allianceHqOcrOnly: hqOcrOnly };
+    const ocrContext = await loadAllianceVideoOcrContext(allianceId);
     const ocrEngine = resolveVideoOcrEngineForJob(
       scoreTargetId,
       isMemberRosterVideoTarget(scoreTargetId),

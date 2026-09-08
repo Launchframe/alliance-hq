@@ -17,11 +17,9 @@ describe("deriveVsDay6Score", () => {
     });
   });
 
-  it("allows a negative Day 6 delta when cumulative is below prior days", () => {
-    expect(deriveVsDay6Score(80_000_000, fullCoverage)).toEqual({
-      status: "derived",
-      derivedScore: -20_000_000,
-    });
+  it("reports conflicting evidence instead of deriving a negative Saturday", () => {
+    expect(deriveVsDay6Score(80_000_000, fullCoverage)).toEqual({ status: "conflict" });
+    expect(interpolateVsDay6SubmitPayloads([{ member_id: "m1", score: 80_000_000 }], new Map([["m1", fullCoverage]]))).toEqual([]);
   });
 
   it("returns insufficient_data when fewer than five days are covered", () => {

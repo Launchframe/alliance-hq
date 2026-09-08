@@ -3896,3 +3896,65 @@ export const timeOffDiscordInteractions = pgTable("time_off_discord_interactions
 }, (table) => [index("time_off_discord_interactions_expires_idx").on(table.expiresAt)]);
 
 export type MemberTimeOff = typeof memberTimeOff.$inferSelect;
+
+export const vsScoreHeads = pgTable("vs_score_heads", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  memberId: text("member_id").notNull(),
+  memberName: text("member_name").notNull(),
+  recordedDate: text("recorded_date").notNull(),
+  period: text("period").$type<"daily" | "weekly">().notNull(),
+  score: bigint("score", { mode: "number" }),
+  origin: text("origin").$type<"hq" | "derived">().notNull(),
+  version: integer("version").notNull().default(0),
+  batchId: text("batch_id"),
+  sourceJobId: text("source_job_id"),
+  basis: jsonb("basis").$type<Array<{ id: string; version: number }>>().notNull().default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("vs_score_heads_key_unique").on(table.allianceId, table.memberId, table.period, table.recordedDate),
+  index("vs_score_heads_scope_idx").on(table.allianceId, table.period, table.recordedDate),
+  index("vs_score_heads_batch_idx").on(table.batchId),
+]);
+
+export const vsScoreRevisions = pgTable("vs_score_revisions", {
+  id: text("id").primaryKey(),
+  headId: text("head_id").notNull().references(() => vsScoreHeads.id, { onDelete: "cascade" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  score: bigint("score", { mode: "number" }),
+  origin: text("origin").$type<"hq" | "derived">().notNull(),
+  batchId: text("batch_id"),
+  sourceJobId: text("source_job_id"),
+  basis: jsonb("basis").$type<Array<{ id: string; version: number }>>().notNull().default([]),
+  recordedByHqUserId: text("recorded_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("vs_score_revisions_version_unique").on(table.headId, table.version)]);
+
+export const vsScoreSubmissions = pgTable("vs_score_submissions", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  sourceJobId: text("source_job_id").notNull(),
+  requestId: text("request_id").notNull(),
+  digest: text("digest").notNull(),
+  batchId: text("batch_id").notNull(),
+  revision: integer("revision").notNull(),
+  rowCount: integer("row_count").notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("vs_score_submissions_request_unique").on(table.allianceId, table.sourceJobId, table.requestId)]);
+
+export const vsScoreSyncScopes = pgTable("vs_score_sync_scopes", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  recordedDate: text("recorded_date").notNull(),
+  period: text("period").$type<"daily" | "weekly">().notNull(),
+  requestedVersion: integer("requested_version").notNull().default(1),
+  processedVersion: integer("processed_version").notNull().default(0),
+  status: text("status").notNull().default("pending"),
+  leaseToken: text("lease_token"),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+  lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+  managedMemberIds: jsonb("managed_member_ids").$type<string[]>().notNull().default([]),
+  managedScores: jsonb("managed_scores").$type<Record<string, { previous: number | null; desired: number | null }>>().notNull().default({}),
+}, (table) => [unique("vs_score_sync_scopes_key_unique").on(table.allianceId, table.period, table.recordedDate)]);
