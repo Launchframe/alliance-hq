@@ -39,7 +39,7 @@ function ProfessionWindowEditor({ conflict, onSaved }: { conflict: CoverageConfl
 export function CoveragePanel({ refreshKey }: { refreshKey?: string }) {
   const t = useTranslations("teamWork");
   const timeOff = useTranslations("timeOff.workflow");
-  const [conflicts, setConflicts] = useState<Array<CoverageConflict & { routing?: CoverageRouting | null }>>([]);
+  const [conflicts, setConflicts] = useState<Array<CoverageConflict & { routing?: CoverageRouting | null; canManage?: boolean }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [failedDuty, setFailedDuty] = useState<string | null>(null);
@@ -72,8 +72,8 @@ export function CoveragePanel({ refreshKey }: { refreshKey?: string }) {
       <CoverageDescription conflict={conflict} />
       {conflict.routing ? <p>{t("assignedTo", { name: conflict.routing.name })}</p> : null}
       <div className="flex gap-4">
-        {conflict.dutyRole === "engineer" ? <ProfessionWindowEditor conflict={conflict} onSaved={async () => setConflicts(await load())} /> : <Link href={`/trains?date=${conflict.dutyDate}`}>{t("reassign")}</Link>}
-        <button type="button" disabled={busy} onClick={() => void keep(conflict)}>{t("keep")}</button>
+        {conflict.dutyRole === "engineer" ? conflict.canManage === true ? <ProfessionWindowEditor conflict={conflict} onSaved={async () => setConflicts(await load())} /> : <p>{timeOff("errors.forbidden")}</p> : <Link href={`/trains?date=${conflict.dutyDate}`}>{t("reassign")}</Link>}
+        <button type="button" disabled={busy || conflict.canManage !== true} onClick={() => void keep(conflict)}>{t("keep")}</button>
       </div>
       {error && failedDuty === conflict.assignmentId ? <p ref={errorRef} role="alert">{error}</p> : null}
     </article>)}

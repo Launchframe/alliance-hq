@@ -29,7 +29,9 @@ export async function GET(request: Request) {
     const t = await getTranslations("timeOff.workflow.errors");
     return NextResponse.json({ error: t("invalidDate") }, { status: 400 });
   }
-  return NextResponse.json({ conflicts: await routeCoverageConflicts(actor.allianceId, await listCoverageConflicts(actor.allianceId, start, end)) });
+  const canManageProfession = !(await requireAlliancePermission(actor.sessionId, actor.allianceId, "alliance:admin"));
+  const conflicts = await routeCoverageConflicts(actor.allianceId, await listCoverageConflicts(actor.allianceId, start, end));
+  return NextResponse.json({ conflicts: conflicts.map((conflict) => ({ ...conflict, canManage: conflict.dutyRole !== "engineer" || canManageProfession })) });
 }
 
 export async function POST(request: Request) {

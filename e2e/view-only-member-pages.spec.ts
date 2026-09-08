@@ -100,10 +100,16 @@ for (const operatingMode of ["native", "ashed"] as const) {
     }
 
     for (const path of PERMISSION_GATED_NAV_PATHS) {
-      test(`redirects ${path} when write permission is missing`, async ({
+      test(`denies ${path} when the required permission is missing`, async ({
         page,
       }) => {
-        await expectRedirectedToMembers(page, path);
+        if (path === "/vs-compliance") {
+          const response = await page.goto(path);
+          expect(response?.status()).toBe(404);
+          await expect(page.getByRole("heading", { name: "VS compliance", exact: true })).toHaveCount(0);
+        } else {
+          await expectRedirectedToMembers(page, path);
+        }
       });
     }
 

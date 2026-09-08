@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const migration = readFileSync(new URL("../../../drizzle/0135_vs_compliance.sql", import.meta.url), "utf8");
+const migration = readFileSync(new URL("../../../drizzle/0137_vs_compliance.sql", import.meta.url), "utf8");
 describe("compliance forward migration safety", () => {
   it("retains legacy discipline data and installs additive idempotent structures", () => {
     expect(migration).not.toMatch(/\b(?:DROP|TRUNCATE)\b/i);

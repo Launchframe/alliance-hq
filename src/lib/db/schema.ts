@@ -103,6 +103,21 @@ export const alliances = pgTable("alliances", {
   trainDiscordAnnouncementsEnabled: integer("train_discord_announcements_enabled")
     .notNull()
     .default(0),
+  /** When 1, regular-event start reminders may post to Discord + HQ inbox. */
+  regularEventsDiscordAnnouncementsEnabled: integer(
+    "regular_events_discord_announcements_enabled",
+  )
+    .notNull()
+    .default(0),
+  /**
+   * When 1, Zombie Siege default start is 23:30 ST (Canyon Storm season);
+   * otherwise 23:00 ST.
+   */
+  regularEventsCanyonStormActive: integer(
+    "regular_events_canyon_storm_active",
+  )
+    .notNull()
+    .default(0),
   /**
    * Who may run Discord `/set-train-channel`.
    * `officer` (default) = R4+ linked officers; `owner` = R5 / alliance owner only.
@@ -1491,6 +1506,7 @@ export const discordGuildAlliances = pgTable("discord_guild_alliances", {
   trainChannelId: text("train_channel_id"),
   seasonalEventsChannelId: text("seasonal_events_channel_id"),
   regularEventsChannelId: text("regular_events_channel_id"),
+  r4ChannelId: text("r4_channel_id"),
   bankingChannelId: text("banking_channel_id"),
   registeredAt: timestamp("registered_at", { withTimezone: true })
     .defaultNow()
@@ -3290,6 +3306,85 @@ export type EurScheduleRule = typeof eurScheduleRules.$inferSelect;
 export type EurOccurrence = typeof eurOccurrences.$inferSelect;
 export type EurUserSubscription = typeof eurUserSubscriptions.$inferSelect;
 export type InboxReminderItem = typeof inboxReminderItems.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Regular events — Discord / HQ start reminders (not EUR upload reminders)
+// ---------------------------------------------------------------------------
+
+export const regularEventScheduleRules = pgTable(
+  "regular_event_schedule_rules",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    eventKey: text("event_key").notNull(),
+    scheduleKind: text("schedule_kind").notNull(),
+    weeklySlots: jsonb("weekly_slots"),
+    oneShotDates: jsonb("one_shot_dates"),
+    biweeklyPhaseMonday: text("biweekly_phase_monday"),
+    intervalDays: integer("interval_days"),
+    anchorTimeSt: text("anchor_time_st"),
+    announceLeadMinutes: integer("announce_lead_minutes")
+      .notNull()
+      .default(60),
+    active: integer("active").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("regular_event_schedule_rules_alliance_event_unique").on(
+      table.allianceId,
+      table.eventKey,
+    ),
+  ],
+);
+
+export const regularEventOccurrences = pgTable(
+  "regular_event_occurrences",
+  {
+    id: text("id").primaryKey(),
+    scheduleRuleId: text("schedule_rule_id")
+      .notNull()
+      .references(() => regularEventScheduleRules.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    eventKey: text("event_key").notNull(),
+    occurrenceDate: text("occurrence_date").notNull(),
+    scheduledStartAt: timestamp("scheduled_start_at", { withTimezone: true })
+      .notNull(),
+    announceAt: timestamp("announce_at", { withTimezone: true }).notNull(),
+    discordAnnouncedAt: timestamp("discord_announced_at", {
+      withTimezone: true,
+    }),
+    uploadRemindedAt: timestamp("upload_reminded_at", {
+      withTimezone: true,
+    }),
+    scheduleRemindedAt: timestamp("schedule_reminded_at", {
+      withTimezone: true,
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("regular_event_occurrences_alliance_event_date_unique").on(
+      table.allianceId,
+      table.eventKey,
+      table.occurrenceDate,
+    ),
+  ],
+);
+
+export type RegularEventScheduleRule =
+  typeof regularEventScheduleRules.$inferSelect;
+export type RegularEventOccurrence =
+  typeof regularEventOccurrences.$inferSelect;
 
 // ---------------------------------------------------------------------------
 // Battle plan — territory capture scheduling
