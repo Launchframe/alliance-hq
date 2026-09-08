@@ -34,6 +34,8 @@ const HQ_PERMISSIONS = [
   { id: "battle_plan:write", description: "Manage alliance battle plan schedule" },
   { id: "bank:read", description: "View alliance bank strongholds and deposit risk" },
   { id: "bank:write", description: "Manage alliance bank strongholds and deposit slips" },
+  { id: "support_teams:read", description: "Support teams" },
+  { id: "support_teams:write", description: "Support teams" },
   { id: "time_off:read", description: "View alliance time-off calendar" },
   { id: "time_off:write", description: "Manage time-off entries for alliance members" },
 ];
@@ -75,6 +77,8 @@ async function main() {
       "bank:write",
       "time_off:read",
       "time_off:write",
+      "support_teams:read",
+      "support_teams:write",
     ]),
   ];
   roleTemplates.maintainer.permissions = [...roleTemplates.owner.permissions];
@@ -91,6 +95,8 @@ async function main() {
       "bank:write",
       "time_off:read",
       "time_off:write",
+      "support_teams:read",
+      "support_teams:write",
     ]),
   ];
   roleTemplates.data_entry.permissions = [

@@ -1,4 +1,19 @@
 {
+  "supportTeams": {
+    "title": "Support teams",
+    "readOnly": "You can view this team plan but cannot change it.",
+    "changed": "The team plan changed. Review the latest version and try again.",
+    "memberUnavailable": "This member is no longer available on the active roster.",
+    "leadRequired": "Choose an active R4 or R5 commander.",
+    "teamFull": "This team has reached its current allocation.",
+    "nameRequired": "Enter a team name.",
+    "nameLimit": "Team names must be {max} characters or fewer.",
+    "history": {
+      "dependencies": "Later actions depend on this change. Owner or platform-admin review is required.",
+      "invalid": "The previous state is no longer valid. Review the affected members and leads.",
+      "undone": "Action reversed and recorded in history."
+    }
+  },
   "metadata": {
     "title": "Alliance HQ",
     "titleTemplate": "%s · Alliance HQ",

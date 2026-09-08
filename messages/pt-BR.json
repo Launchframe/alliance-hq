@@ -1,4 +1,19 @@
 {
+  "supportTeams": {
+    "title": "Equipes de apoio",
+    "readOnly": "Você pode visualizar este plano de equipes, mas não pode alterá-lo.",
+    "changed": "O plano de equipes mudou. Confira a versão mais recente e tente novamente.",
+    "memberUnavailable": "Este membro não está mais disponível no elenco ativo.",
+    "leadRequired": "Escolha um comandante ativo R4 ou R5.",
+    "teamFull": "Esta equipe atingiu sua alocação atual.",
+    "nameRequired": "Digite um nome para a equipe.",
+    "nameLimit": "Os nomes das equipes devem ter no máximo {max} caracteres.",
+    "history": {
+      "dependencies": "Ações posteriores dependem desta alteração. É necessária a revisão do proprietário ou de um administrador da plataforma.",
+      "invalid": "O estado anterior não é mais válido. Confira os membros e líderes afetados.",
+      "undone": "Ação revertida e registrada no histórico."
+    }
+  },
   "metadata": {
     "title": "Alliance HQ",
     "titleTemplate": "%s · Alliance HQ",
