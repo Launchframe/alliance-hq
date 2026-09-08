@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link, useRouter } from "@/i18n/navigation";
+import { useCoverageFetch } from "@/components/time-off/CoverageConfirmation";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 import {
@@ -85,6 +86,7 @@ function historyImportStatusBadgeClass(
 
 export function ConductorHistoryImportClient({ today, roster }: Props) {
   const t = useTranslations("trains.historyImport");
+  const { coverageFetch, coverageDialog } = useCoverageFetch();
   const router = useRouter();
   const [step, setStep] = useState<"paste" | "review">("paste");
   const [pasteText, setPasteText] = useState("");
@@ -313,7 +315,7 @@ export function ConductorHistoryImportClient({ today, roster }: Props) {
     setCommitting(true);
     setError(null);
     try {
-      const res = await fetch("/api/trains/conductor/history-import", {
+      const res = await coverageFetch("/api/trains/conductor/history-import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -339,6 +341,7 @@ export function ConductorHistoryImportClient({ today, roster }: Props) {
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6">
+      {coverageDialog}
       <div>
         <Link
           href="/trains"

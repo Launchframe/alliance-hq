@@ -3,6 +3,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import { getServerCalendarDate } from "@/lib/trains/game-time";
 import type { MyEngTeamContext, MyWlTeamContext, WlSuggestion } from "./types";
 import {
   createEngAssignment,
@@ -16,6 +17,7 @@ import {
   getWlSuggestions,
   getWlTeam,
   logWlTeamEvent,
+  loadAwayProfessionCommanderIds,
   updateAssignmentStatus,
   updateCoverageWindow,
   upsertWlTeam,
@@ -165,7 +167,10 @@ export async function getMyEngTeam(
 export async function getSuggestionsForEng(
   allianceId: string,
   engCommanderId: string,
+  dutyDate = getServerCalendarDate(),
 ): Promise<WlSuggestion[]> {
+  const awayCommanderIds = await loadAwayProfessionCommanderIds(allianceId, dutyDate);
+  if (awayCommanderIds.has(engCommanderId)) return [];
   const db = getDb();
   const [alliance] = await db
     .select({ wlMinEngsPerTeam: schema.alliances.wlMinEngsPerTeam })
@@ -181,7 +186,7 @@ export async function getSuggestionsForEng(
 
   return getWlSuggestions({
     allianceId,
-    excludeWlCommanderIds,
+    excludeWlCommanderIds: [...excludeWlCommanderIds, ...awayCommanderIds],
     minEngsPerTeam: alliance?.wlMinEngsPerTeam ?? 2,
     limit: 10,
   });
@@ -206,6 +211,7 @@ export async function assignEngToWl(input: {
   allianceId: string;
   engCommanderId: string;
   wlCommanderId: string;
+  automaticDutyDate?: string;
 }): Promise<{ assignmentId: string; wlTeamId: string }> {
   await assertCommanderAllianceProfession(
     input.allianceId,
@@ -238,8 +244,16 @@ export async function assignEngToWl(input: {
     throw new Error("Engineer is already assigned to this War Leader's team.");
   }
 
+  if (input.automaticDutyDate) {
+    const awayCommanderIds = await loadAwayProfessionCommanderIds(input.allianceId, input.automaticDutyDate);
+    if (awayCommanderIds.has(input.engCommanderId) || awayCommanderIds.has(input.wlCommanderId)) {
+      throw new Error("No War Leaders available for assignment.");
+    }
+  }
+
   // Create new assignment
   const assignmentId = await createEngAssignment({
+    automaticDutyDate: input.automaticDutyDate,
     wlTeamId,
     allianceId: input.allianceId,
     engCommanderId: input.engCommanderId,
@@ -479,7 +493,8 @@ export async function assignEngToRandomWl(
   allianceId: string,
   engCommanderId: string,
 ): Promise<{ wlCommanderId: string; wlName: string | null }> {
-  const suggestions = await getSuggestionsForEng(allianceId, engCommanderId);
+  const dutyDate = getServerCalendarDate();
+  const suggestions = await getSuggestionsForEng(allianceId, engCommanderId, dutyDate);
   if (suggestions.length === 0) {
     throw new Error("No War Leaders available for assignment.");
   }
@@ -492,6 +507,7 @@ export async function assignEngToRandomWl(
     allianceId,
     engCommanderId,
     wlCommanderId: pick.wlCommanderId,
+    automaticDutyDate: dutyDate,
   });
 
   return { wlCommanderId: pick.wlCommanderId, wlName: pick.wlName };

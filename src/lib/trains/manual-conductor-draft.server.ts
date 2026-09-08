@@ -16,7 +16,6 @@ import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.
 import {
   listPoolEntries,
   listUnselectedPoolEntries,
-  markPoolMemberSelectedForDate,
   releasePoolSelectionForDate,
 } from "@/lib/trains/pool";
 import {
@@ -106,6 +105,7 @@ export async function applyManualConductorDraft(input: {
     }
   }
   const priorConductorMemberId = existing?.conductorMemberId ?? null;
+  let claimPool = false;
   if (poolType) {
     const replacingSameMember = priorConductorMemberId === input.memberId;
     if (!replacingSameMember) {
@@ -130,18 +130,7 @@ export async function applyManualConductorDraft(input: {
             poolMemberIds: poolEntries.map((row) => row.memberId),
           });
           if (gate.ok) {
-            const claimed = await markPoolMemberSelectedForDate(
-              input.allianceId,
-              poolType,
-              input.memberId,
-              input.date,
-            );
-            if (!claimed) {
-              throw new ManualPickEligibilityError(
-                "already_awarded",
-                depletingManualPickErrorMessage("already_awarded"),
-              );
-            }
+            claimPool = true;
           } else if (overrideConfirmed) {
             // Officer confirmed: draft without consuming or refreshing the
             // generation. Already-chosen / missing rows stay as-is so the
@@ -158,6 +147,7 @@ export async function applyManualConductorDraft(input: {
   }
 
   const record = await upsertConductorDraft({
+    poolClaim: claimPool && poolType ? poolType : undefined,
     allianceId: input.allianceId,
     date: input.date,
     seasonKey,

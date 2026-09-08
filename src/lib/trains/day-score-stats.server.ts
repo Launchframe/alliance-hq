@@ -16,11 +16,12 @@ import {
   countAllianceVrReporters,
 } from "@/lib/trains/vr-reporter-count.server";
 import { fetchNativeVrTopScorers } from "@/lib/trains/native-scores.server";
-import { getPoolSummary } from "@/lib/trains/pool";
+import { listUnselectedPoolEntries } from "@/lib/trains/pool";
+import { loadTimeOffAvailability } from "@/lib/time-off/availability.server";
 import {
   buildUniformEconomyDrawSet,
 } from "@/lib/trains/price-is-freight-roll.shared";
-import { loadPriceIsFreightR3Candidates } from "@/lib/trains/price-is-freight-roll.server";
+import { applyConductorMinimumsFilter, loadPriceIsFreightR3Candidates } from "@/lib/trains/price-is-freight-roll.server";
 import {
   isVrTopScopeUnlocked,
   resolveConductorTopNBoard,
@@ -78,6 +79,7 @@ async function eligibleCountForDay(
   scores: Map<string, number>,
   scoreDateDay?: DayMechanismConfig | null,
 ): Promise<{ eligibleCount: number; topN?: number }> {
+  const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.trainDate);
   const mechanism = input.conductorMechanism;
   const paint = input.paintTemplate ?? null;
   const leadDays = input.leadDays ?? 0;
@@ -98,7 +100,7 @@ async function eligibleCountForDay(
       topBoard.topN,
       input.leadDays ?? 0,
     );
-    return { eligibleCount: top.length, topN: topBoard.topN };
+    return { eligibleCount: top.filter((member) => !awayMemberIds.has(member.memberId)).length, topN: topBoard.topN };
   }
 
   if (topBoard?.kind === "vr") {
@@ -111,17 +113,17 @@ async function eligibleCountForDay(
       topBoard.topN,
     );
     return {
-      eligibleCount: Math.min(topBoard.topN, scorers.length),
+      eligibleCount: Math.min(topBoard.topN, scorers.filter((member) => !awayMemberIds.has(member.memberId)).length),
       topN: topBoard.topN,
     };
   }
 
   if (usesPriceIsFreightConductorRoll(paint)) {
     if (isPriceIsRightHeavyHitterSaturday(paint as never, input.trainDate)) {
-      const hh = await buildHeavyHitterPoolCandidates(
+      const hh = await applyConductorMinimumsFilter(input.allianceId, input.trainDate, await buildHeavyHitterPoolCandidates(
         input.allianceId,
         input.trainDate,
-      );
+      ), { paintTemplate: paint as WeekTemplateType, leadDays });
       return { eligibleCount: hh.length };
     }
 
@@ -157,8 +159,8 @@ async function eligibleCountForDay(
   if (mechanism === "r3_lottery" || mechanism === "heavy_hitter_lottery") {
     const poolType =
       mechanism === "heavy_hitter_lottery" ? "heavy_hitter" : "r3";
-    const summary = await getPoolSummary(input.allianceId, poolType);
-    return { eligibleCount: summary.remaining };
+    const entries = await listUnselectedPoolEntries(input.allianceId, poolType);
+    return { eligibleCount: entries.filter((member) => !awayMemberIds.has(member.memberId)).length };
   }
 
   return { eligibleCount: scores.size };

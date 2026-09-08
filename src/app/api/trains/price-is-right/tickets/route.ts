@@ -13,7 +13,7 @@ import {
   buildEqualChanceOddsBoard,
   buildUniformEconomyDrawSet,
 } from "@/lib/trains/price-is-freight-roll.shared";
-import { loadPriceIsFreightR3Candidates } from "@/lib/trains/price-is-freight-roll.server";
+import { applyConductorMinimumsFilter, loadPriceIsFreightR3Candidates } from "@/lib/trains/price-is-freight-roll.server";
 import {
   buildPriceIsRightWeightedCandidates,
   loadPriceIsRightTicketSettings,
@@ -82,10 +82,10 @@ export async function GET(request: Request) {
   );
 
   if (isSaturday) {
-    const heavyHitters = await buildHeavyHitterPoolCandidates(
+    const heavyHitters = await applyConductorMinimumsFilter(ctx.allianceId, trainDate, await buildHeavyHitterPoolCandidates(
       ctx.allianceId,
       trainDate,
-    );
+    ), { paintTemplate: dayConfig.paintTemplate, leadDays });
     const board = buildEqualChanceOddsBoard(
       heavyHitters.map((c) => ({
         memberId: c.memberId,
