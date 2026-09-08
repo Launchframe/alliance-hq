@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { nanoid } from "nanoid";
 import { authCookieHeader, createPlatformMaintainerSession, createNativeAlliance } from "./fixtures/db";
-import { createSupportTeamFixture, selectSupportAlliance } from "./fixtures/support-teams";
+import { createSupportTeamFixture, seedPublishedSupportBoard, selectSupportAlliance } from "./fixtures/support-teams";
 
 async function bootstrapCookie(request: APIRequestContext) {
   const response = await request.get("/api/auth/bootstrap?next=/", { maxRedirects: 0 });
@@ -67,7 +67,7 @@ for (const intermediatePoll of [false, true]) {
     const Cookie = authCookieHeader(f.owner);
     const teamId = `team-${nanoid(8)}`;
     expect((await maintenanceCommand(request, Cookie, { kind: "createTeam", teamId, leadId: f.leads[0].ashedMemberId })).status()).toBe(200);
-    await f.sql`UPDATE support_team_boards SET published = true WHERE alliance_id = ${f.allianceId}`;
+    await seedPublishedSupportBoard(f.sql, f.allianceId);
     const memberId = f.members[0].ashedMemberId;
     const moved = await maintenanceCommand(request, Cookie, { kind: "move", memberId, from: null, to: teamId });
     expect(moved.status()).toBe(200);
@@ -103,7 +103,7 @@ test("lead departure preserves the named team, explicit return is owner-only, an
   const leadId = f.leads[0].ashedMemberId;
   expect((await maintenanceCommand(request, Cookie, { kind: "createTeam", teamId, leadId })).status()).toBe(200);
   expect((await maintenanceCommand(request, authCookieHeader(f.officer), { kind: "rename", teamId, name: "Persistent" })).status()).toBe(200);
-  await f.sql`UPDATE support_team_boards SET published = true WHERE alliance_id = ${f.allianceId}`;
+  await seedPublishedSupportBoard(f.sql, f.allianceId);
   await f.sql`UPDATE alliance_members SET alliance_rank = 3 WHERE alliance_id = ${f.allianceId} AND ashed_member_id = ${leadId}`;
   const ineligible = await (await request.get("/api/support-teams", { headers: { Cookie } })).json();
   expect(ineligible.teams[0]).toMatchObject({ id: teamId, name: "Persistent", needsReplacement: true });

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement, type ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NextIntlClientProvider } from "next-intl";
@@ -14,7 +14,52 @@ const roster = [{ id: "r", rank: 4, name: "Lead", draftStintToken: "private", pr
 const board = applyProposalCommand(emptyBoard("a"), roster, actor, { kind: "createProposal", proposalId: "p", expectedVersion: 0 }, { id: "created", at: "2026-09-10T00:00:00Z", idempotencyKey: "created" }).board;
 const snapshot = proposalSnapshot(board, roster, actor, "p");
 
+afterEach(() => vi.unstubAllGlobals());
+
 describe("proposal board integration adapter", () => {
+  it("sends proposal CAS and working sources, refreshes from the top-level version, and fences lead edits", async () => {
+    const members = [{ id: "lead-a", rank: 4 }, { id: "lead-b", rank: 5 }, { id: "one", rank: 3 }, { id: "two", rank: 3 }].map((member) => ({ ...roster[0], ...member, name: member.id }));
+    let state = applyProposalCommand(emptyBoard("a"), members, actor, { kind: "createProposal", proposalId: "working", expectedVersion: 0 }, { id: "create", at: "2026-09-10T00:00:00Z", idempotencyKey: "create" }).board;
+    const initial = proposalSnapshot(state, members, actor, "working");
+    for (const [index, memberId] of ["one", "two"].entries()) state = applyProposalCommand(state, members, actor, { kind: "moveProposal", proposalId: "working", memberId, from: null, to: initial.teams[index].id, expectedVersion: proposalSnapshot(state, members, actor, "working").proposalVersion }, { id: memberId, at: "2026-09-10T00:00:00Z", idempotencyKey: memberId }).board;
+    const current = proposalSnapshot(state, members, actor, "working");
+    const refresh = vi.fn();
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ version: 99, event: { boardVersion: 98 } })));
+    vi.stubGlobal("fetch", fetch);
+    vi.stubGlobal("requestAnimationFrame", vi.fn());
+    let adapter!: ProposalBoardAdapter;
+    const controls = createElement(ProposalControls, { snapshot: current, publishedVersion: 90, canCreate: true, onRefresh: refresh, onCreated: vi.fn(), renderBoard: (value) => { adapter = value; return null; } });
+    renderToStaticMarkup(createElement(NextIntlClientProvider, { locale: "en-US", messages: en, timeZone: "UTC" } as unknown as ComponentProps<typeof NextIntlClientProvider>, controls));
+    expect(await adapter.move("lead-a", null)).toBe(false);
+    expect(fetch).not.toHaveBeenCalled();
+    vi.mocked(requestAnimationFrame).mockClear();
+    expect(await adapter.swap("one", "two")).toBe(true);
+    expect(fetch.mock.calls[0][0]).toBe("/api/support-teams/proposals/working/swap");
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({ expectedVersion: current.proposalVersion, memberId: "one", otherMemberId: "two", from: current.memberLocations.one, to: current.memberLocations.two, idempotencyKey: expect.any(String) });
+    expect(refresh).toHaveBeenCalledExactlyOnceWith(99);
+    expect(requestAnimationFrame).not.toHaveBeenCalled();
+    fetch.mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ version: 100 }))));
+    fetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    expect(await adapter.move("one", null)).toBe(false);
+    expect(requestAnimationFrame).toHaveBeenCalledOnce();
+    expect(await adapter.move("one", null)).toBe(true);
+    const failed = JSON.parse(fetch.mock.calls[1][1].body);
+    const retried = JSON.parse(fetch.mock.calls[2][1].body);
+    expect(retried).toEqual(failed);
+    expect(retried).toMatchObject({ expectedVersion: current.proposalVersion, memberId: "one", from: current.memberLocations.one, to: null });
+    expect(refresh).toHaveBeenLastCalledWith(100);
+    fetch.mockResolvedValueOnce(new Response(JSON.stringify({ error: en.supportTeams.changed }), { status: 503 }));
+    fetch.mockResolvedValueOnce(new Response(JSON.stringify({ error: en.supportTeams.changed }), { status: 409 }));
+    expect(await adapter.move("one", null)).toBe(false);
+    expect(await adapter.move("one", null)).toBe(false);
+    expect(refresh).toHaveBeenLastCalledWith();
+    expect(await adapter.move("one", null)).toBe(true);
+    const serverFailure = JSON.parse(fetch.mock.calls[3][1].body);
+    const conflict = JSON.parse(fetch.mock.calls[4][1].body);
+    const freshAttempt = JSON.parse(fetch.mock.calls[5][1].body);
+    expect(serverFailure.idempotencyKey).toBe(conflict.idempotencyKey);
+    expect(freshAttempt.idempotencyKey).not.toBe(conflict.idempotencyKey);
+  });
   it.each([["en-US", en], ["pt-BR", pt]] as const)("renders approved localized controls and delegates the board for %s", (locale, messages) => {
     let adapter: ProposalBoardAdapter | undefined;
     const controls = createElement(ProposalControls, { snapshot, publishedVersion: 0, canCreate: true, onRefresh: () => {}, onCreated: () => {}, renderBoard: (value) => { adapter = value; return createElement("div", { "data-board": "parent" }); } });

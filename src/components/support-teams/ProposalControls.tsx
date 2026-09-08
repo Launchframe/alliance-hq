@@ -3,6 +3,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { ProposalSnapshot } from "@/lib/support-teams/proposal.shared";
+import { SupportDialog } from "./SupportTeamControls";
 
 export type ProposalBoardAdapter = {
   snapshot: ProposalSnapshot;
@@ -18,7 +19,7 @@ export type ProposalControlsProps = {
   snapshot: ProposalSnapshot | null;
   publishedVersion: number;
   canCreate: boolean;
-  onRefresh: () => void | Promise<void>;
+  onRefresh: (minimumVersion?: number) => void | Promise<void>;
   onCreated: (id: string) => void | Promise<void>;
   renderBoard?: (adapter: ProposalBoardAdapter) => ReactNode;
 };
@@ -51,7 +52,7 @@ export function ProposalControls({ snapshot, publishedVersion, canCreate, onRefr
     let succeeded = false;
     try {
       const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...input, idempotencyKey }) });
-      const body = await response.json().catch(() => null) as { error?: string; proposalId?: string } | null;
+      const body = await response.json().catch(() => null) as { error?: string; proposalId?: string; version?: number } | null;
       if (!response.ok) {
         if (response.status < 500) attempts.current.delete(fingerprint);
         setErrors((current) => ({ ...current, [key]: body?.error || root("supportTeams.changed") }));
@@ -60,12 +61,12 @@ export function ProposalControls({ snapshot, publishedVersion, canCreate, onRefr
       }
       succeeded = true; attempts.current.delete(fingerprint);
       if (body?.proposalId) await onCreated(body.proposalId);
-      await onRefresh(); return true;
+      await onRefresh(body?.version); return true;
     } catch {
       setErrors((current) => ({ ...current, [key]: root("discordBot.errors.serverError") })); return succeeded;
     } finally {
       busy.current = false; setPending([]);
-      requestAnimationFrame(() => anchors.current.get(key)?.scrollIntoView({ block: "nearest" }));
+      if (!succeeded) requestAnimationFrame(() => anchors.current.get(key)?.scrollIntoView({ block: "nearest" }));
     }
   }
   function movable(memberId: string) {
@@ -101,7 +102,7 @@ export function ProposalControls({ snapshot, publishedVersion, canCreate, onRefr
   const active = snapshot && (snapshot.phase === "editing" || snapshot.phase === "submitted");
   return <section aria-label={t("title")} className="space-y-4" aria-busy={pending.length > 0}>
     <h2 className="text-lg font-semibold">{t("title")}</h2>
-    {canCreate ? <div><button type="button" className={buttonClass} disabled={pending.length > 0} onClick={() => void send("create", "/api/support-teams/proposals", { expectedVersion: snapshot?.version ?? publishedVersion })}>{t("create")}</button>{errorNode("create")}</div> : null}
+    {canCreate ? <div><button type="button" className={buttonClass} disabled={pending.length > 0} onClick={() => void send("create", "/api/support-teams/proposals", { expectedVersion: publishedVersion })}>{t("create")}</button>{errorNode("create")}</div> : null}
     {snapshot ? <>
       <div role="status" className="space-y-1">
         <p>{t("approvals", { approved: number(snapshot.approved), required: number(snapshot.required), total: number(snapshot.electorateCount) })}</p>
@@ -120,11 +121,12 @@ export function ProposalControls({ snapshot, publishedVersion, canCreate, onRefr
         {snapshot.canOverride ? <button type="button" className={buttonClass} disabled={pending.length > 0} onClick={() => setOverrideConfirmation(confirmationBasis)}>{t("override")}</button> : null}
         {snapshot.canCancel ? <div><button type="button" className={buttonClass} disabled={pending.length > 0} onClick={() => void action("cancel")}>{root("timeOff.officerModal.cancel")}</button>{errorNode("cancel")}</div> : null}
       </div> : null}
-      {snapshot.canOverride && overrideConfirmation === confirmationBasis ? <div role="group" aria-label={t("overrideConfirm")} className="space-y-2">
+      {snapshot.canOverride && overrideConfirmation === confirmationBasis ? <SupportDialog title={t("override")} onClose={() => { if (!pending.length) setOverrideConfirmation(null); }}><div role="group" aria-label={t("overrideConfirm")} className="space-y-2">
         <p>{t("overrideConfirm")}</p>
         <button type="button" className={buttonClass} disabled={pending.length > 0} onClick={async () => { if (await action("publish", { expectedPublishedVersion: snapshot.publishedVersion, override: true })) setOverrideConfirmation(null); }}>{t("override")}</button>
-        <button type="button" className={buttonClass} onClick={() => setOverrideConfirmation(null)}>{root("timeOff.officerModal.cancel")}</button>
-      </div> : null}
+        <button type="button" className={buttonClass} disabled={pending.length > 0} onClick={() => setOverrideConfirmation(null)}>{root("timeOff.officerModal.cancel")}</button>
+        {errorNode("publish")}
+      </div></SupportDialog> : null}
     </> : null}
   </section>;
 }

@@ -1,8 +1,22 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { playwrightAuthCookies } from "./fixtures/auth";
+import { createHqMemberLink } from "./fixtures/db";
+import en from "../messages/en-US.json";
+import pt from "../messages/pt-BR.json";
 import { authCookieHeader, createBrowserSession, type SessionFixture } from "./fixtures/db";
 import { createSupportTeamFixture } from "./fixtures/support-teams";
 import type { ProposalSnapshot } from "../src/lib/support-teams/proposal.shared";
+
+async function openProposal(page: Page, actor: SessionFixture, id?: string, locale = "en-US") {
+  await page.context().addCookies(playwrightAuthCookies(actor));
+  await page.goto(`${locale === "pt-BR" ? "/pt-BR" : ""}/support-teams${id ? `?proposal=${id}` : ""}`);
+}
+async function refreshProposal(page: Page, path: string) {
+  const refreshed = page.waitForResponse((response) => response.url().endsWith(path) && response.request().method() === "GET");
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await refreshed;
+}
 
 async function proposal(request: APIRequestContext) {
   const f = await createSupportTeamFixture();
@@ -27,6 +41,219 @@ async function proposal(request: APIRequestContext) {
   };
   return { ...f, headers, input, proposalId, event, path, snapshot, post, fill };
 }
+
+for (const [locale, messages] of [["en-US", en], ["pt-BR", pt]] as const) {
+  test(`browser freehand create, drag, search, mobile allocation, approval, publication and owner undo (${locale})`, async ({ page, context, browser, request }) => {
+    const f = await createSupportTeamFixture();
+    const copy = messages.supportTeams;
+    const member = await f.actor("member");
+    await createHqMemberLink(f.sql, { allianceId: f.allianceId, hqUserId: member.hqUserId, ashedMemberId: f.members[0].ashedMemberId, gameUid: `96${Date.now()}` });
+    await page.setViewportSize({ width: 1500, height: 1000 });
+    await openProposal(page, f.officer, undefined, locale);
+    const created = page.waitForResponse((response) => response.url().endsWith("/api/support-teams/proposals") && response.request().method() === "POST");
+    await page.getByRole("button", { name: copy.proposals.create, exact: true }).click();
+    const creation = await (await created).json();
+    const path = `/api/support-teams/proposals/${creation.proposalId}`;
+    await expect(page).toHaveURL(new RegExp(`proposal=${creation.proposalId}`));
+    const read = async (): Promise<ProposalSnapshot> => (await request.get(path, { headers: { Cookie: authCookieHeader(f.officer) } })).json();
+    const allocations: Record<string, unknown>[] = [];
+    let liveWrites = 0;
+    page.on("request", (req) => {
+      if (req.method() !== "POST") return;
+      if (new URL(req.url()).pathname === "/api/support-teams") liveWrites++;
+      if (new URL(req.url()).pathname === `${path}/move`) allocations.push(req.postDataJSON());
+    });
+    for (const [index, member] of f.members.entries()) {
+      const before = await read();
+      const target = before.teams.find((team) => team.memberIds.length < team.target)!;
+      const slot = page.locator(`[data-support-team="${target.id}"]`);
+      const moved = page.waitForResponse((response) => response.url().endsWith(`${path}/move`) && response.request().method() === "POST");
+      if (index === 0) {
+        await page.locator(`[data-support-member="${member.ashedMemberId}"]`).dragTo(slot);
+      } else if (index < f.members.length - 1) {
+        const search = slot.getByRole("combobox", { name: copy.addMember, exact: true });
+        await search.fill(`Member ${index}`);
+        await page.getByRole("option", { name: new RegExp(`Member ${index}`) }).click();
+      } else {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.getByRole("combobox", { name: copy.findMember, exact: true }).fill(before.roster.find((row) => row.id === target.leadId)!.name);
+        await page.getByRole("option", { name: new RegExp(before.roster.find((row) => row.id === target.leadId)!.name) }).click();
+        await page.getByRole("button", { name: copy.openPool, exact: true }).click();
+        const pool = page.getByRole("dialog", { name: copy.unsorted, exact: true });
+        await pool.locator(`[data-support-member="${member.ashedMemberId}"]`).getByRole("button", { name: new RegExp(copy.addMember) }).click();
+      }
+      const response = await moved;
+      expect(response.status()).toBe(200);
+      const result = await response.json();
+      expect(allocations.at(-1)).toMatchObject({ expectedVersion: before.proposalVersion, from: null, to: target.id });
+      await expect.poll(async () => (await read()).version).toBeGreaterThanOrEqual(result.version);
+      if (index === f.members.length - 1) await page.getByRole("button", { name: copy.closePool, exact: true }).click();
+      await expect(slot.locator(`[data-support-member="${member.ashedMemberId}"]`)).toBeVisible();
+    }
+    expect(liveWrites).toBe(0);
+    const publicContext = await browser.newContext();
+    const ownerContext = await browser.newContext();
+    try {
+      const memberPage = await publicContext.newPage();
+      const privateReads: string[] = [];
+      memberPage.on("request", (req) => { if (/\/proposals|\/drafts|\/history/.test(new URL(req.url()).pathname)) privateReads.push(req.url()); });
+      await openProposal(memberPage, member, creation.proposalId, locale);
+      await expect(memberPage.getByRole("heading", { name: copy.proposals.title, exact: true })).toHaveCount(0);
+      await expect(memberPage.getByRole("button", { name: copy.history.title, exact: true })).toHaveCount(0);
+      await expect(memberPage.locator("[data-support-team]")).toHaveCount(0);
+      expect(privateReads).toEqual([]);
+      await page.getByRole("button", { name: copy.proposals.submit, exact: true }).click();
+      await expect(page.getByRole("button", { name: copy.proposals.approve, exact: true })).toBeEnabled();
+      const approved = page.waitForResponse((response) => response.url().endsWith(`${path}/approve`));
+      await page.getByRole("button", { name: copy.proposals.approve, exact: true }).click();
+      const vote = await (await approved).json();
+      await expect(page.getByRole("button", { name: copy.proposals.publish, exact: true })).toBeEnabled();
+      const published = page.waitForResponse((response) => response.url().endsWith(`${path}/publish`));
+      await page.getByRole("button", { name: copy.proposals.publish, exact: true }).click();
+      const publication = await (await published).json();
+      expect(publication.event.context.ownerOverride).toBe(false);
+      await expect(page.getByRole("button", { name: copy.proposals.submit, exact: true })).toHaveCount(0);
+      await expect(page).toHaveURL(new RegExp(`proposal=${creation.proposalId}`));
+      await memberPage.reload();
+      await expect(memberPage.locator(`[data-support-member="${f.members[0].ashedMemberId}"]`)).toBeVisible();
+      expect(privateReads).toEqual([]);
+      const owner = await ownerContext.newPage();
+      await openProposal(owner, f.owner, creation.proposalId, locale);
+      await owner.getByRole("button", { name: copy.history.title, exact: true }).click();
+      const timeline = owner.getByRole("dialog", { name: copy.history.title, exact: true });
+      await expect(timeline).not.toContainText(/proposalVoterIds|draftStintToken|approvalBasis|service:/);
+      await timeline.locator(`[data-support-event="${vote.event.id}"]`).getByRole("button", { name: copy.history.preview, exact: true }).click();
+      const preview = owner.getByRole("dialog", { name: copy.history.preview, exact: true });
+      await expect(preview.locator(`[data-support-event="${publication.event.id}"]`)).toBeVisible();
+      await expect(preview.getByRole("heading", { name: copy.history.cascade, exact: true })).toBeVisible();
+      await preview.getByRole("button", { name: copy.history.confirm.replace("{count}", "2"), exact: true }).click();
+      await expect(preview).not.toBeVisible();
+      await expect(timeline.locator(`[data-support-event="${vote.event.id}"]`)).toContainText(copy.history.undone);
+      expect((await read()).approved).toBe(0);
+    } finally { await publicContext.close(); await ownerContext.close(); }
+    expect(context.pages()).toContain(page);
+  });
+}
+
+test("browser strict 50 percent and unlinked denominator block publication until explicit owner dialog", async ({ page, browser, request }) => {
+  const f = await proposal(request);
+  await f.fill();
+  await openProposal(page, f.officer, f.proposalId);
+  await page.getByRole("button", { name: en.supportTeams.proposals.approve, exact: true }).click();
+  await expect(page.getByText("1 approvals; 2 required from 2 active R4s.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: en.supportTeams.proposals.publish, exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: en.supportTeams.proposals.override, exact: true })).toHaveCount(0);
+  const ownerContext = await browser.newContext();
+  try {
+    const owner = await ownerContext.newPage();
+    await openProposal(owner, f.owner, f.proposalId);
+    await expect(owner.getByRole("button", { name: en.supportTeams.proposals.publish, exact: true })).toBeDisabled();
+    await owner.getByRole("button", { name: en.supportTeams.proposals.override, exact: true }).click();
+    const dialog = owner.getByRole("dialog", { name: en.supportTeams.proposals.override, exact: true });
+    await expect(dialog.getByText(en.supportTeams.proposals.overrideConfirm, { exact: true })).toBeVisible();
+    expect((await f.snapshot()).phase).toBe("submitted");
+    const published = owner.waitForResponse((response) => response.url().endsWith(`${f.path}/publish`));
+    await dialog.getByRole("button", { name: en.supportTeams.proposals.override, exact: true }).click();
+    const result = await (await published).json();
+    expect(result.event.context.ownerOverride).toBe(true);
+    await expect(dialog).not.toBeVisible();
+    await owner.getByRole("button", { name: en.supportTeams.history.title, exact: true }).click();
+    await expect(owner.getByRole("dialog", { name: en.supportTeams.history.title, exact: true }).locator(`[data-support-event="${result.event.id}"]`)).toContainText(en.supportTeams.proposals.override);
+  } finally { await ownerContext.close(); }
+});
+
+test("two browser edits invalidate votes without losing search, and competing publication retains stale workspaces", async ({ browser, request }) => {
+  const f = await proposal(request);
+  await f.sql`UPDATE alliance_members SET alliance_rank = 5 WHERE alliance_id = ${f.allianceId} AND ashed_member_id = ${f.leads[1].ashedMemberId}`;
+  await f.fill();
+  const first = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
+  const second = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
+  try {
+    const a = await first.newPage(), b = await second.newPage();
+    await openProposal(a, f.officer, f.proposalId);
+    await openProposal(b, f.owner, f.proposalId);
+    await a.getByRole("button", { name: en.supportTeams.proposals.approve, exact: true }).click();
+    await expect(a.getByRole("button", { name: en.supportTeams.proposals.publish, exact: true })).toBeEnabled();
+    const locator = a.getByRole("combobox", { name: en.supportTeams.findMember, exact: true });
+    await locator.fill("Member 0");
+    await a.getByRole("option", { name: /Member 0/ }).click();
+    const personalSearch = a.locator("aside[data-support-pool], aside [data-support-pool]").getByRole("searchbox");
+    await personalSearch.fill("Member 5");
+    const view = await f.snapshot();
+    const moving = f.members[0].ashedMemberId;
+    const other = f.members.find((member) => view.memberLocations[member.ashedMemberId] !== view.memberLocations[moving])!;
+    const card = b.locator(`[data-support-member="${moving}"]`);
+    await card.getByRole("button", { name: en.supportTeams.swapMembers, exact: true }).click();
+    const swap = card.getByRole("combobox", { name: en.supportTeams.swapMembers, exact: true });
+    await swap.fill(view.roster.find((row) => row.id === other.ashedMemberId)!.name);
+    await b.getByRole("option", { name: new RegExp(view.roster.find((row) => row.id === other.ashedMemberId)!.name) }).click();
+    await expect(a.getByText(en.supportTeams.proposals.invalidated, { exact: true })).toBeVisible();
+    await expect(a.getByText("0 approvals; 1 required from 1 active R4s.", { exact: true })).toBeVisible();
+    await expect(locator).toHaveValue("Member 0");
+    await expect(personalSearch).toHaveValue("Member 5");
+    await expect(personalSearch).toBeFocused();
+    await expect(a.locator("[data-support-team]")).toHaveCount(2);
+    await expect(a.getByRole("button", { name: en.supportTeams.proposals.publish, exact: true })).toBeDisabled();
+    await a.getByRole("button", { name: en.supportTeams.proposals.submit, exact: true }).click();
+    await a.getByRole("button", { name: en.supportTeams.proposals.approve, exact: true }).click();
+    await expect(a.getByRole("button", { name: en.supportTeams.proposals.publish, exact: true })).toBeEnabled();
+    const created = b.waitForResponse((response) => response.url().endsWith("/api/support-teams/proposals") && response.request().method() === "POST");
+    await b.getByRole("button", { name: en.supportTeams.proposals.create, exact: true }).click();
+    const id = (await (await created).json()).proposalId;
+    const path = `/api/support-teams/proposals/${id}`;
+    const read = async (): Promise<ProposalSnapshot> => (await request.get(path, { headers: f.headers(f.owner) })).json();
+    for (const member of f.members) {
+      const current = await read();
+      const target = current.teams.find((team) => team.memberIds.length < team.target)!;
+      expect((await request.post(`${path}/move`, { headers: f.headers(f.owner), data: { expectedVersion: current.proposalVersion, memberId: member.ashedMemberId, from: null, to: target.id, idempotencyKey: randomUUID() } })).status()).toBe(200);
+    }
+    await refreshProposal(b, path);
+    await b.getByRole("button", { name: en.supportTeams.proposals.submit, exact: true }).click();
+    await b.getByRole("button", { name: en.supportTeams.proposals.override, exact: true }).click();
+    const dialog = b.getByRole("dialog", { name: en.supportTeams.proposals.override, exact: true });
+    let release!: () => void, arrived!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const intercepted = new Promise<void>((resolve) => { arrived = resolve; });
+    await b.route(`**${path}/publish`, async (route) => { arrived(); await held; await route.continue(); });
+    const conflict = b.waitForResponse((response) => response.url().endsWith(`${path}/publish`));
+    await dialog.getByRole("button", { name: en.supportTeams.proposals.override, exact: true }).click();
+    await intercepted;
+    const publication = a.waitForResponse((response) => response.url().endsWith(`${f.path}/publish`));
+    await a.getByRole("button", { name: en.supportTeams.proposals.publish, exact: true }).click();
+    expect((await publication).status()).toBe(200);
+    release();
+    expect((await conflict).status()).toBe(409);
+    await expect(b.getByRole("alert").filter({ hasText: "The team plan changed." }).first()).toBeVisible();
+    await expect(b).toHaveURL(new RegExp(`proposal=${id}`));
+    expect(await read()).toMatchObject({ stale: true, canPublish: false, canOverride: false, phase: "submitted" });
+    const list = await (await request.get("/api/support-teams/proposals", { headers: f.headers(f.owner) })).json();
+    expect(list.proposals.map((item: ProposalSnapshot) => item.id)).toEqual(expect.arrayContaining([id, f.proposalId]));
+    await b.reload();
+    await expect(b).toHaveURL(new RegExp(`proposal=${id}`));
+    await expect(b.getByRole("button", { name: en.supportTeams.proposals.publish, exact: true })).toBeDisabled();
+    await expect(b.locator("[data-support-team]")).toHaveCount(2);
+    await b.getByRole("button", { name: en.supportTeams.proposals.title, exact: true }).click();
+    await b.getByRole("option", { name: new RegExp(en.supportTeams.proposals.publish) }).click();
+    await expect(b).toHaveURL(new RegExp(`proposal=${f.proposalId}`));
+    await expect(b.getByRole("button", { name: en.supportTeams.proposals.submit, exact: true })).toHaveCount(0);
+    await b.getByRole("button", { name: en.supportTeams.proposals.title, exact: true }).click();
+    await b.getByRole("option", { name: new RegExp(en.supportTeams.proposals.submit) }).click();
+    await expect(b).toHaveURL(new RegExp(`proposal=${id}`));
+    await expect(b.getByRole("button", { name: en.supportTeams.proposals.publish, exact: true })).toBeDisabled();
+    await b.getByRole("button", { name: en.supportTeams.proposals.title, exact: true }).click();
+    await b.getByRole("option", { name: en.supportTeams.title, exact: true }).click();
+    await expect(b).not.toHaveURL(/proposal=/);
+    await expect(b.getByRole("button", { name: en.supportTeams.proposals.submit, exact: true })).toHaveCount(0);
+    await expect(b.locator("[data-support-team]")).toHaveCount(2);
+    await b.evaluate((proposalId) => {
+      const url = new URL(window.location.href);
+      url.searchParams.set("proposal", proposalId);
+      window.history.pushState(null, "", url);
+    }, id);
+    await expect(b.getByRole("button", { name: en.supportTeams.proposals.publish, exact: true })).toBeDisabled();
+    await expect(b.locator("[data-support-team]")).toHaveCount(2);
+  } finally { await first.close(); await second.close(); }
+});
 
 test("freehand keeps unlinked R4s in the strict-majority denominator and requires an explicit owner override", async ({ request }) => {
   const f = await proposal(request); await f.fill();

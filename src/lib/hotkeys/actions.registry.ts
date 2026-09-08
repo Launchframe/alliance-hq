@@ -28,6 +28,15 @@ const NATIVE_MODE_EXTRA_HREFS = new Set([
 
 const NAV_ACTIONS: HotkeyActionDef[] = [
   {
+    id: "nav.supportTeams",
+    labelKey: "actions.nav.supportTeams",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/support-teams",
+    requiredPermission: "members:read",
+  },
+  {
     id: "nav.dashboard",
     labelKey: "actions.nav.dashboard",
     category: "navigation",

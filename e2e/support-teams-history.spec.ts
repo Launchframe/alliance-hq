@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { nanoid } from "nanoid";
 import { authCookieHeader, type SessionFixture } from "./fixtures/db";
-import { createSupportTeamFixture } from "./fixtures/support-teams";
+import { createSupportTeamFixture, seedPublishedSupportBoard } from "./fixtures/support-teams";
 
 test("officer history and owner cascade preserve unrelated work and immutable actors", async ({ request }) => {
   const f = await createSupportTeamFixture();
@@ -15,7 +15,7 @@ test("officer history and owner cascade preserve unrelated work and immutable ac
     return body.event;
   };
   for (const [index, teamId] of teams.entries()) await command(f.owner, { kind: "createTeam", teamId, leadId: f.leads[index].ashedMemberId });
-  await f.sql`UPDATE support_team_boards SET published = true WHERE alliance_id = ${f.allianceId}`;
+  await seedPublishedSupportBoard(f.sql, f.allianceId);
   const memberId = f.members[0].ashedMemberId;
   const root = await command(f.officer, { kind: "move", memberId, from: null, to: teams[0] });
   const away = await command(f.owner, { kind: "move", memberId, from: teams[0], to: teams[1] });
