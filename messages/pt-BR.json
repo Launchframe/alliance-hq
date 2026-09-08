@@ -1,5 +1,27 @@
 {
   "supportTeams": {
+    "draft": {
+      "title": "Seleção agendada de equipes",
+      "create": "Agendar seleção",
+      "startsAt": "Início da seleção",
+      "endsAt": "Prazo geral",
+      "roundDuration": "Minutos por rodada",
+      "preparation": "Prepare suas escolhas antes do início da seleção.",
+      "round": "Rodada {round}",
+      "deadline": "A rodada atual termina em {time}.",
+      "pick": "Escolher membro",
+      "pickFor": "Escolher por {lead}",
+      "picked": "Esta equipe já escolheu nesta rodada.",
+      "waiting": "Aguardando {names}.",
+      "proxyHint": "O proprietário ou administrador da plataforma pode escolher em nome de um líder a qualquer momento. Outros oficiais podem preencher uma escolha pendente após o prazo.",
+      "proxyEarly": "A janela para escolher por esta equipe abre em {time}.",
+      "expired": "O prazo da seleção passou. O trabalho inacabado foi preservado.",
+      "extend": "Prorrogar seleção",
+      "finishPartial": "Concluir com membros ainda Sem equipe",
+      "publish": "Publicar seleção",
+      "publishConfirm": "Publicar esta alocação como as equipes atuais? Os membros ainda Sem equipe permanecerão sem atribuição.",
+      "notOpen": "Esta seleção não está aberta para escolhas no momento."
+    },
     "title": "Equipes de apoio",
     "readOnly": "Você pode visualizar este plano de equipes, mas não pode alterá-lo.",
     "changed": "O plano de equipes mudou. Confira a versão mais recente e tente novamente.",

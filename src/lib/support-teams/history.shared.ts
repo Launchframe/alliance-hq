@@ -1,15 +1,35 @@
 import { assertWriter, balancedTargets, fieldKey, fieldVersion, memberTeam, recordChanges, teamIds, validateRestoration } from "./policy.shared";
 import { SupportError, type EventIdentity, type SupportActor, type SupportBoard, type SupportEvent, type SupportRosterMember, type SupportValue, type UndoPreview } from "./types.shared";
 
-export function previewUndo(board: SupportBoard, history: SupportEvent[], roster: SupportRosterMember[], actor: SupportActor, rootActionId: string): UndoPreview {
+import { draftKey, validateDraftRestoration } from "./draft.shared";
+import { readField } from "./policy.shared";
+
+export function activeReversals(history: SupportEvent[]): Map<string, string> {
+  const reversed = new Map<string, string>();
+  for (const event of [...history].sort((a, b) => b.boardVersion - a.boardVersion)) {
+    if (!reversed.has(event.id)) for (const id of event.reverses) if (!reversed.has(id)) reversed.set(id, event.id);
+  }
+  return reversed;
+}
+
+export function previewUndo(board: SupportBoard, history: SupportEvent[], roster: SupportRosterMember[], actor: SupportActor, rootActionId: string, now = Date.now()): UndoPreview {
   assertWriter(board, actor);
   const events = history.filter((event) => event.allianceId === board.allianceId).sort((a, b) => a.boardVersion - b.boardVersion);
   const root = events.find((event) => event.id === rootActionId);
   if (!root || (!actor.override && root.principalId !== actor.principalId)) throw new SupportError("forbidden");
-  const reversed = new Set(events.flatMap((event) => event.reverses));
+  const reversed = activeReversals(events);
   if (reversed.has(rootActionId)) throw new SupportError("undone");
-  if (root.kind === "undo" || board.construction !== null) throw new SupportError("invalid");
-  const active = events.filter((event) => event.kind !== "undo" && !reversed.has(event.id));
+  if (root.kind === "undo" && !actor.override) {
+    const affected = new Set(root.reverses);
+    for (const event of [...events].reverse()) {
+      if (!affected.has(event.id)) continue;
+      if (event.principalId !== actor.principalId && event.principalType !== "service") throw new SupportError("forbidden");
+      event.reverses.forEach((id) => affected.add(id));
+    }
+  }
+  const draftId = root.context.draftId;
+  if (draftId && board.construction?.id === draftId && now >= Date.parse(String(readField(board, draftKey(draftId, "endsAt"))))) throw new SupportError("notOpen");
+  const active = events.filter((event) => (event.kind !== "undo" || (root.kind === "undo" && event.boardVersion >= root.boardVersion)) && !reversed.has(event.id));
   const activeIds = new Set(active.map((event) => event.id));
   const writers = new Map<string, string>();
   const dependencies = new Map<string, Set<string>>();
@@ -40,7 +60,7 @@ export function previewUndo(board: SupportBoard, history: SupportEvent[], roster
         changes[patch.key] = patch.before;
       }
     }
-    const simulated = recordChanges(board, actor, changes, [...observed], { mode: "undo", sourceActionId: rootActionId }, "undo", { id: "preview", at: "", idempotencyKey: "" }, actions.map((event) => event.id));
+    const simulated = recordChanges(board, actor, changes, [...observed], { mode: "undo", sourceActionId: rootActionId, draftId: root.context.draftId }, "undo", { id: "preview", at: "", idempotencyKey: "" }, actions.map((event) => event.id));
     const targets = balancedTargets(roster.length, teamIds(simulated.board));
     const overfull = Object.keys(targets).find((team) => {
       const before = roster.filter((member) => memberTeam(board, member.id) === team).length;
@@ -55,6 +75,7 @@ export function previewUndo(board: SupportBoard, history: SupportEvent[], roster
     }
     if (actions.length > 1 && !actor.override) throw new SupportError("dependencies");
     validateRestoration(simulated.board, roster, Object.keys(changes));
+    validateDraftRestoration(simulated.board, roster, Object.keys(changes), now);
     const restoredTeams = new Set(Object.entries(changes).filter(([key, value]) => JSON.parse(key)[0] === "member" && typeof value === "string").map(([, value]) => String(value)));
     for (const member of roster) {
       if (restoredTeams.has(memberTeam(board, member.id) ?? "")) observed.add(fieldKey("member", member.id, "team"));
@@ -65,10 +86,10 @@ export function previewUndo(board: SupportBoard, history: SupportEvent[], roster
 }
 
 export function confirmUndo(board: SupportBoard, history: SupportEvent[], roster: SupportRosterMember[], actor: SupportActor, expected: UndoPreview, identity: EventIdentity) {
-  const preview = previewUndo(board, history, roster, actor, expected.rootActionId);
+  const preview = previewUndo(board, history, roster, actor, expected.rootActionId, Number.isFinite(Date.parse(identity.at)) ? Date.parse(identity.at) : Date.now());
   const sameVersions = Object.keys(preview.expectedVersions).length === Object.keys(expected.expectedVersions).length && Object.entries(preview.expectedVersions).every(([key, value]) => expected.expectedVersions[key] === value);
   if (!sameVersions || JSON.stringify(preview.actionIds) !== JSON.stringify(expected.actionIds)) throw new SupportError("changed");
-  return recordChanges(board, actor, Object.fromEntries(preview.patches.map((patch) => [patch.key, patch.after])), Object.keys(preview.expectedVersions), { mode: "undo", sourceActionId: preview.rootActionId }, "undo", identity, preview.actionIds);
+  return recordChanges(board, actor, Object.fromEntries(preview.patches.map((patch) => [patch.key, patch.after])), Object.keys(preview.expectedVersions), { mode: "undo", sourceActionId: preview.rootActionId, draftId: history.find((event) => event.id === preview.rootActionId)?.context.draftId }, "undo", identity, preview.actionIds);
 }
 
 export function historyPage(events: SupportEvent[], input: { beforeVersion?: number; actorId?: string; teamId?: string; memberId?: string; kind?: string; contextId?: string; query?: string; limit?: number }) {

@@ -1,5 +1,27 @@
 {
   "supportTeams": {
+    "draft": {
+      "title": "Scheduled team draft",
+      "create": "Schedule draft",
+      "startsAt": "Draft starts",
+      "endsAt": "Overall deadline",
+      "roundDuration": "Minutes per round",
+      "preparation": "Prepare your picks before the draft starts.",
+      "round": "Round {round}",
+      "deadline": "Current round ends {time}.",
+      "pick": "Pick member",
+      "pickFor": "Pick for {lead}",
+      "picked": "This team has picked in this round.",
+      "waiting": "Waiting for {names}.",
+      "proxyHint": "The owner or platform admin may proxy at any time. Other officers may fill an unclaimed pick after its deadline.",
+      "proxyEarly": "This team’s proxy window opens at {time}.",
+      "expired": "The draft deadline has passed. Unfinished work has been preserved.",
+      "extend": "Extend draft",
+      "finishPartial": "Finish with members still Unsorted",
+      "publish": "Publish draft",
+      "publishConfirm": "Publish this allocation as the current teams? Members still Unsorted will remain unassigned.",
+      "notOpen": "This draft is not currently open for picks."
+    },
     "title": "Support teams",
     "readOnly": "You can view this team plan but cannot change it.",
     "changed": "The team plan changed. Review the latest version and try again.",

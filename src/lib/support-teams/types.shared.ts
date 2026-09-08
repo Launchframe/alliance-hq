@@ -10,6 +10,7 @@ export type SupportRosterMember = {
   kills: number | null;
   thp: number | null;
   tenureDays: number | null;
+  draftStintToken?: string;
   hqLinked: boolean;
   discordLinked: boolean;
 };
@@ -61,7 +62,8 @@ export type SupportEvent = {
   memberNames: Record<string, string>;
   teamNames: Record<string, string | null>;
   at: string;
-  kind: SupportCommand["kind"] | "undo";
+  kind: SupportCommand["kind"] | "undo" | "scheduleDraft" | "draftPick" | "advanceDraft" | "extendDraft" | "publishDraft" | "cancelDraft";
+  principalType?: "human" | "service";
   context: SupportContext;
   boardVersion: number;
   idempotencyKey: string;
@@ -80,9 +82,9 @@ export type SupportCommand = { expectedVersion: number } & (
   | { kind: "move"; memberId: string; from: string | null; to: string | null }
   | { kind: "swap"; memberId: string; otherMemberId: string; from: string; to: string }
 );
-export type SupportErrorCode = "forbidden" | "changed" | "memberUnavailable" | "leadRequired" | "teamFull" | "nameRequired" | "nameLimit" | "dependencies" | "invalid" | "undone";
+export type SupportErrorCode = "forbidden" | "changed" | "memberUnavailable" | "leadRequired" | "teamFull" | "nameRequired" | "nameLimit" | "dependencies" | "invalid" | "undone" | "notOpen" | "proxyEarly";
 export class SupportError extends Error {
-  constructor(public readonly code: SupportErrorCode) { super(code); }
+  constructor(public readonly code: SupportErrorCode, public readonly details?: { deadline?: string }) { super(code); }
 }
 export type UndoPreview = {
   rootActionId: string;
