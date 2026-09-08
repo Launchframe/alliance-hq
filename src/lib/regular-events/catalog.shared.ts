@@ -51,6 +51,20 @@ export const SKY_GLACIER_ALLOWED_DOWS = [3, 4, 5] as const;
 
 export const MARSHAL_GUARD_DEFAULT_INTERVAL_DAYS = 2;
 
+/** Sky Predator + Glacierdon: only bi-weekly cadence is valid. */
+export const SKY_GLACIER_EVENT_KEYS = [
+  "sky_marshall",
+  "glacierdon",
+] as const satisfies readonly RegularEventKey[];
+
+export type SkyGlacierEventKey = (typeof SKY_GLACIER_EVENT_KEYS)[number];
+
+export function isSkyGlacierEventKey(
+  value: string,
+): value is SkyGlacierEventKey {
+  return (SKY_GLACIER_EVENT_KEYS as readonly string[]).includes(value);
+}
+
 export function isRegularEventKey(value: string): value is RegularEventKey {
   return (REGULAR_EVENT_KEYS as readonly string[]).includes(value);
 }

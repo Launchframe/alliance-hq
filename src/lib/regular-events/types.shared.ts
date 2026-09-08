@@ -39,6 +39,17 @@ export function cadenceFromScheduleKind(
   return "weekly";
 }
 
+/** Sky Predator / Glacierdon are always bi-weekly in the UI and on save. */
+export function effectiveRepeatCadenceForEvent(
+  eventKey: string,
+  scheduleKind: string,
+): RegularEventRepeatCadence {
+  if (eventKey === "sky_marshall" || eventKey === "glacierdon") {
+    return "biweekly";
+  }
+  return cadenceFromScheduleKind(scheduleKind);
+}
+
 export function scheduleKindFromCadence(
   cadence: RegularEventRepeatCadence,
 ): Exclude<RegularEventScheduleKind, "interval_after_last"> {

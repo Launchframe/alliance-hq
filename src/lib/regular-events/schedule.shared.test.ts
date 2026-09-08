@@ -9,6 +9,7 @@ import {
   zombieSiegeTimeSt,
   zombieSiegeWeeklySlots,
 } from "./schedule.shared";
+import { effectiveRepeatCadenceForEvent } from "./types.shared";
 import {
   computeNextIntervalOccurrence,
   computeWeeklyOccurrencesInWindow,
@@ -67,6 +68,27 @@ describe("regular-events schedule", () => {
     const announce = announceAtFromStart(start, 60);
     expect(announce.toISOString()).toBe(
       new Date(start.getTime() - 60 * 60 * 1000).toISOString(),
+    );
+  });
+
+  it("defaults Sky Predator and Glacierdon to opposite biweekly phases", () => {
+    const defaults = defaultRulesForAlliance(false, "2026-09-09");
+    const sky = defaults.find((r) => r.eventKey === "sky_marshall");
+    const glacier = defaults.find((r) => r.eventKey === "glacierdon");
+    expect(sky?.scheduleKind).toBe("biweekly");
+    expect(glacier?.scheduleKind).toBe("biweekly");
+    expect(sky?.biweeklyPhaseMonday).not.toBe(glacier?.biweeklyPhaseMonday);
+  });
+
+  it("forces biweekly cadence for Sky Predator and Glacierdon", () => {
+    expect(effectiveRepeatCadenceForEvent("sky_marshall", "weekly")).toBe(
+      "biweekly",
+    );
+    expect(effectiveRepeatCadenceForEvent("glacierdon", "once")).toBe(
+      "biweekly",
+    );
+    expect(effectiveRepeatCadenceForEvent("zombie_siege", "weekly")).toBe(
+      "weekly",
     );
   });
 

@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import {
+  isSkyGlacierEventKey,
   SKY_GLACIER_ALLOWED_DOWS,
   type RegularEventKey,
 } from "@/lib/regular-events/catalog.shared";
@@ -22,7 +23,7 @@ import {
   toggleOneShotDate,
 } from "@/lib/regular-events/schedule-validation.shared";
 import {
-  cadenceFromScheduleKind,
+  effectiveRepeatCadenceForEvent,
   scheduleKindFromCadence,
   type RegularEventRepeatCadence,
 } from "@/lib/regular-events/types.shared";
@@ -101,11 +102,20 @@ export function RegularEventsCalendar({
   );
   const activeEventKey = filterEventKey ?? selectedEventKey;
   const activeRule = rules.find((r) => r.eventKey === activeEventKey) ?? null;
+  const repeatsLocked = Boolean(
+    activeRule && isSkyGlacierEventKey(activeRule.eventKey),
+  );
   const [repeatsOverride, setRepeatsOverride] =
     useState<RegularEventRepeatCadence | null>(null);
-  const repeats: RegularEventRepeatCadence =
-    repeatsOverride ??
-    (activeRule ? cadenceFromScheduleKind(activeRule.scheduleKind) : "weekly");
+  const repeats: RegularEventRepeatCadence = repeatsLocked
+    ? "biweekly"
+    : (repeatsOverride ??
+      (activeRule
+        ? effectiveRepeatCadenceForEvent(
+            activeRule.eventKey,
+            activeRule.scheduleKind,
+          )
+        : "weekly"));
 
   const markers = useMemo(() => {
     if (view === "week") {
@@ -196,6 +206,7 @@ export function RegularEventsCalendar({
   };
 
   const onChangeRepeats = async (next: RegularEventRepeatCadence) => {
+    if (repeatsLocked) return;
     setRepeatsOverride(next);
     if (!canManage || busy || !activeRule) return;
     const kind = scheduleKindFromCadence(next);
@@ -320,14 +331,20 @@ export function RegularEventsCalendar({
             <select
               className="rounded border border-hq-border bg-hq-bg px-2 py-1"
               value={repeats}
-              disabled={busy}
+              disabled={busy || repeatsLocked}
               onChange={(e) =>
                 void onChangeRepeats(e.target.value as RegularEventRepeatCadence)
               }
             >
-              <option value="once">{t("repeatsOnce")}</option>
-              <option value="weekly">{t("repeatsWeekly")}</option>
-              <option value="biweekly">{t("repeatsBiweekly")}</option>
+              {repeatsLocked ? (
+                <option value="biweekly">{t("repeatsBiweekly")}</option>
+              ) : (
+                <>
+                  <option value="once">{t("repeatsOnce")}</option>
+                  <option value="weekly">{t("repeatsWeekly")}</option>
+                  <option value="biweekly">{t("repeatsBiweekly")}</option>
+                </>
+              )}
             </select>
           </label>
           <label className="flex flex-col gap-1">

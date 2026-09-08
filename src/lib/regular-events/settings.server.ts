@@ -11,6 +11,7 @@ import { getDb, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import {
   isRegularEventKey,
+  isSkyGlacierEventKey,
   regularEventLabel,
 } from "@/lib/regular-events/catalog.shared";
 import {
@@ -119,6 +120,32 @@ function datesForRuleDraft(input: {
     });
   }
   return [];
+}
+
+function coerceSkyGlacierScheduleFields(input: {
+  eventKey: string;
+  scheduleKind: RegularEventScheduleKind;
+  oneShotDates: string[] | null;
+  biweeklyPhaseMonday: string | null | undefined;
+}): {
+  scheduleKind: RegularEventScheduleKind;
+  oneShotDates: string[] | null;
+  biweeklyPhaseMonday: string | null;
+} {
+  if (!isSkyGlacierEventKey(input.eventKey)) {
+    return {
+      scheduleKind: input.scheduleKind,
+      oneShotDates: input.oneShotDates,
+      biweeklyPhaseMonday: input.biweeklyPhaseMonday ?? null,
+    };
+  }
+  return {
+    scheduleKind: "biweekly",
+    oneShotDates: null,
+    biweeklyPhaseMonday:
+      input.biweeklyPhaseMonday ??
+      getWeekStartMonday(getServerCalendarDate()),
+  };
 }
 
 function assertScheduleValid(input: {
@@ -470,22 +497,28 @@ export async function saveRegularEventsSettings(
       throw new Error("Invalid event key.");
     }
     const { weeklySlots, oneShotDates } = parseRuleFields(input.upsertRule);
-    assertScheduleValid({
+    const coerced = coerceSkyGlacierScheduleFields({
       eventKey,
       scheduleKind: input.upsertRule.scheduleKind,
-      weeklySlots: weeklySlots ?? null,
       oneShotDates: oneShotDates ?? null,
       biweeklyPhaseMonday: input.upsertRule.biweeklyPhaseMonday,
+    });
+    assertScheduleValid({
+      eventKey,
+      scheduleKind: coerced.scheduleKind,
+      weeklySlots: weeklySlots ?? null,
+      oneShotDates: coerced.oneShotDates,
+      biweeklyPhaseMonday: coerced.biweeklyPhaseMonday,
       intervalDays: input.upsertRule.intervalDays,
       siblingRules: siblings.filter((s) => s.eventKey !== eventKey),
     });
     await upsertRegularEventScheduleRule({
       allianceId,
       eventKey,
-      scheduleKind: input.upsertRule.scheduleKind,
+      scheduleKind: coerced.scheduleKind,
       weeklySlots: weeklySlots ?? null,
-      oneShotDates: oneShotDates ?? null,
-      biweeklyPhaseMonday: input.upsertRule.biweeklyPhaseMonday,
+      oneShotDates: coerced.oneShotDates,
+      biweeklyPhaseMonday: coerced.biweeklyPhaseMonday,
       intervalDays: input.upsertRule.intervalDays,
       anchorTimeSt: input.upsertRule.anchorTimeSt,
       announceLeadMinutes: input.upsertRule.announceLeadMinutes,
@@ -514,12 +547,18 @@ export async function saveRegularEventsSettings(
       input.updateRule.biweeklyPhaseMonday === undefined
         ? existing.biweeklyPhaseMonday
         : input.updateRule.biweeklyPhaseMonday;
-    assertScheduleValid({
+    const coerced = coerceSkyGlacierScheduleFields({
       eventKey: existing.eventKey,
       scheduleKind: nextKind,
-      weeklySlots: nextWeekly,
       oneShotDates: nextOnce,
       biweeklyPhaseMonday: nextPhase,
+    });
+    assertScheduleValid({
+      eventKey: existing.eventKey,
+      scheduleKind: coerced.scheduleKind,
+      weeklySlots: nextWeekly,
+      oneShotDates: coerced.oneShotDates,
+      biweeklyPhaseMonday: coerced.biweeklyPhaseMonday,
       intervalDays:
         input.updateRule.intervalDays === undefined
           ? existing.intervalDays
@@ -529,10 +568,10 @@ export async function saveRegularEventsSettings(
     const updated = await updateRegularEventScheduleRuleById({
       allianceId,
       ruleId: input.updateRule.ruleId,
-      scheduleKind: input.updateRule.scheduleKind,
+      scheduleKind: coerced.scheduleKind,
       weeklySlots,
-      oneShotDates,
-      biweeklyPhaseMonday: input.updateRule.biweeklyPhaseMonday,
+      oneShotDates: coerced.oneShotDates,
+      biweeklyPhaseMonday: coerced.biweeklyPhaseMonday,
       intervalDays: input.updateRule.intervalDays,
       anchorTimeSt: input.updateRule.anchorTimeSt,
       announceLeadMinutes: input.updateRule.announceLeadMinutes,

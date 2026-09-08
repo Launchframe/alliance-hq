@@ -1,25 +1,35 @@
 import "server-only";
 
 import {
+  isSkyGlacierEventKey,
+  type RegularEventKey,
+} from "@/lib/regular-events/catalog.shared";
+import {
   listRegularEventScheduleRules,
+  updateRegularEventScheduleRuleById,
   upsertRegularEventScheduleRule,
 } from "@/lib/regular-events/repository.server";
 import { defaultRulesForAlliance } from "@/lib/regular-events/schedule.shared";
-import type { RegularEventKey } from "@/lib/regular-events/catalog.shared";
 import { zombieSiegeWeeklySlots } from "@/lib/regular-events/schedule.shared";
+import {
+  getServerCalendarDate,
+  getWeekStartMonday,
+} from "@/lib/trains/game-time";
 
 /**
  * Seed catalog defaults for any missing event_key when announcements are enabled.
  * Does not overwrite officer-customized rules that already exist.
+ * Also forces Sky Predator / Glacierdon onto bi-weekly if a legacy cadence remains.
  */
 export async function ensureDefaultRegularEventRules(input: {
   allianceId: string;
   canyonStormActive: boolean;
-}): Promise<{ created: number }> {
+}): Promise<{ created: number; normalized: number }> {
   const existing = await listRegularEventScheduleRules(input.allianceId);
   const have = new Set(existing.map((row) => row.eventKey));
   const defaults = defaultRulesForAlliance(input.canyonStormActive);
   let created = 0;
+  let normalized = 0;
 
   for (const rule of defaults) {
     if (have.has(rule.eventKey)) continue;
@@ -38,7 +48,25 @@ export async function ensureDefaultRegularEventRules(input: {
     created += 1;
   }
 
-  return { created };
+  const afterSeed = await listRegularEventScheduleRules(input.allianceId);
+  const defaultPhases = defaultRulesForAlliance(input.canyonStormActive);
+  for (const row of afterSeed) {
+    if (!isSkyGlacierEventKey(row.eventKey)) continue;
+    if (row.scheduleKind === "biweekly" && row.biweeklyPhaseMonday) continue;
+    const fallbackPhase =
+      defaultPhases.find((d) => d.eventKey === row.eventKey)
+        ?.biweeklyPhaseMonday ?? getWeekStartMonday(getServerCalendarDate());
+    await updateRegularEventScheduleRuleById({
+      allianceId: input.allianceId,
+      ruleId: row.id,
+      scheduleKind: "biweekly",
+      oneShotDates: null,
+      biweeklyPhaseMonday: row.biweeklyPhaseMonday ?? fallbackPhase,
+    });
+    normalized += 1;
+  }
+
+  return { created, normalized };
 }
 
 /**
