@@ -1,5 +1,8 @@
 import "server-only";
 
+import { CoverageConflictError } from "@/lib/time-off/coverage.server";
+import type { CoverageConflict } from "@/lib/time-off/coverage.shared";
+
 import { resolveDiscordChannelSetterAccess } from "@/lib/discord/channel-setter-auth.server";
 import type { DiscordBotLocale } from "@/lib/discord/i18n";
 import { createDiscordTranslator } from "@/lib/discord/i18n";
@@ -24,6 +27,7 @@ import { findFuzzyMemberCandidates } from "@/lib/video/member-matcher";
 
 export type TrainBotReply = {
   reply: string;
+  coverage?: { conflicts: CoverageConflict[]; action: "pick" | "lock"; date: string; memberId?: string; memberName?: string };
   pickCandidates?: Array<{ memberId: string; name: string; date: string }>;
   pendingPick?: { memberId: string; memberName: string; date: string };
 };
@@ -274,6 +278,7 @@ export async function handleDiscordTrainConductorPick(input: {
     });
     return { reply };
   } catch (error) {
+    if (error instanceof CoverageConflictError) return { reply: t("teamWork.keepHint"), coverage: { conflicts: error.conflicts, action: "pick", date: input.date, memberId: member.id, memberName: member.current_name } };
     const message =
       error instanceof Error ? error.message : t("errors.serverError");
     return { reply: message };
@@ -332,6 +337,7 @@ export async function handleDiscordTrainIsReady(input: {
     });
     return { reply };
   } catch (error) {
+    if (error instanceof CoverageConflictError) return { reply: t("teamWork.keepHint"), coverage: { conflicts: error.conflicts, action: "lock", date } };
     const message =
       error instanceof Error ? error.message : t("errors.serverError");
     await writeDiscordBotAudit({

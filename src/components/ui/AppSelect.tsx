@@ -223,9 +223,9 @@ export function AppSelect({
   }, [open, useCombobox]);
 
   React.useEffect(() => {
-    if (!searchable) return;
+    if (!searchable || explicitSelection) return;
     const id = window.requestAnimationFrame(() => {
-      setActiveIndex(!explicitSelection && enabledOptions.length > 0 ? 0 : -1);
+      setActiveIndex(enabledOptions.length > 0 ? 0 : -1);
       explicitCandidateRef.current = null;
     });
     return () => window.cancelAnimationFrame(id);
@@ -514,7 +514,13 @@ export function AppSelect({
                   id={searchInputId}
                   type="search"
                   value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onChange={(event) => {
+                    if (explicitSelection) {
+                      setActiveIndex(-1);
+                      explicitCandidateRef.current = null;
+                    }
+                    setSearchQuery(event.target.value);
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === "Escape") {
                       event.stopPropagation();
@@ -594,6 +600,10 @@ export function AppSelect({
             value={comboboxDisplayValue}
             placeholder={placeholder}
             onChange={(event) => {
+              if (explicitSelection) {
+                setActiveIndex(-1);
+                explicitCandidateRef.current = null;
+              }
               setSearchQuery(event.target.value);
               setOpen(true);
               setMenuRect(updateMenuRect());

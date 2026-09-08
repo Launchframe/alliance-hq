@@ -1,160 +1,58 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as schema from "@/lib/db/schema";
 
-const mocks = vi.hoisted(() => ({
-  getEffectiveSeasonForAlliance: vi.fn(),
-  getConductorRecord: vi.fn(),
-  getMemberRankAsOf: vi.fn(),
-  upsertConductorDraft: vi.fn(),
-  clearConductorAssignment: vi.fn(),
-  clearVipAssignment: vi.fn(),
-  lockConductorRecord: vi.fn(),
-  getServerCalendarDate: vi.fn(),
-  movePoolSelectionForDate: vi.fn(),
-  resolveRollDayConfig: vi.fn(),
-}));
-
-vi.mock("@/lib/game-season/sync", () => ({
-  getEffectiveSeasonForAlliance: mocks.getEffectiveSeasonForAlliance,
-}));
-
-vi.mock("@/lib/trains/rank-history", () => ({
-  getMemberRankAsOf: mocks.getMemberRankAsOf,
-}));
-
-vi.mock("@/lib/trains/repository", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/trains/repository")>(
-    "@/lib/trains/repository",
-  );
-  return {
-    ...actual,
-    getConductorRecord: mocks.getConductorRecord,
-    upsertConductorDraft: mocks.upsertConductorDraft,
-    clearConductorAssignment: mocks.clearConductorAssignment,
-    clearVipAssignment: mocks.clearVipAssignment,
-    lockConductorRecord: mocks.lockConductorRecord,
+const mocks = vi.hoisted(() => ({ snapshot: vi.fn(), updates: vi.fn(), inserts: vi.fn(), lock: vi.fn(), guard: vi.fn() }));
+vi.mock("@/lib/time-off/availability.server", () => ({ lockAllianceAvailability: mocks.lock }));
+vi.mock("@/lib/time-off/coverage.server", async (original) => ({ ...await original<object>(), assertDutyCoverage: mocks.guard }));
+vi.mock("@/lib/db", async () => {
+  const schema = await import("@/lib/db/schema");
+  const tx = {
+    select: () => ({ from: (table: unknown) => {
+      const result = table === schema.trainConductorRecords ? mocks.snapshot() : [];
+      const chain = { where: () => chain, orderBy: () => chain, for: async () => result, limit: async () => result, then: (resolve: (rows: unknown[]) => unknown) => Promise.resolve(result).then(resolve) };
+      return chain;
+    } }),
+    update: (table: unknown) => ({ set: (patch: unknown) => ({ where: async () => { mocks.updates(table, patch); } }) }),
+    insert: (table: unknown) => ({ values: async (patch: unknown) => { mocks.inserts(table, patch); } }),
   };
+  return { schema, getDb: () => ({ transaction: (work: (db: typeof tx) => unknown) => work(tx) }) };
 });
+import { swapConductorDrafts } from "./swap-coverage.server";
 
-vi.mock("@/lib/trains/pool", () => ({
-  movePoolSelectionForDate: mocks.movePoolSelectionForDate,
-}));
+const input = { allianceId: "alliance", dateA: "2099-06-10", dateB: "2099-06-12" };
+const row = { id: "source", allianceId: "alliance", date: input.dateA, conductorMemberId: "m1", conductorMemberName: "Alice", vipMemberId: "v1", vipMemberName: "VIP", lockedAt: null };
 
-vi.mock("@/lib/trains/day-config-resolve.server", () => ({
-  resolveRollDayConfig: mocks.resolveRollDayConfig,
-}));
-
-vi.mock("@/lib/trains/game-time", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/trains/game-time")>(
-    "@/lib/trains/game-time",
-  );
-  return {
-    ...actual,
-    getServerCalendarDate: mocks.getServerCalendarDate,
-  };
-});
-
-import { swapConductors } from "@/lib/trains/service";
-
-describe("swapConductors open-target VIP clear", () => {
+describe("atomic conductor swaps", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getEffectiveSeasonForAlliance.mockResolvedValue({ seasonKey: "S1" });
-    mocks.getServerCalendarDate.mockReturnValue("2026-06-09");
-    mocks.getMemberRankAsOf.mockResolvedValue({ id: "rank-1" });
-    mocks.upsertConductorDraft.mockResolvedValue(undefined);
-    mocks.clearConductorAssignment.mockResolvedValue(undefined);
-    mocks.clearVipAssignment.mockResolvedValue(undefined);
-    mocks.movePoolSelectionForDate.mockResolvedValue(undefined);
-    mocks.resolveRollDayConfig.mockResolvedValue({
-      paintTemplate: "tpif_with_replacement",
-      conductorMechanism: "tpif_with_replacement",
-    });
-    mocks.lockConductorRecord.mockImplementation(async (id: string) => ({
-      id,
-      lockedAt: new Date("2026-06-12T12:00:00.000Z"),
-    }));
+    mocks.guard.mockResolvedValue(undefined);
+    mocks.snapshot.mockReturnValue([{ row, version: "1" }]);
   });
-
-  it("clears orphan VIP on the emptied source day", async () => {
-    mocks.getConductorRecord
-      .mockResolvedValueOnce({
-        id: "rec-a",
-        date: "2026-06-10",
-        conductorMemberId: "m1",
-        conductorMemberName: "Alice",
-        vipMemberId: "m9",
-        vipMemberName: "VIP Nine",
-        lockedAt: null,
-      })
-      .mockResolvedValueOnce(null)
-      // drafts after mutate
-      .mockResolvedValueOnce({
-        id: "rec-a",
-        date: "2026-06-10",
-        conductorMemberId: null,
-        conductorMemberName: null,
-        vipMemberId: null,
-        lockedAt: null,
-      })
-      .mockResolvedValueOnce({
-        id: "rec-b",
-        date: "2026-06-12",
-        conductorMemberId: "m1",
-        conductorMemberName: "Alice",
-        lockedAt: null,
-      });
-
-    await swapConductors({
-      allianceId: "ally-1",
-      dateA: "2026-06-10",
-      dateB: "2026-06-12",
-    });
-
-    expect(mocks.clearConductorAssignment).toHaveBeenCalledWith(
-      "ally-1",
-      "2026-06-10",
-      "S1",
-      { releasePool: false },
-    );
-    expect(mocks.clearVipAssignment).toHaveBeenCalledWith(
-      "ally-1",
-      "2026-06-10",
-      "S1",
-    );
+  it("clears the orphan source VIP and its pool claim without releasing the conductor", async () => {
+    await swapConductorDrafts(input);
+    expect(mocks.updates).toHaveBeenCalledWith(schema.trainConductorRecords, expect.objectContaining({ conductorMemberId: null, vipMemberId: null }));
+    expect(mocks.updates).toHaveBeenCalledWith(schema.conductorPoolEntries, { selectedAt: null, selectedForDate: null });
+    expect(mocks.updates).toHaveBeenCalledWith(schema.conductorPoolEntries, { selectedForDate: input.dateB });
+    expect(mocks.inserts).toHaveBeenCalledWith(schema.trainConductorRecords, expect.objectContaining({ conductorMemberId: "m1", date: input.dateB }));
+    expect(mocks.lock.mock.invocationCallOrder[0]).toBeLessThan(mocks.snapshot.mock.invocationCallOrder[0]!);
+    expect(mocks.guard.mock.invocationCallOrder[0]).toBeLessThan(mocks.updates.mock.invocationCallOrder[0]!);
   });
-
-  it("skips VIP clear when source had no VIP", async () => {
-    mocks.getConductorRecord
-      .mockResolvedValueOnce({
-        id: "rec-a",
-        date: "2026-06-10",
-        conductorMemberId: "m1",
-        conductorMemberName: "Alice",
-        vipMemberId: null,
-        vipMemberName: null,
-        lockedAt: null,
-      })
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        id: "rec-a",
-        date: "2026-06-10",
-        conductorMemberId: null,
-        lockedAt: null,
-      })
-      .mockResolvedValueOnce({
-        id: "rec-b",
-        date: "2026-06-12",
-        conductorMemberId: "m1",
-        conductorMemberName: "Alice",
-        lockedAt: null,
-      });
-
-    await swapConductors({
-      allianceId: "ally-1",
-      dateA: "2026-06-10",
-      dateB: "2026-06-12",
-    });
-
-    expect(mocks.clearVipAssignment).not.toHaveBeenCalled();
+  it("does not release a VIP pool claim when source has no VIP", async () => {
+    mocks.snapshot.mockReturnValue([{ row: { ...row, vipMemberId: null }, version: "1" }]);
+    await swapConductorDrafts(input);
+    expect(mocks.updates).not.toHaveBeenCalledWith(schema.conductorPoolEntries, { selectedAt: null, selectedForDate: null });
+  });
+  it("preserves both locks and assignments when a day is locked", async () => {
+    mocks.snapshot.mockReturnValue([{ row: { ...row, lockedAt: new Date() }, version: "1" }]);
+    await expect(swapConductorDrafts(input)).rejects.toThrow("Unlock");
+    expect(mocks.updates).not.toHaveBeenCalled();
+    expect(mocks.inserts).not.toHaveBeenCalled();
+  });
+  it("checks the destination absence before changing either day or pool", async () => {
+    mocks.guard.mockRejectedValue(new Error("coverage_conflict"));
+    await expect(swapConductorDrafts(input)).rejects.toThrow("coverage_conflict");
+    expect(mocks.guard).toHaveBeenCalledWith(expect.anything(), "alliance", [expect.objectContaining({ memberId: "m1", dutyDate: input.dateB, assignmentVersion: "unassigned" })]);
+    expect(mocks.updates).not.toHaveBeenCalled();
+    expect(mocks.inserts).not.toHaveBeenCalled();
   });
 });
