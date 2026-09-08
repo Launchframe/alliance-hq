@@ -101,6 +101,7 @@ import {
 } from "@/lib/vr/discord-command-names";
 import {
   handleDiscordSetBankingChannel,
+  handleDiscordSetR4Channel,
   handleDiscordSetRegularEventsChannel,
   handleDiscordSetSeasonalEventsChannel,
 } from "@/lib/battle-plan/discord-channel-handlers.server";
@@ -338,6 +339,23 @@ async function handleSlashCommand(
       return channelVisibleCommandResponse(t("errors.serverError"));
     }
     const result = await handleDiscordSetRegularEventsChannel({
+      guildId,
+      channelId,
+      discordUserId,
+      locale,
+    });
+    return channelVisibleCommandResponse(result.reply);
+  }
+
+  if (commandName === "set-r4-channel") {
+    if (!guildId) {
+      return channelVisibleCommandResponse(t("errors.guildNotRegistered"));
+    }
+    const channelId = interactionChannelId(payload);
+    if (!channelId) {
+      return channelVisibleCommandResponse(t("errors.serverError"));
+    }
+    const result = await handleDiscordSetR4Channel({
       guildId,
       channelId,
       discordUserId,
