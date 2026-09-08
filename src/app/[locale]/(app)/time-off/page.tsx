@@ -7,6 +7,9 @@ import { loadTimeOffCalendar } from "@/lib/time-off/load-dashboard.server";
 import { TIME_OFF_READ_PERMISSION } from "@/lib/rbac/constants";
 import { requirePagePermission } from "@/lib/rbac/page-permission";
 import { requirePageSession } from "@/lib/session";
+import { requireVsComplianceAccess } from "@/lib/vs-compliance/access.server";
+import { VsComplianceError } from "@/lib/vs-compliance/types.shared";
+import { VS_COMPLIANCE_READ_PERMISSION } from "@/lib/rbac/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -33,5 +36,8 @@ export default async function TimeOffPage() {
     notFound();
   }
 
-  return <TimeOffCalendarClient initial={dashboard} />;
+  let showComplianceLink = false;
+  try { await requireVsComplianceAccess(session.id, allianceId, VS_COMPLIANCE_READ_PERMISSION); showComplianceLink = true; }
+  catch (error) { if (!(error instanceof VsComplianceError) || error.code !== "forbidden") throw error; }
+  return <TimeOffCalendarClient initial={dashboard} showComplianceLink={showComplianceLink} />;
 }

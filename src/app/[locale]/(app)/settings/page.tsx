@@ -6,6 +6,9 @@ import { AllianceContextRequired } from "@/components/settings/AllianceContextRe
 import { buildAllianceSetupStatusPayload } from "@/lib/alliance-setup-guide-status-api";
 import { requireAllianceSettingsSession, resolveAllianceTagForSession, shouldShowTeamAccessNavForSession } from "@/lib/settings/alliance-settings-access.server";
 import { requirePageSession } from "@/lib/session";
+import { requireVsComplianceAccess } from "@/lib/vs-compliance/access.server";
+import { VsComplianceError } from "@/lib/vs-compliance/types.shared";
+import { VS_COMPLIANCE_READ_PERMISSION } from "@/lib/rbac/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +31,12 @@ export default async function SettingsPage({
 
   const allianceTag = await resolveAllianceTagForSession(access.session);
   const showTeamLink = await shouldShowTeamAccessNavForSession(access.session);
+  let showComplianceLink = false;
+  const complianceAllianceId = access.session.currentAllianceId ?? access.session.allianceId;
+  if (complianceAllianceId) {
+    try { await requireVsComplianceAccess(access.session.id, complianceAllianceId, VS_COMPLIANCE_READ_PERMISSION); showComplianceLink = true; }
+    catch (error) { if (!(error instanceof VsComplianceError) || error.code !== "forbidden") throw error; }
+  }
   const setupGuide =
     access.session.hqUserId && access.session.currentAllianceId
       ? await buildAllianceSetupStatusPayload({
@@ -43,6 +52,7 @@ export default async function SettingsPage({
       <AllianceSettingsForm
         allianceTag={allianceTag}
         showTeamLink={showTeamLink}
+        showComplianceLink={showComplianceLink}
       />
     </div>
   );
