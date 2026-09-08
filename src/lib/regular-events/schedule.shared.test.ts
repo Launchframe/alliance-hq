@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   announceAtFromStart,
   defaultRulesForAlliance,
+  parseOneShotDatesPatch,
   parseWeeklySlots,
+  parseWeeklySlotsPatch,
   zombieSiegeTimeSt,
   zombieSiegeWeeklySlots,
 } from "./schedule.shared";
@@ -77,5 +79,20 @@ describe("regular-events schedule", () => {
     ).toHaveLength(2);
     expect(parseWeeklySlots([{ dow: 1, timeSt: "25:00" }])).toBeNull();
     expect(parseWeeklySlots([{ dow: 8, timeSt: "23:00" }])).toBeNull();
+  });
+
+  it("treats null patch fields as explicit clears", () => {
+    expect(parseWeeklySlotsPatch(null)).toEqual({ ok: true, value: null });
+    expect(parseOneShotDatesPatch(null)).toEqual({ ok: true, value: null });
+    expect(parseWeeklySlotsPatch(undefined)).toEqual({
+      ok: true,
+      value: undefined,
+    });
+    expect(parseOneShotDatesPatch(["2026-09-09"])).toEqual({
+      ok: true,
+      value: ["2026-09-09"],
+    });
+    expect(parseOneShotDatesPatch("nope")).toEqual({ ok: false });
+    expect(parseWeeklySlotsPatch({ dow: 1 })).toEqual({ ok: false });
   });
 });

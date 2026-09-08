@@ -149,3 +149,31 @@ export function parseOneShotDates(value: unknown): string[] | null {
   }
   return [...new Set(dates)].sort();
 }
+
+/**
+ * PATCH helpers: `undefined` = omit, `null` = clear column, array = parse.
+ * Invalid non-null payloads return `{ ok: false }`.
+ */
+export function parseWeeklySlotsPatch(
+  value: unknown,
+):
+  | { ok: true; value: RegularEventWeeklySlot[] | null | undefined }
+  | { ok: false } {
+  if (value === undefined) return { ok: true, value: undefined };
+  if (value === null) return { ok: true, value: null };
+  const parsed = parseWeeklySlots(value);
+  if (parsed === null) return { ok: false };
+  return { ok: true, value: parsed };
+}
+
+export function parseOneShotDatesPatch(
+  value: unknown,
+):
+  | { ok: true; value: string[] | null | undefined }
+  | { ok: false } {
+  if (value === undefined) return { ok: true, value: undefined };
+  if (value === null) return { ok: true, value: null };
+  const parsed = parseOneShotDates(value);
+  if (parsed === null) return { ok: false };
+  return { ok: true, value: parsed };
+}

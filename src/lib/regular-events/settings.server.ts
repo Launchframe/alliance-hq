@@ -31,8 +31,8 @@ import type {
   RegularEventWeeklySlot,
 } from "@/lib/regular-events/types.shared";
 import {
-  parseOneShotDates,
-  parseWeeklySlots,
+  parseOneShotDatesPatch,
+  parseWeeklySlotsPatch,
 } from "@/lib/regular-events/schedule.shared";
 import {
   expandBiweeklySlotsToDates,
@@ -386,21 +386,16 @@ function parseRuleFields(patch: RulePatch): {
   weeklySlots: RegularEventWeeklySlot[] | null | undefined;
   oneShotDates: string[] | null | undefined;
 } {
-  const weeklySlots =
-    patch.weeklySlots === undefined
-      ? undefined
-      : parseWeeklySlots(patch.weeklySlots);
-  if (patch.weeklySlots !== undefined && weeklySlots === null) {
+  // `null` is an explicit clear (calendar sends it when leaving once / weekly).
+  const weekly = parseWeeklySlotsPatch(patch.weeklySlots);
+  if (!weekly.ok) {
     throw new Error("Invalid weekly slots.");
   }
-  const oneShotDates =
-    patch.oneShotDates === undefined
-      ? undefined
-      : parseOneShotDates(patch.oneShotDates);
-  if (patch.oneShotDates !== undefined && oneShotDates === null) {
+  const once = parseOneShotDatesPatch(patch.oneShotDates);
+  if (!once.ok) {
     throw new Error("Invalid one-shot dates.");
   }
-  return { weeklySlots, oneShotDates };
+  return { weeklySlots: weekly.value, oneShotDates: once.value };
 }
 
 export async function saveRegularEventsSettings(
