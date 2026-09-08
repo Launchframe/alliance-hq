@@ -67,6 +67,100 @@ test("native global absence blocks a rotation without consuming history and canc
   expect(selected).toEqual([{ member_id: f.roster.ashedMemberId, selected_for_date: f.date }]);
 });
 
+async function professionFixture() {
+  const f = await fixture();
+  const engId = nanoid();
+  const wlId = nanoid();
+  const teamId = nanoid();
+  const assignmentId = nanoid();
+  await f.sql`INSERT INTO commanders (id, primary_name, primary_name_normalized, current_alliance_id, profession)
+    VALUES (${engId}, 'Duty Member', 'duty member', ${f.alliance.allianceId}, 'Engineer'), (${wlId}, 'Duty Lead', 'duty lead', ${f.alliance.allianceId}, 'War Leader')`;
+  await f.sql`INSERT INTO commander_alliance_memberships (id, commander_id, alliance_id, ashed_member_id, status)
+    VALUES (${nanoid()}, ${engId}, ${f.alliance.allianceId}, ${f.roster.ashedMemberId}, 'active')`;
+  await f.sql`INSERT INTO hq_user_commanders (id, hq_user_id, commander_id, is_primary) VALUES (${nanoid()}, ${f.member.hqUserId}, ${engId}, true)`;
+  await f.sql`INSERT INTO wl_teams (id, alliance_id, wl_commander_id) VALUES (${teamId}, ${f.alliance.allianceId}, ${wlId})`;
+  await f.sql`INSERT INTO wl_eng_assignments (id, wl_team_id, alliance_id, eng_commander_id, coverage_start_hour, coverage_end_hour)
+    VALUES (${assignmentId}, ${teamId}, ${f.alliance.allianceId}, ${engId}, 22, 4)`;
+  return { ...f, engId, wlId, teamId, assignmentId };
+}
+
+test("configured Engineer shifts expose future multi-day overlaps, but not permanent pair duties", async ({ request }) => {
+  const f = await professionFixture();
+  const end = addCalendarDays(f.date, 2);
+  expect((await request.post("/api/time-off/entries", { headers: f.member.headers, data: { ashedMemberId: f.roster.ashedMemberId, startDate: f.date, endDate: end, requestId: randomUUID() } })).status()).toBe(200);
+  const list = await request.get("/api/time-off/coverage", { headers: f.officer.headers });
+  expect(list.status()).toBe(200);
+  const { conflicts } = await list.json();
+  expect(conflicts).toHaveLength(6);
+  expect(new Set(conflicts.map((conflict: { dutyDate: string }) => conflict.dutyDate))).toEqual(new Set([f.date, addCalendarDays(f.date, 1), end]));
+  expect(conflicts.every((conflict: { dutyRole: string; assignmentId: string }) => conflict.dutyRole === "engineer" && conflict.assignmentId === f.assignmentId)).toBe(true);
+  const bounded = await request.get(`/api/time-off/coverage?start=${f.date}&end=${f.date}`, { headers: f.officer.headers });
+  const edge = (await bounded.json()).conflicts;
+  expect(edge).toHaveLength(2);
+  expect(edge[0].dutyStartAt).toBe(`${addCalendarDays(f.date, -1)}T22:00:00.000Z`);
+  expect(edge[1].dutyEndAt).toBe(`${addCalendarDays(f.date, 1)}T04:00:00.000Z`);
+  await f.sql`UPDATE wl_eng_assignments SET coverage_start_hour = NULL, coverage_end_hour = NULL WHERE id = ${f.assignmentId}`;
+  expect((await (await request.get("/api/time-off/coverage", { headers: f.officer.headers })).json()).conflicts).toEqual([]);
+  expect(await f.sql`SELECT id, wl_team_id, eng_commander_id, status FROM wl_eng_assignments WHERE id = ${f.assignmentId}`).toEqual([{ id: f.assignmentId, wl_team_id: f.teamId, eng_commander_id: f.engId, status: "active" }]);
+});
+
+test("manual profession edits deny unauthorized overrides and require current absence/window confirmation", async ({ request }) => {
+  const f = await professionFixture();
+  const data = { assignmentId: f.assignmentId, coverageStartHour: 21, coverageEndHour: 5 };
+  expect((await request.post("/api/professions/coverage", { data })).status()).toBe(401);
+  await request.get("/api/auth/bootstrap?next=/", { maxRedirects: 0 });
+  expect((await request.post("/api/professions/coverage", { data })).status()).toBe(403);
+  for (const actor of [f.member, f.dataEntry]) {
+    expect((await request.post("/api/professions/coverage", { headers: actor.headers, data })).status()).toBe(403);
+    expect((await request.post("/api/professions/coverage", { headers: actor.headers, data: { coverageStartHour: 21, coverageEndHour: 5, coverage: { conflicts: [], note: "Confirmed", requestId: randomUUID() } } })).status()).toBe(403);
+  }
+  const identity = await f.sql`SELECT id, wl_team_id, eng_commander_id, assigned_at, status FROM wl_eng_assignments WHERE id = ${f.assignmentId}`;
+  const pastId = nanoid();
+  await f.sql`INSERT INTO train_conductor_records (id, alliance_id, date, conductor_member_id, locked_at) VALUES (${pastId}, ${f.alliance.allianceId}, ${addCalendarDays(getServerCalendarDate(), -1)}, ${f.roster.ashedMemberId}, now())`;
+  const locked = await f.sql`SELECT conductor_member_id, locked_at FROM train_conductor_records WHERE id = ${pastId}`;
+  const saved = await request.post("/api/time-off/entries", { headers: f.member.headers, data: { ashedMemberId: f.roster.ashedMemberId, startDate: f.date, endDate: addCalendarDays(f.date, 1), notes: "Private absence detail", requestId: randomUUID() } });
+  expect(saved.status()).toBe(200);
+  const { entry } = await saved.json();
+  const warning = await request.post("/api/professions/coverage", { headers: f.officer.headers, data });
+  expect(warning.status()).toBe(409);
+  const { conflicts } = await warning.json();
+  expect(conflicts).toHaveLength(4);
+  expect((await request.patch(`/api/time-off/entries/${entry.id}`, { headers: f.member.headers, data: { ashedMemberId: f.roster.ashedMemberId, startDate: f.date, endDate: addCalendarDays(f.date, 2), notes: "Changed private detail", version: entry.version } })).status()).toBe(200);
+  const stale = await request.post("/api/professions/coverage", { headers: f.officer.headers, data: { ...data, coverage: { conflicts, note: "Relief arranged", requestId: randomUUID() } } });
+  expect(stale.status()).toBe(409);
+  const fresh = (await stale.json()).conflicts;
+  expect(fresh).toHaveLength(6);
+  const changedWindow = await request.post("/api/professions/coverage", { headers: f.officer.headers, data: { ...data, coverageEndHour: 6, coverage: { conflicts: fresh, note: "Relief arranged", requestId: randomUUID() } } });
+  expect(changedWindow.status()).toBe(409);
+  expect(await f.sql`SELECT coverage_start_hour, coverage_end_hour FROM wl_eng_assignments WHERE id = ${f.assignmentId}`).toEqual([{ coverage_start_hour: 22, coverage_end_hour: 4 }]);
+  expect((await request.post("/api/professions/coverage", { headers: f.officer.headers, data: { ...data, coverage: { conflicts: fresh, note: "Relief arranged", requestId: randomUUID() } } })).status()).toBe(200);
+  expect(await f.sql`SELECT id, wl_team_id, eng_commander_id, assigned_at, status FROM wl_eng_assignments WHERE id = ${f.assignmentId}`).toEqual(identity);
+  expect(await f.sql`SELECT conductor_member_id, locked_at FROM train_conductor_records WHERE id = ${pastId}`).toEqual(locked);
+  expect((await (await request.get("/api/time-off/coverage", { headers: f.officer.headers })).json()).conflicts).toEqual([]);
+  const audit = await f.sql`SELECT action, metadata FROM audit_log WHERE alliance_id = ${f.alliance.allianceId} AND action IN ('time_off.coverage_keep', 'time_off.coverage_applied')`;
+  expect(audit).toHaveLength(2);
+  expect(JSON.stringify(audit)).not.toContain("private detail");
+  expect(JSON.stringify(audit)).not.toContain("Private absence detail");
+});
+
+test("officer edits an Engineer shift through the shared coverage panel and dialog", async ({ request, page, context }) => {
+  const f = await professionFixture();
+  expect((await request.post("/api/time-off/entries", { headers: f.member.headers, data: { ashedMemberId: f.roster.ashedMemberId, startDate: f.date, endDate: addCalendarDays(f.date, 1), requestId: randomUUID() } })).status()).toBe(200);
+  await context.addCookies(playwrightAuthCookies(f.officer));
+  await page.goto("/en-US/time-off");
+  const panel = page.getByTestId("coverage-panel");
+  await expect(panel.locator("article")).toHaveCount(4);
+  const duty = panel.locator("article").first();
+  await duty.locator("summary").click();
+  await duty.getByRole("button", { name: "Save coverage" }).click();
+  const dialog = page.getByTestId("coverage-confirmation").filter({ visible: true });
+  await expect(dialog.getByRole("button", { name: "Keep assignment" })).toBeDisabled();
+  await dialog.getByLabel("Audit note").fill("Relief arranged");
+  await dialog.getByRole("button", { name: "Keep assignment" }).click();
+  await expect(panel).toContainText("No outstanding team work.");
+  expect(await f.sql`SELECT id, wl_team_id, eng_commander_id, status FROM wl_eng_assignments WHERE id = ${f.assignmentId}`).toEqual([{ id: f.assignmentId, wl_team_id: f.teamId, eng_commander_id: f.engId, status: "active" }]);
+});
+
 const manualPaths = ["pick", "lock", "lock/batch", "swap", "vip/pick", "vip/lock", "roll/override", "history-import"];
 
 test("every manual train path and coverage review denies bootstrap, member and data-entry overrides", async ({ request }) => {

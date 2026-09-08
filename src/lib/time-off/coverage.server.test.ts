@@ -6,7 +6,7 @@ const duty = { assignmentId: "assignment", assignmentVersion: "10", dutyDate: "2
 let notices: Array<{ id: string; version: number }> = [];
 const audit = vi.fn();
 const tx = {
-  select: () => ({ from: () => ({ where: async () => notices }) }),
+  select: () => ({ from: () => ({ where: async () => notices.map((notice) => ({ ...notice, memberId: "member", startDate: "2026-09-10", endDate: "2026-09-12" })) }) }),
   insert: () => ({ values: (row: unknown) => { audit(row); return { onConflictDoNothing: async () => undefined }; } }),
 } as unknown as AvailabilityTransaction;
 
@@ -15,6 +15,12 @@ describe("transaction-local coverage guard", () => {
   it("rejects unconfirmed automated or manual assignments without independent DB helpers", async () => {
     await expect(assertDutyCoverage(tx, "alliance", [duty])).rejects.toBeInstanceOf(CoverageConflictError);
     expect(audit).not.toHaveBeenCalled();
+  });
+  it("matches batched notices only to the actual member and overlapping duty dates", async () => {
+    const duties = [duty, { ...duty, dutyDate: "2026-09-11" }, { ...duty, dutyDate: "2026-09-12" }, { ...duty, dutyDate: "2026-09-13" }, { ...duty, memberId: "other-member" }];
+    const conflicts = await findCoverageConflicts(tx, "alliance", duties);
+    expect(conflicts.map((conflict) => conflict.dutyDate)).toEqual(["2026-09-10", "2026-09-11", "2026-09-12"]);
+    expect(new Set(conflicts.map((conflict) => conflict.absenceVersion)).size).toBe(1);
   });
   it("accepts available members without inventing an audit override", async () => {
     notices = [];
