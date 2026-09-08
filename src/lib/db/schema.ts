@@ -3916,3 +3916,21 @@ export const vsScoreSyncScopes = pgTable("vs_score_sync_scopes", {
   managedMemberIds: jsonb("managed_member_ids").$type<string[]>().notNull().default([]),
   managedScores: jsonb("managed_scores").$type<Record<string, { previous: number | null; desired: number | null }>>().notNull().default({}),
 }, (table) => [unique("vs_score_sync_scopes_key_unique").on(table.allianceId, table.period, table.recordedDate)]);
+
+export const vsCompliancePolicies = pgTable("vs_compliance_policies", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  effectiveWeek: text("effective_week").notNull(),
+  enabled: boolean("enabled").notNull().default(false),
+  dailyTarget: bigint("daily_target", { mode: "number" }).notNull().default(7_200_000),
+  weeklyMinimum: bigint("weekly_minimum", { mode: "number" }),
+  leewayPct: integer("leeway_pct").notNull().default(0),
+  preset: text("preset").$type<"rank_aware" | "consecutive">().notNull().default("rank_aware"),
+  removalThreshold: integer("removal_threshold").notNull().default(3),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique("vs_compliance_policies_alliance_version_unique").on(table.allianceId, table.version),
+  index("vs_compliance_policies_alliance_week_idx").on(table.allianceId, table.effectiveWeek),
+]);

@@ -36,6 +36,9 @@ const HQ_PERMISSIONS = [
   { id: "bank:write", description: "Manage alliance bank strongholds and deposit slips" },
   { id: "time_off:read", description: "View alliance time-off calendar" },
   { id: "time_off:write", description: "Manage time-off entries for alliance members" },
+  { id: "vs_compliance:read", description: "VS compliance" },
+  { id: "vs_compliance:manage", description: "Confirm in-game action" },
+  { id: "vs_compliance:settings", description: "VS membership minimums" },
 ];
 
 function getDatabaseUrl() {
@@ -77,6 +80,7 @@ async function main() {
       "time_off:write",
     ]),
   ];
+  roleTemplates.owner.permissions = [...roleTemplates.owner.permissions, "vs_compliance:read", "vs_compliance:manage", "vs_compliance:settings"];
   roleTemplates.maintainer.permissions = [...roleTemplates.owner.permissions];
   roleTemplates.officer.permissions = [
     ...new Set([
@@ -93,6 +97,7 @@ async function main() {
       "time_off:write",
     ]),
   ];
+  roleTemplates.officer.permissions = [...roleTemplates.officer.permissions, "vs_compliance:read", "vs_compliance:manage"];
   roleTemplates.data_entry.permissions = [
     ...new Set([
       ...roleTemplates.data_entry.permissions,
