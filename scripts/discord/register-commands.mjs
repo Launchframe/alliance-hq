@@ -393,6 +393,15 @@ const commandBody = [
     },
   },
   {
+    name: "set-r4-channel",
+    description:
+      "Set this channel for R4 officer reminders (R4+ by default; owners can restrict).",
+    description_localizations: {
+      "pt-BR":
+        "Define este canal para lembretes de oficiais R4 (R4+ por padrão; o dono pode restringir).",
+    },
+  },
+  {
     name: "set-banking-channel",
     description:
       "Set this channel for banking partner notifications (R4+ by default; owners can restrict).",
