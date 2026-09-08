@@ -104,6 +104,17 @@ describe("durable team work source projection", () => {
     db.tables.member_alliance_tenure = [{ memberId: "member", joinedAt: new Date(Date.now() + 1000) }];
     expect((await reconcileTeamWorkTx(db.tx, "a")).items).toHaveLength(0);
   });
+  it("routes Engineer coverage to an administrator rather than an unauthorized team lead", async () => {
+    const db = database();
+    const context = await mocks.context();
+    context.recipients.find((recipient: WorkRecipient) => recipient.id === "owner").permissions.push("alliance:admin");
+    const conflict = { memberId: "member", memberName: "Member", dutyDate: "2099-01-01", dutyRole: "engineer" as const, assignmentId: "shift", assignmentVersion: "1", absenceVersion: "1", lockedAt: null };
+    mocks.conflicts.mockResolvedValue([conflict]);
+    const work = (await reconcileTeamWorkTx(db.tx, "a")).items.find((item) => item.kind === "coverage");
+    expect(work).toMatchObject({ requiredPermission: "alliance:admin", assigneeId: "owner" });
+    expect((await routeCoverageConflicts("a", [conflict]))[0].routing?.hqUserId).toBe("owner");
+  });
+
   it("consolidates multiple source kinds into one recipient digest", async () => {
     const db = database();
     mocks.conflicts.mockResolvedValue([{ memberId: "member", dutyDate: "2099-01-01", dutyRole: "conductor", assignmentId: "train", assignmentVersion: "1", absenceVersion: "1" }]);

@@ -25,7 +25,7 @@ export async function routeCoverageConflicts(allianceId: string, conflicts: Cove
       const override = overrides.get(conflict);
       const leadMemberId = override ? context.recipients.find((recipient) => recipient.id === override.hqUserId)?.memberIds[0] ?? null : teamId ? teamLead(context.board, teamId) : null;
       const eligibleLeadId = context.roster.some((member) => member.id === leadMemberId && (member.rank === 4 || member.rank === 5)) ? leadMemberId : null;
-      const selected = routeTeamWork({ allianceId, permission: "trains:write", leadMemberId: eligibleLeadId, recipients: context.recipients, awayMemberIds: away.map((row) => row.memberId) });
+      const selected = routeTeamWork({ allianceId, permission: conflict.dutyRole === "engineer" ? "alliance:admin" : "trains:write", leadMemberId: eligibleLeadId, recipients: context.recipients, awayMemberIds: away.map((row) => row.memberId) });
       routed.push({ ...conflict, routing: selected.assigneeId ? { hqUserId: selected.assigneeId, name: selected.assigneeName ?? "", kind: selected.routing } : null });
     }
     return routed;

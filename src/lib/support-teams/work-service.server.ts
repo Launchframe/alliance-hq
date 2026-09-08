@@ -27,7 +27,7 @@ export async function reconcileTeamWorkTx(tx: SupportTransaction, allianceId: st
   if (actor) {
     await authorizeWorkSession(tx, actor);
     const [user] = await tx.select({ admin: schema.hqUsers.isPlatformMaintainer }).from(schema.hqUsers).where(eq(schema.hqUsers.id, actor.hqUserId)).for("share");
-    if (user?.admin === 1) viewer = { id: actor.hqUserId, allianceId, name: null, role: "maintainer", active: true, memberIds: viewer?.memberIds ?? [], permissions: ["members:read", "support_teams:read", "time_off:read", "time_off:write", "trains:write", "vs_compliance:read", "vs_compliance:manage"] };
+    if (user?.admin === 1) viewer = { id: actor.hqUserId, allianceId, name: null, role: "maintainer", active: true, memberIds: viewer?.memberIds ?? [], permissions: ["members:read", "support_teams:read", "time_off:read", "time_off:write", "trains:write", "alliance:admin", "vs_compliance:read", "vs_compliance:manage"] };
     if (!viewer?.permissions.includes("members:read")) throw new SupportError("forbidden");
   }
   const today = getServerCalendarDate();
@@ -64,7 +64,7 @@ export async function reconcileTeamWorkTx(tx: SupportTransaction, allianceId: st
   const conflicts = await listCoverageConflictsTx(tx, allianceId, today, end);
   for (const conflict of conflicts) {
     if (!currentNotices.some((notice) => notice.memberId === conflict.memberId && notice.startDate <= conflict.dutyDate && notice.endDate >= conflict.dutyDate)) continue;
-    add("coverage", conflict.memberId, [conflict.assignmentId, conflict.dutyDate, conflict.dutyRole], [conflict.assignmentVersion, conflict.absenceVersion], "trains:write", { memberName: "", date: conflict.dutyDate, dutyRole: conflict.dutyRole }, conflict.dutyRole === "engineer" ? "/professions/officer" : `/trains?date=${conflict.dutyDate}`);
+    add("coverage", conflict.memberId, [conflict.assignmentId, conflict.dutyDate, conflict.dutyRole], [conflict.assignmentVersion, conflict.absenceVersion], conflict.dutyRole === "engineer" ? "alliance:admin" : "trains:write", { memberName: "", date: conflict.dutyDate, dutyRole: conflict.dutyRole }, conflict.dutyRole === "engineer" ? "/professions/officer" : `/trains?date=${conflict.dutyDate}`);
   }
   const currentEvaluations = evaluations.filter((row) => context.stints[row.memberId] && starts.has(row.memberId) && row.memberSnapshot.joinedAt && Date.parse(row.memberSnapshot.joinedAt) === starts.get(row.memberId)!.getTime());
   for (const row of currentEvaluations) {
