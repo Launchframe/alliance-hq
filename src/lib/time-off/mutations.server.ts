@@ -5,6 +5,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { lockAllianceAvailability } from "./availability.server";
 import { isTimeOffEntryKind, serializeTimeOffEntry } from "./api.shared";
 import { enqueueTimeOffSync } from "./excused-outbox.server";
 import {
@@ -97,6 +98,7 @@ function serializeForActor(row: Entry, actor: TimeOffActor) {
 export async function previewTimeOff(actor: TimeOffActor, body: unknown) {
   const draft = parseTimeOffDraft(body);
   return getDb().transaction(async (tx) => {
+    await lockAllianceAvailability(tx, actor.allianceId);
     const member = await loadRosterMember(tx, actor, draft);
     return { ...draft, memberName: member.name };
   });
@@ -111,6 +113,7 @@ export async function createTimeOff(actor: TimeOffActor, body: unknown, requestI
   const requestKey = createHash("sha256").update(JSON.stringify([actor.allianceId, actor.discordUserId ? "discord" : "hq", actor.discordUserId ?? actor.hqUserId, requestId])).digest("hex");
   const requestHash = createHash("sha256").update(JSON.stringify(draft)).digest("hex");
   return getDb().transaction(async (tx) => {
+    await lockAllianceAvailability(tx, actor.allianceId);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${requestKey}, 0))`);
     const [existing] = await tx.select().from(schema.memberTimeOff).where(eq(schema.memberTimeOff.requestKey, requestKey)).limit(1);
     if (existing) {
@@ -148,6 +151,7 @@ export async function updateTimeOff(actor: TimeOffActor, id: string, body: unkno
   actor = await refreshActor(actor);
   const draft = parseTimeOffDraft(body);
   return getDb().transaction(async (tx) => {
+    await lockAllianceAvailability(tx, actor.allianceId);
     const locked = await loadLockedEntry(tx, actor, id, version);
     const existing = locked.entry;
     actor = locked.actor;
@@ -173,6 +177,7 @@ export async function updateTimeOff(actor: TimeOffActor, id: string, body: unkno
 export async function cancelTimeOff(actor: TimeOffActor, id: string, version: unknown) {
   actor = await refreshActor(actor);
   return getDb().transaction(async (tx) => {
+    await lockAllianceAvailability(tx, actor.allianceId);
     const locked = await loadLockedEntry(tx, actor, id, version);
     const existing = locked.entry;
     actor = locked.actor;

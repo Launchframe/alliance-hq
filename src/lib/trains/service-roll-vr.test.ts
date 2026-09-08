@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  loadTimeOffAvailability: vi.fn(),
   getEffectiveSeasonForAlliance: vi.fn(),
   getConductorRecord: vi.fn(),
   resolveRollDayConfig: vi.fn(),
@@ -8,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   fetchNativeVrTopScorers: vi.fn(),
   loadAllianceTrainLeadTimeDays: vi.fn(),
 }));
+
+vi.mock("@/lib/time-off/availability.server", () => ({ loadTimeOffAvailability: mocks.loadTimeOffAvailability }));
 
 vi.mock("@/lib/game-season/sync", () => ({
   getEffectiveSeasonForAlliance: mocks.getEffectiveSeasonForAlliance,
@@ -68,6 +71,14 @@ describe("rollForConductor VR top board", () => {
       dayConfigId: "dc1",
     });
     mocks.countAllianceVrReporters.mockResolvedValue(10);
+  });
+
+  it("does not draw an away member from an otherwise complete VR board", async () => {
+    const top = Array.from({ length: 5 }, (_, index) => ({ memberId: `m${index}`, memberName: `Member ${index}` }));
+    mocks.fetchNativeVrTopScorers.mockResolvedValue(top);
+    mocks.loadTimeOffAvailability.mockResolvedValue({ awayMemberIds: new Set(top.map((candidate) => candidate.memberId)) });
+    await expect(rollForConductor({ allianceId: "a1", date: "2099-06-20" })).rejects.toMatchObject({ details: { code: "POOL_UNAVAILABLE" } });
+    expect(mocks.loadTimeOffAvailability).toHaveBeenCalledWith("a1", "2099-06-20");
   });
 
   it("fails closed when the active-roster board is shorter than scope N", async () => {

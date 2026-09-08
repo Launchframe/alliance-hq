@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, isNull, or } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
@@ -346,6 +346,7 @@ export async function loadCommanderProfile(
         and(
           eq(schema.memberViolations.allianceId, allianceId),
           eq(schema.memberViolations.ashedMemberId, ashedMemberId),
+          isNull(schema.memberViolations.complianceEventId),
         ),
       )
       .orderBy(desc(schema.memberViolations.recordedDate)),

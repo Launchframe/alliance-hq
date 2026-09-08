@@ -23,7 +23,10 @@ import { resolveTrainActorHqUserId } from "@/lib/trains/train-ownership.server";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
+import { withTrainCoverage } from "@/lib/time-off/train-coverage-route.server";
+export const POST = withTrainCoverage(post);
+
+async function post(request: Request) {
   const sessionOrError = await requireApiSession();
 
   if (sessionOrError instanceof NextResponse) return sessionOrError;
@@ -50,7 +53,7 @@ export async function POST(request: Request) {
       .seasonKey;
     let record = await getConductorRecord(ctx.allianceId, date, seasonKey);
 
-    if (body.memberId && body.memberName) {
+    if (body.memberId && body.memberName && record?.conductorMemberId !== body.memberId) {
       const rankEvent = await getMemberRankAsOf(
         ctx.allianceId,
         body.memberId,

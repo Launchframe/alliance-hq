@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, eq, gt, inArray, isNotNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb, schema } from "@/lib/db";
+import { lockAllianceAvailability } from "./availability.server";
 import { ExcusedSyncError, groupExcusedRecords, ownsPrivateTimeOffNotes, sameExcusedContent, type ExcusedRecord } from "./excused-sync.shared";
 import { updateEntrySyncStatus, type SyncEntry, type SyncTransaction } from "./excused-outbox.server";
 
@@ -26,6 +27,7 @@ export async function reconcileImportedExcuses(input: {
   leaseToken: string;
 }, transaction?: SyncTransaction) {
   const reconcile = async (tx: SyncTransaction) => {
+    await lockAllianceAvailability(tx, input.allianceId);
     const entries = await tx.select().from(schema.memberTimeOff).where(eq(schema.memberTimeOff.allianceId, input.allianceId))
       .orderBy(asc(schema.memberTimeOff.id)).for("update");
     const bindings = await tx.select().from(schema.timeOffSyncBindings).where(eq(schema.timeOffSyncBindings.allianceId, input.allianceId))

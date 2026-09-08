@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb, schema } from "@/lib/db";
+import { lockAllianceAvailability } from "./availability.server";
 import { decideExcusedSync, ExcusedSyncError, sameExcusedContent, type ExcusedRecord } from "./excused-sync.shared";
 import { createExcusedRecord, deleteExcusedRecord, fetchExcusedRecord, fetchExcusedSnapshot, resolveExcusedConnection, validateExcusedMember, type ExcusedConnection } from "./excused-transport.server";
 import { reconcileImportedExcuses } from "./excused-import.server";
@@ -26,6 +27,7 @@ export async function acquireExcusedLease(allianceId: string, force = false) {
 
 export async function withExcusedLease<T>(allianceId: string, token: string, work: (tx: SyncTransaction) => Promise<T>): Promise<T> {
   return getDb().transaction(async (tx) => {
+    await lockAllianceAvailability(tx, allianceId);
     const result = await work(tx);
     const [held] = await tx.update(schema.timeOffSyncState).set({ leaseExpiresAt: new Date(Date.now() + LEASE_MS) })
       .where(and(eq(schema.timeOffSyncState.allianceId, allianceId), eq(schema.timeOffSyncState.leaseToken, token), gt(schema.timeOffSyncState.leaseExpiresAt, new Date())))

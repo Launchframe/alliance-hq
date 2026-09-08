@@ -9,6 +9,10 @@ import {
   isSnoozed,
   snoozeItem,
 } from "@/lib/battle-plan/capture-reminder-inbox.shared";
+import {
+  REGULAR_EVENT_REMINDER_INBOX_KIND,
+  REGULAR_EVENT_UPLOAD_REMINDER_INBOX_KIND,
+} from "@/lib/regular-events/inbox.shared";
 import { MEMBER_LINK_HELP_INBOX_KIND } from "@/lib/member-link/member-link-help-inbox.shared";
 import { ONBOARDING_REVIEW_INBOX_KIND } from "@/lib/member-link/onboarding-review-inbox.shared";
 import { ROSTER_LINK_INBOX_KIND } from "@/lib/member-link/roster-link-inbox.shared";
@@ -35,6 +39,7 @@ export default function InboxPageClient({
   const tRoster = useTranslations("rosterLinkRequests");
   const tDraft = useTranslations("supportTeams.draft");
   const locale = useLocale();
+  const tCompliance = useTranslations("vsCompliance");
   const [items, setItems] = useState<ReminderItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
@@ -130,17 +135,25 @@ export default function InboxPageClient({
 
   function kindLabel(kind: string): string {
     if (kind === "support_team_draft") return tDraft("title");
+    if (kind === "vs_compliance") return tCompliance("title");
     if (kind === "eur_occurrence") return t("kind.eurOccurrence");
     if (kind === "video_jobs_pending") return t("kind.videoJobsPending");
     if (kind === ROSTER_LINK_INBOX_KIND) return t("kind.memberLinkRequest");
     if (kind === ONBOARDING_REVIEW_INBOX_KIND) return t("kind.memberOnboardingReview");
     if (kind === MEMBER_LINK_HELP_INBOX_KIND) return t("kind.memberLinkHelp");
     if (kind === CAPTURE_REMINDER_INBOX_KIND) return t("kind.captureReminder");
+    if (kind === REGULAR_EVENT_REMINDER_INBOX_KIND) {
+      return t("kind.regularEventReminder");
+    }
+    if (kind === REGULAR_EVENT_UPLOAD_REMINDER_INBOX_KIND) {
+      return t("kind.regularEventUploadReminder");
+    }
     return kind;
   }
 
   function displayTitle(item: ReminderItem): string {
     if (item.kind === "support_team_draft") return tDraft("title");
+    if (item.kind === "vs_compliance") return tCompliance("title");
     if (item.kind === ROSTER_LINK_INBOX_KIND) {
       const name = item.scoreTarget?.trim() || item.title;
       return t("kind.memberLinkRequestTitle", { name });
@@ -161,6 +174,7 @@ export default function InboxPageClient({
       const format = (value: string | null) => value && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "";
       return `${tDraft("startsAt")}: ${format(item.scoreTarget)} · ${tDraft("endsAt")}: ${format(item.body)}`;
     }
+    if (item.kind === "vs_compliance") return tCompliance("manualHint");
     if (item.kind === ROSTER_LINK_INBOX_KIND) {
       return t("kind.memberLinkRequestBody");
     }

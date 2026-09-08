@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { supportTeamFields } from "@/lib/db/schema";
 import { applyCommand, emptyBoard, fieldKey, fieldVersion, memberTeam, readField } from "./policy.shared";
 import { activeReversals, confirmUndo, previewUndo } from "./history.shared";
 import { applyDraftCommand, advanceDraft, draftSnapshot, draftMemberKey, draftSlotKey, draftKey } from "./draft.shared";
@@ -35,6 +36,16 @@ function setup() {
 }
 
 describe("scheduled draft workspace", () => {
+  it("preserves trusted roster fingerprints through the Postgres JSONB driver round trip", () => {
+    const s = setup();
+    const column = supportTeamFields.value;
+    for (const field of Object.values(s.board.fields)) {
+      field.value = column.mapFromDriverValue(JSON.parse(column.mapToDriverValue(field.value) as string)) as typeof field.value;
+    }
+    expect(draftSnapshot(s.board, roster, owner, "d", start).rosterValid).toBe(true);
+    expect(() => s.run(s.pick("a-team", "m0"))).not.toThrow();
+    expect(() => s.run(s.pick("b-team", "m1"), owner, start, roster.map((m) => m.id === "m1" ? { ...m, draftStintToken: "new-stint" } : m))).toThrow("memberUnavailable");
+  });
   it("lets current leadership schedule without granting ownership or publication authority", () => {
     const scheduled = applyDraftCommand(emptyBoard("a"), roster, officer, { kind: "scheduleDraft", draftId: "officer-draft", expectedVersion: 0, startsAt: new Date(start).toISOString(), endsAt: new Date(start + 3600000).toISOString(), roundMinutes: 5 }, { id: "officer-schedule", at: new Date(start - 1000).toISOString(), idempotencyKey: "officer-schedule" });
     expect(scheduled.board.published).toBe(false);

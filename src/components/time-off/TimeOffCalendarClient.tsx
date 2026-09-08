@@ -3,21 +3,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { CoveragePanel } from "@/components/time-off/CoveragePanel";
 import { TimeOffCalendar } from "@/components/time-off/TimeOffCalendar";
 import { TimeOffEntryModal } from "@/components/time-off/TimeOffEntryModal";
 import { UnexpectedAbsencePanel } from "@/components/time-off/UnexpectedAbsencePanel";
 import { TimeOffSyncPanel } from "@/components/time-off/TimeOffSyncPanel";
 import { TimeOffAshedRefreshButton } from "@/components/time-off/TimeOffAshedRefreshButton";
 import { Dialog } from "@/components/ui/dialog";
+import { Link } from "@/i18n/navigation";
 import { canManageTimeOffEntry } from "@/lib/time-off/workflow.shared";
 import type { TimeOffCalendarPayload, SerializedTimeOffEntry } from "@/lib/time-off/types.shared";
 
 const buttonClass = "rounded border border-hq-border px-3 py-2 text-sm text-hq-fg disabled:opacity-50";
 
-type Props = { initial: TimeOffCalendarPayload };
+type Props = { initial: TimeOffCalendarPayload; showComplianceLink?: boolean };
 
-export function TimeOffCalendarClient({ initial }: Props) {
+export function TimeOffCalendarClient({ initial, showComplianceLink = false }: Props) {
   const t = useTranslations("timeOff");
+  const tCompliance = useTranslations("vsCompliance");
   const locale = useLocale();
   const [dashboard, setDashboard] = useState(initial);
   const [tab, setTab] = useState<"my" | "alliance">(initial.linkedCommanderIds.length ? "my" : "alliance");
@@ -124,10 +127,12 @@ export function TimeOffCalendarClient({ initial }: Props) {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6">
+      {dashboard.canManageOthers ? <CoveragePanel refreshKey={JSON.stringify(dashboard.entries.map((entry) => [entry.id, entry.version]))} /> : null}
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold text-hq-fg">{t("title")}</h1>
         <p className="text-sm text-hq-fg-muted">{t("subtitle")}</p>
         <p className="text-xs text-hq-fg-muted">{t("workflow.serverTime")}</p>
+        {showComplianceLink ? <Link href="/vs-compliance" className="inline-block text-sm text-hq-accent hover:underline">{tCompliance("title")}</Link> : null}
         <div className="flex flex-wrap gap-2 pt-2">
           {dashboard.linkedCommanderIds.length > 0 ? <button type="button" className={buttonClass} onClick={() => setModal({ officer: false })}>{t("form.title")}</button> : null}
           {dashboard.canManageOthers ? <button type="button" className={buttonClass} onClick={() => setModal({ officer: true })}>{t("form.officerEntry")}</button> : null}
@@ -163,7 +168,11 @@ export function TimeOffCalendarClient({ initial }: Props) {
       )}
       {modal ? <TimeOffEntryModal open entry={modal.entry} officerEntry={modal.officer} canManageOthers={dashboard.canManageOthers}
         commanders={modal.officer ? dashboard.commanders : dashboard.commanders.filter((member) => dashboard.linkedCommanderIds.includes(member.id))}
-        today={dashboard.todayServerDate} onClose={() => { setModal(null); void refreshCurrent(); }} onSaved={() => {
+        today={dashboard.todayServerDate} onClose={() => { setModal(null); void refreshCurrent(); }} onSaved={(saved) => {
+          loadVersion.current++;
+          const merge = (entries: SerializedTimeOffEntry[]) => entries.some((entry) => entry.id === saved.id) ? entries.map((entry) => entry.id === saved.id ? saved : entry) : [saved, ...entries];
+          setDashboard((current) => ({ ...current, entries: merge(current.entries), ownEntries: current.linkedCommanderIds.includes(saved.ashedMemberId) ? merge(current.ownEntries) : current.ownEntries }));
+          setSelectedEntry((current) => current?.id === saved.id ? saved : current);
           setNotice(t(modal.entry ? "workflow.updated" : "workflow.saved")); setModal(null); void refreshCurrent();
         }} /> : null}
       {cancelTarget ? <Dialog open title={t("entry.cancel")} onOpenChange={(next) => { if (!next && !saving) { setCancelTarget(null); void refreshCurrent(); } }}>

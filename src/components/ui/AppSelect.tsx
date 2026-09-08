@@ -122,7 +122,9 @@ export function AppSelect({
   const [activeIndex, setActiveIndex] = React.useState<number>(-1);
   const explicitCandidateRef = React.useRef<string | null>(null);
   const [menuRect, setMenuRect] = React.useState<{
-    top: number;
+    top?: number;
+    bottom?: number;
+    maxHeight: number;
     left: number;
     width: number;
     container: Element | null;
@@ -163,9 +165,14 @@ export function AppSelect({
       : triggerRef.current;
     if (!anchor) return null;
     const rect = anchor.getBoundingClientRect();
+    const below = window.innerHeight - rect.bottom - 8;
+    const above = rect.top - 8;
+    const upward = below < 240 && above > below;
     return {
-      top: rect.bottom + 4,
-      left: rect.left,
+      top: upward ? undefined : rect.bottom + 4,
+      bottom: upward ? window.innerHeight - rect.top + 4 : undefined,
+      maxHeight: Math.max(0, Math.min(240, upward ? above : below)),
+      left: Math.max(4, Math.min(rect.left, window.innerWidth - rect.width - 4)),
       width: rect.width,
       container: anchor.closest("dialog"),
     };
@@ -223,9 +230,9 @@ export function AppSelect({
   }, [open, useCombobox]);
 
   React.useEffect(() => {
-    if (!searchable) return;
+    if (!searchable || explicitSelection) return;
     const id = window.requestAnimationFrame(() => {
-      setActiveIndex(!explicitSelection && enabledOptions.length > 0 ? 0 : -1);
+      setActiveIndex(enabledOptions.length > 0 ? 0 : -1);
       explicitCandidateRef.current = null;
     });
     return () => window.cancelAnimationFrame(id);
@@ -464,6 +471,7 @@ export function AppSelect({
           role="option"
           id={`${listboxId}-option-${flatOptions.indexOf(option)}`}
           aria-selected={isSelected}
+          aria-disabled={option.disabled}
           disabled={option.disabled}
           className={cn(
             "flex w-full min-w-0 items-center gap-2 px-3 py-2.5 text-left text-sm",
@@ -502,10 +510,12 @@ export function AppSelect({
             data-app-select-menu={listboxId}
             style={{
               top: menuRect.top,
+              bottom: menuRect.bottom,
+              maxHeight: menuRect.maxHeight,
               left: menuRect.left,
               width: menuRect.width,
             }}
-            className="fixed z-[300] max-h-60 overflow-hidden rounded-lg border border-hq-border bg-hq-surface shadow-lg"
+            className="fixed z-[300] flex flex-col overflow-hidden rounded-lg border border-hq-border bg-hq-surface shadow-lg"
           >
             {searchable && !useCombobox ? (
               <div className="border-b border-hq-border p-2">
@@ -514,7 +524,13 @@ export function AppSelect({
                   id={searchInputId}
                   type="search"
                   value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onChange={(event) => {
+                    if (explicitSelection) {
+                      setActiveIndex(-1);
+                      explicitCandidateRef.current = null;
+                    }
+                    setSearchQuery(event.target.value);
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === "Escape") {
                       event.stopPropagation();
@@ -540,7 +556,7 @@ export function AppSelect({
               id={listboxId}
               role="listbox"
               aria-label={ariaLabel}
-              className="max-h-48 overflow-y-auto py-1"
+              className="min-h-0 max-h-48 overflow-y-auto py-1"
             >
               {groups?.length && !searchable
                 ? groups.map((group) => (
@@ -594,6 +610,10 @@ export function AppSelect({
             value={comboboxDisplayValue}
             placeholder={placeholder}
             onChange={(event) => {
+              if (explicitSelection) {
+                setActiveIndex(-1);
+                explicitCandidateRef.current = null;
+              }
               setSearchQuery(event.target.value);
               setOpen(true);
               setMenuRect(updateMenuRect());
