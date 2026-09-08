@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ version: vi.fn(), lock: vi.fn(), external: vi.fn(), rebuild: vi.fn(), authorize: vi.fn(), retry: vi.fn(), results: [] as unknown[][], updates: [] as Record<string, unknown>[], inTransaction: false }));
+const mocks = vi.hoisted(() => ({ access: vi.fn(), daily: vi.fn(), version: vi.fn(), lock: vi.fn(), external: vi.fn(), rebuild: vi.fn(), authorize: vi.fn(), retry: vi.fn(), results: [] as unknown[][], updates: [] as Record<string, unknown>[], inTransaction: false }));
 vi.mock("server-only", () => ({}));
-vi.mock("./evidence.server", () => ({ loadComplianceStateVersion: mocks.version, lockCompliance: mocks.lock, prepareExternalEvidence: mocks.external }));
+vi.mock("./evidence.server", () => ({ loadComplianceStateVersion: mocks.version, lockCompliance: mocks.lock, prepareExternalEvidence: mocks.external, resolveComplianceEvidence: mocks.daily }));
+vi.mock("./access.server", () => ({ requireVsComplianceAccess: mocks.access }));
 vi.mock("./repository.server", () => ({ rebuildComplianceTx: mocks.rebuild, authorizeComplianceTx: mocks.authorize }));
 vi.mock("./sync.server", () => ({ retryComplianceSync: mocks.retry }));
 vi.mock("@/lib/db", async () => {
@@ -10,7 +11,7 @@ vi.mock("@/lib/db", async () => {
   const tx = { execute: vi.fn(), select: () => chain(mocks.results.shift() ?? []), update: () => ({ set: (value: Record<string, unknown>) => { mocks.updates.push(value); return chain([]); } }) };
   return { schema, getDb: () => ({ ...tx, transaction: async (run: (db: typeof tx) => Promise<unknown>) => { mocks.inTransaction = true; try { return await run(tx); } finally { mocks.inTransaction = false; } } }) };
 });
-import { evaluateComplianceAlliance, runComplianceTick } from "./service.server";
+import { evaluateComplianceAlliance, loadComplianceDashboard, runComplianceTick } from "./service.server";
 
 beforeEach(() => {
   vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date("2026-09-14T12:00:00Z"));
@@ -23,6 +24,19 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("bounded catch-up and snapshot revalidation", () => {
+  it("wires the canonical daily projection into reads without exposing immutable member snapshots or source ids", async () => {
+    const facts = { policies: [] };
+    const persisted = { id: "event", memberId: "member", memberName: "Commander", weekEnding: "2026-09-13", memberSnapshot: { currentRank: 2 }, remoteEvidence: [{ id: "ashed:private" }], remoteVerifiedAt: new Date(), input: { evidence: { state: "ready", basis: ["hq:private"] } }, evaluation: { settled: { actionId: "action", kind: "demote", targetRank: 2, memberSnapshot: { rankVersion: "private" }, evaluationBasis: "private" } } };
+    const original = structuredClone(persisted);
+    mocks.access.mockResolvedValue({ sessionId: "session", allianceId: "tenant", hqUserId: "viewer", boundHqUserId: "viewer" });
+    mocks.rebuild.mockResolvedValue({ rows: [persisted], jobs: [], facts });
+    mocks.daily.mockReturnValue({ daily: [{ date: "2026-09-07", score: null, state: "missing" }] });
+    const result = await loadComplianceDashboard("session", "tenant", "2026-09-13");
+    expect(result.rows[0]).toMatchObject({ dailyTarget: 7_200_000, daily: [{ score: null }], settled: { actionId: "action", kind: "demote", targetRank: 2 } });
+    expect(mocks.daily).toHaveBeenCalledWith(facts, "member", "2026-09-13", expect.objectContaining({ native: true }), persisted.remoteEvidence, persisted.remoteVerifiedAt);
+    expect(JSON.stringify(result)).not.toContain("private");
+    expect(persisted).toEqual(original);
+  });
   it("prepares external evidence outside the transaction and rechecks authority inside it", async () => {
     const actor = { sessionId: "session", allianceId: "tenant", hqUserId: "officer", boundHqUserId: "officer" };
     const result = await evaluateComplianceAlliance("tenant", ["2026-09-13"], actor);

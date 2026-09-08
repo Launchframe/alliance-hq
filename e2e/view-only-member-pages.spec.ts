@@ -105,8 +105,10 @@ for (const operatingMode of ["native", "ashed"] as const) {
       }) => {
         if (path === "/vs-compliance") {
           const response = await page.goto(path);
-          expect(response?.status()).toBe(404);
+          expect(response?.status()).toBeLessThan(500);
+          await expect(page.getByRole("heading", { name: "Page not found", exact: true })).toBeVisible();
           await expect(page.getByRole("heading", { name: "VS compliance", exact: true })).toHaveCount(0);
+          expect((await page.request.get("/api/vs-compliance")).status()).toBe(403);
         } else {
           await expectRedirectedToMembers(page, path);
         }

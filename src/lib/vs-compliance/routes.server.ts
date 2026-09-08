@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 import { getTranslations } from "next-intl/server";
 import { requireApiSession } from "@/lib/session";
 import { VsComplianceError } from "./types.shared";
+import { VS_COMPLIANCE_READ_PERMISSION } from "@/lib/rbac/constants";
+import { requireVsComplianceAccess } from "./access.server";
 
 export async function complianceApiContext() {
   const session = await requireApiSession();
@@ -11,6 +13,7 @@ export async function complianceApiContext() {
   if (!session.hqUserId) throw new VsComplianceError("forbidden", 403);
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId) throw new VsComplianceError("forbidden", 403);
+  await requireVsComplianceAccess(session.id, allianceId, VS_COMPLIANCE_READ_PERMISSION);
   return { sessionId: session.id, allianceId };
 }
 

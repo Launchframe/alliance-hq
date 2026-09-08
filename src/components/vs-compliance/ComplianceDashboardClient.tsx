@@ -6,7 +6,8 @@ import { Link } from "@/i18n/navigation";
 import { addCalendarDays } from "@/lib/trains/game-time";
 import { validateVsPeriod } from "@/lib/vs-scores/evidence.shared";
 import { policyForVsWeek } from "@/lib/vs-compliance/policy.shared";
-import { ComplianceEvidence } from "./ComplianceEvidence";
+import { ComplianceDailyEvidence, ComplianceEvidence } from "./ComplianceEvidence";
+import { ComplianceHistory } from "./ComplianceHistory";
 import { ConfirmationDialog } from "./ConfirmationDialog";
 import { ComplianceClientError, isDashboard, isMembershipSettings, readComplianceResponse, RequestVersion, syncLabel, type ComplianceDashboard, type ComplianceRow, type MembershipSettings } from "./client.shared";
 
@@ -78,6 +79,8 @@ export function ComplianceDashboardClient({ initialWeek, lastClosedWeek, allianc
       <div className="grid gap-4 md:grid-cols-2">{visible?.rows.map((row) => <article key={row.id} data-testid="compliance-row" className="space-y-3 rounded-xl border border-hq-border bg-hq-surface p-4">
         <h2 className="font-semibold">{row.memberName}</h2>
         <ComplianceEvidence row={row} />
+        <ComplianceDailyEvidence row={row} />
+        <ComplianceHistory key={`${row.id}:${row.confirmationBasis}`} row={row} />
         <p className="text-sm" role="status">{all(`timeOff.sync.${syncLabel(row.syncStatus)}`)}</p>
         {["credentials_required", "failed"].includes(row.syncStatus) ? <Link href="/connect?next=/vs-compliance" className="text-sm text-hq-accent underline">{all("common.connect")}</Link> : null}
         {visible.canManage && !loading ? <div className="flex flex-wrap gap-2">

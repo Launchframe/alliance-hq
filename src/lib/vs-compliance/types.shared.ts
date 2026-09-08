@@ -33,6 +33,38 @@ export type VsSettledAction = {
   targetRank: number | null;
 };
 
+export type VsComplianceDay = {
+  date: string;
+  score: number | null;
+  state: VsWeekEvidence["state"];
+  source: "hq" | "ashed" | "derived" | null;
+  sourceReady: boolean;
+  away: boolean;
+  excused: boolean;
+  pendingExcusal: boolean;
+};
+
+export type VsComplianceHistory = {
+  eventId: string;
+  memberId: string;
+  memberName: string;
+  weekEnding: string;
+  actions: Array<{
+    id: string;
+    actorId: string;
+    actorName: string | null;
+    kind: "waive" | "demote" | "remove";
+    expectedRank: number | null;
+    targetRank: number | null;
+    reason: string | null;
+    recordedAt: string;
+    correctionReview: boolean;
+    reviewDates: string[];
+    syncStatus: "local" | "pending" | "synced" | "failed" | "credentials_required" | null;
+    supersededAt: string | null;
+  }>;
+};
+
 export type VsComplianceWeek = {
   eligibilitySnapshot?: VsComplianceMember;
   weekEnding: string;

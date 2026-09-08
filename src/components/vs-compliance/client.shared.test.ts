@@ -3,11 +3,13 @@ import { actionBody, ComplianceClientError, createActionAttempt, isDashboard, is
 import { jsx } from "react/jsx-runtime";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NextIntlClientProvider } from "next-intl";
-import { ComplianceEvidence } from "./ComplianceEvidence";
+import { ComplianceDailyEvidence, ComplianceEvidence } from "./ComplianceEvidence";
+import { ComplianceHistoryRecords } from "./ComplianceHistory";
+import { addCalendarDays } from "@/lib/trains/game-time";
 import en from "../../../messages/en-US.json";
 import pt from "../../../messages/pt-BR.json";
 
-const row: ComplianceRow = { id: "task", memberId: "member", memberName: "Commander", currentRank: 3, weekEnding: "2026-09-06", outcome: "missed", threshold: 40_000_000, score: 0, policyVersion: 1, streak: 1, recommendation: { kind: "demote", targetRank: 2 }, evaluationBasis: "a".repeat(64), confirmationBasis: "b".repeat(64), settled: null, correctionReview: false, evidenceState: "ready", syncStatus: "local" };
+const row: ComplianceRow = { id: "task", memberId: "member", memberName: "Commander", currentRank: 3, weekEnding: "2026-09-06", outcome: "missed", threshold: 40_000_000, score: 0, policyVersion: 1, streak: 1, recommendation: { kind: "demote", targetRank: 2 }, evaluationBasis: "a".repeat(64), confirmationBasis: "b".repeat(64), settled: null, correctionReview: false, evidenceState: "ready", syncStatus: "local", dailyTarget: 7_200_000, daily: Array.from({ length: 6 }, (_, index) => ({ date: addCalendarDays("2026-09-06", index - 6), score: index === 0 ? 0 : null, state: index === 0 ? "ready" : "missing", source: index === 0 ? "hq" : null, sourceReady: true, away: false, excused: false, pendingExcusal: false })) };
 
 describe("compliance client request safety", () => {
   it("retains the exact confirmation basis and UUID across uncertain retries", () => {
@@ -54,6 +56,28 @@ describe("compliance client request safety", () => {
     expect(isDashboard({ ...dashboard, rows: [{ ...row, score: undefined }] })).toBe(false);
     expect(isDashboard({ ...dashboard, rows: [{ ...row, evidenceState: "guessed" }] })).toBe(false);
     expect(isDashboard({ ...dashboard, rows: [{ ...row, weekEnding: "2026-08-30" }] })).toBe(false);
+  });
+  it.each(["en-US", "pt-BR"])("renders daily values and immutable history in %s without weekly-pass or recommendation copy", (locale) => {
+    const messages = locale === "pt-BR" ? pt : en;
+    const render = (children: ReturnType<typeof jsx>) => renderToStaticMarkup(jsx(NextIntlClientProvider, { locale, messages, timeZone: "UTC", onError: (error: Error) => { throw error; }, children }));
+    const daily = render(jsx(ComplianceDailyEvidence, { row: { ...row, outcome: "passed" } }));
+    expect(daily).toContain("<table");
+    expect(daily).toContain(new Intl.NumberFormat(locale).format(7_200_000));
+    expect(daily).toContain("0 /");
+    expect(daily).toContain(messages.vsCompliance.missing);
+    expect(daily).not.toContain(messages.vsCompliance.passed);
+    const history = render(jsx(ComplianceHistoryRecords, { history: { eventId: row.id, memberId: row.memberId, memberName: row.memberName, weekEnding: row.weekEnding, actions: [{ id: "action", actorId: "private-actor-id", actorName: "Original Officer", kind: "demote", expectedRank: 3, targetRank: 2, reason: null, recordedAt: "2026-09-07T02:00:00.000Z", correctionReview: true, reviewDates: ["2026-09-08T02:00:00.000Z"], syncStatus: "local", supersededAt: null }] } }));
+    expect(history).toContain("Original Officer");
+    expect(history).not.toContain("private-actor-id");
+    expect(history).toContain("R3"); expect(history).toContain("R2");
+    expect(history).toContain(messages.vsCompliance.actionSaved);
+    expect(history).not.toContain("Recommend");
+    const otherActions = render(jsx(ComplianceHistoryRecords, { history: { eventId: row.id, memberId: row.memberId, memberName: row.memberName, weekEnding: row.weekEnding, actions: ["waive", "remove"].map((kind) => ({ id: kind, actorId: "original", actorName: "Officer", kind, expectedRank: 1, targetRank: null, reason: kind === "waive" ? "Private reason" : null, recordedAt: "2026-09-07T02:00:00.000Z", correctionReview: false, reviewDates: [], syncStatus: null, supersededAt: null })) } }));
+    expect(otherActions).toContain(messages.vsCompliance.waived);
+    expect(otherActions).toContain(messages.vsCompliance.waiverReason);
+    expect(otherActions).toContain(messages.members.statusFormer);
+    expect(otherActions).not.toContain("Recommend");
+    expect(history).toContain(new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short", timeZone: "Etc/GMT+2" }).format(new Date("2026-09-07T02:00:00.000Z")));
   });
   it("validates policy versions without accepting implicit enabled defaults", () => {
     const policy = { enabled: false, dailyTarget: 7_200_000, weeklyMinimum: null, leewayPct: 0, preset: "rank_aware", removalThreshold: 3, version: 1, effectiveWeek: "2026-09-20" };
