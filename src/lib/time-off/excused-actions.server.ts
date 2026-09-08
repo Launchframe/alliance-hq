@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb, schema } from "@/lib/db";
+import { lockAllianceAvailability } from "./availability.server";
 import { TimeOffError } from "./workflow.shared";
 import { appendTimeOffRevision, type TimeOffActor } from "./mutations.server";
 import { requestExcusedSync, retireRemoteRecord, updateEntrySyncStatus } from "./excused-outbox.server";
@@ -28,6 +29,7 @@ export async function queueAllianceExcusedRefresh(actor: TimeOffActor) {
   requireOfficer(actor);
   if (!(await isAshedTimeOffSyncEnabled(actor.allianceId))) throw new ExcusedSyncError("conflict");
   await getDb().transaction(async (tx) => {
+    await lockAllianceAvailability(tx, actor.allianceId);
     await requestExcusedSync(tx, actor.allianceId);
     await tx.insert(schema.auditLog).values({ id: nanoid(), allianceId: actor.allianceId, hqUserId: actor.hqUserId, action: "time_off.sync_refresh", resourceType: "alliance", resourceId: actor.allianceId });
   });
@@ -72,6 +74,7 @@ export async function applyExcusedAction(actor: TimeOffActor, entryId: string, b
   if (input.version !== review.version) throw new TimeOffError("staleEntry", 409);
   if (action === "retry") {
     await getDb().transaction(async (tx) => {
+    await lockAllianceAvailability(tx, actor.allianceId);
       const [entry] = await tx.select().from(schema.memberTimeOff).where(and(eq(schema.memberTimeOff.id, entryId), eq(schema.memberTimeOff.allianceId, actor.allianceId))).limit(1).for("update");
       if (!entry || entry.version !== input.version) throw new TimeOffError("staleEntry", 409);
       const bindings = await tx.select().from(schema.timeOffSyncBindings).where(eq(schema.timeOffSyncBindings.entryId, entryId));

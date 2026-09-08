@@ -253,6 +253,7 @@ export async function assignEngToWl(input: {
 
   // Create new assignment
   const assignmentId = await createEngAssignment({
+    automaticDutyDate: input.automaticDutyDate,
     wlTeamId,
     allianceId: input.allianceId,
     engCommanderId: input.engCommanderId,

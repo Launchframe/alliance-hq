@@ -6329,6 +6329,16 @@
   "vsCompliance": {
     "conflict": "Evidências conflitantes"
   },
+  "teamWork": {
+    "title": "Trabalho em equipe",
+    "empty": "Nenhum trabalho em equipe pendente.",
+    "assignedTo": "Atribuído a {name}.",
+    "coverageConflict": "{member} está ausente durante {duty} em {date}.",
+    "reassign": "Reatribuir tarefa",
+    "keep": "Manter atribuição",
+    "keepHint": "Mantenha esta atribuição somente após confirmar a cobertura. Os bloqueios e as permissões existentes continuam valendo.",
+    "auditReason": "Nota de auditoria"
+  },
   "timeOff": {
     "title": "Minhas Ausências",
     "sync": {

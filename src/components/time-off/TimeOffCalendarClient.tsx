@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { CoveragePanel } from "@/components/time-off/CoveragePanel";
 import { TimeOffCalendar } from "@/components/time-off/TimeOffCalendar";
 import { TimeOffEntryModal } from "@/components/time-off/TimeOffEntryModal";
 import { UnexpectedAbsencePanel } from "@/components/time-off/UnexpectedAbsencePanel";
@@ -124,6 +125,7 @@ export function TimeOffCalendarClient({ initial }: Props) {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6">
+      {dashboard.canManageOthers ? <CoveragePanel refreshKey={JSON.stringify(dashboard.entries.map((entry) => [entry.id, entry.version]))} /> : null}
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold text-hq-fg">{t("title")}</h1>
         <p className="text-sm text-hq-fg-muted">{t("subtitle")}</p>

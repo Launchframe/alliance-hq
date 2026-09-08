@@ -6328,6 +6328,16 @@
   "vsCompliance": {
     "conflict": "Conflicting evidence"
   },
+  "teamWork": {
+    "title": "Team work",
+    "empty": "No outstanding team work.",
+    "assignedTo": "Assigned to {name}.",
+    "coverageConflict": "{member} is away during {duty} on {date}.",
+    "reassign": "Reassign duty",
+    "keep": "Keep assignment",
+    "keepHint": "Only keep this assignment after confirming coverage. Existing locks and permissions still apply.",
+    "auditReason": "Audit note"
+  },
   "timeOff": {
     "title": "My Time Off",
     "sync": {

@@ -10,28 +10,30 @@ const mocks = vi.hoisted(() => ({
   audit: vi.fn(),
   roster: vi.fn(),
   summary: vi.fn(),
+  lockAvailability: vi.fn(),
+  conflicts: vi.fn(),
 }));
 
 vi.mock("@/lib/db", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/db")>();
-  return {
-    ...actual,
-    getDb: () => ({
+  const db = {
       select: () => {
         const query = {
           from: () => query,
           where: () => query,
           orderBy: () => query,
           limit: async () => mocks.reads.shift() ?? [],
+          for: async () => mocks.reads.shift() ?? [],
           then: (resolve: (rows: unknown[]) => unknown) => Promise.resolve(resolve(mocks.reads.shift() ?? [])),
         };
         return query;
       },
       update: () => ({ set: (values: unknown) => ({ where: async () => { mocks.update(values); return []; } }) }),
-    }),
   };
+  return { ...actual, getDb: () => ({ ...db, transaction: async <T>(work: (tx: typeof db) => Promise<T>): Promise<T> => work(db) }) };
 });
-vi.mock("@/lib/time-off/availability.server", () => ({ loadTimeOffAvailability: mocks.availability }));
+vi.mock("@/lib/time-off/availability.server", () => ({ loadTimeOffAvailability: mocks.availability, lockAllianceAvailability: mocks.lockAvailability }));
+vi.mock("@/lib/time-off/coverage.server", async (original) => ({ ...await original<object>(), findCoverageConflicts: mocks.conflicts }));
 vi.mock("@/lib/trains/repository", () => ({ lockConductorRecord: mocks.lock, upsertConductorDraft: mocks.draft }));
 vi.mock("@/lib/trains/pool", () => ({ getPoolSummary: mocks.summary, releasePoolSelectionForDate: mocks.release }));
 vi.mock("@/lib/bff/audit", () => ({ writeAuditLog: mocks.audit }));
@@ -48,6 +50,7 @@ const pending = {
   conductorMemberName: "Primary",
   conductorNominationStatus: "pending_confirmation",
   successorAttempt: 0,
+  updatedAt: new Date("2026-09-08T12:00:00Z"),
   lockedAt: null,
   successionSnapshot: [
     { memberId: "primary", memberName: "Primary" },
@@ -60,6 +63,7 @@ describe("conductor confirmation duty-date availability", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.reads = [];
+    mocks.conflicts.mockResolvedValue([]);
     mocks.availability.mockResolvedValue({ awayMemberIds: new Set() });
     mocks.release.mockResolvedValue(undefined);
     mocks.summary.mockResolvedValue({ remaining: 0 });
@@ -85,7 +89,7 @@ describe("conductor confirmation duty-date availability", () => {
   });
 
   it("skips an away successor without rewriting the succession snapshot", async () => {
-    mocks.reads = [[{ ...pending, nominatedAt: new Date() }], []];
+    mocks.reads = [[{ ...pending, nominatedAt: new Date() }], [pending], []];
     mocks.availability.mockResolvedValue({ awayMemberIds: new Set(["away-successor"]) });
     expect((await processConductorConfirmationTick()).forfeits).toBe(1);
     expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ conductorMemberId: "available-successor", successorAttempt: 2 }));

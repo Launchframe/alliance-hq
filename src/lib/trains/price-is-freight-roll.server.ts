@@ -39,7 +39,7 @@ import type {
 import { fetchAlliancePriorDayVsScoresByMember } from "@/lib/trains/vs-scores.server";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 
-async function applyConductorMinimumsFilter(
+export async function applyConductorMinimumsFilter(
   allianceId: string,
   trainDate: string,
   candidates: RollCandidate[],

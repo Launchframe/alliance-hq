@@ -1,5 +1,6 @@
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { loadTimeOffAvailability } from "@/lib/time-off/availability.server";
+import { CoverageConflictError } from "@/lib/time-off/coverage.server";
 import { loadActiveAlliancePoolMembers, loadAllianceRow } from "@/lib/members/game-roster";
 import type {
   ConductorMechanismType,
@@ -63,7 +64,6 @@ import {
   listUnselectedPoolEntries,
   markPoolEntrySelected,
   markPoolMemberSelectedForDate,
-  movePoolSelectionForDate,
   pickUniformPoolEntry,
   pickWeightedPoolEntryFromRows,
   releasePoolSelectionForDate,
@@ -135,6 +135,7 @@ import {
   listConductorRecordsInRange,
   listDayConfigsForWeek,
   lockConductorRecord,
+  lockConductorRecords,
   replaceDayConfigs,
   assignVipOnLockedConductor,
   upsertConductorDraft,
@@ -704,6 +705,7 @@ async function persistConductorRoll(input: {
   mechanism: ConductorMechanismType;
   dayConfigId: string | null;
   vipMechanism?: VipMechanismType | null;
+  manualCoverageOverride?: boolean;
 }): Promise<RollResult> {
   const rankEvent = await getMemberRankAsOf(
     input.allianceId,
@@ -711,8 +713,10 @@ async function persistConductorRoll(input: {
     input.date,
   );
 
-  await recheckAutomaticDutyAvailability(input);
+  if (!input.manualCoverageOverride) await recheckAutomaticDutyAvailability(input);
   await upsertConductorDraft({
+    poolClaim: input.manualCoverageOverride ? input.result.poolType : undefined,
+    automaticDuty: !input.manualCoverageOverride,
     allianceId: input.allianceId,
     date: input.date,
     seasonKey: input.seasonKey,
@@ -722,6 +726,10 @@ async function persistConductorRoll(input: {
     conductorMechanism: input.mechanism,
     vipMechanism: input.vipMechanism,
     dayConfigId: input.dayConfigId,
+  }).catch(async (error) => {
+    if (!input.manualCoverageOverride && input.result.poolType) await releasePoolSelectionForDate(input.allianceId, input.date, input.result.memberId);
+    if (!input.manualCoverageOverride && error instanceof CoverageConflictError) throwPoolUnavailable(input.result.poolType);
+    throw error;
   });
 
   return { ...input.result, draftPersisted: true };
@@ -772,20 +780,6 @@ export async function confirmConductorMinimumOverride(input: {
   const poolType = usesPriceIsFreightConductorRoll(dayConfig.paintTemplate)
     ? null
     : conductorMechanismPoolType(input.mechanism);
-  if (poolType) {
-    const claimed = await markPoolMemberSelectedForDate(
-      input.allianceId,
-      poolType,
-      input.memberId,
-      input.date,
-    );
-    if (!claimed) {
-      throw new Error(
-        "This member was already selected from the current pool generation.",
-      );
-    }
-  }
-
   const result: RollResult = {
     memberId: input.memberId,
     memberName: input.memberName,
@@ -796,6 +790,7 @@ export async function confirmConductorMinimumOverride(input: {
   };
 
   const persisted = await persistConductorRoll({
+    manualCoverageOverride: true,
     allianceId: input.allianceId,
     date: input.date,
     seasonKey,
@@ -1542,6 +1537,7 @@ export async function rollForVip(input: {
 
   await recheckAutomaticDutyAvailability({ ...input, result });
   await assignVipOnLockedConductor({
+    automaticDuty: true,
     allianceId: input.allianceId,
     date: input.date,
     seasonKey,
@@ -1550,6 +1546,10 @@ export async function rollForVip(input: {
     vipRankEventId: rankEvent?.id ?? null,
     vipMechanism: mechanism,
     dayConfigId: dayConfig.dayConfigId,
+  }).catch(async (error) => {
+    if (result.poolType) await releasePoolSelectionForDate(input.allianceId, input.date, result.memberId);
+    if (error instanceof CoverageConflictError) throwPoolUnavailable(result.poolType);
+    throw error;
   });
 
   if (
@@ -1773,7 +1773,7 @@ export async function importConductorHistory(input: {
         memberId,
         date,
       );
-      const draft = await upsertConductorDraft({
+      const draft = existing?.conductorMemberId === memberId ? existing : await upsertConductorDraft({
         allianceId: input.allianceId,
         date,
         seasonKey,
@@ -1837,7 +1837,7 @@ export async function lockConductorsForDates(input: {
 }> {
   const seasonKey = await resolveTrainSeasonKey(input.allianceId);
   const uniqueDates = [...new Set(input.dates)].sort();
-  const records: Awaited<ReturnType<typeof lockConductorRecord>>[] = [];
+  const pendingRecordIds: string[] = [];
   const poolsRefreshed: PoolRefreshedInfo[] = [];
 
   for (const date of uniqueDates) {
@@ -1867,12 +1867,11 @@ export async function lockConductorsForDates(input: {
       );
     }
 
-    const locked = await lockConductorRecord(
-      record.id,
-      input.allianceId,
-      input.lockedByHqUserId,
-    );
-    records.push(locked);
+    pendingRecordIds.push(record.id);
+  }
+  const records = await lockConductorRecords(pendingRecordIds, input.allianceId, input.lockedByHqUserId);
+  for (const locked of records) {
+    const date = locked.date;
     await syncDepletingPoolSelectionForConductorDay({
       allianceId: input.allianceId,
       date,
@@ -1919,172 +1918,7 @@ export async function syncDepletingPoolSelectionForConductorDay(input: {
   );
 }
 
-export async function swapConductors(input: {
-  allianceId: string;
-  dateA: string;
-  dateB: string;
-}): Promise<{
-  records: NonNullable<Awaited<ReturnType<typeof getConductorRecord>>>[];
-}> {
-  if (input.dateA === input.dateB) {
-    throw new Error("Pick two different days to swap.");
-  }
-
-  const today = getServerCalendarDate();
-  if (input.dateB <= today) {
-    throw new Error("Swap targets must be a future day.");
-  }
-
-  const seasonKey = await resolveTrainSeasonKey(input.allianceId);
-  const recordA = await getConductorRecord(
-    input.allianceId,
-    input.dateA,
-    seasonKey,
-  );
-  const recordB = await getConductorRecord(
-    input.allianceId,
-    input.dateB,
-    seasonKey,
-  );
-
-  if (!recordA?.conductorMemberId || !recordA.conductorMemberName) {
-    throw new Error(`No conductor set for ${input.dateA}.`);
-  }
-
-  if (recordA.lockedAt || recordB?.lockedAt) {
-    throw new Error("Unlock conductor days before swapping.");
-  }
-
-  const targetHasConductor =
-    Boolean(recordB?.conductorMemberId && recordB.conductorMemberName);
-
-  if (targetHasConductor) {
-    const memberFromA = recordA.conductorMemberId;
-    const memberFromB = recordB!.conductorMemberId!;
-    const rankForA = await getMemberRankAsOf(
-      input.allianceId,
-      memberFromB,
-      input.dateA,
-    );
-    const rankForB = await getMemberRankAsOf(
-      input.allianceId,
-      memberFromA,
-      input.dateB,
-    );
-
-    await upsertConductorDraft({
-      allianceId: input.allianceId,
-      date: input.dateA,
-      seasonKey,
-      conductorMemberId: recordB!.conductorMemberId,
-      conductorMemberName: recordB!.conductorMemberName,
-      conductorRankEventId: rankForA?.id ?? null,
-      substituteForMemberId: recordA.conductorMemberId,
-      substituteForMemberName: recordA.conductorMemberName,
-    });
-
-    await upsertConductorDraft({
-      allianceId: input.allianceId,
-      date: input.dateB,
-      seasonKey,
-      conductorMemberId: recordA.conductorMemberId,
-      conductorMemberName: recordA.conductorMemberName,
-      conductorRankEventId: rankForB?.id ?? null,
-      substituteForMemberId: recordB!.conductorMemberId,
-      substituteForMemberName: recordB!.conductorMemberName,
-    });
-
-    // Keep depleting-pool consumption attached to the new dates.
-    await movePoolSelectionForDate(
-      input.allianceId,
-      memberFromA,
-      input.dateA,
-      input.dateB,
-    );
-    await movePoolSelectionForDate(
-      input.allianceId,
-      memberFromB,
-      input.dateB,
-      input.dateA,
-    );
-  } else {
-    const memberFromA = recordA.conductorMemberId;
-    const rankForB = await getMemberRankAsOf(
-      input.allianceId,
-      memberFromA,
-      input.dateB,
-    );
-
-    await upsertConductorDraft({
-      allianceId: input.allianceId,
-      date: input.dateB,
-      seasonKey,
-      conductorMemberId: recordA.conductorMemberId,
-      conductorMemberName: recordA.conductorMemberName,
-      conductorRankEventId: rankForB?.id ?? null,
-      substituteForMemberId: null,
-      substituteForMemberName: null,
-    });
-
-    // Do not release the pool slot — the conductor is still assigned (on dateB).
-    await clearConductorAssignment(
-      input.allianceId,
-      input.dateA,
-      seasonKey,
-      { releasePool: false },
-    );
-    await movePoolSelectionForDate(
-      input.allianceId,
-      memberFromA,
-      input.dateA,
-      input.dateB,
-    );
-    // VIP stays day-scoped; do not leave an orphan VIP on the emptied source.
-    // Also releases any depleting event_top_x mark for that date.
-    if (recordA.vipMemberId) {
-      await clearVipAssignment(input.allianceId, input.dateA, seasonKey);
-    }
-  }
-
-  const draftA = await getConductorRecord(
-    input.allianceId,
-    input.dateA,
-    seasonKey,
-  );
-  const draftB = await getConductorRecord(
-    input.allianceId,
-    input.dateB,
-    seasonKey,
-  );
-
-  // Lock is irreversible spawn — swap only moves drafts. Officers lock when
-  // the train is actually set in-game.
-  if (!draftB?.conductorMemberId || !draftB.conductorMemberName) {
-    throw new Error("Swap failed to persist conductor assignment.");
-  }
-
-  // Keep depleting-pool consumption aligned with the new dates (unlock used to
-  // wipe selection; even without that, selectedForDate must follow the swap).
-  await syncDepletingPoolSelectionForConductorDay({
-    allianceId: input.allianceId,
-    date: input.dateA,
-    seasonKey,
-    memberId: draftA?.conductorMemberId,
-  });
-  await syncDepletingPoolSelectionForConductorDay({
-    allianceId: input.allianceId,
-    date: input.dateB,
-    seasonKey,
-    memberId: draftB.conductorMemberId,
-  });
-
-  const records = [draftA, draftB].filter(
-    (row): row is NonNullable<typeof row> =>
-      Boolean(row?.conductorMemberId && row.conductorMemberName),
-  );
-
-  return { records };
-}
+export { swapConductorDrafts as swapConductors } from "./swap-coverage.server";
 
 export { getServerCalendarDate };
 export { getWeekStartMonday } from "@/lib/trains/game-time";

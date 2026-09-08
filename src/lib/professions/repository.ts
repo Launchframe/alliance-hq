@@ -1,10 +1,10 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
-import { loadTimeOffAvailability } from "@/lib/time-off/availability.server";
+import { lockAllianceAvailability, loadTimeOffAvailability } from "@/lib/time-off/availability.server";
 import type {
   AssignedEngRow,
   OfficerActivityEvent,
@@ -282,8 +282,17 @@ export async function createEngAssignment(input: {
   wlTeamId: string;
   allianceId: string;
   engCommanderId: string;
+  automaticDutyDate?: string;
 }): Promise<string> {
-  const db = getDb();
+  return getDb().transaction(async (db) => {
+  await lockAllianceAvailability(db, input.allianceId);
+  if (input.automaticDutyDate) {
+    const [team] = await db.select({ wlCommanderId: schema.wlTeams.wlCommanderId }).from(schema.wlTeams).where(and(eq(schema.wlTeams.id, input.wlTeamId), eq(schema.wlTeams.allianceId, input.allianceId)));
+    const away = await db.select({ id: schema.memberTimeOff.id }).from(schema.memberTimeOff)
+      .innerJoin(schema.commanderAllianceMemberships, and(eq(schema.commanderAllianceMemberships.ashedMemberId, schema.memberTimeOff.ashedMemberId), eq(schema.commanderAllianceMemberships.allianceId, input.allianceId), isNull(schema.commanderAllianceMemberships.leftAt)))
+      .where(and(eq(schema.memberTimeOff.allianceId, input.allianceId), eq(schema.memberTimeOff.globalAbsence, true), isNull(schema.memberTimeOff.cancelledAt), lte(schema.memberTimeOff.startDate, input.automaticDutyDate), gte(schema.memberTimeOff.endDate, input.automaticDutyDate), inArray(schema.commanderAllianceMemberships.commanderId, [input.engCommanderId, team?.wlCommanderId ?? ""])));
+    if (!team || away.length) throw new Error("No War Leaders available for assignment.");
+  }
   const id = nanoid();
   await db.insert(schema.wlEngAssignments).values({
     id,
@@ -296,6 +305,7 @@ export async function createEngAssignment(input: {
     updatedAt: new Date(),
   });
   return id;
+  });
 }
 
 /** Update the status of an assignment (dismiss or self-remove). */
