@@ -1,6 +1,7 @@
 import "server-only";
 
-import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, isNull, lte, notInArray, or, sql } from "drizzle-orm";
+import { loadTimeOffAvailability } from "@/lib/time-off/availability.server";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
@@ -89,6 +90,7 @@ async function buildSuccessionSnapshot(input: {
   scoreDateDay?: DayMechanismConfig | null;
   winner: { memberId: string; memberName: string };
 }): Promise<SuccessionSnapshotEntry[]> {
+  const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.trainDate);
   const topBoard = resolveNominationTopBoard({
     trainDate: input.trainDate,
     trainDay: {
@@ -107,7 +109,7 @@ async function buildSuccessionSnapshot(input: {
       input.leadDays,
     );
     if (top.length > 0) {
-      return top.map((c) => ({
+      return top.filter((c) => !awayMemberIds.has(c.memberId)).map((c) => ({
         memberId: c.memberId,
         memberName: c.memberName,
         rank: c.allianceRank ?? null,
@@ -139,6 +141,7 @@ async function buildSuccessionSnapshot(input: {
         and(
           eq(schema.conductorPoolEntries.allianceId, input.allianceId),
           eq(schema.conductorPoolEntries.poolType, poolType),
+          awayMemberIds.size > 0 ? notInArray(schema.conductorPoolEntries.memberId, [...awayMemberIds]) : undefined,
           isNull(schema.conductorPoolEntries.selectedAt),
         ),
       )
@@ -193,6 +196,10 @@ export async function nominateConductorForDate(input: {
   if (existing?.lockedAt) {
     return { ok: false, reason: "already_locked" };
   }
+  if (existing?.conductorMemberId) {
+    const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.trainDate);
+    if (awayMemberIds.has(existing.conductorMemberId)) return { ok: false, reason: "coverage_conflict", recordId: existing.id };
+  }
   const status = existing?.conductorNominationStatus;
   if (
     status === "pending_confirmation" ||
@@ -244,6 +251,8 @@ export async function nominateConductorForDate(input: {
     winner,
   });
 
+  const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.trainDate);
+  if (awayMemberIds.has(winner.memberId)) return { ok: false, reason: "coverage_conflict" };
   const now = new Date();
   const deadline = new Date(now.getTime() + CONFIRMATION_PRIMARY_WINDOW_MS);
   const triggerMode = input.trigger.mode;
@@ -361,7 +370,10 @@ async function promoteSuccessor(input: {
   const snapshot =
     (input.record.successionSnapshot as SuccessionSnapshotEntry[] | null) ??
     [];
-  const nextAttempt = (input.record.successorAttempt ?? 0) + 1;
+  const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.record.date);
+  if (input.record.lockedAt || (input.record.conductorMemberId && awayMemberIds.has(input.record.conductorMemberId))) return false;
+  let nextAttempt = (input.record.successorAttempt ?? 0) + 1;
+  while (nextAttempt <= CONFIRMATION_MAX_SUCCESSORS && snapshot[nextAttempt] && awayMemberIds.has(snapshot[nextAttempt].memberId)) nextAttempt += 1;
   if (nextAttempt > CONFIRMATION_MAX_SUCCESSORS) return false;
 
   const next = snapshot[nextAttempt];
@@ -398,7 +410,9 @@ async function assignR4Fallback(input: {
   allianceId: string;
   record: typeof schema.trainConductorRecords.$inferSelect;
   now: Date;
-}): Promise<void> {
+}): Promise<boolean> {
+  const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.record.date);
+  if (input.record.lockedAt || (input.record.conductorMemberId && awayMemberIds.has(input.record.conductorMemberId))) return false;
   const summary = await getPoolSummary(input.allianceId, "r4_plus");
   let memberId: string | null = null;
   let memberName: string | null = null;
@@ -415,6 +429,7 @@ async function assignR4Fallback(input: {
         and(
           eq(schema.conductorPoolEntries.allianceId, input.allianceId),
           eq(schema.conductorPoolEntries.poolType, "r4_plus"),
+          awayMemberIds.size > 0 ? notInArray(schema.conductorPoolEntries.memberId, [...awayMemberIds]) : undefined,
           isNull(schema.conductorPoolEntries.selectedAt),
         ),
       )
@@ -431,7 +446,7 @@ async function assignR4Fallback(input: {
   if (!memberId) {
     const roster = await listActiveAllianceMembersForPool(input.allianceId);
     const r4 = roster
-      .filter((m) => (m.allianceRank ?? 0) >= 4)
+      .filter((m) => (m.allianceRank ?? 0) >= 4 && !awayMemberIds.has(m.ashedMemberId))
       .sort((a, b) => (a.allianceRank ?? 99) - (b.allianceRank ?? 99));
     if (r4[0]) {
       memberId = r4[0].ashedMemberId;
@@ -439,7 +454,9 @@ async function assignR4Fallback(input: {
     }
   }
 
-  if (!memberId || !memberName) return;
+  if (!memberId || !memberName) return false;
+  const latest = await loadTimeOffAvailability(input.allianceId, input.record.date);
+  if (latest.awayMemberIds.has(memberId) || (input.record.conductorMemberId && latest.awayMemberIds.has(input.record.conductorMemberId))) return false;
 
   if (input.record.conductorMemberId) {
     await releasePoolSelectionForDate(
@@ -478,6 +495,7 @@ async function assignR4Fallback(input: {
       memberId,
     },
   });
+  return true;
 }
 
 /** Cron: expire confirmation windows, promote successors, R4 fallback, auto-lock. */
@@ -508,15 +526,16 @@ export async function processConductorConfirmationTick(): Promise<{
     );
 
   for (const record of pending) {
+    const { awayMemberIds } = await loadTimeOffAvailability(record.allianceId, record.date);
+    if (record.conductorMemberId && awayMemberIds.has(record.conductorMemberId)) continue;
     const nominatedAt = record.nominatedAt?.getTime() ?? now.getTime();
     const hardStop = nominatedAt + CONFIRMATION_HARD_STOP_MS;
     if (now.getTime() >= hardStop) {
-      await assignR4Fallback({
+      if (await assignR4Fallback({
         allianceId: record.allianceId,
         record,
         now,
-      });
-      fallbacks += 1;
+      })) fallbacks += 1;
       continue;
     }
 
@@ -528,12 +547,11 @@ export async function processConductorConfirmationTick(): Promise<{
     if (promoted) {
       forfeits += 1;
     } else {
-      await assignR4Fallback({
+      if (await assignR4Fallback({
         allianceId: record.allianceId,
         record,
         now,
-      });
-      fallbacks += 1;
+      })) fallbacks += 1;
     }
   }
 
@@ -556,6 +574,8 @@ export async function processConductorConfirmationTick(): Promise<{
 
   for (const record of lockable) {
     if (!record.conductorMemberId) continue;
+    const { awayMemberIds } = await loadTimeOffAvailability(record.allianceId, record.date);
+    if (awayMemberIds.has(record.conductorMemberId)) continue;
     await lockConductorRecord(record.id, record.allianceId, null);
     autoLocks += 1;
   }

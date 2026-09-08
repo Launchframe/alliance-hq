@@ -4,6 +4,7 @@ import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { loadTimeOffAvailability } from "@/lib/time-off/availability.server";
 import type {
   AssignedEngRow,
   OfficerActivityEvent,
@@ -17,6 +18,19 @@ import type {
 // ---------------------------------------------------------------------------
 // Profession history
 // ---------------------------------------------------------------------------
+
+export async function loadAwayProfessionCommanderIds(allianceId: string, dutyDate: string): Promise<Set<string>> {
+  const { awayMemberIds } = await loadTimeOffAvailability(allianceId, dutyDate);
+  if (awayMemberIds.size === 0) return new Set();
+  const rows = await getDb().select({ commanderId: schema.commanderAllianceMemberships.commanderId })
+    .from(schema.commanderAllianceMemberships)
+    .where(and(
+      eq(schema.commanderAllianceMemberships.allianceId, allianceId),
+      isNull(schema.commanderAllianceMemberships.leftAt),
+      inArray(schema.commanderAllianceMemberships.ashedMemberId, [...awayMemberIds]),
+    ));
+  return new Set(rows.map((row) => row.commanderId));
+}
 
 export async function getProfessionSince(
   allianceId: string,

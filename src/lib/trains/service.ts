@@ -1,4 +1,5 @@
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
+import { loadTimeOffAvailability } from "@/lib/time-off/availability.server";
 import { loadActiveAlliancePoolMembers, loadAllianceRow } from "@/lib/members/game-roster";
 import type {
   ConductorMechanismType,
@@ -567,10 +568,11 @@ async function rollFromPool(
     >[number] | null = null;
 
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const { awayMemberIds } = await loadTimeOffAvailability(allianceId, date);
       let unselected = applyDepletingPoolClaimEligibility(
         await listUnselectedPoolEntries(allianceId, poolType),
         eligibility,
-      );
+      ).filter((row) => !awayMemberIds.has(row.memberId));
 
       if (dayExcludedMemberIds && dayExcludedMemberIds.size > 0) {
         unselected = filterDaySpinCandidates(unselected, dayExcludedMemberIds);
@@ -610,6 +612,7 @@ async function rollFromPool(
       throwPoolUnavailable(poolType);
     }
 
+    const { awayMemberIds } = await loadTimeOffAvailability(allianceId, date);
     const generationEntries = await listPoolEntries(allianceId, poolType);
     const reelMemberIds =
       eligibility.minimumsQualifiedIds ??
@@ -618,7 +621,7 @@ async function rollFromPool(
     const dayExcluded = dayExcludedMemberIds ?? new Set<string>();
     const seenMemberIds = new Set<string>();
     const wheelCandidates = generationEntries.flatMap((row) => {
-      if (!reelAllowed.has(row.memberId)) return [];
+      if (!reelAllowed.has(row.memberId) || awayMemberIds.has(row.memberId)) return [];
       if (dayExcluded.has(row.memberId)) return [];
       if (seenMemberIds.has(row.memberId)) return [];
       seenMemberIds.add(row.memberId);
@@ -679,6 +682,20 @@ async function applyConductorQualificationGate(input: {
   };
 }
 
+async function recheckAutomaticDutyAvailability(input: {
+  allianceId: string;
+  date: string;
+  result: RollResult;
+}): Promise<void> {
+  const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.date);
+  if (!awayMemberIds.has(input.result.memberId)) return;
+  if (input.result.poolType) {
+    await releasePoolSelectionForDate(input.allianceId, input.date, input.result.memberId);
+    throwPoolUnavailable(input.result.poolType);
+  }
+  throwPoolUnavailable();
+}
+
 async function persistConductorRoll(input: {
   allianceId: string;
   date: string;
@@ -694,6 +711,7 @@ async function persistConductorRoll(input: {
     input.date,
   );
 
+  await recheckAutomaticDutyAvailability(input);
   await upsertConductorDraft({
     allianceId: input.allianceId,
     date: input.date,
@@ -1208,15 +1226,18 @@ export async function rollForConductor(input: {
         leadDays,
       });
     }
+    const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.date);
+    const available = top.filter((candidate) => !awayMemberIds.has(candidate.memberId));
+    if (available.length === 0) throwPoolUnavailable();
     if (topBoard.topN === 1) {
-      const winner = top[0]!;
+      const winner = available[0]!;
       result = {
         ...winner,
         mechanism,
         isAutomatic: true,
       };
     } else {
-      const eligible = filterDaySpinCandidates(top, dayExcluded);
+      const eligible = filterDaySpinCandidates(available, dayExcluded);
       if (eligible.length === 0) {
         throwNoWheelCandidates(
           "vs",
@@ -1253,7 +1274,10 @@ export async function rollForConductor(input: {
         `Only ${top.length} of ${topBoard.topN} active-roster VR standings available for Top ${topBoard.topN}.`,
       );
     }
-    const eligible = filterDaySpinCandidates(top, dayExcluded);
+    const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.date);
+    const available = top.filter((candidate) => !awayMemberIds.has(candidate.memberId));
+    if (available.length === 0) throwPoolUnavailable();
+    const eligible = filterDaySpinCandidates(available, dayExcluded);
     if (eligible.length === 0) {
       throwNoWheelCandidates(
         "vr",
@@ -1360,16 +1384,6 @@ export async function rollForConductor(input: {
         applyDaySpinExclusion ? dayExcluded : undefined,
         claimEligibility,
       );
-      const poolRefreshed = await refreshExhaustedPoolIfNeeded({
-        allianceId: input.allianceId,
-        poolType,
-        date: input.date,
-        paintTemplate: dayConfig.paintTemplate,
-        conductorMechanism: mechanism,
-      });
-      if (poolRefreshed) {
-        result = { ...result, poolRefreshed };
-      }
       poolRollEnforcedMinimums = respectConductorMinimums;
       break;
     }
@@ -1397,6 +1411,20 @@ export async function rollForConductor(input: {
       })
     : { ...result, draftPersisted: true };
 
+  if (gated.draftPersisted) {
+    await persistConductorRoll({
+      allianceId: input.allianceId,
+      date: input.date,
+      seasonKey,
+      result: gated,
+      mechanism,
+      dayConfigId: dayConfig.dayConfigId,
+      vipMechanism: dayConfig.vipMechanism,
+    });
+  } else {
+    await recheckAutomaticDutyAvailability({ ...input, result: gated });
+  }
+
   // Record drawn winners for non-deterministic spins even when qualification
   // rejects the draft — a re-spin means that member is unavailable today.
   if (applyDaySpinExclusion) {
@@ -1412,15 +1440,16 @@ export async function rollForConductor(input: {
     return gated;
   }
 
-  const persisted = await persistConductorRoll({
-    allianceId: input.allianceId,
-    date: input.date,
-    seasonKey,
-    result: gated,
-    mechanism,
-    dayConfigId: dayConfig.dayConfigId,
-    vipMechanism: dayConfig.vipMechanism,
-  });
+  const poolRefreshed = gated.poolType
+    ? await refreshExhaustedPoolIfNeeded({
+        allianceId: input.allianceId,
+        poolType: gated.poolType,
+        date: input.date,
+        paintTemplate: dayConfig.paintTemplate,
+        conductorMechanism: mechanism,
+      })
+    : null;
+  const persisted = poolRefreshed ? { ...gated, poolRefreshed } : gated;
 
   if (
     shouldReleasePriorPoolSelection({
@@ -1499,15 +1528,6 @@ export async function rollForVip(input: {
         false,
         mechanism,
       );
-      const poolRefreshed = await refreshExhaustedPoolIfNeeded({
-        allianceId: input.allianceId,
-        poolType,
-        date: input.date,
-        eventTopN: config.topN ?? 10,
-      });
-      if (poolRefreshed) {
-        result = { ...result, poolRefreshed };
-      }
       break;
     }
     default:
@@ -1520,6 +1540,7 @@ export async function rollForVip(input: {
     input.date,
   );
 
+  await recheckAutomaticDutyAvailability({ ...input, result });
   await assignVipOnLockedConductor({
     allianceId: input.allianceId,
     date: input.date,
@@ -1544,7 +1565,15 @@ export async function rollForVip(input: {
     );
   }
 
-  return result;
+  const poolRefreshed = result.poolType
+    ? await refreshExhaustedPoolIfNeeded({
+        allianceId: input.allianceId,
+        poolType: result.poolType,
+        date: input.date,
+        eventTopN: (dayConfig.vipConfig as EventTopXConfig | null)?.topN ?? 10,
+      })
+    : null;
+  return poolRefreshed ? { ...result, poolRefreshed } : result;
 }
 
 export async function reseedPool(input: {

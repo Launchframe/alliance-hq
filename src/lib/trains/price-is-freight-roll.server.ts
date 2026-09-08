@@ -1,6 +1,7 @@
 import "server-only";
 
 import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
+import { loadTimeOffAvailability } from "@/lib/time-off/availability.server";
 import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
 import { filterDaySpinCandidates } from "@/lib/trains/day-spin-exclusions.shared";
 import { isPriceIsRightHeavyHitterSaturday } from "@/lib/trains/heavy-hitter-pool.shared";
@@ -53,9 +54,11 @@ async function applyConductorMinimumsFilter(
     candidates.map((candidate) => candidate.memberId),
     options,
   );
-  if (qualifiedIds == null) return candidates;
-  const qualified = new Set(qualifiedIds);
-  return candidates.filter((candidate) => qualified.has(candidate.memberId));
+  const { awayMemberIds } = await loadTimeOffAvailability(allianceId, trainDate);
+  const qualified = qualifiedIds == null ? null : new Set(qualifiedIds);
+  return candidates.filter((candidate) =>
+    !awayMemberIds.has(candidate.memberId) && (qualified == null || qualified.has(candidate.memberId)),
+  );
 }
 
 function throwFromPriceIsFreightEmptyReason(
