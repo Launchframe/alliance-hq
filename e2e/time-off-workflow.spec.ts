@@ -100,12 +100,27 @@ for (const mobile of [false, true]) {
     await page.getByRole("button", { name: "Edit time off", exact: true }).click();
     await dialog.getByLabel("End date", { exact: true }).fill(addCalendarDays(f.tomorrow, 1));
     await dialog.getByRole("button", { name: "Review time off", exact: true }).click();
-    await dialog.getByRole("button", { name: "Save changes", exact: true }).click();
-    await expect(dialog).toHaveCount(0);
-    await expect(page.getByRole("status")).toHaveText("Time off updated.");
-    await page.getByRole("button", { name: "Cancel this entry", exact: true }).click();
-    await expect(dialog.getByText("This removes the planned absence. Its history is kept.")).toBeVisible();
-    await dialog.getByRole("button", { name: "Cancel this entry", exact: true }).click();
+    let releaseRefresh = () => {};
+    const refreshHeld = new Promise<void>((resolve) => { releaseRefresh = resolve; });
+    await page.route("**/api/time-off?**", async (route) => {
+      const response = await route.fetch();
+      await refreshHeld;
+      if (!page.isClosed()) await route.fulfill({ response });
+    });
+    try {
+      await dialog.getByRole("button", { name: "Save changes", exact: true }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(page.getByRole("status")).toHaveText("Time off updated.");
+      await page.getByRole("button", { name: "Cancel this entry", exact: true }).click();
+      await expect(dialog.getByText("This removes the planned absence. Its history is kept.")).toBeVisible();
+      const [cancelled] = await Promise.all([
+        page.waitForResponse((response) => response.request().method() === "DELETE" && response.url().includes("/api/time-off/entries/")),
+        dialog.getByRole("button", { name: "Cancel this entry", exact: true }).click(),
+      ]);
+      expect(cancelled.status()).toBe(200);
+    } finally {
+      releaseRefresh();
+    }
     await expect(dialog).toHaveCount(0);
     await page.getByRole("button", { name: "History", exact: true }).click();
     await expect(page.getByRole("article").getByText("Time off cancelled.")).toBeVisible();

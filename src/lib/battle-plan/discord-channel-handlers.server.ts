@@ -9,6 +9,7 @@ import {
   getAllianceById,
   getGuildAllianceId,
   setGuildBankingChannel,
+  setGuildR4Channel,
   setGuildRegularEventsChannel,
   setGuildSeasonalEventsChannel,
 } from "@/lib/vr/repository";
@@ -67,6 +68,26 @@ export async function handleDiscordSetRegularEventsChannel(input: {
   const alliance = await getAllianceById(gated.allianceId);
   return {
     reply: t("channelSetter.regularEventsSuccess", {
+      tag: alliance?.tag ?? "?",
+      channel: `<#${input.channelId}>`,
+    }),
+  };
+}
+
+export async function handleDiscordSetR4Channel(input: {
+  guildId: string;
+  channelId: string;
+  discordUserId: string;
+  locale: DiscordBotLocale;
+}): Promise<BotReply> {
+  const t = createDiscordTranslator(input.locale);
+  const gated = await guardChannelSetter(input);
+  if ("reply" in gated) return gated;
+
+  await setGuildR4Channel(input.guildId, input.channelId);
+  const alliance = await getAllianceById(gated.allianceId);
+  return {
+    reply: t("channelSetter.r4Success", {
       tag: alliance?.tag ?? "?",
       channel: `<#${input.channelId}>`,
     }),
