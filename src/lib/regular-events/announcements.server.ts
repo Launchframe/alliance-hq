@@ -11,6 +11,7 @@ import {
   type EurWeeklySlot,
 } from "@/lib/eur/schedule-engine";
 import { regularEventLabel } from "@/lib/regular-events/catalog.shared";
+import { SERVER_TIME_IANA } from "@/lib/timezone/constants";
 import { materializeRegularEventReminderInboxItem } from "@/lib/regular-events/inbox.server";
 import {
   getLastOccurrenceForRule,
@@ -58,10 +59,14 @@ function groupByAlliance(targets: ChannelTarget[]): Map<string, string[]> {
 }
 
 function formatTimeStFromScheduledStart(scheduledStartAt: Date): string {
-  // Server time is UTC−2; reconstruct HH:MM from the instant.
-  const shifted = new Date(scheduledStartAt.getTime() + 2 * 60 * 60 * 1000);
-  const hh = String(shifted.getUTCHours()).padStart(2, "0");
-  const mm = String(shifted.getUTCMinutes()).padStart(2, "0");
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: SERVER_TIME_IANA,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(scheduledStartAt);
+  const hh = parts.find((p) => p.type === "hour")?.value ?? "00";
+  const mm = parts.find((p) => p.type === "minute")?.value ?? "00";
   return `${hh}:${mm}`;
 }
 
