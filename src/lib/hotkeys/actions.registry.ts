@@ -18,6 +18,7 @@ const NATIVE_MODE_EXTRA_HREFS = new Set([
   "/trains/history-import",
   "/settings/game-seasons",
   "/settings/upload-reminders",
+  "/settings/regular-events",
   "/settings/hotkeys",
   "/settings/link-device",
   "/tools/video-upload/queue",

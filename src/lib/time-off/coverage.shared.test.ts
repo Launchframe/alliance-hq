@@ -17,6 +17,14 @@ describe("version-bound coverage acceptance", () => {
       expect(acceptsCoverage([{ ...conflict, [field]: "changed" }], acceptance)).toBe(false);
     });
   }
+  it("binds Engineer acceptance to the exact occurrence and proposed UTC window", () => {
+    const shift: CoverageConflict = { ...conflict, dutyRole: "engineer", dutyStartAt: "2026-09-10T22:00:00Z", dutyEndAt: "2026-09-11T04:00:00Z", coverageStartHour: 22, coverageEndHour: 4 };
+    const approved = { ...acceptance, conflicts: [shift] };
+    expect(acceptsCoverage([shift], approved)).toBe(true);
+    for (const change of [{ coverageStartHour: 23 }, { coverageEndHour: 5 }, { dutyStartAt: "2026-09-11T22:00:00Z" }, { dutyEndAt: "2026-09-11T05:00:00Z" }, { assignmentVersion: "2" }, { absenceVersion: "absence-2" }]) {
+      expect(acceptsCoverage([{ ...shift, ...change }], approved)).toBe(false);
+    }
+  });
   it("requires every conflicted assignment to be reviewed", () => {
     expect(acceptsCoverage([conflict, { ...conflict, dutyRole: "vip" }], acceptance)).toBe(false);
   });

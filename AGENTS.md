@@ -161,6 +161,9 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 
 - Migration renumbering after `0004` is SQL file rename plus `_journal.json` update (Drizzle snapshots only cover `0000`–`0004`).
 - Reserve migration sequence numbers for in-flight PRs in stacked work.
+- Standalone E2E builds must bind `DATABASE_URL`, `LOCAL_DATABASE_URL`, and `E2E_DATABASE_URL` to the same URL validated by `scripts/e2e-database-url-guard.mjs`, set `NODE_ENV=production`, and validate `resolveDatabaseUrl(childEnv)` before spawning the build. Guarding only `DATABASE_URL` is insufficient: the resolver can prefer an existing `LOCAL_DATABASE_URL`.
+- Next.js streamed `notFound()` pages can return HTTP 200. Privilege tests must assert the denied page content and the protected API status, rather than relying on an HTTP 404 alone.
+- Use separate browser contexts when testing different signed-in identities across redirecting pages; clearing cookies on a page with pending navigation can cause `ERR_ABORTED` and hide the actual boundary assertion.
 - `db:validate-journal` allows intentional sequence gaps in `_journal.json`.
 - Discord `/link-commander` matches web member-link: UID-only lookup plus identity confirm (no typed in-game name).
 - Roster substring match direction: roster name (≥4 chars) must be a subset of the in-game name, with a single match.

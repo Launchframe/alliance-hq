@@ -97,7 +97,7 @@ test("browser officers inspect read-only settings and stale owner saves retain i
   await page.getByLabel("Weekly VS minimum", { exact: true }).fill("50000000");
   expect((await page.request.patch(f.url, { data: { expectedVersion: 0, weeklyMinimum: 40000000 } })).status()).toBe(200);
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("The evidence, policy, or member rank changed.");
+  await expect(page.locator("#hq-app-shell").getByRole("alert").filter({ hasText: "The evidence, policy, or member rank changed." })).toBeVisible();
   await expect(page.getByLabel("Weekly VS minimum", { exact: true })).toHaveValue("50000000");
 });
 

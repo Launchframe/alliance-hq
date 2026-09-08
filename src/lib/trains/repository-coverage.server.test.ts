@@ -9,7 +9,7 @@ vi.mock("@/lib/db", async () => {
     execute: async () => { mocks.sequence.push("availability-lock"); },
     select: (selection?: Record<string, unknown>) => ({ from: (table: unknown) => {
       mocks.sequence.push(table === schema.memberTimeOff ? "absence-read" : "assignment-read");
-      const result = table === schema.memberTimeOff ? mocks.notices : table === schema.trainConductorRecords ? selection?.row ? [{ row: mocks.row, version: "1" }] : [mocks.row] : [];
+      const result = table === schema.memberTimeOff ? mocks.notices.map((notice) => ({ ...notice, memberId: "member", startDate: "2099-09-10", endDate: "2099-09-10" })) : table === schema.trainConductorRecords ? selection?.row ? [{ row: mocks.row, version: "1" }] : [mocks.row] : [];
       const chain = { where: () => chain, limit: () => chain, for: async () => result, then: (resolve: (rows: unknown[]) => unknown) => Promise.resolve(result).then(resolve) };
       return chain;
     } }),

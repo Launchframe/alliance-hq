@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { FindWLWizard } from "@/components/professions/FindWLWizard";
 import { TimeClockPicker } from "@/components/professions/TimeClockPicker";
 import { Button } from "@/components/ui/button";
+import { useCoverageFetch } from "@/components/time-off/CoverageConfirmation";
 import {
   formatCoverageHourLabel,
   type CoverageDisplayZone,
@@ -88,6 +89,7 @@ export function EngView({ teamContext, onRefresh }: Props) {
   const startUtc = draftStart ?? serverStart;
   const endUtc = draftEnd ?? serverEnd;
   const [timeZone, setTimeZone] = useState<CoverageDisplayZone>("local");
+  const { coverageFetch, coverageDialog } = useCoverageFetch();
   const [savingCoverage, setSavingCoverage] = useState(false);
   const [coverageError, setCoverageError] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
@@ -103,7 +105,7 @@ export function EngView({ teamContext, onRefresh }: Props) {
     setSavingCoverage(true);
     setCoverageError(null);
     try {
-      const res = await fetch("/api/professions/coverage", {
+      const res = await coverageFetch("/api/professions/coverage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -161,6 +163,7 @@ export function EngView({ teamContext, onRefresh }: Props) {
 
   return (
     <div className="max-w-xl space-y-6">
+      {coverageDialog}
       <section className="space-y-3 rounded-xl border border-hq-border p-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-hq-fg">{t("yourWL")}</h2>

@@ -9,6 +9,10 @@ import {
   isSnoozed,
   snoozeItem,
 } from "@/lib/battle-plan/capture-reminder-inbox.shared";
+import {
+  REGULAR_EVENT_REMINDER_INBOX_KIND,
+  REGULAR_EVENT_UPLOAD_REMINDER_INBOX_KIND,
+} from "@/lib/regular-events/inbox.shared";
 import { MEMBER_LINK_HELP_INBOX_KIND } from "@/lib/member-link/member-link-help-inbox.shared";
 import { ONBOARDING_REVIEW_INBOX_KIND } from "@/lib/member-link/onboarding-review-inbox.shared";
 import { ROSTER_LINK_INBOX_KIND } from "@/lib/member-link/roster-link-inbox.shared";
@@ -135,6 +139,12 @@ export default function InboxPageClient({
     if (kind === ONBOARDING_REVIEW_INBOX_KIND) return t("kind.memberOnboardingReview");
     if (kind === MEMBER_LINK_HELP_INBOX_KIND) return t("kind.memberLinkHelp");
     if (kind === CAPTURE_REMINDER_INBOX_KIND) return t("kind.captureReminder");
+    if (kind === REGULAR_EVENT_REMINDER_INBOX_KIND) {
+      return t("kind.regularEventReminder");
+    }
+    if (kind === REGULAR_EVENT_UPLOAD_REMINDER_INBOX_KIND) {
+      return t("kind.regularEventUploadReminder");
+    }
     return kind;
   }
 

@@ -1,7 +1,31 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
+import { Check, Minus } from "lucide-react";
 import type { ComplianceRow } from "./client.shared";
+
+export function ComplianceDailyEvidence({ row }: { row: ComplianceRow }) {
+  const t = useTranslations("vsCompliance");
+  const all = useTranslations();
+  const locale = useLocale();
+  const number = (value: number) => new Intl.NumberFormat(locale).format(value);
+  const date = (value: string) => new Intl.DateTimeFormat(locale, { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`));
+  return <div className="overflow-x-auto">
+    <table data-testid="compliance-daily-grid" className="w-full border-collapse text-left text-sm">
+      <caption className="pb-2 text-left">{t("dailyTarget")}: {number(row.dailyTarget)}</caption>
+      <thead><tr><th scope="col" className="p-2">{all("timeOff.workflow.serverTime")}</th><th scope="col" className="p-2">{all("videoReview.colScore")} / {t("dailyTarget")}</th><th scope="col" className="p-2">{all("members.colStatus")}</th></tr></thead>
+      <tbody>{row.daily.map((day) => <tr key={day.date} className="border-t border-hq-border">
+        <th scope="row" className="p-2 font-normal"><time dateTime={day.date}>{date(day.date)}</time></th>
+        <td className="p-2 tabular-nums"><span className="inline-flex items-center gap-1">{day.score === null ? all("commandersIndex.unreportedShort") : number(day.score)} / {number(row.dailyTarget)}{day.score !== null ? day.score >= row.dailyTarget ? <Check aria-hidden className="size-4" /> : <Minus aria-hidden className="size-4" /> : null}</span></td>
+        <td className="space-y-1 p-2"><p>{t(day.state)}</p>
+          {day.away ? <p>{all("timeOff.workflow.globalAbsence")}</p> : null}
+          {day.excused ? <p>{all("timeOff.workflow.weeklyExcusal")}</p> : null}
+          {day.pendingExcusal ? <p>{all("timeOff.sync.noticeUnverified")}</p> : null}
+        </td>
+      </tr>)}</tbody>
+    </table>
+  </div>;
+}
 
 export function ComplianceEvidence({ row }: { row: ComplianceRow }) {
   const t = useTranslations("vsCompliance");

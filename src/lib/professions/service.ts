@@ -320,6 +320,7 @@ export async function setEngCoverageWindow(
     assignment.assignmentId,
     coverageStartHour,
     coverageEndHour,
+    allianceId,
   );
 }
 

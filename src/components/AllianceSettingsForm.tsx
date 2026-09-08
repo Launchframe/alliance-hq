@@ -105,6 +105,17 @@ export function AllianceSettingsForm({
           {t("uploadRemindersLink")} →
         </Link>
       </section>
+
+      <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+        <h2 className="font-medium">{t("regularEventsTitle")}</h2>
+        <p className="mt-2 text-sm text-hq-fg-muted">{t("regularEventsBody")}</p>
+        <Link
+          href="/settings/regular-events"
+          className="mt-4 inline-block text-sm text-hq-accent hover:underline"
+        >
+          {t("regularEventsLink")} →
+        </Link>
+      </section>
     </div>
   );
 }

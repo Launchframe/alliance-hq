@@ -7,6 +7,10 @@ export type CoverageConflict = {
   memberName: string;
   lockedAt: string | null;
   absenceVersion: string;
+  dutyStartAt?: string;
+  dutyEndAt?: string;
+  coverageStartHour?: number;
+  coverageEndHour?: number;
 };
 
 export type CoverageRouting = { kind: "alliance_leadership" | "team_lead"; hqUserId: string; name: string };
@@ -21,7 +25,9 @@ export type CoverageAcceptance = {
 export function sameCoverageConflict(a: CoverageConflict, b: CoverageConflict): boolean {
   return a.assignmentId === b.assignmentId && a.assignmentVersion === b.assignmentVersion &&
     a.dutyDate === b.dutyDate && a.dutyRole === b.dutyRole && a.memberId === b.memberId &&
-    a.memberName === b.memberName && a.lockedAt === b.lockedAt && a.absenceVersion === b.absenceVersion;
+    a.memberName === b.memberName && a.lockedAt === b.lockedAt && a.absenceVersion === b.absenceVersion &&
+    a.dutyStartAt === b.dutyStartAt && a.dutyEndAt === b.dutyEndAt &&
+    a.coverageStartHour === b.coverageStartHour && a.coverageEndHour === b.coverageEndHour;
 }
 
 export function acceptsCoverage(conflicts: CoverageConflict[], acceptance: CoverageAcceptance | undefined): boolean {

@@ -895,39 +895,60 @@
       "idx": 127,
       "version": "7",
       "when": 1790900000131,
-      "tag": "0131_time_off_revision_history",
+      "tag": "0131_regular_event_announcements",
       "breakpoints": true
     },
     {
       "idx": 128,
       "version": "7",
-      "when": 1790900000132,
-      "tag": "0132_time_off_reliable_ashed_sync",
+      "when": 1790900000131,
+      "tag": "0134_time_off_revision_history",
       "breakpoints": true
     },
     {
       "idx": 129,
       "version": "7",
-      "when": 1790900000134,
-      "tag": "0134_native_vs_score_evidence",
+      "when": 1790900000132,
+      "tag": "0132_regular_event_upload_reminders",
       "breakpoints": true
     },
     {
       "idx": 130,
       "version": "7",
-      "when": 1790900000135,
-      "tag": "0135_vs_compliance",
-      "breakpoints": false
+      "when": 1790900000132,
+      "tag": "0135_time_off_reliable_ashed_sync",
+      "breakpoints": true
     },
     {
       "idx": 131,
       "version": "7",
-      "when": 1790900000136,
-      "tag": "0136_support_team_foundation",
+      "when": 1790900000133,
+      "tag": "0133_regular_event_repeats_r4",
       "breakpoints": true
     },
     {
       "idx": 132,
+      "version": "7",
+      "when": 1790900000134,
+      "tag": "0136_native_vs_score_evidence",
+      "breakpoints": true
+    },
+    {
+      "idx": 133,
+      "version": "7",
+      "when": 1790900000135,
+      "tag": "0137_vs_compliance",
+      "breakpoints": false
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1790900000136,
+      "tag": "0138_support_team_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 135,
       "version": "7",
       "when": 1790900000140,
       "tag": "0140_team_work_routing",

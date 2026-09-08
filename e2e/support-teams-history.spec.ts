@@ -25,7 +25,12 @@ test("officer history and owner cascade preserve unrelated work and immutable ac
   const ownerHeaders = { Cookie: authCookieHeader(f.owner) };
   const history = await request.get("/api/support-teams/history?limit=50", { headers: officerHeaders });
   expect(history.status()).toBe(200);
-  expect((await history.json()).events).toHaveLength(6);
+  const events = (await history.json()).events as { kind: string; principalId: string; actorType?: string; reverses: string[] }[];
+  expect(events).toHaveLength(7);
+  expect(events.filter((event) => event.principalId === f.owner.hqUserId || event.principalId === f.officer.hqUserId)).toHaveLength(6);
+  expect(events.filter((event) => event.kind === "reconcile")).toEqual([
+    expect.objectContaining({ kind: "reconcile", principalId: "service:support-team-membership", actorType: "service", reverses: [] }),
+  ]);
   const blocked = await request.post(`/api/support-teams/history/${root.id}/undo-preview`, { headers: officerHeaders });
   expect(blocked.status()).toBe(409);
   expect(await blocked.json()).toMatchObject({ code: "dependencies" });
