@@ -27,6 +27,10 @@ export function allianceTrainDiscordApiPath(tag: string): string {
   return `/api/alliance/${encodeURIComponent(allianceTagPathSegment(tag))}/train-discord`;
 }
 
+export function allianceRegularEventsApiPath(tag: string): string {
+  return `/api/alliance/${encodeURIComponent(allianceTagPathSegment(tag))}/regular-events`;
+}
+
 export function allianceVrSandboxApiPath(tag: string): string {
   return `/api/alliance/${encodeURIComponent(allianceTagPathSegment(tag))}/vr-sandbox`;
 }

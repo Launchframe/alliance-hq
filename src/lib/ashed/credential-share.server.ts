@@ -2,9 +2,10 @@ import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
 
-import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { and, count, desc, eq, inArray, or } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
+import { MAX_ACTIVE_CREDENTIAL_SHARES } from "@/lib/ashed/credential-share-cap.shared";
 import {
   type CredentialShareCapability,
   isCredentialShareCapability,
@@ -35,6 +36,7 @@ import {
 import { sessionHoldsAshedIdentityForHqUser } from "@/lib/rbac/ashed-session-membership";
 
 export const MAX_SHARE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export { MAX_ACTIVE_CREDENTIAL_SHARES };
 
 const OFFICER_PLUS_ROLE_IDS = new Set([
   ROLE_IDS.owner,
@@ -283,8 +285,8 @@ export async function createCredentialShareInvite(input: {
   const ttlHours = validateTtlHours(input.ttlHours);
 
   const db = getDb();
-  const [blocking] = await db
-    .select({ id: schema.ashedCredentialShares.id })
+  const [shareCountRow] = await db
+    .select({ value: count() })
     .from(schema.ashedCredentialShares)
     .where(
       and(
@@ -292,12 +294,12 @@ export async function createCredentialShareInvite(input: {
         eq(schema.ashedCredentialShares.ownerHqUserId, ownerHqUserId),
         inArray(schema.ashedCredentialShares.status, ["pending", "active"]),
       ),
-    )
-    .limit(1);
+    );
+  const activeShareCount = Number(shareCountRow?.value ?? 0);
 
-  if (blocking) {
+  if (activeShareCount >= MAX_ACTIVE_CREDENTIAL_SHARES) {
     throw new CredentialShareError(
-      "Revoke or wait for your existing credential share before creating another.",
+      `You already have ${MAX_ACTIVE_CREDENTIAL_SHARES} active shares. Revoke one below, then try again.`,
       "CONFLICT",
     );
   }

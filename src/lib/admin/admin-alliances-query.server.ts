@@ -34,13 +34,23 @@ function buildSearchWhere(q: string | undefined): SQL | undefined {
   }
 
   const pattern = `%${escapeLikePrefix(trimmed)}%`;
-  return or(
+  const conditions: SQL[] = [
     sql`${schema.alliances.name} ilike ${pattern} escape ${LIKE_ESCAPE}`,
     sql`${schema.alliances.slug} ilike ${pattern} escape ${LIKE_ESCAPE}`,
     sql`${schema.alliances.tag} ilike ${pattern} escape ${LIKE_ESCAPE}`,
     sql`${schema.alliances.ashedAllianceId} ilike ${pattern} escape ${LIKE_ESCAPE}`,
     sql`${schema.alliances.ownerEmail} ilike ${pattern} escape ${LIKE_ESCAPE}`,
-  );
+    // Hint copy offers "server" — match state server number as text and exact int.
+    sql`cast(${schema.alliances.gameServerNumber} as text) ilike ${pattern} escape ${LIKE_ESCAPE}`,
+  ];
+
+  if (/^\d{1,6}$/.test(trimmed)) {
+    conditions.push(
+      eq(schema.alliances.gameServerNumber, Number.parseInt(trimmed, 10)),
+    );
+  }
+
+  return or(...conditions);
 }
 
 export function buildAdminAlliancesQuery(

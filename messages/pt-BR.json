@@ -1185,7 +1185,22 @@
     "refreshFailed": "Falha na atualização — verifique seu token Ashed.",
     "empty": "Nenhum membro da equipe ainda.",
     "forbidden": "Membro da aliança necessário.",
+    "revokeOfficer": "Remover acesso de oficial",
+    "revokeOfficerConfirmTitle": "Remover acesso de oficial?",
+    "revokeOfficerConfirmBody": "Isso mantém o login HQ e o vínculo do comandante. Eles terão apenas acesso de membro.",
+    "revokeOfficerConfirm": "Remover acesso",
+    "revokeOfficerCancel": "Cancelar",
+    "revokeOfficerWorking": "Removendo…",
+    "revokeOfficerFailed": "Não foi possível remover o acesso de oficial.",
     "ashedNote": "Admins da aliança: para adicionar ou remover mantenedores da sincronização Ashed, atualize colaboradores no Ashed → Alianças e atualize aqui.",
+    "tabs": {
+      "label": "Seções de acesso da equipe",
+      "loading": "Carregando configurações da equipe…",
+      "invites": "Convites",
+      "processors": "Processadores de vídeo",
+      "credentialShares": "Compartilhamento Ashed",
+      "members": "Membros"
+    },
     "invites": {
       "title": "Convidar para o Alliance HQ",
       "description": "Gere links de convite ou códigos de entrada para esta aliança. Os destinatários entram com a própria conta HQ — não é necessário um mantenedor da plataforma.",
@@ -1350,7 +1365,8 @@
       "commander": "Comandante",
       "commanderNotLinked": "Não vinculado",
       "role": "Função",
-      "source": "Origem"
+      "source": "Origem",
+      "actions": "Ações"
     }
   },
   "dataManagement": {
@@ -1486,6 +1502,7 @@
       "requestsThisSession": "Solicitações Ashed nesta sessão",
       "disconnect": "Desconectar",
       "linkAnotherDevice": "Vincular outro dispositivo",
+      "shareAshedAccess": "Compartilhar acesso Ashed",
       "reconnectHeading": "Reconectar ao Ashed",
       "reconnectHint": "Cole um JWT (ou token Bearer). O HQ conecta automaticamente quando o token é válido — sem botão para clicar.",
       "jwtLabel": "JWT do Ashed",
@@ -1987,6 +2004,9 @@
     "uploadRemindersTitle": "Lembretes de upload",
     "uploadRemindersBody": "Configure quando os oficiais são lembrados de enviar pontuações de eventos e gerencie suas assinaturas pessoais.",
     "uploadRemindersLink": "Gerenciar lembretes de upload",
+    "regularEventsTitle": "Eventos regulares",
+    "regularEventsBody": "Agende lembretes no Discord e na caixa de entrada para Alliance Exercise, Zombie Siege, Glacierdon e Sky Predator.",
+    "regularEventsLink": "Gerenciar lembretes de eventos regulares",
     "discordSectionTitle": "Integração com Discord",
     "discordSectionBody": "Instale o bot da aliança e registre seu servidor Discord para anúncios de trem e ferramentas para membros.",
     "discordSectionLink": "Abrir configurações do Discord",
@@ -2211,6 +2231,53 @@
         "stepEnableAnnouncements": "No Alliance HQ → Configurações → Trens, ative os anúncios de trem no Discord."
       }
     },
+    "regularEvents": {
+      "title": "Lembretes de eventos regulares",
+      "description": "Publica lembretes no Discord e na caixa de entrada do HQ uma hora antes de Alliance Exercise, Zombie Siege, Glacierdon e Sky Predator.",
+      "loading": "Carregando…",
+      "loadFailed": "Não foi possível carregar as configurações de eventos regulares.",
+      "saveFailed": "Não foi possível salvar as configurações de eventos regulares.",
+      "enableAnnouncements": "Publicar lembretes de eventos regulares no Discord",
+      "channelsConfigured": "{count, plural, one {# servidor Discord com canal de eventos regulares} other {# servidores Discord com canal de eventos regulares}}",
+      "noChannel": "Nenhum canal de eventos regulares configurado. Execute /set-regular-events-channel no Discord.",
+      "canyonStormLabel": "Canyon Storm está ativo",
+      "canyonStormHint": "Quando ativado, os lembretes de Zombie Siege usam 23:30 no horário do servidor em vez de 23:00.",
+      "readOnlyHint": "Somente oficiais da aliança podem alterar estas configurações.",
+      "scheduleTitle": "Agenda",
+      "scheduleHint": "Os lembretes usam o horário do servidor (UTC−2). Toque em um dia para adicionar ou remover o evento selecionado.",
+      "viewWeek": "Semana",
+      "viewMonth": "Mês",
+      "prev": "Anterior",
+      "next": "Próximo",
+      "repeatsLabel": "Repete",
+      "repeatsOnce": "Só uma vez",
+      "repeatsWeekly": "Semanal",
+      "repeatsBiweekly": "Quinzenal",
+      "timeLabel": "Horário de início",
+      "timeZoneServer": "Horário do servidor",
+      "timeZoneLocal": "Meu horário local",
+      "timeZoneHint": "Os horários são salvos no horário do servidor (UTC−2).",
+      "validationAdjacent": "Alliance Exercise não pode ser agendado em dias consecutivos.",
+      "validationMinGap": "Zombie Siege precisa de pelo menos dois dias inteiros entre eventos.",
+      "validationOncePerWeek": "Este evento só pode ser agendado uma vez por semana.",
+      "validationWedFri": "Sky Predator e Glacierdon só podem ser agendados de quarta a sexta.",
+      "validationAlternating": "Sky Predator e Glacierdon não podem ser agendados na mesma semana.",
+      "validationBiweeklyPhase": "Eventos quinzenais precisam de pelo menos um dia agendado para definir a semana alternada.",
+      "r4ChannelHint": "Os oficiais recebem um lembrete no Reset no canal R4 do Discord para agendar o evento no jogo. Execute /set-r4-channel.",
+      "r4ChannelConfigured": "Canal R4 configurado em {count, plural, one {# servidor} other {# servidores}}.",
+      "noR4Channel": "Nenhum canal R4 ainda. Execute /set-r4-channel no Discord.",
+      "ruleInterval": "A cada {days} dias às {time} (horário do servidor)",
+      "ruleWeeklyEmpty": "Semanal (nenhum horário configurado)",
+      "dow": {
+        "sun": "Dom",
+        "mon": "Seg",
+        "tue": "Ter",
+        "wed": "Qua",
+        "thu": "Qui",
+        "fri": "Sex",
+        "sat": "Sáb"
+      }
+    },
     "vrSandbox": {
       "title": "Modo sandbox de VR",
       "description": "Permite que membros pratiquem o reporte de VR no Discord e em Meu VR quando a temporada ao vivo estiver fechada ou entre temporadas. Relatórios no sandbox não aparecem no placar ao vivo.",
@@ -2370,7 +2437,10 @@
       "extend": "Prorrogar acesso",
       "extendFailed": "Não foi possível prorrogar o compartilhamento de credenciais.",
       "recentActivity": "Atividade recente",
-      "createTitle": "Compartilhar suas credenciais",
+      "activityAction": "Ação",
+      "activityWhen": "Quando",
+      "createTitle": "Compartilhar acesso",
+      "conflictHint": "Você já tem 3 compartilhamentos ativos. Revogue um abaixo e tente de novo.",
       "officerLabel": "Oficial",
       "officerPlaceholder": "Selecione um oficial",
       "capabilitiesLabel": "Capacidades",
@@ -5077,7 +5147,12 @@
       "deniedOwnerOnly": "Esta aliança exige que o R5 / dono defina canais de anúncio no Discord. Peça ao dono, ou peça para voltar a permitir R4+ em Alliance HQ → Configurações → Trens.",
       "seasonalEventsSuccess": "✅ Canal de eventos sazonais definido para **{tag}**. Contagens regressivas de captura serão publicadas em {channel}.",
       "regularEventsSuccess": "✅ Canal de eventos regulares definido para **{tag}**. Anúncios de eventos serão publicados em {channel}.",
+      "r4Success": "✅ Canal R4 definido para **{tag}**. Lembretes de agenda no jogo serão publicados em {channel}.",
       "bankingSuccess": "✅ Canal bancário definido para **{tag}**. Alertas de timer de proteção serão publicados em {channel}."
+    },
+    "regularEvents": {
+      "startsInOneHour": "{event} começa em 1 hora ({time} horário do servidor).",
+      "scheduleInGameAtReset": "TODO: agendar {event} para {time} horário do servidor."
     },
     "link": {
       "userPrompt": "Clique no link abaixo para vincular sua conta do Discord ao Alliance HQ (expira em 30 min):\n{url}\n\nDepois, execute `/help` no Discord para o próximo passo.",
@@ -5499,7 +5574,9 @@
       "captureReminderBody": "Esta Fortaleza foi capturada com sucesso?",
       "captureYes": "Sim — criar banco",
       "captureNo": "Não",
-      "captureSnooze": "Adiar 30 min"
+      "captureSnooze": "Adiar 30 min",
+      "regularEventReminder": "Evento regular",
+      "regularEventUploadReminder": "Envio de pontuação de evento regular"
     },
     "confirmCaptureFailed": "Falha ao confirmar captura."
   },
