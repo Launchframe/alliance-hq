@@ -6,9 +6,10 @@ import { addCalendarDays } from "@/lib/trains/game-time";
 import { validateVsPeriod } from "@/lib/vs-scores/evidence.shared";
 import { VS_COMPLIANCE_MANAGE_PERMISSION, VS_COMPLIANCE_READ_PERMISSION } from "@/lib/rbac/constants";
 import { requireVsComplianceAccess, type VsComplianceActor } from "./access.server";
-import { loadComplianceStateVersion, lockCompliance, prepareExternalEvidence } from "./evidence.server";
+import { loadComplianceStateVersion, lockCompliance, prepareExternalEvidence, resolveComplianceEvidence } from "./evidence.server";
 import { authorizeComplianceTx, rebuildComplianceTx } from "./repository.server";
 import { lastClosedVsWeek } from "./workflow.shared";
+import { defaultVsPolicy, policyForVsWeek } from "./policy.shared";
 import { retryComplianceSync } from "./sync.server";
 import { VsComplianceError } from "./types.shared";
 
@@ -22,7 +23,7 @@ export async function evaluateComplianceAlliance(allianceId: string, weeks: stri
     if (actor) await authorizeComplianceTx(tx, actor, VS_COMPLIANCE_READ_PERMISSION);
     if (state.inputVersion !== version || Date.now() - preparedAt > 30_000) throw new VsComplianceError("changed", 409);
     const result = await rebuildComplianceTx(tx, allianceId, weeks, external);
-    return { ...result, sourceReady: external.native || !!external.verifiedAt && weeks.every((week) => external.weeks.has(week)) };
+    return { ...result, external, sourceReady: external.native || !!external.verifiedAt && weeks.every((week) => external.weeks.has(week)) };
   });
 }
 
@@ -37,6 +38,9 @@ export async function loadComplianceDashboard(sessionId: string, allianceId: str
   const result = await evaluateComplianceAlliance(allianceId, [...new Set([...initialWeeks, weekEnding])], actor);
   return { weekEnding, canManage, rows: result.rows.filter((row) => row.weekEnding === weekEnding).map((row) => ({
     ...row.evaluation, id: row.id, memberId: row.memberId, memberName: row.memberName, currentRank: row.memberSnapshot.currentRank,
+    settled: row.evaluation.settled ? { actionId: row.evaluation.settled.actionId, kind: row.evaluation.settled.kind, targetRank: row.evaluation.settled.targetRank } : null,
+    dailyTarget: (policyForVsWeek(result.facts.policies, weekEnding) ?? defaultVsPolicy()).dailyTarget,
+    daily: resolveComplianceEvidence(result.facts, row.memberId, weekEnding, result.external, row.remoteEvidence, row.remoteVerifiedAt).daily,
     evidenceState: row.input.evidence.state,
     syncStatus: result.jobs.find((job) => job.actionId === row.evaluation.settled?.actionId)?.status ?? (result.sourceReady ? "local" : "failed"),
   })) };

@@ -9,7 +9,7 @@ import type { ExcusedRecord } from "@/lib/time-off/excused-sync.shared";
 import { evaluateVsWeek, type VsEvidence } from "@/lib/vs-scores/evidence.shared";
 import { fetchRemoteVsScope } from "@/lib/vs-scores/sync.server";
 import { resolveComplianceJoin } from "./workflow.shared";
-import type { VsComplianceMember, VsComplianceWeek } from "./types.shared";
+import type { VsComplianceDay, VsComplianceMember, VsComplianceWeek } from "./types.shared";
 
 export type ComplianceTx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 export type ExternalComplianceEvidence = { native: boolean; verifiedAt: Date | null; weeks: Map<string, Map<string, VsEvidence[]>>; excuses: ExcusedRecord[] };
@@ -60,7 +60,7 @@ export async function loadComplianceFacts(tx: ComplianceTx, allianceId: string) 
   const ranks = await tx.select().from(schema.memberAllianceRankEvents).where(eq(schema.memberAllianceRankEvents.allianceId, allianceId)).orderBy(sql`${schema.memberAllianceRankEvents.recordedAt} desc`, sql`${schema.memberAllianceRankEvents.id} desc`);
   const heads = await tx.select().from(schema.vsScoreHeads).where(eq(schema.vsScoreHeads.allianceId, allianceId));
   const scopes = await tx.select().from(schema.vsScoreSyncScopes).where(eq(schema.vsScoreSyncScopes.allianceId, allianceId));
-  const entries = await tx.select({ id: schema.memberTimeOff.id, memberId: schema.memberTimeOff.ashedMemberId, startDate: schema.memberTimeOff.startDate, endDate: schema.memberTimeOff.endDate, noticeVerified: schema.memberTimeOff.noticeVerified, syncStatus: schema.memberTimeOff.syncStatus, cancelledAt: schema.memberTimeOff.cancelledAt }).from(schema.memberTimeOff).where(eq(schema.memberTimeOff.allianceId, allianceId));
+  const entries = await tx.select({ id: schema.memberTimeOff.id, memberId: schema.memberTimeOff.ashedMemberId, startDate: schema.memberTimeOff.startDate, endDate: schema.memberTimeOff.endDate, globalAbsence: schema.memberTimeOff.globalAbsence, noticeVerified: schema.memberTimeOff.noticeVerified, syncStatus: schema.memberTimeOff.syncStatus, cancelledAt: schema.memberTimeOff.cancelledAt }).from(schema.memberTimeOff).where(eq(schema.memberTimeOff.allianceId, allianceId));
   const revisions = await tx.select({ entryId: schema.memberTimeOffRevisions.entryId, version: schema.memberTimeOffRevisions.version, snapshot: schema.memberTimeOffRevisions.snapshot, recordedAt: schema.memberTimeOffRevisions.recordedAt }).from(schema.memberTimeOffRevisions).where(eq(schema.memberTimeOffRevisions.allianceId, allianceId));
   const members = roster.map((row) => {
     const currentStints = [...tenure.filter((t) => t.memberId === row.memberId && !t.leftAt), ...memberships.filter((m) => m.memberId === row.memberId && !m.leftAt && m.status === "active")];
@@ -77,7 +77,7 @@ export async function loadComplianceFacts(tx: ComplianceTx, allianceId: string) 
   return { alliance, policies, members, heads, scopes, entries, revisions };
 }
 
-export function assembleComplianceWeek(facts: Awaited<ReturnType<typeof loadComplianceFacts>>, memberId: string, weekEnding: string, external: ExternalComplianceEvidence, previousRemote: VsEvidence[] = [], previousVerifiedAt: Date | null = null): VsComplianceWeek {
+export function resolveComplianceEvidence(facts: Awaited<ReturnType<typeof loadComplianceFacts>>, memberId: string, weekEnding: string, external: ExternalComplianceEvidence, previousRemote: VsEvidence[] = [], previousVerifiedAt: Date | null = null) {
   const dates = Array.from({ length: 6 }, (_, index) => addCalendarDays(weekEnding, index - 6));
   const heads = facts.heads.filter((head) => head.memberId === memberId && (head.recordedDate === weekEnding || dates.includes(head.recordedDate)));
   const records: VsEvidence[] = heads.filter((head) => head.origin === "hq" && head.score != null).map((head) => ({ id: `hq:${head.id}:${head.version}`, recordedDate: head.recordedDate, period: head.period, score: head.score! }));
@@ -90,13 +90,35 @@ export function assembleComplianceWeek(facts: Awaited<ReturnType<typeof loadComp
     if (local?.origin === "derived" && managed && (managed.previous === row.score || managed.desired === row.score)) continue;
     records.push(row);
   }
-  const memberEntries = facts.entries.filter((entry) => entry.memberId === memberId);
-  const excused = dates.some((date) => memberEntries.some((entry) => timeOffExcusesDate(facts.revisions.filter((revision) => revision.entryId === entry.id).sort((a, b) => a.version - b.version).map((revision) => ({ snapshot: revision.snapshot, recordedAt: revision.recordedAt.toISOString() })), date, "vs")) || external.excuses.some((row) => row.memberId === memberId && row.recordType === "vs" && row.startDate <= date && row.endDate >= date && row.changedAt && Date.parse(row.changedAt) < Date.parse(`${date}T02:00:00.000Z`)));
+  const memberEntries = facts.entries.filter((entry) => entry.memberId === memberId).map((entry) => ({
+    ...entry,
+    revisions: facts.revisions.filter((revision) => revision.entryId === entry.id).sort((a, b) => a.version - b.version).map((revision) => ({ snapshot: revision.snapshot, recordedAt: revision.recordedAt.toISOString() })),
+  }));
+  const remoteExcuses = external.excuses.filter((row) => row.memberId === memberId && row.recordType === "vs");
   const verifiedAt = fetched ? external.verifiedAt : previousVerifiedAt;
   const sourceUnknown = !external.native && (!external.verifiedAt || !verifiedAt);
-  const pendingExcusal = sourceUnknown || memberEntries.some((entry) => !entry.cancelledAt && entry.startDate <= dates[5] && entry.endDate >= dates[0] && (!entry.noticeVerified || ["conflict", "uncertain", "failed", "credentials_required"].includes(entry.syncStatus))) || external.excuses.some((row) => row.memberId === memberId && row.recordType === "vs" && !row.changedAt && row.startDate <= dates[5] && row.endDate >= dates[0]);
   const evidence = evaluateVsWeek(records, weekEnding);
+  const daily: VsComplianceDay[] = dates.map((date, index) => {
+    const rows = records.filter((row) => row.period === "daily" && row.recordedDate === date);
+    const local = heads.find((head) => head.period === "daily" && head.recordedDate === date && head.origin === "hq");
+    const derived = index === 5 && !local ? evidence.derivedSaturday : null;
+    const conflicting = rows.some((row) => !Number.isSafeInteger(row.score) || row.score < 0 || row.score !== rows[0].score);
+    const source = rows.length ? local ? "hq" : "ashed" : derived ? "derived" : null;
+    const sourceReady = external.native || !!verifiedAt || source === "hq" || source === "derived" && evidence.derivedSaturday!.basis.every((id) => id.startsWith("hq:"));
+    const state = conflicting ? "conflict" : !rows.length && !derived ? "missing" : !sourceReady ? "partial" : "ready";
+    return {
+      date, score: state === "ready" ? rows[0]?.score ?? derived?.score ?? null : null, state, source, sourceReady,
+      away: memberEntries.some((entry) => !entry.cancelledAt && entry.globalAbsence && entry.startDate <= date && date <= entry.endDate),
+      excused: memberEntries.some((entry) => timeOffExcusesDate(entry.revisions, date, "vs")) || remoteExcuses.some((row) => row.startDate <= date && row.endDate >= date && !!row.changedAt && Date.parse(row.changedAt) < Date.parse(`${date}T02:00:00.000Z`)),
+      pendingExcusal: sourceUnknown || memberEntries.some((entry) => !entry.cancelledAt && entry.startDate <= date && entry.endDate >= date && (!entry.noticeVerified || ["conflict", "uncertain", "failed", "credentials_required"].includes(entry.syncStatus))) || remoteExcuses.some((row) => !row.changedAt && row.startDate <= date && row.endDate >= date),
+    };
+  });
   if (!external.native && !verifiedAt && records.some((row) => row.id.startsWith("ashed:"))) { evidence.state = "partial"; evidence.score = null; }
+  return { evidence, daily, excused: daily.some((day) => day.excused), pendingExcusal: daily.some((day) => day.pendingExcusal) };
+}
+
+export function assembleComplianceWeek(facts: Awaited<ReturnType<typeof loadComplianceFacts>>, memberId: string, weekEnding: string, external: ExternalComplianceEvidence, previousRemote: VsEvidence[] = [], previousVerifiedAt: Date | null = null): VsComplianceWeek {
+  const { evidence, excused, pendingExcusal } = resolveComplianceEvidence(facts, memberId, weekEnding, external, previousRemote, previousVerifiedAt);
   return { weekEnding, evidence, excused, pendingExcusal, waived: false };
 }
 
