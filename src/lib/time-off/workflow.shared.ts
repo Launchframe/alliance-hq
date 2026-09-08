@@ -35,6 +35,7 @@ export type TimeOffRevisionSnapshot = {
   entryKind: TimeOffEntryKind;
   globalAbsence: boolean;
   cancelled: boolean;
+  activityScope?: "vs" | "donation" | "all";
 };
 
 export function isTimeOffDate(value: unknown): value is string {
@@ -82,7 +83,7 @@ export function timeOffEntryForViewer<T extends { ashedMemberId: string; notes: 
 export function timeOffExcusesDate(revisions: ReadonlyArray<{
   recordedAt: string;
   snapshot: TimeOffRevisionSnapshot;
-}>, date: string): boolean {
+}>, date: string, activity: "vs" | "donation" | "all" = "all"): boolean {
   if (!isTimeOffDate(date)) return false;
   const cutoff = Date.parse(`${date}T02:00:00.000Z`);
   let latest: (typeof revisions)[number] | undefined;
@@ -91,7 +92,7 @@ export function timeOffExcusesDate(revisions: ReadonlyArray<{
     if (timestamp < cutoff && (!latest || timestamp >= Date.parse(latest.recordedAt))) latest = revision;
   }
   const snapshot = latest?.snapshot;
-  return !!snapshot && snapshot.globalAbsence && !snapshot.cancelled &&
+  return !!snapshot && (snapshot.globalAbsence || snapshot.activityScope === activity || snapshot.activityScope === "all") && !snapshot.cancelled &&
     (snapshot.entryKind === "planned" || snapshot.entryKind === "officer_marked") &&
     snapshot.startDate <= date && date <= snapshot.endDate;
 }

@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { syncAllianceExcuses } from "@/lib/time-off/excused-worker.server";
 
 import { createTimeOff, previewTimeOff } from "@/lib/time-off/mutations.server";
 import { parseTimeOffMessage } from "@/lib/time-off/parse-natural-language.shared";
@@ -7,6 +8,7 @@ import { TimeOffError } from "@/lib/time-off/workflow.shared";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 180;
 
 export async function POST(request: Request) {
   const context = await requireTimeOffActor();
@@ -23,6 +25,7 @@ export async function POST(request: Request) {
     // Attribution is server-derived — ignore client-provided `source`.
     if (body.preview === true) return NextResponse.json({ draft: await previewTimeOff(context.actor, payload) });
     const entry = await createTimeOff(context.actor, payload, body.requestId);
+    if (entry.syncStatus !== "local") after(async () => { await syncAllianceExcuses(context.actor.allianceId); });
     return NextResponse.json({ entry });
   } catch (error) {
     return timeOffErrorResponse(error);

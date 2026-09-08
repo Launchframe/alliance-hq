@@ -6,6 +6,8 @@ import { useLocale, useTranslations } from "next-intl";
 import { TimeOffCalendar } from "@/components/time-off/TimeOffCalendar";
 import { TimeOffEntryModal } from "@/components/time-off/TimeOffEntryModal";
 import { UnexpectedAbsencePanel } from "@/components/time-off/UnexpectedAbsencePanel";
+import { TimeOffSyncPanel } from "@/components/time-off/TimeOffSyncPanel";
+import { TimeOffAshedRefreshButton } from "@/components/time-off/TimeOffAshedRefreshButton";
 import { Dialog } from "@/components/ui/dialog";
 import { canManageTimeOffEntry } from "@/lib/time-off/workflow.shared";
 import type { TimeOffCalendarPayload, SerializedTimeOffEntry } from "@/lib/time-off/types.shared";
@@ -48,7 +50,7 @@ export function TimeOffCalendarClient({ initial }: Props) {
         return;
       }
       setDashboard(data);
-      setSelectedEntry(null);
+      setSelectedEntry((current) => current ? [...data.entries, ...data.ownEntries].find((entry: SerializedTimeOffEntry) => entry.id === current.id) ?? null : null);
     } catch {
       if (version === loadVersion.current) setError(t("workflow.errors.loadFailed"));
     } finally {
@@ -56,6 +58,12 @@ export function TimeOffCalendarClient({ initial }: Props) {
     }
   }, [t]);
 
+  const hasPendingSync = [...dashboard.entries, ...dashboard.ownEntries].some((entry) => entry.syncStatus === "pending" || entry.syncStatus === "cancel_pending");
+  useEffect(() => {
+    if (!hasPendingSync || modal || cancelTarget) return;
+    const timer = setInterval(() => { void refresh(dashboard.monthKey, dashboard.history, dashboard.ownEntriesPage); }, 10_000);
+    return () => clearInterval(timer);
+  }, [hasPendingSync, modal, cancelTarget, refresh, dashboard.monthKey, dashboard.history, dashboard.ownEntriesPage]);
   const refreshCurrent = () => refresh(dashboard.monthKey, dashboard.history, dashboard.ownEntriesPage);
   const canManage = (entry: SerializedTimeOffEntry) => !entry.cancelledAt && canManageTimeOffEntry({
     entryKind: entry.entryKind,
@@ -98,9 +106,12 @@ export function TimeOffCalendarClient({ initial }: Props) {
       <article key={entry.id} className="space-y-2 rounded-lg border border-hq-border bg-hq-surface p-4" data-testid={`time-off-entry-${entry.id}`}>
         <h3 className="font-semibold text-hq-fg">{entry.memberName}</h3>
         <p className="text-sm text-hq-fg-muted">{t("entry.range", { start: formatDate(entry.startDate), end: formatDate(entry.endDate) })}</p>
-        <p className="text-sm">{entry.cancelledAt ? t("workflow.cancelled") : entry.entryKind === "unexpected" ? t("workflow.unexpected") : entry.entryKind === "officer_marked" ? t("workflow.officerRecorded") : t("workflow.planned")}</p>
-        {!entry.cancelledAt && entry.startDate <= dashboard.todayServerDate && entry.endDate >= dashboard.todayServerDate ? <p className="text-sm font-medium text-hq-accent">{t("workflow.active")}</p> : null}
+        <p className="text-sm">{entry.cancelledAt ? t("workflow.cancelled") : entry.entryKind === "unexpected" ? t("workflow.unexpected") : !entry.globalAbsence ? t(`sync.scope.${entry.activityScope}`) : entry.entryKind === "officer_marked" ? t("workflow.officerRecorded") : t("workflow.planned")}</p>
+        {entry.globalAbsence && !entry.cancelledAt && entry.startDate <= dashboard.todayServerDate && entry.endDate >= dashboard.todayServerDate ? <p className="text-sm font-medium text-hq-accent">{t("workflow.active")}</p> : null}
         {entry.notes ? <p className="whitespace-pre-wrap break-words text-sm"><span className="font-medium">{t("workflow.privateNotes")}: </span>{entry.notes}</p> : null}
+        {entry.source === "ashed" ? <p className="text-xs text-hq-fg-muted">{t("sync.fromAshed")} · {t(`sync.scope.${entry.activityScope}`)}</p> : null}
+        {!entry.noticeVerified ? <p className="text-xs text-hq-fg-muted">{t("sync.noticeUnverified")}</p> : null}
+        {dashboard.ashedSyncEnabled ? <TimeOffSyncPanel entryId={entry.id} version={entry.version} status={entry.syncStatus} lastSyncedAt={entry.lastSyncedAt} canManage={dashboard.canManageOthers} onChanged={() => void refreshCurrent()} /> : null}
         {canManage(entry) ? (
           <div className="flex flex-wrap gap-2 pt-1">
             <button type="button" className={buttonClass} onClick={() => setModal({ entry, officer: entry.entryKind !== "planned" || !dashboard.linkedCommanderIds.includes(entry.ashedMemberId) })}>{t("workflow.edit")}</button>
@@ -122,6 +133,7 @@ export function TimeOffCalendarClient({ initial }: Props) {
           {dashboard.canManageOthers ? <button type="button" className={buttonClass} onClick={() => setModal({ officer: true })}>{t("form.officerEntry")}</button> : null}
         </div>
       </header>
+      {dashboard.ashedSyncEnabled ? <TimeOffAshedRefreshButton canManage={dashboard.canManageOthers} onChanged={() => void refreshCurrent()} /> : null}
       {notice ? <p role="status" className="text-sm text-hq-fg">{notice}</p> : null}
       <div className="flex flex-wrap gap-2">
         {dashboard.linkedCommanderIds.length > 0 ? <button type="button" aria-pressed={tab === "my"} className={buttonClass} onClick={() => setTab("my")}>{t("workflow.myEntries")}</button> : null}

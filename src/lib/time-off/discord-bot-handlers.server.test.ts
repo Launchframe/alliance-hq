@@ -55,6 +55,7 @@ beforeEach(() => {
   mocks.owned = ["member-a"];
   mocks.entries = [];
   mocks.pending = {};
+  mocks.cancel.mockResolvedValue({ ...entry, syncStatus: "local" });
 });
 
 describe("Discord time-off workflow", () => {
