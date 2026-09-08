@@ -167,6 +167,13 @@ export const NAV_GROUPS: NavGroupDef[] = [
     labelKey: "performanceReporting",
     pages: [
       {
+        id: "vs-compliance",
+        labelKey: "vsCompliance",
+        href: "/vs-compliance",
+        kind: "native",
+        requiredPermission: "vs_compliance:read",
+      },
+      {
         id: "vs-performance",
         labelKey: "vsPerformance",
         href: "/vs-performance",

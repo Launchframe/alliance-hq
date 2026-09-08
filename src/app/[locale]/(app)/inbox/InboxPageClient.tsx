@@ -33,6 +33,7 @@ export default function InboxPageClient({
 }) {
   const t = useTranslations("inbox");
   const tRoster = useTranslations("rosterLinkRequests");
+  const tCompliance = useTranslations("vsCompliance");
   const [items, setItems] = useState<ReminderItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
@@ -127,6 +128,7 @@ export default function InboxPageClient({
   }
 
   function kindLabel(kind: string): string {
+    if (kind === "vs_compliance") return tCompliance("title");
     if (kind === "eur_occurrence") return t("kind.eurOccurrence");
     if (kind === "video_jobs_pending") return t("kind.videoJobsPending");
     if (kind === ROSTER_LINK_INBOX_KIND) return t("kind.memberLinkRequest");
@@ -137,6 +139,7 @@ export default function InboxPageClient({
   }
 
   function displayTitle(item: ReminderItem): string {
+    if (item.kind === "vs_compliance") return tCompliance("title");
     if (item.kind === ROSTER_LINK_INBOX_KIND) {
       const name = item.scoreTarget?.trim() || item.title;
       return t("kind.memberLinkRequestTitle", { name });
@@ -153,6 +156,7 @@ export default function InboxPageClient({
   }
 
   function displayBody(item: ReminderItem): string | null {
+    if (item.kind === "vs_compliance") return tCompliance("manualHint");
     if (item.kind === ROSTER_LINK_INBOX_KIND) {
       return t("kind.memberLinkRequestBody");
     }

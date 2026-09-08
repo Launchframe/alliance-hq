@@ -1,5 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { getTranslations } from "next-intl/server";
 
 import { getDb, schema } from "@/lib/db";
 import { resolveOnboardingReviewInboxHref } from "@/lib/member-link/onboarding-review-inbox.shared";
@@ -99,6 +100,7 @@ export async function refreshVideoJobsPendingItems(
 
 export async function loadReminderInboxForUser(options: {
   hqUserId: string;
+  principalHqUserId?: string;
   allianceId: string;
   permissions: Set<string>;
   includeDismissed?: boolean;
@@ -135,11 +137,21 @@ export async function loadReminderInboxForUser(options: {
     )
     .orderBy(sql`${schema.inboxReminderItems.createdAt} DESC`);
 
+  let complianceAllowed = false;
+  const complianceTranslation = items.some((item) => item.kind === "vs_compliance") ? await getTranslations("vsCompliance") : null;
+  if (complianceTranslation && (options.permissions.has("vs_compliance:read") || options.permissions.has("hq:admin"))) {
+    const principalHqUserId = options.principalHqUserId ?? options.hqUserId;
+    const [user] = await db.select({ maintainer: schema.hqUsers.isPlatformMaintainer }).from(schema.hqUsers).where(eq(schema.hqUsers.id, principalHqUserId)).limit(1);
+    const memberships = await db.select({ roleName: schema.roles.name }).from(schema.allianceMemberships).innerJoin(schema.roles, eq(schema.roles.id, schema.allianceMemberships.roleId)).where(and(eq(schema.allianceMemberships.allianceId, options.allianceId), eq(schema.allianceMemberships.hqUserId, principalHqUserId), eq(schema.allianceMemberships.status, "active")));
+    complianceAllowed = user?.maintainer === 1 || memberships.some((membership) => ["owner", "maintainer", "officer"].includes(membership.roleName));
+  }
   const now = new Date();
   return items
     .filter((item) => {
+      if (item.kind === "vs_compliance" && !complianceAllowed) return false;
       if (
         item.requiredPermission &&
+        !(item.kind === "vs_compliance" && complianceAllowed) &&
         !options.permissions.has(item.requiredPermission)
       ) {
         return false;
@@ -155,8 +167,8 @@ export async function loadReminderInboxForUser(options: {
     .map((item) => ({
       id: item.id,
       kind: item.kind,
-      title: item.title,
-      body: item.body,
+      title: item.kind === "vs_compliance" && complianceTranslation ? complianceTranslation("title") : item.title,
+      body: item.kind === "vs_compliance" ? null : item.body,
       href:
         resolveOnboardingReviewInboxHref({
           kind: item.kind,
@@ -177,6 +189,7 @@ export async function loadReminderInboxForUser(options: {
 
 export async function countActiveRemindersForUser(options: {
   hqUserId: string;
+  principalHqUserId?: string;
   allianceId: string;
   permissions: Set<string>;
 }): Promise<number> {
@@ -230,9 +243,11 @@ export async function dismissAllReminderItems(
   hqUserId: string,
   allianceId: string,
   permissions: Set<string>,
+  principalHqUserId?: string,
 ): Promise<number> {
   const items = await loadReminderInboxForUser({
     hqUserId,
+    principalHqUserId,
     allianceId,
     permissions,
     includeDismissed: false,
