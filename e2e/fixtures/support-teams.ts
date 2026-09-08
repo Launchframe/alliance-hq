@@ -14,6 +14,9 @@ export async function createSupportTeamFixture() {
   const officer = await actor("officer");
   const leads = await Promise.all([4, 5].map((rank, i) => createAllianceRosterMember(sql, { allianceId: alliance.allianceId, currentName: `Lead ${i}`, allianceRank: rank })));
   const members = await Promise.all(Array.from({ length: 6 }, (_, i) => createAllianceRosterMember(sql, { allianceId: alliance.allianceId, currentName: `Member ${i}`, allianceRank: 3 })));
+  for (const [index, member] of [...leads, ...members].entries()) {
+    await sql`INSERT INTO member_alliance_tenure (id, game_uid, alliance_id, ashed_member_id, joined_at) VALUES (${nanoid()}, ${`97${Date.now()}${index}`}, ${alliance.allianceId}, ${member.ashedMemberId}, ${new Date("2026-01-01T00:00:00Z")})`;
+  }
   await createHqMemberLink(sql, { allianceId: alliance.allianceId, hqUserId: officer.hqUserId, ashedMemberId: leads[0].ashedMemberId, gameUid: `98${Date.now()}` });
   return { sql, allianceId: alliance.allianceId, owner, officer, leads, members, actor };
 }

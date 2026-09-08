@@ -61,7 +61,8 @@ export type SupportEvent = {
   memberNames: Record<string, string>;
   teamNames: Record<string, string | null>;
   at: string;
-  kind: SupportCommand["kind"] | "undo";
+  kind: SupportCommand["kind"] | "undo" | "reconcile";
+  actorType?: "user" | "service";
   context: SupportContext;
   boardVersion: number;
   idempotencyKey: string;
