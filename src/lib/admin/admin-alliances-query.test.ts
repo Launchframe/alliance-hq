@@ -146,6 +146,20 @@ describe("buildAdminAlliancesQuery", () => {
     expect(sql?.params).toContain("%lf\\%go%");
   });
 
+  it("includes game server number in search (text + exact int)", () => {
+    const sql = whereSql({
+      q: "1203",
+      operatingMode: "all",
+      sort: "name",
+      order: "asc",
+      limit: 25,
+      offset: 0,
+    });
+    expect(sql?.sql).toMatch(/game_server_number/i);
+    expect(sql?.params).toContain("%1203%");
+    expect(sql?.params).toContain(1203);
+  });
+
   it("uses member count subquery for sort", () => {
     const query = buildAdminAlliancesQuery({
       operatingMode: "all",
