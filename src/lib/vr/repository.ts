@@ -1343,7 +1343,10 @@ export async function purgeExpiredDiscordBotPending(): Promise<number> {
     .delete(schema.discordBotPending)
     .where(lt(schema.discordBotPending.expiresAt, new Date()))
     .returning({ discordUserId: schema.discordBotPending.discordUserId });
-  return deleted.length;
+  const expiredTimeOff = await db.delete(schema.timeOffDiscordInteractions)
+    .where(lt(schema.timeOffDiscordInteractions.expiresAt, new Date()))
+    .returning({ id: schema.timeOffDiscordInteractions.id });
+  return deleted.length + expiredTimeOff.length;
 }
 
 export async function listDiscordMemberLinks(allianceId: string) {

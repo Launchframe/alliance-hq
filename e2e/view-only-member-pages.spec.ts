@@ -23,7 +23,7 @@ const VIEW_ONLY_NATIVE_PAGES: Array<{ path: string; heading: RegExp }> = [
   { path: "/trains", heading: /alliance train/i },
   { path: "/battle-plan", heading: /battle plan/i },
   { path: "/bank-management", heading: /bank management/i },
-  { path: "/time-off", heading: /^time off$/i },
+  { path: "/time-off", heading: /^my time off$/i },
   { path: "/professions", heading: /^profession$/i },
   { path: "/my-vr", heading: /^my vr$/i },
   { path: "/settings", heading: /alliance settings/i },
