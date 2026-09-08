@@ -11,6 +11,8 @@ export type SupportRosterMember = {
   thp: number | null;
   tenureDays: number | null;
   draftStintToken?: string;
+  proposalVoterIds?: string[];
+  proposalIdentityToken?: string;
   hqLinked: boolean;
   discordLinked: boolean;
 };
@@ -32,6 +34,7 @@ export type SupportContext = {
   draftId?: string;
   proposalId?: string;
   proposalVersion?: number;
+  ownerOverride?: boolean;
   round?: number;
   representedLeadId?: string;
   sourceActionId?: string;
@@ -62,7 +65,7 @@ export type SupportEvent = {
   memberNames: Record<string, string>;
   teamNames: Record<string, string | null>;
   at: string;
-  kind: SupportCommand["kind"] | "undo" | "reconcile" | "scheduleDraft" | "draftPick" | "advanceDraft" | "extendDraft" | "publishDraft" | "cancelDraft";
+  kind: SupportCommand["kind"] | "undo" | "reconcile" | "scheduleDraft" | "draftPick" | "advanceDraft" | "extendDraft" | "publishDraft" | "cancelDraft" | "createProposal" | "moveProposal" | "swapProposal" | "submitProposal" | "approveProposal" | "publishProposal" | "cancelProposal";
   principalType?: "human" | "service";
   actorType?: "user" | "service";
   context: SupportContext;
@@ -83,7 +86,7 @@ export type SupportCommand = { expectedVersion: number } & (
   | { kind: "move"; memberId: string; from: string | null; to: string | null }
   | { kind: "swap"; memberId: string; otherMemberId: string; from: string; to: string }
 );
-export type SupportErrorCode = "forbidden" | "changed" | "memberUnavailable" | "leadRequired" | "teamFull" | "nameRequired" | "nameLimit" | "dependencies" | "invalid" | "undone" | "notOpen" | "proxyEarly";
+export type SupportErrorCode = "incomplete" | "forbidden" | "changed" | "memberUnavailable" | "leadRequired" | "teamFull" | "nameRequired" | "nameLimit" | "dependencies" | "invalid" | "undone" | "notOpen" | "proxyEarly";
 export class SupportError extends Error {
   constructor(public readonly code: SupportErrorCode, public readonly details?: { deadline?: string }) { super(code); }
 }

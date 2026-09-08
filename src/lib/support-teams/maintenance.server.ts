@@ -6,7 +6,7 @@ import { SupportError, type EventIdentity, type SupportActor, type SupportBoard,
 export const SUPPORT_MEMBERSHIP_SERVICE = "service:support-team-membership";
 export const privateSupportKey = (key: string) => {
   const [resource, , field] = JSON.parse(key) as string[];
-  return resource === "membership" || field === "assignmentStint" || field === "workspaceStintToken" || (resource.startsWith("draftMember:") && field === "stint") || (resource === "draft" && field === "rosterFingerprint");
+  return resource.startsWith("proposalVote:") || (resource === "proposal" && field === "approvalBasis") || (resource.startsWith("proposalMember:") && field === "stint") || resource === "membership" || field === "assignmentStint" || field === "workspaceStintToken" || (resource.startsWith("draftMember:") && field === "stint") || (resource === "draft" && field === "rosterFingerprint");
 };
 export const publicVersions = (versions: Record<string, number>) => Object.fromEntries(Object.entries(versions).filter(([key]) => !privateSupportKey(key)));
 export const publicBoard = (board: SupportBoard): SupportBoard => ({ ...board, fields: Object.fromEntries(Object.entries(board.fields).filter(([key]) => !privateSupportKey(key))) });

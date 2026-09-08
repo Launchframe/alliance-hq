@@ -6,6 +6,8 @@ vi.mock("./repository.server", () => ({ loadBoard: mocks.loadBoard, loadHistory:
 vi.mock("./roster.server", () => ({ loadSupportRoster: mocks.roster, loadSupportStints: mocks.stints }));
 vi.mock("./draft-roster.server", () => ({ withDraftStintTokens: async (_db: unknown, _alliance: string, roster: unknown) => roster }));
 vi.mock("./draft-notice.server", () => ({ persistDraftNotice: vi.fn() }));
+vi.mock("./proposal-roster.server", () => ({ withProposalVoters: async (_db: unknown, _alliance: string, roster: unknown) => roster }));
+vi.mock("./proposal-notice.server", () => ({ persistProposalNotice: vi.fn() }));
 vi.mock("@/lib/db", async (original) => {
   const actual = await original<typeof import("@/lib/db")>();
   return { ...actual, getDb: () => ({ transaction: mocks.transaction }) };
@@ -15,6 +17,8 @@ import { emptyBoard, fieldKey, memberTeam, readField, teamLead } from "./policy.
 import { applyStintCommand, reconcileMemberships } from "./maintenance.server";
 import { applyDraftCommand, draftSnapshot, type DraftCommand } from "./draft.shared";
 import { executeDraftCommand, loadDraftSnapshot } from "./draft.server";
+import { executeProposalCommand, loadProposalSnapshots } from "./proposal.server";
+import type { SupportBoard, SupportEvent } from "./types.shared";
 import type { SupportRosterMember } from "./types.shared";
 import type { SupportAccess } from "./access.server";
 import type { SupportCommand } from "./types.shared";
@@ -236,6 +240,35 @@ describe("support team transaction orchestration", () => {
     await executeSupportUndo(access, schedulePreview, "undo-schedule");
     expect(board.construction).toBeNull();
     expect(board.published).toBe(false);
+  });
+  it("publishes proposal assignments with private stint bindings and reverses approval dependencies on the same connection", async () => {
+    const roster = [{ id: "lead-a", rank: 4, name: "A", draftStintToken: "private-workspace-a", proposalVoterIds: ["owner"], proposalIdentityToken: "private-identity" }] as SupportRosterMember[];
+    let board: SupportBoard = emptyBoard("a");
+    const events: SupportEvent[] = [];
+    mocks.loadBoard.mockImplementation(async () => board);
+    mocks.loadHistory.mockImplementation(async () => [...events]); mocks.roster.mockResolvedValue(roster);
+    mocks.persist.mockImplementation(async (_db, next, event) => { expect(mocks.active).toBe(true); board = next; events.push(event); });
+    await executeProposalCommand(access, { kind: "createProposal", proposalId: "p", expectedVersion: 0 }, "proposal-create");
+    let view = (await loadProposalSnapshots(access, "p"))[0];
+    expect(JSON.stringify(view)).not.toMatch(/private-|proposalVoterIds|proposalIdentityToken|draftStintToken/);
+    await executeProposalCommand(access, { kind: "submitProposal", proposalId: "p", expectedVersion: view.proposalVersion }, "proposal-submit");
+    const vote = await executeProposalCommand(access, { kind: "approveProposal", proposalId: "p", expectedVersion: view.proposalVersion }, "proposal-vote");
+    view = (await loadProposalSnapshots(access, "p"))[0];
+    const publication = await executeProposalCommand(access, { kind: "publishProposal", proposalId: "p", expectedVersion: view.proposalVersion, expectedPublishedVersion: view.publishedVersion, override: false }, "proposal-publish");
+    expect(readField(board, fieldKey("member", "lead-a", "assignmentStint"))).toBe("private-stint-1");
+    expect(JSON.stringify(publication)).not.toMatch(/private-|approvalBasis|proposalVote|assignmentStint/);
+    const preview = await loadUndoPreview(access, vote.event.id);
+    expect(preview.actionIds).toContain(publication.event.id);
+    await executeSupportUndo(access, preview, "proposal-undo"); expect(board.published).toBe(false);
+    expect(events.filter((event) => event.kind === "approveProposal")).toHaveLength(1);
+  });
+  it("replays a proposal publication after subsequent actions without applying the allocation again", async () => {
+    const command = { kind: "publishProposal", proposalId: "p", expectedVersion: 2, expectedPublishedVersion: 1, override: true } as const;
+    mocks.loadBoard.mockResolvedValue({ ...emptyBoard("a"), version: 50 });
+    const event = { id: "publication", patches: [], observedVersions: {} };
+    mocks.select.mockReturnValueOnce(query([{ requestHash: createHash("sha256").update(JSON.stringify(command)).digest("hex"), event }]));
+    expect(await executeProposalCommand(access, command, "proposal-retry")).toMatchObject({ version: 50, replayed: true, event });
+    expect(mocks.persist).not.toHaveBeenCalled(); expect(mocks.roster).not.toHaveBeenCalled();
   });
   it("never exposes the unpublished roster or field document to ordinary readers", async () => {
     const result = await supportSnapshot({ ...access, actor: { ...access.actor, override: false, canRead: false, canWrite: false } });
