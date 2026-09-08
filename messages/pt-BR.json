@@ -1185,7 +1185,22 @@
     "refreshFailed": "Falha na atualização — verifique seu token Ashed.",
     "empty": "Nenhum membro da equipe ainda.",
     "forbidden": "Membro da aliança necessário.",
+    "revokeOfficer": "Remover acesso de oficial",
+    "revokeOfficerConfirmTitle": "Remover acesso de oficial?",
+    "revokeOfficerConfirmBody": "Isso mantém o login HQ e o vínculo do comandante. Eles terão apenas acesso de membro.",
+    "revokeOfficerConfirm": "Remover acesso",
+    "revokeOfficerCancel": "Cancelar",
+    "revokeOfficerWorking": "Removendo…",
+    "revokeOfficerFailed": "Não foi possível remover o acesso de oficial.",
     "ashedNote": "Admins da aliança: para adicionar ou remover mantenedores da sincronização Ashed, atualize colaboradores no Ashed → Alianças e atualize aqui.",
+    "tabs": {
+      "label": "Seções de acesso da equipe",
+      "loading": "Carregando configurações da equipe…",
+      "invites": "Convites",
+      "processors": "Processadores de vídeo",
+      "credentialShares": "Compartilhamento Ashed",
+      "members": "Membros"
+    },
     "invites": {
       "title": "Convidar para o Alliance HQ",
       "description": "Gere links de convite ou códigos de entrada para esta aliança. Os destinatários entram com a própria conta HQ — não é necessário um mantenedor da plataforma.",
@@ -1350,7 +1365,8 @@
       "commander": "Comandante",
       "commanderNotLinked": "Não vinculado",
       "role": "Função",
-      "source": "Origem"
+      "source": "Origem",
+      "actions": "Ações"
     }
   },
   "dataManagement": {
@@ -1486,6 +1502,7 @@
       "requestsThisSession": "Solicitações Ashed nesta sessão",
       "disconnect": "Desconectar",
       "linkAnotherDevice": "Vincular outro dispositivo",
+      "shareAshedAccess": "Compartilhar acesso Ashed",
       "reconnectHeading": "Reconectar ao Ashed",
       "reconnectHint": "Cole um JWT (ou token Bearer). O HQ conecta automaticamente quando o token é válido — sem botão para clicar.",
       "jwtLabel": "JWT do Ashed",
@@ -2370,7 +2387,10 @@
       "extend": "Prorrogar acesso",
       "extendFailed": "Não foi possível prorrogar o compartilhamento de credenciais.",
       "recentActivity": "Atividade recente",
-      "createTitle": "Compartilhar suas credenciais",
+      "activityAction": "Ação",
+      "activityWhen": "Quando",
+      "createTitle": "Compartilhar acesso",
+      "conflictHint": "Você já tem 3 compartilhamentos ativos. Revogue um abaixo e tente de novo.",
       "officerLabel": "Oficial",
       "officerPlaceholder": "Selecione um oficial",
       "capabilitiesLabel": "Capacidades",

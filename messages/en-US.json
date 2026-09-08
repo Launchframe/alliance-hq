@@ -1185,7 +1185,22 @@
     "refreshFailed": "Refresh failed — check your Ashed token.",
     "empty": "No team members yet.",
     "forbidden": "Alliance membership required.",
+    "revokeOfficer": "Remove officer access",
+    "revokeOfficerConfirmTitle": "Remove officer access?",
+    "revokeOfficerConfirmBody": "This keeps their HQ login and commander link. They will have member access only.",
+    "revokeOfficerConfirm": "Remove access",
+    "revokeOfficerCancel": "Cancel",
+    "revokeOfficerWorking": "Removing…",
+    "revokeOfficerFailed": "Could not remove officer access.",
     "ashedNote": "Alliance admins: to add or remove maintainers from Ashed sync, update collaborators in Ashed → Alliances, then refresh here.",
+    "tabs": {
+      "label": "Team settings sections",
+      "loading": "Loading team settings…",
+      "invites": "Invites",
+      "processors": "Video processors",
+      "credentialShares": "Ashed sharing",
+      "members": "Members"
+    },
     "invites": {
       "title": "Invite to Alliance HQ",
       "description": "Use the wizard below to create invite links, join codes, or commander claim codes. Recipients sign in with their own HQ account — you do not need a platform maintainer.",
@@ -1350,7 +1365,8 @@
       "commander": "Commander",
       "commanderNotLinked": "Not linked",
       "role": "Role",
-      "source": "Source"
+      "source": "Source",
+      "actions": "Actions"
     }
   },
   "dataManagement": {
@@ -1486,6 +1502,7 @@
       "requestsThisSession": "Ashed requests this session",
       "disconnect": "Disconnect",
       "linkAnotherDevice": "Link another device",
+      "shareAshedAccess": "Share Ashed access",
       "reconnectHeading": "Reconnect to Ashed",
       "reconnectHint": "Paste a JWT (or Bearer token). HQ connects automatically when the token is valid — no button to click.",
       "jwtLabel": "Ashed JWT",
@@ -2343,7 +2360,10 @@
       "extend": "Extend access",
       "extendFailed": "Could not extend credential share.",
       "recentActivity": "Recent activity",
-      "createTitle": "Share your credentials",
+      "activityAction": "Action",
+      "activityWhen": "When",
+      "createTitle": "Share access",
+      "conflictHint": "You already have 3 active shares. Revoke one below, then try again.",
       "officerLabel": "Officer",
       "officerPlaceholder": "Select an officer",
       "capabilitiesLabel": "Capabilities",

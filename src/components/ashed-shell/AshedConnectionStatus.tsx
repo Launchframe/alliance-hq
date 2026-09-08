@@ -336,6 +336,13 @@ export function AshedConnectionStatus({
                 >
                   {t("linkAnotherDevice")}
                 </Link>
+                <Link
+                  href="/settings/team?tab=credential-shares"
+                  onClick={() => setOpen(false)}
+                  className="mt-2 flex w-full items-center justify-center rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg transition-colors hover:bg-hq-surface-muted"
+                >
+                  {t("shareAshedAccess")}
+                </Link>
                 <button
                   type="button"
                   onClick={() => void disconnect()}
@@ -367,6 +374,13 @@ export function AshedConnectionStatus({
                 {connecting ? (
                   <p className="mt-2 text-xs text-hq-accent">{tc("connecting")}</p>
                 ) : null}
+                <Link
+                  href="/settings/team?tab=credential-shares"
+                  onClick={() => setOpen(false)}
+                  className="mt-3 flex w-full items-center justify-center rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg transition-colors hover:bg-hq-surface-muted"
+                >
+                  {t("shareAshedAccess")}
+                </Link>
               </>
             )}
             {error ? (

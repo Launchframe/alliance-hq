@@ -1,10 +1,15 @@
 "use client";
 
 import { QRCodeSVG } from "qrcode.react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { CopyToClipboardField } from "@/components/ui/CopyToClipboardField";
+import {
+  RecordDetailCard,
+  RecordDetailField,
+  ResponsiveRecordViews,
+} from "@/components/ui/ResponsiveRecordViews";
 import type { CredentialShareCapability } from "@/lib/ashed/credential-share-capabilities.shared";
 import { CREDENTIAL_SHARE_CAPABILITIES } from "@/lib/ashed/credential-share-capabilities.shared";
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
@@ -61,9 +66,12 @@ export function CredentialSharePanel({ canManage, currentHqUserId }: Props) {
   const [ttlHours, setTtlHours] = useState(72);
   const [ownerAcknowledged, setOwnerAcknowledged] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [conflictHighlight, setConflictHighlight] = useState(false);
   const [creating, setCreating] = useState(false);
   const [pairingLinkUrl, setPairingLinkUrl] = useState<string | null>(null);
   const [showQr, setShowQr] = useState(false);
+  const errorAnchorRef = useRef<HTMLParagraphElement | null>(null);
+  const sharesListRef = useRef<HTMLDivElement | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -137,6 +145,7 @@ export function CredentialSharePanel({ canManage, currentHqUserId }: Props) {
   const createShare = async () => {
     setCreating(true);
     setError(null);
+    setConflictHighlight(false);
     try {
       const res = await fetch("/api/settings/team/credential-shares", {
         method: "POST",
@@ -152,9 +161,29 @@ export function CredentialSharePanel({ canManage, currentHqUserId }: Props) {
         share?: ShareSummary;
         pairing?: { linkUrl: string };
         error?: string;
+        code?: string;
       };
       if (!res.ok) {
-        throw new Error(data.error ?? t("createFailed"));
+        const message =
+          res.status === 409 && data.code === "CONFLICT"
+            ? t("conflictHint")
+            : (data.error ?? t("createFailed"));
+        if (res.status === 409 && data.code === "CONFLICT") {
+          setConflictHighlight(true);
+          setError(message);
+          requestAnimationFrame(() => {
+            errorAnchorRef.current?.scrollIntoView({
+              block: "nearest",
+              behavior: "smooth",
+            });
+            sharesListRef.current?.scrollIntoView({
+              block: "nearest",
+              behavior: "smooth",
+            });
+          });
+          return;
+        }
+        throw new Error(message);
       }
       setPairingLinkUrl(data.pairing?.linkUrl ?? null);
       setShowQr(true);
@@ -163,6 +192,12 @@ export function CredentialSharePanel({ canManage, currentHqUserId }: Props) {
       setError(
         createError instanceof Error ? createError.message : t("createFailed"),
       );
+      requestAnimationFrame(() => {
+        errorAnchorRef.current?.scrollIntoView({
+          block: "nearest",
+          behavior: "smooth",
+        });
+      });
     } finally {
       setCreating(false);
     }
@@ -170,6 +205,7 @@ export function CredentialSharePanel({ canManage, currentHqUserId }: Props) {
 
   const revokeShare = async (shareId: string) => {
     setError(null);
+    setConflictHighlight(false);
     const res = await fetch(`/api/settings/credential-shares/${shareId}/revoke`, {
       method: "POST",
     });
@@ -211,92 +247,9 @@ export function CredentialSharePanel({ canManage, currentHqUserId }: Props) {
         <p className="mt-4 text-sm text-hq-fg-muted">{t("loading")}</p>
       ) : null}
 
-      {error ? <p className="mt-4 text-sm text-red-400">{error}</p> : null}
-
-      {activeShares.length > 0 ? (
-        <div className="mt-4 space-y-3">
-          {activeShares.map((share) => (
-            <div
-              key={share.id}
-              className="rounded-lg border border-hq-border bg-hq-canvas px-4 py-3 text-sm"
-            >
-              <div className="font-medium text-hq-fg">
-                {share.status === "pending"
-                  ? t("pendingInvite", {
-                      name:
-                        share.delegateDisplayName ??
-                        share.delegateEmail ??
-                        share.invitedHqUserId,
-                    })
-                  : t("activeShare", {
-                      name:
-                        share.delegateDisplayName ??
-                        share.delegateEmail ??
-                        t("unknownOfficer"),
-                    })}
-              </div>
-              <div className="mt-1 text-hq-fg-muted">
-                {t("capabilities", {
-                  list: share.capabilities.join(", "),
-                })}
-              </div>
-              {share.expiresAt ? (
-                <div className="text-hq-fg-muted">
-                  {t("expiresAt", {
-                    date: new Date(share.expiresAt).toLocaleString(locale),
-                  })}
-                </div>
-              ) : null}
-              {share.lastAccessedAt ? (
-                <div className="text-hq-fg-muted">
-                  {t("lastAccessed", {
-                    date: new Date(share.lastAccessedAt).toLocaleString(locale),
-                  })}
-                </div>
-              ) : null}
-              {canManage && share.ownerHqUserId === currentHqUserId ? (
-                <div className="mt-2 flex flex-wrap gap-3">
-                  {share.status === "active" ? (
-                    <button
-                      type="button"
-                      className="text-hq-accent hover:underline"
-                      onClick={() => void extendShare(share.id)}
-                    >
-                      {t("extend")}
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="text-hq-accent hover:underline"
-                    onClick={() => void revokeShare(share.id)}
-                  >
-                    {t("revoke")}
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="mt-4 text-sm text-hq-fg-muted">{t("empty")}</p>
-      )}
-
-      {recentActivity.length > 0 ? (
-        <div className="mt-6">
-          <h3 className="text-sm font-medium text-hq-fg">{t("recentActivity")}</h3>
-          <ul className="mt-2 space-y-1 text-sm text-hq-fg-muted">
-            {recentActivity.map((entry) => (
-              <li key={entry.id}>
-                {entry.action} · {new Date(entry.createdAt).toLocaleString(locale)}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
       {canManage ? (
         <form
-          className="mt-6 space-y-4 border-t border-hq-border pt-6"
+          className="mt-6 space-y-4"
           onSubmit={(event) => {
             preventDefaultFormSubmit(event);
             if (!ownerAcknowledged) {
@@ -328,7 +281,9 @@ export function CredentialSharePanel({ canManage, currentHqUserId }: Props) {
           </label>
 
           <fieldset className="space-y-2">
-            <legend className="text-sm text-hq-fg-muted">{t("capabilitiesLabel")}</legend>
+            <legend className="text-sm text-hq-fg-muted">
+              {t("capabilitiesLabel")}
+            </legend>
             {CREDENTIAL_SHARE_CAPABILITIES.map((capability) => (
               <label key={capability} className="flex items-center gap-2 text-sm">
                 <input
@@ -365,6 +320,16 @@ export function CredentialSharePanel({ canManage, currentHqUserId }: Props) {
             <span>{t("ownerAcknowledgment")}</span>
           </label>
 
+          {error ? (
+            <p
+              ref={errorAnchorRef}
+              className="text-sm text-hq-danger"
+              role="alert"
+            >
+              {error}
+            </p>
+          ) : null}
+
           <button
             type="submit"
             disabled={creating || !invitedHqUserId}
@@ -373,6 +338,10 @@ export function CredentialSharePanel({ canManage, currentHqUserId }: Props) {
             {creating ? t("creating") : t("createCta")}
           </button>
         </form>
+      ) : error ? (
+        <p className="mt-4 text-sm text-hq-danger" role="alert">
+          {error}
+        </p>
       ) : null}
 
       {showQr && pairingLinkUrl ? (
@@ -382,6 +351,131 @@ export function CredentialSharePanel({ canManage, currentHqUserId }: Props) {
             <QRCodeSVG value={pairingLinkUrl} size={200} />
           </div>
           <p className="text-sm text-hq-fg-muted">{t("scanHint")}</p>
+        </div>
+      ) : null}
+
+      <div
+        ref={sharesListRef}
+        className={
+          conflictHighlight
+            ? "mt-6 rounded-lg ring-2 ring-hq-warning/60 ring-offset-2 ring-offset-hq-surface"
+            : "mt-6"
+        }
+      >
+        {activeShares.length > 0 ? (
+          <div className="space-y-3">
+            {activeShares.map((share) => (
+              <div
+                key={share.id}
+                className="rounded-lg border border-hq-border bg-hq-canvas px-4 py-3 text-sm"
+              >
+                <div className="font-medium text-hq-fg">
+                  {share.status === "pending"
+                    ? t("pendingInvite", {
+                        name:
+                          share.delegateDisplayName ??
+                          share.delegateEmail ??
+                          share.invitedHqUserId,
+                      })
+                    : t("activeShare", {
+                        name:
+                          share.delegateDisplayName ??
+                          share.delegateEmail ??
+                          t("unknownOfficer"),
+                      })}
+                </div>
+                <div className="mt-1 text-hq-fg-muted">
+                  {t("capabilities", {
+                    list: share.capabilities.join(", "),
+                  })}
+                </div>
+                {share.expiresAt ? (
+                  <div className="text-hq-fg-muted">
+                    {t("expiresAt", {
+                      date: new Date(share.expiresAt).toLocaleString(locale),
+                    })}
+                  </div>
+                ) : null}
+                {share.lastAccessedAt ? (
+                  <div className="text-hq-fg-muted">
+                    {t("lastAccessed", {
+                      date: new Date(share.lastAccessedAt).toLocaleString(
+                        locale,
+                      ),
+                    })}
+                  </div>
+                ) : null}
+                {canManage && share.ownerHqUserId === currentHqUserId ? (
+                  <div className="mt-2 flex flex-wrap gap-3">
+                    {share.status === "active" ? (
+                      <button
+                        type="button"
+                        className="text-hq-accent hover:underline"
+                        onClick={() => void extendShare(share.id)}
+                      >
+                        {t("extend")}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="text-hq-accent hover:underline"
+                      onClick={() => void revokeShare(share.id)}
+                    >
+                      {t("revoke")}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : !loading ? (
+          <p className="text-sm text-hq-fg-muted">{t("empty")}</p>
+        ) : null}
+      </div>
+
+      {recentActivity.length > 0 ? (
+        <div className="mt-6">
+          <h3 className="text-sm font-medium text-hq-fg">{t("recentActivity")}</h3>
+          <ResponsiveRecordViews
+            isEmpty={false}
+            emptyMessage=""
+            mobileCards={recentActivity.map((entry) => (
+              <RecordDetailCard key={entry.id}>
+                <RecordDetailField label={t("activityAction")}>
+                  {entry.action}
+                </RecordDetailField>
+                <RecordDetailField label={t("activityWhen")}>
+                  {new Date(entry.createdAt).toLocaleString(locale)}
+                </RecordDetailField>
+              </RecordDetailCard>
+            ))}
+            desktopTable={
+              <div className="mt-2 overflow-x-auto rounded-lg border border-hq-border">
+                <table className="w-full min-w-[28rem] border-collapse text-left text-sm">
+                  <thead className="bg-hq-canvas text-hq-fg-muted">
+                    <tr>
+                      <th className="border-b border-hq-border px-3 py-2 font-medium">
+                        {t("activityAction")}
+                      </th>
+                      <th className="border-b border-hq-border px-3 py-2 font-medium">
+                        {t("activityWhen")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentActivity.map((entry) => (
+                      <tr key={entry.id} className="border-t border-hq-border">
+                        <td className="px-3 py-2 text-hq-fg">{entry.action}</td>
+                        <td className="px-3 py-2 text-hq-fg-muted">
+                          {new Date(entry.createdAt).toLocaleString(locale)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            }
+          />
         </div>
       ) : null}
     </section>

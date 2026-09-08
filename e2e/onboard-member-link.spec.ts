@@ -23,6 +23,15 @@ function e2eBaseUrl(): string {
   return process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5176";
 }
 
+/** Shared wrong-server stub UID — leftover `commanders` rows poison confirm_home. */
+const E2E_WRONG_SERVER_UID = "1234567890121205";
+
+async function clearE2eWrongServerCommander(
+  sql: ReturnType<typeof getE2eSql>,
+) {
+  await sql`DELETE FROM commanders WHERE game_uid = ${E2E_WRONG_SERVER_UID}`;
+}
+
 test.describe("Member-link onboarding gate", () => {
   test("unlinked native member is redirected from app shell to /onboard", async ({
     page,
@@ -295,91 +304,108 @@ test.describe("Member-link onboarding outcomes", () => {
     page,
   }) => {
     const sql = getE2eSql();
+    await clearE2eWrongServerCommander(sql);
     const { accepted, email, alliance } =
       await seedUnlinkedMemberOnboardSession(sql);
 
-    await page.context().addCookies(
-      playwrightAuthCookies({
-        sessionId: accepted.sessionId,
+    try {
+      await page.context().addCookies(
+        playwrightAuthCookies({
+          sessionId: accepted.sessionId,
+          hqUserId: accepted.hqUserId,
+          email,
+          nextAuthToken: accepted.nextAuthToken,
+        }),
+      );
+      await openMemberLinkForm(page);
+
+      const response = await submitUidThenConfirm(page, E2E_WRONG_SERVER_UID);
+      expect(response.ok()).toBe(true);
+      const body = (await response.json()) as { outcome?: string };
+      expect(body.outcome).toBe("confirm_home_server");
+
+      await expect(
+        page.getByRole("heading", { name: /which server is home/i }),
+      ).toBeVisible();
+
+      const requestId = await getLatestPendingRosterLinkRequestId(sql, {
+        allianceId: alliance.allianceId,
         hqUserId: accepted.hqUserId,
-        email,
-        nextAuthToken: accepted.nextAuthToken,
-      }),
-    );
-    await openMemberLinkForm(page);
-
-    const response = await submitUidThenConfirm(page, "1234567890121205");
-    expect(response.ok()).toBe(true);
-    const body = (await response.json()) as { outcome?: string };
-    expect(body.outcome).toBe("confirm_home_server");
-
-    await expect(
-      page.getByRole("heading", { name: /which server is home/i }),
-    ).toBeVisible();
-
-    const requestId = await getLatestPendingRosterLinkRequestId(sql, {
-      allianceId: alliance.allianceId,
-      hqUserId: accepted.hqUserId,
-    });
-    expect(requestId).toBeNull();
+      });
+      expect(requestId).toBeNull();
+    } finally {
+      await clearE2eWrongServerCommander(sql);
+    }
   });
 
   test("honor flow lookup-home choice shows workaround", async ({ page }) => {
     const sql = getE2eSql();
+    await clearE2eWrongServerCommander(sql);
     const { accepted, email } = await seedUnlinkedMemberOnboardSession(sql);
 
-    await page.context().addCookies(
-      playwrightAuthCookies({
-        sessionId: accepted.sessionId,
-        hqUserId: accepted.hqUserId,
-        email,
-        nextAuthToken: accepted.nextAuthToken,
-      }),
-    );
-    await openMemberLinkForm(page);
+    try {
+      await page.context().addCookies(
+        playwrightAuthCookies({
+          sessionId: accepted.sessionId,
+          hqUserId: accepted.hqUserId,
+          email,
+          nextAuthToken: accepted.nextAuthToken,
+        }),
+      );
+      await openMemberLinkForm(page);
 
-    await submitUidAndReachHomeServerConfirm(page, "1234567890121205");
+      await submitUidAndReachHomeServerConfirm(page, E2E_WRONG_SERVER_UID);
 
-    const linkResponse = page.waitForResponse(isMemberLinkSubmitResponse);
-    await page
-      .getByRole("button", { name: /server 1205/i })
-      .first()
-      .click();
-    const response = await linkResponse;
-    expect(response.ok()).toBe(true);
-    const body = (await response.json()) as { outcome?: string };
-    expect(body.outcome).toBe("position_not_home");
+      const linkResponse = page.waitForResponse(isMemberLinkSubmitResponse);
+      await page
+        .getByRole("button", { name: /server 1205/i })
+        .first()
+        .click();
+      const response = await linkResponse;
+      expect(response.ok()).toBe(true);
+      const body = (await response.json()) as { outcome?: string };
+      expect(body.outcome).toBe("position_not_home");
 
-    await expect(
-      page.getByRole("heading", { name: /send your commander home/i }),
-    ).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: /send your commander home/i }),
+      ).toBeVisible();
+    } finally {
+      await clearE2eWrongServerCommander(sql);
+    }
   });
 
   test("honor flow alliance-home choice continues onboarding", async ({ page }) => {
     const sql = getE2eSql();
+    await clearE2eWrongServerCommander(sql);
     const { accepted, email } = await seedUnlinkedMemberOnboardSession(sql);
 
-    await page.context().addCookies(
-      playwrightAuthCookies({
-        sessionId: accepted.sessionId,
-        hqUserId: accepted.hqUserId,
-        email,
-        nextAuthToken: accepted.nextAuthToken,
-      }),
-    );
-    await openMemberLinkForm(page);
+    try {
+      await page.context().addCookies(
+        playwrightAuthCookies({
+          sessionId: accepted.sessionId,
+          hqUserId: accepted.hqUserId,
+          email,
+          nextAuthToken: accepted.nextAuthToken,
+        }),
+      );
+      await openMemberLinkForm(page);
 
-    await submitUidAndReachHomeServerConfirm(page, "1234567890121205");
+      await submitUidAndReachHomeServerConfirm(page, E2E_WRONG_SERVER_UID);
 
-    const linkResponse = page.waitForResponse(isMemberLinkSubmitResponse);
-    await page
-      .getByRole("button", { name: /on server 1203/i })
-      .click();
-    const response = await linkResponse;
-    expect(response.ok()).toBe(true);
-    const body = (await response.json()) as { outcome?: string };
-    expect(body.outcome).not.toBe("confirm_home_server");
-    expect(body.outcome).not.toBe("wrong_server");
+      const linkResponse = page.waitForResponse(isMemberLinkSubmitResponse);
+      await page
+        .getByRole("button", { name: /on server 1203/i })
+        .click();
+      const response = await linkResponse;
+      expect(response.ok()).toBe(true);
+      const body = (await response.json()) as { outcome?: string };
+      expect(body.outcome).not.toBe("confirm_home_server");
+      expect(body.outcome).not.toBe("wrong_server");
+    } finally {
+      // Linking stamps known home 1203 for this shared stub UID — clear so later
+      // runs (and siblings) still hit confirm_home instead of known_commander_home.
+      await clearE2eWrongServerCommander(sql);
+    }
   });
 
   test("known commander bypasses position gate when lookup server differs", async ({
