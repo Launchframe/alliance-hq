@@ -148,10 +148,26 @@ export async function enforceVsComplianceKick(input: {
   allianceId: string;
   ashedMemberId: string;
 }): Promise<void> {
-  const member = await loadActiveAllianceMember({
-    allianceId: input.allianceId,
-    ashedMemberId: input.ashedMemberId,
-  });
+  const [member] = await getDb()
+    .select()
+    .from(schema.allianceMembers)
+    .where(
+      and(
+        eq(schema.allianceMembers.allianceId, input.allianceId),
+        eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
+      ),
+    )
+    .limit(1);
+
+  if (!member) {
+    throw new Error("Member not found on roster.");
+  }
+
+  // Already inactive — treat as success so Mark complete can retry after a
+  // partial failure (kick applied but task row not yet closed).
+  if (member.status === "former") {
+    return;
+  }
 
   await markAllianceMemberFormer({
     hqAllianceId: input.allianceId,
