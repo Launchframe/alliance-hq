@@ -51,6 +51,10 @@
     {
       "path": "/api/internal/vs-scores/sync",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/internal/vs-compliance/weekly",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

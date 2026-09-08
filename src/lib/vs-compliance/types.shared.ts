@@ -26,6 +26,7 @@ export type VsRecommendation = {
 };
 
 export type VsSettledAction = {
+  memberSnapshot?: VsComplianceMember;
   actionId: string;
   evaluationBasis: string;
   kind: "demote" | "remove";
@@ -33,6 +34,7 @@ export type VsSettledAction = {
 };
 
 export type VsComplianceWeek = {
+  eligibilitySnapshot?: VsComplianceMember;
   weekEnding: string;
   evidence: VsWeekEvidence;
   excused: boolean;
@@ -56,7 +58,7 @@ export type VsComplianceEvaluation = {
 };
 
 export class VsComplianceError extends Error {
-  constructor(public readonly code: "invalid_policy" | "invalid_week" | "changed" | "forbidden" | "not_found", public readonly status = 400) {
+  constructor(public readonly code: "invalid_policy" | "invalid_week" | "changed" | "forbidden" | "not_found" | "handled" | "reason_required" | "failed", public readonly status = 400) {
     super(code);
   }
 }

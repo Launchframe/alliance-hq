@@ -917,7 +917,7 @@
       "version": "7",
       "when": 1790900000135,
       "tag": "0135_vs_compliance",
-      "breakpoints": true
+      "breakpoints": false
     }
   ]
 }

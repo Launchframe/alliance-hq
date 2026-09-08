@@ -29,6 +29,7 @@ export function rebuildVsCompliance(input: {
   policies: readonly VsPolicyVersion[];
   member: VsComplianceMember;
   now: Date;
+  digest?: (basis: string) => string;
 }): VsComplianceEvaluation[] {
   const { member, policies, now } = input;
   if (!Number.isFinite(now.getTime())) throw new VsComplianceError("invalid_week");
@@ -58,8 +59,9 @@ export function rebuildVsCompliance(input: {
     const threshold = policy?.weeklyMinimum == null ? null : vsWeeklyThreshold(policy.weeklyMinimum, policy.leewayPct);
     const start = Date.parse(`${addCalendarDays(week.weekEnding, -6)}T02:00:00.000Z`);
     const end = Date.parse(`${week.weekEnding}T02:00:00.000Z`);
-    const eligible = member.active && !!member.joinedAt && Date.parse(member.joinedAt) <= start &&
-      (member.leftAt === null || Date.parse(member.leftAt) >= end) && end <= now.getTime() && policy?.enabled === true;
+    const eligibility = week.settled?.memberSnapshot ?? week.eligibilitySnapshot ?? member;
+    const eligible = eligibility.active && !!eligibility.joinedAt && Date.parse(eligibility.joinedAt) <= start &&
+      (eligibility.leftAt === null || Date.parse(eligibility.leftAt) >= end) && end <= now.getTime() && policy?.enabled === true;
     const complete = week.evidence.basis.length > 0 && (week.evidence.source === "weekly" || week.evidence.source === "daily" && week.evidence.dailyCoverage === 6);
     const score = complete && week.evidence.state === "ready" && week.evidence.score !== null && Number.isSafeInteger(week.evidence.score) && week.evidence.score >= 0 ? week.evidence.score : null;
     const outcome: VsComplianceEvaluation["outcome"] = !eligible ? "not_eligible" : week.waived ? "waived" : week.excused ? "excused" :
@@ -76,12 +78,13 @@ export function rebuildVsCompliance(input: {
     const ownBasis = JSON.stringify({
       weekEnding: week.weekEnding,
       policy: policy ? [policy.version, policy.effectiveWeek, policy.enabled, policy.dailyTarget, policy.weeklyMinimum, policy.leewayPct, policy.preset, policy.removalThreshold] : null,
-      membership: [member.joinedAt, member.leftAt],
+      membership: [eligibility.joinedAt, eligibility.leftAt],
       evidence: [week.evidence.state, score, week.evidence.source, week.evidence.dailyCoverage, [...new Set(week.evidence.basis)].sort()],
       excused: week.excused, pendingExcusal: week.pendingExcusal, waived: week.waived, outcome,
     });
-    const evaluationBasis = JSON.stringify({ ownBasis, historyBasis, streak });
-    historyBasis = [...historyBasis, ownBasis];
+    const rawBasis = JSON.stringify({ ownBasis, historyBasis, streak });
+    const evaluationBasis = input.digest ? input.digest(rawBasis) : rawBasis;
+    historyBasis = input.digest ? [input.digest(JSON.stringify([historyBasis, ownBasis]))] : [...historyBasis, ownBasis];
     const recommendation = outcome === "missed" && streak !== null && policy && !week.settled ? recommendVsPenalty(member, policy, streak) : noRecommendation();
     return {
       weekEnding: week.weekEnding, outcome, threshold, score, policyVersion: policy?.version ?? null, streak, recommendation, evaluationBasis,
