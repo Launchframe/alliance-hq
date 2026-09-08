@@ -93,7 +93,7 @@ export function assembleComplianceWeek(facts: Awaited<ReturnType<typeof loadComp
   const memberEntries = facts.entries.filter((entry) => entry.memberId === memberId);
   const excused = dates.some((date) => memberEntries.some((entry) => timeOffExcusesDate(facts.revisions.filter((revision) => revision.entryId === entry.id).sort((a, b) => a.version - b.version).map((revision) => ({ snapshot: revision.snapshot, recordedAt: revision.recordedAt.toISOString() })), date, "vs")) || external.excuses.some((row) => row.memberId === memberId && row.recordType === "vs" && row.startDate <= date && row.endDate >= date && row.changedAt && Date.parse(row.changedAt) < Date.parse(`${date}T02:00:00.000Z`)));
   const verifiedAt = fetched ? external.verifiedAt : previousVerifiedAt;
-  const sourceUnknown = !external.native && (!external.verifiedAt || !verifiedAt || Date.now() - verifiedAt.getTime() > 15 * 60_000);
+  const sourceUnknown = !external.native && (!external.verifiedAt || !verifiedAt);
   const pendingExcusal = sourceUnknown || memberEntries.some((entry) => !entry.cancelledAt && entry.startDate <= dates[5] && entry.endDate >= dates[0] && (!entry.noticeVerified || ["conflict", "uncertain", "failed", "credentials_required"].includes(entry.syncStatus))) || external.excuses.some((row) => row.memberId === memberId && row.recordType === "vs" && !row.changedAt && row.startDate <= dates[5] && row.endDate >= dates[0]);
   const evidence = evaluateVsWeek(records, weekEnding);
   if (!external.native && !verifiedAt && records.some((row) => row.id.startsWith("ashed:"))) { evidence.state = "partial"; evidence.score = null; }

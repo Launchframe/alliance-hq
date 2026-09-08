@@ -69,6 +69,7 @@ export async function performComplianceAction(sessionId: string, allianceId: str
       return { ok: true as const, actionId: retry.id };
     }
     if (state.inputVersion !== version || Date.now() - preparedAt > 30_000) throw new VsComplianceError("changed", 409);
+    if (!waiver && !external.native && (!external.verifiedAt || !weeks.every((week) => external.weeks.has(week)))) throw new VsComplianceError("changed", 409);
     const rebuilt = await rebuildComplianceTx(tx, allianceId, weeks, external);
     const row = rebuilt.rows.find((candidate) => candidate.id === eventId);
     if (!row || row.evaluation.confirmationBasis !== command.confirmationBasis) throw new VsComplianceError("changed", 409);

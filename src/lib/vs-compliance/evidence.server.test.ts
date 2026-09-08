@@ -33,6 +33,12 @@ describe("locked evidence assembly and excusal source health", () => {
     const external: ExternalComplianceEvidence = { ...native, weeks: new Map([["2026-09-13", new Map([["member", [{ id: "ashed:stale", recordedDate: "2026-09-13", period: "weekly", score: 0 }]]])]]) };
     expect(assembleComplianceWeek(state, "member", "2026-09-13", external).evidence.state).toBe("missing");
   });
+  it("retains previously verified historical evidence for chronological display while requiring a fresh excuse-source snapshot", () => {
+    const external: ExternalComplianceEvidence = { ...native, native: false, verifiedAt: new Date() };
+    const cached = [{ id: "ashed:weekly", period: "weekly" as const, recordedDate: "2026-09-13", score: 1 }];
+    expect(assembleComplianceWeek(facts({ heads: [] }), "member", "2026-09-13", external, cached, new Date("2026-01-01"))).toMatchObject({ evidence: { state: "ready", score: 1 }, pendingExcusal: false });
+    expect(assembleComplianceWeek(facts({ heads: [] }), "member", "2026-09-13", missingAshed, cached, new Date("2026-01-01")).pendingExcusal).toBe(true);
+  });
   it("requires trustworthy notice timing for imported exemptions", () => {
     const external: ExternalComplianceEvidence = { ...native, verifiedAt: new Date(), excuses: [{ id: "remote", allianceId: "upstream", memberId: "member", recordType: "vs", startDate: "2026-09-10", endDate: "2026-09-10", changedAt: null, reason: null }] };
     expect(assembleComplianceWeek(facts(), "member", "2026-09-13", external)).toMatchObject({ pendingExcusal: true, excused: false });

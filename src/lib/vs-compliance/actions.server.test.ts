@@ -77,6 +77,12 @@ describe("officer-confirmed native bookkeeping", () => {
     await expect(performComplianceAction("session", "tenant", "event", { ...body, confirmationBasis: "b".repeat(64) }, false)).rejects.toMatchObject({ code: "changed" });
     expect(mocks.writes).toHaveLength(0);
   });
+  it("never confirms against cached Ashed evidence when the bounded fresh snapshot is incomplete", async () => {
+    mocks.external.mockResolvedValue({ native: false, verifiedAt: new Date(), weeks: new Map() });
+    await expect(performComplianceAction("session", "tenant", "event", body, false)).rejects.toMatchObject({ code: "changed", status: 409 });
+    expect(mocks.writes).toHaveLength(0);
+    expect(mocks.rebuild).not.toHaveBeenCalled();
+  });
   it("denies R5, owner, departed and leadership-review ordinary completions", async () => {
     for (const change of [{ currentRank: 5 }, { isOwner: true }, { active: false }]) {
       mocks.results = [[row], []]; mocks.rebuild.mockResolvedValue({ rows: [{ ...row, memberSnapshot: { ...member, ...change } }], actions: [] });
