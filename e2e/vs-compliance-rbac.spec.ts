@@ -53,7 +53,12 @@ test.describe("VS compliance RBAC", () => {
   test("bootstrap session cannot access vs-compliance APIs", async ({
     request,
   }) => {
+    const sql = getE2eSql();
     const sessionId = await mintSessionViaBootstrap(request);
+    const alliance = await createNativeAlliance(sql, {
+      tag: `VC${nanoid(4)}`,
+      name: "VS Compliance Bootstrap Alliance",
+    });
 
     const list = await request.get("/api/vs-compliance/events", {
       headers: { Cookie: hqSessionOnlyCookie(sessionId) },
@@ -74,6 +79,15 @@ test.describe("VS compliance RBAC", () => {
       },
     );
     expect(waive.status(), await waive.text()).toBe(403);
+
+    const patch = await request.patch(
+      `/api/alliance/${alliance.tag}/vs-membership-minimums`,
+      {
+        headers: { Cookie: hqSessionOnlyCookie(sessionId) },
+        data: { minPoints: 1_000_000 },
+      },
+    );
+    expect(patch.status(), await patch.text()).toBe(403);
   });
 
   test("viewer cannot access vs-compliance mutation APIs", async ({

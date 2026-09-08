@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { deactivateVsComplianceInboxItem } from "@/lib/vs-compliance/vs-compliance-inbox.server";
 import { waiveVsComplianceEvent } from "@/lib/vs-compliance/repository.server";
 
@@ -16,7 +16,10 @@ type Props = { params: Promise<{ id: string }> };
 
 /** Officer excuses a miss without a matching time-off entry — reason required. */
 export async function POST(request: Request, { params }: Props) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+  const session = sessionOrError;
+
   const denied = await requireSessionPermission(session.id, "members:write");
   if (denied) return denied;
 

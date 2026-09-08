@@ -4,12 +4,15 @@ import { vsComplianceTaskKindForStrike } from "@/lib/vs-compliance/evaluate.shar
 import { listOpenVsComplianceEvents } from "@/lib/vs-compliance/repository.server";
 import { loadVsMembershipSettings } from "@/lib/vs-compliance/vs-membership-settings.server";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+  const session = sessionOrError;
+
   const denied = await requireSessionPermission(session.id, "members:write");
   if (denied) return denied;
 

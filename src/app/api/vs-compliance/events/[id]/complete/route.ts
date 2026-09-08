@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { resolveMembersApiContext } from "@/lib/members/members-api-context";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { getOrCreateSession } from "@/lib/session";
+import { requireApiSession } from "@/lib/session";
 import { enforceVsComplianceTaskOnComplete } from "@/lib/vs-compliance/vs-compliance-enforcement.server";
 import {
   findComplianceEventById,
@@ -19,7 +19,10 @@ type Props = { params: Promise<{ id: string }> };
  * Apply the recommended VS enforcement (demote or kick), then close the task.
  */
 export async function POST(_request: Request, { params }: Props) {
-  const session = await getOrCreateSession();
+  const sessionOrError = await requireApiSession();
+  if (sessionOrError instanceof NextResponse) return sessionOrError;
+  const session = sessionOrError;
+
   const denied = await requireSessionPermission(session.id, "members:write");
   if (denied) return denied;
 

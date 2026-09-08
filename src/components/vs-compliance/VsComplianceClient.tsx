@@ -5,6 +5,11 @@ import { useTranslations } from "next-intl";
 
 import { Dialog } from "@/components/ui/dialog";
 import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  handleTextareaEnterSubmit,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
+import {
   VS_DEMOTION_TASK_KIND,
   VS_KICK_TASK_KIND,
 } from "@/lib/vs-compliance/evaluate.shared";
@@ -237,7 +242,13 @@ export function VsComplianceClient({
         }}
         title={t("waiveDialogTitle")}
       >
-        <div className="flex flex-col gap-4">
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(event) => {
+            preventDefaultFormSubmit(event);
+            void submitWaive();
+          }}
+        >
           <div>
             <h2 className="text-lg font-semibold text-hq-fg">
               {t("waiveDialogTitle")}
@@ -249,8 +260,14 @@ export function VsComplianceClient({
             <textarea
               value={waiveReason}
               onChange={(e) => setWaiveReason(e.target.value)}
+              onKeyDown={(event) =>
+                handleTextareaEnterSubmit(event, () => {
+                  void submitWaive();
+                })
+              }
               disabled={waiveBusy}
               rows={3}
+              enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
               className="mt-1 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-hq-fg disabled:opacity-60"
             />
           </label>
@@ -269,15 +286,14 @@ export function VsComplianceClient({
               {t("cancel")}
             </button>
             <button
-              type="button"
+              type="submit"
               disabled={waiveBusy}
-              onClick={() => void submitWaive()}
               className="rounded-lg bg-hq-success px-4 py-2 text-sm font-medium text-white hover:bg-hq-success-hover disabled:opacity-50"
             >
               {waiveBusy ? t("waiving") : t("waiveConfirm")}
             </button>
           </div>
-        </div>
+        </form>
       </Dialog>
     </div>
   );
