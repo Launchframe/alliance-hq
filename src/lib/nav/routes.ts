@@ -141,6 +141,13 @@ export const NAV_GROUPS: NavGroupDef[] = [
         kind: "iframe",
       },
       {
+        id: "support-teams",
+        labelKey: "supportTeams",
+        href: "/support-teams",
+        kind: "native",
+        requiredPermission: "members:read",
+      },
+      {
         id: "professions",
         labelKey: "myProfession",
         href: "/professions",
