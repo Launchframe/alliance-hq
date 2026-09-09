@@ -5210,7 +5210,8 @@
       "noWalkthrough": "No walkthrough in progress.",
       "noConfirm": "Nothing to confirm right now.",
       "askOfficerNeedsNameAndUid": "Run `/link-commander` and complete the secure link before asking an officer for help.",
-      "linkAshedOwnerOnly": "Only the alliance owner, the person who linked Ashed credentials for **{tag}**, or a platform maintainer can run `/link-ashed`. Officers can still run `/link-alliance` after credentials are connected."
+      "linkAshedOwnerOnly": "Only the alliance owner, the person who linked Ashed credentials for **{tag}**, or a platform maintainer can run `/link-ashed`. Officers can still run `/link-alliance` after credentials are connected.",
+      "guildLinkedToOtherAlliance": "This Discord server is already linked to another alliance. Only that alliance's **R5 (owner)** can move the link."
     },
     "video": {
       "pendingApproval": "{uploader} uploaded **{fileName}** ({leaderboard}). Approve it in the Video queue: {queueUrl}",
@@ -5624,7 +5625,8 @@
       "genericError": "Something went wrong registering this server. Try the install wizard again.",
       "successHeading": "Server registered!",
       "successBody": "Your Discord server is linked to **{tag}**. Return to Discord and run `/link-commander` to link your commander.",
-      "nextGuideLink": "Link your commander — setup guide →"
+      "nextGuideLink": "Link your commander — setup guide →",
+      "guildBoundToOtherAlliance": "This Discord server is already linked to another alliance. Ask that alliance's R5 to move the link, then try again."
     }
   },
   "inbox": {

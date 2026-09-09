@@ -28,6 +28,7 @@ import { buildFlagReason, peerMaxExcludingMember, peerMaxInstituteLevelExcluding
 import { MAX_DISCORD_LINKS_PER_USER, type VrEventSource } from "@/lib/vr/constants";
 import { coerceInstituteLevelFromBaseVr } from "@/lib/vr/institute-levels.shared";
 import {
+  canRebindGuildToDifferentAlliance,
   evaluateGuildRegistrationAuth,
   type GuildRegistrationAuth,
   nativeOwnerClaimMemberId,
@@ -1617,6 +1618,32 @@ export async function upsertGuildAlliance(
       target: schema.discordGuildAlliances.guildId,
       set: { allianceId, registeredAt: new Date() },
     });
+}
+
+/**
+ * Bind a Discord guild to an alliance for `/link-alliance` / web bot install.
+ * Blocks silent cross-tenant overwrite when the guild is already registered to
+ * a different alliance (unless the caller is that alliance's owner or a
+ * platform maintainer).
+ */
+export async function bindGuildAllianceForRegistration(input: {
+  guildId: string;
+  allianceId: string;
+  discordUserId: string;
+}): Promise<{ ok: true } | { ok: false; reason: "guild_bound_to_other_alliance" }> {
+  const existingAllianceId = await getGuildAllianceId(input.guildId);
+  if (existingAllianceId && existingAllianceId !== input.allianceId) {
+    const existingAuth = await callerCanRegisterGuildAlliance({
+      allianceId: existingAllianceId,
+      discordUserId: input.discordUserId,
+    });
+    if (!canRebindGuildToDifferentAlliance(existingAuth)) {
+      return { ok: false, reason: "guild_bound_to_other_alliance" };
+    }
+  }
+
+  await upsertGuildAlliance(input.guildId, input.allianceId);
+  return { ok: true };
 }
 
 export async function setGuildVrReportChannel(

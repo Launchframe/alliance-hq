@@ -6,13 +6,13 @@ import {
 } from "@/lib/discord/i18n";
 import { resolveDiscordChannelSetterAccess } from "@/lib/discord/channel-setter-auth.server";
 import {
+  bindGuildAllianceForRegistration,
   callerCanRegisterGuildAlliance,
   getAllianceById,
   getDiscordHqLink,
   getGuildAllianceId,
   saveDiscordBotPending,
   setGuildVrReportChannel,
-  upsertGuildAlliance,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
 import { buildDiscordBotAppUrl } from "@/lib/discord/app-url.shared";
@@ -290,7 +290,20 @@ export async function handleDiscordLinkAlliance(input: {
     return { reply };
   }
 
-  await upsertGuildAlliance(input.guildId, resolved.allianceId);
+  const bind = await bindGuildAllianceForRegistration({
+    guildId: input.guildId,
+    allianceId: resolved.allianceId,
+    discordUserId: input.discordUserId,
+  });
+  if (!bind.ok) {
+    const reply = t("errors.guildLinkedToOtherAlliance");
+    await audit(resolved.allianceId, input.discordUserId, "link_alliance", input, {
+      reply,
+      bind,
+    });
+    return { reply };
+  }
+
   await saveDiscordBotPending(resolved.allianceId, input.discordUserId, null);
 
   const reply = t("setup.linkAllianceSuccess", { tag: resolved.tag });
