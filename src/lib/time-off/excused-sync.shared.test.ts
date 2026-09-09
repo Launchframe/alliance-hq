@@ -4,6 +4,7 @@ import {
   activityScopeToRecordTypes,
   groupParsedExcusedRecordsIntoEntries,
   parseAshedExcusedRecord,
+  shouldPreserveHqTimeOffAgainstAshedPull,
   shouldPushEntryKindToAshed,
   type ParsedAshedExcusedRecord,
 } from "@/lib/time-off/excused-sync.shared";
@@ -110,6 +111,42 @@ describe("parseAshedExcusedRecord", () => {
         start_date: "2026-08-01",
       }),
     ).toBeNull();
+  });
+});
+
+describe("shouldPreserveHqTimeOffAgainstAshedPull", () => {
+  it("lets Ashed-originated unsynced inserts (version 0, no createdBy) keep flowing", () => {
+    expect(
+      shouldPreserveHqTimeOffAgainstAshedPull({
+        version: 0,
+        createdByHqUserId: null,
+        createdByDiscordUserId: null,
+      }),
+    ).toBe(false);
+  });
+
+  it("preserves HQ/Discord creates and edits so pull-sync cannot clobber them", () => {
+    expect(
+      shouldPreserveHqTimeOffAgainstAshedPull({
+        version: 1,
+        createdByHqUserId: null,
+        createdByDiscordUserId: null,
+      }),
+    ).toBe(true);
+    expect(
+      shouldPreserveHqTimeOffAgainstAshedPull({
+        version: 0,
+        createdByHqUserId: "hq-1",
+        createdByDiscordUserId: null,
+      }),
+    ).toBe(true);
+    expect(
+      shouldPreserveHqTimeOffAgainstAshedPull({
+        version: 0,
+        createdByHqUserId: null,
+        createdByDiscordUserId: "discord-1",
+      }),
+    ).toBe(true);
   });
 });
 

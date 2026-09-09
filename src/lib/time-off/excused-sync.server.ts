@@ -14,6 +14,7 @@ import {
   activityScopeToRecordTypes,
   groupParsedExcusedRecordsIntoEntries,
   parseAshedExcusedRecord,
+  shouldPreserveHqTimeOffAgainstAshedPull,
   shouldPushEntryKindToAshed,
 } from "@/lib/time-off/excused-sync.shared";
 import type { TimeOffActivityScope } from "@/lib/time-off/types.shared";
@@ -123,6 +124,11 @@ export async function syncMemberExcusedFromAshed(
     }
 
     if (match) {
+      if (shouldPreserveHqTimeOffAgainstAshedPull(match.row)) {
+        // HQ/Discord already mutated this row; do not clobber dates/notes
+        // with a stale Ashed snapshot.
+        continue;
+      }
       await db
         .update(schema.memberTimeOff)
         .set({

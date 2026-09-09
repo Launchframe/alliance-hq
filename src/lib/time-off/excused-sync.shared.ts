@@ -85,6 +85,29 @@ export function shouldPushEntryKindToAshed(entryKind: string): boolean {
   return entryKind !== "unexpected";
 }
 
+/**
+ * HQ-authored time-off rows must not be overwritten by an Ashed pull.
+ *
+ * Commander-profile sync matches on `ashedExcusedIds` and used to copy Ashed
+ * dates/notes onto the HQ row. That clobbers an HQ/Discord edit when dual-write
+ * has not yet updated Ashed (or failed), then anyone opens the profile.
+ * Cancellations already skip; this is the same HQ-wins rule for live edits.
+ *
+ * Ashed-originated inserts leave `version` at 0 and both createdBy* null, so
+ * later Ashed edits still flow until HQ touches the row.
+ */
+export function shouldPreserveHqTimeOffAgainstAshedPull(row: {
+  version?: number | null;
+  createdByHqUserId?: string | null;
+  createdByDiscordUserId?: string | null;
+}): boolean {
+  return (
+    (row.version ?? 0) > 0 ||
+    Boolean(row.createdByHqUserId) ||
+    Boolean(row.createdByDiscordUserId)
+  );
+}
+
 /** Maps an HQ activity scope to the Ashed `record_type`(s) POSTed for it. */
 export function activityScopeToRecordTypes(
   scope: TimeOffActivityScope,
