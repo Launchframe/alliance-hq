@@ -422,7 +422,9 @@ export async function acceptCredentialShare(input: {
   }
 
   const now = new Date();
-  await db
+  // CAS on status=pending so concurrent revoke/reject/expire cannot be
+  // resurrected into an active delegated credential after the owner ended it.
+  const [updated] = await db
     .update(schema.ashedCredentialShares)
     .set({
       status: "active",
@@ -430,7 +432,20 @@ export async function acceptCredentialShare(input: {
       acceptedAt: now,
       updatedAt: now,
     })
-    .where(eq(schema.ashedCredentialShares.id, row.id));
+    .where(
+      and(
+        eq(schema.ashedCredentialShares.id, row.id),
+        eq(schema.ashedCredentialShares.status, "pending"),
+      ),
+    )
+    .returning();
+
+  if (!updated) {
+    throw new CredentialShareError(
+      "This invite is no longer available.",
+      "NOT_FOUND",
+    );
+  }
 
   await writeCredentialShareAudit({
     sessionId: input.targetSessionId,
@@ -444,17 +459,11 @@ export async function acceptCredentialShare(input: {
     },
   });
 
-  const [updated] = await db
-    .select()
-    .from(schema.ashedCredentialShares)
-    .where(eq(schema.ashedCredentialShares.id, row.id))
-    .limit(1);
-
   const users = await loadUserMap([
     row.ownerHqUserId,
     delegateHqUserId,
   ]);
-  const summary = toSummary(updated!, users);
+  const summary = toSummary(updated, users);
 
   void sendCredentialShareAcceptedEmail({
     ownerHqUserId: row.ownerHqUserId,
@@ -492,15 +501,29 @@ export async function rejectCredentialShare(input: {
   }
 
   const now = new Date();
-  await db
+  const rejected = await db
     .update(schema.ashedCredentialShares)
     .set({
       status: "rejected",
       rejectedAt: now,
       endReason: "rejected",
+      encryptedToken: null,
       updatedAt: now,
     })
-    .where(eq(schema.ashedCredentialShares.id, row.id));
+    .where(
+      and(
+        eq(schema.ashedCredentialShares.id, row.id),
+        eq(schema.ashedCredentialShares.status, "pending"),
+      ),
+    )
+    .returning({ id: schema.ashedCredentialShares.id });
+
+  if (rejected.length === 0) {
+    throw new CredentialShareError(
+      "This invite is no longer available.",
+      "NOT_FOUND",
+    );
+  }
 
   await writeCredentialShareAudit({
     sessionId: input.sessionId,
@@ -543,15 +566,28 @@ export async function revokeCredentialShare(input: {
   }
 
   const now = new Date();
-  await db
+  const revoked = await db
     .update(schema.ashedCredentialShares)
     .set({
       status: "revoked",
       revokedAt: now,
       endReason: "revoked",
+      // Drop the copied Ashed JWT so a lost race with accept cannot keep a live
+      // token even if status were ever flipped again.
+      encryptedToken: null,
       updatedAt: now,
     })
-    .where(eq(schema.ashedCredentialShares.id, row.id));
+    .where(
+      and(
+        eq(schema.ashedCredentialShares.id, row.id),
+        inArray(schema.ashedCredentialShares.status, ["pending", "active"]),
+      ),
+    )
+    .returning({ id: schema.ashedCredentialShares.id });
+
+  if (revoked.length === 0) {
+    throw new CredentialShareError("This share is not active.", "NOT_FOUND");
+  }
 
   await writeCredentialShareAudit({
     sessionId: input.sessionId,
@@ -613,7 +649,7 @@ export async function extendCredentialShare(input: {
     );
   }
 
-  await db
+  const [updated] = await db
     .update(schema.ashedCredentialShares)
     .set({
       expiresAt,
@@ -624,7 +660,17 @@ export async function extendCredentialShare(input: {
       ashedUserId: credential.ashedUserId,
       updatedAt: now,
     })
-    .where(eq(schema.ashedCredentialShares.id, row.id));
+    .where(
+      and(
+        eq(schema.ashedCredentialShares.id, row.id),
+        eq(schema.ashedCredentialShares.status, "active"),
+      ),
+    )
+    .returning();
+
+  if (!updated) {
+    throw new CredentialShareError("This share is not active.", "NOT_FOUND");
+  }
 
   await writeCredentialShareAudit({
     sessionId: input.sessionId,
@@ -640,18 +686,12 @@ export async function extendCredentialShare(input: {
     },
   });
 
-  const [updated] = await db
-    .select()
-    .from(schema.ashedCredentialShares)
-    .where(eq(schema.ashedCredentialShares.id, row.id))
-    .limit(1);
-
   const users = await loadUserMap(
     [row.ownerHqUserId, row.delegateHqUserId, row.invitedHqUserId].filter(
       (id): id is string => Boolean(id),
     ),
   );
-  return toSummary(updated!, users);
+  return toSummary(updated, users);
 }
 
 export async function getActiveShareForDelegate(
@@ -748,10 +788,21 @@ export async function resolveAshedConnectionForAlliance(
   }
 
   const now = new Date();
-  await getDb()
+  const touched = await getDb()
     .update(schema.ashedCredentialShares)
     .set({ lastAccessedAt: now, updatedAt: now })
-    .where(eq(schema.ashedCredentialShares.id, share.id));
+    .where(
+      and(
+        eq(schema.ashedCredentialShares.id, share.id),
+        eq(schema.ashedCredentialShares.status, "active"),
+      ),
+    )
+    .returning({ id: schema.ashedCredentialShares.id });
+
+  // Revoked/expired between the active read and touch — refuse the JWT.
+  if (touched.length === 0) {
+    return null;
+  }
 
   return {
     connection: {
@@ -955,14 +1006,26 @@ export async function expireStaleCredentialShares(): Promise<{
       continue;
     }
 
-    await db
+    const expiredRows = await db
       .update(schema.ashedCredentialShares)
       .set({
         status: "expired",
         endReason,
+        encryptedToken: null,
         updatedAt: now,
       })
-      .where(eq(schema.ashedCredentialShares.id, row.id));
+      .where(
+        and(
+          eq(schema.ashedCredentialShares.id, row.id),
+          inArray(schema.ashedCredentialShares.status, ["pending", "active"]),
+        ),
+      )
+      .returning({ id: schema.ashedCredentialShares.id });
+
+    // Lost a race with accept/revoke — do not email or count this row.
+    if (expiredRows.length === 0) {
+      continue;
+    }
 
     await writeAuditLog({
       sessionId: null,
