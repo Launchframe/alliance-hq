@@ -258,8 +258,13 @@ export function findHistoricalDepositMatch<
       }
     }
 
-    // Matured must be term-aligned; proximity would false-match re-deposits.
-    if (incomingStatus === "matured") return null;
+    // Terminal rows must use lifecycle pairing (or terminal→terminal dedupe).
+    // Falling through to depositAt proximity would false-match a same-commander
+    // re-deposit whose initiate is within DEPOSIT_AT_PROXIMITY_MS *after* the
+    // loot/maturity timestamp — wrongly terminating the new locked slip with
+    // outcomeAt < depositAt. Matured already returned null here; looted must
+    // too (lifecycle pairing already accepts loot any time within the term).
+    return null;
   }
 
   for (const slip of existing) {
@@ -327,17 +332,11 @@ export function shouldSkipHistoricalDepositDuplicate(
 export function shouldUpdateHistoricalDepositOutcome(
   incoming: HistoricalDepositSlipIdentity,
   existing: HistoricalDepositSlipIdentity,
-  proximityMs: number = DEPOSIT_AT_PROXIMITY_MS,
+  _proximityMs: number = DEPOSIT_AT_PROXIMITY_MS,
 ): boolean {
-  if (canHistoricalOutcomeUpdateLocked(incoming, existing)) {
-    return true;
-  }
-  const incomingStatus = resolveStatus(incoming);
-  const existingStatus = resolveStatus(existing);
-  if (existingStatus !== "locked") return false;
-  if (incomingStatus === "matured") return false;
-  if (incomingStatus === "looted") {
-    return isHistoricalDepositMatch(incoming, existing, proximityMs);
-  }
-  return false;
+  // Only lifecycle-timed pairing may advance locked → terminal. A looted OCR
+  // row whose depositAt is merely near a locked slip (legacy proximity
+  // fallback) can be a prior loot vs a rapid re-deposit — applying it would
+  // mark the new initiate looted with outcomeAt before depositAt.
+  return canHistoricalOutcomeUpdateLocked(incoming, existing);
 }
