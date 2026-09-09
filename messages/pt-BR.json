@@ -3702,6 +3702,51 @@
         "roll": "Gire a roleta ou escolha um Condutor para hoje e os próximos dias.",
         "lock": "Confirme um Condutor para gerar o trem vazio daquele dia. Se foi você quem confirmou, pode desbloquear até a meia-noite no horário do servidor daquele dia."
       },
+      "weekGoalsTitle": "Guias das plataformas de trem",
+      "weekGoalsIntro": "Quando a liderança nomear uma plataforma para a semana, use esse guia para saber o que fazer — e o que não fazer. Plataformas: Hard save → Save hard → Push hard → Hard push.",
+      "weekGoalsSharedTitle": "Toda plataforma",
+      "weekGoalsShared": {
+        "conductorsAtReset": "Os Condutores são sorteados no Reset. Fique de olho nas DMs e no Discord para os anúncios de Condutor.",
+        "leadTime": "O tempo de antecedência pode mudar quais pontuações do dia valem para o trem — confira as configurações de Trem.",
+        "vsMinimum": "Dias de Price Is Freight podem exigir um mínimo de VS para ganhar Condutor — confira as configurações de Trem.",
+        "donationMinimum": "Dias de Price Is Freight podem exigir um mínimo de doações — confira as configurações de Trem."
+      },
+      "weekGoals": {
+        "economy": {
+          "title": "Plataforma 1 — The Price Is Freight",
+          "subtitle": "Hard save",
+          "blurb": "Esta semana significa… Quanto mais perto de 7,2M, melhores suas chances de ganhar.",
+          "do1": "Faça: mire 7,2M — esse é o alvo sempre.",
+          "do2": "Faça: as pontuações de sexta e sábado são livres. Treine tropas e lute à vontade!",
+          "dont": "Não faça: gastar demais nos dias de guardar."
+        },
+        "save": {
+          "title": "Plataforma 2 — Semana de guardar",
+          "subtitle": "Save hard",
+          "blurb": "Esta semana significa… Empurre seu poder se precisar. Os Condutores são escolhidos aleatoriamente entre R3s.",
+          "do1": "Faça: guarde quando puder; gaste só quando precisar do poder.",
+          "dont": "Não faça: gastar demais nos dias de guardar."
+        },
+        "certainDays": {
+          "title": "Plataforma 3 — Vitória estratégica",
+          "subtitle": "Push hard",
+          "blurb": "Esta semana significa… Jogamos a toalha em alguns dias e dominamos em outros. O objetivo é vencer por margem justa, guardando em dias escolhidos desta semana.",
+          "do1": "Faça: pergunte ou leia quais dias são de push e quais são descartáveis.",
+          "do2": "Faça: dê o máximo quando for chamado.",
+          "do3": "Faça: guarde nos dias descartáveis.",
+          "dont": "Não faça: empurrar nos dias errados."
+        },
+        "allOut": {
+          "title": "Plataforma 4 — Dominação total",
+          "subtitle": "Hard push",
+          "blurb": "Esta semana significa… Pé no fundo, sem freio. Mostre do que esta aliança é feita.",
+          "do1": "Faça: apareça forte de segunda a sábado.",
+          "do2": "Faça: fique atento a mudanças de estratégia.",
+          "do3": "Faça: feche a vitória até sexta.",
+          "dont1": "Não faça: relaxar.",
+          "dont2": "Não faça: ficar AFK sem avisar a galera."
+        }
+      },
       "lockOwnershipTitle": "Posse do trem",
       "lockOwnershipBody": "O oficial que confirma um condutor pode desbloqueá-lo até a meia-noite no horário do servidor daquele dia de trem. Confirmar um dia passado é a exceção — você pode desbloquear essa confirmação a qualquer momento. Depois da meia-noite, só o dono da aliança ou um mantenedor da plataforma pode desbloquear.",
       "takeTour": "Fazer o tour",
@@ -3922,6 +3967,11 @@
       "donations": {
         "unavailableTitle": "Pontuação de doações ainda indisponível",
         "unavailableBody": "O HQ ainda não armazena totais de doação. Use escolha manual do condutor até a pontuação de doações estar disponível."
+      },
+      "share": {
+        "action": "Compartilhar imagem",
+        "subtitle": "{day}",
+        "failed": "Não foi possível criar a imagem do ranking."
       }
     },
     "priceIsRight": {
@@ -3983,6 +4033,16 @@
       "aboveCliff": {
         "title": "Acima do corte do cliff",
         "subtitle": "Corte rígido ativo — VS do dia anterior acima do cliff ficam fora do sorteio de hoje."
+      },
+      "scoreList": {
+        "searchLabel": "Buscar membros",
+        "searchPlaceholder": "Buscar por nome…",
+        "member": "Comandante",
+        "vs": "VS do dia anterior",
+        "empty": "Nenhum membro corresponde a esta busca.",
+        "pageStatus": "Página {page} de {pages} · {count} membros",
+        "prev": "Anterior",
+        "next": "Próxima"
       }
     },
     "conductorHistory": {
@@ -4219,6 +4279,7 @@
         "statsLine": "Último: {lastDate} · {count} este ano",
         "eligibilityVsMinimum": "Elegível: {score} (mín. {minimum})",
         "eligibilityTpif": "VS do dia anterior {score} — mais perto de {sweetSpot}",
+        "eligibilityTpifWithChance": "VS do dia anterior {score} · {chance} de chance",
         "eligibilityVsLeaderboardRank": "#{rank} · {score} {suffix}",
         "eligibilityVsLeaderboardScore": "{score} {suffix}"
       }
