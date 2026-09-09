@@ -5,6 +5,7 @@
  *   DISCORD_BOT_TOKEN=... DISCORD_APPLICATION_ID=... npm run discord:register-commands
  */
 import "dotenv/config";
+import { TIME_OFF_COMMANDS } from "./time-off-commands.mjs";
 
 const token = process.env.DISCORD_BOT_TOKEN?.trim();
 const applicationId = process.env.DISCORD_APPLICATION_ID?.trim();
@@ -543,44 +544,7 @@ const commandBody = [
         "Registre este canal para anúncios da tabela de profissões (R4+ por padrão; o dono pode restringir).",
     },
   },
-  {
-    name: "my-time-off",
-    description: "Announce or view your upcoming time off in natural language.",
-    description_localizations: {
-      "pt-BR": "Anuncie ou veja suas próximas ausências em linguagem natural.",
-    },
-    options: [
-      {
-        name: "upcoming",
-        description:
-          'Describe your time off (e.g. "away next week visiting family").',
-        description_localizations: {
-          "pt-BR":
-            'Descreva sua ausência (ex.: "fora na próxima semana visitando família").',
-        },
-        type: 3,
-        required: false,
-      },
-      {
-        name: "start",
-        description: "Optional start date (YYYY-MM-DD) when not using upcoming.",
-        description_localizations: {
-          "pt-BR": "Data de início opcional (AAAA-MM-DD) sem usar upcoming.",
-        },
-        type: 3,
-        required: false,
-      },
-      {
-        name: "end",
-        description: "Optional end date (YYYY-MM-DD). Defaults to start.",
-        description_localizations: {
-          "pt-BR": "Data de fim opcional (AAAA-MM-DD). Padrão: início.",
-        },
-        type: 3,
-        required: false,
-      },
-    ],
-  },
+  ...TIME_OFF_COMMANDS,
   {
     name: "who-is",
     description: "Look up which commander a Discord user owns, or who owns a commander.",
@@ -603,33 +567,6 @@ const commandBody = [
         description: "In-game commander name to look up.",
         description_localizations: {
           "pt-BR": "Nome do comandante no jogo para consultar.",
-        },
-        type: 3,
-        required: false,
-      },
-    ],
-  },
-  {
-    name: "is-ally-offline",
-    description: "Check whether an alliance commander is on scheduled time off.",
-    description_localizations: {
-      "pt-BR": "Verifique se um comandante da aliança está em ausência programada.",
-    },
-    options: [
-      {
-        name: "commander",
-        description: "Alliance commander name to look up.",
-        description_localizations: {
-          "pt-BR": "Nome do comandante da aliança para consultar.",
-        },
-        type: 3,
-        required: true,
-      },
-      {
-        name: "date",
-        description: "Server calendar date (YYYY-MM-DD). Defaults to today.",
-        description_localizations: {
-          "pt-BR": "Data do calendário do servidor (AAAA-MM-DD). Padrão: hoje.",
         },
         type: 3,
         required: false,

@@ -26,6 +26,8 @@ export async function GET(request: Request) {
     hqUserId: session.hqUserId ?? null,
     allianceId,
     month,
+    history: url.searchParams.get("view") === "history",
+    page: Number(url.searchParams.get("page") ?? "0"),
   });
 
   if ("forbidden" in dashboard) {

@@ -32,6 +32,7 @@ export async function editDiscordOriginalInteraction(input: {
   content: string;
   components?: unknown[];
   ephemeral?: boolean;
+  suppressMentions?: boolean;
 }): Promise<boolean> {
   const url = discordOriginalInteractionUrl(
     input.applicationId,
@@ -40,6 +41,7 @@ export async function editDiscordOriginalInteraction(input: {
   const body: Record<string, unknown> = {
     content: truncateDiscordContent(input.content),
     components: input.components ?? [],
+    ...(input.suppressMentions ? { allowed_mentions: { parse: [] } } : {}),
   };
   if (input.ephemeral) {
     body.flags = 64;
@@ -55,7 +57,6 @@ export async function editDiscordOriginalInteraction(input: {
     console.error(
       "[discord] edit original interaction failed:",
       res.status,
-      await res.text(),
     );
     return false;
   }

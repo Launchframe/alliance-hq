@@ -1,81 +1,32 @@
 import { NextResponse } from "next/server";
 
-import {
-  canCancelTimeOffEntry,
-  isTimeOffEntryKind,
-  serializeTimeOffEntry,
-} from "@/lib/time-off/api.shared";
-import {
-  cancelTimeOffEntry,
-  hqUserOwnsCommander,
-} from "@/lib/time-off/repository.server";
-import {
-  requireTimeOffAllianceContext,
-  requireTimeOffRead,
-  requireTimeOffWrite,
-} from "@/lib/time-off/route-helpers.server";
-import { getDb, schema } from "@/lib/db";
-import { and, eq } from "drizzle-orm";
+import { cancelTimeOff, updateTimeOff } from "@/lib/time-off/mutations.server";
+import { requireTimeOffActor, timeOffErrorResponse } from "@/lib/time-off/route-helpers.server";
 
 export const dynamic = "force-dynamic";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-export async function DELETE(_request: Request, { params }: RouteParams) {
-  const { id } = await params;
-  const context = await requireTimeOffAllianceContext();
-  if ("error" in context && context.error) {
-    return context.error;
+export async function PATCH(request: Request, { params }: RouteParams) {
+  const context = await requireTimeOffActor();
+  if ("error" in context) return context.error;
+  try {
+    const { id } = await params;
+    const body = await request.json();
+    return NextResponse.json({ entry: await updateTimeOff(context.actor, id, body, body?.version) });
+  } catch (error) {
+    return timeOffErrorResponse(error);
   }
+}
 
-  const { sessionId, session, allianceId } = context;
-  const deniedRead = await requireTimeOffRead(sessionId);
-  if (deniedRead) return deniedRead;
-
-  const [existing] = await getDb()
-    .select()
-    .from(schema.memberTimeOff)
-    .where(
-      and(
-        eq(schema.memberTimeOff.id, id),
-        eq(schema.memberTimeOff.allianceId, allianceId),
-      ),
-    )
-    .limit(1);
-
-  if (!existing) {
-    return NextResponse.json({ error: "Not found." }, { status: 404 });
+export async function DELETE(request: Request, { params }: RouteParams) {
+  const context = await requireTimeOffActor();
+  if ("error" in context) return context.error;
+  try {
+    const { id } = await params;
+    const body = await request.json();
+    return NextResponse.json({ entry: await cancelTimeOff(context.actor, id, body?.version) });
+  } catch (error) {
+    return timeOffErrorResponse(error);
   }
-
-  const entryKind = isTimeOffEntryKind(existing.entryKind)
-    ? existing.entryKind
-    : null;
-  if (!entryKind) {
-    return NextResponse.json({ error: "Invalid entry kind." }, { status: 500 });
-  }
-  const canManageOthers = !(await requireTimeOffWrite(sessionId));
-  const ownsCommander =
-    session.hqUserId != null &&
-    (await hqUserOwnsCommander({
-      allianceId,
-      hqUserId: session.hqUserId,
-      ashedMemberId: existing.ashedMemberId,
-    }));
-
-  if (
-    !canCancelTimeOffEntry({
-      entryKind,
-      canManageOthers,
-      ownsCommander,
-    })
-  ) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const row = await cancelTimeOffEntry({ allianceId, entryId: id });
-  if (!row) {
-    return NextResponse.json({ error: "Not found." }, { status: 404 });
-  }
-
-  return NextResponse.json({ entry: serializeTimeOffEntry(row) });
 }

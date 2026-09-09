@@ -3834,6 +3834,10 @@ export const memberTimeOff = pgTable(
       { onDelete: "set null" },
     ),
     createdByDiscordUserId: text("created_by_discord_user_id"),
+    version: integer("version").notNull().default(0),
+    globalAbsence: boolean("global_absence").notNull().default(false),
+    requestKey: text("request_key").unique(),
+    requestHash: text("request_hash"),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -3853,5 +3857,38 @@ export const memberTimeOff = pgTable(
     ),
   ],
 );
+
+export const memberTimeOffRevisions = pgTable(
+  "member_time_off_revisions",
+  {
+    id: text("id").primaryKey(),
+    entryId: text("entry_id").notNull().references(() => memberTimeOff.id, { onDelete: "restrict" }),
+    allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    snapshot: jsonb("snapshot").$type<{
+      startDate: string;
+      endDate: string;
+      entryKind: "planned" | "officer_marked" | "unexpected";
+      globalAbsence: boolean;
+      cancelled: boolean;
+    }>().notNull(),
+    recordedByHqUserId: text("recorded_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+    recordedByDiscordUserId: text("recorded_by_discord_user_id"),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("member_time_off_revisions_entry_version_unique").on(table.entryId, table.version),
+    index("member_time_off_revisions_alliance_entry_idx").on(table.allianceId, table.entryId),
+  ],
+);
+
+export const timeOffDiscordInteractions = pgTable("time_off_discord_interactions", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  guildId: text("guild_id").notNull(),
+  discordUserId: text("discord_user_id").notNull(),
+  state: jsonb("state").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, (table) => [index("time_off_discord_interactions_expires_idx").on(table.expiresAt)]);
 
 export type MemberTimeOff = typeof memberTimeOff.$inferSelect;

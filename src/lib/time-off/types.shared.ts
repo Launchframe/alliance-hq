@@ -29,6 +29,9 @@ export type SerializedTimeOffEntry = {
   availability: TimeOffAvailability;
   entryKind: TimeOffEntryKind;
   source: TimeOffSource;
+  version: number;
+  globalAbsence: boolean;
+  cancelledAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -40,6 +43,11 @@ export type TimeOffCalendarPayload = {
   canWrite: boolean;
   canManageOthers: boolean;
   linkedCommanderIds: string[];
+  commanders: Array<{ id: string; name: string }>;
+  ownEntries: SerializedTimeOffEntry[];
+  ownEntriesPage: number;
+  ownEntriesHaveMore: boolean;
+  history: boolean;
   unexpectedReport?: {
     unexpected: SerializedTimeOffEntry[];
     unannounced: Array<{ ashedMemberId: string; memberName: string }>;
