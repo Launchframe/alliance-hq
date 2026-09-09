@@ -13,6 +13,11 @@ describe("inviteAcceptReasonFromMessage", () => {
     expect(inviteAcceptReasonFromMessage("Incorrect passphrase.")).toBe(
       "passphrase_incorrect",
     );
+    expect(
+      inviteAcceptReasonFromMessage(
+        "Owner invite requires the claim commander to still be in-game R5.",
+      ),
+    ).toBe("hybrid_rank_stale");
     expect(inviteAcceptReasonFromMessage("Something unexpected")).toBe(
       "accept_failed",
     );
