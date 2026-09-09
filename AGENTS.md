@@ -160,19 +160,19 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 ## Learned Workspace Facts
 
 - Migration renumbering after `0004` is SQL file rename plus `_journal.json` update (Drizzle snapshots only cover `0000`–`0004`).
-- Reserve migration sequence numbers for in-flight PRs in stacked work.
+- Reserve migration sequence numbers for in-flight PRs in stacked work; `db:validate-journal` allows intentional sequence gaps in `_journal.json`.
 - Standalone E2E builds must bind `DATABASE_URL`, `LOCAL_DATABASE_URL`, and `E2E_DATABASE_URL` to the same URL validated by `scripts/e2e-database-url-guard.mjs`, set `NODE_ENV=production`, and validate `resolveDatabaseUrl(childEnv)` before spawning the build. Guarding only `DATABASE_URL` is insufficient: the resolver can prefer an existing `LOCAL_DATABASE_URL`.
 - Next.js streamed `notFound()` pages can return HTTP 200. Privilege tests must assert the denied page content and the protected API status, rather than relying on an HTTP 404 alone.
 - Use separate browser contexts when testing different signed-in identities across redirecting pages; clearing cookies on a page with pending navigation can cause `ERR_ABORTED` and hide the actual boundary assertion.
-- `db:validate-journal` allows intentional sequence gaps in `_journal.json`.
 - Discord `/link-commander` matches web member-link: UID-only lookup plus identity confirm (no typed in-game name).
 - Roster substring match direction: roster name (≥4 chars) must be a subset of the in-game name, with a single match.
 - Release workflow: draft notes in `docs/release-notes/` (`status: draft`); push `package.json` bump and `status: ready` note for cross-machine ship; run `npm run release:ship -- --yes --version X.Y.Z` (not `--minor` when `package.json` is already bumped).
-- E2e “no linked game server” fixtures: null `game_server_id` only — keep `game_server_number` NOT NULL on `alliances`.
-- HQ `ROSTER_MAX_MEMBERS` is intentionally 2× the in-game alliance cap (200 vs 100) during onboarding tuning so missed roster matches still leave room for full JIT linking; may lower as tooling improves.
 - Discord-first users who have not run `/link` hit cross-layer UID conflicts on web self-service; self-service path is Discord `/link` then retry web — officer help queue (`cross_layer_claim` / `discord_hq_unlinked`) mediates stuck cases.
 - No synthetic default alliance tag (e.g. `HQ`) in invite/welcome URLs; unset `alliances.tag` needs explicit officer-visible handling, not a URL fallback.
 - Roster sync no longer upserts `hq_users` stubs for unknown roster emails — Ashed-sourced officer memberships require invite accept or SSO connect.
+- Game season override and VR sandbox settings live on `/settings/game-seasons`, not `/settings` or `/settings/trains`.
+- OAuth e2e browser shims for Auth.js `signIn()` must fulfill POST with JSON `{ url }` and `X-Auth-Return-Redirect`, not HTTP 302.
+- TPIF odds panel renders on every `price_is_right` day including Saturday `heavy_hitter`; do not assert panel hidden on Saturday in e2e.
 - Keep native OCR deps (sharp/libvips) scoped to video-process routes; tracing or imports that pull them into other serverless handlers break unrelated endpoints.
 - Scoreboard review dual-writes new members / OCR names only when the officer enables the Account settings (both default off). Unmatched rows get a person-plus create; a manual match whose OCR name differs gets a person-pencil rename. Bulk chrome matches those row actions. Team A/B and Win/Lose use the same segmented toggle; Pending is unset (neither selected).
 

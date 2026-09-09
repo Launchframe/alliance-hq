@@ -54,4 +54,12 @@ for (const path of ["draft", "vip", "lock"] as const) describe(`transaction-boun
     await expect(withCoverageActor({ allianceId: "alliance", hqUserId: "officer", acceptance: { conflicts: error.conflicts, note: "Confirmed coverage", requestId: "request_1234567890" } }, run)).rejects.toBeInstanceOf(CoverageConflictError);
     expect(mocks.writes).not.toHaveBeenCalled();
   });
+  if (path === "draft") {
+    it("refuses to write when a concurrent lock won the row before this transaction's snapshot", async () => {
+      mocks.notices = [];
+      mocks.row.lockedAt = new Date("2099-09-09T12:00:00Z");
+      await expect(run()).rejects.toThrow("Conductor is already locked for this day.");
+      expect(mocks.writes).not.toHaveBeenCalled();
+    });
+  }
 });

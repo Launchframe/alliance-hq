@@ -11,6 +11,46 @@ type PoolRankEvent = {
   effectiveDate?: string | null;
 };
 
+
+type AllianceRankEventRow =
+  (typeof schema.memberAllianceRankEvents.$inferSelect);
+
+/**
+ * Rank events are append-only. Multiple rows can share the same
+ * `effectiveDate` (Ashed sync failure + retry, concurrent officer confirms).
+ * As-of reads must keep exactly one event per member: latest effectiveDate,
+ * then latest recordedAt, then id.
+ */
+export function pickLatestAllianceRankEventPerMember(
+  events: readonly AllianceRankEventRow[],
+): AllianceRankEventRow[] {
+  const latestByMember = new Map<string, AllianceRankEventRow>();
+  for (const event of events) {
+    const previous = latestByMember.get(event.ashedMemberId);
+    if (!previous || compareAllianceRankEventsNewestFirst(event, previous) < 0) {
+      latestByMember.set(event.ashedMemberId, event);
+    }
+  }
+  return [...latestByMember.values()];
+}
+
+/** Negative when `a` is newer than `b` (sort newest-first). */
+export function compareAllianceRankEventsNewestFirst(
+  a: Pick<AllianceRankEventRow, "effectiveDate" | "recordedAt" | "id">,
+  b: Pick<AllianceRankEventRow, "effectiveDate" | "recordedAt" | "id">,
+): number {
+  if (a.effectiveDate !== b.effectiveDate) {
+    return a.effectiveDate < b.effectiveDate ? 1 : -1;
+  }
+  const aRecorded = a.recordedAt?.getTime() ?? 0;
+  const bRecorded = b.recordedAt?.getTime() ?? 0;
+  if (aRecorded !== bRecorded) {
+    return aRecorded < bRecorded ? 1 : -1;
+  }
+  if (a.id === b.id) return 0;
+  return a.id < b.id ? 1 : -1;
+}
+
 export type ResolvedMemberAllianceRank = {
   rank: number | null;
   title: string | null;
@@ -161,7 +201,11 @@ export async function getMemberRankAsOf(
         lte(schema.memberAllianceRankEvents.effectiveDate, date),
       ),
     )
-    .orderBy(desc(schema.memberAllianceRankEvents.effectiveDate))
+    .orderBy(
+      desc(schema.memberAllianceRankEvents.effectiveDate),
+      desc(schema.memberAllianceRankEvents.recordedAt),
+      desc(schema.memberAllianceRankEvents.id),
+    )
     .limit(1);
   return row ?? null;
 }
@@ -210,9 +254,10 @@ export async function getAllianceRanksAsOf(
     )
     .where(eq(schema.memberAllianceRankEvents.allianceId, allianceId));
 
-  return rows
-    .map((r) => r.event)
-    .filter((event) => {
+  // Dedupe same-day ties before rank filters so a stale exactRank row cannot
+  // beat a later correction on the same effectiveDate.
+  return pickLatestAllianceRankEventPerMember(rows.map((r) => r.event)).filter(
+    (event) => {
       if (filter?.exactRank != null) {
         return event.allianceRank === filter.exactRank;
       }
@@ -223,5 +268,6 @@ export async function getAllianceRanksAsOf(
         return false;
       }
       return true;
-    });
+    },
+  );
 }

@@ -117,6 +117,19 @@ export function mergeParsedRowInReviewOrder<T extends ParsedRowSortFields>(
   );
 }
 
+/** Manual scoreboard sort during review — deleted rows sink to the end. */
+export function sortReviewRowsByScoreDesc<
+  T extends ParsedRowInitialSortFields & { deleted?: number },
+>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => {
+    const aDeleted = a.deleted ?? 0;
+    const bDeleted = b.deleted ?? 0;
+    if (aDeleted !== bDeleted) return aDeleted - bDeleted;
+    const byScore = compareScoreDesc(a.score, b.score);
+    if (byScore !== 0) return byScore;
+    return compareNullableIntAsc(a.frameIndex, b.frameIndex);
+  });
+}
 
 /**
  * Leaderboard rank (1 = highest score) using competition ranking for ties.
