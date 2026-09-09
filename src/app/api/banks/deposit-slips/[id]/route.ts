@@ -5,6 +5,7 @@ import {
   validateDepositSlipPayload,
   type DepositSlipPayload,
 } from "@/lib/banks/api.shared";
+import { withBankDepositCommitLock } from "@/lib/banks/bank-deposit-commit-lock.server";
 import {
   deleteDepositSlip,
   updateDepositSlip,
@@ -37,7 +38,10 @@ export async function PUT(request: Request, context: RouteContext) {
   }
 
   try {
-    const row = await updateDepositSlip(allianceId, id, body);
+    const row = await withBankDepositCommitLock(
+      { allianceId, bankId: body.bankId },
+      () => updateDepositSlip(allianceId, id, body),
+    );
     const dashboard = await reloadBankManagementDashboard(allianceId, sessionId);
     return NextResponse.json({
       depositSlip: serializeDepositSlip(row),
