@@ -537,6 +537,7 @@ async function rollFromPool(
   respectConductorMinimums = false,
   dayExcludedMemberIds?: ReadonlySet<string>,
   claimEligibility?: DepletingPoolClaimEligibility,
+  options?: { skipClaimLock?: boolean },
 ): Promise<RollResult> {
   // Ashed VS + roster rank filters run once outside the claim lock. Holding
   // the lock across those fetches is what stacked swap→spin cycles into 504s
@@ -558,7 +559,8 @@ async function rollFromPool(
   // Serialize list→pick→claim so parallel spins for different dates cannot
   // both mark the same pool row. Conditional claim + retry is defense in depth
   // if a manual pick races outside this lock.
-  return withConductorPoolClaimLock({ allianceId, poolType }, async () => {
+  // VIP assign may call with skipClaimLock so claim+VIP persist share one lock.
+  const claim = async (): Promise<RollResult> => {
     const summary = await getPoolSummary(allianceId, poolType);
     const maxAttempts = Math.max(summary.remaining, 1) + 2;
 
@@ -639,7 +641,12 @@ async function rollFromPool(
       poolType,
       wheelCandidates,
     };
-  });
+  };
+
+  if (options?.skipClaimLock) {
+    return claim();
+  }
+  return withConductorPoolClaimLock({ allianceId, poolType }, claim);
 }
 
 async function applyConductorQualificationGate(input: {
@@ -1492,12 +1499,66 @@ export async function rollForVip(input: {
         useSequence: false,
         eventTopN: config.topN ?? 10,
       });
-      result = await rollFromPool(
-        input.allianceId,
-        poolType,
-        input.date,
-        false,
-        mechanism,
+      // Hold the pool claim lock through VIP assign + prior release. Claiming
+      // then unlocking before assign orphaned winners when assign failed or a
+      // concurrent VIP spin overwrote the record (burned pool slots).
+      result = await withConductorPoolClaimLock(
+        { allianceId: input.allianceId, poolType },
+        async () => {
+          const rolled = await rollFromPool(
+            input.allianceId,
+            poolType,
+            input.date,
+            false,
+            mechanism,
+            false,
+            false,
+            undefined,
+            undefined,
+            { skipClaimLock: true },
+          );
+
+          const rankEvent = await getMemberRankAsOf(
+            input.allianceId,
+            rolled.memberId,
+            input.date,
+          );
+
+          try {
+            await assignVipOnLockedConductor({
+              allianceId: input.allianceId,
+              date: input.date,
+              seasonKey,
+              vipMemberId: rolled.memberId,
+              vipMemberName: rolled.memberName,
+              vipRankEventId: rankEvent?.id ?? null,
+              vipMechanism: mechanism,
+              dayConfigId: dayConfig.dayConfigId,
+            });
+          } catch (error) {
+            await releasePoolSelectionForDate(
+              input.allianceId,
+              input.date,
+              rolled.memberId,
+            );
+            throw error;
+          }
+
+          if (
+            shouldReleasePriorPoolSelection({
+              previousMemberId: record?.vipMemberId,
+              nextMemberId: rolled.memberId,
+            })
+          ) {
+            await releasePoolSelectionForDate(
+              input.allianceId,
+              input.date,
+              record!.vipMemberId!,
+            );
+          }
+
+          return rolled;
+        },
       );
       const poolRefreshed = await refreshExhaustedPoolIfNeeded({
         allianceId: input.allianceId,
@@ -1512,36 +1573,6 @@ export async function rollForVip(input: {
     }
     default:
       throw new Error(`VIP mechanism "${mechanism}" is not rollable yet.`);
-  }
-
-  const rankEvent = await getMemberRankAsOf(
-    input.allianceId,
-    result.memberId,
-    input.date,
-  );
-
-  await assignVipOnLockedConductor({
-    allianceId: input.allianceId,
-    date: input.date,
-    seasonKey,
-    vipMemberId: result.memberId,
-    vipMemberName: result.memberName,
-    vipRankEventId: rankEvent?.id ?? null,
-    vipMechanism: mechanism,
-    dayConfigId: dayConfig.dayConfigId,
-  });
-
-  if (
-    shouldReleasePriorPoolSelection({
-      previousMemberId: record?.vipMemberId,
-      nextMemberId: result.memberId,
-    })
-  ) {
-    await releasePoolSelectionForDate(
-      input.allianceId,
-      input.date,
-      record!.vipMemberId!,
-    );
   }
 
   return result;
