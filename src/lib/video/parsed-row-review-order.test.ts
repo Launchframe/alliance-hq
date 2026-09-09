@@ -123,6 +123,34 @@ describe("sortReviewRowsByScoreDesc", () => {
       "deleted",
     ]);
   });
+
+  it("breaks tied scores by frameIndex ascending", () => {
+    const sorted = sortReviewRowsByScoreDesc([
+      { id: "later", score: "100", frameIndex: 5 },
+      { id: "earlier", score: "100", frameIndex: 1 },
+      { id: "middle", score: "100", frameIndex: 3 },
+    ]);
+    expect(sorted.map((row) => row.id)).toEqual([
+      "earlier",
+      "middle",
+      "later",
+    ]);
+  });
+
+  it("sorts locale-formatted scores and sinks empty scores last", () => {
+    const sorted = sortReviewRowsByScoreDesc([
+      { id: "empty", score: "", frameIndex: 0 },
+      { id: "comma", score: "1,250", frameIndex: 2 },
+      { id: "plain", score: "500", frameIndex: 1 },
+      { id: "invalid", score: "n/a", frameIndex: 3 },
+    ]);
+    expect(sorted.map((row) => row.id)).toEqual([
+      "comma",
+      "plain",
+      "empty",
+      "invalid",
+    ]);
+  });
 });
 
 describe("reviewLeaderboardRankByScoreDesc", () => {
