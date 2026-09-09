@@ -180,7 +180,7 @@ async function forMember(ctx: Context, command: string, options: Record<string, 
     notes ??= parsed.parsed.notes;
   }
   const entryKind = command === "set-time-off" ? options.kind === "unexpected" ? "unexpected" : "officer_marked" : "planned";
-  if (startDate) return showDraft(ctx, { ashedMemberId: memberId, startDate, endDate, notes, entryKind });
+  if (startDate) return showDraft(ctx, { ashedMemberId: memberId, startDate, endDate, notes, entryKind, activityScope: "all" });
   if (command === "set-time-off") {
     const token = await saveTimeOffInteraction(ctx.actor, { kind: "member", memberId, entryKind });
     return { content: ctx.t("timeOff.workflow.chooseEntry"), components: rows([button(token, "new", ctx.t("timeOff.form.title")), button(token, "list", ctx.t("timeOff.workflow.upcoming"))]) };
@@ -237,7 +237,7 @@ async function handleComponent(ctx: Context, payload: DiscordInteractionPayload)
     }
     const memberId = state.kind === "member" ? state.memberId : existing!.ashedMemberId;
     const entryKind = state.kind === "member" ? state.entryKind : existing!.entryKind;
-    return showDraft(ctx, { ashedMemberId: memberId, startDate: fields.start ?? "", endDate: fields.end || fields.start || "", notes: fields.notes || null, entryKind }, existing ? { entryId: existing.id, version: existing.version } : undefined, state.requestId ?? ctx.requestId);
+    return showDraft(ctx, { ashedMemberId: memberId, startDate: fields.start ?? "", endDate: fields.end || fields.start || "", notes: fields.notes || null, entryKind, activityScope: existing?.activityScope ?? "all" }, existing ? { entryId: existing.id, version: existing.version } : undefined, state.requestId ?? ctx.requestId);
   }
   if (state.kind === "member" && action === "list") return showList(ctx, { kind: "list", entryIds: [], memberId: state.memberId, page: 0, history: false });
   if (state.kind === "entry") {
