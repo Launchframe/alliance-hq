@@ -12,15 +12,15 @@ import { SupportTeamHeader, SupportTeamMemberActions, SupportTeamSlotActions, ty
 import { SupportErrorMessage, UnsortedFiltersControl, supportButton } from "./SupportTeamControls";
 
 type Props = {
-  snapshot: SupportSnapshot; display: SupportDisplayPreferences; interactions: BoardInteractions; pending: string | null; errors: Record<string, string>;
+  snapshot: SupportSnapshot; display: SupportDisplayPreferences; interactions: BoardInteractions; pending: string | null; errors: Record<string, string>; scope?: string;
   renderMemberActions?: (id: string) => ReactNode; renderSlotControls?: (teamId: string) => ReactNode; pendingTeamIds?: string[]; mobileStatus?: ReactNode; children?: ReactNode;
 };
 export function SupportTeamBoard(props: Props) {
   const { snapshot } = props;
-  const scope = JSON.stringify([snapshot.board?.allianceId, snapshot.actor?.principalId ?? snapshot.linkedMemberIds, snapshot.board?.construction?.id]);
-  return <SupportTeamBoardAdapter key={scope} {...props} />;
+  const scope = props.scope ?? JSON.stringify(["support-teams", snapshot.board?.allianceId, snapshot.actor?.principalId ?? snapshot.linkedMemberIds, snapshot.board?.construction?.id]);
+  return <SupportTeamBoardAdapter key={scope} {...props} scope={scope} />;
 }
-function SupportTeamBoardAdapter({ snapshot, display, interactions, pending, errors, renderMemberActions, renderSlotControls, pendingTeamIds = [], mobileStatus, children }: Props) {
+function SupportTeamBoardAdapter({ snapshot, display, interactions, pending, errors, renderMemberActions, renderSlotControls, pendingTeamIds = [], mobileStatus, children, scope }: Props & { scope: string }) {
   const t = useTranslations("supportTeams");
   const tr = useTranslations();
   const locale = useLocale();
@@ -29,7 +29,7 @@ function SupportTeamBoardAdapter({ snapshot, display, interactions, pending, err
   const [setupTeamId, setSetupTeamId] = useState("");
   const [swaps, setSwaps] = useState<Record<string, string | null>>({});
   const teamName = (id: string | null) => id === null ? t("unsorted") : snapshot.teams.find((team) => team.id === id)?.name ?? t("defaultName", { number: (Math.max(0, snapshot.teams.findIndex((team) => team.id === id)) + 1).toLocaleString(locale) });
-  const data = supportBoardData(snapshot, teamName, t("unknown"));
+  const data = { ...supportBoardData(snapshot, teamName, t("unknown")), scope };
   return <MemberBoard data={data} locale={locale} interactions={interactions} activity={{ pending: !!pending, pendingGroupIds: pendingTeamIds, errors, poolError: errors.unsorted }} labels={{
     pool: t("unsorted"), search: tr("members.search"), findMember: t("findMember"), noMatches: t("noMatches"), memberUnavailable: t("memberUnavailable"),
     addMember: t("addMember"), moveMember: t("moveMember"), removeMember: t("removeMember"), emptyPool: t("emptyPool"), emptyGroup: t("emptyTeam"),

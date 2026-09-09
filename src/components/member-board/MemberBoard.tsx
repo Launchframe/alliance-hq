@@ -72,6 +72,13 @@ function MemberBoardWorkspace<M extends BoardMember, G extends BoardGroup>({ dat
   const [dragged, setDragged] = useState<string | null>(null);
   const [focusRequest, setFocusRequest] = useState(0);
   const touch = useRef<{ x: number; y: number; interactive: boolean } | null>(null);
+  const dragFrame = useRef<number | null>(null);
+  const endDrag = () => {
+    if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current);
+    dragFrame.current = null;
+    setDragged(null);
+  };
+  useEffect(() => () => { if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current); }, []);
   const visible = data.groups.find((group) => group.id === visibleId) ?? data.groups[0];
   const preferred = data.groups.find((group) => group.id === data.preferredGroupId);
   const groupName = (id: string | null) => data.groups.find((group) => group.id === id)?.name ?? labels.pool;
@@ -95,7 +102,7 @@ function MemberBoardWorkspace<M extends BoardMember, G extends BoardGroup>({ dat
     onDrop: (event: DragEvent<HTMLElement>) => {
       event.preventDefault();
       dropBoardMember(event.dataTransfer.getData(memberDragType), scope, data, interactions, to, pending(to));
-      setDragged(null);
+      endDrag();
     },
   });
   const groupOptions = (memberId?: string) => data.groups.map((group) => ({ value: group.id, label: group.optionLabel ?? group.name, disabled: memberId ? !eligible(memberId, group.id) : false }));
@@ -103,7 +110,12 @@ function MemberBoardWorkspace<M extends BoardMember, G extends BoardGroup>({ dat
     const movable = [null, ...data.groups.map((item) => item.id)].some((to) => !interactions.eligibility(member.id, to));
     const draggable = !locatedOnly && !pending(group?.id ?? null) && movable;
     return <article key={member.id} {...renderers.attributes?.member?.(member)} data-member-board-member={member.id} tabIndex={-1} draggable={draggable}
-      onDragStart={(event) => { event.dataTransfer.setData(memberDragType, encodeMemberDrag(scope, member.id)); event.dataTransfer.effectAllowed = "move"; setDragged(member.id); }} onDragEnd={() => setDragged(null)}
+      onDragStart={(event) => {
+        event.dataTransfer.setData(memberDragType, encodeMemberDrag(scope, member.id));
+        event.dataTransfer.effectAllowed = "move";
+        if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current);
+        dragFrame.current = requestAnimationFrame(() => { dragFrame.current = null; setDragged(member.id); });
+      }} onDragEnd={endDrag}
       className={`rounded-lg border border-hq-border bg-hq-canvas p-3 text-sm focus-visible:ring-2 focus-visible:ring-hq-accent ${located === member.id ? "ring-2 ring-hq-accent" : ""} ${draggable ? "cursor-grab" : ""}`}>
       {renderers.member(member)}
       {!locatedOnly && <>{group ? movable && <div className="mt-2 flex flex-wrap gap-2"><AppSelect value="" onChange={(to) => move(member.id, JSON.parse(to) as string | null)} aria-label={`${labels.moveMember}: ${member.name}`} placeholder={labels.moveMember} disabled={pending(group.id)} options={[{ value: "null", label: labels.removeMember, disabled: !eligible(member.id, null) }, ...groupOptions(member.id).map((option) => ({ ...option, value: JSON.stringify(option.value) }))]} /></div>

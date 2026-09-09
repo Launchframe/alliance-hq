@@ -35,6 +35,22 @@ describe("transport-injected versioned collaboration", () => {
     f.controller.stop();
   });
 
+  it("holds a confirmed mutation version even before its stream invalidation arrives", async () => {
+    const f = fixture();
+    f.controller.start();
+    f.requests[0].resolve({ version: 2, members: ["Ada"] });
+    await flush();
+    const confirmed = f.controller.refresh(9);
+    f.requests[1].resolve({ version: 8, members: ["stale replica"] });
+    await confirmed;
+    expect(f.controller.getState().snapshot).toEqual({ version: 2, members: ["Ada"] });
+    const retry = f.controller.refresh();
+    f.requests[2].resolve({ version: 9, members: ["confirmed"] });
+    await retry;
+    expect(f.controller.getState().snapshot?.members).toEqual(["confirmed"]);
+    f.controller.stop();
+  });
+
   it("ignores out-of-order success and revocation from aborted generations", async () => {
     const f = fixture();
     f.controller.start();

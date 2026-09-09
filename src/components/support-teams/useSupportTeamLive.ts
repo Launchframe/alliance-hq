@@ -8,7 +8,7 @@ import { acceptsDraftSnapshot, draftWorkspaceKey, SupportClientError, supportReq
 import type { DraftSnapshot } from "@/lib/support-teams/draft.shared";
 import type { SupportDisplayPreferences } from "@/lib/support-teams/display-preferences.shared";
 
-export function useSupportTeamDraft(live: SupportSnapshot, refreshBoard: () => Promise<void>) {
+export function useSupportTeamDraft(live: SupportSnapshot, refreshBoard: (minimumVersion?: number) => Promise<void>) {
   const key = draftWorkspaceKey(live);
   const [loaded, setLoaded] = useState<{ key: string; snapshot: DraftSnapshot } | null>(null);
   const [error, setError] = useState("");
@@ -38,7 +38,7 @@ export function useSupportTeamDraft(live: SupportSnapshot, refreshBoard: () => P
     }
   }, [key, live, refreshBoard]);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => { window.clearTimeout(timer); request.current?.abort(); }; }, [load]);
-  const refresh = useCallback(async (minimumVersion = 0) => { await load(minimumVersion); await refreshBoard(); }, [load, refreshBoard]);
+  const refresh = useCallback(async (minimumVersion = 0) => { await load(minimumVersion); await refreshBoard(minimumVersion); }, [load, refreshBoard]);
   return { snapshot: loaded?.key === key ? loaded.snapshot : null, active: key !== null, key, error, refresh };
 }
 
@@ -52,7 +52,7 @@ export function useSupportTeamLive(initial: SupportSnapshot, initialPreferences:
   const transport = useMemo(() => supportLiveTransport(allianceId, principalId, canRead), [allianceId, principalId, canRead]);
   const live = useVersionedSnapshot({ scope, identity, initial, transport });
   const { refresh: refreshVersioned } = live;
-  const refresh = useCallback(() => refreshVersioned(), [refreshVersioned]);
+  const refresh = useCallback((minimumVersion = 0) => refreshVersioned(minimumVersion), [refreshVersioned]);
   const lifetime = useMemo(() => ({ key: JSON.stringify([scope, identity]), active: false, mutation: false, attempts: new Map<string, string>() }), [scope, identity]);
   const [state, setState] = useState(() => ({ key: lifetime.key, preferences: initialPreferences, errors: {} as Record<string, string>, pending: null as string | null, notice: false }));
   if (state.key !== lifetime.key) setState({ key: lifetime.key, preferences: initialPreferences, errors: {}, pending: null, notice: false });
@@ -81,11 +81,11 @@ export function useSupportTeamLive(initial: SupportSnapshot, initialPreferences:
     const idempotencyKey = lifetime.attempts.get(intent) ?? crypto.randomUUID();
     lifetime.attempts.set(intent, idempotencyKey);
     try {
-      await supportRequest("/api/support-teams", { method: "POST", body: JSON.stringify({ command, idempotencyKey }) });
+      const result = await supportRequest<{ version: number }>("/api/support-teams", { method: "POST", body: JSON.stringify({ command, idempotencyKey }) });
       lifetime.attempts.delete(intent);
       if (!lifetime.active) return false;
       update((old) => ({ ...old, notice: true }));
-      await refresh();
+      await refresh(result.version);
       return true;
     } catch (error) {
       if (error instanceof SupportClientError) lifetime.attempts.delete(intent);
