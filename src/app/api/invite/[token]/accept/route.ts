@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAuthSession } from "@/lib/auth";
 import {
   acceptHqInvite,
+  CommanderClaimInviteError,
   resolveHqInviteAcceptRedirect,
 } from "@/lib/native-alliance/invites";
 import { auditInviteAcceptFailed } from "@/lib/onboarding/onboarding-audit.server";
@@ -79,6 +80,18 @@ export async function POST(
       ...result,
     });
   } catch (error) {
+    if (error instanceof CommanderClaimInviteError) {
+      await auditInviteAcceptFailed({
+        sessionId: session.id,
+        hqUserId: authSession.user.id,
+        reasonCode: inviteAcceptReasonFromApiCode(error.code),
+      });
+      return NextResponse.json(
+        { code: error.code, error: error.message },
+        { status: 409 },
+      );
+    }
+
     const message = error instanceof Error ? error.message : "Accept failed.";
     const reasonCode =
       message === "Email does not match this invite."

@@ -21,6 +21,11 @@ describe("inviteAcceptReasonFromMessage", () => {
     expect(inviteAcceptReasonFromMessage("Something unexpected")).toBe(
       "accept_failed",
     );
+    expect(
+      inviteAcceptReasonFromMessage(
+        "This commander is already linked to an account.",
+      ),
+    ).toBe("commander_already_claimed");
   });
 });
 
@@ -28,6 +33,9 @@ describe("inviteAcceptReasonFromApiCode", () => {
   it("maps API codes", () => {
     expect(inviteAcceptReasonFromApiCode("auth_required")).toBe("auth_required");
     expect(inviteAcceptReasonFromApiCode("email_mismatch")).toBe("email_mismatch");
+    expect(inviteAcceptReasonFromApiCode("commander_already_claimed")).toBe(
+      "commander_already_claimed",
+    );
     expect(inviteAcceptReasonFromApiCode(undefined)).toBe("accept_failed");
   });
 });

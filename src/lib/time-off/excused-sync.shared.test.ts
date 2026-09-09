@@ -1,253 +1,74 @@
 import { describe, expect, it } from "vitest";
+import { decideExcusedSync, desiredExcusedRecord, groupExcusedRecords, parseExcusedSnapshot, type ExcusedRecord } from "./excused-sync.shared";
 
-import {
-  activityScopeToRecordTypes,
-  groupParsedExcusedRecordsIntoEntries,
-  parseAshedExcusedRecord,
-  shouldPushEntryKindToAshed,
-  type ParsedAshedExcusedRecord,
-} from "@/lib/time-off/excused-sync.shared";
+const remote: ExcusedRecord = {
+  id: "remote-a", allianceId: "ashed-a", memberId: "member-a", recordType: "vs",
+  startDate: "2026-09-10", endDate: "2026-09-12", reason: "Time off recorded in Alliance HQ.",
+  changedAt: "2026-09-07T12:00:00.000Z",
+};
+const wire = {
+  id: remote.id, alliance_id: remote.allianceId, member_id: remote.memberId,
+  record_type: "vs", start_date: remote.startDate, end_date: remote.endDate,
+  reason: remote.reason, updated_date: remote.changedAt,
+};
 
-describe("parseAshedExcusedRecord", () => {
-  it("parses a well-formed vs record", () => {
-    expect(
-      parseAshedExcusedRecord({
-        id: "rec_1",
-        record_type: "vs",
-        start_date: "2026-08-01",
-        end_date: "2026-08-05",
-        reason: "Vacation",
-        alliance_id: "ashed_alliance_1",
-        member_id: "ashed_member_1",
-      }),
-    ).toEqual({
-      ashedId: "rec_1",
-      recordType: "vs",
-      startDate: "2026-08-01",
-      endDate: "2026-08-05",
-      reason: "Vacation",
-      allianceId: "ashed_alliance_1",
-      memberId: "ashed_member_1",
-    });
+describe("ExcusedRecord contract", () => {
+  it("accepts scoped records and preserves the trustworthy last-change timestamp", () => {
+    expect(parseExcusedSnapshot([wire], "ashed-a")).toEqual([remote]);
   });
-
-  it("is case-insensitive on record_type", () => {
-    const parsed = parseAshedExcusedRecord({
-      id: "rec_2",
-      record_type: "DONATION",
-      start_date: "2026-08-01",
-      end_date: "2026-08-01",
-    });
-    expect(parsed?.recordType).toBe("donation");
+  it.each([
+    [{ ...wire, alliance_id: "other" }], [{ ...wire, member_id: null }],
+    [{ ...wire, start_date: "2026-02-30" }], [{ ...wire, end_date: "2026-01-01" }],
+    [{ ...wire, record_type: "other" }], [wire, wire], {}, null,
+  ])("rejects incomplete or invalid snapshots instead of treating them as deletions", (body) => {
+    expect(() => parseExcusedSnapshot(body, "ashed-a")).toThrow();
   });
-
-  it("truncates an ISO datetime to a date-only string", () => {
-    const parsed = parseAshedExcusedRecord({
-      id: "rec_3",
-      record_type: "vs",
-      start_date: "2026-08-01T00:00:00.000Z",
-      end_date: "2026-08-05T23:59:59.000Z",
-    });
-    expect(parsed?.startDate).toBe("2026-08-01");
-    expect(parsed?.endDate).toBe("2026-08-05");
+  it("does not fabricate notice provenance from a missing or future timestamp", () => {
+    expect(parseExcusedSnapshot([{ ...wire, updated_date: undefined }], "ashed-a")[0].changedAt).toBeNull();
+    expect(parseExcusedSnapshot([{ ...wire, updated_date: "2999-01-01T00:00:00Z" }], "ashed-a")[0].changedAt).toBeNull();
   });
-
-  it("accepts a numeric id", () => {
-    const parsed = parseAshedExcusedRecord({
-      id: 42,
-      record_type: "vs",
-      start_date: "2026-08-01",
-      end_date: "2026-08-01",
-    });
-    expect(parsed?.ashedId).toBe("42");
-  });
-
-  it("treats a blank reason as null", () => {
-    const parsed = parseAshedExcusedRecord({
-      id: "rec_4",
-      record_type: "vs",
-      start_date: "2026-08-01",
-      end_date: "2026-08-01",
-      reason: "   ",
-    });
-    expect(parsed?.reason).toBeNull();
-  });
-
-  it("returns null when id is missing", () => {
-    expect(
-      parseAshedExcusedRecord({
-        record_type: "vs",
-        start_date: "2026-08-01",
-        end_date: "2026-08-01",
-      }),
-    ).toBeNull();
-  });
-
-  it("returns null when record_type is unrecognized", () => {
-    expect(
-      parseAshedExcusedRecord({
-        id: "rec_5",
-        record_type: "sick_leave",
-        start_date: "2026-08-01",
-        end_date: "2026-08-01",
-      }),
-    ).toBeNull();
-  });
-
-  it("returns null when dates are missing or malformed", () => {
-    expect(
-      parseAshedExcusedRecord({
-        id: "rec_6",
-        record_type: "vs",
-        start_date: "not-a-date",
-        end_date: "2026-08-01",
-      }),
-    ).toBeNull();
-    expect(
-      parseAshedExcusedRecord({
-        id: "rec_7",
-        record_type: "vs",
-        start_date: "2026-08-01",
-      }),
-    ).toBeNull();
+  it("pairs only one VS/donation record with identical dates and reason", () => {
+    const donation = { ...remote, id: "donation-a", recordType: "donation" as const };
+    expect(groupExcusedRecords([remote, donation])).toMatchObject([{ scope: "all", records: [remote, donation] }]);
+    expect(groupExcusedRecords([remote, { ...donation, endDate: "2026-09-13" }])).toHaveLength(2);
+    expect(groupExcusedRecords([remote, donation, { ...remote, id: "duplicate-vs" }])).toHaveLength(3);
   });
 });
 
-describe("shouldPushEntryKindToAshed", () => {
-  it("blocks unexpected-absence entries — they must not be excused in Ashed", () => {
-    expect(shouldPushEntryKindToAshed("unexpected")).toBe(false);
+describe("outbound excusal intent", () => {
+  const entry = { ashedMemberId: "member-a", startDate: remote.startDate, endDate: remote.endDate, entryKind: "planned", activityScope: "all", cancelledAt: null, notes: "PRIVATE_REASON" };
+  it("uses only a generic localized reason, not private notes", () => {
+    const desired = desiredExcusedRecord(entry, "ashed-a", "vs", remote.reason!);
+    expect(desired).toMatchObject({ reason: remote.reason, memberId: "member-a" });
+    expect(JSON.stringify(desired)).not.toContain("PRIVATE_REASON");
+    expect(desiredExcusedRecord(entry, "ashed-a", "donation", "Ausência registrada no Alliance HQ.")?.recordType).toBe("donation");
   });
-
-  it("allows planned and officer_marked entries", () => {
-    expect(shouldPushEntryKindToAshed("planned")).toBe(true);
-    expect(shouldPushEntryKindToAshed("officer_marked")).toBe(true);
-  });
-});
-
-describe("activityScopeToRecordTypes", () => {
-  it("maps vs to a single POST", () => {
-    expect(activityScopeToRecordTypes("vs")).toEqual(["vs"]);
-  });
-
-  it("maps donation to a single POST", () => {
-    expect(activityScopeToRecordTypes("donation")).toEqual(["donation"]);
-  });
-
-  it("maps all to two POSTs (vs + donation)", () => {
-    expect(activityScopeToRecordTypes("all")).toEqual(["vs", "donation"]);
+  it("never exports unexpected or cancelled absences or unrelated activity scopes", () => {
+    expect(desiredExcusedRecord({ ...entry, entryKind: "unexpected" }, "ashed-a", "vs", "reason")).toBeNull();
+    expect(desiredExcusedRecord({ ...entry, entryKind: "unknown" }, "ashed-a", "vs", "reason")).toBeNull();
+    expect(desiredExcusedRecord({ ...entry, cancelledAt: new Date() }, "ashed-a", "vs", "reason")).toBeNull();
+    expect(desiredExcusedRecord({ ...entry, activityScope: "donation" }, "ashed-a", "vs", "reason")).toBeNull();
   });
 });
 
-function record(
-  overrides: Partial<ParsedAshedExcusedRecord>,
-): ParsedAshedExcusedRecord {
-  return {
-    ashedId: "rec",
-    recordType: "vs",
-    startDate: "2026-08-01",
-    endDate: "2026-08-05",
-    reason: "Vacation",
-    allianceId: "ashed_alliance_1",
-    memberId: "ashed_member_1",
-    ...overrides,
-  };
-}
-
-describe("groupParsedExcusedRecordsIntoEntries", () => {
-  it("merges a matching vs + donation pair into one 'all' entry", () => {
-    const entries = groupParsedExcusedRecordsIntoEntries([
-      record({ ashedId: "vs_1", recordType: "vs" }),
-      record({ ashedId: "don_1", recordType: "donation" }),
-    ]);
-
-    expect(entries).toHaveLength(1);
-    expect(entries[0]).toEqual({
-      activityScope: "all",
-      startDate: "2026-08-01",
-      endDate: "2026-08-05",
-      reason: "Vacation",
-      ashedExcusedIds: ["vs_1", "don_1"],
-    });
+describe("safe sync decisions", () => {
+  const desired = { ...remote };
+  it("creates only when no mapped record, candidate or uncertain attempt exists", () => {
+    expect(decideExcusedSync({ desired, remote: null, remoteId: null, baseline: null, uncertain: false, candidates: [] })).toBe("create");
+    expect(decideExcusedSync({ desired, remote: null, remoteId: null, baseline: null, uncertain: true, candidates: [] })).toBe("uncertain");
+    expect(decideExcusedSync({ desired, remote: null, remoteId: null, baseline: null, uncertain: false, candidates: [remote] })).toBe("uncertain");
   });
-
-  it("keeps a vs-only record as its own 'vs' entry", () => {
-    const entries = groupParsedExcusedRecordsIntoEntries([
-      record({ ashedId: "vs_1", recordType: "vs" }),
-    ]);
-
-    expect(entries).toEqual([
-      {
-        activityScope: "vs",
-        startDate: "2026-08-01",
-        endDate: "2026-08-05",
-        reason: "Vacation",
-        ashedExcusedIds: ["vs_1"],
-      },
-    ]);
+  it("does not resurrect a period deleted upstream or overwrite an external edit", () => {
+    expect(decideExcusedSync({ desired, remote: null, remoteId: remote.id, baseline: remote, uncertain: false, candidates: [] })).toBe("conflict");
+    expect(decideExcusedSync({ desired, remote: { ...remote, endDate: "2026-09-13" }, remoteId: remote.id, baseline: remote, uncertain: false, candidates: [] })).toBe("conflict");
   });
-
-  it("keeps a donation-only record as its own 'donation' entry", () => {
-    const entries = groupParsedExcusedRecordsIntoEntries([
-      record({ ashedId: "don_1", recordType: "donation" }),
-    ]);
-
-    expect(entries).toEqual([
-      {
-        activityScope: "donation",
-        startDate: "2026-08-01",
-        endDate: "2026-08-05",
-        reason: "Vacation",
-        ashedExcusedIds: ["don_1"],
-      },
-    ]);
+  it("replaces only a known unchanged record and treats matching content as already synced", () => {
+    expect(decideExcusedSync({ desired, remote, remoteId: remote.id, baseline: remote, uncertain: false, candidates: [] })).toBe("done");
+    expect(decideExcusedSync({ desired: { ...desired, endDate: "2026-09-14" }, remote, remoteId: remote.id, baseline: remote, uncertain: false, candidates: [] })).toBe("replace");
   });
-
-  it("does not merge a vs + donation pair with different reasons", () => {
-    const entries = groupParsedExcusedRecordsIntoEntries([
-      record({ ashedId: "vs_1", recordType: "vs", reason: "Vacation" }),
-      record({ ashedId: "don_1", recordType: "donation", reason: "Sick" }),
-    ]);
-
-    expect(entries).toHaveLength(2);
-    expect(entries.map((e) => e.activityScope).sort()).toEqual([
-      "donation",
-      "vs",
-    ]);
-  });
-
-  it("does not merge a vs + donation pair with different date ranges", () => {
-    const entries = groupParsedExcusedRecordsIntoEntries([
-      record({ ashedId: "vs_1", recordType: "vs", endDate: "2026-08-05" }),
-      record({ ashedId: "don_1", recordType: "donation", endDate: "2026-08-06" }),
-    ]);
-
-    expect(entries).toHaveLength(2);
-  });
-
-  it("splits duplicate same-type records sharing a key into individual entries", () => {
-    const entries = groupParsedExcusedRecordsIntoEntries([
-      record({ ashedId: "vs_1", recordType: "vs" }),
-      record({ ashedId: "vs_2", recordType: "vs" }),
-    ]);
-
-    expect(entries).toHaveLength(2);
-    expect(entries.every((e) => e.activityScope === "vs")).toBe(true);
-    expect(entries.map((e) => e.ashedExcusedIds)).toEqual([
-      ["vs_1"],
-      ["vs_2"],
-    ]);
-  });
-
-  it("buckets records with different date ranges into separate entries", () => {
-    const entries = groupParsedExcusedRecordsIntoEntries([
-      record({ ashedId: "vs_1", recordType: "vs", startDate: "2026-08-01" }),
-      record({ ashedId: "vs_2", recordType: "vs", startDate: "2026-09-01" }),
-    ]);
-
-    expect(entries).toHaveLength(2);
-  });
-
-  it("returns an empty list for no records", () => {
-    expect(groupParsedExcusedRecordsIntoEntries([])).toEqual([]);
+  it("cancellation preserves uncertain creates and verifies mapped records before deleting", () => {
+    expect(decideExcusedSync({ desired: null, remote: null, remoteId: null, baseline: null, uncertain: true, candidates: [] })).toBe("uncertain");
+    expect(decideExcusedSync({ desired: null, remote, remoteId: remote.id, baseline: remote, uncertain: false, candidates: [] })).toBe("delete");
+    expect(decideExcusedSync({ desired: null, remote: null, remoteId: remote.id, baseline: remote, uncertain: false, candidates: [] })).toBe("done");
   });
 });

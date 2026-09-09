@@ -17,8 +17,11 @@ vi.mock("@/lib/bff/audit", () => ({
   writeAuditLog: vi.fn().mockResolvedValue(undefined),
 }));
 
+import { ROLE_IDS } from "@/lib/rbac/constants";
+
 import {
   assessMergeHqUsers,
+  preferredMembershipRoleId,
 } from "./merge-hq-users.server";
 
 type HqUserRow = {
@@ -250,5 +253,28 @@ describe("assessMergeHqUsers", () => {
 
     expect(preview.sourceEmail).toBe("b@example.com");
     expect(preview.alliances).toEqual([]);
+  });
+});
+
+describe("preferredMembershipRoleId", () => {
+  it("keeps the higher privilege role from either account", () => {
+    expect(
+      preferredMembershipRoleId(ROLE_IDS.member, ROLE_IDS.owner),
+    ).toBe(ROLE_IDS.owner);
+    expect(
+      preferredMembershipRoleId(ROLE_IDS.owner, ROLE_IDS.member),
+    ).toBe(ROLE_IDS.owner);
+    expect(
+      preferredMembershipRoleId(ROLE_IDS.officer, ROLE_IDS.officer),
+    ).toBe(ROLE_IDS.officer);
+  });
+
+  it("keeps the canonical role when either side is not a system role", () => {
+    expect(
+      preferredMembershipRoleId("custom-role", ROLE_IDS.owner),
+    ).toBe("custom-role");
+    expect(
+      preferredMembershipRoleId(ROLE_IDS.member, "custom-role"),
+    ).toBe(ROLE_IDS.member);
   });
 });

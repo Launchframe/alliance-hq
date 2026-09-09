@@ -13,6 +13,7 @@ import {
 import type { TimeOffCalendarPayload } from "./types.shared";
 import { timeOffEntryForViewer } from "./workflow.shared";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
+import { isAshedTimeOffSyncEnabled } from "./excused-actions.server";
 
 export async function loadUnexpectedAbsenceReport(input: { sessionId: string; allianceId: string }) {
   const canManage = await sessionHasPermissionForAlliance(input.sessionId, input.allianceId, TIME_OFF_WRITE_PERMISSION);
@@ -55,6 +56,7 @@ export async function loadTimeOffCalendar(input: {
     ownEntriesPage: page,
     ownEntriesHaveMore: own.hasMore,
     history: input.history === true,
+    ashedSyncEnabled: await isAshedTimeOffSyncEnabled(input.allianceId),
     unexpectedReport: canManageOthers ? await loadUnexpectedAbsenceReport(input) : undefined,
   };
 }

@@ -327,6 +327,15 @@ async function applyMatchedRows(
   let ranksChanged = false;
 
   for (const row of rows) {
+    // Belt-and-suspenders: sole fuzzy auto-match is refused in
+    // matchLastRankMembersToHq; never write ranks/public ids from fuzzy rows.
+    if (
+      row.matchMethod === "fuzzy_current" ||
+      row.matchMethod === "fuzzy_previous"
+    ) {
+      continue;
+    }
+
     if (
       await updateLastRankProfileFields(row.hq.commanderId, row.lastRank)
     ) {

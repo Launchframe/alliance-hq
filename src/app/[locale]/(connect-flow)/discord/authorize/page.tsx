@@ -6,6 +6,7 @@ import { ConnectionWalkthrough } from "@/components/ConnectionWalkthrough";
 import { DiscordHqLinkClient } from "@/components/discord/DiscordHqLinkClient";
 import { auth } from "@/lib/auth";
 import { hqUserHasOAuthProvider } from "@/lib/auth/account-linking.server";
+import { getDiscordProviderAccountIdForHqUser } from "@/lib/auth/discord-hq-link.server";
 import { getValidDiscordAuthNonce } from "@/lib/vr/auth-nonce";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +48,7 @@ export default async function DiscordAuthorizePage({ searchParams }: PageProps) 
   }
 
   const isHqLink = nonceRow.purpose === "user_link";
+  const selfPath = `/discord/authorize?nonce=${encodeURIComponent(nonce)}`;
 
   if (isHqLink) {
     const session = await auth();
@@ -54,12 +56,43 @@ export default async function DiscordAuthorizePage({ searchParams }: PageProps) 
     const completePath = `/discord/authorize/complete?nonce=${encodeURIComponent(nonce)}`;
 
     if (!hqUserId) {
-      const selfPath = `/discord/authorize?nonce=${encodeURIComponent(nonce)}`;
       redirect(`/auth?callbackUrl=${encodeURIComponent(selfPath)}`);
     }
 
     if (await hqUserHasOAuthProvider(hqUserId, "discord")) {
       redirect(completePath);
+    }
+  } else {
+    // alliance_credentials: require the same Discord OAuth identity that minted
+    // the /link-ashed nonce before showing the connection-key form.
+    const session = await auth();
+    const hqUserId = session?.user?.id?.trim();
+    if (!hqUserId) {
+      redirect(`/auth?callbackUrl=${encodeURIComponent(selfPath)}`);
+    }
+
+    const discordAccountId = await getDiscordProviderAccountIdForHqUser(hqUserId);
+    if (!discordAccountId) {
+      return (
+        <main className="flex min-h-[60vh] items-center justify-center p-6">
+          <div className="w-full max-w-md rounded-xl border border-hq-border bg-hq-surface p-6 text-center">
+            <p className="text-sm text-hq-fg-muted">{t("credentialsNeedDiscordOAuth")}</p>
+          </div>
+        </main>
+      );
+    }
+
+    if (discordAccountId !== nonceRow.discordUserId) {
+      return (
+        <main className="flex min-h-[60vh] items-center justify-center p-6">
+          <div className="w-full max-w-md rounded-xl border border-red-700/50 bg-hq-surface p-6 text-center">
+            <p className="font-semibold text-red-400">{t("credentialsDiscordMismatchHeading")}</p>
+            <p className="mt-2 text-sm text-hq-fg-muted">
+              {t("credentialsDiscordMismatch")}
+            </p>
+          </div>
+        </main>
+      );
     }
   }
 

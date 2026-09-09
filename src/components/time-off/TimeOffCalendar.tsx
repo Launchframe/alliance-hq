@@ -105,7 +105,7 @@ export function TimeOffCalendar({
                           : "bg-sky-500/15 text-sky-800 dark:text-sky-200"
                     }`}
                   >
-                    {entry.memberName}
+                    {entry.memberName}{!entry.globalAbsence && entry.activityScope !== "all" ? ` · ${t(`sync.scope.${entry.activityScope}`)}` : ""}
                   </button>
                 ))}
                 {dayEntries.length > 3 ? (

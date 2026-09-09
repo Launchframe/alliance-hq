@@ -23,8 +23,13 @@ import {
   ROLE_IDS,
   type SystemRoleName,
 } from "@/lib/rbac/constants";
+import { getHqMemberLinkByAllianceAndMember } from "@/lib/member-link/repository.server";
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
-import { getLinkedMemberIds } from "@/lib/vr/repository";
+import {
+  getDiscordHqLink,
+  getDiscordLinkByAllianceAndMember,
+  getLinkedMemberIds,
+} from "@/lib/vr/repository";
 
 import { assertHybridClaimInviteRankAtAccept } from "./invite-accept-rank.server";
 import { provisionAllianceMembership } from "./provision-membership";
@@ -87,6 +92,49 @@ export async function assertCommanderClaimTargetClaimable(
   }
 
   return { commanderName: member.currentName };
+}
+
+/**
+ * Who currently occupies an invite claim seat (HQ or Discord link).
+ * - `free` — nobody linked; acceptor may still claim on /onboard
+ * - `held_by_acceptor` — acceptor already linked (promote-linked-R5 soft-clear)
+ * - `held_by_other` — another HQ/Discord identity holds the seat (fail closed)
+ */
+export type InviteClaimOccupancy =
+  | "free"
+  | "held_by_acceptor"
+  | "held_by_other";
+
+export async function resolveInviteClaimOccupancy(input: {
+  allianceId: string;
+  ashedMemberId: string;
+  acceptorHqUserId: string;
+}): Promise<InviteClaimOccupancy> {
+  const hqLink = await getHqMemberLinkByAllianceAndMember(
+    input.allianceId,
+    input.ashedMemberId,
+  );
+  if (hqLink) {
+    return hqLink.hqUserId === input.acceptorHqUserId
+      ? "held_by_acceptor"
+      : "held_by_other";
+  }
+
+  const discordLink = await getDiscordLinkByAllianceAndMember(
+    input.allianceId,
+    input.ashedMemberId,
+  );
+  if (!discordLink) {
+    return "free";
+  }
+
+  const discordHqLink = await getDiscordHqLink(discordLink.discordUserId);
+  if (discordHqLink?.hqUserId === input.acceptorHqUserId) {
+    return "held_by_acceptor";
+  }
+
+  // Discord-only occupant, or Discord linked to a different HQ user.
+  return "held_by_other";
 }
 
 async function ensureSystemRoleSeeded(
@@ -713,12 +761,38 @@ export async function acceptHqInvite(
   const hqUserId = input.hqUserId;
   const now = new Date();
 
+  // Claim-seat occupancy must be resolved BEFORE marking accepted / provisioning
+  // RBAC. Soft-failing after provision let a different user keep owner/officer
+  // privileges when the bound R5 seat was already linked to someone else.
+  let claimTargetId = invite.targetAshedMemberId ?? null;
+  if (claimTargetId) {
+    const occupancy = await resolveInviteClaimOccupancy({
+      allianceId: invite.allianceId,
+      ashedMemberId: claimTargetId,
+      acceptorHqUserId: hqUserId,
+    });
+    if (occupancy === "held_by_other") {
+      throw new CommanderClaimInviteError(
+        "commander_already_claimed",
+        "This commander is already linked to an account.",
+      );
+    }
+    if (occupancy === "held_by_acceptor") {
+      // Promote-linked-R5: acceptor already holds the seat — clear claim target
+      // so /onboard is not stuck, but still grant the invite role.
+      claimTargetId = null;
+    }
+  }
+
   const acceptedRows = await db
     .update(schema.hqInvites)
     .set({
       acceptedAt: now,
       acceptedByHqUserId: hqUserId,
       ...(kind === "protected_link" ? { passphraseConsumedAt: now } : {}),
+      ...(invite.targetAshedMemberId && !claimTargetId
+        ? { targetAshedMemberId: null }
+        : {}),
     })
     .where(
       and(
@@ -755,21 +829,6 @@ export async function acceptHqInvite(
     inviteKind: kind,
     roleName: result.roleName,
   });
-
-  // Soft-fail claim: if the bound commander was claimed after invite create,
-  // still grant RBAC (incl. officer elevation) but drop the claim target so
-  // /onboard does not stuck on an unclaimable seat.
-  let claimTargetId = invite.targetAshedMemberId ?? null;
-  if (claimTargetId) {
-    const linkedMemberIds = await getLinkedMemberIds(invite.allianceId);
-    if (linkedMemberIds.has(claimTargetId)) {
-      await db
-        .update(schema.hqInvites)
-        .set({ targetAshedMemberId: null })
-        .where(eq(schema.hqInvites.id, invite.id));
-      claimTargetId = null;
-    }
-  }
 
   return {
     ...result,

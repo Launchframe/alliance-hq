@@ -1228,6 +1228,10 @@ export async function POST(request: Request) {
       try {
         const reply = await handleDiscordTimeOff(payload);
         await editDiscordOriginalInteraction({ applicationId, interactionToken: token, content: reply.content, components: reply.components, ephemeral: true, suppressMentions: true });
+        if (reply.syncAllianceId) {
+          const { syncAllianceExcuses } = await import("@/lib/time-off/excused-worker.server");
+          await syncAllianceExcuses(reply.syncAllianceId, { budgetMs: 25_000, maxJobs: 1 });
+        }
       } catch {
         console.error("[time-off] Discord response delivery failed");
       }
