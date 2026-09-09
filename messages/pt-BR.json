@@ -5156,7 +5156,8 @@
       "noWalkthrough": "Nenhum tutorial em andamento.",
       "noConfirm": "Nada para confirmar agora.",
       "askOfficerNeedsNameAndUid": "Execute `/link-commander` e conclua o link seguro antes de pedir ajuda a um oficial.",
-      "linkAshedOwnerOnly": "Somente o dono da aliança, quem vinculou as credenciais Ashed de **{tag}** ou um mantenedor da plataforma pode executar `/link-ashed`. Oficiais ainda podem executar `/link-alliance` depois que as credenciais forem conectadas."
+      "linkAshedOwnerOnly": "Somente o dono da aliança, quem vinculou as credenciais Ashed de **{tag}** ou um mantenedor da plataforma pode executar `/link-ashed`. Oficiais ainda podem executar `/link-alliance` depois que as credenciais forem conectadas.",
+      "guildLinkedToOtherAlliance": "Este servidor do Discord já está vinculado a outra aliança. Só o **R5 (dono)** dessa aliança pode mover o vínculo."
     },
     "video": {
       "pendingApproval": "{uploader} enviou **{fileName}** ({leaderboard}). Aprove na fila de vídeos: {queueUrl}",
@@ -5570,7 +5571,8 @@
       "genericError": "Algo deu errado ao registrar este servidor. Tente o assistente novamente.",
       "successHeading": "Servidor registrado!",
       "successBody": "Seu servidor Discord está vinculado a **{tag}**. Volte ao Discord e execute `/link-commander` para vincular seu comandante.",
-      "nextGuideLink": "Vincule seu comandante — guia de configuração →"
+      "nextGuideLink": "Vincule seu comandante — guia de configuração →",
+      "guildBoundToOtherAlliance": "Este servidor do Discord já está vinculado a outra aliança. Peça ao R5 dessa aliança para mover o vínculo e tente de novo."
     }
   },
   "inbox": {
