@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import { RosterAllianceBanner } from "@/components/video/RosterAllianceBanner";
 import { OcrAccuracyBadge } from "@/components/video/OcrAccuracyBadge";
@@ -13,6 +13,7 @@ import { AppSelect } from "@/components/ui/AppSelect";
 import { useMergedVideoJobs } from "@/components/video/VideoJobEventsProvider";
 import { VideoSurveyDialog } from "@/components/video/VideoSurveyDialog";
 import { VideoProcessAfterUploadPanel } from "@/components/video/VideoProcessAfterUploadPanel";
+import { VideoAwaitingApprovalDialog } from "@/components/video/VideoAwaitingApprovalDialog";
 import { VideoHygieneCoachBanner } from "@/components/video/VideoHygieneCoachBanner";
 import {
   clearPreferredDepositSlipBankId,
@@ -25,6 +26,7 @@ import {
   type UploadConfig,
 } from "@/lib/video/client-upload";
 import {
+  displayOcrAccuracy,
   isVideoOcrAccuracy,
   type VideoOcrAccuracy,
 } from "@/lib/video/ocr-accuracy";
@@ -33,11 +35,14 @@ import {
   isLegacyDirectPostOverLimit,
   isVideoUploadOverLimit,
 } from "@/lib/video/upload-limit";
+import { buildConnectHref } from "@/lib/connect/connect-return-path.shared";
 import { jobMatchesScoreTarget } from "@/lib/video/score-target-nav";
+import { partitionRecentUploadJobs } from "@/lib/video/recent-upload-jobs.shared";
 import {
   isAllianceKillsVideoTarget,
   isBankDepositSlipHistoryTarget,
   isMemberRosterVideoTarget,
+  isNativeOnlyVideoTarget,
 } from "@/lib/video/score-targets";
 
 function formatBytes(bytes: number | null): string {
@@ -74,10 +79,16 @@ type ScoreTargetOption = {
 
 function scoreTargetOcrAccuracy(
   target: ScoreTargetOption,
+  ashedCredentialsActive: boolean,
 ): VideoOcrAccuracy {
-  return isVideoOcrAccuracy(target.inHouseOcrAccuracy)
+  const inHouse = isVideoOcrAccuracy(target.inHouseOcrAccuracy)
     ? target.inHouseOcrAccuracy
     : "none";
+  return displayOcrAccuracy({
+    inHouseOcrAccuracy: inHouse,
+    ashedCredentialsActive,
+    ashedSupported: !isNativeOnlyVideoTarget(target.id),
+  });
 }
 
 const GROUP_ORDER = ["events", "recurring", "hq-native"] as const;
@@ -150,6 +161,7 @@ export function VideoUploadForm({
   const tNav = useTranslations("nav");
   const tc = useTranslations("common");
   const { push } = useShellNavigation();
+  const router = useRouter();
 
   useEffect(() => {
     if (contextBankId) {
@@ -168,9 +180,7 @@ export function VideoUploadForm({
     },
   ]);
   const [file, setFile] = useState<File | null>(null);
-  const [scoreTarget, setScoreTarget] = useState(
-    contextScoreTarget ?? "desert-storm",
-  );
+  const [scoreTarget, setScoreTarget] = useState(contextScoreTarget ?? "");
   const [boardKey, setBoardKey] = useState(contextBoardKey ?? "");
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{
@@ -183,20 +193,14 @@ export function VideoUploadForm({
   const [success, setSuccess] = useState<string | null>(null);
   const [activeSurvey, setActiveSurvey] = useState<ActiveSurvey | null>(null);
   const [pendingSurveyFile, setPendingSurveyFile] = useState<File | null>(null);
-  const [surveyCompleteByJobId, setSurveyCompleteByJobId] = useState<
-    Record<string, boolean>
-  >(() =>
-    Object.fromEntries(
-      initialJobs.map((job) => [job.id, job.surveyComplete ?? false]),
-    ),
-  );
-  const [resumingSurveyJobId, setResumingSurveyJobId] = useState<string | null>(
-    null,
-  );
   const searchParams = useSearchParams();
   const processJobQueryId = useMemo(() => {
     if (!canProcess) return null;
     return searchParams.get("processJob")?.trim() || null;
+  }, [canProcess, searchParams]);
+  const awaitingJobQueryId = useMemo(() => {
+    if (canProcess) return null;
+    return searchParams.get("awaitingJob")?.trim() || null;
   }, [canProcess, searchParams]);
   const [processPromptJobId, setProcessPromptJobId] = useState<string | null>(
     null,
@@ -204,10 +208,24 @@ export function VideoUploadForm({
   const [dismissedProcessJobId, setDismissedProcessJobId] = useState<
     string | null
   >(null);
+  const [awaitingPromptJobId, setAwaitingPromptJobId] = useState<string | null>(
+    null,
+  );
+  const [dismissedAwaitingJobId, setDismissedAwaitingJobId] = useState<
+    string | null
+  >(null);
+  const [awaitingDialogFileName, setAwaitingDialogFileName] = useState<
+    string | null
+  >(null);
   const activeProcessPromptJobId =
     processPromptJobId ??
     (processJobQueryId && dismissedProcessJobId !== processJobQueryId
       ? processJobQueryId
+      : null);
+  const activeAwaitingPromptJobId =
+    awaitingPromptJobId ??
+    (awaitingJobQueryId && dismissedAwaitingJobId !== awaitingJobQueryId
+      ? awaitingJobQueryId
       : null);
   const jobs = useMergedVideoJobs(initialJobs);
   const visibleJobs = contextScoreTarget
@@ -241,7 +259,14 @@ export function VideoUploadForm({
           }
           if (!data.scoreTargets?.length) return;
           setScoreTargets(data.scoreTargets);
-          if (!contextScoreTarget) return;
+          if (!contextScoreTarget) {
+            return;
+          }
+          if (
+            !data.scoreTargets.some((row) => row.id === contextScoreTarget)
+          ) {
+            return;
+          }
           const target = data.scoreTargets.find(
             (row) => row.id === contextScoreTarget,
           );
@@ -290,8 +315,28 @@ export function VideoUploadForm({
   const fileTooLarge =
     file !== null && fileExceedsUploadLimit(file.size, uploadConfig);
 
+  function persistProcessJobQuery(jobId: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("awaitingJob");
+    params.set("processJob", jobId);
+    const qs = params.toString();
+    router.replace(qs ? `/tools/video-upload?${qs}` : "/tools/video-upload");
+  }
+
+  function persistAwaitingJobQuery(jobId: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("processJob");
+    params.set("awaitingJob", jobId);
+    const qs = params.toString();
+    router.replace(qs ? `/tools/video-upload?${qs}` : "/tools/video-upload");
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!scoreTarget) {
+      setError(t("chooseScoreTargetFirst"));
+      return;
+    }
     if (!file) {
       setError(t("chooseFileFirst"));
       return;
@@ -318,16 +363,9 @@ export function VideoUploadForm({
     setSuccess(null);
 
     const uploadFile = file;
-    // Processors approve first, then survey while OCR runs. Non-processors get
-    // the survey immediately after upload (with a pending-approval hint).
-    if (!canProcess) {
-      setActiveSurvey({
-        jobId: "",
-        file: uploadFile,
-        initialSurvey: null,
-        navigateOnClose: false,
-      });
-    } else {
+    // Processors keep the file for the post-approve survey. Other officers
+    // stop at upload until a processor picks the job up on Video queue.
+    if (canProcess) {
       setPendingSurveyFile(uploadFile);
     }
     setFile(null);
@@ -342,32 +380,17 @@ export function VideoUploadForm({
         onProgress: (loaded, total) => {
           setUploadProgress({ loaded, total });
         },
-        onJobCreated: (jobId) => {
-          if (!canProcess) {
-            setActiveSurvey((prev) => (prev ? { ...prev, jobId } : null));
-          }
-        },
       });
-
-      setSurveyCompleteByJobId((prev) => ({
-        ...prev,
-        [data.jobId]: false,
-      }));
 
       if (canProcess) {
         setSuccess(null);
         setProcessPromptJobId(data.jobId);
+        persistProcessJobQuery(data.jobId);
       } else {
         setSuccess(data.message ?? t("queuedSuccess"));
-        setActiveSurvey((prev) =>
-          prev
-            ? {
-                ...prev,
-                jobId: data.jobId,
-                navigateOnClose: data.status !== "pending_approval",
-              }
-            : null,
-        );
+        setAwaitingPromptJobId(data.jobId);
+        setAwaitingDialogFileName(uploadFile.name);
+        persistAwaitingJobQuery(data.jobId);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : tc("uploadFailed"));
@@ -393,53 +416,86 @@ export function VideoUploadForm({
     setPendingSurveyFile(null);
   }
 
-  function handleSurveyClose(result: { complete: boolean }) {
+  function handleSurveyClose(_result: { complete: boolean }) {
     const session = activeSurvey;
     setActiveSurvey(null);
-    if (session?.jobId) {
-      setSurveyCompleteByJobId((prev) => ({
-        ...prev,
-        [session.jobId]: result.complete,
-      }));
-    }
     if (session?.navigateOnClose && session.jobId) {
       push(reviewHref(session.jobId));
     }
   }
 
-  async function resumeSurvey(jobId: string) {
-    setResumingSurveyJobId(jobId);
-    try {
-      const res = await fetch(`/api/tools/video-upload/${jobId}/survey`);
-      const data = (await res.json()) as {
-        error?: string;
-        complete?: boolean;
-        survey?: SurveyPayload | null;
-      };
-      if (!res.ok) {
-        setError(data.error ?? tc("uploadFailed"));
-        return;
-      }
-      if (data.complete) {
-        setSurveyCompleteByJobId((prev) => ({ ...prev, [jobId]: true }));
-        return;
-      }
-      setActiveSurvey({
-        jobId,
-        file: null,
-        initialSurvey: data.survey ?? null,
-        navigateOnClose: false,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : tc("uploadFailed"));
-    } finally {
-      setResumingSurveyJobId(null);
-    }
-  }
+  const showFileStep = Boolean(scoreTarget);
+  const showUploadControls = Boolean(file) || uploading;
+  const { awaitingApproval, other: otherRecentJobs } =
+    partitionRecentUploadJobs(visibleJobs);
+  const awaitingJobs = awaitingApproval.filter(
+    (job) => job.id !== activeProcessPromptJobId,
+  );
+  const processConnectUrl = activeProcessPromptJobId
+    ? buildConnectHref(
+        `/tools/video-upload?processJob=${activeProcessPromptJobId}`,
+      )
+    : connectUrl;
 
-  function isSurveyIncomplete(job: VideoJobRow): boolean {
-    if (job.status === "failed" || job.status === "discarded") return false;
-    return !(surveyCompleteByJobId[job.id] ?? job.surveyComplete ?? false);
+  function renderRecentJobRow(job: VideoJobRow, awaiting: boolean) {
+    return (
+      <li
+        key={job.id}
+        className={`flex flex-col gap-2 rounded-lg border bg-hq-canvas px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4 ${
+          awaiting
+            ? "border-hq-warning/50"
+            : "border-hq-border"
+        }`}
+      >
+        <div className="min-w-0 w-full">
+          <p className="break-all font-medium sm:truncate">
+            {job.fileName ?? job.id}
+          </p>
+          <p className="text-xs text-hq-fg-muted">
+            {job.scoreTarget ?? job.category} ·{" "}
+            {formatBytes(job.fileSizeBytes)}
+          </p>
+          <p className="mt-1 text-xs text-hq-fg-muted">
+            {t("uploadedAtLabel")}{" "}
+            <FormattedDateTime value={job.createdAt} />
+          </p>
+          {job.approvedAt ? (
+            <p className="text-xs text-hq-fg-muted">
+              {t("approvedAtLabel")}{" "}
+              <FormattedDateTime value={job.approvedAt} />
+            </p>
+          ) : job.rejectedAt ? (
+            <p className="text-xs text-hq-fg-muted">
+              {t("rejectedAtLabel")}{" "}
+              <FormattedDateTime value={job.rejectedAt} />
+            </p>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+              job.status === "complete"
+                ? "bg-hq-success/15 text-hq-success"
+                : job.status === "failed" || job.status === "discarded"
+                  ? "bg-hq-danger/15 text-hq-danger"
+                  : awaiting
+                    ? "bg-hq-warning/15 text-hq-warning"
+                    : "bg-hq-selected text-hq-selected-fg"
+            }`}
+          >
+            {statusLabel(t, job.status)}
+          </span>
+          {job.status === "complete" ? (
+            <Link
+              href={`/tools/video-upload/${job.id}/event`}
+              className="text-xs text-hq-accent hover:underline"
+            >
+              {t("eventLink")}
+            </Link>
+          ) : null}
+        </div>
+      </li>
+    );
   }
 
   return (
@@ -451,6 +507,40 @@ export function VideoUploadForm({
           <p className="mt-2 text-xs text-hq-fg-muted">{t("pendingApprovalHint")}</p>
         ) : null}
       </div>
+
+      {awaitingJobs.length > 0 ? (
+        <section
+          className="min-w-0 rounded-xl border border-hq-warning/40 bg-hq-warning/10 p-4 sm:p-5"
+          data-testid="video-awaiting-approval-uploads"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-medium text-hq-warning">
+              {t("awaitingApprovalHeading")}
+            </h2>
+            <div className="flex flex-wrap items-center gap-3">
+              {canProcess ? (
+                <Link
+                  href="/tools/video-upload/queue"
+                  className="text-xs text-hq-accent hover:underline"
+                >
+                  {t("openVideoQueue")}
+                </Link>
+              ) : null}
+              {contextScoreTarget ? (
+                <Link
+                  href="/tools/video-upload"
+                  className="text-xs text-hq-accent hover:underline"
+                >
+                  {t("viewAllUploads")}
+                </Link>
+              ) : null}
+            </div>
+          </div>
+          <ul className="mt-3 space-y-2">
+            {awaitingJobs.map((job) => renderRecentJobRow(job, true))}
+          </ul>
+        </section>
+      ) : null}
 
       <form
         onSubmit={(e) => void handleSubmit(e)}
@@ -478,6 +568,7 @@ export function VideoUploadForm({
           <AppSelect
             value={scoreTarget}
             onChange={handleScoreTargetChange}
+            placeholder={t("scoreTargetPlaceholder")}
             aria-label={t("scoreTargetLabel")}
             groups={GROUP_ORDER.map((group) => {
               const groupOptions = scoreTargets.filter((t) => t.group === group);
@@ -493,7 +584,7 @@ export function VideoUploadForm({
                         {tNav(target.labelKey)}
                       </span>
                       <OcrAccuracyBadge
-                        level={scoreTargetOcrAccuracy(target)}
+                        level={scoreTargetOcrAccuracy(target, ashedConnected)}
                         describedBy={OCR_ACCURACY_CAPTION_ID}
                       />
                     </span>
@@ -506,11 +597,13 @@ export function VideoUploadForm({
             id={OCR_ACCURACY_CAPTION_ID}
             className="mt-2 text-xs text-hq-fg-muted"
           >
-            {t("ocrAccuracy.label")}
+            {ashedConnected
+              ? t("ocrAccuracy.labelWithAshed")
+              : t("ocrAccuracy.label")}
           </p>
         </label>
 
-        <VideoHygieneCoachBanner scoreTarget={scoreTarget} />
+        <VideoHygieneCoachBanner scoreTarget={scoreTarget || null} />
 
         {needsBoardPicker ? (
           <label className="mt-4 block">
@@ -529,6 +622,7 @@ export function VideoUploadForm({
           </label>
         ) : null}
 
+        {showFileStep ? (
         <label className="mt-4 block">
           <span className="mb-2 block text-sm text-hq-fg-muted">
             {t("fileLabel")}
@@ -554,15 +648,18 @@ export function VideoUploadForm({
             </p>
           ) : null}
         </label>
+        ) : null}
 
-        {file && (
+        {showUploadControls ? (
+          <>
+        {file ? (
           <p className="mt-2 break-all text-sm">
             {t("selectedFile", {
               name: file.name,
               size: formatBytes(file.size),
             })}
           </p>
-        )}
+        ) : null}
 
         {uploadProgress && uploadProgress.total > 0 ? (
           <div className="mt-3">
@@ -598,7 +695,7 @@ export function VideoUploadForm({
         ) : null}
 
         {error && <p className="mt-4 text-sm text-hq-danger">{error}</p>}
-        {success && !activeProcessPromptJobId ? (
+        {success && !activeProcessPromptJobId && !activeAwaitingPromptJobId ? (
           <p className="mt-4 text-sm text-hq-green">{success}</p>
         ) : null}
 
@@ -609,6 +706,15 @@ export function VideoUploadForm({
         >
           {uploading ? t("uploading") : t("uploadButton")}
         </button>
+          </>
+        ) : error || success ? (
+          <>
+            {error ? <p className="mt-4 text-sm text-hq-danger">{error}</p> : null}
+            {success && !activeProcessPromptJobId && !activeAwaitingPromptJobId ? (
+              <p className="mt-4 text-sm text-hq-green">{success}</p>
+            ) : null}
+          </>
+        ) : null}
         </fieldset>
       </form>
 
@@ -616,7 +722,7 @@ export function VideoUploadForm({
         <VideoProcessAfterUploadPanel
           jobId={activeProcessPromptJobId}
           ashedConnected={ashedConnected}
-          connectUrl={connectUrl}
+          connectUrl={processConnectUrl}
           onDismiss={() => {
             setProcessPromptJobId(null);
             setPendingSurveyFile(null);
@@ -628,10 +734,32 @@ export function VideoUploadForm({
         />
       ) : null}
 
-      {visibleJobs.length > 0 && (
+      {activeAwaitingPromptJobId && !canProcess && !activeSurvey ? (
+        <VideoAwaitingApprovalDialog
+          open
+          fileName={
+            awaitingDialogFileName ??
+            jobs.find((job) => job.id === activeAwaitingPromptJobId)?.fileName ??
+            null
+          }
+          onDismiss={() => {
+            setAwaitingPromptJobId(null);
+            setAwaitingDialogFileName(null);
+            if (awaitingJobQueryId) {
+              setDismissedAwaitingJobId(awaitingJobQueryId);
+            }
+          }}
+        />
+      ) : null}
+
+      {otherRecentJobs.length > 0 && (
         <section className="min-w-0 rounded-xl border border-hq-border bg-hq-surface p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-medium">{t("recentUploads")}</h2>
+            <h2 className="font-medium">
+              {awaitingApproval.length > 0
+                ? t("otherUploadsHeading")
+                : t("recentUploads")}
+            </h2>
             {contextScoreTarget ? (
               <Link
                 href="/tools/video-upload"
@@ -642,76 +770,7 @@ export function VideoUploadForm({
             ) : null}
           </div>
           <ul className="mt-3 space-y-2">
-            {visibleJobs.map((job) => (
-              <li
-                key={job.id}
-                className="flex flex-col gap-2 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-              >
-                <div className="min-w-0 w-full">
-                  <p className="break-all font-medium sm:truncate">
-                    {job.fileName ?? job.id}
-                  </p>
-                  <p className="text-xs text-hq-fg-muted">
-                    {job.scoreTarget ?? job.category} ·{" "}
-                    {formatBytes(job.fileSizeBytes)}
-                  </p>
-                  <p className="mt-1 text-xs text-hq-fg-muted">
-                    {t("uploadedAtLabel")}{" "}
-                    <FormattedDateTime value={job.createdAt} />
-                  </p>
-                  {job.approvedAt ? (
-                    <p className="text-xs text-hq-fg-muted">
-                      {t("approvedAtLabel")}{" "}
-                      <FormattedDateTime value={job.approvedAt} />
-                    </p>
-                  ) : job.rejectedAt ? (
-                    <p className="text-xs text-hq-fg-muted">
-                      {t("rejectedAtLabel")}{" "}
-                      <FormattedDateTime value={job.rejectedAt} />
-                    </p>
-                  ) : null}
-                </div>
-                <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      job.status === "complete"
-                        ? "bg-hq-success/15 text-hq-success"
-                        : job.status === "failed" || job.status === "discarded"
-                          ? "bg-hq-danger/15 text-hq-danger"
-                          : "bg-hq-selected text-hq-selected-fg"
-                    }`}
-                  >
-                    {statusLabel(t, job.status)}
-                  </span>
-                  {(job.status === "review" || job.status === "complete") && (
-                    <Link
-                      href={
-                        job.status === "complete"
-                          ? `/tools/video-upload/${job.id}/event`
-                          : reviewHref(job.id)
-                      }
-                      className="text-xs text-hq-accent hover:underline"
-                    >
-                      {job.status === "complete"
-                        ? t("eventLink")
-                        : t("reviewLink")}
-                    </Link>
-                  )}
-                  {isSurveyIncomplete(job) ? (
-                    <button
-                      type="button"
-                      disabled={resumingSurveyJobId === job.id}
-                      onClick={() => void resumeSurvey(job.id)}
-                      className="text-xs text-hq-accent hover:underline disabled:opacity-50"
-                    >
-                      {resumingSurveyJobId === job.id
-                        ? t("surveyResumeLoading")
-                        : t("surveyResumeLink")}
-                    </button>
-                  ) : null}
-                </div>
-              </li>
-            ))}
+            {otherRecentJobs.map((job) => renderRecentJobRow(job, false))}
           </ul>
         </section>
       )}

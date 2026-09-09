@@ -2,9 +2,29 @@ import { describe, expect, it } from "vitest";
 
 import {
   isMemberEligibleForPool,
+  pickLatestAllianceRankEventPerMember,
   resolveMemberPoolAllianceRank,
 } from "@/lib/trains/rank-history";
 import type { AllianceMember } from "@/lib/db/schema";
+import { schema } from "@/lib/db";
+
+type RankEvent = (typeof schema.memberAllianceRankEvents.$inferSelect);
+
+function rankEvent(
+  overrides: Partial<RankEvent> &
+    Pick<RankEvent, "id" | "allianceRank" | "effectiveDate" | "recordedAt">,
+): RankEvent {
+  return {
+    allianceId: "hq-1",
+    ashedMemberId: "m1",
+    memberName: "Commander",
+    allianceRankTitle: null,
+    source: "manual",
+    recordedByHqUserId: null,
+    ashedSyncedAt: null,
+    ...overrides,
+  };
+}
 
 describe("resolveMemberPoolAllianceRank", () => {
   const baseMember = {
@@ -91,5 +111,63 @@ describe("isMemberEligibleForPool", () => {
     expect(isMemberEligibleForPool("heavy_hitter", 3)).toBe(true);
     expect(isMemberEligibleForPool("heavy_hitter", 5)).toBe(true);
     expect(isMemberEligibleForPool("heavy_hitter", null)).toBe(true);
+  });
+});
+
+describe("pickLatestAllianceRankEventPerMember", () => {
+  it("keeps only the latest same-day rank event per member (Ashed retry / concurrent confirm)", () => {
+    // Concrete trigger: officer confirms R4, Ashed PUT fails (event kept),
+    // then confirms R3 the same ST day. Append-only history has both rows.
+    const staleR4 = rankEvent({
+      id: "evt-r4",
+      allianceRank: 4,
+      effectiveDate: "2026-09-09",
+      recordedAt: new Date("2026-09-09T10:00:00Z"),
+    });
+    const correctedR3 = rankEvent({
+      id: "evt-r3",
+      allianceRank: 3,
+      effectiveDate: "2026-09-09",
+      recordedAt: new Date("2026-09-09T10:05:00Z"),
+    });
+
+    // Pre-fix join-on-max(effectiveDate) returned BOTH rows. Filtering
+    // exactRank=3 and exactRank=4 would then place the member in r3 AND r4_plus.
+    expect(isMemberEligibleForPool("r3", staleR4.allianceRank)).toBe(false);
+    expect(isMemberEligibleForPool("r4_plus", staleR4.allianceRank)).toBe(true);
+    expect(isMemberEligibleForPool("r3", correctedR3.allianceRank)).toBe(true);
+    expect(isMemberEligibleForPool("r4_plus", correctedR3.allianceRank)).toBe(
+      false,
+    );
+
+    const latest = pickLatestAllianceRankEventPerMember([
+      staleR4,
+      correctedR3,
+    ]);
+    expect(latest).toHaveLength(1);
+    expect(latest[0]?.id).toBe("evt-r3");
+    expect(latest[0]?.allianceRank).toBe(3);
+    expect(isMemberEligibleForPool("r3", latest[0]!.allianceRank)).toBe(true);
+    expect(isMemberEligibleForPool("r4_plus", latest[0]!.allianceRank)).toBe(
+      false,
+    );
+  });
+
+  it("prefers a later effectiveDate over a newer recordedAt on an older date", () => {
+    const olderDay = rankEvent({
+      id: "evt-old",
+      allianceRank: 5,
+      effectiveDate: "2026-09-08",
+      recordedAt: new Date("2026-09-09T12:00:00Z"),
+    });
+    const newerDay = rankEvent({
+      id: "evt-new",
+      allianceRank: 3,
+      effectiveDate: "2026-09-09",
+      recordedAt: new Date("2026-09-09T08:00:00Z"),
+    });
+    const latest = pickLatestAllianceRankEventPerMember([olderDay, newerDay]);
+    expect(latest).toHaveLength(1);
+    expect(latest[0]?.id).toBe("evt-new");
   });
 });
