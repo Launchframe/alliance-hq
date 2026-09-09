@@ -421,7 +421,7 @@ export async function upsertConductorDraft(input: {
   }
 
   if (existing) {
-    await db
+    const updated = await db
       .update(schema.trainConductorRecords)
       .set({
         seasonKey: input.seasonKey ?? existing.seasonKey,
@@ -451,7 +451,17 @@ export async function upsertConductorDraft(input: {
             : existing.substituteForMemberName,
         updatedAt: new Date(),
       })
-      .where(eq(schema.trainConductorRecords.id, existing.id));
+      .where(
+        and(
+          eq(schema.trainConductorRecords.id, existing.id),
+          isNull(schema.trainConductorRecords.lockedAt),
+        ),
+      )
+      .returning({ id: schema.trainConductorRecords.id });
+
+    if (updated.length === 0) {
+      throw new Error("Conductor is already locked for this day.");
+    }
 
     const [row] = await db
       .select()
@@ -503,15 +513,13 @@ export async function clearConductorAssignment(
   }
 
   const releasePool = options?.releasePool !== false;
-  if (releasePool && existing.conductorMemberId) {
-    await releasePoolSelectionForDate(
-      allianceId,
-      date,
-      existing.conductorMemberId,
-    );
-  }
+  const memberIdToRelease =
+    releasePool && existing.conductorMemberId
+      ? existing.conductorMemberId
+      : null;
 
-  await db
+  // CAS: refuse the clear if a concurrent lock won the race.
+  const cleared = await db
     .update(schema.trainConductorRecords)
     .set({
       conductorMemberId: null,
@@ -521,14 +529,23 @@ export async function clearConductorAssignment(
       substituteForMemberName: null,
       updatedAt: new Date(),
     })
-    .where(eq(schema.trainConductorRecords.id, existing.id));
+    .where(
+      and(
+        eq(schema.trainConductorRecords.id, existing.id),
+        isNull(schema.trainConductorRecords.lockedAt),
+      ),
+    )
+    .returning();
 
-  const [row] = await db
-    .select()
-    .from(schema.trainConductorRecords)
-    .where(eq(schema.trainConductorRecords.id, existing.id))
-    .limit(1);
-  return row ?? null;
+  if (cleared.length === 0) {
+    throw new Error("Conductor is already locked for this day.");
+  }
+
+  if (memberIdToRelease) {
+    await releasePoolSelectionForDate(allianceId, date, memberIdToRelease);
+  }
+
+  return cleared[0] ?? null;
 }
 
 export async function restampConductorMechanisms(input: {
@@ -596,7 +613,7 @@ export async function assignVipOnLockedConductor(input: {
     throw new Error("No conductor set for this day.");
   }
 
-  await db
+  const updated = await db
     .update(schema.trainConductorRecords)
     .set({
       vipMemberId: input.vipMemberId,
@@ -610,14 +627,19 @@ export async function assignVipOnLockedConductor(input: {
           : existing.guardianIsVip,
       updatedAt: new Date(),
     })
-    .where(eq(schema.trainConductorRecords.id, existing.id));
+    .where(
+      and(
+        eq(schema.trainConductorRecords.id, existing.id),
+        isNotNull(schema.trainConductorRecords.lockedAt),
+      ),
+    )
+    .returning();
 
-  const [row] = await db
-    .select()
-    .from(schema.trainConductorRecords)
-    .where(eq(schema.trainConductorRecords.id, existing.id))
-    .limit(1);
-  return row!;
+  if (updated.length === 0) {
+    throw new Error("Lock the conductor before assigning VIP.");
+  }
+
+  return updated[0]!;
 }
 
 export async function clearVipAssignment(
@@ -632,15 +654,9 @@ export async function clearVipAssignment(
     throw new Error("Conductor is already locked for this day.");
   }
 
-  if (existing.vipMemberId) {
-    await releasePoolSelectionForDate(
-      allianceId,
-      date,
-      existing.vipMemberId,
-    );
-  }
+  const vipToRelease = existing.vipMemberId;
 
-  await db
+  const cleared = await db
     .update(schema.trainConductorRecords)
     .set({
       vipMemberId: null,
@@ -648,14 +664,23 @@ export async function clearVipAssignment(
       vipRankEventId: null,
       updatedAt: new Date(),
     })
-    .where(eq(schema.trainConductorRecords.id, existing.id));
+    .where(
+      and(
+        eq(schema.trainConductorRecords.id, existing.id),
+        isNull(schema.trainConductorRecords.lockedAt),
+      ),
+    )
+    .returning();
 
-  const [row] = await db
-    .select()
-    .from(schema.trainConductorRecords)
-    .where(eq(schema.trainConductorRecords.id, existing.id))
-    .limit(1);
-  return row ?? null;
+  if (cleared.length === 0) {
+    throw new Error("Conductor is already locked for this day.");
+  }
+
+  if (vipToRelease) {
+    await releasePoolSelectionForDate(allianceId, date, vipToRelease);
+  }
+
+  return cleared[0] ?? null;
 }
 
 export async function lockConductorRecord(
@@ -681,23 +706,28 @@ export async function lockConductorRecord(
   }
 
   const lockedAt = new Date();
-  await db
+  const locked = await db
     .update(schema.trainConductorRecords)
     .set({
       lockedAt,
       lockedByHqUserId: lockedByHqUserId ?? null,
       updatedAt: lockedAt,
     })
-    .where(eq(schema.trainConductorRecords.id, recordId));
+    .where(
+      and(
+        eq(schema.trainConductorRecords.id, recordId),
+        eq(schema.trainConductorRecords.allianceId, allianceId),
+        isNull(schema.trainConductorRecords.lockedAt),
+      ),
+    )
+    .returning();
+
+  if (locked.length === 0) {
+    throw new Error("Conductor is already locked.");
+  }
 
   await spawnEmptyTrain(recordId);
-
-  const [row] = await db
-    .select()
-    .from(schema.trainConductorRecords)
-    .where(eq(schema.trainConductorRecords.id, recordId))
-    .limit(1);
-  return row!;
+  return locked[0]!;
 }
 
 export async function markConductorDepartingSoonAnnounced(
@@ -735,16 +765,10 @@ export async function unlockConductorRecord(
     throw new Error("Conductor is not locked.");
   }
 
-  await db
-    .delete(schema.trains)
-    .where(eq(schema.trains.conductorRecordId, recordId));
-
-  // Keep depleting-pool consumption while the conductor assignment remains.
-  // Re-roll / clear / open-target swap release or remaps the slot only when the
-  // member is no longer assigned for this date (see roll/pick replace paths).
-
+  // CAS unlock first so a concurrent re-lock cannot leave us having deleted
+  // trains while the day is still considered locked.
   const updatedAt = new Date();
-  await db
+  const unlocked = await db
     .update(schema.trainConductorRecords)
     .set({
       lockedAt: null,
@@ -752,14 +776,27 @@ export async function unlockConductorRecord(
       discordDepartingSoonAt: null,
       updatedAt,
     })
-    .where(eq(schema.trainConductorRecords.id, recordId));
+    .where(
+      and(
+        eq(schema.trainConductorRecords.id, recordId),
+        eq(schema.trainConductorRecords.allianceId, allianceId),
+        isNotNull(schema.trainConductorRecords.lockedAt),
+      ),
+    )
+    .returning();
 
-  const [row] = await db
-    .select()
-    .from(schema.trainConductorRecords)
-    .where(eq(schema.trainConductorRecords.id, recordId))
-    .limit(1);
-  return row!;
+  if (unlocked.length === 0) {
+    throw new Error("Conductor is not locked.");
+  }
+
+  // Keep depleting-pool consumption while the conductor assignment remains.
+  // Re-roll / clear / open-target swap release or remaps the slot only when the
+  // member is no longer assigned for this date (see roll/pick replace paths).
+  await db
+    .delete(schema.trains)
+    .where(eq(schema.trains.conductorRecordId, recordId));
+
+  return unlocked[0]!;
 }
 
 export async function spawnEmptyTrain(

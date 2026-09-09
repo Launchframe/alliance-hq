@@ -18,6 +18,10 @@ import {
 import { provisionAllianceMembership } from "./provision-membership";
 
 const DEFAULT_JOIN_CODE_TTL_DAYS = 7;
+/** Hex suffix entropy for generated codes (8 bytes = 64 bits). */
+const GENERATED_JOIN_CODE_SUFFIX_BYTES = 8;
+/** Minimum normalized length for officer-supplied custom codes. */
+const MIN_CUSTOM_JOIN_CODE_LENGTH = 10;
 
 function hashJoinCode(code: string): string {
   const normalized = normalizeJoinCode(code);
@@ -36,7 +40,9 @@ function joinCodeHint(code: string): string {
 }
 
 function generateJoinCode(allianceTag?: string | null): string {
-  const suffix = randomBytes(3).toString("hex").toUpperCase();
+  const suffix = randomBytes(GENERATED_JOIN_CODE_SUFFIX_BYTES)
+    .toString("hex")
+    .toUpperCase();
   const prefix = allianceTag?.trim().toUpperCase().replace(/[^A-Z0-9]/g, "") || "HQ";
   return `${prefix}-${suffix}`;
 }
@@ -115,11 +121,17 @@ export async function createAllianceJoinCode(
   const expiresAt = new Date(now);
   expiresAt.setDate(expiresAt.getDate() + ttlDays);
 
-  let plaintext = input.code?.trim()
-    ? normalizeJoinCode(input.code)
+  const customCode = Boolean(input.code?.trim());
+  let plaintext = customCode
+    ? normalizeJoinCode(input.code!)
     : generateJoinCode(alliance.tag);
   if (!plaintext) {
     plaintext = generateJoinCode(null);
+  }
+  if (customCode && plaintext.length < MIN_CUSTOM_JOIN_CODE_LENGTH) {
+    throw new Error(
+      `Custom join codes must be at least ${MIN_CUSTOM_JOIN_CODE_LENGTH} characters.`,
+    );
   }
 
   const joinCodeId = nanoid(16);

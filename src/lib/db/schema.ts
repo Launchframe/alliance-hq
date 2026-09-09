@@ -980,6 +980,11 @@ export const hqMemberLinks = pgTable(
       table.allianceId,
       table.ashedMemberId,
     ),
+    // One Last War UID → one HQ claim per alliance (closes TOCTOU dual-claim races).
+    unique("hq_member_links_alliance_game_uid_unique").on(
+      table.allianceId,
+      table.gameUid,
+    ),
   ],
 );
 
@@ -1036,6 +1041,11 @@ export const discordMemberLinks = pgTable(
     unique("discord_member_links_alliance_member_unique").on(
       table.allianceId,
       table.ashedMemberId,
+    ),
+    // One Last War UID → one Discord claim per alliance (closes TOCTOU dual-claim races).
+    unique("discord_member_links_alliance_game_uid_unique").on(
+      table.allianceId,
+      table.gameUid,
     ),
   ],
 );
