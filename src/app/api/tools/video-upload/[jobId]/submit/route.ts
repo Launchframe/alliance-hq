@@ -1273,10 +1273,18 @@ export async function POST(request: Request, { params }: Props) {
           originalStatus: jobSnapshot.originalStatus,
           clearedPriorAshedScores,
         });
+        // CAS: only roll back while still submitting. Stale recovery (or a
+        // concurrent successful retry after recovery) can advance past
+        // submitting; an id-only update would wipe review/complete.
         await db
           .update(schema.videoJobs)
           .set({ status: rollbackStatus, updatedAt: new Date() })
-          .where(eq(schema.videoJobs.id, jobId));
+          .where(
+            and(
+              eq(schema.videoJobs.id, jobId),
+              eq(schema.videoJobs.status, "submitting"),
+            ),
+          );
         await emitVideoJobStatus({
           ...videoJobStatusOwnerFields({
             sessionId: jobSnapshot.uploaderSessionId,
