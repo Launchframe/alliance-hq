@@ -26,6 +26,7 @@ import {
 import { systemRoleNameForId } from "@/lib/rbac/system-roles";
 import { getLinkedMemberIds } from "@/lib/vr/repository";
 
+import { assertHybridClaimInviteRankAtAccept } from "./invite-accept-rank.server";
 import { provisionAllianceMembership } from "./provision-membership";
 
 const INVITE_TTL_DAYS = 14;
@@ -699,6 +700,15 @@ export async function acceptHqInvite(
   } else if (kind === "discord_officer") {
     throw new Error("Discord officer invites require Auth Phase 2.");
   }
+
+  // Hybrid rank is gated at create only unless we re-check here — otherwise a
+  // demoted R5/R4 claim target still grants owner/officer RBAC on accept.
+  await assertHybridClaimInviteRankAtAccept({
+    allianceId: invite.allianceId,
+    roleId: invite.roleId,
+    targetAshedMemberId: invite.targetAshedMemberId,
+    invitedByHqUserId: invite.invitedByHqUserId,
+  });
 
   const hqUserId = input.hqUserId;
   const now = new Date();

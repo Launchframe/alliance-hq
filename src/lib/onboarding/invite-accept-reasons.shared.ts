@@ -15,6 +15,7 @@ export const INVITE_ACCEPT_REASON_CODES = [
   "discord_officer_requires_auth",
   "alliance_tag_missing",
   "invite_belongs_to_other_account",
+  "hybrid_rank_stale",
   "accept_failed",
 ] as const;
 
@@ -35,6 +36,8 @@ const MESSAGE_TO_REASON: Readonly<Record<string, InviteAcceptReasonCode>> = {
   "Discord officer invites require Auth Phase 2.": "discord_officer_requires_auth",
   "Alliance tag is missing.": "alliance_tag_missing",
   "This invite belongs to another account.": "invite_belongs_to_other_account",
+  "Owner invite requires the claim commander to still be in-game R5.": "hybrid_rank_stale",
+  "Officer invite requires the claim commander to still be in-game R4.": "hybrid_rank_stale",
 };
 
 export function inviteAcceptReasonFromMessage(
