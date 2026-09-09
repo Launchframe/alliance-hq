@@ -162,6 +162,14 @@ export async function createAllianceJoinCode(
   };
 }
 
+/** Thrown inside the redeem TX when the CAS counter bump loses the race. */
+class JoinCodeCasConflictError extends Error {
+  constructor() {
+    super("JOIN_CODE_CAS_CONFLICT");
+    this.name = "JoinCodeCasConflictError";
+  }
+}
+
 export type RedeemAllianceJoinCodeInput = {
   code: string;
   hqUserId: string;
@@ -227,59 +235,69 @@ export async function redeemAllianceJoinCode(
     throw new Error("This join code has reached its redemption limit.");
   }
 
-  const [updated] = await db
-    .update(schema.hqAllianceJoinCodes)
-    .set({
-      redemptionCount: joinCode.redemptionCount + 1,
-    })
-    .where(
-      and(
-        eq(schema.hqAllianceJoinCodes.id, joinCode.id),
-        isNull(schema.hqAllianceJoinCodes.revokedAt),
-        gt(schema.hqAllianceJoinCodes.expiresAt, now),
-        eq(
-          schema.hqAllianceJoinCodes.redemptionCount,
-          joinCode.redemptionCount,
-        ),
-      ),
-    )
-    .returning({ id: schema.hqAllianceJoinCodes.id });
-
-  if (!updated) {
-    // Concurrent redeem (e.g. URL auto-redeem remount): if this user already
-    // won the race, treat as success instead of "no longer available".
-    const [racedRedemption] = await db
-      .select({ id: schema.hqAllianceJoinCodeRedemptions.id })
-      .from(schema.hqAllianceJoinCodeRedemptions)
-      .where(
-        and(
-          eq(schema.hqAllianceJoinCodeRedemptions.joinCodeId, joinCode.id),
-          eq(schema.hqAllianceJoinCodeRedemptions.hqUserId, input.hqUserId),
-        ),
-      )
-      .limit(1);
-    if (racedRedemption) {
-      return provisionAllianceMembership({
-        hqUserId: input.hqUserId,
-        sessionId: input.sessionId,
-        allianceId: joinCode.allianceId,
-        roleId: joinCode.roleId,
-        rolePolicy: "preserve_existing",
-        userLabel: input.userLabel,
-      });
-    }
-    throw new Error("This join code is no longer available.");
-  }
-
+  // Claim a redemption slot and insert the redemption row atomically.
+  // Without a transaction, a successful counter bump followed by a failed
+  // insert permanently burns capacity (single-use / last-slot codes become
+  // unredeemable with no recovery path for this user).
   try {
-    await db.insert(schema.hqAllianceJoinCodeRedemptions).values({
-      id: nanoid(16),
-      joinCodeId: joinCode.id,
-      hqUserId: input.hqUserId,
-      redeemedAt: now,
+    await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(schema.hqAllianceJoinCodes)
+        .set({
+          redemptionCount: joinCode.redemptionCount + 1,
+        })
+        .where(
+          and(
+            eq(schema.hqAllianceJoinCodes.id, joinCode.id),
+            isNull(schema.hqAllianceJoinCodes.revokedAt),
+            gt(schema.hqAllianceJoinCodes.expiresAt, now),
+            eq(
+              schema.hqAllianceJoinCodes.redemptionCount,
+              joinCode.redemptionCount,
+            ),
+          ),
+        )
+        .returning({ id: schema.hqAllianceJoinCodes.id });
+
+      if (!updated) {
+        throw new JoinCodeCasConflictError();
+      }
+
+      await tx.insert(schema.hqAllianceJoinCodeRedemptions).values({
+        id: nanoid(16),
+        joinCodeId: joinCode.id,
+        hqUserId: input.hqUserId,
+        redeemedAt: now,
+      });
     });
   } catch (error) {
+    if (error instanceof JoinCodeCasConflictError) {
+      // Concurrent redeem (e.g. URL auto-redeem remount): if this user already
+      // won the race, treat as success instead of "no longer available".
+      const [racedRedemption] = await db
+        .select({ id: schema.hqAllianceJoinCodeRedemptions.id })
+        .from(schema.hqAllianceJoinCodeRedemptions)
+        .where(
+          and(
+            eq(schema.hqAllianceJoinCodeRedemptions.joinCodeId, joinCode.id),
+            eq(schema.hqAllianceJoinCodeRedemptions.hqUserId, input.hqUserId),
+          ),
+        )
+        .limit(1);
+      if (racedRedemption) {
+        return provisionAllianceMembership({
+          hqUserId: input.hqUserId,
+          sessionId: input.sessionId,
+          allianceId: joinCode.allianceId,
+          roleId: joinCode.roleId,
+          rolePolicy: "preserve_existing",
+          userLabel: input.userLabel,
+        });
+      }
+      throw new Error("This join code is no longer available.");
+    }
     if (isPostgresUniqueViolation(error)) {
+      // Concurrent insert won; our counter bump rolled back with the TX.
       return provisionAllianceMembership({
         hqUserId: input.hqUserId,
         sessionId: input.sessionId,
