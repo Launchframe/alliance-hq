@@ -252,7 +252,7 @@ export function InviteWizard({
 
       {nearFullRoster ? (
         <div
-          className="rounded-lg border border-[#388bfd]/40 bg-[#388bfd]/10 p-4 text-sm text-[#c9d1d9]"
+          className="rounded-lg border border-hq-accent/40 bg-hq-accent/10 p-4 text-sm text-hq-fg"
           role="status"
         >
           {t("nearFullRosterBanner", {
@@ -287,12 +287,12 @@ export function InviteWizard({
         />
       ) : null}
 
-      <div className="flex flex-wrap gap-2 border-t border-[#30363d] pt-4">
+      <div className="flex flex-wrap gap-2 border-t border-hq-border pt-4">
         {step > 1 ? (
           <button
             type="button"
             onClick={() => goToStep((step - 1) as InviteWizardStep)}
-            className="rounded-lg border border-[#30363d] px-4 py-2 text-sm text-[#e6edf3] hover:bg-[#21262d]"
+            className="rounded-lg border border-hq-border px-4 py-2 text-sm text-hq-fg hover:bg-hq-surface-muted"
           >
             {tWizard("back")}
           </button>
@@ -303,7 +303,7 @@ export function InviteWizard({
             type="button"
             disabled={!canContinueStep1}
             onClick={() => goToStep(2)}
-            className="rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
+            className="rounded-lg border border-hq-accent bg-hq-accent/10 px-4 py-2 text-sm text-hq-accent disabled:opacity-50"
           >
             {tWizard("continue")}
           </button>
@@ -320,7 +320,7 @@ export function InviteWizard({
               }
               goToStep(3);
             }}
-            className="rounded-lg border border-[#388bfd] bg-[#388bfd]/10 px-4 py-2 text-sm text-[#58a6ff] disabled:opacity-50"
+            className="rounded-lg border border-hq-accent bg-hq-accent/10 px-4 py-2 text-sm text-hq-accent disabled:opacity-50"
           >
             {tWizard("continue")}
           </button>
@@ -330,7 +330,7 @@ export function InviteWizard({
           <button
             type="button"
             onClick={resetWizard}
-            className="rounded-lg border border-[#238636] bg-[#238636] px-4 py-2 text-sm text-white"
+            className="rounded-lg border border-hq-success bg-hq-success px-4 py-2 text-sm text-white"
           >
             {tWizard("createAnother")}
           </button>
@@ -338,7 +338,7 @@ export function InviteWizard({
       </div>
 
       {step === 2 && step2ErrorKey ? (
-        <p className="text-sm text-[#f85149]" role="alert">
+        <p className="text-sm text-hq-danger" role="alert">
           {t(step2ErrorKey as "inviteRoleRequired")}
         </p>
       ) : null}

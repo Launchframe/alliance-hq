@@ -416,6 +416,8 @@ export async function syncAshedAllianceForBot(options: {
 }
 
 export type TeamMember = {
+  membershipId: string;
+  hqUserId: string;
   email: string;
   displayName: string | null;
   roleName: string;
@@ -430,6 +432,8 @@ export async function getAllianceTeam(
   const db = getDb();
   const rows = await db
     .select({
+      membershipId: schema.allianceMemberships.id,
+      hqUserId: schema.allianceMemberships.hqUserId,
       email: schema.hqUsers.email,
       displayName: schema.hqUsers.displayName,
       roleName: schema.roles.name,
@@ -463,6 +467,8 @@ export async function getAllianceTeam(
 
   return rows
     .map((row) => ({
+      membershipId: row.membershipId,
+      hqUserId: row.hqUserId,
       email: row.email,
       displayName: row.displayName,
       roleName: row.roleName,

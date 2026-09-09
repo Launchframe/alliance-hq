@@ -51,16 +51,16 @@ function SharingReminder({ inviteType }: { inviteType: InviteWizardType }) {
     <div
       className={
         isPublic
-          ? "rounded-lg border border-[#238636]/30 bg-[#238636]/5 px-3 py-2 text-sm text-[#c9d1d9]"
-          : "rounded-lg border border-[#e3b341]/30 bg-[#e3b341]/5 px-3 py-2 text-sm text-[#c9d1d9]"
+          ? "rounded-lg border border-hq-success/30 bg-hq-success/5 px-3 py-2 text-sm text-hq-fg"
+          : "rounded-lg border border-hq-warning/30 bg-hq-warning/5 px-3 py-2 text-sm text-hq-fg"
       }
       role="note"
     >
       <span
         className={
           isPublic
-            ? "mr-2 rounded-full border border-[#238636]/40 bg-[#238636]/10 px-2 py-0.5 text-xs font-medium text-[#3fb950]"
-            : "mr-2 rounded-full border border-[#e3b341]/40 bg-[#e3b341]/10 px-2 py-0.5 text-xs font-medium text-[#e3b341]"
+            ? "mr-2 rounded-full border border-hq-success/40 bg-hq-success/10 px-2 py-0.5 text-xs font-medium text-hq-success"
+            : "mr-2 rounded-full border border-hq-warning/40 bg-hq-warning/10 px-2 py-0.5 text-xs font-medium text-hq-warning"
         }
       >
         {isPublic ? t("badgePublicOk") : t("badgeDmOnly")}
@@ -133,7 +133,7 @@ export function InviteWizardTargetStep({
     <div className="space-y-4">
       <div>
         <h3 className="text-sm font-semibold">{tWizard("targetStepTitle")}</h3>
-        <p className="mt-1 text-sm text-[#8b949e]">{tWizard("targetStepHint")}</p>
+        <p className="mt-1 text-sm text-hq-fg-muted">{tWizard("targetStepHint")}</p>
       </div>
 
       <SharingReminder inviteType={inviteType} />
@@ -141,7 +141,7 @@ export function InviteWizardTargetStep({
       {inviteType === "invite_link" ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="space-y-1 text-sm sm:col-span-2">
-            <span className="text-[#8b949e]">{t("inviteKind")}</span>
+            <span className="text-hq-fg-muted">{t("inviteKind")}</span>
             <select
               value={targets.inviteLinkSubtype}
               onChange={(e) =>
@@ -149,7 +149,7 @@ export function InviteWizardTargetStep({
                   inviteLinkSubtype: e.target.value as InviteLinkSubtype,
                 })
               }
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
             >
               <option value="protected_link">{t("inviteKindProtected")}</option>
               <option value="email">{t("inviteKindEmail")}</option>
@@ -157,32 +157,32 @@ export function InviteWizardTargetStep({
           </label>
           {targets.inviteLinkSubtype === "email" ? (
             <label className="space-y-1 text-sm sm:col-span-2">
-              <span className="text-[#8b949e]">{t("inviteEmail")}</span>
+              <span className="text-hq-fg-muted">{t("inviteEmail")}</span>
               <input
                 type="email"
                 value={targets.inviteEmail}
                 onChange={(e) => onChange({ inviteEmail: e.target.value })}
-                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
                 autoComplete="email"
               />
-              <span className="block text-xs text-[#6e7681]">
+              <span className="block text-xs text-hq-fg-subtle">
                 {t("inviteEmailHint")}
               </span>
             </label>
           ) : (
             <label className="space-y-1 text-sm sm:col-span-2">
-              <span className="text-[#8b949e]">{t("inviteAdminLabel")}</span>
+              <span className="text-hq-fg-muted">{t("inviteAdminLabel")}</span>
               <input
                 type="text"
                 value={targets.inviteAdminLabel}
                 onChange={(e) => onChange({ inviteAdminLabel: e.target.value })}
                 placeholder={t("inviteAdminLabelPlaceholder")}
-                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
               />
             </label>
           )}
           <label className="space-y-1 text-sm">
-            <span className="text-[#8b949e]">{t("inviteRole")}</span>
+            <span className="text-hq-fg-muted">{t("inviteRole")}</span>
             <select
               value={targets.inviteRole}
               onChange={(e) =>
@@ -190,7 +190,7 @@ export function InviteWizardTargetStep({
                   inviteRole: e.target.value as SystemRoleName | "",
                 })
               }
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
             >
               <option value="">{t("inviteRolePlaceholder")}</option>
               {roleOptions.map((option) => (
@@ -201,13 +201,13 @@ export function InviteWizardTargetStep({
             </select>
           </label>
           {nearFullRoster && targets.inviteRole === "member" ? (
-            <p className="sm:col-span-2 text-xs text-[#e3b341]" role="status">
+            <p className="sm:col-span-2 text-xs text-hq-warning" role="status">
               {t("memberRoleNearFullWarning")}
             </p>
           ) : null}
           {commanders.length > 0 ? (
             <label className="space-y-1 text-sm sm:col-span-2">
-              <span className="text-[#8b949e]">
+              <span className="text-hq-fg-muted">
                 {tWizard("inviteLinkCommanderOptional")}
               </span>
               <select
@@ -215,7 +215,7 @@ export function InviteWizardTargetStep({
                 onChange={(e) =>
                   onChange({ inviteLinkCommanderId: e.target.value })
                 }
-                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
               >
                 <option value="">{tWizard("inviteLinkCommanderNone")}</option>
                 {commanders.map((commander) => (
@@ -227,17 +227,17 @@ export function InviteWizardTargetStep({
                   </option>
                 ))}
               </select>
-              <span className="block text-xs text-[#6e7681]">
+              <span className="block text-xs text-hq-fg-subtle">
                 {tWizard("inviteLinkCommanderHint")}
               </span>
             </label>
           ) : null}
           <details className="sm:col-span-2">
-            <summary className="cursor-pointer text-sm text-[#8b949e] marker:content-none [&::-webkit-details-marker]:hidden">
+            <summary className="cursor-pointer text-sm text-hq-fg-muted marker:content-none [&::-webkit-details-marker]:hidden">
               {tWizard("advancedOptions")}
             </summary>
             <label className="mt-3 block space-y-1 text-sm">
-              <span className="text-[#8b949e]">{t("inviteRedirectOptional")}</span>
+              <span className="text-hq-fg-muted">{t("inviteRedirectOptional")}</span>
               <input
                 type="text"
                 value={targets.inviteRedirectPath}
@@ -246,9 +246,9 @@ export function InviteWizardTargetStep({
                 }
                 enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
                 placeholder="/members"
-                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2 font-mono text-sm"
+                className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 font-mono text-sm"
               />
-              <span className="block text-xs text-[#6e7681]">
+              <span className="block text-xs text-hq-fg-subtle">
                 {t("inviteRedirectHint")}
               </span>
             </label>
@@ -259,13 +259,13 @@ export function InviteWizardTargetStep({
       {inviteType === "join_code" ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="space-y-1 text-sm">
-            <span className="text-[#8b949e]">{t("joinCodeRole")}</span>
+            <span className="text-hq-fg-muted">{t("joinCodeRole")}</span>
             <select
               value={targets.joinCodeRole}
               onChange={(e) =>
                 setJoinCodeRole(e.target.value as SystemRoleName)
               }
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
             >
               {roleOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -275,32 +275,32 @@ export function InviteWizardTargetStep({
             </select>
           </label>
           <label className="space-y-1 text-sm">
-            <span className="text-[#8b949e]">{t("joinCodeMaxUses")}</span>
+            <span className="text-hq-fg-muted">{t("joinCodeMaxUses")}</span>
             <input
               type="number"
               min={1}
               max={500}
               value={targets.joinCodeMaxUses}
               onChange={(e) => onChange({ joinCodeMaxUses: e.target.value })}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
             />
-            <span className="block text-xs text-[#6e7681]">
+            <span className="block text-xs text-hq-fg-subtle">
               {tWizard("joinCodeMaxUsesHint")}
             </span>
           </label>
           {nearFullRoster && targets.joinCodeRole === "member" ? (
-            <p className="sm:col-span-2 text-xs text-[#e3b341]" role="status">
+            <p className="sm:col-span-2 text-xs text-hq-warning" role="status">
               {t("memberRoleNearFullWarning")}
             </p>
           ) : null}
           <label className="space-y-1 text-sm sm:col-span-2">
-            <span className="text-[#8b949e]">{t("joinCodeLabelField")}</span>
+            <span className="text-hq-fg-muted">{t("joinCodeLabelField")}</span>
             <input
               type="text"
               value={targets.joinCodeLabel}
               onChange={(e) => onChange({ joinCodeLabel: e.target.value })}
               placeholder={t("joinCodeLabelPlaceholder")}
-              className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+              className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
             />
           </label>
         </div>
@@ -308,11 +308,11 @@ export function InviteWizardTargetStep({
 
       {inviteType === "commander_claim" ? (
         commanders.length === 0 ? (
-          <p className="text-sm text-[#6e7681]">{t("claimEmpty")}</p>
+          <p className="text-sm text-hq-fg-subtle">{t("claimEmpty")}</p>
         ) : (
           <>
             <div
-              className="inline-flex rounded-lg border border-[#30363d] p-0.5 text-sm"
+              className="inline-flex rounded-lg border border-hq-border p-0.5 text-sm"
               role="group"
             >
               <button
@@ -321,8 +321,8 @@ export function InviteWizardTargetStep({
                 aria-pressed={targets.claimMode === "single"}
                 className={
                   targets.claimMode === "single"
-                    ? "rounded-md bg-[#388bfd]/15 px-3 py-1 text-[#58a6ff]"
-                    : "rounded-md px-3 py-1 text-[#8b949e]"
+                    ? "rounded-md bg-hq-accent/15 px-3 py-1 text-hq-accent"
+                    : "rounded-md px-3 py-1 text-hq-fg-muted"
                 }
               >
                 {t("claimModeSingle")}
@@ -333,8 +333,8 @@ export function InviteWizardTargetStep({
                 aria-pressed={targets.claimMode === "bulk"}
                 className={
                   targets.claimMode === "bulk"
-                    ? "rounded-md bg-[#388bfd]/15 px-3 py-1 text-[#58a6ff]"
-                    : "rounded-md px-3 py-1 text-[#8b949e]"
+                    ? "rounded-md bg-hq-accent/15 px-3 py-1 text-hq-accent"
+                    : "rounded-md px-3 py-1 text-hq-fg-muted"
                 }
               >
                 {t("claimModeBulk")}
@@ -347,7 +347,7 @@ export function InviteWizardTargetStep({
                 className="space-y-3"
               >
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-[#8b949e]">
+                  <span className="text-hq-fg-muted">
                     {t("bulkClaimSelectedCount", {
                       count: targets.bulkSelectedIds.length,
                     })}
@@ -355,17 +355,17 @@ export function InviteWizardTargetStep({
                   <button
                     type="button"
                     onClick={toggleBulkSelectAll}
-                    className="text-[#58a6ff] hover:underline"
+                    className="text-hq-accent hover:underline"
                   >
                     {bulkAllSelected
                       ? t("bulkClaimClearAll")
                       : t("bulkClaimSelectAll")}
                   </button>
                 </div>
-                <ul className="max-h-64 min-w-0 space-y-1 overflow-y-auto rounded-lg border border-[#30363d] p-2">
+                <ul className="max-h-64 min-w-0 space-y-1 overflow-y-auto rounded-lg border border-hq-border p-2">
                   {commanders.map((commander) => (
                     <li key={commander.ashedMemberId}>
-                      <label className="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-[#161b22]">
+                      <label className="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-hq-surface-muted">
                         <input
                           type="checkbox"
                           checked={targets.bulkSelectedIds.includes(
@@ -392,13 +392,13 @@ export function InviteWizardTargetStep({
               </form>
             ) : (
               <label className="block space-y-1 text-sm">
-                <span className="text-[#8b949e]">{t("claimCommanderLabel")}</span>
+                <span className="text-hq-fg-muted">{t("claimCommanderLabel")}</span>
                 <select
                   value={targets.claimCommanderId}
                   onChange={(e) =>
                     onChange({ claimCommanderId: e.target.value })
                   }
-                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                  className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
                 >
                   <option value="">{t("claimCommanderPlaceholder")}</option>
                   {commanders.map((commander) => (
@@ -414,13 +414,13 @@ export function InviteWizardTargetStep({
             )}
 
             <label className="block space-y-1 text-sm">
-              <span className="text-[#8b949e]">{t("inviteAdminLabel")}</span>
+              <span className="text-hq-fg-muted">{t("inviteAdminLabel")}</span>
               <input
                 type="text"
                 value={targets.claimAdminLabel}
                 onChange={(e) => onChange({ claimAdminLabel: e.target.value })}
                 placeholder={t("inviteAdminLabelPlaceholder")}
-                className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2"
+                className="w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
               />
             </label>
           </>
