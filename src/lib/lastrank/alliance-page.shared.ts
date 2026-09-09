@@ -402,10 +402,15 @@ function buildSuggestions(
 
 /**
  * Cascading match with LastRank name as canon:
- * 1. exact current names
- * 2. exact previous names
- * 3. fuzzy current names
- * 4. fuzzy previous names
+ * 1. sticky LastRank public id
+ * 2. exact current names
+ * 3. exact previous names
+ * 4. fuzzy current / previous — **suggestions only** (never auto-match)
+ *
+ * Sole fuzzy hits (≥ {@link LASTRANK_FUZZY_MATCH_MIN}, default 0.6) used to
+ * auto-match. That silently wrote alliance ranks (incl. R5) onto the wrong HQ
+ * member on cron `--apply`, and hybrid owner invites trust that rank. Fuzzy
+ * candidates stay unmatched with suggestions for `--interactive` confirm.
  *
  * Does not prompt — interactive resolution is a separate pass.
  */
@@ -509,17 +514,8 @@ export function matchLastRankMembersToHq(
       "currentNames",
       fuzzyMin,
     );
-    if (fuzzyCurrent.length === 1) {
-      claimed.add(fuzzyCurrent[0].hq.commanderId);
-      matched.push({
-        status: "matched",
-        lastRank,
-        hq: fuzzyCurrent[0].hq,
-        matchMethod: "fuzzy_current",
-        fuzzyScore: fuzzyCurrent[0].score,
-      });
-      continue;
-    }
+    // Never auto-match sole fuzzy hits — cron apply would stamp ranks/THP and
+    // sticky public ids onto near-miss names (e.g. Mike↔Nike at 0.75).
     if (fuzzyCurrent.length > 1) {
       unmatched.push({
         status: "ambiguous",
@@ -537,17 +533,6 @@ export function matchLastRankMembersToHq(
       "previousNames",
       fuzzyMin,
     );
-    if (fuzzyPrevious.length === 1) {
-      claimed.add(fuzzyPrevious[0].hq.commanderId);
-      matched.push({
-        status: "matched",
-        lastRank,
-        hq: fuzzyPrevious[0].hq,
-        matchMethod: "fuzzy_previous",
-        fuzzyScore: fuzzyPrevious[0].score,
-      });
-      continue;
-    }
     if (fuzzyPrevious.length > 1) {
       unmatched.push({
         status: "ambiguous",
