@@ -18,16 +18,17 @@ export async function generateMetadata() {
   return allianceScopedMetadata(t("title"));
 }
 
-export default async function CompliancePage({ searchParams }: { searchParams: Promise<{ weekEnding?: string }> }) {
+export default async function CompliancePage({ searchParams }: { searchParams: Promise<{ weekEnding?: string; eventId?: string }> }) {
   const session = await requirePageSession("/vs-compliance");
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId) notFound();
   try { await requireVsComplianceAccess(session.id, allianceId, VS_COMPLIANCE_READ_PERMISSION); }
   catch (error) { if (error instanceof VsComplianceError && error.code === "forbidden") notFound(); throw error; }
   const lastClosedWeek = lastClosedVsWeek();
-  const { weekEnding } = await searchParams;
+  const { weekEnding, eventId } = await searchParams;
   const initialWeek = typeof weekEnding === "string" && validateVsPeriod(weekEnding, "weekly") && weekEnding <= lastClosedWeek ? weekEnding : lastClosedWeek;
+  const highlightEventId = typeof eventId === "string" && eventId.trim() ? eventId.trim() : null;
   const [alliance] = await getDb().select({ tag: schema.alliances.tag }).from(schema.alliances).where(eq(schema.alliances.id, allianceId)).limit(1);
   if (!alliance?.tag) notFound();
-  return <ComplianceDashboardClient key={allianceId} allianceTag={alliance.tag} initialWeek={initialWeek} lastClosedWeek={lastClosedWeek} />;
+  return <ComplianceDashboardClient key={allianceId} allianceTag={alliance.tag} initialWeek={initialWeek} lastClosedWeek={lastClosedWeek} highlightEventId={highlightEventId} />;
 }
