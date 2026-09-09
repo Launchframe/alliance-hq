@@ -8,7 +8,10 @@ import { resolveTrainActorHqUserId } from "@/lib/trains/train-ownership.server";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
+import { withTrainCoverage } from "@/lib/time-off/train-coverage-route.server";
+export const POST = withTrainCoverage(post);
+
+async function post(request: Request) {
   const sessionOrError = await requireApiSession();
 
   if (sessionOrError instanceof NextResponse) return sessionOrError;

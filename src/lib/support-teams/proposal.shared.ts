@@ -19,8 +19,8 @@ export const proposalIds = (board: SupportBoard) => Object.entries(board.fields)
 const eligible = (m: SupportRosterMember) => m.rank === 4 || m.rank === 5;
 const teamsFor = (board: SupportBoard, id: string) => Object.keys(board.fields).flatMap((key) => { const [r, team] = JSON.parse(key); return r === `proposalTeam:${id}` && typeof readField(board, key) === "string" ? [String(team)] : []; }).sort();
 const votersFor = (roster: SupportRosterMember[]) => roster.filter((m) => m.rank === 4);
-export const proposalElectorateFingerprint = (roster: SupportRosterMember[]) => JSON.stringify(votersFor(roster).sort((a, b) => a.id.localeCompare(b.id)).map((m) => [m.id, m.draftStintToken ?? null, m.proposalIdentityToken ?? null, [...new Set(m.proposalVoterIds ?? [])].sort()]));
-const basisFor = (board: SupportBoard, roster: SupportRosterMember[], id: string) => JSON.stringify([fieldVersion(board, proposalKey(id, "contentVersion")), draftRosterFingerprint(roster), proposalElectorateFingerprint(roster)]);
+export const proposalElectorateFingerprint = (roster: SupportRosterMember[]) => `electorate:${JSON.stringify(votersFor(roster).sort((a, b) => a.id.localeCompare(b.id)).map((m) => [m.id, m.draftStintToken ?? null, m.proposalIdentityToken ?? null, [...new Set(m.proposalVoterIds ?? [])].sort()]))}`;
+const basisFor = (board: SupportBoard, roster: SupportRosterMember[], id: string) => `proposal:${JSON.stringify([fieldVersion(board, proposalKey(id, "contentVersion")), draftRosterFingerprint(roster), proposalElectorateFingerprint(roster)])}`;
 const workspaceKeys = (board: SupportBoard, id: string) => Object.keys(board.fields).filter((key) => { const [r, resourceId] = JSON.parse(key); return (r === "proposal" && resourceId === id) || r === `proposalMember:${id}` || r === `proposalTeam:${id}`; });
 
 export function proposalSnapshot(board: SupportBoard, roster: SupportRosterMember[], actor: SupportActor, id: string) {

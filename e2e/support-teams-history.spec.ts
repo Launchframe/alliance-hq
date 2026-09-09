@@ -15,7 +15,7 @@ test("officer history and owner cascade preserve unrelated work and immutable ac
     return body.event;
   };
   for (const [index, teamId] of teams.entries()) await command(f.owner, { kind: "createTeam", teamId, leadId: f.leads[index].ashedMemberId });
-  await seedPublishedSupportBoard(f.sql, f.allianceId);
+  version = await seedPublishedSupportBoard(f.sql, f.allianceId);
   const memberId = f.members[0].ashedMemberId;
   const root = await command(f.officer, { kind: "move", memberId, from: null, to: teams[0] });
   const away = await command(f.owner, { kind: "move", memberId, from: teams[0], to: teams[1] });
@@ -25,7 +25,12 @@ test("officer history and owner cascade preserve unrelated work and immutable ac
   const ownerHeaders = { Cookie: authCookieHeader(f.owner) };
   const history = await request.get("/api/support-teams/history?limit=50", { headers: officerHeaders });
   expect(history.status()).toBe(200);
-  expect((await history.json()).events).toHaveLength(6);
+  const events = (await history.json()).events as { kind: string; principalId: string; actorType?: string; reverses: string[] }[];
+  expect(events).toHaveLength(8);
+  expect(events.filter((event) => event.principalId === f.owner.hqUserId || event.principalId === f.officer.hqUserId)).toHaveLength(6);
+  expect(events.filter((event) => event.kind === "reconcile")).toEqual([
+    expect.objectContaining({ kind: "reconcile", principalId: "service:support-team-membership", actorType: "service", reverses: [] }),
+  ]);
   const blocked = await request.post(`/api/support-teams/history/${root.id}/undo-preview`, { headers: officerHeaders });
   expect(blocked.status()).toBe(409);
   expect(await blocked.json()).toMatchObject({ code: "dependencies" });

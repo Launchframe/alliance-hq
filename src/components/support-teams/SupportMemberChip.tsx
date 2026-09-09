@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { SupportRosterMember } from "@/lib/support-teams/types.shared";
 import type { SupportDisplayPreferences } from "@/lib/support-teams/display-preferences.shared";
@@ -18,9 +18,11 @@ export function SupportMemberChip({ member, display, highlighted, draggable = fa
 }) {
   const locale = useLocale();
   const t = useTranslations("supportTeams");
+  const dragFrame = useRef<number | null>(null);
+  useEffect(() => () => { if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current); }, []);
   return <article data-support-member={member.id} tabIndex={-1} draggable={draggable}
-    onDragStart={(event) => { event.dataTransfer.setData("application/x-support-member", member.id); event.dataTransfer.effectAllowed = "move"; onDrag?.(member.id); }}
-    onDragEnd={onDragEnd}
+    onDragStart={(event) => { event.dataTransfer.setData("application/x-support-member", member.id); event.dataTransfer.effectAllowed = "move"; dragFrame.current = requestAnimationFrame(() => { dragFrame.current = null; onDrag?.(member.id); }); }}
+    onDragEnd={() => { if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current); dragFrame.current = null; onDragEnd?.(); }}
     className={`rounded-lg border border-hq-border bg-hq-canvas p-3 text-sm focus-visible:ring-2 focus-visible:ring-hq-accent ${highlighted ? "ring-2 ring-hq-accent" : ""} ${draggable ? "cursor-grab" : ""}`}>
     <SupportMemberIdentity member={member} />
     {!member.hqLinked && <p className="text-xs text-hq-fg-muted">{t("unlinked")}</p>}

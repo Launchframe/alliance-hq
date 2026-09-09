@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { AppSelect } from "@/components/ui/AppSelect";
 import type { SupportCommand, SupportSnapshot } from "@/lib/support-teams/types.shared";
-import { commandEligibility, draftBoardInteractions, proposalBoardInteractions, workingProposalSnapshot } from "@/lib/support-teams/board-client.shared";
+import { commandEligibility, draftBoardInteractions, locationOf, moveCommand, proposalBoardInteractions, workingProposalSnapshot } from "@/lib/support-teams/board-client.shared";
 import { ProposalControls } from "./ProposalControls";
 import { DraftControls } from "./DraftControls";
 import { SupportTeamBoard } from "./SupportTeamBoard";
@@ -22,12 +22,15 @@ export function SupportTeamClient({ initial, initialPreferences, canInvite }: { 
   const proposals = useSupportTeamProposals(snapshot, live.refresh);
   const locale = useLocale();
   const claims = useSupportClaimInvites(snapshot, canInvite);
-  const canCommand = (command: SupportCommand) => command.kind === "rename" && commandEligibility(snapshot, command) === null;
+  const commandFor = (memberId: string, to: string | null, otherMemberId?: string): SupportCommand => {
+    const from = locationOf(snapshot, memberId);
+    return otherMemberId && from && to ? { kind: "swap", memberId, otherMemberId, from, to, expectedVersion: snapshot.version } : moveCommand(snapshot, memberId, to);
+  };
   const interactions: BoardInteractions = {
-    eligibility: () => "forbidden",
-    onMove: () => {},
-    canCommand,
-    onCommand: (command, slot) => { if (canCommand(command)) void live.execute(command, slot); },
+    eligibility: (memberId, to, otherMemberId) => commandEligibility(snapshot, commandFor(memberId, to, otherMemberId)),
+    onMove: (memberId, to, otherMemberId) => { void live.execute(commandFor(memberId, to, otherMemberId), to ?? "unsorted"); },
+    canCommand: (command) => commandEligibility(snapshot, command) === null,
+    onCommand: (command, slot) => { void live.execute(command, slot); },
   };
   const proposalActive = !!snapshot.actor?.canRead && !!proposals.selected;
   const proposalOptions = proposals.proposals.map((proposal, index) => ({ value: proposal.id, label: `${t("proposals.title")} · ${(index + 1).toLocaleString(locale)} · ${tr(proposal.phase === "published" ? "supportTeams.proposals.publish" : proposal.phase === "canceled" ? "timeOff.officerModal.cancel" : proposal.phase === "submitted" ? "supportTeams.proposals.submit" : "supportTeams.proposals.create")}` }));

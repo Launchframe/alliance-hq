@@ -15,7 +15,7 @@ export const draftTeamKey = (id: string, team: string, field: string) => fieldKe
 export const draftSlotKey = (id: string, round: number, team: string) => fieldKey(`draftSlot:${id}:${round}`, team, "member");
 const baseKey = (id: string, member: string) => fieldKey(`draftBase:${id}`, member, "team");
 const eligible = (m: SupportRosterMember) => m.rank === 4 || m.rank === 5;
-export const draftRosterFingerprint = (roster: SupportRosterMember[]) => JSON.stringify([...roster].sort((a, b) => a.id.localeCompare(b.id)).map((m) => [m.id, m.rank, m.draftStintToken ?? null]));
+export const draftRosterFingerprint = (roster: SupportRosterMember[]) => `roster:${JSON.stringify([...roster].sort((a, b) => a.id.localeCompare(b.id)).map((m) => [m.id, m.rank, m.draftStintToken ?? null]))}`;
 const draftTeams = (board: SupportBoard, id: string): string[] => Object.entries(board.fields).flatMap(([key, value]) => { const [r, team, f] = JSON.parse(key); return r === `draftTeam:${id}` && f === "lead" && typeof value.value === "string" ? [team as string] : []; }).sort();
 const configFor = (board: SupportBoard, id: string): DraftConfig => ({ startsAt: String(readField(board, draftKey(id, "startsAt"))), endsAt: String(readField(board, draftKey(id, "endsAt"))), roundMinutes: Number(readField(board, draftKey(id, "roundMinutes"))) });
 export function draftPhase(board: SupportBoard, id: string, now: number) {

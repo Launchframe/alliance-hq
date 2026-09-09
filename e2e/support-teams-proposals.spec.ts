@@ -18,9 +18,11 @@ async function refreshProposal(page: Page, path: string) {
   await refreshed;
 }
 
-async function proposal(request: APIRequestContext) {
+async function proposal(request: APIRequestContext, prepare?: (fixture: Awaited<ReturnType<typeof createSupportTeamFixture>>) => Promise<void>) {
   const f = await createSupportTeamFixture();
   await f.sql`UPDATE alliance_members SET alliance_rank = 4 WHERE alliance_id = ${f.allianceId} AND ashed_member_id = ${f.leads[1].ashedMemberId}`;
+  await f.sql`UPDATE hq_member_links SET ashed_member_id = ${f.members[5].ashedMemberId} WHERE alliance_id = ${f.allianceId} AND ashed_member_id = ${f.leads[1].ashedMemberId}`;
+  await prepare?.(f);
   const headers = (actor: SessionFixture) => ({ Cookie: authCookieHeader(actor) });
   const input = { expectedVersion: 0, idempotencyKey: randomUUID() };
   const created = await request.post("/api/support-teams/proposals", { headers: headers(f.officer), data: input });
@@ -85,7 +87,7 @@ for (const [locale, messages] of [["en-US", en], ["pt-BR", pt]] as const) {
       const response = await moved;
       expect(response.status()).toBe(200);
       const result = await response.json();
-      expect(allocations.at(-1)).toMatchObject({ expectedVersion: before.proposalVersion, from: null, to: target.id });
+      expect(allocations.at(-1)).toMatchObject({ memberId: member.ashedMemberId, expectedVersion: before.proposalVersion, from: null, to: target.id });
       await expect.poll(async () => (await read()).version).toBeGreaterThanOrEqual(result.version);
       if (index === f.members.length - 1) await page.getByRole("button", { name: copy.closePool, exact: true }).click();
       await expect(slot.locator(`[data-support-member="${member.ashedMemberId}"]`)).toBeVisible();
@@ -168,8 +170,10 @@ test("two browser edits invalidate votes without losing search, and competing pu
   await f.fill();
   const first = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
   const second = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
+  const a = await first.newPage(), b = await second.newPage();
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
   try {
-    const a = await first.newPage(), b = await second.newPage();
     await openProposal(a, f.officer, f.proposalId);
     await openProposal(b, f.owner, f.proposalId);
     await a.getByRole("button", { name: en.supportTeams.proposals.approve, exact: true }).click();
@@ -177,8 +181,10 @@ test("two browser edits invalidate votes without losing search, and competing pu
     const locator = a.getByRole("combobox", { name: en.supportTeams.findMember, exact: true });
     await locator.fill("Member 0");
     await a.getByRole("option", { name: /Member 0/ }).click();
+    await expect(a.locator(`[data-support-member="${f.members[0].ashedMemberId}"]`)).toBeFocused();
     const personalSearch = a.locator("aside[data-support-pool], aside [data-support-pool]").getByRole("searchbox");
     await personalSearch.fill("Member 5");
+    await expect(personalSearch).toBeFocused();
     const view = await f.snapshot();
     const moving = f.members[0].ashedMemberId;
     const other = f.members.find((member) => view.memberLocations[member.ashedMemberId] !== view.memberLocations[moving])!;
@@ -211,8 +217,7 @@ test("two browser edits invalidate votes without losing search, and competing pu
     await b.getByRole("button", { name: en.supportTeams.proposals.submit, exact: true }).click();
     await b.getByRole("button", { name: en.supportTeams.proposals.override, exact: true }).click();
     const dialog = b.getByRole("dialog", { name: en.supportTeams.proposals.override, exact: true });
-    let release!: () => void, arrived!: () => void;
-    const held = new Promise<void>((resolve) => { release = resolve; });
+    let arrived!: () => void;
     const intercepted = new Promise<void>((resolve) => { arrived = resolve; });
     await b.route(`**${path}/publish`, async (route) => { arrived(); await held; await route.continue(); });
     const conflict = b.waitForResponse((response) => response.url().endsWith(`${path}/publish`));
@@ -252,7 +257,12 @@ test("two browser edits invalidate votes without losing search, and competing pu
     }, id);
     await expect(b.getByRole("button", { name: en.supportTeams.proposals.publish, exact: true })).toBeDisabled();
     await expect(b.locator("[data-support-team]")).toHaveCount(2);
-  } finally { await first.close(); await second.close(); }
+  } finally {
+    release();
+    await b.unrouteAll({ behavior: "wait" });
+    await Promise.all([a.goto("about:blank"), b.goto("about:blank")]);
+    await Promise.all([first.close(), second.close()]);
+  }
 });
 
 test("freehand keeps unlinked R4s in the strict-majority denominator and requires an explicit owner override", async ({ request }) => {
@@ -278,9 +288,9 @@ test("proposal construction forbids live-allocation bypasses, stale sources and 
   const f = await proposal(request);
   const bootstrap = await createBrowserSession(f.sql, { hqUserId: null });
   await f.sql`UPDATE sessions SET current_alliance_id = ${f.allianceId} WHERE id = ${bootstrap.sessionId}`;
-  for (const actor of [await f.actor("member"), await f.actor("data_entry"), (await createSupportTeamFixture()).owner]) {
-    expect((await request.post(`${f.path}/submit`, { headers: f.headers(actor), data: { expectedVersion: 1, idempotencyKey: randomUUID() } })).status()).toBeGreaterThanOrEqual(400);
-    expect((await request.get(f.path, { headers: f.headers(actor) })).status()).toBeGreaterThanOrEqual(400);
+  for (const [actor, status] of [[await f.actor("member"), 403], [await f.actor("data_entry"), 403], [(await createSupportTeamFixture()).owner, 409]] as const) {
+    expect((await request.post(`${f.path}/submit`, { headers: f.headers(actor), data: { expectedVersion: 1, idempotencyKey: randomUUID() } })).status()).toBe(status);
+    expect((await request.get(f.path, { headers: f.headers(actor) })).status()).toBe(status);
   }
   expect((await request.post(`${f.path}/submit`, { headers: { Cookie: `alliance_hq_session=${bootstrap.sessionId}` }, data: { expectedVersion: 1, idempotencyKey: randomUUID() } })).status()).toBe(403);
   const view = await f.snapshot();
@@ -309,6 +319,41 @@ test("competing proposals cannot overwrite a publication and a rejoin cannot res
   expect((await f.post("publish", { override: true, expectedPublishedVersion: view.publishedVersion }, f.owner)).status()).toBe(200);
   const stale = await (await request.get(`/api/support-teams/proposals/${proposalId}`, { headers: f.headers(f.owner) })).json();
   expect(stale.stale).toBe(true); expect(stale.canPublish).toBe(false); expect(stale.canOverride).toBe(false);
+});
+
+test("one proven person gets one vote across sessions and commanders, with away R4s and changed proofs fenced", async ({ request }) => {
+  const f = await proposal(request, async (f) => {
+  const commanderId = randomUUID();
+  await f.sql`INSERT INTO commanders (id, primary_name, primary_name_normalized, current_alliance_id, game_uid) VALUES (${commanderId}, 'Lead 1', 'lead 1', ${f.allianceId}, ${`95${Date.now()}`})`;
+  await f.sql`INSERT INTO commander_alliance_memberships (id, commander_id, alliance_id, ashed_member_id, status) VALUES (${randomUUID()}, ${commanderId}, ${f.allianceId}, ${f.leads[1].ashedMemberId}, 'active')`;
+  await f.sql`INSERT INTO hq_user_commanders (id, hq_user_id, commander_id, is_primary) VALUES (${randomUUID()}, ${f.officer.hqUserId}, ${commanderId}, true)`;
+  });
+  await f.sql`INSERT INTO member_time_off (id, alliance_id, ashed_member_id, member_name, start_date, end_date, global_absence, availability, entry_kind, activity_scope, source) VALUES (${randomUUID()}, ${f.allianceId}, ${f.leads[1].ashedMemberId}, 'Lead 1', CURRENT_DATE - 1, CURRENT_DATE + 1, true, 'full_away', 'planned', 'all', 'web')`;
+  await f.fill();
+  const approved = await f.post("approve");
+  expect(approved.status()).toBe(200);
+  const vote = (await approved.json()).event;
+  const session = await createBrowserSession(f.sql, { hqUserId: f.officer.hqUserId });
+  await f.sql`UPDATE sessions SET current_alliance_id = ${f.allianceId} WHERE id = ${session.sessionId}`;
+  const otherSession = { ...f.officer, sessionId: session.sessionId };
+  expect((await f.post("approve", {}, otherSession)).status()).toBe(409);
+  expect(await f.snapshot()).toMatchObject({ electorateCount: 2, required: 2, approved: 1, canPublish: false });
+  const undoPath = `/api/support-teams/history/${vote.id}`;
+  const preview = await (await request.post(`${undoPath}/undo-preview`, { headers: f.headers(f.owner) })).json();
+  const undone = await request.post(`${undoPath}/undo`, { headers: f.headers(f.owner), data: { actionIds: preview.actionIds, expectedVersions: preview.expectedVersions, idempotencyKey: randomUUID() } });
+  expect(undone.status()).toBe(200);
+  const reversal = (await undone.json()).event;
+  expect((await f.snapshot()).approved).toBe(0);
+  const redoPath = `/api/support-teams/history/${reversal.id}`;
+  const redo = await (await request.post(`${redoPath}/undo-preview`, { headers: f.headers(f.owner) })).json();
+  expect((await request.post(`${redoPath}/undo`, { headers: f.headers(f.owner), data: { actionIds: redo.actionIds, expectedVersions: redo.expectedVersions, idempotencyKey: randomUUID() } })).status()).toBe(200);
+  expect((await f.snapshot()).approved).toBe(1);
+  const [storedVote] = await f.sql`SELECT principal_id FROM support_team_events WHERE alliance_id = ${f.allianceId} AND id = ${vote.id}`;
+  expect(storedVote.principal_id).toBe(f.officer.hqUserId);
+  await f.sql`UPDATE hq_member_links SET linked_at = linked_at + interval '1 second' WHERE alliance_id = ${f.allianceId} AND ashed_member_id = ${f.leads[0].ashedMemberId}`;
+  const changed = await f.snapshot();
+  expect(changed).toMatchObject({ invalidated: true, approved: 0, canPublish: false });
+  expect((await f.post("publish", { override: true, expectedPublishedVersion: changed.publishedVersion }, f.owner)).status()).toBe(409);
 });
 
 test("undo approval previews require owner review of dependent publication", async ({ request }) => {

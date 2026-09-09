@@ -16,7 +16,7 @@ export async function GET() {
 
   const session = sessionOrError;
   const ctx = await getRbacContext(session.id);
-  if (!ctx?.permissions.has("inbox:read")) {
+  if (!ctx || (!ctx.permissions.has("inbox:read") && !ctx.isPlatformMaintainer)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -27,6 +27,7 @@ export async function GET() {
 
   const count = await countActiveRemindersForUser({
     hqUserId: session.hqUserId,
+    principalHqUserId: ctx.hqUserId,
     allianceId,
     permissions: ctx.permissions,
   });

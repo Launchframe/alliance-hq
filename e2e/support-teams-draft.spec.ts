@@ -119,7 +119,7 @@ test("draft preparation, concurrent independent picks and same-member race prese
   await expect.poll(async () => (await f.snapshot()).phase).toBe("open");
   view = await f.snapshot();
   const same = await Promise.all([a, b].map((team) => f.pick(f.owner, f.payload(view, team.id, first))));
-  expect(same.map((r) => r.status()).sort()).toEqual([200, 409]);
+  expect(same.map((r) => r.status()).sort(), JSON.stringify(await Promise.all(same.map(async (r) => r.ok() ? { status: r.status() } : r.json())))).toEqual([200, 409]);
   const picked = await f.snapshot();
   const empty = picked.teams.find((team) => !team.picked)!;
   const second = await f.pick(f.owner, f.payload(view, empty.id, f.members[1].ashedMemberId));
@@ -260,7 +260,9 @@ test("Portuguese draft placeholders, extension and cancel dialogs use approved c
   await expect(page.locator("[data-support-team]")).toHaveCount(2);
   for (const [index, team] of (await f.snapshot()).teams.entries()) {
     const slot = page.locator(`[data-support-team="${team.id}"]`);
-    await expect(slot.getByRole("heading", { name: pt.supportTeams.defaultName.replace("{number}", (index + 1).toLocaleString("pt-BR")), exact: true })).toBeVisible();
+    const name = pt.supportTeams.defaultName.replace("{number}", (index + 1).toLocaleString("pt-BR"));
+    const heading = team.leadId === f.leads[1].ashedMemberId ? `${name} ${pt.supportTeams.myTeam}` : name;
+    await expect(slot.getByRole("heading", { name: heading, exact: true })).toBeVisible();
     await expect(slot.getByRole("button", { name: pt.supportTeams.rename, exact: true })).toHaveCount(0);
   }
   const published = await (await request.get("/api/support-teams", { headers: f.ownerHeaders })).json();

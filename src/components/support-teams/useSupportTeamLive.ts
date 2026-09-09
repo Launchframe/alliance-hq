@@ -29,7 +29,7 @@ export function useSupportTeamProposals(live: SupportSnapshot, refreshBoard: (mi
     setSelection({ scope, id });
     const url = new URL(window.location.href);
     if (id) url.searchParams.set("proposal", id); else url.searchParams.delete("proposal");
-    window.history.replaceState(window.history.state, "", url);
+    window.history.replaceState(null, "", url);
   }, [scope]);
   useEffect(() => {
     const timer = window.setTimeout(() => {

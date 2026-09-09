@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { handleDiscordCoverage, showDiscordCoverage } from "@/lib/time-off/discord-coverage.server";
 import { waitUntil } from "@vercel/functions";
 
 import {
@@ -101,6 +102,7 @@ import {
 } from "@/lib/vr/discord-command-names";
 import {
   handleDiscordSetBankingChannel,
+  handleDiscordSetR4Channel,
   handleDiscordSetRegularEventsChannel,
   handleDiscordSetSeasonalEventsChannel,
 } from "@/lib/battle-plan/discord-channel-handlers.server";
@@ -338,6 +340,23 @@ async function handleSlashCommand(
       return channelVisibleCommandResponse(t("errors.serverError"));
     }
     const result = await handleDiscordSetRegularEventsChannel({
+      guildId,
+      channelId,
+      discordUserId,
+      locale,
+    });
+    return channelVisibleCommandResponse(result.reply);
+  }
+
+  if (commandName === "set-r4-channel") {
+    if (!guildId) {
+      return channelVisibleCommandResponse(t("errors.guildNotRegistered"));
+    }
+    const channelId = interactionChannelId(payload);
+    if (!channelId) {
+      return channelVisibleCommandResponse(t("errors.serverError"));
+    }
+    const result = await handleDiscordSetR4Channel({
       guildId,
       channelId,
       discordUserId,
@@ -745,6 +764,10 @@ async function handleSlashCommand(
       locale,
       date,
     });
+    if (result.coverage) {
+      const warning = await showDiscordCoverage({ allianceId, guildId, discordUserId, locale }, result.coverage);
+      return discordMessageResponse(warning.content, warning.components, EPHEMERAL);
+    }
     return channelVisibleCommandResponse(result.reply);
   }
 
@@ -1126,6 +1149,12 @@ async function handleButton(payload: DiscordInteractionPayload) {
       memberId: parsed.memberId,
       date: parsed.date,
     });
+    if (result.coverage) {
+      const guildId = interactionGuildId(payload);
+      if (!guildId) return discordMessageResponse(t("errors.guildNotRegistered"), undefined, EPHEMERAL);
+      const warning = await showDiscordCoverage({ allianceId, guildId, discordUserId, locale }, result.coverage);
+      return discordMessageResponse(warning.content, warning.components, EPHEMERAL);
+    }
     return discordButtonResponse(result.reply, [], CHANNEL_VISIBLE);
   }
 
@@ -1192,6 +1221,18 @@ export async function POST(request: Request) {
 
   if (payload.type === 1) {
     return NextResponse.json(DISCORD_PING_RESPONSE);
+  }
+  if ((payload.type === 3 || payload.type === 5) && payload.data?.custom_id?.startsWith("coverage:")) {
+    if (payload.type === 3) return handleDiscordCoverage(payload);
+    const applicationId = interactionApplicationId(payload);
+    const token = interactionToken(payload);
+    if (!applicationId || !token) return handleDiscordCoverage({ ...payload, type: 0 });
+    scheduleBackgroundTask(undefined, async () => {
+      const response = await handleDiscordCoverage(payload);
+      const result = await response.json();
+      await editDiscordOriginalInteraction({ applicationId, interactionToken: token, content: result.data.content, components: result.data.components, ephemeral: true, suppressMentions: true });
+    });
+    return NextResponse.json(discordDeferredEphemeralResponse());
   }
   if (
     payload.type === 2 && isDiscordTimeOffSlashCommand(payload.data?.name ?? "") ||

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { supportTeamFields } from "@/lib/db/schema";
 import { applyProposalCommand, proposalSnapshot, type ProposalCommand } from "./proposal.shared";
 import { applyCommand, emptyBoard, fieldKey, readField } from "./policy.shared";
 import { confirmUndo, previewUndo } from "./history.shared";
@@ -24,8 +25,35 @@ function fixture(n = 4) {
 }
 
 describe("freehand proposal approval policy", () => {
+  it("preserves approval fingerprints through the Postgres JSONB driver without weakening invalidation", () => {
+    const f = fixture();
+    const roundTrip = () => {
+      const column = supportTeamFields.value;
+      for (const field of Object.values(f.board().fields)) {
+        field.value = column.mapFromDriverValue(JSON.parse(column.mapToDriverValue(field.value) as string)) as typeof field.value;
+      }
+    };
+    f.action("submitProposal");
+    roundTrip();
+    expect(f.view()).toMatchObject({ invalidated: false, canApprove: true });
+    for (let i = 0; i < 3; i++) {
+      f.action("approveProposal", { ...officer, principalId: `u${i}` });
+      roundTrip();
+    }
+    expect(f.view()).toMatchObject({ invalidated: false, approved: 3, canPublish: true });
+    for (const change of [{ draftStintToken: "new-stint" }, { proposalIdentityToken: "new-proof" }, { proposalVoterIds: ["replacement"] }, { rank: 3 }]) {
+      const original = { ...f.roster[0] };
+      Object.assign(f.roster[0], change);
+      expect(f.view()).toMatchObject({ invalidated: true, approved: 0, canPublish: false });
+      expect(() => f.publish(true)).toThrow();
+      f.roster[0] = original;
+    }
+    f.publish();
+    roundTrip();
+    expect(f.view()).toMatchObject({ phase: "published", invalidated: false, approved: 3 });
+  });
   it("rejects exactly half, includes offline/unlinked R4s, and requires a strict majority", () => {
-    const f = fixture(); f.action("submitProposal");
+    const f = fixture(); f.roster[3].proposalVoterIds = []; f.action("submitProposal");
     for (let i = 0; i < 2; i++) f.action("approveProposal", { ...officer, principalId: `u${i}` });
     expect(f.view()).toMatchObject({ electorateCount: 4, required: 3, approved: 2, canPublish: false });
     expect(() => f.publish()).toThrow("forbidden");
@@ -110,6 +138,20 @@ describe("freehand proposal approval policy", () => {
     expect(preview.actionIds).toEqual([first.id]); expect(preview.actionIds).not.toContain(second.id);
     const result = confirmUndo(f.board(), f.events, f.roster, officer, preview, { id: "undo-vote", at: "2026-09-10T00:00:00Z", idempotencyKey: "undo-vote" });
     expect(proposalSnapshot(result.board, f.roster, officer, "p").approved).toBe(1);
+  });
+  it("redoes an independent vote without changing original actor attribution", () => {
+    const f = fixture(); f.action("submitProposal"); const vote = f.action("approveProposal");
+    const original = structuredClone(vote);
+    const preview = previewUndo(f.board(), f.events, f.roster, owner, vote.id);
+    const undone = confirmUndo(f.board(), f.events, f.roster, owner, preview, { id: "undo-vote", at: "2026-09-10T00:00:00Z", idempotencyKey: "undo-vote" });
+    expect(proposalSnapshot(undone.board, f.roster, officer, "p").approved).toBe(0);
+    const events = [...f.events, undone.event];
+    const redo = previewUndo(undone.board, events, f.roster, owner, undone.event.id);
+    const restored = confirmUndo(undone.board, events, f.roster, owner, redo, { id: "redo-vote", at: "2026-09-10T00:00:00Z", idempotencyKey: "redo-vote" });
+    expect(proposalSnapshot(restored.board, f.roster, officer, "p").approved).toBe(1);
+    expect(vote).toEqual(original);
+    expect(vote.principalId).toBe(officer.principalId);
+    expect(restored.event.principalId).toBe(owner.principalId);
   });
   it("publication reversal preserves unrelated persistent team names", () => {
     const f = fixture(1); f.action("submitProposal"); f.publish(true);
