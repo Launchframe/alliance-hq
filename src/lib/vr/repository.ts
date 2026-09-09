@@ -1928,6 +1928,17 @@ export async function upsertAllianceAshedCredential(input: {
 }): Promise<void> {
   const db = getDb();
   const now = new Date();
+  // `undefined` means "leave existing registrant columns alone" on conflict.
+  // Explicit `null` clears them. Web credential refresh must not wipe the
+  // Discord registrant that unlocks /link-alliance.
+  const registrantPatch = {
+    ...(input.registeredByDiscordUserId !== undefined
+      ? { registeredByDiscordUserId: input.registeredByDiscordUserId }
+      : {}),
+    ...(input.registeredByHqUserId !== undefined
+      ? { registeredByHqUserId: input.registeredByHqUserId }
+      : {}),
+  };
   await db
     .insert(schema.allianceAshedCredentials)
     .values({
@@ -1949,8 +1960,7 @@ export async function upsertAllianceAshedCredential(input: {
         originUrl: input.originUrl,
         encryptedToken: input.encryptedToken,
         tokenExpiresAt: input.tokenExpiresAt ?? null,
-        registeredByDiscordUserId: input.registeredByDiscordUserId ?? null,
-        registeredByHqUserId: input.registeredByHqUserId ?? null,
+        ...registrantPatch,
         updatedAt: now,
       },
     });
