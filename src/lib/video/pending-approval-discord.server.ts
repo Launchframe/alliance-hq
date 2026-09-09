@@ -1,5 +1,6 @@
 import "server-only";
 
+import { waitUntil } from "@vercel/functions";
 import { and, eq, isNotNull } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
@@ -42,7 +43,9 @@ async function uploaderDisplayName(
 
 /**
  * Best-effort R4-channel ping when a video first enters pending approval.
- * Never throws — upload must succeed even if Discord is unset.
+ * Never throws — upload must succeed even if Discord is unset. Call from
+ * route handlers via `scheduleVideoPendingApprovalAnnouncement` so the
+ * work survives serverless response flush on Vercel.
  */
 export async function announceVideoPendingApproval(input: {
   allianceId: string | null;
@@ -74,4 +77,18 @@ export async function announceVideoPendingApproval(input: {
   } catch (err) {
     console.error("[video] pending-approval Discord announce failed", err);
   }
+}
+
+export function scheduleVideoPendingApprovalAnnouncement(input: {
+  allianceId: string | null;
+  fileName: string | null;
+  scoreTarget: string;
+  enqueuedByHqUserId: string | null;
+}): void {
+  const task = announceVideoPendingApproval(input);
+  if (process.env.VERCEL) {
+    waitUntil(task);
+    return;
+  }
+  void task;
 }

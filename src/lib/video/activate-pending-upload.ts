@@ -5,7 +5,7 @@ import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
 import { resolvePrimaryExtractionForUpload } from "@/lib/video/experiment-assignment";
-import { announceVideoPendingApproval } from "@/lib/video/pending-approval-discord.server";
+import { scheduleVideoPendingApprovalAnnouncement } from "@/lib/video/pending-approval-discord.server";
 
 export async function activatePendingVideoUpload(
   jobId: string,
@@ -85,7 +85,7 @@ export async function activatePendingVideoUpload(
     errorMessage: null,
   });
 
-  void announceVideoPendingApproval({
+  scheduleVideoPendingApprovalAnnouncement({
     allianceId: job.allianceId,
     fileName: job.fileName,
     scoreTarget,
