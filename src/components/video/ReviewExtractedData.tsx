@@ -370,6 +370,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   );
   const [matchFilledFromOcr, setMatchFilledFromOcr] = useState(false);
   const [vsPeriod, setVsPeriod] = useState<VsScorePeriod>("daily");
+  const [vsRevision, setVsRevision] = useState(0);
   const vsSubmissionRequestId = useRef<string | null>(null);
   const [recordedDate, setRecordedDate] = useState(
     () => presetRecordedDate ?? getServerCalendarDate(),
@@ -760,6 +761,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             extractionConfigJson?: unknown;
             recordedDate?: string | null;
             vsPeriod?: VsScorePeriod;
+            vsRevision?: number;
           };
           hasSourceVideo?: boolean;
           frameTimestamps?: FrameTimestampMap;
@@ -973,6 +975,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             // (Sat night officer-local can already be Sunday ST).
             const storedPeriod = data.job?.vsPeriod === "weekly" ? "weekly" : "daily";
             setVsPeriod(storedPeriod);
+            setVsRevision(
+              typeof data.job?.vsRevision === "number" ? data.job.vsRevision : 0,
+            );
             setRecordedDate(data.job?.recordedDate ? coerceVsPerformanceRecordedDate(data.job.recordedDate, storedPeriod) : defaultVsPerformanceRecordedDate(storedPeriod));
           }
           setMatchOutcome(ocrHeader.outcome);
@@ -2376,6 +2381,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             ? vsSafeRecordedDate
             : recordedDate,
           vsPeriod: isVsPerformanceTarget ? vsPeriod : undefined,
+          vsRevision: isVsPerformanceTarget ? vsRevision : undefined,
           requestId: isVsPerformanceTarget ? vsSubmissionRequestId.current : undefined,
           bankId: scoreTargetMeta?.showBankSelector ? bankId : undefined,
           rows: rows.map((r) => {
