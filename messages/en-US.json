@@ -5209,7 +5209,8 @@
       "nothingPending": "Nothing to pick right now.",
       "noWalkthrough": "No walkthrough in progress.",
       "noConfirm": "Nothing to confirm right now.",
-      "askOfficerNeedsNameAndUid": "Run `/link-commander` and complete the secure link before asking an officer for help."
+      "askOfficerNeedsNameAndUid": "Run `/link-commander` and complete the secure link before asking an officer for help.",
+      "linkAshedOwnerOnly": "Only the alliance owner, the person who linked Ashed credentials for **{tag}**, or a platform maintainer can run `/link-ashed`. Officers can still run `/link-alliance` after credentials are connected."
     },
     "video": {
       "pendingApproval": "{uploader} uploaded **{fileName}** ({leaderboard}). Approve it in the Video queue: {queueUrl}",

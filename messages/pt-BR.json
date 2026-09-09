@@ -5155,7 +5155,8 @@
       "nothingPending": "Nada para escolher agora.",
       "noWalkthrough": "Nenhum tutorial em andamento.",
       "noConfirm": "Nada para confirmar agora.",
-      "askOfficerNeedsNameAndUid": "Execute `/link-commander` e conclua o link seguro antes de pedir ajuda a um oficial."
+      "askOfficerNeedsNameAndUid": "Execute `/link-commander` e conclua o link seguro antes de pedir ajuda a um oficial.",
+      "linkAshedOwnerOnly": "Somente o dono da aliança, quem vinculou as credenciais Ashed de **{tag}** ou um mantenedor da plataforma pode executar `/link-ashed`. Oficiais ainda podem executar `/link-alliance` depois que as credenciais forem conectadas."
     },
     "video": {
       "pendingApproval": "{uploader} enviou **{fileName}** ({leaderboard}). Aprove na fila de vídeos: {queueUrl}",
