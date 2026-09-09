@@ -364,6 +364,11 @@ function resolveProtectionExpiresAt(
   return null;
 }
 
+type BanksExecutor = Pick<
+  ReturnType<typeof getDb>,
+  "select" | "insert" | "update" | "delete"
+>;
+
 export async function createBank(allianceId: string, body: BankPayload) {
   const capturedAt = body.capturedAt ? new Date(body.capturedAt) : null;
   const protectionExpiresAt = resolveProtectionExpiresAt(
@@ -391,6 +396,87 @@ export async function createBank(allianceId: string, body: BankPayload) {
     })
     .returning();
   return inserted[0]!;
+}
+
+/**
+ * Idempotent bank create for capture confirm / concurrent retries.
+ * Uses the alliance+server+coords unique key: insert or return the existing row.
+ */
+export async function ensureBankAtCoords(
+  allianceId: string,
+  body: BankPayload,
+  db: BanksExecutor = getDb(),
+): Promise<(typeof schema.banks.$inferSelect)> {
+  const [existing] = await db
+    .select()
+    .from(schema.banks)
+    .where(
+      and(
+        eq(schema.banks.allianceId, allianceId),
+        eq(schema.banks.gameServerNumber, body.gameServerNumber),
+        eq(schema.banks.coordX, body.coordX),
+        eq(schema.banks.coordY, body.coordY),
+      ),
+    )
+    .limit(1);
+  if (existing) {
+    return existing;
+  }
+
+  const capturedAt = body.capturedAt ? new Date(body.capturedAt) : null;
+  const protectionExpiresAt = resolveProtectionExpiresAt(
+    body.protectionExpiresAt,
+    capturedAt,
+  );
+
+  const inserted = await db
+    .insert(schema.banks)
+    .values({
+      id: nanoid(),
+      allianceId,
+      gameServerNumber: body.gameServerNumber,
+      coordX: body.coordX,
+      coordY: body.coordY,
+      level: body.level,
+      capturedAt,
+      protectionExpiresAt,
+      dropByAt: body.dropByAt ? new Date(body.dropByAt) : null,
+      depositPolicy: body.depositPolicy,
+      priorCaptureCount: body.priorCaptureCount ?? 0,
+      currentDepositCount: body.currentDepositCount ?? null,
+      currentDepositValue: body.currentDepositValue ?? null,
+      notes: body.notes?.trim() || null,
+    })
+    .onConflictDoNothing({
+      target: [
+        schema.banks.allianceId,
+        schema.banks.gameServerNumber,
+        schema.banks.coordX,
+        schema.banks.coordY,
+      ],
+    })
+    .returning();
+
+  if (inserted[0]) {
+    return inserted[0];
+  }
+
+  const [raced] = await db
+    .select()
+    .from(schema.banks)
+    .where(
+      and(
+        eq(schema.banks.allianceId, allianceId),
+        eq(schema.banks.gameServerNumber, body.gameServerNumber),
+        eq(schema.banks.coordX, body.coordX),
+        eq(schema.banks.coordY, body.coordY),
+      ),
+    )
+    .limit(1);
+  if (!raced) {
+    throw new Error("Bank create raced and row is missing.");
+  }
+  return raced;
 }
 
 export async function updateBank(
