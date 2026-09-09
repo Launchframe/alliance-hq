@@ -126,6 +126,7 @@ import {
 } from "@/lib/trains/templates";
 import {
   clearConductorAssignment,
+  swapConductorAssignmentsAtomic,
   clearVipAssignment,
   deleteWeekScheduleAndDayConfigs,
   getConductorRecord,
@@ -1926,121 +1927,66 @@ export async function swapConductors(input: {
     throw new Error("Unlock conductor days before swapping.");
   }
 
-  const targetHasConductor =
-    Boolean(recordB?.conductorMemberId && recordB.conductorMemberName);
+  const targetHasConductor = Boolean(
+    recordB?.conductorMemberId && recordB.conductorMemberName,
+  );
+
+  let rankEventIdForA: string | null = null;
+  let rankEventIdForB: string | null = null;
 
   if (targetHasConductor) {
-    const memberFromA = recordA.conductorMemberId;
-    const memberFromB = recordB!.conductorMemberId!;
     const rankForA = await getMemberRankAsOf(
       input.allianceId,
-      memberFromB,
+      recordB!.conductorMemberId!,
       input.dateA,
     );
     const rankForB = await getMemberRankAsOf(
       input.allianceId,
-      memberFromA,
+      recordA.conductorMemberId,
       input.dateB,
     );
-
-    await upsertConductorDraft({
-      allianceId: input.allianceId,
-      date: input.dateA,
-      seasonKey,
-      conductorMemberId: recordB!.conductorMemberId,
-      conductorMemberName: recordB!.conductorMemberName,
-      conductorRankEventId: rankForA?.id ?? null,
-      substituteForMemberId: recordA.conductorMemberId,
-      substituteForMemberName: recordA.conductorMemberName,
-    });
-
-    await upsertConductorDraft({
-      allianceId: input.allianceId,
-      date: input.dateB,
-      seasonKey,
-      conductorMemberId: recordA.conductorMemberId,
-      conductorMemberName: recordA.conductorMemberName,
-      conductorRankEventId: rankForB?.id ?? null,
-      substituteForMemberId: recordB!.conductorMemberId,
-      substituteForMemberName: recordB!.conductorMemberName,
-    });
-
-    // Keep depleting-pool consumption attached to the new dates.
-    await movePoolSelectionForDate(
-      input.allianceId,
-      memberFromA,
-      input.dateA,
-      input.dateB,
-    );
-    await movePoolSelectionForDate(
-      input.allianceId,
-      memberFromB,
-      input.dateB,
-      input.dateA,
-    );
+    rankEventIdForA = rankForA?.id ?? null;
+    rankEventIdForB = rankForB?.id ?? null;
   } else {
-    const memberFromA = recordA.conductorMemberId;
     const rankForB = await getMemberRankAsOf(
       input.allianceId,
-      memberFromA,
+      recordA.conductorMemberId,
       input.dateB,
     );
-
-    await upsertConductorDraft({
-      allianceId: input.allianceId,
-      date: input.dateB,
-      seasonKey,
-      conductorMemberId: recordA.conductorMemberId,
-      conductorMemberName: recordA.conductorMemberName,
-      conductorRankEventId: rankForB?.id ?? null,
-      substituteForMemberId: null,
-      substituteForMemberName: null,
-    });
-
-    // Do not release the pool slot — the conductor is still assigned (on dateB).
-    await clearConductorAssignment(
-      input.allianceId,
-      input.dateA,
-      seasonKey,
-      { releasePool: false },
-    );
-    await movePoolSelectionForDate(
-      input.allianceId,
-      memberFromA,
-      input.dateA,
-      input.dateB,
-    );
-    // VIP stays day-scoped; do not leave an orphan VIP on the emptied source.
-    // Also releases any depleting event_top_x mark for that date.
-    if (recordA.vipMemberId) {
-      await clearVipAssignment(input.allianceId, input.dateA, seasonKey);
-    }
+    rankEventIdForB = rankForB?.id ?? null;
   }
 
-  const draftA = await getConductorRecord(
-    input.allianceId,
-    input.dateA,
-    seasonKey,
-  );
-  const draftB = await getConductorRecord(
-    input.allianceId,
-    input.dateB,
-    seasonKey,
-  );
+  // Record + depleting-pool writes are one transaction with FOR UPDATE + CAS.
+  const { recordA: draftA, recordB: draftB } =
+    await swapConductorAssignmentsAtomic({
+      allianceId: input.allianceId,
+      dateA: input.dateA,
+      dateB: input.dateB,
+      seasonKey,
+      expectedMemberA: {
+        id: recordA.conductorMemberId,
+        name: recordA.conductorMemberName,
+      },
+      expectedMemberB: targetHasConductor
+        ? {
+            id: recordB!.conductorMemberId!,
+            name: recordB!.conductorMemberName!,
+          }
+        : null,
+      rankEventIdForA,
+      rankEventIdForB,
+    });
 
-  // Lock is irreversible spawn — swap only moves drafts. Officers lock when
-  // the train is actually set in-game.
-  if (!draftB?.conductorMemberId || !draftB.conductorMemberName) {
+  // Lock is irreversible spawn — swap only moves drafts.
+  if (!draftB.conductorMemberId || !draftB.conductorMemberName) {
     throw new Error("Swap failed to persist conductor assignment.");
   }
 
-  // Keep depleting-pool consumption aligned with the new dates (unlock used to
-  // wipe selection; even without that, selectedForDate must follow the swap).
   await syncDepletingPoolSelectionForConductorDay({
     allianceId: input.allianceId,
     date: input.dateA,
     seasonKey,
-    memberId: draftA?.conductorMemberId,
+    memberId: draftA.conductorMemberId,
   });
   await syncDepletingPoolSelectionForConductorDay({
     allianceId: input.allianceId,
@@ -2056,6 +2002,7 @@ export async function swapConductors(input: {
 
   return { records };
 }
+
 
 export { getServerCalendarDate };
 export { getWeekStartMonday } from "@/lib/trains/game-time";

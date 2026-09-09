@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
@@ -682,6 +682,239 @@ export async function clearVipAssignment(
 
   return cleared[0] ?? null;
 }
+
+/**
+ * Atomically swap or open-move two unlocked conductor drafts.
+ *
+ * Multi-step upsert/clear/pool-move without a transaction can lose a conductor
+ * (crash after writing day A but before day B) or double-assign on open-move
+ * (crash after writing the target before clearing the source). Concurrent
+ * officers can also interleave partial updates.
+ *
+ * Locks both day rows FOR UPDATE (ordered by date), CAS-checks the expected
+ * member ids, then applies record + depleting-pool updates in one transaction.
+ */
+export async function swapConductorAssignmentsAtomic(input: {
+  allianceId: string;
+  dateA: string;
+  dateB: string;
+  seasonKey: string;
+  expectedMemberA: { id: string; name: string };
+  /** null = open target (no conductor on dateB). */
+  expectedMemberB: { id: string; name: string } | null;
+  rankEventIdForA: string | null;
+  rankEventIdForB: string | null;
+}): Promise<{
+  recordA: typeof schema.trainConductorRecords.$inferSelect;
+  recordB: typeof schema.trainConductorRecords.$inferSelect;
+}> {
+  const db = getDb();
+
+  return db.transaction(async (tx) => {
+    const ensureRow = async (date: string) => {
+      const [existing] = await tx
+        .select({ id: schema.trainConductorRecords.id })
+        .from(schema.trainConductorRecords)
+        .where(
+          and(
+            eq(schema.trainConductorRecords.allianceId, input.allianceId),
+            eq(schema.trainConductorRecords.date, date),
+          ),
+        )
+        .limit(1);
+      if (existing) return;
+      try {
+        await tx.insert(schema.trainConductorRecords).values({
+          id: nanoid(),
+          allianceId: input.allianceId,
+          date,
+          seasonKey: input.seasonKey,
+        });
+      } catch (error) {
+        const code =
+          error && typeof error === "object" && "code" in error
+            ? String((error as { code: unknown }).code)
+            : "";
+        if (code !== "23505") throw error;
+      }
+    };
+
+    const dates = [input.dateA, input.dateB].sort();
+    for (const date of dates) {
+      await ensureRow(date);
+    }
+
+    const lockedRows = await tx
+      .select()
+      .from(schema.trainConductorRecords)
+      .where(
+        and(
+          eq(schema.trainConductorRecords.allianceId, input.allianceId),
+          or(
+            eq(schema.trainConductorRecords.date, input.dateA),
+            eq(schema.trainConductorRecords.date, input.dateB),
+          ),
+        ),
+      )
+      .orderBy(asc(schema.trainConductorRecords.date))
+      .for("update");
+
+    const rowA = lockedRows.find((row) => row.date === input.dateA);
+    const rowB = lockedRows.find((row) => row.date === input.dateB);
+    if (!rowA || !rowB) {
+      throw new Error("Swap failed to load conductor days for update.");
+    }
+
+    if (rowA.lockedAt || rowB.lockedAt) {
+      throw new Error("Unlock conductor days before swapping.");
+    }
+
+    if (rowA.conductorMemberId !== input.expectedMemberA.id) {
+      throw new Error(
+        "Conductor on the source day changed during swap. Try again.",
+      );
+    }
+
+    if (input.expectedMemberB) {
+      if (rowB.conductorMemberId !== input.expectedMemberB.id) {
+        throw new Error(
+          "Conductor on the target day changed during swap. Try again.",
+        );
+      }
+    } else if (rowB.conductorMemberId) {
+      throw new Error(
+        "Target day gained a conductor during swap. Try again.",
+      );
+    }
+
+    const now = new Date();
+    const movePool = async (
+      memberId: string,
+      fromDate: string,
+      toDate: string,
+    ) => {
+      if (fromDate === toDate) return;
+      await tx
+        .update(schema.conductorPoolEntries)
+        .set({
+          selectedForDate: toDate,
+          selectedAt: now,
+        })
+        .where(
+          and(
+            eq(schema.conductorPoolEntries.allianceId, input.allianceId),
+            eq(schema.conductorPoolEntries.selectedForDate, fromDate),
+            eq(schema.conductorPoolEntries.memberId, memberId),
+          ),
+        );
+    };
+
+    const releasePool = async (date: string, memberId: string) => {
+      await tx
+        .update(schema.conductorPoolEntries)
+        .set({
+          selectedAt: null,
+          selectedForDate: null,
+        })
+        .where(
+          and(
+            eq(schema.conductorPoolEntries.allianceId, input.allianceId),
+            eq(schema.conductorPoolEntries.selectedForDate, date),
+            eq(schema.conductorPoolEntries.memberId, memberId),
+          ),
+        );
+    };
+
+    if (input.expectedMemberB) {
+      await tx
+        .update(schema.trainConductorRecords)
+        .set({
+          seasonKey: input.seasonKey,
+          conductorMemberId: input.expectedMemberB.id,
+          conductorMemberName: input.expectedMemberB.name,
+          conductorRankEventId: input.rankEventIdForA,
+          substituteForMemberId: input.expectedMemberA.id,
+          substituteForMemberName: input.expectedMemberA.name,
+          updatedAt: now,
+        })
+        .where(eq(schema.trainConductorRecords.id, rowA.id));
+
+      await tx
+        .update(schema.trainConductorRecords)
+        .set({
+          seasonKey: input.seasonKey,
+          conductorMemberId: input.expectedMemberA.id,
+          conductorMemberName: input.expectedMemberA.name,
+          conductorRankEventId: input.rankEventIdForB,
+          substituteForMemberId: input.expectedMemberB.id,
+          substituteForMemberName: input.expectedMemberB.name,
+          updatedAt: now,
+        })
+        .where(eq(schema.trainConductorRecords.id, rowB.id));
+
+      await movePool(input.expectedMemberA.id, input.dateA, input.dateB);
+      await movePool(input.expectedMemberB.id, input.dateB, input.dateA);
+    } else {
+      await tx
+        .update(schema.trainConductorRecords)
+        .set({
+          seasonKey: input.seasonKey,
+          conductorMemberId: input.expectedMemberA.id,
+          conductorMemberName: input.expectedMemberA.name,
+          conductorRankEventId: input.rankEventIdForB,
+          substituteForMemberId: null,
+          substituteForMemberName: null,
+          updatedAt: now,
+        })
+        .where(eq(schema.trainConductorRecords.id, rowB.id));
+
+      await tx
+        .update(schema.trainConductorRecords)
+        .set({
+          conductorMemberId: null,
+          conductorMemberName: null,
+          conductorRankEventId: null,
+          substituteForMemberId: null,
+          substituteForMemberName: null,
+          updatedAt: now,
+        })
+        .where(eq(schema.trainConductorRecords.id, rowA.id));
+
+      await movePool(input.expectedMemberA.id, input.dateA, input.dateB);
+
+      if (rowA.vipMemberId) {
+        await releasePool(input.dateA, rowA.vipMemberId);
+        await tx
+          .update(schema.trainConductorRecords)
+          .set({
+            vipMemberId: null,
+            vipMemberName: null,
+            vipRankEventId: null,
+            updatedAt: now,
+          })
+          .where(eq(schema.trainConductorRecords.id, rowA.id));
+      }
+    }
+
+    const [recordA] = await tx
+      .select()
+      .from(schema.trainConductorRecords)
+      .where(eq(schema.trainConductorRecords.id, rowA.id))
+      .limit(1);
+    const [recordB] = await tx
+      .select()
+      .from(schema.trainConductorRecords)
+      .where(eq(schema.trainConductorRecords.id, rowB.id))
+      .limit(1);
+
+    if (!recordA || !recordB?.conductorMemberId || !recordB.conductorMemberName) {
+      throw new Error("Swap failed to persist conductor assignment.");
+    }
+
+    return { recordA, recordB };
+  });
+}
+
 
 export async function lockConductorRecord(
   recordId: string,
