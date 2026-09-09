@@ -4,13 +4,10 @@ const mocks = vi.hoisted(() => ({
   getEffectiveSeasonForAlliance: vi.fn(),
   getConductorRecord: vi.fn(),
   getMemberRankAsOf: vi.fn(),
-  upsertConductorDraft: vi.fn(),
-  clearConductorAssignment: vi.fn(),
-  clearVipAssignment: vi.fn(),
-  lockConductorRecord: vi.fn(),
+  swapConductorAssignmentsAtomic: vi.fn(),
   getServerCalendarDate: vi.fn(),
-  movePoolSelectionForDate: vi.fn(),
   resolveRollDayConfig: vi.fn(),
+  markPoolMemberSelectedForDate: vi.fn(),
 }));
 
 vi.mock("@/lib/game-season/sync", () => ({
@@ -28,15 +25,14 @@ vi.mock("@/lib/trains/repository", async () => {
   return {
     ...actual,
     getConductorRecord: mocks.getConductorRecord,
-    upsertConductorDraft: mocks.upsertConductorDraft,
-    clearConductorAssignment: mocks.clearConductorAssignment,
-    clearVipAssignment: mocks.clearVipAssignment,
-    lockConductorRecord: mocks.lockConductorRecord,
+    swapConductorAssignmentsAtomic: mocks.swapConductorAssignmentsAtomic,
   };
 });
 
 vi.mock("@/lib/trains/pool", () => ({
-  movePoolSelectionForDate: mocks.movePoolSelectionForDate,
+  markPoolMemberSelectedForDate: mocks.markPoolMemberSelectedForDate,
+  movePoolSelectionForDate: vi.fn(),
+  releasePoolSelectionForDate: vi.fn(),
 }));
 
 vi.mock("@/lib/trains/day-config-resolve.server", () => ({
@@ -55,27 +51,20 @@ vi.mock("@/lib/trains/game-time", async () => {
 
 import { swapConductors } from "@/lib/trains/service";
 
-describe("swapConductors open-target VIP clear", () => {
+describe("swapConductors atomic delegation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getEffectiveSeasonForAlliance.mockResolvedValue({ seasonKey: "S1" });
     mocks.getServerCalendarDate.mockReturnValue("2026-06-09");
     mocks.getMemberRankAsOf.mockResolvedValue({ id: "rank-1" });
-    mocks.upsertConductorDraft.mockResolvedValue(undefined);
-    mocks.clearConductorAssignment.mockResolvedValue(undefined);
-    mocks.clearVipAssignment.mockResolvedValue(undefined);
-    mocks.movePoolSelectionForDate.mockResolvedValue(undefined);
     mocks.resolveRollDayConfig.mockResolvedValue({
       paintTemplate: "tpif_with_replacement",
       conductorMechanism: "tpif_with_replacement",
     });
-    mocks.lockConductorRecord.mockImplementation(async (id: string) => ({
-      id,
-      lockedAt: new Date("2026-06-12T12:00:00.000Z"),
-    }));
+    mocks.markPoolMemberSelectedForDate.mockResolvedValue(undefined);
   });
 
-  it("clears orphan VIP on the emptied source day", async () => {
+  it("open-moves through one atomic transaction with null target member", async () => {
     mocks.getConductorRecord
       .mockResolvedValueOnce({
         id: "rec-a",
@@ -83,26 +72,27 @@ describe("swapConductors open-target VIP clear", () => {
         conductorMemberId: "m1",
         conductorMemberName: "Alice",
         vipMemberId: "m9",
-        vipMemberName: "VIP Nine",
         lockedAt: null,
       })
-      .mockResolvedValueOnce(null)
-      // drafts after mutate
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(null);
+
+    mocks.swapConductorAssignmentsAtomic.mockResolvedValue({
+      recordA: {
         id: "rec-a",
         date: "2026-06-10",
         conductorMemberId: null,
         conductorMemberName: null,
         vipMemberId: null,
         lockedAt: null,
-      })
-      .mockResolvedValueOnce({
+      },
+      recordB: {
         id: "rec-b",
         date: "2026-06-12",
         conductorMemberId: "m1",
         conductorMemberName: "Alice",
         lockedAt: null,
-      });
+      },
+    });
 
     await swapConductors({
       allianceId: "ally-1",
@@ -110,44 +100,49 @@ describe("swapConductors open-target VIP clear", () => {
       dateB: "2026-06-12",
     });
 
-    expect(mocks.clearConductorAssignment).toHaveBeenCalledWith(
-      "ally-1",
-      "2026-06-10",
-      "S1",
-      { releasePool: false },
-    );
-    expect(mocks.clearVipAssignment).toHaveBeenCalledWith(
-      "ally-1",
-      "2026-06-10",
-      "S1",
-    );
+    expect(mocks.swapConductorAssignmentsAtomic).toHaveBeenCalledWith({
+      allianceId: "ally-1",
+      dateA: "2026-06-10",
+      dateB: "2026-06-12",
+      seasonKey: "S1",
+      expectedMemberA: { id: "m1", name: "Alice" },
+      expectedMemberB: null,
+      rankEventIdForA: null,
+      rankEventIdForB: "rank-1",
+    });
   });
 
-  it("skips VIP clear when source had no VIP", async () => {
+  it("mutual swaps pass both members for CAS inside the transaction", async () => {
     mocks.getConductorRecord
       .mockResolvedValueOnce({
         id: "rec-a",
         date: "2026-06-10",
         conductorMemberId: "m1",
         conductorMemberName: "Alice",
-        vipMemberId: null,
-        vipMemberName: null,
-        lockedAt: null,
-      })
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        id: "rec-a",
-        date: "2026-06-10",
-        conductorMemberId: null,
         lockedAt: null,
       })
       .mockResolvedValueOnce({
         id: "rec-b",
         date: "2026-06-12",
+        conductorMemberId: "m2",
+        conductorMemberName: "Bob",
+        lockedAt: null,
+      });
+
+    mocks.swapConductorAssignmentsAtomic.mockResolvedValue({
+      recordA: {
+        id: "rec-a",
+        conductorMemberId: "m2",
+        conductorMemberName: "Bob",
+        lockedAt: null,
+      },
+      recordB: {
+        id: "rec-b",
         conductorMemberId: "m1",
         conductorMemberName: "Alice",
         lockedAt: null,
-      });
+      },
+    });
 
     await swapConductors({
       allianceId: "ally-1",
@@ -155,6 +150,13 @@ describe("swapConductors open-target VIP clear", () => {
       dateB: "2026-06-12",
     });
 
-    expect(mocks.clearVipAssignment).not.toHaveBeenCalled();
+    expect(mocks.swapConductorAssignmentsAtomic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedMemberA: { id: "m1", name: "Alice" },
+        expectedMemberB: { id: "m2", name: "Bob" },
+        rankEventIdForA: "rank-1",
+        rankEventIdForB: "rank-1",
+      }),
+    );
   });
 });
