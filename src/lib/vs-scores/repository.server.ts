@@ -139,6 +139,7 @@ export async function commitReviewedVsScores(input: {
       if (meta.vsDigest !== digest) throw new VsEvidenceError("stale", 409);
       return { submitted: previous!.rowCount, batchId: previous!.id, vsRevision: revision, syncStatus: await currentSyncStatus(tx, input.allianceId, input.recordedDate, input.period, alliance.operatingMode === "ashed" && !!alliance.ashedAllianceId) };
     }
+    if (revision > 0 && input.expectedRevision == null) throw new VsEvidenceError("stale", 409);
     if (input.expectedRevision != null && input.expectedRevision !== revision) throw new VsEvidenceError("stale", 409);
     const parsed = await tx.select().from(schema.parsedRows).where(eq(schema.parsedRows.parseSessionId, input.parseSessionId));
     const parsedIds = new Set(parsed.map((row) => row.id));

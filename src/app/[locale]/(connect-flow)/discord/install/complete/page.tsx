@@ -76,7 +76,9 @@ export default async function DiscordInstallCompletePage({
                 ? "noCredentials"
                 : result.reason === "no_hq_link"
                   ? "noHqLink"
-                  : "genericError";
+                  : result.reason === "guild_bound_to_other_alliance"
+                    ? "guildBoundToOtherAlliance"
+                    : "genericError";
 
     return (
       <main className="flex min-h-[60vh] items-center justify-center p-6">

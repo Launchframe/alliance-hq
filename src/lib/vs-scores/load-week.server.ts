@@ -3,7 +3,7 @@ import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { addCalendarDays } from "@/lib/trains/game-time";
-import { resolveExcusedConnection } from "@/lib/time-off/excused-transport.server";
+import { resolveVsAshedConnection } from "@/lib/vs-scores/ashed-transport.server";
 import { listVsHeads } from "./repository.server";
 import { evaluateVsWeek, validateVsPeriod, VsEvidenceError, type VsEvidence, type VsWeekEvidence } from "./evidence.shared";
 import { fetchRemoteVsScope } from "./sync.server";
@@ -23,7 +23,7 @@ export async function loadVsWeekEvidence(allianceId: string, weekEnding: string)
   const rosterIds = new Set(roster.map((row) => row.id));
   let externalAvailable = false;
   try {
-    const context = await resolveExcusedConnection(allianceId);
+    const context = await resolveVsAshedConnection(allianceId);
     if (context) {
       const snapshots = await Promise.all(dates.map(async (date) => ({ date, period: date === weekEnding ? "weekly" as const : "daily" as const, rows: await fetchRemoteVsScope(context, date, date === weekEnding ? "weekly" : "daily") })));
       for (const snapshot of snapshots) for (const row of snapshot.rows) {

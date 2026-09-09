@@ -17,7 +17,8 @@ export type ProcessDiscordInstallCompleteResult =
         | "missing_alliance"
         | "not_owner"
         | "no_credentials"
-        | "no_hq_link";
+        | "no_hq_link"
+        | "guild_bound_to_other_alliance";
     };
 
 export async function processDiscordInstallComplete(input: {
