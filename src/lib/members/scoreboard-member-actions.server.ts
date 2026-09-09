@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
@@ -11,6 +11,7 @@ import { getDb, schema } from "@/lib/db";
 import { createAshedMember } from "@/lib/members/ashed-member-write.server";
 import { syncCommanderFromAllianceMember } from "@/lib/members/commander-identity.server";
 import { syncMemberNameToAshed } from "@/lib/members/member-name-sync.server";
+import { withScoreboardMemberCreateLock } from "@/lib/members/scoreboard-member-create-lock.server";
 import { nativeRosterAshedAllianceId } from "@/lib/native-alliance/provision";
 import {
   nextPreviousNames,
@@ -44,7 +45,7 @@ type ParsedScoreboardRow = {
 
 type ScoreboardDb = Pick<
   ReturnType<typeof getDb>,
-  "select" | "insert" | "update" | "execute"
+  "select" | "insert" | "update"
 >;
 
 async function lockParsedRowsForJob(
@@ -222,98 +223,97 @@ export async function createScoreboardMembersFromReview(input: {
   const patchedRows: ScoreboardMemberActionResult["rows"] = [];
 
   for (const [key, group] of grouped) {
-    const lockName = `${input.allianceId}:${key}`;
-    await db.execute(sql`select pg_advisory_lock(hashtext(${lockName}))`);
-    try {
-      let ashedMemberId =
-        (await findHqMemberIdByNormalizedName(db, input.allianceId, key)) ??
-        undefined;
-      let createdNow = false;
+    await withScoreboardMemberCreateLock(
+      { allianceId: input.allianceId, normalizedName: key },
+      async () => {
+        let ashedMemberId =
+          (await findHqMemberIdByNormalizedName(db, input.allianceId, key)) ??
+          undefined;
+        let createdNow = false;
 
-      if (!ashedMemberId) {
-        if (linkedAshedId && connection) {
-          ashedMemberId = ashedIdByName.get(key);
-          if (!ashedMemberId) {
-            // Ashed create happens outside any DB transaction.
-            ashedMemberId = await createAshedMember({
-              connection,
-              ashedAllianceId: linkedAshedId,
+        if (!ashedMemberId) {
+          if (linkedAshedId && connection) {
+            ashedMemberId = ashedIdByName.get(key);
+            if (!ashedMemberId) {
+              // Ashed create happens outside any DB transaction.
+              ashedMemberId = await createAshedMember({
+                connection,
+                ashedAllianceId: linkedAshedId,
+                currentName: group.name,
+              });
+              ashedIdByName.set(key, ashedMemberId);
+            }
+          } else {
+            ashedMemberId = nanoid(16);
+          }
+          createdNow = true;
+        }
+
+        await db.transaction(async (tx) => {
+          const existingId = await findHqMemberIdByNormalizedName(
+            tx,
+            input.allianceId,
+            key,
+          );
+          const memberId = existingId ?? ashedMemberId!;
+
+          if (!existingId) {
+            await insertHqAllianceMember(tx, {
+              allianceId: input.allianceId,
+              ashedMemberId: memberId,
+              ashedAllianceId,
               currentName: group.name,
             });
-            ashedIdByName.set(key, ashedMemberId);
+            if (createdNow) {
+              createdIds.add(memberId);
+              members.push({
+                id: memberId,
+                current_name: group.name,
+                previous_names: [],
+              });
+            }
           }
-        } else {
-          ashedMemberId = nanoid(16);
-        }
-        createdNow = true;
-      }
 
-      await db.transaction(async (tx) => {
-        const existingId = await findHqMemberIdByNormalizedName(
-          tx,
-          input.allianceId,
-          key,
-        );
-        const memberId = existingId ?? ashedMemberId!;
+          for (const row of group.rows) {
+            const [fresh] = await tx
+              .select({
+                id: schema.parsedRows.id,
+                memberId: schema.parsedRows.memberId,
+                memberName: schema.parsedRows.memberName,
+                matchMethod: schema.parsedRows.matchMethod,
+              })
+              .from(schema.parsedRows)
+              .where(eq(schema.parsedRows.id, row.id))
+              .limit(1)
+              .for("update");
+            if (fresh?.memberId) {
+              patchedRows.push({
+                id: row.id,
+                memberId: fresh.memberId,
+                memberName: fresh.memberName ?? group.name,
+                matchMethod: fresh.matchMethod ?? "exact",
+                matchConfidence: 1,
+              });
+              continue;
+            }
 
-        if (!existingId) {
-          await insertHqAllianceMember(tx, {
-            allianceId: input.allianceId,
-            ashedMemberId: memberId,
-            ashedAllianceId,
-            currentName: group.name,
-          });
-          if (createdNow) {
-            createdIds.add(memberId);
-            members.push({
-              id: memberId,
-              current_name: group.name,
-              previous_names: [],
+            await persistParsedRowMatch(tx, {
+              rowId: row.id,
+              memberId,
+              memberName: group.name,
+              matchMethod: "exact",
             });
-          }
-        }
-
-        for (const row of group.rows) {
-          const [fresh] = await tx
-            .select({
-              id: schema.parsedRows.id,
-              memberId: schema.parsedRows.memberId,
-              memberName: schema.parsedRows.memberName,
-              matchMethod: schema.parsedRows.matchMethod,
-            })
-            .from(schema.parsedRows)
-            .where(eq(schema.parsedRows.id, row.id))
-            .limit(1)
-            .for("update");
-          if (fresh?.memberId) {
             patchedRows.push({
               id: row.id,
-              memberId: fresh.memberId,
-              memberName: fresh.memberName ?? group.name,
-              matchMethod: fresh.matchMethod ?? "exact",
+              memberId,
+              memberName: group.name,
+              matchMethod: "exact",
               matchConfidence: 1,
             });
-            continue;
           }
-
-          await persistParsedRowMatch(tx, {
-            rowId: row.id,
-            memberId,
-            memberName: group.name,
-            matchMethod: "exact",
-          });
-          patchedRows.push({
-            id: row.id,
-            memberId,
-            memberName: group.name,
-            matchMethod: "exact",
-            matchConfidence: 1,
-          });
-        }
-      });
-    } finally {
-      await db.execute(sql`select pg_advisory_unlock(hashtext(${lockName}))`);
-    }
+        });
+      },
+    );
   }
 
   for (const member of members) {
