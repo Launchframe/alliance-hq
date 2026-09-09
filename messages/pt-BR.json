@@ -6490,14 +6490,8 @@
       "minimums": "Mantendo mínimos",
       "hit_and_miss": "Irregular"
     },
-    "activityScope": {
-      "vs": "VS",
-      "donation": "Doações",
-      "all": "Todas as Atividades"
-    },
     "entry": {
       "range": "{start} a {end}",
-      "active": "Ativa",
       "cancel": "Cancelar esta entrada"
     },
     "officerModal": {
@@ -6510,7 +6504,6 @@
       "start": "Data de início",
       "end": "Data de fim",
       "availability": "Disponibilidade",
-      "activityScope": "Escopo da atividade",
       "notes": "Notas privadas",
       "cancel": "Cancelar",
       "save": "Salvar entrada"
@@ -6528,8 +6521,7 @@
       "loadFailed": "Falha ao carregar o calendário de ausências.",
       "saveFailed": "Não foi possível salvar a ausência.",
       "reportFailed": "Não foi possível carregar o relatório de ausências inesperadas.",
-      "fieldsRequired": "Comandante e datas são obrigatórios.",
-      "ashedSyncFailed": "Salvo no HQ, mas a sincronização com o Ashed falhou. Um oficial pode precisar adicionar também no Ashed."
+      "fieldsRequired": "Comandante e datas são obrigatórios."
     }
   },
   "statSync": {

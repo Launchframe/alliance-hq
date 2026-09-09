@@ -1,5 +1,5 @@
-import { canCancelTimeOffEntry, isTimeOffActivityScope, isTimeOffEntryKind } from "./api.shared";
-import type { TimeOffActivityScope, TimeOffEntryKind } from "./types.shared";
+import { canCancelTimeOffEntry, isTimeOffEntryKind } from "./api.shared";
+import type { TimeOffEntryKind } from "./types.shared";
 
 export const TIME_OFF_MAX_DAYS = 366;
 export const TIME_OFF_MAX_NOTES = 1000;
@@ -22,7 +22,6 @@ export type TimeOffDraft = {
   endDate: string;
   notes: string | null;
   entryKind: TimeOffEntryKind;
-  activityScope: TimeOffActivityScope;
 };
 
 export type TimeOffViewer = {
@@ -56,15 +55,12 @@ export function parseTimeOffDraft(body: unknown): TimeOffDraft {
   if (notes && notes.length > TIME_OFF_MAX_NOTES) throw new TimeOffError("notesTooLong");
   const kind = input.entryKind ?? "planned";
   if (typeof kind !== "string" || !isTimeOffEntryKind(kind)) throw new TimeOffError("forbidden");
-  const activityScope = input.activityScope ?? "all";
-  if (typeof activityScope !== "string" || !isTimeOffActivityScope(activityScope)) throw new TimeOffError("forbidden");
   return {
     ashedMemberId: input.ashedMemberId.trim(),
     startDate: input.startDate,
     endDate: input.endDate,
     notes: notes || null,
     entryKind: kind,
-    activityScope,
   };
 }
 

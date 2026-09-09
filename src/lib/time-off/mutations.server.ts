@@ -22,7 +22,6 @@ export type TimeOffActor = TimeOffViewer & {
   allianceId: string;
   hqUserId?: string | null;
   discordUserId?: string | null;
-  sessionId?: string | null;
   refresh?: () => Promise<TimeOffActor>;
 };
 
