@@ -35,6 +35,11 @@ export function isTagEligible(tag: string): boolean {
   return allowed.includes(tag.trim().toLowerCase());
 }
 
+/** Case-insensitive alliance tag equality for bot-install allowlist binding. */
+export function allianceTagsEqual(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
 async function audit(
   allianceId: string | null,
   discordUserId: string,

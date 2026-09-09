@@ -4,8 +4,11 @@ import { auth } from "@/lib/auth";
 import { buildDiscordBotInstallUrlWithState } from "@/lib/discord/bot-install-url.server";
 import { resolveAllianceByTag } from "@/lib/vr/resolve-alliance-tag";
 import { createDiscordBotInstallSession } from "@/lib/vr/bot-install-session.server";
-import { isTagEligible } from "@/lib/vr/bot-setup";
-import { getDiscordHqLinkByHqUserId } from "@/lib/vr/repository";
+import { allianceTagsEqual, isTagEligible } from "@/lib/vr/bot-setup";
+import {
+  getAllianceById,
+  getDiscordHqLinkByHqUserId,
+} from "@/lib/vr/repository";
 
 /** POST /api/discord/setup/bot-install — create install OAuth URL with guild registration state. */
 export async function POST(request: Request) {
@@ -69,11 +72,53 @@ export async function POST(request: Request) {
     );
   }
 
+  // Allowlist is tag-based; never trust a client `allianceId` that does not
+  // resolve to the same eligible tag (otherwise any owner can bypass the gate
+  // by pairing an allowlisted tag string with a non-listed alliance id).
+  const alliance = await getAllianceById(allianceId);
+  if (!alliance) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "alliance_not_ready",
+      },
+      { status: 422 },
+    );
+  }
+  const allianceTag = alliance.tag?.trim() || "";
+  if (!allianceTag) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "alliance_not_ready",
+      },
+      { status: 422 },
+    );
+  }
+  if (!allianceTagsEqual(allianceTag, tag)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "tag_alliance_mismatch",
+      },
+      { status: 400 },
+    );
+  }
+  if (!isTagEligible(allianceTag)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: "tag_not_eligible",
+      },
+      { status: 403 },
+    );
+  }
+
   const nonce = await createDiscordBotInstallSession({
     hqUserId,
     discordUserId: hqLink.discordUserId,
-    allianceTag: tag,
-    allianceId,
+    allianceTag,
+    allianceId: alliance.id,
   });
 
   const installUrl = buildDiscordBotInstallUrlWithState(nonce);
