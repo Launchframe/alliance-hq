@@ -2,7 +2,14 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const transport = vi.hoisted(() => ({ resolve: vi.fn(), validate: vi.fn() }));
-vi.mock("@/lib/time-off/excused-transport.server", () => ({ resolveExcusedConnection: transport.resolve, validateExcusedMember: transport.validate }));
+vi.mock("@/lib/vs-scores/ashed-transport.server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/vs-scores/ashed-transport.server")>();
+  return {
+    ...actual,
+    resolveVsAshedConnection: transport.resolve,
+    validateVsAshedMember: transport.validate,
+  };
+});
 
 import { getE2eSql, closeE2eSql } from "../../../e2e/fixtures/db";
 import { createNativeVsScenario, seedVsReviewJob } from "../../../e2e/fixtures/vs-evidence";
@@ -13,7 +20,7 @@ import { addCalendarDays } from "@/lib/trains/game-time";
 import { changeVsBatches, commitReviewedVsScores, listVsHeads } from "./repository.server";
 import { loadVsWeekEvidence } from "./load-week.server";
 import { syncVsScoresForAlliance } from "./sync.server";
-import { ExcusedSyncError } from "@/lib/time-off/excused-sync.shared";
+import { VsSyncError } from "@/lib/vs-scores/ashed-transport.server";
 
 const sunday = "2026-09-06";
 const monday = "2026-08-31";
@@ -151,7 +158,7 @@ describe.skipIf(process.env.VS_EVIDENCE_DB_TEST !== "1")("canonical VS evidence 
     const f = await setup();
     await f.sql`UPDATE alliances SET operating_mode = 'ashed', ashed_alliance_id = ${`remote-${f.allianceId}`} WHERE id = ${f.allianceId}`;
     const saved = await f.submit(monday, 7_200_000);
-    transport.resolve.mockRejectedValue(new ExcusedSyncError("credentials_required"));
+    transport.resolve.mockRejectedValue(new VsSyncError("credentials_required"));
     await syncVsScoresForAlliance(f.allianceId);
     expect((await listVsHeads(f.allianceId))[0].score).toBe(7_200_000);
     expect((await f.sql`SELECT status FROM video_jobs WHERE id = ${saved.jobId}`)[0].status).toBe("complete");

@@ -3,7 +3,7 @@ import { nanoid } from "nanoid";
 import { describe, expect, it } from "vitest";
 import { createNativeAlliance, getE2eSql } from "../../../e2e/fixtures/db";
 
-const migration = readFileSync(new URL("../../../drizzle/0137_vs_compliance.sql", import.meta.url), "utf8");
+const migration = readFileSync(new URL("../../../drizzle/0138_vs_compliance.sql", import.meta.url), "utf8");
 
 describe.skipIf(process.env.VS_COMPLIANCE_DB_TEST !== "1")("compliance migration against the guarded e2e database", () => {
   it("preserves legacy events, retires unsafe legacy tasks and remains idempotent", async () => {

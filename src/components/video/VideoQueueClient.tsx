@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Link, useRouter } from "@/i18n/navigation";
+import { requestOpenAshedConnection } from "@/lib/connect/open-ashed-connection.shared";
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import {
   RecordDetailCard,
@@ -86,6 +87,9 @@ export function VideoQueueClient({
   }, [refresh]);
 
   const goConnect = useCallback(() => {
+    if (requestOpenAshedConnection()) {
+      return;
+    }
     router.push(connectUrl);
   }, [router, connectUrl]);
 
@@ -355,6 +359,7 @@ export function VideoQueueClient({
                 t={t}
                 tUpload={tUpload}
                 tReview={tReview}
+                tAdminJobs={tAdminJobs}
               />
             </RecordDetailField>
           </RecordDetailCard>
@@ -409,6 +414,7 @@ export function VideoQueueClient({
                         t={t}
                         tUpload={tUpload}
                         tReview={tReview}
+                        tAdminJobs={tAdminJobs}
                       />
                     </td>
                   </tr>
@@ -442,6 +448,26 @@ function StatusBadge({ status, label }: { status: string; label: string }) {
   );
 }
 
+const QUEUE_ACTION_LINK_CLASS =
+  "rounded-md border border-hq-border px-2.5 py-1 text-xs text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent";
+
+function JobInspectLink({
+  jobId,
+  label,
+}: {
+  jobId: string;
+  label: string;
+}) {
+  return (
+    <Link
+      href={`/tools/video-jobs/${jobId}`}
+      className={QUEUE_ACTION_LINK_CLASS}
+    >
+      {label}
+    </Link>
+  );
+}
+
 function JobActions({
   job,
   acting,
@@ -456,6 +482,7 @@ function JobActions({
   t,
   tUpload,
   tReview,
+  tAdminJobs,
 }: {
   job: AllianceQueueJob;
   acting: boolean;
@@ -470,17 +497,21 @@ function JobActions({
   t: ReturnType<typeof useTranslations>;
   tUpload: ReturnType<typeof useTranslations>;
   tReview: ReturnType<typeof useTranslations>;
+  tAdminJobs: ReturnType<typeof useTranslations>;
 }) {
   const stage = videoJobLifecycleStage(job.status);
+  const inspect = canProcess ? (
+    <JobInspectLink jobId={job.id} label={tAdminJobs("inspect")} />
+  ) : null;
 
   if (stage === "needs_upload") {
     return (
-      <Link
-        href="/tools/video-upload"
-        className="rounded-md border border-hq-border px-2.5 py-1 text-xs text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent"
-      >
-        {tUpload("viewAllUploads")}
-      </Link>
+      <div className="flex flex-wrap items-center gap-2 text-sm font-normal">
+        <Link href="/tools/video-upload" className={QUEUE_ACTION_LINK_CLASS}>
+          {tUpload("viewAllUploads")}
+        </Link>
+        {inspect}
+      </div>
     );
   }
 
@@ -513,19 +544,23 @@ function JobActions({
         >
           {t("reject")}
         </button>
+        {inspect}
       </div>
     );
   }
 
   if (stage === "processing" || stage === "submitting") {
     return (
-      <button
-        type="button"
-        onClick={onReview}
-        className="rounded-md border border-hq-border px-2.5 py-1 text-xs text-hq-fg-muted hover:border-hq-accent hover:text-hq-accent"
-      >
-        {tUpload("reviewLink")}
-      </button>
+      <div className="flex flex-wrap items-center gap-2 text-sm font-normal">
+        <button
+          type="button"
+          onClick={onReview}
+          className={QUEUE_ACTION_LINK_CLASS}
+        >
+          {tUpload("reviewLink")}
+        </button>
+        {inspect}
+      </div>
     );
   }
 
@@ -547,6 +582,7 @@ function JobActions({
         >
           {tReview("discardResults")}
         </button>
+        {inspect}
       </div>
     );
   }
@@ -582,6 +618,15 @@ function JobActions({
         >
           {tReview("discardResults")}
         </button>
+        {inspect}
+      </div>
+    );
+  }
+
+  if (inspect) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 text-sm font-normal">
+        {inspect}
       </div>
     );
   }

@@ -235,7 +235,7 @@ describe("native alliance VS engine", () => {
     })).toBe("ashed");
     expect(resolveVideoOcrEngineForJob("vs-performance", false, {
       allianceOperatingMode: "ashed", allianceHqOcrOnly: true,
-    })).toBe("mock");
+    })).toBe("native");
   });
 });
 

@@ -22,6 +22,11 @@ describe("buildConnectHref", () => {
     expect(buildConnectHref("/settings/team")).toBe(
       "/connect?next=%2Fsettings%2Fteam",
     );
+    expect(
+      buildConnectHref("/tools/video-upload?processJob=job-1"),
+    ).toBe(
+      "/connect?next=%2Ftools%2Fvideo-upload%3FprocessJob%3Djob-1",
+    );
   });
 
   it("returns bare /connect for invalid or connect self paths", () => {

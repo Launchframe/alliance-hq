@@ -6,6 +6,7 @@ import {
   reviewLeaderboardRankByScoreDesc,
   reviewRowPrimarySortKey,
   sortParsedRowsForInitialReview,
+  sortReviewRowsByScoreDesc,
   sortsInitialReviewByScoreDesc,
 } from "@/lib/video/parsed-row-review-order";
 
@@ -104,6 +105,51 @@ describe("mergeParsedRowInReviewOrder", () => {
     );
     // Manual rows use frameIndex -1; merge keeps rank/frameIndex rules, not score.
     expect(merged.map((row) => row.id)).toEqual(["new", "a", "b"]);
+  });
+});
+
+describe("sortReviewRowsByScoreDesc", () => {
+  it("sorts active rows by score descending and keeps deleted rows last", () => {
+    const sorted = sortReviewRowsByScoreDesc([
+      { id: "low", score: "10", frameIndex: 0 },
+      { id: "high", score: "100", frameIndex: 2 },
+      { id: "deleted", score: "999", frameIndex: 1, deleted: 1 },
+      { id: "mid", score: "50", frameIndex: 3 },
+    ]);
+    expect(sorted.map((row) => row.id)).toEqual([
+      "high",
+      "mid",
+      "low",
+      "deleted",
+    ]);
+  });
+
+  it("breaks tied scores by frameIndex ascending", () => {
+    const sorted = sortReviewRowsByScoreDesc([
+      { id: "later", score: "100", frameIndex: 5 },
+      { id: "earlier", score: "100", frameIndex: 1 },
+      { id: "middle", score: "100", frameIndex: 3 },
+    ]);
+    expect(sorted.map((row) => row.id)).toEqual([
+      "earlier",
+      "middle",
+      "later",
+    ]);
+  });
+
+  it("sorts locale-formatted scores and sinks empty scores last", () => {
+    const sorted = sortReviewRowsByScoreDesc([
+      { id: "empty", score: "", frameIndex: 0 },
+      { id: "comma", score: "1,250", frameIndex: 2 },
+      { id: "plain", score: "500", frameIndex: 1 },
+      { id: "invalid", score: "n/a", frameIndex: 3 },
+    ]);
+    expect(sorted.map((row) => row.id)).toEqual([
+      "comma",
+      "plain",
+      "empty",
+      "invalid",
+    ]);
   });
 });
 
