@@ -980,6 +980,44 @@ export async function markConductorDepartingSoonAnnounced(
     );
 }
 
+/** CAS claim before Discord post. Returns false if already claimed. */
+export async function claimConductorDepartingSoonAnnounced(
+  recordId: string,
+  allianceId: string,
+): Promise<boolean> {
+  const db = getDb();
+  const now = new Date();
+  const updated = await db
+    .update(schema.trainConductorRecords)
+    .set({ discordDepartingSoonAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(schema.trainConductorRecords.id, recordId),
+        eq(schema.trainConductorRecords.allianceId, allianceId),
+        isNull(schema.trainConductorRecords.discordDepartingSoonAt),
+      ),
+    )
+    .returning({ id: schema.trainConductorRecords.id });
+  return updated.length > 0;
+}
+
+export async function clearConductorDepartingSoonAnnounced(
+  recordId: string,
+  allianceId: string,
+): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+  await db
+    .update(schema.trainConductorRecords)
+    .set({ discordDepartingSoonAt: null, updatedAt: now })
+    .where(
+      and(
+        eq(schema.trainConductorRecords.id, recordId),
+        eq(schema.trainConductorRecords.allianceId, allianceId),
+      ),
+    );
+}
+
 export async function unlockConductorRecord(
   recordId: string,
   allianceId: string,
