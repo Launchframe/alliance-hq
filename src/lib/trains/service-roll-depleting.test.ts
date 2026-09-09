@@ -19,6 +19,9 @@ const mocks = vi.hoisted(() => ({
   getMemberRankAsOf: vi.fn(),
   refreshExhaustedPoolIfNeeded: vi.fn(),
   loadAllianceTrainLeadTimeDays: vi.fn(),
+  withConductorPoolClaimLock: vi.fn(
+    async (_key: unknown, run: () => Promise<unknown>) => run(),
+  ),
 }));
 
 vi.mock("@/lib/game-season/sync", () => ({
@@ -77,9 +80,7 @@ vi.mock("@/lib/trains/heavy-hitter-pool.server", () => ({
 }));
 
 vi.mock("@/lib/trains/conductor-pool-claim-lock.server", () => ({
-  withConductorPoolClaimLock: vi.fn(
-    async (_key: unknown, run: () => Promise<unknown>) => run(),
-  ),
+  withConductorPoolClaimLock: mocks.withConductorPoolClaimLock,
 }));
 
 vi.mock("@/lib/trains/native-scores.server", () => ({
@@ -329,5 +330,63 @@ describe("rollForVip depleting pool release ordering", () => {
     expect(
       mocks.assignVipOnLockedConductor.mock.invocationCallOrder[0],
     ).toBeLessThan(mocks.releasePoolSelectionForDate.mock.invocationCallOrder[0]!);
+  });
+
+  it("releases the newly claimed VIP when assignVipOnLockedConductor fails", async () => {
+    mocks.assignVipOnLockedConductor.mockRejectedValue(
+      new Error("Lock the conductor before assigning VIP."),
+    );
+
+    await expect(
+      rollForVip({ allianceId: "a1", date: "2099-06-20" }),
+    ).rejects.toThrow("Lock the conductor before assigning VIP.");
+
+    expect(mocks.markPoolEntrySelected).toHaveBeenCalledWith("e-bob", "2099-06-20");
+    expect(mocks.releasePoolSelectionForDate).toHaveBeenCalledWith(
+      "a1",
+      "2099-06-20",
+      "m-bob",
+    );
+    expect(mocks.releasePoolSelectionForDate).not.toHaveBeenCalledWith(
+      "a1",
+      "2099-06-20",
+      "m-alice",
+    );
+  });
+
+  it("keeps claim+assign+prior-release inside one pool claim lock", async () => {
+    const order: string[] = [];
+    mocks.withConductorPoolClaimLock.mockImplementation(
+      async (_key: unknown, run: () => Promise<unknown>) => {
+        order.push("lock");
+        const value = await run();
+        order.push("unlock");
+        return value;
+      },
+    );
+    mocks.markPoolEntrySelected.mockImplementation(async () => {
+      order.push("claim");
+      return true;
+    });
+    mocks.assignVipOnLockedConductor.mockImplementation(async () => {
+      order.push("assign");
+      return {
+        vipMemberId: "m-bob",
+        lockedAt: new Date("2099-06-20T12:00:00Z"),
+      };
+    });
+    mocks.releasePoolSelectionForDate.mockImplementation(async () => {
+      order.push("release-prior");
+    });
+
+    await rollForVip({ allianceId: "a1", date: "2099-06-20" });
+
+    expect(order).toEqual([
+      "lock",
+      "claim",
+      "assign",
+      "release-prior",
+      "unlock",
+    ]);
   });
 });
