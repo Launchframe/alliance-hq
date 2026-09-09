@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { AppSelect } from "@/components/ui/AppSelect";
 import type { SupportEvent, SupportSnapshot, UndoPreview } from "@/lib/support-teams/types.shared";
 import { SupportClientError, supportRequest } from "@/lib/support-teams/board-client.shared";
-import { historyKindLabels, historyNames, humanizePatch, undoConfirmation, type HistoryResult, type HistoryRow } from "@/lib/support-teams/history-client.shared";
+import { historyKindLabels, historyNames, historyServiceLabel, humanizePatch, undoConfirmation, type HistoryResult, type HistoryRow } from "@/lib/support-teams/history-client.shared";
 import { SupportDialog, SupportErrorMessage, supportButton, supportInput } from "./SupportTeamControls";
 
 export function SupportTeamHistory({ snapshot, onChanged }: { snapshot: SupportSnapshot; onChanged: () => Promise<void> }) {
@@ -45,9 +45,14 @@ export function SupportTeamHistory({ snapshot, onChanged }: { snapshot: SupportS
   const invalidateLoad = useCallback(() => { generation.current++; }, []);
   useEffect(() => { if (open) { const timer = setTimeout(() => void load(), 150); return () => { clearTimeout(timer); invalidateLoad(); }; } }, [invalidateLoad, load, open, snapshot.version]);
   const names = (event: SupportEvent) => historyNames(snapshot, event, (number) => t("defaultName", { number: number.toLocaleString(locale) }), t("unknown"), t("unsorted"));
+  const actorName = (event: SupportEvent) => { const key = historyServiceLabel(event); return key ? tr(key) : event.actorName ?? t("unknown"); };
   const summary = (event: SupportEvent) => {
     const n = names(event);
-    const actor = event.actorType === "service" ? t("title") : event.actorName ?? t("unknown");
+    const actor = actorName(event);
+    if (event.kind === "scheduleDraft" || event.kind === "extendDraft") return t("history.draftChanged", { actor });
+    if (event.kind === "publishDraft") return t("history.published", { actor });
+    if (event.kind === "draftPick") return t("history.moved", { actor, member: n.member(event.memberIds[0]), from: t("unsorted"), to: n.team(event.teamIds[0]) });
+    if (event.context.mode === "draft" && event.kind !== "undo") return [actor, tr(historyKindLabels[event.kind]), event.context.round !== undefined ? t("draft.round", { round: event.context.round.toLocaleString(locale) }) : null].filter(Boolean).join(" · ");
     if (event.kind === "rename") {
       const patch = event.patches.find((row) => JSON.parse(row.key)[2] === "name");
       return t("history.renamed", { actor, team: n.team(event.teamIds[0]), name: typeof patch?.after === "string" ? patch.after : t("unknown") });
@@ -56,7 +61,7 @@ export function SupportTeamHistory({ snapshot, onChanged }: { snapshot: SupportS
       const patch = event.patches.find((row) => JSON.parse(row.key)[2] === "lead");
       return t("history.leadChanged", { actor, lead: n.member(String(patch?.after ?? "")), team: n.team(event.teamIds[0]) });
     }
-    if (event.kind === "reconcile" && event.patches.length === 0) return t("saved");
+    if (event.kind === "reconcile" && event.patches.length === 0) return `${actor} · ${t("saved")}`;
     if (event.kind === "undo") return t("history.reversed", { actor, action: event.reverses.map((id) => known[id]?.boardVersion.toLocaleString(locale) ?? t("unknown")).join(", ") });
     return event.patches.filter((patch) => JSON.parse(patch.key)[0] === "member").map((patch) => t("history.moved", { actor, member: n.member(JSON.parse(patch.key)[1]), from: n.team(patch.before === null ? null : String(patch.before)), to: n.team(patch.after === null ? null : String(patch.after)) })).join(" ");
   };
@@ -112,14 +117,14 @@ export function SupportTeamHistory({ snapshot, onChanged }: { snapshot: SupportS
   return <><button className={supportButton} onClick={() => setOpen(true)}>{t("history.title")}</button>
     {open && <SupportDialog title={t("history.title")} onClose={() => setOpen(false)}><p className="mb-4 text-sm text-hq-fg-muted">{t("history.ownHint")}</p>
       <div className="grid gap-2 sm:grid-cols-2"><label className="text-sm">{tr("members.search")}<input className={supportInput} type="search" value={filters.query ?? ""} onChange={(event) => changeFilter("query", event.target.value)} /></label>
-        {optionFilter("actorId", tr("admin.auditPage.table.hqUser"), [...new Map(rows.map((row) => [row.principalId, { value: row.principalId, label: row.actorName ?? t("unknown") }])).values()])}
+        {optionFilter("actorId", tr("admin.auditPage.table.hqUser"), [...new Map(rows.map((row) => [row.principalId, { value: row.principalId, label: actorName(row) }])).values()])}
         {optionFilter("teamId", t("teamName"), snapshot.teams.map((team, index) => ({ value: team.id, label: team.name ?? t("defaultName", { number: (index + 1).toLocaleString(locale) }) })))}
         {optionFilter("memberId", t("findMember"), snapshot.roster.map((member) => ({ value: member.id, label: member.name })))}
-        {optionFilter("kind", tr("admin.auditPage.filters.action"), Object.entries(historyKindLabels).map(([value, key]) => ({ value, label: t(key) })))}
-        {optionFilter("contextId", t("history.title"), [...new Map(rows.flatMap((row) => { const id = row.context.draftId ?? row.context.proposalId; return id ? [[id, { value: id, label: `${t(historyKindLabels[row.kind])} · ${new Date(row.at).toLocaleString(locale)}` }] as const] : []; })).values()])}
+        {optionFilter("kind", tr("admin.auditPage.filters.action"), Object.entries(historyKindLabels).map(([value, key]) => ({ value, label: tr(key) })))}
+        {optionFilter("contextId", t("history.title"), [...new Map(rows.flatMap((row) => { const id = row.context.draftId ?? row.context.proposalId; return id ? [[id, { value: id, label: `${tr(historyKindLabels[row.kind])} · ${new Date(row.at).toLocaleString(locale)}` }] as const] : []; })).values()])}
       </div><button className={`${supportButton} my-3`} onClick={() => { setFilters({}); setCursor(undefined); setBack([]); }}>{t("resetFilters")}</button>
       <SupportErrorMessage code={error} history />{loading && <p role="status">{tr("common.loading")}</p>}
-      <ol className="space-y-3" aria-busy={loading}>{page.events.map((event) => <li key={event.id} className="rounded-lg border border-hq-border p-3"><p>{summary(event)}</p><time dateTime={event.at} className="text-xs text-hq-fg-muted">{new Date(event.at).toLocaleString(locale)}</time>{details(event)}
+      <ol className="space-y-3" aria-busy={loading}>{page.events.map((event) => <li key={event.id} data-support-event={event.id} className="rounded-lg border border-hq-border p-3"><p>{summary(event)}</p><time dateTime={event.at} className="text-xs text-hq-fg-muted">{new Date(event.at).toLocaleString(locale)}</time>{details(event)}
         {event.reversalId && <p className="text-sm">{t("history.undone")}</p>}
         {event.undoBlocked && <SupportErrorMessage code={event.undoBlocked} history reveal={false} />}
         {snapshot.actor?.canWrite && (snapshot.actor.override || event.principalId === snapshot.actor.principalId) && !event.reversalId && <button className={`${supportButton} mt-2`} disabled={busy} onClick={() => void openPreview(event)}>{t("history.preview")}</button>}
@@ -129,7 +134,7 @@ export function SupportTeamHistory({ snapshot, onChanged }: { snapshot: SupportS
     {root && <SupportDialog title={t("history.preview")} onClose={() => { if (!busy) setRoot(null); }}>
       <p>{summary(root)}</p><SupportErrorMessage code={previewError} history />
       {busy && <p role="status">{tr("common.loading")}</p>}
-      {preview && <><h3 className="mt-3 font-semibold">{t("history.cascade")}</h3><p className="text-sm">{t("history.cascadeHint")}</p><ol className="my-3 space-y-3">{affected.map((event) => <li key={event.id} className="rounded-lg border border-hq-border p-3"><p>{summary(event)}</p><time dateTime={event.at}>{new Date(event.at).toLocaleString(locale)}</time>{details(event)}</li>)}</ol>{details(root, preview.patches)}<button className={supportButton} disabled={busy} onClick={() => void confirm()}>{t("history.confirm", { count: preview.actionIds.length.toLocaleString(locale) })}</button></>}
+      {preview && <><h3 className="mt-3 font-semibold">{t("history.cascade")}</h3><p className="text-sm">{t("history.cascadeHint")}</p><ol className="my-3 space-y-3">{affected.map((event) => <li key={event.id} data-support-event={event.id} className="rounded-lg border border-hq-border p-3"><p>{summary(event)}</p><time dateTime={event.at}>{new Date(event.at).toLocaleString(locale)}</time>{details(event)}</li>)}</ol>{details(root, preview.patches)}<button className={supportButton} disabled={busy} onClick={() => void confirm()}>{t("history.confirm", { count: preview.actionIds.length.toLocaleString(locale) })}</button></>}
       <button className={`${supportButton} ml-2`} disabled={busy} onClick={() => void openPreview(root)}>{t("history.preview")}</button>
     </SupportDialog>}
   </>;

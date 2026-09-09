@@ -6,7 +6,7 @@ import { SupportError, type EventIdentity, type SupportActor, type SupportBoard,
 export const SUPPORT_MEMBERSHIP_SERVICE = "service:support-team-membership";
 export const privateSupportKey = (key: string) => {
   const [resource, , field] = JSON.parse(key) as string[];
-  return resource === "membership" || field === "assignmentStint";
+  return resource === "membership" || field === "assignmentStint" || field === "workspaceStintToken" || (resource.startsWith("draftMember:") && field === "stint") || (resource === "draft" && field === "rosterFingerprint");
 };
 export const publicVersions = (versions: Record<string, number>) => Object.fromEntries(Object.entries(versions).filter(([key]) => !privateSupportKey(key)));
 export const publicBoard = (board: SupportBoard): SupportBoard => ({ ...board, fields: Object.fromEntries(Object.entries(board.fields).filter(([key]) => !privateSupportKey(key))) });
@@ -61,12 +61,16 @@ export function reconcileMemberships(board: SupportBoard, roster: SupportRosterM
   });
   const result = recordChanges(board, actor, changes, observed, { mode: "maintenance" }, "reconcile", identity);
   result.event.actorType = "service";
+  result.event.principalType = "service";
   result.event.memberNames = Object.fromEntries(roster.filter((member) => result.event.memberIds.includes(member.id)).map((member) => [member.id, member.name]));
   return result;
 }
 
 export function applyStintCommand(board: SupportBoard, roster: SupportRosterMember[], actor: SupportActor, command: SupportCommand, identity: EventIdentity) {
-  const result = applyCommand(board, roster, actor, command, identity);
+  return bindStintAssignments(board, actor, applyCommand(board, roster, actor, command, identity));
+}
+
+export function bindStintAssignments(board: SupportBoard, actor: SupportActor, result: { board: SupportBoard; event: SupportEvent }) {
   const changes = Object.fromEntries(result.event.patches.map((patch) => [patch.key, patch.after]));
   const reads = Object.keys(result.event.observedVersions);
   for (const patch of result.event.patches) {
@@ -82,7 +86,8 @@ export function applyStintCommand(board: SupportBoard, roster: SupportRosterMemb
       reads.push(fieldKey("membership", patch.after, "leadEligibility"));
     }
   }
-  return recordChanges(board, actor, changes, reads, result.event.context, result.event.kind, identity);
+  const bound = recordChanges(board, actor, changes, reads, result.event.context, result.event.kind, result.event, result.event.reverses);
+  return { board: bound.board, event: { ...result.event, patches: bound.event.patches, observedVersions: bound.event.observedVersions, dependsOn: bound.event.dependsOn } };
 }
 
 export function assertMembershipUndo(preview: UndoPreview, events: SupportEvent[]) {

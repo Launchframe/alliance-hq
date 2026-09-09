@@ -2,8 +2,43 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SupportCommand, SupportSnapshot } from "@/lib/support-teams/types.shared";
-import { acceptSnapshot, SupportClientError, supportRequest } from "@/lib/support-teams/board-client.shared";
+import { acceptSnapshot, acceptsDraftSnapshot, draftWorkspaceKey, SupportClientError, supportRequest } from "@/lib/support-teams/board-client.shared";
+import type { DraftSnapshot } from "@/lib/support-teams/draft.shared";
 import type { SupportDisplayPreferences } from "@/lib/support-teams/display-preferences.shared";
+
+export function useSupportTeamDraft(live: SupportSnapshot, refreshBoard: () => Promise<void>) {
+  const key = draftWorkspaceKey(live);
+  const [loaded, setLoaded] = useState<{ key: string; snapshot: DraftSnapshot } | null>(null);
+  const [error, setError] = useState("");
+  const request = useRef<AbortController | null>(null);
+  const minimum = useRef<{ key: string | null; version: number }>({ key: null, version: 0 });
+  const load = useCallback(async (minimumVersion = 0) => {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
+    if (!key) { setLoaded(null); setError(""); return; }
+    minimum.current = { key, version: Math.max(minimum.current.key === key ? minimum.current.version : 0, live.version, minimumVersion) };
+    try {
+      const next = await supportRequest<DraftSnapshot>(`/api/support-teams/drafts/${encodeURIComponent(live.board!.construction!.id)}`, { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      if (acceptsDraftSnapshot(next, live, key) && next.version >= minimum.current.version) {
+        minimum.current.version = next.version;
+        setLoaded({ key, snapshot: next });
+        setError("");
+      } else if (next.phase === "published" || next.phase === "canceled") {
+        setLoaded(null);
+        await refreshBoard();
+      }
+    } catch (failure) {
+      if (controller.signal.aborted) return;
+      if (failure instanceof SupportClientError && (failure.status === 401 || failure.status === 403)) { setLoaded(null); await refreshBoard(); }
+      setError(failure instanceof SupportClientError ? failure.code : "changed");
+    }
+  }, [key, live, refreshBoard]);
+  useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => { window.clearTimeout(timer); request.current?.abort(); }; }, [load]);
+  const refresh = useCallback(async (minimumVersion = 0) => { await load(minimumVersion); await refreshBoard(); }, [load, refreshBoard]);
+  return { snapshot: loaded?.key === key ? loaded.snapshot : null, active: key !== null, key, error, refresh };
+}
 
 export type DisplayState = { version: number; display: SupportDisplayPreferences };
 export function useSupportTeamLive(initial: SupportSnapshot, initialPreferences: DisplayState) {
@@ -18,11 +53,17 @@ export function useSupportTeamLive(initial: SupportSnapshot, initialPreferences:
   const mutation = useRef(false);
   const denied = useRef(false);
   const attempts = useRef(new Map<string, string>());
+  const refreshRequest = useRef(0);
   const refresh = useCallback(async () => {
+    const generation = ++refreshRequest.current;
     try {
       const next = await supportRequest<SupportSnapshot>("/api/support-teams");
-      if (!mounted.current || denied.current) return;
-      current.current = acceptSnapshot(current.current, next);
+      if (!mounted.current || denied.current || generation !== refreshRequest.current) return;
+      if (current.current.board && next.board && current.current.board.allianceId !== next.board.allianceId) {
+        denied.current = true;
+        current.current = { version: 0, published: false, teams: [], roster: [], linkedMemberIds: [], canWrite: false };
+        setErrors({ connection: "forbidden" });
+      } else current.current = acceptSnapshot(current.current, next);
       setSnapshot(current.current);
     } catch (error) {
       if (!mounted.current) return;

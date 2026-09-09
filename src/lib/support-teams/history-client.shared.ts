@@ -2,7 +2,10 @@ import type { SupportEvent, SupportPatch, SupportSnapshot, SupportValue, UndoPre
 
 export type HistoryRow = SupportEvent & { undoBlocked: string | null; reversalId: string | null };
 export type HistoryResult = { events: HistoryRow[]; nextBeforeVersion: number | null };
-export const historyKindLabels = { createTeam: "addLead", replaceLead: "replaceLead", rename: "rename", move: "moveMember", swap: "swapMembers", undo: "history.undo", reconcile: "saved" } as const;
+export const historyKindLabels = { createTeam: "supportTeams.addLead", replaceLead: "supportTeams.replaceLead", rename: "supportTeams.rename", move: "supportTeams.moveMember", swap: "supportTeams.swapMembers", undo: "supportTeams.history.undo", reconcile: "supportTeams.saved", scheduleDraft: "supportTeams.draft.create", draftPick: "supportTeams.draft.pick", advanceDraft: "supportTeams.draft.title", extendDraft: "supportTeams.draft.extend", publishDraft: "supportTeams.draft.publish", cancelDraft: "timeOff.officerModal.cancel" } as const satisfies Record<SupportEvent["kind"], string>;
+export function historyServiceLabel(event: SupportEvent) {
+  return event.actorType === "service" || event.principalType === "service" || event.principalId.startsWith("service:") ? event.context.mode === "draft" ? "supportTeams.draft.title" : "supportTeams.title" : null;
+}
 export function undoConfirmation(preview: UndoPreview, idempotencyKey: string) {
   return { actionIds: preview.actionIds, expectedVersions: preview.expectedVersions, idempotencyKey };
 }
@@ -26,6 +29,6 @@ export function humanizePatch(patch: SupportPatch, names: ReturnType<typeof hist
     if (typeof value === "boolean") return value ? labels.yes : labels.no;
     return labels.unknown;
   };
-  const label = resource === "member" ? names.member(id) : resource === "team" ? `${names.team(id)} · ${field === "lead" ? labels.lead : labels.teamName}` : labels.unknown;
+  const label = resource === "member" || resource.startsWith("draftMember:") ? names.member(id) : resource === "team" || resource.startsWith("draftTeam:") ? `${names.team(id)} · ${field === "lead" ? labels.lead : labels.teamName}` : labels.unknown;
   return { label, before: format(patch.before), after: format(patch.after) };
 }
