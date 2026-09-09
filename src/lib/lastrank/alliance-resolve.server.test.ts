@@ -41,7 +41,30 @@ describe("resolveHqAllianceForLastRankSync", () => {
     mocks.createNativeAlliance.mockResolvedValue({ allianceId: "new-alliance" });
   });
 
-  it("uses a sole fuzzy tag match on apply instead of creating a duplicate", async () => {
+  it("refuses non-interactive sole fuzzy tag bind (cron must not hit the wrong alliance)", async () => {
+    mocks.selectResult = [
+      {
+        id: "hq-existing",
+        tag: "LFg0",
+        name: "LFgo Alliance",
+        gameServerNumber: 1203,
+      },
+    ];
+
+    await expect(
+      resolveHqAllianceForLastRankSync({
+        target: {
+          gameServerNumber: 1203,
+          tag: "LFgo",
+          lastrankAllianceId: "e7d1eaefdcfc42c8ac6c84247d2dad9b",
+        },
+        allowCreate: true,
+      }),
+    ).rejects.toThrow(/No exact HQ tag match.*LFg0/);
+    expect(mocks.createNativeAlliance).not.toHaveBeenCalled();
+  });
+
+  it("lets interactive prompt accept a fuzzy candidate", async () => {
     mocks.selectResult = [
       {
         id: "hq-existing",
@@ -58,6 +81,7 @@ describe("resolveHqAllianceForLastRankSync", () => {
         lastrankAllianceId: "e7d1eaefdcfc42c8ac6c84247d2dad9b",
       },
       allowCreate: true,
+      alliancePrompt: async () => "hq-existing",
     });
 
     expect(result).toEqual({ allianceId: "hq-existing", created: false });
