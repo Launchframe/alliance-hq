@@ -3,8 +3,9 @@ import { nanoid } from "nanoid";
 import { playwrightAuthCookies } from "./fixtures/auth";
 import { authCookieHeader, createHqMemberLink } from "./fixtures/db";
 import { createPublishedSupportTeamFixture } from "./fixtures/support-teams";
+import en from "../messages/en-US.json";
 
-async function openBoard(page: Page, context: BrowserContext, actor: Parameters<typeof playwrightAuthCookies>[0], createProposal = false) {
+async function openBoard(page: Page, context: BrowserContext, actor: Parameters<typeof playwrightAuthCookies>[0], createProposal = false, proposalExpected = createProposal) {
   await context.addCookies(playwrightAuthCookies(actor));
   const ready = page.waitForResponse((response) => response.url().endsWith("/api/support-teams") && response.request().method() === "GET" && response.status() === 200);
   await page.goto("/support-teams");
@@ -14,19 +15,14 @@ async function openBoard(page: Page, context: BrowserContext, actor: Parameters<
     await page.getByRole("button", { name: "New proposal", exact: true }).click();
     await expect(page).toHaveURL(/proposal=/);
   }
+  if (proposalExpected) {
+    await expect(page.getByRole("region", { name: en.supportTeams.proposals.title, exact: true }).locator("[data-member-board-scope]")).toBeVisible();
+  }
 }
 
-async function dragMember(page: Page, source: Locator, target: Locator) {
-  await target.scrollIntoViewIfNeeded();
-  await source.scrollIntoViewIfNeeded();
-  const from = (await source.boundingBox())!;
-  const to = (await target.boundingBox())!;
-  await page.mouse.move(from.x + 10, from.y + 10);
-  await page.mouse.down();
-  await page.mouse.move(from.x + 20, from.y + 20);
-  await page.mouse.move(to.x + 20, to.y + 20, { steps: 5 });
-  await page.mouse.move(to.x + 21, to.y + 21);
-  await page.mouse.up();
+async function dragMember(source: Locator, target: Locator) {
+  await expect(source).toHaveAttribute("draggable", "true");
+  await source.dragTo(target.locator("header"), { sourcePosition: { x: 10, y: 10 } });
 }
 
 for (const mode of ["maintenance", "proposal"] as const) {
@@ -43,7 +39,8 @@ test(`${mode}: desktop board drag/drop and explicit fuzzy selection use confirme
   await expect(harbor).toBeVisible();
   const member = page.locator(`[data-support-member="${f.members[0].ashedMemberId}"]`);
   await expect(member.getByRole("img", { name: "Country: Unknown" })).toBeVisible();
-  await dragMember(page, member, cedar);
+  await expect(member.getByRole("button", { name: en.team.invites.claimRowAction, exact: true })).toBeVisible();
+  await dragMember(member, cedar);
   await expect(cedar.locator(`[data-support-member="${f.members[0].ashedMemberId}"]`)).toBeVisible();
   let commands = 0;
   page.on("request", (req) => { if (req.method() === "POST" && new URL(req.url()).pathname === commandPath(page)) commands++; });
@@ -61,6 +58,62 @@ test(`${mode}: desktop board drag/drop and explicit fuzzy selection use confirme
   await expect(search).toHaveValue("Member 1");
   await search.press("Enter");
   expect(commands).toBe(1);
+});
+
+test(`${mode}: board rejects foreign drag scopes and locates within its own drawer instead of document-wide lookalikes`, async ({ page, context, request }) => {
+  const f = await createPublishedSupportTeamFixture(request);
+  await page.setViewportSize({ width: 1500, height: 1000 });
+  await openBoard(page, context, f.owner, mode === "proposal");
+  const board = page.locator("[data-member-board-scope]");
+  const memberId = f.members[0].ashedMemberId;
+  const source = board.locator(`[data-member-board-member="${memberId}"]`);
+  const target = board.locator(`[data-member-board-group="${f.teams[0]}"]`);
+  await expect(source).toHaveAttribute("draggable", "true");
+  const transfer = await page.evaluateHandle(() => new DataTransfer());
+  await source.dispatchEvent("pointerdown", { pointerId: 1, pointerType: "mouse", button: 0 });
+  const other = board.locator(`[data-member-board-member="${f.members[1].ashedMemberId}"]`);
+  expect(await other.evaluate((element, data) => {
+    const start = new DragEvent("dragstart", { bubbles: true, cancelable: true, dataTransfer: data });
+    element.dispatchEvent(start);
+    return { canceled: start.defaultPrevented, payload: data.getData("application/x-member-board-member") };
+  }, transfer)).toEqual({ canceled: true, payload: "" });
+  expect(await source.evaluate((element, data) => {
+    element.dispatchEvent(new DragEvent("dragstart", { bubbles: true, cancelable: true, dataTransfer: data }));
+    const target = element.closest("[data-member-board-scope]")!.querySelector("[data-member-board-group]")!;
+    const over = new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: data });
+    target.dispatchEvent(over);
+    return over.defaultPrevented;
+  }, transfer)).toBe(true);
+  await page.evaluate((data) => {
+    const type = "application/x-member-board-member";
+    const payload = JSON.parse(data.getData(type));
+    data.setData(type, JSON.stringify({ ...payload, instance: `${payload.instance}-foreign` }));
+  }, transfer);
+  let commands = 0;
+  page.on("request", (req) => { if (req.method() === "POST" && new URL(req.url()).pathname === commandPath(page)) commands++; });
+  await target.dispatchEvent("drop", { dataTransfer: transfer });
+  await source.dispatchEvent("dragend", { dataTransfer: transfer });
+  await expect(board.locator(`[data-member-board-pool] [data-member-board-member="${memberId}"]`)).toBeVisible();
+  expect(commands).toBe(0);
+  await page.evaluate((id) => {
+    const decoy = document.createElement("article");
+    decoy.dataset.memberBoardMember = id;
+    decoy.dataset.supportMember = id;
+    decoy.dataset.foreignBoardDecoy = "true";
+    decoy.tabIndex = -1;
+    decoy.textContent = "Decoy";
+    document.body.prepend(decoy);
+  }, memberId);
+  await board.getByRole("combobox", { name: "Find a member", exact: true }).fill("Member 0");
+  await page.getByRole("option", { name: /Member 0/ }).click();
+  const drawer = board.getByRole("dialog", { name: "Unsorted", exact: true });
+  await expect(drawer.locator(`[data-member-board-member="${memberId}"]`)).toBeFocused();
+  await expect(page.locator("[data-foreign-board-decoy]")).not.toBeFocused();
+  expect(commands).toBe(0);
+  await drawer.getByRole("button", { name: "Close Unsorted", exact: true }).click();
+  await dragMember(source, target);
+  await expect(target.locator(`[data-member-board-member="${memberId}"]`)).toBeVisible();
+  await transfer.dispose();
 });
 
 test(`${mode}: keyboard selection never substitutes a different member after a snapshot reorder`, async ({ page, context, request }) => {
@@ -111,7 +164,7 @@ test(`${mode}: two desktop contexts preserve the winning move and surface the st
   const b = await second.newPage();
   try {
     await openBoard(a, first, f.officer, mode === "proposal");
-    await openBoard(b, second, f.owner);
+    await openBoard(b, second, f.owner, false, mode === "proposal");
     let intercepted!: () => void;
     const arrived = new Promise<void>((resolve) => { intercepted = resolve; });
     await b.route(`**${commandPath(a)}`, async (route) => { if (route.request().method() !== "POST") return route.continue(); intercepted(); await held; await route.continue(); });
@@ -123,7 +176,7 @@ test(`${mode}: two desktop contexts preserve the winning move and surface the st
     await arrived;
     const source = a.locator(`[data-support-member="${f.members[0].ashedMemberId}"]`);
     const winner = a.locator(`[data-support-team="${f.teams[0]}"]`);
-    await dragMember(a, source, winner);
+    await dragMember(source, winner);
     await expect(winner.locator(`[data-support-member="${f.members[0].ashedMemberId}"]`)).toBeVisible();
     const staleResponse = b.waitForResponse((response) => response.url().endsWith(commandPath(a)) && response.request().method() === "POST");
     release();

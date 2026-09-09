@@ -5,7 +5,8 @@ import { createHqMemberLink } from "./fixtures/db";
 import en from "../messages/en-US.json";
 import pt from "../messages/pt-BR.json";
 import { authCookieHeader, createBrowserSession, type SessionFixture } from "./fixtures/db";
-import { createSupportTeamFixture } from "./fixtures/support-teams";
+import { createPublishedSupportTeamFixture, createSupportTeamFixture } from "./fixtures/support-teams";
+import { memberDragType } from "../src/lib/member-board/board.shared";
 import type { ProposalSnapshot } from "../src/lib/support-teams/proposal.shared";
 
 async function openProposal(page: Page, actor: SessionFixture, id?: string, locale = "en-US") {
@@ -71,7 +72,7 @@ for (const [locale, messages] of [["en-US", en], ["pt-BR", pt]] as const) {
       const slot = page.locator(`[data-support-team="${target.id}"]`);
       const moved = page.waitForResponse((response) => response.url().endsWith(`${path}/move`) && response.request().method() === "POST");
       if (index === 0) {
-        await page.locator(`[data-support-member="${member.ashedMemberId}"]`).dragTo(slot);
+        await page.locator(`[data-support-member="${member.ashedMemberId}"]`).dragTo(slot.locator("header"), { sourcePosition: { x: 10, y: 10 } });
       } else if (index < f.members.length - 1) {
         const search = slot.getByRole("combobox", { name: copy.addMember, exact: true });
         await search.fill(`Member ${index}`);
@@ -136,6 +137,80 @@ for (const [locale, messages] of [["en-US", en], ["pt-BR", pt]] as const) {
     expect(context.pages()).toContain(page);
   });
 }
+
+test("proposal workspace identity survives refresh but switches isolate personal state and reject old drag payloads", async ({ page, request }) => {
+  const f = await createPublishedSupportTeamFixture(request);
+  const headers = { Cookie: authCookieHeader(f.owner) };
+  const create = async () => {
+    const live = await (await request.get("/api/support-teams", { headers })).json();
+    const result = await request.post("/api/support-teams/proposals", { headers, data: { expectedVersion: live.version, idempotencyKey: randomUUID() } });
+    expect(result.status()).toBe(200);
+    return (await result.json()).proposalId as string;
+  };
+  const first = await create(), second = await create();
+  const read = async (id: string): Promise<ProposalSnapshot> => (await request.get(`/api/support-teams/proposals/${id}`, { headers })).json();
+  await page.setViewportSize({ width: 1500, height: 1000 });
+  await openProposal(page, f.owner, first);
+  const board = page.getByRole("region", { name: en.supportTeams.proposals.title, exact: true }).locator("[data-member-board-scope]");
+  const source = board.locator(`[data-member-board-pool] [data-member-board-member="${f.members[0].ashedMemberId}"]`);
+  await expect(source).toBeVisible();
+  await expect(source).toHaveAttribute("draggable", "true");
+  const firstInstance = await board.getAttribute("data-member-board-scope");
+  const transfer = await page.evaluateHandle(() => new DataTransfer());
+  try {
+    await source.dispatchEvent("dragstart", { dataTransfer: transfer });
+    await source.dispatchEvent("dragend", { dataTransfer: transfer });
+    const oldPayload = await transfer.evaluate((data, type) => data.getData(type), memberDragType);
+    expect(JSON.parse(oldPayload)).toMatchObject({ workspace: JSON.stringify(["support-teams", f.allianceId, f.owner.hqUserId, "proposal", first]), instance: firstInstance, memberId: f.members[0].ashedMemberId });
+    const search = board.locator("aside").getByRole("searchbox");
+    await search.fill("Member 5");
+    await board.getByText(en.supportTeams.filters, { exact: true }).click();
+    const minimum = board.getByRole("spinbutton", { name: "THP ≥", exact: true });
+    await minimum.fill("123");
+    await refreshProposal(page, `/api/support-teams/proposals/${first}`);
+    await expect(board).toHaveAttribute("data-member-board-scope", firstInstance!);
+    await expect(search).toHaveValue("Member 5");
+    await expect(minimum).toHaveValue("123");
+    await expect(page).toHaveURL(new RegExp(`proposal=${first}`));
+    const listing = await (await request.get("/api/support-teams/proposals", { headers })).json() as { proposals: ProposalSnapshot[] };
+    const optionLabel = (id: string) => `${en.supportTeams.proposals.title} · ${listing.proposals.findIndex((item) => item.id === id) + 1} · ${en.supportTeams.proposals.create}`;
+    const select = async (id: string) => {
+      await page.getByRole("button", { name: en.supportTeams.proposals.title, exact: true }).click();
+      await page.getByRole("option", { name: optionLabel(id), exact: true }).click();
+      await expect(page).toHaveURL(new RegExp(`proposal=${id}`));
+      await expect(source).toBeVisible();
+    };
+    await select(second);
+    await expect(board).not.toHaveAttribute("data-member-board-scope", firstInstance!);
+    await expect(search).toHaveValue("");
+    await board.getByText(en.supportTeams.filters, { exact: true }).click();
+    await expect(minimum).toHaveValue("");
+    const target = board.locator(`[data-member-board-group="${f.teams[0]}"]`);
+    const commands: { path: string; body: Record<string, unknown> }[] = [];
+    page.on("request", (req) => { if (req.method() === "POST" && /\/proposals\/[^/]+\/move$/.test(new URL(req.url()).pathname)) commands.push({ path: new URL(req.url()).pathname, body: req.postDataJSON() }); });
+    await target.dispatchEvent("drop", { dataTransfer: transfer });
+    const secondInstance = await board.getAttribute("data-member-board-scope");
+    await transfer.evaluate((data, input) => data.setData(input.type, JSON.stringify({ ...JSON.parse(input.payload), instance: input.instance })), { type: memberDragType, payload: oldPayload, instance: secondInstance });
+    await target.dispatchEvent("drop", { dataTransfer: transfer });
+    await expect(source).toBeVisible();
+    expect(commands).toEqual([]);
+    expect((await read(first)).memberLocations[f.members[0].ashedMemberId]).toBeNull();
+    expect((await read(second)).memberLocations[f.members[0].ashedMemberId]).toBeNull();
+    await source.dispatchEvent("dragstart", { dataTransfer: transfer });
+    expect(JSON.parse(await transfer.evaluate((data, type) => data.getData(type), memberDragType)).workspace).toBe(JSON.stringify(["support-teams", f.allianceId, f.owner.hqUserId, "proposal", second]));
+    const before = await read(second);
+    const moved = page.waitForResponse((response) => response.url().endsWith(`/proposals/${second}/move`) && response.request().method() === "POST");
+    await target.dispatchEvent("drop", { dataTransfer: transfer });
+    expect((await moved).status()).toBe(200);
+    await expect(target.locator(`[data-member-board-member="${f.members[0].ashedMemberId}"]`)).toBeVisible();
+    expect(commands).toHaveLength(1);
+    expect(commands[0]).toMatchObject({ path: `/api/support-teams/proposals/${second}/move`, body: { memberId: f.members[0].ashedMemberId, from: null, to: f.teams[0], expectedVersion: before.proposalVersion } });
+    await expect(board).toHaveAttribute("data-member-board-scope", secondInstance!);
+    await select(first);
+    expect((await read(first)).memberLocations[f.members[0].ashedMemberId]).toBeNull();
+    await expect(search).toHaveValue("");
+  } finally { await transfer.dispose(); }
+});
 
 test("browser strict 50 percent and unlinked denominator block publication until explicit owner dialog", async ({ page, browser, request }) => {
   const f = await proposal(request);

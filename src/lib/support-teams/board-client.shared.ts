@@ -3,6 +3,7 @@ import { decideCommand } from "./policy.shared";
 import { normalizeCountry } from "./display-preferences.shared";
 import type { DraftSnapshot } from "./draft.shared";
 import type { ProposalSnapshot } from "./proposal.shared";
+import { memberLocation, swipeDirection as boardSwipeDirection } from "@/lib/member-board/board.shared";
 
 export function workingProposalSnapshot(proposal: ProposalSnapshot, linkedMemberIds: string[]): SupportSnapshot {
   return { version: proposal.version, published: false, teams: proposal.teams.map((team) => ({ ...team, memberIds: [...team.memberIds], needsReplacement: false })), roster: proposal.roster, linkedMemberIds, canWrite: proposal.canEdit };
@@ -21,6 +22,15 @@ export function proposalBoardInteractions(adapter: { move: (id: string, to: stri
     onMove: (id: string, to: string | null, other?: string) => { if (!eligibility(id, to, other)) { if (other) void adapter.swap(id, other); else void adapter.move(id, to); } },
     canCommand,
     onCommand: (command: SupportCommand, slot: string) => { if (canCommand(command)) execute({ ...command, expectedVersion: published.version }, slot); },
+  };
+}
+
+export function supportBoardData(snapshot: SupportSnapshot, teamName: (id: string | null) => string, unknown: string) {
+  return {
+    scope: JSON.stringify(["support-teams", snapshot.board?.allianceId, snapshot.actor?.principalId ?? snapshot.linkedMemberIds, snapshot.board?.construction?.id]),
+    members: snapshot.roster.map((member) => ({ ...member, searchTerms: member.previousNames })),
+    groups: snapshot.teams.map((team) => ({ ...team, name: teamName(team.id), optionLabel: `${teamName(team.id)} · ${snapshot.roster.find((member) => member.id === team.leadId)?.name ?? unknown}` })),
+    preferredGroupId: ownTeamId(snapshot),
   };
 }
 
@@ -59,7 +69,7 @@ export function draftBoardInteractions(adapter: { pick: (teamId: string, memberI
 export const chipMetrics = ["professionLevel", "baseLevel", "thp", "tenureDays"] as const;
 export const metricLabels = { professionLevel: "profession", baseLevel: "baseLevel", thp: "thp", tenureDays: "tenure" } as const;
 export function locationOf(snapshot: SupportSnapshot, memberId: string): string | null {
-  return snapshot.teams.find((team) => team.memberIds.includes(memberId))?.id ?? null;
+  return memberLocation(snapshot.teams, memberId);
 }
 export function ownTeamId(snapshot: SupportSnapshot): string | null {
   return snapshot.teams.find((team) => team.leadId && snapshot.linkedMemberIds.includes(team.leadId))?.id
@@ -77,8 +87,7 @@ export function acceptSnapshot(current: SupportSnapshot, incoming: SupportSnapsh
   return incoming.version >= current.version ? incoming : current;
 }
 export function swipeDirection(dx: number, dy: number, interactive: boolean, selectedText: boolean): -1 | 0 | 1 {
-  if (interactive || selectedText || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 2) return 0;
-  return dx < 0 ? 1 : -1;
+  return boardSwipeDirection(dx, dy, interactive, selectedText);
 }
 export function countryPresentation(country: string | null, locale: string, unknown: string) {
   const code = normalizeCountry(country);
