@@ -4260,12 +4260,14 @@
     "title": "Enviar a partir de vídeo",
     "subtitle": "Grave a rolagem de um placar do Last War. Extraímos frames, OCR e você revisa antes de enviar ao Ashed.",
     "scoreTargetLabel": "Qual placar é este?",
+    "scoreTargetPlaceholder": "Selecione um placar…",
     "ocrAccuracy": {
       "high": "Alta",
       "mid": "Média",
       "low": "Baixa",
       "none": "Nenhuma",
-      "label": "O selo mostra o quão bem nosso OCR interno lê este evento."
+      "label": "O selo mostra o quão bem nosso OCR interno lê este evento.",
+      "labelWithAshed": "Ashed está conectado — os placares com suporte Ashed mostram Alta."
     },
     "categoryLabel": "Que tipo de placar é este?",
     "categories": {
@@ -4287,6 +4289,7 @@
     "fileTooLarge": "Este arquivo é {size}. O vídeo deve ter menos de {maxSize}.",
     "selectedFile": "Selecionado: {name} ({size})",
     "chooseFileFirst": "Escolha um arquivo de vídeo primeiro.",
+    "chooseScoreTargetFirst": "Escolha um placar primeiro.",
     "uploading": "Enviando…",
     "preparingUpload": "Preparando envio…",
     "uploadButton": "Enviar vídeo",
@@ -4296,9 +4299,17 @@
       "resources": "Recursos",
       "points": "Pontos"
     },
-    "queuedSuccess": "Vídeo enviado. Conclua a pesquisa curta enquanto espera — um oficial aprovará e executará o OCR.",
-    "pendingApprovalHint": "Vídeos enviados ficam na fila até um processador designado ou o dono da aliança aprovar. Você pode concluir a pesquisa do envio enquanto espera.",
+    "queuedSuccess": "Vídeo enviado. Um processador de vídeo vai aprovar e executar o OCR.",
+    "pendingApprovalHint": "Vídeos enviados ficam na fila até um processador designado ou o dono da aliança aprovar.",
     "recentUploads": "Envios recentes",
+    "awaitingApprovalHeading": "Aguardando aprovação",
+    "awaitingApprovalDialog": {
+      "title": "Aguardando aprovação",
+      "body": "Os oficiais foram avisados no Discord. Um processador de vídeo vai aprovar este envio e executar o OCR.",
+      "done": "Concluído"
+    },
+    "otherUploadsHeading": "Outros envios recentes",
+    "openVideoQueue": "Abrir fila de vídeos",
     "viewAllUploads": "Ver todos os envios",
     "reviewLink": "Revisar",
     "surveyResumeLink": "Pesquisa",
@@ -4349,7 +4360,8 @@
       "experimentSaveFailed": "Não foi possível salvar a seleção do experimento.",
       "processNow": "Processar agora",
       "processing": "Iniciando…",
-      "later": "Agora não"
+      "later": "Agora não",
+      "connectViaHeaderHint": "Conecte pelo controle Ashed na barra superior para manter este envio nesta página."
     }
   },
   "videoUpload": {
@@ -5142,6 +5154,10 @@
       "noWalkthrough": "Nenhum tutorial em andamento.",
       "noConfirm": "Nada para confirmar agora.",
       "askOfficerNeedsNameAndUid": "Execute `/link-commander` e conclua o link seguro antes de pedir ajuda a um oficial."
+    },
+    "video": {
+      "pendingApproval": "{uploader} enviou **{fileName}** ({leaderboard}). Aprove na fila de vídeos: {queueUrl}",
+      "pendingApprovalUploaderFallback": "Alguém"
     },
     "channelSetter": {
       "deniedOfficer": "Somente um oficial R4+ vinculado (ou o dono da aliança) pode definir canais de anúncio no Discord. Vincule seu comandante primeiro, ou peça a um oficial ou ao dono para executar este comando.",

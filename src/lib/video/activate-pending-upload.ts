@@ -5,6 +5,7 @@ import { emitVideoJobStatus } from "@/lib/events/video-jobs";
 import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
 import { resolvePrimaryExtractionForUpload } from "@/lib/video/experiment-assignment";
+import { announceVideoPendingApproval } from "@/lib/video/pending-approval-discord.server";
 
 export async function activatePendingVideoUpload(
   jobId: string,
@@ -82,5 +83,12 @@ export async function activatePendingVideoUpload(
     frameCount: null,
     uploadedFrameCount: 0,
     errorMessage: null,
+  });
+
+  void announceVideoPendingApproval({
+    allianceId: job.allianceId,
+    fileName: job.fileName,
+    scoreTarget,
+    enqueuedByHqUserId: job.enqueuedByHqUserId,
   });
 }

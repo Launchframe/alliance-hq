@@ -16,6 +16,7 @@ import {
   shouldCountAsAshedSessionRequest,
   startAshedConnectionSession,
 } from "@/lib/connect/connection-session-stats.shared";
+import { OPEN_ASHED_CONNECTION_EVENT } from "@/lib/connect/open-ashed-connection.shared";
 import {
   markConnectWalkthroughSeen,
   readAshedConnectedOnThisDeviceBefore,
@@ -193,6 +194,17 @@ export function AshedConnectionStatus({
     });
     return () => cancelAnimationFrame(frame);
   }, [open]);
+
+  React.useEffect(() => {
+    function onOpenRequest() {
+      setOpen(true);
+      setError(null);
+    }
+    window.addEventListener(OPEN_ASHED_CONNECTION_EVENT, onOpenRequest);
+    return () => {
+      window.removeEventListener(OPEN_ASHED_CONNECTION_EVENT, onOpenRequest);
+    };
+  }, []);
 
   React.useEffect(() => {
     if (open && !isConnected) {
