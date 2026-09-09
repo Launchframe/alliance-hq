@@ -17,10 +17,11 @@ import { canManageTimeOffEntry, isTimeOffDate, TimeOffError, TIME_OFF_MAX_DAYS, 
 import { loadTimeOffInteraction, saveTimeOffInteraction, type TimeOffDiscordActor } from "./discord-interaction-state.server";
 import { escapeTimeOffDiscordText, parseTimeOffCustomId, timeOffCustomId, type TimeOffDiscordState } from "./discord-workflow.shared";
 import type { SerializedTimeOffEntry } from "./types.shared";
+import { timeOffSyncStatusKey } from "@/components/time-off/sync-ui.shared";
 
 type Context = { actor: TimeOffDiscordActor; locale: DiscordBotLocale; requestId: string; t: ReturnType<typeof createDiscordTranslator> };
 type Button = { type: number; style: number; label: string; custom_id: string };
-export type TimeOffBotReply = { content: string; components?: unknown[] };
+export type TimeOffBotReply = { content: string; components?: unknown[]; syncAllianceId?: string };
 
 async function contextFor(payload: DiscordInteractionPayload): Promise<Context> {
   const discordUserId = interactionDiscordUserId(payload);
@@ -34,7 +35,7 @@ async function contextFor(payload: DiscordInteractionPayload): Promise<Context> 
     listDiscordLinksForStatusQuery(allianceId, discordUserId),
     callerCanRunVrReport({ allianceId, discordUserId }),
   ]);
-  return { locale, requestId: `discord-${payload.id}`, t: createDiscordTranslator(locale), actor: { allianceId, discordUserId, guildId, canManageOthers, ownedCommanderIds: links.map((link) => link.ashedMemberId), refresh: async () => (await contextFor(payload)).actor } };
+  return { locale, requestId: `discord-${payload.id}`, t: createDiscordTranslator(locale), actor: { allianceId, discordUserId, guildId, canManageOthers, locale, ownedCommanderIds: links.map((link) => link.ashedMemberId), refresh: async () => (await contextFor(payload)).actor } };
 }
 
 function button(token: string, action: string, label: string, style = 2): Button {
@@ -51,8 +52,13 @@ function dateLabel(ctx: Context, date: string) {
   return new Intl.DateTimeFormat(ctx.locale, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
 }
 
-function summary(ctx: Context, entry: { memberName: string; startDate: string; endDate: string }) {
-  return ctx.t("timeOff.entrySummary", { name: escapeTimeOffDiscordText(entry.memberName.slice(0, 120)), start: dateLabel(ctx, entry.startDate), end: dateLabel(ctx, entry.endDate) });
+function summary(ctx: Context, entry: { memberName: string; startDate: string; endDate: string; activityScope?: string }) {
+  const text = ctx.t("timeOff.entrySummary", { name: escapeTimeOffDiscordText(entry.memberName.slice(0, 120)), start: dateLabel(ctx, entry.startDate), end: dateLabel(ctx, entry.endDate) });
+  return entry.activityScope === "vs" || entry.activityScope === "donation" ? `${text} · ${ctx.t(`timeOff.sync.scope.${entry.activityScope}`)}` : text;
+}
+
+function syncNotice(ctx: Context, entry: SerializedTimeOffEntry) {
+  return entry.syncStatus && entry.syncStatus !== "local" ? `\n${ctx.t(`timeOff.${timeOffSyncStatusKey(entry.syncStatus)}`)}` : "";
 }
 
 function assertMember(ctx: Context, memberId: string) {
@@ -78,7 +84,7 @@ function assertEditable(ctx: Context, entry: SerializedTimeOffEntry) {
 async function showEntry(ctx: Context, id: string): Promise<TimeOffBotReply> {
   const entry = await loadEntry(ctx, id);
   const token = await saveTimeOffInteraction(ctx.actor, { kind: "entry", entryId: id, version: entry.version });
-  let content = summary(ctx, entry);
+  let content = summary(ctx, entry) + syncNotice(ctx, entry);
   if (entry.notes) content += `\n${ctx.t("timeOff.privateNotesLine", { notes: escapeTimeOffDiscordText(entry.notes).slice(0, 1200) })}`;
   if (entry.cancelledAt) content += `\n${ctx.t("timeOff.workflow.cancelled")}`;
   if (entry.entryKind === "unexpected") content += `\n${ctx.t("timeOff.workflow.unexpectedHint")}`;
@@ -148,7 +154,7 @@ async function forMember(ctx: Context, command: string, options: Record<string, 
     const member = (await listTimeOffRoster(ctx.actor.allianceId)).find((row) => row.id === memberId);
     if (!member) throw new TimeOffError("commanderUnavailable");
     const entries = await listActiveTimeOffEntries({ allianceId: ctx.actor.allianceId, rangeStart: date, rangeEnd: date });
-    const entry = entries.find((row) => row.ashedMemberId === memberId);
+    const entry = entries.find((row) => row.ashedMemberId === memberId && row.globalAbsence);
     return { content: entry
       ? ctx.t("timeOff.isAway", { name: escapeTimeOffDiscordText(member.name), date: dateLabel(ctx, date), summary: summary(ctx, entry) })
       : ctx.t("timeOff.isAvailable", { name: escapeTimeOffDiscordText(member.name), date: dateLabel(ctx, date) }) };
@@ -254,8 +260,8 @@ async function handleComponent(ctx: Context, payload: DiscordInteractionPayload)
   if (state.kind === "cancel") {
     if (action === "back") return showEntry(ctx, state.entryId);
     if (action === "confirm") {
-      await cancelTimeOff(ctx.actor, state.entryId, state.version);
-      return { content: ctx.t("timeOff.workflow.cancelled") };
+      const entry = await cancelTimeOff(ctx.actor, state.entryId, state.version);
+      return { content: ctx.t("timeOff.workflow.cancelled") + syncNotice(ctx, entry), ...(entry.syncStatus !== "local" ? { syncAllianceId: ctx.actor.allianceId } : {}) };
     }
   }
   if (state.kind === "draft") {
@@ -264,7 +270,7 @@ async function handleComponent(ctx: Context, payload: DiscordInteractionPayload)
       const entry = state.entryId
         ? await updateTimeOff(ctx.actor, state.entryId, state.draft, state.version)
         : await createTimeOff(ctx.actor, state.draft, state.requestId);
-      return { content: `${ctx.t(state.entryId ? "timeOff.workflow.updated" : "timeOff.workflow.saved")}\n${summary(ctx, entry)}` };
+      return { content: `${ctx.t(state.entryId ? "timeOff.workflow.updated" : "timeOff.workflow.saved")}\n${summary(ctx, entry)}${syncNotice(ctx, entry)}`, ...(entry.syncStatus !== "local" ? { syncAllianceId: ctx.actor.allianceId } : {}) };
     }
   }
   throw new TimeOffError("expired", 403);

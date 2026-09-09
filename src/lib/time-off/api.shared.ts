@@ -99,6 +99,10 @@ export function serializeTimeOffEntry(row: {
   source: string;
   version?: number;
   globalAbsence?: boolean;
+  activityScope?: string;
+  syncStatus?: string;
+  lastSyncedAt?: Date | null;
+  noticeVerified?: boolean;
   cancelledAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -117,6 +121,10 @@ export function serializeTimeOffEntry(row: {
     source: isTimeOffSource(row.source) ? row.source : "web",
     version: row.version ?? 0,
     globalAbsence: row.globalAbsence ?? false,
+    activityScope: row.activityScope === "vs" || row.activityScope === "donation" ? row.activityScope : "all",
+    syncStatus: (row.syncStatus ?? "local") as SerializedTimeOffEntry["syncStatus"],
+    lastSyncedAt: row.lastSyncedAt?.toISOString() ?? null,
+    noticeVerified: row.noticeVerified ?? true,
     cancelledAt: row.cancelledAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

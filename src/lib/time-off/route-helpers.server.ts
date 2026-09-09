@@ -8,7 +8,7 @@ import {
   TIME_OFF_WRITE_PERMISSION,
 } from "@/lib/rbac/constants";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { sessionHasPermissionForAlliance } from "@/lib/rbac/context";
 import { listLinkedCommanderIdsForHqUser } from "./repository.server";
 import type { TimeOffActor } from "./mutations.server";
@@ -51,7 +51,7 @@ export async function requireTimeOffActor(): Promise<{ actor: TimeOffActor } | {
     sessionHasPermissionForAlliance(session.id, allianceId, TIME_OFF_WRITE_PERMISSION),
     listLinkedCommanderIdsForHqUser({ allianceId, hqUserId: session.hqUserId }),
   ]);
-  return { actor: { allianceId, hqUserId: session.hqUserId, canManageOthers, ownedCommanderIds, refresh: async () => {
+  return { actor: { allianceId, hqUserId: session.hqUserId, canManageOthers, ownedCommanderIds, locale: await getLocale(), refresh: async () => {
     const current = await requireTimeOffActor();
     if ("error" in current) throw new TimeOffError("forbidden", 403);
     return current.actor;
