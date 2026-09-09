@@ -41,6 +41,48 @@ test("desktop board drag/drop and explicit fuzzy selection use confirmed version
   expect(commands).toBe(1);
 });
 
+test("board rejects foreign drag scopes and locates within its own drawer instead of document-wide lookalikes", async ({ page, context, request }) => {
+  const f = await createPublishedSupportTeamFixture(request);
+  await page.setViewportSize({ width: 1500, height: 1000 });
+  await openBoard(page, context, f.owner);
+  const board = page.locator("[data-member-board-scope]");
+  const memberId = f.members[0].ashedMemberId;
+  const source = board.locator(`[data-member-board-member="${memberId}"]`);
+  const target = board.locator(`[data-member-board-group="${f.teams[0]}"]`);
+  const transfer = await page.evaluateHandle(() => new DataTransfer());
+  await source.dispatchEvent("dragstart", { dataTransfer: transfer });
+  await page.evaluate((data) => {
+    const type = "application/x-member-board-member";
+    const payload = JSON.parse(data.getData(type));
+    data.setData(type, JSON.stringify({ ...payload, instance: `${payload.instance}-foreign` }));
+  }, transfer);
+  let commands = 0;
+  page.on("request", (req) => { if (req.method() === "POST" && new URL(req.url()).pathname === "/api/support-teams") commands++; });
+  await target.dispatchEvent("drop", { dataTransfer: transfer });
+  await source.dispatchEvent("dragend", { dataTransfer: transfer });
+  await expect(board.locator(`[data-member-board-pool] [data-member-board-member="${memberId}"]`)).toBeVisible();
+  expect(commands).toBe(0);
+  await page.evaluate((id) => {
+    const decoy = document.createElement("article");
+    decoy.dataset.memberBoardMember = id;
+    decoy.dataset.supportMember = id;
+    decoy.dataset.foreignBoardDecoy = "true";
+    decoy.tabIndex = -1;
+    decoy.textContent = "Decoy";
+    document.body.prepend(decoy);
+  }, memberId);
+  await board.getByRole("combobox", { name: "Find a member", exact: true }).fill("Member 0");
+  await page.getByRole("option", { name: /Member 0/ }).click();
+  const drawer = board.getByRole("dialog", { name: "Unsorted", exact: true });
+  await expect(drawer.locator(`[data-member-board-member="${memberId}"]`)).toBeFocused();
+  await expect(page.locator("[data-foreign-board-decoy]")).not.toBeFocused();
+  expect(commands).toBe(0);
+  await drawer.getByRole("button", { name: "Close Unsorted", exact: true }).click();
+  await source.dragTo(target);
+  await expect(target.locator(`[data-member-board-member="${memberId}"]`)).toBeVisible();
+  await transfer.dispose();
+});
+
 test("keyboard selection never substitutes a different member after a snapshot reorder", async ({ page, context, request }) => {
   const f = await createPublishedSupportTeamFixture(request);
   await page.setViewportSize({ width: 1500, height: 1000 });
