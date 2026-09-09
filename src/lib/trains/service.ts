@@ -528,6 +528,15 @@ export async function ensureConductorPoolSeeded(input: {
   await seedPool(input.hqAllianceId, input.poolType, candidates);
 }
 
+type RollFromPoolOptions = {
+  /**
+   * When true, the caller already holds {@link withConductorPoolClaimLock}
+   * through claim + draft persist (and prior-slot release). Nested lock would
+   * deadlock on the same advisory key.
+   */
+  skipClaimLock?: boolean;
+};
+
 async function rollFromPool(
   allianceId: string,
   poolType: PoolType,
@@ -538,6 +547,7 @@ async function rollFromPool(
   respectConductorMinimums = false,
   dayExcludedMemberIds?: ReadonlySet<string>,
   claimEligibility?: DepletingPoolClaimEligibility,
+  options?: RollFromPoolOptions,
 ): Promise<RollResult> {
   // Ashed VS + roster rank filters run once outside the claim lock. Holding
   // the lock across those fetches is what stacked swap→spin cycles into 504s
@@ -559,7 +569,7 @@ async function rollFromPool(
   // Serialize list→pick→claim so parallel spins for different dates cannot
   // both mark the same pool row. Conditional claim + retry is defense in depth
   // if a manual pick races outside this lock.
-  return withConductorPoolClaimLock({ allianceId, poolType }, async () => {
+  const claim = async (): Promise<RollResult> => {
     const summary = await getPoolSummary(allianceId, poolType);
     const maxAttempts = Math.max(summary.remaining, 1) + 2;
 
@@ -640,7 +650,12 @@ async function rollFromPool(
       poolType,
       wheelCandidates,
     };
-  });
+  };
+
+  if (options?.skipClaimLock) {
+    return claim();
+  }
+  return withConductorPoolClaimLock({ allianceId, poolType }, claim);
 }
 
 async function applyConductorQualificationGate(input: {
@@ -755,19 +770,6 @@ export async function confirmConductorMinimumOverride(input: {
   const poolType = usesPriceIsFreightConductorRoll(dayConfig.paintTemplate)
     ? null
     : conductorMechanismPoolType(input.mechanism);
-  if (poolType) {
-    const claimed = await markPoolMemberSelectedForDate(
-      input.allianceId,
-      poolType,
-      input.memberId,
-      input.date,
-    );
-    if (!claimed) {
-      throw new Error(
-        "This member was already selected from the current pool generation.",
-      );
-    }
-  }
 
   const result: RollResult = {
     memberId: input.memberId,
@@ -778,15 +780,50 @@ export async function confirmConductorMinimumOverride(input: {
     qualification,
   };
 
-  const persisted = await persistConductorRoll({
-    allianceId: input.allianceId,
-    date: input.date,
-    seasonKey,
-    result,
-    mechanism: input.mechanism,
-    dayConfigId: dayConfig.dayConfigId,
-    vipMechanism: dayConfig.vipMechanism,
-  });
+  const persistOverride = async () =>
+    persistConductorRoll({
+      allianceId: input.allianceId,
+      date: input.date,
+      seasonKey,
+      result,
+      mechanism: input.mechanism,
+      dayConfigId: dayConfig.dayConfigId,
+      vipMechanism: dayConfig.vipMechanism,
+    });
+
+  let persisted: RollResult;
+  if (!poolType) {
+    persisted = await persistOverride();
+  } else {
+    // Claim + draft persist under one lock; release the new claim if persist
+    // fails so the generation slot is not burned without a conductor draft.
+    persisted = await withConductorPoolClaimLock(
+      { allianceId: input.allianceId, poolType },
+      async () => {
+        const claimed = await markPoolMemberSelectedForDate(
+          input.allianceId,
+          poolType,
+          input.memberId,
+          input.date,
+        );
+        if (!claimed) {
+          throw new Error(
+            "This member was already selected from the current pool generation.",
+          );
+        }
+        try {
+          return await persistOverride();
+        } catch (error) {
+          await releasePoolSelectionForDate(
+            input.allianceId,
+            input.date,
+            input.memberId,
+          );
+          throw error;
+        }
+      },
+    );
+  }
 
   await writeAuditLog({
     sessionId: input.sessionId,
@@ -1178,8 +1215,6 @@ export async function rollForConductor(input: {
   });
 
   let result: RollResult;
-  /** Pool claim already applied conductor minimums — skip post-roll Ashed DQ. */
-  let poolRollEnforcedMinimums = false;
   const applyDaySpinExclusion = usesDaySpinExclusions({
     mechanism,
     topBoard,
@@ -1347,19 +1382,97 @@ export async function rollForConductor(input: {
         });
       }
       const useWeightedPick = false;
-      // Do not release the prior depleting selection before claiming the next
-      // winner. A failed re-roll (empty pool / qualification miss) must leave
-      // the draft conductor's pool slot consumed.
-      result = await rollFromPool(
-        input.allianceId,
-        poolType,
-        input.date,
-        mechanism === "r4_sequence",
-        mechanism,
-        useWeightedPick,
-        respectConductorMinimums,
-        applyDaySpinExclusion ? dayExcluded : undefined,
-        claimEligibility,
+      // Hold the depleting-pool claim lock through claim → qualify → draft
+      // persist → prior release. Claiming under the lock then persisting after
+      // unlock orphans the winner when persist fails or a concurrent spin
+      // overwrites the draft (same class as VIP claim-orphan / #579).
+      // Exhausted-pool refresh stays outside — it can seed/list slowly.
+      const priorConductorMemberId = record?.conductorMemberId ?? null;
+      result = await withConductorPoolClaimLock(
+        { allianceId: input.allianceId, poolType },
+        async () => {
+          const rolled = await rollFromPool(
+            input.allianceId,
+            poolType,
+            input.date,
+            mechanism === "r4_sequence",
+            mechanism,
+            useWeightedPick,
+            respectConductorMinimums,
+            applyDaySpinExclusion ? dayExcluded : undefined,
+            claimEligibility,
+            { skipClaimLock: true },
+          );
+          let claimedMemberId: string | null = rolled.memberId;
+          try {
+            const gateApplies =
+              !respectConductorMinimums &&
+              (await resolveConductorQualificationGateApplies({
+                allianceId: input.allianceId,
+                poolType,
+                paintTemplate: dayConfig.paintTemplate,
+              }));
+            const gated = gateApplies
+              ? await applyConductorQualificationGate({
+                  allianceId: input.allianceId,
+                  date: input.date,
+                  result: rolled,
+                  paintTemplate: dayConfig.paintTemplate,
+                  leadDays,
+                })
+              : { ...rolled, draftPersisted: true };
+
+            if (applyDaySpinExclusion) {
+              await recordDaySpinExclusion({
+                allianceId: input.allianceId,
+                date: input.date,
+                memberId: gated.memberId,
+                memberName: gated.memberName,
+              });
+            }
+
+            if (!gated.draftPersisted) {
+              // Gate already released the new claim.
+              claimedMemberId = null;
+              return gated;
+            }
+
+            const persisted = await persistConductorRoll({
+              allianceId: input.allianceId,
+              date: input.date,
+              seasonKey,
+              result: gated,
+              mechanism,
+              dayConfigId: dayConfig.dayConfigId,
+              vipMechanism: dayConfig.vipMechanism,
+            });
+
+            if (
+              shouldReleasePriorPoolSelection({
+                previousMemberId: priorConductorMemberId,
+                nextMemberId: gated.memberId,
+              })
+            ) {
+              await releasePoolSelectionForDate(
+                input.allianceId,
+                input.date,
+                priorConductorMemberId!,
+              );
+            }
+
+            claimedMemberId = null;
+            return persisted;
+          } catch (error) {
+            if (claimedMemberId) {
+              await releasePoolSelectionForDate(
+                input.allianceId,
+                input.date,
+                claimedMemberId,
+              );
+            }
+            throw error;
+          }
+        },
       );
       const poolRefreshed = await refreshExhaustedPoolIfNeeded({
         allianceId: input.allianceId,
@@ -1371,22 +1484,23 @@ export async function rollForConductor(input: {
       if (poolRefreshed) {
         result = { ...result, poolRefreshed };
       }
-      poolRollEnforcedMinimums = respectConductorMinimums;
-      break;
+      // Depleting path already gated + persisted under the claim lock.
+      return result;
     }
     default:
       throw new Error(`Conductor mechanism "${mechanism}" is not rollable yet.`);
   }
   }
 
+  // Depleting lottery/sequence paths return early after claim+persist under the
+  // pool lock (and already skipped Ashed DQ when minimums were enforced at claim).
   const gateApplies =
-    !poolRollEnforcedMinimums &&
-    (await resolveConductorQualificationGateApplies({
+    await resolveConductorQualificationGateApplies({
       allianceId: input.allianceId,
       poolType:
         result.poolType ?? conductorMechanismPoolType(mechanism) ?? null,
       paintTemplate: dayConfig.paintTemplate,
-    }));
+    });
 
   const gated = gateApplies
     ? await applyConductorQualificationGate({

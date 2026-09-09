@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   getMemberRankAsOf: vi.fn(),
   refreshExhaustedPoolIfNeeded: vi.fn(),
   loadAllianceTrainLeadTimeDays: vi.fn(),
+  claimLockDepth: 0,
+  claimLockEvents: [] as string[],
 }));
 
 vi.mock("@/lib/game-season/sync", () => ({
@@ -77,9 +79,16 @@ vi.mock("@/lib/trains/heavy-hitter-pool.server", () => ({
 }));
 
 vi.mock("@/lib/trains/conductor-pool-claim-lock.server", () => ({
-  withConductorPoolClaimLock: vi.fn(
-    async (_key: unknown, run: () => Promise<unknown>) => run(),
-  ),
+  withConductorPoolClaimLock: vi.fn(async (_key: unknown, run: () => Promise<unknown>) => {
+    mocks.claimLockDepth += 1;
+    mocks.claimLockEvents.push("enter");
+    try {
+      return await run();
+    } finally {
+      mocks.claimLockDepth -= 1;
+      mocks.claimLockEvents.push("exit");
+    }
+  }),
 }));
 
 vi.mock("@/lib/trains/native-scores.server", () => ({
@@ -135,6 +144,28 @@ import { rollForConductor, rollForVip } from "@/lib/trains/service";
 describe("rollForConductor depleting pool release ordering", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.claimLockDepth = 0;
+    mocks.claimLockEvents = [];
+    mocks.markPoolEntrySelected.mockImplementation(async (...args: unknown[]) => {
+      mocks.claimLockEvents.push(
+        mocks.claimLockDepth > 0 ? "claim:locked" : "claim:unlocked",
+      );
+      return true;
+    });
+    mocks.upsertConductorDraft.mockImplementation(async (input: { conductorMemberId?: string }) => {
+      mocks.claimLockEvents.push(
+        mocks.claimLockDepth > 0 ? "persist:locked" : "persist:unlocked",
+      );
+      return {
+        conductorMemberId: input.conductorMemberId ?? "m-bob",
+        lockedAt: null,
+      };
+    });
+    mocks.releasePoolSelectionForDate.mockImplementation(async (..._args: unknown[]) => {
+      mocks.claimLockEvents.push(
+        mocks.claimLockDepth > 0 ? "release:locked" : "release:unlocked",
+      );
+    });
     mocks.getEffectiveSeasonForAlliance.mockResolvedValue({ seasonKey: "1" });
     mocks.loadAllianceTrainLeadTimeDays.mockResolvedValue(0);
     mocks.resolveRollDayConfig.mockResolvedValue({
@@ -162,15 +193,10 @@ describe("rollForConductor depleting pool release ordering", () => {
       memberName: "Bob",
       allianceRank: 3,
     });
-    mocks.markPoolEntrySelected.mockResolvedValue(true);
     mocks.resolvePoolRespectsConductorMinimums.mockResolvedValue(false);
     mocks.filterMemberIdsByConductorMinimums.mockResolvedValue(null);
     mocks.resolveConductorQualificationGateApplies.mockResolvedValue(false);
     mocks.getMemberRankAsOf.mockResolvedValue({ id: "rank-1" });
-    mocks.upsertConductorDraft.mockResolvedValue({
-      conductorMemberId: "m-bob",
-      lockedAt: null,
-    });
     mocks.refreshExhaustedPoolIfNeeded.mockResolvedValue(false);
   });
 
@@ -269,6 +295,52 @@ describe("rollForConductor depleting pool release ordering", () => {
     expect(mocks.markPoolEntrySelected).toHaveBeenCalledTimes(2);
     expect(mocks.upsertConductorDraft).toHaveBeenCalled();
   });
+
+  it("keeps claim, draft persist, and prior release inside the pool claim lock", async () => {
+    mocks.getConductorRecord.mockResolvedValue({
+      conductorMemberId: "m-alice",
+      lockedAt: null,
+    });
+
+    await rollForConductor({ allianceId: "a1", date: "2099-06-20" });
+
+    expect(mocks.claimLockEvents).toContain("claim:locked");
+    expect(mocks.claimLockEvents).toContain("persist:locked");
+    expect(mocks.claimLockEvents).toContain("release:locked");
+    expect(mocks.claimLockEvents).not.toContain("claim:unlocked");
+    expect(mocks.claimLockEvents).not.toContain("persist:unlocked");
+    expect(mocks.claimLockEvents).not.toContain("release:unlocked");
+  });
+
+  it("releases the newly claimed member when draft persist fails after claim", async () => {
+    mocks.getConductorRecord.mockResolvedValue({
+      conductorMemberId: "m-alice",
+      lockedAt: null,
+    });
+    mocks.upsertConductorDraft.mockImplementation(async () => {
+      mocks.claimLockEvents.push(
+        mocks.claimLockDepth > 0 ? "persist:locked" : "persist:unlocked",
+      );
+      throw new Error("db write failed");
+    });
+
+    await expect(
+      rollForConductor({ allianceId: "a1", date: "2099-06-20" }),
+    ).rejects.toThrow(/db write failed/);
+
+    expect(mocks.releasePoolSelectionForDate).toHaveBeenCalledWith(
+      "a1",
+      "2099-06-20",
+      "m-bob",
+    );
+    // Prior conductor slot must remain consumed when the re-roll fails.
+    expect(mocks.releasePoolSelectionForDate).not.toHaveBeenCalledWith(
+      "a1",
+      "2099-06-20",
+      "m-alice",
+    );
+  });
+
 });
 
 describe("rollForVip depleting pool release ordering", () => {

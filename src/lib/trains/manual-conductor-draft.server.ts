@@ -106,82 +106,105 @@ export async function applyManualConductorDraft(input: {
     }
   }
   const priorConductorMemberId = existing?.conductorMemberId ?? null;
-  if (poolType) {
-    const replacingSameMember = priorConductorMemberId === input.memberId;
-    if (!replacingSameMember) {
-      await ensureConductorPoolSeeded({
-        hqAllianceId: input.allianceId,
-        poolType,
-        date: input.date,
-        useSequence: mechanism === "r4_sequence",
-        paintTemplate: dayConfig.paintTemplate,
-        respectConductorMinimums: false,
-      });
-      await withConductorPoolClaimLock(
-        { allianceId: input.allianceId, poolType },
-        async () => {
-          const [unselected, poolEntries] = await Promise.all([
-            listUnselectedPoolEntries(input.allianceId, poolType),
-            listPoolEntries(input.allianceId, poolType),
-          ]);
-          const gate = evaluateDepletingManualPick({
-            memberId: input.memberId,
-            unselectedMemberIds: unselected.map((row) => row.memberId),
-            poolMemberIds: poolEntries.map((row) => row.memberId),
-          });
-          if (gate.ok) {
-            const claimed = await markPoolMemberSelectedForDate(
-              input.allianceId,
-              poolType,
-              input.memberId,
-              input.date,
-            );
-            if (!claimed) {
-              throw new ManualPickEligibilityError(
-                "already_awarded",
-                depletingManualPickErrorMessage("already_awarded"),
-              );
-            }
-          } else if (overrideConfirmed) {
-            // Officer confirmed: draft without consuming or refreshing the
-            // generation. Already-chosen / missing rows stay as-is so the
-            // wheel cannot land on a spent or newly inserted slot.
-          } else {
-            throw new ManualPickEligibilityError(
-              gate.reason,
-              depletingManualPickErrorMessage(gate.reason),
-            );
-          }
-        },
-      );
-    }
+
+  const writeDraft = async () =>
+    upsertConductorDraft({
+      allianceId: input.allianceId,
+      date: input.date,
+      seasonKey,
+      conductorMemberId: input.memberId,
+      conductorMemberName: input.memberName,
+      conductorRankEventId: rankEvent?.id ?? null,
+      conductorMechanism: mechanism,
+      vipMechanism: dayConfig.vipMechanism ?? null,
+      dayConfigId: dayConfig.dayConfigId,
+    });
+
+  if (!poolType) {
+    return writeDraft();
   }
 
-  const record = await upsertConductorDraft({
-    allianceId: input.allianceId,
+  const replacingSameMember = priorConductorMemberId === input.memberId;
+  if (replacingSameMember) {
+    return writeDraft();
+  }
+
+  await ensureConductorPoolSeeded({
+    hqAllianceId: input.allianceId,
+    poolType,
     date: input.date,
-    seasonKey,
-    conductorMemberId: input.memberId,
-    conductorMemberName: input.memberName,
-    conductorRankEventId: rankEvent?.id ?? null,
-    conductorMechanism: mechanism,
-    vipMechanism: dayConfig.vipMechanism ?? null,
-    dayConfigId: dayConfig.dayConfigId,
+    useSequence: mechanism === "r4_sequence",
+    paintTemplate: dayConfig.paintTemplate,
+    respectConductorMinimums: false,
   });
 
-  if (
-    poolType &&
-    shouldReleasePriorPoolSelection({
-      previousMemberId: priorConductorMemberId,
-      nextMemberId: input.memberId,
-    })
-  ) {
-    await releasePoolSelectionForDate(
-      input.allianceId,
-      input.date,
-      priorConductorMemberId!,
-    );
-  }
+  // Hold the claim lock through claim → draft persist → prior release so a
+  // failed upsert (or concurrent overwrite) cannot leave a burned pool slot
+  // without a matching conductor draft.
+  return withConductorPoolClaimLock(
+    { allianceId: input.allianceId, poolType },
+    async () => {
+      const [unselected, poolEntries] = await Promise.all([
+        listUnselectedPoolEntries(input.allianceId, poolType),
+        listPoolEntries(input.allianceId, poolType),
+      ]);
+      const gate = evaluateDepletingManualPick({
+        memberId: input.memberId,
+        unselectedMemberIds: unselected.map((row) => row.memberId),
+        poolMemberIds: poolEntries.map((row) => row.memberId),
+      });
 
-  return record;
+      let claimedNewMember = false;
+      if (gate.ok) {
+        const claimed = await markPoolMemberSelectedForDate(
+          input.allianceId,
+          poolType,
+          input.memberId,
+          input.date,
+        );
+        if (!claimed) {
+          throw new ManualPickEligibilityError(
+            "already_awarded",
+            depletingManualPickErrorMessage("already_awarded"),
+          );
+        }
+        claimedNewMember = true;
+      } else if (overrideConfirmed) {
+        // Officer confirmed: draft without consuming or refreshing the
+        // generation. Already-chosen / missing rows stay as-is so the
+        // wheel cannot land on a spent or newly inserted slot.
+      } else {
+        throw new ManualPickEligibilityError(
+          gate.reason,
+          depletingManualPickErrorMessage(gate.reason),
+        );
+      }
+
+      try {
+        const record = await writeDraft();
+        if (
+          shouldReleasePriorPoolSelection({
+            previousMemberId: priorConductorMemberId,
+            nextMemberId: input.memberId,
+          })
+        ) {
+          await releasePoolSelectionForDate(
+            input.allianceId,
+            input.date,
+            priorConductorMemberId!,
+          );
+        }
+        return record;
+      } catch (error) {
+        if (claimedNewMember) {
+          await releasePoolSelectionForDate(
+            input.allianceId,
+            input.date,
+            input.memberId,
+          );
+        }
+        throw error;
+      }
+    },
+  );
 }

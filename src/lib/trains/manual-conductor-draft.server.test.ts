@@ -305,6 +305,40 @@ describe("applyManualConductorDraft", () => {
     );
   });
 
+  it("releases the newly claimed pool member when draft upsert fails", async () => {
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorMechanism: "r3_lottery",
+      vipMechanism: "conductor_pick",
+      paintTemplate: "economy_week",
+      dayConfigId: "dc-1",
+    });
+    mocks.listUnselectedPoolEntries.mockResolvedValue([{ memberId: "m-alice" }]);
+    mocks.listPoolEntries.mockResolvedValue([{ memberId: "m-alice" }]);
+    mocks.markPoolMemberSelectedForDate.mockResolvedValue(true);
+    mocks.upsertConductorDraft.mockRejectedValue(new Error("draft write failed"));
+
+    await expect(
+      applyManualConductorDraft({
+        allianceId: "ally-1",
+        date: "2026-07-27",
+        memberId: "m-alice",
+        memberName: "Alice",
+      }),
+    ).rejects.toThrow(/draft write failed/);
+
+    expect(mocks.markPoolMemberSelectedForDate).toHaveBeenCalledWith(
+      "ally-1",
+      "r3",
+      "m-alice",
+      "2026-07-27",
+    );
+    expect(mocks.releasePoolSelectionForDate).toHaveBeenCalledWith(
+      "ally-1",
+      "2026-07-27",
+      "m-alice",
+    );
+  });
+
   it("does not mark depleting pools for Price Is Freight paint templates", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
       conductorMechanism: "r3_lottery",
