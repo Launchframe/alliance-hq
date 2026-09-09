@@ -4,6 +4,7 @@ import { authCookieHeader, attachAshedConnectionToSession, getE2eSql, playwright
 import {
   createVideoProcessorScenario,
   insertPendingVideoJob,
+  seedLinkedRosterOfficer,
 } from "./fixtures/video-processor";
 
 function e2eBaseUrl(): string {
@@ -179,6 +180,11 @@ test.describe("Video process preview", () => {
   }) => {
     const sql = getE2eSql();
     const scenario = await createVideoProcessorScenario(sql, e2eBaseUrl());
+    await seedLinkedRosterOfficer(sql, {
+      allianceId: scenario.allianceId,
+      hqUserId: scenario.officer.hqUserId,
+      allianceRank: 4,
+    });
     const jobId = await insertPendingVideoJob(sql, {
       allianceId: scenario.allianceId,
       sessionId: scenario.officer.sessionId,
@@ -188,6 +194,7 @@ test.describe("Video process preview", () => {
 
     await page.context().addCookies(playwrightAuthCookies(scenario.officer));
     await page.goto(`/tools/video-upload?awaitingJob=${jobId}`);
+    await expect(page).toHaveURL(/\/tools\/video-upload/);
 
     const dialog = page.getByTestId("video-awaiting-approval-dialog");
     await expect(page.getByRole("dialog")).toBeVisible();
