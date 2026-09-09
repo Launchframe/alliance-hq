@@ -13,6 +13,15 @@ export function buildTrainsScoresReadyReturnPath(trainDate: string): string {
   return `/trains?${params.toString()}`;
 }
 
+/** Resume trains hub on `trainDate` and start the conductor wheel. */
+export function buildTrainsAutoSpinReturnPath(trainDate: string): string {
+  const params = new URLSearchParams({
+    date: trainDate,
+    autoSpin: "1",
+  });
+  return `/trains?${params.toString()}`;
+}
+
 export function parseTrainsHubDateParam(
   value: string | null | undefined,
 ): string | null {
@@ -24,6 +33,12 @@ export function parseTrainsHubDateParam(
 }
 
 export function parseTrainsScoresReadyParam(
+  value: string | null | undefined,
+): boolean {
+  return value?.trim() === "1";
+}
+
+export function parseTrainsAutoSpinParam(
   value: string | null | undefined,
 ): boolean {
   return value?.trim() === "1";

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildTrainsAutoSpinReturnPath,
   buildTrainsGuidedVideoUploadHref,
   buildTrainsScoresReadyReturnPath,
+  parseTrainsAutoSpinParam,
   parseTrainsHubDateParam,
   parseTrainsScoresReadyParam,
 } from "@/lib/trains/guided-video-upload.shared";
@@ -60,5 +62,10 @@ describe("trains hub return params", () => {
     expect(parseTrainsHubDateParam("nope")).toBeNull();
     expect(parseTrainsScoresReadyParam("1")).toBe(true);
     expect(parseTrainsScoresReadyParam("0")).toBe(false);
+    expect(buildTrainsAutoSpinReturnPath("2026-07-25")).toBe(
+      "/trains?date=2026-07-25&autoSpin=1",
+    );
+    expect(parseTrainsAutoSpinParam("1")).toBe(true);
+    expect(parseTrainsAutoSpinParam("0")).toBe(false);
   });
 });

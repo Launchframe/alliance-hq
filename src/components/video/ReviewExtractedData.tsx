@@ -15,6 +15,7 @@ import { AdminReprocessDialog } from "@/components/admin/AdminReprocessDialog";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { ReviewSegmentedToggle } from "@/components/ui/ReviewSegmentedToggle";
 import { Dialog } from "@/components/ui/dialog";
+import { ScoresReadySpinDialog } from "@/components/trains/ScoresReadySpinDialog";
 import { useAccountTimezone } from "@/components/timezone/TimezoneProvider";
 import { useVideoJob } from "@/components/video/VideoJobEventsProvider";
 import {
@@ -60,6 +61,7 @@ import {
 } from "@/lib/video/vs-day6-derivation.shared";
 import { formatBrowserLocalDateTime } from "@/lib/timezone/format";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
+import { parseConductorSpinOfferPayload } from "@/lib/trains/conductor-spin-after-vs-scores.shared";
 import type { VideoProcessTimings } from "@/lib/analytics/video-pipeline";
 import { buildMemberMatchSelectOptions } from "@/lib/video/member-select-options";
 import { memberMatchConfidenceBorderClass } from "@/lib/video/member-match-confidence-class";
@@ -446,6 +448,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   /** Hold review→event redirect while success/rating UI is on screen. */
   const [holdEventRedirect, setHoldEventRedirect] = useState(false);
   const holdEventRedirectTimeoutRef = useRef<number | null>(null);
+  const [conductorSpinOffer, setConductorSpinOffer] = useState<{
+    trainDate: string;
+    href: string;
+  } | null>(null);
   const [discarding, setDiscarding] = useState(false);
   const [groupInfo, setGroupInfo] = useState<GroupInfo | null>(null);
   const [showComparisonPrompt, setShowComparisonPrompt] = useState(false);
@@ -602,6 +608,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   useEffect(() => {
     if (jobStatus === "loading") return;
     if (holdEventRedirect) return;
+    if (conductorSpinOffer) return;
     const search = window.location.search;
     if (viewMode === "review" && jobStatus === "complete") {
       if (postSubmitReturnTo) {
@@ -619,6 +626,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       router.replace(`/tools/video-upload/${jobId}/review${search}`);
     }
   }, [
+    conductorSpinOffer,
     holdEventRedirect,
     jobId,
     jobStatus,
@@ -2433,6 +2441,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         duplicateMembers?: Array<{ memberName: string }>;
         showSolicitedFeedback?: boolean;
         solicitedSource?: "solicited_first_upload" | "solicited_third_upload";
+        conductorSpin?: unknown;
       };
       if (!res.ok) {
         if (data.code === "ashed_not_connected") {
@@ -2466,6 +2475,10 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                 ? t("killsSubmitSuccess", { count: data.submitted ?? 0 })
                 : t("submitSuccess", { count: data.submitted ?? 0 }),
       );
+      const spinOffer = parseConductorSpinOfferPayload(data.conductorSpin);
+      if (spinOffer) {
+        setConductorSpinOffer(spinOffer);
+      }
       // Stay on review through success + OCR rating; event redirect resumes after.
       if (!isEventView) {
         setHoldEventRedirect(true);
@@ -2485,7 +2498,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       }
       if (!isEventView && !jobRating) {
         setShowRatingPrompt(true);
-      } else if (!isEventView) {
+      } else if (!isEventView && !spinOffer) {
         if (holdEventRedirectTimeoutRef.current != null) {
           window.clearTimeout(holdEventRedirectTimeoutRef.current);
         }
@@ -4206,11 +4219,30 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               window.clearTimeout(holdEventRedirectTimeoutRef.current);
               holdEventRedirectTimeoutRef.current = null;
             }
-            setHoldEventRedirect(false);
+            if (!conductorSpinOffer) {
+              setHoldEventRedirect(false);
+            }
           }}
           onRate={persistJobRating}
         />
       ) : null}
+
+      <ScoresReadySpinDialog
+        open={conductorSpinOffer != null && !showRatingPrompt}
+        onDismiss={() => {
+          setConductorSpinOffer(null);
+          setHoldEventRedirect(false);
+        }}
+        onSpin={() => {
+          const href = conductorSpinOffer?.href;
+          setConductorSpinOffer(null);
+          if (href) {
+            router.replace(href);
+            return;
+          }
+          setHoldEventRedirect(false);
+        }}
+      />
 
       {showComparisonSheet && groupInfo?.group?.comparisonJson ? (
         <PassComparisonSheet

@@ -63,6 +63,7 @@ import { dispatchScoreSubmit } from "@/lib/video/submit-dispatch";
 import { notifyEurVideoEvidence } from "@/lib/eur/satisfaction";
 import { announcePriceIsRightLeaderboardAfterVsUpload } from "@/lib/trains/price-is-right-leaderboard-discord.server";
 import { maybeNominateConductorAfterVsUpload } from "@/lib/trains/conductor-confirmation.server";
+import { resolveConductorSpinOfferAfterVsUpload } from "@/lib/trains/conductor-spin-after-vs-scores.server";
 import {
   replaceAshedScoresForContext,
   resolveOrCreateAshedEvent,
@@ -1236,6 +1237,10 @@ export async function POST(request: Request, { params }: Props) {
 
     void notifyEurVideoEvidence(allianceId).catch(() => {});
 
+    let conductorSpin: Awaited<
+      ReturnType<typeof resolveConductorSpinOfferAfterVsUpload>
+    > = null;
+
     if (scoreTargetId === "vs-performance" && allianceId && submitContext.recordedDate) {
       void announcePriceIsRightLeaderboardAfterVsUpload({
         allianceId,
@@ -1243,18 +1248,27 @@ export async function POST(request: Request, { params }: Props) {
       }).catch((error) => {
         console.error("[train-pir-leaderboard] post-submit announce failed", error);
       });
-      void maybeNominateConductorAfterVsUpload({
-        allianceId,
-        vsRecordedDate: submitContext.recordedDate,
-      }).catch((error) => {
+      try {
+        await maybeNominateConductorAfterVsUpload({
+          allianceId,
+          vsRecordedDate: submitContext.recordedDate,
+        });
+        conductorSpin = await resolveConductorSpinOfferAfterVsUpload({
+          sessionId: session.id,
+          allianceId,
+          vsRecordedDate: submitContext.recordedDate,
+          vsPeriod: submitContext.vsPeriod ?? "daily",
+        });
+      } catch (error) {
         console.error("[train-nomination] post-submit nominate failed", error);
-      });
+      }
     }
 
     return NextResponse.json({
       ok: true,
       submitted: activeRows.length,
       ...solicitedPayload,
+      conductorSpin,
     });
   } catch (error) {
     if (advancedToSubmitting && jobSnapshot) {
