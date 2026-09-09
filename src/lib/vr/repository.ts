@@ -467,10 +467,9 @@ export async function linkDiscordMember(input: {
     return { ok: false, reason: "member_linked_to_other_discord" };
   }
 
-  if (input.replaceAll) {
-    await deleteDiscordMemberLinksForUser(input.allianceId, input.discordUserId);
-  }
-
+  // Occupancy must be checked before any replaceAll wipe. Deleting the caller's
+  // seats first then failing on an occupied target permanently orphans Discord
+  // commanders (and frees them for sniping).
   const existingMemberLink = await getDiscordLinkByAllianceAndMember(
     input.allianceId,
     input.ashedMemberId,
@@ -492,16 +491,30 @@ export async function linkDiscordMember(input: {
 
   try {
     if (existingPair) {
-      const [row] = await db
-        .update(schema.discordMemberLinks)
-        .set({
-          memberDisplayName: input.memberDisplayName ?? null,
-          gameUid: input.gameUid,
-          discordUsername: input.discordUsername ?? null,
-          updatedAt: now,
-        })
-        .where(eq(schema.discordMemberLinks.id, existingPair.id))
-        .returning();
+      const row = await db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(schema.discordMemberLinks)
+          .set({
+            memberDisplayName: input.memberDisplayName ?? null,
+            gameUid: input.gameUid,
+            discordUsername: input.discordUsername ?? null,
+            updatedAt: now,
+          })
+          .where(eq(schema.discordMemberLinks.id, existingPair.id))
+          .returning();
+        if (input.replaceAll) {
+          await tx
+            .delete(schema.discordMemberLinks)
+            .where(
+              and(
+                eq(schema.discordMemberLinks.allianceId, input.allianceId),
+                eq(schema.discordMemberLinks.discordUserId, input.discordUserId),
+                ne(schema.discordMemberLinks.ashedMemberId, input.ashedMemberId),
+              ),
+            );
+        }
+        return updated;
+      });
       await denormalizeGameUidOnMember({
         allianceId: input.allianceId,
         ashedMemberId: input.ashedMemberId,
@@ -521,24 +534,41 @@ export async function linkDiscordMember(input: {
       return { ok: true, link: row!, mode: input.replaceAll ? "replaced" : "updated" };
     }
 
-    if (userLinks.length >= MAX_DISCORD_LINKS_PER_USER) {
+    // replaceAll briefly exceeds the soft cap (insert target, then prune others).
+    if (!input.replaceAll && userLinks.length >= MAX_DISCORD_LINKS_PER_USER) {
       return { ok: false, reason: "cap_reached" };
     }
 
-    const [row] = await db
-      .insert(schema.discordMemberLinks)
-      .values({
-        id: nanoid(),
-        allianceId: input.allianceId,
-        discordUserId: input.discordUserId,
-        discordUsername: input.discordUsername ?? null,
-        ashedMemberId: input.ashedMemberId,
-        memberDisplayName: input.memberDisplayName ?? null,
-        gameUid: input.gameUid,
-        linkedAt: now,
-        updatedAt: now,
-      })
-      .returning();
+    const row = await db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(schema.discordMemberLinks)
+        .values({
+          id: nanoid(),
+          allianceId: input.allianceId,
+          discordUserId: input.discordUserId,
+          discordUsername: input.discordUsername ?? null,
+          ashedMemberId: input.ashedMemberId,
+          memberDisplayName: input.memberDisplayName ?? null,
+          gameUid: input.gameUid,
+          linkedAt: now,
+          updatedAt: now,
+        })
+        .returning();
+      // Prune only after the new seat commits. A unique conflict on insert rolls
+      // the transaction back so prior Discord links are preserved.
+      if (input.replaceAll) {
+        await tx
+          .delete(schema.discordMemberLinks)
+          .where(
+            and(
+              eq(schema.discordMemberLinks.allianceId, input.allianceId),
+              eq(schema.discordMemberLinks.discordUserId, input.discordUserId),
+              ne(schema.discordMemberLinks.ashedMemberId, input.ashedMemberId),
+            ),
+          );
+      }
+      return inserted;
+    });
 
     await denormalizeGameUidOnMember({
       allianceId: input.allianceId,
