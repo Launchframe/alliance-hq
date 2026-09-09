@@ -5,6 +5,7 @@ import {
   buildInteractiveHqChoices,
   formatLastRankPowerLevel,
   isLastRankUnranked,
+  lastRankMemberEligibleForCreate,
   lastRankPlayerProfileUrl,
   matchLastRankMembersToHq,
   parseLastRankAllianceHtml,
@@ -441,5 +442,13 @@ describe("isLastRankUnranked", () => {
   it("treats R1–R5 as ranked", () => {
     expect(isLastRankUnranked({ allianceRank: 1 })).toBe(false);
     expect(isLastRankUnranked({ allianceRank: 5 })).toBe(false);
+  });
+});
+
+describe("lastRankMemberEligibleForCreate", () => {
+  it("allows ranked members and rejects unranked leavers", () => {
+    expect(lastRankMemberEligibleForCreate({ allianceRank: 1 })).toBe(true);
+    expect(lastRankMemberEligibleForCreate({ allianceRank: 5 })).toBe(true);
+    expect(lastRankMemberEligibleForCreate({ allianceRank: null })).toBe(false);
   });
 });

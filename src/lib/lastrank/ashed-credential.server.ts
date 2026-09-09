@@ -4,7 +4,11 @@ import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
-import { filterAccessibleAlliances } from "@/lib/alliance/accessible";
+import {
+  canInstallAshedBotCredentials,
+  filterAccessibleAlliances,
+} from "@/lib/alliance/accessible";
+import type { AllianceAccessRole } from "@/lib/alliance/types";
 import { base44ListAlliances } from "@/lib/base44/fetch";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import {
@@ -94,6 +98,22 @@ async function resolveAllianceAshedBotConnectionForCli(
   return buildLegacyBotAshedConnection();
 }
 
+/** Owner-only, matching web/Discord /link-ashed. Collaborators must not overwrite. */
+export function lastRankBotCredentialInstallError(input: {
+  ashedAlliance:
+    | { id?: string | null; accessRole: AllianceAccessRole }
+    | undefined;
+  allianceTag: string;
+}): string | null {
+  if (!input.ashedAlliance?.id) {
+    return `Your Ashed account does not have access to alliance tag "${input.allianceTag}".`;
+  }
+  if (!canInstallAshedBotCredentials(input.ashedAlliance.accessRole)) {
+    return `Only the Ashed alliance owner can connect bot credentials for tag "${input.allianceTag}". Use an owner connection key.`;
+  }
+  return null;
+}
+
 /** Load bot JWT + real Ashed alliance id when dual-write is possible. */
 export async function loadLastRankAshedWriteContext(
   hqAllianceId: string,
@@ -147,6 +167,13 @@ export async function upsertAllianceAshedCredentialFromConnectionKey(input: {
   const ashedAlliance = accessible.find(
     (row) => (row.tag ?? "").trim().toLowerCase() === tagLower,
   );
+  const installError = lastRankBotCredentialInstallError({
+    ashedAlliance,
+    allianceTag: input.allianceTag,
+  });
+  if (installError) {
+    return { ok: false, error: installError };
+  }
   if (!ashedAlliance?.id) {
     return {
       ok: false,
@@ -175,7 +202,19 @@ export async function upsertAllianceAshedCredentialFromConnectionKey(input: {
     return { ok: false, error: "HQ alliance not found." };
   }
 
-  if (!alliance.ashedAllianceId?.trim()) {
+  const existingAshedId = alliance.ashedAllianceId?.trim() ?? "";
+  if (
+    existingAshedId &&
+    !isSyntheticNativeAshedAllianceId(existingAshedId) &&
+    existingAshedId !== ashedAlliance.id
+  ) {
+    return {
+      ok: false,
+      error:
+        "HQ is already linked to a different Ashed alliance. Refusing to overwrite bot credentials.",
+    };
+  }
+  if (!existingAshedId || isSyntheticNativeAshedAllianceId(existingAshedId)) {
     await db
       .update(schema.alliances)
       .set({
@@ -186,6 +225,8 @@ export async function upsertAllianceAshedCredentialFromConnectionKey(input: {
   }
 
   const now = new Date();
+  // Omit registrant columns on conflict so a CLI refresh cannot clear the
+  // Discord / HQ binding that unlocks /link-alliance (same as web upsert).
   await db
     .insert(schema.allianceAshedCredentials)
     .values({
@@ -207,8 +248,6 @@ export async function upsertAllianceAshedCredentialFromConnectionKey(input: {
         originUrl: parsed.connection.originUrl,
         encryptedToken: encryptSecret(parsed.connection.token),
         tokenExpiresAt,
-        registeredByDiscordUserId: null,
-        registeredByHqUserId: null,
         updatedAt: now,
       },
     });

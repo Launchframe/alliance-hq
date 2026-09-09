@@ -108,6 +108,13 @@ export function isLastRankUnranked(
   );
 }
 
+/** Auto-create / interactive `C` only for ranked unmatched rows (skip leavers). */
+export function lastRankMemberEligibleForCreate(
+  lastRank: Pick<LastRankAllianceMember, "allianceRank">,
+): boolean {
+  return !isLastRankUnranked(lastRank);
+}
+
 function asFiniteNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) {

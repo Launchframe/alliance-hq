@@ -13,6 +13,7 @@ import {
   applyInteractiveMatches,
   formatLastRankPowerLevel,
   isLastRankUnranked,
+  lastRankMemberEligibleForCreate,
   lastRankPlayerProfileUrl,
   matchLastRankMembersToHq,
   resolveHqNameToRosterRow,
@@ -432,6 +433,7 @@ async function runInteractiveResolutions(
   match: LastRankMatchResult,
   prompt: LastRankInteractivePrompt,
   options: {
+    apply: boolean;
     onResolved?: LastRankInteractiveMatchResolved;
     allianceId: string;
     gameServerNumber: number;
@@ -464,6 +466,18 @@ async function runInteractiveResolutions(
     if (answer.kind === "skip") continue;
 
     if (answer.kind === "create") {
+      if (!options.apply) {
+        console.error(
+          `Create skipped for "${row.lastRank.name}" (re-run with --apply to create HQ members).`,
+        );
+        continue;
+      }
+      if (!lastRankMemberEligibleForCreate(row.lastRank)) {
+        console.error(
+          `Create skipped for "${row.lastRank.name}" (unranked — often a leaver; leave blank to skip).`,
+        );
+        continue;
+      }
       const created = await createAllianceMemberFromLastRank({
         allianceId: options.allianceId,
         gameServerNumber: options.gameServerNumber,
@@ -538,6 +552,13 @@ async function createUnmatchedLastRankMembers(
   for (const row of match.unmatched) {
     if (row.status !== "unmatched") {
       stillUnmatched.push(row);
+      continue;
+    }
+    if (!lastRankMemberEligibleForCreate(row.lastRank)) {
+      stillUnmatched.push(row);
+      console.error(
+        `Create skipped: ${row.lastRank.name} (unranked on LastRank — often a recent leaver).`,
+      );
       continue;
     }
     const result = await createAllianceMemberFromLastRank({
@@ -771,6 +792,7 @@ export async function syncLastRankAlliance(input: {
 
   if (input.interactivePrompt && match.unmatched.length > 0) {
     match = await runInteractiveResolutions(match, input.interactivePrompt, {
+      apply: input.apply,
       onResolved: onInteractiveResolved,
       allianceId: hqAllianceId,
       gameServerNumber: input.target.gameServerNumber,

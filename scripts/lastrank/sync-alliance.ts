@@ -35,8 +35,8 @@ Target (required — one of):
 
 Flags:
   --apply             Write matches (stats, ranks, profile) and create/retire when flagged
-  --create-all        With --apply: create every unmatched LastRank member (Ashed+HQ when linked)
-                      Ambiguous rows are still skipped. Requires --apply.
+  --create-all        With --apply: create every unmatched ranked LastRank member (Ashed+HQ when linked)
+                      Ambiguous and unranked (leaver) rows are skipped. Requires --apply.
   --retire-all        With --apply: mark every excess HQ active (not on LastRank) as former
                       (Ashed status + HQ). Requires --apply.
   --interactive       TTY prompts: map unmatched names, pick fuzzy alliance, retire leavers

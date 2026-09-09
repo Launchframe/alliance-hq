@@ -78,8 +78,8 @@ LastRank is treated as source of truth for country, HQ level, base power, and TH
 - **New LastRank members:** creates `alliance_members` + commander row + initial stats when no match remains after interactive mapping.
 - **Retire leavers:** with `--apply --interactive`, prompts for each active HQ member missing from LastRank; marks `former` and prunes open train pools immediately on confirmation.
 - **Interactive progress:** each manual name match is saved as you go — `lastrank_public_id` mapping always (even dry-run); with `--apply`, also HQ rename + previous names + canonical + Ashed name PUT when linked. Re-running skips already-mapped members via stored public id.
-- **Create (`C`):** interactive prompt always offers `C` to create a new HQ member + commander from the LastRank row (needed for empty alliances). Unmatched rows left blank are skipped (not bulk-created).
-- **`--create-all`:** with `--apply`, auto-create every remaining **unmatched** LastRank member (ambiguous rows still skipped). Use for populating a new/thin alliance:
+- **Create (`C`):** interactive prompt offers `C` to create a new HQ member + commander from a **ranked** LastRank row (needed for empty alliances). Hidden for unranked rows (often leavers). Requires `--apply` — dry-run mapping never creates members. Unmatched rows left blank are skipped (not bulk-created).
+- **`--create-all`:** with `--apply`, auto-create every remaining **unmatched ranked** LastRank member (ambiguous and unranked rows still skipped). Use for populating a new/thin alliance:
 
 ```bash
 npx tsx scripts/lastrank/sync-alliance.ts --server 1203 --tag BigD --apply --create-all
@@ -103,7 +103,9 @@ npx tsx scripts/lastrank/sync-alliance.ts --server 1203 --tag LFgo \
   --apply --create-all --retire-all
 ```
 
-`--create-all` / `--retire-all` require `--apply`. When the alliance is Ashed-linked and `alliance_ashed_credentials` (or `--ashed-connection-key`) is available, creates `POST` Ashed Members and retires `PUT` status `former` before HQ writes. Native / missing credential → HQ-only with a stderr note.
+`--create-all` / `--retire-all` require `--apply`. `--create-all` skips unranked LastRank rows (often leavers still listed). When the alliance is Ashed-linked and `alliance_ashed_credentials` (or `--ashed-connection-key`) is available, creates `POST` Ashed Members and retires `PUT` status `former` before HQ writes. Native / missing credential → HQ-only with a stderr note.
+
+`--ashed-connection-key` must be an **Ashed owner** connection key (same owner gate as web/Discord `/link-ashed`). Collaborator keys are rejected. Refreshing an existing bot credential does not clear Discord/HQ registrant bindings.
 
 **Cron does not create or retire** (Cloudflare may block LastRank HTML from Vercel). Use the local CLI for transfer waves.
 
