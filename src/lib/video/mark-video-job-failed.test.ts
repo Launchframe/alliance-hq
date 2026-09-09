@@ -6,6 +6,8 @@ const mockFrom = vi.fn();
 const mockWhere = vi.fn();
 const mockLimit = vi.fn();
 const mockSet = vi.fn();
+const mockReturning = vi.fn();
+const mockUpdateWhere = vi.fn();
 const mockWriteAuditLog = vi.fn();
 const mockEmitVideoJobStatus = vi.fn();
 
@@ -70,13 +72,20 @@ function mockJobRow(
   };
 }
 
-function setupDb(job: ReturnType<typeof mockJobRow> | null) {
+function setupDb(
+  job: ReturnType<typeof mockJobRow> | null,
+  options?: { updateReturning?: { id: string }[] },
+) {
   mockLimit.mockResolvedValue(job ? [job] : []);
   mockWhere.mockReturnValue({ limit: mockLimit });
   mockFrom.mockReturnValue({ where: mockWhere });
   mockSelect.mockReturnValue({ from: mockFrom });
 
-  mockSet.mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
+  mockReturning.mockResolvedValue(
+    options?.updateReturning ?? (job ? [{ id: job.id }] : []),
+  );
+  mockUpdateWhere.mockReturnValue({ returning: mockReturning });
+  mockSet.mockReturnValue({ where: mockUpdateWhere });
   mockUpdate.mockReturnValue({ set: mockSet });
 }
 
@@ -98,6 +107,7 @@ describe("markVideoJobFailed", () => {
         errorMessage: "sharp load failed",
       }),
     );
+    expect(mockReturning).toHaveBeenCalled();
     expect(mockWriteAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "video.failed",
@@ -195,5 +205,25 @@ describe("markVideoJobFailed", () => {
     expect(mockEmitVideoJobStatus).toHaveBeenCalledWith(
       expect.objectContaining({ status: "failed" }),
     );
+  });
+
+  it("no-ops when CAS update loses a race to review (stale sweeper TOCTOU)", async () => {
+    // Select still sees extracting (stale), but UPDATE … RETURNING is empty
+    // because a concurrent worker already flipped the row to review.
+    setupDb(
+      mockJobRow({
+        status: "extracting",
+      }),
+      { updateReturning: [] },
+    );
+
+    const ok = await markVideoJobFailed("job-1", "Stale in-flight video job", {
+      onlyIfStatuses: ["extracting", "parsing"],
+    });
+
+    expect(ok).toBe(false);
+    expect(mockUpdate).toHaveBeenCalled();
+    expect(mockWriteAuditLog).not.toHaveBeenCalled();
+    expect(mockEmitVideoJobStatus).not.toHaveBeenCalled();
   });
 });
