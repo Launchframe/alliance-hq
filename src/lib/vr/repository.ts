@@ -1631,7 +1631,14 @@ export async function bindGuildAllianceForRegistration(input: {
   allianceId: string;
   discordUserId: string;
 }): Promise<{ ok: true } | { ok: false; reason: "guild_bound_to_other_alliance" }> {
+  const db = getDb();
   const existingAllianceId = await getGuildAllianceId(input.guildId);
+
+  // Idempotent: already bound to the requested alliance.
+  if (existingAllianceId === input.allianceId) {
+    return { ok: true };
+  }
+
   if (existingAllianceId && existingAllianceId !== input.allianceId) {
     const existingAuth = await callerCanRegisterGuildAlliance({
       allianceId: existingAllianceId,
@@ -1640,10 +1647,51 @@ export async function bindGuildAllianceForRegistration(input: {
     if (!canRebindGuildToDifferentAlliance(existingAuth)) {
       return { ok: false, reason: "guild_bound_to_other_alliance" };
     }
+
+    // CAS rebind: only move the guild if it is still bound to the alliance we
+    // authorized against. Blind upsert would let a concurrent binder steal the
+    // tenant after our auth check.
+    const updated = await db
+      .update(schema.discordGuildAlliances)
+      .set({ allianceId: input.allianceId, registeredAt: new Date() })
+      .where(
+        and(
+          eq(schema.discordGuildAlliances.guildId, input.guildId),
+          eq(schema.discordGuildAlliances.allianceId, existingAllianceId),
+        ),
+      )
+      .returning({ guildId: schema.discordGuildAlliances.guildId });
+
+    if (updated.length === 0) {
+      const current = await getGuildAllianceId(input.guildId);
+      if (current === input.allianceId) return { ok: true };
+      return { ok: false, reason: "guild_bound_to_other_alliance" };
+    }
+    return { ok: true };
   }
 
-  await upsertGuildAlliance(input.guildId, input.allianceId);
-  return { ok: true };
+  // Unbound guild: insert-only. Never onConflictDoUpdate — two concurrent
+  // `/link-alliance` calls for different alliances both used to read null and
+  // last-writer-wins, silently cross-wiring the Discord guild tenant.
+  const inserted = await db
+    .insert(schema.discordGuildAlliances)
+    .values({
+      guildId: input.guildId,
+      allianceId: input.allianceId,
+      registeredAt: new Date(),
+    })
+    .onConflictDoNothing()
+    .returning({ guildId: schema.discordGuildAlliances.guildId });
+
+  if (inserted.length > 0) {
+    return { ok: true };
+  }
+
+  const current = await getGuildAllianceId(input.guildId);
+  if (current === input.allianceId) {
+    return { ok: true };
+  }
+  return { ok: false, reason: "guild_bound_to_other_alliance" };
 }
 
 export async function setGuildVrReportChannel(
