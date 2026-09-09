@@ -1,11 +1,12 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import type { MyEngTeamContext, MyWlTeamContext, WlSuggestion } from "./types";
 import {
   createEngAssignment,
+  reactivateEngAssignment,
   getActiveAssignmentsForTeam,
   getCommanderAllianceProfession,
   getEngActiveAssignment,
@@ -26,20 +27,80 @@ import { notifyProfessionEvent } from "./notifications.server";
 // Commander resolution helpers
 // ---------------------------------------------------------------------------
 
-/** Resolve the primary commander id for an HQ user in a specific alliance.
+async function loadCommanderProfession(
+  commanderId: string,
+): Promise<{ commanderId: string; profession: string | null }> {
+  const db = getDb();
+  const [commander] = await db
+    .select({ profession: schema.commanders.profession })
+    .from(schema.commanders)
+    .where(eq(schema.commanders.id, commanderId))
+    .limit(1);
+  return {
+    commanderId,
+    profession: commander?.profession ?? null,
+  };
+}
+
+/**
+ * Resolve the commander an HQ user acts as in a specific alliance.
  *
- * Uses `hq_user_commanders.is_primary` only — not alliance-scoped member links.
- * Multi-commander HQ users always resolve to their primary commander even when
- * a different commander is linked in the current alliance. Prefer explicit
- * `commanderId` from session/member-link context when per-alliance selection matters.
+ * Prefer `hq_member_links` (alliance-scoped seat) → commander membership.
+ * Fall back to the primary `hq_user_commanders` row only when it is an active
+ * member of this alliance.
  */
 export async function resolveCommanderForHqUser(
   hqUserId: string,
   allianceId: string,
 ): Promise<{ commanderId: string; profession: string | null } | null> {
   const db = getDb();
-  // Get primary commander for this HQ user
-  const [link] = await db
+
+  const [memberLink] = await db
+    .select({ ashedMemberId: schema.hqMemberLinks.ashedMemberId })
+    .from(schema.hqMemberLinks)
+    .where(
+      and(
+        eq(schema.hqMemberLinks.hqUserId, hqUserId),
+        eq(schema.hqMemberLinks.allianceId, allianceId),
+      ),
+    )
+    .limit(1);
+
+  if (memberLink) {
+    const [linkedMembership] = await db
+      .select({
+        commanderId: schema.commanderAllianceMemberships.commanderId,
+      })
+      .from(schema.commanderAllianceMemberships)
+      .innerJoin(
+        schema.hqUserCommanders,
+        and(
+          eq(
+            schema.hqUserCommanders.commanderId,
+            schema.commanderAllianceMemberships.commanderId,
+          ),
+          eq(schema.hqUserCommanders.hqUserId, hqUserId),
+        ),
+      )
+      .where(
+        and(
+          eq(schema.commanderAllianceMemberships.allianceId, allianceId),
+          eq(
+            schema.commanderAllianceMemberships.ashedMemberId,
+            memberLink.ashedMemberId,
+          ),
+          eq(schema.commanderAllianceMemberships.status, "active"),
+          isNull(schema.commanderAllianceMemberships.leftAt),
+        ),
+      )
+      .limit(1);
+
+    if (linkedMembership) {
+      return loadCommanderProfession(linkedMembership.commanderId);
+    }
+  }
+
+  const [primary] = await db
     .select({ commanderId: schema.hqUserCommanders.commanderId })
     .from(schema.hqUserCommanders)
     .where(
@@ -50,42 +111,68 @@ export async function resolveCommanderForHqUser(
     )
     .limit(1);
 
-  if (!link) return null;
+  if (!primary) return null;
 
-  // Verify this commander is a member of the alliance
   const [membership] = await db
     .select({ commanderId: schema.commanderAllianceMemberships.commanderId })
     .from(schema.commanderAllianceMemberships)
     .where(
       and(
-        eq(schema.commanderAllianceMemberships.commanderId, link.commanderId),
+        eq(schema.commanderAllianceMemberships.commanderId, primary.commanderId),
         eq(schema.commanderAllianceMemberships.allianceId, allianceId),
+        eq(schema.commanderAllianceMemberships.status, "active"),
+        isNull(schema.commanderAllianceMemberships.leftAt),
       ),
     )
     .limit(1);
 
   if (!membership) return null;
 
-  // Load profession
-  const [commander] = await db
-    .select({ profession: schema.commanders.profession })
-    .from(schema.commanders)
-    .where(eq(schema.commanders.id, link.commanderId))
-    .limit(1);
-
-  return {
-    commanderId: link.commanderId,
-    profession: commander?.profession ?? null,
-  };
+  return loadCommanderProfession(primary.commanderId);
 }
 
-/** Resolve commander for a Discord user id. */
+/** Resolve commander for a Discord user id (prefer discord_member_links seat). */
 export async function resolveCommanderForDiscordUser(
   discordUserId: string,
   allianceId: string,
 ): Promise<{ commanderId: string; profession: string | null } | null> {
   const db = getDb();
-  // Discord user → HQ user link
+
+  const [discordMember] = await db
+    .select({ ashedMemberId: schema.discordMemberLinks.ashedMemberId })
+    .from(schema.discordMemberLinks)
+    .where(
+      and(
+        eq(schema.discordMemberLinks.discordUserId, discordUserId),
+        eq(schema.discordMemberLinks.allianceId, allianceId),
+      ),
+    )
+    .limit(1);
+
+  if (discordMember) {
+    const [membership] = await db
+      .select({
+        commanderId: schema.commanderAllianceMemberships.commanderId,
+      })
+      .from(schema.commanderAllianceMemberships)
+      .where(
+        and(
+          eq(schema.commanderAllianceMemberships.allianceId, allianceId),
+          eq(
+            schema.commanderAllianceMemberships.ashedMemberId,
+            discordMember.ashedMemberId,
+          ),
+          eq(schema.commanderAllianceMemberships.status, "active"),
+          isNull(schema.commanderAllianceMemberships.leftAt),
+        ),
+      )
+      .limit(1);
+
+    if (membership) {
+      return loadCommanderProfession(membership.commanderId);
+    }
+  }
+
   const [discordLink] = await db
     .select({ hqUserId: schema.discordHqLinks.hqUserId })
     .from(schema.discordHqLinks)
@@ -95,6 +182,7 @@ export async function resolveCommanderForDiscordUser(
   if (!discordLink?.hqUserId) return null;
   return resolveCommanderForHqUser(discordLink.hqUserId, allianceId);
 }
+
 
 /** Update a commander's profession (for /switch-profession bot command). */
 export async function updateCommanderProfession(
@@ -232,18 +320,23 @@ export async function assignEngToWl(input: {
   // Ensure WL team exists
   const wlTeamId = await upsertWlTeam(input.allianceId, input.wlCommanderId);
 
-  // Check if already assigned on this team (inactive row re-activation guard)
+  // Re-activate an inactive row for this team; unique(team, eng) blocks a second insert.
   const existing = await getEngAssignment(wlTeamId, input.engCommanderId);
   if (existing?.status === "active") {
     throw new Error("Engineer is already assigned to this War Leader's team.");
   }
 
-  // Create new assignment
-  const assignmentId = await createEngAssignment({
-    wlTeamId,
-    allianceId: input.allianceId,
-    engCommanderId: input.engCommanderId,
-  });
+  let assignmentId: string;
+  if (existing) {
+    await reactivateEngAssignment(existing.id);
+    assignmentId = existing.id;
+  } else {
+    assignmentId = await createEngAssignment({
+      wlTeamId,
+      allianceId: input.allianceId,
+      engCommanderId: input.engCommanderId,
+    });
+  }
 
   await logWlTeamEvent({
     allianceId: input.allianceId,
