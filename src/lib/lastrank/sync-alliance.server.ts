@@ -12,6 +12,9 @@ import {
 import {
   applyInteractiveMatches,
   formatLastRankPowerLevel,
+  isLastRankUnranked,
+  lastRankMemberEligibleForCreate,
+  lastRankPlayerProfileUrl,
   matchLastRankMembersToHq,
   resolveHqNameToRosterRow,
   type LastRankHqRosterRow,
@@ -26,8 +29,18 @@ import {
   listActiveMemberIdsNotInSet,
   retireAllianceMembers,
   updateLastRankProfileFields,
+  applyInteractiveNameMapping,
   type LastRankUpsertCounts,
 } from "@/lib/lastrank/sync-upsert.server";
+import {
+  loadLastRankAshedWriteContext,
+  upsertAllianceAshedCredentialFromConnectionKey,
+  type LastRankAshedWriteContext,
+} from "@/lib/lastrank/ashed-credential.server";
+import {
+  buildLastRankRosterDiff,
+  type LastRankRosterDiff,
+} from "@/lib/lastrank/roster-diff.shared";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import { formatAshedMemberRankValue } from "@/lib/members/alliance-rank";
 import { appendCommanderPowerLevelEventIfChanged } from "@/lib/members/member-stat-history.server";
@@ -53,11 +66,16 @@ export type LastRankSyncApplyCounts = LastRankUpsertCounts & {
   canonicalSkippedMismatch: number;
   canonicalSkippedLookupFailed: number;
   canonicalUnchanged: number;
+  namesRenamed: number;
+  namesAshedSynced: number;
 };
 
 export type LastRankInteractivePrompt = (ctx: {
   lastRankName: string;
   publicId: number;
+  profileUrl: string;
+  /** True when not in an R1–R5 section — often a recent leaver still listed on LastRank. */
+  unranked: boolean;
   suggestions: LastRankUnmatchedRow["suggestions"];
   remainingHqNames: string[];
 }) => Promise<LastRankInteractiveAnswer>;
@@ -75,6 +93,9 @@ export type LastRankAllianceSyncResult = {
   allianceCreated: boolean;
   lastRankCount: number;
   match: LastRankMatchResult;
+  rosterDiff: LastRankRosterDiff;
+  ashedCredentialSaved: boolean;
+  ashedDualWrite: boolean;
   apply: LastRankSyncApplyCounts | null;
 };
 
@@ -85,6 +106,9 @@ function emptyApplyCounts(): LastRankSyncApplyCounts {
     membersCreated: 0,
     membersRetired: 0,
     profileUpdated: 0,
+    ashedMembersCreated: 0,
+    ashedMembersRetired: 0,
+    ashedSkipped: 0,
     thpApplied: 0,
     thpSkipped: 0,
     thpConflict: 0,
@@ -100,6 +124,8 @@ function emptyApplyCounts(): LastRankSyncApplyCounts {
     canonicalSkippedMismatch: 0,
     canonicalSkippedLookupFailed: 0,
     canonicalUnchanged: 0,
+    namesRenamed: 0,
+    namesAshedSynced: 0,
   };
 }
 
@@ -407,10 +433,12 @@ async function runInteractiveResolutions(
   match: LastRankMatchResult,
   prompt: LastRankInteractivePrompt,
   options: {
+    apply: boolean;
     onResolved?: LastRankInteractiveMatchResolved;
     allianceId: string;
     gameServerNumber: number;
-    onMemberCreated?: () => void;
+    ashed?: LastRankAshedWriteContext | null;
+    onMemberCreated?: (ashedCreated: boolean) => void;
   },
 ): Promise<LastRankMatchResult> {
   let current = match;
@@ -430,20 +458,36 @@ async function runInteractiveResolutions(
     const answer = await prompt({
       lastRankName: row.lastRank.name,
       publicId: row.lastRank.publicId,
+      profileUrl: lastRankPlayerProfileUrl(row.lastRank.publicId),
+      unranked: isLastRankUnranked(row.lastRank),
       suggestions: row.suggestions,
       remainingHqNames,
     });
     if (answer.kind === "skip") continue;
 
     if (answer.kind === "create") {
-      const hq = await createAllianceMemberFromLastRank({
+      if (!options.apply) {
+        console.error(
+          `Create skipped for "${row.lastRank.name}" (re-run with --apply to create HQ members).`,
+        );
+        continue;
+      }
+      if (!lastRankMemberEligibleForCreate(row.lastRank)) {
+        console.error(
+          `Create skipped for "${row.lastRank.name}" (unranked — often a leaver; leave blank to skip).`,
+        );
+        continue;
+      }
+      const created = await createAllianceMemberFromLastRank({
         allianceId: options.allianceId,
         gameServerNumber: options.gameServerNumber,
         lastRank: row.lastRank,
+        ashed: options.ashed,
       });
+      const hq = created.hq;
       claimed.add(hq.commanderId);
       allHq.push(hq);
-      options.onMemberCreated?.();
+      options.onMemberCreated?.(created.ashedCreated);
 
       current = applyInteractiveMatches(current, [
         { lastRankPublicId: row.lastRank.publicId, hq },
@@ -456,7 +500,9 @@ async function runInteractiveResolutions(
       if (matchedRow) {
         await options.onResolved?.(matchedRow);
       }
-      console.error(`Created: ${row.lastRank.name}`);
+      console.error(
+        `Created: ${row.lastRank.name}${created.ashedCreated ? " (Ashed+HQ)" : " (HQ only)"}`,
+      );
       continue;
     }
 
@@ -492,8 +538,14 @@ async function createUnmatchedLastRankMembers(
   hqAllianceId: string,
   gameServerNumber: number,
   match: LastRankMatchResult,
-): Promise<{ match: LastRankMatchResult; created: number }> {
+  ashed: LastRankAshedWriteContext | null,
+): Promise<{
+  match: LastRankMatchResult;
+  created: number;
+  ashedCreated: number;
+}> {
   let created = 0;
+  let ashedCreated = 0;
   const matched = [...match.matched];
   const stillUnmatched: LastRankMatchResult["unmatched"] = [];
 
@@ -502,25 +554,37 @@ async function createUnmatchedLastRankMembers(
       stillUnmatched.push(row);
       continue;
     }
-    const hq = await createAllianceMemberFromLastRank({
+    if (!lastRankMemberEligibleForCreate(row.lastRank)) {
+      stillUnmatched.push(row);
+      console.error(
+        `Create skipped: ${row.lastRank.name} (unranked on LastRank — often a recent leaver).`,
+      );
+      continue;
+    }
+    const result = await createAllianceMemberFromLastRank({
       allianceId: hqAllianceId,
       gameServerNumber,
       lastRank: row.lastRank,
+      ashed,
     });
     created += 1;
+    if (result.ashedCreated) ashedCreated += 1;
     matched.push({
       status: "matched",
       lastRank: row.lastRank,
-      hq,
+      hq: result.hq,
       matchMethod: "interactive",
       fuzzyScore: null,
     });
-    console.error(`Created: ${row.lastRank.name}`);
+    console.error(
+      `Created: ${row.lastRank.name}${result.ashedCreated ? " (Ashed+HQ)" : " (HQ only)"}`,
+    );
   }
 
   const matchedIds = new Set(matched.map((row) => row.hq.commanderId));
   return {
     created,
+    ashedCreated,
     match: {
       matched,
       unmatched: stillUnmatched,
@@ -535,11 +599,19 @@ async function runInteractiveRetires(
   hqAllianceId: string,
   match: LastRankMatchResult,
   prompt: LastRankRetirePrompt,
-): Promise<{ match: LastRankMatchResult; retired: number }> {
+  ashed: LastRankAshedWriteContext | null,
+): Promise<{
+  match: LastRankMatchResult;
+  retired: number;
+  ashedRetired: number;
+  ashedSkipped: number;
+}> {
   const keepIds = new Set(match.matched.map((row) => row.hq.ashedMemberId));
   const candidates = await listActiveMemberIdsNotInSet(hqAllianceId, keepIds);
   const toRetire: string[] = [];
   let retired = 0;
+  let ashedRetired = 0;
+  let ashedSkipped = 0;
 
   for (const member of candidates) {
     const shouldRetire = await prompt({
@@ -548,16 +620,22 @@ async function runInteractiveRetires(
     });
     if (!shouldRetire) continue;
 
-    retired += await retireAllianceMembers({
+    const result = await retireAllianceMembers({
       allianceId: hqAllianceId,
       ashedMemberIds: [member.ashedMemberId],
+      ashed,
     });
+    retired += result.retired;
+    ashedRetired += result.ashedRetired;
+    ashedSkipped += result.ashedSkipped;
     toRetire.push(member.ashedMemberId);
     console.error(`Retired: ${member.currentName}`);
   }
 
   return {
     retired,
+    ashedRetired,
+    ashedSkipped,
     match: {
       ...match,
       unmatchedHq: match.unmatchedHq.filter(
@@ -567,11 +645,55 @@ async function runInteractiveRetires(
   };
 }
 
+async function runRetireAll(
+  hqAllianceId: string,
+  match: LastRankMatchResult,
+  ashed: LastRankAshedWriteContext | null,
+): Promise<{
+  match: LastRankMatchResult;
+  retired: number;
+  ashedRetired: number;
+  ashedSkipped: number;
+}> {
+  const keepIds = new Set(match.matched.map((row) => row.hq.ashedMemberId));
+  const candidates = await listActiveMemberIdsNotInSet(hqAllianceId, keepIds);
+  if (candidates.length === 0) {
+    return { match, retired: 0, ashedRetired: 0, ashedSkipped: 0 };
+  }
+
+  const result = await retireAllianceMembers({
+    allianceId: hqAllianceId,
+    ashedMemberIds: candidates.map((row) => row.ashedMemberId),
+    ashed,
+  });
+  for (const member of candidates) {
+    console.error(`Retired: ${member.currentName}`);
+  }
+
+  return {
+    retired: result.retired,
+    ashedRetired: result.ashedRetired,
+    ashedSkipped: result.ashedSkipped,
+    match: {
+      ...match,
+      unmatchedHq: [],
+    },
+  };
+}
+
 export async function syncLastRankAlliance(input: {
   target: LastRankSyncTarget;
   apply: boolean;
   /** After matching (and optional interactive), create HQ members for remaining unmatched LastRank rows. */
   createAllUnmatched?: boolean;
+  /** Retire all active HQ members missing from LastRank (no prompts). */
+  retireAllUnmatched?: boolean;
+  /** Ashed connection key — upserts alliance bot credential when saving is allowed. */
+  ashedConnectionKey?: string;
+  /** Persist connection key even on dry-run. */
+  saveAshedCredential?: boolean;
+  /** Force HQ-only writes (skip Ashed POST/PUT even if bot JWT exists). */
+  hqOnly?: boolean;
   interactivePrompt?: LastRankInteractivePrompt;
   alliancePrompt?: LastRankAllianceResolvePrompt;
   retirePrompt?: LastRankRetirePrompt;
@@ -582,6 +704,42 @@ export async function syncLastRankAlliance(input: {
       allowCreate: input.apply,
       alliancePrompt: input.alliancePrompt,
     });
+
+  let ashedCredentialSaved = false;
+  const shouldSaveCredential =
+    Boolean(input.ashedConnectionKey?.trim()) &&
+    (input.apply || Boolean(input.saveAshedCredential));
+  if (shouldSaveCredential && input.ashedConnectionKey) {
+    const saved = await upsertAllianceAshedCredentialFromConnectionKey({
+      hqAllianceId,
+      allianceTag: input.target.tag,
+      connectionKey: input.ashedConnectionKey,
+    });
+    if (!saved.ok) {
+      throw new Error(saved.error);
+    }
+    ashedCredentialSaved = true;
+    console.error(
+      `Saved alliance Ashed bot credential for ${input.target.tag}.`,
+    );
+  }
+
+  const ashed = input.hqOnly
+    ? null
+    : await loadLastRankAshedWriteContext(hqAllianceId);
+  if (input.hqOnly) {
+    console.error("Ashed dual-write forced off (--hq-only).");
+  } else if (input.apply && (input.createAllUnmatched || input.retireAllUnmatched)) {
+    if (ashed) {
+      console.error(
+        `Ashed dual-write enabled (alliance ${ashed.ashedAllianceId}).`,
+      );
+    } else {
+      console.error(
+        "Ashed dual-write skipped (alliance not Ashed-linked or no bot credential).",
+      );
+    }
+  }
 
   const page = await fetchLastRankAlliancePage(input.target.lastrankAllianceId);
   const hqRows = await loadHqRosterForLastRankMatch(hqAllianceId);
@@ -595,35 +753,65 @@ export async function syncLastRankAlliance(input: {
     : null;
 
   const onInteractiveResolved: LastRankInteractiveMatchResolved = async (row) => {
-    const hqName =
+    const priorHqName =
       row.hq.currentNames[0] ??
       row.hq.previousNames[0] ??
       row.hq.commanderId;
     if (input.apply && applyCounts) {
       const partial = emptyApplyCounts();
+      const nameResult = await applyInteractiveNameMapping({
+        allianceId: hqAllianceId,
+        ashedMemberId: row.hq.ashedMemberId,
+        commanderId: row.hq.commanderId,
+        lastRankName: row.lastRank.name,
+        ashed: ashed,
+      });
+      if (nameResult.renamed) partial.namesRenamed += 1;
+      if (nameResult.ashedSynced) partial.namesAshedSynced += 1;
+      if (nameResult.canonicalWritten) {
+        partial.canonicalWritten += 1;
+        row.hq.existingCanonicalName = row.lastRank.name;
+      }
+
       const ranksChanged = await applyMatchedRows(hqAllianceId, [row], partial);
       mergeApplyCounts(applyCounts, partial);
       appliedDuringInteractive.add(row.hq.commanderId);
       await syncRankPoolIfNeeded(hqAllianceId, ranksChanged);
-      console.error(`Saved: ${row.lastRank.name} → ${hqName}`);
+      console.error(
+        `Saved: ${priorHqName} → ${row.lastRank.name} (lastrank_public_id=${row.lastRank.publicId})`,
+      );
       return;
     }
     if (applyCounts) {
       await persistInteractiveMatchMapping(row, applyCounts);
-      console.error(`Saved mapping: ${row.lastRank.name} → ${hqName}`);
+      console.error(
+        `Saved mapping: ${row.lastRank.name} → ${priorHqName} (lastrank_public_id only; re-run with --apply to rename HQ/Ashed)`,
+      );
     }
   };
 
   if (input.interactivePrompt && match.unmatched.length > 0) {
     match = await runInteractiveResolutions(match, input.interactivePrompt, {
+      apply: input.apply,
       onResolved: onInteractiveResolved,
       allianceId: hqAllianceId,
       gameServerNumber: input.target.gameServerNumber,
-      onMemberCreated: () => {
-        if (applyCounts) applyCounts.membersCreated += 1;
+      ashed: input.apply ? ashed : null,
+      onMemberCreated: (ashedCreated) => {
+        if (applyCounts) {
+          applyCounts.membersCreated += 1;
+          if (ashedCreated) applyCounts.ashedMembersCreated += 1;
+          else if (ashed) applyCounts.ashedSkipped += 1;
+        }
       },
     });
   }
+
+  // Diff before create/retire so operators see excess/missing even on --apply.
+  const rosterDiff = buildLastRankRosterDiff({
+    lastRankCount: page.members.length,
+    match,
+  });
 
   if (input.apply && applyCounts) {
     if (input.createAllUnmatched) {
@@ -631,9 +819,14 @@ export async function syncLastRankAlliance(input: {
         hqAllianceId,
         input.target.gameServerNumber,
         match,
+        ashed,
       );
       match = created.match;
       applyCounts.membersCreated += created.created;
+      applyCounts.ashedMembersCreated += created.ashedCreated;
+      if (ashed && created.created > created.ashedCreated) {
+        applyCounts.ashedSkipped += created.created - created.ashedCreated;
+      }
     }
 
     const remaining = match.matched.filter(
@@ -648,14 +841,23 @@ export async function syncLastRankAlliance(input: {
     mergeApplyCounts(applyCounts, partial);
     await syncRankPoolIfNeeded(hqAllianceId, ranksChanged);
 
-    if (input.retirePrompt) {
+    if (input.retireAllUnmatched) {
+      const retired = await runRetireAll(hqAllianceId, match, ashed);
+      match = retired.match;
+      applyCounts.membersRetired += retired.retired;
+      applyCounts.ashedMembersRetired += retired.ashedRetired;
+      applyCounts.ashedSkipped += retired.ashedSkipped;
+    } else if (input.retirePrompt) {
       const retired = await runInteractiveRetires(
         hqAllianceId,
         match,
         input.retirePrompt,
+        ashed,
       );
       match = retired.match;
       applyCounts.membersRetired += retired.retired;
+      applyCounts.ashedMembersRetired += retired.ashedRetired;
+      applyCounts.ashedSkipped += retired.ashedSkipped;
     }
   }
 
@@ -667,6 +869,9 @@ export async function syncLastRankAlliance(input: {
     allianceCreated,
     lastRankCount: page.members.length,
     match,
+    rosterDiff,
+    ashedCredentialSaved,
+    ashedDualWrite: ashed != null,
     apply: applyCounts,
   };
 }

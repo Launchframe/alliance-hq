@@ -95,6 +95,26 @@ export function lastRankPlayerProfileUrl(publicId: number): string {
   return `https://lastrank.fun/p/${Math.round(publicId)}`;
 }
 
+/** Not in an R1–R5 section after HTML parse — often a recent leaver still on the page. */
+export function isLastRankUnranked(
+  member: Pick<LastRankAllianceMember, "allianceRank">,
+): boolean {
+  const rank = member.allianceRank;
+  return (
+    rank == null ||
+    !Number.isInteger(rank) ||
+    rank < 1 ||
+    rank > 5
+  );
+}
+
+/** Auto-create / interactive `C` only for ranked unmatched rows (skip leavers). */
+export function lastRankMemberEligibleForCreate(
+  lastRank: Pick<LastRankAllianceMember, "allianceRank">,
+): boolean {
+  return !isLastRankUnranked(lastRank);
+}
+
 function asFiniteNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) {

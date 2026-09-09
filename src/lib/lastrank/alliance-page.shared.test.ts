@@ -4,6 +4,9 @@ import {
   applyInteractiveMatches,
   buildInteractiveHqChoices,
   formatLastRankPowerLevel,
+  isLastRankUnranked,
+  lastRankMemberEligibleForCreate,
+  lastRankPlayerProfileUrl,
   matchLastRankMembersToHq,
   parseLastRankAllianceHtml,
   parseLastRankSectionRanks,
@@ -417,5 +420,35 @@ describe("parseLastRankSyncMap", () => {
 describe("formatLastRankPowerLevel", () => {
   it("formats raw power as millions", () => {
     expect(formatLastRankPowerLevel(394409538)).toBe("394.4M");
+  });
+});
+
+describe("lastRankPlayerProfileUrl", () => {
+  it("builds the public profile path", () => {
+    expect(lastRankPlayerProfileUrl(193049)).toBe(
+      "https://lastrank.fun/p/193049",
+    );
+  });
+});
+
+describe("isLastRankUnranked", () => {
+  it("treats missing or out-of-band ranks as unranked", () => {
+    expect(isLastRankUnranked({ allianceRank: null })).toBe(true);
+    expect(isLastRankUnranked({ allianceRank: 0 })).toBe(true);
+    expect(isLastRankUnranked({ allianceRank: 6 })).toBe(true);
+    expect(isLastRankUnranked({ allianceRank: 1.5 })).toBe(true);
+  });
+
+  it("treats R1–R5 as ranked", () => {
+    expect(isLastRankUnranked({ allianceRank: 1 })).toBe(false);
+    expect(isLastRankUnranked({ allianceRank: 5 })).toBe(false);
+  });
+});
+
+describe("lastRankMemberEligibleForCreate", () => {
+  it("allows ranked members and rejects unranked leavers", () => {
+    expect(lastRankMemberEligibleForCreate({ allianceRank: 1 })).toBe(true);
+    expect(lastRankMemberEligibleForCreate({ allianceRank: 5 })).toBe(true);
+    expect(lastRankMemberEligibleForCreate({ allianceRank: null })).toBe(false);
   });
 });
