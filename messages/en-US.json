@@ -3761,9 +3761,9 @@
       "weekGoalsSharedTitle": "Every platform",
       "weekGoalsShared": {
         "conductorsAtReset": "Conductors are drawn at Reset. Watch your DMs and Discord for conductor announcements.",
-        "leadTime": "24-hour lead time: yesterday’s winner drives tomorrow’s train.",
-        "vsMinimum": "VS score minimum to win Conductor: 7.2M points yesterday.",
-        "donationMinimum": "Donation minimum to win Conductor: 50,000 points last week."
+        "leadTime": "Lead time can change which day’s scores count for a train — check Train settings.",
+        "vsMinimum": "Price Is Freight days may require a VS minimum to win Conductor — check Train settings.",
+        "donationMinimum": "Price Is Freight days may require a donation minimum — check Train settings."
       },
       "weekGoals": {
         "economy": {
@@ -3777,7 +3777,7 @@
         "save": {
           "title": "Platform 2 — Save Week",
           "subtitle": "Save hard",
-          "blurb": "This week means… Push your power if you need to. Conductors are picked at random from R3s — you still need the 7.2M VS and last-week donation minimums.",
+          "blurb": "This week means… Push your power if you need to. Conductors are picked at random from R3s.",
           "do1": "Do: Save when you can; burn only when you need the power.",
           "dont": "Don’t: Overspend on save days."
         },
@@ -3793,7 +3793,7 @@
         "allOut": {
           "title": "Platform 4 — All-Out Domination",
           "subtitle": "Hard push",
-          "blurb": "This week means… All gas, no brakes. Show them what LFgo is made of.",
+          "blurb": "This week means… All gas, no brakes. Show them what this alliance is made of.",
           "do1": "Do: Show up hard Monday through Saturday.",
           "do2": "Do: Keep an ear peeled for strategy pivots.",
           "do3": "Do: Lock in the victory by Friday.",

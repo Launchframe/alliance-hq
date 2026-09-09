@@ -73,7 +73,7 @@ export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
         <div className="flex flex-col gap-4">
           <div>
             <h2 className="text-lg font-semibold text-hq-fg">{t("title")}</h2>
-            <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
+            <p className="mt-2 text-sm leading-relaxed text-hq-fg-muted">
               {t("serverTimeBody")}
             </p>
             <p className="mt-2 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-xs tabular-nums text-hq-fg-muted">
@@ -85,7 +85,7 @@ export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
             <h3 className="text-sm font-medium text-hq-fg">
               {t("quickStartTitle")}
             </h3>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-[#c9d1d9]">
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-hq-fg-muted">
               {quickStartItems.map((item) => (
                 <li key={item}>{item}</li>
               ))}
@@ -96,14 +96,14 @@ export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
             <h3 className="text-sm font-medium text-hq-fg">
               {t("weekGoalsTitle")}
             </h3>
-            <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
+            <p className="mt-2 text-sm leading-relaxed text-hq-fg-muted">
               {t("weekGoalsIntro")}
             </p>
             <div className="mt-3 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2">
               <p className="text-sm font-medium text-hq-fg">
                 {t("weekGoalsSharedTitle")}
               </p>
-              <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-[#c9d1d9]">
+              <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-hq-fg-muted">
                 {WEEK_GOAL_SHARED_KEYS.map((key) => (
                   <li key={key}>{t(`weekGoalsShared.${key}`)}</li>
                 ))}
@@ -122,7 +122,7 @@ export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
                       ({t(`weekGoals.${goalKey}.subtitle`)})
                     </span>
                   </summary>
-                  <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-[#c9d1d9]">
+                  <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-hq-fg-muted">
                     {WEEK_GOAL_BODY_KEYS[goalKey].map((bodyKey) => (
                       <li key={bodyKey}>
                         {t(`weekGoals.${goalKey}.${bodyKey}`)}
@@ -138,7 +138,7 @@ export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
             <h3 className="text-sm font-medium text-hq-fg">
               {t("lockOwnershipTitle")}
             </h3>
-            <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
+            <p className="mt-2 text-sm leading-relaxed text-hq-fg-muted">
               {t("lockOwnershipBody")}
             </p>
           </div>
@@ -151,7 +151,7 @@ export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
                   setOpen(false);
                   onTakeTour();
                 }}
-                className="rounded-lg border border-[#8957e5]/50 bg-[#8957e5]/10 px-4 py-2 text-sm font-medium text-[#d2a8ff] hover:bg-[#8957e5]/20"
+                className="rounded-lg border border-[#8957e5]/50 bg-[#8957e5]/10 px-4 py-2 text-sm font-medium text-[#8250df] hover:bg-[#8957e5]/20 dark:text-[#d2a8ff]"
               >
                 {t("takeTour")}
               </button>

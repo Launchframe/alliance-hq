@@ -92,6 +92,76 @@ describe("resolveWheelShareEligibility", () => {
     );
   });
 
+  it("keeps TPIF win-chance framing when conductor minimums also qualify", () => {
+    const eligibility = resolveWheelShareEligibility({
+      mechanism: "r3_lottery",
+      paintTemplate: "price_is_right",
+      winner: { memberId: "a", memberName: "Alpha", priorDayVsScore: 7_230_000 },
+      winProbability: 0.127,
+      qualification: {
+        qualified: true,
+        evaluationWindow: "weekly",
+        periodStart: "2026-07-14",
+        periodEnd: "2026-07-20",
+        vs: {
+          score: 45_000_000,
+          minimum: 7_200_000,
+          effectiveMinimum: 7_200_000,
+          shortfall: 0,
+        },
+        donation: {
+          score: 0,
+          minimum: 0,
+          effectiveMinimum: 0,
+          shortfall: 0,
+        },
+      },
+    });
+    expect(eligibility).toEqual({
+      kind: "tpif",
+      score: 7_230_000,
+      sweetSpot: 7_200_000,
+      winProbability: 0.127,
+    });
+  });
+
+  it("keeps VS leaderboard rank when conductor minimums also qualify", () => {
+    const eligibility = resolveWheelShareEligibility({
+      mechanism: "vs_top_10",
+      paintTemplate: "vs_push_weekdays",
+      winner: {
+        memberId: "a",
+        memberName: "Alpha",
+        priorDayVsScore: 8_500_000,
+      },
+      leaderboardRank: 2,
+      qualification: {
+        qualified: true,
+        evaluationWindow: "weekly",
+        periodStart: "2026-07-14",
+        periodEnd: "2026-07-20",
+        vs: {
+          score: 45_000_000,
+          minimum: 7_200_000,
+          effectiveMinimum: 7_200_000,
+          shortfall: 0,
+        },
+        donation: {
+          score: 0,
+          minimum: 0,
+          effectiveMinimum: 0,
+          shortfall: 0,
+        },
+      },
+    });
+    expect(eligibility).toEqual({
+      kind: "vs_leaderboard",
+      score: 8_500_000,
+      suffix: "VS",
+      rank: 2,
+    });
+  });
+
   it("does not treat alliance R-rank as scoreboard rank", () => {
     const eligibility = resolveWheelShareEligibility({
       mechanism: "vs_top_10",

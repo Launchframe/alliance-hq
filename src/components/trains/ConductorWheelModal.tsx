@@ -34,6 +34,8 @@ export type WheelCandidate = {
   memberName: string;
   priorDayVsScore?: number;
   allianceRank?: number | null;
+  ticketCount?: number;
+  winProbability?: number;
 };
 
 type Props = {

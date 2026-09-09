@@ -131,7 +131,7 @@ import {
 } from "@/lib/trains/vs-score-scope.shared";
 import { buildTrainsGuidedVideoUploadHref } from "@/lib/trains/guided-video-upload.shared";
 import { shouldConfirmEconomyWeekWithoutScores } from "@/lib/trains/vs-data-status.shared";
-import type { PoolRefreshedInfo, PoolType, RollResult, WeekTemplateType } from "@/lib/trains/types";
+import type { PoolRefreshedInfo, PoolType, RollCandidate, RollResult, WeekTemplateType } from "@/lib/trains/types";
 import {
   compositeParentForSegment,
   isWeekTemplateSegment,
@@ -259,9 +259,7 @@ export function TrainsDashboard({
   const [wheelStats, setWheelStats] = useState<
     RollResponse["stats"] | null
   >(null);
-  const [wheelCandidates, setWheelCandidates] = useState<
-    Array<{ memberId: string; memberName: string }>
-  >([]);
+  const [wheelCandidates, setWheelCandidates] = useState<RollCandidate[]>([]);
   const [wheelQualification, setWheelQualification] =
     useState<MemberQualificationPayload | null>(null);
   const [wheelMechanism, setWheelMechanism] = useState<string | null>(null);
@@ -3954,7 +3952,7 @@ export function TrainsDashboard({
             <h2 className="text-lg font-semibold text-hq-fg">
               {t("reseedPoolHint.title")}
             </h2>
-            <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
+            <p className="mt-2 text-sm leading-relaxed text-hq-fg-muted">
               {t("reseedPoolHint.body")}
             </p>
           </div>
@@ -3983,7 +3981,7 @@ export function TrainsDashboard({
               <h2 className="text-lg font-semibold text-hq-fg">
                 {t("poolRefreshedHint.title")}
               </h2>
-              <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
+              <p className="mt-2 text-sm leading-relaxed text-hq-fg-muted">
                 {poolRefreshedHint.role === "vip"
                   ? t("poolRefreshedHint.vipBody", {
                       poolName: t(

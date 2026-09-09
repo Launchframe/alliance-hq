@@ -3707,9 +3707,9 @@
       "weekGoalsSharedTitle": "Toda plataforma",
       "weekGoalsShared": {
         "conductorsAtReset": "Os Condutores são sorteados no Reset. Fique de olho nas DMs e no Discord para os anúncios de Condutor.",
-        "leadTime": "Antecedência de 24 horas: o vencedor de ontem dirige o trem de amanhã.",
-        "vsMinimum": "Mínimo de VS para ganhar Condutor: 7,2M de pontos ontem.",
-        "donationMinimum": "Mínimo de doações para ganhar Condutor: 50.000 pontos na semana passada."
+        "leadTime": "O tempo de antecedência pode mudar quais pontuações do dia valem para o trem — confira as configurações de Trem.",
+        "vsMinimum": "Dias de Price Is Freight podem exigir um mínimo de VS para ganhar Condutor — confira as configurações de Trem.",
+        "donationMinimum": "Dias de Price Is Freight podem exigir um mínimo de doações — confira as configurações de Trem."
       },
       "weekGoals": {
         "economy": {
@@ -3723,7 +3723,7 @@
         "save": {
           "title": "Plataforma 2 — Semana de guardar",
           "subtitle": "Save hard",
-          "blurb": "Esta semana significa… Empurre seu poder se precisar. Os Condutores são escolhidos aleatoriamente entre R3s — você ainda precisa do mínimo de 7,2M de VS e do mínimo de doações da semana passada.",
+          "blurb": "Esta semana significa… Empurre seu poder se precisar. Os Condutores são escolhidos aleatoriamente entre R3s.",
           "do1": "Faça: guarde quando puder; gaste só quando precisar do poder.",
           "dont": "Não faça: gastar demais nos dias de guardar."
         },
@@ -3739,7 +3739,7 @@
         "allOut": {
           "title": "Plataforma 4 — Dominação total",
           "subtitle": "Hard push",
-          "blurb": "Esta semana significa… Pé no fundo, sem freio. Mostre do que o LFgo é feito.",
+          "blurb": "Esta semana significa… Pé no fundo, sem freio. Mostre do que esta aliança é feita.",
           "do1": "Faça: apareça forte de segunda a sábado.",
           "do2": "Faça: fique atento a mudanças de estratégia.",
           "do3": "Faça: feche a vitória até sexta.",

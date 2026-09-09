@@ -103,23 +103,14 @@ export function resolveWheelShareEligibility(input: {
         ? input.qualification.vs.score
         : null;
 
-  if (
-    input.qualification?.vs.minimum != null &&
-    input.qualification.vs.minimum > 0 &&
-    input.qualification.qualified
-  ) {
-    return {
-      kind: "vs_minimum",
-      score: input.qualification.vs.score,
-      minimum: input.qualification.vs.effectiveMinimum,
-    };
-  }
-
   const winProbability =
     input.winProbability ??
     input.winner.winProbability ??
     null;
 
+  // TPIF / scoreboard proof beats conductor-minimums framing. Qualification is
+  // attached on Price Is Freight paints, so preferring vs_minimum hid win chance
+  // (and used the evaluation-window score instead of prior-day VS).
   if (isPriceIsRightPaintTemplate(input.paintTemplate) && score != null) {
     return {
       kind: "tpif",
@@ -142,6 +133,18 @@ export function resolveWheelShareEligibility(input: {
         input.leaderboardRank != null && input.leaderboardRank >= 1
           ? input.leaderboardRank
           : null,
+    };
+  }
+
+  if (
+    input.qualification?.vs.minimum != null &&
+    input.qualification.vs.minimum > 0 &&
+    input.qualification.qualified
+  ) {
+    return {
+      kind: "vs_minimum",
+      score: input.qualification.vs.score,
+      minimum: input.qualification.vs.effectiveMinimum,
     };
   }
 

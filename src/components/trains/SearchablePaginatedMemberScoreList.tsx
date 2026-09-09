@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import {
+  filterMemberScoreRowsByName,
+  paginateMemberScoreRows,
+} from "@/lib/trains/searchable-member-score-list.shared";
 import { formatPriceIsRightVsScore } from "@/lib/trains/train-price-is-right-tickets.shared";
 
 export type MemberScoreListRow = {
@@ -34,19 +38,13 @@ export function SearchablePaginatedMemberScoreList({
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
 
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return rows;
-    return rows.filter((row) =>
-      row.memberName.toLowerCase().includes(needle),
-    );
-  }, [query, rows]);
-
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, pageCount - 1);
-  const pageRows = filtered.slice(
-    safePage * pageSize,
-    safePage * pageSize + pageSize,
+  const filtered = useMemo(
+    () => filterMemberScoreRowsByName(rows, query),
+    [query, rows],
+  );
+  const { pageCount, safePage, pageRows } = useMemo(
+    () => paginateMemberScoreRows(filtered, page, pageSize),
+    [filtered, page, pageSize],
   );
 
   return (
