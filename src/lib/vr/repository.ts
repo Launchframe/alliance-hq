@@ -853,7 +853,19 @@ export async function upsertCommanderSeasonVr(input: {
         )
       : null);
 
-  await db
+  // Atomic conflict resolution: never let a stale lower write clobber a
+  // concurrent higher season high. Intentional downgrades apply only when the
+  // stored high still matches the caller's pre-read (see shouldApplySeasonVrWrite).
+  const expectedPrevious = previousBaseVr;
+  const applyIncoming = sql`
+    (${input.baseVr} >= ${schema.commanderSeasonVr.highestBaseVr})
+    OR (
+      ${expectedPrevious}::int IS NOT NULL
+      AND ${schema.commanderSeasonVr.highestBaseVr} = ${expectedPrevious}
+    )
+  `;
+
+  const [written] = await db
     .insert(schema.commanderSeasonVr)
     .values({
       id: nanoid(),
@@ -874,17 +886,57 @@ export async function upsertCommanderSeasonVr(input: {
         schema.commanderSeasonVr.seasonKey,
       ],
       set: {
-        highestBaseVr: input.baseVr,
-        instituteLevel,
-        updatedByDiscordUserId: input.discordUserId ?? null,
-        updatedByHqUserId: input.hqUserId ?? null,
-        updatedAt: now,
-        flaggedAt: flagReason ? now : null,
-        flagReason,
+        highestBaseVr: sql`
+          CASE
+            WHEN ${applyIncoming} THEN ${input.baseVr}
+            ELSE ${schema.commanderSeasonVr.highestBaseVr}
+          END
+        `,
+        instituteLevel: sql`
+          CASE
+            WHEN ${applyIncoming} THEN ${instituteLevel}
+            ELSE ${schema.commanderSeasonVr.instituteLevel}
+          END
+        `,
+        updatedByDiscordUserId: sql`
+          CASE
+            WHEN ${applyIncoming} THEN ${input.discordUserId ?? null}
+            ELSE ${schema.commanderSeasonVr.updatedByDiscordUserId}
+          END
+        `,
+        updatedByHqUserId: sql`
+          CASE
+            WHEN ${applyIncoming} THEN ${input.hqUserId ?? null}
+            ELSE ${schema.commanderSeasonVr.updatedByHqUserId}
+          END
+        `,
+        updatedAt: sql`
+          CASE
+            WHEN ${applyIncoming} THEN ${now}
+            ELSE ${schema.commanderSeasonVr.updatedAt}
+          END
+        `,
+        flaggedAt: sql`
+          CASE
+            WHEN ${applyIncoming} THEN ${flagReason ? now : null}
+            ELSE ${schema.commanderSeasonVr.flaggedAt}
+          END
+        `,
+        flagReason: sql`
+          CASE
+            WHEN ${applyIncoming} THEN ${flagReason}
+            ELSE ${schema.commanderSeasonVr.flagReason}
+          END
+        `,
       },
+    })
+    .returning({
+      highestBaseVr: schema.commanderSeasonVr.highestBaseVr,
     });
 
-  if (input.eventSource && previousBaseVr !== input.baseVr) {
+  const applied =
+    written?.highestBaseVr === input.baseVr && previousBaseVr !== input.baseVr;
+  if (input.eventSource && applied) {
     await db.insert(schema.commanderSeasonVrEvents).values({
       id: nanoid(),
       commanderId: input.commanderId,
