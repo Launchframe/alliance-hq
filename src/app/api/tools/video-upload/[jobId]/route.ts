@@ -15,6 +15,7 @@ import {
   videoJobAccessErrorResponse,
 } from "@/lib/video/video-job-access.server";
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
+import { loadVsJobContext } from "@/lib/vs-scores/repository.server";
 import { recoverStaleSubmittingVideoJob } from "@/lib/video/recover-stale-submitting-video-job.server";
 import {
   resolveHqAllianceIdFromStoredAllianceId,
@@ -315,6 +316,7 @@ export async function GET(_request: Request, { params }: Props) {
         status: job.status,
         fileName: job.fileName,
         scoreTarget: scoreTargetId,
+        ...(scoreTargetId === "vs-performance" && allianceIdForJob ? { recordedDate: job.recordedDate, ...await loadVsJobContext(allianceIdForJob, jobId) } : {}),
         boardKey: job.boardKey,
         commendationId: job.commendationId,
         hqEventId: job.hqEventId,

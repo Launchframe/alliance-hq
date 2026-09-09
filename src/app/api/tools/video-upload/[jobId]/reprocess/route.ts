@@ -5,7 +5,7 @@ import { writeAuditLog } from "@/lib/bff/audit";
 import { buildConnectHref } from "@/lib/connect/connect-return-path.shared";
 import { getDb, schema } from "@/lib/db";
 import { getAshedConnection, requireApiSession } from "@/lib/session";
-import { loadEffectiveAllianceHqOcrOnly } from "@/lib/video/alliance-ocr-settings.server";
+import { loadAllianceVideoOcrContext } from "@/lib/video/alliance-ocr-settings.server";
 import {
   engineRequiresAshed,
   resolveVideoOcrEngineForJob,
@@ -80,13 +80,11 @@ export async function POST(_request: Request, { params }: Props) {
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
     const reviewPath = `/tools/video-upload/${jobId}/review`;
     const allianceId = job.allianceId ?? session.currentAllianceId;
-    const hqOcrOnly = allianceId
-      ? await loadEffectiveAllianceHqOcrOnly(allianceId)
-      : false;
+    const ocrContext = await loadAllianceVideoOcrContext(allianceId);
     const ocrEngine = resolveVideoOcrEngineForJob(
       scoreTargetId,
       isMemberRosterVideoTarget(scoreTargetId),
-      { allianceHqOcrOnly: hqOcrOnly },
+      ocrContext,
       { forceNative: isNativeOnlyVideoTarget(scoreTargetId) },
     );
 

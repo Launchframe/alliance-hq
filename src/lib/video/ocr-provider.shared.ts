@@ -23,6 +23,7 @@ const PROVIDERS: ReadonlySet<string> = new Set(["ashed", "local", "mock"]);
 export type VideoOcrResolutionContext = {
   /** Alliance queue setting — forces in-house Tesseract instead of Ashed OCR. */
   allianceHqOcrOnly?: boolean;
+  allianceOperatingMode?: "ashed" | "native";
 };
 
 export type VideoOcrEngineTargetOptions = {
@@ -95,6 +96,14 @@ export function videoOcrEngineForTarget(
   return opts.useNativeWhenLocal ? "native" : "mock";
 }
 
+export function isNativeAllianceVsTarget(
+  scoreTargetId: string,
+  context?: VideoOcrResolutionContext,
+): boolean {
+  return scoreTargetId === "vs-performance" &&
+    context?.allianceOperatingMode === "native";
+}
+
 export function shouldEnqueueAshedOcrShadowPasses(engine: VideoOcrEngine): boolean {
   return engine === "ashed";
 }
@@ -120,10 +129,14 @@ export function resolveVideoOcrEngineForJob(
   context?: VideoOcrResolutionContext,
   options?: { forceNative?: boolean },
 ): VideoOcrEngine {
-  void scoreTargetId;
+  const forceNative =
+    options?.forceNative ||
+    isNativeAllianceVsTarget(scoreTargetId, context) ||
+    (scoreTargetId === "vs-performance" &&
+      resolveEffectiveVideoOcrProvider(context) === "local");
   return videoOcrEngineForTarget(resolveEffectiveVideoOcrProvider(context), {
-    useNativeWhenLocal: isRoster || Boolean(options?.forceNative),
-    forceNative: options?.forceNative,
+    useNativeWhenLocal: isRoster || Boolean(forceNative),
+    forceNative,
   });
 }
 

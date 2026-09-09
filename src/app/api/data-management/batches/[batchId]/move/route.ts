@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { changeLocalVsData, isLocalVsBatch } from "@/lib/vs-scores/data-management.server";
 
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
 import { loadAshedConnectionForAllianceCapability } from "@/lib/ashed/load-ashed-connection.server";
@@ -55,6 +56,8 @@ export async function POST(request: Request, { params }: Props) {
       { status: 400 },
     );
   }
+
+  if (isLocalVsBatch(batch)) return changeLocalVsData({ allianceId: ctx.allianceId, rbac: ctx.rbac, batches: [batch], newRecordedDate });
 
   const connection = await loadAshedConnectionForAllianceCapability({
     sessionId: ctx.sessionId,

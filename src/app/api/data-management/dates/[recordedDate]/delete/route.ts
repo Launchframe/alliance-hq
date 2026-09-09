@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { changeLocalVsData, isLocalVsBatch } from "@/lib/vs-scores/data-management.server";
 
 import { getAshedAllianceIdIfLinked } from "@/lib/alliance/ashed-write-guard";
 import { writeAuditLog } from "@/lib/bff/audit";
@@ -55,6 +56,8 @@ export async function POST(request: Request, { params }: Props) {
   const batchesOnDate = ledgerBatches.filter(
     (batch) => batch.recordedDate === recordedDate,
   );
+
+  if (target.id === "vs-performance" && batchesOnDate.length && batchesOnDate.every(isLocalVsBatch)) return changeLocalVsData({ allianceId: ctx.allianceId, rbac: ctx.rbac, batches: batchesOnDate, wholeDate: recordedDate });
 
   const connection = await getAshedConnection(ctx.sessionId);
   const ashedAllianceId = await getAshedAllianceIdIfLinked(ctx.allianceId);
