@@ -67,6 +67,42 @@ describe("resolveMemberPoolAllianceRank", () => {
     expect(isMemberEligibleForPool("r4_plus", promotedRank)).toBe(true);
   });
 
+  it("keeps an unsynced HQ demotion even after a later Ashed roster pull", () => {
+    // Officer demoted R4→R3; Ashed PUT failed (ashedSyncedAt null). Next-day
+    // roster sync stamps syncedAt with Ashed's still-R4 value — must not win.
+    const demotedRank = resolveMemberPoolAllianceRank(
+      {
+        ...baseMember,
+        allianceRank: 4,
+        syncedAt: new Date("2026-09-10T12:00:00Z"),
+      } as AllianceMember,
+      {
+        allianceRank: 3,
+        effectiveDate: "2026-09-09",
+        ashedSyncedAt: null,
+      },
+    );
+    expect(demotedRank).toBe(3);
+    expect(isMemberEligibleForPool("r3", demotedRank)).toBe(true);
+    expect(isMemberEligibleForPool("r4_plus", demotedRank)).toBe(false);
+  });
+
+  it("still allows a synced HQ event to yield to a newer Ashed roster promotion", () => {
+    const promotedRank = resolveMemberPoolAllianceRank(
+      {
+        ...baseMember,
+        allianceRank: 5,
+        syncedAt: new Date("2026-09-10T12:00:00Z"),
+      } as AllianceMember,
+      {
+        allianceRank: 3,
+        effectiveDate: "2026-09-01",
+        ashedSyncedAt: new Date("2026-09-01T15:00:00Z"),
+      },
+    );
+    expect(promotedRank).toBe(5);
+  });
+
   it("falls back to synced roster rank when no HQ event exists", () => {
     expect(
       resolveMemberPoolAllianceRank(

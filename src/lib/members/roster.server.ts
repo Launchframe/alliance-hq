@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, max, ne, sql } from "drizzle-orm";
+import { and, eq, isNull, max, ne, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { base44ListMemberRecords } from "@/lib/base44/fetch";
@@ -16,6 +16,7 @@ import { syncCommanderFromAllianceMember } from "@/lib/members/commander-identit
 import type { CommanderIdentityConflict } from "@/lib/members/commander-identity-conflicts.shared";
 import { normalizedRankFromAshedMember, isStoredAllianceMemberUnranked } from "@/lib/members/roster.shared";
 import { allianceMembersAfterOptionalAshedSync } from "@/lib/members/roster-ashed-sync.server";
+import { pickLatestAllianceRankEventPerMember } from "@/lib/trains/rank-history";
 
 export {
   allianceMemberRowToAshedMember,
@@ -59,6 +60,31 @@ export async function syncAllianceMembersFromAshed(input: {
   let synced = 0;
   const commanderConflicts: CommanderIdentityConflict[] = [];
 
+  // HQ confirms that never reached Ashed must keep their local rank through
+  // roster pull — Ashed still has the pre-confirm value.
+  const unsyncedRankEvents = await db
+    .select()
+    .from(schema.memberAllianceRankEvents)
+    .where(
+      and(
+        eq(schema.memberAllianceRankEvents.allianceId, input.hqAllianceId),
+        isNull(schema.memberAllianceRankEvents.ashedSyncedAt),
+      ),
+    );
+  const protectedRankByMember = new Map(
+    pickLatestAllianceRankEventPerMember(unsyncedRankEvents).map((event) => [
+      event.ashedMemberId,
+      {
+        allianceRank: event.allianceRank,
+        allianceRankTitle: event.allianceRankTitle,
+        ashedRankRaw: formatAshedMemberRankValue(
+          event.allianceRank,
+          event.allianceRankTitle,
+        ),
+      },
+    ]),
+  );
+
   for (const member of members) {
     const ashedMemberId = member.id;
     if (!ashedMemberId) continue;
@@ -67,6 +93,11 @@ export async function syncAllianceMembersFromAshed(input: {
     const normalized = normalizedRankFromAshedMember(
       member as unknown as Record<string, unknown>,
     );
+    const protectedRank = protectedRankByMember.get(ashedMemberId);
+    const allianceRank = protectedRank?.allianceRank ?? normalized.allianceRank;
+    const allianceRankTitle =
+      protectedRank?.allianceRankTitle ?? normalized.allianceRankTitle;
+    const ashedRankRaw = protectedRank?.ashedRankRaw ?? normalized.ashedRankRaw;
     const ashedCreatedAt = parseAshedTimestamp(record.created_date);
     const ashedUpdatedAt = parseAshedTimestamp(record.updated_date);
 
@@ -84,9 +115,9 @@ export async function syncAllianceMembersFromAshed(input: {
         currentName: member.current_name,
         previousNamesJson: member.previous_names ?? [],
         status,
-        allianceRank: normalized.allianceRank,
-        allianceRankTitle: normalized.allianceRankTitle,
-        ashedRankRaw: normalized.ashedRankRaw,
+        allianceRank,
+        allianceRankTitle,
+        ashedRankRaw,
         joinDate: record.join_date ?? null,
         notes: record.notes ?? null,
         timezone: record.timezone ?? null,
@@ -108,9 +139,9 @@ export async function syncAllianceMembersFromAshed(input: {
           currentName: member.current_name,
           previousNamesJson: member.previous_names ?? [],
           status,
-          allianceRank: normalized.allianceRank,
-          allianceRankTitle: normalized.allianceRankTitle,
-          ashedRankRaw: normalized.ashedRankRaw,
+          allianceRank,
+          allianceRankTitle,
+          ashedRankRaw,
           joinDate: record.join_date ?? null,
           notes: record.notes ?? null,
           timezone: record.timezone ?? null,

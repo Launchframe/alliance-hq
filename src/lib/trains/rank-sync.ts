@@ -73,6 +73,15 @@ export async function confirmMemberRank(
     recordedByHqUserId: input.recordedByHqUserId ?? null,
   });
 
+  // Persist HQ roster rank before the Ashed PUT so a failed dual-write still
+  // leaves local state matching the append-only event (pool eligibility + UI).
+  await setAllianceMemberRank({
+    hqAllianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    allianceRank: input.allianceRank,
+    allianceRankTitle: input.allianceRankTitle,
+  });
+
   try {
     await syncMemberRankToAshed(
       input.connection,
@@ -84,13 +93,6 @@ export async function confirmMemberRank(
       .update(schema.memberAllianceRankEvents)
       .set({ ashedSyncedAt: new Date() })
       .where(eq(schema.memberAllianceRankEvents.id, eventId));
-
-    await setAllianceMemberRank({
-      hqAllianceId: input.allianceId,
-      ashedMemberId: input.ashedMemberId,
-      allianceRank: input.allianceRank,
-      allianceRankTitle: input.allianceRankTitle,
-    });
   } catch (error) {
     throw new Error(
       `Rank saved in HQ but Ashed sync failed: ${error instanceof Error ? error.message : "unknown error"}`,

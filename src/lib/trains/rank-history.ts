@@ -9,6 +9,13 @@ import type { PoolType } from "@/lib/trains/types";
 type PoolRankEvent = {
   allianceRank: number;
   effectiveDate?: string | null;
+  /**
+   * When present and `null`, the HQ event never reached Ashed. Prefer the event
+   * over roster sync forever in that case — a later Ashed pull still has the
+   * pre-confirm rank and must not revive it for pool eligibility.
+   * Omit (undefined) for legacy callers that only pass rank + date.
+   */
+  ashedSyncedAt?: Date | null;
 };
 
 
@@ -61,9 +68,12 @@ export type ResolvedMemberAllianceRank = {
 /**
  * Effective rank for train pool eligibility. HQ rank events win when the roster
  * has not synced since the event's effective date; a newer {@link AllianceMember.syncedAt}
- * overrides a stale lower HQ event (promotions). Without both dates, the HQ event
- * wins on mismatch so confirmed demotions are not overwritten by stale roster rank.
- * Falls back to synced roster / Ashed rank when there is no event yet.
+ * overrides a stale lower HQ event (promotions that landed in Ashed then synced).
+ * An HQ event that never synced to Ashed (`ashedSyncedAt === null`) always wins
+ * on mismatch — otherwise the next day's roster pull stamps a newer `syncedAt`
+ * with Ashed's pre-confirm rank and silently undoes demotions/promotions.
+ * Without both dates, the HQ event wins on mismatch. Falls back to synced
+ * roster / Ashed rank when there is no event yet.
  */
 export function resolveMemberPoolAllianceRank(
   member: AllianceMember,
@@ -83,6 +93,15 @@ export function resolveMemberPoolAllianceRank(
     return eventRank;
   }
   if (syncedRank === eventRank) {
+    return eventRank;
+  }
+
+  // Explicit null (not omitted): confirm wrote the event but Ashed PUT failed.
+  if (
+    rankEvent != null &&
+    Object.prototype.hasOwnProperty.call(rankEvent, "ashedSyncedAt") &&
+    rankEvent.ashedSyncedAt == null
+  ) {
     return eventRank;
   }
 
