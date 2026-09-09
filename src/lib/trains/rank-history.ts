@@ -6,6 +6,31 @@ import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { allianceMemberRowToAshedMember } from "@/lib/members/roster.shared";
 import type { PoolType } from "@/lib/trains/types";
 
+/**
+ * Rank event sources that dual-write to Ashed via {@link confirmMemberRank}.
+ * Only these may use `ashedSyncedAt === null` as “pending Ashed confirm”
+ * protection. Scraped mirrors (`lastrank_sync`) never PUT to Ashed — a null
+ * stamp on those rows must not permanently override roster / block Ashed sync.
+ */
+export const ASHED_DUAL_WRITE_RANK_SOURCES = [
+  "manual",
+  "video_parse",
+  "ashed_bootstrap",
+] as const;
+
+export type AshedDualWriteRankSource =
+  (typeof ASHED_DUAL_WRITE_RANK_SOURCES)[number];
+
+export function isAshedDualWriteRankSource(
+  source: string | null | undefined,
+): source is AshedDualWriteRankSource {
+  return (
+    source === "manual" ||
+    source === "video_parse" ||
+    source === "ashed_bootstrap"
+  );
+}
+
 type PoolRankEvent = {
   allianceRank: number;
   effectiveDate?: string | null;
@@ -16,6 +41,12 @@ type PoolRankEvent = {
    * Omit (undefined) for legacy callers that only pass rank + date.
    */
   ashedSyncedAt?: Date | null;
+  /**
+   * Event provenance. Required for the null-`ashedSyncedAt` privilege when the
+   * caller passes a full DB row; omitted events are treated as HQ confirms
+   * (legacy unit-test / date-only helpers).
+   */
+  source?: string | null;
 };
 
 
@@ -96,11 +127,14 @@ export function resolveMemberPoolAllianceRank(
     return eventRank;
   }
 
-  // Explicit null (not omitted): confirm wrote the event but Ashed PUT failed.
+  // Explicit null (not omitted): HQ confirm wrote the event but Ashed PUT
+  // failed. Scraped mirrors (e.g. lastrank_sync) also leave ashedSyncedAt null
+  // because they never PUT — do not grant them permanent pool override.
   if (
     rankEvent != null &&
     Object.prototype.hasOwnProperty.call(rankEvent, "ashedSyncedAt") &&
-    rankEvent.ashedSyncedAt == null
+    rankEvent.ashedSyncedAt == null &&
+    (rankEvent.source == null || isAshedDualWriteRankSource(rankEvent.source))
   ) {
     return eventRank;
   }

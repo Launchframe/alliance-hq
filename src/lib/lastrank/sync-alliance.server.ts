@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
@@ -28,6 +28,7 @@ import {
   updateLastRankProfileFields,
   type LastRankUpsertCounts,
 } from "@/lib/lastrank/sync-upsert.server";
+import { isAshedDualWriteRankSource } from "@/lib/trains/rank-history";
 import { lookupPlayerByUid } from "@/lib/lastwar/player-lookup";
 import { formatAshedMemberRankValue } from "@/lib/members/alliance-rank";
 import { appendCommanderPowerLevelEventIfChanged } from "@/lib/members/member-stat-history.server";
@@ -291,6 +292,29 @@ async function writeLastRankAllianceRank(input: {
     );
 }
 
+async function loadMembersWithPendingHqRankConfirm(
+  allianceId: string,
+): Promise<Set<string>> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      ashedMemberId: schema.memberAllianceRankEvents.ashedMemberId,
+      source: schema.memberAllianceRankEvents.source,
+    })
+    .from(schema.memberAllianceRankEvents)
+    .where(
+      and(
+        eq(schema.memberAllianceRankEvents.allianceId, allianceId),
+        isNull(schema.memberAllianceRankEvents.ashedSyncedAt),
+      ),
+    );
+  return new Set(
+    rows
+      .filter((row) => isAshedDualWriteRankSource(row.source))
+      .map((row) => row.ashedMemberId),
+  );
+}
+
 async function applyMatchedRows(
   hqAllianceId: string,
   rows: LastRankMatchedRow[],
@@ -299,6 +323,9 @@ async function applyMatchedRows(
   const db = getDb();
   const effectiveDate = getServerCalendarDate();
   let ranksChanged = false;
+  // Do not clobber an in-flight officer confirm (Ashed PUT pending / failed).
+  const pendingHqRankConfirms =
+    await loadMembersWithPendingHqRankConfirm(hqAllianceId);
 
   for (const row of rows) {
     if (
@@ -323,6 +350,8 @@ async function applyMatchedRows(
       lastRankAllianceRank <= 5
     ) {
       if (row.hq.hqAllianceRank === lastRankAllianceRank) {
+        counts.rankUnchanged += 1;
+      } else if (pendingHqRankConfirms.has(row.hq.ashedMemberId)) {
         counts.rankUnchanged += 1;
       } else {
         await writeLastRankAllianceRank({

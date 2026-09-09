@@ -16,7 +16,10 @@ import { syncCommanderFromAllianceMember } from "@/lib/members/commander-identit
 import type { CommanderIdentityConflict } from "@/lib/members/commander-identity-conflicts.shared";
 import { normalizedRankFromAshedMember, isStoredAllianceMemberUnranked } from "@/lib/members/roster.shared";
 import { allianceMembersAfterOptionalAshedSync } from "@/lib/members/roster-ashed-sync.server";
-import { pickLatestAllianceRankEventPerMember } from "@/lib/trains/rank-history";
+import {
+  isAshedDualWriteRankSource,
+  pickLatestAllianceRankEventPerMember,
+} from "@/lib/trains/rank-history";
 
 export {
   allianceMemberRowToAshedMember,
@@ -61,16 +64,19 @@ export async function syncAllianceMembersFromAshed(input: {
   const commanderConflicts: CommanderIdentityConflict[] = [];
 
   // HQ confirms that never reached Ashed must keep their local rank through
-  // roster pull — Ashed still has the pre-confirm value.
-  const unsyncedRankEvents = await db
-    .select()
-    .from(schema.memberAllianceRankEvents)
-    .where(
-      and(
-        eq(schema.memberAllianceRankEvents.allianceId, input.hqAllianceId),
-        isNull(schema.memberAllianceRankEvents.ashedSyncedAt),
-      ),
-    );
+  // roster pull — Ashed still has the pre-confirm value. Only dual-write
+  // sources qualify; lastrank_sync leaves ashedSyncedAt null without a PUT.
+  const unsyncedRankEvents = (
+    await db
+      .select()
+      .from(schema.memberAllianceRankEvents)
+      .where(
+        and(
+          eq(schema.memberAllianceRankEvents.allianceId, input.hqAllianceId),
+          isNull(schema.memberAllianceRankEvents.ashedSyncedAt),
+        ),
+      )
+  ).filter((event) => isAshedDualWriteRankSource(event.source));
   const protectedRankByMember = new Map(
     pickLatestAllianceRankEventPerMember(unsyncedRankEvents).map((event) => [
       event.ashedMemberId,

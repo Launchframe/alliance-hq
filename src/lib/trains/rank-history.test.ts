@@ -80,11 +80,33 @@ describe("resolveMemberPoolAllianceRank", () => {
         allianceRank: 3,
         effectiveDate: "2026-09-09",
         ashedSyncedAt: null,
+        source: "manual",
       },
     );
     expect(demotedRank).toBe(3);
     expect(isMemberEligibleForPool("r3", demotedRank)).toBe(true);
     expect(isMemberEligibleForPool("r4_plus", demotedRank)).toBe(false);
+  });
+
+  it("does not let a stale lastrank_sync event permanently override a newer Ashed roster rank", () => {
+    // LastRank cron wrote R4 with ashedSyncedAt null (no Ashed PUT). Next-day
+    // Ashed roster sync has R5 — pool eligibility must follow the roster, not
+    // treat lastrank_sync like a pending HQ confirm.
+    const rank = resolveMemberPoolAllianceRank(
+      {
+        ...baseMember,
+        allianceRank: 5,
+        syncedAt: new Date("2026-09-10T12:00:00Z"),
+      } as AllianceMember,
+      {
+        allianceRank: 4,
+        effectiveDate: "2026-09-09",
+        ashedSyncedAt: null,
+        source: "lastrank_sync",
+      },
+    );
+    expect(rank).toBe(5);
+    expect(isMemberEligibleForPool("r4_plus", rank)).toBe(true);
   });
 
   it("still allows a synced HQ event to yield to a newer Ashed roster promotion", () => {
