@@ -6,6 +6,7 @@ import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import { isTimeOffEntryKind, serializeTimeOffEntry } from "./api.shared";
+import { enqueueTimeOffSync } from "./excused-outbox.server";
 import {
   canManageTimeOffEntry,
   parseTimeOffDraft,
@@ -22,8 +23,8 @@ export type TimeOffActor = TimeOffViewer & {
   allianceId: string;
   hqUserId?: string | null;
   discordUserId?: string | null;
-  sessionId?: string | null;
   refresh?: () => Promise<TimeOffActor>;
+  locale?: string;
 };
 
 function assertActor(actor: TimeOffActor) {
@@ -56,7 +57,7 @@ async function loadRosterMember(tx: Transaction, actor: TimeOffActor, draft: Tim
   return member;
 }
 
-async function appendRevision(tx: Transaction, actor: TimeOffActor, row: Entry) {
+export async function appendTimeOffRevision(tx: Transaction, actor: TimeOffActor, row: Entry, options: { enqueue?: boolean; recordedAt?: Date } = {}) {
   if (!isTimeOffEntryKind(row.entryKind)) throw new TimeOffError("forbidden", 403);
   await tx.insert(schema.memberTimeOffRevisions).values({
     id: nanoid(),
@@ -69,11 +70,13 @@ async function appendRevision(tx: Transaction, actor: TimeOffActor, row: Entry) 
       entryKind: row.entryKind,
       globalAbsence: row.globalAbsence,
       cancelled: row.cancelledAt != null,
+      activityScope: row.activityScope === "vs" || row.activityScope === "donation" ? row.activityScope : "all",
     },
     recordedByHqUserId: actor.hqUserId ?? null,
     recordedByDiscordUserId: actor.discordUserId ?? null,
-    recordedAt: row.updatedAt,
+    recordedAt: options.recordedAt ?? row.updatedAt,
   });
+  if (options.enqueue !== false) row.syncStatus = await enqueueTimeOffSync(tx, row, actor.locale);
 }
 
 async function loadLockedEntry(tx: Transaction, actor: TimeOffActor, id: string, version: unknown) {
@@ -124,6 +127,9 @@ export async function createTimeOff(actor: TimeOffActor, body: unknown, requestI
       memberName: member.name,
       availability: "full_away",
       globalAbsence: true,
+      activityScope: "all",
+      noticeVerified: true,
+      privateNotesOwned: true,
       version: 1,
       source: actor.discordUserId ? "discord" : actor.canManageOthers ? "officer" : "web",
       createdByHqUserId: actor.hqUserId ?? null,
@@ -133,7 +139,7 @@ export async function createTimeOff(actor: TimeOffActor, body: unknown, requestI
       createdAt: now,
       updatedAt: now,
     }).returning();
-    await appendRevision(tx, actor, row!);
+    await appendTimeOffRevision(tx, actor, row!);
     return serializeForActor(row!, actor);
   });
 }
@@ -153,10 +159,13 @@ export async function updateTimeOff(actor: TimeOffActor, id: string, body: unkno
       memberName: member.name,
       availability: "full_away",
       globalAbsence: true,
+      activityScope: "all",
+      noticeVerified: true,
+      privateNotesOwned: true,
       version: existing.version + 1,
       updatedAt: new Date(),
     }).where(eq(schema.memberTimeOff.id, existing.id)).returning();
-    await appendRevision(tx, actor, row!);
+    await appendTimeOffRevision(tx, actor, row!);
     return serializeForActor(row!, actor);
   });
 }
@@ -174,7 +183,7 @@ export async function cancelTimeOff(actor: TimeOffActor, id: string, version: un
       updatedAt: now,
       version: existing.version + 1,
     }).where(eq(schema.memberTimeOff.id, existing.id)).returning();
-    await appendRevision(tx, actor, row!);
+    await appendTimeOffRevision(tx, actor, row!);
     return serializeForActor(row!, actor);
   });
 }

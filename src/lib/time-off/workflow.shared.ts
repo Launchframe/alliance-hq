@@ -1,5 +1,5 @@
-import { canCancelTimeOffEntry, isTimeOffActivityScope, isTimeOffEntryKind } from "./api.shared";
-import type { TimeOffActivityScope, TimeOffEntryKind } from "./types.shared";
+import { canCancelTimeOffEntry, isTimeOffEntryKind } from "./api.shared";
+import type { TimeOffEntryKind } from "./types.shared";
 
 export const TIME_OFF_MAX_DAYS = 366;
 export const TIME_OFF_MAX_NOTES = 1000;
@@ -22,7 +22,6 @@ export type TimeOffDraft = {
   endDate: string;
   notes: string | null;
   entryKind: TimeOffEntryKind;
-  activityScope: TimeOffActivityScope;
 };
 
 export type TimeOffViewer = {
@@ -36,6 +35,7 @@ export type TimeOffRevisionSnapshot = {
   entryKind: TimeOffEntryKind;
   globalAbsence: boolean;
   cancelled: boolean;
+  activityScope?: "vs" | "donation" | "all";
 };
 
 export function isTimeOffDate(value: unknown): value is string {
@@ -56,15 +56,12 @@ export function parseTimeOffDraft(body: unknown): TimeOffDraft {
   if (notes && notes.length > TIME_OFF_MAX_NOTES) throw new TimeOffError("notesTooLong");
   const kind = input.entryKind ?? "planned";
   if (typeof kind !== "string" || !isTimeOffEntryKind(kind)) throw new TimeOffError("forbidden");
-  const activityScope = input.activityScope ?? "all";
-  if (typeof activityScope !== "string" || !isTimeOffActivityScope(activityScope)) throw new TimeOffError("forbidden");
   return {
     ashedMemberId: input.ashedMemberId.trim(),
     startDate: input.startDate,
     endDate: input.endDate,
     notes: notes || null,
     entryKind: kind,
-    activityScope,
   };
 }
 
@@ -86,7 +83,7 @@ export function timeOffEntryForViewer<T extends { ashedMemberId: string; notes: 
 export function timeOffExcusesDate(revisions: ReadonlyArray<{
   recordedAt: string;
   snapshot: TimeOffRevisionSnapshot;
-}>, date: string): boolean {
+}>, date: string, activity: "vs" | "donation" | "all" = "all"): boolean {
   if (!isTimeOffDate(date)) return false;
   const cutoff = Date.parse(`${date}T02:00:00.000Z`);
   let latest: (typeof revisions)[number] | undefined;
@@ -95,7 +92,7 @@ export function timeOffExcusesDate(revisions: ReadonlyArray<{
     if (timestamp < cutoff && (!latest || timestamp >= Date.parse(latest.recordedAt))) latest = revision;
   }
   const snapshot = latest?.snapshot;
-  return !!snapshot && snapshot.globalAbsence && !snapshot.cancelled &&
+  return !!snapshot && (snapshot.globalAbsence || snapshot.activityScope === activity || snapshot.activityScope === "all") && !snapshot.cancelled &&
     (snapshot.entryKind === "planned" || snapshot.entryKind === "officer_marked") &&
     snapshot.startDate <= date && date <= snapshot.endDate;
 }
