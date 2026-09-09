@@ -53,6 +53,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/internal/alliance-daily-snapshot",
+      "schedule": "15 3 * * *"
+    },
+    {
       "path": "/api/internal/vs-scores/sync",
       "schedule": "* * * * *"
     },

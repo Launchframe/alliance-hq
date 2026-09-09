@@ -21,12 +21,14 @@ import {
 } from "@/lib/members/member-tenure.server";
 import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
 import { hasConflictingDiscordGameUidClaim } from "@/lib/member-link/link-claim-guards.shared";
+import { isMemberLinkGameUidUniqueViolation } from "@/lib/member-link/member-link-game-uid-unique.shared";
 import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { buildFlagReason, peerMaxExcludingMember, peerMaxInstituteLevelExcludingMember, shouldAnomalyConfirm } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER, type VrEventSource } from "@/lib/vr/constants";
 import { coerceInstituteLevelFromBaseVr } from "@/lib/vr/institute-levels.shared";
 import {
+  canRebindGuildToDifferentAlliance,
   evaluateGuildRegistrationAuth,
   type GuildRegistrationAuth,
   nativeOwnerClaimMemberId,
@@ -488,17 +490,56 @@ export async function linkDiscordMember(input: {
     (row) => row.ashedMemberId === input.ashedMemberId,
   );
 
-  if (existingPair) {
+  try {
+    if (existingPair) {
+      const [row] = await db
+        .update(schema.discordMemberLinks)
+        .set({
+          memberDisplayName: input.memberDisplayName ?? null,
+          gameUid: input.gameUid,
+          discordUsername: input.discordUsername ?? null,
+          updatedAt: now,
+        })
+        .where(eq(schema.discordMemberLinks.id, existingPair.id))
+        .returning();
+      await denormalizeGameUidOnMember({
+        allianceId: input.allianceId,
+        ashedMemberId: input.ashedMemberId,
+        gameUid: input.gameUid,
+      });
+      await openMemberAllianceTenure({
+        allianceId: input.allianceId,
+        ashedMemberId: input.ashedMemberId,
+        gameUid: input.gameUid,
+      });
+      await syncCommanderIdentityFromMemberLink({
+        allianceId: input.allianceId,
+        ashedMemberId: input.ashedMemberId,
+        gameUid: input.gameUid,
+        memberDisplayName: input.memberDisplayName,
+      });
+      return { ok: true, link: row!, mode: input.replaceAll ? "replaced" : "updated" };
+    }
+
+    if (userLinks.length >= MAX_DISCORD_LINKS_PER_USER) {
+      return { ok: false, reason: "cap_reached" };
+    }
+
     const [row] = await db
-      .update(schema.discordMemberLinks)
-      .set({
+      .insert(schema.discordMemberLinks)
+      .values({
+        id: nanoid(),
+        allianceId: input.allianceId,
+        discordUserId: input.discordUserId,
+        discordUsername: input.discordUsername ?? null,
+        ashedMemberId: input.ashedMemberId,
         memberDisplayName: input.memberDisplayName ?? null,
         gameUid: input.gameUid,
-        discordUsername: input.discordUsername ?? null,
+        linkedAt: now,
         updatedAt: now,
       })
-      .where(eq(schema.discordMemberLinks.id, existingPair.id))
       .returning();
+
     await denormalizeGameUidOnMember({
       allianceId: input.allianceId,
       ashedMemberId: input.ashedMemberId,
@@ -508,59 +549,29 @@ export async function linkDiscordMember(input: {
       allianceId: input.allianceId,
       ashedMemberId: input.ashedMemberId,
       gameUid: input.gameUid,
+      joinedAt: now,
     });
     await syncCommanderIdentityFromMemberLink({
       allianceId: input.allianceId,
       ashedMemberId: input.ashedMemberId,
       gameUid: input.gameUid,
       memberDisplayName: input.memberDisplayName,
+      joinedAt: now,
     });
-    return { ok: true, link: row!, mode: input.replaceAll ? "replaced" : "updated" };
+
+    return {
+      ok: true,
+      link: row!,
+      mode: input.replaceAll ? "replaced" : "created",
+    };
+  } catch (error) {
+    // Concurrent Discord/web links can both pass the claim check; the unique
+    // index on (alliance_id, game_uid) is the authoritative gate.
+    if (isMemberLinkGameUidUniqueViolation(error)) {
+      return { ok: false, reason: "member_linked_to_other_discord" };
+    }
+    throw error;
   }
-
-  if (userLinks.length >= MAX_DISCORD_LINKS_PER_USER) {
-    return { ok: false, reason: "cap_reached" };
-  }
-
-  const [row] = await db
-    .insert(schema.discordMemberLinks)
-    .values({
-      id: nanoid(),
-      allianceId: input.allianceId,
-      discordUserId: input.discordUserId,
-      discordUsername: input.discordUsername ?? null,
-      ashedMemberId: input.ashedMemberId,
-      memberDisplayName: input.memberDisplayName ?? null,
-      gameUid: input.gameUid,
-      linkedAt: now,
-      updatedAt: now,
-    })
-    .returning();
-
-  await denormalizeGameUidOnMember({
-    allianceId: input.allianceId,
-    ashedMemberId: input.ashedMemberId,
-    gameUid: input.gameUid,
-  });
-  await openMemberAllianceTenure({
-    allianceId: input.allianceId,
-    ashedMemberId: input.ashedMemberId,
-    gameUid: input.gameUid,
-    joinedAt: now,
-  });
-  await syncCommanderIdentityFromMemberLink({
-    allianceId: input.allianceId,
-    ashedMemberId: input.ashedMemberId,
-    gameUid: input.gameUid,
-    memberDisplayName: input.memberDisplayName,
-    joinedAt: now,
-  });
-
-  return {
-    ok: true,
-    link: row!,
-    mode: input.replaceAll ? "replaced" : "created",
-  };
 }
 
 /** @deprecated Use linkDiscordMember — kept for admin paths that expect upsert semantics. */
@@ -1609,6 +1620,32 @@ export async function upsertGuildAlliance(
     });
 }
 
+/**
+ * Bind a Discord guild to an alliance for `/link-alliance` / web bot install.
+ * Blocks silent cross-tenant overwrite when the guild is already registered to
+ * a different alliance (unless the caller is that alliance's owner or a
+ * platform maintainer).
+ */
+export async function bindGuildAllianceForRegistration(input: {
+  guildId: string;
+  allianceId: string;
+  discordUserId: string;
+}): Promise<{ ok: true } | { ok: false; reason: "guild_bound_to_other_alliance" }> {
+  const existingAllianceId = await getGuildAllianceId(input.guildId);
+  if (existingAllianceId && existingAllianceId !== input.allianceId) {
+    const existingAuth = await callerCanRegisterGuildAlliance({
+      allianceId: existingAllianceId,
+      discordUserId: input.discordUserId,
+    });
+    if (!canRebindGuildToDifferentAlliance(existingAuth)) {
+      return { ok: false, reason: "guild_bound_to_other_alliance" };
+    }
+  }
+
+  await upsertGuildAlliance(input.guildId, input.allianceId);
+  return { ok: true };
+}
+
 export async function setGuildVrReportChannel(
   guildId: string,
   channelId: string,
@@ -1928,6 +1965,17 @@ export async function upsertAllianceAshedCredential(input: {
 }): Promise<void> {
   const db = getDb();
   const now = new Date();
+  // `undefined` means "leave existing registrant columns alone" on conflict.
+  // Explicit `null` clears them. Web credential refresh must not wipe the
+  // Discord registrant that unlocks /link-alliance.
+  const registrantPatch = {
+    ...(input.registeredByDiscordUserId !== undefined
+      ? { registeredByDiscordUserId: input.registeredByDiscordUserId }
+      : {}),
+    ...(input.registeredByHqUserId !== undefined
+      ? { registeredByHqUserId: input.registeredByHqUserId }
+      : {}),
+  };
   await db
     .insert(schema.allianceAshedCredentials)
     .values({
@@ -1949,8 +1997,7 @@ export async function upsertAllianceAshedCredential(input: {
         originUrl: input.originUrl,
         encryptedToken: input.encryptedToken,
         tokenExpiresAt: input.tokenExpiresAt ?? null,
-        registeredByDiscordUserId: input.registeredByDiscordUserId ?? null,
-        registeredByHqUserId: input.registeredByHqUserId ?? null,
+        ...registrantPatch,
         updatedAt: now,
       },
     });

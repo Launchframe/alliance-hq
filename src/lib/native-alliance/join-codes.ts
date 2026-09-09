@@ -18,6 +18,10 @@ import {
 import { provisionAllianceMembership } from "./provision-membership";
 
 const DEFAULT_JOIN_CODE_TTL_DAYS = 7;
+/** Hex suffix entropy for generated codes (8 bytes = 64 bits). */
+const GENERATED_JOIN_CODE_SUFFIX_BYTES = 8;
+/** Minimum normalized length for officer-supplied custom codes. */
+const MIN_CUSTOM_JOIN_CODE_LENGTH = 10;
 
 function hashJoinCode(code: string): string {
   const normalized = normalizeJoinCode(code);
@@ -36,7 +40,9 @@ function joinCodeHint(code: string): string {
 }
 
 function generateJoinCode(allianceTag?: string | null): string {
-  const suffix = randomBytes(3).toString("hex").toUpperCase();
+  const suffix = randomBytes(GENERATED_JOIN_CODE_SUFFIX_BYTES)
+    .toString("hex")
+    .toUpperCase();
   const prefix = allianceTag?.trim().toUpperCase().replace(/[^A-Z0-9]/g, "") || "HQ";
   return `${prefix}-${suffix}`;
 }
@@ -115,11 +121,17 @@ export async function createAllianceJoinCode(
   const expiresAt = new Date(now);
   expiresAt.setDate(expiresAt.getDate() + ttlDays);
 
-  let plaintext = input.code?.trim()
-    ? normalizeJoinCode(input.code)
+  const customCode = Boolean(input.code?.trim());
+  let plaintext = customCode
+    ? normalizeJoinCode(input.code!)
     : generateJoinCode(alliance.tag);
   if (!plaintext) {
     plaintext = generateJoinCode(null);
+  }
+  if (customCode && plaintext.length < MIN_CUSTOM_JOIN_CODE_LENGTH) {
+    throw new Error(
+      `Custom join codes must be at least ${MIN_CUSTOM_JOIN_CODE_LENGTH} characters.`,
+    );
   }
 
   const joinCodeId = nanoid(16);
@@ -148,6 +160,14 @@ export async function createAllianceJoinCode(
     targetAshedMemberId,
     targetCommanderName,
   };
+}
+
+/** Thrown inside the redeem TX when the CAS counter bump loses the race. */
+class JoinCodeCasConflictError extends Error {
+  constructor() {
+    super("JOIN_CODE_CAS_CONFLICT");
+    this.name = "JoinCodeCasConflictError";
+  }
 }
 
 export type RedeemAllianceJoinCodeInput = {
@@ -215,59 +235,69 @@ export async function redeemAllianceJoinCode(
     throw new Error("This join code has reached its redemption limit.");
   }
 
-  const [updated] = await db
-    .update(schema.hqAllianceJoinCodes)
-    .set({
-      redemptionCount: joinCode.redemptionCount + 1,
-    })
-    .where(
-      and(
-        eq(schema.hqAllianceJoinCodes.id, joinCode.id),
-        isNull(schema.hqAllianceJoinCodes.revokedAt),
-        gt(schema.hqAllianceJoinCodes.expiresAt, now),
-        eq(
-          schema.hqAllianceJoinCodes.redemptionCount,
-          joinCode.redemptionCount,
-        ),
-      ),
-    )
-    .returning({ id: schema.hqAllianceJoinCodes.id });
-
-  if (!updated) {
-    // Concurrent redeem (e.g. URL auto-redeem remount): if this user already
-    // won the race, treat as success instead of "no longer available".
-    const [racedRedemption] = await db
-      .select({ id: schema.hqAllianceJoinCodeRedemptions.id })
-      .from(schema.hqAllianceJoinCodeRedemptions)
-      .where(
-        and(
-          eq(schema.hqAllianceJoinCodeRedemptions.joinCodeId, joinCode.id),
-          eq(schema.hqAllianceJoinCodeRedemptions.hqUserId, input.hqUserId),
-        ),
-      )
-      .limit(1);
-    if (racedRedemption) {
-      return provisionAllianceMembership({
-        hqUserId: input.hqUserId,
-        sessionId: input.sessionId,
-        allianceId: joinCode.allianceId,
-        roleId: joinCode.roleId,
-        rolePolicy: "preserve_existing",
-        userLabel: input.userLabel,
-      });
-    }
-    throw new Error("This join code is no longer available.");
-  }
-
+  // Claim a redemption slot and insert the redemption row atomically.
+  // Without a transaction, a successful counter bump followed by a failed
+  // insert permanently burns capacity (single-use / last-slot codes become
+  // unredeemable with no recovery path for this user).
   try {
-    await db.insert(schema.hqAllianceJoinCodeRedemptions).values({
-      id: nanoid(16),
-      joinCodeId: joinCode.id,
-      hqUserId: input.hqUserId,
-      redeemedAt: now,
+    await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(schema.hqAllianceJoinCodes)
+        .set({
+          redemptionCount: joinCode.redemptionCount + 1,
+        })
+        .where(
+          and(
+            eq(schema.hqAllianceJoinCodes.id, joinCode.id),
+            isNull(schema.hqAllianceJoinCodes.revokedAt),
+            gt(schema.hqAllianceJoinCodes.expiresAt, now),
+            eq(
+              schema.hqAllianceJoinCodes.redemptionCount,
+              joinCode.redemptionCount,
+            ),
+          ),
+        )
+        .returning({ id: schema.hqAllianceJoinCodes.id });
+
+      if (!updated) {
+        throw new JoinCodeCasConflictError();
+      }
+
+      await tx.insert(schema.hqAllianceJoinCodeRedemptions).values({
+        id: nanoid(16),
+        joinCodeId: joinCode.id,
+        hqUserId: input.hqUserId,
+        redeemedAt: now,
+      });
     });
   } catch (error) {
+    if (error instanceof JoinCodeCasConflictError) {
+      // Concurrent redeem (e.g. URL auto-redeem remount): if this user already
+      // won the race, treat as success instead of "no longer available".
+      const [racedRedemption] = await db
+        .select({ id: schema.hqAllianceJoinCodeRedemptions.id })
+        .from(schema.hqAllianceJoinCodeRedemptions)
+        .where(
+          and(
+            eq(schema.hqAllianceJoinCodeRedemptions.joinCodeId, joinCode.id),
+            eq(schema.hqAllianceJoinCodeRedemptions.hqUserId, input.hqUserId),
+          ),
+        )
+        .limit(1);
+      if (racedRedemption) {
+        return provisionAllianceMembership({
+          hqUserId: input.hqUserId,
+          sessionId: input.sessionId,
+          allianceId: joinCode.allianceId,
+          roleId: joinCode.roleId,
+          rolePolicy: "preserve_existing",
+          userLabel: input.userLabel,
+        });
+      }
+      throw new Error("This join code is no longer available.");
+    }
     if (isPostgresUniqueViolation(error)) {
+      // Concurrent insert won; our counter bump rolled back with the TX.
       return provisionAllianceMembership({
         hqUserId: input.hqUserId,
         sessionId: input.sessionId,
