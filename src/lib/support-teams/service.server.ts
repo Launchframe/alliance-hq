@@ -8,6 +8,8 @@ import { balancedTargets, memberTeam, readField, fieldKey, teamIds, teamLead } f
 import { activeReversals, confirmUndo, historyPage, previewUndo } from "./history.shared";
 import { advanceDraft } from "./draft.shared";
 import { withDraftStintTokens } from "./draft-roster.server";
+import { withProposalVoters } from "./proposal-roster.server";
+import { persistProposalNotice } from "./proposal-notice.server";
 import { persistDraftNotice } from "./draft-notice.server";
 import { loadBoard, loadHistory, lockBoard, persistEvent, recheckActor, type SupportTransaction } from "./repository.server";
 import { loadSupportRoster, loadSupportStints } from "./roster.server";
@@ -79,11 +81,12 @@ export async function mutate(access: SupportAccess, intent: unknown, idempotency
       const current = await loadBoard(db, fresh.actor.allianceId);
       return { event: publicEvent(prior.event), version: current.version, replayed: true };
     }
+    await db.execute(sql`lock table alliance_members, member_alliance_tenure, commander_alliance_memberships, commanders, hq_member_links, hq_user_commanders, discord_member_links, discord_hq_links in share mode`);
     await lockMembershipSources(db, fresh.actor.allianceId);
     const actor = await currentLinks(db, fresh);
     const stored = await loadBoard(db, actor.allianceId);
     const events = await loadHistory(db, actor.allianceId);
-    const roster = await withDraftStintTokens(db, actor.allianceId, await loadSupportRoster(actor.allianceId, db));
+    const roster = await withProposalVoters(db, actor.allianceId, await withDraftStintTokens(db, actor.allianceId, await loadSupportRoster(actor.allianceId, db)));
     const at = await databaseTime(db);
     const board = await reconcileLocked(db, stored, roster, events, at);
     let result: ReturnType<typeof operation>;
@@ -92,6 +95,7 @@ export async function mutate(access: SupportAccess, intent: unknown, idempotency
     result.event.memberNames = Object.fromEntries(roster.filter((member) => result.event.memberIds.includes(member.id)).map((member) => [member.id, member.name]));
     await persistEvent(db, result.board, result.event, requestHash);
     await persistDraftNotice(db, result.board, result.event, events);
+    await persistProposalNotice(db, result.board, result.event);
     const draftId = result.board.construction?.kind === "draft" ? result.board.construction.id : null;
     const automatic = draftId && ["draftPick", "extendDraft"].includes(result.event.kind) ? advanceDraft(result.board, roster, draftId, result.event.id, { id: randomUUID(), at, idempotencyKey: `advance:${result.event.id}` }) : null;
     if (automatic) await persistEvent(db, automatic.board, automatic.event, createHash("sha256").update(result.event.id).digest("hex"));
@@ -125,7 +129,7 @@ export async function executeSupportUndo(access: SupportAccess, expected: Omit<U
 export async function loadUndoPreview(access: SupportAccess, actionId: string) {
   if (!access.actor.canWrite || !access.actor.canRead) throw new SupportError("forbidden");
   return getDb().transaction(async (db) => {
-    const roster = await withDraftStintTokens(db, access.actor.allianceId, await loadSupportRoster(access.actor.allianceId, db));
+    const roster = await withProposalVoters(db, access.actor.allianceId, await withDraftStintTokens(db, access.actor.allianceId, await loadSupportRoster(access.actor.allianceId, db)));
     const board = projectMemberships(await loadBoard(db, access.actor.allianceId), roster, await loadSupportStints(access.actor.allianceId, db));
     const events = await loadHistory(db, access.actor.allianceId);
     const preview = previewUndo(board, events, roster, access.actor, actionId, Date.parse(await databaseTime(db)));
@@ -137,7 +141,7 @@ export async function loadSupportHistory(access: SupportAccess, filter: Paramete
   if (!access.actor.canRead) throw new SupportError("forbidden");
   return getDb().transaction(async (db) => {
     const events = await loadHistory(db, access.actor.allianceId);
-    const roster = await withDraftStintTokens(db, access.actor.allianceId, await loadSupportRoster(access.actor.allianceId, db));
+    const roster = await withProposalVoters(db, access.actor.allianceId, await withDraftStintTokens(db, access.actor.allianceId, await loadSupportRoster(access.actor.allianceId, db)));
     const board = projectMemberships(await loadBoard(db, access.actor.allianceId), roster, await loadSupportStints(access.actor.allianceId, db));
     const page = historyPage(events.map(publicEvent), filter);
     const reversed = activeReversals(events);

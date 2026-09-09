@@ -1,4 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { expect, test, type APIRequestContext } from "@playwright/test";
+import type { ProposalSnapshot } from "../src/lib/support-teams/proposal.shared";
+import type { DraftSnapshot } from "../src/lib/support-teams/draft.shared";
 import { nanoid } from "nanoid";
 import { authCookieHeader, createHqMemberLink, playwrightAuthCookies } from "./fixtures/db";
 import { createPublishedSupportTeamFixture } from "./fixtures/support-teams";
@@ -131,6 +134,108 @@ test("unpublished contacts and private periods never enter another member's team
   expect(leadership.members.find((member: { id: string }) => member.id === f.memberId).absences).toHaveLength(1);
   expect(JSON.stringify(leadership.items)).not.toContain(date);
   expect(JSON.stringify(leadership)).not.toContain("Private period marker");
+});
+
+test("proposal editing and cancellation preserve routing while approved publication reroutes the private inbox and daily digests", async ({ request }) => {
+  const f = await fixture(request);
+  const officerHeaders = { Cookie: authCookieHeader(f.officer) };
+  expect((await request.get("/api/team-work", { headers: officerHeaders })).status()).toBe(200);
+  const tasks = () => f.sql`SELECT id, assignee_id, team_id, version FROM team_work_items WHERE alliance_id = ${f.allianceId} AND member_id = ${f.memberId} AND open ORDER BY id`;
+  const original = await tasks();
+  const inbox = async () => {
+    const response = await request.get("/api/inbox/reminders", { headers: f.headers });
+    expect(response.status()).toBe(200);
+    expect(await response.text()).not.toMatch(/Private routing absence|recommendation|game_?uid/i);
+  };
+  const create = async () => {
+    const board = await (await request.get("/api/support-teams", { headers: f.headers })).json();
+    const response = await request.post("/api/support-teams/proposals", { headers: f.headers, data: { expectedVersion: board.version, idempotencyKey: randomUUID() } });
+    expect(response.status()).toBe(200);
+    const { proposalId } = await response.json();
+    const path = `/api/support-teams/proposals/${proposalId}`;
+    const snapshot = async (): Promise<ProposalSnapshot> => (await request.get(path, { headers: f.headers })).json();
+    const post = async (action: string, data: Record<string, unknown> = {}, headers = f.headers) => {
+      const response = await request.post(`${path}/${action}`, { headers, data: { expectedVersion: (await snapshot()).proposalVersion, idempotencyKey: randomUUID(), ...data } });
+      expect(response.status()).toBe(200);
+      return response.json();
+    };
+    return { snapshot, post };
+  };
+  const canceled = await create();
+  await canceled.post("move", { memberId: f.memberId, from: f.teams[0], to: f.teams[1] });
+  await inbox();
+  expect(await tasks()).toEqual(original);
+  await canceled.post("cancel");
+  await inbox();
+  expect(await tasks()).toEqual(original);
+  const proposal = await create();
+  await proposal.post("move", { memberId: f.memberId, from: f.teams[0], to: f.teams[1] });
+  for (const member of f.members.slice(1)) {
+    const view = await proposal.snapshot();
+    const team = view.teams.find((row) => row.memberIds.length < row.target)!;
+    await proposal.post("move", { memberId: member.ashedMemberId, from: null, to: team.id });
+  }
+  await proposal.post("submit");
+  await proposal.post("approve", {}, officerHeaders);
+  const view = await proposal.snapshot();
+  expect(view.canPublish).toBe(true);
+  await proposal.post("publish", { expectedPublishedVersion: view.publishedVersion, override: false });
+  await inbox();
+  const published = await tasks();
+  expect(published.map((row) => row.id)).toEqual(original.map((row) => row.id));
+  expect(published.every((row) => row.assignee_id === f.owner.hqUserId && row.team_id === f.teams[1] && row.version === 2)).toBe(true);
+  const coverage = await (await request.get(`/api/time-off/coverage?start=${f.date}&end=${f.date}`, { headers: f.headers })).json();
+  expect(coverage.conflicts.find((row: { memberId: string }) => row.memberId === f.memberId).routing.hqUserId).toBe(f.owner.hqUserId);
+  expect(await f.sql`SELECT recipient_id, count(*)::int AS count FROM team_work_digests WHERE alliance_id = ${f.allianceId} GROUP BY recipient_id ORDER BY recipient_id`).toEqual([f.officer.hqUserId, f.owner.hqUserId].sort().map((recipient_id) => ({ recipient_id, count: 1 })));
+  const away = await request.post("/api/time-off/entries", { headers: f.headers, data: { ashedMemberId: f.leads[1].ashedMemberId, startDate: getServerCalendarDate(), endDate: f.date, requestId: nanoid() } });
+  expect(away.status()).toBe(200);
+  await inbox();
+  expect((await tasks()).every((row) => row.assignee_id === f.officer.hqUserId && row.version === 3)).toBe(true);
+  await f.sql`UPDATE alliance_memberships SET role_id = (SELECT id FROM roles WHERE name = 'member') WHERE alliance_id = ${f.allianceId} AND hq_user_id = ${f.officer.hqUserId}`;
+  const revokedInbox = await request.get("/api/inbox/reminders", { headers: officerHeaders });
+  expect(revokedInbox.status()).toBe(403);
+  expect(await revokedInbox.text()).not.toMatch(/team_work|Private routing absence|recommendation/i);
+  await inbox();
+  expect((await tasks()).every((row) => row.assignee_id === null)).toBe(true);
+  const memberInbox = await request.get("/api/inbox/reminders", { headers: { Cookie: authCookieHeader(f.member) } });
+  expect(memberInbox.status()).toBe(403);
+  expect(await memberInbox.text()).not.toMatch(/team_work|Private routing absence|recommendation/i);
+  expect((await f.sql`SELECT event FROM support_team_events WHERE id = ${f.original.id}`)[0].event).toEqual(f.originalSource);
+});
+
+test("draft scheduling and cancellation preserve live work until real draft publication", async ({ request }) => {
+  const f = await fixture(request);
+  expect((await request.get("/api/team-work", { headers: f.headers })).status()).toBe(200);
+  const tasks = () => f.sql`SELECT id, assignee_id, team_id, version FROM team_work_items WHERE alliance_id = ${f.allianceId} AND member_id = ${f.memberId} AND open ORDER BY id`;
+  const original = await tasks();
+  const create = async () => {
+    const board = await (await request.get("/api/support-teams", { headers: f.headers })).json();
+    const response = await request.post("/api/support-teams/drafts", { headers: f.headers, data: { expectedVersion: board.version, startsAt: new Date(Date.now() + 120000).toISOString(), endsAt: new Date(Date.now() + 3600000).toISOString(), roundMinutes: 1, idempotencyKey: randomUUID() } });
+    expect(response.status()).toBe(200);
+    const { draftId } = await response.json();
+    const path = `/api/support-teams/drafts/${draftId}`;
+    const snapshot = async (): Promise<DraftSnapshot> => (await request.get(path, { headers: f.headers })).json();
+    return { draftId, path, snapshot };
+  };
+  const canceled = await create();
+  expect((await request.get("/api/inbox/reminders", { headers: f.headers })).status()).toBe(200);
+  expect(await tasks()).toEqual(original);
+  expect((await request.post(`${canceled.path}/cancel`, { headers: f.headers, data: { expectedVersion: (await canceled.snapshot()).version, idempotencyKey: randomUUID() } })).status()).toBe(200);
+  expect((await request.get("/api/inbox/reminders", { headers: f.headers })).status()).toBe(200);
+  expect(await tasks()).toEqual(original);
+  const draft = await create();
+  const startsKey = JSON.stringify(["draft", draft.draftId, "startsAt"]);
+  const roundKey = JSON.stringify(["draft", draft.draftId, "roundStartedAt"]);
+  await f.sql`UPDATE support_team_fields SET value = to_jsonb((now() - interval '1 second')::text) WHERE alliance_id = ${f.allianceId} AND key IN (${startsKey}, ${roundKey})`;
+  const view = await draft.snapshot();
+  expect((await request.post(`${draft.path}/pick`, { headers: f.headers, data: { teamId: f.teams[1], memberId: f.memberId, expectedRound: view.currentRound, expectedRoundVersion: view.resourceVersions.round, expectedMemberVersion: view.resourceVersions.members[f.memberId], expectedSlotVersion: view.teams.find((team) => team.id === f.teams[1])!.slotVersion, idempotencyKey: randomUUID() } })).status()).toBe(200);
+  expect((await request.get("/api/inbox/reminders", { headers: f.headers })).status()).toBe(200);
+  expect(await tasks()).toEqual(original);
+  expect((await request.post(`${draft.path}/publish`, { headers: f.headers, data: { expectedVersion: (await draft.snapshot()).version, allowUnsorted: true, idempotencyKey: randomUUID() } })).status()).toBe(200);
+  expect((await request.get("/api/inbox/reminders", { headers: f.headers })).status()).toBe(200);
+  const published = await tasks();
+  expect(published.map((row) => row.id)).toEqual(original.map((row) => row.id));
+  expect(published.every((row) => row.assignee_id === f.owner.hqUserId && row.team_id === f.teams[1] && row.version === 2)).toBe(true);
 });
 
 test("Portuguese team work shows own contacts and keeps team filtering usable", async ({ request, page, context }) => {

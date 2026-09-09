@@ -127,18 +127,34 @@ describe("durable team work source projection", () => {
 describe("durable inbox authorization", () => {
   it("requires current task grants and tenant ownership even with cached caller permissions", async () => {
     const db = database();
-    db.tables.alliance_memberships = [{ role: "officer", roleId: "officer-role" }];
-    db.tables.role_permissions = [{ permission: "trains:write" }];
-    db.tables.team_work_items = [{ allianceId: "a", assigneeId: "lead", requiredPermission: "trains:write" }];
-    const input = { allianceId: "a", hqUserId: "lead", permissions: new Set(["trains:write"]), personal: true };
+    const context = await mocks.context();
+    const input = { allianceId: "a", hqUserId: "lead", permissions: new Set(["time_off:write"]), personal: true };
     expect(await canReadTeamWorkInbox(input)).toBe(true);
     expect(await canReadTeamWorkInbox({ ...input, hqUserId: "other" })).toBe(false);
     expect(await canReadTeamWorkInbox({ ...input, allianceId: "foreign" })).toBe(false);
     expect(await canReadTeamWorkInbox({ ...input, permissions: new Set() })).toBe(false);
-    db.tables.role_permissions = [];
+    context.recipients[0].permissions = [];
     expect(await canReadTeamWorkInbox(input)).toBe(false);
-    db.tables.alliance_memberships = [];
+    context.recipients = [];
     expect(await canReadTeamWorkInbox(input)).toBe(false);
+    expect(db.tables.team_work_items[0].assigneeId).toBeNull();
+  });
+  it("reconciles published ownership and current availability before personal inbox eligibility", async () => {
+    const db = database();
+    const context = await mocks.context();
+    const input = { allianceId: "a", hqUserId: "lead", permissions: new Set(["time_off:write"]), personal: true };
+    expect(await canReadTeamWorkInbox(input)).toBe(true);
+    context.board.fields[fieldKey("team", "team", "lead")].value = "owner-member";
+    context.roster.push({ id: "owner-member", name: "Owner", rank: 5 });
+    context.stints["owner-member"] = "owner-stint";
+    context.recipients[1].memberIds = ["owner-member"];
+    expect(await canReadTeamWorkInbox(input)).toBe(false);
+    expect(await canReadTeamWorkInbox({ ...input, hqUserId: "owner" })).toBe(true);
+    expect(db.tables.team_work_items[0]).toMatchObject({ assigneeId: "owner", version: 2 });
+    db.tables.member_alliance_tenure.push({ memberId: "owner-member", joinedAt });
+    db.tables.member_time_off.push({ id: "owner-absence", memberId: "owner-member", startDate: getServerCalendarDate(), endDate: getServerCalendarDate(), createdAt: new Date(), globalAbsence: true });
+    expect(await canReadTeamWorkInbox({ ...input, hqUserId: "owner" })).toBe(false);
+    expect(await canReadTeamWorkInbox(input)).toBe(true);
   });
 });
 

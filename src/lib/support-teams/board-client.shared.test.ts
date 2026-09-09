@@ -3,6 +3,8 @@ import { acceptSnapshot, commandEligibility, countryPresentation, locationOf, mo
 import { defaultDisplayPreferences, matchesUnsortedFilters } from "./display-preferences.shared";
 import { applyCommand, emptyBoard, fieldKey } from "./policy.shared";
 import { applyDraftCommand, draftSnapshot } from "./draft.shared";
+import { applyProposalCommand, proposalSnapshot } from "./proposal.shared";
+import { acceptsProposalSnapshot, proposalBoardInteractions, proposalWorkspaceKey, workingProposalSnapshot } from "./board-client.shared";
 import { draftBoardInteractions, workingDraftSnapshot, canPickDraftMember, draftWorkspaceKey, acceptsDraftSnapshot } from "./board-client.shared";
 import { historyKindLabels, historyNames, historyServiceLabel, humanizePatch, undoConfirmation } from "./history-client.shared";
 import type { SupportActor, SupportEvent, SupportRosterMember, SupportSnapshot } from "./types.shared";
@@ -14,6 +16,7 @@ function fixture() {
   let board = emptyBoard("alliance");
   for (const id of ["a", "b"]) board = applyCommand(board, roster, actor, { kind: "createTeam", teamId: id, leadId: `lead-${id}`, expectedVersion: board.version }, { id, at: "2026-01-01T00:00:00Z", idempotencyKey: id }).board;
   board.published = true;
+  board.fields[fieldKey("board", board.allianceId, "published")] = { value: true, version: board.version, actionId: null };
   const snapshot: SupportSnapshot = { version: board.version, published: true, board, actor, roster, canWrite: true, linkedMemberIds: actor.linkedMemberIds, teams: ["a", "b"].map((id) => ({ id, name: id === "a" ? "Alpha" : "Bravo", leadId: `lead-${id}`, memberIds: [`lead-${id}`], target: 3, needsReplacement: false })) };
   return snapshot;
 }
@@ -28,6 +31,65 @@ describe("support board client contracts", () => {
     const draft = draftSnapshot(board, live.roster, { ...live.actor!, override: false }, "draft", now);
     return { live, draft, now };
   }
+  function proposalFixture() {
+    const published = fixture();
+    const board = applyProposalCommand(published.board!, published.roster, published.actor!, { kind: "createProposal", proposalId: "proposal", expectedVersion: published.version }, { id: "proposal", at: "2026-09-10T12:00:00Z", idempotencyKey: "proposal" }).board;
+    return { live: { ...published, board, version: board.version }, proposal: proposalSnapshot(board, published.roster, published.actor!, "proposal") };
+  }
+  it("isolates proposal allocation from published contacts and live command authority", () => {
+    const { live, proposal } = proposalFixture();
+    proposal.teams[0].memberIds.push("one");
+    proposal.memberLocations.one = "a";
+    const working = workingProposalSnapshot(proposal, live.linkedMemberIds);
+    expect(locationOf(working, "one")).toBe("a");
+    expect(locationOf(live, "one")).toBeNull();
+    expect(working.board).toBeUndefined();
+    expect(working.actor).toBeUndefined();
+    working.teams[0].memberIds.push("two");
+    expect(proposal.teams[0].memberIds).not.toContain("two");
+    expect(ownTeamId(working)).toBe("a");
+  });
+  it("routes every proposal allocation affordance to its adapter, never maintenance", () => {
+    const { live } = proposalFixture();
+    const move = vi.fn().mockResolvedValue(true), swap = vi.fn().mockResolvedValue(true), execute = vi.fn();
+    const adapter = { move, swap, canMoveMember: (id: string) => id === "one", canSwapMembers: (id: string, other: string) => id === "one" && other === "two" };
+    const interactions = proposalBoardInteractions(adapter, live, execute);
+    interactions.onMove("one", "b");
+    interactions.onMove("one", null);
+    interactions.onMove("one", "b", "two");
+    interactions.onMove("lead-a", "b");
+    expect(move.mock.calls).toEqual([["one", "b"], ["one", null]]);
+    expect(swap).toHaveBeenCalledExactlyOnceWith("one", "two");
+    interactions.onCommand(moveCommand(live, "one", "a"), "a");
+    interactions.onCommand({ kind: "replaceLead", teamId: "a", leadId: "one", expectedVersion: live.version }, "a");
+    expect(execute).not.toHaveBeenCalled();
+    const rename = { kind: "rename" as const, teamId: "a", name: "Cedar", expectedVersion: 0 };
+    interactions.onCommand(rename, "a");
+    expect(execute).toHaveBeenCalledExactlyOnceWith({ ...rename, expectedVersion: live.version }, "a");
+    expect(interactions.canCommand({ ...rename, teamId: "proposal-only-team" })).toBe(false);
+  });
+  it("rejects wrong selection, tenant, actor and older responses but retains obsolete proposals", () => {
+    const { live, proposal } = proposalFixture();
+    const key = proposalWorkspaceKey(live, proposal.id)!;
+    expect(acceptsProposalSnapshot(proposal, live, proposal.id, key)).toBe(true);
+    expect(acceptsProposalSnapshot({ ...proposal, version: live.version - 1 }, live, proposal.id, key)).toBe(false);
+    expect(acceptsProposalSnapshot(proposal, live, "other", key)).toBe(false);
+    expect(acceptsProposalSnapshot(proposal, { ...live, actor: { ...live.actor!, principalId: "other" } }, proposal.id, key)).toBe(false);
+    expect(proposalWorkspaceKey({ ...live, actor: undefined }, proposal.id)).toBeNull();
+    expect(proposalWorkspaceKey({ ...live, board: { ...live.board!, allianceId: "other" } }, proposal.id)).toBeNull();
+    for (const phase of ["editing", "submitted", "published", "canceled"] as const) {
+      expect(acceptsProposalSnapshot({ ...proposal, phase, stale: true }, { ...live, board: { ...live.board!, construction: null } }, proposal.id, key)).toBe(true);
+    }
+  });
+  it("labels proposal history and never renders membership or electorate proof values", () => {
+    expect(Object.keys(historyKindLabels)).toEqual(expect.arrayContaining(["createProposal", "moveProposal", "swapProposal", "submitProposal", "approveProposal", "publishProposal", "cancelProposal"]));
+    const snapshot = fixture();
+    const names = historyNames(snapshot, { memberNames: {}, teamNames: {} }, String, "Unknown", "Unsorted");
+    const labels = { teamName: "Team", lead: "Lead", member: "Member", unknown: "Unknown", yes: "Yes", no: "No" };
+    for (const key of [fieldKey("proposalMember:p", "one", "stint"), fieldKey("proposal", "p", "approvalBasis"), fieldKey("proposalVote:p", "principal", "basis")]) {
+      expect(humanizePatch({ key, before: "private-proof", after: "private-proof", beforeVersion: 1, afterVersion: 2 }, names, labels, "en-US")).toMatchObject({ before: "Unknown", after: "Unknown" });
+    }
+  });
   it("projects an isolated working allocation without live command authority", () => {
     const { draft, live } = draftFixture();
     draft.memberLocations.one = "a";

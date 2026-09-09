@@ -57,6 +57,34 @@ describe("durable team digest lease and authorization", () => {
     expect(mocks.send).not.toHaveBeenCalled();
     expect(db.digest.status).toBe("cancelled");
   });
+  it("rechecks role eligibility after channel creation even if cached grants remain", async () => {
+    const db = database();
+    const revoked = context(); revoked.recipients[0].role = "member";
+    mocks.reconcile.mockResolvedValueOnce(context()).mockResolvedValueOnce(revoked);
+    expect(await deliverTeamWorkDigests()).toEqual({ delivered: 0 });
+    expect(db.writes.some((write) => write.value.status === "posting")).toBe(false);
+    expect(db.digest.status).toBe("cancelled");
+  });
+  it("does not post to an identity relinked while the DM channel was opening", async () => {
+    const db = database();
+    mocks.send.mockImplementation(async (input) => {
+      db.tables.discord_hq_links = [{ discordUserId: "replacement-discord" }];
+      expect(await input.authorizeSend("old-dm")).toBe(false);
+      return { status: "cancelled" };
+    });
+    expect(await deliverTeamWorkDigests()).toEqual({ delivered: 0 });
+    expect(db.writes.some((write) => write.value.status === "posting")).toBe(false);
+  });
+  it("rejects a superseded preparation lease before any private message POST", async () => {
+    const db = database();
+    mocks.send.mockImplementation(async (input) => {
+      db.digest.leaseToken = "another-worker";
+      expect(await input.authorizeSend("dm")).toBe(false);
+      return { status: "cancelled" };
+    });
+    expect(await deliverTeamWorkDigests()).toEqual({ delivered: 0 });
+    expect(db.writes.some((write) => write.value.status === "posting")).toBe(false);
+  });
   it("retains missing-link tasks and retries delivery later", async () => {
     const db = database(); db.tables.discord_hq_links = [];
     await deliverTeamWorkDigests();

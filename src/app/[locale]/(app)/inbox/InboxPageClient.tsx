@@ -38,6 +38,7 @@ export default function InboxPageClient({
   const t = useTranslations("inbox");
   const tRoster = useTranslations("rosterLinkRequests");
   const tDraft = useTranslations("supportTeams.draft");
+  const tProposal = useTranslations("supportTeams.proposals");
   const locale = useLocale();
   const tCompliance = useTranslations("vsCompliance");
   const tWork = useTranslations("teamWork");
@@ -136,6 +137,7 @@ export default function InboxPageClient({
 
   function kindLabel(kind: string): string {
     if (kind === "team_work") return tWork("title");
+    if (kind === "support_team_proposal") return tProposal("title");
     if (kind === "support_team_draft") return tDraft("title");
     if (kind === "vs_compliance") return tCompliance("title");
     if (kind === "eur_occurrence") return t("kind.eurOccurrence");
@@ -155,6 +157,7 @@ export default function InboxPageClient({
 
   function displayTitle(item: ReminderItem): string {
     if (item.kind === "team_work") return tWork("digest");
+    if (item.kind === "support_team_proposal") return tProposal("title");
     if (item.kind === "support_team_draft") return tDraft("title");
     if (item.kind === "vs_compliance") return tCompliance("title");
     if (item.kind === ROSTER_LINK_INBOX_KIND) {
@@ -173,6 +176,7 @@ export default function InboxPageClient({
   }
 
   function displayBody(item: ReminderItem): string | null {
+    if (item.kind === "support_team_proposal") return tProposal("majorityHint");
     if (item.kind === "support_team_draft") {
       const format = (value: string | null) => value && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "";
       return `${tDraft("startsAt")}: ${format(item.scoreTarget)} · ${tDraft("endsAt")}: ${format(item.body)}`;
