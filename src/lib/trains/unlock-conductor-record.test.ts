@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   updateSet: vi.fn(),
   updateWhere: vi.fn(),
+  updateReturning: vi.fn(),
   releasePoolSelectionForDate: vi.fn(),
 }));
 
@@ -23,6 +24,7 @@ vi.mock("@/lib/db", () => ({
     trainConductorRecords: {
       id: "id",
       allianceId: "allianceId",
+      lockedAt: "lockedAt",
     },
     trains: {
       conductorRecordId: "conductorRecordId",
@@ -46,7 +48,7 @@ describe("unlockConductorRecord", () => {
     mocks.deleteWhere.mockResolvedValue(undefined);
     mocks.update.mockReturnValue({ set: mocks.updateSet });
     mocks.updateSet.mockReturnValue({ where: mocks.updateWhere });
-    mocks.updateWhere.mockResolvedValue(undefined);
+    mocks.updateWhere.mockReturnValue({ returning: mocks.updateReturning });
     mocks.releasePoolSelectionForDate.mockResolvedValue(undefined);
   });
 
@@ -60,9 +62,8 @@ describe("unlockConductorRecord", () => {
       lockedAt: new Date("2026-06-10T12:00:00.000Z"),
     };
     const unlocked = { ...locked, lockedAt: null };
-    mocks.limit
-      .mockResolvedValueOnce([locked])
-      .mockResolvedValueOnce([unlocked]);
+    mocks.limit.mockResolvedValueOnce([locked]);
+    mocks.updateReturning.mockResolvedValueOnce([unlocked]);
 
     const row = await unlockConductorRecord("rec-1", "ally-1");
 
@@ -77,5 +78,24 @@ describe("unlockConductorRecord", () => {
         discordDepartingSoonAt: null,
       }),
     );
+    expect(mocks.updateReturning).toHaveBeenCalledOnce();
+  });
+
+  it("refuses unlock when CAS finds the row no longer locked", async () => {
+    const locked = {
+      id: "rec-1",
+      allianceId: "ally-1",
+      date: "2026-06-10",
+      conductorMemberId: "m1",
+      conductorMemberName: "Alice",
+      lockedAt: new Date("2026-06-10T12:00:00.000Z"),
+    };
+    mocks.limit.mockResolvedValueOnce([locked]);
+    mocks.updateReturning.mockResolvedValueOnce([]);
+
+    await expect(unlockConductorRecord("rec-1", "ally-1")).rejects.toThrow(
+      "Conductor is not locked.",
+    );
+    expect(mocks.delete).not.toHaveBeenCalled();
   });
 });

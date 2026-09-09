@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   deriveApprovedAtFromLiveUpdate,
   deriveRejectedAt,
+  partitionRecentUploadJobs,
   shouldShowRecentUploadJob,
 } from "./recent-upload-jobs.shared";
 
@@ -32,6 +33,28 @@ describe("shouldShowRecentUploadJob", () => {
         approvedAt: "2026-07-13T09:00:00.000Z",
       }),
     ).toBe(false);
+  });
+});
+
+describe("partitionRecentUploadJobs", () => {
+  it("keeps awaiting-approval jobs in their own group and preserves order", () => {
+    expect(
+      partitionRecentUploadJobs([
+        { id: "a", status: "pending_approval" },
+        { id: "b", status: "review" },
+        { id: "c", status: "pending_approval" },
+        { id: "d", status: "complete" },
+      ]),
+    ).toEqual({
+      awaitingApproval: [
+        { id: "a", status: "pending_approval" },
+        { id: "c", status: "pending_approval" },
+      ],
+      other: [
+        { id: "b", status: "review" },
+        { id: "d", status: "complete" },
+      ],
+    });
   });
 });
 

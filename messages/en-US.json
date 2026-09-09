@@ -4411,12 +4411,14 @@
     "title": "Upload from video",
     "subtitle": "Record yourself scrolling a Last War leaderboard. We extract frames, OCR scores, and let you review before submitting to Ashed.",
     "scoreTargetLabel": "What leaderboard is this?",
+    "scoreTargetPlaceholder": "Select a leaderboard…",
     "ocrAccuracy": {
       "high": "High",
       "mid": "Mid",
       "low": "Low",
       "none": "None",
-      "label": "Badge shows how well our in-house OCR reads this event."
+      "label": "Badge shows how well our in-house OCR reads this event.",
+      "labelWithAshed": "Ashed is connected — Ashed-supported leaderboards show High."
     },
     "categoryLabel": "What kind of scoreboard is this?",
     "categories": {
@@ -4438,6 +4440,7 @@
     "fileTooLarge": "This file is {size}. Videos must be under {maxSize}.",
     "selectedFile": "Selected: {name} ({size})",
     "chooseFileFirst": "Choose a video file first.",
+    "chooseScoreTargetFirst": "Choose a leaderboard first.",
     "uploading": "Uploading…",
     "preparingUpload": "Preparing upload…",
     "uploadButton": "Upload video",
@@ -4447,9 +4450,17 @@
       "resources": "Resources",
       "points": "Points"
     },
-    "queuedSuccess": "Video uploaded. Complete the short survey while you wait — an officer will approve and run OCR.",
-    "pendingApprovalHint": "Uploaded videos wait in the queue until a designated processor or alliance owner approves them. You can finish the upload survey while you wait.",
+    "queuedSuccess": "Video uploaded. A video processor will approve it and run OCR.",
+    "pendingApprovalHint": "Uploaded videos wait in the queue until a designated processor or alliance owner approves them.",
     "recentUploads": "Recent uploads",
+    "awaitingApprovalHeading": "Awaiting approval",
+    "awaitingApprovalDialog": {
+      "title": "Awaiting approval",
+      "body": "Officers were notified in Discord. A video processor will approve this upload and run OCR.",
+      "done": "Done"
+    },
+    "otherUploadsHeading": "Other recent uploads",
+    "openVideoQueue": "Open Video queue",
     "viewAllUploads": "View all uploads",
     "reviewLink": "Review",
     "surveyResumeLink": "Survey",
@@ -4500,7 +4511,8 @@
       "experimentSaveFailed": "Could not save experiment selection.",
       "processNow": "Process now",
       "processing": "Starting…",
-      "later": "Not now"
+      "later": "Not now",
+      "connectViaHeaderHint": "Connect from the Ashed control in the top bar so this upload stays on this page."
     }
   },
   "videoUpload": {
@@ -4739,6 +4751,7 @@
     "previewZoomFit": "Fit whole frame",
     "followMe": "Follow me",
     "followMeHint": "Seek preview to the row you scroll to",
+    "sortLeaderboard": "Sort leaderboard",
     "previewResizeWidth": "Resize preview width",
     "previewResizeHeight": "Resize preview height",
     "previewPanHint": "Drag to pan",
@@ -5293,7 +5306,13 @@
       "nothingPending": "Nothing to pick right now.",
       "noWalkthrough": "No walkthrough in progress.",
       "noConfirm": "Nothing to confirm right now.",
-      "askOfficerNeedsNameAndUid": "Run `/link-commander` and complete the secure link before asking an officer for help."
+      "askOfficerNeedsNameAndUid": "Run `/link-commander` and complete the secure link before asking an officer for help.",
+      "linkAshedOwnerOnly": "Only the alliance owner, the person who linked Ashed credentials for **{tag}**, or a platform maintainer can run `/link-ashed`. Officers can still run `/link-alliance` after credentials are connected.",
+      "guildLinkedToOtherAlliance": "This Discord server is already linked to another alliance. Only that alliance's **R5 (owner)** can move the link."
+    },
+    "video": {
+      "pendingApproval": "{uploader} uploaded **{fileName}** ({leaderboard}). Approve it in the Video queue: {queueUrl}",
+      "pendingApprovalUploaderFallback": "Someone"
     },
     "channelSetter": {
       "deniedOfficer": "Only a linked R4+ officer (or the alliance owner) can set Discord announcement channels. Link your commander first, or ask an officer or owner to run this command.",
@@ -5703,7 +5722,8 @@
       "genericError": "Something went wrong registering this server. Try the install wizard again.",
       "successHeading": "Server registered!",
       "successBody": "Your Discord server is linked to **{tag}**. Return to Discord and run `/link-commander` to link your commander.",
-      "nextGuideLink": "Link your commander — setup guide →"
+      "nextGuideLink": "Link your commander — setup guide →",
+      "guildBoundToOtherAlliance": "This Discord server is already linked to another alliance. Ask that alliance's R5 to move the link, then try again."
     }
   },
   "inbox": {
