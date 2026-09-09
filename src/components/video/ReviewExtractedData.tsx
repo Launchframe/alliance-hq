@@ -2,7 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
-import { Crosshair, MonitorPlay, Trash2, UserPen, UserPlus } from "lucide-react";
+import { ArrowDownWideNarrow, Crosshair, MonitorPlay, Trash2, UserPen, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link, useRouter } from "@/i18n/navigation";
@@ -86,6 +86,7 @@ import type { ManualRowPosition } from "@/lib/video/manual-row-position";
 import {
   mergeParsedRowInReviewOrder,
   reviewLeaderboardRankByScoreDesc,
+  sortReviewRowsByScoreDesc,
 } from "@/lib/video/parsed-row-review-order";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 import {
@@ -2203,6 +2204,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     );
   }
 
+  function sortLeaderboard() {
+    markDraftDirty();
+    setRows((prev) => sortReviewRowsByScoreDesc(prev));
+  }
+
   async function runScoreboardMemberAction(
     action: "create" | "rename",
     rowIds: string[],
@@ -2408,7 +2414,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                         ? source.memberName
                         : source.memberName ?? source.ocrName,
                     score: source.score ?? "",
-                    rank: source.rank,
+                    rank: scoreTargetMeta?.showReviewRowNumber
+                      ? reviewLeaderboardRankById?.get(source.id) ?? null
+                      : source.rank,
                     deleted: source.deleted === 1 || autoDiscardScoreGhost,
                   };
           }),
@@ -2650,9 +2658,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       }
       const data = (await res.json()) as { row: ParsedRow };
       markDraftDirty();
-      setRows((prev) =>
-        mergeParsedRowInReviewOrder(prev, data.row, scoreTargetMeta?.id),
-      );
+      if (scoreTargetMeta?.showReviewRowNumber) {
+        setRows((prev) =>
+          position === "start" ? [data.row, ...prev] : [...prev, data.row],
+        );
+      } else {
+        setRows((prev) =>
+          mergeParsedRowInReviewOrder(prev, data.row, scoreTargetMeta?.id),
+        );
+      }
     } finally {
       setAddingRowBusy(null);
     }
@@ -2942,6 +2956,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               >
                 <MonitorPlay className="h-4 w-4 shrink-0" aria-hidden />
                 {t("previewVideo")}
+              </button>
+            ) : null}
+            {scoreTargetMeta?.showReviewRowNumber ? (
+              <button
+                type="button"
+                onClick={sortLeaderboard}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted"
+              >
+                <ArrowDownWideNarrow className="h-4 w-4 shrink-0" aria-hidden />
+                {t("sortLeaderboard")}
               </button>
             ) : null}
             <VideoReviewSettingsTrigger
