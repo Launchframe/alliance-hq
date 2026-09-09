@@ -2,7 +2,12 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 
+import {
+  canInstallAshedBotCredentials,
+  filterAccessibleAlliances,
+} from "@/lib/alliance/accessible";
 import { loadAshedConnectionForAllianceCapability } from "@/lib/ashed/load-ashed-connection.server";
+import { base44ListAlliances } from "@/lib/base44/fetch";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import { encryptSecret, decryptSecret } from "@/lib/crypto/encrypt";
 import { getDb, schema } from "@/lib/db";
@@ -97,19 +102,55 @@ export async function upsertAllianceAshedCredentialsFromSession(input: {
     full_name: me.full_name ?? undefined,
   };
 
+  // Same owner gate as Discord /link-ashed authorize: collaborators/maintainers
+  // must not install or overwrite alliance bot JWTs. Credential-share delegates
+  // still succeed when the shared connection is an owner key (Ashed role=owner)
+  // and they hold alliance_credentials:manage.
+  const ashedAlliances = await base44ListAlliances(connection);
+  const accessible = filterAccessibleAlliances(ashedAlliances, currentUser);
+  const tagLower = alliance.tag.trim().toLowerCase();
+  const ashedAlliance = accessible.find(
+    (row) => row.tag.trim().toLowerCase() === tagLower,
+  );
+  if (!ashedAlliance) {
+    return {
+      ok: false,
+      error: `Your Ashed account does not have access to alliance tag "${alliance.tag}".`,
+      status: 403,
+    };
+  }
+  if (!canInstallAshedBotCredentials(ashedAlliance.accessRole)) {
+    return {
+      ok: false,
+      error: `Only the Ashed alliance owner can connect bot credentials for tag "${ashedAlliance.tag}". Ask the owner to install credentials, or use an owner connection key.`,
+      status: 403,
+    };
+  }
+
   const { hqAllianceId } = await syncAshedAllianceForBot({
     connection,
     allianceTag: alliance.tag,
     currentUser,
   });
 
+  // Defense-in-depth: never write bot credentials to a different HQ alliance
+  // than the session settings context requested.
+  if (hqAllianceId !== input.allianceId) {
+    return {
+      ok: false,
+      error: "Ashed sync resolved a different alliance than the current session.",
+      status: 409,
+    };
+  }
+
   const tokenExpiresAt = resolveTokenExpiresAt(connection.token);
   await upsertAllianceAshedCredential({
-    allianceId: hqAllianceId,
+    allianceId: input.allianceId,
     appId: connection.appId,
     originUrl: connection.originUrl,
     encryptedToken: encryptSecret(connection.token),
     tokenExpiresAt,
+    // Omit Discord registrant so web refresh cannot clear /link-alliance binding.
     registeredByHqUserId: hqUserId,
   });
 

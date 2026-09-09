@@ -92,7 +92,11 @@ export async function loadDashboardSummary(
     getAshedConnection(sessionId),
   ]);
 
-  const snapshotSeries = await withLiveThpSeries(allianceId, snapshotSeriesRaw);
+  const snapshotSeries = await withLiveThpSeries(
+    allianceId,
+    snapshotSeriesRaw,
+    "90d",
+  );
 
   return {
     viewer,
@@ -138,7 +142,7 @@ export async function loadHeroPowerDashboard(
     loadMemberThpTable(allianceId, today),
   ]);
 
-  const series = await withLiveThpSeries(allianceId, seriesRaw);
+  const series = await withLiveThpSeries(allianceId, seriesRaw, range);
   const thpValues = table.map((row) => row.totalHeroPower);
   const standing = computeViewerThpStanding(thpValues, viewer.totalHeroPower);
 

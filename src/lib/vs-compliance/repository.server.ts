@@ -81,7 +81,11 @@ export async function rebuildComplianceTx(tx: ComplianceTx, allianceId: string, 
     const work = ownRows.find((row) => row.evaluation.recommendation.kind !== "none") ?? ownRows.find((row) => row.evaluation.correctionReview) ?? ownRows.at(-1);
     const active = ownRows.some((row) => row.evaluation.recommendation.kind !== "none" || row.evaluation.correctionReview) || jobs.some((job) => job.memberId === roster.memberId && !job.supersededAt && !["local", "synced"].includes(job.status));
     const itemId = `vs-compliance:${complianceHash([allianceId, roster.memberId])}`;
-    inbox.push({ id: itemId, allianceId, kind: "vs_compliance", title: "VS compliance", body: null, href: `/vs-compliance?weekEnding=${work?.weekEnding ?? requestedWeeks[0]}`, resourceId: work?.id ?? null, requiredPermission: VS_COMPLIANCE_READ_PERMISSION, active: active ? 1 : 0 });
+    const weekEnding = work?.weekEnding ?? requestedWeeks[0];
+    const eventQuery = work?.id
+      ? `weekEnding=${encodeURIComponent(weekEnding)}&eventId=${encodeURIComponent(work.id)}`
+      : `weekEnding=${encodeURIComponent(weekEnding)}`;
+    inbox.push({ id: itemId, allianceId, kind: "vs_compliance", title: "VS compliance", body: null, href: `/vs-compliance?${eventQuery}`, resourceId: work?.id ?? null, requiredPermission: VS_COMPLIANCE_READ_PERMISSION, active: active ? 1 : 0 });
   }
   for (let offset = 0; offset < changedRows.length; offset += 200) await tx.insert(schema.vsComplianceEvaluations).values(changedRows.slice(offset, offset + 200)).onConflictDoUpdate({
     target: [schema.vsComplianceEvaluations.allianceId, schema.vsComplianceEvaluations.memberId, schema.vsComplianceEvaluations.weekEnding],

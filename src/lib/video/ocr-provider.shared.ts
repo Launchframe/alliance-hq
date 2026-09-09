@@ -129,8 +129,11 @@ export function resolveVideoOcrEngineForJob(
   context?: VideoOcrResolutionContext,
   options?: { forceNative?: boolean },
 ): VideoOcrEngine {
-  const forceNative = options?.forceNative ||
-    isNativeAllianceVsTarget(scoreTargetId, context);
+  const forceNative =
+    options?.forceNative ||
+    isNativeAllianceVsTarget(scoreTargetId, context) ||
+    (scoreTargetId === "vs-performance" &&
+      resolveEffectiveVideoOcrProvider(context) === "local");
   return videoOcrEngineForTarget(resolveEffectiveVideoOcrProvider(context), {
     useNativeWhenLocal: isRoster || Boolean(forceNative),
     forceNative,

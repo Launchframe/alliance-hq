@@ -13,7 +13,7 @@ import { ComplianceClientError, isDashboard, isMembershipSettings, readComplianc
 
 const buttonClass = "rounded border border-hq-border px-3 py-2 text-sm disabled:opacity-50";
 
-export function ComplianceDashboardClient({ initialWeek, lastClosedWeek, allianceTag }: { initialWeek: string; lastClosedWeek: string; allianceTag: string }) {
+export function ComplianceDashboardClient({ initialWeek, lastClosedWeek, allianceTag, highlightEventId = null }: { initialWeek: string; lastClosedWeek: string; allianceTag: string; highlightEventId?: string | null }) {
   const t = useTranslations("vsCompliance");
   const all = useTranslations();
   const locale = useLocale();
@@ -25,7 +25,16 @@ export function ComplianceDashboardClient({ initialWeek, lastClosedWeek, allianc
   const [selection, setSelection] = useState<{ row: ComplianceRow; operation: "complete" | "waive" } | null>(null);
   const requests = useRef(new RequestVersion());
   const errorRef = useRef<HTMLParagraphElement>(null);
+  const highlightRef = useRef<HTMLElement | null>(null);
   useEffect(() => { if (error) errorRef.current?.scrollIntoView({ block: "nearest" }); }, [error]);
+  useEffect(() => {
+    if (loading || !highlightEventId || !highlightRef.current) return;
+    const node = highlightRef.current;
+    const frame = window.requestAnimationFrame(() => {
+      node.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [loading, highlightEventId, week, data?.weekEnding]);
   const load = useCallback(async (selectedWeek: string) => {
     const version = requests.current.next();
     setLoading(true);
@@ -76,7 +85,15 @@ export function ComplianceDashboardClient({ initialWeek, lastClosedWeek, allianc
       {error ? <p ref={errorRef} role="alert" className="text-hq-danger">{error}</p> : null}
       {loading ? <p role="status">{all("common.loading")}</p> : null}
       {!loading && visible?.rows.length === 0 ? <p>{t("empty")}</p> : null}
-      <div className="grid gap-4 md:grid-cols-2">{visible?.rows.map((row) => <article key={row.id} data-testid="compliance-row" className="space-y-3 rounded-xl border border-hq-border bg-hq-surface p-4">
+      <div className="grid gap-4 md:grid-cols-2">{visible?.rows.map((row) => {
+        const highlighted = highlightEventId === row.id;
+        return <article
+          key={row.id}
+          ref={highlighted ? highlightRef : undefined}
+          data-testid="compliance-row"
+          data-highlighted={highlighted ? "true" : undefined}
+          className={`space-y-3 rounded-xl border bg-hq-surface p-4 ${highlighted ? "border-hq-accent ring-2 ring-hq-accent/40" : "border-hq-border"}`}
+        >
         <h2 className="font-semibold">{row.memberName}</h2>
         <ComplianceEvidence row={row} />
         <ComplianceDailyEvidence row={row} />
@@ -87,7 +104,8 @@ export function ComplianceDashboardClient({ initialWeek, lastClosedWeek, allianc
           {!row.settled && ["demote", "remove"].includes(row.recommendation.kind) ? <button type="button" className={buttonClass} onClick={() => setSelection({ row: structuredClone(row), operation: "complete" })}>{t("confirm")}</button> : null}
           {row.outcome !== "waived" && (["missed", "pending_data"].includes(row.outcome) || row.settled) ? <button type="button" className={buttonClass} onClick={() => setSelection({ row: structuredClone(row), operation: "waive" })}>{t("waive")}</button> : null}
         </div> : null}
-      </article>)}</div>
+      </article>;
+      })}</div>
     </section>
     {selection ? <ConfirmationDialog row={selection.row} operation={selection.operation} onSaved={() => { void load(week); }} onClose={() => { setSelection(null); void load(week); }} /> : null}
   </div>;

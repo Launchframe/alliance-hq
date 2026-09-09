@@ -6,6 +6,7 @@ import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
 import { resolvePrimaryExtractionForUpload } from "@/lib/video/experiment-assignment";
 import { resolveAdaptedPrimaryExtraction } from "@/lib/video/video-hygiene-adapt.server";
+import { scheduleVideoPendingApprovalAnnouncement } from "@/lib/video/pending-approval-discord.server";
 
 export type FinalizeVideoUploadInput = {
   sessionId: string;
@@ -126,6 +127,13 @@ export async function finalizeVideoUploadEnqueue(
     frameCount: null,
     uploadedFrameCount: 0,
     errorMessage: null,
+  });
+
+  scheduleVideoPendingApprovalAnnouncement({
+    allianceId: input.allianceId,
+    fileName: input.fileName,
+    scoreTarget: input.scoreTarget,
+    enqueuedByHqUserId: input.enqueuedByHqUserId,
   });
 }
 
