@@ -34,7 +34,7 @@ Do **not** re-run a full Real Steel chain from this skill unless step 6 applies.
 4. Evaluate Criticals, suggestions & nits. Propose copy changes; wait for maintainer approval per i18n rules. Bucket each item: blocking (“close the loop on the PR”), deferred, or won't do.
 5. Implement fixes to suggestions.
 6. OPTIONAL: real-steel review of new commits on the PR
-7. Finalize and merge
+7. Finalize and merge — if the PR conflicts with its parent (`baseRefName`), rebase onto that parent first
 
 Do not skip step 4. Do not skip step 2 **unless** the maintainer is already past validation (e.g. “close the loop on the PR”, “address these suggestions”, or a Real Steel comment/URL handed for triage — those count as proceed). Agents do not invent merge approval when branch policy requires a human review.
 
@@ -106,6 +106,7 @@ npm run db:validate-journal
 ```
 
 - Commit (short why-focused message) and push.
+- After push, run the **parent-branch conflict check** (step 7). If the PR cannot merge cleanly, rebase onto the parent **in this same pass** — do not wait for a failed `gh pr merge`.
 
 ### 6. OPTIONAL: real-steel review of new commits on the PR
 
@@ -114,13 +115,41 @@ npm run db:validate-journal
 
 ### 7. Finalize and merge
 
+#### Parent-branch conflicts (required)
+
+Before treating the PR as mergeable, check whether it conflicts with **its parent** (`baseRefName` from `gh pr view` — not `main` unless that is the PR base).
+
+```bash
+gh pr view <n> --json baseRefName,mergeable,mergeStateStatus,headRefName
+git fetch origin <baseRefName>
+```
+
+Treat as conflicted when `mergeable` is `CONFLICTING`, `mergeStateStatus` is `DIRTY`, or a trial merge/rebase onto `origin/<baseRefName>` fails.
+
+If conflicted, **rebase onto that parent** in the PR worktree (never in the primary clone while another branch is checked out there):
+
+```bash
+git fetch origin <baseRefName>
+git rebase origin/<baseRefName>
+```
+
+- Resolve conflicts toward **this PR’s intended behavior**, not stale parent copies of the same files.
+- After a successful rebase, re-run the pre-commit gates, then `git push --force-with-lease` (topic branch only — never force-push protected parents).
+- If the rebase cannot be resolved without maintainer judgment, stop, report the conflicted paths, and leave the rebase in a state the maintainer can continue or `git rebase --abort`.
+- Do **not** stop at “DIRTY / merge conflicts” and wait for a follow-up ask; this check-and-rebase is part of close-the-loop.
+
+A clean rebase is not a substitute for `REVIEW_REQUIRED`. Still do not use `--admin` unless the maintainer explicitly asks.
+
+#### Merge checklist
+
 Finalize means **all** of:
 
 1. Blocking items done (including Criticals); triage for deferred / won't-do recorded (PR reply or chat).
 2. Approved copy landed in locales; `i18n:validate` clean.
-3. CI green on the tip commit.
-4. Human Real Steel reply posted when the maintainer approved the reply text.
-5. Merge when policy allows:
+3. PR is not conflicted with `origin/<baseRefName>` (rebased in this step if it was).
+4. CI green on the tip commit (re-check after rebase).
+5. Human Real Steel reply posted when the maintainer approved the reply text.
+6. Merge when policy allows:
 
 ```bash
 gh pr checks <n> --watch
@@ -148,3 +177,4 @@ Auto-merge (`gh pr merge --auto`) only when the repo supports it; otherwise watc
 4. Commits pushed + CI status
 5. Reply posted or suggested (unposted)
 6. Merge result, or exact blocker (e.g. required review)
+7. Parent rebase: skipped (already clean) / completed onto `origin/<base>` / blocked on conflict paths
