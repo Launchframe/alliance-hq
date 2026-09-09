@@ -6,7 +6,11 @@ import { useLocale, useTranslations } from "next-intl";
 import { AppSelect } from "@/components/ui/AppSelect";
 import { Dialog } from "@/components/ui/dialog";
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
-import type { SerializedTimeOffEntry, TimeOffEntryKind } from "@/lib/time-off/types.shared";
+import type {
+  SerializedTimeOffEntry,
+  TimeOffActivityScope,
+  TimeOffEntryKind,
+} from "@/lib/time-off/types.shared";
 import { TIME_OFF_MAX_NOTES, type TimeOffDraft } from "@/lib/time-off/workflow.shared";
 
 const fieldClassName = "mt-1 w-full rounded border border-hq-border bg-hq-surface px-2 py-2 text-sm text-hq-fg";
@@ -20,7 +24,7 @@ type Props = {
   today: string;
   entry?: SerializedTimeOffEntry | null;
   onClose: () => void;
-  onSaved: (entry: SerializedTimeOffEntry) => void;
+  onSaved: (entry: SerializedTimeOffEntry, extras?: { ashedSyncFailed?: boolean }) => void;
 };
 
 export function TimeOffEntryModal({ open, commanders, canManageOthers, officerEntry, today, entry, onClose, onSaved }: Props) {
@@ -32,6 +36,7 @@ export function TimeOffEntryModal({ open, commanders, canManageOthers, officerEn
   const [notes, setNotes] = useState(entry?.notes ?? "");
   const [naturalLanguage, setNaturalLanguage] = useState("");
   const [entryKind, setEntryKind] = useState<TimeOffEntryKind>(entry?.entryKind ?? (officerEntry ? "officer_marked" : "planned"));
+  const [activityScope, setActivityScope] = useState<TimeOffActivityScope>(entry?.activityScope ?? "all");
   const [preview, setPreview] = useState<(TimeOffDraft & { memberName: string }) | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -55,7 +60,7 @@ export function TimeOffEntryModal({ open, commanders, canManageOthers, officerEn
         method: !isPreview && entry ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(isPreview
-          ? { ashedMemberId, startDate, endDate: endDate || startDate, notes, naturalLanguage, entryKind, preview: true }
+          ? { ashedMemberId, startDate, endDate: endDate || startDate, notes, naturalLanguage, entryKind, activityScope, preview: true }
           : { ...preview, version: entry?.version, requestId: requestId.current }),
       });
       const data = await response.json().catch(() => null);
@@ -67,7 +72,7 @@ export function TimeOffEntryModal({ open, commanders, canManageOthers, officerEn
       if (isPreview && data?.draft) {
         setPreview(data.draft);
       } else if (!isPreview && data?.entry) {
-        onSaved(data.entry);
+        onSaved(data.entry, { ashedSyncFailed: data?.ashedSyncFailed === true });
       } else {
         setError(t("workflow.errors.saveUnconfirmed"));
         if (!isPreview) setUncertain(true);
@@ -92,6 +97,7 @@ export function TimeOffEntryModal({ open, commanders, canManageOthers, officerEn
             <p className="font-semibold">{preview.memberName}</p>
             <p>{t("entry.range", { start: formatDate(preview.startDate), end: formatDate(preview.endDate) })}</p>
             <p>{t(preview.entryKind === "unexpected" ? "workflow.unexpectedHint" : "workflow.globalAbsence")}</p>
+            <p>{t(`activityScope.${preview.activityScope}`)}</p>
             {preview.notes ? <p className="whitespace-pre-wrap break-words"><span className="font-medium">{t("workflow.privateNotes")}: </span>{preview.notes}</p> : null}
             <p className="text-sm text-hq-fg-muted">{t("workflow.previewHint")}</p>
             {preview.entryKind !== "unexpected" ? <p className="text-sm">{t("workflow.noticeCutoff")}</p> : null}
@@ -127,6 +133,15 @@ export function TimeOffEntryModal({ open, commanders, canManageOthers, officerEn
                   {entry?.entryKind === "planned" ? <option value="planned">{t("workflow.planned")}</option> : null}
                   <option value="officer_marked">{t("officerModal.kindPlanned")}</option>
                   <option value="unexpected">{t("workflow.unexpected")}</option>
+                </select>
+              </label>
+            ) : null}
+            {entryKind !== "unexpected" ? (
+              <label className="block text-sm">{t("officerModal.activityScope")}
+                <select value={activityScope} onChange={(event) => setActivityScope(event.target.value as TimeOffActivityScope)} className={fieldClassName} disabled={saving}>
+                  <option value="all">{t("activityScope.all")}</option>
+                  <option value="vs">{t("activityScope.vs")}</option>
+                  <option value="donation">{t("activityScope.donation")}</option>
                 </select>
               </label>
             ) : null}

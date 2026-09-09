@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { cancelTimeOff, updateTimeOff } from "@/lib/time-off/mutations.server";
+import { dualWriteTimeOffToAshed } from "@/lib/time-off/excused-sync.server";
 import { requireTimeOffActor, timeOffErrorResponse } from "@/lib/time-off/route-helpers.server";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,15 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   try {
     const { id } = await params;
     const body = await request.json();
-    return NextResponse.json({ entry: await updateTimeOff(context.actor, id, body, body?.version) });
+    const entry = await updateTimeOff(context.actor, id, body, body?.version);
+    const ashedSyncFailed = await dualWriteTimeOffToAshed({
+      allianceId: context.actor.allianceId,
+      entryId: entry.id,
+      sessionId: context.actor.sessionId,
+      discordUserId: context.actor.discordUserId,
+      operation: "upsert",
+    });
+    return NextResponse.json({ entry, ashedSyncFailed });
   } catch (error) {
     return timeOffErrorResponse(error);
   }
@@ -25,7 +34,15 @@ export async function DELETE(request: Request, { params }: RouteParams) {
   try {
     const { id } = await params;
     const body = await request.json();
-    return NextResponse.json({ entry: await cancelTimeOff(context.actor, id, body?.version) });
+    const entry = await cancelTimeOff(context.actor, id, body?.version);
+    const ashedSyncFailed = await dualWriteTimeOffToAshed({
+      allianceId: context.actor.allianceId,
+      entryId: entry.id,
+      sessionId: context.actor.sessionId,
+      discordUserId: context.actor.discordUserId,
+      operation: "delete",
+    });
+    return NextResponse.json({ entry, ashedSyncFailed });
   } catch (error) {
     return timeOffErrorResponse(error);
   }

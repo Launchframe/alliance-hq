@@ -1,8 +1,10 @@
 import {
+  TIME_OFF_ACTIVITY_SCOPES,
   TIME_OFF_AVAILABILITIES,
   TIME_OFF_ENTRY_KINDS,
   TIME_OFF_SOURCES,
   type SerializedTimeOffEntry,
+  type TimeOffActivityScope,
   type TimeOffAvailability,
   type TimeOffEntryKind,
   type TimeOffSource,
@@ -17,6 +19,7 @@ export type TimeOffEntryPayload = {
   availability?: TimeOffAvailability;
   entryKind?: TimeOffEntryKind;
   source?: TimeOffSource;
+  activityScope?: TimeOffActivityScope;
 };
 
 export function isTimeOffAvailability(
@@ -55,6 +58,12 @@ export function canCancelTimeOffEntry(input: {
   return input.canManageOthers || input.ownsCommander;
 }
 
+export function isTimeOffActivityScope(
+  value: string,
+): value is TimeOffActivityScope {
+  return (TIME_OFF_ACTIVITY_SCOPES as readonly string[]).includes(value);
+}
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function validateTimeOffEntryPayload(
@@ -84,6 +93,9 @@ export function validateTimeOffEntryPayload(
   if (body.source && !isTimeOffSource(body.source)) {
     return "Invalid source.";
   }
+  if (body.activityScope && !isTimeOffActivityScope(body.activityScope)) {
+    return "Invalid activity scope.";
+  }
   return null;
 }
 
@@ -97,12 +109,14 @@ export function serializeTimeOffEntry(row: {
   availability: string;
   entryKind: string;
   source: string;
+  activityScope?: string;
   version?: number;
   globalAbsence?: boolean;
   cancelledAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }): SerializedTimeOffEntry {
+  const activityScope = row.activityScope ?? "all";
   return {
     id: row.id,
     ashedMemberId: row.ashedMemberId,
@@ -115,6 +129,7 @@ export function serializeTimeOffEntry(row: {
       : "full_away",
     entryKind: isTimeOffEntryKind(row.entryKind) ? row.entryKind : "planned",
     source: isTimeOffSource(row.source) ? row.source : "web",
+    activityScope: isTimeOffActivityScope(activityScope) ? activityScope : "all",
     version: row.version ?? 0,
     globalAbsence: row.globalAbsence ?? false,
     cancelledAt: row.cancelledAt?.toISOString() ?? null,

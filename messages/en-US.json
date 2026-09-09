@@ -6473,8 +6473,14 @@
       "minimums": "Maintaining minimums",
       "hit_and_miss": "Hit and miss"
     },
+    "activityScope": {
+      "vs": "VS",
+      "donation": "Donations",
+      "all": "All Activities"
+    },
     "entry": {
       "range": "{start} to {end}",
+      "active": "Active",
       "cancel": "Cancel this entry"
     },
     "officerModal": {
@@ -6487,6 +6493,7 @@
       "start": "Start date",
       "end": "End date",
       "availability": "Availability",
+      "activityScope": "Activity scope",
       "notes": "Private notes",
       "cancel": "Cancel",
       "save": "Save entry"
@@ -6504,7 +6511,8 @@
       "loadFailed": "Failed to load the time-off calendar.",
       "saveFailed": "Could not save time off.",
       "reportFailed": "Could not load the unexpected absence report.",
-      "fieldsRequired": "Commander and dates are required."
+      "fieldsRequired": "Commander and dates are required.",
+      "ashedSyncFailed": "Saved in HQ, but syncing with Ashed failed. An officer may need to add it in Ashed as well."
     }
   },
   "statSync": {
