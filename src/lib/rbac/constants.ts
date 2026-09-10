@@ -26,6 +26,8 @@ export const HQ_PERMISSIONS = [
   { id: "battle_plan:write", description: "Manage alliance battle plan schedule" },
   { id: "bank:read", description: "View alliance bank strongholds and deposit risk" },
   { id: "bank:write", description: "Manage alliance bank strongholds and deposit slips" },
+  { id: "support_teams:read", description: "Support teams" },
+  { id: "support_teams:write", description: "Support teams" },
   { id: "time_off:read", description: "View alliance time-off calendar" },
   { id: "time_off:write", description: "Manage time-off entries for alliance members" },
   { id: "vs_compliance:read", description: "VS compliance" },

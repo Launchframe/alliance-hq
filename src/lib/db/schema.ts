@@ -15,6 +15,9 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import type { SupportBoard, SupportEvent, SupportValue } from "@/lib/support-teams/types.shared";
+import type { SupportDisplayPreferences } from "@/lib/support-teams/display-preferences.shared";
+
 const vector1536 = customType<{ data: number[]; driverData: string }>({
   dataType() {
     return "vector(1536)";
@@ -27,6 +30,47 @@ const vector1536 = customType<{ data: number[]; driverData: string }>({
     if (!raw) return [];
     return raw.split(",").map(Number);
   },
+});
+
+export const supportTeamBoards = pgTable("support_team_boards", {
+  allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
+  version: integer("version").notNull().default(0),
+  published: boolean("published").notNull().default(false),
+  construction: jsonb("construction").$type<SupportBoard["construction"]>(),
+});
+
+export const supportTeamFields = pgTable("support_team_fields", {
+  allianceId: text("alliance_id").notNull().references(() => supportTeamBoards.allianceId, { onDelete: "cascade" }),
+  key: text("key").notNull(),
+  value: jsonb("value").$type<SupportValue>(),
+  version: integer("version").notNull(),
+  actionId: text("action_id").notNull(),
+}, (table) => [primaryKey({ columns: [table.allianceId, table.key] })]);
+
+export const supportTeamEvents = pgTable("support_team_events", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => supportTeamBoards.allianceId, { onDelete: "cascade" }),
+  principalId: text("principal_id").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  requestHash: text("request_hash").notNull(),
+  boardVersion: integer("board_version").notNull(),
+  event: jsonb("event").$type<SupportEvent>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("support_team_events_intent_unique").on(table.allianceId, table.principalId, table.idempotencyKey),
+  unique("support_team_events_version_unique").on(table.allianceId, table.boardVersion),
+]);
+
+export const supportTeamReversals = pgTable("support_team_reversals", {
+  allianceId: text("alliance_id").notNull().references(() => supportTeamBoards.allianceId, { onDelete: "cascade" }),
+  actionId: text("action_id").notNull().references(() => supportTeamEvents.id),
+  reversalId: text("reversal_id").notNull().references(() => supportTeamEvents.id),
+}, (table) => [primaryKey({ columns: [table.allianceId, table.actionId] })]);
+
+export const supportTeamPreferences = pgTable("support_team_preferences", {
+  hqUserId: text("hq_user_id").primaryKey().references(() => hqUsers.id, { onDelete: "cascade" }),
+  version: integer("version").notNull().default(0),
+  display: jsonb("display").$type<SupportDisplayPreferences>().notNull(),
 });
 
 export const alliances = pgTable("alliances", {
