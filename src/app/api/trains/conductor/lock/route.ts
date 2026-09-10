@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { lockConductorWithBoarding as lockConductorRecord } from "@/lib/trains/boarding.server";
 import { normalizeDiscordBotLocale } from "@/lib/discord/i18n";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { loadAllianceTrainLeadTimeSettings } from "@/lib/trains/alliance-train-lead-time.server";
@@ -7,7 +8,6 @@ import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { conductorLockBlockedByPendingConfirmation } from "@/lib/trains/conductor-record.shared";
 import {
   getConductorRecord,
-  lockConductorRecord,
   upsertConductorDraft,
 } from "@/lib/trains/repository";
 import { getMemberRankAsOf } from "@/lib/trains/rank-history";

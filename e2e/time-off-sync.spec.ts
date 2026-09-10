@@ -64,7 +64,16 @@ test("Ashed outages preserve local absence and private notes while durable work 
   await page.context().addCookies(playwrightAuthCookies(f.officer));
   await page.goto("/time-off");
   await expect(page.getByText("An alliance officer needs to connect or refresh the alliance’s Ashed connection.", { exact: true })).toBeVisible();
+  await page.route((url) => url.pathname === "/api/time-off", async (route) => {
+    const response = await route.fetch();
+    const data = await response.json();
+    for (const row of [...data.entries, ...data.ownEntries]) if (row.id === entry.id) row.syncStatus = "pending";
+    await route.fulfill({ response, json: data });
+  }, { times: 1 });
+  const retryResponse = page.waitForResponse((response) => response.request().method() === "POST" && response.url().includes(`/api/time-off/entries/${entry.id}/sync`));
   await page.getByRole("button", { name: "Retry sync", exact: true }).click();
+  expect((await retryResponse).status()).toBe(200);
+  await expect(page.getByTestId(`time-off-entry-${entry.id}`).getByText("Saved in HQ. Waiting to sync with Ashed.", { exact: true })).toBeVisible();
   await expect(page.getByText("Sync retry queued.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Refresh from Ashed", exact: true }).click();
   await expect(page.getByText("Ashed refresh queued.", { exact: true })).toBeVisible();

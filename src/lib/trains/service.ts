@@ -135,7 +135,6 @@ import {
   listConductorRecordsInRange,
   listDayConfigsForWeek,
   lockConductorRecord,
-  lockConductorRecords,
   replaceDayConfigs,
   assignVipOnLockedConductor,
   upsertConductorDraft,
@@ -1902,7 +1901,8 @@ export async function lockConductorsForDates(input: {
 
     pendingRecordIds.push(record.id);
   }
-  const records = await lockConductorRecords(pendingRecordIds, input.allianceId, input.lockedByHqUserId);
+  const { lockConductorsWithBoarding } = await import("./boarding.server");
+  const records = await lockConductorsWithBoarding(pendingRecordIds, input.allianceId, input.lockedByHqUserId);
   for (const locked of records) {
     const date = locked.date;
     await syncDepletingPoolSelectionForConductorDay({

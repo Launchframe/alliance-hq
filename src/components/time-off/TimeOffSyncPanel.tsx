@@ -28,11 +28,18 @@ type ReviewAction = "keep_hq" | "use_ashed" | "link_existing";
 type Confirmation = { bindingId: string; action: "keep_hq" | "use_ashed" };
 type ActionError = { bindingId?: string; key: ReturnType<typeof timeOffSyncErrorKey> };
 
+type SyncNotice = "sync.retryQueued" | "sync.resolved" | null;
+
 export function TimeOffSyncPanel(props: Props) {
-  return <SyncPanel key={`${props.entryId}:${props.version}:${props.status}`} {...props} />;
+  const t = useTranslations("timeOff");
+  const [acknowledgement, setAcknowledgement] = useState<{ entryId: string; key: NonNullable<SyncNotice> } | null>(null);
+  return <>
+    <SyncPanel key={`${props.entryId}:${props.version}:${props.status}`} {...props} onNotice={(key) => setAcknowledgement(key ? { entryId: props.entryId, key } : null)} />
+    {acknowledgement?.entryId === props.entryId ? <p role="status" className="text-sm text-hq-fg">{t(acknowledgement.key)}</p> : null}
+  </>;
 }
 
-function SyncPanel({ entryId, version, status, lastSyncedAt, canManage, onChanged }: Props) {
+function SyncPanel({ entryId, version, status, lastSyncedAt, canManage, onChanged, onNotice: setNotice }: Props & { onNotice: (notice: SyncNotice) => void }) {
   const t = useTranslations("timeOff");
   const locale = useLocale();
   const timeZone = useTimeZone() ?? "UTC";
@@ -40,7 +47,6 @@ function SyncPanel({ entryId, version, status, lastSyncedAt, canManage, onChange
   const [review, setReview] = useState<TimeOffSyncReview | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ActionError | null>(null);
-  const [notice, setNotice] = useState<"sync.retryQueued" | "sync.resolved" | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [selected, setSelected] = useState<Record<string, string>>({});
   const submitting = useRef(false);
@@ -145,7 +151,6 @@ function SyncPanel({ entryId, version, status, lastSyncedAt, canManage, onChange
         </div>
       ) : null}
       {!open ? errorMessage : null}
-      {notice ? <p role="status" className="text-sm text-hq-fg">{t(notice)}</p> : null}
       <Dialog open={open && canReview} onOpenChange={(next) => { if (!next && !busy) setOpen(false); }} title={t("sync.reviewConflict")} className="max-w-lg">
         <h2 className="text-lg font-semibold text-hq-fg">{t("sync.reviewConflict")}</h2>
         <p className="mt-2 text-sm text-hq-fg-muted">{t("workflow.serverTime")}</p>

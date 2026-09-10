@@ -8,6 +8,7 @@ import { createDiscordTranslator, getDiscordBotLocale, type DiscordBotLocale } f
 import { interactionDiscordUserId, interactionGuildId, type DiscordInteractionPayload } from "@/lib/discord/interactions";
 import { callerCanManageTrains } from "@/lib/trains/discord-bot-auth.server";
 import { draftConductorForAlliance, lockTrainAndAnnounce } from "@/lib/trains/discord-bot.server";
+import { boardingDiscordPrompt } from "@/lib/trains/boarding.discord.server";
 import type { TrainBotReply } from "@/lib/trains/discord-bot-handlers.server";
 import { resolveDiscordHqUserId } from "@/lib/trains/train-ownership.server";
 import { resolveAllianceForGuild } from "@/lib/vr/service";
@@ -45,12 +46,17 @@ export async function handleDiscordCoverage(payload: DiscordInteractionPayload):
   const note = payload.data?.components?.flatMap((row) => row.components ?? []).find((component) => component.custom_id === "note")?.value ?? "";
   const hqUserId = await resolveDiscordHqUserId(discordUserId);
   try {
+    let boardingRecordId: string | undefined;
     await withCoverageActor({ allianceId, discordUserId, hqUserId, acceptance: { conflicts: state.conflicts, note, requestId: token } }, async () => {
       if (!(await callerCanManageTrains({ allianceId, discordUserId }))) throw new CoverageConflictError([]);
       if (state.action === "pick" && state.memberId && state.memberName) await draftConductorForAlliance({ allianceId, date: state.date, memberId: state.memberId, memberName: state.memberName, allowEligibilityOverride: true });
-      else if (state.action === "lock") await lockTrainAndAnnounce({ allianceId, guildId, date: state.date, locale, lockedByHqUserId: hqUserId });
+      else if (state.action === "lock") boardingRecordId = (await lockTrainAndAnnounce({ allianceId, guildId, date: state.date, locale, lockedByHqUserId: hqUserId })).record.id;
       else throw new CoverageConflictError([]);
     });
+    if (boardingRecordId) {
+      const prompt = await boardingDiscordPrompt({ allianceId, guildId, discordUserId, locale, recordId: boardingRecordId });
+      if (prompt) return reply(prompt.content, prompt.components);
+    }
     return reply(t(state.action === "pick" ? "train.draftSaved" : "train.readyLocked", { name: escapeTimeOffDiscordText(state.memberName ?? state.conflicts[0]?.memberName ?? ""), date: new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${state.date}T12:00:00Z`)) }));
   } catch (error) {
     if (error instanceof CoverageConflictError && error.conflicts.length) {
