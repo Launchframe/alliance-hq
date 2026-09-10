@@ -36,6 +36,8 @@ export const HQ_PERMISSIONS = [
   { id: "vs_compliance:read", description: "VS compliance" },
   { id: "vs_compliance:manage", description: "Confirm in-game action" },
   { id: "vs_compliance:settings", description: "VS membership minimums" },
+  { id: "officer_intel:read", description: "View officer intelligence sessions and ingested chat" },
+  { id: "officer_intel:write", description: "Upload and manage officer intelligence chat sessions" },
 ] as const;
 
 export const VS_COMPLIANCE_READ_PERMISSION = "vs_compliance:read";
@@ -50,6 +52,9 @@ export const BANK_WRITE_PERMISSION = "bank:write";
 
 export const TIME_OFF_READ_PERMISSION = "time_off:read";
 export const TIME_OFF_WRITE_PERMISSION = "time_off:write";
+
+export const OFFICER_INTEL_READ_PERMISSION = "officer_intel:read";
+export const OFFICER_INTEL_WRITE_PERMISSION = "officer_intel:write";
 
 export const TRAINS_WRITE_PERMISSION = "trains:write";
 

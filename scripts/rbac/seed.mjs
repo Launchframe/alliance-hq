@@ -44,6 +44,8 @@ const HQ_PERMISSIONS = [
   { id: "vs_compliance:read", description: "VS compliance" },
   { id: "vs_compliance:manage", description: "Confirm in-game action" },
   { id: "vs_compliance:settings", description: "VS membership minimums" },
+  { id: "officer_intel:read", description: "View officer intelligence sessions and ingested chat" },
+  { id: "officer_intel:write", description: "Upload and manage officer intelligence chat sessions" },
 ];
 
 function getDatabaseUrl() {
@@ -85,6 +87,8 @@ async function main() {
       "time_off:write",
       "support_teams:read",
       "support_teams:write",
+      "officer_intel:read",
+      "officer_intel:write",
     ]),
   ];
   roleTemplates.owner.permissions = [...roleTemplates.owner.permissions, "vs_compliance:read", "vs_compliance:manage", "vs_compliance:settings"];
@@ -104,6 +108,8 @@ async function main() {
       "time_off:write",
       "support_teams:read",
       "support_teams:write",
+      "officer_intel:read",
+      "officer_intel:write",
     ]),
   ];
   roleTemplates.officer.permissions = [...roleTemplates.officer.permissions, "vs_compliance:read", "vs_compliance:manage"];
@@ -114,6 +120,7 @@ async function main() {
       "battle_plan:read",
       "bank:read",
       "time_off:read",
+      "officer_intel:read",
     ]),
   ];
   roleTemplates.viewer.permissions = [

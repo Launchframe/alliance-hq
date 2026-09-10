@@ -28,7 +28,17 @@ vi.mock("@/lib/db", async (importOriginal) => {
         };
         return query;
       },
-      update: () => ({ set: (values: unknown) => ({ where: () => { mocks.update(values); return { returning: async () => [{ id: "record-1" }] }; } }) }),
+      update: () => ({
+        set: (values: unknown) => {
+          mocks.update(values);
+          return {
+            where: () => ({
+              returning: async () => [{ id: "record-1" }],
+              then: (resolve: (rows: unknown[]) => unknown) => Promise.resolve(resolve([])),
+            }),
+          };
+        },
+      }),
   };
   return { ...actual, getDb: () => ({ ...db, transaction: async <T>(work: (tx: typeof db) => Promise<T>): Promise<T> => work(db) }) };
 });
@@ -104,7 +114,10 @@ describe("conductor confirmation duty-date availability", () => {
       { ashedMemberId: "available-r5", currentName: "Available", allianceRank: 5 },
     ]);
     expect((await processConductorConfirmationTick()).fallbacks).toBe(1);
-    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ conductorMemberId: "available-r5", conductorNominationStatus: "fallback_r4" }));
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({
+      conductorMemberId: "available-r5",
+      conductorNominationStatus: "fallback_r4",
+    }));
     expect(mocks.draft).not.toHaveBeenCalled();
   });
 

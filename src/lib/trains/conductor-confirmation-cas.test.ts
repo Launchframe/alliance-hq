@@ -23,8 +23,15 @@ const mocks = vi.hoisted(() => ({
   lockConductorRecord: vi.fn(),
 }));
 
-vi.mock("@/lib/time-off/availability.server", () => ({ loadTimeOffAvailability: async () => ({ awayMemberIds: new Set() }), lockAllianceAvailability: vi.fn() }));
-vi.mock("@/lib/time-off/coverage.server", () => ({ findCoverageConflicts: async () => [], trainCoverageDuties: () => [] }));
+vi.mock("@/lib/time-off/availability.server", () => ({
+  loadTimeOffAvailability: vi.fn(async () => ({ awayMemberIds: new Set() })),
+  lockAllianceAvailability: vi.fn(),
+}));
+
+vi.mock("@/lib/time-off/coverage.server", () => ({
+  findCoverageConflicts: vi.fn(async () => []),
+  trainCoverageDuties: vi.fn(() => []),
+}));
 
 vi.mock("@/lib/db", () => ({
   getDb: () => ({

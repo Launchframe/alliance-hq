@@ -1549,7 +1549,13 @@ export async function rollForVip(input: {
           );
 
           try {
+            await recheckAutomaticDutyAvailability({
+              allianceId: input.allianceId,
+              date: input.date,
+              result: rolled,
+            });
             await assignVipOnLockedConductor({
+              automaticDuty: true,
               allianceId: input.allianceId,
               date: input.date,
               seasonKey,
@@ -1565,6 +1571,7 @@ export async function rollForVip(input: {
               input.date,
               rolled.memberId,
             );
+            if (error instanceof CoverageConflictError) throwPoolUnavailable(poolType);
             throw error;
           }
 
@@ -1591,7 +1598,15 @@ export async function rollForVip(input: {
   }
 
   await recheckAutomaticDutyAvailability({ ...input, result });
-  return result;
+  const poolRefreshed = result.poolType
+    ? await refreshExhaustedPoolIfNeeded({
+        allianceId: input.allianceId,
+        poolType: result.poolType,
+        date: input.date,
+        eventTopN: (dayConfig.vipConfig as EventTopXConfig | null)?.topN ?? 10,
+      })
+    : null;
+  return poolRefreshed ? { ...result, poolRefreshed } : result;
 }
 
 export async function reseedPool(input: {
