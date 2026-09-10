@@ -18,6 +18,11 @@ test.describe("Officer Intel RBAC", () => {
   test("no session cookie is unauthorized", async ({ request }) => {
     const list = await request.get("/api/officer-intel/sessions");
     expect(list.status(), await list.text()).toBe(401);
+
+    const ask = await request.post("/api/officer-intel/ask", {
+      data: { question: "What did we decide?" },
+    });
+    expect(ask.status(), await ask.text()).toBe(401);
   });
 
   test("viewer role cannot read officer intel sessions", async ({
@@ -48,6 +53,12 @@ test.describe("Officer Intel RBAC", () => {
       headers: { Cookie: authCookieHeader(user) },
     });
     expect(list.status(), await list.text()).toBe(403);
+
+    const ask = await request.post("/api/officer-intel/ask", {
+      headers: { Cookie: authCookieHeader(user) },
+      data: { question: "What did we decide?" },
+    });
+    expect(ask.status(), await ask.text()).toBe(403);
   });
 
   test("data_entry role can read but not create officer intel sessions", async ({
@@ -84,6 +95,12 @@ test.describe("Officer Intel RBAC", () => {
       data: { title: "Should be denied" },
     });
     expect(create.status(), await create.text()).toBe(403);
+
+    const ask = await request.post("/api/officer-intel/ask", {
+      headers: { Cookie: authCookieHeader(user) },
+      data: { question: "What did we decide?" },
+    });
+    expect([200, 503], await ask.text()).toContain(ask.status());
   });
 
   test("owner role can read and create officer intel sessions", async ({
@@ -122,5 +139,13 @@ test.describe("Officer Intel RBAC", () => {
     expect(create.status(), await create.text()).toBe(200);
     const body = (await create.json()) as { sessionId?: string };
     expect(typeof body.sessionId).toBe("string");
+
+    const askMissingQuestion = await request.post("/api/officer-intel/ask", {
+      headers: { Cookie: authCookieHeader(user) },
+      data: {},
+    });
+    expect(askMissingQuestion.status(), await askMissingQuestion.text()).toBe(
+      400,
+    );
   });
 });

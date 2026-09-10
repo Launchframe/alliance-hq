@@ -2,8 +2,9 @@ import "server-only";
 
 import { createOpenAI } from "@ai-sdk/openai";
 import { embed } from "ai";
-import { and, asc, count, desc, eq, ilike, isNotNull, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNotNull, sql } from "drizzle-orm";
 
+import { escapeLikePrefix } from "@/lib/admin/audit-query";
 import { getDb, schema } from "@/lib/db";
 import { OFFICER_INTEL_CHARS_PER_TOKEN } from "@/lib/officer-intel/build-corpus-chunks.shared";
 import {
@@ -29,6 +30,13 @@ export type OfficerIntelRetrievedChunk = {
 
 const DEFAULT_RETRIEVE_K = 6;
 const MAX_RETURN_CHARS = 3000 * OFFICER_INTEL_CHARS_PER_TOKEN;
+const LIKE_ESCAPE = "\\";
+
+export function buildOfficerIntelKeywordPattern(query: string): string {
+  const trimmed = query.trim();
+  if (!trimmed) return "%";
+  return `%${escapeLikePrefix(trimmed)}%`;
+}
 
 type RawRetrievedRow = {
   id: string;
@@ -44,6 +52,12 @@ type RawRetrievedRow = {
 };
 
 function formatEmbeddingForQuery(values: number[]): string {
+  if (
+    values.length === 0 ||
+    values.some((value) => typeof value !== "number" || !Number.isFinite(value))
+  ) {
+    throw new Error("invalid query embedding");
+  }
   return `[${values.join(",")}]`;
 }
 
@@ -125,7 +139,7 @@ async function retrieveByKeyword(input: {
   k: number;
 }): Promise<OfficerIntelRetrievedChunk[]> {
   const db = getDb();
-  const pattern = `%${input.query.trim()}%`;
+  const pattern = buildOfficerIntelKeywordPattern(input.query);
   const rows = await db
     .select({
       id: schema.officerIntelChunks.id,
@@ -151,7 +165,7 @@ async function retrieveByKeyword(input: {
     .where(
       and(
         eq(schema.officerIntelChunks.allianceId, input.allianceId),
-        ilike(schema.officerIntelChunks.chunkText, pattern),
+        sql`${schema.officerIntelChunks.chunkText} ilike ${pattern} escape ${LIKE_ESCAPE}`,
       ),
     )
     .orderBy(desc(schema.officerIntelChunks.updatedAt))
@@ -210,13 +224,17 @@ export async function retrieveOfficerIntelCorpus(input: {
     value: query,
   });
 
-  const vectorResults = await retrieveByVector({
-    allianceId: input.allianceId,
-    queryEmbedding: embedding,
-    k,
-  });
-  if (vectorResults.length > 0) {
-    return vectorResults;
+  try {
+    const vectorResults = await retrieveByVector({
+      allianceId: input.allianceId,
+      queryEmbedding: embedding,
+      k,
+    });
+    if (vectorResults.length > 0) {
+      return vectorResults;
+    }
+  } catch (error) {
+    console.error("[officer-intel] vector retrieval failed", error);
   }
 
   return retrieveByKeyword({ allianceId: input.allianceId, query, k });

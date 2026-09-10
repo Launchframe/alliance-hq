@@ -71,26 +71,34 @@ async function deleteChunksForSource(input: {
     );
 }
 
-export async function dropOfficerMeetingNoteChunks(noteId: string) {
+export async function dropOfficerMeetingNoteChunks(input: {
+  allianceId: string;
+  noteId: string;
+}) {
   const db = getDb();
   await db
     .delete(schema.officerIntelChunks)
     .where(
       and(
+        eq(schema.officerIntelChunks.allianceId, input.allianceId),
         eq(schema.officerIntelChunks.sourceType, "approved_note"),
-        eq(schema.officerIntelChunks.sourceId, noteId),
+        eq(schema.officerIntelChunks.sourceId, input.noteId),
       ),
     );
 }
 
-export async function dropOfficerActionItemChunks(actionItemId: string) {
+export async function dropOfficerActionItemChunks(input: {
+  allianceId: string;
+  actionItemId: string;
+}) {
   const db = getDb();
   await db
     .delete(schema.officerIntelChunks)
     .where(
       and(
+        eq(schema.officerIntelChunks.allianceId, input.allianceId),
         eq(schema.officerIntelChunks.sourceType, "action_item"),
-        eq(schema.officerIntelChunks.sourceId, actionItemId),
+        eq(schema.officerIntelChunks.sourceId, input.actionItemId),
       ),
     );
 }
@@ -156,7 +164,10 @@ export async function indexOfficerActionItemChunk(input: {
   localeCode: string;
 }) {
   if (input.item.status === "done" || input.item.status === "cancelled") {
-    await dropOfficerActionItemChunks(input.item.id);
+    await dropOfficerActionItemChunks({
+      allianceId: input.allianceId,
+      actionItemId: input.item.id,
+    });
     return;
   }
 

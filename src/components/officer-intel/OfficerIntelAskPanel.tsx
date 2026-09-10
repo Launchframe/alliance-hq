@@ -1,10 +1,14 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Send } from "lucide-react";
 
 import { Link } from "@/i18n/navigation";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 import type {
   OfficerIntelAskCitation,
   OfficerIntelAskEvent,
@@ -46,6 +50,7 @@ export function OfficerIntelAskPanel({
   approvedNoteCount,
 }: Props) {
   const t = useTranslations("officerIntel");
+  const locale = useLocale();
   const [question, setQuestion] = useState("");
   const [threadId, setThreadId] = useState<string | null>(null);
   const [turns, setTurns] = useState<ChatTurn[]>([]);
@@ -68,7 +73,7 @@ export function OfficerIntelAskPanel({
     const extras = [
       citation.channelLabel,
       citation.sessionAt
-        ? new Date(citation.sessionAt).toLocaleDateString()
+        ? new Date(citation.sessionAt).toLocaleDateString(locale)
         : null,
     ].filter((part): part is string => Boolean(part?.trim()));
     if (extras.length === 0) return kind;
@@ -216,7 +221,10 @@ export function OfficerIntelAskPanel({
       ) : null}
 
       <form
-        onSubmit={(event) => void submitQuestion(event)}
+        onSubmit={(event) => {
+          preventDefaultFormSubmit(event);
+          void submitQuestion(event);
+        }}
         className="flex flex-col gap-2 border-t border-hq-border p-4 sm:flex-row"
       >
         <label className="sr-only" htmlFor="officer-intel-ask">
@@ -227,6 +235,7 @@ export function OfficerIntelAskPanel({
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
           disabled={!llmConfigured || asking}
+          enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
           placeholder={t("askPlaceholder")}
           className="min-w-0 flex-1 rounded-lg border border-hq-border bg-hq-bg px-3 py-2 text-sm text-hq-fg placeholder:text-hq-muted disabled:opacity-50"
         />

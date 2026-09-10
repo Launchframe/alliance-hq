@@ -635,7 +635,12 @@ export async function persistOfficerSynthesisResult(input: {
   );
 
   await Promise.all(
-    previousItems.map((item) => dropOfficerActionItemChunks(item.id)),
+    previousItems.map((item) =>
+      dropOfficerActionItemChunks({
+        allianceId: input.allianceId,
+        actionItemId: item.id,
+      }),
+    ),
   );
 
   return { noteId };
