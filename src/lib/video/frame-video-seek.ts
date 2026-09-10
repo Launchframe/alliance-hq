@@ -10,7 +10,14 @@ export function previewSeekSecondsForFrame(
   if (frameIndex == null) return null;
   const current = frameTimestamps[String(frameIndex)];
   const next = frameTimestamps[String(frameIndex + 1)];
-  if (current == null || !Number.isFinite(current)) return null;
+  if (current == null || !Number.isFinite(current)) {
+    // Legacy frames without PTS (pre-video_timestamp_seconds): approximate at
+    // 1fps so Follow-me / row preview still scrub rather than going dark.
+    if (Object.keys(frameTimestamps).length === 0) {
+      return Math.max(0, frameIndex);
+    }
+    return null;
+  }
   if (next != null && Number.isFinite(next) && next > current) {
     return Math.max(0, (current + next) / 2);
   }

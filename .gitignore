@@ -40,6 +40,7 @@ OMFG_export*
 # misc
 .DS_Store
 *.pem
+.identity
 
 # debug
 npm-debug.log*
