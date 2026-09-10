@@ -25,6 +25,7 @@ import {
   provisionalDayConfigClass,
 } from "@/lib/trains/week-schedule-day-configs.shared";
 import { TrainMonthToolbar } from "@/components/trains/TrainMonthToolbar";
+import { TrainEligibilityOverrideMark } from "@/components/trains/TrainEligibilityOverrideMark";
 import type { WeekTemplateType } from "@/lib/trains/types";
 import { DAY_PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
 
@@ -122,6 +123,7 @@ export function TrainMonthCalendar({
   vrReporterCount = 0,
 }: Props) {
   const tc = useTranslations("common");
+  const tTrains = useTranslations("trains");
   const [viewMonthKey, setViewMonthKey] = useState(initialMonthKey);
   const [page, setPage] = useState<MonthSchedulePagePayload>({
     monthKey: initialMonthKey,
@@ -510,8 +512,16 @@ export function TrainMonthCalendar({
                   </span>
                 ) : null}
                 <div className="flex items-start justify-between gap-0.5">
-                  <span className="text-xs font-semibold tabular-nums">
-                    {dayNumber}
+                  <span className="flex items-center gap-0.5">
+                    <span className="text-xs font-semibold tabular-nums">
+                      {dayNumber}
+                    </span>
+                    {record?.eligibilityOverridden ? (
+                      <TrainEligibilityOverrideMark
+                        compact
+                        label={tTrains("calendarEligibilityOverrideMark")}
+                      />
+                    ) : null}
                   </span>
                   {day?.isOverride ? (
                     <span
@@ -573,7 +583,14 @@ export function TrainMonthCalendar({
                 }
                 aria-pressed={isSelected}
                 aria-label={
-                  isProvisional ? `${date}, ${draftAriaSuffix}` : date
+                  [
+                    isProvisional ? `${date}, ${draftAriaSuffix}` : date,
+                    record?.eligibilityOverridden
+                      ? tTrains("calendarEligibilityOverrideMark")
+                      : undefined,
+                  ]
+                    .filter(Boolean)
+                    .join(", ")
                 }
                 className={`${cellClass} hover:opacity-95`}
               >

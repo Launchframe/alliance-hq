@@ -47,4 +47,6 @@ export type WeekConductorRecordSummary = {
   nominationTrigger?: string | null;
   confirmationDeadlineAt?: string | null;
   successorAttempt?: number;
+  /** Officer confirmed a manual-pick eligibility override for this conductor. */
+  eligibilityOverridden?: boolean;
 };

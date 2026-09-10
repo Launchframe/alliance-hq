@@ -2738,6 +2738,15 @@ export const trainConductorRecords = pgTable(
       { onDelete: "set null" },
     ),
     /**
+     * 1 when an officer confirmed a manual-pick eligibility override
+     * (already awarded this generation, not in pool, or rank-ineligible).
+     */
+    conductorEligibilityOverridden: integer(
+      "conductor_eligibility_overridden",
+    )
+      .notNull()
+      .default(0),
+    /**
      * awaiting_scores | pending_confirmation | confirmed | forfeited | fallback_r4
      */
     conductorNominationStatus: text("conductor_nomination_status"),

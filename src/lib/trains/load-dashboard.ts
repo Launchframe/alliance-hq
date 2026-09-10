@@ -115,6 +115,7 @@ function mapConductorRecord(
     nominationTrigger?: string | null;
     confirmationDeadlineAt?: Date | null;
     successorAttempt?: number | null;
+    conductorEligibilityOverridden?: number | null;
   },
   access: {
     today: string;
@@ -149,6 +150,7 @@ function mapConductorRecord(
     confirmationDeadlineAt:
       row.confirmationDeadlineAt?.toISOString() ?? null,
     successorAttempt: row.successorAttempt ?? 0,
+    eligibilityOverridden: row.conductorEligibilityOverridden === 1,
   };
 }
 

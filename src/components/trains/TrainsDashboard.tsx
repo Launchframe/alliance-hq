@@ -1400,7 +1400,10 @@ export function TrainsDashboard({
       options?.allowEligibilityOverride || options?.allowSameGenerationReuse,
     );
     await withOptimisticMutation(
-      (snap) => applyOptimisticConductorPick(snap, selectedDate, member),
+      (snap) =>
+        applyOptimisticConductorPick(snap, selectedDate, member, {
+          eligibilityOverridden: overrideConfirmed,
+        }),
       async () => {
         const res = await fetch("/api/trains/conductor/pick", {
           method: "POST",
@@ -3013,6 +3016,16 @@ export function TrainsDashboard({
                     })
                   : null
               }
+              overrideBadge={
+                selectedRecord?.eligibilityOverridden
+                  ? t("conductorEligibilityOverrideBadge")
+                  : null
+              }
+              overrideHint={
+                selectedRecord?.eligibilityOverridden
+                  ? t("conductorEligibilityOverrideHint")
+                  : null
+              }
               shareActionLabel={
                 !data.simpleModeEnabled && hasValidConductor
                   ? t("wheel.share.action")
@@ -3056,6 +3069,9 @@ export function TrainsDashboard({
                 }
                 hasConductor={hasValidConductor}
                 conductorName={selectedRecord?.conductorMemberName}
+                eligibilityOverridden={Boolean(
+                  selectedRecord?.eligibilityOverridden,
+                )}
                 vipNeeded={guidedVipNeeded}
                 hasVip={guidedHasVip}
                 vipName={selectedRecord?.vipMemberName}

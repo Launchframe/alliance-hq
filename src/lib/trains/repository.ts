@@ -408,6 +408,7 @@ export async function upsertConductorDraft(input: {
   guardianIsVip?: number | null;
   substituteForMemberId?: string | null;
   substituteForMemberName?: string | null;
+  conductorEligibilityOverridden?: number | null;
 }): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
   const db = getDb();
   const existing = await getConductorRecord(
@@ -449,6 +450,10 @@ export async function upsertConductorDraft(input: {
           input.substituteForMemberName !== undefined
             ? input.substituteForMemberName
             : existing.substituteForMemberName,
+        conductorEligibilityOverridden:
+          input.conductorEligibilityOverridden !== undefined
+            ? input.conductorEligibilityOverridden
+            : existing.conductorEligibilityOverridden,
         updatedAt: new Date(),
       })
       .where(
@@ -489,6 +494,8 @@ export async function upsertConductorDraft(input: {
     guardianIsVip: input.guardianIsVip ?? 0,
     substituteForMemberId: input.substituteForMemberId ?? null,
     substituteForMemberName: input.substituteForMemberName ?? null,
+    conductorEligibilityOverridden:
+      input.conductorEligibilityOverridden ?? 0,
   });
 
   const [row] = await db
@@ -527,6 +534,7 @@ export async function clearConductorAssignment(
       conductorRankEventId: null,
       substituteForMemberId: null,
       substituteForMemberName: null,
+      conductorEligibilityOverridden: 0,
       updatedAt: new Date(),
     })
     .where(

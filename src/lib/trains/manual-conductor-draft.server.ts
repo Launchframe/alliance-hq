@@ -106,8 +106,9 @@ export async function applyManualConductorDraft(input: {
     }
   }
   const priorConductorMemberId = existing?.conductorMemberId ?? null;
+  const replacingSameMember = priorConductorMemberId === input.memberId;
+  let consumedPoolSlot = false;
   if (poolType) {
-    const replacingSameMember = priorConductorMemberId === input.memberId;
     if (!replacingSameMember) {
       await ensureConductorPoolSeeded({
         hqAllianceId: input.allianceId,
@@ -130,13 +131,13 @@ export async function applyManualConductorDraft(input: {
             poolMemberIds: poolEntries.map((row) => row.memberId),
           });
           if (gate.ok) {
-            const claimed = await markPoolMemberSelectedForDate(
+            consumedPoolSlot = await markPoolMemberSelectedForDate(
               input.allianceId,
               poolType,
               input.memberId,
               input.date,
             );
-            if (!claimed) {
+            if (!consumedPoolSlot && !overrideConfirmed) {
               throw new ManualPickEligibilityError(
                 "already_awarded",
                 depletingManualPickErrorMessage("already_awarded"),
@@ -167,6 +168,8 @@ export async function applyManualConductorDraft(input: {
     conductorMechanism: mechanism,
     vipMechanism: dayConfig.vipMechanism ?? null,
     dayConfigId: dayConfig.dayConfigId,
+    conductorEligibilityOverridden:
+      overrideConfirmed && !replacingSameMember && !consumedPoolSlot ? 1 : 0,
   });
 
   if (
