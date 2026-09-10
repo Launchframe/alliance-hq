@@ -2,12 +2,13 @@
 
 import { useTranslations } from "next-intl";
 import type { SupportCommand, SupportSnapshot } from "@/lib/support-teams/types.shared";
-import { commandEligibility, locationOf, moveCommand } from "@/lib/support-teams/board-client.shared";
+import { commandEligibility, draftBoardInteractions, locationOf, moveCommand } from "@/lib/support-teams/board-client.shared";
+import { DraftControls } from "./DraftControls";
 import { SupportTeamBoard } from "./SupportTeamBoard";
 import { SupportTeamHistory } from "./SupportTeamHistory";
 import { SupportErrorMessage, SupportTeamDisplaySettings } from "./SupportTeamControls";
 import { useSupportClaimInvites } from "./SupportTeamClaimInvite";
-import { useSupportTeamLive, type DisplayState } from "./useSupportTeamLive";
+import { useSupportTeamDraft, useSupportTeamLive, type DisplayState } from "./useSupportTeamLive";
 import type { BoardInteractions } from "./SupportTeamSlot";
 
 export function SupportTeamClient({ initial, initialPreferences, canInvite }: { initial: SupportSnapshot; initialPreferences: DisplayState; canInvite: boolean }) {
@@ -15,6 +16,7 @@ export function SupportTeamClient({ initial, initialPreferences, canInvite }: { 
   const tr = useTranslations();
   const live = useSupportTeamLive(initial, initialPreferences);
   const { snapshot } = live;
+  const draft = useSupportTeamDraft(snapshot, live.refresh);
   const claims = useSupportClaimInvites(snapshot, canInvite);
   const commandFor = (memberId: string, to: string | null, otherMemberId?: string): SupportCommand => {
     const from = locationOf(snapshot, memberId);
@@ -33,9 +35,15 @@ export function SupportTeamClient({ initial, initialPreferences, canInvite }: { 
     <div role="status" aria-live="polite" className="text-sm">{live.pending ? tr("common.loading") : live.notice ? t("saved") : snapshot.actor?.canRead && !live.connected ? tr("common.connecting") : null}</div>
     <SupportErrorMessage code={live.errors.connection} />
     <SupportTeamDisplaySettings display={live.preferences.display} saving={live.pending === "preferences"} disabled={!!live.pending} onChange={(next) => void live.savePreferences(next)} error={live.errors.preferences} />
-    <SupportTeamBoard snapshot={snapshot} display={live.preferences.display} interactions={interactions} pending={live.pending} errors={live.errors} renderMemberActions={claims.renderMemberActions}>
+    <SupportErrorMessage code={draft.error} />
+    {snapshot.actor?.canRead && <DraftControls key={draft.key ?? snapshot.board?.allianceId} snapshot={draft.snapshot} publishedVersion={snapshot.version} canManage={!!snapshot.actor.override && snapshot.canWrite} canSchedule={snapshot.canWrite && !snapshot.board?.construction} onRefresh={draft.refresh} onCreated={live.refresh} renderBoard={(adapter) => <SupportTeamBoard snapshot={adapter.workingDraftSnapshot} display={live.preferences.display} interactions={draftBoardInteractions(adapter, snapshot, (command, slot) => { void live.execute(command, slot); })} pending={live.pending} pendingTeamIds={adapter.pendingTeamIds} errors={live.errors} renderSlotControls={adapter.renderSlotControls} mobileStatus={adapter.status} renderMemberActions={claims.renderMemberActions}>
+      {adapter.status}
+      <SupportTeamHistory snapshot={{ ...snapshot, version: adapter.snapshot.version, teams: adapter.workingDraftSnapshot.teams }} onChanged={draft.refresh} />
+    </SupportTeamBoard>} />}
+    {draft.active && !draft.snapshot && <p role="status">{tr("common.loading")}</p>}
+    {!draft.active && <SupportTeamBoard snapshot={snapshot} display={live.preferences.display} interactions={interactions} pending={live.pending} errors={live.errors} renderMemberActions={claims.renderMemberActions}>
       {snapshot.actor?.canRead && <SupportTeamHistory snapshot={snapshot} onChanged={live.refresh} />}
-    </SupportTeamBoard>
+    </SupportTeamBoard>}
     {claims.dialog}
   </main>;
 }

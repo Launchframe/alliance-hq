@@ -22,10 +22,10 @@ export function SupportTeamMemberSearch({ snapshot, teamName, label, value, onSe
   const t = useTranslations("supportTeams");
   return <AppSelect value={value} onChange={onSelect} combobox searchable explicitSelection retainFocusOnSelect searchMode="fuzzy" aria-label={label} placeholder={label} searchPlaceholder={t("findMember")} noSearchResultsLabel={t("noMatches")} options={snapshot.roster.map((member) => ({ value: member.id, selectedText: member.name, label: <span><SupportMemberIdentity member={member} /><span className="ml-2 text-xs text-hq-fg-muted">{teamName(locationOf(snapshot, member.id))}</span></span>, searchText: [member.name, ...member.previousNames].join(" "), disabled: eligible ? !eligible(member.id) : false }))} />;
 }
-export function SupportTeamSlot({ snapshot, team, teamName, own, display, highlighted, dragged, setDragged, interactions, pending, error, renderMemberActions }: {
+export function SupportTeamSlot({ snapshot, team, teamName, own, display, highlighted, dragged, setDragged, interactions, pending, error, renderMemberActions, children }: {
   snapshot: SupportSnapshot; team: SupportSnapshot["teams"][number]; teamName: TeamNames; own: boolean; display: SupportDisplayPreferences;
   highlighted: string; dragged: string | null; setDragged: (id: string | null) => void; interactions: BoardInteractions; pending: boolean; error?: string;
-  renderMemberActions?: (id: string) => ReactNode;
+  renderMemberActions?: (id: string) => ReactNode; children?: ReactNode;
 }) {
   const t = useTranslations("supportTeams");
   const tr = useTranslations();
@@ -44,11 +44,12 @@ export function SupportTeamSlot({ snapshot, team, teamName, own, display, highli
     onDragOver={(event) => { if (dragged && !dropError && !pending) event.preventDefault(); }}
     onDrop={(event) => { event.preventDefault(); const id = event.dataTransfer.getData("application/x-support-member"); if (id && !interactions.eligibility(id, team.id) && !pending) interactions.onMove(id, team.id); setDragged(null); }}>
     <header><h2 className="font-semibold">{teamName(team.id)} {own && <span className="text-xs text-hq-accent">{t("myTeam")}</span>}</h2><p className="text-sm text-hq-fg-muted">{t("size", { count: team.memberIds.length.toLocaleString(locale), target: team.target.toLocaleString(locale) })}</p>{lead && <SupportMemberIdentity member={lead} />}{team.needsReplacement && <p className="text-sm text-hq-warning">{t("leadNeedsReplacement")}</p>}</header>
+    {children}
     <SupportTeamMemberSearch snapshot={snapshot} teamName={teamName} label={t("addMember")} value={selected} onSelect={(id) => { setSelected(id); if (!pending) interactions.onMove(id, team.id); }} eligible={(id) => !pending && !interactions.eligibility(id, team.id)} />
     {!canAdd && <p className="text-xs text-hq-fg-muted">{snapshot.canWrite && team.memberIds.length >= team.target ? t("teamFull") : t("readOnly")}</p>}
     <SupportErrorMessage code={error} />
     {dragged && <SupportErrorMessage code={dropError ?? undefined} reveal={false} />}
-    {canRename && <div className="flex flex-wrap gap-2"><button className={supportButton} onClick={() => { setName(team.name ?? ""); setRenaming(!renaming); }}>{t("rename")}</button><button className={supportButton} onClick={() => setReplace(!replace)}>{t("replaceLead")}</button></div>}
+    {canRename && <div className="flex flex-wrap gap-2"><button className={supportButton} onClick={() => { setName(team.name ?? ""); setRenaming(!renaming); }}>{t("rename")}</button>{snapshot.roster.some((member) => interactions.canCommand({ kind: "replaceLead", teamId: team.id, leadId: member.id, expectedVersion: snapshot.version })) && <button className={supportButton} onClick={() => setReplace(!replace)}>{t("replaceLead")}</button>}</div>}
     {renaming && <form className="space-y-2" onSubmit={(event) => { event.preventDefault(); interactions.onCommand({ ...renameCommand, name }, team.id); }}><label className="text-sm">{t("teamName")}<input className={supportInput} value={name} maxLength={60} onChange={(event) => setName(event.target.value)} /></label><button className={supportButton} disabled={pending || !name.trim()}>{tr("battlePlan.actions.save")}</button></form>}
     {replace && <AppSelect value="" onChange={(leadId) => interactions.onCommand({ kind: "replaceLead", leadId, teamId: team.id, expectedVersion: snapshot.version }, team.id)} aria-label={t("replaceLead")} placeholder={t("leadRequired")} searchable combobox explicitSelection searchMode="fuzzy" searchPlaceholder={t("findMember")} noSearchResultsLabel={t("noMatches")} options={snapshot.roster.filter((member) => member.rank === 4 || member.rank === 5).map((member) => ({ value: member.id, label: member.name, disabled: pending || !interactions.canCommand({ kind: "replaceLead", leadId: member.id, teamId: team.id, expectedVersion: snapshot.version }) }))} />}
     <div className="max-h-[65dvh] space-y-2 overflow-y-auto overscroll-contain">

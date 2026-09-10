@@ -11,9 +11,9 @@ import { SupportMemberChip } from "./SupportMemberChip";
 import { SupportTeamMemberSearch, SupportTeamSlot, type BoardInteractions } from "./SupportTeamSlot";
 import { SupportDialog, SupportErrorMessage, UnsortedFiltersControl, supportButton, supportInput } from "./SupportTeamControls";
 
-export function SupportTeamBoard({ snapshot, display, interactions, pending, errors, renderMemberActions, children }: {
+export function SupportTeamBoard({ snapshot, display, interactions, pending, errors, renderMemberActions, renderSlotControls, pendingTeamIds = [], mobileStatus, children }: {
   snapshot: SupportSnapshot; display: SupportDisplayPreferences; interactions: BoardInteractions; pending: string | null; errors: Record<string, string>;
-  renderMemberActions?: (id: string) => ReactNode; children?: ReactNode;
+  renderMemberActions?: (id: string) => ReactNode; renderSlotControls?: (teamId: string) => ReactNode; pendingTeamIds?: string[]; mobileStatus?: ReactNode; children?: ReactNode;
 }) {
   const t = useTranslations("supportTeams");
   const tr = useTranslations();
@@ -60,7 +60,7 @@ export function SupportTeamBoard({ snapshot, display, interactions, pending, err
     onDragOver={(event) => { if (dragged && !interactions.eligibility(dragged, null)) event.preventDefault(); }}
     onDrop={(event) => { event.preventDefault(); const id = event.dataTransfer.getData("application/x-support-member"); if (id && !pending && !interactions.eligibility(id, null)) interactions.onMove(id, null); setDragged(null); }}>
     <h2 className="font-semibold">{t("unsorted")} <span className="text-sm text-hq-fg-muted">{results.length.toLocaleString(locale)} / {pool.length.toLocaleString(locale)}</span></h2>
-    {mobile && visible && <p className="text-sm">{t("addMember")}: {teamName(visible.id)}</p>}
+    {mobile && <div className="sticky top-0 z-10 space-y-2 bg-hq-surface py-2"><p className="text-sm">{t("myTeam")}: {ownTeam ? teamName(ownTeam.id) : t("noTeam")}</p>{mobileStatus}{visible && <><p className="text-sm">{t("addMember")}: {teamName(visible.id)}</p>{renderSlotControls?.(visible.id)}</>}</div>}
     <label className="block text-sm">{tr("members.search")}<input type="search" className={supportInput} value={query} onChange={(event) => setQuery(event.target.value)} /></label>
     <UnsortedFiltersControl filters={filters} setFilters={setFilters} roster={snapshot.roster} />
     <SupportErrorMessage code={errors.unsorted || (mobile && visible ? errors[visible.id] : undefined)} />
@@ -90,7 +90,7 @@ export function SupportTeamBoard({ snapshot, display, interactions, pending, err
       <div className="grid min-w-0 gap-4 lg:grid-cols-[repeat(auto-fit,minmax(17rem,1fr))]" style={{ touchAction: "pan-y" }}
         onTouchStart={(event) => { const point = event.touches[0]; touch.current = { x: point.clientX, y: point.clientY, interactive: !!(event.target as HTMLElement).closest("input,button,select,textarea,[role=combobox],[role=listbox],a,dialog") }; }}
         onTouchEnd={(event) => { if (!touch.current) return; const point = event.changedTouches[0]; const direction = swipeDirection(point.clientX - touch.current.x, point.clientY - touch.current.y, touch.current.interactive, !!window.getSelection()?.toString()); touch.current = null; if (direction) navigate(direction); }}>
-        {snapshot.teams.map((team) => <div key={team.id} className={team.id === visible?.id ? "min-w-0" : "hidden min-w-0 lg:block"}><SupportTeamSlot snapshot={snapshot} team={team} teamName={teamName} own={team.id === own} display={display} highlighted={located} dragged={dragged} setDragged={setDragged} interactions={interactions} pending={!!pending} error={errors[team.id]} renderMemberActions={renderMemberActions} /></div>)}
+        {snapshot.teams.map((team) => <div key={team.id} className={team.id === visible?.id ? "min-w-0" : "hidden min-w-0 lg:block"}><SupportTeamSlot snapshot={snapshot} team={team} teamName={teamName} own={team.id === own} display={display} highlighted={located} dragged={dragged} setDragged={setDragged} interactions={interactions} pending={!!pending || pendingTeamIds.includes(team.id)} error={errors[team.id]} renderMemberActions={renderMemberActions}>{renderSlotControls?.(team.id)}</SupportTeamSlot></div>)}
       </div>
     </div>
     {poolOpen && <SupportDialog title={t("unsorted")} onClose={() => setPoolOpen(false)}>{renderPool(true)}<button className={`${supportButton} mt-4`} onClick={() => setPoolOpen(false)}>{t("closePool")}</button></SupportDialog>}

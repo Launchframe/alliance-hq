@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { nanoid } from "nanoid";
 import { authCookieHeader, type SessionFixture } from "./fixtures/db";
-import { createSupportTeamFixture } from "./fixtures/support-teams";
+import { createSupportTeamFixture, seedPublishedSupportBoard } from "./fixtures/support-teams";
 
 test("officer history and owner cascade preserve unrelated work and immutable actors", async ({ request }) => {
   const f = await createSupportTeamFixture();
@@ -15,7 +15,7 @@ test("officer history and owner cascade preserve unrelated work and immutable ac
     return body.event;
   };
   for (const [index, teamId] of teams.entries()) await command(f.owner, { kind: "createTeam", teamId, leadId: f.leads[index].ashedMemberId });
-  await f.sql`UPDATE support_team_boards SET published = true WHERE alliance_id = ${f.allianceId}`;
+  version = await seedPublishedSupportBoard(f.sql, f.allianceId);
   const memberId = f.members[0].ashedMemberId;
   const root = await command(f.officer, { kind: "move", memberId, from: null, to: teams[0] });
   const away = await command(f.owner, { kind: "move", memberId, from: teams[0], to: teams[1] });
@@ -26,7 +26,7 @@ test("officer history and owner cascade preserve unrelated work and immutable ac
   const history = await request.get("/api/support-teams/history?limit=50", { headers: officerHeaders });
   expect(history.status()).toBe(200);
   const events = (await history.json()).events as { kind: string; principalId: string; actorType?: string; reverses: string[] }[];
-  expect(events).toHaveLength(7);
+  expect(events).toHaveLength(8);
   expect(events.filter((event) => event.principalId === f.owner.hqUserId || event.principalId === f.officer.hqUserId)).toHaveLength(6);
   expect(events.filter((event) => event.kind === "reconcile")).toEqual([
     expect.objectContaining({ kind: "reconcile", principalId: "service:support-team-membership", actorType: "service", reverses: [] }),

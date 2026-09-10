@@ -65,7 +65,7 @@ export const supportTeamReversals = pgTable("support_team_reversals", {
   allianceId: text("alliance_id").notNull().references(() => supportTeamBoards.allianceId, { onDelete: "cascade" }),
   actionId: text("action_id").notNull().references(() => supportTeamEvents.id),
   reversalId: text("reversal_id").notNull().references(() => supportTeamEvents.id),
-}, (table) => [primaryKey({ columns: [table.allianceId, table.actionId] })]);
+}, (table) => [primaryKey({ columns: [table.allianceId, table.actionId, table.reversalId] })]);
 
 export const supportTeamPreferences = pgTable("support_team_preferences", {
   hqUserId: text("hq_user_id").primaryKey().references(() => hqUsers.id, { onDelete: "cascade" }),

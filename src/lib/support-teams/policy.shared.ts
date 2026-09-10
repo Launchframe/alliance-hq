@@ -4,6 +4,14 @@ export const SUPPORT_TEAM_NAME_MAX = 60;
 export const fieldKey = (resource: string, id: string, field: string) => JSON.stringify([resource, id, field]);
 export const readField = (board: SupportBoard, key: string): SupportValue => board.fields[key]?.value ?? null;
 export const fieldVersion = (board: SupportBoard, key: string) => board.fields[key]?.version ?? 0;
+export const boardKey = (board: SupportBoard, field: string) => fieldKey("board", board.allianceId, field);
+export const lifecycleKeys = (board: SupportBoard) => ["published", "constructionKind", "constructionId"].map((field) => boardKey(board, field));
+export function synchronizeMetadata(board: SupportBoard): SupportBoard {
+  const published = board.fields[boardKey(board, "published")];
+  const kind = board.fields[boardKey(board, "constructionKind")];
+  const id = board.fields[boardKey(board, "constructionId")];
+  return { ...board, published: published ? published.value === true : board.published, construction: kind || id ? (kind?.value === "draft" || kind?.value === "proposal") && typeof id?.value === "string" ? { kind: kind.value, id: id.value } : null : board.construction };
+}
 export const emptyBoard = (allianceId: string): SupportBoard => ({ allianceId, version: 0, published: false, construction: null, fields: {} });
 export function teamIds(board: SupportBoard): string[] {
   return Object.entries(board.fields).flatMap(([key, field]) => {
@@ -38,7 +46,7 @@ function commandChanges(board: SupportBoard, roster: SupportRosterMember[], acto
   assertWriter(board, actor);
   if (command.expectedVersion !== board.version) throw new SupportError("changed");
   const changes: Record<string, SupportValue> = {};
-  const reads = new Set<string>();
+  const reads = new Set<string>(command.kind === "rename" ? [] : lifecycleKeys(board));
   const observeTeam = (id: string) => {
     reads.add(fieldKey("team", id, "exists"));
     if (!actor.override) reads.add(fieldKey("team", id, "lead"));
@@ -105,13 +113,16 @@ export function recordChanges(board: SupportBoard, actor: SupportActor, changes:
   const dependsOn = [...new Set(keys.flatMap((key) => board.fields[key]?.actionId ? [board.fields[key].actionId!] : []))].sort();
   const patches = Object.entries(changes).map(([key, after]) => {
     const beforeVersion = fieldVersion(board, key);
-    const patch = { key, before: readField(board, key), after, beforeVersion, afterVersion: beforeVersion + 1 };
+    const metadataBefore = key === boardKey(board, "published") ? board.published : key === boardKey(board, "constructionKind") ? board.construction?.kind ?? null : key === boardKey(board, "constructionId") ? board.construction?.id ?? null : readField(board, key);
+    const patch = { key, before: metadataBefore, after, beforeVersion, afterVersion: beforeVersion + 1 };
     next.fields[key] = { value: after, version: patch.afterVersion, actionId: identity.id };
     return patch;
   });
   const resources = keys.map((key) => JSON.parse(key) as string[]);
-  const event: SupportEvent = { ...identity, allianceId: board.allianceId, principalId: actor.principalId, actorName: actor.displayName ?? null, memberNames: {}, teamNames: Object.fromEntries(resources.filter(([r]) => r === "team").map(([, id]) => [id, readField(board, fieldKey("team", id, "name")) as string | null])), kind, context, boardVersion: next.version, patches, observedVersions, dependsOn, reverses, teamIds: [...new Set(resources.filter(([r]) => r === "team").map(([, id]) => id))], memberIds: [...new Set(resources.filter(([r]) => r === "member" || r === "membership").map(([, id]) => id))] };
-  return { board: next, event };
+  const teamResources = resources.filter(([r]) => r === "team" || r.startsWith("draftTeam:") || r.startsWith("draftSlot:"));
+  const memberResources = resources.filter(([r]) => r === "member" || r === "membership" || r.startsWith("draftMember:"));
+  const event: SupportEvent = { ...identity, allianceId: board.allianceId, principalId: actor.principalId, principalType: "human", actorType: "user", actorName: actor.displayName ?? null, memberNames: {}, teamNames: Object.fromEntries(teamResources.map(([, id]) => [id, readField(board, fieldKey("team", id, "name")) as string | null])), kind, context, boardVersion: next.version, patches, observedVersions, dependsOn, reverses, teamIds: [...new Set(teamResources.map(([, id]) => id))], memberIds: [...new Set(memberResources.map(([, id]) => id))] };
+  return { board: synchronizeMetadata(next), event };
 }
 export function applyCommand(board: SupportBoard, roster: SupportRosterMember[], actor: SupportActor, command: SupportCommand, identity: EventIdentity) {
   const { changes, reads } = commandChanges(board, roster, actor, command);

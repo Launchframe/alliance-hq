@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { FormattedDateTime } from "@/components/timezone/TimezoneProvider";
 import {
@@ -38,6 +38,8 @@ export default function InboxPageClient({
 }) {
   const t = useTranslations("inbox");
   const tRoster = useTranslations("rosterLinkRequests");
+  const tDraft = useTranslations("supportTeams.draft");
+  const locale = useLocale();
   const tCompliance = useTranslations("vsCompliance");
   const [items, setItems] = useState<ReminderItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -133,6 +135,7 @@ export default function InboxPageClient({
   }
 
   function kindLabel(kind: string): string {
+    if (kind === "support_team_draft") return tDraft("title");
     if (kind === "vs_compliance") return tCompliance("title");
     if (kind === "eur_occurrence") return t("kind.eurOccurrence");
     if (kind === "video_jobs_pending") return t("kind.videoJobsPending");
@@ -152,6 +155,7 @@ export default function InboxPageClient({
   }
 
   function displayTitle(item: ReminderItem): string {
+    if (item.kind === "support_team_draft") return tDraft("title");
     if (item.kind === "vs_compliance") return tCompliance("title");
     if (item.kind === ROSTER_LINK_INBOX_KIND) {
       const name = item.scoreTarget?.trim() || item.title;
@@ -169,6 +173,10 @@ export default function InboxPageClient({
   }
 
   function displayBody(item: ReminderItem): string | null {
+    if (item.kind === "support_team_draft") {
+      const format = (value: string | null) => value && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "";
+      return `${tDraft("startsAt")}: ${format(item.scoreTarget)} · ${tDraft("endsAt")}: ${format(item.body)}`;
+    }
     if (item.kind === "vs_compliance") return tCompliance("manualHint");
     if (item.kind === ROSTER_LINK_INBOX_KIND) {
       return t("kind.memberLinkRequestBody");

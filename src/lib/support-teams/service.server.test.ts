@@ -4,12 +4,18 @@ const mocks = vi.hoisted(() => ({ access: vi.fn(), loadBoard: vi.fn(), loadHisto
 vi.mock("./access.server", () => ({ requireSupportAccess: mocks.access }));
 vi.mock("./repository.server", () => ({ loadBoard: mocks.loadBoard, loadHistory: mocks.loadHistory, lockBoard: mocks.lockBoard, persistEvent: mocks.persist, recheckActor: mocks.recheck }));
 vi.mock("./roster.server", () => ({ loadSupportRoster: mocks.roster, loadSupportStints: mocks.stints }));
+vi.mock("./draft-roster.server", () => ({ withDraftStintTokens: async (_db: unknown, _alliance: string, roster: unknown) => roster }));
+vi.mock("./draft-notice.server", () => ({ persistDraftNotice: vi.fn() }));
 vi.mock("@/lib/db", async (original) => {
   const actual = await original<typeof import("@/lib/db")>();
   return { ...actual, getDb: () => ({ transaction: mocks.transaction }) };
 });
-import { executeSupportCommand, executeSupportUndo, reconcileSupportMemberships, supportSnapshot } from "./service.server";
-import { emptyBoard, fieldKey } from "./policy.shared";
+import { executeSupportCommand, executeSupportUndo, loadUndoPreview, loadSupportHistory, reconcileSupportMemberships, supportSnapshot } from "./service.server";
+import { emptyBoard, fieldKey, memberTeam, readField, teamLead } from "./policy.shared";
+import { applyStintCommand, reconcileMemberships } from "./maintenance.server";
+import { applyDraftCommand, draftSnapshot, type DraftCommand } from "./draft.shared";
+import { executeDraftCommand, loadDraftSnapshot } from "./draft.server";
+import type { SupportRosterMember } from "./types.shared";
 import type { SupportAccess } from "./access.server";
 import type { SupportCommand } from "./types.shared";
 
@@ -30,7 +36,7 @@ beforeEach(() => {
   mocks.roster.mockResolvedValue([{ id: "lead-a", rank: 4, name: "Lead A" }]);
   mocks.stints.mockResolvedValue({ "lead-a": "private-stint-1" });
   mocks.select.mockImplementation(() => query([]));
-  mocks.transaction.mockImplementation(async (callback) => { mocks.active = true; try { return await callback({ select: mocks.select }); } finally { mocks.active = false; } });
+  mocks.transaction.mockImplementation(async (callback) => { mocks.active = true; try { return await callback({ select: mocks.select, execute: async () => [{ now: new Date("2026-09-10T12:00:00Z") }] }); } finally { mocks.active = false; } });
   mocks.recheck.mockImplementation(async () => { expect(mocks.active).toBe(true); });
 });
 describe("support team transaction orchestration", () => {
@@ -60,9 +66,11 @@ describe("support team transaction orchestration", () => {
     expect(result.event.kind).toBe("replaceLead");
   });
   it("replays a matching actor-scoped intent without recomputing or appending an action", async () => {
-    const event = { id: "original", patches: [], observedVersions: {} };
+    const key = fieldKey("member", "lead-a", "assignmentStint");
+    const event = { id: "original", patches: [{ key, before: null, after: "private-stint-1", beforeVersion: 0, afterVersion: 1 }], observedVersions: { [key]: 0 } };
+    mocks.loadBoard.mockResolvedValue({ ...emptyBoard("a"), version: 9 });
     mocks.select.mockReturnValueOnce(query([{ requestHash: createHash("sha256").update(JSON.stringify(command)).digest("hex"), event }]));
-    expect(await executeSupportCommand(access, command, "create-intent")).toEqual({ event, replayed: true });
+    expect(await executeSupportCommand(access, command, "create-intent")).toEqual({ event: { id: "original", patches: [], observedVersions: {} }, version: 9, replayed: true });
     expect(mocks.persist).not.toHaveBeenCalled();
     expect(mocks.roster).not.toHaveBeenCalled();
   });
@@ -78,6 +86,47 @@ describe("support team transaction orchestration", () => {
     mocks.roster.mockResolvedValue([]);
     await expect(executeSupportUndo(access, { rootActionId: "unknown", actionIds: ["unknown"], expectedVersions: {} }, "undo-intent")).rejects.toThrow("forbidden");
     expect(mocks.persist).not.toHaveBeenCalled();
+  });
+  it("does not disguise another actor's inverse as an ordinary own-team move", async () => {
+    const roster = [{ id: "lead-a", rank: 4, name: "A" }, { id: "member", rank: 3, name: "Member" }] as SupportRosterMember[];
+    const stints = { "lead-a": "private-stint-1", member: "private-member-1" };
+    const reconciled = reconcileMemberships(emptyBoard("a"), roster, stints, { id: "reconcile", at: "2026-09-10T12:00:00Z", idempotencyKey: "reconcile" })!;
+    const setup = applyStintCommand(reconciled.board, roster, access.actor, { ...command, expectedVersion: reconciled.board.version }, { id: "setup", at: "2026-09-10T12:00:00Z", idempotencyKey: "setup" });
+    const placed = applyStintCommand({ ...setup.board, published: true }, roster, access.actor, { kind: "move", memberId: "member", from: null, to: "team-a", expectedVersion: setup.board.version }, { id: "placed", at: "2026-09-10T12:00:00Z", idempotencyKey: "placed" });
+    mocks.stints.mockResolvedValue(stints);
+    const officerAccess = { ...access, actor: { ...access.actor, principalId: "officer", override: false, linkedMemberIds: ["lead-a"] } };
+    mocks.access.mockResolvedValue(officerAccess);
+    mocks.loadBoard.mockResolvedValue(placed.board);
+    mocks.loadHistory.mockResolvedValue([setup.event, placed.event]);
+    mocks.roster.mockResolvedValue(roster);
+    mocks.select.mockReturnValueOnce(query([])).mockReturnValueOnce(query([])).mockReturnValueOnce(query([])).mockReturnValueOnce(query([])).mockReturnValueOnce(query([{ memberId: "lead-a" }]));
+    await expect(executeSupportCommand(officerAccess, { kind: "move", memberId: "member", from: "team-a", to: null, expectedVersion: placed.board.version }, "disguised")).rejects.toThrow("forbidden");
+    expect(mocks.persist).not.toHaveBeenCalled();
+  });
+  it("rechecks an expired session after obtaining the board lock and writes nothing", async () => {
+    mocks.recheck.mockRejectedValueOnce(new Error("forbidden"));
+    await expect(executeSupportCommand(access, command, "expired")).rejects.toThrow("forbidden");
+    expect(mocks.lockBoard.mock.invocationCallOrder[0]).toBeLessThan(mocks.recheck.mock.invocationCallOrder[0]);
+    expect(mocks.persist).not.toHaveBeenCalled();
+  });
+  it("persists the human pick and linked system transition in the same transaction with coherent versions", async () => {
+    const roster = [{ id: "lead-a", rank: 4, name: "A" }, { id: "lead-b", rank: 5, name: "B" }, { id: "one", rank: 3, name: "One" }, { id: "two", rank: 3, name: "Two" }, { id: "three", rank: 3, name: "Three" }, { id: "four", rank: 3, name: "Four" }] as SupportRosterMember[];
+    const scheduled = applyDraftCommand(emptyBoard("a"), roster, access.actor, { kind: "scheduleDraft", draftId: "d", expectedVersion: 0, startsAt: "2026-09-10T12:00:00Z", endsAt: "2026-09-10T14:00:00Z", roundMinutes: 5 }, { id: "schedule", at: "2026-09-10T11:00:00Z", idempotencyKey: "schedule" });
+    const snapshot = draftSnapshot(scheduled.board, roster, access.actor, "d", Date.parse("2026-09-10T12:00:00Z"));
+    const pick = (team: number, memberId: string): DraftCommand => ({ kind: "draftPick", draftId: "d", teamId: snapshot.teams[team].id, memberId, expectedRound: 1, expectedRoundVersion: snapshot.resourceVersions.round, expectedMemberVersion: snapshot.resourceVersions.members[memberId], expectedSlotVersion: 0 });
+    const first = applyDraftCommand(scheduled.board, roster, access.actor, pick(0, "one"), { id: "first", at: "2026-09-10T12:00:00Z", idempotencyKey: "first" });
+    mocks.loadBoard.mockResolvedValue(first.board);
+    mocks.loadHistory.mockResolvedValue([scheduled.event, first.event]);
+    mocks.roster.mockResolvedValue(roster);
+    mocks.persist.mockImplementation(async () => { expect(mocks.active).toBe(true); });
+    const result = await executeDraftCommand(access, pick(1, "two"), "second");
+    expect(mocks.persist).toHaveBeenCalledTimes(3);
+    expect(mocks.persist.mock.calls[0][2]).toMatchObject({ kind: "reconcile", principalType: "service", actorType: "service", boardVersion: 3 });
+    expect(mocks.persist.mock.calls[1][2]).toMatchObject({ kind: "draftPick", principalType: "human", actorType: "user", boardVersion: 4 });
+    expect(mocks.persist.mock.calls[2][2]).toMatchObject({ kind: "advanceDraft", principalType: "service", actorType: "service", principalId: "service:support-team-draft", boardVersion: 5, context: { sourceActionId: result.event.id } });
+    expect(result.version).toBe(5);
+    mocks.persist.mockRejectedValueOnce(new Error("database unavailable"));
+    await expect(executeDraftCommand(access, pick(1, "two"), "failure")).rejects.toThrow("database unavailable");
   });
   it("projects stale assignments without writing in its repeatable-read-only snapshot transaction", async () => {
     const board = emptyBoard("a");
@@ -99,6 +148,94 @@ describe("support team transaction orchestration", () => {
     expect(await reconcileSupportMemberships("a")).toMatchObject({ reconciled: false });
     expect(mocks.persist).toHaveBeenCalledOnce();
     expect(mocks.access).not.toHaveBeenCalled();
+  });
+  it.each([false, true])("binds published draft seats to current stints and never revives departed assignments, poll=%s", async (poll) => {
+    const roster = [{ id: "lead-a", rank: 4, name: "A", draftStintToken: "private-workspace-a" }, { id: "member", rank: 3, name: "Member", draftStintToken: "private-workspace-member" }] as SupportRosterMember[];
+    const stints = { "lead-a": "private-stint-1", member: "private-member-1" };
+    const reconciled = reconcileMemberships(emptyBoard("a"), roster, stints, { id: "reconcile", at: "2026-09-10T11:00:00Z", idempotencyKey: "reconcile" })!;
+    const scheduled = applyDraftCommand(reconciled.board, roster, access.actor, { kind: "scheduleDraft", draftId: "d", expectedVersion: reconciled.board.version, startsAt: "2026-09-10T12:00:00Z", endsAt: "2026-09-10T14:00:00Z", roundMinutes: 5 }, { id: "schedule", at: "2026-09-10T11:00:00Z", idempotencyKey: "schedule" });
+    const view = draftSnapshot(scheduled.board, roster, access.actor, "d", Date.parse("2026-09-10T12:00:00Z"));
+    const picked = applyDraftCommand(scheduled.board, roster, access.actor, { kind: "draftPick", draftId: "d", teamId: view.teams[0].id, memberId: "member", expectedRound: 1, expectedRoundVersion: view.resourceVersions.round, expectedSlotVersion: 0, expectedMemberVersion: view.resourceVersions.members.member }, { id: "pick", at: "2026-09-10T12:00:00Z", idempotencyKey: "pick" });
+    mocks.loadBoard.mockResolvedValue(picked.board);
+    mocks.loadHistory.mockResolvedValue([reconciled.event, scheduled.event, picked.event]);
+    mocks.roster.mockResolvedValue(roster);
+    mocks.stints.mockResolvedValue(stints);
+    expect(JSON.stringify(await loadDraftSnapshot(access, "d"))).not.toMatch(/private-|draftStintToken|rosterFingerprint/);
+    const result = await executeDraftCommand(access, { kind: "publishDraft", draftId: "d", expectedVersion: picked.board.version, allowUnsorted: false }, "publish");
+    const published = mocks.persist.mock.calls.at(-1)![1];
+    const event = mocks.persist.mock.calls.at(-1)![2];
+    expect(result.version).toBe(published.version);
+    for (const member of roster) {
+      expect(readField(published, fieldKey("member", member.id, "assignmentStint"))).toBe(stints[member.id as keyof typeof stints]);
+      expect(event.observedVersions).toHaveProperty(fieldKey("membership", member.id, "stint"));
+      expect(memberTeam(published, member.id)).toBe(view.teams[0].id);
+    }
+    expect(event.observedVersions).toHaveProperty(fieldKey("membership", "lead-a", "leadEligibility"));
+    expect(teamLead(published, view.teams[0].id)).toBe("lead-a");
+    expect(JSON.stringify(result)).not.toMatch(/private-|assignmentStint|rosterFingerprint/);
+    mocks.loadBoard.mockResolvedValue(published);
+    mocks.roster.mockResolvedValue(roster.map((member) => { const row = { ...member }; delete row.draftStintToken; return row; }));
+    expect((await supportSnapshot(access)).teams[0].memberIds).toEqual(["lead-a", "member"]);
+    mocks.roster.mockResolvedValue([]);
+    expect((await supportSnapshot(access)).teams[0]).toMatchObject({ leadId: null, memberIds: [] });
+    if (poll) {
+      await reconcileSupportMemberships("a");
+      mocks.loadBoard.mockResolvedValue(mocks.persist.mock.calls.at(-1)![1]);
+    }
+    mocks.roster.mockResolvedValue(roster);
+    mocks.stints.mockResolvedValue({ "lead-a": "private-returned-a", member: "private-returned-member" });
+    expect((await supportSnapshot(access)).teams[0]).toMatchObject({ leadId: null, memberIds: [], needsReplacement: true });
+    await reconcileSupportMemberships("a");
+    const returned = mocks.persist.mock.calls.at(-1)![1];
+    expect(memberTeam(returned, "member")).toBeNull();
+    expect(teamLead(returned, view.teams[0].id)).toBeNull();
+    expect(returned.published).toBe(true);
+  });
+  it("round-trips a public maintenance undo preview without accepting stale hidden membership fences", async () => {
+    const created = await executeSupportCommand(access, command, "create");
+    const board = mocks.persist.mock.calls.at(-1)![1];
+    const events = mocks.persist.mock.calls.map((call) => call[2]);
+    mocks.loadBoard.mockResolvedValue(board);
+    mocks.loadHistory.mockImplementation(async () => [...events]);
+    const preview = await loadUndoPreview(access, created.event.id);
+    expect(JSON.stringify(preview)).not.toMatch(/private-|assignmentStint|membership/);
+    const result = await executeSupportUndo(access, preview, "undo-create");
+    expect(result.event.kind).toBe("undo");
+    expect(memberTeam(mocks.persist.mock.calls.at(-1)![1], "lead-a")).toBeNull();
+    mocks.persist.mockClear();
+    mocks.stints.mockResolvedValue({ "lead-a": "private-returned-a" });
+    await expect(executeSupportUndo(access, preview, "stale-undo")).rejects.toThrow("dependencies");
+    expect(mocks.persist).toHaveBeenCalledOnce();
+    expect(mocks.persist.mock.calls[0][2].kind).toBe("reconcile");
+  });
+  it("round-trips public draft undo previews while recomputing hidden versions and current reversal status", async () => {
+    const roster = [{ id: "lead-a", rank: 4, name: "A", draftStintToken: "private-workspace-a" }] as SupportRosterMember[];
+    const reconciled = reconcileMemberships(emptyBoard("a"), roster, { "lead-a": "private-stint-1" }, { id: "reconcile", at: "2026-09-10T11:00:00Z", idempotencyKey: "reconcile" })!;
+    const scheduled = applyDraftCommand(reconciled.board, roster, access.actor, { kind: "scheduleDraft", draftId: "d", expectedVersion: reconciled.board.version, startsAt: "2026-09-10T12:00:00Z", endsAt: "2026-09-10T14:00:00Z", roundMinutes: 5 }, { id: "schedule", at: "2026-09-10T11:00:00Z", idempotencyKey: "schedule" });
+    let board = scheduled.board;
+    const events = [reconciled.event, scheduled.event];
+    mocks.loadBoard.mockImplementation(async () => board);
+    mocks.loadHistory.mockImplementation(async () => [...events]);
+    mocks.roster.mockResolvedValue(roster);
+    mocks.persist.mockImplementation(async (_db, next, event) => { board = next; events.push(event); });
+    const publication = await executeDraftCommand(access, { kind: "publishDraft", draftId: "d", expectedVersion: board.version, allowUnsorted: false }, "publish");
+    const preview = await loadUndoPreview(access, publication.event.id);
+    expect(JSON.stringify(preview)).not.toMatch(/private-|assignmentStint|rosterFingerprint/);
+    const undo = await executeSupportUndo(access, preview, "undo-publication");
+    expect(board.published).toBe(false);
+    expect(board.construction).toEqual({ kind: "draft", id: "d" });
+    expect((await loadSupportHistory(access, {})).events.find((event) => event.id === publication.event.id)?.reversalId).toBe(undo.event.id);
+    const redoPreview = await loadUndoPreview(access, undo.event.id);
+    await executeSupportUndo(access, redoPreview, "redo-publication");
+    expect(board.published).toBe(true);
+    expect(board.construction).toBeNull();
+    expect(readField(board, fieldKey("member", "lead-a", "assignmentStint"))).toBe("private-stint-1");
+    expect((await loadSupportHistory(access, {})).events.find((event) => event.id === publication.event.id)?.reversalId).toBeNull();
+    const schedulePreview = await loadUndoPreview(access, "schedule");
+    expect(JSON.stringify(schedulePreview)).not.toMatch(/private-|assignmentStint|rosterFingerprint|\\\"stint\\\"/);
+    await executeSupportUndo(access, schedulePreview, "undo-schedule");
+    expect(board.construction).toBeNull();
+    expect(board.published).toBe(false);
   });
   it("never exposes the unpublished roster or field document to ordinary readers", async () => {
     const result = await supportSnapshot({ ...access, actor: { ...access.actor, override: false, canRead: false, canWrite: false } });
