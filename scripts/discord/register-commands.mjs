@@ -6,6 +6,7 @@
  */
 import "dotenv/config";
 import { TIME_OFF_COMMANDS } from "./time-off-commands.mjs";
+import { PLUNDER_PLAN_COMMAND } from "./plunder-plan-commands.mjs";
 
 const token = process.env.DISCORD_BOT_TOKEN?.trim();
 const applicationId = process.env.DISCORD_APPLICATION_ID?.trim();
@@ -678,6 +679,7 @@ const commandBody = [
     },
   },
   ...TIME_OFF_COMMANDS,
+  PLUNDER_PLAN_COMMAND,
   {
     name: "who-is",
     description: "Look up which commander a Discord user owns, or who owns a commander.",

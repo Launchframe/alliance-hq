@@ -33,7 +33,7 @@ export type PlanDashboard = {
 export type PlanNotificationSettings = { guildId: string; channelId: string; timeSt: string; locale: "en-US" | "pt-BR"; enabled: boolean; version: number };
 export type PlanCommand =
   | { action: "notifications"; requestId: string; guildId: string; channelId: string; timeSt: string; locale: "en-US" | "pt-BR"; enabled: boolean; expectedVersion: number }
-  | { action: "create"; requestId: string; kind: "plan" | "suggestion"; memberId?: string; sourceId?: string; schedule: PlanSchedule; reminder: boolean }
+  | { action: "create"; requestId: string; kind: "plan" | "suggestion"; memberId?: string; sourceId?: string; sourceVersion?: number; schedule: PlanSchedule; reminder: boolean }
   | { action: "edit"; requestId: string; id: string; expectedVersion: number; schedule: PlanSchedule; reminder: boolean }
   | { action: "pause" | "resume" | "remove"; requestId: string; id: string; expectedVersion: number }
   | { action: "skip" | "restore"; requestId: string; id: string; expectedVersion: number; date: string }

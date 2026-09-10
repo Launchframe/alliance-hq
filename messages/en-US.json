@@ -1,5 +1,27 @@
 {
   "plunderPlan": {
+    "commands": {
+      "root": "Let your alliance know when you'll share secret tasks.",
+      "schedule": "See who has volunteered to find secret tasks.",
+      "my-plans": "View and manage your Plunder Plans.",
+      "plan": "Pick a time to find and share secret tasks with your friends.",
+      "join": "Join a suggested time to find secret tasks together.",
+      "edit": "Change the times on one of your Plunder Plans.",
+      "skip": "Skip a date on one of your weekly Plunder Plans.",
+      "pause": "Put one of your weekly Plunder Plans on pause.",
+      "resume": "Bring a paused Plunder Plan back to the calendar.",
+      "remove": "Remove one of your Plunder Plans.",
+      "color": "Pick a calendar color for your Plunder Plans.",
+      "suggestions": "Suggest times to find and share secret tasks together.",
+      "notifications": "Choose your reminders and the alliance’s daily Plunder Plan summary."
+    },
+    "chooseCommander": "Which Commander will you be playing?",
+    "choosePlan": "Choose a Plunder Plan.",
+    "chooseSuggestion": "Pick a time to join.",
+    "chooseZone": "Choose your time zone so friends see the right time for your plan.",
+    "chooseColor": "Pick a color or enter a custom hex color.",
+    "help": "Use /plunder-plan to share your times, see who’s finding secret tasks, or join in.",
+    "previousPage": "Previous page", "nextPage": "Next page",
     "title": "Plunder Plan",
     "intro": "Find secret tasks, share them with friends, and give your alliance more to plunder. Pick a time that works for you or join a friend’s plan.",
     "visibility": "Your Commander’s name and planned times are visible to your alliance and may appear in its daily Discord summary.",

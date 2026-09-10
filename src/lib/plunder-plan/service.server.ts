@@ -123,7 +123,8 @@ export function parsePlanCommand(input: unknown): PlanCommand {
   if (typeof row.requestId !== "string" || !/^[a-zA-Z0-9_-]{12,100}$/.test(row.requestId)) throw new PlunderPlanError("invalidSchedule");
   if (row.action === "create") {
     if ((row.kind !== "plan" && row.kind !== "suggestion") || typeof row.reminder !== "boolean" || (row.kind === "plan" && typeof row.memberId !== "string") || (row.sourceId !== undefined && typeof row.sourceId !== "string")) throw new PlunderPlanError("invalidSchedule");
-    return { action: "create", requestId: row.requestId, kind: row.kind, memberId: row.memberId as string | undefined, sourceId: row.sourceId as string | undefined, schedule: parsePlanSchedule(row.schedule), reminder: row.reminder };
+    if (row.sourceVersion !== undefined && (!Number.isSafeInteger(row.sourceVersion) || Number(row.sourceVersion) < 1)) throw new PlunderPlanError("stale", 409);
+    return { action: "create", requestId: row.requestId, kind: row.kind, memberId: row.memberId as string | undefined, sourceId: row.sourceId as string | undefined, sourceVersion: row.sourceVersion as number | undefined, schedule: parsePlanSchedule(row.schedule), reminder: row.reminder };
   }
   if (!Number.isSafeInteger(row.expectedVersion) || Number(row.expectedVersion) < 0) throw new PlunderPlanError("stale", 409);
   const expectedVersion = Number(row.expectedVersion);
@@ -196,6 +197,7 @@ export async function mutatePlunderPlan(actor: PlanActor, input: unknown, intera
       if (command.sourceId) {
         const [source] = await tx.select().from(schema.plunderPlans).where(and(eq(schema.plunderPlans.id, command.sourceId), eq(schema.plunderPlans.allianceId, actor.allianceId), eq(schema.plunderPlans.kind, "suggestion"), eq(schema.plunderPlans.removed, false)));
         if (!source) throw new PlunderPlanError("notFound", 404);
+        if (command.sourceVersion !== undefined && command.sourceVersion !== source.version) throw new PlunderPlanError("stale", 409);
       }
       assertFuturePlan(command.schedule);
       const current = await tx.select().from(schema.plunderPlans).where(and(eq(schema.plunderPlans.allianceId, actor.allianceId), inArray(schema.plunderPlans.ownerId, identity.aliases), eq(schema.plunderPlans.removed, false)));
