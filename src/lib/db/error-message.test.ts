@@ -6,6 +6,7 @@ import {
   isDatabaseErrorTextLeakedToClient,
   isEncryptionKeyError,
   isMissingSchemaError,
+  isPostgresAuthError,
   postgresErrorCode,
   publicPairingCompleteFailureMessage,
   resolveDatabaseErrorPresentation,
@@ -78,6 +79,16 @@ describe("publicPairingCompleteFailureMessage", () => {
         new Error("ENOENT: /var/task/secrets/token.key"),
       ),
     ).toBe("Pairing failed.");
+  });
+});
+
+describe("isPostgresAuthError", () => {
+  it("detects 28P01 in wrapped errors", () => {
+    const pg = Object.assign(new Error("password authentication failed"), {
+      code: "28P01",
+    });
+    expect(isPostgresAuthError(new Error("Failed query", { cause: pg }))).toBe(true);
+    expect(isPostgresAuthError(new Error("too many clients"))).toBe(false);
   });
 });
 

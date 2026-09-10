@@ -29,6 +29,7 @@ const NATIVE_MODE_EXTRA_HREFS = new Set([
 ]);
 
 const NAV_ACTIONS: HotkeyActionDef[] = [
+  { id: "nav.plunderPlan", labelKey: "actions.nav.plunderPlan", category: "navigation", scope: "global", kind: "navigate", href: "/plunder-plan", requiredPermission: "plunder_plan:read" },
   {
     id: "nav.teamWork",
     labelKey: "actions.nav.teamWork",

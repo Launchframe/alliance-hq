@@ -464,6 +464,99 @@ export async function getMemberLinkHelpRequestById(
   return row ?? null;
 }
 
+/**
+ * Claim exclusive resolution of an open help request.
+ * Without CAS, concurrent link + dismiss (or two links to different
+ * commanders) can leave an HQ member rebinding while status ends dismissed,
+ * or silently overwrite linkedAshedMemberId after linkHqMember's update path.
+ */
+export async function claimOpenMemberLinkHelpRequest(input: {
+  requestId: string;
+  status: "resolved" | "dismissed";
+  resolvedByHqUserId: string;
+  linkedAshedMemberId?: string | null;
+  resolutionNote?: string | null;
+  now?: Date;
+}): Promise<
+  | { ok: true; request: typeof schema.hqMemberLinkHelpRequests.$inferSelect }
+  | {
+      ok: false;
+      reason: "not_found" | "already_closed";
+      request: typeof schema.hqMemberLinkHelpRequests.$inferSelect | null;
+    }
+> {
+  const db = getDb();
+  const now = input.now ?? new Date();
+  const patch: {
+    status: "resolved" | "dismissed";
+    resolvedAt: Date;
+    resolvedByHqUserId: string;
+    updatedAt: Date;
+    linkedAshedMemberId?: string | null;
+    resolutionNote?: string | null;
+  } = {
+    status: input.status,
+    resolvedAt: now,
+    resolvedByHqUserId: input.resolvedByHqUserId,
+    updatedAt: now,
+  };
+  if (input.linkedAshedMemberId !== undefined) {
+    patch.linkedAshedMemberId = input.linkedAshedMemberId;
+  }
+  if (input.resolutionNote !== undefined) {
+    patch.resolutionNote = input.resolutionNote?.trim() || null;
+  }
+
+  const [claimed] = await db
+    .update(schema.hqMemberLinkHelpRequests)
+    .set(patch)
+    .where(
+      and(
+        eq(schema.hqMemberLinkHelpRequests.id, input.requestId),
+        eq(schema.hqMemberLinkHelpRequests.status, "open"),
+      ),
+    )
+    .returning();
+
+  if (claimed) {
+    return { ok: true, request: claimed };
+  }
+
+  const current = await getMemberLinkHelpRequestById(input.requestId);
+  if (!current) {
+    return { ok: false, reason: "not_found", request: null };
+  }
+  return { ok: false, reason: "already_closed", request: current };
+}
+
+/** Restore open status after a lost/failed link that already claimed resolved. */
+export async function revertResolvedMemberLinkHelpClaim(input: {
+  requestId: string;
+  resolvedByHqUserId: string;
+}): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.hqMemberLinkHelpRequests)
+    .set({
+      status: "open",
+      linkedAshedMemberId: null,
+      resolvedAt: null,
+      resolvedByHqUserId: null,
+      resolutionNote: null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.hqMemberLinkHelpRequests.id, input.requestId),
+        eq(schema.hqMemberLinkHelpRequests.status, "resolved"),
+        eq(
+          schema.hqMemberLinkHelpRequests.resolvedByHqUserId,
+          input.resolvedByHqUserId,
+        ),
+      ),
+    );
+}
+
 export async function resolveMemberLinkHelpRequest(input: {
   requestId: string;
   allianceId?: string;
@@ -472,7 +565,6 @@ export async function resolveMemberLinkHelpRequest(input: {
   action: "resolve" | "dismiss";
   resolutionNote?: string | null;
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
-  const db = getDb();
   const row = await getMemberLinkHelpRequestById(input.requestId);
   if (!row) {
     return { ok: false, reason: "not_found" };
@@ -480,37 +572,42 @@ export async function resolveMemberLinkHelpRequest(input: {
   if (input.allianceId && row.allianceId !== input.allianceId) {
     return { ok: false, reason: "not_found" };
   }
+
+  const status: MemberLinkHelpStatus =
+    input.action === "resolve" ? "resolved" : "dismissed";
+
+  if (row.status === status) {
+    return { ok: true };
+  }
   if (row.status !== "open") {
     return { ok: false, reason: "already_closed" };
   }
 
-  const now = new Date();
-  const status: MemberLinkHelpStatus =
-    input.action === "resolve" ? "resolved" : "dismissed";
-
-  await db
-    .update(schema.hqMemberLinkHelpRequests)
-    .set({
-      status,
-      resolutionNote: input.resolutionNote?.trim() || null,
-      resolvedAt: now,
-      resolvedByHqUserId: input.resolvedByHqUserId,
-      updatedAt: now,
-    })
-    .where(eq(schema.hqMemberLinkHelpRequests.id, input.requestId));
+  const claimed = await claimOpenMemberLinkHelpRequest({
+    requestId: input.requestId,
+    status,
+    resolvedByHqUserId: input.resolvedByHqUserId,
+    resolutionNote: input.resolutionNote?.trim() || null,
+  });
+  if (!claimed.ok) {
+    if (claimed.request?.status === status) {
+      return { ok: true };
+    }
+    return { ok: false, reason: claimed.reason };
+  }
 
   await satisfyHelpInboxItem(input.requestId);
 
   await writeAuditLog({
     sessionId: input.sessionId,
-    allianceId: row.allianceId,
+    allianceId: claimed.request.allianceId,
     action: "member_link_help_resolved",
     resourceType: "hq_member_link_help_request",
     resourceId: input.requestId,
     metadata: {
       status,
-      origin: row.origin,
-      context: row.context,
+      origin: claimed.request.origin,
+      context: claimed.request.context,
     },
   });
 

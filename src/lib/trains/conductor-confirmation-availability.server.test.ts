@@ -28,7 +28,7 @@ vi.mock("@/lib/db", async (importOriginal) => {
         };
         return query;
       },
-      update: () => ({ set: (values: unknown) => ({ where: async () => { mocks.update(values); return []; } }) }),
+      update: () => ({ set: (values: unknown) => ({ where: () => { mocks.update(values); return { returning: async () => [{ id: "record-1" }] }; } }) }),
   };
   return { ...actual, getDb: () => ({ ...db, transaction: async <T>(work: (tx: typeof db) => Promise<T>): Promise<T> => work(db) }) };
 });
@@ -97,14 +97,15 @@ describe("conductor confirmation duty-date availability", () => {
   });
 
   it("uses only available R4 roster fallback candidates", async () => {
-    mocks.reads = [[{ ...pending, nominatedAt: new Date(0) }], []];
+    mocks.reads = [[{ ...pending, nominatedAt: new Date(0) }], [pending], []];
     mocks.availability.mockResolvedValue({ awayMemberIds: new Set(["away-r4"]) });
     mocks.roster.mockResolvedValue([
       { ashedMemberId: "away-r4", currentName: "Away", allianceRank: 4 },
       { ashedMemberId: "available-r5", currentName: "Available", allianceRank: 5 },
     ]);
     expect((await processConductorConfirmationTick()).fallbacks).toBe(1);
-    expect(mocks.draft).toHaveBeenCalledWith(expect.objectContaining({ conductorMemberId: "available-r5" }));
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ conductorMemberId: "available-r5", conductorNominationStatus: "fallback_r4" }));
+    expect(mocks.draft).not.toHaveBeenCalled();
   });
 
   it("does not report a fallback or release history when all leadership is away", async () => {

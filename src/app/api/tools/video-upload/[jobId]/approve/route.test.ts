@@ -33,7 +33,11 @@ beforeEach(() => {
   mocks.selectLimit.mockResolvedValue([job]);
   mocks.getAshedConnection.mockResolvedValue(null);
   mocks.loadAllianceVideoOcrContext.mockResolvedValue({ allianceOperatingMode: "native", allianceHqOcrOnly: false });
-  mocks.update.mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
+  mocks.update.mockReturnValue({
+    where: vi.fn().mockReturnValue({
+      returning: vi.fn().mockResolvedValue([{ id: job.id }]),
+    }),
+  });
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -44,6 +48,17 @@ describe("approve native VS", () => {
     expect(mocks.loadAllianceVideoOcrContext).toHaveBeenCalledWith(job.allianceId);
     expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ status: "queued", processingSessionId: "processor" }));
     expect(mocks.dispatchVideoProcessing).toHaveBeenCalledWith(job.id, { source: "approve" });
+  });
+
+  it("returns 409 when pending_approval CAS loses to concurrent reject", async () => {
+    mocks.update.mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([]),
+      }),
+    });
+    const res = await request();
+    expect(res.status).toBe(409);
+    expect(mocks.dispatchVideoProcessing).not.toHaveBeenCalled();
   });
 
   it.each([

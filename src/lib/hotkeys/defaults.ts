@@ -18,6 +18,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "global.focusSidebar": chord(".", ["meta"]),
   "global.connectAshed": seq("g", "k"),
 
+  "nav.plunderPlan": seq("g", "7"),
   "nav.supportTeams": seq("g", "5"),
   "nav.teamWork": seq("g", "6"),
   "nav.dashboard": seq("g", "d"),
