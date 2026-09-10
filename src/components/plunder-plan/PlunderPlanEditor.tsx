@@ -27,7 +27,7 @@ export function PlunderPlanEditor({ initial, commanders, suggestion, source, zon
   return <form className="space-y-4" onSubmit={async (event) => {
     event.preventDefault();
     if (preview.error) return;
-    await onSave(initial ? { action: "edit", id: initial.id, expectedVersion: initial.version, schedule, reminder } : { action: "create", kind: suggestion ? "suggestion" : "plan", ...(suggestion ? {} : { memberId }), ...(source ? { sourceId: source.id } : {}), schedule, reminder: !suggestion && reminder });
+    await onSave(initial ? { action: "edit", id: initial.id, expectedVersion: initial.version, schedule, reminder } : { action: "create", kind: suggestion ? "suggestion" : "plan", ...(suggestion ? {} : { memberId }), ...(source ? { sourceId: source.id, sourceVersion: source.version } : {}), schedule, reminder: !suggestion && reminder });
   }}>
     {!suggestion && <label className="block">{t("commander")}<select aria-label={t("commander")} className={inputClass} value={memberId} disabled={!!initial || busy} onChange={(e) => setMemberId(e.target.value)} required>{commanders.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label>}
     <label className="block">{t("scheduleType")}<select aria-label={t("scheduleType")} className={inputClass} value={schedule.kind} disabled={busy} onChange={(e) => patch({ kind: e.target.value as PlanSchedule["kind"] })}><option value="weekly">{t("weekly")}</option><option value="once">{t("once")}</option></select></label>

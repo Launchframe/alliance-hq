@@ -1,5 +1,27 @@
 {
   "plunderPlan": {
+    "commands": {
+      "root": "Conte à sua aliança quando você vai compartilhar tarefas secretas.",
+      "schedule": "Veja quem se ofereceu para encontrar tarefas secretas.",
+      "my-plans": "Veja e gerencie seus Planos de Saque.",
+      "plan": "Escolha um horário para encontrar e compartilhar tarefas secretas com os amigos.",
+      "join": "Participe de um horário sugerido para encontrar tarefas secretas juntos.",
+      "edit": "Altere os horários de um dos seus Planos de Saque.",
+      "skip": "Pule uma data de um dos seus Planos de Saque semanais.",
+      "pause": "Pause um dos seus Planos de Saque semanais.",
+      "resume": "Traga um Plano de Saque pausado de volta ao calendário.",
+      "remove": "Remova um dos seus Planos de Saque.",
+      "color": "Escolha uma cor no calendário para seus Planos de Saque.",
+      "suggestions": "Sugira horários para encontrar e compartilhar tarefas secretas juntos.",
+      "notifications": "Escolha seus lembretes e o resumo diário de Planos de Saque da aliança."
+    },
+    "chooseCommander": "Com qual Comandante você vai jogar?",
+    "choosePlan": "Escolha um Plano de Saque.",
+    "chooseSuggestion": "Escolha um horário para participar.",
+    "chooseZone": "Escolha seu fuso horário para que os amigos vejam o horário certo do seu plano.",
+    "chooseColor": "Escolha uma cor ou informe uma cor hexadecimal personalizada.",
+    "help": "Use /plunder-plan para compartilhar seus horários, ver quem procura tarefas secretas ou participar.",
+    "previousPage": "Página anterior", "nextPage": "Próxima página",
     "title": "Plano de Saque",
     "intro": "Encontre tarefas secretas, compartilhe com os amigos e dê à sua aliança mais oportunidades de saque. Escolha um horário que combine com você ou participe do plano de um amigo.",
     "visibility": "O nome do seu Comandante e os horários planejados ficam visíveis para sua aliança e podem aparecer no resumo diário dela no Discord.",
