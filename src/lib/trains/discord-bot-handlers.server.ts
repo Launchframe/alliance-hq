@@ -1,4 +1,5 @@
 import "server-only";
+import { boardingDiscordPrompt } from "./boarding.discord.server";
 
 import { CoverageConflictError } from "@/lib/time-off/coverage.server";
 import type { CoverageConflict } from "@/lib/time-off/coverage.shared";
@@ -27,6 +28,7 @@ import { findFuzzyMemberCandidates } from "@/lib/video/member-matcher";
 
 export type TrainBotReply = {
   reply: string;
+  boardingPrompt?: Awaited<ReturnType<typeof boardingDiscordPrompt>>;
   coverage?: { conflicts: CoverageConflict[]; action: "pick" | "lock"; date: string; memberId?: string; memberName?: string };
   pickCandidates?: Array<{ memberId: string; name: string; date: string }>;
   pendingPick?: { memberId: string; memberName: string; date: string };
@@ -335,7 +337,7 @@ export async function handleDiscordTrainIsReady(input: {
       payload: { date, announce },
       result: { reply },
     });
-    return { reply };
+    return { reply, boardingPrompt: await boardingDiscordPrompt({ ...input, recordId: record.id }) };
   } catch (error) {
     if (error instanceof CoverageConflictError) return { reply: t("teamWork.keepHint"), coverage: { conflicts: error.conflicts, action: "lock", date } };
     const message =

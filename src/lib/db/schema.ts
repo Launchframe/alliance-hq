@@ -19,6 +19,98 @@ import type { SupportBoard, SupportEvent, SupportValue } from "@/lib/support-tea
 import type { SupportDisplayPreferences } from "@/lib/support-teams/display-preferences.shared";
 import type { TeamWorkDetail } from "@/lib/support-teams/work-routing.shared";
 import type { PlanSchedule } from "@/lib/plunder-plan/schedule.shared";
+import type { CalendarEvent, CalendarSource } from "@/lib/calendar/types.shared";
+
+export const trainBoardingWindows = pgTable("train_boarding_windows", {
+  recordId: text("record_id").primaryKey().references(() => trainConductorRecords.id, { onDelete: "cascade" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  lockAt: timestamp("lock_at", { withTimezone: true }).notNull(),
+  status: text("status").notNull().default("pending"),
+  startsAt: timestamp("starts_at", { withTimezone: true }),
+  endsAt: timestamp("ends_at", { withTimezone: true }),
+  basis: text("basis"),
+  observedAt: timestamp("observed_at", { withTimezone: true }),
+  remainingSeconds: integer("remaining_seconds"),
+  version: integer("version").notNull().default(1),
+  requestId: text("request_id"),
+  requestHash: text("request_hash"),
+  actorId: text("actor_id"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("train_boarding_alliance_idx").on(t.allianceId, t.status)]);
+
+export const trainBoardingPrompts = pgTable("train_boarding_prompts", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  recordId: text("record_id").notNull().references(() => trainConductorRecords.id, { onDelete: "cascade" }),
+  guildId: text("guild_id").notNull(),
+  discordUserId: text("discord_user_id").notNull(),
+  state: jsonb("state").$type<{ clockToken: string; version: number; serverNow: string; observedAt?: number; countdown?: string | null }>().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export const calendarPreferences = pgTable("calendar_preferences", {
+  hqUserId: text("hq_user_id").primaryKey().references(() => hqUsers.id, { onDelete: "cascade" }),
+  alerts: jsonb("alerts").$type<number[]>().notNull().default([]),
+  locale: text("locale").notNull().default("en-US"),
+  timezone: text("timezone").notNull().default("UTC"),
+  version: integer("version").notNull().default(1),
+});
+
+export const calendarAccounts = pgTable("calendar_accounts", {
+  id: text("id").primaryKey(),
+  hqUserId: text("hq_user_id").notNull().unique().references(() => hqUsers.id, { onDelete: "cascade" }),
+  subject: text("subject").notNull(),
+  email: text("email").notNull(),
+  refreshToken: text("refresh_token"),
+  accessToken: text("access_token"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  status: text("status").notNull().default("connected"),
+  version: integer("version").notNull().default(1),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const calendarOauthStates = pgTable("calendar_oauth_states", {
+  hash: text("hash").primaryKey(),
+  hqUserId: text("hq_user_id").notNull().references(() => hqUsers.id, { onDelete: "cascade" }),
+  secret: text("secret").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export const calendarTargets = pgTable("calendar_targets", {
+  id: text("id").primaryKey(),
+  hqUserId: text("hq_user_id").notNull().references(() => hqUsers.id, { onDelete: "cascade" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  sources: jsonb("sources").$type<CalendarSource[]>().notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  version: integer("version").notNull().default(1),
+  feedHash: text("feed_hash").unique(),
+  feedSecret: text("feed_secret"),
+  remoteCalendarId: text("remote_calendar_id"),
+  accountId: text("account_id").references(() => calendarAccounts.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("pending"),
+  cleanup: boolean("cleanup").notNull().default(false),
+  leaseToken: text("lease_token"),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  nextSyncAt: timestamp("next_sync_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+  lastFetchAt: timestamp("last_fetch_at", { withTimezone: true }),
+  failureCount: integer("failure_count").notNull().default(0),
+}, (t) => [unique("calendar_target_owner_alliance_provider").on(t.hqUserId, t.allianceId, t.provider), index("calendar_target_due_idx").on(t.provider, t.nextSyncAt)]);
+
+export const calendarEntries = pgTable("calendar_entries", {
+  targetId: text("target_id").notNull().references(() => calendarTargets.id, { onDelete: "cascade" }),
+  key: text("key").notNull(),
+  uid: text("uid").notNull(),
+  payload: jsonb("payload").$type<CalendarEvent>().notNull(),
+  fingerprint: text("fingerprint").notNull(),
+  revision: integer("revision").notNull().default(1),
+  cancelled: boolean("cancelled").notNull().default(false),
+  remoteId: text("remote_id"),
+  remoteGeneration: integer("remote_generation").notNull().default(0),
+  appliedRevision: integer("applied_revision").notNull().default(0),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.targetId, t.key] })]);
 
 export const plunderPlans = pgTable("plunder_plans", {
   id: text("id").primaryKey(),
