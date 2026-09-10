@@ -7,7 +7,8 @@ import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import {
   getConductorRecord,
   lockConductorRecord,
-  markConductorDepartingSoonAnnounced,
+  claimConductorDepartingSoonAnnounced,
+  clearConductorDepartingSoonAnnounced,
 } from "@/lib/trains/repository";
 import { getServerCalendarDate, refreshExhaustedPoolsForDay } from "@/lib/trains/service";
 import {
@@ -245,6 +246,15 @@ export async function processDepartingSoonReminders(): Promise<{
       trainsUrl: trainsUrlForLocale(),
     });
 
+    const claimed = await claimConductorDepartingSoonAnnounced(
+      record.id,
+      allianceId,
+    );
+    if (!claimed) {
+      skipped += channels.length;
+      continue;
+    }
+
     let alliancePosted = 0;
     for (const channel of channels) {
       const ok = await postDiscordChannelMessage(channel.channelId, message);
@@ -256,8 +266,9 @@ export async function processDepartingSoonReminders(): Promise<{
     }
 
     if (alliancePosted > 0) {
-      await markConductorDepartingSoonAnnounced(record.id, allianceId);
       posted += alliancePosted;
+    } else {
+      await clearConductorDepartingSoonAnnounced(record.id, allianceId);
     }
   }
 

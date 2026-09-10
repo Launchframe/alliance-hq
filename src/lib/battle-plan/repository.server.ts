@@ -7,6 +7,7 @@ import {
   serializeBattlePlanSettings,
   serializeCaptureEvent,
 } from "@/lib/battle-plan/api.shared";
+import { shouldRejectCancelOfNonScheduled } from "@/lib/battle-plan/cancel-after-confirm.shared";
 import type { CaptureEventLimitRow } from "@/lib/battle-plan/server-day-limits.shared";
 import { validateServerDayCaptureLimit } from "@/lib/battle-plan/server-day-limits.shared";
 import { formatServerCalendarDate } from "@/lib/trains/game-time";
@@ -23,6 +24,15 @@ export class BattlePlanRevisionConflictError extends Error {
   constructor() {
     super("Battle plan was updated by another officer.");
     this.name = "BattlePlanRevisionConflictError";
+  }
+}
+
+export class BattlePlanEventConflictError extends Error {
+  readonly code = "event_conflict" as const;
+
+  constructor(message = "Capture event was updated by another officer.") {
+    super(message);
+    this.name = "BattlePlanEventConflictError";
   }
 }
 
@@ -260,6 +270,28 @@ export async function updateCaptureEvent(
   return db.transaction(async (tx) => {
     await bumpBattlePlanRevisionWith(tx, allianceId, body.planRevision);
 
+    const [existing] = await tx
+      .select()
+      .from(schema.battlePlanCaptureEvents)
+      .where(
+        and(
+          eq(schema.battlePlanCaptureEvents.id, eventId),
+          eq(schema.battlePlanCaptureEvents.allianceId, allianceId),
+        ),
+      )
+      .limit(1)
+      .for("update");
+
+    if (!existing) {
+      throw new Error("Capture event not found.");
+    }
+
+    if (shouldRejectCancelOfNonScheduled(body.status, existing.status)) {
+      throw new BattlePlanEventConflictError(
+        "Capture event was already confirmed or is no longer scheduled.",
+      );
+    }
+
     if (eventType === "capture") {
       const limitRows = await listLimitRowsWith(tx, allianceId);
       const limitError = validateServerDayCaptureLimit({
@@ -280,6 +312,10 @@ export async function updateCaptureEvent(
       eventId,
     );
 
+    // Preserve an established bank link when a stale client omits bankId
+    // (e.g. cancel raced behind confirm-capture).
+    const bankId = body.bankId ?? existing.bankId ?? null;
+
     const updated = await tx
       .update(schema.battlePlanCaptureEvents)
       .set({
@@ -291,7 +327,7 @@ export async function updateCaptureEvent(
         capturePolicy: body.capturePolicy ?? null,
         notes: body.notes?.trim() || null,
         status: body.status ?? "scheduled",
-        bankId: body.bankId ?? null,
+        bankId,
         gameServerNumber: body.gameServerNumber ?? null,
         coordX: body.coordX ?? null,
         coordY: body.coordY ?? null,

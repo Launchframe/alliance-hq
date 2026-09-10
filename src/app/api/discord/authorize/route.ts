@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 
+import { auth } from "@/lib/auth";
+import { getDiscordProviderAccountIdForHqUser } from "@/lib/auth/discord-hq-link.server";
 import { parseConnectionInput } from "@/lib/connectionString";
 import { requireApiSession } from "@/lib/session";
 import {
-  consumeDiscordAuthNonce,
+  claimDiscordAuthNonce,
   getValidDiscordAuthNonce,
+  releaseDiscordAuthNonce,
 } from "@/lib/vr/auth-nonce";
 import { setupAshedCredentialsForDiscord } from "@/lib/vr/discord-ashed-credential-setup.server";
 
@@ -59,6 +62,43 @@ export async function POST(request: Request) {
     );
   }
 
+  // Bind redeeming HQ session to the Discord user who minted the nonce.
+  // Without this, a phished Ashed owner connection key on an attacker's
+  // /link-ashed URL would store credentials under the attacker's Discord id
+  // (credential_registrant → /link-alliance).
+  const authSession = await auth();
+  const hqUserId = authSession?.user?.id?.trim();
+  if (!hqUserId) {
+    return NextResponse.json(
+      {
+        error:
+          "Sign in to Alliance HQ with Discord before connecting Ashed credentials.",
+      },
+      { status: 401 },
+    );
+  }
+
+  const discordAccountId = await getDiscordProviderAccountIdForHqUser(hqUserId);
+  if (!discordAccountId) {
+    return NextResponse.json(
+      {
+        error:
+          "Sign in with Discord (not email or Google) to finish connecting Ashed credentials.",
+      },
+      { status: 403 },
+    );
+  }
+
+  if (discordAccountId !== nonceRow.discordUserId) {
+    return NextResponse.json(
+      {
+        error:
+          "You signed in with a different Discord account than the one that ran /link-ashed. Return to Discord, run /link-ashed again, and sign in with the same Discord account.",
+      },
+      { status: 403 },
+    );
+  }
+
   const connectionKey = body.connectionKey?.trim();
   if (!connectionKey) {
     return NextResponse.json(
@@ -75,24 +115,39 @@ export async function POST(request: Request) {
     );
   }
 
-  const browserSession = sessionOrError;
-
-  const result = await setupAshedCredentialsForDiscord({
-    allianceTag: nonceRow.tag,
-    connectionKey,
-    discordUserId: nonceRow.discordUserId,
-    sessionExpiresAt: browserSession.expiresAt,
-  });
-
-  if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+  const claimed = await claimDiscordAuthNonce(nonce);
+  if (!claimed) {
+    return NextResponse.json(
+      {
+        error:
+          "Link expired or already used. Return to Discord and run the setup command again.",
+      },
+      { status: 410 },
+    );
   }
 
-  await consumeDiscordAuthNonce(nonceRow.id);
+  const browserSession = sessionOrError;
 
-  return NextResponse.json({
-    ok: true,
-    purpose: "alliance_credentials" as const,
-    tag: result.tag,
-  });
+  try {
+    const result = await setupAshedCredentialsForDiscord({
+      allianceTag: claimed.tag,
+      connectionKey,
+      discordUserId: claimed.discordUserId,
+      sessionExpiresAt: browserSession.expiresAt,
+    });
+
+    if (!result.ok) {
+      await releaseDiscordAuthNonce(claimed.id);
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      purpose: "alliance_credentials" as const,
+      tag: result.tag,
+    });
+  } catch (error) {
+    await releaseDiscordAuthNonce(claimed.id);
+    throw error;
+  }
 }

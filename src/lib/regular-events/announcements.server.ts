@@ -30,8 +30,11 @@ import {
   listDueRegularEventOccurrences,
   listDueRegularEventScheduleReminders,
   listDueRegularEventUploadReminders,
+  claimRegularEventOccurrenceAnnounced,
+  claimRegularEventOccurrenceScheduleReminded,
+  clearRegularEventOccurrenceAnnounced,
+  clearRegularEventOccurrenceScheduleReminded,
   markRegularEventOccurrenceAnnounced,
-  markRegularEventOccurrenceScheduleReminded,
   markRegularEventOccurrenceUploadReminded,
 } from "@/lib/regular-events/repository.server";
 import { announceAtFromStart } from "@/lib/regular-events/schedule.shared";
@@ -308,7 +311,19 @@ export async function processDueRegularEventAnnouncements(
 
   for (const occurrence of due) {
     if (!enabledIds.has(occurrence.allianceId)) {
+      // Intentional skip — announcements disabled; do not retry Discord.
       await markRegularEventOccurrenceAnnounced(occurrence.id, now);
+      skipped += 1;
+      continue;
+    }
+
+    // Claim before post so concurrent crons cannot double-post, and so a
+    // total Discord failure can clear the claim for retry (no permanent skip).
+    const claimed = await claimRegularEventOccurrenceAnnounced(
+      occurrence.id,
+      now,
+    );
+    if (!claimed) {
       skipped += 1;
       continue;
     }
@@ -328,16 +343,25 @@ export async function processDueRegularEventAnnouncements(
 
     const channels = channelsByAlliance.get(occurrence.allianceId) ?? [];
     if (channels.length === 0) {
+      // No channel configured — keep claim (inbox delivered; nothing to retry).
       skipped += 1;
-    } else {
-      for (const channelId of channels) {
-        const ok = await postDiscordChannelMessage(channelId, message);
-        if (ok) posted += 1;
-        else skipped += 1;
+      continue;
+    }
+
+    let occurrencePosted = 0;
+    for (const channelId of channels) {
+      const ok = await postDiscordChannelMessage(channelId, message);
+      if (ok) {
+        posted += 1;
+        occurrencePosted += 1;
+      } else {
+        skipped += 1;
       }
     }
 
-    await markRegularEventOccurrenceAnnounced(occurrence.id, now);
+    if (occurrencePosted === 0) {
+      await clearRegularEventOccurrenceAnnounced(occurrence.id);
+    }
   }
 
   return { posted, skipped, inbox };
@@ -353,21 +377,40 @@ export async function processDueRegularEventScheduleReminders(
   let scheduleSkipped = 0;
 
   for (const occurrence of due) {
+    const claimed = await claimRegularEventOccurrenceScheduleReminded(
+      occurrence.id,
+      now,
+    );
+    if (!claimed) {
+      scheduleSkipped += 1;
+      continue;
+    }
+
     const message = formatRegularEventScheduleInGameReminder({
       eventKey: occurrence.eventKey,
       scheduledStartAt: occurrence.scheduledStartAt,
     });
     const channels = channelsByAlliance.get(occurrence.allianceId) ?? [];
     if (channels.length === 0) {
+      // Nothing to post; keep claim so we do not spin forever.
       scheduleSkipped += 1;
-    } else {
-      for (const channelId of channels) {
-        const ok = await postDiscordChannelMessage(channelId, message);
-        if (ok) schedulePosted += 1;
-        else scheduleSkipped += 1;
+      continue;
+    }
+
+    let occurrencePosted = 0;
+    for (const channelId of channels) {
+      const ok = await postDiscordChannelMessage(channelId, message);
+      if (ok) {
+        schedulePosted += 1;
+        occurrencePosted += 1;
+      } else {
+        scheduleSkipped += 1;
       }
     }
-    await markRegularEventOccurrenceScheduleReminded(occurrence.id, now);
+
+    if (occurrencePosted === 0) {
+      await clearRegularEventOccurrenceScheduleReminded(occurrence.id);
+    }
   }
 
   return { schedulePosted, scheduleSkipped };
