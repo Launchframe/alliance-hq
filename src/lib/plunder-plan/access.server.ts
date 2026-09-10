@@ -27,7 +27,12 @@ export async function resolvePlanIdentity(tx: PlanTx, actor: PlanActor): Promise
   if (actor.kind === "web") {
     const [session] = await tx.select().from(schema.sessions).where(and(eq(schema.sessions.id, actor.sessionId), eq(schema.sessions.hqUserId, actor.hqUserId), eq(schema.sessions.currentAllianceId, actor.allianceId), gt(schema.sessions.expiresAt, new Date()))).for("share");
     if (!session) throw new PlunderPlanError("forbidden", 403);
-    const memberships = await tx.select({ roleId: schema.allianceMemberships.roleId }).from(schema.allianceMemberships).where(and(eq(schema.allianceMemberships.hqUserId, actor.hqUserId), eq(schema.allianceMemberships.allianceId, actor.allianceId), eq(schema.allianceMemberships.status, "active"))).for("share");
+    const memberships = await tx.select({ roleId: schema.allianceMemberships.roleId, source: schema.allianceMemberships.source }).from(schema.allianceMemberships).where(and(eq(schema.allianceMemberships.hqUserId, actor.hqUserId), eq(schema.allianceMemberships.allianceId, actor.allianceId), eq(schema.allianceMemberships.status, "active"))).for("share");
+    if (memberships.some((membership) => membership.source === "ashed")) {
+      const credentials = await tx.select({ userId: schema.ashedCredentials.ashedUserId }).from(schema.ashedCredentials).where(eq(schema.ashedCredentials.sessionId, actor.sessionId)).for("share");
+      const [user] = await tx.select({ userId: schema.hqUsers.ashedUserId }).from(schema.hqUsers).where(eq(schema.hqUsers.id, actor.hqUserId)).for("share");
+      if (credentials.some((credential) => credential.userId && credential.userId !== user?.userId)) throw new PlunderPlanError("forbidden", 403);
+    }
     const grants = memberships.length ? await tx.select({ permission: schema.rolePermissions.permissionId }).from(schema.rolePermissions).where(inArray(schema.rolePermissions.roleId, memberships.map((row) => row.roleId))).for("share") : [];
     if (!grants.some((row) => row.permission === "plunder_plan:read")) throw new PlunderPlanError("forbidden", 403);
     canSuggest = grants.some((row) => row.permission === "plunder_plan:suggest");

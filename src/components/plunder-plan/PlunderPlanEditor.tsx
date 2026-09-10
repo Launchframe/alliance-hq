@@ -6,9 +6,9 @@ import { expandPlan, parsePlanSchedule, PlanScheduleError, type PlanSchedule } f
 import type { PlanSummary } from "@/lib/plunder-plan/types.shared";
 
 const inputClass = "w-full rounded border border-hq-border bg-hq-canvas p-2 text-hq-fg";
-export function PlunderPlanEditor({ initial, commanders, suggestion, source, zone, date, busy, onSave }: {
+export function PlunderPlanEditor({ initial, commanders, suggestion, source, zone, date, busy, discordLinked, onSave }: {
   initial?: PlanSummary; commanders: { id: string; name: string }[]; suggestion: boolean; source?: PlanSummary;
-  zone: string; date: string; busy: boolean; onSave: (body: Record<string, unknown>) => Promise<void>;
+  zone: string; date: string; busy: boolean; discordLinked: boolean; onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
   const t = useTranslations("plunderPlan");
   const locale = useLocale();
@@ -39,6 +39,7 @@ export function PlunderPlanEditor({ initial, commanders, suggestion, source, zon
     <p className="text-sm text-hq-fg-muted">{t("zoneHint")}</p>
     <p className="text-sm text-hq-fg-muted">{t("dstHint")}</p>
     {!suggestion && <label className="block"><input type="checkbox" checked={reminder} disabled={busy} onChange={(e) => setReminder(e.target.checked)} /> {t("notifications.private")}<span className="block text-sm text-hq-fg-muted">{t("notifications.privateHint")}</span></label>}
+    {!suggestion && reminder && !discordLinked && <p>{t("notifications.linkMissing")}</p>}
     <section aria-label={t("preview")}><h3 className="font-semibold">{t("preview")}</h3>{preview.error ? <p role="alert">{t(`errors.${preview.error}`)}</p> : <ul className="text-sm">{preview.occurrences.slice(0, 8).map((occurrence) => <li key={occurrence.key}>{format(occurrence.startAt)} – {format(occurrence.endAt)}</li>)}</ul>}{preview.skippedDates.map((day) => <p key={day}>{day}: {t("dstSkipped")}</p>)}</section>
     <p className="text-sm">{t(suggestion ? "suggestionIndependent" : "visibility")}</p>
     <button className="min-h-11 rounded bg-hq-accent px-4 text-hq-canvas disabled:opacity-50" disabled={busy || !!preview.error || (!suggestion && !memberId)}>{t("save")}</button>
