@@ -22,6 +22,12 @@ import {
   materializeOfficerActionItemDueInboxItem,
 } from "@/lib/officer-intel/action-item-inbox.server";
 import {
+  dropOfficerActionItemChunks,
+  indexOfficerActionItemChunk,
+  indexOfficerMeetingNoteChunks,
+} from "@/lib/officer-intel/embed-corpus.server";
+import { shouldIndexOfficerIntelNoteCorpus } from "@/lib/officer-intel/thread-access.shared";
+import {
   extensionForOfficerIntelMime,
   officerIntelImageStorageKey,
 } from "@/lib/officer-intel/storage.shared";
@@ -376,6 +382,27 @@ function mapActionItemRow(
   };
 }
 
+async function resolveOfficerSessionLocaleCode(input: {
+  sessionId: string;
+  allianceId: string;
+}): Promise<string> {
+  const messages = await listOfficerChatMessages(input);
+  if (messages.length === 0) return "en-US";
+  const counts = new Map<string, number>();
+  for (const message of messages) {
+    counts.set(message.localeCode, (counts.get(message.localeCode) ?? 0) + 1);
+  }
+  let best = "en-US";
+  let bestCount = 0;
+  for (const [locale, localeCount] of counts) {
+    if (localeCount > bestCount) {
+      best = locale;
+      bestCount = localeCount;
+    }
+  }
+  return best;
+}
+
 export async function getOfficerMeetingNoteForAlliance(input: {
   noteId: string;
   allianceId: string;
@@ -392,6 +419,67 @@ export async function getOfficerMeetingNoteForAlliance(input: {
     )
     .limit(1);
   return row ? mapMeetingNoteRow(row) : null;
+}
+
+export async function listApprovedOfficerMeetingNotesForAlliance(
+  allianceId: string,
+): Promise<OfficerMeetingNoteSummary[]> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(schema.officerMeetingNotes)
+    .where(
+      and(
+        eq(schema.officerMeetingNotes.allianceId, allianceId),
+        eq(schema.officerMeetingNotes.status, "approved"),
+      ),
+    )
+    .orderBy(desc(schema.officerMeetingNotes.approvedAt));
+  return rows.map((row) => mapMeetingNoteRow(row));
+}
+
+export async function indexOfficerApprovedNoteCorpus(input: {
+  allianceId: string;
+  noteId: string;
+}): Promise<void> {
+  const note = await getOfficerMeetingNoteForAlliance({
+    noteId: input.noteId,
+    allianceId: input.allianceId,
+  });
+  if (!note || note.status !== "approved") return;
+
+  const session = await getOfficerChatSessionForAlliance({
+    sessionId: note.sessionId,
+    allianceId: input.allianceId,
+  });
+  if (!session) return;
+
+  const localeCode = await resolveOfficerSessionLocaleCode({
+    sessionId: note.sessionId,
+    allianceId: input.allianceId,
+  });
+  await indexOfficerMeetingNoteChunks({
+    allianceId: input.allianceId,
+    note,
+    session,
+    localeCode,
+    approvedAt: note.approvedAt ? new Date(note.approvedAt) : null,
+  });
+
+  const items = await listOfficerActionItemsForNote({
+    noteId: note.id,
+    allianceId: input.allianceId,
+  });
+  await Promise.all(
+    items.map((item) =>
+      indexOfficerActionItemChunk({
+        allianceId: input.allianceId,
+        item,
+        session,
+        localeCode,
+      }),
+    ),
+  );
 }
 
 export async function getOfficerMeetingNoteBySession(input: {
@@ -608,6 +696,15 @@ export async function persistOfficerSynthesisResult(input: {
       ),
   );
 
+  await Promise.all(
+    previousItems.map((item) =>
+      dropOfficerActionItemChunks({
+        allianceId: input.allianceId,
+        actionItemId: item.id,
+      }),
+    ),
+  );
+
   return { noteId };
 }
 
@@ -650,6 +747,22 @@ export async function updateOfficerMeetingNote(input: {
       updatedAt: now,
     })
     .where(eq(schema.officerMeetingNotes.id, input.noteId));
+
+  if (
+    shouldIndexOfficerIntelNoteCorpus({
+      approve: input.approve,
+      existingStatus: existing.status,
+    })
+  ) {
+    try {
+      await indexOfficerApprovedNoteCorpus({
+        allianceId: input.allianceId,
+        noteId: input.noteId,
+      });
+    } catch (error) {
+      console.error("[officer-intel] Failed to index approved meeting note:", error);
+    }
+  }
 
   return { ok: true };
 }
@@ -739,7 +852,28 @@ export async function updateOfficerActionItem(input: {
     input.allianceId,
     updated.assigneeAllianceMemberId ? [updated.assigneeAllianceMemberId] : [],
   );
-  return { ok: true, item: mapActionItemRow(updated, names) };
+  const item = mapActionItemRow(updated, names);
+
+  try {
+    const session = await getOfficerChatSessionForAlliance({
+      sessionId: updated.sessionId,
+      allianceId: input.allianceId,
+    });
+    const localeCode = await resolveOfficerSessionLocaleCode({
+      sessionId: updated.sessionId,
+      allianceId: input.allianceId,
+    });
+    await indexOfficerActionItemChunk({
+      allianceId: input.allianceId,
+      item,
+      session,
+      localeCode,
+    });
+  } catch (error) {
+    console.error("[officer-intel] Failed to index action item chunk:", error);
+  }
+
+  return { ok: true, item };
 }
 
 export async function getOfficerActionItemForAlliance(input: {
@@ -763,4 +897,30 @@ export async function getOfficerActionItemForAlliance(input: {
     row.assigneeAllianceMemberId ? [row.assigneeAllianceMemberId] : [],
   );
   return mapActionItemRow(row, names);
+}
+
+export async function indexOfficerOpenActionItemById(input: {
+  allianceId: string;
+  actionItemId: string;
+}): Promise<void> {
+  const item = await getOfficerActionItemForAlliance({
+    actionItemId: input.actionItemId,
+    allianceId: input.allianceId,
+  });
+  if (!item) return;
+
+  const session = await getOfficerChatSessionForAlliance({
+    sessionId: item.sessionId,
+    allianceId: input.allianceId,
+  });
+  const localeCode = await resolveOfficerSessionLocaleCode({
+    sessionId: item.sessionId,
+    allianceId: input.allianceId,
+  });
+  await indexOfficerActionItemChunk({
+    allianceId: input.allianceId,
+    item,
+    session,
+    localeCode,
+  });
 }

@@ -9,6 +9,7 @@ import {
   countOpenOfficerActionItems,
   listOfficerChatSessions,
 } from "@/lib/officer-intel/repository.server";
+import { countApprovedOfficerMeetingNotes } from "@/lib/officer-intel/retrieve-corpus.server";
 import type { OfficerIntelDashboardPayload } from "@/lib/officer-intel/types.shared";
 import { isOfficerIntelLlmConfigured } from "@/lib/officer-intel/llm-config.server";
 import { isTranslationConfigured } from "@/lib/translate/translate.server";
@@ -29,6 +30,7 @@ export async function loadOfficerIntelDashboard(
   );
   const sessions = await listOfficerChatSessions(allianceId);
   const openActionItemCount = await countOpenOfficerActionItems(allianceId);
+  const approvedNoteCount = await countApprovedOfficerMeetingNotes(allianceId);
 
   return {
     sessions,
@@ -36,5 +38,6 @@ export async function loadOfficerIntelDashboard(
     translationConfigured: isTranslationConfigured(),
     llmConfigured: isOfficerIntelLlmConfigured(),
     openActionItemCount,
+    approvedNoteCount,
   };
 }

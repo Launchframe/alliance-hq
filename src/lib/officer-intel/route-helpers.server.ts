@@ -1,21 +1,19 @@
 import { NextResponse } from "next/server";
 
-import { getOrCreateSession, readSessionId } from "@/lib/session";
 import {
   OFFICER_INTEL_READ_PERMISSION,
   OFFICER_INTEL_WRITE_PERMISSION,
 } from "@/lib/rbac/constants";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
+import { requireApiSession } from "@/lib/session";
 
 export async function requireOfficerIntelAllianceContext() {
-  const sessionId = await readSessionId();
-  if (!sessionId) {
-    return {
-      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-    };
+  const sessionOrError = await requireApiSession();
+  if (sessionOrError instanceof NextResponse) {
+    return { error: sessionOrError };
   }
 
-  const session = await getOrCreateSession();
+  const session = sessionOrError;
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId) {
     return {
@@ -26,7 +24,7 @@ export async function requireOfficerIntelAllianceContext() {
     };
   }
 
-  return { sessionId, session, allianceId };
+  return { sessionId: session.id, session, allianceId };
 }
 
 export async function requireOfficerIntelRead(sessionId: string) {
