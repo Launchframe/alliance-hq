@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { splitCommanderNames } from "@/lib/performance-notes/names.shared";
 import { decideNameMatch } from "@/lib/performance-notes/match.shared";
-import { parsePerformanceNotesPending } from "@/lib/performance-notes/pending-state";
+import {
+  parsePerformanceNotesPending,
+  parsePerformanceNotesPendingForAlliance,
+} from "@/lib/performance-notes/pending-state";
 import type { AshedMember } from "@/lib/video/member-matcher";
 
 const roster: AshedMember[] = [
@@ -36,7 +39,7 @@ describe("decideNameMatch", () => {
   });
 
   it("asks for clarification on a weak unique fuzzy hit", () => {
-    const decision = decideNameMatch("Cooki", roster);
+    const decision = decideNameMatch("Coo", roster);
     expect(decision.action).toBe("clarify");
     if (decision.action === "clarify") {
       expect(decision.candidates[0]?.memberId).toBe("m1");
@@ -60,5 +63,22 @@ describe("parsePerformanceNotesPending", () => {
 
   it("rejects unknown kinds", () => {
     expect(parsePerformanceNotesPending({ kind: "nope" })).toBeNull();
+  });
+
+  it("ignores pending from another alliance guild", () => {
+    expect(
+      parsePerformanceNotesPendingForAlliance({
+        pending: { kind: "perf_note_attach", noteId: "n1" },
+        pendingAllianceId: "alliance-a",
+        guildAllianceId: "alliance-b",
+      }),
+    ).toBeNull();
+    expect(
+      parsePerformanceNotesPendingForAlliance({
+        pending: { kind: "perf_note_attach", noteId: "n1" },
+        pendingAllianceId: "alliance-a",
+        guildAllianceId: "alliance-a",
+      }),
+    ).toEqual({ kind: "perf_note_attach", noteId: "n1" });
   });
 });

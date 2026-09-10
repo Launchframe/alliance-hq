@@ -48,6 +48,15 @@ function parseResolved(value: unknown): Array<{ memberId: string; nameRaw: strin
     .filter((row): row is { memberId: string; nameRaw: string } => row != null);
 }
 
+export function parsePerformanceNotesPendingForAlliance(input: {
+  pending: unknown;
+  pendingAllianceId: string;
+  guildAllianceId: string;
+}): PerformanceNotesPendingState | null {
+  if (input.pendingAllianceId !== input.guildAllianceId) return null;
+  return parsePerformanceNotesPending(input.pending);
+}
+
 export function parsePerformanceNotesPending(
   value: unknown,
 ): PerformanceNotesPendingState | null {

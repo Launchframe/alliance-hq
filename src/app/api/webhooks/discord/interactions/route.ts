@@ -137,7 +137,7 @@ import {
 import { handleDiscordTimeOff, openDiscordTimeOffModal } from "@/lib/time-off/discord-bot-handlers.server";
 import { isDiscordTimeOffSlashCommand } from "@/lib/time-off/discord-command-names";
 import { timeOffComponentNeedsModal } from "@/lib/time-off/discord-workflow.shared";
-import { parsePerformanceNotesPending } from "@/lib/performance-notes/pending-state";
+import { parsePerformanceNotesPendingForAlliance } from "@/lib/performance-notes/pending-state";
 import {
   handlePerformanceBatchSlash,
   handlePerformanceNoteAttachChoice,
@@ -1031,7 +1031,11 @@ async function handleButton(payload: DiscordInteractionPayload) {
     parsed.kind === "note_skip"
   ) {
     const pendingRow = await getDiscordBotPending(discordUserId);
-    const pending = parsePerformanceNotesPending(pendingRow?.pending ?? null);
+    const pending = parsePerformanceNotesPendingForAlliance({
+      pending: pendingRow?.pending ?? null,
+      pendingAllianceId: pendingRow?.allianceId ?? "",
+      guildAllianceId: allianceId,
+    });
     if (parsed.kind === "note_attach" || parsed.kind === "note_another") {
       return serializePerfInteraction(
         await handlePerformanceNoteAttachChoice({
@@ -1395,7 +1399,11 @@ async function handleModalSubmit(payload: DiscordInteractionPayload) {
   }
 
   const pendingRow = await getDiscordBotPending(discordUserId);
-  const pending = parsePerformanceNotesPending(pendingRow?.pending ?? null);
+  const pending = parsePerformanceNotesPendingForAlliance({
+    pending: pendingRow?.pending ?? null,
+    pendingAllianceId: pendingRow?.allianceId ?? "",
+    guildAllianceId: allianceId,
+  });
 
   if (modalId === "note:member-modal") {
     const memberName = parseModalTextInput(payload, "member") ?? "";
