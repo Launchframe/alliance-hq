@@ -183,6 +183,7 @@ export async function draftConductorForAlliance(input: {
   memberId: string;
   memberName: string;
   allowEligibilityOverride?: boolean;
+  hqUserId?: string | null;
 }): Promise<(typeof import("@/lib/db/schema").trainConductorRecords.$inferSelect)> {
   // Same depleting-pool consume / gates as HQ web manual pick.
   // Dynamic import avoids a cycle: service ↔ discord-bot.server.

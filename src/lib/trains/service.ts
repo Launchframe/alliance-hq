@@ -734,6 +734,8 @@ async function persistConductorRoll(input: {
     vipMechanism: input.vipMechanism,
     dayConfigId: input.dayConfigId,
     conductorEligibilityOverridden: 0,
+    conductorEligibilityOverriddenAt: null,
+    conductorEligibilityOverriddenByHqUserId: null,
   }).catch(async (error) => {
     if (!input.manualCoverageOverride && input.result.poolType) await releasePoolSelectionForDate(input.allianceId, input.date, input.result.memberId);
     if (!input.manualCoverageOverride && error instanceof CoverageConflictError) throwPoolUnavailable(input.result.poolType);
