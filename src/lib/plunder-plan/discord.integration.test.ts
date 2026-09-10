@@ -37,7 +37,13 @@ describe.skipIf(process.env.PLUNDER_PLAN_DB_TEST !== "1")("Discord-only Plunder 
     expect(modal.type).toBe(9);
     const modalData = modal.data as { custom_id: string };
     const values = { date: f.date, start: "20:00", end: "21:00", zone: "Etc/GMT+2" };
-    const preview = await handlePlunderPlanDiscord(f.payload(5, { custom_id: modalData.custom_id, components: Object.entries(values).map(([custom_id, value]) => ({ components: [{ custom_id, value }] })) }));
+    const preview = await handlePlunderPlanDiscord(f.payload(5, {
+      custom_id: modalData.custom_id,
+      components: Object.entries(values).map(([custom_id, value]) => ({
+        type: 1,
+        components: [{ type: 4, custom_id, value }],
+      })),
+    }));
     expect(preview.content).toContain("visible to your alliance");
     const confirm = buttons(preview).find((button) => button.label === "Confirm")!.custom_id;
     expect((await handlePlunderPlanDiscord(f.click(confirm))).content).toContain("Happy hunting!");
