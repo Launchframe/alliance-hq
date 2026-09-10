@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   markPoolMemberSelectedForDate: vi.fn(),
   releasePoolSelectionForDate: vi.fn(),
   ensureConductorPoolSeeded: vi.fn(),
+  writeAuditLog: vi.fn(),
 }));
 
 vi.mock("@/lib/game-season/sync", () => ({
@@ -43,6 +44,10 @@ vi.mock("@/lib/trains/service", () => ({
   ensureConductorPoolSeeded: mocks.ensureConductorPoolSeeded,
 }));
 
+vi.mock("@/lib/bff/audit", () => ({
+  writeAuditLog: mocks.writeAuditLog,
+}));
+
 vi.mock("@/lib/trains/conductor-pool-claim-lock.server", () => ({
   withConductorPoolClaimLock: vi.fn(
     async (_key: unknown, run: () => Promise<unknown>) => run(),
@@ -66,6 +71,7 @@ describe("applyManualConductorDraft", () => {
     mocks.ensureConductorPoolSeeded.mockResolvedValue(undefined);
     mocks.markPoolMemberSelectedForDate.mockResolvedValue(true);
     mocks.releasePoolSelectionForDate.mockResolvedValue(undefined);
+    mocks.writeAuditLog.mockResolvedValue(undefined);
     mocks.memberIdsEligibleForPoolType.mockImplementation(
       async (
         _allianceId: string,
@@ -116,8 +122,12 @@ describe("applyManualConductorDraft", () => {
       expect.objectContaining({
         conductorMemberId: "m-alice",
         conductorMechanism: "r3_lottery",
+        conductorEligibilityOverridden: 0,
+        conductorEligibilityOverriddenAt: null,
+        conductorEligibilityOverriddenByHqUserId: null,
       }),
     );
+    expect(mocks.writeAuditLog).not.toHaveBeenCalled();
   });
 
   it("rejects re-awarding a member already selected in the current generation", async () => {
@@ -200,6 +210,8 @@ describe("applyManualConductorDraft", () => {
       memberId: "m-alice",
       memberName: "Alice",
       allowSameGenerationReuse: true,
+      hqUserId: "hq-officer",
+      sessionId: "sess-1",
     });
 
     expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
@@ -207,6 +219,16 @@ describe("applyManualConductorDraft", () => {
       expect.objectContaining({
         conductorMemberId: "m-alice",
         conductorEligibilityOverridden: 1,
+        conductorEligibilityOverriddenByHqUserId: "hq-officer",
+        conductorEligibilityOverriddenAt: expect.any(Date),
+      }),
+    );
+    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "trains.conductor_eligibility_override",
+        hqUserId: "hq-officer",
+        sessionId: "sess-1",
+        resourceId: "rec-1",
       }),
     );
   });
@@ -233,12 +255,15 @@ describe("applyManualConductorDraft", () => {
       memberId: "m-boggle",
       memberName: "BOGGLE",
       allowEligibilityOverride: true,
+      hqUserId: "hq-officer",
     });
 
     expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         conductorMemberId: "m-boggle",
         conductorEligibilityOverridden: 1,
+        conductorEligibilityOverriddenByHqUserId: "hq-officer",
+        conductorEligibilityOverriddenAt: expect.any(Date),
       }),
     );
   });
@@ -259,6 +284,7 @@ describe("applyManualConductorDraft", () => {
       memberId: "m-shera",
       memberName: "SheRa",
       allowEligibilityOverride: true,
+      hqUserId: "hq-officer",
     });
 
     expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
@@ -266,6 +292,8 @@ describe("applyManualConductorDraft", () => {
       expect.objectContaining({
         conductorMemberId: "m-shera",
         conductorEligibilityOverridden: 1,
+        conductorEligibilityOverriddenByHqUserId: "hq-officer",
+        conductorEligibilityOverriddenAt: expect.any(Date),
       }),
     );
   });
@@ -287,6 +315,7 @@ describe("applyManualConductorDraft", () => {
       memberId: "m-alice",
       memberName: "Alice",
       allowEligibilityOverride: true,
+      hqUserId: "hq-officer",
     });
 
     expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
@@ -294,6 +323,8 @@ describe("applyManualConductorDraft", () => {
       expect.objectContaining({
         conductorMemberId: "m-alice",
         conductorEligibilityOverridden: 1,
+        conductorEligibilityOverriddenByHqUserId: "hq-officer",
+        conductorEligibilityOverriddenAt: expect.any(Date),
       }),
     );
   });

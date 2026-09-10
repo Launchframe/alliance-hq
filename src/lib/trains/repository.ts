@@ -409,6 +409,8 @@ export async function upsertConductorDraft(input: {
   substituteForMemberId?: string | null;
   substituteForMemberName?: string | null;
   conductorEligibilityOverridden?: number;
+  conductorEligibilityOverriddenAt?: Date | null;
+  conductorEligibilityOverriddenByHqUserId?: string | null;
 }): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
   const db = getDb();
   const existing = await getConductorRecord(
@@ -453,6 +455,14 @@ export async function upsertConductorDraft(input: {
         conductorEligibilityOverridden:
           input.conductorEligibilityOverridden ??
           existing.conductorEligibilityOverridden,
+        conductorEligibilityOverriddenAt:
+          input.conductorEligibilityOverriddenAt !== undefined
+            ? input.conductorEligibilityOverriddenAt
+            : existing.conductorEligibilityOverriddenAt,
+        conductorEligibilityOverriddenByHqUserId:
+          input.conductorEligibilityOverriddenByHqUserId !== undefined
+            ? input.conductorEligibilityOverriddenByHqUserId
+            : existing.conductorEligibilityOverriddenByHqUserId,
         updatedAt: new Date(),
       })
       .where(
@@ -494,6 +504,10 @@ export async function upsertConductorDraft(input: {
     substituteForMemberId: input.substituteForMemberId ?? null,
     substituteForMemberName: input.substituteForMemberName ?? null,
     conductorEligibilityOverridden: input.conductorEligibilityOverridden ?? 0,
+    conductorEligibilityOverriddenAt:
+      input.conductorEligibilityOverriddenAt ?? null,
+    conductorEligibilityOverriddenByHqUserId:
+      input.conductorEligibilityOverriddenByHqUserId ?? null,
   });
 
   const [row] = await db
@@ -533,6 +547,8 @@ export async function clearConductorAssignment(
       substituteForMemberId: null,
       substituteForMemberName: null,
       conductorEligibilityOverridden: 0,
+      conductorEligibilityOverriddenAt: null,
+      conductorEligibilityOverriddenByHqUserId: null,
       updatedAt: new Date(),
     })
     .where(

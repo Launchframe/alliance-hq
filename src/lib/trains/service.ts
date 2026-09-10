@@ -713,6 +713,8 @@ async function persistConductorRoll(input: {
     vipMechanism: input.vipMechanism,
     dayConfigId: input.dayConfigId,
     conductorEligibilityOverridden: 0,
+    conductorEligibilityOverriddenAt: null,
+    conductorEligibilityOverriddenByHqUserId: null,
   });
 
   return { ...input.result, draftPersisted: true };

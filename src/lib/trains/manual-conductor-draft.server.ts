@@ -1,5 +1,6 @@
 import "server-only";
 
+import { writeAuditLog } from "@/lib/bff/audit";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { withConductorPoolClaimLock } from "@/lib/trains/conductor-pool-claim-lock.server";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
@@ -49,6 +50,8 @@ export async function applyManualConductorDraft(input: {
   allowEligibilityOverride?: boolean;
   /** @deprecated alias of allowEligibilityOverride */
   allowSameGenerationReuse?: boolean;
+  hqUserId?: string | null;
+  sessionId?: string | null;
 }): Promise<typeof import("@/lib/db/schema").trainConductorRecords.$inferSelect> {
   const seasonKey = (await getEffectiveSeasonForAlliance(input.allianceId))
     .seasonKey;
@@ -158,6 +161,13 @@ export async function applyManualConductorDraft(input: {
     }
   }
 
+  const eligibilityOverridden =
+    overrideConfirmed && !replacingSameMember && !consumedPoolSlot;
+  const overrideAt = eligibilityOverridden ? new Date() : null;
+  const overrideBy = eligibilityOverridden
+    ? (input.hqUserId?.trim() || null)
+    : null;
+
   const record = await upsertConductorDraft({
     allianceId: input.allianceId,
     date: input.date,
@@ -168,9 +178,26 @@ export async function applyManualConductorDraft(input: {
     conductorMechanism: mechanism,
     vipMechanism: dayConfig.vipMechanism ?? null,
     dayConfigId: dayConfig.dayConfigId,
-    conductorEligibilityOverridden:
-      overrideConfirmed && !replacingSameMember && !consumedPoolSlot ? 1 : 0,
+    conductorEligibilityOverridden: eligibilityOverridden ? 1 : 0,
+    conductorEligibilityOverriddenAt: overrideAt,
+    conductorEligibilityOverriddenByHqUserId: overrideBy,
   });
+
+  if (eligibilityOverridden) {
+    await writeAuditLog({
+      sessionId: input.sessionId ?? null,
+      allianceId: input.allianceId,
+      hqUserId: overrideBy,
+      action: "trains.conductor_eligibility_override",
+      resourceType: "train_conductor_record",
+      resourceId: record.id,
+      resourceName: input.memberName,
+      metadata: {
+        date: input.date,
+        memberId: input.memberId,
+      },
+    });
+  }
 
   if (
     poolType &&
