@@ -202,6 +202,39 @@ describe("applyManualConductorDraft", () => {
     expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         conductorMemberId: "m-alice",
+        conductorEligibilityOverridden: 1,
+      }),
+    );
+  });
+
+  it("drafts even when the live pool claim fails after the officer confirms", async () => {
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorMechanism: "r4_sequence",
+      vipMechanism: "conductor_pick",
+      paintTemplate: "r4_event_vip",
+      dayConfigId: "dc-1",
+    });
+    mocks.listUnselectedPoolEntries.mockResolvedValue([
+      { memberId: "m-boggle" },
+    ]);
+    mocks.listPoolEntries.mockResolvedValue([
+      { memberId: "m-boggle" },
+      { memberId: "m-bob" },
+    ]);
+    mocks.markPoolMemberSelectedForDate.mockResolvedValue(false);
+
+    await applyManualConductorDraft({
+      allianceId: "ally-1",
+      date: "2026-09-09",
+      memberId: "m-boggle",
+      memberName: "BOGGLE",
+      allowEligibilityOverride: true,
+    });
+
+    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conductorMemberId: "m-boggle",
+        conductorEligibilityOverridden: 1,
       }),
     );
   });
@@ -228,6 +261,7 @@ describe("applyManualConductorDraft", () => {
     expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         conductorMemberId: "m-shera",
+        conductorEligibilityOverridden: 1,
       }),
     );
   });
@@ -255,6 +289,7 @@ describe("applyManualConductorDraft", () => {
     expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         conductorMemberId: "m-alice",
+        conductorEligibilityOverridden: 1,
       }),
     );
   });

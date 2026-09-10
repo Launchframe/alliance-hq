@@ -16,6 +16,23 @@ type PoolGenerationEntry = {
   selectedForDate: string | null;
 };
 
+/**
+ * Claim current generation first, then the historical generation for past
+ * dates. Stale unselected rows in an older generation must not block marking
+ * a member who still has an open slot in the live pool.
+ */
+export function poolGenerationsToClaim(input: {
+  currentGeneration: number;
+  historicalGeneration: number;
+  useHistorical: boolean;
+}): number[] {
+  if (!input.useHistorical) return [input.currentGeneration];
+  if (input.historicalGeneration === input.currentGeneration) {
+    return [input.currentGeneration];
+  }
+  return [input.currentGeneration, input.historicalGeneration];
+}
+
 /** Pure helper — first generation not fully selected before date. */
 export function activePoolGenerationForDate(
   generationNumbers: number[],
@@ -410,27 +427,36 @@ export async function markPoolMemberSelectedForDate(
   date: string,
 ): Promise<boolean> {
   const today = getServerCalendarDate();
-  const generation =
+  const currentGeneration = await getCurrentPoolGeneration(allianceId, poolType);
+  const historicalGeneration =
     date < today
       ? await resolvePoolGenerationForHistoricalDate(allianceId, poolType, date)
-      : await getCurrentPoolGeneration(allianceId, poolType);
+      : currentGeneration;
+  const generations = poolGenerationsToClaim({
+    currentGeneration,
+    historicalGeneration,
+    useHistorical: date < today,
+  });
   const db = getDb();
-  const [entry] = await db
-    .select({ id: schema.conductorPoolEntries.id })
-    .from(schema.conductorPoolEntries)
-    .where(
-      and(
-        eq(schema.conductorPoolEntries.allianceId, allianceId),
-        eq(schema.conductorPoolEntries.poolType, poolType),
-        eq(schema.conductorPoolEntries.generation, generation),
-        eq(schema.conductorPoolEntries.memberId, memberId),
-        isNull(schema.conductorPoolEntries.selectedAt),
-      ),
-    )
-    .limit(1);
-
-  if (!entry) return false;
-  return markPoolEntrySelected(entry.id, date);
+  for (const generation of generations) {
+    const [entry] = await db
+      .select({ id: schema.conductorPoolEntries.id })
+      .from(schema.conductorPoolEntries)
+      .where(
+        and(
+          eq(schema.conductorPoolEntries.allianceId, allianceId),
+          eq(schema.conductorPoolEntries.poolType, poolType),
+          eq(schema.conductorPoolEntries.generation, generation),
+          eq(schema.conductorPoolEntries.memberId, memberId),
+          isNull(schema.conductorPoolEntries.selectedAt),
+        ),
+      )
+      .limit(1);
+    if (!entry) continue;
+    const claimed = await markPoolEntrySelected(entry.id, date);
+    if (claimed) return true;
+  }
+  return false;
 }
 
 /**

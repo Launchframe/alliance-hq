@@ -3815,6 +3815,9 @@
     "pickConductorConfirm": "Confirm conductor",
     "pickConductorSameGenerationWarning": "This member already conducted in the current pool generation. Confirm only if you mean to pick them again before everyone else has had a turn.",
     "pickConductorEligibilityOverrideWarning": "This member is not eligible for this day's rule. Confirm to assign them as conductor anyway.",
+    "conductorEligibilityOverrideBadge": "Override",
+    "conductorEligibilityOverrideHint": "This conductor was assigned with an eligibility override. The wheel still skips spent pool slots.",
+    "calendarEligibilityOverrideMark": "Eligibility override",
     "pickConductorLastConducted": {
       "today": "Today",
       "yesterday": "Yesterday",

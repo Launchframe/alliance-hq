@@ -28,6 +28,8 @@ type Props = {
     noneYet: string;
   };
   substituteBadge?: string | null;
+  overrideBadge?: string | null;
+  overrideHint?: string | null;
   shareActionLabel?: string;
   shareBusyLabel?: string;
   shareBusy?: boolean;
@@ -41,6 +43,8 @@ export function TodayConductorCard({
   dayLabel,
   labels,
   substituteBadge,
+  overrideBadge,
+  overrideHint,
   shareActionLabel,
   shareBusyLabel,
   shareBusy = false,
@@ -73,6 +77,17 @@ export function TodayConductorCard({
           {substituteBadge ? (
             <p className="mt-2 inline-flex rounded-full bg-[#8957e5]/15 px-3 py-1 text-xs font-medium text-[#d2a8ff]">
               {substituteBadge}
+            </p>
+          ) : null}
+          {overrideBadge ? (
+            <p
+              className="mt-2 text-sm text-hq-warning"
+              data-testid="trains-conductor-eligibility-override"
+            >
+              <span className="mr-2 inline-flex rounded-full bg-hq-warning/15 px-3 py-1 text-xs font-medium">
+                {overrideBadge}
+              </span>
+              {overrideHint}
             </p>
           ) : null}
         </div>

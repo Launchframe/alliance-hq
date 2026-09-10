@@ -3749,6 +3749,9 @@
     "pickConductorConfirm": "Confirmar condutor",
     "pickConductorSameGenerationWarning": "Este membro já foi condutor na geração atual do pool. Confirme apenas se você quer escolhê-lo de novo antes de todos terem tido a vez.",
     "pickConductorEligibilityOverrideWarning": "Este membro não está elegível para a regra deste dia. Confirme para atribuí-lo como condutor mesmo assim.",
+    "conductorEligibilityOverrideBadge": "Exceção",
+    "conductorEligibilityOverrideHint": "Este condutor foi atribuído com uma exceção de elegibilidade. A roleta continua a ignorar vagas já usadas do pool.",
+    "calendarEligibilityOverrideMark": "Exceção de elegibilidade",
     "pickConductorLastConducted": {
       "today": "Hoje",
       "yesterday": "Ontem",

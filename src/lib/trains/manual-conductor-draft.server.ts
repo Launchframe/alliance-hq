@@ -105,9 +105,9 @@ export async function applyManualConductorDraft(input: {
     }
   }
   const priorConductorMemberId = existing?.conductorMemberId ?? null;
+  const replacingSameMember = priorConductorMemberId === input.memberId;
   let claimPool = false;
   if (poolType) {
-    const replacingSameMember = priorConductorMemberId === input.memberId;
     if (!replacingSameMember) {
       await ensureConductorPoolSeeded({
         hqAllianceId: input.allianceId,
@@ -157,6 +157,8 @@ export async function applyManualConductorDraft(input: {
     conductorMechanism: mechanism,
     vipMechanism: dayConfig.vipMechanism ?? null,
     dayConfigId: dayConfig.dayConfigId,
+    conductorEligibilityOverridden:
+      overrideConfirmed && !replacingSameMember && !claimPool ? 1 : 0,
   });
 
   if (
