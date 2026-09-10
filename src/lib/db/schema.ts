@@ -2612,6 +2612,7 @@ export const memberViolations = pgTable("member_violations", {
   notes: text("notes"),
   recordedDate: text("recorded_date"),
   ashedViolationId: text("ashed_violation_id"),
+  complianceEventId: text("compliance_event_id").unique(),
   expungedAt: timestamp("expunged_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
@@ -4021,3 +4022,92 @@ export const vsScoreSyncScopes = pgTable("vs_score_sync_scopes", {
   managedMemberIds: jsonb("managed_member_ids").$type<string[]>().notNull().default([]),
   managedScores: jsonb("managed_scores").$type<Record<string, { previous: number | null; desired: number | null }>>().notNull().default({}),
 }, (table) => [unique("vs_score_sync_scopes_key_unique").on(table.allianceId, table.period, table.recordedDate)]);
+
+export const vsCompliancePolicies = pgTable("vs_compliance_policies", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  effectiveWeek: text("effective_week").notNull(),
+  enabled: boolean("enabled").notNull().default(false),
+  dailyTarget: bigint("daily_target", { mode: "number" }).notNull().default(7_200_000),
+  weeklyMinimum: bigint("weekly_minimum", { mode: "number" }),
+  leewayPct: integer("leeway_pct").notNull().default(0),
+  preset: text("preset").$type<"rank_aware" | "consecutive">().notNull().default("rank_aware"),
+  removalThreshold: integer("removal_threshold").notNull().default(3),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique("vs_compliance_policies_alliance_version_unique").on(table.allianceId, table.version),
+  index("vs_compliance_policies_alliance_week_idx").on(table.allianceId, table.effectiveWeek),
+]);
+
+export const vsComplianceState = pgTable("vs_compliance_state", {
+  allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
+  inputVersion: bigint("input_version", { mode: "number" }).notNull().default(0),
+  requestedFrom: text("requested_from"),
+  processedThrough: text("processed_through"),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+  lastError: text("last_error"),
+});
+
+export const vsComplianceEvaluations = pgTable("vs_compliance_evaluations", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  memberId: text("member_id").notNull(),
+  memberName: text("member_name").notNull(),
+  weekEnding: text("week_ending").notNull(),
+  input: jsonb("input").$type<import("../vs-compliance/types.shared").VsComplianceWeek>().notNull(),
+  evaluation: jsonb("evaluation").$type<import("../vs-compliance/types.shared").VsComplianceEvaluation>().notNull(),
+  memberSnapshot: jsonb("member_snapshot").$type<import("../vs-compliance/types.shared").VsComplianceMember>().notNull(),
+  remoteEvidence: jsonb("remote_evidence").$type<import("../vs-scores/evidence.shared").VsEvidence[]>().notNull().default([]),
+  remoteVerifiedAt: timestamp("remote_verified_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [unique("vs_compliance_evaluations_member_week_unique").on(table.allianceId, table.memberId, table.weekEnding)]);
+
+export const vsComplianceActions = pgTable("vs_compliance_actions", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  eventId: text("event_id").notNull().references(() => vsComplianceEvaluations.id, { onDelete: "restrict" }),
+  memberId: text("member_id").notNull(),
+  actorId: text("actor_id").notNull(),
+  requestId: text("request_id").notNull(),
+  requestDigest: text("request_digest").notNull(),
+  kind: text("kind").$type<"waive" | "demote" | "remove">().notNull(),
+  expectedRank: integer("expected_rank"),
+  targetRank: integer("target_rank"),
+  evaluationBasis: text("evaluation_basis").notNull(),
+  memberSnapshot: jsonb("member_snapshot").$type<import("../vs-compliance/types.shared").VsComplianceMember>().notNull(),
+  reason: text("reason"),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [unique("vs_compliance_actions_request_unique").on(table.allianceId, table.actorId, table.requestId)]);
+
+export const vsComplianceSyncJobs = pgTable("vs_compliance_sync_jobs", {
+  actionId: text("action_id").primaryKey().references(() => vsComplianceActions.id, { onDelete: "restrict" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  memberId: text("member_id").notNull(),
+  status: text("status").$type<"local" | "pending" | "synced" | "failed" | "credentials_required">().notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  leaseToken: text("lease_token"),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+  syncedAt: timestamp("synced_at", { withTimezone: true }),
+  supersededAt: timestamp("superseded_at", { withTimezone: true }),
+  supersededBy: text("superseded_by"),
+});
+
+export const vsComplianceRosterGuards = pgTable("vs_compliance_roster_guards", {
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  memberId: text("member_id").notNull(),
+  actionId: text("action_id").notNull().references(() => vsComplianceActions.id, { onDelete: "restrict" }),
+  rank: integer("rank"),
+  status: text("status").notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [primaryKey({ columns: [table.allianceId, table.memberId] })]);
+
+export const vsComplianceReviews = pgTable("vs_compliance_reviews", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  actionId: text("action_id").notNull().references(() => vsComplianceActions.id, { onDelete: "restrict" }),
+  evaluationBasis: text("evaluation_basis").notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [unique("vs_compliance_reviews_basis_unique").on(table.actionId, table.evaluationBasis)]);

@@ -7,13 +7,16 @@ import { Link } from "@/i18n/navigation";
 type Props = {
   allianceTag: string | null;
   showTeamLink?: boolean;
+  showComplianceLink?: boolean;
 };
 
 export function AllianceSettingsForm({
   allianceTag,
   showTeamLink = true,
+  showComplianceLink = false,
 }: Props) {
   const t = useTranslations("settings");
+  const tCompliance = useTranslations("vsCompliance");
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
@@ -72,6 +75,12 @@ export function AllianceSettingsForm({
           </section>
         </>
       ) : null}
+
+      {showComplianceLink ? <section className="rounded-xl border border-hq-border bg-hq-surface p-5">
+        <h2 className="font-medium">{tCompliance("settings")}</h2>
+        <p className="mt-2 text-sm text-hq-fg-muted">{tCompliance("dailyHint")}</p>
+        <Link href="/settings/vs-membership-minimums" className="mt-4 inline-block text-sm text-hq-accent hover:underline">{tCompliance("settings")}</Link>
+      </section> : null}
 
       {showTeamLink ? (
         <section className="rounded-xl border border-hq-border bg-hq-surface p-5">

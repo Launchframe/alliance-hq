@@ -72,9 +72,10 @@ export async function loadDashboardSummary(
       allianceId,
       commanderIndexResolved,
     ),
-    permissions.has("inbox:read")
+    (permissions.has("inbox:read") || ctx?.isPlatformMaintainer)
       ? loadReminderInboxForUser({
           hqUserId: session.hqUserId,
+          principalHqUserId: ctx?.hqUserId,
           allianceId,
           permissions,
         })
