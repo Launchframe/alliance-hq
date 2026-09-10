@@ -31,6 +31,7 @@ import {
   discordDeferredChannelResponse,
   discordDeferredEphemeralResponse,
   discordMessageResponse,
+  discordModalResponse,
   interactionApplicationId,
   interactionDiscordUserId,
   interactionDiscordUsername,
@@ -38,7 +39,10 @@ import {
   interactionGuildId,
   interactionToken,
   parseButtonCustomId,
+  parseModalCustomId,
+  parseModalTextInput,
   parseLinkSlashOptions,
+  parseResolvedTargetMessage,
   parseSlashOptionBoolean,
   parseSlashOptionInteger,
   parseSlashOptionString,
@@ -135,10 +139,31 @@ import { handlePlunderPlanDiscord, openPlunderPlanModal, plunderComponentNeedsMo
 import { handleDiscordTimeOff, openDiscordTimeOffModal } from "@/lib/time-off/discord-bot-handlers.server";
 import { isDiscordTimeOffSlashCommand } from "@/lib/time-off/discord-command-names";
 import { timeOffComponentNeedsModal } from "@/lib/time-off/discord-workflow.shared";
+import { parsePerformanceNotesPendingForAlliance } from "@/lib/performance-notes/pending-state";
+import {
+  handlePerformanceBatchSlash,
+  handlePerformanceNoteAttachChoice,
+  handlePerformanceNoteMemberModal,
+  handlePerformanceNotePick,
+  handlePerformanceNoteSkip,
+  handlePerformanceNoteSlash,
+  handlePerformanceReasonModal,
+  type PerfInteractionResult,
+} from "@/lib/performance-notes/discord-handlers.server";
 import {
   handleDiscordWhoIs,
   handleDiscordWhoIsClaimInvite,
 } from "@/lib/discord/who-is-bot-handlers.server";
+import {
+  DISCORD_SET_TRANSLATION_COMMAND,
+  DISCORD_TRANSLATION_LANGUAGE_COMMAND,
+  isDiscordTranslateMessageCommand,
+} from "@/lib/translate/discord-command-names";
+import {
+  handleDiscordSetTranslation,
+  handleDiscordTranslateMessage,
+  handleDiscordTranslationLanguage,
+} from "@/lib/translate/discord-handlers.server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -180,6 +205,30 @@ function channelVisibleCommandResponse(
   components?: ReturnType<typeof buildWalkthroughDoneButton>,
 ) {
   return discordMessageResponse(content, components, CHANNEL_VISIBLE);
+}
+
+function serializePerfInteraction(result: PerfInteractionResult) {
+  if (result.type === "modal") {
+    return discordModalResponse({
+      customId: result.customId,
+      title: result.title,
+      fieldCustomId: result.fieldCustomId,
+      fieldLabel: result.fieldLabel,
+      paragraph: result.paragraph,
+      maxLength: result.maxLength,
+    });
+  }
+  const components = result.components as
+    | ReturnType<typeof buildWalkthroughDoneButton>
+    | undefined;
+  if (result.update) {
+    return discordComponentMessageResponse(
+      result.content,
+      components,
+      EPHEMERAL,
+    );
+  }
+  return discordMessageResponse(result.content, components, EPHEMERAL);
 }
 
 async function resolveInteractionContext(payload: DiscordInteractionPayload) {
@@ -261,6 +310,30 @@ async function handleSlashCommand(
     const result = await handleDiscordLanguage({
       discordUserId,
       locale: parsed,
+    });
+    return discordMessageResponse(result.reply);
+  }
+
+  if (commandName === DISCORD_TRANSLATION_LANGUAGE_COMMAND) {
+    const languageCode = parseSlashOptionString(payload, "language");
+    const result = await handleDiscordTranslationLanguage({
+      discordUserId,
+      locale,
+      languageCode,
+    });
+    return discordMessageResponse(result.reply, undefined, EPHEMERAL);
+  }
+
+  if (commandName === DISCORD_SET_TRANSLATION_COMMAND) {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"));
+    }
+    const enabled = parseSlashOptionBoolean(payload, "enabled") ?? true;
+    const result = await handleDiscordSetTranslation({
+      guildId,
+      discordUserId,
+      locale,
+      enabled,
     });
     return discordMessageResponse(result.reply);
   }
@@ -443,6 +516,52 @@ async function handleSlashCommand(
     return discordMessageResponse(
       await setupMessage(locale, guildId, discordUserId),
     );
+  }
+
+  if (isDiscordTranslateMessageCommand(commandName)) {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"), undefined, EPHEMERAL);
+    }
+    const targetMessage = parseResolvedTargetMessage(payload);
+    if (!targetMessage) {
+      return discordMessageResponse(t("errors.serverError"), undefined, EPHEMERAL);
+    }
+    const applicationId = interactionApplicationId(payload);
+    const token = interactionToken(payload);
+    if (!applicationId || !token) {
+      console.error("[discord-bot] translate missing application_id/token");
+      return discordMessageResponse(t("errors.serverError"), undefined, EPHEMERAL);
+    }
+
+    // Provider latency can brush Discord's ~3s ACK window — defer, then edit.
+    scheduleBackgroundTask(scheduleBackground, async () => {
+      try {
+        const result = await handleDiscordTranslateMessage({
+          allianceId,
+          guildId,
+          discordUserId,
+          locale,
+          payloadLocale: payload.locale,
+          message: { id: targetMessage.id, content: targetMessage.content },
+        });
+        await editDiscordOriginalInteraction({
+          applicationId,
+          interactionToken: token,
+          content: result.reply,
+          ephemeral: true,
+        });
+      } catch (error) {
+        console.error("[discord-bot] deferred translate failed", error);
+        await editDiscordOriginalInteraction({
+          applicationId,
+          interactionToken: token,
+          content: t("translate.failed"),
+          ephemeral: true,
+        });
+      }
+    });
+
+    return discordDeferredEphemeralResponse();
   }
 
   if (isDiscordVrSlashCommand(commandName)) {
@@ -849,6 +968,44 @@ async function handleSlashCommand(
     return discordMessageResponse(result.reply, undefined, EPHEMERAL);
   }
 
+  if (
+    commandName === "note" ||
+    commandName === "commend" ||
+    commandName === "violation"
+  ) {
+    if (!guildId) {
+      return discordMessageResponse(t("errors.guildNotRegistered"), undefined, EPHEMERAL);
+    }
+    if (!allianceId) {
+      return discordMessageResponse(
+        await setupMessage(locale, guildId, discordUserId),
+        undefined,
+        EPHEMERAL,
+      );
+    }
+    if (commandName === "note") {
+      const text = parseSlashOptionString(payload, "text");
+      return serializePerfInteraction(
+        await handlePerformanceNoteSlash({
+          allianceId,
+          discordUserId,
+          locale,
+          text,
+        }),
+      );
+    }
+    const names = parseSlashOptionString(payload, "names");
+    return serializePerfInteraction(
+      await handlePerformanceBatchSlash({
+        allianceId,
+        discordUserId,
+        locale,
+        command: commandName === "commend" ? "commend" : "violation",
+        names,
+      }),
+    );
+  }
+
   return discordMessageResponse(t("errors.unknownCommand"));
 }
 
@@ -870,6 +1027,51 @@ async function handleButton(payload: DiscordInteractionPayload) {
   if (!allianceId) {
     return discordButtonResponse(
       await setupMessage(locale, interactionGuildId(payload), discordUserId),
+    );
+  }
+
+  if (
+    parsed.kind === "note_attach" ||
+    parsed.kind === "note_another" ||
+    parsed.kind === "note_pick" ||
+    parsed.kind === "note_skip"
+  ) {
+    const pendingRow = await getDiscordBotPending(discordUserId);
+    const pending = parsePerformanceNotesPendingForAlliance({
+      pending: pendingRow?.pending ?? null,
+      pendingAllianceId: pendingRow?.allianceId ?? "",
+      guildAllianceId: allianceId,
+    });
+    if (parsed.kind === "note_attach" || parsed.kind === "note_another") {
+      return serializePerfInteraction(
+        await handlePerformanceNoteAttachChoice({
+          allianceId,
+          discordUserId,
+          locale,
+          pending,
+          attach: parsed.answer === "yes",
+          update: parsed.answer === "no",
+        }),
+      );
+    }
+    if (parsed.kind === "note_pick") {
+      return serializePerfInteraction(
+        await handlePerformanceNotePick({
+          allianceId,
+          discordUserId,
+          locale,
+          pending,
+          index: parsed.index,
+        }),
+      );
+    }
+    return serializePerfInteraction(
+      await handlePerformanceNoteSkip({
+        allianceId,
+        discordUserId,
+        locale,
+        pending,
+      }),
     );
   }
 
@@ -1188,6 +1390,58 @@ async function handleButton(payload: DiscordInteractionPayload) {
   return discordButtonResponse(t("errors.unknownCommand"));
 }
 
+async function handleModalSubmit(payload: DiscordInteractionPayload) {
+  const modalId = parseModalCustomId(payload.data?.custom_id);
+  const { discordUserId, guildId, locale, allianceId } =
+    await resolveInteractionContext(payload);
+  const t = createDiscordTranslator(locale);
+
+  if (!discordUserId) {
+    return discordMessageResponse(t("errors.unknownUser"), undefined, EPHEMERAL);
+  }
+  if (!modalId) {
+    return discordMessageResponse(t("errors.unknownCommand"), undefined, EPHEMERAL);
+  }
+  if (!allianceId) {
+    return discordMessageResponse(
+      await setupMessage(locale, guildId, discordUserId),
+      undefined,
+      EPHEMERAL,
+    );
+  }
+
+  const pendingRow = await getDiscordBotPending(discordUserId);
+  const pending = parsePerformanceNotesPendingForAlliance({
+    pending: pendingRow?.pending ?? null,
+    pendingAllianceId: pendingRow?.allianceId ?? "",
+    guildAllianceId: allianceId,
+  });
+
+  if (modalId === "note:member-modal") {
+    const memberName = parseModalTextInput(payload, "member") ?? "";
+    return serializePerfInteraction(
+      await handlePerformanceNoteMemberModal({
+        allianceId,
+        discordUserId,
+        locale,
+        pending,
+        memberName,
+      }),
+    );
+  }
+
+  const reason = parseModalTextInput(payload, "reason") ?? "";
+  return serializePerfInteraction(
+    await handlePerformanceReasonModal({
+      allianceId,
+      discordUserId,
+      locale,
+      pending,
+      reason,
+    }),
+  );
+}
+
 export async function POST(request: Request) {
   const publicKey = resolveDiscordPublicKey();
   if (!publicKey) {
@@ -1297,6 +1551,15 @@ export async function POST(request: Request) {
       return NextResponse.json(await handleButton(payload));
     } catch (error) {
       console.error("[discord] button interaction failed", error);
+      const t = createDiscordTranslator("en-US");
+      return NextResponse.json(discordMessageResponse(t("errors.serverError")));
+    }
+  }
+  if (payload.type === 5) {
+    try {
+      return NextResponse.json(await handleModalSubmit(payload));
+    } catch (error) {
+      console.error("[discord] modal submit failed", error);
       const t = createDiscordTranslator("en-US");
       return NextResponse.json(discordMessageResponse(t("errors.serverError")));
     }
