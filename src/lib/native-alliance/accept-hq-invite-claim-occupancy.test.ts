@@ -36,6 +36,10 @@ vi.mock("@/lib/onboarding/onboarding-audit.server", () => ({
   auditInviteAccepted,
 }));
 
+vi.mock("./invite-accept-rank.server", () => ({
+  assertHybridClaimInviteRankAtAccept: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/lib/db", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/db")>();
   return {

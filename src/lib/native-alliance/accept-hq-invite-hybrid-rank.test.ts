@@ -28,6 +28,12 @@ vi.mock("./provision-membership", () => ({
 
 vi.mock("@/lib/vr/repository", () => ({
   getLinkedMemberIds,
+  getDiscordLinkByAllianceAndMember: vi.fn().mockResolvedValue(null),
+  getDiscordHqLink: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock("@/lib/member-link/repository.server", () => ({
+  getHqMemberLinkByAllianceAndMember: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("./invite-accept-rank.server", () => ({
