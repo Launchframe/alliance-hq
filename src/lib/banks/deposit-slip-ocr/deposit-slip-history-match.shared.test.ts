@@ -375,6 +375,45 @@ describe("canHistoricalOutcomeUpdateLocked / shouldUpdateHistoricalDepositOutcom
   });
 });
 
+
+describe("findHistoricalDepositMatch — looted vs rapid re-deposit", () => {
+  it("does not latch a prior loot onto a rapid re-deposit (outcome before initiate)", () => {
+    const redeposit = {
+      id: "hist-redeposit",
+      ...identity({
+        status: "locked",
+        depositAt: "2026-07-10T12:10:00.000Z",
+      }),
+    };
+    const priorLoot = identity({
+      status: "looted",
+      depositAt: "2026-07-10T12:05:00.000Z",
+      outcomeAt: "2026-07-10T12:05:00.000Z",
+    });
+    expect(canHistoricalOutcomeUpdateLocked(priorLoot, redeposit)).toBe(false);
+    expect(findHistoricalDepositMatch(priorLoot, [redeposit])).toBeNull();
+    expect(shouldUpdateHistoricalDepositOutcome(priorLoot, redeposit)).toBe(false);
+  });
+
+  it("still pairs looted OCR with the true initiate when loot is within proximity", () => {
+    const locked = {
+      id: "hist-locked",
+      ...identity({
+        status: "locked",
+        depositAt: "2026-07-10T12:00:00.000Z",
+      }),
+    };
+    const looted = identity({
+      status: "looted",
+      depositAt: "2026-07-10T12:05:00.000Z",
+      outcomeAt: "2026-07-10T12:05:00.000Z",
+    });
+    expect(canHistoricalOutcomeUpdateLocked(looted, locked)).toBe(true);
+    expect(findHistoricalDepositMatch(looted, [locked])?.id).toBe("hist-locked");
+    expect(shouldUpdateHistoricalDepositOutcome(looted, locked)).toBe(true);
+  });
+});
+
 describe("pickLatestDepositSlip", () => {
   it("returns null for an empty list", () => {
     expect(pickLatestDepositSlip([])).toBeNull();

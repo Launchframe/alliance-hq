@@ -10,7 +10,10 @@ import {
   discordDeferredEphemeralResponse,
   discordMessageResponse,
   parseButtonCustomId,
+  parseModalCustomId,
+  parseModalTextInput,
   parseLinkSlashOptions,
+  parseResolvedTargetMessage,
   parseSlashOptionUser,
   parseVrSlashLevel,
   verifyDiscordInteractionRequest,
@@ -121,6 +124,15 @@ describe("discord interactions", () => {
       kind: "whois_claim",
       memberId: "member-1",
     });
+    expect(parseButtonCustomId("note:attach:yes")).toEqual({
+      kind: "note_attach",
+      answer: "yes",
+    });
+    expect(parseButtonCustomId("note:pick:2")).toEqual({
+      kind: "note_pick",
+      index: 2,
+    });
+    expect(parseButtonCustomId("note:skip")).toEqual({ kind: "note_skip" });
     expect(parseButtonCustomId("other")).toBeNull();
   });
 
@@ -175,5 +187,74 @@ describe("discord interactions", () => {
     expect(discordMessageResponse("linked", undefined, { ephemeral: true }).data.flags).toBe(
       64,
     );
+  });
+});
+
+describe("parseResolvedTargetMessage", () => {
+  it("reads the target message from resolved.messages", () => {
+    expect(
+      parseResolvedTargetMessage({
+        type: 2,
+        data: {
+          name: "Translate",
+          type: 3,
+          target_id: "msg-1",
+          resolved: {
+            messages: {
+              "msg-1": { id: "msg-1", content: "olá", author: { id: "u1" } },
+            },
+          },
+        },
+      }),
+    ).toEqual({ id: "msg-1", content: "olá", authorIsBot: false });
+  });
+
+  it("flags bot-authored messages and tolerates missing content", () => {
+    expect(
+      parseResolvedTargetMessage({
+        type: 2,
+        data: {
+          name: "Translate",
+          type: 3,
+          target_id: "msg-2",
+          resolved: {
+            messages: { "msg-2": { author: { id: "bot", bot: true } } },
+          },
+        },
+      }),
+    ).toEqual({ id: "msg-2", content: "", authorIsBot: true });
+  });
+
+  it("returns null without a target or resolved entry", () => {
+    expect(parseResolvedTargetMessage({ type: 2, data: { name: "Translate" } })).toBeNull();
+    expect(
+      parseResolvedTargetMessage({
+        type: 2,
+        data: { name: "Translate", type: 3, target_id: "missing", resolved: {} },
+      }),
+    ).toBeNull();
+  });
+
+  it("parses note member modal fields", () => {
+    expect(parseModalCustomId("note:member-modal")).toBe("note:member-modal");
+    expect(parseModalCustomId("note:reason-modal")).toBe("note:reason-modal");
+    expect(parseModalCustomId("other")).toBeNull();
+    expect(
+      parseModalTextInput(
+        {
+          type: 5,
+          data: {
+            custom_id: "note:member-modal",
+            components: [
+              {
+                type: 1,
+                components: [{ type: 4, custom_id: "member", value: "Cookie" }],
+              },
+            ],
+          },
+        },
+        "member",
+      ),
+    ).toBe("Cookie");
   });
 });
