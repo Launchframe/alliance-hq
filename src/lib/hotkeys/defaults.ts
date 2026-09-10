@@ -21,6 +21,8 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "nav.dashboard": seq("g", "d"),
   "nav.members": seq("g", "m"),
   "nav.vsPerformance": seq("g", "v"),
+  "nav.vsCompliance": seq("g", "3"),
+  "nav.vsMembershipMinimums": seq("g", "4"),
   "nav.donations": seq("g", "o"),
   "nav.storeSpend": seq("g", "2"),
   "nav.allianceExercise": seq("g", "e"),

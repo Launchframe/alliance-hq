@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
@@ -7,7 +7,7 @@ import { videoJobStatusOwnerFields } from "@/lib/video/video-job-access.shared";
 import { getDb, schema } from "@/lib/db";
 import { assignRosterOcrExperiment } from "@/lib/members/roster-ocr/assign-roster-config";
 import { getAshedConnection, requireApiSession } from "@/lib/session";
-import { loadEffectiveAllianceHqOcrOnly } from "@/lib/video/alliance-ocr-settings.server";
+import { loadAllianceVideoOcrContext } from "@/lib/video/alliance-ocr-settings.server";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
 import {
   resolveVideoOcrEngineForJob,
@@ -71,10 +71,7 @@ export async function POST(_request: Request, { params }: Props) {
 
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
     const allianceId = job.allianceId ?? session.currentAllianceId;
-    const hqOcrOnly = allianceId
-      ? await loadEffectiveAllianceHqOcrOnly(allianceId)
-      : false;
-    const ocrContext = { allianceHqOcrOnly: hqOcrOnly };
+    const ocrContext = await loadAllianceVideoOcrContext(allianceId);
     const ocrEngine = resolveVideoOcrEngineForJob(
       scoreTargetId,
       isMemberRosterVideoTarget(scoreTargetId),
@@ -116,7 +113,11 @@ export async function POST(_request: Request, { params }: Props) {
     }
 
     const now = new Date();
-    await db
+    // CAS: only pending_approval → queued. Concurrent reject (or a second
+    // approve) must not be overwritten by an id-only update after the status
+    // check above. Worker claim still serializes OCR; this closes the
+    // approve↔reject wipe of discarded/queued state.
+    const [approved] = await db
       .update(schema.videoJobs)
       .set({
         status: "queued",
@@ -127,7 +128,20 @@ export async function POST(_request: Request, { params }: Props) {
         updatedAt: now,
         ...nativeConfigPatch,
       })
-      .where(eq(schema.videoJobs.id, jobId));
+      .where(
+        and(
+          eq(schema.videoJobs.id, jobId),
+          eq(schema.videoJobs.status, "pending_approval"),
+        ),
+      )
+      .returning({ id: schema.videoJobs.id });
+
+    if (!approved) {
+      return NextResponse.json(
+        { error: "Only pending jobs can be approved." },
+        { status: 409 },
+      );
+    }
 
     await writeAuditLog({
       sessionId: session.id,

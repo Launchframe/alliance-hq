@@ -6,8 +6,8 @@ import { getDiscordUserLocale, upsertDiscordUserLocale } from "@/lib/vr/reposito
 export type DiscordBotLocale = "en-US" | "pt-BR";
 
 const MESSAGES: Record<DiscordBotLocale, Record<string, unknown>> = {
-  "en-US": enUS.discordBot as Record<string, unknown>,
-  "pt-BR": ptBR.discordBot as Record<string, unknown>,
+  "en-US": { ...enUS.discordBot, timeOff: { ...enUS.discordBot.timeOff, workflow: enUS.timeOff.workflow, form: enUS.timeOff.form, officerModal: enUS.timeOff.officerModal, entry: enUS.timeOff.entry, sync: enUS.timeOff.sync } },
+  "pt-BR": { ...ptBR.discordBot, timeOff: { ...ptBR.discordBot.timeOff, workflow: ptBR.timeOff.workflow, form: ptBR.timeOff.form, officerModal: ptBR.timeOff.officerModal, entry: ptBR.timeOff.entry, sync: ptBR.timeOff.sync } },
 };
 
 const AUTHORIZE_MESSAGES: Record<DiscordBotLocale, Record<string, unknown>> = {

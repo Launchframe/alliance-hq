@@ -33,6 +33,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/internal/regular-events/announcements",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/internal/ashed-credential-shares/expire",
       "schedule": "0 * * * *"
     },
@@ -43,6 +47,22 @@
     {
       "path": "/api/internal/lastrank/sync",
       "schedule": "30 8 * * *"
+    },
+    {
+      "path": "/api/internal/time-off/sync",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/internal/alliance-daily-snapshot",
+      "schedule": "15 3 * * *"
+    },
+    {
+      "path": "/api/internal/vs-scores/sync",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/internal/vs-compliance/weekly",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

@@ -1,54 +1,27 @@
 import "server-only";
 
-import { sessionHasPermission } from "@/lib/rbac/context";
+import { sessionHasPermissionForAlliance } from "@/lib/rbac/context";
+import { TIME_OFF_READ_PERMISSION, TIME_OFF_WRITE_PERMISSION } from "@/lib/rbac/constants";
 import {
-  TIME_OFF_READ_PERMISSION,
-  TIME_OFF_WRITE_PERMISSION,
-} from "@/lib/rbac/constants";
-import { loadAllianceMembers } from "@/lib/members/load";
-import {
-  listActiveTimeOffEntries,
   listLinkedCommanderIdsForHqUser,
+  listOwnTimeOffPage,
+  listTimeOffRoster,
   listUnexpectedAbsenceReport,
   loadTimeOffEntriesForMonth,
   resolveMonthKeyFromQuery,
-} from "@/lib/time-off/repository.server";
-import type { TimeOffCalendarPayload } from "@/lib/time-off/types.shared";
+} from "./repository.server";
+import type { TimeOffCalendarPayload } from "./types.shared";
+import { timeOffEntryForViewer } from "./workflow.shared";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
+import { isAshedTimeOffSyncEnabled } from "./excused-actions.server";
 
-export async function loadUnexpectedAbsenceReport(input: {
-  sessionId: string;
-  allianceId: string;
-}) {
-  const today = getServerCalendarDate();
-  const [unexpected, plannedToday, roster] = await Promise.all([
-    listUnexpectedAbsenceReport({ allianceId: input.allianceId, asOfDate: today }),
-    listActiveTimeOffEntries({
-      allianceId: input.allianceId,
-      rangeStart: today,
-      rangeEnd: today,
-    }),
-    loadAllianceMembers(input.sessionId),
-  ]);
-
-  const plannedMemberIds = new Set(
-    plannedToday
-      .filter(
-        (entry) =>
-          entry.entryKind === "planned" || entry.entryKind === "officer_marked",
-      )
-      .map((entry) => entry.ashedMemberId),
-  );
-
-  const unannounced = roster.members
-    .filter((member) => member.status !== "former")
-    .filter((member) => !plannedMemberIds.has(member.id))
-    .map((member) => ({
-      ashedMemberId: member.id,
-      memberName: member.current_name,
-    }));
-
-  return { unexpected, unannounced };
+export async function loadUnexpectedAbsenceReport(input: { sessionId: string; allianceId: string }) {
+  const canManage = await sessionHasPermissionForAlliance(input.sessionId, input.allianceId, TIME_OFF_WRITE_PERMISSION);
+  if (!canManage) return { unexpected: [], unannounced: [] };
+  return {
+    unexpected: await listUnexpectedAbsenceReport({ allianceId: input.allianceId, asOfDate: getServerCalendarDate() }),
+    unannounced: [],
+  };
 }
 
 export async function loadTimeOffCalendar(input: {
@@ -56,47 +29,34 @@ export async function loadTimeOffCalendar(input: {
   hqUserId: string | null;
   allianceId: string;
   month?: string | null;
+  history?: boolean;
+  page?: number;
 }): Promise<TimeOffCalendarPayload | { forbidden: true }> {
-  const canRead = await sessionHasPermission(
-    input.sessionId,
-    TIME_OFF_READ_PERMISSION,
-  );
-  if (!canRead) {
-    return { forbidden: true };
-  }
-
+  if (!input.hqUserId || !(await sessionHasPermissionForAlliance(input.sessionId, input.allianceId, TIME_OFF_READ_PERMISSION))) return { forbidden: true };
   const todayServerDate = getServerCalendarDate();
   const monthKey = resolveMonthKeyFromQuery(input.month, todayServerDate);
-  const canManageOthers = await sessionHasPermission(
-    input.sessionId,
-    TIME_OFF_WRITE_PERMISSION,
-  );
-
-  const [entries, canWrite, linkedCommanderIds, unexpectedReport] =
-    await Promise.all([
-      loadTimeOffEntriesForMonth(input.allianceId, monthKey),
-      sessionHasPermission(input.sessionId, TIME_OFF_WRITE_PERMISSION),
-      input.hqUserId
-        ? listLinkedCommanderIdsForHqUser({
-            allianceId: input.allianceId,
-            hqUserId: input.hqUserId,
-          })
-        : Promise.resolve([]),
-      canManageOthers
-        ? loadUnexpectedAbsenceReport({
-            sessionId: input.sessionId,
-            allianceId: input.allianceId,
-          })
-        : Promise.resolve(undefined),
-    ]);
-
+  const [canManageOthers, linkedCommanderIds, roster, entries] = await Promise.all([
+    sessionHasPermissionForAlliance(input.sessionId, input.allianceId, TIME_OFF_WRITE_PERMISSION),
+    listLinkedCommanderIdsForHqUser({ allianceId: input.allianceId, hqUserId: input.hqUserId }),
+    listTimeOffRoster(input.allianceId),
+    loadTimeOffEntriesForMonth(input.allianceId, monthKey),
+  ]);
+  const page = Number.isSafeInteger(input.page) && input.page! >= 0 ? Math.min(input.page!, 1000) : 0;
+  const own = await listOwnTimeOffPage({ allianceId: input.allianceId, ownedCommanderIds: linkedCommanderIds, today: todayServerDate, history: input.history === true, page });
+  const viewer = { canManageOthers, ownedCommanderIds: linkedCommanderIds };
   return {
     todayServerDate,
     monthKey,
-    entries,
-    canWrite,
+    entries: entries.map((entry) => timeOffEntryForViewer(entry, viewer)),
+    canWrite: canManageOthers || linkedCommanderIds.length > 0,
     canManageOthers,
     linkedCommanderIds,
-    unexpectedReport,
+    commanders: canManageOthers ? roster : roster.filter((member) => linkedCommanderIds.includes(member.id)),
+    ownEntries: own.entries,
+    ownEntriesPage: page,
+    ownEntriesHaveMore: own.hasMore,
+    history: input.history === true,
+    ashedSyncEnabled: await isAshedTimeOffSyncEnabled(input.allianceId),
+    unexpectedReport: canManageOthers ? await loadUnexpectedAbsenceReport(input) : undefined,
   };
 }

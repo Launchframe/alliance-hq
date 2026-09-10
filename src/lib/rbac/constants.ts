@@ -28,9 +28,16 @@ export const HQ_PERMISSIONS = [
   { id: "bank:write", description: "Manage alliance bank strongholds and deposit slips" },
   { id: "time_off:read", description: "View alliance time-off calendar" },
   { id: "time_off:write", description: "Manage time-off entries for alliance members" },
+  { id: "vs_compliance:read", description: "VS compliance" },
+  { id: "vs_compliance:manage", description: "Confirm in-game action" },
+  { id: "vs_compliance:settings", description: "VS membership minimums" },
   { id: "officer_intel:read", description: "View officer intelligence sessions and ingested chat" },
   { id: "officer_intel:write", description: "Upload and manage officer intelligence chat sessions" },
 ] as const;
+
+export const VS_COMPLIANCE_READ_PERMISSION = "vs_compliance:read";
+export const VS_COMPLIANCE_MANAGE_PERMISSION = "vs_compliance:manage";
+export const VS_COMPLIANCE_SETTINGS_PERMISSION = "vs_compliance:settings";
 
 export const BATTLE_PLAN_READ_PERMISSION = "battle_plan:read";
 export const BATTLE_PLAN_WRITE_PERMISSION = "battle_plan:write";

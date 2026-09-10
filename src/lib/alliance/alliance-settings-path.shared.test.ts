@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  allianceRegularEventsApiPath,
   allianceSeasonApiPath,
   allianceTagPathSegment,
   allianceTrainMinimumsApiPath,
@@ -16,6 +17,9 @@ describe("alliance-settings-path", () => {
     );
     expect(allianceTrainWeekApiPath("LFgo")).toBe(
       "/api/alliance/lfgo/train-week",
+    );
+    expect(allianceRegularEventsApiPath("LFgo")).toBe(
+      "/api/alliance/lfgo/regular-events",
     );
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import type { SerializedTimeOffEntry } from "@/lib/time-off/types.shared";
 
@@ -16,6 +16,8 @@ type Props = {
 
 export function UnexpectedAbsencePanel({ initialReport }: Props) {
   const t = useTranslations("timeOff");
+  const locale = useLocale();
+  const formatDate = (date: string) => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
   const [report, setReport] = useState<ReportPayload | null>(
     initialReport ?? null,
   );
@@ -41,6 +43,8 @@ export function UnexpectedAbsencePanel({ initialReport }: Props) {
         unexpected: payload.unexpected,
         unannounced: payload.unannounced,
       });
+    } catch {
+      setError(t("errors.reportFailed"));
     } finally {
       setLoading(false);
     }
@@ -74,7 +78,7 @@ export function UnexpectedAbsencePanel({ initialReport }: Props) {
       ) : null}
 
       {report ? (
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className="mt-4">
           <div>
             <h3 className="text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
               {t("unexpectedReport.flaggedTitle")}
@@ -89,28 +93,12 @@ export function UnexpectedAbsencePanel({ initialReport }: Props) {
                   <li key={entry.id} className="rounded border border-hq-border px-2 py-1.5">
                     <div className="font-medium text-hq-fg">{entry.memberName}</div>
                     <div className="text-hq-fg-muted">
-                      {entry.startDate} → {entry.endDate}
+                      {t("entry.range", { start: formatDate(entry.startDate), end: formatDate(entry.endDate) })}
                     </div>
                     {entry.notes ? (
                       <div className="text-hq-fg-muted">{entry.notes}</div>
                     ) : null}
                   </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div>
-            <h3 className="text-xs font-medium uppercase tracking-wide text-hq-fg-muted">
-              {t("unexpectedReport.unannouncedTitle")}
-            </h3>
-            {report.unannounced.length === 0 ? (
-              <p className="mt-2 text-sm text-hq-fg-muted">
-                {t("unexpectedReport.unannouncedEmpty")}
-              </p>
-            ) : (
-              <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-sm text-hq-fg-muted">
-                {report.unannounced.map((member) => (
-                  <li key={member.ashedMemberId}>{member.memberName}</li>
                 ))}
               </ul>
             )}

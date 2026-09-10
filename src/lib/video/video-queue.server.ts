@@ -7,6 +7,9 @@ import { loadSession } from "@/lib/session";
 import { sessionCanReadAllianceVideoQueue } from "@/lib/video/processor-slots.server";
 import { ACTIVE_QUEUE_VIDEO_JOB_STATUSES } from "@/lib/video/video-lifecycle.shared";
 import type { AllianceQueueJob } from "@/lib/video/video-queue.shared";
+import { loadAllianceVideoOcrContext } from "@/lib/video/alliance-ocr-settings.server";
+import { engineRequiresAshed, resolveVideoOcrEngineForJob } from "@/lib/video/ocr-provider.shared";
+import { isMemberRosterVideoTarget, isNativeOnlyVideoTarget } from "@/lib/video/score-targets";
 
 export type { AllianceQueueJob } from "@/lib/video/video-queue.shared";
 
@@ -56,6 +59,7 @@ async function selectActiveQueueJobs(
   const rows = await db
     .select({
       id: schema.videoJobs.id,
+      allianceId: schema.videoJobs.allianceId,
       status: schema.videoJobs.status,
       fileName: schema.videoJobs.fileName,
       scoreTarget: schema.videoJobs.scoreTarget,
@@ -76,7 +80,21 @@ async function selectActiveQueueJobs(
     .where(and(whereClause, activeStatusFilter, primaryPassFilter))
     .orderBy(desc(schema.videoJobs.createdAt));
 
-  return mapQueueRows(rows);
+  const contexts = new Map(await Promise.all(
+    [...new Set(rows.map((row) => row.allianceId))].map(async (allianceId) =>
+      [allianceId, await loadAllianceVideoOcrContext(allianceId)] as const,
+    ),
+  ));
+  return mapQueueRows(rows).map((job, index) => {
+    const scoreTarget = job.scoreTarget ?? "desert-storm";
+    const engine = resolveVideoOcrEngineForJob(
+      scoreTarget,
+      isMemberRosterVideoTarget(scoreTarget),
+      contexts.get(rows[index].allianceId),
+      { forceNative: isNativeOnlyVideoTarget(scoreTarget) },
+    );
+    return { ...job, requiresAshedConnection: engineRequiresAshed(engine) };
+  });
 }
 
 /** All alliance jobs that still need action before scores are submitted. */

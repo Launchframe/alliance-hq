@@ -126,6 +126,7 @@ import {
 } from "@/lib/trains/templates";
 import {
   clearConductorAssignment,
+  swapConductorAssignmentsAtomic,
   clearVipAssignment,
   deleteWeekScheduleAndDayConfigs,
   getConductorRecord,
@@ -537,6 +538,7 @@ async function rollFromPool(
   respectConductorMinimums = false,
   dayExcludedMemberIds?: ReadonlySet<string>,
   claimEligibility?: DepletingPoolClaimEligibility,
+  options?: { skipClaimLock?: boolean },
 ): Promise<RollResult> {
   // Ashed VS + roster rank filters run once outside the claim lock. Holding
   // the lock across those fetches is what stacked swap→spin cycles into 504s
@@ -558,7 +560,8 @@ async function rollFromPool(
   // Serialize list→pick→claim so parallel spins for different dates cannot
   // both mark the same pool row. Conditional claim + retry is defense in depth
   // if a manual pick races outside this lock.
-  return withConductorPoolClaimLock({ allianceId, poolType }, async () => {
+  // VIP assign may call with skipClaimLock so claim+VIP persist share one lock.
+  const claim = async (): Promise<RollResult> => {
     const summary = await getPoolSummary(allianceId, poolType);
     const maxAttempts = Math.max(summary.remaining, 1) + 2;
 
@@ -639,7 +642,12 @@ async function rollFromPool(
       poolType,
       wheelCandidates,
     };
-  });
+  };
+
+  if (options?.skipClaimLock) {
+    return claim();
+  }
+  return withConductorPoolClaimLock({ allianceId, poolType }, claim);
 }
 
 async function applyConductorQualificationGate(input: {
@@ -1492,12 +1500,66 @@ export async function rollForVip(input: {
         useSequence: false,
         eventTopN: config.topN ?? 10,
       });
-      result = await rollFromPool(
-        input.allianceId,
-        poolType,
-        input.date,
-        false,
-        mechanism,
+      // Hold the pool claim lock through VIP assign + prior release. Claiming
+      // then unlocking before assign orphaned winners when assign failed or a
+      // concurrent VIP spin overwrote the record (burned pool slots).
+      result = await withConductorPoolClaimLock(
+        { allianceId: input.allianceId, poolType },
+        async () => {
+          const rolled = await rollFromPool(
+            input.allianceId,
+            poolType,
+            input.date,
+            false,
+            mechanism,
+            false,
+            false,
+            undefined,
+            undefined,
+            { skipClaimLock: true },
+          );
+
+          const rankEvent = await getMemberRankAsOf(
+            input.allianceId,
+            rolled.memberId,
+            input.date,
+          );
+
+          try {
+            await assignVipOnLockedConductor({
+              allianceId: input.allianceId,
+              date: input.date,
+              seasonKey,
+              vipMemberId: rolled.memberId,
+              vipMemberName: rolled.memberName,
+              vipRankEventId: rankEvent?.id ?? null,
+              vipMechanism: mechanism,
+              dayConfigId: dayConfig.dayConfigId,
+            });
+          } catch (error) {
+            await releasePoolSelectionForDate(
+              input.allianceId,
+              input.date,
+              rolled.memberId,
+            );
+            throw error;
+          }
+
+          if (
+            shouldReleasePriorPoolSelection({
+              previousMemberId: record?.vipMemberId,
+              nextMemberId: rolled.memberId,
+            })
+          ) {
+            await releasePoolSelectionForDate(
+              input.allianceId,
+              input.date,
+              record!.vipMemberId!,
+            );
+          }
+
+          return rolled;
+        },
       );
       const poolRefreshed = await refreshExhaustedPoolIfNeeded({
         allianceId: input.allianceId,
@@ -1512,36 +1574,6 @@ export async function rollForVip(input: {
     }
     default:
       throw new Error(`VIP mechanism "${mechanism}" is not rollable yet.`);
-  }
-
-  const rankEvent = await getMemberRankAsOf(
-    input.allianceId,
-    result.memberId,
-    input.date,
-  );
-
-  await assignVipOnLockedConductor({
-    allianceId: input.allianceId,
-    date: input.date,
-    seasonKey,
-    vipMemberId: result.memberId,
-    vipMemberName: result.memberName,
-    vipRankEventId: rankEvent?.id ?? null,
-    vipMechanism: mechanism,
-    dayConfigId: dayConfig.dayConfigId,
-  });
-
-  if (
-    shouldReleasePriorPoolSelection({
-      previousMemberId: record?.vipMemberId,
-      nextMemberId: result.memberId,
-    })
-  ) {
-    await releasePoolSelectionForDate(
-      input.allianceId,
-      input.date,
-      record!.vipMemberId!,
-    );
   }
 
   return result;
@@ -1926,121 +1958,66 @@ export async function swapConductors(input: {
     throw new Error("Unlock conductor days before swapping.");
   }
 
-  const targetHasConductor =
-    Boolean(recordB?.conductorMemberId && recordB.conductorMemberName);
+  const targetHasConductor = Boolean(
+    recordB?.conductorMemberId && recordB.conductorMemberName,
+  );
+
+  let rankEventIdForA: string | null = null;
+  let rankEventIdForB: string | null = null;
 
   if (targetHasConductor) {
-    const memberFromA = recordA.conductorMemberId;
-    const memberFromB = recordB!.conductorMemberId!;
     const rankForA = await getMemberRankAsOf(
       input.allianceId,
-      memberFromB,
+      recordB!.conductorMemberId!,
       input.dateA,
     );
     const rankForB = await getMemberRankAsOf(
       input.allianceId,
-      memberFromA,
+      recordA.conductorMemberId,
       input.dateB,
     );
-
-    await upsertConductorDraft({
-      allianceId: input.allianceId,
-      date: input.dateA,
-      seasonKey,
-      conductorMemberId: recordB!.conductorMemberId,
-      conductorMemberName: recordB!.conductorMemberName,
-      conductorRankEventId: rankForA?.id ?? null,
-      substituteForMemberId: recordA.conductorMemberId,
-      substituteForMemberName: recordA.conductorMemberName,
-    });
-
-    await upsertConductorDraft({
-      allianceId: input.allianceId,
-      date: input.dateB,
-      seasonKey,
-      conductorMemberId: recordA.conductorMemberId,
-      conductorMemberName: recordA.conductorMemberName,
-      conductorRankEventId: rankForB?.id ?? null,
-      substituteForMemberId: recordB!.conductorMemberId,
-      substituteForMemberName: recordB!.conductorMemberName,
-    });
-
-    // Keep depleting-pool consumption attached to the new dates.
-    await movePoolSelectionForDate(
-      input.allianceId,
-      memberFromA,
-      input.dateA,
-      input.dateB,
-    );
-    await movePoolSelectionForDate(
-      input.allianceId,
-      memberFromB,
-      input.dateB,
-      input.dateA,
-    );
+    rankEventIdForA = rankForA?.id ?? null;
+    rankEventIdForB = rankForB?.id ?? null;
   } else {
-    const memberFromA = recordA.conductorMemberId;
     const rankForB = await getMemberRankAsOf(
       input.allianceId,
-      memberFromA,
+      recordA.conductorMemberId,
       input.dateB,
     );
-
-    await upsertConductorDraft({
-      allianceId: input.allianceId,
-      date: input.dateB,
-      seasonKey,
-      conductorMemberId: recordA.conductorMemberId,
-      conductorMemberName: recordA.conductorMemberName,
-      conductorRankEventId: rankForB?.id ?? null,
-      substituteForMemberId: null,
-      substituteForMemberName: null,
-    });
-
-    // Do not release the pool slot — the conductor is still assigned (on dateB).
-    await clearConductorAssignment(
-      input.allianceId,
-      input.dateA,
-      seasonKey,
-      { releasePool: false },
-    );
-    await movePoolSelectionForDate(
-      input.allianceId,
-      memberFromA,
-      input.dateA,
-      input.dateB,
-    );
-    // VIP stays day-scoped; do not leave an orphan VIP on the emptied source.
-    // Also releases any depleting event_top_x mark for that date.
-    if (recordA.vipMemberId) {
-      await clearVipAssignment(input.allianceId, input.dateA, seasonKey);
-    }
+    rankEventIdForB = rankForB?.id ?? null;
   }
 
-  const draftA = await getConductorRecord(
-    input.allianceId,
-    input.dateA,
-    seasonKey,
-  );
-  const draftB = await getConductorRecord(
-    input.allianceId,
-    input.dateB,
-    seasonKey,
-  );
+  // Record + depleting-pool writes are one transaction with FOR UPDATE + CAS.
+  const { recordA: draftA, recordB: draftB } =
+    await swapConductorAssignmentsAtomic({
+      allianceId: input.allianceId,
+      dateA: input.dateA,
+      dateB: input.dateB,
+      seasonKey,
+      expectedMemberA: {
+        id: recordA.conductorMemberId,
+        name: recordA.conductorMemberName,
+      },
+      expectedMemberB: targetHasConductor
+        ? {
+            id: recordB!.conductorMemberId!,
+            name: recordB!.conductorMemberName!,
+          }
+        : null,
+      rankEventIdForA,
+      rankEventIdForB,
+    });
 
-  // Lock is irreversible spawn — swap only moves drafts. Officers lock when
-  // the train is actually set in-game.
-  if (!draftB?.conductorMemberId || !draftB.conductorMemberName) {
+  // Lock is irreversible spawn — swap only moves drafts.
+  if (!draftB.conductorMemberId || !draftB.conductorMemberName) {
     throw new Error("Swap failed to persist conductor assignment.");
   }
 
-  // Keep depleting-pool consumption aligned with the new dates (unlock used to
-  // wipe selection; even without that, selectedForDate must follow the swap).
   await syncDepletingPoolSelectionForConductorDay({
     allianceId: input.allianceId,
     date: input.dateA,
     seasonKey,
-    memberId: draftA?.conductorMemberId,
+    memberId: draftA.conductorMemberId,
   });
   await syncDepletingPoolSelectionForConductorDay({
     allianceId: input.allianceId,
@@ -2056,6 +2033,7 @@ export async function swapConductors(input: {
 
   return { records };
 }
+
 
 export { getServerCalendarDate };
 export { getWeekStartMonday } from "@/lib/trains/game-time";

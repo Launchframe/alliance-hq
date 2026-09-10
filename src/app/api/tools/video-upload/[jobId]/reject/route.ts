@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { emitVideoJobStatus } from "@/lib/events/video-jobs";
@@ -67,14 +67,31 @@ export async function POST(request: Request, { params }: Props) {
     }
 
     const now = new Date();
-    await db
+    // CAS: never discard over queued/extracting/review/complete. Concurrent
+    // approve (or a finished worker) can advance past pending_approval between
+    // the read above and this write; an id-only update would wipe that state
+    // and delete storage out from under the worker.
+    const [discarded] = await db
       .update(schema.videoJobs)
       .set({
         status: "discarded",
         errorMessage: reason,
         updatedAt: now,
       })
-      .where(eq(schema.videoJobs.id, jobId));
+      .where(
+        and(
+          eq(schema.videoJobs.id, jobId),
+          eq(schema.videoJobs.status, "pending_approval"),
+        ),
+      )
+      .returning({ id: schema.videoJobs.id });
+
+    if (!discarded) {
+      return NextResponse.json(
+        { error: "Only pending jobs can be rejected." },
+        { status: 409 },
+      );
+    }
 
     await writeAuditLog({
       sessionId: session.id,

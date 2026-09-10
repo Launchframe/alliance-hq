@@ -96,6 +96,7 @@
     "allianceTasks": "Alliance Tasks",
     "mergeManager": "Merge Manager",
     "vsPerformance": "VS Performance",
+    "vsCompliance": "VS compliance",
     "donations": "Donations",
     "allianceKillsVideo": "Kill counts",
     "storeSpend": "Prize spend",
@@ -1187,7 +1188,22 @@
     "refreshFailed": "Refresh failed — check your Ashed token.",
     "empty": "No team members yet.",
     "forbidden": "Alliance membership required.",
+    "revokeOfficer": "Remove officer access",
+    "revokeOfficerConfirmTitle": "Remove officer access?",
+    "revokeOfficerConfirmBody": "This keeps their HQ login and commander link. They will have member access only.",
+    "revokeOfficerConfirm": "Remove access",
+    "revokeOfficerCancel": "Cancel",
+    "revokeOfficerWorking": "Removing…",
+    "revokeOfficerFailed": "Could not remove officer access.",
     "ashedNote": "Alliance admins: to add or remove maintainers from Ashed sync, update collaborators in Ashed → Alliances, then refresh here.",
+    "tabs": {
+      "label": "Team settings sections",
+      "loading": "Loading team settings…",
+      "invites": "Invites",
+      "processors": "Video processors",
+      "credentialShares": "Ashed sharing",
+      "members": "Members"
+    },
     "invites": {
       "title": "Invite to Alliance HQ",
       "description": "Use the wizard below to create invite links, join codes, or commander claim codes. Recipients sign in with their own HQ account — you do not need a platform maintainer.",
@@ -1352,7 +1368,8 @@
       "commander": "Commander",
       "commanderNotLinked": "Not linked",
       "role": "Role",
-      "source": "Source"
+      "source": "Source",
+      "actions": "Actions"
     }
   },
   "dataManagement": {
@@ -1488,6 +1505,7 @@
       "requestsThisSession": "Ashed requests this session",
       "disconnect": "Disconnect",
       "linkAnotherDevice": "Link another device",
+      "shareAshedAccess": "Share Ashed access",
       "reconnectHeading": "Reconnect to Ashed",
       "reconnectHint": "Paste a JWT (or Bearer token). HQ connects automatically when the token is valid — no button to click.",
       "jwtLabel": "Ashed JWT",
@@ -1553,6 +1571,8 @@
         "trainsHistoryImport": "Import conductor history",
         "battlePlan": "Go to Battle Plan",
         "timeOff": "Go to Time Off",
+        "vsCompliance": "VS compliance",
+        "vsMembershipMinimums": "VS membership minimums",
         "bankManagement": "Go to Bank Management",
         "officerIntel": "Go to Officer Intelligence",
         "desertStorm": "Go to Desert Storm",
@@ -2044,6 +2064,9 @@
     "uploadRemindersTitle": "Upload reminders",
     "uploadRemindersBody": "Configure when officers are reminded to upload event scores, and manage your personal reminder subscriptions.",
     "uploadRemindersLink": "Manage upload reminders",
+    "regularEventsTitle": "Regular events",
+    "regularEventsBody": "Schedule Discord and inbox reminders for Alliance Exercise, Zombie Siege, Glacierdon, and Sky Predator.",
+    "regularEventsLink": "Manage regular event reminders",
     "discordSectionTitle": "Discord integration",
     "discordSectionBody": "Install the alliance bot and register your Discord server for train announcements and member tools.",
     "discordSectionLink": "Open Discord settings",
@@ -2300,6 +2323,53 @@
         "stepEnableAnnouncements": "In Alliance HQ → Settings → Trains, enable Discord train announcements."
       }
     },
+    "regularEvents": {
+      "title": "Regular event reminders",
+      "description": "Post Discord and HQ inbox reminders one hour before Alliance Exercise, Zombie Siege, Glacierdon, and Sky Predator.",
+      "loading": "Loading…",
+      "loadFailed": "Could not load regular event settings.",
+      "saveFailed": "Could not save regular event settings.",
+      "enableAnnouncements": "Post regular event reminders to Discord",
+      "channelsConfigured": "{count, plural, one {# registered Discord server has a regular events channel} other {# registered Discord servers have regular events channels}}",
+      "noChannel": "No regular events channel configured yet. Run /set-regular-events-channel in Discord.",
+      "canyonStormLabel": "Canyon Storm is active",
+      "canyonStormHint": "When on, Zombie Siege reminders use 23:30 server time instead of 23:00.",
+      "readOnlyHint": "Only alliance officers can change these settings.",
+      "scheduleTitle": "Schedule",
+      "scheduleHint": "Reminders use server time (UTC−2). Tap a day to add or remove the selected event.",
+      "viewWeek": "Week",
+      "viewMonth": "Month",
+      "prev": "Previous",
+      "next": "Next",
+      "repeatsLabel": "Repeats",
+      "repeatsOnce": "Just once",
+      "repeatsWeekly": "Weekly",
+      "repeatsBiweekly": "Bi-weekly",
+      "timeLabel": "Start time",
+      "timeZoneServer": "Server time",
+      "timeZoneLocal": "My local time",
+      "timeZoneHint": "Times are saved in server time (UTC−2).",
+      "validationAdjacent": "Alliance Exercise cannot be scheduled on adjacent days.",
+      "validationMinGap": "Zombie Siege needs at least two full days between events.",
+      "validationOncePerWeek": "This event can be scheduled only once per week.",
+      "validationWedFri": "Sky Predator and Glacierdon can only be scheduled Wednesday–Friday.",
+      "validationAlternating": "Sky Predator and Glacierdon cannot be scheduled in the same week.",
+      "validationBiweeklyPhase": "Bi-weekly events need at least one scheduled day to set the alternating week.",
+      "r4ChannelHint": "Officers get an in-game schedule reminder at Reset in the R4 Discord channel. Run /set-r4-channel.",
+      "r4ChannelConfigured": "R4 channel configured on {count, plural, one {# server} other {# servers}}.",
+      "noR4Channel": "No R4 channel yet. Run /set-r4-channel in Discord.",
+      "ruleInterval": "Every {days} days at {time} server time",
+      "ruleWeeklyEmpty": "Weekly (no slots configured)",
+      "dow": {
+        "sun": "Sun",
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat"
+      }
+    },
     "vrSandbox": {
       "title": "VR sandbox mode",
       "description": "Let members practice reporting VR on Discord and My VR when the live season is closed or between seasons. Sandbox reports do not appear on the live leaderboard.",
@@ -2346,7 +2416,10 @@
       "extend": "Extend access",
       "extendFailed": "Could not extend credential share.",
       "recentActivity": "Recent activity",
-      "createTitle": "Share your credentials",
+      "activityAction": "Action",
+      "activityWhen": "When",
+      "createTitle": "Share access",
+      "conflictHint": "You already have 3 active shares. Revoke one below, then try again.",
       "officerLabel": "Officer",
       "officerPlaceholder": "Select an officer",
       "capabilitiesLabel": "Capabilities",
@@ -3689,6 +3762,51 @@
         "roll": "Spin the wheel or pick a conductor for today and upcoming days.",
         "lock": "Lock in a conductor to spawn that day's empty train. If you locked it, you can unlock until midnight Server Time of that train day."
       },
+      "weekGoalsTitle": "Train platform guides",
+      "weekGoalsIntro": "When leadership names a platform for the week, use that guide for what to do — and what not to do. Platforms: Hard save → Save hard → Push hard → Hard push.",
+      "weekGoalsSharedTitle": "Every platform",
+      "weekGoalsShared": {
+        "conductorsAtReset": "Conductors are drawn at Reset. Watch your DMs and Discord for conductor announcements.",
+        "leadTime": "Lead time can change which day’s scores count for a train — check Train settings.",
+        "vsMinimum": "Price Is Freight days may require a VS minimum to win Conductor — check Train settings.",
+        "donationMinimum": "Price Is Freight days may require a donation minimum — check Train settings."
+      },
+      "weekGoals": {
+        "economy": {
+          "title": "Platform 1 — The Price Is Freight",
+          "subtitle": "Hard save",
+          "blurb": "This week means… The closer to 7.2M, the better your odds to win.",
+          "do1": "Do: Aim for 7.2M — that’s the target every time.",
+          "do2": "Do: Friday and Saturday scores are unrestricted. Train troops and fight to your heart’s content!",
+          "dont": "Don’t: Overspend on save days."
+        },
+        "save": {
+          "title": "Platform 2 — Save Week",
+          "subtitle": "Save hard",
+          "blurb": "This week means… Push your power if you need to. Conductors are picked at random from R3s.",
+          "do1": "Do: Save when you can; burn only when you need the power.",
+          "dont": "Don’t: Overspend on save days."
+        },
+        "certainDays": {
+          "title": "Platform 3 — Strategic Victory",
+          "subtitle": "Push hard",
+          "blurb": "This week means… We throw in the towel on some days while dominating on others. The goal is to win by just enough of a margin by saving on select days this week.",
+          "do1": "Do: Ask or read which days are push days vs throw-away days.",
+          "do2": "Do: Bring your A-game when called upon.",
+          "do3": "Do: Save on throw-away days.",
+          "dont": "Don’t: Push the wrong days."
+        },
+        "allOut": {
+          "title": "Platform 4 — All-Out Domination",
+          "subtitle": "Hard push",
+          "blurb": "This week means… All gas, no brakes. Show them what this alliance is made of.",
+          "do1": "Do: Show up hard Monday through Saturday.",
+          "do2": "Do: Keep an ear peeled for strategy pivots.",
+          "do3": "Do: Lock in the victory by Friday.",
+          "dont1": "Don’t: Slack off.",
+          "dont2": "Don’t: Go AFK without letting the crew know."
+        }
+      },
       "lockOwnershipTitle": "Train ownership",
       "lockOwnershipBody": "The officer who locks a conductor can unlock it until midnight Server Time on that train day. Locking a past day is the exception — you can unlock that lock at any time. After midnight, only the alliance owner or a platform maintainer can unlock.",
       "takeTour": "Take the tour",
@@ -3909,6 +4027,11 @@
       "donations": {
         "unavailableTitle": "Donation scores not available yet",
         "unavailableBody": "HQ does not store donation totals yet. Use manual conductor picks until donation scoring is wired."
+      },
+      "share": {
+        "action": "Share image",
+        "subtitle": "{day}",
+        "failed": "Could not create the leaderboard image."
       }
     },
     "priceIsRight": {
@@ -3970,6 +4093,16 @@
       "aboveCliff": {
         "title": "Above cliff cutoff",
         "subtitle": "Hard cutoff is on — prior-day VS above your cliff are excluded from today's draw."
+      },
+      "scoreList": {
+        "searchLabel": "Search members",
+        "searchPlaceholder": "Search by name…",
+        "member": "Commander",
+        "vs": "Prior-day VS",
+        "empty": "No members match this search.",
+        "pageStatus": "Page {page} of {pages} · {count} members",
+        "prev": "Previous",
+        "next": "Next"
       }
     },
     "conductorHistory": {
@@ -4206,6 +4339,7 @@
         "statsLine": "Last: {lastDate} · {count} this year",
         "eligibilityVsMinimum": "Eligible: {score} (min {minimum})",
         "eligibilityTpif": "Prior-day VS {score} — closest to {sweetSpot}",
+        "eligibilityTpifWithChance": "Prior-day VS {score} · {chance} win chance",
         "eligibilityVsLeaderboardRank": "#{rank} · {score} {suffix}",
         "eligibilityVsLeaderboardScore": "{score} {suffix}"
       }
@@ -4247,12 +4381,14 @@
     "title": "Upload from video",
     "subtitle": "Record yourself scrolling a Last War leaderboard. We extract frames, OCR scores, and let you review before submitting to Ashed.",
     "scoreTargetLabel": "What leaderboard is this?",
+    "scoreTargetPlaceholder": "Select a leaderboard…",
     "ocrAccuracy": {
       "high": "High",
       "mid": "Mid",
       "low": "Low",
       "none": "None",
-      "label": "Badge shows how well our in-house OCR reads this event."
+      "label": "Badge shows how well our in-house OCR reads this event.",
+      "labelWithAshed": "Ashed is connected — Ashed-supported leaderboards show High."
     },
     "categoryLabel": "What kind of scoreboard is this?",
     "categories": {
@@ -4274,6 +4410,7 @@
     "fileTooLarge": "This file is {size}. Videos must be under {maxSize}.",
     "selectedFile": "Selected: {name} ({size})",
     "chooseFileFirst": "Choose a video file first.",
+    "chooseScoreTargetFirst": "Choose a leaderboard first.",
     "uploading": "Uploading…",
     "preparingUpload": "Preparing upload…",
     "uploadButton": "Upload video",
@@ -4283,9 +4420,17 @@
       "resources": "Resources",
       "points": "Points"
     },
-    "queuedSuccess": "Video uploaded. Complete the short survey while you wait — an officer will approve and run OCR.",
-    "pendingApprovalHint": "Uploaded videos wait in the queue until a designated processor or alliance owner approves them. You can finish the upload survey while you wait.",
+    "queuedSuccess": "Video uploaded. A video processor will approve it and run OCR.",
+    "pendingApprovalHint": "Uploaded videos wait in the queue until a designated processor or alliance owner approves them.",
     "recentUploads": "Recent uploads",
+    "awaitingApprovalHeading": "Awaiting approval",
+    "awaitingApprovalDialog": {
+      "title": "Awaiting approval",
+      "body": "Officers were notified in Discord. A video processor will approve this upload and run OCR.",
+      "done": "Done"
+    },
+    "otherUploadsHeading": "Other recent uploads",
+    "openVideoQueue": "Open Video queue",
     "viewAllUploads": "View all uploads",
     "reviewLink": "Review",
     "surveyResumeLink": "Survey",
@@ -4336,7 +4481,8 @@
       "experimentSaveFailed": "Could not save experiment selection.",
       "processNow": "Process now",
       "processing": "Starting…",
-      "later": "Not now"
+      "later": "Not now",
+      "connectViaHeaderHint": "Connect from the Ashed control in the top bar so this upload stays on this page."
     }
   },
   "videoUpload": {
@@ -4473,6 +4619,8 @@
     "saveDepositSlips": "Save {count} deposit slips",
     "submitting": "Submitting…",
     "submitSuccess": "Saved {count} scores to Ashed.",
+    "vsSubmitSuccess": "Saved {count} VS scores in Alliance HQ.",
+    "vsSyncPending": "Scores saved in HQ. Ashed synchronization is pending.",
     "killsSubmitSuccess": "Saved {count} kill counts to Ashed. Linked HQ commanders were updated when available.",
     "rosterSubmitSuccess": "Applied {count} roster rows to HQ members.",
     "depositSlipSubmitSuccess": "Saved {count} deposit slips to Bank Management.",
@@ -4573,6 +4721,7 @@
     "previewZoomFit": "Fit whole frame",
     "followMe": "Follow me",
     "followMeHint": "Seek preview to the row you scroll to",
+    "sortLeaderboard": "Sort leaderboard",
     "previewResizeWidth": "Resize preview width",
     "previewResizeHeight": "Resize preview height",
     "previewPanHint": "Drag to pan",
@@ -5127,14 +5276,25 @@
       "nothingPending": "Nothing to pick right now.",
       "noWalkthrough": "No walkthrough in progress.",
       "noConfirm": "Nothing to confirm right now.",
-      "askOfficerNeedsNameAndUid": "Run `/link-commander` and complete the secure link before asking an officer for help."
+      "askOfficerNeedsNameAndUid": "Run `/link-commander` and complete the secure link before asking an officer for help.",
+      "linkAshedOwnerOnly": "Only the alliance owner, the person who linked Ashed credentials for **{tag}**, or a platform maintainer can run `/link-ashed`. Officers can still run `/link-alliance` after credentials are connected.",
+      "guildLinkedToOtherAlliance": "This Discord server is already linked to another alliance. Only that alliance's **R5 (owner)** can move the link."
+    },
+    "video": {
+      "pendingApproval": "{uploader} uploaded **{fileName}** ({leaderboard}). Approve it in the Video queue: {queueUrl}",
+      "pendingApprovalUploaderFallback": "Someone"
     },
     "channelSetter": {
       "deniedOfficer": "Only a linked R4+ officer (or the alliance owner) can set Discord announcement channels. Link your commander first, or ask an officer or owner to run this command.",
       "deniedOwnerOnly": "This alliance requires the R5 / alliance owner to set Discord announcement channels. Ask your owner, or have them switch the setting back to R4+ in Alliance HQ → Settings → Trains.",
       "seasonalEventsSuccess": "✅ Seasonal events channel set for **{tag}**. Capture countdowns will be posted to {channel}.",
       "regularEventsSuccess": "✅ Regular events channel set for **{tag}**. Event announcements will be posted to {channel}.",
+      "r4Success": "✅ R4 channel set for **{tag}**. In-game schedule reminders will post to {channel}.",
       "bankingSuccess": "✅ Banking channel set for **{tag}**. Protection timer alerts will be posted to {channel}."
+    },
+    "regularEvents": {
+      "startsInOneHour": "{event} starts in 1 hour ({time} server time).",
+      "scheduleInGameAtReset": "TODO: schedule {event} for {time} Server Time."
     },
     "link": {
       "userPrompt": "Click the link below to link your Discord account to Alliance HQ (expires in 30 min):\n{url}\n\nAfter linking, run `/help` in Discord for your next step.",
@@ -5285,7 +5445,7 @@
     },
     "timeOff": {
       "notLinked": "Link your commander with `/link-commander` before announcing time off.",
-      "multipleCommanders": "You have multiple linked commanders ({names}). Unlink extras with `/unlink` before announcing time off.",
+      "multipleCommanders": "Choose which linked commander you want to manage.",
       "noUpcoming": "**{name}** has no upcoming time off on the calendar.",
       "upcomingList": "**{name}** upcoming time off:\n{entries}",
       "parseFailed": "I couldn't figure out those dates. Try something like \"away next week\" or add `start:YYYY-MM-DD` and `end:YYYY-MM-DD`.",
@@ -5297,7 +5457,14 @@
       "pickCommander": "Multiple roster matches. Be more specific or pick from: {names}",
       "isAway": "**{name}** is marked away on **{date}**.\n{summary}",
       "isAvailable": "**{name}** has no scheduled time off on **{date}**.",
-      "entrySummary": "**{name}** — {start} to {end} ({availability}){notes}",
+      "entrySummary": "**{name}** — {start} to {end}",
+      "privateNotesLine": "Private notes: {notes}",
+      "officerList": "Recorded absences for {start} to {end}:\n{entries}",
+      "officerListEmpty": "No absences recorded for {start} to {end}.",
+      "unexpectedList": "Unexpected absences recorded for {date}:\n{entries}",
+      "unexpectedListEmpty": "No unexpected absences recorded for {date}.",
+      "helpMember": "Use `/my-time-off` to add, view, edit or cancel your time off. Choose a commander if you have more than one linked.",
+      "helpOfficer": "Use `/set-time-off` to manage a member’s absence, `/who-is-away` to browse absences, or `/unexpected-absences` to review officer-recorded flags.",
       "notesLine": " — {notes}",
       "availabilityFullAway": "fully away",
       "availabilityLimited": "limited availability",
@@ -5425,6 +5592,9 @@
     "hqLinkExploreCta": "Explore Alliance HQ",
     "hqLinkExploreDismiss": "You can close this tab and return to Discord anytime.",
     "hqLinkDiscordMismatch": "You signed in with a different Discord account than the one that ran `/link`. Return to Discord, run `/link` again, and sign in with the same Discord account.",
+    "credentialsDiscordMismatchHeading": "Wrong Discord account",
+    "credentialsDiscordMismatch": "You signed in with a different Discord account than the one that ran `/link-ashed`. Return to Discord, run `/link-ashed` again, and sign in with the same Discord account.",
+    "credentialsNeedDiscordOAuth": "Sign in with Discord (not email or Google) to finish connecting Ashed credentials.",
     "hqLinkNoDiscordOAuth": "Sign in with Discord (not email or Google) to complete this link.",
     "hqLinkWrongPurpose": "This link is not for Alliance HQ sign-in. Return to Discord and run the correct setup command.",
     "errorPrefix": "Something went wrong:",
@@ -5539,7 +5709,8 @@
       "genericError": "Something went wrong registering this server. Try the install wizard again.",
       "successHeading": "Server registered!",
       "successBody": "Your Discord server is linked to **{tag}**. Return to Discord and run `/link-commander` to link your commander.",
-      "nextGuideLink": "Link your commander — setup guide →"
+      "nextGuideLink": "Link your commander — setup guide →",
+      "guildBoundToOtherAlliance": "This Discord server is already linked to another alliance. Ask that alliance's R5 to move the link, then try again."
     }
   },
   "inbox": {
@@ -5570,7 +5741,9 @@
       "captureReminderBody": "Was this Stronghold successfully captured?",
       "captureYes": "Yes — create bank",
       "captureNo": "No",
-      "captureSnooze": "Snooze 30 min"
+      "captureSnooze": "Snooze 30 min",
+      "regularEventReminder": "Regular event",
+      "regularEventUploadReminder": "Regular event score upload"
     },
     "confirmCaptureFailed": "Failed to confirm capture."
   },
@@ -6313,15 +6486,154 @@
       "deleteProjection": "Delete projection"
     }
   },
+  "vsCompliance": {
+    "title": "VS compliance",
+    "settings": "VS membership minimums",
+    "dailyTarget": "Daily VS target",
+    "dailyHint": "A daily benchmark, separate from the weekly minimum. Daily misses do not independently trigger demotions.",
+    "weeklyMinimum": "Weekly VS minimum",
+    "leeway": "Leeway (%)",
+    "preset": "Penalty policy",
+    "rankAware": "One rank per missed week",
+    "rankAwareHint": "R3 recommends R2; R2 recommends R1; a miss at R1 recommends removal. Manual promotions change the starting rank.",
+    "consecutive": "Consecutive-miss ladder",
+    "consecutiveHint": "First consecutive miss recommends R2; second recommends R1; the configured removal threshold recommends removal. This policy never promotes a member.",
+    "removalThreshold": "Consecutive misses before removal",
+    "enabled": "Enable weekly discipline",
+    "effectiveFrom": "Effective from",
+    "resetHint": "A passing, excused, or waived week resets the consecutive miss streak. It does not restore rank.",
+    "manualHint": "HQ recommends an action. Officers perform it in-game, then confirm the corresponding record update.",
+    "ready": "Verified evidence",
+    "missing": "Missing evidence",
+    "partial": "Incomplete evidence",
+    "conflict": "Conflicting evidence",
+    "pendingHint": "Missing, incomplete, or conflicting evidence will not create a disciplinary miss.",
+    "passed": "Met weekly minimum",
+    "excused": "Excused week",
+    "missed": "Missed weekly minimum",
+    "streak": "Consecutive misses: {count}",
+    "weekSummary": "Week ending {date}: {score} points; required {minimum}.",
+    "demote": "Recommend {rank}",
+    "remove": "Recommend removal",
+    "leadershipReview": "Leadership review required",
+    "r5Hint": "R5 changes require a separate leadership review.",
+    "confirm": "Confirm in-game action",
+    "confirmHint": "Confirm only after performing the displayed action in-game. HQ will record the result; it does not perform the game action.",
+    "waive": "Waive this week",
+    "waiverReason": "Reason for waiver",
+    "reasonRequired": "Enter a reason for this waiver.",
+    "changed": "The evidence, policy, or member rank changed. Review the updated recommendation before confirming.",
+    "handled": "This action has already been handled.",
+    "empty": "No pending compliance actions.",
+    "saved": "Policy settings saved.",
+    "actionSaved": "Action recorded.",
+    "waived": "Week waived."
+  },
   "timeOff": {
-    "title": "Time Off",
-    "subtitle": "See who is scheduled away and share your own plans so officers do not have to chase answers in chat.",
+    "title": "My Time Off",
+    "sync": {
+      "title": "Ashed sync",
+      "localOnly": "HQ only",
+      "pending": "Saved in HQ. Waiting to sync with Ashed.",
+      "synced": "Synced with Ashed.",
+      "failed": "Saved in HQ. Ashed sync needs attention.",
+      "cancelPending": "Cancelled in HQ. Removal from Ashed is pending.",
+      "credentialsRequired": "An alliance officer needs to connect or refresh the alliance’s Ashed connection.",
+      "conflict": "HQ and Ashed have different versions of this period. An officer needs to review them.",
+      "uncertain": "Ashed may have saved this change. Review the upstream period before retrying.",
+      "refresh": "Refresh from Ashed",
+      "retry": "Retry sync",
+      "refreshQueued": "Ashed refresh queued.",
+      "retryQueued": "Sync retry queued.",
+      "lastSynced": "Last synced {date}.",
+      "fromAshed": "Imported from Ashed",
+      "scope": {
+        "vs": "VS",
+        "donation": "Donations",
+        "all": "All activities"
+      },
+      "noticeUnverified": "The original notice time could not be verified. This period will not automatically excuse past requirements.",
+      "reviewConflict": "Review sync conflict",
+      "keepHq": "Keep HQ version",
+      "useAshed": "Use Ashed version",
+      "confirmKeepHq": "Replace the Ashed version shown with the HQ version?",
+      "confirmUseAshed": "Change HQ to match the Ashed version shown? Past actions are not reversed.",
+      "linkExisting": "Link this Ashed period",
+      "linkExistingHint": "Use this existing period to resolve an uncertain sync. No new period will be created.",
+      "resolved": "Sync conflict resolved.",
+      "refreshFailed": "Could not refresh Ashed periods. HQ records were left unchanged.",
+      "actionFailed": "Could not complete this sync action. Refresh the status before trying again.",
+      "upstreamReason": "Time off recorded in Alliance HQ."
+    },
+    "subtitle": "Share when you’ll be away and see your alliance’s planned absences.",
     "form": {
-      "title": "Announce your time off",
-      "hint": "Describe your dates in plain language — for example, \"away next week visiting family in France.\"",
-      "placeholder": "I'll be away this upcoming week to visit family in France.",
+      "title": "Add time off",
+      "hint": "Choose your dates, or describe when you’ll be away and check the dates before saving.",
+      "placeholder": "I’ll be away next week.",
       "submit": "Save time off",
-      "officerEntry": "Officer: add entry for a member"
+      "officerEntry": "Add time off for a member"
+    },
+    "workflow": {
+      "myEntries": "My time off",
+      "allianceCalendar": "Alliance calendar",
+      "upcoming": "Upcoming",
+      "history": "History",
+      "noUpcoming": "No upcoming time off.",
+      "noHistory": "No past time-off entries.",
+      "chooseCommander": "Choose a commander",
+      "chooseEntry": "Choose a time-off entry",
+      "searchCommander": "Search by in-game name",
+      "noMatches": "No matching commanders.",
+      "preview": "Review time off",
+      "previewHint": "Check the commander and dates before saving.",
+      "edit": "Edit time off",
+      "saveChanges": "Save changes",
+      "back": "Back",
+      "keepEntry": "Keep this entry",
+      "confirmCancel": "Cancel time off for {name}, {start} to {end}?",
+      "cancelHint": "This removes the planned absence. Its history is kept.",
+      "saved": "Time off saved.",
+      "updated": "Time off updated.",
+      "cancelled": "Time off cancelled.",
+      "alreadyCancelled": "This time-off entry is already cancelled.",
+      "saving": "Saving…",
+      "loading": "Loading…",
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page {page} of {pages}",
+      "active": "Away now",
+      "planned": "Planned absence",
+      "officerRecorded": "Recorded by an officer",
+      "unexpected": "Unexpected absence",
+      "unexpectedHint": "This records an absence, not an excuse from minimums.",
+      "privateNotes": "Private notes",
+      "notesHint": "Optional. Only this commander’s linked account and alliance officers can read these notes.",
+      "serverTime": "Dates use Server Time (UTC−2).",
+      "globalAbsence": "Time off applies to all in-game activities.",
+      "noticeCutoff": "To excuse a day’s minimums, record time off before that day starts in Server Time.",
+      "lateNotice": "This notice is late for {date}. It records the absence but does not excuse that day’s minimums.",
+      "futureExcusal": "Days starting after this notice can still qualify for an excuse.",
+      "weeklyExcusal": "One qualifying excused day from Monday to Saturday exempts that week from its weekly VS requirement.",
+      "officerCorrection": "Ask an alliance officer to review any penalty that needs to be waived.",
+      "officerManaged": "An officer must edit or cancel this entry.",
+      "errors": {
+        "invalidDate": "Enter a valid date.",
+        "invalidRange": "End date must be on or after start date.",
+        "rangeTooLong": "Choose a period of {maxDays} days or fewer.",
+        "notesTooLong": "Keep notes to {maxLength} characters or fewer.",
+        "parseFailed": "I couldn’t understand those dates. Enter a start and end date to continue.",
+        "commanderRequired": "Choose a commander.",
+        "commanderUnavailable": "This commander is no longer on the active alliance roster.",
+        "entryUnavailable": "This time-off entry is no longer available.",
+        "forbidden": "You don’t have permission to change this entry.",
+        "officerOnly": "Only alliance officers can manage another member’s time off.",
+        "staleEntry": "This entry changed while you were editing it. Review the latest version and try again.",
+        "expired": "This selection expired. Open time off again to continue.",
+        "loadFailed": "Could not load time off. Try again.",
+        "saveFailed": "Could not save time off. Your changes have not been applied.",
+        "cancelFailed": "Could not cancel time off. Try again.",
+        "saveUnconfirmed": "Could not confirm whether your changes were saved. Refresh time off before trying again."
+      }
     },
     "calendar": {
       "previousMonth": "Previous month",
@@ -6348,7 +6660,7 @@
       "cancel": "Cancel this entry"
     },
     "officerModal": {
-      "title": "Officer time-off entry",
+      "title": "Record a member’s absence",
       "member": "Commander",
       "memberPlaceholder": "Select a roster member",
       "kind": "Entry type",
@@ -6357,15 +6669,15 @@
       "start": "Start date",
       "end": "End date",
       "availability": "Availability",
-      "notes": "Notes",
+      "notes": "Private notes",
       "cancel": "Cancel",
       "save": "Save entry"
     },
     "unexpectedReport": {
       "title": "Unexpected absence report",
-      "subtitle": "Officers can flag unannounced absences and see who has not posted planned time off today.",
+      "subtitle": "Review unexpected absences recorded by officers. No time-off entry does not mean a member is offline.",
       "refresh": "Refresh",
-      "flaggedTitle": "Flagged unexpected",
+      "flaggedTitle": "Recorded unexpected absences",
       "flaggedEmpty": "No unexpected absences flagged for today.",
       "unannouncedTitle": "No planned time off today",
       "unannouncedEmpty": "Everyone on the roster has planned time off posted for today."

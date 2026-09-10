@@ -94,6 +94,10 @@ import { maybeCompareDepositSlipFingerprintShadow } from "@/lib/banks/deposit-sl
 import { isDesertStormVideoTarget } from "@/lib/video/score-targets";
 import { parseDesertStormMatchSubmitFields } from "@/lib/video/desert-storm-match-header.shared";
 import { updateAshedDesertStormMatch } from "@/lib/video/ashed-desert-storm-match.server";
+import { submitVsReview, vsEvidenceErrorResponse } from "@/lib/vs-scores/submit.server";
+import { VsEvidenceError } from "@/lib/vs-scores/evidence.shared";
+
+export const maxDuration = 180;
 
 type Props = {
   params: Promise<{ jobId: string }>;
@@ -128,6 +132,8 @@ type SubmitBody = {
   commendationId?: string;
   bankId?: string;
   vsPeriod?: "daily" | "weekly";
+  vsRevision?: number;
+  requestId?: string;
   matchOutcome?: "pending" | "win" | "loss";
   opponentServer?: string;
   opponentTag?: string;
@@ -265,6 +271,7 @@ export async function POST(request: Request, { params }: Props) {
 
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
     const target = getScoreTargetOrThrow(scoreTargetId);
+    if (scoreTargetId === "vs-performance" && (!body || !Array.isArray(body.rows))) return vsEvidenceErrorResponse(new VsEvidenceError("invalid_rows"));
 
     if (
       !isMemberRosterVideoTarget(scoreTargetId) &&
@@ -292,6 +299,8 @@ export async function POST(request: Request, { params }: Props) {
         };
       }
     }
+
+    if (scoreTargetId === "vs-performance") return submitVsReview({ sessionId: session.id, hqUserId: session.hqUserId ?? null, job, body });
 
     if (isMemberRosterVideoTarget(scoreTargetId)) {
       const ctx = await getRbacContext(session.id);
@@ -1264,10 +1273,18 @@ export async function POST(request: Request, { params }: Props) {
           originalStatus: jobSnapshot.originalStatus,
           clearedPriorAshedScores,
         });
+        // CAS: only roll back while still submitting. Stale recovery (or a
+        // concurrent successful retry after recovery) can advance past
+        // submitting; an id-only update would wipe review/complete.
         await db
           .update(schema.videoJobs)
           .set({ status: rollbackStatus, updatedAt: new Date() })
-          .where(eq(schema.videoJobs.id, jobId));
+          .where(
+            and(
+              eq(schema.videoJobs.id, jobId),
+              eq(schema.videoJobs.status, "submitting"),
+            ),
+          );
         await emitVideoJobStatus({
           ...videoJobStatusOwnerFields({
             sessionId: jobSnapshot.uploaderSessionId,

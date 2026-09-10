@@ -310,6 +310,22 @@ function wordToNumber(token: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function tryPortuguesePhrases(text: string, today: string): { start: string; end: string } | null {
+  const lower = text.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+  if (/\bproxima semana\b/.test(lower)) return weekRangeFromMonday(addCalendarDays(getWeekStartMonday(today), 7));
+  if (/\b(?:esta|essa) semana\b/.test(lower)) return weekRangeFromMonday(getWeekStartMonday(today));
+  if (/\bfim de semana\b/.test(lower)) {
+    const saturday = nextWeekdayDate(today, 6, !/\bproximo\b/.test(lower));
+    return { start: saturday, end: addCalendarDays(saturday, 1) };
+  }
+  if (/\bamanha\b/.test(lower)) {
+    const tomorrow = addCalendarDays(today, 1);
+    return { start: tomorrow, end: tomorrow };
+  }
+  if (/\bhoje\b/.test(lower)) return { start: today, end: today };
+  return null;
+}
+
 function stripDatePhrases(text: string): string {
   return text
     .replace(
@@ -342,17 +358,19 @@ export function parseTimeOffMessage(
 
   const availability = detectAvailability(trimmed);
   const working = stripAvailabilityPhrases(trimmed);
+  const portugueseRange = tryPortuguesePhrases(working, referenceDate);
 
   const range =
     tryExplicitIsoRange(working) ??
     tryNamedMonthRange(working, referenceDate) ??
+    portugueseRange ??
     tryRelativePhrases(working, referenceDate);
 
   if (!range) {
     return { ok: false, error: "unrecognized" };
   }
 
-  const notes = stripDatePhrases(working);
+  const notes = portugueseRange ? trimmed : stripDatePhrases(working);
   return {
     ok: true,
     parsed: {

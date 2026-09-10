@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getAllianceById: vi.fn(),
   getAllianceAshedCredential: vi.fn(),
   decryptSecret: vi.fn(),
+  listVsHeads: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/lib/base44/fetch", () => ({
@@ -25,7 +26,12 @@ vi.mock("@/lib/crypto/encrypt", () => ({
   decryptSecret: mocks.decryptSecret,
 }));
 
+vi.mock("@/lib/vs-scores/repository.server", () => ({ listVsHeads: mocks.listVsHeads }));
+
+beforeEach(() => { mocks.listVsHeads.mockResolvedValue([]); });
+
 import {
+  fetchAlliancePriorDayVsScoresByMember,
   fetchAllianceVsDay1To5CoverageForDay6,
   fetchAllianceVsScoresForEvaluationPeriod,
   fetchAllianceVsTopScorersForTrainDate,
@@ -40,9 +46,31 @@ const CONNECTION = {
   originUrl: "https://ashed.online",
 };
 
+describe("native daily VS", () => {
+  it("uses local raw/derived scores and preserves zero without requesting Ashed", async () => {
+    vi.clearAllMocks();
+    mocks.getAllianceById.mockResolvedValue({ operatingMode: "native" });
+    mocks.listVsHeads.mockResolvedValue([
+      { memberId: "m1", score: 0, origin: "hq" },
+      { memberId: "m2", score: 7_200_000, origin: "derived" },
+      { memberId: "m3", score: null, origin: "hq" },
+    ]);
+    expect(await fetchAlliancePriorDayVsScoresByMember("native-a", "2026-09-05")).toEqual(new Map([["m1", 0], ["m2", 7_200_000]]));
+    expect(mocks.base44Json).not.toHaveBeenCalled();
+    expect(mocks.getAllianceAshedCredential).not.toHaveBeenCalled();
+  });
+});
+
 describe("fetchVsScoresByRecordedDate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("parses formatted scores and rejects missing values instead of inventing zero", async () => {
+    mocks.base44Json.mockResolvedValue([{ member_id: "m1", score: "7,200,000" }]);
+    expect((await fetchVsScoresByRecordedDate(CONNECTION, "a", "2026-09-01")).get("m1")).toBe(7_200_000);
+    mocks.base44Json.mockResolvedValue([{ member_id: "m1" }]);
+    await expect(fetchVsScoresByRecordedDate(CONNECTION, "a", "2026-09-01")).rejects.toMatchObject({ code: "invalid_score" });
   });
 
   it("keeps the highest score when multiple rows exist for one member", async () => {

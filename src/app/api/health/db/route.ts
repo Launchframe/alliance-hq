@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { trackDatabaseHealthFailure } from "@/lib/analytics/vercel-observability";
+import { getDb, schema, withPostgresAuthRecovery } from "@/lib/db";
 import { getDatabaseUrl } from "@/lib/db/url";
-import { getDb, schema } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +10,13 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const url = getDatabaseUrl();
-    const db = getDb();
-    await db.select({ id: schema.sessions.id }).from(schema.sessions).limit(1);
+    await withPostgresAuthRecovery(async () => {
+      const db = getDb();
+      await db
+        .select({ id: schema.sessions.id })
+        .from(schema.sessions)
+        .limit(1);
+    });
 
     return NextResponse.json({
       ok: true,

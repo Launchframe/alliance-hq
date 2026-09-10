@@ -6,13 +6,13 @@ import {
 } from "@/lib/discord/i18n";
 import { resolveDiscordChannelSetterAccess } from "@/lib/discord/channel-setter-auth.server";
 import {
+  bindGuildAllianceForRegistration,
   callerCanRegisterGuildAlliance,
   getAllianceById,
   getDiscordHqLink,
   getGuildAllianceId,
   saveDiscordBotPending,
   setGuildVrReportChannel,
-  upsertGuildAlliance,
   writeDiscordBotAudit,
 } from "@/lib/vr/repository";
 import { buildDiscordBotAppUrl } from "@/lib/discord/app-url.shared";
@@ -33,6 +33,11 @@ export function isTagEligible(tag: string): boolean {
     .map((t) => t.trim().toLowerCase())
     .filter(Boolean);
   return allowed.includes(tag.trim().toLowerCase());
+}
+
+/** Case-insensitive alliance tag equality for bot-install allowlist binding. */
+export function allianceTagsEqual(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
 async function audit(
@@ -139,6 +144,13 @@ export async function handleDiscordLinkUser(input: {
 
 /**
  * /link-ashed — secure Ashed credential setup via HQ web redirect.
+ *
+ * When the tag already exists in HQ, only the alliance owner, credential
+ * registrant, or platform maintainer may start this flow (not R4 officers).
+ * When the tag is not in HQ yet (Ashed-first bootstrap), any HQ-linked user may
+ * mint an authorize URL; redeeming it still requires (1) an HQ Auth.js session
+ * whose Discord OAuth id matches the slash-command caller and (2) an Ashed
+ * **owner** connection key before credentials are stored.
  */
 export async function handleDiscordLinkToAshedSeat(input: {
   guildId: string;
@@ -165,6 +177,42 @@ export async function handleDiscordLinkToAshedSeat(input: {
     };
   }
 
+  const allianceName = input.allianceName?.trim();
+  // Resolve directly so we can allow Ashed-first bootstrap on `not_found`
+  // while still gating existing HQ alliances to owner/maintainer/registrant.
+  const resolved = await resolveAllianceByTag(tag, {
+    discordUserId: input.discordUserId,
+    allianceName,
+  });
+
+  if (resolved.ok) {
+    const registration = await callerCanRegisterGuildAlliance({
+      allianceId: resolved.alliance.id,
+      discordUserId: input.discordUserId,
+    });
+    if (!registration.allowed) {
+      return {
+        reply:
+          registration.reason === "no_credentials"
+            ? t("errors.linkAllianceNeedCommander", { tag: resolved.alliance.tag })
+            : t("errors.linkAshedOwnerOnly", { tag: resolved.alliance.tag }),
+      };
+    }
+    // Officers may `/link-alliance` but must not install/overwrite Ashed bot JWTs.
+    if (registration.registeredBy === "alliance_officer") {
+      return {
+        reply: t("errors.linkAshedOwnerOnly", { tag: resolved.alliance.tag }),
+      };
+    }
+  } else if (resolved.reason === "ambiguous") {
+    return {
+      reply: t("errors.tagAmbiguous", { tag }),
+    };
+  }
+  // reason === "not_found": Ashed-first bootstrap — redeem still requires an
+  // HQ Auth.js session whose Discord OAuth id matches this slash-command
+  // caller, plus an Ashed owner connection key, before credentials are stored.
+
   const nonce = await createDiscordAuthNonce({
     discordUserId: input.discordUserId,
     guildId: input.guildId,
@@ -179,6 +227,7 @@ export async function handleDiscordLinkToAshedSeat(input: {
 
   return { reply: t("setup.linkAshedSeatPrompt", { tag, url: authorizeUrl }) };
 }
+
 
 export async function handleDiscordLinkAlliance(input: {
   guildId: string;
@@ -248,7 +297,20 @@ export async function handleDiscordLinkAlliance(input: {
     return { reply };
   }
 
-  await upsertGuildAlliance(input.guildId, resolved.allianceId);
+  const bind = await bindGuildAllianceForRegistration({
+    guildId: input.guildId,
+    allianceId: resolved.allianceId,
+    discordUserId: input.discordUserId,
+  });
+  if (!bind.ok) {
+    const reply = t("errors.guildLinkedToOtherAlliance");
+    await audit(resolved.allianceId, input.discordUserId, "link_alliance", input, {
+      reply,
+      bind,
+    });
+    return { reply };
+  }
+
   await saveDiscordBotPending(resolved.allianceId, input.discordUserId, null);
 
   const reply = t("setup.linkAllianceSuccess", { tag: resolved.tag });

@@ -45,7 +45,7 @@ export function InviteWizardTypeStep({ selected, onSelect }: Props) {
     <div className="space-y-4">
       <div>
         <h3 className="text-sm font-semibold">{t("typeStepTitle")}</h3>
-        <p className="mt-1 text-sm text-[#8b949e]">{t("typeStepHint")}</p>
+        <p className="mt-1 text-sm text-hq-fg-muted">{t("typeStepHint")}</p>
       </div>
 
       <div
@@ -64,25 +64,25 @@ export function InviteWizardTypeStep({ selected, onSelect }: Props) {
               onClick={() => onSelect(type)}
               className={
                 isSelected
-                  ? "rounded-lg border border-[#388bfd] bg-[#388bfd]/10 p-4 text-left transition-colors"
-                  : "rounded-lg border border-[#30363d] bg-[#0d1117]/50 p-4 text-left transition-colors hover:border-[#484f58]"
+                  ? "rounded-lg border border-hq-accent bg-hq-accent/10 p-4 text-left transition-colors"
+                  : "rounded-lg border border-hq-border bg-hq-surface p-4 text-left transition-colors hover:border-hq-border"
               }
             >
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-semibold text-[#e6edf3]">
+                <span className="text-sm font-semibold text-hq-fg">
                   {t(typeTitleKey(type))}
                 </span>
                 <span
                   className={
                     type === "join_code"
-                      ? "rounded-full border border-[#238636]/40 bg-[#238636]/10 px-2 py-0.5 text-xs font-medium text-[#3fb950]"
-                      : "rounded-full border border-[#e3b341]/40 bg-[#e3b341]/10 px-2 py-0.5 text-xs font-medium text-[#e3b341]"
+                      ? "rounded-full border border-hq-success/40 bg-hq-success/10 px-2 py-0.5 text-xs font-medium text-hq-success"
+                      : "rounded-full border border-hq-warning/40 bg-hq-warning/10 px-2 py-0.5 text-xs font-medium text-hq-warning"
                   }
                 >
                   {t(typeBadgeKey(type))}
                 </span>
               </div>
-              <p className="mt-2 text-sm leading-relaxed text-[#8b949e]">
+              <p className="mt-2 text-sm leading-relaxed text-hq-fg-muted">
                 {t(typeBodyKey(type))}
               </p>
             </button>
@@ -90,9 +90,9 @@ export function InviteWizardTypeStep({ selected, onSelect }: Props) {
         })}
       </div>
 
-      <p className="text-xs text-[#6e7681]">{t("ashedSeatInfo")}</p>
+      <p className="text-xs text-hq-fg-subtle">{t("ashedSeatInfo")}</p>
       <p className="text-xs">
-        <Link href="/guides/officer-invite-types" className="text-[#58a6ff] hover:underline">
+        <Link href="/guides/officer-invite-types" className="text-hq-accent hover:underline">
           {t("fullGuideLink")}
         </Link>
       </p>

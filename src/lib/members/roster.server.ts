@@ -74,7 +74,7 @@ export async function syncAllianceMembersFromAshed(input: {
 
     const ashedStats = ashedMemberRecordToCommanderStats(record);
 
-    await db
+    const [savedRoster] = await db
       .insert(schema.allianceMembers)
       .values({
         id: nanoid(),
@@ -107,10 +107,10 @@ export async function syncAllianceMembersFromAshed(input: {
           ashedAllianceId: input.ashedAllianceId,
           currentName: member.current_name,
           previousNamesJson: member.previous_names ?? [],
-          status,
-          allianceRank: normalized.allianceRank,
-          allianceRankTitle: normalized.allianceRankTitle,
-          ashedRankRaw: normalized.ashedRankRaw,
+          status: sql`case when exists (select 1 from vs_compliance_roster_guards g where g.alliance_id = ${schema.allianceMembers.allianceId} and g.member_id = ${schema.allianceMembers.ashedMemberId}) then ${schema.allianceMembers.status} else excluded.status end`,
+          allianceRank: sql`case when exists (select 1 from vs_compliance_roster_guards g where g.alliance_id = ${schema.allianceMembers.allianceId} and g.member_id = ${schema.allianceMembers.ashedMemberId}) then ${schema.allianceMembers.allianceRank} else excluded.alliance_rank end`,
+          allianceRankTitle: sql`case when exists (select 1 from vs_compliance_roster_guards g where g.alliance_id = ${schema.allianceMembers.allianceId} and g.member_id = ${schema.allianceMembers.ashedMemberId}) then ${schema.allianceMembers.allianceRankTitle} else excluded.alliance_rank_title end`,
+          ashedRankRaw: sql`case when exists (select 1 from vs_compliance_roster_guards g where g.alliance_id = ${schema.allianceMembers.allianceId} and g.member_id = ${schema.allianceMembers.ashedMemberId}) then ${schema.allianceMembers.ashedRankRaw} else excluded.ashed_rank_raw end`,
           joinDate: record.join_date ?? null,
           notes: record.notes ?? null,
           timezone: record.timezone ?? null,
@@ -122,7 +122,7 @@ export async function syncAllianceMembersFromAshed(input: {
           syncedAt: now,
           updatedAt: now,
         },
-      });
+      }).returning({ status: schema.allianceMembers.status });
 
     await seedMemberStatHistoriesFromAshed({
       allianceId: input.hqAllianceId,
@@ -135,7 +135,7 @@ export async function syncAllianceMembersFromAshed(input: {
     await syncTenureFromMemberStatus({
       allianceId: input.hqAllianceId,
       ashedMemberId,
-      status,
+      status: savedRoster.status,
     });
 
     const syncResult = await syncCommanderFromAllianceMember({

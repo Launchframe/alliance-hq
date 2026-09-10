@@ -28,6 +28,22 @@ Always use Tailwind `hq-*` utilities (or `var(--hq-…)` in CSS). Do **not** ass
 
 If no token fits, **add a semantic CSS variable** to both `:root` and `:root.dark`, wire it in `@theme`, then use the new `hq-*` class in the same change. Do not ship a UI-only hex that only looks right in one theme.
 
+## Dark-only Primer / GitHub hex body text (frequent light-mode bug)
+
+HQ started as a dark-first GitHub-primer UI. These hex values are **dark-theme body/muted text**. On a light canvas they become pale gray-on-white and disappear:
+
+| Hex | Typical use | Use instead |
+| --- | --- | --- |
+| `#c9d1d9` | Body / list copy (`text-[#c9d1d9]`) | `text-hq-fg` or `text-hq-fg-muted` |
+| `#8b949e` | Secondary / hint copy (`text-[#8b949e]`) | `text-hq-fg-muted` |
+| `#e6edf3` / `#f0f6fc` | Near-white headings | `text-hq-fg` |
+
+**Do not** paste these as Tailwind arbitrary text colors on HQ chrome. `globals.css` already maps muted/fg tokens to the dark hexes under `:root.dark` — use the token so light mode flips.
+
+Same rule for `prose-p:text-[#c9d1d9]` / `prose-li:text-[#c9d1d9]`: use `prose-p:text-hq-fg-muted` (and `prose-headings:text-hq-fg`) unless the page is an intentional `prose-invert` dark-only surface.
+
+When you touch a file that still has these hexes on readable text, migrate that file — do not copy the pattern into new copy.
+
 ## Semantic roles
 
 Use tokens by meaning:
@@ -107,6 +123,7 @@ bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-200
 
 - [ ] Colors go through `hq-*` (or a new token added in light **and** dark) — domain-colored components excepted; see above
 - [ ] No new arbitrary hex for borders/backgrounds/text unless an exception above applies
+- [ ] No GitHub-primer dark-only body hex (`#c9d1d9`, `#8b949e`, `#e6edf3`, `#f0f6fc`) as `text-[#…]` — use `text-hq-fg` / `text-hq-fg-muted`
 - [ ] Domain-colored components use dual-mode classes (light + `dark:`) — no bare `text-cyan-100` or `bg-blue-500/10` without a light-mode counterpart
 - [ ] Fade/gradient overlays use `hq-*` surface tokens (e.g. `from-hq-canvas`), not hardcoded dark hex in `style` or `dark:from-[#…]`
 - [ ] Warning / error / success use the matching semantic token

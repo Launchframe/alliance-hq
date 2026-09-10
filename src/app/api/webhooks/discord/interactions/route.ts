@@ -102,6 +102,7 @@ import {
 } from "@/lib/vr/discord-command-names";
 import {
   handleDiscordSetBankingChannel,
+  handleDiscordSetR4Channel,
   handleDiscordSetRegularEventsChannel,
   handleDiscordSetSeasonalEventsChannel,
 } from "@/lib/battle-plan/discord-channel-handlers.server";
@@ -130,10 +131,9 @@ import {
   buildProfessionSelectButtons,
   buildProfessionSwitchConfirmButtons,
 } from "@/lib/discord/interactions";
-import {
-  handleDiscordMyTimeOff,
-  handleDiscordIsAllyOffline,
-} from "@/lib/time-off/discord-bot-handlers.server";
+import { handleDiscordTimeOff, openDiscordTimeOffModal } from "@/lib/time-off/discord-bot-handlers.server";
+import { isDiscordTimeOffSlashCommand } from "@/lib/time-off/discord-command-names";
+import { timeOffComponentNeedsModal } from "@/lib/time-off/discord-workflow.shared";
 import {
   handleDiscordWhoIs,
   handleDiscordWhoIsClaimInvite,
@@ -257,7 +257,8 @@ async function handleSlashCommand(
       discordUserId,
       locale,
     });
-    return discordMessageResponse(result.reply);
+    const timeOffHelp = `${t("timeOff.helpMember")}\n${t("timeOff.helpOfficer")}`;
+    return discordMessageResponse(`${result.reply.slice(0, 1950 - timeOffHelp.length)}\n\n${timeOffHelp}`, undefined, EPHEMERAL);
   }
 
   if (isDiscordLanguageSlashCommand(commandName)) {
@@ -373,6 +374,23 @@ async function handleSlashCommand(
       return channelVisibleCommandResponse(t("errors.serverError"));
     }
     const result = await handleDiscordSetRegularEventsChannel({
+      guildId,
+      channelId,
+      discordUserId,
+      locale,
+    });
+    return channelVisibleCommandResponse(result.reply);
+  }
+
+  if (commandName === "set-r4-channel") {
+    if (!guildId) {
+      return channelVisibleCommandResponse(t("errors.guildNotRegistered"));
+    }
+    const channelId = interactionChannelId(payload);
+    if (!channelId) {
+      return channelVisibleCommandResponse(t("errors.serverError"));
+    }
+    const result = await handleDiscordSetR4Channel({
       guildId,
       channelId,
       discordUserId,
@@ -878,21 +896,6 @@ async function handleSlashCommand(
     return channelVisibleCommandResponse(result.reply);
   }
 
-  if (commandName === "my-time-off") {
-    const message = parseSlashOptionString(payload, "upcoming");
-    const start = parseSlashOptionString(payload, "start");
-    const end = parseSlashOptionString(payload, "end");
-    const result = await handleDiscordMyTimeOff({
-      allianceId,
-      discordUserId,
-      locale,
-      message,
-      start,
-      end,
-    });
-    return discordMessageResponse(result.reply, undefined, { ephemeral: false });
-  }
-
   if (commandName === "who-is") {
     const result = await handleDiscordWhoIs({
       allianceId,
@@ -919,19 +922,6 @@ async function handleSlashCommand(
       );
     }
     return discordMessageResponse(result.reply, undefined, EPHEMERAL);
-  }
-
-  if (commandName === "is-ally-offline") {
-    const commander = parseSlashOptionString(payload, "commander");
-    const date = parseSlashOptionString(payload, "date");
-    const result = await handleDiscordIsAllyOffline({
-      allianceId,
-      discordUserId,
-      locale,
-      commander,
-      date,
-    });
-    return discordMessageResponse(result.reply, undefined, { ephemeral: false });
   }
 
   return discordMessageResponse(t("errors.unknownCommand"));
@@ -1301,6 +1291,33 @@ export async function POST(request: Request) {
 
   if (payload.type === 1) {
     return NextResponse.json(DISCORD_PING_RESPONSE);
+  }
+  if (
+    payload.type === 2 && isDiscordTimeOffSlashCommand(payload.data?.name ?? "") ||
+    (payload.type === 3 || payload.type === 5) && payload.data?.custom_id?.startsWith("timeoff:")
+  ) {
+    if (payload.type === 3 && timeOffComponentNeedsModal(payload.data?.custom_id)) {
+      return NextResponse.json(await openDiscordTimeOffModal(payload));
+    }
+    const applicationId = interactionApplicationId(payload);
+    const token = interactionToken(payload);
+    if (!applicationId || !token) {
+      const t = createDiscordTranslator("en-US");
+      return NextResponse.json(discordMessageResponse(t("timeOff.workflow.errors.expired"), undefined, EPHEMERAL));
+    }
+    scheduleBackgroundTask(undefined, async () => {
+      try {
+        const reply = await handleDiscordTimeOff(payload);
+        await editDiscordOriginalInteraction({ applicationId, interactionToken: token, content: reply.content, components: reply.components, ephemeral: true, suppressMentions: true });
+        if (reply.syncAllianceId) {
+          const { syncAllianceExcuses } = await import("@/lib/time-off/excused-worker.server");
+          await syncAllianceExcuses(reply.syncAllianceId, { budgetMs: 25_000, maxJobs: 1 });
+        }
+      } catch {
+        console.error("[time-off] Discord response delivery failed");
+      }
+    });
+    return NextResponse.json(discordDeferredEphemeralResponse());
   }
   if (payload.type === 2) {
     try {

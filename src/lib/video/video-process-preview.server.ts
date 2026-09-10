@@ -6,11 +6,12 @@ import { getDb, schema } from "@/lib/db";
 import type { VideoJob } from "@/lib/db/schema";
 import {
   isAllianceHqOcrOnlyLockedOnDeploy,
-  loadEffectiveAllianceHqOcrOnly,
+  loadAllianceVideoOcrContext,
 } from "@/lib/video/alliance-ocr-settings.server";
 import {
   resolveVideoOcrEngineForJob,
   engineRequiresAshed,
+  isNativeAllianceVsTarget,
   videoOcrRequiresAshedConnection,
 } from "@/lib/video/ocr-provider.shared";
 import { sessionCanProcessVideo } from "@/lib/video/processor-slots.server";
@@ -153,14 +154,14 @@ export async function buildVideoProcessPreview(params: {
     params.job.scoreTarget ?? params.job.category ?? "desert-storm";
   const isRosterTarget = isMemberRosterVideoTarget(scoreTargetId);
   const allianceId = params.job.allianceId;
-  const hqOcrOnly = allianceId
-    ? await loadEffectiveAllianceHqOcrOnly(allianceId)
-    : false;
-  const scoreTargetLocked = isNativeOnlyVideoTarget(scoreTargetId);
+  const allianceOcrContext = await loadAllianceVideoOcrContext(allianceId);
+  const hqOcrOnly = allianceOcrContext.allianceHqOcrOnly ?? false;
+  const scoreTargetLocked = isNativeOnlyVideoTarget(scoreTargetId) ||
+    isNativeAllianceVsTarget(scoreTargetId, allianceOcrContext);
   const deployLocked = isAllianceHqOcrOnlyLockedOnDeploy();
   const hqOcrOnlyLocked = deployLocked || scoreTargetLocked;
   const hqOcrOnlyEffective = hqOcrOnly || scoreTargetLocked || deployLocked;
-  const ocrContext = { allianceHqOcrOnly: hqOcrOnlyEffective };
+  const ocrContext = { ...allianceOcrContext, allianceHqOcrOnly: hqOcrOnlyEffective };
   const primaryEngine = resolveVideoOcrEngineForJob(
     scoreTargetId,
     isRosterTarget,

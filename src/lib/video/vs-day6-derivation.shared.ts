@@ -4,7 +4,8 @@ export type VsDay6Coverage = { total: number; daysCovered: number };
 
 export type VsDay6DerivationResult =
   | { status: "derived"; derivedScore: number }
-  | { status: "insufficient_data" };
+  | { status: "insufficient_data" }
+  | { status: "conflict" };
 
 export function deriveVsDay6Score(
   rawCumulativeScore: number,
@@ -13,6 +14,7 @@ export function deriveVsDay6Score(
   if (!coverage || coverage.daysCovered < VS_DAY6_REQUIRED_COVERAGE_DAYS) {
     return { status: "insufficient_data" };
   }
+  if (coverage.daysCovered !== VS_DAY6_REQUIRED_COVERAGE_DAYS || !Number.isSafeInteger(rawCumulativeScore) || !Number.isSafeInteger(coverage.total) || coverage.total < 0 || rawCumulativeScore < coverage.total) return { status: "conflict" };
   return {
     status: "derived",
     derivedScore: rawCumulativeScore - coverage.total,

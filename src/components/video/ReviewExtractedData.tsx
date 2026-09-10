@@ -2,7 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
-import { Crosshair, MonitorPlay, Trash2, UserPen, UserPlus } from "lucide-react";
+import { ArrowDownWideNarrow, Crosshair, MonitorPlay, Trash2, UserPen, UserPlus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link, useRouter } from "@/i18n/navigation";
@@ -86,6 +86,7 @@ import type { ManualRowPosition } from "@/lib/video/manual-row-position";
 import {
   mergeParsedRowInReviewOrder,
   reviewLeaderboardRankByScoreDesc,
+  sortReviewRowsByScoreDesc,
 } from "@/lib/video/parsed-row-review-order";
 import { isVideoProcessTimings } from "@/lib/video/pipeline-stats-display";
 import {
@@ -321,6 +322,7 @@ function ReviewActionErrorBanner({
 export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const router = useRouter();
   const t = useTranslations("videoReview");
+  const tVs = useTranslations("vsCompliance");
   const tJobs = useTranslations("admin.videoJobsPage");
   const tQueue = useTranslations("videoQueue");
   const tc = useTranslations("common");
@@ -368,6 +370,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   );
   const [matchFilledFromOcr, setMatchFilledFromOcr] = useState(false);
   const [vsPeriod, setVsPeriod] = useState<VsScorePeriod>("daily");
+  const [vsRevision, setVsRevision] = useState(0);
+  const vsSubmissionRequestId = useRef<string | null>(null);
   const [recordedDate, setRecordedDate] = useState(
     () => presetRecordedDate ?? getServerCalendarDate(),
   );
@@ -755,6 +759,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             timingsJson?: VideoProcessTimings | null;
             passKey?: string | null;
             extractionConfigJson?: unknown;
+            recordedDate?: string | null;
+            vsPeriod?: VsScorePeriod;
+            vsRevision?: number;
           };
           hasSourceVideo?: boolean;
           frameTimestamps?: FrameTimestampMap;
@@ -966,7 +973,12 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           if (loadedIsVs) {
             // VS dates are game-server calendar, not account-local "today"
             // (Sat night officer-local can already be Sunday ST).
-            setRecordedDate(defaultVsPerformanceRecordedDate("daily"));
+            const storedPeriod = data.job?.vsPeriod === "weekly" ? "weekly" : "daily";
+            setVsPeriod(storedPeriod);
+            setVsRevision(
+              typeof data.job?.vsRevision === "number" ? data.job.vsRevision : 0,
+            );
+            setRecordedDate(data.job?.recordedDate ? coerceVsPerformanceRecordedDate(data.job.recordedDate, storedPeriod) : defaultVsPerformanceRecordedDate(storedPeriod));
           }
           setMatchOutcome(ocrHeader.outcome);
           setOpponentServer(ocrHeader.opponentServer);
@@ -2203,6 +2215,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     );
   }
 
+  function sortLeaderboard() {
+    markDraftDirty();
+    setRows((prev) => sortReviewRowsByScoreDesc(prev));
+  }
+
   async function runScoreboardMemberAction(
     action: "create" | "rename",
     rowIds: string[],
@@ -2335,6 +2352,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     try {
       const isRoster = scoreTargetMeta?.showRosterColumns;
       const isDepositSlip = scoreTargetMeta?.showDepositSlipColumns;
+      if (isVsPerformanceTarget && !vsSubmissionRequestId.current) vsSubmissionRequestId.current = crypto.randomUUID();
       const res = await fetch(`/api/tools/video-upload/${jobId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2363,6 +2381,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             ? vsSafeRecordedDate
             : recordedDate,
           vsPeriod: isVsPerformanceTarget ? vsPeriod : undefined,
+          vsRevision: isVsPerformanceTarget ? vsRevision : undefined,
+          requestId: isVsPerformanceTarget ? vsSubmissionRequestId.current : undefined,
           bankId: scoreTargetMeta?.showBankSelector ? bankId : undefined,
           rows: rows.map((r) => {
             const autoDiscardScoreGhost = scoreGhostDiscardRowIds.has(r.id);
@@ -2408,7 +2428,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                         ? source.memberName
                         : source.memberName ?? source.ocrName,
                     score: source.score ?? "",
-                    rank: source.rank,
+                    rank: scoreTargetMeta?.showReviewRowNumber
+                      ? reviewLeaderboardRankById?.get(source.id) ?? null
+                      : source.rank,
                     deleted: source.deleted === 1 || autoDiscardScoreGhost,
                   };
           }),
@@ -2419,6 +2441,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
         code?: string;
         connectUrl?: string;
         submitted?: number;
+        storage?: string;
+        syncStatus?: string;
         createdCount?: number;
         skippedDuplicateCount?: number;
         updatedCount?: number;
@@ -2447,8 +2471,11 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           ),
         );
       }
+      vsSubmissionRequestId.current = null;
       setSuccess(
-        scoreTargetMeta?.showDepositSlipColumns
+        isVsPerformanceTarget && data.storage === "hq"
+          ? `${t("vsSubmitSuccess", { count: data.submitted ?? 0 })}${data.syncStatus === "pending" ? ` ${t("vsSyncPending")}` : ""}`
+          : scoreTargetMeta?.showDepositSlipColumns
           ? formatDepositSlipSubmitSuccessMessage(t, data)
           : isEventView
             ? t("updateSuccess", { count: data.submitted ?? 0 })
@@ -2650,9 +2677,15 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
       }
       const data = (await res.json()) as { row: ParsedRow };
       markDraftDirty();
-      setRows((prev) =>
-        mergeParsedRowInReviewOrder(prev, data.row, scoreTargetMeta?.id),
-      );
+      if (scoreTargetMeta?.showReviewRowNumber) {
+        setRows((prev) =>
+          position === "start" ? [data.row, ...prev] : [...prev, data.row],
+        );
+      } else {
+        setRows((prev) =>
+          mergeParsedRowInReviewOrder(prev, data.row, scoreTargetMeta?.id),
+        );
+      }
     } finally {
       setAddingRowBusy(null);
     }
@@ -2942,6 +2975,16 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
               >
                 <MonitorPlay className="h-4 w-4 shrink-0" aria-hidden />
                 {t("previewVideo")}
+              </button>
+            ) : null}
+            {scoreTargetMeta?.showReviewRowNumber ? (
+              <button
+                type="button"
+                onClick={sortLeaderboard}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-hq-border px-3 py-1.5 text-sm text-hq-fg hover:bg-hq-surface-muted"
+              >
+                <ArrowDownWideNarrow className="h-4 w-4 shrink-0" aria-hidden />
+                {t("sortLeaderboard")}
               </button>
             ) : null}
             <VideoReviewSettingsTrigger
@@ -3990,6 +4033,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     const isNegative = scoreNum != null && scoreNum < 0;
                     let vsDay6DerivedNote: string | null = null;
                     let vsDay6InsufficientNote = false;
+                    let vsDay6Conflict = false;
                     if (isWeeklyVsUpload && row.memberId && scoreNum != null) {
                       const coverage =
                         vsDay6CoverageTotals?.[row.memberId];
@@ -4002,6 +4046,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                           day1To5Total: formatVsDay6Amount(coverage!.total),
                           rawScore: formatVsDay6Amount(scoreNum),
                         });
+                      } else if (derivation.status === "conflict") {
+                        vsDay6Conflict = true;
                       } else if (vsDay6CoverageTotals != null) {
                         vsDay6InsufficientNote = true;
                       }
@@ -4029,6 +4075,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                             {vsDay6DerivedNote}
                           </p>
                         ) : null}
+                        {vsDay6Conflict ? <p className="mt-1 text-xs text-hq-danger">{tVs("conflict")}</p> : null}
                         {vsDay6InsufficientNote ? (
                           <p className="mt-1 text-xs text-[#d29922]">
                             {t("vsDay6InsufficientDataWarning")}

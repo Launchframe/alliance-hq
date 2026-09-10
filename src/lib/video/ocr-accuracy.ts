@@ -11,7 +11,23 @@ export function isVideoOcrAccuracy(value: unknown): value is VideoOcrAccuracy {
 }
 
 /**
- * Resolve pill label key and color classes for an in-house OCR accuracy level.
+ * Ashed OCR is treated as High for every Ashed-supported score target when
+ * the session has a live Ashed credential. Native-only targets (e.g. deposit
+ * slips) keep their in-house rating.
+ */
+export function displayOcrAccuracy(input: {
+  inHouseOcrAccuracy: VideoOcrAccuracy;
+  ashedCredentialsActive: boolean;
+  ashedSupported: boolean;
+}): VideoOcrAccuracy {
+  if (input.ashedCredentialsActive && input.ashedSupported) {
+    return "high";
+  }
+  return input.inHouseOcrAccuracy;
+}
+
+/**
+ * Resolve pill label key and color classes for an OCR accuracy level.
  * Client-safe — no server imports.
  */
 export function resolveOcrAccuracyBadge(level: VideoOcrAccuracy): {
@@ -23,22 +39,25 @@ export function resolveOcrAccuracyBadge(level: VideoOcrAccuracy): {
       return {
         labelKey: "ocrAccuracy.high",
         className:
-          "border-emerald-500/40 bg-emerald-500/15 text-emerald-300",
+          "border-emerald-700/50 bg-emerald-500/15 text-emerald-800 dark:border-emerald-500/40 dark:text-emerald-300",
       };
     case "mid":
       return {
         labelKey: "ocrAccuracy.mid",
-        className: "border-amber-500/40 bg-amber-500/15 text-amber-300",
+        className:
+          "border-amber-700/50 bg-amber-500/15 text-amber-900 dark:border-amber-500/40 dark:text-amber-300",
       };
     case "low":
       return {
         labelKey: "ocrAccuracy.low",
-        className: "border-orange-500/40 bg-orange-500/15 text-orange-300",
+        className:
+          "border-orange-700/50 bg-orange-500/15 text-orange-900 dark:border-orange-500/40 dark:text-orange-300",
       };
     case "none":
       return {
         labelKey: "ocrAccuracy.none",
-        className: "border-[#484f58] bg-[#21262d] text-[#8b949e]",
+        className:
+          "border-hq-border bg-hq-surface-muted text-hq-fg-muted",
       };
     default: {
       const _exhaustive: never = level;

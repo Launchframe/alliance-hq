@@ -21,12 +21,14 @@ import {
 } from "@/lib/members/member-tenure.server";
 import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
 import { hasConflictingDiscordGameUidClaim } from "@/lib/member-link/link-claim-guards.shared";
+import { isMemberLinkGameUidUniqueViolation } from "@/lib/member-link/member-link-game-uid-unique.shared";
 import { parseAshedMemberAllianceRank } from "@/lib/members/alliance-rank";
 import { isNativeAlliance } from "@/lib/native-alliance/operating-mode";
 import { buildFlagReason, peerMaxExcludingMember, peerMaxInstituteLevelExcludingMember, shouldAnomalyConfirm } from "@/lib/vr/anomaly";
 import { MAX_DISCORD_LINKS_PER_USER, type VrEventSource } from "@/lib/vr/constants";
 import { coerceInstituteLevelFromBaseVr } from "@/lib/vr/institute-levels.shared";
 import {
+  canRebindGuildToDifferentAlliance,
   evaluateGuildRegistrationAuth,
   type GuildRegistrationAuth,
   nativeOwnerClaimMemberId,
@@ -465,10 +467,9 @@ export async function linkDiscordMember(input: {
     return { ok: false, reason: "member_linked_to_other_discord" };
   }
 
-  if (input.replaceAll) {
-    await deleteDiscordMemberLinksForUser(input.allianceId, input.discordUserId);
-  }
-
+  // Occupancy must be checked before any replaceAll wipe. Deleting the caller's
+  // seats first then failing on an occupied target permanently orphans Discord
+  // commanders (and frees them for sniping).
   const existingMemberLink = await getDiscordLinkByAllianceAndMember(
     input.allianceId,
     input.ashedMemberId,
@@ -488,17 +489,87 @@ export async function linkDiscordMember(input: {
     (row) => row.ashedMemberId === input.ashedMemberId,
   );
 
-  if (existingPair) {
-    const [row] = await db
-      .update(schema.discordMemberLinks)
-      .set({
-        memberDisplayName: input.memberDisplayName ?? null,
+  try {
+    if (existingPair) {
+      const row = await db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(schema.discordMemberLinks)
+          .set({
+            memberDisplayName: input.memberDisplayName ?? null,
+            gameUid: input.gameUid,
+            discordUsername: input.discordUsername ?? null,
+            updatedAt: now,
+          })
+          .where(eq(schema.discordMemberLinks.id, existingPair.id))
+          .returning();
+        if (input.replaceAll) {
+          await tx
+            .delete(schema.discordMemberLinks)
+            .where(
+              and(
+                eq(schema.discordMemberLinks.allianceId, input.allianceId),
+                eq(schema.discordMemberLinks.discordUserId, input.discordUserId),
+                ne(schema.discordMemberLinks.ashedMemberId, input.ashedMemberId),
+              ),
+            );
+        }
+        return updated;
+      });
+      await denormalizeGameUidOnMember({
+        allianceId: input.allianceId,
+        ashedMemberId: input.ashedMemberId,
         gameUid: input.gameUid,
-        discordUsername: input.discordUsername ?? null,
-        updatedAt: now,
-      })
-      .where(eq(schema.discordMemberLinks.id, existingPair.id))
-      .returning();
+      });
+      await openMemberAllianceTenure({
+        allianceId: input.allianceId,
+        ashedMemberId: input.ashedMemberId,
+        gameUid: input.gameUid,
+      });
+      await syncCommanderIdentityFromMemberLink({
+        allianceId: input.allianceId,
+        ashedMemberId: input.ashedMemberId,
+        gameUid: input.gameUid,
+        memberDisplayName: input.memberDisplayName,
+      });
+      return { ok: true, link: row!, mode: input.replaceAll ? "replaced" : "updated" };
+    }
+
+    // replaceAll briefly exceeds the soft cap (insert target, then prune others).
+    if (!input.replaceAll && userLinks.length >= MAX_DISCORD_LINKS_PER_USER) {
+      return { ok: false, reason: "cap_reached" };
+    }
+
+    const row = await db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(schema.discordMemberLinks)
+        .values({
+          id: nanoid(),
+          allianceId: input.allianceId,
+          discordUserId: input.discordUserId,
+          discordUsername: input.discordUsername ?? null,
+          ashedMemberId: input.ashedMemberId,
+          memberDisplayName: input.memberDisplayName ?? null,
+          gameUid: input.gameUid,
+          linkedAt: now,
+          updatedAt: now,
+        })
+        .returning();
+      // Prune only after the new seat commits. A unique conflict on insert rolls
+      // the transaction back so prior Discord links are preserved.
+      if (input.replaceAll) {
+        await tx
+          .delete(schema.discordMemberLinks)
+          .where(
+            and(
+              eq(schema.discordMemberLinks.allianceId, input.allianceId),
+              eq(schema.discordMemberLinks.discordUserId, input.discordUserId),
+              ne(schema.discordMemberLinks.ashedMemberId, input.ashedMemberId),
+            ),
+          );
+      }
+      return inserted;
+    });
+
     await denormalizeGameUidOnMember({
       allianceId: input.allianceId,
       ashedMemberId: input.ashedMemberId,
@@ -508,59 +579,29 @@ export async function linkDiscordMember(input: {
       allianceId: input.allianceId,
       ashedMemberId: input.ashedMemberId,
       gameUid: input.gameUid,
+      joinedAt: now,
     });
     await syncCommanderIdentityFromMemberLink({
       allianceId: input.allianceId,
       ashedMemberId: input.ashedMemberId,
       gameUid: input.gameUid,
       memberDisplayName: input.memberDisplayName,
+      joinedAt: now,
     });
-    return { ok: true, link: row!, mode: input.replaceAll ? "replaced" : "updated" };
+
+    return {
+      ok: true,
+      link: row!,
+      mode: input.replaceAll ? "replaced" : "created",
+    };
+  } catch (error) {
+    // Concurrent Discord/web links can both pass the claim check; the unique
+    // index on (alliance_id, game_uid) is the authoritative gate.
+    if (isMemberLinkGameUidUniqueViolation(error)) {
+      return { ok: false, reason: "member_linked_to_other_discord" };
+    }
+    throw error;
   }
-
-  if (userLinks.length >= MAX_DISCORD_LINKS_PER_USER) {
-    return { ok: false, reason: "cap_reached" };
-  }
-
-  const [row] = await db
-    .insert(schema.discordMemberLinks)
-    .values({
-      id: nanoid(),
-      allianceId: input.allianceId,
-      discordUserId: input.discordUserId,
-      discordUsername: input.discordUsername ?? null,
-      ashedMemberId: input.ashedMemberId,
-      memberDisplayName: input.memberDisplayName ?? null,
-      gameUid: input.gameUid,
-      linkedAt: now,
-      updatedAt: now,
-    })
-    .returning();
-
-  await denormalizeGameUidOnMember({
-    allianceId: input.allianceId,
-    ashedMemberId: input.ashedMemberId,
-    gameUid: input.gameUid,
-  });
-  await openMemberAllianceTenure({
-    allianceId: input.allianceId,
-    ashedMemberId: input.ashedMemberId,
-    gameUid: input.gameUid,
-    joinedAt: now,
-  });
-  await syncCommanderIdentityFromMemberLink({
-    allianceId: input.allianceId,
-    ashedMemberId: input.ashedMemberId,
-    gameUid: input.gameUid,
-    memberDisplayName: input.memberDisplayName,
-    joinedAt: now,
-  });
-
-  return {
-    ok: true,
-    link: row!,
-    mode: input.replaceAll ? "replaced" : "created",
-  };
 }
 
 /** @deprecated Use linkDiscordMember — kept for admin paths that expect upsert semantics. */
@@ -842,7 +883,19 @@ export async function upsertCommanderSeasonVr(input: {
         )
       : null);
 
-  await db
+  // Atomic conflict resolution: never let a stale lower write clobber a
+  // concurrent higher season high. Intentional downgrades apply only when the
+  // stored high still matches the caller's pre-read (see shouldApplySeasonVrWrite).
+  const expectedPrevious = previousBaseVr;
+  const applyIncoming = sql`
+    (${input.baseVr} >= ${schema.commanderSeasonVr.highestBaseVr})
+    OR (
+      ${expectedPrevious}::int IS NOT NULL
+      AND ${schema.commanderSeasonVr.highestBaseVr} = ${expectedPrevious}
+    )
+  `;
+
+  const [written] = await db
     .insert(schema.commanderSeasonVr)
     .values({
       id: nanoid(),
@@ -863,17 +916,57 @@ export async function upsertCommanderSeasonVr(input: {
         schema.commanderSeasonVr.seasonKey,
       ],
       set: {
-        highestBaseVr: input.baseVr,
-        instituteLevel,
-        updatedByDiscordUserId: input.discordUserId ?? null,
-        updatedByHqUserId: input.hqUserId ?? null,
-        updatedAt: now,
-        flaggedAt: flagReason ? now : null,
-        flagReason,
+        highestBaseVr: sql`
+          CASE
+            WHEN ${applyIncoming} THEN ${input.baseVr}
+            ELSE ${schema.commanderSeasonVr.highestBaseVr}
+          END
+        `,
+        instituteLevel: sql`
+          CASE
+            WHEN ${applyIncoming} THEN ${instituteLevel}
+            ELSE ${schema.commanderSeasonVr.instituteLevel}
+          END
+        `,
+        updatedByDiscordUserId: sql`
+          CASE
+            WHEN ${applyIncoming} THEN ${input.discordUserId ?? null}
+            ELSE ${schema.commanderSeasonVr.updatedByDiscordUserId}
+          END
+        `,
+        updatedByHqUserId: sql`
+          CASE
+            WHEN ${applyIncoming} THEN ${input.hqUserId ?? null}
+            ELSE ${schema.commanderSeasonVr.updatedByHqUserId}
+          END
+        `,
+        updatedAt: sql`
+          CASE
+            WHEN ${applyIncoming} THEN ${now}
+            ELSE ${schema.commanderSeasonVr.updatedAt}
+          END
+        `,
+        flaggedAt: sql`
+          CASE
+            WHEN ${applyIncoming} THEN ${flagReason ? now : null}
+            ELSE ${schema.commanderSeasonVr.flaggedAt}
+          END
+        `,
+        flagReason: sql`
+          CASE
+            WHEN ${applyIncoming} THEN ${flagReason}
+            ELSE ${schema.commanderSeasonVr.flagReason}
+          END
+        `,
       },
+    })
+    .returning({
+      highestBaseVr: schema.commanderSeasonVr.highestBaseVr,
     });
 
-  if (input.eventSource && previousBaseVr !== input.baseVr) {
+  const applied =
+    written?.highestBaseVr === input.baseVr && previousBaseVr !== input.baseVr;
+  if (input.eventSource && applied) {
     await db.insert(schema.commanderSeasonVrEvents).values({
       id: nanoid(),
       commanderId: input.commanderId,
@@ -1343,7 +1436,10 @@ export async function purgeExpiredDiscordBotPending(): Promise<number> {
     .delete(schema.discordBotPending)
     .where(lt(schema.discordBotPending.expiresAt, new Date()))
     .returning({ discordUserId: schema.discordBotPending.discordUserId });
-  return deleted.length;
+  const expiredTimeOff = await db.delete(schema.timeOffDiscordInteractions)
+    .where(lt(schema.timeOffDiscordInteractions.expiresAt, new Date()))
+    .returning({ id: schema.timeOffDiscordInteractions.id });
+  return deleted.length + expiredTimeOff.length;
 }
 
 export async function listDiscordMemberLinks(allianceId: string) {
@@ -1606,6 +1702,80 @@ export async function upsertGuildAlliance(
     });
 }
 
+/**
+ * Bind a Discord guild to an alliance for `/link-alliance` / web bot install.
+ * Blocks silent cross-tenant overwrite when the guild is already registered to
+ * a different alliance (unless the caller is that alliance's owner or a
+ * platform maintainer).
+ */
+export async function bindGuildAllianceForRegistration(input: {
+  guildId: string;
+  allianceId: string;
+  discordUserId: string;
+}): Promise<{ ok: true } | { ok: false; reason: "guild_bound_to_other_alliance" }> {
+  const db = getDb();
+  const existingAllianceId = await getGuildAllianceId(input.guildId);
+
+  // Idempotent: already bound to the requested alliance.
+  if (existingAllianceId === input.allianceId) {
+    return { ok: true };
+  }
+
+  if (existingAllianceId && existingAllianceId !== input.allianceId) {
+    const existingAuth = await callerCanRegisterGuildAlliance({
+      allianceId: existingAllianceId,
+      discordUserId: input.discordUserId,
+    });
+    if (!canRebindGuildToDifferentAlliance(existingAuth)) {
+      return { ok: false, reason: "guild_bound_to_other_alliance" };
+    }
+
+    // CAS rebind: only move the guild if it is still bound to the alliance we
+    // authorized against. Blind upsert would let a concurrent binder steal the
+    // tenant after our auth check.
+    const updated = await db
+      .update(schema.discordGuildAlliances)
+      .set({ allianceId: input.allianceId, registeredAt: new Date() })
+      .where(
+        and(
+          eq(schema.discordGuildAlliances.guildId, input.guildId),
+          eq(schema.discordGuildAlliances.allianceId, existingAllianceId),
+        ),
+      )
+      .returning({ guildId: schema.discordGuildAlliances.guildId });
+
+    if (updated.length === 0) {
+      const current = await getGuildAllianceId(input.guildId);
+      if (current === input.allianceId) return { ok: true };
+      return { ok: false, reason: "guild_bound_to_other_alliance" };
+    }
+    return { ok: true };
+  }
+
+  // Unbound guild: insert-only. Never onConflictDoUpdate — two concurrent
+  // `/link-alliance` calls for different alliances both used to read null and
+  // last-writer-wins, silently cross-wiring the Discord guild tenant.
+  const inserted = await db
+    .insert(schema.discordGuildAlliances)
+    .values({
+      guildId: input.guildId,
+      allianceId: input.allianceId,
+      registeredAt: new Date(),
+    })
+    .onConflictDoNothing()
+    .returning({ guildId: schema.discordGuildAlliances.guildId });
+
+  if (inserted.length > 0) {
+    return { ok: true };
+  }
+
+  const current = await getGuildAllianceId(input.guildId);
+  if (current === input.allianceId) {
+    return { ok: true };
+  }
+  return { ok: false, reason: "guild_bound_to_other_alliance" };
+}
+
 export async function setGuildVrReportChannel(
   guildId: string,
   channelId: string,
@@ -1738,6 +1908,17 @@ export async function setGuildRegularEventsChannel(
   await db
     .update(schema.discordGuildAlliances)
     .set({ regularEventsChannelId: channelId })
+    .where(eq(schema.discordGuildAlliances.guildId, guildId));
+}
+
+export async function setGuildR4Channel(
+  guildId: string,
+  channelId: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.discordGuildAlliances)
+    .set({ r4ChannelId: channelId })
     .where(eq(schema.discordGuildAlliances.guildId, guildId));
 }
 
@@ -1914,6 +2095,17 @@ export async function upsertAllianceAshedCredential(input: {
 }): Promise<void> {
   const db = getDb();
   const now = new Date();
+  // `undefined` means "leave existing registrant columns alone" on conflict.
+  // Explicit `null` clears them. Web credential refresh must not wipe the
+  // Discord registrant that unlocks /link-alliance.
+  const registrantPatch = {
+    ...(input.registeredByDiscordUserId !== undefined
+      ? { registeredByDiscordUserId: input.registeredByDiscordUserId }
+      : {}),
+    ...(input.registeredByHqUserId !== undefined
+      ? { registeredByHqUserId: input.registeredByHqUserId }
+      : {}),
+  };
   await db
     .insert(schema.allianceAshedCredentials)
     .values({
@@ -1935,8 +2127,7 @@ export async function upsertAllianceAshedCredential(input: {
         originUrl: input.originUrl,
         encryptedToken: input.encryptedToken,
         tokenExpiresAt: input.tokenExpiresAt ?? null,
-        registeredByDiscordUserId: input.registeredByDiscordUserId ?? null,
-        registeredByHqUserId: input.registeredByHqUserId ?? null,
+        ...registrantPatch,
         updatedAt: now,
       },
     });

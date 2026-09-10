@@ -57,6 +57,7 @@ export type DiscordInteractionPayload = {
     target_id?: string;
     options?: Array<{ name: string; type: number; value?: unknown }>;
     custom_id?: string;
+    components?: Array<{ components?: Array<{ custom_id?: string; value?: string }> }>;
     resolved?: {
       attachments?: Record<
         string,

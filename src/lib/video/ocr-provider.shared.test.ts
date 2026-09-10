@@ -7,6 +7,7 @@ import {
   resolveEffectiveVideoOcrProvider,
   resolveVideoJobAshedConnection,
   resolveVideoOcrProvider,
+  resolveVideoOcrEngineForJob,
   shouldEnqueueAshedOcrShadowPasses,
   videoOcrEngineForTarget,
   videoOcrRequiresAshedConnection,
@@ -194,6 +195,47 @@ describe("videoOcrRequiresAshedConnection", () => {
     expect(
       videoOcrRequiresAshedConnection({ allianceHqOcrOnly: false }),
     ).toBe(false);
+  });
+});
+
+describe("native alliance VS engine", () => {
+  it.each(["ashed", "local", "mock"])("uses real native OCR in production with provider %s unless mock is allowed", (provider) => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VIDEO_OCR_PROVIDER", provider);
+    vi.stubEnv("VIDEO_OCR_ALLOW_NONPROD", "");
+    expect(resolveVideoOcrEngineForJob("vs-performance", false, {
+      allianceOperatingMode: "native",
+    })).toBe("native");
+  });
+
+  it.each([false, true])("never quietly mocks local native VS (HQ-only %s)", (allianceHqOcrOnly) => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "local");
+    expect(resolveVideoOcrEngineForJob("vs-performance", false, {
+      allianceOperatingMode: "native", allianceHqOcrOnly,
+    })).toBe("native");
+  });
+
+  it("preserves explicitly allowed mock mode", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "mock");
+    vi.stubEnv("VIDEO_OCR_ALLOW_NONPROD", "true");
+    expect(resolveVideoOcrEngineForJob("vs-performance", false, {
+      allianceOperatingMode: "native",
+    })).toBe("mock");
+  });
+
+  it("does not change Ashed VS or other native-alliance score targets", () => {
+    vi.stubEnv("VIDEO_OCR_PROVIDER", "ashed");
+    expect(resolveVideoOcrEngineForJob("vs-performance", false, {
+      allianceOperatingMode: "ashed",
+    })).toBe("ashed");
+    expect(resolveVideoOcrEngineForJob("desert-storm", false, {
+      allianceOperatingMode: "native",
+    })).toBe("ashed");
+    expect(resolveVideoOcrEngineForJob("vs-performance", false, {
+      allianceOperatingMode: "ashed", allianceHqOcrOnly: true,
+    })).toBe("native");
   });
 });
 

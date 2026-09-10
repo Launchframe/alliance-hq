@@ -5,7 +5,7 @@ import { POST } from "./route";
 const requireApiSession = vi.fn();
 const getAshedConnection = vi.fn();
 const sessionCanProcessVideo = vi.fn();
-const loadEffectiveAllianceHqOcrOnly = vi.fn();
+const loadAllianceVideoOcrContext = vi.fn();
 const resetVideoJobForReprocess = vi.fn();
 const dispatchVideoProcessing = vi.fn();
 const writeAuditLog = vi.fn();
@@ -62,8 +62,8 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/video/alliance-ocr-settings.server", () => ({
-  loadEffectiveAllianceHqOcrOnly: (...args: unknown[]) =>
-    loadEffectiveAllianceHqOcrOnly(...args),
+  loadAllianceVideoOcrContext: (...args: unknown[]) =>
+    loadAllianceVideoOcrContext(...args),
 }));
 
 vi.mock("@/lib/video/reset-video-job-for-reprocess", () => ({
@@ -98,7 +98,7 @@ const SESSION = {
 describe("POST /api/tools/video-upload/[jobId]/reprocess", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    loadEffectiveAllianceHqOcrOnly.mockResolvedValue(false);
+    loadAllianceVideoOcrContext.mockResolvedValue({ allianceHqOcrOnly: false, allianceOperatingMode: "ashed" });
     resetVideoJobForReprocess.mockResolvedValue(undefined);
     writeAuditLog.mockResolvedValue(undefined);
     updateWhere.mockResolvedValue(undefined);
@@ -167,6 +167,24 @@ describe("POST /api/tools/video-upload/[jobId]/reprocess", () => {
     expect(body.connectUrl).toBe(
       "/connect?next=%2Ftools%2Fvideo-upload%2Fjob-2%2Freview",
     );
+  });
+
+  it.each(["native", "ashed"])("reprocesses VS without credentials only for %s mode", async (allianceOperatingMode) => {
+    requireApiSession.mockResolvedValue(SESSION);
+    sessionCanProcessVideo.mockResolvedValue(true);
+    getAshedConnection.mockResolvedValue(null);
+    loadAllianceVideoOcrContext.mockResolvedValue({ allianceOperatingMode });
+    selectLimit.mockResolvedValue([{ id: "job-vs", allianceId: "ally-1", scoreTarget: "vs-performance", status: "review" }]);
+    const res = await POST(new Request("http://localhost/reprocess"), {
+      params: Promise.resolve({ jobId: "job-vs" }),
+    });
+    expect(res.status).toBe(allianceOperatingMode === "native" ? 200 : 409);
+    if (allianceOperatingMode === "native") {
+      expect(getAshedConnection).not.toHaveBeenCalled();
+      expect(dispatchVideoProcessing).toHaveBeenCalledWith("job-vs", { source: "reprocess" });
+    } else {
+      expect(resetVideoJobForReprocess).not.toHaveBeenCalled();
+    }
   });
 
   it("forwards processor-slot denial", async () => {

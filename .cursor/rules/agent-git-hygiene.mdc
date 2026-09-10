@@ -20,12 +20,16 @@ Parallel Cursor agents (Multitask mode, background subagents, or separate chats)
 
 > **Scope:** "Commit WIP" is not a blanket commit permission. It means an agent ending a session or handing off to another agent should commit rather than stash — still subject to the repo's pre-commit gates. It does **not** authorize autonomous commits in ordinary single-agent sessions; follow the maintainer's explicit request as usual.
 
-## Worktrees for concurrent work
+## Worktrees for concurrent work only
 
-When **more than one agent** may write code at the same time — including Multitask mode — each writer gets its **own worktree directory** and **own branch**:
+For most single-agent tasks, use the **primary clone** (repo root). Create a topic branch and do the work there. Worktrees are reserved for situations where more than one agent may write code at the same time — including Multitask mode and Real Steel.
 
 ```bash
-# From the primary clone (repo root) — preferred: worktree + env copy in one step
+# Single-agent task — primary clone (preferred)
+git fetch origin
+git checkout -b feat/<topic> origin/main
+
+# Multiple concurrent writers — isolated worktree + env copy in one step
 ./scripts/new-worktree.sh feat/<topic>
 # or track an existing PR branch:
 ./scripts/new-worktree.sh feat/video-review-draft-persistence
@@ -37,14 +41,15 @@ git fetch origin && git worktree add ../alliance-hq-<short-topic> -b feat/<topic
 
 | Agent / task | Workspace |
 | --- | --- |
-| Feature implementation | `../alliance-hq-<topic>/` on `feat/<topic>` |
-| Second parallel feature | `../alliance-hq-<other>/` on another branch |
-| Real Steel on PR *N* | `../alliance-hq-<branch-leaf>/` via `./scripts/new-worktree.sh` (optional manual name: `../alliance-hq-rs-pr-<N>/`) — see [Real Steel overlay](../skills/real-steel/SKILL.md) |
-| Read-only explore | Primary clone OK if no concurrent writers |
+| Single-agent feature / bugfix | Primary clone on `feat/<topic>` |
+| Second parallel feature | Separate worktree on another branch |
+| Real Steel on PR *N* | Worktree via `./scripts/new-worktree.sh` (optional manual name: `../alliance-hq-rs-pr-<N>/`) — see [Real Steel overlay](../skills/real-steel/SKILL.md) |
+| Read-only explore | Primary clone OK |
 
 **Rules:**
 
-- Isolation is the **worktree directory + branch**, not IDE-root location alone. **`/real-steel` writers:** still call `move_agent_to_root` once (see below).
+- Isolation is the **branch**; a worktree is extra isolation when concurrent agents might clobber the same checkout. **`/real-steel` writers:** still call `move_agent_to_root` once into the worktree (see below).
+- For single-agent work, create the topic branch in the primary clone. Do not create a worktree unless another agent is or will be writing in parallel.
 - **Never** `git checkout` a PR branch in the primary clone while another agent is editing there.
 - Keep the **primary clone on `main` (or idle)** when other agents are writing in worktrees.
 - **Remove worktrees** when the task ends: `git worktree remove --force <path> && git worktree prune`.

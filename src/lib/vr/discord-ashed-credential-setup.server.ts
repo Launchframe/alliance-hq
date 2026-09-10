@@ -1,6 +1,9 @@
 import "server-only";
 
-import { filterAccessibleAlliances } from "@/lib/alliance/accessible";
+import {
+  canInstallAshedBotCredentials,
+  filterAccessibleAlliances,
+} from "@/lib/alliance/accessible";
 import { base44ListAlliances } from "@/lib/base44/fetch";
 import { verifyBase44Connection } from "@/lib/base44/server";
 import { parseConnectionInput, type ParsedConnection } from "@/lib/connectionString";
@@ -90,6 +93,18 @@ export async function setupAshedCredentialsForDiscord(
     return {
       ok: false,
       error: `Your Ashed account does not have access to alliance tag "${tag}".`,
+      status: 403,
+    };
+  }
+
+  // Collaborators/maintainers must not install or overwrite alliance bot
+  // credentials — only the Ashed alliance owner may. Otherwise any collaborator
+  // with `/link` + `/link-ashed` could replace the bot JWT and become the
+  // credential registrant (which also unlocks `/link-alliance`).
+  if (!canInstallAshedBotCredentials(ashedAlliance.accessRole)) {
+    return {
+      ok: false,
+      error: `Only the Ashed alliance owner can connect bot credentials for tag "${ashedAlliance.tag}". Ask the owner to run /link-ashed, or use an owner connection key.`,
       status: 403,
     };
   }

@@ -10,7 +10,11 @@ import {
 } from "@/lib/members/member-tenure.server";
 import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
 import { inheritHqMemberLinkToDiscordIfLinked } from "@/lib/member-link/inherit-hq-to-discord.server";
-import { hasConflictingHqGameUidClaim } from "@/lib/member-link/link-claim-guards.shared";
+import {
+  hasConflictingDiscordAshedMemberOccupancy,
+  hasConflictingHqGameUidClaim,
+} from "@/lib/member-link/link-claim-guards.shared";
+import { isMemberLinkGameUidUniqueViolation } from "@/lib/member-link/member-link-game-uid-unique.shared";
 import type { LinkPendingState } from "@/lib/vr/types";
 
 const PENDING_TTL_MS = 30 * 60 * 1000;
@@ -212,6 +216,32 @@ async function isGameUidClaimedByOtherHqUser(input: {
 
 export { loadGameUidClaimsForAlliance };
 
+async function loadDiscordOccupantsForAshedMember(
+  allianceId: string,
+  ashedMemberId: string,
+): Promise<Array<{ discordUserId: string; hqUserId: string | null }>> {
+  const db = getDb();
+  return db
+    .select({
+      discordUserId: schema.discordMemberLinks.discordUserId,
+      hqUserId: schema.discordHqLinks.hqUserId,
+    })
+    .from(schema.discordMemberLinks)
+    .leftJoin(
+      schema.discordHqLinks,
+      eq(
+        schema.discordHqLinks.discordUserId,
+        schema.discordMemberLinks.discordUserId,
+      ),
+    )
+    .where(
+      and(
+        eq(schema.discordMemberLinks.allianceId, allianceId),
+        eq(schema.discordMemberLinks.ashedMemberId, ashedMemberId),
+      ),
+    );
+}
+
 export async function linkHqMember(input: {
   allianceId: string;
   hqUserId: string;
@@ -237,22 +267,77 @@ export async function linkHqMember(input: {
     return { ok: false, reason: "member_linked_to_other_user" };
   }
 
+  const discordOccupants = await loadDiscordOccupantsForAshedMember(
+    input.allianceId,
+    input.ashedMemberId,
+  );
+  if (
+    hasConflictingDiscordAshedMemberOccupancy({
+      hqUserId: input.hqUserId,
+      discordOccupants,
+    })
+  ) {
+    return { ok: false, reason: "member_linked_to_other_user" };
+  }
+
   const existingUserLink = await getHqMemberLinkForUser(
     input.allianceId,
     input.hqUserId,
   );
 
-  if (existingUserLink) {
+  try {
+    if (existingUserLink) {
+      const [row] = await db
+        .update(schema.hqMemberLinks)
+        .set({
+          ashedMemberId: input.ashedMemberId,
+          memberDisplayName: input.memberDisplayName ?? null,
+          gameUid: input.gameUid,
+          updatedAt: now,
+        })
+        .where(eq(schema.hqMemberLinks.id, existingUserLink.id))
+        .returning();
+      await denormalizeGameUidOnMember({
+        allianceId: input.allianceId,
+        ashedMemberId: input.ashedMemberId,
+        gameUid: input.gameUid,
+      });
+      await openMemberAllianceTenure({
+        allianceId: input.allianceId,
+        ashedMemberId: input.ashedMemberId,
+        gameUid: input.gameUid,
+      });
+      await syncCommanderIdentityFromMemberLink({
+        allianceId: input.allianceId,
+        ashedMemberId: input.ashedMemberId,
+        gameUid: input.gameUid,
+        memberDisplayName: input.memberDisplayName,
+        hqUserId: input.hqUserId,
+      });
+      await inheritHqMemberLinkToDiscordIfLinked({
+        hqUserId: input.hqUserId,
+        allianceId: input.allianceId,
+        ashedMemberId: input.ashedMemberId,
+        memberDisplayName: input.memberDisplayName,
+        gameUid: input.gameUid,
+      });
+      return { ok: true, link: row!, mode: "updated" };
+    }
+
     const [row] = await db
-      .update(schema.hqMemberLinks)
-      .set({
+      .insert(schema.hqMemberLinks)
+      .values({
+        id: nanoid(),
+        allianceId: input.allianceId,
+        hqUserId: input.hqUserId,
         ashedMemberId: input.ashedMemberId,
         memberDisplayName: input.memberDisplayName ?? null,
         gameUid: input.gameUid,
+        linkedAt: now,
         updatedAt: now,
       })
-      .where(eq(schema.hqMemberLinks.id, existingUserLink.id))
       .returning();
+
     await denormalizeGameUidOnMember({
       allianceId: input.allianceId,
       ashedMemberId: input.ashedMemberId,
@@ -262,6 +347,7 @@ export async function linkHqMember(input: {
       allianceId: input.allianceId,
       ashedMemberId: input.ashedMemberId,
       gameUid: input.gameUid,
+      joinedAt: now,
     });
     await syncCommanderIdentityFromMemberLink({
       allianceId: input.allianceId,
@@ -269,6 +355,7 @@ export async function linkHqMember(input: {
       gameUid: input.gameUid,
       memberDisplayName: input.memberDisplayName,
       hqUserId: input.hqUserId,
+      joinedAt: now,
     });
     await inheritHqMemberLinkToDiscordIfLinked({
       hqUserId: input.hqUserId,
@@ -277,51 +364,16 @@ export async function linkHqMember(input: {
       memberDisplayName: input.memberDisplayName,
       gameUid: input.gameUid,
     });
-    return { ok: true, link: row!, mode: "updated" };
+
+    return { ok: true, link: row!, mode: "created" };
+  } catch (error) {
+    // Concurrent link posts can both pass isGameUidClaimedByOtherHqUser before
+    // either insert commits; the unique index is the authoritative claim gate.
+    if (isMemberLinkGameUidUniqueViolation(error)) {
+      return { ok: false, reason: "member_linked_to_other_user" };
+    }
+    throw error;
   }
-
-  const [row] = await db
-    .insert(schema.hqMemberLinks)
-    .values({
-      id: nanoid(),
-      allianceId: input.allianceId,
-      hqUserId: input.hqUserId,
-      ashedMemberId: input.ashedMemberId,
-      memberDisplayName: input.memberDisplayName ?? null,
-      gameUid: input.gameUid,
-      linkedAt: now,
-      updatedAt: now,
-    })
-    .returning();
-
-  await denormalizeGameUidOnMember({
-    allianceId: input.allianceId,
-    ashedMemberId: input.ashedMemberId,
-    gameUid: input.gameUid,
-  });
-  await openMemberAllianceTenure({
-    allianceId: input.allianceId,
-    ashedMemberId: input.ashedMemberId,
-    gameUid: input.gameUid,
-    joinedAt: now,
-  });
-  await syncCommanderIdentityFromMemberLink({
-    allianceId: input.allianceId,
-    ashedMemberId: input.ashedMemberId,
-    gameUid: input.gameUid,
-    memberDisplayName: input.memberDisplayName,
-    hqUserId: input.hqUserId,
-    joinedAt: now,
-  });
-  await inheritHqMemberLinkToDiscordIfLinked({
-    hqUserId: input.hqUserId,
-    allianceId: input.allianceId,
-    ashedMemberId: input.ashedMemberId,
-    memberDisplayName: input.memberDisplayName,
-    gameUid: input.gameUid,
-  });
-
-  return { ok: true, link: row!, mode: "created" };
 }
 
 export async function getHqMemberLinkPending(

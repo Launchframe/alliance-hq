@@ -103,6 +103,21 @@ export const alliances = pgTable("alliances", {
   trainDiscordAnnouncementsEnabled: integer("train_discord_announcements_enabled")
     .notNull()
     .default(0),
+  /** When 1, regular-event start reminders may post to Discord + HQ inbox. */
+  regularEventsDiscordAnnouncementsEnabled: integer(
+    "regular_events_discord_announcements_enabled",
+  )
+    .notNull()
+    .default(0),
+  /**
+   * When 1, Zombie Siege default start is 23:30 ST (Canyon Storm season);
+   * otherwise 23:00 ST.
+   */
+  regularEventsCanyonStormActive: integer(
+    "regular_events_canyon_storm_active",
+  )
+    .notNull()
+    .default(0),
   /**
    * Who may run Discord `/set-train-channel`.
    * `officer` (default) = R4+ linked officers; `owner` = R5 / alliance owner only.
@@ -965,6 +980,11 @@ export const hqMemberLinks = pgTable(
       table.allianceId,
       table.ashedMemberId,
     ),
+    // One Last War UID → one HQ claim per alliance (closes TOCTOU dual-claim races).
+    unique("hq_member_links_alliance_game_uid_unique").on(
+      table.allianceId,
+      table.gameUid,
+    ),
   ],
 );
 
@@ -1021,6 +1041,11 @@ export const discordMemberLinks = pgTable(
     unique("discord_member_links_alliance_member_unique").on(
       table.allianceId,
       table.ashedMemberId,
+    ),
+    // One Last War UID → one Discord claim per alliance (closes TOCTOU dual-claim races).
+    unique("discord_member_links_alliance_game_uid_unique").on(
+      table.allianceId,
+      table.gameUid,
     ),
   ],
 );
@@ -1491,6 +1516,7 @@ export const discordGuildAlliances = pgTable("discord_guild_alliances", {
   trainChannelId: text("train_channel_id"),
   seasonalEventsChannelId: text("seasonal_events_channel_id"),
   regularEventsChannelId: text("regular_events_channel_id"),
+  r4ChannelId: text("r4_channel_id"),
   bankingChannelId: text("banking_channel_id"),
   /** Message context-menu translation (Apps → Translate) for this guild. */
   translationEnabled: boolean("translation_enabled").notNull().default(true),
@@ -2611,6 +2637,7 @@ export const memberViolations = pgTable("member_violations", {
   notes: text("notes"),
   recordedDate: text("recorded_date"),
   ashedViolationId: text("ashed_violation_id"),
+  complianceEventId: text("compliance_event_id").unique(),
   expungedAt: timestamp("expunged_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
@@ -3316,6 +3343,85 @@ export type EurUserSubscription = typeof eurUserSubscriptions.$inferSelect;
 export type InboxReminderItem = typeof inboxReminderItems.$inferSelect;
 
 // ---------------------------------------------------------------------------
+// Regular events — Discord / HQ start reminders (not EUR upload reminders)
+// ---------------------------------------------------------------------------
+
+export const regularEventScheduleRules = pgTable(
+  "regular_event_schedule_rules",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    eventKey: text("event_key").notNull(),
+    scheduleKind: text("schedule_kind").notNull(),
+    weeklySlots: jsonb("weekly_slots"),
+    oneShotDates: jsonb("one_shot_dates"),
+    biweeklyPhaseMonday: text("biweekly_phase_monday"),
+    intervalDays: integer("interval_days"),
+    anchorTimeSt: text("anchor_time_st"),
+    announceLeadMinutes: integer("announce_lead_minutes")
+      .notNull()
+      .default(60),
+    active: integer("active").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("regular_event_schedule_rules_alliance_event_unique").on(
+      table.allianceId,
+      table.eventKey,
+    ),
+  ],
+);
+
+export const regularEventOccurrences = pgTable(
+  "regular_event_occurrences",
+  {
+    id: text("id").primaryKey(),
+    scheduleRuleId: text("schedule_rule_id")
+      .notNull()
+      .references(() => regularEventScheduleRules.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    eventKey: text("event_key").notNull(),
+    occurrenceDate: text("occurrence_date").notNull(),
+    scheduledStartAt: timestamp("scheduled_start_at", { withTimezone: true })
+      .notNull(),
+    announceAt: timestamp("announce_at", { withTimezone: true }).notNull(),
+    discordAnnouncedAt: timestamp("discord_announced_at", {
+      withTimezone: true,
+    }),
+    uploadRemindedAt: timestamp("upload_reminded_at", {
+      withTimezone: true,
+    }),
+    scheduleRemindedAt: timestamp("schedule_reminded_at", {
+      withTimezone: true,
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("regular_event_occurrences_alliance_event_date_unique").on(
+      table.allianceId,
+      table.eventKey,
+      table.occurrenceDate,
+    ),
+  ],
+);
+
+export type RegularEventScheduleRule =
+  typeof regularEventScheduleRules.$inferSelect;
+export type RegularEventOccurrence =
+  typeof regularEventOccurrences.$inferSelect;
+
+// ---------------------------------------------------------------------------
 // Battle plan — territory capture scheduling
 // ---------------------------------------------------------------------------
 
@@ -3764,6 +3870,15 @@ export const memberTimeOff = pgTable(
       { onDelete: "set null" },
     ),
     createdByDiscordUserId: text("created_by_discord_user_id"),
+    version: integer("version").notNull().default(0),
+    globalAbsence: boolean("global_absence").notNull().default(false),
+    activityScope: text("activity_scope").notNull().default("all"),
+    syncStatus: text("sync_status").notNull().default("local"),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    noticeVerified: boolean("notice_verified").notNull().default(true),
+    privateNotesOwned: boolean("private_notes_owned").notNull().default(false),
+    requestKey: text("request_key").unique(),
+    requestHash: text("request_hash"),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -3784,7 +3899,243 @@ export const memberTimeOff = pgTable(
   ],
 );
 
+export const memberTimeOffRevisions = pgTable(
+  "member_time_off_revisions",
+  {
+    id: text("id").primaryKey(),
+    entryId: text("entry_id").notNull().references(() => memberTimeOff.id, { onDelete: "restrict" }),
+    allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    snapshot: jsonb("snapshot").$type<{
+      startDate: string;
+      endDate: string;
+      entryKind: "planned" | "officer_marked" | "unexpected";
+      globalAbsence: boolean;
+      cancelled: boolean;
+      activityScope?: "vs" | "donation" | "all";
+    }>().notNull(),
+    recordedByHqUserId: text("recorded_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+    recordedByDiscordUserId: text("recorded_by_discord_user_id"),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
+    observedAt: timestamp("observed_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("member_time_off_revisions_entry_version_unique").on(table.entryId, table.version),
+    index("member_time_off_revisions_alliance_entry_idx").on(table.allianceId, table.entryId),
+  ],
+);
+
+export const timeOffDiscordInteractions = pgTable("time_off_discord_interactions", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  guildId: text("guild_id").notNull(),
+  discordUserId: text("discord_user_id").notNull(),
+  state: jsonb("state").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, (table) => [index("time_off_discord_interactions_expires_idx").on(table.expiresAt)]);
+
+export const timeOffSyncBindings = pgTable("time_off_sync_bindings", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  entryId: text("entry_id").notNull().references(() => memberTimeOff.id, { onDelete: "restrict" }),
+  recordType: text("record_type").$type<"vs" | "donation">().notNull(),
+  origin: text("origin").$type<"hq" | "ashed">().notNull(),
+  remoteId: text("remote_id"),
+  appId: text("app_id"),
+  upstreamAllianceId: text("upstream_alliance_id"),
+  remoteSnapshot: jsonb("remote_snapshot").$type<import("../time-off/excused-sync.shared").ExcusedRecord>(),
+  status: text("status").notNull().default("pending"),
+  lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+}, (table) => [
+  unique("time_off_sync_bindings_entry_type_unique").on(table.entryId, table.recordType),
+  unique("time_off_sync_bindings_remote_unique").on(table.allianceId, table.remoteId),
+]);
+
+export const timeOffSyncJobs = pgTable("time_off_sync_jobs", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  bindingId: text("binding_id").notNull().references(() => timeOffSyncBindings.id, { onDelete: "restrict" }),
+  entryVersion: integer("entry_version").notNull(),
+  desired: jsonb("desired").$type<import("../time-off/excused-sync.shared").DesiredExcusedRecord | null>(),
+  state: text("state").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  createdRemoteId: text("created_remote_id"),
+  attemptedAt: timestamp("attempted_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("time_off_sync_jobs_version_unique").on(table.bindingId, table.entryVersion)]);
+
+export const timeOffSyncTombstones = pgTable("time_off_sync_tombstones", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  appId: text("app_id").notNull(),
+  remoteId: text("remote_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("time_off_sync_tombstones_remote_unique").on(table.allianceId, table.appId, table.remoteId)]);
+
+export const timeOffSyncState = pgTable("time_off_sync_state", {
+  allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
+  requestedSeq: integer("requested_seq").notNull().default(0),
+  processedSeq: integer("processed_seq").notNull().default(0),
+  leaseToken: text("lease_token"),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  nextPollAt: timestamp("next_poll_at", { withTimezone: true }).defaultNow().notNull(),
+  lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  snapshot: jsonb("snapshot").$type<import("../time-off/excused-sync.shared").ExcusedRecord[]>().notNull().default([]),
+});
+
 export type MemberTimeOff = typeof memberTimeOff.$inferSelect;
+
+export const vsScoreHeads = pgTable("vs_score_heads", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  memberId: text("member_id").notNull(),
+  memberName: text("member_name").notNull(),
+  recordedDate: text("recorded_date").notNull(),
+  period: text("period").$type<"daily" | "weekly">().notNull(),
+  score: bigint("score", { mode: "number" }),
+  origin: text("origin").$type<"hq" | "derived">().notNull(),
+  version: integer("version").notNull().default(0),
+  batchId: text("batch_id"),
+  sourceJobId: text("source_job_id"),
+  basis: jsonb("basis").$type<Array<{ id: string; version: number }>>().notNull().default([]),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("vs_score_heads_key_unique").on(table.allianceId, table.memberId, table.period, table.recordedDate),
+  index("vs_score_heads_scope_idx").on(table.allianceId, table.period, table.recordedDate),
+  index("vs_score_heads_batch_idx").on(table.batchId),
+]);
+
+export const vsScoreRevisions = pgTable("vs_score_revisions", {
+  id: text("id").primaryKey(),
+  headId: text("head_id").notNull().references(() => vsScoreHeads.id, { onDelete: "cascade" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  score: bigint("score", { mode: "number" }),
+  origin: text("origin").$type<"hq" | "derived">().notNull(),
+  batchId: text("batch_id"),
+  sourceJobId: text("source_job_id"),
+  basis: jsonb("basis").$type<Array<{ id: string; version: number }>>().notNull().default([]),
+  recordedByHqUserId: text("recorded_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("vs_score_revisions_version_unique").on(table.headId, table.version)]);
+
+export const vsScoreSubmissions = pgTable("vs_score_submissions", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  sourceJobId: text("source_job_id").notNull(),
+  requestId: text("request_id").notNull(),
+  digest: text("digest").notNull(),
+  batchId: text("batch_id").notNull(),
+  revision: integer("revision").notNull(),
+  rowCount: integer("row_count").notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("vs_score_submissions_request_unique").on(table.allianceId, table.sourceJobId, table.requestId)]);
+
+export const vsScoreSyncScopes = pgTable("vs_score_sync_scopes", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  recordedDate: text("recorded_date").notNull(),
+  period: text("period").$type<"daily" | "weekly">().notNull(),
+  requestedVersion: integer("requested_version").notNull().default(1),
+  processedVersion: integer("processed_version").notNull().default(0),
+  status: text("status").notNull().default("pending"),
+  leaseToken: text("lease_token"),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+  lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+  managedMemberIds: jsonb("managed_member_ids").$type<string[]>().notNull().default([]),
+  managedScores: jsonb("managed_scores").$type<Record<string, { previous: number | null; desired: number | null }>>().notNull().default({}),
+}, (table) => [unique("vs_score_sync_scopes_key_unique").on(table.allianceId, table.period, table.recordedDate)]);
+
+export const vsCompliancePolicies = pgTable("vs_compliance_policies", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  effectiveWeek: text("effective_week").notNull(),
+  enabled: boolean("enabled").notNull().default(false),
+  dailyTarget: bigint("daily_target", { mode: "number" }).notNull().default(7_200_000),
+  weeklyMinimum: bigint("weekly_minimum", { mode: "number" }),
+  leewayPct: integer("leeway_pct").notNull().default(0),
+  preset: text("preset").$type<"rank_aware" | "consecutive">().notNull().default("rank_aware"),
+  removalThreshold: integer("removal_threshold").notNull().default(3),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique("vs_compliance_policies_alliance_version_unique").on(table.allianceId, table.version),
+  index("vs_compliance_policies_alliance_week_idx").on(table.allianceId, table.effectiveWeek),
+]);
+
+export const vsComplianceState = pgTable("vs_compliance_state", {
+  allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
+  inputVersion: bigint("input_version", { mode: "number" }).notNull().default(0),
+  requestedFrom: text("requested_from"),
+  processedThrough: text("processed_through"),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+  lastError: text("last_error"),
+});
+
+export const vsComplianceEvaluations = pgTable("vs_compliance_evaluations", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  memberId: text("member_id").notNull(),
+  memberName: text("member_name").notNull(),
+  weekEnding: text("week_ending").notNull(),
+  input: jsonb("input").$type<import("../vs-compliance/types.shared").VsComplianceWeek>().notNull(),
+  evaluation: jsonb("evaluation").$type<import("../vs-compliance/types.shared").VsComplianceEvaluation>().notNull(),
+  memberSnapshot: jsonb("member_snapshot").$type<import("../vs-compliance/types.shared").VsComplianceMember>().notNull(),
+  remoteEvidence: jsonb("remote_evidence").$type<import("../vs-scores/evidence.shared").VsEvidence[]>().notNull().default([]),
+  remoteVerifiedAt: timestamp("remote_verified_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [unique("vs_compliance_evaluations_member_week_unique").on(table.allianceId, table.memberId, table.weekEnding)]);
+
+export const vsComplianceActions = pgTable("vs_compliance_actions", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  eventId: text("event_id").notNull().references(() => vsComplianceEvaluations.id, { onDelete: "restrict" }),
+  memberId: text("member_id").notNull(),
+  actorId: text("actor_id").notNull(),
+  requestId: text("request_id").notNull(),
+  requestDigest: text("request_digest").notNull(),
+  kind: text("kind").$type<"waive" | "demote" | "remove">().notNull(),
+  expectedRank: integer("expected_rank"),
+  targetRank: integer("target_rank"),
+  evaluationBasis: text("evaluation_basis").notNull(),
+  memberSnapshot: jsonb("member_snapshot").$type<import("../vs-compliance/types.shared").VsComplianceMember>().notNull(),
+  reason: text("reason"),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [unique("vs_compliance_actions_request_unique").on(table.allianceId, table.actorId, table.requestId)]);
+
+export const vsComplianceSyncJobs = pgTable("vs_compliance_sync_jobs", {
+  actionId: text("action_id").primaryKey().references(() => vsComplianceActions.id, { onDelete: "restrict" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  memberId: text("member_id").notNull(),
+  status: text("status").$type<"local" | "pending" | "synced" | "failed" | "credentials_required">().notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  leaseToken: text("lease_token"),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+  syncedAt: timestamp("synced_at", { withTimezone: true }),
+  supersededAt: timestamp("superseded_at", { withTimezone: true }),
+  supersededBy: text("superseded_by"),
+});
+
+export const vsComplianceRosterGuards = pgTable("vs_compliance_roster_guards", {
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  memberId: text("member_id").notNull(),
+  actionId: text("action_id").notNull().references(() => vsComplianceActions.id, { onDelete: "restrict" }),
+  rank: integer("rank"),
+  status: text("status").notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [primaryKey({ columns: [table.allianceId, table.memberId] })]);
+
+export const vsComplianceReviews = pgTable("vs_compliance_reviews", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  actionId: text("action_id").notNull().references(() => vsComplianceActions.id, { onDelete: "restrict" }),
+  evaluationBasis: text("evaluation_basis").notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [unique("vs_compliance_reviews_basis_unique").on(table.actionId, table.evaluationBasis)]);
 
 // ---------------------------------------------------------------------------
 // Officer intelligence — chat ingestion
