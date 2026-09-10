@@ -1,9 +1,9 @@
 import "server-only";
 
 import { and, eq, isNull, lte, notInArray, or, sql } from "drizzle-orm";
+import { nanoid } from "nanoid";
 import { lockAllianceAvailability, loadTimeOffAvailability } from "@/lib/time-off/availability.server";
 import { findCoverageConflicts, trainCoverageDuties } from "@/lib/time-off/coverage.server";
-import { nanoid } from "nanoid";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
@@ -419,35 +419,37 @@ async function promoteSuccessor(input: {
   const promoted = await getDb().transaction(async (db) => {
     await lockAllianceAvailability(db, input.allianceId);
     const [current] = await db.select().from(schema.trainConductorRecords).where(and(eq(schema.trainConductorRecords.id, input.record.id), eq(schema.trainConductorRecords.allianceId, input.allianceId))).for("update");
-    if (!current || current.updatedAt.getTime() !== input.record.updatedAt.getTime()) return [];
+    if (!current || current.lockedAt || current.updatedAt.getTime() !== input.record.updatedAt.getTime()) return [];
+    if (current.conductorNominationStatus !== "pending_confirmation") return [];
+    if ((current.successorAttempt ?? 0) !== (input.record.successorAttempt ?? 0)) return [];
     const duties = [...trainCoverageDuties(current, "current"), ...trainCoverageDuties({ ...current, conductorMemberId: next.memberId, conductorMemberName: next.memberName }, "next")];
     if ((await findCoverageConflicts(db, input.allianceId, duties)).length) return [];
-  // CAS before pool release: a concurrent officer confirm must win cleanly.
-  return db
-    .update(schema.trainConductorRecords)
-    .set({
-      conductorMemberId: next.memberId,
-      conductorMemberName: next.memberName,
-      conductorNominationStatus: "pending_confirmation",
-      successorAttempt: nextAttempt,
-      confirmationDeadlineAt: deadline,
-      updatedAt: input.now,
-    })
-    .where(
-      and(
-        eq(schema.trainConductorRecords.id, input.record.id),
-        eq(
-          schema.trainConductorRecords.conductorNominationStatus,
-          "pending_confirmation",
+    // CAS before pool release: a concurrent officer confirm must win cleanly.
+    return db
+      .update(schema.trainConductorRecords)
+      .set({
+        conductorMemberId: next.memberId,
+        conductorMemberName: next.memberName,
+        conductorNominationStatus: "pending_confirmation",
+        successorAttempt: nextAttempt,
+        confirmationDeadlineAt: deadline,
+        updatedAt: input.now,
+      })
+      .where(
+        and(
+          eq(schema.trainConductorRecords.id, input.record.id),
+          eq(
+            schema.trainConductorRecords.conductorNominationStatus,
+            "pending_confirmation",
+          ),
+          eq(
+            schema.trainConductorRecords.successorAttempt,
+            input.record.successorAttempt ?? 0,
+          ),
+          isNull(schema.trainConductorRecords.lockedAt),
         ),
-        eq(
-          schema.trainConductorRecords.successorAttempt,
-          input.record.successorAttempt ?? 0,
-        ),
-        isNull(schema.trainConductorRecords.lockedAt),
-      ),
-    )
-    .returning({ id: schema.trainConductorRecords.id });
+      )
+      .returning({ id: schema.trainConductorRecords.id });
   });
 
   if (promoted.length === 0) return "lost_race";
@@ -512,17 +514,21 @@ async function assignR4Fallback(input: {
   }
 
   if (!memberId || !memberName) return false;
+  const latest = await loadTimeOffAvailability(input.allianceId, input.record.date);
+  if (latest.awayMemberIds.has(memberId) || (input.record.conductorMemberId && latest.awayMemberIds.has(input.record.conductorMemberId))) return false;
+
   const previousMemberId = input.record.conductorMemberId;
   const selectedId = memberId;
   const selectedName = memberName;
   const fellBack = await getDb().transaction(async (db) => {
     await lockAllianceAvailability(db, input.allianceId);
     const [current] = await db.select().from(schema.trainConductorRecords).where(and(eq(schema.trainConductorRecords.id, input.record.id), eq(schema.trainConductorRecords.allianceId, input.allianceId))).for("update");
-    if (!current || current.updatedAt.getTime() !== input.record.updatedAt.getTime()) return [];
+    if (!current || current.lockedAt || current.updatedAt.getTime() !== input.record.updatedAt.getTime()) return [];
+    if (current.conductorNominationStatus !== "pending_confirmation") return [];
     const duties = [...trainCoverageDuties(current, "current"), ...trainCoverageDuties({ ...current, conductorMemberId: selectedId, conductorMemberName: selectedName }, "next")];
     if ((await findCoverageConflicts(db, input.allianceId, duties)).length) return [];
-  // CAS: do not clobber a concurrent confirm/promote; assign R4 only while still pending.
-  return db
+    // CAS: do not clobber a concurrent confirm/promote; assign R4 only while still pending.
+    return db
     .update(schema.trainConductorRecords)
     .set({
       conductorMemberId: memberId,

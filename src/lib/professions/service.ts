@@ -339,7 +339,6 @@ export async function assignEngToWl(input: {
     }
   }
 
-  // Create new assignment
   let assignmentId: string;
   if (existing) {
     await reactivateEngAssignment(existing.id, input.automaticDutyDate);
