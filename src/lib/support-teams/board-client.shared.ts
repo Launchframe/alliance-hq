@@ -2,7 +2,28 @@ import type { SupportCommand, SupportSnapshot, SupportErrorCode } from "./types.
 import { decideCommand } from "./policy.shared";
 import { normalizeCountry } from "./display-preferences.shared";
 import type { DraftSnapshot } from "./draft.shared";
+import type { ProposalSnapshot } from "./proposal.shared";
 import { memberLocation, swipeDirection as boardSwipeDirection } from "@/lib/member-board/board.shared";
+
+export function workingProposalSnapshot(proposal: ProposalSnapshot, linkedMemberIds: string[]): SupportSnapshot {
+  return { version: proposal.version, published: false, teams: proposal.teams.map((team) => ({ ...team, memberIds: [...team.memberIds], needsReplacement: false })), roster: proposal.roster, linkedMemberIds, canWrite: proposal.canEdit };
+}
+export function proposalWorkspaceKey(live: SupportSnapshot, id: string | null): string | null {
+  return id && live.actor?.canRead && live.board && live.actor.allianceId === live.board.allianceId ? JSON.stringify([live.board.allianceId, live.actor.principalId, id]) : null;
+}
+export function acceptsProposalSnapshot(proposal: ProposalSnapshot, live: SupportSnapshot, id: string, key: string) {
+  return key === proposalWorkspaceKey(live, id) && proposal.id === id && proposal.version >= live.version;
+}
+export function proposalBoardInteractions(adapter: { move: (id: string, to: string | null) => Promise<boolean>; swap: (id: string, other: string) => Promise<boolean>; canMoveMember: (id: string, to: string | null) => boolean; canSwapMembers: (id: string, other: string) => boolean }, published: SupportSnapshot, execute: (command: SupportCommand, slot: string) => void) {
+  const eligibility = (id: string, to: string | null, other?: string): string | null => (other ? adapter.canSwapMembers(id, other) : adapter.canMoveMember(id, to)) ? null : "changed";
+  const canCommand = (command: SupportCommand) => command.kind === "rename" && published.teams.some((team) => team.id === command.teamId) && commandEligibility(published, { ...command, expectedVersion: published.version }) === null;
+  return {
+    eligibility,
+    onMove: (id: string, to: string | null, other?: string) => { if (!eligibility(id, to, other)) { if (other) void adapter.swap(id, other); else void adapter.move(id, to); } },
+    canCommand,
+    onCommand: (command: SupportCommand, slot: string) => { if (canCommand(command)) execute({ ...command, expectedVersion: published.version }, slot); },
+  };
+}
 
 export function supportBoardData(snapshot: SupportSnapshot, teamName: (id: string | null) => string, unknown: string) {
   return {

@@ -1,5 +1,18 @@
 {
   "supportTeams": {
+    "proposals": {
+      "title": "Freehand team proposal",
+      "create": "New proposal",
+      "submit": "Submit for approval",
+      "approve": "Approve this version",
+      "approvals": "{approved} approvals; {required} required from {total} active R4s.",
+      "majorityHint": "More than half of all current active-roster R4s must approve. Offline, absent, or unlinked R4s still count.",
+      "invalidated": "The allocation or active R4 list changed. Previous approvals no longer apply.",
+      "publish": "Publish approved proposal",
+      "override": "Publish with owner approval",
+      "overrideConfirm": "Publish this proposal without the R4 majority? This override will be recorded in history.",
+      "incomplete": "Assign every active roster member exactly once before submitting this proposal."
+    },
     "draft": {
       "title": "Scheduled team draft",
       "create": "Schedule draft",

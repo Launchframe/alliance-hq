@@ -1,5 +1,18 @@
 {
   "supportTeams": {
+    "proposals": {
+      "title": "Proposta livre de equipes",
+      "create": "Nova proposta",
+      "submit": "Enviar para aprovação",
+      "approve": "Aprovar esta versão",
+      "approvals": "{approved} aprovações; são necessárias {required} dos {total} R4s do elenco ativo.",
+      "majorityHint": "Mais da metade de todos os R4s do elenco ativo atual precisa aprovar. R4s desconectados, ausentes ou sem vínculo ainda são contabilizados.",
+      "invalidated": "A alocação ou a lista de R4s ativos mudou. As aprovações anteriores não são mais válidas.",
+      "publish": "Publicar proposta aprovada",
+      "override": "Publicar com aprovação do proprietário",
+      "overrideConfirm": "Publicar esta proposta sem a maioria dos R4s? Esta exceção será registrada no histórico.",
+      "incomplete": "Atribua cada membro do elenco ativo a exatamente uma equipe antes de enviar esta proposta."
+    },
     "draft": {
       "title": "Seleção agendada de equipes",
       "create": "Agendar seleção",

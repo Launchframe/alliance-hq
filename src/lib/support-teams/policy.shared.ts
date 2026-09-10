@@ -119,8 +119,8 @@ export function recordChanges(board: SupportBoard, actor: SupportActor, changes:
     return patch;
   });
   const resources = keys.map((key) => JSON.parse(key) as string[]);
-  const teamResources = resources.filter(([r]) => r === "team" || r.startsWith("draftTeam:") || r.startsWith("draftSlot:"));
-  const memberResources = resources.filter(([r]) => r === "member" || r === "membership" || r.startsWith("draftMember:"));
+  const teamResources = resources.filter(([r]) => r === "team" || r.startsWith("draftTeam:") || r.startsWith("draftSlot:") || r.startsWith("proposalTeam:"));
+  const memberResources = resources.filter(([r]) => r === "member" || r === "membership" || r.startsWith("draftMember:") || r.startsWith("proposalMember:"));
   const event: SupportEvent = { ...identity, allianceId: board.allianceId, principalId: actor.principalId, principalType: "human", actorType: "user", actorName: actor.displayName ?? null, memberNames: {}, teamNames: Object.fromEntries(teamResources.map(([, id]) => [id, readField(board, fieldKey("team", id, "name")) as string | null])), kind, context, boardVersion: next.version, patches, observedVersions, dependsOn, reverses, teamIds: [...new Set(teamResources.map(([, id]) => id))], memberIds: [...new Set(memberResources.map(([, id]) => id))] };
   return { board: synchronizeMetadata(next), event };
 }

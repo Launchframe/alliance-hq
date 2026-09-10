@@ -50,7 +50,9 @@ export function SupportTeamHistory({ snapshot, onChanged }: { snapshot: SupportS
     const n = names(event);
     const actor = actorName(event);
     if (event.kind === "scheduleDraft" || event.kind === "extendDraft") return t("history.draftChanged", { actor });
-    if (event.kind === "publishDraft") return t("history.published", { actor });
+    if (event.kind === "publishDraft" || event.kind === "publishProposal") return [t("history.published", { actor }), event.context.ownerOverride ? t("proposals.override") : null].filter(Boolean).join(" · ");
+    if (event.kind === "approveProposal") return t("history.approved", { actor, version: event.context.proposalVersion?.toLocaleString(locale) ?? t("unknown") });
+    if (event.context.mode === "proposal" && event.kind !== "undo" && event.kind !== "moveProposal" && event.kind !== "swapProposal") return `${actor} · ${tr(historyKindLabels[event.kind])}`;
     if (event.kind === "draftPick") return t("history.moved", { actor, member: n.member(event.memberIds[0]), from: t("unsorted"), to: n.team(event.teamIds[0]) });
     if (event.context.mode === "draft" && event.kind !== "undo") return [actor, tr(historyKindLabels[event.kind]), event.context.round !== undefined ? t("draft.round", { round: event.context.round.toLocaleString(locale) }) : null].filter(Boolean).join(" · ");
     if (event.kind === "rename") {
@@ -63,7 +65,7 @@ export function SupportTeamHistory({ snapshot, onChanged }: { snapshot: SupportS
     }
     if (event.kind === "reconcile" && event.patches.length === 0) return `${actor} · ${t("saved")}`;
     if (event.kind === "undo") return t("history.reversed", { actor, action: event.reverses.map((id) => known[id]?.boardVersion.toLocaleString(locale) ?? t("unknown")).join(", ") });
-    return event.patches.filter((patch) => JSON.parse(patch.key)[0] === "member").map((patch) => t("history.moved", { actor, member: n.member(JSON.parse(patch.key)[1]), from: n.team(patch.before === null ? null : String(patch.before)), to: n.team(patch.after === null ? null : String(patch.after)) })).join(" ");
+    return event.patches.filter((patch) => { const [resource, , field] = JSON.parse(patch.key); return (resource === "member" || resource.startsWith("proposalMember:")) && field === "team"; }).map((patch) => t("history.moved", { actor, member: n.member(JSON.parse(patch.key)[1]), from: n.team(patch.before === null ? null : String(patch.before)), to: n.team(patch.after === null ? null : String(patch.after)) })).join(" ");
   };
   const details = (event: SupportEvent, patches = event.patches) => <dl className="mt-2 space-y-1 text-xs text-hq-fg-muted">{patches.map((patch, index) => {
     const value = humanizePatch(patch, names(event), { teamName: t("teamName"), lead: t("replaceLead"), member: t("findMember"), unknown: t("unknown"), yes: tr("admin.yes"), no: tr("admin.no") }, locale);

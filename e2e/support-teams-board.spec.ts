@@ -1,32 +1,51 @@
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { nanoid } from "nanoid";
 import { playwrightAuthCookies } from "./fixtures/auth";
 import { authCookieHeader, createHqMemberLink } from "./fixtures/db";
 import { createPublishedSupportTeamFixture } from "./fixtures/support-teams";
+import en from "../messages/en-US.json";
 
-async function openBoard(page: Page, context: BrowserContext, actor: Parameters<typeof playwrightAuthCookies>[0]) {
+async function openBoard(page: Page, context: BrowserContext, actor: Parameters<typeof playwrightAuthCookies>[0], createProposal = false, proposalExpected = createProposal) {
   await context.addCookies(playwrightAuthCookies(actor));
   const ready = page.waitForResponse((response) => response.url().endsWith("/api/support-teams") && response.request().method() === "GET" && response.status() === 200);
   await page.goto("/support-teams");
   await expect(page.getByRole("heading", { name: "Support teams", exact: true })).toBeVisible();
   await ready;
+  if (createProposal) {
+    await page.getByRole("button", { name: "New proposal", exact: true }).click();
+    await expect(page).toHaveURL(/proposal=/);
+  }
+  if (proposalExpected) {
+    await expect(page.getByRole("region", { name: en.supportTeams.proposals.title, exact: true }).locator("[data-member-board-scope]")).toBeVisible();
+  }
 }
 
-test("desktop board drag/drop and explicit fuzzy selection use confirmed versioned commands", async ({ page, context, request }) => {
+async function dragMember(source: Locator, target: Locator) {
+  await expect(source).toHaveAttribute("draggable", "true");
+  await source.dragTo(target.locator("header"), { sourcePosition: { x: 10, y: 10 } });
+}
+
+for (const mode of ["maintenance", "proposal"] as const) {
+const commandPath = (page: Page) => mode === "maintenance" ? "/api/support-teams" : `/api/support-teams/proposals/${new URL(page.url()).searchParams.get("proposal")}/move`;
+const snapshotPath = (page: Page) => mode === "maintenance" ? "/api/support-teams" : `/api/support-teams/proposals/${new URL(page.url()).searchParams.get("proposal")}`;
+
+test(`${mode}: desktop board drag/drop and explicit fuzzy selection use confirmed versioned commands`, async ({ page, context, request }) => {
   const f = await createPublishedSupportTeamFixture(request);
   await page.setViewportSize({ width: 1500, height: 1000 });
-  await openBoard(page, context, f.owner);
+  await openBoard(page, context, f.owner, mode === "proposal");
   const cedar = page.locator(`[data-support-team="${f.teams[0]}"]`);
   const harbor = page.locator(`[data-support-team="${f.teams[1]}"]`);
   await expect(cedar).toBeVisible();
   await expect(harbor).toBeVisible();
   const member = page.locator(`[data-support-member="${f.members[0].ashedMemberId}"]`);
   await expect(member.getByRole("img", { name: "Country: Unknown" })).toBeVisible();
-  await member.dragTo(cedar);
+  await expect(member.getByRole("button", { name: en.team.invites.claimRowAction, exact: true })).toBeVisible();
+  await dragMember(member, cedar);
   await expect(cedar.locator(`[data-support-member="${f.members[0].ashedMemberId}"]`)).toBeVisible();
   let commands = 0;
-  page.on("request", (req) => { if (req.method() === "POST" && new URL(req.url()).pathname === "/api/support-teams") commands++; });
+  page.on("request", (req) => { if (req.method() === "POST" && new URL(req.url()).pathname === commandPath(page)) commands++; });
   const search = harbor.getByRole("combobox", { name: "Add member", exact: true });
+  await page.mouse.move(0, 0);
   await search.fill("Member 1");
   await expect(page.getByRole("option", { name: /Member 1/ })).toBeVisible();
   await search.press("Enter");
@@ -41,23 +60,37 @@ test("desktop board drag/drop and explicit fuzzy selection use confirmed version
   expect(commands).toBe(1);
 });
 
-test("board rejects foreign drag scopes and locates within its own drawer instead of document-wide lookalikes", async ({ page, context, request }) => {
+test(`${mode}: board rejects foreign drag scopes and locates within its own drawer instead of document-wide lookalikes`, async ({ page, context, request }) => {
   const f = await createPublishedSupportTeamFixture(request);
   await page.setViewportSize({ width: 1500, height: 1000 });
-  await openBoard(page, context, f.owner);
+  await openBoard(page, context, f.owner, mode === "proposal");
   const board = page.locator("[data-member-board-scope]");
   const memberId = f.members[0].ashedMemberId;
   const source = board.locator(`[data-member-board-member="${memberId}"]`);
   const target = board.locator(`[data-member-board-group="${f.teams[0]}"]`);
+  await expect(source).toHaveAttribute("draggable", "true");
   const transfer = await page.evaluateHandle(() => new DataTransfer());
-  await source.dispatchEvent("dragstart", { dataTransfer: transfer });
+  await source.dispatchEvent("pointerdown", { pointerId: 1, pointerType: "mouse", button: 0 });
+  const other = board.locator(`[data-member-board-member="${f.members[1].ashedMemberId}"]`);
+  expect(await other.evaluate((element, data) => {
+    const start = new DragEvent("dragstart", { bubbles: true, cancelable: true, dataTransfer: data });
+    element.dispatchEvent(start);
+    return { canceled: start.defaultPrevented, payload: data.getData("application/x-member-board-member") };
+  }, transfer)).toEqual({ canceled: true, payload: "" });
+  expect(await source.evaluate((element, data) => {
+    element.dispatchEvent(new DragEvent("dragstart", { bubbles: true, cancelable: true, dataTransfer: data }));
+    const target = element.closest("[data-member-board-scope]")!.querySelector("[data-member-board-group]")!;
+    const over = new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: data });
+    target.dispatchEvent(over);
+    return over.defaultPrevented;
+  }, transfer)).toBe(true);
   await page.evaluate((data) => {
     const type = "application/x-member-board-member";
     const payload = JSON.parse(data.getData(type));
     data.setData(type, JSON.stringify({ ...payload, instance: `${payload.instance}-foreign` }));
   }, transfer);
   let commands = 0;
-  page.on("request", (req) => { if (req.method() === "POST" && new URL(req.url()).pathname === "/api/support-teams") commands++; });
+  page.on("request", (req) => { if (req.method() === "POST" && new URL(req.url()).pathname === commandPath(page)) commands++; });
   await target.dispatchEvent("drop", { dataTransfer: transfer });
   await source.dispatchEvent("dragend", { dataTransfer: transfer });
   await expect(board.locator(`[data-member-board-pool] [data-member-board-member="${memberId}"]`)).toBeVisible();
@@ -78,15 +111,15 @@ test("board rejects foreign drag scopes and locates within its own drawer instea
   await expect(page.locator("[data-foreign-board-decoy]")).not.toBeFocused();
   expect(commands).toBe(0);
   await drawer.getByRole("button", { name: "Close Unsorted", exact: true }).click();
-  await source.dragTo(target);
+  await dragMember(source, target);
   await expect(target.locator(`[data-member-board-member="${memberId}"]`)).toBeVisible();
   await transfer.dispose();
 });
 
-test("keyboard selection never substitutes a different member after a snapshot reorder", async ({ page, context, request }) => {
+test(`${mode}: keyboard selection never substitutes a different member after a snapshot reorder`, async ({ page, context, request }) => {
   const f = await createPublishedSupportTeamFixture(request);
   await page.setViewportSize({ width: 1500, height: 1000 });
-  await openBoard(page, context, f.owner);
+  await openBoard(page, context, f.owner, mode === "proposal");
   const search = page.locator(`[data-support-team="${f.teams[0]}"]`).getByRole("combobox", { name: "Add member", exact: true });
   await search.fill("Member");
   await expect(page.getByRole("option", { name: /Member 0/ })).toBeVisible();
@@ -100,14 +133,15 @@ test("keyboard selection never substitutes a different member after a snapshot r
   expect(selectedMember).toBeDefined();
   const firstBefore = await page.getByRole("option").first().innerText();
   const commands: { memberId: string }[] = [];
-  page.on("request", (req) => { if (req.method() === "POST" && new URL(req.url()).pathname === "/api/support-teams") commands.push(req.postDataJSON().command); });
-  const body = await (await request.get("/api/support-teams", { headers: { Cookie: authCookieHeader(f.owner) } })).json();
-  await page.route("**/api/support-teams", async (route) => {
+  page.on("request", (req) => { if (req.method() === "POST" && new URL(req.url()).pathname === commandPath(page)) commands.push(mode === "maintenance" ? req.postDataJSON().command : req.postDataJSON()); });
+  const path = snapshotPath(page);
+  const body = await (await request.get(path, { headers: { Cookie: authCookieHeader(f.owner) } })).json();
+  await page.route(`**${path}`, async (route) => {
     if (route.request().method() !== "GET") return route.continue();
     await route.fulfill({ json: { ...body, roster: body.roster.slice().reverse() } });
   });
   try {
-    const refreshed = page.waitForResponse((response) => response.url().endsWith("/api/support-teams") && response.request().method() === "GET");
+    const refreshed = page.waitForResponse((response) => response.url().endsWith(path) && response.request().method() === "GET");
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await refreshed;
     await expect(page.getByRole("option").first()).not.toHaveText(firstBefore);
@@ -120,7 +154,7 @@ test("keyboard selection never substitutes a different member after a snapshot r
   }
 });
 
-test("two desktop contexts preserve the winning move and surface the stale failure beside its slot", async ({ browser, request }) => {
+test(`${mode}: two desktop contexts preserve the winning move and surface the stale failure beside its slot`, async ({ browser, request }) => {
   const f = await createPublishedSupportTeamFixture(request);
   const first = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
   const second = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
@@ -129,11 +163,11 @@ test("two desktop contexts preserve the winning move and surface the stale failu
   const a = await first.newPage();
   const b = await second.newPage();
   try {
-    await openBoard(a, first, f.officer);
-    await openBoard(b, second, f.owner);
+    await openBoard(a, first, f.officer, mode === "proposal");
+    await openBoard(b, second, f.owner, false, mode === "proposal");
     let intercepted!: () => void;
     const arrived = new Promise<void>((resolve) => { intercepted = resolve; });
-    await b.route("**/api/support-teams", async (route) => { if (route.request().method() !== "POST") return route.continue(); intercepted(); await held; await route.continue(); });
+    await b.route(`**${commandPath(a)}`, async (route) => { if (route.request().method() !== "POST") return route.continue(); intercepted(); await held; await route.continue(); });
     const target = b.locator(`[data-support-team="${f.teams[1]}"]`);
     const search = target.getByRole("combobox", { name: "Add member", exact: true });
     await search.fill("Member 0");
@@ -142,17 +176,17 @@ test("two desktop contexts preserve the winning move and surface the stale failu
     await arrived;
     const source = a.locator(`[data-support-member="${f.members[0].ashedMemberId}"]`);
     const winner = a.locator(`[data-support-team="${f.teams[0]}"]`);
-    await source.dragTo(winner);
+    await dragMember(source, winner);
     await expect(winner.locator(`[data-support-member="${f.members[0].ashedMemberId}"]`)).toBeVisible();
-    const staleResponse = b.waitForResponse((response) => response.url().endsWith("/api/support-teams") && response.request().method() === "POST");
+    const staleResponse = b.waitForResponse((response) => response.url().endsWith(commandPath(a)) && response.request().method() === "POST");
     release();
     expect((await staleResponse).status()).toBe(409);
     await expect(target.getByRole("alert")).toContainText("The team plan changed.");
     await expect(b.locator(`[data-support-team="${f.teams[0]}"] [data-support-member="${f.members[0].ashedMemberId}"]`)).toBeVisible();
-    const snapshot = await (await request.get("/api/support-teams", { headers: { Cookie: authCookieHeader(f.owner) } })).json();
+    const snapshot = await (await request.get(snapshotPath(a), { headers: { Cookie: authCookieHeader(f.owner) } })).json();
     expect(snapshot.teams.flatMap((team: { memberIds: string[] }) => team.memberIds).filter((id: string) => id === f.members[0].ashedMemberId)).toHaveLength(1);
     const forbidden = await request.post("/api/support-teams", { headers: { Cookie: authCookieHeader(f.officer) }, data: { command: { kind: "move", memberId: f.members[1].ashedMemberId, from: null, to: f.teams[1], expectedVersion: snapshot.version }, idempotencyKey: nanoid() } });
-    expect(forbidden.status()).toBe(403);
+    expect(forbidden.status()).toBe(mode === "maintenance" ? 403 : 409);
   } finally {
     release();
     await b.unrouteAll({ behavior: "wait" });
@@ -161,12 +195,12 @@ test("two desktop contexts preserve the winning move and surface the stale failu
   }
 });
 
-test("mobile own team, filters, global locator, swipe and tap-add remain independent", async ({ browser, request }) => {
+test(`${mode}: mobile own team, filters, global locator, swipe and tap-add remain independent`, async ({ browser, request }) => {
   const f = await createPublishedSupportTeamFixture(request);
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: "reduce" });
   try {
     const page = await context.newPage();
-    await openBoard(page, context, f.officer);
+    await openBoard(page, context, f.officer, mode === "proposal");
     const cedar = page.locator(`[data-support-team="${f.teams[0]}"]`);
     const harbor = page.locator(`[data-support-team="${f.teams[1]}"]`);
     await expect(cedar).toBeVisible();
@@ -183,7 +217,7 @@ test("mobile own team, filters, global locator, swipe and tap-add remain indepen
     await expect(pool.locator(`[data-support-member="${f.members[0].ashedMemberId}"]`)).toBeVisible();
     await pool.getByRole("button", { name: "Close Unsorted", exact: true }).click();
     const before = await (await request.get("/api/support-teams", { headers: { Cookie: authCookieHeader(f.officer) } })).json();
-    expect(before.version).toBe(f.version);
+    expect(before.version).toBe(mode === "maintenance" ? f.version : f.version + 1);
     await cedar.locator("header").dispatchEvent("touchstart", { touches: [{ identifier: 1, clientX: 300, clientY: 200 }] });
     await cedar.locator("header").dispatchEvent("touchend", { changedTouches: [{ identifier: 1, clientX: 100, clientY: 210 }] });
     await expect(harbor).toBeVisible();
@@ -199,6 +233,7 @@ test("mobile own team, filters, global locator, swipe and tap-add remain indepen
     await expect(cedar.locator(`[data-support-member="${f.members[1].ashedMemberId}"]`)).toBeVisible();
   } finally { await context.close(); }
 });
+}
 
 test("preferences persist only for the current account; members cannot see history or claim controls", async ({ browser, request }) => {
   const f = await createPublishedSupportTeamFixture(request);

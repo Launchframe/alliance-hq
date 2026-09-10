@@ -73,9 +73,13 @@ function MemberBoardWorkspace<M extends BoardMember, G extends BoardGroup>({ dat
   const [focusRequest, setFocusRequest] = useState(0);
   const touch = useRef<{ x: number; y: number; interactive: boolean } | null>(null);
   const dragFrame = useRef<number | null>(null);
+  const dragMember = useRef<string | null>(null);
+  const dragIntent = useRef<string | null>(null);
   const endDrag = () => {
     if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current);
     dragFrame.current = null;
+    dragMember.current = null;
+    dragIntent.current = null;
     setDragged(null);
   };
   useEffect(() => () => { if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current); }, []);
@@ -98,7 +102,7 @@ function MemberBoardWorkspace<M extends BoardMember, G extends BoardGroup>({ dat
     return () => cancelAnimationFrame(timer);
   }, [focusRequest, located]);
   const dropBindings = (to: string | null): HTMLAttributes<HTMLElement> => ({
-    onDragOver: (event) => { if (dragged && eligible(dragged, to)) event.preventDefault(); },
+    onDragOver: (event) => { const id = dragMember.current; if (id && eligible(id, to)) event.preventDefault(); },
     onDrop: (event: DragEvent<HTMLElement>) => {
       event.preventDefault();
       dropBoardMember(event.dataTransfer.getData(memberDragType), scope, data, interactions, to, pending(to));
@@ -110,9 +114,13 @@ function MemberBoardWorkspace<M extends BoardMember, G extends BoardGroup>({ dat
     const movable = [null, ...data.groups.map((item) => item.id)].some((to) => !interactions.eligibility(member.id, to));
     const draggable = !locatedOnly && !pending(group?.id ?? null) && movable;
     return <article key={member.id} {...renderers.attributes?.member?.(member)} data-member-board-member={member.id} tabIndex={-1} draggable={draggable}
+      onPointerDown={() => { dragIntent.current = member.id; }}
+      onPointerUp={() => { dragIntent.current = null; }}
       onDragStart={(event) => {
+        if (dragIntent.current !== null && dragIntent.current !== member.id) { event.preventDefault(); return; }
         event.dataTransfer.setData(memberDragType, encodeMemberDrag(scope, member.id));
         event.dataTransfer.effectAllowed = "move";
+        dragMember.current = member.id;
         if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current);
         dragFrame.current = requestAnimationFrame(() => { dragFrame.current = null; setDragged(member.id); });
       }} onDragEnd={endDrag}
