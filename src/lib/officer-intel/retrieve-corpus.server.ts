@@ -2,7 +2,7 @@ import "server-only";
 
 import { createOpenAI } from "@ai-sdk/openai";
 import { embed } from "ai";
-import { and, asc, count, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, isNotNull, sql } from "drizzle-orm";
 
 import { escapeLikePrefix } from "@/lib/admin/audit-query";
 import { getDb, schema } from "@/lib/db";
