@@ -42,6 +42,7 @@ export default function InboxPageClient({
   const tProposal = useTranslations("supportTeams.proposals");
   const locale = useLocale();
   const tCompliance = useTranslations("vsCompliance");
+  const tWork = useTranslations("teamWork");
   const [items, setItems] = useState<ReminderItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
@@ -136,6 +137,7 @@ export default function InboxPageClient({
   }
 
   function kindLabel(kind: string): string {
+    if (kind === "team_work") return tWork("title");
     if (kind === "support_team_proposal") return tProposal("title");
     if (kind === "support_team_draft") return tDraft("title");
     if (kind === "vs_compliance") return tCompliance("title");
@@ -157,6 +159,7 @@ export default function InboxPageClient({
   }
 
   function displayTitle(item: ReminderItem): string {
+    if (item.kind === "team_work") return tWork("digest");
     if (item.kind === "support_team_proposal") return tProposal("title");
     if (item.kind === "support_team_draft") return tDraft("title");
     if (item.kind === "vs_compliance") return tCompliance("title");

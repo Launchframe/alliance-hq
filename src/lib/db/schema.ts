@@ -17,6 +17,50 @@ import {
 
 import type { SupportBoard, SupportEvent, SupportValue } from "@/lib/support-teams/types.shared";
 import type { SupportDisplayPreferences } from "@/lib/support-teams/display-preferences.shared";
+import type { TeamWorkDetail } from "@/lib/support-teams/work-routing.shared";
+
+export const teamWorkItems = pgTable("team_work_items", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  sourceKey: text("source_key").notNull(),
+  sourceVersion: text("source_version").notNull(),
+  kind: text("kind").$type<"time_off" | "coverage" | "vs">().notNull(),
+  memberId: text("member_id").notNull(),
+  stint: text("stint").notNull(),
+  teamId: text("team_id"),
+  assigneeId: text("assignee_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  requiredPermission: text("required_permission").notNull(),
+  detail: jsonb("detail").$type<TeamWorkDetail>().notNull(),
+  href: text("href").notNull(),
+  version: integer("version").notNull().default(1),
+  open: boolean("open").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("team_work_source_unique").on(table.allianceId, table.sourceKey), index("team_work_assignee_idx").on(table.allianceId, table.assigneeId, table.open)]);
+
+export const teamWorkDigests = pgTable("team_work_digests", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  recipientId: text("recipient_id").notNull().references(() => hqUsers.id, { onDelete: "cascade" }),
+  day: text("day").notNull(),
+  status: text("status").$type<"pending" | "leased" | "posting" | "uncertain" | "sent" | "cancelled">().notNull().default("pending"),
+  leaseToken: text("lease_token"),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  discordUserId: text("discord_user_id"),
+  channelId: text("channel_id"),
+  messageId: text("message_id"),
+  lastError: text("last_error"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("team_work_digest_day_unique").on(table.allianceId, table.recipientId, table.day), index("team_work_delivery_due_idx").on(table.status, table.nextAttemptAt)]);
+
+export const teamWorkState = pgTable("team_work_state", {
+  allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
+  reconciledAt: timestamp("reconciled_at", { withTimezone: true }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+  lastError: text("last_error"),
+});
 
 const vector1536 = customType<{ data: number[]; driverData: string }>({
   dataType() {

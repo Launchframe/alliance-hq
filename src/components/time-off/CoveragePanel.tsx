@@ -36,7 +36,8 @@ function ProfessionWindowEditor({ conflict, onSaved }: { conflict: CoverageConfl
   </details>;
 }
 
-export function CoveragePanel({ refreshKey }: { refreshKey?: string }) {
+export function CoveragePanel({ refreshKey, memberIds, onResolved }: { refreshKey?: string; memberIds?: string[]; onResolved?: () => void }) {
+  const memberFilter = memberIds ? JSON.stringify([...new Set(memberIds)].sort()) : null;
   const t = useTranslations("teamWork");
   const timeOff = useTranslations("timeOff.workflow");
   const [conflicts, setConflicts] = useState<Array<CoverageConflict & { routing?: CoverageRouting | null; canManage?: boolean }>>([]);
@@ -49,8 +50,8 @@ export function CoveragePanel({ refreshKey }: { refreshKey?: string }) {
     const response = await fetch("/api/time-off/coverage");
     const data = await response.json().catch(() => null);
     if (!response.ok || !data) throw new Error(data?.error ?? timeOff("errors.loadFailed"));
-    return data.conflicts;
-  }, [timeOff]);
+    return memberFilter ? data.conflicts.filter((conflict: CoverageConflict) => (JSON.parse(memberFilter) as string[]).includes(conflict.memberId)) : data.conflicts;
+  }, [timeOff, memberFilter]);
   useEffect(() => { let active = true; void load().then((rows) => { if (active) setConflicts(rows); }).catch((cause) => { if (active) setError(cause.message); }); return () => { active = false; }; }, [load, refreshKey]);
   useEffect(() => { if (error) errorRef.current?.scrollIntoView({ block: "nearest" }); }, [error]);
   async function keep(conflict: CoverageConflict) {
@@ -62,6 +63,7 @@ export function CoveragePanel({ refreshKey }: { refreshKey?: string }) {
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.error ?? timeOff("errors.saveFailed"));
       setConflicts(await load());
+      onResolved?.();
     } catch (cause) { setError(cause instanceof Error ? cause.message : timeOff("errors.saveFailed")); }
     finally { setBusy(false); }
   }
