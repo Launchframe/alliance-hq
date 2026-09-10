@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useVersionedSnapshot } from "@/components/member-board/useVersionedSnapshot";
+import { supportLiveTransport } from "@/lib/support-teams/live-transport.shared";
 import type { SupportCommand, SupportSnapshot } from "@/lib/support-teams/types.shared";
-import { acceptSnapshot, acceptsDraftSnapshot, draftWorkspaceKey, SupportClientError, supportRequest } from "@/lib/support-teams/board-client.shared";
+import { acceptsDraftSnapshot, draftWorkspaceKey, SupportClientError, supportRequest } from "@/lib/support-teams/board-client.shared";
 import type { DraftSnapshot } from "@/lib/support-teams/draft.shared";
 import type { SupportDisplayPreferences } from "@/lib/support-teams/display-preferences.shared";
 
-export function useSupportTeamDraft(live: SupportSnapshot, refreshBoard: () => Promise<void>) {
+export function useSupportTeamDraft(live: SupportSnapshot, refreshBoard: (minimumVersion?: number) => Promise<void>) {
   const key = draftWorkspaceKey(live);
   const [loaded, setLoaded] = useState<{ key: string; snapshot: DraftSnapshot } | null>(null);
   const [error, setError] = useState("");
@@ -36,110 +38,78 @@ export function useSupportTeamDraft(live: SupportSnapshot, refreshBoard: () => P
     }
   }, [key, live, refreshBoard]);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => { window.clearTimeout(timer); request.current?.abort(); }; }, [load]);
-  const refresh = useCallback(async (minimumVersion = 0) => { await load(minimumVersion); await refreshBoard(); }, [load, refreshBoard]);
+  const refresh = useCallback(async (minimumVersion = 0) => { await load(minimumVersion); await refreshBoard(minimumVersion); }, [load, refreshBoard]);
   return { snapshot: loaded?.key === key ? loaded.snapshot : null, active: key !== null, key, error, refresh };
 }
 
 export type DisplayState = { version: number; display: SupportDisplayPreferences };
 export function useSupportTeamLive(initial: SupportSnapshot, initialPreferences: DisplayState) {
-  const [snapshot, setSnapshot] = useState(initial);
-  const [preferences, setPreferences] = useState(initialPreferences);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [pending, setPending] = useState<string | null>(null);
-  const [connected, setConnected] = useState(false);
-  const [notice, setNotice] = useState(false);
-  const current = useRef(initial);
-  const mounted = useRef(true);
-  const mutation = useRef(false);
-  const denied = useRef(false);
-  const attempts = useRef(new Map<string, string>());
-  const refreshRequest = useRef(0);
-  const refresh = useCallback(async () => {
-    const generation = ++refreshRequest.current;
-    try {
-      const next = await supportRequest<SupportSnapshot>("/api/support-teams");
-      if (!mounted.current || denied.current || generation !== refreshRequest.current) return;
-      if (current.current.board && next.board && current.current.board.allianceId !== next.board.allianceId) {
-        denied.current = true;
-        current.current = { version: 0, published: false, teams: [], roster: [], linkedMemberIds: [], canWrite: false };
-        setErrors({ connection: "forbidden" });
-      } else current.current = acceptSnapshot(current.current, next);
-      setSnapshot(current.current);
-    } catch (error) {
-      if (!mounted.current) return;
-      setConnected(false);
-      if (error instanceof SupportClientError && (error.status === 401 || error.status === 403)) {
-        denied.current = true;
-        current.current = { version: current.current.version, published: false, teams: [], roster: [], linkedMemberIds: [], canWrite: false };
-        setSnapshot(current.current);
-      }
-      setErrors((old) => ({ ...old, connection: error instanceof SupportClientError ? error.code : "changed" }));
-    }
-  }, []);
+  const allianceId = initial.board?.allianceId;
+  const principalId = initial.actor?.principalId;
+  const canRead = !!initial.actor?.canRead;
+  const scope = allianceId ?? "support-teams";
+  const identity = principalId ?? JSON.stringify(initial.linkedMemberIds);
+  const transport = useMemo(() => supportLiveTransport(allianceId, principalId, canRead), [allianceId, principalId, canRead]);
+  const live = useVersionedSnapshot({ scope, identity, initial, transport });
+  const { refresh: refreshVersioned } = live;
+  const refresh = useCallback((minimumVersion = 0) => refreshVersioned(minimumVersion), [refreshVersioned]);
+  const lifetime = useMemo(() => ({ key: JSON.stringify([scope, identity]), active: false, mutation: false, attempts: new Map<string, string>() }), [scope, identity]);
+  const [state, setState] = useState(() => ({ key: lifetime.key, preferences: initialPreferences, errors: {} as Record<string, string>, pending: null as string | null, notice: false }));
+  if (state.key !== lifetime.key) setState({ key: lifetime.key, preferences: initialPreferences, errors: {}, pending: null, notice: false });
+  const update = useCallback((change: (old: typeof state) => typeof state) => { if (lifetime.active) setState((old) => old.key === lifetime.key ? change(old) : old); }, [lifetime]);
   useEffect(() => {
-    mounted.current = true;
-    let stream: EventSource | undefined;
-    if (initial.actor?.canRead) {
-      stream = new EventSource("/api/events/support-teams");
-      const invalidate = (event: MessageEvent) => {
-        try {
-          const value = JSON.parse(event.data) as { allianceId: string; version: number };
-          if (value.allianceId !== initial.board?.allianceId) return;
-          setConnected(true);
-          setErrors((old) => ({ ...old, connection: "" }));
-          if (event.type === "ready" || value.version > current.current.version) void refresh();
-        } catch { setConnected(false); }
-      };
-      stream.addEventListener("ready", invalidate);
-      stream.addEventListener("invalidate", invalidate);
-      stream.onerror = () => { setConnected(false); void refresh(); };
-    }
+    lifetime.active = !live.revoked;
+    if (live.revoked) return;
+    let request: AbortController | undefined;
     const check = () => {
-      void refresh();
-      void supportRequest<DisplayState>("/api/support-teams/preferences").then((next) => {
-        if (mounted.current) setPreferences((old) => next.version >= old.version ? next : old);
+      request?.abort();
+      const controller = new AbortController();
+      request = controller;
+      void supportRequest<DisplayState>("/api/support-teams/preferences", { signal: controller.signal }).then((next) => {
+        if (!controller.signal.aborted) update((old) => next.version >= old.preferences.version ? { ...old, preferences: next } : old);
       }).catch(() => undefined);
     };
     const timer = window.setInterval(check, 30_000);
     window.addEventListener("focus", check);
-    void refresh();
-    return () => { mounted.current = false; stream?.close(); clearInterval(timer); window.removeEventListener("focus", check); };
-  }, [initial.actor?.canRead, initial.board?.allianceId, refresh]);
+    return () => { lifetime.active = false; request?.abort(); window.clearInterval(timer); window.removeEventListener("focus", check); };
+  }, [lifetime, live.revoked, update]);
   const execute = useCallback(async (command: SupportCommand, slot: string) => {
-    if (mutation.current) return false;
-    mutation.current = true;
-    setPending(slot);
-    setNotice(false);
-    setErrors((old) => ({ ...old, [slot]: "" }));
+    if (lifetime.mutation || !lifetime.active) return false;
+    lifetime.mutation = true;
+    update((old) => ({ ...old, pending: slot, notice: false, errors: { ...old.errors, [slot]: "" } }));
     const intent = JSON.stringify(command);
-    const idempotencyKey = attempts.current.get(intent) ?? crypto.randomUUID();
-    attempts.current.set(intent, idempotencyKey);
+    const idempotencyKey = lifetime.attempts.get(intent) ?? crypto.randomUUID();
+    lifetime.attempts.set(intent, idempotencyKey);
     try {
-      await supportRequest("/api/support-teams", { method: "POST", body: JSON.stringify({ command, idempotencyKey }) });
-      attempts.current.delete(intent);
-      setNotice(true);
-      await refresh();
+      const result = await supportRequest<{ version: number }>("/api/support-teams", { method: "POST", body: JSON.stringify({ command, idempotencyKey }) });
+      lifetime.attempts.delete(intent);
+      if (!lifetime.active) return false;
+      update((old) => ({ ...old, notice: true }));
+      await refresh(result.version);
       return true;
     } catch (error) {
-      if (error instanceof SupportClientError) attempts.current.delete(intent);
-      setErrors((old) => ({ ...old, [slot]: error instanceof SupportClientError ? error.code : "changed" }));
-      await refresh();
+      if (error instanceof SupportClientError) lifetime.attempts.delete(intent);
+      update((old) => ({ ...old, errors: { ...old.errors, [slot]: error instanceof SupportClientError ? error.code : "changed" } }));
+      if (lifetime.active) await refresh();
       return false;
-    } finally { mutation.current = false; setPending(null); }
-  }, [refresh]);
+    } finally { lifetime.mutation = false; update((old) => ({ ...old, pending: null })); }
+  }, [lifetime, refresh, update]);
   const savePreferences = async (display: SupportDisplayPreferences) => {
-    if (mutation.current) return;
-    mutation.current = true;
-    setPending("preferences");
-    setErrors((old) => ({ ...old, preferences: "" }));
+    if (lifetime.mutation || !lifetime.active) return;
+    lifetime.mutation = true;
+    update((old) => ({ ...old, pending: "preferences", errors: { ...old.errors, preferences: "" } }));
     try {
-      const next = await supportRequest<DisplayState>("/api/support-teams/preferences", { method: "PUT", body: JSON.stringify({ expectedVersion: preferences.version, display }) });
-      setPreferences(next);
+      const next = await supportRequest<DisplayState>("/api/support-teams/preferences", { method: "PUT", body: JSON.stringify({ expectedVersion: state.preferences.version, display }) });
+      update((old) => next.version >= old.preferences.version ? { ...old, preferences: next } : old);
     } catch (error) {
-      setErrors((old) => ({ ...old, preferences: error instanceof SupportClientError ? error.code : "changed" }));
+      update((old) => ({ ...old, errors: { ...old.errors, preferences: error instanceof SupportClientError ? error.code : "changed" } }));
+      if (!lifetime.active) return;
       const next = await supportRequest<DisplayState>("/api/support-teams/preferences").catch(() => null);
-      if (next) setPreferences(next);
-    } finally { mutation.current = false; setPending(null); }
+      if (next) update((old) => next.version >= old.preferences.version ? { ...old, preferences: next } : old);
+    } finally { lifetime.mutation = false; update((old) => ({ ...old, pending: null })); }
   };
-  return { snapshot, preferences, errors, pending, connected, notice, execute, refresh, savePreferences };
+  const snapshot = live.snapshot ?? { version: 0, published: false, teams: [], roster: [], linkedMemberIds: [], canWrite: false };
+  const connection = live.revoked ? "forbidden" : live.error instanceof SupportClientError ? live.error.code : live.error ? "changed" : "";
+  const errors: Record<string, string> = { ...state.errors, connection };
+  return { snapshot, preferences: state.preferences, errors, pending: live.revoked ? null : state.pending, connected: live.connected, notice: !live.revoked && state.notice, execute, refresh, savePreferences };
 }
