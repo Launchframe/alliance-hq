@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { handlePerformanceNoteSlash } from "@/lib/performance-notes/discord-handlers.server";
+import {
+  handlePerformanceNoteSlash,
+  handlePerformanceReasonModal,
+} from "@/lib/performance-notes/discord-handlers.server";
 
 vi.mock("@/lib/vr/bot-officer-auth", () => ({
   callerCanRunVrReport: vi.fn(),
@@ -43,7 +46,43 @@ describe("handlePerformanceNoteSlash", () => {
     });
     expect(result).toEqual({
       type: "message",
-      content: expect.stringContaining("officers"),
+      content:
+        "Only alliance officers (R4+) or the owner can record notes. Link a commander with `/link-commander` if you haven't yet.",
+    });
+    expect(createPerformanceNote).not.toHaveBeenCalled();
+  });
+
+  it("rejects empty slash text with the note-option prompt", async () => {
+    vi.mocked(callerCanRunVrReport).mockResolvedValue(true);
+    const result = await handlePerformanceNoteSlash({
+      allianceId: "a1",
+      discordUserId: "d1",
+      locale: "en-US",
+      text: "   ",
+    });
+    expect(result).toEqual({
+      type: "message",
+      content: "Freeform note. What's on your mind?",
+    });
+    expect(createPerformanceNote).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty commend/violation reason separately from slash note copy", async () => {
+    vi.mocked(callerCanRunVrReport).mockResolvedValue(true);
+    const result = await handlePerformanceReasonModal({
+      allianceId: "a1",
+      discordUserId: "d1",
+      locale: "en-US",
+      pending: {
+        kind: "perf_batch_reason",
+        command: "commend",
+        resolved: [{ memberId: "m1", nameRaw: "Cookie" }],
+      },
+      reason: "  ",
+    });
+    expect(result).toEqual({
+      type: "message",
+      content: "Enter a reason before saving.",
     });
     expect(createPerformanceNote).not.toHaveBeenCalled();
   });

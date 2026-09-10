@@ -123,7 +123,7 @@ async function officerGuard(input: {
   if (!allowed) {
     return {
       ok: false,
-      result: { type: "message", content: t("errors.notOfficer") },
+      result: { type: "message", content: t("performanceNotes.notOfficer") },
     };
   }
   return { ok: true, allianceId: input.allianceId };
@@ -518,7 +518,7 @@ export async function handlePerformanceReasonModal(input: {
   }
   const body = input.reason.trim();
   if (!body) {
-    return { type: "message", content: t("performanceNotes.emptyText") };
+    return { type: "message", content: t("performanceNotes.emptyReason") };
   }
   if (input.pending.resolved.length === 0) {
     await saveDiscordBotPending(gated.allianceId, input.discordUserId, null);

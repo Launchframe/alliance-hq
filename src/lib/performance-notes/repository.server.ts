@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
@@ -58,6 +58,7 @@ export async function getPerformanceNoteForAlliance(input: {
       and(
         eq(schema.performanceNotes.id, input.noteId),
         eq(schema.performanceNotes.allianceId, input.allianceId),
+        isNull(schema.performanceNotes.expungedAt),
       ),
     )
     .limit(1);
@@ -171,7 +172,12 @@ export async function listPerformanceNotes(
   const notes = await db
     .select()
     .from(schema.performanceNotes)
-    .where(eq(schema.performanceNotes.allianceId, allianceId))
+    .where(
+      and(
+        eq(schema.performanceNotes.allianceId, allianceId),
+        isNull(schema.performanceNotes.expungedAt),
+      ),
+    )
     .orderBy(desc(schema.performanceNotes.createdAt));
   if (notes.length === 0) return [];
 
@@ -262,6 +268,7 @@ export async function listPerformanceNotesForAshedMember(input: {
     .where(
       and(
         eq(schema.performanceNotes.allianceId, input.allianceId),
+        isNull(schema.performanceNotes.expungedAt),
         inArray(
           schema.performanceNotes.id,
           links.map((row) => row.noteId),

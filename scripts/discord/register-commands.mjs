@@ -196,9 +196,11 @@ const commandBody = [
   },
   {
     name: "commend",
-    description: "Commend one or more members by name.",
+    description:
+      "Commend one or more members by name. (R4+ by default; owners can restrict.)",
     description_localizations: {
-      "pt-BR": "Elogie um ou mais membros pelo nome.",
+      "pt-BR":
+        "Elogie um ou mais membros pelo nome. (R4+ por padrão; o dono pode restringir.)",
     },
     options: [
       {
@@ -214,9 +216,11 @@ const commandBody = [
   },
   {
     name: "violation",
-    description: "Record violations for one or more members.",
+    description:
+      "Record violations for one or more members. (R4+ by default; owners can restrict.)",
     description_localizations: {
-      "pt-BR": "Registre violações de um ou mais membros.",
+      "pt-BR":
+        "Registre violações de um ou mais membros. (R4+ por padrão; o dono pode restringir.)",
     },
     options: [
       {
@@ -232,9 +236,11 @@ const commandBody = [
   },
   {
     name: "note",
-    description: "Record your thoughts for later",
+    description:
+      "Record your thoughts for later. (R4+ by default; owners can restrict.)",
     description_localizations: {
-      "pt-BR": "Registre suas anotações para depois",
+      "pt-BR":
+        "Registre suas anotações para depois. (R4+ por padrão; o dono pode restringir.)",
     },
     options: [
       {

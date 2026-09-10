@@ -1,10 +1,15 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { Link } from "@/i18n/navigation";
 import { NoteMemberMultiSelect } from "@/components/notes/NoteMemberMultiSelect";
+import {
+  FORM_SUBMIT_ENTER_KEY_HINT,
+  handleTextareaEnterSubmit,
+  preventDefaultFormSubmit,
+} from "@/lib/client/form-enter-submit.shared";
 import type {
   PerformanceNoteDto,
   PerformanceNoteKind,
@@ -27,6 +32,7 @@ function kindLabel(
 
 export function NotesClient({ initial, focusNoteId }: Props) {
   const t = useTranslations("notes");
+  const locale = useLocale();
   const [notes, setNotes] = useState(initial.notes);
   const [roster, setRoster] = useState(initial.roster);
   const [body, setBody] = useState("");
@@ -113,7 +119,7 @@ export function NotesClient({ initial, focusNoteId }: Props) {
         <form
           className="space-y-3 rounded-xl border border-hq-border bg-hq-surface p-4"
           onSubmit={(event) => {
-            event.preventDefault();
+            preventDefaultFormSubmit(event);
             void createNote();
           }}
         >
@@ -136,6 +142,12 @@ export function NotesClient({ initial, focusNoteId }: Props) {
             <textarea
               value={body}
               onChange={(event) => setBody(event.target.value)}
+              onKeyDown={(event) =>
+                handleTextareaEnterSubmit(event, () => {
+                  void createNote();
+                })
+              }
+              enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT}
               rows={4}
               className="mt-1 w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg"
             />
@@ -175,7 +187,7 @@ export function NotesClient({ initial, focusNoteId }: Props) {
                   href={`/notes/${note.id}`}
                   className="text-xs text-hq-accent hover:underline"
                 >
-                  {new Date(note.createdAt).toLocaleString()}
+                  {new Date(note.createdAt).toLocaleString(locale)}
                 </Link>
               </div>
               <p className="mt-2 whitespace-pre-wrap break-words text-sm text-hq-fg">
