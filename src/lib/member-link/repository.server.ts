@@ -10,7 +10,10 @@ import {
 } from "@/lib/members/member-tenure.server";
 import { syncCommanderIdentityFromMemberLink } from "@/lib/members/commander-identity.server";
 import { inheritHqMemberLinkToDiscordIfLinked } from "@/lib/member-link/inherit-hq-to-discord.server";
-import { hasConflictingHqGameUidClaim } from "@/lib/member-link/link-claim-guards.shared";
+import {
+  hasConflictingDiscordAshedMemberOccupancy,
+  hasConflictingHqGameUidClaim,
+} from "@/lib/member-link/link-claim-guards.shared";
 import { isMemberLinkGameUidUniqueViolation } from "@/lib/member-link/member-link-game-uid-unique.shared";
 import type { LinkPendingState } from "@/lib/vr/types";
 
@@ -213,6 +216,32 @@ async function isGameUidClaimedByOtherHqUser(input: {
 
 export { loadGameUidClaimsForAlliance };
 
+async function loadDiscordOccupantsForAshedMember(
+  allianceId: string,
+  ashedMemberId: string,
+): Promise<Array<{ discordUserId: string; hqUserId: string | null }>> {
+  const db = getDb();
+  return db
+    .select({
+      discordUserId: schema.discordMemberLinks.discordUserId,
+      hqUserId: schema.discordHqLinks.hqUserId,
+    })
+    .from(schema.discordMemberLinks)
+    .leftJoin(
+      schema.discordHqLinks,
+      eq(
+        schema.discordHqLinks.discordUserId,
+        schema.discordMemberLinks.discordUserId,
+      ),
+    )
+    .where(
+      and(
+        eq(schema.discordMemberLinks.allianceId, allianceId),
+        eq(schema.discordMemberLinks.ashedMemberId, ashedMemberId),
+      ),
+    );
+}
+
 export async function linkHqMember(input: {
   allianceId: string;
   hqUserId: string;
@@ -234,6 +263,19 @@ export async function linkHqMember(input: {
   if (
     existingMemberLink &&
     existingMemberLink.hqUserId !== input.hqUserId
+  ) {
+    return { ok: false, reason: "member_linked_to_other_user" };
+  }
+
+  const discordOccupants = await loadDiscordOccupantsForAshedMember(
+    input.allianceId,
+    input.ashedMemberId,
+  );
+  if (
+    hasConflictingDiscordAshedMemberOccupancy({
+      hqUserId: input.hqUserId,
+      discordOccupants,
+    })
   ) {
     return { ok: false, reason: "member_linked_to_other_user" };
   }

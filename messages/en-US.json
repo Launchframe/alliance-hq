@@ -190,6 +190,10 @@
     "timeOffDescription": "See who is away and announce your own schedule",
     "bankManagement": "Bank Management",
     "bankManagementDescription": "Track Bank Strongholds, deposit risk, and drop timing",
+    "officerIntel": "Officer Intelligence",
+    "officerIntelDescription": "Ingest officer chat screenshots and review translated messages",
+    "notes": "Notes",
+    "notesDescription": "Commendations, violations, and thoughts",
     "desertStorm": "Desert Storm",
     "canyonStorm": "Canyon Storm",
     "otherEvents": "Other Events",
@@ -1644,6 +1648,8 @@
         "vsCompliance": "VS compliance",
         "vsMembershipMinimums": "VS membership minimums",
         "bankManagement": "Go to Bank Management",
+        "officerIntel": "Go to Officer Intelligence",
+        "notes": "Go to Notes",
         "desertStorm": "Go to Desert Storm",
         "canyonStorm": "Go to Canyon Storm",
         "otherEvents": "Go to Other Events",
@@ -2866,6 +2872,8 @@
       "violationExpunged": "Expunged",
       "violationEmpty": "No violations on record.",
       "commendationEmpty": "No commendations on record.",
+      "hqNotes": "HQ notes",
+      "hqNotesEmpty": "No HQ notes on this commander.",
       "disciplineNoType": "Unspecified",
       "trainHighlights": "Train highlights",
       "locked": "locked",
@@ -3831,6 +3839,51 @@
         "roll": "Spin the wheel or pick a conductor for today and upcoming days.",
         "lock": "Lock in a conductor to spawn that day's empty train. If you locked it, you can unlock until midnight Server Time of that train day."
       },
+      "weekGoalsTitle": "Train platform guides",
+      "weekGoalsIntro": "When leadership names a platform for the week, use that guide for what to do — and what not to do. Platforms: Hard save → Save hard → Push hard → Hard push.",
+      "weekGoalsSharedTitle": "Every platform",
+      "weekGoalsShared": {
+        "conductorsAtReset": "Conductors are drawn at Reset. Watch your DMs and Discord for conductor announcements.",
+        "leadTime": "Lead time can change which day’s scores count for a train — check Train settings.",
+        "vsMinimum": "Price Is Freight days may require a VS minimum to win Conductor — check Train settings.",
+        "donationMinimum": "Price Is Freight days may require a donation minimum — check Train settings."
+      },
+      "weekGoals": {
+        "economy": {
+          "title": "Platform 1 — The Price Is Freight",
+          "subtitle": "Hard save",
+          "blurb": "This week means… The closer to 7.2M, the better your odds to win.",
+          "do1": "Do: Aim for 7.2M — that’s the target every time.",
+          "do2": "Do: Friday and Saturday scores are unrestricted. Train troops and fight to your heart’s content!",
+          "dont": "Don’t: Overspend on save days."
+        },
+        "save": {
+          "title": "Platform 2 — Save Week",
+          "subtitle": "Save hard",
+          "blurb": "This week means… Push your power if you need to. Conductors are picked at random from R3s.",
+          "do1": "Do: Save when you can; burn only when you need the power.",
+          "dont": "Don’t: Overspend on save days."
+        },
+        "certainDays": {
+          "title": "Platform 3 — Strategic Victory",
+          "subtitle": "Push hard",
+          "blurb": "This week means… We throw in the towel on some days while dominating on others. The goal is to win by just enough of a margin by saving on select days this week.",
+          "do1": "Do: Ask or read which days are push days vs throw-away days.",
+          "do2": "Do: Bring your A-game when called upon.",
+          "do3": "Do: Save on throw-away days.",
+          "dont": "Don’t: Push the wrong days."
+        },
+        "allOut": {
+          "title": "Platform 4 — All-Out Domination",
+          "subtitle": "Hard push",
+          "blurb": "This week means… All gas, no brakes. Show them what this alliance is made of.",
+          "do1": "Do: Show up hard Monday through Saturday.",
+          "do2": "Do: Keep an ear peeled for strategy pivots.",
+          "do3": "Do: Lock in the victory by Friday.",
+          "dont1": "Don’t: Slack off.",
+          "dont2": "Don’t: Go AFK without letting the crew know."
+        }
+      },
       "lockOwnershipTitle": "Train ownership",
       "lockOwnershipBody": "The officer who locks a conductor can unlock it until midnight Server Time on that train day. Locking a past day is the exception — you can unlock that lock at any time. After midnight, only the alliance owner or a platform maintainer can unlock.",
       "takeTour": "Take the tour",
@@ -4051,6 +4104,11 @@
       "donations": {
         "unavailableTitle": "Donation scores not available yet",
         "unavailableBody": "HQ does not store donation totals yet. Use manual conductor picks until donation scoring is wired."
+      },
+      "share": {
+        "action": "Share image",
+        "subtitle": "{day}",
+        "failed": "Could not create the leaderboard image."
       }
     },
     "priceIsRight": {
@@ -4112,6 +4170,16 @@
       "aboveCliff": {
         "title": "Above cliff cutoff",
         "subtitle": "Hard cutoff is on — prior-day VS above your cliff are excluded from today's draw."
+      },
+      "scoreList": {
+        "searchLabel": "Search members",
+        "searchPlaceholder": "Search by name…",
+        "member": "Commander",
+        "vs": "Prior-day VS",
+        "empty": "No members match this search.",
+        "pageStatus": "Page {page} of {pages} · {count} members",
+        "prev": "Previous",
+        "next": "Next"
       }
     },
     "conductorHistory": {
@@ -4348,6 +4416,7 @@
         "statsLine": "Last: {lastDate} · {count} this year",
         "eligibilityVsMinimum": "Eligible: {score} (min {minimum})",
         "eligibilityTpif": "Prior-day VS {score} — closest to {sweetSpot}",
+        "eligibilityTpifWithChance": "Prior-day VS {score} · {chance} win chance",
         "eligibilityVsLeaderboardRank": "#{rank} · {score} {suffix}",
         "eligibilityVsLeaderboardScore": "{score} {suffix}"
       }
@@ -5479,6 +5548,20 @@
       "availabilityMinimums": "maintaining minimums",
       "availabilityHitAndMiss": "hit and miss"
     },
+    "translate": {
+      "result": "{text}\n\n-# Translated from {source} to {target}",
+      "resultNoSource": "{text}\n\n-# Translated to {target}",
+      "sameLanguage": "That message is already in {language}.",
+      "nothingToTranslate": "That message has no text to translate.",
+      "tooLong": "That message is too long to translate (max {max} characters).",
+      "disabled": "Message translation is turned off for this alliance. The alliance owner can turn it on with `/set-translation enabled:true`.",
+      "notConfigured": "Translation isn't available on this server yet.",
+      "failed": "Translation failed. Try again in a moment.",
+      "invalidLanguage": "Pick a language from the list.",
+      "languageUpdated": "Your translation language is now **{language}**. Right-click or long-press any message, then Apps → Translate.",
+      "enabledSuccess": "Message translation is now **on** for **{tag}**. Members can right-click or long-press any message, then Apps → Translate to read it in their language. Everyone can pick a language with `/translation-language`.",
+      "disabledSuccess": "Message translation is now **off** for **{tag}**."
+    },
     "train": {
       "setTrainChannel": {
         "success": "Train announcements for **{tag}** will post in {channel}. Enable announcements in Alliance HQ settings, then officers can use `/set-conductor` and `/train-is-ready`."
@@ -5531,9 +5614,28 @@
       "startOver": "Start over",
       "askOfficer": "Ask an officer"
     },
+    "performanceNotes": {
+      "savedAskAttach": "Your note has been saved. Do you want to attach a member to your note? To quickly add multiple members, go to {url}",
+      "doneView": "Got it. You can view your notes at {url}",
+      "addAnother": "Got it. Do you want to add another member?",
+      "clarify": "Which member did you mean by {token}?",
+      "commendReasonPrompt": "What would you like to commend them for?",
+      "violationReasonPrompt": "What are they in violation of?",
+      "batchAckCommendation": "Commendation saved on {count} members.",
+      "batchAckViolation": "Violation saved on {count} members.",
+      "memberModalTitle": "Commander name",
+      "memberModalLabel": "Commander name",
+      "noMatch": "No roster match for {token}.",
+      "skip": "Skip",
+      "emptyText": "Freeform note. What's on your mind?",
+      "emptyReason": "Enter a reason before saving.",
+      "emptyNames": "Commander names, separated by commas or periods.",
+      "batchEmpty": "No members left to save.",
+      "notOfficer": "Only alliance officers (R4+) or the owner can record notes. Link a commander with `/link-commander` if you haven't yet."
+    },
     "officerNotified": "An officer has been notified. They can reach out to you here on Discord.",
     "help": {
-      "dmGeneral": "**Alliance HQ bot** — run `/help` in your alliance server for steps matched to your role.\n\nQuick list: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-vr-chart`, `/what-is-my-thp`, `/what-is-my-thp-chart`, `/who-is`, `/who-is-conductor`, `/language`. Owners set up with `/link-alliance`. Officers (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Full setup guide:** {guideUrl}",
+      "dmGeneral": "**Alliance HQ bot** — run `/help` in your alliance server for steps matched to your role.\n\nQuick list: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-vr-chart`, `/what-is-my-thp`, `/what-is-my-thp-chart`, `/who-is`, `/who-is-conductor`, `/language`. Owners set up with `/link-alliance`. Officers (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`, `/commend`, `/violation`, `/note`.\n\n**Full setup guide:** {guideUrl}",
       "setupLinkHq": "Link your Discord account to Alliance HQ: run `/link` and complete the browser sign-in.",
       "setupOwnerLinkHq": "This server isn't registered yet. **R5:** open the install wizard in your browser (sign in, tag, Ashed, add bot).\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
       "setupOwnerLinkCommander": "Register this server with the install wizard, then run **`/link-commander`**.\n\n**Install wizard:** {installWizardUrl}\n\n**Guide:** {guideUrl}",
@@ -5542,8 +5644,8 @@
       "linkCommander": "Link your commander: run `/link-commander` in Discord, open the secure link, and enter your player ID from your in-game profile. Confirm the commander name when prompted.\n\n**Guide:** {guideUrl}",
       "memberReady": "You're linked. Use `/vr` or `/immunity` when your base VR changes. `/who-is` looks up Discord↔commander links. `/who-is-conductor` shows today's train conductor.\n\n**Guide:** {guideUrl}",
       "memberReadyMulti": "You have **{count}** linked commanders. `/vr` and `/immunity` will ask which one. `/unlink` removes a link.\n\n**Guide:** {guideUrl}",
-      "ownerReady": "You're linked as owner (**{tag}**). Finish setup: `/set-vr-report-channel`, `/set-train-channel`, then share `/link-commander` with members.\n\n**Guide:** {guideUrl}",
-      "ownerReadyMulti": "Owner (**{tag}**) with **{count}** commanders. `/vr` asks which character. Channel setup: `/set-vr-report-channel`, `/set-train-channel`.\n\n**Guide:** {guideUrl}"
+      "ownerReady": "You're linked as owner (**{tag}**). Finish setup: `/set-vr-report-channel`, `/set-train-channel`, then share `/link-commander` with members. Officers can record `/commend`, `/violation`, and `/note`.\n\n**Guide:** {guideUrl}",
+      "ownerReadyMulti": "Owner (**{tag}**) with **{count}** commanders. `/vr` asks which character. Channel setup: `/set-vr-report-channel`, `/set-train-channel`. Officers can record `/commend`, `/violation`, and `/note`.\n\n**Guide:** {guideUrl}"
     },
     "unlink": {
       "none": "You don't have any linked commanders on this server. Run `/link-commander` first.",
@@ -5586,6 +5688,9 @@
     "hqLinkExploreCta": "Explore Alliance HQ",
     "hqLinkExploreDismiss": "You can close this tab and return to Discord anytime.",
     "hqLinkDiscordMismatch": "You signed in with a different Discord account than the one that ran `/link`. Return to Discord, run `/link` again, and sign in with the same Discord account.",
+    "credentialsDiscordMismatchHeading": "Wrong Discord account",
+    "credentialsDiscordMismatch": "You signed in with a different Discord account than the one that ran `/link-ashed`. Return to Discord, run `/link-ashed` again, and sign in with the same Discord account.",
+    "credentialsNeedDiscordOAuth": "Sign in with Discord (not email or Google) to finish connecting Ashed credentials.",
     "hqLinkNoDiscordOAuth": "Sign in with Discord (not email or Google) to complete this link.",
     "hqLinkWrongPurpose": "This link is not for Alliance HQ sign-in. Return to Discord and run the correct setup command.",
     "errorPrefix": "Something went wrong:",
@@ -5734,7 +5839,9 @@
       "captureNo": "No",
       "captureSnooze": "Snooze 30 min",
       "regularEventReminder": "Regular event",
-      "regularEventUploadReminder": "Regular event score upload"
+      "regularEventUploadReminder": "Regular event score upload",
+      "officerActionItemDue": "Officer action item",
+      "officerActionItemDueBody": "An action item from officer chat is due."
     },
     "confirmCaptureFailed": "Failed to confirm capture."
   },
@@ -6706,5 +6813,115 @@
     "keepHq": "Keep HQ",
     "keepAshed": "Keep Ashed",
     "discard": "Discard HQ report"
+  },
+  "officerIntel": {
+    "title": "Officer Intelligence",
+    "subtitle": "Upload in-game officer chat screenshots, review OCR, and read messages in your language.",
+    "uploadChat": "Upload chat screenshots",
+    "uploadHint": "Capture the R4 & R5 or Alliance chat feed. Multiple overlapping screenshots are merged in scroll order.",
+    "channelLabel": "Channel",
+    "channelR4R5": "R4 & R5",
+    "channelUnknown": "Unknown channel",
+    "parsePreview": "Review extracted messages",
+    "parsePreviewCount": "{count, plural, one {# message extracted} other {# messages extracted}}",
+    "originalText": "Original",
+    "translatedText": "In-game translation",
+    "inGameTranslation": "In-game translation",
+    "translationUnavailable": "Translation isn't available right now. Showing original text.",
+    "sessionsTitle": "Chat sessions",
+    "noSessions": "No chat sessions yet.",
+    "messageCount": "{count, plural, one {# message} other {# messages}}",
+    "sessionTitle": "Session title",
+    "defaultSessionTitle": "Officer chat session",
+    "sender": "Sender",
+    "addScreenshots": "Add",
+    "parsing": "Reading screenshots…",
+    "importing": "Saving…",
+    "importSession": "Save session",
+    "importFailed": "Could not save this session.",
+    "parseFailed": "Could not read messages from those screenshots.",
+    "createSessionFailed": "Could not start a new session.",
+    "loadFailed": "Could not load officer intelligence data.",
+    "close": "Close",
+    "removeMessage": "Remove message",
+    "backToUpload": "Back to screenshots",
+    "backToHub": "Back to Officer Intelligence",
+    "sourceScreenshots": "Source screenshots",
+    "screenshotNumber": "Screenshot {number}",
+    "showOriginalAndInGame": "Show original and in-game translation",
+    "replyTo": "Reply to {name}:",
+    "synthesizeNotes": "Synthesize meeting notes",
+    "synthesizing": "Synthesizing…",
+    "synthesizeFailed": "Could not synthesize meeting notes.",
+    "llmUnavailable": "AI synthesis is not configured on this server.",
+    "viewMeetingNotes": "View meeting notes",
+    "meetingNotesTitle": "Meeting notes",
+    "backToSession": "Back to chat session",
+    "noteStatusDraft": "Draft — edit and approve when ready",
+    "noteStatusApproved": "Approved",
+    "summary": "Summary",
+    "keyDecisions": "Key decisions",
+    "openQuestions": "Open questions",
+    "actionItemsTitle": "Action items",
+    "actionItemsPageTitle": "Action items",
+    "actionItemsPageSubtitle": "Open follow-ups from officer chat synthesis.",
+    "viewAllActionItems": "View all open items",
+    "openActionItemsLink": "{count, plural, one {# open action item} other {# open action items}}",
+    "noActionItems": "No action items in this note.",
+    "noOpenActionItems": "No open action items.",
+    "unassigned": "Unassigned",
+    "saveDraft": "Save draft",
+    "approveNotes": "Approve notes",
+    "saving": "Saving…",
+    "saveNoteFailed": "Could not save meeting notes.",
+    "updateActionItemFailed": "Could not update this action item.",
+    "markInProgress": "Mark in progress",
+    "markDone": "Mark done",
+    "priority": {
+      "low": "Low",
+      "normal": "Normal",
+      "high": "High"
+    },
+    "status": {
+      "open": "Open",
+      "in_progress": "In progress",
+      "done": "Done",
+      "cancelled": "Cancelled"
+    },
+    "askTitle": "Ask about alliance decisions",
+    "askSubtitle": "Answers use officer-approved meeting notes and open action items — not the full chat history.",
+    "askPlaceholder": "What did we decide about banks?",
+    "askSubmit": "Ask",
+    "asking": "Searching approved meeting notes…",
+    "askEmptyCorpus": "Approve meeting notes to teach the assistant.",
+    "askLlmUnavailable": "AI Q&A is not configured on this server.",
+    "askFailed": "Could not answer that question.",
+    "askCitationNote": "Meeting notes",
+    "askCitationActionItem": "Action item",
+    "askSources": "Sources",
+    "askYou": "You",
+    "askAssistant": "Assistant"
+  },
+  "notes": {
+    "title": "Notes",
+    "subtitle": "Commendations, violations, and thoughts",
+    "empty": "No notes yet.",
+    "bodyLabel": "Note",
+    "kindLabel": "Kind",
+    "kindNote": "Note",
+    "kindCommendation": "Commendation",
+    "kindViolation": "Violation",
+    "saveNote": "Save note",
+    "saving": "Saving…",
+    "saveFailed": "Could not save this note.",
+    "loadFailed": "Could not load notes.",
+    "searchMembers": "Search commanders",
+    "noMemberMatches": "No commanders match that search.",
+    "saveMembers": "Save members",
+    "membersSaved": "Members saved.",
+    "membersSaveFailed": "Could not save members.",
+    "attached": "Attached",
+    "backToNotes": "All notes",
+    "notFound": "Note not found."
   }
 }
