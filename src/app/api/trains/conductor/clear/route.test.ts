@@ -113,7 +113,10 @@ describe("conductor clear POST", () => {
       "1",
     );
     expect(writeAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "trains.conductor_clear" }),
+      expect.objectContaining({
+        action: "trains.conductor_clear",
+        severity: "update",
+      }),
     );
   });
 });

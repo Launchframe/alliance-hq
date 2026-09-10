@@ -863,6 +863,8 @@ export const auditLog = pgTable("audit_log", {
   resourceName: text("resource_name"),
   resourceId: text("resource_id"),
   metadata: jsonb("metadata"),
+  /** routine | update | override — officer-gated writes; default update for legacy rows */
+  severity: text("severity").notNull().default("update"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

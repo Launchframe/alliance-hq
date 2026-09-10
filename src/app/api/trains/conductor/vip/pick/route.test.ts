@@ -39,6 +39,10 @@ vi.mock("@/lib/trains/service", () => ({
   getServerCalendarDate: vi.fn().mockReturnValue("2026-07-27"),
 }));
 
+vi.mock("@/lib/bff/officer-action-audit.server", () => ({
+  writeTrainsOfficerAudit: vi.fn().mockResolvedValue(undefined),
+}));
+
 const BASE_BODY = {
   date: "2026-07-27",
   memberId: "m-alice",

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { sessionHasPermission } from "@/lib/rbac/context";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import {
@@ -132,6 +133,24 @@ export async function PATCH(request: Request) {
       ...(body.preferredWeekTemplate
         ? { preferredWeekTemplate: body.preferredWeekTemplate }
         : {}),
+    });
+    await writeTrainsOfficerAudit({
+      sessionId: session.id,
+      allianceId: ctx.allianceId,
+      hqUserId: session.hqUserId,
+      action: "trains.schedule_paint_days",
+      severity:
+        blockedPastDates.length > 0 && isPlatformAdmin ? "override" : "update",
+      resourceType: "train_day_config",
+      resourceId: ctx.allianceId,
+      metadata: {
+        dates,
+        templateType,
+        topN: topN ?? null,
+        updateWeekTemplate: body.updateWeekTemplate === true,
+        pastDayOverride: blockedPastDates.length > 0 && isPlatformAdmin,
+        pastDates: blockedPastDates,
+      },
     });
     return NextResponse.json({ ok: true, dates, templateType, topN });
   } catch (error) {

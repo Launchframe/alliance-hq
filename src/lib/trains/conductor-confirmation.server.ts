@@ -416,9 +416,11 @@ export async function confirmConductorPlacement(input: {
     allianceId: input.allianceId,
     hqUserId: input.officerHqUserId,
     action: "trains.conductor_confirmed",
+    severity: "routine",
     resourceType: "train_conductor_record",
     resourceId: input.recordId,
     metadata: {
+      permission: "trains:write",
       trainDate: row.date,
       memberId: row.conductorMemberId,
     },

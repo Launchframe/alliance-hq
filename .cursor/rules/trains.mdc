@@ -13,7 +13,7 @@ globs:
 - **Conductor** — one per game day; lock spawns empty train (5×6 cargo slots).
 - **VIP** — boards after lock/spawn; VIP chooses 2 of 4 rider cars. HQ VIP assign/spin requires `lockedAt`.
 - **Guardian** — defends on plunder: VIP squads if `guardianIsVip`, else Conductor.
-- **Lock** — `lockedAt` spawns the train and freezes the conductor pick; VIP may still be set afterward (unlock/override = exceptional + audited).
+- **Lock** — `lockedAt` spawns the train and freezes the conductor pick; VIP may still be set afterward (unlock/override = exceptional + audited). Officer-gated DB writes: [officer-action-audit.mdc](./officer-action-audit.mdc).
 
 **Lifecycle order:** assign conductor → **lock** → assign VIP. Guided Simple Mode follows the same order. Product UX invariants (day vs week paint, swap dates, share preview, wizard recovery): [trains-conductor-ux.mdc](./trains-conductor-ux.mdc).
 
