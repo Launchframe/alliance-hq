@@ -33,6 +33,12 @@ describe.skipIf(process.env.PLUNDER_PLAN_DB_TEST !== "1")("Plunder Plan database
     await expect(mutatePlunderPlan(f.actor, { ...f.create, requestId: randomUUID() })).rejects.toMatchObject({ code: "duplicate" });
     expect((await f.load()).plans).toHaveLength(1);
   });
+  it("rejects duplicate weekly patterns with another start date and duplicate edits", async () => {
+    const f = await fixture(); await mutatePlunderPlan(f.actor, f.create);
+    await expect(mutatePlunderPlan(f.actor, { ...f.create, requestId: randomUUID(), schedule: { ...f.schedule, date: addCalendarDays(f.date, 7) } })).rejects.toMatchObject({ code: "duplicate" });
+    const other = await mutatePlunderPlan(f.actor, { ...f.create, requestId: randomUUID(), schedule: { ...f.schedule, start: "19:00" } });
+    await expect(mutatePlunderPlan(f.actor, { action: "edit", id: other.id, schedule: f.schedule, reminder: false, expectedVersion: 1, requestId: randomUUID() })).rejects.toMatchObject({ code: "duplicate" });
+  });
   it("keeps exceptions across pause/resume and rejects stale concurrent changes", async () => {
     const f = await fixture(); const { id } = await mutatePlunderPlan(f.actor, f.create);
     await mutatePlunderPlan(f.actor, { action: "skip", id, date: f.date, expectedVersion: 1, requestId: randomUUID() });
@@ -81,6 +87,25 @@ describe.skipIf(process.env.PLUNDER_PLAN_DB_TEST !== "1")("Plunder Plan database
     expect(after.occurrences.map((row) => row.id)).toEqual(before.occurrences.map((row) => row.id));
     expect(after.plans[0].version).toBe(before.plans[0].version);
     expect(after.occurrences.every((row) => row.color === "#AABBCC")).toBe(true);
+  });
+  it("merges proven HQ/Discord color choices without lowering the revision", async () => {
+    const f = await fixture();
+    await mutatePlunderPlan(f.actor, { action: "color", color: "#112233", expectedVersion: 0, requestId: randomUUID() });
+    const discordId = `discord-${randomUUID()}`;
+    await f.sql`INSERT INTO plunder_plan_colors (alliance_id, principal_id, color, version, updated_at) VALUES (${f.allianceId}, ${`discord:${discordId}`}, '#AABBCC', 7, now() + interval '1 second')`;
+    await f.sql`INSERT INTO discord_hq_links (discord_user_id, hq_user_id) VALUES (${discordId}, ${f.session.hqUserId})`;
+    const linked = await f.load(); expect(linked.color).toBe("#AABBCC"); expect(linked.colorVersion).toBe(7);
+    await mutatePlunderPlan(f.actor, { action: "color", color: "#445566", expectedVersion: 7, requestId: randomUUID() });
+    const colors = await f.sql`SELECT color, version FROM plunder_plan_colors WHERE alliance_id = ${f.allianceId}`;
+    expect(colors).toHaveLength(2); expect(colors.every((row) => row.color === "#445566" && row.version === 8)).toBe(true);
+  });
+  it("keeps skipped dates through reminder edits and compatible future-time edits", async () => {
+    const f = await fixture(); const { id } = await mutatePlunderPlan(f.actor, f.create);
+    await mutatePlunderPlan(f.actor, { action: "skip", id, date: f.date, expectedVersion: 1, requestId: randomUUID() });
+    await mutatePlunderPlan(f.actor, { action: "edit", id, schedule: f.schedule, reminder: true, expectedVersion: 2, requestId: randomUUID() });
+    expect((await f.load()).suppressed).toContainEqual({ planId: id, date: f.date, reason: "skippedLabel" });
+    await mutatePlunderPlan(f.actor, { action: "edit", id, schedule: { ...f.schedule, start: "19:00" }, reminder: true, expectedVersion: 3, requestId: randomUUID() });
+    expect((await f.load()).suppressed).toContainEqual({ planId: id, date: f.date, reason: "skippedLabel" });
   });
   it("revalidates membership after the actor was created", async () => {
     const f = await fixture();

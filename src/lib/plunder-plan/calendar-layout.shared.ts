@@ -38,18 +38,19 @@ export function calendarGroups<T extends CalendarEvent>(segments: readonly Calen
   const groups: CalendarGroup<T>[] = [];
   let laneEnds: number[] = [];
   for (const segment of [...segments].sort((a, b) => a.startMinute - b.startMinute || a.event.id.localeCompare(b.event.id))) {
+    const visualEnd = Math.max(segment.endMinute, segment.startMinute + 24);
     let group = groups[groups.length - 1];
     if (!group || segment.startMinute >= group.endMinute) {
-      group = { startMinute: segment.startMinute, endMinute: segment.endMinute, visible: [], overflow: [], lanes: 0 };
+      group = { startMinute: segment.startMinute, endMinute: visualEnd, visible: [], overflow: [], lanes: 0 };
       groups.push(group);
       laneEnds = [];
     }
-    group.endMinute = Math.max(group.endMinute, segment.endMinute);
+    group.endMinute = Math.max(group.endMinute, visualEnd);
     const free = laneEnds.findIndex((end) => end <= segment.startMinute);
     const lane = free >= 0 ? free : laneEnds.length;
     if (lane >= limit) group.overflow.push(segment);
     else {
-      laneEnds[lane] = segment.endMinute;
+      laneEnds[lane] = visualEnd;
       group.visible.push({ ...segment, lane });
       group.lanes = Math.max(group.lanes, lane + 1);
     }

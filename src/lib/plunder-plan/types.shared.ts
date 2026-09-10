@@ -17,10 +17,11 @@ export type PlanSummary = {
   owned: boolean;
   color: string;
 };
-export type CalendarPlan = PlanOccurrence & { id: string; planId: string; memberName: string; color: string; kind: "plan" | "suggestion"; owned: boolean; version: number };
+export type CalendarPlan = PlanOccurrence & { id: string; planId: string; memberName: string; color: string; kind: "plan" | "suggestion" | "regular"; owned: boolean; version: number; eventKey?: string };
 export type PlanDashboard = {
   version: number;
   canSuggest: boolean;
+  canManageSelf: boolean;
   commanders: { id: string; name: string }[];
   plans: PlanSummary[];
   occurrences: CalendarPlan[];
@@ -29,6 +30,7 @@ export type PlanDashboard = {
   colorVersion: number;
   discordLinked: boolean;
   notificationSettings: PlanNotificationSettings[];
+  regularEvents: Array<{ id: string; eventKey: string; label: string; startAt: string }>;
 };
 export type PlanNotificationSettings = { guildId: string; channelId: string; timeSt: string; locale: "en-US" | "pt-BR"; enabled: boolean; version: number };
 export type PlanCommand =
