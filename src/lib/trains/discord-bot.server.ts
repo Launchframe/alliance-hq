@@ -1,5 +1,6 @@
 import "server-only";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import type { DiscordBotLocale } from "@/lib/discord/i18n";
 import { buildDiscordBotAppUrl } from "@/lib/discord/app-url.shared";
 import { postDiscordChannelMessage } from "@/lib/discord/post-message.server";
@@ -106,6 +107,21 @@ export async function lockTrainForAlliance(input: {
     allianceId: input.allianceId,
     date: input.date,
     seasonKey,
+  });
+  await writeTrainsOfficerAudit({
+    sessionId: null,
+    allianceId: input.allianceId,
+    hqUserId: input.lockedByHqUserId,
+    action: "trains.conductor_lock",
+    severity: "routine",
+    resourceType: "train_conductor_record",
+    resourceId: locked.id,
+    resourceName: locked.conductorMemberName,
+    metadata: {
+      date: input.date,
+      conductorMemberId: locked.conductorMemberId,
+      source: "discord",
+    },
   });
   return locked;
 }

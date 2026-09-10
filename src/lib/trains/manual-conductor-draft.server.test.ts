@@ -123,7 +123,12 @@ describe("applyManualConductorDraft", () => {
         conductorEligibilityOverriddenByHqUserId: null,
       }),
     );
-    expect(mocks.writeAuditLog).not.toHaveBeenCalled();
+    expect(mocks.writeAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "trains.conductor_pick",
+        severity: "routine",
+      }),
+    );
   });
 
   it("rejects re-awarding a member already selected in the current generation", async () => {
@@ -225,6 +230,7 @@ describe("applyManualConductorDraft", () => {
         hqUserId: "hq-officer",
         sessionId: "sess-1",
         resourceId: "rec-1",
+        severity: "override",
       }),
     );
   });

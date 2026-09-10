@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { isDevOrPreviewEnvironment } from "@/lib/dev/env-guard";
 import { loadTrainsDashboard } from "@/lib/trains/load-dashboard";
 import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
@@ -83,6 +84,21 @@ export async function POST(request: Request) {
     templateType,
   );
 
+  await writeTrainsOfficerAudit({
+    sessionId: session.id,
+    allianceId: ctx.allianceId,
+    hqUserId: session.hqUserId,
+    action: "trains.schedule_set_week_template",
+    severity: "update",
+    resourceType: "train_week_schedule",
+    resourceId: schedule.id ?? `${ctx.allianceId}:${weekStart}`,
+    metadata: {
+      weekStart,
+      templateType,
+      isPivot: body.isPivot === true,
+    },
+  });
+
   return NextResponse.json({ schedule, dayConfigs });
 }
 
@@ -123,6 +139,19 @@ export async function DELETE(request: Request) {
   if (ctx instanceof NextResponse) return ctx;
 
   const result = await clearWeekSchedule(ctx.allianceId, resolvedWeekStart);
+  await writeTrainsOfficerAudit({
+    sessionId: session.id,
+    allianceId: ctx.allianceId,
+    hqUserId: session.hqUserId,
+    action: "trains.schedule_clear_week",
+    severity: "update",
+    resourceType: "train_week_schedule",
+    resourceId: `${ctx.allianceId}:${resolvedWeekStart}`,
+    metadata: {
+      weekStart: resolvedWeekStart,
+      ...result,
+    },
+  });
   return NextResponse.json({
     ok: true,
     weekStart: resolvedWeekStart,

@@ -55,6 +55,10 @@ vi.mock("@/lib/trains/train-ownership.server", () => ({
   resolveTrainActorHqUserId: vi.fn().mockResolvedValue("hq-1"),
 }));
 
+vi.mock("@/lib/bff/officer-action-audit.server", () => ({
+  writeTrainsOfficerAudit: vi.fn().mockResolvedValue(undefined),
+}));
+
 const LOCKED_RECORD = {
   id: "rec-1",
   conductorMemberId: "mem-1",

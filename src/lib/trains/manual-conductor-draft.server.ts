@@ -1,6 +1,6 @@
 import "server-only";
 
-import { writeAuditLog } from "@/lib/bff/audit";
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { withConductorPoolClaimLock } from "@/lib/trains/conductor-pool-claim-lock.server";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
@@ -173,17 +173,48 @@ export async function applyManualConductorDraft(input: {
   });
 
   if (eligibilityOverridden) {
-    await writeAuditLog({
-      sessionId: input.sessionId ?? null,
+    await writeTrainsOfficerAudit({
+      sessionId: input.sessionId,
       allianceId: input.allianceId,
       hqUserId: overrideBy,
       action: "trains.conductor_eligibility_override",
+      severity: "override",
       resourceType: "train_conductor_record",
       resourceId: record.id,
       resourceName: input.memberName,
       metadata: {
         date: input.date,
         memberId: input.memberId,
+        previousMemberId: priorConductorMemberId,
+        previousMemberName: existing?.conductorMemberName ?? null,
+        overwritten: Boolean(
+          priorConductorMemberId && priorConductorMemberId !== input.memberId,
+        ),
+        source: "manual",
+      },
+    });
+  } else {
+    await writeTrainsOfficerAudit({
+      sessionId: input.sessionId,
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId,
+      action: "trains.conductor_pick",
+      severity:
+        priorConductorMemberId && priorConductorMemberId !== input.memberId
+          ? "update"
+          : "routine",
+      resourceType: "train_conductor_record",
+      resourceId: record.id,
+      resourceName: input.memberName,
+      metadata: {
+        date: input.date,
+        memberId: input.memberId,
+        previousMemberId: priorConductorMemberId,
+        previousMemberName: existing?.conductorMemberName ?? null,
+        overwritten: Boolean(
+          priorConductorMemberId && priorConductorMemberId !== input.memberId,
+        ),
+        source: "manual",
       },
     });
   }
