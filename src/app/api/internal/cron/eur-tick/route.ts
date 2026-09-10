@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { runEurTick } from "@/lib/eur/run-tick";
+import { runOfficerActionItemReminderPass } from "@/lib/officer-intel/action-item-reminders.server";
 import { runRosterLinkReminderPass } from "@/lib/member-link/roster-link-reminders.server";
 
 export const dynamic = "force-dynamic";
@@ -27,5 +28,12 @@ export async function GET(request: Request) {
 
   const result = await runEurTick();
   const rosterLinkRemindersSent = await runRosterLinkReminderPass();
-  return NextResponse.json({ ok: true, ...result, rosterLinkRemindersSent });
+  const officerActionItemRemindersMaterialized =
+    await runOfficerActionItemReminderPass();
+  return NextResponse.json({
+    ok: true,
+    ...result,
+    rosterLinkRemindersSent,
+    officerActionItemRemindersMaterialized,
+  });
 }

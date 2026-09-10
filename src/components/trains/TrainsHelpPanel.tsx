@@ -14,6 +14,25 @@ type Props = {
   onTakeTour?: () => void;
 };
 
+/** Platform order: Hard save → Save hard → Push hard → Hard push. */
+const WEEK_GOAL_KEYS = ["economy", "save", "certainDays", "allOut"] as const;
+
+type WeekGoalKey = (typeof WEEK_GOAL_KEYS)[number];
+
+const WEEK_GOAL_SHARED_KEYS = [
+  "conductorsAtReset",
+  "leadTime",
+  "vsMinimum",
+  "donationMinimum",
+] as const;
+
+const WEEK_GOAL_BODY_KEYS: Record<WeekGoalKey, readonly string[]> = {
+  economy: ["blurb", "do1", "do2", "dont"],
+  save: ["blurb", "do1", "dont"],
+  certainDays: ["blurb", "do1", "do2", "do3", "dont"],
+  allOut: ["blurb", "do1", "do2", "do3", "dont1", "dont2"],
+};
+
 export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
   const t = useTranslations("trains.help");
   const tServer = useTranslations("trains.serverTimeBadge");
@@ -54,7 +73,7 @@ export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
         <div className="flex flex-col gap-4">
           <div>
             <h2 className="text-lg font-semibold text-hq-fg">{t("title")}</h2>
-            <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
+            <p className="mt-2 text-sm leading-relaxed text-hq-fg-muted">
               {t("serverTimeBody")}
             </p>
             <p className="mt-2 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-xs tabular-nums text-hq-fg-muted">
@@ -66,7 +85,7 @@ export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
             <h3 className="text-sm font-medium text-hq-fg">
               {t("quickStartTitle")}
             </h3>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-[#c9d1d9]">
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-hq-fg-muted">
               {quickStartItems.map((item) => (
                 <li key={item}>{item}</li>
               ))}
@@ -75,9 +94,51 @@ export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
 
           <div>
             <h3 className="text-sm font-medium text-hq-fg">
+              {t("weekGoalsTitle")}
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-hq-fg-muted">
+              {t("weekGoalsIntro")}
+            </p>
+            <div className="mt-3 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2">
+              <p className="text-sm font-medium text-hq-fg">
+                {t("weekGoalsSharedTitle")}
+              </p>
+              <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-hq-fg-muted">
+                {WEEK_GOAL_SHARED_KEYS.map((key) => (
+                  <li key={key}>{t(`weekGoalsShared.${key}`)}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="mt-3 flex flex-col gap-2">
+              {WEEK_GOAL_KEYS.map((goalKey) => (
+                <details
+                  key={goalKey}
+                  className="rounded-lg border border-hq-border bg-hq-canvas px-3 py-2"
+                  data-testid={`trains-help-week-goal-${goalKey}`}
+                >
+                  <summary className="cursor-pointer text-sm font-medium text-hq-fg">
+                    {t(`weekGoals.${goalKey}.title`)}
+                    <span className="ml-2 font-normal text-hq-fg-muted">
+                      ({t(`weekGoals.${goalKey}.subtitle`)})
+                    </span>
+                  </summary>
+                  <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-hq-fg-muted">
+                    {WEEK_GOAL_BODY_KEYS[goalKey].map((bodyKey) => (
+                      <li key={bodyKey}>
+                        {t(`weekGoals.${goalKey}.${bodyKey}`)}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-medium text-hq-fg">
               {t("lockOwnershipTitle")}
             </h3>
-            <p className="mt-2 text-sm leading-relaxed text-[#c9d1d9]">
+            <p className="mt-2 text-sm leading-relaxed text-hq-fg-muted">
               {t("lockOwnershipBody")}
             </p>
           </div>
@@ -90,7 +151,7 @@ export function TrainsHelpPanel({ showTakeTour = false, onTakeTour }: Props) {
                   setOpen(false);
                   onTakeTour();
                 }}
-                className="rounded-lg border border-[#8957e5]/50 bg-[#8957e5]/10 px-4 py-2 text-sm font-medium text-[#d2a8ff] hover:bg-[#8957e5]/20"
+                className="rounded-lg border border-[#8957e5]/50 bg-[#8957e5]/10 px-4 py-2 text-sm font-medium text-[#8250df] hover:bg-[#8957e5]/20 dark:text-[#d2a8ff]"
               >
                 {t("takeTour")}
               </button>

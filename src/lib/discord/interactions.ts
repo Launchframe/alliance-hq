@@ -51,13 +51,32 @@ export type DiscordInteractionPayload = {
   locale?: string;
   data?: {
     name?: string;
+    /** Application command type: 1 slash, 2 user context menu, 3 message context menu. */
+    type?: number;
+    /** Target message id for message context-menu commands. */
+    target_id?: string;
     options?: Array<{ name: string; type: number; value?: unknown }>;
     custom_id?: string;
-    components?: Array<{ components?: Array<{ custom_id?: string; value?: string }> }>;
+    components?: Array<{
+      type: number;
+      components?: Array<{
+        type: number;
+        custom_id?: string;
+        value?: string;
+      }>;
+    }>;
     resolved?: {
       attachments?: Record<
         string,
         { url?: string; filename?: string; content_type?: string }
+      >;
+      messages?: Record<
+        string,
+        {
+          id?: string;
+          content?: string;
+          author?: { id?: string; bot?: boolean };
+        }
       >;
     };
   };
@@ -89,6 +108,27 @@ export function interactionDiscordUsername(
   payload: DiscordInteractionPayload,
 ): string | undefined {
   return payload.member?.user?.username ?? payload.user?.username;
+}
+
+export type ResolvedTargetMessage = {
+  id: string;
+  content: string;
+  authorIsBot: boolean;
+};
+
+/** Target message of a message context-menu command (delivered in `resolved.messages`). */
+export function parseResolvedTargetMessage(
+  payload: DiscordInteractionPayload,
+): ResolvedTargetMessage | null {
+  const targetId = payload.data?.target_id;
+  if (!targetId) return null;
+  const message = payload.data?.resolved?.messages?.[targetId];
+  if (!message) return null;
+  return {
+    id: message.id ?? targetId,
+    content: typeof message.content === "string" ? message.content : "",
+    authorIsBot: message.author?.bot === true,
+  };
 }
 
 export function parseSlashOptionString(
@@ -182,7 +222,11 @@ export type ParsedButton =
   | { kind: "profession_select"; profession: "Engineer" | "War Leader" }
   | { kind: "profession_switch_confirm"; answer: "yes" | "no" }
   | { kind: "whois_pick"; memberId: string }
-  | { kind: "whois_claim"; memberId: string };
+  | { kind: "whois_claim"; memberId: string }
+  | { kind: "note_attach"; answer: "yes" | "no" }
+  | { kind: "note_another"; answer: "yes" | "no" }
+  | { kind: "note_pick"; index: number }
+  | { kind: "note_skip" };
 
 export function parseButtonCustomId(
   customId: string | undefined,
@@ -260,6 +304,21 @@ export function parseButtonCustomId(
   if (whoisPick) return { kind: "whois_pick", memberId: whoisPick[1]! };
   const whoisClaim = /^whois:claim:(.+)$/.exec(customId);
   if (whoisClaim) return { kind: "whois_claim", memberId: whoisClaim[1]! };
+  const noteAttach = /^note:attach:(yes|no)$/.exec(customId);
+  if (noteAttach) {
+    return { kind: "note_attach", answer: noteAttach[1] as "yes" | "no" };
+  }
+  const noteAnother = /^note:another:(yes|no)$/.exec(customId);
+  if (noteAnother) {
+    return { kind: "note_another", answer: noteAnother[1] as "yes" | "no" };
+  }
+  const notePick = /^note:pick:(\d+)$/.exec(customId);
+  if (notePick) {
+    return { kind: "note_pick", index: Number(notePick[1]) };
+  }
+  if (customId === "note:skip") {
+    return { kind: "note_skip" };
+  }
   return null;
 }
 
@@ -637,3 +696,78 @@ export function discordComponentMessageResponse(
 }
 
 export const DISCORD_PING_RESPONSE = { type: 1 };
+
+export type DiscordModalResponse = {
+  type: 9;
+  data: {
+    custom_id: string;
+    title: string;
+    components: Array<{
+      type: 1;
+      components: Array<{
+        type: 4;
+        custom_id: string;
+        label: string;
+        style: 1 | 2;
+        required: boolean;
+        max_length?: number;
+      }>;
+    }>;
+  };
+};
+
+export function discordModalResponse(input: {
+  customId: string;
+  title: string;
+  fieldCustomId: string;
+  fieldLabel: string;
+  paragraph?: boolean;
+  maxLength?: number;
+}): DiscordModalResponse {
+  return {
+    type: 9,
+    data: {
+      custom_id: input.customId,
+      title: input.title.slice(0, 45),
+      components: [
+        {
+          type: 1,
+          components: [
+            {
+              type: 4,
+              custom_id: input.fieldCustomId,
+              label: input.fieldLabel.slice(0, 45),
+              style: input.paragraph ? 2 : 1,
+              required: true,
+              ...(input.maxLength ? { max_length: input.maxLength } : {}),
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+export function parseModalCustomId(
+  customId: string | undefined,
+): "note:member-modal" | "note:reason-modal" | null {
+  if (customId === "note:member-modal" || customId === "note:reason-modal") {
+    return customId;
+  }
+  return null;
+}
+
+export function parseModalTextInput(
+  payload: DiscordInteractionPayload,
+  fieldCustomId: string,
+): string | undefined {
+  const rows = payload.data?.components ?? [];
+  for (const row of rows) {
+    for (const child of row.components ?? []) {
+      if (child.custom_id === fieldCustomId && typeof child.value === "string") {
+        return child.value;
+      }
+    }
+  }
+  return undefined;
+}

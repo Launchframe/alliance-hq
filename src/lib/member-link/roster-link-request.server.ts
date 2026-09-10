@@ -842,6 +842,78 @@ async function notifyInviteeOnResolve(
   }
 }
 
+/**
+ * Claim exclusive resolution of a pending roster-link request.
+ * Without CAS, concurrent accept+reject (email decline vs officer UI) can
+ * leave an HQ/Discord link in place while status ends rejected — or two
+ * accepts can auto-create duplicate roster rows and silently rebind the user.
+ */
+async function claimPendingRosterLinkRequest(input: {
+  requestId: string;
+  status: "accepted" | "rejected";
+  resolvedByHqUserId?: string | null;
+  now?: Date;
+}): Promise<
+  | { ok: true; request: typeof schema.hqRosterLinkRequests.$inferSelect }
+  | { ok: false; reason: "not_found" | "not_pending"; request: typeof schema.hqRosterLinkRequests.$inferSelect | null }
+> {
+  const db = getDb();
+  const now = input.now ?? new Date();
+  const [claimed] = await db
+    .update(schema.hqRosterLinkRequests)
+    .set({
+      status: input.status,
+      resolvedAt: now,
+      resolvedByHqUserId: input.resolvedByHqUserId ?? null,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(schema.hqRosterLinkRequests.id, input.requestId),
+        eq(schema.hqRosterLinkRequests.status, "pending"),
+      ),
+    )
+    .returning();
+
+  if (claimed) {
+    return { ok: true, request: claimed };
+  }
+
+  const current = await getRosterLinkRequestById(input.requestId);
+  if (!current) {
+    return { ok: false, reason: "not_found", request: null };
+  }
+  return { ok: false, reason: "not_pending", request: current };
+}
+
+async function revertAcceptedRosterLinkClaim(input: {
+  requestId: string;
+  resolvedByHqUserId?: string | null;
+}): Promise<void> {
+  const db = getDb();
+  const conditions = [
+    eq(schema.hqRosterLinkRequests.id, input.requestId),
+    eq(schema.hqRosterLinkRequests.status, "accepted"),
+  ];
+  if (input.resolvedByHqUserId) {
+    conditions.push(
+      eq(
+        schema.hqRosterLinkRequests.resolvedByHqUserId,
+        input.resolvedByHqUserId,
+      ),
+    );
+  }
+  await db
+    .update(schema.hqRosterLinkRequests)
+    .set({
+      status: "pending",
+      resolvedAt: null,
+      resolvedByHqUserId: null,
+      updatedAt: new Date(),
+    })
+    .where(and(...conditions));
+}
+
 export async function acceptRosterLinkRequest(input: {
   requestId: string;
   resolvedByHqUserId?: string | null;
@@ -850,69 +922,103 @@ export async function acceptRosterLinkRequest(input: {
   ashedConnection?: ParsedConnection | null;
 }): Promise<{ ok: true; memberName: string } | { ok: false; reason: string }> {
   const db = getDb();
-  const request = await getRosterLinkRequestById(input.requestId);
-  if (!request) {
+  const existing = await getRosterLinkRequestById(input.requestId);
+  if (!existing) {
     return { ok: false, reason: "not_found" };
   }
 
-  if (request.status === "accepted") {
-    return { ok: true, memberName: request.gameUserName };
+  if (existing.status === "accepted") {
+    return { ok: true, memberName: existing.gameUserName };
   }
 
-  if (request.status !== "pending") {
+  if (existing.status !== "pending") {
     return { ok: false, reason: "not_pending" };
   }
 
   const now = new Date();
+  const claimed = await claimPendingRosterLinkRequest({
+    requestId: input.requestId,
+    status: "accepted",
+    resolvedByHqUserId: input.resolvedByHqUserId ?? null,
+    now,
+  });
+  if (!claimed.ok) {
+    if (claimed.request?.status === "accepted") {
+      return { ok: true, memberName: claimed.request.gameUserName };
+    }
+    return { ok: false, reason: claimed.reason };
+  }
+
+  const request = claimed.request;
   let ashedMemberId =
     input.targetAshedMemberId ??
     request.targetAshedMemberId ??
     request.createdMemberId;
 
-  if (input.targetAshedMemberId) {
-    await reconcileAllianceMemberForRosterLink({
-      allianceId: request.allianceId,
-      ashedMemberId: input.targetAshedMemberId,
-      gameUserName: request.gameUserName,
-      ashedConnection: input.ashedConnection,
-    });
-    ashedMemberId = input.targetAshedMemberId;
-  } else if (!ashedMemberId) {
-    ashedMemberId = await createNativeAllianceMemberForRosterLink({
-      allianceId: request.allianceId,
-      gameUserName: request.gameUserName,
-      gameUserLevel: request.gameUserLevel,
-    });
-  }
-
-  if (request.origin === "discord" && request.discordUserId) {
-    const linked = await bindDiscordRosterLinkRequest({
-      allianceId: request.allianceId,
-      discordUserId: request.discordUserId,
-      discordUsername: request.discordUsername,
-      ashedMemberId,
-      memberDisplayName: request.gameUserName,
-      gameUid: request.gameUid,
-    });
-    if (!linked.ok) {
-      return { ok: false, reason: linked.reason };
-    }
-  } else if (request.hqUserId) {
-    const linked = await linkHqMember({
-      allianceId: request.allianceId,
-      hqUserId: request.hqUserId,
-      ashedMemberId,
-      memberDisplayName: request.gameUserName,
-      gameUid: request.gameUid,
-    });
-
-    if (!linked.ok) {
-      return { ok: false, reason: linked.reason };
+  try {
+    if (input.targetAshedMemberId) {
+      await reconcileAllianceMemberForRosterLink({
+        allianceId: request.allianceId,
+        ashedMemberId: input.targetAshedMemberId,
+        gameUserName: request.gameUserName,
+        ashedConnection: input.ashedConnection,
+      });
+      ashedMemberId = input.targetAshedMemberId;
+    } else if (!ashedMemberId) {
+      ashedMemberId = await createNativeAllianceMemberForRosterLink({
+        allianceId: request.allianceId,
+        gameUserName: request.gameUserName,
+        gameUserLevel: request.gameUserLevel,
+      });
     }
 
-    await syncPrimaryGameUidFromHqMemberLink(request.hqUserId, request.gameUid);
-  } else {
-    return { ok: false, reason: "missing_link_subject" };
+    if (request.origin === "discord" && request.discordUserId) {
+      const linked = await bindDiscordRosterLinkRequest({
+        allianceId: request.allianceId,
+        discordUserId: request.discordUserId,
+        discordUsername: request.discordUsername,
+        ashedMemberId,
+        memberDisplayName: request.gameUserName,
+        gameUid: request.gameUid,
+      });
+      if (!linked.ok) {
+        await revertAcceptedRosterLinkClaim({
+          requestId: request.id,
+          resolvedByHqUserId: input.resolvedByHqUserId ?? null,
+        });
+        return { ok: false, reason: linked.reason };
+      }
+    } else if (request.hqUserId) {
+      const linked = await linkHqMember({
+        allianceId: request.allianceId,
+        hqUserId: request.hqUserId,
+        ashedMemberId,
+        memberDisplayName: request.gameUserName,
+        gameUid: request.gameUid,
+      });
+
+      if (!linked.ok) {
+        await revertAcceptedRosterLinkClaim({
+          requestId: request.id,
+          resolvedByHqUserId: input.resolvedByHqUserId ?? null,
+        });
+        return { ok: false, reason: linked.reason };
+      }
+
+      await syncPrimaryGameUidFromHqMemberLink(request.hqUserId, request.gameUid);
+    } else {
+      await revertAcceptedRosterLinkClaim({
+        requestId: request.id,
+        resolvedByHqUserId: input.resolvedByHqUserId ?? null,
+      });
+      return { ok: false, reason: "missing_link_subject" };
+    }
+  } catch (error) {
+    await revertAcceptedRosterLinkClaim({
+      requestId: request.id,
+      resolvedByHqUserId: input.resolvedByHqUserId ?? null,
+    });
+    throw error;
   }
 
   if (request.gameUserLevel != null) {
@@ -930,12 +1036,9 @@ export async function acceptRosterLinkRequest(input: {
   await db
     .update(schema.hqRosterLinkRequests)
     .set({
-      status: "accepted",
-      resolvedAt: now,
-      resolvedByHqUserId: input.resolvedByHqUserId ?? null,
       createdMemberId: ashedMemberId,
       targetAshedMemberId: input.targetAshedMemberId ?? request.targetAshedMemberId,
-      updatedAt: now,
+      updatedAt: new Date(),
     })
     .where(eq(schema.hqRosterLinkRequests.id, request.id));
 
@@ -978,29 +1081,34 @@ export async function rejectRosterLinkRequest(input: {
   sessionId?: string | null;
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
   const db = getDb();
-  const request = await getRosterLinkRequestById(input.requestId);
-  if (!request) {
+  const existing = await getRosterLinkRequestById(input.requestId);
+  if (!existing) {
     return { ok: false, reason: "not_found" };
   }
 
-  if (request.status === "rejected") {
+  if (existing.status === "rejected") {
     return { ok: true };
   }
 
-  if (request.status !== "pending") {
+  if (existing.status !== "pending") {
     return { ok: false, reason: "not_pending" };
   }
 
   const now = new Date();
-  await db
-    .update(schema.hqRosterLinkRequests)
-    .set({
-      status: "rejected",
-      resolvedAt: now,
-      resolvedByHqUserId: input.resolvedByHqUserId ?? null,
-      updatedAt: now,
-    })
-    .where(eq(schema.hqRosterLinkRequests.id, request.id));
+  const claimed = await claimPendingRosterLinkRequest({
+    requestId: input.requestId,
+    status: "rejected",
+    resolvedByHqUserId: input.resolvedByHqUserId ?? null,
+    now,
+  });
+  if (!claimed.ok) {
+    if (claimed.request?.status === "rejected") {
+      return { ok: true };
+    }
+    return { ok: false, reason: claimed.reason };
+  }
+
+  const request = claimed.request;
 
   await db
     .update(schema.hqRosterLinkActionTokens)

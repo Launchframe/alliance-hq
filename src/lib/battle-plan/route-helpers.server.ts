@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import {
+  BattlePlanEventConflictError,
   BattlePlanRevisionConflictError,
   reloadSerializedDashboard,
 } from "@/lib/battle-plan/repository.server";
@@ -20,7 +21,10 @@ export async function handleBattlePlanMutationError(
   allianceId: string,
   sessionId: string,
 ) {
-  if (error instanceof BattlePlanRevisionConflictError) {
+  if (
+    error instanceof BattlePlanRevisionConflictError ||
+    error instanceof BattlePlanEventConflictError
+  ) {
     const canWrite = await sessionHasPermission(
       sessionId,
       BATTLE_PLAN_WRITE_PERMISSION,

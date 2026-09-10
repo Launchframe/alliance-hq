@@ -78,3 +78,33 @@ export async function consumeDiscordAuthNonce(id: string): Promise<void> {
     .set({ usedAt: new Date() })
     .where(eq(schema.discordAuthNonces.id, id));
 }
+
+/**
+ * Atomically claims a still-valid unused nonce (compare-and-swap on `usedAt`).
+ * Call before side effects so concurrent redeemers cannot both succeed.
+ */
+export async function claimDiscordAuthNonce(nonce: string) {
+  const db = getDb();
+  const now = new Date();
+  const [row] = await db
+    .update(schema.discordAuthNonces)
+    .set({ usedAt: now })
+    .where(
+      and(
+        eq(schema.discordAuthNonces.nonce, nonce),
+        gt(schema.discordAuthNonces.expiresAt, now),
+        isNull(schema.discordAuthNonces.usedAt),
+      ),
+    )
+    .returning();
+  return row ?? null;
+}
+
+/** Clears `usedAt` so a failed redeem can retry with the same nonce. */
+export async function releaseDiscordAuthNonce(id: string): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.discordAuthNonces)
+    .set({ usedAt: null })
+    .where(eq(schema.discordAuthNonces.id, id));
+}

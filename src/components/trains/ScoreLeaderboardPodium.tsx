@@ -3,6 +3,11 @@
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
+import {
+  ConductorWheelSharePreviewDialog,
+  type ConductorWheelSharePreview,
+} from "@/components/trains/ConductorWheelSharePreviewDialog";
+import { renderScoreLeaderboardSharePngBlob } from "@/lib/client/score-leaderboard-share-image.client";
 import { formatTrainPointCount } from "@/lib/trains/train-conductor-minimums.shared";
 import {
   SCORE_LEADERBOARD_LIST_MAX,
@@ -99,12 +104,17 @@ function PodiumSlot({
 
 export function ScoreLeaderboardPodium({ trainDate, kind }: Props) {
   const t = useTranslations("trains.scoreLeaderboard");
+  const tWheel = useTranslations("trains.wheel");
   const locale = useLocale();
   const [payload, setPayload] = useState<ScoreLeaderboardPayload | null>(
     null,
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [sharePreview, setSharePreview] =
+    useState<ConductorWheelSharePreview | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -139,6 +149,15 @@ export function ScoreLeaderboardPodium({ trainDate, kind }: Props) {
       cancelled = true;
     };
   }, [kind, t, trainDate]);
+
+  useEffect(() => {
+    return () => {
+      setSharePreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev.url);
+        return null;
+      });
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -189,24 +208,72 @@ export function ScoreLeaderboardPodium({ trainDate, kind }: Props) {
     rank,
     entry: podiumByRank.get(rank),
   }));
+  const shareEntries = payload.entries.slice(0, SCORE_LEADERBOARD_LIST_MAX);
+  const dayLabel = payload.scoreDate
+    ? formatScoreDay(payload.scoreDate, locale)
+    : trainDate;
+
+  const handleShare = async () => {
+    if (shareBusy || shareEntries.length === 0) return;
+    setShareBusy(true);
+    setShareError(null);
+    try {
+      const blob = await renderScoreLeaderboardSharePngBlob({
+        title: t(`${copyKey}.title`),
+        subtitle: t("share.subtitle", { day: dayLabel }),
+        entries: shareEntries,
+        locale,
+      });
+      const safeDate =
+        dayLabel.replace(/[^\w-]+/g, "-").toLowerCase() || "leaderboard";
+      const filename = `score-leaderboard-${safeDate}.png`;
+      const url = URL.createObjectURL(blob);
+      setSharePreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev.url);
+        return { blob, url, filename };
+      });
+    } catch {
+      setShareError(t("share.failed"));
+    } finally {
+      setShareBusy(false);
+    }
+  };
 
   return (
     <section
       className="overflow-hidden rounded-xl border border-hq-accent/30 bg-gradient-to-b from-hq-accent/10 via-hq-surface to-hq-surface p-5"
       data-testid="score-leaderboard-podium"
     >
-      <div className="flex flex-col gap-1">
-        <h3 className="text-base font-semibold text-hq-fg">
-          {t(`${copyKey}.title`)}
-        </h3>
-        <p className="text-sm text-hq-fg-muted">
-          {t(`${copyKey}.subtitle`, {
-            day: payload.scoreDate
-              ? formatScoreDay(payload.scoreDate, locale)
-              : "",
-          })}
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h3 className="text-base font-semibold text-hq-fg">
+            {t(`${copyKey}.title`)}
+          </h3>
+          <p className="text-sm text-hq-fg-muted">
+            {t(`${copyKey}.subtitle`, {
+              day: payload.scoreDate
+                ? formatScoreDay(payload.scoreDate, locale)
+                : "",
+            })}
+          </p>
+        </div>
+        {shareEntries.length > 0 ? (
+          <button
+            type="button"
+            disabled={shareBusy}
+            onClick={() => void handleShare()}
+            data-testid="score-leaderboard-share"
+            className="inline-flex shrink-0 items-center justify-center rounded-lg border border-[#8957e5]/50 bg-[#8957e5]/10 px-3 py-1.5 text-sm font-medium text-[#8250df] hover:bg-[#8957e5]/20 disabled:opacity-50 dark:text-[#d2a8ff]"
+          >
+            {shareBusy ? tWheel("share.exporting") : t("share.action")}
+          </button>
+        ) : null}
       </div>
+      {shareError ? (
+        <p className="mt-2 text-sm text-hq-danger" role="alert">
+          {shareError}
+        </p>
+      ) : null}
 
       <div
         className="relative mt-6 flex items-end justify-center gap-2 px-2 pb-2 sm:gap-4"
@@ -251,6 +318,17 @@ export function ScoreLeaderboardPodium({ trainDate, kind }: Props) {
             ))}
         </ol>
       ) : null}
+
+      <ConductorWheelSharePreviewDialog
+        open={sharePreview != null}
+        preview={sharePreview}
+        onClose={() => {
+          setSharePreview((prev) => {
+            if (prev) URL.revokeObjectURL(prev.url);
+            return null;
+          });
+        }}
+      />
     </section>
   );
 }

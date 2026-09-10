@@ -2,8 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireApiSessionMock = vi.fn();
 const loadSessionMock = vi.fn();
+const authMock = vi.fn();
+const getDiscordProviderAccountIdForHqUserMock = vi.fn();
 const getValidDiscordAuthNonceMock = vi.fn();
-const consumeDiscordAuthNonceMock = vi.fn();
+const claimDiscordAuthNonceMock = vi.fn();
+const releaseDiscordAuthNonceMock = vi.fn();
 const parseConnectionInputMock = vi.fn();
 const setupAshedCredentialsForDiscordMock = vi.fn();
 
@@ -12,9 +15,19 @@ vi.mock("@/lib/session", () => ({
   loadSession: (id: string) => loadSessionMock(id),
 }));
 
+vi.mock("@/lib/auth", () => ({
+  auth: () => authMock(),
+}));
+
+vi.mock("@/lib/auth/discord-hq-link.server", () => ({
+  getDiscordProviderAccountIdForHqUser: (hqUserId: string) =>
+    getDiscordProviderAccountIdForHqUserMock(hqUserId),
+}));
+
 vi.mock("@/lib/vr/auth-nonce", () => ({
   getValidDiscordAuthNonce: (nonce: string) => getValidDiscordAuthNonceMock(nonce),
-  consumeDiscordAuthNonce: (id: string) => consumeDiscordAuthNonceMock(id),
+  claimDiscordAuthNonce: (nonce: string) => claimDiscordAuthNonceMock(nonce),
+  releaseDiscordAuthNonce: (id: string) => releaseDiscordAuthNonceMock(id),
 }));
 
 vi.mock("@/lib/connectionString", () => ({
@@ -38,6 +51,13 @@ function postAuthorize(body: Record<string, string>) {
   );
 }
 
+const nonceRow = {
+  id: "nonce-1",
+  purpose: "alliance_credentials",
+  tag: "lfgo",
+  discordUserId: "discord-1",
+};
+
 describe("POST /api/discord/authorize — alliance_credentials", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -49,12 +69,11 @@ describe("POST /api/discord/authorize — alliance_credentials", () => {
       id: "sess-1",
       expiresAt: new Date("2030-06-01T00:00:00.000Z"),
     });
-    getValidDiscordAuthNonceMock.mockResolvedValue({
-      id: "nonce-1",
-      purpose: "alliance_credentials",
-      tag: "lfgo",
-      discordUserId: "discord-1",
-    });
+    authMock.mockResolvedValue({ user: { id: "hq-user-1" } });
+    getDiscordProviderAccountIdForHqUserMock.mockResolvedValue("discord-1");
+    getValidDiscordAuthNonceMock.mockResolvedValue(nonceRow);
+    claimDiscordAuthNonceMock.mockResolvedValue(nonceRow);
+    releaseDiscordAuthNonceMock.mockResolvedValue(undefined);
     parseConnectionInputMock.mockReturnValue({
       ok: true,
       connection: {
@@ -68,10 +87,9 @@ describe("POST /api/discord/authorize — alliance_credentials", () => {
       allianceId: "hq-ally-1",
       tag: "LFgo",
     });
-    consumeDiscordAuthNonceMock.mockResolvedValue(undefined);
   });
 
-  it("delegates credential setup to setupAshedCredentialsForDiscord", async () => {
+  it("delegates credential setup after Discord identity bind + CAS claim", async () => {
     const res = await postAuthorize({
       nonce: "nonce-abc",
       connectionKey: "connection-key",
@@ -80,6 +98,8 @@ describe("POST /api/discord/authorize — alliance_credentials", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; tag: string };
     expect(body).toEqual({ ok: true, purpose: "alliance_credentials", tag: "LFgo" });
+    expect(getDiscordProviderAccountIdForHqUserMock).toHaveBeenCalledWith("hq-user-1");
+    expect(claimDiscordAuthNonceMock).toHaveBeenCalledWith("nonce-abc");
     expect(setupAshedCredentialsForDiscordMock).toHaveBeenCalledWith(
       expect.objectContaining({
         allianceTag: "lfgo",
@@ -88,10 +108,62 @@ describe("POST /api/discord/authorize — alliance_credentials", () => {
         sessionExpiresAt: new Date("2030-06-01T00:00:00.000Z"),
       }),
     );
-    expect(consumeDiscordAuthNonceMock).toHaveBeenCalledWith("nonce-1");
+    expect(releaseDiscordAuthNonceMock).not.toHaveBeenCalled();
   });
 
-  it("returns setup error status from setupAshedCredentialsForDiscord", async () => {
+  it("rejects when HQ Auth.js session is missing (anonymous workspace cookie only)", async () => {
+    authMock.mockResolvedValue(null);
+
+    const res = await postAuthorize({
+      nonce: "nonce-abc",
+      connectionKey: "connection-key",
+    });
+
+    expect(res.status).toBe(401);
+    expect(setupAshedCredentialsForDiscordMock).not.toHaveBeenCalled();
+    expect(claimDiscordAuthNonceMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects when signed-in Discord account does not match the nonce Discord user", async () => {
+    getDiscordProviderAccountIdForHqUserMock.mockResolvedValue("discord-attacker");
+
+    const res = await postAuthorize({
+      nonce: "nonce-abc",
+      connectionKey: "owner-connection-key",
+    });
+
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/different Discord account/i);
+    expect(setupAshedCredentialsForDiscordMock).not.toHaveBeenCalled();
+    expect(claimDiscordAuthNonceMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects when HQ user has no Discord OAuth provider linked", async () => {
+    getDiscordProviderAccountIdForHqUserMock.mockResolvedValue(null);
+
+    const res = await postAuthorize({
+      nonce: "nonce-abc",
+      connectionKey: "connection-key",
+    });
+
+    expect(res.status).toBe(403);
+    expect(setupAshedCredentialsForDiscordMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 410 when CAS claim loses to a concurrent redeemer", async () => {
+    claimDiscordAuthNonceMock.mockResolvedValue(null);
+
+    const res = await postAuthorize({
+      nonce: "nonce-abc",
+      connectionKey: "connection-key",
+    });
+
+    expect(res.status).toBe(410);
+    expect(setupAshedCredentialsForDiscordMock).not.toHaveBeenCalled();
+  });
+
+  it("releases the claimed nonce when credential setup fails", async () => {
     setupAshedCredentialsForDiscordMock.mockResolvedValue({
       ok: false,
       error: 'Your Ashed account does not have access to alliance tag "other".',
@@ -104,12 +176,11 @@ describe("POST /api/discord/authorize — alliance_credentials", () => {
     });
 
     expect(res.status).toBe(403);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toContain('alliance tag "other"');
-    expect(consumeDiscordAuthNonceMock).not.toHaveBeenCalled();
+    expect(claimDiscordAuthNonceMock).toHaveBeenCalled();
+    expect(releaseDiscordAuthNonceMock).toHaveBeenCalledWith("nonce-1");
   });
 
-  it("returns 422 for invalid connection key before setup", async () => {
+  it("returns 422 for invalid connection key before claim/setup", async () => {
     parseConnectionInputMock.mockReturnValue({
       ok: false,
       error: "malformed key",
@@ -121,6 +192,7 @@ describe("POST /api/discord/authorize — alliance_credentials", () => {
     });
 
     expect(res.status).toBe(422);
+    expect(claimDiscordAuthNonceMock).not.toHaveBeenCalled();
     expect(setupAshedCredentialsForDiscordMock).not.toHaveBeenCalled();
   });
 });

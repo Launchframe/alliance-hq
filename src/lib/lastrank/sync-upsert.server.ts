@@ -3,6 +3,7 @@ import "server-only";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
+import type { ParsedConnection } from "@/lib/connectionString";
 import { getDb, schema } from "@/lib/db";
 import {
   formatLastRankPowerLevel,
@@ -10,8 +11,17 @@ import {
   type LastRankAllianceMember,
   type LastRankHqRosterRow,
 } from "@/lib/lastrank/alliance-page.shared";
+import {
+  isSyntheticNativeAshedAllianceId,
+  type LastRankAshedWriteContext,
+} from "@/lib/lastrank/ashed-credential.server";
+import {
+  createAshedMember,
+  markAshedMemberFormer,
+} from "@/lib/members/ashed-member-write.server";
 import { syncCommanderFromAllianceMember } from "@/lib/members/commander-identity.server";
 import { formatAshedMemberRankValue } from "@/lib/members/alliance-rank";
+import { syncMemberNameToAshed } from "@/lib/members/member-name-sync.server";
 import {
   appendCommanderPowerLevelEventIfChanged,
   appendMemberGameLevelEventIfChanged,
@@ -21,27 +31,64 @@ import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { upsertCommanderThp } from "@/lib/thp/repository";
 import { upsertCommanderLevel } from "@/lib/member-level/repository";
 import { normalizeMemberHqLevel } from "@/lib/members/member-level.shared";
+import { syncMemberRankToAshed } from "@/lib/trains/rank-sync";
+import { nextPreviousNames } from "@/lib/video/scoreboard-member-actions.shared";
 
 export type LastRankUpsertCounts = {
   membersCreated: number;
   membersRetired: number;
   profileUpdated: number;
+  ashedMembersCreated: number;
+  ashedMembersRetired: number;
+  ashedSkipped: number;
 };
 
 export async function createAllianceMemberFromLastRank(input: {
   allianceId: string;
   gameServerNumber: number;
   lastRank: LastRankAllianceMember;
-}): Promise<LastRankHqRosterRow> {
+  ashed?: LastRankAshedWriteContext | null;
+}): Promise<{
+  hq: LastRankHqRosterRow;
+  ashedCreated: boolean;
+}> {
   const db = getDb();
   const now = new Date();
-  const ashedMemberId = nanoid(16);
-  const ashedAllianceId = nativeRosterAshedAllianceId(input.allianceId);
   const name = input.lastRank.name.trim();
   const rank = input.lastRank.allianceRank;
   const powerLevel = formatLastRankPowerLevel(input.lastRank.power);
   const level = normalizeMemberHqLevel(input.lastRank.baseLevel);
   const profileUrl = lastRankPlayerProfileUrl(input.lastRank.publicId);
+
+  let ashedMemberId = nanoid(16);
+  let ashedAllianceId = nativeRosterAshedAllianceId(input.allianceId);
+  let ashedCreated = false;
+
+  if (input.ashed) {
+    ashedMemberId = await createAshedMember({
+      connection: input.ashed.connection,
+      ashedAllianceId: input.ashed.ashedAllianceId,
+      currentName: name,
+    });
+    ashedAllianceId = input.ashed.ashedAllianceId;
+    ashedCreated = true;
+    if (rank != null && rank >= 1 && rank <= 5) {
+      try {
+        await syncMemberRankToAshed(
+          input.ashed.connection,
+          ashedMemberId,
+          Math.round(rank),
+          null,
+        );
+      } catch (error) {
+        console.error(
+          `[lastrank] Ashed rank PUT failed for ${name}: ${
+            error instanceof Error ? error.message : "unknown"
+          }`,
+        );
+      }
+    }
+  }
 
   await db.insert(schema.allianceMembers).values({
     id: nanoid(),
@@ -147,25 +194,133 @@ export async function createAllianceMemberFromLastRank(input: {
   }
 
   return {
-    commanderId: commanderId ?? ashedMemberId,
-    ashedMemberId,
-    gameUid: null,
-    currentNames: [name],
-    previousNames: [],
-    hqThp:
-      input.lastRank.heroPower != null
-        ? Math.round(input.lastRank.heroPower)
-        : null,
-    hqLevel: level,
-    hqPowerLevel: powerLevel,
-    hqAllianceRank:
-      rank != null && rank >= 1 && rank <= 5 ? Math.round(rank) : null,
-    existingCanonicalName: name,
-    lastrankPublicId: input.lastRank.publicId,
-    lastrankCountry: input.lastRank.country,
-    lastrankProfileImageUrl: null,
-    lastrankProfileUrl: profileUrl,
+    ashedCreated,
+    hq: {
+      commanderId: commanderId ?? ashedMemberId,
+      ashedMemberId,
+      gameUid: null,
+      currentNames: [name],
+      previousNames: [],
+      hqThp:
+        input.lastRank.heroPower != null
+          ? Math.round(input.lastRank.heroPower)
+          : null,
+      hqLevel: level,
+      hqPowerLevel: powerLevel,
+      hqAllianceRank:
+        rank != null && rank >= 1 && rank <= 5 ? Math.round(rank) : null,
+      existingCanonicalName: name,
+      lastrankPublicId: input.lastRank.publicId,
+      lastrankCountry: input.lastRank.country,
+      lastrankProfileImageUrl: null,
+      lastrankProfileUrl: profileUrl,
+    },
   };
+}
+
+/**
+ * Interactive map + `--apply`: adopt LastRank name as HQ current/canonical,
+ * push the prior HQ name into `previous_names`, and dual-write Ashed when linked.
+ */
+export async function applyInteractiveNameMapping(input: {
+  allianceId: string;
+  ashedMemberId: string;
+  commanderId: string;
+  lastRankName: string;
+  ashed?: LastRankAshedWriteContext | null;
+}): Promise<{
+  renamed: boolean;
+  ashedSynced: boolean;
+  canonicalWritten: boolean;
+}> {
+  const nextName = input.lastRankName.trim();
+  if (!nextName) {
+    return { renamed: false, ashedSynced: false, canonicalWritten: false };
+  }
+
+  const db = getDb();
+  const [member] = await db
+    .select({
+      id: schema.allianceMembers.id,
+      currentName: schema.allianceMembers.currentName,
+      previousNamesJson: schema.allianceMembers.previousNamesJson,
+      ashedAllianceId: schema.allianceMembers.ashedAllianceId,
+    })
+    .from(schema.allianceMembers)
+    .where(
+      and(
+        eq(schema.allianceMembers.allianceId, input.allianceId),
+        eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
+      ),
+    )
+    .limit(1);
+  if (!member) {
+    return { renamed: false, ashedSynced: false, canonicalWritten: false };
+  }
+
+  const previousNames = member.previousNamesJson ?? [];
+  const nextPrevious = nextPreviousNames(
+    member.currentName,
+    previousNames,
+    nextName,
+  );
+  const renamed =
+    member.currentName !== nextName || nextPrevious !== previousNames;
+
+  let ashedSynced = false;
+  if (
+    input.ashed &&
+    !isSyntheticNativeAshedAllianceId(member.ashedAllianceId) &&
+    member.ashedAllianceId === input.ashed.ashedAllianceId
+  ) {
+    try {
+      await syncMemberNameToAshed(
+        input.ashed.connection,
+        input.ashedMemberId,
+        nextName,
+        nextPrevious,
+      );
+      ashedSynced = true;
+    } catch (error) {
+      console.error(
+        `[lastrank] Ashed name PUT failed for ${member.currentName} → ${nextName}: ${
+          error instanceof Error ? error.message : "unknown"
+        }`,
+      );
+    }
+  }
+
+  if (renamed) {
+    await db
+      .update(schema.allianceMembers)
+      .set({
+        currentName: nextName,
+        previousNamesJson: nextPrevious,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.allianceMembers.id, member.id));
+    await syncCommanderFromAllianceMember({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      memberDisplayName: nextName,
+    });
+  }
+
+  const [commander] = await db
+    .select({ canonicalName: schema.commanders.canonicalName })
+    .from(schema.commanders)
+    .where(eq(schema.commanders.id, input.commanderId))
+    .limit(1);
+  let canonicalWritten = false;
+  if (commander && commander.canonicalName !== nextName) {
+    await db
+      .update(schema.commanders)
+      .set({ canonicalName: nextName, updatedAt: new Date() })
+      .where(eq(schema.commanders.id, input.commanderId));
+    canonicalWritten = true;
+  }
+
+  return { renamed, ashedSynced, canonicalWritten };
 }
 
 export async function updateLastRankProfileFields(
@@ -210,10 +365,61 @@ export async function updateLastRankProfileFields(
 export async function retireAllianceMembers(input: {
   allianceId: string;
   ashedMemberIds: string[];
-}): Promise<number> {
-  if (input.ashedMemberIds.length === 0) return 0;
+  ashed?: {
+    connection: ParsedConnection;
+    /** Only PUT members whose ashedAllianceId matches this linked id. */
+    ashedAllianceId: string;
+  } | null;
+}): Promise<{ retired: number; ashedRetired: number; ashedSkipped: number }> {
+  if (input.ashedMemberIds.length === 0) {
+    return { retired: 0, ashedRetired: 0, ashedSkipped: 0 };
+  }
   const db = getDb();
   const now = new Date();
+
+  let ashedRetired = 0;
+  let ashedSkipped = 0;
+  if (input.ashed) {
+    const rows = await db
+      .select({
+        ashedMemberId: schema.allianceMembers.ashedMemberId,
+        ashedAllianceId: schema.allianceMembers.ashedAllianceId,
+        currentName: schema.allianceMembers.currentName,
+      })
+      .from(schema.allianceMembers)
+      .where(
+        and(
+          eq(schema.allianceMembers.allianceId, input.allianceId),
+          inArray(
+            schema.allianceMembers.ashedMemberId,
+            input.ashedMemberIds,
+          ),
+        ),
+      );
+    for (const row of rows) {
+      if (
+        isSyntheticNativeAshedAllianceId(row.ashedAllianceId) ||
+        row.ashedAllianceId !== input.ashed.ashedAllianceId
+      ) {
+        ashedSkipped += 1;
+        continue;
+      }
+      try {
+        await markAshedMemberFormer({
+          connection: input.ashed.connection,
+          ashedMemberId: row.ashedMemberId,
+        });
+        ashedRetired += 1;
+      } catch (error) {
+        console.error(
+          `[lastrank] Ashed former PUT failed for ${row.currentName}: ${
+            error instanceof Error ? error.message : "unknown"
+          }`,
+        );
+        ashedSkipped += 1;
+      }
+    }
+  }
 
   await db
     .update(schema.allianceMembers)
@@ -235,7 +441,11 @@ export async function retireAllianceMembers(input: {
 
   const { pruneFormerMembersFromOpenPools } = await import("@/lib/trains/pool");
   await pruneFormerMembersFromOpenPools(input.allianceId);
-  return input.ashedMemberIds.length;
+  return {
+    retired: input.ashedMemberIds.length,
+    ashedRetired,
+    ashedSkipped,
+  };
 }
 
 export async function listActiveMemberIdsNotInSet(

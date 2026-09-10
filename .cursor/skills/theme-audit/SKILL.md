@@ -33,6 +33,9 @@ rg 'bg-(blue|cyan|violet|emerald|amber|red|green|purple|orange|pink|yellow|slate
 # Light text that vanishes on white
 rg 'text-(blue|cyan|violet|emerald|amber|red|green|purple|orange|pink|yellow|slate)-(100|200|300)' --glob '*.tsx' --glob '*.ts' -l src/
 
+# GitHub Primer dark-only body hex (unreadable on light canvas)
+rg 'text-\[#(c9d1d9|8b949e|e6edf3|f0f6fc)\]' --glob '*.tsx' -l src/
+
 # Border tints
 rg 'border-(blue|cyan|violet|emerald|amber|red|green|purple|orange|pink|yellow|slate)-\d00(/\d+)?' --glob '*.tsx' --glob '*.ts' -l src/
 ```

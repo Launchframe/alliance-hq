@@ -951,21 +951,63 @@
       "idx": 135,
       "version": "7",
       "when": 1790900000139,
-      "tag": "0139_support_team_foundation",
+      "tag": "0139_discord_translation",
       "breakpoints": true
     },
     {
       "idx": 136,
       "version": "7",
       "when": 1790900000140,
-      "tag": "0140_support_team_draft",
+      "tag": "0140_officer_intelligence",
       "breakpoints": true
     },
     {
       "idx": 137,
       "version": "7",
       "when": 1790900000141,
-      "tag": "0141_team_work_routing",
+      "tag": "0141_alliance_game_server_fallback",
+      "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1790900000142,
+      "tag": "0142_officer_intel_synthesis",
+      "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1790900000143,
+      "tag": "0143_officer_intel_rag",
+      "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1790900000144,
+      "tag": "0144_performance_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1790900000145,
+      "tag": "0145_support_team_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1790900000146,
+      "tag": "0146_support_team_draft",
+      "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "7",
+      "when": 1790900000147,
+      "tag": "0147_team_work_routing",
       "breakpoints": false
     }
   ]
