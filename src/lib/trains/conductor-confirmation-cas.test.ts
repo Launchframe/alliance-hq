@@ -22,11 +22,23 @@ const mocks = vi.hoisted(() => ({
   lockConductorRecord: vi.fn(),
 }));
 
+vi.mock("@/lib/time-off/availability.server", () => ({
+  loadTimeOffAvailability: vi.fn(async () => ({ awayMemberIds: new Set() })),
+  lockAllianceAvailability: vi.fn(),
+}));
+
+vi.mock("@/lib/time-off/coverage.server", () => ({
+  findCoverageConflicts: vi.fn(async () => []),
+  trainCoverageDuties: vi.fn(() => []),
+}));
+
 vi.mock("@/lib/db", () => ({
   getDb: () => ({
     select: mocks.select,
     update: mocks.update,
     insert: mocks.insert,
+    // promoteSuccessor CAS lose: transaction reports the race without writing.
+    transaction: async () => false,
   }),
   schema: {
     alliances: {

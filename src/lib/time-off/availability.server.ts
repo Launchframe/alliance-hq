@@ -1,9 +1,15 @@
 import "server-only";
 
-import { and, asc, desc, eq, isNull, lt } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { listActiveTimeOffEntries } from "./repository.server";
 import { isTimeOffDate, timeOffExcusesDate, TimeOffError } from "./workflow.shared";
+
+export type AvailabilityTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+
+export async function lockAllianceAvailability(tx: AvailabilityTransaction, allianceId: string): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`alliance-availability:${allianceId}`}, 0))`);
+}
 
 export async function loadTimeOffAvailability(allianceId: string, date: string, activity: "vs" | "donation" | "all" = "all") {
   if (!isTimeOffDate(date)) throw new TimeOffError("invalidDate");

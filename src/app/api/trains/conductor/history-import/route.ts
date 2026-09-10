@@ -42,7 +42,10 @@ export async function GET(request: Request) {
   return NextResponse.json({ records });
 }
 
-export async function POST(request: Request) {
+import { withTrainCoverage } from "@/lib/time-off/train-coverage-route.server";
+export const POST = withTrainCoverage(post);
+
+async function post(request: Request) {
   const sessionOrError = await requireApiSession();
 
   if (sessionOrError instanceof NextResponse) return sessionOrError;

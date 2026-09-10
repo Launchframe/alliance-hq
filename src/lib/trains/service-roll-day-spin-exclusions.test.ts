@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  loadTimeOffAvailability: vi.fn<(allianceId: string, date: string) => Promise<{ awayMemberIds: Set<string> }>>(),
   getEffectiveSeasonForAlliance: vi.fn(),
   getConductorRecord: vi.fn(),
   resolveRollDayConfig: vi.fn(),
@@ -12,6 +13,10 @@ const mocks = vi.hoisted(() => ({
   resolveConductorQualificationGateApplies: vi.fn(),
   releasePoolSelectionForDate: vi.fn(),
   loadAllianceTrainLeadTimeDays: vi.fn(),
+}));
+
+vi.mock("@/lib/time-off/availability.server", () => ({
+  loadTimeOffAvailability: mocks.loadTimeOffAvailability,
 }));
 
 vi.mock("@/lib/game-season/sync", () => ({
@@ -95,6 +100,7 @@ const top3 = [
 describe("rollForConductor day-scoped spin exclusions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.loadTimeOffAvailability.mockReset().mockResolvedValue({ awayMemberIds: new Set() });
     mocks.getEffectiveSeasonForAlliance.mockResolvedValue({ seasonKey: "3" });
     mocks.loadAllianceTrainLeadTimeDays.mockResolvedValue(0);
     mocks.getConductorRecord.mockResolvedValue(null);
@@ -111,6 +117,37 @@ describe("rollForConductor day-scoped spin exclusions", () => {
     mocks.upsertConductorDraft.mockResolvedValue({});
     mocks.getMemberRankAsOf.mockResolvedValue(null);
     mocks.resolveConductorQualificationGateApplies.mockResolvedValue(false);
+  });
+
+  it("filters Top VS on the duty date rather than the lead-time score date", async () => {
+    mocks.loadAllianceTrainLeadTimeDays.mockResolvedValue(2);
+    mocks.loadTimeOffAvailability.mockImplementation(async (_allianceId?: string, date?: string) => ({ awayMemberIds: new Set(date === "2099-06-20" ? ["m-a", "m-c"] : ["m-b"]) }));
+
+    const result = await rollForConductor({ allianceId: "a1", date: "2099-06-20" });
+
+    expect(result.memberId).toBe("m-b");
+    expect(result.wheelCandidates?.map((candidate) => candidate.memberId)).toEqual(["m-b"]);
+    expect(mocks.loadTimeOffAvailability.mock.calls.every((call) => call[1] === "2099-06-20")).toBe(true);
+  });
+
+  it("does not persist or exclude a Top VS winner who leaves during the rank lookup", async () => {
+    mocks.loadTimeOffAvailability.mockResolvedValue({ awayMemberIds: new Set(["m-b", "m-c"]) });
+    mocks.getMemberRankAsOf.mockImplementationOnce(async () => {
+      mocks.loadTimeOffAvailability.mockResolvedValue({ awayMemberIds: new Set(["m-a", "m-b", "m-c"]) });
+      return null;
+    });
+
+    await expect(rollForConductor({ allianceId: "a1", date: "2099-06-20" })).rejects.toMatchObject({ details: { code: "POOL_UNAVAILABLE" } });
+    expect(mocks.upsertConductorDraft).not.toHaveBeenCalled();
+    expect(mocks.recordDaySpinExclusion).not.toHaveBeenCalled();
+  });
+
+  it("does not replace an away Top 1 winner with an invented lower-ranked winner", async () => {
+    mocks.resolveRollDayConfig.mockResolvedValue({ conductorMechanism: "vs_high_score" });
+    mocks.fetchAllianceVsTopScorersForTrainDate.mockResolvedValue([top3[0]]);
+    mocks.loadTimeOffAvailability.mockResolvedValue({ awayMemberIds: new Set(["m-a"]) });
+    await expect(rollForConductor({ allianceId: "a1", date: "2099-06-20" })).rejects.toMatchObject({ details: { code: "POOL_UNAVAILABLE" } });
+    expect(mocks.upsertConductorDraft).not.toHaveBeenCalled();
   });
 
   it("records the drawn Top VS winner for the rest of the calendar day", async () => {

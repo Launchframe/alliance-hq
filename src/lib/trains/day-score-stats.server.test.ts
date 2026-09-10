@@ -27,8 +27,10 @@ vi.mock("@/lib/trains/native-scores.server", () => ({
   fetchNativeVrTopScorers: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock("@/lib/time-off/availability.server", () => ({ loadTimeOffAvailability: vi.fn().mockResolvedValue({ awayMemberIds: new Set(["away"]) }) }));
+
 vi.mock("@/lib/trains/pool", () => ({
-  getPoolSummary: vi.fn(),
+  listUnselectedPoolEntries: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/lib/trains/price-is-freight-roll.server", () => ({
@@ -52,6 +54,13 @@ describe("loadTrainDayScoreStats", () => {
     vi.clearAllMocks();
     mocks.fetchAlliancePriorDayVsScoresByMember.mockResolvedValue(new Map());
     mocks.fetchAllianceVsTopScorersForTrainDate.mockResolvedValue([]);
+  });
+
+  it("counts only available top-board members without rewriting score evidence", async () => {
+    mocks.fetchAlliancePriorDayVsScoresByMember.mockResolvedValue(new Map([["away", 9000000], ["here", 8000000]]));
+    mocks.fetchAllianceVsTopScorersForTrainDate.mockResolvedValue([{ memberId: "away" }, { memberId: "here" }]);
+    const stats = await loadTrainDayScoreStats({ allianceId: "ally-1", trainDate: "2026-09-09", conductorMechanism: "vs_top_10", conductorConfig: { topN: 10 }, leadDays: 0 });
+    expect(stats).toMatchObject({ eligibleCount: 1, scoreCount: 2 });
   });
 
   it("resolves score reference day from DB when outside the loaded week batch", async () => {

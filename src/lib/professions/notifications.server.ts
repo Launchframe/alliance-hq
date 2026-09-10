@@ -4,7 +4,8 @@ import { and, eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { postDiscordChannelMessage } from "@/lib/discord/post-message.server";
-import { getProfessionChannelsForAlliance } from "./repository";
+import { getProfessionChannelsForAlliance, loadAwayProfessionCommanderIds } from "./repository";
+import { getServerCalendarDate } from "@/lib/trains/game-time";
 
 // ---------------------------------------------------------------------------
 // Discord DM helper
@@ -94,7 +95,10 @@ type NotificationTarget = {
 
 async function resolveTargetForCommander(
   commanderId: string,
+  allianceId: string,
 ): Promise<NotificationTarget> {
+  const awayCommanderIds = await loadAwayProfessionCommanderIds(allianceId, getServerCalendarDate());
+  if (awayCommanderIds.has(commanderId)) return { email: null, discordUserId: null };
   const db = getDb();
   // Commander → HQ user → email
   const [link] = await db
@@ -200,8 +204,8 @@ async function _notifyProfessionEvent(
 
   if (payload.kind === "eng_assigned") {
     const [engTarget, wlTarget] = await Promise.all([
-      resolveTargetForCommander(payload.engCommanderId),
-      resolveTargetForCommander(payload.wlCommanderId),
+      resolveTargetForCommander(payload.engCommanderId, payload.allianceId),
+      resolveTargetForCommander(payload.wlCommanderId, payload.allianceId),
     ]);
 
     const engMsg = `You've been assigned to a War Leader's support team! Visit ${appUrl}/professions to set your coverage window.`;
@@ -231,7 +235,7 @@ async function _notifyProfessionEvent(
   }
 
   if (payload.kind === "eng_dismissed") {
-    const engTarget = await resolveTargetForCommander(payload.engCommanderId);
+    const engTarget = await resolveTargetForCommander(payload.engCommanderId, payload.allianceId);
     const reasonNote = payload.reason ? ` Reason: ${payload.reason}` : "";
     const msg = `You have been removed from a War Leader's support team.${reasonNote} Visit ${appUrl}/professions to find a new War Leader.`;
 
@@ -248,7 +252,7 @@ async function _notifyProfessionEvent(
   }
 
   if (payload.kind === "eng_self_removed") {
-    const wlTarget = await resolveTargetForCommander(payload.wlCommanderId);
+    const wlTarget = await resolveTargetForCommander(payload.wlCommanderId, payload.allianceId);
     const msg = `An Engineer has left your support team. Visit ${appUrl}/professions to see your current team.`;
     await Promise.all([
       wlTarget.discordUserId && sendDiscordDm(wlTarget.discordUserId, msg),
@@ -265,7 +269,7 @@ async function _notifyProfessionEvent(
   }
 
   if (payload.kind === "profession_switched") {
-    const target = await resolveTargetForCommander(payload.commanderId);
+    const target = await resolveTargetForCommander(payload.commanderId, payload.allianceId);
     const msg = `Your profession has been updated: ${payload.from} → ${payload.to}. Visit ${appUrl}/professions to get started.`;
 
     await Promise.all([

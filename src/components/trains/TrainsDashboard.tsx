@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
+import { useCoverageFetch } from "@/components/time-off/CoverageConfirmation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -243,6 +244,7 @@ export function TrainsDashboard({
 }: Props) {
   const t = useTranslations("trains");
   const locale = useLocale();
+  const { coverageFetch, coverageDialog } = useCoverageFetch();
   const router = useRouter();
   const pathname = usePathname();
   const [data, setData] = useState(initial);
@@ -1095,7 +1097,7 @@ export function TrainsDashboard({
     setWheelBlocked(null);
     setRollingRole(role);
     try {
-      const res = await fetch("/api/trains/conductor/roll", {
+      const res = await coverageFetch("/api/trains/conductor/roll", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role, date: selectedDate }),
@@ -1201,7 +1203,7 @@ export function TrainsDashboard({
 
       setError(null);
       try {
-        const res = await fetch("/api/trains/conductor/roll/override", {
+        const res = await coverageFetch("/api/trains/conductor/roll/override", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1235,7 +1237,7 @@ export function TrainsDashboard({
         setError(e instanceof Error ? e.message : t("overrideFailed"));
       }
     },
-    [applySnapshot, t],
+    [applySnapshot, coverageFetch, t],
   );
 
   const lockConductor = async (
@@ -1249,7 +1251,7 @@ export function TrainsDashboard({
         (snap) =>
           applyOptimisticLock(snap, date, new Date().toISOString()),
         async () => {
-          const res = await fetch("/api/trains/conductor/lock", {
+          const res = await coverageFetch("/api/trains/conductor/lock", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -1285,7 +1287,7 @@ export function TrainsDashboard({
           lockedAt,
         ),
       async () => {
-        const res = await fetch("/api/trains/conductor/swap", {
+        const res = await coverageFetch("/api/trains/conductor/swap", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ dateA: selectedDate, dateB: targetDate }),
@@ -1312,7 +1314,7 @@ export function TrainsDashboard({
       await withOptimisticMutation(
         (snap) => applyOptimisticUnlock(snap, date),
         async () => {
-          const res = await fetch("/api/trains/conductor/unlock", {
+          const res = await coverageFetch("/api/trains/conductor/unlock", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ date }),
@@ -1342,7 +1344,7 @@ export function TrainsDashboard({
     setConductorLockBusy("confirm");
     setError(null);
     try {
-      const res = await fetch("/api/trains/conductor/confirm", {
+      const res = await coverageFetch("/api/trains/conductor/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recordId: selectedRecord.id }),
@@ -1367,7 +1369,7 @@ export function TrainsDashboard({
       await withOptimisticMutation(
         (snap) => applyOptimisticClearPendingConductor(snap, date),
         async () => {
-          const res = await fetch("/api/trains/conductor/clear", {
+          const res = await coverageFetch("/api/trains/conductor/clear", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ date }),
@@ -1402,7 +1404,7 @@ export function TrainsDashboard({
     await withOptimisticMutation(
       (snap) => applyOptimisticConductorPick(snap, selectedDate, member),
       async () => {
-        const res = await fetch("/api/trains/conductor/pick", {
+        const res = await coverageFetch("/api/trains/conductor/pick", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1460,7 +1462,7 @@ export function TrainsDashboard({
           guardianIsVip,
         }),
       async () => {
-        const res = await fetch("/api/trains/conductor/vip/pick", {
+        const res = await coverageFetch("/api/trains/conductor/vip/pick", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -2658,6 +2660,7 @@ export function TrainsDashboard({
       onSandboxVisualChange={setWalkthroughSandbox}
     >
     <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 p-4 sm:p-6">
+      {coverageDialog}
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold text-foreground">{t("title")}</h1>
@@ -3495,6 +3498,7 @@ export function TrainsDashboard({
       ) : null}
 
       <ConductorPickModal
+        error={error}
         open={pickOpen}
         members={pickRosterMembers}
         memberHints={pickMemberHints}
@@ -4016,6 +4020,7 @@ export function TrainsDashboard({
 
       {hasValidConductor && selectedRecord ? (
         <ConductorSwapDialog
+          error={error}
           open={swapOpen}
           sourceDate={selectedDate}
           today={data.today}
