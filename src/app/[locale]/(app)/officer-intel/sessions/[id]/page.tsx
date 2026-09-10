@@ -3,10 +3,16 @@ import { notFound } from "next/navigation";
 import { OfficerChatSessionClient } from "@/components/officer-intel/OfficerChatSessionClient";
 import {
   getOfficerChatSessionForAlliance,
+  getOfficerMeetingNoteBySession,
   listOfficerChatMessages,
   listOfficerChatSessionImages,
 } from "@/lib/officer-intel/repository.server";
-import { OFFICER_INTEL_READ_PERMISSION } from "@/lib/rbac/constants";
+import { isOfficerIntelLlmConfigured } from "@/lib/officer-intel/llm-config.server";
+import {
+  OFFICER_INTEL_READ_PERMISSION,
+  OFFICER_INTEL_WRITE_PERMISSION,
+} from "@/lib/rbac/constants";
+import { sessionHasPermission } from "@/lib/rbac/context";
 import { requirePagePermission } from "@/lib/rbac/page-permission";
 import { requirePageSession } from "@/lib/session";
 import { isTranslationConfigured } from "@/lib/translate/translate.server";
@@ -28,9 +34,11 @@ export default async function OfficerChatSessionPage({ params }: Props) {
   });
   if (!chatSession) notFound();
 
-  const [messages, images] = await Promise.all([
+  const [messages, images, meetingNote, canWrite] = await Promise.all([
     listOfficerChatMessages({ sessionId: id, allianceId }),
     listOfficerChatSessionImages({ sessionId: id, allianceId }),
+    getOfficerMeetingNoteBySession({ sessionId: id, allianceId }),
+    sessionHasPermission(session.id, OFFICER_INTEL_WRITE_PERMISSION),
   ]);
 
   return (
@@ -63,6 +71,9 @@ export default async function OfficerChatSessionPage({ params }: Props) {
         href: `/api/officer-intel/sessions/${id}/images/${image.id}`,
       }))}
       translationConfigured={isTranslationConfigured()}
+      llmConfigured={isOfficerIntelLlmConfigured()}
+      canWrite={canWrite}
+      meetingNote={meetingNote}
     />
   );
 }

@@ -9,6 +9,7 @@ import {
   isSnoozed,
   snoozeItem,
 } from "@/lib/battle-plan/capture-reminder-inbox.shared";
+import { OFFICER_ACTION_ITEM_DUE_INBOX_KIND } from "@/lib/officer-intel/action-item-inbox.shared";
 import {
   REGULAR_EVENT_REMINDER_INBOX_KIND,
   REGULAR_EVENT_UPLOAD_REMINDER_INBOX_KIND,
@@ -145,6 +146,8 @@ export default function InboxPageClient({
     if (kind === REGULAR_EVENT_UPLOAD_REMINDER_INBOX_KIND) {
       return t("kind.regularEventUploadReminder");
     }
+    if (kind === OFFICER_ACTION_ITEM_DUE_INBOX_KIND)
+      return t("kind.officerActionItemDue");
     return kind;
   }
 
@@ -175,6 +178,9 @@ export default function InboxPageClient({
     }
     if (item.kind === MEMBER_LINK_HELP_INBOX_KIND) {
       return t("kind.memberLinkHelpBody");
+    }
+    if (item.kind === OFFICER_ACTION_ITEM_DUE_INBOX_KIND) {
+      return t("kind.officerActionItemDueBody");
     }
     return item.body;
   }
