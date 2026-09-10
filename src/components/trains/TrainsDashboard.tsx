@@ -25,6 +25,7 @@ import { TrainsHelpPanel } from "@/components/trains/TrainsHelpPanel";
 import { TrainsGuidedConductorFlow } from "@/components/trains/TrainsGuidedConductorFlow";
 import { TrainDayScoreStatsSummary } from "@/components/trains/TrainDayScoreStatsSummary";
 import { TrainLockConfirmBanner } from "@/components/trains/TrainLockConfirmBanner";
+import { TrainBoardingTiming } from "@/components/trains/TrainBoardingTiming";
 import {
   trainDayScoreStatsFromVsDataStatus,
   vsDataStatusForTrainDaySelection,
@@ -2661,6 +2662,7 @@ export function TrainsDashboard({
     >
     <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 p-4 sm:p-6">
       {coverageDialog}
+      {data.canManageTrains && selectedRecord?.lockedAt && <TrainBoardingTiming key={`${selectedRecord.id}:${selectedRecord.lockedAt}`} recordId={selectedRecord.id} lockedAt={selectedRecord.lockedAt} canBegin={selectedDate === data.today} />}
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold text-foreground">{t("title")}</h1>

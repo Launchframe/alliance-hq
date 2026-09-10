@@ -136,6 +136,7 @@ import {
   buildProfessionSelectButtons,
   buildProfessionSwitchConfirmButtons,
 } from "@/lib/discord/interactions";
+import { handleBoardingDiscord } from "@/lib/trains/boarding.discord.server";
 import { handlePlunderPlanDiscord, openPlunderPlanModal, plunderComponentNeedsModal } from "@/lib/plunder-plan/discord.server";
 import { handleDiscordTimeOff, openDiscordTimeOffModal } from "@/lib/time-off/discord-bot-handlers.server";
 import { isDiscordTimeOffSlashCommand } from "@/lib/time-off/discord-command-names";
@@ -900,6 +901,7 @@ async function handleSlashCommand(
       const warning = await showDiscordCoverage({ allianceId, guildId, discordUserId, locale }, result.coverage);
       return discordMessageResponse(warning.content, warning.components, EPHEMERAL);
     }
+    if (result.boardingPrompt) return discordMessageResponse(`${result.reply}\n${result.boardingPrompt.content}`, result.boardingPrompt.components, EPHEMERAL);
     return channelVisibleCommandResponse(result.reply);
   }
 
@@ -1540,6 +1542,16 @@ export async function POST(request: Request) {
       } catch { console.error("[notes] Private Discord response delivery failed"); }
     });
     return NextResponse.json(payload.type === 2 ? discordDeferredEphemeralResponse() : discordDeferredUpdateResponse());
+  }
+  if ((payload.type === 3 || payload.type === 5) && payload.data?.custom_id?.startsWith("boarding:")) {
+    if (payload.type === 3 && payload.data.custom_id.endsWith(":open")) return NextResponse.json(await handleBoardingDiscord(payload));
+    const applicationId = interactionApplicationId(payload), token = interactionToken(payload);
+    if (!applicationId || !token) return NextResponse.json(discordMessageResponse(createDiscordTranslator("en-US")("errors.serverError"), undefined, EPHEMERAL));
+    scheduleBackgroundTask(undefined, async () => {
+      const reply = await handleBoardingDiscord(payload);
+      if (typeof reply.data.content === "string") await editDiscordOriginalInteraction({ applicationId, interactionToken: token, content: reply.data.content, ephemeral: true, suppressMentions: true });
+    });
+    return NextResponse.json(discordDeferredEphemeralResponse());
   }
   if (payload.type === 2 && payload.data?.name === "plunder-plan" || (payload.type === 3 || payload.type === 5) && payload.data?.custom_id?.startsWith("plunder:")) {
     if (payload.type === 3 && plunderComponentNeedsModal(payload.data?.custom_id)) return NextResponse.json(await openPlunderPlanModal(payload));
