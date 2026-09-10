@@ -7,11 +7,17 @@ import { getDb, schema } from "@/lib/db";
 import { lockAllianceAvailability } from "@/lib/time-off/availability.server";
 import { defaultPlanColor, parsePlanColor } from "./colors.shared";
 import { isDiscordId, verifyPlanChannel } from "./transport.server";
+import { readPlanRegularEvents } from "./regular-events.server";
 import { assertFuturePlan, expandPlan, isPlanDate, occurrenceIsAway, occurrenceOn, parsePlanSchedule } from "./schedule.shared";
 import { resolvePlanIdentity, type PlanIdentity, type PlanTx } from "./access.server";
 import { PlunderPlanError, type PlanActor, type PlanCommand, type PlanDashboard, type PlanSummary } from "./types.shared";
 
 type Plan = typeof schema.plunderPlans.$inferSelect;
+
+function scheduleKey(value: unknown) {
+  const schedule = parsePlanSchedule(value);
+  return schedule.kind === "once" ? JSON.stringify(schedule.instant) : JSON.stringify({ ...schedule, date: "" });
+}
 
 export async function lockPlans(tx: PlanTx, allianceId: string) {
   await lockAllianceAvailability(tx, allianceId);
@@ -51,9 +57,9 @@ async function stillOwned(tx: PlanTx, plan: Plan): Promise<boolean> {
 }
 
 async function personalColor(tx: PlanTx, allianceId: string, identity: Pick<PlanIdentity, "aliases" | "principalId">) {
-  const [row] = await tx.select().from(schema.plunderPlanColors).where(and(eq(schema.plunderPlanColors.allianceId, allianceId), inArray(schema.plunderPlanColors.principalId, identity.aliases)))
-    .orderBy(desc(schema.plunderPlanColors.updatedAt), desc(schema.plunderPlanColors.principalId)).limit(1);
-  return { color: row?.color ?? defaultPlanColor(identity.principalId), version: row?.version ?? 0 };
+  const rows = await tx.select().from(schema.plunderPlanColors).where(and(eq(schema.plunderPlanColors.allianceId, allianceId), inArray(schema.plunderPlanColors.principalId, identity.aliases)))
+    .orderBy(desc(schema.plunderPlanColors.updatedAt), desc(schema.plunderPlanColors.principalId));
+  return { color: rows[0]?.color ?? defaultPlanColor(identity.principalId), version: Math.max(0, ...rows.map((row) => row.version)) };
 }
 
 export async function loadPlunderPlan(actor: PlanActor, from: string, until: string): Promise<PlanDashboard> {
@@ -61,7 +67,9 @@ export async function loadPlunderPlan(actor: PlanActor, from: string, until: str
   return getDb().transaction(async (tx) => {
     await lockPlans(tx, actor.allianceId);
     const identity = await resolvePlanIdentity(tx, actor);
-    return readPlanDashboard(tx, actor.allianceId, identity, from, until);
+    const result = await readPlanDashboard(tx, actor.allianceId, identity, from, until);
+    result.regularEvents = await readPlanRegularEvents(tx, actor.allianceId, from, until);
+    return result;
   });
 }
 
@@ -90,7 +98,7 @@ export async function readPlanDashboard(tx: PlanTx, allianceId: string, identity
       const setting = settings.find((row) => row.guildId === guildId);
       return { guildId, channelId: setting?.channelId ?? "", timeSt: setting?.timeSt ?? "09:00", locale: setting?.locale === "pt-BR" ? "pt-BR" as const : "en-US" as const, enabled: setting?.enabled ?? false, version: setting?.version ?? 0 };
     });
-    const result: PlanDashboard = { discordLinked: identity.aliases.some((alias) => alias.startsWith("discord:")), notificationSettings, version: state?.version ?? 0, canSuggest: identity.canSuggest, commanders: roster.filter((row) => row.status !== "former" && identity.memberIds.includes(row.id)).map(({ id, name }) => ({ id, name })), plans: [], occurrences: [], suppressed: [], color: color.color, colorVersion: color.version };
+    const result: PlanDashboard = { regularEvents: [], discordLinked: identity.aliases.some((alias) => alias.startsWith("discord:")), notificationSettings, version: state?.version ?? 0, canSuggest: identity.canSuggest, canManageSelf: identity.canManageSelf, commanders: roster.filter((row) => row.status !== "former" && identity.memberIds.includes(row.id)).map(({ id, name }) => ({ id, name })), plans: [], occurrences: [], suppressed: [], color: color.color, colorVersion: color.version };
     for (const row of rows) {
       const member = roster.find((member) => member.id === row.memberId && member.status !== "former");
       const owned = identity.aliases.includes(row.ownerId) && (row.kind === "suggestion" ? identity.canSuggest : identity.memberIds.includes(row.memberId!));
@@ -202,7 +210,7 @@ export async function mutatePlunderPlan(actor: PlanActor, input: unknown, intera
       assertFuturePlan(command.schedule);
       const current = await tx.select().from(schema.plunderPlans).where(and(eq(schema.plunderPlans.allianceId, actor.allianceId), inArray(schema.plunderPlans.ownerId, identity.aliases), eq(schema.plunderPlans.removed, false)));
       if (current.length >= 100) throw new PlunderPlanError("rateLimit", 429);
-      if (current.some((row) => row.memberId === (command.memberId ?? null) && row.kind === command.kind && JSON.stringify(parsePlanSchedule(row.schedule)) === JSON.stringify(command.schedule))) throw new PlunderPlanError("duplicate", 409);
+      if (current.some((row) => row.memberId === (command.memberId ?? null) && row.kind === command.kind && scheduleKey(row.schedule) === scheduleKey(command.schedule))) throw new PlunderPlanError("duplicate", 409);
       id = nanoid();
       await tx.insert(schema.plunderPlans).values({ id, allianceId: actor.allianceId, ownerId: identity.principalId, memberId: command.kind === "plan" ? command.memberId : null, membershipKey: stint, kind: command.kind, schedule: command.schedule, sourceId: command.sourceId, reminder: command.kind === "plan" && command.reminder });
     } else {
@@ -218,8 +226,20 @@ export async function mutatePlunderPlan(actor: PlanActor, input: unknown, intera
         else await tx.delete(schema.plunderPlanExceptions).where(and(eq(schema.plunderPlanExceptions.planId, plan.id), eq(schema.plunderPlanExceptions.date, command.date), eq(schema.plunderPlanExceptions.scheduleVersion, plan.scheduleVersion)));
       } else {
         if ((command.action === "pause" || command.action === "resume") && plan.schedule.kind !== "weekly") throw new PlunderPlanError("invalidSchedule");
-        if (command.action === "edit") assertFuturePlan(command.schedule);
-        await tx.update(schema.plunderPlans).set({ ...(command.action === "edit" ? { schedule: command.schedule, reminder: plan.kind === "plan" && command.reminder, scheduleVersion: plan.scheduleVersion + 1 } : command.action === "remove" ? { removed: true } : { active: command.action === "resume" }) }).where(eq(schema.plunderPlans.id, plan.id));
+        const scheduleChanged = command.action === "edit" && JSON.stringify(parsePlanSchedule(plan.schedule)) !== JSON.stringify(command.schedule);
+        if (command.action === "edit") {
+          assertFuturePlan(command.schedule);
+          const peers = await tx.select().from(schema.plunderPlans).where(and(eq(schema.plunderPlans.allianceId, actor.allianceId), inArray(schema.plunderPlans.ownerId, identity.aliases), eq(schema.plunderPlans.removed, false)));
+          if (peers.some((row) => row.id !== plan.id && row.memberId === plan.memberId && row.kind === plan.kind && scheduleKey(row.schedule) === scheduleKey(command.schedule))) throw new PlunderPlanError("duplicate", 409);
+          if (scheduleChanged && command.schedule.kind === "weekly") {
+            const exceptions = await tx.select().from(schema.plunderPlanExceptions).where(and(eq(schema.plunderPlanExceptions.planId, plan.id), eq(schema.plunderPlanExceptions.scheduleVersion, plan.scheduleVersion)));
+            for (const exception of exceptions) {
+              const occurrence = occurrenceOn(command.schedule, exception.date);
+              if (occurrence && occurrence.endAt > new Date().toISOString()) await tx.insert(schema.plunderPlanExceptions).values({ planId: plan.id, date: exception.date, scheduleVersion: plan.scheduleVersion + 1 }).onConflictDoNothing();
+            }
+          }
+        }
+        await tx.update(schema.plunderPlans).set({ ...(command.action === "edit" ? { schedule: command.schedule, reminder: plan.kind === "plan" && command.reminder, scheduleVersion: plan.scheduleVersion + Number(scheduleChanged) } : command.action === "remove" ? { removed: true } : { active: command.action === "resume" }) }).where(eq(schema.plunderPlans.id, plan.id));
       }
       await tx.update(schema.plunderPlans).set({ version: plan.version + 1, updatedAt: new Date() }).where(eq(schema.plunderPlans.id, plan.id));
     }

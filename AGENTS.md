@@ -159,6 +159,8 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 
 ## Learned Workspace Facts
 
+- Plunder Plan database suites: run `npx vitest run src/lib/plunder-plan --maxWorkers=1` with `PLUNDER_PLAN_DB_TEST=1` only after binding all three database URLs to the same guarded dedicated test database. Delivery tests mock Discord; never invoke live command registration or the authenticated delivery tick as an automated smoke test. Worktrees do not isolate the database.
+
 - Migration renumbering after `0004` is SQL file rename plus `_journal.json` update (Drizzle snapshots only cover `0000`–`0004`).
 - Reserve migration sequence numbers for in-flight PRs in stacked work; `db:validate-journal` allows intentional sequence gaps in `_journal.json`.
 - Standalone E2E builds must bind `DATABASE_URL`, `LOCAL_DATABASE_URL`, and `E2E_DATABASE_URL` to the same URL validated by `scripts/e2e-database-url-guard.mjs`, set `NODE_ENV=production`, and validate `resolveDatabaseUrl(childEnv)` before spawning the build. Guarding only `DATABASE_URL` is insufficient: the resolver can prefer an existing `LOCAL_DATABASE_URL`.
