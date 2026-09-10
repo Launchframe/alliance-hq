@@ -412,7 +412,7 @@ export async function upsertConductorDraft(input: {
   substituteForMemberName?: string | null;
   poolClaim?: string;
   automaticDuty?: boolean;
-  conductorEligibilityOverridden?: number | null;
+  conductorEligibilityOverridden?: number;
 }): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
   return getDb().transaction(async (db) => {
   await lockAllianceAvailability(db, input.allianceId);
@@ -469,9 +469,8 @@ export async function upsertConductorDraft(input: {
             ? input.substituteForMemberName
             : existing.substituteForMemberName,
         conductorEligibilityOverridden:
-          input.conductorEligibilityOverridden !== undefined
-            ? input.conductorEligibilityOverridden
-            : existing.conductorEligibilityOverridden,
+          input.conductorEligibilityOverridden ??
+          existing.conductorEligibilityOverridden,
         updatedAt: new Date(),
       })
       .where(
@@ -513,8 +512,7 @@ export async function upsertConductorDraft(input: {
     guardianIsVip: input.guardianIsVip ?? 0,
     substituteForMemberId: input.substituteForMemberId ?? null,
     substituteForMemberName: input.substituteForMemberName ?? null,
-    conductorEligibilityOverridden:
-      input.conductorEligibilityOverridden ?? 0,
+    conductorEligibilityOverridden: input.conductorEligibilityOverridden ?? 0,
   });
 
   const [row] = await db
