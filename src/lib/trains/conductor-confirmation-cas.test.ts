@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   select: vi.fn(),
+  lockedRead: vi.fn(),
   from: vi.fn(),
   where: vi.fn(),
   limit: vi.fn(),
@@ -34,11 +35,10 @@ vi.mock("@/lib/time-off/coverage.server", () => ({
 
 vi.mock("@/lib/db", () => ({
   getDb: () => ({
+    transaction: async (work: (tx: unknown) => unknown) => work({ select: () => ({ from: () => ({ where: () => ({ for: mocks.lockedRead }) }) }), update: mocks.update, insert: mocks.insert }),
     select: mocks.select,
     update: mocks.update,
     insert: mocks.insert,
-    // promoteSuccessor CAS lose: transaction reports the race without writing.
-    transaction: async () => false,
   }),
   schema: {
     alliances: {
@@ -216,6 +216,7 @@ describe("conductor confirmation CAS", () => {
         conductorNominationStatus: null,
         conductorMemberId: null,
         conductorMemberName: null,
+        updatedAt: new Date(0),
       },
     ]);
     mocks.rollForConductor.mockResolvedValueOnce({
@@ -223,6 +224,7 @@ describe("conductor confirmation CAS", () => {
       memberName: "Bob",
       mechanism: "r3_lottery",
     });
+    mocks.lockedRead.mockResolvedValueOnce([{ id: "rec-1", updatedAt: new Date(0), lockedAt: null }]);
     // buildSuccessionSnapshot pool rows
     chainSelect([]);
     mocks.updateReturning.mockResolvedValueOnce([]);
@@ -255,6 +257,7 @@ describe("conductor confirmation CAS", () => {
       conductorNominationStatus: "pending_confirmation",
       confirmationDeadlineAt: new Date(now - 1000),
       nominatedAt: new Date(now - 10 * 60 * 1000),
+      updatedAt: new Date(now - 10 * 60 * 1000),
       successorAttempt: 0,
       conductorMemberId: "m-alice",
       conductorMemberName: "Alice",
@@ -283,6 +286,7 @@ describe("conductor confirmation CAS", () => {
       };
     });
 
+    mocks.lockedRead.mockResolvedValueOnce([pending]);
     // promoteSuccessor CAS loses to concurrent confirm
     mocks.updateReturning.mockResolvedValueOnce([]);
 

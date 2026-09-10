@@ -148,6 +148,13 @@ export const NAV_GROUPS: NavGroupDef[] = [
         requiredPermission: "members:read",
       },
       {
+        id: "plunder-plan",
+        labelKey: "plunderPlan",
+        href: "/plunder-plan",
+        kind: "native",
+        requiredPermission: "plunder_plan:read",
+      },
+      {
         id: "support-teams",
         labelKey: "supportTeams",
         href: "/support-teams",

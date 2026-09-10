@@ -1597,6 +1597,7 @@ export async function rollForVip(input: {
       throw new Error(`VIP mechanism "${mechanism}" is not rollable yet.`);
   }
 
+  await recheckAutomaticDutyAvailability({ ...input, result });
   const poolRefreshed = result.poolType
     ? await refreshExhaustedPoolIfNeeded({
         allianceId: input.allianceId,

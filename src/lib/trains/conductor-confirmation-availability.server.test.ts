@@ -107,7 +107,7 @@ describe("conductor confirmation duty-date availability", () => {
   });
 
   it("uses only available R4 roster fallback candidates", async () => {
-    mocks.reads = [[{ ...pending, nominatedAt: new Date(0) }], []];
+    mocks.reads = [[{ ...pending, nominatedAt: new Date(0) }], [pending], []];
     mocks.availability.mockResolvedValue({ awayMemberIds: new Set(["away-r4"]) });
     mocks.roster.mockResolvedValue([
       { ashedMemberId: "away-r4", currentName: "Away", allianceRank: 4 },

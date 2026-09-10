@@ -1,4 +1,64 @@
 {
+  "plunderPlan": {
+    "title": "Plano de Saque",
+    "intro": "Encontre tarefas secretas, compartilhe com os amigos e dê à sua aliança mais oportunidades de saque. Escolha um horário que combine com você ou participe do plano de um amigo.",
+    "visibility": "O nome do seu Comandante e os horários planejados ficam visíveis para sua aliança e podem aparecer no resumo diário dela no Discord.",
+    "calendar": "Calendário da aliança", "myPlans": "Meus Planos de Saque", "suggestions": "Horários sugeridos",
+    "day": "Dia", "week": "Semana", "today": "Hoje",
+    "previousDay": "Dia anterior", "nextDay": "Próximo dia", "previousWeek": "Semana anterior", "nextWeek": "Próxima semana",
+    "showEvents": "Mostrar eventos regulares da aliança", "dayList": "Planos de Saque para {date}", "morePlans": "Mostrar mais {count}",
+    "empty": "Ainda não há Planos de Saque. Escolha um horário para encontrar tarefas secretas para seus amigos.",
+    "emptyOwn": "Vamos encontrar tarefas secretas? Adicione seu primeiro Plano de Saque.",
+    "emptySuggestions": "Ainda não há horários sugeridos. Você pode escolher o seu.", "loading": "Carregando Planos de Saque…",
+    "add": "Adicionar meus horários", "edit": "Editar meu Plano de Saque", "commander": "Comandante", "scheduleType": "Repetir",
+    "weekly": "Semanalmente", "once": "Uma vez", "weekdays": "Dias da semana", "date": "Data", "startsOn": "Começa em",
+    "startTime": "Horário de início", "endTime": "Horário de término", "endsNextDay": "Termina no dia seguinte", "timeZone": "Fuso horário",
+    "localTime": "Meu horário local", "serverTime": "Horário do servidor (UTC−2)",
+    "zoneHint": "Escolha o relógio que seu plano segue. Planos semanais mantêm esse horário local nas mudanças de horário de verão.",
+    "preview": "Próximos horários", "weeklySummary": "Toda semana: {days}, {start}–{end} ({zone})", "onceSummary": "{date}, {start}–{end} ({zone})",
+    "join": "Participar neste horário", "joinOnce": "Participar uma vez", "joinWeekly": "Participar semanalmente",
+    "save": "Salvar", "cancel": "Cancelar", "close": "Fechar", "confirm": "Confirmar", "back": "Voltar",
+    "editFuture": "Editar próximos horários", "skip": "Pular este horário", "restoreOccurrence": "Adicionar este horário de volta",
+    "pause": "Pausar meu plano", "resume": "Retomar meu plano", "remove": "Remover meu plano",
+    "removeConfirm": "Remover este Plano de Saque e seus próximos lembretes?", "saved": "Seu Plano de Saque foi salvo. Boa caçada!",
+    "skipped": "Este horário foi pulado. Seus outros planos continuam iguais.", "restored": "Este horário está de volta no seu calendário.",
+    "paused": "Seu plano está pausado. Até a volta!", "resumed": "Seu plano está de volta no calendário. Boa caçada!",
+    "removed": "Seu Plano de Saque foi removido.", "pausedLabel": "Pausado", "skippedLabel": "Pulado",
+    "awayWeekly": "Este horário fica oculto enquanto você está ausente. Seu plano semanal estará aqui quando você voltar.",
+    "awayOnce": "Este horário fica oculto enquanto você está ausente, e não enviaremos um lembrete.",
+    "dstHint": "Se a mudança de horário de verão pular este horário local, essa data será pulada. Se o horário se repetir, seu plano usará apenas a primeira ocorrência.",
+    "dstSkipped": "Este horário foi pulado porque há uma mudança de horário nessa data.",
+    "suggest": "Sugerir um horário", "editSuggestion": "Editar horário sugerido", "removeSuggestion": "Remover horário sugerido",
+    "suggestionLabel": "Horário sugerido", "suggestionHint": "Sugira um bom horário para encontrar e compartilhar tarefas secretas juntos.",
+    "suggestionIndependent": "Amigos que já participaram mantêm seus próprios planos quando você altera ou remove esta sugestão.",
+    "suggestionSaved": "Horário sugerido salvo.", "suggestionRemoved": "Horário sugerido removido.",
+    "color": {
+      "title": "Minha cor no calendário", "hint": "Escolha uma cor para todos os seus Planos de Saque. Seus amigos também a verão no calendário.",
+      "custom": "Cor personalizada", "hex": "Cor hexadecimal", "apply": "Usar esta cor", "previewLight": "Prévia clara", "previewDark": "Prévia escura",
+      "saved": "Sua cor no calendário foi salva.", "blue": "Azul", "teal": "Verde-azulado", "green": "Verde", "amber": "Âmbar", "orange": "Laranja", "red": "Vermelho", "pink": "Rosa", "purple": "Roxo", "slate": "Cinza-azulado"
+    },
+    "notifications": {
+      "title": "Notificações do Plano de Saque", "private": "Me avise no Discord", "privateHint": "Envie um lembrete privado 15 minutos antes do início do meu plano.",
+      "linkMissing": "Vincule o Discord para receber um aviso antes do início do seu plano. Você já pode salvar seu plano.",
+      "deliveryUnavailable": "Seu plano foi salvo, mas não podemos enviar lembretes pelo Discord agora.",
+      "digest": "Planos de Saque do dia", "enableDigest": "Compartilhar os Planos de Saque de hoje no Discord", "channel": "Canal do Discord", "guild": "Servidor do Discord",
+      "time": "Horário do resumo diário (UTC−2)", "language": "Idioma do resumo",
+      "digestHint": "Mostre aos amigos quem vai compartilhar tarefas secretas hoje. Uma mensagem por dia, sem menções a cargos ou a todos, e nenhuma mensagem em dias sem planos.",
+      "saved": "Configurações de notificação salvas.", "reminder": "Seu Plano de Saque começa às {time}. Boa caçada—compartilhe com os amigos as tarefas secretas que encontrar!",
+      "digestTitle": "Planos de Saque de hoje", "digestEntry": "{name}: {start}–{end}", "open": "Ver Planos de Saque"
+    },
+    "errors": {
+      "forbidden": "Você não tem acesso a esta ação do Plano de Saque.", "linkRequired": "Vincule um Comandante nesta aliança para adicionar seu Plano de Saque.",
+      "commanderUnavailable": "Este Comandante não está mais disponível para este plano.", "invalidSchedule": "Escolha datas, dias e horários de início e término válidos.",
+      "invalidDuration": "O término deve ser depois do início, e o intervalo não pode ultrapassar 24 horas.", "invalidZone": "Escolha um fuso horário válido.",
+      "nonexistentTime": "Este horário local não existe nessa data. Escolha outro horário.", "pastTime": "Escolha um horário futuro para seu Plano de Saque.",
+      "invalidColor": "Informe uma cor hexadecimal de seis dígitos, como #3366CC.", "duplicate": "Você já tem este Plano de Saque.",
+      "stale": "Este plano mudou. Confira a versão mais recente antes de tentar novamente.", "notFound": "Este plano ou sugestão não está mais disponível.",
+      "expired": "Esta confirmação expirou ou já foi usada. Abra seus Planos de Saque e tente novamente.",
+      "channel": "Escolha um canal disponível no servidor do Discord vinculado a esta aliança.", "load": "Não foi possível carregar os Planos de Saque. Tente novamente.",
+      "save": "Não foi possível salvar suas alterações. Seus dados foram mantidos.", "rateLimit": "Muitas solicitações. Aguarde um momento e tente novamente."
+    }
+  },
   "supportTeams": {
     "proposals": {
       "title": "Proposta livre de equipes",
@@ -191,6 +251,7 @@
     "support": "Suporte"
   },
   "nav": {
+    "plunderPlan": "Plano de Saque",
     "supportTeams": "Equipes de apoio",
     "teamWork": "Trabalho em equipe",
     "dashboard": "Painel",
@@ -1664,7 +1725,8 @@
         "connectAshed": "Conectar ao Ashed"
       },
       "nav": {
-        "supportTeams": "Equipes de apoio",
+        "plunderPlan": "Plano de Saque",
+    "supportTeams": "Equipes de apoio",
         "teamWork": "Trabalho em equipe",
         "dashboard": "Ir para Painel",
         "members": "Ir para Membros",

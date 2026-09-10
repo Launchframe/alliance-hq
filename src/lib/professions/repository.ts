@@ -317,18 +317,22 @@ export async function createEngAssignment(input: {
  */
 export async function reactivateEngAssignment(
   assignmentId: string,
+  automaticDutyDate?: string,
 ): Promise<void> {
-  const db = getDb();
-  await db
-    .update(schema.wlEngAssignments)
-    .set({
-      status: "active",
-      assignedAt: new Date(),
-      dismissedAt: null,
-      dismissedByCommanderId: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.wlEngAssignments.id, assignmentId));
+  const [snapshot] = await getDb().select().from(schema.wlEngAssignments).where(eq(schema.wlEngAssignments.id, assignmentId));
+  if (!snapshot) return;
+  await getDb().transaction(async (db) => {
+    await lockAllianceAvailability(db, snapshot.allianceId);
+    if (automaticDutyDate) {
+      const [team] = await db.select().from(schema.wlTeams).where(and(eq(schema.wlTeams.id, snapshot.wlTeamId), eq(schema.wlTeams.allianceId, snapshot.allianceId)));
+      const away = await db.select({ id: schema.memberTimeOff.id }).from(schema.memberTimeOff)
+        .innerJoin(schema.commanderAllianceMemberships, and(eq(schema.commanderAllianceMemberships.ashedMemberId, schema.memberTimeOff.ashedMemberId), eq(schema.commanderAllianceMemberships.allianceId, snapshot.allianceId), isNull(schema.commanderAllianceMemberships.leftAt)))
+        .where(and(eq(schema.memberTimeOff.allianceId, snapshot.allianceId), eq(schema.memberTimeOff.globalAbsence, true), isNull(schema.memberTimeOff.cancelledAt), lte(schema.memberTimeOff.startDate, automaticDutyDate), gte(schema.memberTimeOff.endDate, automaticDutyDate), inArray(schema.commanderAllianceMemberships.commanderId, [snapshot.engCommanderId, team?.wlCommanderId ?? ""])));
+      if (!team || away.length) throw new Error("No War Leaders available for assignment.");
+    }
+    await db.update(schema.wlEngAssignments).set({ status: "active", assignedAt: new Date(), dismissedAt: null, dismissedByCommanderId: null, updatedAt: new Date() })
+      .where(and(eq(schema.wlEngAssignments.id, assignmentId), eq(schema.wlEngAssignments.allianceId, snapshot.allianceId)));
+  });
 }
 
 

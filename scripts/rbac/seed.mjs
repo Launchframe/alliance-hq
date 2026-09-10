@@ -20,6 +20,9 @@ const ROLE_IDS = {
 };
 
 const HQ_PERMISSIONS = [
+  { id: "plunder_plan:read", description: "Plunder Plan" },
+  { id: "plunder_plan:self", description: "My Plunder Plans" },
+  { id: "plunder_plan:suggest", description: "Suggest a time" },
   { id: "hq:admin", description: "Platform maintainer — cross-alliance admin portal" },
   { id: "hq:audit:read", description: "Read alliance audit log" },
   { id: "hq:video:read", description: "List alliance video jobs" },
@@ -136,7 +139,7 @@ async function main() {
   // Grant ashed:connect to every system role (embeds still require a live credential).
   for (const roleKey of Object.keys(roleTemplates)) {
     roleTemplates[roleKey].permissions = [
-      ...new Set([...roleTemplates[roleKey].permissions, "ashed:connect"]),
+      ...new Set([...roleTemplates[roleKey].permissions, "ashed:connect", "plunder_plan:read", "plunder_plan:self", ...(["owner", "maintainer", "officer"].includes(roleKey) ? ["plunder_plan:suggest"] : [])]),
     ];
   }
 
