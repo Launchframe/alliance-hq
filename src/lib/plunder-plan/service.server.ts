@@ -6,13 +6,14 @@ import { nanoid } from "nanoid";
 import { getDb, schema } from "@/lib/db";
 import { lockAllianceAvailability } from "@/lib/time-off/availability.server";
 import { defaultPlanColor, parsePlanColor } from "./colors.shared";
+import { isDiscordId, verifyPlanChannel } from "./transport.server";
 import { assertFuturePlan, expandPlan, isPlanDate, occurrenceIsAway, occurrenceOn, parsePlanSchedule } from "./schedule.shared";
 import { resolvePlanIdentity, type PlanIdentity, type PlanTx } from "./access.server";
 import { PlunderPlanError, type PlanActor, type PlanCommand, type PlanDashboard, type PlanSummary } from "./types.shared";
 
 type Plan = typeof schema.plunderPlans.$inferSelect;
 
-async function lockPlans(tx: PlanTx, allianceId: string) {
+export async function lockPlans(tx: PlanTx, allianceId: string) {
   await lockAllianceAvailability(tx, allianceId);
   await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`plunder-plan:${allianceId}`}, 0))`);
 }
@@ -60,6 +61,12 @@ export async function loadPlunderPlan(actor: PlanActor, from: string, until: str
   return getDb().transaction(async (tx) => {
     await lockPlans(tx, actor.allianceId);
     const identity = await resolvePlanIdentity(tx, actor);
+    return readPlanDashboard(tx, actor.allianceId, identity, from, until);
+  });
+}
+
+export async function readPlanDashboard(tx: PlanTx, allianceId: string, identity: PlanIdentity, from: string, until: string): Promise<PlanDashboard> {
+    const actor = { allianceId };
     const [state] = await tx.select().from(schema.plunderPlanState).where(eq(schema.plunderPlanState.allianceId, actor.allianceId));
     const color = await personalColor(tx, actor.allianceId, identity);
     const roster = await tx.select({ id: schema.allianceMembers.ashedMemberId, name: schema.allianceMembers.currentName, status: schema.allianceMembers.status }).from(schema.allianceMembers).where(eq(schema.allianceMembers.allianceId, actor.allianceId));
@@ -73,8 +80,17 @@ export async function loadPlunderPlan(actor: PlanActor, from: string, until: str
     const canonical = await tx.select({ owner: schema.hqUserCommanders.hqUserId, member: schema.commanderAllianceMemberships.ashedMemberId }).from(schema.hqUserCommanders).innerJoin(schema.commanderAllianceMemberships, eq(schema.hqUserCommanders.commanderId, schema.commanderAllianceMemberships.commanderId)).where(and(eq(schema.commanderAllianceMemberships.allianceId, actor.allianceId), eq(schema.commanderAllianceMemberships.status, "active"), isNull(schema.commanderAllianceMemberships.leftAt)));
     const tenures = await tx.select({ member: schema.memberAllianceTenure.ashedMemberId, id: schema.memberAllianceTenure.id, joinedAt: schema.memberAllianceTenure.joinedAt }).from(schema.memberAllianceTenure).where(and(eq(schema.memberAllianceTenure.allianceId, actor.allianceId), isNull(schema.memberAllianceTenure.leftAt))).orderBy(desc(schema.memberAllianceTenure.joinedAt));
     const colors = await tx.select().from(schema.plunderPlanColors).where(eq(schema.plunderPlanColors.allianceId, actor.allianceId)).orderBy(desc(schema.plunderPlanColors.updatedAt), desc(schema.plunderPlanColors.principalId));
-    const ownership = [...legacy, ...canonical].map((link) => ({ owner: `hq:${link.owner}`, member: link.member })).concat(discord.map((link) => ({ owner: `discord:${link.owner}`, member: link.member })));
-    const result: PlanDashboard = { version: state?.version ?? 0, canSuggest: identity.canSuggest, commanders: roster.filter((row) => row.status !== "former" && identity.memberIds.includes(row.id)).map(({ id, name }) => ({ id, name })), plans: [], occurrences: [], suppressed: [], color: color.color, colorVersion: color.version };
+    const memberships = await tx.select({ owner: schema.allianceMemberships.hqUserId }).from(schema.allianceMemberships).innerJoin(schema.rolePermissions, eq(schema.rolePermissions.roleId, schema.allianceMemberships.roleId))
+      .where(and(eq(schema.allianceMemberships.allianceId, allianceId), eq(schema.allianceMemberships.status, "active"), eq(schema.rolePermissions.permissionId, "plunder_plan:self")));
+    const eligibleHq = new Set(memberships.map((membership) => membership.owner));
+    const ownership = [...legacy, ...canonical].filter((link) => eligibleHq.has(link.owner)).map((link) => ({ owner: `hq:${link.owner}`, member: link.member })).concat(discord.map((link) => ({ owner: `discord:${link.owner}`, member: link.member })));
+    const guilds = identity.canSuggest ? await tx.select({ guildId: schema.discordGuildAlliances.guildId }).from(schema.discordGuildAlliances).where(eq(schema.discordGuildAlliances.allianceId, allianceId)) : [];
+    const settings = identity.canSuggest ? await tx.select().from(schema.plunderPlanDigestSettings).where(eq(schema.plunderPlanDigestSettings.allianceId, allianceId)) : [];
+    const notificationSettings = guilds.map(({ guildId }) => {
+      const setting = settings.find((row) => row.guildId === guildId);
+      return { guildId, channelId: setting?.channelId ?? "", timeSt: setting?.timeSt ?? "09:00", locale: setting?.locale === "pt-BR" ? "pt-BR" as const : "en-US" as const, enabled: setting?.enabled ?? false, version: setting?.version ?? 0 };
+    });
+    const result: PlanDashboard = { discordLinked: identity.aliases.some((alias) => alias.startsWith("discord:")), notificationSettings, version: state?.version ?? 0, canSuggest: identity.canSuggest, commanders: roster.filter((row) => row.status !== "former" && identity.memberIds.includes(row.id)).map(({ id, name }) => ({ id, name })), plans: [], occurrences: [], suppressed: [], color: color.color, colorVersion: color.version };
     for (const row of rows) {
       const member = roster.find((member) => member.id === row.memberId && member.status !== "former");
       const owned = identity.aliases.includes(row.ownerId) && (row.kind === "suggestion" ? identity.canSuggest : identity.memberIds.includes(row.memberId!));
@@ -99,7 +115,6 @@ export async function loadPlunderPlan(actor: PlanActor, from: string, until: str
       }
     }
     return result;
-  });
 }
 
 export function parsePlanCommand(input: unknown): PlanCommand {
@@ -112,6 +127,10 @@ export function parsePlanCommand(input: unknown): PlanCommand {
   }
   if (!Number.isSafeInteger(row.expectedVersion) || Number(row.expectedVersion) < 0) throw new PlunderPlanError("stale", 409);
   const expectedVersion = Number(row.expectedVersion);
+  if (row.action === "notifications") {
+    if (!isDiscordId(row.guildId) || (row.enabled !== false && !isDiscordId(row.channelId)) || typeof row.channelId !== "string" || typeof row.enabled !== "boolean" || typeof row.timeSt !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(row.timeSt) || (row.locale !== "en-US" && row.locale !== "pt-BR")) throw new PlunderPlanError("channel");
+    return { action: "notifications", requestId: row.requestId, guildId: row.guildId, channelId: row.channelId, timeSt: row.timeSt, locale: row.locale, enabled: row.enabled, expectedVersion };
+  }
   if (row.action === "color") {
     const color = parsePlanColor(row.color);
     if (!color) throw new PlunderPlanError("invalidColor");
@@ -128,6 +147,14 @@ export function parsePlanCommand(input: unknown): PlanCommand {
 export async function mutatePlunderPlan(actor: PlanActor, input: unknown, interactionToken?: string) {
   const command = parsePlanCommand(input);
   const hash = createHash("sha256").update(JSON.stringify(command)).digest("hex");
+  if (command.action === "notifications") {
+    await getDb().transaction(async (tx) => {
+      const identity = await resolvePlanIdentity(tx, actor);
+      const [guild] = await tx.select().from(schema.discordGuildAlliances).where(and(eq(schema.discordGuildAlliances.guildId, command.guildId), eq(schema.discordGuildAlliances.allianceId, actor.allianceId)));
+      if (!identity.canSuggest || !guild || actor.kind === "discord" && actor.guildId !== command.guildId) throw new PlunderPlanError("forbidden", 403);
+    });
+    if (command.enabled && !await verifyPlanChannel(command.guildId, command.channelId)) throw new PlunderPlanError("channel");
+  }
   return getDb().transaction(async (tx) => {
     await lockPlans(tx, actor.allianceId);
     const identity = await resolvePlanIdentity(tx, actor);
@@ -145,7 +172,16 @@ export async function mutatePlunderPlan(actor: PlanActor, input: unknown, intera
       await tx.update(schema.plunderPlanInteractions).set({ consumedAt: new Date() }).where(eq(schema.plunderPlanInteractions.id, token.id));
     }
     let id: string | undefined;
-    if (command.action === "color") {
+    if (command.action === "notifications") {
+      const [guild] = await tx.select().from(schema.discordGuildAlliances).where(and(eq(schema.discordGuildAlliances.guildId, command.guildId), eq(schema.discordGuildAlliances.allianceId, actor.allianceId))).for("share");
+      if (!identity.canSuggest || !guild || actor.kind === "discord" && actor.guildId !== command.guildId) throw new PlunderPlanError("forbidden", 403);
+      const [setting] = await tx.select().from(schema.plunderPlanDigestSettings).where(eq(schema.plunderPlanDigestSettings.guildId, command.guildId)).for("update");
+      if (setting && setting.allianceId !== actor.allianceId) throw new PlunderPlanError("channel");
+      if ((setting?.version ?? 0) !== command.expectedVersion) throw new PlunderPlanError("stale", 409);
+      const values = { allianceId: actor.allianceId, guildId: command.guildId, channelId: command.channelId, timeSt: command.timeSt, locale: command.locale, enabled: command.enabled, version: command.expectedVersion + 1 };
+      await tx.insert(schema.plunderPlanDigestSettings).values(values).onConflictDoUpdate({ target: schema.plunderPlanDigestSettings.guildId, set: values });
+      id = command.guildId;
+    } else if (command.action === "color") {
       const current = await personalColor(tx, actor.allianceId, identity);
       if (current.version !== command.expectedVersion) throw new PlunderPlanError("stale", 409);
       for (const principalId of identity.aliases) {

@@ -27,8 +27,12 @@ export type PlanDashboard = {
   suppressed: { planId: string; date: string; reason: "awayWeekly" | "awayOnce" | "dstSkipped" | "skippedLabel" }[];
   color: string;
   colorVersion: number;
+  discordLinked: boolean;
+  notificationSettings: PlanNotificationSettings[];
 };
+export type PlanNotificationSettings = { guildId: string; channelId: string; timeSt: string; locale: "en-US" | "pt-BR"; enabled: boolean; version: number };
 export type PlanCommand =
+  | { action: "notifications"; requestId: string; guildId: string; channelId: string; timeSt: string; locale: "en-US" | "pt-BR"; enabled: boolean; expectedVersion: number }
   | { action: "create"; requestId: string; kind: "plan" | "suggestion"; memberId?: string; sourceId?: string; schedule: PlanSchedule; reminder: boolean }
   | { action: "edit"; requestId: string; id: string; expectedVersion: number; schedule: PlanSchedule; reminder: boolean }
   | { action: "pause" | "resume" | "remove"; requestId: string; id: string; expectedVersion: number }

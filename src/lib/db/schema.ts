@@ -54,7 +54,8 @@ export const plunderPlanColors = pgTable("plunder_plan_colors", {
 export const plunderPlanState = pgTable("plunder_plan_state", {
   allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
   version: integer("version").notNull().default(0),
-});
+  nextTickAt: timestamp("next_tick_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index("plunder_plan_tick_due_idx").on(table.nextTickAt)]);
 
 export const plunderPlanIntents = pgTable("plunder_plan_intents", {
   allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
