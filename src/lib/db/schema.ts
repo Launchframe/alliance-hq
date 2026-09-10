@@ -1,6 +1,7 @@
 import {
   bigint,
   boolean,
+  customType,
   doublePrecision,
   index,
   integer,
@@ -13,6 +14,20 @@ import {
   unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+
+const vector1536 = customType<{ data: number[]; driverData: string }>({
+  dataType() {
+    return "vector(1536)";
+  },
+  toDriver(value) {
+    return `[${value.join(",")}]`;
+  },
+  fromDriver(value) {
+    const raw = String(value).replace(/^\[/, "").replace(/\]$/, "");
+    if (!raw) return [];
+    return raw.split(",").map(Number);
+  },
+});
 
 export const alliances = pgTable("alliances", {
   id: text("id").primaryKey(),
@@ -1518,6 +1533,8 @@ export const discordGuildAlliances = pgTable("discord_guild_alliances", {
   regularEventsChannelId: text("regular_events_channel_id"),
   r4ChannelId: text("r4_channel_id"),
   bankingChannelId: text("banking_channel_id"),
+  /** Message context-menu translation (Apps → Translate) for this guild. */
+  translationEnabled: boolean("translation_enabled").notNull().default(true),
   registeredAt: timestamp("registered_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -1551,10 +1568,31 @@ export const allianceAshedCredentials = pgTable("alliance_ashed_credentials", {
 export const discordUserPrefs = pgTable("discord_user_prefs", {
   discordUserId: text("discord_user_id").primaryKey(),
   locale: text("locale").notNull().default("en-US"),
+  /** Preferred target language for message translation (Google v2 code, e.g. `pt`). */
+  translationLanguage: text("translation_language"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
 });
+
+/** Short-lived cache for Apps → Translate so repeat lookups skip the provider. */
+export const discordMessageTranslations = pgTable(
+  "discord_message_translations",
+  {
+    messageId: text("message_id").notNull(),
+    targetLanguage: text("target_language").notNull(),
+    /** SHA-256 of the source content — invalidates the cache when a message is edited. */
+    contentHash: text("content_hash").notNull(),
+    translatedText: text("translated_text").notNull(),
+    detectedSourceLanguage: text("detected_source_language"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.messageId, table.targetLanguage] }),
+  ],
+);
 
 /** Short-lived one-time nonces for the /discord/authorize HQ web redirect. */
 export const discordAuthNonces = pgTable("discord_auth_nonces", {
@@ -1811,6 +1849,8 @@ export type DiscordBotAudit = typeof discordBotAudit.$inferSelect;
 export type DiscordGuildAlliance = typeof discordGuildAlliances.$inferSelect;
 export type AllianceAshedCredential = typeof allianceAshedCredentials.$inferSelect;
 export type DiscordUserPref = typeof discordUserPrefs.$inferSelect;
+export type DiscordMessageTranslation =
+  typeof discordMessageTranslations.$inferSelect;
 export type VideoJobSurvey = typeof videoJobSurveys.$inferSelect;
 export type VideoHygieneEvent = typeof videoHygieneEvents.$inferSelect;
 
@@ -4111,3 +4151,389 @@ export const vsComplianceReviews = pgTable("vs_compliance_reviews", {
   evaluationBasis: text("evaluation_basis").notNull(),
   recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [unique("vs_compliance_reviews_basis_unique").on(table.actionId, table.evaluationBasis)]);
+
+// ---------------------------------------------------------------------------
+// Officer intelligence — chat ingestion
+// ---------------------------------------------------------------------------
+
+export const officerChatSessions = pgTable(
+  "officer_chat_sessions",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    channelLabel: text("channel_label"),
+    sessionAt: timestamp("session_at", { withTimezone: true }),
+    /** draft | imported */
+    status: text("status").notNull().default("draft"),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_chat_sessions_alliance_updated_idx").on(
+      table.allianceId,
+      table.updatedAt,
+    ),
+  ],
+);
+
+export const officerChatSessionImages = pgTable(
+  "officer_chat_session_images",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => officerChatSessions.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    storageKey: text("storage_key").notNull(),
+    sequenceOrder: integer("sequence_order").notNull(),
+    width: integer("width"),
+    height: integer("height"),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_chat_session_images_session_idx").on(
+      table.sessionId,
+      table.sequenceOrder,
+    ),
+  ],
+);
+
+export const officerChatMessages = pgTable(
+  "officer_chat_messages",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => officerChatSessions.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    senderAllianceTag: text("sender_alliance_tag"),
+    senderName: text("sender_name").notNull(),
+    senderLevel: integer("sender_level"),
+    senderVipLevel: integer("sender_vip_level"),
+    originalText: text("original_text").notNull(),
+    inGameTranslatedText: text("in_game_translated_text"),
+    localeText: text("locale_text").notNull(),
+    localeCode: text("locale_code").notNull(),
+    isReply: boolean("is_reply").notNull().default(false),
+    replyToName: text("reply_to_name"),
+    sequenceOrder: integer("sequence_order").notNull(),
+    sourceImageIndex: integer("source_image_index").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_chat_messages_session_order_idx").on(
+      table.sessionId,
+      table.sequenceOrder,
+    ),
+  ],
+);
+
+export const officerChatTranslations = pgTable(
+  "officer_chat_translations",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    contentHash: text("content_hash").notNull(),
+    targetLanguage: text("target_language").notNull(),
+    translatedText: text("translated_text").notNull(),
+    detectedSourceLanguage: text("detected_source_language"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("officer_chat_translations_alliance_hash_lang_idx").on(
+      table.allianceId,
+      table.contentHash,
+      table.targetLanguage,
+    ),
+  ],
+);
+
+export const officerMeetingNotes = pgTable(
+  "officer_meeting_notes",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => officerChatSessions.id, { onDelete: "cascade" }),
+    summary: text("summary").notNull(),
+    keyDecisions: jsonb("key_decisions")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    openQuestions: jsonb("open_questions")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    /** draft | approved */
+    status: text("status").notNull().default("draft"),
+    synthesizedByHqUserId: text("synthesized_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    approvedByHqUserId: text("approved_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    modelId: text("model_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("officer_meeting_notes_session_idx").on(table.sessionId),
+    index("officer_meeting_notes_alliance_updated_idx").on(
+      table.allianceId,
+      table.updatedAt,
+    ),
+  ],
+);
+
+export const officerActionItems = pgTable(
+  "officer_action_items",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    noteId: text("note_id")
+      .notNull()
+      .references(() => officerMeetingNotes.id, { onDelete: "cascade" }),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => officerChatSessions.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    description: text("description"),
+    /** open | in_progress | done | cancelled */
+    status: text("status").notNull().default("open"),
+    /** low | normal | high */
+    priority: text("priority").notNull().default("normal"),
+    assigneeAllianceMemberId: text("assignee_alliance_member_id").references(
+      () => allianceMembers.id,
+      { onDelete: "set null" },
+    ),
+    assigneeNameRaw: text("assignee_name_raw"),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    dueHint: text("due_hint"),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_action_items_alliance_status_due_idx").on(
+      table.allianceId,
+      table.status,
+      table.dueAt,
+    ),
+    index("officer_action_items_note_idx").on(table.noteId),
+  ],
+);
+
+export const officerIntelChunks = pgTable(
+  "officer_intel_chunks",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    /** approved_note | action_item */
+    sourceType: text("source_type").notNull(),
+    sourceId: text("source_id").notNull(),
+    sessionId: text("session_id").references(() => officerChatSessions.id, {
+      onDelete: "cascade",
+    }),
+    localeCode: text("locale_code").notNull(),
+    chunkText: text("chunk_text").notNull(),
+    embedding: vector1536("embedding"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_intel_chunks_alliance_source_idx").on(
+      table.allianceId,
+      table.sourceType,
+      table.sourceId,
+    ),
+  ],
+);
+
+export const officerIntelThreads = pgTable(
+  "officer_intel_threads",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    runningSummary: text("running_summary"),
+    turnCount: integer("turn_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_intel_threads_alliance_updated_idx").on(
+      table.allianceId,
+      table.updatedAt,
+    ),
+  ],
+);
+
+export const officerIntelThreadMessages = pgTable(
+  "officer_intel_thread_messages",
+  {
+    id: text("id").primaryKey(),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => officerIntelThreads.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    /** user | assistant */
+    role: text("role").notNull(),
+    content: text("content").notNull(),
+    citationsJson: jsonb("citations_json").$type<unknown>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("officer_intel_thread_messages_thread_idx").on(
+      table.threadId,
+      table.createdAt,
+    ),
+  ],
+);
+
+export type OfficerChatSession = typeof officerChatSessions.$inferSelect;
+export type OfficerChatSessionImage =
+  typeof officerChatSessionImages.$inferSelect;
+export type OfficerChatMessage = typeof officerChatMessages.$inferSelect;
+export type OfficerChatTranslation = typeof officerChatTranslations.$inferSelect;
+export type OfficerMeetingNote = typeof officerMeetingNotes.$inferSelect;
+export type OfficerActionItem = typeof officerActionItems.$inferSelect;
+export type OfficerIntelChunk = typeof officerIntelChunks.$inferSelect;
+export type OfficerIntelThread = typeof officerIntelThreads.$inferSelect;
+export type OfficerIntelThreadMessage =
+  typeof officerIntelThreadMessages.$inferSelect;
+
+/** HQ-native officer notes — not Ashed member_commendations / hq_commendations. */
+export const performanceNotes = pgTable(
+  "performance_notes",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    /** commendation | violation | note */
+    kind: text("kind").notNull(),
+    /** batch | thought */
+    intakeMode: text("intake_mode").notNull(),
+    body: text("body").notNull(),
+    /** discord | web */
+    source: text("source").notNull(),
+    createdByDiscordUserId: text("created_by_discord_user_id"),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    expungedAt: timestamp("expunged_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("performance_notes_alliance_created_idx").on(
+      table.allianceId,
+      table.createdAt,
+    ),
+    index("performance_notes_alliance_kind_idx").on(table.allianceId, table.kind),
+  ],
+);
+
+export const performanceNoteMembers = pgTable(
+  "performance_note_members",
+  {
+    id: text("id").primaryKey(),
+    noteId: text("note_id")
+      .notNull()
+      .references(() => performanceNotes.id, { onDelete: "cascade" }),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    allianceMemberId: text("alliance_member_id").references(
+      () => allianceMembers.id,
+      { onDelete: "set null" },
+    ),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    memberNameRaw: text("member_name_raw").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("performance_note_members_note_idx").on(table.noteId),
+    index("performance_note_members_alliance_ashed_idx").on(
+      table.allianceId,
+      table.ashedMemberId,
+    ),
+    uniqueIndex("performance_note_members_note_ashed_unique").on(
+      table.noteId,
+      table.ashedMemberId,
+    ),
+  ],
+);
+
+export type PerformanceNote = typeof performanceNotes.$inferSelect;
+export type PerformanceNoteMember = typeof performanceNoteMembers.$inferSelect;

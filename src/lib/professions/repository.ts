@@ -311,6 +311,27 @@ export async function createEngAssignment(input: {
   });
 }
 
+/**
+ * Reactivate a dismissed/self_removed assignment row for the same team.
+ * Required because the (team, eng) unique constraint blocks a second insert.
+ */
+export async function reactivateEngAssignment(
+  assignmentId: string,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.wlEngAssignments)
+    .set({
+      status: "active",
+      assignedAt: new Date(),
+      dismissedAt: null,
+      dismissedByCommanderId: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.wlEngAssignments.id, assignmentId));
+}
+
+
 /** Update the status of an assignment (dismiss or self-remove). */
 export async function updateAssignmentStatus(
   assignmentId: string,

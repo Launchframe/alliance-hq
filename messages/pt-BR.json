@@ -119,6 +119,10 @@
     "timeOffDescription": "Veja quem está fora e anuncie sua própria agenda",
     "bankManagement": "Gestão de Bancos",
     "bankManagementDescription": "Acompanhe Bancos, risco de investidores e o melhor momento para abandonar",
+    "officerIntel": "Inteligência de Oficiais",
+    "officerIntelDescription": "Importe capturas do chat de oficiais e revise mensagens traduzidas",
+    "notes": "Notas",
+    "notesDescription": "Elogios, violações e anotações",
     "desertStorm": "Desert Storm",
     "canyonStorm": "Canyon Storm",
     "otherEvents": "Outros Eventos",
@@ -1572,6 +1576,8 @@
         "vsCompliance": "Cumprimento dos mínimos de VS",
         "vsMembershipMinimums": "Mínimos de VS para membros",
         "bankManagement": "Ir para Gestão de Bancos",
+        "officerIntel": "Ir para Inteligência de Oficiais",
+        "notes": "Ir para Notas",
         "desertStorm": "Ir para Desert Storm",
         "canyonStorm": "Ir para Canyon Storm",
         "otherEvents": "Ir para Outros Eventos",
@@ -2739,6 +2745,8 @@
       "violationExpunged": "Expurgada",
       "violationEmpty": "Nenhuma violação registrada.",
       "commendationEmpty": "Nenhuma comendação registrada.",
+      "hqNotes": "Notas do HQ",
+      "hqNotesEmpty": "Nenhuma nota do HQ neste comandante.",
       "disciplineNoType": "Não especificado",
       "trainHighlights": "Destaques de trem",
       "locked": "bloqueado",
@@ -3705,6 +3713,51 @@
         "roll": "Gire a roleta ou escolha um Condutor para hoje e os próximos dias.",
         "lock": "Confirme um Condutor para gerar o trem vazio daquele dia. Se foi você quem confirmou, pode desbloquear até a meia-noite no horário do servidor daquele dia."
       },
+      "weekGoalsTitle": "Guias das plataformas de trem",
+      "weekGoalsIntro": "Quando a liderança nomear uma plataforma para a semana, use esse guia para saber o que fazer — e o que não fazer. Plataformas: Hard save → Save hard → Push hard → Hard push.",
+      "weekGoalsSharedTitle": "Toda plataforma",
+      "weekGoalsShared": {
+        "conductorsAtReset": "Os Condutores são sorteados no Reset. Fique de olho nas DMs e no Discord para os anúncios de Condutor.",
+        "leadTime": "O tempo de antecedência pode mudar quais pontuações do dia valem para o trem — confira as configurações de Trem.",
+        "vsMinimum": "Dias de Price Is Freight podem exigir um mínimo de VS para ganhar Condutor — confira as configurações de Trem.",
+        "donationMinimum": "Dias de Price Is Freight podem exigir um mínimo de doações — confira as configurações de Trem."
+      },
+      "weekGoals": {
+        "economy": {
+          "title": "Plataforma 1 — The Price Is Freight",
+          "subtitle": "Hard save",
+          "blurb": "Esta semana significa… Quanto mais perto de 7,2M, melhores suas chances de ganhar.",
+          "do1": "Faça: mire 7,2M — esse é o alvo sempre.",
+          "do2": "Faça: as pontuações de sexta e sábado são livres. Treine tropas e lute à vontade!",
+          "dont": "Não faça: gastar demais nos dias de guardar."
+        },
+        "save": {
+          "title": "Plataforma 2 — Semana de guardar",
+          "subtitle": "Save hard",
+          "blurb": "Esta semana significa… Empurre seu poder se precisar. Os Condutores são escolhidos aleatoriamente entre R3s.",
+          "do1": "Faça: guarde quando puder; gaste só quando precisar do poder.",
+          "dont": "Não faça: gastar demais nos dias de guardar."
+        },
+        "certainDays": {
+          "title": "Plataforma 3 — Vitória estratégica",
+          "subtitle": "Push hard",
+          "blurb": "Esta semana significa… Jogamos a toalha em alguns dias e dominamos em outros. O objetivo é vencer por margem justa, guardando em dias escolhidos desta semana.",
+          "do1": "Faça: pergunte ou leia quais dias são de push e quais são descartáveis.",
+          "do2": "Faça: dê o máximo quando for chamado.",
+          "do3": "Faça: guarde nos dias descartáveis.",
+          "dont": "Não faça: empurrar nos dias errados."
+        },
+        "allOut": {
+          "title": "Plataforma 4 — Dominação total",
+          "subtitle": "Hard push",
+          "blurb": "Esta semana significa… Pé no fundo, sem freio. Mostre do que esta aliança é feita.",
+          "do1": "Faça: apareça forte de segunda a sábado.",
+          "do2": "Faça: fique atento a mudanças de estratégia.",
+          "do3": "Faça: feche a vitória até sexta.",
+          "dont1": "Não faça: relaxar.",
+          "dont2": "Não faça: ficar AFK sem avisar a galera."
+        }
+      },
       "lockOwnershipTitle": "Posse do trem",
       "lockOwnershipBody": "O oficial que confirma um condutor pode desbloqueá-lo até a meia-noite no horário do servidor daquele dia de trem. Confirmar um dia passado é a exceção — você pode desbloquear essa confirmação a qualquer momento. Depois da meia-noite, só o dono da aliança ou um mantenedor da plataforma pode desbloquear.",
       "takeTour": "Fazer o tour",
@@ -3925,6 +3978,11 @@
       "donations": {
         "unavailableTitle": "Pontuação de doações ainda indisponível",
         "unavailableBody": "O HQ ainda não armazena totais de doação. Use escolha manual do condutor até a pontuação de doações estar disponível."
+      },
+      "share": {
+        "action": "Compartilhar imagem",
+        "subtitle": "{day}",
+        "failed": "Não foi possível criar a imagem do ranking."
       }
     },
     "priceIsRight": {
@@ -3986,6 +4044,16 @@
       "aboveCliff": {
         "title": "Acima do corte do cliff",
         "subtitle": "Corte rígido ativo — VS do dia anterior acima do cliff ficam fora do sorteio de hoje."
+      },
+      "scoreList": {
+        "searchLabel": "Buscar membros",
+        "searchPlaceholder": "Buscar por nome…",
+        "member": "Comandante",
+        "vs": "VS do dia anterior",
+        "empty": "Nenhum membro corresponde a esta busca.",
+        "pageStatus": "Página {page} de {pages} · {count} membros",
+        "prev": "Anterior",
+        "next": "Próxima"
       }
     },
     "conductorHistory": {
@@ -4222,6 +4290,7 @@
         "statsLine": "Último: {lastDate} · {count} este ano",
         "eligibilityVsMinimum": "Elegível: {score} (mín. {minimum})",
         "eligibilityTpif": "VS do dia anterior {score} — mais perto de {sweetSpot}",
+        "eligibilityTpifWithChance": "VS do dia anterior {score} · {chance} de chance",
         "eligibilityVsLeaderboardRank": "#{rank} · {score} {suffix}",
         "eligibilityVsLeaderboardScore": "{score} {suffix}"
       }
@@ -5353,6 +5422,20 @@
       "availabilityMinimums": "mantendo mínimos",
       "availabilityHitAndMiss": "irregular"
     },
+    "translate": {
+      "result": "{text}\n\n-# Traduzido de {source} para {target}",
+      "resultNoSource": "{text}\n\n-# Traduzido para {target}",
+      "sameLanguage": "Essa mensagem já está em {language}.",
+      "nothingToTranslate": "Essa mensagem não tem texto para traduzir.",
+      "tooLong": "Essa mensagem é longa demais para traduzir (máximo de {max} caracteres).",
+      "disabled": "A tradução de mensagens está desativada para esta aliança. O dono da aliança pode ativá-la com `/set-translation enabled:true`.",
+      "notConfigured": "A tradução ainda não está disponível neste servidor.",
+      "failed": "A tradução falhou. Tente novamente em instantes.",
+      "invalidLanguage": "Escolha um idioma da lista.",
+      "languageUpdated": "Seu idioma de tradução agora é **{language}**. Clique com o botão direito ou toque e segure em qualquer mensagem e use Apps → Traduzir.",
+      "enabledSuccess": "A tradução de mensagens está **ativada** para **{tag}**. Membros podem clicar com o botão direito ou tocar e segurar em qualquer mensagem e usar Apps → Traduzir para lê-la no próprio idioma. Todos podem escolher um idioma com `/translation-language`.",
+      "disabledSuccess": "A tradução de mensagens está **desativada** para **{tag}**."
+    },
     "train": {
       "setTrainChannel": {
         "success": "Anúncios de trem de **{tag}** serão publicados em {channel}. Ative os anúncios nas configurações da aliança no HQ; oficiais podem usar `/set-conductor` e `/train-is-ready`."
@@ -5405,9 +5488,28 @@
       "startOver": "Começar de novo",
       "askOfficer": "Pedir ajuda a um oficial"
     },
+    "performanceNotes": {
+      "savedAskAttach": "Sua nota foi salva. Quer vincular um membro a ela? Para adicionar vários membros rapidamente, acesse {url}",
+      "doneView": "Beleza. Você pode ver suas notas em {url}",
+      "addAnother": "Beleza. Quer adicionar outro membro?",
+      "clarify": "Qual membro você quis dizer com {token}?",
+      "commendReasonPrompt": "Por que você quer elogiá-los?",
+      "violationReasonPrompt": "Qual é a violação?",
+      "batchAckCommendation": "Elogio salvo em {count} membros.",
+      "batchAckViolation": "Violação salva em {count} membros.",
+      "memberModalTitle": "Nome do comandante",
+      "memberModalLabel": "Nome do comandante",
+      "noMatch": "Nenhum membro do roster corresponde a {token}.",
+      "skip": "Pular",
+      "emptyText": "Anotação livre. O que você quer registrar?",
+      "emptyReason": "Informe um motivo antes de salvar.",
+      "emptyNames": "Nomes de comandantes, separados por vírgulas ou pontos.",
+      "batchEmpty": "Nenhum membro restou para salvar.",
+      "notOfficer": "Somente oficiais da aliança (R4+) ou o dono podem registrar anotações. Vincule um comandante com `/link-commander` se ainda não fez isso."
+    },
     "officerNotified": "Um oficial foi notificado no Alliance HQ. Eles podem falar com você aqui no Discord.",
     "help": {
-      "dmGeneral": "**Bot Alliance HQ** — use `/help` no servidor da aliança para passos conforme seu papel.\n\nComandos: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-vr-chart`, `/what-is-my-thp`, `/what-is-my-thp-chart`, `/who-is`, `/who-is-conductor`, `/language`. Donos: `/link-alliance`. Oficiais (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`.\n\n**Guia completo:** {guideUrl}",
+      "dmGeneral": "**Bot Alliance HQ** — use `/help` no servidor da aliança para passos conforme seu papel.\n\nComandos: `/link`, `/link-commander`, `/vr`, `/immunity`, `/thp`, `/what-is-my-vr`, `/what-is-my-vr-chart`, `/what-is-my-thp`, `/what-is-my-thp-chart`, `/who-is`, `/who-is-conductor`, `/language`. Donos: `/link-alliance`. Oficiais (R4+): `/vr-report`, `/set-conductor`, `/train-is-ready`, `/commend`, `/violation`, `/note`.\n\n**Guia completo:** {guideUrl}",
       "setupLinkHq": "Vincule sua conta Discord ao Alliance HQ: execute `/link` e conclua o login no navegador.",
       "setupOwnerLinkHq": "Este servidor ainda não está registrado. **R5:** abra o assistente de instalação no navegador (entrar, tag, Ashed, adicionar bot).\n\n**Assistente:** {installWizardUrl}\n\n**Guia:** {guideUrl}",
       "setupOwnerLinkCommander": "Registre este servidor com o assistente de instalação, depois execute **`/link-commander`**.\n\n**Assistente:** {installWizardUrl}\n\n**Guia:** {guideUrl}",
@@ -5416,8 +5518,8 @@
       "linkCommander": "Vincule seu comandante: execute `/link-commander` no Discord, abra o link seguro e informe seu ID de jogador do perfil no jogo. Confirme o nome quando solicitado.\n\n**Guia:** {guideUrl}",
       "memberReady": "Você está vinculado. Use `/vr` ou `/immunity` quando o VR base mudar. `/who-is` consulta vínculos Discord↔comandante. `/who-is-conductor` mostra o condutor de hoje.\n\n**Guia:** {guideUrl}",
       "memberReadyMulti": "Você tem **{count}** comandantes vinculados. `/vr` e `/immunity` perguntarão qual usar. `/unlink` remove um vínculo.\n\n**Guia:** {guideUrl}",
-      "ownerReady": "Você está vinculado como dono (**{tag}**). Conclua: `/set-vr-report-channel`, `/set-train-channel`, depois compartilhe `/link-commander` com os membros.\n\n**Guia:** {guideUrl}",
-      "ownerReadyMulti": "Dono (**{tag}**) com **{count}** comandantes. `/vr` pergunta qual personagem. Canais: `/set-vr-report-channel`, `/set-train-channel`.\n\n**Guia:** {guideUrl}"
+      "ownerReady": "Você está vinculado como dono (**{tag}**). Conclua: `/set-vr-report-channel`, `/set-train-channel`, depois compartilhe `/link-commander` com os membros. Oficiais podem registrar `/commend`, `/violation` e `/note`.\n\n**Guia:** {guideUrl}",
+      "ownerReadyMulti": "Dono (**{tag}**) com **{count}** comandantes. `/vr` pergunta qual personagem. Canais: `/set-vr-report-channel`, `/set-train-channel`. Oficiais podem registrar `/commend`, `/violation` e `/note`.\n\n**Guia:** {guideUrl}"
     },
     "unlink": {
       "none": "Nenhum comandante vinculado neste servidor. Execute `/link-commander` primeiro.",
@@ -5461,6 +5563,9 @@
     "hqLinkExploreCta": "Explorar o Alliance HQ",
     "hqLinkExploreDismiss": "Você pode fechar esta aba e voltar ao Discord a qualquer momento.",
     "hqLinkDiscordMismatch": "Você entrou com uma conta do Discord diferente da que executou `/link`. Volte ao Discord, execute `/link` novamente e entre com a mesma conta.",
+    "credentialsDiscordMismatchHeading": "Conta do Discord incorreta",
+    "credentialsDiscordMismatch": "Você entrou com uma conta do Discord diferente da que executou `/link-ashed`. Volte ao Discord, execute `/link-ashed` novamente e entre com a mesma conta.",
+    "credentialsNeedDiscordOAuth": "Entre com Discord (não e-mail ou Google) para concluir a conexão das credenciais Ashed.",
     "hqLinkNoDiscordOAuth": "Entre com Discord (não e-mail ou Google) para concluir este vínculo.",
     "hqLinkWrongPurpose": "Este link não é para login no Alliance HQ. Volte ao Discord e execute o comando de configuração correto.",
     "missingNonce": "Nenhum link de autorização encontrado. Volte ao Discord e execute o comando de configuração novamente (`/link` para vincular a conta HQ, ou `/help` para os próximos passos).",
@@ -5608,7 +5713,9 @@
       "captureNo": "Não",
       "captureSnooze": "Adiar 30 min",
       "regularEventReminder": "Evento regular",
-      "regularEventUploadReminder": "Envio de pontuação de evento regular"
+      "regularEventUploadReminder": "Envio de pontuação de evento regular",
+      "officerActionItemDue": "Item de ação de oficiais",
+      "officerActionItemDueBody": "Um item de ação do chat de oficiais está no prazo."
     },
     "confirmCaptureFailed": "Falha ao confirmar captura."
   },
@@ -6627,5 +6734,115 @@
     "keepHq": "Manter HQ",
     "keepAshed": "Manter Ashed",
     "discard": "Descartar relatório HQ"
+  },
+  "officerIntel": {
+    "title": "Inteligência de Oficiais",
+    "subtitle": "Envie capturas do chat de oficiais no jogo, revise o OCR e leia as mensagens no seu idioma.",
+    "uploadChat": "Enviar capturas do chat",
+    "uploadHint": "Capture o feed R4 e R5 ou Chat da Aliança. Várias capturas sobrepostas são mescladas na ordem de rolagem.",
+    "channelLabel": "Canal",
+    "channelR4R5": "R4 e R5",
+    "channelUnknown": "Canal desconhecido",
+    "parsePreview": "Revisar mensagens extraídas",
+    "parsePreviewCount": "{count, plural, one {# mensagem extraída} other {# mensagens extraídas}}",
+    "originalText": "Original",
+    "translatedText": "Tradução no jogo",
+    "inGameTranslation": "Tradução no jogo",
+    "translationUnavailable": "A tradução não está disponível agora. Mostrando o texto original.",
+    "sessionsTitle": "Sessões de chat",
+    "noSessions": "Nenhuma sessão de chat ainda.",
+    "messageCount": "{count, plural, one {# mensagem} other {# mensagens}}",
+    "sessionTitle": "Título da sessão",
+    "defaultSessionTitle": "Sessão de chat de oficiais",
+    "sender": "Remetente",
+    "addScreenshots": "Adicionar",
+    "parsing": "Lendo capturas…",
+    "importing": "Salvando…",
+    "importSession": "Salvar sessão",
+    "importFailed": "Não foi possível salvar esta sessão.",
+    "parseFailed": "Não foi possível ler mensagens dessas capturas.",
+    "createSessionFailed": "Não foi possível iniciar uma nova sessão.",
+    "loadFailed": "Não foi possível carregar os dados de inteligência de oficiais.",
+    "close": "Fechar",
+    "removeMessage": "Remover mensagem",
+    "backToUpload": "Voltar às capturas",
+    "backToHub": "Voltar à Inteligência de Oficiais",
+    "sourceScreenshots": "Capturas de origem",
+    "screenshotNumber": "Captura {number}",
+    "showOriginalAndInGame": "Mostrar original e tradução no jogo",
+    "replyTo": "Resposta a {name}:",
+    "synthesizeNotes": "Sintetizar atas da reunião",
+    "synthesizing": "Sintetizando…",
+    "synthesizeFailed": "Não foi possível sintetizar as atas da reunião.",
+    "llmUnavailable": "A síntese por IA não está configurada neste servidor.",
+    "viewMeetingNotes": "Ver atas da reunião",
+    "meetingNotesTitle": "Atas da reunião",
+    "backToSession": "Voltar à sessão de chat",
+    "noteStatusDraft": "Rascunho — edite e aprove quando estiver pronto",
+    "noteStatusApproved": "Aprovado",
+    "summary": "Resumo",
+    "keyDecisions": "Decisões principais",
+    "openQuestions": "Questões em aberto",
+    "actionItemsTitle": "Itens de ação",
+    "actionItemsPageTitle": "Itens de ação",
+    "actionItemsPageSubtitle": "Pendências abertas da síntese do chat de oficiais.",
+    "viewAllActionItems": "Ver todos os itens abertos",
+    "openActionItemsLink": "{count, plural, one {# item de ação aberto} other {# itens de ação abertos}}",
+    "noActionItems": "Nenhum item de ação nesta ata.",
+    "noOpenActionItems": "Nenhum item de ação aberto.",
+    "unassigned": "Sem responsável",
+    "saveDraft": "Salvar rascunho",
+    "approveNotes": "Aprovar atas",
+    "saving": "Salvando…",
+    "saveNoteFailed": "Não foi possível salvar as atas da reunião.",
+    "updateActionItemFailed": "Não foi possível atualizar este item de ação.",
+    "markInProgress": "Marcar em andamento",
+    "markDone": "Marcar como concluído",
+    "priority": {
+      "low": "Baixa",
+      "normal": "Normal",
+      "high": "Alta"
+    },
+    "status": {
+      "open": "Aberto",
+      "in_progress": "Em andamento",
+      "done": "Concluído",
+      "cancelled": "Cancelado"
+    },
+    "askTitle": "Pergunte sobre decisões da aliança",
+    "askSubtitle": "As respostas usam atas aprovadas pelos oficiais e itens de ação abertos — não o histórico completo do chat.",
+    "askPlaceholder": "O que decidimos sobre os bancos?",
+    "askSubmit": "Perguntar",
+    "asking": "Buscando atas aprovadas…",
+    "askEmptyCorpus": "Aprove atas da reunião para ensinar o assistente.",
+    "askLlmUnavailable": "O Q&A por IA não está configurado neste servidor.",
+    "askFailed": "Não foi possível responder a essa pergunta.",
+    "askCitationNote": "Atas da reunião",
+    "askCitationActionItem": "Item de ação",
+    "askSources": "Fontes",
+    "askYou": "Você",
+    "askAssistant": "Assistente"
+  },
+  "notes": {
+    "title": "Notas",
+    "subtitle": "Elogios, violações e anotações",
+    "empty": "Ainda não há notas.",
+    "bodyLabel": "Nota",
+    "kindLabel": "Tipo",
+    "kindNote": "Nota",
+    "kindCommendation": "Elogio",
+    "kindViolation": "Violação",
+    "saveNote": "Salvar nota",
+    "saving": "Salvando…",
+    "saveFailed": "Não foi possível salvar esta nota.",
+    "loadFailed": "Não foi possível carregar as notas.",
+    "searchMembers": "Buscar comandantes",
+    "noMemberMatches": "Nenhum comandante corresponde a essa busca.",
+    "saveMembers": "Salvar membros",
+    "membersSaved": "Membros salvos.",
+    "membersSaveFailed": "Não foi possível salvar os membros.",
+    "attached": "Vinculados",
+    "backToNotes": "Todas as notas",
+    "notFound": "Nota não encontrada."
   }
 }

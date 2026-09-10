@@ -14,6 +14,8 @@ vi.mock("@/lib/member-link/member-link-help-queue.server", () => ({
   getMemberLinkHelpRequestById: vi.fn(),
   resolveMemberLinkHelpRequest: vi.fn().mockResolvedValue({ ok: true }),
   satisfyHelpInboxItem: vi.fn().mockResolvedValue(undefined),
+  claimOpenMemberLinkHelpRequest: vi.fn(),
+  revertResolvedMemberLinkHelpClaim: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/member-link/roster-link-resolve.server", () => ({
@@ -331,6 +333,14 @@ describe("linkMemberLinkHelpRequest", () => {
     vi.mocked(helpQueue.getMemberLinkHelpRequestById).mockResolvedValue(
       openHelpRow as never,
     );
+    vi.mocked(helpQueue.claimOpenMemberLinkHelpRequest).mockResolvedValue({
+      ok: true,
+      request: {
+        ...openHelpRow,
+        status: "resolved",
+        linkedAshedMemberId: "m1",
+      },
+    } as never);
     vi.mocked(repository.getHqMemberLinkByAllianceAndMember).mockResolvedValue(
       null as never,
     );
@@ -363,6 +373,7 @@ describe("linkMemberLinkHelpRequest", () => {
 
     expect(result).toEqual({ ok: false, reason: "hq_user_required" });
     expect(repository.linkHqMember).not.toHaveBeenCalled();
+    expect(helpQueue.claimOpenMemberLinkHelpRequest).not.toHaveBeenCalled();
   });
 
   it("rejects when target member already has an HQ link", async () => {
@@ -388,6 +399,7 @@ describe("linkMemberLinkHelpRequest", () => {
       expect(result.reason).toBe("member_already_claimed");
     }
     expect(repository.linkHqMember).not.toHaveBeenCalled();
+    expect(helpQueue.claimOpenMemberLinkHelpRequest).not.toHaveBeenCalled();
   });
 
   it("links when the roster member only has a Discord binding", async () => {
@@ -407,7 +419,61 @@ describe("linkMemberLinkHelpRequest", () => {
     });
 
     expect(result).toEqual({ ok: true, memberName: "Commander Alpha" });
+    expect(helpQueue.claimOpenMemberLinkHelpRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: "req-1",
+        status: "resolved",
+        linkedAshedMemberId: "m1",
+      }),
+    );
     expect(repository.linkHqMember).toHaveBeenCalled();
+  });
+
+  it("does not link when another officer already claimed the help request", async () => {
+    vi.mocked(helpQueue.claimOpenMemberLinkHelpRequest).mockResolvedValue({
+      ok: false,
+      reason: "already_closed",
+      request: {
+        ...openHelpRow,
+        status: "dismissed",
+      },
+    } as never);
+
+    const result = await linkMemberLinkHelpRequest({
+      requestId: "req-1",
+      targetAshedMemberId: "m1",
+      resolvedByHqUserId: "officer-2",
+      sessionId: "sess-1",
+      allianceId: "a1",
+    });
+
+    expect(result).toEqual({ ok: false, reason: "already_closed" });
+    expect(repository.linkHqMember).not.toHaveBeenCalled();
+  });
+
+  it("reverts the claim when linkHqMember fails after claim", async () => {
+    vi.mocked(repository.linkHqMember).mockResolvedValue({
+      ok: false,
+      reason: "member_linked_to_other_user",
+    });
+
+    const result = await linkMemberLinkHelpRequest({
+      requestId: "req-1",
+      targetAshedMemberId: "m1",
+      resolvedByHqUserId: "officer-1",
+      sessionId: "sess-1",
+      allianceId: "a1",
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe("member_linked_to_other_user");
+    }
+    expect(helpQueue.revertResolvedMemberLinkHelpClaim).toHaveBeenCalledWith({
+      requestId: "req-1",
+      resolvedByHqUserId: "officer-1",
+    });
+    expect(helpQueue.satisfyHelpInboxItem).not.toHaveBeenCalled();
   });
 
   it("syncs owner external id and primary game uid after successful link", async () => {
