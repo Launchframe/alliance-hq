@@ -54,12 +54,14 @@ async function embedTexts(texts: string[]): Promise<number[][] | null> {
   return embeddings;
 }
 
-async function deleteChunksForSource(input: {
-  allianceId: string;
-  sourceType: "approved_note" | "action_item";
-  sourceId: string;
-}) {
-  const db = getDb();
+async function deleteChunksForSource(
+  db: { delete: ReturnType<typeof getDb>["delete"] },
+  input: {
+    allianceId: string;
+    sourceType: "approved_note" | "action_item";
+    sourceId: string;
+  },
+) {
   await db
     .delete(schema.officerIntelChunks)
     .where(
@@ -76,15 +78,11 @@ export async function dropOfficerMeetingNoteChunks(input: {
   noteId: string;
 }) {
   const db = getDb();
-  await db
-    .delete(schema.officerIntelChunks)
-    .where(
-      and(
-        eq(schema.officerIntelChunks.allianceId, input.allianceId),
-        eq(schema.officerIntelChunks.sourceType, "approved_note"),
-        eq(schema.officerIntelChunks.sourceId, input.noteId),
-      ),
-    );
+  await deleteChunksForSource(db, {
+    allianceId: input.allianceId,
+    sourceType: "approved_note",
+    sourceId: input.noteId,
+  });
 }
 
 export async function dropOfficerActionItemChunks(input: {
@@ -92,15 +90,11 @@ export async function dropOfficerActionItemChunks(input: {
   actionItemId: string;
 }) {
   const db = getDb();
-  await db
-    .delete(schema.officerIntelChunks)
-    .where(
-      and(
-        eq(schema.officerIntelChunks.allianceId, input.allianceId),
-        eq(schema.officerIntelChunks.sourceType, "action_item"),
-        eq(schema.officerIntelChunks.sourceId, input.actionItemId),
-      ),
-    );
+  await deleteChunksForSource(db, {
+    allianceId: input.allianceId,
+    sourceType: "action_item",
+    sourceId: input.actionItemId,
+  });
 }
 
 export async function indexOfficerMeetingNoteChunks(input: {
@@ -123,34 +117,35 @@ export async function indexOfficerMeetingNoteChunks(input: {
     session: toSessionContext(input.session),
   });
 
-  await deleteChunksForSource({
-    allianceId: input.allianceId,
-    sourceType: "approved_note",
-    sourceId: input.note.id,
-  });
-
-  if (chunkTexts.length === 0) return;
-
-  const embeddings = await embedTexts(chunkTexts);
+  const embeddings =
+    chunkTexts.length === 0 ? null : await embedTexts(chunkTexts);
   const db = getDb();
   const now = new Date();
   const approvedAt = input.approvedAt ?? null;
 
-  await db.insert(schema.officerIntelChunks).values(
-    chunkTexts.map((chunkText, index) => ({
-      id: nanoid(),
+  await db.transaction(async (tx) => {
+    await deleteChunksForSource(tx, {
       allianceId: input.allianceId,
-      sourceType: "approved_note" as const,
+      sourceType: "approved_note",
       sourceId: input.note.id,
-      sessionId: input.note.sessionId,
-      localeCode: input.localeCode,
-      chunkText,
-      embedding: embeddings?.[index] ?? null,
-      approvedAt,
-      createdAt: now,
-      updatedAt: now,
-    })),
-  );
+    });
+    if (chunkTexts.length === 0) return;
+    await tx.insert(schema.officerIntelChunks).values(
+      chunkTexts.map((chunkText, index) => ({
+        id: nanoid(),
+        allianceId: input.allianceId,
+        sourceType: "approved_note" as const,
+        sourceId: input.note.id,
+        sessionId: input.note.sessionId,
+        localeCode: input.localeCode,
+        chunkText,
+        embedding: embeddings?.[index] ?? null,
+        approvedAt,
+        createdAt: now,
+        updatedAt: now,
+      })),
+    );
+  });
 }
 
 export async function indexOfficerActionItemChunk(input: {
@@ -183,27 +178,28 @@ export async function indexOfficerActionItemChunk(input: {
     session: input.session ? toSessionContext(input.session) : null,
   });
 
-  await deleteChunksForSource({
-    allianceId: input.allianceId,
-    sourceType: "action_item",
-    sourceId: input.item.id,
-  });
-
   const embeddings = await embedTexts([chunkText]);
   const db = getDb();
   const now = new Date();
 
-  await db.insert(schema.officerIntelChunks).values({
-    id: nanoid(),
-    allianceId: input.allianceId,
-    sourceType: "action_item",
-    sourceId: input.item.id,
-    sessionId: input.item.sessionId,
-    localeCode: input.localeCode,
-    chunkText,
-    embedding: embeddings?.[0] ?? null,
-    approvedAt: null,
-    createdAt: now,
-    updatedAt: now,
+  await db.transaction(async (tx) => {
+    await deleteChunksForSource(tx, {
+      allianceId: input.allianceId,
+      sourceType: "action_item",
+      sourceId: input.item.id,
+    });
+    await tx.insert(schema.officerIntelChunks).values({
+      id: nanoid(),
+      allianceId: input.allianceId,
+      sourceType: "action_item",
+      sessionId: input.item.sessionId,
+      sourceId: input.item.id,
+      localeCode: input.localeCode,
+      chunkText,
+      embedding: embeddings?.[0] ?? null,
+      approvedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    });
   });
 }

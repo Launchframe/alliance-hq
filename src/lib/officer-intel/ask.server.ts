@@ -80,12 +80,16 @@ export async function streamOfficerIntelAsk(input: {
       { status: 503 },
     );
   }
+  if (!input.hqUserId) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   let threadId = input.threadId?.trim() || null;
   if (threadId) {
     const existing = await getOfficerIntelThreadForAlliance({
       threadId,
       allianceId: input.allianceId,
+      requesterHqUserId: input.hqUserId,
     });
     if (!existing) {
       return Response.json({ error: "Thread not found." }, { status: 404 });
@@ -100,6 +104,7 @@ export async function streamOfficerIntelAsk(input: {
   const thread = await getOfficerIntelThreadForAlliance({
     threadId,
     allianceId: input.allianceId,
+    requesterHqUserId: input.hqUserId,
   });
   if (!thread) {
     return Response.json({ error: "Thread not found." }, { status: 404 });
@@ -180,6 +185,11 @@ export async function streamOfficerIntelAsk(input: {
           send({ type: "delta", text: delta });
         }
 
+        if (!answer.trim()) {
+          send({ type: "error", message: "Could not answer that question." });
+          return;
+        }
+
         await appendOfficerIntelThreadMessage({
           threadId: thread.id,
           allianceId: input.allianceId,
@@ -196,7 +206,7 @@ export async function streamOfficerIntelAsk(input: {
 
         const nextTurnCount = thread.turnCount + 1;
         let nextSummary = thread.runningSummary;
-        if (shouldRefreshThreadSummary(nextTurnCount) && answer.trim()) {
+        if (shouldRefreshThreadSummary(nextTurnCount)) {
           try {
             nextSummary = await refreshRunningSummary({
               previousSummary: thread.runningSummary,

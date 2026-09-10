@@ -11,6 +11,8 @@ import {
   isOfficerIntelLlmConfigured,
   officerIntelEmbedModel,
 } from "@/lib/officer-intel/llm-config.server";
+import { ensureOfficerIntelCorpusBackfill } from "@/lib/officer-intel/backfill-corpus.server";
+import { formatOfficerIntelEmbeddingLiteral } from "@/lib/officer-intel/embedding-query.shared";
 import { officerIntelScoreWithRecency } from "@/lib/officer-intel/recency-boost.shared";
 import { listOfficerChatMessages } from "@/lib/officer-intel/repository.server";
 import { listOpenOfficerActionItems } from "@/lib/officer-intel/repository.server";
@@ -51,16 +53,6 @@ type RawRetrievedRow = {
   similarity: number;
 };
 
-function formatEmbeddingForQuery(values: number[]): string {
-  if (
-    values.length === 0 ||
-    values.some((value) => typeof value !== "number" || !Number.isFinite(value))
-  ) {
-    throw new Error("invalid query embedding");
-  }
-  return `[${values.join(",")}]`;
-}
-
 function mapRow(row: RawRetrievedRow, similarity: number): OfficerIntelRetrievedChunk {
   return {
     id: row.id,
@@ -96,9 +88,7 @@ async function retrieveByVector(input: {
   k: number;
 }): Promise<OfficerIntelRetrievedChunk[]> {
   const db = getDb();
-  const vectorExpr = sql.raw(
-    `'${formatEmbeddingForQuery(input.queryEmbedding)}'::vector`,
-  );
+  const vectorLiteral = formatOfficerIntelEmbeddingLiteral(input.queryEmbedding);
   const result = await db.execute(sql`
     SELECT
       c.id,
@@ -110,7 +100,7 @@ async function retrieveByVector(input: {
       s.title AS session_title,
       s.channel_label,
       s.session_at,
-      1 - (c.embedding <=> ${vectorExpr}) AS similarity
+      1 - (c.embedding <=> CAST(${vectorLiteral} AS vector)) AS similarity
     FROM officer_intel_chunks c
     LEFT JOIN officer_chat_sessions s
       ON s.id = c.session_id AND s.alliance_id = c.alliance_id
@@ -208,6 +198,12 @@ export async function retrieveOfficerIntelCorpus(input: {
   const k = input.k ?? DEFAULT_RETRIEVE_K;
   const query = input.query.trim();
   if (!query) return [];
+
+  try {
+    await ensureOfficerIntelCorpusBackfill(input.allianceId);
+  } catch (error) {
+    console.error("[officer-intel] corpus backfill failed", error);
+  }
 
   const embedded = await hasAnyEmbeddings(input.allianceId);
   if (!embedded) {

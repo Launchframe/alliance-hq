@@ -4,6 +4,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { canContinueOfficerIntelThread } from "@/lib/officer-intel/thread-access.shared";
 
 export async function createOfficerIntelThread(input: {
   allianceId: string;
@@ -27,6 +28,7 @@ export async function createOfficerIntelThread(input: {
 export async function getOfficerIntelThreadForAlliance(input: {
   threadId: string;
   allianceId: string;
+  requesterHqUserId?: string | null;
 }) {
   const db = getDb();
   const [row] = await db
@@ -39,7 +41,17 @@ export async function getOfficerIntelThreadForAlliance(input: {
       ),
     )
     .limit(1);
-  return row ?? null;
+  if (!row) return null;
+  if (
+    input.requesterHqUserId !== undefined &&
+    !canContinueOfficerIntelThread({
+      createdByHqUserId: row.createdByHqUserId,
+      requesterHqUserId: input.requesterHqUserId,
+    })
+  ) {
+    return null;
+  }
+  return row;
 }
 
 export async function appendOfficerIntelThreadMessage(input: {
