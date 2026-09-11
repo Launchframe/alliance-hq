@@ -159,7 +159,13 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 
 ## Learned Workspace Facts
 
+- Plunder Plan database suites: run `npx vitest run src/lib/plunder-plan --maxWorkers=1` with `PLUNDER_PLAN_DB_TEST=1` only after binding all three database URLs to the same guarded dedicated test database. Delivery tests mock Discord; never invoke live command registration or the authenticated delivery tick as an automated smoke test. Worktrees do not isolate the database.
+
+- Migration renumbering after `0004` is SQL file rename plus `_journal.json` update (Drizzle snapshots only cover `0000`–`0004`).
 - Reserve migration sequence numbers for in-flight PRs in stacked work; `db:validate-journal` allows intentional sequence gaps in `_journal.json`.
+- Standalone E2E builds must bind `DATABASE_URL`, `LOCAL_DATABASE_URL`, and `E2E_DATABASE_URL` to the same URL validated by `scripts/e2e-database-url-guard.mjs`, set `NODE_ENV=production`, and validate `resolveDatabaseUrl(childEnv)` before spawning the build. Guarding only `DATABASE_URL` is insufficient: the resolver can prefer an existing `LOCAL_DATABASE_URL`.
+- Next.js streamed `notFound()` pages can return HTTP 200. Privilege tests must assert the denied page content and the protected API status, rather than relying on an HTTP 404 alone.
+- Use separate browser contexts when testing different signed-in identities across redirecting pages; clearing cookies on a page with pending navigation can cause `ERR_ABORTED` and hide the actual boundary assertion.
 - Discord `/link-commander` matches web member-link: UID-only lookup plus identity confirm (no typed in-game name).
 - Roster substring match direction: roster name (≥4 chars) must be a subset of the in-game name, with a single match.
 - Release workflow: draft notes in `docs/release-notes/` (`status: draft`); push `package.json` bump and `status: ready` note for cross-machine ship; run `npm run release:ship -- --yes --version X.Y.Z` (not `--minor` when `package.json` is already bumped).

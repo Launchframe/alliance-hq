@@ -15,6 +15,136 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import type { SupportBoard, SupportEvent, SupportValue } from "@/lib/support-teams/types.shared";
+import type { SupportDisplayPreferences } from "@/lib/support-teams/display-preferences.shared";
+import type { TeamWorkDetail } from "@/lib/support-teams/work-routing.shared";
+import type { PlanSchedule } from "@/lib/plunder-plan/schedule.shared";
+
+export const plunderPlans = pgTable("plunder_plans", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").notNull(),
+  memberId: text("member_id"),
+  membershipKey: text("membership_key"),
+  kind: text("kind").$type<"plan" | "suggestion">().notNull(),
+  schedule: jsonb("schedule").$type<PlanSchedule>().notNull(),
+  sourceId: text("source_id"),
+  scheduleVersion: integer("schedule_version").notNull().default(1),
+  version: integer("version").notNull().default(1),
+  active: boolean("active").notNull().default(true),
+  removed: boolean("removed").notNull().default(false),
+  reminder: boolean("reminder").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index("plunder_plans_alliance_idx").on(table.allianceId, table.removed)]);
+
+export const plunderPlanExceptions = pgTable("plunder_plan_exceptions", {
+  planId: text("plan_id").notNull().references(() => plunderPlans.id, { onDelete: "cascade" }),
+  date: text("date").notNull(),
+  scheduleVersion: integer("schedule_version").notNull(),
+}, (table) => [primaryKey({ columns: [table.planId, table.date, table.scheduleVersion] })]);
+
+export const plunderPlanColors = pgTable("plunder_plan_colors", {
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  principalId: text("principal_id").notNull(),
+  color: text("color").notNull(),
+  version: integer("version").notNull().default(1),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [primaryKey({ columns: [table.allianceId, table.principalId] })]);
+
+export const plunderPlanState = pgTable("plunder_plan_state", {
+  allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
+  version: integer("version").notNull().default(0),
+  nextTickAt: timestamp("next_tick_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index("plunder_plan_tick_due_idx").on(table.nextTickAt)]);
+
+export const plunderPlanIntents = pgTable("plunder_plan_intents", {
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  actorId: text("actor_id").notNull(),
+  requestId: text("request_id").notNull(),
+  requestHash: text("request_hash").notNull(),
+  result: jsonb("result").$type<{ id?: string; version: number }>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [primaryKey({ columns: [table.allianceId, table.actorId, table.requestId] })]);
+
+export const plunderPlanInteractions = pgTable("plunder_plan_interactions", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  guildId: text("guild_id").notNull(),
+  discordUserId: text("discord_user_id").notNull(),
+  state: jsonb("state").$type<Record<string, unknown>>().notNull(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export const plunderPlanDigestSettings = pgTable("plunder_plan_digest_settings", {
+  guildId: text("guild_id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  channelId: text("channel_id").notNull(),
+  timeSt: text("time_st").notNull(),
+  locale: text("locale").notNull(),
+  enabled: boolean("enabled").notNull().default(false),
+  version: integer("version").notNull().default(1),
+});
+
+export const plunderPlanDeliveries = pgTable("plunder_plan_deliveries", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  kind: text("kind").$type<"reminder" | "digest">().notNull(),
+  recipientId: text("recipient_id").notNull(),
+  occurrenceKey: text("occurrence_key").notNull(),
+  dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  status: text("status").$type<"pending" | "leased" | "posting" | "sent" | "cancelled" | "uncertain">().notNull().default("pending"),
+  leaseToken: text("lease_token"),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  attempts: integer("attempts").notNull().default(0),
+  messageId: text("message_id"),
+}, (table) => [unique("plunder_plan_delivery_unique").on(table.allianceId, table.kind, table.recipientId, table.occurrenceKey), index("plunder_plan_delivery_due_idx").on(table.status, table.dueAt)]);
+
+export const teamWorkItems = pgTable("team_work_items", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  sourceKey: text("source_key").notNull(),
+  sourceVersion: text("source_version").notNull(),
+  kind: text("kind").$type<"time_off" | "coverage" | "vs">().notNull(),
+  memberId: text("member_id").notNull(),
+  stint: text("stint").notNull(),
+  teamId: text("team_id"),
+  assigneeId: text("assignee_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  requiredPermission: text("required_permission").notNull(),
+  detail: jsonb("detail").$type<TeamWorkDetail>().notNull(),
+  href: text("href").notNull(),
+  version: integer("version").notNull().default(1),
+  open: boolean("open").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("team_work_source_unique").on(table.allianceId, table.sourceKey), index("team_work_assignee_idx").on(table.allianceId, table.assigneeId, table.open)]);
+
+export const teamWorkDigests = pgTable("team_work_digests", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  recipientId: text("recipient_id").notNull().references(() => hqUsers.id, { onDelete: "cascade" }),
+  day: text("day").notNull(),
+  status: text("status").$type<"pending" | "leased" | "posting" | "uncertain" | "sent" | "cancelled">().notNull().default("pending"),
+  leaseToken: text("lease_token"),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  discordUserId: text("discord_user_id"),
+  channelId: text("channel_id"),
+  messageId: text("message_id"),
+  lastError: text("last_error"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("team_work_digest_day_unique").on(table.allianceId, table.recipientId, table.day), index("team_work_delivery_due_idx").on(table.status, table.nextAttemptAt)]);
+
+export const teamWorkState = pgTable("team_work_state", {
+  allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
+  reconciledAt: timestamp("reconciled_at", { withTimezone: true }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+  lastError: text("last_error"),
+});
+
 const vector1536 = customType<{ data: number[]; driverData: string }>({
   dataType() {
     return "vector(1536)";
@@ -27,6 +157,47 @@ const vector1536 = customType<{ data: number[]; driverData: string }>({
     if (!raw) return [];
     return raw.split(",").map(Number);
   },
+});
+
+export const supportTeamBoards = pgTable("support_team_boards", {
+  allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
+  version: integer("version").notNull().default(0),
+  published: boolean("published").notNull().default(false),
+  construction: jsonb("construction").$type<SupportBoard["construction"]>(),
+});
+
+export const supportTeamFields = pgTable("support_team_fields", {
+  allianceId: text("alliance_id").notNull().references(() => supportTeamBoards.allianceId, { onDelete: "cascade" }),
+  key: text("key").notNull(),
+  value: jsonb("value").$type<SupportValue>(),
+  version: integer("version").notNull(),
+  actionId: text("action_id").notNull(),
+}, (table) => [primaryKey({ columns: [table.allianceId, table.key] })]);
+
+export const supportTeamEvents = pgTable("support_team_events", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => supportTeamBoards.allianceId, { onDelete: "cascade" }),
+  principalId: text("principal_id").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  requestHash: text("request_hash").notNull(),
+  boardVersion: integer("board_version").notNull(),
+  event: jsonb("event").$type<SupportEvent>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("support_team_events_intent_unique").on(table.allianceId, table.principalId, table.idempotencyKey),
+  unique("support_team_events_version_unique").on(table.allianceId, table.boardVersion),
+]);
+
+export const supportTeamReversals = pgTable("support_team_reversals", {
+  allianceId: text("alliance_id").notNull().references(() => supportTeamBoards.allianceId, { onDelete: "cascade" }),
+  actionId: text("action_id").notNull().references(() => supportTeamEvents.id),
+  reversalId: text("reversal_id").notNull().references(() => supportTeamEvents.id),
+}, (table) => [primaryKey({ columns: [table.allianceId, table.actionId, table.reversalId] })]);
+
+export const supportTeamPreferences = pgTable("support_team_preferences", {
+  hqUserId: text("hq_user_id").primaryKey().references(() => hqUsers.id, { onDelete: "cascade" }),
+  version: integer("version").notNull().default(0),
+  display: jsonb("display").$type<SupportDisplayPreferences>().notNull(),
 });
 
 export const alliances = pgTable("alliances", {

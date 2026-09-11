@@ -6,8 +6,8 @@ import { getDiscordUserLocale, upsertDiscordUserLocale } from "@/lib/vr/reposito
 export type DiscordBotLocale = "en-US" | "pt-BR";
 
 const MESSAGES: Record<DiscordBotLocale, Record<string, unknown>> = {
-  "en-US": { ...enUS.discordBot, timeOff: { ...enUS.discordBot.timeOff, workflow: enUS.timeOff.workflow, form: enUS.timeOff.form, officerModal: enUS.timeOff.officerModal, entry: enUS.timeOff.entry, sync: enUS.timeOff.sync } },
-  "pt-BR": { ...ptBR.discordBot, timeOff: { ...ptBR.discordBot.timeOff, workflow: ptBR.timeOff.workflow, form: ptBR.timeOff.form, officerModal: ptBR.timeOff.officerModal, entry: ptBR.timeOff.entry, sync: ptBR.timeOff.sync } },
+  "en-US": { ...enUS.discordBot, plunderPlan: enUS.plunderPlan, teamWork: enUS.teamWork, trainDuty: enUS.trains.conductorHistory, timeOff: { ...enUS.discordBot.timeOff, workflow: enUS.timeOff.workflow, form: enUS.timeOff.form, officerModal: enUS.timeOff.officerModal, entry: enUS.timeOff.entry, sync: enUS.timeOff.sync } },
+  "pt-BR": { ...ptBR.discordBot, plunderPlan: ptBR.plunderPlan, teamWork: ptBR.teamWork, trainDuty: ptBR.trains.conductorHistory, timeOff: { ...ptBR.discordBot.timeOff, workflow: ptBR.timeOff.workflow, form: ptBR.timeOff.form, officerModal: ptBR.timeOff.officerModal, entry: ptBR.timeOff.entry, sync: ptBR.timeOff.sync } },
 };
 
 const AUTHORIZE_MESSAGES: Record<DiscordBotLocale, Record<string, unknown>> = {

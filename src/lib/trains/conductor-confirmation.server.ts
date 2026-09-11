@@ -1,7 +1,9 @@
 import "server-only";
 
-import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, isNull, lte, notInArray, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { lockAllianceAvailability, loadTimeOffAvailability } from "@/lib/time-off/availability.server";
+import { findCoverageConflicts, trainCoverageDuties } from "@/lib/time-off/coverage.server";
 
 import { writeAuditLog } from "@/lib/bff/audit";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
@@ -89,6 +91,7 @@ async function buildSuccessionSnapshot(input: {
   scoreDateDay?: DayMechanismConfig | null;
   winner: { memberId: string; memberName: string };
 }): Promise<SuccessionSnapshotEntry[]> {
+  const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.trainDate);
   const topBoard = resolveNominationTopBoard({
     trainDate: input.trainDate,
     trainDay: {
@@ -107,7 +110,7 @@ async function buildSuccessionSnapshot(input: {
       input.leadDays,
     );
     if (top.length > 0) {
-      return top.map((c) => ({
+      return top.filter((c) => !awayMemberIds.has(c.memberId)).map((c) => ({
         memberId: c.memberId,
         memberName: c.memberName,
         rank: c.allianceRank ?? null,
@@ -139,6 +142,7 @@ async function buildSuccessionSnapshot(input: {
         and(
           eq(schema.conductorPoolEntries.allianceId, input.allianceId),
           eq(schema.conductorPoolEntries.poolType, poolType),
+          awayMemberIds.size > 0 ? notInArray(schema.conductorPoolEntries.memberId, [...awayMemberIds]) : undefined,
           isNull(schema.conductorPoolEntries.selectedAt),
         ),
       )
@@ -193,6 +197,10 @@ export async function nominateConductorForDate(input: {
   if (existing?.lockedAt) {
     return { ok: false, reason: "already_locked" };
   }
+  if (existing?.conductorMemberId) {
+    const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.trainDate);
+    if (awayMemberIds.has(existing.conductorMemberId)) return { ok: false, reason: "coverage_conflict", recordId: existing.id };
+  }
   const status = existing?.conductorNominationStatus;
   if (
     status === "pending_confirmation" ||
@@ -244,6 +252,8 @@ export async function nominateConductorForDate(input: {
     winner,
   });
 
+  const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.trainDate);
+  if (awayMemberIds.has(winner.memberId)) return { ok: false, reason: "coverage_conflict" };
   const now = new Date();
   const deadline = new Date(now.getTime() + CONFIRMATION_PRIMARY_WINDOW_MS);
   const triggerMode = input.trigger.mode;
@@ -252,7 +262,6 @@ export async function nominateConductorForDate(input: {
   const mechanism =
     winner.mechanism ?? dayConfig.conductorMechanism ?? null;
 
-  const db = getDb();
   // Single CAS write for conductor + nomination window. Do not upsert-then-mark:
   // a loser overwrite between those steps can leave the winner's status on the
   // loser's member (and the loser's pool release would free the assigned seat).
@@ -271,69 +280,28 @@ export async function nominateConductorForDate(input: {
     updatedAt: now,
   };
 
-  let recordId: string | undefined;
-
-  if (existing) {
-    const claimed = await db
-      .update(schema.trainConductorRecords)
-      .set(nominationPatch)
-      .where(
-        and(
-          eq(schema.trainConductorRecords.id, existing.id),
-          isNull(schema.trainConductorRecords.lockedAt),
-          or(
-            isNull(schema.trainConductorRecords.conductorNominationStatus),
-            eq(
-              schema.trainConductorRecords.conductorNominationStatus,
-              "awaiting_scores",
-            ),
-          ),
-        ),
-      )
-      .returning({ id: schema.trainConductorRecords.id });
-
-    if (claimed.length === 0) {
-      if (rolledFresh) {
-        await releasePoolSelectionForDate(
-          input.allianceId,
-          input.trainDate,
-          winner.memberId,
-        ).catch(() => undefined);
-      }
-      return {
-        ok: true,
-        recordId: existing.id,
-        reason: "already_nominated",
-      };
+  const nomination = await getDb().transaction(async (db) => {
+    await lockAllianceAvailability(db, input.allianceId);
+    const [current] = await db.select().from(schema.trainConductorRecords).where(and(eq(schema.trainConductorRecords.allianceId, input.allianceId), eq(schema.trainConductorRecords.date, input.trainDate))).for("update");
+    if (current && (current.lockedAt || current.updatedAt.getTime() !== existing?.updatedAt.getTime())) return { recordId: current.id, claimed: false, away: false };
+    const conflicts = await findCoverageConflicts(db, input.allianceId, [{ assignmentId: current?.id ?? `train:${input.trainDate}`, assignmentVersion: "nomination", dutyDate: input.trainDate, dutyRole: "conductor", memberId: winner.memberId, memberName: winner.memberName, lockedAt: null }]);
+    if (conflicts.length) return { recordId: current?.id, claimed: false, away: true };
+    if (current) {
+      const claimed = await db.update(schema.trainConductorRecords).set(nominationPatch)
+        .where(and(eq(schema.trainConductorRecords.id, current.id), isNull(schema.trainConductorRecords.lockedAt), or(isNull(schema.trainConductorRecords.conductorNominationStatus), eq(schema.trainConductorRecords.conductorNominationStatus, "awaiting_scores"))))
+        .returning({ id: schema.trainConductorRecords.id });
+      return { recordId: current.id, claimed: claimed.length > 0, away: false };
     }
-    recordId = claimed[0]!.id;
-  } else {
-    const id = nanoid();
-    try {
-      await db.insert(schema.trainConductorRecords).values({
-        id,
-        allianceId: input.allianceId,
-        date: input.trainDate,
-        ...nominationPatch,
-      });
-      recordId = id;
-    } catch {
-      // Unique (alliance_id, date) — another nominator inserted first.
-      if (rolledFresh) {
-        await releasePoolSelectionForDate(
-          input.allianceId,
-          input.trainDate,
-          winner.memberId,
-        ).catch(() => undefined);
-      }
-      const raced = await loadRecord(input.allianceId, input.trainDate);
-      return {
-        ok: true,
-        recordId: raced?.id,
-        reason: "already_nominated",
-      };
-    }
+    // Unique (alliance_id, date) — another nominator inserted first.
+    const claimed = await db.insert(schema.trainConductorRecords).values({ id: nanoid(), allianceId: input.allianceId, date: input.trainDate, ...nominationPatch }).onConflictDoNothing().returning({ id: schema.trainConductorRecords.id });
+    return { recordId: claimed[0]?.id, claimed: claimed.length > 0, away: false };
+  });
+  if (!nomination.claimed) {
+    if (rolledFresh) await releasePoolSelectionForDate(input.allianceId, input.trainDate, winner.memberId).catch(() => undefined);
+    if (nomination.away) return { ok: false, reason: "coverage_conflict" };
+    return { ok: true, recordId: nomination.recordId ?? (await loadRecord(input.allianceId, input.trainDate))?.id, reason: "already_nominated" };
   }
+  const recordId = nomination.recordId;
 
   if (input.late && input.sessionId) {
     await writeAuditLog({
@@ -435,7 +403,10 @@ async function promoteSuccessor(input: {
   const snapshot =
     (input.record.successionSnapshot as SuccessionSnapshotEntry[] | null) ??
     [];
-  const nextAttempt = (input.record.successorAttempt ?? 0) + 1;
+  const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.record.date);
+  if (input.record.lockedAt || (input.record.conductorMemberId && awayMemberIds.has(input.record.conductorMemberId))) return "lost_race";
+  let nextAttempt = (input.record.successorAttempt ?? 0) + 1;
+  while (nextAttempt <= CONFIRMATION_MAX_SUCCESSORS && snapshot[nextAttempt] && awayMemberIds.has(snapshot[nextAttempt].memberId)) nextAttempt += 1;
   if (nextAttempt > CONFIRMATION_MAX_SUCCESSORS) return "exhausted";
 
   const next = snapshot[nextAttempt];
@@ -445,33 +416,41 @@ async function promoteSuccessor(input: {
   const deadline = new Date(
     input.now.getTime() + CONFIRMATION_SUCCESSOR_WINDOW_MS,
   );
-  const db = getDb();
-  // CAS before pool release: a concurrent officer confirm must win cleanly.
-  const promoted = await db
-    .update(schema.trainConductorRecords)
-    .set({
-      conductorMemberId: next.memberId,
-      conductorMemberName: next.memberName,
-      conductorNominationStatus: "pending_confirmation",
-      successorAttempt: nextAttempt,
-      confirmationDeadlineAt: deadline,
-      updatedAt: input.now,
-    })
-    .where(
-      and(
-        eq(schema.trainConductorRecords.id, input.record.id),
-        eq(
-          schema.trainConductorRecords.conductorNominationStatus,
-          "pending_confirmation",
+  const promoted = await getDb().transaction(async (db) => {
+    await lockAllianceAvailability(db, input.allianceId);
+    const [current] = await db.select().from(schema.trainConductorRecords).where(and(eq(schema.trainConductorRecords.id, input.record.id), eq(schema.trainConductorRecords.allianceId, input.allianceId))).for("update");
+    if (!current || current.lockedAt || current.updatedAt.getTime() !== input.record.updatedAt.getTime()) return [];
+    if (current.conductorNominationStatus !== "pending_confirmation") return [];
+    if ((current.successorAttempt ?? 0) !== (input.record.successorAttempt ?? 0)) return [];
+    const duties = [...trainCoverageDuties(current, "current"), ...trainCoverageDuties({ ...current, conductorMemberId: next.memberId, conductorMemberName: next.memberName }, "next")];
+    if ((await findCoverageConflicts(db, input.allianceId, duties)).length) return [];
+    // CAS before pool release: a concurrent officer confirm must win cleanly.
+    return db
+      .update(schema.trainConductorRecords)
+      .set({
+        conductorMemberId: next.memberId,
+        conductorMemberName: next.memberName,
+        conductorNominationStatus: "pending_confirmation",
+        successorAttempt: nextAttempt,
+        confirmationDeadlineAt: deadline,
+        updatedAt: input.now,
+      })
+      .where(
+        and(
+          eq(schema.trainConductorRecords.id, input.record.id),
+          eq(
+            schema.trainConductorRecords.conductorNominationStatus,
+            "pending_confirmation",
+          ),
+          eq(
+            schema.trainConductorRecords.successorAttempt,
+            input.record.successorAttempt ?? 0,
+          ),
+          isNull(schema.trainConductorRecords.lockedAt),
         ),
-        eq(
-          schema.trainConductorRecords.successorAttempt,
-          input.record.successorAttempt ?? 0,
-        ),
-        isNull(schema.trainConductorRecords.lockedAt),
-      ),
-    )
-    .returning({ id: schema.trainConductorRecords.id });
+      )
+      .returning({ id: schema.trainConductorRecords.id });
+  });
 
   if (promoted.length === 0) return "lost_race";
 
@@ -490,7 +469,9 @@ async function assignR4Fallback(input: {
   allianceId: string;
   record: typeof schema.trainConductorRecords.$inferSelect;
   now: Date;
-}): Promise<void> {
+}): Promise<boolean> {
+  const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.record.date);
+  if (input.record.lockedAt || (input.record.conductorMemberId && awayMemberIds.has(input.record.conductorMemberId))) return false;
   const summary = await getPoolSummary(input.allianceId, "r4_plus");
   let memberId: string | null = null;
   let memberName: string | null = null;
@@ -507,6 +488,7 @@ async function assignR4Fallback(input: {
         and(
           eq(schema.conductorPoolEntries.allianceId, input.allianceId),
           eq(schema.conductorPoolEntries.poolType, "r4_plus"),
+          awayMemberIds.size > 0 ? notInArray(schema.conductorPoolEntries.memberId, [...awayMemberIds]) : undefined,
           isNull(schema.conductorPoolEntries.selectedAt),
         ),
       )
@@ -523,7 +505,7 @@ async function assignR4Fallback(input: {
   if (!memberId) {
     const roster = await listActiveAllianceMembersForPool(input.allianceId);
     const r4 = roster
-      .filter((m) => (m.allianceRank ?? 0) >= 4)
+      .filter((m) => (m.allianceRank ?? 0) >= 4 && !awayMemberIds.has(m.ashedMemberId))
       .sort((a, b) => (a.allianceRank ?? 99) - (b.allianceRank ?? 99));
     if (r4[0]) {
       memberId = r4[0].ashedMemberId;
@@ -531,12 +513,22 @@ async function assignR4Fallback(input: {
     }
   }
 
-  if (!memberId || !memberName) return;
+  if (!memberId || !memberName) return false;
+  const latest = await loadTimeOffAvailability(input.allianceId, input.record.date);
+  if (latest.awayMemberIds.has(memberId) || (input.record.conductorMemberId && latest.awayMemberIds.has(input.record.conductorMemberId))) return false;
 
   const previousMemberId = input.record.conductorMemberId;
-  const db = getDb();
-  // CAS: do not clobber a concurrent confirm/promote; assign R4 only while still pending.
-  const fellBack = await db
+  const selectedId = memberId;
+  const selectedName = memberName;
+  const fellBack = await getDb().transaction(async (db) => {
+    await lockAllianceAvailability(db, input.allianceId);
+    const [current] = await db.select().from(schema.trainConductorRecords).where(and(eq(schema.trainConductorRecords.id, input.record.id), eq(schema.trainConductorRecords.allianceId, input.allianceId))).for("update");
+    if (!current || current.lockedAt || current.updatedAt.getTime() !== input.record.updatedAt.getTime()) return [];
+    if (current.conductorNominationStatus !== "pending_confirmation") return [];
+    const duties = [...trainCoverageDuties(current, "current"), ...trainCoverageDuties({ ...current, conductorMemberId: selectedId, conductorMemberName: selectedName }, "next")];
+    if ((await findCoverageConflicts(db, input.allianceId, duties)).length) return [];
+    // CAS: do not clobber a concurrent confirm/promote; assign R4 only while still pending.
+    return db
     .update(schema.trainConductorRecords)
     .set({
       conductorMemberId: memberId,
@@ -557,8 +549,9 @@ async function assignR4Fallback(input: {
       ),
     )
     .returning({ id: schema.trainConductorRecords.id });
+  });
 
-  if (fellBack.length === 0) return;
+  if (fellBack.length === 0) return false;
 
   if (previousMemberId && previousMemberId !== memberId) {
     await releasePoolSelectionForDate(
@@ -579,6 +572,7 @@ async function assignR4Fallback(input: {
       memberId,
     },
   });
+  return true;
 }
 
 /** Cron: expire confirmation windows, promote successors, R4 fallback, auto-lock. */
@@ -609,15 +603,16 @@ export async function processConductorConfirmationTick(): Promise<{
     );
 
   for (const record of pending) {
+    const { awayMemberIds } = await loadTimeOffAvailability(record.allianceId, record.date);
+    if (record.conductorMemberId && awayMemberIds.has(record.conductorMemberId)) continue;
     const nominatedAt = record.nominatedAt?.getTime() ?? now.getTime();
     const hardStop = nominatedAt + CONFIRMATION_HARD_STOP_MS;
     if (now.getTime() >= hardStop) {
-      await assignR4Fallback({
+      if (await assignR4Fallback({
         allianceId: record.allianceId,
         record,
         now,
-      });
-      fallbacks += 1;
+      })) fallbacks += 1;
       continue;
     }
 
@@ -629,12 +624,11 @@ export async function processConductorConfirmationTick(): Promise<{
     if (promoted === "promoted") {
       forfeits += 1;
     } else if (promoted === "exhausted") {
-      await assignR4Fallback({
+      if (await assignR4Fallback({
         allianceId: record.allianceId,
         record,
         now,
-      });
-      fallbacks += 1;
+      })) fallbacks += 1;
     }
     // lost_race: concurrent confirm/promote already moved the row — skip.
   }
@@ -658,6 +652,8 @@ export async function processConductorConfirmationTick(): Promise<{
 
   for (const record of lockable) {
     if (!record.conductorMemberId) continue;
+    const { awayMemberIds } = await loadTimeOffAvailability(record.allianceId, record.date);
+    if (awayMemberIds.has(record.conductorMemberId)) continue;
     await lockConductorRecord(record.id, record.allianceId, null);
     autoLocks += 1;
   }

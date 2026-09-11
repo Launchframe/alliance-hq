@@ -19,7 +19,10 @@ export const dynamic = "force-dynamic";
  * Manual VIP / Guardian pick is an open roster assign after lock. It must not
  * seed, claim, or release depleting pools — those are conductor-wheel only.
  */
-export async function POST(request: Request) {
+import { withTrainCoverage } from "@/lib/time-off/train-coverage-route.server";
+export const POST = withTrainCoverage(post);
+
+async function post(request: Request) {
   const sessionOrError = await requireApiSession();
 
   if (sessionOrError instanceof NextResponse) return sessionOrError;

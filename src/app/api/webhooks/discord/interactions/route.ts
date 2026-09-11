@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { handleDiscordCoverage, showDiscordCoverage } from "@/lib/time-off/discord-coverage.server";
 import { waitUntil } from "@vercel/functions";
 
 import {
@@ -134,6 +135,7 @@ import {
   buildProfessionSelectButtons,
   buildProfessionSwitchConfirmButtons,
 } from "@/lib/discord/interactions";
+import { handlePlunderPlanDiscord, openPlunderPlanModal, plunderComponentNeedsModal } from "@/lib/plunder-plan/discord.server";
 import { handleDiscordTimeOff, openDiscordTimeOffModal } from "@/lib/time-off/discord-bot-handlers.server";
 import { isDiscordTimeOffSlashCommand } from "@/lib/time-off/discord-command-names";
 import { timeOffComponentNeedsModal } from "@/lib/time-off/discord-workflow.shared";
@@ -295,7 +297,7 @@ async function handleSlashCommand(
       discordUserId,
       locale,
     });
-    const timeOffHelp = `${t("timeOff.helpMember")}\n${t("timeOff.helpOfficer")}`;
+    const timeOffHelp = `${t("timeOff.helpMember")}\n${t("timeOff.helpOfficer")}\n${t("plunderPlan.help")}`;
     return discordMessageResponse(`${result.reply.slice(0, 1950 - timeOffHelp.length)}\n\n${timeOffHelp}`, undefined, EPHEMERAL);
   }
 
@@ -882,6 +884,10 @@ async function handleSlashCommand(
       locale,
       date,
     });
+    if (result.coverage) {
+      const warning = await showDiscordCoverage({ allianceId, guildId, discordUserId, locale }, result.coverage);
+      return discordMessageResponse(warning.content, warning.components, EPHEMERAL);
+    }
     return channelVisibleCommandResponse(result.reply);
   }
 
@@ -1346,6 +1352,12 @@ async function handleButton(payload: DiscordInteractionPayload) {
       memberId: parsed.memberId,
       date: parsed.date,
     });
+    if (result.coverage) {
+      const guildId = interactionGuildId(payload);
+      if (!guildId) return discordMessageResponse(t("errors.guildNotRegistered"), undefined, EPHEMERAL);
+      const warning = await showDiscordCoverage({ allianceId, guildId, discordUserId, locale }, result.coverage);
+      return discordMessageResponse(warning.content, warning.components, EPHEMERAL);
+    }
     return discordButtonResponse(result.reply, [], CHANNEL_VISIBLE);
   }
 
@@ -1464,6 +1476,28 @@ export async function POST(request: Request) {
 
   if (payload.type === 1) {
     return NextResponse.json(DISCORD_PING_RESPONSE);
+  }
+  if (payload.type === 2 && payload.data?.name === "plunder-plan" || (payload.type === 3 || payload.type === 5) && payload.data?.custom_id?.startsWith("plunder:")) {
+    if (payload.type === 3 && plunderComponentNeedsModal(payload.data?.custom_id)) return NextResponse.json(await openPlunderPlanModal(payload));
+    const applicationId = interactionApplicationId(payload), token = interactionToken(payload);
+    if (!applicationId || !token) return NextResponse.json(discordMessageResponse(createDiscordTranslator("en-US")("plunderPlan.errors.expired"), undefined, EPHEMERAL));
+    scheduleBackgroundTask(undefined, async () => {
+      const reply = await handlePlunderPlanDiscord(payload);
+      await editDiscordOriginalInteraction({ applicationId, interactionToken: token, content: reply.content, components: reply.components, ephemeral: true, suppressMentions: true });
+    });
+    return NextResponse.json(discordDeferredEphemeralResponse());
+  }
+  if ((payload.type === 3 || payload.type === 5) && payload.data?.custom_id?.startsWith("coverage:")) {
+    if (payload.type === 3) return handleDiscordCoverage(payload);
+    const applicationId = interactionApplicationId(payload);
+    const token = interactionToken(payload);
+    if (!applicationId || !token) return handleDiscordCoverage({ ...payload, type: 0 });
+    scheduleBackgroundTask(undefined, async () => {
+      const response = await handleDiscordCoverage(payload);
+      const result = await response.json();
+      await editDiscordOriginalInteraction({ applicationId, interactionToken: token, content: result.data.content, components: result.data.components, ephemeral: true, suppressMentions: true });
+    });
+    return NextResponse.json(discordDeferredEphemeralResponse());
   }
   if (
     payload.type === 2 && isDiscordTimeOffSlashCommand(payload.data?.name ?? "") ||

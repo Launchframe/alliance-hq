@@ -946,13 +946,13 @@ export async function upsertCommanderSeasonVr(input: {
         `,
         updatedAt: sql`
           CASE
-            WHEN ${applyIncoming} THEN ${now}
+            WHEN ${applyIncoming} THEN ${now.toISOString()}::timestamptz
             ELSE ${schema.commanderSeasonVr.updatedAt}
           END
         `,
         flaggedAt: sql`
           CASE
-            WHEN ${applyIncoming} THEN ${flagReason ? now : null}
+            WHEN ${applyIncoming} THEN ${flagReason ? now.toISOString() : null}::timestamptz
             ELSE ${schema.commanderSeasonVr.flaggedAt}
           END
         `,

@@ -28,6 +28,8 @@ vi.mock("@/lib/vr/repository", () => ({
   getDiscordHqLink,
 }));
 
+vi.mock("./invite-accept-rank.server", () => ({ assertHybridClaimInviteRankAtAccept: vi.fn().mockResolvedValue(undefined) }));
+
 vi.mock("./provision-membership", () => ({
   provisionAllianceMembership,
 }));

@@ -658,7 +658,8 @@ export async function upsertCommanderAllianceMembership(input: {
       : memberRow?.status === "active"
         ? "active"
         : "former";
-  const joinedAt = input.joinedAt ?? existing?.joinedAt ?? now;
+  const rejoining = status === "active" && existing && (existing.status !== "active" || existing.leftAt !== null);
+  const joinedAt = input.joinedAt ?? (rejoining ? now : existing?.joinedAt) ?? now;
   const leftAt =
     input.leftAt !== undefined
       ? input.leftAt

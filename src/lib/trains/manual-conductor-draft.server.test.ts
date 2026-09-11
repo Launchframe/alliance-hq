@@ -106,12 +106,8 @@ describe("applyManualConductorDraft", () => {
         date: "2026-07-27",
       }),
     );
-    expect(mocks.markPoolMemberSelectedForDate).toHaveBeenCalledWith(
-      "ally-1",
-      "r3",
-      "m-alice",
-      "2026-07-27",
-    );
+    expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
+    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(expect.objectContaining({ allianceId: "ally-1", poolClaim: "r3", conductorMemberId: "m-alice", date: "2026-07-27" }));
     expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         conductorMemberId: "m-alice",
@@ -292,12 +288,8 @@ describe("applyManualConductorDraft", () => {
         useSequence: true,
       }),
     );
-    expect(mocks.markPoolMemberSelectedForDate).toHaveBeenCalledWith(
-      "ally-1",
-      "r4_plus",
-      "m-aline",
-      "2026-08-16",
-    );
+    expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
+    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(expect.objectContaining({ allianceId: "ally-1", poolClaim: "r4_plus", conductorMemberId: "m-aline", date: "2026-08-16" }));
     expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         conductorMechanism: "r4_sequence",

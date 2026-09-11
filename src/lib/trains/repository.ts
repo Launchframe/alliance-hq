@@ -2,6 +2,8 @@ import { and, asc, count, desc, eq, gte, isNotNull, isNull, lte, or, sql } from 
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { lockAllianceAvailability, type AvailabilityTransaction } from "@/lib/time-off/availability.server";
+import { assertDutyCoverage, CoverageConflictError, findCoverageConflicts, recordAppliedTrainCoverage, trainCoverageDuties } from "@/lib/time-off/coverage.server";
 import { resolveConductorLastConductedDate } from "@/lib/trains/conductor-stats.shared";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { releasePoolSelectionForDate } from "@/lib/trains/pool";
@@ -408,16 +410,32 @@ export async function upsertConductorDraft(input: {
   guardianIsVip?: number | null;
   substituteForMemberId?: string | null;
   substituteForMemberName?: string | null;
+  poolClaim?: string;
+  automaticDuty?: boolean;
 }): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
-  const db = getDb();
-  const existing = await getConductorRecord(
-    input.allianceId,
-    input.date,
-    input.seasonKey,
-  );
+  return getDb().transaction(async (db) => {
+  await lockAllianceAvailability(db, input.allianceId);
+  const [snapshot] = await db.select({ row: schema.trainConductorRecords, version: sql<string>`${schema.trainConductorRecords}.xmin::text` })
+    .from(schema.trainConductorRecords).where(and(eq(schema.trainConductorRecords.allianceId, input.allianceId), eq(schema.trainConductorRecords.date, input.date))).for("update");
+  const existing = snapshot?.row;
+  if (input.automaticDuty && existing) {
+    const conflicts = await findCoverageConflicts(db, input.allianceId, trainCoverageDuties(existing, snapshot!.version));
+    if (conflicts.length) throw new CoverageConflictError(conflicts);
+  }
+  await assertDutyCoverage(db, input.allianceId, (["conductor", "vip"] as const).flatMap((dutyRole) => {
+    const memberId = dutyRole === "conductor" ? input.conductorMemberId : input.vipMemberId;
+    const memberName = dutyRole === "conductor" ? input.conductorMemberName : input.vipMemberName;
+    return memberId ? [{ assignmentId: existing?.id ?? `train:${input.date}`, assignmentVersion: snapshot?.version ?? "unassigned", dutyDate: input.date, dutyRole, memberId, memberName: memberName ?? "", lockedAt: existing?.lockedAt?.toISOString() ?? null }] : [];
+  }));
 
   if (existing?.lockedAt) {
     throw new Error("Conductor is already locked for this day.");
+  }
+  if (input.poolClaim && input.conductorMemberId) {
+    const [claimed] = await db.update(schema.conductorPoolEntries).set({ selectedAt: new Date(), selectedForDate: input.date })
+      .where(and(eq(schema.conductorPoolEntries.allianceId, input.allianceId), eq(schema.conductorPoolEntries.poolType, input.poolClaim), eq(schema.conductorPoolEntries.memberId, input.conductorMemberId), isNull(schema.conductorPoolEntries.selectedAt),
+        sql`${schema.conductorPoolEntries.generation} = (select max(p.generation) from conductor_pool_entries p where p.alliance_id = ${input.allianceId} and p.pool_type = ${input.poolClaim})`)).returning({ id: schema.conductorPoolEntries.id });
+    if (!claimed) throw new Error("This member was already selected from the current pool generation.");
   }
 
   if (existing) {
@@ -468,6 +486,7 @@ export async function upsertConductorDraft(input: {
       .from(schema.trainConductorRecords)
       .where(eq(schema.trainConductorRecords.id, existing.id))
       .limit(1);
+    await recordAppliedTrainCoverage(db, input.allianceId, existing.id);
     return row!;
   }
 
@@ -496,7 +515,9 @@ export async function upsertConductorDraft(input: {
     .from(schema.trainConductorRecords)
     .where(eq(schema.trainConductorRecords.id, id))
     .limit(1);
+  await recordAppliedTrainCoverage(db, input.allianceId, id);
   return row!;
+  });
 }
 
 export async function clearConductorAssignment(
@@ -599,19 +620,24 @@ export async function assignVipOnLockedConductor(input: {
   vipMechanism?: string | null;
   dayConfigId?: string | null;
   guardianIsVip?: number | null;
+  automaticDuty?: boolean;
 }): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
-  const db = getDb();
-  const existing = await getConductorRecord(
-    input.allianceId,
-    input.date,
-    input.seasonKey,
-  );
+  return getDb().transaction(async (db) => {
+  await lockAllianceAvailability(db, input.allianceId);
+  const [snapshot] = await db.select({ row: schema.trainConductorRecords, version: sql<string>`${schema.trainConductorRecords}.xmin::text` })
+    .from(schema.trainConductorRecords).where(and(eq(schema.trainConductorRecords.allianceId, input.allianceId), eq(schema.trainConductorRecords.date, input.date))).for("update");
+  const existing = snapshot?.row;
   if (!existing?.lockedAt) {
     throw new Error("Lock the conductor before assigning VIP.");
   }
   if (!existing.conductorMemberId) {
     throw new Error("No conductor set for this day.");
   }
+  if (input.automaticDuty) {
+    const conflicts = await findCoverageConflicts(db, input.allianceId, trainCoverageDuties(existing, snapshot!.version).filter((duty) => duty.dutyRole === "vip"));
+    if (conflicts.length) throw new CoverageConflictError(conflicts);
+  }
+  await assertDutyCoverage(db, input.allianceId, trainCoverageDuties({ ...existing, vipMemberId: input.vipMemberId, vipMemberName: input.vipMemberName }, snapshot!.version).filter((duty) => duty.dutyRole === "vip"));
 
   const updated = await db
     .update(schema.trainConductorRecords)
@@ -639,7 +665,9 @@ export async function assignVipOnLockedConductor(input: {
     throw new Error("Lock the conductor before assigning VIP.");
   }
 
+  await recordAppliedTrainCoverage(db, input.allianceId, existing.id);
   return updated[0]!;
+  });
 }
 
 export async function clearVipAssignment(
@@ -920,13 +948,13 @@ export async function lockConductorRecord(
   recordId: string,
   allianceId: string,
   lockedByHqUserId?: string | null,
+  transaction?: AvailabilityTransaction,
 ): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
-  const db = getDb();
-  const [existing] = await db
-    .select()
-    .from(schema.trainConductorRecords)
-    .where(eq(schema.trainConductorRecords.id, recordId))
-    .limit(1);
+  const lock = async (db: AvailabilityTransaction) => {
+  await lockAllianceAvailability(db, allianceId);
+  const [snapshot] = await db.select({ row: schema.trainConductorRecords, version: sql<string>`${schema.trainConductorRecords}.xmin::text` })
+    .from(schema.trainConductorRecords).where(and(eq(schema.trainConductorRecords.id, recordId), eq(schema.trainConductorRecords.allianceId, allianceId))).for("update");
+  const existing = snapshot?.row;
 
   if (!existing || existing.allianceId !== allianceId) {
     throw new Error("Conductor record not found.");
@@ -938,6 +966,7 @@ export async function lockConductorRecord(
     throw new Error("Select a conductor before locking.");
   }
 
+  await assertDutyCoverage(db, allianceId, trainCoverageDuties(existing, snapshot!.version));
   const lockedAt = new Date();
   const locked = await db
     .update(schema.trainConductorRecords)
@@ -959,8 +988,20 @@ export async function lockConductorRecord(
     throw new Error("Conductor is already locked.");
   }
 
-  await spawnEmptyTrain(recordId);
+  await spawnEmptyTrain(recordId, db);
+  await recordAppliedTrainCoverage(db, allianceId, recordId);
   return locked[0]!;
+  };
+  return transaction ? lock(transaction) : getDb().transaction(lock);
+}
+
+export async function lockConductorRecords(recordIds: string[], allianceId: string, actorId?: string | null) {
+  return getDb().transaction(async (tx) => {
+    await lockAllianceAvailability(tx, allianceId);
+    const records = [];
+    for (const id of [...new Set(recordIds)].sort()) records.push(await lockConductorRecord(id, allianceId, actorId, tx));
+    return records;
+  });
 }
 
 export async function markConductorDepartingSoonAnnounced(
@@ -1072,8 +1113,8 @@ export async function unlockConductorRecord(
 
 export async function spawnEmptyTrain(
   conductorRecordId: string,
+  db: ReturnType<typeof getDb> | AvailabilityTransaction = getDb(),
 ): Promise<(typeof schema.trains.$inferSelect)> {
-  const db = getDb();
   const trainId = nanoid();
   await db.insert(schema.trains).values({
     id: trainId,

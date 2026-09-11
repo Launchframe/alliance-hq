@@ -20,6 +20,9 @@ const ROLE_IDS = {
 };
 
 const HQ_PERMISSIONS = [
+  { id: "plunder_plan:read", description: "Plunder Plan" },
+  { id: "plunder_plan:self", description: "My Plunder Plans" },
+  { id: "plunder_plan:suggest", description: "Suggest a time" },
   { id: "hq:admin", description: "Platform maintainer — cross-alliance admin portal" },
   { id: "hq:audit:read", description: "Read alliance audit log" },
   { id: "hq:video:read", description: "List alliance video jobs" },
@@ -34,6 +37,8 @@ const HQ_PERMISSIONS = [
   { id: "battle_plan:write", description: "Manage alliance battle plan schedule" },
   { id: "bank:read", description: "View alliance bank strongholds and deposit risk" },
   { id: "bank:write", description: "Manage alliance bank strongholds and deposit slips" },
+  { id: "support_teams:read", description: "Support teams" },
+  { id: "support_teams:write", description: "Support teams" },
   { id: "time_off:read", description: "View alliance time-off calendar" },
   { id: "time_off:write", description: "Manage time-off entries for alliance members" },
   { id: "vs_compliance:read", description: "VS compliance" },
@@ -80,6 +85,8 @@ async function main() {
       "bank:write",
       "time_off:read",
       "time_off:write",
+      "support_teams:read",
+      "support_teams:write",
       "officer_intel:read",
       "officer_intel:write",
     ]),
@@ -99,6 +106,8 @@ async function main() {
       "bank:write",
       "time_off:read",
       "time_off:write",
+      "support_teams:read",
+      "support_teams:write",
       "officer_intel:read",
       "officer_intel:write",
     ]),
@@ -130,7 +139,7 @@ async function main() {
   // Grant ashed:connect to every system role (embeds still require a live credential).
   for (const roleKey of Object.keys(roleTemplates)) {
     roleTemplates[roleKey].permissions = [
-      ...new Set([...roleTemplates[roleKey].permissions, "ashed:connect"]),
+      ...new Set([...roleTemplates[roleKey].permissions, "ashed:connect", "plunder_plan:read", "plunder_plan:self", ...(["owner", "maintainer", "officer"].includes(roleKey) ? ["plunder_plan:suggest"] : [])]),
     ];
   }
 

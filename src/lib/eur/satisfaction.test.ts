@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
+vi.mock("@/lib/support-teams/work-inbox.server", () => ({ canReadTeamWorkInbox: vi.fn() }));
+
 const mocks = vi.hoisted(() => ({
   openOccurrences: [] as unknown[],
   reminderItems: [] as Array<{ id: string; allianceId: string }>,

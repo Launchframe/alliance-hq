@@ -141,6 +141,27 @@ export const NAV_GROUPS: NavGroupDef[] = [
         kind: "iframe",
       },
       {
+        id: "team-work",
+        labelKey: "teamWork",
+        href: "/team-work",
+        kind: "native",
+        requiredPermission: "members:read",
+      },
+      {
+        id: "plunder-plan",
+        labelKey: "plunderPlan",
+        href: "/plunder-plan",
+        kind: "native",
+        requiredPermission: "plunder_plan:read",
+      },
+      {
+        id: "support-teams",
+        labelKey: "supportTeams",
+        href: "/support-teams",
+        kind: "native",
+        requiredPermission: "members:read",
+      },
+      {
         id: "professions",
         labelKey: "myProfession",
         href: "/professions",

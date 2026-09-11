@@ -131,7 +131,7 @@ describe("assignEngToWl", () => {
       wlTeamId: "wl-team-1",
     });
     expect(mockRepo.reactivateEngAssignment).toHaveBeenCalledWith(
-      "assignment-old",
+      "assignment-old", undefined,
     );
     expect(mockRepo.createEngAssignment).not.toHaveBeenCalled();
   });

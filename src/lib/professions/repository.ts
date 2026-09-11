@@ -1,9 +1,13 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { lockAllianceAvailability, loadTimeOffAvailability } from "@/lib/time-off/availability.server";
+import { assertDutyCoverage, recordAppliedProfessionCoverage } from "@/lib/time-off/coverage.server";
+import { configuredShiftOccurrences } from "./coverage-time.shared";
+import { getServerCalendarDate } from "@/lib/trains/game-time";
 import type {
   AssignedEngRow,
   OfficerActivityEvent,
@@ -17,6 +21,19 @@ import type {
 // ---------------------------------------------------------------------------
 // Profession history
 // ---------------------------------------------------------------------------
+
+export async function loadAwayProfessionCommanderIds(allianceId: string, dutyDate: string): Promise<Set<string>> {
+  const { awayMemberIds } = await loadTimeOffAvailability(allianceId, dutyDate);
+  if (awayMemberIds.size === 0) return new Set();
+  const rows = await getDb().select({ commanderId: schema.commanderAllianceMemberships.commanderId })
+    .from(schema.commanderAllianceMemberships)
+    .where(and(
+      eq(schema.commanderAllianceMemberships.allianceId, allianceId),
+      isNull(schema.commanderAllianceMemberships.leftAt),
+      inArray(schema.commanderAllianceMemberships.ashedMemberId, [...awayMemberIds]),
+    ));
+  return new Set(rows.map((row) => row.commanderId));
+}
 
 export async function getProfessionSince(
   allianceId: string,
@@ -268,8 +285,17 @@ export async function createEngAssignment(input: {
   wlTeamId: string;
   allianceId: string;
   engCommanderId: string;
+  automaticDutyDate?: string;
 }): Promise<string> {
-  const db = getDb();
+  return getDb().transaction(async (db) => {
+  await lockAllianceAvailability(db, input.allianceId);
+  if (input.automaticDutyDate) {
+    const [team] = await db.select({ wlCommanderId: schema.wlTeams.wlCommanderId }).from(schema.wlTeams).where(and(eq(schema.wlTeams.id, input.wlTeamId), eq(schema.wlTeams.allianceId, input.allianceId)));
+    const away = await db.select({ id: schema.memberTimeOff.id }).from(schema.memberTimeOff)
+      .innerJoin(schema.commanderAllianceMemberships, and(eq(schema.commanderAllianceMemberships.ashedMemberId, schema.memberTimeOff.ashedMemberId), eq(schema.commanderAllianceMemberships.allianceId, input.allianceId), isNull(schema.commanderAllianceMemberships.leftAt)))
+      .where(and(eq(schema.memberTimeOff.allianceId, input.allianceId), eq(schema.memberTimeOff.globalAbsence, true), isNull(schema.memberTimeOff.cancelledAt), lte(schema.memberTimeOff.startDate, input.automaticDutyDate), gte(schema.memberTimeOff.endDate, input.automaticDutyDate), inArray(schema.commanderAllianceMemberships.commanderId, [input.engCommanderId, team?.wlCommanderId ?? ""])));
+    if (!team || away.length) throw new Error("No War Leaders available for assignment.");
+  }
   const id = nanoid();
   await db.insert(schema.wlEngAssignments).values({
     id,
@@ -282,6 +308,7 @@ export async function createEngAssignment(input: {
     updatedAt: new Date(),
   });
   return id;
+  });
 }
 
 /**
@@ -290,18 +317,22 @@ export async function createEngAssignment(input: {
  */
 export async function reactivateEngAssignment(
   assignmentId: string,
+  automaticDutyDate?: string,
 ): Promise<void> {
-  const db = getDb();
-  await db
-    .update(schema.wlEngAssignments)
-    .set({
-      status: "active",
-      assignedAt: new Date(),
-      dismissedAt: null,
-      dismissedByCommanderId: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.wlEngAssignments.id, assignmentId));
+  const [snapshot] = await getDb().select().from(schema.wlEngAssignments).where(eq(schema.wlEngAssignments.id, assignmentId));
+  if (!snapshot) return;
+  await getDb().transaction(async (db) => {
+    await lockAllianceAvailability(db, snapshot.allianceId);
+    if (automaticDutyDate) {
+      const [team] = await db.select().from(schema.wlTeams).where(and(eq(schema.wlTeams.id, snapshot.wlTeamId), eq(schema.wlTeams.allianceId, snapshot.allianceId)));
+      const away = await db.select({ id: schema.memberTimeOff.id }).from(schema.memberTimeOff)
+        .innerJoin(schema.commanderAllianceMemberships, and(eq(schema.commanderAllianceMemberships.ashedMemberId, schema.memberTimeOff.ashedMemberId), eq(schema.commanderAllianceMemberships.allianceId, snapshot.allianceId), isNull(schema.commanderAllianceMemberships.leftAt)))
+        .where(and(eq(schema.memberTimeOff.allianceId, snapshot.allianceId), eq(schema.memberTimeOff.globalAbsence, true), isNull(schema.memberTimeOff.cancelledAt), lte(schema.memberTimeOff.startDate, automaticDutyDate), gte(schema.memberTimeOff.endDate, automaticDutyDate), inArray(schema.commanderAllianceMemberships.commanderId, [snapshot.engCommanderId, team?.wlCommanderId ?? ""])));
+      if (!team || away.length) throw new Error("No War Leaders available for assignment.");
+    }
+    await db.update(schema.wlEngAssignments).set({ status: "active", assignedAt: new Date(), dismissedAt: null, dismissedByCommanderId: null, updatedAt: new Date() })
+      .where(and(eq(schema.wlEngAssignments.id, assignmentId), eq(schema.wlEngAssignments.allianceId, snapshot.allianceId)));
+  });
 }
 
 
@@ -328,12 +359,29 @@ export async function updateCoverageWindow(
   assignmentId: string,
   coverageStartHour: number | null,
   coverageEndHour: number | null,
+  allianceId: string,
 ): Promise<void> {
-  const db = getDb();
-  await db
-    .update(schema.wlEngAssignments)
-    .set({ coverageStartHour, coverageEndHour, updatedAt: new Date() })
-    .where(eq(schema.wlEngAssignments.id, assignmentId));
+  await getDb().transaction(async (tx) => {
+    await lockAllianceAvailability(tx, allianceId);
+    const [assignment] = await tx.select({ row: schema.wlEngAssignments, version: sql<string>`${schema.wlEngAssignments}.xmin::text` })
+      .from(schema.wlEngAssignments).where(and(eq(schema.wlEngAssignments.id, assignmentId), eq(schema.wlEngAssignments.allianceId, allianceId), eq(schema.wlEngAssignments.status, "active"))).for("update");
+    if (!assignment) throw new Error("No active assignment found.");
+    const [member] = await tx.select({ memberId: schema.commanderAllianceMemberships.ashedMemberId, memberName: schema.commanders.primaryName })
+      .from(schema.commanderAllianceMemberships).innerJoin(schema.commanders, eq(schema.commanders.id, schema.commanderAllianceMemberships.commanderId))
+      .where(and(eq(schema.commanderAllianceMemberships.commanderId, assignment.row.engCommanderId), eq(schema.commanderAllianceMemberships.allianceId, allianceId), isNull(schema.commanderAllianceMemberships.leftAt))).for("update");
+    if (!member) throw new Error("No active assignment found.");
+    const today = getServerCalendarDate();
+    const notices = await tx.select({ startDate: schema.memberTimeOff.startDate, endDate: schema.memberTimeOff.endDate }).from(schema.memberTimeOff)
+      .where(and(eq(schema.memberTimeOff.allianceId, allianceId), eq(schema.memberTimeOff.ashedMemberId, member.memberId), eq(schema.memberTimeOff.globalAbsence, true), isNull(schema.memberTimeOff.cancelledAt), gte(schema.memberTimeOff.endDate, today)));
+    const occurrences = notices.flatMap((notice) => configuredShiftOccurrences({ ...assignment.row, coverageStartHour, coverageEndHour }, notice.startDate < today ? today : notice.startDate, notice.endDate));
+    const duties = [...new Map(occurrences.map((occurrence) => [`${occurrence.dutyDate}:${occurrence.dutyStartAt}`, { ...occurrence, assignmentId, assignmentVersion: assignment.version, dutyRole: "engineer" as const, ...member, memberName: member.memberName ?? "", lockedAt: null }])).values()];
+    await assertDutyCoverage(tx, allianceId, duties);
+    const [updated] = await tx.update(schema.wlEngAssignments)
+      .set({ coverageStartHour, coverageEndHour, updatedAt: new Date() })
+      .where(and(eq(schema.wlEngAssignments.id, assignmentId), eq(schema.wlEngAssignments.allianceId, allianceId)))
+      .returning({ version: sql<string>`${schema.wlEngAssignments}.xmin::text` });
+    await recordAppliedProfessionCoverage(tx, allianceId, assignmentId, updated!.version);
+  });
 }
 
 // ---------------------------------------------------------------------------

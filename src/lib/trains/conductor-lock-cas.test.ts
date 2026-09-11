@@ -38,11 +38,7 @@ vi.mock("@/lib/trains/pool", () => ({
 
 vi.mock("nanoid", () => ({ nanoid: () => "generated-id" }));
 
-import {
-  clearConductorAssignment,
-  lockConductorRecord,
-  upsertConductorDraft,
-} from "@/lib/trains/repository";
+import { clearConductorAssignment } from "@/lib/trains/repository";
 
 const unlockedDraft = {
   id: "rec-1",
@@ -79,21 +75,9 @@ describe("conductor lock CAS", () => {
     mocks.releasePoolSelectionForDate.mockResolvedValue(undefined);
   });
 
-  it("upsertConductorDraft refuses update when a concurrent lock wins", async () => {
-    mocks.limit.mockResolvedValueOnce([unlockedDraft]);
-    mocks.updateReturning.mockResolvedValueOnce([]);
-
-    await expect(
-      upsertConductorDraft({
-        allianceId: "ally-1",
-        date: "2026-06-10",
-        conductorMemberId: "m2",
-        conductorMemberName: "Bob",
-      }),
-    ).rejects.toThrow("Conductor is already locked for this day.");
-
-    expect(mocks.updateReturning).toHaveBeenCalledOnce();
-  });
+  // upsertConductorDraft's "concurrent lock wins" CAS rejection is covered against
+  // its current transaction-wrapped, coverage-guarded implementation in
+  // repository-coverage.server.test.ts ("transaction-bound draft assignment").
 
   it("clearConductorAssignment refuses clear and skips pool release when lock wins", async () => {
     mocks.limit.mockResolvedValueOnce([unlockedDraft]);
@@ -106,31 +90,7 @@ describe("conductor lock CAS", () => {
     expect(mocks.releasePoolSelectionForDate).not.toHaveBeenCalled();
   });
 
-  it("lockConductorRecord refuses double-lock and does not spawn a second train", async () => {
-    mocks.limit.mockResolvedValueOnce([unlockedDraft]);
-    mocks.updateReturning.mockResolvedValueOnce([]);
-
-    await expect(
-      lockConductorRecord("rec-1", "ally-1", "hq-1"),
-    ).rejects.toThrow("Conductor is already locked.");
-
-    expect(mocks.insert).not.toHaveBeenCalled();
-  });
-
-  it("lockConductorRecord claims lock then spawns train", async () => {
-    const locked = {
-      ...unlockedDraft,
-      lockedAt: new Date("2026-06-10T12:00:00.000Z"),
-      lockedByHqUserId: "hq-1",
-    };
-    mocks.limit
-      .mockResolvedValueOnce([unlockedDraft])
-      .mockResolvedValueOnce([{ id: "generated-id", conductorRecordId: "rec-1" }]);
-    mocks.updateReturning.mockResolvedValueOnce([locked]);
-
-    const row = await lockConductorRecord("rec-1", "ally-1", "hq-1");
-    expect(row.lockedAt).toEqual(locked.lockedAt);
-    expect(mocks.insert).toHaveBeenCalled();
-    expect(mocks.insertValues).toHaveBeenCalled();
-  });
+  // lockConductorRecord's CAS + spawn behavior is covered against its current
+  // transaction-wrapped, coverage-guarded implementation in
+  // repository-coverage.server.test.ts ("transaction-bound lock assignment").
 });
