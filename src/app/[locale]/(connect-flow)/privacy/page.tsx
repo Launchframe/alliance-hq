@@ -19,6 +19,7 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function PrivacyPage() {
   const t = await getTranslations("privacy");
+  const calendar = await getTranslations("calendarConnections");
 
   return (
     <article className="mx-auto max-w-2xl space-y-8 text-sm leading-relaxed">
@@ -38,6 +39,11 @@ export default async function PrivacyPage() {
           {t.rich("noSellBody1", { link: ashedLink, strong: strongText })}
         </p>
         <p className="text-hq-fg-muted">{t("noSellBody2")}</p>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-medium">{calendar("title")}</h2>
+        <p className="text-hq-fg-muted">{calendar("privacyDisclosure")}</p>
       </section>
 
       <section className="space-y-3">
