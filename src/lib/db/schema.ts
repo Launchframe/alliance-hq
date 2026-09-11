@@ -3,6 +3,8 @@ import {
   boolean,
   customType,
   doublePrecision,
+  foreignKey,
+  check,
   index,
   integer,
   jsonb,
@@ -15,6 +17,8 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import { sql } from "drizzle-orm";
+import type { KnowledgeOwnershipState, KnowledgeResourceKind, KnowledgeGrant } from "@/lib/notes/policy.shared";
 import type { SupportBoard, SupportEvent, SupportValue } from "@/lib/support-teams/types.shared";
 import type { SupportDisplayPreferences } from "@/lib/support-teams/display-preferences.shared";
 import type { TeamWorkDetail } from "@/lib/support-teams/work-routing.shared";
@@ -4654,11 +4658,55 @@ export type OfficerIntelThread = typeof officerIntelThreads.$inferSelect;
 export type OfficerIntelThreadMessage =
   typeof officerIntelThreadMessages.$inferSelect;
 
+export const knowledgeResources = pgTable("knowledge_resources", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  kind: text("kind").$type<KnowledgeResourceKind>().notNull(),
+  entityId: text("entity_id").notNull(),
+  ownershipState: text("ownership_state").$type<KnowledgeOwnershipState>().notNull().default("unresolved"),
+  ownerHqUserId: text("owner_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  ownerDiscordUserId: text("owner_discord_user_id"),
+  ownerBoundAt: timestamp("owner_bound_at", { withTimezone: true }),
+  version: integer("version").notNull().default(1),
+  accessVersion: integer("access_version").notNull().default(1),
+  intakeAiAllowed: boolean("intake_ai_allowed").notNull().default(false),
+  knowledgeAiAllowed: boolean("knowledge_ai_allowed").notNull().default(false),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("knowledge_resources_id_alliance_unique").on(table.id, table.allianceId),
+  unique("knowledge_resources_entity_unique").on(table.allianceId, table.kind, table.entityId),
+  index("knowledge_resources_owner_idx").on(table.allianceId, table.ownerHqUserId),
+  index("knowledge_resources_discord_owner_idx").on(table.ownerDiscordUserId, table.ownershipState),
+  check("knowledge_resources_kind_check", sql`${table.kind} in ('note', 'task', 'source', 'collection', 'board')`),
+  check("knowledge_resources_ownership_check", sql`${table.ownershipState} in ('hq', 'discord', 'unresolved')`),
+  check("knowledge_resources_version_check", sql`${table.version} > 0 and ${table.accessVersion} > 0`),
+]);
+
+export const knowledgeResourceGrants = pgTable("knowledge_resource_grants", {
+  id: text("id").primaryKey(),
+  resourceId: text("resource_id").notNull(),
+  allianceId: text("alliance_id").notNull(),
+  subjectKind: text("subject_kind").$type<KnowledgeGrant["subjectKind"]>().notNull(),
+  subjectId: text("subject_id").notNull(),
+  role: text("role").$type<KnowledgeGrant["role"]>().notNull(),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  foreignKey({ name: "knowledge_resource_grants_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("cascade"),
+  unique("knowledge_resource_grants_subject_unique").on(table.resourceId, table.subjectKind, table.subjectId),
+  index("knowledge_resource_grants_subject_idx").on(table.allianceId, table.subjectKind, table.subjectId),
+  check("knowledge_resource_grants_subject_check", sql`${table.subjectKind} in ('user', 'officers', 'board')`),
+  check("knowledge_resource_grants_role_check", sql`${table.role} in ('read', 'edit')`),
+]);
+
 /** HQ-native officer notes — not Ashed member_commendations / hq_commendations. */
 export const performanceNotes = pgTable(
   "performance_notes",
   {
     id: text("id").primaryKey(),
+    resourceId: text("resource_id").notNull(),
     allianceId: text("alliance_id")
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
@@ -4688,6 +4736,8 @@ export const performanceNotes = pgTable(
       table.createdAt,
     ),
     index("performance_notes_alliance_kind_idx").on(table.allianceId, table.kind),
+    uniqueIndex("performance_notes_resource_unique").on(table.resourceId),
+    foreignKey({ name: "performance_notes_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
   ],
 );
 

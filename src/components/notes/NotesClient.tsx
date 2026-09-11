@@ -202,6 +202,7 @@ export function NotesClient({ initial, focusNoteId }: Props) {
               <NoteMemberMultiSelect
                 roster={roster}
                 attachedIds={note.members.map((member) => member.ashedMemberId)}
+                disabled={!note.canEdit}
                 onSave={(memberIds) => saveMembers(note.id, memberIds)}
               />
             </li>

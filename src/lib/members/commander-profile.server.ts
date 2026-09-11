@@ -30,6 +30,7 @@ import { getAshedConnection } from "@/lib/session";
 import { viewerCanEditMainSquad } from "@/lib/commanders/main-squad.server";
 import { sessionCanGiftStoreBricks } from "@/lib/members/commander-donation.server";
 import { listPerformanceNotesForAshedMember } from "@/lib/performance-notes/repository.server";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 
 export type { CommanderProfilePayload } from "@/lib/members/commander-profile.shared";
 
@@ -353,10 +354,10 @@ export async function loadCommanderProfile(
       .orderBy(desc(schema.memberViolations.recordedDate)),
   ]);
 
-  const hqNotes = await listPerformanceNotesForAshedMember({
-    allianceId,
-    ashedMemberId,
-  });
+  const noteActor = await getKnowledgeActorForSession(sessionId);
+  const hqNotes = noteActor?.allianceId === allianceId
+    ? await listPerformanceNotesForAshedMember({ actor: noteActor, ashedMemberId })
+    : [];
 
   const ashedMember = allianceMemberRowToAshedMember(memberRow);
   const rankForDisplay =
