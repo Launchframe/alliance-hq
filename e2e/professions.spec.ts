@@ -323,7 +323,7 @@ test.describe("Professions — War Leader Support", () => {
       .getByTestId("profession-pairing-import-paste")
       .fill("Import WL: Import Eng");
     await page.getByRole("button", { name: /^preview$/i }).click();
-    await expect(page.getByText(/^ready$/i).first()).toBeVisible();
+    await expect(page.getByText(/already on this team/i)).toBeVisible();
 
     const memberSession = await createAuthenticatedHqSession(
       sql,
