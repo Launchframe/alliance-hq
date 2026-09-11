@@ -133,27 +133,25 @@ export async function applyManualConductorDraft(input: {
             unselectedMemberIds: unselected.map((row) => row.memberId),
             poolMemberIds: poolEntries.map((row) => row.memberId),
           });
-          if (gate.ok) {
-            consumedPoolSlot = await markPoolMemberSelectedForDate(
-              input.allianceId,
-              poolType,
-              input.memberId,
-              input.date,
-            );
-            if (!consumedPoolSlot && !overrideConfirmed) {
+          // Always try the live generation. A past-day override must still
+          // remove an open current-generation slot; "already awarded" in an
+          // older generation is not a live spend.
+          consumedPoolSlot = await markPoolMemberSelectedForDate(
+            input.allianceId,
+            poolType,
+            input.memberId,
+            input.date,
+          );
+          if (!consumedPoolSlot && !overrideConfirmed) {
+            if (!gate.ok) {
               throw new ManualPickEligibilityError(
-                "already_awarded",
-                depletingManualPickErrorMessage("already_awarded"),
+                gate.reason,
+                depletingManualPickErrorMessage(gate.reason),
               );
             }
-          } else if (overrideConfirmed) {
-            // Officer confirmed: draft without consuming or refreshing the
-            // generation. Already-chosen / missing rows stay as-is so the
-            // wheel cannot land on a spent or newly inserted slot.
-          } else {
             throw new ManualPickEligibilityError(
-              gate.reason,
-              depletingManualPickErrorMessage(gate.reason),
+              "already_awarded",
+              depletingManualPickErrorMessage("already_awarded"),
             );
           }
         },

@@ -147,6 +147,7 @@ describe("applyManualConductorDraft", () => {
       { memberId: "m-alice" },
       { memberId: "m-bob" },
     ]);
+    mocks.markPoolMemberSelectedForDate.mockResolvedValue(false);
 
     await expect(
       applyManualConductorDraft({
@@ -163,7 +164,12 @@ describe("applyManualConductorDraft", () => {
       return true;
     });
 
-    expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
+    expect(mocks.markPoolMemberSelectedForDate).toHaveBeenCalledWith(
+      "ally-1",
+      "r3",
+      "m-alice",
+      "2026-07-27",
+    );
     expect(mocks.upsertConductorDraft).not.toHaveBeenCalled();
   });
 
@@ -208,6 +214,7 @@ describe("applyManualConductorDraft", () => {
       { memberId: "m-alice" },
       { memberId: "m-bob" },
     ]);
+    mocks.markPoolMemberSelectedForDate.mockResolvedValue(false);
 
     await applyManualConductorDraft({
       allianceId: "ally-1",
@@ -219,7 +226,7 @@ describe("applyManualConductorDraft", () => {
       sessionId: "sess-1",
     });
 
-    expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
+    expect(mocks.markPoolMemberSelectedForDate).toHaveBeenCalled();
     expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         conductorMemberId: "m-alice",
@@ -264,12 +271,58 @@ describe("applyManualConductorDraft", () => {
       hqUserId: "hq-officer",
     });
 
+    expect(mocks.markPoolMemberSelectedForDate).toHaveBeenCalledWith(
+      "ally-1",
+      "r4_plus",
+      "m-boggle",
+      "2026-09-09",
+    );
     expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         conductorMemberId: "m-boggle",
         conductorEligibilityOverridden: 1,
         conductorEligibilityOverriddenByHqUserId: "hq-officer",
         conductorEligibilityOverriddenAt: expect.any(Date),
+      }),
+    );
+  });
+
+  it("consumes the live R4 slot on a past-day pick when the member is still unselected", async () => {
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorMechanism: "r4_sequence",
+      vipMechanism: "conductor_pick",
+      paintTemplate: "r4_event_vip",
+      dayConfigId: "dc-1",
+    });
+    mocks.listUnselectedPoolEntries.mockResolvedValue([
+      { memberId: "m-boggle" },
+    ]);
+    mocks.listPoolEntries.mockResolvedValue([
+      { memberId: "m-boggle" },
+      { memberId: "m-bob" },
+    ]);
+
+    await applyManualConductorDraft({
+      allianceId: "ally-1",
+      date: "2026-09-09",
+      memberId: "m-boggle",
+      memberName: "BOGGLE",
+      allowEligibilityOverride: true,
+      hqUserId: "hq-officer",
+    });
+
+    expect(mocks.markPoolMemberSelectedForDate).toHaveBeenCalledWith(
+      "ally-1",
+      "r4_plus",
+      "m-boggle",
+      "2026-09-09",
+    );
+    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conductorMemberId: "m-boggle",
+        conductorEligibilityOverridden: 0,
+        conductorEligibilityOverriddenAt: null,
+        conductorEligibilityOverriddenByHqUserId: null,
       }),
     );
   });
@@ -283,6 +336,7 @@ describe("applyManualConductorDraft", () => {
     });
     mocks.listUnselectedPoolEntries.mockResolvedValue([{ memberId: "m-bob" }]);
     mocks.listPoolEntries.mockResolvedValue([{ memberId: "m-bob" }]);
+    mocks.markPoolMemberSelectedForDate.mockResolvedValue(false);
 
     await applyManualConductorDraft({
       allianceId: "ally-1",
@@ -293,7 +347,7 @@ describe("applyManualConductorDraft", () => {
       hqUserId: "hq-officer",
     });
 
-    expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
+    expect(mocks.markPoolMemberSelectedForDate).toHaveBeenCalled();
     expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         conductorMemberId: "m-shera",
@@ -314,6 +368,7 @@ describe("applyManualConductorDraft", () => {
     mocks.memberIdsEligibleForPoolType.mockResolvedValue(new Set());
     mocks.listUnselectedPoolEntries.mockResolvedValue([{ memberId: "m-bob" }]);
     mocks.listPoolEntries.mockResolvedValue([{ memberId: "m-bob" }]);
+    mocks.markPoolMemberSelectedForDate.mockResolvedValue(false);
 
     await applyManualConductorDraft({
       allianceId: "ally-1",
@@ -324,7 +379,7 @@ describe("applyManualConductorDraft", () => {
       hqUserId: "hq-officer",
     });
 
-    expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
+    expect(mocks.markPoolMemberSelectedForDate).toHaveBeenCalled();
     expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         conductorMemberId: "m-alice",
