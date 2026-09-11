@@ -4,6 +4,7 @@ import {
   activePoolGenerationForDate,
   poolGenerationsToClaim,
   poolTypeUsesSequence,
+  resolveLockPoolClaim,
 } from "@/lib/trains/pool";
 
 describe("activePoolGenerationForDate", () => {
@@ -57,7 +58,7 @@ describe("poolGenerationsToClaim", () => {
     ).toEqual([2]);
   });
 
-  it("claims only the historical generation that owns a past date after the live slot", () => {
+  it("tries the live generation first, then the date generation", () => {
     expect(
       poolGenerationsToClaim({
         currentGeneration: 2,
@@ -65,6 +66,56 @@ describe("poolGenerationsToClaim", () => {
         useHistorical: true,
       }),
     ).toEqual([2, 1]);
+  });
+});
+
+describe("resolveLockPoolClaim", () => {
+  it("claims the live generation when that row is still unselected", () => {
+    expect(
+      resolveLockPoolClaim({
+        date: "2026-09-09",
+        currentGeneration: 2,
+        historicalGeneration: 1,
+        hasCurrentRow: true,
+        currentSelectedForDate: null,
+      }),
+    ).toEqual({ generation: 2, alreadyClaimed: false });
+  });
+
+  it("does not stamp a leftover historical row after a live claim", () => {
+    expect(
+      resolveLockPoolClaim({
+        date: "2026-09-09",
+        currentGeneration: 2,
+        historicalGeneration: 1,
+        hasCurrentRow: true,
+        currentSelectedForDate: "2026-09-09",
+      }),
+    ).toEqual({ generation: null, alreadyClaimed: true });
+  });
+
+  it("skips leftover historical rows when the live slot is spent on another day", () => {
+    expect(
+      resolveLockPoolClaim({
+        date: "2026-09-09",
+        currentGeneration: 2,
+        historicalGeneration: 1,
+        hasCurrentRow: true,
+        currentSelectedForDate: "2026-08-18",
+      }),
+    ).toEqual({ generation: null, alreadyClaimed: false });
+  });
+
+  it("claims the date generation only when there is no live row", () => {
+    expect(
+      resolveLockPoolClaim({
+        date: "2026-09-09",
+        currentGeneration: 2,
+        historicalGeneration: 1,
+        hasCurrentRow: false,
+        currentSelectedForDate: null,
+      }),
+    ).toEqual({ generation: 1, alreadyClaimed: false });
   });
 });
 

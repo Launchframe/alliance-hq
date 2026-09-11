@@ -273,7 +273,7 @@ describe("applyManualConductorDraft", () => {
     );
   });
 
-  it("consumes the live R4 slot when a past-day override is already awarded historically", async () => {
+  it("consumes the live R4 slot on first click when historically awarded", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
       conductorMechanism: "r4_sequence",
       vipMechanism: "conductor_pick",
@@ -305,8 +305,6 @@ describe("applyManualConductorDraft", () => {
       date: "2026-09-09",
       memberId: "m-boggle",
       memberName: "BOGGLE",
-      allowEligibilityOverride: true,
-      hqUserId: "hq-officer",
     });
 
     expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
