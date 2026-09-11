@@ -15,6 +15,7 @@ import {
 } from "@/lib/trains/depleting-manual-pick.shared";
 import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
+  getCurrentPoolGeneration,
   listPoolEntriesInGeneration,
   releasePoolSelectionForDate,
   resolvePoolGenerationForDate,
@@ -124,28 +125,57 @@ export async function applyManualConductorDraft(input: {
       await withConductorPoolClaimLock(
         { allianceId: input.allianceId, poolType },
         async () => {
-          const generation = await resolvePoolGenerationForDate(
+          const dateGeneration = await resolvePoolGenerationForDate(
             input.allianceId,
             poolType,
             input.date,
           );
-          const [unselected, poolEntries] = await Promise.all([
-            listPoolEntriesInGeneration(input.allianceId, poolType, generation, {
-              unselectedOnly: true,
-            }),
-            listPoolEntriesInGeneration(input.allianceId, poolType, generation),
+          const currentGeneration = await getCurrentPoolGeneration(
+            input.allianceId,
+            poolType,
+          );
+          const [dateUnselected, datePool] = await Promise.all([
+            listPoolEntriesInGeneration(
+              input.allianceId,
+              poolType,
+              dateGeneration,
+              { unselectedOnly: true },
+            ),
+            listPoolEntriesInGeneration(
+              input.allianceId,
+              poolType,
+              dateGeneration,
+            ),
           ]);
+          const liveUnselected =
+            dateGeneration === currentGeneration
+              ? dateUnselected
+              : await listPoolEntriesInGeneration(
+                  input.allianceId,
+                  poolType,
+                  currentGeneration,
+                  { unselectedOnly: true },
+                );
           const gate = evaluateDepletingManualPick({
             memberId: input.memberId,
-            unselectedMemberIds: unselected.map((row) => row.memberId),
-            poolMemberIds: poolEntries.map((row) => row.memberId),
+            unselectedMemberIds: dateUnselected.map((row) => row.memberId),
+            poolMemberIds: datePool.map((row) => row.memberId),
           });
-          if (gate.ok) {
+          const hasLiveSlot = liveUnselected.some(
+            (row) => row.memberId === input.memberId,
+          );
+          if (hasLiveSlot) {
+            // Real assignment consumes the wheel even on a past date /
+            // confirm-anyway. Stale "already awarded" in an older
+            // generation is not a live spend.
             claimPool = true;
-            poolClaimGeneration = generation;
+            poolClaimGeneration = currentGeneration;
+          } else if (gate.ok) {
+            claimPool = true;
+            poolClaimGeneration = dateGeneration;
           } else if (overrideConfirmed) {
-            // Already out of this generation (or never in it): draft without
-            // consuming another slot. Remaining counts stay non-negative.
+            // No live slot and not unselected for this date: draft without
+            // inserting a spent/missing member onto the wheel.
           } else {
             throw new ManualPickEligibilityError(
               gate.reason,
