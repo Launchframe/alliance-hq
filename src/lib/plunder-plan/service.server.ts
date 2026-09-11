@@ -8,7 +8,7 @@ import { lockAllianceAvailability } from "@/lib/time-off/availability.server";
 import { defaultPlanColor, parsePlanColor } from "./colors.shared";
 import { isDiscordId, verifyPlanChannel } from "./transport.server";
 import { readPlanRegularEvents } from "./regular-events.server";
-import { assertFuturePlan, expandPlan, isPlanDate, occurrenceIsAway, occurrenceOn, parsePlanSchedule } from "./schedule.shared";
+import { assertFuturePlan, expandPlan, isPlanDate, occurrenceIsAway, occurrenceOn, parsePlanSchedule, normalizePlanClockTime } from "./schedule.shared";
 import { resolvePlanIdentity, type PlanIdentity, type PlanTx } from "./access.server";
 import { PlunderPlanError, type PlanActor, type PlanCommand, type PlanDashboard, type PlanSummary } from "./types.shared";
 
@@ -137,8 +137,9 @@ export function parsePlanCommand(input: unknown): PlanCommand {
   if (!Number.isSafeInteger(row.expectedVersion) || Number(row.expectedVersion) < 0) throw new PlunderPlanError("stale", 409);
   const expectedVersion = Number(row.expectedVersion);
   if (row.action === "notifications") {
-    if (!isDiscordId(row.guildId) || (row.enabled !== false && !isDiscordId(row.channelId)) || typeof row.channelId !== "string" || typeof row.enabled !== "boolean" || typeof row.timeSt !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(row.timeSt) || (row.locale !== "en-US" && row.locale !== "pt-BR")) throw new PlunderPlanError("channel");
-    return { action: "notifications", requestId: row.requestId, guildId: row.guildId, channelId: row.channelId, timeSt: row.timeSt, locale: row.locale, enabled: row.enabled, expectedVersion };
+    const timeSt = typeof row.timeSt === "string" ? normalizePlanClockTime(row.timeSt) : null;
+    if (!isDiscordId(row.guildId) || (row.enabled !== false && !isDiscordId(row.channelId)) || typeof row.channelId !== "string" || typeof row.enabled !== "boolean" || !timeSt || (row.locale !== "en-US" && row.locale !== "pt-BR")) throw new PlunderPlanError("channel");
+    return { action: "notifications", requestId: row.requestId, guildId: row.guildId, channelId: row.channelId, timeSt, locale: row.locale, enabled: row.enabled, expectedVersion };
   }
   if (row.action === "color") {
     const color = parsePlanColor(row.color);
@@ -185,7 +186,6 @@ export async function mutatePlunderPlan(actor: PlanActor, input: unknown, intera
       const [guild] = await tx.select().from(schema.discordGuildAlliances).where(and(eq(schema.discordGuildAlliances.guildId, command.guildId), eq(schema.discordGuildAlliances.allianceId, actor.allianceId))).for("share");
       if (!identity.canSuggest || !guild || actor.kind === "discord" && actor.guildId !== command.guildId) throw new PlunderPlanError("forbidden", 403);
       const [setting] = await tx.select().from(schema.plunderPlanDigestSettings).where(eq(schema.plunderPlanDigestSettings.guildId, command.guildId)).for("update");
-      if (setting && setting.allianceId !== actor.allianceId) throw new PlunderPlanError("channel");
       if ((setting?.version ?? 0) !== command.expectedVersion) throw new PlunderPlanError("stale", 409);
       const values = { allianceId: actor.allianceId, guildId: command.guildId, channelId: command.channelId, timeSt: command.timeSt, locale: command.locale, enabled: command.enabled, version: command.expectedVersion + 1 };
       await tx.insert(schema.plunderPlanDigestSettings).values(values).onConflictDoUpdate({ target: schema.plunderPlanDigestSettings.guildId, set: values });

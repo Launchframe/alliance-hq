@@ -67,7 +67,9 @@
       "time": "Horário do resumo diário (UTC−2)", "language": "Idioma do resumo",
       "digestHint": "Mostre aos amigos quem vai compartilhar tarefas secretas hoje. Uma mensagem por dia, sem menções a cargos ou a todos, e nenhuma mensagem em dias sem planos.",
       "saved": "Configurações de notificação salvas.", "reminder": "Seu Plano de Saque começa às {time}. Boa caçada—compartilhe com os amigos as tarefas secretas que encontrar!",
-      "digestTitle": "Planos de Saque de hoje", "digestEntry": "{name}: {start}–{end}", "open": "Ver Planos de Saque"
+      "digestTitle": "Planos de Saque de hoje", "digestEntry": "{name}: {start}–{end}", "digestOverflow": "E mais {count}.", "open": "Ver Planos de Saque",
+      "noGuilds": "Vincule um servidor Discord antes de ativar os resumos diários.",
+      "guildOption": "Servidor Discord · {id}"
     },
     "errors": {
       "forbidden": "Você não tem acesso a esta ação do Plano de Saque.", "linkRequired": "Vincule um Comandante nesta aliança para adicionar seu Plano de Saque.",

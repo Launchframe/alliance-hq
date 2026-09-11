@@ -47,9 +47,17 @@ export function planClock(instant: number | Date | string, zone: string): { date
   return { date: `${get("year")}-${get("month")}-${get("day")}`, time: `${get("hour")}:${get("minute")}` };
 }
 
+/** HTML `type="time"` may emit `HH:MM:SS`; store and compare as `HH:MM`. */
+export function normalizePlanClockTime(value: string): string | null {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/.exec(value.trim());
+  if (!match) return null;
+  return `${match[1]}:${match[2]}`;
+}
+
 export function clockMinutes(value: string): number {
-  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) throw new PlanScheduleError("invalidSchedule");
-  const [hours, minutes] = value.split(":").map(Number);
+  const time = normalizePlanClockTime(value);
+  if (!time) throw new PlanScheduleError("invalidSchedule");
+  const [hours, minutes] = time.split(":").map(Number);
   return hours * 60 + minutes;
 }
 

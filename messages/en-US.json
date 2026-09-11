@@ -79,7 +79,9 @@
       "time": "Daily summary time (UTC−2)", "language": "Summary language",
       "digestHint": "Let friends see who’s sharing secret tasks today. One daily message, no role or everyone mentions, and no message on days without plans.",
       "saved": "Notification settings saved.", "reminder": "Your Plunder Plan starts at {time}. Happy hunting—share any secret tasks you find with your friends!",
-      "digestTitle": "Today’s Plunder Plans", "digestEntry": "{name}: {start}–{end}", "open": "See Plunder Plans"
+      "digestTitle": "Today’s Plunder Plans", "digestEntry": "{name}: {start}–{end}", "digestOverflow": "Plus {count} more.", "open": "See Plunder Plans",
+      "noGuilds": "Link a Discord server before turning on daily summaries.",
+      "guildOption": "Discord server · {id}"
     },
     "errors": {
       "forbidden": "You don’t have access to this Plunder Plan action.", "linkRequired": "Link a Commander in this alliance to add your Plunder Plan.",
