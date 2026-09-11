@@ -4,6 +4,7 @@ import { getDb, schema } from "@/lib/db";
 import { CALENDAR_SOURCES } from "./types.shared";
 import { calendarPrincipal, calendarSourcePermission } from "./access.server";
 import { readCalendarPreferences } from "./repository.server";
+import { googleCalendarConfigured } from "./google-transport.server";
 
 export async function loadCalendarSettings(hqUserId: string, locale = "en-US") {
   return getDb().transaction(async (tx) => {
@@ -19,9 +20,9 @@ export async function loadCalendarSettings(hqUserId: string, locale = "en-US") {
       const principal = await calendarPrincipal(tx, hqUserId, row.id);
       if (principal && !alliances.some((item) => item.id === row.id)) alliances.push({ ...row, sources: CALENDAR_SOURCES.filter((source) => !calendarSourcePermission[source] || principal.permissions.has(calendarSourcePermission[source]!)) });
     }
-    const targets = await tx.select({ id: schema.calendarTargets.id, allianceId: schema.calendarTargets.allianceId, provider: schema.calendarTargets.provider, sources: schema.calendarTargets.sources, enabled: schema.calendarTargets.enabled, version: schema.calendarTargets.version, status: schema.calendarTargets.status, cleanup: schema.calendarTargets.cleanup, lastSyncAt: schema.calendarTargets.lastSyncAt, lastFetchAt: schema.calendarTargets.lastFetchAt }).from(schema.calendarTargets).where(eq(schema.calendarTargets.hqUserId, hqUserId));
-    const [account] = await tx.select({ email: schema.calendarAccounts.email, status: schema.calendarAccounts.status }).from(schema.calendarAccounts).where(eq(schema.calendarAccounts.hqUserId, hqUserId));
-    return { preferences, alliances, targets: targets.map((row) => ({ ...row, lastSyncAt: row.lastSyncAt?.toISOString() ?? null, lastFetchAt: row.lastFetchAt?.toISOString() ?? null })), account: account ?? null, googleAvailable: false };
+    const targets = await tx.select({ id: schema.calendarTargets.id, allianceId: schema.calendarTargets.allianceId, provider: schema.calendarTargets.provider, sources: schema.calendarTargets.sources, enabled: schema.calendarTargets.enabled, version: schema.calendarTargets.version, status: schema.calendarTargets.status, cleanup: schema.calendarTargets.cleanup, creationUncertain: schema.calendarTargets.creationUncertain, lastSyncAt: schema.calendarTargets.lastSyncAt, lastFetchAt: schema.calendarTargets.lastFetchAt }).from(schema.calendarTargets).where(eq(schema.calendarTargets.hqUserId, hqUserId));
+    const [account] = await tx.select({ email: schema.calendarAccounts.email, status: schema.calendarAccounts.status, version: schema.calendarAccounts.version }).from(schema.calendarAccounts).where(eq(schema.calendarAccounts.hqUserId, hqUserId));
+    return { preferences, alliances, targets: targets.map((row) => ({ ...row, lastSyncAt: row.lastSyncAt?.toISOString() ?? null, lastFetchAt: row.lastFetchAt?.toISOString() ?? null })), account: account ?? null, googleAvailable: googleCalendarConfigured() };
   });
 }
 

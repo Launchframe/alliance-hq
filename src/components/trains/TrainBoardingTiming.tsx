@@ -8,7 +8,7 @@ export function TrainBoardingTiming({ recordId, lockedAt, canBegin }: { recordId
   const t = useTranslations("calendarConnections"), locale = useLocale(), now = useNow({ updateInterval: 30_000 });
   const [window, setWindow] = useState<Window | null>(null), [loading, setLoading] = useState(true), [editing, setEditing] = useState(false);
   const [countdown, setCountdown] = useState(""), [error, setError] = useState(""), [busy, setBusy] = useState(false);
-  const origin = useRef(0), observed = useRef(0), requestId = useRef("");
+  const origin = useRef(0), observed = useRef(0), requestId = useRef(""), requestMode = useRef<boolean | null>(null);
   const accept = (value: Window | null) => { setWindow(value); origin.current = performance.now(); observed.current = 0; requestId.current = ""; setCountdown(""); };
   useEffect(() => {
     let cancelled = false;
@@ -30,6 +30,7 @@ export function TrainBoardingTiming({ recordId, lockedAt, canBegin }: { recordId
   async function submit(skip: boolean) {
     if (!window || busy) return;
     setBusy(true); setError("");
+    if (requestMode.current !== skip) { requestId.current = ""; requestMode.current = skip; }
     requestId.current ||= crypto.randomUUID();
     try {
       const response = await fetch("/api/trains/boarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordId, version: window.version, requestId: requestId.current, clockToken: window.clockToken, elapsedMs: observed.current, countdown: skip ? null : countdown }) });
@@ -46,7 +47,7 @@ export function TrainBoardingTiming({ recordId, lockedAt, canBegin }: { recordId
     {window && (window.status === "pending" || editing) ? <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); void submit(false); }}>
       <label className="block space-y-1"><span>{t("boarding.question")}</span><input required pattern="[0-9]{2}:[0-5][0-9]:[0-5][0-9]" placeholder="00:00:00" value={countdown} onChange={(event) => { setCountdown(event.target.value); observed.current = performance.now() - origin.current; requestId.current = ""; }} className="block w-full max-w-xs rounded border border-hq-border bg-hq-canvas p-2" /></label>
       <p className="text-sm text-hq-fg-muted">{t("boarding.hint")}</p><p className="text-sm text-hq-fg-muted">{t("boarding.skipHint")}</p>
-      <div className="flex flex-wrap gap-3"><button disabled={busy} className="rounded border border-hq-border px-3 py-2">{t("boarding.submit")}</button><button type="button" disabled={busy} className="rounded border border-hq-border px-3 py-2" onClick={() => { requestId.current = ""; void submit(true); }}>{t("skip")}</button></div>
+      <div className="flex flex-wrap gap-3"><button disabled={busy} className="rounded border border-hq-border px-3 py-2">{t("boarding.submit")}</button><button type="button" disabled={busy} className="rounded border border-hq-border px-3 py-2" onClick={() => void submit(true)}>{t("skip")}</button></div>
     </form> : <button type="button" disabled={busy} className="rounded border border-hq-border px-3 py-2" onClick={() => void begin()}>{t("boarding.begin")}</button>}
     {window?.basis === "estimated" && <p className="text-sm text-hq-fg-muted">{t("boarding.estimate")}</p>}
     {error && <p role="alert" className="text-hq-danger">{t(error)}</p>}

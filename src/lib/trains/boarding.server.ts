@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { encryptSecret, decryptSecret } from "@/lib/crypto/encrypt";
-import { calendarHash } from "@/lib/calendar/repository.server";
+import { calendarHash, dirtyCalendarTargets } from "@/lib/calendar/repository.server";
 import { CalendarError } from "@/lib/calendar/types.shared";
 import { lockAllianceAvailability, type AvailabilityTransaction } from "@/lib/time-off/availability.server";
 import { lockConductorRecord } from "./repository";
@@ -66,7 +66,7 @@ export async function submitBoarding(allianceId: string, actorId: string, input:
     const observedAt = new Date(Math.min(now, clock.issuedAt + input.elapsedMs));
     const result = boardingWindow({ lockedAt: clock.lockAt, observedAt: observedAt.toISOString(), remainingSeconds: remaining });
     const [saved] = await tx.update(schema.trainBoardingWindows).set({ startsAt: new Date(result.startsAt), endsAt: new Date(result.endsAt), basis: result.basis, observedAt, remainingSeconds: remaining, status: Date.parse(result.endsAt) > now ? "active" : "closed", version: window.version + 1, requestId: input.requestId, requestHash: hash, actorId, updatedAt: new Date(now) }).where(eq(schema.trainBoardingWindows.recordId, record.id)).returning();
-    await tx.update(schema.calendarTargets).set({ nextSyncAt: new Date(now) }).where(eq(schema.calendarTargets.allianceId, allianceId));
+    await dirtyCalendarTargets(tx, eq(schema.calendarTargets.allianceId, allianceId));
     return saved;
   });
 }

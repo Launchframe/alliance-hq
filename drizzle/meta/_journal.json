@@ -1037,6 +1037,20 @@
       "when": 1790900000151,
       "tag": "0151_train_boarding_prompts",
       "breakpoints": false
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1790900000152,
+      "tag": "0152_calendar_google_delivery",
+      "breakpoints": false
+    },
+    {
+      "idx": 149,
+      "version": "7",
+      "when": 1790900000153,
+      "tag": "0153_calendar_remote_observation",
+      "breakpoints": false
     }
   ]
 }

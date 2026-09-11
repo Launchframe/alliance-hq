@@ -46,6 +46,22 @@ test("skip estimates from the original lock time", async ({ page, context }) => 
   expect(new Date(row.ends_at).getTime()).toBe(f.lockedAt.getTime() + 235 * 60_000);
 });
 
+test("retrying Skip after a lost response reuses the original receipt", async ({ page, context }) => {
+  const f = await fixture(); await context.addCookies(playwrightAuthCookies(f.user));
+  await page.goto("/en-US/trains");
+  const boarding = page.getByRole("region", { name: "Train Is Boarding", exact: true });
+  await expect(boarding.getByLabel("How much time is left on the train?", { exact: true })).toBeVisible();
+  await page.route((url) => url.pathname === "/api/trains/boarding", async (route) => {
+    const response = await route.fetch(); expect(response.status()).toBe(200); await route.abort();
+  }, { times: 1 });
+  await boarding.getByRole("button", { name: "Skip", exact: true }).click();
+  await expect(boarding.getByText("Could not complete this action. Try again.", { exact: true })).toBeVisible();
+  await boarding.getByRole("button", { name: "Skip", exact: true }).click();
+  await expect(boarding.getByText("Boarding time estimated from the HQ lock.", { exact: true })).toBeVisible();
+  const [row] = await f.sql`SELECT version,ends_at FROM train_boarding_windows WHERE record_id=${f.recordId}`;
+  expect(row.version).toBe(2); expect(new Date(row.ends_at).getTime()).toBe(f.lockedAt.getTime() + 235 * 60_000);
+});
+
 test("members and anonymous sessions cannot change an officer's boarding window", async ({ page, context, request }) => {
   const f = await fixture("member");
   expect((await request.get(`/api/trains/boarding?recordId=${f.recordId}`)).status()).toBe(403);

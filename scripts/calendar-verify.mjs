@@ -18,7 +18,7 @@ const run = (args) => new Promise((resolve, reject) => {
   const child = spawn(process.execPath, args, { env, stdio: "inherit" });
   child.once("error", reject); child.once("exit", (code) => code === 0 ? resolve() : reject(new Error(`Verification exited ${code}`)));
 });
-let server;
+let server, googleProvider;
 try {
   const mode = process.argv[2];
   if (mode === "migrate") {
@@ -27,20 +27,29 @@ try {
     await run(["scripts/db-migrate.mjs"]); await run(["scripts/db-seed.mjs"]); await run(["node_modules/next/dist/bin/next", "build"]);
   } else if (mode === "test") {
     env.NODE_ENV = "test"; await run(["node_modules/vitest/vitest.mjs", "run", ...process.argv.slice(3)]);
-  } else if (mode === "e2e") {
+  } else if (mode === "e2e" || mode === "google-e2e") {
+    if (mode === "google-e2e") {
+      const { startCalendarGoogleProvider } = await import("../src/test/calendar-google-provider.ts");
+      googleProvider = await startCalendarGoogleProvider();
+      env.CALENDAR_GOOGLE_TEST_ORIGIN = googleProvider.origin;
+      env.CALENDAR_GOOGLE_TRANSPORT = "mock";
+      env.GOOGLE_CALENDAR_CLIENT_ID = "e2e-google-client-id";
+      env.GOOGLE_CALENDAR_CLIENT_SECRET = "e2e-google-client-secret";
+      env.CRON_SECRET = "calendar-e2e-cron-secret";
+    }
     const reservation = createServer(); await new Promise((resolve) => reservation.listen(0, "127.0.0.1", resolve));
     const port = reservation.address().port; await new Promise((resolve) => reservation.close(resolve));
     env.PLAYWRIGHT_BASE_URL = `http://localhost:${port}`; env.PLAYWRIGHT_E2E_PORT = String(port); env.NEXT_PUBLIC_APP_URL = env.PLAYWRIGHT_BASE_URL; env.CALENDAR_APP_ORIGIN = env.PLAYWRIGHT_BASE_URL;
     server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", String(port), "-H", "localhost"], { env, stdio: "inherit" });
     let ready = false;
     for (let i = 0; i < 100; i++) {
-      if (server.exitCode !== null) throw new Error("Owned test server exited");
+      if (server.exitCode !== null || server.signalCode !== null) throw new Error("Owned test server exited");
       try { const response = await fetch(`${env.PLAYWRIGHT_BASE_URL}/api/auth/connect`); if (response.status < 500) { ready = true; break; } } catch {}
       await new Promise((resolve) => setTimeout(resolve, 300));
     }
     if (!ready) throw new Error("Owned test server did not become ready");
     await run(["node_modules/@playwright/test/cli.js", "test", ...process.argv.slice(3)]);
-  } else throw new Error("Choose migrate, build, test or e2e");
+  } else throw new Error("Choose migrate, build, test, e2e or google-e2e");
 } finally {
   if (server && server.exitCode === null && server.signalCode === null) {
     const ended = new Promise((resolve) => server.once("exit", resolve));
@@ -50,5 +59,6 @@ try {
     await ended;
     clearTimeout(deadline);
   }
+  if (googleProvider) await googleProvider.stop();
   await client.end({ timeout: 5 });
 }

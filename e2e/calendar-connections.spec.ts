@@ -95,6 +95,18 @@ test("mobile Portuguese calendar settings expose authorized previews and a keybo
   await expect(page).toHaveURL(/account\/calendars/);
 });
 
+test("a stale calendar save reports its error beside that calendar", async ({ page, context }) => {
+  const f = await fixture(); await context.addCookies(playwrightAuthCookies(f.user));
+  await page.request.post("/api/calendar/settings", { data: { action: "preferences", version: 0, preferences: { alerts: [], locale: "en-US", timezone: "UTC" } } });
+  await page.addLocatorHandler(page.getByTestId("hq-release-notes-drawer"), async () => { await page.getByTestId("hq-release-notes-dismiss").click(); });
+  await page.goto("/account/calendars");
+  const apple = page.getByRole("form", { name: /Apple Calendar/ });
+  await apple.getByLabel("Sync this calendar", { exact: true }).check();
+  await page.route("**/api/calendar/settings", (route) => route.fulfill({ status: 409, json: { code: "stale" } }), { times: 1 });
+  await apple.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(apple.getByRole("alert")).toHaveText("This has changed. Refresh and try again.");
+});
+
 test("calendar controls reject anonymous and cross-alliance requests", async ({ page, context, request }) => {
   expect((await request.get("/api/calendar/settings")).status()).toBe(403);
   const f = await fixture(), other = await fixture();
