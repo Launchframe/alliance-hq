@@ -63,6 +63,8 @@ export const calendarAccounts = pgTable("calendar_accounts", {
   email: text("email").notNull(),
   refreshToken: text("refresh_token"),
   accessToken: text("access_token"),
+  refreshLeaseToken: text("refresh_lease_token"),
+  refreshLeaseUntil: timestamp("refresh_lease_until", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
   status: text("status").notNull().default("connected"),
   version: integer("version").notNull().default(1),
@@ -84,6 +86,9 @@ export const calendarTargets = pgTable("calendar_targets", {
   sources: jsonb("sources").$type<CalendarSource[]>().notNull(),
   enabled: boolean("enabled").notNull().default(true),
   version: integer("version").notNull().default(1),
+  generation: integer("generation").notNull().default(1),
+  scanCursor: integer("scan_cursor").notNull().default(0),
+  creationUncertain: boolean("creation_uncertain").notNull().default(false),
   feedHash: text("feed_hash").unique(),
   feedSecret: text("feed_secret"),
   remoteCalendarId: text("remote_calendar_id"),
@@ -109,8 +114,10 @@ export const calendarEntries = pgTable("calendar_entries", {
   remoteId: text("remote_id"),
   remoteGeneration: integer("remote_generation").notNull().default(0),
   appliedRevision: integer("applied_revision").notNull().default(0),
+  uncertain: boolean("uncertain").notNull().default(false),
+  remoteConfirmed: boolean("remote_confirmed").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [primaryKey({ columns: [t.targetId, t.key] })]);
+}, (t) => [primaryKey({ columns: [t.targetId, t.key] }), index("calendar_entry_work_idx").on(t.targetId, t.cancelled, t.updatedAt)]);
 
 export const plunderPlans = pgTable("plunder_plans", {
   id: text("id").primaryKey(),

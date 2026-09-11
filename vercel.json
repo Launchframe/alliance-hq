@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/internal/calendar/sync",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/internal/plunder-plan/tick",
       "schedule": "* * * * *"
     },

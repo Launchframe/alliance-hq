@@ -14,9 +14,9 @@ import { readField } from "@/lib/support-teams/policy.shared";
 import { calendarSourcePermission, type CalendarPrincipal, type CalendarTx } from "./access.server";
 import { CalendarError, type CalendarEvent, type CalendarPreferences, type CalendarSource } from "./types.shared";
 
-export async function calendarEvents(tx: CalendarTx, principal: CalendarPrincipal, preferences: CalendarPreferences, selected: CalendarSource[], now = new Date()): Promise<CalendarEvent[]> {
+export async function calendarEvents(tx: CalendarTx, principal: CalendarPrincipal, preferences: CalendarPreferences, selected: CalendarSource[], now = new Date(), window?: { from: Date; until: Date }): Promise<CalendarEvent[]> {
   const t = await getTranslations({ locale: preferences.locale, namespace: "calendarConnections" });
-  const allianceId = principal.allianceId, from = new Date(now.getTime() - 86_400_000), until = new Date(now.getTime() + 90 * 86_400_000);
+  const allianceId = principal.allianceId, from = window?.from ?? new Date(now.getTime() - 86_400_000), until = window?.until ?? new Date(now.getTime() + 90 * 86_400_000);
   const fromDate = getServerCalendarDate(from), untilDate = getServerCalendarDate(until);
   const allowed = (source: CalendarSource) => selected.includes(source) && (!calendarSourcePermission[source] || principal.permissions.has(calendarSourcePermission[source]!));
   const events: CalendarEvent[] = [];
@@ -24,7 +24,7 @@ export async function calendarEvents(tx: CalendarTx, principal: CalendarPrincipa
     if (!Number.isFinite(Date.parse(start)) || !Number.isFinite(Date.parse(end)) || end <= start) throw new CalendarError("invalid_source", 503);
     if (Date.parse(end) <= from.getTime() || Date.parse(start) >= until.getTime()) return;
     const path = { regular: "/settings/regular-events", battle: "/battle-plan", boarding: "/trains", plunder: "/plunder-plan", teams: "/support-teams", timeOff: "/time-off" }[source];
-    events.push({ source, key: `${source}:${key}`, start, end, allDay, title, description, path, alerts: [...preferences.alerts] });
+    events.push({ source, key: `${source}:${key}`, start, end, allDay, title, description, path, locale: preferences.locale, alerts: [...preferences.alerts] });
   };
   if (allowed("regular")) {
     const rules = await tx.select().from(schema.regularEventScheduleRules).where(and(eq(schema.regularEventScheduleRules.allianceId, allianceId), eq(schema.regularEventScheduleRules.active, 1)));
