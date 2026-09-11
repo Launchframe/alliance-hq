@@ -1402,10 +1402,7 @@ export function TrainsDashboard({
       options?.allowEligibilityOverride || options?.allowSameGenerationReuse,
     );
     await withOptimisticMutation(
-      (snap) =>
-        applyOptimisticConductorPick(snap, selectedDate, member, {
-          eligibilityOverridden: overrideConfirmed,
-        }),
+      (snap) => applyOptimisticConductorPick(snap, selectedDate, member),
       async () => {
         const res = await coverageFetch("/api/trains/conductor/pick", {
           method: "POST",

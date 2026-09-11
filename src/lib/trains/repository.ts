@@ -411,6 +411,7 @@ export async function upsertConductorDraft(input: {
   substituteForMemberId?: string | null;
   substituteForMemberName?: string | null;
   poolClaim?: string;
+  poolClaimGeneration?: number;
   automaticDuty?: boolean;
   conductorEligibilityOverridden?: number;
   conductorEligibilityOverriddenAt?: Date | null;
@@ -435,9 +436,18 @@ export async function upsertConductorDraft(input: {
     throw new Error("Conductor is already locked for this day.");
   }
   if (input.poolClaim && input.conductorMemberId) {
+    const generation =
+      input.poolClaimGeneration ??
+      (await (
+        await import("@/lib/trains/pool")
+      ).resolvePoolGenerationForDate(
+        input.allianceId,
+        input.poolClaim as import("@/lib/trains/types").PoolType,
+        input.date,
+      ));
     const [claimed] = await db.update(schema.conductorPoolEntries).set({ selectedAt: new Date(), selectedForDate: input.date })
       .where(and(eq(schema.conductorPoolEntries.allianceId, input.allianceId), eq(schema.conductorPoolEntries.poolType, input.poolClaim), eq(schema.conductorPoolEntries.memberId, input.conductorMemberId), isNull(schema.conductorPoolEntries.selectedAt),
-        sql`${schema.conductorPoolEntries.generation} = (select max(p.generation) from conductor_pool_entries p where p.alliance_id = ${input.allianceId} and p.pool_type = ${input.poolClaim})`)).returning({ id: schema.conductorPoolEntries.id });
+        eq(schema.conductorPoolEntries.generation, generation))).returning({ id: schema.conductorPoolEntries.id });
     if (!claimed) throw new Error("This member was already selected from the current pool generation.");
   }
 

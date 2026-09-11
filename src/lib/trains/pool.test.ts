@@ -57,14 +57,14 @@ describe("poolGenerationsToClaim", () => {
     ).toEqual([2]);
   });
 
-  it("tries current generation before a stale historical generation", () => {
+  it("claims only the historical generation that owns a past date", () => {
     expect(
       poolGenerationsToClaim({
         currentGeneration: 2,
         historicalGeneration: 1,
         useHistorical: true,
       }),
-    ).toEqual([2, 1]);
+    ).toEqual([1]);
   });
 });
 

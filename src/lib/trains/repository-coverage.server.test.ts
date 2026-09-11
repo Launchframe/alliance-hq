@@ -20,7 +20,7 @@ vi.mock("@/lib/db", async () => {
 });
 import { assignVipOnLockedConductor, lockConductorRecord, upsertConductorDraft } from "./repository";
 
-const input = { allianceId: "alliance", date: "2099-09-10", conductorMemberId: "member", conductorMemberName: "Commander", poolClaim: "r3" };
+const input = { allianceId: "alliance", date: "2099-09-10", conductorMemberId: "member", conductorMemberName: "Commander", poolClaim: "r3", poolClaimGeneration: 1 };
 
 beforeEach(() => {
   mocks.row = { id: "draft", allianceId: "alliance", date: input.date, conductorMemberId: "member", conductorMemberName: "Commander", vipMemberId: null, vipMemberName: null, lockedAt: null };

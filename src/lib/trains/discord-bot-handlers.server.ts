@@ -2,6 +2,11 @@ import "server-only";
 
 import { CoverageConflictError } from "@/lib/time-off/coverage.server";
 import type { CoverageConflict } from "@/lib/time-off/coverage.shared";
+import {
+  discordEligibilityOverrideMessageKey,
+  isManualPickEligibilityError,
+  type ManualPickEligibilityReason,
+} from "@/lib/trains/depleting-manual-pick.shared";
 
 import { resolveDiscordChannelSetterAccess } from "@/lib/discord/channel-setter-auth.server";
 import type { DiscordBotLocale } from "@/lib/discord/i18n";
@@ -30,6 +35,12 @@ export type TrainBotReply = {
   coverage?: { conflicts: CoverageConflict[]; action: "pick" | "lock"; date: string; memberId?: string; memberName?: string };
   pickCandidates?: Array<{ memberId: string; name: string; date: string }>;
   pendingPick?: { memberId: string; memberName: string; date: string };
+  pendingEligibilityOverride?: {
+    memberId: string;
+    memberName: string;
+    date: string;
+    reason: ManualPickEligibilityReason;
+  };
 };
 
 function parseTrainDate(raw: string | undefined): string {
@@ -240,6 +251,7 @@ export async function handleDiscordTrainConductorPick(input: {
   locale: DiscordBotLocale;
   memberId: string;
   date: string;
+  allowEligibilityOverride?: boolean;
 }): Promise<TrainBotReply> {
   const t = createDiscordTranslator(input.locale);
   const allowed = await callerCanManageTrains({
@@ -262,8 +274,7 @@ export async function handleDiscordTrainConductorPick(input: {
       date: input.date,
       memberId: member.id,
       memberName: member.current_name,
-      // Discord Yes already confirmed assigning this member as conductor.
-      allowEligibilityOverride: true,
+      allowEligibilityOverride: input.allowEligibilityOverride === true,
       hqUserId: await resolveDiscordHqUserId(input.discordUserId),
     });
     const reply = t("train.draftSaved", {
@@ -279,6 +290,23 @@ export async function handleDiscordTrainConductorPick(input: {
     });
     return { reply };
   } catch (error) {
+    if (
+      isManualPickEligibilityError(error) &&
+      input.allowEligibilityOverride !== true
+    ) {
+      return {
+        reply: t(discordEligibilityOverrideMessageKey(error.reason), {
+          name: member.current_name,
+          date: input.date,
+        }),
+        pendingEligibilityOverride: {
+          memberId: member.id,
+          memberName: member.current_name,
+          date: input.date,
+          reason: error.reason,
+        },
+      };
+    }
     if (error instanceof CoverageConflictError) return { reply: t("teamWork.keepHint"), coverage: { conflicts: error.conflicts, action: "pick", date: input.date, memberId: member.id, memberName: member.current_name } };
     const message =
       error instanceof Error ? error.message : t("errors.serverError");

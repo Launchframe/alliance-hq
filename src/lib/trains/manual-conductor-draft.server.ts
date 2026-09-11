@@ -15,9 +15,9 @@ import {
 } from "@/lib/trains/depleting-manual-pick.shared";
 import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
-  listPoolEntries,
-  listUnselectedPoolEntries,
+  listPoolEntriesInGeneration,
   releasePoolSelectionForDate,
+  resolvePoolGenerationForDate,
 } from "@/lib/trains/pool";
 import {
   getMemberRankAsOf,
@@ -110,6 +110,7 @@ export async function applyManualConductorDraft(input: {
   const priorConductorMemberId = existing?.conductorMemberId ?? null;
   const replacingSameMember = priorConductorMemberId === input.memberId;
   let claimPool = false;
+  let poolClaimGeneration: number | undefined;
   if (poolType) {
     if (!replacingSameMember) {
       await ensureConductorPoolSeeded({
@@ -123,9 +124,16 @@ export async function applyManualConductorDraft(input: {
       await withConductorPoolClaimLock(
         { allianceId: input.allianceId, poolType },
         async () => {
+          const generation = await resolvePoolGenerationForDate(
+            input.allianceId,
+            poolType,
+            input.date,
+          );
           const [unselected, poolEntries] = await Promise.all([
-            listUnselectedPoolEntries(input.allianceId, poolType),
-            listPoolEntries(input.allianceId, poolType),
+            listPoolEntriesInGeneration(input.allianceId, poolType, generation, {
+              unselectedOnly: true,
+            }),
+            listPoolEntriesInGeneration(input.allianceId, poolType, generation),
           ]);
           const gate = evaluateDepletingManualPick({
             memberId: input.memberId,
@@ -134,10 +142,10 @@ export async function applyManualConductorDraft(input: {
           });
           if (gate.ok) {
             claimPool = true;
+            poolClaimGeneration = generation;
           } else if (overrideConfirmed) {
-            // Officer confirmed: draft without consuming or refreshing the
-            // generation. Already-chosen / missing rows stay as-is so the
-            // wheel cannot land on a spent or newly inserted slot.
+            // Already out of this generation (or never in it): draft without
+            // consuming another slot. Remaining counts stay non-negative.
           } else {
             throw new ManualPickEligibilityError(
               gate.reason,
@@ -158,6 +166,7 @@ export async function applyManualConductorDraft(input: {
 
   const record = await upsertConductorDraft({
     poolClaim: claimPool && poolType ? poolType : undefined,
+    poolClaimGeneration,
     allianceId: input.allianceId,
     date: input.date,
     seasonKey,
