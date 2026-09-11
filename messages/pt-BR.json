@@ -1808,6 +1808,10 @@
         "memberLinkHelp": "Ajuda no vínculo",
         "uidInspector": "Inspetor de UID"
       },
+      "notes": {
+        "newNote": "Criar uma nota",
+        "search": "Buscar notas"
+      },
       "trains": {
         "spinWheel": "Girar roleta do condutor",
         "spinWeek": "Girar para a semana",
@@ -7048,6 +7052,118 @@
     "attached": "Vinculados",
     "backToNotes": "Todas as notas",
     "notFound": "Nota não encontrada.",
+    "views": {
+      "notebook": "Caderno",
+      "inbox": "Caixa de entrada",
+      "shared": "Compartilhadas comigo",
+      "archived": "Arquivadas"
+    },
+    "workspace": {
+      "navigation": "Visualizações de notas",
+      "notebooks": "Seus cadernos",
+      "notebooksHint": "Dê um nome de caderno a uma nota para organizar suas anotações.",
+      "cardView": "Visualização em cartões",
+      "listView": "Visualização em lista",
+      "quickCapture": "Anotação rápida",
+      "capturePlaceholder": "Uma ideia, uma observação, um acompanhamento…",
+      "search": "Buscar nas suas notas…",
+      "sort": "Ordenar notas",
+      "recent": "Atualizadas recentemente",
+      "noMatches": "Nenhuma nota encontrada",
+      "changeFilters": "Tente outra busca ou limpe os filtros.",
+      "clearFilters": "Limpar filtros",
+      "saved": "Nota salva.",
+      "empty": {
+        "notebook": "Um espaço para o que importa",
+        "inbox": "Sua caixa de entrada está em dia",
+        "shared": "Ainda não compartilharam notas com você",
+        "archived": "Nenhuma nota arquivada"
+      },
+      "hint": {
+        "notebook": "Registre pensamentos, observações e ideias. Tudo fica privado até você decidir compartilhar.",
+        "inbox": "Anotações rápidas e notas do Discord chegam aqui. Organize-as quando quiser.",
+        "shared": "As notas compartilhadas com você aparecerão aqui, com o acesso escolhido por quem as criou.",
+        "archived": "As notas arquivadas continuam disponíveis aqui sempre que você quiser consultá-las."
+      }
+    },
+    "actions": {
+      "newNote": "Nova nota",
+      "close": "Fechar",
+      "history": "Histórico de versões",
+      "share": "Compartilhar",
+      "file": "Organizar nota",
+      "restore": "Restaurar nota",
+      "archive": "Arquivar nota"
+    },
+    "fields": {
+      "title": "Título",
+      "priority": "Prioridade",
+      "labels": "Marcadores",
+      "notebook": "Caderno",
+      "journalDate": "Data do registro",
+      "members": "Membros vinculados"
+    },
+    "source": {
+      "label": "Origem",
+      "all": "Todas as origens",
+      "web": "Web",
+      "discord": "Discord"
+    },
+    "priority": {
+      "all": "Todas as prioridades",
+      "none": "Nenhuma",
+      "low": "Baixa",
+      "medium": "Média",
+      "high": "Alta",
+      "urgent": "Urgente"
+    },
+    "editor": {
+      "untitled": "Nota sem título",
+      "private": "Só você",
+      "write": "Escrever",
+      "preview": "Prévia",
+      "placeholder": "Escreva algo que vale a pena lembrar…",
+      "markdownHint": "Aceita Markdown. Enter começa uma nova linha.",
+      "labelsPlaceholder": "Separe os marcadores por vírgulas",
+      "noNotebook": "Sem caderno",
+      "keepInInbox": "Manter na caixa de entrada",
+      "memberPrivacy": "Vincular membros não dá a eles acesso a esta nota.",
+      "detected": "Detectado na sua nota",
+      "removeMember": "Desvincular {name}",
+      "addMember": "Adicionar membro",
+      "noMembers": "Nenhum membro vinculado",
+      "chooseMember": "Qual membro da aliança você quis dizer com {name}?",
+      "discardTitle": "Descartar alterações não salvas?",
+      "discardBody": "Suas alterações ainda não foram salvas.",
+      "keepEditing": "Continuar editando",
+      "discard": "Descartar alterações",
+      "saveBeforeShare": "Salve suas alterações antes de abrir o compartilhamento ou o histórico.",
+      "draftPreserved": "Seu rascunho continua aqui. Você pode continuar editando ou fechá-lo quando quiser."
+    },
+    "sharing": {
+      "shared": "Compartilhada",
+      "title": "Compartilhar nota",
+      "explanation": "Compartilhe a nota atual com pessoas escolhidas ou com seus oficiais. As versões anteriores e a organização dos seus cadernos privados continuam visíveis só para você.",
+      "addPeople": "Adicionar pessoas",
+      "choosePerson": "Escolha um membro da aliança",
+      "unnamedMember": "Membro sem nome",
+      "allOfficers": "Todos os oficiais",
+      "permissionFor": "Acesso de {name}",
+      "canRead": "Pode ler",
+      "canEdit": "Pode editar",
+      "removePerson": "Remover acesso de {name}",
+      "loading": "Carregando configurações de compartilhamento…",
+      "save": "Salvar compartilhamento"
+    },
+    "history": {
+      "private": "As versões anteriores são visíveis só para você.",
+      "loading": "Carregando versões…",
+      "empty": "Ainda não há versões anteriores.",
+      "choose": "Escolha uma versão para ver a prévia.",
+      "version": "Versão {version}",
+      "restoreHint": "Restaurar cria uma nova versão sem apagar o histórico. Quem pode ler esta nota verá o conteúdo restaurado.",
+      "restore": "Restaurar esta versão"
+    },
     "errors": {
       "invalid": "Confira os detalhes da nota e tente novamente.",
       "alliance": "Selecione uma aliança para continuar.",
