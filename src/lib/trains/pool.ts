@@ -17,17 +17,54 @@ type PoolGenerationEntry = {
 };
 
 /**
- * Claim only the generation that owns `date`. Past days stay in their
- * historical generation so a makeup does not consume a live wheel slot.
- * Same-generation reuse is an override (no second consume).
+ * Prefer the live wheel when claiming a pool slot. Past-day trains still
+ * consume a current-generation unselected row so the member is not next in
+ * sequence. Fall back to the date's generation when that is the current one.
  */
 export function poolGenerationsToClaim(input: {
   currentGeneration: number;
   historicalGeneration: number;
   useHistorical: boolean;
 }): number[] {
-  if (!input.useHistorical) return [input.currentGeneration];
-  return [input.historicalGeneration];
+  if (
+    input.useHistorical &&
+    input.historicalGeneration !== input.currentGeneration
+  ) {
+    return [input.currentGeneration, input.historicalGeneration];
+  }
+  return [input.currentGeneration];
+}
+
+/**
+ * Lock/sync must not stamp a leftover historical row after the live slot is
+ * already taken (Start new rotation leftovers).
+ */
+export function resolveLockPoolClaim(input: {
+  date: string;
+  currentGeneration: number;
+  historicalGeneration: number;
+  hasCurrentRow: boolean;
+  currentSelectedForDate: string | null | undefined;
+}): { generation: number | null; alreadyClaimed: boolean } {
+  if (input.hasCurrentRow) {
+    if (input.currentSelectedForDate == null) {
+      return {
+        generation: input.currentGeneration,
+        alreadyClaimed: false,
+      };
+    }
+    return {
+      generation: null,
+      alreadyClaimed: input.currentSelectedForDate === input.date,
+    };
+  }
+  if (input.historicalGeneration !== input.currentGeneration) {
+    return {
+      generation: input.historicalGeneration,
+      alreadyClaimed: false,
+    };
+  }
+  return { generation: null, alreadyClaimed: false };
 }
 
 /** Pure helper — first generation not fully selected before date. */
@@ -451,8 +488,10 @@ export async function resolvePoolGenerationForHistoricalDate(
 }
 
 /**
- * Claim the generation row that owns `date` for `memberId`.
- * Returns false when no unselected row exists in that generation.
+ * Claim the live generation when the member still has an open row there.
+ * If they are already selected on the live generation, do not stamp a
+ * leftover historical row. Only claim the date's generation when they have
+ * no current-generation row at all.
  */
 export async function markPoolMemberSelectedForDate(
   allianceId: string,
@@ -460,12 +499,37 @@ export async function markPoolMemberSelectedForDate(
   memberId: string,
   date: string,
 ): Promise<boolean> {
-  const generation = await resolvePoolGenerationForDate(
-    allianceId,
-    poolType,
-    date,
-  );
+  const today = getServerCalendarDate();
+  const currentGeneration = await getCurrentPoolGeneration(allianceId, poolType);
+  const historicalGeneration =
+    date < today
+      ? await resolvePoolGenerationForHistoricalDate(allianceId, poolType, date)
+      : currentGeneration;
   const db = getDb();
+  const [currentRow] = await db
+    .select({
+      id: schema.conductorPoolEntries.id,
+      selectedForDate: schema.conductorPoolEntries.selectedForDate,
+    })
+    .from(schema.conductorPoolEntries)
+    .where(
+      and(
+        eq(schema.conductorPoolEntries.allianceId, allianceId),
+        eq(schema.conductorPoolEntries.poolType, poolType),
+        eq(schema.conductorPoolEntries.generation, currentGeneration),
+        eq(schema.conductorPoolEntries.memberId, memberId),
+      ),
+    )
+    .limit(1);
+  const plan = resolveLockPoolClaim({
+    date,
+    currentGeneration,
+    historicalGeneration,
+    hasCurrentRow: Boolean(currentRow),
+    currentSelectedForDate: currentRow?.selectedForDate,
+  });
+  if (plan.alreadyClaimed) return true;
+  if (plan.generation == null) return false;
   const [entry] = await db
     .select({ id: schema.conductorPoolEntries.id })
     .from(schema.conductorPoolEntries)
@@ -473,7 +537,7 @@ export async function markPoolMemberSelectedForDate(
       and(
         eq(schema.conductorPoolEntries.allianceId, allianceId),
         eq(schema.conductorPoolEntries.poolType, poolType),
-        eq(schema.conductorPoolEntries.generation, generation),
+        eq(schema.conductorPoolEntries.generation, plan.generation),
         eq(schema.conductorPoolEntries.memberId, memberId),
         isNull(schema.conductorPoolEntries.selectedAt),
       ),
