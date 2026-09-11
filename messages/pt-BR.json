@@ -6403,7 +6403,7 @@
         "no_commander": "Nenhum comandante vinculado",
         "missing_colon": "Falta dois pontos ou um hífen depois do Líder de Guerra",
         "empty_wl": "Falta o nome do Líder de Guerra",
-        "empty_engs": "Nenhum Engenheiro depois dos dois pontos"
+        "empty_engs": "Nenhum Engenheiro depois do delimitador"
       },
       "engStatus": {
         "ready": "Pronto",

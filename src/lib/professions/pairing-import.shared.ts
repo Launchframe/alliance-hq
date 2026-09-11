@@ -78,6 +78,8 @@ function isExactish(method: MemberMatch["matchMethod"]): boolean {
   return method === "exact" || method === "previous_name";
 }
 
+const SPACED_PAIRING_DELIMITER = /\s[-–—]\s/;
+
 function splitPairingLine(
   raw: string,
 ): { wlRaw: string; engRemainder: string } | null {
@@ -88,12 +90,23 @@ function splitPairingLine(
       engRemainder: raw.slice(colon + 1).trim(),
     };
   }
-  const hyphen = raw.search(/[-–—]/);
-  if (hyphen < 0) return null;
-  return {
-    wlRaw: raw.slice(0, hyphen).trim(),
-    engRemainder: raw.slice(hyphen + 1).trim(),
-  };
+  const spaced = raw.match(SPACED_PAIRING_DELIMITER);
+  if (spaced && spaced.index !== undefined) {
+    const delimiter = spaced[0];
+    return {
+      wlRaw: raw.slice(0, spaced.index).trim(),
+      engRemainder: raw.slice(spaced.index + delimiter.length).trim(),
+    };
+  }
+  const hyphenMatches = [...raw.matchAll(/[-–—]/g)];
+  if (hyphenMatches.length === 1 && hyphenMatches[0]?.index !== undefined) {
+    const idx = hyphenMatches[0].index;
+    return {
+      wlRaw: raw.slice(0, idx).trim(),
+      engRemainder: raw.slice(idx + 1).trim(),
+    };
+  }
+  return null;
 }
 
 export function parsePairingImportText(text: string): ParsedPairingLine[] {

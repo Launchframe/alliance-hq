@@ -61,6 +61,20 @@ describe("parsePairingImportText", () => {
       engRemainder: "Freddy",
     });
   });
+
+  it("uses a spaced hyphen when the War Leader name contains hyphens", () => {
+    const lines = parsePairingImportText("Bat-Pig - EG Sie Freddy");
+    expect(lines[0]).toMatchObject({
+      wlRaw: "Bat-Pig",
+      engRemainder: "EG Sie Freddy",
+    });
+  });
+
+  it("rejects multiple compact hyphens without a colon or spaced delimiter", () => {
+    expect(parsePairingImportText("Bat-Pig-EG Sie")[0]?.issue).toBe(
+      "missing_colon",
+    );
+  });
 });
 
 describe("consumeGreedyMemberNames", () => {

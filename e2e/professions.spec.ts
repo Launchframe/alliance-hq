@@ -299,6 +299,21 @@ test.describe("Professions — War Leader Support", () => {
     expect(previewJson.preview.readyCount).toBe(1);
     expect(previewJson.preview.lines[0]?.wl.status).toBe("ready");
 
+    const applyRes = await request.post(
+      `${e2eBaseUrl()}/api/professions/officer/import`,
+      {
+        headers: {
+          Cookie: authCookieHeader(officerSession),
+          "Content-Type": "application/json",
+        },
+        data: { text: "Import WL: Import Eng", commit: true },
+      },
+    );
+    expect(applyRes.ok(), await applyRes.text()).toBeTruthy();
+    const applyJson = (await applyRes.json()) as { assigned: number; failed: number };
+    expect(applyJson.assigned).toBe(1);
+    expect(applyJson.failed).toBe(0);
+
     await page.context().addCookies(playwrightAuthCookies(officerSession));
     await page.goto("/professions?tab=officer");
     await expect(page.getByTestId("profession-pairing-import")).toBeVisible({

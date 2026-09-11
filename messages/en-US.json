@@ -6415,7 +6415,7 @@
         "no_commander": "No commander linked",
         "missing_colon": "Needs a colon or hyphen after the War Leader",
         "empty_wl": "Missing War Leader name",
-        "empty_engs": "No Engineers after the colon"
+        "empty_engs": "No Engineers after the delimiter"
       },
       "engStatus": {
         "ready": "Ready",

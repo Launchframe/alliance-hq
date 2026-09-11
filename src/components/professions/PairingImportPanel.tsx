@@ -172,13 +172,22 @@ export function PairingImportPanel({ onApplied }: Props) {
       )}
 
       {applyResult ? (
-        <p className="text-sm text-hq-success">
-          {t("applied", {
-            assigned: applyResult.assigned,
-            skipped: applyResult.skipped,
-            failCount: applyResult.failed,
-          })}
-        </p>
+        <div className="space-y-1">
+          <p className="text-sm text-hq-success">
+            {t("applied", {
+              assigned: applyResult.assigned,
+              skipped: applyResult.skipped,
+              failCount: applyResult.failed,
+            })}
+          </p>
+          {applyResult.failed > 0 && applyResult.errors.length > 0 ? (
+            <ul className="list-inside list-disc text-xs text-hq-danger">
+              {applyResult.errors.map((message, index) => (
+                <li key={`${index}-${message}`}>{message}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
       ) : null}
 
       {preview ? (

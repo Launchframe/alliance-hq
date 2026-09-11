@@ -146,6 +146,7 @@ export async function applyProfessionPairingImport(
           allianceId,
           engCommanderId: eng.commanderId,
           wlCommanderId,
+          suppressNotifications: true,
         });
         result.assigned += 1;
       } catch (error) {

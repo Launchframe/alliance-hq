@@ -16,6 +16,7 @@ vi.mock("./notifications.server", () => ({
   notifyProfessionEvent: vi.fn(async () => undefined),
 }));
 
+import { notifyProfessionEvent } from "./notifications.server";
 import { assignEngToWl } from "./service";
 
 function mockProfessions(
@@ -111,6 +112,19 @@ describe("assignEngToWl", () => {
       allianceId: "alliance-a",
       engCommanderId: "eng-1",
     });
+    expect(notifyProfessionEvent).toHaveBeenCalled();
+  });
+
+  it("skips notifications when suppressNotifications is set", async () => {
+    vi.mocked(notifyProfessionEvent).mockClear();
+    mockProfessions({ profession: "Engineer" }, { profession: "War Leader" });
+    await assignEngToWl({
+      allianceId: "alliance-a",
+      engCommanderId: "eng-1",
+      wlCommanderId: "wl-1",
+      suppressNotifications: true,
+    });
+    expect(notifyProfessionEvent).not.toHaveBeenCalled();
   });
 
   it("reactivates a dismissed/self_removed row instead of inserting a duplicate", async () => {
