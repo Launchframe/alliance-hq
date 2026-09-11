@@ -11,6 +11,7 @@ const NATIVE_NAV_HREFS = new Set(
 const NATIVE_MODE_EXTRA_HREFS = new Set([
   "/settings",
   "/settings/account",
+  "/account/calendars",
   "/settings/team",
   "/settings/discord",
   "/settings/trains",
@@ -317,6 +318,14 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     kind: "navigate",
     href: "/admin/inbox",
     requiredPermission: "hq:admin",
+  },
+  {
+    id: "nav.calendarConnections",
+    labelKey: "actions.nav.calendarConnections",
+    category: "navigation",
+    scope: "global",
+    kind: "navigate",
+    href: "/account/calendars",
   },
   {
     id: "nav.account",

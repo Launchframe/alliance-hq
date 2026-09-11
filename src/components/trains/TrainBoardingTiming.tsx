@@ -50,5 +50,6 @@ export function TrainBoardingTiming({ recordId, lockedAt, canBegin }: { recordId
     </form> : <button type="button" disabled={busy} className="rounded border border-hq-border px-3 py-2" onClick={() => void begin()}>{t("boarding.begin")}</button>}
     {window?.basis === "estimated" && <p className="text-sm text-hq-fg-muted">{t("boarding.estimate")}</p>}
     {error && <p role="alert" className="text-hq-danger">{t(error)}</p>}
+    {(error === "boarding.expired" || error === "stale") && <button type="button" className="rounded border border-hq-border px-3 py-2" disabled={busy} onClick={() => void begin()}>{t("boarding.begin")}</button>}
   </section>;
 }

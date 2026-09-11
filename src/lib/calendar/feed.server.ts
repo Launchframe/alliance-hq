@@ -23,7 +23,7 @@ export async function calendarFeed(token: string, ifNoneMatch?: string | null) {
     const result = await projectCalendar(tx, target);
     if (!result.principal) throw new CalendarError("not_found", 404);
     const t = await getTranslations({ locale: result.preferences.locale, namespace: "calendarConnections" });
-    const text = serializeCalendar(result.entries, { name: `${t("title")}${result.principal.tag ? ` — ${result.principal.tag}` : ""}`, locale: result.preferences.locale, origin: calendarAppOrigin() });
+    const text = serializeCalendar(result.entries, { name: `${t("calendarName")}${result.principal.tag ? ` — ${result.principal.tag}` : ""}`, locale: result.preferences.locale, origin: calendarAppOrigin() });
     const etag = `"${calendarHash(text)}"`;
     await tx.update(schema.calendarTargets).set({ lastFetchAt: new Date() }).where(eq(schema.calendarTargets.id, target.id));
     return { status: ifNoneMatch === etag ? 304 : 200, text, etag };
