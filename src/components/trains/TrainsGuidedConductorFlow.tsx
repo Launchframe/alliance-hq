@@ -39,6 +39,7 @@ export type TrainsGuidedConductorFlowProps = {
   rosterDataStatus: TrainsRosterDataStatus | null;
   hasConductor: boolean;
   conductorName?: string | null;
+  eligibilityOverridden?: boolean;
   vipNeeded: boolean;
   hasVip: boolean;
   vipName?: string | null;
@@ -240,6 +241,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
     rosterDataStatus,
     hasConductor,
     conductorName,
+    eligibilityOverridden = false,
     vipNeeded,
     hasVip,
     vipName,
@@ -280,6 +282,7 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
   const connectAshedHref = buildConnectHref("/trains");
 
   const t = useTranslations("trains.guidedFlow");
+  const tTrains = useTranslations("trains");
   const tConfirmation = useTranslations("trains.conductorConfirmation");
   const tTemplates = useTranslations("trains.templates");
   const tTemplateDetails = useTranslations("trains.templateDetails");
@@ -552,6 +555,15 @@ export function TrainsGuidedConductorFlow(props: TrainsGuidedConductorFlowProps)
                 <span className="text-sm text-hq-fg-muted">
                   {t("steps.conductor.assigned", { name: conductorName ?? "—" })}
                 </span>
+                {eligibilityOverridden ? (
+                  <span
+                    className="rounded-full bg-hq-warning/15 px-2 py-0.5 text-xs font-medium text-hq-warning"
+                    data-testid="trains-conductor-eligibility-override"
+                    title={tTrains("conductorEligibilityOverrideHint")}
+                  >
+                    {tTrains("conductorEligibilityOverrideBadge")}
+                  </span>
+                ) : null}
                 {!locked && canSpinConductorWheel ? (
                   <ChangeLink
                     label={tWheel("spinAgain")}

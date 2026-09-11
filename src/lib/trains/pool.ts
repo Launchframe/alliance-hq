@@ -16,6 +16,20 @@ type PoolGenerationEntry = {
   selectedForDate: string | null;
 };
 
+/**
+ * Claim only the generation that owns `date`. Past days stay in their
+ * historical generation so a makeup does not consume a live wheel slot.
+ * Same-generation reuse is an override (no second consume).
+ */
+export function poolGenerationsToClaim(input: {
+  currentGeneration: number;
+  historicalGeneration: number;
+  useHistorical: boolean;
+}): number[] {
+  if (!input.useHistorical) return [input.currentGeneration];
+  return [input.historicalGeneration];
+}
+
 /** Pure helper — first generation not fully selected before date. */
 export function activePoolGenerationForDate(
   generationNumbers: number[],
@@ -373,6 +387,43 @@ export async function updateCurrentPoolEntryTicketWeights(
   }
 }
 
+export async function resolvePoolGenerationForDate(
+  allianceId: string,
+  poolType: PoolType,
+  date: string,
+): Promise<number> {
+  const today = getServerCalendarDate();
+  const currentGeneration = await getCurrentPoolGeneration(allianceId, poolType);
+  if (date >= today) return currentGeneration;
+  return resolvePoolGenerationForHistoricalDate(allianceId, poolType, date);
+}
+
+export async function listPoolEntriesInGeneration(
+  allianceId: string,
+  poolType: PoolType,
+  generation: number,
+  options?: { unselectedOnly?: boolean },
+): Promise<Array<(typeof schema.conductorPoolEntries.$inferSelect)>> {
+  const currentGeneration = await getCurrentPoolGeneration(allianceId, poolType);
+  if (generation === currentGeneration) {
+    await reconcileCurrentGenerationEligibility(allianceId, poolType);
+  }
+  const db = getDb();
+  const filters = [
+    eq(schema.conductorPoolEntries.allianceId, allianceId),
+    eq(schema.conductorPoolEntries.poolType, poolType),
+    eq(schema.conductorPoolEntries.generation, generation),
+  ];
+  if (options?.unselectedOnly) {
+    filters.push(isNull(schema.conductorPoolEntries.selectedAt));
+  }
+  return db
+    .select()
+    .from(schema.conductorPoolEntries)
+    .where(and(...filters))
+    .orderBy(asc(schema.conductorPoolEntries.sequencePosition));
+}
+
 export async function resolvePoolGenerationForHistoricalDate(
   allianceId: string,
   poolType: PoolType,
@@ -400,8 +451,8 @@ export async function resolvePoolGenerationForHistoricalDate(
 }
 
 /**
- * Claim the current (or historical) generation row for `memberId`.
- * Returns false when no row exists or another caller already claimed it.
+ * Claim the generation row that owns `date` for `memberId`.
+ * Returns false when no unselected row exists in that generation.
  */
 export async function markPoolMemberSelectedForDate(
   allianceId: string,
@@ -409,11 +460,11 @@ export async function markPoolMemberSelectedForDate(
   memberId: string,
   date: string,
 ): Promise<boolean> {
-  const today = getServerCalendarDate();
-  const generation =
-    date < today
-      ? await resolvePoolGenerationForHistoricalDate(allianceId, poolType, date)
-      : await getCurrentPoolGeneration(allianceId, poolType);
+  const generation = await resolvePoolGenerationForDate(
+    allianceId,
+    poolType,
+    date,
+  );
   const db = getDb();
   const [entry] = await db
     .select({ id: schema.conductorPoolEntries.id })
@@ -428,7 +479,6 @@ export async function markPoolMemberSelectedForDate(
       ),
     )
     .limit(1);
-
   if (!entry) return false;
   return markPoolEntrySelected(entry.id, date);
 }

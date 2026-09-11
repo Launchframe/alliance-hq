@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { memberIdsEligibleForPoolType } from "@/lib/trains/rank-history";
@@ -140,6 +141,16 @@ export async function POST(request: Request) {
         allianceId: ctx.allianceId,
         poolType: body.poolType,
       });
+      await writeTrainsOfficerAudit({
+        sessionId: session.id,
+        allianceId: ctx.allianceId,
+        hqUserId: session.hqUserId,
+        action: "trains.pool_restore_previous_generation",
+        severity: "override",
+        resourceType: "train_pool",
+        resourceId: `${ctx.allianceId}:${body.poolType}`,
+        metadata: { poolType: body.poolType },
+      });
       return NextResponse.json(result);
     }
 
@@ -156,6 +167,21 @@ export async function POST(request: Request) {
       date,
       paintTemplate: dayConfig.paintTemplate,
       conductorMechanism: dayConfig.conductorMechanism,
+    });
+    await writeTrainsOfficerAudit({
+      sessionId: session.id,
+      allianceId: ctx.allianceId,
+      hqUserId: session.hqUserId,
+      action: "trains.pool_reseed",
+      severity: "update",
+      resourceType: "train_pool",
+      resourceId: `${ctx.allianceId}:${body.poolType}`,
+      metadata: {
+        poolType: body.poolType,
+        date,
+        paintTemplate: dayConfig.paintTemplate,
+        conductorMechanism: dayConfig.conductorMechanism,
+      },
     });
     return NextResponse.json(result);
   } catch (error) {

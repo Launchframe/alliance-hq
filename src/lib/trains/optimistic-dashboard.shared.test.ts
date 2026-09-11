@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyOptimisticClearPendingConductor,
+  applyOptimisticConductorPick,
   applyOptimisticConductorSwap,
   applyOptimisticLock,
   applyOptimisticPaint,
@@ -11,6 +12,40 @@ import {
 } from "@/lib/trains/optimistic-dashboard.shared";
 
 describe("optimistic dashboard state", () => {
+  it("does not mark an eligibility override until the server snapshot says so", () => {
+    const snap = {
+      data: {
+        today: "2026-06-10",
+        weekStart: "2026-06-08",
+        weekEnd: "2026-06-14",
+        trainWeekStartDow: 1,
+        weekRecords: [],
+        dayConfigs: [],
+        conductorRecord: null,
+      },
+      viewedWeek: {
+        weekStart: "2026-06-08",
+        weekEnd: "2026-06-14",
+        templateType: null,
+        dayConfigs: [],
+        weekRecords: [],
+      },
+      viewedMonth: {
+        monthKey: "2026-06",
+        monthStart: "2026-06-01",
+        monthEnd: "2026-06-30",
+        dayConfigs: [],
+        monthRecords: [],
+      },
+    } as unknown as Parameters<typeof applyOptimisticConductorPick>[0];
+
+    const next = applyOptimisticConductorPick(snap, "2026-06-10", {
+      memberId: "m1",
+      memberName: "Alice",
+    });
+    expect(next.data.weekRecords[0]?.eligibilityOverridden).toBe(false);
+  });
+
   it("upserts a draft conductor on an empty day", () => {
     const next = upsertRecordForDate([], "2026-06-10", {
       conductorMemberId: "m1",

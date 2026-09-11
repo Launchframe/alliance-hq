@@ -733,6 +733,9 @@ async function persistConductorRoll(input: {
     conductorMechanism: input.mechanism,
     vipMechanism: input.vipMechanism,
     dayConfigId: input.dayConfigId,
+    conductorEligibilityOverridden: 0,
+    conductorEligibilityOverriddenAt: null,
+    conductorEligibilityOverriddenByHqUserId: null,
   }).catch(async (error) => {
     if (!input.manualCoverageOverride && input.result.poolType) await releasePoolSelectionForDate(input.allianceId, input.date, input.result.memberId);
     if (!input.manualCoverageOverride && error instanceof CoverageConflictError) throwPoolUnavailable(input.result.poolType);
@@ -812,15 +815,18 @@ export async function confirmConductorMinimumOverride(input: {
     allianceId: input.allianceId,
     hqUserId: input.hqUserId ?? undefined,
     action: "trains.conductor_minimum_override",
+    severity: "override",
     resourceType: "train_conductor_record",
     resourceId: `${input.allianceId}:${input.date}`,
     resourceName: input.memberName,
     metadata: {
+      permission: "trains:write",
       date: input.date,
       memberId: input.memberId,
       mechanism: input.mechanism,
       overrideReason: input.overrideReason?.trim() || null,
       qualification,
+      source: "manual",
     },
   });
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import {
   RosterSyncUnavailableError,
   syncAllianceRosterForSession,
@@ -76,6 +77,19 @@ export async function POST() {
       conductorMechanism: todayDayConfig?.conductorMechanism ?? null,
       paintTemplate: todayDayConfig?.paintTemplate ?? null,
       activeMemberCount: syncResult.activeMemberCount,
+    });
+
+    await writeTrainsOfficerAudit({
+      sessionId: session.id,
+      allianceId: ctx.allianceId,
+      hqUserId: session.hqUserId,
+      action: "trains.roster_sync",
+      severity: "routine",
+      resourceType: "alliance_roster",
+      resourceId: ctx.allianceId,
+      metadata: {
+        activeMemberCount: syncResult.activeMemberCount,
+      },
     });
 
     return NextResponse.json({

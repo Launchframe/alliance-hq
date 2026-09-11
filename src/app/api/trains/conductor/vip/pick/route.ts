@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
@@ -98,6 +99,31 @@ async function post(request: Request) {
       vipMechanism: mechanism,
       dayConfigId: dayConfig.dayConfigId,
       guardianIsVip: body.guardianIsVip ? 1 : 0,
+    });
+
+    await writeTrainsOfficerAudit({
+      sessionId: session.id,
+      allianceId: ctx.allianceId,
+      hqUserId: session.hqUserId,
+      action: "trains.vip_pick",
+      severity:
+        existing.vipMemberId && existing.vipMemberId !== memberId
+          ? "update"
+          : "routine",
+      resourceType: "train_conductor_record",
+      resourceId: record.id ?? `${ctx.allianceId}:${date}`,
+      resourceName: memberName,
+      metadata: {
+        date,
+        memberId,
+        previousMemberId: existing.vipMemberId ?? null,
+        previousMemberName: existing.vipMemberName ?? null,
+        overwritten: Boolean(
+          existing.vipMemberId && existing.vipMemberId !== memberId,
+        ),
+        source: "manual",
+        guardianIsVip: Boolean(body.guardianIsVip),
+      },
     });
 
     return NextResponse.json({

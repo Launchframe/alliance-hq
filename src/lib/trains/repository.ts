@@ -411,7 +411,11 @@ export async function upsertConductorDraft(input: {
   substituteForMemberId?: string | null;
   substituteForMemberName?: string | null;
   poolClaim?: string;
+  poolClaimGeneration?: number;
   automaticDuty?: boolean;
+  conductorEligibilityOverridden?: number;
+  conductorEligibilityOverriddenAt?: Date | null;
+  conductorEligibilityOverriddenByHqUserId?: string | null;
 }): Promise<(typeof schema.trainConductorRecords.$inferSelect)> {
   return getDb().transaction(async (db) => {
   await lockAllianceAvailability(db, input.allianceId);
@@ -432,9 +436,18 @@ export async function upsertConductorDraft(input: {
     throw new Error("Conductor is already locked for this day.");
   }
   if (input.poolClaim && input.conductorMemberId) {
+    const generation =
+      input.poolClaimGeneration ??
+      (await (
+        await import("@/lib/trains/pool")
+      ).resolvePoolGenerationForDate(
+        input.allianceId,
+        input.poolClaim as import("@/lib/trains/types").PoolType,
+        input.date,
+      ));
     const [claimed] = await db.update(schema.conductorPoolEntries).set({ selectedAt: new Date(), selectedForDate: input.date })
       .where(and(eq(schema.conductorPoolEntries.allianceId, input.allianceId), eq(schema.conductorPoolEntries.poolType, input.poolClaim), eq(schema.conductorPoolEntries.memberId, input.conductorMemberId), isNull(schema.conductorPoolEntries.selectedAt),
-        sql`${schema.conductorPoolEntries.generation} = (select max(p.generation) from conductor_pool_entries p where p.alliance_id = ${input.allianceId} and p.pool_type = ${input.poolClaim})`)).returning({ id: schema.conductorPoolEntries.id });
+        eq(schema.conductorPoolEntries.generation, generation))).returning({ id: schema.conductorPoolEntries.id });
     if (!claimed) throw new Error("This member was already selected from the current pool generation.");
   }
 
@@ -467,6 +480,17 @@ export async function upsertConductorDraft(input: {
           input.substituteForMemberName !== undefined
             ? input.substituteForMemberName
             : existing.substituteForMemberName,
+        conductorEligibilityOverridden:
+          input.conductorEligibilityOverridden ??
+          existing.conductorEligibilityOverridden,
+        conductorEligibilityOverriddenAt:
+          input.conductorEligibilityOverriddenAt !== undefined
+            ? input.conductorEligibilityOverriddenAt
+            : existing.conductorEligibilityOverriddenAt,
+        conductorEligibilityOverriddenByHqUserId:
+          input.conductorEligibilityOverriddenByHqUserId !== undefined
+            ? input.conductorEligibilityOverriddenByHqUserId
+            : existing.conductorEligibilityOverriddenByHqUserId,
         updatedAt: new Date(),
       })
       .where(
@@ -508,6 +532,11 @@ export async function upsertConductorDraft(input: {
     guardianIsVip: input.guardianIsVip ?? 0,
     substituteForMemberId: input.substituteForMemberId ?? null,
     substituteForMemberName: input.substituteForMemberName ?? null,
+    conductorEligibilityOverridden: input.conductorEligibilityOverridden ?? 0,
+    conductorEligibilityOverriddenAt:
+      input.conductorEligibilityOverriddenAt ?? null,
+    conductorEligibilityOverriddenByHqUserId:
+      input.conductorEligibilityOverriddenByHqUserId ?? null,
   });
 
   const [row] = await db
@@ -548,6 +577,9 @@ export async function clearConductorAssignment(
       conductorRankEventId: null,
       substituteForMemberId: null,
       substituteForMemberName: null,
+      conductorEligibilityOverridden: 0,
+      conductorEligibilityOverriddenAt: null,
+      conductorEligibilityOverriddenByHqUserId: null,
       updatedAt: new Date(),
     })
     .where(

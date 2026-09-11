@@ -76,6 +76,21 @@ export function evaluateDepletingManualPick(input: {
   return { ok: false, reason: "not_in_pool" };
 }
 
+export function discordEligibilityOverrideMessageKey(
+  reason: ManualPickEligibilityReason,
+):
+  | "train.confirmEligibilityOverrideAlreadyAwarded"
+  | "train.confirmEligibilityOverrideNotInPool"
+  | "train.confirmEligibilityOverride" {
+  if (reason === "already_awarded") {
+    return "train.confirmEligibilityOverrideAlreadyAwarded";
+  }
+  if (reason === "not_in_pool") {
+    return "train.confirmEligibilityOverrideNotInPool";
+  }
+  return "train.confirmEligibilityOverride";
+}
+
 export function depletingManualPickErrorMessage(
   reason: "not_in_pool" | "already_awarded",
 ): string {

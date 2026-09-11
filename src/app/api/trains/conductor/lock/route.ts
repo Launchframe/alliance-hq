@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { normalizeDiscordBotLocale } from "@/lib/discord/i18n";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { loadAllianceTrainLeadTimeSettings } from "@/lib/trains/alliance-train-lead-time.server";
@@ -121,6 +122,22 @@ async function post(request: Request) {
         locale: normalizeDiscordBotLocale(body.locale),
       });
     }
+
+    await writeTrainsOfficerAudit({
+      sessionId: session.id,
+      allianceId: ctx.allianceId,
+      hqUserId: session.hqUserId,
+      action: "trains.conductor_lock",
+      severity: "routine",
+      resourceType: "train_conductor_record",
+      resourceId: locked.id,
+      resourceName: locked.conductorMemberName,
+      metadata: {
+        date,
+        conductorMemberId: locked.conductorMemberId,
+        announced: body.announce !== false,
+      },
+    });
 
     return NextResponse.json({ record: locked, poolsRefreshed });
   } catch (error) {

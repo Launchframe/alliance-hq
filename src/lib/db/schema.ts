@@ -1049,6 +1049,8 @@ export const auditLog = pgTable("audit_log", {
   resourceName: text("resource_name"),
   resourceId: text("resource_id"),
   metadata: jsonb("metadata"),
+  /** routine | update | override — officer-gated writes; default update for legacy rows */
+  severity: text("severity").notNull().default("update"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -2923,6 +2925,22 @@ export const trainConductorRecords = pgTable(
       () => hqUsers.id,
       { onDelete: "set null" },
     ),
+    /**
+     * 1 when an officer confirmed a manual-pick eligibility override
+     * (already awarded this generation, not in pool, or rank-ineligible).
+     */
+    conductorEligibilityOverridden: integer(
+      "conductor_eligibility_overridden",
+    )
+      .notNull()
+      .default(0),
+    conductorEligibilityOverriddenAt: timestamp(
+      "conductor_eligibility_overridden_at",
+      { withTimezone: true },
+    ),
+    conductorEligibilityOverriddenByHqUserId: text(
+      "conductor_eligibility_overridden_by_hq_user_id",
+    ).references(() => hqUsers.id, { onDelete: "set null" }),
     /**
      * awaiting_scores | pending_confirmation | confirmed | forfeited | fallback_r4
      */

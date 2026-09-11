@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { getAllianceRanksAsOf } from "@/lib/trains/rank-history";
 import { confirmMemberRankLocal } from "@/lib/trains/rank-sync";
@@ -84,6 +85,22 @@ export async function POST(request: Request) {
     } as const;
 
     const event = await confirmMemberRankLocal(rankInput);
+    await writeTrainsOfficerAudit({
+      sessionId: session.id,
+      allianceId: ctx.allianceId,
+      hqUserId: session.hqUserId,
+      action: "trains.member_rank_confirm",
+      severity: "update",
+      resourceType: "member_rank_event",
+      resourceId: event.id ?? rankInput.ashedMemberId,
+      resourceName: rankInput.memberName,
+      metadata: {
+        ashedMemberId: rankInput.ashedMemberId,
+        allianceRank: rankInput.allianceRank,
+        effectiveDate: rankInput.effectiveDate,
+        source: rankInput.source,
+      },
+    });
     return NextResponse.json({ event });
   } catch (error) {
     return NextResponse.json(

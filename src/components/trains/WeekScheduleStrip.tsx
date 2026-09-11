@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import { TrainDayScoreStatsSummary } from "@/components/trains/TrainDayScoreStatsSummary";
+import { TrainEligibilityOverrideMark } from "@/components/trains/TrainEligibilityOverrideMark";
 import type { TrainDayScoreStats } from "@/lib/trains/day-score-stats.shared";
 import type {
   WeekConductorRecordSummary,
@@ -168,6 +169,7 @@ function WeekScheduleDayCell({
   canPaint = false,
   onOpenTemplateMenu,
 }: DayCellOptions) {
+  const tTrains = useTranslations("trains");
   const isProvisional = isProvisionalDayConfig(day.id);
   const isToday = day.date === today;
   const selectable =
@@ -251,7 +253,17 @@ function WeekScheduleDayCell({
         <div className="truncate text-[10px] font-medium uppercase tracking-wide opacity-80">
           {weekday}
         </div>
-        <div className="text-xs font-semibold tabular-nums">{day.date.slice(5)}</div>
+        <div className="flex items-center gap-1">
+          <div className="text-xs font-semibold tabular-nums">
+            {day.date.slice(5)}
+          </div>
+          {record?.eligibilityOverridden ? (
+            <TrainEligibilityOverrideMark
+              compact
+              label={tTrains("calendarEligibilityOverrideMark")}
+            />
+          ) : null}
+        </div>
       </div>
       <div className="min-w-0 space-y-0.5">
         <div
@@ -336,6 +348,9 @@ function WeekScheduleDayCell({
             weekday,
             day.date.slice(5),
             conductorName ?? undefined,
+            record?.eligibilityOverridden
+              ? tTrains("calendarEligibilityOverrideMark")
+              : undefined,
             isProvisional ? draftScheduleAriaLabel : undefined,
           ]
             .filter(Boolean)

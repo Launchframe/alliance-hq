@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCharacterPickerButtons,
   buildLinkIdentityConfirmButtons,
+  buildTrainConfirmButtons,
   buildVrConfirmButtons,
   discordComponentMessageResponse,
   discordDeferredChannelResponse,
@@ -116,6 +117,18 @@ describe("discord interactions", () => {
       date: "2026-06-20",
       answer: "yes",
     });
+    expect(parseButtonCustomId("train:override:member-1:2026-06-20:yes")).toEqual({
+      kind: "train_override",
+      memberId: "member-1",
+      date: "2026-06-20",
+      answer: "yes",
+    });
+    expect(parseButtonCustomId("train:override:member-1:2026-06-20:no")).toEqual({
+      kind: "train_override",
+      memberId: "member-1",
+      date: "2026-06-20",
+      answer: "no",
+    });
     expect(parseButtonCustomId("whois:pick:member-1")).toEqual({
       kind: "whois_pick",
       memberId: "member-1",
@@ -140,6 +153,28 @@ describe("discord interactions", () => {
     const components = buildLinkIdentityConfirmButtons({ yes: "Yes", no: "No" });
     expect(components[0]?.components).toHaveLength(2);
     expect(components[0]?.components[0]?.custom_id).toBe("link:confirm:yes");
+  });
+
+  it("builds identity confirm and eligibility-override train buttons", () => {
+    const identity = buildTrainConfirmButtons("member-1", "2026-06-20", {
+      yes: "Yes",
+      no: "No",
+    });
+    expect(identity[0]?.components[0]?.custom_id).toBe(
+      "train:confirm:member-1:2026-06-20:yes",
+    );
+    const override = buildTrainConfirmButtons(
+      "member-1",
+      "2026-06-20",
+      { yes: "Yes", no: "No" },
+      { eligibilityOverride: true },
+    );
+    expect(override[0]?.components[0]?.custom_id).toBe(
+      "train:override:member-1:2026-06-20:yes",
+    );
+    expect(override[0]?.components[1]?.custom_id).toBe(
+      "train:override:member-1:2026-06-20:no",
+    );
   });
 
   it("builds yes/no buttons for a proposed VR level", () => {

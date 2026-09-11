@@ -1,5 +1,6 @@
 import "server-only";
 
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { withConductorPoolClaimLock } from "@/lib/trains/conductor-pool-claim-lock.server";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
@@ -14,9 +15,9 @@ import {
 } from "@/lib/trains/depleting-manual-pick.shared";
 import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
-  listPoolEntries,
-  listUnselectedPoolEntries,
+  listPoolEntriesInGeneration,
   releasePoolSelectionForDate,
+  resolvePoolGenerationForDate,
 } from "@/lib/trains/pool";
 import {
   getMemberRankAsOf,
@@ -48,6 +49,8 @@ export async function applyManualConductorDraft(input: {
   allowEligibilityOverride?: boolean;
   /** @deprecated alias of allowEligibilityOverride */
   allowSameGenerationReuse?: boolean;
+  hqUserId?: string | null;
+  sessionId?: string | null;
 }): Promise<typeof import("@/lib/db/schema").trainConductorRecords.$inferSelect> {
   const seasonKey = (await getEffectiveSeasonForAlliance(input.allianceId))
     .seasonKey;
@@ -105,9 +108,10 @@ export async function applyManualConductorDraft(input: {
     }
   }
   const priorConductorMemberId = existing?.conductorMemberId ?? null;
+  const replacingSameMember = priorConductorMemberId === input.memberId;
   let claimPool = false;
+  let poolClaimGeneration: number | undefined;
   if (poolType) {
-    const replacingSameMember = priorConductorMemberId === input.memberId;
     if (!replacingSameMember) {
       await ensureConductorPoolSeeded({
         hqAllianceId: input.allianceId,
@@ -120,9 +124,16 @@ export async function applyManualConductorDraft(input: {
       await withConductorPoolClaimLock(
         { allianceId: input.allianceId, poolType },
         async () => {
+          const generation = await resolvePoolGenerationForDate(
+            input.allianceId,
+            poolType,
+            input.date,
+          );
           const [unselected, poolEntries] = await Promise.all([
-            listUnselectedPoolEntries(input.allianceId, poolType),
-            listPoolEntries(input.allianceId, poolType),
+            listPoolEntriesInGeneration(input.allianceId, poolType, generation, {
+              unselectedOnly: true,
+            }),
+            listPoolEntriesInGeneration(input.allianceId, poolType, generation),
           ]);
           const gate = evaluateDepletingManualPick({
             memberId: input.memberId,
@@ -131,10 +142,10 @@ export async function applyManualConductorDraft(input: {
           });
           if (gate.ok) {
             claimPool = true;
+            poolClaimGeneration = generation;
           } else if (overrideConfirmed) {
-            // Officer confirmed: draft without consuming or refreshing the
-            // generation. Already-chosen / missing rows stay as-is so the
-            // wheel cannot land on a spent or newly inserted slot.
+            // Already out of this generation (or never in it): draft without
+            // consuming another slot. Remaining counts stay non-negative.
           } else {
             throw new ManualPickEligibilityError(
               gate.reason,
@@ -146,8 +157,16 @@ export async function applyManualConductorDraft(input: {
     }
   }
 
+  const eligibilityOverridden =
+    overrideConfirmed && !replacingSameMember && !claimPool;
+  const overrideAt = eligibilityOverridden ? new Date() : null;
+  const overrideBy = eligibilityOverridden
+    ? (input.hqUserId?.trim() || null)
+    : null;
+
   const record = await upsertConductorDraft({
     poolClaim: claimPool && poolType ? poolType : undefined,
+    poolClaimGeneration,
     allianceId: input.allianceId,
     date: input.date,
     seasonKey,
@@ -157,7 +176,57 @@ export async function applyManualConductorDraft(input: {
     conductorMechanism: mechanism,
     vipMechanism: dayConfig.vipMechanism ?? null,
     dayConfigId: dayConfig.dayConfigId,
+    conductorEligibilityOverridden: eligibilityOverridden ? 1 : 0,
+    conductorEligibilityOverriddenAt: overrideAt,
+    conductorEligibilityOverriddenByHqUserId: overrideBy,
   });
+
+  if (eligibilityOverridden) {
+    await writeTrainsOfficerAudit({
+      sessionId: input.sessionId,
+      allianceId: input.allianceId,
+      hqUserId: overrideBy,
+      action: "trains.conductor_eligibility_override",
+      severity: "override",
+      resourceType: "train_conductor_record",
+      resourceId: record.id,
+      resourceName: input.memberName,
+      metadata: {
+        date: input.date,
+        memberId: input.memberId,
+        previousMemberId: priorConductorMemberId,
+        previousMemberName: existing?.conductorMemberName ?? null,
+        overwritten: Boolean(
+          priorConductorMemberId && priorConductorMemberId !== input.memberId,
+        ),
+        source: "manual",
+      },
+    });
+  } else {
+    await writeTrainsOfficerAudit({
+      sessionId: input.sessionId,
+      allianceId: input.allianceId,
+      hqUserId: input.hqUserId,
+      action: "trains.conductor_pick",
+      severity:
+        priorConductorMemberId && priorConductorMemberId !== input.memberId
+          ? "update"
+          : "routine",
+      resourceType: "train_conductor_record",
+      resourceId: record.id,
+      resourceName: input.memberName,
+      metadata: {
+        date: input.date,
+        memberId: input.memberId,
+        previousMemberId: priorConductorMemberId,
+        previousMemberName: existing?.conductorMemberName ?? null,
+        overwritten: Boolean(
+          priorConductorMemberId && priorConductorMemberId !== input.memberId,
+        ),
+        source: "manual",
+      },
+    });
+  }
 
   if (
     poolType &&

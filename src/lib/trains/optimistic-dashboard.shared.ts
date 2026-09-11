@@ -56,6 +56,7 @@ export function upsertRecordForDate(
       lockedAt: null,
       substituteForMemberId: null,
       substituteForMemberName: null,
+      eligibilityOverridden: false,
       ...patch,
     },
   ];
@@ -115,6 +116,7 @@ export function applyOptimisticConductorRoll(
       conductorMemberName: member.memberName,
       conductorMechanism: dayConfig?.conductorMechanism ?? null,
       vipMechanism: dayConfig?.vipMechanism ?? null,
+      eligibilityOverridden: false,
     });
   }
   return patchRecordsInSnapshot(snap, date, {
@@ -129,6 +131,7 @@ export function applyOptimisticConductorPick(
   snap: TrainsDashboardSnapshot,
   date: string,
   member: { memberId: string; memberName: string },
+  options?: { eligibilityOverridden?: boolean },
 ): TrainsDashboardSnapshot {
   const dayConfig = dayConfigForDate(snap, date);
   return patchRecordsInSnapshot(snap, date, {
@@ -136,6 +139,7 @@ export function applyOptimisticConductorPick(
     conductorMemberName: member.memberName,
     conductorMechanism: dayConfig?.conductorMechanism ?? null,
     vipMechanism: dayConfig?.vipMechanism ?? null,
+    eligibilityOverridden: options?.eligibilityOverridden ?? false,
   });
 }
 
@@ -163,6 +167,7 @@ export function applyOptimisticClearPendingConductor(
     conductorMemberName: null,
     substituteForMemberId: null,
     substituteForMemberName: null,
+    eligibilityOverridden: false,
   });
 }
 

@@ -869,6 +869,17 @@ async function handleSlashCommand(
         ),
       );
     }
+    if (result.pendingEligibilityOverride) {
+      return channelVisibleCommandResponse(
+        result.reply,
+        buildTrainConfirmButtons(
+          result.pendingEligibilityOverride.memberId,
+          result.pendingEligibilityOverride.date,
+          { yes: t("buttons.yes"), no: t("buttons.no") },
+          { eligibilityOverride: true },
+        ),
+      );
+    }
     return channelVisibleCommandResponse(result.reply);
   }
 
@@ -1358,7 +1369,40 @@ async function handleButton(payload: DiscordInteractionPayload) {
       const warning = await showDiscordCoverage({ allianceId, guildId, discordUserId, locale }, result.coverage);
       return discordMessageResponse(warning.content, warning.components, EPHEMERAL);
     }
+    if (result.pendingEligibilityOverride) {
+      return discordButtonResponse(
+        result.reply,
+        buildTrainConfirmButtons(
+          result.pendingEligibilityOverride.memberId,
+          result.pendingEligibilityOverride.date,
+          { yes: t("buttons.yes"), no: t("buttons.no") },
+          { eligibilityOverride: true },
+        ),
+        CHANNEL_VISIBLE,
+      );
+    }
     return discordButtonResponse(result.reply, [], CHANNEL_VISIBLE);
+  }
+
+  if (parsed.kind === "train_override") {
+    if (parsed.answer === "no") {
+      return discordButtonResponse(t("train.pickCancelled"), [], CHANNEL_VISIBLE);
+    }
+    const overrideResult = await handleDiscordTrainConductorPick({
+      allianceId,
+      discordUserId,
+      locale,
+      memberId: parsed.memberId,
+      date: parsed.date,
+      allowEligibilityOverride: true,
+    });
+    if (overrideResult.coverage) {
+      const guildId = interactionGuildId(payload);
+      if (!guildId) return discordMessageResponse(t("errors.guildNotRegistered"), undefined, EPHEMERAL);
+      const warning = await showDiscordCoverage({ allianceId, guildId, discordUserId, locale }, overrideResult.coverage);
+      return discordMessageResponse(warning.content, warning.components, EPHEMERAL);
+    }
+    return discordButtonResponse(overrideResult.reply, [], CHANNEL_VISIBLE);
   }
 
   if (parsed.kind === "profession_select") {

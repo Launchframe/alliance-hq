@@ -219,6 +219,12 @@ export type ParsedButton =
   | { kind: "link_ask_officer" }
   | { kind: "train_pick"; memberId: string; date: string }
   | { kind: "train_confirm"; memberId: string; date: string; answer: "yes" | "no" }
+  | {
+      kind: "train_override";
+      memberId: string;
+      date: string;
+      answer: "yes" | "no";
+    }
   | { kind: "profession_select"; profession: "Engineer" | "War Leader" }
   | { kind: "profession_switch_confirm"; answer: "yes" | "no" }
   | { kind: "whois_pick"; memberId: string }
@@ -284,6 +290,16 @@ export function parseButtonCustomId(
       memberId: trainConfirm[1]!,
       date: trainConfirm[2]!,
       answer: trainConfirm[3] as "yes" | "no",
+    };
+  }
+  const trainOverride =
+    /^train:override:([^:]+):(\d{4}-\d{2}-\d{2}):(yes|no)$/.exec(customId);
+  if (trainOverride) {
+    return {
+      kind: "train_override",
+      memberId: trainOverride[1]!,
+      date: trainOverride[2]!,
+      answer: trainOverride[3] as "yes" | "no",
     };
   }
   const profSelect = /^profession:select:(Engineer|War Leader)$/.exec(customId);
@@ -571,7 +587,11 @@ export function buildTrainConfirmButtons(
   memberId: string,
   date: string,
   labels: { yes: string; no: string },
+  options?: { eligibilityOverride?: boolean },
 ) {
+  const prefix = options?.eligibilityOverride
+    ? "train:override"
+    : "train:confirm";
   return [
     {
       type: 1,
@@ -580,13 +600,13 @@ export function buildTrainConfirmButtons(
           type: 2,
           style: 3,
           label: labels.yes.slice(0, 80),
-          custom_id: `train:confirm:${memberId}:${date}:yes`,
+          custom_id: `${prefix}:${memberId}:${date}:yes`,
         },
         {
           type: 2,
           style: 4,
           label: labels.no.slice(0, 80),
-          custom_id: `train:confirm:${memberId}:${date}:no`,
+          custom_id: `${prefix}:${memberId}:${date}:no`,
         },
       ],
     },

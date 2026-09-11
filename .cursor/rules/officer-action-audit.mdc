@@ -1,0 +1,47 @@
+---
+description: Audit officer-gated DB mutations with actor, time, and severity
+globs:
+  - src/app/api/**/*.ts
+  - src/lib/**/*.server.ts
+  - src/lib/bff/audit.ts
+alwaysApply: false
+---
+
+# Officer action audit
+
+Any **officer-permission** path that **changes DB state** must write `audit_log` after the mutation succeeds.
+
+## Required fields
+
+- **Who** — `hqUserId` (and `sessionId` when a web session exists)
+- **When** — `createdAt` (do not invent a second clock)
+- **What** — `action` (`domain.verb`), `resourceType` / `resourceId`
+- **Severity** — `routine` | `update` | `override`
+
+| Severity | Use when |
+| --- | --- |
+| `routine` | First assignment, lock, confirm, roster sync, history import |
+| `update` | Replace, re-roll, paint, reseed, swap, clear, unlock, settings |
+| `override` | Eligibility / minimums / pool restore / past-day admin paint |
+
+## How
+
+Call `writeTrainsOfficerAudit` / `writeOfficerActionAudit`. Do **not** skip because Discord already has `discord_bot_audit`. Capture **previous vs next** when overwriting a conductor, VIP, or wheel landing (`previousMemberId`, `overwritten`, `spinAgain`, `source: wheel \| manual`).
+
+Read-only officer routes (hints, GET) do not audit.
+
+```ts
+// BAD — trains:write mutation with no audit
+await upsertConductorDraft(...)
+
+// GOOD
+await upsertConductorDraft(...)
+await writeTrainsOfficerAudit({
+  sessionId, allianceId, hqUserId,
+  action: "trains.conductor_pick",
+  severity: overwritten ? "update" : "routine",
+  resourceType: "train_conductor_record",
+  resourceId: record.id,
+  metadata: { date, memberId, previousMemberId, overwritten, source: "manual" },
+})
+```

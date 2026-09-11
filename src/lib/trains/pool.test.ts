@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { activePoolGenerationForDate, poolTypeUsesSequence } from "@/lib/trains/pool";
+import {
+  activePoolGenerationForDate,
+  poolGenerationsToClaim,
+  poolTypeUsesSequence,
+} from "@/lib/trains/pool";
 
 describe("activePoolGenerationForDate", () => {
   it("returns generation 1 when no rows exist", () => {
@@ -39,6 +43,28 @@ describe("activePoolGenerationForDate", () => {
     expect(
       activePoolGenerationForDate([1, 2], entries, "2026-06-15"),
     ).toBe(2);
+  });
+});
+
+describe("poolGenerationsToClaim", () => {
+  it("claims only the current generation for today", () => {
+    expect(
+      poolGenerationsToClaim({
+        currentGeneration: 2,
+        historicalGeneration: 1,
+        useHistorical: false,
+      }),
+    ).toEqual([2]);
+  });
+
+  it("claims only the historical generation that owns a past date", () => {
+    expect(
+      poolGenerationsToClaim({
+        currentGeneration: 2,
+        historicalGeneration: 1,
+        useHistorical: true,
+      }),
+    ).toEqual([1]);
   });
 });
 
