@@ -5554,6 +5554,8 @@
       "memberModalTitle": "Commander name",
       "memberModalLabel": "Commander name",
       "noMatch": "No roster match for {token}.",
+      "tryAgain": "Try again",
+      "nevermind": "Nevermind",
       "skip": "Skip",
       "emptyText": "Freeform note. What's on your mind?",
       "emptyReason": "Enter a reason before saving.",

@@ -5500,6 +5500,8 @@
       "memberModalTitle": "Nome do comandante",
       "memberModalLabel": "Nome do comandante",
       "noMatch": "Nenhum membro do roster corresponde a {token}.",
+      "tryAgain": "Tentar novamente",
+      "nevermind": "Deixa pra lá",
       "skip": "Pular",
       "emptyText": "Anotação livre. O que você quer registrar?",
       "emptyReason": "Informe um motivo antes de salvar.",
