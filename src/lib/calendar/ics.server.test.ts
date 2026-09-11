@@ -3,7 +3,7 @@ import ICAL from "ical.js";
 import { serializeCalendar } from "./ics.server";
 import type { CalendarEntry } from "./projection.server";
 
-const entry: CalendarEntry = { targetId: "target", key: "source", uid: "stable@hq.calendar", fingerprint: "hash", revision: 3, cancelled: false, remoteId: null, remoteGeneration: 0, appliedRevision: 0, updatedAt: new Date("2026-09-10T12:00:00Z"), payload: { key: "source", source: "regular", title: "Exercício, amigos; juntos\nBEGIN:VEVENT", description: "é".repeat(100), path: "/trains", allDay: false, start: "2026-09-11T12:00:00.000Z", end: "2026-09-11T12:30:00.000Z", alerts: [10, 1] } };
+const entry: CalendarEntry = { targetId: "target", key: "source", uid: "stable@hq.calendar", fingerprint: "hash", revision: 3, cancelled: false, uncertain: false, remoteConfirmed: false, remoteId: null, remoteGeneration: 0, appliedRevision: 0, updatedAt: new Date("2026-09-10T12:00:00Z"), payload: { key: "source", source: "regular", title: "Exercício, amigos; juntos\nBEGIN:VEVENT", description: "é".repeat(100), path: "/trains", allDay: false, start: "2026-09-11T12:00:00.000Z", end: "2026-09-11T12:30:00.000Z", alerts: [10, 1] } };
 const options = { name: "HQ calendar", origin: "https://example.test", locale: "pt-BR" };
 
 describe("private calendar serialization", () => {
