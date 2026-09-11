@@ -242,6 +242,96 @@ test.describe("Professions — War Leader Support", () => {
     await expect(
       page.getByText(/alliance-wide war leader coverage/i),
     ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("profession-pairing-import")).toBeVisible();
+  });
+
+  test("officer previews pairing import; members cannot", async ({
+    page,
+    request,
+  }) => {
+    const sql = getE2eSql();
+    const alliance = await createNativeAlliance(sql, {
+      tag: `PI${nanoid(3)}`,
+      name: "Professions Import Alliance",
+    });
+
+    const wlMemberId = `wl-${nanoid(6)}`;
+    const engMemberId = `eng-${nanoid(6)}`;
+    await seedAllianceCommander(sql, {
+      allianceId: alliance.allianceId,
+      ashedMemberId: wlMemberId,
+      primaryName: "Import WL",
+      profession: "War Leader",
+    });
+    await seedAllianceCommander(sql, {
+      allianceId: alliance.allianceId,
+      ashedMemberId: engMemberId,
+      primaryName: "Import Eng",
+      profession: "Engineer",
+    });
+
+    const officerSession = await createAuthenticatedHqSession(
+      sql,
+      uniqueEmail("prof-import-off"),
+    );
+    await createAllianceMembership(sql, {
+      hqUserId: officerSession.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "owner",
+      source: "manual",
+    });
+    await bindSessionToAlliance(sql, officerSession.sessionId, alliance);
+
+    const previewRes = await request.post(
+      `${e2eBaseUrl()}/api/professions/officer/import`,
+      {
+        headers: {
+          Cookie: authCookieHeader(officerSession),
+          "Content-Type": "application/json",
+        },
+        data: { text: "Import WL: Import Eng", commit: false },
+      },
+    );
+    expect(previewRes.ok(), await previewRes.text()).toBeTruthy();
+    const previewJson = (await previewRes.json()) as {
+      preview: { readyCount: number; lines: { wl: { status: string } }[] };
+    };
+    expect(previewJson.preview.readyCount).toBe(1);
+    expect(previewJson.preview.lines[0]?.wl.status).toBe("ready");
+
+    await page.context().addCookies(playwrightAuthCookies(officerSession));
+    await page.goto("/professions?tab=officer");
+    await expect(page.getByTestId("profession-pairing-import")).toBeVisible({
+      timeout: 15_000,
+    });
+    await page
+      .getByTestId("profession-pairing-import-paste")
+      .fill("Import WL: Import Eng");
+    await page.getByRole("button", { name: /^preview$/i }).click();
+    await expect(page.getByText(/^ready$/i).first()).toBeVisible();
+
+    const memberSession = await createAuthenticatedHqSession(
+      sql,
+      uniqueEmail("prof-import-mem"),
+    );
+    await createAllianceMembership(sql, {
+      hqUserId: memberSession.hqUserId,
+      allianceId: alliance.allianceId,
+      roleName: "member",
+      source: "manual",
+    });
+    await bindSessionToAlliance(sql, memberSession.sessionId, alliance);
+    const denied = await request.post(
+      `${e2eBaseUrl()}/api/professions/officer/import`,
+      {
+        headers: {
+          Cookie: authCookieHeader(memberSession),
+          "Content-Type": "application/json",
+        },
+        data: { text: "Import WL: Import Eng", commit: false },
+      },
+    );
+    expect(denied.status()).toBe(403);
   });
 
   test("member sets profession via switch API (onboarding path)", async ({
