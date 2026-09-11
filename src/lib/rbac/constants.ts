@@ -12,6 +12,8 @@ export type SystemRoleName = keyof typeof ROLE_IDS;
 
 /** HQ-native permissions beyond Ashed catalog */
 export const HQ_PERMISSIONS = [
+  { id: "notes:read", description: "Notes" },
+  { id: "notes:create", description: "Create notes" },
   { id: "plunder_plan:read", description: "Plunder Plan" },
   { id: "plunder_plan:self", description: "My Plunder Plans" },
   { id: "plunder_plan:suggest", description: "Suggest a time" },

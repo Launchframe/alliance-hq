@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { getTranslations } from "next-intl/server";
 
 import { notesErrorResponse, requireNotesApiContext } from "@/lib/notes/access.server";
 import { KnowledgeAccessError } from "@/lib/notes/resources.server";
-import { attachMembersToPerformanceNote, getPerformanceNoteDto, listPerformanceNoteRoster } from "@/lib/performance-notes/repository.server";
+import { notePatchSchema } from "@/lib/notes/workspace.shared";
+import { attachMembersToPerformanceNote, getPerformanceNoteDto, listPerformanceNoteRoster, updatePerformanceNote } from "@/lib/performance-notes/repository.server";
 
 export const dynamic = "force-dynamic";
 
@@ -29,18 +29,18 @@ export async function PATCH(request: Request, context: Ctx) {
     const existing = await getPerformanceNoteDto({ noteId: id, actor: access.actor });
     if (!existing?.canEdit) throw new KnowledgeAccessError("not_found");
     const input: unknown = await request.json().catch(() => null);
-    if (!input || typeof input !== "object" || Array.isArray(input) || !("memberIds" in input) || !Array.isArray(input.memberIds) || !input.memberIds.every((value) => typeof value === "string")) {
-      const t = await getTranslations("notes");
-      return NextResponse.json({ error: t("errors.invalid"), code: "invalid" }, { status: 400 });
+    const legacyMembers = input && typeof input === "object" && !Array.isArray(input) && Object.keys(input).length === 1 && "memberIds" in input && Array.isArray(input.memberIds) && input.memberIds.every((value) => typeof value === "string") ? input.memberIds as string[] : null;
+    if (legacyMembers) {
+      const selected = new Set(legacyMembers);
+      const roster = await listPerformanceNoteRoster(access.actor.allianceId);
+      await attachMembersToPerformanceNote({ actor: access.actor, noteId: id, members: roster.filter((member) => selected.has(member.ashedMemberId)).map((member) => ({ ashedMemberId: member.ashedMemberId, memberNameRaw: member.name })) });
+    } else {
+      const parsed = notePatchSchema.safeParse(input);
+      if (!parsed.success) throw new KnowledgeAccessError("invalid");
+      await updatePerformanceNote(access.actor, id, parsed.data);
     }
-    const selected = new Set(input.memberIds as string[]);
-    const roster = await listPerformanceNoteRoster(access.actor.allianceId);
-    await attachMembersToPerformanceNote({
-      actor: access.actor, noteId: id,
-      members: roster.filter((member) => selected.has(member.ashedMemberId)).map((member) => ({ ashedMemberId: member.ashedMemberId, memberNameRaw: member.name })),
-    });
     const note = await getPerformanceNoteDto({ noteId: id, actor: access.actor });
     if (!note) throw new KnowledgeAccessError("not_found");
-    return NextResponse.json({ note, roster }, { headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json({ note }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return notesErrorResponse(error); }
 }
