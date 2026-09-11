@@ -6392,7 +6392,43 @@
     "switching": "Switching…",
     "switchFailed": "Could not switch profession.",
     "chooseProfessionTitle": "Choose your profession",
-    "chooseProfessionBody": "Your profession has not been set. Choose your role to get started."
+    "chooseProfessionBody": "Your profession has not been set. Choose your role to get started.",
+    "import": {
+      "title": "Import pairings",
+      "desc": "Paste the pairings. One War Leader per line, followed by a colon or a hyphen, then the Engineers on that team.",
+      "formatHint": "WarLeaderName: EngineerOne EngineerTwo",
+      "placeholder": "Bat Pig: EG Sie Freddy",
+      "preview": "Preview",
+      "previewing": "Previewing…",
+      "apply": "Apply ready rows",
+      "applying": "Applying…",
+      "clear": "Clear",
+      "empty": "Paste a pairing list to preview.",
+      "previewFailed": "Could not preview the list.",
+      "applyFailed": "Could not apply the list.",
+      "applied": "Applied {assigned} assignments. Skipped {skipped}. Failed {failCount}.",
+      "matchedHint": "{pasted} → {matched}",
+      "wlStatus": {
+        "ready": "War Leader ready",
+        "will_set_profession": "Will set War Leader",
+        "wrong_profession": "Listed as Engineer — skipped",
+        "unmatched": "War Leader unmatched",
+        "no_commander": "No commander linked",
+        "missing_colon": "Needs a colon or hyphen after the War Leader",
+        "empty_wl": "Missing War Leader name",
+        "empty_engs": "No Engineers after the delimiter"
+      },
+      "engStatus": {
+        "ready": "Ready",
+        "will_set_profession": "Will set Engineer",
+        "already": "Already on this team",
+        "other_team": "Assigned to another War Leader",
+        "wrong_profession": "Listed as War Leader — skipped",
+        "unmatched": "Unmatched",
+        "no_commander": "No commander linked",
+        "duplicate_in_paste": "Listed twice in this paste"
+      }
+    }
   },
   "battlePlan": {
     "title": "Battle Plan",

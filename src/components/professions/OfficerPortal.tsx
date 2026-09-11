@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { EngCountBadge } from "@/components/professions/EngCountBadge";
+import { PairingImportPanel } from "@/components/professions/PairingImportPanel";
 import { Button } from "@/components/ui/button";
 import type {
   OfficerActivityEvent,
@@ -246,6 +247,8 @@ export function OfficerPortal({ data, onRefresh }: Props) {
   return (
     <div className="max-w-4xl space-y-8">
       <p className="text-sm text-hq-fg-muted">{t("officerDesc")}</p>
+
+      <PairingImportPanel onApplied={onRefresh} />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[

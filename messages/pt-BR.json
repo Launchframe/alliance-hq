@@ -6380,7 +6380,43 @@
     "switching": "Trocando…",
     "switchFailed": "Não foi possível trocar a profissão.",
     "chooseProfessionTitle": "Escolha sua profissão",
-    "chooseProfessionBody": "Sua profissão ainda não foi definida. Escolha seu papel para começar."
+    "chooseProfessionBody": "Sua profissão ainda não foi definida. Escolha seu papel para começar.",
+    "import": {
+      "title": "Importar pares",
+      "desc": "Cole os pares. Um Líder de Guerra por linha, seguido de dois pontos ou um hífen, depois os Engenheiros daquele time.",
+      "formatHint": "NomeDoLider: EngenheiroUm EngenheiroDois",
+      "placeholder": "Bat Pig: EG Sie Freddy",
+      "preview": "Prévia",
+      "previewing": "Gerando prévia…",
+      "apply": "Aplicar linhas prontas",
+      "applying": "Aplicando…",
+      "clear": "Limpar",
+      "empty": "Cole uma lista de pares para ver a prévia.",
+      "previewFailed": "Não foi possível gerar a prévia da lista.",
+      "applyFailed": "Não foi possível aplicar a lista.",
+      "applied": "Aplicadas {assigned} atribuições. Ignoradas {skipped}. Falhas {failCount}.",
+      "matchedHint": "{pasted} → {matched}",
+      "wlStatus": {
+        "ready": "Líder de Guerra pronto",
+        "will_set_profession": "Vai definir Líder de Guerra",
+        "wrong_profession": "Listado como Engenheiro — ignorado",
+        "unmatched": "Líder de Guerra sem correspondência",
+        "no_commander": "Nenhum comandante vinculado",
+        "missing_colon": "Falta dois pontos ou um hífen depois do Líder de Guerra",
+        "empty_wl": "Falta o nome do Líder de Guerra",
+        "empty_engs": "Nenhum Engenheiro depois do delimitador"
+      },
+      "engStatus": {
+        "ready": "Pronto",
+        "will_set_profession": "Vai definir Engenheiro",
+        "already": "Já está neste time",
+        "other_team": "Atribuído a outro Líder de Guerra",
+        "wrong_profession": "Listado como Líder de Guerra — ignorado",
+        "unmatched": "Sem correspondência",
+        "no_commander": "Nenhum comandante vinculado",
+        "duplicate_in_paste": "Listado duas vezes neste texto"
+      }
+    }
   },
   "battlePlan": {
     "title": "Plano de Batalha",
