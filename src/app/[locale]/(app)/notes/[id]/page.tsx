@@ -2,10 +2,10 @@ import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
 import { NotesClient } from "@/components/notes/NotesClient";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 import {
   getPerformanceNoteDto,
   listPerformanceNoteRoster,
-  listPerformanceNotes,
 } from "@/lib/performance-notes/repository.server";
 import { requirePagePermission } from "@/lib/rbac/page-permission";
 import { requirePageSession } from "@/lib/session";
@@ -23,16 +23,12 @@ export default async function NoteDetailPage({ params }: Props) {
   const { id } = await params;
   const session = await requirePageSession(`/notes/${id}`);
   await requirePagePermission(session.id, "members:write");
-  const allianceId = session.currentAllianceId ?? session.allianceId;
-  if (!allianceId) notFound();
+  const actor = await getKnowledgeActorForSession(session.id);
+  if (!actor) notFound();
 
-  const note = await getPerformanceNoteDto({ noteId: id, allianceId });
+  const note = await getPerformanceNoteDto({ noteId: id, actor });
   if (!note) notFound();
+  const roster = await listPerformanceNoteRoster(actor.allianceId);
 
-  const [notes, roster] = await Promise.all([
-    listPerformanceNotes(allianceId),
-    listPerformanceNoteRoster(allianceId),
-  ]);
-
-  return <NotesClient initial={{ notes, roster }} focusNoteId={id} />;
+  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:${id}`} initial={{ notes: [note], roster }} focusNoteId={id} />;
 }

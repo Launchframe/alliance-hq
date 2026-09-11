@@ -5754,14 +5754,15 @@
       "askOfficer": "Ask an officer"
     },
     "performanceNotes": {
-      "savedAskAttach": "Your note has been saved. Do you want to attach a member to your note? To quickly add multiple members, go to {url}",
-      "doneView": "Got it. You can view your notes at {url}",
+      "savedAskAttach": "Would you like to link this note to an alliance member? Your note is private, and linking members will not cause the note to be shared. {url}",
+      "doneView": "Your note is saved. Open it in HQ: {url}",
+      "hqLinkHint": "Run `/link` to access your private notes in HQ.",
       "addAnother": "Got it. Do you want to add another member?",
       "clarify": "Which member did you mean by {token}?",
       "commendReasonPrompt": "What would you like to commend them for?",
       "violationReasonPrompt": "What are they in violation of?",
-      "batchAckCommendation": "Commendation saved on {count} members.",
-      "batchAckViolation": "Violation saved on {count} members.",
+      "batchAckCommendation": "Private commendation saved for {count, plural, one {# commander} other {# commanders}}.",
+      "batchAckViolation": "Private violation note saved for {count, plural, one {# commander} other {# commanders}}.",
       "memberModalTitle": "Commander name",
       "memberModalLabel": "Commander name",
       "noMatch": "No roster match for {token}.",
@@ -7047,7 +7048,7 @@
   },
   "notes": {
     "title": "Notes",
-    "subtitle": "Commendations, violations, and thoughts",
+    "subtitle": "Private notes, shared only when you choose.",
     "empty": "No notes yet.",
     "bodyLabel": "Note",
     "kindLabel": "Kind",
@@ -7065,6 +7066,12 @@
     "membersSaveFailed": "Could not save members.",
     "attached": "Attached",
     "backToNotes": "All notes",
-    "notFound": "Note not found."
+    "notFound": "Note not found.",
+    "errors": {
+      "invalid": "Check the note details and try again.",
+      "alliance": "Select an alliance to continue.",
+      "forbidden": "You don’t have permission to do that.",
+      "conflict": "This note changed elsewhere. Reload it before saving."
+    }
   }
 }

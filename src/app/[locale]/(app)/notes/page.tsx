@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
 import { NotesClient } from "@/components/notes/NotesClient";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 import {
   listPerformanceNoteRoster,
   listPerformanceNotes,
@@ -19,13 +20,13 @@ export async function generateMetadata() {
 export default async function NotesPage() {
   const session = await requirePageSession("/notes");
   await requirePagePermission(session.id, "members:write");
-  const allianceId = session.currentAllianceId ?? session.allianceId;
-  if (!allianceId) notFound();
+  const actor = await getKnowledgeActorForSession(session.id);
+  if (!actor) notFound();
 
   const [notes, roster] = await Promise.all([
-    listPerformanceNotes(allianceId),
-    listPerformanceNoteRoster(allianceId),
+    listPerformanceNotes(actor),
+    listPerformanceNoteRoster(actor.allianceId),
   ]);
 
-  return <NotesClient initial={{ notes, roster }} />;
+  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:list`} initial={{ notes, roster }} />;
 }

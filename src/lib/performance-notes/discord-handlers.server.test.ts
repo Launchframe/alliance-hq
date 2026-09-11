@@ -105,7 +105,7 @@ describe("handlePerformanceNoteSlash", () => {
     );
     expect(result.type).toBe("message");
     if (result.type === "message") {
-      expect(result.content).toContain("Your note has been saved.");
+      expect(result.content).toContain("Your note is private, and linking members will not cause the note to be shared.");
       expect(result.content).toContain("/notes/note-1");
       expect(result.components?.[0]?.components[0]?.custom_id).toBe("note:attach:yes");
     }

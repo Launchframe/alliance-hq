@@ -1037,6 +1037,13 @@
       "when": 1790900000151,
       "tag": "0151_audit_log_severity",
       "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1790900000160,
+      "tag": "0160_notes_resource_access",
+      "breakpoints": false
     }
   ]
 }

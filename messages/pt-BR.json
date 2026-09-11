@@ -5688,14 +5688,15 @@
       "askOfficer": "Pedir ajuda a um oficial"
     },
     "performanceNotes": {
-      "savedAskAttach": "Sua nota foi salva. Quer vincular um membro a ela? Para adicionar vários membros rapidamente, acesse {url}",
-      "doneView": "Beleza. Você pode ver suas notas em {url}",
+      "savedAskAttach": "Você quer vincular esta nota a um membro da aliança? Sua nota é privada, e vincular membros não fará com que ela seja compartilhada. {url}",
+      "doneView": "Sua nota está salva. Abra no HQ: {url}",
+      "hqLinkHint": "Use `/link` para acessar suas notas privadas no HQ.",
       "addAnother": "Beleza. Quer adicionar outro membro?",
       "clarify": "Qual membro você quis dizer com {token}?",
       "commendReasonPrompt": "Por que você quer elogiá-los?",
       "violationReasonPrompt": "Qual é a violação?",
-      "batchAckCommendation": "Elogio salvo em {count} membros.",
-      "batchAckViolation": "Violação salva em {count} membros.",
+      "batchAckCommendation": "Elogio privado salvo para {count, plural, one {# comandante} other {# comandantes}}.",
+      "batchAckViolation": "Nota de violação privada salva para {count, plural, one {# comandante} other {# comandantes}}.",
       "memberModalTitle": "Nome do comandante",
       "memberModalLabel": "Nome do comandante",
       "noMatch": "Nenhum membro do roster corresponde a {token}.",
@@ -7028,7 +7029,7 @@
   },
   "notes": {
     "title": "Notas",
-    "subtitle": "Elogios, violações e anotações",
+    "subtitle": "Notas privadas, compartilhadas apenas quando você escolher.",
     "empty": "Ainda não há notas.",
     "bodyLabel": "Nota",
     "kindLabel": "Tipo",
@@ -7046,6 +7047,12 @@
     "membersSaveFailed": "Não foi possível salvar os membros.",
     "attached": "Vinculados",
     "backToNotes": "Todas as notas",
-    "notFound": "Nota não encontrada."
+    "notFound": "Nota não encontrada.",
+    "errors": {
+      "invalid": "Confira os detalhes da nota e tente novamente.",
+      "alliance": "Selecione uma aliança para continuar.",
+      "forbidden": "Você não tem permissão para fazer isso.",
+      "conflict": "Esta nota foi alterada em outro lugar. Recarregue-a antes de salvar."
+    }
   }
 }
