@@ -173,7 +173,11 @@ export function PairingImportPanel({ onApplied }: Props) {
 
       {applyResult ? (
         <div className="space-y-1">
-          <p className="text-sm text-hq-success">
+          <p
+            className={`text-sm ${
+              applyResult.failed > 0 ? "text-hq-warning" : "text-hq-success"
+            }`}
+          >
             {t("applied", {
               assigned: applyResult.assigned,
               skipped: applyResult.skipped,
@@ -200,7 +204,13 @@ export function PairingImportPanel({ onApplied }: Props) {
                 <li key={`${line.lineNumber}-${line.raw}`} className="space-y-1 px-4 py-3">
                   <div className="flex flex-wrap items-baseline gap-2">
                     <span className="font-medium text-hq-fg">
-                      {line.wl.matchedName ?? line.wl.raw}
+                      {line.wl.matchedName &&
+                      line.wl.matchedName !== line.wl.raw
+                        ? t("matchedHint", {
+                            pasted: line.wl.raw,
+                            matched: line.wl.matchedName,
+                          })
+                        : (line.wl.matchedName ?? line.wl.raw)}
                     </span>
                     <span className={`text-xs ${statusTone(line.wl.status)}`}>
                       {t(`wlStatus.${line.wl.status}`)}
@@ -214,7 +224,12 @@ export function PairingImportPanel({ onApplied }: Props) {
                           className="flex flex-wrap gap-2 text-sm"
                         >
                           <span className="text-hq-fg">
-                            {eng.matchedName ?? eng.raw}
+                            {eng.matchedName && eng.matchedName !== eng.raw
+                              ? t("matchedHint", {
+                                  pasted: eng.raw,
+                                  matched: eng.matchedName,
+                                })
+                              : (eng.matchedName ?? eng.raw)}
                           </span>
                           <span className={`text-xs ${statusTone(eng.status)}`}>
                             {t(`engStatus.${eng.status}`)}

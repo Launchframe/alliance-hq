@@ -6395,6 +6395,7 @@
       "previewFailed": "Não foi possível gerar a prévia da lista.",
       "applyFailed": "Não foi possível aplicar a lista.",
       "applied": "Aplicadas {assigned} atribuições. Ignoradas {skipped}. Falhas {failCount}.",
+      "matchedHint": "{pasted} → {matched}",
       "wlStatus": {
         "ready": "Líder de Guerra pronto",
         "will_set_profession": "Vai definir Líder de Guerra",

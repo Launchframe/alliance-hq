@@ -6407,6 +6407,7 @@
       "previewFailed": "Could not preview the list.",
       "applyFailed": "Could not apply the list.",
       "applied": "Applied {assigned} assignments. Skipped {skipped}. Failed {failCount}.",
+      "matchedHint": "{pasted} → {matched}",
       "wlStatus": {
         "ready": "War Leader ready",
         "will_set_profession": "Will set War Leader",
