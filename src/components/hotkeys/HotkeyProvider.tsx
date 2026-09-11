@@ -290,6 +290,7 @@ export function HotkeyProvider({
           if (action.scope === "page:trains" && !onTrainsPage) {
             return false;
           }
+          if (action.scope === "page:notes" && pathname !== "/notes" && !pathname.startsWith("/notes/")) return false;
           return true;
         });
 

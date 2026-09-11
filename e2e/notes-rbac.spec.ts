@@ -131,7 +131,7 @@ test.describe("HQ notes RBAC", () => {
     expect(list.status(), await list.text()).toBe(403);
   });
 
-  test("authenticated viewer cannot list notes", async ({ request }) => {
+  test("authenticated viewer can enter Notes but cannot create or read unshared notes", async ({ request }) => {
     const sql = getE2eSql();
     const alliance = await createNativeAlliance(sql, {
       tag: `NTV${nanoid(4)}`,
@@ -156,7 +156,10 @@ test.describe("HQ notes RBAC", () => {
     const list = await request.get("/api/notes", {
       headers: { Cookie: authCookieHeader(user) },
     });
-    expect(list.status(), await list.text()).toBe(403);
+    expect(list.status(), await list.text()).toBe(200);
+    expect((await list.json()).notes).toEqual([]);
+    const create = await request.post("/api/notes", { headers: { Cookie: authCookieHeader(user) }, data: { body: "Cannot create as a viewer" } });
+    expect(create.status(), await create.text()).toBe(403);
   });
 
   test("officer can list notes", async ({ request }) => {

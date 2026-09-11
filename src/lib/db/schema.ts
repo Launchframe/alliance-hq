@@ -19,6 +19,7 @@ import {
 
 import { sql } from "drizzle-orm";
 import type { KnowledgeOwnershipState, KnowledgeResourceKind, KnowledgeGrant } from "@/lib/notes/policy.shared";
+import type { NoteFields } from "@/lib/notes/workspace.shared";
 import type { SupportBoard, SupportEvent, SupportValue } from "@/lib/support-teams/types.shared";
 import type { SupportDisplayPreferences } from "@/lib/support-teams/display-preferences.shared";
 import type { TeamWorkDetail } from "@/lib/support-teams/work-routing.shared";
@@ -4714,6 +4715,13 @@ export const performanceNotes = pgTable(
     kind: text("kind").notNull(),
     /** batch | thought */
     intakeMode: text("intake_mode").notNull(),
+    title: text("title").notNull().default(""),
+    priority: text("priority").$type<"low" | "medium" | "high" | "urgent" | null>(),
+    labels: jsonb("labels").$type<string[]>().notNull().default([]),
+    notebook: text("notebook"),
+    journalDate: text("journal_date"),
+    inbox: boolean("inbox").notNull().default(true),
+    excludedMemberIds: jsonb("excluded_member_ids").$type<string[]>().notNull().default([]),
     body: text("body").notNull(),
     /** discord | web */
     source: text("source").notNull(),
@@ -4737,6 +4745,7 @@ export const performanceNotes = pgTable(
     ),
     index("performance_notes_alliance_kind_idx").on(table.allianceId, table.kind),
     uniqueIndex("performance_notes_resource_unique").on(table.resourceId),
+    check("performance_notes_priority_check", sql`${table.priority} is null or ${table.priority} in ('low', 'medium', 'high', 'urgent')`),
     foreignKey({ name: "performance_notes_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
   ],
 );
@@ -4757,6 +4766,7 @@ export const performanceNoteMembers = pgTable(
     ),
     ashedMemberId: text("ashed_member_id").notNull(),
     memberNameRaw: text("member_name_raw").notNull(),
+    origin: text("origin").$type<"manual" | "detected">().notNull().default("manual"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -4773,6 +4783,16 @@ export const performanceNoteMembers = pgTable(
     ),
   ],
 );
+
+export const knowledgeNoteRevisions = pgTable("knowledge_note_revisions", {
+  id: text("id").primaryKey(),
+  noteId: text("note_id").notNull().references(() => performanceNotes.id, { onDelete: "cascade" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  snapshot: jsonb("snapshot").$type<NoteFields & { archived: boolean }>().notNull(),
+  editedByHqUserId: text("edited_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  editedAt: timestamp("edited_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_note_revisions_version_unique").on(table.noteId, table.version)]);
 
 export type PerformanceNote = typeof performanceNotes.$inferSelect;
 export type PerformanceNoteMember = typeof performanceNoteMembers.$inferSelect;

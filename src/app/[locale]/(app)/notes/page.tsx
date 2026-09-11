@@ -19,7 +19,7 @@ export async function generateMetadata() {
 
 export default async function NotesPage() {
   const session = await requirePageSession("/notes");
-  await requirePagePermission(session.id, "members:write");
+  await requirePagePermission(session.id, "notes:read");
   const actor = await getKnowledgeActorForSession(session.id);
   if (!actor) notFound();
 
@@ -28,5 +28,5 @@ export default async function NotesPage() {
     listPerformanceNoteRoster(actor.allianceId),
   ]);
 
-  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:list`} initial={{ notes, roster }} />;
+  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:list`} initial={{ notes, roster, canCreate: actor.canCreate }} />;
 }

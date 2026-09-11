@@ -1820,6 +1820,10 @@
         "memberLinkHelp": "Member link help",
         "uidInspector": "UID inspector"
       },
+      "notes": {
+        "newNote": "Create a note",
+        "search": "Search notes"
+      },
       "trains": {
         "spinWheel": "Spin conductor wheel",
         "spinWeek": "Spin for week",
@@ -7067,6 +7071,118 @@
     "attached": "Attached",
     "backToNotes": "All notes",
     "notFound": "Note not found.",
+    "views": {
+      "notebook": "Notebook",
+      "inbox": "Inbox",
+      "shared": "Shared with me",
+      "archived": "Archived"
+    },
+    "workspace": {
+      "navigation": "Notes views",
+      "notebooks": "Your notebooks",
+      "notebooksHint": "Add a notebook name in a note to group your writing.",
+      "cardView": "Card view",
+      "listView": "List view",
+      "quickCapture": "Quick capture",
+      "capturePlaceholder": "A thought, an observation, a follow-up…",
+      "search": "Search your notes…",
+      "sort": "Sort notes",
+      "recent": "Recently updated",
+      "noMatches": "No matching notes",
+      "changeFilters": "Try another search or clear your filters.",
+      "clearFilters": "Clear filters",
+      "saved": "Note saved.",
+      "empty": {
+        "notebook": "A place for what matters",
+        "inbox": "Your inbox is clear",
+        "shared": "Nothing shared with you yet",
+        "archived": "No archived notes"
+      },
+      "hint": {
+        "notebook": "Capture thoughts, observations, and ideas. They stay private until you choose to share them.",
+        "inbox": "Quick captures and Discord notes arrive here. File them when you are ready.",
+        "shared": "Notes shared with you will appear here, with the access their owner chose.",
+        "archived": "Archived notes stay available here whenever you need to revisit them."
+      }
+    },
+    "actions": {
+      "newNote": "New note",
+      "close": "Close",
+      "history": "Version history",
+      "share": "Share",
+      "file": "File note",
+      "restore": "Restore note",
+      "archive": "Archive note"
+    },
+    "fields": {
+      "title": "Title",
+      "priority": "Priority",
+      "labels": "Labels",
+      "notebook": "Notebook",
+      "journalDate": "Journal date",
+      "members": "Linked members"
+    },
+    "source": {
+      "label": "Source",
+      "all": "All sources",
+      "web": "Web",
+      "discord": "Discord"
+    },
+    "priority": {
+      "all": "All priorities",
+      "none": "None",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "urgent": "Urgent"
+    },
+    "editor": {
+      "untitled": "Untitled note",
+      "private": "Only you",
+      "write": "Write",
+      "preview": "Preview",
+      "placeholder": "Write something worth remembering…",
+      "markdownHint": "Markdown supported. Enter starts a new line.",
+      "labelsPlaceholder": "Separate labels with commas",
+      "noNotebook": "No notebook",
+      "keepInInbox": "Keep in inbox",
+      "memberPrivacy": "Linking members does not give them access to this note.",
+      "detected": "Detected from your note",
+      "removeMember": "Unlink {name}",
+      "addMember": "Add member",
+      "noMembers": "No linked members",
+      "chooseMember": "Which alliance member did you mean by {name}?",
+      "discardTitle": "Discard unsaved changes?",
+      "discardBody": "Your changes have not been saved.",
+      "keepEditing": "Keep editing",
+      "discard": "Discard changes",
+      "saveBeforeShare": "Save your changes before opening sharing or history.",
+      "draftPreserved": "Your draft is still here. You can keep editing or close it when you are ready."
+    },
+    "sharing": {
+      "shared": "Shared",
+      "title": "Share note",
+      "explanation": "Share the current note with selected people or your officers. Earlier versions and your private notebook organization remain visible only to you.",
+      "addPeople": "Add people",
+      "choosePerson": "Choose an alliance member",
+      "unnamedMember": "Unnamed member",
+      "allOfficers": "All officers",
+      "permissionFor": "Access for {name}",
+      "canRead": "Can read",
+      "canEdit": "Can edit",
+      "removePerson": "Remove access for {name}",
+      "loading": "Loading sharing settings…",
+      "save": "Save sharing"
+    },
+    "history": {
+      "private": "Earlier versions are visible only to you.",
+      "loading": "Loading versions…",
+      "empty": "No earlier versions yet.",
+      "choose": "Choose a version to preview it.",
+      "version": "Version {version}",
+      "restoreHint": "Restoring creates a new version without deleting history. Anyone who can read this note will see the restored content.",
+      "restore": "Restore this version"
+    },
     "errors": {
       "invalid": "Check the note details and try again.",
       "alliance": "Select an alliance to continue.",

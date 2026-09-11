@@ -6,6 +6,7 @@ import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 import {
   getPerformanceNoteDto,
   listPerformanceNoteRoster,
+  listPerformanceNotes,
 } from "@/lib/performance-notes/repository.server";
 import { requirePagePermission } from "@/lib/rbac/page-permission";
 import { requirePageSession } from "@/lib/session";
@@ -22,13 +23,13 @@ export async function generateMetadata() {
 export default async function NoteDetailPage({ params }: Props) {
   const { id } = await params;
   const session = await requirePageSession(`/notes/${id}`);
-  await requirePagePermission(session.id, "members:write");
+  await requirePagePermission(session.id, "notes:read");
   const actor = await getKnowledgeActorForSession(session.id);
   if (!actor) notFound();
 
   const note = await getPerformanceNoteDto({ noteId: id, actor });
   if (!note) notFound();
-  const roster = await listPerformanceNoteRoster(actor.allianceId);
+  const [notes, roster] = await Promise.all([listPerformanceNotes(actor), listPerformanceNoteRoster(actor.allianceId)]);
 
-  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:${id}`} initial={{ notes: [note], roster }} focusNoteId={id} />;
+  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:${id}`} initial={{ notes, roster, canCreate: actor.canCreate }} focusNoteId={id} />;
 }

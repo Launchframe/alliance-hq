@@ -298,7 +298,7 @@ export const NAV_GROUPS: NavGroupDef[] = [
         labelKey: "notes",
         href: "/notes",
         kind: "native",
-        requiredPermission: "members:write",
+        requiredPermission: "notes:read",
         descriptionKey: "notesDescription",
       },
     ],

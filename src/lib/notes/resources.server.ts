@@ -9,7 +9,7 @@ import { knowledgeActorIsAuthenticated, type KnowledgeAccess, type KnowledgeActo
 export type KnowledgeTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 
 export class KnowledgeAccessError extends Error {
-  constructor(public readonly code: "forbidden" | "not_found" | "changed", public readonly status = code === "forbidden" ? 403 : code === "not_found" ? 404 : 409) {
+  constructor(public readonly code: "forbidden" | "not_found" | "changed" | "invalid", public readonly status = code === "forbidden" ? 403 : code === "not_found" ? 404 : code === "invalid" ? 400 : 409) {
     super(code);
   }
 }
