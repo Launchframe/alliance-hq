@@ -34,10 +34,16 @@ export async function resolvePlanIdentity(tx: PlanTx, actor: PlanActor): Promise
         throw new PlunderPlanError("forbidden", 403);
       }
     }
+    const [user] = await tx.select({ admin: schema.hqUsers.isPlatformMaintainer }).from(schema.hqUsers).where(eq(schema.hqUsers.id, actor.hqUserId)).for("share");
     const grants = memberships.length ? await tx.select({ permission: schema.rolePermissions.permissionId }).from(schema.rolePermissions).where(inArray(schema.rolePermissions.roleId, memberships.map((row) => row.roleId))).for("share") : [];
-    if (!grants.some((row) => row.permission === "plunder_plan:read")) throw new PlunderPlanError("forbidden", 403);
-    canSuggest = grants.some((row) => row.permission === "plunder_plan:suggest");
-    canManageSelf = grants.some((row) => row.permission === "plunder_plan:self");
+    if (user?.admin === 1) {
+      canSuggest = true;
+      canManageSelf = true;
+    } else {
+      if (!grants.some((row) => row.permission === "plunder_plan:read")) throw new PlunderPlanError("forbidden", 403);
+      canSuggest = grants.some((row) => row.permission === "plunder_plan:suggest");
+      canManageSelf = grants.some((row) => row.permission === "plunder_plan:self");
+    }
   } else {
     const [guild] = await tx.select().from(schema.discordGuildAlliances).where(and(eq(schema.discordGuildAlliances.guildId, actor.guildId), eq(schema.discordGuildAlliances.allianceId, actor.allianceId))).for("share");
     if (!guild) throw new PlunderPlanError("forbidden", 403);

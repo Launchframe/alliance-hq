@@ -84,7 +84,7 @@ test("mobile defaults to Day and keeps an explicit Week choice after reload", as
 });
 
 test("Portuguese view and anonymous API boundaries", async ({ page, context, request }) => {
-  expect((await request.get("/api/plunder-plan")).status()).toBeGreaterThanOrEqual(400);
+  expect([401, 403]).toContain((await request.get("/api/plunder-plan")).status());
   const f = await fixture();
   await context.addCookies(playwrightAuthCookies(f.user));
   await page.goto("/pt-BR/plunder-plan");

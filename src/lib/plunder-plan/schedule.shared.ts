@@ -16,6 +16,28 @@ export class PlanScheduleError extends Error {
   constructor(readonly code: ScheduleErrorCode) { super(code); }
 }
 
+export function parsePlanWeekdays(value: string, locale: string): number[] {
+  const normalize = (text: string) => text.toLocaleLowerCase(locale).replace(/[.]/g, "").trim();
+  return value.split(/[,;]/).map((part) => {
+    const token = normalize(part);
+    if (!token) throw new PlanScheduleError("invalidSchedule");
+    if (/^[0-6]$/.test(token)) return Number(token);
+    const matches: number[] = [];
+    for (let day = 0; day < 7; day++) {
+      for (const length of ["narrow", "short", "long"] as const) {
+        const label = normalize(new Intl.DateTimeFormat(locale, { weekday: length, timeZone: "UTC" }).format(new Date(Date.UTC(2026, 0, 4 + day))));
+        if (token === label || token.length >= 3 && label.length >= 3 && (label.startsWith(token) || token.startsWith(label))) {
+          matches.push(day);
+          break;
+        }
+      }
+    }
+    const unique = [...new Set(matches)];
+    if (unique.length === 1) return unique[0];
+    throw new PlanScheduleError("invalidSchedule");
+  });
+}
+
 const DAY = 86_400_000;
 const formatters = new Map<string, Intl.DateTimeFormat>();
 

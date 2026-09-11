@@ -62,13 +62,13 @@ async function personalColor(tx: PlanTx, allianceId: string, identity: Pick<Plan
   return { color: rows[0]?.color ?? defaultPlanColor(identity.principalId), version: Math.max(0, ...rows.map((row) => row.version)) };
 }
 
-export async function loadPlunderPlan(actor: PlanActor, from: string, until: string): Promise<PlanDashboard> {
+export async function loadPlunderPlan(actor: PlanActor, from: string, until: string, options: { lock?: boolean; regularEvents?: boolean } = {}): Promise<PlanDashboard> {
   expandPlan(parsePlanSchedule({ kind: "weekly", date: "2026-01-01", days: [1], start: "12:00", end: "13:00", endsNextDay: false, zone: "UTC" }), from, until);
   return getDb().transaction(async (tx) => {
-    await lockPlans(tx, actor.allianceId);
+    if (options.lock) await lockPlans(tx, actor.allianceId);
     const identity = await resolvePlanIdentity(tx, actor);
     const result = await readPlanDashboard(tx, actor.allianceId, identity, from, until);
-    result.regularEvents = await readPlanRegularEvents(tx, actor.allianceId, from, until);
+    result.regularEvents = options.regularEvents === false ? [] : await readPlanRegularEvents(tx, actor.allianceId, from, until);
     return result;
   });
 }
