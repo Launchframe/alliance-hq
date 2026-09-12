@@ -1,0 +1,26 @@
+[project]
+name = "alliance-hq-ocr-worker"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "albucore==0.0.24",
+  "albumentations==2.0.8",
+  "cython==3.3.0",
+  "lmdb==2.3.0",
+  "numpy==2.3.5",
+  "opencv-contrib-python==4.10.0.84",
+  "opencv-python-headless==4.10.0.84",
+  "paddleocr==3.7.0",
+  "paddlepaddle==3.3.1",
+  "pillow==12.3.0",
+  "psutil==7.2.2",
+  "pydantic==2.13.5",
+  "pyyaml==6.0.2",
+  "rapidfuzz==3.14.6",
+  "requests==2.34.2",
+  "scikit-image==0.26.0",
+]
+
+[tool.uv]
+package = false
+exclude-newer = "2026-09-05T00:00:00Z"
