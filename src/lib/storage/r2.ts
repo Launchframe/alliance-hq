@@ -1,6 +1,7 @@
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
+  CopyObjectCommand,
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   GetObjectCommand,
@@ -52,6 +53,7 @@ function bucket(): string {
 export async function putR2Object(
   storageKey: string,
   body: Buffer | Uint8Array,
+  signal?: AbortSignal,
 ): Promise<void> {
   await getR2Client().send(
     new PutObjectCommand({
@@ -59,7 +61,27 @@ export async function putR2Object(
       Key: storageKey,
       Body: body,
     }),
+    { abortSignal: signal },
   );
+}
+
+export async function copyR2ObjectBounded(sourceKey: string, destinationKey: string, maxBytes: number): Promise<void> {
+  const client = getR2Client();
+  const source = await client.send(new HeadObjectCommand({ Bucket: bucket(), Key: sourceKey }), { abortSignal: AbortSignal.timeout(30000) });
+  if (source.ContentLength == null || source.ContentLength > maxBytes) throw new RangeError("object_size_limit");
+  if (!source.ETag) throw new Error("source_version_unavailable");
+  try {
+    await client.send(new HeadObjectCommand({ Bucket: bucket(), Key: destinationKey }), { abortSignal: AbortSignal.timeout(30000) });
+    throw Object.assign(new Error("object_already_exists"), { code: "EEXIST" });
+  } catch (error) {
+    const status = error && typeof error === "object" && "$metadata" in error ? (error.$metadata as { httpStatusCode?: number }).httpStatusCode : null;
+    if (status !== 404) throw error;
+  }
+  await client.send(new CopyObjectCommand({
+    Bucket: bucket(), Key: destinationKey,
+    CopySource: `${bucket()}/${sourceKey.split("/").map(encodeURIComponent).join("/")}`,
+    CopySourceIfMatch: source.ETag,
+  }), { abortSignal: AbortSignal.timeout(30000) });
 }
 
 export async function getR2Object(storageKey: string): Promise<Buffer> {
@@ -80,12 +102,16 @@ export async function getR2Object(storageKey: string): Promise<Buffer> {
 
 export async function getR2ObjectStream(
   storageKey: string,
+  range?: { start: number; end: number },
+  signal?: AbortSignal,
 ): Promise<ReadableStream<Uint8Array>> {
   const response = await getR2Client().send(
     new GetObjectCommand({
       Bucket: bucket(),
       Key: storageKey,
+      Range: range ? `bytes=${range.start}-${range.end}` : undefined,
     }),
+    { abortSignal: signal },
   );
 
   if (!response.Body) {
@@ -114,12 +140,13 @@ export async function getR2ObjectStream(
   });
 }
 
-export async function headR2ObjectSize(storageKey: string): Promise<number> {
+export async function headR2ObjectSize(storageKey: string, signal?: AbortSignal): Promise<number> {
   const response = await getR2Client().send(
     new HeadObjectCommand({
       Bucket: bucket(),
       Key: storageKey,
     }),
+    { abortSignal: signal },
   );
 
   if (response.ContentLength == null) {
@@ -150,12 +177,13 @@ export async function getR2ObjectRange(
   return Buffer.from(bytes);
 }
 
-export async function deleteR2Object(storageKey: string): Promise<void> {
+export async function deleteR2Object(storageKey: string, signal?: AbortSignal): Promise<void> {
   await getR2Client().send(
     new DeleteObjectCommand({
       Bucket: bucket(),
       Key: storageKey,
     }),
+    { abortSignal: signal },
   );
 }
 
@@ -208,6 +236,14 @@ export async function presignR2PutObject(
     }),
     { expiresIn: expiresInSeconds },
   );
+}
+
+export async function presignR2PutObjectBounded(storageKey: string, contentType: string, contentLength: number, expiresInSeconds = 900): Promise<string> {
+  if (!Number.isSafeInteger(contentLength) || contentLength <= 0) throw new RangeError("object_size_limit");
+  return getSignedUrl(getR2Client(), new PutObjectCommand({ Bucket: bucket(), Key: storageKey, ContentType: contentType, ContentLength: contentLength }), {
+    expiresIn: expiresInSeconds,
+    signableHeaders: new Set(["content-length", "content-type"]),
+  });
 }
 
 export type R2CompletedPart = {

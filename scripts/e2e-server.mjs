@@ -65,6 +65,13 @@ function e2eOAuthEnvLines() {
   return Object.entries(oauth).map(([key, value]) => `${key}=${value}`);
 }
 
+function e2eOcrWorkerEnv() {
+  return {
+    OCR_WORKER_SECRET: "e2e-ocr-worker-secret-not-for-production",
+    OCR_WORKER_BASE_URL: `http://127.0.0.1:${port}`,
+  };
+}
+
 function prepareEnvFile(dbUrl) {
   // Park the developer's real .env.local (self-healing + idempotent) before
   // writing the generated one. The marker on line 1 lets restoreEnvFile() —
@@ -83,6 +90,7 @@ function prepareEnvFile(dbUrl) {
       "E2E_TEST=true",
       `E2E_EMAIL_CODE=${process.env.E2E_EMAIL_CODE?.trim() || "424242"}`,
       ...e2eOAuthEnvLines(),
+      ...Object.entries(e2eOcrWorkerEnv()).map(([key, value]) => `${key}=${value}`),
       ...ocrProviderEnvLines(),
       "",
     ].join("\n"),
@@ -113,6 +121,7 @@ function buildEnv(dbUrl) {
     E2E_TEST: "true",
     E2E_EMAIL_CODE: process.env.E2E_EMAIL_CODE?.trim() || "424242",
     ...e2eOAuthEnv(),
+    ...e2eOcrWorkerEnv(),
   };
   const provider = process.env.VIDEO_OCR_PROVIDER?.trim();
   if (provider) {

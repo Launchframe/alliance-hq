@@ -22,6 +22,58 @@ import type { PlanSchedule } from "@/lib/plunder-plan/schedule.shared";
 import type { OcrCase, OcrDataset, OcrSplit, OcrTarget } from "@/lib/ocr/benchmark/types.shared";
 import type { OcrRunManifest } from "@/lib/ocr/learning/observations.shared";
 import type { OcrFeedbackPayload } from "@/lib/ocr/learning/feedback.shared";
+import type { OcrMediaPolicy, OcrMediaTaskState, OcrMediaObjectState, OcrMediaUpload } from "@/lib/ocr/learning/media.shared";
+
+export const ocrMediaPolicies = pgTable("ocr_media_policies", {
+  allianceId: text("alliance_id").primaryKey().references(() => alliances.id, { onDelete: "cascade" }),
+  revision: integer("revision").notNull().default(1),
+  policy: jsonb("policy").$type<OcrMediaPolicy>().notNull(),
+  updatedByHqUserId: text("updated_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const ocrMediaTasks = pgTable("ocr_media_tasks", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  scoreTarget: text("score_target").$type<OcrTarget>().notNull(),
+  sourceRunId: text("source_run_id").references(() => ocrPipelineRuns.id, { onDelete: "set null" }),
+  requestId: text("request_id").notNull(),
+  requestHash: text("request_hash").notNull(),
+  fileName: text("file_name").notNull(),
+  contentType: text("content_type").$type<OcrMediaUpload["contentType"]>().notNull(),
+  expectedBytes: bigint("expected_bytes", { mode: "number" }).notNull(),
+  expectedSha256: text("expected_sha256").notNull(),
+  stagingKey: text("staging_key").notNull(),
+  sourceKey: text("source_key").notNull(),
+  uploadId: text("upload_id"),
+  policyRevision: integer("policy_revision").notNull(),
+  policySnapshot: jsonb("policy_snapshot").$type<OcrMediaPolicy>().notNull(),
+  state: text("state").$type<OcrMediaTaskState>().notNull().default("uploading"),
+  leaseToken: text("lease_token"),
+  leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  attempts: integer("attempts").notNull().default(0),
+  errorCode: text("error_code"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique("ocr_media_request_unique").on(table.allianceId, table.requestId),
+  index("ocr_media_queue_idx").on(table.state, table.leaseExpiresAt),
+]);
+
+export const ocrMediaObjects = pgTable("ocr_media_objects", {
+  storageKey: text("storage_key").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  taskId: text("task_id").notNull().references(() => ocrMediaTasks.id),
+  kind: text("kind").$type<"staging" | "source" | "frame">().notNull(),
+  reservedBytes: bigint("reserved_bytes", { mode: "number" }).notNull(),
+  sha256: text("sha256"),
+  state: text("state").$type<OcrMediaObjectState>().notNull().default("reserved"),
+  deleteAfter: timestamp("delete_after", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index("ocr_media_quota_idx").on(table.allianceId, table.state), index("ocr_media_expiry_idx").on(table.deleteAfter)]);
 
 export const ocrPipelineRuns = pgTable("ocr_pipeline_runs", {
   id: text("id").primaryKey(),
