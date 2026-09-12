@@ -47,10 +47,13 @@ vi.mock("@/lib/events/video-jobs", () => mocks);
 vi.mock("@/lib/bff/audit", () => ({ writeAuditLog: vi.fn() }));
 vi.mock("@/lib/video/pipeline-step-log", () => ({ logPipelineStep: vi.fn() }));
 vi.mock("@/lib/video/trigger-archive", () => ({ dispatchVideoArchive: vi.fn() }));
+vi.mock("@/lib/ocr/learning/recording.server", () => ({ recordPipelineRun: vi.fn().mockResolvedValue("run-1") }));
+vi.mock("@/lib/ocr/learning/media-hash.server", () => ({ hashVideoInput: vi.fn().mockResolvedValue("a".repeat(64)) }));
 vi.mock("@/lib/eur/satisfaction", () => ({ notifyEurVideoEvidence: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/analytics/video-pipeline", () => ({ trackVideoPipelineFailure: vi.fn(), trackVideoPipelineTimings: vi.fn() }));
 
 import { processVideoJob } from "./process-job";
+import { recordPipelineRun } from "@/lib/ocr/learning/recording.server";
 
 const job = {
   id: "native-vs-job", sessionId: "uploader", processingSessionId: "processor",
@@ -80,6 +83,7 @@ describe("processVideoJob native VS", () => {
     const result = await processVideoJob(job.id);
     expect(result).toMatchObject({ rowCount: 1, matchedCount: 1, ashedUploadTotalMs: 0, ashedExtractTotalMs: 0 });
     expect(mocks.ocrVsNativeFrames).toHaveBeenCalledOnce();
+    expect(recordPipelineRun).toHaveBeenCalledWith(expect.objectContaining({ jobId: job.id, allianceId: "native-alliance", scoreTarget: "vs-performance", sourceSha256: "a".repeat(64), entries: [{ name: "Alpha", score: "1234567", rank: 1, _sourceFrameIndex: 0 }] }));
     expect(mocks.loadMembersForApiContext).toHaveBeenCalledWith({ operatingMode: "native", hqAllianceId: "native-alliance", ashedAllianceId: "native-alliance", connection: null });
     expect(mocks.insertValues).toHaveBeenCalledWith(expect.objectContaining({ memberId: "member-alpha", score: "1234567", frameIndex: 0 }));
     expect(mocks.updateSet).toHaveBeenCalledWith(expect.objectContaining({ status: "review", allianceId: "native-alliance" }));

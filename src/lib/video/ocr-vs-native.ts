@@ -78,5 +78,5 @@ export async function ocrVsNativeFrames(
     });
     await options?.onProgress?.(offset + 1, frames.length);
   }
-  return { entries, frameTimings, concurrency: 1 };
+  return { entries, observations: entries, frameTimings, concurrency: 1 };
 }
