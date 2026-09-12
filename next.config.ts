@@ -5,7 +5,7 @@ import packageJson from "./package.json" with { type: "json" };
 import {
   globalOutputFileTracingIncludes,
   videoOcrFileTracingExcludes,
-  videoOcrTracedRoutes,
+  videoOcrFileTracingIncludes,
 } from "./scripts/vercel/video-ocr-file-tracing.mjs";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
@@ -25,7 +25,7 @@ const nextConfig: NextConfig = {
     ...globalOutputFileTracingIncludes,
     "/guides/discord-train": ["./docs/guides/**/*"],
     "/admin/guides/video-pipeline": ["./docs/guides/**/*"],
-    ...videoOcrTracedRoutes,
+    ...videoOcrFileTracingIncludes,
   },
   outputFileTracingExcludes: {
     "*": videoOcrFileTracingExcludes,

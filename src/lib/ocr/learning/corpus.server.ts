@@ -36,7 +36,7 @@ export async function listLearningCases(allianceId: string, target?: OcrTarget) 
     .from(schema.ocrLearningCases).where(and(eq(schema.ocrLearningCases.allianceId, allianceId), target ? eq(schema.ocrLearningCases.scoreTarget, target) : undefined)).orderBy(asc(schema.ocrLearningCases.id)).limit(200);
 }
 
-export async function createCandidateCase(input: { sample: OcrCase; sourceStorageKey: string; sourceBytes: number; fileName: string }, actor: OcrActor) {
+export async function createCandidateCase(input: { sample: OcrCase; sourceStorageKey: string; sourceBytes: number; fileName: string }, actor: OcrActor, transaction?: Transaction) {
   const parsed = ocrCaseSchema.safeParse(input.sample);
   if (!parsed.success || !ocrStorageKeySchema.safeParse(input.sourceStorageKey).success) throw new OcrLearningError("invalid_case");
   const sample = parsed.data;
@@ -46,7 +46,7 @@ export async function createCandidateCase(input: { sample: OcrCase; sourceStorag
   if (new Date(sample.expiresAt).getTime() <= Date.now() || new Date(sample.expiresAt).getTime() > Date.now() + 90 * 86400000) throw new OcrLearningError("invalid_retention");
   const fileName = input.fileName.split(/[\\/]/).at(-1)?.trim();
   if (!fileName || fileName.length > 255) throw new OcrLearningError("invalid_file_name");
-  return getDb().transaction(async (tx) => {
+  const persist = async (tx: Transaction) => {
     await lockCorpus(tx, sample.allianceId);
     const [existing] = await tx.select().from(schema.ocrLearningCases).where(eq(schema.ocrLearningCases.id, sample.id)).limit(1);
     if (existing) {
@@ -63,13 +63,28 @@ export async function createCandidateCase(input: { sample: OcrCase; sourceStorag
     await tx.insert(schema.ocrLearningCaseRevisions).values({ caseId: sample.id, revision: 0, snapshot: sample, snapshotHash: hash, recordedByHqUserId: actor.hqUserId });
     await audit(tx, actor, sample.allianceId, "ocr.case.capture", sample.id, { scoreTarget: sample.scoreTarget, sourceJobId: sample.jobId });
     return sample;
-  });
+  };
+  return transaction ? persist(transaction) : getDb().transaction(persist);
 }
 
 export async function loadLearningCase(allianceId: string, caseId: string) {
   const [row] = await getDb().select().from(schema.ocrLearningCases).where(and(eq(schema.ocrLearningCases.id, caseId), eq(schema.ocrLearningCases.allianceId, allianceId))).limit(1);
   if (!row) throw new OcrLearningError("case_not_found", 404);
   return checkedSnapshot(row);
+}
+
+export async function loadLearningAsset(allianceId: string, caseId: string, frameSha256?: string) {
+  const [row] = await getDb().select().from(schema.ocrLearningCases).where(and(eq(schema.ocrLearningCases.id, caseId), eq(schema.ocrLearningCases.allianceId, allianceId))).limit(1);
+  if (!row) throw new OcrLearningError("case_not_found", 404);
+  const snapshot = checkedSnapshot(row);
+  if (snapshot.state === "revoked" || row.expiresAt <= new Date()) throw new OcrLearningError("media_unavailable", 410);
+  const frame = frameSha256 ? snapshot.frames.find((item) => item.sha256 === frameSha256) : null;
+  if (frameSha256 && !frame) throw new OcrLearningError("frame_not_found", 404);
+  const storageKey = frame?.storageKey ?? row.sourceStorageKey;
+  if (!ocrStorageKeySchema.safeParse(storageKey).success || !storageKey.startsWith(`ocr-learning/${allianceId}/`)) throw new OcrLearningError("invalid_media", 409);
+  const extension = storageKey.split(".").at(-1)?.toLowerCase();
+  const contentType = ({ png: "image/png", jpg: "image/jpeg", mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm" } as Record<string, string>)[extension ?? ""] ?? "application/octet-stream";
+  return { storageKey, sha256: frame?.sha256 ?? row.sourceSha256, expectedBytes: frame ? null : row.sourceBytes, contentType };
 }
 
 const pairInput = z.object({ allianceId: ocrIdSchema, caseId: ocrIdSchema, jobId: ocrIdSchema, expectedRevision: z.number().int().min(0), confirmed: z.literal(true) }).strict();
