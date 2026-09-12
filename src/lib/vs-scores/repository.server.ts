@@ -7,6 +7,7 @@ import { getDb, schema } from "@/lib/db";
 import { addCalendarDays } from "@/lib/trains/game-time";
 import { buildReviewOutcomePatch } from "@/lib/video/video-hygiene-instrumentation.shared";
 import { computeQualityScore } from "@/lib/video/quality-score";
+import { recordConfirmedReview } from "@/lib/ocr/learning/feedback.server";
 import { evaluateVsWeek, parseVsScore, validateVsPeriod, vsWeekEndingDate, VsEvidenceError, type VsPeriod } from "./evidence.shared";
 
 export type VsTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
@@ -111,6 +112,7 @@ async function currentSyncStatus(tx: VsTransaction, allianceId: string, recorded
 export async function commitReviewedVsScores(input: {
   allianceId: string; hqUserId: string; jobId: string; parseSessionId: string | null;
   recordedDate: string; period: VsPeriod; expectedRevision?: number; requestId: string; rows: VsReviewRow[];
+  automaticDeletedIds?: readonly string[]; humanDeletesKnown?: boolean;
 }) {
   if (!input.hqUserId) throw new VsEvidenceError("forbidden", 403);
   if (!validateVsPeriod(input.recordedDate, input.period)) throw new VsEvidenceError("invalid_period");
@@ -177,7 +179,12 @@ export async function commitReviewedVsScores(input: {
     }
     const metrics = { rowsSaved: active.length, rowsEdited, rowsDeleted: input.rows.filter((row) => row.deleted).length, rowsAdded: active.filter((row) => originals.get(row.id)?.manuallyAdded === 1).length };
     const quality = computeQualityScore({ ...metrics, status: "complete" });
-    await tx.update(schema.videoJobs).set({ status: "complete", recordedDate: input.recordedDate, updatedAt: now, ...buildReviewOutcomePatch({ reviewOpenedAt: job.reviewOpenedAt, endedAt: now, ...metrics, qualityScore: quality.qualityScore, qualityBucket: quality.qualityBucket }) }).where(eq(schema.videoJobs.id, input.jobId));
+    const ocrFeedbackId = await recordConfirmedReview(tx, {
+      allianceId: input.allianceId, jobId: input.jobId, parseSessionId: input.parseSessionId, scoreTarget: "vs-performance", hqUserId: input.hqUserId,
+      requestId: input.requestId, currentRows: parsed, automaticDeletedIds: input.automaticDeletedIds, humanDeletesKnown: input.humanDeletesKnown, recordedDate: input.recordedDate, period: input.period,
+      submittedRows: input.rows.map((row) => ({ ...row, memberName: row.memberId ? names.get(row.memberId) ?? null : null, score: row.deleted ? String(row.score ?? "") : String(parseVsScore(row.score)) })),
+    });
+    await tx.update(schema.videoJobs).set({ status: "complete", ocrFeedbackReceiptId: ocrFeedbackId, recordedDate: input.recordedDate, updatedAt: now, ...buildReviewOutcomePatch({ reviewOpenedAt: job.reviewOpenedAt, endedAt: now, ...metrics, qualityScore: quality.qualityScore, qualityBucket: quality.qualityBucket }) }).where(eq(schema.videoJobs.id, input.jobId));
     await tx.update(schema.parseSessions).set({ status: "submitted", updatedAt: now }).where(eq(schema.parseSessions.id, input.parseSessionId));
     await tx.insert(schema.auditLog).values({ id: nanoid(), allianceId: input.allianceId, hqUserId: input.hqUserId, action: "vs.evidence.submit", resourceType: "video_job", resourceId: input.jobId, metadata: { batchId, revision: revision + 1, recordedDate: input.recordedDate, period: input.period, count: active.length } });
     await tx.insert(schema.vsScoreSubmissions).values({ id: nanoid(), allianceId: input.allianceId, sourceJobId: input.jobId, requestId: input.requestId, digest, batchId, revision: revision + 1, rowCount: active.length });

@@ -49,6 +49,11 @@ for (const locale of ["en-US", "pt-BR"] as const) {
     await expect(save).toBeEnabled();
     await save.click();
     await expect(page.getByText(locale === "en-US" ? "Saved 5 VS scores in Alliance HQ." : "5 pontuações de VS salvas no Alliance HQ.", { exact: true })).toBeVisible();
+    const [feedback] = await sql`SELECT status, payload FROM ocr_feedback_events WHERE job_id = ${job.jobId} AND kind = 'submit'`;
+    expect(feedback.status).toBe("confirmed");
+    expect(feedback.payload).toMatchObject({ baselineOrigin: "legacy_review_state", humanDeletesKnown: true, legacyRequest: false });
+    expect(feedback.payload.rows).toHaveLength(5);
+    expect(feedback.payload.rows.every((row: { labelStatus: string; wasSubmitted: boolean }) => row.labelStatus === "candidate" && row.wasSubmitted)).toBe(true);
     const [batch] = await sql`SELECT id FROM data_upload_batches WHERE source_job_id = ${job.jobId} AND status = 'active'`;
     const own = { Cookie: authCookieHeader(f.officer) };
     const scores = await request.get(`/api/data-management/batches/${batch.id}/scores`, { headers: own });

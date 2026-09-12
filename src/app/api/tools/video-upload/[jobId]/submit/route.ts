@@ -95,7 +95,10 @@ import { isDesertStormVideoTarget } from "@/lib/video/score-targets";
 import { parseDesertStormMatchSubmitFields } from "@/lib/video/desert-storm-match-header.shared";
 import { updateAshedDesertStormMatch } from "@/lib/video/ashed-desert-storm-match.server";
 import { submitVsReview, vsEvidenceErrorResponse } from "@/lib/vs-scores/submit.server";
-import { VsEvidenceError } from "@/lib/vs-scores/evidence.shared";
+import { VsEvidenceError, parseVsScore } from "@/lib/vs-scores/evidence.shared";
+import { base44ListMembers } from "@/lib/base44/fetch";
+import { prepareReviewFeedback, confirmReviewFeedback } from "@/lib/ocr/learning/feedback.server";
+import { OcrLearningError } from "@/lib/ocr/benchmark/types.shared";
 
 export const maxDuration = 180;
 
@@ -134,6 +137,7 @@ type SubmitBody = {
   vsPeriod?: "daily" | "weekly";
   vsRevision?: number;
   requestId?: string;
+  ocrFeedbackVersion?: number;
   matchOutcome?: "pending" | "win" | "loss";
   opponentServer?: string;
   opponentTag?: string;
@@ -210,6 +214,7 @@ export async function POST(request: Request, { params }: Props) {
   const session = sessionOrError;
   const { jobId } = await params;
   let advancedToSubmitting = false;
+  let ocrFeedbackReceiptId: string | null = null;
   /** True only after bulkDeleteByDate succeeded — insert may still fail. */
   let clearedPriorAshedScores = false;
   let jobSnapshot: {
@@ -271,7 +276,8 @@ export async function POST(request: Request, { params }: Props) {
 
     const scoreTargetId = job.scoreTarget ?? job.category ?? "desert-storm";
     const target = getScoreTargetOrThrow(scoreTargetId);
-    if (scoreTargetId === "vs-performance" && (!body || !Array.isArray(body.rows))) return vsEvidenceErrorResponse(new VsEvidenceError("invalid_rows"));
+    const automaticDeletedIds: string[] = [];
+    if ((scoreTargetId === "vs-performance" || isAllianceKillsVideoTarget(scoreTargetId)) && (!body || !Array.isArray(body.rows) || body.rows.length > 2000 || body.rows.some((row) => !row || typeof row.id !== "string" || (row.deleted != null && typeof row.deleted !== "boolean")))) return vsEvidenceErrorResponse(new VsEvidenceError("invalid_rows"));
 
     if (
       !isMemberRosterVideoTarget(scoreTargetId) &&
@@ -291,6 +297,7 @@ export async function POST(request: Request, { params }: Props) {
         ),
       );
       if (scoreGhostDiscardIds.size > 0) {
+        automaticDeletedIds.push(...body.rows.filter((row) => !row.deleted && scoreGhostDiscardIds.has(row.id)).map((row) => row.id));
         body = {
           ...body,
           rows: body.rows.map((row) =>
@@ -300,7 +307,7 @@ export async function POST(request: Request, { params }: Props) {
       }
     }
 
-    if (scoreTargetId === "vs-performance") return submitVsReview({ sessionId: session.id, hqUserId: session.hqUserId ?? null, job, body });
+    if (scoreTargetId === "vs-performance") return submitVsReview({ sessionId: session.id, hqUserId: session.hqUserId ?? null, job, body, automaticDeletedIds });
 
     if (isMemberRosterVideoTarget(scoreTargetId)) {
       const ctx = await getRbacContext(session.id);
@@ -927,16 +934,36 @@ export async function POST(request: Request, { params }: Props) {
       ? await db
           .select({
             id: schema.parsedRows.id,
+            ocrName: schema.parsedRows.ocrName,
             score: schema.parsedRows.score,
             rank: schema.parsedRows.rank,
             memberId: schema.parsedRows.memberId,
             memberName: schema.parsedRows.memberName,
             manuallyAdded: schema.parsedRows.manuallyAdded,
+            frameIndex: schema.parsedRows.frameIndex,
+            deleted: schema.parsedRows.deleted,
           })
           .from(schema.parsedRows)
           .where(eq(schema.parsedRows.parseSessionId, job.parseSessionId))
       : [];
     const originalRowById = new Map(originalRows.map((row) => [row.id, row]));
+    if (isAllianceKillsVideoTarget(scoreTargetId)) {
+      if (!job.parseSessionId || body.rows.length > 2000 || new Set(body.rows.map((row) => row.id)).size !== body.rows.length || body.rows.some((row) => !originalRowById.has(row.id))) {
+        return vsEvidenceErrorResponse(new VsEvidenceError("invalid_rows"));
+      }
+      const roster = await base44ListMembers(connection, ashedAllianceId);
+      const allowedMemberIds = new Set(roster.filter((member) => !member.alliance_id || member.alliance_id === ashedAllianceId).map((member) => member.id));
+      if (activeRows.some((row) => !allowedMemberIds.has(row.memberId))) return vsEvidenceErrorResponse(new VsEvidenceError("invalid_member"));
+      try {
+        for (const row of activeRows) row.score = String(parseVsScore(row.score));
+        ocrFeedbackReceiptId = await prepareReviewFeedback({
+          allianceId, jobId, parseSessionId: job.parseSessionId, scoreTarget: "alliance-kills-video", hqUserId: session.hqUserId ?? null,
+          requestId: body.requestId, currentRows: originalRows, submittedRows: body.rows, automaticDeletedIds, humanDeletesKnown: body.ocrFeedbackVersion === 1, recordedDate: submitContext.recordedDate,
+        });
+      } catch (error) {
+        return vsEvidenceErrorResponse(error instanceof VsEvidenceError ? error : new VsEvidenceError("invalid_rows", error instanceof OcrLearningError ? error.status : 500));
+      }
+    }
 
     const rowsEdited = activeRows.filter((row) => {
       const original = originalRowById.get(row.id);
@@ -1157,6 +1184,7 @@ export async function POST(request: Request, { params }: Props) {
       .update(schema.videoJobs)
       .set({
         status: "complete",
+        ocrFeedbackReceiptId,
         team: submitContext.team ?? null,
         recordedDate: submitContext.recordedDate,
         updatedAt: endedAt,
@@ -1212,6 +1240,7 @@ export async function POST(request: Request, { params }: Props) {
 
     await writeAuditLog({
       sessionId: session.id,
+      hqUserId: session.hqUserId ?? null,
       allianceId,
       action: "video.submit",
       resourceType: "entity",
@@ -1220,6 +1249,7 @@ export async function POST(request: Request, { params }: Props) {
       metadata: {
         rowCount: activeRows.length,
         scoreTarget: scoreTargetId,
+        ocrFeedbackReceiptId,
         eventId: ashedEventId,
         hqEventId: submitContext.hqEventId,
         team: submitContext.team ?? null,
@@ -1260,6 +1290,13 @@ export async function POST(request: Request, { params }: Props) {
       });
     }
 
+    if (ocrFeedbackReceiptId) {
+      try {
+        await confirmReviewFeedback(allianceId, ocrFeedbackReceiptId);
+      } catch {
+        console.warn("[ocr-learning] feedback_confirmation_deferred", { jobId, receiptId: ocrFeedbackReceiptId });
+      }
+    }
     return NextResponse.json({
       ok: true,
       submitted: activeRows.length,
