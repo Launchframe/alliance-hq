@@ -29,6 +29,7 @@ export type OcrFrameTiming = {
 
 export type OcrAllFramesResult = {
   entries: OcrEntry[];
+  observations?: OcrEntry[];
   frameTimings: OcrFrameTiming[];
   concurrency: number;
 };
@@ -229,6 +230,7 @@ export async function ocrAllFrames(
 
   return {
     entries: mergeOcrResults(batches),
+    observations: batches.flat(),
     frameTimings,
     concurrency,
   };
