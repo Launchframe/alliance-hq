@@ -153,7 +153,7 @@ export async function loadReminderInboxForUser(options: {
   return items
     .filter((item) => {
       if (item.kind === "team_work" && !teamWorkAllowed) return false;
-      if (item.kind === "vs_compliance" && (!complianceAllowed || teamWorkAllowed && options.permissions.has("vs_compliance:manage"))) return false;
+      if (item.kind === "vs_compliance" && !complianceAllowed) return false;
       if (
         item.requiredPermission &&
         !(item.kind === "vs_compliance" && complianceAllowed) &&

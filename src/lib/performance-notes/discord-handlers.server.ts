@@ -72,6 +72,30 @@ function yesNoButtons(
   ];
 }
 
+function retryNevermindButtons(
+  t: ReturnType<typeof createDiscordTranslator>,
+): PerfDiscordComponents {
+  return [
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 3,
+          label: t("performanceNotes.tryAgain").slice(0, 80),
+          custom_id: "note:another:yes",
+        },
+        {
+          type: 2,
+          style: 4,
+          label: t("performanceNotes.nevermind").slice(0, 80),
+          custom_id: "note:another:no",
+        },
+      ],
+    },
+  ];
+}
+
 function pickButtons(
   candidates: Array<{ memberId: string; name: string }>,
   includeSkip: boolean,
@@ -420,7 +444,7 @@ export async function handlePerformanceNoteMemberModal(input: {
   return {
     type: "message",
     content: t("performanceNotes.noMatch", { token: decision.token }),
-    components: yesNoButtons(t, "note:another:yes", "note:another:no"),
+    components: retryNevermindButtons(t),
   };
 }
 

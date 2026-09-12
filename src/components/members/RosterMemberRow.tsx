@@ -1,9 +1,10 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { AllianceLinkedCommandersBadge } from "@/components/alliance/AllianceLinkedCommandersBadge";
 import { OAuthIdentitySplitBadge } from "@/components/auth/OAuthIdentitySplitBadge";
+import { CountryFlag } from "@/components/members/CountryFlag";
 import { Link } from "@/i18n/navigation";
 import {
   MAIN_SQUAD_LABEL_KEYS,
@@ -79,6 +80,7 @@ export function RosterMemberRow({
 }: Props) {
   const tMembers = useTranslations("members");
   const tCommanders = useTranslations("commandersIndex");
+  const locale = useLocale();
   const visibleColumns = visibleRosterColumns(columnVisibility);
   const { member, commander } = row;
   const unknown = tMembers("noPreviousNames");
@@ -275,6 +277,7 @@ export function RosterMemberRow({
           <div className="flex min-w-0 flex-col items-start gap-1.5">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <span className="wrap-break-word font-medium">{nameContent}</span>
+              <CountryFlag code={commander?.country} locale={locale} />
               {nameBadges}
             </div>
             {mobileFields.map((columnId) => (
@@ -309,6 +312,7 @@ export function RosterMemberRow({
           {columnId === "name" ? (
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               {renderCell(columnId)}
+              <CountryFlag code={commander?.country} locale={locale} />
               {nameBadges}
             </div>
           ) : (

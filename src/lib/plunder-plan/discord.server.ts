@@ -10,12 +10,12 @@ import { escapeTimeOffDiscordText } from "@/lib/time-off/discord-workflow.shared
 import { addCalendarDays, getServerCalendarDate } from "@/lib/trains/game-time";
 import { resolvePlanIdentity } from "./access.server";
 import { loadPlunderPlan, lockPlans, mutatePlunderPlan, parsePlanCommand } from "./service.server";
-import { expandPlan, isPlanDate, parsePlanSchedule, PlanScheduleError, type PlanSchedule } from "./schedule.shared";
+import { expandPlan, isPlanDate, parsePlanSchedule, parsePlanWeekdays, PlanScheduleError, type PlanSchedule } from "./schedule.shared";
 import { PLAN_PALETTE } from "./colors.shared";
 import { PlunderPlanError, type PlanActor, type PlanCommand, type PlanDashboard, type PlanSummary } from "./types.shared";
 
 type BotActor = Extract<PlanActor, { kind: "discord" }>;
-type Editor = { kind: "editor"; requestId: string; memberId?: string; planKind: "plan" | "suggestion"; planId?: string; version?: number; sourceId?: string; sourceVersion?: number; memberChoices?: string[]; schedule: PlanSchedule; reminder: boolean };
+type Editor = { kind: "editor"; requestId: string; memberId?: string; planKind: "plan" | "suggestion"; planId?: string; version?: number; sourceId?: string; sourceVersion?: number; memberChoices?: string[]; page?: number; schedule: PlanSchedule; reminder: boolean };
 type State = { kind: "calendar"; date: string; week: boolean; page: number } | Editor | { kind: "list"; mode: string; page: number; planId?: string; version?: number; choices?: Array<{ id: string; version: number }>; dates?: Array<{ date: string; restore: boolean }> } | { kind: "entry"; id: string; version: number } | { kind: "color"; version: number; requestId: string } | { kind: "confirm"; command: PlanCommand; requestHash: string };
 type Context = { actor: BotActor; locale: string; t: ReturnType<typeof createDiscordTranslator>; data: PlanDashboard; requestId: string };
 export type PlanBotReply = { content: string; components?: unknown[] };
@@ -30,11 +30,11 @@ async function context(payload: DiscordInteractionPayload, days = 55): Promise<C
   const discordUserId = interactionDiscordUserId(payload), guildId = interactionGuildId(payload);
   if (!discordUserId || !guildId || !payload.id || !/^\d{15,25}$/.test(payload.id)) throw new PlunderPlanError("forbidden", 403);
   const [guild] = await getDb().select({ allianceId: schema.discordGuildAlliances.allianceId }).from(schema.discordGuildAlliances).where(eq(schema.discordGuildAlliances.guildId, guildId));
-  if (!guild) throw new PlunderPlanError("forbidden", 403);
+  if (!guild) throw new PlunderPlanError("guildNotRegistered", 403);
   const actor: BotActor = { kind: "discord", guildId, discordUserId, allianceId: guild.allianceId };
   const locale = await getDiscordBotLocale(discordUserId, payload.locale);
   const today = getServerCalendarDate();
-  return { actor, locale, t: createDiscordTranslator(locale), requestId: `discord-${payload.id}`, data: await loadPlunderPlan(actor, `${today}T02:00:00Z`, `${addCalendarDays(today, days)}T02:00:00Z`) };
+  return { actor, locale, t: createDiscordTranslator(locale), requestId: `discord-${payload.id}`, data: await loadPlunderPlan(actor, `${today}T02:00:00Z`, `${addCalendarDays(today, days)}T02:00:00Z`, { regularEvents: false }) };
 }
 function text(ctx: Context, key: string, params?: Record<string, string | number>) { return ctx.t(`plunderPlan.${key}`, params); }
 function button(token: string, action: string, label: string, style = 2) { return { type: 2, style, custom_id: `plunder:${token}:${action}`, label: label.slice(0, 80) }; }
@@ -87,8 +87,15 @@ async function confirmation(ctx: Context, input: unknown): Promise<PlanBotReply>
 }
 
 async function editor(ctx: Context, state: Editor): Promise<PlanBotReply> {
-  const token = await saveState(ctx.actor, { ...state, memberChoices: ctx.data.commanders.slice(0, 5).map((member) => member.id) });
-  if (state.planKind === "plan" && !state.memberId) return { content: text(ctx, "chooseCommander"), components: rows(ctx.data.commanders.slice(0, 5).map((member, i) => button(token, `member-${i}`, member.name))) };
+  const page = Math.max(0, Math.min(state.page ?? 0, Math.max(0, Math.ceil(ctx.data.commanders.length / PAGE) - 1)));
+  const commanders = ctx.data.commanders.slice(page * PAGE, (page + 1) * PAGE);
+  const token = await saveState(ctx.actor, { ...state, page, memberChoices: commanders.map((member) => member.id) });
+  if (state.planKind === "plan" && !state.memberId) {
+    const buttons = commanders.map((member, i) => button(token, `member-${i}`, member.name));
+    if (page) buttons.push(button(token, "previous", text(ctx, "previousPage")));
+    if (ctx.data.commanders.length > (page + 1) * PAGE) buttons.push(button(token, "next", text(ctx, "nextPage")));
+    return { content: text(ctx, "chooseCommander"), components: rows(buttons) };
+  }
   return { content: `${text(ctx, "scheduleType")}\n${text(ctx, "chooseZone")}`, components: rows([button(token, "weekly", text(ctx, "weekly")), button(token, "once", text(ctx, "once"))]) };
 }
 function blankEditor(ctx: Context, suggestion = false): Editor { return { kind: "editor", requestId: ctx.requestId, planKind: suggestion ? "suggestion" : "plan", reminder: false, schedule: { kind: "weekly", date: getServerCalendarDate(), days: [new Date(`${getServerCalendarDate()}T12:00:00Z`).getUTCDay()], start: "20:00", end: "21:00", zone: "Etc/GMT+2", endsNextDay: false } }; }
@@ -96,7 +103,7 @@ function blankEditor(ctx: Context, suggestion = false): Editor { return { kind: 
 async function calendar(ctx: Context, state: Extract<State, { kind: "calendar" }>): Promise<PlanBotReply> {
   if (!isPlanDate(state.date)) throw new PlunderPlanError("invalidSchedule");
   const end = addCalendarDays(state.date, state.week ? 7 : 1);
-  const data = await loadPlunderPlan(ctx.actor, `${state.date}T02:00:00Z`, `${end}T02:00:00Z`);
+  const data = await loadPlunderPlan(ctx.actor, `${state.date}T02:00:00Z`, `${end}T02:00:00Z`, { regularEvents: false });
   const entries = data.occurrences.filter((row) => row.kind === "plan").sort((a, b) => a.startAt.localeCompare(b.startAt) || a.id.localeCompare(b.id));
   const page = Math.max(0, Math.min(state.page, Math.max(0, Math.ceil(entries.length / PAGE) - 1)));
   const token = await saveState(ctx.actor, { ...state, page });
@@ -150,11 +157,7 @@ export async function openPlunderPlanModal(payload: DiscordInteractionPayload) {
 }
 
 function parseDays(value: string, locale: string): number[] {
-  const normalize = (text: string) => text.toLocaleLowerCase(locale).replace(/[.]/g, "").trim();
-  return value.split(/[,;]/).map((part) => {
-    for (let day = 0; day < 7; day++) for (const length of ["short", "long"] as const) if (normalize(part) === normalize(new Intl.DateTimeFormat(locale, { weekday: length, timeZone: "UTC" }).format(new Date(Date.UTC(2026, 0, 4 + day))))) return day;
-    throw new PlunderPlanError("invalidSchedule");
-  });
+  return parsePlanWeekdays(value, locale);
 }
 
 async function errorReply(payload: DiscordInteractionPayload, error: unknown): Promise<PlanBotReply> {
@@ -180,13 +183,14 @@ export async function handlePlunderPlanDiscord(payload: DiscordInteractionPayloa
         const token = await saveState(ctx.actor, { kind: "color", version: ctx.data.colorVersion, requestId: ctx.requestId });
         return { content: text(ctx, "chooseColor"), components: rows([...Object.keys(PLAN_PALETTE).map((name) => button(token, `color-${name}`, text(ctx, `color.${name}`))), button(token, "custom", text(ctx, "color.custom"))]) };
       }
-      if (mode === "notifications" && typeof options.enabled === "boolean") {
+      if (mode === "notifications") {
+        if (typeof options.enabled !== "boolean") throw new PlunderPlanError("notificationsRequired");
         const setting = ctx.data.notificationSettings.find((setting) => setting.guildId === ctx.actor.guildId);
         if (!setting) throw new PlunderPlanError("forbidden", 403);
         return confirmation(ctx, { action: "notifications", requestId: ctx.requestId, guildId: ctx.actor.guildId, channelId: options.channel ?? (setting.channelId || payload.channel_id), timeSt: options.time ?? setting.timeSt, locale: options.language ?? ctx.locale, enabled: options.enabled, expectedVersion: setting.version });
       }
       if (mode === "suggestions" && !ctx.data.canSuggest) throw new PlunderPlanError("forbidden", 403);
-      return list(ctx, { kind: "list", mode: mode === "notifications" ? "edit" : mode, page: 0 });
+      return list(ctx, { kind: "list", mode, page: 0 });
     }
     const parsed = parsePlanComponent(payload.data?.custom_id);
     if (!parsed) throw new PlunderPlanError("expired");
@@ -207,6 +211,7 @@ export async function handlePlunderPlanDiscord(payload: DiscordInteractionPayloa
       return confirmation(ctx, { action: "color", requestId: state.requestId, expectedVersion: state.version, color: value });
     }
     if (state.kind === "editor") {
+      if (action === "next" || action === "previous") return editor(ctx, { ...state, page: (state.page ?? 0) + (action === "next" ? 1 : -1) });
       if (action.startsWith("member-")) {
         const member = ctx.data.commanders.find((member) => member.id === state.memberChoices?.[Number(action.slice(7))]);
         if (!member) throw new PlunderPlanError("linkRequired");
