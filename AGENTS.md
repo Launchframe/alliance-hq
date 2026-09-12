@@ -176,5 +176,6 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 - OAuth e2e browser shims for Auth.js `signIn()` must fulfill POST with JSON `{ url }` and `X-Auth-Return-Redirect`, not HTTP 302.
 - TPIF odds panel renders on every `price_is_right` day including Saturday `heavy_hitter`; do not assert panel hidden on Saturday in e2e.
 - Keep native OCR deps (sharp/libvips) scoped to video-process routes; tracing or imports that pull them into other serverless handlers break unrelated endpoints.
+- Full Vitest runs with `E2E_DATABASE_URL` enable DB-backed identity-rebind and battle-plan tests. Migrate the guarded test database first and supply a dummy `TOKEN_ENCRYPTION_KEY`; do not let these suites select production credentials or databases.
 - Scoreboard review dual-writes new members / OCR names only when the officer enables the Account settings (both default off). Unmatched rows get a person-plus create; a manual match whose OCR name differs gets a person-pencil rename. Bulk chrome matches those row actions. Team A/B and Win/Lose use the same segmented toggle; Pending is unset (neither selected).
 
