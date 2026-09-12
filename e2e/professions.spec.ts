@@ -257,8 +257,13 @@ test.describe("Professions — War Leader Support", () => {
 
     const wlMemberId = `wl-${nanoid(6)}`;
     const engMemberId = `eng-${nanoid(6)}`;
-    await seedAllianceCommander(sql, {
+    const officerSession = await createAuthenticatedHqSession(
+      sql,
+      uniqueEmail("prof-import-off"),
+    );
+    await seedProfessionCommander(sql, {
       allianceId: alliance.allianceId,
+      hqUserId: officerSession.hqUserId,
       ashedMemberId: wlMemberId,
       primaryName: "Import WL",
       profession: "War Leader",
@@ -270,15 +275,17 @@ test.describe("Professions — War Leader Support", () => {
       profession: "Engineer",
     });
 
-    const officerSession = await createAuthenticatedHqSession(
-      sql,
-      uniqueEmail("prof-import-off"),
-    );
     await createAllianceMembership(sql, {
       hqUserId: officerSession.hqUserId,
       allianceId: alliance.allianceId,
       roleName: "owner",
       source: "manual",
+    });
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: officerSession.hqUserId,
+      ashedMemberId: wlMemberId,
+      memberDisplayName: "Import WL",
     });
     await bindSessionToAlliance(sql, officerSession.sessionId, alliance);
 
@@ -324,6 +331,16 @@ test.describe("Professions — War Leader Support", () => {
       .fill("Import WL: Import Eng");
     await page.getByRole("button", { name: /^preview$/i }).click();
     await expect(page.getByText(/already on this team/i)).toBeVisible();
+    await page.route("**/api/professions/officer", (route) => route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "fixture_officer_unavailable" }),
+    }));
+    await page.reload();
+    await expect(page.getByRole("alert").filter({ hasText: "fixture_officer_unavailable" })).toHaveText("fixture_officer_unavailable");
+    await page.unroute("**/api/professions/officer");
+    await page.getByRole("button", { name: /^officer$/i }).click();
+    await expect(page.getByTestId("profession-pairing-import")).toBeVisible();
 
     const memberSession = await createAuthenticatedHqSession(
       sql,
