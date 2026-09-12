@@ -70,3 +70,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 eng.traineddata
+/workers/ocr/.venv/
+/workers/ocr/.runtime/
+/workers/ocr/.cache/
+__pycache__/
+*.pyc

@@ -14,6 +14,9 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "worktrees/**",
     ".worktrees/**",
+    "workers/ocr/.venv/**",
+    "workers/ocr/.runtime/**",
+    "workers/ocr/.cache/**",
   ]),
 ]);
 
