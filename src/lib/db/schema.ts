@@ -20,6 +20,42 @@ import type { SupportDisplayPreferences } from "@/lib/support-teams/display-pref
 import type { TeamWorkDetail } from "@/lib/support-teams/work-routing.shared";
 import type { PlanSchedule } from "@/lib/plunder-plan/schedule.shared";
 import type { OcrCase, OcrDataset, OcrSplit, OcrTarget } from "@/lib/ocr/benchmark/types.shared";
+import type { OcrRunManifest } from "@/lib/ocr/learning/observations.shared";
+import type { OcrFeedbackPayload } from "@/lib/ocr/learning/feedback.shared";
+
+export const ocrPipelineRuns = pgTable("ocr_pipeline_runs", {
+  id: text("id").primaryKey(),
+  jobId: text("job_id").notNull(),
+  parseSessionId: text("parse_session_id").notNull().unique(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  scoreTarget: text("score_target").$type<OcrTarget>().notNull(),
+  engine: text("engine").notNull(),
+  synthetic: boolean("synthetic").notNull().default(false),
+  sourceSha256: text("source_sha256"),
+  manifest: jsonb("manifest").$type<OcrRunManifest>().notNull(),
+  manifestHash: text("manifest_hash").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index("ocr_runs_job_idx").on(table.allianceId, table.jobId)]);
+
+export const ocrFeedbackEvents = pgTable("ocr_feedback_events", {
+  id: text("id").primaryKey(),
+  jobId: text("job_id").notNull(),
+  parseSessionId: text("parse_session_id").notNull(),
+  runId: text("run_id").references(() => ocrPipelineRuns.id, { onDelete: "set null" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  scoreTarget: text("score_target").$type<OcrTarget>().notNull(),
+  kind: text("kind").$type<"submit" | "discard" | "rating" | "survey">().notNull(),
+  requestKey: text("request_key").notNull(),
+  requestDigest: text("request_digest").notNull(),
+  status: text("status").$type<"pending" | "confirmed" | "failed">().notNull(),
+  payload: jsonb("payload").$type<OcrFeedbackPayload | Record<string, unknown>>().notNull(),
+  recordedByHqUserId: text("recorded_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+}, (table) => [
+  unique("ocr_feedback_request_unique").on(table.allianceId, table.jobId, table.parseSessionId, table.kind, table.requestKey),
+  index("ocr_feedback_pending_idx").on(table.status, table.createdAt),
+]);
 
 export const ocrLearningCases = pgTable("ocr_learning_cases", {
   id: text("id").primaryKey(),
@@ -812,6 +848,7 @@ export const videoJobs = pgTable("video_jobs", {
   ratedByHqUserId: text("rated_by_hq_user_id").references(() => hqUsers.id, {
     onDelete: "set null",
   }),
+  ocrFeedbackReceiptId: text("ocr_feedback_receipt_id"),
   /** First time an officer opened the review UI for this job (idempotent). */
   reviewOpenedAt: timestamp("review_opened_at", { withTimezone: true }),
   /** Officer review latency: submit/discard time − reviewOpenedAt (ms). */
