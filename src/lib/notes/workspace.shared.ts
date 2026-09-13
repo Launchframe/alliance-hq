@@ -3,7 +3,7 @@ import { PERFORMANCE_NOTE_KINDS } from "@/lib/performance-notes/types.shared";
 
 export const NOTE_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 export type NotePriority = (typeof NOTE_PRIORITIES)[number] | null;
-export type NoteWorkspaceView = "notebook" | "inbox" | "shared" | "archived" | "tasks";
+export type NoteWorkspaceView = "notebook" | "inbox" | "shared" | "archived" | "tasks" | "boards";
 
 export function normalizeNoteLabels(values: readonly string[]): string[] {
   const labels = new Map<string, string>();
@@ -49,6 +49,12 @@ export const notePatchSchema = z.object(noteValidators).partial().extend({
 
 export type NoteFields = z.output<typeof noteFieldsSchema>;
 export type NotePatch = z.output<typeof notePatchSchema>;
+
+export function notesWorkspaceLocation(pathname: string, search: string, changes: Record<string, string | null>): string {
+  const params = new URLSearchParams(search);
+  for (const [key, value] of Object.entries(changes)) { if (value === null) params.delete(key); else params.set(key, value); }
+  return `${pathname}${params.size ? `?${params}` : ""}`;
+}
 
 export function notePriorityRank(priority: NotePriority): number {
   return priority === null ? 0 : NOTE_PRIORITIES.indexOf(priority) + 1;

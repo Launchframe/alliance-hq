@@ -19,7 +19,14 @@ export function knowledgeAccessCondition(actor: KnowledgeActor, resourceId: SQLW
   const officer = actor.kind === "web" && actor.isOfficer;
   const boardIds = access === "edit" ? actor.editableBoardIds : actor.readableBoardIds;
   const boardGrant = officer && boardIds.length
-    ? sql`(kg.subject_kind = 'board' and kg.subject_id in (${sql.join(boardIds.map((id) => sql`${id}`), sql`, `)}))`
+    ? sql`(kg.subject_kind = 'board' and kg.subject_id in (${sql.join(boardIds.map((id) => sql`${id}`), sql`, `)})
+        and exists(select 1 from knowledge_board_items bi join officer_action_items t on t.id = bi.task_id and t.alliance_id = bi.alliance_id
+          join knowledge_boards b on b.id = bi.board_id and b.alliance_id = bi.alliance_id join knowledge_resources br on br.id = b.resource_id and br.alliance_id = b.alliance_id
+          where bi.grant_id = kg.id and bi.board_id = kg.subject_id and bi.alliance_id = kr.alliance_id and t.resource_id = kr.id and br.archived_at is null)
+        and exists(select 1 from alliance_memberships bm join roles ro on ro.id = bm.role_id
+          join role_permissions rp on rp.role_id = bm.role_id and rp.permission_id = 'notes_boards:read'
+          where bm.hq_user_id = ${actor.hqUserId} and bm.alliance_id = kr.alliance_id and bm.status = 'active' and ro.name in ('owner', 'maintainer', 'officer')
+            and (${access !== "edit"} or exists(select 1 from role_permissions wp where wp.role_id = bm.role_id and wp.permission_id = 'notes_boards:write'))))`
     : sql`false`;
   return sql`exists (
     select 1 from knowledge_resources kr

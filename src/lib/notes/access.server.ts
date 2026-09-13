@@ -1,6 +1,8 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
+import { and, eq, isNull } from "drizzle-orm";
+import { getDb, schema } from "@/lib/db";
 import { getTranslations } from "next-intl/server";
 
 import { auth } from "@/lib/auth";
@@ -8,9 +10,11 @@ import { getRbacContext } from "@/lib/rbac/context";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import { loadSession, requireApiSession } from "@/lib/session";
 import type { KnowledgeActor } from "./policy.shared";
-import { claimDiscordKnowledgeResources, KnowledgeAccessError } from "./resources.server";
+import { claimDiscordKnowledgeResources, knowledgeAccessCondition, KnowledgeAccessError } from "./resources.server";
 
-export async function getKnowledgeActorForSession(sessionId: string): Promise<(KnowledgeActor & { sessionId: string; canCreate: boolean }) | null> {
+export type KnowledgeWebActor = KnowledgeActor & { sessionId: string; canCreate: boolean; canReadBoards: boolean; canWriteBoards: boolean };
+
+export async function getKnowledgeActorForSession(sessionId: string): Promise<KnowledgeWebActor | null> {
   const session = await loadSession(sessionId);
   if (!session?.hqUserId) return null;
   const signedIn = await auth();
@@ -19,11 +23,20 @@ export async function getKnowledgeActorForSession(sessionId: string): Promise<(K
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId || !context?.roleName || context.hqUserId !== session.hqUserId || context.currentAllianceId !== allianceId || !context.permissions.has("notes:read") || !context.permissions.has("members:read")) return null;
   const isOfficer = ["owner", "maintainer", "officer"].includes(context.roleName);
-  const actor: KnowledgeActor & { sessionId: string; canCreate: boolean } = {
+  const actor: KnowledgeWebActor = {
     kind: "web", sessionId, allianceId, hqUserId: session.hqUserId, discordUserId: null,
     isOfficer, canCreate: isOfficer && context.permissions.has("notes:create"),
+    canReadBoards: isOfficer && context.permissions.has("notes_boards:read"),
+    canWriteBoards: isOfficer && context.permissions.has("notes_boards:read") && context.permissions.has("notes_boards:write"),
     readableBoardIds: [], editableBoardIds: [],
   };
+  if (actor.canReadBoards) {
+    const boards = await getDb().select({ id: schema.knowledgeBoards.id }).from(schema.knowledgeBoards)
+      .innerJoin(schema.knowledgeResources, and(eq(schema.knowledgeResources.id, schema.knowledgeBoards.resourceId), eq(schema.knowledgeResources.allianceId, allianceId), isNull(schema.knowledgeResources.archivedAt)))
+      .where(and(eq(schema.knowledgeBoards.allianceId, allianceId), knowledgeAccessCondition(actor, schema.knowledgeBoards.resourceId)));
+    actor.readableBoardIds = boards.map((board) => board.id);
+    actor.editableBoardIds = actor.canWriteBoards ? actor.readableBoardIds : [];
+  }
   await claimDiscordKnowledgeResources(actor);
   return actor;
 }

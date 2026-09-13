@@ -53,4 +53,5 @@ export type PerformanceNotesPagePayload = {
   notes: PerformanceNoteDto[];
   roster: PerformanceNoteRosterMember[];
   canCreate: boolean;
+  canReadBoards?: boolean;
 };

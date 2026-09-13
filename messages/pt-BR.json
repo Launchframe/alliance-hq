@@ -1811,6 +1811,8 @@
       "notes": {
         "newNote": "Criar uma nota",
         "newTask": "Criar uma tarefa",
+        "sharedBoards": "Abrir quadros de oficiais",
+        "newBoard": "Criar um quadro de oficiais",
         "search": "Buscar notas"
       },
       "trains": {
@@ -7058,6 +7060,7 @@
     "notFound": "Nota não encontrada.",
     "views": {
       "tasks": "Tarefas",
+      "boards": "Quadros de oficiais",
       "notebook": "Caderno",
       "inbox": "Caixa de entrada",
       "shared": "Compartilhadas comigo",
@@ -7169,8 +7172,41 @@
       "restoreHint": "Restaurar cria uma nova versão sem apagar o histórico. Quem pode ler esta nota verá o conteúdo restaurado.",
       "restore": "Restaurar esta versão"
     },
+    "boards": {
+      "selector": "Escolha um quadro de oficiais",
+      "new": "Novo quadro de oficiais",
+      "name": "Nome do quadro",
+      "create": "Criar quadro de oficiais",
+      "empty": "Escolha um quadro ou crie um para colaborar com os oficiais da aliança.",
+      "audienceHint": "Os oficiais atuais da aliança podem ver e editar os cartões compartilhados neste quadro. Compartilhar uma tarefa não compartilha sua nota de origem.",
+      "saveContext": "Salve esta tarefa em {board} para os oficiais atuais da aliança verem e editarem. Isso não compartilha uma nota de origem.",
+      "saveTask": "Salvar neste quadro",
+      "live": "Ao vivo",
+      "reconnecting": "Reconectando…",
+      "changed": "Este quadro ou esta tarefa foi alterado em outro lugar. Seu rascunho continua aqui. Confira a versão mais recente antes de tentar novamente.",
+      "rename": "Renomear quadro",
+      "saveName": "Salvar nome do quadro",
+      "shareTask": "Compartilhar uma tarefa",
+      "chooseTask": "Escolha uma tarefa para compartilhar",
+      "confirmShare": "Compartilhar tarefa neste quadro",
+      "groupBy": "Agrupar tarefas por",
+      "noGrouping": "Sem agrupamento",
+      "byTeam": "Equipe de suporte publicada",
+      "layout": "Layout das tarefas",
+      "board": "Quadro",
+      "list": "Lista",
+      "includeClosed": "Mostrar tarefas canceladas e arquivadas",
+      "moveUp": "Mover {title} para cima",
+      "moveDown": "Mover {title} para baixo",
+      "removeTask": "Remover do quadro",
+      "removeConfirm": "Remover esta tarefa do quadro? A tarefa e sua nota de origem serão mantidas. As outras permissões de compartilhamento não mudam."
+    },
     "tasks": {
       "heading": "Minhas tarefas",
+      "reviewLatest": "Conferir a tarefa mais recente",
+      "latestVersion": "Última versão salva da tarefa",
+      "keepChanges": "Manter minhas alterações",
+      "reapplyHint": "Os campos que você editou serão aplicados a esta versão. Os campos que você não alterou manterão os valores mais recentes.",
       "linked": "Tarefas vinculadas",
       "new": "Nova tarefa",
       "edit": "Detalhes da tarefa",

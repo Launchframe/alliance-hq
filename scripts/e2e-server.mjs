@@ -139,10 +139,8 @@ process.on("exit", () => {
 });
 
 const serverEnv = buildEnv(dbUrl);
-run("npm run db:migrate", serverEnv);
-run("npm run db:seed-rbac", serverEnv);
 run("rm -rf .next");
-run("npx next build", serverEnv);
+run("npm run build", serverEnv);
 
 const child = spawn(
   process.execPath,

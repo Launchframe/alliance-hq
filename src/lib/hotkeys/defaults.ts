@@ -47,6 +47,8 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "nav.notes": seq("g", "g"),
   "notes.newNote": chord("n", ["alt"]),
   "notes.newTask": chord("n", ["alt", "shift"]),
+  "notes.sharedBoards": chord("b", ["alt"]),
+  "notes.newBoard": chord("b", ["alt", "shift"]),
   "notes.search": chord("/"),
   "nav.desertStorm": seq("g", "s"),
   "nav.canyonStorm": seq("g", "c"),

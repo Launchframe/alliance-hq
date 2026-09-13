@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { noteFieldsSchema, notePatchSchema, noteTitle, notePriorityRank, normalizeNoteLabels } from "./workspace.shared";
+import { noteFieldsSchema, notePatchSchema, noteTitle, notePriorityRank, normalizeNoteLabels, notesWorkspaceLocation } from "./workspace.shared";
 
 describe("note workspace fields", () => {
+  it("preserves authorized board and filter deep links while changing focus", () => {
+    expect(notesWorkspaceLocation("/pt-BR/notes", "?view=boards&board=one&task=old", { task: "next", boardGroup: "assignee" })).toBe("/pt-BR/notes?view=boards&board=one&task=next&boardGroup=assignee");
+    expect(notesWorkspaceLocation("/notes", "?task=old", { task: null })).toBe("/notes");
+  });
   it("keeps unprioritized thoughts distinct from low priority", () => {
     expect(noteFieldsSchema.parse({ body: "Some thoughts" }).priority).toBeNull();
     expect(noteFieldsSchema.parse({ body: "Follow up", priority: "low" }).priority).toBe("low");

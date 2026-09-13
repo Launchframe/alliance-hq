@@ -8,6 +8,7 @@ import { getPerformanceNoteForAlliance } from "@/lib/performance-notes/repositor
 import type { KnowledgeActor } from "./policy.shared";
 import { knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, touchKnowledgeResource } from "./resources.server";
 import type { NoteShareInput, NoteShareState } from "./sharing.shared";
+import { touchResourceBoards } from "./board-events.server";
 
 export async function listKnowledgePeople(actor: KnowledgeActor, includeSelf = false): Promise<NoteShareState["recipients"]> {
   const people = await getDb().select({ id: schema.hqUsers.id, name: schema.hqUsers.displayName, role: schema.roles.name, commanderName: schema.hqMemberLinks.memberDisplayName })
@@ -50,6 +51,7 @@ export async function saveResourceSharing(actor: KnowledgeActor, resourceId: str
     if (grants.size) await tx.insert(schema.knowledgeResourceGrants).values([...grants.values()].map((grant) => ({ ...grant, id: nanoid(), resourceId: resourceId, allianceId: actor.allianceId, createdByHqUserId: actor.hqUserId })));
     await tx.update(schema.knowledgeResources).set({ accessVersion: sql`${schema.knowledgeResources.accessVersion} + 1` }).where(eq(schema.knowledgeResources.id, resource.id));
     await touchKnowledgeResource(tx, resource.id);
+    if (resource.kind === "task") await touchResourceBoards(tx, resource.id);
   });
   return loadResourceSharing(actor, resourceId);
 }

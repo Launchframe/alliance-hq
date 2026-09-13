@@ -4564,6 +4564,7 @@ export const officerActionItems = pgTable(
     index("officer_action_items_note_idx").on(table.noteId),
     index("officer_action_items_source_idx").on(table.sourceNoteId),
     unique("officer_action_items_resource_unique").on(table.resourceId),
+    unique("officer_action_items_id_alliance_unique").on(table.id, table.allianceId),
     unique("officer_action_items_capture_unique").on(table.captureKey, table.actionKey),
     foreignKey({ name: "officer_action_items_source_alliance_fk", columns: [table.sourceNoteId, table.allianceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId] }).onDelete("restrict"),
     check("officer_action_items_priority_check", sql`${table.priority} is null or ${table.priority} in ('low', 'medium', 'high', 'urgent')`),
@@ -4807,11 +4808,33 @@ export const knowledgeNoteRevisions = pgTable("knowledge_note_revisions", {
   editedAt: timestamp("edited_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [unique("knowledge_note_revisions_version_unique").on(table.noteId, table.version)]);
 
+export const knowledgeBoards = pgTable("knowledge_boards", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  resourceId: text("resource_id").notNull(), name: text("name").notNull(), version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("knowledge_boards_id_alliance_unique").on(table.id, table.allianceId), unique("knowledge_boards_resource_unique").on(table.resourceId),
+  foreignKey({ name: "knowledge_boards_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+]);
+
+export const knowledgeBoardItems = pgTable("knowledge_board_items", {
+  boardId: text("board_id").notNull(), taskId: text("task_id").notNull(), allianceId: text("alliance_id").notNull(),
+  grantId: text("grant_id").notNull().references(() => knowledgeResourceGrants.id, { onDelete: "cascade" }),
+  position: integer("position").notNull(), sharedByHqUserId: text("shared_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.boardId, table.taskId] }), index("knowledge_board_items_task_idx").on(table.taskId),
+  unique("knowledge_board_items_grant_unique").on(table.grantId),
+  foreignKey({ name: "knowledge_board_items_board_alliance_fk", columns: [table.boardId, table.allianceId], foreignColumns: [knowledgeBoards.id, knowledgeBoards.allianceId] }).onDelete("cascade"),
+  foreignKey({ name: "knowledge_board_items_task_alliance_fk", columns: [table.taskId, table.allianceId], foreignColumns: [officerActionItems.id, officerActionItems.allianceId] }).onDelete("cascade"),
+]);
+
 export const knowledgeMutationReceipts = pgTable("knowledge_mutation_receipts", {
   id: text("id").primaryKey(),
   allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
   principalKey: text("principal_key").notNull(), requestId: text("request_id").notNull(), requestHash: text("request_hash").notNull(),
-  result: jsonb("result").$type<{ noteId?: string; taskIds?: string[]; taskId?: string }>().notNull(),
+  result: jsonb("result").$type<{ noteId?: string; taskIds?: string[]; taskId?: string; boardId?: string; version?: number }>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [unique("knowledge_mutation_receipts_request_unique").on(table.allianceId, table.principalKey, table.requestId)]);
 
