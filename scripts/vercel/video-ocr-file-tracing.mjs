@@ -112,6 +112,8 @@ export const videoOcrPlatformExcludes = [
 ];
 
 export const videoOcrFileTracingExcludes = [
+  "./.data/**/*",
+  "./workers/ocr/**/*",
   ...tesseractNonLstmExcludes,
   ...videoOcrPlatformExcludes,
 ];
@@ -147,11 +149,25 @@ export const globalOutputFileTracingIncludes = {
   "*": sharpNativeFileTracing,
 };
 
+export const ocrControlPlaneRoutes = [
+  "/api/admin/ocr-learning/worker-jobs",
+  "/api/internal/ocr-worker/claim",
+  "/api/internal/ocr-worker/jobs/[jobId]/complete",
+  "/api/internal/ocr-worker/artifacts/[artifactId]",
+];
+
 /**
  * Uncompressed size budgets (bytes). CI runs on linux-x64 to approximate Vercel.
  * Fat OCR gate: video-process [jobId]. Queue must stay dispatch-only (no ffmpeg/tesseract).
  */
 export const functionTraceBudgets = [
+  ...ocrControlPlaneRoutes.map((route) => ({
+    route,
+    nftPath: `.next/server/app${route}/route.js.nft.json`,
+    maxUncompressedBytes: 120 * 1024 ** 2,
+    requireLibvips: true,
+    forbidPathSubstrings: ["ffmpeg-static", "tesseract.js-core", "tesseract.js/src", "workers/ocr/"],
+  })),
   {
     route: "/api/internal/video-process/queue",
     nftPath: ".next/server/app/api/internal/video-process/queue/route.js.nft.json",
@@ -204,4 +220,7 @@ export const functionTraceBudgets = [
     requireLibvips: true,
     requireWorkerScript: true,
   },
-];
+].map((budget) => ({
+  ...budget,
+  forbidPathSubstrings: [...new Set([...(budget.forbidPathSubstrings ?? []), ".data/", "workers/ocr/"])],
+}));

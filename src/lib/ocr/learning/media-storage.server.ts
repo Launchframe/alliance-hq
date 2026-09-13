@@ -6,7 +6,7 @@ import { copyObjectBounded, deleteObject, getObjectSize, getObjectStream } from 
 import { OcrLearningError, ocrHashSchema, ocrIdSchema, ocrStorageKeySchema } from "../benchmark/types.shared";
 
 export type SealedObject = { storageKey: string; sha256: string; bytes: number };
-export type OcrMediaExtension = ".mp4" | ".mov" | ".webm" | ".jpg" | ".png";
+export type OcrMediaExtension = ".mp4" | ".mov" | ".webm" | ".jpg" | ".png" | ".bin";
 
 export function assertCaptureSourceKey(allianceId: string, sourceKey: string): void {
   if (!/^[a-zA-Z0-9_./-]+$/.test(sourceKey) || sourceKey.split("/").some((part) => !part || part === "." || part === "..") || !(sourceKey.startsWith(`ocr-staging/${allianceId}/`) || sourceKey.startsWith("videos/"))) throw new OcrLearningError("invalid_source_key");
@@ -34,7 +34,7 @@ export async function sealStoredObject(input: {
 }): Promise<SealedObject> {
   if (!ocrIdSchema.safeParse(input.allianceId).success || !ocrIdSchema.safeParse(input.caseId).success) throw new OcrLearningError("invalid_scope");
   assertCaptureSourceKey(input.allianceId, input.sourceKey);
-  if (![".mp4", ".mov", ".webm", ".jpg", ".png"].includes(input.extension) || !Number.isSafeInteger(input.maxBytes) || input.maxBytes <= 0 || (input.expectedSha256 != null && !ocrHashSchema.safeParse(input.expectedSha256).success)) throw new OcrLearningError("invalid_media");
+  if (![".mp4", ".mov", ".webm", ".jpg", ".png", ".bin"].includes(input.extension) || !Number.isSafeInteger(input.maxBytes) || input.maxBytes <= 0 || (input.expectedSha256 != null && !ocrHashSchema.safeParse(input.expectedSha256).success)) throw new OcrLearningError("invalid_media");
   const sourceBytes = await getObjectSize(input.sourceKey, AbortSignal.timeout(30000));
   if (sourceBytes <= 0 || sourceBytes > input.maxBytes) throw new OcrLearningError("source_size_limit");
   const storageKey = input.destinationKey ?? `ocr-learning/${input.allianceId}/${input.caseId}/${nanoid()}${input.extension}`;
