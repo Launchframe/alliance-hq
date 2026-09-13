@@ -20,6 +20,14 @@ from .contracts import TrainRequest
 from .files import check_deadline, stable_json, verify_frame
 
 
+def stop_worker(_signal, _frame):
+    raise KeyboardInterrupt
+
+
+def handle_shutdown():
+    signal.signal(signal.SIGTERM, stop_worker)
+
+
 def verify_training_source(source: Path):
     revision = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], timeout=10, text=True).strip()
     dirty = subprocess.check_output(["git", "-C", str(source), "status", "--porcelain"], timeout=10, text=True).strip()
@@ -27,7 +35,7 @@ def verify_training_source(source: Path):
         raise ValueError("training_source_mismatch")
 
 
-def run_bounded(command: list[str], source: Path, work: Path, log: Path, deadline: float, memory_limit: int, seed: int, disk_limit: int, new_session=True):
+def run_bounded(command: list[str], source: Path, work: Path, log: Path, deadline: float, memory_limit: int, seed: int, disk_limit: int, new_session=True, on_tick=None):
     home = work / "home"
     home.mkdir(exist_ok=True)
     environment = {"PATH": os.defpath, "HOME": str(home), "PYTHONNOUSERSITE": "1", "PYTHONHASHSEED": str(seed), "OMP_NUM_THREADS": "2", "OPENBLAS_NUM_THREADS": "2", "MKL_NUM_THREADS": "2", "CUDA_VISIBLE_DEVICES": "", "TZ": "UTC"}
@@ -37,6 +45,8 @@ def run_bounded(command: list[str], source: Path, work: Path, log: Path, deadlin
             last_disk_check = 0.0
             while process.poll() is None:
                 check_deadline(deadline)
+                if on_tick is not None:
+                    on_tick()
                 if time.monotonic() - last_disk_check >= 1:
                     if sum(path.stat().st_size for path in work.rglob("*") if path.is_file()) > disk_limit:
                         raise ValueError("worker_disk_limit")

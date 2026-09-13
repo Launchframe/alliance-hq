@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   functionTraceBudgets,
+  ocrControlPlaneRoutes,
   sharpNativeFileTracing,
   tesseractFileTracing,
   videoOcrFileTracingIncludes,
+  videoOcrFileTracingExcludes,
   videoOcrTracedRoutes,
 } from "./video-ocr-file-tracing.mjs";
 
@@ -50,6 +52,22 @@ describe("video OCR tracing — Phase 2a queue slim", () => {
 });
 
 describe("literal Next tracing routes", () => {
+  it("never bundles local private assets or worker runtimes", () => {
+    expect(videoOcrFileTracingExcludes).toEqual(expect.arrayContaining(["./.data/**/*", "./workers/ocr/**/*"]));
+    for (const budget of functionTraceBudgets) expect(budget.forbidPathSubstrings).toEqual(expect.arrayContaining([".data/"]));
+  });
+
+  it("keeps the control plane independent of compute runtimes", () => {
+    expect(ocrControlPlaneRoutes).toHaveLength(4);
+    for (const route of ocrControlPlaneRoutes) {
+      const budget = functionTraceBudgets.find((entry) => entry.route === route);
+      expect(budget.requireLibvips).toBe(true);
+      expect(budget.maxUncompressedBytes).toBeLessThanOrEqual(120 * 1024 ** 2);
+      expect(budget.forbidPathSubstrings).toEqual(expect.arrayContaining(["ffmpeg-static", "tesseract.js-core", "tesseract.js/src", "workers/ocr/"]));
+      expect(includesFor(route).size).toBe(0);
+    }
+  });
+
   it("keeps every declared route's required native assets", () => {
     for (const [route, assets] of Object.entries(videoOcrTracedRoutes)) {
       expect([...includesFor(route)]).toEqual(expect.arrayContaining(assets));

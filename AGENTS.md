@@ -147,6 +147,7 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 
 ## Learned User Preferences
 
+- During OCR-stack validation, comparable fixture-only browser/session isolation repairs are approved as separate maintenance slices. Preserve all permission assertions; this does not authorize production-auth changes or weaker tests.
 - Rebase stacked child PRs (`git rebase --onto`) when the parent was pre-rebase — do not merge conflict resolutions into the child.
 - On `_journal.json` merge conflicts, keep main's migration and renumber the branch SQL + journal tag; propagate renumbers parent→child in stacked work — never drop migration SQL or journal entries on rebase or force-push.
 - Maintainer must review and approve release notes before `release:ship`; set note frontmatter `status: ready` only after approval.
@@ -176,11 +177,15 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 - OAuth e2e browser shims for Auth.js `signIn()` must fulfill POST with JSON `{ url }` and `X-Auth-Return-Redirect`, not HTTP 302.
 - TPIF odds panel renders on every `price_is_right` day including Saturday `heavy_hitter`; do not assert panel hidden on Saturday in e2e.
 - Keep native OCR deps (sharp/libvips) scoped to video-process routes; tracing or imports that pull them into other serverless handlers break unrelated endpoints.
+- Next's file tracer can capture local `.data` contents through storage helpers even when git ignores them. Keep `.data` and `workers/ocr` globally excluded from web function traces; artifact and corpus bytes must be fetched through the private storage boundary, never packaged in deployments.
 - Next tracing include keys use picomatch with `contains: true`. Use the escaped `videoOcrFileTracingIncludes` mapping; bare `[jobId]` also matches the `o` in `ocr-media` and pulls unintended OCR assets into that route.
 - Corpus media collection requires an enabled per-alliance media policy and separate `OCR_WORKER_BASE_URL` / `OCR_WORKER_SECRET` configuration. The e2e harness uses an isolated dummy OCR worker credential, not the production or legacy video-worker credential.
 - The isolated OCR worker is in `workers/ocr` and requires Python 3.12: `uv sync --locked --directory workers/ocr`, then `uv run --directory workers/ocr python -m ocr_worker.bootstrap`. Training requires a clean PaddleOCR v3.7.0 checkout at revision `b03f46425e8ff4442b268ce449e3eef758146cd4`; local tests use `workers/ocr/.runtime/paddleocr`. Keep runtime caches, model weights and recordings out of git.
 - Worker checks: from `workers/ocr`, `OCR_WORKER_MODEL_TEST=1 .venv/bin/python -m unittest discover -s tests -v` runs real inference/training/export fixtures. Set `OCR_WORKER_PYTHON` and `OCR_WORKER_MODELS` to enable the TypeScript-to-Python round-trip Vitest. These synthetic fixtures prove execution and contracts, not real-footage accuracy.
 - Still-image corpus evidence has `timestampSeconds: null` and no video duration. Do not invent a zero-second video timestamp; multi-frame temporal selection requires actual source times.
+- OCR control-plane policies start disabled and require an explicitly approved worker code hash. From `workers/ocr`, `.venv/bin/python -m ocr_worker.build` prints the hash; `.venv/bin/python -m ocr_worker.client --base-url <HQ origin>` runs the pull worker using `OCR_WORKER_SECRET`. Optional `--once --job-id <id>` targets a single lease without bypassing policy or data checks.
+- Every worker claim reserves its entire bounded lease duration against the alliance's UTC-day compute budget, including uncertain retries. Private model storage reserves both staging and sealed bytes; confirmed worker-retention cleanup releases that reservation only after both objects are absent.
+- `e2e/ocr-worker.spec.ts` includes real broker training, sealed model transfer, held-out inference and model cleanup when `OCR_WORKER_PYTHON` and `OCR_WORKER_MODELS` are set. The upstream checkout must be at `workers/ocr/.runtime/paddleocr`; the tests use synthetic, distinct train/validation/test image sources.
 - Full Vitest runs with `E2E_DATABASE_URL` enable DB-backed identity-rebind and battle-plan tests. Migrate the guarded test database first and supply a dummy `TOKEN_ENCRYPTION_KEY`; do not let these suites select production credentials or databases.
 - Scoreboard review dual-writes new members / OCR names only when the officer enables the Account settings (both default off). Unmatched rows get a person-plus create; a manual match whose OCR name differs gets a person-pencil rename. Bulk chrome matches those row actions. Team A/B and Win/Lose use the same segmented toggle; Pending is unset (neither selected).
 

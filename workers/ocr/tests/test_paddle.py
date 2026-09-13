@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from ocr_worker.contracts import InferRequest, TrainRequest
 from ocr_worker.inference import infer
+from ocr_worker.model_archive import pack_model, unpack_model
 from test_core import save_image
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -70,7 +71,10 @@ class PaddleIntegrationTest(unittest.TestCase):
             self.assertEqual(len(result["artifactSha256"]), 64)
             frame = save_image(inputs, image_for("DELTA", "4567891"), 0)
             evaluation = InferRequest.model_validate({"version": 1, "caseId": "case-check", "scoreTarget": "vs-performance", "sourceSha256": frame.sha256, "pipelineVersion": result["artifactSha256"], "frames": [frame.model_dump(by_alias=True)], "sampler": {"mode": "all"}, "limits": LIMITS})
-            prediction = infer(evaluation, inputs, MODELS, work / "artifact", result["artifactSha256"])
+            archive = root / "model.tar"
+            packed = pack_model(work / "artifact", result["artifactSha256"], archive, request.limits.max_output_bytes)
+            restored = unpack_model(archive, root / "restored", packed["sha256"], result["artifactSha256"], request.limits.max_output_bytes)
+            prediction = infer(evaluation, inputs, MODELS, restored, result["artifactSha256"])
             self.assertGreater(len(prediction["prediction"]["rows"]), 0)
 
 

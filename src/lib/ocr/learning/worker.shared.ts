@@ -67,16 +67,18 @@ export const workerInferenceResultSchema = z.object({
   observations: z.array(z.object({ name: z.string().max(160), score: z.string().max(128).nullable(), rank: z.number().int().positive().nullable(), memberId: ocrIdSchema.nullable(), confidence: z.number().finite().min(0).max(1), evidence: ocrEvidenceSchema }).strict()).max(200000),
 }).strict();
 
+export const workerModelManifestSchema = z.object({
+  version: z.literal(1), family: z.literal("paddle-v5-mobile-rec"), datasetHash: ocrHashSchema,
+  sourceRevision: z.string().regex(/^[a-f0-9]{40}$/), workerCodeHash: ocrHashSchema, baseModelSha256: ocrHashSchema,
+  recipe: workerRecipeSchema, updatedTensors: z.number().int().positive(),
+  samples: z.object({ train: z.number().int().positive(), validation: z.number().int().positive() }).strict(),
+  files: z.record(z.string().regex(/^[a-zA-Z0-9_.-]+$/), ocrHashSchema).refine((files) => {
+    const allowed = new Set(["inference.json", "inference.pdmodel", "inference.pdiparams", "inference.pdiparams.info", "inference.yml"]);
+    return Object.keys(files).every((name) => allowed.has(name)) && Boolean(files["inference.pdiparams"] && files["inference.yml"] && (files["inference.json"] || files["inference.pdmodel"]));
+  }, "invalid_model_manifest"),
+}).strict();
 export const workerTrainingResultSchema = z.object({
-  manifest: z.object({ version: z.literal(1), family: z.literal("paddle-v5-mobile-rec"), datasetHash: ocrHashSchema,
-    sourceRevision: z.string().regex(/^[a-f0-9]{40}$/), workerCodeHash: ocrHashSchema, baseModelSha256: ocrHashSchema,
-    recipe: workerRecipeSchema, updatedTensors: z.number().int().positive(),
-    samples: z.object({ train: z.number().int().positive(), validation: z.number().int().positive() }).strict(),
-    files: z.record(z.string().regex(/^[a-zA-Z0-9_.-]+$/), ocrHashSchema).refine((files) => {
-      const allowed = new Set(["inference.json", "inference.pdmodel", "inference.pdiparams", "inference.pdiparams.info", "inference.yml"]);
-      return Object.keys(files).every((name) => allowed.has(name)) && Boolean(files["inference.pdiparams"] && files["inference.yml"] && (files["inference.json"] || files["inference.pdmodel"]));
-    }, "invalid_model_manifest"),
-  }).strict(),
+  manifest: workerModelManifestSchema,
   artifactSha256: ocrHashSchema, totalMs: z.number().finite().nonnegative(), checkpointSha256: ocrHashSchema, workerCodeHash: ocrHashSchema,
 }).strict().refine((result) => result.workerCodeHash === result.manifest.workerCodeHash, "worker_build_mismatch");
 
