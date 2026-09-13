@@ -172,8 +172,8 @@ export async function freezeDataset(input: z.infer<typeof freezeInput>, actor: O
   });
 }
 
-export async function loadUsableDataset(allianceId: string, datasetId: string, options: { external?: boolean } = {}) {
-  return getDb().transaction(async (tx) => {
+export async function loadUsableDataset(allianceId: string, datasetId: string, options: { external?: boolean } = {}, transaction?: Transaction) {
+  const load = async (tx: Transaction) => {
     await lockCorpus(tx, allianceId);
     const [dataset] = await tx.select().from(schema.ocrDatasetVersions).where(and(eq(schema.ocrDatasetVersions.id, datasetId), eq(schema.ocrDatasetVersions.allianceId, allianceId))).limit(1);
     if (!dataset) throw new OcrLearningError("dataset_not_found", 404);
@@ -188,5 +188,6 @@ export async function loadUsableDataset(allianceId: string, datasetId: string, o
       checkedSnapshot(current);
     }
     return buildDataset(allianceId, dataset.manifest.entries, new Date(), options);
-  });
+  };
+  return transaction ? load(transaction) : getDb().transaction(load);
 }

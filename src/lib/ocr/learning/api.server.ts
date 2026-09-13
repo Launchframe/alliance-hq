@@ -30,8 +30,8 @@ export function ocrScope(request: Request): string {
   return parsed.data;
 }
 
-export async function readOcrJson(request: Request): Promise<Record<string, unknown>> {
-  const limit = 2 * 1024 * 1024;
+export async function readOcrJson(request: Request, limit = 2 * 1024 * 1024): Promise<Record<string, unknown>> {
+  if (!Number.isSafeInteger(limit) || limit <= 0 || limit > 8 * 1024 * 1024) throw new OcrLearningError("invalid_input_limit");
   if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") throw new OcrLearningError("json_required", 415);
   if (Number(request.headers.get("content-length") ?? 0) > limit) throw new OcrLearningError("input_limit", 413);
   const reader = request.body?.getReader();

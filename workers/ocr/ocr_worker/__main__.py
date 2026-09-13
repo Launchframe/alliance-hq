@@ -11,7 +11,7 @@ import time
 from .build import worker_code_hash
 from .contracts import InferRequest, TrainRequest
 from .files import read_json, stable_json
-from .training import run_bounded
+from .training import handle_shutdown, run_bounded
 
 
 def child_error(log: Path):
@@ -29,6 +29,7 @@ def child_error(log: Path):
 
 
 def main():
+    handle_shutdown()
     parser = argparse.ArgumentParser()
     parser.add_argument("action", choices=("infer", "train"))
     parser.add_argument("--input", type=Path, required=True)
