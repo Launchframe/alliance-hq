@@ -27,12 +27,19 @@ type Props = {
 type ReviewAction = "keep_hq" | "use_ashed" | "link_existing";
 type Confirmation = { bindingId: string; action: "keep_hq" | "use_ashed" };
 type ActionError = { bindingId?: string; key: ReturnType<typeof timeOffSyncErrorKey> };
+type SyncNotice = "sync.retryQueued" | "sync.resolved" | null;
+type SyncPanelProps = Props & { notice: SyncNotice; setNotice: (notice: SyncNotice) => void };
 
 export function TimeOffSyncPanel(props: Props) {
-  return <SyncPanel key={`${props.entryId}:${props.version}:${props.status}`} {...props} />;
+  return <EntrySyncPanel key={props.entryId} {...props} />;
 }
 
-function SyncPanel({ entryId, version, status, lastSyncedAt, canManage, onChanged }: Props) {
+function EntrySyncPanel(props: Props) {
+  const [notice, setNotice] = useState<SyncNotice>(null);
+  return <SyncPanel key={`${props.version}:${props.status}`} {...props} notice={notice} setNotice={setNotice} />;
+}
+
+function SyncPanel({ entryId, version, status, lastSyncedAt, canManage, onChanged, notice, setNotice }: SyncPanelProps) {
   const t = useTranslations("timeOff");
   const locale = useLocale();
   const timeZone = useTimeZone() ?? "UTC";
@@ -40,7 +47,6 @@ function SyncPanel({ entryId, version, status, lastSyncedAt, canManage, onChange
   const [review, setReview] = useState<TimeOffSyncReview | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ActionError | null>(null);
-  const [notice, setNotice] = useState<"sync.retryQueued" | "sync.resolved" | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [selected, setSelected] = useState<Record<string, string>>({});
   const submitting = useRef(false);
