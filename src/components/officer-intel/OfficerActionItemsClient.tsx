@@ -115,7 +115,7 @@ export function OfficerActionItemsClient({
                   </Link>
                 </div>
                 <span className="text-xs uppercase text-hq-muted">
-                  {t(`priority.${item.priority}`)} · {t(`status.${item.status}`)}
+                  {t(`priority.${item.priority ?? "none"}`)} · {t(`status.${item.status}`)}
                 </span>
               </div>
               {canWrite ? (

@@ -39,6 +39,7 @@ export async function GET(_request: Request, { params }: Props) {
   const actionItems = await listOfficerActionItemsForNote({
     noteId: id,
     allianceId: context.allianceId,
+    actor: context.actor,
   });
 
   return NextResponse.json({ note, actionItems });
@@ -93,6 +94,7 @@ export async function PUT(request: Request, { params }: Props) {
   const actionItems = await listOfficerActionItemsForNote({
     noteId: id,
     allianceId: context.allianceId,
+    actor: context.actor,
   });
 
   return NextResponse.json({ ok: true, note, actionItems });

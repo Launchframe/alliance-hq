@@ -20,6 +20,7 @@ import {
 import { sql } from "drizzle-orm";
 import type { KnowledgeOwnershipState, KnowledgeResourceKind, KnowledgeGrant } from "@/lib/notes/policy.shared";
 import type { NoteFields } from "@/lib/notes/workspace.shared";
+import type { IntakeResult } from "@/lib/notes/intake.shared";
 import type { SupportBoard, SupportEvent, SupportValue } from "@/lib/support-teams/types.shared";
 import type { SupportDisplayPreferences } from "@/lib/support-teams/display-preferences.shared";
 import type { TeamWorkDetail } from "@/lib/support-teams/work-routing.shared";
@@ -4516,21 +4517,25 @@ export const officerActionItems = pgTable(
   "officer_action_items",
   {
     id: text("id").primaryKey(),
+    resourceId: text("resource_id").notNull().default(sql`NULL`),
+    sourceNoteId: text("source_note_id"),
+    assigneeHqUserId: text("assignee_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+    labels: jsonb("labels").$type<string[]>().notNull().default([]),
+    captureKey: text("capture_key"),
+    actionKey: text("action_key"),
     allianceId: text("alliance_id")
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
     noteId: text("note_id")
-      .notNull()
-      .references(() => officerMeetingNotes.id, { onDelete: "cascade" }),
+      .references(() => officerMeetingNotes.id, { onDelete: "set null" }),
     sessionId: text("session_id")
-      .notNull()
-      .references(() => officerChatSessions.id, { onDelete: "cascade" }),
+      .references(() => officerChatSessions.id, { onDelete: "set null" }),
     title: text("title").notNull(),
     description: text("description"),
     /** open | in_progress | done | cancelled */
     status: text("status").notNull().default("open"),
     /** low | normal | high */
-    priority: text("priority").notNull().default("normal"),
+    priority: text("priority").$type<"low" | "medium" | "high" | "urgent" | null>(),
     assigneeAllianceMemberId: text("assignee_alliance_member_id").references(
       () => allianceMembers.id,
       { onDelete: "set null" },
@@ -4557,6 +4562,12 @@ export const officerActionItems = pgTable(
       table.dueAt,
     ),
     index("officer_action_items_note_idx").on(table.noteId),
+    index("officer_action_items_source_idx").on(table.sourceNoteId),
+    unique("officer_action_items_resource_unique").on(table.resourceId),
+    unique("officer_action_items_capture_unique").on(table.captureKey, table.actionKey),
+    foreignKey({ name: "officer_action_items_source_alliance_fk", columns: [table.sourceNoteId, table.allianceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId] }).onDelete("restrict"),
+    check("officer_action_items_priority_check", sql`${table.priority} is null or ${table.priority} in ('low', 'medium', 'high', 'urgent')`),
+    foreignKey({ name: "officer_action_items_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
   ],
 );
 
@@ -4716,6 +4727,7 @@ export const performanceNotes = pgTable(
     /** batch | thought */
     intakeMode: text("intake_mode").notNull(),
     title: text("title").notNull().default(""),
+    priorityMode: text("priority_mode").$type<"manual" | "auto">().notNull().default("manual"),
     priority: text("priority").$type<"low" | "medium" | "high" | "urgent" | null>(),
     labels: jsonb("labels").$type<string[]>().notNull().default([]),
     notebook: text("notebook"),
@@ -4745,6 +4757,7 @@ export const performanceNotes = pgTable(
     ),
     index("performance_notes_alliance_kind_idx").on(table.allianceId, table.kind),
     uniqueIndex("performance_notes_resource_unique").on(table.resourceId),
+    unique("performance_notes_id_alliance_unique").on(table.id, table.allianceId),
     check("performance_notes_priority_check", sql`${table.priority} is null or ${table.priority} in ('low', 'medium', 'high', 'urgent')`),
     foreignKey({ name: "performance_notes_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
   ],
@@ -4793,6 +4806,28 @@ export const knowledgeNoteRevisions = pgTable("knowledge_note_revisions", {
   editedByHqUserId: text("edited_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
   editedAt: timestamp("edited_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [unique("knowledge_note_revisions_version_unique").on(table.noteId, table.version)]);
+
+export const knowledgeMutationReceipts = pgTable("knowledge_mutation_receipts", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  principalKey: text("principal_key").notNull(), requestId: text("request_id").notNull(), requestHash: text("request_hash").notNull(),
+  result: jsonb("result").$type<{ noteId?: string; taskIds?: string[]; taskId?: string }>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_mutation_receipts_request_unique").on(table.allianceId, table.principalKey, table.requestId)]);
+
+export const knowledgeIntakePreferences = pgTable("knowledge_intake_preferences", {
+  principalKey: text("principal_key").primaryKey(), enabled: boolean("enabled").notNull().default(false),
+  version: integer("version").notNull().default(1), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const knowledgeIntakeAnalyses = pgTable("knowledge_intake_analyses", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  principalKey: text("principal_key").notNull(), requestHash: text("request_hash").notNull(),
+  state: text("state").$type<"pending" | "complete" | "failed">().notNull(),
+  result: jsonb("result").$type<IntakeResult>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, (table) => [index("knowledge_intake_analyses_rate_idx").on(table.principalKey, table.createdAt)]);
 
 export type PerformanceNote = typeof performanceNotes.$inferSelect;
 export type PerformanceNoteMember = typeof performanceNoteMembers.$inferSelect;

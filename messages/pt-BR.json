@@ -1810,6 +1810,7 @@
       },
       "notes": {
         "newNote": "Criar uma nota",
+        "newTask": "Criar uma tarefa",
         "search": "Buscar notas"
       },
       "trains": {
@@ -7007,9 +7008,12 @@
     "markInProgress": "Marcar em andamento",
     "markDone": "Marcar como concluído",
     "priority": {
+      "none": "Nenhuma",
       "low": "Baixa",
       "normal": "Normal",
-      "high": "Alta"
+      "medium": "Média",
+      "high": "Alta",
+      "urgent": "Urgente"
     },
     "status": {
       "open": "Aberto",
@@ -7018,7 +7022,7 @@
       "cancelled": "Cancelado"
     },
     "askTitle": "Pergunte sobre decisões da aliança",
-    "askSubtitle": "As respostas usam atas aprovadas pelos oficiais e itens de ação abertos — não o histórico completo do chat.",
+    "askSubtitle": "As respostas usam atas aprovadas pelos oficiais. Tarefas privadas e o histórico completo do chat não são incluídos.",
     "askPlaceholder": "O que decidimos sobre os bancos?",
     "askSubmit": "Perguntar",
     "asking": "Buscando atas aprovadas…",
@@ -7053,6 +7057,7 @@
     "backToNotes": "Todas as notas",
     "notFound": "Nota não encontrada.",
     "views": {
+      "tasks": "Tarefas",
       "notebook": "Caderno",
       "inbox": "Caixa de entrada",
       "shared": "Compartilhadas comigo",
@@ -7163,6 +7168,49 @@
       "version": "Versão {version}",
       "restoreHint": "Restaurar cria uma nova versão sem apagar o histórico. Quem pode ler esta nota verá o conteúdo restaurado.",
       "restore": "Restaurar esta versão"
+    },
+    "tasks": {
+      "heading": "Minhas tarefas",
+      "linked": "Tarefas vinculadas",
+      "new": "Nova tarefa",
+      "edit": "Detalhes da tarefa",
+      "title": "Título da tarefa",
+      "description": "Descrição",
+      "statusLabel": "Status",
+      "assignee": "Responsável",
+      "unassigned": "Sem responsável",
+      "dueDate": "Prazo (horário do servidor)",
+      "shareAssignee": "Dar a este responsável acesso de leitura somente a esta tarefa",
+      "sourcePrivacy": "Compartilhar esta tarefa ou atribuir um responsável não compartilha a nota de origem. A origem aparece apenas para quem já pode lê-la.",
+      "share": "Compartilhar tarefa",
+      "save": "Salvar tarefa",
+      "archive": "Arquivar tarefa",
+      "restore": "Restaurar tarefa",
+      "filter": "Filtrar tarefas",
+      "active": "Tarefas ativas",
+      "all": "Todas as tarefas",
+      "empty": "Nenhuma tarefa nesta visualização.",
+      "assigneeAccess": "Este responsável não pode ler a tarefa. Quem a criou pode optar por compartilhar somente esta tarefa com ele antes de atribuí-la.",
+      "status": {
+        "open": "A fazer",
+        "in_progress": "Em andamento",
+        "done": "Concluída",
+        "cancelled": "Cancelada"
+      }
+    },
+    "intake": {
+      "enable": "Sugerir tarefas a partir das minhas anotações",
+      "consent": "Permita que a IA configurada interprete o texto da sua anotação e sugira tarefas e prioridade. Isso não ativa indexação de conhecimento, compartilhamento ou notificações.",
+      "thisCapture": "Usar sugestões nesta anotação",
+      "unavailable": "As sugestões de IA estão indisponíveis para esta anotação. Você ainda pode salvar a nota e usar os controles manuais de tarefas.",
+      "analyzing": "Identificando ações…",
+      "noActions": "Nenhuma tarefa sugerida. Isto pode continuar sendo uma nota.",
+      "includeTask": "Incluir esta tarefa privada",
+      "resetPriority": "Usar a prioridade detectada novamente",
+      "saveTasks": "Salvar nota e {count, plural, one {# tarefa} other {# tarefas}}",
+      "failed": "Não foi possível interpretar esta anotação. Seu texto e suas escolhas manuais continuam aqui.",
+      "disabled": "A interpretação por IA está desativada para este autor ou esta nota.",
+      "rateLimited": "Muitas solicitações de interpretação. Continue escrevendo e tente novamente mais tarde."
     },
     "errors": {
       "invalid": "Confira os detalhes da nota e tente novamente.",

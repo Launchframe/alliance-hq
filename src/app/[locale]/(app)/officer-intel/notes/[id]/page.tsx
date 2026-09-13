@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 
 import { OfficerMeetingNoteClient } from "@/components/officer-intel/OfficerMeetingNoteClient";
 import {
@@ -23,7 +24,8 @@ export default async function OfficerMeetingNotePage({ params }: Props) {
   const session = await requirePageSession(`/officer-intel/notes/${id}`);
   await requirePagePermission(session.id, OFFICER_INTEL_READ_PERMISSION);
   const allianceId = session.currentAllianceId ?? session.allianceId;
-  if (!allianceId) notFound();
+  const actor = await getKnowledgeActorForSession(session.id);
+  if (!allianceId || !actor || actor.allianceId !== allianceId) notFound();
 
   const note = await getOfficerMeetingNoteForAlliance({
     noteId: id,
@@ -36,7 +38,7 @@ export default async function OfficerMeetingNotePage({ params }: Props) {
       sessionId: note.sessionId,
       allianceId,
     }),
-    listOfficerActionItemsForNote({ noteId: id, allianceId }),
+    listOfficerActionItemsForNote({ noteId: id, allianceId, actor }),
     sessionHasPermission(session.id, OFFICER_INTEL_WRITE_PERMISSION),
   ]);
 

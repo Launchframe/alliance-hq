@@ -3,7 +3,7 @@ import { PERFORMANCE_NOTE_KINDS } from "@/lib/performance-notes/types.shared";
 
 export const NOTE_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 export type NotePriority = (typeof NOTE_PRIORITIES)[number] | null;
-export type NoteWorkspaceView = "notebook" | "inbox" | "shared" | "archived";
+export type NoteWorkspaceView = "notebook" | "inbox" | "shared" | "archived" | "tasks";
 
 export function normalizeNoteLabels(values: readonly string[]): string[] {
   const labels = new Map<string, string>();
@@ -26,6 +26,7 @@ const noteValidators = {
   body: z.string().trim().min(1).max(100_000),
   kind: z.enum(PERFORMANCE_NOTE_KINDS),
   priority: z.enum(NOTE_PRIORITIES).nullable(),
+  priorityMode: z.enum(["manual", "auto"]),
   labels: z.array(z.string().trim().max(32)).max(12).transform(normalizeNoteLabels),
   notebook: z.string().trim().max(60).nullable().transform((value) => value || null),
   journalDate: z.string().refine(isJournalDate).nullable(),
@@ -35,7 +36,7 @@ const noteValidators = {
 export const noteFieldsSchema = z.object({
   ...noteValidators,
   title: noteValidators.title.default(""), kind: noteValidators.kind.default("note"),
-  priority: noteValidators.priority.default(null), labels: noteValidators.labels.default([]),
+  priority: noteValidators.priority.default(null), priorityMode: noteValidators.priorityMode.default("manual"), labels: noteValidators.labels.default([]),
   notebook: noteValidators.notebook.default(null), journalDate: noteValidators.journalDate.default(null),
   inbox: noteValidators.inbox.default(true), memberIds: memberIds.default([]),
   detectedMemberIds: memberIds.default([]), excludedMemberIds: memberIds.default([]),

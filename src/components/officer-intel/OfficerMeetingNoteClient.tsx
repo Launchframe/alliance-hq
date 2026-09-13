@@ -178,7 +178,7 @@ export function OfficerMeetingNoteClient({
                     </p>
                   </div>
                   <span className="text-xs uppercase text-hq-muted">
-                    {t(`priority.${item.priority}`)} ·{" "}
+                    {t(`priority.${item.priority ?? "none"}`)} ·{" "}
                     {t(`status.${item.status}`)}
                   </span>
                 </div>
