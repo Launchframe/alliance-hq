@@ -45,7 +45,8 @@ export async function requireNotesApiContext(permission: "notes:read" | "notes:c
 export async function notesErrorResponse(error: unknown) {
   const t = await getTranslations("notes");
   if (error instanceof KnowledgeAccessError) {
-    const key = error.code === "not_found" ? "notFound" : error.code === "changed" ? "errors.conflict" : error.code === "invalid" ? "errors.invalid" : "errors.forbidden";
+    const keys = { not_found: "notFound", changed: "errors.conflict", invalid: "errors.invalid", forbidden: "errors.forbidden", assignee_access: "tasks.assigneeAccess", intake_disabled: "intake.disabled", not_configured: "intake.unavailable", rate_limited: "intake.rateLimited", invalid_analysis: "intake.failed" } as const;
+    const key = keys[error.code];
     return NextResponse.json({ error: t(key), code: error.code }, { status: error.status });
   }
   return NextResponse.json({ error: t("saveFailed"), code: "failed" }, { status: 500 });

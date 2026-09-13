@@ -1822,6 +1822,7 @@
       },
       "notes": {
         "newNote": "Create a note",
+        "newTask": "Create a task",
         "search": "Search notes"
       },
       "trains": {
@@ -7062,9 +7063,12 @@
     "markInProgress": "Mark in progress",
     "markDone": "Mark done",
     "priority": {
+      "none": "None",
       "low": "Low",
       "normal": "Normal",
-      "high": "High"
+      "medium": "Medium",
+      "high": "High",
+      "urgent": "Urgent"
     },
     "status": {
       "open": "Open",
@@ -7073,7 +7077,7 @@
       "cancelled": "Cancelled"
     },
     "askTitle": "Ask about alliance decisions",
-    "askSubtitle": "Answers use officer-approved meeting notes and open action items — not the full chat history.",
+    "askSubtitle": "Answers use officer-approved meeting notes. Private tasks and the full chat history are not included.",
     "askPlaceholder": "What did we decide about banks?",
     "askSubmit": "Ask",
     "asking": "Searching approved meeting notes…",
@@ -7108,6 +7112,7 @@
     "backToNotes": "All notes",
     "notFound": "Note not found.",
     "views": {
+      "tasks": "Tasks",
       "notebook": "Notebook",
       "inbox": "Inbox",
       "shared": "Shared with me",
@@ -7218,6 +7223,49 @@
       "version": "Version {version}",
       "restoreHint": "Restoring creates a new version without deleting history. Anyone who can read this note will see the restored content.",
       "restore": "Restore this version"
+    },
+    "tasks": {
+      "heading": "My tasks",
+      "linked": "Linked tasks",
+      "new": "New task",
+      "edit": "Task details",
+      "title": "Task title",
+      "description": "Description",
+      "statusLabel": "Status",
+      "assignee": "Assignee",
+      "unassigned": "Unassigned",
+      "dueDate": "Due date (server time)",
+      "shareAssignee": "Give this assignee read access to this task only",
+      "sourcePrivacy": "Sharing or assigning this task does not share its source note. The source is shown only to people who can already read it.",
+      "share": "Share task",
+      "save": "Save task",
+      "archive": "Archive task",
+      "restore": "Restore task",
+      "filter": "Filter tasks",
+      "active": "Active tasks",
+      "all": "All tasks",
+      "empty": "No tasks in this view.",
+      "assigneeAccess": "This assignee cannot read the task. Its owner can choose to share this task with them before assigning it.",
+      "status": {
+        "open": "Backlog",
+        "in_progress": "In progress",
+        "done": "Done",
+        "cancelled": "Cancelled"
+      }
+    },
+    "intake": {
+      "enable": "Suggest tasks from my captures",
+      "consent": "Allow the configured AI to interpret your capture text and suggest tasks and priority. This does not enable knowledge indexing, sharing, or notifications.",
+      "thisCapture": "Use suggestions for this capture",
+      "unavailable": "AI suggestions are unavailable for this capture. You can still save your note and use manual task controls.",
+      "analyzing": "Looking for actions…",
+      "noActions": "No tasks suggested. This can stay a note.",
+      "includeTask": "Include this private task",
+      "resetPriority": "Use detected priority again",
+      "saveTasks": "Save note and {count, plural, one {# task} other {# tasks}}",
+      "failed": "Could not interpret this capture. Your text and manual choices are still here.",
+      "disabled": "Conversational AI intake is off for this author or note.",
+      "rateLimited": "Too many interpretation requests. Keep writing and try again later."
     },
     "errors": {
       "invalid": "Check the note details and try again.",

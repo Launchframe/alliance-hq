@@ -43,6 +43,7 @@ function e2eServerEnv(): Record<string, string> {
     env.LOCAL_DATABASE_URL = e2eDatabaseUrl;
     env.DATABASE_URL = e2eDatabaseUrl;
   }
+  env.NOTES_INTAKE_TEST_PROVIDER = process.env.NOTES_INTAKE_TEST_PROVIDER ?? "true";
   const ocrProvider = process.env.VIDEO_OCR_PROVIDER?.trim();
   if (ocrProvider) {
     env.VIDEO_OCR_PROVIDER = ocrProvider;

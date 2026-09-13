@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CaptureCommit, IntakeResult } from "@/lib/notes/intake.shared";
+import { useNoteIntake } from "./useNoteIntake";
+import { TaskStateFields } from "./TaskStateFields";
+import { NoteTasksPanel } from "./NoteTasksPanel";
 import { useTranslations } from "next-intl";
 import { Archive, Check, Clock3, Globe2, LockKeyhole, MessageSquare, Save, Share2, X } from "lucide-react";
 import type { PerformanceNoteDto, PerformanceNoteRosterMember } from "@/lib/performance-notes/types.shared";
@@ -18,7 +22,7 @@ export function NoteEditor({ note, initialBody = "", roster, onClose, onSave, on
   initialBody?: string;
   roster: PerformanceNoteRosterMember[];
   onClose: () => void;
-  onSave: (fields: NoteFields | NotePatch, noteId?: string) => Promise<void>;
+  onSave: (fields: NoteFields | NotePatch | CaptureCommit, noteId?: string) => Promise<void>;
   onShare: (note: PerformanceNoteDto) => void;
   onHistory: (note: PerformanceNoteDto) => void;
 }) {
@@ -31,6 +35,7 @@ export function NoteEditor({ note, initialBody = "", roster, onClose, onSave, on
   const [draft, setDraft] = useState(() => ({
     title: original?.title ?? "", body: original?.body ?? initialBody,
     kind: original?.kind ?? "note", priority: original?.priority ?? null as NotePriority,
+    priorityMode: original?.priorityMode ?? "auto" as "auto" | "manual",
     notebook: original?.notebook ?? "", journalDate: original?.journalDate ?? "", inbox: original?.inbox ?? true,
   }));
   const [labels, setLabels] = useState(original?.labels.join(", ") ?? "");
@@ -42,6 +47,24 @@ export function NoteEditor({ note, initialBody = "", roster, onClose, onSave, on
   const [discard, setDiscard] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dirtyAfterConflict, setDirtyAfterConflict] = useState(false);
+  const [draftId] = useState(() => crypto.randomUUID());
+  const [revision, setRevision] = useState(0);
+  const [overrideRevision, setOverrideRevision] = useState(0);
+  const [captureAi, setCaptureAi] = useState(true);
+  const [analysisRevision, setAnalysisRevision] = useState(-1);
+  const [suggestions, setSuggestions] = useState<Array<IntakeResult["actions"][number] & { manual?: boolean }>>([]);
+  const acceptAnalysis = useCallback((result: IntakeResult) => {
+    setAnalysisRevision(result.revision);
+    setDraft((current) => current.priorityMode === "manual" ? current : { ...current, priority: result.priority });
+    setSuggestions((current) => [...result.actions.map((action) => current.find((item) => item.actionKey === action.actionKey && item.manual) ?? action), ...current.filter((item) => item.manual && !result.actions.some((action) => action.actionKey === item.actionKey))]);
+  }, []);
+  const intake = useNoteIntake({ draftId, body: draft.body, revision, overrideRevision, active: !original && captureAi && !saving, onResult: acceptAnalysis });
+  const currentSuggestions = suggestions.filter((item) => item.manual || analysisRevision === revision && captureAi && intake.preference?.enabled);
+  const includedCount = currentSuggestions.filter((item) => item.included).length;
+  function editSuggestion(actionKey: string, patch: Partial<IntakeResult["actions"][number]>) {
+    setOverrideRevision((value) => value + 1);
+    setSuggestions((current) => current.map((item) => item.actionKey === actionKey ? { ...item, ...patch, manual: true } : item));
+  }
   const bodyChanged = !original || draft.body !== original.body;
   const detection = useMemo(() => owner && bodyChanged ? detectNoteMentions(draft.body, roster) : { memberIds: original?.members.filter((member) => member.origin === "detected").map((member) => member.ashedMemberId) ?? [], matches: [] }, [bodyChanged, draft.body, original, owner, roster]);
   const detected = detection.memberIds.filter((id) => !excluded.has(id) && !manual.has(id));
@@ -92,7 +115,7 @@ export function NoteEditor({ note, initialBody = "", roster, onClose, onSave, on
           ...(owner ? { notebook, inbox, excludedMemberIds, ...(archived !== undefined ? { archived } : {}) } : {}),
           ...(membersTouched || bodyChanged && owner ? { memberIds, detectedMemberIds } : {}),
         }, original.id);
-      } else await onSave(fields);
+      } else await onSave({ ...fields, requestId: draftId, tasks: currentSuggestions.map((item) => ({ ...item, evidence: item.manual ? null : item.evidence, labels: [], assigneeHqUserId: null, dueAt: null })) });
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : t("saveFailed"));
       setDirtyAfterConflict(true);
@@ -110,29 +133,44 @@ export function NoteEditor({ note, initialBody = "", roster, onClose, onSave, on
         </div>
       </header>
       <div className="min-h-0 overflow-y-auto">
-        <div className="px-6 pt-6 sm:px-8"><input enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT} aria-label={t("fields.title")} placeholder={noteTitle({ body: draft.body }) || t("editor.untitled")} value={draft.title} maxLength={160} disabled={!editable} onChange={(event) => setDraft({ ...draft, title: event.target.value })} className="w-full border-0 bg-transparent text-2xl font-semibold leading-tight tracking-tight outline-none placeholder:text-hq-fg-muted sm:text-3xl" /></div>
+        <div className="px-6 pt-6 sm:px-8"><input enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT} aria-label={t("fields.title")} placeholder={noteTitle({ body: draft.body }) || t("editor.untitled")} value={draft.title} maxLength={160} disabled={!editable || saving} onChange={(event) => setDraft({ ...draft, title: event.target.value })} className="w-full border-0 bg-transparent text-2xl font-semibold leading-tight tracking-tight outline-none placeholder:text-hq-fg-muted sm:text-3xl" /></div>
         <div className="grid gap-6 px-6 py-6 sm:grid-cols-[minmax(0,1fr)_15rem] sm:px-8">
           <div className="min-w-0 space-y-5">
             <div>
               <div className="mb-3 flex items-center gap-1 border-b border-hq-border">{editable ? [false, true].map((value) => <button key={String(value)} type="button" onClick={() => setPreview(value)} className={`border-b-2 px-3 py-2 text-xs font-medium ${preview === value ? "border-hq-accent text-hq-accent" : "border-transparent text-hq-fg-muted"}`}>{value ? t("editor.preview") : t("editor.write")}</button>) : <span className="py-2 text-xs font-medium text-hq-fg-muted">{t("bodyLabel")}</span>}</div>
-              {preview || !editable ? <div className="min-h-52"><NoteMarkdown body={draft.body} /></div> : <textarea data-no-enter-submit ref={bodyInput} aria-label={t("bodyLabel")} placeholder={t("editor.placeholder")} value={draft.body} maxLength={100_000} rows={12} onChange={(event) => setDraft({ ...draft, body: event.target.value })} className="min-h-60 w-full resize-y rounded-lg border border-hq-border bg-transparent p-3 text-sm leading-7 outline-none focus:border-hq-accent focus:ring-2 focus:ring-hq-accent/10" />}
+              {preview || !editable ? <div className="min-h-52"><NoteMarkdown body={draft.body} /></div> : <textarea data-no-enter-submit ref={bodyInput} disabled={saving} aria-label={t("bodyLabel")} placeholder={t("editor.placeholder")} value={draft.body} maxLength={100_000} rows={12} onChange={(event) => { setRevision((value) => value + 1); setDraft({ ...draft, body: event.target.value, priority: draft.priorityMode === "auto" && !original ? null : draft.priority }); }} className="min-h-60 w-full resize-y rounded-lg border border-hq-border bg-transparent p-3 text-sm leading-7 outline-none focus:border-hq-accent focus:ring-2 focus:ring-hq-accent/10" />}
               {editable && !preview ? <p className="mt-2 text-xs text-hq-fg-muted">{t("editor.markdownHint")}</p> : null}
             </div>
-            <section className="space-y-2 border-t border-hq-border pt-4"><h3 className="text-xs font-semibold text-hq-fg-muted">{t("fields.members")}</h3><NoteMemberPicker roster={completeRoster} selectedIds={selectedIds} detectedIds={detected} disabled={!editable} onAdd={addMember} onRemove={removeMember} /><p className="text-xs leading-5 text-hq-fg-muted">{t("editor.memberPrivacy")}</p>{detection.matches.filter((match) => !match.automatic && !match.candidates.some((member) => selectedIds.includes(member.ashedMemberId))).map((match) => <div key={`${match.start}:${match.end}`} className="rounded-lg border border-hq-border bg-hq-surface p-3 text-xs"><p className="mb-2">{t("editor.chooseMember", { name: match.text })}</p><div className="flex flex-wrap gap-1.5">{match.candidates.map((candidate) => <button key={candidate.ashedMemberId} type="button" onClick={() => addMember(candidate.ashedMemberId)} className="rounded border border-hq-border bg-hq-canvas px-2 py-1 hover:border-hq-accent">{candidate.name}</button>)}</div></div>)}</section>
+            {!original ? <section className="space-y-3 rounded-xl border border-hq-border bg-hq-surface/50 p-4">
+              <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={intake.enabled} disabled={!intake.preference || intake.changing || saving} onChange={(event) => void intake.setEnabled(event.target.checked)} className="accent-hq-accent" />{t("intake.enable")}</label>
+              <p className="text-xs leading-5 text-hq-fg-muted">{t("intake.consent")}</p>
+              {intake.preference?.enabled ? <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={captureAi} disabled={saving} onChange={(event) => { setCaptureAi(event.target.checked); setOverrideRevision((value) => value + 1); }} className="accent-hq-accent" />{t("intake.thisCapture")}</label> : null}
+              {!intake.preference?.configured || draft.body.length > 10_000 ? <p className="text-xs text-hq-fg-muted">{t("intake.unavailable")}</p> : intake.pending ? <p role="status" className="text-xs text-hq-accent">{t("intake.analyzing")}</p> : analysisRevision === revision && !currentSuggestions.length ? <p className="text-xs text-hq-fg-muted">{t("intake.noActions")}</p> : null}
+              {intake.error ? <p role="alert" className="text-xs text-hq-danger">{intake.error}</p> : null}
+              {currentSuggestions.map((item) => <div key={item.actionKey} data-testid="intake-task" className={`space-y-2 rounded-lg border border-hq-border bg-hq-canvas p-3 ${item.included ? "" : "opacity-60"}`}>
+                <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={item.included} disabled={saving} onChange={(event) => editSuggestion(item.actionKey, { included: event.target.checked })} className="accent-hq-accent" />{t("intake.includeTask")}</label>
+                <input aria-label={t("tasks.title")} value={item.title} disabled={saving} maxLength={160} onChange={(event) => editSuggestion(item.actionKey, { title: event.target.value })} className={inputClass} />
+                <TaskStateFields status={item.status} priority={item.priority} disabled={saving || !item.included} onStatus={(status) => editSuggestion(item.actionKey, { status })} onPriority={(priority) => editSuggestion(item.actionKey, { priority })} />
+                <p className="border-l-2 border-hq-border pl-2 text-xs text-hq-fg-muted">{item.evidence}</p>
+              </div>)}
+              {draft.priorityMode === "manual" ? <button type="button" disabled={saving} onClick={() => { setDraft((current) => ({ ...current, priorityMode: "auto" })); setOverrideRevision((value) => value + 1); }} className="text-xs text-hq-accent">{t("intake.resetPriority")}</button> : null}
+            </section> : null}
+            <section className="space-y-2 border-t border-hq-border pt-4"><h3 className="text-xs font-semibold text-hq-fg-muted">{t("fields.members")}</h3><NoteMemberPicker roster={completeRoster} selectedIds={selectedIds} detectedIds={detected} disabled={!editable || saving} onAdd={addMember} onRemove={removeMember} /><p className="text-xs leading-5 text-hq-fg-muted">{t("editor.memberPrivacy")}</p>{detection.matches.filter((match) => !match.automatic && !match.candidates.some((member) => selectedIds.includes(member.ashedMemberId))).map((match) => <div key={`${match.start}:${match.end}`} className="rounded-lg border border-hq-border bg-hq-surface p-3 text-xs"><p className="mb-2">{t("editor.chooseMember", { name: match.text })}</p><div className="flex flex-wrap gap-1.5">{match.candidates.map((candidate) => <button key={candidate.ashedMemberId} type="button" onClick={() => addMember(candidate.ashedMemberId)} className="rounded border border-hq-border bg-hq-canvas px-2 py-1 hover:border-hq-accent">{candidate.name}</button>)}</div></div>)}</section>
+            {original ? <NoteTasksPanel sourceNoteId={original.id} /> : null}
           </div>
           <aside className="space-y-4 rounded-xl bg-hq-surface p-4 sm:self-start">
-            <label className="block space-y-1.5"><span className="text-xs font-medium text-hq-fg-muted">{t("fields.priority")}</span><select aria-label={t("fields.priority")} value={draft.priority ?? "none"} disabled={!editable} onChange={(event) => setDraft({ ...draft, priority: event.target.value === "none" ? null : event.target.value as NotePriority })} className={inputClass}>{["none", ...NOTE_PRIORITIES].map((value) => <option key={value} value={value}>{t(`priority.${value}`)}</option>)}</select></label>
-            <label className="block space-y-1.5"><span className="text-xs font-medium text-hq-fg-muted">{t("kindLabel")}</span><select value={draft.kind} disabled={!editable} onChange={(event) => setDraft({ ...draft, kind: event.target.value as NoteFields["kind"] })} className={inputClass}><option value="note">{t("kindNote")}</option><option value="commendation">{t("kindCommendation")}</option><option value="violation">{t("kindViolation")}</option></select></label>
-            <label className="block space-y-1.5"><span className="text-xs font-medium text-hq-fg-muted">{t("fields.labels")}</span><input enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT} value={labels} disabled={!editable} onChange={(event) => setLabels(event.target.value)} placeholder={t("editor.labelsPlaceholder")} className={inputClass} /></label>
-            {owner ? <label className="block space-y-1.5"><span className="text-xs font-medium text-hq-fg-muted">{t("fields.notebook")}</span><input enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT} value={draft.notebook} disabled={!editable} maxLength={60} onChange={(event) => setDraft({ ...draft, notebook: event.target.value })} placeholder={t("editor.noNotebook")} className={inputClass} /></label> : null}
-            <label className="block space-y-1.5"><span className="text-xs font-medium text-hq-fg-muted">{t("fields.journalDate")}</span><input type="date" value={draft.journalDate} disabled={!editable} onChange={(event) => setDraft({ ...draft, journalDate: event.target.value })} className={inputClass} /></label>
-            {owner ? <label className="flex items-center gap-2 border-t border-hq-border pt-3 text-xs"><input type="checkbox" checked={draft.inbox} disabled={!editable} onChange={(event) => setDraft({ ...draft, inbox: event.target.checked })} className="accent-hq-accent" />{t("editor.keepInInbox")}</label> : null}
+            <label className="block space-y-1.5"><span className="text-xs font-medium text-hq-fg-muted">{t("fields.priority")}</span><select aria-label={t("fields.priority")} value={draft.priority ?? "none"} disabled={!editable || saving} onChange={(event) => { setOverrideRevision((value) => value + 1); setDraft({ ...draft, priorityMode: "manual", priority: event.target.value === "none" ? null : event.target.value as NotePriority }); }} className={inputClass}>{["none", ...NOTE_PRIORITIES].map((value) => <option key={value} value={value}>{t(`priority.${value}`)}</option>)}</select></label>
+            <label className="block space-y-1.5"><span className="text-xs font-medium text-hq-fg-muted">{t("kindLabel")}</span><select value={draft.kind} disabled={!editable || saving} onChange={(event) => setDraft({ ...draft, kind: event.target.value as NoteFields["kind"] })} className={inputClass}><option value="note">{t("kindNote")}</option><option value="commendation">{t("kindCommendation")}</option><option value="violation">{t("kindViolation")}</option></select></label>
+            <label className="block space-y-1.5"><span className="text-xs font-medium text-hq-fg-muted">{t("fields.labels")}</span><input enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT} value={labels} disabled={!editable || saving} onChange={(event) => setLabels(event.target.value)} placeholder={t("editor.labelsPlaceholder")} className={inputClass} /></label>
+            {owner ? <label className="block space-y-1.5"><span className="text-xs font-medium text-hq-fg-muted">{t("fields.notebook")}</span><input enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT} value={draft.notebook} disabled={!editable || saving} maxLength={60} onChange={(event) => setDraft({ ...draft, notebook: event.target.value })} placeholder={t("editor.noNotebook")} className={inputClass} /></label> : null}
+            <label className="block space-y-1.5"><span className="text-xs font-medium text-hq-fg-muted">{t("fields.journalDate")}</span><input type="date" value={draft.journalDate} disabled={!editable || saving} onChange={(event) => setDraft({ ...draft, journalDate: event.target.value })} className={inputClass} /></label>
+            {owner ? <label className="flex items-center gap-2 border-t border-hq-border pt-3 text-xs"><input type="checkbox" checked={draft.inbox} disabled={!editable || saving} onChange={(event) => setDraft({ ...draft, inbox: event.target.checked })} className="accent-hq-accent" />{t("editor.keepInInbox")}</label> : null}
           </aside>
         </div>
       </div>
       <footer className="border-t border-hq-border bg-hq-canvas px-6 py-4 sm:px-8">
         {error ? <p role="alert" className="mb-3 rounded-lg bg-hq-danger/10 px-3 py-2 text-sm text-hq-danger">{error}{dirtyAfterConflict ? <span className="mt-1 block text-xs">{t("editor.draftPreserved")}</span> : null}</p> : null}
-        <div className="flex flex-wrap items-center justify-between gap-3"><div>{note?.isOwner ? <button type="button" disabled={saving} onClick={() => void save(!note.archived)} className="inline-flex items-center gap-1.5 text-xs text-hq-fg-muted hover:text-hq-fg"><Archive className="h-3.5 w-3.5" />{note.archived ? t("actions.restore") : t("actions.archive")}</button> : <span className="inline-flex items-center gap-1.5 text-xs text-hq-fg-muted"><LockKeyhole className="h-3.5 w-3.5" />{t("editor.memberPrivacy")}</span>}</div><div className="flex gap-2"><button type="button" onClick={close} className={secondary}>{t("actions.close")}</button>{editable ? <button type="submit" disabled={saving || !draft.body.trim() || !!original && !dirty} className="inline-flex items-center gap-2 rounded-lg bg-hq-accent px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50">{saving ? <Save className="h-4 w-4 animate-pulse" /> : <Check className="h-4 w-4" />}{saving ? t("saving") : t("saveNote")}</button> : null}</div></div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><div>{note?.isOwner ? <button type="button" disabled={saving} onClick={() => void save(!note.archived)} className="inline-flex items-center gap-1.5 text-xs text-hq-fg-muted hover:text-hq-fg"><Archive className="h-3.5 w-3.5" />{note.archived ? t("actions.restore") : t("actions.archive")}</button> : <span className="inline-flex items-center gap-1.5 text-xs text-hq-fg-muted"><LockKeyhole className="h-3.5 w-3.5" />{t("editor.memberPrivacy")}</span>}</div><div className="flex gap-2"><button type="button" onClick={close} className={secondary}>{t("actions.close")}</button>{editable ? <button type="submit" disabled={saving || !draft.body.trim() || !!original && !dirty} className="inline-flex items-center gap-2 rounded-lg bg-hq-accent px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50">{saving ? <Save className="h-4 w-4 animate-pulse" /> : <Check className="h-4 w-4" />}{saving ? t("saving") : !original && includedCount ? t("intake.saveTasks", { count: includedCount }) : t("saveNote")}</button> : null}</div></div>
       </footer>
     </form>}
   </dialog>;

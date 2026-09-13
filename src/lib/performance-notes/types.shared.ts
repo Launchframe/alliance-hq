@@ -26,6 +26,7 @@ export type PerformanceNoteDto = {
   body: string;
   title: string;
   priority: NotePriority;
+  priorityMode: "manual" | "auto";
   labels: string[];
   notebook: string | null;
   journalDate: string | null;

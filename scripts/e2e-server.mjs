@@ -114,6 +114,7 @@ function buildEnv(dbUrl) {
     E2E_EMAIL_CODE: process.env.E2E_EMAIL_CODE?.trim() || "424242",
     ...e2eOAuthEnv(),
   };
+  if (process.env.NOTES_INTAKE_TEST_PROVIDER === "true") env.NOTES_INTAKE_TEST_PROVIDER = "true";
   const provider = process.env.VIDEO_OCR_PROVIDER?.trim();
   if (provider) {
     env.VIDEO_OCR_PROVIDER = provider;

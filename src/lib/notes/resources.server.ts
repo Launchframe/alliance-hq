@@ -9,7 +9,7 @@ import { knowledgeActorIsAuthenticated, type KnowledgeAccess, type KnowledgeActo
 export type KnowledgeTransaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 
 export class KnowledgeAccessError extends Error {
-  constructor(public readonly code: "forbidden" | "not_found" | "changed" | "invalid", public readonly status = code === "forbidden" ? 403 : code === "not_found" ? 404 : code === "invalid" ? 400 : 409) {
+  constructor(public readonly code: "forbidden" | "not_found" | "changed" | "invalid" | "assignee_access" | "intake_disabled" | "not_configured" | "rate_limited" | "invalid_analysis", public readonly status = code === "forbidden" || code === "intake_disabled" ? 403 : code === "not_found" ? 404 : code === "invalid" ? 400 : code === "not_configured" ? 503 : code === "rate_limited" ? 429 : code === "invalid_analysis" ? 502 : 409) {
     super(code);
   }
 }
@@ -121,7 +121,10 @@ export async function remapKnowledgeUser(tx: KnowledgeTransaction, sourceId: str
   await tx.update(schema.officerMeetingNotes).set({ synthesizedByHqUserId: canonicalId }).where(eq(schema.officerMeetingNotes.synthesizedByHqUserId, sourceId));
   await tx.update(schema.officerMeetingNotes).set({ approvedByHqUserId: canonicalId }).where(eq(schema.officerMeetingNotes.approvedByHqUserId, sourceId));
   await tx.update(schema.officerActionItems).set({ createdByHqUserId: canonicalId }).where(eq(schema.officerActionItems.createdByHqUserId, sourceId));
+  await tx.update(schema.officerActionItems).set({ assigneeHqUserId: canonicalId }).where(eq(schema.officerActionItems.assigneeHqUserId, sourceId));
+  await tx.update(schema.knowledgeIntakePreferences).set({ enabled: false, version: sql`${schema.knowledgeIntakePreferences.version} + 1` }).where(inArray(schema.knowledgeIntakePreferences.principalKey, [`hq:${sourceId}`, `hq:${canonicalId}`]));
   await tx.update(schema.officerIntelThreads).set({ createdByHqUserId: canonicalId }).where(eq(schema.officerIntelThreads.createdByHqUserId, sourceId));
+  await tx.update(schema.knowledgeMutationReceipts).set({ principalKey: `hq:${canonicalId}` }).where(eq(schema.knowledgeMutationReceipts.principalKey, `hq:${sourceId}`));
 }
 
 /** One-way Discord→HQ ownership claim for the actor's current alliance (Notes surfaces / writes). */

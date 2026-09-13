@@ -165,7 +165,7 @@ export async function streamOfficerIntelAsk(input: {
           stopWhen: isStepCount(3),
           prompt: [
             "Conversation summary:",
-            formatThreadSummaryForPrompt(thread.runningSummary),
+            formatThreadSummaryForPrompt(""),
             "",
             "Retrieved approved corpus:",
             formatRetrievedChunksForPrompt(chunks),
@@ -209,7 +209,7 @@ export async function streamOfficerIntelAsk(input: {
         if (shouldRefreshThreadSummary(nextTurnCount)) {
           try {
             nextSummary = await refreshRunningSummary({
-              previousSummary: thread.runningSummary,
+              previousSummary: "",
               question,
               answer,
             });
