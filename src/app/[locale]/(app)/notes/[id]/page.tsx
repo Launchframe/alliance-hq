@@ -33,5 +33,5 @@ export default async function NoteDetailPage({ params }: Props) {
   if (!note) notFound();
   const [notes, roster] = await Promise.all([listPerformanceNotes(actor), listPerformanceNoteRoster(actor.allianceId)]);
 
-  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:${id}`} initial={{ notes, roster, canCreate: actor.canCreate }} focusNoteId={id} />;
+  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:${id}`} initial={{ notes, roster, canCreate: actor.canCreate, canReadBoards: actor.canReadBoards }} focusNoteId={id} />;
 }
