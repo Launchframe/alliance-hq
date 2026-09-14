@@ -16,7 +16,11 @@ test("OCR learning denies bootstrap and authenticated non-maintainer sessions", 
   expect((await request.post(`${base}/datasets`, { headers, data: {} })).status()).toBe(403);
   expect((await request.patch(`${base}/cases/unknown?allianceId=unknown`, { headers, data: { action: "revoke", confirmed: true, expectedRevision: 0 } })).status()).toBe(403);
   const user = await createAuthenticatedHqSession(getE2eSql(), `ocr-member-${nanoid(8)}@e2e.test`);
-  expect((await request.get(`${base}/cases?allianceId=unknown`, { headers: { Cookie: authCookieHeader(user) } })).status()).toBe(403);
+  const memberHeaders = { Cookie: authCookieHeader(user) };
+  expect((await request.get(`${base}/cases?allianceId=unknown`, { headers: memberHeaders })).status()).toBe(403);
+  expect((await request.get(`${base}/datasets?allianceId=unknown`, { headers: memberHeaders })).status()).toBe(403);
+  expect((await request.post(`${base}/datasets`, { headers: memberHeaders, data: { allianceId: "unknown", cases: [] } })).status()).toBe(403);
+  expect((await request.patch(`${base}/cases/unknown?allianceId=unknown`, { headers: memberHeaders, data: { action: "revoke", confirmed: true, expectedRevision: 0 } })).status()).toBe(403);
 });
 
 for (const scoreTarget of ["vs-performance", "alliance-kills-video"] as const) {
