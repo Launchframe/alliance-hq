@@ -33,6 +33,7 @@ async function taskRows(actor: KnowledgeActor, filter?: { id?: string; sourceNot
   return rows.filter((row) => (TASK_STATUSES as readonly string[]).includes(row.task.status)).map((row) => ({
     id: row.task.id, title: row.task.title, description: row.task.description, status: row.task.status as TaskStatus,
     priority: normalizeTaskPriority(row.task.priority), labels: row.task.labels,
+    intakeProvenance: row.owner && row.sourceId ? row.task.intakeProvenance : undefined,
     dueAt: row.task.dueAt?.toISOString() ?? null, completedAt: row.task.completedAt?.toISOString() ?? null,
     assignee: row.assigneeId ? { id: row.assigneeId, name: row.assigneeName?.includes("@") ? null : row.assigneeName } : null,
     legacyAssigneeName: row.task.assigneeNameRaw,
@@ -122,6 +123,7 @@ export async function updateNoteTaskInTransaction(tx: KnowledgeTransaction, acto
     const status = input.status ?? current.status as TaskStatus;
     const [updated] = await tx.update(tasks).set({
       title: input.title, description: input.description, status, priority: input.priority, labels: input.labels,
+      intakeProvenance: current.intakeProvenance ? { ...current.intakeProvenance, modes: { ...current.intakeProvenance.modes, ...Object.fromEntries(["title", "description", "status", "priority"].filter((key) => input[key as keyof TaskMutation] !== undefined).map((key) => [key, "manual" as const])) } } : undefined,
       assigneeAllianceMemberId: input.legacyAssigneeAllianceMemberId, assigneeNameRaw: legacyName, dueHint: input.dueHint,
       assigneeHqUserId: input.assigneeHqUserId, dueAt: input.dueAt === undefined ? undefined : input.dueAt ? new Date(input.dueAt) : null,
       completedAt: taskCompletedAt(status, current.completedAt, new Date()), updatedAt: new Date(),

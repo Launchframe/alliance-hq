@@ -37,7 +37,7 @@ export function knowledgeAccessCondition(actor: KnowledgeActor, resourceId: SQLW
       and (
         (kr.ownership_state = 'hq' and kr.owner_hq_user_id = ${actor.hqUserId})
         or (kr.ownership_state = 'discord' and ${actor.kind === "discord"} and kr.owner_discord_user_id = ${actor.discordUserId})
-        or (${access !== "share"} and exists (
+        or (${access !== "share"} and kr.kind <> 'draft' and exists (
           select 1 from knowledge_resource_grants kg
           where kg.resource_id = kr.id and kg.alliance_id = kr.alliance_id
             and (${access !== "edit"} or kg.role = 'edit')
@@ -125,6 +125,7 @@ export async function remapKnowledgeUser(tx: KnowledgeTransaction, sourceId: str
   await tx.update(schema.knowledgeIntakePreferences).set({ enabled: false, version: sql`${schema.knowledgeIntakePreferences.version} + 1` }).where(inArray(schema.knowledgeIntakePreferences.principalKey, [`hq:${sourceId}`, `hq:${canonicalId}`]));
   await tx.update(schema.officerIntelThreads).set({ createdByHqUserId: canonicalId }).where(eq(schema.officerIntelThreads.createdByHqUserId, sourceId));
   await tx.update(schema.knowledgeMutationReceipts).set({ principalKey: `hq:${canonicalId}` }).where(eq(schema.knowledgeMutationReceipts.principalKey, `hq:${sourceId}`));
+  await tx.update(schema.knowledgeIntakeAnalyses).set({ principalKey: `hq:${canonicalId}` }).where(eq(schema.knowledgeIntakeAnalyses.principalKey, `hq:${sourceId}`));
 }
 
 export async function claimDiscordKnowledgeResources(actor: KnowledgeActor) {

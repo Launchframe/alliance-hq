@@ -59,6 +59,7 @@ async function setNoteMembers(tx: KnowledgeTransaction, actor: KnowledgeActor, n
 
 type CreatePerformanceNote = {
   actor: KnowledgeActor; kind: PerformanceNoteKind; intakeMode: PerformanceNoteIntakeMode; body: string;
+  captureSource?: "web" | "discord"; captureDiscordUserId?: string | null;
 } & Partial<Omit<NoteFields, "kind" | "body">>;
 
 export async function createPerformanceNoteInTransaction(tx: KnowledgeTransaction, input: CreatePerformanceNote): Promise<string> {
@@ -70,8 +71,8 @@ export async function createPerformanceNoteInTransaction(tx: KnowledgeTransactio
     kind: input.kind, intakeMode: input.intakeMode, body: input.body,
     title: input.title ?? "", priority: input.priority ?? null, priorityMode: input.priorityMode ?? "manual", labels: input.labels ?? [],
     notebook: input.notebook ?? null, journalDate: input.journalDate ?? null, inbox: input.inbox ?? true,
-    excludedMemberIds: input.excludedMemberIds ?? [], source: input.actor.kind,
-    createdByDiscordUserId: input.actor.discordUserId, createdByHqUserId: input.actor.hqUserId,
+    excludedMemberIds: input.excludedMemberIds ?? [], source: input.captureSource ?? input.actor.kind,
+    createdByDiscordUserId: input.captureDiscordUserId ?? input.actor.discordUserId, createdByHqUserId: input.actor.hqUserId,
     createdAt: now, updatedAt: now,
   });
   if (input.memberIds?.length) await setNoteMembers(tx, input.actor, id, input.memberIds, input.detectedMemberIds);
@@ -89,10 +90,9 @@ export async function getPerformanceNoteForAlliance(input: { noteId: string; act
   return row ? readableNote(row) : null;
 }
 
-export async function updatePerformanceNote(actor: KnowledgeActor, noteId: string, input: NotePatch) {
-  const existing = await getPerformanceNoteForAlliance({ actor, noteId, access: "edit" });
+export async function updatePerformanceNoteInTransaction(tx: KnowledgeTransaction, actor: KnowledgeActor, noteId: string, input: NotePatch) {
+  const [existing] = await tx.select({ resourceId: schema.performanceNotes.resourceId }).from(schema.performanceNotes).where(and(eq(schema.performanceNotes.id, noteId), eq(schema.performanceNotes.allianceId, actor.allianceId), isNull(schema.performanceNotes.expungedAt)));
   if (!existing) throw new KnowledgeAccessError("not_found");
-  await getDb().transaction(async (tx) => {
     const resource = await lockKnowledgeResource(tx, actor, existing.resourceId);
     if (resource.version !== input.expectedVersion) throw new KnowledgeAccessError("changed");
     const [note] = await tx.select().from(schema.performanceNotes)
@@ -105,6 +105,7 @@ export async function updatePerformanceNote(actor: KnowledgeActor, noteId: strin
       id: nanoid(), noteId, allianceId: actor.allianceId, version: resource.version,
       editedByHqUserId: actor.hqUserId,
       snapshot: {
+        intakeProvenance: note.intakeProvenance,
         title: note.title, body: note.body, kind: isNoteKind(note.kind) ? note.kind : "note",
         priority: note.priority, priorityMode: note.priorityMode, labels: note.labels, notebook: note.notebook, journalDate: note.journalDate,
         inbox: note.inbox, archived: resource.archivedAt !== null,
@@ -126,7 +127,10 @@ export async function updatePerformanceNote(actor: KnowledgeActor, noteId: strin
     }).where(and(eq(schema.performanceNotes.id, noteId), eq(schema.performanceNotes.allianceId, actor.allianceId)));
     if (input.archived !== undefined) await tx.update(schema.knowledgeResources).set({ archivedAt: input.archived ? new Date() : null }).where(eq(schema.knowledgeResources.id, resource.id));
     await touchKnowledgeResource(tx, resource.id);
-  });
+}
+
+export async function updatePerformanceNote(actor: KnowledgeActor, noteId: string, input: NotePatch) {
+  await getDb().transaction((tx) => updatePerformanceNoteInTransaction(tx, actor, noteId, input));
   return getPerformanceNoteDto({ actor, noteId });
 }
 
@@ -165,6 +169,7 @@ function toDto(note: ReadableNote, members: Array<{ ashedMemberId: string; membe
   return {
     id: note.id, kind: note.kind, intakeMode: note.intakeMode, body: note.body, title: note.title,
     priority: note.priority, priorityMode: note.priorityMode, labels: note.labels, journalDate: note.journalDate,
+    intakeProvenance: note.isOwner ? note.intakeProvenance : undefined,
     notebook: note.isOwner ? note.notebook : null, inbox: note.isOwner && note.inbox,
     excludedMemberIds: note.isOwner ? note.excludedMemberIds : [], archived: note.archived,
     source: note.source, createdAt: note.createdAt.toISOString(), updatedAt: note.updatedAt.toISOString(),

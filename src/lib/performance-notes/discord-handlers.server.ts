@@ -27,6 +27,8 @@ export type PerfDiscordComponents = Array<{
     style?: number;
     label?: string;
     custom_id: string;
+    options?: Array<{ label: string; value: string; default?: boolean }>;
+    placeholder?: string;
   }>;
 }>;
 
@@ -45,6 +47,8 @@ export type PerfInteractionResult =
       fieldLabel: string;
       paragraph?: boolean;
       maxLength?: number;
+      value?: string;
+      required?: boolean;
     };
 
 function yesNoButtons(
@@ -105,7 +109,7 @@ function noteUrl(locale: DiscordBotLocale, noteId: string): string {
   return buildDiscordBotAppUrl(locale, `/notes/${noteId}`);
 }
 
-async function officerGuard(input: {
+export async function officerGuard(input: {
   allianceId: string | null;
   discordUserId: string;
   locale: DiscordBotLocale;
@@ -167,7 +171,7 @@ function reasonModal(
   };
 }
 
-function attachAskMessage(
+export function attachAskMessage(
   t: ReturnType<typeof createDiscordTranslator>,
   locale: DiscordBotLocale,
   noteId: string,
@@ -285,6 +289,7 @@ export async function handlePerformanceNoteSlash(input: {
   discordUserId: string;
   locale: DiscordBotLocale;
   text: string | undefined;
+  interactionId?: string;
 }): Promise<PerfInteractionResult> {
   const gated = await officerGuard(input);
   if (!gated.ok) return gated.result;
@@ -293,17 +298,9 @@ export async function handlePerformanceNoteSlash(input: {
   if (!body) {
     return { type: "message", content: t("performanceNotes.emptyText") };
   }
-  const noteId = await createPerformanceNote({
-    actor: gated.actor,
-    kind: "note",
-    intakeMode: "thought",
-    body,
-  });
-  await saveDiscordBotPending(gated.allianceId, input.discordUserId, {
-    kind: "perf_note_attach",
-    noteId,
-  });
-  return attachAskMessage(t, input.locale, noteId, !gated.actor.hqUserId);
+  if (!input.interactionId) return { type: "message", content: t("performanceNotes.review.unavailable") };
+  const { handleDiscordDraft } = await import("@/lib/notes/discord-drafts.server");
+  return handleDiscordDraft({ ...input, payload: { type: 2, id: input.interactionId, data: { name: "note", options: [{ name: "text", type: 3, value: body }] } } });
 }
 
 export async function handlePerformanceBatchSlash(input: {

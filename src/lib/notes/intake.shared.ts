@@ -17,16 +17,19 @@ export const semanticIntakeSchema = z.object({
     evidence: z.string().min(1).max(1_000),
   })).max(10),
 });
+export const captureTaskSchema = taskCreateSchema.omit({ sourceNoteId: true, requestId: true, assigneeHqUserId: true, shareWithAssignee: true }).extend({
+  actionKey: z.string().min(1).max(120), included: z.boolean(), evidence: z.string().max(1_000).nullable(),
+});
 export const captureCommitSchema = noteFieldsSchema.extend({
   requestId: z.string().min(8).max(120),
-  tasks: z.array(taskCreateSchema.omit({ sourceNoteId: true, requestId: true, assigneeHqUserId: true, shareWithAssignee: true }).extend({
-    actionKey: z.string().min(1).max(120), included: z.boolean(), evidence: z.string().max(1_000).nullable(),
-  })).max(10).default([]),
+  tasks: z.array(captureTaskSchema).max(10).default([]),
+  draftId: z.string().min(8).max(120).optional(), expectedDraftVersion: z.number().int().positive().optional(),
 });
 export type IntakeRequest = z.infer<typeof intakeRequestSchema>;
 export type SemanticIntake = z.infer<typeof semanticIntakeSchema>;
 export type CaptureCommit = z.output<typeof captureCommitSchema>;
 export type IntakeResult = {
+  analysisId?: string; interpreter?: string;
   draftId: string; revision: number; overrideRevision: number; bodyHash: string; rosterHash: string;
   scope: string; preferenceVersion: number; priority: NotePriority; priorityEvidence: string | null;
   actions: Array<SemanticIntake["actions"][number] & { actionKey: string; included: boolean }>;

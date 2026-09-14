@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CaptureCommit, IntakeResult } from "@/lib/notes/intake.shared";
 import { useNoteIntake } from "./useNoteIntake";
+import { useCaptureDraft } from "./useCaptureDraft";
+import { automaticActionModes, draftActionIsCurrent, mergeDraftActions, updateDraftAction, type CaptureDraft, type CaptureDraftState, type DraftAction } from "@/lib/notes/drafts.shared";
 import { TaskStateFields } from "./TaskStateFields";
 import { NoteTasksPanel } from "./NoteTasksPanel";
 import { useTranslations } from "next-intl";
@@ -16,8 +18,9 @@ import { NoteMemberPicker } from "./NoteMemberPicker";
 const inputClass = "w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg outline-none focus:border-hq-accent focus:ring-2 focus:ring-hq-accent/15 disabled:opacity-60";
 const secondary = "inline-flex items-center justify-center gap-2 rounded-lg border border-hq-border px-3 py-2 text-sm font-medium hover:bg-hq-surface disabled:opacity-50";
 
-export function NoteEditor({ note, initialBody = "", roster, onClose, onSave, onShare, onHistory }: {
+export function NoteEditor({ note, initialBody = "", resumeDraft, roster, onClose, onSave, onShare, onHistory }: {
   note: PerformanceNoteDto | null;
+  resumeDraft?: CaptureDraft;
   initialBody?: string;
   roster: PerformanceNoteRosterMember[];
   onClose: () => void;
@@ -29,51 +32,58 @@ export function NoteEditor({ note, initialBody = "", roster, onClose, onSave, on
   const dialog = useRef<HTMLDialogElement>(null);
   const bodyInput = useRef<HTMLTextAreaElement>(null);
   const [original] = useState(note);
+  const restored = resumeDraft?.state;
+  const initialFields = restored?.fields;
   const editable = !note || note.canEdit;
   const owner = !note || note.isOwner;
   const [draft, setDraft] = useState(() => ({
-    title: original?.title ?? "", body: original?.body ?? initialBody,
-    kind: original?.kind ?? "note", priority: original?.priority ?? null as NotePriority,
-    priorityMode: original?.priorityMode ?? "auto" as "auto" | "manual",
-    notebook: original?.notebook ?? "", journalDate: original?.journalDate ?? "", inbox: original?.inbox ?? true,
+    title: initialFields?.title ?? original?.title ?? "", body: initialFields?.body ?? original?.body ?? initialBody,
+    kind: initialFields?.kind ?? original?.kind ?? "note", priority: initialFields ? initialFields.priority : original?.priority ?? null as NotePriority,
+    priorityMode: initialFields?.priorityMode ?? original?.priorityMode ?? "auto" as "auto" | "manual",
+    notebook: initialFields ? initialFields.notebook ?? "" : original?.notebook ?? "", journalDate: initialFields ? initialFields.journalDate ?? "" : original?.journalDate ?? "", inbox: initialFields?.inbox ?? original?.inbox ?? true,
   }));
-  const [labels, setLabels] = useState(original?.labels.join(", ") ?? "");
-  const [manual, setManual] = useState(() => new Set(original?.members.filter((member) => !owner || member.origin !== "detected").map((member) => member.ashedMemberId) ?? []));
-  const [excluded, setExcluded] = useState(() => new Set(original?.excludedMemberIds ?? []));
-  const [membersTouched, setMembersTouched] = useState(false);
+  const [labels, setLabels] = useState((initialFields?.labels ?? original?.labels)?.join(", ") ?? "");
+  const [manual, setManual] = useState(() => new Set(initialFields ? initialFields.memberIds.filter((id) => !initialFields.detectedMemberIds.includes(id)) : original?.members.filter((member) => !owner || member.origin !== "detected").map((member) => member.ashedMemberId) ?? []));
+  const [excluded, setExcluded] = useState(() => new Set(initialFields?.excludedMemberIds ?? original?.excludedMemberIds ?? []));
+  const [membersTouched, setMembersTouched] = useState(Boolean(restored));
   const [preview, setPreview] = useState(Boolean(original));
   const [saving, setSaving] = useState(false);
   const [discard, setDiscard] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dirtyAfterConflict, setDirtyAfterConflict] = useState(false);
-  const [draftId] = useState(() => crypto.randomUUID());
-  const [revision, setRevision] = useState(0);
-  const [overrideRevision, setOverrideRevision] = useState(0);
-  const [captureAi, setCaptureAi] = useState(true);
-  const [analysisRevision, setAnalysisRevision] = useState(-1);
-  const [suggestions, setSuggestions] = useState<Array<IntakeResult["actions"][number] & { manual?: boolean }>>([]);
+  const [draftId] = useState(() => resumeDraft?.id ?? crypto.randomUUID());
+  const [revision, setRevision] = useState(restored?.revision ?? 0);
+  const [overrideRevision, setOverrideRevision] = useState(restored?.overrideRevision ?? 0);
+  const [captureAi, setCaptureAi] = useState(restored?.aiEnabled ?? true);
+  const [analysisRevision, setAnalysisRevision] = useState(restored?.analysisRevision ?? -1);
+  const [analysisId, setAnalysisId] = useState<string | null>(restored?.analysisId ?? null);
+  const [suggestions, setSuggestions] = useState<DraftAction[]>(restored?.tasks ?? []);
   const acceptAnalysis = useCallback((result: IntakeResult) => {
-    setAnalysisRevision(result.revision);
+    setAnalysisRevision(result.revision); setAnalysisId(result.analysisId ?? null);
     setDraft((current) => current.priorityMode === "manual" ? current : { ...current, priority: result.priority });
-    setSuggestions((current) => [...result.actions.map((action) => current.find((item) => item.actionKey === action.actionKey && item.manual) ?? action), ...current.filter((item) => item.manual && !result.actions.some((action) => action.actionKey === item.actionKey))]);
+    setSuggestions((current) => mergeDraftActions(current, result));
   }, []);
   const intake = useNoteIntake({ draftId, body: draft.body, revision, overrideRevision, active: !original && captureAi && !saving, onResult: acceptAnalysis });
-  const currentSuggestions = suggestions.filter((item) => item.manual || analysisRevision === revision && captureAi && intake.preference?.enabled);
+  const currentSuggestions = suggestions.filter((item) => draftActionIsCurrent(item, { analysisRevision, revision, aiEnabled: captureAi && intake.preference?.enabled === true }));
   const includedCount = currentSuggestions.filter((item) => item.included).length;
-  function editSuggestion(actionKey: string, patch: Partial<IntakeResult["actions"][number]>) {
+  function editSuggestion(actionKey: string, patch: Parameters<typeof updateDraftAction>[1]) {
     setOverrideRevision((value) => value + 1);
-    setSuggestions((current) => current.map((item) => item.actionKey === actionKey ? { ...item, ...patch, manual: true } : item));
+    setSuggestions((current) => current.map((item) => item.actionKey === actionKey ? updateDraftAction(item, patch) : item));
   }
   const bodyChanged = !original || draft.body !== original.body;
   const detection = useMemo(() => owner && bodyChanged ? detectNoteMentions(draft.body, roster) : { memberIds: original?.members.filter((member) => member.origin === "detected").map((member) => member.ashedMemberId) ?? [], matches: [] }, [bodyChanged, draft.body, original, owner, roster]);
   const detected = detection.memberIds.filter((id) => !excluded.has(id) && !manual.has(id));
   const selectedIds = [...new Set([...manual, ...detected])];
+  const captureFields: NoteFields = { ...draft, notebook: draft.notebook.trim() || null, journalDate: draft.journalDate || null, labels: normalizeNoteLabels(labels.split(",")), memberIds: selectedIds, detectedMemberIds: detected, excludedMemberIds: [...excluded] };
+  const captureState: CaptureDraftState = { fields: captureFields, revision, overrideRevision, analysisRevision, analysisId, tasks: suggestions, aiEnabled: captureAi && intake.preference?.enabled === true, archive: null };
   const completeRoster = useMemo(() => {
     const members = new Map(roster.map((member) => [member.ashedMemberId, member]));
     for (const member of original?.members ?? []) if (!members.has(member.ashedMemberId)) members.set(member.ashedMemberId, member);
     return [...members.values()];
   }, [original, roster]);
   const dirty = editable && (!original ? !!(draft.body || draft.title) : draft.title !== original.title || draft.body !== original.body || draft.kind !== original.kind || draft.priority !== original.priority || draft.notebook !== (original.notebook ?? "") || draft.journalDate !== (original.journalDate ?? "") || draft.inbox !== original.inbox || labels !== original.labels.join(", ") || membersTouched);
+
+  const persistence = useCaptureDraft({ id: draftId, state: captureState, active: dirty && !saving, initialVersion: resumeDraft?.version, sourceNoteId: resumeDraft?.sourceNoteId ?? original?.id ?? null, sourceVersion: resumeDraft?.sourceVersion ?? original?.version ?? null });
 
   useEffect(() => {
     const element = dialog.current;
@@ -92,6 +102,13 @@ export function NoteEditor({ note, initialBody = "", roster, onClose, onSave, on
     if (saving) return;
     if (dirty) setDiscard(true); else onClose();
   }
+  async function closeDraft(keep: boolean) {
+    if (saving) return;
+    setSaving(true); setError(null);
+    try { if (keep) await persistence.flush(captureState); else await persistence.discard(); onClose(); }
+    catch (failure) { setError(failure instanceof Error ? failure.message : t("saveFailed")); setDiscard(false); }
+    finally { setSaving(false); }
+  }
   function addMember(id: string) {
     setMembersTouched(true);
     setManual((values) => new Set([...values, id]));
@@ -105,27 +122,20 @@ export function NoteEditor({ note, initialBody = "", roster, onClose, onSave, on
   async function save(archived?: boolean) {
     if (!editable || saving || !draft.body.trim()) return;
     setSaving(true); setError(null);
-    const fields: NoteFields = { ...draft, notebook: draft.notebook.trim() || null, journalDate: draft.journalDate || null, labels: normalizeNoteLabels(labels.split(",")), memberIds: selectedIds, detectedMemberIds: detected, excludedMemberIds: [...excluded] };
     try {
-      if (original) {
-        const { notebook, inbox, excludedMemberIds, memberIds, detectedMemberIds, ...editableFields } = fields;
-        await onSave({
-          ...editableFields, expectedVersion: original.version,
-          ...(owner ? { notebook, inbox, excludedMemberIds, ...(archived !== undefined ? { archived } : {}) } : {}),
-          ...(membersTouched || bodyChanged && owner ? { memberIds, detectedMemberIds } : {}),
-        }, original.id);
-      } else await onSave({ ...fields, requestId: draftId, tasks: currentSuggestions.map((item) => ({ ...item, evidence: item.manual ? null : item.evidence, labels: [], assigneeHqUserId: null, dueAt: null })) });
+      const stored = await persistence.flush({ ...captureState, archive: archived ?? null });
+      await onSave({ ...captureFields, requestId: draftId, draftId, expectedDraftVersion: stored.version, tasks: currentSuggestions });
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : t("saveFailed"));
       setDirtyAfterConflict(true);
     } finally { setSaving(false); }
   }
 
-  const SourceIcon = original?.source === "discord" ? MessageSquare : Globe2;
+  const SourceIcon = (resumeDraft?.source ?? original?.source) === "discord" ? MessageSquare : Globe2;
   return <dialog ref={dialog} aria-label={original ? noteTitle(original) : t("actions.newNote")} onCancel={(event) => { event.preventDefault(); if (discard) setDiscard(false); else close(); }} onClick={(event) => { if (event.target === event.currentTarget) close(); }} className="fixed inset-0 m-auto max-h-[92dvh] w-[min(96vw,64rem)] overflow-hidden rounded-2xl border border-hq-border bg-hq-canvas p-0 text-hq-fg shadow-2xl backdrop:bg-black/60">
-    {discard ? <div className="space-y-4 p-8"><h2 className="text-xl font-semibold">{t("editor.discardTitle")}</h2><p className="text-sm text-hq-fg-muted">{t("editor.discardBody")}</p><div className="flex justify-end gap-2"><button autoFocus className={secondary} onClick={() => setDiscard(false)}>{t("editor.keepEditing")}</button><button className="rounded-lg bg-hq-danger px-4 py-2 text-sm font-medium text-white" onClick={onClose}>{t("editor.discard")}</button></div></div> : <div className="flex max-h-[92dvh] flex-col">
+    {discard ? <div className="space-y-4 p-8"><h2 className="text-xl font-semibold">{t("editor.discardTitle")}</h2><p className="text-sm text-hq-fg-muted">{t("editor.discardBody")}</p><div className="flex justify-end gap-2"><button autoFocus className={secondary} onClick={() => setDiscard(false)}>{t("editor.keepEditing")}</button><button className="rounded-lg bg-hq-danger px-4 py-2 text-sm font-medium text-white" disabled={saving} onClick={() => void closeDraft(false)}>{t("editor.discard")}</button><button disabled={saving} className={secondary} onClick={() => void closeDraft(true)}>{t("drafts.keepClose")}</button></div></div> : <div className="flex max-h-[92dvh] flex-col">
       <header className="flex items-center justify-between gap-3 border-b border-hq-border px-5 py-3">
-        <div className="flex min-w-0 items-center gap-3 text-xs text-hq-fg-muted"><span className="inline-flex items-center gap-1.5">{original?.shared ? <Share2 className="h-3.5 w-3.5" /> : <LockKeyhole className="h-3.5 w-3.5" />}{original?.shared ? t("sharing.shared") : t("editor.private")}</span><span className="h-3 w-px bg-hq-border" /><span className="inline-flex items-center gap-1.5"><SourceIcon className="h-3.5 w-3.5" />{t(`source.${original?.source ?? "web"}`)}</span></div>
+        <div className="flex min-w-0 items-center gap-3 text-xs text-hq-fg-muted"><span className="inline-flex items-center gap-1.5">{original?.shared ? <Share2 className="h-3.5 w-3.5" /> : <LockKeyhole className="h-3.5 w-3.5" />}{original?.shared ? t("sharing.shared") : t("editor.private")}</span><span className="h-3 w-px bg-hq-border" /><span className="inline-flex items-center gap-1.5"><SourceIcon className="h-3.5 w-3.5" />{t(`source.${resumeDraft?.source ?? original?.source ?? "web"}`)}</span></div>
         <div className="flex items-center gap-1">
           {note?.isOwner ? <><button type="button" disabled={dirty || saving} title={dirty ? t("editor.saveBeforeShare") : t("actions.history")} aria-label={t("actions.history")} onClick={() => onHistory(note)} className="rounded-lg p-2 text-hq-fg-muted hover:bg-hq-surface disabled:opacity-40"><Clock3 className="h-4 w-4" /></button><button type="button" disabled={dirty || saving} title={dirty ? t("editor.saveBeforeShare") : t("actions.share")} onClick={() => onShare(note)} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium hover:bg-hq-surface disabled:opacity-40"><Share2 className="h-3.5 w-3.5" />{t("actions.share")}</button></> : null}
           <button type="button" onClick={close} aria-label={t("actions.close")} className="rounded-lg p-2 text-hq-fg-muted hover:bg-hq-surface"><X className="h-5 w-5" /></button>
@@ -140,19 +150,20 @@ export function NoteEditor({ note, initialBody = "", roster, onClose, onSave, on
               {preview || !editable ? <div className="min-h-52"><NoteMarkdown body={draft.body} /></div> : <textarea ref={bodyInput} disabled={saving} aria-label={t("bodyLabel")} placeholder={t("editor.placeholder")} value={draft.body} maxLength={100_000} rows={12} onChange={(event) => { setRevision((value) => value + 1); setDraft({ ...draft, body: event.target.value, priority: draft.priorityMode === "auto" && !original ? null : draft.priority }); }} className="min-h-60 w-full resize-y rounded-lg border border-hq-border bg-transparent p-3 text-sm leading-7 outline-none focus:border-hq-accent focus:ring-2 focus:ring-hq-accent/10" />}
               {editable && !preview ? <p className="mt-2 text-xs text-hq-fg-muted">{t("editor.markdownHint")}</p> : null}
             </div>
-            {!original ? <section className="space-y-3 rounded-xl border border-hq-border bg-hq-surface/50 p-4">
-              <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={intake.enabled} disabled={!intake.preference || intake.changing || saving} onChange={(event) => void intake.setEnabled(event.target.checked)} className="accent-hq-accent" />{t("intake.enable")}</label>
+            {!original || currentSuggestions.length > 0 ? <section className="space-y-3 rounded-xl border border-hq-border bg-hq-surface/50 p-4">
+              {!original ? <><label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={intake.enabled} disabled={!intake.preference || intake.changing || saving} onChange={(event) => void intake.setEnabled(event.target.checked)} className="accent-hq-accent" />{t("intake.enable")}</label>
               <p className="text-xs leading-5 text-hq-fg-muted">{t("intake.consent")}</p>
               {intake.preference?.enabled ? <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={captureAi} disabled={saving} onChange={(event) => { setCaptureAi(event.target.checked); setOverrideRevision((value) => value + 1); }} className="accent-hq-accent" />{t("intake.thisCapture")}</label> : null}
               {!intake.preference?.configured || draft.body.length > 10_000 ? <p className="text-xs text-hq-fg-muted">{t("intake.unavailable")}</p> : intake.pending ? <p role="status" className="text-xs text-hq-accent">{t("intake.analyzing")}</p> : analysisRevision === revision && !currentSuggestions.length ? <p className="text-xs text-hq-fg-muted">{t("intake.noActions")}</p> : null}
-              {intake.error ? <p role="alert" className="text-xs text-hq-danger">{intake.error}</p> : null}
+              {intake.error ? <p role="alert" className="text-xs text-hq-danger">{intake.error}</p> : null}</> : null}
               {currentSuggestions.map((item) => <div key={item.actionKey} data-testid="intake-task" className={`space-y-2 rounded-lg border border-hq-border bg-hq-canvas p-3 ${item.included ? "" : "opacity-60"}`}>
                 <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={item.included} disabled={saving} onChange={(event) => editSuggestion(item.actionKey, { included: event.target.checked })} className="accent-hq-accent" />{t("intake.includeTask")}</label>
                 <input aria-label={t("tasks.title")} value={item.title} disabled={saving} maxLength={160} onChange={(event) => editSuggestion(item.actionKey, { title: event.target.value })} className={inputClass} />
                 <TaskStateFields status={item.status} priority={item.priority} disabled={saving || !item.included} onStatus={(status) => editSuggestion(item.actionKey, { status })} onPriority={(priority) => editSuggestion(item.actionKey, { priority })} />
                 <p className="border-l-2 border-hq-border pl-2 text-xs text-hq-fg-muted">{item.evidence}</p>
+                <div className="flex items-center justify-between text-xs text-hq-fg-muted"><span>{Object.values(item.modes).includes("manual") ? t("drafts.manual") : t("drafts.detected")}</span><button disabled={saving} onClick={() => { setSuggestions((current) => current.map((task) => task.actionKey === item.actionKey ? { ...task, modes: automaticActionModes() } : task)); setOverrideRevision((value) => value + 1); }} className="text-hq-accent">{t("drafts.reset")}</button></div>
               </div>)}
-              {draft.priorityMode === "manual" ? <button type="button" disabled={saving} onClick={() => { setDraft((current) => ({ ...current, priorityMode: "auto" })); setOverrideRevision((value) => value + 1); }} className="text-xs text-hq-accent">{t("intake.resetPriority")}</button> : null}
+              {!original && draft.priorityMode === "manual" ? <button type="button" disabled={saving} onClick={() => { setDraft((current) => ({ ...current, priorityMode: "auto" })); setOverrideRevision((value) => value + 1); }} className="text-xs text-hq-accent">{t("intake.resetPriority")}</button> : null}
             </section> : null}
             <section className="space-y-2 border-t border-hq-border pt-4"><h3 className="text-xs font-semibold text-hq-fg-muted">{t("fields.members")}</h3><NoteMemberPicker roster={completeRoster} selectedIds={selectedIds} detectedIds={detected} disabled={!editable || saving} onAdd={addMember} onRemove={removeMember} /><p className="text-xs leading-5 text-hq-fg-muted">{t("editor.memberPrivacy")}</p>{detection.matches.filter((match) => !match.automatic && !match.candidates.some((member) => selectedIds.includes(member.ashedMemberId))).map((match) => <div key={`${match.start}:${match.end}`} className="rounded-lg border border-hq-border bg-hq-surface p-3 text-xs"><p className="mb-2">{t("editor.chooseMember", { name: match.text })}</p><div className="flex flex-wrap gap-1.5">{match.candidates.map((candidate) => <button key={candidate.ashedMemberId} type="button" onClick={() => addMember(candidate.ashedMemberId)} className="rounded border border-hq-border bg-hq-canvas px-2 py-1 hover:border-hq-accent">{candidate.name}</button>)}</div></div>)}</section>
             {original ? <NoteTasksPanel sourceNoteId={original.id} /> : null}
@@ -168,8 +179,11 @@ export function NoteEditor({ note, initialBody = "", roster, onClose, onSave, on
         </div>
       </div>
       <footer className="border-t border-hq-border bg-hq-canvas px-6 py-4 sm:px-8">
+        {editable && persistence.status !== "idle" ? <p role="status" className="mb-2 text-xs text-hq-fg-muted">{t(`drafts.${persistence.status}`)}</p> : null}
+        {persistence.error ? <p role="alert" className="mb-2 text-xs text-hq-danger">{persistence.error}</p> : null}
+        {original?.intakeProvenance ? <details className="mb-2 text-xs text-hq-fg-muted"><summary>{t("drafts.provenance")}</summary><p>{original.intakeProvenance.evidence}</p><code>{original.intakeProvenance.interpreter}</code></details> : null}
         {error ? <p role="alert" className="mb-3 rounded-lg bg-hq-danger/10 px-3 py-2 text-sm text-hq-danger">{error}{dirtyAfterConflict ? <span className="mt-1 block text-xs">{t("editor.draftPreserved")}</span> : null}</p> : null}
-        <div className="flex flex-wrap items-center justify-between gap-3"><div>{note?.isOwner ? <button type="button" disabled={saving} onClick={() => void save(!note.archived)} className="inline-flex items-center gap-1.5 text-xs text-hq-fg-muted hover:text-hq-fg"><Archive className="h-3.5 w-3.5" />{note.archived ? t("actions.restore") : t("actions.archive")}</button> : <span className="inline-flex items-center gap-1.5 text-xs text-hq-fg-muted"><LockKeyhole className="h-3.5 w-3.5" />{t("editor.memberPrivacy")}</span>}</div><div className="flex gap-2"><button type="button" onClick={close} className={secondary}>{t("actions.close")}</button>{editable ? <button type="button" onClick={() => void save()} disabled={saving || !draft.body.trim() || !!original && !dirty} className="inline-flex items-center gap-2 rounded-lg bg-hq-accent px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50">{saving ? <Save className="h-4 w-4 animate-pulse" /> : <Check className="h-4 w-4" />}{saving ? t("saving") : !original && includedCount ? t("intake.saveTasks", { count: includedCount }) : t("saveNote")}</button> : null}</div></div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><div>{note?.isOwner ? <button type="button" disabled={saving} onClick={() => void save(!note.archived)} className="inline-flex items-center gap-1.5 text-xs text-hq-fg-muted hover:text-hq-fg"><Archive className="h-3.5 w-3.5" />{note.archived ? t("actions.restore") : t("actions.archive")}</button> : <span className="inline-flex items-center gap-1.5 text-xs text-hq-fg-muted"><LockKeyhole className="h-3.5 w-3.5" />{t("editor.memberPrivacy")}</span>}</div><div className="flex gap-2"><button type="button" onClick={close} className={secondary}>{t("actions.close")}</button>{editable ? <button type="button" onClick={() => void save()} disabled={saving || !draft.body.trim() || !!original && !dirty} className="inline-flex items-center gap-2 rounded-lg bg-hq-accent px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50">{saving ? <Save className="h-4 w-4 animate-pulse" /> : <Check className="h-4 w-4" />}{saving ? t("saving") : includedCount ? t("intake.saveTasks", { count: includedCount }) : t("saveNote")}</button> : null}</div></div>
       </footer>
     </div>}
   </dialog>;

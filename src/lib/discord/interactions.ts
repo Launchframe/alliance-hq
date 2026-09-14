@@ -57,6 +57,7 @@ export type DiscordInteractionPayload = {
     target_id?: string;
     options?: Array<{ name: string; type: number; value?: unknown }>;
     custom_id?: string;
+    values?: string[];
     components?: Array<{
       type: number;
       components?: Array<{
@@ -731,6 +732,7 @@ export type DiscordModalResponse = {
         style: 1 | 2;
         required: boolean;
         max_length?: number;
+        value?: string;
       }>;
     }>;
   };
@@ -743,6 +745,8 @@ export function discordModalResponse(input: {
   fieldLabel: string;
   paragraph?: boolean;
   maxLength?: number;
+  value?: string;
+  required?: boolean;
 }): DiscordModalResponse {
   return {
     type: 9,
@@ -758,7 +762,8 @@ export function discordModalResponse(input: {
               custom_id: input.fieldCustomId,
               label: input.fieldLabel.slice(0, 45),
               style: input.paragraph ? 2 : 1,
-              required: true,
+              required: input.required ?? true,
+              ...(input.value !== undefined ? { value: input.value } : {}),
               ...(input.maxLength ? { max_length: input.maxLength } : {}),
             },
           ],
