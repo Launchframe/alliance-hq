@@ -35,6 +35,7 @@ import {
 import {
   deleteR2Object,
   getR2Object,
+  getR2ObjectStream,
   putR2Object,
   resetR2ClientForTests,
 } from "@/lib/storage/r2";
@@ -108,6 +109,20 @@ describe("R2 object helpers", () => {
 
     expect(body.equals(Buffer.from([1, 2, 3]))).toBe(true);
     expect(send).toHaveBeenCalledTimes(3);
+  });
+
+  it("requires streaming for bounded readers without changing legacy fallback behavior", async () => {
+    process.env.R2_BUCKET = "bucket";
+    process.env.R2_ACCOUNT_ID = "acct";
+    process.env.R2_ACCESS_KEY_ID = "key";
+    process.env.R2_SECRET_ACCESS_KEY = "secret";
+    const materialize = vi.fn(async () => Uint8Array.from([1, 2, 3]));
+    send.mockResolvedValue({ Body: { transformToByteArray: materialize } });
+    await expect(getR2ObjectStream("private-key", true)).rejects.toThrow("not streamable");
+    expect(materialize).not.toHaveBeenCalled();
+    const stream = await getR2ObjectStream("legacy-key");
+    expect((await stream.getReader().read()).value).toEqual(Uint8Array.from([1, 2, 3]));
+    expect(materialize).toHaveBeenCalledTimes(1);
   });
 
   it("throws when R2 object body is missing", async () => {

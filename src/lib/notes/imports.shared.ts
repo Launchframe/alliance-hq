@@ -10,6 +10,18 @@ export const HISTORY_BATCH_BYTES = 60 * 1024 * 1024;
 export const HISTORY_MESSAGE_LIMIT = 5_000;
 export const HISTORY_MESSAGE_LENGTH = 10_000;
 export type HistoryImportKind = typeof HISTORY_IMPORT_KINDS[number];
+export type HistoryImportState = "uploading" | "queued" | "processing" | "review" | "committed" | "cancelled" | "failed";
+export type HistoryJobState = "pending" | "running" | "completed" | "cancelled" | "failed";
+export const historyInitSchema = z.object({
+  expectedScope: z.string().min(1).max(300), requestId: z.string().min(8).max(120), title: z.string().trim().min(1).max(160), kind: z.enum(HISTORY_IMPORT_KINDS), locale: z.enum(["en-US", "pt-BR"]),
+  files: z.array(z.object({ name: z.string().trim().min(1).max(160), contentType: z.enum(["text/plain", "text/markdown", "application/json", "image/png", "image/jpeg", "image/webp"]), size: z.number().int().positive().max(HISTORY_IMAGE_BYTES), sha256: z.string().regex(/^[a-f0-9]{64}$/) })).min(1).max(MAX_OFFICER_INTEL_IMAGES),
+}).refine((input) => input.files.reduce((sum, file) => sum + file.size, 0) <= HISTORY_BATCH_BYTES && (input.kind === "screenshots"
+  ? input.files.every((file) => file.contentType.startsWith("image/"))
+  : input.files.length === 1 && input.files[0].size <= HISTORY_TEXT_BYTES && input.files[0].contentType === ({ text: "text/plain", markdown: "text/markdown", discord_json: "application/json" } as const)[input.kind]));
+export type HistoryInit = z.infer<typeof historyInitSchema>;
+export type HistoryImportSummary = { scope: string; id: string; title: string; kind: HistoryImportKind; state: HistoryImportState; version: number; updatedAt: string; total: number; reviewed: number; cursor: number; attempts: number; errorCode: string | null; files: Array<{ id: string; name: string; contentType: string; size: number; sha256: string; sealed: boolean }> };
+export type HistoryReviewRow = { id: string; sender: string | null; sentAt: string | null; body: string; included: boolean; reviewed: boolean; position: number };
+export type HistoryImportDetail = HistoryImportSummary & { messages: HistoryReviewRow[]; offset: number };
 
 const identity = z.string().min(1).max(120).regex(/^[A-Za-z0-9_-]+$/);
 const body = z.string().max(HISTORY_MESSAGE_LENGTH).refine((value) => !value.includes("\0"));

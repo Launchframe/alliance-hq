@@ -45,6 +45,7 @@ function e2eServerEnv(): Record<string, string> {
     env.DATABASE_URL = e2eDatabaseUrl;
   }
   env.NOTES_INTAKE_TEST_PROVIDER = process.env.NOTES_INTAKE_TEST_PROVIDER ?? "true";
+  env.NOTES_HISTORY_TEST_PROVIDER = "true";
   env.DISCORD_PUBLIC_KEY = Buffer.from(discordTestKeyPair.publicKey).toString("hex");
   env.E2E_DISCORD_FOLLOWUP_ORIGIN = `http://127.0.0.1:${discordTestFollowupPort()}`;
   const ocrProvider = process.env.VIDEO_OCR_PROVIDER?.trim();
