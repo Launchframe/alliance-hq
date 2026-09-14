@@ -19,6 +19,57 @@ import type { SupportBoard, SupportEvent, SupportValue } from "@/lib/support-tea
 import type { SupportDisplayPreferences } from "@/lib/support-teams/display-preferences.shared";
 import type { TeamWorkDetail } from "@/lib/support-teams/work-routing.shared";
 import type { PlanSchedule } from "@/lib/plunder-plan/schedule.shared";
+import type { OcrCase, OcrDataset, OcrSplit, OcrTarget } from "@/lib/ocr/benchmark/types.shared";
+
+export const ocrLearningCases = pgTable("ocr_learning_cases", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  scoreTarget: text("score_target").$type<OcrTarget>().notNull(),
+  sourceJobId: text("source_job_id"),
+  sourceStorageKey: text("source_storage_key").notNull(),
+  sourceSha256: text("source_sha256").notNull(),
+  sourceBytes: bigint("source_bytes", { mode: "number" }).notNull(),
+  fileName: text("file_name").notNull(),
+  recordingGroupId: text("recording_group_id").notNull(),
+  state: text("state").$type<OcrCase["state"]>().notNull().default("candidate"),
+  pairing: text("pairing").$type<OcrCase["pairing"]>().notNull().default("unmatched"),
+  labelRevision: integer("label_revision").notNull().default(0),
+  snapshot: jsonb("snapshot").$type<OcrCase>().notNull(),
+  snapshotHash: text("snapshot_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("ocr_cases_scope_idx").on(table.allianceId, table.scoreTarget, table.state),
+  index("ocr_cases_source_idx").on(table.allianceId, table.sourceSha256),
+  index("ocr_cases_expiry_idx").on(table.expiresAt),
+]);
+
+export const ocrLearningCaseRevisions = pgTable("ocr_learning_case_revisions", {
+  caseId: text("case_id").notNull().references(() => ocrLearningCases.id, { onDelete: "cascade" }),
+  revision: integer("revision").notNull(),
+  snapshot: jsonb("snapshot").$type<OcrCase>().notNull(),
+  snapshotHash: text("snapshot_hash").notNull(),
+  recordedByHqUserId: text("recorded_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [primaryKey({ columns: [table.caseId, table.revision] })]);
+
+export const ocrDatasetVersions = pgTable("ocr_dataset_versions", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  manifest: jsonb("manifest").$type<OcrDataset>().notNull(),
+  manifestHash: text("manifest_hash").notNull(),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [unique("ocr_dataset_manifest_unique").on(table.allianceId, table.manifestHash)]);
+
+export const ocrDatasetPartitions = pgTable("ocr_dataset_partitions", {
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  fingerprint: text("fingerprint").notNull(),
+  split: text("split").$type<OcrSplit>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [primaryKey({ columns: [table.allianceId, table.fingerprint] })]);
 
 export const plunderPlans = pgTable("plunder_plans", {
   id: text("id").primaryKey(),

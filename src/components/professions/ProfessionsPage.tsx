@@ -41,6 +41,17 @@ type OfficerData = {
 
 type PageTab = "mine" | "officer";
 
+async function fetchOfficerData(fallback: string): Promise<{ data: OfficerData | null; error: string | null }> {
+  try {
+    const response = await fetch("/api/professions/officer");
+    const body = await response.json();
+    if (response.ok && Array.isArray(body?.wlRows)) return { data: body as OfficerData, error: null };
+    return { data: null, error: typeof body?.error === "string" ? body.error : fallback };
+  } catch {
+    return { data: null, error: fallback };
+  }
+}
+
 export function ProfessionsPage({
   allianceId,
   commanderId,
@@ -48,6 +59,8 @@ export function ProfessionsPage({
   isOfficer,
 }: Props) {
   const t = useTranslations("professions");
+  const tc = useTranslations("common");
+  const officerLoadFailure = tc("connectionFailed");
   const searchParams = useSearchParams();
   const initialTab =
     searchParams.get("tab") === "officer" && isOfficer ? "officer" : "mine";
@@ -55,8 +68,9 @@ export function ProfessionsPage({
   const [tab, setTab] = useState<PageTab>(initialTab);
   const [teamData, setTeamData] = useState<TeamData | null>(null);
   const [officerData, setOfficerData] = useState<OfficerData | null>(null);
+  const [officerError, setOfficerError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [officerLoading, setOfficerLoading] = useState(false);
+  const [officerLoading, setOfficerLoading] = useState(initialTab === "officer");
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState<string | null>(null);
 
@@ -75,15 +89,11 @@ export function ProfessionsPage({
 
   async function loadOfficer() {
     setOfficerLoading(true);
-    try {
-      const res = await fetch("/api/professions/officer");
-      if (res.ok) {
-        const data = (await res.json()) as OfficerData;
-        setOfficerData(data);
-      }
-    } finally {
-      setOfficerLoading(false);
-    }
+    setOfficerError(null);
+    const result = await fetchOfficerData(officerLoadFailure);
+    setOfficerData(result.data);
+    setOfficerError(result.error);
+    setOfficerLoading(false);
   }
 
   useEffect(() => {
@@ -103,6 +113,19 @@ export function ProfessionsPage({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (initialTab !== "officer") return;
+    let cancelled = false;
+    void fetchOfficerData(officerLoadFailure).then((result) => {
+      if (!cancelled) {
+        setOfficerData(result.data);
+        setOfficerError(result.error);
+        setOfficerLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [initialTab, officerLoadFailure]);
 
   async function handleSetProfession(p: Profession) {
     setSwitching(true);
@@ -200,7 +223,9 @@ export function ProfessionsPage({
       </div>
 
       {tab === "officer" && isOfficer ? (
-        officerLoading || !officerData ? (
+        officerError ? (
+          <p role="alert" className="text-sm text-hq-danger">{officerError}</p>
+        ) : officerLoading || !officerData ? (
           <div className="animate-pulse text-sm text-hq-fg-muted">{t("loading")}</div>
         ) : (
           <OfficerPortal

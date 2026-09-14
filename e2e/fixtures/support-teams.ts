@@ -57,7 +57,7 @@ export async function createPublishedSupportTeamFixture(request: APIRequestConte
     }
   }
   version = await seedPublishedSupportBoard(fixture.sql, fixture.allianceId);
-  await fixture.sql`UPDATE alliances SET game_server_id = NULL WHERE id = ${fixture.allianceId}`;
+  await fixture.sql`UPDATE alliances SET game_server_number = 0, game_server_id = (SELECT id FROM game_servers WHERE server_number = 0) WHERE id = ${fixture.allianceId}`;
   return { ...fixture, teams, version };
 }
 
