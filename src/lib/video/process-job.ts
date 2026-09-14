@@ -1,4 +1,9 @@
 import { eq, and, notInArray } from "drizzle-orm";
+import { isLearningTarget } from "@/lib/ocr/learning/observations.shared";
+import { recordPipelineRun } from "@/lib/ocr/learning/recording.server";
+import { hashVideoInput } from "@/lib/ocr/learning/media-hash.server";
+import { getMaxVideoUploadBytes } from "@/lib/video/upload-limit";
+import type { OcrEntry } from "@/lib/video/normalize-rows";
 
 import { resolveSessionAllianceId, getSessionAllianceTag } from "@/lib/alliance/session-alliance";
 import {
@@ -288,6 +293,9 @@ export async function processVideoJob(
   let denseFrameCount: number | null = null;
   let framesSkipped: number | null = null;
   let totalRawOcrRows: number | null = null;
+  let learningEntries: OcrEntry[] = [];
+  let learningSourceSha256: string | null = null;
+  let learningSourceKind: "original_video" | "playback_archive" | "unknown" = "unknown";
 
   try {
     const videoStorageKey = await resolveJobVideoStorageKey(job);
@@ -382,6 +390,14 @@ export async function processVideoJob(
         (job.extractionConfigJson as ExtractionConfig | null) ?? undefined;
 
       try {
+        if (isLearningTarget(scoreTargetId)) {
+          try {
+            learningSourceSha256 = await hashVideoInput(tmpVideo, getMaxVideoUploadBytes());
+            learningSourceKind = videoStorageKey.endsWith("/archive.mp4") ? "playback_archive" : videoStorageKey === job.storageKey ? "original_video" : "unknown";
+          } catch (err) {
+            console.error("[ocr-learning] hashVideoInput failed; continuing without source hash", err);
+          }
+        }
         const extractResult = await timer.measureStep("ffmpeg.extract", () =>
           extractLeaderboardFrames(tmpVideo, extractionConfig),
           (result) => ({ frameCount: result.frames.length }),
@@ -873,7 +889,7 @@ export async function processVideoJob(
         }
       });
 
-    const { entries: rawEntries, frameTimings, concurrency } =
+    const { entries: rawEntries, observations, frameTimings, concurrency } =
       await timer.measureStep(
         ocrEngine === "native" ? "native.ocr_total" : "ashed.ocr_total",
         async () => {
@@ -894,6 +910,7 @@ export async function processVideoJob(
           rowCount: result.entries.length,
         }),
       );
+    learningEntries = observations ?? rawEntries;
     ocrFrameMs = frameTimings.map((f) => f.ms);
     ocrConcurrency = concurrency;
     ashedUploadTotalMs = frameTimings.reduce((sum, f) => sum + f.uploadMs, 0);
@@ -1100,6 +1117,14 @@ export async function processVideoJob(
         ocrConcurrency,
       });
       return timings;
+    }
+
+    if (isLearningTarget(scoreTargetId)) {
+      try {
+        await recordPipelineRun({ jobId, parseSessionId, allianceId, scoreTarget: scoreTargetId, engine: ocrEngine, sourceSha256: learningSourceSha256, sourceKind: learningSourceKind, extractionConfig: job.extractionConfigJson, frames, entries: learningEntries });
+      } catch (err) {
+        console.error("[ocr-learning] recordPipelineRun failed; continuing", err);
+      }
     }
 
     // Persist parseSessionId on the job before comparison sync —

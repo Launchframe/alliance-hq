@@ -371,7 +371,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [matchFilledFromOcr, setMatchFilledFromOcr] = useState(false);
   const [vsPeriod, setVsPeriod] = useState<VsScorePeriod>("daily");
   const [vsRevision, setVsRevision] = useState(0);
-  const vsSubmissionRequestId = useRef<string | null>(null);
+  const scoreSubmissionRequestId = useRef<string | null>(null);
+  const scoreSubmissionSignature = useRef<string | null>(null);
   const [recordedDate, setRecordedDate] = useState(
     () => presetRecordedDate ?? getServerCalendarDate(),
   );
@@ -2352,7 +2353,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     try {
       const isRoster = scoreTargetMeta?.showRosterColumns;
       const isDepositSlip = scoreTargetMeta?.showDepositSlipColumns;
-      if (isVsPerformanceTarget && !vsSubmissionRequestId.current) vsSubmissionRequestId.current = crypto.randomUUID();
+      const usesOcrFeedback = isVsPerformanceTarget || isAllianceKillsVideoTarget(scoreTargetMeta?.id ?? "");
+      if (usesOcrFeedback) {
+        const signature = JSON.stringify([jobId, scoreTargetMeta?.id, isVsPerformanceTarget ? vsSafeRecordedDate : recordedDate, isVsPerformanceTarget ? vsPeriod : null, rows.map((row) => [row.id, row.ocrName, row.score, row.memberId, row.memberName, row.rank, row.deleted, row.frameIndex, scoreGhostDiscardRowIds.has(row.id)])]);
+        if (!scoreSubmissionRequestId.current || scoreSubmissionSignature.current !== signature) {
+          scoreSubmissionRequestId.current = crypto.randomUUID();
+          scoreSubmissionSignature.current = signature;
+        }
+      }
       const res = await fetch(`/api/tools/video-upload/${jobId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2382,7 +2390,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             : recordedDate,
           vsPeriod: isVsPerformanceTarget ? vsPeriod : undefined,
           vsRevision: isVsPerformanceTarget ? vsRevision : undefined,
-          requestId: isVsPerformanceTarget ? vsSubmissionRequestId.current : undefined,
+          requestId: usesOcrFeedback ? scoreSubmissionRequestId.current : undefined,
+          ocrFeedbackVersion: usesOcrFeedback ? 1 : undefined,
           bankId: scoreTargetMeta?.showBankSelector ? bankId : undefined,
           rows: rows.map((r) => {
             const autoDiscardScoreGhost = scoreGhostDiscardRowIds.has(r.id);
@@ -2431,7 +2440,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     rank: scoreTargetMeta?.showReviewRowNumber
                       ? reviewLeaderboardRankById?.get(source.id) ?? null
                       : source.rank,
-                    deleted: source.deleted === 1 || autoDiscardScoreGhost,
+                    ocrName: usesOcrFeedback ? source.ocrName : undefined,
+                    frameIndex: usesOcrFeedback ? source.frameIndex : undefined,
+                    deleted: source.deleted === 1 || (!usesOcrFeedback && autoDiscardScoreGhost),
                   };
           }),
         }),
@@ -2471,7 +2482,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           ),
         );
       }
-      vsSubmissionRequestId.current = null;
+      scoreSubmissionRequestId.current = null;
       setSuccess(
         isVsPerformanceTarget && data.storage === "hq"
           ? `${t("vsSubmitSuccess", { count: data.submitted ?? 0 })}${data.syncStatus === "pending" ? ` ${t("vsSyncPending")}` : ""}`
