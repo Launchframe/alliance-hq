@@ -179,11 +179,16 @@ export async function commitReviewedVsScores(input: {
     }
     const metrics = { rowsSaved: active.length, rowsEdited, rowsDeleted: input.rows.filter((row) => row.deleted).length, rowsAdded: active.filter((row) => originals.get(row.id)?.manuallyAdded === 1).length };
     const quality = computeQualityScore({ ...metrics, status: "complete" });
-    const ocrFeedbackId = await recordConfirmedReview(tx, {
-      allianceId: input.allianceId, jobId: input.jobId, parseSessionId: input.parseSessionId, scoreTarget: "vs-performance", hqUserId: input.hqUserId,
-      requestId: input.requestId, currentRows: parsed, automaticDeletedIds: input.automaticDeletedIds, humanDeletesKnown: input.humanDeletesKnown, recordedDate: input.recordedDate, period: input.period,
-      submittedRows: input.rows.map((row) => ({ ...row, memberName: row.memberId ? names.get(row.memberId) ?? null : null, score: row.deleted ? String(row.score ?? "") : String(parseVsScore(row.score)) })),
-    });
+    let ocrFeedbackId: string | null = null;
+    try {
+      ocrFeedbackId = await recordConfirmedReview(tx, {
+        allianceId: input.allianceId, jobId: input.jobId, parseSessionId: input.parseSessionId, scoreTarget: "vs-performance", hqUserId: input.hqUserId,
+        requestId: input.requestId, currentRows: parsed, automaticDeletedIds: input.automaticDeletedIds, humanDeletesKnown: input.humanDeletesKnown, recordedDate: input.recordedDate, period: input.period,
+        submittedRows: input.rows.map((row) => ({ ...row, memberName: row.memberId ? names.get(row.memberId) ?? null : null, score: row.deleted ? String(row.score ?? "") : String(parseVsScore(row.score)) })),
+      });
+    } catch (feedbackError) {
+      console.error("[vs-scores] recordConfirmedReview failed; VS commit will continue without feedback receipt", feedbackError);
+    }
     await tx.update(schema.videoJobs).set({ status: "complete", ocrFeedbackReceiptId: ocrFeedbackId, recordedDate: input.recordedDate, updatedAt: now, ...buildReviewOutcomePatch({ reviewOpenedAt: job.reviewOpenedAt, endedAt: now, ...metrics, qualityScore: quality.qualityScore, qualityBucket: quality.qualityBucket }) }).where(eq(schema.videoJobs.id, input.jobId));
     await tx.update(schema.parseSessions).set({ status: "submitted", updatedAt: now }).where(eq(schema.parseSessions.id, input.parseSessionId));
     await tx.insert(schema.auditLog).values({ id: nanoid(), allianceId: input.allianceId, hqUserId: input.hqUserId, action: "vs.evidence.submit", resourceType: "video_job", resourceId: input.jobId, metadata: { batchId, revision: revision + 1, recordedDate: input.recordedDate, period: input.period, count: active.length } });

@@ -154,6 +154,13 @@ type ClaimVideoJobForSubmitResult =
       jobStatus: string;
     };
 
+function normalizeDeletedFlag(row: SubmitRow) {
+  const raw = (row as { deleted?: unknown }).deleted;
+  if (raw === 0 || raw === 1 || raw === "0" || raw === "1") {
+    row.deleted = raw === 1 || raw === "1";
+  }
+}
+
 /** Atomically claim review/complete → submitting so two devices cannot double-submit. */
 async function claimVideoJobForSubmit(
   db: ReturnType<typeof getDb>,
@@ -230,6 +237,9 @@ export async function POST(request: Request, { params }: Props) {
 
   try {
     let body = (await request.json()) as SubmitBody;
+    for (const row of body?.rows ?? []) {
+      normalizeDeletedFlag(row);
+    }
 
     const db = getDb();
     const access = await resolveVideoJobAccess(jobId, session.id, "mutate");
@@ -951,8 +961,15 @@ export async function POST(request: Request, { params }: Props) {
       if (!job.parseSessionId || body.rows.length > 2000 || new Set(body.rows.map((row) => row.id)).size !== body.rows.length || body.rows.some((row) => !originalRowById.has(row.id))) {
         return vsEvidenceErrorResponse(new VsEvidenceError("invalid_rows"));
       }
-      const roster = await base44ListMembers(connection, ashedAllianceId);
-      const allowedMemberIds = new Set(roster.filter((member) => !member.alliance_id || member.alliance_id === ashedAllianceId).map((member) => member.id));
+      let allowedMemberIds: Set<string>;
+      try {
+        const roster = await base44ListMembers(connection, ashedAllianceId);
+        allowedMemberIds = new Set(roster.filter((member) => !member.alliance_id || member.alliance_id === ashedAllianceId).map((member) => member.id));
+      } catch (rosterError) {
+        console.error("[kills-submit] base44ListMembers failed; falling back to local roster", rosterError);
+        const localRoster = await listAllianceMembers(allianceId);
+        allowedMemberIds = new Set(localRoster.map((member) => member.ashedMemberId).filter((id): id is string => !!id));
+      }
       if (activeRows.some((row) => !allowedMemberIds.has(row.memberId))) return vsEvidenceErrorResponse(new VsEvidenceError("invalid_member"));
       try {
         for (const row of activeRows) row.score = String(parseVsScore(row.score));

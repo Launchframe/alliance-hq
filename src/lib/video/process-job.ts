@@ -391,8 +391,12 @@ export async function processVideoJob(
 
       try {
         if (isLearningTarget(scoreTargetId)) {
-          learningSourceSha256 = await hashVideoInput(tmpVideo, getMaxVideoUploadBytes());
-          learningSourceKind = videoStorageKey.endsWith("/archive.mp4") ? "playback_archive" : videoStorageKey === job.storageKey ? "original_video" : "unknown";
+          try {
+            learningSourceSha256 = await hashVideoInput(tmpVideo, getMaxVideoUploadBytes());
+            learningSourceKind = videoStorageKey.endsWith("/archive.mp4") ? "playback_archive" : videoStorageKey === job.storageKey ? "original_video" : "unknown";
+          } catch (err) {
+            console.error("[ocr-learning] hashVideoInput failed; continuing without source hash", err);
+          }
         }
         const extractResult = await timer.measureStep("ffmpeg.extract", () =>
           extractLeaderboardFrames(tmpVideo, extractionConfig),
@@ -1116,7 +1120,11 @@ export async function processVideoJob(
     }
 
     if (isLearningTarget(scoreTargetId)) {
-      await recordPipelineRun({ jobId, parseSessionId, allianceId, scoreTarget: scoreTargetId, engine: ocrEngine, sourceSha256: learningSourceSha256, sourceKind: learningSourceKind, extractionConfig: job.extractionConfigJson, frames, entries: learningEntries });
+      try {
+        await recordPipelineRun({ jobId, parseSessionId, allianceId, scoreTarget: scoreTargetId, engine: ocrEngine, sourceSha256: learningSourceSha256, sourceKind: learningSourceKind, extractionConfig: job.extractionConfigJson, frames, entries: learningEntries });
+      } catch (err) {
+        console.error("[ocr-learning] recordPipelineRun failed; continuing", err);
+      }
     }
 
     // Persist parseSessionId on the job before comparison sync —

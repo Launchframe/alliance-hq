@@ -54,6 +54,7 @@ vi.mock("@/lib/analytics/video-pipeline", () => ({ trackVideoPipelineFailure: vi
 
 import { processVideoJob } from "./process-job";
 import { recordPipelineRun } from "@/lib/ocr/learning/recording.server";
+import { hashVideoInput } from "@/lib/ocr/learning/media-hash.server";
 
 const job = {
   id: "native-vs-job", sessionId: "uploader", processingSessionId: "processor",
@@ -110,5 +111,19 @@ describe("processVideoJob native VS", () => {
     await expect(processVideoJob(job.id)).rejects.toThrow("OCR frame failed");
     expect(mocks.mockOcrScoreFrames).not.toHaveBeenCalled();
     expect(mocks.ocrAllFrames).not.toHaveBeenCalled();
+  });
+
+  it("does not fail the job when hashVideoInput throws", async () => {
+    vi.mocked(hashVideoInput).mockRejectedValueOnce(new Error("hash failed"));
+    const result = await processVideoJob(job.id);
+    expect(result).toMatchObject({ rowCount: 1, matchedCount: 1 });
+    expect(mocks.updateSet).toHaveBeenCalledWith(expect.objectContaining({ status: "review" }));
+  });
+
+  it("does not fail the job when recordPipelineRun throws", async () => {
+    vi.mocked(recordPipelineRun).mockRejectedValueOnce(new Error("record failed"));
+    const result = await processVideoJob(job.id);
+    expect(result).toMatchObject({ rowCount: 1, matchedCount: 1 });
+    expect(mocks.updateSet).toHaveBeenCalledWith(expect.objectContaining({ status: "review" }));
   });
 });
