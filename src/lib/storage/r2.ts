@@ -77,11 +77,18 @@ export async function copyR2ObjectBounded(sourceKey: string, destinationKey: str
     const status = error && typeof error === "object" && "$metadata" in error ? (error.$metadata as { httpStatusCode?: number }).httpStatusCode : null;
     if (status !== 404) throw error;
   }
-  await client.send(new CopyObjectCommand({
-    Bucket: bucket(), Key: destinationKey,
-    CopySource: `${bucket()}/${sourceKey.split("/").map(encodeURIComponent).join("/")}`,
-    CopySourceIfMatch: source.ETag,
-  }), { abortSignal: AbortSignal.timeout(30000) });
+  try {
+    await client.send(new CopyObjectCommand({
+      Bucket: bucket(), Key: destinationKey,
+      CopySource: `${bucket()}/${sourceKey.split("/").map(encodeURIComponent).join("/")}`,
+      CopySourceIfMatch: source.ETag,
+      IfNoneMatch: "*",
+    }), { abortSignal: AbortSignal.timeout(30000) });
+  } catch (error) {
+    const status = error && typeof error === "object" && "$metadata" in error ? (error.$metadata as { httpStatusCode?: number }).httpStatusCode : null;
+    if (status === 412) throw Object.assign(new Error("object_already_exists"), { code: "EEXIST" });
+    throw error;
+  }
 }
 
 export async function getR2Object(storageKey: string): Promise<Buffer> {
