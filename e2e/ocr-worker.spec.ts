@@ -50,7 +50,7 @@ async function example(request: APIRequestContext, f: Fixture, name: string, sco
 }
 
 async function freeze(request: APIRequestContext, f: Fixture, cases: Array<{ id: string; revision: number; split: "train" | "validation" | "test" }>) {
-  const result = await request.post(`${admin}/datasets`, { headers: f.headers, data: { allianceId: f.allianceId, cases } });
+  const result = await request.post(`${admin}/datasets?allianceId=${f.allianceId}`, { headers: f.headers, data: { cases } });
   expect(result.status(), await result.text()).toBe(201);
   return (await result.json()).id as string;
 }
@@ -117,14 +117,6 @@ test("worker protocol binds jobs and pixels, grades privately and honors live re
   expect(finished.metrics.exactRows).toBe(1);
   const { models } = await (await request.get(`${admin}/models?allianceId=${f.allianceId}`, { headers: f.headers })).json();
   expect(models[0].state).toBe("candidate");
-  expect((await request.delete(`${admin}/models/${models[0].id}?allianceId=${f.allianceId}`, { headers: f.headers, data: { confirmed: true } })).status()).toBe(200);
-  expect((await (await request.get(`${admin}/models?allianceId=${f.allianceId}`, { headers: f.headers })).json()).models[0].state).toBe("revoked");
-  const artifactId = nanoid();
-  await getE2eSql()`UPDATE ocr_worker_jobs SET lease_expires_at = '2000-01-01' WHERE id = ${job.id}`;
-  await getE2eSql()`INSERT INTO ocr_worker_artifacts (id, job_id, alliance_id, attempt, bytes, sha256, manifest_text, manifest_hash, staging_key, sealed_key, state, expires_at, created_at) VALUES (${artifactId}, ${job.id}, ${f.allianceId}, ${finished.attempts}, 100, ${"a".repeat(64)}, '{}', ${"b".repeat(64)}, ${`ocr-staging/${f.allianceId}/models/${job.id}/${artifactId}.bin`}, ${`ocr-learning/${f.allianceId}/models/${job.id}/${artifactId}.bin`}, 'reserved', '2000-01-01', '2000-01-01')`;
-  const cleanup = await request.post(`${admin}/worker-retention?allianceId=${f.allianceId}`, { headers: f.headers, data: { confirmed: true } });
-  expect(cleanup.status(), await cleanup.text()).toBe(200);
-  expect((await cleanup.json()).deleted).toBe(1);
   const again = await request.post(`${admin}/worker-jobs`, { headers: f.headers, data: { allianceId: f.allianceId, datasetId, caseId: sample.id, scoreTarget: "vs-performance", kind: "evaluate", requestId: nanoid(), confirmed: true } });
   const second = await again.json();
   const next = (await (await request.post(`${internal}/claim`, { headers: workerAuth, data: { workerCodeHash } })).json()).job;
@@ -138,6 +130,14 @@ test("worker protocol binds jobs and pixels, grades privately and honors live re
   expect(await revoked.json()).toMatchObject({ code: "revoked_case" });
   expect(await (await request.get(`${admin}/worker-jobs/${second.id}?allianceId=${f.allianceId}`, { headers: f.headers })).json()).toMatchObject({ state: "running", result: null, metrics: null });
   expect((await request.delete(`${admin}/worker-jobs/${second.id}?allianceId=${f.allianceId}`, { headers: f.headers, data: { confirmed: true } })).status()).toBe(200);
+  expect((await request.delete(`${admin}/models/${models[0].id}?allianceId=${f.allianceId}`, { headers: f.headers, data: { confirmed: true } })).status()).toBe(200);
+  expect((await (await request.get(`${admin}/models?allianceId=${f.allianceId}`, { headers: f.headers })).json()).models[0].state).toBe("revoked");
+  const artifactId = nanoid();
+  await getE2eSql()`UPDATE ocr_worker_jobs SET lease_expires_at = '2000-01-01' WHERE id = ${job.id}`;
+  await getE2eSql()`INSERT INTO ocr_worker_artifacts (id, job_id, alliance_id, attempt, bytes, sha256, manifest_text, manifest_hash, staging_key, sealed_key, state, expires_at, created_at) VALUES (${artifactId}, ${job.id}, ${f.allianceId}, ${finished.attempts}, 100, ${"a".repeat(64)}, '{}', ${"b".repeat(64)}, ${`ocr-staging/${f.allianceId}/models/${job.id}/${artifactId}.bin`}, ${`ocr-learning/${f.allianceId}/models/${job.id}/${artifactId}.bin`}, 'reserved', '2000-01-01', '2000-01-01')`;
+  const cleanup = await request.post(`${admin}/worker-retention?allianceId=${f.allianceId}`, { headers: f.headers, data: { confirmed: true } });
+  expect(cleanup.status(), await cleanup.text()).toBe(200);
+  expect((await cleanup.json()).deleted).toBe(1);
 });
 
 test("real pull worker trains, seals a model and evaluates held-out pixels through the broker", async ({ request }, testInfo) => {
