@@ -120,6 +120,7 @@ export const videoOcrFileTracingExcludes = [
 export const videoOcrTracedRoutes = {
   // Queue cron always HTTP-dispatches to [jobId] — do NOT force OCR NFT here.
   "/api/internal/video-process/[jobId]": videoOcrFileTracing,
+  "/api/internal/video-process/ocr-media/[taskId]": sharpNativeFileTracing,
   "/api/members/roster-import/parse": videoOcrFileTracing,
   "/api/tools/video-upload/[jobId]/reprocess": videoOcrFileTracing,
   "/api/admin/video-jobs/[jobId]/reprocess": videoOcrFileTracing,
@@ -128,6 +129,13 @@ export const videoOcrTracedRoutes = {
   "/api/webhooks/discord/interactions": videoOcrFileTracing,
   "/api/thp/me/submit": videoOcrFileTracing,
 };
+
+export const videoOcrFileTracingIncludes = Object.fromEntries(
+  Object.entries(videoOcrTracedRoutes).map(([route, includes]) => [
+    route.replaceAll("[", "\\[").replaceAll("]", "\\]"),
+    includes,
+  ]),
+);
 
 /**
  * Mirrored in next.config.ts outputFileTracingIncludes["*"].
@@ -155,6 +163,20 @@ export const functionTraceBudgets = [
       "tesseract.js-core",
       "tesseract.js/src",
     ],
+  },
+  {
+    route: "/api/admin/ocr-learning/imports",
+    nftPath: ".next/server/app/api/admin/ocr-learning/imports/route.js.nft.json",
+    maxUncompressedBytes: 120 * 1024 * 1024,
+    requireLibvips: true,
+    forbidPathSubstrings: ["ffmpeg-static", "tesseract.js-core", "tesseract.js/src"],
+  },
+  {
+    route: "/api/internal/video-process/ocr-media/[taskId]",
+    nftPath: ".next/server/app/api/internal/video-process/ocr-media/[taskId]/route.js.nft.json",
+    maxUncompressedBytes: 180 * 1024 * 1024,
+    requireLibvips: true,
+    forbidPathSubstrings: ["tesseract.js-core", "tesseract.js/src"],
   },
   {
     route: "/api/internal/video-process/[jobId]",
