@@ -106,6 +106,8 @@ def prepare_crops(request: TrainRequest, input_root: Path, output_root: Path, ch
             lines[example.split].append(f"crops/{digest}.png\t{label.text}\n")
     if not lines["train"]:
         raise ValueError("training_examples_required")
+    if not lines["validation"]:
+        raise ValueError("validation_examples_required")
     for split, entries in lines.items():
         (output_root / f"{split}.txt").write_text("".join(entries), encoding="utf-8")
     return {split: len(entries) for split, entries in lines.items()}
