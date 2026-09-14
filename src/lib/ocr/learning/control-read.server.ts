@@ -1,8 +1,9 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import { getObjectSize, getObjectStream } from "@/lib/storage";
+import { getObject, getObjectSize } from "@/lib/storage";
 import { OcrLearningError, ocrHashSchema, ocrStorageKeySchema } from "../benchmark/types.shared";
 import { leasedWorkerJob } from "./control-leases.server";
 import { loadModelVersion } from "./control-jobs.server";
@@ -31,5 +32,8 @@ export async function workerModelAsset(jobId: string, token: string) {
 
 export async function workerAssetResponse(asset: { storageKey: string; sha256: string; bytes: number }) {
   if (!ocrStorageKeySchema.safeParse(asset.storageKey).success || await getObjectSize(asset.storageKey, AbortSignal.timeout(30000)) !== asset.bytes) throw new OcrLearningError("worker_asset_changed", 409);
-  return new Response(await getObjectStream(asset.storageKey, undefined, AbortSignal.timeout(120000)), { headers: { "Content-Type": "application/octet-stream", "Content-Length": String(asset.bytes), "X-Content-Type-Options": "nosniff", ETag: `"${asset.sha256}"` } });
+  const buffer = await getObject(asset.storageKey);
+  if (buffer.length !== asset.bytes || createHash("sha256").update(buffer).digest("hex") !== asset.sha256) throw new OcrLearningError("worker_asset_changed", 409);
+  const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(buffer); controller.close(); } });
+  return new Response(stream, { headers: { "Content-Type": "application/octet-stream", "Content-Length": String(asset.bytes), "X-Content-Type-Options": "nosniff", ETag: `"${asset.sha256}"` } });
 }

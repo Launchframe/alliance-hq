@@ -18,7 +18,7 @@ export async function completeWorkerJob(id: string, token: string, output: unkno
   const result = parsed.data;
   const resultHash = workerHash({ result, artifactId: artifactId ?? null });
   if (peek.state === "ready") {
-    if (peek.leaseToken !== token || peek.resultHash !== resultHash) throw new OcrLearningError("worker_result_conflict", 409);
+    if (peek.resultHash !== resultHash) throw new OcrLearningError("worker_result_conflict", 409);
     return { id, state: "ready", pipelineId: peek.pipelineId };
   }
   if (peek.kind === "train" && !artifactId || peek.kind !== "train" && artifactId) throw new OcrLearningError("worker_artifact_required", 409);
@@ -27,7 +27,7 @@ export async function completeWorkerJob(id: string, token: string, output: unkno
     await lockWorker(tx, peek.allianceId);
     const [current] = await tx.select().from(schema.ocrWorkerJobs).where(eq(schema.ocrWorkerJobs.id, id)).limit(1);
     if (current.state === "ready") {
-      if (current.leaseToken !== token || current.resultHash !== resultHash) throw new OcrLearningError("worker_result_conflict", 409);
+      if (current.resultHash !== resultHash) throw new OcrLearningError("worker_result_conflict", 409);
       return { id, state: "ready", pipelineId: current.pipelineId };
     }
     const { job, dataset } = await leasedWorkerJob(tx, id, token);
@@ -56,7 +56,7 @@ export async function completeWorkerJob(id: string, token: string, output: unkno
       await tx.insert(schema.ocrModelVersions).values({ id: modelId, allianceId: job.allianceId, scoreTarget: job.scoreTarget, definition, trainingJobId: id, datasetId: job.datasetId, artifactId: artifact.id, createdByHqUserId: job.createdByHqUserId }).onConflictDoNothing();
     }
     if (modelId) await loadModelVersion(tx, job.allianceId, modelId);
-    await tx.update(schema.ocrWorkerJobs).set({ state: "ready", pipelineId: modelId, result, metrics, resultHash, errorCode: null, updatedAt: new Date() }).where(eq(schema.ocrWorkerJobs.id, id));
+    await tx.update(schema.ocrWorkerJobs).set({ state: "ready", pipelineId: modelId, result, metrics, resultHash, errorCode: null, leaseToken: null, updatedAt: new Date() }).where(eq(schema.ocrWorkerJobs.id, id));
     await tx.update(schema.ocrWorkerAttempts).set({ finishedAt: new Date() }).where(and(eq(schema.ocrWorkerAttempts.jobId, id), eq(schema.ocrWorkerAttempts.attempt, job.attempts)));
     await workerAudit(tx, { hqUserId: job.createdByHqUserId! }, job.allianceId, "ocr.worker.complete", id, { kind: job.kind, scoreTarget: job.scoreTarget, pipelineId: modelId });
     return { id, state: "ready", pipelineId: modelId };

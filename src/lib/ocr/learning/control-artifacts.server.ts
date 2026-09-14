@@ -76,6 +76,11 @@ export async function receiveWorkerArtifact(id: string, leaseToken: string, requ
     if (created) await deleteObject(artifact.stagingKey, AbortSignal.timeout(30000));
     throw new OcrLearningError("artifact_digest_mismatch", 409);
   }
+  try { await getDb().transaction(async (tx) => { await leasedWorkerJob(tx, artifact.jobId, leaseToken); }); }
+  catch (error) {
+    if (created) await deleteObject(artifact.stagingKey, AbortSignal.timeout(30000));
+    throw error;
+  }
   return { id, received: digest.bytes };
 }
 

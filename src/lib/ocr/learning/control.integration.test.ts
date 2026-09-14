@@ -12,9 +12,10 @@ import { ocrCaseFixture } from "@/test/ocr-corpus";
 import { confirmCasePair, createCandidateCase, freezeDataset, reviseCaseLabels, revokeLearningCase } from "./corpus.server";
 import { disabledWorkerPolicy } from "./control.shared";
 import { loadWorkerPolicy, saveWorkerPolicy } from "./control-policy.server";
-import { cancelWorkerJob, createWorkerJob, loadWorkerJob } from "./control-jobs.server";
+import { cancelWorkerJob, createWorkerJob, loadWorkerJob, revokeModelVersion } from "./control-jobs.server";
 import { claimWorkerJob, heartbeatWorkerJob } from "./control-leases.server";
 import { completeWorkerJob } from "./control-results.server";
+import { expireWorkerArtifacts } from "./control-retention.server";
 import { workerFrameAsset } from "./control-read.server";
 import type { WorkerInference, WorkerInferenceResult } from "./worker.shared";
 
@@ -99,7 +100,8 @@ describe.skipIf(process.env.OCR_LEARNING_DB_TEST !== "1")("durable worker contro
     const [model] = await getDb().select().from(schema.ocrModelVersions).where(eq(schema.ocrModelVersions.id, a.pipelineId!));
     expect(model.state).toBe("candidate");
     await expect(workerFrameAsset(job.id, lease.leaseToken, f.sample.frames[0].sha256)).rejects.toMatchObject({ code: "stale_worker_lease" });
-    await expect(completeWorkerJob(job.id, "wrong", result)).rejects.toMatchObject({ code: "worker_result_conflict" });
+    const replay = await completeWorkerJob(job.id, "wrong-token", result);
+    expect(replay.pipelineId).toBe(a.pipelineId);
     await expect(completeWorkerJob(job.id, lease.leaseToken, { ...result, prediction: { ...result.prediction, totalMs: 20 } })).rejects.toMatchObject({ code: "worker_result_conflict" });
   });
 
@@ -174,5 +176,30 @@ describe.skipIf(process.env.OCR_LEARNING_DB_TEST !== "1")("durable worker contro
     await getDb().update(schema.hqUsers).set({ isPlatformMaintainer: 0 }).where(eq(schema.hqUsers.id, f.actor.hqUserId));
     expect(await claimWorkerJob(f.workerCodeHash)).toBeNull();
     expect((await loadWorkerJob(f.allianceId, job.id)).state).toBe("failed");
+  });
+
+  it("revokes a candidate model and cleans expired artifacts for a maintainer", async () => {
+    const f = await setup();
+    await saveWorkerPolicy(f.allianceId, 0, f.policy, f.actor);
+    const job = await createWorkerJob(f.request, f.actor);
+    const lease = (await claimWorkerJob(f.workerCodeHash))!;
+    const result = inferenceResult(f, lease.input as WorkerInference);
+    const completed = await completeWorkerJob(job.id, lease.leaseToken, result);
+    await revokeModelVersion(f.allianceId, completed.pipelineId!, f.actor);
+    const [revoked] = await getDb().select().from(schema.ocrModelVersions).where(eq(schema.ocrModelVersions.id, completed.pipelineId!));
+    expect(revoked.state).toBe("revoked");
+    await getDb().update(schema.ocrWorkerJobs).set({ leaseExpiresAt: new Date(0) }).where(eq(schema.ocrWorkerJobs.id, job.id));
+    const fullJob = await loadWorkerJob(f.allianceId, job.id);
+    const artifactId = nanoid();
+    const stagingKey = `ocr-staging/${f.allianceId}/models/${job.id}/${artifactId}.bin`;
+    const sealedKey = `ocr-learning/${f.allianceId}/models/${job.id}/${artifactId}.bin`;
+    await getDb().insert(schema.ocrWorkerArtifacts).values({
+      id: artifactId, jobId: job.id, allianceId: f.allianceId, attempt: fullJob.attempts, bytes: 100,
+      sha256: "a".repeat(64), manifestText: "{}", manifestHash: "b".repeat(64),
+      stagingKey, sealedKey, state: "reserved", expiresAt: new Date(0), createdAt: new Date(0),
+    });
+    const cleanup = await expireWorkerArtifacts(f.allianceId, true, f.actor, 20);
+    expect(cleanup.deleted).toBe(1);
+    expect(cleanup.releasedBytes).toBe(200);
   });
 });

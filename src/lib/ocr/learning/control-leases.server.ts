@@ -82,6 +82,7 @@ export async function claimWorkerJob(workerCodeHash: string, jobId?: string) {
 export async function heartbeatWorkerJob(id: string, token: string) {
   return getDb().transaction(async (tx) => {
     const { job } = await leasedWorkerJob(tx, id, token);
+    // Heartbeat is a live-eligibility probe; it intentionally does not extend leaseExpiresAt.
     return { id, leaseExpiresAt: job.leaseExpiresAt };
   });
 }
