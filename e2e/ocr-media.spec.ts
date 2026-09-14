@@ -53,7 +53,8 @@ for (const scoreTarget of ["vs-performance", "alliance-kills-video"] as const) {
     const detail = await request.get(`${base}/cases/${task.id}?allianceId=${allianceId}`, { headers });
     expect(detail.status()).toBe(200);
     const { sample } = await detail.json();
-    expect(sample).toMatchObject({ state: "candidate", pairing: "unmatched", privacyReviewed: false, externalTrainingAllowed: false });
+    expect(sample).toMatchObject({ state: "candidate", pairing: "unmatched", privacyReviewed: false, externalTrainingAllowed: false, durationSeconds: null });
+    expect(sample.frames[0].timestampSeconds).toBeNull();
     const source = await request.get(`${base}/cases/${task.id}/media?allianceId=${allianceId}`, { headers });
     expect(source.status()).toBe(200);
     expect(await source.body()).toEqual(bytes);

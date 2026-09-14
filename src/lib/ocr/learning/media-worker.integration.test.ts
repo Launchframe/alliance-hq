@@ -17,6 +17,7 @@ import { deleteObject, getObject, putObject } from "@/lib/storage";
 import { createMediaUpload, enqueueMediaTask, saveMediaPolicy } from "./media-queue.server";
 import { disabledMediaPolicy } from "./media.shared";
 import { processMediaTask } from "./media-worker.server";
+import { validateCaseEvidence } from "../benchmark/evidence.shared";
 
 const taskIds: string[] = [];
 async function setup(buffer: Buffer, contentType: "image/png" | "video/mp4") {
@@ -50,7 +51,8 @@ describe.skipIf(process.env.OCR_LEARNING_DB_TEST !== "1")("real sealed media wor
     expect(await processMediaTask(task.id)).toBe(task.id);
     expect(await processMediaTask(task.id)).toBe(task.id);
     const [row] = await getDb().select().from(schema.ocrLearningCases).where(eq(schema.ocrLearningCases.id, task.id));
-    expect(row.snapshot).toMatchObject({ state: "candidate", pairing: "unmatched", privacyReviewed: false, externalTrainingAllowed: false, labels: [], frames: [{ width: 64, height: 32 }] });
+    expect(row.snapshot).toMatchObject({ state: "candidate", pairing: "unmatched", privacyReviewed: false, externalTrainingAllowed: false, labels: [], frames: [{ width: 64, height: 32, timestampSeconds: null }] });
+    expect(() => validateCaseEvidence(row.snapshot)).not.toThrow();
     await deleteObject(task.stagingKey);
     expect(await getObject(row.sourceStorageKey)).toEqual(buffer);
     const pixels = await getObject(row.snapshot.frames[0].storageKey);
