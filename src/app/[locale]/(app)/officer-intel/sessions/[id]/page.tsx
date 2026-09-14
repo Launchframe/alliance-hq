@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 
 import { OfficerChatSessionClient } from "@/components/officer-intel/OfficerChatSessionClient";
 import {
@@ -26,18 +27,20 @@ export default async function OfficerChatSessionPage({ params }: Props) {
   const session = await requirePageSession(`/officer-intel/sessions/${id}`);
   await requirePagePermission(session.id, OFFICER_INTEL_READ_PERMISSION);
   const allianceId = session.currentAllianceId ?? session.allianceId;
-  if (!allianceId) notFound();
+  const actor = await getKnowledgeActorForSession(session.id);
+  if (!allianceId || !actor || actor.allianceId !== allianceId) notFound();
 
   const chatSession = await getOfficerChatSessionForAlliance({
     sessionId: id,
     allianceId,
+    actor,
   });
   if (!chatSession) notFound();
 
   const [messages, images, meetingNote, canWrite] = await Promise.all([
-    listOfficerChatMessages({ sessionId: id, allianceId }),
-    listOfficerChatSessionImages({ sessionId: id, allianceId }),
-    getOfficerMeetingNoteBySession({ sessionId: id, allianceId }),
+    listOfficerChatMessages({ sessionId: id, allianceId, actor }),
+    listOfficerChatSessionImages({ sessionId: id, allianceId, actor }),
+    getOfficerMeetingNoteBySession({ sessionId: id, allianceId, actor }),
     sessionHasPermission(session.id, OFFICER_INTEL_WRITE_PERMISSION),
   ]);
 

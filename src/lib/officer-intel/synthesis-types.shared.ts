@@ -27,7 +27,8 @@ export type OfficerActionItemPriority = NotePriority;
 
 export type OfficerMeetingNoteSummary = {
   id: string;
-  sessionId: string;
+  sessionId: string | null;
+  canEdit?: boolean;
   summary: string;
   keyDecisions: string[];
   openQuestions: string[];

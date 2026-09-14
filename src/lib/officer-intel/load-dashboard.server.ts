@@ -29,10 +29,11 @@ export async function loadOfficerIntelDashboard(
     sessionId,
     OFFICER_INTEL_WRITE_PERMISSION,
   );
-  const sessions = await listOfficerChatSessions(allianceId);
   const actor = await getKnowledgeActorForSession(sessionId);
-  const openActionItemCount = actor?.allianceId === allianceId ? await countOpenOfficerActionItems(allianceId, actor) : 0;
-  const approvedNoteCount = await countApprovedOfficerMeetingNotes(allianceId);
+  if (!actor || actor.allianceId !== allianceId) return null;
+  const sessions = await listOfficerChatSessions(allianceId, actor);
+  const openActionItemCount = await countOpenOfficerActionItems(allianceId, actor);
+  const approvedNoteCount = await countApprovedOfficerMeetingNotes(allianceId, actor);
 
   return {
     sessions,

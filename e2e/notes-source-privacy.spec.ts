@@ -1,0 +1,55 @@
+import { expect, test } from "@playwright/test";
+import { nanoid } from "nanoid";
+import { authCookieHeader, getE2eSql } from "./fixtures/db";
+import { createNotesFixture } from "./fixtures/notes";
+
+test("legacy source sessions and their derived notes are private across officers", async ({ request }) => {
+  const { author, peer, alliance } = await createNotesFixture("officer");
+  const headers = { Cookie: authCookieHeader(author) };
+  const otherHeaders = { Cookie: authCookieHeader(peer) };
+  const created = await request.post("/api/officer-intel/sessions", { headers, data: { title: "Private source archive" } });
+  expect(created.status()).toBe(200);
+  const { sessionId } = await created.json();
+  const sql = getE2eSql();
+  const noteId = nanoid();
+  await sql`INSERT INTO officer_meeting_notes (id, alliance_id, session_id, summary, status, synthesized_by_hq_user_id) VALUES (${noteId}, ${alliance.allianceId}, ${sessionId}, 'Private derived summary', 'approved', ${author.hqUserId})`;
+  const imageId = nanoid();
+  const privateText = `Player ${"1".repeat(14)} token=example-secret`;
+  await sql`INSERT INTO officer_chat_messages (id, session_id, alliance_id, sender_name, original_text, locale_text, locale_code, sequence_order, source_image_index) VALUES (${nanoid()}, ${sessionId}, ${alliance.allianceId}, 'Cookie', ${privateText}, ${privateText}, 'en-US', 0, 0)`;
+  await sql`INSERT INTO officer_chat_session_images (id, session_id, alliance_id, storage_key, sequence_order) VALUES (${imageId}, ${sessionId}, ${alliance.allianceId}, 'unused-private-object.png', 0)`;
+  const own = await request.get(`/api/officer-intel/sessions/${sessionId}`, { headers });
+  expect(own.status()).toBe(200);
+  const ownPayload = JSON.stringify(await own.json());
+  expect(/\d{12,20}/.test(ownPayload)).toBe(false);
+  expect(ownPayload.includes("example-secret")).toBe(false);
+  expect((await request.get(`/api/officer-intel/sessions/${sessionId}/images/${imageId}`, { headers: otherHeaders })).status()).toBe(404);
+  const denied = await request.get(`/api/officer-intel/sessions/${sessionId}`, { headers: otherHeaders });
+  expect(denied.status()).toBe(404);
+  expect(JSON.stringify(await denied.json())).not.toContain("Private source archive");
+  const dashboard = await (await request.get("/api/officer-intel/sessions", { headers: otherHeaders })).json();
+  expect(dashboard.sessions).toEqual([]);
+  expect(dashboard.approvedNoteCount).toBe(0);
+  expect((await request.get(`/api/officer-intel/notes/${noteId}`, { headers: otherHeaders })).status()).toBe(404);
+  expect((await request.post(`/api/officer-intel/sessions/${sessionId}/parse`, { headers: otherHeaders })).status()).toBe(404);
+  expect((await request.post(`/api/officer-intel/sessions/${sessionId}/import`, { headers: otherHeaders })).status()).toBe(404);
+  expect((await request.post(`/api/officer-intel/sessions/${sessionId}/synthesize`, { headers: otherHeaders })).status()).toBe(404);
+  expect((await request.put(`/api/officer-intel/notes/${noteId}`, { headers: otherHeaders, data: { summary: "Not allowed" } })).status()).toBe(404);
+  expect((await request.post("/api/officer-intel/ask", { headers, data: { question: "Private source archive?" } })).status()).toBe(503);
+  await sql`INSERT INTO knowledge_resource_grants (id, resource_id, alliance_id, subject_kind, subject_id, role) VALUES (${nanoid()}, ${`meeting:${noteId}`}, ${alliance.allianceId}, 'user', ${peer.hqUserId}, 'read')`;
+  const sharedNote = await request.get(`/api/officer-intel/notes/${noteId}`, { headers: otherHeaders });
+  expect(sharedNote.status()).toBe(200);
+  expect((await sharedNote.json()).note).toMatchObject({ sessionId: null, canEdit: false });
+  expect((await request.put(`/api/officer-intel/notes/${noteId}`, { headers: otherHeaders, data: { summary: "Still not allowed", approve: true } })).status()).toBe(404);
+  expect((await request.get(`/api/officer-intel/sessions/${sessionId}`, { headers: otherHeaders })).status()).toBe(404);
+});
+
+test("unresolved legacy sources remain closed even to platform maintainers", async ({ request }) => {
+  const { author, alliance } = await createNotesFixture("officer");
+  const sql = getE2eSql();
+  const sessionId = nanoid();
+  await sql`INSERT INTO officer_chat_sessions (id, alliance_id, title) VALUES (${sessionId}, ${alliance.allianceId}, 'Unresolved history')`;
+  await sql`UPDATE hq_users SET is_platform_maintainer = 1 WHERE id = ${author.hqUserId}`;
+  expect((await request.get(`/api/officer-intel/sessions/${sessionId}`, { headers: { Cookie: authCookieHeader(author) } })).status()).toBe(404);
+  const [resource] = await sql`SELECT ownership_state FROM knowledge_resources WHERE id = ${`source:${sessionId}`}`;
+  expect(resource.ownership_state).toBe("unresolved");
+});

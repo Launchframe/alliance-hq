@@ -1,45 +1,7 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { KnowledgeAccessError } from "@/lib/notes/resources.server";
 
-import { getDb, schema } from "@/lib/db";
-import {
-  indexOfficerApprovedNoteCorpus,
-  listApprovedOfficerMeetingNotesForAlliance,
-} from "@/lib/officer-intel/repository.server";
-
-const MAX_NOTE_BACKFILL = 5;
-
-async function indexedSourceIds(
-  allianceId: string,
-  sourceType: "approved_note" | "action_item",
-): Promise<Set<string>> {
-  const db = getDb();
-  const rows = await db
-    .select({ sourceId: schema.officerIntelChunks.sourceId })
-    .from(schema.officerIntelChunks)
-    .where(
-      and(
-        eq(schema.officerIntelChunks.allianceId, allianceId),
-        eq(schema.officerIntelChunks.sourceType, sourceType),
-      ),
-    );
-  return new Set(rows.map((row) => row.sourceId));
-}
-
-export async function ensureOfficerIntelCorpusBackfill(
-  allianceId: string,
-): Promise<void> {
-  const indexedNotes = await indexedSourceIds(allianceId, "approved_note");
-  const notes = await listApprovedOfficerMeetingNotesForAlliance(allianceId);
-  const missingNotes = notes
-    .filter((note) => !indexedNotes.has(note.id))
-    .slice(0, MAX_NOTE_BACKFILL);
-  for (const note of missingNotes) {
-    await indexOfficerApprovedNoteCorpus({
-      allianceId,
-      noteId: note.id,
-    });
-  }
-
+export async function ensureOfficerIntelCorpusBackfill(_allianceId: string): Promise<void> {
+  throw new KnowledgeAccessError("not_configured");
 }

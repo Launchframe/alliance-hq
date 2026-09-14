@@ -30,14 +30,12 @@ export default async function OfficerMeetingNotePage({ params }: Props) {
   const note = await getOfficerMeetingNoteForAlliance({
     noteId: id,
     allianceId,
+    actor,
   });
   if (!note) notFound();
 
   const [chatSession, actionItems, canWrite] = await Promise.all([
-    getOfficerChatSessionForAlliance({
-      sessionId: note.sessionId,
-      allianceId,
-    }),
+    note.sessionId ? getOfficerChatSessionForAlliance({ sessionId: note.sessionId, allianceId, actor }) : Promise.resolve(null),
     listOfficerActionItemsForNote({ noteId: id, allianceId, actor }),
     sessionHasPermission(session.id, OFFICER_INTEL_WRITE_PERMISSION),
   ]);
@@ -46,7 +44,7 @@ export default async function OfficerMeetingNotePage({ params }: Props) {
     <OfficerMeetingNoteClient
       note={note}
       actionItems={actionItems}
-      canWrite={canWrite}
+      canWrite={canWrite && note.canEdit === true}
       sessionTitle={chatSession?.title ?? ""}
     />
   );

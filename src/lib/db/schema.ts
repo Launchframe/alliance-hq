@@ -4356,6 +4356,7 @@ export const officerChatSessions = pgTable(
   "officer_chat_sessions",
   {
     id: text("id").primaryKey(),
+    resourceId: text("resource_id").notNull().default(sql`NULL`),
     allianceId: text("alliance_id")
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
@@ -4376,6 +4377,8 @@ export const officerChatSessions = pgTable(
       .notNull(),
   },
   (table) => [
+    unique("officer_chat_sessions_resource_unique").on(table.resourceId),
+    foreignKey({ name: "officer_chat_sessions_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
     index("officer_chat_sessions_alliance_updated_idx").on(
       table.allianceId,
       table.updatedAt,
@@ -4471,6 +4474,7 @@ export const officerMeetingNotes = pgTable(
   "officer_meeting_notes",
   {
     id: text("id").primaryKey(),
+    resourceId: text("resource_id").notNull().default(sql`NULL`),
     allianceId: text("alliance_id")
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
@@ -4506,6 +4510,8 @@ export const officerMeetingNotes = pgTable(
       .notNull(),
   },
   (table) => [
+    unique("officer_meeting_notes_resource_unique").on(table.resourceId),
+    foreignKey({ name: "officer_meeting_notes_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
     uniqueIndex("officer_meeting_notes_session_idx").on(table.sessionId),
     index("officer_meeting_notes_alliance_updated_idx").on(
       table.allianceId,
@@ -4694,7 +4700,7 @@ export const knowledgeResources = pgTable("knowledge_resources", {
   unique("knowledge_resources_entity_unique").on(table.allianceId, table.kind, table.entityId),
   index("knowledge_resources_owner_idx").on(table.allianceId, table.ownerHqUserId),
   index("knowledge_resources_discord_owner_idx").on(table.ownerDiscordUserId, table.ownershipState),
-  check("knowledge_resources_kind_check", sql`${table.kind} in ('note', 'task', 'source', 'collection', 'board')`),
+  check("knowledge_resources_kind_check", sql`${table.kind} in ('note', 'task', 'source', 'collection', 'board', 'draft')`),
   check("knowledge_resources_ownership_check", sql`${table.ownershipState} in ('hq', 'discord', 'unresolved')`),
   check("knowledge_resources_version_check", sql`${table.version} > 0 and ${table.accessVersion} > 0`),
 ]);
