@@ -12,12 +12,13 @@ from unittest.mock import patch
 from PIL import Image, ImageDraw
 from pydantic import ValidationError
 
-from ocr_worker.contracts import CellLabel, Frame, InferRequest, RosterMember, Sampler, TrainRequest
+from PIL import Image
+from ocr_worker.contracts import CellLabel, Frame, InferRequest, Limits, RosterMember, Sampler, TrainRequest, TrainingExample
 from ocr_worker.engine import Cell, verify_trained_model
 from ocr_worker.files import load_frame, normalize_integer
 from ocr_worker.rows import RowObservation, RowTracker, match_member, parse_rows
 from ocr_worker.sampling import select_frames
-from ocr_worker.training import run_bounded
+from ocr_worker.training import prepare_crops, run_bounded
 
 
 def frame(index=0):
@@ -146,6 +147,32 @@ class WorkerBoundaryTest(unittest.TestCase):
         self.assertEqual(parse_rows(cells, frame()), [])
         cells[0] = Cell("Alpha", 0.99, cells[0].box)
         self.assertEqual(len(parse_rows(cells, frame())), 1)
+
+    def test_multi_cell_name_rejects_digit_only_uid(self):
+        cells = [Cell("1234567890123456", 0.9, (0.2, 0.1, 0.4, 0.15)), Cell("1,000", 0.95, (0.65, 0.1, 0.9, 0.15))]
+        self.assertEqual(parse_rows(cells, frame()), [])
+        cells[0] = Cell("Alpha", 0.9, cells[0].box)
+        rows = parse_rows(cells, frame())
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].name, "Alpha")
+
+    def test_pillow_pixel_limit_matches_worker_budget(self):
+        self.assertEqual(Image.MAX_IMAGE_PIXELS, 6_000_000)
+
+    def test_prepare_crops_requires_validation_examples(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            image = Image.new("RGB", (100, 100), "white")
+            frame_obj = save_image(root, image, 0)
+            label = CellLabel.model_construct(frame_sha256=frame_obj.sha256, box=(0.1, 0.1, 0.9, 0.9), text="0", field="score")
+            train_example = TrainingExample.model_construct(case_id="case-a", recording_group_id="group-a", source_sha256="a" * 64, split="train", frames=[frame_obj], labels=[label])
+            validation_example = TrainingExample.model_construct(case_id="case-b", recording_group_id="group-a", source_sha256="b" * 64, split="validation", frames=[frame_obj], labels=[])
+            request = TrainRequest.model_construct(version=1, dataset_hash="c" * 64, score_target="vs-performance", examples=[train_example, validation_example], recipe=None, limits=Limits.model_construct(max_seconds=60, max_memory_bytes=1024 ** 3, max_frames=2, max_input_bytes=1000, max_work_bytes=4 * 1024 ** 3, max_output_bytes=256 * 1024 ** 2))
+            work = Path(directory) / "work"
+            work.mkdir()
+            with self.assertRaises(ValueError) as context:
+                prepare_crops(request, root, work, set("0123456789"), time.monotonic() + 10)
+            self.assertIn("validation_examples_required", str(context.exception))
 
 
 if __name__ == "__main__":
