@@ -1825,6 +1825,7 @@
         "newTask": "Create a task",
         "sharedBoards": "Open officer boards",
         "newBoard": "Create an officer board",
+        "drafts": "Open private drafts",
         "search": "Search notes"
       },
       "trains": {
@@ -5761,6 +5762,37 @@
       "askOfficer": "Ask an officer"
     },
     "performanceNotes": {
+      "review": {
+        "intro": "Review your private capture before saving. AI suggestions send this text to the configured provider only after you enable them; this does not enable knowledge indexing, sharing, or notifications.",
+        "save": "Save note and tasks",
+        "only": "Keep note only",
+        "editBody": "Edit note text",
+        "editMembers": "Edit members",
+        "editTitle": "Edit task title",
+        "pause": "Pause AI for this draft",
+        "resume": "Resume AI suggestions",
+        "enable": "Enable AI suggestions",
+        "chooseTask": "Choose a task to edit",
+        "members": "Linked members: {names}",
+        "attention": "Note priority: {priority}",
+        "notePriority": "Change note priority",
+        "none": "None",
+        "ambiguous": "Some mentions match more than one commander. Use Edit members to choose.",
+        "web": "Resume this private draft in HQ: {url}",
+        "taskHint": "Your manual changes are kept. Choose None under status to exclude this action from the save.",
+        "statusLabel": "Task status",
+        "priorityLabel": "Task priority",
+        "exclude": "Exclude task",
+        "include": "Include task",
+        "back": "Back to draft review",
+        "reset": "Use detection",
+        "changed": "This draft changed. Review the latest version below before saving.",
+        "saved": "Private note saved with {count, plural, one {# task} other {# tasks}}. Open in HQ: {url}",
+        "invalid": "Check the draft details. For members, use exact, unique names, one per line.",
+        "unavailable": "This draft is unavailable or could not be updated. Saved drafts can be resumed in HQ.",
+        "status": { "none": "None — keep as note", "open": "Backlog", "in_progress": "In progress", "done": "Done", "cancelled": "Cancelled" },
+        "priority": { "none": "None", "low": "Low", "medium": "Medium", "high": "High", "urgent": "Urgent" }
+      },
       "savedAskAttach": "Would you like to link this note to an alliance member? Your note is private, and linking members will not cause the note to be shared. {url}",
       "doneView": "Your note is saved. Open it in HQ: {url}",
       "hqLinkHint": "Run `/link` to access your private notes in HQ.",
@@ -7116,6 +7148,7 @@
     "views": {
       "tasks": "Tasks",
       "boards": "Officer boards",
+      "drafts": "Drafts",
       "notebook": "Notebook",
       "inbox": "Inbox",
       "shared": "Shared with me",
@@ -7288,6 +7321,19 @@
         "done": "Done",
         "cancelled": "Cancelled"
       }
+    },
+    "drafts": {
+      "private": "Drafts are visible only to you. Saving a draft does not create tasks or update a shared note.",
+      "empty": "No saved drafts.",
+      "untitled": "Untitled draft",
+      "saving": "Saving private draft…",
+      "saved": "Private draft saved",
+      "error": "The draft could not be saved. Your text is still here.",
+      "keepClose": "Keep draft and close",
+      "manual": "Set by you",
+      "detected": "Detected",
+      "reset": "Use detection for this task",
+      "provenance": "Capture interpretation"
     },
     "intake": {
       "enable": "Suggest tasks from my captures",

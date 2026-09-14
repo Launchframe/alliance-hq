@@ -1,0 +1,93 @@
+import { expect, test } from "@playwright/test";
+import { nanoid } from "nanoid";
+import { createNotesFixture } from "./fixtures/notes";
+import { authCookieHeader, getE2eSql, playwrightAuthCookies } from "./fixtures/db";
+
+test("autosaves a private draft and resumes after reload without creating tasks", async ({ page }) => {
+  const { author, peer } = await createNotesFixture("officer");
+  await page.context().addCookies(playwrightAuthCookies(author));
+  await page.goto("/notes");
+  await page.getByRole("button", { name: "New note", exact: true }).first().click();
+  const editor = page.getByRole("dialog", { name: "New note", exact: true });
+  await editor.getByLabel("Title", { exact: true }).fill("Recoverable capture");
+  await editor.getByLabel("Note", { exact: true }).fill("A private thought with Cookie");
+  await expect(editor.getByRole("status")).toContainText("Private draft saved");
+  const drafts = await (await page.request.get("/api/notes/drafts")).json();
+  expect(drafts.drafts).toHaveLength(1);
+  const id = drafts.drafts[0].id;
+  expect((await (await page.request.get("/api/notes")).json()).notes).toHaveLength(0);
+  expect((await (await page.request.get("/api/notes/tasks")).json()).tasks).toHaveLength(0);
+  const denied = await page.request.get(`/api/notes/drafts/${id}`, { headers: { Cookie: authCookieHeader(peer) } });
+  expect(denied.status()).toBe(404);
+  await page.goto(`/notes?view=drafts&draft=${id}`);
+  const resumed = page.getByRole("dialog", { name: "New note", exact: true });
+  await expect(resumed.getByLabel("Note", { exact: true })).toHaveValue("A private thought with Cookie");
+  await resumed.getByRole("button", { name: "Save note", exact: true }).click();
+  await expect(resumed).not.toBeVisible();
+  expect((await (await page.request.get("/api/notes/drafts")).json()).drafts).toHaveLength(0);
+  const saved = await (await page.request.get("/api/notes")).json();
+  expect(saved.notes[0]).toMatchObject({ title: "Recoverable capture", source: "web" });
+  expect(saved.notes[0].intakeProvenance.draftId).toBe(id);
+});
+
+test("viewing a note creates no draft, and member-only draft edits remain committable after resume", async ({ page }) => {
+  const { author, cookie, ferg } = await createNotesFixture();
+  await page.context().addCookies(playwrightAuthCookies(author));
+  const note = (await (await page.request.post("/api/notes", { data: { title: "Existing note", body: "Original body", memberIds: [cookie.ashedMemberId] } })).json()).notes[0];
+  await page.goto(`/notes/${note.id}`);
+  await expect(page.getByRole("dialog", { name: "Existing note", exact: true })).toBeVisible();
+  await page.waitForTimeout(1_200);
+  expect((await (await page.request.get("/api/notes/drafts")).json()).drafts).toHaveLength(0);
+  const id = nanoid();
+  const saved = await page.request.put(`/api/notes/drafts/${id}`, { data: { expectedVersion: 0, sourceNoteId: note.id, sourceVersion: note.version, state: { fields: { title: note.title, body: note.body, memberIds: [ferg.ashedMemberId] } } } });
+  expect(saved.status()).toBe(200);
+  await page.goto(`/notes?view=drafts&draft=${id}`);
+  const editor = page.getByRole("dialog", { name: "Existing note", exact: true });
+  await expect(editor.getByRole("button", { name: "Save note", exact: true })).toBeEnabled();
+  await editor.getByRole("button", { name: "Save note", exact: true }).click();
+  await expect(editor).not.toBeVisible();
+  expect((await (await page.request.get(`/api/notes/${note.id}`)).json()).note.members.map((member: { ashedMemberId: string }) => member.ashedMemberId)).toEqual([ferg.ashedMemberId]);
+});
+
+test("draft CAS, owner-only grants, and explicit commit receipts preserve one capture", async ({ request }) => {
+  const { author, peer, alliance } = await createNotesFixture("officer");
+  const headers = { Cookie: authCookieHeader(author) };
+  const id = nanoid();
+  const state = { fields: { body: "Private reviewed action", priorityMode: "manual" }, revision: 0, tasks: [{ title: "Follow up", actionKey: "one", evidence: null, included: true, modes: { title: "manual", description: "manual", status: "manual", priority: "manual", included: "manual" } }] };
+  const first = await request.put(`/api/notes/drafts/${id}`, { headers, data: { expectedVersion: 0, state } });
+  expect(first.status(), await first.text()).toBe(200);
+  const stored = await first.json();
+  const updated = await request.put(`/api/notes/drafts/${id}`, { headers, data: { expectedVersion: stored.version, state: { ...stored.state, fields: { ...stored.state.fields, title: "Updated draft" } } } });
+  expect(updated.status()).toBe(200);
+  const stale = await request.put(`/api/notes/drafts/${id}`, { headers, data: { expectedVersion: stored.version, state: { ...stored.state, fields: { ...stored.state.fields, title: "Losing edit" } } } });
+  expect(stale.status()).toBe(409);
+  const sql = getE2eSql();
+  await sql`INSERT INTO knowledge_resource_grants (id, resource_id, alliance_id, subject_kind, subject_id, role) VALUES (${nanoid()}, ${`draft:${id}`}, ${alliance.allianceId}, 'user', ${peer.hqUserId}, 'edit')`;
+  expect((await request.get(`/api/notes/drafts/${id}`, { headers: { Cookie: authCookieHeader(peer) } })).status()).toBe(404);
+  const latest = await updated.json();
+  const payload = { ...latest.state.fields, requestId: nanoid(), draftId: id, expectedDraftVersion: latest.version };
+  const saved = await request.post("/api/notes/capture", { headers, data: payload });
+  expect(saved.status(), await saved.text()).toBe(200);
+  const outcome = await saved.json();
+  expect(outcome.taskIds).toHaveLength(1);
+  const again = await request.post("/api/notes/capture", { headers, data: payload });
+  expect(again.status()).toBe(200);
+  expect((await again.json()).noteId).toBe(outcome.noteId);
+  const [count] = await sql`SELECT count(*)::int AS count FROM officer_action_items WHERE alliance_id = ${alliance.allianceId}`;
+  expect(count.count).toBe(1);
+});
+
+test("an editor draft cannot update or reveal the shared source after revocation", async ({ request }) => {
+  const { author, peer } = await createNotesFixture("officer");
+  const headers = { Cookie: authCookieHeader(author) }; const peerHeaders = { Cookie: authCookieHeader(peer) };
+  const note = (await (await request.post("/api/notes", { headers, data: { body: "Original shared content" } })).json()).notes[0];
+  await request.put(`/api/notes/${note.id}/sharing`, { headers, data: { expectedVersion: note.version, grants: [{ subjectKind: "user", subjectId: peer.hqUserId, role: "edit" }] } });
+  const shared = (await (await request.get(`/api/notes/${note.id}`, { headers: peerHeaders })).json()).note;
+  const id = nanoid();
+  const saved = await request.put(`/api/notes/drafts/${id}`, { headers: peerHeaders, data: { expectedVersion: 0, sourceNoteId: note.id, sourceVersion: shared.version, state: { fields: { body: "Uncommitted editor draft" } } } });
+  expect(saved.status()).toBe(200);
+  expect((await (await request.get(`/api/notes/${note.id}`, { headers })).json()).note.body).toBe("Original shared content");
+  await request.put(`/api/notes/${note.id}/sharing`, { headers, data: { expectedVersion: shared.version, grants: [] } });
+  expect((await request.get(`/api/notes/drafts/${id}`, { headers: peerHeaders })).status()).toBe(404);
+  expect((await (await request.get("/api/notes/drafts", { headers: peerHeaders })).json()).drafts).toHaveLength(0);
+});

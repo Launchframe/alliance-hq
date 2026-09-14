@@ -10,12 +10,14 @@ import { useRegisterPageHotkeys } from "@/components/hotkeys/HotkeyProvider";
 import { NoteEditor } from "./NoteEditor";
 import { NoteTasksPanel } from "./NoteTasksPanel";
 import { NoteBoardsClient } from "./NoteBoardsClient";
+import { NoteDraftsPanel } from "./NoteDraftsPanel";
+import type { CaptureDraft } from "@/lib/notes/drafts.shared";
 import type { CaptureCommit } from "@/lib/notes/intake.shared";
 import { NoteShareDialog } from "./NoteShareDialog";
 import { NoteHistoryDialog } from "./NoteHistoryDialog";
 
-type Modal = { kind: "editor"; note: PerformanceNoteDto | null; body?: string } | { kind: "share" | "history"; note: PerformanceNoteDto } | null;
-const viewIcons = { notebook: BookOpen, inbox: Inbox, tasks: List, boards: LayoutGrid, shared: Share2, archived: Archive };
+type Modal = { kind: "editor"; note: PerformanceNoteDto | null; body?: string; resume?: CaptureDraft } | { kind: "share" | "history"; note: PerformanceNoteDto } | null;
+const viewIcons = { notebook: BookOpen, drafts: FileText, inbox: Inbox, tasks: List, boards: LayoutGrid, shared: Share2, archived: Archive };
 const priorityClass = { low: "text-emerald-600 dark:text-emerald-400", medium: "text-amber-600 dark:text-amber-400", high: "text-orange-600 dark:text-orange-400", urgent: "text-rose-600 dark:text-rose-400" };
 
 export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNotesPagePayload; focusNoteId?: string }) {
@@ -50,6 +52,7 @@ export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNote
     window.history.replaceState(null, "", notesWorkspaceLocation(window.location.pathname, window.location.search, { view: next }));
   }, []);
   const hotkeys = useMemo(() => ({
+    "notes.drafts": () => chooseView("drafts"),
     "notes.sharedBoards": () => { if (data.canReadBoards) chooseView("boards"); },
     "notes.newNote": () => { if (data.canCreate) setModal({ kind: "editor", note: null }); },
     "notes.search": () => queryInput.current?.focus(),
@@ -95,6 +98,27 @@ export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNote
     return () => { alive.current = false; request.current?.abort(); window.removeEventListener("focus", check); window.clearInterval(timer); };
   }, [refresh]);
 
+  const draftParam = params.get("draft");
+  useEffect(() => {
+    if (!draftParam) return;
+    const controller = new AbortController();
+    void (async () => {
+      const response = await fetch(`/api/notes/drafts/${draftParam}`, { cache: "no-store", signal: controller.signal });
+      const restored: CaptureDraft & { error?: string } = await response.json();
+      if (!response.ok) throw new Error(restored.error ?? t("notFound"));
+      const noteId = restored.sourceNoteId ?? restored.noteId;
+      let note: PerformanceNoteDto | null = null;
+      if (noteId) {
+        const response = await fetch(`/api/notes/${noteId}`, { cache: "no-store", signal: controller.signal });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error ?? t("notFound"));
+        note = payload.note;
+      }
+      if (!controller.signal.aborted) setModal({ kind: "editor", note, ...(restored.status === "open" ? { resume: restored } : {}) });
+    })().catch((failure) => { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : t("loadFailed")); });
+    return () => controller.abort();
+  }, [draftParam, t]);
+
   function openNote(note: PerformanceNoteDto) {
     setModal({ kind: "editor", note });
     const url = new URL(window.location.href);
@@ -105,7 +129,7 @@ export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNote
     setModal(null);
     const url = new URL(window.location.href);
     url.pathname = url.pathname.replace(/\/notes\/[^/]+$/, "/notes");
-    url.searchParams.delete("note");
+    url.searchParams.delete("note"); url.searchParams.delete("draft");
     window.history.replaceState(null, "", url);
   }
   async function save(fields: NoteFields | NotePatch | CaptureCommit, noteId?: string) {
@@ -129,7 +153,7 @@ export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNote
   }
 
   const counts = useMemo(() => ({
-    tasks: undefined, boards: undefined,
+    tasks: undefined, boards: undefined, drafts: undefined,
     notebook: data.notes.filter((note) => note.isOwner && !note.archived).length,
     inbox: data.notes.filter((note) => note.isOwner && note.inbox && !note.archived).length,
     shared: data.notes.filter((note) => !note.isOwner && !note.archived).length,
@@ -159,7 +183,7 @@ export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNote
         <section><h2 className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-hq-fg-muted">{t("workspace.notebooks")}</h2>{notebooks.length ? notebooks.map((name) => <button key={name} onClick={() => { chooseView("notebook"); setNotebook(name); }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs ${notebook === name ? "bg-hq-accent/10 text-hq-accent" : "text-hq-fg-muted hover:bg-hq-surface-muted"}`}><FolderOpen className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{name}</span></button>) : <p className="px-3 text-xs leading-5 text-hq-fg-muted">{t("workspace.notebooksHint")}</p>}</section>
         <div className="mt-auto rounded-xl border border-hq-border bg-hq-canvas p-3 text-xs leading-5 text-hq-fg-muted"><LockKeyhole className="mb-2 h-4 w-4 text-hq-accent" />{t("editor.memberPrivacy")}</div>
       </aside>
-      {view === "boards" ? data.canReadBoards ? <NoteBoardsClient /> : <p className="p-6">{t("errors.forbidden")}</p> : view === "tasks" ? <NoteTasksPanel focusId={params.get("task") ?? undefined} /> : <section className="min-w-0 flex-1 px-4 py-5 sm:px-7">
+      {view === "drafts" ? <div className="min-w-0 flex-1">{error ? <p role="alert" className="p-4 text-hq-danger">{error}</p> : null}<NoteDraftsPanel refreshKey={!!modal} onOpen={(id) => window.history.pushState(null, "", notesWorkspaceLocation(window.location.pathname, window.location.search, { draft: id }))} /></div> : view === "boards" ? data.canReadBoards ? <NoteBoardsClient /> : <p className="p-6">{t("errors.forbidden")}</p> : view === "tasks" ? <NoteTasksPanel focusId={params.get("task") ?? undefined} /> : <section className="min-w-0 flex-1 px-4 py-5 sm:px-7">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2 text-sm text-hq-fg-muted"><ViewIcon className="h-4 w-4" /><span>{t(`views.${view}`)}</span>{notebook ? <><ChevronRight className="h-3 w-3" /><span className="truncate font-medium text-hq-fg">{notebook}</span></> : null}<span className="ml-1 rounded-md bg-hq-surface px-1.5 py-0.5 text-xs">{visible.length.toLocaleString(locale)}</span></div><div className="flex items-center gap-1 rounded-lg border border-hq-border p-0.5"><button type="button" aria-label={t("workspace.cardView")} aria-pressed={layout === "cards"} onClick={() => setLayout("cards")} className={`rounded-md p-1.5 ${layout === "cards" ? "bg-hq-surface-muted" : "text-hq-fg-muted"}`}><LayoutGrid className="h-4 w-4" /></button><button type="button" aria-label={t("workspace.listView")} aria-pressed={layout === "list"} onClick={() => setLayout("list")} className={`rounded-md p-1.5 ${layout === "list" ? "bg-hq-surface-muted" : "text-hq-fg-muted"}`}><List className="h-4 w-4" /></button></div></div>
         {data.canCreate && view !== "shared" && view !== "archived" ? <form onSubmit={(event) => { event.preventDefault(); setModal({ kind: "editor", note: null, body: capture }); }} className="mb-5 flex items-center gap-3 rounded-xl border border-dashed border-hq-border bg-hq-surface/50 px-4 py-3 focus-within:border-hq-accent"><Plus className="h-4 w-4 shrink-0 text-hq-fg-muted" /><input value={capture} onChange={(event) => setCapture(event.target.value)} aria-label={t("workspace.quickCapture")} placeholder={t("workspace.capturePlaceholder")} className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-hq-fg-muted" /><button type="submit" aria-label={t("actions.newNote")} className="rounded-lg bg-hq-canvas p-2 text-hq-accent shadow-sm"><ArrowRight className="h-4 w-4" /></button></form> : null}
         <div className="mb-6 flex flex-wrap gap-2"><div className="flex min-w-48 flex-1 items-center gap-2 rounded-lg border border-hq-border bg-hq-canvas px-3"><Search className="h-4 w-4 shrink-0 text-hq-fg-muted" /><input ref={queryInput} type="search" value={query} onChange={(event) => setQuery(event.target.value)} aria-label={t("workspace.search")} placeholder={t("workspace.search")} className="w-full bg-transparent py-2 text-sm outline-none" /></div><label className="flex items-center gap-1 rounded-lg border border-hq-border px-2"><Filter className="h-3.5 w-3.5 text-hq-fg-muted" /><select aria-label={t("source.label")} value={source} onChange={(event) => setSource(event.target.value)} className="bg-hq-canvas py-2 text-xs outline-none"><option value="">{t("source.all")}</option><option value="web">{t("source.web")}</option><option value="discord">{t("source.discord")}</option></select></label><select aria-label={t("fields.priority")} value={priority} onChange={(event) => setPriority(event.target.value)} className="rounded-lg border border-hq-border bg-hq-canvas px-2 py-2 text-xs outline-none"><option value="all">{t("priority.all")}</option>{["none", ...NOTE_PRIORITIES].map((value) => <option key={value} value={value}>{t(`priority.${value}`)}</option>)}</select><label className="flex items-center gap-1 rounded-lg border border-hq-border px-2"><ArrowUpDown className="h-3.5 w-3.5 text-hq-fg-muted" /><select aria-label={t("workspace.sort")} value={sort} onChange={(event) => setSort(event.target.value)} className="bg-hq-canvas py-2 text-xs outline-none"><option value="recent">{t("workspace.recent")}</option><option value="priority">{t("fields.priority")}</option></select></label></div>
@@ -177,7 +201,7 @@ export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNote
         </div>}
       </section>}
     </div>
-    {modal?.kind === "editor" ? <NoteEditor key={modal.note?.id ?? "new"} note={modal.note} initialBody={modal.body} roster={data.roster} onClose={closeModal} onSave={save} onShare={(note) => setModal({ kind: "share", note })} onHistory={(note) => setModal({ kind: "history", note })} /> : null}
+    {modal?.kind === "editor" ? <NoteEditor key={modal.resume?.id ?? modal.note?.id ?? "new"} note={modal.note} resumeDraft={modal.resume} initialBody={modal.body} roster={data.roster} onClose={closeModal} onSave={save} onShare={(note) => setModal({ kind: "share", note })} onHistory={(note) => setModal({ kind: "history", note })} /> : null}
     {modal?.kind === "share" ? <NoteShareDialog key={modal.note.id} note={modal.note} onClose={closeModal} onSaved={refresh} /> : null}
     {modal?.kind === "history" ? <NoteHistoryDialog key={modal.note.id} note={modal.note} onClose={closeModal} onRestore={save} /> : null}
   </main>;

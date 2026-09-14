@@ -12,6 +12,16 @@ const ambiguousWords = new Set(["will", "may", "can", "me", "you", "the", "and",
 const fold = (value: string) => value.normalize("NFKC").toLowerCase();
 const escapePattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+export function resolveExactNoteMembers(names: string[], roster: readonly PerformanceNoteRosterMember[]): string[] | null {
+  const ids: string[] = [];
+  for (const name of names) {
+    const matches = roster.filter((member) => [member.name, ...(member.previousNames ?? [])].some((alias) => fold(alias.trim()) === fold(name.trim())));
+    if (matches.length !== 1) return null;
+    ids.push(matches[0].ashedMemberId);
+  }
+  return [...new Set(ids)];
+}
+
 export function detectNoteMentions(body: string, roster: readonly PerformanceNoteRosterMember[]): { memberIds: string[]; matches: NoteMention[] } {
   const masked = body.replace(/```[\s\S]*?```|`[^`\n]*`|https?:\/\/[^\s)]+|[^\s@]+@[^\s@]+\.[^\s@]+/giu, (value) => " ".repeat(value.length));
   let normalized = "";

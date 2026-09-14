@@ -22,6 +22,16 @@ export function discordOriginalInteractionUrl(
   return `https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}/messages/@original`;
 }
 
+function deliveryUrl(applicationId: string, interactionToken: string): string {
+  const url = new URL(discordOriginalInteractionUrl(applicationId, interactionToken));
+  if (process.env.E2E_TEST === "true" && !process.env.VERCEL && process.env.E2E_DISCORD_FOLLOWUP_ORIGIN) {
+    const origin = new URL(process.env.E2E_DISCORD_FOLLOWUP_ORIGIN);
+    if (origin.protocol !== "http:" || !["localhost", "127.0.0.1"].includes(origin.hostname)) throw new Error("invalid_test_origin");
+    url.protocol = origin.protocol; url.host = origin.host;
+  }
+  return url.toString();
+}
+
 /**
  * Replace the deferred "thinking" message. Interaction token auth is enough —
  * do not send the bot token on this webhook route.
@@ -34,7 +44,7 @@ export async function editDiscordOriginalInteraction(input: {
   ephemeral?: boolean;
   suppressMentions?: boolean;
 }): Promise<boolean> {
-  const url = discordOriginalInteractionUrl(
+  const url = deliveryUrl(
     input.applicationId,
     input.interactionToken,
   );
@@ -76,7 +86,7 @@ export async function editDiscordOriginalInteractionWithFiles(input: {
   components?: unknown[];
   ephemeral?: boolean;
 }): Promise<boolean> {
-  const url = discordOriginalInteractionUrl(
+  const url = deliveryUrl(
     input.applicationId,
     input.interactionToken,
   );

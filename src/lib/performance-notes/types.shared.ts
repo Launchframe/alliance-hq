@@ -6,6 +6,8 @@ export const PERFORMANCE_NOTE_KINDS = [
   "note",
 ] as const;
 
+import type { CaptureProvenance } from "@/lib/notes/drafts.shared";
+
 export type PerformanceNoteKind = (typeof PERFORMANCE_NOTE_KINDS)[number];
 
 export const PERFORMANCE_NOTE_INTAKE_MODES = ["batch", "thought"] as const;
@@ -27,6 +29,7 @@ export type PerformanceNoteDto = {
   title: string;
   priority: NotePriority;
   priorityMode: "manual" | "auto";
+  intakeProvenance?: CaptureProvenance | null;
   labels: string[];
   notebook: string | null;
   journalDate: string | null;

@@ -94,7 +94,7 @@ export async function interpretNoteCapture(actor: KnowledgeActor, input: IntakeR
   try {
     const semantic = semanticIntakeSchema.parse(await provider(body, input.locale, signal));
     if (!intakeEvidenceIsValid(body, semantic)) throw new KnowledgeAccessError("invalid_analysis");
-    const result: IntakeResult = { draftId: input.draftId, revision: input.revision, overrideRevision: input.overrideRevision, bodyHash: knowledgeHash(input.body), rosterHash, scope, preferenceVersion: reservation.preferenceVersion, priority: semantic.priority, priorityEvidence: semantic.priorityEvidence, actions: semantic.actions.map((action, index) => ({ ...action, actionKey: knowledgeHash([action.evidence, index]).slice(0, 24), included: true })) };
+    const result: IntakeResult = { analysisId: id, interpreter: `notes-intake-v1:${testProvider() ? "fixture" : officerIntelLlmModel()}`, draftId: input.draftId, revision: input.revision, overrideRevision: input.overrideRevision, bodyHash: knowledgeHash(input.body), rosterHash, scope, preferenceVersion: reservation.preferenceVersion, priority: semantic.priority, priorityEvidence: semantic.priorityEvidence, actions: semantic.actions.map((action, index) => ({ ...action, actionKey: knowledgeHash([action.evidence, index]).slice(0, 24), included: true })) };
     if (signal?.aborted || knowledgeHash(await listPerformanceNoteRoster(actor.allianceId)) !== rosterHash) throw new KnowledgeAccessError("changed");
     await getDb().transaction(async (tx) => {
       const consent = await assertConsent(tx, actor, input, reservation.preferenceVersion);
