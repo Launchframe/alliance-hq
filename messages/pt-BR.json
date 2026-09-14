@@ -1814,6 +1814,7 @@
         "sharedBoards": "Abrir quadros de oficiais",
         "newBoard": "Criar um quadro de oficiais",
         "drafts": "Abrir rascunhos privados",
+        "imports": "Abrir importações de histórico",
         "search": "Buscar notas"
       },
       "trains": {
@@ -7094,6 +7095,7 @@
       "tasks": "Tarefas",
       "boards": "Quadros de oficiais",
       "drafts": "Rascunhos",
+      "imports": "Histórico",
       "notebook": "Caderno",
       "inbox": "Caixa de entrada",
       "shared": "Compartilhadas comigo",
@@ -7266,6 +7268,23 @@
         "done": "Concluída",
         "cancelled": "Cancelada"
       }
+    },
+    "imports": {
+      "title": "Importações de histórico",
+      "privacy": "Importações são fontes privadas, não notas compartilhadas. Revise o texto extraído antes de confirmar. A importação não ativa tarefas, indexação por IA nem compartilhamento.",
+      "limits": "Texto, Markdown ou JSON: um arquivo de até 5 MiB. Capturas de tela: até 12 arquivos PNG, JPEG ou WebP, com 20 MiB cada e 60 MiB no total. Cada lote contém no máximo 5.000 mensagens.",
+      "jsonHint": "Use uma exportação do Discord com guild.id, channel.id e messages contendo id, timestamp, author.name e content; ou schemaVersion: 1 com as mesmas mensagens. Datas e autores desconhecidos podem ser null.",
+      "new": "Nova importação", "format": "Formato da importação", "sourceTitle": "Título da fonte", "paste": "Colar histórico", "files": "Escolher arquivos", "start": "Enviar e preparar revisão", "busy": "Processando…", "empty": "Nenhuma importação de histórico ainda.",
+      "error": "Não foi possível atualizar a importação. Seu progresso salvo foi mantido.", "invalid": "Confira o título, o formato, os tamanhos dos arquivos e a estrutura de exportação aceita.", "back": "Todas as importações", "unknown": "Desconhecido", "sender": "Remetente (não verificado)", "date": "Data e hora originais (UTC)", "body": "Texto revisado", "include": "Incluir esta mensagem",
+      "reviewPage": "Salvar e marcar esta página como revisada", "reviewed": "Revisado", "unreviewed": "Precisa de revisão", "progress": "{reviewed} de {total} mensagens revisadas", "fileProgress": "{done} de {total} arquivos processados",
+      "commit": "Confirmar fonte privada", "cancel": "Cancelar processamento", "retry": "Tentar processar novamente", "resumeUpload": "Retomar envio", "next": "Próxima página", "previous": "Página anterior", "reload": "Recarregar revisão", "discard": "Descartar suas alterações de revisão não salvas?",
+      "saved": "Fonte privada confirmada. Isso não criou tarefas, ativou processamento por IA nem compartilhou seu histórico.",
+      "discardChanges": "Descartar alterações", "keepReviewing": "Continuar revisando",
+      "resumeHint": "Escolha novamente os arquivos originais para retomar um envio interrompido. Lotes idênticos retomam a importação existente; arquivos alterados criam uma fonte separada.",
+      "processingError": "O processamento foi pausado ou falhou. O progresso foi mantido; você pode tentar novamente após o cancelamento ou o limite de tentativas.",
+      "changed": "Esta revisão foi alterada em outro lugar. Suas alterações continuam aqui. Recarregue a revisão antes de salvar novamente.",
+      "kinds": { "text": "Texto simples", "markdown": "Markdown", "discord_json": "JSON do Discord", "screenshots": "Capturas de tela" },
+      "states": { "uploading": "Aguardando envio", "queued": "Na fila", "processing": "Processando", "review": "Pronto para revisão", "committed": "Confirmado", "cancelled": "Cancelado", "failed": "Falha no processamento" }
     },
     "drafts": {
       "private": "Só você pode ver seus rascunhos. Salvar um rascunho não cria tarefas nem atualiza uma nota compartilhada.",

@@ -4378,6 +4378,7 @@ export const officerChatSessions = pgTable(
   },
   (table) => [
     unique("officer_chat_sessions_resource_unique").on(table.resourceId),
+    unique("officer_chat_sessions_source_identity_unique").on(table.id, table.allianceId, table.resourceId),
     foreignKey({ name: "officer_chat_sessions_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
     index("officer_chat_sessions_alliance_updated_idx").on(
       table.allianceId,
@@ -4423,7 +4424,7 @@ export const officerChatMessages = pgTable(
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
     senderAllianceTag: text("sender_alliance_tag"),
-    senderName: text("sender_name").notNull(),
+    senderName: text("sender_name"),
     senderLevel: integer("sender_level"),
     senderVipLevel: integer("sender_vip_level"),
     originalText: text("original_text").notNull(),
@@ -4433,12 +4434,18 @@ export const officerChatMessages = pgTable(
     isReply: boolean("is_reply").notNull().default(false),
     replyToName: text("reply_to_name"),
     sequenceOrder: integer("sequence_order").notNull(),
-    sourceImageIndex: integer("source_image_index").notNull(),
+    sourceImageIndex: integer("source_image_index"),
+    sourceLocator: text("source_locator"),
+    externalMessageId: text("external_message_id"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    historyIncluded: boolean("history_included").notNull().default(true),
+    historyReviewed: boolean("history_reviewed").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table) => [
+    uniqueIndex("officer_chat_messages_source_locator_unique").on(table.sessionId, table.sourceLocator),
     index("officer_chat_messages_session_order_idx").on(
       table.sessionId,
       table.sequenceOrder,
@@ -4843,9 +4850,40 @@ export const knowledgeMutationReceipts = pgTable("knowledge_mutation_receipts", 
   id: text("id").primaryKey(),
   allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
   principalKey: text("principal_key").notNull(), requestId: text("request_id").notNull(), requestHash: text("request_hash").notNull(),
-  result: jsonb("result").$type<{ noteId?: string; taskIds?: string[]; taskId?: string; boardId?: string; version?: number }>().notNull(),
+  result: jsonb("result").$type<{ noteId?: string; taskIds?: string[]; taskId?: string; boardId?: string; importId?: string; version?: number }>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [unique("knowledge_mutation_receipts_request_unique").on(table.allianceId, table.principalKey, table.requestId)]);
+
+export const knowledgeHistoryImports = pgTable("knowledge_history_imports", {
+  id: text("id").primaryKey().references(() => officerChatSessions.id, { onDelete: "restrict" }), allianceId: text("alliance_id").notNull(), resourceId: text("resource_id").notNull(),
+  kind: text("kind").$type<import("@/lib/notes/imports.shared").HistoryImportKind>().notNull(),
+  state: text("state").$type<import("@/lib/notes/imports.shared").HistoryImportState>().notNull().default("uploading"),
+  sourceHash: text("source_hash").notNull(), formatVersion: integer("format_version").notNull().default(1), locale: text("locale").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_history_imports_id_alliance_unique").on(table.id, table.allianceId), unique("knowledge_history_imports_resource_unique").on(table.resourceId),
+  foreignKey({ name: "knowledge_history_imports_resource_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+  foreignKey({ name: "knowledge_history_imports_source_fk", columns: [table.id, table.allianceId, table.resourceId], foreignColumns: [officerChatSessions.id, officerChatSessions.allianceId, officerChatSessions.resourceId] }).onDelete("restrict"),
+  index("knowledge_history_imports_hash_idx").on(table.allianceId, table.sourceHash),
+]);
+
+export const knowledgeHistoryAssets = pgTable("knowledge_history_assets", {
+  id: text("id").primaryKey(), importId: text("import_id").notNull(), allianceId: text("alliance_id").notNull(),
+  name: text("name").notNull(), contentType: text("content_type").notNull(), size: integer("size").notNull(), sha256: text("sha256").notNull(), position: integer("position").notNull(),
+  stagingKey: text("staging_key").notNull(), sealedKey: text("sealed_key"), sealedAt: timestamp("sealed_at", { withTimezone: true }),
+}, (table) => [unique("knowledge_history_assets_position_unique").on(table.importId, table.position),
+  foreignKey({ name: "knowledge_history_assets_import_fk", columns: [table.importId, table.allianceId], foreignColumns: [knowledgeHistoryImports.id, knowledgeHistoryImports.allianceId] }).onDelete("restrict"),
+]);
+
+export const knowledgeProcessingJobs = pgTable("knowledge_processing_jobs", {
+  id: text("id").primaryKey(), importId: text("import_id").notNull(), allianceId: text("alliance_id").notNull(), ownerHqUserId: text("owner_hq_user_id").notNull(),
+  sourceVersion: integer("source_version").notNull(), accessVersion: integer("access_version").notNull(),
+  state: text("state").$type<import("@/lib/notes/imports.shared").HistoryJobState>().notNull().default("pending"),
+  cursor: integer("cursor").notNull().default(0), attempts: integer("attempts").notNull().default(0), errorCode: text("error_code"),
+  leaseToken: text("lease_token"), leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  availableAt: timestamp("available_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_processing_jobs_import_unique").on(table.importId), index("knowledge_processing_jobs_claim_idx").on(table.state, table.availableAt),
+  foreignKey({ name: "knowledge_processing_jobs_import_fk", columns: [table.importId, table.allianceId], foreignColumns: [knowledgeHistoryImports.id, knowledgeHistoryImports.allianceId] }).onDelete("restrict"),
+]);
 
 export const knowledgeCaptureDrafts = pgTable("knowledge_capture_drafts", {
   id: text("id").primaryKey(), allianceId: text("alliance_id").notNull(), resourceId: text("resource_id").notNull(),

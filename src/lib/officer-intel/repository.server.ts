@@ -34,8 +34,11 @@ import {
 } from "@/lib/officer-intel/storage.shared";
 import { deleteObject, putObject } from "@/lib/storage";
 
+function committedHistory(sessionId: string | SQLWrapper) {
+  return sql`not exists(select 1 from knowledge_history_imports hi where hi.id = ${sessionId} and hi.state <> 'committed')`;
+}
 function sourceAccess(actor: KnowledgeActor, sessionId: string | SQLWrapper, access: "read" | "share" = "read") {
-  return sql`exists (select 1 from officer_chat_sessions source where source.id = ${sessionId} and source.alliance_id = ${actor.allianceId} and ${knowledgeAccessCondition(actor, sql`source.resource_id`, access)})`;
+  return sql`exists (select 1 from officer_chat_sessions source where source.id = ${sessionId} and source.alliance_id = ${actor.allianceId} and ${committedHistory(sql`source.id`)} and ${knowledgeAccessCondition(actor, sql`source.resource_id`, access)})`;
 }
 
 export async function createOfficerChatSession(input: {
@@ -81,6 +84,7 @@ export async function getOfficerChatSessionForAlliance(input: {
         eq(schema.officerChatSessions.id, input.sessionId),
         eq(schema.officerChatSessions.allianceId, input.allianceId),
         knowledgeAccessCondition(input.actor, schema.officerChatSessions.resourceId),
+        committedHistory(schema.officerChatSessions.id),
       ),
     )
     .limit(1);
@@ -95,7 +99,7 @@ export async function listOfficerChatSessions(
   const sessions = await db
     .select()
     .from(schema.officerChatSessions)
-    .where(and(eq(schema.officerChatSessions.allianceId, allianceId), knowledgeAccessCondition(actor, schema.officerChatSessions.resourceId)))
+    .where(and(eq(schema.officerChatSessions.allianceId, allianceId), knowledgeAccessCondition(actor, schema.officerChatSessions.resourceId), committedHistory(schema.officerChatSessions.id)))
     .orderBy(desc(schema.officerChatSessions.updatedAt))
     .limit(50);
 
@@ -104,7 +108,7 @@ export async function listOfficerChatSessions(
     const [messageCountRow] = await db
       .select({ value: count() })
       .from(schema.officerChatMessages)
-      .where(eq(schema.officerChatMessages.sessionId, session.id));
+      .where(and(eq(schema.officerChatMessages.sessionId, session.id), eq(schema.officerChatMessages.allianceId, allianceId), eq(schema.officerChatMessages.historyIncluded, true)));
     const [imageCountRow] = await db
       .select({ value: count() })
       .from(schema.officerChatSessionImages)
@@ -140,6 +144,7 @@ export async function listOfficerChatMessages(input: {
         eq(schema.officerChatMessages.sessionId, input.sessionId),
         eq(schema.officerChatMessages.allianceId, input.allianceId),
         sourceAccess(input.actor, schema.officerChatMessages.sessionId),
+        eq(schema.officerChatMessages.historyIncluded, true),
       ),
     )
     .orderBy(schema.officerChatMessages.sequenceOrder)
@@ -252,6 +257,7 @@ export async function importOfficerChatSession(input: {
             eq(schema.officerChatMessages.sessionId, input.sessionId),
             eq(schema.officerChatMessages.allianceId, input.allianceId),
             sourceAccess(input.actor, schema.officerChatMessages.sessionId),
+        eq(schema.officerChatMessages.historyIncluded, true),
           ),
         );
       await tx
@@ -310,6 +316,7 @@ export async function importOfficerChatSession(input: {
             eq(schema.officerChatSessions.id, input.sessionId),
             eq(schema.officerChatSessions.allianceId, input.allianceId),
             knowledgeAccessCondition(input.actor, schema.officerChatSessions.resourceId),
+        committedHistory(schema.officerChatSessions.id),
           ),
         );
     });
@@ -424,7 +431,7 @@ async function readableActionItems(rows: Array<typeof schema.officerActionItems.
   const sessionIds = rows.flatMap((row) => row.sessionId ? [row.sessionId] : []);
   const [notes, sources] = await Promise.all([
     noteIds.length ? getDb().select({ id: schema.officerMeetingNotes.id }).from(schema.officerMeetingNotes).where(and(eq(schema.officerMeetingNotes.allianceId, actor.allianceId), inArray(schema.officerMeetingNotes.id, noteIds), knowledgeAccessCondition(actor, schema.officerMeetingNotes.resourceId))) : [],
-    sessionIds.length ? getDb().select({ id: schema.officerChatSessions.id }).from(schema.officerChatSessions).where(and(eq(schema.officerChatSessions.allianceId, actor.allianceId), inArray(schema.officerChatSessions.id, sessionIds), knowledgeAccessCondition(actor, schema.officerChatSessions.resourceId))) : [],
+    sessionIds.length ? getDb().select({ id: schema.officerChatSessions.id }).from(schema.officerChatSessions).where(and(eq(schema.officerChatSessions.allianceId, actor.allianceId), inArray(schema.officerChatSessions.id, sessionIds), knowledgeAccessCondition(actor, schema.officerChatSessions.resourceId), committedHistory(schema.officerChatSessions.id))) : [],
   ]);
   const readableNotes = new Set(notes.map((note) => note.id));
   const readableSources = new Set(sources.map((source) => source.id));
