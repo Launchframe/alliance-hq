@@ -28,6 +28,7 @@ export async function GET(_request: Request, { params }: Props) {
   const image = await getOfficerChatSessionImageForAlliance({
     sessionId: id,
     allianceId: context.allianceId,
+    actor: context.actor,
     imageId,
   });
   if (!image) {
@@ -44,7 +45,7 @@ export async function GET(_request: Request, { params }: Props) {
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": contentType,
-      "Cache-Control": "private, max-age=3600",
+      "Cache-Control": "private, no-store",
     },
   });
 }

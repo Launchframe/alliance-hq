@@ -144,8 +144,7 @@ test.describe("Officer Intel RBAC", () => {
       headers: { Cookie: authCookieHeader(user) },
       data: {},
     });
-    expect(askMissingQuestion.status(), await askMissingQuestion.text()).toBe(
-      400,
-    );
+    expect(askMissingQuestion.status(), await askMissingQuestion.text()).toBe(503);
+    expect((await askMissingQuestion.json()).code).toBe("not_configured");
   });
 });

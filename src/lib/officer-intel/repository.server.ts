@@ -1,11 +1,11 @@
 import "server-only";
 
-import { and, count, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql, type SQLWrapper } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import type { KnowledgeActor } from "@/lib/notes/policy.shared";
-import { knowledgeAccessCondition } from "@/lib/notes/resources.server";
+import { knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, recheckKnowledgeActor, touchKnowledgeResource } from "@/lib/notes/resources.server";
 import { normalizeTaskPriority } from "@/lib/notes/tasks.shared";
 import type {
   OfficerActionItemPriority,
@@ -14,28 +14,32 @@ import type {
   OfficerMeetingNoteStatus,
   OfficerMeetingNoteSummary,
 } from "@/lib/officer-intel/synthesis-types.shared";
+import { redactOfficerChatMessage } from "@/lib/officer-intel/types.shared";
 import type {
   OfficerChatImportMessageInput,
   OfficerChatSessionStatus,
   OfficerChatSessionSummary,
 } from "@/lib/officer-intel/types.shared";
-import { resolveOfficerChatLocaleText } from "@/lib/officer-intel/locale-text.server";
+import { redactIntakeText } from "@/lib/notes/intake.shared";
 import {
   deactivateOfficerActionItemDueInboxItem,
   materializeOfficerActionItemDueInboxItem,
 } from "@/lib/officer-intel/action-item-inbox.server";
 import {
   dropOfficerActionItemChunks,
-  indexOfficerMeetingNoteChunks,
 } from "@/lib/officer-intel/embed-corpus.server";
-import { shouldIndexOfficerIntelNoteCorpus } from "@/lib/officer-intel/thread-access.shared";
 import {
   extensionForOfficerIntelMime,
   officerIntelImageStorageKey,
 } from "@/lib/officer-intel/storage.shared";
 import { deleteObject, putObject } from "@/lib/storage";
 
+function sourceAccess(actor: KnowledgeActor, sessionId: string | SQLWrapper, access: "read" | "share" = "read") {
+  return sql`exists (select 1 from officer_chat_sessions source where source.id = ${sessionId} and source.alliance_id = ${actor.allianceId} and ${knowledgeAccessCondition(actor, sql`source.resource_id`, access)})`;
+}
+
 export async function createOfficerChatSession(input: {
+  actor: KnowledgeActor;
   allianceId: string;
   title: string;
   channelLabel?: string | null;
@@ -45,16 +49,20 @@ export async function createOfficerChatSession(input: {
   const db = getDb();
   const id = nanoid();
   const now = new Date();
-  await db.insert(schema.officerChatSessions).values({
-    id,
-    allianceId: input.allianceId,
-    title: input.title,
-    channelLabel: input.channelLabel ?? null,
-    sessionAt: input.sessionAt ?? null,
-    status: "draft",
-    createdByHqUserId: input.createdByHqUserId,
-    createdAt: now,
-    updatedAt: now,
+  await db.transaction(async (tx) => {
+    await recheckKnowledgeActor(tx, input.actor);
+    if (input.actor.kind !== "web" || !input.actor.isOfficer || input.actor.allianceId !== input.allianceId || input.actor.hqUserId !== input.createdByHqUserId) throw new KnowledgeAccessError("forbidden");
+    await tx.insert(schema.officerChatSessions).values({
+      id,
+      allianceId: input.allianceId,
+      title: input.title,
+      channelLabel: input.channelLabel ?? null,
+      sessionAt: input.sessionAt ?? null,
+      status: "draft",
+      createdByHqUserId: input.createdByHqUserId,
+      createdAt: now,
+      updatedAt: now,
+    });
   });
   return id;
 }
@@ -62,6 +70,7 @@ export async function createOfficerChatSession(input: {
 export async function getOfficerChatSessionForAlliance(input: {
   sessionId: string;
   allianceId: string;
+  actor: KnowledgeActor;
 }) {
   const db = getDb();
   const [row] = await db
@@ -71,20 +80,22 @@ export async function getOfficerChatSessionForAlliance(input: {
       and(
         eq(schema.officerChatSessions.id, input.sessionId),
         eq(schema.officerChatSessions.allianceId, input.allianceId),
+        knowledgeAccessCondition(input.actor, schema.officerChatSessions.resourceId),
       ),
     )
     .limit(1);
-  return row ?? null;
+  return row ? { ...row, title: redactIntakeText(row.title), channelLabel: row.channelLabel === null ? null : redactIntakeText(row.channelLabel) } : null;
 }
 
 export async function listOfficerChatSessions(
   allianceId: string,
+  actor: KnowledgeActor,
 ): Promise<OfficerChatSessionSummary[]> {
   const db = getDb();
   const sessions = await db
     .select()
     .from(schema.officerChatSessions)
-    .where(eq(schema.officerChatSessions.allianceId, allianceId))
+    .where(and(eq(schema.officerChatSessions.allianceId, allianceId), knowledgeAccessCondition(actor, schema.officerChatSessions.resourceId)))
     .orderBy(desc(schema.officerChatSessions.updatedAt))
     .limit(50);
 
@@ -101,8 +112,8 @@ export async function listOfficerChatSessions(
 
     summaries.push({
       id: session.id,
-      title: session.title,
-      channelLabel: session.channelLabel,
+      title: redactIntakeText(session.title),
+      channelLabel: session.channelLabel === null ? null : redactIntakeText(session.channelLabel),
       sessionAt: session.sessionAt?.toISOString() ?? null,
       status: session.status as OfficerChatSessionStatus,
       messageCount: Number(messageCountRow?.value ?? 0),
@@ -118,6 +129,7 @@ export async function listOfficerChatSessions(
 export async function listOfficerChatMessages(input: {
   sessionId: string;
   allianceId: string;
+  actor: KnowledgeActor;
 }) {
   const db = getDb();
   return db
@@ -127,14 +139,17 @@ export async function listOfficerChatMessages(input: {
       and(
         eq(schema.officerChatMessages.sessionId, input.sessionId),
         eq(schema.officerChatMessages.allianceId, input.allianceId),
+        sourceAccess(input.actor, schema.officerChatMessages.sessionId),
       ),
     )
-    .orderBy(schema.officerChatMessages.sequenceOrder);
+    .orderBy(schema.officerChatMessages.sequenceOrder)
+    .then((rows) => rows.map(redactOfficerChatMessage));
 }
 
 export async function listOfficerChatSessionImages(input: {
   sessionId: string;
   allianceId: string;
+  actor: KnowledgeActor;
 }) {
   const db = getDb();
   return db
@@ -144,12 +159,14 @@ export async function listOfficerChatSessionImages(input: {
       and(
         eq(schema.officerChatSessionImages.sessionId, input.sessionId),
         eq(schema.officerChatSessionImages.allianceId, input.allianceId),
+        sourceAccess(input.actor, schema.officerChatSessionImages.sessionId, "share"),
       ),
     )
     .orderBy(schema.officerChatSessionImages.sequenceOrder);
 }
 
 export async function importOfficerChatSession(input: {
+  actor: KnowledgeActor;
   sessionId: string;
   allianceId: string;
   hqLocale: string;
@@ -168,6 +185,7 @@ export async function importOfficerChatSession(input: {
   const session = await getOfficerChatSessionForAlliance({
     sessionId: input.sessionId,
     allianceId: input.allianceId,
+    actor: input.actor,
   });
   if (!session) {
     return { error: "Session not found." as const };
@@ -176,19 +194,18 @@ export async function importOfficerChatSession(input: {
   const previousImages = await listOfficerChatSessionImages({
     sessionId: input.sessionId,
     allianceId: input.allianceId,
+    actor: input.actor,
   });
-  const localizedMessages: Array<{
-    message: OfficerChatImportMessageInput;
-    locale: Awaited<ReturnType<typeof resolveOfficerChatLocaleText>>;
-  }> = [];
-  for (const message of input.messages) {
-    const locale = await resolveOfficerChatLocaleText({
-      allianceId: input.allianceId,
-      originalText: message.originalText,
-      hqLocale: input.hqLocale,
-    });
-    localizedMessages.push({ message, locale });
-  }
+  const reservation = await db.transaction(async (tx) => {
+    const resource = await lockKnowledgeResource(tx, input.actor, session.resourceId, "share");
+    const [current] = await tx.select().from(schema.officerChatSessions).where(eq(schema.officerChatSessions.id, session.id));
+    if (current.status === "imported") throw new KnowledgeAccessError("changed");
+    return resource.version;
+  });
+  const localizedMessages = input.messages.map((message) => ({
+    message,
+    locale: { localeText: message.originalText, localeCode: "und" },
+  }));
 
   const stagedImages: Array<{
     id: string;
@@ -225,12 +242,16 @@ export async function importOfficerChatSession(input: {
 
     const now = new Date();
     await db.transaction(async (tx) => {
+      const resource = await lockKnowledgeResource(tx, input.actor, session.resourceId, "share");
+      if (resource.version !== reservation) throw new KnowledgeAccessError("changed");
+      await touchKnowledgeResource(tx, resource.id);
       await tx
         .delete(schema.officerChatMessages)
         .where(
           and(
             eq(schema.officerChatMessages.sessionId, input.sessionId),
             eq(schema.officerChatMessages.allianceId, input.allianceId),
+            sourceAccess(input.actor, schema.officerChatMessages.sessionId),
           ),
         );
       await tx
@@ -239,6 +260,7 @@ export async function importOfficerChatSession(input: {
           and(
             eq(schema.officerChatSessionImages.sessionId, input.sessionId),
             eq(schema.officerChatSessionImages.allianceId, input.allianceId),
+            sourceAccess(input.actor, schema.officerChatSessionImages.sessionId, "share"),
           ),
         );
 
@@ -287,6 +309,7 @@ export async function importOfficerChatSession(input: {
           and(
             eq(schema.officerChatSessions.id, input.sessionId),
             eq(schema.officerChatSessions.allianceId, input.allianceId),
+            knowledgeAccessCondition(input.actor, schema.officerChatSessions.resourceId),
           ),
         );
     });
@@ -306,6 +329,7 @@ export async function getOfficerChatSessionImageForAlliance(input: {
   sessionId: string;
   allianceId: string;
   imageId: string;
+  actor: KnowledgeActor;
 }) {
   const db = getDb();
   const [row] = await db
@@ -316,6 +340,7 @@ export async function getOfficerChatSessionImageForAlliance(input: {
         eq(schema.officerChatSessionImages.id, input.imageId),
         eq(schema.officerChatSessionImages.sessionId, input.sessionId),
         eq(schema.officerChatSessionImages.allianceId, input.allianceId),
+        sourceAccess(input.actor, schema.officerChatSessionImages.sessionId, "share"),
       ),
     )
     .limit(1);
@@ -324,18 +349,28 @@ export async function getOfficerChatSessionImageForAlliance(input: {
 
 function mapMeetingNoteRow(
   row: typeof schema.officerMeetingNotes.$inferSelect,
+  canReadSource = false,
+  canEdit = false,
 ): OfficerMeetingNoteSummary {
   return {
     id: row.id,
-    sessionId: row.sessionId,
-    summary: row.summary,
-    keyDecisions: row.keyDecisions ?? [],
-    openQuestions: row.openQuestions ?? [],
+    sessionId: canReadSource ? row.sessionId : null,
+    canEdit,
+    summary: redactIntakeText(row.summary),
+    keyDecisions: (row.keyDecisions ?? []).map(redactIntakeText),
+    openQuestions: (row.openQuestions ?? []).map(redactIntakeText),
     status: row.status as OfficerMeetingNoteStatus,
     approvedAt: row.approvedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+async function readableMeetingNote(row: typeof schema.officerMeetingNotes.$inferSelect, actor: KnowledgeActor) {
+  const source = await getOfficerChatSessionForAlliance({ sessionId: row.sessionId, allianceId: row.allianceId, actor });
+  const [owner] = await getDb().select({ id: schema.knowledgeResources.id }).from(schema.knowledgeResources)
+    .where(and(eq(schema.knowledgeResources.id, row.resourceId), knowledgeAccessCondition(actor, schema.knowledgeResources.id, "share")));
+  return mapMeetingNoteRow(row, Boolean(source), Boolean(owner));
 }
 
 async function loadAssigneeNames(
@@ -386,30 +421,30 @@ function mapActionItemRow(
   };
 }
 
-async function resolveOfficerSessionLocaleCode(input: {
-  sessionId: string;
-  allianceId: string;
-}): Promise<string> {
-  const messages = await listOfficerChatMessages(input);
-  if (messages.length === 0) return "en-US";
-  const counts = new Map<string, number>();
-  for (const message of messages) {
-    counts.set(message.localeCode, (counts.get(message.localeCode) ?? 0) + 1);
-  }
-  let best = "en-US";
-  let bestCount = 0;
-  for (const [locale, localeCount] of counts) {
-    if (localeCount > bestCount) {
-      best = locale;
-      bestCount = localeCount;
-    }
-  }
-  return best;
+async function readableActionItems(
+  rows: Array<{ item: typeof schema.officerActionItems.$inferSelect; version: number }>,
+  names: Map<string, string>,
+  actor: KnowledgeActor,
+) {
+  const noteIds = rows.flatMap((row) => row.item.noteId ? [row.item.noteId] : []);
+  const sessionIds = rows.flatMap((row) => row.item.sessionId ? [row.item.sessionId] : []);
+  const [notes, sources] = await Promise.all([
+    noteIds.length ? getDb().select({ id: schema.officerMeetingNotes.id }).from(schema.officerMeetingNotes).where(and(eq(schema.officerMeetingNotes.allianceId, actor.allianceId), inArray(schema.officerMeetingNotes.id, noteIds), knowledgeAccessCondition(actor, schema.officerMeetingNotes.resourceId))) : [],
+    sessionIds.length ? getDb().select({ id: schema.officerChatSessions.id }).from(schema.officerChatSessions).where(and(eq(schema.officerChatSessions.allianceId, actor.allianceId), inArray(schema.officerChatSessions.id, sessionIds), knowledgeAccessCondition(actor, schema.officerChatSessions.resourceId))) : [],
+  ]);
+  const readableNotes = new Set(notes.map((note) => note.id));
+  const readableSources = new Set(sources.map((source) => source.id));
+  return rows.map((row) => mapActionItemRow({
+    ...row.item,
+    noteId: row.item.noteId && readableNotes.has(row.item.noteId) ? row.item.noteId : null,
+    sessionId: row.item.sessionId && readableSources.has(row.item.sessionId) ? row.item.sessionId : null,
+  }, names, row.version));
 }
 
 export async function getOfficerMeetingNoteForAlliance(input: {
   noteId: string;
   allianceId: string;
+  actor: KnowledgeActor;
 }) {
   const db = getDb();
   const [row] = await db
@@ -419,14 +454,16 @@ export async function getOfficerMeetingNoteForAlliance(input: {
       and(
         eq(schema.officerMeetingNotes.id, input.noteId),
         eq(schema.officerMeetingNotes.allianceId, input.allianceId),
+        knowledgeAccessCondition(input.actor, schema.officerMeetingNotes.resourceId),
       ),
     )
     .limit(1);
-  return row ? mapMeetingNoteRow(row) : null;
+  return row ? readableMeetingNote(row, input.actor) : null;
 }
 
 export async function listApprovedOfficerMeetingNotesForAlliance(
   allianceId: string,
+  actor: KnowledgeActor,
 ): Promise<OfficerMeetingNoteSummary[]> {
   const db = getDb();
   const rows = await db
@@ -436,46 +473,24 @@ export async function listApprovedOfficerMeetingNotesForAlliance(
       and(
         eq(schema.officerMeetingNotes.allianceId, allianceId),
         eq(schema.officerMeetingNotes.status, "approved"),
+        knowledgeAccessCondition(actor, schema.officerMeetingNotes.resourceId),
       ),
     )
     .orderBy(desc(schema.officerMeetingNotes.approvedAt));
   return rows.map((row) => mapMeetingNoteRow(row));
 }
 
-export async function indexOfficerApprovedNoteCorpus(input: {
+export async function indexOfficerApprovedNoteCorpus(_input: {
   allianceId: string;
   noteId: string;
 }): Promise<void> {
-  const note = await getOfficerMeetingNoteForAlliance({
-    noteId: input.noteId,
-    allianceId: input.allianceId,
-  });
-  if (!note || note.status !== "approved") return;
-
-  const session = await getOfficerChatSessionForAlliance({
-    sessionId: note.sessionId,
-    allianceId: input.allianceId,
-  });
-  if (!session) return;
-
-  const localeCode = await resolveOfficerSessionLocaleCode({
-    sessionId: note.sessionId,
-    allianceId: input.allianceId,
-  });
-  await indexOfficerMeetingNoteChunks({
-    allianceId: input.allianceId,
-    note,
-    session,
-    localeCode,
-    approvedAt: note.approvedAt ? new Date(note.approvedAt) : null,
-  });
-
-
+  throw new KnowledgeAccessError("not_configured");
 }
 
 export async function getOfficerMeetingNoteBySession(input: {
   sessionId: string;
   allianceId: string;
+  actor: KnowledgeActor;
 }) {
   const db = getDb();
   const [row] = await db
@@ -485,10 +500,11 @@ export async function getOfficerMeetingNoteBySession(input: {
       and(
         eq(schema.officerMeetingNotes.sessionId, input.sessionId),
         eq(schema.officerMeetingNotes.allianceId, input.allianceId),
+        knowledgeAccessCondition(input.actor, schema.officerMeetingNotes.resourceId),
       ),
     )
     .limit(1);
-  return row ? mapMeetingNoteRow(row) : null;
+  return row ? readableMeetingNote(row, input.actor) : null;
 }
 
 export async function listOfficerActionItemsForNote(input: {
@@ -521,7 +537,7 @@ export async function listOfficerActionItemsForNote(input: {
       .map((row) => row.item.assigneeAllianceMemberId)
       .filter((id): id is string => Boolean(id)),
   );
-  return rows.map((row) => mapActionItemRow(row.item, assigneeNames, row.version));
+  return readableActionItems(rows, assigneeNames, input.actor);
 }
 
 export async function listOpenOfficerActionItems(
@@ -554,7 +570,7 @@ export async function listOpenOfficerActionItems(
       .map((row) => row.item.assigneeAllianceMemberId)
       .filter((id): id is string => Boolean(id)),
   );
-  return rows.map((row) => mapActionItemRow(row.item, assigneeNames, row.version));
+  return readableActionItems(rows, assigneeNames, actor);
 }
 
 export async function countOpenOfficerActionItems(
@@ -577,6 +593,7 @@ export async function countOpenOfficerActionItems(
 
 export async function persistOfficerSynthesisResult(input: {
   actor: KnowledgeActor;
+  expectedSourceVersion: number;
   sessionId: string;
   allianceId: string;
   hqUserId: string | null;
@@ -600,6 +617,7 @@ export async function persistOfficerSynthesisResult(input: {
   const session = await getOfficerChatSessionForAlliance({
     sessionId: input.sessionId,
     allianceId: input.allianceId,
+    actor: input.actor,
   });
   if (!session) {
     return { error: "not_found" };
@@ -608,6 +626,7 @@ export async function persistOfficerSynthesisResult(input: {
   const existing = await getOfficerMeetingNoteBySession({
     sessionId: input.sessionId,
     allianceId: input.allianceId,
+    actor: input.actor,
   });
   if (existing?.status === "approved") {
     return { error: "approved" };
@@ -626,7 +645,14 @@ export async function persistOfficerSynthesisResult(input: {
       : [];
 
   await db.transaction(async (tx) => {
+    const sourceResource = await lockKnowledgeResource(tx, input.actor, session.resourceId, "share");
+    if (!sourceResource.knowledgeAiAllowed || sourceResource.version !== input.expectedSourceVersion) throw new KnowledgeAccessError("changed");
+    await touchKnowledgeResource(tx, sourceResource.id);
     if (existing) {
+      const [note] = await tx.select().from(schema.officerMeetingNotes).where(eq(schema.officerMeetingNotes.id, existing.id));
+      await lockKnowledgeResource(tx, input.actor, note.resourceId, "share");
+      if (note.status === "approved") throw new KnowledgeAccessError("changed");
+      await touchKnowledgeResource(tx, note.resourceId);
       await tx
         .update(schema.officerMeetingNotes)
         .set({
@@ -720,6 +746,7 @@ export async function persistOfficerSynthesisResult(input: {
 }
 
 export async function updateOfficerMeetingNote(input: {
+  actor: KnowledgeActor;
   noteId: string;
   allianceId: string;
   hqUserId: string | null;
@@ -736,6 +763,7 @@ export async function updateOfficerMeetingNote(input: {
       and(
         eq(schema.officerMeetingNotes.id, input.noteId),
         eq(schema.officerMeetingNotes.allianceId, input.allianceId),
+        knowledgeAccessCondition(input.actor, schema.officerMeetingNotes.resourceId),
       ),
     )
     .limit(1);
@@ -743,37 +771,15 @@ export async function updateOfficerMeetingNote(input: {
     return { error: "not_found" };
   }
 
-  const now = new Date();
-  await db
-    .update(schema.officerMeetingNotes)
-    .set({
-      summary: input.summary ?? existing.summary,
-      keyDecisions: input.keyDecisions ?? existing.keyDecisions,
-      openQuestions: input.openQuestions ?? existing.openQuestions,
-      status: input.approve ? "approved" : existing.status,
-      approvedByHqUserId: input.approve
-        ? input.hqUserId
-        : existing.approvedByHqUserId,
-      approvedAt: input.approve ? now : existing.approvedAt,
-      updatedAt: now,
-    })
-    .where(eq(schema.officerMeetingNotes.id, input.noteId));
-
-  if (
-    shouldIndexOfficerIntelNoteCorpus({
-      approve: input.approve,
-      existingStatus: existing.status,
-    })
-  ) {
-    try {
-      await indexOfficerApprovedNoteCorpus({
-        allianceId: input.allianceId,
-        noteId: input.noteId,
-      });
-    } catch (error) {
-      console.error("[officer-intel] Failed to index approved meeting note:", error);
-    }
-  }
+  await db.transaction(async (tx) => {
+    const resource = await lockKnowledgeResource(tx, input.actor, existing.resourceId, "share");
+    await tx.update(schema.officerMeetingNotes).set({
+      summary: input.summary, keyDecisions: input.keyDecisions, openQuestions: input.openQuestions,
+      ...(input.approve ? { status: "approved", approvedByHqUserId: input.actor.hqUserId, approvedAt: new Date() } : {}),
+      updatedAt: new Date(),
+    }).where(eq(schema.officerMeetingNotes.id, input.noteId));
+    await touchKnowledgeResource(tx, resource.id);
+  });
 
   return { ok: true };
 }
@@ -833,7 +839,7 @@ export async function getOfficerActionItemForAlliance(input: {
     input.allianceId,
     row.item.assigneeAllianceMemberId ? [row.item.assigneeAllianceMemberId] : [],
   );
-  return mapActionItemRow(row.item, names, row.version);
+  return (await readableActionItems([row], names, input.actor))[0];
 }
 
 export async function indexOfficerOpenActionItemById(input: {

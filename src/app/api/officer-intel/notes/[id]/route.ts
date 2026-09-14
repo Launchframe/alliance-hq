@@ -4,6 +4,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { notesErrorResponse } from "@/lib/notes/access.server";
 
 import {
   getOfficerMeetingNoteForAlliance,
@@ -31,6 +32,7 @@ export async function GET(_request: Request, { params }: Props) {
   const note = await getOfficerMeetingNoteForAlliance({
     noteId: id,
     allianceId: context.allianceId,
+    actor: context.actor,
   });
   if (!note) {
     return NextResponse.json({ error: "Note not found." }, { status: 404 });
@@ -74,6 +76,7 @@ export async function PUT(request: Request, { params }: Props) {
   const approve = body.approve === true;
 
   const result = await updateOfficerMeetingNote({
+    actor: context.actor,
     noteId: id,
     allianceId: context.allianceId,
     hqUserId: context.session.hqUserId ?? null,
@@ -81,7 +84,8 @@ export async function PUT(request: Request, { params }: Props) {
     keyDecisions,
     openQuestions,
     approve,
-  });
+  }).catch(notesErrorResponse);
+  if (result instanceof NextResponse) return result;
 
   if ("error" in result) {
     return NextResponse.json({ error: "Note not found." }, { status: 404 });
@@ -90,6 +94,7 @@ export async function PUT(request: Request, { params }: Props) {
   const note = await getOfficerMeetingNoteForAlliance({
     noteId: id,
     allianceId: context.allianceId,
+    actor: context.actor,
   });
   const actionItems = await listOfficerActionItemsForNote({
     noteId: id,

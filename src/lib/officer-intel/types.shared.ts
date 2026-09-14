@@ -1,5 +1,19 @@
 /** Client-safe officer intel types. */
 
+import { redactIntakeText } from "@/lib/notes/intake.shared";
+
+export function redactOfficerChatMessage<T extends ParsedOfficerChatMessage>(message: T): T {
+  return {
+    ...message,
+    senderName: redactIntakeText(message.senderName),
+    senderAllianceTag: message.senderAllianceTag === null ? null : redactIntakeText(message.senderAllianceTag),
+    originalText: redactIntakeText(message.originalText),
+    inGameTranslatedText: message.inGameTranslatedText === null ? null : redactIntakeText(message.inGameTranslatedText),
+    replyToName: message.replyToName === null ? null : redactIntakeText(message.replyToName),
+    ...("localeText" in message && typeof message.localeText === "string" ? { localeText: redactIntakeText(message.localeText) } : {}),
+  };
+}
+
 export type OfficerChatSessionStatus = "draft" | "imported";
 
 export type ParsedOfficerChatMessage = {

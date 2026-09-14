@@ -6,6 +6,8 @@ import { and, count, desc, eq, isNotNull, sql } from "drizzle-orm";
 
 import { escapeLikePrefix } from "@/lib/admin/audit-query";
 import { getDb, schema } from "@/lib/db";
+import type { KnowledgeActor } from "@/lib/notes/policy.shared";
+import { knowledgeAccessCondition } from "@/lib/notes/resources.server";
 import { OFFICER_INTEL_CHARS_PER_TOKEN } from "@/lib/officer-intel/build-corpus-chunks.shared";
 import {
   isOfficerIntelLlmConfigured,
@@ -14,7 +16,6 @@ import {
 import { ensureOfficerIntelCorpusBackfill } from "@/lib/officer-intel/backfill-corpus.server";
 import { formatOfficerIntelEmbeddingLiteral } from "@/lib/officer-intel/embedding-query.shared";
 import { officerIntelScoreWithRecency } from "@/lib/officer-intel/recency-boost.shared";
-import { listOfficerChatMessages } from "@/lib/officer-intel/repository.server";
 import type { OfficerActionItemRecord } from "@/lib/officer-intel/synthesis-types.shared";
 
 export type OfficerIntelRetrievedChunk = {
@@ -246,6 +247,7 @@ export async function listOpenActionItemsForAsk(
 
 export async function countApprovedOfficerMeetingNotes(
   allianceId: string,
+  actor: KnowledgeActor,
 ): Promise<number> {
   const db = getDb();
   const [row] = await db
@@ -255,40 +257,18 @@ export async function countApprovedOfficerMeetingNotes(
       and(
         eq(schema.officerMeetingNotes.allianceId, allianceId),
         eq(schema.officerMeetingNotes.status, "approved"),
+        knowledgeAccessCondition(actor, schema.officerMeetingNotes.resourceId),
       ),
     );
   return Number(row?.value ?? 0);
 }
 
-export async function loadSessionMessagesForAsk(input: {
+export async function loadSessionMessagesForAsk(_input: {
   allianceId: string;
   sessionId: string;
   limit?: number;
 }): Promise<
   Array<{ senderName: string; localeText: string; sequenceOrder: number }>
 > {
-  const limit = Math.min(Math.max(input.limit ?? 40, 1), 80);
-  const db = getDb();
-  const [session] = await db
-    .select({ id: schema.officerChatSessions.id })
-    .from(schema.officerChatSessions)
-    .where(
-      and(
-        eq(schema.officerChatSessions.id, input.sessionId),
-        eq(schema.officerChatSessions.allianceId, input.allianceId),
-      ),
-    )
-    .limit(1);
-  if (!session) return [];
-
-  const messages = await listOfficerChatMessages({
-    sessionId: input.sessionId,
-    allianceId: input.allianceId,
-  });
-
-  return messages.slice(-limit).map((message) => ({
-    senderName: message.senderName,
-    localeText: message.localeText,
-    sequenceOrder: message.sequenceOrder,
-  }));
+  return [];
 }
