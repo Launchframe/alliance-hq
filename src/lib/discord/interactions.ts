@@ -680,6 +680,11 @@ export function discordDeferredChannelResponse() {
   };
 }
 
+/** ACK a modal/component without creating a new ephemeral; then PATCH `@original`. */
+export function discordDeferredUpdateResponse() {
+  return { type: 6 };
+}
+
 export function interactionApplicationId(
   payload: DiscordInteractionPayload,
 ): string | null {

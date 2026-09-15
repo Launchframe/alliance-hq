@@ -19,7 +19,9 @@ test("autosaves a private draft and resumes after reload without creating tasks"
   expect((await (await page.request.get("/api/notes/tasks")).json()).tasks).toHaveLength(0);
   const denied = await page.request.get(`/api/notes/drafts/${id}`, { headers: { Cookie: authCookieHeader(peer) } });
   expect(denied.status()).toBe(404);
-  await page.goto(`/notes?view=drafts&draft=${id}`);
+  expect((await (await page.request.get("/api/notes")).json()).draftCount).toBe(1);
+  await page.goto("/notes?view=drafts");
+  await page.getByRole("button", { name: "Recoverable capture" }).click();
   const resumed = page.getByRole("dialog", { name: "New note", exact: true });
   await expect(resumed.getByLabel("Note", { exact: true })).toHaveValue("A private thought with Cookie");
   await resumed.getByRole("button", { name: "Save note", exact: true }).click();

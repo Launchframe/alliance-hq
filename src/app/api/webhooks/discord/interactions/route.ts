@@ -30,6 +30,7 @@ import {
   discordComponentMessageResponse,
   discordDeferredChannelResponse,
   discordDeferredEphemeralResponse,
+  discordDeferredUpdateResponse,
   discordMessageResponse,
   discordModalResponse,
   interactionApplicationId,
@@ -1538,7 +1539,7 @@ export async function POST(request: Request) {
         if (result.type === "message") await editDiscordOriginalInteraction({ applicationId, interactionToken: token, content: result.content, components: result.components, ephemeral: true, suppressMentions: true });
       } catch { console.error("[notes] Private Discord response delivery failed"); }
     });
-    return NextResponse.json(discordDeferredEphemeralResponse());
+    return NextResponse.json(payload.type === 5 ? discordDeferredUpdateResponse() : discordDeferredEphemeralResponse());
   }
   if (payload.type === 2 && payload.data?.name === "plunder-plan" || (payload.type === 3 || payload.type === 5) && payload.data?.custom_id?.startsWith("plunder:")) {
     if (payload.type === 3 && plunderComponentNeedsModal(payload.data?.custom_id)) return NextResponse.json(await openPlunderPlanModal(payload));

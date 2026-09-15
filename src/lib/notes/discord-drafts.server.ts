@@ -9,7 +9,7 @@ import { attachAskMessage, officerGuard, type PerfDiscordComponents, type PerfIn
 import { listPerformanceNoteRoster } from "@/lib/performance-notes/repository.server";
 import { saveDiscordBotPending } from "@/lib/vr/repository";
 import { commitCaptureDraft, getCaptureDraft, saveCaptureDraft } from "./drafts.server";
-import { applyDraftInterpretation, automaticActionModes, draftStateSchema, editDraftAction, reviewedDraftTasks, type CaptureDraft, type CaptureDraftState } from "./drafts.shared";
+import { applyDraftInterpretation, automaticActionModes, draftActionIsCurrent, draftStateSchema, editDraftAction, reviewedDraftTasks, type CaptureDraft, type CaptureDraftState } from "./drafts.shared";
 import { interpretNoteCapture, loadIntakePreference, saveIntakePreference } from "./intake.server";
 import { detectNoteMentions, resolveExactNoteMembers } from "./mentions.shared";
 import { knowledgeHash } from "./mutations.server";
@@ -69,10 +69,11 @@ async function review(actor: KnowledgeActor, draft: CaptureDraft, locale: Discor
   const detection = await detectedMembers(actor, state.fields.body);
   const preference = await loadIntakePreference(actor);
   const people = detection.roster.filter((member) => state.fields.memberIds.includes(member.ashedMemberId)).map((member) => member.name).join(", ").slice(0, 300);
-  const tasks = state.tasks.map((task, index) => `${index + 1}. ${task.included ? "[x]" : "[ ]"} ${task.title.slice(0, 65)} · ${t(`performanceNotes.review.status.${task.status}`)} · ${t(`performanceNotes.review.priority.${task.priority ?? "none"}`)}`).join("\n");
+  const visible = state.tasks.map((task, index) => ({ task, index })).filter(({ task }) => draftActionIsCurrent(task, state));
+  const tasks = visible.map(({ task }, order) => `${order + 1}. ${task.included ? "[x]" : "[ ]"} ${task.title.slice(0, 65)} · ${t(`performanceNotes.review.status.${task.status}`)} · ${t(`performanceNotes.review.priority.${task.priority ?? "none"}`)}`).join("\n");
   const components: PerfDiscordComponents = [{ type: 1, components: [button(draft, "save", t("performanceNotes.review.save")), button(draft, "only", t("performanceNotes.review.only")), button(draft, "body", t("performanceNotes.review.editBody")), button(draft, "members", t("performanceNotes.review.editMembers")), button(draft, "ai", t(preference.enabled ? state.aiEnabled ? "performanceNotes.review.pause" : "performanceNotes.review.resume" : "performanceNotes.review.enable"))] }];
   components.push({ type: 1, components: [{ type: 3, custom_id: key(draft, "attention"), placeholder: t("performanceNotes.review.notePriority"), options: [{ label: t("performanceNotes.review.reset"), value: "auto", default: false }, ...["none", ...NOTE_PRIORITIES].map((priority) => ({ label: t(`performanceNotes.review.priority.${priority}`), value: priority, default: (state.fields.priority ?? "none") === priority }))] }] });
-  if (state.tasks.length) components.push({ type: 1, components: [{ type: 3, custom_id: key(draft, "task"), placeholder: t("performanceNotes.review.chooseTask"), options: state.tasks.map((task, index) => ({ label: task.title.slice(0, 100), value: String(index) })) }] });
+  if (visible.length) components.push({ type: 1, components: [{ type: 3, custom_id: key(draft, "task"), placeholder: t("performanceNotes.review.chooseTask"), options: visible.map(({ task, index }) => ({ label: task.title.slice(0, 100), value: String(index) })) }] });
   return { type: "message", content: [warning, t("performanceNotes.review.intro"), t("performanceNotes.review.members", { names: people || t("performanceNotes.review.none") }), t("performanceNotes.review.attention", { priority: t(`performanceNotes.review.priority.${state.fields.priority ?? "none"}`) }), detection.ambiguous ? t("performanceNotes.review.ambiguous") : "", tasks, t("performanceNotes.review.web", { url: buildDiscordBotAppUrl(locale, `/notes?view=drafts&draft=${draft.id}`) }), !actor.hqUserId ? t("performanceNotes.hqLinkHint") : ""].filter(Boolean).join("\n\n"), components };
 }
 function taskReview(draft: CaptureDraft, index: number, t: Translator): PerfInteractionResult {

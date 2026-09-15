@@ -41,10 +41,13 @@ export async function discardCaptureDraft(actor: KnowledgeActor, id: string) {
   });
 }
 
-async function assertDraftSource(tx: KnowledgeTransaction, actor: KnowledgeActor, sourceNoteId: string | null) {
-  if (!sourceNoteId) return;
-  const [source] = await tx.select({ id: schema.performanceNotes.id }).from(schema.performanceNotes).where(and(eq(schema.performanceNotes.id, sourceNoteId), eq(schema.performanceNotes.allianceId, actor.allianceId), isNull(schema.performanceNotes.expungedAt), knowledgeAccessCondition(actor, schema.performanceNotes.resourceId, "edit")));
+async function currentSourceVersion(tx: KnowledgeTransaction, actor: KnowledgeActor, sourceNoteId: string | null) {
+  if (!sourceNoteId) return null;
+  const [source] = await tx.select({ version: schema.knowledgeResources.version }).from(schema.performanceNotes)
+    .innerJoin(schema.knowledgeResources, eq(schema.knowledgeResources.id, schema.performanceNotes.resourceId))
+    .where(and(eq(schema.performanceNotes.id, sourceNoteId), eq(schema.performanceNotes.allianceId, actor.allianceId), isNull(schema.performanceNotes.expungedAt), knowledgeAccessCondition(actor, schema.performanceNotes.resourceId, "edit")));
   if (!source) throw new KnowledgeAccessError("not_found");
+  return source.version;
 }
 
 export async function saveCaptureDraft(actor: KnowledgeActor & { canCreate?: boolean }, id: string, input: { expectedVersion: number; state: CaptureDraftState; sourceNoteId: string | null; sourceVersion: number | null }): Promise<CaptureDraft> {
@@ -56,19 +59,19 @@ export async function saveCaptureDraft(actor: KnowledgeActor & { canCreate?: boo
     const [existing] = await tx.select().from(drafts).where(eq(drafts.id, id));
     if (!existing) {
       if (input.expectedVersion !== 0 || !input.sourceNoteId && actor.kind === "web" && !actor.canCreate) throw new KnowledgeAccessError("forbidden");
-      await assertDraftSource(tx, actor, input.sourceNoteId);
-      if (!!input.sourceNoteId !== !!input.sourceVersion) throw new KnowledgeAccessError("invalid");
+      const sourceVersion = await currentSourceVersion(tx, actor, input.sourceNoteId);
+      if (!!input.sourceNoteId !== !!input.sourceVersion || !!input.sourceNoteId !== !!sourceVersion) throw new KnowledgeAccessError("invalid");
       const resourceId = await createKnowledgeResource(tx, actor, "draft", id);
-      await tx.insert(drafts).values({ id, allianceId: actor.allianceId, resourceId, source: actor.kind, sourceNoteId: input.sourceNoteId, sourceVersion: input.sourceVersion, state, stateHash });
+      await tx.insert(drafts).values({ id, allianceId: actor.allianceId, resourceId, source: actor.kind, sourceNoteId: input.sourceNoteId, sourceVersion, state, stateHash });
       return;
     }
     const resource = await lockKnowledgeResource(tx, actor, existing.resourceId, "share");
-    await assertDraftSource(tx, actor, existing.sourceNoteId);
+    const sourceVersion = await currentSourceVersion(tx, actor, existing.sourceNoteId);
     if (resource.archivedAt || existing.status !== "open" && existing.stateHash !== stateHash) throw new KnowledgeAccessError("changed");
-    if (existing.sourceNoteId !== input.sourceNoteId || existing.sourceVersion !== input.sourceVersion) throw new KnowledgeAccessError("invalid");
-    if (existing.stateHash === stateHash) return;
+    if (existing.sourceNoteId !== input.sourceNoteId) throw new KnowledgeAccessError("invalid");
+    if (existing.stateHash === stateHash && existing.sourceVersion === sourceVersion) return;
     if (resource.version !== input.expectedVersion) throw new KnowledgeAccessError("changed");
-    await tx.update(drafts).set({ state, stateHash, updatedAt: new Date() }).where(eq(drafts.id, id));
+    await tx.update(drafts).set({ state, stateHash, sourceVersion, updatedAt: new Date() }).where(eq(drafts.id, id));
     await touchKnowledgeResource(tx, resource.id);
   });
   return getCaptureDraft(actor, id);
@@ -110,11 +113,12 @@ export async function commitCaptureDraft(actor: KnowledgeActor & { canCreate?: b
     let noteId = draft.sourceNoteId;
     let ownsNote = !noteId;
     if (noteId) {
+      const liveVersion = await currentSourceVersion(tx, actor, noteId);
       const source = await getPerformanceNoteForAlliance({ actor, noteId, access: "edit" });
-      if (!source || !draft.sourceVersion) throw new KnowledgeAccessError("not_found");
+      if (!source || liveVersion == null) throw new KnowledgeAccessError("not_found");
       ownsNote = source.isOwner;
       const { notebook, inbox, excludedMemberIds, ...sharedFields } = fields;
-      await updatePerformanceNoteInTransaction(tx, actor, noteId, { ...sharedFields, ...(source.isOwner ? { notebook, inbox, excludedMemberIds, ...(state.archive !== null ? { archived: state.archive } : {}) } : {}), expectedVersion: draft.sourceVersion });
+      await updatePerformanceNoteInTransaction(tx, actor, noteId, { ...sharedFields, ...(source.isOwner ? { notebook, inbox, excludedMemberIds, ...(state.archive !== null ? { archived: state.archive } : {}) } : {}), expectedVersion: liveVersion });
     } else noteId = await createPerformanceNoteInTransaction(tx, { ...fields, actor, captureSource: draft.source, captureDiscordUserId: resource.ownerDiscordUserId, intakeMode: fields.kind === "note" ? "thought" : "batch" });
     if (ownsNote) await tx.update(schema.performanceNotes).set({ intakeProvenance: await provenance(tx, actor, draft, resource.version, state) }).where(eq(schema.performanceNotes.id, noteId));
     const taskIds: string[] = [];

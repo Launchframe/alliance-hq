@@ -4694,7 +4694,7 @@ export const knowledgeResources = pgTable("knowledge_resources", {
   unique("knowledge_resources_entity_unique").on(table.allianceId, table.kind, table.entityId),
   index("knowledge_resources_owner_idx").on(table.allianceId, table.ownerHqUserId),
   index("knowledge_resources_discord_owner_idx").on(table.ownerDiscordUserId, table.ownershipState),
-  check("knowledge_resources_kind_check", sql`${table.kind} in ('note', 'task', 'source', 'collection', 'board')`),
+  check("knowledge_resources_kind_check", sql`${table.kind} in ('note', 'task', 'source', 'collection', 'board', 'draft')`),
   check("knowledge_resources_ownership_check", sql`${table.ownershipState} in ('hq', 'discord', 'unresolved')`),
   check("knowledge_resources_version_check", sql`${table.version} > 0 and ${table.accessVersion} > 0`),
 ]);

@@ -39,10 +39,10 @@ export function useCaptureDraft({ id, state, active, initialVersion = 0, sourceN
   }, [id, sourceNoteId, sourceVersion, t]);
   const serialized = JSON.stringify(state);
   useEffect(() => {
-    if (!active || status === "error") return;
+    if (!active) return;
     const timer = window.setTimeout(() => { void flush(JSON.parse(serialized)).catch(() => undefined); }, 900);
     return () => window.clearTimeout(timer);
-  }, [active, serialized, flush, status]);
+  }, [active, serialized, flush]);
   async function discard() {
     await queue.current.catch(() => undefined);
     const response = await fetch(`/api/notes/drafts/${id}`, { method: "DELETE", signal: lifetime.current?.signal });

@@ -57,4 +57,5 @@ export type PerformanceNotesPagePayload = {
   roster: PerformanceNoteRosterMember[];
   canCreate: boolean;
   canReadBoards?: boolean;
+  draftCount?: number;
 };
