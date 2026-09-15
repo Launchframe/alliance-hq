@@ -265,6 +265,14 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     requiredPermission: "notes_boards:write",
   },
   {
+    id: "notes.publications",
+    labelKey: "actions.notes.publications",
+    category: "tools",
+    scope: "page:notes",
+    kind: "custom",
+    requiredPermission: "notes:read",
+  },
+  {
     id: "notes.studio",
     labelKey: "actions.notes.studio",
     category: "tools",

@@ -1114,6 +1114,13 @@
       "when": 1790900000170,
       "tag": "0170_notes_reviewed_generation",
       "breakpoints": false
+    },
+    {
+      "idx": 159,
+      "version": "7",
+      "when": 1790900000171,
+      "tag": "0171_notes_public_snapshots",
+      "breakpoints": false
     }
   ]
 }
