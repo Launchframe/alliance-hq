@@ -1816,6 +1816,7 @@
         "drafts": "Abrir rascunhos privados",
         "imports": "Abrir importações de histórico",
         "workspaceSearch": "Pesquisar no espaço de trabalho",
+        "knowledge": "Abrir conhecimento",
         "search": "Buscar notas"
       },
       "trains": {
@@ -7134,6 +7135,7 @@
       "drafts": "Rascunhos",
       "imports": "Histórico",
       "search": "Pesquisa",
+      "knowledge": "Conhecimento",
       "notebook": "Caderno",
       "inbox": "Caixa de entrada",
       "shared": "Compartilhadas comigo",
@@ -7306,6 +7308,15 @@
         "done": "Concluída",
         "cancelled": "Cancelada"
       }
+    },
+    "knowledge": {
+      "title": "Conhecimento", "owned": "Meus recursos", "library": "Biblioteca aprovada", "guidance": "Aprovação, consentimento para IA e compartilhamento são escolhas separadas. Somente o proprietário pode aprovar conteúdo ou permitir o processamento por IA.",
+      "select": "Selecione um dos seus recursos para revisar as configurações de conhecimento.", "empty": "Nenhum recurso nesta visualização.", "open": "Abrir conteúdo atual", "approve": "Aprovar esta versão", "unapprove": "Remover aprovação", "approved": "Aprovado", "unapproved": "Precisa de revisão", "contentVersion": "Versão do conteúdo {version}",
+      "allowAi": "Permitir processamento por IA para este recurso", "consent": "A indexação envia o texto aprovado ao provedor de IA configurado. Ela não compartilha o recurso nem cria tarefas. A aprovação e o consentimento, por si só, não iniciam a indexação. Retirar o consentimento bloqueia novos processamentos e consultas, mas não pode recolher textos já enviados.",
+      "limits": "A indexação é limitada a 1 MB de texto de origem, 4.096 trechos e oito trechos por lote. Há limites diários de caracteres e solicitações. Divida fontes maiores em importações menores e revisadas.",
+      "index": "Indexar versão aprovada", "cancel": "Cancelar indexação", "retry": "Tentar indexação novamente", "process": "Processar próximo lote", "progress": "{done} de {total} trechos indexados", "pendingTotal": "Preparando o índice", "queuedHint": "O trabalho solicitado pode continuar depois que você sair desta página.",
+      "unavailable": "A indexação por IA está indisponível até que um provedor seja configurado.", "failed": "A indexação parou. O progresso salvo foi mantido. Confira os limites e tente novamente quando estiver pronto.", "changed": "O conteúdo mudou. Abra o conteúdo atual e recarregue estas configurações antes de aprová-lo.", "reload": "Recarregar configurações", "keyword": "Encontrar evidências", "semantic": "Pesquisa semântica", "semanticHint": "A pesquisa semântica envia sua consulta ao provedor de IA. Encontrar evidências usa uma pesquisa local por palavras-chave.", "includeSources": "Incluir transcrições de fontes aprovadas", "noEvidence": "Nenhuma evidência atual, aprovada e habilitada para IA corresponde a esta consulta.", "working": "Processando…", "previous": "Recursos anteriores", "next": "Próximos recursos",
+      "states": { "none": "Não indexado", "outdated": "O índice precisa ser renovado", "pending": "Na fila", "running": "Indexando", "completed": "Indexado", "cancelled": "Cancelado", "failed": "Falha na indexação" }
     },
     "searchWorkspace": {
       "title": "Pesquisar no espaço de trabalho", "hint": "Pesquise apenas notas, tarefas e textos de fontes confirmadas que você pode ler agora. Nenhum processamento por IA é utilizado.",

@@ -665,7 +665,10 @@ export async function updateOfficerMeetingNote(input: {
     if (resource.version !== input.expectedVersion) throw new KnowledgeAccessError("changed");
     const hasContent = input.summary !== undefined || input.keyDecisions !== undefined || input.openQuestions !== undefined;
     if (hasContent) await updatePerformanceNoteInTransaction(tx, input.actor, existing.canonicalNoteId, { expectedVersion: input.expectedVersion, body: input.summary, keyDecisions: input.keyDecisions, openQuestions: input.openQuestions });
-    if (input.approve) await tx.update(schema.officerMeetingNotes).set({ status: "approved", approvedByHqUserId: input.actor.hqUserId, approvedAt: new Date(), updatedAt: new Date() }).where(eq(schema.officerMeetingNotes.id, input.noteId));
+    if (input.approve) {
+      await tx.update(schema.officerMeetingNotes).set({ status: "approved", approvedByHqUserId: input.actor.hqUserId, approvedAt: new Date(), updatedAt: new Date() }).where(eq(schema.officerMeetingNotes.id, input.noteId));
+      await tx.update(schema.knowledgeResources).set({ knowledgeApprovedVersion: sql`${schema.knowledgeResources.contentVersion}`, knowledgeApprovedAt: new Date(), knowledgeApprovedByHqUserId: input.actor.hqUserId }).where(eq(schema.knowledgeResources.id, resource.id));
+    }
     if (!hasContent && input.approve) await touchKnowledgeResource(tx, resource.id);
   });
 

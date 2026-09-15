@@ -116,6 +116,7 @@ function buildEnv(dbUrl) {
   };
   if (process.env.NOTES_INTAKE_TEST_PROVIDER === "true") env.NOTES_INTAKE_TEST_PROVIDER = "true";
   if (process.env.NOTES_HISTORY_TEST_PROVIDER === "true") env.NOTES_HISTORY_TEST_PROVIDER = "true";
+  if (process.env.NOTES_KNOWLEDGE_TEST_PROVIDER === "1") env.NOTES_KNOWLEDGE_TEST_PROVIDER = "1";
   if (process.env.DISCORD_PUBLIC_KEY) env.DISCORD_PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY;
   if (process.env.E2E_DISCORD_FOLLOWUP_ORIGIN) env.E2E_DISCORD_FOLLOWUP_ORIGIN = process.env.E2E_DISCORD_FOLLOWUP_ORIGIN;
   const provider = process.env.VIDEO_OCR_PROVIDER?.trim();
