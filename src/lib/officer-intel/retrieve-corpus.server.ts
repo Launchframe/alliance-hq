@@ -1,275 +1,69 @@
 import "server-only";
 
-import { createOpenAI } from "@ai-sdk/openai";
-import { embed } from "ai";
-import { and, count, desc, eq, isNotNull, sql } from "drizzle-orm";
-
-import { escapeLikePrefix } from "@/lib/admin/audit-query";
+import { and, count, eq, inArray, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
+import { escapeLikePrefix } from "@/lib/admin/audit-query";
 import type { KnowledgeActor } from "@/lib/notes/policy.shared";
-import { meetingNoteAccess } from "@/lib/officer-intel/repository.server";
-import { OFFICER_INTEL_CHARS_PER_TOKEN } from "@/lib/officer-intel/build-corpus-chunks.shared";
-import {
-  isOfficerIntelLlmConfigured,
-  officerIntelEmbedModel,
-} from "@/lib/officer-intel/llm-config.server";
-import { ensureOfficerIntelCorpusBackfill } from "@/lib/officer-intel/backfill-corpus.server";
-import { formatOfficerIntelEmbeddingLiteral } from "@/lib/officer-intel/embedding-query.shared";
-import { officerIntelScoreWithRecency } from "@/lib/officer-intel/recency-boost.shared";
-import type { OfficerActionItemRecord } from "@/lib/officer-intel/synthesis-types.shared";
+import type { KnowledgeWebActor } from "@/lib/notes/access.server";
+import { KnowledgeAccessError, knowledgeAccessCondition } from "@/lib/notes/resources.server";
+import { knowledgeReadyCondition, knowledgeOwnerEligibleCondition, recheckKnowledgeReader } from "@/lib/notes/knowledge-access.server";
+import { knowledgeQuerySchema, knowledgeChunkFingerprint, KNOWLEDGE_DIMENSIONS, KNOWLEDGE_FORMAT_VERSION, type KnowledgeEvidence, type KnowledgeQuery } from "@/lib/notes/knowledge.shared";
+import { reserveKnowledgeUsage } from "@/lib/notes/knowledge-budget.server";
+import { knowledgeHash } from "@/lib/notes/mutations.server";
+import { redactIntakeText } from "@/lib/notes/intake.shared";
+import { embedKnowledgeTexts, knowledgeEmbeddingConfigured, knowledgeEmbeddingModel } from "./embed-corpus.server";
+import { formatOfficerIntelEmbeddingLiteral } from "./embedding-query.shared";
+import { meetingNoteAccess } from "./repository.server";
+import type { OfficerActionItemRecord } from "./synthesis-types.shared";
 
-export type OfficerIntelRetrievedChunk = {
-  id: string;
-  sourceType: "approved_note" | "action_item";
-  sourceId: string;
-  sessionId: string | null;
-  text: string;
-  sessionTitle: string | null;
-  channelLabel: string | null;
-  sessionAt: string | null;
-  similarity: number;
-};
-
-const DEFAULT_RETRIEVE_K = 6;
-const MAX_RETURN_CHARS = 3000 * OFFICER_INTEL_CHARS_PER_TOKEN;
-const LIKE_ESCAPE = "\\";
-
-export function buildOfficerIntelKeywordPattern(query: string): string {
-  const trimmed = query.trim();
-  if (!trimmed) return "%";
-  return `%${escapeLikePrefix(trimmed)}%`;
+export type OfficerIntelRetrievedChunk = { id: string; sourceType: "approved_note" | "action_item"; sourceId: string; sessionId: string | null; text: string; sessionTitle: string | null; channelLabel: string | null; sessionAt: string | null; similarity: number };
+export function buildOfficerIntelKeywordPattern(query: string): string { return query.trim() ? `%${escapeLikePrefix(query.trim())}%` : "%"; }
+const c = schema.officerIntelChunks, j = schema.knowledgeIndexJobs, r = schema.knowledgeResources;
+function eligible(actor: KnowledgeActor, includeSources: boolean) {
+  return and(eq(c.allianceId, actor.allianceId), eq(j.state, "completed"), eq(j.cursor, j.totalChunks), eq(j.resourceId, r.id), eq(j.allianceId, r.allianceId), eq(j.ownerHqUserId, r.ownerHqUserId), eq(r.ownershipState, "hq"), eq(r.knowledgeAiAllowed, true), eq(r.knowledgeApprovedVersion, r.contentVersion),
+    eq(j.contentVersion, r.contentVersion), eq(j.accessVersion, r.accessVersion), eq(j.approvalVersion, r.knowledgeApprovalVersion), eq(j.consentVersion, r.knowledgeConsentVersion),
+    eq(c.contentVersion, j.contentVersion), eq(c.accessVersion, j.accessVersion), eq(c.approvalVersion, j.approvalVersion), eq(c.consentVersion, j.consentVersion), eq(c.embeddingModel, j.model), eq(j.model, knowledgeEmbeddingModel()), eq(c.embeddingDimensions, KNOWLEDGE_DIMENSIONS), eq(j.dimensions, KNOWLEDGE_DIMENSIONS), eq(c.formatVersion, KNOWLEDGE_FORMAT_VERSION), eq(j.formatVersion, KNOWLEDGE_FORMAT_VERSION),
+    sql`${c.embedding} is not null`, sql`${c.contentHash} is not null`, sql`${c.evidence} is not null`, includeSources ? undefined : inArray(r.kind, ["note", "task"]),
+    sql`(select count(*) from officer_intel_chunks kc where kc.index_job_id = ${j.id}) = ${j.totalChunks}`,
+    knowledgeReadyCondition(), knowledgeOwnerEligibleCondition(), knowledgeAccessCondition(actor, r.id));
 }
-
-type RawRetrievedRow = {
-  id: string;
-  source_type: string;
-  source_id: string;
-  session_id: string | null;
-  chunk_text: string;
-  approved_at: Date | null;
-  session_title: string | null;
-  channel_label: string | null;
-  session_at: Date | null;
-  similarity: number;
-};
-
-function mapRow(row: RawRetrievedRow, similarity: number): OfficerIntelRetrievedChunk {
-  return {
-    id: row.id,
-    sourceType: row.source_type as "approved_note" | "action_item",
-    sourceId: row.source_id,
-    sessionId: row.session_id,
-    text: row.chunk_text,
-    sessionTitle: row.session_title,
-    channelLabel: row.channel_label,
-    sessionAt: row.session_at?.toISOString() ?? null,
-    similarity,
-  };
+function evidenceSelection() {
+  return { id: c.id, resourceId: r.id, kind: r.kind, entityId: r.entityId, text: c.chunkText, evidence: c.evidence, contentHash: c.contentHash, contentVersion: c.contentVersion, accessVersion: c.accessVersion, approvalVersion: c.approvalVersion, consentVersion: c.consentVersion, model: c.embeddingModel, jobId: j.id };
 }
-
-function capRetrievedChunks(
-  rows: OfficerIntelRetrievedChunk[],
-): OfficerIntelRetrievedChunk[] {
-  const capped: OfficerIntelRetrievedChunk[] = [];
-  let totalChars = 0;
-  for (const row of rows) {
-    if (totalChars + row.text.length > MAX_RETURN_CHARS && capped.length > 0) {
-      break;
-    }
-    capped.push(row);
-    totalChars += row.text.length;
-  }
-  return capped;
-}
-
-async function retrieveByVector(input: {
-  allianceId: string;
-  queryEmbedding: number[];
-  k: number;
-}): Promise<OfficerIntelRetrievedChunk[]> {
-  const db = getDb();
-  const vectorLiteral = formatOfficerIntelEmbeddingLiteral(input.queryEmbedding);
-  const result = await db.execute(sql`
-    SELECT
-      c.id,
-      c.source_type,
-      c.source_id,
-      c.session_id,
-      c.chunk_text,
-      c.approved_at,
-      s.title AS session_title,
-      s.channel_label,
-      s.session_at,
-      1 - (c.embedding <=> CAST(${vectorLiteral} AS vector)) AS similarity
-    FROM officer_intel_chunks c
-    LEFT JOIN officer_chat_sessions s
-      ON s.id = c.session_id AND s.alliance_id = c.alliance_id
-    WHERE c.alliance_id = ${input.allianceId}
-      AND c.source_type = 'approved_note'
-      AND c.embedding IS NOT NULL
-    ORDER BY similarity DESC
-    LIMIT ${input.k * 4}
-  `);
-
-  const rows = result as unknown as RawRetrievedRow[];
-
-  const scored = (Array.isArray(rows) ? rows : []).map((row) =>
-    mapRow(
-      row,
-      officerIntelScoreWithRecency(Number(row.similarity), row.approved_at),
-    ),
-  );
-
-  scored.sort((a, b) => b.similarity - a.similarity);
-  return capRetrievedChunks(scored.slice(0, input.k));
-}
-
-async function retrieveByKeyword(input: {
-  allianceId: string;
-  query: string;
-  k: number;
-}): Promise<OfficerIntelRetrievedChunk[]> {
-  const db = getDb();
-  const pattern = buildOfficerIntelKeywordPattern(input.query);
-  const rows = await db
-    .select({
-      id: schema.officerIntelChunks.id,
-      sourceType: schema.officerIntelChunks.sourceType,
-      sourceId: schema.officerIntelChunks.sourceId,
-      sessionId: schema.officerIntelChunks.sessionId,
-      chunkText: schema.officerIntelChunks.chunkText,
-      sessionTitle: schema.officerChatSessions.title,
-      channelLabel: schema.officerChatSessions.channelLabel,
-      sessionAt: schema.officerChatSessions.sessionAt,
-    })
-    .from(schema.officerIntelChunks)
-    .leftJoin(
-      schema.officerChatSessions,
-      and(
-        eq(schema.officerChatSessions.id, schema.officerIntelChunks.sessionId),
-        eq(
-          schema.officerChatSessions.allianceId,
-          schema.officerIntelChunks.allianceId,
-        ),
-      ),
-    )
-    .where(
-      and(
-        eq(schema.officerIntelChunks.allianceId, input.allianceId),
-        eq(schema.officerIntelChunks.sourceType, "approved_note"),
-        sql`${schema.officerIntelChunks.chunkText} ilike ${pattern} escape ${LIKE_ESCAPE}`,
-      ),
-    )
-    .orderBy(desc(schema.officerIntelChunks.updatedAt))
-    .limit(input.k);
-
-  return capRetrievedChunks(
-    rows.map((row) => ({
-      id: row.id,
-      sourceType: row.sourceType as "approved_note" | "action_item",
-      sourceId: row.sourceId,
-      sessionId: row.sessionId,
-      text: row.chunkText,
-      sessionTitle: row.sessionTitle,
-      channelLabel: row.channelLabel,
-      sessionAt: row.sessionAt?.toISOString() ?? null,
-      similarity: 0,
-    })),
-  );
-}
-
-async function hasAnyEmbeddings(allianceId: string): Promise<boolean> {
-  const db = getDb();
-  const [row] = await db
-    .select({ value: count() })
-    .from(schema.officerIntelChunks)
-    .where(
-      and(
-        eq(schema.officerIntelChunks.allianceId, allianceId),
-        eq(schema.officerIntelChunks.sourceType, "approved_note"),
-        isNotNull(schema.officerIntelChunks.embedding),
-      ),
-    );
-  return Number(row?.value ?? 0) > 0;
-}
-
-export async function retrieveOfficerIntelCorpus(input: {
-  allianceId: string;
-  query: string;
-  k?: number;
-}): Promise<OfficerIntelRetrievedChunk[]> {
-  const k = input.k ?? DEFAULT_RETRIEVE_K;
-  const query = input.query.trim();
-  if (!query) return [];
-
-  try {
-    await ensureOfficerIntelCorpusBackfill(input.allianceId);
-  } catch (error) {
-    console.error("[officer-intel] corpus backfill failed", error);
-  }
-
-  const embedded = await hasAnyEmbeddings(input.allianceId);
-  if (!embedded) {
-    return retrieveByKeyword({ allianceId: input.allianceId, query, k });
-  }
-
-  if (!isOfficerIntelLlmConfigured()) {
-    return retrieveByKeyword({ allianceId: input.allianceId, query, k });
-  }
-
-  const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const { embedding } = await embed({
-    model: openai.embedding(officerIntelEmbedModel()),
-    value: query,
+export async function revalidateKnowledgeEvidence(actor: KnowledgeWebActor, evidence: KnowledgeEvidence[]) {
+  if (evidence.length > 6) return false;
+  const rows = await getDb().transaction(async (tx) => {
+    await recheckKnowledgeReader(tx, actor);
+    return evidence.length ? tx.select(evidenceSelection()).from(c).innerJoin(j, eq(j.id, c.indexJobId)).innerJoin(r, eq(r.id, c.resourceId)).where(and(eligible(actor, true), inArray(c.id, evidence.map((item) => item.id)))) : [];
   });
-
-  try {
-    const vectorResults = await retrieveByVector({
-      allianceId: input.allianceId,
-      queryEmbedding: embedding,
-      k,
-    });
-    if (vectorResults.length > 0) {
-      return vectorResults;
-    }
-  } catch (error) {
-    console.error("[officer-intel] vector retrieval failed", error);
+  return evidence.every((item) => rows.some((row) => row.id === item.id && row.resourceId === item.resourceId && row.contentHash === item.contentHash && row.contentVersion === item.contentVersion && row.accessVersion === item.accessVersion && row.approvalVersion === item.approvalVersion && row.consentVersion === item.consentVersion && row.model === item.model && row.jobId === item.jobId));
+}
+export async function retrieveKnowledgeEvidence(actor: KnowledgeWebActor, raw: KnowledgeQuery): Promise<KnowledgeEvidence[]> {
+  const input = knowledgeQuerySchema.parse(raw);
+  const query = redactIntakeText(input.q);
+  const model = knowledgeEmbeddingModel();
+  let embedding: number[] | undefined;
+  if (input.mode === "semantic") {
+    const [available] = await getDb().select({ id: c.id }).from(c).innerJoin(j, eq(j.id, c.indexJobId)).innerJoin(r, eq(r.id, c.resourceId)).where(eligible(actor, input.includeSources)).limit(1);
+    if (!available) return [];
+    if (!knowledgeEmbeddingConfigured()) throw new KnowledgeAccessError("not_configured");
+    await getDb().transaction(async (tx) => { await recheckKnowledgeReader(tx, actor); await reserveKnowledgeUsage(tx, actor.allianceId, `hq:${actor.hqUserId}`, "query", query.length); });
+    [embedding] = await embedKnowledgeTexts([query]);
+    if (model !== knowledgeEmbeddingModel()) throw new KnowledgeAccessError("changed");
   }
-
-  return retrieveByKeyword({ allianceId: input.allianceId, query, k });
+  const rows = await getDb().select(evidenceSelection()).from(c).innerJoin(j, eq(j.id, c.indexJobId)).innerJoin(r, eq(r.id, c.resourceId))
+    .where(and(eligible(actor, input.includeSources), embedding ? undefined : sql`notes_search_vector(${c.chunkText}) @@ plainto_tsquery('simple', ${query})`))
+    .orderBy(embedding ? sql`${c.embedding} <=> cast(${formatOfficerIntelEmbeddingLiteral(embedding)} as vector)` : sql`ts_rank_cd(notes_search_vector(${c.chunkText}), plainto_tsquery('simple', ${query})) desc`, c.id).limit(input.limit);
+  const evidence = rows.filter((row) => row.evidence && row.contentHash === knowledgeHash(knowledgeChunkFingerprint({ text: row.text, evidence: row.evidence }))).map((row) => ({ ...row, text: redactIntakeText(row.text) })) as KnowledgeEvidence[];
+  if (!await revalidateKnowledgeEvidence(actor, evidence)) throw new KnowledgeAccessError("changed");
+  return evidence;
 }
-
-export async function listOpenActionItemsForAsk(
-  _allianceId: string,
-): Promise<OfficerActionItemRecord[]> {
-  return [];
+export async function retrieveOfficerIntelCorpus(input: { allianceId: string; query: string; k?: number }): Promise<OfficerIntelRetrievedChunk[]> {
+  void input; throw new KnowledgeAccessError("not_configured");
 }
-
-export async function countApprovedOfficerMeetingNotes(
-  allianceId: string,
-  actor: KnowledgeActor,
-): Promise<number> {
-  const db = getDb();
-  const [row] = await db
-    .select({ value: count() })
-    .from(schema.officerMeetingNotes)
-    .where(
-      and(
-        eq(schema.officerMeetingNotes.allianceId, allianceId),
-        eq(schema.officerMeetingNotes.status, "approved"),
-        meetingNoteAccess(actor),
-        sql`exists(select 1 from knowledge_resources where id = ${schema.officerMeetingNotes.resourceId} and archived_at is null)`,
-      ),
-    );
+export async function listOpenActionItemsForAsk(_allianceId: string): Promise<OfficerActionItemRecord[]> { return []; }
+export async function countApprovedOfficerMeetingNotes(allianceId: string, actor: KnowledgeActor): Promise<number> {
+  const [row] = await getDb().select({ value: count() }).from(schema.officerMeetingNotes).where(and(eq(schema.officerMeetingNotes.allianceId, allianceId), eq(schema.officerMeetingNotes.status, "approved"), meetingNoteAccess(actor), sql`exists(select 1 from knowledge_resources where id = ${schema.officerMeetingNotes.resourceId} and archived_at is null)`));
   return Number(row?.value ?? 0);
 }
-
-export async function loadSessionMessagesForAsk(_input: {
-  allianceId: string;
-  sessionId: string;
-  limit?: number;
-}): Promise<
-  Array<{ senderName: string; localeText: string; sequenceOrder: number }>
-> {
-  return [];
-}
+export async function loadSessionMessagesForAsk(_input: { allianceId: string; sessionId: string; limit?: number }): Promise<Array<{ senderName: string; localeText: string; sequenceOrder: number }>> { return []; }

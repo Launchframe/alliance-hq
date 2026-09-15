@@ -1828,6 +1828,7 @@
         "drafts": "Open private drafts",
         "imports": "Open history imports",
         "workspaceSearch": "Search the workspace",
+        "knowledge": "Open knowledge",
         "search": "Search notes"
       },
       "trains": {
@@ -7117,6 +7118,7 @@
       "drafts": "Drafts",
       "imports": "History",
       "search": "Search",
+      "knowledge": "Knowledge",
       "notebook": "Notebook",
       "inbox": "Inbox",
       "shared": "Shared with me",
@@ -7289,6 +7291,15 @@
         "done": "Done",
         "cancelled": "Cancelled"
       }
+    },
+    "knowledge": {
+      "title": "Knowledge", "owned": "My resources", "library": "Approved library", "guidance": "Approval, AI consent, and sharing are separate choices. Only the owner can approve content or allow AI processing.",
+      "select": "Select one of your resources to review its knowledge settings.", "empty": "No resources in this view.", "open": "Open current content", "approve": "Approve this version", "unapprove": "Remove approval", "approved": "Approved", "unapproved": "Needs review", "contentVersion": "Content version {version}",
+      "allowAi": "Allow AI processing for this resource", "consent": "Indexing sends approved text to the configured AI provider. It does not share the resource or create tasks. Approval and consent alone do not start indexing. Withdrawing consent blocks further processing and retrieval, but cannot recall text already sent.",
+      "limits": "Indexing is limited to 1 MB of source text, 4,096 chunks, and eight chunks per batch. Daily character and request limits apply. Split larger sources into smaller reviewed imports.",
+      "index": "Index approved version", "cancel": "Cancel indexing", "retry": "Retry indexing", "process": "Process next batch", "progress": "{done} of {total} chunks indexed", "pendingTotal": "Preparing the index", "queuedHint": "Requested work can continue after you leave this page.",
+      "unavailable": "AI indexing is unavailable until a provider is configured.", "failed": "Indexing stopped. Saved progress is kept. Check the limits and retry when ready.", "changed": "The content changed. Open the current content and reload these settings before approving it.", "reload": "Reload settings", "keyword": "Find evidence", "semantic": "Semantic search", "semanticHint": "Semantic search sends your query to the AI provider. Find evidence uses local keyword search instead.", "includeSources": "Include approved source transcripts", "noEvidence": "No current approved, AI-enabled evidence matches this query.", "working": "Working…", "previous": "Previous resources", "next": "Next resources",
+      "states": { "none": "Not indexed", "outdated": "Index needs renewal", "pending": "Queued", "running": "Indexing", "completed": "Indexed", "cancelled": "Cancelled", "failed": "Indexing failed" }
     },
     "searchWorkspace": {
       "title": "Search workspace", "hint": "Search only notes, tasks, and committed source text you can currently read. No AI processing is used.",

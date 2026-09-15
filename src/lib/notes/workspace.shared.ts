@@ -5,7 +5,7 @@ export const NOTE_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 export type NotePriority = (typeof NOTE_PRIORITIES)[number] | null;
 export const NOTE_DOCUMENT_TYPES = ["note", "journal", "meeting", "reference"] as const;
 export type NoteDocumentType = typeof NOTE_DOCUMENT_TYPES[number];
-export type NoteWorkspaceView = "notebook" | "inbox" | "shared" | "archived" | "tasks" | "boards" | "drafts" | "imports" | "search";
+export type NoteWorkspaceView = "notebook" | "inbox" | "shared" | "archived" | "tasks" | "boards" | "drafts" | "imports" | "search" | "knowledge";
 
 export function normalizeNoteLabels(values: readonly string[]): string[] {
   const labels = new Map<string, string>();

@@ -4607,6 +4607,10 @@ export const officerIntelChunks = pgTable(
     }),
     localeCode: text("locale_code").notNull(),
     chunkText: text("chunk_text").notNull(),
+    resourceId: text("resource_id"), indexJobId: text("index_job_id"), chunkIndex: integer("chunk_index"),
+    contentVersion: integer("content_version"), accessVersion: integer("access_version"), approvalVersion: integer("approval_version"), consentVersion: integer("consent_version"),
+    contentHash: text("content_hash"), embeddingModel: text("embedding_model"), embeddingDimensions: integer("embedding_dimensions"), formatVersion: integer("format_version"),
+    evidence: jsonb("evidence").$type<import("@/lib/notes/knowledge.shared").KnowledgeReference[]>(),
     embedding: vector1536("embedding"),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -4617,6 +4621,8 @@ export const officerIntelChunks = pgTable(
       .notNull(),
   },
   (table) => [
+    uniqueIndex("officer_intel_chunks_job_chunk_unique").on(table.indexJobId, table.chunkIndex),
+    foreignKey({ name: "officer_intel_chunks_index_job_fk", columns: [table.indexJobId, table.allianceId, table.resourceId], foreignColumns: [knowledgeIndexJobs.id, knowledgeIndexJobs.allianceId, knowledgeIndexJobs.resourceId] }).onDelete("restrict"),
     index("officer_intel_chunks_alliance_source_idx").on(
       table.allianceId,
       table.sourceType,
@@ -4704,6 +4710,12 @@ export const knowledgeResources = pgTable("knowledge_resources", {
   accessVersion: integer("access_version").notNull().default(1),
   intakeAiAllowed: boolean("intake_ai_allowed").notNull().default(false),
   knowledgeAiAllowed: boolean("knowledge_ai_allowed").notNull().default(false),
+  contentVersion: integer("content_version").notNull().default(1),
+  knowledgeApprovedVersion: integer("knowledge_approved_version"),
+  knowledgeApprovalVersion: integer("knowledge_approval_version").notNull().default(0),
+  knowledgeConsentVersion: integer("knowledge_consent_version").notNull().default(0),
+  knowledgeApprovedAt: timestamp("knowledge_approved_at", { withTimezone: true }),
+  knowledgeApprovedByHqUserId: text("knowledge_approved_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -4861,7 +4873,7 @@ export const knowledgeMutationReceipts = pgTable("knowledge_mutation_receipts", 
   id: text("id").primaryKey(),
   allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
   principalKey: text("principal_key").notNull(), requestId: text("request_id").notNull(), requestHash: text("request_hash").notNull(),
-  result: jsonb("result").$type<{ noteId?: string; taskIds?: string[]; taskId?: string; boardId?: string; importId?: string; version?: number }>().notNull(),
+  result: jsonb("result").$type<{ noteId?: string; taskIds?: string[]; taskId?: string; boardId?: string; importId?: string; resourceId?: string; jobId?: string; version?: number }>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [unique("knowledge_mutation_receipts_request_unique").on(table.allianceId, table.principalKey, table.requestId)]);
 
@@ -4895,6 +4907,24 @@ export const knowledgeProcessingJobs = pgTable("knowledge_processing_jobs", {
 }, (table) => [unique("knowledge_processing_jobs_import_unique").on(table.importId), index("knowledge_processing_jobs_claim_idx").on(table.state, table.availableAt),
   foreignKey({ name: "knowledge_processing_jobs_import_fk", columns: [table.importId, table.allianceId], foreignColumns: [knowledgeHistoryImports.id, knowledgeHistoryImports.allianceId] }).onDelete("restrict"),
 ]);
+
+export const knowledgeIndexJobs = pgTable("knowledge_index_jobs", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull(), resourceId: text("resource_id").notNull(), ownerHqUserId: text("owner_hq_user_id").notNull(),
+  contentVersion: integer("content_version").notNull(), accessVersion: integer("access_version").notNull(), approvalVersion: integer("approval_version").notNull(), consentVersion: integer("consent_version").notNull(),
+  model: text("model").notNull(), dimensions: integer("dimensions").notNull().default(1536), formatVersion: integer("format_version").notNull().default(1),
+  state: text("state").$type<import("@/lib/notes/knowledge.shared").KnowledgeJobState>().notNull().default("pending"), cursor: integer("cursor").notNull().default(0), totalChunks: integer("total_chunks"), manifestHash: text("manifest_hash"),
+  attempts: integer("attempts").notNull().default(0), errorCode: text("error_code"), leaseToken: text("lease_token"), leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  availableAt: timestamp("available_at", { withTimezone: true }).defaultNow().notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_index_jobs_identity_unique").on(table.id, table.allianceId, table.resourceId),
+  unique("knowledge_index_jobs_generation_unique").on(table.resourceId, table.contentVersion, table.accessVersion, table.approvalVersion, table.consentVersion, table.model, table.formatVersion),
+  foreignKey({ name: "knowledge_index_jobs_resource_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+  index("knowledge_index_jobs_claim_idx").on(table.state, table.availableAt),
+]);
+
+export const knowledgeAiUsage = pgTable("knowledge_ai_usage", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }), principalKey: text("principal_key").notNull(),
+  operation: text("operation").$type<"index" | "query">().notNull(), inputChars: integer("input_chars").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [index("knowledge_ai_usage_principal_idx").on(table.principalKey, table.createdAt)]);
 
 export const knowledgeCaptureDrafts = pgTable("knowledge_capture_drafts", {
   id: text("id").primaryKey(), allianceId: text("alliance_id").notNull(), resourceId: text("resource_id").notNull(),
