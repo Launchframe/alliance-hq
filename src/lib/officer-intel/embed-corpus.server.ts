@@ -1,147 +1,49 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { createOpenAI } from "@ai-sdk/openai";
 import { embedMany } from "ai";
-import { and, eq } from "drizzle-orm";
-import { nanoid } from "nanoid";
-
+import { and, eq, isNull } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import {
-  buildApprovedNoteChunks,
-  type OfficerIntelSessionContext,
-} from "@/lib/officer-intel/build-corpus-chunks.shared";
-import {
-  isOfficerIntelLlmConfigured,
-  officerIntelEmbedModel,
-} from "@/lib/officer-intel/llm-config.server";
-import type { OfficerMeetingNoteSummary } from "@/lib/officer-intel/synthesis-types.shared";
+import { KnowledgeAccessError } from "@/lib/notes/resources.server";
+import { KNOWLEDGE_BATCH_SIZE, KNOWLEDGE_CHUNK_CHARS, KNOWLEDGE_DIMENSIONS, validKnowledgeEmbedding } from "@/lib/notes/knowledge.shared";
+import { redactIntakeText } from "@/lib/notes/intake.shared";
+import { isOfficerIntelLlmConfigured, officerIntelEmbedModel } from "./llm-config.server";
+import type { OfficerActionItemRecord, OfficerMeetingNoteSummary } from "./synthesis-types.shared";
 
-let embedSkipLogged = false;
-
-function logEmbedSkipOnce() {
-  if (embedSkipLogged) return;
-  embedSkipLogged = true;
-  console.warn(
-    "[officer-intel] OPENAI_API_KEY missing — skipping corpus embeddings.",
-  );
+type SessionContext = { title: string; channelLabel: string | null; sessionAt: Date | null };
+export function knowledgeTestProviderEnabled() {
+  return process.env.E2E_TEST === "true" && process.env.NOTES_KNOWLEDGE_TEST_PROVIDER === "1" && !process.env.VERCEL;
 }
-
-function toSessionContext(session: {
-  title: string;
-  channelLabel: string | null;
-  sessionAt: Date | null;
-}): OfficerIntelSessionContext {
-  return {
-    title: session.title,
-    channelLabel: session.channelLabel,
-    sessionAt: session.sessionAt?.toISOString() ?? null,
-  };
-}
-
-async function embedTexts(texts: string[]): Promise<number[][] | null> {
-  if (!isOfficerIntelLlmConfigured() || texts.length === 0) {
-    logEmbedSkipOnce();
-    return null;
+export function knowledgeEmbeddingModel() { return knowledgeTestProviderEnabled() ? "e2e-knowledge-1536" : officerIntelEmbedModel(); }
+export function knowledgeEmbeddingConfigured() { return knowledgeTestProviderEnabled() || isOfficerIntelLlmConfigured(); }
+export async function embedKnowledgeTexts(texts: string[]): Promise<number[][]> {
+  if (!texts.length || texts.length > KNOWLEDGE_BATCH_SIZE || texts.some((text) => !text || text.length > KNOWLEDGE_CHUNK_CHARS)) throw new KnowledgeAccessError("invalid");
+  const values = texts.map(redactIntakeText);
+  if (knowledgeTestProviderEnabled()) {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    return values.map((text) => {
+      const vector = Array<number>(KNOWLEDGE_DIMENSIONS).fill(0);
+      for (const word of text.toLocaleLowerCase("en-US").match(/[\p{L}\p{N}]+/gu) ?? [text]) vector[createHash("sha256").update(word).digest().readUInt16BE(0) % KNOWLEDGE_DIMENSIONS]++;
+      if (!vector.some(Boolean)) vector[0] = 1;
+      return vector;
+    });
   }
-
+  if (!knowledgeEmbeddingConfigured()) throw new KnowledgeAccessError("not_configured");
+  const model = officerIntelEmbedModel();
   const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const { embeddings } = await embedMany({
-    model: openai.embedding(officerIntelEmbedModel()),
-    values: texts,
-  });
+  const { embeddings } = await embedMany({ model: openai.embedding(model), values, maxRetries: 0, maxParallelCalls: 1, abortSignal: AbortSignal.timeout(20_000), providerOptions: model.startsWith("text-embedding-3-") ? { openai: { dimensions: KNOWLEDGE_DIMENSIONS } } : undefined });
+  if (embeddings.length !== values.length || !embeddings.every(validKnowledgeEmbedding)) throw new Error("invalid_embedding");
   return embeddings;
 }
-
-async function deleteChunksForSource(
-  db: { delete: ReturnType<typeof getDb>["delete"] },
-  input: {
-    allianceId: string;
-    sourceType: "approved_note" | "action_item";
-    sourceId: string;
-  },
-) {
-  await db
-    .delete(schema.officerIntelChunks)
-    .where(
-      and(
-        eq(schema.officerIntelChunks.allianceId, input.allianceId),
-        eq(schema.officerIntelChunks.sourceType, input.sourceType),
-        eq(schema.officerIntelChunks.sourceId, input.sourceId),
-      ),
-    );
+async function deleteLegacyChunks(allianceId: string, sourceType: string, sourceId: string) {
+  await getDb().delete(schema.officerIntelChunks).where(and(eq(schema.officerIntelChunks.allianceId, allianceId), eq(schema.officerIntelChunks.sourceType, sourceType), eq(schema.officerIntelChunks.sourceId, sourceId), isNull(schema.officerIntelChunks.indexJobId)));
 }
-
-export async function dropOfficerMeetingNoteChunks(input: {
-  allianceId: string;
-  noteId: string;
-}) {
-  const db = getDb();
-  await deleteChunksForSource(db, {
-    allianceId: input.allianceId,
-    sourceType: "approved_note",
-    sourceId: input.noteId,
-  });
+export async function dropOfficerMeetingNoteChunks(input: { allianceId: string; noteId: string }) { await deleteLegacyChunks(input.allianceId, "approved_note", input.noteId); }
+export async function dropOfficerActionItemChunks(input: { allianceId: string; actionItemId: string }) { await deleteLegacyChunks(input.allianceId, "action_item", input.actionItemId); }
+export async function indexOfficerMeetingNoteChunks(input: { allianceId: string; note: OfficerMeetingNoteSummary; session: SessionContext; localeCode: string; approvedAt?: Date | null }) {
+  void input; throw new KnowledgeAccessError("not_configured");
 }
-
-export async function dropOfficerActionItemChunks(input: {
-  allianceId: string;
-  actionItemId: string;
-}) {
-  const db = getDb();
-  await deleteChunksForSource(db, {
-    allianceId: input.allianceId,
-    sourceType: "action_item",
-    sourceId: input.actionItemId,
-  });
-}
-
-export async function indexOfficerMeetingNoteChunks(input: {
-  allianceId: string;
-  note: OfficerMeetingNoteSummary;
-  session: {
-    title: string;
-    channelLabel: string | null;
-    sessionAt: Date | null;
-  };
-  localeCode: string;
-  approvedAt?: Date | null;
-}) {
-  const chunkTexts = buildApprovedNoteChunks({
-    note: {
-      summary: input.note.summary,
-      keyDecisions: input.note.keyDecisions,
-      openQuestions: input.note.openQuestions,
-    },
-    session: toSessionContext(input.session),
-  });
-
-  const embeddings =
-    chunkTexts.length === 0 ? null : await embedTexts(chunkTexts);
-  const db = getDb();
-  const now = new Date();
-  const approvedAt = input.approvedAt ?? null;
-
-  await db.transaction(async (tx) => {
-    await deleteChunksForSource(tx, {
-      allianceId: input.allianceId,
-      sourceType: "approved_note",
-      sourceId: input.note.id,
-    });
-    if (chunkTexts.length === 0) return;
-    await tx.insert(schema.officerIntelChunks).values(
-      chunkTexts.map((chunkText, index) => ({
-        id: nanoid(),
-        allianceId: input.allianceId,
-        sourceType: "approved_note" as const,
-        sourceId: input.note.id,
-        sessionId: input.note.sessionId,
-        localeCode: input.localeCode,
-        chunkText,
-        embedding: embeddings?.[index] ?? null,
-        approvedAt,
-        createdAt: now,
-        updatedAt: now,
-      })),
-    );
-  });
+export async function indexOfficerActionItemChunk(input: { allianceId: string; item: OfficerActionItemRecord; session?: SessionContext | null; localeCode: string }) {
+  void input; throw new KnowledgeAccessError("not_configured");
 }

@@ -34,6 +34,6 @@ export async function withKnowledgeReceipt(actor: KnowledgeActor & { sessionId?:
     await tx.insert(schema.knowledgeMutationReceipts).values({ id, allianceId: actor.allianceId, principalKey, requestId, requestHash, result: value });
     return { ...value, replayed: false };
   });
-  if (!result.replayed) await writeOfficerActionAudit({ sessionId: actor.sessionId, hqUserId: actor.hqUserId, allianceId: actor.allianceId, action, severity: ["notes.task_update", "notes.board_command"].includes(action) ? "update" : "routine", permission: action.startsWith("notes.board_") ? "notes_boards:write" : action === "notes.task_update" ? "notes:read" : "notes:create", resourceType: "notes_workspace" });
+  if (!result.replayed) await writeOfficerActionAudit({ sessionId: actor.sessionId, hqUserId: actor.hqUserId, allianceId: actor.allianceId, action, severity: ["notes.task_update", "notes.board_command", "notes.knowledge_unapprove", "notes.knowledge_deny_ai", "notes.knowledge_cancel"].includes(action) ? "update" : "routine", permission: action.startsWith("notes.board_") ? "notes_boards:write" : ["notes.task_update", "notes.knowledge_unapprove", "notes.knowledge_deny_ai", "notes.knowledge_cancel"].includes(action) ? "notes:read" : "notes:create", resourceType: result.resourceId ? "knowledge_resource" : "notes_workspace", resourceId: result.resourceId });
   return result;
 }
