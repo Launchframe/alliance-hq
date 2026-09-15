@@ -43,11 +43,12 @@ export function OfficerActionItemsClient({
   async function updateStatus(
     itemId: string,
     status: OfficerActionItemRecord["status"],
+    expectedVersion: number,
   ) {
     const res = await fetch(`/api/officer-intel/action-items/${itemId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, expectedVersion }),
     });
     if (!res.ok) {
       setError(t("updateActionItemFailed"));
@@ -124,7 +125,7 @@ export function OfficerActionItemsClient({
                     <button
                       type="button"
                       className="rounded border border-hq-border px-2 py-1 text-xs"
-                      onClick={() => void updateStatus(item.id, "in_progress")}
+                      onClick={() => void updateStatus(item.id, "in_progress", item.version)}
                     >
                       {t("markInProgress")}
                     </button>
@@ -132,7 +133,7 @@ export function OfficerActionItemsClient({
                   <button
                     type="button"
                     className="rounded border border-hq-border px-2 py-1 text-xs"
-                    onClick={() => void updateStatus(item.id, "done")}
+                      onClick={() => void updateStatus(item.id, "done", item.version)}
                   >
                     {t("markDone")}
                   </button>

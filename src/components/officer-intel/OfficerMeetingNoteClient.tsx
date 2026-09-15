@@ -65,11 +65,12 @@ export function OfficerMeetingNoteClient({
   async function updateItemStatus(
     itemId: string,
     status: OfficerActionItemRecord["status"],
+    expectedVersion: number,
   ) {
     const res = await fetch(`/api/officer-intel/action-items/${itemId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, expectedVersion }),
     });
     const body = (await res.json().catch(() => null)) as
       | { item?: OfficerActionItemRecord }
@@ -188,7 +189,7 @@ export function OfficerMeetingNoteClient({
                       <button
                         type="button"
                         className="rounded border border-hq-border px-2 py-1 text-xs"
-                        onClick={() => void updateItemStatus(item.id, "in_progress")}
+                        onClick={() => void updateItemStatus(item.id, "in_progress", item.version)}
                       >
                         {t("markInProgress")}
                       </button>
@@ -196,7 +197,7 @@ export function OfficerMeetingNoteClient({
                     <button
                       type="button"
                       className="rounded border border-hq-border px-2 py-1 text-xs"
-                      onClick={() => void updateItemStatus(item.id, "done")}
+                      onClick={() => void updateItemStatus(item.id, "done", item.version)}
                     >
                       {t("markDone")}
                     </button>

@@ -362,6 +362,7 @@ async function loadAssigneeNames(
 function mapActionItemRow(
   row: typeof schema.officerActionItems.$inferSelect,
   assigneeNames: Map<string, string>,
+  version: number,
 ): OfficerActionItemRecord {
   return {
     id: row.id,
@@ -379,6 +380,7 @@ function mapActionItemRow(
     dueAt: row.dueAt?.toISOString() ?? null,
     dueHint: row.dueHint,
     completedAt: row.completedAt?.toISOString() ?? null,
+    version,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -496,8 +498,15 @@ export async function listOfficerActionItemsForNote(input: {
 }): Promise<OfficerActionItemRecord[]> {
   const db = getDb();
   const rows = await db
-    .select()
+    .select({
+      item: schema.officerActionItems,
+      version: schema.knowledgeResources.version,
+    })
     .from(schema.officerActionItems)
+    .innerJoin(
+      schema.knowledgeResources,
+      eq(schema.knowledgeResources.id, schema.officerActionItems.resourceId),
+    )
     .where(
       and(
         eq(schema.officerActionItems.noteId, input.noteId),
@@ -509,10 +518,10 @@ export async function listOfficerActionItemsForNote(input: {
   const assigneeNames = await loadAssigneeNames(
     input.allianceId,
     rows
-      .map((row) => row.assigneeAllianceMemberId)
+      .map((row) => row.item.assigneeAllianceMemberId)
       .filter((id): id is string => Boolean(id)),
   );
-  return rows.map((row) => mapActionItemRow(row, assigneeNames));
+  return rows.map((row) => mapActionItemRow(row.item, assigneeNames, row.version));
 }
 
 export async function listOpenOfficerActionItems(
@@ -521,8 +530,15 @@ export async function listOpenOfficerActionItems(
 ): Promise<OfficerActionItemRecord[]> {
   const db = getDb();
   const rows = await db
-    .select()
+    .select({
+      item: schema.officerActionItems,
+      version: schema.knowledgeResources.version,
+    })
     .from(schema.officerActionItems)
+    .innerJoin(
+      schema.knowledgeResources,
+      eq(schema.knowledgeResources.id, schema.officerActionItems.resourceId),
+    )
     .where(
       and(
         eq(schema.officerActionItems.allianceId, allianceId),
@@ -535,10 +551,10 @@ export async function listOpenOfficerActionItems(
   const assigneeNames = await loadAssigneeNames(
     allianceId,
     rows
-      .map((row) => row.assigneeAllianceMemberId)
+      .map((row) => row.item.assigneeAllianceMemberId)
       .filter((id): id is string => Boolean(id)),
   );
-  return rows.map((row) => mapActionItemRow(row, assigneeNames));
+  return rows.map((row) => mapActionItemRow(row.item, assigneeNames, row.version));
 }
 
 export async function countOpenOfficerActionItems(
@@ -766,7 +782,7 @@ export async function updateOfficerActionItem(input: {
   actor: KnowledgeActor;
   actionItemId: string;
   allianceId: string;
-  expectedVersion?: number;
+  expectedVersion: number;
   title?: string;
   description?: string | null;
   status?: OfficerActionItemStatus;
@@ -780,7 +796,7 @@ export async function updateOfficerActionItem(input: {
   const current = await getNoteTask(input.actor, input.actionItemId, "edit");
   if (!current) return { error: "not_found" };
   await updateNoteTask(input.actor, input.actionItemId, {
-    expectedVersion: input.expectedVersion ?? current.version, title: input.title, description: input.description,
+    expectedVersion: input.expectedVersion, title: input.title, description: input.description,
     status: input.status, priority: input.priority, legacyAssigneeAllianceMemberId: input.assigneeAllianceMemberId,
     dueAt: input.dueAt === undefined ? undefined : input.dueAt?.toISOString() ?? null, dueHint: input.dueHint,
   });
@@ -795,8 +811,15 @@ export async function getOfficerActionItemForAlliance(input: {
 }) {
   const db = getDb();
   const [row] = await db
-    .select()
+    .select({
+      item: schema.officerActionItems,
+      version: schema.knowledgeResources.version,
+    })
     .from(schema.officerActionItems)
+    .innerJoin(
+      schema.knowledgeResources,
+      eq(schema.knowledgeResources.id, schema.officerActionItems.resourceId),
+    )
     .where(
       and(
         eq(schema.officerActionItems.id, input.actionItemId),
@@ -808,9 +831,9 @@ export async function getOfficerActionItemForAlliance(input: {
   if (!row) return null;
   const names = await loadAssigneeNames(
     input.allianceId,
-    row.assigneeAllianceMemberId ? [row.assigneeAllianceMemberId] : [],
+    row.item.assigneeAllianceMemberId ? [row.item.assigneeAllianceMemberId] : [],
   );
-  return mapActionItemRow(row, names);
+  return mapActionItemRow(row.item, names, row.version);
 }
 
 export async function indexOfficerOpenActionItemById(input: {

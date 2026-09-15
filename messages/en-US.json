@@ -7077,7 +7077,7 @@
       "cancelled": "Cancelled"
     },
     "askTitle": "Ask about alliance decisions",
-    "askSubtitle": "Answers use officer-approved meeting notes. Private tasks and the full chat history are not included.",
+    "askSubtitle": "Answers use officer-approved meeting notes. Private tasks are not included. Chat history is not replayed; a cited session transcript may be loaded when needed.",
     "askPlaceholder": "What did we decide about banks?",
     "askSubmit": "Ask",
     "asking": "Searching approved meeting notes…",

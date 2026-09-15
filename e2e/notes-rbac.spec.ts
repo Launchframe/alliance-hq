@@ -117,6 +117,34 @@ test.describe("HQ notes RBAC", () => {
       data: { body: "bootstrap must not create notes" },
     });
     expect(create.status(), await create.text()).toBe(403);
+
+    const tasks = await request.get("/api/notes/tasks", {
+      headers: { Cookie: cookie },
+    });
+    expect(tasks.status(), await tasks.text()).toBe(403);
+
+    const capture = await request.post("/api/notes/capture", {
+      headers: { Cookie: cookie },
+      data: { body: "bootstrap must not capture", requestId: "bootstrap-capture" },
+    });
+    expect(capture.status(), await capture.text()).toBe(403);
+
+    const interpret = await request.post("/api/notes/intake/interpret", {
+      headers: { Cookie: cookie },
+      data: {
+        draftId: "bootstrap-draft-id",
+        body: "bootstrap must not interpret",
+        revision: 0,
+        overrideRevision: 0,
+        locale: "en-US",
+      },
+    });
+    expect(interpret.status(), await interpret.text()).toBe(403);
+
+    const preferences = await request.get("/api/notes/intake/preferences", {
+      headers: { Cookie: cookie },
+    });
+    expect(preferences.status(), await preferences.text()).toBe(403);
   });
 
   test("anonymous browser session row is also denied notes API", async ({

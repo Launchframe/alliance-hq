@@ -7058,7 +7058,7 @@
       "cancelled": "Cancelado"
     },
     "askTitle": "Pergunte sobre decisões da aliança",
-    "askSubtitle": "As respostas usam atas aprovadas pelos oficiais. Tarefas privadas e o histórico completo do chat não são incluídos.",
+    "askSubtitle": "As respostas usam atas aprovadas pelos oficiais. Tarefas privadas não são incluídas. O histórico completo do chat não é repetido; um trecho de sessão citada pode ser carregado quando necessário.",
     "askPlaceholder": "O que decidimos sobre os bancos?",
     "askSubmit": "Perguntar",
     "asking": "Buscando atas aprovadas…",

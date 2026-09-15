@@ -13,7 +13,7 @@ import { KnowledgeAccessError } from "@/lib/notes/resources.server";
 export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ id: string }> };
 const patchSchema = taskPatchSchema.omit({ expectedVersion: true }).extend({
-  expectedVersion: z.number().int().positive().optional(),
+  expectedVersion: z.number().int().positive(),
   assigneeAllianceMemberId: z.string().min(1).max(120).nullable().optional(), dueHint: z.string().max(200).nullable().optional(),
 });
 

@@ -51,6 +51,7 @@ export type OfficerActionItemRecord = {
   dueAt: string | null;
   dueHint: string | null;
   completedAt: string | null;
+  version: number;
   createdAt: string;
   updatedAt: string;
 };
