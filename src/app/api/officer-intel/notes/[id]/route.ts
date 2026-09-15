@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { notesErrorResponse } from "@/lib/notes/access.server";
 import { notePatchSchema } from "@/lib/notes/workspace.shared";
 import { KnowledgeAccessError } from "@/lib/notes/resources.server";
+import { writeOfficerActionAudit } from "@/lib/bff/officer-action-audit.server";
 
 import {
   getOfficerMeetingNoteForAlliance,
@@ -91,6 +92,7 @@ export async function PUT(request: Request, { params }: Props) {
   if ("error" in result) {
     return NextResponse.json({ error: "Note not found." }, { status: 404 });
   }
+  await writeOfficerActionAudit({ sessionId: context.sessionId, allianceId: context.allianceId, hqUserId: context.actor.hqUserId, action: approve ? "notes.meeting_approve" : "notes.meeting_update", severity: approve ? "routine" : "update", permission: "officer_intel:write", resourceType: "note", resourceId: current.canonicalNoteId, metadata: { expectedVersion, approved: approve } });
 
   const note = await getOfficerMeetingNoteForAlliance({
     noteId: id,

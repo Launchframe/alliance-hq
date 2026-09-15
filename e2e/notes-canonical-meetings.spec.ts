@@ -24,6 +24,9 @@ test("legacy meeting routes and canonical notes share content, approval, and imm
   expect(edited).toMatchObject({ summary: "Canonical edit", keyDecisions: ["Original decision"], status: "draft" });
   expect((await page.request.put(oldPath, { headers, data: { expectedVersion: legacy.version, summary: "Stale edit" } })).status()).toBe(409);
   expect((await page.request.put(oldPath, { headers, data: { expectedVersion: edited.version, summary: "Legacy adapter edit", keyDecisions: ["Reviewed decision"], approve: true } })).status()).toBe(200);
+  const [audit] = await sql`SELECT hq_user_id, severity, metadata FROM audit_log WHERE resource_id = ${legacy.canonicalNoteId} AND action = 'notes.meeting_approve' ORDER BY created_at DESC LIMIT 1`;
+  expect(audit).toMatchObject({ hq_user_id: author.hqUserId, severity: "routine" });
+  expect(JSON.stringify(audit.metadata)).not.toContain("Legacy adapter edit");
   const latest = (await (await page.request.get(path, { headers })).json()).note;
   expect(latest).toMatchObject({ body: "Legacy adapter edit", keyDecisions: ["Reviewed decision"], openQuestions: ["Original question"] });
   const [frozen] = await sql`SELECT summary, key_decisions, resource_id, canonical_note_id FROM officer_meeting_notes WHERE id = ${legacyId}`;
