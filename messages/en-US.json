@@ -1827,6 +1827,7 @@
         "newBoard": "Create an officer board",
         "drafts": "Open private drafts",
         "imports": "Open history imports",
+        "workspaceSearch": "Search the workspace",
         "search": "Search notes"
       },
       "trains": {
@@ -7115,6 +7116,7 @@
       "boards": "Officer boards",
       "drafts": "Drafts",
       "imports": "History",
+      "search": "Search",
       "notebook": "Notebook",
       "inbox": "Inbox",
       "shared": "Shared with me",
@@ -7287,6 +7289,15 @@
         "done": "Done",
         "cancelled": "Cancelled"
       }
+    },
+    "searchWorkspace": {
+      "title": "Search workspace", "hint": "Search only notes, tasks, and committed source text you can currently read. No AI processing is used.",
+      "searching": "Searching…",
+      "query": "Search terms", "submit": "Search", "kind": "Content type", "all": "All content", "note": "Notes", "task": "Tasks", "source": "Sources", "empty": "No matching content.", "previous": "Previous results", "next": "Next results", "open": "Open result", "sourceDate": "Source date"
+    },
+    "documents": {
+      "type": "Document type", "types": { "note": "Note", "journal": "Journal", "meeting": "Meeting", "reference": "Reference" },
+      "keyDecisions": "Key decisions", "openQuestions": "Open questions", "addDecision": "Add decision", "addQuestion": "Add question", "removeItem": "Remove item", "openInNotes": "Open in Notes"
     },
     "imports": {
       "title": "History imports",

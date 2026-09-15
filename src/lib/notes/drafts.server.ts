@@ -114,7 +114,7 @@ export async function commitCaptureDraft(actor: KnowledgeActor & { canCreate?: b
       if (!source || !draft.sourceVersion) throw new KnowledgeAccessError("not_found");
       ownsNote = source.isOwner;
       const { notebook, inbox, excludedMemberIds, ...sharedFields } = fields;
-      await updatePerformanceNoteInTransaction(tx, actor, noteId, { ...sharedFields, ...(source.isOwner ? { notebook, inbox, excludedMemberIds, ...(state.archive !== null ? { archived: state.archive } : {}) } : {}), expectedVersion: draft.sourceVersion });
+      await updatePerformanceNoteInTransaction(tx, actor, noteId, { ...sharedFields, documentType: state.fields.documentType, keyDecisions: state.fields.keyDecisions, openQuestions: state.fields.openQuestions, ...(source.isOwner ? { notebook, inbox, excludedMemberIds, ...(state.archive !== null ? { archived: state.archive } : {}) } : {}), expectedVersion: draft.sourceVersion });
     } else noteId = await createPerformanceNoteInTransaction(tx, { ...fields, actor, captureSource: draft.source, captureDiscordUserId: resource.ownerDiscordUserId, intakeMode: fields.kind === "note" ? "thought" : "batch" });
     if (ownsNote) await tx.update(schema.performanceNotes).set({ intakeProvenance: await provenance(tx, actor, draft, resource.version, state) }).where(eq(schema.performanceNotes.id, noteId));
     const taskIds: string[] = [];

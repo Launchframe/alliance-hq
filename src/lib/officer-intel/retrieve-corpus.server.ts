@@ -7,7 +7,7 @@ import { and, count, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { escapeLikePrefix } from "@/lib/admin/audit-query";
 import { getDb, schema } from "@/lib/db";
 import type { KnowledgeActor } from "@/lib/notes/policy.shared";
-import { knowledgeAccessCondition } from "@/lib/notes/resources.server";
+import { meetingNoteAccess } from "@/lib/officer-intel/repository.server";
 import { OFFICER_INTEL_CHARS_PER_TOKEN } from "@/lib/officer-intel/build-corpus-chunks.shared";
 import {
   isOfficerIntelLlmConfigured,
@@ -257,7 +257,8 @@ export async function countApprovedOfficerMeetingNotes(
       and(
         eq(schema.officerMeetingNotes.allianceId, allianceId),
         eq(schema.officerMeetingNotes.status, "approved"),
-        knowledgeAccessCondition(actor, schema.officerMeetingNotes.resourceId),
+        meetingNoteAccess(actor),
+        sql`exists(select 1 from knowledge_resources where id = ${schema.officerMeetingNotes.resourceId} and archived_at is null)`,
       ),
     );
   return Number(row?.value ?? 0);

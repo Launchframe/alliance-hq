@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { noteFieldsSchema, notePatchSchema, noteTitle, notePriorityRank, normalizeNoteLabels, notesWorkspaceLocation } from "./workspace.shared";
+import { noteFieldsSchema, notePatchSchema, noteRouteId, noteTitle, notePriorityRank, normalizeNoteLabels, notesWorkspaceLocation } from "./workspace.shared";
 
 describe("note workspace fields", () => {
+  it("normalizes canonical meeting IDs across locale rewrites without decoding arbitrary paths", () => {
+    expect(noteRouteId("meeting%3Alegacy-id")).toBe("meeting:legacy-id");
+    expect(noteRouteId("meeting:legacy-id")).toBe("meeting:legacy-id");
+    expect(noteRouteId("ordinary-note")).toBe("ordinary-note");
+    expect(noteRouteId("other%2Fpath")).toBe("other%2Fpath");
+  });
   it("preserves authorized board and filter deep links while changing focus", () => {
     expect(notesWorkspaceLocation("/pt-BR/notes", "?view=boards&board=one&task=old", { task: "next", boardGroup: "assignee" })).toBe("/pt-BR/notes?view=boards&board=one&task=next&boardGroup=assignee");
     expect(notesWorkspaceLocation("/notes", "?task=old", { task: null })).toBe("/notes");

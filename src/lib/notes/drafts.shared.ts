@@ -1,13 +1,13 @@
 import { z } from "zod";
 import { captureTaskSchema, type IntakeResult } from "./intake.shared";
-import { noteFieldsSchema } from "./workspace.shared";
+import { noteFieldsSchema, notePatchSchema } from "./workspace.shared";
 
 export const ACTION_FIELDS = ["title", "description", "status", "priority", "included"] as const;
 export const actionModesSchema = z.object({ title: z.enum(["auto", "manual"]), description: z.enum(["auto", "manual"]), status: z.enum(["auto", "manual"]), priority: z.enum(["auto", "manual"]), included: z.enum(["auto", "manual"]) });
 export const automaticActionModes = (): z.infer<typeof actionModesSchema> => ({ title: "auto", description: "auto", status: "auto", priority: "auto", included: "auto" });
 export const draftActionSchema = captureTaskSchema.extend({ modes: actionModesSchema.default(automaticActionModes), analysisId: z.string().max(120).nullable().default(null) });
 export const draftStateSchema = z.object({
-  fields: noteFieldsSchema.extend({ body: z.string().max(100_000) }),
+  fields: noteFieldsSchema.extend({ body: z.string().max(100_000), documentType: notePatchSchema.shape.documentType, keyDecisions: notePatchSchema.shape.keyDecisions, openQuestions: notePatchSchema.shape.openQuestions }),
   revision: z.number().int().nonnegative().default(0), overrideRevision: z.number().int().nonnegative().default(0),
   analysisRevision: z.number().int().default(-1), analysisId: z.string().max(120).nullable().default(null),
   tasks: z.array(draftActionSchema).max(10).default([]), aiEnabled: z.boolean().default(true), archive: z.boolean().nullable().default(null),

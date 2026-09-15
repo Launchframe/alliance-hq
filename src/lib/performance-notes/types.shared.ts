@@ -27,6 +27,9 @@ export type PerformanceNoteDto = {
   intakeMode: PerformanceNoteIntakeMode;
   body: string;
   title: string;
+  documentType?: import("@/lib/notes/workspace.shared").NoteDocumentType;
+  keyDecisions?: string[];
+  openQuestions?: string[];
   priority: NotePriority;
   priorityMode: "manual" | "auto";
   intakeProvenance?: CaptureProvenance | null;

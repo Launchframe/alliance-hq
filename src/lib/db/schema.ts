@@ -4446,6 +4446,7 @@ export const officerChatMessages = pgTable(
   },
   (table) => [
     uniqueIndex("officer_chat_messages_source_locator_unique").on(table.sessionId, table.sourceLocator),
+    index("officer_chat_messages_search_idx").using("gin", sql`notes_search_vector(${table.originalText})`),
     index("officer_chat_messages_session_order_idx").on(
       table.sessionId,
       table.sequenceOrder,
@@ -4481,6 +4482,7 @@ export const officerMeetingNotes = pgTable(
   "officer_meeting_notes",
   {
     id: text("id").primaryKey(),
+    canonicalNoteId: text("canonical_note_id").notNull().default(sql`NULL`),
     resourceId: text("resource_id").notNull().default(sql`NULL`),
     allianceId: text("alliance_id")
       .notNull()
@@ -4518,6 +4520,8 @@ export const officerMeetingNotes = pgTable(
   },
   (table) => [
     unique("officer_meeting_notes_resource_unique").on(table.resourceId),
+    uniqueIndex("officer_meeting_notes_canonical_unique").on(table.canonicalNoteId),
+    foreignKey({ name: "officer_meeting_notes_canonical_fk", columns: [table.canonicalNoteId, table.allianceId, table.resourceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId, performanceNotes.resourceId] }).onDelete("restrict"),
     foreignKey({ name: "officer_meeting_notes_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
     uniqueIndex("officer_meeting_notes_session_idx").on(table.sessionId),
     index("officer_meeting_notes_alliance_updated_idx").on(
@@ -4578,6 +4582,7 @@ export const officerActionItems = pgTable(
     ),
     index("officer_action_items_note_idx").on(table.noteId),
     index("officer_action_items_source_idx").on(table.sourceNoteId),
+    index("officer_action_items_search_idx").using("gin", sql`notes_search_vector(${table.title} || E'\n' || coalesce(${table.description}, ''))`),
     unique("officer_action_items_resource_unique").on(table.resourceId),
     unique("officer_action_items_id_alliance_unique").on(table.id, table.allianceId),
     unique("officer_action_items_capture_unique").on(table.captureKey, table.actionKey),
@@ -4752,6 +4757,9 @@ export const performanceNotes = pgTable(
     inbox: boolean("inbox").notNull().default(true),
     excludedMemberIds: jsonb("excluded_member_ids").$type<string[]>().notNull().default([]),
     body: text("body").notNull(),
+    documentType: text("document_type").$type<import("@/lib/notes/workspace.shared").NoteDocumentType>().notNull().default("note"),
+    keyDecisions: jsonb("key_decisions").$type<string[]>().notNull().default([]),
+    openQuestions: jsonb("open_questions").$type<string[]>().notNull().default([]),
     /** discord | web */
     source: text("source").notNull(),
     createdByDiscordUserId: text("created_by_discord_user_id"),
@@ -4774,6 +4782,9 @@ export const performanceNotes = pgTable(
     ),
     index("performance_notes_alliance_kind_idx").on(table.allianceId, table.kind),
     uniqueIndex("performance_notes_resource_unique").on(table.resourceId),
+    uniqueIndex("performance_notes_identity_unique").on(table.id, table.allianceId, table.resourceId),
+    index("performance_notes_search_idx").using("gin", sql`notes_search_vector(notes_document_text(${table.title}, ${table.body}, ${table.keyDecisions}, ${table.openQuestions}))`),
+    check("performance_notes_document_type_check", sql`${table.documentType} in ('note', 'journal', 'meeting', 'reference')`),
     unique("performance_notes_id_alliance_unique").on(table.id, table.allianceId),
     check("performance_notes_priority_check", sql`${table.priority} is null or ${table.priority} in ('low', 'medium', 'high', 'urgent')`),
     foreignKey({ name: "performance_notes_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),

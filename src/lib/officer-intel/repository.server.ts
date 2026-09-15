@@ -7,6 +7,8 @@ import { getDb, schema } from "@/lib/db";
 import type { KnowledgeActor } from "@/lib/notes/policy.shared";
 import { knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, recheckKnowledgeActor, touchKnowledgeResource } from "@/lib/notes/resources.server";
 import { normalizeTaskPriority } from "@/lib/notes/tasks.shared";
+import { getPerformanceNoteDto, updatePerformanceNoteInTransaction } from "@/lib/performance-notes/repository.server";
+import type { PerformanceNoteDto } from "@/lib/performance-notes/types.shared";
 import type {
   OfficerActionItemPriority,
   OfficerActionItemRecord,
@@ -21,10 +23,6 @@ import type {
   OfficerChatSessionSummary,
 } from "@/lib/officer-intel/types.shared";
 import { redactIntakeText } from "@/lib/notes/intake.shared";
-import {
-  deactivateOfficerActionItemDueInboxItem,
-  materializeOfficerActionItemDueInboxItem,
-} from "@/lib/officer-intel/action-item-inbox.server";
 import {
   dropOfficerActionItemChunks,
 } from "@/lib/officer-intel/embed-corpus.server";
@@ -356,6 +354,7 @@ export async function getOfficerChatSessionImageForAlliance(input: {
 
 function mapMeetingNoteRow(
   row: typeof schema.officerMeetingNotes.$inferSelect,
+  canonical: PerformanceNoteDto,
   canReadSource = false,
   canEdit = false,
 ): OfficerMeetingNoteSummary {
@@ -363,21 +362,28 @@ function mapMeetingNoteRow(
     id: row.id,
     sessionId: canReadSource ? row.sessionId : null,
     canEdit,
-    summary: redactIntakeText(row.summary),
-    keyDecisions: (row.keyDecisions ?? []).map(redactIntakeText),
-    openQuestions: (row.openQuestions ?? []).map(redactIntakeText),
+    canonicalNoteId: canonical.id, version: canonical.version,
+    summary: canonical.body,
+    keyDecisions: canonical.keyDecisions ?? [],
+    openQuestions: canonical.openQuestions ?? [],
     status: row.status as OfficerMeetingNoteStatus,
     approvedAt: row.approvedAt?.toISOString() ?? null,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
+    createdAt: canonical.createdAt,
+    updatedAt: canonical.updatedAt,
   };
 }
 
+export function meetingNoteAccess(actor: KnowledgeActor) {
+  return and(eq(schema.officerMeetingNotes.allianceId, actor.allianceId), knowledgeAccessCondition(actor, schema.officerMeetingNotes.resourceId), sql`exists(select 1 from performance_notes p where p.id = ${schema.officerMeetingNotes.canonicalNoteId} and p.alliance_id = ${actor.allianceId} and p.expunged_at is null)`);
+}
+
 async function readableMeetingNote(row: typeof schema.officerMeetingNotes.$inferSelect, actor: KnowledgeActor) {
+  const canonical = await getPerformanceNoteDto({ actor, noteId: row.canonicalNoteId });
+  if (!canonical) return null;
   const source = await getOfficerChatSessionForAlliance({ sessionId: row.sessionId, allianceId: row.allianceId, actor });
   const [owner] = await getDb().select({ id: schema.knowledgeResources.id }).from(schema.knowledgeResources)
     .where(and(eq(schema.knowledgeResources.id, row.resourceId), knowledgeAccessCondition(actor, schema.knowledgeResources.id, "share")));
-  return mapMeetingNoteRow(row, Boolean(source), Boolean(owner));
+  return mapMeetingNoteRow(row, canonical, Boolean(source), Boolean(owner));
 }
 
 async function loadAssigneeNames(
@@ -430,7 +436,7 @@ async function readableActionItems(rows: Array<typeof schema.officerActionItems.
   const noteIds = rows.flatMap((row) => row.noteId ? [row.noteId] : []);
   const sessionIds = rows.flatMap((row) => row.sessionId ? [row.sessionId] : []);
   const [notes, sources] = await Promise.all([
-    noteIds.length ? getDb().select({ id: schema.officerMeetingNotes.id }).from(schema.officerMeetingNotes).where(and(eq(schema.officerMeetingNotes.allianceId, actor.allianceId), inArray(schema.officerMeetingNotes.id, noteIds), knowledgeAccessCondition(actor, schema.officerMeetingNotes.resourceId))) : [],
+    noteIds.length ? getDb().select({ id: schema.officerMeetingNotes.id }).from(schema.officerMeetingNotes).where(and(eq(schema.officerMeetingNotes.allianceId, actor.allianceId), inArray(schema.officerMeetingNotes.id, noteIds), meetingNoteAccess(actor))) : [],
     sessionIds.length ? getDb().select({ id: schema.officerChatSessions.id }).from(schema.officerChatSessions).where(and(eq(schema.officerChatSessions.allianceId, actor.allianceId), inArray(schema.officerChatSessions.id, sessionIds), knowledgeAccessCondition(actor, schema.officerChatSessions.resourceId), committedHistory(schema.officerChatSessions.id))) : [],
   ]);
   const readableNotes = new Set(notes.map((note) => note.id));
@@ -451,7 +457,7 @@ export async function getOfficerMeetingNoteForAlliance(input: {
       and(
         eq(schema.officerMeetingNotes.id, input.noteId),
         eq(schema.officerMeetingNotes.allianceId, input.allianceId),
-        knowledgeAccessCondition(input.actor, schema.officerMeetingNotes.resourceId),
+        meetingNoteAccess(input.actor),
       ),
     )
     .limit(1);
@@ -470,11 +476,13 @@ export async function listApprovedOfficerMeetingNotesForAlliance(
       and(
         eq(schema.officerMeetingNotes.allianceId, allianceId),
         eq(schema.officerMeetingNotes.status, "approved"),
-        knowledgeAccessCondition(actor, schema.officerMeetingNotes.resourceId),
+        meetingNoteAccess(actor),
+        sql`exists(select 1 from knowledge_resources where id = ${schema.officerMeetingNotes.resourceId} and archived_at is null)`,
       ),
     )
     .orderBy(desc(schema.officerMeetingNotes.approvedAt));
-  return rows.map((row) => mapMeetingNoteRow(row));
+  const notes = await Promise.all(rows.map((row) => readableMeetingNote(row, actor)));
+  return notes.filter((note): note is OfficerMeetingNoteSummary => note !== null);
 }
 
 export async function indexOfficerApprovedNoteCorpus(_input: {
@@ -497,7 +505,7 @@ export async function getOfficerMeetingNoteBySession(input: {
       and(
         eq(schema.officerMeetingNotes.sessionId, input.sessionId),
         eq(schema.officerMeetingNotes.allianceId, input.allianceId),
-        knowledgeAccessCondition(input.actor, schema.officerMeetingNotes.resourceId),
+        meetingNoteAccess(input.actor),
       ),
     )
     .limit(1);
@@ -597,139 +605,13 @@ export async function persistOfficerSynthesisResult(input: {
   | { noteId: string }
   | { error: "not_found" | "approved" }
 > {
-  const session = await getOfficerChatSessionForAlliance({
-    sessionId: input.sessionId,
-    allianceId: input.allianceId,
-    actor: input.actor,
-  });
-  if (!session) {
-    return { error: "not_found" };
-  }
-
-  const existing = await getOfficerMeetingNoteBySession({
-    sessionId: input.sessionId,
-    allianceId: input.allianceId,
-    actor: input.actor,
-  });
-  if (existing?.status === "approved") {
-    return { error: "approved" };
-  }
-
-  const db = getDb();
-  const now = new Date();
-  const noteId = existing?.id ?? nanoid();
-  const previousItems =
-    existing != null
-      ? await listOfficerActionItemsForNote({
-          noteId: existing.id,
-          allianceId: input.allianceId,
-          actor: input.actor,
-        })
-      : [];
-
-  await db.transaction(async (tx) => {
-    const sourceResource = await lockKnowledgeResource(tx, input.actor, session.resourceId, "share");
-    if (!sourceResource.knowledgeAiAllowed || sourceResource.version !== input.expectedSourceVersion) throw new KnowledgeAccessError("changed");
-    await touchKnowledgeResource(tx, sourceResource.id);
-    if (existing) {
-      const [note] = await tx.select().from(schema.officerMeetingNotes).where(eq(schema.officerMeetingNotes.id, existing.id));
-      await lockKnowledgeResource(tx, input.actor, note.resourceId, "share");
-      if (note.status === "approved") throw new KnowledgeAccessError("changed");
-      await touchKnowledgeResource(tx, note.resourceId);
-      await tx
-        .update(schema.officerMeetingNotes)
-        .set({
-          summary: input.summary,
-          keyDecisions: input.keyDecisions,
-          openQuestions: input.openQuestions,
-          status: "draft",
-          synthesizedByHqUserId: input.hqUserId,
-          approvedByHqUserId: null,
-          approvedAt: null,
-          modelId: input.modelId,
-          updatedAt: now,
-        })
-        .where(eq(schema.officerMeetingNotes.id, existing.id));
-    } else {
-      await tx.insert(schema.officerMeetingNotes).values({
-        id: noteId,
-        allianceId: input.allianceId,
-        sessionId: input.sessionId,
-        summary: input.summary,
-        keyDecisions: input.keyDecisions,
-        openQuestions: input.openQuestions,
-        status: "draft",
-        synthesizedByHqUserId: input.hqUserId,
-        modelId: input.modelId,
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-
-    for (const item of existing ? [] : input.actionItems) {
-      await tx.insert(schema.officerActionItems).values({
-        id: nanoid(),
-        allianceId: input.allianceId,
-        noteId,
-        sessionId: input.sessionId,
-        title: item.title,
-        description: item.description,
-        status: "open",
-        priority: item.priority,
-        assigneeAllianceMemberId: item.assigneeAllianceMemberId,
-        assigneeNameRaw: item.assigneeNameRaw,
-        dueAt: item.dueAt,
-        dueHint: item.dueHint,
-        createdByHqUserId: input.hqUserId,
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-
-    await tx
-      .update(schema.officerChatSessions)
-      .set({ updatedAt: now })
-      .where(eq(schema.officerChatSessions.id, input.sessionId));
-  });
-
-  await Promise.all(
-    previousItems.map((item) =>
-      deactivateOfficerActionItemDueInboxItem(item.id),
-    ),
-  );
-
-  const savedItems = await listOfficerActionItemsForNote({
-    noteId,
-    allianceId: input.allianceId,
-    actor: input.actor,
-  });
-  await Promise.all(
-    savedItems
-      .filter((item) => item.dueAt)
-      .map((item) =>
-        materializeOfficerActionItemDueInboxItem({
-          allianceId: input.allianceId,
-          actionItemId: item.id,
-          title: item.title,
-          dueAt: new Date(item.dueAt!),
-        }),
-      ),
-  );
-
-  await Promise.all(
-    previousItems.map((item) =>
-      dropOfficerActionItemChunks({
-        allianceId: input.allianceId,
-        actionItemId: item.id,
-      }),
-    ),
-  );
-
-  return { noteId };
+  void input;
+  throw new KnowledgeAccessError("not_configured");
 }
 
 export async function updateOfficerMeetingNote(input: {
   actor: KnowledgeActor;
+  expectedVersion: number;
   noteId: string;
   allianceId: string;
   hqUserId: string | null;
@@ -746,7 +628,7 @@ export async function updateOfficerMeetingNote(input: {
       and(
         eq(schema.officerMeetingNotes.id, input.noteId),
         eq(schema.officerMeetingNotes.allianceId, input.allianceId),
-        knowledgeAccessCondition(input.actor, schema.officerMeetingNotes.resourceId),
+        meetingNoteAccess(input.actor),
       ),
     )
     .limit(1);
@@ -756,12 +638,11 @@ export async function updateOfficerMeetingNote(input: {
 
   await db.transaction(async (tx) => {
     const resource = await lockKnowledgeResource(tx, input.actor, existing.resourceId, "share");
-    await tx.update(schema.officerMeetingNotes).set({
-      summary: input.summary, keyDecisions: input.keyDecisions, openQuestions: input.openQuestions,
-      ...(input.approve ? { status: "approved", approvedByHqUserId: input.actor.hqUserId, approvedAt: new Date() } : {}),
-      updatedAt: new Date(),
-    }).where(eq(schema.officerMeetingNotes.id, input.noteId));
-    await touchKnowledgeResource(tx, resource.id);
+    if (resource.version !== input.expectedVersion) throw new KnowledgeAccessError("changed");
+    const hasContent = input.summary !== undefined || input.keyDecisions !== undefined || input.openQuestions !== undefined;
+    if (hasContent) await updatePerformanceNoteInTransaction(tx, input.actor, existing.canonicalNoteId, { expectedVersion: input.expectedVersion, body: input.summary, keyDecisions: input.keyDecisions, openQuestions: input.openQuestions });
+    if (input.approve) await tx.update(schema.officerMeetingNotes).set({ status: "approved", approvedByHqUserId: input.actor.hqUserId, approvedAt: new Date(), updatedAt: new Date() }).where(eq(schema.officerMeetingNotes.id, input.noteId));
+    if (!hasContent && input.approve) await touchKnowledgeResource(tx, resource.id);
   });
 
   return { ok: true };
