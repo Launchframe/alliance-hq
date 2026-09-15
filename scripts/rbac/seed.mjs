@@ -20,6 +20,8 @@ const ROLE_IDS = {
 };
 
 const HQ_PERMISSIONS = [
+  { id: "notes:read", description: "Notes" },
+  { id: "notes:create", description: "Create notes" },
   { id: "plunder_plan:read", description: "Plunder Plan" },
   { id: "plunder_plan:self", description: "My Plunder Plans" },
   { id: "plunder_plan:suggest", description: "Suggest a time" },
@@ -139,7 +141,7 @@ async function main() {
   // Grant ashed:connect to every system role (embeds still require a live credential).
   for (const roleKey of Object.keys(roleTemplates)) {
     roleTemplates[roleKey].permissions = [
-      ...new Set([...roleTemplates[roleKey].permissions, "ashed:connect", "plunder_plan:read", "plunder_plan:self", ...(["owner", "maintainer", "officer"].includes(roleKey) ? ["plunder_plan:suggest"] : [])]),
+      ...new Set([...roleTemplates[roleKey].permissions, "ashed:connect", "notes:read", "plunder_plan:read", "plunder_plan:self", ...(["owner", "maintainer", "officer"].includes(roleKey) ? ["notes:create", "plunder_plan:suggest"] : [])]),
     ];
   }
 

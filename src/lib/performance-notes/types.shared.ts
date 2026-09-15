@@ -1,3 +1,5 @@
+import type { NotePriority } from "@/lib/notes/workspace.shared";
+
 export const PERFORMANCE_NOTE_KINDS = [
   "commendation",
   "violation",
@@ -14,6 +16,7 @@ export type PerformanceNoteIntakeMode =
 export type PerformanceNoteMemberDto = {
   ashedMemberId: string;
   name: string;
+  origin: "manual" | "detected";
 };
 
 export type PerformanceNoteDto = {
@@ -21,19 +24,32 @@ export type PerformanceNoteDto = {
   kind: PerformanceNoteKind;
   intakeMode: PerformanceNoteIntakeMode;
   body: string;
+  title: string;
+  priority: NotePriority;
+  labels: string[];
+  notebook: string | null;
+  journalDate: string | null;
+  inbox: boolean;
+  archived: boolean;
+  excludedMemberIds: string[];
   source: "discord" | "web";
   createdAt: string;
+  updatedAt: string;
   version: number;
   canEdit: boolean;
+  isOwner: boolean;
+  shared: boolean;
   members: PerformanceNoteMemberDto[];
 };
 
 export type PerformanceNoteRosterMember = {
   ashedMemberId: string;
   name: string;
+  previousNames?: string[];
 };
 
 export type PerformanceNotesPagePayload = {
   notes: PerformanceNoteDto[];
   roster: PerformanceNoteRosterMember[];
+  canCreate: boolean;
 };
