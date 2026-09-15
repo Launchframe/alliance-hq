@@ -13,12 +13,13 @@ vi.mock("@/lib/db", () => ({
     transaction: mocks.transaction,
   }),
 }));
-vi.mock("@/lib/notes/resources.server", () => ({ knowledgeAccessCondition: () => undefined }));
+vi.mock("@/lib/notes/resources.server", async (original) => ({ ...await original<typeof import("./resources.server")>(), knowledgeAccessCondition: () => undefined }));
 vi.mock("@/lib/notes/import-storage.server", () => ({ readHistoryObject: async () => Buffer.from("source") }));
 vi.mock("@/lib/storage", () => ({ putObject: mocks.put, deleteObject: mocks.remove }));
 vi.mock("@/lib/storage/r2", () => ({}));
 vi.mock("@/lib/notes/jobs.server", () => ({}));
 import { sealHistoryAsset } from "./imports.server";
+import { KnowledgeAccessError } from "./resources.server";
 import type { KnowledgeWebActor } from "./access.server";
 
 const actor = { canCreate: true, allianceId: "alliance", hqUserId: "owner" } as KnowledgeWebActor;
@@ -32,5 +33,10 @@ it("retains the sealed object when database commit outcome is unknown", async ()
 it("only removes a newly written object after a confirmed losing seal race", async () => {
   mocks.transaction.mockResolvedValueOnce(false);
   await sealHistoryAsset(actor, "import-id", "asset-id");
+  expect(mocks.remove).toHaveBeenCalledWith(mocks.put.mock.calls[0][0]);
+});
+it("deletes the sealed object when lock fails after putObject", async () => {
+  mocks.transaction.mockRejectedValueOnce(new KnowledgeAccessError("changed"));
+  await expect(sealHistoryAsset(actor, "import-id", "asset-id")).rejects.toBeInstanceOf(KnowledgeAccessError);
   expect(mocks.remove).toHaveBeenCalledWith(mocks.put.mock.calls[0][0]);
 });

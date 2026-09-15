@@ -3,11 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Dialog } from "@/components/ui/dialog";
+import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 import { HISTORY_IMPORT_KINDS, HISTORY_MESSAGE_LENGTH, HISTORY_TEXT_BYTES, historyInitSchema, type HistoryImportDetail, type HistoryImportKind, type HistoryImportSummary, type HistoryReviewRow } from "@/lib/notes/imports.shared";
 
 class ImportError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 const control = "rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm disabled:opacity-50";
 type Summary = Pick<HistoryImportSummary, "id" | "title" | "state" | "kind" | "updatedAt">;
+function utcDatetimeLocal(iso: string | null) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 16);
+}
 
 export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: boolean; focusId: string | null; onOpen: (id: string | null) => void }) {
   const t = useTranslations("notes.imports");
@@ -154,12 +160,12 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
     <header className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">{t("title")}</h2>{focusId && <button className={control} disabled={busy} onClick={() => navigate(null)}>{t("back")}</button>}</header>
     <p className="max-w-3xl text-sm text-hq-fg-muted">{t("privacy")}</p>
     {!focusId && <>
-      {canCreate && <form onSubmit={(event) => { event.preventDefault(); void run(() => upload()); }} className="space-y-4 rounded-xl border border-hq-border bg-hq-surface p-4">
+      {canCreate && <form onSubmit={(event) => { preventDefaultFormSubmit(event); void run(() => upload()); }} className="space-y-4 rounded-xl border border-hq-border bg-hq-surface p-4">
         <h3 className="font-medium">{t("new")}</h3><p className="text-xs text-hq-fg-muted">{t("limits")}</p>
         <label className="flex flex-col gap-1 text-sm">{t("sourceTitle")}<input required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} className={control} /></label>
         <label className="flex flex-col gap-1 text-sm">{t("format")}<select aria-label={t("format")} value={kind} onChange={(event) => { setKind(event.target.value as HistoryImportKind); setFiles([]); }} className={control}>{HISTORY_IMPORT_KINDS.map((value) => <option key={value} value={value}>{t(`kinds.${value}`)}</option>)}</select></label>
         {kind === "discord_json" && <p className="text-xs text-hq-fg-muted">{t("jsonHint")}</p>}
-        {kind !== "screenshots" && <label className="flex flex-col gap-1 text-sm">{t("paste")}<textarea aria-label={t("paste")} rows={5} maxLength={HISTORY_TEXT_BYTES} value={paste} onChange={(event) => setPaste(event.target.value)} className={control} /></label>}
+        {kind !== "screenshots" && <label className="flex flex-col gap-1 text-sm">{t("paste")}<textarea aria-label={t("paste")} data-no-enter-submit rows={5} maxLength={HISTORY_TEXT_BYTES} value={paste} onChange={(event) => setPaste(event.target.value)} className={control} /></label>}
         <label className="flex flex-col gap-1 text-sm">{t("files")}<input key={kind} type="file" multiple={kind === "screenshots"} accept={kind === "screenshots" ? "image/png,image/jpeg,image/webp" : kind === "discord_json" ? ".json" : kind === "markdown" ? ".md,.markdown" : ".txt"} onChange={(event) => setFiles(Array.from(event.target.files ?? []))} /></label>
         <div ref={!focusId ? errorAnchor : undefined} className="space-y-2">{errorBox}<button className={control} disabled={busy || !scope || !title.trim() || !files.length && !paste.trim()}>{busy ? t("busy") : t("start")}</button></div>
       </form>}
@@ -173,8 +179,8 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
       {["review", "committed"].includes(detail.state) && <div className="space-y-4">{edits.map((row, index) => <fieldset key={row.id} disabled={busy || !canCreate || detail.state !== "review"} className="space-y-3 rounded-xl border border-hq-border p-4">
         <legend className="px-1 text-xs text-hq-fg-muted">{(row.position + 1).toLocaleString(locale)} · {row.reviewed ? t("reviewed") : t("unreviewed")}</legend>
         <div className="grid gap-3 sm:grid-cols-2"><label className="flex flex-col gap-1 text-xs">{t("sender")}<input aria-label={t("sender")} className={control} maxLength={160} placeholder={t("unknown")} value={row.sender ?? ""} onChange={(event) => { dirty.current = true; setEdits((rows) => rows.map((item, at) => at === index ? { ...item, sender: event.target.value || null } : item)); }} /></label>
-          <label className="flex flex-col gap-1 text-xs">{t("date")}<input aria-label={t("date")} type="datetime-local" className={control} value={row.sentAt?.slice(0, 16) ?? ""} onChange={(event) => { dirty.current = true; setEdits((rows) => rows.map((item, at) => at === index ? { ...item, sentAt: event.target.value ? `${event.target.value}:00Z` : null } : item)); }} /></label></div>
-        <label className="flex flex-col gap-1 text-xs">{t("body")}<textarea aria-label={t("body")} rows={4} maxLength={HISTORY_MESSAGE_LENGTH} className={control} value={row.body} onChange={(event) => { dirty.current = true; setEdits((rows) => rows.map((item, at) => at === index ? { ...item, body: event.target.value } : item)); }} /></label>
+          <label className="flex flex-col gap-1 text-xs">{t("date")}<input aria-label={t("date")} type="datetime-local" className={control} value={utcDatetimeLocal(row.sentAt)} onChange={(event) => { dirty.current = true; setEdits((rows) => rows.map((item, at) => at === index ? { ...item, sentAt: event.target.value ? `${event.target.value}:00.000Z` : null } : item)); }} /></label></div>
+        <label className="flex flex-col gap-1 text-xs">{t("body")}<textarea aria-label={t("body")} data-no-enter-submit rows={4} maxLength={HISTORY_MESSAGE_LENGTH} className={control} value={row.body} onChange={(event) => { dirty.current = true; setEdits((rows) => rows.map((item, at) => at === index ? { ...item, body: event.target.value } : item)); }} /></label>
         <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={row.included} onChange={(event) => { dirty.current = true; setEdits((rows) => rows.map((item, at) => at === index ? { ...item, included: event.target.checked } : item)); }} />{t("include")}</label>
       </fieldset>)}
         <div className="flex flex-wrap gap-2"><button className={control} disabled={busy || offset === 0} onClick={() => confirmDiscard(() => void run(() => page(Math.max(0, offset - 50))))}>{t("previous")}</button><button className={control} disabled={busy || offset + 50 >= detail.total} onClick={() => confirmDiscard(() => void run(() => page(offset + 50)))}>{t("next")}</button><button className={control} disabled={busy} onClick={() => confirmDiscard(() => void run(() => load(detail.id, offset, true)))}>{t("reload")}</button></div>

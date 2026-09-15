@@ -27,7 +27,7 @@ async function lockJob(tx: KnowledgeTransaction, id: string, skipLocked = false)
   if (!initial) return null;
   const [record] = await tx.select().from(imports).where(and(eq(imports.id, initial.importId), eq(imports.allianceId, initial.allianceId)));
   if (!record) return null;
-  await historyMemberMayProcess(tx, initial);
+  if (!await historyMemberMayProcess(tx, initial)) return null;
   const [resource] = await tx.select().from(schema.knowledgeResources).where(and(eq(schema.knowledgeResources.id, record.resourceId), eq(schema.knowledgeResources.allianceId, record.allianceId))).for("update", skipLocked ? { skipLocked: true } : {});
   if (!resource) return null;
   const [job] = await tx.select().from(jobs).where(eq(jobs.id, id)).for("update");

@@ -62,7 +62,7 @@ export async function initializeHistoryImport(actor: KnowledgeWebActor, raw: His
   return withKnowledgeReceipt(actor, "notes.import_create", input.requestId, input, async (tx) => {
     if (!await historyMemberMayProcess(tx, { allianceId: actor.allianceId, ownerHqUserId: actor.hqUserId! })) throw new KnowledgeAccessError("forbidden");
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`history:${actor.allianceId}:${knowledgePrincipalKey(actor)}`}, 0))`);
-    const [existing] = await tx.select({ id: imports.id }).from(imports).where(and(ownerAccess(actor), eq(imports.sourceHash, sourceHash))).limit(1);
+    const [existing] = await tx.select({ id: imports.id }).from(imports).where(and(ownerAccess(actor), eq(imports.sourceHash, sourceHash), inArray(imports.state, ["uploading", "queued", "processing", "review", "failed"]))).limit(1);
     if (existing) return { importId: existing.id };
     const [daily] = await tx.select({ value: count() }).from(imports).where(and(ownerAccess(actor), gt(imports.createdAt, new Date(Date.now() - 86_400_000))));
     const [pending] = await tx.select({ value: count() }).from(imports).where(and(ownerAccess(actor), inArray(imports.state, ["uploading", "queued", "processing", "review", "failed"])));
@@ -114,6 +114,9 @@ export async function sealHistoryAsset(actor: KnowledgeWebActor, id: string, ass
       const saved = await tx.update(assets).set({ sealedKey: key, sealedAt: new Date() }).where(and(eq(assets.id, assetId), eq(assets.importId, id), isNull(assets.sealedKey))).returning({ id: assets.id });
       return saved.length === 1;
     });
+  } catch (error) {
+    if (error instanceof KnowledgeAccessError && (error.code === "changed" || error.code === "forbidden" || error.code === "not_found")) retained = false;
+    throw error;
   } finally { if (retained === false) await deleteObject(key); }
 }
 export async function commandHistoryImport(actor: KnowledgeWebActor, id: string, input: { requestId: string; expectedVersion: number; command: "finalize" | "commit" | "cancel" | "retry" }) {

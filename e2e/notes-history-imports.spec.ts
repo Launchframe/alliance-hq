@@ -47,6 +47,9 @@ test("browser paste review persists corrections and commits a private source", a
   await expect(page.getByRole("button", { name: "Commit private source", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Commit private source", exact: true }).click();
   await expect(page.getByText("Private source committed. This did not create tasks, enable AI processing, or share your history.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "All imports", exact: true }).click();
+  await page.getByRole("button", { name: "Historical diary" }).click();
+  await expect(page.getByLabel("Reviewed text", { exact: true })).toHaveValue("Corrected historical decision.");
   await page.reload();
   await expect(text).toHaveValue("Corrected historical decision.");
   await expect(text).toBeDisabled();
@@ -119,6 +122,20 @@ test("text intake keeps sealed originals private, requires review, and deduplica
   expect(asset.sha256).toBe(hash(f.bytes));
   const legacy = await (await request.get(`/api/officer-intel/sessions/${f.id}`, { headers: f.headers })).json();
   expect(legacy.messages[0].originalText).toBe("Reviewed decision");
+  const again = await request.post("/api/notes/imports", { headers: f.headers, data: { ...f.input, requestId: nanoid() } });
+  expect(again.status(), await again.text()).toBe(200);
+  expect((await again.json()).importId).not.toBe(f.id);
+  const bootstrap = await request.get("/api/auth/bootstrap?next=/", { maxRedirects: 0 });
+  expect(bootstrap.status()).toBeGreaterThanOrEqual(300);
+  expect(bootstrap.status()).toBeLessThan(400);
+  const setCookie = bootstrap.headers()["set-cookie"] ?? "";
+  const bootstrapSession = /alliance_hq_session=([^;]+)/.exec(Array.isArray(setCookie) ? setCookie.join(";") : setCookie)?.[1];
+  expect(bootstrapSession).toBeTruthy();
+  const bootstrapCookie = `alliance_hq_session=${bootstrapSession}`;
+  expect((await request.get("/api/notes/imports", { headers: { Cookie: bootstrapCookie } })).status()).toBe(403);
+  expect((await request.post("/api/notes/imports", { headers: { Cookie: bootstrapCookie }, data: f.input })).status()).toBe(403);
+  expect((await request.get(`/api/notes/imports/${f.id}`, { headers: { Cookie: bootstrapCookie } })).status()).toBe(403);
+  expect((await request.post(`/api/notes/imports/${f.id}/process`, { headers: { Cookie: bootstrapCookie } })).status()).toBe(403);
 });
 
 test("leased parsing checkpoints files, cancels stale work, and resumes without duplicates", async ({ request }) => {
