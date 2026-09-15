@@ -133,6 +133,7 @@ export async function remapKnowledgeUser(tx: KnowledgeTransaction, sourceId: str
   await tx.update(schema.officerIntelThreads).set({ createdByHqUserId: canonicalId }).where(eq(schema.officerIntelThreads.createdByHqUserId, sourceId));
   await tx.update(schema.knowledgeMutationReceipts).set({ principalKey: `hq:${canonicalId}` }).where(eq(schema.knowledgeMutationReceipts.principalKey, `hq:${sourceId}`));
   await tx.update(schema.knowledgeIntakeAnalyses).set({ principalKey: `hq:${canonicalId}` }).where(eq(schema.knowledgeIntakeAnalyses.principalKey, `hq:${sourceId}`));
+  await tx.update(schema.knowledgePublications).set({ ownerHqUserId: canonicalId }).where(eq(schema.knowledgePublications.ownerHqUserId, sourceId));
 }
 
 /** One-way Discord→HQ ownership claim for the actor's current alliance (Notes surfaces / writes). */

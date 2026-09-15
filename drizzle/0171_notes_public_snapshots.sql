@@ -11,7 +11,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS knowledge_publications_token_unique ON knowled
 CREATE OR REPLACE FUNCTION preserve_publication_snapshot() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF NEW.note_id IS DISTINCT FROM OLD.note_id OR NEW.resource_id IS DISTINCT FROM OLD.resource_id OR NEW.alliance_id IS DISTINCT FROM OLD.alliance_id
-    OR NEW.owner_hq_user_id IS DISTINCT FROM OLD.owner_hq_user_id OR NEW.source_version IS DISTINCT FROM OLD.source_version OR NEW.snapshot_version IS DISTINCT FROM OLD.snapshot_version
+    OR NEW.source_version IS DISTINCT FROM OLD.source_version OR NEW.snapshot_version IS DISTINCT FROM OLD.snapshot_version
     OR NEW.title IS DISTINCT FROM OLD.title OR NEW.body IS DISTINCT FROM OLD.body OR NEW.locale IS DISTINCT FROM OLD.locale OR NEW.expires_at IS DISTINCT FROM OLD.expires_at THEN
     RAISE EXCEPTION 'Publication snapshots are immutable' USING ERRCODE = '23514';
   END IF;

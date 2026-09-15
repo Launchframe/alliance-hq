@@ -43,6 +43,9 @@ test.describe("Account merge", () => {
     await sql`INSERT INTO knowledge_resource_grants (id, resource_id, alliance_id, subject_kind, subject_id, role)
       VALUES (${nanoid()}, ${`note:${sharedNoteId}`}, ${alliance.allianceId}, 'user', ${sourceUser.hqUserId}, 'edit'),
              (${nanoid()}, ${`note:${sharedNoteId}`}, ${alliance.allianceId}, 'user', ${targetSession.hqUserId}, 'read')`;
+    const publicationId = nanoid();
+    await sql`INSERT INTO knowledge_publications (id, alliance_id, note_id, resource_id, owner_hq_user_id, source_version, snapshot_version, title, body, locale, state, expires_at)
+      VALUES (${publicationId}, ${alliance.allianceId}, ${ownedNoteId}, ${`note:${ownedNoteId}`}, ${sourceUser.hqUserId}, 1, 1, 'Public copy', 'Reviewed public words', 'en-US', 'published', now() + interval '7 days')`;
 
     await page.context().addCookies(
       playwrightAuthCookies({
@@ -78,6 +81,8 @@ test.describe("Account merge", () => {
     const [owned] = await sql`SELECT r.owner_hq_user_id, n.created_by_hq_user_id FROM performance_notes n
       JOIN knowledge_resources r ON r.id = n.resource_id WHERE n.id = ${ownedNoteId}`;
     expect(owned).toMatchObject({ owner_hq_user_id: targetSession.hqUserId, created_by_hq_user_id: targetSession.hqUserId });
+    const [publication] = await sql`SELECT owner_hq_user_id FROM knowledge_publications WHERE id = ${publicationId}`;
+    expect(publication?.owner_hq_user_id).toBe(targetSession.hqUserId);
     const grants = await sql`SELECT subject_id, role FROM knowledge_resource_grants
       WHERE resource_id = ${`note:${sharedNoteId}`} AND subject_kind = 'user'`;
     expect(grants).toHaveLength(1);

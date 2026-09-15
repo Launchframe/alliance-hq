@@ -29,7 +29,8 @@ function publicTokens(tokens: Token[]): string {
 }
 export function publicSnapshotText(value: string): string {
   return redactIntakeText(publicTokens(Lexer.lex(value, { gfm: true })))
-    .replace(/(?:https?:\/\/|\/(?:api|notes|officer-intel|shared)\/)[^\s<>]+/gi, "")
+    .replace(/(?:https?:\/\/|\/\/|www\.)[^\s<>]+/gi, "")
+    .replace(/\/(?:api|notes|officer-intel|shared)\/[^\s<>]+/gi, "")
     .replace(/\b(?:note|meeting|task|source|draft|board):[A-Za-z0-9:_-]+/g, "")
     .replace(/\[\d+\]/g, "").trim();
 }

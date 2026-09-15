@@ -22,13 +22,20 @@ async function requirePublisher(tx: KnowledgeTransaction, actor: KnowledgeWebAct
   if (!allowed) throw new KnowledgeAccessError("forbidden");
 }
 function dto(row: typeof publications.$inferSelect, actor: KnowledgeWebActor): Publication {
-  const link = row.state === "published" && row.ownerHqUserId === actor.hqUserId && row.tokenCipher ? `/${row.locale}/shared/notes/${decryptSecret(row.tokenCipher)}` : null;
+  let link: string | null = null;
+  if (row.state === "published" && row.ownerHqUserId === actor.hqUserId && row.tokenCipher) {
+    try { link = `/${row.locale}/shared/notes/${decryptSecret(row.tokenCipher)}`; } catch { link = null; }
+  }
   return { id: row.id, noteId: row.noteId, state: row.state, version: row.version, snapshotVersion: row.snapshotVersion, title: row.title, body: row.body, locale: row.locale, expiresAt: row.expiresAt.toISOString(), link };
 }
 export async function getPublication(actor: KnowledgeWebActor, id: string) {
   const [row] = await getDb().select().from(publications).where(and(eq(publications.id, id), eq(publications.allianceId, actor.allianceId), knowledgeAccessCondition(actor, publications.resourceId, "share")));
   if (!row) throw new KnowledgeAccessError("not_found");
   return dto(row, actor);
+}
+async function requireOwnedPublication(actor: KnowledgeWebActor, id: string) {
+  const [row] = await getDb().select({ id: publications.id }).from(publications).where(and(eq(publications.id, id), eq(publications.allianceId, actor.allianceId), knowledgeAccessCondition(actor, publications.resourceId, "share")));
+  if (!row) throw new KnowledgeAccessError("not_found");
 }
 export async function listPublications(actor: KnowledgeWebActor, noteId: string) {
   const note = await getPerformanceNoteForAlliance({ actor, noteId, access: "share" });
@@ -56,7 +63,7 @@ export async function preparePublication(actor: KnowledgeWebActor, input: z.infe
   return getPublication(actor, result.publicationId!);
 }
 export async function changePublication(actor: KnowledgeWebActor, id: string, input: z.infer<typeof publicationCommandSchema>) {
-  await getPublication(actor, id);
+  await requireOwnedPublication(actor, id);
   await withKnowledgeReceipt(actor, `notes.publication_${input.command}`, input.requestId, { id, ...input }, async (tx) => {
     if (input.command !== "revoke") await requirePublisher(tx, actor); else await recheckKnowledgeReader(tx, actor);
     const [existing] = await tx.select().from(publications).where(and(eq(publications.id, id), eq(publications.allianceId, actor.allianceId)));
