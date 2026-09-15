@@ -1,106 +1,53 @@
 import { NextResponse } from "next/server";
+import { getTranslations } from "next-intl/server";
 
-import {
-  attachMembersToPerformanceNote,
-  createPerformanceNote,
-  listPerformanceNoteRoster,
-  listPerformanceNotes,
-} from "@/lib/performance-notes/repository.server";
-import {
-  PERFORMANCE_NOTE_KINDS,
-  type PerformanceNoteKind,
-} from "@/lib/performance-notes/types.shared";
-import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { requireApiSession } from "@/lib/session";
+import { notesErrorResponse, requireNotesApiContext } from "@/lib/notes/access.server";
+import { attachMembersToPerformanceNote, createPerformanceNote, listPerformanceNoteRoster, listPerformanceNotes } from "@/lib/performance-notes/repository.server";
+import { PERFORMANCE_NOTE_KINDS, type PerformanceNoteKind } from "@/lib/performance-notes/types.shared";
 
 export const dynamic = "force-dynamic";
 
 function isKind(value: unknown): value is PerformanceNoteKind {
-  return (
-    typeof value === "string" &&
-    (PERFORMANCE_NOTE_KINDS as readonly string[]).includes(value)
-  );
+  return typeof value === "string" && (PERFORMANCE_NOTE_KINDS as readonly string[]).includes(value);
 }
 
 export async function GET() {
-  const sessionOrError = await requireApiSession();
-  if (sessionOrError instanceof NextResponse) return sessionOrError;
-  const session = sessionOrError;
-  const denied = await requireSessionPermission(session.id, "members:write");
-  if (denied) return denied;
-
-  const allianceId = session.currentAllianceId ?? session.allianceId;
-  if (!allianceId) {
-    return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
-  }
-
-  const [notes, roster] = await Promise.all([
-    listPerformanceNotes(allianceId),
-    listPerformanceNoteRoster(allianceId),
-  ]);
-  return NextResponse.json({ notes, roster });
+  try {
+    const context = await requireNotesApiContext();
+    if (context instanceof NextResponse) return context;
+    const [notes, roster] = await Promise.all([
+      listPerformanceNotes(context.actor),
+      listPerformanceNoteRoster(context.actor.allianceId),
+    ]);
+    return NextResponse.json({ notes, roster }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) { return notesErrorResponse(error); }
 }
 
 export async function POST(request: Request) {
-  const sessionOrError = await requireApiSession();
-  if (sessionOrError instanceof NextResponse) return sessionOrError;
-  const session = sessionOrError;
-  const denied = await requireSessionPermission(session.id, "members:write");
-  if (denied) return denied;
-
-  const allianceId = session.currentAllianceId ?? session.allianceId;
-  if (!allianceId || !session.hqUserId) {
-    return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
-  }
-
-  let body: { body?: unknown; kind?: unknown; memberIds?: unknown };
   try {
-    const parsed: unknown = await request.json();
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error("invalid");
+    const context = await requireNotesApiContext();
+    if (context instanceof NextResponse) return context;
+    const t = await getTranslations("notes");
+    const body: unknown = await request.json().catch(() => null);
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json({ error: t("errors.invalid"), code: "invalid" }, { status: 400 });
     }
-    body = parsed as { body?: unknown; kind?: unknown; memberIds?: unknown };
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
-  }
-
-  const text = typeof body.body === "string" ? body.body.trim() : "";
-  if (!text) {
-    return NextResponse.json({ error: "Note body is required." }, { status: 400 });
-  }
-  const kind = isKind(body.kind) ? body.kind : "note";
-  const memberIds = Array.isArray(body.memberIds)
-    ? body.memberIds.filter((id): id is string => typeof id === "string")
-    : [];
-
-  const noteId = await createPerformanceNote({
-    allianceId,
-    kind,
-    intakeMode: kind === "note" ? "thought" : "batch",
-    body: text,
-    source: "web",
-    createdByHqUserId: session.hqUserId,
-  });
-
-  if (memberIds.length > 0) {
-    const roster = await listPerformanceNoteRoster(allianceId);
-    const nameById = new Map(roster.map((row) => [row.ashedMemberId, row.name]));
-    await attachMembersToPerformanceNote({
-      allianceId,
-      noteId,
-      members: memberIds
-        .map((ashedMemberId) => {
-          const name = nameById.get(ashedMemberId);
-          if (!name) return null;
-          return { ashedMemberId, memberNameRaw: name };
-        })
-        .filter((row): row is { ashedMemberId: string; memberNameRaw: string } => row != null),
-    });
-  }
-
-  const [notes, roster] = await Promise.all([
-    listPerformanceNotes(allianceId),
-    listPerformanceNoteRoster(allianceId),
-  ]);
-  return NextResponse.json({ notes, roster, noteId });
+    const input = body as Record<string, unknown>;
+    const text = typeof input.body === "string" ? input.body.trim() : "";
+    if (!text || text.length > 100_000 || (input.kind !== undefined && !isKind(input.kind))) {
+      return NextResponse.json({ error: t("errors.invalid"), code: "invalid" }, { status: 400 });
+    }
+    const kind = isKind(input.kind) ? input.kind : "note";
+    const noteId = await createPerformanceNote({ actor: context.actor, kind, intakeMode: kind === "note" ? "thought" : "batch", body: text });
+    const roster = await listPerformanceNoteRoster(context.actor.allianceId);
+    if (Array.isArray(input.memberIds) && input.memberIds.length) {
+      const selected = new Set(input.memberIds.filter((id): id is string => typeof id === "string"));
+      await attachMembersToPerformanceNote({
+        actor: context.actor, noteId,
+        members: roster.filter((member) => selected.has(member.ashedMemberId)).map((member) => ({ ashedMemberId: member.ashedMemberId, memberNameRaw: member.name })),
+      });
+    }
+    const notes = await listPerformanceNotes(context.actor);
+    return NextResponse.json({ notes, roster, noteId }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) { return notesErrorResponse(error); }
 }

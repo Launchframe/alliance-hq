@@ -23,6 +23,8 @@ export type PerformanceNoteDto = {
   body: string;
   source: "discord" | "web";
   createdAt: string;
+  version: number;
+  canEdit: boolean;
   members: PerformanceNoteMemberDto[];
 };
 
