@@ -403,8 +403,8 @@ function mapActionItemRow(
     id: row.id,
     noteId: row.noteId,
     sessionId: row.sessionId,
-    title: row.title,
-    description: row.description,
+    title: redactIntakeText(row.title),
+    description: row.description === null ? null : redactIntakeText(row.description),
     status: row.status as OfficerActionItemStatus,
     priority: normalizeTaskPriority(row.priority),
     assigneeAllianceMemberId: row.assigneeAllianceMemberId,
@@ -774,7 +774,9 @@ export async function updateOfficerMeetingNote(input: {
   await db.transaction(async (tx) => {
     const resource = await lockKnowledgeResource(tx, input.actor, existing.resourceId, "share");
     await tx.update(schema.officerMeetingNotes).set({
-      summary: input.summary, keyDecisions: input.keyDecisions, openQuestions: input.openQuestions,
+      summary: input.summary ?? existing.summary,
+      keyDecisions: input.keyDecisions ?? existing.keyDecisions,
+      openQuestions: input.openQuestions ?? existing.openQuestions,
       ...(input.approve ? { status: "approved", approvedByHqUserId: input.actor.hqUserId, approvedAt: new Date() } : {}),
       updatedAt: new Date(),
     }).where(eq(schema.officerMeetingNotes.id, input.noteId));

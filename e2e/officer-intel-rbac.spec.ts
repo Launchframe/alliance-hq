@@ -100,7 +100,7 @@ test.describe("Officer Intel RBAC", () => {
       headers: { Cookie: authCookieHeader(user) },
       data: { question: "What did we decide?" },
     });
-    expect([200, 503], await ask.text()).toContain(ask.status());
+    expect(ask.status(), await ask.text()).toBe(503);
   });
 
   test("owner role can read and create officer intel sessions", async ({

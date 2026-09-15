@@ -41,6 +41,22 @@ test("legacy source sessions and their derived notes are private across officers
   expect((await sharedNote.json()).note).toMatchObject({ sessionId: null, canEdit: false });
   expect((await request.put(`/api/officer-intel/notes/${noteId}`, { headers: otherHeaders, data: { summary: "Still not allowed", approve: true } })).status()).toBe(404);
   expect((await request.get(`/api/officer-intel/sessions/${sessionId}`, { headers: otherHeaders })).status()).toBe(404);
+  const privateSession = await request.post("/api/officer-intel/sessions", { headers, data: { title: "Task source only" } });
+  expect(privateSession.status()).toBe(200);
+  const { sessionId: taskSessionId } = await privateSession.json();
+  const privateNoteId = nanoid();
+  await sql`INSERT INTO officer_meeting_notes (id, alliance_id, session_id, summary, status, synthesized_by_hq_user_id) VALUES (${privateNoteId}, ${alliance.allianceId}, ${taskSessionId}, 'Task-linked note', 'approved', ${author.hqUserId})`;
+  const taskId = nanoid();
+  const secretTitle = `Follow up ${"2".repeat(14)} token=task-secret`;
+  await sql`INSERT INTO officer_action_items (id, alliance_id, session_id, note_id, title, description, status, created_by_hq_user_id) VALUES (${taskId}, ${alliance.allianceId}, ${taskSessionId}, ${privateNoteId}, ${secretTitle}, ${secretTitle}, 'open', ${author.hqUserId})`;
+  await sql`INSERT INTO knowledge_resource_grants (id, resource_id, alliance_id, subject_kind, subject_id, role) VALUES (${nanoid()}, ${`task:${taskId}`}, ${alliance.allianceId}, 'user', ${peer.hqUserId}, 'read')`;
+  const sharedTasks = await (await request.get("/api/officer-intel/action-items", { headers: otherHeaders })).json();
+  const sharedTask = sharedTasks.items.find((item: { id: string }) => item.id === taskId);
+  expect(sharedTask).toMatchObject({ sessionId: null, noteId: null });
+  expect(JSON.stringify(sharedTask)).not.toMatch(/\d{12,20}/);
+  expect(JSON.stringify(sharedTask)).not.toContain("task-secret");
+  expect((await request.get(`/api/officer-intel/sessions/${taskSessionId}`, { headers: otherHeaders })).status()).toBe(404);
+  expect((await request.get(`/api/officer-intel/notes/${privateNoteId}`, { headers: otherHeaders })).status()).toBe(404);
 });
 
 test("unresolved legacy sources remain closed even to platform maintainers", async ({ request }) => {

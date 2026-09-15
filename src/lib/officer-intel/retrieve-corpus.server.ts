@@ -1,21 +1,11 @@
 import "server-only";
 
-import { createOpenAI } from "@ai-sdk/openai";
-import { embed } from "ai";
-import { and, count, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 
 import { escapeLikePrefix } from "@/lib/admin/audit-query";
 import { getDb, schema } from "@/lib/db";
 import type { KnowledgeActor } from "@/lib/notes/policy.shared";
-import { knowledgeAccessCondition } from "@/lib/notes/resources.server";
-import { OFFICER_INTEL_CHARS_PER_TOKEN } from "@/lib/officer-intel/build-corpus-chunks.shared";
-import {
-  isOfficerIntelLlmConfigured,
-  officerIntelEmbedModel,
-} from "@/lib/officer-intel/llm-config.server";
-import { ensureOfficerIntelCorpusBackfill } from "@/lib/officer-intel/backfill-corpus.server";
-import { formatOfficerIntelEmbeddingLiteral } from "@/lib/officer-intel/embedding-query.shared";
-import { officerIntelScoreWithRecency } from "@/lib/officer-intel/recency-boost.shared";
+import { KnowledgeAccessError, knowledgeAccessCondition } from "@/lib/notes/resources.server";
 import type { OfficerActionItemRecord } from "@/lib/officer-intel/synthesis-types.shared";
 
 export type OfficerIntelRetrievedChunk = {
@@ -30,167 +20,10 @@ export type OfficerIntelRetrievedChunk = {
   similarity: number;
 };
 
-const DEFAULT_RETRIEVE_K = 6;
-const MAX_RETURN_CHARS = 3000 * OFFICER_INTEL_CHARS_PER_TOKEN;
-const LIKE_ESCAPE = "\\";
-
 export function buildOfficerIntelKeywordPattern(query: string): string {
   const trimmed = query.trim();
   if (!trimmed) return "%";
   return `%${escapeLikePrefix(trimmed)}%`;
-}
-
-type RawRetrievedRow = {
-  id: string;
-  source_type: string;
-  source_id: string;
-  session_id: string | null;
-  chunk_text: string;
-  approved_at: Date | null;
-  session_title: string | null;
-  channel_label: string | null;
-  session_at: Date | null;
-  similarity: number;
-};
-
-function mapRow(row: RawRetrievedRow, similarity: number): OfficerIntelRetrievedChunk {
-  return {
-    id: row.id,
-    sourceType: row.source_type as "approved_note" | "action_item",
-    sourceId: row.source_id,
-    sessionId: row.session_id,
-    text: row.chunk_text,
-    sessionTitle: row.session_title,
-    channelLabel: row.channel_label,
-    sessionAt: row.session_at?.toISOString() ?? null,
-    similarity,
-  };
-}
-
-function capRetrievedChunks(
-  rows: OfficerIntelRetrievedChunk[],
-): OfficerIntelRetrievedChunk[] {
-  const capped: OfficerIntelRetrievedChunk[] = [];
-  let totalChars = 0;
-  for (const row of rows) {
-    if (totalChars + row.text.length > MAX_RETURN_CHARS && capped.length > 0) {
-      break;
-    }
-    capped.push(row);
-    totalChars += row.text.length;
-  }
-  return capped;
-}
-
-async function retrieveByVector(input: {
-  allianceId: string;
-  queryEmbedding: number[];
-  k: number;
-}): Promise<OfficerIntelRetrievedChunk[]> {
-  const db = getDb();
-  const vectorLiteral = formatOfficerIntelEmbeddingLiteral(input.queryEmbedding);
-  const result = await db.execute(sql`
-    SELECT
-      c.id,
-      c.source_type,
-      c.source_id,
-      c.session_id,
-      c.chunk_text,
-      c.approved_at,
-      s.title AS session_title,
-      s.channel_label,
-      s.session_at,
-      1 - (c.embedding <=> CAST(${vectorLiteral} AS vector)) AS similarity
-    FROM officer_intel_chunks c
-    LEFT JOIN officer_chat_sessions s
-      ON s.id = c.session_id AND s.alliance_id = c.alliance_id
-    WHERE c.alliance_id = ${input.allianceId}
-      AND c.source_type = 'approved_note'
-      AND c.embedding IS NOT NULL
-    ORDER BY similarity DESC
-    LIMIT ${input.k * 4}
-  `);
-
-  const rows = result as unknown as RawRetrievedRow[];
-
-  const scored = (Array.isArray(rows) ? rows : []).map((row) =>
-    mapRow(
-      row,
-      officerIntelScoreWithRecency(Number(row.similarity), row.approved_at),
-    ),
-  );
-
-  scored.sort((a, b) => b.similarity - a.similarity);
-  return capRetrievedChunks(scored.slice(0, input.k));
-}
-
-async function retrieveByKeyword(input: {
-  allianceId: string;
-  query: string;
-  k: number;
-}): Promise<OfficerIntelRetrievedChunk[]> {
-  const db = getDb();
-  const pattern = buildOfficerIntelKeywordPattern(input.query);
-  const rows = await db
-    .select({
-      id: schema.officerIntelChunks.id,
-      sourceType: schema.officerIntelChunks.sourceType,
-      sourceId: schema.officerIntelChunks.sourceId,
-      sessionId: schema.officerIntelChunks.sessionId,
-      chunkText: schema.officerIntelChunks.chunkText,
-      sessionTitle: schema.officerChatSessions.title,
-      channelLabel: schema.officerChatSessions.channelLabel,
-      sessionAt: schema.officerChatSessions.sessionAt,
-    })
-    .from(schema.officerIntelChunks)
-    .leftJoin(
-      schema.officerChatSessions,
-      and(
-        eq(schema.officerChatSessions.id, schema.officerIntelChunks.sessionId),
-        eq(
-          schema.officerChatSessions.allianceId,
-          schema.officerIntelChunks.allianceId,
-        ),
-      ),
-    )
-    .where(
-      and(
-        eq(schema.officerIntelChunks.allianceId, input.allianceId),
-        eq(schema.officerIntelChunks.sourceType, "approved_note"),
-        sql`${schema.officerIntelChunks.chunkText} ilike ${pattern} escape ${LIKE_ESCAPE}`,
-      ),
-    )
-    .orderBy(desc(schema.officerIntelChunks.updatedAt))
-    .limit(input.k);
-
-  return capRetrievedChunks(
-    rows.map((row) => ({
-      id: row.id,
-      sourceType: row.sourceType as "approved_note" | "action_item",
-      sourceId: row.sourceId,
-      sessionId: row.sessionId,
-      text: row.chunkText,
-      sessionTitle: row.sessionTitle,
-      channelLabel: row.channelLabel,
-      sessionAt: row.sessionAt?.toISOString() ?? null,
-      similarity: 0,
-    })),
-  );
-}
-
-async function hasAnyEmbeddings(allianceId: string): Promise<boolean> {
-  const db = getDb();
-  const [row] = await db
-    .select({ value: count() })
-    .from(schema.officerIntelChunks)
-    .where(
-      and(
-        eq(schema.officerIntelChunks.allianceId, allianceId),
-        eq(schema.officerIntelChunks.sourceType, "approved_note"),
-        isNotNull(schema.officerIntelChunks.embedding),
-      ),
-    );
-  return Number(row?.value ?? 0) > 0;
 }
 
 export async function retrieveOfficerIntelCorpus(input: {
@@ -198,45 +31,10 @@ export async function retrieveOfficerIntelCorpus(input: {
   query: string;
   k?: number;
 }): Promise<OfficerIntelRetrievedChunk[]> {
-  const k = input.k ?? DEFAULT_RETRIEVE_K;
-  const query = input.query.trim();
-  if (!query) return [];
-
-  try {
-    await ensureOfficerIntelCorpusBackfill(input.allianceId);
-  } catch (error) {
-    console.error("[officer-intel] corpus backfill failed", error);
-  }
-
-  const embedded = await hasAnyEmbeddings(input.allianceId);
-  if (!embedded) {
-    return retrieveByKeyword({ allianceId: input.allianceId, query, k });
-  }
-
-  if (!isOfficerIntelLlmConfigured()) {
-    return retrieveByKeyword({ allianceId: input.allianceId, query, k });
-  }
-
-  const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const { embedding } = await embed({
-    model: openai.embedding(officerIntelEmbedModel()),
-    value: query,
-  });
-
-  try {
-    const vectorResults = await retrieveByVector({
-      allianceId: input.allianceId,
-      queryEmbedding: embedding,
-      k,
-    });
-    if (vectorResults.length > 0) {
-      return vectorResults;
-    }
-  } catch (error) {
-    console.error("[officer-intel] vector retrieval failed", error);
-  }
-
-  return retrieveByKeyword({ allianceId: input.allianceId, query, k });
+  void input;
+  // Privacy cutover: corpus search stays alliance-wide until consent-aware retrieval lands.
+  // Fail closed here so re-enabling the HTTP route (or any other caller) cannot restore the leak.
+  throw new KnowledgeAccessError("not_configured");
 }
 
 export async function listOpenActionItemsForAsk(
