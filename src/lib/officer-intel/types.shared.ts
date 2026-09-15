@@ -2,10 +2,10 @@
 
 import { redactIntakeText } from "@/lib/notes/intake.shared";
 
-export function redactOfficerChatMessage<T extends ParsedOfficerChatMessage>(message: T): T {
+export function redactOfficerChatMessage<T extends Omit<ParsedOfficerChatMessage, "senderName" | "sourceImageIndex"> & { senderName: string | null; sourceImageIndex: number | null }>(message: T): T {
   return {
     ...message,
-    senderName: redactIntakeText(message.senderName),
+    senderName: message.senderName === null ? null : redactIntakeText(message.senderName),
     senderAllianceTag: message.senderAllianceTag === null ? null : redactIntakeText(message.senderAllianceTag),
     originalText: redactIntakeText(message.originalText),
     inGameTranslatedText: message.inGameTranslatedText === null ? null : redactIntakeText(message.inGameTranslatedText),
@@ -57,7 +57,7 @@ export type OfficerChatSessionSummary = {
 export type OfficerChatMessageRecord = {
   id: string;
   senderAllianceTag: string | null;
-  senderName: string;
+  senderName: string | null;
   senderLevel: number | null;
   senderVipLevel: number | null;
   originalText: string;
@@ -67,7 +67,7 @@ export type OfficerChatMessageRecord = {
   isReply: boolean;
   replyToName: string | null;
   sequenceOrder: number;
-  sourceImageIndex: number;
+  sourceImageIndex: number | null;
 };
 
 export type OfficerIntelDashboardPayload = {

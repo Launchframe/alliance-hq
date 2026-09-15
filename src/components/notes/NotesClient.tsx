@@ -11,13 +11,14 @@ import { NoteEditor } from "./NoteEditor";
 import { NoteTasksPanel } from "./NoteTasksPanel";
 import { NoteBoardsClient } from "./NoteBoardsClient";
 import { NoteDraftsPanel } from "./NoteDraftsPanel";
+import { NoteHistoryImports } from "./NoteHistoryImports";
 import type { CaptureDraft } from "@/lib/notes/drafts.shared";
 import type { CaptureCommit } from "@/lib/notes/intake.shared";
 import { NoteShareDialog } from "./NoteShareDialog";
 import { NoteHistoryDialog } from "./NoteHistoryDialog";
 
 type Modal = { kind: "editor"; note: PerformanceNoteDto | null; body?: string; resume?: CaptureDraft } | { kind: "share" | "history"; note: PerformanceNoteDto } | null;
-const viewIcons = { notebook: BookOpen, drafts: FileText, inbox: Inbox, tasks: List, boards: LayoutGrid, shared: Share2, archived: Archive };
+const viewIcons = { notebook: BookOpen, imports: FolderOpen, drafts: FileText, inbox: Inbox, tasks: List, boards: LayoutGrid, shared: Share2, archived: Archive };
 const priorityClass = { low: "text-emerald-600 dark:text-emerald-400", medium: "text-amber-600 dark:text-amber-400", high: "text-orange-600 dark:text-orange-400", urgent: "text-rose-600 dark:text-rose-400" };
 
 export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNotesPagePayload; focusNoteId?: string }) {
@@ -44,6 +45,7 @@ export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNote
     const note = initial.notes.find((item) => item.id === (focusNoteId ?? params.get("note")));
     return note ? { kind: "editor", note } : null;
   });
+  const [importId, setImportId] = useState(() => params.get("import"));
   const alive = useRef(false);
   const request = useRef<AbortController | null>(null);
   const queryInput = useRef<HTMLInputElement>(null);
@@ -53,11 +55,17 @@ export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNote
   }, []);
   const hotkeys = useMemo(() => ({
     "notes.drafts": () => chooseView("drafts"),
+    "notes.imports": () => chooseView("imports"),
     "notes.sharedBoards": () => { if (data.canReadBoards) chooseView("boards"); },
     "notes.newNote": () => { if (data.canCreate) setModal({ kind: "editor", note: null }); },
     "notes.search": () => queryInput.current?.focus(),
   }), [data.canCreate, data.canReadBoards, chooseView]);
   useRegisterPageHotkeys(hotkeys, !modal);
+  useEffect(() => {
+    const sync = () => setImportId(new URL(window.location.href).searchParams.get("import"));
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
 
   const refresh = useCallback(async () => {
     request.current?.abort();
@@ -154,7 +162,7 @@ export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNote
   }
 
   const counts = useMemo(() => ({
-    tasks: undefined, boards: undefined, drafts: data.draftCount,
+    tasks: undefined, boards: undefined, drafts: data.draftCount, imports: undefined,
     notebook: data.notes.filter((note) => note.isOwner && !note.archived).length,
     inbox: data.notes.filter((note) => note.isOwner && note.inbox && !note.archived).length,
     shared: data.notes.filter((note) => !note.isOwner && !note.archived).length,
@@ -184,7 +192,10 @@ export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNote
         <section><h2 className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-hq-fg-muted">{t("workspace.notebooks")}</h2>{notebooks.length ? notebooks.map((name) => <button key={name} onClick={() => { chooseView("notebook"); setNotebook(name); }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs ${notebook === name ? "bg-hq-accent/10 text-hq-accent" : "text-hq-fg-muted hover:bg-hq-surface-muted"}`}><FolderOpen className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{name}</span></button>) : <p className="px-3 text-xs leading-5 text-hq-fg-muted">{t("workspace.notebooksHint")}</p>}</section>
         <div className="mt-auto rounded-xl border border-hq-border bg-hq-canvas p-3 text-xs leading-5 text-hq-fg-muted"><LockKeyhole className="mb-2 h-4 w-4 text-hq-accent" />{t("editor.memberPrivacy")}</div>
       </aside>
-      {view === "drafts" ? <div className="min-w-0 flex-1">{error ? <p role="alert" className="p-4 text-hq-danger">{error}</p> : null}<NoteDraftsPanel refreshKey={!!modal} onOpen={(id) => {
+      {view === "imports" ? <NoteHistoryImports canCreate={data.canCreate} focusId={importId} onOpen={(id) => {
+        window.history.pushState(null, "", notesWorkspaceLocation(window.location.pathname, window.location.search, { view: "imports", import: id }));
+        setImportId(id);
+      }} /> : view === "drafts" ? <div className="min-w-0 flex-1">{error ? <p role="alert" className="p-4 text-hq-danger">{error}</p> : null}<NoteDraftsPanel refreshKey={!!modal} onOpen={(id) => {
         window.history.pushState(null, "", notesWorkspaceLocation(window.location.pathname, window.location.search, { draft: id }));
         void openDraft(id).catch((failure) => setError(failure instanceof Error ? failure.message : t("loadFailed")));
       }} /></div> : view === "boards" ? data.canReadBoards ? <NoteBoardsClient /> : <p className="p-6">{t("errors.forbidden")}</p> : view === "tasks" ? <NoteTasksPanel focusId={params.get("task") ?? undefined} /> : <section className="min-w-0 flex-1 px-4 py-5 sm:px-7">

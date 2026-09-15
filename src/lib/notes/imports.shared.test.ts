@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { HISTORY_MESSAGE_LENGTH, HISTORY_MESSAGE_LIMIT, HISTORY_TEXT_BYTES, parseHistoryText } from "./imports.shared";
+import { HISTORY_MESSAGE_LENGTH, HISTORY_MESSAGE_LIMIT, HISTORY_TEXT_BYTES, historyInitSchema, parseHistoryText } from "./imports.shared";
 
 describe("reviewed history adapters", () => {
+  it("requires checksummed compatible files and bounds total image bytes", () => {
+    const file = { name: "capture.png", contentType: "image/png", size: 20 * 1024 * 1024, sha256: "a".repeat(64) };
+    const input = { expectedScope: "alliance:author", requestId: "request-one", title: "History", kind: "screenshots", locale: "en-US", files: [file] };
+    expect(historyInitSchema.safeParse(input).success).toBe(true);
+    expect(historyInitSchema.safeParse({ ...input, files: Array(4).fill(file) }).success).toBe(false);
+    expect(historyInitSchema.safeParse({ ...input, kind: "text" }).success).toBe(false);
+    expect(historyInitSchema.safeParse({ ...input, files: [{ ...file, sha256: "invalid" }] }).success).toBe(false);
+  });
   it("keeps unknown dates and senders unknown for Markdown", () => {
     const messages = parseHistoryText("markdown", "# Decisions\n\nCheck the roster.", "file-one");
     expect(messages[0]).toMatchObject({ sender: null, sentAt: null, body: "# Decisions\n\nCheck the roster." });

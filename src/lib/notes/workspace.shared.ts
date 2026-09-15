@@ -3,7 +3,7 @@ import { PERFORMANCE_NOTE_KINDS } from "@/lib/performance-notes/types.shared";
 
 export const NOTE_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 export type NotePriority = (typeof NOTE_PRIORITIES)[number] | null;
-export type NoteWorkspaceView = "notebook" | "inbox" | "shared" | "archived" | "tasks" | "boards" | "drafts";
+export type NoteWorkspaceView = "notebook" | "inbox" | "shared" | "archived" | "tasks" | "boards" | "drafts" | "imports";
 
 export function normalizeNoteLabels(values: readonly string[]): string[] {
   const labels = new Map<string, string>();

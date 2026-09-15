@@ -1826,6 +1826,7 @@
         "sharedBoards": "Open officer boards",
         "newBoard": "Create an officer board",
         "drafts": "Open private drafts",
+        "imports": "Open history imports",
         "search": "Search notes"
       },
       "trains": {
@@ -7149,6 +7150,7 @@
       "tasks": "Tasks",
       "boards": "Officer boards",
       "drafts": "Drafts",
+      "imports": "History",
       "notebook": "Notebook",
       "inbox": "Inbox",
       "shared": "Shared with me",
@@ -7321,6 +7323,23 @@
         "done": "Done",
         "cancelled": "Cancelled"
       }
+    },
+    "imports": {
+      "title": "History imports",
+      "privacy": "Imports are private sources, not shared notes. Review the extracted text before committing. No tasks, AI indexing, or sharing are enabled by import.",
+      "limits": "Text, Markdown, or JSON: one file up to 5 MiB. Screenshots: up to 12 PNG, JPEG, or WebP files, 20 MiB each and 60 MiB total. Each batch contains at most 5,000 messages.",
+      "jsonHint": "Use a Discord export with guild.id, channel.id, and messages containing id, timestamp, author.name, and content; or schemaVersion: 1 with the same messages. Unknown dates and authors may be null.",
+      "new": "New import", "format": "Import format", "sourceTitle": "Source title", "paste": "Paste history", "files": "Choose files", "start": "Upload and prepare review", "busy": "Working…", "empty": "No history imports yet.",
+      "error": "The import could not be updated. Your saved progress is kept.", "invalid": "Check the title, format, file sizes, and supported export shape.", "back": "All imports", "unknown": "Unknown", "sender": "Sender (unverified)", "date": "Original date and time (UTC)", "body": "Reviewed text", "include": "Include this message",
+      "reviewPage": "Save and mark this page reviewed", "reviewed": "Reviewed", "unreviewed": "Needs review", "progress": "{reviewed} of {total} messages reviewed", "fileProgress": "{done} of {total} files processed",
+      "commit": "Commit private source", "cancel": "Cancel processing", "retry": "Retry processing", "resumeUpload": "Resume upload", "next": "Next page", "previous": "Previous page", "reload": "Reload review", "discard": "Discard your unsaved review changes?",
+      "saved": "Private source committed. This did not create tasks, enable AI processing, or share your history.",
+      "discardChanges": "Discard changes", "keepReviewing": "Keep reviewing",
+      "resumeHint": "Choose the original files again to resume an interrupted upload. Identical batches resume their existing import; changed files create a separate source.",
+      "processingError": "Processing paused or failed. Progress is kept; retry is available after cancellation or the attempt limit.",
+      "changed": "This review changed elsewhere. Your edits are still here. Reload the review before saving again.",
+      "kinds": { "text": "Plain text", "markdown": "Markdown", "discord_json": "Discord JSON", "screenshots": "Screenshots" },
+      "states": { "uploading": "Awaiting upload", "queued": "Queued", "processing": "Processing", "review": "Ready for review", "committed": "Committed", "cancelled": "Cancelled", "failed": "Processing failed" }
     },
     "drafts": {
       "private": "Drafts are visible only to you. Saving a draft does not create tasks or update a shared note.",
