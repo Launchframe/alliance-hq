@@ -1817,6 +1817,7 @@
         "imports": "Abrir importações de histórico",
         "workspaceSearch": "Pesquisar no espaço de trabalho",
         "knowledge": "Abrir conhecimento",
+        "studio": "Abrir estúdio de IA",
         "search": "Buscar notas"
       },
       "trains": {
@@ -7136,6 +7137,7 @@
       "imports": "Histórico",
       "search": "Pesquisa",
       "knowledge": "Conhecimento",
+      "studio": "Estúdio de IA",
       "notebook": "Caderno",
       "inbox": "Caixa de entrada",
       "shared": "Compartilhadas comigo",
@@ -7308,6 +7310,12 @@
         "done": "Concluída",
         "cancelled": "Cancelada"
       }
+    },
+    "studio": {
+      "title": "Estúdio de IA", "hint": "Gere conteúdo a partir de materiais aprovados, habilitados para IA, indexados e que você pode ler. Os resultados continuam sendo propostas até você revisá-los e salvá-los. São aceitos até três recursos e 120 trechos de evidência; divida seleções maiores.",
+      "kind": "Tipo de geração", "kinds": { "synthesize": "Síntese", "localize": "Localização", "ask": "Pergunta com citações", "insight": "Análises qualitativas" },
+      "question": "Pergunta ou foco", "resources": "Selecionar recursos de origem", "start": "Gerar proposta para revisão", "process": "Processar próxima parte", "saveReview": "Salvar revisão", "accept": "Salvar nota privada e tarefas selecionadas", "unsaved": "Salve sua revisão para manter as correções antes de sair.", "citations": "Citações verificadas das fontes", "history": "Gerações recentes", "newThread": "Nova conversa", "continueThread": "Continuar esta conversa", "threadHint": "Somente turnos recentes, limitados e ainda autorizados são utilizados. Inicie uma nova conversa se as fontes ficarem indisponíveis.",
+      "states": { "pending": "Na fila", "running": "Gerando", "ready": "Pronto para revisão", "accepted": "Salvo como nota privada", "cancelled": "Cancelado", "failed": "Falha na geração", "invalidated": "As fontes mudaram ou o acesso foi retirado" }
     },
     "knowledge": {
       "title": "Conhecimento", "owned": "Meus recursos", "library": "Biblioteca aprovada", "guidance": "Aprovação, consentimento para IA e compartilhamento são escolhas separadas. Somente o proprietário pode aprovar conteúdo ou permitir o processamento por IA.",

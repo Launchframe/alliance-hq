@@ -13,7 +13,7 @@ export type KnowledgeChunk = { text: string; evidence: KnowledgeReference[] };
 export type KnowledgeJobState = "pending" | "running" | "completed" | "cancelled" | "failed";
 export const knowledgeCommandSchema = z.object({ requestId: z.string().min(8).max(120), expectedVersion: z.number().int().positive(), expectedContentVersion: z.number().int().positive(), command: z.enum(["approve", "unapprove", "allow_ai", "deny_ai", "index", "cancel", "retry"]) });
 export type KnowledgeCommand = z.infer<typeof knowledgeCommandSchema>;
-export const knowledgeQuerySchema = z.object({ q: z.string().trim().min(1).max(200), mode: z.enum(["keyword", "semantic"]).default("keyword"), includeSources: z.boolean().default(false), limit: z.number().int().min(1).max(6).default(6) });
+export const knowledgeQuerySchema = z.object({ q: z.string().trim().min(1).max(2_000), mode: z.enum(["keyword", "semantic"]).default("keyword"), includeSources: z.boolean().default(false), limit: z.number().int().min(1).max(6).default(6) });
 export type KnowledgeQuery = z.infer<typeof knowledgeQuerySchema>;
 export type KnowledgeStatus = {
   resourceId: string; kind: "note" | "task" | "source"; entityId: string; title: string; href: string | null;
