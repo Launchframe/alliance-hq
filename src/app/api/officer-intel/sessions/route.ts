@@ -3,6 +3,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { notesErrorResponse } from "@/lib/notes/access.server";
 
 import { loadOfficerIntelDashboard } from "@/lib/officer-intel/load-dashboard.server";
 import { createOfficerChatSession } from "@/lib/officer-intel/repository.server";
@@ -72,11 +73,13 @@ export async function POST(request: Request) {
 
   const sessionId = await createOfficerChatSession({
     allianceId: context.allianceId,
+    actor: context.actor,
     title,
     channelLabel,
     sessionAt,
     createdByHqUserId: context.session.hqUserId,
-  });
+  }).catch(notesErrorResponse);
+  if (sessionId instanceof NextResponse) return sessionId;
 
   return NextResponse.json({ sessionId });
 }

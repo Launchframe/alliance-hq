@@ -3,6 +3,8 @@ import "server-only";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import type { KnowledgeActor } from "@/lib/notes/policy.shared";
+import { getDb } from "@/lib/db";
+import { lockKnowledgeResource } from "@/lib/notes/resources.server";
 
 import { matchOfficerActionItemAssignee } from "@/lib/officer-intel/assignee-match.server";
 import {
@@ -11,6 +13,7 @@ import {
 } from "@/lib/officer-intel/llm-config.server";
 import { parseActionItemDueDate } from "@/lib/officer-intel/parse-action-item-due.shared";
 import {
+  getOfficerChatSessionForAlliance,
   listOfficerChatMessages,
   persistOfficerSynthesisResult,
 } from "@/lib/officer-intel/repository.server";
@@ -45,13 +48,20 @@ export async function synthesizeOfficerMeetingNote(input: {
   | { ok: true; noteId: string }
   | { error: "not_configured" | "no_messages" | "not_found" | "approved" }
 > {
-  if (!isOfficerIntelLlmConfigured()) {
+  const source = await getOfficerChatSessionForAlliance(input);
+  if (!source) return { error: "not_found" };
+  const sourceVersion = await getDb().transaction(async (tx) => {
+    const resource = await lockKnowledgeResource(tx, input.actor, source.resourceId, "share");
+    return resource.knowledgeAiAllowed ? resource.version : null;
+  });
+  if (sourceVersion === null || !isOfficerIntelLlmConfigured()) {
     return { error: "not_configured" };
   }
 
   const messages = await listOfficerChatMessages({
     sessionId: input.sessionId,
     allianceId: input.allianceId,
+    actor: input.actor,
   });
   if (messages.length === 0) {
     return { error: "no_messages" };
@@ -101,6 +111,7 @@ export async function synthesizeOfficerMeetingNote(input: {
 
   const result = await persistOfficerSynthesisResult({
     actor: input.actor,
+    expectedSourceVersion: sourceVersion,
     sessionId: input.sessionId,
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,

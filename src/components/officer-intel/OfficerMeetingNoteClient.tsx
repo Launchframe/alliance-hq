@@ -84,12 +84,12 @@ export function OfficerMeetingNoteClient({
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-4xl flex-col gap-6 px-4 py-6">
       <div>
-        <Link
+        {note.sessionId && <Link
           href={`/officer-intel/sessions/${note.sessionId}`}
           className="text-sm text-hq-accent hover:underline"
         >
           {t("backToSession")}
-        </Link>
+        </Link>}
         <h1 className="mt-2 text-2xl font-semibold text-hq-fg">
           {t("meetingNotesTitle")}
         </h1>

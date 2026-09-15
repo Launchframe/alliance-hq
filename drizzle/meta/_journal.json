@@ -1072,6 +1072,13 @@
       "when": 1790900000164,
       "tag": "0164_notes_capture_drafts",
       "breakpoints": false
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1790900000165,
+      "tag": "0165_notes_legacy_source_access",
+      "breakpoints": false
     }
   ]
 }
