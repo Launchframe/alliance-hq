@@ -29,7 +29,10 @@ export async function loadNoteSharing(actor: KnowledgeActor, noteId: string): Pr
   }
   return {
     version: note.version, allianceId: actor.allianceId, recipients: [...recipients.values()],
-    grants: grants.filter((grant): grant is NoteShareInput["grants"][number] => grant.subjectKind === "user" || grant.subjectKind === "officers"),
+    grants: grants.filter((grant): grant is NoteShareInput["grants"][number] => {
+      if (grant.subjectKind === "officers") return true;
+      return grant.subjectKind === "user" && recipients.has(grant.subjectId);
+    }),
   };
 }
 

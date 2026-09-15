@@ -92,7 +92,7 @@ test.describe("HQ notes RBAC", () => {
     expect(create.status(), await create.text()).toBe(401);
 
     const patch = await request.patch("/api/notes/note-missing", {
-      data: { memberIds: [] },
+      data: { expectedVersion: 1, memberIds: [] },
     });
     expect(patch.status(), await patch.text()).toBe(401);
   });
@@ -211,7 +211,7 @@ test.describe("HQ notes RBAC", () => {
     expect(detail.status(), await detail.text()).toBe(404);
     const edit = await request.patch(`/api/notes/${noteId}`, {
       headers: { Cookie: authCookieHeader(peer) },
-      data: { memberIds: [] },
+      data: { expectedVersion: 1, memberIds: [] },
     });
     expect(edit.status(), await edit.text()).toBe(404);
   });
@@ -253,11 +253,18 @@ test.describe("HQ notes RBAC", () => {
     const readable = await request.get(`/api/notes/${noteId}`, { headers: { Cookie: authCookieHeader(peer) } });
     expect(readable.status(), await readable.text()).toBe(200);
     expect((await readable.json()).note.canEdit).toBe(false);
-    const denied = await request.patch(`/api/notes/${noteId}`, { headers: { Cookie: authCookieHeader(peer) }, data: { memberIds: [] } });
+    const denied = await request.patch(`/api/notes/${noteId}`, {
+      headers: { Cookie: authCookieHeader(peer) },
+      data: { expectedVersion: 1, memberIds: [] },
+    });
     expect(denied.status(), await denied.text()).toBe(404);
     await sql`UPDATE knowledge_resource_grants SET role = 'edit' WHERE id = ${grantId}`;
+    const beforeEdit = await request.get(`/api/notes/${noteId}`, { headers: { Cookie: authCookieHeader(peer) } });
+    expect(beforeEdit.status(), await beforeEdit.text()).toBe(200);
+    const version = (await beforeEdit.json() as { note: { version: number } }).note.version;
     const editable = await request.patch(`/api/notes/${noteId}`, {
-      headers: { Cookie: authCookieHeader(peer) }, data: { memberIds: [member.ashedMemberId] },
+      headers: { Cookie: authCookieHeader(peer) },
+      data: { expectedVersion: version, memberIds: [member.ashedMemberId] },
     });
     expect(editable.status(), await editable.text()).toBe(200);
     const [owner] = await sql`SELECT owner_hq_user_id FROM knowledge_resources WHERE id = ${resourceId}`;

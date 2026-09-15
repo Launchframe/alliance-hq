@@ -57,7 +57,13 @@ export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNote
       const body = await response.json();
       if (!alive.current || controller.signal.aborted) return;
       if (!response.ok) {
-        if (response.status === 401 || response.status === 403) { setData((current) => ({ ...current, notes: [], roster: [], canCreate: false })); setModal(null); }
+        if (response.status === 401 || response.status === 403) {
+          setModal((current) => {
+            if (current?.kind === "editor") return current;
+            return null;
+          });
+          setData((current) => ({ ...current, notes: [], roster: [], canCreate: false }));
+        }
         throw new Error(body.error ?? t("loadFailed"));
       }
       if (alive.current && !controller.signal.aborted) {
@@ -65,8 +71,9 @@ export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNote
         setModal((current) => {
           if (!current?.note) return current;
           const latest = (body as PerformanceNotesPagePayload).notes.find((note) => note.id === current.note!.id);
-          if (!latest || (current.kind !== "editor" && !latest.isOwner)) return null;
-          return { ...current, note: { ...current.note, canEdit: latest.canEdit, isOwner: latest.isOwner, shared: latest.shared } };
+          if (!latest) return current.kind === "editor" ? current : null;
+          if (current.kind !== "editor" && !latest.isOwner) return null;
+          return { ...current, note: { ...current.note, canEdit: latest.canEdit, isOwner: latest.isOwner, shared: latest.shared, version: latest.version } };
         });
       }
     } catch (failure) { if (alive.current && !controller.signal.aborted) setError(failure instanceof Error ? failure.message : t("loadFailed")); }

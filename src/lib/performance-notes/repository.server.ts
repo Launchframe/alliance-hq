@@ -109,12 +109,15 @@ export async function updatePerformanceNote(actor: KnowledgeActor, noteId: strin
         excludedMemberIds: note.excludedMemberIds,
       },
     });
-    let exclusions = input.excludedMemberIds ?? note.excludedMemberIds;
-    if (input.memberIds !== undefined) {
-      const selected = new Set(input.memberIds);
-      exclusions = [...new Set([...exclusions, ...members.filter((member) => !selected.has(member.ashedMemberId)).map((member) => member.ashedMemberId)])].filter((id) => !selected.has(id));
-      await setNoteMembers(tx, actor, noteId, input.memberIds, input.detectedMemberIds);
+    let exclusions = note.excludedMemberIds;
+    if (knowledgeActorOwnsResource(actor, resource)) {
+      exclusions = input.excludedMemberIds ?? note.excludedMemberIds;
+      if (input.memberIds !== undefined) {
+        const selected = new Set(input.memberIds);
+        exclusions = [...new Set([...exclusions, ...members.filter((member) => !selected.has(member.ashedMemberId)).map((member) => member.ashedMemberId)])].filter((id) => !selected.has(id));
+      }
     }
+    if (input.memberIds !== undefined) await setNoteMembers(tx, actor, noteId, input.memberIds, input.detectedMemberIds);
     await tx.update(schema.performanceNotes).set({
       title: input.title, body: input.body, kind: input.kind, priority: input.priority,
       labels: input.labels, notebook: input.notebook, journalDate: input.journalDate,
