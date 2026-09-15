@@ -21,6 +21,9 @@ export function validateGenerationPart(value: unknown, sources: Array<{ id: stri
   }
   return parsed.data.actions.every((action) => !!action.evidence.trim() && !!byId.get(action.evidenceId)?.includes(action.evidence)) && (kind !== "localize" || !parsed.data.actions.length && sources.every((source) => cited.has(source.id)));
 }
+export function generationCandidateAvailable(job: { version: number; state: string; availableAt: Date; leaseExpiresAt: Date | null }, expectedVersion: number, now = new Date()): boolean {
+  return job.version === expectedVersion && job.availableAt <= now && (job.state === "pending" || job.state === "running" && job.leaseExpiresAt !== null && job.leaseExpiresAt <= now);
+}
 export function generationBody(parts: GenerationPart[]): string {
   let citation = 0;
   return parts.flatMap((part) => part.sections.map((section) => `${section.text}\n\n${section.citations.map(() => `[${++citation}]`).join(" ")}`)).join("\n\n");

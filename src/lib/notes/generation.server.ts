@@ -9,7 +9,7 @@ import { createKnowledgeResource, knowledgeAccessCondition, KnowledgeAccessError
 import { knowledgeMemberMayProcess, recheckKnowledgeReader } from "./knowledge-access.server";
 import { collectGenerationEvidence, retrieveKnowledgeEvidence, revalidateKnowledgeEvidence } from "@/lib/officer-intel/retrieve-corpus.server";
 import { GENERATION_SYSTEM, generateKnowledgePart, generationConfigured, generationModel } from "@/lib/officer-intel/synthesize.server";
-import { generationAcceptSchema, generationBody, generationRequestSchema, type GenerationResult } from "./generation.shared";
+import { generationAcceptSchema, generationBody, generationCandidateAvailable, generationRequestSchema, type GenerationResult } from "./generation.shared";
 import type { KnowledgeEvidence } from "./knowledge.shared";
 import { reserveKnowledgeUsage } from "./knowledge-budget.server";
 import { withKnowledgeReceipt } from "./mutations.server";
@@ -87,7 +87,7 @@ export async function startGeneration(actor: KnowledgeWebActor, input: z.infer<t
     return { jobId: id, resourceId };
   });
 }
-async function releaseThread(tx: KnowledgeTransaction, job: Job) {
+async function releaseThread(tx: KnowledgeTransaction, job: Pick<Job, "id" | "threadId">) {
   if (job.threadId) await tx.update(threads).set({ activeJobId: null, version: sql`${threads.version} + 1` }).where(and(eq(threads.id, job.threadId), eq(threads.activeJobId, job.id)));
 }
 export async function controlGeneration(actor: KnowledgeWebActor, id: string, command: "cancel" | "retry", expectedVersion: number) {
@@ -103,14 +103,22 @@ export async function controlGeneration(actor: KnowledgeWebActor, id: string, co
   });
   await writeOfficerActionAudit({ sessionId: actor.sessionId, hqUserId: actor.hqUserId, allianceId: actor.allianceId, action: `notes.generation_${command}`, severity: "update", permission: "notes:read", resourceType: "generation", resourceId: id });
 }
-async function stopGeneration(id: string, token: string, error: unknown) {
+export async function stopGeneration(id: string, token: string, error: unknown) {
   await getDb().transaction(async (tx) => {
     const [job] = await tx.select().from(jobs).where(and(eq(jobs.id, id), eq(jobs.leaseToken, token), eq(jobs.state, "running"))).for("update");
-    if (!job) return;
+    if (!job || !job.leaseExpiresAt || job.leaseExpiresAt <= new Date()) return;
     const changed = error instanceof KnowledgeAccessError && ["changed", "forbidden", "not_found"].includes(error.code);
     const state = changed ? "cancelled" : job.attempts >= 3 ? "failed" : "pending";
     await tx.update(jobs).set({ state, leaseToken: null, leaseExpiresAt: null, errorCode: changed ? "changed" : "processing_failed", availableAt: new Date(Date.now() + 5_000), version: job.version + 1 }).where(eq(jobs.id, id));
     if (state !== "pending") await releaseThread(tx, job);
+  });
+}
+export async function cancelGenerationCandidate(candidate: Pick<Job, "id" | "version" | "threadId">) {
+  await getDb().transaction(async (tx) => {
+    const [current] = await tx.select().from(jobs).where(eq(jobs.id, candidate.id)).for("update");
+    if (!current || !generationCandidateAvailable(current, candidate.version)) return;
+    await tx.update(jobs).set({ state: "cancelled", errorCode: "changed", leaseToken: null, leaseExpiresAt: null, version: current.version + 1 }).where(eq(jobs.id, current.id));
+    await releaseThread(tx, current);
   });
 }
 export async function processGeneration(id?: string) {
@@ -118,14 +126,14 @@ export async function processGeneration(id?: string) {
   const candidates = await getDb().select().from(jobs).where(and(id ? eq(jobs.id, id) : undefined, lte(jobs.availableAt, new Date()), or(eq(jobs.state, "pending"), and(eq(jobs.state, "running"), lte(jobs.leaseExpiresAt, new Date()))))).orderBy(asc(jobs.availableAt)).limit(5);
   for (const candidate of candidates) {
     const actor = await getKnowledgeActorForGenerationJob(candidate.id);
-    if (!actor) { await getDb().transaction(async (tx) => { await tx.update(jobs).set({ state: "cancelled", leaseToken: null, errorCode: "changed" }).where(and(eq(jobs.id, candidate.id), inArray(jobs.state, ["pending", "running"]))); await releaseThread(tx, candidate); }); continue; }
+    if (!actor) { await cancelGenerationCandidate(candidate); continue; }
     let lease: Job | null = null;
     try {
       lease = await getDb().transaction(async (tx) => {
         if (candidate.kind !== "ask" && !await knowledgeMemberMayProcess(tx, { allianceId: actor.allianceId, ownerHqUserId: actor.hqUserId! })) throw new KnowledgeAccessError("forbidden");
         await lockInputs(tx, actor, candidate.evidence);
         const [job] = await tx.select().from(jobs).where(eq(jobs.id, candidate.id)).for("update");
-        if (!['pending','running'].includes(job.state) || job.state === "running" && job.leaseExpiresAt && job.leaseExpiresAt > new Date()) return null;
+        if (!generationCandidateAvailable(job, candidate.version)) return null;
         if (job.attempts >= 3 || job.model !== generationModel()) { await tx.update(jobs).set({ state: "failed", errorCode: "attempt_limit", leaseToken: null }).where(eq(jobs.id, job.id)); await releaseThread(tx, job); return null; }
         const [claimed] = await tx.update(jobs).set({ state: "running", leaseToken: nanoid(), leaseExpiresAt: new Date(Date.now() + 90_000), attempts: job.attempts + 1, version: job.version + 1 }).where(eq(jobs.id, job.id)).returning();
         return claimed;
@@ -161,7 +169,7 @@ export async function processGeneration(id?: string) {
       return { processed: saved };
     } catch (error) {
       if (lease?.leaseToken) await stopGeneration(lease.id, lease.leaseToken, error);
-      else await getDb().transaction(async (tx) => { await tx.update(jobs).set({ state: "cancelled", errorCode: "changed", leaseToken: null }).where(and(eq(jobs.id, candidate.id), inArray(jobs.state, ["pending", "running"]))); await releaseThread(tx, candidate); });
+      else await cancelGenerationCandidate(candidate);
       return { processed: false };
     }
   }
