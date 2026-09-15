@@ -1815,6 +1815,7 @@
         "newBoard": "Criar um quadro de oficiais",
         "drafts": "Abrir rascunhos privados",
         "imports": "Abrir importações de histórico",
+        "workspaceSearch": "Pesquisar no espaço de trabalho",
         "search": "Buscar notas"
       },
       "trains": {
@@ -7132,6 +7133,7 @@
       "boards": "Quadros de oficiais",
       "drafts": "Rascunhos",
       "imports": "Histórico",
+      "search": "Pesquisa",
       "notebook": "Caderno",
       "inbox": "Caixa de entrada",
       "shared": "Compartilhadas comigo",
@@ -7304,6 +7306,15 @@
         "done": "Concluída",
         "cancelled": "Cancelada"
       }
+    },
+    "searchWorkspace": {
+      "title": "Pesquisar no espaço de trabalho", "hint": "Pesquise apenas notas, tarefas e textos de fontes confirmadas que você pode ler agora. Nenhum processamento por IA é utilizado.",
+      "searching": "Pesquisando…",
+      "query": "Termos de pesquisa", "submit": "Pesquisar", "kind": "Tipo de conteúdo", "all": "Todo o conteúdo", "note": "Notas", "task": "Tarefas", "source": "Fontes", "empty": "Nenhum conteúdo encontrado.", "previous": "Resultados anteriores", "next": "Próximos resultados", "open": "Abrir resultado", "sourceDate": "Data da fonte"
+    },
+    "documents": {
+      "type": "Tipo de documento", "types": { "note": "Nota", "journal": "Diário", "meeting": "Reunião", "reference": "Referência" },
+      "keyDecisions": "Principais decisões", "openQuestions": "Questões em aberto", "addDecision": "Adicionar decisão", "addQuestion": "Adicionar questão", "removeItem": "Remover item", "openInNotes": "Abrir em Notas"
     },
     "imports": {
       "title": "Importações de histórico",

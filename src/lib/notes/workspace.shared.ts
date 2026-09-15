@@ -3,7 +3,9 @@ import { PERFORMANCE_NOTE_KINDS } from "@/lib/performance-notes/types.shared";
 
 export const NOTE_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 export type NotePriority = (typeof NOTE_PRIORITIES)[number] | null;
-export type NoteWorkspaceView = "notebook" | "inbox" | "shared" | "archived" | "tasks" | "boards" | "drafts" | "imports";
+export const NOTE_DOCUMENT_TYPES = ["note", "journal", "meeting", "reference"] as const;
+export type NoteDocumentType = typeof NOTE_DOCUMENT_TYPES[number];
+export type NoteWorkspaceView = "notebook" | "inbox" | "shared" | "archived" | "tasks" | "boards" | "drafts" | "imports" | "search";
 
 export function normalizeNoteLabels(values: readonly string[]): string[] {
   const labels = new Map<string, string>();
@@ -24,6 +26,9 @@ const memberIds = z.array(z.string().min(1).max(120)).max(100);
 const noteValidators = {
   title: z.string().trim().max(160),
   body: z.string().trim().min(1).max(100_000),
+  documentType: z.enum(NOTE_DOCUMENT_TYPES),
+  keyDecisions: z.array(z.string().max(10_000)).max(100),
+  openQuestions: z.array(z.string().max(10_000)).max(100),
   kind: z.enum(PERFORMANCE_NOTE_KINDS),
   priority: z.enum(NOTE_PRIORITIES).nullable(),
   priorityMode: z.enum(["manual", "auto"]),
@@ -36,6 +41,7 @@ const noteValidators = {
 export const noteFieldsSchema = z.object({
   ...noteValidators,
   title: noteValidators.title.default(""), kind: noteValidators.kind.default("note"),
+  documentType: noteValidators.documentType.default("note"), keyDecisions: noteValidators.keyDecisions.default([]), openQuestions: noteValidators.openQuestions.default([]),
   priority: noteValidators.priority.default(null), priorityMode: noteValidators.priorityMode.default("manual"), labels: noteValidators.labels.default([]),
   notebook: noteValidators.notebook.default(null), journalDate: noteValidators.journalDate.default(null),
   inbox: noteValidators.inbox.default(true), memberIds: memberIds.default([]),
@@ -54,6 +60,10 @@ export function notesWorkspaceLocation(pathname: string, search: string, changes
   const params = new URLSearchParams(search);
   for (const [key, value] of Object.entries(changes)) { if (value === null) params.delete(key); else params.set(key, value); }
   return `${pathname}${params.size ? `?${params}` : ""}`;
+}
+
+export function noteRouteId(value: string): string {
+  return value.replace(/^meeting%3a/i, "meeting:");
 }
 
 export function notePriorityRank(priority: NotePriority): number {

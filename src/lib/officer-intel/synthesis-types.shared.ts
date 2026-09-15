@@ -29,6 +29,8 @@ export type OfficerMeetingNoteSummary = {
   id: string;
   sessionId: string | null;
   canEdit?: boolean;
+  canonicalNoteId?: string;
+  version?: number;
   summary: string;
   keyDecisions: string[];
   openQuestions: string[];

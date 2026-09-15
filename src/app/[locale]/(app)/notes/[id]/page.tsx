@@ -5,6 +5,7 @@ import { NotesClient } from "@/components/notes/NotesClient";
 import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 import { listCaptureDrafts } from "@/lib/notes/drafts.server";
 import { claimDiscordKnowledgeResources } from "@/lib/notes/resources.server";
+import { noteRouteId } from "@/lib/notes/workspace.shared";
 import {
   getPerformanceNoteDto,
   listPerformanceNoteRoster,
@@ -23,7 +24,7 @@ export async function generateMetadata() {
 }
 
 export default async function NoteDetailPage({ params }: Props) {
-  const { id } = await params;
+  const id = noteRouteId((await params).id);
   const session = await requirePageSession(`/notes/${id}`);
   await requirePagePermission(session.id, "notes:read");
   const actor = await getKnowledgeActorForSession(session.id);
