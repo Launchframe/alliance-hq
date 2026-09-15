@@ -30,5 +30,5 @@ export default async function NotesPage() {
     listPerformanceNoteRoster(actor.allianceId),
   ]);
 
-  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:list`} initial={{ notes, roster, canCreate: actor.canCreate }} />;
+  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:list`} initial={{ notes, roster, canCreate: actor.canCreate, canReadBoards: actor.canReadBoards }} />;
 }

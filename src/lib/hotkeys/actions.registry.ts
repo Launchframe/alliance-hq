@@ -249,6 +249,22 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     requiredPermission: "notes:create",
   },
   {
+    id: "notes.sharedBoards",
+    labelKey: "actions.notes.sharedBoards",
+    category: "tools",
+    scope: "page:notes",
+    kind: "custom",
+    requiredPermission: "notes_boards:read",
+  },
+  {
+    id: "notes.newBoard",
+    labelKey: "actions.notes.newBoard",
+    category: "tools",
+    scope: "page:notes",
+    kind: "custom",
+    requiredPermission: "notes_boards:write",
+  },
+  {
     id: "notes.search",
     labelKey: "actions.notes.search",
     category: "tools",

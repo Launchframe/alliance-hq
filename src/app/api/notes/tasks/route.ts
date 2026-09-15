@@ -10,9 +10,11 @@ export async function GET(request: Request) {
   try {
     const context = await requireNotesApiContext();
     if (context instanceof NextResponse) return context;
-    const sourceNoteId = new URL(request.url).searchParams.get("sourceNoteId") ?? undefined;
-    const [tasks, people] = await Promise.all([listNoteTasks(context.actor, sourceNoteId), listKnowledgePeople(context.actor, true)]);
-    return NextResponse.json({ tasks, people, canCreate: context.actor.canCreate }, { headers: { "Cache-Control": "private, no-store" } });
+    const params = new URL(request.url).searchParams;
+    const sourceNoteId = params.get("sourceNoteId") ?? undefined;
+    const personalOnly = params.get("personalOnly") === "1" || params.get("personalOnly") === "true";
+    const [tasks, people] = await Promise.all([listNoteTasks(context.actor, { sourceNoteId, personalOnly }), listKnowledgePeople(context.actor, true)]);
+    return NextResponse.json({ tasks, people, canCreate: context.actor.canCreate, principalId: context.actor.hqUserId }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return notesErrorResponse(error); }
 }
 export async function POST(request: Request) {

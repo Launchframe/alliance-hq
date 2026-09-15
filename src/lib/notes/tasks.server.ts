@@ -9,15 +9,16 @@ import { redactIntakeText } from "./intake.shared";
 import { knowledgeActorOwnsResource, type KnowledgeActor, type KnowledgeAccess } from "./policy.shared";
 import { createKnowledgeResource, knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, touchKnowledgeResource, type KnowledgeTransaction } from "./resources.server";
 import { withKnowledgeReceipt } from "./mutations.server";
+import { lockTaskBoards, touchTaskBoards } from "./board-events.server";
 import { noteTitle } from "./workspace.shared";
 import { normalizeTaskPriority, taskCompletedAt, TASK_STATUSES, type NoteTask, type TaskCreate, type TaskPatch, type TaskStatus } from "./tasks.shared";
 
 const tasks = schema.officerActionItems;
 const resources = schema.knowledgeResources;
 
-async function taskRows(actor: KnowledgeActor, filter?: { id?: string; sourceNoteId?: string }, access: KnowledgeAccess = "read"): Promise<NoteTask[]> {
+async function taskRows(actor: KnowledgeActor, filter?: { id?: string; sourceNoteId?: string; boardId?: string; personalOnly?: boolean }, access: KnowledgeAccess = "read", db: Pick<KnowledgeTransaction, "select"> = getDb()): Promise<NoteTask[]> {
   if (filter?.sourceNoteId && !await getPerformanceNoteForAlliance({ actor, noteId: filter.sourceNoteId })) throw new KnowledgeAccessError("not_found");
-  const rows = await getDb().select({
+  const rows = await db.select({
     task: tasks, version: resources.version, archivedAt: resources.archivedAt,
     owner: knowledgeAccessCondition(actor, tasks.resourceId, "share"), edit: knowledgeAccessCondition(actor, tasks.resourceId, "edit"),
     shared: sql<boolean>`exists(select 1 from knowledge_resource_grants g where g.resource_id = ${tasks.resourceId} and g.alliance_id = ${actor.allianceId})`,
@@ -27,8 +28,15 @@ async function taskRows(actor: KnowledgeActor, filter?: { id?: string; sourceNot
   }).from(tasks).innerJoin(resources, and(eq(resources.id, tasks.resourceId), eq(resources.allianceId, tasks.allianceId), eq(resources.kind, "task"), eq(resources.entityId, tasks.id)))
     .leftJoin(schema.hqUsers, eq(schema.hqUsers.id, tasks.assigneeHqUserId))
     .leftJoin(schema.performanceNotes, and(eq(schema.performanceNotes.id, tasks.sourceNoteId), eq(schema.performanceNotes.allianceId, actor.allianceId), isNull(schema.performanceNotes.expungedAt), knowledgeAccessCondition(actor, schema.performanceNotes.resourceId)))
-    .where(and(eq(tasks.allianceId, actor.allianceId), knowledgeAccessCondition(actor, tasks.resourceId, access), filter?.id ? eq(tasks.id, filter.id) : undefined, filter?.sourceNoteId ? eq(tasks.sourceNoteId, filter.sourceNoteId) : undefined))
-    .orderBy(desc(tasks.updatedAt), desc(tasks.id)).limit(filter?.id ? 1 : 100);
+    .where(and(
+      eq(tasks.allianceId, actor.allianceId),
+      knowledgeAccessCondition(actor, tasks.resourceId, access),
+      filter?.id ? eq(tasks.id, filter.id) : undefined,
+      filter?.sourceNoteId ? eq(tasks.sourceNoteId, filter.sourceNoteId) : undefined,
+      filter?.boardId ? sql`exists(select 1 from knowledge_board_items bi where bi.task_id = ${tasks.id} and bi.alliance_id = ${actor.allianceId} and bi.board_id = ${filter.boardId})` : undefined,
+      filter?.personalOnly ? sql`(${resources.ownerHqUserId} = ${actor.hqUserId} or ${tasks.assigneeHqUserId} = ${actor.hqUserId})` : undefined,
+    ))
+    .orderBy(desc(tasks.updatedAt), desc(tasks.id)).limit(filter?.id ? 1 : filter?.boardId ? 200 : 100);
   return rows.filter((row) => (TASK_STATUSES as readonly string[]).includes(row.task.status)).map((row) => ({
     id: row.task.id, title: row.task.title, description: row.task.description, status: row.task.status as TaskStatus,
     priority: normalizeTaskPriority(row.task.priority), labels: row.task.labels,
@@ -40,19 +48,30 @@ async function taskRows(actor: KnowledgeActor, filter?: { id?: string; sourceNot
     createdAt: row.task.createdAt.toISOString(), updatedAt: row.task.updatedAt.toISOString(),
   }));
 }
-export const listNoteTasks = (actor: KnowledgeActor, sourceNoteId?: string) => taskRows(actor, { sourceNoteId });
+export const listNoteTasks = (actor: KnowledgeActor, options?: { sourceNoteId?: string; personalOnly?: boolean }) =>
+  taskRows(actor, { sourceNoteId: options?.sourceNoteId, personalOnly: options?.personalOnly });
+export const listBoardNoteTasks = (tx: KnowledgeTransaction, actor: KnowledgeActor, boardId: string) => taskRows(actor, { boardId }, "read", tx);
 export async function getNoteTask(actor: KnowledgeActor, id: string, access: KnowledgeAccess = "read") {
   return (await taskRows(actor, { id }, access))[0] ?? null;
 }
 
 async function validateAssignee(tx: KnowledgeTransaction, actor: KnowledgeActor, resourceId: string, userId: string | null, share: boolean) {
   if (!userId) return;
-  const [member] = await tx.select({ role: schema.roles.name }).from(schema.allianceMemberships)
+  const [member] = await tx.select({ role: schema.roles.name, roleId: schema.roles.id }).from(schema.allianceMemberships)
     .innerJoin(schema.roles, eq(schema.roles.id, schema.allianceMemberships.roleId))
     .innerJoin(schema.hqUsers, eq(schema.hqUsers.id, schema.allianceMemberships.hqUserId))
     .where(and(eq(schema.allianceMemberships.allianceId, actor.allianceId), eq(schema.hqUsers.id, userId), eq(schema.allianceMemberships.status, "active"))).for("share");
   if (!member) throw new KnowledgeAccessError("invalid");
   const target: KnowledgeActor = { kind: "web", allianceId: actor.allianceId, hqUserId: userId, discordUserId: null, isOfficer: ["owner", "maintainer", "officer"].includes(member.role), readableBoardIds: [], editableBoardIds: [] };
+  if (target.isOfficer) {
+    const [permission] = await tx.select({ id: schema.rolePermissions.permissionId }).from(schema.rolePermissions).where(and(eq(schema.rolePermissions.roleId, member.roleId), eq(schema.rolePermissions.permissionId, "notes_boards:read")));
+    if (permission) {
+      const boards = await tx.select({ id: schema.knowledgeBoards.id }).from(schema.knowledgeBoards)
+        .innerJoin(schema.knowledgeResources, and(eq(schema.knowledgeResources.id, schema.knowledgeBoards.resourceId), eq(schema.knowledgeResources.allianceId, actor.allianceId), isNull(schema.knowledgeResources.archivedAt)))
+        .where(and(eq(schema.knowledgeBoards.allianceId, actor.allianceId), knowledgeAccessCondition(target, schema.knowledgeBoards.resourceId)));
+      target.readableBoardIds = boards.map((board) => board.id);
+    }
+  }
   const [allowed] = await tx.select({ id: resources.id }).from(resources).where(and(eq(resources.id, resourceId), knowledgeAccessCondition(target, resources.id)));
   if (allowed) return;
   const [owned] = await tx.select({ id: resources.id }).from(resources).where(and(eq(resources.id, resourceId), knowledgeAccessCondition(actor, resources.id, "share")));
@@ -97,14 +116,13 @@ export async function createNoteTask(actor: KnowledgeActor, input: TaskCreate) {
   return task;
 }
 
-export async function updateNoteTask(actor: KnowledgeActor, id: string, input: TaskPatch & { legacyAssigneeAllianceMemberId?: string | null; dueHint?: string | null }) {
-  const task = await getNoteTask(actor, id, "edit");
-  if (!task) throw new KnowledgeAccessError("not_found");
-  await withKnowledgeReceipt(actor, "notes.task_update", input.requestId ?? nanoid(), { id, ...input }, async (tx) => {
+type TaskMutation = TaskPatch & { legacyAssigneeAllianceMemberId?: string | null; dueHint?: string | null };
+export async function updateNoteTaskInTransaction(tx: KnowledgeTransaction, actor: KnowledgeActor, id: string, input: TaskMutation) {
     const [row] = await tx.select({ resourceId: tasks.resourceId }).from(tasks).where(and(eq(tasks.id, id), eq(tasks.allianceId, actor.allianceId)));
     if (!row) throw new KnowledgeAccessError("not_found");
     const resource = await lockKnowledgeResource(tx, actor, row.resourceId);
     if (resource.version !== input.expectedVersion) throw new KnowledgeAccessError("changed");
+    await lockTaskBoards(tx, id);
     if (input.archived !== undefined && !knowledgeActorOwnsResource(actor, resource)) throw new KnowledgeAccessError("forbidden");
     const [current] = await tx.select().from(tasks).where(and(eq(tasks.id, id), eq(tasks.allianceId, actor.allianceId))).for("update");
     if (input.assigneeHqUserId !== undefined) await validateAssignee(tx, actor, resource.id, input.assigneeHqUserId, input.shareWithAssignee === true);
@@ -124,8 +142,14 @@ export async function updateNoteTask(actor: KnowledgeActor, id: string, input: T
     if (input.archived !== undefined) await tx.update(resources).set({ archivedAt: input.archived ? new Date() : null }).where(eq(resources.id, resource.id));
     await touchKnowledgeResource(tx, resource.id);
     await syncTaskReminder(tx, actor, updated, input.archived ?? resource.archivedAt !== null);
+    await touchTaskBoards(tx, id);
     return { taskId: id };
-  });
+}
+
+export async function updateNoteTask(actor: KnowledgeActor, id: string, input: TaskMutation) {
+  const task = await getNoteTask(actor, id, "edit");
+  if (!task) throw new KnowledgeAccessError("not_found");
+  await withKnowledgeReceipt(actor, "notes.task_update", input.requestId ?? nanoid(), { id, ...input }, (tx) => updateNoteTaskInTransaction(tx, actor, id, input));
   return getNoteTask(actor, id);
 }
 

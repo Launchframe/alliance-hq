@@ -1823,6 +1823,8 @@
       "notes": {
         "newNote": "Create a note",
         "newTask": "Create a task",
+        "sharedBoards": "Open officer boards",
+        "newBoard": "Create an officer board",
         "search": "Search notes"
       },
       "trains": {
@@ -7113,6 +7115,7 @@
     "notFound": "Note not found.",
     "views": {
       "tasks": "Tasks",
+      "boards": "Officer boards",
       "notebook": "Notebook",
       "inbox": "Inbox",
       "shared": "Shared with me",
@@ -7224,8 +7227,41 @@
       "restoreHint": "Restoring creates a new version without deleting history. Anyone who can read this note will see the restored content.",
       "restore": "Restore this version"
     },
+    "boards": {
+      "selector": "Choose an officer board",
+      "new": "New officer board",
+      "name": "Board name",
+      "create": "Create officer board",
+      "empty": "Choose a board or create one to collaborate with alliance officers.",
+      "audienceHint": "Current alliance officers can view and edit cards shared to this board. Sharing a task does not share its source note.",
+      "saveContext": "Save this task to {board} for current alliance officers to view and edit. This does not share a source note.",
+      "saveTask": "Save to this board",
+      "live": "Live",
+      "reconnecting": "Reconnecting…",
+      "changed": "This board or task changed elsewhere. Your draft is still here. Review the latest version before trying again.",
+      "rename": "Rename board",
+      "saveName": "Save board name",
+      "shareTask": "Share a task",
+      "chooseTask": "Choose a task to share",
+      "confirmShare": "Share task to this board",
+      "groupBy": "Group tasks by",
+      "noGrouping": "No grouping",
+      "byTeam": "Published support team",
+      "layout": "Task layout",
+      "board": "Board",
+      "list": "List",
+      "includeClosed": "Show cancelled and archived tasks",
+      "moveUp": "Move {title} up",
+      "moveDown": "Move {title} down",
+      "removeTask": "Remove from board",
+      "removeConfirm": "Remove this task from the board? The task and its source note are kept. Other sharing permissions are unchanged."
+    },
     "tasks": {
       "heading": "My tasks",
+      "reviewLatest": "Review latest task",
+      "latestVersion": "Latest saved task",
+      "keepChanges": "Keep my changes",
+      "reapplyHint": "Your edited fields will be applied to this version. Fields you have not changed will keep their latest values.",
       "linked": "Linked tasks",
       "new": "New task",
       "edit": "Task details",

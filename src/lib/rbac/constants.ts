@@ -14,6 +14,8 @@ export type SystemRoleName = keyof typeof ROLE_IDS;
 export const HQ_PERMISSIONS = [
   { id: "notes:read", description: "Notes" },
   { id: "notes:create", description: "Create notes" },
+  { id: "notes_boards:read", description: "Shared officer boards" },
+  { id: "notes_boards:write", description: "Edit shared officer boards" },
   { id: "plunder_plan:read", description: "Plunder Plan" },
   { id: "plunder_plan:self", description: "My Plunder Plans" },
   { id: "plunder_plan:suggest", description: "Suggest a time" },

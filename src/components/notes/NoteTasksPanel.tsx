@@ -6,15 +6,15 @@ import { SnapshotAccessRevoked } from "@/lib/member-board/versioned-live";
 import { useLocale, useTranslations } from "next-intl";
 import { CheckSquare, Plus, Share2 } from "lucide-react";
 import { Link } from "@/i18n/navigation";
-import { SERVER_TIME_IANA } from "@/lib/timezone/constants";
+import { formatAccountDate } from "@/lib/timezone/format";
 import { TASK_STATUSES, type NoteTask, type TaskCreate, type TaskPatch } from "@/lib/notes/tasks.shared";
 import type { NoteShareState } from "@/lib/notes/sharing.shared";
 import { TaskStateFields } from "./TaskStateFields";
 import { NoteTaskEditor } from "./NoteTaskEditor";
 import { NoteShareDialog } from "./NoteShareDialog";
 
-type Snapshot = { tasks: NoteTask[]; people: NoteShareState["recipients"]; canCreate: boolean };
-export function NoteTasksPanel({ sourceNoteId, focusId }: { sourceNoteId?: string; focusId?: string }) {
+type Snapshot = { tasks: NoteTask[]; people: NoteShareState["recipients"]; canCreate: boolean; principalId?: string };
+export function NoteTasksPanel({ sourceNoteId, focusId, personalOnly = false }: { sourceNoteId?: string; focusId?: string; personalOnly?: boolean }) {
   const t = useTranslations("notes");
   const locale = useLocale();
   const [data, setData] = useState<Snapshot>({ tasks: [], people: [], canCreate: false });
@@ -24,7 +24,7 @@ export function NoteTasksPanel({ sourceNoteId, focusId }: { sourceNoteId?: strin
   const [modal, setModal] = useState<{ kind: "edit" | "share"; task: NoteTask | null } | null>(null);
   const hotkeys = useMemo(() => ({ "notes.newTask": () => { if (data.canCreate) setModal({ kind: "edit", task: null }); } }), [data.canCreate]);
   useRegisterPageHotkeys(hotkeys, !modal);
-  const endpoint = `/api/notes/tasks${sourceNoteId ? `?sourceNoteId=${encodeURIComponent(sourceNoteId)}` : ""}`;
+  const endpoint = `/api/notes/tasks${sourceNoteId ? `?sourceNoteId=${encodeURIComponent(sourceNoteId)}` : ""}${personalOnly ? `${sourceNoteId ? "&" : "?"}personalOnly=1` : ""}`;
   const request = useRef<AbortController | null>(null);
   const read = useCallback(async (signal?: AbortSignal): Promise<Snapshot> => {
     request.current?.abort();
@@ -90,7 +90,7 @@ export function NoteTasksPanel({ sourceNoteId, focusId }: { sourceNoteId?: strin
     {!visible.length ? <p className="rounded-xl border border-dashed border-hq-border p-6 text-sm text-hq-fg-muted">{t("tasks.empty")}</p> : <div className="space-y-3">{visible.map((task) => <article key={task.id} data-testid="note-task" data-task-id={task.id} className="space-y-3 rounded-xl border border-hq-border bg-hq-canvas p-4">
       <div className="flex items-start justify-between gap-3"><button type="button" onClick={() => setModal({ kind: "edit", task })} className="min-w-0 flex-1 text-left"><h3 className="text-sm font-semibold">{task.title}</h3>{task.description ? <p className="mt-1 line-clamp-2 text-xs text-hq-fg-muted">{task.description}</p> : null}</button>{task.isOwner ? <button aria-label={t("tasks.share")} onClick={() => setModal({ kind: "share", task })} className="rounded p-1 text-hq-fg-muted"><Share2 className="h-4 w-4" /></button> : null}</div>
       <TaskStateFields status={task.status} priority={task.priority} disabled={!task.canEdit || !!pending} onStatus={(status) => void change(task, { status })} onPriority={(priority) => void change(task, { priority })} />
-      <div className="flex flex-wrap items-center gap-3 text-xs text-hq-fg-muted"><span>{task.assignee?.name ?? task.legacyAssigneeName ?? t("tasks.unassigned")}</span>{task.dueAt ? <time dateTime={task.dueAt}>{new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: SERVER_TIME_IANA }).format(new Date(task.dueAt))}</time> : null}{task.source && !sourceNoteId ? <Link href={`/notes/${task.source.id}`} className="text-hq-accent">{task.source.title}</Link> : null}</div>
+      <div className="flex flex-wrap items-center gap-3 text-xs text-hq-fg-muted"><span>{task.assignee?.name ?? task.legacyAssigneeName ?? t("tasks.unassigned")}</span>{task.dueAt ? <time dateTime={task.dueAt}>{formatAccountDate(task.dueAt, { locale, timezoneId: "server", dateStyle: "medium" })}</time> : null}{task.source && !sourceNoteId ? <Link href={`/notes/${task.source.id}`} className="text-hq-accent">{task.source.title}</Link> : null}</div>
       {errors[task.id] ? <p role="alert" className="rounded bg-hq-danger/10 p-2 text-xs text-hq-danger">{errors[task.id]}</p> : null}
     </article>)}</div>}
     {modal?.kind === "edit" ? <NoteTaskEditor key={modal.task?.id ?? "new"} task={modal.task} sourceNoteId={sourceNoteId} people={data.people} onClose={() => setModal(null)} onSave={save} /> : null}

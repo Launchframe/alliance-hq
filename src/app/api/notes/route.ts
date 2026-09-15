@@ -12,7 +12,7 @@ export async function GET() {
     const context = await requireNotesApiContext();
     if (context instanceof NextResponse) return context;
     const [notes, roster] = await Promise.all([listPerformanceNotes(context.actor), listPerformanceNoteRoster(context.actor.allianceId)]);
-    return NextResponse.json({ notes, roster, canCreate: context.actor.canCreate }, { headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json({ notes, roster, canCreate: context.actor.canCreate, canReadBoards: context.actor.canReadBoards }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return notesErrorResponse(error); }
 }
 
@@ -25,6 +25,6 @@ export async function POST(request: Request) {
     const fields = parsed.data;
     const noteId = await createPerformanceNote({ ...fields, actor: context.actor, intakeMode: fields.kind === "note" ? "thought" : "batch" });
     const [notes, roster] = await Promise.all([listPerformanceNotes(context.actor), listPerformanceNoteRoster(context.actor.allianceId)]);
-    return NextResponse.json({ notes, roster, noteId, canCreate: context.actor.canCreate }, { headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json({ notes, roster, noteId, canCreate: context.actor.canCreate, canReadBoards: context.actor.canReadBoards }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return notesErrorResponse(error); }
 }
