@@ -6,7 +6,7 @@ import { getDb, schema } from "@/lib/db";
 import { getTranslations } from "next-intl/server";
 
 import { auth } from "@/lib/auth";
-import { getRbacContext } from "@/lib/rbac/context";
+import { getAllianceMembershipRbac, getRbacContext } from "@/lib/rbac/context";
 import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import { loadSession, requireApiSession } from "@/lib/session";
 import type { KnowledgeActor } from "./policy.shared";
@@ -25,18 +25,30 @@ export async function getKnowledgeActorForSession(sessionId: string): Promise<Kn
   return actor;
 }
 
-async function resolveBoundKnowledgeActor(sessionId: string, hqUserId: string): Promise<KnowledgeWebActor | null> {
+async function resolveBoundKnowledgeActor(sessionId: string, hqUserId: string, forAllianceId?: string): Promise<KnowledgeWebActor | null> {
   const session = await loadSession(sessionId);
-  if (!session || session.hqUserId !== hqUserId) return null;
+  if (!session || session.hqUserId !== hqUserId || session.expiresAt <= new Date()) return null;
   const context = await getRbacContext(sessionId);
-  const allianceId = session.currentAllianceId ?? session.allianceId;
-  if (!allianceId || !context?.roleName || context.hqUserId !== session.hqUserId || context.currentAllianceId !== allianceId || !context.permissions.has("notes:read") || !context.permissions.has("members:read")) return null;
-  const isOfficer = ["owner", "maintainer", "officer"].includes(context.roleName);
+  if (!context || context.hqUserId !== session.hqUserId) return null;
+  const allianceId = forAllianceId ?? session.currentAllianceId ?? session.allianceId;
+  if (!allianceId) return null;
+  let roleName = context.roleName;
+  let permissions = context.permissions;
+  if (forAllianceId) {
+    const membership = await getAllianceMembershipRbac(sessionId, hqUserId, forAllianceId);
+    roleName = membership.roleName;
+    permissions = new Set(membership.permissions);
+    if (context.isPlatformMaintainer) permissions.add("hq:admin");
+  } else if (context.currentAllianceId !== allianceId) {
+    return null;
+  }
+  if (!roleName || !permissions.has("notes:read") || !permissions.has("members:read")) return null;
+  const isOfficer = ["owner", "maintainer", "officer"].includes(roleName);
   const actor: KnowledgeWebActor = {
     kind: "web", sessionId, allianceId, hqUserId: session.hqUserId, discordUserId: null,
-    isOfficer, canCreate: isOfficer && context.permissions.has("notes:create"),
-    canReadBoards: isOfficer && context.permissions.has("notes_boards:read"),
-    canWriteBoards: isOfficer && context.permissions.has("notes_boards:read") && context.permissions.has("notes_boards:write"),
+    isOfficer, canCreate: isOfficer && permissions.has("notes:create"),
+    canReadBoards: isOfficer && permissions.has("notes_boards:read"),
+    canWriteBoards: isOfficer && permissions.has("notes_boards:read") && permissions.has("notes_boards:write"),
     readableBoardIds: [], editableBoardIds: [],
   };
   if (actor.canReadBoards) {
@@ -49,16 +61,16 @@ async function resolveBoundKnowledgeActor(sessionId: string, hqUserId: string): 
   return actor;
 }
 
-/** Notes API/pages: Auth.js + notes permission, then one-way Discord→HQ claim for this alliance. */
+/** Background generation: resolve the requester against the job alliance, not the session's current alliance. */
 export async function getKnowledgeActorForGenerationJob(id: string): Promise<KnowledgeWebActor | null> {
   const [job] = await getDb().select().from(schema.knowledgeGenerationJobs).where(eq(schema.knowledgeGenerationJobs.id, id));
   if (!job) return null;
   const [owner] = await getDb().select({ id: schema.knowledgeResources.id }).from(schema.knowledgeResources).where(and(eq(schema.knowledgeResources.id, job.resourceId), eq(schema.knowledgeResources.ownerHqUserId, job.requesterId), eq(schema.knowledgeResources.ownershipState, "hq"), isNull(schema.knowledgeResources.archivedAt)));
   if (!owner) return null;
-  const actor = await resolveBoundKnowledgeActor(job.sessionId, job.requesterId);
-  return actor?.allianceId === job.allianceId ? actor : null;
+  return resolveBoundKnowledgeActor(job.sessionId, job.requesterId, job.allianceId);
 }
 
+/** Notes API/pages: Auth.js + notes permission, then one-way Discord→HQ claim for this alliance. */
 export async function requireNotesApiContext(permission: "notes:read" | "notes:create" = "notes:read") {
   const session = await requireApiSession();
   if (session instanceof NextResponse) return session;

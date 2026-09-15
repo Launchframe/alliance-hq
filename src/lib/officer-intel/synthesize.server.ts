@@ -24,7 +24,7 @@ export async function generateKnowledgePart(input: { kind: GenerationKind; local
     result = { title: Array.from(input.sources[0].text.split("\n")[0]).slice(0, 80).join("") || input.kind, sections: input.sources.map((source) => ({ text: source.text, citations: [{ id: source.id, quote: quote(source.text) }] })), actions: actionable ? [{ title: "Follow up", description: null, status: "open", priority: null, evidence: quote(actionable.text), evidenceId: actionable.id }] : [] };
   } else {
     const provider = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const generated = await generateObject({ model: provider(generationModel()), schema: generationPartSchema, system: GENERATION_SYSTEM, prompt, maxOutputTokens: 2_000, maxRetries: 0, abortSignal: AbortSignal.timeout(30_000) });
+    const generated = await generateObject({ model: provider(generationModel()), schema: generationPartSchema, system: GENERATION_SYSTEM, prompt, maxOutputTokens: input.kind === "localize" ? 8_000 : 2_000, maxRetries: 0, abortSignal: AbortSignal.timeout(30_000) });
     result = generated.object;
   }
   if (!validateGenerationPart(result, input.sources, input.kind)) throw new KnowledgeAccessError("invalid_analysis");

@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { nanoid } from "nanoid";
-import { authCookieHeader, getE2eSql } from "./fixtures/db";
+import { authCookieHeader, createBrowserSession, getE2eSql } from "./fixtures/db";
 import { createNotesFixture } from "./fixtures/notes";
 import { playwrightAuthCookies } from "./fixtures/auth";
 import { captureTaskSchema } from "../src/lib/notes/intake.shared";
@@ -112,4 +112,13 @@ test("localization covers all selected chunks and the studio exposes reviewed ou
   await panel.getByRole("button", { name: /^Localization/ }).click();
   await expect(panel.getByText("Ready for review", { exact: true })).toBeVisible();
   await expect(panel.locator("textarea").last()).toHaveValue(/Last original sentence\./);
+});
+
+test("generation APIs deny bootstrap sessions and cron without secret", async ({ request }) => {
+  const sql = getE2eSql();
+  const bootstrap = await createBrowserSession(sql);
+  const cookie = `alliance_hq_session=${bootstrap.sessionId}`;
+  expect((await request.post("/api/notes/generation", { headers: { Cookie: cookie }, data: { kind: "ask", locale: "en-US", question: "Zenith?", requestId: nanoid() } })).status()).toBe(403);
+  expect((await request.get("/api/notes/generation", { headers: { Cookie: cookie } })).status()).toBe(403);
+  expect((await request.get("/api/internal/notes/generate")).status()).toBe(403);
 });

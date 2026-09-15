@@ -11,5 +11,13 @@ it("requires exact current evidence for every generated section and action", () 
 it("requires localization to cover every input chunk and rejects binding-data output", () => {
   const result = { title: "Result", sections: [{ text: "Localized text", citations: [{ id: "evidence-one", quote: "source quote" }] }], actions: [] };
   expect(validateGenerationPart(result, [...sources, { id: "evidence-two", text: "Another source" }], "localize")).toBe(false);
+  expect(validateGenerationPart({
+    title: "Localized",
+    sections: [
+      { text: "A verified source quote", citations: [{ id: "evidence-one", quote: "verified source" }] },
+      { text: "Another source", citations: [{ id: "evidence-two", quote: "Another source" }] },
+    ],
+    actions: [],
+  }, [...sources, { id: "evidence-two", text: "Another source" }], "localize")).toBe(true);
   expect(validateGenerationPart({ ...result, title: "1".repeat(14) }, sources, "synthesize")).toBe(false);
 });

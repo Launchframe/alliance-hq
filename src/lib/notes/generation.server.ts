@@ -73,7 +73,7 @@ export async function startGeneration(actor: KnowledgeWebActor, input: z.infer<t
     await lockInputs(tx, actor, evidence);
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`generation-quota:${actor.hqUserId}`}, 0))`);
     const [quota] = await tx.select({ active: sql<number>`count(*) filter(where state in ('pending','running'))`, recent: sql<number>`count(*) filter(where created_at > now() - interval '1 day')` }).from(jobs).where(eq(jobs.requesterId, actor.hqUserId!));
-    if (Number(quota.active) >= 3 || Number(quota.recent) >= 30) throw new Error("rate_limited");
+    if (Number(quota.active) >= 3 || Number(quota.recent) >= 30) throw new KnowledgeAccessError("rate_limited");
     const id = nanoid(), resourceId = await createKnowledgeResource(tx, actor, "draft", id);
     let threadId = input.threadId, threadVersion: number | null = null;
     if (input.kind === "ask") {
@@ -131,7 +131,8 @@ export async function processGeneration(id?: string) {
         return claimed;
       });
       if (!lease) continue;
-      const selected = lease.inputIds.slice(lease.cursor, lease.cursor + 4).map((key) => lease!.evidence.find((source) => source.id === key)!);
+      const batchSize = lease.kind === "localize" ? 2 : 4;
+      const selected = lease.inputIds.slice(lease.cursor, lease.cursor + batchSize).map((key) => lease!.evidence.find((source) => source.id === key)!);
       const input = { kind: lease.kind, locale: lease.locale, question: lease.question, context: lease.context, sources: selected.map((source) => ({ id: source.id, text: source.text })) };
       await getDb().transaction(async (tx) => {
         await lockInputs(tx, actor, lease!.evidence);
@@ -205,12 +206,13 @@ export async function listGeneratedInsights(actor: KnowledgeWebActor) {
 export async function generatedNoteEvidence(actor: KnowledgeWebActor, noteId: string) {
   if (!await getPerformanceNoteForAlliance({ actor, noteId })) throw new KnowledgeAccessError("not_found");
   const [document] = await getDb().select().from(schema.knowledgeGeneratedDocuments).where(and(eq(schema.knowledgeGeneratedDocuments.noteId, noteId), eq(schema.knowledgeGeneratedDocuments.allianceId, actor.allianceId)));
+  if (!document) return { origin: null, evidence: [] as KnowledgeEvidence[] };
   const evidence: KnowledgeEvidence[] = [];
-  for (const id of new Set(document?.evidence.map((item) => item.resourceId) ?? [])) {
-    const group = document!.evidence.filter((item) => item.resourceId === id);
+  for (const id of new Set(document.evidence.map((item) => item.resourceId))) {
+    const group = document.evidence.filter((item) => item.resourceId === id);
     if (await revalidateKnowledgeEvidence(actor, group, 120)) evidence.push(...group);
   }
-  return { origin: "generation", evidence };
+  return { origin: "generation" as const, evidence };
 }
 export async function getGenerationThread(actor: KnowledgeWebActor, id: string) {
   const [thread] = await getDb().select().from(threads).where(and(eq(threads.id, id), eq(threads.allianceId, actor.allianceId), eq(threads.createdByHqUserId, actor.hqUserId!), eq(threads.knowledgeVersion, 1)));

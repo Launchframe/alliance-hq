@@ -10,7 +10,7 @@ export async function knowledgeApi(action: (actor: KnowledgeWebActor) => Promise
     if (context instanceof NextResponse) return context;
     return NextResponse.json(await action(context.actor), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    if (error instanceof Error && error.message === "rate_limited") return NextResponse.json({ code: "rate_limited" }, { status: 429, headers: { "Cache-Control": "private, no-store" } });
+    if (error instanceof Error && error.message === "rate_limited") return notesErrorResponse(new KnowledgeAccessError("rate_limited"));
     return notesErrorResponse(error);
   }
 }
