@@ -1830,6 +1830,7 @@
         "workspaceSearch": "Search the workspace",
         "knowledge": "Open knowledge",
         "studio": "Open AI studio",
+        "publications": "Open public snapshots",
         "search": "Search notes"
       },
       "trains": {
@@ -7157,6 +7158,7 @@
       "search": "Search",
       "knowledge": "Knowledge",
       "studio": "AI studio",
+      "publications": "Public snapshots",
       "notebook": "Notebook",
       "inbox": "Inbox",
       "shared": "Shared with me",
@@ -7329,6 +7331,9 @@
         "done": "Done",
         "cancelled": "Cancelled"
       }
+    },
+    "publications": {
+      "title": "Public snapshots", "hint": "Publish a reviewed copy, not your live private note. Anyone with the link can read it. Private edits do not update a published copy; create a new preview to publish another version.", "note": "Source note", "publicTitle": "Public title", "publicBody": "Public text", "days": "Link lifetime", "lifetime": "{days, plural, one {# day} other {# days}}", "preview": "Prepare public preview", "reviewed": "I reviewed this exact public copy", "publish": "Publish this snapshot", "revoke": "Revoke link", "rotate": "Rotate link", "open": "Open public snapshot", "copy": "Copy public link", "expires": "Expires {date}", "version": "Snapshot {version}", "privacy": "Links, embeds, private references, and binding data are removed from the preview. Revocation stops future access through HQ but cannot retract copies already downloaded.", "unavailable": "This shared note is unavailable.", "sharedTitle": "Shared note", "states": { "draft": "Preview only", "published": "Published", "revoked": "Revoked" }
     },
     "studio": {
       "title": "AI studio", "hint": "Generate from approved, AI-enabled, indexed content you can read. Results remain proposals until you review and save them. Up to three resources and 120 evidence chunks are supported; split larger selections.",

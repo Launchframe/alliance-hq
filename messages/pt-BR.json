@@ -1818,6 +1818,7 @@
         "workspaceSearch": "Pesquisar no espaço de trabalho",
         "knowledge": "Abrir conhecimento",
         "studio": "Abrir estúdio de IA",
+        "publications": "Abrir cópias públicas",
         "search": "Buscar notas"
       },
       "trains": {
@@ -7138,6 +7139,7 @@
       "search": "Pesquisa",
       "knowledge": "Conhecimento",
       "studio": "Estúdio de IA",
+      "publications": "Cópias públicas",
       "notebook": "Caderno",
       "inbox": "Caixa de entrada",
       "shared": "Compartilhadas comigo",
@@ -7310,6 +7312,9 @@
         "done": "Concluída",
         "cancelled": "Cancelada"
       }
+    },
+    "publications": {
+      "title": "Cópias públicas", "hint": "Publique uma cópia revisada, não sua nota privada em tempo real. Qualquer pessoa com o link pode lê-la. Edições privadas não atualizam uma cópia publicada; crie uma nova prévia para publicar outra versão.", "note": "Nota de origem", "publicTitle": "Título público", "publicBody": "Texto público", "days": "Validade do link", "lifetime": "{days, plural, one {# dia} other {# dias}}", "preview": "Preparar prévia pública", "reviewed": "Revisei exatamente esta cópia pública", "publish": "Publicar esta cópia", "revoke": "Revogar link", "rotate": "Trocar link", "open": "Abrir cópia pública", "copy": "Copiar link público", "expires": "Expira em {date}", "version": "Cópia {version}", "privacy": "Links, conteúdo incorporado, referências privadas e dados de vinculação são removidos da prévia. A revogação impede novos acessos pelo HQ, mas não pode recolher cópias já baixadas.", "unavailable": "Esta nota compartilhada está indisponível.", "sharedTitle": "Nota compartilhada", "states": { "draft": "Somente prévia", "published": "Publicado", "revoked": "Revogado" }
     },
     "studio": {
       "title": "Estúdio de IA", "hint": "Gere conteúdo a partir de materiais aprovados, habilitados para IA, indexados e que você pode ler. Os resultados continuam sendo propostas até você revisá-los e salvá-los. São aceitos até três recursos e 120 trechos de evidência; divida seleções maiores.",

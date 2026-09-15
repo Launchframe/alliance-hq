@@ -4875,7 +4875,7 @@ export const knowledgeMutationReceipts = pgTable("knowledge_mutation_receipts", 
   id: text("id").primaryKey(),
   allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
   principalKey: text("principal_key").notNull(), requestId: text("request_id").notNull(), requestHash: text("request_hash").notNull(),
-  result: jsonb("result").$type<{ noteId?: string; taskIds?: string[]; taskId?: string; boardId?: string; importId?: string; resourceId?: string; jobId?: string; version?: number }>().notNull(),
+  result: jsonb("result").$type<{ noteId?: string; taskIds?: string[]; taskId?: string; boardId?: string; importId?: string; resourceId?: string; jobId?: string; publicationId?: string; version?: number }>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [unique("knowledge_mutation_receipts_request_unique").on(table.allianceId, table.principalKey, table.requestId)]);
 
@@ -4927,6 +4927,15 @@ export const knowledgeAiUsage = pgTable("knowledge_ai_usage", {
   id: text("id").primaryKey(), allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }), principalKey: text("principal_key").notNull(),
   operation: text("operation").$type<"index" | "query" | "generate">().notNull(), inputChars: integer("input_chars").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [index("knowledge_ai_usage_principal_idx").on(table.principalKey, table.createdAt)]);
+
+export const knowledgePublications = pgTable("knowledge_publications", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull(), noteId: text("note_id").notNull(), resourceId: text("resource_id").notNull(), ownerHqUserId: text("owner_hq_user_id").notNull(),
+  sourceVersion: integer("source_version").notNull(), snapshotVersion: integer("snapshot_version").notNull(), version: integer("version").notNull().default(1),
+  title: text("title").notNull(), body: text("body").notNull(), locale: text("locale").notNull(), state: text("state").$type<"draft" | "published" | "revoked">().notNull().default("draft"),
+  tokenHash: text("token_hash"), tokenCipher: text("token_cipher"), expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(), publishedAt: timestamp("published_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_publications_snapshot_unique").on(table.resourceId, table.snapshotVersion), uniqueIndex("knowledge_publications_token_unique").on(table.tokenHash),
+  foreignKey({ name: "knowledge_publications_note_fk", columns: [table.noteId, table.allianceId, table.resourceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId, performanceNotes.resourceId] }).onDelete("restrict"),
+]);
 
 export const knowledgeGenerationJobs = pgTable("knowledge_generation_jobs", {
   id: text("id").primaryKey(), allianceId: text("alliance_id").notNull(), resourceId: text("resource_id").notNull(), requesterId: text("requester_id").notNull(), sessionId: text("session_id").notNull(),

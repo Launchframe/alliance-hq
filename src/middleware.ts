@@ -3,6 +3,7 @@ import createMiddleware from "next-intl/middleware";
 
 import { routing } from "./i18n/routing";
 import { isVideoWorkerAllowedPath } from "@/lib/video/video-worker-mode.shared";
+import { sensitiveNotesPath } from "@/lib/notes/privacy.shared";
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -19,7 +20,13 @@ export default function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  return intlMiddleware(request);
+  const response = intlMiddleware(request);
+  if (sensitiveNotesPath(request.nextUrl.pathname)) {
+    response.headers.set("Referrer-Policy", "no-referrer");
+    response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  }
+  return response;
 }
 
 export const config = {

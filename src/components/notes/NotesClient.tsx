@@ -15,13 +15,14 @@ import { NoteHistoryImports } from "./NoteHistoryImports";
 import { NoteWorkspaceSearch } from "./NoteWorkspaceSearch";
 import { NoteKnowledge } from "./NoteKnowledge";
 import { NoteStudio } from "./NoteStudio";
+import { NotePublications } from "./NotePublications";
 import type { CaptureDraft } from "@/lib/notes/drafts.shared";
 import type { CaptureCommit } from "@/lib/notes/intake.shared";
 import { NoteShareDialog } from "./NoteShareDialog";
 import { NoteHistoryDialog } from "./NoteHistoryDialog";
 
 type Modal = { kind: "editor"; note: PerformanceNoteDto | null; body?: string; resume?: CaptureDraft } | { kind: "share" | "history"; note: PerformanceNoteDto } | null;
-const viewIcons = { studio: FileText, knowledge: BookOpen, search: Search, notebook: BookOpen, imports: FolderOpen, drafts: FileText, inbox: Inbox, tasks: List, boards: LayoutGrid, shared: Share2, archived: Archive };
+const viewIcons = { publications: Share2, studio: FileText, knowledge: BookOpen, search: Search, notebook: BookOpen, imports: FolderOpen, drafts: FileText, inbox: Inbox, tasks: List, boards: LayoutGrid, shared: Share2, archived: Archive };
 const priorityClass = { low: "text-emerald-600 dark:text-emerald-400", medium: "text-amber-600 dark:text-amber-400", high: "text-orange-600 dark:text-orange-400", urgent: "text-rose-600 dark:text-rose-400" };
 
 export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNotesPagePayload; focusNoteId?: string }) {
@@ -62,6 +63,7 @@ export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNote
     "notes.workspaceSearch": () => chooseView("search"),
     "notes.knowledge": () => chooseView("knowledge"),
     "notes.studio": () => chooseView("studio"),
+    "notes.publications": () => chooseView("publications"),
     "notes.sharedBoards": () => { if (data.canReadBoards) chooseView("boards"); },
     "notes.newNote": () => { if (data.canCreate) setModal({ kind: "editor", note: null }); },
     "notes.search": () => queryInput.current?.focus(),
@@ -168,7 +170,7 @@ export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNote
   }
 
   const counts = useMemo(() => ({
-    tasks: undefined, boards: undefined, drafts: data.draftCount, imports: undefined, search: undefined, knowledge: undefined, studio: undefined,
+    tasks: undefined, boards: undefined, drafts: data.draftCount, imports: undefined, search: undefined, knowledge: undefined, studio: undefined, publications: undefined,
     notebook: data.notes.filter((note) => note.isOwner && !note.archived).length,
     inbox: data.notes.filter((note) => note.isOwner && note.inbox && !note.archived).length,
     shared: data.notes.filter((note) => !note.isOwner && !note.archived).length,
@@ -198,7 +200,7 @@ export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNote
         <section><h2 className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-hq-fg-muted">{t("workspace.notebooks")}</h2>{notebooks.length ? notebooks.map((name) => <button key={name} onClick={() => { chooseView("notebook"); setNotebook(name); }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs ${notebook === name ? "bg-hq-accent/10 text-hq-accent" : "text-hq-fg-muted hover:bg-hq-surface-muted"}`}><FolderOpen className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{name}</span></button>) : <p className="px-3 text-xs leading-5 text-hq-fg-muted">{t("workspace.notebooksHint")}</p>}</section>
         <div className="mt-auto rounded-xl border border-hq-border bg-hq-canvas p-3 text-xs leading-5 text-hq-fg-muted"><LockKeyhole className="mb-2 h-4 w-4 text-hq-accent" />{t("editor.memberPrivacy")}</div>
       </aside>
-      {view === "studio" ? <NoteStudio canCreate={data.canCreate} onChanged={refresh} /> : view === "knowledge" ? <NoteKnowledge onChanged={refresh} /> : view === "search" ? <NoteWorkspaceSearch /> : view === "imports" ? <NoteHistoryImports canCreate={data.canCreate} focusId={importId} onOpen={(id) => {
+      {view === "publications" ? <NotePublications notes={data.notes} /> : view === "studio" ? <NoteStudio canCreate={data.canCreate} onChanged={refresh} /> : view === "knowledge" ? <NoteKnowledge onChanged={refresh} /> : view === "search" ? <NoteWorkspaceSearch /> : view === "imports" ? <NoteHistoryImports canCreate={data.canCreate} focusId={importId} onOpen={(id) => {
         window.history.pushState(null, "", notesWorkspaceLocation(window.location.pathname, window.location.search, { view: "imports", import: id }));
         setImportId(id);
       }} /> : view === "drafts" ? <div className="min-w-0 flex-1">{error ? <p role="alert" className="p-4 text-hq-danger">{error}</p> : null}<NoteDraftsPanel refreshKey={!!modal} onOpen={(id) => {

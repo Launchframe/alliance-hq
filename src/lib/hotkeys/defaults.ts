@@ -54,6 +54,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "notes.workspaceSearch": chord("f", ["alt", "shift"]),
   "notes.knowledge": chord("k", ["alt", "shift"]),
   "notes.studio": chord("s", ["alt", "shift"]),
+  "notes.publications": chord("p", ["alt", "shift"]),
   "notes.search": chord("/"),
   "nav.desertStorm": seq("g", "s"),
   "nav.canyonStorm": seq("g", "c"),
