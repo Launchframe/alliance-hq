@@ -20,6 +20,14 @@ export async function getKnowledgeActorForSession(sessionId: string): Promise<Kn
   if (!session?.hqUserId) return null;
   const signedIn = await auth();
   if (signedIn?.user?.id !== session.hqUserId) return null;
+  const actor = await resolveBoundKnowledgeActor(sessionId, session.hqUserId);
+  if (actor) await claimDiscordKnowledgeResources(actor);
+  return actor;
+}
+
+async function resolveBoundKnowledgeActor(sessionId: string, hqUserId: string): Promise<KnowledgeWebActor | null> {
+  const session = await loadSession(sessionId);
+  if (!session || session.hqUserId !== hqUserId) return null;
   const context = await getRbacContext(sessionId);
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId || !context?.roleName || context.hqUserId !== session.hqUserId || context.currentAllianceId !== allianceId || !context.permissions.has("notes:read") || !context.permissions.has("members:read")) return null;
@@ -42,6 +50,15 @@ export async function getKnowledgeActorForSession(sessionId: string): Promise<Kn
 }
 
 /** Notes API/pages: Auth.js + notes permission, then one-way Discord→HQ claim for this alliance. */
+export async function getKnowledgeActorForGenerationJob(id: string): Promise<KnowledgeWebActor | null> {
+  const [job] = await getDb().select().from(schema.knowledgeGenerationJobs).where(eq(schema.knowledgeGenerationJobs.id, id));
+  if (!job) return null;
+  const [owner] = await getDb().select({ id: schema.knowledgeResources.id }).from(schema.knowledgeResources).where(and(eq(schema.knowledgeResources.id, job.resourceId), eq(schema.knowledgeResources.ownerHqUserId, job.requesterId), eq(schema.knowledgeResources.ownershipState, "hq"), isNull(schema.knowledgeResources.archivedAt)));
+  if (!owner) return null;
+  const actor = await resolveBoundKnowledgeActor(job.sessionId, job.requesterId);
+  return actor?.allianceId === job.allianceId ? actor : null;
+}
+
 export async function requireNotesApiContext(permission: "notes:read" | "notes:create" = "notes:read") {
   const session = await requireApiSession();
   if (session instanceof NextResponse) return session;

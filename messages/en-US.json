@@ -1829,6 +1829,7 @@
         "imports": "Open history imports",
         "workspaceSearch": "Search the workspace",
         "knowledge": "Open knowledge",
+        "studio": "Open AI studio",
         "search": "Search notes"
       },
       "trains": {
@@ -7155,6 +7156,7 @@
       "imports": "History",
       "search": "Search",
       "knowledge": "Knowledge",
+      "studio": "AI studio",
       "notebook": "Notebook",
       "inbox": "Inbox",
       "shared": "Shared with me",
@@ -7327,6 +7329,12 @@
         "done": "Done",
         "cancelled": "Cancelled"
       }
+    },
+    "studio": {
+      "title": "AI studio", "hint": "Generate from approved, AI-enabled, indexed content you can read. Results remain proposals until you review and save them. Up to three resources and 120 evidence chunks are supported; split larger selections.",
+      "kind": "Generation type", "kinds": { "synthesize": "Synthesis", "localize": "Localization", "ask": "Cited question", "insight": "Qualitative insights" },
+      "question": "Question or focus", "resources": "Select source resources", "start": "Generate reviewed proposal", "process": "Process next part", "saveReview": "Save review", "accept": "Save private note and selected tasks", "unsaved": "Save your review to keep corrections before leaving.", "citations": "Verified source quotes", "history": "Recent generations", "newThread": "New conversation", "continueThread": "Continue this conversation", "threadHint": "Only bounded, still-authorized recent turns are used. Start a new conversation if its sources become unavailable.",
+      "states": { "pending": "Queued", "running": "Generating", "ready": "Ready for review", "accepted": "Saved as a private note", "cancelled": "Cancelled", "failed": "Generation failed", "invalidated": "Sources changed or access was withdrawn" }
     },
     "knowledge": {
       "title": "Knowledge", "owned": "My resources", "library": "Approved library", "guidance": "Approval, AI consent, and sharing are separate choices. Only the owner can approve content or allow AI processing.",

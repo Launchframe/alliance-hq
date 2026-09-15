@@ -30,13 +30,21 @@ function eligible(actor: KnowledgeActor, includeSources: boolean) {
 function evidenceSelection() {
   return { id: c.id, resourceId: r.id, kind: r.kind, entityId: r.entityId, text: c.chunkText, evidence: c.evidence, contentHash: c.contentHash, contentVersion: c.contentVersion, accessVersion: c.accessVersion, approvalVersion: c.approvalVersion, consentVersion: c.consentVersion, model: c.embeddingModel, jobId: j.id };
 }
-export async function revalidateKnowledgeEvidence(actor: KnowledgeWebActor, evidence: KnowledgeEvidence[]) {
-  if (evidence.length > 6) return false;
+export async function revalidateKnowledgeEvidence(actor: KnowledgeWebActor, evidence: KnowledgeEvidence[], limit = 6) {
+  if (limit > 120 || evidence.length > limit) return false;
   const rows = await getDb().transaction(async (tx) => {
     await recheckKnowledgeReader(tx, actor);
     return evidence.length ? tx.select(evidenceSelection()).from(c).innerJoin(j, eq(j.id, c.indexJobId)).innerJoin(r, eq(r.id, c.resourceId)).where(and(eligible(actor, true), inArray(c.id, evidence.map((item) => item.id)))) : [];
   });
   return evidence.every((item) => rows.some((row) => row.id === item.id && row.resourceId === item.resourceId && row.contentHash === item.contentHash && row.contentVersion === item.contentVersion && row.accessVersion === item.accessVersion && row.approvalVersion === item.approvalVersion && row.consentVersion === item.consentVersion && row.model === item.model && row.jobId === item.jobId));
+}
+export async function collectGenerationEvidence(actor: KnowledgeWebActor, resourceIds: string[]): Promise<KnowledgeEvidence[]> {
+  if (!resourceIds.length || resourceIds.length > 3) throw new KnowledgeAccessError("invalid");
+  const rows = await getDb().select(evidenceSelection()).from(c).innerJoin(j, eq(j.id, c.indexJobId)).innerJoin(r, eq(r.id, c.resourceId)).where(and(eligible(actor, true), inArray(r.id, resourceIds))).orderBy(r.id, c.chunkIndex).limit(121);
+  if (rows.length > 120) throw new KnowledgeAccessError("invalid");
+  const evidence = rows.filter((row) => row.evidence && row.contentHash === knowledgeHash(knowledgeChunkFingerprint({ text: row.text, evidence: row.evidence }))) as KnowledgeEvidence[];
+  if (evidence.length !== rows.length || resourceIds.some((id) => !evidence.some((item) => item.resourceId === id)) || !await revalidateKnowledgeEvidence(actor, evidence, 120)) throw new KnowledgeAccessError("changed");
+  return evidence;
 }
 export async function retrieveKnowledgeEvidence(actor: KnowledgeWebActor, raw: KnowledgeQuery): Promise<KnowledgeEvidence[]> {
   const input = knowledgeQuerySchema.parse(raw);
