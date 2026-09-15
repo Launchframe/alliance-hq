@@ -60,8 +60,10 @@ export async function changePublication(actor: KnowledgeWebActor, id: string, in
   await withKnowledgeReceipt(actor, `notes.publication_${input.command}`, input.requestId, { id, ...input }, async (tx) => {
     if (input.command !== "revoke") await requirePublisher(tx, actor); else await recheckKnowledgeReader(tx, actor);
     const [existing] = await tx.select().from(publications).where(and(eq(publications.id, id), eq(publications.allianceId, actor.allianceId)));
+    if (!existing) throw new KnowledgeAccessError("not_found");
     const resource = await lockKnowledgeResource(tx, actor, existing.resourceId, "share");
     const [row] = await tx.select().from(publications).where(eq(publications.id, id)).for("update");
+    if (!row) throw new KnowledgeAccessError("not_found");
     if (input.command === "revoke") {
       await tx.update(publications).set({ state: "revoked", tokenHash: null, tokenCipher: null, version: row.version + 1 }).where(eq(publications.id, id));
     } else {

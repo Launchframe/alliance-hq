@@ -22,3 +22,9 @@ DO $$ BEGIN
     CREATE TRIGGER knowledge_publication_snapshot_guard BEFORE UPDATE ON knowledge_publications FOR EACH ROW EXECUTE FUNCTION preserve_publication_snapshot();
   END IF;
 END $$;
+INSERT INTO permissions (id, description) VALUES
+  ('notes:publish', 'Publish reviewed note snapshots')
+ON CONFLICT (id) DO UPDATE SET description = EXCLUDED.description;
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, 'notes:publish' FROM roles r WHERE r.name IN ('owner', 'maintainer', 'officer')
+ON CONFLICT DO NOTHING;
