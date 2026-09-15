@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { CaptureProvenance } from "./drafts.shared";
 import { NOTE_PRIORITIES, normalizeNoteLabels, type NotePriority } from "./workspace.shared";
 
 export const TASK_STATUSES = ["open", "in_progress", "done", "cancelled"] as const;
@@ -29,6 +30,7 @@ export const taskPatchSchema = z.object(taskValidators).partial().extend({
 export type TaskCreate = z.output<typeof taskCreateSchema>;
 export type TaskPatch = z.output<typeof taskPatchSchema>;
 export type NoteTask = {
+  intakeProvenance?: CaptureProvenance | null;
   id: string; title: string; description: string | null; status: TaskStatus; priority: NotePriority;
   labels: string[]; dueAt: string | null; completedAt: string | null;
   assignee: { id: string; name: string | null } | null; legacyAssigneeName: string | null;

@@ -21,6 +21,7 @@ import { sql } from "drizzle-orm";
 import type { KnowledgeOwnershipState, KnowledgeResourceKind, KnowledgeGrant } from "@/lib/notes/policy.shared";
 import type { NoteFields } from "@/lib/notes/workspace.shared";
 import type { IntakeResult } from "@/lib/notes/intake.shared";
+import type { CaptureDraftState, CaptureProvenance } from "@/lib/notes/drafts.shared";
 import type { SupportBoard, SupportEvent, SupportValue } from "@/lib/support-teams/types.shared";
 import type { SupportDisplayPreferences } from "@/lib/support-teams/display-preferences.shared";
 import type { TeamWorkDetail } from "@/lib/support-teams/work-routing.shared";
@@ -4521,6 +4522,7 @@ export const officerActionItems = pgTable(
     sourceNoteId: text("source_note_id"),
     assigneeHqUserId: text("assignee_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
     labels: jsonb("labels").$type<string[]>().notNull().default([]),
+    intakeProvenance: jsonb("intake_provenance").$type<CaptureProvenance>(),
     captureKey: text("capture_key"),
     actionKey: text("action_key"),
     allianceId: text("alliance_id")
@@ -4692,7 +4694,7 @@ export const knowledgeResources = pgTable("knowledge_resources", {
   unique("knowledge_resources_entity_unique").on(table.allianceId, table.kind, table.entityId),
   index("knowledge_resources_owner_idx").on(table.allianceId, table.ownerHqUserId),
   index("knowledge_resources_discord_owner_idx").on(table.ownerDiscordUserId, table.ownershipState),
-  check("knowledge_resources_kind_check", sql`${table.kind} in ('note', 'task', 'source', 'collection', 'board')`),
+  check("knowledge_resources_kind_check", sql`${table.kind} in ('note', 'task', 'source', 'collection', 'board', 'draft')`),
   check("knowledge_resources_ownership_check", sql`${table.ownershipState} in ('hq', 'discord', 'unresolved')`),
   check("knowledge_resources_version_check", sql`${table.version} > 0 and ${table.accessVersion} > 0`),
 ]);
@@ -4729,6 +4731,7 @@ export const performanceNotes = pgTable(
     intakeMode: text("intake_mode").notNull(),
     title: text("title").notNull().default(""),
     priorityMode: text("priority_mode").$type<"manual" | "auto">().notNull().default("manual"),
+    intakeProvenance: jsonb("intake_provenance").$type<CaptureProvenance>(),
     priority: text("priority").$type<"low" | "medium" | "high" | "urgent" | null>(),
     labels: jsonb("labels").$type<string[]>().notNull().default([]),
     notebook: text("notebook"),
@@ -4803,7 +4806,7 @@ export const knowledgeNoteRevisions = pgTable("knowledge_note_revisions", {
   noteId: text("note_id").notNull().references(() => performanceNotes.id, { onDelete: "cascade" }),
   allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
   version: integer("version").notNull(),
-  snapshot: jsonb("snapshot").$type<NoteFields & { archived: boolean }>().notNull(),
+  snapshot: jsonb("snapshot").$type<NoteFields & { archived: boolean; intakeProvenance?: CaptureProvenance | null }>().notNull(),
   editedByHqUserId: text("edited_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
   editedAt: timestamp("edited_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [unique("knowledge_note_revisions_version_unique").on(table.noteId, table.version)]);
@@ -4837,6 +4840,22 @@ export const knowledgeMutationReceipts = pgTable("knowledge_mutation_receipts", 
   result: jsonb("result").$type<{ noteId?: string; taskIds?: string[]; taskId?: string; boardId?: string; version?: number }>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [unique("knowledge_mutation_receipts_request_unique").on(table.allianceId, table.principalKey, table.requestId)]);
+
+export const knowledgeCaptureDrafts = pgTable("knowledge_capture_drafts", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull(), resourceId: text("resource_id").notNull(),
+  source: text("source").$type<"web" | "discord">().notNull(),
+  sourceNoteId: text("source_note_id"), sourceVersion: integer("source_version"),
+  state: jsonb("state").$type<CaptureDraftState>(), stateHash: text("state_hash").notNull(),
+  status: text("status").$type<"open" | "committed">().notNull().default("open"),
+  noteId: text("note_id").references(() => performanceNotes.id, { onDelete: "restrict" }),
+  taskIds: jsonb("task_ids").$type<string[]>().notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_capture_drafts_resource_unique").on(table.resourceId),
+  foreignKey({ name: "knowledge_capture_drafts_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+  foreignKey({ name: "knowledge_capture_drafts_source_alliance_fk", columns: [table.sourceNoteId, table.allianceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId] }).onDelete("restrict"),
+  foreignKey({ name: "knowledge_capture_drafts_note_alliance_fk", columns: [table.noteId, table.allianceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId] }).onDelete("restrict"),
+  index("knowledge_capture_drafts_alliance_updated_idx").on(table.allianceId, table.updatedAt),
+]);
 
 export const knowledgeIntakePreferences = pgTable("knowledge_intake_preferences", {
   principalKey: text("principal_key").primaryKey(), enabled: boolean("enabled").notNull().default(false),

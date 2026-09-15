@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { NotesClient } from "@/components/notes/NotesClient";
 import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
+import { listCaptureDrafts } from "@/lib/notes/drafts.server";
 import { claimDiscordKnowledgeResources } from "@/lib/notes/resources.server";
 import {
   listPerformanceNoteRoster,
@@ -25,10 +26,11 @@ export default async function NotesPage() {
   if (!actor) notFound();
   await claimDiscordKnowledgeResources(actor);
 
-  const [notes, roster] = await Promise.all([
+  const [notes, roster, drafts] = await Promise.all([
     listPerformanceNotes(actor),
     listPerformanceNoteRoster(actor.allianceId),
+    listCaptureDrafts(actor),
   ]);
 
-  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:list`} initial={{ notes, roster, canCreate: actor.canCreate, canReadBoards: actor.canReadBoards }} />;
+  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:list`} initial={{ notes, roster, canCreate: actor.canCreate, canReadBoards: actor.canReadBoards, draftCount: drafts.length }} />;
 }

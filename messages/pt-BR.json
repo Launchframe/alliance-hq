@@ -1813,6 +1813,7 @@
         "newTask": "Criar uma tarefa",
         "sharedBoards": "Abrir quadros de oficiais",
         "newBoard": "Criar um quadro de oficiais",
+        "drafts": "Abrir rascunhos privados",
         "search": "Buscar notas"
       },
       "trains": {
@@ -5695,6 +5696,37 @@
       "askOfficer": "Pedir ajuda a um oficial"
     },
     "performanceNotes": {
+      "review": {
+        "intro": "Revise sua anotação privada antes de salvar. As sugestões de IA enviam este texto ao provedor configurado somente depois que você as ativa; isso não ativa indexação de conhecimento, compartilhamento ou notificações.",
+        "save": "Salvar nota e tarefas",
+        "only": "Manter somente a nota",
+        "editBody": "Editar texto da nota",
+        "editMembers": "Editar membros",
+        "editTitle": "Editar título da tarefa",
+        "pause": "Pausar IA neste rascunho",
+        "resume": "Retomar sugestões de IA",
+        "enable": "Ativar sugestões de IA",
+        "chooseTask": "Escolha uma tarefa para editar",
+        "members": "Membros vinculados: {names}",
+        "attention": "Prioridade da nota: {priority}",
+        "notePriority": "Alterar prioridade da nota",
+        "none": "Nenhuma",
+        "ambiguous": "Algumas menções correspondem a mais de um comandante. Use Editar membros para escolher.",
+        "web": "Retome este rascunho privado no HQ: {url}",
+        "taskHint": "Suas alterações manuais são mantidas. Escolha Nenhum no status para excluir esta ação ao salvar.",
+        "statusLabel": "Status da tarefa",
+        "priorityLabel": "Prioridade da tarefa",
+        "exclude": "Excluir da seleção",
+        "include": "Incluir tarefa",
+        "back": "Voltar à revisão do rascunho",
+        "reset": "Usar detecção",
+        "changed": "Este rascunho mudou. Revise a versão mais recente abaixo antes de salvar.",
+        "saved": "Nota privada salva com {count, plural, one {# tarefa} other {# tarefas}}. Abra no HQ: {url}",
+        "invalid": "Confira os detalhes do rascunho. Para os membros, use nomes exatos e únicos, um por linha.",
+        "unavailable": "Este rascunho está indisponível ou não pôde ser atualizado. Rascunhos salvos podem ser retomados no HQ.",
+        "status": { "none": "Nenhum — manter como nota", "open": "A fazer", "in_progress": "Em andamento", "done": "Concluída", "cancelled": "Cancelada" },
+        "priority": { "none": "Nenhuma", "low": "Baixa", "medium": "Média", "high": "Alta", "urgent": "Urgente" }
+      },
       "savedAskAttach": "Você quer vincular esta nota a um membro da aliança? Sua nota é privada, e vincular membros não fará com que ela seja compartilhada. {url}",
       "doneView": "Sua nota está salva. Abra no HQ: {url}",
       "hqLinkHint": "Use `/link` para acessar suas notas privadas no HQ.",
@@ -7097,6 +7129,7 @@
     "views": {
       "tasks": "Tarefas",
       "boards": "Quadros de oficiais",
+      "drafts": "Rascunhos",
       "notebook": "Caderno",
       "inbox": "Caixa de entrada",
       "shared": "Compartilhadas comigo",
@@ -7269,6 +7302,19 @@
         "done": "Concluída",
         "cancelled": "Cancelada"
       }
+    },
+    "drafts": {
+      "private": "Só você pode ver seus rascunhos. Salvar um rascunho não cria tarefas nem atualiza uma nota compartilhada.",
+      "empty": "Nenhum rascunho salvo.",
+      "untitled": "Rascunho sem título",
+      "saving": "Salvando rascunho privado…",
+      "saved": "Rascunho privado salvo",
+      "error": "Não foi possível salvar o rascunho. Seu texto continua aqui.",
+      "keepClose": "Manter rascunho e fechar",
+      "manual": "Definido por você",
+      "detected": "Detectado",
+      "reset": "Usar detecção para esta tarefa",
+      "provenance": "Interpretação da anotação"
     },
     "intake": {
       "enable": "Sugerir tarefas a partir das minhas anotações",

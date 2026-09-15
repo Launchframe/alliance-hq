@@ -1065,6 +1065,13 @@
       "when": 1790900000163,
       "tag": "0163_notes_shared_boards",
       "breakpoints": false
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1790900000164,
+      "tag": "0164_notes_capture_drafts",
+      "breakpoints": false
     }
   ]
 }

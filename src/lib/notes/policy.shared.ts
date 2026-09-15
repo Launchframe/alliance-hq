@@ -1,4 +1,4 @@
-export type KnowledgeResourceKind = "note" | "task" | "source" | "collection" | "board";
+export type KnowledgeResourceKind = "note" | "task" | "source" | "collection" | "board" | "draft";
 export type KnowledgeOwnershipState = "hq" | "discord" | "unresolved";
 export type KnowledgeAccess = "read" | "edit" | "share";
 
@@ -56,7 +56,7 @@ export function canAccessKnowledgeResource(
   if (!knowledgeActorIsAuthenticated(actor) || resource.allianceId !== actor.allianceId || !knowledgeResourceHasOwner(resource)) return false;
   if (resource.kind === "board" && (actor.kind !== "web" || !actor.isOfficer)) return false;
   if (knowledgeActorOwnsResource(actor, resource)) return true;
-  if (access === "share") return false;
+  if (access === "share" || resource.kind === "draft") return false;
   return grants.some((grant) => {
     if (grant.resourceId !== resource.id || grant.allianceId !== resource.allianceId || (access === "edit" && grant.role !== "edit")) return false;
     if (grant.subjectKind === "user") return Boolean(actor.hqUserId && grant.subjectId === actor.hqUserId);
