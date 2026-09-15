@@ -2,9 +2,9 @@ import { Fragment, type ReactNode } from "react";
 import { Lexer, type Token, type Tokens } from "marked";
 import { safeNoteLink } from "@/lib/notes/markdown.shared";
 
-function renderTokens(tokens: Token[]): ReactNode {
+function renderTokens(tokens: Token[], allowLinks = true): ReactNode {
   return tokens.map((token, index) => {
-    const content = "tokens" in token && Array.isArray(token.tokens) ? renderTokens(token.tokens) : "text" in token ? String(token.text) : token.raw;
+    const content = "tokens" in token && Array.isArray(token.tokens) ? renderTokens(token.tokens, allowLinks) : "text" in token ? String(token.text) : token.raw;
     switch (token.type) {
       case "space": return null;
       case "heading": {
@@ -23,17 +23,17 @@ function renderTokens(tokens: Token[]): ReactNode {
       case "hr": return <hr key={index} className="my-5 border-hq-border" />;
       case "link": {
         const link = token as Tokens.Link;
-        const href = safeNoteLink(link.href);
+        const href = allowLinks ? safeNoteLink(link.href) : null;
         return href ? <a key={index} href={href} rel="noopener noreferrer" target={href.startsWith("/") ? undefined : "_blank"} className="text-hq-accent underline underline-offset-2">{content}</a> : <Fragment key={index}>{content}</Fragment>;
       }
       case "list": {
         const list = token as Tokens.List;
         const Tag = list.ordered ? "ol" : "ul";
-        return <Tag key={index} className={`my-3 space-y-1 pl-5 ${list.ordered ? "list-decimal" : "list-disc"}`}>{list.items.map((item, itemIndex) => <li key={itemIndex}>{item.task ? <input type="checkbox" checked={!!item.checked} readOnly tabIndex={-1} className="mr-2 align-middle accent-hq-accent" /> : null}{renderTokens(item.tokens)}</li>)}</Tag>;
+        return <Tag key={index} className={`my-3 space-y-1 pl-5 ${list.ordered ? "list-decimal" : "list-disc"}`}>{list.items.map((item, itemIndex) => <li key={itemIndex}>{item.task ? <input type="checkbox" checked={!!item.checked} readOnly tabIndex={-1} className="mr-2 align-middle accent-hq-accent" /> : null}{renderTokens(item.tokens, allowLinks)}</li>)}</Tag>;
       }
       case "table": {
         const table = token as Tokens.Table;
-        return <div key={index} className="my-4 overflow-x-auto rounded-lg border border-hq-border"><table className="w-full border-collapse text-sm"><thead className="bg-hq-surface"><tr>{table.header.map((cell, column) => <th key={column} className="border-b border-hq-border px-3 py-2 text-left font-medium">{renderTokens(cell.tokens)}</th>)}</tr></thead><tbody>{table.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, column) => <td key={column} className="border-b border-hq-border px-3 py-2">{renderTokens(cell.tokens)}</td>)}</tr>)}</tbody></table></div>;
+        return <div key={index} className="my-4 overflow-x-auto rounded-lg border border-hq-border"><table className="w-full border-collapse text-sm"><thead className="bg-hq-surface"><tr>{table.header.map((cell, column) => <th key={column} className="border-b border-hq-border px-3 py-2 text-left font-medium">{renderTokens(cell.tokens, allowLinks)}</th>)}</tr></thead><tbody>{table.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, column) => <td key={column} className="border-b border-hq-border px-3 py-2">{renderTokens(cell.tokens, allowLinks)}</td>)}</tr>)}</tbody></table></div>;
       }
       case "image": return <span key={index} className="text-hq-fg-muted">{(token as Tokens.Image).text}</span>;
       case "html": return <span key={index}>{token.raw}</span>;
@@ -42,6 +42,6 @@ function renderTokens(tokens: Token[]): ReactNode {
   });
 }
 
-export function NoteMarkdown({ body }: { body: string }) {
-  return <div className="break-words text-sm text-hq-fg [&_h2]:text-xl [&_h3]:text-lg">{renderTokens(Lexer.lex(body, { gfm: true, breaks: true }))}</div>;
+export function NoteMarkdown({ body, allowLinks = true }: { body: string; allowLinks?: boolean }) {
+  return <div className="break-words text-sm text-hq-fg [&_h2]:text-xl [&_h3]:text-lg">{renderTokens(Lexer.lex(body, { gfm: true, breaks: true }), allowLinks)}</div>;
 }
