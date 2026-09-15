@@ -46,6 +46,7 @@ const DEFAULT_HOTKEY_BINDINGS_IMPL = {
   "nav.officerIntel": seq("g", "7"),
   "nav.notes": seq("g", "g"),
   "notes.newNote": chord("n", ["alt"]),
+  "notes.newTask": chord("n", ["alt", "shift"]),
   "notes.search": chord("/"),
   "nav.desertStorm": seq("g", "s"),
   "nav.canyonStorm": seq("g", "c"),

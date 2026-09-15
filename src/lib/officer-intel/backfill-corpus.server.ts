@@ -5,13 +5,10 @@ import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import {
   indexOfficerApprovedNoteCorpus,
-  indexOfficerOpenActionItemById,
   listApprovedOfficerMeetingNotesForAlliance,
-  listOpenOfficerActionItems,
 } from "@/lib/officer-intel/repository.server";
 
 const MAX_NOTE_BACKFILL = 5;
-const MAX_ACTION_ITEM_BACKFILL = 20;
 
 async function indexedSourceIds(
   allianceId: string,
@@ -45,15 +42,4 @@ export async function ensureOfficerIntelCorpusBackfill(
     });
   }
 
-  const indexedItems = await indexedSourceIds(allianceId, "action_item");
-  const items = await listOpenOfficerActionItems(allianceId);
-  const missingItems = items
-    .filter((item) => !indexedItems.has(item.id))
-    .slice(0, MAX_ACTION_ITEM_BACKFILL);
-  for (const item of missingItems) {
-    await indexOfficerOpenActionItemById({
-      allianceId,
-      actionItemId: item.id,
-    });
-  }
 }

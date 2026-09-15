@@ -1,21 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { nanoid } from "nanoid";
-import { authCookieHeader, createAllianceMembership, createAllianceRosterMember, createAuthenticatedHqSession, createHqMemberLink, createNativeAlliance, getE2eSql, playwrightAuthCookies } from "./fixtures/db";
-
-async function fixture() {
-  const sql = getE2eSql();
-  const alliance = await createNativeAlliance(sql, { tag: `NWS${nanoid(4)}`, name: "Notes Workspace" });
-  const author = await createAuthenticatedHqSession(sql, `notes-author-${nanoid(8)}@e2e.test`);
-  const peer = await createAuthenticatedHqSession(sql, `notes-reader-${nanoid(8)}@e2e.test`);
-  const cookie = await createAllianceRosterMember(sql, { allianceId: alliance.allianceId, currentName: "Cookie", allianceRank: 4 });
-  const ferg = await createAllianceRosterMember(sql, { allianceId: alliance.allianceId, currentName: "Ferg", allianceRank: 3 });
-  for (const [person, member, roleName, name] of [[author, cookie, "officer", "Cookie"], [peer, ferg, "viewer", "Ferg"]] as const) {
-    await createAllianceMembership(sql, { hqUserId: person.hqUserId, allianceId: alliance.allianceId, roleName, source: "manual" });
-    await createHqMemberLink(sql, { allianceId: alliance.allianceId, hqUserId: person.hqUserId, ashedMemberId: member.ashedMemberId, memberDisplayName: name });
-    await sql`UPDATE sessions SET current_alliance_id = ${alliance.allianceId} WHERE id = ${person.sessionId}`;
-  }
-  return { author, peer, cookie, ferg, alliance };
-}
+import { authCookieHeader, playwrightAuthCookies } from "./fixtures/db";
+import { createNotesFixture as fixture } from "./fixtures/notes";
 
 test("captures and edits notes with stable manual member exclusions and nullable priority", async ({ page }) => {
   const { author, cookie, ferg } = await fixture();

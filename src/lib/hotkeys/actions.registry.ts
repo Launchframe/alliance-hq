@@ -241,6 +241,14 @@ const NAV_ACTIONS: HotkeyActionDef[] = [
     requiredPermission: "notes:create",
   },
   {
+    id: "notes.newTask",
+    labelKey: "actions.notes.newTask",
+    category: "tools",
+    scope: "page:notes",
+    kind: "custom",
+    requiredPermission: "notes:create",
+  },
+  {
     id: "notes.search",
     labelKey: "actions.notes.search",
     category: "tools",

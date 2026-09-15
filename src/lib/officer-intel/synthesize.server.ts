@@ -2,6 +2,7 @@ import "server-only";
 
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateObject } from "ai";
+import type { KnowledgeActor } from "@/lib/notes/policy.shared";
 
 import { matchOfficerActionItemAssignee } from "@/lib/officer-intel/assignee-match.server";
 import {
@@ -34,6 +35,7 @@ function formatTranscript(
 }
 
 export async function synthesizeOfficerMeetingNote(input: {
+  actor: KnowledgeActor;
   sessionId: string;
   allianceId: string;
   hqUserId: string | null;
@@ -98,6 +100,7 @@ export async function synthesizeOfficerMeetingNote(input: {
   }
 
   const result = await persistOfficerSynthesisResult({
+    actor: input.actor,
     sessionId: input.sessionId,
     allianceId: input.allianceId,
     hqUserId: input.hqUserId,

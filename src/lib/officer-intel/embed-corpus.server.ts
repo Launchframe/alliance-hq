@@ -7,7 +7,6 @@ import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import {
-  buildActionItemChunk,
   buildApprovedNoteChunks,
   type OfficerIntelSessionContext,
 } from "@/lib/officer-intel/build-corpus-chunks.shared";
@@ -15,7 +14,6 @@ import {
   isOfficerIntelLlmConfigured,
   officerIntelEmbedModel,
 } from "@/lib/officer-intel/llm-config.server";
-import type { OfficerActionItemRecord } from "@/lib/officer-intel/synthesis-types.shared";
 import type { OfficerMeetingNoteSummary } from "@/lib/officer-intel/synthesis-types.shared";
 
 let embedSkipLogged = false;
@@ -145,61 +143,5 @@ export async function indexOfficerMeetingNoteChunks(input: {
         updatedAt: now,
       })),
     );
-  });
-}
-
-export async function indexOfficerActionItemChunk(input: {
-  allianceId: string;
-  item: OfficerActionItemRecord;
-  session?: {
-    title: string;
-    channelLabel: string | null;
-    sessionAt: Date | null;
-  } | null;
-  localeCode: string;
-}) {
-  if (input.item.status === "done" || input.item.status === "cancelled") {
-    await dropOfficerActionItemChunks({
-      allianceId: input.allianceId,
-      actionItemId: input.item.id,
-    });
-    return;
-  }
-
-  const chunkText = buildActionItemChunk({
-    item: {
-      title: input.item.title,
-      description: input.item.description,
-      assigneeMemberName: input.item.assigneeMemberName,
-      assigneeNameRaw: input.item.assigneeNameRaw,
-      dueAt: input.item.dueAt,
-      dueHint: input.item.dueHint,
-    },
-    session: input.session ? toSessionContext(input.session) : null,
-  });
-
-  const embeddings = await embedTexts([chunkText]);
-  const db = getDb();
-  const now = new Date();
-
-  await db.transaction(async (tx) => {
-    await deleteChunksForSource(tx, {
-      allianceId: input.allianceId,
-      sourceType: "action_item",
-      sourceId: input.item.id,
-    });
-    await tx.insert(schema.officerIntelChunks).values({
-      id: nanoid(),
-      allianceId: input.allianceId,
-      sourceType: "action_item",
-      sessionId: input.item.sessionId,
-      sourceId: input.item.id,
-      localeCode: input.localeCode,
-      chunkText,
-      embedding: embeddings?.[0] ?? null,
-      approvedAt: null,
-      createdAt: now,
-      updatedAt: now,
-    });
   });
 }

@@ -57,25 +57,29 @@ async function setNoteMembers(tx: KnowledgeTransaction, actor: KnowledgeActor, n
   return previous;
 }
 
-export async function createPerformanceNote(input: {
+type CreatePerformanceNote = {
   actor: KnowledgeActor; kind: PerformanceNoteKind; intakeMode: PerformanceNoteIntakeMode; body: string;
-} & Partial<Omit<NoteFields, "kind" | "body">>): Promise<string> {
-  return getDb().transaction(async (tx) => {
-    const id = nanoid();
-    const resourceId = await createKnowledgeResource(tx, input.actor, "note", id);
-    const now = new Date();
-    await tx.insert(schema.performanceNotes).values({
-      id, resourceId, allianceId: input.actor.allianceId,
-      kind: input.kind, intakeMode: input.intakeMode, body: input.body,
-      title: input.title ?? "", priority: input.priority ?? null, labels: input.labels ?? [],
-      notebook: input.notebook ?? null, journalDate: input.journalDate ?? null, inbox: input.inbox ?? true,
-      excludedMemberIds: input.excludedMemberIds ?? [], source: input.actor.kind,
-      createdByDiscordUserId: input.actor.discordUserId, createdByHqUserId: input.actor.hqUserId,
-      createdAt: now, updatedAt: now,
-    });
-    if (input.memberIds?.length) await setNoteMembers(tx, input.actor, id, input.memberIds, input.detectedMemberIds);
-    return id;
+} & Partial<Omit<NoteFields, "kind" | "body">>;
+
+export async function createPerformanceNoteInTransaction(tx: KnowledgeTransaction, input: CreatePerformanceNote): Promise<string> {
+  const id = nanoid();
+  const resourceId = await createKnowledgeResource(tx, input.actor, "note", id);
+  const now = new Date();
+  await tx.insert(schema.performanceNotes).values({
+    id, resourceId, allianceId: input.actor.allianceId,
+    kind: input.kind, intakeMode: input.intakeMode, body: input.body,
+    title: input.title ?? "", priority: input.priority ?? null, priorityMode: input.priorityMode ?? "manual", labels: input.labels ?? [],
+    notebook: input.notebook ?? null, journalDate: input.journalDate ?? null, inbox: input.inbox ?? true,
+    excludedMemberIds: input.excludedMemberIds ?? [], source: input.actor.kind,
+    createdByDiscordUserId: input.actor.discordUserId, createdByHqUserId: input.actor.hqUserId,
+    createdAt: now, updatedAt: now,
   });
+  if (input.memberIds?.length) await setNoteMembers(tx, input.actor, id, input.memberIds, input.detectedMemberIds);
+  return id;
+}
+
+export async function createPerformanceNote(input: CreatePerformanceNote): Promise<string> {
+  return getDb().transaction((tx) => createPerformanceNoteInTransaction(tx, input));
 }
 
 export async function getPerformanceNoteForAlliance(input: { noteId: string; actor: KnowledgeActor; access?: KnowledgeAccess }) {
@@ -102,7 +106,7 @@ export async function updatePerformanceNote(actor: KnowledgeActor, noteId: strin
       editedByHqUserId: actor.hqUserId,
       snapshot: {
         title: note.title, body: note.body, kind: isNoteKind(note.kind) ? note.kind : "note",
-        priority: note.priority, labels: note.labels, notebook: note.notebook, journalDate: note.journalDate,
+        priority: note.priority, priorityMode: note.priorityMode, labels: note.labels, notebook: note.notebook, journalDate: note.journalDate,
         inbox: note.inbox, archived: resource.archivedAt !== null,
         memberIds: members.map((member) => member.ashedMemberId),
         detectedMemberIds: members.filter((member) => member.origin === "detected").map((member) => member.ashedMemberId),
@@ -119,7 +123,7 @@ export async function updatePerformanceNote(actor: KnowledgeActor, noteId: strin
     }
     if (input.memberIds !== undefined) await setNoteMembers(tx, actor, noteId, input.memberIds, input.detectedMemberIds);
     await tx.update(schema.performanceNotes).set({
-      title: input.title, body: input.body, kind: input.kind, priority: input.priority,
+      title: input.title, body: input.body, kind: input.kind, priority: input.priority, priorityMode: input.priorityMode ?? (input.priority !== undefined ? "manual" : undefined),
       labels: input.labels, notebook: input.notebook, journalDate: input.journalDate,
       inbox: input.inbox, excludedMemberIds: exclusions, updatedAt: new Date(),
     }).where(and(eq(schema.performanceNotes.id, noteId), eq(schema.performanceNotes.allianceId, actor.allianceId)));
@@ -163,7 +167,7 @@ function toDto(note: ReadableNote, members: Array<{ ashedMemberId: string; membe
   if (!isNoteKind(note.kind) || !isIntakeMode(note.intakeMode) || (note.source !== "web" && note.source !== "discord")) return null;
   return {
     id: note.id, kind: note.kind, intakeMode: note.intakeMode, body: note.body, title: note.title,
-    priority: note.priority, labels: note.labels, journalDate: note.journalDate,
+    priority: note.priority, priorityMode: note.priorityMode, labels: note.labels, journalDate: note.journalDate,
     notebook: note.isOwner ? note.notebook : null, inbox: note.isOwner && note.inbox,
     excludedMemberIds: note.isOwner ? note.excludedMemberIds : [], archived: note.archived,
     source: note.source, createdAt: note.createdAt.toISOString(), updatedAt: note.updatedAt.toISOString(),

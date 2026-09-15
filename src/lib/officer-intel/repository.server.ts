@@ -4,6 +4,9 @@ import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import type { KnowledgeActor } from "@/lib/notes/policy.shared";
+import { knowledgeAccessCondition } from "@/lib/notes/resources.server";
+import { normalizeTaskPriority } from "@/lib/notes/tasks.shared";
 import type {
   OfficerActionItemPriority,
   OfficerActionItemRecord,
@@ -23,7 +26,6 @@ import {
 } from "@/lib/officer-intel/action-item-inbox.server";
 import {
   dropOfficerActionItemChunks,
-  indexOfficerActionItemChunk,
   indexOfficerMeetingNoteChunks,
 } from "@/lib/officer-intel/embed-corpus.server";
 import { shouldIndexOfficerIntelNoteCorpus } from "@/lib/officer-intel/thread-access.shared";
@@ -360,6 +362,7 @@ async function loadAssigneeNames(
 function mapActionItemRow(
   row: typeof schema.officerActionItems.$inferSelect,
   assigneeNames: Map<string, string>,
+  version: number,
 ): OfficerActionItemRecord {
   return {
     id: row.id,
@@ -368,7 +371,7 @@ function mapActionItemRow(
     title: row.title,
     description: row.description,
     status: row.status as OfficerActionItemStatus,
-    priority: row.priority as OfficerActionItemPriority,
+    priority: normalizeTaskPriority(row.priority),
     assigneeAllianceMemberId: row.assigneeAllianceMemberId,
     assigneeNameRaw: row.assigneeNameRaw,
     assigneeMemberName: row.assigneeAllianceMemberId
@@ -377,6 +380,7 @@ function mapActionItemRow(
     dueAt: row.dueAt?.toISOString() ?? null,
     dueHint: row.dueHint,
     completedAt: row.completedAt?.toISOString() ?? null,
+    version,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -466,20 +470,7 @@ export async function indexOfficerApprovedNoteCorpus(input: {
     approvedAt: note.approvedAt ? new Date(note.approvedAt) : null,
   });
 
-  const items = await listOfficerActionItemsForNote({
-    noteId: note.id,
-    allianceId: input.allianceId,
-  });
-  await Promise.all(
-    items.map((item) =>
-      indexOfficerActionItemChunk({
-        allianceId: input.allianceId,
-        item,
-        session,
-        localeCode,
-      }),
-    ),
-  );
+
 }
 
 export async function getOfficerMeetingNoteBySession(input: {
@@ -503,38 +494,56 @@ export async function getOfficerMeetingNoteBySession(input: {
 export async function listOfficerActionItemsForNote(input: {
   noteId: string;
   allianceId: string;
+  actor: KnowledgeActor;
 }): Promise<OfficerActionItemRecord[]> {
   const db = getDb();
   const rows = await db
-    .select()
+    .select({
+      item: schema.officerActionItems,
+      version: schema.knowledgeResources.version,
+    })
     .from(schema.officerActionItems)
+    .innerJoin(
+      schema.knowledgeResources,
+      eq(schema.knowledgeResources.id, schema.officerActionItems.resourceId),
+    )
     .where(
       and(
         eq(schema.officerActionItems.noteId, input.noteId),
         eq(schema.officerActionItems.allianceId, input.allianceId),
+        knowledgeAccessCondition(input.actor, schema.officerActionItems.resourceId),
       ),
     )
     .orderBy(schema.officerActionItems.createdAt);
   const assigneeNames = await loadAssigneeNames(
     input.allianceId,
     rows
-      .map((row) => row.assigneeAllianceMemberId)
+      .map((row) => row.item.assigneeAllianceMemberId)
       .filter((id): id is string => Boolean(id)),
   );
-  return rows.map((row) => mapActionItemRow(row, assigneeNames));
+  return rows.map((row) => mapActionItemRow(row.item, assigneeNames, row.version));
 }
 
 export async function listOpenOfficerActionItems(
   allianceId: string,
+  actor: KnowledgeActor,
 ): Promise<OfficerActionItemRecord[]> {
   const db = getDb();
   const rows = await db
-    .select()
+    .select({
+      item: schema.officerActionItems,
+      version: schema.knowledgeResources.version,
+    })
     .from(schema.officerActionItems)
+    .innerJoin(
+      schema.knowledgeResources,
+      eq(schema.knowledgeResources.id, schema.officerActionItems.resourceId),
+    )
     .where(
       and(
         eq(schema.officerActionItems.allianceId, allianceId),
         inArray(schema.officerActionItems.status, ["open", "in_progress"]),
+        knowledgeAccessCondition(actor, schema.officerActionItems.resourceId),
       ),
     )
     .orderBy(desc(schema.officerActionItems.updatedAt))
@@ -542,14 +551,15 @@ export async function listOpenOfficerActionItems(
   const assigneeNames = await loadAssigneeNames(
     allianceId,
     rows
-      .map((row) => row.assigneeAllianceMemberId)
+      .map((row) => row.item.assigneeAllianceMemberId)
       .filter((id): id is string => Boolean(id)),
   );
-  return rows.map((row) => mapActionItemRow(row, assigneeNames));
+  return rows.map((row) => mapActionItemRow(row.item, assigneeNames, row.version));
 }
 
 export async function countOpenOfficerActionItems(
   allianceId: string,
+  actor: KnowledgeActor,
 ): Promise<number> {
   const db = getDb();
   const [row] = await db
@@ -559,12 +569,14 @@ export async function countOpenOfficerActionItems(
       and(
         eq(schema.officerActionItems.allianceId, allianceId),
         inArray(schema.officerActionItems.status, ["open", "in_progress"]),
+        knowledgeAccessCondition(actor, schema.officerActionItems.resourceId),
       ),
     );
   return Number(row?.value ?? 0);
 }
 
 export async function persistOfficerSynthesisResult(input: {
+  actor: KnowledgeActor;
   sessionId: string;
   allianceId: string;
   hqUserId: string | null;
@@ -609,14 +621,12 @@ export async function persistOfficerSynthesisResult(input: {
       ? await listOfficerActionItemsForNote({
           noteId: existing.id,
           allianceId: input.allianceId,
+          actor: input.actor,
         })
       : [];
 
   await db.transaction(async (tx) => {
     if (existing) {
-      await tx
-        .delete(schema.officerActionItems)
-        .where(eq(schema.officerActionItems.noteId, existing.id));
       await tx
         .update(schema.officerMeetingNotes)
         .set({
@@ -647,7 +657,7 @@ export async function persistOfficerSynthesisResult(input: {
       });
     }
 
-    for (const item of input.actionItems) {
+    for (const item of existing ? [] : input.actionItems) {
       await tx.insert(schema.officerActionItems).values({
         id: nanoid(),
         allianceId: input.allianceId,
@@ -682,6 +692,7 @@ export async function persistOfficerSynthesisResult(input: {
   const savedItems = await listOfficerActionItemsForNote({
     noteId,
     allianceId: input.allianceId,
+    actor: input.actor,
   });
   await Promise.all(
     savedItems
@@ -768,8 +779,10 @@ export async function updateOfficerMeetingNote(input: {
 }
 
 export async function updateOfficerActionItem(input: {
+  actor: KnowledgeActor;
   actionItemId: string;
   allianceId: string;
+  expectedVersion: number;
   title?: string;
   description?: string | null;
   status?: OfficerActionItemStatus;
@@ -777,150 +790,55 @@ export async function updateOfficerActionItem(input: {
   assigneeAllianceMemberId?: string | null;
   dueAt?: Date | null;
   dueHint?: string | null;
-}): Promise<
-  | { ok: true; item: OfficerActionItemRecord }
-  | { error: "not_found" }
-> {
-  const db = getDb();
-  const [existing] = await db
-    .select()
-    .from(schema.officerActionItems)
-    .where(
-      and(
-        eq(schema.officerActionItems.id, input.actionItemId),
-        eq(schema.officerActionItems.allianceId, input.allianceId),
-      ),
-    )
-    .limit(1);
-  if (!existing) {
-    return { error: "not_found" };
-  }
-
-  const now = new Date();
-  const nextStatus = input.status ?? existing.status;
-  const nextDueAt =
-    input.dueAt === undefined ? existing.dueAt : input.dueAt;
-  const completedAt =
-    nextStatus === "done" || nextStatus === "cancelled"
-      ? (existing.completedAt ?? now)
-      : null;
-
-  await db
-    .update(schema.officerActionItems)
-    .set({
-      title: input.title ?? existing.title,
-      description:
-        input.description === undefined
-          ? existing.description
-          : input.description,
-      status: nextStatus,
-      priority: input.priority ?? existing.priority,
-      assigneeAllianceMemberId:
-        input.assigneeAllianceMemberId === undefined
-          ? existing.assigneeAllianceMemberId
-          : input.assigneeAllianceMemberId,
-      dueAt: nextDueAt,
-      dueHint:
-        input.dueHint === undefined ? existing.dueHint : input.dueHint,
-      completedAt,
-      updatedAt: now,
-    })
-    .where(eq(schema.officerActionItems.id, input.actionItemId));
-
-  if (nextStatus === "done" || nextStatus === "cancelled") {
-    await deactivateOfficerActionItemDueInboxItem(input.actionItemId);
-  } else if (nextDueAt) {
-    await materializeOfficerActionItemDueInboxItem({
-      allianceId: input.allianceId,
-      actionItemId: input.actionItemId,
-      title: input.title ?? existing.title,
-      dueAt: nextDueAt,
-    });
-  } else {
-    await deactivateOfficerActionItemDueInboxItem(input.actionItemId);
-  }
-
-  const [updated] = await db
-    .select()
-    .from(schema.officerActionItems)
-    .where(eq(schema.officerActionItems.id, input.actionItemId))
-    .limit(1);
-  if (!updated) {
-    return { error: "not_found" };
-  }
-  const names = await loadAssigneeNames(
-    input.allianceId,
-    updated.assigneeAllianceMemberId ? [updated.assigneeAllianceMemberId] : [],
-  );
-  const item = mapActionItemRow(updated, names);
-
-  try {
-    const session = await getOfficerChatSessionForAlliance({
-      sessionId: updated.sessionId,
-      allianceId: input.allianceId,
-    });
-    const localeCode = await resolveOfficerSessionLocaleCode({
-      sessionId: updated.sessionId,
-      allianceId: input.allianceId,
-    });
-    await indexOfficerActionItemChunk({
-      allianceId: input.allianceId,
-      item,
-      session,
-      localeCode,
-    });
-  } catch (error) {
-    console.error("[officer-intel] Failed to index action item chunk:", error);
-  }
-
-  return { ok: true, item };
+}): Promise<{ ok: true; item: OfficerActionItemRecord } | { error: "not_found" }> {
+  if (input.actor.allianceId !== input.allianceId) return { error: "not_found" };
+  const { getNoteTask, updateNoteTask } = await import("@/lib/notes/tasks.server");
+  const current = await getNoteTask(input.actor, input.actionItemId, "edit");
+  if (!current) return { error: "not_found" };
+  await updateNoteTask(input.actor, input.actionItemId, {
+    expectedVersion: input.expectedVersion, title: input.title, description: input.description,
+    status: input.status, priority: input.priority, legacyAssigneeAllianceMemberId: input.assigneeAllianceMemberId,
+    dueAt: input.dueAt === undefined ? undefined : input.dueAt?.toISOString() ?? null, dueHint: input.dueHint,
+  });
+  const item = await getOfficerActionItemForAlliance(input);
+  return item ? { ok: true, item } : { error: "not_found" };
 }
 
 export async function getOfficerActionItemForAlliance(input: {
   actionItemId: string;
   allianceId: string;
+  actor: KnowledgeActor;
 }) {
   const db = getDb();
   const [row] = await db
-    .select()
+    .select({
+      item: schema.officerActionItems,
+      version: schema.knowledgeResources.version,
+    })
     .from(schema.officerActionItems)
+    .innerJoin(
+      schema.knowledgeResources,
+      eq(schema.knowledgeResources.id, schema.officerActionItems.resourceId),
+    )
     .where(
       and(
         eq(schema.officerActionItems.id, input.actionItemId),
         eq(schema.officerActionItems.allianceId, input.allianceId),
+        knowledgeAccessCondition(input.actor, schema.officerActionItems.resourceId),
       ),
     )
     .limit(1);
   if (!row) return null;
   const names = await loadAssigneeNames(
     input.allianceId,
-    row.assigneeAllianceMemberId ? [row.assigneeAllianceMemberId] : [],
+    row.item.assigneeAllianceMemberId ? [row.item.assigneeAllianceMemberId] : [],
   );
-  return mapActionItemRow(row, names);
+  return mapActionItemRow(row.item, names, row.version);
 }
 
 export async function indexOfficerOpenActionItemById(input: {
   allianceId: string;
   actionItemId: string;
 }): Promise<void> {
-  const item = await getOfficerActionItemForAlliance({
-    actionItemId: input.actionItemId,
-    allianceId: input.allianceId,
-  });
-  if (!item) return;
-
-  const session = await getOfficerChatSessionForAlliance({
-    sessionId: item.sessionId,
-    allianceId: input.allianceId,
-  });
-  const localeCode = await resolveOfficerSessionLocaleCode({
-    sessionId: item.sessionId,
-    allianceId: input.allianceId,
-  });
-  await indexOfficerActionItemChunk({
-    allianceId: input.allianceId,
-    item,
-    session,
-    localeCode,
-  });
+  await dropOfficerActionItemChunks(input);
 }

@@ -42,6 +42,7 @@ export async function POST(_request: Request, { params }: Props) {
   }
 
   const result = await synthesizeOfficerMeetingNote({
+    actor: context.actor,
     sessionId: id,
     allianceId: context.allianceId,
     hqUserId: context.session.hqUserId ?? null,

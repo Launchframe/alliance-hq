@@ -15,7 +15,6 @@ import { ensureOfficerIntelCorpusBackfill } from "@/lib/officer-intel/backfill-c
 import { formatOfficerIntelEmbeddingLiteral } from "@/lib/officer-intel/embedding-query.shared";
 import { officerIntelScoreWithRecency } from "@/lib/officer-intel/recency-boost.shared";
 import { listOfficerChatMessages } from "@/lib/officer-intel/repository.server";
-import { listOpenOfficerActionItems } from "@/lib/officer-intel/repository.server";
 import type { OfficerActionItemRecord } from "@/lib/officer-intel/synthesis-types.shared";
 
 export type OfficerIntelRetrievedChunk = {
@@ -105,6 +104,7 @@ async function retrieveByVector(input: {
     LEFT JOIN officer_chat_sessions s
       ON s.id = c.session_id AND s.alliance_id = c.alliance_id
     WHERE c.alliance_id = ${input.allianceId}
+      AND c.source_type = 'approved_note'
       AND c.embedding IS NOT NULL
     ORDER BY similarity DESC
     LIMIT ${input.k * 4}
@@ -155,6 +155,7 @@ async function retrieveByKeyword(input: {
     .where(
       and(
         eq(schema.officerIntelChunks.allianceId, input.allianceId),
+        eq(schema.officerIntelChunks.sourceType, "approved_note"),
         sql`${schema.officerIntelChunks.chunkText} ilike ${pattern} escape ${LIKE_ESCAPE}`,
       ),
     )
@@ -184,6 +185,7 @@ async function hasAnyEmbeddings(allianceId: string): Promise<boolean> {
     .where(
       and(
         eq(schema.officerIntelChunks.allianceId, allianceId),
+        eq(schema.officerIntelChunks.sourceType, "approved_note"),
         isNotNull(schema.officerIntelChunks.embedding),
       ),
     );
@@ -237,9 +239,9 @@ export async function retrieveOfficerIntelCorpus(input: {
 }
 
 export async function listOpenActionItemsForAsk(
-  allianceId: string,
+  _allianceId: string,
 ): Promise<OfficerActionItemRecord[]> {
-  return listOpenOfficerActionItems(allianceId);
+  return [];
 }
 
 export async function countApprovedOfficerMeetingNotes(

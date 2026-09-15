@@ -8,7 +8,6 @@ import type { OfficerIntelAskEvent } from "@/lib/officer-intel/ask-types.shared"
 import {
   buildOfficerIntelAskSystemPrompt,
   citationsFromChunks,
-  formatOpenActionItemsForPrompt,
   formatRetrievedChunksForPrompt,
   formatThreadSummaryForPrompt,
   shouldRefreshThreadSummary,
@@ -18,7 +17,6 @@ import {
   officerIntelLlmModel,
 } from "@/lib/officer-intel/llm-config.server";
 import {
-  listOpenActionItemsForAsk,
   loadSessionMessagesForAsk,
   retrieveOfficerIntelCorpus,
 } from "@/lib/officer-intel/retrieve-corpus.server";
@@ -110,13 +108,10 @@ export async function streamOfficerIntelAsk(input: {
     return Response.json({ error: "Thread not found." }, { status: 404 });
   }
 
-  const [chunks, actionItems] = await Promise.all([
-    retrieveOfficerIntelCorpus({
+  const chunks = await retrieveOfficerIntelCorpus({
       allianceId: input.allianceId,
       query: question,
-    }),
-    listOpenActionItemsForAsk(input.allianceId),
-  ]);
+    });
   const citations = citationsFromChunks(chunks);
 
   const encoder = new TextEncoder();
@@ -165,13 +160,10 @@ export async function streamOfficerIntelAsk(input: {
           stopWhen: isStepCount(3),
           prompt: [
             "Conversation summary:",
-            formatThreadSummaryForPrompt(thread.runningSummary),
+            formatThreadSummaryForPrompt(""),
             "",
             "Retrieved approved corpus:",
             formatRetrievedChunksForPrompt(chunks),
-            "",
-            "Open action items:",
-            formatOpenActionItemsForPrompt(actionItems),
             "",
             "Officer question:",
             question,
@@ -209,7 +201,7 @@ export async function streamOfficerIntelAsk(input: {
         if (shouldRefreshThreadSummary(nextTurnCount)) {
           try {
             nextSummary = await refreshRunningSummary({
-              previousSummary: thread.runningSummary,
+              previousSummary: "",
               question,
               answer,
             });
