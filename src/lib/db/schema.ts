@@ -4642,6 +4642,8 @@ export const officerIntelThreads = pgTable(
       () => hqUsers.id,
       { onDelete: "set null" },
     ),
+    knowledgeVersion: integer("knowledge_version").notNull().default(0),
+    version: integer("version").notNull().default(1), activeJobId: text("active_job_id"),
     runningSummary: text("running_summary"),
     turnCount: integer("turn_count").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -4923,8 +4925,25 @@ export const knowledgeIndexJobs = pgTable("knowledge_index_jobs", {
 
 export const knowledgeAiUsage = pgTable("knowledge_ai_usage", {
   id: text("id").primaryKey(), allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }), principalKey: text("principal_key").notNull(),
-  operation: text("operation").$type<"index" | "query">().notNull(), inputChars: integer("input_chars").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  operation: text("operation").$type<"index" | "query" | "generate">().notNull(), inputChars: integer("input_chars").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [index("knowledge_ai_usage_principal_idx").on(table.principalKey, table.createdAt)]);
+
+export const knowledgeGenerationJobs = pgTable("knowledge_generation_jobs", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull(), resourceId: text("resource_id").notNull(), requesterId: text("requester_id").notNull(), sessionId: text("session_id").notNull(),
+  kind: text("kind").$type<import("@/lib/notes/generation.shared").GenerationKind>().notNull(), locale: text("locale").notNull(), model: text("model").notNull(), question: text("question").notNull().default(""),
+  evidence: jsonb("evidence").$type<import("@/lib/notes/knowledge.shared").KnowledgeEvidence[]>().notNull(), inputIds: jsonb("input_ids").$type<string[]>().notNull(), context: jsonb("context").$type<Array<{ question: string; answer: string }>>().notNull().default([]),
+  review: jsonb("review").$type<import("@/lib/notes/generation.shared").GenerationReview>(),
+  parts: jsonb("parts").$type<import("@/lib/notes/generation.shared").GenerationPart[]>().notNull().default([]), state: text("state").$type<"pending" | "running" | "ready" | "accepted" | "cancelled" | "failed">().notNull().default("pending"),
+  version: integer("version").notNull().default(1), cursor: integer("cursor").notNull().default(0), attempts: integer("attempts").notNull().default(0), errorCode: text("error_code"), leaseToken: text("lease_token"), leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  threadId: text("thread_id"), threadVersion: integer("thread_version"), noteId: text("note_id"),
+  availableAt: timestamp("available_at", { withTimezone: true }).defaultNow().notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_generation_resource_unique").on(table.resourceId), unique("knowledge_generation_identity_unique").on(table.id, table.allianceId),
+  foreignKey({ name: "knowledge_generation_resource_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+  foreignKey({ name: "knowledge_generation_note_fk", columns: [table.noteId, table.allianceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId] }).onDelete("restrict"),
+]);
+export const knowledgeGeneratedDocuments = pgTable("knowledge_generated_documents", {
+  noteId: text("note_id").primaryKey(), allianceId: text("alliance_id").notNull(), jobId: text("job_id").notNull().unique(), kind: text("kind").notNull(), locale: text("locale").notNull(), evidence: jsonb("evidence").$type<import("@/lib/notes/knowledge.shared").KnowledgeEvidence[]>().notNull(),
+}, (table) => [foreignKey({ name: "knowledge_generated_document_note_fk", columns: [table.noteId, table.allianceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId] }).onDelete("restrict"), foreignKey({ name: "knowledge_generated_document_job_fk", columns: [table.jobId, table.allianceId], foreignColumns: [knowledgeGenerationJobs.id, knowledgeGenerationJobs.allianceId] }).onDelete("restrict")]);
 
 export const knowledgeCaptureDrafts = pgTable("knowledge_capture_drafts", {
   id: text("id").primaryKey(), allianceId: text("alliance_id").notNull(), resourceId: text("resource_id").notNull(),

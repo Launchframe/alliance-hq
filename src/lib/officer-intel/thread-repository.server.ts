@@ -30,6 +30,7 @@ export async function getOfficerIntelThreadForAlliance(input: {
   allianceId: string;
   requesterHqUserId?: string | null;
 }) {
+  if (!input.requesterHqUserId) return null;
   const db = getDb();
   const [row] = await db
     .select()
