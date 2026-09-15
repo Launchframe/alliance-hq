@@ -5,6 +5,9 @@
 
 import { NextResponse } from "next/server";
 import { notesErrorResponse } from "@/lib/notes/access.server";
+import { notePatchSchema } from "@/lib/notes/workspace.shared";
+import { KnowledgeAccessError } from "@/lib/notes/resources.server";
+import { writeOfficerActionAudit } from "@/lib/bff/officer-action-audit.server";
 
 import {
   getOfficerMeetingNoteForAlliance,
@@ -54,6 +57,8 @@ export async function PUT(request: Request, { params }: Props) {
 
   const denied = await requireOfficerIntelWrite(context.sessionId);
   if (denied) return denied;
+  const current = await getOfficerMeetingNoteForAlliance({ noteId: id, allianceId: context.allianceId, actor: context.actor });
+  if (!current?.canEdit) return notesErrorResponse(new KnowledgeAccessError("not_found"));
 
   let body: Record<string, unknown>;
   try {
@@ -66,13 +71,9 @@ export async function PUT(request: Request, { params }: Props) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const summary = typeof body.summary === "string" ? body.summary : undefined;
-  const keyDecisions = Array.isArray(body.keyDecisions)
-    ? body.keyDecisions.filter((entry): entry is string => typeof entry === "string")
-    : undefined;
-  const openQuestions = Array.isArray(body.openQuestions)
-    ? body.openQuestions.filter((entry): entry is string => typeof entry === "string")
-    : undefined;
+  const parsed = notePatchSchema.safeParse({ expectedVersion: body.expectedVersion, body: body.summary, keyDecisions: body.keyDecisions, openQuestions: body.openQuestions });
+  if (!parsed.success || body.approve !== undefined && typeof body.approve !== "boolean") return notesErrorResponse(new KnowledgeAccessError("invalid"));
+  const { body: summary, keyDecisions, openQuestions, expectedVersion } = parsed.data;
   const approve = body.approve === true;
 
   const result = await updateOfficerMeetingNote({
@@ -80,6 +81,7 @@ export async function PUT(request: Request, { params }: Props) {
     noteId: id,
     allianceId: context.allianceId,
     hqUserId: context.session.hqUserId ?? null,
+    expectedVersion,
     summary,
     keyDecisions,
     openQuestions,
@@ -90,6 +92,7 @@ export async function PUT(request: Request, { params }: Props) {
   if ("error" in result) {
     return NextResponse.json({ error: "Note not found." }, { status: 404 });
   }
+  await writeOfficerActionAudit({ sessionId: context.sessionId, allianceId: context.allianceId, hqUserId: context.actor.hqUserId, action: approve ? "notes.meeting_approve" : "notes.meeting_update", severity: approve ? "routine" : "update", permission: "officer_intel:write", resourceType: "note", resourceId: current.canonicalNoteId, metadata: { expectedVersion, approved: approve } });
 
   const note = await getOfficerMeetingNoteForAlliance({
     noteId: id,

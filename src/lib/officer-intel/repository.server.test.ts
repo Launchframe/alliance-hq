@@ -4,6 +4,7 @@ const mockPutObject = vi.fn();
 const mockDeleteObject = vi.fn();
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/performance-notes/repository.server", () => ({ getPerformanceNoteDto: vi.fn(), updatePerformanceNoteInTransaction: vi.fn() }));
 vi.mock("@/lib/notes/resources.server", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/notes/resources.server")>(),
   knowledgeAccessCondition: vi.fn(() => undefined),

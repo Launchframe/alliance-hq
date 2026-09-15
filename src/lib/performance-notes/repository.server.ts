@@ -7,6 +7,7 @@ import { getDb, schema } from "@/lib/db";
 import { knowledgeActorOwnsResource, type KnowledgeAccess, type KnowledgeActor } from "@/lib/notes/policy.shared";
 import { createKnowledgeResource, knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, touchKnowledgeResource, type KnowledgeTransaction } from "@/lib/notes/resources.server";
 import type { NoteFields, NotePatch } from "@/lib/notes/workspace.shared";
+import { redactIntakeText } from "@/lib/notes/intake.shared";
 import type { PerformanceNoteDto, PerformanceNoteIntakeMode, PerformanceNoteKind, PerformanceNoteRosterMember } from "./types.shared";
 
 function isNoteKind(value: string): value is PerformanceNoteKind {
@@ -69,6 +70,7 @@ export async function createPerformanceNoteInTransaction(tx: KnowledgeTransactio
   await tx.insert(schema.performanceNotes).values({
     id, resourceId, allianceId: input.actor.allianceId,
     kind: input.kind, intakeMode: input.intakeMode, body: input.body,
+    documentType: input.documentType ?? "note", keyDecisions: input.keyDecisions ?? [], openQuestions: input.openQuestions ?? [],
     title: input.title ?? "", priority: input.priority ?? null, priorityMode: input.priorityMode ?? "manual", labels: input.labels ?? [],
     notebook: input.notebook ?? null, journalDate: input.journalDate ?? null, inbox: input.inbox ?? true,
     excludedMemberIds: input.excludedMemberIds ?? [], source: input.captureSource ?? input.actor.kind,
@@ -107,6 +109,7 @@ export async function updatePerformanceNoteInTransaction(tx: KnowledgeTransactio
       snapshot: {
         intakeProvenance: note.intakeProvenance,
         title: note.title, body: note.body, kind: isNoteKind(note.kind) ? note.kind : "note",
+        documentType: note.documentType, keyDecisions: note.keyDecisions, openQuestions: note.openQuestions,
         priority: note.priority, priorityMode: note.priorityMode, labels: note.labels, notebook: note.notebook, journalDate: note.journalDate,
         inbox: note.inbox, archived: resource.archivedAt !== null,
         memberIds: members.map((member) => member.ashedMemberId),
@@ -126,6 +129,7 @@ export async function updatePerformanceNoteInTransaction(tx: KnowledgeTransactio
     await tx.update(schema.performanceNotes).set({
       title: input.title, body: input.body, kind: input.kind, priority: input.priority, priorityMode: input.priorityMode ?? (input.priority !== undefined ? "manual" : undefined),
       labels: input.labels, notebook: input.notebook, journalDate: input.journalDate,
+      documentType: input.documentType, keyDecisions: input.keyDecisions, openQuestions: input.openQuestions,
       inbox: input.inbox, excludedMemberIds: exclusions, updatedAt: new Date(),
     }).where(and(eq(schema.performanceNotes.id, noteId), eq(schema.performanceNotes.allianceId, actor.allianceId)));
     if (input.archived !== undefined) await tx.update(schema.knowledgeResources).set({ archivedAt: input.archived ? new Date() : null }).where(eq(schema.knowledgeResources.id, resource.id));
@@ -170,7 +174,8 @@ export async function attachMembersToPerformanceNote(input: {
 function toDto(note: ReadableNote, members: Array<{ ashedMemberId: string; memberNameRaw: string; origin: string }>): PerformanceNoteDto | null {
   if (!isNoteKind(note.kind) || !isIntakeMode(note.intakeMode) || (note.source !== "web" && note.source !== "discord")) return null;
   return {
-    id: note.id, kind: note.kind, intakeMode: note.intakeMode, body: note.body, title: note.title,
+    id: note.id, kind: note.kind, intakeMode: note.intakeMode, body: redactIntakeText(note.body), title: redactIntakeText(note.title),
+    documentType: note.documentType, keyDecisions: note.keyDecisions.map(redactIntakeText), openQuestions: note.openQuestions.map(redactIntakeText),
     priority: note.priority, priorityMode: note.priorityMode, labels: note.labels, journalDate: note.journalDate,
     intakeProvenance: note.isOwner ? note.intakeProvenance : undefined,
     notebook: note.isOwner ? note.notebook : null, inbox: note.isOwner && note.inbox,
@@ -226,5 +231,5 @@ export async function listNoteRevisions(actor: KnowledgeActor, noteId: string) {
   const rows = await getDb().select().from(schema.knowledgeNoteRevisions)
     .where(and(eq(schema.knowledgeNoteRevisions.noteId, noteId), eq(schema.knowledgeNoteRevisions.allianceId, actor.allianceId)))
     .orderBy(desc(schema.knowledgeNoteRevisions.version)).limit(30);
-  return rows.map((row) => ({ id: row.id, version: row.version, snapshot: row.snapshot, editedAt: row.editedAt.toISOString() }));
+  return rows.map((row) => ({ id: row.id, version: row.version, snapshot: { ...row.snapshot, title: redactIntakeText(row.snapshot.title), body: redactIntakeText(row.snapshot.body), documentType: row.snapshot.documentType ?? "note", keyDecisions: (row.snapshot.keyDecisions ?? []).map(redactIntakeText), openQuestions: (row.snapshot.openQuestions ?? []).map(redactIntakeText) }, editedAt: row.editedAt.toISOString() }));
 }

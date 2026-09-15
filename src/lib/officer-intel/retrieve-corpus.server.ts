@@ -1,11 +1,12 @@
 import "server-only";
 
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 
 import { escapeLikePrefix } from "@/lib/admin/audit-query";
 import { getDb, schema } from "@/lib/db";
 import type { KnowledgeActor } from "@/lib/notes/policy.shared";
-import { KnowledgeAccessError, knowledgeAccessCondition } from "@/lib/notes/resources.server";
+import { KnowledgeAccessError } from "@/lib/notes/resources.server";
+import { meetingNoteAccess } from "@/lib/officer-intel/repository.server";
 import type { OfficerActionItemRecord } from "@/lib/officer-intel/synthesis-types.shared";
 
 export type OfficerIntelRetrievedChunk = {
@@ -55,7 +56,8 @@ export async function countApprovedOfficerMeetingNotes(
       and(
         eq(schema.officerMeetingNotes.allianceId, allianceId),
         eq(schema.officerMeetingNotes.status, "approved"),
-        knowledgeAccessCondition(actor, schema.officerMeetingNotes.resourceId),
+        meetingNoteAccess(actor),
+        sql`exists(select 1 from knowledge_resources where id = ${schema.officerMeetingNotes.resourceId} and archived_at is null)`,
       ),
     );
   return Number(row?.value ?? 0);

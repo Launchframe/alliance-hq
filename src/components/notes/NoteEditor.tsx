@@ -11,9 +11,10 @@ import { useTranslations } from "next-intl";
 import { Archive, Check, Clock3, Globe2, LockKeyhole, MessageSquare, Save, Share2, X } from "lucide-react";
 import type { PerformanceNoteDto, PerformanceNoteRosterMember } from "@/lib/performance-notes/types.shared";
 import { detectNoteMentions } from "@/lib/notes/mentions.shared";
-import { NOTE_PRIORITIES, normalizeNoteLabels, noteTitle, type NoteFields, type NotePatch, type NotePriority } from "@/lib/notes/workspace.shared";
+import { NOTE_DOCUMENT_TYPES, NOTE_PRIORITIES, normalizeNoteLabels, noteTitle, type NoteFields, type NotePatch, type NotePriority } from "@/lib/notes/workspace.shared";
 import { FORM_SUBMIT_ENTER_KEY_HINT, preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 import { NoteMarkdown } from "./NoteMarkdown";
+import { NoteSections } from "./NoteSections";
 import { NoteMemberPicker } from "./NoteMemberPicker";
 
 const inputClass = "w-full rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm text-hq-fg outline-none focus:border-hq-accent focus:ring-2 focus:ring-hq-accent/15 disabled:opacity-60";
@@ -39,6 +40,8 @@ export function NoteEditor({ note, initialBody = "", resumeDraft, roster, onClos
   const owner = !note || note.isOwner;
   const [draft, setDraft] = useState(() => ({
     title: initialFields?.title ?? original?.title ?? "", body: initialFields?.body ?? original?.body ?? initialBody,
+    documentType: initialFields?.documentType ?? original?.documentType ?? "note",
+    keyDecisions: initialFields?.keyDecisions ?? original?.keyDecisions ?? [], openQuestions: initialFields?.openQuestions ?? original?.openQuestions ?? [],
     kind: initialFields?.kind ?? original?.kind ?? "note", priority: initialFields ? initialFields.priority : original?.priority ?? null as NotePriority,
     priorityMode: initialFields?.priorityMode ?? original?.priorityMode ?? "auto" as "auto" | "manual",
     notebook: initialFields ? initialFields.notebook ?? "" : original?.notebook ?? "", journalDate: initialFields ? initialFields.journalDate ?? "" : original?.journalDate ?? "", inbox: initialFields?.inbox ?? original?.inbox ?? true,
@@ -82,7 +85,7 @@ export function NoteEditor({ note, initialBody = "", resumeDraft, roster, onClos
     for (const member of original?.members ?? []) if (!members.has(member.ashedMemberId)) members.set(member.ashedMemberId, member);
     return [...members.values()];
   }, [original, roster]);
-  const dirty = editable && (!original ? !!(draft.body || draft.title) : draft.title !== original.title || draft.body !== original.body || draft.kind !== original.kind || draft.priority !== original.priority || draft.notebook !== (original.notebook ?? "") || draft.journalDate !== (original.journalDate ?? "") || draft.inbox !== original.inbox || labels !== original.labels.join(", ") || membersTouched);
+  const dirty = editable && (!original ? !!(draft.body || draft.title) : draft.title !== original.title || draft.body !== original.body || draft.kind !== original.kind || draft.documentType !== (original.documentType ?? "note") || JSON.stringify(draft.keyDecisions) !== JSON.stringify(original.keyDecisions ?? []) || JSON.stringify(draft.openQuestions) !== JSON.stringify(original.openQuestions ?? []) || draft.priority !== original.priority || draft.notebook !== (original.notebook ?? "") || draft.journalDate !== (original.journalDate ?? "") || draft.inbox !== original.inbox || labels !== original.labels.join(", ") || membersTouched);
 
   const persistence = useCaptureDraft({ id: draftId, state: captureState, active: dirty && !saving, initialVersion: resumeDraft?.version, sourceNoteId: resumeDraft?.sourceNoteId ?? original?.id ?? null, sourceVersion: resumeDraft?.sourceVersion ?? original?.version ?? null });
 
@@ -151,6 +154,8 @@ export function NoteEditor({ note, initialBody = "", resumeDraft, roster, onClos
               {preview || !editable ? <div className="min-h-52"><NoteMarkdown body={draft.body} /></div> : <textarea data-no-enter-submit ref={bodyInput} disabled={saving} aria-label={t("bodyLabel")} placeholder={t("editor.placeholder")} value={draft.body} maxLength={100_000} rows={12} onChange={(event) => { setRevision((value) => value + 1); setDraft({ ...draft, body: event.target.value, priority: draft.priorityMode === "auto" && !original ? null : draft.priority }); }} className="min-h-60 w-full resize-y rounded-lg border border-hq-border bg-transparent p-3 text-sm leading-7 outline-none focus:border-hq-accent focus:ring-2 focus:ring-hq-accent/10" />}
               {editable && !preview ? <p className="mt-2 text-xs text-hq-fg-muted">{t("editor.markdownHint")}</p> : null}
             </div>
+            <label className="flex flex-col gap-2 text-xs text-hq-fg-muted">{t("documents.type")}<select aria-label={t("documents.type")} className={inputClass} disabled={!editable || saving} value={draft.documentType} onChange={(event) => setDraft({ ...draft, documentType: event.target.value as NoteFields["documentType"] })}>{NOTE_DOCUMENT_TYPES.map((type) => <option key={type} value={type}>{t(`documents.types.${type}`)}</option>)}</select></label>
+            {(draft.documentType === "meeting" || draft.keyDecisions.length > 0 || draft.openQuestions.length > 0) && <NoteSections value={draft} disabled={saving} onChange={editable && !preview ? (patch) => setDraft((current) => ({ ...current, keyDecisions: patch.keyDecisions ?? current.keyDecisions, openQuestions: patch.openQuestions ?? current.openQuestions })) : undefined} />}
             {!original || currentSuggestions.length > 0 ? <section className="space-y-3 rounded-xl border border-hq-border bg-hq-surface/50 p-4">
               {!original ? <><label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={intake.enabled} disabled={!intake.preference || intake.changing || saving} onChange={(event) => void intake.setEnabled(event.target.checked)} className="accent-hq-accent" />{t("intake.enable")}</label>
               <p className="text-xs leading-5 text-hq-fg-muted">{t("intake.consent")}</p>

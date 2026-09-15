@@ -24,6 +24,7 @@ export function OfficerMeetingNoteClient({
   sessionTitle,
 }: Props) {
   const t = useTranslations("officerIntel");
+  const notesT = useTranslations("notes.documents");
   const router = useRouter();
   const [note, setNote] = useState(initialNote);
   const [actionItems, setActionItems] = useState(initialActionItems);
@@ -38,7 +39,7 @@ export function OfficerMeetingNoteClient({
       const res = await fetch(`/api/officer-intel/notes/${note.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ summary, approve }),
+        body: JSON.stringify({ summary, approve, expectedVersion: note.version }),
       });
       const body = (await res.json().catch(() => null)) as
         | {
@@ -90,6 +91,7 @@ export function OfficerMeetingNoteClient({
         >
           {t("backToSession")}
         </Link>}
+        {note.canonicalNoteId && <Link href={`/notes/${note.canonicalNoteId}`} className="ml-4 text-sm text-hq-accent hover:underline">{notesT("openInNotes")}</Link>}
         <h1 className="mt-2 text-2xl font-semibold text-hq-fg">
           {t("meetingNotesTitle")}
         </h1>
