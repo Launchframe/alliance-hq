@@ -73,6 +73,7 @@ test("knowledge approval, consent, indexing and access are independent and revis
   expect((await api.command("index")).status()).toBe(200);
   await api.finish();
   expect((await query(other, "semantic")).evidence).toHaveLength(1);
+  expect((await query(other)).evidence).toHaveLength(1);
   await request.post("/api/notes", { headers: other, data: { title: "Peer private note", body: "Different ownership" } });
   const library = await (await request.get("/api/notes/knowledge/resources", { headers: other })).json();
   expect(library.resources.find((item: { resourceId: string }) => item.resourceId === resourceId)).toMatchObject({ title: "Zenith", isOwner: false });

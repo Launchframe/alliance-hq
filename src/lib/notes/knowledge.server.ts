@@ -26,8 +26,10 @@ export async function getKnowledgeStatus(actor: KnowledgeWebActor, resourceId: s
   };
 }
 export async function listKnowledgeResources(actor: KnowledgeWebActor, owned: boolean, offset: number) {
+  // Owned catalog includes archived so owners can still cancel indexing or withdraw consent.
+  const includeArchived = owned;
   const rows = await getDb().select({ id: r.id, kind: r.kind, entityId: r.entityId, title: knowledgeTitle(), isOwner: knowledgeAccessCondition(actor, sql`knowledge_resources.id`, "share") }).from(r)
-    .where(and(eq(r.allianceId, actor.allianceId), knowledgeReadyCondition(owned), knowledgeAccessCondition(actor, r.id, owned ? "share" : "read"), owned ? undefined : eq(r.knowledgeApprovedVersion, r.contentVersion)))
+    .where(and(eq(r.allianceId, actor.allianceId), knowledgeReadyCondition(includeArchived), knowledgeAccessCondition(actor, r.id, owned ? "share" : "read"), owned ? undefined : eq(r.knowledgeApprovedVersion, r.contentVersion)))
     .orderBy(desc(r.updatedAt), desc(r.id)).limit(51).offset(offset);
   return { nextOffset: rows.length > 50 && offset < 5_000 ? offset + 50 : null, resources: rows.slice(0, 50).map((row) => ({ resourceId: row.id, kind: row.kind, entityId: row.entityId, title: redactIntakeText(row.title ?? ""), isOwner: row.isOwner === true })) };
 }

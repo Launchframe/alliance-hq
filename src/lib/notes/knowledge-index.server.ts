@@ -22,7 +22,9 @@ export function knowledgeJobMatches(job: KnowledgeIndexJob, resource: typeof res
 }
 export async function queueKnowledgeIndex(tx: KnowledgeTransaction, resource: typeof resources.$inferSelect, retry: boolean) {
   if (!knowledgeEmbeddingConfigured()) throw new KnowledgeAccessError("not_configured");
-  if (!resource.ownerHqUserId || !resource.knowledgeAiAllowed || resource.knowledgeApprovedVersion !== resource.contentVersion) throw new KnowledgeAccessError("changed");
+  if (resource.ownershipState !== "hq" || resource.archivedAt || !resource.ownerHqUserId || !resource.knowledgeAiAllowed || resource.knowledgeApprovedVersion !== resource.contentVersion) throw new KnowledgeAccessError("changed");
+  const [ready] = await tx.select({ id: resources.id }).from(resources).where(and(eq(resources.id, resource.id), knowledgeReadyCondition()));
+  if (!ready) throw new KnowledgeAccessError("forbidden");
   const [existing] = await tx.select().from(jobs).where(and(eq(jobs.resourceId, resource.id), eq(jobs.contentVersion, resource.contentVersion), eq(jobs.accessVersion, resource.accessVersion), eq(jobs.approvalVersion, resource.knowledgeApprovalVersion), eq(jobs.consentVersion, resource.knowledgeConsentVersion), eq(jobs.model, knowledgeEmbeddingModel()), eq(jobs.formatVersion, KNOWLEDGE_FORMAT_VERSION)));
   if (existing) {
     if (["failed", "cancelled"].includes(existing.state)) {

@@ -44,6 +44,7 @@ export async function retrieveKnowledgeEvidence(actor: KnowledgeWebActor, raw: K
   const model = knowledgeEmbeddingModel();
   let embedding: number[] | undefined;
   if (input.mode === "semantic") {
+    if (!actor.canCreate) throw new KnowledgeAccessError("forbidden");
     const [available] = await getDb().select({ id: c.id }).from(c).innerJoin(j, eq(j.id, c.indexJobId)).innerJoin(r, eq(r.id, c.resourceId)).where(eligible(actor, input.includeSources)).limit(1);
     if (!available) return [];
     if (!knowledgeEmbeddingConfigured()) throw new KnowledgeAccessError("not_configured");
