@@ -125,6 +125,18 @@ test("individual task grants do not grant boards, and owner removal preserves th
     expect((await request.get(path, { headers: viewerHeaders })).status()).toBe(403);
     expect((await request.get(path)).status()).toBe(401);
   }
+  const bootstrap = await request.get("/api/auth/bootstrap?next=/", { maxRedirects: 0 });
+  expect(bootstrap.status()).toBeGreaterThanOrEqual(300);
+  expect(bootstrap.status()).toBeLessThan(400);
+  const setCookie = bootstrap.headers()["set-cookie"] ?? "";
+  const bootstrapSession = /alliance_hq_session=([^;]+)/.exec(Array.isArray(setCookie) ? setCookie.join(";") : setCookie)?.[1];
+  expect(bootstrapSession).toBeTruthy();
+  const bootstrapCookie = `alliance_hq_session=${bootstrapSession}`;
+  for (const path of ["/api/notes/boards", `/api/notes/boards/${board.boardId}`, `/api/events/notes/boards/${board.boardId}`]) {
+    expect((await request.get(path, { headers: { Cookie: bootstrapCookie } })).status()).toBe(403);
+  }
+  expect((await request.post("/api/notes/boards", { headers: { Cookie: bootstrapCookie }, data: { name: "bootstrap", requestId: nanoid() } })).status()).toBe(403);
+  expect((await request.post(`/api/notes/boards/${board.boardId}/commands`, { headers: { Cookie: bootstrapCookie }, data: { kind: "rename", requestId: nanoid(), expectedVersion: 1, name: "nope" } })).status()).toBe(403);
   await sql`UPDATE alliance_memberships SET role_id = (SELECT id FROM roles WHERE name = 'data_entry' LIMIT 1) WHERE alliance_id = ${alliance.allianceId} AND hq_user_id = ${viewer.hqUserId}`;
   expect((await request.get(`/api/notes/boards/${board.boardId}`, { headers: viewerHeaders })).status()).toBe(403);
   const foreignHeaders = { Cookie: authCookieHeader(outsider.author) };

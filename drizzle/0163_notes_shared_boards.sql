@@ -35,3 +35,13 @@ DO $$ BEGIN
     CREATE TRIGGER knowledge_board_identity_guard BEFORE INSERT OR UPDATE ON knowledge_boards FOR EACH ROW EXECUTE FUNCTION guard_knowledge_board_identity();
   END IF;
 END $$;
+INSERT INTO permissions (id, description) VALUES
+  ('notes_boards:read', 'Shared officer boards'),
+  ('notes_boards:write', 'Edit shared officer boards')
+ON CONFLICT (id) DO UPDATE SET description = EXCLUDED.description;
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, 'notes_boards:read' FROM roles r WHERE r.name IN ('owner', 'maintainer', 'officer')
+ON CONFLICT DO NOTHING;
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, 'notes_boards:write' FROM roles r WHERE r.name IN ('owner', 'maintainer', 'officer')
+ON CONFLICT DO NOTHING;

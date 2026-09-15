@@ -24,7 +24,7 @@ export function NoteTasksPanel({ sourceNoteId, focusId, personalOnly = false }: 
   const [modal, setModal] = useState<{ kind: "edit" | "share"; task: NoteTask | null } | null>(null);
   const hotkeys = useMemo(() => ({ "notes.newTask": () => { if (data.canCreate) setModal({ kind: "edit", task: null }); } }), [data.canCreate]);
   useRegisterPageHotkeys(hotkeys, !modal);
-  const endpoint = `/api/notes/tasks${sourceNoteId ? `?sourceNoteId=${encodeURIComponent(sourceNoteId)}` : ""}`;
+  const endpoint = `/api/notes/tasks${sourceNoteId ? `?sourceNoteId=${encodeURIComponent(sourceNoteId)}` : ""}${personalOnly ? `${sourceNoteId ? "&" : "?"}personalOnly=1` : ""}`;
   const request = useRef<AbortController | null>(null);
   const read = useCallback(async (signal?: AbortSignal): Promise<Snapshot> => {
     request.current?.abort();
@@ -82,7 +82,7 @@ export function NoteTasksPanel({ sourceNoteId, focusId, personalOnly = false }: 
     catch (failure) { setErrors((current) => ({ ...current, [task.id]: failure instanceof Error ? failure.message : t("saveFailed") })); control?.scrollIntoView({ block: "nearest" }); }
     finally { setPending(null); }
   }
-  const visible = data.tasks.filter((task) => !personalOnly || (task.assignee ? task.assignee.id === data.principalId : task.isOwner)).filter((task) => filter === "archived" ? task.archived : !task.archived && (filter === "active" ? task.status === "open" || task.status === "in_progress" : filter === "all" || task.status === filter));
+  const visible = data.tasks.filter((task) => filter === "archived" ? task.archived : !task.archived && (filter === "active" ? task.status === "open" || task.status === "in_progress" : filter === "all" || task.status === filter));
   return <section className={`min-w-0 flex-1 ${sourceNoteId ? "space-y-3 border-t border-hq-border pt-4" : "space-y-5 p-5 sm:p-7"}`} data-testid="notes-tasks">
     <header className="flex flex-wrap items-center justify-between gap-3"><h2 className="flex items-center gap-2 font-semibold"><CheckSquare className="h-4 w-4" />{t(sourceNoteId ? "tasks.linked" : "tasks.heading")}</h2>{data.canCreate ? <button type="button" onClick={() => setModal({ kind: "edit", task: null })} className="flex items-center gap-1.5 rounded-lg border border-hq-border px-3 py-2 text-xs"><Plus className="h-3.5 w-3.5" />{t("tasks.new")}</button> : null}</header>
     <select aria-label={t("tasks.filter")} value={filter} onChange={(event) => setFilter(event.target.value)} className="rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-xs"><option value="active">{t("tasks.active")}</option><option value="all">{t("tasks.all")}</option>{TASK_STATUSES.map((status) => <option key={status} value={status}>{t(`tasks.status.${status}`)}</option>)}<option value="archived">{t("views.archived")}</option></select>

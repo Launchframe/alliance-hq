@@ -84,7 +84,7 @@ export function NoteTaskBoard({ initial, onRevoked }: { initial: NoteBoardSnapsh
   }
   async function openSharing() {
     try {
-      const response = await fetch("/api/notes/tasks", { cache: "no-store" });
+      const response = await fetch("/api/notes/tasks?personalOnly=1", { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? t("loadFailed"));
       setSharing(payload.tasks.filter((task: NoteTask) => task.isOwner && !currentBoard.tasks.some((item) => item.id === task.id))); setSelected("");

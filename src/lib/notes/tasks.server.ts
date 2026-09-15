@@ -16,7 +16,7 @@ import { normalizeTaskPriority, taskCompletedAt, TASK_STATUSES, type NoteTask, t
 const tasks = schema.officerActionItems;
 const resources = schema.knowledgeResources;
 
-async function taskRows(actor: KnowledgeActor, filter?: { id?: string; sourceNoteId?: string; boardId?: string }, access: KnowledgeAccess = "read", db: Pick<KnowledgeTransaction, "select"> = getDb()): Promise<NoteTask[]> {
+async function taskRows(actor: KnowledgeActor, filter?: { id?: string; sourceNoteId?: string; boardId?: string; personalOnly?: boolean }, access: KnowledgeAccess = "read", db: Pick<KnowledgeTransaction, "select"> = getDb()): Promise<NoteTask[]> {
   if (filter?.sourceNoteId && !await getPerformanceNoteForAlliance({ actor, noteId: filter.sourceNoteId })) throw new KnowledgeAccessError("not_found");
   const rows = await db.select({
     task: tasks, version: resources.version, archivedAt: resources.archivedAt,
@@ -28,7 +28,14 @@ async function taskRows(actor: KnowledgeActor, filter?: { id?: string; sourceNot
   }).from(tasks).innerJoin(resources, and(eq(resources.id, tasks.resourceId), eq(resources.allianceId, tasks.allianceId), eq(resources.kind, "task"), eq(resources.entityId, tasks.id)))
     .leftJoin(schema.hqUsers, eq(schema.hqUsers.id, tasks.assigneeHqUserId))
     .leftJoin(schema.performanceNotes, and(eq(schema.performanceNotes.id, tasks.sourceNoteId), eq(schema.performanceNotes.allianceId, actor.allianceId), isNull(schema.performanceNotes.expungedAt), knowledgeAccessCondition(actor, schema.performanceNotes.resourceId)))
-    .where(and(eq(tasks.allianceId, actor.allianceId), knowledgeAccessCondition(actor, tasks.resourceId, access), filter?.id ? eq(tasks.id, filter.id) : undefined, filter?.sourceNoteId ? eq(tasks.sourceNoteId, filter.sourceNoteId) : undefined, filter?.boardId ? sql`exists(select 1 from knowledge_board_items bi where bi.task_id = ${tasks.id} and bi.alliance_id = ${actor.allianceId} and bi.board_id = ${filter.boardId})` : undefined))
+    .where(and(
+      eq(tasks.allianceId, actor.allianceId),
+      knowledgeAccessCondition(actor, tasks.resourceId, access),
+      filter?.id ? eq(tasks.id, filter.id) : undefined,
+      filter?.sourceNoteId ? eq(tasks.sourceNoteId, filter.sourceNoteId) : undefined,
+      filter?.boardId ? sql`exists(select 1 from knowledge_board_items bi where bi.task_id = ${tasks.id} and bi.alliance_id = ${actor.allianceId} and bi.board_id = ${filter.boardId})` : undefined,
+      filter?.personalOnly ? sql`(${resources.ownerHqUserId} = ${actor.hqUserId} or ${tasks.assigneeHqUserId} = ${actor.hqUserId})` : undefined,
+    ))
     .orderBy(desc(tasks.updatedAt), desc(tasks.id)).limit(filter?.id ? 1 : filter?.boardId ? 200 : 100);
   return rows.filter((row) => (TASK_STATUSES as readonly string[]).includes(row.task.status)).map((row) => ({
     id: row.task.id, title: row.task.title, description: row.task.description, status: row.task.status as TaskStatus,
@@ -41,7 +48,8 @@ async function taskRows(actor: KnowledgeActor, filter?: { id?: string; sourceNot
     createdAt: row.task.createdAt.toISOString(), updatedAt: row.task.updatedAt.toISOString(),
   }));
 }
-export const listNoteTasks = (actor: KnowledgeActor, sourceNoteId?: string) => taskRows(actor, { sourceNoteId });
+export const listNoteTasks = (actor: KnowledgeActor, options?: { sourceNoteId?: string; personalOnly?: boolean }) =>
+  taskRows(actor, { sourceNoteId: options?.sourceNoteId, personalOnly: options?.personalOnly });
 export const listBoardNoteTasks = (tx: KnowledgeTransaction, actor: KnowledgeActor, boardId: string) => taskRows(actor, { boardId }, "read", tx);
 export async function getNoteTask(actor: KnowledgeActor, id: string, access: KnowledgeAccess = "read") {
   return (await taskRows(actor, { id }, access))[0] ?? null;
@@ -57,7 +65,12 @@ async function validateAssignee(tx: KnowledgeTransaction, actor: KnowledgeActor,
   const target: KnowledgeActor = { kind: "web", allianceId: actor.allianceId, hqUserId: userId, discordUserId: null, isOfficer: ["owner", "maintainer", "officer"].includes(member.role), readableBoardIds: [], editableBoardIds: [] };
   if (target.isOfficer) {
     const [permission] = await tx.select({ id: schema.rolePermissions.permissionId }).from(schema.rolePermissions).where(and(eq(schema.rolePermissions.roleId, member.roleId), eq(schema.rolePermissions.permissionId, "notes_boards:read")));
-    if (permission) target.readableBoardIds = (await tx.select({ id: schema.knowledgeBoards.id }).from(schema.knowledgeBoards).where(eq(schema.knowledgeBoards.allianceId, actor.allianceId))).map((board) => board.id);
+    if (permission) {
+      const boards = await tx.select({ id: schema.knowledgeBoards.id }).from(schema.knowledgeBoards)
+        .innerJoin(schema.knowledgeResources, and(eq(schema.knowledgeResources.id, schema.knowledgeBoards.resourceId), eq(schema.knowledgeResources.allianceId, actor.allianceId), isNull(schema.knowledgeResources.archivedAt)))
+        .where(and(eq(schema.knowledgeBoards.allianceId, actor.allianceId), knowledgeAccessCondition(target, schema.knowledgeBoards.resourceId)));
+      target.readableBoardIds = boards.map((board) => board.id);
+    }
   }
   const [allowed] = await tx.select({ id: resources.id }).from(resources).where(and(eq(resources.id, resourceId), knowledgeAccessCondition(target, resources.id)));
   if (allowed) return;
