@@ -43,7 +43,7 @@ export function NoteWorkspaceSearch() {
   return <section data-testid="notes-search" className="min-w-0 flex-1 space-y-5 p-5 sm:p-7">
     <h2 className="text-lg font-semibold">{t("title")}</h2><p className="text-sm text-hq-fg-muted">{t("hint")}</p>
     <form onSubmit={(event) => { event.preventDefault(); void search(); }} className="space-y-3">
-      <div className="flex flex-wrap gap-2"><input aria-label={t("query")} required maxLength={200} value={query} onChange={(event) => { active.current = false; request.current?.abort(); setBusy(false); setData(null); setQuery(event.target.value); }} className={`${control} min-w-48 flex-1`} />
+      <div className="flex flex-wrap gap-2"><input aria-label={t("query")} required maxLength={200} enterKeyHint="send" value={query} onChange={(event) => { active.current = false; request.current?.abort(); setBusy(false); setData(null); setQuery(event.target.value); }} className={`${control} min-w-48 flex-1`} />
         <select aria-label={t("kind")} value={kind} onChange={(event) => { active.current = false; request.current?.abort(); setBusy(false); setData(null); setKind(event.target.value as NoteSearchInput["kind"]); }} className={control}>{(["all", "note", "task", "source"] as const).map((value) => <option key={value} value={value}>{t(value)}</option>)}</select><button className={control} disabled={busy || !query.trim()}>{busy ? t("searching") : t("submit")}</button></div>
       {error && <p role="alert" className="text-sm text-hq-danger">{error}</p>}
     </form>

@@ -8,7 +8,20 @@ INSERT INTO performance_notes (id, alliance_id, resource_id, title, body, docume
 SELECT 'meeting:' || n.id, n.alliance_id, n.resource_id, left(split_part(n.summary, E'\n', 1), 160), n.summary,
   'meeting', n.key_decisions, n.open_questions, 'note', 'thought', 'web', n.synthesized_by_hq_user_id, false, n.created_at, n.updated_at
 FROM officer_meeting_notes n WHERE n.canonical_note_id IS NULL
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET updated_at = performance_notes.updated_at
+WHERE performance_notes.alliance_id = EXCLUDED.alliance_id AND performance_notes.resource_id = EXCLUDED.resource_id;
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM officer_meeting_notes n
+    WHERE n.canonical_note_id IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM performance_notes p
+        WHERE p.id = 'meeting:' || n.id AND p.alliance_id = n.alliance_id AND p.resource_id = n.resource_id
+      )
+  ) THEN
+    RAISE EXCEPTION 'Canonical meeting backfill requires matching (id, alliance_id, resource_id)';
+  END IF;
+END $$;
 UPDATE officer_meeting_notes SET canonical_note_id = 'meeting:' || id WHERE canonical_note_id IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS officer_meeting_notes_canonical_unique ON officer_meeting_notes(canonical_note_id);
 DO $$ BEGIN

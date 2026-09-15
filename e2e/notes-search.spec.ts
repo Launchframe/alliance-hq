@@ -26,7 +26,16 @@ test("workspace search scopes notes, tasks and committed source evidence before 
   expect(clause.results.some((row: { id: string }) => row.id === noteId)).toBe(true);
   expect((await request.get("/api/notes/search?q=Orbit")).status()).toBe(401);
   expect((await (await request.get("/api/notes/search?q=example-unsearchable", { headers })).json()).results).toEqual([]);
+  expect((await (await request.get(`/api/notes/search?q=${"1".repeat(14)}`, { headers })).json()).results).toEqual([]);
+  expect((await (await request.get("/api/notes/search?q=token=example-unsearchable", { headers })).json()).results).toEqual([]);
   expect(JSON.stringify(result)).not.toContain("example-unsearchable");
+  const bootstrap = await request.get("/api/auth/bootstrap?next=/", { maxRedirects: 0 });
+  expect(bootstrap.status()).toBeGreaterThanOrEqual(300);
+  expect(bootstrap.status()).toBeLessThan(400);
+  const setCookie = bootstrap.headers()["set-cookie"] ?? "";
+  const bootstrapSession = /alliance_hq_session=([^;]+)/.exec(Array.isArray(setCookie) ? setCookie.join(";") : setCookie)?.[1];
+  expect(bootstrapSession).toBeTruthy();
+  expect((await request.get("/api/notes/search?q=Orbit", { headers: { Cookie: `alliance_hq_session=${bootstrapSession}` } })).status()).toBe(403);
   const largeId = nanoid();
   await sql`INSERT INTO performance_notes (id, alliance_id, kind, intake_mode, source, created_by_hq_user_id, body) VALUES (${largeId}, ${alliance.allianceId}, 'note', 'thought', 'web', ${author.hqUserId}, ${"older history ".repeat(30_000) + "RareMarker"})`;
   expect((await (await request.get("/api/notes/search?q=RareMarker", { headers })).json()).results.map((row: { id: string }) => row.id)).toEqual([largeId]);

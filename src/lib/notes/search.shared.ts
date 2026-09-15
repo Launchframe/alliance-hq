@@ -7,3 +7,13 @@ export const noteSearchSchema = z.object({
 export type NoteSearchInput = z.infer<typeof noteSearchSchema>;
 export type NoteSearchResult = { id: string; kind: "note" | "task" | "source"; title: string; excerpt: string; href: string | null; sourceDate: string | null };
 export type NoteSearchResponse = { results: NoteSearchResult[]; nextOffset: number | null };
+
+/** True when redaction left only secret/UID placeholders — do not search those tokens. */
+export function isPlaceholderOnlySearchQuery(query: string): boolean {
+  return !query
+    .replace(/\[redacted-(?:id|jwt)\]/gi, " ")
+    .replace(/\bBearer \[redacted\]/gi, " ")
+    .replace(/\b(?:token|api[_-]?key|password|secret|authorization|cookie|set-cookie|x-api-key)=\[redacted\]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
