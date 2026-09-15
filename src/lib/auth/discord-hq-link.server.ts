@@ -7,6 +7,7 @@ import {
   inheritHqMemberLinksToDiscord,
   revokeHqMirroredDiscordMemberLinks,
 } from "@/lib/member-link/inherit-hq-to-discord.server";
+import { claimDiscordKnowledgeResourcesForHqUser } from "@/lib/notes/resources.server";
 import {
   consumeDiscordAuthNonce,
   getValidDiscordAuthNonce,
@@ -86,6 +87,7 @@ export async function syncDiscordHqLinkFromOAuthSignIn(input: {
   await upsertDiscordHqLink({ discordUserId, hqUserId });
   // Web commanders should work on Discord without a second name+UID pass.
   await inheritHqMemberLinksToDiscord({ discordUserId, hqUserId });
+  await claimDiscordKnowledgeResourcesForHqUser(hqUserId);
 }
 
 export async function getDiscordProviderAccountIdForHqUser(

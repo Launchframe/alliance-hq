@@ -52,6 +52,7 @@ export function canAccessKnowledgeResource(
   grants: readonly KnowledgeGrant[],
   access: KnowledgeAccess,
 ): boolean {
+  // Keep in sync with knowledgeAccessCondition in resources.server.ts.
   if (!knowledgeActorIsAuthenticated(actor) || resource.allianceId !== actor.allianceId || !knowledgeResourceHasOwner(resource)) return false;
   if (resource.kind === "board" && (actor.kind !== "web" || !actor.isOfficer)) return false;
   if (knowledgeActorOwnsResource(actor, resource)) return true;

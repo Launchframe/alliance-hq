@@ -10,6 +10,7 @@ import { loadSession, requireApiSession } from "@/lib/session";
 import type { KnowledgeActor } from "./policy.shared";
 import { claimDiscordKnowledgeResources, KnowledgeAccessError } from "./resources.server";
 
+/** Resolve the HQ Notes actor. Does not claim Discord-owned notes (read-only paths stay read-only). */
 export async function getKnowledgeActorForSession(sessionId: string): Promise<(KnowledgeActor & { sessionId: string }) | null> {
   const session = await loadSession(sessionId);
   if (!session?.hqUserId) return null;
@@ -18,15 +19,14 @@ export async function getKnowledgeActorForSession(sessionId: string): Promise<(K
   const context = await getRbacContext(sessionId);
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId || !context?.roleName || context.hqUserId !== session.hqUserId || context.currentAllianceId !== allianceId || !context.permissions.has("members:read")) return null;
-  const actor: KnowledgeActor & { sessionId: string } = {
+  return {
     kind: "web", sessionId, allianceId, hqUserId: session.hqUserId, discordUserId: null,
     isOfficer: ["owner", "maintainer", "officer"].includes(context.roleName),
     readableBoardIds: [], editableBoardIds: [],
   };
-  await claimDiscordKnowledgeResources(actor);
-  return actor;
 }
 
+/** Notes API/pages: Auth.js + members:write, then one-way Discord→HQ claim for this alliance. */
 export async function requireNotesApiContext() {
   const session = await requireApiSession();
   if (session instanceof NextResponse) return session;
@@ -37,6 +37,7 @@ export async function requireNotesApiContext() {
     const t = await getTranslations("notes");
     return NextResponse.json({ error: t("errors.forbidden"), code: "forbidden" }, { status: 403 });
   }
+  await claimDiscordKnowledgeResources(actor);
   return { session, actor };
 }
 

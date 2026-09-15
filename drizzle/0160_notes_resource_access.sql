@@ -57,7 +57,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS performance_notes_resource_unique ON performan
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'performance_notes_resource_alliance_fk' AND conrelid = 'performance_notes'::regclass) THEN
     ALTER TABLE performance_notes ADD CONSTRAINT performance_notes_resource_alliance_fk
-      FOREIGN KEY (resource_id, alliance_id) REFERENCES knowledge_resources(id, alliance_id) ON DELETE RESTRICT;
+      FOREIGN KEY (resource_id, alliance_id) REFERENCES knowledge_resources(id, alliance_id) ON DELETE CASCADE;
   END IF;
 END $$;
 

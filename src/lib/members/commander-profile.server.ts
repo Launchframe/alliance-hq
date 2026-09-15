@@ -354,7 +354,8 @@ export async function loadCommanderProfile(
       .orderBy(desc(schema.memberViolations.recordedDate)),
   ]);
 
-  const noteActor = await getKnowledgeActorForSession(sessionId);
+  const canProjectNotes = await sessionHasPermission(sessionId, "members:write");
+  const noteActor = canProjectNotes ? await getKnowledgeActorForSession(sessionId) : null;
   const hqNotes = noteActor?.allianceId === allianceId
     ? await listPerformanceNotesForAshedMember({ actor: noteActor, ashedMemberId })
     : [];

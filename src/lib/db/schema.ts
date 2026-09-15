@@ -4737,7 +4737,7 @@ export const performanceNotes = pgTable(
     ),
     index("performance_notes_alliance_kind_idx").on(table.allianceId, table.kind),
     uniqueIndex("performance_notes_resource_unique").on(table.resourceId),
-    foreignKey({ name: "performance_notes_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+    foreignKey({ name: "performance_notes_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("cascade"),
   ],
 );
 

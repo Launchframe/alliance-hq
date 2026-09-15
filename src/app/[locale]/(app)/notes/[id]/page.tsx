@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { NotesClient } from "@/components/notes/NotesClient";
 import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
+import { claimDiscordKnowledgeResources } from "@/lib/notes/resources.server";
 import {
   getPerformanceNoteDto,
   listPerformanceNoteRoster,
@@ -25,6 +26,7 @@ export default async function NoteDetailPage({ params }: Props) {
   await requirePagePermission(session.id, "members:write");
   const actor = await getKnowledgeActorForSession(session.id);
   if (!actor) notFound();
+  await claimDiscordKnowledgeResources(actor);
 
   const note = await getPerformanceNoteDto({ noteId: id, actor });
   if (!note) notFound();

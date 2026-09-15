@@ -14,6 +14,10 @@ export class KnowledgeAccessError extends Error {
   }
 }
 
+/**
+ * Live SQL filter for list/detail. Must stay equivalent to `canAccessKnowledgeResource`
+ * in policy.shared.ts (owner, officers/board/user grants, board officer ceiling, share).
+ */
 export function knowledgeAccessCondition(actor: KnowledgeActor, resourceId: SQLWrapper, access: KnowledgeAccess = "read") {
   if (!knowledgeActorIsAuthenticated(actor)) return sql`false`;
   const officer = actor.kind === "web" && actor.isOfficer;
@@ -51,6 +55,9 @@ export async function recheckKnowledgeActor(tx: KnowledgeTransaction, actor: Kno
     return;
   }
   if (!actor.sessionId || !actor.hqUserId) throw new KnowledgeAccessError("forbidden");
+  const { auth } = await import("@/lib/auth");
+  const signedIn = await auth();
+  if (signedIn?.user?.id !== actor.hqUserId) throw new KnowledgeAccessError("forbidden");
   const [session] = await tx.select().from(schema.sessions).where(eq(schema.sessions.id, actor.sessionId)).for("share");
   if (!session || session.hqUserId !== actor.hqUserId || (session.currentAllianceId ?? session.allianceId) !== actor.allianceId || session.expiresAt <= new Date()) throw new KnowledgeAccessError("forbidden");
   const [membership] = await tx.select({ role: schema.roles.name }).from(schema.allianceMemberships)
@@ -117,6 +124,7 @@ export async function remapKnowledgeUser(tx: KnowledgeTransaction, sourceId: str
   await tx.update(schema.officerIntelThreads).set({ createdByHqUserId: canonicalId }).where(eq(schema.officerIntelThreads.createdByHqUserId, sourceId));
 }
 
+/** One-way Discord→HQ ownership claim for the actor's current alliance (Notes surfaces / writes). */
 export async function claimDiscordKnowledgeResources(actor: KnowledgeActor) {
   if (actor.kind !== "web" || !actor.hqUserId) return;
   await getDb().transaction(async (tx) => {
@@ -129,6 +137,23 @@ export async function claimDiscordKnowledgeResources(actor: KnowledgeActor) {
       ownerBoundAt: new Date(), accessVersion: sql`${schema.knowledgeResources.accessVersion} + 1`,
     }).where(and(
       eq(schema.knowledgeResources.allianceId, actor.allianceId),
+      eq(schema.knowledgeResources.ownershipState, "discord"),
+      inArray(schema.knowledgeResources.ownerDiscordUserId, links.map((link) => link.id)),
+    ));
+  });
+}
+
+/** Claim Discord-owned resources across all alliances when `/link` / OAuth binds Discord↔HQ. */
+export async function claimDiscordKnowledgeResourcesForHqUser(hqUserId: string) {
+  if (!hqUserId) return;
+  await getDb().transaction(async (tx) => {
+    const links = await tx.select({ id: schema.discordHqLinks.discordUserId }).from(schema.discordHqLinks)
+      .where(eq(schema.discordHqLinks.hqUserId, hqUserId)).for("share");
+    if (!links.length) return;
+    await tx.update(schema.knowledgeResources).set({
+      ownershipState: "hq", ownerHqUserId: hqUserId,
+      ownerBoundAt: new Date(), accessVersion: sql`${schema.knowledgeResources.accessVersion} + 1`,
+    }).where(and(
       eq(schema.knowledgeResources.ownershipState, "discord"),
       inArray(schema.knowledgeResources.ownerDiscordUserId, links.map((link) => link.id)),
     ));
