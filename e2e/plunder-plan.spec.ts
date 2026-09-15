@@ -17,6 +17,33 @@ async function fixture() {
   return { sql, allianceId, user, member, date: addCalendarDays(getServerCalendarDate(), 1) };
 }
 
+test("officers can save digest settings and members can opt into private reminders", async ({ page, context }) => {
+  const f = await fixture();
+  await f.sql`
+    INSERT INTO roles (id, alliance_id, name, description, is_system)
+    VALUES ('role-officer', NULL, 'officer', 'officer system role', 1)
+    ON CONFLICT (id) DO NOTHING
+  `;
+  await f.sql`UPDATE alliance_memberships SET role_id = 'role-officer' WHERE alliance_id = ${f.allianceId} AND hq_user_id = ${f.user.hqUserId}`;
+  const guildId = `7${randomUUID().replace(/-/g, "").slice(0, 17)}`;
+  await f.sql`INSERT INTO discord_guild_alliances (guild_id, alliance_id) VALUES (${guildId}, ${f.allianceId})`;
+  await context.addCookies(playwrightAuthCookies(f.user));
+  await page.goto("/en-US/plunder-plan");
+  await page.getByRole("button", { name: "Add my times", exact: true }).click();
+  const editor = page.getByRole("dialog");
+  await editor.getByLabel("Give me a heads-up on Discord").check();
+  await editor.getByLabel("Repeat", { exact: true }).selectOption("once");
+  await editor.getByLabel("Date", { exact: true }).fill(f.date);
+  await editor.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(editor).not.toBeVisible();
+  await page.getByRole("button", { name: "Plunder Plan notifications", exact: true }).click();
+  const notifications = page.getByRole("dialog");
+  await notifications.getByLabel("Share today’s Plunder Plans on Discord").check();
+  await notifications.getByLabel("Discord channel").fill("123456789012345678");
+  await notifications.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(notifications.getByRole("alert")).toHaveText("Choose an available channel in this alliance’s linked Discord server.");
+});
+
 test("member creates a one-time Plunder Plan, changes their color and removes it", async ({ page, context }) => {
   const f = await fixture();
   await context.addCookies(playwrightAuthCookies(f.user));
@@ -57,7 +84,7 @@ test("mobile defaults to Day and keeps an explicit Week choice after reload", as
 });
 
 test("Portuguese view and anonymous API boundaries", async ({ page, context, request }) => {
-  expect((await request.get("/api/plunder-plan")).status()).toBeGreaterThanOrEqual(400);
+  expect([401, 403]).toContain((await request.get("/api/plunder-plan")).status());
   const f = await fixture();
   await context.addCookies(playwrightAuthCookies(f.user));
   await page.goto("/pt-BR/plunder-plan");

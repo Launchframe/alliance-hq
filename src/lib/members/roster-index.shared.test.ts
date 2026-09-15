@@ -35,6 +35,7 @@ function commanderRow(
     highestBaseVr: null,
     hqLinked: false,
     oauthIdentitySplit: false,
+    country: null,
     ...overrides,
   };
 }

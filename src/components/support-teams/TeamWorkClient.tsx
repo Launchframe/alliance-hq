@@ -17,7 +17,7 @@ export function TeamWorkClient({ initial }: { initial: Dashboard }) {
   const professions = useTranslations("videoReview.rosterProfession");
   const locale = useLocale();
   const [data, setData] = useState(initial);
-  const [personal, setPersonal] = useState(true);
+  const [personal, setPersonal] = useState(false);
   const [team, setTeam] = useState("");
   const [kind, setKind] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +27,10 @@ export function TeamWorkClient({ initial }: { initial: Dashboard }) {
     const controller = new AbortController();
     async function refresh() {
       try {
-        const response = await fetch(`/api/team-work?scope=${personal ? "personal" : "all"}`, { cache: "no-store", signal: controller.signal });
+        const query = new URLSearchParams({ scope: personal ? "personal" : "all" });
+        if (team) query.set("team", team);
+        if (kind) query.set("kind", kind);
+        const response = await fetch(`/api/team-work?${query}`, { cache: "no-store", signal: controller.signal });
         const next = await response.json();
         if (!response.ok) throw new Error(next.error ?? support("changed"));
         if (active) { setData(next); setError(null); }
@@ -36,7 +39,7 @@ export function TeamWorkClient({ initial }: { initial: Dashboard }) {
     void refresh();
     const interval = setInterval(() => void refresh(), 30_000);
     return () => { active = false; controller.abort(); clearInterval(interval); };
-  }, [personal, revision, support]);
+  }, [personal, team, kind, revision, support]);
   const date = (value: string) => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`));
   const teamName = (id: string) => data.teams.find((entry) => entry.id === id)?.name ?? support("defaultName", { number: (data.teams.findIndex((entry) => entry.id === id) + 1).toLocaleString(locale) });
   const items = data.items.filter((item) => (!team || item.teamId === team) && (!kind || item.kind === kind));

@@ -54,6 +54,12 @@
     "suggestionLabel": "Horário sugerido", "suggestionHint": "Sugira um bom horário para encontrar e compartilhar tarefas secretas juntos.",
     "suggestionIndependent": "Amigos que já participaram mantêm seus próprios planos quando você altera ou remove esta sugestão.",
     "suggestionSaved": "Horário sugerido salvo.", "suggestionRemoved": "Horário sugerido removido.",
+    "events": {
+      "zombie_siege": "Cerco zumbi",
+      "sky_marshall": "Sky Predator",
+      "glacierdon": "Glacierdon",
+      "marshal_guard": "Exercício da Aliança"
+    },
     "color": {
       "title": "Minha cor no calendário", "hint": "Escolha uma cor para todos os seus Planos de Saque. Seus amigos também a verão no calendário.",
       "custom": "Cor personalizada", "hex": "Cor hexadecimal", "apply": "Usar esta cor", "previewLight": "Prévia clara", "previewDark": "Prévia escura",
@@ -67,7 +73,9 @@
       "time": "Horário do resumo diário (UTC−2)", "language": "Idioma do resumo",
       "digestHint": "Mostre aos amigos quem vai compartilhar tarefas secretas hoje. Uma mensagem por dia, sem menções a cargos ou a todos, e nenhuma mensagem em dias sem planos.",
       "saved": "Configurações de notificação salvas.", "reminder": "Seu Plano de Saque começa às {time}. Boa caçada—compartilhe com os amigos as tarefas secretas que encontrar!",
-      "digestTitle": "Planos de Saque de hoje", "digestEntry": "{name}: {start}–{end}", "open": "Ver Planos de Saque"
+      "digestTitle": "Planos de Saque de hoje", "digestEntry": "{name}: {start}–{end}", "digestOverflow": "E mais {count}.", "open": "Ver Planos de Saque",
+      "noGuilds": "Vincule um servidor Discord antes de ativar os resumos diários.",
+      "guildOption": "Servidor Discord · {id}"
     },
     "errors": {
       "forbidden": "Você não tem acesso a esta ação do Plano de Saque.", "linkRequired": "Vincule um Comandante nesta aliança para adicionar seu Plano de Saque.",
@@ -77,6 +85,8 @@
       "invalidColor": "Informe uma cor hexadecimal de seis dígitos, como #3366CC.", "duplicate": "Você já tem este Plano de Saque.",
       "stale": "Este plano mudou. Confira a versão mais recente antes de tentar novamente.", "notFound": "Este plano ou sugestão não está mais disponível.",
       "expired": "Esta confirmação expirou ou já foi usada. Abra seus Planos de Saque e tente novamente.",
+      "guildNotRegistered": "Este servidor do Discord ainda não está vinculado a uma aliança. Um dono pode executar /link-alliance primeiro.",
+      "notificationsRequired": "Escolha se os resumos diários estão ligados ou desligados ao usar /plunder-plan notifications.",
       "channel": "Escolha um canal disponível no servidor do Discord vinculado a esta aliança.", "load": "Não foi possível carregar os Planos de Saque. Tente novamente.",
       "save": "Não foi possível salvar suas alterações. Seus dados foram mantidos.", "rateLimit": "Muitas solicitações. Aguarde um momento e tente novamente."
     }
@@ -5699,6 +5709,8 @@
       "memberModalTitle": "Nome do comandante",
       "memberModalLabel": "Nome do comandante",
       "noMatch": "Nenhum membro do roster corresponde a {token}.",
+      "tryAgain": "Tentar novamente",
+      "nevermind": "Deixa pra lá",
       "skip": "Pular",
       "emptyText": "Anotação livre. O que você quer registrar?",
       "emptyReason": "Informe um motivo antes de salvar.",

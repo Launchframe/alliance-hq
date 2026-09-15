@@ -66,6 +66,12 @@
     "suggestionLabel": "Suggested time", "suggestionHint": "Suggest a good time to find and share secret tasks together.",
     "suggestionIndependent": "Friends who have already joined keep their own plans when you change or remove this suggestion.",
     "suggestionSaved": "Suggested time saved.", "suggestionRemoved": "Suggested time removed.",
+    "events": {
+      "zombie_siege": "Zombie Siege",
+      "sky_marshall": "Sky Predator",
+      "glacierdon": "Glacierdon",
+      "marshal_guard": "Alliance Exercise"
+    },
     "color": {
       "title": "My calendar color", "hint": "Pick a color for all your Plunder Plans. Your friends will see it on the calendar too.",
       "custom": "Custom color", "hex": "Hex color", "apply": "Use this color", "previewLight": "Light preview", "previewDark": "Dark preview",
@@ -79,7 +85,9 @@
       "time": "Daily summary time (UTC−2)", "language": "Summary language",
       "digestHint": "Let friends see who’s sharing secret tasks today. One daily message, no role or everyone mentions, and no message on days without plans.",
       "saved": "Notification settings saved.", "reminder": "Your Plunder Plan starts at {time}. Happy hunting—share any secret tasks you find with your friends!",
-      "digestTitle": "Today’s Plunder Plans", "digestEntry": "{name}: {start}–{end}", "open": "See Plunder Plans"
+      "digestTitle": "Today’s Plunder Plans", "digestEntry": "{name}: {start}–{end}", "digestOverflow": "Plus {count} more.", "open": "See Plunder Plans",
+      "noGuilds": "Link a Discord server before turning on daily summaries.",
+      "guildOption": "Discord server · {id}"
     },
     "errors": {
       "forbidden": "You don’t have access to this Plunder Plan action.", "linkRequired": "Link a Commander in this alliance to add your Plunder Plan.",
@@ -89,6 +97,8 @@
       "invalidColor": "Enter a six-digit hex color, such as #3366CC.", "duplicate": "You already have this Plunder Plan.",
       "stale": "This plan changed. Review the latest version before trying again.", "notFound": "This plan or suggestion is no longer available.",
       "expired": "This confirmation has expired or already been used. Open your Plunder Plans and try again.",
+      "guildNotRegistered": "This Discord server is not linked to an alliance yet. An owner can run /link-alliance first.",
+      "notificationsRequired": "Choose whether daily summaries are on or off when using /plunder-plan notifications.",
       "channel": "Choose an available channel in this alliance’s linked Discord server.", "load": "Couldn’t load Plunder Plans. Try again.",
       "save": "Couldn’t save your changes. Your inputs have been kept.", "rateLimit": "Too many requests. Please wait a moment and try again."
     }
@@ -5765,6 +5775,8 @@
       "memberModalTitle": "Commander name",
       "memberModalLabel": "Commander name",
       "noMatch": "No roster match for {token}.",
+      "tryAgain": "Try again",
+      "nevermind": "Nevermind",
       "skip": "Skip",
       "emptyText": "Freeform note. What's on your mind?",
       "emptyReason": "Enter a reason before saving.",

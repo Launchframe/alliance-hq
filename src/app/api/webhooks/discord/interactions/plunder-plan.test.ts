@@ -1,7 +1,7 @@
 import nacl from "tweetnacl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ handle: vi.fn(), modal: vi.fn(), followup: vi.fn() }));
-vi.mock("@/lib/plunder-plan/discord.server", () => ({ handlePlunderPlanDiscord: mocks.handle, openPlunderPlanModal: mocks.modal, plunderComponentNeedsModal: (id: string) => id.endsWith(":weekly") }));
+vi.mock("@/lib/plunder-plan/discord.server", () => ({ handlePlunderPlanDiscord: mocks.handle, openPlunderPlanModal: mocks.modal, plunderComponentNeedsModal: (id: string) => ["weekly", "once", "custom"].includes(id.split(":")[2] ?? "") }));
 vi.mock("@/lib/discord/interaction-followup.server", () => ({ editDiscordOriginalInteraction: mocks.followup, editDiscordOriginalInteractionWithFiles: vi.fn() }));
 import { POST } from "./route";
 const keys = nacl.sign.keyPair();
@@ -26,6 +26,12 @@ describe("Plunder Plan signed dispatch", () => {
   it("opens a modal directly rather than deferring it", async () => {
     mocks.modal.mockResolvedValue({ type: 9, data: { title: "Plunder Plan" } });
     expect(await (await POST(signed({ ...payload, type: 3, data: { custom_id: "plunder:abcdefghijklmnopqrstu:weekly" } }))).json()).toMatchObject({ type: 9 });
+    expect(await (await POST(signed({ ...payload, type: 3, data: { custom_id: "plunder:abcdefghijklmnopqrstu:once" } }))).json()).toMatchObject({ type: 9 });
     expect(mocks.handle).not.toHaveBeenCalled();
+  });
+  it("edits the original interaction when background work fails", async () => {
+    mocks.handle.mockRejectedValue(new Error("boom"));
+    expect(await (await POST(signed(payload))).json()).toEqual({ type: 5, data: { flags: 64 } });
+    await vi.waitFor(() => expect(mocks.followup).toHaveBeenCalledWith(expect.objectContaining({ ephemeral: true, suppressMentions: true })));
   });
 });
