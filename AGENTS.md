@@ -159,6 +159,10 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 
 ## Learned Workspace Facts
 
+- A Notes editor missing from a refreshed list must reauthorize its saved note through the detail API. List-window absence alone must not discard an authorized draft, but confirmed denial must clear the inaccessible editor.
+- Internal history-worker membership denial must still reach lease-fenced cancellation under the resource/job locks; returning early before locking leaves revoked imports stuck running. Denial never permits source output publication.
+- Professions browser fixtures need a claimed commander (`hq_user_commanders`) with active alliance membership, not just an authenticated officer session. The officer deep link must fetch its initial data without requiring a tab click.
+
 - Plunder Plan database suites: run `npx vitest run src/lib/plunder-plan --maxWorkers=1` with `PLUNDER_PLAN_DB_TEST=1` only after binding all three database URLs to the same guarded dedicated test database. Delivery tests mock Discord; never invoke live command registration or the authenticated delivery tick as an automated smoke test. Worktrees do not isolate the database.
 
 - Migration renumbering after `0004` is SQL file rename plus `_journal.json` update (Drizzle snapshots only cover `0000`–`0004`).
@@ -194,7 +198,4 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 - Reviewed generation jobs use current indexed evidence, exact-quote citation validation, and owner-bound saved reviews. Only explicit acceptance creates canonical notes/tasks. Conversation replay must revalidate the complete stored evidence manifest; legacy running summaries are not reusable context.
 - Public note publications are immutable previewed copies, not live-note projections. Token lookup is hashed and owner link recovery is encrypted. Public reads recheck current publisher authority but deliberately do not follow later private content edits. Keep Notes/share routes out of telemetry, including already-mounted clients via beforeSend filtering.
 - Commander name conflicts are not a roster-sync gate. `syncCommanderFromAllianceMember` reattaches a stale Ashed id when no other **active** roster row owns the name, and skips the conflict when this roster row is already linked. A linked commander must not be renamed onto that orphan name, and a UID-less sync must not write `game_uid = null` — both hit `commanders_orphan_name_server_unique` and used to fail the whole refresh with raw SQL. Members refresh must not auto-open the resolve sheet; a name save reloads `/api/members` **without** `refresh=1` so Ashed cannot write the old display name back and reopen the dialog. `GET /api/members` must not return driver/SQL text.
-- A Notes editor missing from a refreshed list must reauthorize its saved note through the detail API. List-window absence alone must not discard an authorized draft, but confirmed denial must clear the inaccessible editor.
-- Internal history-worker membership denial must still reach lease-fenced cancellation under the resource/job locks; returning early before locking leaves revoked imports stuck running. Denial never permits source output publication.
-- Professions browser fixtures need a claimed commander (`hq_user_commanders`) with active alliance membership, not just an authenticated officer session. The officer deep link must fetch its initial data without requiring a tab click.
 
