@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { HISTORY_MESSAGE_LENGTH, HISTORY_MESSAGE_LIMIT, HISTORY_TEXT_BYTES, historyInitSchema, parseHistoryText } from "./imports.shared";
+import { HISTORY_MESSAGE_LENGTH, HISTORY_MESSAGE_LIMIT, HISTORY_TEXT_BYTES, historyInitSchema, parseHistoryListCursor, parseHistoryText } from "./imports.shared";
+
+describe("history list cursors", () => {
+  const cursor = { version: 1, scope: "alliance:author", updatedAt: "2026-09-15T12:00:00.123456Z", id: "source-one" };
+  it("preserves scope and database timestamp precision", () => {
+    expect(parseHistoryListCursor(JSON.stringify(cursor))).toEqual(cursor);
+    expect(parseHistoryListCursor(null)).toBeNull();
+  });
+  it("rejects malformed, unbounded, and unsupported cursors", () => {
+    for (const raw of ["", "{", "x".repeat(701), "null", JSON.stringify({ ...cursor, version: 2 }), JSON.stringify({ ...cursor, scope: "" }), JSON.stringify({ ...cursor, updatedAt: "yesterday" }), JSON.stringify({ ...cursor, id: "../private" })]) {
+      expect(() => parseHistoryListCursor(raw)).toThrow();
+    }
+  });
+});
 
 describe("reviewed history adapters", () => {
   it("requires checksummed compatible files and bounds total image bytes", () => {

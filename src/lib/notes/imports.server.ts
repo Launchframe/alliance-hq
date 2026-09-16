@@ -9,7 +9,7 @@ import type { KnowledgeWebActor } from "./access.server";
 import { createKnowledgeResource, knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, recheckKnowledgeActor, touchKnowledgeResource, type KnowledgeTransaction } from "./resources.server";
 import { knowledgeHash, knowledgePrincipalKey, withKnowledgeReceipt } from "./mutations.server";
 import { assertHistoryStorage, historyByteHash, readHistoryObject, readHistoryStream, validateHistoryBytes } from "./import-storage.server";
-import { historyInitSchema, historyReviewSchema, type HistoryImportDetail, type HistoryImportSummary, type HistoryInit } from "./imports.shared";
+import { HISTORY_IMPORT_PAGE_SIZE, historyInitSchema, historyReviewSchema, type HistoryImportDetail, type HistoryImportPage, type HistoryInit, type HistoryListCursor } from "./imports.shared";
 import { redactIntakeText } from "./intake.shared";
 import { historyMemberMayProcess, queueHistoryJob } from "./jobs.server";
 
@@ -49,9 +49,17 @@ export async function historyImportDetail(actor: KnowledgeWebActor, id: string, 
     messages: rows.map((row) => ({ id: row.id, sender: row.senderName === null ? null : redactIntakeText(row.senderName), sentAt: row.sentAt?.toISOString() ?? null, body: redactIntakeText(row.originalText), included: row.historyIncluded, reviewed: row.historyReviewed, position: row.sequenceOrder })),
   };
 }
-export async function listHistoryImports(actor: KnowledgeWebActor): Promise<Array<Pick<HistoryImportSummary, "id" | "title" | "state" | "kind" | "updatedAt">>> {
-  const rows = await getDb().select({ record: imports, title: schema.officerChatSessions.title }).from(imports).innerJoin(schema.officerChatSessions, eq(schema.officerChatSessions.id, imports.id)).where(ownerAccess(actor)).orderBy(desc(imports.updatedAt)).limit(50);
-  return rows.map(({ record, title }) => ({ id: record.id, title: redactIntakeText(title), state: record.state, kind: record.kind, updatedAt: record.updatedAt.toISOString() }));
+export async function listHistoryImports(actor: KnowledgeWebActor, cursor: HistoryListCursor | null = null): Promise<HistoryImportPage> {
+  const scope = `${actor.allianceId}:${actor.hqUserId}`;
+  if (cursor && cursor.scope !== scope) throw new KnowledgeAccessError("forbidden");
+  const rows = await getDb().select({ record: imports, title: schema.officerChatSessions.title, cursorTime: sql<string>`to_char(${imports.updatedAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')` }).from(imports)
+    .innerJoin(schema.officerChatSessions, eq(schema.officerChatSessions.id, imports.id))
+    .where(and(ownerAccess(actor), cursor ? sql`(${imports.updatedAt}, ${imports.id}) < (${cursor.updatedAt}::text::timestamptz, ${cursor.id})` : undefined))
+    .orderBy(desc(imports.updatedAt), desc(imports.id)).limit(HISTORY_IMPORT_PAGE_SIZE + 1);
+  const page = rows.slice(0, HISTORY_IMPORT_PAGE_SIZE);
+  const last = page.at(-1);
+  return { scope, imports: page.map(({ record, title }) => ({ id: record.id, title: redactIntakeText(title), state: record.state, kind: record.kind, updatedAt: record.updatedAt.toISOString() })),
+    nextCursor: rows.length > HISTORY_IMPORT_PAGE_SIZE && last ? JSON.stringify({ version: 1, scope, id: last.record.id, updatedAt: last.cursorTime } satisfies HistoryListCursor) : null };
 }
 export async function initializeHistoryImport(actor: KnowledgeWebActor, raw: HistoryInit) {
   if (!actor.canCreate || !actor.hqUserId) throw new KnowledgeAccessError("forbidden");
