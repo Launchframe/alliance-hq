@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { noteFieldsSchema, notePatchSchema, noteRouteId, noteTitle, notePriorityRank, normalizeNoteLabels, notesWorkspaceLocation } from "./workspace.shared";
+import { noteFieldsSchema, notePatchSchema, noteRouteId, noteTitle, notePriorityRank, normalizeNoteLabels, notesWorkspaceLocation, noteListFilterSchema, parseNoteListCursor } from "./workspace.shared";
+
+describe("note list boundaries", () => {
+  it("normalizes bounded filters without inventing a priority", () => {
+    expect(noteListFilterSchema.parse({})).toEqual({ view: "notebook", q: "", notebook: "", source: "", priority: "all", sort: "recent" });
+    expect(noteListFilterSchema.safeParse({ priority: "none", source: "discord" }).success).toBe(true);
+    expect(noteListFilterSchema.safeParse({ q: "x".repeat(201) }).success).toBe(false);
+    expect(noteListFilterSchema.safeParse({ sort: "arbitrary" }).success).toBe(false);
+  });
+  it("preserves exact cursor timestamps and rejects malformed query lineage", () => {
+    const cursor = { version: 1, scope: "alliance:author", key: "a".repeat(64), id: "meeting:legacy", updatedAt: "2026-09-16T01:02:03.123456Z", rank: 0 };
+    expect(parseNoteListCursor(JSON.stringify(cursor))).toEqual(cursor);
+    expect(parseNoteListCursor(null)).toBeNull();
+    for (const value of ["{}", "null", "x".repeat(901), JSON.stringify({ ...cursor, rank: 5 }), JSON.stringify({ ...cursor, updatedAt: "yesterday" })]) expect(() => parseNoteListCursor(value)).toThrow();
+  });
+});
 
 describe("note workspace fields", () => {
   it("normalizes canonical meeting IDs across locale rewrites without decoding arbitrary paths", () => {

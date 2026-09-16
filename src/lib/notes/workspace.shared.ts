@@ -7,6 +7,29 @@ export const NOTE_DOCUMENT_TYPES = ["note", "journal", "meeting", "reference"] a
 export type NoteDocumentType = typeof NOTE_DOCUMENT_TYPES[number];
 export type NoteWorkspaceView = "notebook" | "inbox" | "shared" | "archived" | "tasks" | "boards" | "drafts" | "imports" | "search" | "knowledge" | "studio" | "publications";
 
+export const NOTE_LIST_PAGE_SIZE = 50;
+export const NOTE_LIST_VIEWS = ["notebook", "inbox", "shared", "archived"] as const;
+export const noteListFilterSchema = z.object({
+  view: z.enum(NOTE_LIST_VIEWS).default("notebook"), q: z.string().trim().max(200).default(""),
+  notebook: z.string().max(60).default(""), source: z.enum(["", "web", "discord"]).default(""),
+  priority: z.enum(["all", "none", ...NOTE_PRIORITIES]).default("all"), sort: z.enum(["recent", "priority"]).default("recent"),
+});
+export type NoteListFilter = z.infer<typeof noteListFilterSchema>;
+const noteListCursorSchema = z.object({ version: z.literal(1), scope: z.string().min(1).max(300), key: z.string().regex(/^[a-f0-9]{64}$/), id: z.string().min(1).max(120), updatedAt: z.iso.datetime({ precision: 6 }).refine((value) => !value.startsWith("0000-")), rank: z.number().int().min(0).max(4) }).strict();
+export type NoteListCursor = z.infer<typeof noteListCursorSchema>;
+export function parseNoteListCursor(raw: string | null): NoteListCursor | null {
+  return raw === null ? null : noteListCursorSchema.parse(JSON.parse(z.string().min(1).max(900).parse(raw)));
+}
+export function readNoteListFilter(params: URLSearchParams): NoteListFilter {
+  const view = params.get("view");
+  return noteListFilterSchema.parse({ ...Object.fromEntries(["q", "notebook", "source", "priority", "sort"].flatMap((key) => params.has(key) ? [[key, params.get(key)]] : [])), view: NOTE_LIST_VIEWS.includes(view as NoteListFilter["view"]) ? view : "notebook" });
+}
+export function noteListUrl(filter: NoteListFilter, cursor: string | null = null): string {
+  const params = new URLSearchParams({ format: "summary", ...filter });
+  if (cursor) params.set("cursor", cursor);
+  return `/api/notes?${params}`;
+}
+
 export function normalizeNoteLabels(values: readonly string[]): string[] {
   const labels = new Map<string, string>();
   for (const value of values) {

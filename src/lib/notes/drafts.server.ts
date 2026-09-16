@@ -23,6 +23,10 @@ export async function getCaptureDraft(actor: KnowledgeActor, id: string): Promis
   if (!row) throw new KnowledgeAccessError("not_found");
   return draftDto(row.draft, row.version);
 }
+export async function countCaptureDrafts(actor: KnowledgeActor): Promise<number> {
+  const [row] = await getDb().select({ total: sql<number>`count(*)` }).from(drafts).where(and(visibleDraft(actor), eq(drafts.status, "open")));
+  return Number(row.total);
+}
 export async function listCaptureDrafts(actor: KnowledgeActor) {
   const rows = await getDb().select({ id: drafts.id, source: drafts.source, updatedAt: drafts.updatedAt, state: drafts.state }).from(drafts)
     .where(and(visibleDraft(actor), eq(drafts.status, "open"))).orderBy(desc(drafts.updatedAt)).limit(50);
