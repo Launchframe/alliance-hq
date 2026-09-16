@@ -626,6 +626,36 @@ export async function upsertCommanderFromLink(input: {
   });
 }
 
+/**
+ * Point an existing commander membership at the current roster Ashed id.
+ * Only call this when the previous id is not another live roster member —
+ * the unique `(alliance_id, ashed_member_id)` index will reject a live collision.
+ */
+async function reattachOrphanMembershipAshedMemberId(input: {
+  allianceId: string;
+  commanderId: string;
+  fromAshedMemberId: string;
+  toAshedMemberId: string;
+}): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.commanderAllianceMemberships)
+    .set({
+      ashedMemberId: input.toAshedMemberId,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.commanderAllianceMemberships.allianceId, input.allianceId),
+        eq(schema.commanderAllianceMemberships.commanderId, input.commanderId),
+        eq(
+          schema.commanderAllianceMemberships.ashedMemberId,
+          input.fromAshedMemberId,
+        ),
+      ),
+    );
+}
+
 export async function upsertCommanderAllianceMembership(input: {
   commanderId: string;
   allianceId: string;
@@ -739,7 +769,7 @@ export async function linkHqUserToCommander(input: {
 
 /**
  * Mirror a roster member into commander tables.
- * Defers with name_conflict when orphan identity collides with another member.
+ * Defers with name_conflict only when another live roster member already owns the name.
  */
 export async function syncCommanderFromAllianceMember(input: {
   allianceId: string;
@@ -856,31 +886,57 @@ export async function syncCommanderFromAllianceMember(input: {
     gameServerNumber,
   });
 
-  if (orphan?.ashedMemberId && orphan.ashedMemberId !== input.ashedMemberId) {
-    const conflict: CommanderIdentityConflict = {
-      code: "name_taken_by_other_member",
-      ashedMemberId: input.ashedMemberId,
-      normalizedName,
-      gameServerNumber,
-      existingCommanderId: orphan.commander.id,
-    };
-    const reasonJson: CommanderConflictReasonJson = {
-      code: conflict.code,
-      normalizedName,
-      gameServerNumber,
-      existingCommanderId: orphan.commander.id,
-    };
-    await setMemberCommanderSyncStatus(
+  // A roster row that is already linked keeps that commander. A name match on a
+  // stale Ashed id (no other live roster row) is the same player — reattach,
+  // do not force a rename. Only a different live member is a real conflict.
+  let adoptStaleOrphanId: string | null = null;
+  if (
+    orphan?.ashedMemberId &&
+    orphan.ashedMemberId !== input.ashedMemberId &&
+    !existingMembership?.commanderId
+  ) {
+    const owner = await loadAllianceMemberRow(
       input.allianceId,
-      input.ashedMemberId,
-      COMMANDER_SYNC_STATUS.NAME_CONFLICT,
-      reasonJson,
+      orphan.ashedMemberId,
     );
-    return {
-      status: "deferred",
-      reason: COMMANDER_SYNC_STATUS.NAME_CONFLICT,
-      conflict,
-    };
+    if (owner?.status === "active") {
+      const conflict: CommanderIdentityConflict = {
+        code: "name_taken_by_other_member",
+        ashedMemberId: input.ashedMemberId,
+        normalizedName,
+        gameServerNumber,
+        existingCommanderId: orphan.commander.id,
+        existingMemberName: owner.currentName,
+      };
+      const reasonJson: CommanderConflictReasonJson = {
+        code: conflict.code,
+        normalizedName,
+        gameServerNumber,
+        existingCommanderId: orphan.commander.id,
+        existingMemberName: owner.currentName,
+      };
+      await setMemberCommanderSyncStatus(
+        input.allianceId,
+        input.ashedMemberId,
+        COMMANDER_SYNC_STATUS.NAME_CONFLICT,
+        reasonJson,
+      );
+      return {
+        status: "deferred",
+        reason: COMMANDER_SYNC_STATUS.NAME_CONFLICT,
+        conflict,
+      };
+    }
+    adoptStaleOrphanId = orphan.ashedMemberId;
+  }
+
+  if (adoptStaleOrphanId && orphan) {
+    await reattachOrphanMembershipAshedMemberId({
+      allianceId: input.allianceId,
+      commanderId: orphan.commander.id,
+      fromAshedMemberId: adoptStaleOrphanId,
+      toAshedMemberId: input.ashedMemberId,
+    });
   }
 
   if (!orphan) {
@@ -919,10 +975,12 @@ export async function syncCommanderFromAllianceMember(input: {
     ashedMemberId: input.ashedMemberId,
     memberDisplayName: displayName,
     existingCommanderId:
-      orphan?.ashedMemberId === input.ashedMemberId ||
-      orphan?.ashedMemberId == null
-        ? orphan?.commander.id ?? existingMembership?.commanderId ?? null
-        : existingMembership?.commanderId ?? null,
+      adoptStaleOrphanId != null
+        ? orphan?.commander.id ?? null
+        : orphan?.ashedMemberId === input.ashedMemberId ||
+            orphan?.ashedMemberId == null
+          ? orphan?.commander.id ?? existingMembership?.commanderId ?? null
+          : existingMembership?.commanderId ?? null,
     ashedStats: input.ashedStats,
   });
 
