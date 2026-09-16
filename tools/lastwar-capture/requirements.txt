@@ -1,0 +1,4 @@
+# Runtime (capture + upload). Upload uses stdlib urllib — no requests needed.
+scapy>=2.5.0
+
+# Optional GUI binary build: pip install -r requirements-build.txt

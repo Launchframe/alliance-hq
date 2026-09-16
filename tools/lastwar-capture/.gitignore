@@ -1,0 +1,13 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+dist/
+build/
+*.spec.bak
+creds/
+lastwar-creds/
+*.bin
+server_info.txt
+capture_log_*.txt
+.DS_Store
