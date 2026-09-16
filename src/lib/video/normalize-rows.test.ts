@@ -35,6 +35,11 @@ describe("stripParsedNameDecorations", () => {
   it("leaves names unchanged when no tag applies", () => {
     expect(stripParsedNameDecorations("Freddy")).toBe("Freddy");
   });
+
+  it("strips a trailing alliance tag and a 1-edit OCR of the tag", () => {
+    expect(stripParsedNameDecorations("Redd LFgo", "LFgo")).toBe("Redd");
+    expect(stripParsedNameDecorations("Redd TFLgo", "LFgo")).toBe("Redd");
+  });
 });
 
 describe("sanitizedNameKey", () => {
@@ -232,5 +237,16 @@ describe("collapseEntriesBySanitizedName", () => {
     expect(unresolvedConflicts).toEqual(["redd"]);
     expect(entries).toHaveLength(2);
     expect(entries.every((entry) => entry.scoreConflict)).toBe(true);
+  });
+
+  it("collapses near-duplicate integer scores for the same sanitized name", () => {
+    const { entries, unresolvedConflicts } = collapseEntriesBySanitizedName([
+      { name: "Parker Stanley", score: "13333850" },
+      { name: "Parker Stanley", score: "13333950" },
+    ]);
+
+    expect(unresolvedConflicts).toEqual([]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.name).toBe("Parker Stanley");
   });
 });

@@ -155,6 +155,22 @@ export function collapseEntriesBySanitizedName(
     const distinctScores = rankedScores.map(([score]) => score);
     const preferred = pickPreferredScore(distinctScores);
 
+    const allNearDuplicates = distinctScores.every((score) =>
+      integerScoresAreOcrNearDuplicates(score, preferred),
+    );
+    if (allNearDuplicates) {
+      collapsed.push(
+        withEarliestFrameIndex(
+          {
+            ...pickBestDisplayEntry(group, allianceTag),
+            score: preferred,
+          },
+          group,
+        ),
+      );
+      continue;
+    }
+
     if (allOtherScoresAreLossyAliases(distinctScores, preferred)) {
       collapsed.push(
         withEarliestFrameIndex(
@@ -214,7 +230,61 @@ export function normalizeName(name: string): string {
   return name.trim().replace(/\s+/g, " ");
 }
 
-/** Strip bracketed tags and bare alliance tag prefixes from OCR names before matching. */
+/**
+ * Fold OCR/Latin letters for matching only. NFKD strips combining marks;
+ * a few letters (ł) do not decompose and must be mapped by hand.
+ * Do not strip remaining non-ASCII to empty — that turns `PÜRPŁE` into `prpe`.
+ */
+export function foldOcrLatin(name: string): string {
+  const mapped = name
+    .replace(/[Łł]/g, (ch) => (ch === "Ł" ? "L" : "l"))
+    .replace(/[Øø]/g, (ch) => (ch === "Ø" ? "O" : "o"))
+    .replace(/[Đđ]/g, (ch) => (ch === "Đ" ? "D" : "d"))
+    .replace(/Æ/g, "AE")
+    .replace(/æ/g, "ae");
+  return mapped.normalize("NFKD").replace(/\p{M}/gu, "");
+}
+
+function editDistanceFolded(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  const dp = Array.from({ length: m + 1 }, () => Array<number>(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i]![0] = i;
+  for (let j = 0; j <= n; j++) dp[0]![j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i]![j] = Math.min(
+        dp[i - 1]![j]! + 1,
+        dp[i]![j - 1]! + 1,
+        dp[i - 1]![j - 1]! + cost,
+      );
+    }
+  }
+  return dp[m]![n]!;
+}
+
+function stripTrailingNearAllianceTag(result: string, tag: string): string {
+  const parts = result.split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return result;
+  const last = parts[parts.length - 1]!;
+  const foldedLast = foldOcrLatin(last).toLowerCase();
+  const foldedTag = foldOcrLatin(tag).toLowerCase();
+  if (!foldedLast || !foldedTag) return result;
+  if (foldedLast === foldedTag) {
+    return parts.slice(0, -1).join(" ");
+  }
+  const extra = Math.abs(foldedLast.length - foldedTag.length);
+  if (extra <= 2 && (foldedLast.endsWith(foldedTag) || foldedTag.endsWith(foldedLast))) {
+    return parts.slice(0, -1).join(" ");
+  }
+  if (extra <= 2 && editDistanceFolded(foldedLast, foldedTag) <= 2) {
+    return parts.slice(0, -1).join(" ");
+  }
+  return result;
+}
+
+/** Strip bracketed tags and bare alliance tag prefixes/suffixes from OCR names before matching. */
 export function stripParsedNameDecorations(
   name: string,
   allianceTag?: string | null,
@@ -226,9 +296,26 @@ export function stripParsedNameDecorations(
   if (tag) {
     const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     result = result.replace(new RegExp(`^${escaped}(?:\\s+|)`, "i"), "");
+    result = result.replace(new RegExp(`(?:\\s+|)${escaped}$`, "i"), "");
+    result = stripTrailingNearAllianceTag(result, tag);
   }
 
   return result.replace(/\s+/g, " ").trim();
+}
+
+/** Integer OCR scores that differ only in trailing noise for the same commander. */
+export function integerScoresAreOcrNearDuplicates(
+  a: string,
+  b: string,
+): boolean {
+  if (!/^\d+$/.test(a) || !/^\d+$/.test(b)) return false;
+  if (a.length !== b.length || a.length < 6) return false;
+  const da = Number(a);
+  const db = Number(b);
+  if (!Number.isFinite(da) || !Number.isFinite(db)) return false;
+  const diff = Math.abs(da - db);
+  const max = Math.max(da, db);
+  return diff <= 999 && max > 0 && diff / max <= 0.001;
 }
 
 export function normalizeScoreValue(score: string | number): string {

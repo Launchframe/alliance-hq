@@ -126,8 +126,8 @@ export const ALLIANCE_KILLS_VIDEO_SCORE_TARGET = "alliance-kills-video" as const
 /**
  * Score targets whose review table shows a read-only `#` column (row position in
  * Read-only `#` leaderboard rank (score DESC, competition ties) for targets in
- * REVIEW_ROW_NUMBER_SCORE_TARGETS — matches in-game order even when table rows
- * follow video frame order.
+ * REVIEW_ROW_NUMBER_SCORE_TARGETS — matches in-game order. Review tables for
+ * these targets also load highest-score first.
  */
 export const REVIEW_ROW_NUMBER_SCORE_TARGETS = [
   "vs-performance",

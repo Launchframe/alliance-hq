@@ -74,14 +74,23 @@ export function clusterByFuzzyName<T>(
     threshold?: number;
     allianceTag?: string | null;
     includeSingletons?: boolean;
+    /** Override default `normalizeEntityName` (e.g. Latin-fold for scoreboards). */
+    normalize?: (raw: string, allianceTag?: string | null) => string;
+    /** Override default `stringSimilarity` (e.g. containment-aware score). */
+    similarity?: (a: string, b: string) => number;
   },
 ): T[][] {
   const threshold = options?.threshold ?? FUZZY_AUTO_MERGE_THRESHOLD;
   const includeSingletons = options?.includeSingletons ?? false;
   if (rows.length === 0) return [];
 
+  const normalize =
+    options?.normalize ??
+    ((raw: string, tag?: string | null) =>
+      normalizeEntityName(raw, tag));
+  const similarity = options?.similarity ?? stringSimilarity;
   const normalized = rows.map((row) =>
-    normalizeEntityName(getName(row), options?.allianceTag),
+    normalize(getName(row), options?.allianceTag),
   );
   const uf = new UnionFind(rows.length);
 
@@ -90,7 +99,7 @@ export function clusterByFuzzyName<T>(
       const a = normalized[i]!;
       const b = normalized[j]!;
       if (!a || !b) continue;
-      if (a === b || stringSimilarity(a, b) >= threshold) {
+      if (a === b || similarity(a, b) >= threshold) {
         uf.union(i, j);
       }
     }
