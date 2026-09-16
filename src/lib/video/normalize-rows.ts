@@ -274,6 +274,9 @@ function stripTrailingNearAllianceTag(result: string, tag: string): string {
   if (foldedLast === foldedTag) {
     return parts.slice(0, -1).join(" ");
   }
+  // Fuzzy tag OCR (`TFLgo` ≈ `LFgo`) needs a real tag length. 2–3 letter
+  // tags collide with last names (`Gold` vs `Go`, `Name` vs `Ame`).
+  if (foldedTag.length < 4) return result;
   const extra = Math.abs(foldedLast.length - foldedTag.length);
   if (extra <= 2 && (foldedLast.endsWith(foldedTag) || foldedTag.endsWith(foldedLast))) {
     return parts.slice(0, -1).join(" ");

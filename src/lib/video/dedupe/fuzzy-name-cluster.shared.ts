@@ -78,6 +78,8 @@ export function clusterByFuzzyName<T>(
     normalize?: (raw: string, allianceTag?: string | null) => string;
     /** Override default `stringSimilarity` (e.g. containment-aware score). */
     similarity?: (a: string, b: string) => number;
+    /** Skip pairing even when names match (e.g. two different member ids). */
+    canUnion?: (a: T, b: T) => boolean;
   },
 ): T[][] {
   const threshold = options?.threshold ?? FUZZY_AUTO_MERGE_THRESHOLD;
@@ -89,6 +91,7 @@ export function clusterByFuzzyName<T>(
     ((raw: string, tag?: string | null) =>
       normalizeEntityName(raw, tag));
   const similarity = options?.similarity ?? stringSimilarity;
+  const canUnion = options?.canUnion;
   const normalized = rows.map((row) =>
     normalize(getName(row), options?.allianceTag),
   );
@@ -96,6 +99,7 @@ export function clusterByFuzzyName<T>(
 
   for (let i = 0; i < rows.length; i += 1) {
     for (let j = i + 1; j < rows.length; j += 1) {
+      if (canUnion && !canUnion(rows[i]!, rows[j]!)) continue;
       const a = normalized[i]!;
       const b = normalized[j]!;
       if (!a || !b) continue;
