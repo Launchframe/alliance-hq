@@ -1,12 +1,12 @@
 import { SnapshotAccessRevoked, type SnapshotTransport } from "@/lib/member-board/versioned-live";
-import type { NoteBoardSnapshot } from "./board.shared";
+import type { NoteBoardViewSnapshot } from "./board.shared";
 
-export function notesBoardTransport(scope: Pick<NoteBoardSnapshot, "id" | "allianceId" | "principalId">): SnapshotTransport<NoteBoardSnapshot> {
+export function notesBoardTransport(scope: Pick<NoteBoardViewSnapshot, "id" | "allianceId" | "principalId">): SnapshotTransport<NoteBoardViewSnapshot> {
   let stream: EventSource | undefined;
   const close = () => { stream?.close(); stream = undefined; };
   return {
     load: async (signal) => {
-      const response = await fetch(`/api/notes/boards/${scope.id}`, { cache: "no-store", signal, headers: { "X-Notes-Scope": `${scope.allianceId}:${scope.principalId}` } });
+      const response = await fetch(`/api/notes/boards/${scope.id}?format=summary`, { cache: "no-store", signal, headers: { "X-Notes-Scope": `${scope.allianceId}:${scope.principalId}` } });
       const body = await response.json();
       if ([401, 403, 404].includes(response.status)) throw new SnapshotAccessRevoked(body.code);
       if (!response.ok) throw new Error(body.code ?? "failed");

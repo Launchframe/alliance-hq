@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRegisterPageHotkeys } from "@/components/hotkeys/HotkeyProvider";
 import { useTranslations } from "next-intl";
 import { useNotesSearchParams, useNotesNavigation, useNotesFetch, useNotesDirtyState } from "./NotesNavigation";
-import type { NoteBoardSnapshot, NoteBoardSummary } from "@/lib/notes/board.shared";
+import type { NoteBoardViewSnapshot, NoteBoardSummary } from "@/lib/notes/board.shared";
 import { NoteTaskBoard } from "./NoteTaskBoard";
 
 export function NoteBoardsClient() {
@@ -12,7 +12,7 @@ export function NoteBoardsClient() {
   const params = useNotesSearchParams(), navigation = useNotesNavigation(), fetchNotes = useNotesFetch();
   const [boards, setBoards] = useState<NoteBoardSummary[]>([]);
   const selected = params.get("board") ?? "";
-  const [snapshot, setSnapshot] = useState<NoteBoardSnapshot | null>(null);
+  const [snapshot, setSnapshot] = useState<NoteBoardViewSnapshot | null>(null);
   const [canWrite, setCanWrite] = useState(false);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
@@ -35,7 +35,7 @@ export function NoteBoardsClient() {
   useEffect(() => {
     if (!selected) return;
     const controller = new AbortController();
-    void fetchNotes(`/api/notes/boards/${selected}`, { cache: "no-store", signal: controller.signal }).then(async (response) => {
+    void fetchNotes(`/api/notes/boards/${selected}?format=summary`, { cache: "no-store", signal: controller.signal }).then(async (response) => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? t("loadFailed"));
       if (!controller.signal.aborted) setSnapshot(data);

@@ -3,6 +3,37 @@ import { authCookieHeader, playwrightAuthCookies, getE2eSql, createBrowserSessio
 import { nanoid } from "nanoid";
 import { createNotesFixture as fixture } from "./fixtures/notes";
 
+test("label and commander filters are exact, combined, scoped and restored from card actions", async ({ page, request }) => {
+  const { author, peer, cookie, ferg } = await fixture("officer");
+  const headers = { Cookie: authCookieHeader(author) };
+  const add = async (title: string, labels: string[], member: string, asPeer = false) => {
+    const response = await request.post("/api/notes", { headers: asPeer ? { Cookie: authCookieHeader(peer) } : headers, data: { title, body: "Raid planning appears in this prose", labels, memberIds: [member] } });
+    expect(response.status(), await response.text()).toBe(200);
+    return (await response.json()).noteId as string;
+  };
+  const matching = await add("Matching note", ["Raid planning"], cookie.ashedMemberId);
+  await add("Other label", ["Different"], cookie.ashedMemberId);
+  await add("Other commander", ["Raid planning"], ferg.ashedMemberId);
+  await add("Hidden peer note", ["Raid planning"], cookie.ashedMemberId, true);
+  const list = async (label: string, member = "") => (await (await request.get(`/api/notes?${new URLSearchParams({ format: "summary", label, member })}`, { headers })).json()).items;
+  expect(await list("Raid planning")).toHaveLength(2);
+  expect((await list("Raid planning", cookie.ashedMemberId)).map((note: { id: string }) => note.id)).toEqual([matching]);
+  expect(await list("Raid")).toHaveLength(0);
+  await page.context().addCookies(playwrightAuthCookies(author));
+  await page.goto("/notes");
+  const card = page.locator(`[data-note-id="${matching}"]`);
+  await card.getByRole("button", { name: "Raid planning", exact: true }).click();
+  await expect(page.getByTestId("note-card")).toHaveCount(2);
+  await card.getByRole("button", { name: "Cookie", exact: true }).click();
+  await expect(page.getByTestId("note-card")).toHaveCount(1);
+  await expect(page).toHaveURL((url) => url.searchParams.get("member") === cookie.ashedMemberId);
+  await page.reload();
+  await expect(page.getByTestId("note-card")).toHaveCount(1);
+  await expect(page.getByText("Hidden peer note", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Clear filters", exact: true }).click();
+  await expect(page.getByTestId("note-card")).toHaveCount(3);
+});
+
 test("workspace preferences are versioned and isolated by both account and alliance", async ({ request }) => {
   const { author, peer, alliance } = await fixture("officer");
   const sql = getE2eSql(), headers = { Cookie: authCookieHeader(author) }, peerHeaders = { Cookie: authCookieHeader(peer) };

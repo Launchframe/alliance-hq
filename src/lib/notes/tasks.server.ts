@@ -11,7 +11,7 @@ import { createKnowledgeResource, knowledgeAccessCondition, KnowledgeAccessError
 import { withKnowledgeReceipt } from "./mutations.server";
 import { lockTaskBoards, touchTaskBoards } from "./board-events.server";
 import { noteTitle } from "./workspace.shared";
-import { normalizeTaskPriority, taskCompletedAt, taskListFilterSchema, TASK_STATUSES, type NoteTask, type NoteTaskSummary, type TaskListFilter, type TaskCreate, type TaskPatch, type TaskStatus } from "./tasks.shared";
+import { normalizeTaskPriority, taskCompletedAt, taskListFilterSchema, summarizeNoteTask, TASK_STATUSES, type NoteTask, type NoteTaskSummary, type TaskListFilter, type TaskCreate, type TaskPatch, type TaskStatus } from "./tasks.shared";
 import { resourcePaging, resourcePage, timePageBoundary } from "./pagination.server";
 import { KNOWLEDGE_PAGE_SIZE, type ResourcePage } from "./pagination.shared";
 
@@ -71,9 +71,7 @@ export async function listNoteTaskPage(actor: KnowledgeActor, raw: TaskListFilte
     .orderBy(page.order(tasks.updatedAt), page.order(tasks.id)).limit(KNOWLEDGE_PAGE_SIZE + 1);
   const result = resourcePage(candidates, page, (row) => ({ id: row.id, position: row.cursorTime }));
   const rows = result.items.length ? await taskRows(actor, { ids: result.items.map((row) => row.id) }) : [];
-  return { ...result, items: rows.map((task) => ({ id: task.id, title: task.title, excerpt: (task.description ?? "").slice(0, 240), status: task.status, priority: task.priority,
-    labels: task.labels, dueAt: task.dueAt, completedAt: task.completedAt, assignee: task.assignee, legacyAssigneeName: task.legacyAssigneeName, source: task.source,
-    version: task.version, isOwner: task.isOwner, canEdit: task.canEdit, shared: task.shared, archived: task.archived, createdAt: task.createdAt, updatedAt: task.updatedAt })) };
+  return { ...result, items: rows.map(summarizeNoteTask) };
 }
 export const listBoardNoteTasks = (tx: KnowledgeTransaction, actor: KnowledgeActor, boardId: string) => taskRows(actor, { boardId }, "read", tx);
 export async function getNoteTask(actor: KnowledgeActor, id: string, access: KnowledgeAccess = "read") {

@@ -75,7 +75,7 @@ export async function noteBoardSnapshot(actor: KnowledgeWebActor, id: string): P
     };
     return { id: board.id, name: board.name, version: board.version, allianceId: actor.allianceId, principalId: actor.hqUserId!, canWrite: actor.canWriteBoards,
       tasks: cards.map((task) => ({ ...task, position: placements.find((item) => item.taskId === task.id)?.position ?? 0, teamId: task.assignee ? teamForUser(task.assignee.id) : null })).sort((a, b) => a.position - b.position || a.id.localeCompare(b.id)),
-      people: await listKnowledgePeople(actor, true), teams };
+      people: await listKnowledgePeople(actor, true, tx), teams };
   }, { isolationLevel: "repeatable read" });
 }
 

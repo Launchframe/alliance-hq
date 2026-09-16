@@ -14,11 +14,12 @@ export const noteListFilterSchema = z.object({
   view: z.enum(NOTE_LIST_VIEWS).default("notebook"), q: z.string().trim().max(200).default(""),
   notebook: z.string().max(60).default(""), source: z.enum(["", "web", "discord"]).default(""),
   priority: z.enum(["all", "none", ...NOTE_PRIORITIES]).default("all"), sort: z.enum(["recent", "priority"]).default("recent"),
+  label: z.string().max(32).default(""), member: z.string().max(120).default(""),
 });
 export type NoteListFilter = z.infer<typeof noteListFilterSchema>;
 export const noteWorkspaceStateSchema = noteListFilterSchema.extend({
   view: z.enum(NOTE_WORKSPACE_VIEWS).default("notebook"), q: z.string().max(200).default(""), layout: z.enum(["cards", "list"]).default("cards"),
-  boardGroup: z.enum(["none", "assignee", "team"]).default("none"), boardLayout: z.enum(["board", "list"]).default("board"), boardClosed: z.boolean().default(false),
+  boardGroup: z.enum(["none", "assignee", "team"]).default("none"), boardLayout: z.enum(["board", "list"]).default("board"), boardClosed: z.boolean().default(false), boardLabel: z.string().max(32).default(""),
   taskFilter: z.enum(["active", "all", "archived", "open", "in_progress", "done", "cancelled"]).default("active"), taskLabel: z.string().max(32).default(""),
   searchQuery: z.string().max(200).default(""), searchKind: z.enum(["all", "note", "task", "source"]).default("all"),
   knowledgeOwned: z.boolean().default(true), knowledgeQuery: z.string().max(200).default(""), knowledgeSources: z.boolean().default(false),
@@ -32,7 +33,7 @@ export function readWorkspaceState(params: URLSearchParams, saved: NoteWorkspace
   if (params.has("workspaceScope") && params.get("workspaceScope") !== scope) return { ...saved };
   return noteWorkspaceStateSchema.parse({ ...saved, ...Object.fromEntries(Object.keys(saved).flatMap((key) => params.has(key) ? [[key, typeof saved[key as keyof NoteWorkspaceState] === "boolean" ? params.get(key) === "1" : params.get(key)]] : [])) });
 }
-export function noteFilterFromWorkspace(state: Pick<NoteWorkspaceState, "view" | "q" | "notebook" | "source" | "priority" | "sort">): NoteListFilter {
+export function noteFilterFromWorkspace(state: Pick<NoteWorkspaceState, "view" | "q" | "notebook" | "source" | "priority" | "sort" | "label" | "member">): NoteListFilter {
   return noteListFilterSchema.parse({ ...state, view: NOTE_LIST_VIEWS.includes(state.view as NoteListFilter["view"]) ? state.view : "notebook" });
 }
 export function workspaceOffset(raw: string | null, step: number): number {
@@ -62,7 +63,7 @@ export function parseNoteListCursor(raw: string | null): NoteListCursor | null {
 }
 export function readNoteListFilter(params: URLSearchParams): NoteListFilter {
   const view = params.get("view");
-  return noteListFilterSchema.parse({ ...Object.fromEntries(["q", "notebook", "source", "priority", "sort"].flatMap((key) => params.has(key) ? [[key, params.get(key)]] : [])), view: NOTE_LIST_VIEWS.includes(view as NoteListFilter["view"]) ? view : "notebook" });
+  return noteListFilterSchema.parse({ ...Object.fromEntries(["q", "notebook", "source", "priority", "sort", "label", "member"].flatMap((key) => params.has(key) ? [[key, params.get(key)]] : [])), view: NOTE_LIST_VIEWS.includes(view as NoteListFilter["view"]) ? view : "notebook" });
 }
 export function noteListUrl(filter: NoteListFilter, cursor: string | null = null): string {
   const params = new URLSearchParams({ format: "summary", ...filter });
