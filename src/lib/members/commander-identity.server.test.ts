@@ -343,6 +343,12 @@ describe("commander-identity.server", () => {
     });
 
     expect(result.status).toBe("synced");
+    expect(mockState.updatedCommanders).not.toContainEqual(
+      expect.objectContaining({ primaryName: "UncleRichAtomic" }),
+    );
+    expect(mockState.updatedCommanders).not.toContainEqual(
+      expect.objectContaining({ gameUid: null }),
+    );
     expect(mockState.updatedMemberships).not.toContainEqual(
       expect.objectContaining({ commanderSyncStatus: "name_conflict" }),
     );
