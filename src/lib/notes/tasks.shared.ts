@@ -4,6 +4,11 @@ import { NOTE_PRIORITIES, normalizeNoteLabels, type NotePriority } from "./works
 
 export const TASK_STATUSES = ["open", "in_progress", "done", "cancelled"] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
+export const taskListFilterSchema = z.object({
+  status: z.enum(["active", "all", "archived", ...TASK_STATUSES]).default("active"), label: z.string().max(32).default(""),
+  sourceNoteId: z.string().min(1).max(120).nullable().default(null), personalOnly: z.boolean().default(false),
+});
+export type TaskListFilter = z.infer<typeof taskListFilterSchema>;
 export const normalizeTaskPriority = (priority: NotePriority | "normal"): NotePriority => priority === "normal" ? "medium" : priority;
 export const taskPrioritySchema = z.enum([...NOTE_PRIORITIES, "normal"]).nullable().transform(normalizeTaskPriority);
 const taskValidators = {
@@ -38,6 +43,7 @@ export type NoteTask = {
   version: number; isOwner: boolean; canEdit: boolean; shared: boolean; archived: boolean;
   createdAt: string; updatedAt: string;
 };
+export type NoteTaskSummary = Omit<NoteTask, "description" | "intakeProvenance"> & { excerpt: string };
 export function taskCompletedAt(status: TaskStatus, previous: Date | null, now: Date): Date | null {
   return status === "done" || status === "cancelled" ? previous ?? now : null;
 }

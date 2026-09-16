@@ -10,6 +10,8 @@ import { knowledgeJobMatches, queueKnowledgeIndex } from "./knowledge-index.serv
 import { withKnowledgeReceipt } from "./mutations.server";
 import { redactIntakeText } from "./intake.shared";
 import { knowledgeEmbeddingConfigured, knowledgeEmbeddingModel } from "@/lib/officer-intel/embed-corpus.server";
+import { resourcePaging, resourcePage, timePageBoundary } from "./pagination.server";
+import { KNOWLEDGE_PAGE_SIZE, type ResourceCursor } from "./pagination.shared";
 
 const r = schema.knowledgeResources;
 const jobs = schema.knowledgeIndexJobs;
@@ -32,6 +34,17 @@ export async function listKnowledgeResources(actor: KnowledgeWebActor, owned: bo
     .where(and(eq(r.allianceId, actor.allianceId), knowledgeReadyCondition(includeArchived), knowledgeAccessCondition(actor, r.id, owned ? "share" : "read"), owned ? undefined : eq(r.knowledgeApprovedVersion, r.contentVersion)))
     .orderBy(desc(r.updatedAt), desc(r.id)).limit(51).offset(offset);
   return { nextOffset: rows.length > 50 && offset < 5_000 ? offset + 50 : null, resources: rows.slice(0, 50).map((row) => ({ resourceId: row.id, kind: row.kind, entityId: row.entityId, title: redactIntakeText(row.title ?? ""), isOwner: row.isOwner === true })) };
+}
+export async function listKnowledgeResourcePage(actor: KnowledgeWebActor, owned: boolean, cursor: string | null = null, legacyOffset = 0) {
+  const page = resourcePaging(actor, ["knowledge", owned], cursor);
+  const rows = await getDb().select({ id: r.id, kind: r.kind, entityId: r.entityId, title: knowledgeTitle(), isOwner: knowledgeAccessCondition(actor, sql`knowledge_resources.id`, "share"),
+    cursorTime: sql<string>`to_char(${r.updatedAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')` }).from(r)
+    .where(and(eq(r.allianceId, actor.allianceId), knowledgeReadyCondition(owned), knowledgeAccessCondition(actor, r.id, owned ? "share" : "read"),
+      owned ? undefined : eq(r.knowledgeApprovedVersion, r.contentVersion), timePageBoundary(page, r.updatedAt, r.id)))
+    .orderBy(page.order(r.updatedAt), page.order(r.id)).limit(KNOWLEDGE_PAGE_SIZE + 1).offset(cursor ? 0 : legacyOffset);
+  const result = resourcePage(rows, page, (row) => ({ id: row.id, position: row.cursorTime }));
+  if (!cursor && legacyOffset && rows[0]) result.previousCursor = JSON.stringify({ version: 1, scope: page.scope, key: page.key, id: rows[0].id, position: rows[0].cursorTime, direction: "previous" } satisfies ResourceCursor);
+  return { ...result, items: result.items.map((row) => ({ resourceId: row.id, kind: row.kind, entityId: row.entityId, title: redactIntakeText(row.title ?? ""), isOwner: row.isOwner === true })) };
 }
 export async function changeKnowledge(actor: KnowledgeWebActor, resourceId: string, raw: KnowledgeCommand) {
   const input = knowledgeCommandSchema.parse(raw);

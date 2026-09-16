@@ -19,7 +19,7 @@ export type NoteListFilter = z.infer<typeof noteListFilterSchema>;
 export const noteWorkspaceStateSchema = noteListFilterSchema.extend({
   view: z.enum(NOTE_WORKSPACE_VIEWS).default("notebook"), q: z.string().max(200).default(""), layout: z.enum(["cards", "list"]).default("cards"),
   boardGroup: z.enum(["none", "assignee", "team"]).default("none"), boardLayout: z.enum(["board", "list"]).default("board"), boardClosed: z.boolean().default(false),
-  taskFilter: z.enum(["active", "all", "archived", "open", "in_progress", "done", "cancelled"]).default("active"),
+  taskFilter: z.enum(["active", "all", "archived", "open", "in_progress", "done", "cancelled"]).default("active"), taskLabel: z.string().max(32).default(""),
   searchQuery: z.string().max(200).default(""), searchKind: z.enum(["all", "note", "task", "source"]).default("all"),
   knowledgeOwned: z.boolean().default(true), knowledgeQuery: z.string().max(200).default(""), knowledgeSources: z.boolean().default(false),
   studioKind: z.enum(["synthesize", "localize", "ask", "insight"]).default("synthesize"), studioSources: z.boolean().default(false),
@@ -43,7 +43,7 @@ export function scopedWorkspaceLocation(location: string, saved: NoteWorkspaceSt
   const url = new URL(location, "https://notes.invalid");
   if (!/^\/(?:(?:en-US|pt-BR)\/)?notes(?:\/|$)/.test(url.pathname)) return `${url.pathname}${url.search}${url.hash}`;
   const foreign = url.searchParams.has("workspaceScope") && url.searchParams.get("workspaceScope") !== scope;
-  const reset = foreign ? Object.fromEntries(["cursor", "importCursor", "taskCursor", "reviewCursor", "knowledgeOffset", "searchOffset", "searchRun", "messageOffset", "publicationCursor"].map((key) => [key, null])) : {};
+  const reset = foreign ? Object.fromEntries(["cursor", "importCursor", "taskCursor", "noteTaskCursor", "draftCursor", "reviewCursor", "studioCursor", "studioOffset", "knowledgeCursor", "knowledgeOffset", "searchOffset", "searchRun", "messageOffset", "publicationCursor", "snapshotCursor"].map((key) => [key, null])) : {};
   return workspaceStateLocation(url.pathname, url.search, readWorkspaceState(url.searchParams, saved, scope), scope, reset) + url.hash;
 }
 export function notesFocusKey(pathname: string, params: URLSearchParams): string {
