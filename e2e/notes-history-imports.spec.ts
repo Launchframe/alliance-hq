@@ -91,6 +91,8 @@ test("older imports remain discoverable with stable scoped cursors and browser n
   await expect(oldest).toBeVisible();
   let release!: () => void;
   let captured!: () => void;
+  let delivered!: () => void;
+  const delivery = new Promise<void>((resolve) => { delivered = resolve; });
   const held = new Promise<void>((resolve) => { release = resolve; });
   const ready = new Promise<void>((resolve) => { captured = resolve; });
   let intercepted = false;
@@ -100,18 +102,16 @@ test("older imports remain discoverable with stable scoped cursors and browser n
     const response = await route.fetch();
     captured();
     await held;
-    await route.fulfill({ response });
+    try { await route.fulfill({ response }); } finally { delivered(); }
   });
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await ready;
   await sql`UPDATE alliance_memberships SET status = 'removed' WHERE alliance_id = ${alliance.allianceId} AND hq_user_id = ${author.hqUserId}`;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(page.getByRole("button", { name: /^Archived source/ })).toHaveCount(0);
-  await expect(next).toBeDisabled();
-  await expect(previous).toBeDisabled();
-  const late = page.waitForResponse((response) => pagedList(new URL(response.url())) && response.status() === 200);
+  await expect(page.getByTestId("notes-workspace")).toHaveCount(0);
   release();
-  await (await late).finished();
+  await delivery;
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   await expect(page.getByRole("button", { name: /^Archived source/ })).toHaveCount(0);
 });
