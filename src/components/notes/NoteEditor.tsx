@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CaptureCommit, IntakeResult } from "@/lib/notes/intake.shared";
 import { useNoteIntake } from "./useNoteIntake";
 import { useCaptureDraft } from "./useCaptureDraft";
+import { useNotesDirtyState } from "./NotesNavigation";
 import { automaticActionModes, draftActionIsCurrent, mergeDraftActions, updateDraftAction, type CaptureDraft, type CaptureDraftState, type DraftAction } from "@/lib/notes/drafts.shared";
 import { TaskStateFields } from "./TaskStateFields";
 import { NoteTasksPanel } from "./NoteTasksPanel";
@@ -88,6 +89,7 @@ export function NoteEditor({ note, initialBody = "", resumeDraft, roster, onClos
   const dirty = editable && (!original ? !!(draft.body || draft.title) : draft.title !== original.title || draft.body !== original.body || draft.kind !== original.kind || draft.documentType !== (original.documentType ?? "note") || JSON.stringify(draft.keyDecisions) !== JSON.stringify(original.keyDecisions ?? []) || JSON.stringify(draft.openQuestions) !== JSON.stringify(original.openQuestions ?? []) || draft.priority !== original.priority || draft.notebook !== (original.notebook ?? "") || draft.journalDate !== (original.journalDate ?? "") || draft.inbox !== original.inbox || labels !== original.labels.join(", ") || membersTouched);
 
   const persistence = useCaptureDraft({ id: draftId, state: captureState, active: dirty && !saving, initialVersion: resumeDraft?.version, sourceNoteId: resumeDraft?.sourceNoteId ?? original?.id ?? null, sourceVersion: resumeDraft?.sourceVersion ?? original?.version ?? null });
+  useNotesDirtyState({ dirty: dirty || saving, busy: saving, keys: ["pathname", "note", "draft"], keep: async () => { await persistence.flush(captureState); }, discard: () => persistence.discard() });
 
   useEffect(() => {
     const element = dialog.current;
@@ -104,7 +106,9 @@ export function NoteEditor({ note, initialBody = "", resumeDraft, roster, onClos
 
   function close() {
     if (saving) return;
-    if (dirty) setDiscard(true); else onClose();
+    if (dirty) setDiscard(true);
+    else if (!original && resumeDraft && !draft.body.trim() && !draft.title.trim()) void closeDraft(false);
+    else onClose();
   }
   async function closeDraft(keep: boolean) {
     if (saving) return;

@@ -1,5 +1,72 @@
-import { describe, expect, it } from "vitest";
-import { noteFieldsSchema, notePatchSchema, noteRouteId, noteTitle, notePriorityRank, normalizeNoteLabels, notesWorkspaceLocation, noteListFilterSchema, parseNoteListCursor } from "./workspace.shared";
+import { describe, expect, it, vi } from "vitest";
+import { createNotesNavigation } from "./navigation.shared";
+import { noteFieldsSchema, notePatchSchema, noteRouteId, noteTitle, notePriorityRank, normalizeNoteLabels, notesWorkspaceLocation, noteListFilterSchema, parseNoteListCursor, noteWorkspaceStateSchema, readWorkspaceState, workspaceStateLocation, workspacePreferenceWriteSchema, scopedWorkspaceLocation } from "./workspace.shared";
+
+describe("guarded Notes navigation", () => {
+  it("keeps the current view until unsaved changes are resolved", async () => {
+    const commit = vi.fn(), restore = vi.fn(), keep = vi.fn();
+    const store = createNotesNavigation({ url: "/notes?note=one", commit, restore });
+    store.register(() => ({ dirty: true, keep }));
+    store.request({ url: "/notes?view=tasks", mode: "external", index: 0 });
+    expect(store.getSnapshot().url).toBe("/notes?note=one");
+    expect(commit).not.toHaveBeenCalled();
+    await store.resolve("cancel");
+    expect(restore).toHaveBeenCalledWith("/notes?note=one", 0, 0);
+    store.request({ url: "/notes?view=tasks", mode: "push" });
+    await store.resolve("keep");
+    expect(keep).toHaveBeenCalledOnce();
+    expect(commit).toHaveBeenCalledWith("/notes?view=tasks", "push", 1);
+  });
+  it("does not discard edits for a non-destructive layout change", () => {
+    const commit = vi.fn();
+    const store = createNotesNavigation({ url: "/notes?note=one", commit, restore: vi.fn() });
+    store.register(() => ({ dirty: true }));
+    store.request({ url: "/notes?note=one&layout=list", mode: "push" });
+    expect(commit).toHaveBeenCalledOnce();
+    expect(store.getSnapshot().pending).toBeNull();
+  });
+  it("never changes history after the owning workspace is disposed", async () => {
+    let finish!: () => void;
+    const saved = new Promise<void>((resolve) => { finish = resolve; });
+    const commit = vi.fn(), store = createNotesNavigation({ url: "/notes?draft=one", commit, restore: vi.fn() });
+    store.register(() => ({ dirty: true, keep: () => saved }));
+    store.request({ url: "/notes", mode: "push" });
+    const resolution = store.resolve("keep"); store.dispose(); finish(); await resolution;
+    expect(commit).not.toHaveBeenCalled();
+  });
+});
+
+describe("scoped workspace navigation", () => {
+  const scope = "alliance:author";
+  it("uses saved preferences only as defaults for explicit URL state", () => {
+    const saved = noteWorkspaceStateSchema.parse({ view: "shared", source: "discord", layout: "list", boardGroup: "team" });
+    expect(readWorkspaceState(new URLSearchParams(), saved, scope)).toEqual(saved);
+    expect(readWorkspaceState(new URLSearchParams("view=inbox&source=web&boardClosed=1"), saved, scope)).toMatchObject({ view: "inbox", source: "web", layout: "list", boardClosed: true });
+  });
+  it("round trips Unicode filters and keeps bodies and focus out of persisted preferences", () => {
+    const state = noteWorkspaceStateSchema.parse({ view: "notebook", notebook: "Estratégia", q: "rally plan", priority: "none", layout: "list" });
+    const url = workspaceStateLocation("/pt-BR/notes", "?note=one", state, scope);
+    expect(readWorkspaceState(new URLSearchParams(url.split("?")[1]), noteWorkspaceStateSchema.parse({}), scope)).toEqual(state);
+    expect(url).toContain("note=one");
+    expect(workspacePreferenceWriteSchema.safeParse({ expectedScope: scope, expectedVersion: 0, state: { ...state, body: "private text" } }).success).toBe(false);
+    expect(workspacePreferenceWriteSchema.safeParse({ expectedScope: scope, expectedVersion: 0, state: { ...state, note: "one" } }).success).toBe(false);
+  });
+  it("normalizes scoped defaults without carrying private filters onto other pages", () => {
+    const saved = noteWorkspaceStateSchema.parse({ q: "Private query", view: "inbox" });
+    expect(scopedWorkspaceLocation("/teamwork", saved, scope)).toBe("/teamwork");
+    const normalized = new URL(scopedWorkspaceLocation("/pt-BR/notes?workspaceScope=other&note=shared&cursor=stale&q=Other", saved, scope), "https://notes.invalid");
+    expect(normalized.searchParams.get("q")).toBe("Private query");
+    expect(normalized.searchParams.get("note")).toBe("shared");
+    expect(normalized.searchParams.has("cursor")).toBe(false);
+    expect(normalized.searchParams.get("workspaceScope")).toBe(scope);
+    expect(readWorkspaceState(new URLSearchParams("q=Two+words+"), saved, scope).q).toBe("Two words ");
+  });
+  it("does not apply another account or alliance's URL preferences", () => {
+    const saved = noteWorkspaceStateSchema.parse({ view: "tasks" });
+    const params = new URLSearchParams({ workspaceScope: "other:principal", view: "notebook", notebook: "Private folder", q: "Private query" });
+    expect(readWorkspaceState(params, saved, scope)).toEqual(saved);
+  });
+});
 
 describe("note list boundaries", () => {
   it("normalizes bounded filters without inventing a priority", () => {

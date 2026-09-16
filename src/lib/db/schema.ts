@@ -4970,6 +4970,13 @@ export const knowledgeCaptureDrafts = pgTable("knowledge_capture_drafts", {
   index("knowledge_capture_drafts_alliance_updated_idx").on(table.allianceId, table.updatedAt),
 ]);
 
+export const knowledgeWorkspacePreferences = pgTable("knowledge_workspace_preferences", {
+  hqUserId: text("hq_user_id").notNull().references(() => hqUsers.id, { onDelete: "cascade" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  state: jsonb("state").$type<import("@/lib/notes/workspace.shared").NoteWorkspaceState>().notNull(),
+  version: integer("version").notNull().default(0), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [primaryKey({ columns: [table.hqUserId, table.allianceId] }), check("knowledge_workspace_preferences_version_check", sql`${table.version} >= 0`)]);
+
 export const knowledgeIntakePreferences = pgTable("knowledge_intake_preferences", {
   principalKey: text("principal_key").primaryKey(), enabled: boolean("enabled").notNull().default(false),
   version: integer("version").notNull().default(1), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

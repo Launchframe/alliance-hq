@@ -9,6 +9,7 @@ import type { NoteTask, TaskCreate, TaskPatch } from "@/lib/notes/tasks.shared";
 import type { NoteShareState } from "@/lib/notes/sharing.shared";
 import { normalizeNoteLabels } from "@/lib/notes/workspace.shared";
 import { TaskStateFields } from "./TaskStateFields";
+import { useNotesDirtyState, useNotesFetch } from "./NotesNavigation";
 
 function taskEditorFields(task: NoteTask | null) {
   return { title: task?.title ?? "", description: task?.description ?? "", status: task?.status ?? "open" as const, priority: task?.priority ?? null, assigneeHqUserId: task?.assignee?.id ?? "", dueDate: task?.dueAt ? formatServerCalendarDate(new Date(task.dueAt)) : "", labels: task?.labels.join(", ") ?? "" };
@@ -20,6 +21,7 @@ export function NoteTaskEditor({ task, sourceNoteId, boardName, people, onClose,
 }) {
   const t = useTranslations("notes");
   const locale = useLocale();
+  const fetchNotes = useNotesFetch();
   const dialog = useRef<HTMLDialogElement>(null);
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [expectedVersion, setExpectedVersion] = useState(task?.version ?? 1);
@@ -31,6 +33,7 @@ export function NoteTaskEditor({ task, sourceNoteId, boardName, people, onClose,
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [discard, setDiscard] = useState(false);
+  useNotesDirtyState({ dirty: dirty || saving, busy: saving, keys: sourceNoteId ? ["pathname", "note", "draft", "noteTask"] : ["pathname", "view", "board", "task"] });
   const editable = !task || task.canEdit;
   const owner = !task || task.isOwner;
   const inputClass = "w-full rounded-lg border border-hq-border bg-hq-canvas p-2 text-sm outline-none focus:border-hq-accent";
@@ -51,7 +54,7 @@ export function NoteTaskEditor({ task, sourceNoteId, boardName, people, onClose,
     if (!task || saving) return;
     setSaving(true);
     try {
-      const response = await fetch(`/api/notes/tasks/${task.id}`, { cache: "no-store" });
+      const response = await fetchNotes(`/api/notes/tasks/${task.id}`, { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? t("loadFailed"));
       setLatest(payload.task);

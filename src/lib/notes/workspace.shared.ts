@@ -5,7 +5,8 @@ export const NOTE_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
 export type NotePriority = (typeof NOTE_PRIORITIES)[number] | null;
 export const NOTE_DOCUMENT_TYPES = ["note", "journal", "meeting", "reference"] as const;
 export type NoteDocumentType = typeof NOTE_DOCUMENT_TYPES[number];
-export type NoteWorkspaceView = "notebook" | "inbox" | "shared" | "archived" | "tasks" | "boards" | "drafts" | "imports" | "search" | "knowledge" | "studio" | "publications";
+export const NOTE_WORKSPACE_VIEWS = ["notebook", "inbox", "shared", "archived", "tasks", "boards", "drafts", "imports", "search", "knowledge", "studio", "publications"] as const;
+export type NoteWorkspaceView = typeof NOTE_WORKSPACE_VIEWS[number];
 
 export const NOTE_LIST_PAGE_SIZE = 50;
 export const NOTE_LIST_VIEWS = ["notebook", "inbox", "shared", "archived"] as const;
@@ -15,7 +16,46 @@ export const noteListFilterSchema = z.object({
   priority: z.enum(["all", "none", ...NOTE_PRIORITIES]).default("all"), sort: z.enum(["recent", "priority"]).default("recent"),
 });
 export type NoteListFilter = z.infer<typeof noteListFilterSchema>;
-const noteListCursorSchema = z.object({ version: z.literal(1), scope: z.string().min(1).max(300), key: z.string().regex(/^[a-f0-9]{64}$/), id: z.string().min(1).max(120), updatedAt: z.iso.datetime({ precision: 6 }).refine((value) => !value.startsWith("0000-")), rank: z.number().int().min(0).max(4) }).strict();
+export const noteWorkspaceStateSchema = noteListFilterSchema.extend({
+  view: z.enum(NOTE_WORKSPACE_VIEWS).default("notebook"), q: z.string().max(200).default(""), layout: z.enum(["cards", "list"]).default("cards"),
+  boardGroup: z.enum(["none", "assignee", "team"]).default("none"), boardLayout: z.enum(["board", "list"]).default("board"), boardClosed: z.boolean().default(false),
+  taskFilter: z.enum(["active", "all", "archived", "open", "in_progress", "done", "cancelled"]).default("active"),
+  searchQuery: z.string().max(200).default(""), searchKind: z.enum(["all", "note", "task", "source"]).default("all"),
+  knowledgeOwned: z.boolean().default(true), knowledgeQuery: z.string().max(200).default(""), knowledgeSources: z.boolean().default(false),
+  studioKind: z.enum(["synthesize", "localize", "ask", "insight"]).default("synthesize"), studioSources: z.boolean().default(false),
+  publicationQuery: z.string().max(200).default(""),
+}).strict();
+export type NoteWorkspaceState = z.infer<typeof noteWorkspaceStateSchema>;
+export type WorkspacePreferences = { scope: string; version: number; state: NoteWorkspaceState };
+export const workspacePreferenceWriteSchema = z.object({ expectedScope: z.string().min(1).max(300), expectedVersion: z.number().int().nonnegative(), state: noteWorkspaceStateSchema }).strict();
+export function readWorkspaceState(params: URLSearchParams, saved: NoteWorkspaceState, scope: string): NoteWorkspaceState {
+  if (params.has("workspaceScope") && params.get("workspaceScope") !== scope) return { ...saved };
+  return noteWorkspaceStateSchema.parse({ ...saved, ...Object.fromEntries(Object.keys(saved).flatMap((key) => params.has(key) ? [[key, typeof saved[key as keyof NoteWorkspaceState] === "boolean" ? params.get(key) === "1" : params.get(key)]] : [])) });
+}
+export function noteFilterFromWorkspace(state: Pick<NoteWorkspaceState, "view" | "q" | "notebook" | "source" | "priority" | "sort">): NoteListFilter {
+  return noteListFilterSchema.parse({ ...state, view: NOTE_LIST_VIEWS.includes(state.view as NoteListFilter["view"]) ? state.view : "notebook" });
+}
+export function workspaceOffset(raw: string | null, step: number): number {
+  const value = Number(raw ?? 0);
+  return Number.isSafeInteger(value) && value >= 0 && value <= 100_000 && value % step === 0 ? value : 0;
+}
+export function scopedWorkspaceLocation(location: string, saved: NoteWorkspaceState, scope: string): string {
+  const url = new URL(location, "https://notes.invalid");
+  if (!/^\/(?:(?:en-US|pt-BR)\/)?notes(?:\/|$)/.test(url.pathname)) return `${url.pathname}${url.search}${url.hash}`;
+  const foreign = url.searchParams.has("workspaceScope") && url.searchParams.get("workspaceScope") !== scope;
+  const reset = foreign ? Object.fromEntries(["cursor", "importCursor", "taskCursor", "reviewCursor", "knowledgeOffset", "searchOffset", "searchRun", "messageOffset", "publicationCursor"].map((key) => [key, null])) : {};
+  return workspaceStateLocation(url.pathname, url.search, readWorkspaceState(url.searchParams, saved, scope), scope, reset) + url.hash;
+}
+export function notesFocusKey(pathname: string, params: URLSearchParams): string {
+  const draft = params.get("draft");
+  if (draft) return `draft:${draft}`;
+  const id = params.get("note") ?? pathname.match(/\/notes\/([^/]+)$/)?.[1];
+  return id ? `note:${noteRouteId(id)}` : "";
+}
+export function workspaceStateLocation(pathname: string, search: string, state: NoteWorkspaceState, scope: string, changes: Record<string, string | null> = {}): string {
+  return notesWorkspaceLocation(pathname, search, { ...Object.fromEntries(Object.entries(state).map(([key, value]) => [key, typeof value === "boolean" ? value ? "1" : "0" : value])), workspaceScope: scope, ...changes });
+}
+const noteListCursorSchema = z.object({ version: z.literal(1), scope: z.string().min(1).max(300), key: z.string().regex(/^[a-f0-9]{64}$/), id: z.string().min(1).max(120), updatedAt: z.iso.datetime({ precision: 6 }).refine((value) => !value.startsWith("0000-")), rank: z.number().int().min(0).max(4), direction: z.enum(["next", "previous"]).optional() }).strict();
 export type NoteListCursor = z.infer<typeof noteListCursorSchema>;
 export function parseNoteListCursor(raw: string | null): NoteListCursor | null {
   return raw === null ? null : noteListCursorSchema.parse(JSON.parse(z.string().min(1).max(900).parse(raw)));

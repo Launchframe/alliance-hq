@@ -7178,6 +7178,8 @@
       "noMatches": "No matching notes",
       "changeFilters": "Try another search or clear your filters.",
       "clearFilters": "Clear filters",
+      "preferencesFailed": "Couldn’t save your view preferences. Your current view is unchanged.",
+      "preferencesRetry": "Retry saving preferences",
       "saved": "Note saved.",
       "empty": {
         "notebook": "A place for what matters",

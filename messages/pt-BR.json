@@ -7159,6 +7159,8 @@
       "noMatches": "Nenhuma nota encontrada",
       "changeFilters": "Tente outra busca ou limpe os filtros.",
       "clearFilters": "Limpar filtros",
+      "preferencesFailed": "Não foi possível salvar suas preferências de visualização. Sua visualização atual não mudou.",
+      "preferencesRetry": "Tentar salvar as preferências novamente",
       "saved": "Nota salva.",
       "empty": {
         "notebook": "Um espaço para o que importa",
