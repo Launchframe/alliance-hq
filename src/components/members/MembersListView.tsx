@@ -359,53 +359,53 @@ export function MembersListView({
     );
   }, [rosterRows]);
 
-  const refresh = useCallback(async () => {
-    setRefreshing(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (query) params.set("q", query);
-      if (showFormer) params.set("includeFormer", "1");
-      params.set("refresh", "1");
-      const qs = params.toString();
-      const [membersRes, commandersRes] = await Promise.all([
-        fetch(`/api/members?${qs}`),
-        fetch("/api/commanders/index"),
-      ]);
-      const membersBody = (await membersRes.json()) as AllianceMembersPayload & {
-        error?: string;
-      };
-      const commandersBody =
-        (await commandersRes.json()) as CommanderIndexPayload & {
+  const loadRoster = useCallback(
+    async (refreshFromAshed: boolean) => {
+      setRefreshing(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        if (query) params.set("q", query);
+        if (showFormer) params.set("includeFormer", "1");
+        if (refreshFromAshed) params.set("refresh", "1");
+        const qs = params.toString();
+        const [membersRes, commandersRes] = await Promise.all([
+          fetch(`/api/members?${qs}`),
+          fetch("/api/commanders/index"),
+        ]);
+        const membersBody = (await membersRes.json()) as AllianceMembersPayload & {
           error?: string;
         };
-      if (!membersRes.ok) {
-        setError(membersBody.error ?? t("loadFailed"));
-        return;
+        const commandersBody =
+          (await commandersRes.json()) as CommanderIndexPayload & {
+            error?: string;
+          };
+        if (!membersRes.ok) {
+          setError(membersBody.error ?? t("loadFailed"));
+          return;
+        }
+        if (!commandersRes.ok) {
+          setError(commandersBody.error ?? tCommanders("loadFailed"));
+          return;
+        }
+        setData(membersBody);
+        setCommanderData(commandersBody);
+        setPendingSquad({});
+        setSaveError({});
+        void loadAttentionSummary();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : t("loadFailed"));
+      } finally {
+        setRefreshing(false);
       }
-      if (!commandersRes.ok) {
-        setError(commandersBody.error ?? tCommanders("loadFailed"));
-        return;
-      }
-      setData(membersBody);
-      setCommanderData(commandersBody);
-      setPendingSquad({});
-      setSaveError({});
-      const conflictCount =
-        membersBody.commanderConflicts?.length ??
-        membersBody.members.filter(
-          (m) => m.commander_sync_status === "name_conflict",
-        ).length;
-      if (conflictCount > 0) {
-        setConflictSheetOpen(true);
-      }
-      void loadAttentionSummary();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t("loadFailed"));
-    } finally {
-      setRefreshing(false);
-    }
-  }, [query, showFormer, t, tCommanders, loadAttentionSummary]);
+    },
+    [query, showFormer, t, tCommanders, loadAttentionSummary],
+  );
+
+  const refresh = useCallback(
+    () => loadRoster(true),
+    [loadRoster],
+  );
 
   const saveSquad = useCallback(
     async (ashedMemberId: string) => {
@@ -764,7 +764,7 @@ export function MembersListView({
         conflicts={data.commanderConflicts ?? []}
         members={data.members}
         gameServerNumber={data.gameServerNumber}
-        onResolved={() => void refresh()}
+        onResolved={() => void loadRoster(false)}
       />
 
       <RosterSquadSummaryStrip summary={commanderData.summaryBySquad} />
