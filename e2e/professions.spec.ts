@@ -243,6 +243,13 @@ test.describe("Professions — War Leader Support", () => {
       page.getByText(/alliance-wide war leader coverage/i),
     ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("profession-pairing-import")).toBeVisible();
+    await page.route("**/api/professions/officer", (route) => route.fulfill({ status: 503, json: { error: "Fixture unavailable" } }));
+    await page.goto("/professions?tab=officer");
+    await expect(page.getByRole("alert").filter({ hasText: "Fixture unavailable" })).toHaveText("Fixture unavailable");
+    await expect(page.getByTestId("profession-pairing-import")).toHaveCount(0);
+    await page.unroute("**/api/professions/officer");
+    await page.getByRole("button", { name: /^officer$/i }).click();
+    await expect(page.getByTestId("profession-pairing-import")).toBeVisible();
   });
 
   test("officer previews pairing import; members cannot", async ({
@@ -314,6 +321,18 @@ test.describe("Professions — War Leader Support", () => {
     expect(applyJson.assigned).toBe(1);
     expect(applyJson.failed).toBe(0);
 
+    const { ashedMemberId } = await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: officerSession.hqUserId,
+      memberDisplayName: "Import officer",
+    });
+    await seedProfessionCommander(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: officerSession.hqUserId,
+      ashedMemberId,
+      primaryName: "Import officer",
+      profession: "War Leader",
+    });
     await page.context().addCookies(playwrightAuthCookies(officerSession));
     await page.goto("/professions?tab=officer");
     await expect(page.getByTestId("profession-pairing-import")).toBeVisible({
