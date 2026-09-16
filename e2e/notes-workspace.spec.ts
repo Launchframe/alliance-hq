@@ -85,6 +85,25 @@ test("shares current content without private organization or history and honors 
   await peerContext.close();
 });
 
+test("keeps an authorized draft when its note is outside the refreshed list window", async ({ page }) => {
+  const { author } = await fixture();
+  await page.context().addCookies(playwrightAuthCookies(author));
+  const created = await page.request.post("/api/notes", { data: { title: "Windowed note", body: "Original text" } });
+  expect(created.status()).toBe(200);
+  const { noteId } = await created.json();
+  const listing = await (await page.request.get("/api/notes")).json();
+  await page.goto(`/notes/${noteId}`);
+  const editor = page.getByRole("dialog");
+  await editor.getByRole("button", { name: "Write", exact: true }).click();
+  await editor.locator("textarea").first().fill("Unsaved authorized correction");
+  await page.route("**/api/notes", (route) => route.fulfill({ json: { ...listing, notes: [] } }));
+  const checked = page.waitForResponse((response) => new URL(response.url()).pathname === `/api/notes/${noteId}` && response.request().method() === "GET");
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  expect((await checked).status()).toBe(200);
+  await expect(editor).toBeVisible();
+  await expect(editor.locator("textarea").first()).toHaveValue("Unsaved authorized correction");
+});
+
 test("keeps stale edits from overwriting a saved note and rejects cross-alliance member associations atomically", async ({ request }) => {
   const { author } = await fixture();
   const other = await fixture();

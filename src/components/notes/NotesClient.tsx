@@ -49,6 +49,8 @@ export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNote
     const note = initial.notes.find((item) => item.id === (focusNoteId ?? params.get("note")));
     return note ? { kind: "editor", note } : null;
   });
+  const modalRef = useRef(modal);
+  useEffect(() => { modalRef.current = modal; }, [modal]);
   const [importId, setImportId] = useState(() => params.get("import"));
   const alive = useRef(false);
   const request = useRef<AbortController | null>(null);
@@ -85,20 +87,30 @@ export function NotesClient({ initial, focusNoteId }: { initial: PerformanceNote
       if (!alive.current || controller.signal.aborted) return;
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
-          setModal((current) => {
-            if (current?.kind === "editor") return current;
-            return null;
-          });
+          setModal(null);
           setData((current) => ({ ...current, notes: [], roster: [], canCreate: false, draftCount: 0 }));
         }
         throw new Error(body.error ?? t("loadFailed"));
+      }
+      const focused = modalRef.current;
+      let focusedNote: PerformanceNoteDto | null | undefined;
+      if (focused?.kind === "editor" && focused.note && !(body as PerformanceNotesPagePayload).notes.some((note) => note.id === focused.note!.id)) {
+        const detail = await fetch(`/api/notes/${encodeURIComponent(focused.note.id)}`, { cache: "no-store", signal: controller.signal });
+        if ([401, 403, 404].includes(detail.status)) focusedNote = null;
+        else {
+          const payload = await detail.json();
+          if (!detail.ok) throw new Error(payload.error ?? t("loadFailed"));
+          focusedNote = payload.note ?? null;
+        }
       }
       if (alive.current && !controller.signal.aborted) {
         setData(body); setError(null);
         setModal((current) => {
           if (!current?.note) return current;
-          const latest = (body as PerformanceNotesPagePayload).notes.find((note) => note.id === current.note!.id);
-          if (!latest) return current.kind === "editor" ? current : null;
+          const fromList = (body as PerformanceNotesPagePayload).notes.find((note) => note.id === current.note!.id);
+          const detailChecked = current.kind === "editor" && current.note.id === focused?.note?.id && focusedNote !== undefined;
+          const latest = fromList ?? (detailChecked ? focusedNote : undefined);
+          if (!latest) return detailChecked || current.kind !== "editor" ? null : current;
           if (current.kind !== "editor" && !latest.isOwner) return null;
           return { ...current, note: { ...current.note, canEdit: latest.canEdit, isOwner: latest.isOwner, shared: latest.shared, version: latest.version } };
         });

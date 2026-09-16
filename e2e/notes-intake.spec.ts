@@ -39,7 +39,8 @@ test("interpretation requires opt-in and an explicit idempotent save creates onl
   const oldList = await request.get("/api/officer-intel/action-items", { headers: peerHeaders });
   expect(oldList.status()).toBe(200);
   expect((await oldList.json()).items).toHaveLength(0);
-  const oldEdit = await request.patch(`/api/officer-intel/action-items/${id}`, { headers: peerHeaders, data: { status: "done" } });
+  const currentTask = await (await request.get(`/api/notes/tasks/${id}`, { headers })).json();
+  const oldEdit = await request.patch(`/api/officer-intel/action-items/${id}`, { headers: peerHeaders, data: { status: "done", expectedVersion: currentTask.task.version } });
   expect(oldEdit.status()).toBe(404);
   const inboxBefore = await request.get("/api/inbox/reminders", { headers: peerHeaders });
   expect(inboxBefore.status()).toBe(200);
