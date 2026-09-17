@@ -4,14 +4,16 @@ import { requirePageSession } from "@/lib/session";
 import { standalonePageMetadata } from "@/lib/metadata/generate-page-metadata.server";
 import { loadCalendarSettings } from "@/lib/calendar/settings.server";
 import { CalendarConnectionsClient } from "@/components/calendar/CalendarConnectionsClient";
+import { calendarRecoveryMessage } from "@/lib/calendar/types.shared";
 
 export const dynamic = "force-dynamic";
 export async function generateMetadata() {
   const t = await getTranslations("calendarConnections");
   return standalonePageMetadata(t("title"));
 }
-export default async function CalendarConnectionsPage() {
+export default async function CalendarConnectionsPage({ searchParams }: { searchParams: Promise<{ calendar?: string; reason?: string }> }) {
   const session = await requirePageSession("/account/calendars");
   if (!session.hqUserId) notFound();
-  return <CalendarConnectionsClient key={session.hqUserId} initial={await loadCalendarSettings(session.hqUserId, await getLocale())} />;
+  const params = await searchParams;
+  return <CalendarConnectionsClient key={session.hqUserId} initial={await loadCalendarSettings(session.hqUserId, await getLocale())} initialError={params.calendar === "failed" ? calendarRecoveryMessage({ code: params.reason }) : ""} />;
 }
