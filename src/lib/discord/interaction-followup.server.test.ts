@@ -73,6 +73,17 @@ describe("editDiscordOriginalInteraction", () => {
   });
 });
 
+describe("sendDiscordFollowup", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it("creates a separate private message without editing the public original", async () => {
+    const fetchMock = vi.fn(async () => new Response("{}", { status: 200 })); vi.stubGlobal("fetch", fetchMock);
+    const { sendDiscordFollowup } = await import("./interaction-followup.server");
+    expect(await sendDiscordFollowup({ applicationId: "app", interactionToken: "token", content: "Private timing", components: [], ephemeral: true })).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith("https://discord.com/api/v10/webhooks/app/token?wait=true", expect.objectContaining({ method: "POST" }));
+    expect(fetchPatchBody(fetchMock)).toMatchObject({ flags: 64, allowed_mentions: { parse: [] } });
+  });
+});
+
 describe("editDiscordOriginalInteractionWithFiles", () => {
   afterEach(() => {
     vi.unstubAllGlobals();

@@ -12,7 +12,8 @@ export const calendarSourcePermission: Record<CalendarSource, string | null> = {
 
 export async function requireCalendarUser(request?: Request) {
   const session = await requireApiSession();
-  if (session instanceof NextResponse || !session.hqUserId) throw new CalendarError("forbidden", 403);
+  if (session instanceof NextResponse) throw new CalendarError("unauthorized", session.status);
+  if (!session.hqUserId) throw new CalendarError("forbidden", 403);
   if (request && !["GET", "HEAD"].includes(request.method)) {
     const origin = request.headers.get("origin");
     if ((origin && origin !== new URL(request.url).origin) || request.headers.get("sec-fetch-site") === "cross-site") throw new CalendarError("forbidden", 403);

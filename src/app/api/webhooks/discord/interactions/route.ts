@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { handleDiscordCoverage, showDiscordCoverage } from "@/lib/time-off/discord-coverage.server";
 import { waitUntil } from "@vercel/functions";
 
@@ -12,7 +12,7 @@ import {
   downloadDiscordAttachment,
   parseResolvedAttachment,
 } from "@/lib/discord/attachments";
-import { editDiscordOriginalInteraction, editDiscordOriginalInteractionWithFiles } from "@/lib/discord/interaction-followup.server";
+import { editDiscordOriginalInteraction, editDiscordOriginalInteractionWithFiles, sendDiscordFollowup } from "@/lib/discord/interaction-followup.server";
 import {
   DISCORD_PING_RESPONSE,
   buildCharacterPickerButtons,
@@ -901,7 +901,10 @@ async function handleSlashCommand(
       const warning = await showDiscordCoverage({ allianceId, guildId, discordUserId, locale }, result.coverage);
       return discordMessageResponse(warning.content, warning.components, EPHEMERAL);
     }
-    if (result.boardingPrompt) return discordMessageResponse(`${result.reply}\n${result.boardingPrompt.content}`, result.boardingPrompt.components, EPHEMERAL);
+    if (result.boardingPrompt) {
+      const applicationId = interactionApplicationId(payload), token = interactionToken(payload), prompt = result.boardingPrompt;
+      if (applicationId && token) after(async () => { await sendDiscordFollowup({ applicationId, interactionToken: token, ...prompt, ephemeral: true }); });
+    }
     return channelVisibleCommandResponse(result.reply);
   }
 

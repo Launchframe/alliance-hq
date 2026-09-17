@@ -38,7 +38,7 @@ test("member subscribes with two account-level alerts and revokes the private fe
 });
 
 test("calendar controls reject anonymous and cross-alliance requests", async ({ page, context, request }) => {
-  expect((await request.get("/api/calendar/settings")).status()).toBe(403);
+  expect((await request.get("/api/calendar/settings")).status()).toBe(401);
   const f = await fixture(), other = await fixture();
   await context.addCookies(playwrightAuthCookies(f.user));
   expect((await page.request.get("/api/calendar/settings")).status()).toBe(200);

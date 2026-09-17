@@ -13,7 +13,7 @@ import { parseBoardingCountdown } from "./boarding.shared";
 export async function boardingDiscordPrompt(input: { allianceId: string; guildId: string; discordUserId: string; recordId: string; locale: string }) {
   if (!await callerCanManageTrains(input)) throw new CalendarError("forbidden", 403);
   const window = await readBoarding(input.allianceId, input.recordId, `discord:${input.discordUserId}`);
-  if (!window) return null;
+  if (!window || window.status === "closed" || window.endsAt && window.endsAt <= new Date()) return null;
   const t = await getTranslations({ locale: input.locale, namespace: "calendarConnections" });
   const active = await getDb().select({ id: schema.trainBoardingPrompts.id }).from(schema.trainBoardingPrompts).where(and(eq(schema.trainBoardingPrompts.discordUserId, input.discordUserId), gt(schema.trainBoardingPrompts.expiresAt, new Date()))).limit(51);
   if (active.length >= 50) throw new CalendarError("rate_limit", 429);
@@ -56,6 +56,6 @@ export async function handleBoardingDiscord(payload: DiscordInteractionPayload) 
     const saved = await submitBoarding(prompt.allianceId, actorId, { recordId: prompt.recordId, version: state.version, requestId: `boarding-${prompt.id}`, clockToken: state.clockToken, elapsedMs: state.observedAt! - Date.parse(state.serverNow), countdown: state.countdown ?? null });
     return { type: 4, data: { content: saved.status === "closed" ? t("boarding.closed") : t("boarding.ends", { time: `<t:${Math.floor(saved.endsAt!.getTime() / 1000)}:F>` }), flags: 64, allowed_mentions: { parse: [] } } };
   } catch (error) {
-    return { type: 4, data: { content: t(error instanceof CalendarError && error.code === "invalid_countdown" ? "boarding.invalid" : error instanceof CalendarError && error.code === "expired" ? "boarding.expired" : "stale"), flags: 64, allowed_mentions: { parse: [] } } };
+    return { type: 4, data: { content: t(error instanceof CalendarError && error.code === "invalid_countdown" ? "boarding.invalid" : error instanceof CalendarError && error.code === "expired" ? "boarding.expired" : error instanceof CalendarError && error.code === "closed" ? "boarding.closed" : error instanceof CalendarError && error.code === "cannot_extend" ? "boarding.cannotExtend" : "stale"), flags: 64, allowed_mentions: { parse: [] } } };
   }
 }

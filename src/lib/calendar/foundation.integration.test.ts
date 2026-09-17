@@ -82,6 +82,28 @@ describe.skipIf(!enabled)("calendar foundation with isolated Postgres", () => {
     await expect(configureCalendarTarget(user, { allianceId: otherAllianceId, provider: "apple", sources: ["boarding"], enabled: true, version: 0 })).rejects.toMatchObject({ code: "forbidden" });
     await expect(refreshCalendarProjection(targetId, other)).rejects.toMatchObject({ code: "forbidden" });
   });
+  it("only permits shortening a published boarding window and audits each change once", async () => {
+    const window = (await readBoarding(allianceId, recordId, `hq:${user}`))!;
+    const input = { recordId, version: window.version, requestId: id(), clockToken: window.clockToken, elapsedMs: 0, countdown: "04:00:00" };
+    await expect(submitBoarding(allianceId, `hq:${user}`, input)).rejects.toMatchObject({ code: "cannot_extend" });
+    const shortened = await submitBoarding(allianceId, `hq:${user}`, { ...input, countdown: "01:00:00" });
+    expect(shortened.endsAt!.getTime()).toBeLessThan(window.endsAt!.getTime());
+    await submitBoarding(allianceId, `hq:${user}`, { ...input, countdown: "01:00:00" });
+    const audits = await getDb().select().from(schema.auditLog).where(and(eq(schema.auditLog.resourceId, recordId), eq(schema.auditLog.action, "trains.boarding_publish")));
+    expect(audits).toHaveLength(2);
+    expect(audits.every((row) => row.hqUserId === user)).toBe(true);
+    expect(JSON.stringify(audits)).not.toContain(window.clockToken);
+  });
+  it("does not reopen a closed or naturally expired boarding window", async () => {
+    let window = (await readBoarding(allianceId, recordId, `hq:${user}`))!;
+    const close = { recordId, version: window.version, requestId: id(), clockToken: window.clockToken, elapsedMs: 0, countdown: "00:05:00" };
+    expect((await submitBoarding(allianceId, `hq:${user}`, close)).status).toBe("closed");
+    for (const status of ["closed", "active"]) {
+      await getDb().update(schema.trainBoardingWindows).set({ status }).where(eq(schema.trainBoardingWindows.recordId, recordId));
+      window = (await readBoarding(allianceId, recordId, `hq:${user}`))!;
+      await expect(submitBoarding(allianceId, `hq:${user}`, { ...close, version: window.version, requestId: id(), clockToken: window.clockToken, countdown: "04:00:00" })).rejects.toMatchObject({ code: "closed" });
+    }
+  });
   it("withdraws boarding after unlock and fences old timing submissions", async () => {
     const window = (await readBoarding(allianceId, recordId, `hq:${user}`))!;
     await getDb().update(schema.trainConductorRecords).set({ lockedAt: null }).where(eq(schema.trainConductorRecords.id, recordId));

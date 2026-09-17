@@ -35,6 +35,25 @@ test("officer enters the game countdown and late metadata updates do not extend 
   expect(later.ends_at).toEqual(row.ends_at);
 });
 
+test("published windows can only shorten and closed windows cannot reopen", async ({ page, context }) => {
+  const f = await fixture(); await context.addCookies(playwrightAuthCookies(f.user));
+  await page.goto("/en-US/trains");
+  const panel = page.getByRole("region", { name: "Train Is Boarding", exact: true });
+  await panel.getByLabel("How much time is left on the train?", { exact: true }).fill("01:20:00");
+  await panel.getByRole("button", { name: "Use countdown", exact: true }).click();
+  await panel.getByRole("button", { name: "Update boarding time", exact: true }).click();
+  await panel.getByLabel("How much time is left on the train?", { exact: true }).fill("04:00:00");
+  await panel.getByRole("button", { name: "Use countdown", exact: true }).click();
+  await expect(panel.getByRole("alert")).toHaveText("Boarding time can only be shortened after it is published.");
+  await panel.getByLabel("How much time is left on the train?", { exact: true }).fill("00:05:00");
+  await panel.getByRole("button", { name: "Use countdown", exact: true }).click();
+  await expect(panel.getByText("Boarding has already closed.", { exact: true })).toBeVisible();
+  await expect(panel.getByRole("button", { name: "Update boarding time", exact: true })).toHaveCount(0);
+  const { boarding } = await (await page.request.get(`/api/trains/boarding?recordId=${f.recordId}`)).json();
+  const replay = await page.request.post("/api/trains/boarding", { data: { recordId: f.recordId, version: boarding.version, clockToken: boarding.clockToken, requestId: randomUUID(), elapsedMs: 0, countdown: "04:00:00" } });
+  expect(replay.status()).toBe(409); expect((await replay.json()).code).toBe("closed");
+});
+
 test("skip estimates from the original lock time", async ({ page, context }) => {
   const f = await fixture(); await context.addCookies(playwrightAuthCookies(f.user));
   expect((await page.request.get(`/api/trains/boarding?recordId=${f.recordId}`)).status()).toBe(200);
@@ -48,7 +67,7 @@ test("skip estimates from the original lock time", async ({ page, context }) => 
 
 test("members and anonymous sessions cannot change an officer's boarding window", async ({ page, context, request }) => {
   const f = await fixture("member");
-  expect((await request.get(`/api/trains/boarding?recordId=${f.recordId}`)).status()).toBe(403);
+  expect((await request.get(`/api/trains/boarding?recordId=${f.recordId}`)).status()).toBe(401);
   await context.addCookies(playwrightAuthCookies(f.user));
   expect((await page.request.get(`/api/trains/boarding?recordId=${f.recordId}`)).status()).toBe(403);
   expect((await page.request.post("/api/trains/boarding", { data: { action: "begin", recordId: f.recordId } })).status()).toBe(403);

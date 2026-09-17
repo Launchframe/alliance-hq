@@ -8,6 +8,8 @@ import { lockAllianceAvailability, type AvailabilityTransaction } from "@/lib/ti
 import { lockConductorRecord } from "./repository";
 import { getServerCalendarDate } from "./game-time";
 import { boardingWindow, parseBoardingCountdown } from "./boarding.shared";
+import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
+import { resolveDiscordHqUserId } from "./train-ownership.server";
 
 export async function beginBoarding(tx: AvailabilityTransaction, record: typeof schema.trainConductorRecords.$inferSelect) {
   if (!record.lockedAt || record.date !== getServerCalendarDate()) return;
@@ -42,13 +44,14 @@ export async function readBoarding(allianceId: string, recordId: string, actorId
   return { ...row.window, clockToken: encryptSecret(JSON.stringify({ recordId, allianceId, actorId, lockAt: row.lockedAt.toISOString(), issuedAt })), serverNow: new Date(issuedAt).toISOString() };
 }
 
-export async function submitBoarding(allianceId: string, actorId: string, input: { recordId: string; version: number; requestId: string; clockToken: string; elapsedMs: number; countdown: string | null }) {
+export async function submitBoarding(allianceId: string, actorId: string, input: { recordId: string; version: number; requestId: string; clockToken: string; elapsedMs: number; countdown: string | null }, sessionId?: string) {
   if (!/^[\w-]{12,100}$/.test(input.requestId) || !Number.isInteger(input.version)) throw new CalendarError("invalid_countdown");
   let clock: { recordId: string; allianceId: string; actorId: string; lockAt: string; issuedAt: number };
   try { clock = JSON.parse(decryptSecret(input.clockToken)); } catch { throw new CalendarError("expired", 409); }
   if (clock.recordId !== input.recordId || clock.allianceId !== allianceId || clock.actorId !== actorId) throw new CalendarError("forbidden", 403);
   const hash = calendarHash(JSON.stringify([input.clockToken, input.countdown, input.elapsedMs, input.version]));
-  return getDb().transaction(async (tx) => {
+  const hqUserId = actorId.startsWith("hq:") ? actorId.slice(3) : await resolveDiscordHqUserId(actorId.slice(8));
+  const outcome = await getDb().transaction(async (tx) => {
     await lockAllianceAvailability(tx, allianceId);
     const [record] = await tx.select().from(schema.trainConductorRecords).where(and(eq(schema.trainConductorRecords.id, input.recordId), eq(schema.trainConductorRecords.allianceId, allianceId))).for("update");
     if (!record?.lockedAt || record.lockedAt.toISOString() !== clock.lockAt) throw new CalendarError("stale", 409);
@@ -56,17 +59,25 @@ export async function submitBoarding(allianceId: string, actorId: string, input:
     if (!window || window.lockAt.toISOString() !== clock.lockAt) throw new CalendarError("stale", 409);
     if (window.requestId === input.requestId) {
       if (window.requestHash !== hash) throw new CalendarError("stale", 409);
-      return window;
+      return { window, changed: false, previousEnd: window.endsAt };
     }
     if (window.version !== input.version) throw new CalendarError("stale", 409);
     const now = Date.now();
+    if (window.status === "closed" || window.endsAt && window.endsAt.getTime() <= now) throw new CalendarError("closed", 409);
     if (!Number.isFinite(clock.issuedAt) || now - clock.issuedAt > 15 * 60_000 || clock.issuedAt > now || !Number.isFinite(input.elapsedMs) || input.elapsedMs < 0 || clock.issuedAt + input.elapsedMs > now + 2000) throw new CalendarError("expired", 409);
     let remaining: number | null;
     try { remaining = input.countdown === null ? null : parseBoardingCountdown(input.countdown); } catch { throw new CalendarError("invalid_countdown"); }
     const observedAt = new Date(Math.min(now, clock.issuedAt + input.elapsedMs));
     const result = boardingWindow({ lockedAt: clock.lockAt, observedAt: observedAt.toISOString(), remainingSeconds: remaining });
+    if (window.endsAt && Date.parse(result.endsAt) > window.endsAt.getTime()) throw new CalendarError("cannot_extend", 409);
     const [saved] = await tx.update(schema.trainBoardingWindows).set({ startsAt: new Date(result.startsAt), endsAt: new Date(result.endsAt), basis: result.basis, observedAt, remainingSeconds: remaining, status: Date.parse(result.endsAt) > now ? "active" : "closed", version: window.version + 1, requestId: input.requestId, requestHash: hash, actorId, updatedAt: new Date(now) }).where(eq(schema.trainBoardingWindows.recordId, record.id)).returning();
     await tx.update(schema.calendarTargets).set({ nextSyncAt: new Date(now) }).where(eq(schema.calendarTargets.allianceId, allianceId));
-    return saved;
+    return { window: saved, changed: true, previousEnd: window.endsAt };
   });
+  if (outcome.changed) await writeTrainsOfficerAudit({
+    sessionId, hqUserId, allianceId, action: "trains.boarding_publish", severity: outcome.previousEnd ? "update" : "routine",
+    resourceType: "train_boarding_window", resourceId: input.recordId,
+    metadata: { actorId, previousEndsAt: outcome.previousEnd?.toISOString() ?? null, endsAt: outcome.window.endsAt?.toISOString(), basis: outcome.window.basis, version: outcome.window.version },
+  });
+  return outcome.window;
 }

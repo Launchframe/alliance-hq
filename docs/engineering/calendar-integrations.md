@@ -6,7 +6,7 @@ HQ remains the source of truth. Google connections manage only dedicated HQ-crea
 
 Regular start-only events default to 30 minutes. Explicit Plunder Plan/draft intervals are preserved. All-day source dates remain calendar DATE values, with an exclusive end; they are not guaranteed to span 24 elapsed hours across local DST changes.
 
-A train's countdown starts at four hours; boarding ends with five minutes remaining. At observation T with remaining R seconds, opening is T-(14400-R), closing is T+(R-300). The resulting window is 14100 seconds. An explicit Skip uses the original HQ lock timestamp plus 14100 seconds as an estimate. Observation time and receipt identity are immutable through retries. Lock metadata never extends an observed window.
+A train's countdown starts at four hours; boarding ends with five minutes remaining. At observation T with remaining R seconds, opening is T-(14400-R), closing is T+(R-300). The resulting window is 14100 seconds. An explicit Skip uses the original HQ lock timestamp plus 14100 seconds as an estimate. Observation time and receipt identity are immutable through retries. Lock metadata never extends an observed window. After publication, corrections may only move closing earlier; closed or naturally expired windows reject new timing submissions. Each accepted change records an officer audit, and idempotent replays do not create another audit.
 
 Boarding is an alliance-wide utility, not a personal conductor assignment. Every active opted-in alliance account may export the minimal boarding summary without gaining access to scores or privileged train mutations. Automatic nomination locks and history imports are not evidence of a live in-game train. Interactive timing intents are resumable; abandonment does not silently publish a maximum estimate. Already closed boarding windows do not become upcoming events.
 
@@ -17,6 +17,8 @@ No calendar API can retroactively deliver a before-start alert. Native apps cont
 Connections require authenticated HQ ownership and current alliance access. Source-specific permissions and current Commander identity are rechecked off-session. No stored browser session, inferred email ownership, arbitrary calendar URL, player UID, private time-off notes or disciplinary content is an export authority.
 
 Private feed links are bearer credentials. They are hashed for lookup, encrypted for owner-only redisplay, excluded from ordinary DTOs/logging, and revocable. Previously cached external copies cannot be guaranteed erased. Disconnect fences normal sync immediately; optional cleanup is limited to known HQ event bindings and may fail if provider consent is already revoked. Never delete an entire calendar containing possible user-added events.
+
+Calendar tokens are stored as application-encrypted AES-GCM ciphertext in SQL text columns; the foundation has no Google-token writer. Feed reads retain fresh projection/authorization checks because nextSyncAt does not cover every source or ownership change; a 304 does not update lastFetchAt. Successful Discord train locks stay channel-visible, with timing controls delivered separately and privately after the response.
 
 Provider event operations are reconciled using durable identities and revisions. Google secondary-calendar creation can have an uncertain outcome; do not retry ambiguous creation blindly. Google reminder-only changes do not necessarily alter the event's `updated` field. A failed/partial source read is not an empty authoritative snapshot.
 

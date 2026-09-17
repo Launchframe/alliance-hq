@@ -3,6 +3,7 @@ import { createServer } from "node:net";
 import postgres from "postgres";
 import { assertE2eDatabaseUrl } from "./e2e-database-url-guard.mjs";
 import { resolveDatabaseUrl } from "./lib/database-url.mjs";
+import { discordTestKeyPair } from "../e2e/fixtures/discord-signing.ts";
 
 const url = process.env.CALENDAR_TEST_DATABASE_URL;
 if (!url) throw new Error("CALENDAR_TEST_DATABASE_URL is required");
@@ -13,6 +14,7 @@ const client = postgres(url, { max: 1, prepare: false });
 const [{ acquired, database }] = await client`select pg_try_advisory_lock(hashtextextended('calendar-verification', 0)) as acquired, current_database() as database`;
 if (!acquired || database !== parsed.pathname.slice(1)) { await client.end(); throw new Error("Test database is not exclusively owned"); }
 const env = { PATH: process.env.PATH, HOME: process.env.HOME, __NEXT_PROCESSED_ENV: "true", NODE_ENV: "production", NODE_OPTIONS: "--max-old-space-size=8192", DATABASE_URL: url, LOCAL_DATABASE_URL: url, E2E_DATABASE_URL: url, CALENDAR_DB_TEST: "1", E2E_TEST: "true", E2E_EMAIL_CODE: "424242", HQ_ASHED_INVITE_REQUIRED: "false", TOKEN_ENCRYPTION_KEY: "a".repeat(64), AUTH_SECRET: "calendar-e2e-only-auth-secret-32-characters", AUTH_GOOGLE_ID: "e2e-google-client-id", AUTH_GOOGLE_SECRET: "e2e-google-client-secret", AUTH_DISCORD_ID: "e2e-discord-client-id", AUTH_DISCORD_SECRET: "e2e-discord-client-secret", CALENDAR_GOOGLE_TRANSPORT: "disabled", VIDEO_WORKER_SECRET: "", VIDEO_WORKER_BASE_URL: "", DISCORD_BOT_TOKEN: "", CRON_SECRET: "" };
+Object.assign(env, { NOTES_INTAKE_TEST_PROVIDER: "true", NOTES_HISTORY_TEST_PROVIDER: "true", NOTES_KNOWLEDGE_TEST_PROVIDER: "1", OCR_WORKER_SECRET: "e2e-ocr-worker-secret-not-for-production", DISCORD_PUBLIC_KEY: Buffer.from(discordTestKeyPair.publicKey).toString("hex") });
 if (resolveDatabaseUrl(env) !== url) throw new Error("Effective test database differs");
 const run = (args) => new Promise((resolve, reject) => {
   const child = spawn(process.execPath, args, { env, stdio: "inherit" });
@@ -31,6 +33,8 @@ try {
     const reservation = createServer(); await new Promise((resolve) => reservation.listen(0, "127.0.0.1", resolve));
     const port = reservation.address().port; await new Promise((resolve) => reservation.close(resolve));
     env.PLAYWRIGHT_BASE_URL = `http://localhost:${port}`; env.PLAYWRIGHT_E2E_PORT = String(port); env.NEXT_PUBLIC_APP_URL = env.PLAYWRIGHT_BASE_URL; env.CALENDAR_APP_ORIGIN = env.PLAYWRIGHT_BASE_URL;
+    env.E2E_DISCORD_FOLLOWUP_ORIGIN = `http://127.0.0.1:${port + 1}`;
+    env.OCR_WORKER_BASE_URL = env.PLAYWRIGHT_BASE_URL;
     server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", String(port), "-H", "localhost"], { env, stdio: "inherit" });
     let ready = false;
     for (let i = 0; i < 100; i++) {

@@ -37,7 +37,10 @@ describe.skipIf(process.env.CALENDAR_DB_TEST !== "1")("calendar feed capability 
     const first = await calendarFeed(token);
     expect(first.status).toBe(200);
     expect(first.text.match(/BEGIN:VALARM/g)).toHaveLength(2);
+    const [before] = await getDb().select().from(schema.calendarTargets).where(eq(schema.calendarTargets.id, targetId));
     expect((await calendarFeed(token, first.etag)).status).toBe(304);
+    const [after] = await getDb().select().from(schema.calendarTargets).where(eq(schema.calendarTargets.id, targetId));
+    expect(after.lastFetchAt).toEqual(before.lastFetchAt);
   });
   it("keeps credentials out of settings and rejects other owners", async () => {
     expect(JSON.stringify(await loadCalendarSettings(owner))).not.toContain(token);

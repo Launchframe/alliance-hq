@@ -34,20 +34,21 @@ export function TrainBoardingTiming({ recordId, lockedAt, canBegin }: { recordId
     try {
       const response = await fetch("/api/trains/boarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordId, version: window.version, requestId: requestId.current, clockToken: window.clockToken, elapsedMs: observed.current, countdown: skip ? null : countdown }) });
       const body = await response.json();
-      if (!response.ok) { setError(body.code === "invalid_countdown" ? "boarding.invalid" : body.code === "expired" ? "boarding.expired" : body.code === "stale" ? "stale" : "failed"); return; }
+      if (!response.ok) { setError(body.code === "invalid_countdown" ? "boarding.invalid" : body.code === "expired" ? "boarding.expired" : body.code === "closed" ? "boarding.closed" : body.code === "cannot_extend" ? "boarding.cannotExtend" : body.code === "stale" ? "stale" : "failed"); return; }
       accept(body.boarding); setEditing(false);
     } catch { setError("failed"); } finally { setBusy(false); }
   }
+  const closed = window?.status === "closed" || !!window?.endsAt && Date.parse(window.endsAt) <= now.getTime();
   if (loading) return <p className="text-sm text-hq-fg-muted">{t("loading")}</p>;
   if (!window && !canBegin) return null;
   return <section className="space-y-3 rounded-lg border border-hq-border bg-hq-surface p-4" aria-label={t("boarding.title")}>
     <h2 className="font-semibold">{t("boarding.title")}</h2>
     {window?.endsAt && <p>{window.status === "closed" || Date.parse(window.endsAt) <= now.getTime() ? t("boarding.closed") : t("boarding.ends", { time: new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "medium" }).format(new Date(window.endsAt)) })}</p>}
-    {window && (window.status === "pending" || editing) ? <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); void submit(false); }}>
-      <label className="block space-y-1"><span>{t("boarding.question")}</span><input required pattern="[0-9]{2}:[0-5][0-9]:[0-5][0-9]" placeholder="00:00:00" value={countdown} onChange={(event) => { setCountdown(event.target.value); observed.current = performance.now() - origin.current; requestId.current = ""; }} className="block w-full max-w-xs rounded border border-hq-border bg-hq-canvas p-2" /></label>
+    {!closed && window && (window.status === "pending" || editing) ? <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); void submit(false); }}>
+      <label className="block space-y-1"><span>{t("boarding.question")}</span><input required enterKeyHint="send" pattern="[0-9]{2}:[0-5][0-9]:[0-5][0-9]" placeholder="00:00:00" value={countdown} onChange={(event) => { setCountdown(event.target.value); observed.current = performance.now() - origin.current; requestId.current = ""; }} className="block w-full max-w-xs rounded border border-hq-border bg-hq-canvas p-2" /></label>
       <p className="text-sm text-hq-fg-muted">{t("boarding.hint")}</p><p className="text-sm text-hq-fg-muted">{t("boarding.skipHint")}</p>
       <div className="flex flex-wrap gap-3"><button disabled={busy} className="rounded border border-hq-border px-3 py-2">{t("boarding.submit")}</button><button type="button" disabled={busy} className="rounded border border-hq-border px-3 py-2" onClick={() => { requestId.current = ""; void submit(true); }}>{t("skip")}</button></div>
-    </form> : <button type="button" disabled={busy} className="rounded border border-hq-border px-3 py-2" onClick={() => void begin()}>{t("boarding.begin")}</button>}
+    </form> : !closed && <button type="button" disabled={busy} className="rounded border border-hq-border px-3 py-2" onClick={() => void begin()}>{t("boarding.begin")}</button>}
     {window?.basis === "estimated" && <p className="text-sm text-hq-fg-muted">{t("boarding.estimate")}</p>}
     {error && <p role="alert" className="text-hq-danger">{t(error)}</p>}
   </section>;

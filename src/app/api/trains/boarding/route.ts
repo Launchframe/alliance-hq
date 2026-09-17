@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 async function actor(request: Request) {
   const session = await requireCalendarUser(request);
   if (!session.currentAllianceId || await requireTrainOfficer(session.id)) throw new CalendarError("forbidden", 403);
-  return { allianceId: session.currentAllianceId, id: `hq:${session.hqUserId}` };
+  return { allianceId: session.currentAllianceId, id: `hq:${session.hqUserId}`, sessionId: session.id };
 }
 
 export async function GET(request: Request) {
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
         await beginBoarding(tx, record);
       });
     } else {
-      await submitBoarding(viewer.allianceId, viewer.id, body);
+      await submitBoarding(viewer.allianceId, viewer.id, body, viewer.sessionId);
     }
     return NextResponse.json({ boarding: await readBoarding(viewer.allianceId, body.recordId, viewer.id) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return calendarErrorResponse(error); }
