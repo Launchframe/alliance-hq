@@ -108,6 +108,21 @@ async function appendRankEventIfChanged(input: {
     source: input.source,
     recordedByHqUserId: input.recordedByHqUserId,
   });
+
+  try {
+    const { evaluateMemberRoleNudgesOnRankChange } = await import(
+      "@/lib/member-role-nudges/evaluate-rank-change.server"
+    );
+    await evaluateMemberRoleNudgesOnRankChange({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      previousRank: input.previousRank,
+      nextRank: input.allianceRank,
+    });
+  } catch (error) {
+    console.error("[member-role-nudges] evaluate failed", error);
+  }
+
   return true;
 }
 

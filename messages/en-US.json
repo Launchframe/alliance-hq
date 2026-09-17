@@ -1400,6 +1400,27 @@
     "revokeOfficerWorking": "Removing…",
     "revokeOfficerFailed": "Could not remove officer access.",
     "ashedNote": "Alliance admins: to add or remove maintainers from Ashed sync, update collaborators in Ashed → Alliances, then refresh here.",
+    "roleNudges": {
+      "title": "R4 privilege nudges",
+      "description": "When someone becomes or leaves in-game R4, HQ asks officers to invite, elevate, or demote HQ access. Rejecting a nudge vouchers that decision for the whole alliance until their rank situation changes.",
+      "loadFailed": "Could not load privilege nudges.",
+      "actionFailed": "Could not update that nudge.",
+      "emptyOpen": "No open privilege nudges.",
+      "emptyHistory": "No rank or role history yet.",
+      "accept": "Accept",
+      "reject": "Reject",
+      "working": "Working…",
+      "kindEscalateInvite": "Invite as officer",
+      "kindEscalateElevate": "Elevate to officer",
+      "kindDeescalate": "Demote to member",
+      "inviteCreated": "Officer invite created — share this link:",
+      "invitePassphrase": "Passphrase: {passphrase}",
+      "showHistory": "Show rank & role history",
+      "hideHistory": "Hide history",
+      "historyNudge": "{name}: {kind} ({status})",
+      "historyRole": "{name}: HQ role {from} → {to}",
+      "historyRank": "{name}: in-game rank R{rank}"
+    },
     "tabs": {
       "label": "Team settings sections",
       "loading": "Loading team settings…",
@@ -6025,7 +6046,13 @@
       "regularEventReminder": "Regular event",
       "regularEventUploadReminder": "Regular event score upload",
       "officerActionItemDue": "Officer action item",
-      "officerActionItemDueBody": "An action item from officer chat is due."
+      "officerActionItemDueBody": "An action item from officer chat is due.",
+      "memberRoleEscalate": "R4 privilege",
+      "memberRoleEscalateTitle": "Elevate or invite {name}",
+      "memberRoleEscalateBody": "This member reached in-game R4. Invite them to HQ as an officer or elevate their HQ role.",
+      "memberRoleDeescalate": "R4 demotion",
+      "memberRoleDeescalateTitle": "Review officer access for {name}",
+      "memberRoleDeescalateBody": "This member left in-game R4. Demote their HQ officer role to member, or reject to keep officer access."
     },
     "confirmCaptureFailed": "Failed to confirm capture."
   },
