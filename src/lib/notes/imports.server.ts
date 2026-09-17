@@ -58,7 +58,7 @@ export async function listHistoryImports(actor: KnowledgeWebActor, cursor: Histo
     .orderBy(desc(imports.updatedAt), desc(imports.id)).limit(HISTORY_IMPORT_PAGE_SIZE + 1);
   const page = rows.slice(0, HISTORY_IMPORT_PAGE_SIZE);
   const last = page.at(-1);
-  return { scope, imports: page.map(({ record, title }) => ({ id: record.id, title: redactIntakeText(title), state: record.state, kind: record.kind, updatedAt: record.updatedAt.toISOString() })),
+  return { scope, imports: page.map(({ record, title, cursorTime }) => ({ id: record.id, title: redactIntakeText(title), state: record.state, kind: record.kind, updatedAt: cursorTime })),
     nextCursor: rows.length > HISTORY_IMPORT_PAGE_SIZE && last ? JSON.stringify({ version: 1, scope, id: last.record.id, updatedAt: last.cursorTime } satisfies HistoryListCursor) : null };
 }
 export async function initializeHistoryImport(actor: KnowledgeWebActor, raw: HistoryInit) {
