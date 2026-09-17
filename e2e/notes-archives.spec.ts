@@ -141,6 +141,7 @@ test("older drafts, tasks, reviews and snapshots remain reachable without bulk d
   await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
   const otherCard = await request.post(`/api/notes/boards/${boardId}/commands`, { headers, data: { kind: "create", requestId: nanoid(), expectedVersion: compactBoard.version, task: { title: "Other board label", labels: ["different"] } } });
   expect(otherCard.status(), await otherCard.text()).toBe(200);
+  await page.reload();
   await expect(board.getByTestId("board-task")).toHaveCount(2);
   await board.getByLabel("Labels", { exact: true }).selectOption("archive");
   await expect(board.getByTestId("board-task")).toHaveCount(1);
