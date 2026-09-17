@@ -53,7 +53,7 @@ test("calendar settings keep two alerts across Commanders and rotate a private A
   await alerts.getByLabel("Minutes before start", { exact: true }).nth(1).fill("1");
   await alerts.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
-  const apple = page.getByRole("form", { name: /Apple Calendar/ });
+  const apple = page.getByRole("region", { name: /Apple Calendar/ });
   await apple.getByLabel("Sync this calendar", { exact: true }).check();
   await apple.getByRole("button", { name: "Save", exact: true }).click();
   await apple.getByRole("button", { name: "Subscribe in Apple Calendar", exact: true }).click();
@@ -71,6 +71,10 @@ test("calendar settings keep two alerts across Commanders and rotate a private A
   await dialog.getByRole("button", { name: "Replace private link", exact: true }).click();
   await expect(dialog).not.toBeVisible();
   expect((await page.request.get(oldLink)).status()).toBe(404);
+  const replacement = apple.getByLabel("Copy private link", { exact: true });
+  await expect(replacement).toBeVisible();
+  expect((await replacement.inputValue()) !== oldLink).toBe(true);
+  expect((await page.request.get(await replacement.inputValue())).status()).toBe(200);
   await page.reload();
   await expect(page.getByLabel("Minutes before start", { exact: true }).nth(0)).toHaveValue("10");
   await expect(page.getByLabel("Minutes before start", { exact: true }).nth(1)).toHaveValue("1");
@@ -86,13 +90,48 @@ test("mobile Portuguese calendar settings expose authorized previews and a keybo
   await expect(page.getByRole("heading", { name: "Conexões de calendário", exact: true })).toBeVisible();
   const alerts = page.getByRole("form", { name: "Alertas do calendário", exact: true });
   await alerts.getByRole("button", { name: "Salvar", exact: true }).click();
-  await page.getByRole("form", { name: /Calendário Apple/ }).getByRole("button", { name: "Prévia", exact: true }).click();
+  await page.getByRole("region", { name: /Calendário Apple/ }).getByRole("button", { name: "Prévia", exact: true }).click();
   await expect(page.getByRole("region", { name: "Prévia", exact: true }).getByText("Cerco Zumbi", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.goto("/account");
   await page.getByRole("link", { name: "Conexões de calendário", exact: true }).focus();
   await page.keyboard.press("g"); await page.keyboard.press("-");
   await expect(page).toHaveURL(/account\/calendars/);
+});
+
+test("private-link Enter copies instead of saving and settings/security links here", async ({ page, context }) => {
+  const f = await fixture(); await context.addCookies(playwrightAuthCookies(f.user));
+  await page.addLocatorHandler(page.getByTestId("hq-release-notes-drawer"), async () => { await page.getByTestId("hq-release-notes-dismiss").click(); });
+  await page.addInitScript(() => Object.defineProperty(navigator, "clipboard", { value: { writeText: async () => undefined }, configurable: true }));
+  await page.request.post("/api/calendar/settings", { data: { action: "target", allianceId: f.allianceId, provider: "apple", sources: ["regular"], enabled: true, version: 0 } });
+  await page.goto("/settings/account");
+  await page.getByRole("link", { name: "Calendar connections", exact: true }).click();
+  const apple = page.getByRole("region", { name: /Apple Calendar/ });
+  await apple.getByRole("button", { name: "Subscribe in Apple Calendar", exact: true }).click();
+  const link = apple.getByLabel("Copy private link", { exact: true });
+  await expect(link).toHaveAttribute("type", "text");
+  await expect(link).toHaveAttribute("autocomplete", "off");
+  expect(await link.evaluate((element) => getComputedStyle(element).getPropertyValue("-webkit-text-security"))).toBe("disc");
+  await expect(apple.getByRole("group", { name: "Events to sync", exact: true })).toBeVisible();
+  let saves = 0;
+  await page.route("**/api/calendar/settings", async (route) => { if (route.request().method() === "POST") saves++; await route.continue(); });
+  await link.press("Enter");
+  await expect(apple.getByText("Copied", { exact: true })).toBeVisible();
+  expect(saves).toBe(0);
+});
+
+test("calendar failures are visible beside the affected controls", async ({ page, context }) => {
+  const f = await fixture(); await context.addCookies(playwrightAuthCookies(f.user));
+  await page.goto("/account/calendars");
+  const alerts = page.getByRole("form", { name: "Calendar alerts", exact: true });
+  await page.route("**/api/calendar/settings", (route) => route.fulfill({ status: 409, json: { code: "stale" } }));
+  await alerts.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(alerts.getByRole("alert")).toHaveText("This has changed. Refresh and try again.");
+  await expect(alerts.getByLabel("Calendar time zone", { exact: true })).toHaveAttribute("enterkeyhint", "send");
+  await page.route("**/api/calendar/preview?*", (route) => route.fulfill({ status: 503, json: { code: "failed" } }));
+  const apple = page.getByRole("region", { name: /Apple Calendar/ });
+  await apple.getByRole("button", { name: "Preview", exact: true }).click();
+  await expect(apple.getByRole("alert")).toHaveText("Could not complete this action. Try again.");
 });
 
 test("calendar controls reject anonymous and cross-alliance requests", async ({ page, context, request }) => {
