@@ -73,7 +73,8 @@ export async function listNoteTaskPage(actor: KnowledgeActor, raw: TaskListFilte
   const rows = result.items.length ? await taskRows(actor, { ids: result.items.map((row) => row.id) }) : [];
   return { ...result, items: rows.map(summarizeNoteTask) };
 }
-export const listBoardNoteTasks = (tx: KnowledgeTransaction, actor: KnowledgeActor, boardId: string) => taskRows(actor, { boardId }, "read", tx);
+export const listBoardNoteTasks = (tx: KnowledgeTransaction, actor: KnowledgeActor, boardId: string, ids: string[]): Promise<NoteTask[]> =>
+  ids.length ? taskRows(actor, { boardId, ids }, "read", tx) : Promise.resolve([]);
 export async function getNoteTask(actor: KnowledgeActor, id: string, access: KnowledgeAccess = "read") {
   return (await taskRows(actor, { id }, access))[0] ?? null;
 }

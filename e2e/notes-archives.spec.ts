@@ -67,7 +67,7 @@ test("older drafts, tasks, reviews and snapshots remain reachable without bulk d
     }
   });
   const get = async (path: string) => {
-    const response = await request.get(path, { headers });
+    const response = await request.get(path, { headers, timeout: 10_000 });
     expect(response.status(), await response.text()).toBe(200);
     return response.json();
   };
@@ -136,12 +136,12 @@ test("older drafts, tasks, reviews and snapshots remain reachable without bulk d
   expect(concurrentBoards.every((snapshot) => snapshot.version === compactBoard.version)).toBe(true);
   expect(compactBoard.tasks[0]).not.toHaveProperty("description");
   expect(compactBoard.tasks[0].excerpt).not.toContain("Hidden task ending");
+  await expect(board.getByTestId("board-task")).toHaveCount(1);
   await board.getByRole("button", { name: "Archive task 0", exact: true }).click();
   await expect(page.getByRole("dialog").getByRole("textbox", { name: "Description", exact: true })).toHaveValue(taskBody);
   await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
   const otherCard = await request.post(`/api/notes/boards/${boardId}/commands`, { headers, data: { kind: "create", requestId: nanoid(), expectedVersion: compactBoard.version, task: { title: "Other board label", labels: ["different"] } } });
   expect(otherCard.status(), await otherCard.text()).toBe(200);
-  await page.reload();
   await expect(board.getByTestId("board-task")).toHaveCount(2);
   await board.getByLabel("Labels", { exact: true }).selectOption("archive");
   await expect(board.getByTestId("board-task")).toHaveCount(1);

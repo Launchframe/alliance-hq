@@ -173,6 +173,7 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 - Task list status/label filters run before pagination. Opening an excerpt requires the complete authorized task; a filtered-out saved task is reauthorized independently so list-window changes do not discard an accessible editor.
 - Linked task controls can be nested in a note form. Their buttons must use `type="button"`; only the note's explicit Save control submits that form.
 - Board snapshot people reads must use the existing transaction (`listKnowledgePeople(actor, true, tx)`). Borrowing another global-pool connection while holding each snapshot transaction can exhaust all five application connections and stall otherwise unrelated requests.
+- Read board placement IDs before projecting tasks, and pass those IDs into the task query while retaining board/resource authorization. A broad correlated board predicate alone can produce a nested-loop plan that repeatedly joins the entire personal task/note library even for a single board card.
 - Modern board snapshots and conflict responses use `format=summary`; full task descriptions are fetched only for the selected editor or explicit sharing preview. Board label filters do not change canonical card placement or task state.
 - Exact Notes label/member filters run alongside resource authorization and before pagination. Keep the old cursor fingerprint when both new filters are empty so existing unfiltered page links remain valid.
 
