@@ -4,6 +4,14 @@ const mockPutObject = vi.fn();
 const mockDeleteObject = vi.fn();
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/performance-notes/repository.server", () => ({ getPerformanceNoteDto: vi.fn(), updatePerformanceNoteInTransaction: vi.fn() }));
+vi.mock("@/lib/notes/resources.server", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/notes/resources.server")>(),
+  knowledgeAccessCondition: vi.fn(() => undefined),
+  lockKnowledgeResource: vi.fn(async () => ({ id: "source:session-1", version: 1 })),
+  recheckKnowledgeActor: vi.fn(),
+  touchKnowledgeResource: vi.fn(),
+}));
 
 vi.mock("@/lib/storage", () => ({
   putObject: (...args: unknown[]) => mockPutObject(...args),
@@ -64,6 +72,7 @@ import { importOfficerChatSession } from "@/lib/officer-intel/repository.server"
 
 function makeTx() {
   return {
+    select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn(async () => [mockState.sessionRow]) })) })),
     delete: vi.fn(() => ({ where: vi.fn(async () => undefined) })),
     insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
     update: vi.fn(() => ({
@@ -75,6 +84,7 @@ function makeTx() {
 const OLD_IMAGE_KEY = "officer-intel/alliance-1/session-1/old-image.png";
 
 const baseInput = {
+  actor: { kind: "web" as const, allianceId: "alliance-1", hqUserId: "author", discordUserId: null, isOfficer: true, readableBoardIds: [], editableBoardIds: [] },
   sessionId: "session-1",
   allianceId: "alliance-1",
   hqLocale: "en-US",
@@ -93,7 +103,7 @@ beforeEach(() => {
   nanoidCounter = 0;
   mockPutObject.mockReset().mockResolvedValue(undefined);
   mockDeleteObject.mockReset().mockResolvedValue(undefined);
-  mockTransaction.mockReset();
+  mockTransaction.mockReset().mockImplementation(async (fn: (tx: unknown) => unknown) => fn(makeTx()));
   mockState.sessionRow = {
     id: "session-1",
     allianceId: "alliance-1",
@@ -127,7 +137,7 @@ describe("importOfficerChatSession", () => {
   it("uploads new images and commits before deleting superseded R2 objects", async () => {
     const tx = makeTx();
     mockTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
-      await fn(tx);
+      return fn(tx);
     });
 
     const result = await importOfficerChatSession(baseInput);
@@ -144,9 +154,7 @@ describe("importOfficerChatSession", () => {
   });
 
   it("cleans up newly uploaded R2 objects and preserves prior data when the DB transaction fails", async () => {
-    mockTransaction.mockImplementation(async () => {
-      throw new Error("insert failed");
-    });
+    mockTransaction.mockImplementationOnce(async (fn: (tx: unknown) => unknown) => fn(makeTx())).mockRejectedValueOnce(new Error("insert failed"));
 
     await expect(importOfficerChatSession(baseInput)).rejects.toThrow(
       "insert failed",
@@ -163,14 +171,14 @@ describe("importOfficerChatSession", () => {
     expect(mockDeleteObject).not.toHaveBeenCalledWith(OLD_IMAGE_KEY);
   });
 
-  it("does not touch the transaction or storage cleanup when the R2 upload itself fails", async () => {
+  it("only reserves access and does not clean prior storage when the R2 upload itself fails", async () => {
     mockPutObject.mockRejectedValueOnce(new Error("R2 unavailable"));
 
     await expect(importOfficerChatSession(baseInput)).rejects.toThrow(
       "R2 unavailable",
     );
 
-    expect(mockTransaction).not.toHaveBeenCalled();
+    expect(mockTransaction).toHaveBeenCalledTimes(1);
     expect(mockDeleteObject).not.toHaveBeenCalled();
   });
 });

@@ -1,0 +1,96 @@
+import "server-only";
+
+import { NextResponse } from "next/server";
+import { and, eq, isNull } from "drizzle-orm";
+import { getDb, schema } from "@/lib/db";
+import { getTranslations } from "next-intl/server";
+
+import { auth } from "@/lib/auth";
+import { getAllianceMembershipRbac, getRbacContext } from "@/lib/rbac/context";
+import { requireSessionPermission } from "@/lib/rbac/require-permission";
+import { loadSession, requireApiSession } from "@/lib/session";
+import type { KnowledgeActor } from "./policy.shared";
+import { claimDiscordKnowledgeResources, knowledgeAccessCondition, KnowledgeAccessError } from "./resources.server";
+
+export type KnowledgeWebActor = KnowledgeActor & { sessionId: string; canCreate: boolean; canReadBoards: boolean; canWriteBoards: boolean };
+
+/** Resolve the HQ Notes actor. Does not claim Discord-owned notes (read-only paths stay read-only). */
+export async function getKnowledgeActorForSession(sessionId: string): Promise<KnowledgeWebActor | null> {
+  const session = await loadSession(sessionId);
+  if (!session?.hqUserId) return null;
+  const signedIn = await auth();
+  if (signedIn?.user?.id !== session.hqUserId) return null;
+  const actor = await resolveBoundKnowledgeActor(sessionId, session.hqUserId);
+  if (actor) await claimDiscordKnowledgeResources(actor);
+  return actor;
+}
+
+async function resolveBoundKnowledgeActor(sessionId: string, hqUserId: string, forAllianceId?: string): Promise<KnowledgeWebActor | null> {
+  const session = await loadSession(sessionId);
+  if (!session || session.hqUserId !== hqUserId || session.expiresAt <= new Date()) return null;
+  const context = await getRbacContext(sessionId);
+  if (!context || context.hqUserId !== session.hqUserId) return null;
+  const allianceId = forAllianceId ?? session.currentAllianceId ?? session.allianceId;
+  if (!allianceId) return null;
+  let roleName = context.roleName;
+  let permissions = context.permissions;
+  if (forAllianceId) {
+    const membership = await getAllianceMembershipRbac(sessionId, hqUserId, forAllianceId);
+    roleName = membership.roleName;
+    permissions = new Set(membership.permissions);
+    if (context.isPlatformMaintainer) permissions.add("hq:admin");
+  } else if (context.currentAllianceId !== allianceId) {
+    return null;
+  }
+  if (!roleName || !permissions.has("notes:read") || !permissions.has("members:read")) return null;
+  const isOfficer = ["owner", "maintainer", "officer"].includes(roleName);
+  const actor: KnowledgeWebActor = {
+    kind: "web", sessionId, allianceId, hqUserId: session.hqUserId, discordUserId: null,
+    isOfficer, canCreate: isOfficer && permissions.has("notes:create"),
+    canReadBoards: isOfficer && permissions.has("notes_boards:read"),
+    canWriteBoards: isOfficer && permissions.has("notes_boards:read") && permissions.has("notes_boards:write"),
+    readableBoardIds: [], editableBoardIds: [],
+  };
+  if (actor.canReadBoards) {
+    const boards = await getDb().select({ id: schema.knowledgeBoards.id }).from(schema.knowledgeBoards)
+      .innerJoin(schema.knowledgeResources, and(eq(schema.knowledgeResources.id, schema.knowledgeBoards.resourceId), eq(schema.knowledgeResources.allianceId, allianceId), isNull(schema.knowledgeResources.archivedAt)))
+      .where(and(eq(schema.knowledgeBoards.allianceId, allianceId), knowledgeAccessCondition(actor, schema.knowledgeBoards.resourceId)));
+    actor.readableBoardIds = boards.map((board) => board.id);
+    actor.editableBoardIds = actor.canWriteBoards ? actor.readableBoardIds : [];
+  }
+  return actor;
+}
+
+/** Background generation: resolve the requester against the job alliance, not the session's current alliance. */
+export async function getKnowledgeActorForGenerationJob(id: string): Promise<KnowledgeWebActor | null> {
+  const [job] = await getDb().select().from(schema.knowledgeGenerationJobs).where(eq(schema.knowledgeGenerationJobs.id, id));
+  if (!job) return null;
+  const [owner] = await getDb().select({ id: schema.knowledgeResources.id }).from(schema.knowledgeResources).where(and(eq(schema.knowledgeResources.id, job.resourceId), eq(schema.knowledgeResources.ownerHqUserId, job.requesterId), eq(schema.knowledgeResources.ownershipState, "hq"), isNull(schema.knowledgeResources.archivedAt)));
+  if (!owner) return null;
+  return resolveBoundKnowledgeActor(job.sessionId, job.requesterId, job.allianceId);
+}
+
+/** Notes API/pages: Auth.js + notes permission, then one-way Discord→HQ claim for this alliance. */
+export async function requireNotesApiContext(permission: "notes:read" | "notes:create" = "notes:read") {
+  const session = await requireApiSession();
+  if (session instanceof NextResponse) return session;
+  const denied = await requireSessionPermission(session.id, permission);
+  if (denied) return denied;
+  const actor = await getKnowledgeActorForSession(session.id);
+  if (!actor || (permission === "notes:create" && !actor.canCreate)) {
+    const t = await getTranslations("notes");
+    return NextResponse.json({ error: t("errors.forbidden"), code: "forbidden" }, { status: 403 });
+  }
+  await claimDiscordKnowledgeResources(actor);
+  return { session, actor };
+}
+
+export async function notesErrorResponse(error: unknown) {
+  const t = await getTranslations("notes");
+  if (error instanceof KnowledgeAccessError) {
+    const keys = { not_found: "notFound", changed: "errors.conflict", invalid: "errors.invalid", forbidden: "errors.forbidden", assignee_access: "tasks.assigneeAccess", intake_disabled: "intake.disabled", not_configured: "intake.unavailable", rate_limited: "intake.rateLimited", invalid_analysis: "intake.failed" } as const;
+    const key = keys[error.code];
+    return NextResponse.json({ error: t(key), code: error.code }, { status: error.status });
+  }
+  return NextResponse.json({ error: t("saveFailed"), code: "failed" }, { status: 500 });
+}

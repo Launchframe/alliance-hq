@@ -8,7 +8,6 @@ import {
   OFFICER_ACTION_ITEM_DUE_INBOX_KIND,
   officerActionItemHref,
 } from "@/lib/officer-intel/action-item-inbox.shared";
-import { OFFICER_INTEL_READ_PERMISSION } from "@/lib/rbac/constants";
 
 export async function materializeOfficerActionItemDueInboxItem(input: {
   allianceId: string;
@@ -41,7 +40,7 @@ export async function materializeOfficerActionItemDueInboxItem(input: {
     body: null,
     href: officerActionItemHref(input.actionItemId),
     visibleAfter: input.dueAt,
-    requiredPermission: OFFICER_INTEL_READ_PERMISSION,
+    requiredPermission: "notes:read",
     active: 1,
     resourceId: input.actionItemId,
   });

@@ -81,7 +81,7 @@ def parse_rows(cells: list[Cell], frame: Frame) -> list[RowObservation]:
             else:
                 names.append(cell)
         name = " ".join(cell.text.strip() for cell in names).strip()
-        if not name or len(name) > 160 or binding_label(name):
+        if not name or len(name) > 160 or binding_label(name) or not any(char.isalpha() for char in name):
             continue
         rows.append(RowObservation(name, normalize_integer(score_cell.text), rank, min([score_cell.confidence, *[cell.confidence for cell in names]]), union_box([cell.box for cell in group]), frame, union_box([cell.box for cell in names]), score_cell.box))
     return rows

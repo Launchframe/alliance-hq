@@ -24,6 +24,7 @@ export function OfficerMeetingNoteClient({
   sessionTitle,
 }: Props) {
   const t = useTranslations("officerIntel");
+  const notesT = useTranslations("notes.documents");
   const router = useRouter();
   const [note, setNote] = useState(initialNote);
   const [actionItems, setActionItems] = useState(initialActionItems);
@@ -38,7 +39,7 @@ export function OfficerMeetingNoteClient({
       const res = await fetch(`/api/officer-intel/notes/${note.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ summary, approve }),
+        body: JSON.stringify({ summary, approve, expectedVersion: note.version }),
       });
       const body = (await res.json().catch(() => null)) as
         | {
@@ -65,11 +66,12 @@ export function OfficerMeetingNoteClient({
   async function updateItemStatus(
     itemId: string,
     status: OfficerActionItemRecord["status"],
+    expectedVersion: number,
   ) {
     const res = await fetch(`/api/officer-intel/action-items/${itemId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, expectedVersion }),
     });
     const body = (await res.json().catch(() => null)) as
       | { item?: OfficerActionItemRecord }
@@ -83,12 +85,13 @@ export function OfficerMeetingNoteClient({
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-4xl flex-col gap-6 px-4 py-6">
       <div>
-        <Link
+        {note.sessionId && <Link
           href={`/officer-intel/sessions/${note.sessionId}`}
           className="text-sm text-hq-accent hover:underline"
         >
           {t("backToSession")}
-        </Link>
+        </Link>}
+        {note.canonicalNoteId && <Link href={`/notes/${note.canonicalNoteId}`} className="ml-4 text-sm text-hq-accent hover:underline">{notesT("openInNotes")}</Link>}
         <h1 className="mt-2 text-2xl font-semibold text-hq-fg">
           {t("meetingNotesTitle")}
         </h1>
@@ -178,7 +181,7 @@ export function OfficerMeetingNoteClient({
                     </p>
                   </div>
                   <span className="text-xs uppercase text-hq-muted">
-                    {t(`priority.${item.priority}`)} ·{" "}
+                    {t(`priority.${item.priority ?? "none"}`)} ·{" "}
                     {t(`status.${item.status}`)}
                   </span>
                 </div>
@@ -188,7 +191,7 @@ export function OfficerMeetingNoteClient({
                       <button
                         type="button"
                         className="rounded border border-hq-border px-2 py-1 text-xs"
-                        onClick={() => void updateItemStatus(item.id, "in_progress")}
+                        onClick={() => void updateItemStatus(item.id, "in_progress", item.version)}
                       >
                         {t("markInProgress")}
                       </button>
@@ -196,7 +199,7 @@ export function OfficerMeetingNoteClient({
                     <button
                       type="button"
                       className="rounded border border-hq-border px-2 py-1 text-xs"
-                      onClick={() => void updateItemStatus(item.id, "done")}
+                      onClick={() => void updateItemStatus(item.id, "done", item.version)}
                     >
                       {t("markDone")}
                     </button>
