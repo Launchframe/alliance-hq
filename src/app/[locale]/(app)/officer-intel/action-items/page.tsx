@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { OfficerActionItemsClient } from "@/components/officer-intel/OfficerActionItemsClient";
 import { listOpenOfficerActionItems } from "@/lib/officer-intel/repository.server";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 import {
   OFFICER_INTEL_READ_PERMISSION,
   OFFICER_INTEL_WRITE_PERMISSION,
@@ -19,10 +20,11 @@ export default async function OfficerActionItemsPage({ searchParams }: Props) {
   const session = await requirePageSession("/officer-intel/action-items");
   await requirePagePermission(session.id, OFFICER_INTEL_READ_PERMISSION);
   const allianceId = session.currentAllianceId ?? session.allianceId;
-  if (!allianceId) notFound();
+  const actor = await getKnowledgeActorForSession(session.id);
+  if (!allianceId || !actor || actor.allianceId !== allianceId) notFound();
 
   const [items, canWrite] = await Promise.all([
-    listOpenOfficerActionItems(allianceId),
+    listOpenOfficerActionItems(allianceId, actor),
     sessionHasPermission(session.id, OFFICER_INTEL_WRITE_PERMISSION),
   ]);
 

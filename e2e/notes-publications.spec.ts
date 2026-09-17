@@ -1,0 +1,85 @@
+import { expect, test } from "@playwright/test";
+import { createHash, randomBytes } from "node:crypto";
+import { nanoid } from "nanoid";
+import { authCookieHeader, createBrowserSession, getE2eSql } from "./fixtures/db";
+import { createNotesFixture } from "./fixtures/notes";
+import { playwrightAuthCookies } from "./fixtures/auth";
+import type { Publication } from "../src/lib/notes/publications.shared";
+
+test("anonymous links serve only immutable reviewed snapshots and honor rotation, expiry and revocation", async ({ request, browser, baseURL }) => {
+  const { author, peer, alliance } = await createNotesFixture("officer");
+  const sql = getE2eSql(), headers = { Cookie: authCookieHeader(author) };
+  const { noteId } = await (await request.post("/api/notes", { headers, data: { title: "Private title", body: "Private source content" } })).json();
+  const prepare = { requestId: nanoid(), noteId, expectedVersion: 1, title: "Public announcement", body: `Reviewed public words [private](/notes/${noteId}) ![image](https://example.test/pixel) token=synthetic-value`, locale: "en-US", days: 7 };
+  expect((await request.post("/api/notes/publications", { headers: { Cookie: authCookieHeader(peer) }, data: prepare })).status()).toBe(404);
+  const bootstrap = await createBrowserSession(sql);
+  expect((await request.post("/api/notes/publications", { headers: { Cookie: `alliance_hq_session=${bootstrap.sessionId}` }, data: prepare })).status()).toBe(403);
+  const previewResponse = await request.post("/api/notes/publications", { headers, data: prepare });
+  expect(previewResponse.status()).toBe(200);
+  let publication: Publication = await previewResponse.json();
+  expect(publication.link).toBeNull();
+  expect(publication.body).not.toContain(noteId);
+  expect(publication.body).not.toContain("synthetic-value");
+  const change = (command: string, reviewed = false) => request.post(`/api/notes/publications/${publication.id}`, { headers, data: { command, requestId: nanoid(), expectedVersion: publication.version, reviewed } });
+  expect((await change("publish")).status()).toBe(409);
+  const published = await change("publish", true); expect(published.status()).toBe(200); publication = await published.json();
+  const anonymous = await browser.newContext({ baseURL });
+  const page = await anonymous.newPage();
+  const telemetry: string[] = [];
+  page.on("request", (entry) => { if (entry.url().includes("/_vercel/")) telemetry.push("telemetry"); });
+  const response = await page.goto(publication.link!);
+  await expect(page.getByRole("heading", { name: "Public announcement", exact: true })).toBeVisible();
+  await expect(page.getByTestId("public-note")).not.toContainText("Private source content");
+  expect(response?.headers()["referrer-policy"]).toBe("no-referrer");
+  expect(response?.headers()["cache-control"]).toContain("no-store");
+  expect(response?.headers()["x-robots-tag"]).toContain("noindex");
+  await expect(page.getByTestId("public-note").locator("a, img, iframe")).toHaveCount(0);
+  expect(telemetry).toEqual([]);
+  expect((await anonymous.request.get(`/api/notes/${noteId}`)).status()).toBe(401);
+  expect((await anonymous.request.post("/api/notes/generation", { data: { kind: "ask", question: "Private source?" } })).status()).toBe(401);
+  expect((await request.patch(`/api/notes/${noteId}`, { headers, data: { expectedVersion: 1, title: "Later private title", body: "Later private changes" } })).status()).toBe(200);
+  await page.reload();
+  await expect(page.getByTestId("public-note")).not.toContainText("Later private changes");
+  const stalePreview = await (await request.post("/api/notes/publications", { headers, data: { ...prepare, expectedVersion: 2, requestId: nanoid() } })).json();
+  await request.patch(`/api/notes/${noteId}`, { headers, data: { expectedVersion: 2, body: "Newest private changes" } });
+  expect((await request.post(`/api/notes/publications/${stalePreview.id}`, { headers, data: { command: "publish", reviewed: true, requestId: nanoid(), expectedVersion: stalePreview.version } })).status()).toBe(409);
+  await expect(sql`UPDATE knowledge_publications SET body = 'Mutated snapshot' WHERE id = ${publication.id}`).rejects.toThrow();
+  const rotated = await change("rotate"); expect(rotated.status()).toBe(200); publication = await rotated.json();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "This shared note is unavailable.", exact: true })).toBeVisible();
+  await page.goto(publication.link!);
+  await expect(page.getByTestId("public-note")).toContainText("Reviewed public words");
+  await sql`UPDATE alliance_memberships SET role_id = (SELECT id FROM roles WHERE name = 'viewer') WHERE hq_user_id = ${author.hqUserId} AND alliance_id = ${alliance.allianceId}`;
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "This shared note is unavailable.", exact: true })).toBeVisible();
+  expect((await change("rotate")).status()).toBe(403);
+  expect((await change("revoke")).status()).toBe(200);
+  await sql`UPDATE alliance_memberships SET role_id = (SELECT id FROM roles WHERE name = 'officer') WHERE hq_user_id = ${author.hqUserId} AND alliance_id = ${alliance.allianceId}`;
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "This shared note is unavailable.", exact: true })).toBeVisible();
+  const expired = randomBytes(32).toString("base64url");
+  await sql`INSERT INTO knowledge_publications (id, alliance_id, note_id, resource_id, owner_hq_user_id, source_version, snapshot_version, title, body, locale, state, token_hash, expires_at) VALUES (${nanoid()}, ${alliance.allianceId}, ${noteId}, ${`note:${noteId}`}, ${author.hqUserId}, 1, 1000, 'Expired', 'Expired private words', 'en-US', 'published', ${createHash("sha256").update(expired).digest("hex")}, now() - interval '1 day')`;
+  await page.goto(`/shared/notes/${expired}`);
+  await expect(page.getByRole("heading", { name: "This shared note is unavailable.", exact: true })).toBeVisible();
+  await anonymous.close();
+});
+
+for (const copy of [
+  { locale: "", source: "Source note", preview: "Prepare public preview", publish: "Publish this snapshot", reviewed: "I reviewed this exact public copy", open: "Open public snapshot" },
+  { locale: "/pt-BR", source: "Nota de origem", preview: "Preparar prévia pública", publish: "Publicar esta cópia", reviewed: "Revisei exatamente esta cópia pública", open: "Abrir cópia pública" },
+]) test(`public preview requires explicit review (${copy.locale || "en-US"})`, async ({ page }) => {
+  const { author } = await createNotesFixture();
+  const headers = { Cookie: authCookieHeader(author) };
+  await page.request.post("/api/notes", { headers, data: { title: "Publication candidate", body: "Owner-selected public text" } });
+  await page.context().addCookies(playwrightAuthCookies(author));
+  await page.goto(`${copy.locale}/notes?view=publications`);
+  const panel = page.getByTestId("notes-publications");
+  await panel.getByLabel(copy.source, { exact: true }).selectOption({ label: "Publication candidate" });
+  await panel.getByRole("button", { name: copy.preview, exact: true }).click();
+  const preview = panel.getByTestId("publication-preview");
+  await expect(preview).toContainText("Owner-selected public text");
+  await expect(preview.getByRole("button", { name: copy.publish, exact: true })).toBeDisabled();
+  await preview.getByLabel(copy.reviewed, { exact: true }).check();
+  await preview.getByRole("button", { name: copy.publish, exact: true }).click();
+  await expect(panel.getByRole("link", { name: copy.open, exact: true })).toBeVisible();
+});

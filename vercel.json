@@ -1,6 +1,18 @@
 {
   "crons": [
     {
+      "path": "/api/internal/notes/generate",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/internal/notes/knowledge",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/internal/notes/process",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/internal/plunder-plan/tick",
       "schedule": "* * * * *"
     },

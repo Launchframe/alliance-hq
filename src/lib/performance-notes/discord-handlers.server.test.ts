@@ -5,6 +5,9 @@ import {
   handlePerformanceReasonModal,
 } from "@/lib/performance-notes/discord-handlers.server";
 
+const handleDraft = vi.hoisted(() => vi.fn(async () => ({ type: "message", content: "Review this private draft" })));
+vi.mock("@/lib/notes/discord-drafts.server", () => ({ handleDiscordDraft: handleDraft }));
+
 vi.mock("@/lib/vr/bot-officer-auth", () => ({
   callerCanRunVrReport: vi.fn(),
 }));
@@ -87,27 +90,11 @@ describe("handlePerformanceNoteSlash", () => {
     expect(createPerformanceNote).not.toHaveBeenCalled();
   });
 
-  it("saves a thought and asks to attach a member", async () => {
+  it("delegates to owner-bound draft review rather than saving immediately", async () => {
     vi.mocked(callerCanRunVrReport).mockResolvedValue(true);
-    vi.mocked(createPerformanceNote).mockResolvedValue("note-1");
-    const result = await handlePerformanceNoteSlash({
-      allianceId: "a1",
-      discordUserId: "d1",
-      locale: "en-US",
-      text: "Cookie carried the rally",
-    });
-    expect(createPerformanceNote).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: "note",
-        intakeMode: "thought",
-        body: "Cookie carried the rally",
-      }),
-    );
-    expect(result.type).toBe("message");
-    if (result.type === "message") {
-      expect(result.content).toContain("Your note has been saved.");
-      expect(result.content).toContain("/notes/note-1");
-      expect(result.components?.[0]?.components[0]?.custom_id).toBe("note:attach:yes");
-    }
+    const result = await handlePerformanceNoteSlash({ allianceId: "a1", discordUserId: "d1", locale: "en-US", text: "Cookie carried the rally", interactionId: "interaction-one" });
+    expect(createPerformanceNote).not.toHaveBeenCalled();
+    expect(handleDraft).toHaveBeenCalledWith(expect.objectContaining({ allianceId: "a1", discordUserId: "d1", payload: expect.objectContaining({ id: "interaction-one", type: 2 }) }));
+    expect(result).toEqual({ type: "message", content: "Review this private draft" });
   });
 });
