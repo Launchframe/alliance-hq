@@ -14,15 +14,16 @@ export function LanguageSwitcher() {
   const pathname = usePathname();
 
   return (
-    <label className="inline-flex items-center gap-2 text-xs text-hq-fg-muted">
-      <span className="sr-only">{t("label")}</span>
+    <label className="inline-flex min-w-0 items-center gap-2 text-sm text-hq-fg">
+      <span className="shrink-0">{t("label")}</span>
       <AppSelect
+        className="w-auto max-w-56"
         value={locale}
         onChange={(next) => {
           replaceLocale(pathname, next as AppLocale);
         }}
         aria-label={t("label")}
-        triggerClassName="rounded border border-hq-border bg-hq-canvas px-2 py-1 text-xs"
+        triggerClassName="rounded border border-hq-border bg-hq-canvas px-2 py-1.5 text-sm"
         options={locales.map((code) => ({
           value: code,
           label: t(code),
