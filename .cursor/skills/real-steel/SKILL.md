@@ -6,21 +6,21 @@ disable-model-invocation: true
 
 # Real Steel — Alliance HQ overlay
 
-This repo extends the global Real Steel skill at `~/.cursor/skills/real-steel/SKILL.md`. Follow its review workflow (Task chain, run log, PR comments, per-pass commits), but follow this repo's [checkout policy](../../rules/agent-git-hygiene.mdc) instead of automatic worktree instructions: **do not use worktrees unless explicitly requested by the maintainer for the current task**.
+This repo extends the global Real Steel skill at `~/.cursor/skills/real-steel/SKILL.md`. Follow its review workflow (Task chain, run log, PR comments, per-pass commits), but follow this repo's [checkout policy](../../rules/agent-git-hygiene.mdc) instead of automatic worktree instructions: **primary clone by default**; worktrees only on an explicit maintainer request **or** clear colliding-session contention.
 
 **This file adds Alliance HQ completion requirements and orchestrator isolation rules.**
 
-## Primary clone by default — no automatic worktrees
+## Primary clone by default — worktrees are opt-in
 
-A request for Real Steel is not a request for a worktree. Use the PR's topic branch in the primary clone and run writing passes sequentially. Check that the checkout is clean and no other writer owns it before switching branches; otherwise coordinate or wait.
+A request for Real Steel is not by itself a request for a worktree. Use the PR's topic branch in the primary clone and run writing passes sequentially. Check that the checkout is clean and no other writer owns it before switching branches; otherwise ask the maintainer (wait/serialize vs worktree).
 
 | Do | Don't |
 | --- | --- |
 | Use the primary clone on the PR branch by default | Create or reuse a linked worktree merely because a review is multi-pass |
 | Serialize writing passes and builds in that checkout | Run concurrent writers against the same working directory |
-| Obtain an explicit maintainer request before using an additional worktree | Treat global skill defaults, disk availability, or convenience as permission |
+| Use a worktree only for an explicit maintainer request or clear colliding-session contention | Treat global skill defaults, disk availability, or convenience as permission |
 
-Only when the maintainer explicitly requests a worktree may the orchestrator create or use it and call `move_agent_to_root` once into that approved path. Keep the task's passes in that same checkout, preserve its local environment, and obtain approval before removing the directory.
+When a worktree is warranted, the orchestrator may create or use it and call `move_agent_to_root` once into that path. Keep the task's passes in that same checkout, preserve its local environment, and ask before removing the directory when uncertain.
 
 ## PR completion label (`real-steel-ready`)
 
@@ -91,4 +91,4 @@ Follow the global skill. Additionally for this repo:
 
 To triage suggestions/nits, land copy-approved fixes, and merge, use [close-the-loop](../close-the-loop/SKILL.md).
 
-Continue close-the-loop on the PR branch in the same primary checkout by default. If the maintainer explicitly requested a worktree for this task, reuse that approved checkout only within the request's scope; do not create another automatically. Preserve WIP and local data, and obtain approval before removing any worktree.
+Continue close-the-loop on the PR branch in the same primary checkout by default. Reuse a worktree only when the maintainer asked for one or primary was contended for this task; do not create another automatically. Preserve WIP and local data, and ask before removing any worktree when uncertain.

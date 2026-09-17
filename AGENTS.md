@@ -34,11 +34,11 @@ Do not commit while any gate is failing.
 
 Feature work is not done until Playwright e2e is green — see [`.cursor/rules/e2e-plan-completion.mdc`](.cursor/rules/e2e-plan-completion.mdc). Update `e2e/**/*.spec.ts` and `e2e/fixtures/**` when auth, invite, connect, or session isolation changes; run `npm run test:e2e` locally before marking a plan complete or opening a PR. **GitHub CI e2e will not run** through **1 Sep 2026** (credit freeze).
 
-## Checkout policy — worktrees require an explicit maintainer request
+## Checkout policy — primary clone first; worktrees are opt-in
 
-**DO NOT USE WORKTREES unless explicitly requested by the maintainer for the current task.** Use the primary clone on a dedicated topic branch by default. This applies to feature work, parallel agents, Multitask, Real Steel, and close-the-loop. A request to implement, review, fix, or open a PR is not a request to create or use a worktree; global skill recommendations do not override this policy.
+Work in the **primary clone** by default. **Worktrees are opt-in**: create one only when the maintainer **explicitly asks**, or when colliding sessions would consistently clobber a shared tree. When unsure, stay primary and ask. A request to implement, review, fix, Multitask, or open a PR is not by itself a request for a worktree; global skill recommendations do not override this policy.
 
-**One task → one branch → one concern.** Serialize writers and builds in the primary clone. If another task is active or unrelated work is uncommitted, stop and coordinate rather than creating a worktree, changing another agent's branch, or auto-stashing. Preserve WIP on its own branch subject to commit permission and local gates. Worktree removal also requires approval for the specific directories and preservation of uncommitted work, local environments, and local data.
+**One task → one branch → one concern.** Prefer serializing writers and builds in the primary clone. Do not auto-stash to make checkout work; preserve WIP on its own branch subject to commit permission and local gates. Worktree removal should preserve uncommitted work, local environments, and local data — ask before destructive cleanup when uncertain.
 
 Detail: [`.cursor/rules/agent-git-hygiene.mdc`](.cursor/rules/agent-git-hygiene.mdc). Real Steel's global review workflow is supplemented by [the Alliance HQ overlay](.cursor/skills/real-steel/SKILL.md); triage and finalization use [close-the-loop](.cursor/skills/close-the-loop/SKILL.md). Both follow this checkout policy.
 
@@ -156,8 +156,8 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 - On `_journal.json` merge conflicts, keep main's migration and renumber the branch SQL + journal tag; propagate renumbers parent→child in stacked work — never drop migration SQL or journal entries on rebase or force-push.
 - Maintainer must review and approve release notes before `release:ship`; set note frontmatter `status: ready` only after approval.
 - Real Steel: when Discord or onboarding hosted-guide copy changes, verify operator guides and `e2e/discord-bot-guide.spec.ts`.
-- Real Steel uses the primary clone by default. Only when the maintainer explicitly requests a worktree may `move_agent_to_root` target it.
-- Start feature work on a topic branch in the primary clone; do not create or use worktrees without an explicit maintainer request.
+- Real Steel uses the primary clone by default. Use a worktree (and `move_agent_to_root`) only when the maintainer asks or primary is genuinely contended.
+- Start feature work on a topic branch in the primary clone; worktrees are opt-in (maintainer request or colliding-session contention).
 - Hotkey changes need fault isolation and compile-time target validation for navigable pages.
 - Member-facing copy must never mention platform admins or maintainers; say alliance officers were notified instead.
 - Run `npm run test:e2e` locally before pushing PR branch updates. GitHub CI will not run it through 1 Sep 2026 (`.cursor/rules/gha-credit-freeze.mdc`).
