@@ -43,6 +43,7 @@ import { ocrAllFrames, defaultAshFrameConcurrency } from "@/lib/video/ocr-pipeli
 import { collapseEntriesBySanitizedName } from "@/lib/video/normalize-rows";
 import { dedupeMatchedParseEntries } from "@/lib/video/parse-row-dedup";
 import { stripUnmatchedScoreGhostEntries } from "@/lib/video/score-ghost-clusters.shared";
+import { dedupeSameScoreOcrTwins } from "@/lib/video/score-ocr-twin-dedupe.shared";
 import { PipelineTimer } from "@/lib/video/pipeline-timer";
 import {
   getScoreTargetOrThrow,
@@ -833,7 +834,10 @@ export async function processVideoJob(
             }));
 
             const dedupedRows = stripUnmatchedScoreGhostEntries(
-              dedupeMatchedParseEntries(matchedRows, allianceTag),
+              dedupeMatchedParseEntries(
+                dedupeSameScoreOcrTwins(matchedRows, allianceTag),
+                allianceTag,
+              ),
             );
             rowCount = dedupedRows.length;
             matchedCount = 0;
@@ -1041,7 +1045,10 @@ export async function processVideoJob(
         }));
 
         const dedupedRows = stripUnmatchedScoreGhostEntries(
-          dedupeMatchedParseEntries(matchedRows, allianceTag),
+          dedupeMatchedParseEntries(
+            dedupeSameScoreOcrTwins(matchedRows, allianceTag),
+            allianceTag,
+          ),
         );
         rowCount = dedupedRows.length;
         matchedCount = 0;

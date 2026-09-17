@@ -11,6 +11,7 @@ import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { postgresErrorCode } from "@/lib/db/error-message";
 import type {
   Commander,
   CommanderAllianceMembership,
@@ -515,6 +516,13 @@ async function upsertCommanderRow(input: {
   memberDisplayName?: string | null;
   existingCommanderId?: string | null;
   ashedStats?: CommanderAshedStats | null;
+  /**
+   * This roster row is already linked to a different commander than the orphan
+   * that owns the display name. Do not rewrite that commander's name or UID —
+   * `commanders_orphan_name_server_unique` rejects the collision and the
+   * refresh must not fail.
+   */
+  preserveIdentity?: boolean;
 }): Promise<{ commanderId: string }> {
   const db = getDb();
   const now = new Date();
@@ -549,15 +557,44 @@ async function upsertCommanderRow(input: {
   }
 
   if (input.existingCommanderId) {
-    await db
-      .update(schema.commanders)
-      .set({
-        ...statsWithoutLevel,
-        gameUid: normalizedUid,
-        gameServerNumber: input.gameServerNumber ?? null,
-        updatedAt: now,
-      })
-      .where(eq(schema.commanders.id, input.existingCommanderId));
+    const {
+      primaryName: _primaryName,
+      primaryNameNormalized: _primaryNameNormalized,
+      ...statsWithoutIdentity
+    } = statsWithoutLevel;
+    void _primaryName;
+    void _primaryNameNormalized;
+    const identityUpdate = {
+      ...statsWithoutIdentity,
+      ...(input.preserveIdentity
+        ? {}
+        : {
+            primaryName: statsWithoutLevel.primaryName,
+            primaryNameNormalized: statsWithoutLevel.primaryNameNormalized,
+            gameServerNumber: input.gameServerNumber ?? null,
+            // Never clear a stored UID. An empty roster UID would pull a
+            // linked commander into the orphan-name unique index.
+            ...(normalizedUid ? { gameUid: normalizedUid } : {}),
+          }),
+      updatedAt: now,
+    };
+    try {
+      await db
+        .update(schema.commanders)
+        .set(identityUpdate)
+        .where(eq(schema.commanders.id, input.existingCommanderId));
+    } catch (error) {
+      if (postgresErrorCode(error) !== "23505" || input.preserveIdentity) {
+        throw error;
+      }
+      await db
+        .update(schema.commanders)
+        .set({
+          ...statsWithoutIdentity,
+          updatedAt: now,
+        })
+        .where(eq(schema.commanders.id, input.existingCommanderId));
+    }
     return { commanderId: input.existingCommanderId };
   }
 
@@ -624,6 +661,36 @@ export async function upsertCommanderFromLink(input: {
     existingCommanderId,
     ashedStats: input.ashedStats,
   });
+}
+
+/**
+ * Point an existing commander membership at the current roster Ashed id.
+ * Only call this when the previous id is not another live roster member —
+ * the unique `(alliance_id, ashed_member_id)` index will reject a live collision.
+ */
+async function reattachOrphanMembershipAshedMemberId(input: {
+  allianceId: string;
+  commanderId: string;
+  fromAshedMemberId: string;
+  toAshedMemberId: string;
+}): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.commanderAllianceMemberships)
+    .set({
+      ashedMemberId: input.toAshedMemberId,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.commanderAllianceMemberships.allianceId, input.allianceId),
+        eq(schema.commanderAllianceMemberships.commanderId, input.commanderId),
+        eq(
+          schema.commanderAllianceMemberships.ashedMemberId,
+          input.fromAshedMemberId,
+        ),
+      ),
+    );
 }
 
 export async function upsertCommanderAllianceMembership(input: {
@@ -739,7 +806,7 @@ export async function linkHqUserToCommander(input: {
 
 /**
  * Mirror a roster member into commander tables.
- * Defers with name_conflict when orphan identity collides with another member.
+ * Defers with name_conflict only when another live roster member already owns the name.
  */
 export async function syncCommanderFromAllianceMember(input: {
   allianceId: string;
@@ -856,31 +923,57 @@ export async function syncCommanderFromAllianceMember(input: {
     gameServerNumber,
   });
 
-  if (orphan?.ashedMemberId && orphan.ashedMemberId !== input.ashedMemberId) {
-    const conflict: CommanderIdentityConflict = {
-      code: "name_taken_by_other_member",
-      ashedMemberId: input.ashedMemberId,
-      normalizedName,
-      gameServerNumber,
-      existingCommanderId: orphan.commander.id,
-    };
-    const reasonJson: CommanderConflictReasonJson = {
-      code: conflict.code,
-      normalizedName,
-      gameServerNumber,
-      existingCommanderId: orphan.commander.id,
-    };
-    await setMemberCommanderSyncStatus(
+  // A roster row that is already linked keeps that commander. A name match on a
+  // stale Ashed id (no other live roster row) is the same player — reattach,
+  // do not force a rename. Only a different live member is a real conflict.
+  let adoptStaleOrphanId: string | null = null;
+  if (
+    orphan?.ashedMemberId &&
+    orphan.ashedMemberId !== input.ashedMemberId &&
+    !existingMembership?.commanderId
+  ) {
+    const owner = await loadAllianceMemberRow(
       input.allianceId,
-      input.ashedMemberId,
-      COMMANDER_SYNC_STATUS.NAME_CONFLICT,
-      reasonJson,
+      orphan.ashedMemberId,
     );
-    return {
-      status: "deferred",
-      reason: COMMANDER_SYNC_STATUS.NAME_CONFLICT,
-      conflict,
-    };
+    if (owner?.status === "active") {
+      const conflict: CommanderIdentityConflict = {
+        code: "name_taken_by_other_member",
+        ashedMemberId: input.ashedMemberId,
+        normalizedName,
+        gameServerNumber,
+        existingCommanderId: orphan.commander.id,
+        existingMemberName: owner.currentName,
+      };
+      const reasonJson: CommanderConflictReasonJson = {
+        code: conflict.code,
+        normalizedName,
+        gameServerNumber,
+        existingCommanderId: orphan.commander.id,
+        existingMemberName: owner.currentName,
+      };
+      await setMemberCommanderSyncStatus(
+        input.allianceId,
+        input.ashedMemberId,
+        COMMANDER_SYNC_STATUS.NAME_CONFLICT,
+        reasonJson,
+      );
+      return {
+        status: "deferred",
+        reason: COMMANDER_SYNC_STATUS.NAME_CONFLICT,
+        conflict,
+      };
+    }
+    adoptStaleOrphanId = orphan.ashedMemberId;
+  }
+
+  if (adoptStaleOrphanId && orphan) {
+    await reattachOrphanMembershipAshedMemberId({
+      allianceId: input.allianceId,
+      commanderId: orphan.commander.id,
+      fromAshedMemberId: adoptStaleOrphanId,
+      toAshedMemberId: input.ashedMemberId,
+    });
   }
 
   if (!orphan) {
@@ -912,17 +1005,25 @@ export async function syncCommanderFromAllianceMember(input: {
     }
   }
 
+  const linkedCommanderIsNotNameOwner =
+    existingMembership?.commanderId != null &&
+    orphan != null &&
+    orphan.commander.id !== existingMembership.commanderId;
+
   const { commanderId } = await upsertCommanderRow({
     gameUid: null,
     gameServerNumber,
     allianceId: input.allianceId,
     ashedMemberId: input.ashedMemberId,
     memberDisplayName: displayName,
+    preserveIdentity: linkedCommanderIsNotNameOwner,
     existingCommanderId:
-      orphan?.ashedMemberId === input.ashedMemberId ||
-      orphan?.ashedMemberId == null
-        ? orphan?.commander.id ?? existingMembership?.commanderId ?? null
-        : existingMembership?.commanderId ?? null,
+      adoptStaleOrphanId != null
+        ? orphan?.commander.id ?? null
+        : orphan?.ashedMemberId === input.ashedMemberId ||
+            orphan?.ashedMemberId == null
+          ? orphan?.commander.id ?? existingMembership?.commanderId ?? null
+          : existingMembership?.commanderId ?? null,
     ashedStats: input.ashedStats,
   });
 

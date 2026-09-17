@@ -109,9 +109,12 @@ export async function getR2Object(storageKey: string): Promise<Buffer> {
 
 export async function getR2ObjectStream(
   storageKey: string,
-  range?: { start: number; end: number },
+  rangeOrRequireStreaming?: { start: number; end: number } | boolean,
   signal?: AbortSignal,
 ): Promise<ReadableStream<Uint8Array>> {
+  const range =
+    typeof rangeOrRequireStreaming === "object" ? rangeOrRequireStreaming : undefined;
+  const requireStreaming = rangeOrRequireStreaming === true;
   const response = await getR2Client().send(
     new GetObjectCommand({
       Bucket: bucket(),
@@ -134,7 +137,7 @@ export async function getR2ObjectStream(
     return body.transformToWebStream();
   }
 
-  if (typeof body.transformToByteArray !== "function") {
+  if (requireStreaming || typeof body.transformToByteArray !== "function") {
     throw new Error(`R2 object body is not streamable: ${storageKey}`);
   }
 
@@ -145,6 +148,11 @@ export async function getR2ObjectStream(
       controller.close();
     },
   });
+}
+
+export async function headR2ObjectMetadata(storageKey: string) {
+  const response = await getR2Client().send(new HeadObjectCommand({ Bucket: bucket(), Key: storageKey }));
+  return { size: response.ContentLength, contentType: response.ContentType?.split(";")[0].trim() };
 }
 
 export async function headR2ObjectSize(storageKey: string, signal?: AbortSignal): Promise<number> {
@@ -233,6 +241,7 @@ export async function presignR2PutObject(
   storageKey: string,
   contentType: string,
   expiresInSeconds = 900,
+  contentLength?: number,
 ): Promise<string> {
   return getSignedUrl(
     getR2Client(),
@@ -240,6 +249,7 @@ export async function presignR2PutObject(
       Bucket: bucket(),
       Key: storageKey,
       ContentType: contentType,
+      ContentLength: contentLength,
     }),
     { expiresIn: expiresInSeconds },
   );

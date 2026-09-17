@@ -2,6 +2,10 @@ import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
 import { NotesClient } from "@/components/notes/NotesClient";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
+import { listCaptureDrafts } from "@/lib/notes/drafts.server";
+import { claimDiscordKnowledgeResources } from "@/lib/notes/resources.server";
+import { noteRouteId } from "@/lib/notes/workspace.shared";
 import {
   getPerformanceNoteDto,
   listPerformanceNoteRoster,
@@ -20,19 +24,16 @@ export async function generateMetadata() {
 }
 
 export default async function NoteDetailPage({ params }: Props) {
-  const { id } = await params;
+  const id = noteRouteId((await params).id);
   const session = await requirePageSession(`/notes/${id}`);
-  await requirePagePermission(session.id, "members:write");
-  const allianceId = session.currentAllianceId ?? session.allianceId;
-  if (!allianceId) notFound();
+  await requirePagePermission(session.id, "notes:read");
+  const actor = await getKnowledgeActorForSession(session.id);
+  if (!actor) notFound();
+  await claimDiscordKnowledgeResources(actor);
 
-  const note = await getPerformanceNoteDto({ noteId: id, allianceId });
+  const note = await getPerformanceNoteDto({ noteId: id, actor });
   if (!note) notFound();
+  const [notes, roster, drafts] = await Promise.all([listPerformanceNotes(actor), listPerformanceNoteRoster(actor.allianceId), listCaptureDrafts(actor)]);
 
-  const [notes, roster] = await Promise.all([
-    listPerformanceNotes(allianceId),
-    listPerformanceNoteRoster(allianceId),
-  ]);
-
-  return <NotesClient initial={{ notes, roster }} focusNoteId={id} />;
+  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:${id}`} initial={{ notes, roster, canCreate: actor.canCreate, canReadBoards: actor.canReadBoards, draftCount: drafts.length }} focusNoteId={id} />;
 }
