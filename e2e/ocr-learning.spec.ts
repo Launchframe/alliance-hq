@@ -15,7 +15,7 @@ test("OCR learning denies bootstrap and authenticated non-maintainer sessions", 
   expect((await request.get(`${base}/cases?allianceId=unknown`, { headers })).status()).toBe(403);
   expect((await request.get(`${base}/observations?allianceId=unknown`, { headers })).status()).toBe(403);
   expect((await request.get(`${base}/observations/unknown?allianceId=unknown`, { headers })).status()).toBe(403);
-  expect((await request.post(`${base}/datasets`, { headers, data: {} })).status()).toBe(403);
+  expect((await request.post(`${base}/datasets?allianceId=unknown`, { headers, data: {} })).status()).toBe(403);
   expect((await request.patch(`${base}/cases/unknown?allianceId=unknown`, { headers, data: { action: "revoke", confirmed: true, expectedRevision: 0 } })).status()).toBe(403);
   const user = await createAuthenticatedHqSession(getE2eSql(), `ocr-member-${nanoid(8)}@e2e.test`);
   const memberHeaders = { Cookie: authCookieHeader(user) };
@@ -23,7 +23,7 @@ test("OCR learning denies bootstrap and authenticated non-maintainer sessions", 
   expect((await request.get(`${base}/datasets?allianceId=unknown`, { headers: memberHeaders })).status()).toBe(403);
   expect((await request.get(`${base}/observations?allianceId=unknown`, { headers: memberHeaders })).status()).toBe(403);
   expect((await request.get(`${base}/observations/unknown?allianceId=unknown`, { headers: memberHeaders })).status()).toBe(403);
-  expect((await request.post(`${base}/datasets`, { headers: memberHeaders, data: { allianceId: "unknown", cases: [] } })).status()).toBe(403);
+  expect((await request.post(`${base}/datasets?allianceId=unknown`, { headers: memberHeaders, data: { cases: [] } })).status()).toBe(403);
   expect((await request.patch(`${base}/cases/unknown?allianceId=unknown`, { headers: memberHeaders, data: { action: "revoke", confirmed: true, expectedRevision: 0 } })).status()).toBe(403);
 });
 
@@ -56,13 +56,13 @@ for (const scoreTarget of ["vs-performance", "alliance-kills-video"] as const) {
     expect(detail.headers()["cache-control"]).toContain("no-store");
     expect((await detail.json()).run).toMatchObject({ scoreTarget, synthetic: true });
     expect((await request.get(`${base}/observations/${runId}?allianceId=foreign`, { headers })).status()).toBe(404);
-    const premature = await request.post(`${base}/datasets`, { headers, data: { allianceId, cases: [{ id, revision: 0, split: "test" }] } });
+    const premature = await request.post(`${base}/datasets?allianceId=${allianceId}`, { headers, data: { cases: [{ id, revision: 0, split: "test" }] } });
     expect(premature.status()).toBe(400);
     const pair = await request.patch(`${base}/cases/${id}?allianceId=${allianceId}`, { headers, data: { action: "pair", expectedRevision: 0, jobId, confirmed: true } });
     expect(pair.status(), await pair.text()).toBe(200);
     const labels = await request.patch(`${base}/cases/${id}?allianceId=${allianceId}`, { headers, data: { action: "labels", expectedRevision: 1, labels: sample.labels, verify: true, privacyReviewed: true, externalTrainingAllowed: false } });
     expect(labels.status(), await labels.text()).toBe(200);
-    const created = await request.post(`${base}/datasets`, { headers, data: { allianceId, cases: [{ id, revision: 2, split: "test" }] } });
+    const created = await request.post(`${base}/datasets?allianceId=${allianceId}`, { headers, data: { cases: [{ id, revision: 2, split: "test" }] } });
     expect(created.status(), await created.text()).toBe(201);
     const dataset = await created.json();
     expect((await request.get(`${base}/datasets/${dataset.id}?allianceId=${allianceId}`, { headers })).status()).toBe(200);
