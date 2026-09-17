@@ -2963,6 +2963,85 @@ export const memberAllianceRankEvents = pgTable(
   },
 );
 
+/**
+ * Rejectable prompts when in-game rank crosses into/out of R4 vs HQ officer role.
+ * One open nudge per (alliance, member, kind).
+ */
+export const memberRoleNudges = pgTable(
+  "member_role_nudges",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    ashedMemberId: text("ashed_member_id").notNull(),
+    hqUserId: text("hq_user_id").references(() => hqUsers.id, {
+      onDelete: "set null",
+    }),
+    kind: text("kind").notNull(),
+    fromRank: integer("from_rank"),
+    toRank: integer("to_rank"),
+    rankEventId: text("rank_event_id").references(
+      () => memberAllianceRankEvents.id,
+      { onDelete: "set null" },
+    ),
+    status: text("status").notNull().default("open"),
+    resolvedByHqUserId: text("resolved_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("member_role_nudges_open_unique")
+      .on(table.allianceId, table.ashedMemberId, table.kind)
+      .where(sql`${table.status} = 'open'`),
+    index("member_role_nudges_alliance_created_idx").on(
+      table.allianceId,
+      table.createdAt,
+    ),
+  ],
+);
+
+/** Append-only HQ RBAC role change history for an alliance membership. */
+export const allianceMembershipRoleEvents = pgTable(
+  "alliance_membership_role_events",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    hqUserId: text("hq_user_id")
+      .notNull()
+      .references(() => hqUsers.id, { onDelete: "cascade" }),
+    fromRoleId: text("from_role_id").references(() => roles.id, {
+      onDelete: "set null",
+    }),
+    toRoleId: text("to_role_id")
+      .notNull()
+      .references(() => roles.id, { onDelete: "restrict" }),
+    source: text("source").notNull(),
+    actorHqUserId: text("actor_hq_user_id").references(() => hqUsers.id, {
+      onDelete: "set null",
+    }),
+    nudgeId: text("nudge_id").references(() => memberRoleNudges.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("alliance_membership_role_events_alliance_created_idx").on(
+      table.allianceId,
+      table.createdAt,
+    ),
+  ],
+);
+
 const memberStatEventColumns = {
   id: text("id").primaryKey(),
   allianceId: text("alliance_id")
@@ -3457,6 +3536,9 @@ export type HqAllianceJoinCodeRedemption =
   typeof hqAllianceJoinCodeRedemptions.$inferSelect;
 export type MemberAllianceRankEvent =
   typeof memberAllianceRankEvents.$inferSelect;
+export type MemberRoleNudge = typeof memberRoleNudges.$inferSelect;
+export type AllianceMembershipRoleEvent =
+  typeof allianceMembershipRoleEvents.$inferSelect;
 export type TrainWeekSchedule = typeof trainWeekSchedules.$inferSelect;
 export type TrainDayConfig = typeof trainDayConfigs.$inferSelect;
 export type TrainConductorRecord = typeof trainConductorRecords.$inferSelect;

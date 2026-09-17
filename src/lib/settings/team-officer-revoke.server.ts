@@ -54,6 +54,8 @@ export async function revokeOfficerMembershipToMember(input: {
   allianceId: string;
   membershipId: string;
   actorHqUserId: string;
+  roleEventSource?: "team_revoke" | "nudge_accept";
+  nudgeId?: string | null;
 }): Promise<{ membershipId: string; hqUserId: string }> {
   const db = getDb();
   const [existing] = await db
@@ -101,5 +103,19 @@ export async function revokeOfficerMembershipToMember(input: {
   }
 
   await updateManualMembershipRole(existing.id, ROLE_IDS.member);
+
+  const { appendAllianceMembershipRoleEvent } = await import(
+    "@/lib/member-role-nudges/role-events.server"
+  );
+  await appendAllianceMembershipRoleEvent({
+    allianceId: input.allianceId,
+    hqUserId: existing.hqUserId,
+    fromRoleId: ROLE_IDS.officer,
+    toRoleId: ROLE_IDS.member,
+    source: input.roleEventSource ?? "team_revoke",
+    actorHqUserId: input.actorHqUserId,
+    nudgeId: input.nudgeId ?? null,
+  });
+
   return { membershipId: existing.id, hqUserId: existing.hqUserId };
 }
