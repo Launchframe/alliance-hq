@@ -36,7 +36,10 @@ function createBrowserNavigation(url: string, normalize: (url: string) => string
   return { store, pop: (event: PopStateEvent) => {
     if (replaying) return;
     const target = normalize(`${window.location.pathname}${window.location.search}`);
-    if (!store.shouldBlock(target) && !store.getSnapshot().busy) return;
+    if (!store.shouldBlock(target) && !store.getSnapshot().busy) {
+      store.request({ url: target, mode: "external", index: event.state?.__hqNotesIndex });
+      return;
+    }
     event.stopImmediatePropagation();
     store.request({ url: target, mode: "external", index: event.state?.__hqNotesIndex });
     if (store.getSnapshot().pending?.url === target) pendingPop = { url: target, state: event.state };
