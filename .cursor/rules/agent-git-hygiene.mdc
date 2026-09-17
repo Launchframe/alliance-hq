@@ -1,11 +1,13 @@
 ---
-description: Git isolation for parallel agents — one branch per task, worktrees for concurrent work, no mixed stashes
+description: Primary clone by default — worktrees require an explicit maintainer request, one branch per task, no mixed stashes
 alwaysApply: true
 ---
 
 # Agent git hygiene
 
-Parallel Cursor agents (Multitask mode, background subagents, or separate chats) **share one git object database** unless you isolate with **worktrees**. Checkout fights and monolithic stashes are how WIP gets lost.
+**DO NOT USE WORKTREES unless explicitly requested by the maintainer for the current task.** Use a topic branch in the primary clone by default. Parallel agents, background work, Multitask, Real Steel, and close-the-loop are not automatic exceptions. Global skill recommendations and convenience do not constitute maintainer permission.
+
+Serialize writers and builds in the primary clone. If another task owns it, coordinate or wait; do not create a worktree or change its branch to avoid coordination. Worktrees share the Git object database and do not isolate external services or databases.
 
 ## One task → one branch → one concern
 
@@ -20,57 +22,39 @@ Parallel Cursor agents (Multitask mode, background subagents, or separate chats)
 
 > **Scope:** "Commit WIP" is not a blanket commit permission. It means an agent ending a session or handing off to another agent should commit rather than stash — still subject to the repo's pre-commit gates. It does **not** authorize autonomous commits in ordinary single-agent sessions; follow the maintainer's explicit request as usual.
 
-## Worktrees for concurrent work only
+## Primary-clone workflow
 
-For most single-agent tasks, use the **primary clone** (repo root). Create a topic branch and do the work there. Worktrees are reserved for situations where more than one agent may write code at the same time — including Multitask mode and Real Steel.
+Check that the primary clone is clean and not owned by another active writer, then create or select the task's topic branch there:
 
 ```bash
-# Single-agent task — primary clone (preferred)
+git status --short --branch
 git fetch origin
-git checkout -b feat/<topic> origin/main
-
-# Multiple concurrent writers — isolated worktree + env copy in one step
-./scripts/new-worktree.sh feat/<topic>
-# or track an existing PR branch:
-./scripts/new-worktree.sh feat/video-review-draft-persistence
-# manual (remember to copy .env.local afterward — see "Worktree env" below):
-git fetch origin && git worktree add ../alliance-hq-<short-topic> -b feat/<topic> origin/main
+git switch -c feat/<topic> origin/main
 ```
 
-`<short-topic>` must be **unique on the filesystem**. When multiple agents may work on related areas concurrently, disambiguate with an issue number or PR number (e.g. `../alliance-hq-auth-123`) to avoid path collisions.
+A request for a feature, PR, review chain, or parallel execution does not authorize worktrees. Do not use `git worktree add`, `./scripts/new-worktree.sh`, `git-new-worktree`, or an existing linked worktree without the maintainer's explicit request.
 
-| Agent / task | Workspace |
+| Agent / task | Default |
 | --- | --- |
-| Single-agent feature / bugfix | Primary clone on `feat/<topic>` |
-| Second parallel feature | Separate worktree on another branch |
-| Real Steel on PR *N* | Worktree via `./scripts/new-worktree.sh` (optional manual name: `../alliance-hq-rs-pr-<N>/`) — see [Real Steel overlay](../skills/real-steel/SKILL.md) |
-| Read-only explore | Primary clone OK |
+| Feature / bugfix | Primary clone on the topic branch |
+| Second writing task | Wait or coordinate; do not write concurrently in the same checkout |
+| Real Steel / close-the-loop | Primary clone on the PR branch, sequential writing passes |
+| Read-only exploration | Primary clone; do not switch another writer's branch |
 
-**Rules:**
+## Only after an explicit worktree request
 
-- Isolation is the **branch**; a worktree is extra isolation when concurrent agents might clobber the same checkout. **`/real-steel` writers:** still call `move_agent_to_root` once into the worktree (see below).
-- For single-agent work, create the topic branch in the primary clone. Do not create a worktree unless another agent is or will be writing in parallel.
-- **Never** `git checkout` a PR branch in the primary clone while another agent is editing there.
-- Keep the **primary clone on `main` (or idle)** when other agents are writing in worktrees.
-- **Remove worktrees** when the task ends: `git worktree remove --force <path> && git worktree prune`.
-- Do **not** delete the PR’s remote feature branch unless the maintainer asks.
-
-### Real Steel — move once into the worktree
-
-For `/real-steel` (and any pass that writes product code in a PR worktree):
-
-- Create/refresh the worktree with `./scripts/new-worktree.sh`.
-- Call **`move_agent_to_root` once** to that worktree path so the chat’s IDE root is the PR tree. Cursor auto-approves **in-workspace** file edits; edits under a **sibling** worktree while the chat is rooted elsewhere prompt on **every** `Edit`/`Write` (Auto-review “outside project”).
-- Accept one move approval if Smart Mode asks; that is cheaper than per-file approval spam.
-- Launch each pass `Task` with that same worktree as cwd.
-- Keep the **primary clone on `main`/idle** — do not leave Real Steel writing in the primary checkout.
-- Optional: `SetActiveBranch` for UI metadata.
+- Confirm the requested task, branch, path, and available disk space. Use a unique filesystem path.
+- Prefer `./scripts/new-worktree.sh <branch> [base-branch]` so local environment files are copied with the checkout.
+- If the environment supports it, call `move_agent_to_root` once into the requested worktree; keep all passes for that task in the same checkout.
+- Keep other writers out of that checkout and preserve the primary clone's active work.
+- Do not create further worktrees without another explicit request. Obtain approval for the specific directories before removing them, even when the task is complete.
+- Do not delete a PR's remote feature branch unless the maintainer asks.
 
 ## Worktree env (`.env.local`) — copy, never read
 
 A fresh `git worktree add` starts with **no** gitignored local env (`.env.local`, `.env`, `.env.*.local`). The new worktree then runs with missing DB URLs, `AUTH_SECRET`, `TOKEN_ENCRYPTION_KEY`, and OAuth credentials — symptoms include 500s on auth/session pages and **missing Google/Discord buttons** on `/auth` (provider gating reads `process.env`). A stale Playwright-generated `.env.local` left in a worktree (the e2e harness may swap one — see `scripts/e2e-server.mjs`) causes the same.
 
-- **Always copy local env into a new worktree.** Use the helper, which `git worktree add`s and copies the env files in one step:
+- **Only for a worktree explicitly requested by the maintainer:** copy local env into that worktree. The helper creates the approved checkout and copies the env files in one step:
 
 ```bash
 ./scripts/new-worktree.sh <branch> [base-branch]   # base defaults to origin/main
@@ -82,10 +66,10 @@ A fresh `git worktree add` starts with **no** gitignored local env (`.env.local`
 
 ## Cleanup after merge or handoff
 
-After a task is merged, abandoned, or handed back to the maintainer:
+After a task is merged, abandoned, or handed back to the maintainer, propose any destructive cleanup and obtain approval for the specific paths or refs first:
 
-1. Confirm no needed WIP remains: `git status` in the worktree and `git stash list` for topic-scoped stashes.
-2. Remove the task worktree from the primary clone: `git worktree remove --force ../alliance-hq-<topic> && git worktree prune`. **Agents: do not run `--force` autonomously** — stop and ask the maintainer if step 1 shows any uncommitted work, or if you are uncertain the worktree is fully clean.
+1. Confirm no needed WIP remains: `git status` in the checkout and `git stash list` for topic-scoped stashes. Preserve local environment files and upload data without printing their contents.
+2. Only after approval for the named directory, remove the clean worktree from the primary clone with `git worktree remove <approved-path>`. Do not use `--force` to bypass uncommitted work or uncertainty; stop and ask instead.
 3. Delete the local topic branch only after it is merged or intentionally abandoned: `git branch -d feat/<topic>` (use `-D` only with maintainer approval).
 4. Delete the remote branch if it was pushed but **never opened as a PR** (no GitHub auto-delete): `git push origin --delete feat/<topic>`. Then prune stale remote-tracking refs: `git fetch --prune origin`.
 5. Drop obsolete topic-scoped stashes once their changes are merged, committed elsewhere, or no longer needed.
@@ -107,7 +91,7 @@ The script pairs with GitHub **Automatically delete head branches**. It never de
 ## Before changing branches in the primary clone
 
 1. `git status` — if dirty, **commit to a topic branch** or **stop and ask**; do not auto-stash to “make checkout work.”
-2. If the change belongs to a different concern, **new branch + commit** (or new worktree), not a mixed stash on whatever branch is checked out.
+2. If the change belongs to a different concern, use a **new topic branch** after preserving the current task's work and coordinating the checkout. A different concern does not authorize another worktree.
 
 ## Stash discipline (when stash is unavoidable)
 
@@ -118,14 +102,15 @@ The script pairs with GitHub **Automatically delete head branches**. It never de
 
 ## Real Steel
 
-For this repo, run Real Steel in a dedicated worktree for the PR under review; call `move_agent_to_root` once into that worktree (see **Real Steel — move once** above). Do not rebase or commit on the maintainer’s primary checkout. The global **real-steel** skill (`~/.cursor/skills/real-steel/SKILL.md`) defines the review/pass workflow; [`.cursor/skills/real-steel/SKILL.md`](../skills/real-steel/SKILL.md) adds Alliance HQ completion steps (including the `real-steel-ready` label when the chain finishes cleanly).
+Run Real Steel on the PR branch in the primary clone, with writing passes serialized. Check for unrelated work and other writers before switching branches. Use a worktree only when the maintainer explicitly requests it. The global **real-steel** skill (`~/.cursor/skills/real-steel/SKILL.md`) defines the review/pass workflow, but its worktree recommendations do not override this policy; [the Alliance HQ overlay](../skills/real-steel/SKILL.md) adds completion steps, including `real-steel-ready`.
 
 ## Multitask mode
 
-Multitask is appropriate for **independent** tasks on **isolated worktrees**. It is unsafe when multiple implementing agents share one working directory — that produces duplicate-looking stashes and clobbered edits.
+Multitask does not authorize worktrees or concurrent writers in the primary clone. Serialize implementation by default; independent read-only work may proceed without changing the active branch.
 
-**Checklist before starting a second implementing agent:**
+**Checklist before any concurrent writing arrangement:**
 
-- [ ] First agent has its own branch (and ideally worktree).
-- [ ] Second agent has a **different** branch + worktree path.
-- [ ] No uncommitted mixed WIP on a shared integration branch (e.g. long-lived `feat/foo` with unrelated slices).
+- [ ] The maintainer explicitly requested each additional worktree for the identified task.
+- [ ] Each writer owns a distinct approved checkout and topic branch.
+- [ ] Existing WIP, local environments, and disk capacity have been checked.
+- [ ] Without those explicit requests, defer the second writer rather than creating a worktree.
