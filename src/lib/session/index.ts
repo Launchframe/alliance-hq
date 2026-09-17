@@ -31,6 +31,7 @@ import { sessionHasHqMemberLink } from "@/lib/member-link/repository.server";
 import { DEFAULT_EXPIRY_REMINDER_DAYS } from "@/lib/jwt/decode";
 import { getRbacContext } from "@/lib/rbac/context";
 import { sessionHoldsAshedIdentityForHqUser } from "@/lib/rbac/ashed-session-membership";
+import { ensureHqUserAvatarFresh } from "@/lib/profile/resolve-avatar";
 import {
   rbacAllowsAshedConnect,
   sessionHasActiveMembership,
@@ -578,6 +579,22 @@ export async function getSessionStateFor(
   const timezone = await getAccountTimezoneIdForHqUser(effectiveHqUserId);
   const ashed = await getAshedConnectionMeta(session.id, locale);
   const rbac = await getRbacContext(session.id);
+  // One avatar refresh per page/session bootstrap — not on every RBAC poll.
+  let avatarUrl = rbac?.avatarUrl ?? null;
+  if (rbac && effectiveHqUserId) {
+    const db = getDb();
+    const [user] = await db
+      .select()
+      .from(schema.hqUsers)
+      .where(eq(schema.hqUsers.id, effectiveHqUserId))
+      .limit(1);
+    if (user) {
+      avatarUrl = await ensureHqUserAvatarFresh(
+        user,
+        session.currentAllianceId,
+      );
+    }
+  }
   const hasAppAccess = await sessionHasAppAccess(session);
   const isNativeMembership = await sessionHasNativeMembership(session);
   const hasActiveMembership = await sessionHasActiveMembership(session);
@@ -666,7 +683,7 @@ export async function getSessionStateFor(
           isAshedConnectAllowed,
           email: rbac.email,
           displayName: rbac.displayName,
-          avatarUrl: rbac.avatarUrl,
+          avatarUrl,
         }
       : null,
   };
