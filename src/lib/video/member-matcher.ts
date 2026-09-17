@@ -1,4 +1,7 @@
-import { stripParsedNameDecorations } from "@/lib/video/normalize-rows";
+import {
+  foldOcrLatin,
+  stripParsedNameDecorations,
+} from "@/lib/video/normalize-rows";
 
 export type AshedMember = {
   id: string;
@@ -45,7 +48,7 @@ export const MEMBER_FUZZY_AUTO_MATCH_MIN = 0.6;
 export const MEMBER_SUBSTRING_AUTO_MATCH_MIN_CHARS = 2;
 
 function normalizeForMatch(name: string): string {
-  return name.trim().toLowerCase().replace(/\s+/g, " ");
+  return foldOcrLatin(name).trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function nameForMatching(ocrName: string, allianceTag?: string | null): string {
@@ -252,8 +255,8 @@ export function matchMemberName(
       ...(member.previous_names ?? []),
     ];
     for (const candidate of candidates) {
-      // Pure Levenshtein only — containment is handled by the unique-substring
-      // pass above so ambiguous short names (two "Happy*" roster rows) stay unmatched.
+      // Levenshtein on folded names only. Containment / token-prefix lives in
+      // findUniqueSubstringMember so two Happy* roster rows stay unmatched.
       const score = similarity(normalized, normalizeForMatch(candidate));
       const isFormer = member.status === "former";
       if (

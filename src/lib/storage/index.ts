@@ -68,12 +68,13 @@ export async function getObject(storageKey: string): Promise<Buffer> {
 
 export async function getObjectStream(
   storageKey: string,
+  requireStreaming = false,
 ): Promise<ReadableStream<Uint8Array>> {
   if (prefersLocalStorage()) {
     const stream = createReadStream(localPath(storageKey));
     return Readable.toWeb(stream) as ReadableStream<Uint8Array>;
   }
-  return getR2ObjectStream(storageKey);
+  return getR2ObjectStream(storageKey, requireStreaming);
 }
 
 export async function getObjectSize(storageKey: string): Promise<number> {

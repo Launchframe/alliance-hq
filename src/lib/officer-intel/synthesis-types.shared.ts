@@ -1,11 +1,13 @@
 import { z } from "zod";
+import { taskPrioritySchema, type TaskStatus } from "@/lib/notes/tasks.shared";
+import type { NotePriority } from "@/lib/notes/workspace.shared";
 
 export const officerSynthesisActionItemSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional().nullable(),
   assigneeName: z.string().optional().nullable(),
   dueDate: z.string().optional().nullable(),
-  priority: z.enum(["low", "normal", "high"]).default("normal"),
+  priority: taskPrioritySchema.default(null),
 });
 
 export const officerSynthesisOutputSchema = z.object({
@@ -19,17 +21,16 @@ export type OfficerSynthesisOutput = z.infer<typeof officerSynthesisOutputSchema
 
 export type OfficerMeetingNoteStatus = "draft" | "approved";
 
-export type OfficerActionItemStatus =
-  | "open"
-  | "in_progress"
-  | "done"
-  | "cancelled";
+export type OfficerActionItemStatus = TaskStatus;
 
-export type OfficerActionItemPriority = "low" | "normal" | "high";
+export type OfficerActionItemPriority = NotePriority;
 
 export type OfficerMeetingNoteSummary = {
   id: string;
-  sessionId: string;
+  sessionId: string | null;
+  canEdit?: boolean;
+  canonicalNoteId?: string;
+  version?: number;
   summary: string;
   keyDecisions: string[];
   openQuestions: string[];
@@ -41,8 +42,8 @@ export type OfficerMeetingNoteSummary = {
 
 export type OfficerActionItemRecord = {
   id: string;
-  noteId: string;
-  sessionId: string;
+  noteId: string | null;
+  sessionId: string | null;
   title: string;
   description: string | null;
   status: OfficerActionItemStatus;
@@ -53,6 +54,7 @@ export type OfficerActionItemRecord = {
   dueAt: string | null;
   dueHint: string | null;
   completedAt: string | null;
+  version: number;
   createdAt: string;
   updatedAt: string;
 };
