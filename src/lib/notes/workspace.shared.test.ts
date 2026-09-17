@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createNotesNavigation } from "./navigation.shared";
-import { noteFieldsSchema, notePatchSchema, noteRouteId, noteTitle, notePriorityRank, normalizeNoteLabels, notesWorkspaceLocation, noteListFilterSchema, parseNoteListCursor, noteWorkspaceStateSchema, readWorkspaceState, workspaceStateLocation, workspacePreferenceWriteSchema, scopedWorkspaceLocation, readNoteListFilter } from "./workspace.shared";
+import { noteFieldsSchema, notePatchSchema, noteRouteId, noteTitle, notePriorityRank, normalizeNoteLabels, notesWorkspaceLocation, noteListFilterSchema, parseNoteListCursor, noteWorkspaceStateSchema, readWorkspaceState, clampWorkspaceBoardsView, workspaceStateLocation, workspacePreferenceWriteSchema, scopedWorkspaceLocation, readNoteListFilter } from "./workspace.shared";
 
 describe("guarded Notes navigation", () => {
   it("keeps the current view until unsaved changes are resolved", async () => {
@@ -65,6 +65,14 @@ describe("scoped workspace navigation", () => {
     const saved = noteWorkspaceStateSchema.parse({ view: "tasks" });
     const params = new URLSearchParams({ workspaceScope: "other:principal", view: "notebook", notebook: "Private folder", q: "Private query" });
     expect(readWorkspaceState(params, saved, scope)).toEqual(saved);
+  });
+  it("does not keep a boards view when the actor cannot read boards", () => {
+    const boards = noteWorkspaceStateSchema.parse({ view: "boards" });
+    expect(clampWorkspaceBoardsView(boards, false).view).toBe("notebook");
+    expect(clampWorkspaceBoardsView(boards, true).view).toBe("boards");
+    expect(clampWorkspaceBoardsView(noteWorkspaceStateSchema.parse({ view: "tasks" }), false).view).toBe("tasks");
+    const fromUrl = readWorkspaceState(new URLSearchParams("view=boards"), noteWorkspaceStateSchema.parse({}), scope);
+    expect(clampWorkspaceBoardsView(fromUrl, false).view).toBe("notebook");
   });
 });
 

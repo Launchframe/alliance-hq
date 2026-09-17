@@ -33,6 +33,9 @@ export function readWorkspaceState(params: URLSearchParams, saved: NoteWorkspace
   if (params.has("workspaceScope") && params.get("workspaceScope") !== scope) return { ...saved };
   return noteWorkspaceStateSchema.parse({ ...saved, ...Object.fromEntries(Object.keys(saved).flatMap((key) => params.has(key) ? [[key, typeof saved[key as keyof NoteWorkspaceState] === "boolean" ? params.get(key) === "1" : params.get(key)]] : [])) });
 }
+export function clampWorkspaceBoardsView(state: NoteWorkspaceState, canReadBoards: boolean): NoteWorkspaceState {
+  return !canReadBoards && state.view === "boards" ? { ...state, view: "notebook" } : state;
+}
 export function noteFilterFromWorkspace(state: Pick<NoteWorkspaceState, "view" | "q" | "notebook" | "source" | "priority" | "sort" | "label" | "member">): NoteListFilter {
   return noteListFilterSchema.parse({ ...state, view: NOTE_LIST_VIEWS.includes(state.view as NoteListFilter["view"]) ? state.view : "notebook" });
 }
