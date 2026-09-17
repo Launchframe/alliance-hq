@@ -92,7 +92,7 @@ export async function processMediaTask(taskId: string): Promise<string> {
       await putObject(storageKey, buffer, AbortSignal.timeout(30000));
       await markMediaObjectReady(task.id, token, storageKey, sha256, buffer.length);
       seen.add(sha256);
-      frames.push({ index, sha256, storageKey, timestampSeconds: 0, width: metadata.width, height: metadata.height });
+      frames.push({ index, sha256, storageKey, timestampSeconds: null, width: metadata.width, height: metadata.height });
     };
     let durationSeconds: number | null = null;
     if (task.contentType.startsWith("image/")) {

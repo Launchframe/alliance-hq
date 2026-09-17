@@ -36,6 +36,20 @@ describe("offline OCR benchmark CLI", () => {
     expect(report.metrics[0]).not.toHaveProperty("score");
   });
 
+  it("replays attributable worker envelopes but refuses budget-limited sampling", async () => {
+    const f = await fixture();
+    const receipt = { prediction: ocrPredictionFixture({ engine: "paddleocr" }), workerCodeHash: "c".repeat(64), samplingBudgetLimited: false, samplerFeatures: [], observations: [] };
+    await writeFile(f.predictions, JSON.stringify([receipt]));
+    const { stdout } = await f.run();
+    const report = JSON.parse(stdout);
+    expect(report.metrics[0].exactRows).toBe(1);
+    expect(report.workerCodeHashes).toEqual([receipt.workerCodeHash]);
+    await writeFile(f.predictions, JSON.stringify(receipt));
+    expect(JSON.parse((await f.run()).stdout).metrics[0].exactRows).toBe(1);
+    await writeFile(f.predictions, JSON.stringify([{ ...receipt, samplingBudgetLimited: true }]));
+    await expect(f.run()).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining("sampling_budget_limited") });
+  });
+
   it("refuses to overwrite existing output and preserves its contents", async () => {
     const f = await fixture();
     const before = await readFile(f.input, "utf8");
