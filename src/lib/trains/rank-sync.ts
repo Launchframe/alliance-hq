@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { base44Json } from "@/lib/base44/fetch";
@@ -61,6 +61,18 @@ export async function confirmMemberRank(
   const db = getDb();
   const eventId = nanoid();
 
+  const [existingMember] = await db
+    .select({ allianceRank: schema.allianceMembers.allianceRank })
+    .from(schema.allianceMembers)
+    .where(
+      and(
+        eq(schema.allianceMembers.allianceId, input.allianceId),
+        eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
+      ),
+    )
+    .limit(1);
+  const previousRank = existingMember?.allianceRank ?? null;
+
   await db.insert(schema.memberAllianceRankEvents).values({
     id: eventId,
     allianceId: input.allianceId,
@@ -97,6 +109,21 @@ export async function confirmMemberRank(
     );
   }
 
+  try {
+    const { evaluateMemberRoleNudgesOnRankChange } = await import(
+      "@/lib/member-role-nudges/evaluate-rank-change.server"
+    );
+    await evaluateMemberRoleNudgesOnRankChange({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      previousRank,
+      nextRank: input.allianceRank,
+      rankEventId: eventId,
+    });
+  } catch (error) {
+    console.error("[member-role-nudges] evaluate failed", error);
+  }
+
   const [row] = await db
     .select()
     .from(schema.memberAllianceRankEvents)
@@ -125,6 +152,18 @@ export async function confirmMemberRankLocal(
   const db = getDb();
   const eventId = nanoid();
 
+  const [existingMember] = await db
+    .select({ allianceRank: schema.allianceMembers.allianceRank })
+    .from(schema.allianceMembers)
+    .where(
+      and(
+        eq(schema.allianceMembers.allianceId, input.allianceId),
+        eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
+      ),
+    )
+    .limit(1);
+  const previousRank = existingMember?.allianceRank ?? null;
+
   await db.insert(schema.memberAllianceRankEvents).values({
     id: eventId,
     allianceId: input.allianceId,
@@ -143,6 +182,21 @@ export async function confirmMemberRankLocal(
     allianceRank: input.allianceRank,
     allianceRankTitle: input.allianceRankTitle,
   });
+
+  try {
+    const { evaluateMemberRoleNudgesOnRankChange } = await import(
+      "@/lib/member-role-nudges/evaluate-rank-change.server"
+    );
+    await evaluateMemberRoleNudgesOnRankChange({
+      allianceId: input.allianceId,
+      ashedMemberId: input.ashedMemberId,
+      previousRank,
+      nextRank: input.allianceRank,
+      rankEventId: eventId,
+    });
+  } catch (error) {
+    console.error("[member-role-nudges] evaluate failed", error);
+  }
 
   const [row] = await db
     .select()

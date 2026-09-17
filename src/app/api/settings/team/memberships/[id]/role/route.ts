@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
+import {
+  MemberRoleNudgeError,
+  elevateMembershipToOfficer,
+} from "@/lib/member-role-nudges/actions.server";
 import { getRbacContext } from "@/lib/rbac/context";
+import { assignableInviteRolesForContext } from "@/lib/native-alliance/team-invites.server";
 import { resolveAllianceSettingsAccess } from "@/lib/settings/alliance-settings-access.server";
 import { canRevokeOfficerAccess } from "@/lib/settings/team-officer-revoke.shared";
 import {
@@ -31,7 +36,7 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const rbac = await getRbacContext(sessionId);
-  if (!rbac || !canRevokeOfficerAccess(rbac)) {
+  if (!rbac) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -51,35 +56,76 @@ export async function POST(request: Request, context: RouteContext) {
     body = {};
   }
 
-  if (body.roleName !== "member") {
-    return NextResponse.json(
-      { error: "Only demotion to member is supported.", code: "INVALID" },
-      { status: 400 },
-    );
+  if (body.roleName === "member") {
+    if (!canRevokeOfficerAccess(rbac)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    try {
+      const result = await revokeOfficerMembershipToMember({
+        allianceId,
+        membershipId,
+        actorHqUserId: rbac.hqUserId,
+      });
+      return NextResponse.json({ ok: true, ...result });
+    } catch (error) {
+      if (error instanceof TeamOfficerRevokeError) {
+        const status =
+          error.code === "NOT_FOUND"
+            ? 404
+            : error.code === "FORBIDDEN"
+              ? 403
+              : error.code === "LAST_OFFICER" || error.code === "SELF"
+                ? 409
+                : 400;
+        return NextResponse.json(
+          { error: error.message, code: error.code },
+          { status },
+        );
+      }
+      throw error;
+    }
   }
 
-  try {
-    const result = await revokeOfficerMembershipToMember({
-      allianceId,
-      membershipId,
-      actorHqUserId: rbac.hqUserId,
-    });
-    return NextResponse.json({ ok: true, ...result });
-  } catch (error) {
-    if (error instanceof TeamOfficerRevokeError) {
-      const status =
-        error.code === "NOT_FOUND"
-          ? 404
-          : error.code === "FORBIDDEN"
-            ? 403
-            : error.code === "LAST_OFFICER" || error.code === "SELF"
-              ? 409
-              : 400;
+  if (body.roleName === "officer") {
+    if (!assignableInviteRolesForContext(rbac).includes("officer")) {
       return NextResponse.json(
-        { error: error.message, code: error.code },
-        { status },
+        {
+          error:
+            "Only alliance owners/admins can elevate to officer outside a privilege nudge.",
+          code: "FORBIDDEN",
+        },
+        { status: 403 },
       );
     }
-    throw error;
+    try {
+      const result = await elevateMembershipToOfficer({
+        allianceId,
+        membershipId,
+        actorHqUserId: rbac.hqUserId,
+      });
+      return NextResponse.json({ ok: true, ...result });
+    } catch (error) {
+      if (error instanceof MemberRoleNudgeError) {
+        const status =
+          error.code === "NOT_FOUND"
+            ? 404
+            : error.code === "FORBIDDEN"
+              ? 403
+              : 400;
+        return NextResponse.json(
+          { error: error.message, code: error.code },
+          { status },
+        );
+      }
+      throw error;
+    }
   }
+
+  return NextResponse.json(
+    {
+      error: "Only demotion to member or elevation to officer is supported.",
+      code: "INVALID",
+    },
+    { status: 400 },
+  );
 }
