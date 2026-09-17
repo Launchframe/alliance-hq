@@ -61,8 +61,9 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
     if (!alive.current) return;
     if (failure instanceof ImportError && [401, 403, 404].includes(failure.status)) { applyScope(""); setList([]); setDetail(null); current.current = null; setEdits([]); setError(null); setListError(null); dirty.current = false; }
     (listFailure ? setListError : setError)(failure instanceof ImportError ? failure.message : t("error"));
-    requestAnimationFrame(() => (listFailure ? listErrorAnchor : errorAnchor).current?.scrollIntoView({ block: "nearest" }));
+    if (!listFailure) requestAnimationFrame(() => errorAnchor.current?.scrollIntoView({ block: "nearest" }));
   }, [t, applyScope]);
+  useEffect(() => { if (listError) listErrorAnchor.current?.scrollIntoView({ block: "nearest" }); }, [listError]);
   const api = useCallback(async <T,>(url: string, init?: RequestInit): Promise<T> => {
     const response = await fetch(url, { cache: "no-store", signal: lifetime.current.signal, ...init });
     const body = await response.json().catch(() => null);
