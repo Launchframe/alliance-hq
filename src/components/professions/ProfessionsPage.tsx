@@ -41,6 +41,17 @@ type OfficerData = {
 
 type PageTab = "mine" | "officer";
 
+async function fetchOfficerData(fallback: string, signal?: AbortSignal): Promise<{ data: OfficerData | null; error: string | null }> {
+  try {
+    const response = await fetch("/api/professions/officer", { cache: "no-store", signal });
+    const body = await response.json();
+    if (response.ok && Array.isArray(body?.wlRows)) return { data: body as OfficerData, error: null };
+    return { data: null, error: typeof body?.error === "string" ? body.error : fallback };
+  } catch {
+    return { data: null, error: fallback };
+  }
+}
+
 export function ProfessionsPage({
   allianceId,
   commanderId,
@@ -48,7 +59,8 @@ export function ProfessionsPage({
   isOfficer,
 }: Props) {
   const t = useTranslations("professions");
-  const common = useTranslations("common");
+  const tc = useTranslations("common");
+  const officerLoadFailure = tc("connectionFailed");
   const searchParams = useSearchParams();
   const initialTab =
     searchParams.get("tab") === "officer" && isOfficer ? "officer" : "mine";
@@ -56,9 +68,9 @@ export function ProfessionsPage({
   const [tab, setTab] = useState<PageTab>(initialTab);
   const [teamData, setTeamData] = useState<TeamData | null>(null);
   const [officerData, setOfficerData] = useState<OfficerData | null>(null);
+  const [officerError, setOfficerError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [officerLoading, setOfficerLoading] = useState(initialTab === "officer");
-  const [officerError, setOfficerError] = useState<string | null>(null);
   const officerErrorRef = useRef<HTMLParagraphElement>(null);
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState<string | null>(null);
@@ -76,15 +88,7 @@ export function ProfessionsPage({
     }
   }
 
-  const loadOfficer = useCallback(async (signal?: AbortSignal): Promise<{ data: OfficerData | null; error: string | null }> => {
-    try {
-      const res = await fetch("/api/professions/officer", { cache: "no-store", signal });
-      const data = await res.json().catch(() => null);
-      return res.ok && data ? { data, error: null } : { data: null, error: data?.error ?? common("connectionFailed") };
-    } catch {
-      return { data: null, error: common("connectionFailed") };
-    }
-  }, [common]);
+  const loadOfficer = useCallback((signal?: AbortSignal) => fetchOfficerData(officerLoadFailure, signal), [officerLoadFailure]);
 
   const applyOfficer = useCallback((result: { data: OfficerData | null; error: string | null }) => {
     setOfficerData(result.data);

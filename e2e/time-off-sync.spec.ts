@@ -64,7 +64,17 @@ test("Ashed outages preserve local absence and private notes while durable work 
   await page.context().addCookies(playwrightAuthCookies(f.officer));
   await page.goto("/time-off");
   await expect(page.getByText("An alliance officer needs to connect or refresh the alliance’s Ashed connection.", { exact: true })).toBeVisible();
+  await page.route((url) => url.pathname === "/api/time-off", async (route) => {
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    const data = await response.json();
+    for (const current of [...data.entries, ...data.ownEntries]) {
+      if (current.id === entry.id) current.syncStatus = "pending";
+    }
+    await route.fulfill({ response, json: data });
+  });
   await page.getByRole("button", { name: "Retry sync", exact: true }).click();
+  await expect(page.getByText("Saved in HQ. Waiting to sync with Ashed.", { exact: true })).toBeVisible();
   await expect(page.getByText("Sync retry queued.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Refresh from Ashed", exact: true }).click();
   await expect(page.getByText("Ashed refresh queued.", { exact: true })).toBeVisible();
