@@ -1,17 +1,18 @@
 import { createHash } from "node:crypto";
 import { nanoid } from "nanoid";
+import sharp from "sharp";
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { authCookieHeader, getE2eSql } from "./fixtures/db";
 import { playwrightAuthCookies } from "./fixtures/auth";
 import { createNotesFixture } from "./fixtures/notes";
 
 const hash = (data: Buffer) => createHash("sha256").update(data).digest("hex");
-async function staged(request: APIRequestContext, screenshots = false, invalid = false) {
+async function staged(request: APIRequestContext, screenshots = false, invalid = false, screenshotBytes?: Buffer) {
   const fixture = await createNotesFixture("officer");
   const headers = { Cookie: authCookieHeader(fixture.author) };
-  const bytes = screenshots ? Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j8n8AAAAASUVORK5CYII=", "base64") : Buffer.from(`Historical decision for Cookie. Player ${"1".repeat(14)} token=example-secret`);
+  const bytes = screenshots ? screenshotBytes ?? Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j8n8AAAAASUVORK5CYII=", "base64") : Buffer.from(`Historical decision for Cookie. Player ${"1".repeat(14)} token=example-secret`);
   const file = { name: screenshots ? "capture.png" : "history.txt", contentType: screenshots ? "image/png" : invalid ? "application/json" : "text/plain", size: bytes.length, sha256: hash(bytes) };
-  const input = { expectedScope: `${fixture.alliance.allianceId}:${fixture.author.hqUserId}`, requestId: nanoid(), title: "Reviewed history", kind: screenshots ? "screenshots" : invalid ? "discord_json" : "text", locale: "en-US", files: screenshots ? [file, file] : [file] };
+  const input = { expectedScope: `${fixture.alliance.allianceId}:${fixture.author.hqUserId}`, requestId: nanoid(), title: "Reviewed history", kind: screenshots ? "screenshots" : invalid ? "discord_json" : "text", locale: "en-US", files: screenshots && !screenshotBytes ? [file, file] : [file] };
   const created = await request.post("/api/notes/imports", { headers, data: input });
   expect(created.status(), await created.text()).toBe(200);
   const id = (await created.json()).importId as string;
@@ -26,6 +27,24 @@ async function staged(request: APIRequestContext, screenshots = false, invalid =
   expect((await command("finalize")).status()).toBe(200);
   return { ...fixture, id, input, bytes, headers, detail, command };
 }
+
+test("native screenshot OCR retains reviewable text without requiring parsed sender headers", async ({ request }) => {
+  test.setTimeout(120_000);
+  const lines = ["[TEST]Alpha", "Groups setup and ready.", "[TEST]Beta", "First message"];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320"><rect width="1200" height="320" fill="white"/>${lines.map((line, index) => `<text x="32" y="${64 + index * 64}" font-family="Arial" font-size="32" fill="black">${line}</text>`).join("")}</svg>`;
+  const image = await sharp(Buffer.from(svg)).png().toBuffer();
+  const value = await staged(request, true, false, image);
+  const processed = await request.post(`/api/notes/imports/${value.id}/process`, { headers: value.headers });
+  expect(processed.status(), await processed.text()).toBe(200);
+  const detail = await value.detail();
+  expect(detail.state).toBe("review");
+  expect(detail.messages.length).toBeGreaterThan(0);
+  expect(detail.messages.map((message: { body: string }) => message.body).join("\n")).toMatch(/Groups setup and ready/);
+  expect(detail.messages.every((message: { reviewed: boolean }) => !message.reviewed)).toBe(true);
+  expect((await request.get(`/api/notes/imports/${value.id}`, { headers: { Cookie: authCookieHeader(value.peer) } })).status()).toBe(404);
+  expect((await (await request.get("/api/notes?format=summary", { headers: value.headers })).json()).items).toHaveLength(0);
+  expect((await (await request.get("/api/notes/tasks", { headers: value.headers })).json()).tasks).toHaveLength(0);
+});
 
 test("older imports remain discoverable with stable scoped cursors and browser navigation", async ({ page, request }) => {
   const { author, peer, alliance } = await createNotesFixture("officer");
