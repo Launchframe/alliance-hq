@@ -1,86 +1,39 @@
 import { NextResponse } from "next/server";
 
-import {
-  attachMembersToPerformanceNote,
-  getPerformanceNoteDto,
-  listPerformanceNoteRoster,
-} from "@/lib/performance-notes/repository.server";
-import { requireSessionPermission } from "@/lib/rbac/require-permission";
-import { requireApiSession } from "@/lib/session";
+import { notesErrorResponse, requireNotesApiContext } from "@/lib/notes/access.server";
+import { KnowledgeAccessError } from "@/lib/notes/resources.server";
+import { notePatchSchema } from "@/lib/notes/workspace.shared";
+import { getPerformanceNoteDto, listPerformanceNoteRoster, updatePerformanceNote } from "@/lib/performance-notes/repository.server";
 
 export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, context: Ctx) {
-  const sessionOrError = await requireApiSession();
-  if (sessionOrError instanceof NextResponse) return sessionOrError;
-  const session = sessionOrError;
-  const denied = await requireSessionPermission(session.id, "members:write");
-  if (denied) return denied;
-
-  const allianceId = session.currentAllianceId ?? session.allianceId;
-  if (!allianceId) {
-    return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
-  }
-
-  const { id } = await context.params;
-  const [note, roster] = await Promise.all([
-    getPerformanceNoteDto({ noteId: id, allianceId }),
-    listPerformanceNoteRoster(allianceId),
-  ]);
-  if (!note) {
-    return NextResponse.json({ error: "Not found." }, { status: 404 });
-  }
-  return NextResponse.json({ note, roster });
+  try {
+    const access = await requireNotesApiContext();
+    if (access instanceof NextResponse) return access;
+    const { id } = await context.params;
+    const note = await getPerformanceNoteDto({ noteId: id, actor: access.actor });
+    if (!note) throw new KnowledgeAccessError("not_found");
+    const roster = await listPerformanceNoteRoster(access.actor.allianceId);
+    return NextResponse.json({ note, roster }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) { return notesErrorResponse(error); }
 }
 
 export async function PATCH(request: Request, context: Ctx) {
-  const sessionOrError = await requireApiSession();
-  if (sessionOrError instanceof NextResponse) return sessionOrError;
-  const session = sessionOrError;
-  const denied = await requireSessionPermission(session.id, "members:write");
-  if (denied) return denied;
-
-  const allianceId = session.currentAllianceId ?? session.allianceId;
-  if (!allianceId) {
-    return NextResponse.json({ error: "No alliance selected." }, { status: 400 });
-  }
-
-  const { id } = await context.params;
-  const existing = await getPerformanceNoteDto({ noteId: id, allianceId });
-  if (!existing) {
-    return NextResponse.json({ error: "Not found." }, { status: 404 });
-  }
-
-  let body: { memberIds?: unknown };
   try {
-    const parsed: unknown = await request.json();
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error("invalid");
-    }
-    body = parsed as { memberIds?: unknown };
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
-  }
-
-  const memberIds = Array.isArray(body.memberIds)
-    ? body.memberIds.filter((value): value is string => typeof value === "string")
-    : [];
-  const roster = await listPerformanceNoteRoster(allianceId);
-  const nameById = new Map(roster.map((row) => [row.ashedMemberId, row.name]));
-  await attachMembersToPerformanceNote({
-    allianceId,
-    noteId: id,
-    members: memberIds
-      .map((ashedMemberId) => {
-        const name = nameById.get(ashedMemberId);
-        if (!name) return null;
-        return { ashedMemberId, memberNameRaw: name };
-      })
-      .filter((row): row is { ashedMemberId: string; memberNameRaw: string } => row != null),
-  });
-
-  const note = await getPerformanceNoteDto({ noteId: id, allianceId });
-  return NextResponse.json({ note, roster });
+    const access = await requireNotesApiContext();
+    if (access instanceof NextResponse) return access;
+    const { id } = await context.params;
+    const existing = await getPerformanceNoteDto({ noteId: id, actor: access.actor });
+    if (!existing?.canEdit) throw new KnowledgeAccessError("not_found");
+    const input: unknown = await request.json().catch(() => null);
+    const parsed = notePatchSchema.safeParse(input);
+    if (!parsed.success) throw new KnowledgeAccessError("invalid");
+    await updatePerformanceNote(access.actor, id, parsed.data);
+    const note = await getPerformanceNoteDto({ noteId: id, actor: access.actor });
+    if (!note) throw new KnowledgeAccessError("not_found");
+    return NextResponse.json({ note }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) { return notesErrorResponse(error); }
 }

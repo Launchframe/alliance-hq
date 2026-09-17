@@ -123,6 +123,11 @@ function buildEnv(dbUrl) {
     ...e2eOAuthEnv(),
     ...e2eOcrWorkerEnv(),
   };
+  if (process.env.NOTES_INTAKE_TEST_PROVIDER === "true") env.NOTES_INTAKE_TEST_PROVIDER = "true";
+  if (process.env.NOTES_HISTORY_TEST_PROVIDER === "true") env.NOTES_HISTORY_TEST_PROVIDER = "true";
+  if (process.env.NOTES_KNOWLEDGE_TEST_PROVIDER === "1") env.NOTES_KNOWLEDGE_TEST_PROVIDER = "1";
+  if (process.env.DISCORD_PUBLIC_KEY) env.DISCORD_PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY;
+  if (process.env.E2E_DISCORD_FOLLOWUP_ORIGIN) env.E2E_DISCORD_FOLLOWUP_ORIGIN = process.env.E2E_DISCORD_FOLLOWUP_ORIGIN;
   const provider = process.env.VIDEO_OCR_PROVIDER?.trim();
   if (provider) {
     env.VIDEO_OCR_PROVIDER = provider;
@@ -147,10 +152,8 @@ process.on("exit", () => {
 });
 
 const serverEnv = buildEnv(dbUrl);
-run("npm run db:migrate", serverEnv);
-run("npm run db:seed-rbac", serverEnv);
 run("rm -rf .next");
-run("npx next build", serverEnv);
+run("npm run build", serverEnv);
 
 const child = spawn(
   process.execPath,

@@ -15,7 +15,7 @@ export async function POST(request: Request, context: Context) {
     await verifyMediaUploadSize(allianceId, taskId);
     const task = await enqueueMediaTask(allianceId, taskId, actor);
     if (task.state !== "ready") after(async () => {
-      void dispatchMediaTask(new URL(request.url).origin, taskId).catch((error) => {
+      void dispatchMediaTask(taskId).catch((error) => {
         console.error("[ocr-media] dispatch_failed", { taskId, error: error instanceof Error ? error.message : String(error) });
       });
     });

@@ -100,7 +100,7 @@ test.describe("Officer Intel RBAC", () => {
       headers: { Cookie: authCookieHeader(user) },
       data: { question: "What did we decide?" },
     });
-    expect([200, 503], await ask.text()).toContain(ask.status());
+    expect(ask.status(), await ask.text()).toBe(503);
   });
 
   test("owner role can read and create officer intel sessions", async ({
@@ -144,8 +144,7 @@ test.describe("Officer Intel RBAC", () => {
       headers: { Cookie: authCookieHeader(user) },
       data: {},
     });
-    expect(askMissingQuestion.status(), await askMissingQuestion.text()).toBe(
-      400,
-    );
+    expect(askMissingQuestion.status(), await askMissingQuestion.text()).toBe(503);
+    expect((await askMissingQuestion.json()).code).toBe("not_configured");
   });
 });

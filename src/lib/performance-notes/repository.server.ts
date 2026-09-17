@@ -1,15 +1,14 @@
 import "server-only";
 
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
-import type {
-  PerformanceNoteDto,
-  PerformanceNoteIntakeMode,
-  PerformanceNoteKind,
-  PerformanceNoteRosterMember,
-} from "@/lib/performance-notes/types.shared";
+import { knowledgeActorOwnsResource, type KnowledgeAccess, type KnowledgeActor } from "@/lib/notes/policy.shared";
+import { createKnowledgeResource, knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, touchKnowledgeResource, type KnowledgeTransaction } from "@/lib/notes/resources.server";
+import type { NoteFields, NotePatch } from "@/lib/notes/workspace.shared";
+import { redactIntakeText } from "@/lib/notes/intake.shared";
+import type { PerformanceNoteDto, PerformanceNoteIntakeMode, PerformanceNoteKind, PerformanceNoteRosterMember } from "./types.shared";
 
 function isNoteKind(value: string): value is PerformanceNoteKind {
   return value === "commendation" || value === "violation" || value === "note";
@@ -19,286 +18,218 @@ function isIntakeMode(value: string): value is PerformanceNoteIntakeMode {
   return value === "batch" || value === "thought";
 }
 
-export async function createPerformanceNote(input: {
-  allianceId: string;
-  kind: PerformanceNoteKind;
-  intakeMode: PerformanceNoteIntakeMode;
-  body: string;
-  source: "discord" | "web";
-  createdByDiscordUserId?: string | null;
-  createdByHqUserId?: string | null;
-}): Promise<string> {
-  const db = getDb();
+const resourceJoin = and(eq(schema.knowledgeResources.id, schema.performanceNotes.resourceId), eq(schema.knowledgeResources.kind, "note"), eq(schema.knowledgeResources.entityId, schema.performanceNotes.id));
+const noteSelection = (actor: KnowledgeActor) => ({
+  note: schema.performanceNotes, version: schema.knowledgeResources.version,
+  archivedAt: schema.knowledgeResources.archivedAt,
+  canEdit: knowledgeAccessCondition(actor, schema.performanceNotes.resourceId, "edit"),
+  isOwner: knowledgeAccessCondition(actor, schema.performanceNotes.resourceId, "share"),
+  shared: sql<boolean>`exists (select 1 from knowledge_resource_grants g where g.resource_id = ${schema.performanceNotes.resourceId} and g.alliance_id = ${actor.allianceId})`,
+});
+type ReadableNote = typeof schema.performanceNotes.$inferSelect & { version: number; canEdit: boolean; isOwner: boolean; archived: boolean; shared: boolean };
+const readableNote = (row: { note: typeof schema.performanceNotes.$inferSelect; version: number; archivedAt: Date | null; canEdit: unknown; isOwner: unknown; shared: boolean }): ReadableNote => ({
+  ...row.note, version: row.version, archived: row.archivedAt !== null, canEdit: row.canEdit === true, isOwner: row.isOwner === true, shared: row.shared === true,
+});
+
+async function setNoteMembers(tx: KnowledgeTransaction, actor: KnowledgeActor, noteId: string, ids: string[], detectedIds: string[] = []) {
+  const selected = [...new Set(ids)];
+  const previous = await tx.select().from(schema.performanceNoteMembers)
+    .where(and(eq(schema.performanceNoteMembers.noteId, noteId), eq(schema.performanceNoteMembers.allianceId, actor.allianceId)));
+  const roster = selected.length ? await tx.select({ id: schema.allianceMembers.id, memberId: schema.allianceMembers.ashedMemberId, name: schema.allianceMembers.currentName })
+    .from(schema.allianceMembers).where(and(eq(schema.allianceMembers.allianceId, actor.allianceId), inArray(schema.allianceMembers.ashedMemberId, selected))) : [];
+  const byId = new Map(roster.map((member) => [member.memberId, member]));
+  const previousById = new Map(previous.map((member) => [member.ashedMemberId, member]));
+  if (selected.some((id) => !byId.has(id) && !previousById.has(id))) throw new KnowledgeAccessError("invalid");
+  const selectedIds = new Set(selected);
+  const removed = previous.filter((member) => !selectedIds.has(member.ashedMemberId)).map((member) => member.id);
+  if (removed.length) await tx.delete(schema.performanceNoteMembers).where(and(eq(schema.performanceNoteMembers.noteId, noteId), eq(schema.performanceNoteMembers.allianceId, actor.allianceId), inArray(schema.performanceNoteMembers.id, removed)));
+  if (selected.length) {
+    const detected = new Set(detectedIds);
+    await tx.insert(schema.performanceNoteMembers).values(selected.map((id) => ({
+      id: nanoid(), noteId, allianceId: actor.allianceId, ashedMemberId: id,
+      allianceMemberId: byId.get(id)?.id ?? previousById.get(id)?.allianceMemberId ?? null,
+      memberNameRaw: byId.get(id)?.name ?? previousById.get(id)!.memberNameRaw,
+      origin: detected.has(id) ? "detected" as const : "manual" as const,
+    }))).onConflictDoUpdate({
+      target: [schema.performanceNoteMembers.noteId, schema.performanceNoteMembers.ashedMemberId],
+      set: { origin: sql`excluded.origin` },
+    });
+  }
+  return previous;
+}
+
+type CreatePerformanceNote = {
+  actor: KnowledgeActor; kind: PerformanceNoteKind; intakeMode: PerformanceNoteIntakeMode; body: string;
+  captureSource?: "web" | "discord"; captureDiscordUserId?: string | null;
+} & Partial<Omit<NoteFields, "kind" | "body">>;
+
+export async function createPerformanceNoteInTransaction(tx: KnowledgeTransaction, input: CreatePerformanceNote): Promise<string> {
   const id = nanoid();
+  const resourceId = await createKnowledgeResource(tx, input.actor, "note", id);
   const now = new Date();
-  await db.insert(schema.performanceNotes).values({
-    id,
-    allianceId: input.allianceId,
-    kind: input.kind,
-    intakeMode: input.intakeMode,
-    body: input.body,
-    source: input.source,
-    createdByDiscordUserId: input.createdByDiscordUserId ?? null,
-    createdByHqUserId: input.createdByHqUserId ?? null,
-    createdAt: now,
-    updatedAt: now,
+  await tx.insert(schema.performanceNotes).values({
+    id, resourceId, allianceId: input.actor.allianceId,
+    kind: input.kind, intakeMode: input.intakeMode, body: input.body,
+    documentType: input.documentType ?? "note", keyDecisions: input.keyDecisions ?? [], openQuestions: input.openQuestions ?? [],
+    title: input.title ?? "", priority: input.priority ?? null, priorityMode: input.priorityMode ?? "manual", labels: input.labels ?? [],
+    notebook: input.notebook ?? null, journalDate: input.journalDate ?? null, inbox: input.inbox ?? true,
+    excludedMemberIds: input.excludedMemberIds ?? [], source: input.captureSource ?? input.actor.kind,
+    createdByDiscordUserId: input.captureDiscordUserId ?? input.actor.discordUserId, createdByHqUserId: input.actor.hqUserId,
+    createdAt: now, updatedAt: now,
   });
+  if (input.memberIds?.length) await setNoteMembers(tx, input.actor, id, input.memberIds, input.detectedMemberIds);
   return id;
 }
 
-export async function getPerformanceNoteForAlliance(input: {
-  noteId: string;
-  allianceId: string;
-}) {
-  const db = getDb();
-  const [row] = await db
-    .select()
-    .from(schema.performanceNotes)
-    .where(
-      and(
-        eq(schema.performanceNotes.id, input.noteId),
-        eq(schema.performanceNotes.allianceId, input.allianceId),
-        isNull(schema.performanceNotes.expungedAt),
-      ),
-    )
-    .limit(1);
-  return row ?? null;
+export async function createPerformanceNote(input: CreatePerformanceNote): Promise<string> {
+  return getDb().transaction((tx) => createPerformanceNoteInTransaction(tx, input));
 }
 
-async function resolveLocalMembers(
-  allianceId: string,
-  ashedMemberIds: string[],
-): Promise<Map<string, { id: string; currentName: string }>> {
-  if (ashedMemberIds.length === 0) return new Map();
-  const db = getDb();
-  const rows = await db
-    .select({
-      id: schema.allianceMembers.id,
-      ashedMemberId: schema.allianceMembers.ashedMemberId,
-      currentName: schema.allianceMembers.currentName,
-    })
-    .from(schema.allianceMembers)
-    .where(
-      and(
-        eq(schema.allianceMembers.allianceId, allianceId),
-        inArray(schema.allianceMembers.ashedMemberId, ashedMemberIds),
-      ),
-    );
-  return new Map(
-    rows.map((row) => [
-      row.ashedMemberId,
-      { id: row.id, currentName: row.currentName },
-    ]),
-  );
+export async function getPerformanceNoteForAlliance(input: { noteId: string; actor: KnowledgeActor; access?: KnowledgeAccess }) {
+  const [row] = await getDb().select(noteSelection(input.actor)).from(schema.performanceNotes)
+    .innerJoin(schema.knowledgeResources, resourceJoin)
+    .where(and(eq(schema.performanceNotes.id, input.noteId), eq(schema.performanceNotes.allianceId, input.actor.allianceId), isNull(schema.performanceNotes.expungedAt), knowledgeAccessCondition(input.actor, schema.performanceNotes.resourceId, input.access))).limit(1);
+  return row ? readableNote(row) : null;
+}
+
+export async function updatePerformanceNoteInTransaction(tx: KnowledgeTransaction, actor: KnowledgeActor, noteId: string, input: NotePatch) {
+  const [existing] = await tx.select({ resourceId: schema.performanceNotes.resourceId }).from(schema.performanceNotes).where(and(eq(schema.performanceNotes.id, noteId), eq(schema.performanceNotes.allianceId, actor.allianceId), isNull(schema.performanceNotes.expungedAt)));
+  if (!existing) throw new KnowledgeAccessError("not_found");
+    const resource = await lockKnowledgeResource(tx, actor, existing.resourceId);
+    if (resource.version !== input.expectedVersion) throw new KnowledgeAccessError("changed");
+    const [note] = await tx.select().from(schema.performanceNotes)
+      .where(and(eq(schema.performanceNotes.id, noteId), eq(schema.performanceNotes.allianceId, actor.allianceId), isNull(schema.performanceNotes.expungedAt))).for("update");
+    if (!note) throw new KnowledgeAccessError("not_found");
+    if (!knowledgeActorOwnsResource(actor, resource) && (input.notebook !== undefined || input.inbox !== undefined || input.archived !== undefined || input.excludedMemberIds !== undefined)) throw new KnowledgeAccessError("forbidden");
+    const members = await tx.select().from(schema.performanceNoteMembers)
+      .where(and(eq(schema.performanceNoteMembers.noteId, noteId), eq(schema.performanceNoteMembers.allianceId, actor.allianceId)));
+    await tx.insert(schema.knowledgeNoteRevisions).values({
+      id: nanoid(), noteId, allianceId: actor.allianceId, version: resource.version,
+      editedByHqUserId: actor.hqUserId,
+      snapshot: {
+        intakeProvenance: note.intakeProvenance,
+        title: note.title, body: note.body, kind: isNoteKind(note.kind) ? note.kind : "note",
+        documentType: note.documentType, keyDecisions: note.keyDecisions, openQuestions: note.openQuestions,
+        priority: note.priority, priorityMode: note.priorityMode, labels: note.labels, notebook: note.notebook, journalDate: note.journalDate,
+        inbox: note.inbox, archived: resource.archivedAt !== null,
+        memberIds: members.map((member) => member.ashedMemberId),
+        detectedMemberIds: members.filter((member) => member.origin === "detected").map((member) => member.ashedMemberId),
+        excludedMemberIds: note.excludedMemberIds,
+      },
+    });
+    let exclusions = note.excludedMemberIds;
+    if (knowledgeActorOwnsResource(actor, resource)) {
+      exclusions = input.excludedMemberIds ?? note.excludedMemberIds;
+      if (input.memberIds !== undefined) {
+        const selected = new Set(input.memberIds);
+        exclusions = [...new Set([...exclusions, ...members.filter((member) => !selected.has(member.ashedMemberId)).map((member) => member.ashedMemberId)])].filter((id) => !selected.has(id));
+      }
+    }
+    if (input.memberIds !== undefined) await setNoteMembers(tx, actor, noteId, input.memberIds, input.detectedMemberIds);
+    await tx.update(schema.performanceNotes).set({
+      title: input.title, body: input.body, kind: input.kind, priority: input.priority, priorityMode: input.priorityMode ?? (input.priority !== undefined ? "manual" : undefined),
+      labels: input.labels, notebook: input.notebook, journalDate: input.journalDate,
+      documentType: input.documentType, keyDecisions: input.keyDecisions, openQuestions: input.openQuestions,
+      inbox: input.inbox, excludedMemberIds: exclusions, updatedAt: new Date(),
+    }).where(and(eq(schema.performanceNotes.id, noteId), eq(schema.performanceNotes.allianceId, actor.allianceId)));
+    if (input.archived !== undefined) await tx.update(schema.knowledgeResources).set({ archivedAt: input.archived ? new Date() : null }).where(eq(schema.knowledgeResources.id, resource.id));
+    await touchKnowledgeResource(tx, resource.id);
+}
+
+export async function updatePerformanceNote(actor: KnowledgeActor, noteId: string, input: NotePatch) {
+  await getDb().transaction((tx) => updatePerformanceNoteInTransaction(tx, actor, noteId, input));
+  return getPerformanceNoteDto({ actor, noteId });
 }
 
 export async function attachMembersToPerformanceNote(input: {
-  allianceId: string;
-  noteId: string;
-  members: Array<{ ashedMemberId: string; memberNameRaw: string }>;
+  actor: KnowledgeActor; noteId: string; members: Array<{ ashedMemberId: string; memberNameRaw: string }>;
 }): Promise<number> {
-  if (input.members.length === 0) return 0;
-  const note = await getPerformanceNoteForAlliance({
-    noteId: input.noteId,
-    allianceId: input.allianceId,
+  const note = await getPerformanceNoteForAlliance({ noteId: input.noteId, actor: input.actor, access: "edit" });
+  if (!note) throw new KnowledgeAccessError("not_found");
+  const unique = new Map(input.members.map((member) => [member.ashedMemberId.trim(), member.memberNameRaw.trim()] as const).filter(([id, name]) => id && name));
+  if (!unique.size) return 0;
+  return getDb().transaction(async (tx) => {
+    await lockKnowledgeResource(tx, input.actor, note.resourceId);
+    const [current] = await tx.select({ id: schema.performanceNotes.id }).from(schema.performanceNotes)
+      .where(and(eq(schema.performanceNotes.id, input.noteId), eq(schema.performanceNotes.allianceId, input.actor.allianceId), eq(schema.performanceNotes.resourceId, note.resourceId), isNull(schema.performanceNotes.expungedAt))).for("update");
+    if (!current) throw new KnowledgeAccessError("not_found");
+    const local = await tx.select({ id: schema.allianceMembers.id, memberId: schema.allianceMembers.ashedMemberId, name: schema.allianceMembers.currentName })
+      .from(schema.allianceMembers).where(and(eq(schema.allianceMembers.allianceId, input.actor.allianceId), inArray(schema.allianceMembers.ashedMemberId, [...unique.keys()])));
+    const localById = new Map(local.map((member) => [member.memberId, member]));
+    const rows = [...unique.entries()].map(([ashedMemberId, raw]) => ({
+      id: nanoid(), noteId: input.noteId, allianceId: input.actor.allianceId,
+      allianceMemberId: localById.get(ashedMemberId)?.id ?? null,
+      ashedMemberId, memberNameRaw: localById.get(ashedMemberId)?.name ?? raw,
+    }));
+    const inserted = await tx.insert(schema.performanceNoteMembers).values(rows)
+      .onConflictDoNothing({ target: [schema.performanceNoteMembers.noteId, schema.performanceNoteMembers.ashedMemberId] }).returning({ id: schema.performanceNoteMembers.id });
+    if (inserted.length) {
+      await tx.update(schema.performanceNotes).set({ updatedAt: new Date() }).where(eq(schema.performanceNotes.id, input.noteId));
+      await touchKnowledgeResource(tx, note.resourceId);
+    }
+    return inserted.length;
   });
-  if (!note) return 0;
-
-  const unique = new Map<string, string>();
-  for (const member of input.members) {
-    const ashedMemberId = member.ashedMemberId.trim();
-    const nameRaw = member.memberNameRaw.trim();
-    if (!ashedMemberId || !nameRaw) continue;
-    unique.set(ashedMemberId, nameRaw);
-  }
-  if (unique.size === 0) return 0;
-
-  const local = await resolveLocalMembers(input.allianceId, [...unique.keys()]);
-  const db = getDb();
-  const now = new Date();
-  const values = [...unique.entries()].map(([ashedMemberId, memberNameRaw]) => ({
-    id: nanoid(),
-    noteId: input.noteId,
-    allianceId: input.allianceId,
-    allianceMemberId: local.get(ashedMemberId)?.id ?? null,
-    ashedMemberId,
-    memberNameRaw,
-    createdAt: now,
-  }));
-
-  const inserted = await db
-    .insert(schema.performanceNoteMembers)
-    .values(values)
-    .onConflictDoNothing({
-      target: [
-        schema.performanceNoteMembers.noteId,
-        schema.performanceNoteMembers.ashedMemberId,
-      ],
-    })
-    .returning({ id: schema.performanceNoteMembers.id });
-
-  await db
-    .update(schema.performanceNotes)
-    .set({ updatedAt: now })
-    .where(eq(schema.performanceNotes.id, input.noteId));
-
-  return inserted.length;
 }
 
-function toDto(
-  note: typeof schema.performanceNotes.$inferSelect,
-  members: Array<{ ashedMemberId: string; memberNameRaw: string }>,
-): PerformanceNoteDto | null {
-  if (!isNoteKind(note.kind) || !isIntakeMode(note.intakeMode)) return null;
-  const source = note.source === "web" ? "web" : "discord";
+function toDto(note: ReadableNote, members: Array<{ ashedMemberId: string; memberNameRaw: string; origin: string }>): PerformanceNoteDto | null {
+  if (!isNoteKind(note.kind) || !isIntakeMode(note.intakeMode) || (note.source !== "web" && note.source !== "discord")) return null;
   return {
-    id: note.id,
-    kind: note.kind,
-    intakeMode: note.intakeMode,
-    body: note.body,
-    source,
-    createdAt: note.createdAt.toISOString(),
-    members: members.map((row) => ({
-      ashedMemberId: row.ashedMemberId,
-      name: row.memberNameRaw,
-    })),
+    id: note.id, kind: note.kind, intakeMode: note.intakeMode, body: redactIntakeText(note.body), title: redactIntakeText(note.title),
+    documentType: note.documentType, keyDecisions: note.keyDecisions.map(redactIntakeText), openQuestions: note.openQuestions.map(redactIntakeText),
+    priority: note.priority, priorityMode: note.priorityMode, labels: note.labels, journalDate: note.journalDate,
+    intakeProvenance: note.isOwner ? note.intakeProvenance : undefined,
+    notebook: note.isOwner ? note.notebook : null, inbox: note.isOwner && note.inbox,
+    excludedMemberIds: note.isOwner ? note.excludedMemberIds : [], archived: note.archived,
+    source: note.source, createdAt: note.createdAt.toISOString(), updatedAt: note.updatedAt.toISOString(),
+    version: note.version, canEdit: note.canEdit, isOwner: note.isOwner, shared: note.shared,
+    members: members.map((row) => ({ ashedMemberId: row.ashedMemberId, name: row.memberNameRaw, origin: row.origin === "detected" ? "detected" : "manual" })),
   };
 }
 
-export async function listPerformanceNotes(
-  allianceId: string,
-): Promise<PerformanceNoteDto[]> {
-  const db = getDb();
-  const notes = await db
-    .select()
-    .from(schema.performanceNotes)
-    .where(
-      and(
-        eq(schema.performanceNotes.allianceId, allianceId),
-        isNull(schema.performanceNotes.expungedAt),
-      ),
-    )
-    .orderBy(desc(schema.performanceNotes.createdAt));
-  if (notes.length === 0) return [];
-
-  const memberRows = await db
-    .select({
-      noteId: schema.performanceNoteMembers.noteId,
-      ashedMemberId: schema.performanceNoteMembers.ashedMemberId,
-      memberNameRaw: schema.performanceNoteMembers.memberNameRaw,
-    })
-    .from(schema.performanceNoteMembers)
-    .where(
-      inArray(
-        schema.performanceNoteMembers.noteId,
-        notes.map((note) => note.id),
-      ),
-    );
-
-  const byNote = new Map<string, Array<{ ashedMemberId: string; memberNameRaw: string }>>();
-  for (const row of memberRows) {
-    const list = byNote.get(row.noteId) ?? [];
-    list.push({
-      ashedMemberId: row.ashedMemberId,
-      memberNameRaw: row.memberNameRaw,
-    });
-    byNote.set(row.noteId, list);
-  }
-
-  return notes
-    .map((note) => toDto(note, byNote.get(note.id) ?? []))
-    .filter((row): row is PerformanceNoteDto => row != null);
+async function noteDtos(actor: KnowledgeActor, notes: ReadableNote[]): Promise<PerformanceNoteDto[]> {
+  if (!notes.length) return [];
+  const members = await getDb().select({
+    noteId: schema.performanceNoteMembers.noteId, ashedMemberId: schema.performanceNoteMembers.ashedMemberId,
+    memberNameRaw: schema.performanceNoteMembers.memberNameRaw, origin: schema.performanceNoteMembers.origin,
+  }).from(schema.performanceNoteMembers).where(and(eq(schema.performanceNoteMembers.allianceId, actor.allianceId), inArray(schema.performanceNoteMembers.noteId, notes.map((note) => note.id))));
+  const byNote = new Map<string, typeof members>();
+  for (const member of members) byNote.set(member.noteId, [...(byNote.get(member.noteId) ?? []), member]);
+  return notes.map((note) => toDto(note, byNote.get(note.id) ?? [])).filter((note): note is PerformanceNoteDto => note !== null);
 }
 
-export async function getPerformanceNoteDto(input: {
-  noteId: string;
-  allianceId: string;
-}): Promise<PerformanceNoteDto | null> {
+export async function listPerformanceNotes(actor: KnowledgeActor): Promise<PerformanceNoteDto[]> {
+  const rows = await getDb().select(noteSelection(actor)).from(schema.performanceNotes)
+    .innerJoin(schema.knowledgeResources, resourceJoin)
+    .where(and(eq(schema.performanceNotes.allianceId, actor.allianceId), isNull(schema.performanceNotes.expungedAt), knowledgeAccessCondition(actor, schema.performanceNotes.resourceId)))
+    .orderBy(desc(schema.performanceNotes.updatedAt), desc(schema.performanceNotes.id));
+  return noteDtos(actor, rows.map(readableNote));
+}
+
+export async function getPerformanceNoteDto(input: { noteId: string; actor: KnowledgeActor }): Promise<PerformanceNoteDto | null> {
   const note = await getPerformanceNoteForAlliance(input);
-  if (!note) return null;
-  const db = getDb();
-  const memberRows = await db
-    .select({
-      ashedMemberId: schema.performanceNoteMembers.ashedMemberId,
-      memberNameRaw: schema.performanceNoteMembers.memberNameRaw,
-    })
-    .from(schema.performanceNoteMembers)
-    .where(eq(schema.performanceNoteMembers.noteId, note.id));
-  return toDto(note, memberRows);
+  return note ? (await noteDtos(input.actor, [note]))[0] ?? null : null;
 }
 
-export async function listPerformanceNoteRoster(
-  allianceId: string,
-): Promise<PerformanceNoteRosterMember[]> {
-  const db = getDb();
-  const rows = await db
-    .select({
-      ashedMemberId: schema.allianceMembers.ashedMemberId,
-      name: schema.allianceMembers.currentName,
-    })
-    .from(schema.allianceMembers)
-    .where(
-      and(
-        eq(schema.allianceMembers.allianceId, allianceId),
-        eq(schema.allianceMembers.status, "active"),
-      ),
-    )
-    .orderBy(schema.allianceMembers.currentName);
-  return rows;
+export async function listPerformanceNoteRoster(allianceId: string): Promise<PerformanceNoteRosterMember[]> {
+  const rows = await getDb().select({ ashedMemberId: schema.allianceMembers.ashedMemberId, name: schema.allianceMembers.currentName, previousNames: schema.allianceMembers.previousNamesJson })
+    .from(schema.allianceMembers).where(and(eq(schema.allianceMembers.allianceId, allianceId), eq(schema.allianceMembers.status, "active"))).orderBy(schema.allianceMembers.currentName);
+  return rows.map((row) => ({ ...row, previousNames: row.previousNames ?? [] }));
 }
 
-export async function listPerformanceNotesForAshedMember(input: {
-  allianceId: string;
-  ashedMemberId: string;
-}): Promise<PerformanceNoteDto[]> {
-  const db = getDb();
-  const links = await db
-    .select({ noteId: schema.performanceNoteMembers.noteId })
-    .from(schema.performanceNoteMembers)
-    .where(
-      and(
-        eq(schema.performanceNoteMembers.allianceId, input.allianceId),
-        eq(schema.performanceNoteMembers.ashedMemberId, input.ashedMemberId),
-      ),
-    );
-  if (links.length === 0) return [];
-  const notes = await db
-    .select()
-    .from(schema.performanceNotes)
-    .where(
-      and(
-        eq(schema.performanceNotes.allianceId, input.allianceId),
-        isNull(schema.performanceNotes.expungedAt),
-        inArray(
-          schema.performanceNotes.id,
-          links.map((row) => row.noteId),
-        ),
-      ),
-    )
+export async function listPerformanceNotesForAshedMember(input: { actor: KnowledgeActor; ashedMemberId: string }): Promise<PerformanceNoteDto[]> {
+  const rows = await getDb().select(noteSelection(input.actor)).from(schema.performanceNotes)
+    .innerJoin(schema.knowledgeResources, resourceJoin)
+    .innerJoin(schema.performanceNoteMembers, and(eq(schema.performanceNoteMembers.noteId, schema.performanceNotes.id), eq(schema.performanceNoteMembers.allianceId, input.actor.allianceId)))
+    .where(and(eq(schema.performanceNotes.allianceId, input.actor.allianceId), eq(schema.performanceNoteMembers.ashedMemberId, input.ashedMemberId), isNull(schema.performanceNotes.expungedAt), knowledgeAccessCondition(input.actor, schema.performanceNotes.resourceId)))
     .orderBy(desc(schema.performanceNotes.createdAt));
-  const memberRows = await db
-    .select({
-      noteId: schema.performanceNoteMembers.noteId,
-      ashedMemberId: schema.performanceNoteMembers.ashedMemberId,
-      memberNameRaw: schema.performanceNoteMembers.memberNameRaw,
-    })
-    .from(schema.performanceNoteMembers)
-    .where(
-      inArray(
-        schema.performanceNoteMembers.noteId,
-        notes.map((note) => note.id),
-      ),
-    );
-  const byNote = new Map<string, Array<{ ashedMemberId: string; memberNameRaw: string }>>();
-  for (const row of memberRows) {
-    const list = byNote.get(row.noteId) ?? [];
-    list.push({
-      ashedMemberId: row.ashedMemberId,
-      memberNameRaw: row.memberNameRaw,
-    });
-    byNote.set(row.noteId, list);
-  }
-  return notes
-    .map((note) => toDto(note, byNote.get(note.id) ?? []))
-    .filter((row): row is PerformanceNoteDto => row != null);
+  return noteDtos(input.actor, rows.map(readableNote));
+}
+
+export async function listNoteRevisions(actor: KnowledgeActor, noteId: string) {
+  const note = await getPerformanceNoteForAlliance({ actor, noteId, access: "share" });
+  if (!note) throw new KnowledgeAccessError("not_found");
+  const rows = await getDb().select().from(schema.knowledgeNoteRevisions)
+    .where(and(eq(schema.knowledgeNoteRevisions.noteId, noteId), eq(schema.knowledgeNoteRevisions.allianceId, actor.allianceId)))
+    .orderBy(desc(schema.knowledgeNoteRevisions.version)).limit(30);
+  return rows.map((row) => ({ id: row.id, version: row.version, snapshot: { ...row.snapshot, title: redactIntakeText(row.snapshot.title), body: redactIntakeText(row.snapshot.body), documentType: row.snapshot.documentType ?? "note", keyDecisions: (row.snapshot.keyDecisions ?? []).map(redactIntakeText), openQuestions: (row.snapshot.openQuestions ?? []).map(redactIntakeText) }, editedAt: row.editedAt.toISOString() }));
 }

@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import type { loadTeamWorkDashboard } from "@/lib/support-teams/work-service.server";
 import { CoveragePanel } from "@/components/time-off/CoveragePanel";
+import { NoteTasksPanel } from "@/components/notes/NoteTasksPanel";
 
 type Dashboard = Awaited<ReturnType<typeof loadTeamWorkDashboard>>;
 
@@ -75,6 +76,7 @@ export function TeamWorkClient({ initial }: { initial: Dashboard }) {
         <Link href={item.href}>{item.kind === "vs" ? vs("title") : item.kind === "coverage" ? t("reassign") : timeOff("title")}</Link>
       </article>)}
     </section>
+    <NoteTasksPanel personalOnly={personal} />
     {data.canReview ? <CoveragePanel refreshKey={String(revision)} onResolved={() => setRevision((value) => value + 1)} memberIds={items.filter((item) => item.kind === "coverage").map((item) => item.memberId)} /> : null}
     <section className="space-y-2"><h2 className="text-xl font-semibold">{support("title")}</h2>{data.teams.map((entry) => <p key={entry.id}>{teamName(entry.id)} · {entry.leadName ?? support("leadNeedsReplacement")}</p>)}</section>
   </main>;

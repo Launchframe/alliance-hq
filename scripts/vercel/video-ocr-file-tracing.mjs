@@ -130,6 +130,8 @@ export const videoOcrTracedRoutes = {
   // sharp/tesseract stack — worker-script + LSTM WASM must be on disk.
   "/api/webhooks/discord/interactions": videoOcrFileTracing,
   "/api/thp/me/submit": videoOcrFileTracing,
+  "/api/internal/notes/process": videoOcrFileTracing,
+  "/api/notes/imports/[id]/process": videoOcrFileTracing,
 };
 
 export const videoOcrFileTracingIncludes = Object.fromEntries(
@@ -167,6 +169,14 @@ export const functionTraceBudgets = [
     maxUncompressedBytes: 120 * 1024 ** 2,
     requireLibvips: true,
     forbidPathSubstrings: ["ffmpeg-static", "tesseract.js-core", "tesseract.js/src", "workers/ocr/"],
+  })),
+  ...["/api/internal/notes/process", "/api/notes/imports/[id]/process"].map((route) => ({
+    route, nftPath: `.next/server/app${route}/route.js.nft.json`, maxUncompressedBytes: 200 * 1024 * 1024,
+    requireLibvips: true, requireWorkerScript: true,
+  })),
+  ...["/api/notes/imports", "/api/notes/imports/[id]"].map((route) => ({
+    route, nftPath: `.next/server/app${route}/route.js.nft.json`, maxUncompressedBytes: 120 * 1024 * 1024,
+    forbidPathSubstrings: ["ffmpeg-static", "tesseract.js-core", "tesseract.js/src"],
   })),
   {
     route: "/api/internal/video-process/queue",
