@@ -16,6 +16,8 @@ No calendar API can retroactively deliver a before-start alert. Native apps cont
 
 Connections require authenticated HQ ownership and current alliance access. Source-specific permissions and current Commander identity are rechecked off-session. No stored browser session, inferred email ownership, arbitrary calendar URL, player UID, private time-off notes or disciplinary content is an export authority.
 
+Apple setup uses a copied HTTPS subscription URL and explicit Calendar-app instructions rather than an ambiguous webcal downgrade or a one-time import presented as sync. A replacement link invalidates the old subscription URL. Account and security settings both link to Calendar connections; its command-palette navigation uses g then minus, while credential/revocation actions have no automatic hotkey.
+
 Private feed links are bearer credentials. They are hashed for lookup, encrypted for owner-only redisplay, excluded from ordinary DTOs/logging, and revocable. Previously cached external copies cannot be guaranteed erased. Disconnect fences normal sync immediately; optional cleanup is limited to known HQ event bindings and may fail if provider consent is already revoked. Never delete an entire calendar containing possible user-added events.
 
 Calendar tokens are stored as application-encrypted AES-GCM ciphertext in SQL text columns; the foundation has no Google-token writer. Feed reads retain fresh projection/authorization checks because nextSyncAt does not cover every source or ownership change; a 304 does not update lastFetchAt. Successful Discord train locks stay channel-visible, with timing controls delivered separately and privately after the response.

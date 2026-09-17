@@ -1,11 +1,11 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
-import { CALENDAR_SOURCES } from "./types.shared";
+import { CALENDAR_SOURCES, type CalendarSettingsData } from "./types.shared";
 import { calendarPrincipal, calendarSourcePermission } from "./access.server";
 import { readCalendarPreferences } from "./repository.server";
 
-export async function loadCalendarSettings(hqUserId: string, locale = "en-US") {
+export async function loadCalendarSettings(hqUserId: string, locale = "en-US"): Promise<CalendarSettingsData> {
   return getDb().transaction(async (tx) => {
     const preferences = await readCalendarPreferences(tx, hqUserId);
     if (!preferences.version) {
@@ -25,4 +25,4 @@ export async function loadCalendarSettings(hqUserId: string, locale = "en-US") {
   });
 }
 
-export type CalendarSettingsData = Awaited<ReturnType<typeof loadCalendarSettings>>;
+export type { CalendarSettingsData } from "./types.shared";
