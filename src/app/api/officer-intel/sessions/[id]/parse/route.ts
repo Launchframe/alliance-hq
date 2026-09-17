@@ -6,6 +6,8 @@
  */
 
 import { NextResponse } from "next/server";
+import { redactOfficerChatMessage } from "@/lib/officer-intel/types.shared";
+import { redactIntakeText } from "@/lib/notes/intake.shared";
 
 import {
   mergeOfficerChatImageParses,
@@ -50,6 +52,7 @@ export async function POST(request: Request, { params }: Props) {
   const session = await getOfficerChatSessionForAlliance({
     sessionId: id,
     allianceId: context.allianceId,
+    actor: context.actor,
   });
   if (!session) {
     return NextResponse.json({ error: "Session not found." }, { status: 404 });
@@ -110,12 +113,12 @@ export async function POST(request: Request, { params }: Props) {
     const { messages, rawLinesByImage } = mergeOfficerChatImageParses(parts);
 
     return NextResponse.json({
-      messages,
+      messages: messages.map(redactOfficerChatMessage),
       imageCount: imageFiles.length,
-      rawLinesByImage,
+      rawLinesByImage: rawLinesByImage.map((lines) => lines.map(redactIntakeText)),
     });
-  } catch (error) {
-    console.error("officer-intel parse failed", error);
+  } catch {
+    console.error("officer-intel parse failed");
     return NextResponse.json(
       { error: "Failed to parse chat screenshots." },
       { status: 500 },

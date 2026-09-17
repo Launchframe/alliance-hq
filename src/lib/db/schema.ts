@@ -3,6 +3,8 @@ import {
   boolean,
   customType,
   doublePrecision,
+  foreignKey,
+  check,
   index,
   integer,
   jsonb,
@@ -15,6 +17,11 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+import { sql } from "drizzle-orm";
+import type { KnowledgeOwnershipState, KnowledgeResourceKind, KnowledgeGrant } from "@/lib/notes/policy.shared";
+import type { NoteFields } from "@/lib/notes/workspace.shared";
+import type { IntakeResult } from "@/lib/notes/intake.shared";
+import type { CaptureDraftState, CaptureProvenance } from "@/lib/notes/drafts.shared";
 import type { SupportBoard, SupportEvent, SupportValue } from "@/lib/support-teams/types.shared";
 import type { SupportDisplayPreferences } from "@/lib/support-teams/display-preferences.shared";
 import type { TeamWorkDetail } from "@/lib/support-teams/work-routing.shared";
@@ -4400,6 +4407,7 @@ export const officerChatSessions = pgTable(
   "officer_chat_sessions",
   {
     id: text("id").primaryKey(),
+    resourceId: text("resource_id").notNull().default(sql`NULL`),
     allianceId: text("alliance_id")
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
@@ -4420,6 +4428,9 @@ export const officerChatSessions = pgTable(
       .notNull(),
   },
   (table) => [
+    unique("officer_chat_sessions_resource_unique").on(table.resourceId),
+    unique("officer_chat_sessions_source_identity_unique").on(table.id, table.allianceId, table.resourceId),
+    foreignKey({ name: "officer_chat_sessions_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
     index("officer_chat_sessions_alliance_updated_idx").on(
       table.allianceId,
       table.updatedAt,
@@ -4464,7 +4475,7 @@ export const officerChatMessages = pgTable(
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
     senderAllianceTag: text("sender_alliance_tag"),
-    senderName: text("sender_name").notNull(),
+    senderName: text("sender_name"),
     senderLevel: integer("sender_level"),
     senderVipLevel: integer("sender_vip_level"),
     originalText: text("original_text").notNull(),
@@ -4474,12 +4485,19 @@ export const officerChatMessages = pgTable(
     isReply: boolean("is_reply").notNull().default(false),
     replyToName: text("reply_to_name"),
     sequenceOrder: integer("sequence_order").notNull(),
-    sourceImageIndex: integer("source_image_index").notNull(),
+    sourceImageIndex: integer("source_image_index"),
+    sourceLocator: text("source_locator"),
+    externalMessageId: text("external_message_id"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    historyIncluded: boolean("history_included").notNull().default(true),
+    historyReviewed: boolean("history_reviewed").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table) => [
+    uniqueIndex("officer_chat_messages_source_locator_unique").on(table.sessionId, table.sourceLocator),
+    index("officer_chat_messages_search_idx").using("gin", sql`notes_search_vector(${table.originalText})`),
     index("officer_chat_messages_session_order_idx").on(
       table.sessionId,
       table.sequenceOrder,
@@ -4515,6 +4533,8 @@ export const officerMeetingNotes = pgTable(
   "officer_meeting_notes",
   {
     id: text("id").primaryKey(),
+    canonicalNoteId: text("canonical_note_id").notNull().default(sql`NULL`),
+    resourceId: text("resource_id").notNull().default(sql`NULL`),
     allianceId: text("alliance_id")
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
@@ -4550,6 +4570,10 @@ export const officerMeetingNotes = pgTable(
       .notNull(),
   },
   (table) => [
+    unique("officer_meeting_notes_resource_unique").on(table.resourceId),
+    uniqueIndex("officer_meeting_notes_canonical_unique").on(table.canonicalNoteId),
+    foreignKey({ name: "officer_meeting_notes_canonical_fk", columns: [table.canonicalNoteId, table.allianceId, table.resourceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId, performanceNotes.resourceId] }).onDelete("restrict"),
+    foreignKey({ name: "officer_meeting_notes_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
     uniqueIndex("officer_meeting_notes_session_idx").on(table.sessionId),
     index("officer_meeting_notes_alliance_updated_idx").on(
       table.allianceId,
@@ -4562,21 +4586,26 @@ export const officerActionItems = pgTable(
   "officer_action_items",
   {
     id: text("id").primaryKey(),
+    resourceId: text("resource_id").notNull().default(sql`NULL`),
+    sourceNoteId: text("source_note_id"),
+    assigneeHqUserId: text("assignee_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+    labels: jsonb("labels").$type<string[]>().notNull().default([]),
+    intakeProvenance: jsonb("intake_provenance").$type<CaptureProvenance>(),
+    captureKey: text("capture_key"),
+    actionKey: text("action_key"),
     allianceId: text("alliance_id")
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
     noteId: text("note_id")
-      .notNull()
-      .references(() => officerMeetingNotes.id, { onDelete: "cascade" }),
+      .references(() => officerMeetingNotes.id, { onDelete: "set null" }),
     sessionId: text("session_id")
-      .notNull()
-      .references(() => officerChatSessions.id, { onDelete: "cascade" }),
+      .references(() => officerChatSessions.id, { onDelete: "set null" }),
     title: text("title").notNull(),
     description: text("description"),
     /** open | in_progress | done | cancelled */
     status: text("status").notNull().default("open"),
     /** low | normal | high */
-    priority: text("priority").notNull().default("normal"),
+    priority: text("priority").$type<"low" | "medium" | "high" | "urgent" | null>(),
     assigneeAllianceMemberId: text("assignee_alliance_member_id").references(
       () => allianceMembers.id,
       { onDelete: "set null" },
@@ -4603,6 +4632,14 @@ export const officerActionItems = pgTable(
       table.dueAt,
     ),
     index("officer_action_items_note_idx").on(table.noteId),
+    index("officer_action_items_source_idx").on(table.sourceNoteId),
+    index("officer_action_items_search_idx").using("gin", sql`notes_search_vector(${table.title} || E'\n' || coalesce(${table.description}, ''))`),
+    unique("officer_action_items_resource_unique").on(table.resourceId),
+    unique("officer_action_items_id_alliance_unique").on(table.id, table.allianceId),
+    unique("officer_action_items_capture_unique").on(table.captureKey, table.actionKey),
+    foreignKey({ name: "officer_action_items_source_alliance_fk", columns: [table.sourceNoteId, table.allianceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId] }).onDelete("restrict"),
+    check("officer_action_items_priority_check", sql`${table.priority} is null or ${table.priority} in ('low', 'medium', 'high', 'urgent')`),
+    foreignKey({ name: "officer_action_items_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
   ],
 );
 
@@ -4621,6 +4658,10 @@ export const officerIntelChunks = pgTable(
     }),
     localeCode: text("locale_code").notNull(),
     chunkText: text("chunk_text").notNull(),
+    resourceId: text("resource_id"), indexJobId: text("index_job_id"), chunkIndex: integer("chunk_index"),
+    contentVersion: integer("content_version"), accessVersion: integer("access_version"), approvalVersion: integer("approval_version"), consentVersion: integer("consent_version"),
+    contentHash: text("content_hash"), embeddingModel: text("embedding_model"), embeddingDimensions: integer("embedding_dimensions"), formatVersion: integer("format_version"),
+    evidence: jsonb("evidence").$type<import("@/lib/notes/knowledge.shared").KnowledgeReference[]>(),
     embedding: vector1536("embedding"),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -4631,6 +4672,8 @@ export const officerIntelChunks = pgTable(
       .notNull(),
   },
   (table) => [
+    uniqueIndex("officer_intel_chunks_job_chunk_unique").on(table.indexJobId, table.chunkIndex),
+    foreignKey({ name: "officer_intel_chunks_index_job_fk", columns: [table.indexJobId, table.allianceId, table.resourceId], foreignColumns: [knowledgeIndexJobs.id, knowledgeIndexJobs.allianceId, knowledgeIndexJobs.resourceId] }).onDelete("restrict"),
     index("officer_intel_chunks_alliance_source_idx").on(
       table.allianceId,
       table.sourceType,
@@ -4650,6 +4693,8 @@ export const officerIntelThreads = pgTable(
       () => hqUsers.id,
       { onDelete: "set null" },
     ),
+    knowledgeVersion: integer("knowledge_version").notNull().default(0),
+    version: integer("version").notNull().default(1), activeJobId: text("active_job_id"),
     runningSummary: text("running_summary"),
     turnCount: integer("turn_count").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -4705,11 +4750,61 @@ export type OfficerIntelThread = typeof officerIntelThreads.$inferSelect;
 export type OfficerIntelThreadMessage =
   typeof officerIntelThreadMessages.$inferSelect;
 
+export const knowledgeResources = pgTable("knowledge_resources", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  kind: text("kind").$type<KnowledgeResourceKind>().notNull(),
+  entityId: text("entity_id").notNull(),
+  ownershipState: text("ownership_state").$type<KnowledgeOwnershipState>().notNull().default("unresolved"),
+  ownerHqUserId: text("owner_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  ownerDiscordUserId: text("owner_discord_user_id"),
+  ownerBoundAt: timestamp("owner_bound_at", { withTimezone: true }),
+  version: integer("version").notNull().default(1),
+  accessVersion: integer("access_version").notNull().default(1),
+  intakeAiAllowed: boolean("intake_ai_allowed").notNull().default(false),
+  knowledgeAiAllowed: boolean("knowledge_ai_allowed").notNull().default(false),
+  contentVersion: integer("content_version").notNull().default(1),
+  knowledgeApprovedVersion: integer("knowledge_approved_version"),
+  knowledgeApprovalVersion: integer("knowledge_approval_version").notNull().default(0),
+  knowledgeConsentVersion: integer("knowledge_consent_version").notNull().default(0),
+  knowledgeApprovedAt: timestamp("knowledge_approved_at", { withTimezone: true }),
+  knowledgeApprovedByHqUserId: text("knowledge_approved_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("knowledge_resources_id_alliance_unique").on(table.id, table.allianceId),
+  unique("knowledge_resources_entity_unique").on(table.allianceId, table.kind, table.entityId),
+  index("knowledge_resources_owner_idx").on(table.allianceId, table.ownerHqUserId),
+  index("knowledge_resources_discord_owner_idx").on(table.ownerDiscordUserId, table.ownershipState),
+  check("knowledge_resources_kind_check", sql`${table.kind} in ('note', 'task', 'source', 'collection', 'board', 'draft')`),
+  check("knowledge_resources_ownership_check", sql`${table.ownershipState} in ('hq', 'discord', 'unresolved')`),
+  check("knowledge_resources_version_check", sql`${table.version} > 0 and ${table.accessVersion} > 0`),
+]);
+
+export const knowledgeResourceGrants = pgTable("knowledge_resource_grants", {
+  id: text("id").primaryKey(),
+  resourceId: text("resource_id").notNull(),
+  allianceId: text("alliance_id").notNull(),
+  subjectKind: text("subject_kind").$type<KnowledgeGrant["subjectKind"]>().notNull(),
+  subjectId: text("subject_id").notNull(),
+  role: text("role").$type<KnowledgeGrant["role"]>().notNull(),
+  createdByHqUserId: text("created_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  foreignKey({ name: "knowledge_resource_grants_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("cascade"),
+  unique("knowledge_resource_grants_subject_unique").on(table.resourceId, table.subjectKind, table.subjectId),
+  index("knowledge_resource_grants_subject_idx").on(table.allianceId, table.subjectKind, table.subjectId),
+  check("knowledge_resource_grants_subject_check", sql`${table.subjectKind} in ('user', 'officers', 'board')`),
+  check("knowledge_resource_grants_role_check", sql`${table.role} in ('read', 'edit')`),
+]);
+
 /** HQ-native officer notes — not Ashed member_commendations / hq_commendations. */
 export const performanceNotes = pgTable(
   "performance_notes",
   {
     id: text("id").primaryKey(),
+    resourceId: text("resource_id").notNull(),
     allianceId: text("alliance_id")
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
@@ -4717,7 +4812,19 @@ export const performanceNotes = pgTable(
     kind: text("kind").notNull(),
     /** batch | thought */
     intakeMode: text("intake_mode").notNull(),
+    title: text("title").notNull().default(""),
+    priorityMode: text("priority_mode").$type<"manual" | "auto">().notNull().default("manual"),
+    intakeProvenance: jsonb("intake_provenance").$type<CaptureProvenance>(),
+    priority: text("priority").$type<"low" | "medium" | "high" | "urgent" | null>(),
+    labels: jsonb("labels").$type<string[]>().notNull().default([]),
+    notebook: text("notebook"),
+    journalDate: text("journal_date"),
+    inbox: boolean("inbox").notNull().default(true),
+    excludedMemberIds: jsonb("excluded_member_ids").$type<string[]>().notNull().default([]),
     body: text("body").notNull(),
+    documentType: text("document_type").$type<import("@/lib/notes/workspace.shared").NoteDocumentType>().notNull().default("note"),
+    keyDecisions: jsonb("key_decisions").$type<string[]>().notNull().default([]),
+    openQuestions: jsonb("open_questions").$type<string[]>().notNull().default([]),
     /** discord | web */
     source: text("source").notNull(),
     createdByDiscordUserId: text("created_by_discord_user_id"),
@@ -4739,6 +4846,13 @@ export const performanceNotes = pgTable(
       table.createdAt,
     ),
     index("performance_notes_alliance_kind_idx").on(table.allianceId, table.kind),
+    uniqueIndex("performance_notes_resource_unique").on(table.resourceId),
+    uniqueIndex("performance_notes_identity_unique").on(table.id, table.allianceId, table.resourceId),
+    index("performance_notes_search_idx").using("gin", sql`notes_search_vector(notes_document_text(${table.title}, ${table.body}, ${table.keyDecisions}, ${table.openQuestions}))`),
+    check("performance_notes_document_type_check", sql`${table.documentType} in ('note', 'journal', 'meeting', 'reference')`),
+    unique("performance_notes_id_alliance_unique").on(table.id, table.allianceId),
+    check("performance_notes_priority_check", sql`${table.priority} is null or ${table.priority} in ('low', 'medium', 'high', 'urgent')`),
+    foreignKey({ name: "performance_notes_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("cascade"),
   ],
 );
 
@@ -4758,6 +4872,7 @@ export const performanceNoteMembers = pgTable(
     ),
     ashedMemberId: text("ashed_member_id").notNull(),
     memberNameRaw: text("member_name_raw").notNull(),
+    origin: text("origin").$type<"manual" | "detected">().notNull().default("manual"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -4774,6 +4889,151 @@ export const performanceNoteMembers = pgTable(
     ),
   ],
 );
+
+export const knowledgeNoteRevisions = pgTable("knowledge_note_revisions", {
+  id: text("id").primaryKey(),
+  noteId: text("note_id").notNull().references(() => performanceNotes.id, { onDelete: "cascade" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  snapshot: jsonb("snapshot").$type<NoteFields & { archived: boolean; intakeProvenance?: CaptureProvenance | null }>().notNull(),
+  editedByHqUserId: text("edited_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  editedAt: timestamp("edited_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_note_revisions_version_unique").on(table.noteId, table.version)]);
+
+export const knowledgeBoards = pgTable("knowledge_boards", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  resourceId: text("resource_id").notNull(), name: text("name").notNull(), version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("knowledge_boards_id_alliance_unique").on(table.id, table.allianceId), unique("knowledge_boards_resource_unique").on(table.resourceId),
+  foreignKey({ name: "knowledge_boards_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+]);
+
+export const knowledgeBoardItems = pgTable("knowledge_board_items", {
+  boardId: text("board_id").notNull(), taskId: text("task_id").notNull(), allianceId: text("alliance_id").notNull(),
+  grantId: text("grant_id").notNull().references(() => knowledgeResourceGrants.id, { onDelete: "cascade" }),
+  position: integer("position").notNull(), sharedByHqUserId: text("shared_by_hq_user_id").references(() => hqUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.boardId, table.taskId] }), index("knowledge_board_items_task_idx").on(table.taskId),
+  unique("knowledge_board_items_grant_unique").on(table.grantId),
+  foreignKey({ name: "knowledge_board_items_board_alliance_fk", columns: [table.boardId, table.allianceId], foreignColumns: [knowledgeBoards.id, knowledgeBoards.allianceId] }).onDelete("cascade"),
+  foreignKey({ name: "knowledge_board_items_task_alliance_fk", columns: [table.taskId, table.allianceId], foreignColumns: [officerActionItems.id, officerActionItems.allianceId] }).onDelete("cascade"),
+]);
+
+export const knowledgeMutationReceipts = pgTable("knowledge_mutation_receipts", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  principalKey: text("principal_key").notNull(), requestId: text("request_id").notNull(), requestHash: text("request_hash").notNull(),
+  result: jsonb("result").$type<{ noteId?: string; taskIds?: string[]; taskId?: string; boardId?: string; importId?: string; resourceId?: string; jobId?: string; publicationId?: string; version?: number }>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_mutation_receipts_request_unique").on(table.allianceId, table.principalKey, table.requestId)]);
+
+export const knowledgeHistoryImports = pgTable("knowledge_history_imports", {
+  id: text("id").primaryKey().references(() => officerChatSessions.id, { onDelete: "restrict" }), allianceId: text("alliance_id").notNull(), resourceId: text("resource_id").notNull(),
+  kind: text("kind").$type<import("@/lib/notes/imports.shared").HistoryImportKind>().notNull(),
+  state: text("state").$type<import("@/lib/notes/imports.shared").HistoryImportState>().notNull().default("uploading"),
+  sourceHash: text("source_hash").notNull(), formatVersion: integer("format_version").notNull().default(1), locale: text("locale").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_history_imports_id_alliance_unique").on(table.id, table.allianceId), unique("knowledge_history_imports_resource_unique").on(table.resourceId),
+  foreignKey({ name: "knowledge_history_imports_resource_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+  foreignKey({ name: "knowledge_history_imports_source_fk", columns: [table.id, table.allianceId, table.resourceId], foreignColumns: [officerChatSessions.id, officerChatSessions.allianceId, officerChatSessions.resourceId] }).onDelete("restrict"),
+  index("knowledge_history_imports_hash_idx").on(table.allianceId, table.sourceHash),
+]);
+
+export const knowledgeHistoryAssets = pgTable("knowledge_history_assets", {
+  id: text("id").primaryKey(), importId: text("import_id").notNull(), allianceId: text("alliance_id").notNull(),
+  name: text("name").notNull(), contentType: text("content_type").notNull(), size: integer("size").notNull(), sha256: text("sha256").notNull(), position: integer("position").notNull(),
+  stagingKey: text("staging_key").notNull(), sealedKey: text("sealed_key"), sealedAt: timestamp("sealed_at", { withTimezone: true }),
+}, (table) => [unique("knowledge_history_assets_position_unique").on(table.importId, table.position),
+  foreignKey({ name: "knowledge_history_assets_import_fk", columns: [table.importId, table.allianceId], foreignColumns: [knowledgeHistoryImports.id, knowledgeHistoryImports.allianceId] }).onDelete("restrict"),
+]);
+
+export const knowledgeProcessingJobs = pgTable("knowledge_processing_jobs", {
+  id: text("id").primaryKey(), importId: text("import_id").notNull(), allianceId: text("alliance_id").notNull(), ownerHqUserId: text("owner_hq_user_id").notNull(),
+  sourceVersion: integer("source_version").notNull(), accessVersion: integer("access_version").notNull(),
+  state: text("state").$type<import("@/lib/notes/imports.shared").HistoryJobState>().notNull().default("pending"),
+  cursor: integer("cursor").notNull().default(0), attempts: integer("attempts").notNull().default(0), errorCode: text("error_code"),
+  leaseToken: text("lease_token"), leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  availableAt: timestamp("available_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_processing_jobs_import_unique").on(table.importId), index("knowledge_processing_jobs_claim_idx").on(table.state, table.availableAt),
+  foreignKey({ name: "knowledge_processing_jobs_import_fk", columns: [table.importId, table.allianceId], foreignColumns: [knowledgeHistoryImports.id, knowledgeHistoryImports.allianceId] }).onDelete("restrict"),
+]);
+
+export const knowledgeIndexJobs = pgTable("knowledge_index_jobs", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull(), resourceId: text("resource_id").notNull(), ownerHqUserId: text("owner_hq_user_id").notNull(),
+  contentVersion: integer("content_version").notNull(), accessVersion: integer("access_version").notNull(), approvalVersion: integer("approval_version").notNull(), consentVersion: integer("consent_version").notNull(),
+  model: text("model").notNull(), dimensions: integer("dimensions").notNull().default(1536), formatVersion: integer("format_version").notNull().default(1),
+  state: text("state").$type<import("@/lib/notes/knowledge.shared").KnowledgeJobState>().notNull().default("pending"), cursor: integer("cursor").notNull().default(0), totalChunks: integer("total_chunks"), manifestHash: text("manifest_hash"),
+  attempts: integer("attempts").notNull().default(0), errorCode: text("error_code"), leaseToken: text("lease_token"), leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  availableAt: timestamp("available_at", { withTimezone: true }).defaultNow().notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_index_jobs_identity_unique").on(table.id, table.allianceId, table.resourceId),
+  unique("knowledge_index_jobs_generation_unique").on(table.resourceId, table.contentVersion, table.accessVersion, table.approvalVersion, table.consentVersion, table.model, table.formatVersion),
+  foreignKey({ name: "knowledge_index_jobs_resource_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+  index("knowledge_index_jobs_claim_idx").on(table.state, table.availableAt),
+]);
+
+export const knowledgeAiUsage = pgTable("knowledge_ai_usage", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }), principalKey: text("principal_key").notNull(),
+  operation: text("operation").$type<"index" | "query" | "generate">().notNull(), inputChars: integer("input_chars").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [index("knowledge_ai_usage_principal_idx").on(table.principalKey, table.createdAt)]);
+
+export const knowledgePublications = pgTable("knowledge_publications", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull(), noteId: text("note_id").notNull(), resourceId: text("resource_id").notNull(), ownerHqUserId: text("owner_hq_user_id").notNull(),
+  sourceVersion: integer("source_version").notNull(), snapshotVersion: integer("snapshot_version").notNull(), version: integer("version").notNull().default(1),
+  title: text("title").notNull(), body: text("body").notNull(), locale: text("locale").notNull(), state: text("state").$type<"draft" | "published" | "revoked">().notNull().default("draft"),
+  tokenHash: text("token_hash"), tokenCipher: text("token_cipher"), expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(), publishedAt: timestamp("published_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_publications_snapshot_unique").on(table.resourceId, table.snapshotVersion), uniqueIndex("knowledge_publications_token_unique").on(table.tokenHash),
+  foreignKey({ name: "knowledge_publications_note_fk", columns: [table.noteId, table.allianceId, table.resourceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId, performanceNotes.resourceId] }).onDelete("restrict"),
+]);
+
+export const knowledgeGenerationJobs = pgTable("knowledge_generation_jobs", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull(), resourceId: text("resource_id").notNull(), requesterId: text("requester_id").notNull(), sessionId: text("session_id").notNull(),
+  kind: text("kind").$type<import("@/lib/notes/generation.shared").GenerationKind>().notNull(), locale: text("locale").notNull(), model: text("model").notNull(), question: text("question").notNull().default(""),
+  evidence: jsonb("evidence").$type<import("@/lib/notes/knowledge.shared").KnowledgeEvidence[]>().notNull(), inputIds: jsonb("input_ids").$type<string[]>().notNull(), context: jsonb("context").$type<Array<{ question: string; answer: string }>>().notNull().default([]),
+  review: jsonb("review").$type<import("@/lib/notes/generation.shared").GenerationReview>(),
+  parts: jsonb("parts").$type<import("@/lib/notes/generation.shared").GenerationPart[]>().notNull().default([]), state: text("state").$type<"pending" | "running" | "ready" | "accepted" | "cancelled" | "failed">().notNull().default("pending"),
+  version: integer("version").notNull().default(1), cursor: integer("cursor").notNull().default(0), attempts: integer("attempts").notNull().default(0), errorCode: text("error_code"), leaseToken: text("lease_token"), leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+  threadId: text("thread_id"), threadVersion: integer("thread_version"), noteId: text("note_id"),
+  availableAt: timestamp("available_at", { withTimezone: true }).defaultNow().notNull(), createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_generation_resource_unique").on(table.resourceId), unique("knowledge_generation_identity_unique").on(table.id, table.allianceId),
+  foreignKey({ name: "knowledge_generation_resource_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+  foreignKey({ name: "knowledge_generation_note_fk", columns: [table.noteId, table.allianceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId] }).onDelete("restrict"),
+]);
+export const knowledgeGeneratedDocuments = pgTable("knowledge_generated_documents", {
+  noteId: text("note_id").primaryKey(), allianceId: text("alliance_id").notNull(), jobId: text("job_id").notNull().unique(), kind: text("kind").notNull(), locale: text("locale").notNull(), evidence: jsonb("evidence").$type<import("@/lib/notes/knowledge.shared").KnowledgeEvidence[]>().notNull(),
+}, (table) => [foreignKey({ name: "knowledge_generated_document_note_fk", columns: [table.noteId, table.allianceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId] }).onDelete("restrict"), foreignKey({ name: "knowledge_generated_document_job_fk", columns: [table.jobId, table.allianceId], foreignColumns: [knowledgeGenerationJobs.id, knowledgeGenerationJobs.allianceId] }).onDelete("restrict")]);
+
+export const knowledgeCaptureDrafts = pgTable("knowledge_capture_drafts", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull(), resourceId: text("resource_id").notNull(),
+  source: text("source").$type<"web" | "discord">().notNull(),
+  sourceNoteId: text("source_note_id"), sourceVersion: integer("source_version"),
+  state: jsonb("state").$type<CaptureDraftState>(), stateHash: text("state_hash").notNull(),
+  status: text("status").$type<"open" | "committed">().notNull().default("open"),
+  noteId: text("note_id").references(() => performanceNotes.id, { onDelete: "restrict" }),
+  taskIds: jsonb("task_ids").$type<string[]>().notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [unique("knowledge_capture_drafts_resource_unique").on(table.resourceId),
+  foreignKey({ name: "knowledge_capture_drafts_resource_alliance_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
+  foreignKey({ name: "knowledge_capture_drafts_source_alliance_fk", columns: [table.sourceNoteId, table.allianceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId] }).onDelete("restrict"),
+  foreignKey({ name: "knowledge_capture_drafts_note_alliance_fk", columns: [table.noteId, table.allianceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId] }).onDelete("restrict"),
+  index("knowledge_capture_drafts_alliance_updated_idx").on(table.allianceId, table.updatedAt),
+]);
+
+export const knowledgeIntakePreferences = pgTable("knowledge_intake_preferences", {
+  principalKey: text("principal_key").primaryKey(), enabled: boolean("enabled").notNull().default(false),
+  version: integer("version").notNull().default(1), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const knowledgeIntakeAnalyses = pgTable("knowledge_intake_analyses", {
+  id: text("id").primaryKey(), allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  principalKey: text("principal_key").notNull(), requestHash: text("request_hash").notNull(),
+  state: text("state").$type<"pending" | "complete" | "failed">().notNull(),
+  result: jsonb("result").$type<IntakeResult>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, (table) => [index("knowledge_intake_analyses_rate_idx").on(table.principalKey, table.createdAt)]);
 
 export type PerformanceNote = typeof performanceNotes.$inferSelect;
 export type PerformanceNoteMember = typeof performanceNoteMembers.$inferSelect;

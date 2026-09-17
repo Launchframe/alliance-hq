@@ -30,6 +30,7 @@ export async function GET(_request: Request, { params }: Props) {
   const session = await getOfficerChatSessionForAlliance({
     sessionId: id,
     allianceId: context.allianceId,
+    actor: context.actor,
   });
   if (!session) {
     return NextResponse.json({ error: "Session not found." }, { status: 404 });
@@ -39,10 +40,12 @@ export async function GET(_request: Request, { params }: Props) {
     listOfficerChatMessages({
       sessionId: id,
       allianceId: context.allianceId,
+      actor: context.actor,
     }),
     listOfficerChatSessionImages({
       sessionId: id,
       allianceId: context.allianceId,
+      actor: context.actor,
     }),
   ]);
 

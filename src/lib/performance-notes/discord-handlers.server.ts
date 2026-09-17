@@ -6,6 +6,7 @@ import { createDiscordTranslator } from "@/lib/discord/i18n";
 import { decideNameMatch } from "@/lib/performance-notes/match.shared";
 import { splitCommanderNames } from "@/lib/performance-notes/names.shared";
 import type { PerformanceNotesPendingState } from "@/lib/performance-notes/pending-state";
+import type { KnowledgeActor } from "@/lib/notes/policy.shared";
 import {
   attachMembersToPerformanceNote,
   createPerformanceNote,
@@ -26,6 +27,8 @@ export type PerfDiscordComponents = Array<{
     style?: number;
     label?: string;
     custom_id: string;
+    options?: Array<{ label: string; value: string; default?: boolean }>;
+    placeholder?: string;
   }>;
 }>;
 
@@ -44,6 +47,8 @@ export type PerfInteractionResult =
       fieldLabel: string;
       paragraph?: boolean;
       maxLength?: number;
+      value?: string;
+      required?: boolean;
     };
 
 function yesNoButtons(
@@ -104,11 +109,11 @@ function noteUrl(locale: DiscordBotLocale, noteId: string): string {
   return buildDiscordBotAppUrl(locale, `/notes/${noteId}`);
 }
 
-async function officerGuard(input: {
+export async function officerGuard(input: {
   allianceId: string | null;
   discordUserId: string;
   locale: DiscordBotLocale;
-}): Promise<{ ok: true; allianceId: string } | { ok: false; result: PerfInteractionResult }> {
+}): Promise<{ ok: true; allianceId: string; actor: KnowledgeActor } | { ok: false; result: PerfInteractionResult }> {
   const t = createDiscordTranslator(input.locale);
   if (!input.allianceId) {
     return {
@@ -126,12 +131,14 @@ async function officerGuard(input: {
       result: { type: "message", content: t("performanceNotes.notOfficer") },
     };
   }
-  return { ok: true, allianceId: input.allianceId };
-}
-
-async function hqUserIdForDiscord(discordUserId: string): Promise<string | null> {
-  const link = await getDiscordHqLink(discordUserId);
-  return link?.hqUserId ?? null;
+  const link = await getDiscordHqLink(input.discordUserId);
+  return {
+    ok: true, allianceId: input.allianceId,
+    actor: {
+      kind: "discord", allianceId: input.allianceId, discordUserId: input.discordUserId,
+      hqUserId: link?.hqUserId ?? null, isOfficer: false, readableBoardIds: [], editableBoardIds: [],
+    },
+  };
 }
 
 function memberModal(t: ReturnType<typeof createDiscordTranslator>): PerfInteractionResult {
@@ -164,14 +171,15 @@ function reasonModal(
   };
 }
 
-function attachAskMessage(
+export function attachAskMessage(
   t: ReturnType<typeof createDiscordTranslator>,
   locale: DiscordBotLocale,
   noteId: string,
+  needsHqLink: boolean,
 ): PerfInteractionResult {
   return {
     type: "message",
-    content: t("performanceNotes.savedAskAttach", { url: noteUrl(locale, noteId) }),
+    content: [t("performanceNotes.savedAskAttach", { url: noteUrl(locale, noteId) }), needsHqLink ? t("performanceNotes.hqLinkHint") : ""].filter(Boolean).join("\n\n"),
     components: yesNoButtons(t, "note:attach:yes", "note:attach:no"),
   };
 }
@@ -281,6 +289,7 @@ export async function handlePerformanceNoteSlash(input: {
   discordUserId: string;
   locale: DiscordBotLocale;
   text: string | undefined;
+  interactionId?: string;
 }): Promise<PerfInteractionResult> {
   const gated = await officerGuard(input);
   if (!gated.ok) return gated.result;
@@ -289,21 +298,9 @@ export async function handlePerformanceNoteSlash(input: {
   if (!body) {
     return { type: "message", content: t("performanceNotes.emptyText") };
   }
-  const hqUserId = await hqUserIdForDiscord(input.discordUserId);
-  const noteId = await createPerformanceNote({
-    allianceId: gated.allianceId,
-    kind: "note",
-    intakeMode: "thought",
-    body,
-    source: "discord",
-    createdByDiscordUserId: input.discordUserId,
-    createdByHqUserId: hqUserId,
-  });
-  await saveDiscordBotPending(gated.allianceId, input.discordUserId, {
-    kind: "perf_note_attach",
-    noteId,
-  });
-  return attachAskMessage(t, input.locale, noteId);
+  if (!input.interactionId) return { type: "message", content: t("performanceNotes.review.unavailable") };
+  const { handleDiscordDraft } = await import("@/lib/notes/discord-drafts.server");
+  return handleDiscordDraft({ ...input, payload: { type: 2, id: input.interactionId, data: { name: "note", options: [{ name: "text", type: 3, value: body }] } } });
 }
 
 export async function handlePerformanceBatchSlash(input: {
@@ -377,7 +374,8 @@ export async function handlePerformanceNoteMemberModal(input: {
   }
   const note = await getPerformanceNoteForAlliance({
     noteId,
-    allianceId: gated.allianceId,
+    actor: gated.actor,
+    access: "edit",
   });
   if (!note) {
     await saveDiscordBotPending(gated.allianceId, input.discordUserId, null);
@@ -388,7 +386,7 @@ export async function handlePerformanceNoteMemberModal(input: {
   const decision = decideNameMatch(input.memberName, members, alliance?.tag);
   if (decision.action === "auto") {
     await attachMembersToPerformanceNote({
-      allianceId: gated.allianceId,
+      actor: gated.actor,
       noteId,
       members: [
         { ashedMemberId: decision.memberId, memberNameRaw: decision.memberName },
@@ -440,12 +438,17 @@ export async function handlePerformanceNotePick(input: {
   }
 
   if (pending.kind === "perf_note_clarify") {
+    const note = await getPerformanceNoteForAlliance({ noteId: pending.noteId, actor: gated.actor, access: "edit" });
+    if (!note) {
+      await saveDiscordBotPending(gated.allianceId, input.discordUserId, null);
+      return { type: "message", content: t("errors.nothingPending"), update: true };
+    }
     const candidate = pending.candidates[input.index];
     if (!candidate) {
       return { type: "message", content: t("errors.nothingPending"), update: true };
     }
     await attachMembersToPerformanceNote({
-      allianceId: gated.allianceId,
+      actor: gated.actor,
       noteId: pending.noteId,
       members: [
         { ashedMemberId: candidate.memberId, memberNameRaw: candidate.name },
@@ -524,22 +527,18 @@ export async function handlePerformanceReasonModal(input: {
     await saveDiscordBotPending(gated.allianceId, input.discordUserId, null);
     return { type: "message", content: t("performanceNotes.batchEmpty") };
   }
-  const hqUserId = await hqUserIdForDiscord(input.discordUserId);
   const kind =
     input.pending.command === "commend" ? "commendation" : "violation";
   const noteId = await createPerformanceNote({
-    allianceId: gated.allianceId,
+    actor: gated.actor,
     kind,
     intakeMode: "batch",
     body,
-    source: "discord",
-    createdByDiscordUserId: input.discordUserId,
-    createdByHqUserId: hqUserId,
   });
   const members = await loadAllianceMembersForBot(gated.allianceId);
   const nameById = new Map(members.map((member) => [member.id, member.current_name]));
   await attachMembersToPerformanceNote({
-    allianceId: gated.allianceId,
+    actor: gated.actor,
     noteId,
     members: input.pending.resolved.map((row) => ({
       ashedMemberId: row.memberId,
@@ -553,6 +552,6 @@ export async function handlePerformanceReasonModal(input: {
       : "performanceNotes.batchAckViolation";
   return {
     type: "message",
-    content: t(ackKey, { count: input.pending.resolved.length }),
+    content: [t(ackKey, { count: input.pending.resolved.length }), !gated.actor.hqUserId ? t("performanceNotes.hqLinkHint") : ""].filter(Boolean).join("\n\n"),
   };
 }

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getMemberRankAsOf: vi.fn(),
   memberIdsEligibleForPoolType: vi.fn(),
   resolvePoolGenerationForDate: vi.fn(),
+  getCurrentPoolGeneration: vi.fn(),
   listPoolEntriesInGeneration: vi.fn(),
   markPoolMemberSelectedForDate: vi.fn(),
   releasePoolSelectionForDate: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock("@/lib/trains/rank-history", () => ({
 
 vi.mock("@/lib/trains/pool", () => ({
   resolvePoolGenerationForDate: mocks.resolvePoolGenerationForDate,
+  getCurrentPoolGeneration: mocks.getCurrentPoolGeneration,
   listPoolEntriesInGeneration: mocks.listPoolEntriesInGeneration,
   markPoolMemberSelectedForDate: mocks.markPoolMemberSelectedForDate,
   releasePoolSelectionForDate: mocks.releasePoolSelectionForDate,
@@ -63,6 +65,7 @@ function mockGenerationPool(
   generation = 1,
 ) {
   mocks.resolvePoolGenerationForDate.mockResolvedValue(generation);
+  mocks.getCurrentPoolGeneration.mockResolvedValue(generation);
   mocks.listPoolEntriesInGeneration.mockImplementation(
     async (
       _allianceId: string,
@@ -89,6 +92,7 @@ describe("applyManualConductorDraft", () => {
     });
     mocks.ensureConductorPoolSeeded.mockResolvedValue(undefined);
     mocks.resolvePoolGenerationForDate.mockResolvedValue(1);
+    mocks.getCurrentPoolGeneration.mockResolvedValue(1);
     mocks.listPoolEntriesInGeneration.mockResolvedValue([]);
     mocks.markPoolMemberSelectedForDate.mockResolvedValue(true);
     mocks.releasePoolSelectionForDate.mockResolvedValue(undefined);
@@ -269,7 +273,51 @@ describe("applyManualConductorDraft", () => {
     );
   });
 
-  it("does not consume another slot when overriding a historical already-awarded member", async () => {
+  it("consumes the live R4 slot on first click when historically awarded", async () => {
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorMechanism: "r4_sequence",
+      vipMechanism: "conductor_pick",
+      paintTemplate: "r4_event_vip",
+      dayConfigId: "dc-1",
+    });
+    mocks.resolvePoolGenerationForDate.mockResolvedValue(1);
+    mocks.getCurrentPoolGeneration.mockResolvedValue(2);
+    mocks.listPoolEntriesInGeneration.mockImplementation(
+      async (
+        _allianceId: string,
+        _poolType: string,
+        generation: number,
+        options?: { unselectedOnly?: boolean },
+      ) => {
+        if (generation === 2) {
+          const ids = options?.unselectedOnly
+            ? ["m-boggle"]
+            : ["m-boggle", "m-bob"];
+          return ids.map((memberId) => ({ memberId }));
+        }
+        const ids = options?.unselectedOnly ? [] : ["m-boggle", "m-bob"];
+        return ids.map((memberId) => ({ memberId }));
+      },
+    );
+
+    await applyManualConductorDraft({
+      allianceId: "ally-1",
+      date: "2026-09-09",
+      memberId: "m-boggle",
+      memberName: "BOGGLE",
+    });
+
+    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conductorMemberId: "m-boggle",
+        poolClaim: "r4_plus",
+        poolClaimGeneration: 2,
+        conductorEligibilityOverridden: 0,
+      }),
+    );
+  });
+
+  it("does not consume another slot when the live generation has no open row", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
       conductorMechanism: "r3_lottery",
       vipMechanism: "conductor_pick",

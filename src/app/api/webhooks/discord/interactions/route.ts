@@ -30,6 +30,7 @@ import {
   discordComponentMessageResponse,
   discordDeferredChannelResponse,
   discordDeferredEphemeralResponse,
+  discordDeferredUpdateResponse,
   discordMessageResponse,
   discordModalResponse,
   interactionApplicationId,
@@ -215,7 +216,7 @@ function serializePerfInteraction(result: PerfInteractionResult) {
       fieldCustomId: result.fieldCustomId,
       fieldLabel: result.fieldLabel,
       paragraph: result.paragraph,
-      maxLength: result.maxLength,
+      maxLength: result.maxLength, value: result.value, required: result.required,
     });
   }
   const components = result.components as
@@ -998,6 +999,7 @@ async function handleSlashCommand(
       const text = parseSlashOptionString(payload, "text");
       return serializePerfInteraction(
         await handlePerformanceNoteSlash({
+          interactionId: payload.id,
           allianceId,
           discordUserId,
           locale,
@@ -1520,6 +1522,24 @@ export async function POST(request: Request) {
 
   if (payload.type === 1) {
     return NextResponse.json(DISCORD_PING_RESPONSE);
+  }
+  if (payload.type === 2 && payload.data?.name === "note" || (payload.type === 3 || payload.type === 5) && payload.data?.custom_id?.startsWith("note:draft:")) {
+    const { handleDiscordDraft, discordDraftNeedsModal } = await import("@/lib/notes/discord-drafts.server");
+    const run = async () => {
+      const context = await resolveInteractionContext(payload);
+      if (!context.discordUserId) return { type: "message" as const, content: createDiscordTranslator(context.locale)("errors.unknownUser") };
+      return handleDiscordDraft({ payload, allianceId: context.allianceId, discordUserId: context.discordUserId, locale: context.locale });
+    };
+    if (payload.type === 3 && discordDraftNeedsModal(payload.data?.custom_id)) return NextResponse.json(serializePerfInteraction(await run()));
+    const applicationId = interactionApplicationId(payload), token = interactionToken(payload);
+    if (!applicationId || !token) return NextResponse.json(discordMessageResponse(createDiscordTranslator("en-US")("performanceNotes.review.unavailable"), undefined, EPHEMERAL));
+    scheduleBackgroundTask(undefined, async () => {
+      try {
+        const result = await run();
+        if (result.type === "message") await editDiscordOriginalInteraction({ applicationId, interactionToken: token, content: result.content, components: result.components, ephemeral: true, suppressMentions: true });
+      } catch { console.error("[notes] Private Discord response delivery failed"); }
+    });
+    return NextResponse.json(payload.type === 2 ? discordDeferredEphemeralResponse() : discordDeferredUpdateResponse());
   }
   if (payload.type === 2 && payload.data?.name === "plunder-plan" || (payload.type === 3 || payload.type === 5) && payload.data?.custom_id?.startsWith("plunder:")) {
     if (payload.type === 3 && plunderComponentNeedsModal(payload.data?.custom_id)) return NextResponse.json(await openPlunderPlanModal(payload));

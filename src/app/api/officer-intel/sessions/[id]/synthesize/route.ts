@@ -3,6 +3,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { notesErrorResponse } from "@/lib/notes/access.server";
 
 import {
   getOfficerChatSessionForAlliance,
@@ -30,6 +31,7 @@ export async function POST(_request: Request, { params }: Props) {
   const chatSession = await getOfficerChatSessionForAlliance({
     sessionId: id,
     allianceId: context.allianceId,
+    actor: context.actor,
   });
   if (!chatSession) {
     return NextResponse.json({ error: "Session not found." }, { status: 404 });
@@ -42,12 +44,14 @@ export async function POST(_request: Request, { params }: Props) {
   }
 
   const result = await synthesizeOfficerMeetingNote({
+    actor: context.actor,
     sessionId: id,
     allianceId: context.allianceId,
     hqUserId: context.session.hqUserId ?? null,
     sessionTitle: chatSession.title,
     channelLabel: chatSession.channelLabel,
-  });
+  }).catch(notesErrorResponse);
+  if (result instanceof NextResponse) return result;
 
   if ("error" in result) {
     if (result.error === "not_configured") {
