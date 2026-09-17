@@ -3,12 +3,10 @@ import { notFound } from "next/navigation";
 
 import { NotesClient } from "@/components/notes/NotesClient";
 import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
-import { listCaptureDrafts } from "@/lib/notes/drafts.server";
-import { claimDiscordKnowledgeResources } from "@/lib/notes/resources.server";
-import {
-  listPerformanceNoteRoster,
-  listPerformanceNotes,
-} from "@/lib/performance-notes/repository.server";
+import { countCaptureDrafts } from "@/lib/notes/drafts.server";
+import { claimDiscordKnowledgeResources, KnowledgeAccessError } from "@/lib/notes/resources.server";
+import { loadWorkspaceQuery } from "@/lib/notes/preferences.server";
+import { getPerformanceNoteDto, listPerformanceNoteRoster, listPerformanceNotePage } from "@/lib/performance-notes/repository.server";
 import { requirePagePermission } from "@/lib/rbac/page-permission";
 import { requirePageSession } from "@/lib/session";
 
@@ -19,18 +17,18 @@ export async function generateMetadata() {
   return { title: t("title") };
 }
 
-export default async function NotesPage() {
+export default async function NotesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const session = await requirePageSession("/notes");
   await requirePagePermission(session.id, "notes:read");
   const actor = await getKnowledgeActorForSession(session.id);
   if (!actor) notFound();
   await claimDiscordKnowledgeResources(actor);
-
-  const [notes, roster, drafts] = await Promise.all([
-    listPerformanceNotes(actor),
-    listPerformanceNoteRoster(actor.allianceId),
-    listCaptureDrafts(actor),
+  const params = new URLSearchParams(Object.entries(await searchParams).flatMap(([key, value]) => value === undefined ? [] : [[key, Array.isArray(value) ? value[0] : value]]));
+  const { preferences, filter, cursor } = await loadWorkspaceQuery(actor, params).catch((error) => { if (error instanceof KnowledgeAccessError) notFound(); throw error; });
+  const [page, roster, drafts, focusedNote] = await Promise.all([
+    listPerformanceNotePage(actor, filter, cursor).catch((error) => { if (error instanceof KnowledgeAccessError) notFound(); throw error; }),
+    listPerformanceNoteRoster(actor.allianceId), countCaptureDrafts(actor),
+    params.get("note") ? getPerformanceNoteDto({ noteId: params.get("note")!, actor }) : null,
   ]);
-
-  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:list`} initial={{ notes, roster, canCreate: actor.canCreate, canReadBoards: actor.canReadBoards, draftCount: drafts.length }} />;
+  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:list`} initial={{ ...page, preferences, roster, canCreate: actor.canCreate, canReadBoards: actor.canReadBoards, draftCount: drafts }} focusedNote={focusedNote} />;
 }

@@ -1,6 +1,279 @@
 import { expect, test } from "@playwright/test";
-import { authCookieHeader, playwrightAuthCookies } from "./fixtures/db";
+import { authCookieHeader, playwrightAuthCookies, getE2eSql, createBrowserSession, createNativeAlliance, createAllianceMembership } from "./fixtures/db";
+import { nanoid } from "nanoid";
 import { createNotesFixture as fixture } from "./fixtures/notes";
+
+test("Notes visual smoke keeps localized light and dark layouts readable on desktop and mobile", async ({ page, request }, testInfo) => {
+  test.setTimeout(120_000);
+  const { author } = await fixture("officer"), headers = { Cookie: authCookieHeader(author) };
+  const post = async (url: string, data: unknown) => {
+    const response = await request.post(url, { headers, data });
+    expect(response.status(), await response.text()).toBe(200);
+    return response.json();
+  };
+  const { noteId } = await post("/api/notes", { title: "Reference note", body: "Groups setup and ready.", labels: ["ops"], priority: "high" });
+  const { note } = await (await request.get(`/api/notes/${noteId}`, { headers })).json();
+  await post("/api/notes/publications", { requestId: nanoid(), noteId, expectedVersion: note.version, title: "Reviewed snapshot", body: "Groups setup and ready.", locale: "en-US", days: 1 });
+  const { boardId } = await post("/api/notes/boards", { requestId: nanoid(), name: "Operations board" });
+  for (const [index, status] of ["open", "in_progress"].entries()) await post(`/api/notes/boards/${boardId}/commands`, { kind: "create", requestId: nanoid(), expectedVersion: index + 1, task: { title: index ? "First message" : "Review coverage", description: "Groups setup and ready.", status, labels: ["ops"] } });
+  await page.context().addCookies(playwrightAuthCookies(author));
+  for (const [locale, dark, width] of [["en-US", false, 1440], ["en-US", true, 390], ["pt-BR", false, 390], ["pt-BR", true, 1440]] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.emulateMedia({ colorScheme: dark ? "dark" : "light" });
+    const capture = async (surface: string) => {
+      await expect(page.locator("html")).toHaveClass(dark ? /(?:^|\s)dark(?:\s|$)/ : /(?:^|\s)light(?:\s|$)/);
+      await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: "instant" }));
+      const dimensions = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: window.innerWidth }));
+      expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport + 2);
+      await page.screenshot({ path: testInfo.outputPath(`${locale}-${dark ? "dark" : "light"}-${width}-${surface}.png`), fullPage: true });
+    };
+    await page.goto(`/${locale}/notes?view=notebook&layout=cards`);
+    const card = page.getByTestId("note-card");
+    await expect(card).toHaveCount(1);
+    await capture("notes");
+    const contrast = await card.evaluate((element) => {
+      const context = document.createElement("canvas").getContext("2d")!;
+      const luminance = (color: string) => {
+        context.fillStyle = color; context.fillRect(0, 0, 1, 1);
+        const rgb = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3).map((value) => { const channel = value / 255; return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4; });
+        return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+      };
+      const foreground = luminance(getComputedStyle(element.querySelector("h3")!).color), background = luminance(getComputedStyle(element).backgroundColor);
+      return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+    });
+    expect(contrast).toBeGreaterThanOrEqual(4.5);
+    await card.getByRole("button").first().click();
+    await expect(page.getByRole("dialog", { name: "Reference note", exact: true })).toBeVisible();
+    await capture("editor");
+    await page.keyboard.press("Escape");
+    await page.goto(`/${locale}/notes?view=boards&board=${boardId}`);
+    await expect(page.getByTestId("notes-shared-board").getByTestId("board-task")).toHaveCount(2);
+    await capture("board");
+    await page.goto(`/${locale}/notes?view=publications&publicationNote=${noteId}`);
+    await page.getByTestId("publication-history").getByRole("button", { name: /^Reviewed snapshot/ }).click();
+    await expect(page.getByTestId("publication-preview")).toBeVisible();
+    await capture("publication");
+  }
+});
+
+test("label and commander filters are exact, combined, scoped and restored from card actions", async ({ page, request }) => {
+  const { author, peer, cookie, ferg } = await fixture("officer");
+  const headers = { Cookie: authCookieHeader(author) };
+  const add = async (title: string, labels: string[], member: string, asPeer = false) => {
+    const response = await request.post("/api/notes", { headers: asPeer ? { Cookie: authCookieHeader(peer) } : headers, data: { title, body: "Raid planning appears in this prose", labels, memberIds: [member] } });
+    expect(response.status(), await response.text()).toBe(200);
+    return (await response.json()).noteId as string;
+  };
+  const matching = await add("Matching note", ["Raid planning"], cookie.ashedMemberId);
+  await add("Other label", ["Different"], cookie.ashedMemberId);
+  await add("Other commander", ["Raid planning"], ferg.ashedMemberId);
+  await add("Hidden peer note", ["Raid planning"], cookie.ashedMemberId, true);
+  const list = async (label: string, member = "") => (await (await request.get(`/api/notes?${new URLSearchParams({ format: "summary", label, member })}`, { headers })).json()).items;
+  expect(await list("Raid planning")).toHaveLength(2);
+  expect((await list("Raid planning", cookie.ashedMemberId)).map((note: { id: string }) => note.id)).toEqual([matching]);
+  expect(await list("Raid")).toHaveLength(0);
+  await page.context().addCookies(playwrightAuthCookies(author));
+  await page.goto("/notes");
+  const card = page.locator(`[data-note-id="${matching}"]`);
+  await card.getByRole("button", { name: "Raid planning", exact: true }).click();
+  await expect(page.getByTestId("note-card")).toHaveCount(2);
+  await card.getByRole("button", { name: "Cookie", exact: true }).click();
+  await expect(page.getByTestId("note-card")).toHaveCount(1);
+  await expect(page).toHaveURL((url) => url.searchParams.get("member") === cookie.ashedMemberId);
+  await page.reload();
+  await expect(page.getByTestId("note-card")).toHaveCount(1);
+  await expect(page.getByText("Hidden peer note", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Clear filters", exact: true }).click();
+  await expect(page.getByTestId("note-card")).toHaveCount(3);
+});
+
+test("workspace preferences are versioned and isolated by both account and alliance", async ({ request }) => {
+  const { author, peer, alliance } = await fixture("officer");
+  const sql = getE2eSql(), headers = { Cookie: authCookieHeader(author) }, peerHeaders = { Cookie: authCookieHeader(peer) };
+  expect((await request.get("/api/notes/preferences")).status()).toBe(401);
+  const bootstrap = await createBrowserSession(sql);
+  expect((await request.get("/api/notes/preferences", { headers: { Cookie: `alliance_hq_session=${bootstrap.sessionId}` } })).status()).toBe(403);
+  const initial = await (await request.get("/api/notes/preferences", { headers })).json();
+  expect(initial).toMatchObject({ version: 0, scope: `${alliance.allianceId}:${author.hqUserId}`, state: { view: "notebook", layout: "cards" } });
+  const input = { expectedScope: initial.scope, expectedVersion: 0, state: { ...initial.state, view: "inbox", layout: "list", q: "two words " } };
+  const saved = await request.put("/api/notes/preferences", { headers, data: input });
+  expect(saved.status(), await saved.text()).toBe(200);
+  expect((await saved.json()).version).toBe(1);
+  expect((await request.put("/api/notes/preferences", { headers, data: input })).status()).toBe(409);
+  expect((await request.put("/api/notes/preferences", { headers: peerHeaders, data: input })).status()).toBe(403);
+  expect((await request.put("/api/notes/preferences", { headers, data: { ...input, expectedVersion: 1, state: { ...input.state, body: "Must not store a note body" } } })).status()).toBe(400);
+  expect((await (await request.get("/api/notes/preferences", { headers: peerHeaders })).json()).state.view).toBe("notebook");
+  const crossed = await request.post("/api/notes", { headers: { ...peerHeaders, "X-Notes-Scope": initial.scope }, data: { body: "Must not cross accounts" } });
+  expect(crossed.status()).toBe(403);
+  expect((await (await request.get("/api/notes", { headers: peerHeaders })).json()).notes).toHaveLength(0);
+  const otherAlliance = await createNativeAlliance(sql, { tag: `PREF${nanoid(3)}`, name: "Other preference scope" });
+  await createAllianceMembership(sql, { allianceId: otherAlliance.allianceId, hqUserId: author.hqUserId, roleName: "officer", source: "manual" });
+  const otherSession = await createBrowserSession(sql);
+  await sql`UPDATE sessions SET hq_user_id = ${author.hqUserId}, current_alliance_id = ${otherAlliance.allianceId} WHERE id = ${otherSession.sessionId}`;
+  const otherHeaders = { Cookie: authCookieHeader({ ...author, sessionId: otherSession.sessionId }) };
+  const other = await (await request.get("/api/notes/preferences", { headers: otherHeaders })).json();
+  expect(other).toMatchObject({ version: 0, state: { view: "notebook" } });
+  expect((await request.put("/api/notes/preferences", { headers: otherHeaders, data: { ...input, expectedScope: other.scope, state: { ...other.state, view: "tasks" } } })).status()).toBe(200);
+  expect((await (await request.get("/api/notes/preferences", { headers })).json()).state.view).toBe("inbox");
+});
+
+test("restores scoped view filters across reload, back and forward, and retries preference saves", async ({ page, request }) => {
+  const { author } = await fixture();
+  const headers = { Cookie: authCookieHeader(author) };
+  await request.post("/api/notes", { headers, data: { title: "Alpha plan", body: "Alpha plan details" } });
+  const initial = await (await request.get("/api/notes/preferences", { headers })).json();
+  await request.put("/api/notes/preferences", { headers, data: { expectedScope: initial.scope, expectedVersion: 0, state: { ...initial.state, view: "inbox", layout: "list" } } });
+  await page.context().addCookies(playwrightAuthCookies(author));
+  await page.goto("/notes");
+  await expect(page.getByRole("button", { name: "List view", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page).toHaveURL(/view=inbox/);
+  const source = page.getByLabel("Source", { exact: true });
+  await source.selectOption("discord");
+  await expect(page).toHaveURL((url) => url.searchParams.get("source") === "discord");
+  await page.goBack();
+  await expect(page).toHaveURL((url) => url.searchParams.get("source") === "");
+  await expect(source).toHaveValue("");
+  await page.goForward();
+  await expect(source).toHaveValue("discord");
+  await source.selectOption("web");
+  const query = page.getByRole("searchbox");
+  await query.fill("Alpha"); await query.press("End"); await query.press("Space");
+  await expect(query).toHaveValue("Alpha ");
+  await query.pressSequentially("plan");
+  await page.goBack(); await expect(query).toHaveValue("");
+  await page.goForward(); await expect(query).toHaveValue("Alpha plan");
+  await expect.poll(async () => (await (await request.get("/api/notes/preferences", { headers })).json()).state.q).toBe("Alpha plan");
+  await page.reload();
+  await expect(query).toHaveValue("Alpha plan");
+  await expect(source).toHaveValue("web");
+  await page.route("**/api/notes/preferences", (route) => route.request().method() === "PUT" ? route.fulfill({ status: 503, json: {} }) : route.continue());
+  await page.getByRole("button", { name: "Card view", exact: true }).click();
+  await expect(page.getByText("Couldn’t save your view preferences. Your current view is unchanged.", { exact: true })).toBeVisible();
+  await page.unroute("**/api/notes/preferences");
+  await page.getByRole("button", { name: "Retry saving preferences", exact: true }).click();
+  await expect.poll(async () => (await (await request.get("/api/notes/preferences", { headers })).json()).state.layout).toBe("cards");
+});
+
+test("secondary views restore authorized URL state without implicit AI processing", async ({ page, request, browser }) => {
+  const { author, peer, alliance } = await fixture("officer");
+  const headers = { Cookie: authCookieHeader(author) };
+  const created = await request.post("/api/notes", { headers, data: { title: "Navigation evidence", body: "Authorized detailed words." } });
+  const { noteId } = await created.json();
+  await page.context().addCookies(playwrightAuthCookies(author));
+  await page.goto("/notes?view=search&searchQuery=Navigation&searchKind=note&searchRun=1");
+  await expect(page.getByTestId("notes-search").getByRole("heading", { name: "Navigation evidence", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId("notes-search").getByRole("heading", { name: "Navigation evidence", exact: true })).toBeVisible();
+  await page.goto(`/notes?${new URLSearchParams({ view: "knowledge", knowledge: `note:${noteId}`, knowledgeQuery: "Navigation", knowledgeSources: "1" })}`);
+  const knowledge = page.getByTestId("notes-knowledge");
+  await expect(knowledge.getByRole("heading", { name: "Navigation evidence", exact: true })).toBeVisible();
+  await expect(knowledge.locator("input[maxlength='200']")).toHaveValue("Navigation");
+  await expect(knowledge.getByRole("checkbox").last()).toBeChecked();
+  await page.goto("/notes?view=studio&studioKind=localize&studioSources=1");
+  await expect(page.getByTestId("notes-studio").getByRole("combobox")).toHaveValue("localize");
+  await page.goto(`/notes?${new URLSearchParams({ view: "publications", publicationNote: noteId, publicationQuery: "Navigation" })}`);
+  const publication = page.getByTestId("notes-publications");
+  await expect(publication.getByRole("textbox", { name: "Public text", exact: true })).toHaveValue("Authorized detailed words.");
+  await page.reload();
+  await expect(publication.getByRole("textbox", { name: "Public text", exact: true })).toHaveValue("Authorized detailed words.");
+  const other = await browser.newContext();
+  await other.addCookies(playwrightAuthCookies(peer));
+  const otherPage = await other.newPage();
+  await otherPage.goto(`/notes?${new URLSearchParams({ workspaceScope: `${alliance.allianceId}:${author.hqUserId}`, view: "search", q: "Private filter sentinel", searchQuery: "Private filter sentinel", searchRun: "1" })}`);
+  await expect(otherPage.getByTestId("notes-workspace").getByRole("searchbox")).toHaveValue("");
+  await expect(otherPage.getByText("Private filter sentinel", { exact: true })).toHaveCount(0);
+  await other.close();
+  const [usage] = await getE2eSql()`SELECT count(*)::integer AS count FROM knowledge_ai_usage WHERE principal_key = ${`hq:${author.hqUserId}`}`;
+  expect(usage.count).toBe(0);
+});
+
+test("browser navigation protects and resumes an uncommitted private capture", async ({ page, request }) => {
+  const { author } = await fixture();
+  const headers = { Cookie: authCookieHeader(author) };
+  await page.context().addCookies(playwrightAuthCookies(author));
+  await page.goto("/notes");
+  await page.getByRole("button", { name: "New note", exact: true }).first().click();
+  const note = page.getByRole("dialog", { name: "New note", exact: true });
+  await note.getByLabel("Note", { exact: true }).fill("Keep this private thought.");
+  await page.goBack();
+  const guard = page.getByRole("dialog", { name: "Discard unsaved changes?", exact: true });
+  await expect(guard).toBeVisible();
+  await guard.getByRole("button", { name: "Keep editing", exact: true }).click();
+  await expect(note.getByLabel("Note", { exact: true })).toHaveValue("Keep this private thought.");
+  await page.goBack();
+  await expect(guard).toBeVisible();
+  await guard.getByRole("button", { name: "Keep draft and close", exact: true }).click();
+  await expect(note).not.toBeVisible();
+  expect((await (await request.get("/api/notes", { headers })).json()).notes).toHaveLength(0);
+  expect((await (await request.get("/api/notes/tasks", { headers })).json()).tasks).toHaveLength(0);
+  await page.goForward();
+  await expect(note.getByLabel("Note", { exact: true })).toHaveValue("Keep this private thought.");
+  const stored = await page.evaluate(() => Object.values(localStorage).join(" "));
+  expect(stored).not.toContain("Keep this private thought.");
+});
+
+test("pages compact summaries without hiding older documents, counts, notebooks or publication sources", async ({ page, request }) => {
+  const { author, peer, alliance } = await fixture("officer");
+  const sql = getE2eSql(), headers = { Cookie: authCookieHeader(author) }, prefix = nanoid();
+  const fullBody = `${"Long private prose. ".repeat(60)}Hidden ending marker`;
+  const ids: string[] = [];
+  for (let index = 0; index < 52; index++) {
+    const id = `${prefix}_${String(index).padStart(3, "0")}`; ids.push(id);
+    await sql`INSERT INTO performance_notes (id, alliance_id, kind, intake_mode, source, created_by_hq_user_id, title, body, notebook, updated_at)
+      VALUES (${id}, ${alliance.allianceId}, 'note', 'thought', 'web', ${author.hqUserId}, ${`Paged note ${index}`}, ${fullBody}, ${index === 0 ? "Older notebook" : null}, '2026-09-16T01:02:03.123456Z'::timestamptz)`;
+  }
+  await request.post("/api/notes", { headers: { Cookie: authCookieHeader(peer) }, data: { title: "Peer private title", body: "Other officer private marker", notebook: "Peer private notebook" } });
+  const firstResponse = await request.get("/api/notes?format=summary", { headers });
+  expect(firstResponse.status(), await firstResponse.text()).toBe(200);
+  const first = await firstResponse.json();
+  expect(first.items).toHaveLength(50);
+  expect(first.counts).toMatchObject({ notebook: 52, inbox: 52, shared: 0 });
+  expect(first.notebooks).toEqual(["Older notebook"]);
+  expect(first.roster).toBeUndefined();
+  expect(first.items.every((item: Record<string, unknown>) => !("body" in item) && !("keyDecisions" in item) && !("intakeProvenance" in item))).toBe(true);
+  expect(JSON.stringify(first)).not.toMatch(/Hidden ending marker|Other officer private marker|Peer private notebook/);
+  const cursorUrl = `/api/notes?${new URLSearchParams({ format: "summary", cursor: first.nextCursor })}`;
+  const secondResponse = await request.get(cursorUrl, { headers });
+  expect(secondResponse.status(), await secondResponse.text()).toBe(200);
+  const second = await secondResponse.json();
+  expect(second.items.map((item: { id: string }) => item.id)).toEqual([ids[1], ids[0]]);
+  expect(second.nextCursor).toBeNull();
+  expect((await request.get(cursorUrl, { headers: { Cookie: authCookieHeader(peer) } })).status()).toBe(403);
+  expect((await request.get(`${cursorUrl}&priority=urgent`, { headers })).status()).toBe(400);
+  expect((await request.get("/api/notes?format=summary")).status()).toBe(401);
+  const search = await (await request.get("/api/notes?format=summary&q=Hidden%20ending%20marker&notebook=Older%20notebook", { headers })).json();
+  expect(search.items.map((item: { id: string }) => item.id)).toEqual([ids[0]]);
+  const html = await (await request.get("/notes", { headers })).text();
+  expect(html).not.toContain("Hidden ending marker");
+  expect(html).not.toContain("Other officer private marker");
+  await page.context().addCookies(playwrightAuthCookies(author));
+  await page.goto("/notes");
+  await expect(page.getByTestId("note-card")).toHaveCount(50);
+  await expect(page.getByRole("button", { name: "Older notebook", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await expect(page.getByTestId("note-card")).toHaveCount(2);
+  const oldest = page.getByTestId("note-card").filter({ hasText: "Paged note 0" });
+  await oldest.getByRole("button").first().click();
+  const editor = page.getByRole("dialog");
+  await expect(editor).toContainText("Hidden ending marker");
+  await editor.getByRole("button", { name: "Write", exact: true }).click();
+  await expect(editor.getByLabel("Note", { exact: true })).toHaveValue(fullBody);
+  await editor.getByLabel("Note", { exact: true }).fill(`${fullBody} Reviewed.`);
+  await editor.getByRole("button", { name: "Save note", exact: true }).click();
+  await expect(editor).not.toBeVisible();
+  expect((await (await request.get(`/api/notes/${ids[0]}`, { headers })).json()).note.body).toBe(`${fullBody} Reviewed.`);
+  await page.goto(`/notes/${ids[1]}`);
+  await expect(page.getByRole("dialog")).toContainText("Hidden ending marker");
+  await page.goto("/notes?view=publications");
+  const publication = page.getByTestId("notes-publications");
+  await publication.getByRole("button", { name: "Next page", exact: true }).click();
+  const selectedResponse = page.waitForResponse((response) => new URL(response.url()).pathname === `/api/notes/${ids[1]}`);
+  await publication.getByLabel("Source note", { exact: true }).selectOption({ label: "Paged note 1" });
+  const selectedNote = await selectedResponse;
+  expect(selectedNote.status(), await selectedNote.text()).toBe(200);
+  expect((await selectedNote.json()).scope).toBe(first.scope);
+  await expect(publication.getByRole("textbox", { name: "Public text", exact: true })).toHaveValue(fullBody);
+});
 
 test("captures and edits notes with stable manual member exclusions and nullable priority", async ({ page }) => {
   const { author, cookie, ferg } = await fixture();
@@ -83,6 +356,28 @@ test("shares current content without private organization or history and honors 
   await expect(preview).not.toBeVisible();
   await expect(reader.getByTestId("note-card")).toHaveCount(0);
   await peerContext.close();
+});
+
+test("keeps an authorized draft when its note is outside the refreshed list window", async ({ page }) => {
+  const { author } = await fixture();
+  await page.context().addCookies(playwrightAuthCookies(author));
+  const created = await page.request.post("/api/notes", { data: { title: "Windowed note", body: "Original text" } });
+  expect(created.status()).toBe(200);
+  const { noteId } = await created.json();
+  const listing = await (await page.request.get("/api/notes?format=summary")).json();
+  await page.goto(`/notes/${noteId}`);
+  const editor = page.getByRole("dialog");
+  await editor.getByRole("button", { name: "Write", exact: true }).click();
+  await editor.locator("textarea").first().fill("Unsaved authorized correction");
+  expect(listing.items).toHaveLength(1);
+  let intercepted = 0;
+  await page.route((url) => url.pathname === "/api/notes" && url.searchParams.get("format") === "summary", (route) => { intercepted++; return route.fulfill({ json: { ...listing, items: [] } }); });
+  const checked = page.waitForResponse((response) => new URL(response.url()).pathname === `/api/notes/${noteId}` && response.request().method() === "GET");
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect.poll(() => intercepted).toBeGreaterThan(0);
+  expect((await checked).status()).toBe(200);
+  await expect(editor).toBeVisible();
+  await expect(editor.locator("textarea").first()).toHaveValue("Unsaved authorized correction");
 });
 
 test("keeps stale edits from overwriting a saved note and rejects cross-alliance member associations atomically", async ({ request }) => {

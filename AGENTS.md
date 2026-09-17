@@ -164,6 +164,25 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 
 ## Learned Workspace Facts
 
+- A Notes editor missing from a refreshed list must reauthorize its saved note through the detail API. List-window absence alone must not discard an authorized draft, but confirmed denial must clear the inaccessible editor.
+- Internal history-worker membership denial must still reach lease-fenced cancellation under the resource/job locks; returning early before locking leaves revoked imports stuck running. Denial never permits source output publication.
+- Professions browser fixtures need a claimed commander (`hq_user_commanders`) with active alliance membership, not just an authenticated officer session. The officer deep link must fetch its initial data without requiring a tab click.
+- History discovery cursors retain database microseconds and a stable ID tie-breaker. Bind timestamp strings as `::text::timestamptz`; postgres.js otherwise serializes a timestamp-typed parameter through JavaScript Date and loses precision. Cursors are scope-bound pagination metadata, never access grants.
+- OCR can recognize useful text even when noisy sender headers do not parse. Stage bounded, redacted, unattributed text for review instead of rejecting it as empty or guessing an author.
+- Notes workspace reads use `format=summary`; never hand a summary/excerpt to the full-document editor or publication preview. Fetch the authorized detail first. Legacy reads retain bounded full-document semantics, and whole-library counts/notebooks are independent of the page.
+- A scheduled list refresh must not cancel an explicit page navigation. Reuse the server-rendered initial page and cancel pending debounce work when the user requests a page.
+- Notes preferences are private, versioned, and keyed by HQ user plus alliance. URL state overrides saved defaults; foreign scope markers discard personal filters/cursors before rendering. Bodies, AI prompts, and resource focus IDs never belong in persisted view preferences.
+- Notes components use the guarded navigation context, not raw router parameters, so browser Back cannot unmount dirty editors before confirmation. Each editor declares the URL keys that actually replace its content; nested task dialogs do not discard the parent note.
+- When using Next's patched native history methods, pass only custom state. Copying `__NA` into the payload makes Next treat the write as its own and skip router URL synchronization.
+- `X-Notes-Scope` fences requests from stale account/alliance views before mutations or ownership claims. It is optional for legacy clients and is never an authorization grant; Auth.js binding, RBAC, and knowledge-resource predicates remain mandatory.
+- Draft/task/review/revision/publication catalogs use scope- and query-bound pages. Revision/publication history lists contain metadata only; selected detail loads are owner-authorized. Do not decrypt every publication token or fetch every archived snapshot body just to list versions.
+- Task list status/label filters run before pagination. Opening an excerpt requires the complete authorized task; a filtered-out saved task is reauthorized independently so list-window changes do not discard an accessible editor.
+- Linked task controls can be nested in a note form. Their buttons must use `type="button"`; only the note's explicit Save control submits that form.
+- Board snapshot people reads must use the existing transaction (`listKnowledgePeople(actor, true, tx)`). Borrowing another global-pool connection while holding each snapshot transaction can exhaust all five application connections and stall otherwise unrelated requests.
+- Read board placement IDs before projecting tasks, and pass those IDs into the task query while retaining board/resource authorization. A broad correlated board predicate alone can produce a nested-loop plan that repeatedly joins the entire personal task/note library even for a single board card.
+- Modern board snapshots and conflict responses use `format=summary`; full task descriptions are fetched only for the selected editor or explicit sharing preview. Board label filters do not change canonical card placement or task state.
+- Exact Notes label/member filters run alongside resource authorization and before pagination. Keep the old cursor fingerprint when both new filters are empty so existing unfiltered page links remain valid.
+
 - Plunder Plan database suites: run `npx vitest run src/lib/plunder-plan --maxWorkers=1` with `PLUNDER_PLAN_DB_TEST=1` only after binding all three database URLs to the same guarded dedicated test database. Delivery tests mock Discord; never invoke live command registration or the authenticated delivery tick as an automated smoke test. Worktrees do not isolate the database.
 
 - Migration renumbering after `0004` is SQL file rename plus `_journal.json` update (Drizzle snapshots only cover `0000`–`0004`).

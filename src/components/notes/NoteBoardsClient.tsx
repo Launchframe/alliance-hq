@@ -3,63 +3,58 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRegisterPageHotkeys } from "@/components/hotkeys/HotkeyProvider";
 import { useTranslations } from "next-intl";
-import { useSearchParams } from "next/navigation";
-import type { NoteBoardSnapshot, NoteBoardSummary } from "@/lib/notes/board.shared";
+import { useNotesSearchParams, useNotesNavigation, useNotesFetch, useNotesDirtyState } from "./NotesNavigation";
+import type { NoteBoardViewSnapshot, NoteBoardSummary } from "@/lib/notes/board.shared";
 import { NoteTaskBoard } from "./NoteTaskBoard";
-import { notesWorkspaceLocation } from "@/lib/notes/workspace.shared";
 
 export function NoteBoardsClient() {
   const t = useTranslations("notes");
-  const params = useSearchParams();
+  const params = useNotesSearchParams(), navigation = useNotesNavigation(), fetchNotes = useNotesFetch();
   const [boards, setBoards] = useState<NoteBoardSummary[]>([]);
-  const [selected, setSelected] = useState(params.get("board") ?? "");
-  const [snapshot, setSnapshot] = useState<NoteBoardSnapshot | null>(null);
+  const selected = params.get("board") ?? "";
+  const [snapshot, setSnapshot] = useState<NoteBoardViewSnapshot | null>(null);
   const [canWrite, setCanWrite] = useState(false);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
-  const revoke = useCallback(() => { setSnapshot(null); setBoards([]); setCanWrite(false); setSelected(""); setError(t("errors.forbidden")); }, [t]);
+  useNotesDirtyState({ dirty: creating && !!name.trim(), busy: pending, keys: ["pathname", "view"], discard: () => { setCreating(false); setName(""); } });
+  const revoke = useCallback(() => { setSnapshot(null); setBoards([]); setCanWrite(false); navigation.store.reset(); navigation.change({ board: null, task: null }, true, true); setError(t("errors.forbidden")); }, [t, navigation]);
   const hotkeys = useMemo(() => ({ "notes.newBoard": () => { if (canWrite) setCreating(true); } }), [canWrite]);
   useRegisterPageHotkeys(hotkeys, !creating);
   useEffect(() => {
-    const pop = () => { setSelected(new URLSearchParams(window.location.search).get("board") ?? ""); setSnapshot(null); };
-    window.addEventListener("popstate", pop);
-    return () => window.removeEventListener("popstate", pop);
-  }, []);
-  useEffect(() => {
     const controller = new AbortController();
-    void fetch("/api/notes/boards", { cache: "no-store", signal: controller.signal }).then(async (response) => {
+    void fetchNotes("/api/notes/boards", { cache: "no-store", signal: controller.signal }).then(async (response) => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? t("loadFailed"));
       if (!controller.signal.aborted) { setBoards(data.boards); setCanWrite(data.canWrite); }
     }).catch((failure) => { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : t("loadFailed")); });
     return () => controller.abort();
-  }, [t]);
+  }, [t, fetchNotes]);
   useEffect(() => {
     if (!selected) return;
     const controller = new AbortController();
-    void fetch(`/api/notes/boards/${selected}`, { cache: "no-store", signal: controller.signal }).then(async (response) => {
+    void fetchNotes(`/api/notes/boards/${selected}?format=summary`, { cache: "no-store", signal: controller.signal }).then(async (response) => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? t("loadFailed"));
       if (!controller.signal.aborted) setSnapshot(data);
     }).catch((failure) => { if (!controller.signal.aborted) { setSnapshot(null); setError(failure instanceof Error ? failure.message : t("loadFailed")); } });
     return () => controller.abort();
-  }, [selected, t]);
-  function select(id: string) {
-    setSelected(id); setSnapshot(null); setError(null);
-    window.history.pushState(null, "", notesWorkspaceLocation(window.location.pathname, window.location.search, { view: "boards", board: id || null, task: null }));
+  }, [selected, t, fetchNotes]);
+  function select(id: string, committed = false) {
+    setError(null);
+    navigation.change({ view: "boards", board: id || null, task: null }, false, committed);
   }
   async function create() {
     if (pending || !name.trim()) return;
     setPending(true); setError(null);
     try {
-      const response = await fetch("/api/notes/boards", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, requestId }) });
+      const response = await fetchNotes("/api/notes/boards", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, requestId }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? t("saveFailed"));
       setBoards((current) => [...current, { id: data.boardId, name, version: data.version }]);
-      setCreating(false); setName(""); setRequestId(crypto.randomUUID()); select(data.boardId);
+      setCreating(false); setName(""); setRequestId(crypto.randomUUID()); select(data.boardId, true);
     } catch (failure) { setError(failure instanceof Error ? failure.message : t("saveFailed")); }
     finally { setPending(false); }
   }

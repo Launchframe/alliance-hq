@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { createPerformanceNoteInTransaction, getPerformanceNoteForAlliance, updatePerformanceNoteInTransaction } from "@/lib/performance-notes/repository.server";
 import type { KnowledgeActor } from "./policy.shared";
@@ -10,6 +10,8 @@ import { draftStateSchema, reviewedDraftTasks, type CaptureDraft, type CaptureDr
 import { createNoteTaskInTransaction } from "./tasks.server";
 import { noteFieldsSchema, noteTitle } from "./workspace.shared";
 import { redactIntakeText } from "./intake.shared";
+import { resourcePaging, resourcePage, timePageBoundary } from "./pagination.server";
+import { KNOWLEDGE_PAGE_SIZE } from "./pagination.shared";
 
 const drafts = schema.knowledgeCaptureDrafts;
 function visibleDraft(actor: KnowledgeActor) {
@@ -23,10 +25,19 @@ export async function getCaptureDraft(actor: KnowledgeActor, id: string): Promis
   if (!row) throw new KnowledgeAccessError("not_found");
   return draftDto(row.draft, row.version);
 }
-export async function listCaptureDrafts(actor: KnowledgeActor) {
-  const rows = await getDb().select({ id: drafts.id, source: drafts.source, updatedAt: drafts.updatedAt, state: drafts.state }).from(drafts)
-    .where(and(visibleDraft(actor), eq(drafts.status, "open"))).orderBy(desc(drafts.updatedAt)).limit(50);
-  return rows.map((row) => ({ id: row.id, source: row.source, title: row.state ? noteTitle(row.state.fields) : "", updatedAt: row.updatedAt.toISOString() }));
+export async function countCaptureDrafts(actor: KnowledgeActor): Promise<number> {
+  const [row] = await getDb().select({ total: sql<number>`count(*)` }).from(drafts).where(and(visibleDraft(actor), eq(drafts.status, "open")));
+  return Number(row.total);
+}
+export async function listCaptureDrafts(actor: KnowledgeActor, cursor: string | null = null) {
+  const page = resourcePaging(actor, ["capture-drafts"], cursor);
+  const rows = await getDb().select({ id: drafts.id, source: drafts.source, updatedAt: drafts.updatedAt,
+    title: sql<string>`left(coalesce(${drafts.state}->'fields'->>'title', ''), 160)`, body: sql<string>`left(coalesce(${drafts.state}->'fields'->>'body', ''), 240)`,
+    cursorTime: sql<string>`to_char(${drafts.updatedAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')` }).from(drafts)
+    .where(and(visibleDraft(actor), eq(drafts.status, "open"), timePageBoundary(page, drafts.updatedAt, drafts.id)))
+    .orderBy(page.order(drafts.updatedAt), page.order(drafts.id)).limit(KNOWLEDGE_PAGE_SIZE + 1);
+  const result = resourcePage(rows, page, (row) => ({ id: row.id, position: row.cursorTime }));
+  return { ...result, items: result.items.map((row) => ({ id: row.id, source: row.source, title: redactIntakeText(noteTitle(row)), updatedAt: row.updatedAt.toISOString() })) };
 }
 export async function discardCaptureDraft(actor: KnowledgeActor, id: string) {
   await getDb().transaction(async (tx) => {

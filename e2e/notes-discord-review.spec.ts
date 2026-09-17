@@ -42,7 +42,7 @@ async function send(request: APIRequestContext, f: Awaited<ReturnType<typeof fix
   expect(response.status()).toBe(200);
   const ack = await response.json();
   if (ack.type === 9) return { ack, reply: null as Reply | null };
-  expect(ack).toMatchObject({ type: 5, data: { flags: 64 } });
+  expect(ack).toMatchObject(type === 2 ? { type: 5, data: { flags: 64 } } : { type: 6 });
   await expect.poll(() => replies.has(token), { timeout: 15_000 }).toBe(true);
   return { ack, reply: replies.get(token)! as Reply | null };
 }

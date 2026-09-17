@@ -12,6 +12,8 @@ import { knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, 
 import { recheckKnowledgeReader } from "./knowledge-access.server";
 import { withKnowledgeReceipt } from "./mutations.server";
 import { publicSnapshotText, type Publication, publicationPreviewSchema, publicationCommandSchema } from "./publications.shared";
+import { resourcePaging, resourcePage } from "./pagination.server";
+import { KNOWLEDGE_PAGE_SIZE } from "./pagination.shared";
 
 const publications = schema.knowledgePublications, resources = schema.knowledgeResources;
 const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -42,6 +44,16 @@ export async function listPublications(actor: KnowledgeWebActor, noteId: string)
   if (!note) throw new KnowledgeAccessError("not_found");
   const rows = await getDb().select().from(publications).where(and(eq(publications.noteId, noteId), eq(publications.allianceId, actor.allianceId))).orderBy(desc(publications.snapshotVersion)).limit(50);
   return rows.map((row) => dto(row, actor));
+}
+export async function listPublicationPage(actor: KnowledgeWebActor, noteId: string, cursor: string | null = null) {
+  if (!await getPerformanceNoteForAlliance({ actor, noteId, access: "share" })) throw new KnowledgeAccessError("not_found");
+  const page = resourcePaging(actor, ["publications", noteId], cursor), p = publications;
+  if (page.cursor && typeof page.cursor.position !== "number") throw new KnowledgeAccessError("invalid");
+  const rows = await getDb().select({ id: p.id, noteId: p.noteId, state: p.state, version: p.version, snapshotVersion: p.snapshotVersion, title: p.title, locale: p.locale, expiresAt: p.expiresAt })
+    .from(p).where(and(eq(p.noteId, noteId), eq(p.allianceId, actor.allianceId), page.cursor ? sql`${p.snapshotVersion} ${page.comparison} ${page.cursor.position}` : undefined))
+    .orderBy(page.order(p.snapshotVersion)).limit(KNOWLEDGE_PAGE_SIZE + 1);
+  const result = resourcePage(rows, page, (row) => ({ id: row.id, position: row.snapshotVersion }));
+  return { ...result, items: result.items.map((row) => ({ ...row, expiresAt: row.expiresAt.toISOString() })) };
 }
 export async function preparePublication(actor: KnowledgeWebActor, input: z.infer<typeof publicationPreviewSchema>) {
   const note = await getPerformanceNoteForAlliance({ actor, noteId: input.noteId, access: "share" });

@@ -1149,6 +1149,13 @@
       "when": 1790900000175,
       "tag": "0175_ocr_worker_control",
       "breakpoints": false
+    },
+    {
+      "idx": 164,
+      "version": "7",
+      "when": 1790900000176,
+      "tag": "0176_notes_workspace_preferences",
+      "breakpoints": false
     }
   ]
 }

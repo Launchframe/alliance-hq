@@ -1,7 +1,7 @@
 import { historyApi, historyJson } from "@/lib/notes/import-api.server";
-import { historyInitSchema } from "@/lib/notes/imports.shared";
+import { historyInitSchema, parseHistoryListCursor } from "@/lib/notes/imports.shared";
 import { initializeHistoryImport, listHistoryImports } from "@/lib/notes/imports.server";
 
 export const dynamic = "force-dynamic";
-export const GET = () => historyApi("notes:read", async (actor) => ({ scope: `${actor.allianceId}:${actor.hqUserId}`, imports: await listHistoryImports(actor) }));
+export const GET = (request: Request) => historyApi("notes:read", async (actor) => listHistoryImports(actor, parseHistoryListCursor(new URL(request.url).searchParams.get("cursor"))));
 export const POST = (request: Request) => historyApi("notes:create", async (actor) => initializeHistoryImport(actor, historyInitSchema.parse(await historyJson(request))));

@@ -27,13 +27,13 @@ async function lockJob(tx: KnowledgeTransaction, id: string, skipLocked = false)
   if (!initial) return null;
   const [record] = await tx.select().from(imports).where(and(eq(imports.id, initial.importId), eq(imports.allianceId, initial.allianceId)));
   if (!record) return null;
-  if (!await historyMemberMayProcess(tx, initial)) return null;
+  const memberAllowed = !!await historyMemberMayProcess(tx, initial);
   const [resource] = await tx.select().from(schema.knowledgeResources).where(and(eq(schema.knowledgeResources.id, record.resourceId), eq(schema.knowledgeResources.allianceId, record.allianceId))).for("update", skipLocked ? { skipLocked: true } : {});
   if (!resource) return null;
   const [job] = await tx.select().from(jobs).where(eq(jobs.id, id)).for("update");
   if (job.ownerHqUserId !== initial.ownerHqUserId) return null;
   const [current] = await tx.select().from(imports).where(eq(imports.id, record.id));
-  return { resource, record: current, job };
+  return { resource, record: current, job, memberAllowed };
 }
 async function stopJob(tx: KnowledgeTransaction, job: HistoryJob, state: "cancelled" | "failed", errorCode: string) {
   await tx.update(jobs).set({ state, errorCode, leaseToken: null, leaseExpiresAt: null, updatedAt: new Date() }).where(eq(jobs.id, job.id));
@@ -48,7 +48,7 @@ export async function claimHistoryJob(importId?: string): Promise<HistoryJob | n
       if (!held) return null;
       const { job, resource, record } = held;
       if (job.availableAt > new Date() || !["pending", "running"].includes(job.state) || job.state === "running" && job.leaseExpiresAt && job.leaseExpiresAt > new Date()) return null;
-      if (!["queued", "processing"].includes(record.state) || !await authority(tx, job, resource)) { await stopJob(tx, job, "cancelled", "access_changed"); return null; }
+      if (!held.memberAllowed || !["queued", "processing"].includes(record.state) || !await authority(tx, job, resource)) { await stopJob(tx, job, "cancelled", "access_changed"); return null; }
       if (job.attempts >= 3) { await stopJob(tx, job, "failed", "attempt_limit"); return null; }
       const [lease] = await tx.update(jobs).set({ state: "running", leaseToken: nanoid(), leaseExpiresAt: new Date(Date.now() + HISTORY_LEASE_MS), attempts: job.attempts + 1, updatedAt: new Date() }).where(eq(jobs.id, job.id)).returning();
       await tx.update(imports).set({ state: "processing", updatedAt: new Date() }).where(eq(imports.id, record.id));
@@ -65,7 +65,7 @@ export async function completeHistoryStep(lease: HistoryJob, proposed: HistoryMe
     if (!held) return false;
     const { job, resource, record } = held;
     if (job.state !== "running" || job.leaseToken !== lease.leaseToken || !job.leaseExpiresAt || job.leaseExpiresAt <= new Date()) return false;
-    if (record.state !== "processing" || !await authority(tx, job, resource)) { await stopJob(tx, job, "cancelled", "access_changed"); return false; }
+    if (!held.memberAllowed || record.state !== "processing" || !await authority(tx, job, resource)) { await stopJob(tx, job, "cancelled", "access_changed"); return false; }
     const existing = await tx.select({ id: schema.officerChatMessages.id }).from(schema.officerChatMessages).where(and(eq(schema.officerChatMessages.sessionId, job.importId), eq(schema.officerChatMessages.allianceId, job.allianceId))).limit(HISTORY_MESSAGE_LIMIT + 1);
     if (existing.length + rows.length > HISTORY_MESSAGE_LIMIT) throw new KnowledgeAccessError("invalid");
     for (let offset = 0; offset < rows.length; offset += 100) {
@@ -90,7 +90,7 @@ export async function failHistoryStep(lease: HistoryJob) {
     const held = await lockJob(tx, lease.id);
     if (!held || held.job.state !== "running" || held.job.leaseToken !== lease.leaseToken || !held.job.leaseExpiresAt || held.job.leaseExpiresAt <= new Date()) return;
     const { job, resource } = held;
-    if (!await authority(tx, job, resource)) return stopJob(tx, job, "cancelled", "access_changed");
+    if (!held.memberAllowed || !await authority(tx, job, resource)) return stopJob(tx, job, "cancelled", "access_changed");
     if (job.attempts >= 3) return stopJob(tx, job, "failed", "processing_failed");
     await tx.update(jobs).set({ state: "pending", errorCode: "processing_failed", leaseToken: null, leaseExpiresAt: null, availableAt: new Date(Date.now() + 5_000 * job.attempts), updatedAt: new Date() }).where(eq(jobs.id, job.id));
     await tx.update(imports).set({ state: "queued", updatedAt: new Date() }).where(eq(imports.id, job.importId));

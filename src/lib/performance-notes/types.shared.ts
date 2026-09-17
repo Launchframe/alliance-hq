@@ -55,6 +55,24 @@ export type PerformanceNoteRosterMember = {
   previousNames?: string[];
 };
 
+export type PerformanceNoteSummary = Pick<PerformanceNoteDto, "id" | "kind" | "title" | "priority" | "labels" | "notebook" | "inbox" | "archived" | "source" | "createdAt" | "updatedAt" | "version" | "canEdit" | "isOwner" | "shared" | "members"> & { excerpt: string };
+export type NotesListPage = {
+  scope: string;
+  items: PerformanceNoteSummary[];
+  nextCursor: string | null;
+  previousCursor: string | null;
+  filter: import("@/lib/notes/workspace.shared").NoteListFilter;
+  counts: Record<"notebook" | "inbox" | "shared" | "archived", number>;
+  notebooks: string[];
+};
+export type NotesWorkspacePayload = NotesListPage & {
+  preferences: import("@/lib/notes/workspace.shared").WorkspacePreferences;
+  roster: PerformanceNoteRosterMember[];
+  canCreate: boolean;
+  canReadBoards: boolean;
+  draftCount: number;
+};
+
 export type PerformanceNotesPagePayload = {
   notes: PerformanceNoteDto[];
   roster: PerformanceNoteRosterMember[];
