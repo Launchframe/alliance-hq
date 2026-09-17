@@ -13,6 +13,16 @@ const picomatch = createRequire(import.meta.url)("next/dist/compiled/picomatch")
 const includesFor = (route) => new Set(Object.entries(videoOcrFileTracingIncludes).flatMap(([pattern, includes]) => picomatch(pattern, { dot: true, contains: true })(route) ? includes : []));
 
 describe("video OCR tracing — Phase 2a queue slim", () => {
+  it("isolates history OCR workers from history listing and review routes", () => {
+    for (const route of ["/api/internal/notes/process", "/api/notes/imports/[id]/process"]) {
+      expect(videoOcrTracedRoutes[route]).toBeDefined();
+      expect(functionTraceBudgets.find((row) => row.route === route)?.requireWorkerScript).toBe(true);
+    }
+    for (const route of ["/api/notes/imports", "/api/notes/imports/[id]"]) {
+      expect(videoOcrTracedRoutes[route]).toBeUndefined();
+      expect(functionTraceBudgets.find((row) => row.route === route)?.forbidPathSubstrings).toContain("tesseract.js/src");
+    }
+  });
   it("does not force OCR natives onto the queue cron route", () => {
     expect(videoOcrTracedRoutes["/api/internal/video-process/queue"]).toBeUndefined();
     expect(videoOcrTracedRoutes["/api/internal/video-process/[jobId]"]).toBeDefined();

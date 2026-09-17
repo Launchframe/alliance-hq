@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 
 import {
   countActiveRemindersForUser,
@@ -28,6 +29,7 @@ export async function GET() {
   const count = await countActiveRemindersForUser({
     hqUserId: session.hqUserId,
     principalHqUserId: ctx.hqUserId,
+    notesActor: await getKnowledgeActorForSession(session.id),
     allianceId,
     permissions: ctx.permissions,
   });

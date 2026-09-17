@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   return withOcrAdmin(async (actor) => {
     const body = await readOcrJson(request);
-    const dataset = await freezeDataset(body as Parameters<typeof freezeDataset>[0], actor);
+    const dataset = await freezeDataset({ ...body, allianceId: ocrScope(request) } as Parameters<typeof freezeDataset>[0], actor);
     return NextResponse.json({ id: dataset.id, manifestHash: dataset.manifestHash, caseCount: dataset.manifest.entries.length }, { status: 201 });
   });
 }

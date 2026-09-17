@@ -37,9 +37,12 @@ def verify_frame(root: Path, frame: Frame) -> Path:
             digest.update(chunk)
     if digest.hexdigest() != frame.sha256:
         raise ValueError("frame_digest_mismatch")
-    with Image.open(path) as image:
-        if image.size != (frame.width, frame.height) or image.width * image.height > 6_000_000:
-            raise ValueError("frame_dimensions_mismatch")
+    try:
+        with Image.open(path) as image:
+            if image.size != (frame.width, frame.height) or image.width * image.height > 6_000_000:
+                raise ValueError("frame_dimensions_mismatch")
+    except Image.DecompressionBombError as error:
+        raise ValueError("frame_dimensions_mismatch") from error
     return path
 
 

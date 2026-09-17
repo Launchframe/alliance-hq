@@ -1680,27 +1680,20 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [issueNavScrollOffsetPx],
   );
 
-  const assignedMemberIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const row of activeRows) {
-      const id = row.memberId?.trim();
-      if (id) ids.add(id);
+  const filteredRows = useMemo(() => {
+    const filtered = filterQuery.trim()
+      ? activeRows.filter(
+          (r) =>
+            r.ocrName.toLowerCase().includes(filterQuery.toLowerCase()) ||
+            (r.memberName?.toLowerCase().includes(filterQuery.toLowerCase()) ??
+              false),
+        )
+      : activeRows;
+    if (scoreTargetMeta?.showReviewRowNumber) {
+      return sortReviewRowsByScoreDesc(filtered);
     }
-    return ids;
-  }, [activeRows]);
-
-  const filteredRows = useMemo(
-    () =>
-      filterQuery.trim()
-        ? activeRows.filter(
-            (r) =>
-              r.ocrName.toLowerCase().includes(filterQuery.toLowerCase()) ||
-              (r.memberName?.toLowerCase().includes(filterQuery.toLowerCase()) ??
-                false),
-          )
-        : activeRows,
-    [activeRows, filterQuery],
-  );
+    return filtered;
+  }, [activeRows, filterQuery, scoreTargetMeta?.showReviewRowNumber]);
 
   const reviewFilterCount = useMemo(() => {
     if (scoreTargetMeta?.showDepositSlipColumns) {
@@ -4031,7 +4024,6 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                       highlightMemberId: row.memberId,
                       highlightConfidence: row.matchConfidence,
                       selectedMembers: rows,
-                      excludeMemberIds: assignedMemberIds,
                     })}
                   />
                 </td>

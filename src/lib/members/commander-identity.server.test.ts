@@ -258,6 +258,102 @@ describe("commander-identity.server", () => {
     });
   });
 
+  it("adopts a stale Ashed id instead of blocking a roster row that already exists", async () => {
+    const member = {
+      currentName: "UncleRichAtomic",
+      status: "active",
+      gameUid: null,
+    };
+    mockState.selectResults.push(
+      [member],
+      [],
+      [],
+      [{ gameServerNumber: 100 }],
+      [],
+      [{ commander: { id: "cmd-stale" }, ashedMemberId: "stale-id" }],
+      [],
+      [member],
+      [member],
+      [{ id: "cam-reattached" }],
+    );
+
+    const result = await syncCommanderFromAllianceMember({
+      allianceId: "alliance-a",
+      ashedMemberId: "member-live",
+    });
+
+    expect(result.status).toBe("synced");
+    expect(mockState.updatedMemberships).toContainEqual(
+      expect.objectContaining({ ashedMemberId: "member-live" }),
+    );
+    expect(mockState.updatedMemberships).not.toContainEqual(
+      expect.objectContaining({ commanderSyncStatus: "name_conflict" }),
+    );
+  });
+
+  it("keeps a name conflict when another live roster member owns the name", async () => {
+    const member = {
+      currentName: "UncleRichAtomic",
+      status: "active",
+      gameUid: null,
+    };
+    mockState.selectResults.push(
+      [member],
+      [],
+      [],
+      [{ gameServerNumber: 100 }],
+      [],
+      [{ commander: { id: "cmd-other" }, ashedMemberId: "other-live" }],
+      [{ currentName: "Uncle Rich", status: "active" }],
+    );
+
+    const result = await syncCommanderFromAllianceMember({
+      allianceId: "alliance-a",
+      ashedMemberId: "member-live",
+    });
+
+    expect(result).toMatchObject({
+      status: "deferred",
+      reason: "name_conflict",
+      conflict: { existingMemberName: "Uncle Rich" },
+    });
+  });
+
+  it("does not raise a name conflict when this roster row is already linked", async () => {
+    const member = {
+      currentName: "UncleRichAtomic",
+      status: "active",
+      gameUid: null,
+    };
+    mockState.selectResults.push(
+      [member],
+      [],
+      [],
+      [{ gameServerNumber: 100 }],
+      [{ commanderId: "cmd-linked" }],
+      [{ commander: { id: "cmd-stale" }, ashedMemberId: "stale-id" }],
+      [member],
+      [member],
+      [],
+    );
+
+    const result = await syncCommanderFromAllianceMember({
+      allianceId: "alliance-a",
+      ashedMemberId: "member-live",
+    });
+
+    expect(result.status).toBe("synced");
+    expect(mockState.updatedCommanders).not.toContainEqual(
+      expect.objectContaining({ primaryName: "UncleRichAtomic" }),
+    );
+    expect(mockState.updatedCommanders).not.toContainEqual(
+      expect.objectContaining({ gameUid: null }),
+    );
+    expect(mockState.updatedMemberships).not.toContainEqual(
+      expect.objectContaining({ commanderSyncStatus: "name_conflict" }),
+    );
+  });
+
   it("syncCommanderFromAllianceMember defers when game server is unset", async () => {
     mockState.selectResults.push(
       [{ currentName: "Ghost", status: "active", gameUid: null }],

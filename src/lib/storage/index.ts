@@ -132,15 +132,17 @@ export async function getObject(storageKey: string): Promise<Buffer> {
 
 export async function getObjectStream(
   storageKey: string,
-  range?: { start: number; end: number },
+  rangeOrRequireStreaming?: { start: number; end: number } | boolean,
   signal?: AbortSignal,
 ): Promise<ReadableStream<Uint8Array>> {
+  const range =
+    typeof rangeOrRequireStreaming === "object" ? rangeOrRequireStreaming : undefined;
   if (range && (!Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.end) || range.start < 0 || range.end < range.start)) throw new RangeError("invalid_range");
   if (prefersLocalStorage()) {
     const stream = createReadStream(localPath(storageKey), { ...range, signal });
     return Readable.toWeb(stream) as ReadableStream<Uint8Array>;
   }
-  return getR2ObjectStream(storageKey, range, signal);
+  return getR2ObjectStream(storageKey, rangeOrRequireStreaming, signal);
 }
 
 export async function getObjectSize(storageKey: string, signal?: AbortSignal): Promise<number> {

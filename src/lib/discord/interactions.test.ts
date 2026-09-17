@@ -9,6 +9,7 @@ import {
   discordComponentMessageResponse,
   discordDeferredChannelResponse,
   discordDeferredEphemeralResponse,
+  discordDeferredUpdateResponse,
   discordMessageResponse,
   parseButtonCustomId,
   parseModalCustomId,
@@ -208,6 +209,10 @@ describe("discord interactions", () => {
     expect(discordDeferredChannelResponse()).toEqual({
       type: 5,
     });
+  });
+
+  it("defers modal submits with UPDATE_MESSAGE so they do not stack ephemerals", () => {
+    expect(discordDeferredUpdateResponse()).toEqual({ type: 6 });
   });
 
   it("uses UPDATE_MESSAGE for component replies", () => {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isDatabaseErrorTextLeakedToClient } from "@/lib/db/error-message";
 import {
   assertCommanderReadAccess,
   CommanderAccessError,
@@ -38,8 +39,11 @@ export async function GET(request: Request) {
     if (error instanceof CommanderAccessError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
-    const message =
-      error instanceof Error ? error.message : "Failed to load members";
+    const message = isDatabaseErrorTextLeakedToClient(error)
+      ? "Failed to load members"
+      : error instanceof Error
+        ? error.message
+        : "Failed to load members";
     const status = message.includes("Not connected")
       ? 401
       : message.includes("Alliance tag")
