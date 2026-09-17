@@ -13,6 +13,10 @@ describe("HQ-managed Google event fields", () => {
     expect(body).not.toHaveProperty("attendees");
     expect(body.start).toEqual({ dateTime: payload.start });
   });
+  it("uses canonical locale prefixes in provider source links", () => {
+    expect(googleEventBody(entry, options).source.url).toBe("https://example.test/trains");
+    expect(googleEventBody(entry, { ...options, locale: "pt-BR" }).source.url).toBe("https://example.test/pt-BR/trains");
+  });
   it("disables defaults when alerts are Off", () => {
     expect(googleEventBody({ ...entry, payload: { ...payload, alerts: [] } }, options).reminders).toEqual({ useDefault: false, overrides: [] });
   });

@@ -146,11 +146,56 @@ test("a stale calendar save reports its error beside that calendar", async ({ pa
   await expect(apple.getByRole("alert")).toHaveText("This has changed. Refresh and try again.");
 });
 
+for (const [code, message] of [
+  ["busy", "A calendar operation is in progress. Try again shortly."],
+  ["account_change", "Disconnect the current Google account before connecting a different one."],
+  ["uncertain", "Calendar setup needs review"],
+  ["reconnect", "Reconnect Google Calendar"],
+]) test(`calendar 409 ${code} uses the matching recovery beside the target`, async ({ page, context }) => {
+  const f = await fixture(); await context.addCookies(playwrightAuthCookies(f.user));
+  const accountId = randomUUID();
+  try {
+  await f.sql`INSERT INTO calendar_accounts (id,hq_user_id,subject,email,status) VALUES (${accountId},${f.user.hqUserId},${randomUUID()},'calendar@example.test','connected')`;
+  await f.sql`INSERT INTO calendar_targets (id,hq_user_id,alliance_id,provider,sources,account_id,enabled) VALUES (${randomUUID()},${f.user.hqUserId},${f.allianceId},'google',${f.sql.json(["regular"])},${accountId},true)`;
+  expect((await page.request.post("/api/calendar/settings", { data: { action: "preferences", version: 0, preferences: { alerts: [], locale: "en-US", timezone: "UTC" } } })).status()).toBe(200);
+  await page.goto("/account/calendars");
+  await page.route("**/api/calendar/settings", (route) => route.request().method() === "POST" ? route.fulfill({ status: 409, json: { code, error: "PRIVATE_ERROR_MUST_NOT_RENDER" } }) : route.continue());
+  const target = page.getByRole("region", { name: /— Google Calendar$/ });
+  await target.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(target.getByRole("alert")).toHaveText(message);
+  await expect(page.getByText("PRIVATE_ERROR_MUST_NOT_RENDER", { exact: true })).toHaveCount(0);
+  if (code === "uncertain") await expect(target.getByRole("button", { name: "Set up a new HQ calendar", exact: true })).toBeVisible();
+  if (code === "reconnect") await expect(target.getByRole("button", { name: "Connect Google Calendar", exact: true })).toBeVisible();
+  } finally {
+    await f.sql`DELETE FROM calendar_targets WHERE account_id=${accountId}`;
+    await f.sql`DELETE FROM calendar_accounts WHERE id=${accountId}`;
+  }
+});
+
+for (const locale of ["en-US", "pt-BR"]) test(`OAuth recovery copy is localized and unknown reasons stay generic (${locale})`, async ({ page, context }) => {
+  const f = await fixture(); await context.addCookies(playwrightAuthCookies(f.user));
+  for (const [reason, english, portuguese] of [
+    ["account_change", "Disconnect the current Google account before connecting a different one.", "Desconecte a conta atual do Google antes de conectar outra."],
+    ["offline_access_required", "Google did not grant background calendar access. Reconnect and allow the requested permissions.", "O Google não concedeu acesso ao calendário em segundo plano. Reconecte e permita as permissões solicitadas."],
+    ["invalid_identity", "Google’s account verification failed. Start the connection again.", "A verificação da conta do Google falhou. Inicie a conexão novamente."],
+    ["stale", "This has changed. Refresh and try again.", "Estas informações mudaram. Atualize e tente novamente."],
+    ["missing_scope", "Allow HQ to manage its own Google calendars, then reconnect.", "Permita que o HQ gerencie os próprios calendários do Google e reconecte."],
+    ["PRIVATE_PROVIDER_ERROR", "Could not complete this action. Try again.", "Não foi possível concluir esta ação. Tente novamente."],
+  ]) {
+    await page.goto(`/${locale}/account/calendars?calendar=failed&reason=${reason}`);
+    await expect(page.getByRole("region", { name: locale === "en-US" ? "Google Calendar" : "Google Agenda", exact: true }).getByRole("alert")).toHaveText(locale === "en-US" ? english : portuguese);
+  }
+});
+
 test("calendar controls reject anonymous and cross-alliance requests", async ({ page, context, request }) => {
   expect((await request.get("/api/calendar/settings")).status()).toBe(401);
+  for (const path of ["start", "disconnect"]) expect((await request.post(`/api/calendar/google/${path}`, { data: {} })).status()).toBe(401);
+  await request.get("/api/auth/bootstrap?next=/", { maxRedirects: 0 });
+  for (const path of ["start", "disconnect"]) expect((await request.post(`/api/calendar/google/${path}`, { data: {} })).status()).toBe(403);
   const f = await fixture(), other = await fixture();
   await context.addCookies(playwrightAuthCookies(f.user));
   expect((await page.request.get("/api/calendar/settings")).status()).toBe(200);
+  for (const path of ["start", "disconnect"]) expect((await page.request.post(`/api/calendar/google/${path}`, { data: {}, headers: { Origin: "https://other.example.test", "Sec-Fetch-Site": "cross-site" } })).status()).toBe(403);
   expect((await page.request.post("/api/calendar/settings", { data: { action: "target", allianceId: other.allianceId, provider: "apple", sources: ["boarding"], enabled: true, version: 0 } })).status()).toBe(403);
   expect((await page.request.get(`/api/calendar/preview?allianceId=${other.allianceId}&source=regular`)).status()).toBe(403);
 });

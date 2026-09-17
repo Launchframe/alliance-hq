@@ -5,10 +5,19 @@ import { addCalendarDays, getServerCalendarDate } from "../src/lib/trains/game-t
 
 const mocked = process.env.CALENDAR_GOOGLE_TRANSPORT === "mock";
 test.skip(!mocked, "Requires the explicit local Google provider profile");
+const createdUsers: string[] = [];
+test.afterEach(async () => {
+  const sql = getE2eSql();
+  for (const hqUserId of createdUsers.splice(0)) {
+    await sql`DELETE FROM calendar_targets WHERE hq_user_id=${hqUserId}`;
+    await sql`DELETE FROM calendar_accounts WHERE hq_user_id=${hqUserId}`;
+  }
+});
 
 async function fixture() {
   const sql = getE2eSql(), { allianceId } = await createNativeAlliance(sql, { tag: `GO${randomUUID().slice(0, 6)}`, name: "Google calendar" });
   const user = await createAuthenticatedHqSession(sql, `${randomUUID()}@e2e.test`);
+  createdUsers.push(user.hqUserId);
   await createAllianceMembership(sql, { allianceId, hqUserId: user.hqUserId, roleName: "member", source: "manual" });
   const member = await createAllianceRosterMember(sql, { allianceId, currentName: "Calendar Commander", allianceRank: 3 });
   await createHqMemberLink(sql, { allianceId, hqUserId: user.hqUserId, ashedMemberId: member.ashedMemberId });
@@ -49,7 +58,7 @@ test("member connects Google separately, syncs two alerts, then disconnects with
 
 test("OAuth callback binds the initiating HQ account, cookie and one-time state", async ({ page, context, request }) => {
   const f = await fixture(), other = await fixture(); await context.addCookies(playwrightAuthCookies(f.user));
-  expect((await request.post("/api/calendar/google/start")).status()).toBe(403);
+  expect((await request.post("/api/calendar/google/start")).status()).toBe(401);
   const started = await page.request.post("/api/calendar/google/start"); expect(started.status()).toBe(200);
   const { url } = await started.json();
   expect(new URL(url).origin).toBe(process.env.CALENDAR_GOOGLE_TEST_ORIGIN);

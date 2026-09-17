@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { addCalendarDays } from "@/lib/trains/game-time";
 import { parseCalendarPreferences } from "@/lib/calendar/preferences.shared";
-import type { CalendarEvent, CalendarSource, CalendarSettingsData } from "@/lib/calendar/types.shared";
+import { calendarRecoveryMessage, type CalendarEvent, type CalendarSource, type CalendarSettingsData } from "@/lib/calendar/types.shared";
 import { preventDefaultFormSubmit, FORM_SUBMIT_ENTER_KEY_HINT } from "@/lib/client/form-enter-submit.shared";
 
 const button = "min-h-11 rounded border border-hq-border px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-hq-accent disabled:opacity-50";
@@ -16,10 +16,10 @@ type TargetChange = { allianceId: string; provider: string; sources: CalendarSou
 type CalendarConfirmation = { kind: "target"; target: Target; rotate: boolean; reset?: boolean } | { kind: "account"; version: number; email: string };
 type ActionError = { scope: string; message: string } | null;
 
-export function CalendarConnectionsClient({ initial, initialError = false }: { initial: CalendarSettingsData; initialError?: boolean }) {
+export function CalendarConnectionsClient({ initial, initialError = "" }: { initial: CalendarSettingsData; initialError?: string }) {
   const t = useTranslations("calendarConnections"), locale = useLocale(), languages = useTranslations("language");
   const [data, setData] = useState(initial), [busy, setBusy] = useState(false), [message, setMessage] = useState("");
-  const [actionError, setActionError] = useState<ActionError>(initialError ? { scope: "google", message: "failed" } : null), [reveal, setReveal] = useState<{ id: string; version: number } | null>(null);
+  const [actionError, setActionError] = useState<ActionError>(initialError ? { scope: "google", message: initialError } : null), [reveal, setReveal] = useState<{ id: string; version: number } | null>(null);
   const [alerts, setAlerts] = useState(initial.preferences.alerts.map((minutes, i) => ({ id: `alert-${i}`, value: String(minutes) })));
   const [language, setLanguage] = useState(initial.preferences.locale), [timezone, setTimezone] = useState(initial.preferences.timezone);
   const [confirmation, setConfirmation] = useState<CalendarConfirmation | null>(null), [cleanup, setCleanup] = useState(false);
@@ -53,14 +53,17 @@ export function CalendarConnectionsClient({ initial, initialError = false }: { i
     const timer = setInterval(() => void refreshStatus(), 15_000);
     return () => { clearInterval(timer); controller.abort(); };
   }, [pollGoogle, locale]);
-  function fail(scope: string, message: string) { if (alive.current) { setMessage(message); setActionError({ scope, message }); } }
+  function fail(scope: string, message: string) { if (alive.current) {
+    setMessage(message); setActionError({ scope, message });
+    if (message === "status.reconnect") setData((current) => current.account ? { ...current, account: { ...current.account, status: "reconnect" } } : current);
+  } }
   async function mutate(body: unknown, scope: string, path = "/api/calendar/settings") {
     if (inFlight.current) return null;
     inFlight.current = true; setBusy(true); setMessage(""); setActionError(null); previewRequest.current?.abort(); setPreview(null); setPreviewBusy(false);
     try {
       const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const result = await response.json();
-      if (!response.ok) { fail(scope, response.status === 409 ? "stale" : "failed"); return null; }
+      if (!response.ok) { fail(scope, calendarRecoveryMessage(result, response.status)); return null; }
       if (alive.current) { setData(result); setMessage("saved"); }
       return result as CalendarSettingsData;
     } catch { fail(scope, "failed"); return null; }
@@ -89,7 +92,7 @@ export function CalendarConnectionsClient({ initial, initialError = false }: { i
       const params = new URLSearchParams({ allianceId }); for (const source of sources) params.append("source", source);
       const response = await fetch(`/api/calendar/preview?${params}`, { signal: controller.signal });
       const result = await response.json();
-      if (!response.ok) throw new Error();
+      if (!response.ok) { if (!controller.signal.aborted) fail(scope, calendarRecoveryMessage(result, response.status)); return; }
       if (!controller.signal.aborted) setPreview(result.events);
     } catch { if (!controller.signal.aborted) fail(scope, "failed"); }
     finally { if (!controller.signal.aborted) setPreviewBusy(false); }
@@ -101,7 +104,8 @@ export function CalendarConnectionsClient({ initial, initialError = false }: { i
     try {
       const response = await fetch("/api/calendar/google/start", { method: "POST" });
       const result = await response.json();
-      if (!response.ok || typeof result.url !== "string") throw new Error();
+      if (!response.ok) { if (alive.current) setBusy(false); fail("google", calendarRecoveryMessage(result, response.status)); return; }
+      if (typeof result.url !== "string") throw new Error();
       if (alive.current) window.location.assign(result.url);
     } catch { if (alive.current) { setBusy(false); fail("google", "failed"); } }
     finally { inFlight.current = false; }
@@ -144,7 +148,7 @@ export function CalendarConnectionsClient({ initial, initialError = false }: { i
     <p className="text-sm text-hq-fg-muted">{t("duplicateHint")}</p>
     {data.alliances.map((alliance) => <section key={alliance.id} className="space-y-3"><h2 className="text-lg font-semibold">{alliance.tag || alliance.name}</h2>{(["apple", ...(data.account || data.targets.some((target) => target.provider === "google" && target.allianceId === alliance.id) ? ["google"] : [])] as const).map((provider) => {
       const target = data.targets.find((row) => row.allianceId === alliance.id && row.provider === provider), scope = `${alliance.id}:${provider}`;
-      return <CalendarTargetCard key={`${provider}:${target?.version ?? 0}`} alliance={alliance} provider={provider} target={target} busy={busy} actionError={confirmation ? null : actionError} canEnable={provider === "apple" || data.account?.status === "connected"} timezone={data.preferences.timezone} revealLink={!!target && reveal?.id === target.id && reveal.version === target.version} onSave={configure} onPreview={(id, sources) => showPreview(id, sources, scope)} onConfirm={confirm} />;
+      return <CalendarTargetCard key={`${provider}:${target?.version ?? 0}`} alliance={alliance} provider={provider} target={target} busy={busy} actionError={confirmation ? null : actionError} canEnable={provider === "apple" || data.account?.status === "connected"} timezone={data.preferences.timezone} revealLink={!!target && reveal?.id === target.id && reveal.version === target.version} onReconnect={connectGoogle} onSave={configure} onPreview={(id, sources) => showPreview(id, sources, scope)} onConfirm={confirm} />;
     })}</section>)}
     {data.targets.filter((target) => !data.alliances.some((alliance) => alliance.id === target.allianceId)).map((target) => <section key={target.id} className="space-y-2 rounded border border-hq-border p-3"><h2>{t(target.provider === "apple" ? "apple" : "google")}</h2><p>{t("disconnectHint")}</p><button className={button} disabled={busy} onClick={() => confirm(target, false)}>{t("disconnect")}</button><CalendarActionError error={actionError} scope={`${target.allianceId}:${target.provider}`} /></section>)}
     {(previewBusy || preview) && <section aria-label={t("preview")} className="space-y-3 rounded-xl border border-hq-border p-4"><h2 className="text-lg font-semibold">{t("preview")}</h2>{previewBusy ? <p role="status">{t("loading")}</p> : !preview?.length ? <p>{t("empty")}</p> : <ul className="space-y-3">{preview.map((event) => <li key={event.key}><p className="font-medium">{event.title}</p><p className="text-sm">{dateLabel(event.start, event.allDay)} – {dateLabel(event.allDay ? addCalendarDays(event.end, -1) : event.end, event.allDay)}</p><Link className="text-hq-accent underline" href={event.path}>{t("preview")}</Link></li>)}</ul>}</section>}
@@ -173,11 +177,11 @@ async function loadPrivateLink(targetId: string, signal?: AbortSignal): Promise<
   return data.url;
 }
 
-function CalendarTargetCard({ alliance, provider, target, busy, canEnable, timezone, actionError, revealLink, onSave, onPreview, onConfirm }: { alliance: Alliance; provider: string; target?: Target; busy: boolean; canEnable: boolean; timezone: string; actionError: ActionError; revealLink: boolean; onSave: (change: TargetChange) => Promise<void>; onPreview: (id: string, sources: CalendarSource[]) => Promise<void>; onConfirm: (target: Target, rotate: boolean, reset?: boolean) => void }) {
+function CalendarTargetCard({ alliance, provider, target, busy, canEnable, timezone, actionError, revealLink, onReconnect, onSave, onPreview, onConfirm }: { alliance: Alliance; provider: string; target?: Target; busy: boolean; canEnable: boolean; timezone: string; actionError: ActionError; revealLink: boolean; onReconnect: () => Promise<void>; onSave: (change: TargetChange) => Promise<void>; onPreview: (id: string, sources: CalendarSource[]) => Promise<void>; onConfirm: (target: Target, rotate: boolean, reset?: boolean) => void }) {
   const t = useTranslations("calendarConnections"), locale = useLocale();
   const [sources, setSources] = useState(target?.sources ?? alliance.sources), [enabled, setEnabled] = useState(target?.enabled ?? false);
   const [link, setLink] = useState(""), [linkBusy, setLinkBusy] = useState(revealLink), [error, setError] = useState(false), [copied, setCopied] = useState(false);
-  const targetId = target?.id;
+  const targetId = target?.id, ownError = actionError?.scope === `${alliance.id}:${provider}` ? actionError.message : "";
   useEffect(() => {
     if (!revealLink || !targetId) return;
     const controller = new AbortController();
@@ -195,8 +199,9 @@ function CalendarTargetCard({ alliance, provider, target, busy, canEnable, timez
       <fieldset className="grid gap-2 sm:grid-cols-2"><legend className="sr-only">{t("sourcesLegend")}</legend>{alliance.sources.map((source) => <label key={source} className="flex gap-2"><input type="checkbox" checked={sources.includes(source)} onChange={(event) => setSources((current) => event.target.checked ? [...current, source] : current.filter((value) => value !== source))} />{t(`sources.${source}`)}</label>)}</fieldset>
       <div className="flex flex-wrap gap-2"><button type="submit" className={button} disabled={busy || (!target && !enabled)}>{t("save")}</button><button type="button" className={button} disabled={busy} onClick={() => void onPreview(alliance.id, sources)}>{t("preview")}</button>{target && (target.enabled || target.cleanup) && <button type="button" className={button} disabled={busy} onClick={() => onConfirm(target, false)}>{t("disconnect")}</button>}</div>
       <CalendarActionError error={actionError} scope={`${alliance.id}:${provider}`} />
+      {provider === "google" && (ownError === "status.reconnect" || target?.status === "reconnect") && <button type="button" className={button} disabled={busy} onClick={() => void onReconnect()}>{t("connect")}</button>}
     </form>
     {target?.enabled && provider === "apple" && <div className="space-y-3"><p className="text-sm text-hq-fg-muted">{t("privacy")}</p><p className="text-sm text-hq-fg-muted">{t("appleHint")}</p><p className="text-sm text-hq-fg-muted">{t("appleAlerts")}</p><div className="flex flex-wrap gap-2"><button type="button" className={button} disabled={busy || linkBusy} onClick={() => void showLink()}>{t("subscribe")}</button><button type="button" className={button} disabled={busy} onClick={() => onConfirm(target, true)}>{t("rotate")}</button></div>{link && <form className="space-y-2" onSubmit={(event) => { preventDefaultFormSubmit(event); setError(false); void navigator.clipboard.writeText(link).then(() => setCopied(true)).catch(() => setError(true)); }}><p>{t("subscribeInstructions")}</p><input type="text" readOnly autoComplete="off" spellCheck={false} enterKeyHint={FORM_SUBMIT_ENTER_KEY_HINT} aria-label={t("privateLink")} value={link} className={`${field} [-webkit-text-security:disc]`} /><button type="submit" className={button}>{t("privateLink")}</button>{copied && <p role="status">{t("copied")}</p>}</form>}<CalendarActionError error={error ? { scope: "link", message: "failed" } : null} scope="link" /></div>}
-    {target && provider === "google" && <div className="space-y-2"><p role="status">{t(`status.${["pending", "connected", "synced", "creating", "uncertain", "reconnect", "failed", "disabled", "cleanup", "calendar_missing"].includes(target.status) ? target.status : "pending"}`)}</p>{target.lastSyncAt && <p className="text-sm text-hq-fg-muted">{t("lastSync", { time: new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short", timeZone: timezone }).format(new Date(target.lastSyncAt)) })}</p>}{canEnable && (target.creationUncertain || target.status === "calendar_missing") && <button type="button" className={button} disabled={busy || target.status === "creating"} onClick={() => onConfirm(target, false, true)}>{t("resetCalendar")}</button>}</div>}
+    {target && provider === "google" && <div className="space-y-2"><p role="status">{t(`status.${["pending", "connected", "synced", "creating", "uncertain", "reconnect", "failed", "disabled", "cleanup", "calendar_missing"].includes(target.status) ? target.status : "pending"}`)}</p>{target.lastSyncAt && <p className="text-sm text-hq-fg-muted">{t("lastSync", { time: new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short", timeZone: timezone }).format(new Date(target.lastSyncAt)) })}</p>}{canEnable && (target.creationUncertain || target.status === "calendar_missing" || ownError === "status.uncertain") && <button type="button" className={button} disabled={busy || target.status === "creating"} onClick={() => onConfirm(target, false, true)}>{t("resetCalendar")}</button>}</div>}
   </section>;
 }

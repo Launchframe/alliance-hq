@@ -17,6 +17,12 @@ describe("private calendar serialization", () => {
     expect(events[0].getAllSubcomponents("valarm").map((alarm) => { const trigger = alarm.getFirstPropertyValue("trigger"); return trigger instanceof ICAL.Duration ? trigger.toSeconds() : null; })).toEqual([-600, -60]);
     expect(text.split("\r\n").every((line) => Buffer.byteLength(line) <= 75)).toBe(true);
   });
+  it("uses canonical locale prefixes in subscription source links", () => {
+    for (const [locale, expected] of [["en-US", "https://example.test/trains"], ["pt-BR", "https://example.test/pt-BR/trains"]]) {
+      const calendar = new ICAL.Component(ICAL.parse(serializeCalendar([entry], { ...options, locale })));
+      expect(calendar.getFirstSubcomponent("vevent")!.getFirstPropertyValue("url")).toBe(expected);
+    }
+  });
   it("keeps output stable across fetches", () => {
     expect(serializeCalendar([entry], options)).toBe(serializeCalendar([entry], options));
   });

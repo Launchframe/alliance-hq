@@ -12,3 +12,22 @@ export type CalendarSettingsData = {
 export class CalendarError extends Error {
   constructor(readonly code: string, readonly status = 400) { super(code); }
 }
+
+const recoveryMessages = {
+  stale: "stale", expired: "stale", reconnect: "status.reconnect", uncertain: "status.uncertain",
+  busy: "busy", rate_limit: "busy", account_change: "accountChange", offline_access_required: "offlineAccessRequired",
+  invalid_identity: "identityFailed", missing_scope: "calendarPermissionRequired", invalid_preferences: "invalidPreferences",
+} as const;
+
+export function calendarRecoveryMessage(body: unknown, status?: number): string {
+  const code = body && typeof body === "object" && "code" in body ? body.code : null;
+  return typeof code === "string" && Object.hasOwn(recoveryMessages, code) ? recoveryMessages[code as keyof typeof recoveryMessages] : status === 409 ? "stale" : "failed";
+}
+
+export function calendarOAuthFailureCode(error: unknown): string {
+  return error instanceof CalendarError && Object.hasOwn(recoveryMessages, error.code) ? error.code : "failed";
+}
+
+export function calendarEventPath(path: string, locale: string): string {
+  return `${locale === "pt-BR" ? "/pt-BR" : ""}${path}`;
+}

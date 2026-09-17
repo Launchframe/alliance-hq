@@ -1,11 +1,12 @@
 import type { CalendarEntry } from "./projection.server";
+import { calendarEventPath } from "./types.shared";
 
 type GoogleTime = { date?: string; dateTime?: string; timeZone?: string };
 export type GoogleEvent = { id?: string; etag?: string; status?: string; summary?: string; description?: string; start?: GoogleTime; end?: GoogleTime; reminders?: { useDefault?: boolean; overrides?: { method: string; minutes: number }[] }; source?: { title?: string; url?: string }; extendedProperties?: { private?: Record<string, string> } };
 
 export function googleEventBody(entry: Pick<CalendarEntry, "uid" | "targetId" | "revision" | "payload">, options: { origin: string; locale: string; name: string }) {
   const data = entry.payload;
-  const url = new URL(`/${options.locale}${data.path}`, options.origin).href;
+  const url = new URL(calendarEventPath(data.path, options.locale), options.origin).href;
   return { status: "confirmed", summary: data.title, description: [data.description, url].filter(Boolean).join("\n"),
     start: data.allDay ? { date: data.start } : { dateTime: data.start }, end: data.allDay ? { date: data.end } : { dateTime: data.end },
     reminders: { useDefault: false, overrides: data.alerts.map((minutes) => ({ method: "popup", minutes })) },
