@@ -46,11 +46,35 @@ export function pickAvatarFromProviders(
   return { avatarUrl: null, avatarSource: null };
 }
 
-function isLastWarAvatarStale(user: Pick<HqUser, "avatarRefreshedAt">): boolean {
+/** Exported for unit tests — true when never refreshed or past TTL. */
+export function isLastWarAvatarStale(
+  user: Pick<HqUser, "avatarRefreshedAt">,
+): boolean {
   if (!user.avatarRefreshedAt) {
     return true;
   }
   return Date.now() - user.avatarRefreshedAt.getTime() > LASTWAR_AVATAR_TTL_MS;
+}
+
+/**
+ * Whether a Last War network lookup is needed.
+ * Respects avatarRefreshedAt even when avatarUrl is null (failed lookup /
+ * player has no portrait) so we do not hammer lastwar-platform on every poll.
+ */
+export function needsLastWarAvatarRefresh(
+  user: Pick<
+    HqUser,
+    "primaryGameUid" | "avatarSource" | "avatarUrl" | "avatarRefreshedAt"
+  >,
+  options: { forceRefresh?: boolean } = {},
+): boolean {
+  if (!user.primaryGameUid?.trim()) {
+    return false;
+  }
+  if (options.forceRefresh) {
+    return true;
+  }
+  return isLastWarAvatarStale(user);
 }
 
 async function loadAuthProviders(hqUserId: string): Promise<AuthProviderRow[]> {
@@ -126,20 +150,37 @@ export async function resolveAndCacheHqUserAvatar(
     return { avatarUrl: null, avatarSource: null };
   }
 
-  const lastWarFresh =
-    user.avatarSource === "lastwar" &&
-    user.avatarUrl &&
-    !isLastWarAvatarStale(user) &&
-    !options.forceRefresh;
-
-  if (lastWarFresh) {
-    return { avatarUrl: user.avatarUrl, avatarSource: "lastwar" };
+  if (!needsLastWarAvatarRefresh(user, options)) {
+    const source =
+      user.avatarSource === "google" ||
+      user.avatarSource === "discord" ||
+      user.avatarSource === "lastwar"
+        ? user.avatarSource
+        : null;
+    return {
+      avatarUrl: user.avatarUrl,
+      avatarSource: source,
+    };
   }
 
   const lookup = await lookupPlayerByUid(uid);
-  const lastWarResolved = pickAvatarFromProviders(providers, lookup.ok ? lookup.avatarUrl : null);
-  await writeAvatarCache(hqUserId, lastWarResolved);
-  return lastWarResolved;
+  // Always bump avatarRefreshedAt — including failed lookups — so TTL backoff
+  // applies when lastwar-platform returns 5xx / is unreachable.
+  const lastWarResolved = pickAvatarFromProviders(
+    providers,
+    lookup.ok ? lookup.avatarUrl : null,
+  );
+  const toCache: ResolvedAvatar = lookup.ok
+    ? lastWarResolved
+    : {
+        // Keep prior Last War URL if we had one; otherwise record a null lastwar
+        // attempt so needsLastWarAvatarRefresh waits for TTL.
+        avatarUrl:
+          user.avatarSource === "lastwar" ? user.avatarUrl : lastWarResolved.avatarUrl,
+        avatarSource: "lastwar",
+      };
+  await writeAvatarCache(hqUserId, toCache);
+  return toCache;
 }
 
 async function syncPrimaryGameUidFromDiscordLink(
@@ -234,33 +275,35 @@ export async function syncOAuthProviderAvatar(
   });
 }
 
-/** Refresh avatar when Last War cache is stale; OAuth URLs are always re-read from providers. */
+/**
+ * Refresh avatar when Last War cache is stale; OAuth URLs are always re-read from providers.
+ * Fail-soft: never throw — callers (page bootstrap) must not 500 when Last War is down.
+ */
 export async function ensureHqUserAvatarFresh(
   user: HqUser,
   allianceId: string | null,
 ): Promise<string | null> {
-  const providers = await loadAuthProviders(user.id);
-  const oauthPick = pickAvatarFromProviders(providers);
-  if (oauthPick.avatarUrl) {
-    if (
-      user.avatarUrl !== oauthPick.avatarUrl ||
-      user.avatarSource !== oauthPick.avatarSource
-    ) {
-      await writeAvatarCache(user.id, oauthPick);
+  try {
+    const providers = await loadAuthProviders(user.id);
+    const oauthPick = pickAvatarFromProviders(providers);
+    if (oauthPick.avatarUrl) {
+      if (
+        user.avatarUrl !== oauthPick.avatarUrl ||
+        user.avatarSource !== oauthPick.avatarSource
+      ) {
+        await writeAvatarCache(user.id, oauthPick);
+      }
+      return oauthPick.avatarUrl;
     }
-    return oauthPick.avatarUrl;
-  }
 
-  const needsLastWarRefresh =
-    user.primaryGameUid &&
-    (user.avatarSource !== "lastwar" ||
-      !user.avatarUrl ||
-      isLastWarAvatarStale(user));
+    if (!needsLastWarAvatarRefresh(user)) {
+      return user.avatarUrl;
+    }
 
-  if (!needsLastWarRefresh) {
+    const resolved = await resolveAndCacheHqUserAvatar(user.id, { allianceId });
+    return resolved.avatarUrl;
+  } catch (error) {
+    console.error("[avatar] ensureHqUserAvatarFresh failed:", error);
     return user.avatarUrl;
   }
-
-  const resolved = await resolveAndCacheHqUserAvatar(user.id, { allianceId });
-  return resolved.avatarUrl;
 }
