@@ -3,6 +3,59 @@ import { authCookieHeader, playwrightAuthCookies, getE2eSql, createBrowserSessio
 import { nanoid } from "nanoid";
 import { createNotesFixture as fixture } from "./fixtures/notes";
 
+test("Notes visual smoke keeps localized light and dark layouts readable on desktop and mobile", async ({ page, request }, testInfo) => {
+  test.setTimeout(120_000);
+  const { author } = await fixture("officer"), headers = { Cookie: authCookieHeader(author) };
+  const post = async (url: string, data: unknown) => {
+    const response = await request.post(url, { headers, data });
+    expect(response.status(), await response.text()).toBe(200);
+    return response.json();
+  };
+  const { noteId } = await post("/api/notes", { title: "Reference note", body: "Groups setup and ready.", labels: ["ops"], priority: "high" });
+  const { note } = await (await request.get(`/api/notes/${noteId}`, { headers })).json();
+  await post("/api/notes/publications", { requestId: nanoid(), noteId, expectedVersion: note.version, title: "Reviewed snapshot", body: "Groups setup and ready.", locale: "en-US", days: 1 });
+  const { boardId } = await post("/api/notes/boards", { requestId: nanoid(), name: "Operations board" });
+  for (const [index, status] of ["open", "in_progress"].entries()) await post(`/api/notes/boards/${boardId}/commands`, { kind: "create", requestId: nanoid(), expectedVersion: index + 1, task: { title: index ? "First message" : "Review coverage", description: "Groups setup and ready.", status, labels: ["ops"] } });
+  await page.context().addCookies(playwrightAuthCookies(author));
+  for (const [locale, dark, width] of [["en-US", false, 1440], ["en-US", true, 390], ["pt-BR", false, 390], ["pt-BR", true, 1440]] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.emulateMedia({ colorScheme: dark ? "dark" : "light" });
+    const capture = async (surface: string) => {
+      await expect(page.locator("html")).toHaveClass(dark ? /(?:^|\s)dark(?:\s|$)/ : /(?:^|\s)light(?:\s|$)/);
+      await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: "instant" }));
+      const dimensions = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: window.innerWidth }));
+      expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport + 2);
+      await page.screenshot({ path: testInfo.outputPath(`${locale}-${dark ? "dark" : "light"}-${width}-${surface}.png`), fullPage: true });
+    };
+    await page.goto(`/${locale}/notes?view=notebook&layout=cards`);
+    const card = page.getByTestId("note-card");
+    await expect(card).toHaveCount(1);
+    await capture("notes");
+    const contrast = await card.evaluate((element) => {
+      const context = document.createElement("canvas").getContext("2d")!;
+      const luminance = (color: string) => {
+        context.fillStyle = color; context.fillRect(0, 0, 1, 1);
+        const rgb = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3).map((value) => { const channel = value / 255; return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4; });
+        return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+      };
+      const foreground = luminance(getComputedStyle(element.querySelector("h3")!).color), background = luminance(getComputedStyle(element).backgroundColor);
+      return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+    });
+    expect(contrast).toBeGreaterThanOrEqual(4.5);
+    await card.getByRole("button").first().click();
+    await expect(page.getByRole("dialog", { name: "Reference note", exact: true })).toBeVisible();
+    await capture("editor");
+    await page.keyboard.press("Escape");
+    await page.goto(`/${locale}/notes?view=boards&board=${boardId}`);
+    await expect(page.getByTestId("notes-shared-board").getByTestId("board-task")).toHaveCount(2);
+    await capture("board");
+    await page.goto(`/${locale}/notes?view=publications&publicationNote=${noteId}`);
+    await page.getByTestId("publication-history").getByRole("button", { name: /^Reviewed snapshot/ }).click();
+    await expect(page.getByTestId("publication-preview")).toBeVisible();
+    await capture("publication");
+  }
+});
+
 test("label and commander filters are exact, combined, scoped and restored from card actions", async ({ page, request }) => {
   const { author, peer, cookie, ferg } = await fixture("officer");
   const headers = { Cookie: authCookieHeader(author) };
