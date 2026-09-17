@@ -27,6 +27,160 @@ async function staged(request: APIRequestContext, screenshots = false, invalid =
   return { ...fixture, id, input, bytes, headers, detail, command };
 }
 
+test("older imports remain discoverable with stable scoped cursors and browser navigation", async ({ page, request }) => {
+  const { author, peer, alliance } = await createNotesFixture("officer");
+  const sql = getE2eSql();
+  const headers = { Cookie: authCookieHeader(author) };
+  const prefix = nanoid();
+  const seed = async (owner: string, id: string, title: string, archived = false, newer = false) => {
+    const resourceId = nanoid();
+    await sql`INSERT INTO knowledge_resources (id, alliance_id, kind, entity_id, ownership_state, owner_hq_user_id, owner_bound_at, archived_at)
+      VALUES (${resourceId}, ${alliance.allianceId}, 'source', ${id}, 'hq', ${owner}, now(), ${archived ? new Date() : null})`;
+    await sql`INSERT INTO officer_chat_sessions (id, alliance_id, resource_id, title, created_by_hq_user_id, status)
+      VALUES (${id}, ${alliance.allianceId}, ${resourceId}, ${title}, ${owner}, 'imported')`;
+    await sql`INSERT INTO knowledge_history_imports (id, alliance_id, resource_id, kind, locale, source_hash, state, updated_at)
+      VALUES (${id}, ${alliance.allianceId}, ${resourceId}, 'text', 'en-US', ${hash(Buffer.from(id))}, 'committed', ${newer ? "2026-09-16T12:00:00.123456Z" : "2026-09-15T12:00:00.123456Z"}::text::timestamptz)`;
+  };
+  for (let index = 0; index < 52; index++) await seed(author.hqUserId, `${prefix}_${String(index).padStart(3, "0")}`, `Archived source ${index}`);
+  await seed(peer.hqUserId, nanoid(), "Private peer source");
+  await seed(author.hqUserId, nanoid(), "Hidden archived source", true);
+  const firstResponse = await request.get("/api/notes/imports", { headers });
+  expect(firstResponse.status(), await firstResponse.text()).toBe(200);
+  const first = await firstResponse.json();
+  expect(first.imports).toHaveLength(50);
+  expect(JSON.parse(first.nextCursor).updatedAt).toBe("2026-09-15T12:00:00.123456Z");
+  expect(first.imports.every((item: { updatedAt: string }) => item.updatedAt === "2026-09-15T12:00:00.123456Z")).toBe(true);
+  const [index] = await sql`SELECT indexdef FROM pg_indexes WHERE schemaname = current_schema() AND indexname = 'knowledge_history_imports_page_idx'`;
+  expect(index?.indexdef).toContain("(alliance_id, updated_at DESC, id DESC)");
+  expect(JSON.stringify(first)).not.toMatch(/Private peer source|Hidden archived source/);
+  expect(Object.keys(first.imports[0]).sort()).toEqual(["id", "kind", "state", "title", "updatedAt"]);
+  await seed(author.hqUserId, nanoid(), "Newest source", false, true);
+  const cursorUrl = `/api/notes/imports?${new URLSearchParams({ cursor: first.nextCursor })}`;
+  const secondResponse = await request.get(cursorUrl, { headers });
+  expect(secondResponse.status(), await secondResponse.text()).toBe(200);
+  const second = await secondResponse.json();
+  expect(second.imports.map((item: { id: string }) => item.id)).toEqual([`${prefix}_001`, `${prefix}_000`]);
+  expect(second.nextCursor).toBeNull();
+  expect(second.imports.every((item: { updatedAt: string }) => item.updatedAt === "2026-09-15T12:00:00.123456Z")).toBe(true);
+  expect((await request.get(cursorUrl)).status()).toBe(401);
+  expect((await request.get(cursorUrl, { headers: { Cookie: authCookieHeader(peer) } })).status()).toBe(403);
+  const outsider = await createNotesFixture("officer");
+  const otherHeaders = { Cookie: authCookieHeader(outsider.author) };
+  expect((await request.get(cursorUrl, { headers: otherHeaders })).status()).toBe(403);
+  expect((await (await request.get("/api/notes/imports", { headers: otherHeaders })).json()).imports).toHaveLength(0);
+  for (const cursor of ["{}", "x".repeat(701)]) expect((await request.get(`/api/notes/imports?${new URLSearchParams({ cursor })}`, { headers })).status()).toBe(400);
+  await page.context().addCookies(playwrightAuthCookies(author));
+  await page.goto("/notes?view=imports");
+  const next = page.getByRole("button", { name: "Next page", exact: true });
+  const previous = page.getByRole("button", { name: "Previous page", exact: true });
+  await expect(next).toBeEnabled();
+  await expect(previous).toBeDisabled();
+  const pagedList = (url: URL) => url.pathname === "/api/notes/imports" && url.searchParams.has("cursor");
+  await page.route(pagedList, (route) => route.fulfill({ status: 503, json: { error: "Fixture pagination unavailable" } }));
+  await next.click();
+  await expect(page.getByRole("alert").filter({ hasText: "Fixture pagination unavailable" })).toBeInViewport();
+  await expect(previous).toBeDisabled();
+  await page.unroute(pagedList);
+  await next.click();
+  const oldest = page.getByRole("button", { name: /^Archived source 0\b/ });
+  await expect(oldest).toBeVisible();
+  await expect(next).toBeDisabled();
+  await oldest.click();
+  await expect(page.getByRole("heading", { name: "Archived source 0", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "All imports", exact: true }).click();
+  await expect(oldest).toBeVisible();
+  await previous.click();
+  await expect(page.getByRole("button", { name: /^Newest source/ })).toBeVisible();
+  await next.click();
+  await expect(oldest).toBeVisible();
+  let release!: () => void;
+  let captured!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  const ready = new Promise<void>((resolve) => { captured = resolve; });
+  let intercepted = false;
+  await page.route(pagedList, async (route) => {
+    if (intercepted) return route.continue();
+    intercepted = true;
+    const response = await route.fetch();
+    captured();
+    await held;
+    await route.fulfill({ response });
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await ready;
+  await sql`UPDATE alliance_memberships SET status = 'removed' WHERE alliance_id = ${alliance.allianceId} AND hq_user_id = ${author.hqUserId}`;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByRole("button", { name: /^Archived source/ })).toHaveCount(0);
+  await expect(next).toBeDisabled();
+  await expect(previous).toBeDisabled();
+  const late = page.waitForResponse((response) => pagedList(new URL(response.url())) && response.status() === 200);
+  release();
+  await (await late).finished();
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await expect(page.getByRole("button", { name: /^Archived source/ })).toHaveCount(0);
+});
+
+for (const direction of ["next", "previous"] as const) test(`focus refreshes wait for pending ${direction} navigation and retain the pager stack`, async ({ page }) => {
+  const { author, alliance } = await createNotesFixture("officer");
+  await page.context().addCookies(playwrightAuthCookies(author));
+  let holdNavigation = false, intercepted = false, reads = 0;
+  let release!: () => void, captured!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  const ready = new Promise<void>((resolve) => { captured = resolve; });
+  await page.route((url) => url.pathname === "/api/notes/imports", async (route) => {
+    reads++;
+    const second = new URL(route.request().url()).searchParams.has("cursor");
+    if (holdNavigation && !intercepted && second === (direction === "next")) {
+      intercepted = true; captured(); await held;
+    }
+    await route.fulfill({ json: { scope: `${alliance.allianceId}:${author.hqUserId}`, imports: [{ id: second ? "second" : "first", title: second ? "Second page source" : "First page source", state: "committed", kind: "text", updatedAt: "2026-09-15T12:00:00.123456Z" }], nextCursor: second ? null : "fixture-next" } });
+  });
+  try {
+    await page.goto("/notes?view=imports");
+    const next = page.getByRole("button", { name: "Next page", exact: true });
+    const previous = page.getByRole("button", { name: "Previous page", exact: true });
+    await expect(next).toBeEnabled();
+    if (direction === "previous") { await next.click(); await expect(previous).toBeEnabled(); }
+    const before = reads;
+    holdNavigation = true;
+    await (direction === "next" ? next : previous).click();
+    await ready;
+    await page.evaluate(() => { window.dispatchEvent(new Event("focus")); window.dispatchEvent(new Event("focus")); });
+    release();
+    await expect(page.getByRole("button", { name: new RegExp(`^${direction === "next" ? "Second" : "First"} page source`) })).toBeVisible();
+    await expect.poll(() => reads).toBe(before + 2);
+    await expect(direction === "next" ? previous : next).toBeEnabled();
+    await expect(direction === "next" ? next : previous).toBeDisabled();
+  } finally { release(); }
+});
+
+test("import pager hides for single or empty pages but preserves visible list errors", async ({ page }) => {
+  const { author, alliance } = await createNotesFixture("officer");
+  await page.context().addCookies(playwrightAuthCookies(author));
+  let mode: "single" | "empty" | "error" = "single";
+  await page.route((url) => url.pathname === "/api/notes/imports", (route) => mode === "error"
+    ? route.fulfill({ status: 503, json: { error: "Fixture list unavailable" } })
+    : route.fulfill({ json: { scope: `${alliance.allianceId}:${author.hqUserId}`, imports: mode === "single" ? [{ id: "single", title: "Single page source", state: "committed", kind: "text", updatedAt: "2026-09-15T12:00:00.123456Z" }] : [], nextCursor: null } }));
+  await page.goto("/notes?view=imports");
+  const next = page.getByRole("button", { name: "Next page", exact: true });
+  const previous = page.getByRole("button", { name: "Previous page", exact: true });
+  const source = page.getByRole("button", { name: /^Single page source/ });
+  await expect(source).toBeVisible();
+  await expect(next).toHaveCount(0); await expect(previous).toHaveCount(0);
+  mode = "empty";
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(source).toHaveCount(0);
+  await expect(next).toHaveCount(0); await expect(previous).toHaveCount(0);
+  mode = "error";
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByRole("alert").filter({ hasText: "Fixture list unavailable" })).toBeInViewport();
+  await expect(next).toBeDisabled(); await expect(previous).toBeDisabled();
+  mode = "empty";
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByRole("alert").filter({ hasText: "Fixture list unavailable" })).toHaveCount(0);
+  await expect(next).toHaveCount(0); await expect(previous).toHaveCount(0);
+});
+
 test("browser paste review persists corrections and commits a private source", async ({ page }) => {
   const { author } = await createNotesFixture("officer");
   await page.context().addCookies(playwrightAuthCookies(author));

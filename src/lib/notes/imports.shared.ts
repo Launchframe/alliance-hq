@@ -3,6 +3,7 @@ import { redactIntakeText } from "./intake.shared";
 import { MAX_OFFICER_INTEL_IMAGE_BYTES, MAX_OFFICER_INTEL_IMAGES } from "@/lib/officer-intel/storage.shared";
 
 export const HISTORY_IMPORT_VERSION = 1;
+export const HISTORY_IMPORT_PAGE_SIZE = 50;
 export const HISTORY_IMPORT_KINDS = ["text", "markdown", "discord_json", "screenshots"] as const;
 export const HISTORY_TEXT_BYTES = 5 * 1024 * 1024;
 export const HISTORY_IMAGE_BYTES = MAX_OFFICER_INTEL_IMAGE_BYTES;
@@ -22,8 +23,15 @@ export type HistoryInit = z.infer<typeof historyInitSchema>;
 export type HistoryImportSummary = { scope: string; id: string; title: string; kind: HistoryImportKind; state: HistoryImportState; version: number; updatedAt: string; total: number; reviewed: number; cursor: number; attempts: number; errorCode: string | null; files: Array<{ id: string; name: string; contentType: string; size: number; sha256: string; sealed: boolean }> };
 export type HistoryReviewRow = { id: string; sender: string | null; sentAt: string | null; body: string; included: boolean; reviewed: boolean; position: number };
 export type HistoryImportDetail = HistoryImportSummary & { messages: HistoryReviewRow[]; offset: number };
+export type HistoryImportListItem = Pick<HistoryImportSummary, "id" | "title" | "state" | "kind" | "updatedAt">;
+export type HistoryImportPage = { scope: string; imports: HistoryImportListItem[]; nextCursor: string | null };
 
 const identity = z.string().min(1).max(120).regex(/^[A-Za-z0-9_-]+$/);
+const historyListCursorSchema = z.object({ version: z.literal(1), scope: z.string().min(1).max(300), id: identity, updatedAt: z.iso.datetime({ precision: 6 }).refine((value) => !value.startsWith("0000-")) }).strict();
+export type HistoryListCursor = z.infer<typeof historyListCursorSchema>;
+export function parseHistoryListCursor(raw: string | null): HistoryListCursor | null {
+  return raw === null ? null : historyListCursorSchema.parse(JSON.parse(z.string().min(1).max(700).parse(raw)));
+}
 const body = z.string().max(HISTORY_MESSAGE_LENGTH).refine((value) => !value.includes("\0"));
 const timestamp = z.iso.datetime({ offset: true }).nullable();
 export const historyMessageSchema = z.object({

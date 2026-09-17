@@ -4889,6 +4889,7 @@ export const knowledgeHistoryImports = pgTable("knowledge_history_imports", {
   foreignKey({ name: "knowledge_history_imports_resource_fk", columns: [table.resourceId, table.allianceId], foreignColumns: [knowledgeResources.id, knowledgeResources.allianceId] }).onDelete("restrict"),
   foreignKey({ name: "knowledge_history_imports_source_fk", columns: [table.id, table.allianceId, table.resourceId], foreignColumns: [officerChatSessions.id, officerChatSessions.allianceId, officerChatSessions.resourceId] }).onDelete("restrict"),
   index("knowledge_history_imports_hash_idx").on(table.allianceId, table.sourceHash),
+  index("knowledge_history_imports_page_idx").on(table.allianceId, table.updatedAt.desc(), table.id.desc()),
 ]);
 
 export const knowledgeHistoryAssets = pgTable("knowledge_history_assets", {
