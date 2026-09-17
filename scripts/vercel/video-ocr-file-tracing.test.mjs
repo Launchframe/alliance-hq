@@ -1,9 +1,16 @@
+import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 
 import {
   functionTraceBudgets,
+  sharpNativeFileTracing,
+  tesseractFileTracing,
+  videoOcrFileTracingIncludes,
   videoOcrTracedRoutes,
 } from "./video-ocr-file-tracing.mjs";
+
+const picomatch = createRequire(import.meta.url)("next/dist/compiled/picomatch");
+const includesFor = (route) => new Set(Object.entries(videoOcrFileTracingIncludes).flatMap(([pattern, includes]) => picomatch(pattern, { dot: true, contains: true })(route) ? includes : []));
 
 describe("video OCR tracing — Phase 2a queue slim", () => {
   it("isolates history OCR workers from history listing and review routes", () => {
@@ -49,5 +56,20 @@ describe("video OCR tracing — Phase 2a queue slim", () => {
       }
       expect(budget.requireWorkerScript, route).toBe(true);
     }
+  });
+});
+
+describe("literal Next tracing routes", () => {
+  it("keeps every declared route's required native assets", () => {
+    for (const [route, assets] of Object.entries(videoOcrTracedRoutes)) {
+      expect([...includesFor(route)]).toEqual(expect.arrayContaining(assets));
+    }
+  });
+
+  it("does not mistake the o in ocr-media for the [jobId] character class", () => {
+    const media = includesFor("/api/internal/video-process/ocr-media/[taskId]");
+    expect([...media]).toEqual(expect.arrayContaining(sharpNativeFileTracing));
+    for (const asset of tesseractFileTracing) expect(media.has(asset)).toBe(false);
+    expect(includesFor("/api/internal/video-process/queue").size).toBe(0);
   });
 });
