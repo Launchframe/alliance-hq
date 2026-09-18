@@ -174,6 +174,10 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 - Notes components use the guarded navigation context, not raw router parameters, so browser Back cannot unmount dirty editors before confirmation. Each editor declares the URL keys that actually replace its content; nested task dialogs do not discard the parent note.
 - When using Next's patched native history methods, pass only custom state. Copying `__NA` into the payload makes Next treat the write as its own and skip router URL synchronization.
 - `X-Notes-Scope` fences requests from stale account/alliance views before mutations or ownership claims. It is optional for legacy clients and is never an authorization grant; Auth.js binding, RBAC, and knowledge-resource predicates remain mandatory.
+- Draft/task/review/revision/publication catalogs use scope- and query-bound pages. Revision/publication history lists contain metadata only; selected detail loads use the owner-only `share` capability, not a collaborator grant. Do not decrypt every publication token or fetch every archived snapshot body just to list versions.
+- Task summaries intentionally include a bounded 240-character excerpt. Status/label filters run before pagination. Opening an excerpt requires the complete authorized task; a filtered-out saved task is reauthorized independently so list-window changes do not discard an accessible editor.
+- Standalone task-panel cursors reset when personal/source scope changes, before issuing the next read. Archive retry controls repeat failed reads only, never processing, preview creation, or other writes.
+- Linked task controls can be nested in a note form. Their buttons must use `type="button"`; only the note's explicit Save control submits that form.
 
 - Plunder Plan database suites: run `npx vitest run src/lib/plunder-plan --maxWorkers=1` with `PLUNDER_PLAN_DB_TEST=1` only after binding all three database URLs to the same guarded dedicated test database. Delivery tests mock Discord; never invoke live command registration or the authenticated delivery tick as an automated smoke test. Worktrees do not isolate the database.
 

@@ -7,6 +7,8 @@ import { captureTaskSchema } from "@/lib/notes/intake.shared";
 import { generationBody, GENERATION_KINDS, type GenerationKind, type GenerationResult, type GenerationReview } from "@/lib/notes/generation.shared";
 import { TaskStateFields } from "./TaskStateFields";
 import { useNotesFetch, useNotesNavigation, useNotesDirtyState } from "./NotesNavigation";
+import { workspaceOffset } from "@/lib/notes/workspace.shared";
+import type { ResourcePage } from "@/lib/notes/pagination.shared";
 
 export function NoteStudio({ canCreate, onChanged }: { canCreate: boolean; onChanged: () => Promise<void> }) {
   const t = useTranslations("notes.studio"), n = useTranslations("notes"), locale = useLocale();
@@ -20,12 +22,19 @@ export function NoteStudio({ canCreate, onChanged }: { canCreate: boolean; onCha
   const [question, setQuestion] = useState("");
   const submittedQuestion = useRef("");
   const [resources, setResources] = useState<Array<{ resourceId: string; title: string }>>([]), [selected, setSelected] = useState<string[]>([]);
-  const [history, setHistory] = useState<Array<{ id: string; kind: GenerationKind }>>([]), [loadedJob, setJob] = useState<GenerationResult | null>(null);
+  const reviewCursor = params.get("reviewCursor"), studioOffset = workspaceOffset(params.get("studioOffset"), 50), studioCursor = params.get("studioCursor");
+  const [history, setHistory] = useState<ResourcePage<{ id: string; kind: GenerationKind }> | null>(null), [loadedJob, setJob] = useState<GenerationResult | null>(null);
+  const [historyKey, setHistoryKey] = useState<string | null | undefined>(undefined), [catalogKey, setCatalogKey] = useState("");
+  const [catalogNext, setCatalogNext] = useState<string | null>(null), [catalogPrevious, setCatalogPrevious] = useState<string | null>(null), [refreshVersion, setRefreshVersion] = useState(0);
+  const resourceKey = JSON.stringify([studioCursor, studioOffset]);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const catalogErrorAnchor = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (catalogError) catalogErrorAnchor.current?.scrollIntoView({ block: "nearest" }); }, [catalogError]);
   const [review, setReview] = useState<GenerationReview | null>(null), [dirty, setDirty] = useState(false);
   const [working, setBusy] = useState(false), [jobLoading, setJobLoading] = useState(false), [error, setError] = useState<string | null>(null);
   const job = loadedJob?.id === jobId ? loadedJob : null, busy = working || jobLoading;
   const currentId = useRef<string | null>(null), controller = useRef<AbortController | null>(null), alive = useRef(false);
-  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; currentId.current = null; controller.current?.abort(); }; }, []);
   const api = useCallback(async <T,>(url: string, body?: unknown, method = "POST"): Promise<T> => {
     const response = await fetchNotes(url, { cache: "no-store", ...(body !== undefined ? { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}) });
     const result = await response.json();
@@ -45,7 +54,7 @@ export function NoteStudio({ canCreate, onChanged }: { canCreate: boolean; onCha
       else if (data.state === "ready" && initialize) { setReview(data.review ?? { title: data.parts[0]?.title ?? "", body: generationBody(data.parts), actions: data.parts.flatMap((part, p) => part.actions.map((action, a) => captureTaskSchema.parse({ ...action, actionKey: `${p}:${a}`, included: false }))) }); setDirty(false); }
     } catch (failure) { if (!active.signal.aborted) setError(failure instanceof Error ? failure.message : n("loadFailed")); }
     finally { if (!active.signal.aborted) setJobLoading(false); }
-  }, [n, fetchNotes]);
+  }, [n, fetchNotes, setJob]);
   useEffect(() => {
     currentId.current = jobId;
     const timer = window.setTimeout(() => {
@@ -61,12 +70,16 @@ export function NoteStudio({ canCreate, onChanged }: { canCreate: boolean; onCha
   }
   useNotesDirtyState({ dirty, busy, keys: ["pathname", "view", "job"], keep: saveReview });
   useNotesDirtyState(() => ({ dirty: !!question.trim() && question !== submittedQuestion.current, keys: ["pathname", "view"], discard: () => setQuestion("") }));
-  const refresh = useCallback(async () => { const [catalog, recent] = await Promise.all([api<{ resources: typeof resources }>("/api/notes/knowledge/resources"), api<typeof history>("/api/notes/generation")]); setResources(catalog.resources); setHistory(recent); }, [api]);
+  const refresh = async () => { setRefreshVersion((version) => version + 1); };
   useEffect(() => {
     let active = true;
-    Promise.all([api<{ resources: typeof resources }>("/api/notes/knowledge/resources"), api<typeof history>("/api/notes/generation")]).then(([catalog, recent]) => { if (active) { setResources(catalog.resources); setHistory(recent); } }).catch(() => { if (active) setError(n("loadFailed")); });
-    return () => { active = false; currentId.current = null; controller.current?.abort(); };
-  }, [api, n]);
+    const query = new URLSearchParams({ format: "page", ...(reviewCursor ? { cursor: reviewCursor } : {}) });
+    const libraryQuery = new URLSearchParams({ format: "page", offset: String(studioCursor ? 0 : studioOffset), ...(studioCursor ? { cursor: studioCursor } : {}) });
+    Promise.all([api<ResourcePage<typeof resources[number]>>(`/api/notes/knowledge/resources?${libraryQuery}`), api<NonNullable<typeof history>>(`/api/notes/generation?${query}`)])
+      .then(([catalog, recent]) => { if (active) { setResources(catalog.items); setCatalogNext(catalog.nextCursor); setCatalogPrevious(catalog.previousCursor); setCatalogKey(resourceKey); setHistory(recent); setHistoryKey(reviewCursor); setCatalogError(null); } })
+      .catch(() => { if (active) { setResources([]); setHistory(null); setCatalogError(n("loadFailed")); } });
+    return () => { active = false; };
+  }, [api, n, reviewCursor, studioCursor, studioOffset, resourceKey, refreshVersion]);
   useEffect(() => {
     const check = () => { if (currentId.current && !jobLoading) void load(currentId.current); };
     window.addEventListener("focus", check); const timer = window.setInterval(check, 15_000);
@@ -77,10 +90,11 @@ export function NoteStudio({ canCreate, onChanged }: { canCreate: boolean; onCha
   const choose = async (id: string) => { if (id === jobId) await load(id, true); else { setJobLoading(true); navigation.change({ job: id }, false, true); } };
   const cls = "rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm disabled:opacity-40";
   return <section data-testid="notes-studio" className="min-w-0 flex-1 space-y-5 p-5 sm:p-7"><h2 className="text-xl font-semibold">{t("title")}</h2><p className="text-sm text-hq-fg-muted">{t("hint")}</p>
-    <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)]"><aside className="space-y-2"><h3 className="text-sm font-semibold">{t("history")}</h3>{history.map((item) => <button disabled={busy || dirty} className={`${cls} block w-full text-left`} key={item.id} onClick={() => void action(() => choose(item.id))}>{t(`kinds.${item.kind}`)} · {item.id.slice(-4)}</button>)}</aside><div className="space-y-4">
+    {catalogError && <div ref={catalogErrorAnchor} className="space-y-2"><p role="alert" className="text-sm text-hq-danger">{catalogError}</p><button type="button" className={cls} onClick={() => { setCatalogError(null); void refresh(); }}>{n("workspace.retryLoading")}</button></div>}
+    <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)]"><aside className="space-y-2"><h3 className="text-sm font-semibold">{t("history")}</h3>{historyKey === reviewCursor && history?.items.map((item) => <button disabled={busy || dirty} className={`${cls} block w-full text-left`} key={item.id} onClick={() => void action(() => choose(item.id))}>{t(`kinds.${item.kind}`)} · {item.id.slice(-4)}</button>)}<div className="flex gap-2"><button type="button" className={cls} disabled={busy || historyKey !== reviewCursor || !history?.previousCursor} onClick={() => navigation.change({ reviewCursor: history?.previousCursor ?? null })}>{n("imports.previous")}</button><button type="button" className={cls} disabled={busy || historyKey !== reviewCursor || !history?.nextCursor} onClick={() => navigation.change({ reviewCursor: history?.nextCursor ?? null })}>{n("imports.next")}</button></div></aside><div className="space-y-4">
     <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); if (busy || dirty || kind !== "ask" && !selected.length || kind === "ask" && !question.trim()) return; void action(async () => { const result = await api<{ jobId: string }>("/api/notes/generation", { requestId: crypto.randomUUID(), kind, locale, resourceIds: selected, question, threadId: kind === "ask" ? thread : null, includeSources }); submittedQuestion.current = question; await choose(result.jobId); await refresh(); }); }}>
     <label className="block text-sm">{t("kind")}<select className={`${cls} ml-3`} value={kind} disabled={busy} onChange={(event) => setKind(event.target.value as GenerationKind)}>{GENERATION_KINDS.filter((value) => canCreate || value === "ask").map((value) => <option key={value} value={value}>{t(`kinds.${value}`)}</option>)}</select></label>
-    {kind !== "ask" ? <fieldset className="max-h-48 space-y-2 overflow-y-auto"><legend>{t("resources")}</legend>{resources.map((resource) => <label key={resource.resourceId} className="flex gap-2 text-sm"><input type="checkbox" disabled={busy || !selected.includes(resource.resourceId) && selected.length >= 3} checked={selected.includes(resource.resourceId)} onChange={(event) => setSelected((values) => event.target.checked ? [...values, resource.resourceId] : values.filter((value) => value !== resource.resourceId))} />{resource.title}</label>)}</fieldset> : <><label className="flex gap-2 text-xs"><input type="checkbox" checked={includeSources} onChange={(event) => setIncludeSources(event.target.checked)} />{n("knowledge.includeSources")}</label><p className="text-xs text-hq-fg-muted">{t("threadHint")}</p>{thread && <button type="button" className={cls} onClick={() => setThread(null)}>{t("newThread")}</button>}</>}
+    {kind !== "ask" ? <fieldset className="max-h-48 space-y-2 overflow-y-auto"><legend>{t("resources")} · {selected.length.toLocaleString(locale)} / {(3).toLocaleString(locale)}</legend>{(catalogKey === resourceKey ? resources : []).map((resource) => <label key={resource.resourceId} className="flex gap-2 text-sm"><input type="checkbox" disabled={busy || !selected.includes(resource.resourceId) && selected.length >= 3} checked={selected.includes(resource.resourceId)} onChange={(event) => setSelected((values) => event.target.checked ? [...values, resource.resourceId] : values.filter((value) => value !== resource.resourceId))} />{resource.title}</label>)}<div className="flex gap-2"><button type="button" className={cls} disabled={busy || catalogKey !== resourceKey || !catalogPrevious} onClick={() => navigation.change({ studioCursor: catalogPrevious, studioOffset: null })}>{n("knowledge.previous")}</button><button type="button" className={cls} disabled={busy || catalogKey !== resourceKey || !catalogNext} onClick={() => navigation.change({ studioCursor: catalogNext, studioOffset: null })}>{n("knowledge.next")}</button></div></fieldset> : <><label className="flex gap-2 text-xs"><input type="checkbox" checked={includeSources} onChange={(event) => setIncludeSources(event.target.checked)} />{n("knowledge.includeSources")}</label><p className="text-xs text-hq-fg-muted">{t("threadHint")}</p>{thread && <button type="button" className={cls} onClick={() => setThread(null)}>{t("newThread")}</button>}</>}
     <label className="block text-sm">{t("question")}<textarea className={`${cls} mt-2 w-full`} value={question} maxLength={2000} onChange={(event) => setQuestion(event.target.value)} /></label>
     <button type="submit" className={cls} disabled={busy || dirty || kind !== "ask" && !selected.length || kind === "ask" && !question.trim()}>{t("start")}</button>
     </form>

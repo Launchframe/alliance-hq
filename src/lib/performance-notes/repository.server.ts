@@ -11,6 +11,8 @@ import { knowledgeActorOwnsResource, type KnowledgeAccess, type KnowledgeActor }
 import { createKnowledgeResource, knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, touchKnowledgeResource, type KnowledgeTransaction } from "@/lib/notes/resources.server";
 import { NOTE_LIST_PAGE_SIZE, noteListFilterSchema, noteTitle, noteExcerpt, type NoteFields, type NotePatch, type NoteListFilter, type NoteListCursor } from "@/lib/notes/workspace.shared";
 import { redactIntakeText } from "@/lib/notes/intake.shared";
+import { resourcePaging, resourcePage } from "@/lib/notes/pagination.server";
+import { KNOWLEDGE_PAGE_SIZE } from "@/lib/notes/pagination.shared";
 import type { PerformanceNoteDto, PerformanceNoteIntakeMode, PerformanceNoteKind, PerformanceNoteRosterMember, PerformanceNoteSummary, NotesListPage } from "./types.shared";
 
 function isNoteKind(value: string): value is PerformanceNoteKind {
@@ -273,11 +275,31 @@ export async function listPerformanceNotesForAshedMember(input: { actor: Knowled
   return noteDtos(input.actor, rows.map(readableNote));
 }
 
+function revisionDto(row: typeof schema.knowledgeNoteRevisions.$inferSelect) {
+  return { id: row.id, version: row.version, snapshot: { ...row.snapshot, title: redactIntakeText(row.snapshot.title), body: redactIntakeText(row.snapshot.body), documentType: row.snapshot.documentType ?? "note", labels: (row.snapshot.labels ?? []).map(redactIntakeText), notebook: row.snapshot.notebook ? redactIntakeText(row.snapshot.notebook) : null, keyDecisions: (row.snapshot.keyDecisions ?? []).map(redactIntakeText), openQuestions: (row.snapshot.openQuestions ?? []).map(redactIntakeText) }, editedAt: row.editedAt.toISOString() };
+}
+export async function getNoteRevision(actor: KnowledgeActor, noteId: string, version: number) {
+  if (!Number.isSafeInteger(version) || version < 1) throw new KnowledgeAccessError("invalid");
+  if (!await getPerformanceNoteForAlliance({ actor, noteId, access: "share" })) throw new KnowledgeAccessError("not_found");
+  const revisions = schema.knowledgeNoteRevisions;
+  const [row] = await getDb().select().from(revisions).where(and(eq(revisions.noteId, noteId), eq(revisions.allianceId, actor.allianceId), eq(revisions.version, version)));
+  if (!row) throw new KnowledgeAccessError("not_found");
+  return revisionDto(row);
+}
+export async function listNoteRevisionPage(actor: KnowledgeActor, noteId: string, cursor: string | null = null) {
+  if (!await getPerformanceNoteForAlliance({ actor, noteId, access: "share" })) throw new KnowledgeAccessError("not_found");
+  const page = resourcePaging(actor, ["note-revisions", noteId], cursor), revisions = schema.knowledgeNoteRevisions;
+  if (page.cursor && typeof page.cursor.position !== "number") throw new KnowledgeAccessError("invalid");
+  const rows = await getDb().select({ id: revisions.id, version: revisions.version, editedAt: revisions.editedAt }).from(revisions)
+    .where(and(eq(revisions.noteId, noteId), eq(revisions.allianceId, actor.allianceId), page.cursor ? sql`${revisions.version} ${page.comparison} ${page.cursor.position}` : undefined))
+    .orderBy(page.order(revisions.version)).limit(KNOWLEDGE_PAGE_SIZE + 1);
+  return resourcePage(rows, page, (row) => ({ id: row.id, position: row.version }));
+}
 export async function listNoteRevisions(actor: KnowledgeActor, noteId: string) {
   const note = await getPerformanceNoteForAlliance({ actor, noteId, access: "share" });
   if (!note) throw new KnowledgeAccessError("not_found");
   const rows = await getDb().select().from(schema.knowledgeNoteRevisions)
     .where(and(eq(schema.knowledgeNoteRevisions.noteId, noteId), eq(schema.knowledgeNoteRevisions.allianceId, actor.allianceId)))
     .orderBy(desc(schema.knowledgeNoteRevisions.version)).limit(30);
-  return rows.map((row) => ({ id: row.id, version: row.version, snapshot: { ...row.snapshot, title: redactIntakeText(row.snapshot.title), body: redactIntakeText(row.snapshot.body), documentType: row.snapshot.documentType ?? "note", keyDecisions: (row.snapshot.keyDecisions ?? []).map(redactIntakeText), openQuestions: (row.snapshot.openQuestions ?? []).map(redactIntakeText) }, editedAt: row.editedAt.toISOString() }));
+  return rows.map(revisionDto);
 }

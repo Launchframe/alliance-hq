@@ -49,7 +49,7 @@ export function NoteShareDialog({ note, task = false, onClose, onSaved }: { note
   }
   const available = data?.recipients.filter((person) => !grants.some((grant) => grant.subjectKind === "user" && grant.subjectId === person.id)) ?? [];
   return <dialog ref={dialog} aria-label={t(task ? "tasks.share" : "sharing.title")} onCancel={(event) => { event.preventDefault(); event.stopPropagation(); if (!saving) onClose(); }} className="fixed inset-0 m-auto w-[min(95vw,32rem)] rounded-2xl border border-hq-border bg-hq-canvas p-0 text-hq-fg shadow-2xl backdrop:bg-black/60">
-    <header className="flex items-center justify-between border-b border-hq-border px-6 py-4"><div><h2 className="font-semibold">{t(task ? "tasks.share" : "sharing.title")}</h2><p className="mt-1 max-w-80 truncate text-xs text-hq-fg-muted">{noteTitle(note)}</p></div><button onClick={onClose} disabled={saving} aria-label={t("actions.close")} className="rounded-lg p-2 hover:bg-hq-surface"><X className="h-4 w-4" /></button></header>
+    <header className="flex items-center justify-between border-b border-hq-border px-6 py-4"><div><h2 className="font-semibold">{t(task ? "tasks.share" : "sharing.title")}</h2><p className="mt-1 max-w-80 truncate text-xs text-hq-fg-muted">{noteTitle(note)}</p></div><button type="button" onClick={onClose} disabled={saving} aria-label={t("actions.close")} className="rounded-lg p-2 hover:bg-hq-surface"><X className="h-4 w-4" /></button></header>
     <div className="space-y-5 p-6">
       {task && note.body ? <div className="max-h-40 overflow-y-auto rounded-lg border border-hq-border p-3"><NoteMarkdown body={note.body} /></div> : null}
       <div className="flex items-start gap-3 rounded-xl bg-hq-surface p-4"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-hq-accent" /><p className="text-xs leading-5 text-hq-fg-muted">{t(task ? "tasks.sourcePrivacy" : "sharing.explanation")}</p></div>
@@ -63,6 +63,6 @@ export function NoteShareDialog({ note, task = false, onClose, onSaved }: { note
       </> : <p className="text-sm text-hq-fg-muted">{t("sharing.loading")}</p>}
       {error ? <p role="alert" className="rounded-lg bg-hq-danger/10 p-3 text-sm text-hq-danger">{error}</p> : null}
     </div>
-    <footer className="flex justify-end gap-2 border-t border-hq-border px-6 py-4"><button onClick={onClose} disabled={saving} className="rounded-lg border border-hq-border px-3 py-2 text-sm">{t("actions.close")}</button><button onClick={() => void save()} disabled={!data || saving} className="inline-flex items-center gap-2 rounded-lg bg-hq-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"><Share2 className="h-4 w-4" />{saving ? t("saving") : t("sharing.save")}</button></footer>
+    <footer className="flex justify-end gap-2 border-t border-hq-border px-6 py-4"><button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-hq-border px-3 py-2 text-sm">{t("actions.close")}</button><button type="button" onClick={() => void save()} disabled={!data || saving} className="inline-flex items-center gap-2 rounded-lg bg-hq-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"><Share2 className="h-4 w-4" />{saving ? t("saving") : t("sharing.save")}</button></footer>
   </dialog>;
 }

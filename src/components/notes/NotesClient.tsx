@@ -77,6 +77,7 @@ function NotesWorkspace({ initial, focusedNote, initialCursor = null }: Props) {
   const changeState = useCallback((patch: Partial<NoteWorkspaceState>, replace = false) => {
     const next = noteWorkspaceStateSchema.parse({ ...state, ...patch });
     const changes: Record<string, string | null> = Object.keys(patch).some((key) => ["view", "q", "notebook", "source", "priority", "sort"].includes(key)) ? { cursor: null } : {};
+    if (patch.taskFilter !== undefined || patch.taskLabel !== undefined) changes.taskCursor = null;
     if (patch.view !== undefined && patch.view !== view) Object.assign(changes, { note: null, draft: null, noteTask: null, board: null, task: null, import: null, job: null, knowledge: null });
     navigation.go(workspaceStateLocation(navigation.pathname, params.toString(), next, initial.scope, changes), replace);
   }, [state, view, navigation, params, initial.scope]);
