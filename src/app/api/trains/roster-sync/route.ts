@@ -74,8 +74,7 @@ export async function POST() {
       sessionId: session.id,
       allianceId: ctx.allianceId,
       trainDate: today,
-      conductorMechanism: todayDayConfig?.conductorMechanism ?? null,
-      paintTemplate: todayDayConfig?.paintTemplate ?? null,
+      rule: todayDayConfig?.conductorRule ?? null,
       activeMemberCount: syncResult.activeMemberCount,
     });
 

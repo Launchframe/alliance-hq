@@ -1,6 +1,7 @@
-import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
+import { conductorRuleUsesPriceIsFreightRoll } from "@/lib/trains/heavy-hitter-pool.shared";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import type { TrainRollErrorDetails } from "@/lib/trains/roll-errors.shared";
-import type { PoolType, WeekTemplateType } from "@/lib/trains/types";
+import type { PoolType } from "@/lib/trains/types";
 
 const RESEEDABLE_POOL_TYPES = new Set<PoolType>([
   "r3",
@@ -16,10 +17,10 @@ export function resolveWheelBlockedReseedPoolType(
   details: TrainRollErrorDetails,
   fallbackPoolType?: PoolType | null,
   options?: {
-    paintTemplate?: WeekTemplateType | string | null;
+    rule?: ConductorRule | null;
   },
 ): PoolType | null {
-  if (usesPriceIsFreightConductorRoll(options?.paintTemplate)) {
+  if (conductorRuleUsesPriceIsFreightRoll(options?.rule ?? null)) {
     return null;
   }
 

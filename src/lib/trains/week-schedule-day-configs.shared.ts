@@ -1,9 +1,15 @@
-import { paintTemplateFromConductorConfig } from "@/lib/trains/calendar-cell-styles.shared";
-import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
-import { parseConductorConfigTopN } from "@/lib/trains/conductor-top-n.shared";
-import { generateWeekDayConfigs } from "@/lib/trains/templates";
+import {
+  parseConductorRule,
+  parseVipRule,
+  type ConductorRule,
+  type VipRule,
+} from "@/lib/trains/rules/catalog.shared";
+import {
+  weekRulesForPreset,
+  weekdayKeyForDate,
+} from "@/lib/trains/rules/presets.shared";
+import { weekDatesInTrainWeek } from "@/lib/trains/train-week-calendar.shared";
 import type { WeekTemplateType } from "@/lib/trains/types";
-import { resolvePaintTemplateForDay } from "@/lib/trains/week-template-registry.shared";
 
 export const PROVISIONAL_DAY_CONFIG_ID_PREFIX = "preview-";
 
@@ -22,47 +28,48 @@ export function provisionalDayConfigClass(isProvisional: boolean): string {
 export type MergedWeekScheduleDayConfig = {
   id: string;
   date: string;
-  conductorMechanism: string;
-  vipMechanism: string | null;
-  vipConfig: unknown;
+  conductorRule: ConductorRule | null;
+  vipRule: VipRule | null;
   isOverride: boolean;
-  paintTemplate: WeekTemplateType | null;
-  topN?: number | null;
-  conductorConfig?: unknown;
+  sourceTemplateKey: string | null;
 };
 
 type DayConfigRow = {
   id: string;
   date: string;
-  conductorMechanism: string;
-  conductorConfig?: unknown;
-  vipMechanism: string | null;
-  vipConfig: unknown;
+  conductorRule?: unknown;
+  vipRule?: unknown;
+  sourceTemplateKey?: string | null;
   isOverride?: number | null;
 };
 
 function mapDayConfigRow(row: DayConfigRow): MergedWeekScheduleDayConfig {
-  const paintTemplate = paintTemplateFromConductorConfig(row.conductorConfig);
-  const conductorMechanism =
-    effectiveConductorMechanism(
-      row.conductorMechanism,
-      paintTemplate,
-      row.date,
-    ) ?? row.conductorMechanism;
   return {
     id: row.id,
     date: row.date,
-    conductorMechanism,
-    vipMechanism: row.vipMechanism,
-    vipConfig: row.vipConfig,
+    conductorRule: parseConductorRule(row.conductorRule),
+    vipRule: parseVipRule(row.vipRule),
     isOverride: row.isOverride === 1,
-    paintTemplate,
-    topN: parseConductorConfigTopN(row.conductorConfig),
-    conductorConfig: row.conductorConfig ?? null,
+    sourceTemplateKey: row.sourceTemplateKey ?? null,
   };
 }
 
-/** Seven train-week days from template when no DB rows exist; merge when partial rows exist. */
+function provisionalDay(
+  date: string,
+  templateType: WeekTemplateType,
+): MergedWeekScheduleDayConfig {
+  const rules = weekRulesForPreset(templateType)[weekdayKeyForDate(date)];
+  return {
+    id: `${PROVISIONAL_DAY_CONFIG_ID_PREFIX}${date}`,
+    date,
+    conductorRule: rules.conductorRule,
+    vipRule: rules.vipRule,
+    isOverride: false,
+    sourceTemplateKey: templateType,
+  };
+}
+
+/** Seven train-week days from the preset when no DB rows exist; merge when partial. */
 export function resolveWeekDisplayDayConfigs(
   weekStart: string,
   templateType: WeekTemplateType,
@@ -71,25 +78,19 @@ export function resolveWeekDisplayDayConfigs(
   if (dayConfigRows.length > 0) {
     return buildWeekScheduleDayConfigs(weekStart, templateType, dayConfigRows);
   }
-
-  return generateWeekDayConfigs(templateType, weekStart).map((generated) => ({
-    id: `${PROVISIONAL_DAY_CONFIG_ID_PREFIX}${generated.date}`,
-    date: generated.date,
-    conductorMechanism: generated.conductorMechanism,
-    vipMechanism: generated.vipMechanism ?? null,
-    vipConfig: generated.vipConfig ?? null,
-    isOverride: false,
-    paintTemplate: resolvePaintTemplateForDay(
-      templateType,
-      generated.date,
-      weekStart,
-    ),
-    topN: parseConductorConfigTopN(generated.conductorConfig),
-    conductorConfig: generated.conductorConfig ?? null,
-  }));
+  return weekDatesInTrainWeek(weekStart).map((date) =>
+    provisionalDay(date, templateType),
+  );
 }
 
-/** Always return seven train-week days — DB rows win; template fills gaps. */
+/**
+ * Always return seven train-week days.
+ *
+ * **A persisted row always wins**, override or not. Previously a row with
+ * `is_override = 0` was overwritten by the week preset's generated rule, so
+ * any baseline / import / first-persist path that left the flag at 0 showed
+ * the preset instead of the rule actually stored for that day.
+ */
 export function buildWeekScheduleDayConfigs(
   weekStart: string,
   templateType: WeekTemplateType,
@@ -99,39 +100,7 @@ export function buildWeekScheduleDayConfigs(
     dayConfigRows.map((row) => [row.date, mapDayConfigRow(row)]),
   );
 
-  return generateWeekDayConfigs(templateType, weekStart).map((generated) => {
-    const existing = byDate.get(generated.date);
-    const segmentPaint = resolvePaintTemplateForDay(
-      templateType,
-      generated.date,
-      weekStart,
-    );
-    if (existing) {
-      if (existing.isOverride) return existing;
-      const conductorMechanism =
-        effectiveConductorMechanism(
-          generated.conductorMechanism,
-          segmentPaint,
-          generated.date,
-        ) ?? generated.conductorMechanism;
-      return {
-        ...existing,
-        paintTemplate: segmentPaint,
-        conductorMechanism,
-        topN: parseConductorConfigTopN(generated.conductorConfig),
-      };
-    }
-
-    return {
-      id: `${PROVISIONAL_DAY_CONFIG_ID_PREFIX}${generated.date}`,
-      date: generated.date,
-      conductorMechanism: generated.conductorMechanism,
-      vipMechanism: generated.vipMechanism ?? null,
-      vipConfig: generated.vipConfig ?? null,
-      isOverride: false,
-      paintTemplate: segmentPaint,
-      topN: parseConductorConfigTopN(generated.conductorConfig),
-      conductorConfig: generated.conductorConfig ?? null,
-    };
-  });
+  return weekDatesInTrainWeek(weekStart).map(
+    (date) => byDate.get(date) ?? provisionalDay(date, templateType),
+  );
 }

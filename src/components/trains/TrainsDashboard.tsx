@@ -76,7 +76,6 @@ import {
 } from "@/components/trains/TrainEligibilityDialog";
 import { TrainSpinSourcePanel } from "@/components/trains/TrainSpinSourcePanel";
 import { TrainMonthCalendar } from "@/components/trains/TrainMonthCalendar";
-import { DAY_PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
 import {
   formatTrainReadyMessage,
   shouldAnnounceTrainLockForDate,
@@ -91,7 +90,6 @@ import {
 } from "@/components/trains/TrainScheduleViewToggle";
 import {
   WeekScheduleStrip,
-  canSpinConductor,
   canSpinVip,
 } from "@/components/trains/WeekScheduleStrip";
 import { Dialog } from "@/components/ui/dialog";
@@ -109,37 +107,51 @@ import type {
   TrainsDashboardPayload,
   WeekSchedulePagePayload,
 } from "@/lib/trains/load-dashboard";
-import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
+import { conductorRuleUsesPriceIsFreightRoll } from "@/lib/trains/heavy-hitter-pool.shared";
+import { conductorRulePoolType } from "@/lib/trains/rules/derive.shared";
 import {
-  isAutomaticTopNBoard,
-  resolveConductorTopNBoard,
-  resolveDayPaintApplyTopN,
-} from "@/lib/trains/conductor-top-n.shared";
-import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
+  conductorRuleIdentity,
+  conductorRuleLabelKey,
+  vipRuleIdentity,
+  type ConductorRule,
+  type DayRules,
+} from "@/lib/trains/rules/catalog.shared";
+import {
+  DAY_RULE_PALETTE,
+  defaultScopeForPaletteId,
+  paletteIdForRule,
+  ruleForPaletteSelection,
+  scopeForRule,
+  type DayRulePaletteId,
+} from "@/lib/trains/rules/palette.shared";
+import { presetRulesForDate } from "@/lib/trains/rules/presets.shared";
+import {
+  conductorRuleIsAutomatic,
+  spinSourceForVipRule,
+  supportsManualVipPickForRule,
+} from "@/lib/trains/rules/derive.shared";
 import { resolveScoreLeaderboardKind } from "@/lib/trains/score-leaderboard-podium.shared";
 import {
   conductorSpinSourceForTrainDay,
 } from "@/lib/trains/train-day-context.shared";
-import {
-  isPoolSpinSource,
-  vipSpinSource,
-} from "@/lib/trains/spin-source.shared";
+import { isPoolSpinSource } from "@/lib/trains/spin-source.shared";
 import { canStartConductorSwap } from "@/lib/trains/conductor-swap.shared";
 import { currentGuidedStep } from "@/lib/trains/guided-flow.shared";
 import { rosterSyncCapabilityAllowsInPageSync } from "@/lib/trains/roster-data-status.shared";
 import {
   canSpinConductorWithLeadScope,
-  resolveVsTopBoardForTrainDate,
-  scoreDateDayConfigForTrainDate,
 } from "@/lib/trains/vs-score-scope.shared";
 import { buildTrainsGuidedVideoUploadHref } from "@/lib/trains/guided-video-upload.shared";
 import { shouldConfirmEconomyWeekWithoutScores } from "@/lib/trains/vs-data-status.shared";
-import type { PoolRefreshedInfo, PoolType, RollCandidate, RollResult, WeekTemplateType } from "@/lib/trains/types";
 import {
-  compositeParentForSegment,
-  isWeekTemplateSegment,
-  shouldExpandCompositeByDayIndex,
-} from "@/lib/trains/week-template-registry.shared";
+  WEEK_TEMPLATES,
+  type PoolRefreshedInfo,
+  type PoolType,
+  type RollCandidate,
+  type RollResult,
+  type WeekTemplateType,
+} from "@/lib/trains/types";
+import { scoreDayRuleFromDayConfigs } from "@/lib/trains/train-day-context.shared";
 import {
   formatTrainPointCount,
   type MemberQualificationPayload,
@@ -169,7 +181,6 @@ import {
 } from "@/lib/trains/paint-rule-conductor-gate.shared";
 import { TRAIN_OWNERSHIP_REQUIRED_CODE } from "@/lib/trains/train-ownership.shared";
 import { hasValidConductorPickForDay } from "@/lib/trains/conductor-mechanism.shared";
-import { supportsManualVipPick } from "@/lib/trains/templates";
 import {
   allianceTrainWeekFromRow,
   getTrainWeekStart,
@@ -211,20 +222,28 @@ type PoolRefreshedHint = PoolRefreshedInfo & {
   role: "conductor" | "vip";
 };
 
+type PaintOptions = {
+  /** Preset to stamp on the week schedule when this paint sets one. */
+  updateWeekTemplate?: WeekTemplateType | null;
+  /** Preset to persist when materializing a draft week on first paint. */
+  preferredWeekTemplate?: WeekTemplateType;
+  /** Provenance for the calendar cell — never a draw input. */
+  sourceTemplateKey?: string | null;
+};
+
+/**
+ * Best-guess preset for the week template picker, from the template each day
+ * was painted with. Provenance only — it never changes how a day draws.
+ */
 function inferWeekTemplateFromDayConfigs(
-  dayConfigs: Array<{ paintTemplate?: WeekTemplateType | null }>,
+  dayConfigs: Array<{ sourceTemplateKey?: string | null }>,
 ): WeekTemplateType {
   if (dayConfigs.length === 0) return "vs_push_week";
 
-  const counts = new Map<WeekTemplateType, number>();
+  const counts = new Map<string, number>();
   for (const day of dayConfigs) {
-    let key = day.paintTemplate ?? "vs_push_week";
-    // Draft dayConfigs use segment paint templates (e.g. vs_push_weekdays).
-    // Map those back to selectable composite parents so the template picker
-    // can show a detail panel for the inferred selection.
-    if (isWeekTemplateSegment(key)) {
-      key = compositeParentForSegment(key) ?? key;
-    }
+    const key = day.sourceTemplateKey ?? "vs_push_week";
+    if (!(WEEK_TEMPLATES as readonly string[]).includes(key)) continue;
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
 
@@ -232,7 +251,7 @@ function inferWeekTemplateFromDayConfigs(
   let dominantCount = 0;
   for (const [template, count] of counts) {
     if (count > dominantCount) {
-      dominant = template;
+      dominant = template as WeekTemplateType;
       dominantCount = count;
     }
   }
@@ -245,6 +264,7 @@ export function TrainsDashboard({
   initialScoresReady = false,
 }: Props) {
   const t = useTranslations("trains");
+  const tRules = useTranslations("trains.rules");
   const locale = useLocale();
   const { coverageFetch, coverageDialog } = useCoverageFetch();
   const router = useRouter();
@@ -266,7 +286,6 @@ export function TrainsDashboard({
   const [wheelCandidates, setWheelCandidates] = useState<RollCandidate[]>([]);
   const [wheelQualification, setWheelQualification] =
     useState<MemberQualificationPayload | null>(null);
-  const [wheelMechanism, setWheelMechanism] = useState<string | null>(null);
   const [wheelDayLabel, setWheelDayLabel] = useState<string | null>(null);
   const [conductorDisqualified, setConductorDisqualified] =
     useState<RollResult | null>(null);
@@ -385,19 +404,15 @@ export function TrainsDashboard({
   const [clearWeekBusy, setClearWeekBusy] = useState(false);
   const [pendingPastPaint, setPendingPastPaint] = useState<{
     dates: string[];
-    templateType: WeekTemplateType;
-    topN?: number;
+    rules: DayRules;
+    options?: PaintOptions;
   } | null>(null);
   const [pendingPaintRuleGate, setPendingPaintRuleGate] = useState<{
     kind: "clear" | "request_unlock";
     blockers: PaintRuleConductorBlocker[];
     dates: string[];
-    templateType: WeekTemplateType;
-    options?: {
-      updateWeekTemplate?: boolean;
-      topN?: number;
-      preferredWeekTemplate?: WeekTemplateType;
-    };
+    rules: DayRules;
+    options?: PaintOptions;
   } | null>(null);
   const [paintRuleGateBusy, setPaintRuleGateBusy] = useState(false);
   const [pastPaintBusy, setPastPaintBusy] = useState(false);
@@ -507,7 +522,6 @@ export function TrainsDashboard({
   const handleWheelClose = useCallback(() => {
     setWheelOpen(false);
     setWheelQualification(null);
-    setWheelMechanism(null);
     setWheelDayLabel(null);
     const pending = pendingWheelRollRef.current;
     pendingWheelRollRef.current = null;
@@ -693,7 +707,11 @@ export function TrainsDashboard({
     for (const [date, templateType] of overrideEntries) {
       const index = dayConfigs.findIndex((day) => day.date === date);
       if (index >= 0) {
-        dayConfigs[index] = { ...dayConfigs[index], paintTemplate: templateType };
+        dayConfigs[index] = {
+          ...dayConfigs[index],
+          ...presetRulesForDate(templateType, date),
+          sourceTemplateKey: templateType,
+        };
       }
     }
 
@@ -832,17 +850,39 @@ export function TrainsDashboard({
     [t],
   );
 
-  const templateShortLabels = useMemo(
+  /** Rule text for calendar cells and week tiles, keyed by rule label key. */
+  const ruleTextLabels = useMemo(
     () => ({
-      vs_push_weekdays: t("templatesShort.vs_push_weekdays"),
-      r4_event_vip: t("templatesShort.r4_event_vip"),
-      top_vs: t("templatesShort.top_vs"),
-      top_vr: t("templatesShort.top_vr"),
-      price_is_right: t("templatesShort.price_is_right"),
-      price_is_right_weekdays: t("templatesShort.price_is_right_weekdays"),
-      takedown_week: t("templatesShort.takedown_week"),
+      freeChoice: tRules("freeChoice"),
+      vsTop1: tRules("vsTop1"),
+      vsTopN: tRules("vsTopN"),
+      vrTopN: tRules("vrTopN"),
+      r3Lottery: tRules("r3Lottery"),
+      r3Award: tRules("r3Award"),
+      r4Rotation: tRules("r4Rotation"),
+      heavyHitterPool: tRules("heavyHitterPool"),
+      priceIsFreightWeekday: tRules("priceIsFreightWeekday"),
+      priceIsFreightHeavyHitter: tRules("priceIsFreightHeavyHitter"),
+      donationsTop: tRules("donationsTop"),
+      eventTopX: tRules("eventTopX"),
+      vipConductorPick: tRules("vipConductorPick"),
+      vipDonationsSecond: tRules("vipDonationsSecond"),
+      vipEventTopX: tRules("vipEventTopX"),
+      vipNone: tRules("vipNone"),
     }),
-    [t],
+    [tRules],
+  );
+
+  /** Palette-row labels for every paint surface. */
+  const ruleLabels = useMemo(
+    () =>
+      Object.fromEntries(
+        DAY_RULE_PALETTE.map((entry) => [
+          entry.id,
+          tRules(conductorRuleLabelKey(entry.rule ?? ruleForPaletteSelection(entry.id, defaultScopeForPaletteId(entry.id)))),
+        ]),
+      ) as Record<DayRulePaletteId, string>,
+    [tRules],
   );
 
   const activeWeekTemplate = useMemo((): WeekTemplateType => {
@@ -1171,7 +1211,6 @@ export function TrainsDashboard({
             ],
       );
       setWheelWinner(body.result);
-      setWheelMechanism(body.result.mechanism);
       setWheelStats(body.stats ?? null);
       setWheelQualification(body.result.qualification ?? null);
       setWheelDayLabel(spinWeekDayLabel(selectedDate));
@@ -1193,7 +1232,6 @@ export function TrainsDashboard({
     pendingWheelRollRef.current = null;
     setWheelOpen(false);
     setWheelQualification(null);
-    setWheelMechanism(null);
     setWheelWinner(null);
     void runRollRef.current("conductor");
   }, []);
@@ -1487,20 +1525,12 @@ export function TrainsDashboard({
   };
 
   const executePaintDates = useCallback(
-    (
-      dates: string[],
-      templateType: WeekTemplateType,
-      options?: {
-        updateWeekTemplate?: boolean;
-        topN?: number;
-        preferredWeekTemplate?: WeekTemplateType;
-      },
-    ) => {
+    (dates: string[], rules: DayRules, options?: PaintOptions) => {
       return withOptimisticMutation(
         (snap) =>
-          applyOptimisticPaint(snap, dates, templateType, {
-            updateWeekTemplate: options?.updateWeekTemplate,
-            ...(options?.topN != null ? { topN: options.topN } : {}),
+          applyOptimisticPaint(snap, dates, rules, {
+            updateWeekTemplate: options?.updateWeekTemplate ?? null,
+            sourceTemplateKey: options?.sourceTemplateKey ?? null,
           }),
         async () => {
           const res = await fetch("/api/trains/schedule/days", {
@@ -1508,9 +1538,10 @@ export function TrainsDashboard({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               dates,
-              templateType,
-              updateWeekTemplate: options?.updateWeekTemplate === true,
-              ...(options?.topN != null ? { topN: options.topN } : {}),
+              conductorRule: rules.conductorRule,
+              vipRule: rules.vipRule,
+              updateWeekTemplate: options?.updateWeekTemplate ?? null,
+              sourceTemplateKey: options?.sourceTemplateKey ?? null,
               ...(options?.preferredWeekTemplate
                 ? { preferredWeekTemplate: options.preferredWeekTemplate }
                 : {}),
@@ -1542,7 +1573,7 @@ export function TrainsDashboard({
                 },
               ],
               dates,
-              templateType,
+              rules,
               options,
             });
             return { ok: false };
@@ -1566,15 +1597,7 @@ export function TrainsDashboard({
   );
 
   const queueOrExecutePaint = useCallback(
-    (
-      allowedDates: string[],
-      templateType: WeekTemplateType,
-      options?: {
-        updateWeekTemplate?: boolean;
-        topN?: number;
-        preferredWeekTemplate?: WeekTemplateType;
-      },
-    ) => {
+    (allowedDates: string[], rules: DayRules, options?: PaintOptions) => {
       const recordsByDate = new Map(
         [
           ...data.weekRecords,
@@ -1591,13 +1614,7 @@ export function TrainsDashboard({
       );
       const plan = planPaintRuleConductorGates({
         dates: allowedDates,
-        templateType,
-        trainWeekConfig,
-        weekTemplateApply: shouldExpandCompositeByDayIndex({
-          updateWeekTemplate: options?.updateWeekTemplate,
-          dateCount: allowedDates.length,
-        }),
-        topN: options?.topN,
+        nextRule: rules.conductorRule,
         dayConfigs: [...dayConfigsByDate.values()],
         records: [...recordsByDate.values()],
         roster: data.roster,
@@ -1612,7 +1629,7 @@ export function TrainsDashboard({
           kind: "request_unlock",
           blockers: requestUnlock,
           dates: allowedDates,
-          templateType,
+          rules,
           options,
         });
         return Promise.resolve(false);
@@ -1622,12 +1639,12 @@ export function TrainsDashboard({
           kind: "clear",
           blockers: clearBlockers,
           dates: allowedDates,
-          templateType,
+          rules,
           options,
         });
         return Promise.resolve(false);
       }
-      return executePaintDates(allowedDates, templateType, options);
+      return executePaintDates(allowedDates, rules, options);
     },
     [
       data.canUnlockConductor,
@@ -1636,7 +1653,6 @@ export function TrainsDashboard({
       data.weekRecords,
       executePaintDates,
       setPendingPaintRuleGate,
-      trainWeekConfig,
       viewedMonth.dayConfigs,
       viewedMonth.monthRecords,
       viewedWeek.dayConfigs,
@@ -1645,28 +1661,25 @@ export function TrainsDashboard({
   );
 
   const paintDates = useCallback(
-    (
-      dates: string[],
-      templateType: WeekTemplateType,
-      options?: {
-        updateWeekTemplate?: boolean;
-        topN?: number;
-        preferredWeekTemplate?: WeekTemplateType;
-      },
-    ) => {
+    (dates: string[], rules: DayRules, options?: PaintOptions) => {
       const walkthrough = walkthroughRef.current;
       if (walkthrough?.sandboxActive) {
+        const sandboxTemplate =
+          options?.updateWeekTemplate ??
+          (options?.sourceTemplateKey as WeekTemplateType | undefined) ??
+          null;
         if (
           walkthrough.currentStepId === "week-template" &&
           options?.updateWeekTemplate &&
-          walkthrough.tryInterceptWeekTemplateApply(templateType)
+          walkthrough.tryInterceptWeekTemplateApply(options.updateWeekTemplate)
         ) {
           setPendingTemplateChange(null);
           return Promise.resolve(true);
         }
         if (
           walkthrough.currentStepId === "day-long-press" &&
-          walkthrough.tryInterceptDayPaint(dates, templateType, data.today)
+          sandboxTemplate &&
+          walkthrough.tryInterceptDayPaint(dates, sandboxTemplate, data.today)
         ) {
           return Promise.resolve(true);
         }
@@ -1689,16 +1702,12 @@ export function TrainsDashboard({
           (date) => !canOfficerChangeTemplateForDate(date, data.today),
         );
         if (pastDates.length > 0) {
-          setPendingPastPaint({
-            dates: allowedDates,
-            templateType,
-            ...(options?.topN != null ? { topN: options.topN } : {}),
-          });
+          setPendingPastPaint({ dates: allowedDates, rules, options });
           return Promise.resolve(false);
         }
       }
 
-      return queueOrExecutePaint(allowedDates, templateType, options);
+      return queueOrExecutePaint(allowedDates, rules, options);
     },
     [
       data.canPaintPastDays,
@@ -1709,6 +1718,45 @@ export function TrainsDashboard({
       setPendingTemplateChange,
       t,
     ],
+  );
+
+  /**
+   * Apply a week preset. A preset is seven independent day rules, so dates are
+   * grouped by the rule they resolve to and each group is one paint — there is
+   * no composite expansion to get wrong.
+   */
+  const paintPreset = useCallback(
+    async (
+      dates: string[],
+      templateType: WeekTemplateType,
+      options?: { updateWeekTemplate?: boolean },
+    ) => {
+      const groups = new Map<string, { rules: DayRules; dates: string[] }>();
+      for (const date of dates) {
+        const rules = presetRulesForDate(templateType, date);
+        const key = `${conductorRuleIdentity(rules.conductorRule)}|${vipRuleIdentity(rules.vipRule)}`;
+        const group = groups.get(key);
+        if (group) group.dates.push(date);
+        else groups.set(key, { rules, dates: [date] });
+      }
+
+      let allOk = true;
+      let first = true;
+      for (const group of groups.values()) {
+        const ok = await paintDates(group.dates, group.rules, {
+          sourceTemplateKey: templateType,
+          preferredWeekTemplate: templateType,
+          // Stamp the week's preset once, on the first group.
+          ...(first && options?.updateWeekTemplate
+            ? { updateWeekTemplate: templateType }
+            : {}),
+        });
+        first = false;
+        if (!ok) allOk = false;
+      }
+      return allOk;
+    },
+    [paintDates],
   );
 
   const handleTemplateClick = useCallback(
@@ -1730,7 +1778,7 @@ export function TrainsDashboard({
             (date) => date >= data.today,
           );
           if (dates.length > 0) {
-            void paintDates(dates, templateType, { updateWeekTemplate: true });
+            void paintPreset(dates, templateType, { updateWeekTemplate: true });
           }
         }
         return;
@@ -1784,9 +1832,11 @@ export function TrainsDashboard({
         setError(t("templateChangeConfirm.noDatesBody"));
         return;
       }
-      paintDates(options.dates, templateType, { updateWeekTemplate: true });
+      void paintPreset(options.dates, templateType, {
+        updateWeekTemplate: true,
+      });
     },
-    [paintDates, pendingTemplateChange, setError, setPendingTemplateChange, t],
+    [paintPreset, pendingTemplateChange, setError, setPendingTemplateChange, t],
   );
 
   const handlePivotToEconomy = useCallback(() => {
@@ -1798,8 +1848,8 @@ export function TrainsDashboard({
     if (dates.length === 0) return;
 
     setPivotBusy(true);
-    void paintDates(dates, "economy_week").finally(() => setPivotBusy(false));
-  }, [data.today, data.weekEnd, data.weekStart, paintDates, setPivotBusy, trainWeekConfig]);
+    void paintPreset(dates, "economy_week").finally(() => setPivotBusy(false));
+  }, [data.today, data.weekEnd, data.weekStart, paintPreset, setPivotBusy, trainWeekConfig]);
 
   async function confirmClearWeekSchedule() {
     if (!data.canClearWeekSchedule) return;
@@ -1875,21 +1925,26 @@ export function TrainsDashboard({
         handleScheduleViewChange("month");
       }),
       registerPageHandler("trains.goToToday", goToToday),
-      ...DAY_PAINT_TEMPLATES.slice(0, trainTemplateHotkeyIds.length).map(
-        (template, index) =>
+      // Hotkeys paint a complete rule. A scoped board keeps the scope already
+      // on the day when re-applied, and otherwise uses the palette default —
+      // it can no longer silently drop Top 5 down to Top 10.
+      ...DAY_RULE_PALETTE.slice(0, trainTemplateHotkeyIds.length).map(
+        (entry, index) =>
           registerPageHandler(trainTemplateHotkeyIds[index]!, () => {
             if (!data.canManageTrains) return;
-            const topN = resolveDayPaintApplyTopN({
-              template,
-              currentTemplate:
-                selectedDayConfig?.paintTemplate ?? activeWeekTemplate,
-              currentTopN: selectedDayConfig?.topN,
-            });
-            void paintDates(
-              [selectedDate],
-              template,
-              topN != null ? { topN } : undefined,
+            const current = selectedDayConfig?.conductorRule ?? null;
+            const keptScope =
+              paletteIdForRule(current) === entry.id
+                ? scopeForRule(current)
+                : null;
+            const rule = ruleForPaletteSelection(
+              entry.id,
+              keptScope ?? defaultScopeForPaletteId(entry.id),
             );
+            void paintDates([selectedDate], {
+              conductorRule: rule,
+              vipRule: null,
+            });
           }),
       ),
     ];
@@ -1907,9 +1962,7 @@ export function TrainsDashboard({
     paintDates,
     registerPageHandler,
     selectedDate,
-    selectedDayConfig?.paintTemplate,
-    selectedDayConfig?.topN,
-    activeWeekTemplate,
+    selectedDayConfig?.conductorRule,
     trainTemplateHotkeyIds,
   ]);
 
@@ -2073,11 +2126,19 @@ export function TrainsDashboard({
       )}
     </div>
   ) : null;
-  const conductorPaint = selectedDayConfig?.paintTemplate;
+  const selectedConductorRule = selectedDayConfig?.conductorRule ?? null;
+  const ruleLabelForRule = useCallback(
+    (rule: ConductorRule | null) => {
+      const scope = scopeForRule(rule);
+      const label = tRules(conductorRuleLabelKey(rule));
+      return scope != null ? `${label} ${scope}` : label;
+    },
+    [tRules],
+  );
   const requestConductorSpin = () => {
     if (
       shouldConfirmEconomyWeekWithoutScores({
-        paintTemplate: conductorPaint,
+        rule: selectedConductorRule,
         vsDataStatus: vsDataStatusForSelectedDay,
       })
     ) {
@@ -2089,18 +2150,10 @@ export function TrainsDashboard({
   useEffect(() => {
     requestConductorSpinRef.current = requestConductorSpin;
   });
-  const conductorMech = effectiveConductorMechanism(
-    selectedDayConfig?.conductorMechanism,
-    conductorPaint,
-    selectedDate,
+  const conductorReseedPoolType = useMemo(
+    (): PoolType | null => conductorRulePoolType(selectedConductorRule),
+    [selectedConductorRule],
   );
-  const conductorReseedPoolType = useMemo((): PoolType | null => {
-    if (usesPriceIsFreightConductorRoll(conductorPaint)) return null;
-    if (conductorMech === "r3_lottery") return "r3";
-    if (conductorMech === "heavy_hitter_lottery") return "heavy_hitter";
-    if (conductorMech === "r4_sequence") return "r4_plus";
-    return null;
-  }, [conductorMech, conductorPaint]);
   const canResetConductorPool =
     data.canManageTrains && conductorReseedPoolType != null;
   function closeShareExportPreview() {
@@ -2128,8 +2181,7 @@ export function TrainsDashboard({
       const scoreProof = await fetchConductorShareScoreProof({
         trainDate: selectedDate,
         memberId: winner.memberId,
-        paintTemplate: conductorPaint,
-        mechanism: selectedRecord.conductorMechanism ?? conductorMech,
+        rule: selectedConductorRule,
       });
       const winnerWithScore = {
         ...winner,
@@ -2156,8 +2208,7 @@ export function TrainsDashboard({
           : null;
       const eligibilityLine = formatWheelShareEligibilityLine(
         resolveWheelShareEligibility({
-          mechanism: selectedRecord.conductorMechanism ?? conductorMech,
-          paintTemplate: conductorPaint,
+          rule: selectedConductorRule,
           winner: winnerWithScore,
           leaderboardRank: scoreProof.leaderboardRank,
           winProbability: scoreProof.winProbability,
@@ -2203,7 +2254,7 @@ export function TrainsDashboard({
     }
   }
 
-  const vipMech = selectedDayConfig?.vipMechanism;
+  const selectedVipRule = selectedDayConfig?.vipRule ?? null;
   const canPaintTemplate =
     data.canPaintPastDays ||
     canOfficerChangeTemplateForDate(selectedDate, data.today);
@@ -2211,7 +2262,7 @@ export function TrainsDashboard({
   const canPickConductor = !locked && canManualPickForDate();
   const canManualPickVip =
     locked &&
-    supportsManualVipPick(vipMech) &&
+    supportsManualVipPickForRule(selectedVipRule) &&
     canManualPickForDate();
   const rosterBlocking =
     Boolean(data.rosterDataStatus?.required) && !data.rosterDataStatus?.ready;
@@ -2224,16 +2275,9 @@ export function TrainsDashboard({
       locked ||
       rosterBlocking ||
       !data.schedulePersisted);
-  const selectedConductorConfig =
-    selectedDayConfig?.conductorConfig ??
-    (selectedDayConfig?.topN != null
-      ? { topN: selectedDayConfig.topN, paintTemplate: conductorPaint }
-      : conductorPaint
-        ? { paintTemplate: conductorPaint }
-        : null);
-  const selectedScoreDateDayConfig = useMemo(
+  const selectedScoreDayRule = useMemo(
     () =>
-      scoreDateDayConfigForTrainDate(
+      scoreDayRuleFromDayConfigs(
         selectedDate,
         data.trainConductorLeadTimeDays,
         activeDayConfigs,
@@ -2243,55 +2287,23 @@ export function TrainsDashboard({
   const scoreLeaderboardKind = useMemo(
     () =>
       resolveScoreLeaderboardKind({
-        paintTemplate: conductorPaint,
-        conductorMechanism: conductorMech,
+        rule: selectedConductorRule,
         trainDate: selectedDate,
         leadDays: data.trainConductorLeadTimeDays,
-        scoreDateDay: selectedScoreDateDayConfig,
-        weekTemplateType: activeWeekTemplate,
-        weekStart: getTrainWeekStart(selectedDate, trainWeekConfig),
+        scoreDayRule: selectedScoreDayRule,
       }),
     [
-      conductorMech,
-      conductorPaint,
+      selectedConductorRule,
       selectedDate,
       data.trainConductorLeadTimeDays,
-      selectedScoreDateDayConfig,
-      activeWeekTemplate,
-      trainWeekConfig,
-    ],
-  );
-  const selectedTopBoard = useMemo(
-    () =>
-      resolveVsTopBoardForTrainDate({
-        trainDate: selectedDate,
-        trainDay: {
-          conductorMechanism: selectedDayConfig?.conductorMechanism,
-          conductorConfig: selectedConductorConfig,
-        },
-        leadDays: data.trainConductorLeadTimeDays,
-        scoreDateDay: selectedScoreDateDayConfig,
-      }) ??
-      resolveConductorTopNBoard(
-        selectedDayConfig?.conductorMechanism,
-        selectedConductorConfig,
-      ),
-    [
-      selectedDate,
-      selectedDayConfig?.conductorMechanism,
-      selectedConductorConfig,
-      data.trainConductorLeadTimeDays,
-      selectedScoreDateDayConfig,
+      selectedScoreDayRule,
     ],
   );
   const hasValidConductor = hasValidConductorPickForDay({
     conductorMemberId: selectedRecord?.conductorMemberId,
-    recordConductorMechanism: selectedRecord?.conductorMechanism,
-    dayConductorMechanism: selectedDayConfig?.conductorMechanism,
-    paintTemplate: conductorPaint,
-    date: selectedDate,
-    conductorConfig: selectedConductorConfig,
-    topN: selectedDayConfig?.topN,
+    recordRule: selectedRecord?.conductorRule ?? null,
+    dayRule: selectedConductorRule,
+    recordHasRule: selectedRecord?.conductorRule != null,
   });
   const canClearPending = canClearPendingConductor(selectedRecord);
   const announceOnLock =
@@ -2457,10 +2469,8 @@ export function TrainsDashboard({
   const pickEligibilityOverrideMemberIds = useMemo(() => {
     const ids = new Set<string>();
     if (pickRole !== "conductor") return ids;
-    const rankGatedR3 =
-      conductorPaint === "r3_recognition" || conductorReseedPoolType === "r3";
-    const rankGatedR4 =
-      conductorMech === "r4_sequence" || conductorReseedPoolType === "r4_plus";
+    const rankGatedR3 = conductorReseedPoolType === "r3";
+    const rankGatedR4 = conductorReseedPoolType === "r4_plus";
     for (const member of pickRosterMembers) {
       if (pickPoolPickedMemberIds.has(member.memberId)) continue;
       if (rankGatedR3 && member.allianceRank !== 3) {
@@ -2479,8 +2489,6 @@ export function TrainsDashboard({
     return ids;
   }, [
     pickRole,
-    conductorPaint,
-    conductorMech,
     conductorReseedPoolType,
     pickRosterMembers,
     pickPoolPickedMemberIds,
@@ -2489,16 +2497,13 @@ export function TrainsDashboard({
   const canSpinConductorWheel =
     canRoll &&
     canSpinConductorWithLeadScope({
-      conductorMechanism: selectedDayConfig?.conductorMechanism,
+      rule: selectedConductorRule,
       locked,
-      paintTemplate: conductorPaint,
-      trainDate: selectedDate,
-      conductorConfig: selectedConductorConfig,
       leadDays: data.trainConductorLeadTimeDays,
-      scoreDateDay: selectedScoreDateDayConfig,
+      scoreDayRule: selectedScoreDayRule,
     });
-  const canSpinVipWheel = canRoll && canSpinVip(vipMech, locked);
-  const guidedVipNeeded = Boolean(vipMech) && vipMech !== "none";
+  const canSpinVipWheel = canRoll && canSpinVip(selectedVipRule, locked);
+  const guidedVipNeeded = selectedVipRule?.kind !== "none";
   const guidedHasVip = Boolean(selectedRecord?.vipMemberId);
   const guidedStep = currentGuidedStep({
     hasConductor: hasValidConductor,
@@ -2520,24 +2525,17 @@ export function TrainsDashboard({
   const selectedConductorSpinSource = useMemo(
     () =>
       conductorSpinSourceForTrainDay({
-        trainDate: selectedDate,
-        trainDay: {
-          conductorMechanism: selectedDayConfig?.conductorMechanism,
-          conductorConfig: selectedConductorConfig,
-          paintTemplate: conductorPaint,
-        },
+        trainRule: selectedConductorRule,
         leadDays: data.trainConductorLeadTimeDays,
-        scoreDateDay: selectedScoreDateDayConfig,
+        scoreDayRule: selectedScoreDayRule,
       }),
     [
-    selectedDayConfig?.conductorMechanism,
-    conductorPaint,
-    selectedDate,
-    selectedConductorConfig,
-    data.trainConductorLeadTimeDays,
-    selectedScoreDateDayConfig,
-  ]);
-  const selectedVipSpinSource = vipSpinSource(vipMech);
+      selectedConductorRule,
+      data.trainConductorLeadTimeDays,
+      selectedScoreDayRule,
+    ],
+  );
+  const selectedVipSpinSource = spinSourceForVipRule(selectedVipRule);
   const spinWeekContext = useMemo(() => {
     if (viewedWeek.weekStart === targetTrainWeekStart) {
       return {
@@ -2859,10 +2857,8 @@ export function TrainsDashboard({
               initialWeekRecords={weekViewSeed.weekRecords}
               selectedDate={selectedDate}
               displayWeekStartDow={displayWeekStartDow}
-              conductorLabels={conductorShortLabels}
-              vipLabels={vipShortLabels}
-              templateShortLabels={templateShortLabels}
-              templateLabels={templateLabels}
+              ruleTextLabels={ruleTextLabels}
+              ruleLabels={ruleLabels}
               canPaintDays={data.canManageTrains}
               isDatePaintable={(date) =>
                 data.canPaintPastDays ||
@@ -2870,14 +2866,17 @@ export function TrainsDashboard({
               }
               vrReporterCount={data.vrReporterCount}
               trainConductorLeadTimeDays={data.trainConductorLeadTimeDays}
-              onPaintDate={(date, template, options) => {
+              onPaintDate={(date, rule) => {
                 const weekStart = getTrainWeekStart(date, trainWeekConfig);
                 const weekPage =
                   viewedWeek.weekStart === weekStart ? viewedWeek : weekViewSeed;
-                void paintDates([date], template, {
-                  ...options,
-                  preferredWeekTemplate: weekPage.templateType ?? undefined,
-                });
+                void paintDates(
+                  [date],
+                  { conductorRule: rule, vipRule: null },
+                  {
+                    preferredWeekTemplate: weekPage.templateType ?? undefined,
+                  },
+                );
               }}
               navLabels={{
                 previousWeek: t("weekNavPrevious"),
@@ -2901,9 +2900,8 @@ export function TrainsDashboard({
               selectedDate={selectedDate}
               displayWeekStartDow={displayWeekStartDow}
               canPaint={data.canManageTrains && canPaintTemplate}
-              conductorLabels={conductorShortLabels}
-              vipLabels={vipShortLabels}
-              templateLabels={templateLabels}
+              ruleTextLabels={ruleTextLabels}
+              ruleLabels={ruleLabels}
               vrReporterCount={data.vrReporterCount}
               navLabels={{
                 previousMonth: t("monthNavPrevious"),
@@ -2918,7 +2916,12 @@ export function TrainsDashboard({
               onSelectDate={selectDate}
               onMonthChange={handleMonthChange}
               onMonthLoadError={() => setError(t("monthLoadFailed"))}
-              onPaintDates={paintDates}
+              onPaintDates={(dates, rule) => {
+                void paintDates(dates, {
+                  conductorRule: rule,
+                  vipRule: null,
+                });
+              }}
               monthToolbar={{
                 today: data.today,
                 canUnlock: Boolean(
@@ -3073,8 +3076,7 @@ export function TrainsDashboard({
             data.simpleModeEnabled ? (
               <>
               <TrainsGuidedConductorFlow
-                templateType={activeWeekTemplate}
-                paintTemplate={conductorPaint}
+                conductorRule={selectedConductorRule}
                 vsDataStatus={
                   selectedDate === data.today ? data.vsDataStatus : null
                 }
@@ -3098,8 +3100,6 @@ export function TrainsDashboard({
                 canManualPickVip={canManualPickVip}
                 canSpinConductorWheel={canSpinConductorWheel}
                 canSpinVipWheel={canSpinVipWheel}
-                conductorMech={conductorMech}
-                vipMech={vipMech}
                 busy={trainQuickActionBusy}
                 onChangeTemplate={() => setDayMechanismPickerOpen(true)}
                 onRollConductor={requestConductorSpin}
@@ -3316,7 +3316,9 @@ export function TrainsDashboard({
                   >
                     {rollingRole === "conductor"
                       ? t("spinning")
-                      : conductorMech === "r4_sequence" && nextInSequence
+                      : selectedConductorRule?.kind === "rank_pool" &&
+                          selectedConductorRule.pool === "r4_plus" &&
+                          nextInSequence
                         ? t("assignNextInSequence", {
                             name: nextInSequence.memberName,
                           })
@@ -3325,9 +3327,7 @@ export function TrainsDashboard({
                           : t("spinWheel")}
                   </button>
                 ) : null}
-                {canRoll &&
-                (isAutomaticTopNBoard(selectedTopBoard) ||
-                  conductorMech === "donations_top") ? (
+                {canRoll && conductorRuleIsAutomatic(selectedConductorRule) ? (
                   <button
                     type="button"
                     disabled={locked || trainQuickActionBusy}
@@ -3371,7 +3371,7 @@ export function TrainsDashboard({
                       : t("clearPendingConductor")}
                   </button>
                 ) : null}
-                {canRoll && canSpinVip(vipMech, locked) ? (
+                {canRoll && canSpinVip(selectedVipRule, locked) ? (
                   <button
                     type="button"
                     disabled={trainQuickActionBusy}
@@ -3457,7 +3457,7 @@ export function TrainsDashboard({
             />
           ) : null}
 
-          {usesPriceIsFreightConductorRoll(conductorPaint) ? (
+          {conductorRuleUsesPriceIsFreightRoll(selectedConductorRule) ? (
             <PriceIsRightTicketsPanel
               trainDate={selectedDate}
               uploadHref={guidedVideoUploadHref}
@@ -3585,8 +3585,7 @@ export function TrainsDashboard({
         stats={wheelStats ?? null}
         qualification={wheelQualification}
         dayLabel={wheelDayLabel}
-        mechanism={wheelMechanism}
-        paintTemplate={conductorPaint}
+        rule={selectedConductorRule}
         speedMultiplier={wheelAnimMultiplier}
         onClose={handleWheelClose}
         onSpinAgain={handleWheelSpinAgain}
@@ -3765,7 +3764,7 @@ export function TrainsDashboard({
         open={wheelBlocked != null}
         details={wheelBlocked}
         uploadHref={guidedVideoUploadHref}
-        paintTemplate={conductorPaint}
+        rule={selectedConductorRule}
         fallbackPoolType={
           wheelBlockedRole === "vip" &&
           isPoolSpinSource(selectedVipSpinSource)
@@ -3836,26 +3835,23 @@ export function TrainsDashboard({
       <DayMechanismPickerDialog
         key={
           dayMechanismPickerOpen
-            ? `day-mechanism-picker:open:${conductorPaint ?? activeWeekTemplate}:${dayMechanismPickerTargetDate(selectedDate)}`
+            ? `day-mechanism-picker:open:${conductorRuleIdentity(selectedConductorRule)}:${dayMechanismPickerTargetDate(selectedDate)}`
             : "day-mechanism-picker:closed"
         }
         open={dayMechanismPickerOpen}
-        currentTemplate={(conductorPaint ?? activeWeekTemplate) as WeekTemplateType}
-        currentTopN={selectedDayConfig?.topN}
+        currentRule={selectedConductorRule}
         date={dayMechanismPickerTargetDate(selectedDate)}
-        weekStart={targetTrainWeekStart}
         vrReporterCount={data.vrReporterCount}
         disabled={!data.canManageTrains}
         weightingEnabled={data.priceIsRightWeightingEnabled}
         onWeightingEnabledChange={handleWeightingEnabledChange}
         onClose={() => setDayMechanismPickerOpen(false)}
-        onSelect={(templateType, topN) => {
+        onSelect={(rule) => {
           setDayMechanismPickerOpen(false);
-          void paintDates(
-            [dayMechanismPickerTargetDate(selectedDate)],
-            templateType,
-            topN != null ? { topN } : undefined,
-          );
+          void paintDates([dayMechanismPickerTargetDate(selectedDate)], {
+            conductorRule: rule,
+            vipRule: null,
+          });
         }}
       />
 
@@ -3867,7 +3863,6 @@ export function TrainsDashboard({
         }
         open={templatePickerOpen}
         currentTemplate={activeWeekTemplate}
-        weekStart={targetTrainWeekStart}
         disabled={!data.canManageTrains}
         weightingEnabled={data.priceIsRightWeightingEnabled}
         onWeightingEnabledChange={handleWeightingEnabledChange}
@@ -3901,8 +3896,7 @@ export function TrainsDashboard({
           dates={pendingPastPaint.dates.filter(
             (date) => !canOfficerChangeTemplateForDate(date, data.today),
           )}
-          templateType={pendingPastPaint.templateType}
-          templateLabel={t(`templates.${pendingPastPaint.templateType}`)}
+          ruleLabel={ruleLabelForRule(pendingPastPaint.rules.conductorRule)}
           busy={pastPaintBusy}
           onCancel={() => {
             if (!pastPaintBusy) setPendingPastPaint(null);
@@ -3912,13 +3906,8 @@ export function TrainsDashboard({
             setPastPaintBusy(true);
             void queueOrExecutePaint(
               pendingPastPaint.dates,
-              pendingPastPaint.templateType,
-              {
-                updateWeekTemplate: true,
-                ...(pendingPastPaint.topN != null
-                  ? { topN: pendingPastPaint.topN }
-                  : {}),
-              },
+              pendingPastPaint.rules,
+              pendingPastPaint.options,
             )
               .then((ok) => {
                 if (ok) setPendingPastPaint(null);
@@ -3933,7 +3922,7 @@ export function TrainsDashboard({
           open
           kind={pendingPaintRuleGate.kind}
           blockers={pendingPaintRuleGate.blockers}
-          ruleLabel={t(`templates.${pendingPaintRuleGate.templateType}`)}
+          ruleLabel={ruleLabelForRule(pendingPaintRuleGate.rules.conductorRule)}
           busy={paintRuleGateBusy}
           onCancel={() => {
             if (!paintRuleGateBusy) setPendingPaintRuleGate(null);
@@ -3951,7 +3940,7 @@ export function TrainsDashboard({
                 }
                 const ok = await executePaintDates(
                   pendingPaintRuleGate.dates,
-                  pendingPaintRuleGate.templateType,
+                  pendingPaintRuleGate.rules,
                   pendingPaintRuleGate.options,
                 );
                 if (ok) setPendingPaintRuleGate(null);
@@ -3962,7 +3951,9 @@ export function TrainsDashboard({
           }}
           onRequestUnlock={() => {
             if (!pendingPaintRuleGate) return;
-            const rule = t(`templates.${pendingPaintRuleGate.templateType}`);
+            const rule = ruleLabelForRule(
+              pendingPaintRuleGate.rules.conductorRule,
+            );
             const text = pendingPaintRuleGate.blockers
               .map((row) =>
                 t("paintRuleGate.requestUnlockClipboard", {

@@ -2,95 +2,106 @@ import { describe, expect, it } from "vitest";
 
 import {
   canSpinConductorWithLeadScope,
-  effectiveVsScopeMechanismForTrainDate,
-  resolveVsTopBoardForTrainDate,
+  effectiveConductorRuleForTrainDate,
+  resolveLeadTimeInheritedVsBoard,
+  resolveVsBoardForTrainDate,
 } from "@/lib/trains/vs-score-scope.shared";
 
-describe("resolveVsTopBoardForTrainDate", () => {
-  it("uses score day's VS scope when lead time shifts the source date", () => {
-    // Fri 2026-08-28 (vs_high_score / top 1) with lead 1 → Wed 2026-08-26 (vs_top_10)
+describe("resolveVsBoardForTrainDate", () => {
+  it("uses the score day's VS scope when lead time shifts the source date", () => {
+    // Fri (Top 1) with lead 1 reads Wednesday, which is painted Top 10.
     expect(
-      resolveVsTopBoardForTrainDate({
-        trainDate: "2026-08-28",
-        trainDay: { conductorMechanism: "vs_high_score" },
+      resolveVsBoardForTrainDate({
+        trainRule: { kind: "vs_top_n", topN: 1 },
         leadDays: 1,
-        scoreDateDay: { conductorMechanism: "vs_top_10" },
+        scoreDayRule: { kind: "vs_top_n", topN: 10 },
       }),
-    ).toEqual({
-      kind: "vs",
-      topN: 10,
-      mechanism: "vs_top_10",
-    });
+    ).toEqual({ topN: 10 });
   });
 
-  it("keeps train day scope when lead time is zero", () => {
+  it("keeps the train day's scope when lead time is zero", () => {
     expect(
-      resolveVsTopBoardForTrainDate({
-        trainDate: "2026-08-28",
-        trainDay: { conductorMechanism: "vs_high_score" },
+      resolveVsBoardForTrainDate({
+        trainRule: { kind: "vs_top_n", topN: 1 },
         leadDays: 0,
-        scoreDateDay: { conductorMechanism: "vs_top_10" },
+        scoreDayRule: { kind: "vs_top_n", topN: 10 },
       }),
-    ).toEqual({
-      kind: "vs",
-      topN: 1,
-      mechanism: "vs_high_score",
-    });
+    ).toEqual({ topN: 1 });
+  });
+
+  it("has no board for a non-VS rule", () => {
+    expect(
+      resolveVsBoardForTrainDate({
+        trainRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+        leadDays: 1,
+        scoreDayRule: { kind: "vs_top_n", topN: 10 },
+      }),
+    ).toBeNull();
   });
 });
 
-describe("effectiveVsScopeMechanismForTrainDate", () => {
-  it("labels Friday with Wednesday's VS T10 scope under lead time 1", () => {
+describe("resolveLeadTimeInheritedVsBoard", () => {
+  it("inherits the score day's board on an off-template day", () => {
     expect(
-      effectiveVsScopeMechanismForTrainDate({
-        trainDate: "2026-08-28",
-        trainDay: { conductorMechanism: "vs_high_score" },
+      resolveLeadTimeInheritedVsBoard({
+        trainRule: null,
         leadDays: 1,
-        scoreDateDay: { conductorMechanism: "vs_top_10" },
-        fallbackMechanism: "vs_high_score",
+        scoreDayRule: { kind: "vs_top_n", topN: 10 },
       }),
-    ).toBe("vs_top_10");
+    ).toEqual({ topN: 10 });
   });
 
-  it("labels Sunday off-day with Friday VS scope under lead time 1", () => {
+  it("does not inherit when the train day already reads VS", () => {
     expect(
-      effectiveVsScopeMechanismForTrainDate({
-        trainDate: "2026-08-30",
-        trainDay: { conductorMechanism: "custom" },
+      resolveLeadTimeInheritedVsBoard({
+        trainRule: { kind: "vs_top_n", topN: 1 },
         leadDays: 1,
-        scoreDateDay: {
-          conductorMechanism: "vs_top_10",
-          paintTemplate: "vs_push_weekdays",
-        },
-        fallbackMechanism: "custom",
+        scoreDayRule: { kind: "vs_top_n", topN: 10 },
       }),
-    ).toBe("vs_top_10");
+    ).toBeNull();
+  });
+});
+
+describe("effectiveConductorRuleForTrainDate", () => {
+  it("restates the rule at the inherited scope", () => {
+    expect(
+      effectiveConductorRuleForTrainDate({
+        trainRule: { kind: "vs_top_n", topN: 1 },
+        leadDays: 1,
+        scoreDayRule: { kind: "vs_top_n", topN: 10 },
+      }),
+    ).toEqual({ kind: "vs_top_n", topN: 10 });
   });
 });
 
 describe("canSpinConductorWithLeadScope", () => {
-  it("allows wheel spin when lead time upgrades auto top-1 to top-10", () => {
+  it("allows a spin when lead time upgrades auto Top 1 to Top 10", () => {
     expect(
       canSpinConductorWithLeadScope({
-        conductorMechanism: "vs_high_score",
+        rule: { kind: "vs_top_n", topN: 1 },
         locked: false,
-        paintTemplate: "vs_push_weekdays",
-        trainDate: "2026-08-28",
         leadDays: 1,
-        scoreDateDay: { conductorMechanism: "vs_top_10" },
+        scoreDayRule: { kind: "vs_top_n", topN: 10 },
       }),
     ).toBe(true);
   });
 
-  it("blocks auto top-1 without lead time", () => {
+  it("blocks auto Top 1 without lead time", () => {
     expect(
       canSpinConductorWithLeadScope({
-        conductorMechanism: "vs_high_score",
+        rule: { kind: "vs_top_n", topN: 1 },
         locked: false,
-        paintTemplate: "vs_push_weekdays",
-        trainDate: "2026-08-28",
         leadDays: 0,
-        scoreDateDay: { conductorMechanism: "vs_top_10" },
+        scoreDayRule: { kind: "vs_top_n", topN: 10 },
+      }),
+    ).toBe(false);
+  });
+
+  it("blocks a locked day", () => {
+    expect(
+      canSpinConductorWithLeadScope({
+        rule: { kind: "vs_top_n", topN: 10 },
+        locked: true,
       }),
     ).toBe(false);
   });

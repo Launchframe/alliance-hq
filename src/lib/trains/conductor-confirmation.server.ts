@@ -27,9 +27,10 @@ import {
 import {
   resolveNominationTopBoard,
   scoreDateForTrainDay,
-  toDayMechanismConfig,
 } from "@/lib/trains/train-day-context.shared";
-import type { DayMechanismConfig } from "@/lib/trains/vs-score-scope.shared";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+import { encodeLegacyConductorMechanism } from "@/lib/trains/rules/encode.shared";
+import { conductorRulePoolType } from "@/lib/trains/rules/derive.shared";
 import { listActiveAllianceMembersForPool } from "@/lib/members/roster.server";
 
 export const CONFIRMATION_PRIMARY_WINDOW_MS = 15 * 60 * 1000;
@@ -84,23 +85,16 @@ async function loadRecord(allianceId: string, trainDate: string) {
 async function buildSuccessionSnapshot(input: {
   allianceId: string;
   trainDate: string;
-  mechanism: string | null | undefined;
-  conductorConfig: unknown;
-  paintTemplate?: string | null;
+  rule: ConductorRule | null;
   leadDays: number;
-  scoreDateDay?: DayMechanismConfig | null;
+  scoreDayRule?: ConductorRule | null;
   winner: { memberId: string; memberName: string };
 }): Promise<SuccessionSnapshotEntry[]> {
   const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.trainDate);
   const topBoard = resolveNominationTopBoard({
-    trainDate: input.trainDate,
-    trainDay: {
-      conductorMechanism: input.mechanism,
-      conductorConfig: input.conductorConfig,
-      paintTemplate: input.paintTemplate,
-    },
+    trainRule: input.rule,
     leadDays: input.leadDays,
-    scoreDateDay: input.scoreDateDay,
+    scoreDayRule: input.scoreDayRule,
   });
   if (topBoard?.kind === "vs") {
     const top = await fetchAllianceVsTopScorersForTrainDate(
@@ -118,14 +112,7 @@ async function buildSuccessionSnapshot(input: {
     }
   }
 
-  const poolType =
-    input.mechanism === "r4_sequence"
-      ? "r4_plus"
-      : input.mechanism === "heavy_hitter_lottery"
-        ? "heavy_hitter"
-        : input.mechanism === "r3_lottery"
-          ? "r3"
-          : null;
+  const poolType = conductorRulePoolType(input.rule);
 
   if (poolType) {
     const db = getDb();
@@ -217,7 +204,7 @@ export async function nominateConductorForDate(input: {
     seasonKey: effectiveSeason.seasonKey,
     leadDays: alliance.trainConductorLeadTimeDays ?? 0,
   });
-  const { dayConfig, leadDays, scoreDateDay } = dayContext;
+  const { dayConfig, leadDays, scoreDayRule } = dayContext;
 
   let winner: { memberId: string; memberName: string; mechanism?: string | null };
   if (existing?.conductorMemberId && existing.conductorMemberName) {
@@ -244,11 +231,9 @@ export async function nominateConductorForDate(input: {
   const snapshot = await buildSuccessionSnapshot({
     allianceId: input.allianceId,
     trainDate: input.trainDate,
-    mechanism: winner.mechanism ?? dayConfig.conductorMechanism,
-    conductorConfig: dayConfig.conductorConfig,
-    paintTemplate: dayConfig.paintTemplate,
+    rule: dayConfig.conductorRule,
     leadDays,
-    scoreDateDay,
+    scoreDayRule,
     winner,
   });
 
@@ -260,7 +245,8 @@ export async function nominateConductorForDate(input: {
   const rolledFresh =
     !(existing?.conductorMemberId && existing.conductorMemberName);
   const mechanism =
-    winner.mechanism ?? dayConfig.conductorMechanism ?? null;
+    winner.mechanism ??
+    encodeLegacyConductorMechanism(dayConfig.conductorRule);
 
   // Single CAS write for conductor + nomination window. Do not upsert-then-mark:
   // a loser overwrite between those steps can leave the winner's status on the
@@ -694,17 +680,12 @@ export async function maybeNominateConductorAfterVsUpload(input: {
       continue;
     }
     const scoreDate = scoreDateForTrainDay(day.date, leadDays);
-    const scoreDateRow = mergedByDate.get(scoreDate);
-    const scoreDateDay = scoreDateRow
-      ? toDayMechanismConfig(scoreDateRow)
-      : null;
+    const scoreDayRule = mergedByDate.get(scoreDate)?.conductorRule ?? null;
     const trigger = resolveConductorNominationTrigger({
-      conductorMechanism: day.conductorMechanism,
-      paintTemplate: day.paintTemplate,
+      rule: day.conductorRule,
       trainDate: day.date,
       leadDays,
-      conductorConfig: day.conductorConfig,
-      scoreDateDay,
+      scoreDayRule,
     });
     if (trigger.mode !== "score_upload") continue;
     if (trigger.kind === "prior_day_vs" && trigger.scoreDate !== input.vsRecordedDate) {
@@ -757,14 +738,12 @@ export async function processScheduledConductorNominations(): Promise<{
       seasonKey: effectiveSeason.seasonKey,
       leadDays: alliance.trainConductorLeadTimeDays ?? 0,
     });
-    const { dayConfig, scoreDateDay } = dayContext;
+    const { dayConfig, scoreDayRule } = dayContext;
     const trigger = resolveConductorNominationTrigger({
-      conductorMechanism: dayConfig.conductorMechanism,
-      paintTemplate: dayConfig.paintTemplate,
+      rule: dayConfig.conductorRule,
       trainDate: tomorrow,
       leadDays: dayContext.leadDays,
-      conductorConfig: dayConfig.conductorConfig,
-      scoreDateDay,
+      scoreDayRule,
     });
     if (trigger.mode !== "scheduled_reset") continue;
 

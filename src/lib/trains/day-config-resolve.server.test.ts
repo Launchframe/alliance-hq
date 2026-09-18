@@ -26,22 +26,44 @@ describe("resolveRollDayConfig", () => {
     });
   });
 
-  it("maps painted r4_event_vip overrides to r4_sequence even when stored mechanism is r3_lottery", async () => {
+  it("returns the stored rule for a painted day", async () => {
     mocks.listDayConfigsForWeek.mockResolvedValue([
       {
         id: "day-1",
         date: "2026-08-16",
-        conductorMechanism: "r3_lottery",
-        conductorConfig: { paintTemplate: "r4_event_vip" },
-        vipMechanism: "event_top_x_lottery",
-        vipConfig: { topN: 10 },
+        conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+        vipRule: { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
+        sourceTemplateKey: "vs_push_week",
         isOverride: 1,
       },
     ]);
 
     const resolved = await resolveRollDayConfig("ally-1", "2026-08-16", "S1");
 
-    expect(resolved.conductorMechanism).toBe("r4_sequence");
-    expect(resolved.paintTemplate).toBe("r4_event_vip");
+    expect(resolved.conductorRule).toEqual({
+      kind: "rank_pool",
+      pool: "r4_plus",
+      draw: "wheel",
+    });
+    expect(resolved.vipRule).toEqual({
+      kind: "event_top_x",
+      eventKey: "capitol_war",
+      topN: 10,
+    });
+    expect(resolved.dayConfigId).toBe("day-1");
+  });
+
+  it("falls back to the week preset's rule for an unpainted day", async () => {
+    mocks.listDayConfigsForWeek.mockResolvedValue([]);
+
+    // 2026-08-16 is a Sunday — vs_push_week runs R4 rotation with an event VIP.
+    const resolved = await resolveRollDayConfig("ally-1", "2026-08-16", "S1");
+
+    expect(resolved.conductorRule).toEqual({
+      kind: "rank_pool",
+      pool: "r4_plus",
+      draw: "wheel",
+    });
+    expect(resolved.dayConfigId).toBeNull();
   });
 });

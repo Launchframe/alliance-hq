@@ -1,9 +1,3 @@
-import {
-  DEFAULT_ALLIANCE_TRAIN_WEEK,
-  allianceTrainWeekFromRow,
-  getTrainWeekStart,
-  type AllianceTrainWeekConfig,
-} from "@/lib/trains/train-week-calendar.shared";
 import type {
   MonthSchedulePagePayload,
   TrainsDashboardPayload,
@@ -11,16 +5,17 @@ import type {
   WeekScheduleDayConfig,
   WeekSchedulePagePayload,
 } from "@/lib/trains/load-dashboard";
-import { generateDayConfigForDate, generateWeekDayConfigs } from "@/lib/trains/templates";
+import { weekDayConfigsForPreset } from "@/lib/trains/templates";
 import type { WeekTemplateType } from "@/lib/trains/types";
-import { conductorDrawChanged } from "@/lib/trains/conductor-mechanism.shared";
-import { shouldKeepAssignedConductorOnPaint } from "@/lib/trains/paint-rule-conductor-gate.shared";
 import {
-  resolveLiteralDayPaintTemplate,
-  resolvePaintTemplateForCalendarDate,
-  resolvePaintTemplateForDay,
-  shouldExpandCompositeByDayIndex,
-} from "@/lib/trains/week-template-registry.shared";
+  conductorRuleChanged,
+  type DayRules,
+} from "@/lib/trains/rules/catalog.shared";
+import {
+  encodeLegacyConductorMechanism,
+  encodeLegacyVipMechanism,
+} from "@/lib/trains/rules/encode.shared";
+import { shouldKeepAssignedConductorOnPaint } from "@/lib/trains/paint-rule-conductor-gate.shared";
 
 export type TrainsDashboardSnapshot = {
   data: TrainsDashboardPayload;
@@ -50,8 +45,12 @@ export function upsertRecordForDate(
       conductorMemberName: null,
       vipMemberId: null,
       vipMemberName: null,
-      conductorMechanism: dayConfig?.conductorMechanism ?? null,
-      vipMechanism: dayConfig?.vipMechanism ?? null,
+      conductorRule: dayConfig?.conductorRule ?? null,
+      vipRule: dayConfig?.vipRule ?? null,
+      conductorMechanism: encodeLegacyConductorMechanism(
+        dayConfig?.conductorRule ?? null,
+      ),
+      vipMechanism: encodeLegacyVipMechanism(dayConfig?.vipRule ?? null),
       guardianIsVip: false,
       lockedAt: null,
       substituteForMemberId: null,
@@ -114,15 +113,15 @@ export function applyOptimisticConductorRoll(
     return patchRecordsInSnapshot(snap, date, {
       conductorMemberId: member.memberId,
       conductorMemberName: member.memberName,
-      conductorMechanism: dayConfig?.conductorMechanism ?? null,
-      vipMechanism: dayConfig?.vipMechanism ?? null,
+      conductorRule: dayConfig?.conductorRule ?? null,
+      vipRule: dayConfig?.vipRule ?? null,
       eligibilityOverridden: false,
     });
   }
   return patchRecordsInSnapshot(snap, date, {
     vipMemberId: member.memberId,
     vipMemberName: member.memberName,
-    vipMechanism: dayConfig?.vipMechanism ?? null,
+    vipRule: dayConfig?.vipRule ?? null,
     guardianIsVip: options?.guardianIsVip ?? false,
   });
 }
@@ -137,8 +136,8 @@ export function applyOptimisticConductorPick(
   return patchRecordsInSnapshot(snap, date, {
     conductorMemberId: member.memberId,
     conductorMemberName: member.memberName,
-    conductorMechanism: dayConfig?.conductorMechanism ?? null,
-    vipMechanism: dayConfig?.vipMechanism ?? null,
+    conductorRule: dayConfig?.conductorRule ?? null,
+    vipRule: dayConfig?.vipRule ?? null,
     eligibilityOverridden: options?.eligibilityOverridden ?? false,
   });
 }
@@ -236,56 +235,21 @@ export function applyOptimisticConductorSwap(
 export function patchDayConfigsForDates(
   dayConfigs: WeekScheduleDayConfig[],
   dates: string[],
-  templateType: WeekTemplateType,
-  trainWeekConfig: AllianceTrainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
-  options?: { topN?: number; weekTemplateApply?: boolean },
+  rules: DayRules,
+  sourceTemplateKey: string | null = null,
 ): WeekScheduleDayConfig[] {
   const dateSet = new Set(dates);
   const byDate = new Map(dayConfigs.map((d) => [d.date, d]));
-  const weekTemplateApply = options?.weekTemplateApply === true;
-  const dayPaintTemplate = weekTemplateApply
-    ? templateType
-    : resolveLiteralDayPaintTemplate(templateType);
 
   for (const date of dates) {
-    const weekStart = getTrainWeekStart(date, trainWeekConfig);
-    const generated = generateDayConfigForDate(
-      dayPaintTemplate,
-      date,
-      weekStart,
-      {
-      ...(options?.topN != null
-        ? { topN: options.topN as 1 | 3 | 5 | 10 }
-        : {}),
-      },
-    );
     const existing = byDate.get(date);
-    const topN =
-      options?.topN ??
-      (generated.conductorConfig &&
-      typeof generated.conductorConfig === "object" &&
-      typeof (generated.conductorConfig as { topN?: unknown }).topN === "number"
-        ? ((generated.conductorConfig as { topN: number }).topN)
-        : null);
-    const paintTemplate = resolvePaintTemplateForCalendarDate({
-      templateType,
-      date,
-      weekStart,
-      weekTemplateApply,
-    });
     byDate.set(date, {
       id: existing?.id ?? `optimistic-${date}`,
       date,
-      conductorMechanism: generated.conductorMechanism,
-      vipMechanism: generated.vipMechanism ?? null,
-      vipConfig: generated.vipConfig ?? null,
+      conductorRule: rules.conductorRule,
+      vipRule: rules.vipRule,
       isOverride: true,
-      paintTemplate,
-      topN,
-      conductorConfig: {
-        paintTemplate,
-        ...(topN != null ? { topN } : {}),
-      },
+      sourceTemplateKey,
     });
   }
 
@@ -307,17 +271,19 @@ export function patchDayConfigsForDates(
   return merged.sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function clearConductorPicksWhenDrawChanges(
+/**
+ * Mirror of the server keep/clear decision in `applyPaint`. Both sides call
+ * `shouldKeepAssignedConductorOnPaint`, so the optimistic UI cannot disagree
+ * with what the API will do.
+ */
+function clearConductorPicksWhenRuleChanges(
   records: WeekConductorRecordSummary[],
   dates: string[],
   dayConfigs: WeekScheduleDayConfig[],
-  templateType: WeekTemplateType,
-  trainWeekConfig: AllianceTrainWeekConfig,
-  paintOptions?: { topN?: number; weekTemplateApply?: boolean },
+  nextRules: DayRules,
   roster: Array<{ memberId: string; allianceRank?: number | null }> = [],
 ): WeekConductorRecordSummary[] {
   const dateSet = new Set(dates);
-  const weekTemplateApply = paintOptions?.weekTemplateApply === true;
   const rosterById = new Map(roster.map((row) => [row.memberId, row]));
   return records.map((record) => {
     if (
@@ -330,40 +296,12 @@ function clearConductorPicksWhenDrawChanges(
     const previousDay = dayConfigs.find((day) => day.date === record.date);
     if (!previousDay) return record;
 
-    const weekStart = getTrainWeekStart(record.date, trainWeekConfig);
-    const generated = generateDayConfigForDate(
-      weekTemplateApply
-        ? templateType
-        : resolveLiteralDayPaintTemplate(templateType),
-      record.date,
-      weekStart,
-      paintOptions?.topN != null
-        ? { topN: paintOptions.topN as 1 | 3 | 5 | 10 }
-        : undefined,
-    );
-    const nextPaintTemplate = resolvePaintTemplateForCalendarDate({
-      templateType,
-      date: record.date,
-      weekStart,
-      weekTemplateApply,
-    });
-
-    const previousDraw = {
-      conductorMechanism: previousDay.conductorMechanism,
-      paintTemplate: previousDay.paintTemplate,
-      date: record.date,
-      conductorConfig: previousDay.conductorConfig,
-      topN: previousDay.topN,
-    };
-    const nextDraw = {
-      conductorMechanism: generated.conductorMechanism,
-      paintTemplate: nextPaintTemplate,
-      date: record.date,
-      conductorConfig: generated.conductorConfig,
-      topN: paintOptions?.topN ?? previousDay.topN,
-    };
-
-    if (!conductorDrawChanged(previousDraw, nextDraw)) {
+    if (
+      !conductorRuleChanged(
+        previousDay.conductorRule,
+        nextRules.conductorRule,
+      )
+    ) {
       return record;
     }
 
@@ -371,20 +309,17 @@ function clearConductorPicksWhenDrawChanges(
       ? rosterById.get(record.conductorMemberId)
       : undefined;
     const keep = shouldKeepAssignedConductorOnPaint({
-      drawChanged: true,
+      ruleChanged: true,
       memberId: record.conductorMemberId,
       onRoster: rosterRow != null,
       allianceRank: rosterRow?.allianceRank,
-      nextMechanism: generated.conductorMechanism,
-      nextPaintTemplate,
-      date: record.date,
-      nextConductorConfig: generated.conductorConfig,
+      nextRule: nextRules.conductorRule,
     });
     if (keep) {
       return {
         ...record,
-        conductorMechanism: generated.conductorMechanism,
-        vipMechanism: generated.vipMechanism ?? record.vipMechanism,
+        conductorRule: nextRules.conductorRule,
+        vipRule: nextRules.vipRule,
       };
     }
     if (record.lockedAt) {
@@ -399,8 +334,8 @@ function clearConductorPicksWhenDrawChanges(
       substituteForMemberName: null,
       vipMemberId: null,
       vipMemberName: null,
-      conductorMechanism: generated.conductorMechanism,
-      vipMechanism: generated.vipMechanism ?? null,
+      conductorRule: nextRules.conductorRule,
+      vipRule: nextRules.vipRule,
     };
   });
 }
@@ -408,34 +343,23 @@ function clearConductorPicksWhenDrawChanges(
 export function applyOptimisticPaint(
   snap: TrainsDashboardSnapshot,
   dates: string[],
-  templateType: WeekTemplateType,
-  options?: { updateWeekTemplate?: boolean; topN?: number },
+  rules: DayRules,
+  options?: {
+    /** Preset to stamp on the week schedule, when this paint sets one. */
+    updateWeekTemplate?: WeekTemplateType | null;
+    sourceTemplateKey?: string | null;
+  },
 ): TrainsDashboardSnapshot {
-  const trainWeekConfig = allianceTrainWeekFromRow({
-    trainWeekStartDow: snap.data.trainWeekStartDow,
-  });
-  const expandCompositeByDayIndex = shouldExpandCompositeByDayIndex({
-    updateWeekTemplate: options?.updateWeekTemplate,
-    dateCount: dates.length,
-  });
-  const paintOptions =
-    options?.topN != null
-      ? {
-          topN: options.topN,
-          weekTemplateApply: expandCompositeByDayIndex,
-        }
-      : { weekTemplateApply: expandCompositeByDayIndex };
+  const sourceTemplateKey = options?.sourceTemplateKey ?? null;
   const clearRecords = (
     records: WeekConductorRecordSummary[],
     dayConfigs: WeekScheduleDayConfig[],
   ) =>
-    clearConductorPicksWhenDrawChanges(
+    clearConductorPicksWhenRuleChanges(
       records,
       dates,
       dayConfigs,
-      templateType,
-      trainWeekConfig,
-      paintOptions,
+      rules,
       snap.data.roster ?? [],
     );
 
@@ -445,12 +369,8 @@ export function applyOptimisticPaint(
       dayConfigs: patchDayConfigsForDates(
         snap.data.dayConfigs,
         dates,
-        templateType,
-        trainWeekConfig,
-        {
-          ...paintOptions,
-          weekTemplateApply: expandCompositeByDayIndex,
-        },
+        rules,
+        sourceTemplateKey,
       ),
       weekRecords: clearRecords(snap.data.weekRecords, snap.data.dayConfigs),
       conductorRecord:
@@ -469,12 +389,8 @@ export function applyOptimisticPaint(
       dayConfigs: patchDayConfigsForDates(
         snap.viewedWeek.dayConfigs,
         dates,
-        templateType,
-        trainWeekConfig,
-        {
-          ...paintOptions,
-          weekTemplateApply: expandCompositeByDayIndex,
-        },
+        rules,
+        sourceTemplateKey,
       ),
       weekRecords: clearRecords(
         snap.viewedWeek.weekRecords,
@@ -486,12 +402,8 @@ export function applyOptimisticPaint(
       dayConfigs: patchDayConfigsForDates(
         snap.viewedMonth.dayConfigs,
         dates,
-        templateType,
-        trainWeekConfig,
-        {
-          ...paintOptions,
-          weekTemplateApply: expandCompositeByDayIndex,
-        },
+        rules,
+        sourceTemplateKey,
       ),
       monthRecords: clearRecords(
         snap.viewedMonth.monthRecords,
@@ -500,7 +412,8 @@ export function applyOptimisticPaint(
     },
   };
 
-  if (!options?.updateWeekTemplate) {
+  const templateType = options?.updateWeekTemplate;
+  if (!templateType) {
     return next;
   }
 
@@ -546,15 +459,16 @@ export function applyOptimisticWeekTemplate(
   templateType: WeekTemplateType,
   preserveThroughDate: string | null = null,
 ): TrainsDashboardSnapshot {
-  const generated = generateWeekDayConfigs(templateType, weekStart).map((d) => ({
-    id: `optimistic-${d.date}`,
-    date: d.date,
-    conductorMechanism: d.conductorMechanism,
-    vipMechanism: d.vipMechanism ?? null,
-    vipConfig: d.vipConfig ?? null,
-    isOverride: false,
-    paintTemplate: resolvePaintTemplateForDay(templateType, d.date, weekStart),
-  }));
+  const generated = weekDayConfigsForPreset(templateType, weekStart).map(
+    (day) => ({
+      id: `optimistic-${day.date}`,
+      date: day.date,
+      conductorRule: day.conductorRule,
+      vipRule: day.vipRule,
+      isOverride: false,
+      sourceTemplateKey: templateType,
+    }),
+  );
 
   const mergeWeekConfigs = (configs: WeekScheduleDayConfig[]) => {
     const weekEnd = generated[generated.length - 1]?.date;

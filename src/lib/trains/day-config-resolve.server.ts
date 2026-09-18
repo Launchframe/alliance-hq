@@ -2,13 +2,12 @@ import "server-only";
 
 import { addCalendarDays } from "@/lib/trains/game-time";
 import { loadAllianceRow } from "@/lib/members/game-roster";
-import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import {
   getWeekSchedule,
   listDayConfigsForWeek,
 } from "@/lib/trains/repository";
-import { generateDayConfigForDate } from "@/lib/trains/templates";
+import { presetRulesForDate } from "@/lib/trains/rules/presets.shared";
 import {
   allianceTrainWeekFromRow,
   getTrainWeekStart,
@@ -17,17 +16,10 @@ import {
   PROVISIONAL_DAY_CONFIG_ID_PREFIX,
   resolveWeekDisplayDayConfigs,
 } from "@/lib/trains/week-schedule-day-configs.shared";
-import { resolvePaintTemplateForDay } from "@/lib/trains/week-template-registry.shared";
-import type {
-  ConductorMechanismType,
-  DayConfigInput,
-  VipMechanismType,
-  WeekTemplateType,
-} from "@/lib/trains/types";
+import type { DayConfigInput, WeekTemplateType } from "@/lib/trains/types";
 
 export type ResolvedRollDayConfig = DayConfigInput & {
   dayConfigId: string | null;
-  paintTemplate?: WeekTemplateType | null;
 };
 
 async function trainWeekStartForAlliance(
@@ -64,9 +56,9 @@ async function weekTemplateTypeForDate(
 }
 
 /**
- * Same merge as the week strip / dashboard: persisted rows plus template
- * fill for gaps. Use for rolls, leaderboards, and score stats — not only
- * raw `getDayConfig` rows.
+ * Same merge as the week strip / dashboard: persisted rows plus preset fill
+ * for gaps. Use for rolls, leaderboards, and score stats — not only raw
+ * `getDayConfig` rows.
  */
 export async function resolveDisplayMergedDayConfigForDate(
   allianceId: string,
@@ -92,46 +84,24 @@ export async function resolveDisplayMergedDayConfigForDate(
   );
   const day = merged.find((row) => row.date === date);
   if (!day) {
-    const generated = generateDayConfigForDate(templateType, date, weekStart);
-    const paintTemplate = resolvePaintTemplateForDay(
-      templateType,
-      date,
-      weekStart,
-    );
-    const generatedConfig =
-      generated.conductorConfig && typeof generated.conductorConfig === "object"
-        ? (generated.conductorConfig as Record<string, unknown>)
-        : {};
+    const rules = presetRulesForDate(templateType, date);
     return {
-      ...generated,
-      conductorConfig: { ...generatedConfig, paintTemplate },
+      date,
+      conductorRule: rules.conductorRule,
+      vipRule: rules.vipRule,
+      sourceTemplateKey: templateType,
       dayConfigId: null,
-      paintTemplate,
     };
   }
 
-  let paintTemplate = day.paintTemplate;
-  if (!paintTemplate) {
-    paintTemplate = resolvePaintTemplateForDay(templateType, date, weekStart);
-  }
-
-  const conductorMechanism =
-    effectiveConductorMechanism(
-      day.conductorMechanism,
-      paintTemplate,
-      day.date,
-    ) ?? (day.conductorMechanism as ConductorMechanismType);
-
   return {
     date: day.date,
-    conductorMechanism,
-    conductorConfig: day.conductorConfig as DayConfigInput["conductorConfig"],
-    vipMechanism: (day.vipMechanism ?? "none") as VipMechanismType,
-    vipConfig: day.vipConfig as DayConfigInput["vipConfig"],
+    conductorRule: day.conductorRule,
+    vipRule: day.vipRule,
+    sourceTemplateKey: day.sourceTemplateKey,
     dayConfigId: day.id.startsWith(PROVISIONAL_DAY_CONFIG_ID_PREFIX)
       ? null
       : day.id,
-    paintTemplate,
   };
 }
 

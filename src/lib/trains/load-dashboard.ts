@@ -2,8 +2,13 @@ import {
   resolveAnchorTemplateType,
 } from "@/lib/trains/day-config-resolve.server";
 import { resolveMergedDayConfigsForDateRange } from "@/lib/trains/train-day-context.server";
-import { parseConductorConfigTopN } from "@/lib/trains/conductor-top-n.shared";
-import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
+import {
+  parseConductorRule,
+  parseVipRule,
+  type ConductorRule,
+  type VipRule,
+} from "@/lib/trains/rules/catalog.shared";
+import { presetRulesForDate } from "@/lib/trains/rules/presets.shared";
 import { resolveWeekDisplayDayConfigs } from "@/lib/trains/week-schedule-day-configs.shared";
 import { isDevOrPreviewEnvironment } from "@/lib/dev/env-guard";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
@@ -40,10 +45,6 @@ import {
 } from "@/lib/trains/game-time";
 import { getPoolSummary } from "@/lib/trains/pool";
 import {
-  conductorMechanismPoolType,
-  generateDayConfigForDate,
-} from "@/lib/trains/templates";
-import {
   allianceTrainWeekFromRow,
   getTrainWeekStart,
   type AllianceTrainWeekConfig,
@@ -70,7 +71,8 @@ import {
   type TrainsRosterDataStatus,
 } from "@/lib/trains/roster-data-status.server";
 import { getServerCalendarDate } from "@/lib/trains/service";
-import type { ConductorMechanismType, WeekTemplateType } from "@/lib/trains/types";
+import type { WeekTemplateType } from "@/lib/trains/types";
+import type { MergedWeekScheduleDayConfig } from "@/lib/trains/week-schedule-day-configs.shared";
 
 export type { TrainsVsDataStatus, TrainsRosterDataStatus, ConductorMinimumsDataStatus };
 export type { WeekConductorRecordSummary } from "@/lib/trains/conductor-record.shared";
@@ -106,6 +108,8 @@ function mapConductorRecord(
     vipMemberName: string | null;
     conductorMechanism: string | null;
     vipMechanism: string | null;
+    conductorRule?: unknown;
+    vipRule?: unknown;
     guardianIsVip?: number | null;
     lockedAt: Date | null;
     lockedByHqUserId?: string | null;
@@ -133,6 +137,8 @@ function mapConductorRecord(
     vipMemberName: row.vipMemberName,
     conductorMechanism: row.conductorMechanism,
     vipMechanism: row.vipMechanism,
+    conductorRule: parseConductorRule(row.conductorRule),
+    vipRule: parseVipRule(row.vipRule),
     guardianIsVip: row.guardianIsVip === 1,
     lockedAt,
     canUnlock: canUnlockLockedConductor({
@@ -182,18 +188,7 @@ export type TrainsDashboardPayload = {
   } | null;
   /** True when `train_week_schedules` has a row for the current train week. */
   schedulePersisted: boolean;
-  dayConfigs: Array<{
-    id: string;
-    date: string;
-    conductorMechanism: string;
-    vipMechanism: string | null;
-    vipConfig: unknown;
-    isOverride: boolean;
-    paintTemplate?: WeekTemplateType | null;
-    /** Top VS / Top VR scope from conductor_config.topN when present. */
-    topN?: number | null;
-    conductorConfig?: unknown;
-  }>;
+  dayConfigs: MergedWeekScheduleDayConfig[];
   weekRecords: WeekConductorRecordSummary[];
   roster: Array<{
     memberId: string;
@@ -202,8 +197,8 @@ export type TrainsDashboardPayload = {
   }>;
   conductorRecord: WeekConductorRecordSummary | null;
   todayDayConfig: {
-    conductorMechanism: string;
-    vipMechanism: string | null;
+    conductorRule: ConductorRule | null;
+    vipRule: VipRule | null;
   } | null;
   /**
    * Non-blocking VS / PIF score readiness for today's conductor actions.
@@ -454,31 +449,19 @@ export async function loadTrainsDashboard(
   const leadDays = leadTimeSettings.trainConductorLeadTimeDays;
   const [rosterDataStatus, vrReporterCount, weekDayScoreStats, weekConductorMinimumsDataStatus] =
     await Promise.all([
-      todayDayConfig
-        ? loadTrainsRosterDataStatus({
-            sessionId,
-            allianceId,
-            trainDate: today,
-            conductorMechanism: todayDayConfig.conductorMechanism,
-            paintTemplate: todayDayConfig.paintTemplate ?? dashboardTemplateType,
-            activeMemberCount,
-          })
-        : loadTrainsRosterDataStatus({
-            sessionId,
-            allianceId,
-            trainDate: today,
-            conductorMechanism: null,
-            paintTemplate: dashboardTemplateType,
-            activeMemberCount,
-          }),
+      loadTrainsRosterDataStatus({
+        sessionId,
+        allianceId,
+        trainDate: today,
+        rule: todayDayConfig?.conductorRule ?? null,
+        activeMemberCount,
+      }),
       countAllianceVrReporters(allianceId),
       loadTrainDayScoreStatsForDates(
         allianceId,
         dayConfigs.map((day) => ({
           trainDate: day.date,
-          conductorMechanism: day.conductorMechanism,
-          paintTemplate: day.paintTemplate,
-          conductorConfig: day.conductorConfig,
+          rule: day.conductorRule,
         })),
         leadDays,
         effectiveSeason.seasonKey,
@@ -488,7 +471,7 @@ export async function loadTrainsDashboard(
         leadDays,
         days: dayConfigs.map((day) => ({
           trainDate: day.date,
-          paintTemplate: day.paintTemplate,
+          rule: day.conductorRule,
         })),
       }),
     ]);
@@ -531,8 +514,8 @@ export async function loadTrainsDashboard(
     conductorRecord: record,
     todayDayConfig: todayDayConfig
       ? {
-          conductorMechanism: todayDayConfig.conductorMechanism,
-          vipMechanism: todayDayConfig.vipMechanism,
+          conductorRule: todayDayConfig.conductorRule,
+          vipRule: todayDayConfig.vipRule,
         }
       : null,
     vsDataStatus,
@@ -604,9 +587,7 @@ export async function loadWeekSchedulePage(
     allianceId,
     dayConfigs.map((day) => ({
       trainDate: day.date,
-      conductorMechanism: day.conductorMechanism,
-      paintTemplate: day.paintTemplate,
-      conductorConfig: day.conductorConfig,
+      rule: day.conductorRule,
     })),
     leadDays,
     effectiveSeason.seasonKey,
@@ -634,7 +615,6 @@ export async function loadMonthSchedulePage(
   const allianceId = session.currentAllianceId ?? session.allianceId;
   if (!allianceId) return null;
 
-  const trainWeekConfig = await loadTrainWeekConfigForAlliance(allianceId);
   const monthKey = monthKeyInput.slice(0, 7);
   const monthStart = monthStartFromKey(monthKey);
   const monthEnd = monthEndFromKey(monthKey);
@@ -662,20 +642,14 @@ export async function loadMonthSchedulePage(
       dayConfigs.push(merged);
       continue;
     }
-    const weekStart = getTrainWeekStart(date, trainWeekConfig);
-    const preview = generateDayConfigForDate(
-      anchorTemplate,
-      date,
-      weekStart,
-    );
+    const preview = presetRulesForDate(anchorTemplate, date);
     dayConfigs.push({
       id: `preview-${date}`,
       date,
-      conductorMechanism: preview.conductorMechanism,
-      vipMechanism: preview.vipMechanism ?? null,
-      vipConfig: preview.vipConfig ?? null,
+      conductorRule: preview.conductorRule,
+      vipRule: preview.vipRule,
       isOverride: false,
-      paintTemplate: anchorTemplate,
+      sourceTemplateKey: anchorTemplate,
     });
   }
 
@@ -696,11 +670,4 @@ export async function loadMonthSchedulePage(
       mapConductorRecord(row, recordAccess),
     ),
   };
-}
-
-export function todayPoolTypeForMechanism(
-  mechanism: ConductorMechanismType | string | null | undefined,
-): string | null {
-  if (!mechanism) return null;
-  return conductorMechanismPoolType(mechanism as ConductorMechanismType);
 }

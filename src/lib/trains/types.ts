@@ -1,9 +1,17 @@
+import type {
+  ConductorRule,
+  VipRule,
+} from "@/lib/trains/rules/catalog.shared";
+
+/**
+ * Legacy mechanism vocabulary.
+ *
+ * Day scheduling now uses `ConductorRule` (see `rules/catalog.shared.ts`).
+ * These strings survive only as the permanent history written to
+ * `train_conductor_records.conductor_mechanism`.
+ */
 export const CONDUCTOR_MECHANISMS = [
-  "vs_high_score",
-  "vs_top_10",
-  /** Parameterized prior-day VS top N — scope in conductor_config.topN. */
   "vs_top_n",
-  /** Parameterized season VR top N — scope in conductor_config.topN (3/5/10). */
   "vr_top_n",
   "r3_lottery",
   "heavy_hitter_lottery",
@@ -25,19 +33,19 @@ export const VIP_MECHANISMS = [
 
 export type VipMechanismType = (typeof VIP_MECHANISMS)[number];
 
+/**
+ * Week presets. Each expands to seven calendar-weekday rules in
+ * `rules/presets.shared.ts`; a test keeps the two lists in lockstep.
+ *
+ * The old paint-only segments (`vs_push_weekdays`, `top_vs`, `takedown_week`,
+ * …) are gone: a day is painted with a rule, and a week is seven rules. A
+ * segment was only ever "the same rule on several days".
+ */
 export const WEEK_TEMPLATES = [
   "vs_push_week",
   "vs_push_week_lead_time",
-  "vs_push_weekdays",
-  "r4_event_vip",
-  /** Paint-only: Top VS with scope (conductor_config.topN). */
-  "top_vs",
-  /** Paint-only: Top VR with scope (conductor_config.topN). */
-  "top_vr",
   "economy_week",
   "price_is_right",
-  "price_is_right_weekdays",
-  "takedown_week",
   "r3_recognition",
   "r4_train_week",
   "donations_week",
@@ -61,12 +69,17 @@ export type EventTopXConfig = {
   topN: number;
 };
 
+/**
+ * A scheduled day. `conductorRule: null` is free choice — an officer assigns
+ * anyone — and `vipRule: null` is the conductor's free pick. Neither means
+ * "unset"; a skipped VIP is `{ kind: "none" }`.
+ */
 export type DayConfigInput = {
   date: string;
-  conductorMechanism: ConductorMechanismType;
-  conductorConfig?: EventTopXConfig | Record<string, unknown> | null;
-  vipMechanism?: VipMechanismType | null;
-  vipConfig?: EventTopXConfig | Record<string, unknown> | null;
+  conductorRule: ConductorRule | null;
+  vipRule: VipRule | null;
+  /** Template this day was painted from. Provenance only. */
+  sourceTemplateKey?: string | null;
 };
 
 import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";
