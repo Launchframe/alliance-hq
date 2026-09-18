@@ -79,7 +79,7 @@ export type DayConfigInput = {
   conductorRule: ConductorRule | null;
   vipRule: VipRule | null;
   /** Template this day was painted from. Provenance only. */
-  sourceTemplateKey?: string | null;
+  sourceTemplateId?: string | null;
 };
 
 import type { MemberQualificationPayload } from "@/lib/trains/train-conductor-minimums.shared";

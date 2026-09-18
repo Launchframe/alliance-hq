@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 const SEED_SCRIPTS = [
   "scripts/rbac/seed.mjs",
   "scripts/commendations/seed.mjs",
+  "scripts/trains/seed-rule-templates.mjs",
 ];
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");

@@ -15,11 +15,19 @@ import {
   encodeLegacyConductorMechanism,
   encodeLegacyVipMechanism,
 } from "@/lib/trains/rules/encode.shared";
-import type { DayConfigInput, WeekTemplateType } from "@/lib/trains/types";
+import { scheduleWeekStart } from "@/lib/trains/train-week-calendar.shared";
+import type { DayConfigInput } from "@/lib/trains/types";
 
 const TRAIN_CAR_COUNT = 5;
 const SLOTS_PER_CAR = 6;
 
+/**
+ * Week schedule rows are keyed by the **Monday** calendar week.
+ *
+ * `trainWeekStartDow` is a display preference, so callers pass whatever week
+ * start they render with and the key is normalized here. Changing the
+ * preference must never repoint an alliance at a different schedule row.
+ */
 export async function getWeekSchedule(
   allianceId: string,
   weekStart: string,
@@ -32,7 +40,10 @@ export async function getWeekSchedule(
     .where(
       and(
         eq(schema.trainWeekSchedules.allianceId, allianceId),
-        eq(schema.trainWeekSchedules.weekStart, weekStart),
+        eq(
+          schema.trainWeekSchedules.weekStart,
+          scheduleWeekStart(weekStart),
+        ),
       ),
     )
     .limit(1);
@@ -73,7 +84,10 @@ export async function deleteWeekScheduleAndDayConfigs(
     .where(
       and(
         eq(schema.trainWeekSchedules.allianceId, allianceId),
-        eq(schema.trainWeekSchedules.weekStart, weekStart),
+        eq(
+          schema.trainWeekSchedules.weekStart,
+          scheduleWeekStart(weekStart),
+        ),
       ),
     )
     .returning({ id: schema.trainWeekSchedules.id });
@@ -87,7 +101,8 @@ export async function deleteWeekScheduleAndDayConfigs(
 export async function upsertWeekSchedule(input: {
   allianceId: string;
   weekStart: string;
-  templateType: WeekTemplateType;
+  /** Week template row applied to this week; null when painted ad hoc. */
+  templateId: string | null;
   seasonKey?: string | null;
   notes?: string | null;
   isPivot?: boolean;
@@ -103,23 +118,23 @@ export async function upsertWeekSchedule(input: {
     await db
       .update(schema.trainWeekSchedules)
       .set({
-        templateType: input.templateType,
+        templateId: input.templateId,
         notes: input.notes ?? null,
         isPivot: input.isPivot ? 1 : 0,
         ...(input.seasonKey ? { seasonKey: input.seasonKey } : {}),
         updatedAt: new Date(),
       })
       .where(eq(schema.trainWeekSchedules.id, existing.id));
-    return { ...existing, templateType: input.templateType };
+    return { ...existing, templateId: input.templateId };
   }
 
   const id = nanoid();
   await db.insert(schema.trainWeekSchedules).values({
     id,
     allianceId: input.allianceId,
-    weekStart: input.weekStart,
+    weekStart: scheduleWeekStart(input.weekStart),
     seasonKey: input.seasonKey ?? null,
-    templateType: input.templateType,
+    templateId: input.templateId,
     notes: input.notes ?? null,
     isPivot: input.isPivot ? 1 : 0,
   });
@@ -148,7 +163,7 @@ export async function replaceDayConfigs(
         date: config.date,
         conductorRule: config.conductorRule,
         vipRule: config.vipRule,
-        sourceTemplateKey: config.sourceTemplateKey ?? null,
+        sourceTemplateId: config.sourceTemplateId ?? null,
       })
       .onConflictDoUpdate({
         target: [
@@ -159,7 +174,7 @@ export async function replaceDayConfigs(
           weekScheduleId,
           conductorRule: config.conductorRule,
           vipRule: config.vipRule,
-          sourceTemplateKey: config.sourceTemplateKey ?? null,
+          sourceTemplateId: config.sourceTemplateId ?? null,
           isOverride: 0,
         },
       });
@@ -227,7 +242,7 @@ export async function upsertDayConfigOverride(
       date: config.date,
       conductorRule: config.conductorRule,
       vipRule: config.vipRule,
-      sourceTemplateKey: config.sourceTemplateKey ?? null,
+      sourceTemplateId: config.sourceTemplateId ?? null,
       isOverride: isOverride ? 1 : 0,
     })
     .onConflictDoUpdate({
@@ -239,7 +254,7 @@ export async function upsertDayConfigOverride(
         weekScheduleId,
         conductorRule: config.conductorRule,
         vipRule: config.vipRule,
-        sourceTemplateKey: config.sourceTemplateKey ?? null,
+        sourceTemplateId: config.sourceTemplateId ?? null,
         isOverride: isOverride ? 1 : 0,
       },
     });

@@ -8,14 +8,13 @@ import {
   paletteIdForRule,
   type DayRulePaletteId,
 } from "@/lib/trains/rules/palette.shared";
-import {
-  WEEKDAY_KEYS,
-  weekRulesForPreset,
-} from "@/lib/trains/rules/presets.shared";
-import type { WeekTemplateType } from "@/lib/trains/types";
+import { WEEKDAY_KEYS } from "@/lib/trains/rules/presets.shared";
+import type { TemplateWeekRules } from "@/lib/trains/rules/template-days.shared";
 
 type Props = {
-  template: WeekTemplateType;
+  days: TemplateWeekRules;
+  /** `trains.rules.*` labels, keyed by rule label key. */
+  ruleTextLabels: Record<string, string>;
 };
 
 /**
@@ -24,16 +23,13 @@ type Props = {
  * Tiles are calendar weekdays (Mon–Sun), so the preview shows the same shape
  * to every alliance — the strip no longer depends on a week start date.
  */
-export function TemplateWeekShapeStrip({ template }: Props) {
+export function TemplateWeekShapeStrip({ days: week, ruleTextLabels }: Props) {
   const t = useTranslations("trains");
 
-  if (template === "custom") {
-    return null;
-  }
-
-  const week = weekRulesForPreset(template);
   // Render Mon-first; WEEKDAY_KEYS is indexed by getServerDayOfWeek (Sun = 0).
   const days = [...WEEKDAY_KEYS.slice(1), WEEKDAY_KEYS[0]];
+  const ruleLabel = (rule: Parameters<typeof paletteIdForRule>[0]) =>
+    ruleTextLabels[conductorRuleLabelKey(rule)] ?? paletteIdForRule(rule);
 
   const legend: { paletteId: DayRulePaletteId; label: string }[] = [];
   const seen = new Set<DayRulePaletteId>();
@@ -43,7 +39,7 @@ export function TemplateWeekShapeStrip({ template }: Props) {
     seen.add(paletteId);
     legend.push({
       paletteId,
-      label: t(`rules.${conductorRuleLabelKey(week[day].conductorRule)}`),
+      label: ruleLabel(week[day].conductorRule),
     });
   }
 
@@ -59,7 +55,7 @@ export function TemplateWeekShapeStrip({ template }: Props) {
           const paletteId = paletteIdForRule(rule);
           const swatch =
             RULE_PALETTE_SWATCHES[paletteId]?.swatch ?? "bg-slate-500";
-          const title = t(`rules.${conductorRuleLabelKey(rule)}`);
+          const title = ruleLabel(rule);
           return (
             <div key={day} className="flex flex-col items-center gap-1">
               <div className={`h-6 w-full rounded-md ${swatch}`} title={title} />

@@ -107,7 +107,7 @@ function recordForDate(
 
 function weekPageFingerprint(page: WeekSchedulePagePayload): string {
   return JSON.stringify({
-    templateType: page.templateType,
+    templateId: page.templateId,
     dayConfigs: page.dayConfigs,
     weekRecords: page.weekRecords,
   });
@@ -659,7 +659,7 @@ export function WeekScheduleStrip({
   const [page, setPage] = useState<WeekSchedulePagePayload>({
     weekStart: initialWeekStart,
     weekEnd: initialWeekEnd,
-    templateType: externalWeek?.templateType ?? null,
+    templateId: externalWeek?.templateId ?? null,
     dayConfigs: initialDayConfigs,
     weekRecords: initialWeekRecords,
     dayScoreStats: externalWeek?.dayScoreStats ?? {},
@@ -673,7 +673,7 @@ export function WeekScheduleStrip({
   const [mobileSeedPage] = useState<WeekSchedulePagePayload>(() => ({
     weekStart: initialWeekStart,
     weekEnd: initialWeekEnd,
-    templateType: externalWeek?.templateType ?? null,
+    templateId: externalWeek?.templateId ?? null,
     dayConfigs: initialDayConfigs,
     weekRecords: initialWeekRecords,
     dayScoreStats: externalWeek?.dayScoreStats ?? {},
@@ -756,7 +756,7 @@ export function WeekScheduleStrip({
             : {
                 weekStart: initialWeekStart,
                 weekEnd: initialWeekEnd,
-                templateType: null,
+                templateId: null,
                 dayConfigs: initialDayConfigs,
                 weekRecords: initialWeekRecords,
                 dayScoreStats: externalWeek?.dayScoreStats ?? {},
@@ -813,7 +813,7 @@ export function WeekScheduleStrip({
   const resolvedPage =
     page.dayConfigs.length > 0
       ? page
-      : buildProvisionalWeekPage(viewWeekStart, page.templateType);
+      : buildProvisionalWeekPage(viewWeekStart);
 
   const displayPage =
     externalWeek &&

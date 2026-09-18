@@ -8,11 +8,13 @@ import { AllianceTrainDiscordSettings } from "@/components/settings/AllianceTrai
 import { AllianceTrainEconomyThresholdSettings } from "@/components/settings/AllianceTrainEconomyThresholdSettings";
 import { AllianceTrainLeadTimeSettings } from "@/components/settings/AllianceTrainLeadTimeSettings";
 import { AllianceTrainMinimumsSettings } from "@/components/settings/AllianceTrainMinimumsSettings";
+import { AllianceTrainTemplatesSettings } from "@/components/settings/AllianceTrainTemplatesSettings";
 import { AllianceTrainWeekSettings } from "@/components/settings/AllianceTrainWeekSettings";
 import { AllianceContextRequired } from "@/components/settings/AllianceContextRequired";
 import { isDiscordBotInstallConfigured } from "@/lib/discord/bot-install-url.server";
 import { getDb, schema } from "@/lib/db";
 import { requireAllianceSettingsSession } from "@/lib/settings/alliance-settings-access.server";
+import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
 import { requirePageSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +53,7 @@ export default async function SettingsTrainsPage({
     .where(eq(schema.alliances.id, access.allianceId))
     .limit(1);
 
+  const leadDays = await loadAllianceTrainLeadTimeDays(access.allianceId);
   const allianceTag = alliance?.tag ?? access.session.allianceTag;
   if (!allianceTag) {
     redirect({ href: "/settings", locale });
@@ -58,7 +61,7 @@ export default async function SettingsTrainsPage({
   }
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-lg space-y-6">
+    <div className="mx-auto w-full min-w-0 max-w-2xl space-y-6">
       <div>
         <Link href="/settings" className="text-sm text-hq-accent hover:underline">
           ← {tSettings("backToAllianceSettings")}
@@ -71,6 +74,7 @@ export default async function SettingsTrainsPage({
 
       <AllianceTrainWeekSettings allianceTag={allianceTag} />
       <AllianceTrainLeadTimeSettings allianceTag={allianceTag} />
+      <AllianceTrainTemplatesSettings leadDays={leadDays} />
       <AllianceTrainMinimumsSettings allianceTag={allianceTag} />
       <AllianceTrainEconomyThresholdSettings allianceTag={allianceTag} />
       <AllianceTrainDiscordSettings

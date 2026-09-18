@@ -15,8 +15,9 @@ import type {
  * why `vs_push_week_lead_time` needs different rules rather than a shifted
  * copy — see `validateConductorRuleOnWeekday`.
  *
- * PR 2 moves these into `train_rule_templates` rows; the shapes below become
- * the seed data.
+ * These are the **seed source of truth**: `scripts/trains/seed-rule-templates.mjs`
+ * upserts them into `train_rule_templates` on every deploy, and
+ * `presets.shared.test.ts` asserts the seeded shapes still match.
  */
 
 export const WEEKDAY_KEYS = [

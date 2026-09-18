@@ -47,9 +47,20 @@ Everything derived from a rule lives in `rules/derive.shared.ts` — spin source
 
 **Eligibility is fail-open.** `isMemberEligibleForConductorRule` only rejects on rank, and only when rank *is* the rule (`rank_pool`, Price Is Freight weekday raffle). A board the client cannot see (VS / VR / event / max-ticket list) must never gate an on-roster conductor off a day. Spin time still enforces the board.
 
-## Week presets
+## Week templates
 
-Presets live in `rules/presets.shared.ts` as **seven calendar-weekday slots** (Mon–Sun), one rule each:
+A template is a row in **`train_rule_templates`** holding **seven calendar-weekday slots** (Mon–Sun), one `DayRules` each.
+
+| Kind | `alliance_id` | Editable | Removable |
+|------|---------------|----------|-----------|
+| **HQ preset** | `NULL` | No — copy it first | Hidden per alliance via `train_rule_template_archives` |
+| **Alliance template** | set | Yes, by `trains:write` | Soft delete (`archived_at`) |
+
+Presets are seeded by `scripts/trains/seed-rule-templates.mjs` on every deploy (idempotent, ids are `tmpl_preset_<key>`). `src/lib/trains/rules/presets.shared.ts` is the **source of truth** for their shapes; `presets.shared.test.ts` asserts the `.mjs` seed matches it, because the seed cannot import TypeScript.
+
+**Archiving never deletes rules.** A day keeps the rule painted onto it, so an archived template stops appearing in pickers without changing any schedule. Never hard-delete a template row.
+
+Shipped preset shapes:
 
 | Preset | Shape |
 |--------|-------|
@@ -62,9 +73,17 @@ Presets live in `rules/presets.shared.ts` as **seven calendar-weekday slots** (M
 | `donations_week` | Top donor + second donor |
 | `custom` | Free choice every day |
 
-**Slots are calendar weekdays.** `trainWeekStartDow` is render logic only — "what day does your calendar show the week starting on?" It never changes which rule applies to a date. There is no composite-segment registry and no Tue=0 indexing; a week is simply seven day rules, and applying a preset is seven independent paints grouped by rule.
+**Slots are calendar weekdays.** `trainWeekStartDow` is render logic only — "what day does your calendar show the week starting on?" It never changes which rule applies to a date. There is no composite-segment registry and no Tue=0 indexing; a week is simply seven day rules, and applying a template is seven independent paints grouped by rule.
 
-`vs_push_week_lead_time` exists because Tuesday reads Sunday once lead time shifts the source day — the validator explains that, rather than the preset name encoding it.
+### `train_week_schedules.week_start` is always Monday
+
+Schedule rows are keyed by the **Monday calendar week**, normalized inside `repository.ts` (`scheduleWeekStart`) so no caller can key one by a display preference. Otherwise changing `trainWeekStartDow` would silently repoint an alliance at a different row and orphan its template and pivot flag.
+
+A display week that does not start on Monday therefore **straddles two schedule rows**. Day fill resolves **per date** (`resolveWeekFillTemplateResolver`), never once per display week — filling all seven tiles from one row shows the wrong template either side of Monday.
+
+**A week with no schedule row has no template**, and its days are free choice. Do not invent a default: "no rule" is a real state now, and guessing is what made an unpainted week look like a VS Push nobody chose.
+
+`vs_push_week_lead_time` exists because Tuesday reads Sunday once lead time shifts the source day — the validator explains that, rather than the preset name encoding it. `validateTemplateWeekRules(days, leadDays)` surfaces the same warning in the template editor; it is **advisory** and never blocks saving.
 
 ## Economy-week pivot (per-day overrides)
 

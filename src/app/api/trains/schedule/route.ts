@@ -11,7 +11,7 @@ import {
   getWeekStartMonday,
   setWeekTemplate,
 } from "@/lib/trains/service";
-import type { WeekTemplateType } from "@/lib/trains/types";
+import { getRuleTemplateForAlliance } from "@/lib/trains/rules/templates.server";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { requireApiSession } from "@/lib/session";
 import {
@@ -49,14 +49,29 @@ export async function POST(request: Request) {
   if (ctx instanceof NextResponse) return ctx;
 
   const body = (await request.json()) as {
-    templateType?: WeekTemplateType;
+    templateId?: string;
     weekStart?: string;
     isPivot?: boolean;
   };
 
   const weekStart =
     body.weekStart?.trim() || getWeekStartMonday(getServerCalendarDate());
-  const templateType = body.templateType ?? "vs_push_week";
+  const templateId = body.templateId?.trim();
+  if (!templateId) {
+    return NextResponse.json(
+      { error: "A week template is required." },
+      { status: 400 },
+    );
+  }
+
+  // Tenant scope: presets, or a template this alliance owns.
+  const template = await getRuleTemplateForAlliance(ctx.allianceId, templateId);
+  if (!template) {
+    return NextResponse.json(
+      { error: "Week template not found." },
+      { status: 404 },
+    );
+  }
 
   const members = await loadActiveAlliancePoolMembers({
     allianceId: ctx.allianceId,
@@ -74,14 +89,14 @@ export async function POST(request: Request) {
   await setWeekTemplate(
     ctx.allianceId,
     weekStart,
-    templateType,
+    templateId,
     body.isPivot === true,
   );
 
   const { schedule, dayConfigs } = await getOrCreateWeekSchedule(
     ctx.allianceId,
     weekStart,
-    templateType,
+    templateId,
   );
 
   await writeTrainsOfficerAudit({
@@ -94,7 +109,8 @@ export async function POST(request: Request) {
     resourceId: schedule.id ?? `${ctx.allianceId}:${weekStart}`,
     metadata: {
       weekStart,
-      templateType,
+      templateId,
+      templateName: template.name,
       isPivot: body.isPivot === true,
     },
   });
