@@ -45,10 +45,17 @@ function createBrowserNavigation(url: string, normalize: (url: string) => string
     if (store.getSnapshot().pending?.url === target) pendingPop = { url: target, state: event.state };
   } };
 }
-export function NotesNavigation({ children, scope, defaults }: { children: ReactNode; scope: string; defaults: NoteWorkspaceState }) {
+export function NotesNavigation({ children, scope, defaults, initialCursor }: { children: ReactNode; scope: string; defaults: NoteWorkspaceState; initialCursor?: string | null }) {
   const path = usePathname(), query = useSearchParams(), t = useTranslations("notes");
   const raw = `${path}${query.size ? `?${query}` : ""}`;
-  const normalize = useCallback((url: string) => scopedWorkspaceLocation(url, defaults, scope), [defaults, scope]);
+  const [initialUrl] = useState(raw);
+  const normalize = useCallback((url: string) => {
+    const normalized = scopedWorkspaceLocation(url, defaults, scope);
+    if (url !== initialUrl || initialCursor !== null) return normalized;
+    const safe = new URL(normalized, "https://notes.invalid");
+    safe.searchParams.delete("cursor");
+    return `${safe.pathname}${safe.search}${safe.hash}`;
+  }, [defaults, scope, initialCursor, initialUrl]);
   const actual = normalize(raw);
   const router = useRouter();
   const [{ store, pop }] = useState(() => createBrowserNavigation(actual, normalize));
@@ -96,7 +103,7 @@ export function NotesNavigation({ children, scope, defaults }: { children: React
   return <Context.Provider value={value}>{children}
     <dialog ref={dialog} aria-label={t("editor.discardTitle")} onCancel={(event) => { event.preventDefault(); void store.resolve("cancel"); }} className="fixed inset-0 m-auto w-[min(94vw,32rem)] rounded-xl border border-hq-border bg-hq-canvas p-6 text-hq-fg shadow-xl backdrop:bg-black/60">
       <div className="space-y-4"><h2 className="text-lg font-semibold">{t("editor.discardTitle")}</h2><p className="text-sm text-hq-fg-muted">{t("editor.discardBody")}</p>
-        {snapshot.error ? <p role="alert" className="text-sm text-hq-danger">{snapshot.error instanceof Error ? snapshot.error.message : t("saveFailed")}</p> : null}
+        {snapshot.error ? <p role="alert" className="text-sm text-hq-danger">{t("saveFailed")}</p> : null}
         <div className="flex flex-wrap justify-end gap-2">
           <button disabled={snapshot.busy} onClick={() => { void store.resolve("cancel"); }} className="rounded-lg border border-hq-border px-3 py-2 text-sm">{t("editor.keepEditing")}</button>
           <button disabled={snapshot.busy} onClick={() => { void store.resolve("discard"); }} className="rounded-lg bg-hq-danger px-3 py-2 text-sm text-white">{t("editor.discard")}</button>
