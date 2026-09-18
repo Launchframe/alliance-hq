@@ -5026,6 +5026,8 @@
     "previewResizeWidth": "Resize preview width",
     "previewResizeHeight": "Resize preview height",
     "previewPanHint": "Drag to pan",
+    "previewReloadVideo": "Reload video",
+    "previewReloadVideoHint": "Resets the player only — your review edits stay.",
     "rosterAllianceTarget": "Uploading roster into: {tag}",
     "rosterAllianceTargetNamed": "Uploading roster into: {tag} — {name}",
     "rosterAllianceHint": "New and matched members from this video will be written to this alliance in HQ.",
