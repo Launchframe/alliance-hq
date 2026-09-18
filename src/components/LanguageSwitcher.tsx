@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
 import { useShellNavigation } from "@/components/ashed-shell/useShellNavigation";
@@ -12,6 +13,7 @@ export function LanguageSwitcher() {
   const locale = useLocale() as AppLocale;
   const { replaceLocale } = useShellNavigation();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   return (
     <label className="inline-flex min-w-0 items-center gap-2 text-sm text-hq-fg">
@@ -20,7 +22,9 @@ export function LanguageSwitcher() {
         className="w-auto max-w-56"
         value={locale}
         onChange={(next) => {
-          replaceLocale(pathname, next as AppLocale);
+          const search = searchParams.toString();
+          const href = search ? `${pathname}?${search}` : pathname;
+          replaceLocale(href, next as AppLocale);
         }}
         aria-label={t("label")}
         triggerClassName="rounded border border-hq-border bg-hq-canvas px-2 py-1.5 text-sm"

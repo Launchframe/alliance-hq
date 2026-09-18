@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   decideGeoLocaleRedirect,
+  isConnectFlowGeoPath,
   localeFromVercelCountry,
+  pathnameHasLocalePrefix,
   withLocalePrefix,
 } from "./geo-locale.shared";
 
@@ -21,6 +23,25 @@ describe("localeFromVercelCountry", () => {
   });
 });
 
+describe("pathnameHasLocalePrefix", () => {
+  it("treats every app locale prefix as already localized", () => {
+    expect(pathnameHasLocalePrefix("/en-US")).toBe(true);
+    expect(pathnameHasLocalePrefix("/en-US/invite/x")).toBe(true);
+    expect(pathnameHasLocalePrefix("/pt-BR/invite/x")).toBe(true);
+    expect(pathnameHasLocalePrefix("/invite/x")).toBe(false);
+  });
+});
+
+describe("isConnectFlowGeoPath", () => {
+  it("includes landing and invite funnels, not app-shell routes", () => {
+    expect(isConnectFlowGeoPath("/")).toBe(true);
+    expect(isConnectFlowGeoPath("/invite/tok")).toBe(true);
+    expect(isConnectFlowGeoPath("/en-US/invite/tok")).toBe(true);
+    expect(isConnectFlowGeoPath("/dashboard")).toBe(false);
+    expect(isConnectFlowGeoPath("/pt-BR/members")).toBe(false);
+  });
+});
+
 describe("withLocalePrefix", () => {
   it("prefixes pt-BR paths and leaves en-US unprefixed", () => {
     expect(withLocalePrefix("/", "pt-BR")).toBe("/pt-BR");
@@ -28,18 +49,28 @@ describe("withLocalePrefix", () => {
     expect(withLocalePrefix("/invite/abc", "en-US")).toBe("/invite/abc");
   });
 
-  it("does not double-prefix", () => {
+  it("does not double-prefix any app locale", () => {
     expect(withLocalePrefix("/pt-BR/invite/abc", "pt-BR")).toBe(
+      "/pt-BR/invite/abc",
+    );
+    expect(withLocalePrefix("/en-US/invite/abc", "pt-BR")).toBe(
       "/pt-BR/invite/abc",
     );
   });
 });
 
 describe("decideGeoLocaleRedirect", () => {
-  it("passthrough when the path is already prefixed", () => {
+  it("passthrough when the path already has any locale prefix", () => {
     expect(
       decideGeoLocaleRedirect({
         pathname: "/pt-BR/invite/x",
+        localeCookie: undefined,
+        vercelCountry: "BR",
+      }),
+    ).toEqual({ action: "passthrough" });
+    expect(
+      decideGeoLocaleRedirect({
+        pathname: "/en-US/invite/x",
         localeCookie: undefined,
         vercelCountry: "BR",
       }),
@@ -51,6 +82,16 @@ describe("decideGeoLocaleRedirect", () => {
       decideGeoLocaleRedirect({
         pathname: "/invite/x",
         localeCookie: "en-US",
+        vercelCountry: "BR",
+      }),
+    ).toEqual({ action: "passthrough" });
+  });
+
+  it("passthrough on app-shell paths even from Brazil", () => {
+    expect(
+      decideGeoLocaleRedirect({
+        pathname: "/dashboard",
+        localeCookie: undefined,
         vercelCountry: "BR",
       }),
     ).toEqual({ action: "passthrough" });

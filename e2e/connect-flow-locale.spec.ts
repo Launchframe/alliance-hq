@@ -9,7 +9,7 @@ import {
 } from "./fixtures/db";
 
 test.describe("Connect-flow locale picker", () => {
-  test("header language control switches locale and keeps the invite path", async ({
+  test("header language control switches locale and keeps invite query", async ({
     page,
   }) => {
     const sql = getE2eSql();
@@ -24,21 +24,27 @@ test.describe("Connect-flow locale picker", () => {
       roleName: "member",
       invitedByHqUserId: maintainer.hqUserId,
     });
+    const invitePath = `/invite/${encodeURIComponent(token)}`;
 
-    await page.goto(`/invite/${encodeURIComponent(token)}`);
+    await page.goto(`${invitePath}?next=${encodeURIComponent("/trains")}`);
 
     const language = page.getByRole("button", { name: "Language" });
     await expect(language).toBeVisible();
     await language.click();
     await page.getByRole("option", { name: "Português (Brasil)" }).click();
 
-    await expect(page).toHaveURL(
-      new RegExp(`/pt-BR/invite/${encodeURIComponent(token)}`),
-    );
+    await expect(page).toHaveURL(new RegExp(`/pt-BR${invitePath}`));
+    expect(new URL(page.url()).searchParams.get("next")).toBe("/trains");
     await expect(page.getByRole("button", { name: "Idioma" })).toBeVisible();
     await expect(
       page.getByRole("link", { name: "Política de Privacidade" }),
     ).toBeVisible();
+
+    await page.getByRole("button", { name: "Idioma" }).click();
+    await page.getByRole("option", { name: "English (US)" }).click();
+    await expect(page).toHaveURL(new RegExp(`${invitePath}`));
+    await expect(page).not.toHaveURL(/\/pt-BR\//);
+    expect(new URL(page.url()).searchParams.get("next")).toBe("/trains");
   });
 
   test("Vercel Brazil country header sends a first visit to pt-BR", async ({
@@ -54,6 +60,30 @@ test.describe("Connect-flow locale picker", () => {
       await expect(page).toHaveURL(/\/pt-BR\/?$/);
       await expect(page.getByRole("button", { name: "Idioma" })).toBeVisible();
       await expect(page.getByRole("link", { name: "Entrar" })).toBeVisible();
+    } finally {
+      await context.close();
+    }
+  });
+
+  test("existing NEXT_LOCALE cookie is not overridden by Brazil geo", async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({
+      extraHTTPHeaders: { "x-vercel-ip-country": "BR" },
+      locale: "en-US",
+    });
+    await context.addCookies([
+      {
+        name: "NEXT_LOCALE",
+        value: "en-US",
+        url: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5176",
+      },
+    ]);
+    const page = await context.newPage();
+    try {
+      await page.goto("/");
+      await expect(page).not.toHaveURL(/\/pt-BR/);
+      await expect(page.getByRole("button", { name: "Language" })).toBeVisible();
     } finally {
       await context.close();
     }

@@ -4,6 +4,7 @@ import createMiddleware from "next-intl/middleware";
 import { routing } from "./i18n/routing";
 import {
   decideGeoLocaleRedirect,
+  LOCALE_COOKIE_MAX_AGE_SECONDS,
   LOCALE_COOKIE_NAME,
   VERCEL_IP_COUNTRY_HEADER,
 } from "@/lib/i18n/geo-locale.shared";
@@ -44,6 +45,7 @@ export default function middleware(request: NextRequest) {
     response.cookies.set(LOCALE_COOKIE_NAME, geoDecision.locale, {
       path: "/",
       sameSite: "lax",
+      maxAge: LOCALE_COOKIE_MAX_AGE_SECONDS,
     });
     applySensitiveNotesHeaders(response, url.pathname);
     return response;
