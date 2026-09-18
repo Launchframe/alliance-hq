@@ -61,6 +61,19 @@ describe("isMemberEligibleForPaintRule", () => {
     ).toBe(true);
   });
 
+  it("keeps an on-roster member for Takedown / Saturday PIF without a live board", () => {
+    expect(
+      isMemberEligibleForPaintRule({
+        memberId: "m1",
+        onRoster: true,
+        allianceRank: 4,
+        conductorMechanism: "heavy_hitter_lottery",
+        paintTemplate: "takedown_week",
+        date: "2026-09-19",
+      }),
+    ).toBe(true);
+  });
+
   it("rejects a departed member for Top VS", () => {
     expect(
       isMemberEligibleForPaintRule({
@@ -313,6 +326,41 @@ describe("planPaintRuleConductorGates", () => {
         },
       ],
       roster: [{ memberId: "m-jason", allianceRank: 4 }],
+      canUnlockConductor: false,
+    });
+    expect(plan.blockers).toEqual([]);
+  });
+
+  it("does not block painting Takedown over an assigned on-roster conductor", () => {
+    const plan = planPaintRuleConductorGates({
+      dates: ["2026-09-19"],
+      templateType: "takedown_week",
+      trainWeekConfig,
+      weekTemplateApply: false,
+      dayConfigs: [
+        {
+          date: "2026-09-19",
+          conductorMechanism: "r3_lottery",
+          paintTemplate: "economy_week",
+        },
+      ],
+      records: [
+        {
+          id: "r1",
+          date: "2026-09-19",
+          conductorMemberId: "m1",
+          conductorMemberName: "Alice",
+          vipMemberId: null,
+          vipMemberName: null,
+          conductorMechanism: "r3_lottery",
+          vipMechanism: "conductor_pick",
+          guardianIsVip: false,
+          lockedAt: null,
+          substituteForMemberId: null,
+          substituteForMemberName: null,
+        },
+      ],
+      roster: [{ memberId: "m1", allianceRank: 3 }],
       canUnlockConductor: false,
     });
     expect(plan.blockers).toEqual([]);

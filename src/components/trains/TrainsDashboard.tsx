@@ -113,6 +113,7 @@ import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.sh
 import {
   isAutomaticTopNBoard,
   resolveConductorTopNBoard,
+  resolveDayPaintApplyTopN,
 } from "@/lib/trains/conductor-top-n.shared";
 import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
 import { resolveScoreLeaderboardKind } from "@/lib/trains/score-leaderboard-podium.shared";
@@ -1874,11 +1875,22 @@ export function TrainsDashboard({
         handleScheduleViewChange("month");
       }),
       registerPageHandler("trains.goToToday", goToToday),
-      ...DAY_PAINT_TEMPLATES.map((template, index) =>
-        registerPageHandler(trainTemplateHotkeyIds[index]!, () => {
-          if (!data.canManageTrains) return;
-          void paintDates([selectedDate], template);
-        }),
+      ...DAY_PAINT_TEMPLATES.slice(0, trainTemplateHotkeyIds.length).map(
+        (template, index) =>
+          registerPageHandler(trainTemplateHotkeyIds[index]!, () => {
+            if (!data.canManageTrains) return;
+            const topN = resolveDayPaintApplyTopN({
+              template,
+              currentTemplate:
+                selectedDayConfig?.paintTemplate ?? activeWeekTemplate,
+              currentTopN: selectedDayConfig?.topN,
+            });
+            void paintDates(
+              [selectedDate],
+              template,
+              topN != null ? { topN } : undefined,
+            );
+          }),
       ),
     ];
 
@@ -1895,6 +1907,9 @@ export function TrainsDashboard({
     paintDates,
     registerPageHandler,
     selectedDate,
+    selectedDayConfig?.paintTemplate,
+    selectedDayConfig?.topN,
+    activeWeekTemplate,
     trainTemplateHotkeyIds,
   ]);
 
