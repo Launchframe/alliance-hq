@@ -192,7 +192,7 @@ test.describe("Trains schedule preview (no blank state)", () => {
       },
       data: {
         weekStart: dashboard.weekStart,
-        templateType: "vs_push_week",
+        templateId: "tmpl_preset_vs_push_week",
       },
     });
     expect(createRes.ok(), await createRes.text()).toBeTruthy();

@@ -99,7 +99,7 @@ async function setupPersistedTrainsWeek(
     },
     data: {
       weekStart: dashboard.weekStart,
-      templateType: "vs_push_week",
+      templateId: "tmpl_preset_vs_push_week",
     },
   });
   expect(createRes.ok(), await createRes.text()).toBeTruthy();
@@ -354,7 +354,7 @@ test.describe("Week strip day template menu", () => {
       },
       data: {
         weekStart: fixture.weekStart,
-        templateType: "economy_week",
+        templateId: "tmpl_preset_economy_week",
       },
     });
     expect(economyRes.ok(), await economyRes.text()).toBeTruthy();

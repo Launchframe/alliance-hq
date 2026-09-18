@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { PRESET_WEEK_RULES } from "@/lib/trains/rules/presets.shared";
+
 import type { DayRules } from "@/lib/trains/rules/catalog.shared";
 import {
   applyOptimisticClearPendingConductor,
@@ -33,7 +35,7 @@ function dayConfig(date: string, rules: DayRules, id = `d-${date}`) {
     conductorRule: rules.conductorRule,
     vipRule: rules.vipRule,
     isOverride: false,
-    sourceTemplateKey: null,
+    sourceTemplateId: null,
   };
 }
 
@@ -77,13 +79,18 @@ function snapshot(input: {
       weekRecords,
       dayConfigs,
       conductorRecord: null,
-      schedule: { id: "s1", weekStart: "2026-06-08", templateType: "custom", isPivot: false },
+      schedule: {
+        id: "s1",
+        weekStart: "2026-06-08",
+        templateId: "tmpl-existing",
+        isPivot: false,
+      },
       schedulePersisted: true,
     },
     viewedWeek: {
       weekStart: "2026-06-08",
       weekEnd: "2026-06-14",
-      templateType: null,
+      templateId: null,
       dayConfigs,
       weekRecords,
       dayScoreStats: {},
@@ -127,7 +134,7 @@ describe("optimistic dashboard state", () => {
     for (const day of painted) {
       expect(day.conductorRule).toEqual(R3_WHEEL.conductorRule);
       expect(day.isOverride).toBe(true);
-      expect(day.sourceTemplateKey).toBe("economy_week");
+      expect(day.sourceTemplateId).toBe("economy_week");
     }
   });
 
@@ -224,23 +231,26 @@ describe("optimistic dashboard state", () => {
     }
   });
 
-  it("updates the week templateType only when the paint sets one", () => {
+  it("stamps the week template only when the paint sets one", () => {
     const snap = snapshot({ dayConfigs: [dayConfig("2026-06-10", VS_TOP_10)] });
 
     expect(
       applyOptimisticPaint(snap, ["2026-06-10"], R3_WHEEL).data.schedule
-        ?.templateType,
-    ).toBe("custom");
+        ?.templateId,
+    ).toBe("tmpl-existing");
     expect(
       applyOptimisticPaint(snap, ["2026-06-10"], R3_WHEEL, {
-        updateWeekTemplate: "economy_week",
-      }).data.schedule?.templateType,
-    ).toBe("economy_week");
+        updateWeekTemplate: "tmpl-economy",
+      }).data.schedule?.templateId,
+    ).toBe("tmpl-economy");
   });
 
-  it("applies a week preset's calendar-weekday rules", () => {
+  it("applies a template's calendar-weekday rules", () => {
     const snap = snapshot({ dayConfigs: [] });
-    const next = applyOptimisticWeekTemplate(snap, "2026-06-08", "price_is_right");
+    const next = applyOptimisticWeekTemplate(snap, "2026-06-08", {
+      id: "tmpl-pif",
+      days: PRESET_WEEK_RULES.price_is_right,
+    });
     const saturday = next.viewedWeek.dayConfigs.find(
       (day) => day.date === "2026-06-13",
     );
@@ -248,7 +258,7 @@ describe("optimistic dashboard state", () => {
       kind: "price_is_freight",
       board: "heavy_hitter",
     });
-    expect(next.viewedWeek.templateType).toBe("price_is_right");
+    expect(next.viewedWeek.templateId).toBe("tmpl-pif");
   });
 
   it("locks a day across schedule views", () => {

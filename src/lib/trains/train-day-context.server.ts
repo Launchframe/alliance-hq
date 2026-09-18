@@ -1,12 +1,15 @@
 import "server-only";
 
 import {
-  resolveAnchorTemplateType,
   resolveRollDayConfig,
   type ResolvedRollDayConfig,
 } from "@/lib/trains/day-config-resolve.server";
 import { addCalendarDays } from "@/lib/trains/game-time";
 import { loadAllianceRow } from "@/lib/members/game-roster";
+import {
+  createWeekTemplateCache,
+  resolveWeekFillTemplateResolver,
+} from "@/lib/trains/rules/week-template-resolve.server";
 import { loadAllianceTrainLeadTimeDays } from "@/lib/trains/alliance-train-lead-time.server";
 import {
   getWeekSchedule,
@@ -15,6 +18,7 @@ import {
 import {
   allianceTrainWeekFromRow,
   getTrainWeekStart,
+  weekDatesInTrainWeek,
 } from "@/lib/trains/train-week-calendar.shared";
 import { scoreDateForTrainDay } from "@/lib/trains/train-day-context.shared";
 import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
@@ -56,10 +60,7 @@ export async function resolveMergedDayConfigsForDateRange(input: {
 }): Promise<Map<string, WeekScheduleDayConfigShape>> {
   const allianceRow = await loadAllianceRow(input.allianceId);
   const trainWeek = allianceTrainWeekFromRow(allianceRow ?? {});
-  const anchorTemplate = await resolveAnchorTemplateType(
-    input.allianceId,
-    input.seasonKey,
-  );
+  const templateCache = createWeekTemplateCache();
 
   const weekStarts = new Set<string>();
   for (
@@ -73,13 +74,12 @@ export async function resolveMergedDayConfigsForDateRange(input: {
   const byDate = new Map<string, WeekScheduleDayConfigShape>();
   for (const weekStart of weekStarts) {
     const weekEnd = addCalendarDays(weekStart, 6);
-    const scheduleRow = await getWeekSchedule(
+    const templateForDate = await resolveWeekFillTemplateResolver(
       input.allianceId,
-      weekStart,
+      weekDatesInTrainWeek(weekStart),
       input.seasonKey,
+      templateCache,
     );
-    const templateType = (scheduleRow?.templateType ??
-      anchorTemplate) as WeekTemplateType;
     const dayConfigRows = await listDayConfigsForWeek(
       input.allianceId,
       weekStart,
@@ -87,7 +87,7 @@ export async function resolveMergedDayConfigsForDateRange(input: {
     );
     const merged = buildWeekScheduleDayConfigs(
       weekStart,
-      templateType,
+      templateForDate,
       dayConfigRows,
     );
     for (const day of merged) {

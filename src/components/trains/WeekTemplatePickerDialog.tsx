@@ -5,23 +5,32 @@ import { useTranslations } from "next-intl";
 
 import { TemplateWeekShapeStrip } from "@/components/trains/TemplateWeekShapeStrip";
 import { Dialog } from "@/components/ui/dialog";
-import { WEEK_TEMPLATES, type WeekTemplateType } from "@/lib/trains/types";
+import type { RuleTemplateSummary } from "@/lib/trains/load-dashboard";
 
 type Props = {
   open: boolean;
-  currentTemplate: WeekTemplateType;
+  /** Presets + alliance templates, already filtered of archived rows. */
+  templates: RuleTemplateSummary[];
+  currentTemplateId: string | null;
+  /** Rule labels for the shape strip, keyed by rule label key. */
+  ruleTextLabels: Record<string, string>;
+  /** Presets are translated by key; alliance names are shown verbatim. */
+  templateName: (template: RuleTemplateSummary) => string;
   disabled?: boolean;
   /** Alliance Price Is Freight draw mode (`weightingEnabled`). */
   weightingEnabled: boolean;
   onWeightingEnabledChange: (next: boolean) => void | Promise<void>;
   onClose: () => void;
   /** Called when the officer confirms a template (may equal current). */
-  onSelect: (templateType: WeekTemplateType) => void;
+  onSelect: (templateId: string) => void;
 };
 
 export function WeekTemplatePickerDialog({
   open,
-  currentTemplate,
+  templates,
+  currentTemplateId,
+  ruleTextLabels,
+  templateName,
   disabled = false,
   weightingEnabled,
   onWeightingEnabledChange,
@@ -29,8 +38,10 @@ export function WeekTemplatePickerDialog({
   onSelect,
 }: Props) {
   const t = useTranslations("trains");
-  // Parent remounts via `key` when opening so selection resets to currentTemplate.
-  const [selected, setSelected] = useState<WeekTemplateType>(currentTemplate);
+  // Parent remounts via `key` when opening so selection resets to current.
+  const [selected, setSelected] = useState<string | null>(
+    currentTemplateId ?? templates[0]?.id ?? null,
+  );
   const [weightingBusy, setWeightingBusy] = useState(false);
 
   async function setDrawMode(nextWeightingEnabled: boolean) {
@@ -66,14 +77,16 @@ export function WeekTemplatePickerDialog({
           role="listbox"
           aria-label={t("templateSelectAria")}
         >
-          {WEEK_TEMPLATES.map((template) => {
-            const isSelected = selected === template;
-            const detailKey = `templateDetails.${template}` as const;
-            const detail = t.has(detailKey) ? t(detailKey) : null;
+          {templates.map((template) => {
+            const isSelected = selected === template.id;
+            const detailKey = `templateDetails.${template.presetKey}` as const;
+            const detail = template.presetKey && t.has(detailKey)
+              ? t(detailKey)
+              : template.description;
 
             return (
               <div
-                key={template}
+                key={template.id}
                 className={`rounded-lg border px-3 py-3 transition-colors ${
                   isSelected
                     ? "border-cyan-500/50 bg-cyan-500/10"
@@ -85,19 +98,27 @@ export function WeekTemplatePickerDialog({
                   role="option"
                   aria-selected={isSelected}
                   disabled={disabled}
-                  data-testid={`trains-template-picker-row-${template}`}
-                  onClick={() => setSelected(template)}
+                  data-testid={`trains-template-picker-row-${template.presetKey ?? template.id}`}
+                  onClick={() => setSelected(template.id)}
                   className="w-full text-left disabled:opacity-50"
                 >
                   <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate">{t(`templates.${template}`)}</span>
+                    <span className="truncate">{templateName(template)}</span>
+                    {template.isPreset ? null : (
+                      <span className="shrink-0 rounded border border-hq-border px-1 text-[10px] uppercase text-hq-fg-muted">
+                        {t("templatePicker.allianceBadge")}
+                      </span>
+                    )}
                   </span>
                   {isSelected ? (
                     <div
                       className="mt-2 space-y-2"
                       data-testid="trains-template-picker-detail"
                     >
-                      <TemplateWeekShapeStrip template={template} />
+                      <TemplateWeekShapeStrip
+                        days={template.days}
+                        ruleTextLabels={ruleTextLabels}
+                      />
                       {detail ? (
                         <p className="text-xs leading-relaxed text-hq-fg-muted">
                           {detail}
@@ -107,7 +128,7 @@ export function WeekTemplatePickerDialog({
                   ) : null}
                 </button>
 
-                {isSelected && template === "price_is_right" ? (
+                {isSelected && template.presetKey === "price_is_right" ? (
                   <div
                     className="mt-3 border-t border-hq-border/60 pt-3"
                     data-testid="trains-template-picker-pir-mode"
@@ -176,9 +197,11 @@ export function WeekTemplatePickerDialog({
             </button>
             <button
               type="button"
-              disabled={disabled}
+              disabled={disabled || !selected}
               data-testid="trains-template-picker-apply"
-              onClick={() => onSelect(selected)}
+              onClick={() => {
+                if (selected) onSelect(selected);
+              }}
               className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 disabled:opacity-50"
             >
               {t("templatePicker.apply")}

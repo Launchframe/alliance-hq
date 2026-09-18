@@ -14,7 +14,7 @@ Follow this checklist when implementing a new trains feature (mechanism, templat
 - [ ] Add the rule kind + params to `ConductorRule` / `VipRule` in `src/lib/trains/rules/catalog.shared.ts`, including the zod schema. Params belong **in the rule** — never in a side-channel config.
 - [ ] Extend `conductorRuleIdentity` and `conductorRuleLabelKey` for the new kind (the compiler will tell you: both switch exhaustively).
 - [ ] Add a palette entry in `src/lib/trains/rules/palette.shared.ts` with a cell style and swatch. Scoped boards declare `scopes` so every surface opens a scope picker before painting.
-- [ ] If the rule is part of a shipped week, add it to the relevant preset's weekday slots in `src/lib/trains/rules/presets.shared.ts` (and to `WEEK_TEMPLATES` if it is a new preset — a test keeps the two lists in lockstep).
+- [ ] If the rule is part of a shipped week, add it to the relevant preset's weekday slots in `src/lib/trains/rules/presets.shared.ts` **and** to `scripts/trains/preset-template-seeds.mjs` (and to `WEEK_TEMPLATES` if it is a new preset). `presets.shared.test.ts` asserts all three stay in lockstep; the deploy seed re-upserts preset rows every build, so no migration is needed for a shape change.
 - [ ] Add the legacy mapping in `rules/encode.shared.ts` only if old rows can decode to this rule.
 
 ## 2. Derivations

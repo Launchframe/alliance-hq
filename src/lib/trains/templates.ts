@@ -26,7 +26,7 @@ export function dayConfigForPresetDate(
     date,
     conductorRule: rules.conductorRule,
     vipRule: rules.vipRule,
-    sourceTemplateKey: templateType,
+    sourceTemplateId: templateType,
   };
 }
 
@@ -42,7 +42,7 @@ export function weekDayConfigsForPreset(
       date,
       conductorRule: rules.conductorRule,
       vipRule: rules.vipRule,
-      sourceTemplateKey: templateType,
+      sourceTemplateId: templateType,
     };
   });
 }

@@ -4,6 +4,7 @@ import { validateConductorRuleOnWeekday } from "@/lib/trains/rules/derive.shared
 import {
   PRESET_KEYS,
   PRESET_WEEK_RULES,
+  type PresetKey,
   WEEKDAY_KEYS,
   presetRulesForDate,
   weekRulesForPreset,
@@ -159,5 +160,29 @@ describe("single-rule presets", () => {
         expect(week[day], `${preset}.${day}`).toEqual(first);
       }
     }
+  });
+});
+
+describe("preset seed parity", () => {
+  it("matches the deploy seed shapes exactly", async () => {
+    // The seed script is plain `.mjs` and cannot import this module, so this
+    // is the only thing keeping the two in step. If it fails, fix the seed —
+    // `PRESET_WEEK_RULES` is the source of truth.
+    const { PRESET_TEMPLATE_SEEDS } = (await import(
+      "../../../../scripts/trains/preset-template-seeds.mjs"
+    )) as { PRESET_TEMPLATE_SEEDS: Array<{ key: string; days: unknown }> };
+
+    expect(PRESET_TEMPLATE_SEEDS.map((seed) => seed.key).sort()).toEqual(
+      [...PRESET_KEYS].sort(),
+    );
+    for (const seed of PRESET_TEMPLATE_SEEDS) {
+      expect(seed.days, `preset ${seed.key}`).toEqual(
+        PRESET_WEEK_RULES[seed.key as PresetKey],
+      );
+    }
+  });
+
+  it("keeps every preset key selectable as a week template", () => {
+    expect([...PRESET_KEYS].sort()).toEqual([...WEEK_TEMPLATES].sort());
   });
 });

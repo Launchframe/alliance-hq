@@ -1,14 +1,16 @@
-import {
-  resolveAnchorTemplateType,
-} from "@/lib/trains/day-config-resolve.server";
 import { resolveMergedDayConfigsForDateRange } from "@/lib/trains/train-day-context.server";
+import { resolveWeekFillTemplateResolver } from "@/lib/trains/rules/week-template-resolve.server";
+import {
+  listRuleTemplatesForAlliance,
+  type RuleTemplate,
+} from "@/lib/trains/rules/templates.server";
+import type { TemplateWeekRules } from "@/lib/trains/rules/template-days.shared";
 import {
   parseConductorRule,
   parseVipRule,
   type ConductorRule,
   type VipRule,
 } from "@/lib/trains/rules/catalog.shared";
-import { presetRulesForDate } from "@/lib/trains/rules/presets.shared";
 import { resolveWeekDisplayDayConfigs } from "@/lib/trains/week-schedule-day-configs.shared";
 import { isDevOrPreviewEnvironment } from "@/lib/dev/env-guard";
 import { getAllianceOperatingMode } from "@/lib/native-alliance/operating-mode";
@@ -48,6 +50,7 @@ import {
   allianceTrainWeekFromRow,
   getTrainWeekStart,
   type AllianceTrainWeekConfig,
+  weekDatesInTrainWeek,
 } from "@/lib/trains/train-week-calendar.shared";
 import {
   loadTrainDiscordSettings,
@@ -71,7 +74,6 @@ import {
   type TrainsRosterDataStatus,
 } from "@/lib/trains/roster-data-status.server";
 import { getServerCalendarDate } from "@/lib/trains/service";
-import type { WeekTemplateType } from "@/lib/trains/types";
 import type { MergedWeekScheduleDayConfig } from "@/lib/trains/week-schedule-day-configs.shared";
 
 export type { TrainsVsDataStatus, TrainsRosterDataStatus, ConductorMinimumsDataStatus };
@@ -80,10 +82,36 @@ import type { WeekConductorRecordSummary } from "@/lib/trains/conductor-record.s
 
 export type WeekScheduleDayConfig = TrainsDashboardPayload["dayConfigs"][number];
 
+/** Template as the picker needs it — name, shape, and who owns it. */
+export type RuleTemplateSummary = {
+  id: string;
+  name: string;
+  description: string | null;
+  presetKey: string | null;
+  isPreset: boolean;
+  archived: boolean;
+  days: TemplateWeekRules;
+};
+
+export function toRuleTemplateSummary(
+  template: RuleTemplate,
+): RuleTemplateSummary {
+  return {
+    id: template.id,
+    name: template.name,
+    description: template.description,
+    presetKey: template.presetKey,
+    isPreset: template.isPreset,
+    archived: template.archived,
+    days: template.days,
+  };
+}
+
 export type WeekSchedulePagePayload = {
   weekStart: string;
   weekEnd: string;
-  templateType: WeekTemplateType | null;
+  /** Week template row applied to this week; null when painted ad hoc. */
+  templateId: string | null;
   dayConfigs: WeekScheduleDayConfig[];
   weekRecords: WeekConductorRecordSummary[];
   /** Per train-date score source stats; null when the day's rule does not use scores. */
@@ -183,9 +211,11 @@ export type TrainsDashboardPayload = {
   schedule: {
     id: string;
     weekStart: string;
-    templateType: string;
+    templateId: string | null;
     isPivot: boolean;
   } | null;
+  /** Presets + this alliance's templates, for the week picker and settings. */
+  ruleTemplates: RuleTemplateSummary[];
   /** True when `train_week_schedules` has a row for the current train week. */
   schedulePersisted: boolean;
   dayConfigs: MergedWeekScheduleDayConfig[];
@@ -362,6 +392,7 @@ export async function loadTrainsDashboard(
       weekStart,
       weekEnd: addCalendarDays(weekStart, 6),
       ...preferenceFields,
+      ruleTemplates: [],
       canManageTrains,
       canClearWeekSchedule,
       canUnlockConductor,
@@ -388,12 +419,17 @@ export async function loadTrainsDashboard(
     weekStart,
     weekEnd,
   );
-  const dashboardTemplateType: WeekTemplateType = scheduleRow
-    ? (scheduleRow.templateType as WeekTemplateType)
-    : await resolveAnchorTemplateType(allianceId, effectiveSeason.seasonKey);
+  const [templateForDate, ruleTemplates] = await Promise.all([
+    resolveWeekFillTemplateResolver(
+      allianceId,
+      weekDatesInTrainWeek(weekStart),
+      effectiveSeason.seasonKey,
+    ),
+    listRuleTemplatesForAlliance(allianceId),
+  ]);
   const dayConfigs: WeekScheduleDayConfig[] = resolveWeekDisplayDayConfigs(
     weekStart,
-    dashboardTemplateType,
+    templateForDate,
     dayConfigRows,
   );
 
@@ -499,10 +535,11 @@ export async function loadTrainsDashboard(
       ? {
           id: scheduleRow.id,
           weekStart: scheduleRow.weekStart,
-          templateType: scheduleRow.templateType,
+          templateId: scheduleRow.templateId,
           isPivot: scheduleRow.isPivot === 1,
         }
       : null,
+    ruleTemplates: ruleTemplates.map(toRuleTemplateSummary),
     schedulePersisted: scheduleRow != null,
     dayConfigs,
     weekRecords,
@@ -564,13 +601,13 @@ export async function loadWeekSchedulePage(
     weekEnd,
   );
 
-  const templateType: WeekTemplateType = scheduleRow
-    ? (scheduleRow.templateType as WeekTemplateType)
-    : await resolveAnchorTemplateType(allianceId, effectiveSeason.seasonKey);
-
   const dayConfigs: WeekScheduleDayConfig[] = resolveWeekDisplayDayConfigs(
     weekStart,
-    templateType,
+    await resolveWeekFillTemplateResolver(
+      allianceId,
+      weekDatesInTrainWeek(weekStart),
+      effectiveSeason.seasonKey,
+    ),
     dayConfigRows,
   );
 
@@ -596,7 +633,7 @@ export async function loadWeekSchedulePage(
   return {
     weekStart,
     weekEnd,
-    templateType,
+    templateId: scheduleRow?.templateId ?? null,
     dayConfigs,
     weekRecords: weekRecordRows.map((row) =>
       mapConductorRecord(row, recordAccess),
@@ -619,10 +656,6 @@ export async function loadMonthSchedulePage(
   const monthStart = monthStartFromKey(monthKey);
   const monthEnd = monthEndFromKey(monthKey);
   const effectiveSeason = await getEffectiveSeasonForAlliance(allianceId);
-  const anchorTemplate = await resolveAnchorTemplateType(
-    allianceId,
-    effectiveSeason.seasonKey,
-  );
 
   const mergedByDate = await resolveMergedDayConfigsForDateRange({
     allianceId,
@@ -642,14 +675,14 @@ export async function loadMonthSchedulePage(
       dayConfigs.push(merged);
       continue;
     }
-    const preview = presetRulesForDate(anchorTemplate, date);
+    // Outside any week that has a schedule row — no template, no rule.
     dayConfigs.push({
       id: `preview-${date}`,
       date,
-      conductorRule: preview.conductorRule,
-      vipRule: preview.vipRule,
+      conductorRule: null,
+      vipRule: null,
       isOverride: false,
-      sourceTemplateKey: anchorTemplate,
+      sourceTemplateId: null,
     });
   }
 

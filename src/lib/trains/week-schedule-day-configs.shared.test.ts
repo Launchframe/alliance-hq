@@ -5,7 +5,23 @@ import {
   isProvisionalDayConfig,
   provisionalDayConfigClass,
   resolveWeekDisplayDayConfigs,
+  constantFillTemplate,
 } from "@/lib/trains/week-schedule-day-configs.shared";
+import { PRESET_WEEK_RULES } from "@/lib/trains/rules/presets.shared";
+
+const VS_PUSH = constantFillTemplate({
+  id: "tmpl-vs-push",
+  days: PRESET_WEEK_RULES.vs_push_week,
+});
+const PIF = constantFillTemplate({
+  id: "tmpl-pif",
+  days: PRESET_WEEK_RULES.price_is_right,
+});
+/** A week with no schedule row fills as free choice, not an invented preset. */
+const NO_TEMPLATE = constantFillTemplate({
+  id: null,
+  days: PRESET_WEEK_RULES.custom,
+});
 
 const R3_WHEEL_ROW = {
   conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
@@ -34,7 +50,7 @@ describe("resolveWeekDisplayDayConfigs", () => {
   it("returns seven preview rows when no DB rows exist", () => {
     const configs = resolveWeekDisplayDayConfigs(
       "2026-06-16",
-      "vs_push_week",
+      NO_TEMPLATE,
       [],
     );
 
@@ -45,7 +61,7 @@ describe("resolveWeekDisplayDayConfigs", () => {
   it("fills preview days from the preset's calendar weekday rules", () => {
     const configs = resolveWeekDisplayDayConfigs(
       "2026-06-09",
-      "price_is_right",
+      PIF,
       [],
     );
     // 2026-06-13 is a Saturday — the max-ticket draw.
@@ -67,7 +83,7 @@ describe("buildWeekScheduleDayConfigs", () => {
       ...R3_WHEEL_ROW,
     }));
 
-    const configs = buildWeekScheduleDayConfigs(weekStart, "vs_push_week", rows);
+    const configs = buildWeekScheduleDayConfigs(weekStart, VS_PUSH, rows);
 
     expect(configs).toHaveLength(7);
     expect(configs.map((day) => day.date)).toEqual([
@@ -91,7 +107,7 @@ describe("buildWeekScheduleDayConfigs", () => {
       ...R3_WHEEL_ROW,
     }));
 
-    const configs = buildWeekScheduleDayConfigs(weekStart, "vs_push_week", rows);
+    const configs = buildWeekScheduleDayConfigs(weekStart, VS_PUSH, rows);
 
     expect(configs).toHaveLength(7);
     expect(configs.every((day) => !day.id.startsWith("preview-"))).toBe(true);
@@ -101,7 +117,7 @@ describe("buildWeekScheduleDayConfigs", () => {
     // Regression: the week preset used to overwrite non-override rows, so any
     // baseline / import path that left is_override = 0 displayed the preset
     // instead of the rule actually stored for that day.
-    const configs = buildWeekScheduleDayConfigs("2026-06-16", "price_is_right", [
+    const configs = buildWeekScheduleDayConfigs("2026-06-16", PIF, [
       {
         id: "wed",
         date: "2026-06-18",
@@ -116,7 +132,7 @@ describe("buildWeekScheduleDayConfigs", () => {
   });
 
   it("treats an unparseable stored rule as free choice", () => {
-    const configs = buildWeekScheduleDayConfigs("2026-06-16", "vs_push_week", [
+    const configs = buildWeekScheduleDayConfigs("2026-06-16", VS_PUSH, [
       {
         id: "mon",
         date: "2026-06-16",
