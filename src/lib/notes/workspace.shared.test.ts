@@ -61,6 +61,15 @@ describe("scoped workspace navigation", () => {
     expect(normalized.searchParams.get("workspaceScope")).toBe(scope);
     expect(readWorkspaceState(new URLSearchParams("q=Two+words+"), saved, scope).q).toBe("Two words ");
   });
+  it("recovers malformed workspace options without weakening preference writes", () => {
+    const saved = noteWorkspaceStateSchema.parse({ view: "inbox", layout: "list" });
+    expect(readWorkspaceState(new URLSearchParams("view=bogus&priority=critical"), saved, scope)).toEqual(saved);
+    expect(workspacePreferenceWriteSchema.safeParse({ expectedScope: scope, expectedVersion: 0, state: { ...saved, view: "bogus" } }).success).toBe(false);
+    const normalized = new URL(scopedWorkspaceLocation("/notes?view=bogus&cursor=%7B&note=authorized", saved, scope), "https://notes.invalid");
+    expect(normalized.searchParams.get("view")).toBe("inbox");
+    expect(normalized.searchParams.get("note")).toBe("authorized");
+    expect(normalized.searchParams.has("cursor")).toBe(false);
+  });
   it("does not apply another account or alliance's URL preferences", () => {
     const saved = noteWorkspaceStateSchema.parse({ view: "tasks" });
     const params = new URLSearchParams({ workspaceScope: "other:principal", view: "notebook", notebook: "Private folder", q: "Private query" });

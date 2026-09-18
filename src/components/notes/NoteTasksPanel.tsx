@@ -21,9 +21,12 @@ export function NoteTasksPanel({ sourceNoteId, focusId, personalOnly = false, fi
   const navigation = useOptionalNotesNavigation(), fetchNotes = useNotesFetch();
   const focusName = sourceNoteId ? "noteTask" : "task", cursorName = sourceNoteId ? "noteTaskCursor" : "taskCursor";
   const [localFocus, setLocalFocus] = useState<string | null>(focusId ?? null), [localCursor, setLocalCursor] = useState<string | null>(null);
+  const cursorIdentity = JSON.stringify([sourceNoteId ?? null, personalOnly]);
+  const [localIdentity, setLocalIdentity] = useState(cursorIdentity);
+  if (localIdentity !== cursorIdentity) { setLocalIdentity(cursorIdentity); setLocalCursor(null); }
   const [localFilter, setLocalFilter] = useState("active"), [localLabel, setLocalLabel] = useState("");
   const focus = navigation ? focusId ?? navigation.params.get(focusName) : localFocus;
-  const cursor = navigation ? navigation.params.get(cursorName) : localCursor;
+  const cursor = navigation ? navigation.params.get(cursorName) : localIdentity === cursorIdentity ? localCursor : null;
   const filter = filterValue ?? localFilter, label = navigation && !sourceNoteId ? navigation.params.get("taskLabel") ?? "" : localLabel;
   const [data, setData] = useState<Snapshot>({ tasks: [], people: [], canCreate: false });
   const [errors, setErrors] = useState<Record<string, string>>({}), [pending, setPending] = useState<string | null>(null);
