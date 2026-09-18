@@ -8,7 +8,7 @@ import { noteListFilterSchema, noteListUrl } from "@/lib/notes/workspace.shared"
 import type { Publication } from "@/lib/notes/publications.shared";
 import { NoteMarkdown } from "./NoteMarkdown";
 
-export function NotePublications({ scope }: { scope: string }) {
+export function NotePublications({ scope, onRevoke }: { scope: string; onRevoke: () => void }) {
   const t = useTranslations("notes.publications"), n = useTranslations("notes"), locale = useLocale();
   const [id, setId] = useState(""), [title, setTitle] = useState(""), [body, setBody] = useState(""), [days, setDays] = useState(7);
   const [preview, setPreview] = useState<Publication | null>(null), [items, setItems] = useState<Publication[]>([]), [reviewed, setReviewed] = useState(false);
@@ -28,10 +28,12 @@ export function NotePublications({ scope }: { scope: string }) {
     setListing(true); setChoiceError(null);
     try {
       const response = await fetch(noteListUrl(noteListFilterSchema.parse({ q: query }), cursor), { cache: "no-store", signal: controller.signal });
+      if (controller.signal.aborted) return false;
+      if ([401, 403].includes(response.status)) { setNotes([]); clear(); onRevoke(); return false; }
       const page: NotesListPage & { error?: string } = await response.json();
       if (controller.signal.aborted) return false;
       if (!response.ok || page.scope !== scope) {
-        if ([401, 403].includes(response.status) || response.ok && page.scope !== scope) { setNotes([]); clear(); }
+        if ([401, 403].includes(response.status) || response.ok && page.scope !== scope) { setNotes([]); clear(); onRevoke(); }
         throw new Error(page.error ?? n("loadFailed"));
       }
       position.current = cursor; setNotes(page.items); setNextCursor(page.nextCursor);
@@ -39,7 +41,7 @@ export function NotePublications({ scope }: { scope: string }) {
       return true;
     } catch (failure) { if (!controller.signal.aborted) setChoiceError(failure instanceof Error ? failure.message : n("loadFailed")); return false; }
     finally { if (!controller.signal.aborted) setListing(false); }
-  }, [query, scope, n, clear]);
+  }, [query, scope, n, clear, onRevoke]);
   useEffect(() => {
     const timer = window.setTimeout(() => { void loadChoices(); }, 200);
     return () => { window.clearTimeout(timer); listRequest.current?.abort(); };
@@ -54,9 +56,12 @@ export function NotePublications({ scope }: { scope: string }) {
       const revision = mutationRevision.current;
       try {
         const [detail, response] = await Promise.all([fetch(`/api/notes/${encodeURIComponent(id)}`, { cache: "no-store", signal: controller.signal }), fetch(`/api/notes/publications?noteId=${encodeURIComponent(id)}`, { cache: "no-store", signal: controller.signal })]);
+        if (controller.signal.aborted || selected.current !== id) return;
+        if ([401, 403].includes(detail.status) || [401, 403].includes(response.status)) { clear(); onRevoke(); return; }
         const [note, value] = await Promise.all([detail.json(), response.json()]);
         if (controller.signal.aborted || selected.current !== id) return;
-        if ([401, 403, 404].includes(detail.status) || detail.ok && (note.scope !== scope || !note.note.isOwner || note.note.archived)) { clear(); return; }
+        if (detail.ok && note.scope !== scope) { clear(); onRevoke(); return; }
+        if (detail.status === 404 || detail.ok && (!note.note.isOwner || note.note.archived)) { clear(); return; }
         if (!detail.ok || !response.ok) { setError(value.error ?? note.error ?? n("loadFailed")); return; }
         if (revision === mutationRevision.current) setItems(value);
       } catch { if (!controller.signal.aborted) setError(n("loadFailed")); }
@@ -65,7 +70,7 @@ export function NotePublications({ scope }: { scope: string }) {
     window.addEventListener("focus", refresh);
     const timer = window.setInterval(() => { void refresh(); }, 30_000);
     return () => { controller.abort(); window.removeEventListener("focus", refresh); window.clearInterval(timer); };
-  }, [id, ready, scope, n, clear]);
+  }, [id, ready, scope, n, clear, onRevoke]);
   async function choose(noteId: string) {
     noteRequest.current?.abort(); clear(); setChoiceError(null);
     if (!noteId) return;
@@ -73,9 +78,12 @@ export function NotePublications({ scope }: { scope: string }) {
     selected.current = noteId; setId(noteId); setBusy(true);
     try {
       const response = await fetch(`/api/notes/${encodeURIComponent(noteId)}`, { cache: "no-store", signal: controller.signal });
+      if (controller.signal.aborted || selected.current !== noteId) return;
+      if ([401, 403].includes(response.status)) { clear(); onRevoke(); return; }
       const value = await response.json();
       if (controller.signal.aborted || selected.current !== noteId) return;
-      if (!response.ok || value.scope !== scope || !value.note.isOwner || value.note.archived) throw new Error(value.error ?? n("notFound"));
+      if (response.ok && value.scope !== scope) { clear(); onRevoke(); return; }
+      if (!response.ok || !value.note.isOwner || value.note.archived) throw new Error(value.error ?? n("notFound"));
       const note: PerformanceNoteDto = value.note;
       setSource(note); setTitle(note.title); setBody([note.body, ...(note.keyDecisions ?? []), ...(note.openQuestions ?? [])].join("\n\n"));
     } catch (failure) { if (!controller.signal.aborted) { clear(); setChoiceError(failure instanceof Error ? failure.message : n("loadFailed")); } }
@@ -83,6 +91,7 @@ export function NotePublications({ scope }: { scope: string }) {
   }
   async function post(url: string, value: unknown) {
     const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value), cache: "no-store" });
+    if (response.status === 401) { clear(); onRevoke(); throw new Error(n("errors.forbidden")); }
     const result = await response.json();
     if (!response.ok) throw Object.assign(new Error(result.error ?? n("saveFailed")), { status: response.status });
     return result as Publication;

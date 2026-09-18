@@ -4,9 +4,10 @@ import { notFound } from "next/navigation";
 import { NotesClient } from "@/components/notes/NotesClient";
 import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 import { countCaptureDrafts } from "@/lib/notes/drafts.server";
-import { claimDiscordKnowledgeResources, KnowledgeAccessError } from "@/lib/notes/resources.server";
-import { noteRouteId, readNoteListFilter, parseNoteListCursor } from "@/lib/notes/workspace.shared";
-import { getPerformanceNoteDto, listPerformanceNoteRoster, listPerformanceNotePage } from "@/lib/performance-notes/repository.server";
+import { claimDiscordKnowledgeResources } from "@/lib/notes/resources.server";
+import { noteRouteId } from "@/lib/notes/workspace.shared";
+import { loadNotePageQuery } from "@/lib/notes/page-query.server";
+import { getPerformanceNoteDto, listPerformanceNoteRoster } from "@/lib/performance-notes/repository.server";
 import { requirePagePermission } from "@/lib/rbac/page-permission";
 import { requirePageSession } from "@/lib/session";
 
@@ -28,11 +29,8 @@ export default async function NoteDetailPage({ params, searchParams }: Props) {
   const note = await getPerformanceNoteDto({ noteId: id, actor });
   if (!note) notFound();
   const query = new URLSearchParams(Object.entries(await searchParams).flatMap(([key, value]) => value === undefined ? [] : [[key, Array.isArray(value) ? value[0] : value]]));
-  let filter, cursor;
-  try { filter = readNoteListFilter(query); cursor = parseNoteListCursor(query.get("cursor")); } catch { notFound(); }
-  const [page, roster, drafts] = await Promise.all([
-    listPerformanceNotePage(actor, filter, cursor).catch((error) => { if (error instanceof KnowledgeAccessError) notFound(); throw error; }),
-    listPerformanceNoteRoster(actor.allianceId), countCaptureDrafts(actor),
+  const [{ page, cursor }, roster, drafts] = await Promise.all([
+    loadNotePageQuery(actor, query), listPerformanceNoteRoster(actor.allianceId), countCaptureDrafts(actor),
   ]);
-  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:${id}`} initial={{ ...page, roster, canCreate: actor.canCreate, canReadBoards: actor.canReadBoards, draftCount: drafts }} focusedNote={note} />;
+  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:${id}`} initial={{ ...page, roster, canCreate: actor.canCreate, canReadBoards: actor.canReadBoards, draftCount: drafts }} initialCursor={cursor} focusedNote={note} />;
 }
