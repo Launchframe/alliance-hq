@@ -34,6 +34,10 @@ vi.mock("./provision-membership", () => ({
   provisionAllianceMembership,
 }));
 
+vi.mock("./invite-accept-rank.server", () => ({
+  assertHybridClaimInviteRankAtAccept: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/lib/onboarding/onboarding-audit.server", () => ({
   auditInviteAccepted,
 }));
