@@ -17,7 +17,7 @@ export async function GET(_request: Request, context: Ctx) {
     const note = await getPerformanceNoteDto({ noteId: id, actor: access.actor });
     if (!note) throw new KnowledgeAccessError("not_found");
     const roster = await listPerformanceNoteRoster(access.actor.allianceId);
-    return NextResponse.json({ note, roster }, { headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json({ note, roster, scope: `${access.actor.allianceId}:${access.actor.hqUserId}` }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return notesErrorResponse(error); }
 }
 
