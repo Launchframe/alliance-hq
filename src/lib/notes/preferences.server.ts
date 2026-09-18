@@ -16,11 +16,12 @@ export async function readWorkspacePreferences(actor: KnowledgeWebActor): Promis
 }
 export async function loadWorkspaceQuery(actor: KnowledgeWebActor, params: URLSearchParams) {
   const preferences = await readWorkspacePreferences(actor);
-  try {
-    const state = readWorkspaceState(params, preferences.state, preferences.scope);
-    const foreign = params.has("workspaceScope") && params.get("workspaceScope") !== preferences.scope;
-    return { preferences, filter: noteFilterFromWorkspace(state), cursor: foreign ? null : parseNoteListCursor(params.get("cursor")) };
-  } catch { throw new KnowledgeAccessError("invalid"); }
+  const state = readWorkspaceState(params, preferences.state, preferences.scope);
+  const foreign = params.has("workspaceScope") && params.get("workspaceScope") !== preferences.scope;
+  let cursor = null;
+  try { cursor = foreign ? null : parseNoteListCursor(params.get("cursor")); } catch { cursor = null; }
+  if (cursor?.scope !== preferences.scope) cursor = null;
+  return { preferences, filter: noteFilterFromWorkspace(state), cursor };
 }
 export async function saveWorkspacePreferences(actor: KnowledgeWebActor, raw: unknown): Promise<WorkspacePreferences> {
   const parsed = workspacePreferenceWriteSchema.safeParse(raw);

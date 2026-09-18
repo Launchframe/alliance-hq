@@ -9,7 +9,7 @@ import type { Publication } from "@/lib/notes/publications.shared";
 import { NoteMarkdown } from "./NoteMarkdown";
 import { useNotesFetch, useNotesNavigation, useNotesDirtyState } from "./NotesNavigation";
 
-export function NotePublications({ scope }: { scope: string }) {
+export function NotePublications({ scope, onRevoke }: { scope: string; onRevoke: () => void }) {
   const t = useTranslations("notes.publications"), n = useTranslations("notes"), locale = useLocale();
   const fetchNotes = useNotesFetch(), navigation = useNotesNavigation(), params = navigation.params;
   const wanted = params.get("publicationNote") ?? "", query = params.get("publicationQuery") ?? "", cursor = params.get("publicationCursor");
@@ -32,17 +32,19 @@ export function NotePublications({ scope }: { scope: string }) {
     setListing(true); setChoiceError(null);
     try {
       const response = await fetchNotes(noteListUrl(noteListFilterSchema.parse({ q: query }), cursor), { cache: "no-store", signal: controller.signal });
+      if (controller.signal.aborted) return false;
+      if ([401, 403].includes(response.status)) { setNotes([]); clear(); onRevoke(); return false; }
       const page: NotesListPage & { error?: string } = await response.json();
       if (controller.signal.aborted) return false;
       if (!response.ok || page.scope !== scope) {
-        if ([401, 403].includes(response.status) || response.ok && page.scope !== scope) { setNotes([]); clear(); }
+        if ([401, 403].includes(response.status) || response.ok && page.scope !== scope) { setNotes([]); clear(); onRevoke(); }
         throw new Error(page.error ?? n("loadFailed"));
       }
       setNotes(page.items); setNextCursor(page.nextCursor); setPreviousCursor(page.previousCursor);
       return true;
     } catch (failure) { if (!controller.signal.aborted) setChoiceError(failure instanceof Error ? failure.message : n("loadFailed")); return false; }
     finally { if (!controller.signal.aborted) setListing(false); }
-  }, [query, cursor, scope, n, clear, fetchNotes]);
+  }, [query, cursor, scope, n, clear, fetchNotes, onRevoke]);
   useEffect(() => {
     const timer = window.setTimeout(() => { void loadChoices(); }, 200);
     return () => { window.clearTimeout(timer); listRequest.current?.abort(); };
@@ -57,9 +59,12 @@ export function NotePublications({ scope }: { scope: string }) {
       const revision = mutationRevision.current;
       try {
         const [detail, response] = await Promise.all([fetchNotes(`/api/notes/${encodeURIComponent(id)}`, { cache: "no-store", signal: controller.signal }), fetchNotes(`/api/notes/publications?noteId=${encodeURIComponent(id)}`, { cache: "no-store", signal: controller.signal })]);
+        if (controller.signal.aborted || selected.current !== id) return;
+        if ([401, 403].includes(detail.status) || [401, 403].includes(response.status)) { clear(); onRevoke(); return; }
         const [note, value] = await Promise.all([detail.json(), response.json()]);
         if (controller.signal.aborted || selected.current !== id) return;
-        if ([401, 403, 404].includes(detail.status) || detail.ok && (note.scope !== scope || !note.note.isOwner || note.note.archived)) { clear(); return; }
+        if (detail.ok && note.scope !== scope) { clear(); onRevoke(); return; }
+        if (detail.status === 404 || detail.ok && (!note.note.isOwner || note.note.archived)) { clear(); return; }
         if (!detail.ok || !response.ok) { setError(value.error ?? note.error ?? n("loadFailed")); return; }
         if (revision === mutationRevision.current) setItems(value);
       } catch { if (!controller.signal.aborted) setError(n("loadFailed")); }
@@ -68,7 +73,7 @@ export function NotePublications({ scope }: { scope: string }) {
     window.addEventListener("focus", refresh);
     const timer = window.setInterval(() => { void refresh(); }, 30_000);
     return () => { controller.abort(); window.removeEventListener("focus", refresh); window.clearInterval(timer); };
-  }, [id, ready, scope, n, clear, fetchNotes]);
+  }, [id, ready, scope, n, clear, fetchNotes, onRevoke]);
   const choose = useCallback(async (noteId: string) => {
     noteRequest.current?.abort(); clear(); setChoiceError(null);
     if (!noteId) return;
@@ -76,20 +81,24 @@ export function NotePublications({ scope }: { scope: string }) {
     selected.current = noteId; setId(noteId); setBusy(true);
     try {
       const response = await fetchNotes(`/api/notes/${encodeURIComponent(noteId)}`, { cache: "no-store", signal: controller.signal });
+      if (controller.signal.aborted || selected.current !== noteId) return;
+      if ([401, 403].includes(response.status)) { clear(); onRevoke(); return; }
       const value = await response.json();
       if (controller.signal.aborted || selected.current !== noteId) return;
-      if (!response.ok || value.scope !== scope || !value.note.isOwner || value.note.archived) throw new Error(value.error ?? n("notFound"));
+      if (response.ok && value.scope !== scope) { clear(); onRevoke(); return; }
+      if (!response.ok || !value.note.isOwner || value.note.archived) throw new Error(value.error ?? n("notFound"));
       const note: PerformanceNoteDto = value.note;
       setSource(note); setTitle(note.title); setBody([note.body, ...(note.keyDecisions ?? []), ...(note.openQuestions ?? [])].join("\n\n"));
     } catch (failure) { if (!controller.signal.aborted) { clear(); setChoiceError(failure instanceof Error ? failure.message : n("loadFailed")); } }
     finally { if (!controller.signal.aborted) setBusy(false); }
-  }, [clear, fetchNotes, scope, n]);
+  }, [clear, fetchNotes, scope, n, onRevoke]);
   useEffect(() => {
     const timer = window.setTimeout(() => { void choose(wanted); }, 0);
     return () => { window.clearTimeout(timer); noteRequest.current?.abort(); };
   }, [wanted, choose]);
   async function post(url: string, value: unknown) {
     const response = await fetchNotes(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value), cache: "no-store" });
+    if (response.status === 401) { clear(); onRevoke(); throw new Error(n("errors.forbidden")); }
     const result = await response.json();
     if (!response.ok) throw Object.assign(new Error(result.error ?? n("saveFailed")), { status: response.status });
     return result as Publication;
@@ -102,11 +111,7 @@ export function NotePublications({ scope }: { scope: string }) {
     catch (failure) { if (selected.current === target) { setError(failure instanceof Error ? failure.message : n("saveFailed")); setPreview(null); if (failure && typeof failure === "object" && "status" in failure && [401, 403, 404].includes(Number(failure.status))) { clear(); } } }
     finally { mutationRevision.current++; setBusy(false); }
   }
-  useNotesDirtyState({ dirty: ready && !preview && !!source && (title !== source.title || body !== [source.body, ...(source.keyDecisions ?? []), ...(source.openQuestions ?? [])].join("\n\n") || days !== 7), busy, keys: ["pathname", "view", "publicationNote"], keep: async () => {
-    if (!source) return;
-    const value = await post("/api/notes/publications", { requestId: crypto.randomUUID(), noteId: id, expectedVersion: source.version, title, body, locale, days });
-    setPreview(value); setReviewed(false);
-  } });
+  useNotesDirtyState({ dirty: ready && !preview && !!source && (title !== source.title || body !== [source.body, ...(source.keyDecisions ?? []), ...(source.openQuestions ?? [])].join("\n\n") || days !== 7), busy, keys: ["pathname", "view", "publicationNote"] });
   const command = (item: Publication, command: "publish" | "revoke" | "rotate") => run(() => post(`/api/notes/publications/${item.id}`, { requestId: crypto.randomUUID(), expectedVersion: item.version, command, reviewed }));
   const change = () => { setPreview(null); setReviewed(false); };
   const cls = "rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm disabled:opacity-40";

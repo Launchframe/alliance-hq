@@ -1125,8 +1125,15 @@
     {
       "idx": 160,
       "version": "7",
-      "when": 1790900000172,
-      "tag": "0172_notes_workspace_preferences",
+      "when": 1790900000176,
+      "tag": "0176_notes_workspace_preferences",
+      "breakpoints": false
+    },
+    {
+      "idx": 161,
+      "version": "7",
+      "when": 1790900000177,
+      "tag": "0177_notes_history_paging_index",
       "breakpoints": false
     }
   ]
