@@ -586,6 +586,7 @@ function VideoBody({
           src={src}
           controls
           playsInline
+          muted
           autoPlay
           preload="auto"
           className="block h-auto w-full max-w-full"
@@ -605,6 +606,7 @@ function VideoBody({
         src={src}
         controls
         playsInline
+        muted
         autoPlay
         preload="auto"
         className="h-full w-full max-w-full object-contain"
