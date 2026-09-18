@@ -7,6 +7,7 @@ import {
   PanelBottom,
   PanelRight,
   PanelTop,
+  RotateCw,
   X,
   ZoomIn,
   ZoomOut,
@@ -95,6 +96,9 @@ export function ReviewVideoPreview({
   // Follow-me can scrub before the <video> has metadata; queue the latest
   // request and apply it on loadedmetadata so early seeks are not dropped.
   const pendingSeekSecondsRef = useRef<number | null>(null);
+  // Bumping remounts the <video> so a stuck decode/seek pipeline can recover
+  // without reloading the review page (and wiping edits).
+  const [mediaGeneration, setMediaGeneration] = useState(0);
 
   const zoomable = placement !== "side";
   const effectiveZoom: PreviewZoom = zoomable ? zoom : "fit";
@@ -106,6 +110,24 @@ export function ReviewVideoPreview({
     } catch {
       // ignore seek failures (e.g. unbuffered range)
     }
+  };
+
+  const tryMutedAutoplay = (el: HTMLVideoElement) => {
+    el.muted = true;
+    const playResult = el.play();
+    if (playResult && typeof playResult.catch === "function") {
+      playResult.catch(() => {
+        // Autoplay may still be blocked; buffering from preload remains useful.
+      });
+    }
+  };
+
+  const reloadVideo = () => {
+    const el = videoRef.current;
+    if (el && Number.isFinite(el.currentTime)) {
+      pendingSeekSecondsRef.current = el.currentTime;
+    }
+    setMediaGeneration((generation) => generation + 1);
   };
 
   useImperativeHandle(
@@ -141,13 +163,18 @@ export function ReviewVideoPreview({
       applyVideoSeek(el, pending);
     };
 
-    if (el.readyState >= 1) {
+    const onReady = () => {
       flushPending();
+      tryMutedAutoplay(el);
+    };
+
+    if (el.readyState >= 1) {
+      onReady();
       return;
     }
-    el.addEventListener("loadedmetadata", flushPending, { once: true });
-    return () => el.removeEventListener("loadedmetadata", flushPending);
-  }, [unavailable, jobId]);
+    el.addEventListener("loadedmetadata", onReady, { once: true });
+    return () => el.removeEventListener("loadedmetadata", onReady);
+  }, [unavailable, jobId, mediaGeneration]);
 
   useEffect(() => {
     if (!seekRequest) return;
@@ -185,7 +212,7 @@ export function ReviewVideoPreview({
 
     container.addEventListener("wheel", onWheel, { passive: false });
     return () => container.removeEventListener("wheel", onWheel);
-  }, [unavailable, jobId, effectiveZoom]);
+  }, [unavailable, jobId, effectiveZoom, mediaGeneration]);
 
   // sticky (not relative+sticky): sticky already positions absolute resize
   // handles. z-20 keeps the pane under the shell header (z-30) while above
@@ -330,6 +357,10 @@ export function ReviewVideoPreview({
         }
         zoomFillLabel={t("previewZoomFill")}
         zoomFitLabel={t("previewZoomFit")}
+        showReload={previewMode === "video" && !unavailable}
+        reloadLabel={t("previewReloadVideo")}
+        reloadHint={t("previewReloadVideoHint")}
+        onReload={reloadVideo}
         onClose={onClose}
         optionLabel={(p) => t(`previewPlacement.${p}`)}
       />
@@ -344,6 +375,7 @@ export function ReviewVideoPreview({
         previewMode={previewMode}
         frameIndex={frameIndex}
         frameAltLabel={t("depositSlipPreviewFrameAlt", { index: frameIndex ?? 0 })}
+        mediaGeneration={mediaGeneration}
       />
     </div>
   );
@@ -370,6 +402,10 @@ function PanelChrome({
   onZoomToggle,
   zoomFillLabel,
   zoomFitLabel,
+  showReload,
+  reloadLabel,
+  reloadHint,
+  onReload,
   onClose,
   optionLabel,
 }: {
@@ -384,6 +420,10 @@ function PanelChrome({
   onZoomToggle: () => void;
   zoomFillLabel: string;
   zoomFitLabel: string;
+  showReload: boolean;
+  reloadLabel: string;
+  reloadHint: string;
+  onReload: () => void;
   onClose: () => void;
   optionLabel: (placement: PreviewPlacement) => string;
 }) {
@@ -396,6 +436,17 @@ function PanelChrome({
         {label}
       </span>
       <div className="flex shrink-0 items-center gap-1.5">
+        {showReload ? (
+          <button
+            type="button"
+            onClick={onReload}
+            title={reloadHint}
+            aria-label={reloadLabel}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-hq-fg-muted hover:bg-hq-surface-muted hover:text-hq-fg"
+          >
+            <RotateCw className="h-4 w-4" aria-hidden />
+          </button>
+        ) : null}
         {zoomable ? (
           <button
             type="button"
@@ -467,6 +518,7 @@ function VideoBody({
   previewMode,
   frameIndex,
   frameAltLabel,
+  mediaGeneration,
 }: {
   bodyRef: React.RefObject<HTMLDivElement | null>;
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -478,6 +530,7 @@ function VideoBody({
   previewMode: "video" | "frames";
   frameIndex: number | null;
   frameAltLabel: string;
+  mediaGeneration: number;
 }) {
   const panEnabled = zoom === "width" && !unavailable && previewMode === "video";
   const panHandlers = usePointerScrollPan(bodyRef, panEnabled);
@@ -510,6 +563,12 @@ function VideoBody({
   }
 
   const src = `/api/tools/video-upload/${jobId}/video`;
+  const bindVideoRef = (node: HTMLVideoElement | null) => {
+    videoRef.current = node;
+    // Mute before the browser's autoplay attempt so preload/autoplay can start
+    // buffering without a gesture. Native controls can still unmute afterward.
+    if (node) node.muted = true;
+  };
 
   if (zoom === "width") {
     return (
@@ -522,10 +581,13 @@ function VideoBody({
           {panHintLabel}
         </p>
         <video
-          ref={videoRef}
+          key={mediaGeneration}
+          ref={bindVideoRef}
           src={src}
           controls
           playsInline
+          autoPlay
+          preload="auto"
           className="block h-auto w-full max-w-full"
         />
       </div>
@@ -538,10 +600,13 @@ function VideoBody({
       className="relative min-h-0 flex-1 overflow-x-hidden"
     >
       <video
-        ref={videoRef}
+        key={mediaGeneration}
+        ref={bindVideoRef}
         src={src}
         controls
         playsInline
+        autoPlay
+        preload="auto"
         className="h-full w-full max-w-full object-contain"
       />
     </div>

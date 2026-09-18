@@ -4960,6 +4960,8 @@
     "previewResizeWidth": "Redimensionar largura da pré-visualização",
     "previewResizeHeight": "Redimensionar altura da pré-visualização",
     "previewPanHint": "Arraste para mover",
+    "previewReloadVideo": "Recarregar vídeo",
+    "previewReloadVideoHint": "Reinicia só o player — suas edições de revisão permanecem.",
     "rosterAllianceTarget": "Enviando roster para: {tag}",
     "rosterAllianceTargetNamed": "Enviando roster para: {tag} — {name}",
     "rosterAllianceHint": "Membros novos e correspondidos deste vídeo serão gravados nesta aliança no HQ.",

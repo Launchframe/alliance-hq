@@ -35,6 +35,7 @@ import {
 import {
   duplicateMemberRowIds,
   findDuplicateMemberAssignments,
+  liveScoreConflictRowIds,
 } from "@/lib/video/review-validation";
 import {
   findScoreGhostClusters,
@@ -1902,6 +1903,22 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [activeRows],
   );
 
+  const liveScoreConflictIds = useMemo(
+    () =>
+      scoreTargetMeta?.showScoreColumn === false
+        ? new Set<string>()
+        : liveScoreConflictRowIds(
+            activeRows.map((row) => ({
+              id: row.id,
+              memberId: row.memberId,
+              ocrName: row.ocrName,
+              score: row.score,
+            })),
+            allianceTag,
+          ),
+    [activeRows, allianceTag, scoreTargetMeta?.showScoreColumn],
+  );
+
   const scoreGhostClusters = useMemo(() => {
     if (
       scoreTargetMeta?.showRosterColumns ||
@@ -2038,7 +2055,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           id: row.id,
           memberId: row.memberId,
           score: row.score,
-          scoreConflict: row.scoreConflict,
+          scoreConflict: liveScoreConflictIds.has(row.id),
         },
       ]),
     );
@@ -2061,6 +2078,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     depositSlipRowsForUi,
     dedupeReport,
     zeroScoreWarningDisabled,
+    liveScoreConflictIds,
   ]);
 
   const scrollToReviewProblemRow = useCallback(
@@ -2103,8 +2121,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   } = useReviewIssueNav(reviewProblemRowIds, scrollToReviewProblemRow);
 
   const hasScoreConflicts =
-    scoreTargetMeta?.showScoreColumn !== false &&
-    activeRows.some((row) => row.scoreConflict);
+    scoreTargetMeta?.showScoreColumn !== false && liveScoreConflictIds.size > 0;
   const hasDuplicateMembers = duplicateMemberIssues.length > 0;
   const hasDuplicateOcrNames =
     scoreTargetMeta?.showRosterColumns && rosterValidation.hasDuplicateOcrNames;
@@ -3906,6 +3923,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           <tbody>
             {filteredRows.map((row) => {
               const isDuplicateMember = duplicateRowIds.has(row.id);
+              const isScoreConflict = liveScoreConflictIds.has(row.id);
               const isScoreGhost = scoreGhostDiscardRowIds.has(row.id);
               const isScoreGhostKeeper = scoreGhostKeeperRowIds.has(row.id);
               const rowCanVideoPreview =
@@ -3918,7 +3936,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   ? "border-t border-hq-border bg-[#388bfd10]"
                   : isScoreGhostKeeper
                     ? "border-t border-hq-border bg-[#388bfd08]"
-                    : row.scoreConflict
+                    : isScoreConflict
                       ? "border-t border-hq-border bg-[#d2992210]"
                       : "border-t border-hq-border";
 
@@ -3975,7 +3993,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   <div className="truncate" title={row.ocrName}>
                     {row.ocrName}
                   </div>
-                  {row.scoreConflict ? (
+                  {isScoreConflict ? (
                     <p className="mt-1 text-xs text-[#d29922]">
                       {t("scoreConflictRow")}
                     </p>
