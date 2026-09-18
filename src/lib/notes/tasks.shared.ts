@@ -44,6 +44,11 @@ export type NoteTask = {
   createdAt: string; updatedAt: string;
 };
 export type NoteTaskSummary = Omit<NoteTask, "description" | "intakeProvenance"> & { excerpt: string };
+export function summarizeNoteTask(task: NoteTask): NoteTaskSummary {
+  return { id: task.id, title: task.title, excerpt: (task.description ?? "").slice(0, 240), status: task.status, priority: task.priority,
+    labels: task.labels, dueAt: task.dueAt, completedAt: task.completedAt, assignee: task.assignee, legacyAssigneeName: task.legacyAssigneeName, source: task.source,
+    version: task.version, isOwner: task.isOwner, canEdit: task.canEdit, shared: task.shared, archived: task.archived, createdAt: task.createdAt, updatedAt: task.updatedAt };
+}
 export function taskCompletedAt(status: TaskStatus, previous: Date | null, now: Date): Date | null {
   return status === "done" || status === "cancelled" ? previous ?? now : null;
 }

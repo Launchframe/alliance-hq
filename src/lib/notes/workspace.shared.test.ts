@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createNotesNavigation } from "./navigation.shared";
-import { noteFieldsSchema, notePatchSchema, noteRouteId, noteTitle, notePriorityRank, normalizeNoteLabels, notesWorkspaceLocation, noteListFilterSchema, parseNoteListCursor, noteWorkspaceStateSchema, readWorkspaceState, workspaceStateLocation, workspacePreferenceWriteSchema, scopedWorkspaceLocation } from "./workspace.shared";
+import { noteFieldsSchema, notePatchSchema, noteRouteId, noteTitle, notePriorityRank, normalizeNoteLabels, notesWorkspaceLocation, noteListFilterSchema, parseNoteListCursor, noteWorkspaceStateSchema, readWorkspaceState, workspaceStateLocation, workspacePreferenceWriteSchema, scopedWorkspaceLocation, readNoteListFilter } from "./workspace.shared";
 
 describe("guarded Notes navigation", () => {
   it("keeps the current view until unsaved changes are resolved", async () => {
@@ -70,6 +70,11 @@ describe("scoped workspace navigation", () => {
     expect(normalized.searchParams.get("note")).toBe("authorized");
     expect(normalized.searchParams.has("cursor")).toBe(false);
   });
+  it("trims exact label filters before URL restoration and queries", () => {
+    expect(noteListFilterSchema.parse({ label: " Rally " }).label).toBe("Rally");
+    const state = readWorkspaceState(new URLSearchParams("label=+Rally+&boardLabel=+Coverage+"), noteWorkspaceStateSchema.parse({}), scope);
+    expect(state).toMatchObject({ label: "Rally", boardLabel: "Coverage" });
+  });
   it("does not apply another account or alliance's URL preferences", () => {
     const saved = noteWorkspaceStateSchema.parse({ view: "tasks" });
     const params = new URLSearchParams({ workspaceScope: "other:principal", view: "notebook", notebook: "Private folder", q: "Private query" });
@@ -78,8 +83,13 @@ describe("scoped workspace navigation", () => {
 });
 
 describe("note list boundaries", () => {
+  it("restores exact label and member filters without interpreting them as search text", () => {
+    expect(readNoteListFilter(new URLSearchParams({ label: "Raid planning", member: "commander-reference" }))).toMatchObject({ label: "Raid planning", member: "commander-reference", q: "" });
+    expect(noteListFilterSchema.safeParse({ label: "x".repeat(33) }).success).toBe(false);
+    expect(noteWorkspaceStateSchema.parse({ boardLabel: "Raid planning" }).boardLabel).toBe("Raid planning");
+  });
   it("normalizes bounded filters without inventing a priority", () => {
-    expect(noteListFilterSchema.parse({})).toEqual({ view: "notebook", q: "", notebook: "", source: "", priority: "all", sort: "recent" });
+    expect(noteListFilterSchema.parse({})).toEqual({ view: "notebook", q: "", notebook: "", source: "", priority: "all", sort: "recent", label: "", member: "" });
     expect(noteListFilterSchema.safeParse({ priority: "none", source: "discord" }).success).toBe(true);
     expect(noteListFilterSchema.safeParse({ q: "x".repeat(201) }).success).toBe(false);
     expect(noteListFilterSchema.safeParse({ sort: "arbitrary" }).success).toBe(false);
