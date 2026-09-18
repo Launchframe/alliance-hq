@@ -3,7 +3,8 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { claimHistoryJob, completeHistoryStep, failHistoryStep } from "./jobs.server";
-import { parseHistoryText, parseHistoryScreenshot, type HistoryMessage } from "./imports.shared";
+import { parseHistoryText, type HistoryMessage } from "./imports.shared";
+import { parseHistoryScreenshot } from "./import-parser.server";
 import { readHistoryObject } from "./import-storage.server";
 
 export async function processHistoryStep(importId?: string) {

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { nanoid } from "nanoid";
-import sharp from "sharp";
+import { readFile } from "node:fs/promises";
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { authCookieHeader, getE2eSql } from "./fixtures/db";
 import { playwrightAuthCookies } from "./fixtures/auth";
@@ -30,17 +30,16 @@ async function staged(request: APIRequestContext, screenshots = false, invalid =
 
 test("native screenshot OCR retains reviewable text without requiring parsed sender headers", async ({ request }) => {
   test.setTimeout(120_000);
-  const lines = ["[TEST]Alpha", "Groups setup and ready.", "[TEST]Beta", "First message"];
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320"><rect width="1200" height="320" fill="white"/>${lines.map((line, index) => `<text x="32" y="${64 + index * 64}" font-family="Arial" font-size="32" fill="black">${line}</text>`).join("")}</svg>`;
-  const image = await sharp(Buffer.from(svg)).png().toBuffer();
+  const image = await readFile("e2e/fixtures/notes-unattributed.png");
   const value = await staged(request, true, false, image);
-  const processed = await request.post(`/api/notes/imports/${value.id}/process`, { headers: value.headers });
+  const processed = await request.post(`/api/notes/imports/${value.id}/process`, { headers: value.headers, timeout: 60_000 });
   expect(processed.status(), await processed.text()).toBe(200);
   const detail = await value.detail();
   expect(detail.state).toBe("review");
   expect(detail.messages.length).toBeGreaterThan(0);
   expect(detail.messages.map((message: { body: string }) => message.body).join("\n")).toMatch(/Groups setup and ready/);
-  expect(detail.messages.every((message: { reviewed: boolean }) => !message.reviewed)).toBe(true);
+  expect(detail.messages.every((message: { reviewed: boolean; sender: string | null; sentAt: string | null }) => !message.reviewed && message.sender === null && message.sentAt === null)).toBe(true);
+  expect((await value.command("commit")).status()).toBe(400);
   expect((await request.get(`/api/notes/imports/${value.id}`, { headers: { Cookie: authCookieHeader(value.peer) } })).status()).toBe(404);
   expect((await (await request.get("/api/notes?format=summary", { headers: value.headers })).json()).items).toHaveLength(0);
   expect((await (await request.get("/api/notes/tasks", { headers: value.headers })).json()).tasks).toHaveLength(0);
@@ -68,6 +67,9 @@ test("older imports remain discoverable with stable scoped cursors and browser n
   const first = await firstResponse.json();
   expect(first.imports).toHaveLength(50);
   expect(JSON.parse(first.nextCursor).updatedAt).toBe("2026-09-15T12:00:00.123456Z");
+  expect(first.imports.every((item: { updatedAt: string }) => item.updatedAt === "2026-09-15T12:00:00.123456Z")).toBe(true);
+  const [index] = await sql`SELECT indexdef FROM pg_indexes WHERE schemaname = current_schema() AND indexname = 'knowledge_history_imports_page_idx'`;
+  expect(index?.indexdef).toContain("(alliance_id, updated_at DESC, id DESC)");
   expect(JSON.stringify(first)).not.toMatch(/Private peer source|Hidden archived source/);
   expect(Object.keys(first.imports[0]).sort()).toEqual(["id", "kind", "state", "title", "updatedAt"]);
   await seed(author.hqUserId, nanoid(), "Newest source", false, true);
@@ -77,6 +79,7 @@ test("older imports remain discoverable with stable scoped cursors and browser n
   const second = await secondResponse.json();
   expect(second.imports.map((item: { id: string }) => item.id)).toEqual([`${prefix}_001`, `${prefix}_000`]);
   expect(second.nextCursor).toBeNull();
+  expect(second.imports.every((item: { updatedAt: string }) => item.updatedAt === "2026-09-15T12:00:00.123456Z")).toBe(true);
   expect((await request.get(cursorUrl)).status()).toBe(401);
   expect((await request.get(cursorUrl, { headers: { Cookie: authCookieHeader(peer) } })).status()).toBe(403);
   const outsider = await createNotesFixture("officer");
@@ -133,6 +136,67 @@ test("older imports remain discoverable with stable scoped cursors and browser n
   await delivery;
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   await expect(page.getByRole("button", { name: /^Archived source/ })).toHaveCount(0);
+});
+
+for (const direction of ["next", "previous"] as const) test(`focus refreshes wait for pending ${direction} navigation and retain the pager stack`, async ({ page }) => {
+  const { author, alliance } = await createNotesFixture("officer");
+  await page.context().addCookies(playwrightAuthCookies(author));
+  let holdNavigation = false, intercepted = false, reads = 0;
+  let release!: () => void, captured!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  const ready = new Promise<void>((resolve) => { captured = resolve; });
+  await page.route((url) => url.pathname === "/api/notes/imports", async (route) => {
+    reads++;
+    const second = new URL(route.request().url()).searchParams.get("cursor") === "fixture-next";
+    if (holdNavigation && !intercepted && second === (direction === "next")) {
+      intercepted = true; captured(); await held;
+    }
+    await route.fulfill({ json: { scope: `${alliance.allianceId}:${author.hqUserId}`, imports: [{ id: second ? "second" : "first", title: second ? "Second page source" : "First page source", state: "committed", kind: "text", updatedAt: "2026-09-15T12:00:00.123456Z" }], nextCursor: second ? null : "fixture-next", previousCursor: second ? "fixture-previous" : null } });
+  });
+  try {
+    await page.goto("/notes?view=imports");
+    const next = page.getByRole("button", { name: "Next page", exact: true });
+    const previous = page.getByRole("button", { name: "Previous page", exact: true });
+    await expect(next).toBeEnabled();
+    if (direction === "previous") { await next.click(); await expect(previous).toBeEnabled(); }
+    const before = reads;
+    holdNavigation = true;
+    await (direction === "next" ? next : previous).click();
+    await ready;
+    await page.evaluate(() => { window.dispatchEvent(new Event("focus")); window.dispatchEvent(new Event("focus")); });
+    release();
+    await expect(page.getByRole("button", { name: new RegExp(`^${direction === "next" ? "Second" : "First"} page source`) })).toBeVisible();
+    await expect.poll(() => reads).toBe(before + 2);
+    await expect(direction === "next" ? previous : next).toBeEnabled();
+    await expect(direction === "next" ? next : previous).toBeDisabled();
+  } finally { release(); }
+});
+
+test("import pager hides for single or empty pages but preserves visible list errors", async ({ page }) => {
+  const { author, alliance } = await createNotesFixture("officer");
+  await page.context().addCookies(playwrightAuthCookies(author));
+  let mode: "single" | "empty" | "error" = "single";
+  await page.route((url) => url.pathname === "/api/notes/imports", (route) => mode === "error"
+    ? route.fulfill({ status: 503, json: { error: "Fixture list unavailable" } })
+    : route.fulfill({ json: { scope: `${alliance.allianceId}:${author.hqUserId}`, imports: mode === "single" ? [{ id: "single", title: "Single page source", state: "committed", kind: "text", updatedAt: "2026-09-15T12:00:00.123456Z" }] : [], nextCursor: null } }));
+  await page.goto("/notes?view=imports");
+  const next = page.getByRole("button", { name: "Next page", exact: true });
+  const previous = page.getByRole("button", { name: "Previous page", exact: true });
+  const source = page.getByRole("button", { name: /^Single page source/ });
+  await expect(source).toBeVisible();
+  await expect(next).toHaveCount(0); await expect(previous).toHaveCount(0);
+  mode = "empty";
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(source).toHaveCount(0);
+  await expect(next).toHaveCount(0); await expect(previous).toHaveCount(0);
+  mode = "error";
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByRole("alert").filter({ hasText: "Fixture list unavailable" })).toBeInViewport();
+  await expect(next).toBeDisabled(); await expect(previous).toBeDisabled();
+  mode = "empty";
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByRole("alert").filter({ hasText: "Fixture list unavailable" })).toHaveCount(0);
+  await expect(next).toHaveCount(0); await expect(previous).toHaveCount(0);
 });
 
 test("browser paste review persists corrections and commits a private source", async ({ page }) => {
