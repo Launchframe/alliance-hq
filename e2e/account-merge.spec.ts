@@ -43,6 +43,11 @@ test.describe("Account merge", () => {
     await sql`INSERT INTO knowledge_resource_grants (id, resource_id, alliance_id, subject_kind, subject_id, role)
       VALUES (${nanoid()}, ${`note:${sharedNoteId}`}, ${alliance.allianceId}, 'user', ${sourceUser.hqUserId}, 'edit'),
              (${nanoid()}, ${`note:${sharedNoteId}`}, ${alliance.allianceId}, 'user', ${targetSession.hqUserId}, 'read')`;
+    const preferenceAlliance = await createNativeAlliance(sql, { tag: `MP${nanoid(3)}`, name: "Merged preferences" });
+    await sql`INSERT INTO knowledge_workspace_preferences (hq_user_id, alliance_id, state, version) VALUES
+      (${sourceUser.hqUserId}, ${alliance.allianceId}, '{"view":"inbox"}'::jsonb, 3),
+      (${targetSession.hqUserId}, ${alliance.allianceId}, '{"view":"shared"}'::jsonb, 1),
+      (${sourceUser.hqUserId}, ${preferenceAlliance.allianceId}, '{"view":"tasks"}'::jsonb, 4)`;
     const publicationId = nanoid();
     await sql`INSERT INTO knowledge_publications (id, alliance_id, note_id, resource_id, owner_hq_user_id, source_version, snapshot_version, title, body, locale, state, expires_at)
       VALUES (${publicationId}, ${alliance.allianceId}, ${ownedNoteId}, ${`note:${ownedNoteId}`}, ${sourceUser.hqUserId}, 1, 1, 'Public copy', 'Reviewed public words', 'en-US', 'published', now() + interval '7 days')`;
@@ -83,6 +88,11 @@ test.describe("Account merge", () => {
     expect(owned).toMatchObject({ owner_hq_user_id: targetSession.hqUserId, created_by_hq_user_id: targetSession.hqUserId });
     const [publication] = await sql`SELECT owner_hq_user_id FROM knowledge_publications WHERE id = ${publicationId}`;
     expect(publication?.owner_hq_user_id).toBe(targetSession.hqUserId);
+    const preferences = await sql`SELECT alliance_id, state, version FROM knowledge_workspace_preferences WHERE hq_user_id = ${targetSession.hqUserId}`;
+    expect(preferences).toEqual(expect.arrayContaining([
+      expect.objectContaining({ alliance_id: alliance.allianceId, state: { view: "shared" }, version: 1 }),
+      expect.objectContaining({ alliance_id: preferenceAlliance.allianceId, state: { view: "tasks" }, version: 4 }),
+    ]));
     const grants = await sql`SELECT subject_id, role FROM knowledge_resource_grants
       WHERE resource_id = ${`note:${sharedNoteId}`} AND subject_kind = 'user'`;
     expect(grants).toHaveLength(1);

@@ -129,11 +129,11 @@ for (const direction of ["next", "previous"] as const) test(`focus refreshes wai
   const ready = new Promise<void>((resolve) => { captured = resolve; });
   await page.route((url) => url.pathname === "/api/notes/imports", async (route) => {
     reads++;
-    const second = new URL(route.request().url()).searchParams.has("cursor");
+    const second = new URL(route.request().url()).searchParams.get("cursor") === "fixture-next";
     if (holdNavigation && !intercepted && second === (direction === "next")) {
       intercepted = true; captured(); await held;
     }
-    await route.fulfill({ json: { scope: `${alliance.allianceId}:${author.hqUserId}`, imports: [{ id: second ? "second" : "first", title: second ? "Second page source" : "First page source", state: "committed", kind: "text", updatedAt: "2026-09-15T12:00:00.123456Z" }], nextCursor: second ? null : "fixture-next" } });
+    await route.fulfill({ json: { scope: `${alliance.allianceId}:${author.hqUserId}`, imports: [{ id: second ? "second" : "first", title: second ? "Second page source" : "First page source", state: "committed", kind: "text", updatedAt: "2026-09-15T12:00:00.123456Z" }], nextCursor: second ? null : "fixture-next", previousCursor: second ? "fixture-previous" : null } });
   });
   try {
     await page.goto("/notes?view=imports");

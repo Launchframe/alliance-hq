@@ -1,6 +1,7 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { and, eq, isNull } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { getTranslations } from "next-intl/server";
@@ -76,6 +77,11 @@ export async function requireNotesApiContext(permission: "notes:read" | "notes:c
   if (session instanceof NextResponse) return session;
   const denied = await requireSessionPermission(session.id, permission);
   if (denied) return denied;
+  const expectedScope = (await headers()).get("x-notes-scope");
+  if (expectedScope && expectedScope !== `${session.currentAllianceId ?? session.allianceId}:${session.hqUserId}`) {
+    const t = await getTranslations("notes");
+    return NextResponse.json({ error: t("errors.forbidden"), code: "forbidden" }, { status: 403 });
+  }
   const actor = await getKnowledgeActorForSession(session.id);
   if (!actor || (permission === "notes:create" && !actor.canCreate)) {
     const t = await getTranslations("notes");

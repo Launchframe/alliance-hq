@@ -8,6 +8,7 @@ vi.mock("@/lib/session", () => ({ requirePageSession: async () => ({ id: "sessio
 vi.mock("@/lib/rbac/page-permission", () => ({ requirePagePermission: async () => undefined }));
 vi.mock("@/lib/notes/access.server", () => ({ getKnowledgeActorForSession: async () => state.actor }));
 vi.mock("@/lib/notes/drafts.server", () => ({ countCaptureDrafts: async () => 0 }));
+vi.mock("@/lib/db", async (original) => ({ ...await original<typeof import("@/lib/db")>(), getDb: () => ({ select: () => ({ from: () => ({ where: async () => [{ state: { view: "inbox", layout: "list" }, version: 3 }] }) }) }) }));
 vi.mock("@/lib/notes/resources.server", async (original) => ({ ...await original<typeof import("./resources.server")>(), claimDiscordKnowledgeResources: async () => undefined }));
 vi.mock("@/lib/performance-notes/repository.server", () => ({ listPerformanceNotePage: state.page, getPerformanceNoteDto: state.note, listPerformanceNoteRoster: async () => [] }));
 import DetailPage from "@/app/[locale]/(app)/notes/[id]/page";
@@ -26,6 +27,7 @@ it.each([
   { cursor: "{" },
   { cursor: JSON.stringify({ version: 1, scope: "foreign:reader", key: "a".repeat(64), id: "note", updatedAt: "2026-09-15T12:00:00.123456Z", rank: 0 }) },
   { priority: "bogus" },
+  { view: "bogus" },
 ])("keeps authorized detail readable when list navigation is malformed or foreign", async (query) => {
   const result = await DetailPage({ params: Promise.resolve({ id: "note-one" }), searchParams: Promise.resolve(query) });
   expect(result.props.focusedNote.body).toBe("Authorized full document");

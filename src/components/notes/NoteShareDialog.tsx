@@ -7,36 +7,39 @@ import type { PerformanceNoteDto } from "@/lib/performance-notes/types.shared";
 import type { NoteShareInput, NoteShareState } from "@/lib/notes/sharing.shared";
 import { noteTitle } from "@/lib/notes/workspace.shared";
 import { NoteMarkdown } from "./NoteMarkdown";
+import { useNotesFetch, useNotesDirtyState } from "./NotesNavigation";
 
 export function NoteShareDialog({ note, task = false, onClose, onSaved }: { note: Pick<PerformanceNoteDto, "id" | "title" | "body">; task?: boolean; onClose: () => void; onSaved: () => Promise<void> }) {
   const t = useTranslations("notes");
+  const fetchNotes = useNotesFetch();
   const endpoint = task ? `/api/notes/tasks/${note.id}/sharing` : `/api/notes/${note.id}/sharing`;
   const dialog = useRef<HTMLDialogElement>(null);
   const [data, setData] = useState<NoteShareState | null>(null);
   const [grants, setGrants] = useState<NoteShareInput["grants"]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  useNotesDirtyState({ dirty: saving || !!data && JSON.stringify(grants) !== JSON.stringify(data.grants), busy: saving, keys: ["pathname", "view", "note", "draft", "task", "noteTask"] });
   useEffect(() => {
     const element = dialog.current;
     element?.showModal();
     const controller = new AbortController();
     void (async () => {
       try {
-        const response = await fetch(endpoint, { cache: "no-store", signal: controller.signal });
+        const response = await fetchNotes(endpoint, { cache: "no-store", signal: controller.signal });
         const body = await response.json();
         if (!response.ok) throw new Error(body.error ?? t("loadFailed"));
         if (!controller.signal.aborted) { setData(body); setGrants(body.grants); }
       } catch (failure) { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : t("loadFailed")); }
     })();
     return () => { controller.abort(); element?.close(); };
-  }, [endpoint, t]);
+  }, [endpoint, t, fetchNotes]);
   function remove(subjectKind: string, subjectId: string) { setGrants((values) => values.filter((grant) => grant.subjectKind !== subjectKind || grant.subjectId !== subjectId)); }
   function setRole(subjectKind: string, subjectId: string, role: "read" | "edit") { setGrants((values) => values.map((grant) => grant.subjectKind === subjectKind && grant.subjectId === subjectId ? { ...grant, role } : grant)); }
   async function save() {
     if (!data || saving) return;
     setSaving(true); setError(null);
     try {
-      const response = await fetch(endpoint, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedVersion: data.version, grants }) });
+      const response = await fetchNotes(endpoint, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expectedVersion: data.version, grants }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error ?? t("saveFailed"));
       await onSaved();

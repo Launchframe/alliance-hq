@@ -7,11 +7,13 @@ import type { PerformanceNoteDto } from "@/lib/performance-notes/types.shared";
 import { noteTitle, type NoteFields, type NotePatch } from "@/lib/notes/workspace.shared";
 import { NoteMarkdown } from "./NoteMarkdown";
 import { NoteSections } from "./NoteSections";
+import { useNotesFetch } from "./NotesNavigation";
 
 type Revision = { id: string; version: number; editedAt: string; snapshot: NoteFields & { archived: boolean } };
 
 export function NoteHistoryDialog({ note, onClose, onRestore }: { note: PerformanceNoteDto; onClose: () => void; onRestore: (patch: NotePatch, noteId: string) => Promise<void> }) {
   const t = useTranslations("notes");
+  const fetchNotes = useNotesFetch();
   const locale = useLocale();
   const dialog = useRef<HTMLDialogElement>(null);
   const [revisions, setRevisions] = useState<Revision[]>([]);
@@ -25,7 +27,7 @@ export function NoteHistoryDialog({ note, onClose, onRestore }: { note: Performa
     const controller = new AbortController();
     void (async () => {
       try {
-        const response = await fetch(`/api/notes/${note.id}/history`, { cache: "no-store", signal: controller.signal });
+        const response = await fetchNotes(`/api/notes/${note.id}/history`, { cache: "no-store", signal: controller.signal });
         const body = await response.json();
         if (!response.ok) throw new Error(body.error ?? t("loadFailed"));
         if (!controller.signal.aborted) setRevisions(body.revisions);
@@ -33,7 +35,7 @@ export function NoteHistoryDialog({ note, onClose, onRestore }: { note: Performa
       finally { if (!controller.signal.aborted) setLoading(false); }
     })();
     return () => { controller.abort(); element?.close(); };
-  }, [note.id, t]);
+  }, [note.id, t, fetchNotes]);
   async function restore() {
     if (!selected || saving) return;
     setSaving(true); setError(null);

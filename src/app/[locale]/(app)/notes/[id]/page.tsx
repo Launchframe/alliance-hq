@@ -6,6 +6,7 @@ import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 import { countCaptureDrafts } from "@/lib/notes/drafts.server";
 import { claimDiscordKnowledgeResources } from "@/lib/notes/resources.server";
 import { noteRouteId } from "@/lib/notes/workspace.shared";
+import { loadWorkspaceQuery } from "@/lib/notes/preferences.server";
 import { loadNotePageQuery } from "@/lib/notes/page-query.server";
 import { getPerformanceNoteDto, listPerformanceNoteRoster } from "@/lib/performance-notes/repository.server";
 import { requirePagePermission } from "@/lib/rbac/page-permission";
@@ -29,8 +30,10 @@ export default async function NoteDetailPage({ params, searchParams }: Props) {
   const note = await getPerformanceNoteDto({ noteId: id, actor });
   if (!note) notFound();
   const query = new URLSearchParams(Object.entries(await searchParams).flatMap(([key, value]) => value === undefined ? [] : [[key, Array.isArray(value) ? value[0] : value]]));
-  const [{ page, cursor }, roster, drafts] = await Promise.all([
-    loadNotePageQuery(actor, query), listPerformanceNoteRoster(actor.allianceId), countCaptureDrafts(actor),
+  const { preferences, filter, cursor } = await loadWorkspaceQuery(actor, query);
+  const [{ page, cursor: initialCursor }, roster, drafts] = await Promise.all([
+    loadNotePageQuery(actor, new URLSearchParams({ ...filter, ...(cursor ? { cursor: JSON.stringify(cursor) } : {}) })),
+    listPerformanceNoteRoster(actor.allianceId), countCaptureDrafts(actor),
   ]);
-  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:${id}`} initial={{ ...page, roster, canCreate: actor.canCreate, canReadBoards: actor.canReadBoards, draftCount: drafts }} initialCursor={cursor} focusedNote={note} />;
+  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:${id}`} initial={{ ...page, preferences, roster, canCreate: actor.canCreate, canReadBoards: actor.canReadBoards, draftCount: drafts }} initialCursor={initialCursor} focusedNote={note} />;
 }
