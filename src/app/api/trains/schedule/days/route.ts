@@ -10,6 +10,7 @@ import {
 } from "@/lib/trains/service";
 import { canOfficerChangeTemplateForDate } from "@/lib/trains/trains-day-actions.shared";
 import {
+  defaultTopNForPaintTemplate,
   isTopNPaintTemplate,
   isVrTopN,
   isVsTopN,
@@ -86,13 +87,14 @@ export async function PATCH(request: Request) {
   let topN: ConductorTopN | undefined;
   if (isTopNPaintTemplate(templateType)) {
     const raw = body.topN;
-    if (typeof raw !== "number" || !Number.isInteger(raw)) {
+    if (raw == null) {
+      topN = defaultTopNForPaintTemplate(templateType);
+    } else if (typeof raw !== "number" || !Number.isInteger(raw)) {
       return NextResponse.json(
         { error: "A valid topN scope is required for Top VS / Top VR." },
         { status: 400 },
       );
-    }
-    if (templateType === "top_vs") {
+    } else if (templateType === "top_vs") {
       if (!isVsTopN(raw)) {
         return NextResponse.json(
           { error: "Top VS scope must be 1, 3, 5, or 10." },

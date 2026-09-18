@@ -8,6 +8,7 @@ import { TemplatePaletteOptionLabel } from "@/components/trains/TemplatePaletteB
 import { Dialog } from "@/components/ui/dialog";
 import {
   isTopNPaintTemplate,
+  resolveDayPaintApplyTopN,
   type ConductorTopN,
 } from "@/lib/trains/conductor-top-n.shared";
 import { DAY_PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
@@ -18,6 +19,8 @@ import type { WeekTemplateType } from "@/lib/trains/types";
 type Props = {
   open: boolean;
   currentTemplate: WeekTemplateType;
+  /** Current Top VS / Top VR scope for this date, when already painted. */
+  currentTopN?: number | null;
   date: string;
   weekStart: string;
   vrReporterCount?: number;
@@ -31,6 +34,7 @@ type Props = {
 export function DayMechanismPickerDialog({
   open,
   currentTemplate,
+  currentTopN = null,
   date,
   weekStart,
   vrReporterCount = 0,
@@ -227,7 +231,16 @@ export function DayMechanismPickerDialog({
                   type="button"
                   disabled={disabled}
                   data-testid="trains-day-mechanism-picker-apply"
-                  onClick={() => onSelect(selected)}
+                  onClick={() =>
+                    onSelect(
+                      selected,
+                      resolveDayPaintApplyTopN({
+                        template: selected,
+                        currentTemplate,
+                        currentTopN,
+                      }),
+                    )
+                  }
                   className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 disabled:opacity-50"
                 >
                   {t("templatePicker.apply")}
