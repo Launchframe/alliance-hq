@@ -44,7 +44,7 @@ Stored on `train_day_configs`: `conductorMechanism`, `vipMechanism`, optional co
 | **r4_train_week** | `r4_sequence` | `conductor_pick` |
 | **donations_week** | `donations_top` | `donations_second` |
 
-Composite templates (`vs_push_weekdays` + `r4_event_vip`) paint weekend segments via `conductorConfig.paintTemplate`.
+Week presets assign one rule per **calendar weekday** (`rules/presets.shared.ts`); `trainWeekStartDow` only controls how the calendar renders.
 
 ## VS scoring for wheels
 

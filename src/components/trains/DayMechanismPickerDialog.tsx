@@ -4,39 +4,39 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { TopNScopePicker } from "@/components/trains/TopNScopePicker";
-import { TemplatePaletteOptionLabel } from "@/components/trains/TemplatePaletteBadge";
+import { RulePaletteOptionLabel } from "@/components/trains/TemplatePaletteBadge";
 import { Dialog } from "@/components/ui/dialog";
+import type { ConductorTopN } from "@/lib/trains/conductor-top-n.shared";
 import {
-  isTopNPaintTemplate,
-  resolveDayPaintApplyTopN,
-  type ConductorTopN,
-} from "@/lib/trains/conductor-top-n.shared";
-import { DAY_PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
-import { generateDayConfigForDate } from "@/lib/trains/templates";
-import { WEEK_TEMPLATES_WITH_DETAIL_HINTS } from "@/lib/trains/week-template-registry.shared";
-import type { WeekTemplateType } from "@/lib/trains/types";
+  conductorRuleLabelKey,
+  type ConductorRule,
+} from "@/lib/trains/rules/catalog.shared";
+import {
+  DAY_RULE_PALETTE,
+  paletteEntryRequiresScope,
+  paletteIdForRule,
+  ruleForPaletteSelection,
+  scopeForRule,
+  type DayRulePaletteId,
+} from "@/lib/trains/rules/palette.shared";
 
 type Props = {
   open: boolean;
-  currentTemplate: WeekTemplateType;
-  /** Current Top VS / Top VR scope for this date, when already painted. */
-  currentTopN?: number | null;
+  /** Rule currently painted on this date; null is free choice. */
+  currentRule: ConductorRule | null;
   date: string;
-  weekStart: string;
   vrReporterCount?: number;
   disabled?: boolean;
   weightingEnabled: boolean;
   onWeightingEnabledChange: (next: boolean) => void | Promise<void>;
   onClose: () => void;
-  onSelect: (templateType: WeekTemplateType, topN?: ConductorTopN) => void;
+  onSelect: (rule: ConductorRule | null) => void;
 };
 
 export function DayMechanismPickerDialog({
   open,
-  currentTemplate,
-  currentTopN = null,
+  currentRule,
   date,
-  weekStart,
   vrReporterCount = 0,
   disabled = false,
   weightingEnabled,
@@ -45,12 +45,19 @@ export function DayMechanismPickerDialog({
   onSelect,
 }: Props) {
   const t = useTranslations("trains");
-  const tGuided = useTranslations("trains.guidedFlow");
+  const tRules = useTranslations("trains.rules");
   const tDayMenu = useTranslations("trains.dayTemplateMenu");
-  const [selected, setSelected] = useState<WeekTemplateType>(currentTemplate);
-  const [scopeTemplate, setScopeTemplate] = useState<"top_vs" | "top_vr" | null>(
-    null,
-  );
+  /**
+   * The pending rule is always complete.
+   *
+   * Picking a scoped board opens the scope list and only commits once a scope
+   * is chosen, so Apply can never submit a board without its scope — the
+   * two-step control that produced 400s and silent Top 5 → Top 10 resets.
+   */
+  const [selected, setSelected] = useState<ConductorRule | null>(currentRule);
+  const [scopeBoard, setScopeBoard] = useState<
+    "vs_top_n" | "vr_top_n" | null
+  >(null);
   const [weightingBusy, setWeightingBusy] = useState(false);
 
   async function setDrawMode(nextWeightingEnabled: boolean) {
@@ -64,18 +71,23 @@ export function DayMechanismPickerDialog({
     }
   }
 
-  const selectedVipMechanism = generateDayConfigForDate(
-    selected,
-    date,
-    weekStart,
-  ).vipMechanism;
+  const selectedPaletteId = paletteIdForRule(selected);
+
+  function labelFor(paletteId: DayRulePaletteId): string {
+    const rule = ruleForPaletteSelection(
+      paletteId,
+      paletteId === selectedPaletteId ? scopeForRule(selected) : null,
+    );
+    if (paletteId === "free_choice") return tRules("freeChoice");
+    return tRules(conductorRuleLabelKey(rule));
+  }
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
         if (!next) {
-          setScopeTemplate(null);
+          setScopeBoard(null);
           onClose();
         }
       }}
@@ -95,14 +107,14 @@ export function DayMechanismPickerDialog({
           </p>
         </div>
 
-        {scopeTemplate ? (
+        {scopeBoard ? (
           <TopNScopePicker
-            paintTemplate={scopeTemplate}
+            board={scopeBoard}
             vrReporterCount={vrReporterCount}
-            onBack={() => setScopeTemplate(null)}
-            onSelect={(topN) => {
-              onSelect(scopeTemplate, topN);
-              setScopeTemplate(null);
+            onBack={() => setScopeBoard(null)}
+            onSelect={(topN: ConductorTopN) => {
+              setSelected(ruleForPaletteSelection(scopeBoard, topN));
+              setScopeBoard(null);
             }}
           />
         ) : (
@@ -113,15 +125,15 @@ export function DayMechanismPickerDialog({
               role="listbox"
               aria-label={tDayMenu("ariaLabel", { date })}
             >
-              {DAY_PAINT_TEMPLATES.map((template) => {
-                const isSelected = selected === template;
-                const detail = WEEK_TEMPLATES_WITH_DETAIL_HINTS.includes(template)
-                  ? t(`templateDetails.${template}`)
-                  : null;
+              {DAY_RULE_PALETTE.map((entry) => {
+                const isSelected = selectedPaletteId === entry.id;
+                const scope = isSelected ? scopeForRule(selected) : null;
+                const detailKey = `ruleDetails.${entry.id}` as const;
+                const detail = t.has(detailKey) ? t(detailKey) : null;
 
                 return (
                   <div
-                    key={template}
+                    key={entry.id}
                     className={`rounded-lg border px-3 py-3 transition-colors ${
                       isSelected
                         ? "border-cyan-500/50 bg-cyan-500/10"
@@ -133,19 +145,23 @@ export function DayMechanismPickerDialog({
                       role="option"
                       aria-selected={isSelected}
                       disabled={disabled}
-                      data-testid={`trains-day-mechanism-picker-row-${template}`}
+                      data-testid={`trains-day-rule-row-${entry.id}`}
                       onClick={() => {
-                        if (isTopNPaintTemplate(template)) {
-                          setScopeTemplate(template);
+                        if (paletteEntryRequiresScope(entry.id)) {
+                          setScopeBoard(entry.id as "vs_top_n" | "vr_top_n");
                           return;
                         }
-                        setSelected(template);
+                        setSelected(ruleForPaletteSelection(entry.id));
                       }}
                       className="w-full text-left disabled:opacity-50"
                     >
-                      <TemplatePaletteOptionLabel
-                        template={template}
-                        label={t(`templates.${template}`)}
+                      <RulePaletteOptionLabel
+                        paletteId={entry.id}
+                        label={
+                          scope != null
+                            ? `${labelFor(entry.id)} · ${scope}`
+                            : labelFor(entry.id)
+                        }
                       />
                       {isSelected && detail ? (
                         <p className="mt-2 text-xs leading-relaxed text-hq-fg-muted">
@@ -154,7 +170,7 @@ export function DayMechanismPickerDialog({
                       ) : null}
                     </button>
 
-                    {isSelected && template === "price_is_right_weekdays" ? (
+                    {isSelected && entry.id === "pif_weekday" ? (
                       <div
                         className="mt-3 border-t border-hq-border/60 pt-3"
                         data-testid="trains-day-mechanism-picker-pir-mode"
@@ -212,12 +228,6 @@ export function DayMechanismPickerDialog({
               })}
             </div>
 
-            {selectedVipMechanism === "none" ? (
-              <p className="border-t border-hq-border px-5 py-2 text-xs text-hq-fg-muted">
-                {tGuided("steps.vip.skipped")}
-              </p>
-            ) : null}
-
             <div className="border-t border-hq-border px-5 py-4">
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <button
@@ -231,16 +241,7 @@ export function DayMechanismPickerDialog({
                   type="button"
                   disabled={disabled}
                   data-testid="trains-day-mechanism-picker-apply"
-                  onClick={() =>
-                    onSelect(
-                      selected,
-                      resolveDayPaintApplyTopN({
-                        template: selected,
-                        currentTemplate,
-                        currentTopN,
-                      }),
-                    )
-                  }
+                  onClick={() => onSelect(selected)}
                   className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-400 disabled:opacity-50"
                 >
                   {t("templatePicker.apply")}

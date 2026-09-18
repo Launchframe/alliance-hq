@@ -1,279 +1,50 @@
+import { addCalendarDays } from "@/lib/trains/game-time";
+import type { DayConfigInput, WeekTemplateType } from "@/lib/trains/types";
 import {
-  CONDUCTOR_MECHANISMS,
-  VIP_MECHANISMS,
-  type ConductorMechanismType,
-  type DayConfigInput,
-  type EventTopXConfig,
-  type VipMechanismType,
-  type WeekTemplateType,
-} from "@/lib/trains/types";
-import {
-  addCalendarDays,
-  getServerDayOfWeek,
-} from "@/lib/trains/game-time";
-import {
-  defaultTopNForPaintTemplate,
-  isAutomaticTopNBoard,
-  resolveConductorTopNBoard,
-  type ConductorTopN,
-} from "@/lib/trains/conductor-top-n.shared";
-import {
-  compositeSegmentDayIndex,
-  isCompositeWeekTemplate,
-  segmentTemplateForDayIndex,
-} from "@/lib/trains/week-template-registry.shared";
+  presetRulesForDate,
+  weekRulesForPreset,
+  weekdayKeyForDate,
+} from "@/lib/trains/rules/presets.shared";
 import { weekDatesInTrainWeek } from "@/lib/trains/train-week-calendar.shared";
 
-export type WeekTemplateOptions = {
-  mondayVipMechanism?: VipMechanismType;
-  /** Optional event VIP config for r4_event_vip / weekend segments. */
-  weekendVipEvent?: EventTopXConfig;
-  /** @deprecated Use weekendVipEvent */
-  saturdayVipEvent?: EventTopXConfig;
-  /** @deprecated Use weekendVipEvent */
-  sundayVipEvent?: EventTopXConfig;
-  /** Scope when painting top_vs / top_vr. */
-  topN?: ConductorTopN;
-};
+/**
+ * Week presets → per-day rules.
+ *
+ * A preset assigns a rule to each **calendar weekday**, so resolving one day
+ * is a direct lookup. The previous implementation built a whole week and then
+ * picked the requested date out of it, which is why painting a "day rule"
+ * like `vs_push_weekdays` onto a single day silently applied a day-of-week
+ * table instead of one rule.
+ */
 
-const DEFAULT_WEEKEND_VIP_EVENT: EventTopXConfig = {
-  eventKey: "capitol_war",
-  topN: 10,
-};
-
-function pushWeekDay(
+export function dayConfigForPresetDate(
+  templateType: WeekTemplateType,
   date: string,
-  _weekStart: string,
-  options?: WeekTemplateOptions,
 ): DayConfigInput {
-  const calDow = getServerDayOfWeek(date);
-  if (calDow === 1) {
-    // Train-week Monday: VS is off on Sunday (T-1) — use donations, not VS wheel.
-    return {
-      date,
-      conductorMechanism: "donations_top",
-      vipMechanism: options?.mondayVipMechanism ?? "donations_second",
-    };
-  }
-  if (calDow === 2) {
-    return {
-      date,
-      conductorMechanism: "vs_high_score",
-      vipMechanism: "conductor_pick",
-    };
-  }
-  if (calDow === 3 || calDow === 4 || calDow === 6) {
-    // Wed, Thu, Sat — random draw from prior-day VS top 10.
-    return {
-      date,
-      conductorMechanism: "vs_top_10",
-      vipMechanism: "conductor_pick",
-    };
-  }
-  if (calDow === 5) {
-    // Fri — prior-day VS #1 (auto).
-    return {
-      date,
-      conductorMechanism: "vs_high_score",
-      vipMechanism: "conductor_pick",
-    };
-  }
-  return r4EventVipDay(date, options);
-}
-
-function r4EventVipDay(
-  date: string,
-  options?: WeekTemplateOptions,
-): DayConfigInput {
-  const vipConfig =
-    options?.weekendVipEvent ??
-    options?.saturdayVipEvent ??
-    options?.sundayVipEvent ??
-    DEFAULT_WEEKEND_VIP_EVENT;
+  const rules = presetRulesForDate(templateType, date);
   return {
     date,
-    conductorMechanism: "r4_sequence",
-    vipMechanism: "event_top_x_lottery",
-    vipConfig,
+    conductorRule: rules.conductorRule,
+    vipRule: rules.vipRule,
+    sourceTemplateKey: templateType,
   };
 }
 
-function weekdayPushConfig(
-  date: string,
+/** Seven day configs for the alliance's train week, in calendar order. */
+export function weekDayConfigsForPreset(
+  templateType: WeekTemplateType,
   weekStart: string,
-  options?: WeekTemplateOptions,
-): DayConfigInput {
-  const calDow = getServerDayOfWeek(date);
-  if (calDow === 0) {
+): DayConfigInput[] {
+  const week = weekRulesForPreset(templateType);
+  return weekDatesInTrainWeek(weekStart).map((date) => {
+    const rules = week[weekdayKeyForDate(date)];
     return {
       date,
-      conductorMechanism: "custom",
-      vipMechanism: "none",
+      conductorRule: rules.conductorRule,
+      vipRule: rules.vipRule,
+      sourceTemplateKey: templateType,
     };
-  }
-  return pushWeekDay(date, weekStart, options);
-}
-
-export function generateDayConfigForDate(
-  templateType: WeekTemplateType,
-  date: string,
-  weekStart: string,
-  options?: WeekTemplateOptions,
-): DayConfigInput {
-  const configs = generateWeekDayConfigs(templateType, weekStart, options);
-  return (
-    configs.find((c) => c.date === date) ?? {
-      date,
-      conductorMechanism: "custom",
-      vipMechanism: "none",
-    }
-  );
-}
-
-export function generateWeekDayConfigs(
-  templateType: WeekTemplateType,
-  weekStart: string,
-  options?: WeekTemplateOptions,
-): DayConfigInput[] {
-  const dates = weekDatesInTrainWeek(weekStart);
-
-  if (isCompositeWeekTemplate(templateType)) {
-    return dates.map((date) => {
-      const segment = segmentTemplateForDayIndex(
-        templateType,
-        compositeSegmentDayIndex(date),
-      );
-      if (isCompositeWeekTemplate(segment)) {
-        return {
-          date,
-          conductorMechanism: "custom" as ConductorMechanismType,
-          vipMechanism: "none" as VipMechanismType,
-        };
-      }
-      return generateDayConfigForDate(segment, date, weekStart, options);
-    });
-  }
-
-  switch (templateType) {
-    case "vs_push_weekdays":
-      return dates.map((date) => weekdayPushConfig(date, weekStart, options));
-    case "r4_event_vip":
-      return dates.map((date) => r4EventVipDay(date, options));
-    case "top_vs": {
-      const topN = options?.topN ?? defaultTopNForPaintTemplate("top_vs");
-      return dates.map((date) => ({
-        date,
-        conductorMechanism: "vs_top_n" as ConductorMechanismType,
-        conductorConfig: { topN },
-        vipMechanism: "conductor_pick" as VipMechanismType,
-      }));
-    }
-    case "top_vr": {
-      const topN = options?.topN ?? defaultTopNForPaintTemplate("top_vr");
-      return dates.map((date) => ({
-        date,
-        conductorMechanism: "vr_top_n" as ConductorMechanismType,
-        conductorConfig: { topN },
-        vipMechanism: "conductor_pick" as VipMechanismType,
-      }));
-    }
-    case "economy_week":
-    case "r3_recognition":
-      return dates.map((date) => ({
-        date,
-        conductorMechanism: "r3_lottery" as ConductorMechanismType,
-        vipMechanism: "conductor_pick" as VipMechanismType,
-      }));
-    case "price_is_right_weekdays":
-      return dates.map((date) => ({
-        date,
-        conductorMechanism: "r3_lottery" as ConductorMechanismType,
-        vipMechanism: "conductor_pick" as VipMechanismType,
-      }));
-    case "takedown_week":
-      return dates.map((date) => ({
-        date,
-        conductorMechanism: "heavy_hitter_lottery" as ConductorMechanismType,
-        vipMechanism: "conductor_pick" as VipMechanismType,
-      }));
-    case "r4_train_week":
-      return dates.map((date) => ({
-        date,
-        conductorMechanism: "r4_sequence" as ConductorMechanismType,
-        vipMechanism: "conductor_pick" as VipMechanismType,
-      }));
-    case "donations_week":
-      return dates.map((date) => ({
-        date,
-        conductorMechanism: "donations_top" as ConductorMechanismType,
-        vipMechanism: "donations_second" as VipMechanismType,
-      }));
-    case "custom":
-    default:
-      return dates.map((date) => ({
-        date,
-        conductorMechanism: "custom" as ConductorMechanismType,
-        vipMechanism: "none" as VipMechanismType,
-      }));
-  }
-}
-
-export function mechanismNeedsWheel(
-  mechanism: ConductorMechanismType | VipMechanismType | null | undefined,
-  conductorConfig?: unknown,
-): boolean {
-  if (!mechanism) return false;
-  const topBoard = resolveConductorTopNBoard(mechanism, conductorConfig);
-  if (topBoard) {
-    return !isAutomaticTopNBoard(topBoard);
-  }
-  return (
-    mechanism === "r3_lottery" ||
-    mechanism === "heavy_hitter_lottery" ||
-    mechanism === "r4_sequence" ||
-    mechanism === "event_top_x_lottery"
-  );
-}
-
-/**
- * Officer manual VIP/Guardian pick — open roster assign for every VIP
- * mechanism except `none`. Does not use depleting pools.
- */
-export function supportsManualVipPick(
-  mechanism: VipMechanismType | string | null | undefined,
-): boolean {
-  if (!mechanism || mechanism === "none") return false;
-  return (VIP_MECHANISMS as readonly string[]).includes(mechanism);
-}
-
-/** Officer manual override when leaderboard data is missing or wrong. */
-export function supportsManualConductorPick(
-  mechanism: ConductorMechanismType | string | null | undefined,
-): boolean {
-  if (mechanism == null || mechanism === "") return true;
-  return (CONDUCTOR_MECHANISMS as readonly string[]).includes(mechanism);
-}
-
-export function conductorMechanismPoolType(
-  mechanism: ConductorMechanismType,
-): "r3" | "r4_plus" | "all_members" | "heavy_hitter" | null {
-  switch (mechanism) {
-    case "r3_lottery":
-      return "r3";
-    case "heavy_hitter_lottery":
-      return "heavy_hitter";
-    case "r4_sequence":
-      return "r4_plus";
-    default:
-      return null;
-  }
-}
-
-export function vipMechanismPoolType(
-  mechanism: VipMechanismType,
-): "event_top_x" | null {
-  if (mechanism === "event_top_x_lottery") return "event_top_x";
-  return null;
+  });
 }
 
 export { addCalendarDays };

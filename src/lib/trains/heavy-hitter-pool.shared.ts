@@ -1,51 +1,25 @@
-import { getServerDayOfWeek } from "@/lib/trains/game-time";
-import type { WeekTemplateType } from "@/lib/trains/types";
-
-/** True for The Price Is Freight weekday raffle paint (and legacy whole-week paint). */
-export function isPriceIsRightPaintTemplate(
-  paintTemplate: WeekTemplateType | string | null | undefined,
-): boolean {
-  return (
-    paintTemplate === "price_is_right" ||
-    paintTemplate === "price_is_right_weekdays"
-  );
-}
-
 /**
- * True when conductor rolls / odds UI should use the with-replacement Price Is
- * Freight path (weekday raffle or Saturday heavy-hitter), not depleting pools.
- *
- * Composite PIR weeks paint Saturday as `takedown_week`; that segment must stay
- * on the with-replacement path.
+ * Price Is Freight routing used to be inferred from paint template strings
+ * plus a Saturday weekday check. The rule states it directly:
+ * `{ kind: "price_is_freight", board: "weekday" | "heavy_hitter" }`.
  */
-export function usesPriceIsFreightConductorRoll(
-  paintTemplate: WeekTemplateType | string | null | undefined,
+export {
+  conductorRuleAppliesMinimums,
+  conductorRuleUsesPriceIsFreightRoll,
+} from "@/lib/trains/rules/derive.shared";
+
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+
+/** Max-ticket draw (legacy Saturday PIF / takedown week). */
+export function isHeavyHitterBoardRule(
+  rule: ConductorRule | null | undefined,
 ): boolean {
-  return (
-    isPriceIsRightPaintTemplate(paintTemplate) ||
-    paintTemplate === "takedown_week"
-  );
+  return rule?.kind === "price_is_freight" && rule.board === "heavy_hitter";
 }
 
-/** Price Is Freight conductor rolls require prior-day VS. Economy Week does not. */
-export function paintTemplateUsesPriorDayVs(
-  paintTemplate: WeekTemplateType | string | null | undefined,
+/** Price Is Freight conductor rolls need the source day's VS scores. */
+export function ruleUsesPriorDayVs(
+  rule: ConductorRule | null | undefined,
 ): boolean {
-  return usesPriceIsFreightConductorRoll(paintTemplate);
-}
-
-/**
- * Saturday heavy-hitter (max-ticket) draw for The Price Is Freight.
- *
- * Legacy whole-week `price_is_right` paint uses weekday + Saturday-on-date.
- * New composite schedules paint Saturday as `takedown_week` instead — that
- * segment is always the with-replacement heavy-hitter lottery.
- */
-export function isPriceIsRightHeavyHitterSaturday(
-  paintTemplate: WeekTemplateType | null | undefined,
-  date: string | null | undefined,
-): boolean {
-  if (paintTemplate === "takedown_week") return true;
-  if (paintTemplate !== "price_is_right" || !date) return false;
-  return getServerDayOfWeek(date) === 6;
+  return rule?.kind === "price_is_freight" || rule?.kind === "vs_top_n";
 }

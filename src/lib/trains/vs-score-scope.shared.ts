@@ -1,154 +1,93 @@
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import {
-  isAutomaticTopNBoard,
-  resolveConductorTopNBoard,
-  type ResolvedConductorTopNBoard,
-} from "@/lib/trains/conductor-top-n.shared";
-import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
-import { mechanismNeedsWheel } from "@/lib/trains/templates";
-import type { ConductorMechanismType, WeekTemplateType } from "@/lib/trains/types";
+  conductorRuleNeedsWheel,
+  conductorRuleUsesVsScores,
+} from "@/lib/trains/rules/derive.shared";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 
-export type DayMechanismConfig = {
-  conductorMechanism: string | null | undefined;
-  conductorConfig?: unknown;
-  paintTemplate?: string | null;
-};
-
 /**
- * VS top-N board for wheels and eligibility. When lead time shifts the score
- * source to another calendar day, scope follows that score day's painted rule.
+ * Lead time moves a train day's scores to an earlier calendar day. When it
+ * does, the VS scope follows the day the scores came from: a Wednesday train
+ * reading Monday's board uses Monday's painted scope, not Wednesday's.
  */
-export function resolveVsTopBoardForTrainDate(input: {
-  trainDate: string;
-  trainDay: DayMechanismConfig;
-  leadDays?: number;
-  /** Config for the VS score reference date (same week schedule). */
-  scoreDateDay?: DayMechanismConfig | null;
-}): ResolvedConductorTopNBoard | null {
-  const trainBoard = resolveConductorTopNBoard(
-    input.trainDay.conductorMechanism,
-    input.trainDay.conductorConfig,
-  );
-  if (trainBoard?.kind !== "vs") return trainBoard;
 
-  const leadDays = input.leadDays ?? 0;
-  if (leadDays <= 0) return trainBoard;
+export type VsBoard = { topN: number };
 
-  if (!input.scoreDateDay) return trainBoard;
-
-  const scoreBoard = resolveConductorTopNBoard(
-    input.scoreDateDay.conductorMechanism,
-    input.scoreDateDay.conductorConfig,
-  );
-  return scoreBoard?.kind === "vs" ? scoreBoard : trainBoard;
+function vsBoard(rule: ConductorRule | null | undefined): VsBoard | null {
+  return rule?.kind === "vs_top_n" ? { topN: rule.topN } : null;
 }
 
-/** VS top board inherited from the score reference day on off-template train days. */
-export function resolveLeadTimeInheritedVsBoard(input: {
-  trainDay: DayMechanismConfig;
-  leadDays?: number;
-  scoreDateDay?: DayMechanismConfig | null;
-}): ResolvedConductorTopNBoard | null {
-  const leadDays = input.leadDays ?? 0;
-  if (leadDays <= 0 || !input.scoreDateDay) return null;
-
-  const trainBoard = resolveConductorTopNBoard(
-    input.trainDay.conductorMechanism,
-    input.trainDay.conductorConfig,
-  );
-  if (trainBoard?.kind === "vs") return null;
-
-  const scoreBoard = resolveConductorTopNBoard(
-    input.scoreDateDay.conductorMechanism,
-    input.scoreDateDay.conductorConfig,
-  );
-  return scoreBoard?.kind === "vs" ? scoreBoard : null;
-}
-
-export function scoreDateDayConfigForTrainDate(
+export function scoreDateForTrainDate(
   trainDate: string,
   leadDays: number,
-  dayConfigs: ReadonlyArray<
-    { date: string; paintTemplate?: string | null } & DayMechanismConfig
-  >,
-): DayMechanismConfig | null {
-  if (leadDays <= 0) return null;
-  const scoreDate = vsScoreReferenceDate(trainDate, leadDays);
-  const row = dayConfigs.find((day) => day.date === scoreDate);
-  if (!row) return null;
-  return {
-    conductorMechanism: row.conductorMechanism,
-    conductorConfig: row.conductorConfig,
-    paintTemplate: row.paintTemplate,
-  };
+): string {
+  return vsScoreReferenceDate(trainDate, leadDays);
 }
 
-/** Conductor mechanism label key for week tiles / spin source when lead time applies. */
-export function effectiveVsScopeMechanismForTrainDate(input: {
-  trainDate: string;
-  trainDay: DayMechanismConfig;
+/** VS board for a train day, following the score day's scope under lead time. */
+export function resolveVsBoardForTrainDate(input: {
+  trainRule: ConductorRule | null;
   leadDays?: number;
-  scoreDateDay?: DayMechanismConfig | null;
-  fallbackMechanism: string;
-}): string {
-  const board = resolveVsTopBoardForTrainDate(input);
-  if (board?.kind === "vs" && (input.leadDays ?? 0) > 0) {
-    return board.mechanism;
+  scoreDayRule?: ConductorRule | null;
+}): VsBoard | null {
+  const trainBoard = vsBoard(input.trainRule);
+  const leadDays = input.leadDays ?? 0;
+  if (leadDays <= 0 || !input.scoreDayRule) return trainBoard;
+
+  const scoreBoard = vsBoard(input.scoreDayRule);
+  if (trainBoard) return scoreBoard ?? trainBoard;
+  return null;
+}
+
+/**
+ * VS board inherited from the score day when the train day itself carries a
+ * non-VS rule — used for labels on off-template days under lead time.
+ */
+export function resolveLeadTimeInheritedVsBoard(input: {
+  trainRule: ConductorRule | null;
+  leadDays?: number;
+  scoreDayRule?: ConductorRule | null;
+}): VsBoard | null {
+  const leadDays = input.leadDays ?? 0;
+  if (leadDays <= 0 || !input.scoreDayRule) return null;
+  if (conductorRuleUsesVsScores(input.trainRule)) return null;
+  return vsBoard(input.scoreDayRule);
+}
+
+/** Effective rule for wheels and labels once lead-time inheritance applies. */
+export function effectiveConductorRuleForTrainDate(input: {
+  trainRule: ConductorRule | null;
+  leadDays?: number;
+  scoreDayRule?: ConductorRule | null;
+}): ConductorRule | null {
+  const board = resolveVsBoardForTrainDate(input);
+  if (board && input.trainRule?.kind === "vs_top_n") {
+    return { kind: "vs_top_n", topN: board.topN as 1 | 3 | 5 | 10 };
   }
-  const inherited = resolveLeadTimeInheritedVsBoard(input);
-  if (inherited?.kind === "vs") {
-    return inherited.mechanism;
-  }
-  return input.fallbackMechanism;
+  return input.trainRule;
 }
 
 export function canSpinConductorWithLeadScope(input: {
-  conductorMechanism: string | null | undefined;
+  rule: ConductorRule | null;
   locked: boolean;
-  paintTemplate?: WeekTemplateType | null;
-  trainDate?: string | null;
-  conductorConfig?: unknown;
   leadDays?: number;
-  scoreDateDay?: DayMechanismConfig | null;
+  scoreDayRule?: ConductorRule | null;
 }): boolean {
   if (input.locked) return false;
-  if (input.paintTemplate === "r3_recognition") return false;
-
-  const mechanism = effectiveConductorMechanism(
-    input.conductorMechanism,
-    input.paintTemplate,
-    input.trainDate,
+  return conductorRuleNeedsWheel(
+    effectiveConductorRuleForTrainDate({
+      trainRule: input.rule,
+      leadDays: input.leadDays,
+      scoreDayRule: input.scoreDayRule,
+    }),
   );
-  if (!mechanism) return false;
-  if (mechanism === "donations_top") return false;
-
-  const topBoard = resolveVsTopBoardForTrainDate({
-    trainDate: input.trainDate ?? "",
-    trainDay: {
-      conductorMechanism: mechanism,
-      conductorConfig: input.conductorConfig,
-    },
-    leadDays: input.leadDays,
-    scoreDateDay: input.scoreDateDay,
-  });
-
-  if (isAutomaticTopNBoard(topBoard)) return false;
-  if (topBoard) {
-    return mechanismNeedsWheel(
-      topBoard.mechanism as ConductorMechanismType,
-      input.conductorConfig,
-    );
-  }
-  return mechanismNeedsWheel(mechanism, input.conductorConfig);
 }
 
 export function vsLeaderboardSpinSourceForTrainDate(input: {
-  trainDate: string;
-  trainDay: DayMechanismConfig;
+  trainRule: ConductorRule | null;
   leadDays?: number;
-  scoreDateDay?: DayMechanismConfig | null;
+  scoreDayRule?: ConductorRule | null;
 }): { kind: "vs_leaderboard"; topN: number } | null {
-  const board = resolveVsTopBoardForTrainDate(input);
-  if (board?.kind !== "vs") return null;
-  return { kind: "vs_leaderboard", topN: board.topN };
+  const board = resolveVsBoardForTrainDate(input);
+  return board ? { kind: "vs_leaderboard", topN: board.topN } : null;
 }

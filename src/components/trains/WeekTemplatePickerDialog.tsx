@@ -3,20 +3,13 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { TemplatePaletteOptionLabel } from "@/components/trains/TemplatePaletteBadge";
 import { TemplateWeekShapeStrip } from "@/components/trains/TemplateWeekShapeStrip";
 import { Dialog } from "@/components/ui/dialog";
-import {
-  SELECTABLE_WEEK_TEMPLATES,
-  WEEK_TEMPLATES_WITH_DETAIL_HINTS,
-} from "@/lib/trains/week-template-registry.shared";
-import type { WeekTemplateType } from "@/lib/trains/types";
+import { WEEK_TEMPLATES, type WeekTemplateType } from "@/lib/trains/types";
 
 type Props = {
   open: boolean;
   currentTemplate: WeekTemplateType;
-  /** Any valid train-week start date — used only to shape the preview strip. */
-  weekStart: string;
   disabled?: boolean;
   /** Alliance Price Is Freight draw mode (`weightingEnabled`). */
   weightingEnabled: boolean;
@@ -29,7 +22,6 @@ type Props = {
 export function WeekTemplatePickerDialog({
   open,
   currentTemplate,
-  weekStart,
   disabled = false,
   weightingEnabled,
   onWeightingEnabledChange,
@@ -74,11 +66,10 @@ export function WeekTemplatePickerDialog({
           role="listbox"
           aria-label={t("templateSelectAria")}
         >
-          {SELECTABLE_WEEK_TEMPLATES.map((template) => {
+          {WEEK_TEMPLATES.map((template) => {
             const isSelected = selected === template;
-            const detail = WEEK_TEMPLATES_WITH_DETAIL_HINTS.includes(template)
-              ? t(`templateDetails.${template}`)
-              : null;
+            const detailKey = `templateDetails.${template}` as const;
+            const detail = t.has(detailKey) ? t(detailKey) : null;
 
             return (
               <div
@@ -98,19 +89,15 @@ export function WeekTemplatePickerDialog({
                   onClick={() => setSelected(template)}
                   className="w-full text-left disabled:opacity-50"
                 >
-                  <TemplatePaletteOptionLabel
-                    template={template}
-                    label={t(`templates.${template}`)}
-                  />
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate">{t(`templates.${template}`)}</span>
+                  </span>
                   {isSelected ? (
                     <div
                       className="mt-2 space-y-2"
                       data-testid="trains-template-picker-detail"
                     >
-                      <TemplateWeekShapeStrip
-                        template={template}
-                        weekStart={weekStart}
-                      />
+                      <TemplateWeekShapeStrip template={template} />
                       {detail ? (
                         <p className="text-xs leading-relaxed text-hq-fg-muted">
                           {detail}

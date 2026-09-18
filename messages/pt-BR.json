@@ -4465,6 +4465,37 @@
       "eventTopX": "Top X evento",
       "custom": "Personalizado"
     },
+    "rules": {
+      "freeChoice": "Escolha livre",
+      "vsTop1": "Top VS #1",
+      "vsTopN": "Top VS",
+      "vrTopN": "Top VR",
+      "r3Lottery": "Loteria R3",
+      "r3Award": "Reconhecimento R3",
+      "r4Rotation": "Rod\u00edzio de oficiais",
+      "heavyHitterPool": "Loteria heavy-hitter",
+      "priceIsFreightWeekday": "Pontua\u00e7\u00f5es VS eleg\u00edveis",
+      "priceIsFreightHeavyHitter": "Elegibilidade takedown",
+      "donationsTop": "Top doador",
+      "eventTopX": "Top X evento",
+      "vipConductorPick": "Escolha do condutor",
+      "vipDonationsSecond": "Segundo doador",
+      "vipEventTopX": "Top X evento",
+      "vipNone": "Sem VIP"
+    },
+    "ruleDetails": {
+      "free_choice": "Sem regra. Um oficial designa quem quiser, e o condutor escolhe o VIP.",
+      "vs_top_n": "Sorteia entre as maiores pontua\u00e7\u00f5es VS do dia de refer\u00eancia. Escopo 1 designa o primeiro colocado automaticamente; escopos maiores giram a roleta.",
+      "vr_top_n": "Sorteia entre a classifica\u00e7\u00e3o de VR da temporada. Cada escopo libera quando a alian\u00e7a tem o dobro desse n\u00famero de relat\u00f3rios de VR.",
+      "r3_lottery": "Gira a roleta de elegibilidade R3. Os vencedores saem do rod\u00edzio at\u00e9 que ele se esgote e seja reiniciado.",
+      "r3_award": "Escolha manual na elegibilidade R3 \u2014 sem roleta. O membro escolhido sai do rod\u00edzio.",
+      "pif_weekday": "Sorteio entre as pontua\u00e7\u00f5es VS eleg\u00edveis do dia anterior (Chance igual ou Mais perto \u00e9 melhor). Sorteia com reposi\u00e7\u00e3o, ent\u00e3o o mesmo membro pode vencer de novo.",
+      "pif_heavy_hitter": "Sorteio aleat\u00f3rio na lista do time takedown. Sorteia com reposi\u00e7\u00e3o.",
+      "r4_rotation": "Percorre os oficiais R4+ em ordem, um condutor por dia.",
+      "heavy_hitter_pool": "Gira o rod\u00edzio heavy-hitter. Os vencedores saem dele at\u00e9 que se esgote e seja reiniciado.",
+      "donations_top": "O maior doador do dia anterior vira condutor automaticamente.",
+      "event_top_x": "Gira uma loteria entre os melhores colocados do evento."
+    },
     "mechanismsShort": {
       "vsHighScore": "VS D1",
       "vsTop10": "VS T10",

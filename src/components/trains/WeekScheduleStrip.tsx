@@ -32,21 +32,27 @@ import {
   weekRangeForDate,
   type WeekCarouselDayEntry,
 } from "@/lib/client/use-week-schedule-infinite-days";
-import { calendarCellStyleClass, calendarCellOpaqueStyleClass } from "@/lib/trains/calendar-cell-styles.shared";
+import {
+  conductorRuleLabelKey,
+  vipRuleLabelKey,
+  type ConductorRule,
+} from "@/lib/trains/rules/catalog.shared";
+import {
+  RULE_CELL_STYLES,
+  paletteIdForRule,
+  scopeForRule,
+  type DayRulePaletteId,
+} from "@/lib/trains/rules/palette.shared";
 import {
   isProvisionalDayConfig,
   provisionalDayConfigClass,
 } from "@/lib/trains/week-schedule-day-configs.shared";
 import {
-  canSpinConductorForDay,
-  canSpinVipForDay,
+  canSpinConductorForRule,
+  canSpinVipForRule,
 } from "@/lib/trains/conductor-mechanism.shared";
-import type { WeekTemplateType } from "@/lib/trains/types";
-import { usesCombinedSegmentDisplay } from "@/lib/trains/week-template-registry.shared";
-import {
-  effectiveVsScopeMechanismForTrainDate,
-  scoreDateDayConfigForTrainDate,
-} from "@/lib/trains/vs-score-scope.shared";
+import { effectiveConductorRuleForTrainDate } from "@/lib/trains/vs-score-scope.shared";
+import { scoreDayRuleFromDayConfigs } from "@/lib/trains/train-day-context.shared";
 import { coverFlowItemStyle } from "@/lib/client/cover-flow-carousel.shared";
 import {
   DayTemplateContextMenu,
@@ -60,19 +66,15 @@ type Props = {
   initialDayConfigs: WeekScheduleDayConfig[];
   initialWeekRecords: WeekConductorRecordSummary[];
   selectedDate: string;
-  conductorLabels: Record<string, string>;
-  vipLabels: Record<string, string>;
-  templateShortLabels?: Partial<Record<WeekTemplateType, string>>;
-  templateLabels?: Record<string, string>;
+  /** `trains.rules.*` labels keyed by rule label key. */
+  ruleTextLabels: Record<string, string>;
+  /** Palette-row labels for the day-rule menu. */
+  ruleLabels?: Record<DayRulePaletteId, string>;
   /** Officers/admins may open the day-template menu. */
   canPaintDays?: boolean;
   /** Per-date gate (today/future for officers; admins may paint past). */
   isDatePaintable?: (date: string) => boolean;
-  onPaintDate?: (
-    date: string,
-    template: WeekTemplateType,
-    options?: { topN?: number },
-  ) => void;
+  onPaintDate?: (date: string, rule: ConductorRule | null) => void;
   vrReporterCount?: number;
   /** Conductor lead time — VS scope follows score reference day when > 0. */
   trainConductorLeadTimeDays?: number;
@@ -137,9 +139,7 @@ type DayCellOptions = {
   weekStart: string;
   weekEnd: string;
   showDetail: boolean;
-  conductorLabels: Record<string, string>;
-  vipLabels: Record<string, string>;
-  templateShortLabels?: Partial<Record<WeekTemplateType, string>>;
+  ruleTextLabels: Record<string, string>;
   scoreStats?: TrainDayScoreStats | null;
   className?: string;
   layout?: "grid" | "carousel";
@@ -158,9 +158,7 @@ function WeekScheduleDayCell({
   weekStart,
   weekEnd,
   showDetail,
-  conductorLabels,
-  vipLabels,
-  templateShortLabels,
+  ruleTextLabels,
   scoreStats = null,
   className = "",
   layout = "grid",
@@ -175,36 +173,35 @@ function WeekScheduleDayCell({
   const selectable =
     isCalendarDateOnOrAfter(day.date, weekStart) &&
     isCalendarDateOnOrAfter(weekEnd, day.date);
-  const style =
-    layout === "carousel"
-      ? calendarCellOpaqueStyleClass(day.conductorMechanism, day.paintTemplate)
-      : calendarCellStyleClass(day.conductorMechanism, day.paintTemplate);
-  const weekday = weekdayLabel(day.date);
-  const vipLabel =
-    day.vipMechanism && day.vipMechanism !== "none"
-      ? (vipLabels[day.vipMechanism] ?? day.vipMechanism)
-      : null;
-  const combinedSegmentLabel =
-    day.paintTemplate && usesCombinedSegmentDisplay(day.paintTemplate)
-      ? (templateShortLabels?.[day.paintTemplate] ?? null)
-      : null;
-  const scopeMechanism = effectiveVsScopeMechanismForTrainDate({
-    trainDate: day.date,
-    trainDay: {
-      conductorMechanism: day.conductorMechanism,
-      conductorConfig: day.conductorConfig,
-    },
+  // Under lead time the tile shows the scope of the day the scores came from.
+  const displayRule = effectiveConductorRuleForTrainDate({
+    trainRule: day.conductorRule,
     leadDays: trainConductorLeadTimeDays,
-    scoreDateDay: scoreDateDayConfigForTrainDate(
+    scoreDayRule: scoreDayRuleFromDayConfigs(
       day.date,
       trainConductorLeadTimeDays,
       dayConfigs,
     ),
-    fallbackMechanism: day.conductorMechanism,
   });
-  const conductorLineLabel =
-    combinedSegmentLabel ??
-    (conductorLabels[scopeMechanism] ?? scopeMechanism);
+  const baseStyle = RULE_CELL_STYLES[paletteIdForRule(displayRule)];
+  const style =
+    layout === "carousel"
+      ? `${baseStyle
+          .replace(/\blight:bg-[\w-]+(?:\/[\d.]+)?\b/g, "")
+          .replace(/\bbg-[\w-]+(?:\/[\d.]+)?\b/g, "")
+          .replace(/\s+/g, " ")
+          .trim()} bg-hq-surface`
+      : baseStyle;
+  const weekday = weekdayLabel(day.date);
+  const vipLabel =
+    day.vipRule?.kind !== "none"
+      ? (ruleTextLabels[vipRuleLabelKey(day.vipRule ?? null)] ?? null)
+      : null;
+  const displayScope = scopeForRule(displayRule);
+  const conductorLineLabel = `${
+    ruleTextLabels[conductorRuleLabelKey(displayRule)] ??
+    paletteIdForRule(displayRule)
+  }${displayScope != null ? ` ${displayScope}` : ""}`;
   const record = recordForDate(weekRecords, day.date);
   const locked = Boolean(record?.lockedAt);
   const conductorName = record?.conductorMemberName;
@@ -241,11 +238,9 @@ function WeekScheduleDayCell({
     },
   });
 
-  const mechanismSummary = combinedSegmentLabel
-    ? conductorLineLabel
-    : showDetail
-      ? `${conductorLineLabel}${vipLabel ? ` · ${vipLabel}` : ""}`
-      : conductorLineLabel;
+  const mechanismSummary = showDetail
+    ? `${conductorLineLabel}${vipLabel ? ` · ${vipLabel}` : ""}`
+    : conductorLineLabel;
 
   const cellInner = (
     <>
@@ -302,7 +297,7 @@ function WeekScheduleDayCell({
           >
             {vipName}
           </div>
-        ) : !showDetail && vipLabel && !combinedSegmentLabel ? (
+        ) : !showDetail && vipLabel ? (
           <div className="truncate text-[9px] font-medium uppercase leading-tight opacity-90">
             {vipLabel}
           </div>
@@ -376,9 +371,7 @@ type CarouselProps = {
   liveWeek?: WeekSchedulePagePayload;
   today: string;
   selectedDate: string;
-  conductorLabels: Record<string, string>;
-  vipLabels: Record<string, string>;
-  templateShortLabels?: Partial<Record<WeekTemplateType, string>>;
+  ruleTextLabels: Record<string, string>;
   trainConductorLeadTimeDays?: number;
   canPaintDays?: boolean;
   isDatePaintable?: (date: string) => boolean;
@@ -397,9 +390,7 @@ function WeekScheduleInfiniteDayCarousel({
   liveWeek,
   today,
   selectedDate,
-  conductorLabels,
-  vipLabels,
-  templateShortLabels,
+  ruleTextLabels,
   trainConductorLeadTimeDays = 0,
   canPaintDays = false,
   isDatePaintable,
@@ -577,9 +568,7 @@ function WeekScheduleInfiniteDayCarousel({
           weekStart={entry.weekStart}
           weekEnd={entry.weekEnd}
           showDetail={showDetail}
-          conductorLabels={conductorLabels}
-          vipLabels={vipLabels}
-          templateShortLabels={templateShortLabels}
+          ruleTextLabels={ruleTextLabels}
           scoreStats={entry.scoreStats}
           layout="carousel"
           draftScheduleAriaLabel={draftScheduleAriaLabel}
@@ -649,10 +638,8 @@ export function WeekScheduleStrip({
   initialDayConfigs,
   initialWeekRecords,
   selectedDate,
-  conductorLabels,
-  vipLabels,
-  templateShortLabels,
-  templateLabels = {},
+  ruleTextLabels,
+  ruleLabels,
   canPaintDays = false,
   isDatePaintable,
   onPaintDate,
@@ -703,11 +690,9 @@ export function WeekScheduleStrip({
   }, []);
 
   const handlePaintTemplate = useCallback(
-    (selection: { template: WeekTemplateType; topN?: number }) => {
+    (selection: { rule: ConductorRule | null }) => {
       if (!templateMenuAnchor || !onPaintDate) return;
-      onPaintDate(templateMenuAnchor.date, selection.template, {
-        ...(selection.topN != null ? { topN: selection.topN } : {}),
-      });
+      onPaintDate(templateMenuAnchor.date, selection.rule);
     },
     [onPaintDate, templateMenuAnchor],
   );
@@ -858,9 +843,7 @@ export function WeekScheduleStrip({
             weekStart={weekStart}
             weekEnd={weekEnd}
             showDetail={isSelected}
-            conductorLabels={conductorLabels}
-            vipLabels={vipLabels}
-            templateShortLabels={templateShortLabels}
+            ruleTextLabels={ruleTextLabels}
             scoreStats={dayScoreStats?.[day.date] ?? null}
             className="aspect-square min-w-0 p-1.5 min-h-0 w-auto"
             onSelect={selectable ? () => onSelectDate(day.date) : undefined}
@@ -923,9 +906,7 @@ export function WeekScheduleStrip({
               liveWeek={displayPage}
               today={today}
               selectedDate={selectedDate}
-              conductorLabels={conductorLabels}
-              vipLabels={vipLabels}
-              templateShortLabels={templateShortLabels}
+              ruleTextLabels={ruleTextLabels}
               trainConductorLeadTimeDays={trainConductorLeadTimeDays}
               canPaintDays={canPaintDays}
               isDatePaintable={isDatePaintable}
@@ -948,8 +929,8 @@ export function WeekScheduleStrip({
         key={templateMenuAnchor?.date ?? "closed"}
         open={templateMenuAnchor != null}
         anchor={templateMenuAnchor}
-        currentTemplate={menuDayConfig?.paintTemplate}
-        templateLabels={templateLabels}
+        currentRule={menuDayConfig?.conductorRule ?? null}
+        ruleLabels={ruleLabels ?? ({} as Record<DayRulePaletteId, string>)}
         vrReporterCount={vrReporterCount}
         onSelect={handlePaintTemplate}
         onClose={handleCloseTemplateMenu}
@@ -959,24 +940,10 @@ export function WeekScheduleStrip({
 }
 
 export function canSpinConductor(
-  mechanism: string | null | undefined,
+  rule: ConductorRule | null,
   locked: boolean,
-  paintTemplate?: WeekTemplateType | null,
-  date?: string | null,
-  conductorConfig?: unknown,
 ): boolean {
-  return canSpinConductorForDay(
-    mechanism,
-    locked,
-    paintTemplate,
-    date,
-    conductorConfig,
-  );
+  return canSpinConductorForRule(rule, locked);
 }
 
-export function canSpinVip(
-  mechanism: string | null | undefined,
-  locked: boolean,
-): boolean {
-  return canSpinVipForDay(mechanism, locked);
-}
+export { canSpinVipForRule as canSpinVip };

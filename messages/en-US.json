@@ -4531,6 +4531,37 @@
       "eventTopX": "Event top X",
       "custom": "Custom"
     },
+    "rules": {
+      "freeChoice": "Free choice",
+      "vsTop1": "Top VS #1",
+      "vsTopN": "Top VS",
+      "vrTopN": "Top VR",
+      "r3Lottery": "R3 lottery",
+      "r3Award": "R3 recognition",
+      "r4Rotation": "Officer rotation",
+      "heavyHitterPool": "Heavy-hitter lottery",
+      "priceIsFreightWeekday": "Eligible VS scores",
+      "priceIsFreightHeavyHitter": "Takedown eligibility",
+      "donationsTop": "Top donor",
+      "eventTopX": "Event top X",
+      "vipConductorPick": "Conductor's pick",
+      "vipDonationsSecond": "Second donor",
+      "vipEventTopX": "Event top X",
+      "vipNone": "No VIP"
+    },
+    "ruleDetails": {
+      "free_choice": "No rule. An officer assigns whoever they want, and the conductor picks the VIP.",
+      "vs_top_n": "Draws from the scoring day's top VS scores. Scope 1 assigns the top scorer automatically; larger scopes spin the wheel.",
+      "vr_top_n": "Draws from the season VR standings. Each scope unlocks once the alliance has twice that many VR reports.",
+      "r3_lottery": "Spins the R3 eligibility wheel. Winners leave the rotation until it is exhausted and reseeded.",
+      "r3_award": "Manual award pick from R3 eligibility \u2014 no wheel. The chosen member leaves the rotation.",
+      "pif_weekday": "Raffle among eligible prior-day VS scores (Equal chance or Closer is Better). Draws with replacement, so the same member can win again.",
+      "pif_heavy_hitter": "Random draw from the takedown team list. Draws with replacement.",
+      "r4_rotation": "Walks R4+ officers in order, one conductor per day.",
+      "heavy_hitter_pool": "Spins the heavy-hitter rotation. Winners leave it until it is exhausted and reseeded.",
+      "donations_top": "The prior day's top donor becomes conductor automatically.",
+      "event_top_x": "Spins a lottery among the event's top scorers."
+    },
     "mechanismsShort": {
       "vsHighScore": "VS D1",
       "vsTop10": "VS T10",

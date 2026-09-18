@@ -165,8 +165,7 @@ export async function POST(request: Request) {
       allianceId: ctx.allianceId,
       poolType: body.poolType,
       date,
-      paintTemplate: dayConfig.paintTemplate,
-      conductorMechanism: dayConfig.conductorMechanism,
+      rule: dayConfig.conductorRule,
     });
     await writeTrainsOfficerAudit({
       sessionId: session.id,
@@ -179,8 +178,7 @@ export async function POST(request: Request) {
       metadata: {
         poolType: body.poolType,
         date,
-        paintTemplate: dayConfig.paintTemplate,
-        conductorMechanism: dayConfig.conductorMechanism,
+        conductorRule: dayConfig.conductorRule,
       },
     });
     return NextResponse.json(result);

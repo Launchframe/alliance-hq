@@ -13,7 +13,7 @@ import { Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { TopNScopePicker } from "@/components/trains/TopNScopePicker";
-import { TemplatePaletteBadge } from "@/components/trains/TemplatePaletteBadge";
+import { RulePaletteBadge } from "@/components/trains/TemplatePaletteBadge";
 import { clampMenuPosition } from "@/lib/client/clamp-menu-position.shared";
 import {
   focusMenuItem,
@@ -22,12 +22,16 @@ import {
   menuKeyboardActionForKey,
   nextMenuItemIndex,
 } from "@/lib/client/menu-keyboard-navigation.shared";
+import type { ConductorTopN } from "@/lib/trains/conductor-top-n.shared";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import {
-  isTopNPaintTemplate,
-  type ConductorTopN,
-} from "@/lib/trains/conductor-top-n.shared";
-import { DAY_PAINT_TEMPLATES } from "@/lib/trains/paint-templates.shared";
-import type { WeekTemplateType } from "@/lib/trains/types";
+  DAY_RULE_PALETTE,
+  paletteEntryRequiresScope,
+  paletteIdForRule,
+  ruleForPaletteSelection,
+  scopeForRule,
+  type DayRulePaletteId,
+} from "@/lib/trains/rules/palette.shared";
 
 export type DayTemplateMenuAnchor = {
   date: string;
@@ -39,15 +43,14 @@ export type DayTemplateMenuAnchor = {
 };
 
 export type DayTemplatePaintSelection = {
-  template: WeekTemplateType;
-  topN?: ConductorTopN;
+  rule: ConductorRule | null;
 };
 
 type Props = {
   open: boolean;
   anchor: DayTemplateMenuAnchor | null;
-  currentTemplate: WeekTemplateType | null | undefined;
-  templateLabels: Record<string, string>;
+  currentRule: ConductorRule | null;
+  ruleLabels: Record<DayRulePaletteId, string>;
   vrReporterCount?: number;
   onSelect: (selection: DayTemplatePaintSelection) => void;
   onClose: () => void;
@@ -59,8 +62,8 @@ const MENU_MAX_HEIGHT =
 export function DayTemplateContextMenu({
   open,
   anchor,
-  currentTemplate,
-  templateLabels,
+  currentRule,
+  ruleLabels,
   vrReporterCount = 0,
   onSelect,
   onClose,
@@ -71,12 +74,12 @@ export function DayTemplateContextMenu({
   const returnFocusRef = useRef<(() => void) | null>(null);
   const activeIndexRef = useRef(0);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
-  const [scopeTemplate, setScopeTemplate] = useState<"top_vs" | "top_vr" | null>(
-    null,
-  );
+  const [scopeBoard, setScopeBoard] = useState<
+    "vs_top_n" | "vr_top_n" | null
+  >(null);
 
   const closeMenu = useCallback(() => {
-    setScopeTemplate(null);
+    setScopeBoard(null);
     onClose();
     returnFocusRef.current?.();
     returnFocusRef.current = null;
@@ -97,7 +100,7 @@ export function DayTemplateContextMenu({
         height: window.innerHeight,
       }),
     );
-  }, [open, anchor, scopeTemplate]);
+  }, [open, anchor, scopeBoard]);
 
   useEffect(() => {
     if (!open || !pos || !menuRef.current) return;
@@ -120,8 +123,8 @@ export function DayTemplateContextMenu({
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
-        if (scopeTemplate) {
-          setScopeTemplate(null);
+        if (scopeBoard) {
+          setScopeBoard(null);
           return;
         }
         closeMenu();
@@ -167,7 +170,7 @@ export function DayTemplateContextMenu({
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [closeMenu, open, pos, scopeTemplate]);
+  }, [closeMenu, open, pos, scopeBoard]);
 
   if (!open || !anchor || typeof document === "undefined") return null;
 
@@ -187,13 +190,13 @@ export function DayTemplateContextMenu({
       }}
       className="z-[80] flex w-[min(18rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-lg border border-hq-border bg-hq-surface shadow-lg"
     >
-      {scopeTemplate ? (
+      {scopeBoard ? (
         <TopNScopePicker
-          paintTemplate={scopeTemplate}
+          board={scopeBoard}
           vrReporterCount={vrReporterCount}
-          onBack={() => setScopeTemplate(null)}
-          onSelect={(topN) => {
-            onSelect({ template: scopeTemplate, topN });
+          onBack={() => setScopeBoard(null)}
+          onSelect={(topN: ConductorTopN) => {
+            onSelect({ rule: ruleForPaletteSelection(scopeBoard, topN) });
             closeMenu();
           }}
         />
@@ -204,30 +207,34 @@ export function DayTemplateContextMenu({
             <p className="text-[10px] text-hq-fg-muted">{anchor.date}</p>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1">
-            {DAY_PAINT_TEMPLATES.map((template) => {
-              const selected = currentTemplate === template;
+            {DAY_RULE_PALETTE.map((entry) => {
+              const selected = paletteIdForRule(currentRule) === entry.id;
+              const currentScope = selected ? scopeForRule(currentRule) : null;
               return (
                 <button
-                  key={template}
+                  key={entry.id}
                   type="button"
                   role="menuitemradio"
                   aria-checked={selected}
-                  data-testid={`trains-day-template-${template}`}
+                  data-testid={`trains-day-rule-${entry.id}`}
                   onClick={() => {
-                    if (isTopNPaintTemplate(template)) {
-                      setScopeTemplate(template);
+                    // Scoped boards always open the scope list, so a paint can
+                    // never be sent with a defaulted or missing scope.
+                    if (paletteEntryRequiresScope(entry.id)) {
+                      setScopeBoard(entry.id as "vs_top_n" | "vr_top_n");
                       return;
                     }
-                    onSelect({ template });
+                    onSelect({ rule: ruleForPaletteSelection(entry.id) });
                     closeMenu();
                   }}
                   className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-hq-canvas ${
                     selected ? "bg-hq-canvas/80 text-hq-fg" : "text-hq-fg"
                   }`}
                 >
-                  <TemplatePaletteBadge template={template} shape="square" />
+                  <RulePaletteBadge paletteId={entry.id} shape="square" />
                   <span className="min-w-0 flex-1 truncate">
-                    {templateLabels[template] ?? template}
+                    {ruleLabels[entry.id] ?? entry.id}
+                    {currentScope != null ? ` · ${currentScope}` : ""}
                   </span>
                   {selected ? (
                     <Check
