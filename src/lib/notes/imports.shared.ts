@@ -27,6 +27,7 @@ export type HistoryImportListItem = Pick<HistoryImportSummary, "id" | "title" | 
 export type HistoryImportPage = { scope: string; imports: HistoryImportListItem[]; nextCursor: string | null; previousCursor: string | null };
 
 const identity = z.string().min(1).max(120).regex(/^[A-Za-z0-9_-]+$/);
+export { identity as historyImportIdentitySchema };
 const historyListCursorSchema = z.object({ version: z.literal(1), scope: z.string().min(1).max(300), id: identity, updatedAt: z.iso.datetime({ precision: 6 }).refine((value) => !value.startsWith("0000-")), direction: z.enum(["next", "previous"]).optional() }).strict();
 export type HistoryListCursor = z.infer<typeof historyListCursorSchema>;
 export function parseHistoryListCursor(raw: string | null): HistoryListCursor | null {
