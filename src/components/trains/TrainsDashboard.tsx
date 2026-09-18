@@ -3826,6 +3826,7 @@ export function TrainsDashboard({
         }
         open={dayMechanismPickerOpen}
         currentTemplate={(conductorPaint ?? activeWeekTemplate) as WeekTemplateType}
+        currentTopN={selectedDayConfig?.topN}
         date={dayMechanismPickerTargetDate(selectedDate)}
         weekStart={targetTrainWeekStart}
         vrReporterCount={data.vrReporterCount}

@@ -83,6 +83,16 @@ export function isMemberEligibleForPaintRule(input: {
   if (source.kind === "donations_leaderboard") {
     return true;
   }
+  // Top VS / Top VR / event boards need live scores. Without that board,
+  // do not treat an on-roster conductor as ineligible — that blocked
+  // painting Top 10 over an existing pick.
+  if (
+    source.kind === "vs_leaderboard" ||
+    source.kind === "vr_leaderboard" ||
+    source.kind === "event_leaderboard"
+  ) {
+    return true;
+  }
   return false;
 }
 

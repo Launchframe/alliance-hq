@@ -47,11 +47,25 @@ describe("isMemberEligibleForPaintRule", () => {
     ).toBe(true);
   });
 
-  it("does not affirm Top VS eligibility without a live board", () => {
+  it("keeps an on-roster member for Top VS without a live board", () => {
     expect(
       isMemberEligibleForPaintRule({
         memberId: "m1",
         onRoster: true,
+        allianceRank: 3,
+        conductorMechanism: "vs_top_n",
+        paintTemplate: "top_vs",
+        date: "2026-08-12",
+        conductorConfig: { topN: 10 },
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects a departed member for Top VS", () => {
+    expect(
+      isMemberEligibleForPaintRule({
+        memberId: "m1",
+        onRoster: false,
         allianceRank: 3,
         conductorMechanism: "vs_top_n",
         paintTemplate: "top_vs",
@@ -264,5 +278,43 @@ describe("planPaintRuleConductorGates", () => {
       canUnlockConductor: false,
     });
     expect(plan.blockers[0]?.kind).toBe("clear");
+  });
+
+  it("does not block painting Top VS Top 10 over an assigned on-roster conductor", () => {
+    const plan = planPaintRuleConductorGates({
+      dates: ["2026-09-18"],
+      templateType: "top_vs",
+      trainWeekConfig,
+      weekTemplateApply: false,
+      topN: 10,
+      dayConfigs: [
+        {
+          date: "2026-09-18",
+          conductorMechanism: "vs_top_n",
+          paintTemplate: "top_vs",
+          conductorConfig: { topN: 1, paintTemplate: "top_vs" },
+          topN: 1,
+        },
+      ],
+      records: [
+        {
+          id: "r1",
+          date: "2026-09-18",
+          conductorMemberId: "m-jason",
+          conductorMemberName: "Jason19809",
+          vipMemberId: null,
+          vipMemberName: null,
+          conductorMechanism: "vs_top_n",
+          vipMechanism: "conductor_pick",
+          guardianIsVip: false,
+          lockedAt: null,
+          substituteForMemberId: null,
+          substituteForMemberName: null,
+        },
+      ],
+      roster: [{ memberId: "m-jason", allianceRank: 4 }],
+      canUnlockConductor: false,
+    });
+    expect(plan.blockers).toEqual([]);
   });
 });
