@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { parseOfficerChatText } from "@/lib/officer-intel/chat-ocr/parse-chat-text.shared";
 import { HISTORY_MESSAGE_LENGTH, HISTORY_MESSAGE_LIMIT, HISTORY_TEXT_BYTES, historyInitSchema, parseHistoryListCursor, parseHistoryText } from "./imports.shared";
+import { parseHistoryScreenshot } from "./import-parser.server";
 
 describe("history list cursors", () => {
   const cursor = { version: 1, scope: "alliance:author", updatedAt: "2026-09-15T12:00:00.123456Z", id: "source-one" };
@@ -15,6 +17,41 @@ describe("history list cursors", () => {
 });
 
 describe("reviewed history adapters", () => {
+  it("retains OCR text for review when noisy headers prevent sender parsing", () => {
+    const rawLines = ["Alliance", "[TESTJAlpha", "Groups setup and ready.", "[TEST|Beta", "First message"];
+    expect(parseHistoryScreenshot({ messages: [], rawLines }, "file-one", 2)).toEqual([{ sender: null, body: rawLines.slice(1).join("\n"), sentAt: null, externalId: null, sourceImageIndex: 2, locator: "file-one:ocr:0" }]);
+  });
+  it("preserves orphan preamble beside recognized messages without guessing its sender", () => {
+    const rawLines = ["Alliance", "[TESTJAlpha", "Groups setup and ready.", "[TEST]Beta", "First message"];
+    const result = parseHistoryScreenshot({ rawLines, messages: parseOfficerChatText(rawLines) }, "file-one", 2);
+    expect(result).toEqual([
+      { sender: null, body: "[TESTJAlpha\nGroups setup and ready.", sentAt: null, externalId: null, sourceImageIndex: 2, locator: "file-one:ocr:unattributed:0" },
+      { sender: "Beta", body: "First message", sentAt: null, externalId: null, sourceImageIndex: 2, locator: "file-one:ocr:0" },
+    ]);
+  });
+  it("redacts an identifier before splitting an unattributed OCR line", () => {
+    const text = "x".repeat(HISTORY_MESSAGE_LENGTH - 5) + " " + "1".repeat(14);
+    const result = parseHistoryScreenshot({ rawLines: [text], messages: [] }, "file-one", 0);
+    expect(result.map((row) => row.body).join("").includes("1111")).toBe(false);
+  });
+  it("keeps screenshot identity, byte and record bounds strict", () => {
+    expect(() => parseHistoryScreenshot({ rawLines: ["Text"], messages: [] }, "../file", 0)).toThrow();
+    expect(() => parseHistoryScreenshot({ rawLines: ["x".repeat(HISTORY_TEXT_BYTES + 1)], messages: [] }, "file", 0)).toThrow("invalid_import");
+    expect(() => parseHistoryScreenshot({ rawLines: [], messages: Array(HISTORY_MESSAGE_LIMIT + 1).fill({ senderName: "Alpha", originalText: "Text" }) }, "file", 0)).toThrow("import_limit");
+  });
+  it("keeps recognized messages and ignores an empty screenshot", () => {
+    expect(parseHistoryScreenshot({ messages: [{ senderName: "Alpha", originalText: "First message" }], rawLines: ["[TEST]Alpha", "First message"] }, "file-one", 0)[0]).toMatchObject({ sender: "Alpha", body: "First message", sourceImageIndex: 0 });
+    expect(parseHistoryScreenshot({ messages: [], rawLines: ["Alliance", "", "Send a message"] }, "file-one", 0)).toEqual([]);
+  });
+  it("bounds and redacts unattributed OCR without truncating Unicode text", () => {
+    const text = "x".repeat(HISTORY_MESSAGE_LENGTH - 1) + String.fromCodePoint(0x1d400) + "End";
+    const messages = parseHistoryScreenshot({ messages: [], rawLines: [text] }, "file-one", 1);
+    expect(messages.map((message) => message.body).join("")).toBe(text);
+    expect(messages.every((message) => message.body.length <= HISTORY_MESSAGE_LENGTH && message.sender === null && message.sourceImageIndex === 1)).toBe(true);
+    expect(new Set(messages.map((message) => message.locator)).size).toBe(messages.length);
+    const redacted = parseHistoryScreenshot({ messages: [], rawLines: [`Player ${"1".repeat(14)} token=example-secret`] }, "file-one", 1);
+    expect(redacted[0].body).not.toMatch(/\d{12,20}|example-secret/);
+  });
   it("requires checksummed compatible files and bounds total image bytes", () => {
     const file = { name: "capture.png", contentType: "image/png", size: 20 * 1024 * 1024, sha256: "a".repeat(64) };
     const input = { expectedScope: "alliance:author", requestId: "request-one", title: "History", kind: "screenshots", locale: "en-US", files: [file] };
