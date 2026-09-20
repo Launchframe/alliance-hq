@@ -2574,6 +2574,7 @@
       "imported": "Template imported.",
       "importedWithWarnings": "Template imported. {count} day(s) need a look for your lead time.",
       "importFailed": "Could not import that template.",
+      "alreadyImported": "This template has already been imported.",
       "sectionTitle": "Week templates",
       "sectionBody": "A template is seven day rules, one per weekday. Apply one to a week, or paint days individually.",
       "loading": "Loading templates\u2026",

@@ -266,6 +266,9 @@ export async function archiveRuleTemplate(input: {
         .update(schema.trainRuleTemplates)
         .set({
           archivedAt: input.archived ? new Date() : null,
+          shareCodeHash: null,
+          shareCodeHint: null,
+          sharedAt: null,
           updatedAt: new Date(),
         })
         .where(

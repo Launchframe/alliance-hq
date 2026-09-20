@@ -193,9 +193,14 @@ export function AllianceTrainTemplatesSettings({
         template?: { name: string };
         warnings?: Array<{ weekday: string }>;
         error?: string;
+        code?: string;
       };
       if (!res.ok) {
-        setImportError(body.error ?? t("importFailed"));
+        setImportError(
+          body.code === "already_imported"
+            ? t("alreadyImported")
+            : (body.error ?? t("importFailed")),
+        );
         return;
       }
       setImportCode("");

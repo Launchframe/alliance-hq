@@ -353,5 +353,132 @@ test.describe("Train template sharing", () => {
         })
       ).status(),
     ).toBe(403);
+    expect(
+      (
+        await request.get(
+          `/api/trains/rule-templates/import?code=${encodeURIComponent(code)}`,
+          { headers: { Cookie: member.cookieHeader } },
+        )
+      ).status(),
+    ).toBe(403);
+  });
+
+  test("archiving a shared template revokes its code and clears the hint", async ({
+    request,
+  }) => {
+    const author = await setupOfficer(request);
+    const importer = await setupOfficer(request);
+    const template = await createTemplate(request, author, "Shared then retired");
+    const code = await shareTemplate(request, author, template.id);
+
+    const imported = await request.post("/api/trains/rule-templates/import", {
+      headers: {
+        Cookie: importer.cookieHeader,
+        "Content-Type": "application/json",
+      },
+      data: { code },
+    });
+    expect(imported.status()).toBe(201);
+    const { template: copy } = await imported.json();
+
+    const archived = await request.delete(
+      `/api/trains/rule-templates/${template.id}`,
+      { headers: { Cookie: author.cookieHeader } },
+    );
+    expect(archived.ok(), await archived.text()).toBeTruthy();
+
+    expect(
+      (
+        await request.get(
+          `/api/trains/rule-templates/import?code=${encodeURIComponent(code)}`,
+          { headers: { Cookie: importer.cookieHeader } },
+        )
+      ).status(),
+    ).toBe(404);
+    expect(
+      (
+        await request.post("/api/trains/rule-templates/import", {
+          headers: {
+            Cookie: importer.cookieHeader,
+            "Content-Type": "application/json",
+          },
+          data: { code },
+        })
+      ).status(),
+    ).toBe(404);
+
+    const authorList = (
+      await (
+        await request.get("/api/trains/rule-templates", {
+          headers: { Cookie: author.cookieHeader },
+        })
+      ).json()
+    ).templates as Array<{ id: string; shareCodeHint: string | null }>;
+    const archivedRow = authorList.find((row) => row.id === template.id);
+    expect(archivedRow?.shareCodeHint).toBeNull();
+
+    const importerList = (
+      await (
+        await request.get("/api/trains/rule-templates", {
+          headers: { Cookie: importer.cookieHeader },
+        })
+      ).json()
+    ).templates;
+    expect(
+      importerList.some((row: { id: string }) => row.id === copy.id),
+    ).toBe(true);
+  });
+
+  test("a second import of the same code is rejected as already imported", async ({
+    request,
+  }) => {
+    const author = await setupOfficer(request);
+    const importer = await setupOfficer(request);
+    const template = await createTemplate(request, author, "Import me once");
+    const code = await shareTemplate(request, author, template.id);
+
+    const previewUrl = `/api/trains/rule-templates/import?code=${encodeURIComponent(code)}`;
+    const before = await (
+      await request.get(previewUrl, {
+        headers: { Cookie: importer.cookieHeader },
+      })
+    ).json();
+    expect(before.preview.alreadyImported).toBe(false);
+
+    const imported = await request.post("/api/trains/rule-templates/import", {
+      headers: {
+        Cookie: importer.cookieHeader,
+        "Content-Type": "application/json",
+      },
+      data: { code },
+    });
+    expect(imported.status()).toBe(201);
+
+    const after = await (
+      await request.get(previewUrl, {
+        headers: { Cookie: importer.cookieHeader },
+      })
+    ).json();
+    expect(after.preview.alreadyImported).toBe(true);
+
+    const repeat = await request.post("/api/trains/rule-templates/import", {
+      headers: {
+        Cookie: importer.cookieHeader,
+        "Content-Type": "application/json",
+      },
+      data: { code, name: `Renamed ${nanoid(4)}` },
+    });
+    expect(repeat.status()).toBe(409);
+    expect((await repeat.json()).code).toBe("already_imported");
+
+    const selfImport = await request.post("/api/trains/rule-templates/import", {
+      headers: {
+        Cookie: author.cookieHeader,
+        "Content-Type": "application/json",
+      },
+      data: { code, name: `Self copy ${nanoid(4)}` },
+    });
+    expect(selfImport.status()).toBe(409);
+    expect((await selfImport.json()).code).toBe("already_imported");
   });
 });
