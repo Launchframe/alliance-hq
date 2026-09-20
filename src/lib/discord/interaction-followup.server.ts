@@ -22,6 +22,17 @@ export function discordOriginalInteractionUrl(
   return `https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}/messages/@original`;
 }
 
+export async function sendDiscordFollowup(input: DiscordFollowupMessage & { applicationId: string; interactionToken: string }): Promise<boolean> {
+  const url = new URL(deliveryUrl(input.applicationId, input.interactionToken));
+  url.pathname = url.pathname.replace(/\/messages\/@original$/, "");
+  url.searchParams.set("wait", "true");
+  try {
+    const response = await fetch(url.toString(), { method: "POST", headers: { "Content-Type": "application/json" }, redirect: "error", signal: AbortSignal.timeout(10_000), body: JSON.stringify({ content: truncateDiscordContent(input.content), components: input.components ?? [], allowed_mentions: { parse: [] }, ...(input.ephemeral ? { flags: 64 } : {}) }) });
+    if (!response.ok) console.error("[discord] follow-up failed", { status: response.status });
+    return response.ok;
+  } catch { console.error("[discord] follow-up transport failed"); return false; }
+}
+
 function deliveryUrl(applicationId: string, interactionToken: string): string {
   const url = new URL(discordOriginalInteractionUrl(applicationId, interactionToken));
   if (process.env.E2E_TEST === "true" && !process.env.VERCEL && process.env.E2E_DISCORD_FOLLOWUP_ORIGIN) {

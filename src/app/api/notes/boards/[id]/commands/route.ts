@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireNoteBoardContext } from "@/lib/notes/board-access.server";
 import { notesErrorResponse } from "@/lib/notes/access.server";
-import { boardCommandSchema } from "@/lib/notes/board.shared";
+import { boardCommandSchema, summarizeNoteBoard } from "@/lib/notes/board.shared";
 import { executeNoteBoardCommand, noteBoardSnapshot } from "@/lib/notes/boards.server";
 import { KnowledgeAccessError } from "@/lib/notes/resources.server";
 
@@ -18,7 +18,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     } catch (error) {
       if (!(error instanceof KnowledgeAccessError) || error.code !== "changed") throw error;
       const response = await notesErrorResponse(error);
-      return NextResponse.json({ ...await response.json(), snapshot: await noteBoardSnapshot(context.actor, id) }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+      const snapshot = await noteBoardSnapshot(context.actor, id);
+      return NextResponse.json({ ...await response.json(), snapshot: new URL(request.url).searchParams.get("format") === "summary" ? summarizeNoteBoard(snapshot) : snapshot }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
     }
   } catch (error) { return notesErrorResponse(error); }
 }

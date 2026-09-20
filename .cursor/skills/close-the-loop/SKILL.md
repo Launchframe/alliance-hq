@@ -52,7 +52,7 @@ Do not skip step 4. Do not skip step 2 **unless** the maintainer is already past
 
 ### 1. Implement, open PR
 
-- One concern per branch/worktree (`./scripts/new-worktree.sh`).
+- One concern per topic branch in the primary clone. **Do not use worktrees unless explicitly requested by the maintainer for this task.** Parallel work and review workflows do not create an exception.
 - Land code + **approved** locales together; no inline user-facing English.
 - Open PR with summary + test plan. Keep draft only if maintainer agreed structure-first before copy.
 
@@ -63,7 +63,7 @@ Do not skip step 4. Do not skip step 2 **unless** the maintainer is already past
 
 ### 3. Run real-steel against the PR
 
-- Follow [real-steel](../real-steel/SKILL.md): worktree + `move_agent_to_root` once, then pass chain.
+- Follow [real-steel](../real-steel/SKILL.md): use the PR branch in the primary clone and serialize writing passes. Only an explicit maintainer request permits a worktree and `move_agent_to_root` into it.
 - Expect `real-steel-ready` when the chain completes without unresolved Criticals / copy blockers.
 
 ### 4. Evaluate Criticals, suggestions & nits
@@ -91,7 +91,7 @@ Read the Real Steel issue comment (and any follow-up threads).
 
 ### 5. Implement fixes to suggestions
 
-- Work in the PR worktree (not primary clone). Prefer the existing Real Steel worktree if still present; otherwise `./scripts/new-worktree.sh` (or refresh) for the PR branch. Prefer `move_agent_to_root` into that worktree when the environment allows.
+- Work on the PR branch in the primary clone after checking for unrelated WIP and other active writers. Coordinate or wait if the checkout is occupied. Create or use a linked worktree only when explicitly requested by the maintainer; an existing Real Steel worktree is not automatic permission.
 - Implement **Blocking** items only (plus maintainer-explicit extras).
 - For human Real Steel comments: react (`+1` / `-1` / `eyes`), fix valid items, prepare a concise reply — **post only when the maintainer asks** (or says “post the reply”).
 - Bot feedback: follow `address-pr-feedback` (post bot replies; keep human replies suggested unless told to post).
@@ -126,7 +126,7 @@ git fetch origin <baseRefName>
 
 Treat as conflicted when `mergeable` is `CONFLICTING`, `mergeStateStatus` is `DIRTY`, or a trial merge/rebase onto `origin/<baseRefName>` fails.
 
-If conflicted, **rebase onto that parent** in the PR worktree (never in the primary clone while another branch is checked out there):
+If conflicted, **rebase onto that parent** on the PR branch in the primary clone, with the required history-rewrite approval. Check for unrelated WIP and other writers first; do not switch their branch. Use a worktree only if the maintainer explicitly requested it:
 
 ```bash
 git fetch origin <baseRefName>

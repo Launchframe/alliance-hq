@@ -1,17 +1,18 @@
 import { createHash } from "node:crypto";
 import { nanoid } from "nanoid";
+import sharp from "sharp";
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { authCookieHeader, getE2eSql } from "./fixtures/db";
 import { playwrightAuthCookies } from "./fixtures/auth";
 import { createNotesFixture } from "./fixtures/notes";
 
 const hash = (data: Buffer) => createHash("sha256").update(data).digest("hex");
-async function staged(request: APIRequestContext, screenshots = false, invalid = false) {
+async function staged(request: APIRequestContext, screenshots = false, invalid = false, screenshotBytes?: Buffer) {
   const fixture = await createNotesFixture("officer");
   const headers = { Cookie: authCookieHeader(fixture.author) };
-  const bytes = screenshots ? Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j8n8AAAAASUVORK5CYII=", "base64") : Buffer.from(`Historical decision for Cookie. Player ${"1".repeat(14)} token=example-secret`);
+  const bytes = screenshots ? screenshotBytes ?? Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j8n8AAAAASUVORK5CYII=", "base64") : Buffer.from(`Historical decision for Cookie. Player ${"1".repeat(14)} token=example-secret`);
   const file = { name: screenshots ? "capture.png" : "history.txt", contentType: screenshots ? "image/png" : invalid ? "application/json" : "text/plain", size: bytes.length, sha256: hash(bytes) };
-  const input = { expectedScope: `${fixture.alliance.allianceId}:${fixture.author.hqUserId}`, requestId: nanoid(), title: "Reviewed history", kind: screenshots ? "screenshots" : invalid ? "discord_json" : "text", locale: "en-US", files: screenshots ? [file, file] : [file] };
+  const input = { expectedScope: `${fixture.alliance.allianceId}:${fixture.author.hqUserId}`, requestId: nanoid(), title: "Reviewed history", kind: screenshots ? "screenshots" : invalid ? "discord_json" : "text", locale: "en-US", files: screenshots && !screenshotBytes ? [file, file] : [file] };
   const created = await request.post("/api/notes/imports", { headers, data: input });
   expect(created.status(), await created.text()).toBe(200);
   const id = (await created.json()).importId as string;
@@ -26,6 +27,113 @@ async function staged(request: APIRequestContext, screenshots = false, invalid =
   expect((await command("finalize")).status()).toBe(200);
   return { ...fixture, id, input, bytes, headers, detail, command };
 }
+
+test("native screenshot OCR retains reviewable text without requiring parsed sender headers", async ({ request }) => {
+  test.setTimeout(120_000);
+  const lines = ["[TEST]Alpha", "Groups setup and ready.", "[TEST]Beta", "First message"];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320"><rect width="1200" height="320" fill="white"/>${lines.map((line, index) => `<text x="32" y="${64 + index * 64}" font-family="Arial" font-size="32" fill="black">${line}</text>`).join("")}</svg>`;
+  const image = await sharp(Buffer.from(svg)).png().toBuffer();
+  const value = await staged(request, true, false, image);
+  const processed = await request.post(`/api/notes/imports/${value.id}/process`, { headers: value.headers });
+  expect(processed.status(), await processed.text()).toBe(200);
+  const detail = await value.detail();
+  expect(detail.state).toBe("review");
+  expect(detail.messages.length).toBeGreaterThan(0);
+  expect(detail.messages.map((message: { body: string }) => message.body).join("\n")).toMatch(/Groups setup and ready/);
+  expect(detail.messages.every((message: { reviewed: boolean }) => !message.reviewed)).toBe(true);
+  expect((await request.get(`/api/notes/imports/${value.id}`, { headers: { Cookie: authCookieHeader(value.peer) } })).status()).toBe(404);
+  expect((await (await request.get("/api/notes?format=summary", { headers: value.headers })).json()).items).toHaveLength(0);
+  expect((await (await request.get("/api/notes/tasks", { headers: value.headers })).json()).tasks).toHaveLength(0);
+});
+
+test("older imports remain discoverable with stable scoped cursors and browser navigation", async ({ page, request }) => {
+  const { author, peer, alliance } = await createNotesFixture("officer");
+  const sql = getE2eSql();
+  const headers = { Cookie: authCookieHeader(author) };
+  const prefix = nanoid();
+  const seed = async (owner: string, id: string, title: string, archived = false, newer = false) => {
+    const resourceId = nanoid();
+    await sql`INSERT INTO knowledge_resources (id, alliance_id, kind, entity_id, ownership_state, owner_hq_user_id, owner_bound_at, archived_at)
+      VALUES (${resourceId}, ${alliance.allianceId}, 'source', ${id}, 'hq', ${owner}, now(), ${archived ? new Date() : null})`;
+    await sql`INSERT INTO officer_chat_sessions (id, alliance_id, resource_id, title, created_by_hq_user_id, status)
+      VALUES (${id}, ${alliance.allianceId}, ${resourceId}, ${title}, ${owner}, 'imported')`;
+    await sql`INSERT INTO knowledge_history_imports (id, alliance_id, resource_id, kind, locale, source_hash, state, updated_at)
+      VALUES (${id}, ${alliance.allianceId}, ${resourceId}, 'text', 'en-US', ${hash(Buffer.from(id))}, 'committed', ${newer ? "2026-09-16T12:00:00.123456Z" : "2026-09-15T12:00:00.123456Z"}::text::timestamptz)`;
+  };
+  for (let index = 0; index < 52; index++) await seed(author.hqUserId, `${prefix}_${String(index).padStart(3, "0")}`, `Archived source ${index}`);
+  await seed(peer.hqUserId, nanoid(), "Private peer source");
+  await seed(author.hqUserId, nanoid(), "Hidden archived source", true);
+  const firstResponse = await request.get("/api/notes/imports", { headers });
+  expect(firstResponse.status(), await firstResponse.text()).toBe(200);
+  const first = await firstResponse.json();
+  expect(first.imports).toHaveLength(50);
+  expect(JSON.parse(first.nextCursor).updatedAt).toBe("2026-09-15T12:00:00.123456Z");
+  expect(JSON.stringify(first)).not.toMatch(/Private peer source|Hidden archived source/);
+  expect(Object.keys(first.imports[0]).sort()).toEqual(["id", "kind", "state", "title", "updatedAt"]);
+  await seed(author.hqUserId, nanoid(), "Newest source", false, true);
+  const cursorUrl = `/api/notes/imports?${new URLSearchParams({ cursor: first.nextCursor })}`;
+  const secondResponse = await request.get(cursorUrl, { headers });
+  expect(secondResponse.status(), await secondResponse.text()).toBe(200);
+  const second = await secondResponse.json();
+  expect(second.imports.map((item: { id: string }) => item.id)).toEqual([`${prefix}_001`, `${prefix}_000`]);
+  expect(second.nextCursor).toBeNull();
+  expect((await request.get(cursorUrl)).status()).toBe(401);
+  expect((await request.get(cursorUrl, { headers: { Cookie: authCookieHeader(peer) } })).status()).toBe(403);
+  const outsider = await createNotesFixture("officer");
+  const otherHeaders = { Cookie: authCookieHeader(outsider.author) };
+  expect((await request.get(cursorUrl, { headers: otherHeaders })).status()).toBe(403);
+  expect((await (await request.get("/api/notes/imports", { headers: otherHeaders })).json()).imports).toHaveLength(0);
+  for (const cursor of ["{}", "x".repeat(701)]) expect((await request.get(`/api/notes/imports?${new URLSearchParams({ cursor })}`, { headers })).status()).toBe(400);
+  await page.context().addCookies(playwrightAuthCookies(author));
+  await page.goto("/notes?view=imports");
+  const next = page.getByRole("button", { name: "Next page", exact: true });
+  const previous = page.getByRole("button", { name: "Previous page", exact: true });
+  await expect(next).toBeEnabled();
+  await expect(previous).toBeDisabled();
+  const pagedList = (url: URL) => url.pathname === "/api/notes/imports" && url.searchParams.has("cursor");
+  await page.route(pagedList, (route) => route.fulfill({ status: 503, json: { error: "Fixture pagination unavailable" } }));
+  await next.click();
+  await expect(page.getByRole("alert").filter({ hasText: "Fixture pagination unavailable" })).toBeInViewport();
+  await expect(previous).toBeDisabled();
+  await page.unroute(pagedList);
+  await next.click();
+  const oldest = page.getByRole("button", { name: /^Archived source 0\b/ });
+  await expect(oldest).toBeVisible();
+  await expect(next).toBeDisabled();
+  await oldest.click();
+  await expect(page.getByRole("heading", { name: "Archived source 0", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "All imports", exact: true }).click();
+  await expect(oldest).toBeVisible();
+  await previous.click();
+  await expect(page.getByRole("button", { name: /^Newest source/ })).toBeVisible();
+  await next.click();
+  await expect(oldest).toBeVisible();
+  let release!: () => void;
+  let captured!: () => void;
+  let delivered!: () => void;
+  const delivery = new Promise<void>((resolve) => { delivered = resolve; });
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  const ready = new Promise<void>((resolve) => { captured = resolve; });
+  let intercepted = false;
+  await page.route(pagedList, async (route) => {
+    if (intercepted) return route.continue();
+    intercepted = true;
+    const response = await route.fetch();
+    captured();
+    await held;
+    try { await route.fulfill({ response }); } finally { delivered(); }
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await ready;
+  await sql`UPDATE alliance_memberships SET status = 'removed' WHERE alliance_id = ${alliance.allianceId} AND hq_user_id = ${author.hqUserId}`;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByRole("button", { name: /^Archived source/ })).toHaveCount(0);
+  await expect(page.getByTestId("notes-workspace")).toHaveCount(0);
+  release();
+  await delivery;
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await expect(page.getByRole("button", { name: /^Archived source/ })).toHaveCount(0);
+});
 
 test("browser paste review persists corrections and commits a private source", async ({ page }) => {
   const { author } = await createNotesFixture("officer");

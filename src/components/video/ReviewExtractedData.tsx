@@ -35,6 +35,7 @@ import {
 import {
   duplicateMemberRowIds,
   findDuplicateMemberAssignments,
+  liveScoreConflictRowIds,
 } from "@/lib/video/review-validation";
 import {
   findScoreGhostClusters,
@@ -371,7 +372,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   const [matchFilledFromOcr, setMatchFilledFromOcr] = useState(false);
   const [vsPeriod, setVsPeriod] = useState<VsScorePeriod>("daily");
   const [vsRevision, setVsRevision] = useState(0);
-  const vsSubmissionRequestId = useRef<string | null>(null);
+  const scoreSubmissionRequestId = useRef<string | null>(null);
+  const scoreSubmissionSignature = useRef<string | null>(null);
   const [recordedDate, setRecordedDate] = useState(
     () => presetRecordedDate ?? getServerCalendarDate(),
   );
@@ -1679,27 +1681,20 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [issueNavScrollOffsetPx],
   );
 
-  const assignedMemberIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const row of activeRows) {
-      const id = row.memberId?.trim();
-      if (id) ids.add(id);
+  const filteredRows = useMemo(() => {
+    const filtered = filterQuery.trim()
+      ? activeRows.filter(
+          (r) =>
+            r.ocrName.toLowerCase().includes(filterQuery.toLowerCase()) ||
+            (r.memberName?.toLowerCase().includes(filterQuery.toLowerCase()) ??
+              false),
+        )
+      : activeRows;
+    if (scoreTargetMeta?.showReviewRowNumber) {
+      return sortReviewRowsByScoreDesc(filtered);
     }
-    return ids;
-  }, [activeRows]);
-
-  const filteredRows = useMemo(
-    () =>
-      filterQuery.trim()
-        ? activeRows.filter(
-            (r) =>
-              r.ocrName.toLowerCase().includes(filterQuery.toLowerCase()) ||
-              (r.memberName?.toLowerCase().includes(filterQuery.toLowerCase()) ??
-                false),
-          )
-        : activeRows,
-    [activeRows, filterQuery],
-  );
+    return filtered;
+  }, [activeRows, filterQuery, scoreTargetMeta?.showReviewRowNumber]);
 
   const reviewFilterCount = useMemo(() => {
     if (scoreTargetMeta?.showDepositSlipColumns) {
@@ -1908,6 +1903,22 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     [activeRows],
   );
 
+  const liveScoreConflictIds = useMemo(
+    () =>
+      scoreTargetMeta?.showScoreColumn === false
+        ? new Set<string>()
+        : liveScoreConflictRowIds(
+            activeRows.map((row) => ({
+              id: row.id,
+              memberId: row.memberId,
+              ocrName: row.ocrName,
+              score: row.score,
+            })),
+            allianceTag,
+          ),
+    [activeRows, allianceTag, scoreTargetMeta?.showScoreColumn],
+  );
+
   const scoreGhostClusters = useMemo(() => {
     if (
       scoreTargetMeta?.showRosterColumns ||
@@ -2044,7 +2055,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           id: row.id,
           memberId: row.memberId,
           score: row.score,
-          scoreConflict: row.scoreConflict,
+          scoreConflict: liveScoreConflictIds.has(row.id),
         },
       ]),
     );
@@ -2067,6 +2078,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     depositSlipRowsForUi,
     dedupeReport,
     zeroScoreWarningDisabled,
+    liveScoreConflictIds,
   ]);
 
   const scrollToReviewProblemRow = useCallback(
@@ -2109,8 +2121,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
   } = useReviewIssueNav(reviewProblemRowIds, scrollToReviewProblemRow);
 
   const hasScoreConflicts =
-    scoreTargetMeta?.showScoreColumn !== false &&
-    activeRows.some((row) => row.scoreConflict);
+    scoreTargetMeta?.showScoreColumn !== false && liveScoreConflictIds.size > 0;
   const hasDuplicateMembers = duplicateMemberIssues.length > 0;
   const hasDuplicateOcrNames =
     scoreTargetMeta?.showRosterColumns && rosterValidation.hasDuplicateOcrNames;
@@ -2352,7 +2363,14 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
     try {
       const isRoster = scoreTargetMeta?.showRosterColumns;
       const isDepositSlip = scoreTargetMeta?.showDepositSlipColumns;
-      if (isVsPerformanceTarget && !vsSubmissionRequestId.current) vsSubmissionRequestId.current = crypto.randomUUID();
+      const usesOcrFeedback = isVsPerformanceTarget || isAllianceKillsVideoTarget(scoreTargetMeta?.id ?? "");
+      if (usesOcrFeedback) {
+        const signature = JSON.stringify([jobId, scoreTargetMeta?.id, isVsPerformanceTarget ? vsSafeRecordedDate : recordedDate, isVsPerformanceTarget ? vsPeriod : null, rows.map((row) => [row.id, row.ocrName, row.score, row.memberId, row.memberName, row.rank, row.deleted, row.frameIndex, scoreGhostDiscardRowIds.has(row.id)])]);
+        if (!scoreSubmissionRequestId.current || scoreSubmissionSignature.current !== signature) {
+          scoreSubmissionRequestId.current = crypto.randomUUID();
+          scoreSubmissionSignature.current = signature;
+        }
+      }
       const res = await fetch(`/api/tools/video-upload/${jobId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2382,7 +2400,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
             : recordedDate,
           vsPeriod: isVsPerformanceTarget ? vsPeriod : undefined,
           vsRevision: isVsPerformanceTarget ? vsRevision : undefined,
-          requestId: isVsPerformanceTarget ? vsSubmissionRequestId.current : undefined,
+          requestId: usesOcrFeedback ? scoreSubmissionRequestId.current : undefined,
+          ocrFeedbackVersion: usesOcrFeedback ? 1 : undefined,
           bankId: scoreTargetMeta?.showBankSelector ? bankId : undefined,
           rows: rows.map((r) => {
             const autoDiscardScoreGhost = scoreGhostDiscardRowIds.has(r.id);
@@ -2431,7 +2450,9 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     rank: scoreTargetMeta?.showReviewRowNumber
                       ? reviewLeaderboardRankById?.get(source.id) ?? null
                       : source.rank,
-                    deleted: source.deleted === 1 || autoDiscardScoreGhost,
+                    ocrName: usesOcrFeedback ? source.ocrName : undefined,
+                    frameIndex: usesOcrFeedback ? source.frameIndex : undefined,
+                    deleted: source.deleted === 1 || (!usesOcrFeedback && autoDiscardScoreGhost),
                   };
           }),
         }),
@@ -2471,7 +2492,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           ),
         );
       }
-      vsSubmissionRequestId.current = null;
+      scoreSubmissionRequestId.current = null;
       setSuccess(
         isVsPerformanceTarget && data.storage === "hq"
           ? `${t("vsSubmitSuccess", { count: data.submitted ?? 0 })}${data.syncStatus === "pending" ? ` ${t("vsSyncPending")}` : ""}`
@@ -3606,7 +3627,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
       <div className="space-y-4">
         {hasScoreConflicts ? (
-          <div className="rounded-xl border border-[#d29922]/40 bg-[#d29922]/10 p-4 text-sm text-[#e3b341]">
+          <div className="rounded-xl border border-hq-warning/40 bg-hq-warning/10 p-4 text-sm text-hq-warning">
             <p>{t("scoreConflictHint")}</p>
           </div>
         ) : null}
@@ -3902,6 +3923,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
           <tbody>
             {filteredRows.map((row) => {
               const isDuplicateMember = duplicateRowIds.has(row.id);
+              const isScoreConflict = liveScoreConflictIds.has(row.id);
               const isScoreGhost = scoreGhostDiscardRowIds.has(row.id);
               const isScoreGhostKeeper = scoreGhostKeeperRowIds.has(row.id);
               const rowCanVideoPreview =
@@ -3914,8 +3936,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   ? "border-t border-hq-border bg-[#388bfd10]"
                   : isScoreGhostKeeper
                     ? "border-t border-hq-border bg-[#388bfd08]"
-                    : row.scoreConflict
-                      ? "border-t border-hq-border bg-[#d2992210]"
+                    : isScoreConflict
+                      ? "border-t border-hq-border bg-hq-warning/10"
                       : "border-t border-hq-border";
 
               return (
@@ -3971,8 +3993,8 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   <div className="truncate" title={row.ocrName}>
                     {row.ocrName}
                   </div>
-                  {row.scoreConflict ? (
-                    <p className="mt-1 text-xs text-[#d29922]">
+                  {isScoreConflict ? (
+                    <p className="mt-1 text-xs text-hq-warning">
                       {t("scoreConflictRow")}
                     </p>
                   ) : null}
@@ -4020,7 +4042,6 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                       highlightMemberId: row.memberId,
                       highlightConfidence: row.matchConfidence,
                       selectedMembers: rows,
-                      excludeMemberIds: assignedMemberIds,
                     })}
                   />
                 </td>

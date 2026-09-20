@@ -37,6 +37,8 @@ vi.mock("@/lib/trains/repository", () => ({
   upsertConductorDraft: vi.fn(),
 }));
 
+vi.mock("@/lib/trains/boarding.server", async () => ({ lockConductorWithBoarding: (await import("@/lib/trains/repository")).lockConductorRecord }));
+
 vi.mock("@/lib/trains/rank-history", () => ({
   getMemberRankAsOf: vi.fn().mockResolvedValue({ id: "rank-1" }),
 }));
