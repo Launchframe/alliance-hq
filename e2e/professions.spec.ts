@@ -250,7 +250,7 @@ test.describe("Professions — War Leader Support", () => {
       officerCalls += 1;
       if (officerCalls > 1) return route.fulfill({ status: 200, json: payload });
       await new Promise<void>((resolve) => { releaseStale = resolve; });
-      try { await route.fulfill({ status: 503, json: { error: "Stale officer response" } }); } catch { /* aborted by retry */ }
+      try { await route.fulfill({ status: 503, json: { error: "Stale officer response" } }); } catch {}
       staleFinished = true;
     });
     await page.goto("/professions?tab=officer");

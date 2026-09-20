@@ -110,12 +110,15 @@ export function ProfessionsPage({
 
   useEffect(() => {
     if (tab !== "officer" || !isOfficer || !allianceId || !commanderId) return;
+    let active = true;
     let controller: AbortController | null = null;
     void Promise.resolve().then(() => {
+      if (!active) return;
       refreshOfficer();
       controller = officerRequest.current;
     });
     return () => {
+      active = false;
       if (controller && officerRequest.current === controller) {
         controller.abort();
         officerRequest.current = null;
