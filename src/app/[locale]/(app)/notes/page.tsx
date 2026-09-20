@@ -5,6 +5,7 @@ import { NotesClient } from "@/components/notes/NotesClient";
 import { getKnowledgeActorForSession } from "@/lib/notes/access.server";
 import { countCaptureDrafts } from "@/lib/notes/drafts.server";
 import { claimDiscordKnowledgeResources } from "@/lib/notes/resources.server";
+import { loadWorkspaceQuery } from "@/lib/notes/preferences.server";
 import { loadNotePageQuery } from "@/lib/notes/page-query.server";
 import { getPerformanceNoteDto, listPerformanceNoteRoster } from "@/lib/performance-notes/repository.server";
 import { requirePagePermission } from "@/lib/rbac/page-permission";
@@ -24,10 +25,11 @@ export default async function NotesPage({ searchParams }: { searchParams: Promis
   if (!actor) notFound();
   await claimDiscordKnowledgeResources(actor);
   const params = new URLSearchParams(Object.entries(await searchParams).flatMap(([key, value]) => value === undefined ? [] : [[key, Array.isArray(value) ? value[0] : value]]));
-  const [{ page, cursor }, roster, drafts, focusedNote] = await Promise.all([
-    loadNotePageQuery(actor, params),
+  const { preferences, filter, cursor } = await loadWorkspaceQuery(actor, params);
+  const [{ page, cursor: initialCursor }, roster, drafts, focusedNote] = await Promise.all([
+    loadNotePageQuery(actor, new URLSearchParams({ ...filter, ...(cursor ? { cursor: JSON.stringify(cursor) } : {}) })),
     listPerformanceNoteRoster(actor.allianceId), countCaptureDrafts(actor),
     params.get("note") ? getPerformanceNoteDto({ noteId: params.get("note")!, actor }) : null,
   ]);
-  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:list`} initial={{ ...page, roster, canCreate: actor.canCreate, canReadBoards: actor.canReadBoards, draftCount: drafts }} initialCursor={cursor} focusedNote={focusedNote} />;
+  return <NotesClient key={`${actor.allianceId}:${actor.hqUserId}:list`} initial={{ ...page, preferences, roster, canCreate: actor.canCreate, canReadBoards: actor.canReadBoards, draftCount: drafts }} initialCursor={initialCursor} focusedNote={focusedNote} />;
 }

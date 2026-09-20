@@ -24,10 +24,10 @@ export type HistoryImportSummary = { scope: string; id: string; title: string; k
 export type HistoryReviewRow = { id: string; sender: string | null; sentAt: string | null; body: string; included: boolean; reviewed: boolean; position: number };
 export type HistoryImportDetail = HistoryImportSummary & { messages: HistoryReviewRow[]; offset: number };
 export type HistoryImportListItem = Pick<HistoryImportSummary, "id" | "title" | "state" | "kind" | "updatedAt">;
-export type HistoryImportPage = { scope: string; imports: HistoryImportListItem[]; nextCursor: string | null };
+export type HistoryImportPage = { scope: string; imports: HistoryImportListItem[]; nextCursor: string | null; previousCursor: string | null };
 
 const identity = z.string().min(1).max(120).regex(/^[A-Za-z0-9_-]+$/);
-const historyListCursorSchema = z.object({ version: z.literal(1), scope: z.string().min(1).max(300), id: identity, updatedAt: z.iso.datetime({ precision: 6 }).refine((value) => !value.startsWith("0000-")) }).strict();
+const historyListCursorSchema = z.object({ version: z.literal(1), scope: z.string().min(1).max(300), id: identity, updatedAt: z.iso.datetime({ precision: 6 }).refine((value) => !value.startsWith("0000-")), direction: z.enum(["next", "previous"]).optional() }).strict();
 export type HistoryListCursor = z.infer<typeof historyListCursorSchema>;
 export function parseHistoryListCursor(raw: string | null): HistoryListCursor | null {
   return raw === null ? null : historyListCursorSchema.parse(JSON.parse(z.string().min(1).max(700).parse(raw)));

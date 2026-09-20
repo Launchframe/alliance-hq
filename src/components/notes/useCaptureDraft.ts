@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useNotesFetch } from "./NotesNavigation";
 import type { CaptureDraft, CaptureDraftState } from "@/lib/notes/drafts.shared";
 
 export function useCaptureDraft({ id, state, active, initialVersion = 0, sourceNoteId = null, sourceVersion = null }: {
   id: string; state: CaptureDraftState; active: boolean; initialVersion?: number; sourceNoteId?: string | null; sourceVersion?: number | null;
 }) {
   const t = useTranslations("notes");
+  const fetchNotes = useNotesFetch();
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const version = useRef(initialVersion);
@@ -23,11 +25,13 @@ export function useCaptureDraft({ id, state, active, initialVersion = 0, sourceN
       if (signal?.aborted) throw new Error(t("saveFailed"));
       setStatus("saving"); setError(null);
       try {
-        const response = await fetch(`/api/notes/drafts/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, signal, body: JSON.stringify({ expectedVersion: version.current, sourceNoteId, sourceVersion, state: snapshot }) });
+        const response = await fetchNotes(`/api/notes/drafts/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, signal, body: JSON.stringify({ expectedVersion: version.current, sourceNoteId, sourceVersion, state: snapshot }) });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error ?? t("saveFailed"));
         if (signal?.aborted) throw new Error(t("saveFailed"));
+        const created = version.current === 0;
         version.current = result.version; saved.current = serialized; setStatus("saved");
+        if (created) window.dispatchEvent(new Event("notes-workspace-refresh"));
         return result as CaptureDraft;
       } catch (failure) {
         if (!signal?.aborted) { setStatus("error"); setError(failure instanceof Error ? failure.message : t("saveFailed")); }
@@ -36,7 +40,7 @@ export function useCaptureDraft({ id, state, active, initialVersion = 0, sourceN
     });
     queue.current = operation;
     return operation;
-  }, [id, sourceNoteId, sourceVersion, t]);
+  }, [id, sourceNoteId, sourceVersion, t, fetchNotes]);
   const serialized = JSON.stringify(state);
   useEffect(() => {
     if (!active) return;
@@ -45,8 +49,9 @@ export function useCaptureDraft({ id, state, active, initialVersion = 0, sourceN
   }, [active, serialized, flush]);
   async function discard() {
     await queue.current.catch(() => undefined);
-    const response = await fetch(`/api/notes/drafts/${id}`, { method: "DELETE", signal: lifetime.current?.signal });
+    const response = await fetchNotes(`/api/notes/drafts/${id}`, { method: "DELETE", signal: lifetime.current?.signal });
     if (!response.ok) { const result = await response.json(); throw new Error(result.error ?? t("saveFailed")); }
+    window.dispatchEvent(new Event("notes-workspace-refresh"));
   }
   return { flush, discard, status, error };
 }

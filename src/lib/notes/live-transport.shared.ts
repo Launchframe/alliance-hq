@@ -6,7 +6,7 @@ export function notesBoardTransport(scope: Pick<NoteBoardSnapshot, "id" | "allia
   const close = () => { stream?.close(); stream = undefined; };
   return {
     load: async (signal) => {
-      const response = await fetch(`/api/notes/boards/${scope.id}`, { cache: "no-store", signal });
+      const response = await fetch(`/api/notes/boards/${scope.id}`, { cache: "no-store", signal, headers: { "X-Notes-Scope": `${scope.allianceId}:${scope.principalId}` } });
       const body = await response.json();
       if ([401, 403, 404].includes(response.status)) throw new SnapshotAccessRevoked(body.code);
       if (!response.ok) throw new Error(body.code ?? "failed");

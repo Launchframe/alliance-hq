@@ -169,6 +169,11 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 - Scheduled, focus, and interval list refreshes must not cancel explicit page navigation. Reuse the server-rendered initial page, cancel pending debounce work, and coalesce background refreshes until navigation settles.
 - Notes document/draft/publication-read 401/403 responses revoke the cached workspace; a single-resource 404 does not revoke unrelated notes. Abort outstanding list reads on revocation.
 - Malformed or foreign list cursors on Notes pages fall back to an authorized first page without hiding a readable document. API cursor validation stays strict; SSR passes only the accepted cursor to the client.
+- Notes preferences are private, versioned, and keyed by HQ user plus alliance. Valid URL state overrides saved defaults; malformed options fall back to saved state and foreign scope markers discard personal filters/cursors. Bodies, AI prompts, and resource focus IDs never belong in persisted view preferences.
+- Preference write conflicts pause autosaving until explicit retry; fetching a new version is not permission to silently overwrite another tab. Publication navigation offers discard/cancel only: creating a public preview remains an explicit action.
+- Notes components use the guarded navigation context, not raw router parameters, so browser Back cannot unmount dirty editors before confirmation. Each editor declares the URL keys that actually replace its content; nested task dialogs do not discard the parent note.
+- When using Next's patched native history methods, pass only custom state. Copying `__NA` into the payload makes Next treat the write as its own and skip router URL synchronization.
+- `X-Notes-Scope` fences requests from stale account/alliance views before mutations or ownership claims. It is optional for legacy clients and is never an authorization grant; Auth.js binding, RBAC, and knowledge-resource predicates remain mandatory.
 
 - Plunder Plan database suites: run `npx vitest run src/lib/plunder-plan --maxWorkers=1` with `PLUNDER_PLAN_DB_TEST=1` only after binding all three database URLs to the same guarded dedicated test database. Delivery tests mock Discord; never invoke live command registration or the authenticated delivery tick as an automated smoke test. Worktrees do not isolate the database.
 

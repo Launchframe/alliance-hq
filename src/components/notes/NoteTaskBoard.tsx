@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
-import { useSearchParams } from "next/navigation";
-import { notesWorkspaceLocation } from "@/lib/notes/workspace.shared";
+import { useNotesSearchParams, useNotesNavigation, useNotesFetch, useNotesDirtyState } from "./NotesNavigation";
 import { useRegisterPageHotkeys } from "@/components/hotkeys/HotkeyProvider";
 import { useLocale, useTranslations } from "next-intl";
 import { ArrowDown, ArrowUp, Plus, Share2 } from "lucide-react";
@@ -21,30 +20,25 @@ const MIME = "application/x-hq-note-task";
 export function NoteTaskBoard({ initial, onRevoked }: { initial: NoteBoardSnapshot; onRevoked: () => void }) {
   const t = useTranslations("notes");
   const locale = useLocale();
-  const params = useSearchParams();
+  const params = useNotesSearchParams(), navigation = useNotesNavigation(), fetchNotes = useNotesFetch();
   const transport = useMemo(() => notesBoardTransport({ id: initial.id, allianceId: initial.allianceId, principalId: initial.principalId }), [initial.id, initial.allianceId, initial.principalId]);
   const live = useVersionedSnapshot({ scope: `${initial.allianceId}:${initial.id}`, identity: initial.principalId, initial, transport });
-  const [group, setGroup] = useState(() => ["none", "assignee", "team"].includes(params.get("boardGroup") ?? "") ? params.get("boardGroup")! : "none");
-  const [layout, setLayout] = useState(params.get("boardLayout") === "list" ? "list" : "board");
-  const [closed, setClosed] = useState(params.get("boardClosed") === "1");
-  const [editing, setEditing] = useState<NoteTask | "new" | null>(() => initial.tasks.find((task) => task.id === params.get("task")) ?? null);
+  const board = live.snapshot;
+  const group = ["none", "assignee", "team"].includes(params.get("boardGroup") ?? "") ? params.get("boardGroup")! : "none";
+  const layout = params.get("boardLayout") === "list" ? "list" : "board";
+  const closed = params.get("boardClosed") === "1";
+  const editing: NoteTask | "new" | null = params.get("task") === "new" ? board?.canWrite ? "new" : null : board?.tasks.find((task) => task.id === params.get("task")) ?? null;
   const openTask = useCallback((task: NoteTask | "new" | null) => {
-    setEditing(task);
-    window.history.replaceState(null, "", notesWorkspaceLocation(window.location.pathname, window.location.search, { task: task && task !== "new" ? task.id : null }));
-  }, []);
-  function changeView(changes: { boardGroup?: string; boardLayout?: string; boardClosed?: string }) {
-    if (changes.boardGroup) setGroup(changes.boardGroup);
-    if (changes.boardLayout) setLayout(changes.boardLayout);
-    if (changes.boardClosed !== undefined) setClosed(changes.boardClosed === "1");
-    window.history.replaceState(null, "", notesWorkspaceLocation(window.location.pathname, window.location.search, changes));
-  }
+    navigation.change({ task: task === "new" ? "new" : task?.id ?? null }, task === null, task === null);
+  }, [navigation]);
+  function changeView(changes: { boardGroup?: string; boardLayout?: string; boardClosed?: string }) { navigation.change(changes); }
   const [renaming, setRenaming] = useState<{ name: string; version: number } | null>(null);
   const [pending, setPending] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sharing, setSharing] = useState<NoteTask[] | null>(null);
   const [selected, setSelected] = useState("");
   const [removing, setRemoving] = useState<{ task: NoteTask; version: number } | null>(null);
-  const board = live.snapshot;
+  useNotesDirtyState({ dirty: !!renaming && renaming.name !== board?.name, busy: pending, keys: ["pathname", "view", "board"], discard: () => setRenaming(null) });
   useEffect(() => { if (live.revoked) onRevoked(); }, [live.revoked, onRevoked]);
   const hotkeys = useMemo(() => ({ "notes.newTask": () => { if (board?.canWrite) openTask("new"); } }), [board?.canWrite, openTask]);
   useRegisterPageHotkeys(hotkeys, !editing && !renaming && !sharing && !removing && !live.revoked);
@@ -53,7 +47,7 @@ export function NoteTaskBoard({ initial, onRevoked }: { initial: NoteBoardSnapsh
   async function command(values: Record<string, unknown>, version = currentBoard.version, key = "board") {
     setPending(true); setErrors((current) => ({ ...current, [key]: "" }));
     try {
-      const response = await fetch(`/api/notes/boards/${currentBoard.id}/commands`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...values, expectedVersion: version, requestId: typeof values.requestId === "string" ? values.requestId : crypto.randomUUID() }) });
+      const response = await fetchNotes(`/api/notes/boards/${currentBoard.id}/commands`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...values, expectedVersion: version, requestId: typeof values.requestId === "string" ? values.requestId : crypto.randomUUID() }) });
       const payload = await response.json();
       if (!response.ok) { if (response.status === 409) await live.refresh(payload.snapshot?.version); throw new Error(payload.code === "changed" ? t("boards.changed") : payload.error ?? t("saveFailed")); }
       await live.refresh(payload.version);
@@ -63,7 +57,7 @@ export function NoteTaskBoard({ initial, onRevoked }: { initial: NoteBoardSnapsh
   async function saveTask(input: TaskCreate | TaskPatch, id?: string) {
     if (!id) await command({ kind: "create", task: input, requestId: input.requestId });
     else {
-      const response = await fetch(`/api/notes/tasks/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+      const response = await fetchNotes(`/api/notes/tasks/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.code === "changed" ? t("boards.changed") : payload.error ?? t("saveFailed"));
       await live.refresh();
@@ -84,7 +78,7 @@ export function NoteTaskBoard({ initial, onRevoked }: { initial: NoteBoardSnapsh
   }
   async function openSharing() {
     try {
-      const response = await fetch("/api/notes/tasks?personalOnly=1", { cache: "no-store" });
+      const response = await fetchNotes("/api/notes/tasks?personalOnly=1", { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? t("loadFailed"));
       setSharing(payload.tasks.filter((task: NoteTask) => task.isOwner && !currentBoard.tasks.some((item) => item.id === task.id))); setSelected("");

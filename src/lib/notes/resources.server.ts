@@ -103,6 +103,9 @@ export async function touchKnowledgeResource(tx: KnowledgeTransaction, resourceI
 }
 
 export async function remapKnowledgeUser(tx: KnowledgeTransaction, sourceId: string, canonicalId: string) {
+  await tx.execute(sql`insert into knowledge_workspace_preferences(hq_user_id, alliance_id, state, version, updated_at)
+    select ${canonicalId}, alliance_id, state, version, updated_at from knowledge_workspace_preferences where hq_user_id = ${sourceId}
+    on conflict (hq_user_id, alliance_id) do nothing`);
   await tx.update(schema.knowledgeResources).set({
     ownerHqUserId: canonicalId, accessVersion: sql`${schema.knowledgeResources.accessVersion} + 1`,
     version: sql`${schema.knowledgeResources.version} + 1`, updatedAt: new Date(),

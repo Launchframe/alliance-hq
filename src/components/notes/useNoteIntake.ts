@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { useNotesFetch } from "./NotesNavigation";
 import { intakeResultIsCurrent, type IntakePreference, type IntakeResult } from "@/lib/notes/intake.shared";
 
 export function useNoteIntake({ draftId, body, revision, overrideRevision, active, onResult }: { draftId: string; body: string; revision: number; overrideRevision: number; active: boolean; onResult: (result: IntakeResult) => void }) {
   const locale = useLocale();
   const t = useTranslations("notes");
+  const fetchNotes = useNotesFetch();
   const [preference, setPreference] = useState<IntakePreference | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -16,14 +18,14 @@ export function useNoteIntake({ draftId, body, revision, overrideRevision, activ
     const controller = new AbortController();
     void (async () => {
       try {
-        const response = await fetch("/api/notes/intake/preferences", { cache: "no-store", signal: controller.signal });
+        const response = await fetchNotes("/api/notes/intake/preferences", { cache: "no-store", signal: controller.signal });
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error ?? t("loadFailed"));
         if (!controller.signal.aborted) setPreference(payload);
       } catch (failure) { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : t("loadFailed")); }
     })();
     return () => controller.abort();
-  }, [t]);
+  }, [t, fetchNotes]);
   useEffect(() => {
     if (!active || !preference?.enabled || !preference.configured || !body.trim() || body.length > 10_000) return;
     const controller = new AbortController();
@@ -31,7 +33,7 @@ export function useNoteIntake({ draftId, body, revision, overrideRevision, activ
       setPending(true); setError(null);
       try {
         for (let attempt = 0; attempt < 30 && !controller.signal.aborted; attempt++) {
-          const response = await fetch("/api/notes/intake/interpret", {
+          const response = await fetchNotes("/api/notes/intake/interpret", {
             method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
             body: JSON.stringify({ draftId, body, revision, overrideRevision, locale }),
           });
@@ -53,12 +55,12 @@ export function useNoteIntake({ draftId, body, revision, overrideRevision, activ
       finally { if (!controller.signal.aborted) setPending(false); }
     }, 650);
     return () => { controller.abort(); window.clearTimeout(timer); };
-  }, [active, body, draftId, revision, overrideRevision, onResult, locale, preference, t]);
+  }, [active, body, draftId, revision, overrideRevision, onResult, locale, preference, t, fetchNotes]);
   async function setEnabled(enabled: boolean) {
     if (!preference || changing) return;
     setChanging(true); setPendingEnabled(enabled); setError(null);
     try {
-      const response = await fetch("/api/notes/intake/preferences", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled, expectedVersion: preference.version }) });
+      const response = await fetchNotes("/api/notes/intake/preferences", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled, expectedVersion: preference.version }) });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? t("intake.failed"));
       setPreference(payload);

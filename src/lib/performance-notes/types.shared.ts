@@ -60,11 +60,13 @@ export type NotesListPage = {
   scope: string;
   items: PerformanceNoteSummary[];
   nextCursor: string | null;
+  previousCursor: string | null;
   filter: import("@/lib/notes/workspace.shared").NoteListFilter;
   counts: Record<"notebook" | "inbox" | "shared" | "archived", number>;
   notebooks: string[];
 };
 export type NotesWorkspacePayload = NotesListPage & {
+  preferences: import("@/lib/notes/workspace.shared").WorkspacePreferences;
   roster: PerformanceNoteRosterMember[];
   canCreate: boolean;
   canReadBoards: boolean;

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, count, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb, schema } from "@/lib/db";
 import { deleteObject, putObject, r2Configured } from "@/lib/storage";
@@ -52,14 +52,17 @@ export async function historyImportDetail(actor: KnowledgeWebActor, id: string, 
 export async function listHistoryImports(actor: KnowledgeWebActor, cursor: HistoryListCursor | null = null): Promise<HistoryImportPage> {
   const scope = `${actor.allianceId}:${actor.hqUserId}`;
   if (cursor && cursor.scope !== scope) throw new KnowledgeAccessError("forbidden");
+  const backwards = cursor?.direction === "previous", order = backwards ? asc : desc, comparison = backwards ? sql`>` : sql`<`;
   const rows = await getDb().select({ record: imports, title: schema.officerChatSessions.title, cursorTime: sql<string>`to_char(${imports.updatedAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')` }).from(imports)
     .innerJoin(schema.officerChatSessions, eq(schema.officerChatSessions.id, imports.id))
-    .where(and(ownerAccess(actor), cursor ? sql`(${imports.updatedAt}, ${imports.id}) < (${cursor.updatedAt}::text::timestamptz, ${cursor.id})` : undefined))
-    .orderBy(desc(imports.updatedAt), desc(imports.id)).limit(HISTORY_IMPORT_PAGE_SIZE + 1);
+    .where(and(ownerAccess(actor), cursor ? sql`(${imports.updatedAt}, ${imports.id}) ${comparison} (${cursor.updatedAt}::text::timestamptz, ${cursor.id})` : undefined))
+    .orderBy(order(imports.updatedAt), order(imports.id)).limit(HISTORY_IMPORT_PAGE_SIZE + 1);
   const page = rows.slice(0, HISTORY_IMPORT_PAGE_SIZE);
-  const last = page.at(-1);
+  if (backwards) page.reverse();
+  const makeCursor = (row: typeof rows[number] | undefined, direction: "next" | "previous") => row ? JSON.stringify({ version: 1, scope, id: row.record.id, updatedAt: row.cursorTime, direction } satisfies HistoryListCursor) : null;
   return { scope, imports: page.map(({ record, title, cursorTime }) => ({ id: record.id, title: redactIntakeText(title), state: record.state, kind: record.kind, updatedAt: cursorTime })),
-    nextCursor: rows.length > HISTORY_IMPORT_PAGE_SIZE && last ? JSON.stringify({ version: 1, scope, id: last.record.id, updatedAt: last.cursorTime } satisfies HistoryListCursor) : null };
+    nextCursor: (backwards ? !!cursor : rows.length > HISTORY_IMPORT_PAGE_SIZE) ? makeCursor(page.at(-1), "next") : null,
+    previousCursor: (backwards ? rows.length > HISTORY_IMPORT_PAGE_SIZE : !!cursor) ? makeCursor(page[0], "previous") : null };
 }
 export async function initializeHistoryImport(actor: KnowledgeWebActor, raw: HistoryInit) {
   if (!actor.canCreate || !actor.hqUserId) throw new KnowledgeAccessError("forbidden");
