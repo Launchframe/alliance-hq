@@ -1,14 +1,17 @@
 import "server-only";
 
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { escapeLikePrefix } from "@/lib/admin/audit-query";
+import { knowledgeHash } from "@/lib/notes/mutations.server";
+import { isPlaceholderOnlySearchQuery } from "@/lib/notes/search.shared";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
 import { knowledgeActorOwnsResource, type KnowledgeAccess, type KnowledgeActor } from "@/lib/notes/policy.shared";
 import { createKnowledgeResource, knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, touchKnowledgeResource, type KnowledgeTransaction } from "@/lib/notes/resources.server";
-import type { NoteFields, NotePatch } from "@/lib/notes/workspace.shared";
+import { NOTE_LIST_PAGE_SIZE, noteListFilterSchema, noteTitle, noteExcerpt, type NoteFields, type NotePatch, type NoteListFilter, type NoteListCursor } from "@/lib/notes/workspace.shared";
 import { redactIntakeText } from "@/lib/notes/intake.shared";
-import type { PerformanceNoteDto, PerformanceNoteIntakeMode, PerformanceNoteKind, PerformanceNoteRosterMember } from "./types.shared";
+import type { PerformanceNoteDto, PerformanceNoteIntakeMode, PerformanceNoteKind, PerformanceNoteRosterMember, PerformanceNoteSummary, NotesListPage } from "./types.shared";
 
 function isNoteKind(value: string): value is PerformanceNoteKind {
   return value === "commendation" || value === "violation" || value === "note";
@@ -201,8 +204,48 @@ export async function listPerformanceNotes(actor: KnowledgeActor): Promise<Perfo
   const rows = await getDb().select(noteSelection(actor)).from(schema.performanceNotes)
     .innerJoin(schema.knowledgeResources, resourceJoin)
     .where(and(eq(schema.performanceNotes.allianceId, actor.allianceId), isNull(schema.performanceNotes.expungedAt), knowledgeAccessCondition(actor, schema.performanceNotes.resourceId)))
-    .orderBy(desc(schema.performanceNotes.updatedAt), desc(schema.performanceNotes.id));
+    .orderBy(desc(schema.performanceNotes.updatedAt), desc(schema.performanceNotes.id)).limit(NOTE_LIST_PAGE_SIZE);
   return noteDtos(actor, rows.map(readableNote));
+}
+
+function noteSummary(note: PerformanceNoteDto): PerformanceNoteSummary {
+  return { id: note.id, kind: note.kind, title: noteTitle(note), excerpt: noteExcerpt(note.body), priority: note.priority, labels: note.labels,
+    notebook: note.notebook, inbox: note.inbox, archived: note.archived, source: note.source, createdAt: note.createdAt, updatedAt: note.updatedAt,
+    version: note.version, canEdit: note.canEdit, isOwner: note.isOwner, shared: note.shared, members: note.members };
+}
+export async function listPerformanceNotePage(actor: KnowledgeActor, raw: NoteListFilter, cursor: NoteListCursor | null = null): Promise<NotesListPage> {
+  if (actor.kind !== "web" || !actor.hqUserId) throw new KnowledgeAccessError("forbidden");
+  const filter = noteListFilterSchema.parse(raw);
+  filter.q = redactIntakeText(filter.q);
+  const scope = `${actor.allianceId}:${actor.hqUserId}`;
+  const key = knowledgeHash([filter.view, filter.q, filter.notebook, filter.source, filter.priority, filter.sort]);
+  if (cursor && cursor.scope !== scope) throw new KnowledgeAccessError("forbidden");
+  if (cursor && cursor.key !== key) throw new KnowledgeAccessError("invalid");
+  const n = schema.performanceNotes, r = schema.knowledgeResources;
+  const owned = knowledgeAccessCondition(actor, n.resourceId, "share");
+  const readable = and(eq(n.allianceId, actor.allianceId), isNull(n.expungedAt), knowledgeAccessCondition(actor, n.resourceId));
+  const inView = filter.view === "archived" ? sql`${owned} and ${r.archivedAt} is not null`
+    : sql`${r.archivedAt} is null and ${filter.view === "shared" ? sql`not (${owned})` : filter.view === "inbox" ? sql`${owned} and ${n.inbox}` : owned}`;
+  const rank = sql<number>`case ${n.priority} when 'urgent' then 4 when 'high' then 3 when 'medium' then 2 when 'low' then 1 else 0 end`;
+  const text = sql`notes_search_text(notes_document_text(${n.title}, ${n.body}, ${n.keyDecisions}, ${n.openQuestions}) || ' ' || coalesce((select string_agg(label, ' ') from jsonb_array_elements_text(${n.labels}) labels(label)), '') || ' ' || coalesce((select string_agg(m.member_name_raw, ' ') from performance_note_members m where m.note_id = ${n.id} and m.alliance_id = ${actor.allianceId}), ''))`;
+  const boundary = cursor ? filter.sort === "priority"
+    ? sql`(${rank}, ${n.updatedAt}, ${n.id}) < (${cursor.rank}, ${cursor.updatedAt}::text::timestamptz, ${cursor.id})`
+    : sql`(${n.updatedAt}, ${n.id}) < (${cursor.updatedAt}::text::timestamptz, ${cursor.id})` : undefined;
+  const db = getDb();
+  const [rows, totals] = await Promise.all([
+    db.select({ ...noteSelection(actor), cursorTime: sql<string>`to_char(${n.updatedAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`, rank }).from(n).innerJoin(r, resourceJoin)
+      .where(and(readable, inView, filter.notebook ? and(owned, eq(n.notebook, filter.notebook)) : undefined,
+        filter.source ? eq(n.source, filter.source) : undefined, filter.priority === "all" ? undefined : filter.priority === "none" ? isNull(n.priority) : eq(n.priority, filter.priority),
+        filter.q ? isPlaceholderOnlySearchQuery(filter.q) ? sql`false` : sql`${text} ilike ${`%${escapeLikePrefix(filter.q)}%`} escape '\\'` : undefined, boundary))
+      .orderBy(...(filter.sort === "priority" ? [desc(rank)] : []), desc(n.updatedAt), desc(n.id)).limit(NOTE_LIST_PAGE_SIZE + 1),
+    db.select({ notebook: sql<number>`count(*) filter (where ${owned} and ${r.archivedAt} is null)`, inbox: sql<number>`count(*) filter (where ${owned} and ${n.inbox} and ${r.archivedAt} is null)`,
+      shared: sql<number>`count(*) filter (where not (${owned}) and ${r.archivedAt} is null)`, archived: sql<number>`count(*) filter (where ${owned} and ${r.archivedAt} is not null)`,
+      notebooks: sql<string[] | null>`array_agg(distinct ${n.notebook}) filter (where ${owned} and ${r.archivedAt} is null and ${n.notebook} is not null)` }).from(n).innerJoin(r, resourceJoin).where(readable),
+  ]);
+  const page = rows.slice(0, NOTE_LIST_PAGE_SIZE), last = page.at(-1), counts = totals[0];
+  return { scope, filter, items: (await noteDtos(actor, page.map(readableNote))).map(noteSummary),
+    counts: { notebook: Number(counts.notebook), inbox: Number(counts.inbox), shared: Number(counts.shared), archived: Number(counts.archived) }, notebooks: counts.notebooks ?? [],
+    nextCursor: rows.length > NOTE_LIST_PAGE_SIZE && last ? JSON.stringify({ version: 1, scope, key, id: last.note.id, updatedAt: last.cursorTime, rank: Number(last.rank) } satisfies NoteListCursor) : null };
 }
 
 export async function getPerformanceNoteDto(input: { noteId: string; actor: KnowledgeActor }): Promise<PerformanceNoteDto | null> {
