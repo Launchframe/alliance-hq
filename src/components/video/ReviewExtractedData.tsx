@@ -3627,7 +3627,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
 
       <div className="space-y-4">
         {hasScoreConflicts ? (
-          <div className="rounded-xl border border-[#d29922]/40 bg-[#d29922]/10 p-4 text-sm text-[#e3b341]">
+          <div className="rounded-xl border border-hq-warning/40 bg-hq-warning/10 p-4 text-sm text-hq-warning">
             <p>{t("scoreConflictHint")}</p>
           </div>
         ) : null}
@@ -3937,7 +3937,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                   : isScoreGhostKeeper
                     ? "border-t border-hq-border bg-[#388bfd08]"
                     : isScoreConflict
-                      ? "border-t border-hq-border bg-[#d2992210]"
+                      ? "border-t border-hq-border bg-hq-warning/10"
                       : "border-t border-hq-border";
 
               return (
@@ -3994,7 +3994,7 @@ export function ReviewExtractedData({ jobId, viewMode = "review" }: Props) {
                     {row.ocrName}
                   </div>
                   {isScoreConflict ? (
-                    <p className="mt-1 text-xs text-[#d29922]">
+                    <p className="mt-1 text-xs text-hq-warning">
                       {t("scoreConflictRow")}
                     </p>
                   ) : null}

@@ -123,13 +123,32 @@ describe("liveScoreConflictRowIds", () => {
     ).toBe(0);
   });
 
-  it("does not flag a matched row against an unmatched same-name leftover", () => {
-    // Identity keys split at match time: leftover stays an unmatched problem row.
+  it("keeps the conflict when one same-name sibling is matched and one is not", () => {
+    const ids = liveScoreConflictRowIds([
+      { id: "r1", memberId: "m1", ocrName: "Freddy", score: "100" },
+      { id: "r2", memberId: null, ocrName: "Freddy", score: "200" },
+    ]);
+    expect([...ids].sort()).toEqual(["r1", "r2"]);
+  });
+
+  it("does not join an unmatched leftover when two members share that OCR name", () => {
     expect(
       liveScoreConflictRowIds([
         { id: "r1", memberId: "m1", ocrName: "Freddy", score: "100" },
-        { id: "r2", memberId: null, ocrName: "Freddy", score: "200" },
+        { id: "r2", memberId: "m2", ocrName: "Freddy", score: "200" },
+        { id: "r3", memberId: null, ocrName: "Freddy", score: "300" },
       ]).size,
     ).toBe(0);
+  });
+
+  it("joins a decorated matched name to an unmatched leftover via alliance tag", () => {
+    const ids = liveScoreConflictRowIds(
+      [
+        { id: "r1", memberId: "m1", ocrName: "[LFgo]Freddy", score: "100" },
+        { id: "r2", memberId: null, ocrName: "Freddy", score: "200" },
+      ],
+      "LFgo",
+    );
+    expect([...ids].sort()).toEqual(["r1", "r2"]);
   });
 });

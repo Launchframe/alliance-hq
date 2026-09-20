@@ -58,25 +58,59 @@ export function duplicateMemberRowIds(issues: DuplicateMemberIssue[]): Set<strin
  * time; that flag must not stay sticky after the officer deletes or edits the
  * conflicting sibling (same member / same OCR name with different scores).
  * Equal scores for the same member are duplicate-member, not conflict.
+ *
+ * An unmatched leftover with the same sanitized OCR name joins the matched
+ * member group when exactly one member has that name, so matching one sibling
+ * does not clear the conflict while the other score is still sitting unmatched.
+ * Two different members who share an OCR name stay separate.
  */
 export function liveScoreConflictRowIds(
   rows: ScoreConflictReviewRow[],
   allianceTag?: string | null,
 ): Set<string> {
-  const byKey = new Map<string, ScoreConflictReviewRow[]>();
+  const memberGroups = new Map<string, ScoreConflictReviewRow[]>();
+  const unmatchedByName = new Map<string, ScoreConflictReviewRow[]>();
 
   for (const row of rows) {
-    const key = row.memberId
-      ? `member:${row.memberId}`
-      : `ocr:${sanitizedNameKey(row.ocrName, allianceTag)}`;
-    if (!row.memberId && key === "ocr:") continue;
-    const group = byKey.get(key) ?? [];
+    if (row.memberId) {
+      const group = memberGroups.get(row.memberId) ?? [];
+      group.push(row);
+      memberGroups.set(row.memberId, group);
+      continue;
+    }
+    const nameKey = sanitizedNameKey(row.ocrName, allianceTag);
+    if (!nameKey) continue;
+    const group = unmatchedByName.get(nameKey) ?? [];
     group.push(row);
-    byKey.set(key, group);
+    unmatchedByName.set(nameKey, group);
+  }
+
+  const memberIdsByName = new Map<string, string[]>();
+  for (const [memberId, group] of memberGroups) {
+    const names = new Set(
+      group
+        .map((row) => sanitizedNameKey(row.ocrName, allianceTag))
+        .filter((name) => name.length > 0),
+    );
+    for (const name of names) {
+      const memberIds = memberIdsByName.get(name) ?? [];
+      memberIds.push(memberId);
+      memberIdsByName.set(name, memberIds);
+    }
+  }
+
+  const groups: ScoreConflictReviewRow[][] = [...memberGroups.values()];
+  for (const [nameKey, unmatched] of unmatchedByName) {
+    const memberIds = memberIdsByName.get(nameKey) ?? [];
+    if (memberIds.length === 1) {
+      memberGroups.get(memberIds[0]!)!.push(...unmatched);
+      continue;
+    }
+    groups.push(unmatched);
   }
 
   const conflictIds = new Set<string>();
-  for (const group of byKey.values()) {
+  for (const group of groups) {
     if (group.length < 2) continue;
     const distinctScores = new Set(
       group.map((row) => normalizeScoreValue(row.score ?? "")),

@@ -569,6 +569,23 @@ function VideoBody({
     // buffering without a gesture. Native controls can still unmute afterward.
     if (node) node.muted = true;
   };
+  const video = (
+    <video
+      key={mediaGeneration}
+      ref={bindVideoRef}
+      src={src}
+      controls
+      playsInline
+      muted
+      autoPlay
+      preload="auto"
+      className={
+        zoom === "width"
+          ? "block h-auto w-full max-w-full"
+          : "h-full w-full max-w-full object-contain"
+      }
+    />
+  );
 
   if (zoom === "width") {
     return (
@@ -580,37 +597,14 @@ function VideoBody({
         <p className="pointer-events-none absolute left-0 right-0 top-1 z-[1] px-2 text-center text-[10px] text-hq-fg-muted/90">
           {panHintLabel}
         </p>
-        <video
-          key={mediaGeneration}
-          ref={bindVideoRef}
-          src={src}
-          controls
-          playsInline
-          muted
-          autoPlay
-          preload="auto"
-          className="block h-auto w-full max-w-full"
-        />
+        {video}
       </div>
     );
   }
 
   return (
-    <div
-      ref={bodyRef}
-      className="relative min-h-0 flex-1 overflow-x-hidden"
-    >
-      <video
-        key={mediaGeneration}
-        ref={bindVideoRef}
-        src={src}
-        controls
-        playsInline
-        muted
-        autoPlay
-        preload="auto"
-        className="h-full w-full max-w-full object-contain"
-      />
+    <div ref={bodyRef} className="relative min-h-0 flex-1 overflow-x-hidden">
+      {video}
     </div>
   );
 }
