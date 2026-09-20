@@ -17,7 +17,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-import { sql } from "drizzle-orm";
+import { isNull, sql } from "drizzle-orm";
 import type { KnowledgeOwnershipState, KnowledgeResourceKind, KnowledgeGrant } from "@/lib/notes/policy.shared";
 import type { NoteFields } from "@/lib/notes/workspace.shared";
 import type { IntakeResult } from "@/lib/notes/intake.shared";
@@ -3205,10 +3205,9 @@ export const trainRuleTemplates = pgTable(
       .notNull(),
   },
   (table) => [
-    unique("train_rule_templates_alliance_name_unique").on(
-      table.allianceId,
-      table.name,
-    ),
+    uniqueIndex("train_rule_templates_alliance_name_unique")
+      .on(table.allianceId, table.name)
+      .where(isNull(table.archivedAt)),
   ],
 );
 

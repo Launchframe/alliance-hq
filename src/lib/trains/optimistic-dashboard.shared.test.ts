@@ -417,3 +417,53 @@ describe("conductor swap", () => {
     expect(dayB?.lockedAt).toBe("2026-06-12T12:00:00.000Z");
   });
 });
+
+describe("partial day paint", () => {
+  it("preserves an event VIP on a conductor-only paint", () => {
+    const painted = patchDayConfigsForDates(
+      [dayConfig("2026-06-10", R4)],
+      ["2026-06-10"],
+      { conductorRule: { kind: "vs_top_n", topN: 5 } },
+    );
+    expect(painted[0]?.conductorRule).toEqual({ kind: "vs_top_n", topN: 5 });
+    expect(painted[0]?.vipRule).toEqual(R4.vipRule);
+  });
+
+  it("preserves the conductor rule on a VIP-only paint", () => {
+    const painted = patchDayConfigsForDates(
+      [dayConfig("2026-06-10", VS_TOP_10)],
+      ["2026-06-10"],
+      { vipRule: { kind: "donations_second" } },
+    );
+    expect(painted[0]?.conductorRule).toEqual(VS_TOP_10.conductorRule);
+    expect(painted[0]?.vipRule).toEqual({ kind: "donations_second" });
+  });
+
+  it("clears only the side painted null", () => {
+    const painted = patchDayConfigsForDates(
+      [dayConfig("2026-06-10", R4)],
+      ["2026-06-10"],
+      { vipRule: null },
+    );
+    expect(painted[0]?.conductorRule).toEqual(R4.conductorRule);
+    expect(painted[0]?.vipRule).toBeNull();
+  });
+
+  it("keeps the assigned conductor and restamps rules on a VIP-only paint", () => {
+    const snap = snapshot({
+      dayConfigs: [dayConfig("2026-06-10", R4)],
+      weekRecords: [
+        conductorRecord("2026-06-10", { conductorRule: R4.conductorRule }),
+      ],
+      roster: [{ memberId: "m1", allianceRank: 4 }],
+    });
+
+    const next = applyOptimisticPaint(snap, ["2026-06-10"], {
+      vipRule: { kind: "donations_second" },
+    });
+    const record = next.data.weekRecords[0];
+    expect(record?.conductorMemberId).toBe("m1");
+    expect(record?.conductorRule).toEqual(R4.conductorRule);
+    expect(record?.vipRule).toEqual({ kind: "donations_second" });
+  });
+});

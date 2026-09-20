@@ -2592,6 +2592,7 @@
       "imported": "Template imported.",
       "importedWithWarnings": "Template imported. {count} day(s) need a look for your lead time.",
       "importFailed": "Could not import that template.",
+      "alreadyImported": "This template has already been imported.",
       "sectionTitle": "Week templates",
       "sectionBody": "A template is seven day rules, one per weekday. Apply one to a week, or paint days individually.",
       "loading": "Loading templates\u2026",
@@ -3863,7 +3864,14 @@
       "title": "Change this day's rule",
       "ariaLabel": "Choose a rule for {date}",
       "holdHint": "Long press a day to change its rule.",
-      "dialogSubtitle": "This changes today's rule only — this week's template stays the same."
+      "dialogSubtitle": "This changes today's rule only — this week's template stays the same.",
+      "targetLabel": "Change",
+      "targetConductor": "Conductor",
+      "targetVip": "VIP",
+      "targetBoth": "Both",
+      "conductorSection": "Conductor rule",
+      "vipSection": "VIP rule",
+      "sourceDayWarning": "This rule reads from a VS break day, so its wheel will have no scores. You can still pick manually."
     },
     "weekdays": {
       "mon": "Mon",
@@ -3874,6 +3882,7 @@
       "sat": "Sat",
       "sun": "Sun"
     },
+    "weekTemplateMixed": "Mixed rules",
     "weekTemplateNone": "No template",
     "weekNavPrevious": "Previous week",
     "weekNavNext": "Next week",

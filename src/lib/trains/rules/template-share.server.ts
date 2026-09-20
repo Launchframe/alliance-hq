@@ -178,16 +178,19 @@ export async function previewSharedTemplate(input: {
   // An archived template stops being importable — the owner has retired it.
   if (!row || row.archivedAt) return null;
 
-  const existing = await db
-    .select({ id: schema.trainRuleTemplates.id })
-    .from(schema.trainRuleTemplates)
-    .where(
-      and(
-        eq(schema.trainRuleTemplates.allianceId, input.allianceId),
-        eq(schema.trainRuleTemplates.sourceTemplateId, row.id),
-      ),
-    )
-    .limit(1);
+  const selfImport = row.allianceId === input.allianceId;
+  const existing = selfImport
+    ? []
+    : await db
+        .select({ id: schema.trainRuleTemplates.id })
+        .from(schema.trainRuleTemplates)
+        .where(
+          and(
+            eq(schema.trainRuleTemplates.allianceId, input.allianceId),
+            eq(schema.trainRuleTemplates.sourceTemplateId, row.id),
+          ),
+        )
+        .limit(1);
 
   return {
     sourceTemplateId: row.id,
@@ -195,6 +198,6 @@ export async function previewSharedTemplate(input: {
     description: row.description,
     days: parseTemplateWeekRules(row.days),
     sourceAllianceTag: row.sourceAllianceTag,
-    alreadyImported: existing.length > 0,
+    alreadyImported: selfImport || existing.length > 0,
   };
 }

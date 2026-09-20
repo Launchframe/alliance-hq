@@ -238,6 +238,7 @@ type WeekDayConfigPayload = {
   dayConfigs: Array<{
     date: string;
     conductorRule: Record<string, unknown> | null;
+    vipRule: Record<string, unknown> | null;
   }>;
 };
 
@@ -248,14 +249,15 @@ function ruleKey(rule: Record<string, unknown> | null | undefined): string {
   if (kind === "vs_top_n" || kind === "vr_top_n") return `${kind}:${rule.topN}`;
   if (kind === "rank_pool") return `rank_pool:${rule.pool}:${rule.draw}`;
   if (kind === "price_is_freight") return `price_is_freight:${rule.board}`;
+  if (kind === "event_top_x") return `event_top_x:${rule.eventKey}:${rule.topN}`;
   return kind;
 }
 
-async function readWeekRules(
+async function readWeekDayConfigs(
   request: APIRequestContext,
   cookieHeader: string,
   weekStart: string,
-): Promise<Map<string, string>> {
+): Promise<Map<string, { conductor: string; vip: string }>> {
   const res = await request.get(
     `/api/trains/schedule/week?weekStart=${encodeURIComponent(weekStart)}`,
     { headers: { Cookie: cookieHeader } },
@@ -263,7 +265,21 @@ async function readWeekRules(
   expect(res.ok(), await res.text()).toBeTruthy();
   const payload = (await res.json()) as WeekDayConfigPayload;
   return new Map(
-    payload.dayConfigs.map((day) => [day.date, ruleKey(day.conductorRule)]),
+    payload.dayConfigs.map((day) => [
+      day.date,
+      { conductor: ruleKey(day.conductorRule), vip: ruleKey(day.vipRule) },
+    ]),
+  );
+}
+
+async function readWeekRules(
+  request: APIRequestContext,
+  cookieHeader: string,
+  weekStart: string,
+): Promise<Map<string, string>> {
+  const configs = await readWeekDayConfigs(request, cookieHeader, weekStart);
+  return new Map(
+    [...configs.entries()].map(([date, rules]) => [date, rules.conductor]),
   );
 }
 
@@ -419,6 +435,123 @@ test.describe("Week strip day template menu", () => {
         readDayRule(request, fixture.cookieHeader, fixture.weekStart, paintDate),
       )
       .toBe("vs_top_n:5");
+  });
+
+  test("conductor-only paint preserves the day's event VIP", async ({
+    page,
+    request,
+  }) => {
+    const fixture = await setupPersistedTrainsWeek(request);
+    const paintDate = pickPaintDateInWeek(fixture);
+
+    const seedVip = await request.patch("/api/trains/schedule/days", {
+      headers: {
+        Cookie: fixture.cookieHeader,
+        "Content-Type": "application/json",
+      },
+      data: {
+        dates: [paintDate],
+        vipRule: { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
+      },
+    });
+    expect(seedVip.ok(), await seedVip.text()).toBeTruthy();
+
+    await page.context().addCookies(fixture.cookies);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/trains");
+
+    await openDayTemplateMenu(page, paintDate);
+    await selectDayRule(page, "r3_lottery");
+    await expect(page.getByTestId("trains-day-template-menu")).toHaveCount(0);
+
+    await expect
+      .poll(async () =>
+        (
+          await readWeekDayConfigs(
+            request,
+            fixture.cookieHeader,
+            fixture.weekStart,
+          )
+        ).get(paintDate),
+      )
+      .toEqual({
+        conductor: "rank_pool:r3:wheel",
+        vip: "event_top_x:capitol_war:10",
+      });
+  });
+
+  test("day mechanism dialog can apply a VIP-only paint", async ({
+    page,
+    request,
+  }) => {
+    const fixture = await setupPersistedTrainsWeek(request);
+    const paintDate = pickPaintDateInWeek(fixture);
+    const before = (
+      await readWeekDayConfigs(
+        request,
+        fixture.cookieHeader,
+        fixture.weekStart,
+      )
+    ).get(paintDate);
+    expect(before).toBeTruthy();
+
+    await page.context().addCookies(fixture.cookies);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/trains");
+    await waitForWeekScheduleInteractive(page, paintDate);
+
+    const day = weekDayLocator(page, paintDate);
+    await day.click();
+    await page
+      .getByRole("button", { name: "Change rule" })
+      .first()
+      .click();
+    await page.getByTestId("trains-day-mechanism-target-vip").click();
+    await page.getByTestId("trains-day-vip-row-donations_second").click();
+    await page.getByTestId("trains-day-mechanism-picker-apply").click();
+
+    await expect
+      .poll(async () =>
+        (
+          await readWeekDayConfigs(
+            request,
+            fixture.cookieHeader,
+            fixture.weekStart,
+          )
+        ).get(paintDate),
+      )
+      .toEqual({
+        conductor: before!.conductor,
+        vip: "donations_second",
+      });
+  });
+
+  test("Top VS on a VS-break source day shows the advisory warning", async ({
+    page,
+    request,
+  }) => {
+    const fixture = await setupPersistedTrainsWeek(request);
+    const monday = fixture.weekEnd;
+
+    await page.context().addCookies(fixture.cookies);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/trains");
+    await waitForWeekScheduleInteractive(page, monday);
+
+    await weekDayLocator(page, monday).click();
+    await page
+      .getByRole("button", { name: "Change rule" })
+      .first()
+      .click();
+    await page.getByTestId("trains-day-rule-row-vs_top_n").click();
+    await page.getByTestId("trains-topn-scope-vs-5").click();
+
+    await expect(
+      page.getByTestId("trains-day-mechanism-source-day-warning"),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("trains-day-mechanism-picker-apply"),
+    ).toBeEnabled();
   });
 
   test("menu stays within the viewport when opened near the bottom-right edge", async ({

@@ -5,6 +5,7 @@ import {
   isProvisionalDayConfig,
   provisionalDayConfigClass,
   resolveWeekDisplayDayConfigs,
+  resolveWeekTemplateDisplay,
   constantFillTemplate,
 } from "@/lib/trains/week-schedule-day-configs.shared";
 import { PRESET_WEEK_RULES } from "@/lib/trains/rules/presets.shared";
@@ -144,5 +145,56 @@ describe("buildWeekScheduleDayConfigs", () => {
     expect(
       configs.find((day) => day.date === "2026-06-16")?.conductorRule,
     ).toBeNull();
+  });
+});
+
+describe("resolveWeekTemplateDisplay", () => {
+  it("resolves a unanimous source id without marking the week mixed", () => {
+    const configs = Array.from({ length: 7 }, (_, index) => ({
+      date: `2026-06-1${index}`,
+      sourceTemplateId: "tmpl-a",
+    }));
+    expect(resolveWeekTemplateDisplay(configs)).toEqual({
+      templateId: "tmpl-a",
+      mixed: false,
+    });
+  });
+
+  it("reports mixed when a Sunday-start week straddles two Monday rows", () => {
+    const configs = [
+      { date: "2026-06-14", sourceTemplateId: "tmpl-prior-week" },
+      ...Array.from({ length: 6 }, (_, index) => ({
+        date: `2026-06-1${index + 5}`,
+        sourceTemplateId: "tmpl-next-week",
+      })),
+    ];
+    expect(resolveWeekTemplateDisplay(configs)).toEqual({
+      templateId: null,
+      mixed: true,
+    });
+  });
+
+  it("reports mixed when sourced and unsourced days coexist", () => {
+    const configs = [
+      { date: "2026-06-15", sourceTemplateId: "tmpl-a" },
+      { date: "2026-06-16", sourceTemplateId: null },
+      { date: "2026-06-17", sourceTemplateId: "tmpl-a" },
+    ];
+    expect(resolveWeekTemplateDisplay(configs)).toEqual({
+      templateId: null,
+      mixed: true,
+    });
+  });
+
+  it("reports no template and not mixed when every day lacks provenance", () => {
+    const configs = [
+      { date: "2026-06-15", sourceTemplateId: null },
+      { date: "2026-06-16" },
+      { date: "2026-06-17", sourceTemplateId: null },
+    ];
+    expect(resolveWeekTemplateDisplay(configs)).toEqual({
+      templateId: null,
+      mixed: false,
+    });
   });
 });

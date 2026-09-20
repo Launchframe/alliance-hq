@@ -92,6 +92,15 @@ export async function POST(request: Request) {
       { status: 404 },
     );
   }
+  if (preview.alreadyImported) {
+    return NextResponse.json(
+      {
+        error: "This template has already been imported.",
+        code: "already_imported",
+      },
+      { status: 409 },
+    );
+  }
 
   try {
     const template = await createRuleTemplate({

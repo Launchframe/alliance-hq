@@ -4,12 +4,14 @@ import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { isDevOrPreviewEnvironment } from "@/lib/dev/env-guard";
 import { loadTrainsDashboard } from "@/lib/trains/load-dashboard";
 import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
+import { sessionHasPermission } from "@/lib/rbac/context";
 import {
+  applyTemplateToWeek,
   clearWeekSchedule,
   getOrCreateWeekSchedule,
   getServerCalendarDate,
   getWeekStartMonday,
-  setWeekTemplate,
+  trainActionErrorResponse,
 } from "@/lib/trains/service";
 import { getRuleTemplateForAlliance } from "@/lib/trains/rules/templates.server";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
@@ -86,12 +88,16 @@ export async function POST(request: Request) {
     );
   }
 
-  await setWeekTemplate(
-    ctx.allianceId,
-    weekStart,
-    templateId,
-    body.isPivot === true,
-  );
+  const isPlatformAdmin = await sessionHasPermission(session.id, "hq:admin");
+  try {
+    await applyTemplateToWeek(ctx.allianceId, weekStart, templateId, {
+      platformAdminPastOverride: isPlatformAdmin,
+      isPivot: body.isPivot === true,
+    });
+  } catch (error) {
+    const { status, body: responseBody } = trainActionErrorResponse(error);
+    return NextResponse.json(responseBody, { status });
+  }
 
   const { schedule, dayConfigs } = await getOrCreateWeekSchedule(
     ctx.allianceId,

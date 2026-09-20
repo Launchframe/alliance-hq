@@ -2494,6 +2494,7 @@
       "imported": "Modelo importado.",
       "importedWithWarnings": "Modelo importado. {count} dia(s) precisam de revisão para a sua antecedência.",
       "importFailed": "Não foi possível importar esse modelo.",
+      "alreadyImported": "Este modelo já foi importado.",
       "sectionTitle": "Modelos de semana",
       "sectionBody": "Um modelo s\u00e3o sete regras de dia, uma por dia da semana. Aplique um \u00e0 semana ou pinte os dias individualmente.",
       "loading": "Carregando modelos\u2026",
@@ -3797,7 +3798,14 @@
       "title": "Alterar regra do dia",
       "ariaLabel": "Escolher uma regra para {date}",
       "holdHint": "Pressione longamente um dia para alterar sua regra.",
-      "dialogSubtitle": "Isso altera apenas a regra de hoje — o modelo da semana permanece o mesmo."
+      "dialogSubtitle": "Isso altera apenas a regra de hoje — o modelo da semana permanece o mesmo.",
+      "targetLabel": "Alterar",
+      "targetConductor": "Condutor",
+      "targetVip": "VIP",
+      "targetBoth": "Ambos",
+      "conductorSection": "Regra do condutor",
+      "vipSection": "Regra de VIP",
+      "sourceDayWarning": "Esta regra lê de um dia de folga do VS, então a roleta não terá pontuações. Você ainda pode escolher manualmente."
     },
     "weekdays": {
       "mon": "Seg",
@@ -3808,6 +3816,7 @@
       "sat": "Sáb",
       "sun": "Dom"
     },
+    "weekTemplateMixed": "Regras mistas",
     "weekTemplateNone": "Sem modelo",
     "weekNavPrevious": "Semana anterior",
     "weekNavNext": "Próxima semana",
