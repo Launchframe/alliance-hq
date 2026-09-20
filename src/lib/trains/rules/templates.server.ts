@@ -261,18 +261,23 @@ export async function archiveRuleTemplate(input: {
         );
     }
   } else {
-    await db
-      .update(schema.trainRuleTemplates)
-      .set({
-        archivedAt: input.archived ? new Date() : null,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(schema.trainRuleTemplates.id, input.templateId),
-          eq(schema.trainRuleTemplates.allianceId, input.allianceId),
-        ),
-      );
+    try {
+      await db
+        .update(schema.trainRuleTemplates)
+        .set({
+          archivedAt: input.archived ? new Date() : null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.trainRuleTemplates.id, input.templateId),
+            eq(schema.trainRuleTemplates.allianceId, input.allianceId),
+          ),
+        );
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new RuleTemplateNameTakenError();
+      throw error;
+    }
   }
 
   return getRuleTemplateForAlliance(input.allianceId, input.templateId);

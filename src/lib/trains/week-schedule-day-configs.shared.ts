@@ -27,6 +27,24 @@ export type WeekFillTemplate = {
  */
 export type WeekFillTemplateResolver = (date: string) => WeekFillTemplate;
 
+export function resolveWeekTemplateDisplay(
+  dayConfigs: Array<{ sourceTemplateId?: string | null }>,
+): { templateId: string | null; mixed: boolean } {
+  const ids = new Set<string>();
+  let sawUnsourced = false;
+  for (const day of dayConfigs) {
+    if (day.sourceTemplateId) ids.add(day.sourceTemplateId);
+    else sawUnsourced = true;
+  }
+  if (ids.size === 1 && !sawUnsourced) {
+    return { templateId: [...ids][0]!, mixed: false };
+  }
+  return {
+    templateId: null,
+    mixed: ids.size > 1 || (ids.size === 1 && sawUnsourced),
+  };
+}
+
 export function constantFillTemplate(
   template: WeekFillTemplate,
 ): WeekFillTemplateResolver {

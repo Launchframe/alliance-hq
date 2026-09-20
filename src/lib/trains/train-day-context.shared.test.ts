@@ -14,14 +14,14 @@ describe("scoreDateForTrainDay", () => {
 });
 
 describe("conductorSpinSourceForTrainDay", () => {
-  it("inherits the VS scope of the day the scores came from", () => {
+  it("keeps the painted Top 1 even when the score day is painted Top 10", () => {
     expect(
       conductorSpinSourceForTrainDay({
         trainRule: { kind: "vs_top_n", topN: 1 },
         leadDays: 1,
         scoreDayRule: { kind: "vs_top_n", topN: 10 },
       }),
-    ).toEqual({ kind: "vs_leaderboard", topN: 10 });
+    ).toEqual({ kind: "vs_leaderboard", topN: 1 });
   });
 
   it("keeps the train day's own scope when there is no lead time", () => {

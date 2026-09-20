@@ -8,7 +8,7 @@ import type {
  * Legacy vocabulary codec.
  *
  * `decodeConductorRule` is the TypeScript twin of the SQL backfill in
- * `drizzle/0177_train_day_rules.sql`. The parity test in
+ * `drizzle/0181_train_day_rules.sql`. The parity test in
  * `encode.shared.test.ts` is the contract both sides must satisfy — change
  * one and you must change the other.
  *

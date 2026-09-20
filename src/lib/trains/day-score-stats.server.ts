@@ -69,15 +69,12 @@ async function getPriorDayScores(
 async function eligibleCountForDay(
   input: DayScoreStatsInput,
   scores: Map<string, number>,
-  scoreDayRule?: ConductorRule | null,
 ): Promise<{ eligibleCount: number; topN?: number }> {
   const { awayMemberIds } = await loadTimeOffAvailability(input.allianceId, input.trainDate);
   const rule = input.rule;
   const leadDays = input.leadDays ?? 0;
   const topBoard = resolveVsBoardForTrainDate({
     trainRule: rule,
-    leadDays,
-    scoreDayRule,
   });
 
   if (topBoard) {
@@ -215,11 +212,7 @@ export async function loadTrainDayScoreStats(
       scoreDate,
       input.vsScoresByRecordedDate,
     );
-    const { eligibleCount, topN } = await eligibleCountForDay(
-      input,
-      scores,
-      scoreDayRule,
-    );
+    const { eligibleCount, topN } = await eligibleCountForDay(input, scores);
     return buildTrainDayScoreStats({
       kind: "prior_day_vs",
       required: need.required,

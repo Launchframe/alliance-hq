@@ -110,6 +110,24 @@ export const FREE_CHOICE_DAY_RULES: DayRules = {
   vipRule: null,
 };
 
+export type DayRulePatch = {
+  conductorRule?: ConductorRule | null;
+  vipRule?: VipRule | null;
+};
+
+export function mergeDayRulePatch(
+  current: DayRules,
+  patch: DayRulePatch,
+): DayRules {
+  return {
+    conductorRule:
+      patch.conductorRule === undefined
+        ? current.conductorRule
+        : patch.conductorRule,
+    vipRule: patch.vipRule === undefined ? current.vipRule : patch.vipRule,
+  };
+}
+
 export function parseConductorRule(value: unknown): ConductorRule | null {
   if (value == null) return null;
   const parsed = conductorRuleSchema.safeParse(value);
