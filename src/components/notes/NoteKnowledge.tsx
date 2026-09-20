@@ -9,26 +9,30 @@ import { workspaceOffset } from "@/lib/notes/workspace.shared";
 import type { KnowledgeCommand, KnowledgeEvidence, KnowledgeStatus } from "@/lib/notes/knowledge.shared";
 
 type Resource = Pick<KnowledgeStatus, "resourceId" | "kind" | "entityId" | "title" | "isOwner">;
-type Catalog = { resources: Resource[]; nextOffset: number | null };
+type Catalog = { resources: Resource[]; nextCursor: string | null; previousCursor: string | null };
 export function NoteKnowledge({ onChanged }: { onChanged: () => Promise<void> }) {
   const t = useTranslations("notes.knowledge"), notesT = useTranslations("notes"), locale = useLocale();
   const fetchNotes = useNotesFetch();
   const navigation = useNotesNavigation(), params = navigation.params;
   const owned = params.get("knowledgeOwned") === "1", offset = workspaceOffset(params.get("knowledgeOffset"), 50);
   const selected = params.get("knowledge"), query = params.get("knowledgeQuery") ?? "", includeSources = params.get("knowledgeSources") === "1";
-  const setOffset = (value: number) => navigation.change({ knowledgeOffset: String(value) });
+  const cursor = params.get("knowledgeCursor");
+  const setCursor = (value: string | null) => navigation.change({ knowledgeCursor: value, knowledgeOffset: null });
   const setSelected = (value: string) => navigation.change({ knowledge: value });
   const setQuery = (value: string) => navigation.change({ knowledgeQuery: value }, true);
   const setIncludeSources = (value: boolean) => navigation.change({ knowledgeSources: value ? "1" : "0" });
-  const [catalog, setCatalog] = useState<Catalog>({ resources: [], nextOffset: null });
+  const [catalog, setCatalog] = useState<Catalog>({ resources: [], nextCursor: null, previousCursor: null });
   const [status, setStatus] = useState<KnowledgeStatus | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const catalogErrorAnchor = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (catalogError) catalogErrorAnchor.current?.scrollIntoView({ block: "nearest" }); }, [catalogError]);
   const [evidenceKey, setEvidenceKey] = useState("");
   const [pendingConsent, setPendingConsent] = useState<boolean | null>(null);
   const [evidence, setEvidence] = useState<KnowledgeEvidence[] | null>(null);
   const [busy, setBusy] = useState(false), [queryBusy, setQueryBusy] = useState(false), [error, setError] = useState<string | null>(null);
   const selection = useRef<string | null>(null), current = useRef<KnowledgeStatus | null>(null), frozen = useRef(false);
   const queryRequest = useRef<AbortController | null>(null);
-  const epoch = useRef(0);
+  const epoch = useRef(0), catalogRead = useRef(0);
   useEffect(() => () => { epoch.current++; selection.current = null; current.current = null; queryRequest.current?.abort(); }, []);
   const clearEvidence = useCallback(() => { queryRequest.current?.abort(); setQueryBusy(false); setEvidence(null); }, []);
   const api = useCallback(async <T,>(url: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
@@ -37,15 +41,19 @@ export function NoteKnowledge({ onChanged }: { onChanged: () => Promise<void> })
     const data = await response.json().catch(() => null);
     if (generation !== epoch.current) throw new DOMException("", "AbortError");
     if (!response.ok || !data) {
-      if ([401, 403, 404].includes(response.status)) { epoch.current++; selection.current = null; current.current = null; setCatalog({ resources: [], nextOffset: null }); setStatus(null); clearEvidence(); }
+      if ([401, 403, 404].includes(response.status)) { epoch.current++; selection.current = null; current.current = null; setCatalog({ resources: [], nextCursor: null, previousCursor: null }); setStatus(null); clearEvidence(); }
       throw new Error(data?.code === "rate_limited" ? t("limits") : data?.error ?? notesT("loadFailed"));
     }
     return data;
   }, [clearEvidence, notesT, t, fetchNotes]);
   const refreshCatalog = useCallback(async (signal?: AbortSignal) => {
-    try { const data = await api<Catalog>(`/api/notes/knowledge/resources?owned=${owned}&offset=${offset}`, undefined, signal); if (!signal?.aborted) setCatalog(data); }
-    catch (failure) { if (!signal?.aborted) setError(failure instanceof Error ? failure.message : notesT("loadFailed")); }
-  }, [api, owned, offset, notesT]);
+    const number = ++catalogRead.current;
+    try {
+      const query = new URLSearchParams({ format: "page", owned: String(owned), offset: String(cursor ? 0 : offset), ...(cursor ? { cursor } : {}) });
+      const data = await api<{ items: Resource[]; nextCursor: string | null; previousCursor: string | null }>(`/api/notes/knowledge/resources?${query}`, undefined, signal);
+      if (!signal?.aborted && number === catalogRead.current) { setCatalog({ resources: data.items, nextCursor: data.nextCursor, previousCursor: data.previousCursor }); setCatalogError(null); }
+    } catch (failure) { if (!signal?.aborted && number === catalogRead.current) setCatalogError(failure instanceof Error ? failure.message : notesT("loadFailed")); }
+  }, [api, owned, offset, cursor, notesT]);
   const loadStatus = useCallback(async (id: string, manual = false, signal?: AbortSignal) => {
     try {
       const next = await api<KnowledgeStatus>(`/api/notes/knowledge/resources/${encodeURIComponent(id)}`, undefined, signal);
@@ -107,8 +115,9 @@ export function NoteKnowledge({ onChanged }: { onChanged: () => Promise<void> })
   return <section data-testid="notes-knowledge" className="min-w-0 flex-1 space-y-5 p-5 sm:p-7">
     <h2 className="text-xl font-semibold">{t("title")}</h2><p className="text-sm text-hq-fg-muted">{t("guidance")}</p>
     {error && <p role="alert" className="text-sm text-hq-danger">{error}</p>}
-    <div className="flex gap-2">{[true, false].map((value) => <button key={String(value)} disabled={busy} className={`${button} ${owned === value ? "bg-hq-accent/10 text-hq-accent" : ""}`} onClick={() => { navigation.change({ knowledgeOwned: value ? "1" : "0", knowledgeOffset: null, knowledge: null }); clearEvidence(); }}>{t(value ? "owned" : "library")}</button>)}</div>
-    <div className="grid gap-5 lg:grid-cols-[16rem_minmax(0,1fr)]"><aside className="space-y-2">{catalog.resources.map((resource) => <div key={resource.resourceId} className="rounded-lg border border-hq-border p-3"><p className="text-xs text-hq-fg-muted">{notesT(`searchWorkspace.${resource.kind}`)}</p>{resource.isOwner ? <button disabled={busy} onClick={() => setSelected(resource.resourceId)} className="mt-1 text-left text-sm font-medium text-hq-accent">{resource.title || notesT("editor.untitled")}</button> : resource.kind === "note" || resource.kind === "task" ? <Link href={resource.kind === "note" ? `/notes/${resource.entityId}` : `/notes?view=tasks&task=${encodeURIComponent(resource.entityId)}`} className="mt-1 block text-sm text-hq-accent">{resource.title}</Link> : <p className="text-sm">{resource.title}</p>}</div>)}{!catalog.resources.length && <p className="text-sm text-hq-fg-muted">{t("empty")}</p>}<div className="flex gap-2"><button className={button} disabled={!offset || busy} onClick={() => setOffset(Math.max(0, offset - 50))}>{t("previous")}</button><button className={button} disabled={catalog.nextOffset === null || busy} onClick={() => setOffset(catalog.nextOffset ?? 0)}>{t("next")}</button></div></aside>
+    {catalogError && <div ref={catalogErrorAnchor} className="space-y-2"><p role="alert" className="text-sm text-hq-danger">{catalogError}</p><button type="button" className={button} onClick={() => { setCatalogError(null); void refreshCatalog(); }}>{notesT("workspace.retryLoading")}</button></div>}
+    <div className="flex gap-2">{[true, false].map((value) => <button key={String(value)} disabled={busy} className={`${button} ${owned === value ? "bg-hq-accent/10 text-hq-accent" : ""}`} onClick={() => { navigation.change({ knowledgeOwned: value ? "1" : "0", knowledgeOffset: null, knowledgeCursor: null, knowledge: null }); clearEvidence(); }}>{t(value ? "owned" : "library")}</button>)}</div>
+    <div className="grid gap-5 lg:grid-cols-[16rem_minmax(0,1fr)]"><aside className="space-y-2">{catalog.resources.map((resource) => <div key={resource.resourceId} className="rounded-lg border border-hq-border p-3"><p className="text-xs text-hq-fg-muted">{notesT(`searchWorkspace.${resource.kind}`)}</p>{resource.isOwner ? <button disabled={busy} onClick={() => setSelected(resource.resourceId)} className="mt-1 text-left text-sm font-medium text-hq-accent">{resource.title || notesT("editor.untitled")}</button> : resource.kind === "note" || resource.kind === "task" ? <Link href={resource.kind === "note" ? `/notes/${resource.entityId}` : `/notes?view=tasks&task=${encodeURIComponent(resource.entityId)}`} className="mt-1 block text-sm text-hq-accent">{resource.title}</Link> : <p className="text-sm">{resource.title}</p>}</div>)}{!catalog.resources.length && <p className="text-sm text-hq-fg-muted">{t("empty")}</p>}<div className="flex gap-2"><button type="button" className={button} disabled={!catalog.previousCursor || busy} onClick={() => setCursor(catalog.previousCursor)}>{t("previous")}</button><button type="button" className={button} disabled={!catalog.nextCursor || busy} onClick={() => setCursor(catalog.nextCursor)}>{t("next")}</button></div></aside>
       <div className="space-y-4">{status && status.resourceId === selected ? <section className="space-y-3 rounded-xl border border-hq-border p-4"><h3 className="font-semibold">{status.title}</h3><p className="text-xs text-hq-fg-muted">{t("contentVersion", { version: status.contentVersion.toLocaleString(locale) })} · {t(status.approved ? "approved" : "unapproved")}</p>{status.href && <Link href={status.href} className="block text-sm text-hq-accent">{t("open")}</Link>}
         <div className="flex flex-wrap gap-2"><button className={button} disabled={busy || !status.canEnable || status.approved} onClick={() => void command("approve")}>{t("approve")}</button><button className={button} disabled={busy || !status.approved} onClick={() => void command("unapprove")}>{t("unapprove")}</button></div>
         <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={pendingConsent ?? status.aiAllowed} disabled={busy || !status.aiAllowed && !status.canEnable} onChange={(event) => void command(event.target.checked ? "allow_ai" : "deny_ai")} />{t("allowAi")}</label><p className="text-xs leading-5 text-hq-fg-muted">{t("consent")}</p>

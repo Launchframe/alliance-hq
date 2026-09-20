@@ -11,12 +11,14 @@ import { createKnowledgeResource, knowledgeAccessCondition, KnowledgeAccessError
 import { withKnowledgeReceipt } from "./mutations.server";
 import { lockTaskBoards, touchTaskBoards } from "./board-events.server";
 import { noteTitle } from "./workspace.shared";
-import { normalizeTaskPriority, taskCompletedAt, TASK_STATUSES, type NoteTask, type TaskCreate, type TaskPatch, type TaskStatus } from "./tasks.shared";
+import { normalizeTaskPriority, taskCompletedAt, taskListFilterSchema, TASK_STATUSES, type NoteTask, type NoteTaskSummary, type TaskListFilter, type TaskCreate, type TaskPatch, type TaskStatus } from "./tasks.shared";
+import { resourcePaging, resourcePage, timePageBoundary } from "./pagination.server";
+import { KNOWLEDGE_PAGE_SIZE, type ResourcePage } from "./pagination.shared";
 
 const tasks = schema.officerActionItems;
 const resources = schema.knowledgeResources;
 
-async function taskRows(actor: KnowledgeActor, filter?: { id?: string; sourceNoteId?: string; boardId?: string; personalOnly?: boolean }, access: KnowledgeAccess = "read", db: Pick<KnowledgeTransaction, "select"> = getDb()): Promise<NoteTask[]> {
+async function taskRows(actor: KnowledgeActor, filter?: { id?: string; ids?: string[]; sourceNoteId?: string; boardId?: string; personalOnly?: boolean }, access: KnowledgeAccess = "read", db: Pick<KnowledgeTransaction, "select"> = getDb()): Promise<NoteTask[]> {
   if (filter?.sourceNoteId && !await getPerformanceNoteForAlliance({ actor, noteId: filter.sourceNoteId })) throw new KnowledgeAccessError("not_found");
   const rows = await db.select({
     task: tasks, version: resources.version, archivedAt: resources.archivedAt,
@@ -32,25 +34,47 @@ async function taskRows(actor: KnowledgeActor, filter?: { id?: string; sourceNot
       eq(tasks.allianceId, actor.allianceId),
       knowledgeAccessCondition(actor, tasks.resourceId, access),
       filter?.id ? eq(tasks.id, filter.id) : undefined,
+      filter?.ids ? inArray(tasks.id, filter.ids) : undefined,
       filter?.sourceNoteId ? eq(tasks.sourceNoteId, filter.sourceNoteId) : undefined,
       filter?.boardId ? sql`exists(select 1 from knowledge_board_items bi where bi.task_id = ${tasks.id} and bi.alliance_id = ${actor.allianceId} and bi.board_id = ${filter.boardId})` : undefined,
       filter?.personalOnly ? sql`(${resources.ownerHqUserId} = ${actor.hqUserId} or ${tasks.assigneeHqUserId} = ${actor.hqUserId})` : undefined,
     ))
     .orderBy(desc(tasks.updatedAt), desc(tasks.id)).limit(filter?.id ? 1 : filter?.boardId ? 200 : 100);
   return rows.filter((row) => (TASK_STATUSES as readonly string[]).includes(row.task.status)).map((row) => ({
-    id: row.task.id, title: row.task.title, description: row.task.description, status: row.task.status as TaskStatus,
-    priority: normalizeTaskPriority(row.task.priority), labels: row.task.labels,
+    id: row.task.id, title: redactIntakeText(row.task.title), description: row.task.description === null ? null : redactIntakeText(row.task.description), status: row.task.status as TaskStatus,
+    priority: normalizeTaskPriority(row.task.priority), labels: [...new Set(row.task.labels.map(redactIntakeText))],
     intakeProvenance: row.owner && row.sourceId ? row.task.intakeProvenance : undefined,
     dueAt: row.task.dueAt?.toISOString() ?? null, completedAt: row.task.completedAt?.toISOString() ?? null,
     assignee: row.assigneeId ? { id: row.assigneeId, name: row.assigneeName?.includes("@") ? null : row.assigneeName } : null,
-    legacyAssigneeName: row.task.assigneeNameRaw,
-    source: row.sourceId && (row.sourceChannel === "web" || row.sourceChannel === "discord") ? { id: row.sourceId, title: noteTitle({ title: row.sourceTitle ?? "", body: row.sourceBody ?? "" }), channel: row.sourceChannel } : null,
+    legacyAssigneeName: row.task.assigneeNameRaw === null ? null : redactIntakeText(row.task.assigneeNameRaw),
+    source: row.sourceId && (row.sourceChannel === "web" || row.sourceChannel === "discord") ? { id: row.sourceId, title: redactIntakeText(noteTitle({ title: row.sourceTitle ?? "", body: row.sourceBody ?? "" })), channel: row.sourceChannel } : null,
     version: row.version, isOwner: row.owner === true, canEdit: row.edit === true, shared: row.shared === true, archived: row.archivedAt !== null,
     createdAt: row.task.createdAt.toISOString(), updatedAt: row.task.updatedAt.toISOString(),
   }));
 }
 export const listNoteTasks = (actor: KnowledgeActor, options?: { sourceNoteId?: string; personalOnly?: boolean }) =>
   taskRows(actor, { sourceNoteId: options?.sourceNoteId, personalOnly: options?.personalOnly });
+export async function listNoteTaskPage(actor: KnowledgeActor, raw: TaskListFilter, cursor: string | null = null): Promise<ResourcePage<NoteTaskSummary>> {
+  const parsed = taskListFilterSchema.safeParse(raw);
+  if (!parsed.success) throw new KnowledgeAccessError("invalid");
+  const filter = parsed.data, page = resourcePaging(actor, ["tasks", filter.status, filter.label, filter.sourceNoteId, filter.personalOnly], cursor);
+  if (filter.sourceNoteId && !await getPerformanceNoteForAlliance({ actor, noteId: filter.sourceNoteId })) throw new KnowledgeAccessError("not_found");
+  const candidates = await getDb().select({ id: tasks.id, cursorTime: sql<string>`to_char(${tasks.updatedAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')` })
+    .from(tasks).innerJoin(resources, and(eq(resources.id, tasks.resourceId), eq(resources.allianceId, actor.allianceId)))
+    .where(and(eq(tasks.allianceId, actor.allianceId), knowledgeAccessCondition(actor, tasks.resourceId), inArray(tasks.status, TASK_STATUSES),
+      filter.status === "archived" ? sql`${resources.archivedAt} is not null` : isNull(resources.archivedAt),
+      filter.status === "active" ? inArray(tasks.status, ["open", "in_progress"]) : TASK_STATUSES.includes(filter.status as TaskStatus) ? eq(tasks.status, filter.status) : undefined,
+      filter.label ? sql`${tasks.labels} ? ${filter.label}` : undefined,
+      filter.sourceNoteId ? eq(tasks.sourceNoteId, filter.sourceNoteId) : undefined,
+      filter.personalOnly ? sql`(${resources.ownerHqUserId} = ${actor.hqUserId} or ${tasks.assigneeHqUserId} = ${actor.hqUserId})` : undefined,
+      timePageBoundary(page, tasks.updatedAt, tasks.id)))
+    .orderBy(page.order(tasks.updatedAt), page.order(tasks.id)).limit(KNOWLEDGE_PAGE_SIZE + 1);
+  const result = resourcePage(candidates, page, (row) => ({ id: row.id, position: row.cursorTime }));
+  const rows = result.items.length ? await taskRows(actor, { ids: result.items.map((row) => row.id) }) : [];
+  return { ...result, items: rows.map((task) => ({ id: task.id, title: task.title, excerpt: (task.description ?? "").slice(0, 240), status: task.status, priority: task.priority,
+    labels: task.labels, dueAt: task.dueAt, completedAt: task.completedAt, assignee: task.assignee, legacyAssigneeName: task.legacyAssigneeName, source: task.source,
+    version: task.version, isOwner: task.isOwner, canEdit: task.canEdit, shared: task.shared, archived: task.archived, createdAt: task.createdAt, updatedAt: task.updatedAt })) };
+}
 export const listBoardNoteTasks = (tx: KnowledgeTransaction, actor: KnowledgeActor, boardId: string) => taskRows(actor, { boardId }, "read", tx);
 export async function getNoteTask(actor: KnowledgeActor, id: string, access: KnowledgeAccess = "read") {
   return (await taskRows(actor, { id }, access))[0] ?? null;

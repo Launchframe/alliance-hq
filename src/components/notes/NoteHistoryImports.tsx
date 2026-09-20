@@ -17,7 +17,7 @@ function utcDatetimeLocal(iso: string | null) {
 }
 
 export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: boolean; focusId: string | null; onOpen: (id: string | null) => void }) {
-  const t = useTranslations("notes.imports");
+  const t = useTranslations("notes.imports"), workspaceT = useTranslations("notes.workspace");
   const locale = useLocale();
   const fetchNotes = useNotesFetch(), navigation = useNotesNavigation();
   const urlCursor = navigation.params.get("importCursor");
@@ -216,7 +216,7 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
       </form>}
       {!list.length ? <p className="text-sm text-hq-fg-muted">{t("empty")}</p> : <div className="grid gap-3 sm:grid-cols-2">{list.map((item) => <button key={item.id} onClick={() => navigate(item.id)} className="space-y-2 rounded-xl border border-hq-border bg-hq-canvas p-4 text-left"><p className="font-medium">{item.title}</p><p className="text-xs text-hq-fg-muted">{t(`states.${item.state}`)} · {new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(item.updatedAt))}</p></button>)}</div>}
       {(previousCursor || nextCursor || listError) && <div ref={listErrorAnchor} className="space-y-2">
-        {listError && <p role="alert" className="text-sm text-hq-danger">{listError}</p>}
+        {listError && <><p role="alert" className="text-sm text-hq-danger">{listError}</p><button type="button" className={control} disabled={busy} onClick={() => void run(() => loadList(urlCursor), true)}>{workspaceT("retryLoading")}</button></>}
         <div className="flex gap-2">
           <button className={control} disabled={busy || !previousCursor} onClick={() => void run(async () => { if (await loadList(previousCursor)) navigation.change({ importCursor: previousCursor }); }, true)}>{t("previous")}</button>
           <button className={control} disabled={busy || !nextCursor} onClick={() => void run(async () => { if (nextCursor && await loadList(nextCursor)) navigation.change({ importCursor: nextCursor }); }, true)}>{t("next")}</button>

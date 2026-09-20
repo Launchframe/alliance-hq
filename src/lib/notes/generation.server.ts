@@ -17,6 +17,8 @@ import { redactIntakeText } from "./intake.shared";
 import { createPerformanceNoteInTransaction, getPerformanceNoteForAlliance, getPerformanceNoteDto } from "@/lib/performance-notes/repository.server";
 import { createNoteTaskInTransaction } from "./tasks.server";
 import { writeOfficerActionAudit } from "@/lib/bff/officer-action-audit.server";
+import { resourcePaging, resourcePage, timePageBoundary } from "./pagination.server";
+import { KNOWLEDGE_PAGE_SIZE } from "./pagination.shared";
 
 const jobs = schema.knowledgeGenerationJobs, resources = schema.knowledgeResources, threads = schema.officerIntelThreads;
 type Job = typeof jobs.$inferSelect;
@@ -40,10 +42,16 @@ export async function getGeneration(actor: KnowledgeWebActor, id: string): Promi
   const note = job.noteId ? await getPerformanceNoteForAlliance({ actor, noteId: job.noteId }) : null;
   return { review: valid && job.state === "ready" ? job.review : null, id, kind: job.kind, state: valid ? job.state : "invalidated", version: job.version, cursor: job.cursor, total: job.inputIds.length, locale: job.locale, errorCode: job.errorCode, parts: valid && ["ready", "accepted"].includes(job.state) ? job.parts : [], evidence: valid && ["ready", "accepted"].includes(job.state) ? job.evidence : [], noteId: note?.id ?? null, threadId: job.threadId };
 }
-export async function listGenerations(actor: KnowledgeWebActor) {
-  const rows = await getDb().select({ id: jobs.id, kind: jobs.kind, state: jobs.state, createdAt: jobs.createdAt }).from(jobs).where(and(eq(jobs.allianceId, actor.allianceId), knowledgeAccessCondition(actor, jobs.resourceId, "share"))).orderBy(desc(jobs.createdAt)).limit(50);
-  return rows;
+export async function listGenerationPage(actor: KnowledgeWebActor, cursor: string | null = null) {
+  const page = resourcePaging(actor, ["generations"], cursor);
+  const rows = await getDb().select({ id: jobs.id, kind: jobs.kind, state: jobs.state, createdAt: jobs.createdAt,
+    cursorTime: sql<string>`to_char(${jobs.createdAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')` }).from(jobs)
+    .where(and(eq(jobs.allianceId, actor.allianceId), knowledgeAccessCondition(actor, jobs.resourceId, "share"), timePageBoundary(page, jobs.createdAt, jobs.id)))
+    .orderBy(page.order(jobs.createdAt), page.order(jobs.id)).limit(KNOWLEDGE_PAGE_SIZE + 1);
+  const result = resourcePage(rows, page, (row) => ({ id: row.id, position: row.cursorTime }));
+  return { ...result, items: result.items.map((row) => ({ id: row.id, kind: row.kind, state: row.state, createdAt: row.createdAt })) };
 }
+export const listGenerations = async (actor: KnowledgeWebActor) => (await listGenerationPage(actor)).items;
 export async function startGeneration(actor: KnowledgeWebActor, input: z.infer<typeof generationRequestSchema>) {
   if (!generationConfigured()) throw new KnowledgeAccessError("not_configured");
   if (input.kind !== "ask" && !actor.canCreate) throw new KnowledgeAccessError("forbidden");
