@@ -13,7 +13,7 @@ import type {
 } from "@/lib/trains/rules/catalog.shared";
 
 /**
- * Contract for `drizzle/0177_train_day_rules.sql`.
+ * Contract for `drizzle/0181_train_day_rules.sql`.
  *
  * Every row here must be produced identically by the SQL backfill. If you
  * change one, change both — the migration is irreversible and a silent

@@ -39,7 +39,9 @@ import {
 } from "@/lib/trains/day-config-resolve.server";
 import { conductorRuleChanged } from "@/lib/trains/conductor-mechanism.shared";
 import {
+  mergeDayRulePatch,
   parseConductorRule,
+  vipRuleIdentity,
   type ConductorRule,
   type VipRule,
 } from "@/lib/trains/rules/catalog.shared";
@@ -991,17 +993,19 @@ export async function recomputeWeekPivotFlag(
  * The one paint command.
  *
  * Every surface — guided picker, long-press menu, month toolbar, hotkeys,
- * week editor — funnels here with a **complete** rule. A rule can no longer
- * arrive half-specified (the cause of both the 400 on Apply and the silent
- * Top 5 → Top 10 reset from hotkeys), and there is no composite expansion to
- * get wrong: a week is seven of these.
+ * week editor — funnels here. `conductorRule` and `vipRule` are independent
+ * patches: an omitted side preserves the day's current rule, `null` is a
+ * deliberate clear (free choice / conductor's pick). A scoped board can no
+ * longer arrive half-specified (the cause of both the 400 on Apply and the
+ * silent Top 5 → Top 10 reset from hotkeys), and there is no composite
+ * expansion to get wrong: a week is seven of these.
  */
 export async function applyPaint(
   allianceId: string,
   input: {
     dates: string[];
-    conductorRule: ConductorRule | null;
-    vipRule: VipRule | null;
+    conductorRule?: ConductorRule | null;
+    vipRule?: VipRule | null;
     /** Template this paint came from, for provenance. */
     sourceTemplateId?: string | null;
   },
@@ -1014,6 +1018,7 @@ export async function applyPaint(
   },
 ): Promise<void> {
   if (input.dates.length === 0) return;
+  if (input.conductorRule === undefined && input.vipRule === undefined) return;
 
   const seasonKey = await resolveTrainSeasonKey(allianceId);
   const trainWeekConfig = await loadAllianceTrainWeekConfig(allianceId);
@@ -1045,9 +1050,12 @@ export async function applyPaint(
     );
   }
 
-  const activeMembers = await loadActiveAlliancePoolMembers({ allianceId });
   const activeMemberIds = new Set(
-    activeMembers.map((member) => member.ashedMemberId),
+    input.conductorRule === undefined
+      ? []
+      : (await loadActiveAlliancePoolMembers({ allianceId })).map(
+          (member) => member.ashedMemberId,
+        ),
   );
 
   for (const date of uniqueDates) {
@@ -1060,21 +1068,43 @@ export async function applyPaint(
       date,
       seasonKey,
     );
+    const mergedRules = mergeDayRulePatch(
+      {
+        conductorRule: previousDayConfig.conductorRule,
+        vipRule: previousDayConfig.vipRule,
+      },
+      input,
+    );
 
     const paintedConfig: DayConfigInput = {
       date,
-      conductorRule: input.conductorRule,
-      vipRule: input.vipRule,
+      conductorRule: mergedRules.conductorRule,
+      vipRule: mergedRules.vipRule,
       sourceTemplateId: input.sourceTemplateId ?? null,
     };
     await upsertDayConfigOverride(allianceId, schedule.id, paintedConfig, true);
 
-    if (
-      !conductorRuleChanged(
-        previousDayConfig.conductorRule,
-        input.conductorRule,
-      )
-    ) {
+    const conductorChanged = conductorRuleChanged(
+      previousDayConfig.conductorRule,
+      mergedRules.conductorRule,
+    );
+
+    if (!conductorChanged) {
+      if (
+        vipRuleIdentity(previousDayConfig.vipRule) !==
+        vipRuleIdentity(mergedRules.vipRule)
+      ) {
+        const record = await getConductorRecord(allianceId, date, seasonKey);
+        if (record) {
+          await restampConductorRules({
+            allianceId,
+            date,
+            seasonKey,
+            conductorRule: mergedRules.conductorRule,
+            vipRule: mergedRules.vipRule,
+          });
+        }
+      }
       continue;
     }
 
@@ -1090,15 +1120,15 @@ export async function applyPaint(
         memberId: record.conductorMemberId,
         onRoster: activeMemberIds.has(record.conductorMemberId),
         allianceRank: resolved.rank,
-        nextRule: input.conductorRule,
+        nextRule: mergedRules.conductorRule,
       });
       if (keep) {
         await restampConductorRules({
           allianceId,
           date,
           seasonKey,
-          conductorRule: input.conductorRule,
-          vipRule: input.vipRule,
+          conductorRule: mergedRules.conductorRule,
+          vipRule: mergedRules.vipRule,
         });
       } else if (record.lockedAt) {
         throw new LockedDayPaintBlockedError(date, record.conductorMemberName);
@@ -1136,10 +1166,15 @@ export async function applyTemplateToWeek(
   allianceId: string,
   weekStart: string,
   templateId: string,
-  options?: { platformAdminPastOverride?: boolean },
+  options?: { platformAdminPastOverride?: boolean; isPivot?: boolean },
 ): Promise<void> {
   const template = await loadWeekFillTemplateById(templateId);
+  const today = getServerCalendarDate();
+  const canPaintPast = options?.platformAdminPastOverride === true;
   for (const config of weekDayConfigsForTemplate(template, weekStart)) {
+    if (!canPaintPast && !canOfficerChangeTemplateForDate(config.date, today)) {
+      continue;
+    }
     await applyPaint(
       allianceId,
       {
@@ -1154,6 +1189,17 @@ export async function applyTemplateToWeek(
         preferredWeekTemplate: templateId,
       },
     );
+  }
+
+  if (options?.isPivot !== undefined) {
+    const seasonKey = await resolveTrainSeasonKey(allianceId);
+    await upsertWeekSchedule({
+      allianceId,
+      weekStart,
+      templateId,
+      seasonKey,
+      isPivot: options.isPivot,
+    });
   }
 }
 
@@ -1180,26 +1226,12 @@ export async function rollForConductor(input: {
   );
 
   const leadDays = await loadAllianceTrainLeadTimeDays(input.allianceId);
-  let scoreDayRule: ConductorRule | null = null;
-  if (leadDays > 0) {
-    const scoreDayConfig = await resolveRollDayConfig(
-      input.allianceId,
-      vsScoreReferenceDate(input.date, leadDays),
-      seasonKey,
-    );
-    scoreDayRule = scoreDayConfig.conductorRule;
-  }
-  // Under lead time the VS scope follows the day the scores came from.
   const rule = effectiveConductorRuleForTrainDate({
     trainRule: dayConfig.conductorRule,
-    leadDays,
-    scoreDayRule,
   });
   const mechanism = encodeLegacyConductorMechanism(rule) as ConductorMechanismType;
   const topBoard = resolveVsBoardForTrainDate({
     trainRule: dayConfig.conductorRule,
-    leadDays,
-    scoreDayRule,
   });
 
   let result: RollResult;

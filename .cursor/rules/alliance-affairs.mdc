@@ -35,7 +35,7 @@ HQ models **in-game** alliance mechanics separately from **HQ RBAC** and Ashed i
 
 ## Week templates & mechanisms
 
-Stored on `train_day_configs`: `conductorMechanism`, `vipMechanism`, optional configs (`eventKey`, `topN`).
+Stored on `train_day_configs` as `conductor_rule` / `vip_rule` JSONB (typed `ConductorRule` / `VipRule`); `train_conductor_records` keeps the same JSONB pair plus the retained `conductor_mechanism` / `vip_mechanism` history columns for audit.
 
 | Template | Typical conductor | Typical VIP |
 |----------|-------------------|-------------|
