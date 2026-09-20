@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { taskCreateSchema, TASK_STATUSES, type NoteTask } from "./tasks.shared";
+import { taskCreateSchema, TASK_STATUSES, summarizeNoteTask, type NoteTask, type NoteTaskSummary } from "./tasks.shared";
 import type { NoteShareState } from "./sharing.shared";
 
 export const boardCreateSchema = z.object({ name: z.string().trim().min(1).max(100), requestId: z.string().min(8).max(120) });
@@ -21,6 +21,10 @@ export type NoteBoardSnapshot = NoteBoardSummary & {
   tasks: Array<NoteTask & { position: number; teamId: string | null }>;
   people: NoteShareState["recipients"]; teams: Array<{ id: string; name: string }>;
 };
+export type NoteBoardViewSnapshot = Omit<NoteBoardSnapshot, "tasks"> & { tasks: Array<NoteTaskSummary & { position: number; teamId: string | null }> };
+export function summarizeNoteBoard(snapshot: NoteBoardSnapshot): NoteBoardViewSnapshot {
+  return { ...snapshot, tasks: snapshot.tasks.map((task) => ({ ...summarizeNoteTask(task), position: task.position, teamId: task.teamId })) };
+}
 export function orderBoardTasks(ids: string[], movedId: string, beforeId: string | null): string[] {
   if (beforeId === movedId) return ids;
   const result = ids.filter((id) => id !== movedId);

@@ -61,11 +61,11 @@ export async function createNoteBoard(actor: KnowledgeWebActor, input: { name: s
   });
 }
 
-export async function noteBoardSnapshot(actor: KnowledgeWebActor, id: string): Promise<NoteBoardSnapshot> {
+export async function noteBoardSnapshot(actor: KnowledgeWebActor, id: string, compact = false): Promise<NoteBoardSnapshot> {
   return getDb().transaction(async (tx) => {
     const board = await boardRow(tx, actor, id);
-    const cards = await listBoardNoteTasks(tx, actor, id);
     const placements = await tx.select().from(items).where(and(eq(items.boardId, id), eq(items.allianceId, actor.allianceId)));
+    const cards = await listBoardNoteTasks(tx, actor, id, placements.map((item) => item.taskId), compact);
     const support = await loadSupportBoard(tx, actor.allianceId);
     const teams = support.published ? teamIds(support).map((id) => ({ id, name: String(readField(support, fieldKey("team", id, "name")) ?? id) })) : [];
     const links = teams.length ? await tx.select({ userId: schema.hqMemberLinks.hqUserId, memberId: schema.hqMemberLinks.ashedMemberId }).from(schema.hqMemberLinks).where(eq(schema.hqMemberLinks.allianceId, actor.allianceId)) : [];
@@ -75,7 +75,7 @@ export async function noteBoardSnapshot(actor: KnowledgeWebActor, id: string): P
     };
     return { id: board.id, name: board.name, version: board.version, allianceId: actor.allianceId, principalId: actor.hqUserId!, canWrite: actor.canWriteBoards,
       tasks: cards.map((task) => ({ ...task, position: placements.find((item) => item.taskId === task.id)?.position ?? 0, teamId: task.assignee ? teamForUser(task.assignee.id) : null })).sort((a, b) => a.position - b.position || a.id.localeCompare(b.id)),
-      people: await listKnowledgePeople(actor, true), teams };
+      people: await listKnowledgePeople(actor, true, tx), teams };
   }, { isolationLevel: "repeatable read" });
 }
 

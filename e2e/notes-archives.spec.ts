@@ -159,7 +159,7 @@ test("older drafts, tasks, reviews and snapshots remain reachable without bulk d
     }
   });
   const get = async (path: string) => {
-    const response = await request.get(path, { headers });
+    const response = await request.get(path, { headers, timeout: 10_000 });
     expect(response.status(), await response.text()).toBe(200);
     return response.json();
   };
@@ -209,6 +209,37 @@ test("older drafts, tasks, reviews and snapshots remain reachable without bulk d
   const taskDialog = page.getByRole("dialog");
   await expect(taskDialog.getByRole("textbox", { name: "Description", exact: true })).toHaveValue(taskBody);
   await taskDialog.getByRole("button", { name: "Close", exact: true }).click();
+  const createdBoard = await request.post("/api/notes/boards", { headers, data: { name: "Archive selection", requestId: nanoid() } });
+  expect(createdBoard.status(), await createdBoard.text()).toBe(200);
+  const { boardId } = await createdBoard.json();
+  await page.goto(`/notes?view=boards&board=${boardId}`);
+  const board = page.getByTestId("notes-shared-board");
+  await board.getByRole("button", { name: "Share a task", exact: true }).click();
+  const picker = page.getByTestId("board-task-picker");
+  await picker.getByRole("button", { name: "Next page", exact: true }).click();
+  await expect(picker.getByRole("combobox")).toContainText("Archive task 10");
+  await picker.getByRole("button", { name: "Next page", exact: true }).click();
+  await picker.getByRole("combobox").selectOption(id("task", 0));
+  await expect(picker).toContainText("Hidden task ending");
+  await picker.getByRole("button", { name: "Share task to this board", exact: true }).click();
+  await expect(picker).not.toBeVisible();
+  const compactBoard = await get(`/api/notes/boards/${boardId}?format=summary`);
+  const concurrentBoards = await Promise.all(Array.from({ length: 12 }, () => get(`/api/notes/boards/${boardId}?format=summary`)));
+  expect(concurrentBoards.every((snapshot) => snapshot.version === compactBoard.version)).toBe(true);
+  expect(compactBoard.tasks[0]).not.toHaveProperty("description");
+  expect(compactBoard.tasks[0].excerpt).not.toContain("Hidden task ending");
+  await expect(board.getByTestId("board-task")).toHaveCount(1);
+  await board.getByRole("button", { name: "Archive task 0", exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("textbox", { name: "Description", exact: true })).toHaveValue(taskBody);
+  await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
+  const otherCard = await request.post(`/api/notes/boards/${boardId}/commands`, { headers, data: { kind: "create", requestId: nanoid(), expectedVersion: compactBoard.version, task: { title: "Other board label", labels: ["different"] } } });
+  expect(otherCard.status(), await otherCard.text()).toBe(200);
+  await expect(board.getByTestId("board-task")).toHaveCount(2);
+  await board.getByLabel("Labels", { exact: true }).selectOption("archive");
+  await expect(board.getByTestId("board-task")).toHaveCount(1);
+  await page.reload();
+  await expect(board.getByTestId("board-task")).toHaveCount(1);
+  await expect(board.getByLabel("Labels", { exact: true })).toHaveValue("archive");
   await page.goto("/notes?view=drafts");
   const draftList = page.getByTestId("notes-drafts");
   await draftList.getByRole("button", { name: "Next page", exact: true }).click();

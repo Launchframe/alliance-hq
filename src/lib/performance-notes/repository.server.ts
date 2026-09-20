@@ -218,9 +218,9 @@ function noteSummary(note: PerformanceNoteDto): PerformanceNoteSummary {
 export async function listPerformanceNotePage(actor: KnowledgeActor, raw: NoteListFilter, cursor: NoteListCursor | null = null): Promise<NotesListPage> {
   if (actor.kind !== "web" || !actor.hqUserId) throw new KnowledgeAccessError("forbidden");
   const filter = noteListFilterSchema.parse(raw);
-  filter.q = redactIntakeText(filter.q);
+  filter.q = redactIntakeText(filter.q); filter.label = redactIntakeText(filter.label);
   const scope = `${actor.allianceId}:${actor.hqUserId}`;
-  const key = knowledgeHash([filter.view, filter.q, filter.notebook, filter.source, filter.priority, filter.sort]);
+  const key = knowledgeHash([filter.view, filter.q, filter.notebook, filter.source, filter.priority, filter.sort, ...(filter.label || filter.member ? [filter.label, filter.member] : [])]);
   if (cursor && cursor.scope !== scope) throw new KnowledgeAccessError("forbidden");
   if (cursor && cursor.key !== key) throw new KnowledgeAccessError("invalid");
   const n = schema.performanceNotes, r = schema.knowledgeResources;
@@ -239,6 +239,8 @@ export async function listPerformanceNotePage(actor: KnowledgeActor, raw: NoteLi
   const [rows, totals] = await Promise.all([
     db.select({ ...noteSelection(actor), cursorTime: sql<string>`to_char(${n.updatedAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`, rank }).from(n).innerJoin(r, resourceJoin)
       .where(and(readable, inView, filter.notebook ? and(owned, eq(n.notebook, filter.notebook)) : undefined,
+        filter.label ? sql`${n.labels} ? ${filter.label}` : undefined,
+        filter.member ? sql`exists(select 1 from performance_note_members m where m.note_id = ${n.id} and m.alliance_id = ${actor.allianceId} and m.ashed_member_id = ${filter.member})` : undefined,
         filter.source ? eq(n.source, filter.source) : undefined, filter.priority === "all" ? undefined : filter.priority === "none" ? isNull(n.priority) : eq(n.priority, filter.priority),
         filter.q ? isPlaceholderOnlySearchQuery(filter.q) ? sql`false` : sql`${text} ilike ${`%${escapeLikePrefix(filter.q)}%`} escape '\\'` : undefined, boundary))
       .orderBy(...(filter.sort === "priority" ? [order(rank)] : []), order(n.updatedAt), order(n.id)).limit(NOTE_LIST_PAGE_SIZE + 1),
