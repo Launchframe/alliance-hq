@@ -4,11 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Dialog } from "@/components/ui/dialog";
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
-import { HISTORY_IMPORT_KINDS, HISTORY_MESSAGE_LENGTH, HISTORY_TEXT_BYTES, historyInitSchema, type HistoryImportDetail, type HistoryImportKind, type HistoryImportSummary, type HistoryReviewRow } from "@/lib/notes/imports.shared";
+import { HISTORY_IMPORT_KINDS, HISTORY_MESSAGE_LENGTH, HISTORY_TEXT_BYTES, historyInitSchema, type HistoryImportDetail, type HistoryImportKind, type HistoryImportListItem, type HistoryImportPage, type HistoryReviewRow } from "@/lib/notes/imports.shared";
 
 class ImportError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 const control = "rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm disabled:opacity-50";
-type Summary = Pick<HistoryImportSummary, "id" | "title" | "state" | "kind" | "updatedAt">;
 function utcDatetimeLocal(iso: string | null) {
   if (!iso) return "";
   const date = new Date(iso);
@@ -18,7 +17,13 @@ function utcDatetimeLocal(iso: string | null) {
 export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: boolean; focusId: string | null; onOpen: (id: string | null) => void }) {
   const t = useTranslations("notes.imports");
   const locale = useLocale();
-  const [list, setList] = useState<Summary[]>([]);
+  const [list, setList] = useState<HistoryImportListItem[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [previousCursors, setPreviousCursors] = useState<Array<string | null>>([]);
+  const listCursor = useRef<string | null>(null);
+  const listReadNumber = useRef(0);
+  const listNavigating = useRef(false);
+  const listRefreshPending = useRef(false);
   const [scope, setScope] = useState("");
   const [detail, setDetail] = useState<HistoryImportDetail | null>(null);
   const [edits, setEdits] = useState<HistoryReviewRow[]>([]);
@@ -30,6 +35,7 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
   const [busy, setBusy] = useState(false);
   const [discardAction, setDiscardAction] = useState<(() => void) | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
   const alive = useRef(false);
   const lifetime = useRef(new AbortController());
   const revision = useRef(0);
@@ -40,25 +46,41 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
   const current = useRef<HistoryImportDetail | null>(null);
   const processing = useRef(false);
   const errorAnchor = useRef<HTMLDivElement>(null);
+  const listErrorAnchor = useRef<HTMLDivElement>(null);
   const receipt = useRef({ hash: "", id: "" });
   const scopeRef = useRef("");
   const applyScope = useCallback((next: string) => {
-    if (scopeRef.current && scopeRef.current !== next) { setFiles([]); setPaste(""); setTitle(""); setEdits([]); setDiscardAction(null); dirty.current = false; current.current = null; }
+    if (scopeRef.current && scopeRef.current !== next) {
+      revision.current++; listCursor.current = null; setPreviousCursors([]); setNextCursor(null); setList([]); setDetail(null);
+      setFiles([]); setPaste(""); setTitle(""); setEdits([]); setDiscardAction(null); dirty.current = false; current.current = null;
+    }
     scopeRef.current = next; setScope(next);
   }, []);
   useEffect(() => { alive.current = true; const controller = new AbortController(); lifetime.current = controller; return () => { alive.current = false; controller.abort(); }; }, []);
-  const fail = useCallback((failure: unknown) => {
+  const fail = useCallback((failure: unknown, listFailure = false) => {
     if (!alive.current) return;
-    if (failure instanceof ImportError && [401, 403, 404].includes(failure.status)) { applyScope(""); setList([]); setDetail(null); current.current = null; setEdits([]); dirty.current = false; }
-    setError(failure instanceof ImportError ? failure.message : t("error"));
-    requestAnimationFrame(() => errorAnchor.current?.scrollIntoView({ block: "nearest" }));
+    if (failure instanceof ImportError && [401, 403, 404].includes(failure.status)) { applyScope(""); setList([]); setDetail(null); current.current = null; setEdits([]); setError(null); setListError(null); dirty.current = false; }
+    (listFailure ? setListError : setError)(failure instanceof ImportError ? failure.message : t("error"));
+    if (!listFailure) requestAnimationFrame(() => errorAnchor.current?.scrollIntoView({ block: "nearest" }));
   }, [t, applyScope]);
+  useEffect(() => { if (listError) listErrorAnchor.current?.scrollIntoView({ block: "nearest" }); }, [listError]);
   const api = useCallback(async <T,>(url: string, init?: RequestInit): Promise<T> => {
     const response = await fetch(url, { cache: "no-store", signal: lifetime.current.signal, ...init });
     const body = await response.json().catch(() => null);
     if (!response.ok || !body) throw new ImportError(body?.error ?? t("error"), response.status);
     return body;
   }, [t]);
+  const loadList = useCallback(async (cursor = listCursor.current) => {
+    const generation = revision.current;
+    const number = ++listReadNumber.current;
+    const query = cursor ? `?${new URLSearchParams({ cursor })}` : "";
+    const body = await api<HistoryImportPage>(`/api/notes/imports${query}`).catch((failure) => { if (generation === revision.current && number === listReadNumber.current) throw failure; return null; });
+    if (!body || !alive.current || selection.current || generation !== revision.current || number !== listReadNumber.current) return false;
+    const changedScope = !!scopeRef.current && scopeRef.current !== body.scope;
+    applyScope(body.scope); listCursor.current = cursor; setList(body.imports); setNextCursor(body.nextCursor); setListError(null);
+    if (cursor === null) setPreviousCursors([]);
+    return !changedScope;
+  }, [api, applyScope]);
   const load = useCallback(async (id: string, page: number, reset = false) => {
     if (id !== selection.current) return;
     const generation = revision.current;
@@ -72,19 +94,18 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
   }, [api, t, applyScope]);
   useEffect(() => {
     revision.current++; current.current = null; dirty.current = false; setDetail(null); setEdits([]); setOffset(0);
-    const generation = revision.current;
     if (focusId) void load(focusId, 0).catch(fail);
-    else void api<{ imports: Summary[]; scope: string }>("/api/notes/imports").then((body) => { if (alive.current && generation === revision.current) { applyScope(body.scope); setList(body.imports); } }).catch(fail);
-  }, [focusId, load, api, fail, applyScope]);
+    else void loadList().catch((failure) => fail(failure, true));
+  }, [focusId, load, loadList, fail]);
   useEffect(() => {
-    const generation = revision.current;
     const refresh = () => {
       if (focusId) void load(focusId, offset).catch(fail);
-      else void api<{ imports: Summary[]; scope: string }>("/api/notes/imports").then((body) => { if (alive.current && generation === revision.current) { applyScope(body.scope); setList(body.imports); } }).catch(fail);
+      else if (listNavigating.current) listRefreshPending.current = true;
+      else void loadList().catch((failure) => fail(failure, true));
     };
     window.addEventListener("focus", refresh);
     return () => window.removeEventListener("focus", refresh);
-  }, [focusId, offset, load, fail, api, applyScope]);
+  }, [focusId, offset, load, loadList, fail]);
   const processingState = detail?.state;
   useEffect(() => {
     if (!focusId || !processingState || !["queued", "processing"].includes(processingState)) return;
@@ -105,11 +126,19 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
     if (receipt.current.hash !== hash) receipt.current = { hash, id: crypto.randomUUID() };
     return { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...value, requestId: receipt.current.id }) };
   }
-  async function run(work: () => Promise<unknown>) {
-    if (busy) return;
-    setBusy(true); setError(null);
-    try { await work(); } catch (failure) { fail(failure); }
-    finally { if (alive.current) setBusy(false); }
+  async function run(work: () => Promise<unknown>, listAction = false) {
+    if (busy || listNavigating.current) return;
+    if (listAction) listNavigating.current = true;
+    setBusy(true); setError(null); setListError(null);
+    try { await work(); } catch (failure) { fail(failure, listAction); }
+    finally {
+      const refresh = listAction && listRefreshPending.current;
+      if (listAction) { listNavigating.current = false; listRefreshPending.current = false; }
+      if (alive.current) {
+        setBusy(false);
+        if (refresh && !selection.current) void loadList().catch((failure) => fail(failure, true));
+      }
+    }
   }
   async function upload(existing?: HistoryImportDetail) {
     const generation = revision.current;
@@ -170,6 +199,13 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
         <div ref={!focusId ? errorAnchor : undefined} className="space-y-2">{errorBox}<button className={control} disabled={busy || !scope || !title.trim() || !files.length && !paste.trim()}>{busy ? t("busy") : t("start")}</button></div>
       </form>}
       {!list.length ? <p className="text-sm text-hq-fg-muted">{t("empty")}</p> : <div className="grid gap-3 sm:grid-cols-2">{list.map((item) => <button key={item.id} onClick={() => navigate(item.id)} className="space-y-2 rounded-xl border border-hq-border bg-hq-canvas p-4 text-left"><p className="font-medium">{item.title}</p><p className="text-xs text-hq-fg-muted">{t(`states.${item.state}`)} · {new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(item.updatedAt))}</p></button>)}</div>}
+      {(previousCursors.length > 0 || nextCursor || listError) && <div ref={listErrorAnchor} className="space-y-2">
+        {listError && <p role="alert" className="text-sm text-hq-danger">{listError}</p>}
+        <div className="flex gap-2">
+          <button className={control} disabled={busy || !previousCursors.length} onClick={() => void run(async () => { if (await loadList(previousCursors.at(-1) ?? null)) setPreviousCursors((pages) => pages.slice(0, -1)); }, true)}>{t("previous")}</button>
+          <button className={control} disabled={busy || !nextCursor} onClick={() => void run(async () => { const previous = listCursor.current; if (nextCursor && await loadList(nextCursor)) setPreviousCursors((pages) => [...pages, previous]); }, true)}>{t("next")}</button>
+        </div>
+      </div>}
       {!canCreate && errorBox}
     </>}
     {focusId && !detail && <div ref={errorAnchor}>{errorBox ?? <p role="status">{t("busy")}</p>}</div>}
