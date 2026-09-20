@@ -161,7 +161,7 @@ export async function mutatePlunderPlan(actor: PlanActor, input: unknown, intera
     await getDb().transaction(async (tx) => {
       const identity = await resolvePlanIdentity(tx, actor);
       const [guild] = await tx.select().from(schema.discordGuildAlliances).where(and(eq(schema.discordGuildAlliances.guildId, command.guildId), eq(schema.discordGuildAlliances.allianceId, actor.allianceId)));
-      if (!identity.canSuggest || !guild || actor.kind === "discord" && actor.guildId !== command.guildId) throw new PlunderPlanError("forbidden", 403);
+      if (!identity.canSuggest || !identity.canManageSelf || !guild || actor.kind === "discord" && actor.guildId !== command.guildId) throw new PlunderPlanError("forbidden", 403);
     });
     if (command.enabled && !await verifyPlanChannel(command.guildId, command.channelId)) throw new PlunderPlanError("channel");
   }
@@ -184,7 +184,7 @@ export async function mutatePlunderPlan(actor: PlanActor, input: unknown, intera
     let id: string | undefined;
     if (command.action === "notifications") {
       const [guild] = await tx.select().from(schema.discordGuildAlliances).where(and(eq(schema.discordGuildAlliances.guildId, command.guildId), eq(schema.discordGuildAlliances.allianceId, actor.allianceId))).for("share");
-      if (!identity.canSuggest || !guild || actor.kind === "discord" && actor.guildId !== command.guildId) throw new PlunderPlanError("forbidden", 403);
+      if (!identity.canSuggest || !identity.canManageSelf || !guild || actor.kind === "discord" && actor.guildId !== command.guildId) throw new PlunderPlanError("forbidden", 403);
       const [setting] = await tx.select().from(schema.plunderPlanDigestSettings).where(eq(schema.plunderPlanDigestSettings.guildId, command.guildId)).for("update");
       if ((setting?.version ?? 0) !== command.expectedVersion) throw new PlunderPlanError("stale", 409);
       const values = { allianceId: actor.allianceId, guildId: command.guildId, channelId: command.channelId, timeSt: command.timeSt, locale: command.locale, enabled: command.enabled, version: command.expectedVersion + 1 };

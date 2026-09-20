@@ -13,7 +13,8 @@ export type PlanIdentity = { principalId: string; aliases: string[]; memberIds: 
 
 export async function requirePlanWebActor(): Promise<PlanActor> {
   const session = await requireApiSession();
-  if (session instanceof NextResponse || !session.hqUserId || !session.currentAllianceId) throw new PlunderPlanError("forbidden", 403);
+  if (session instanceof NextResponse) throw new PlunderPlanError("forbidden", session.status);
+  if (!session.hqUserId || !session.currentAllianceId) throw new PlunderPlanError("forbidden", 403);
   if (!await sessionHasPermissionForAlliance(session.id, session.currentAllianceId, "plunder_plan:read")) throw new PlunderPlanError("forbidden", 403);
   return { kind: "web", allianceId: session.currentAllianceId, hqUserId: session.hqUserId, sessionId: session.id };
 }

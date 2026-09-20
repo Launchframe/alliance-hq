@@ -32,6 +32,11 @@ describe("Plunder Plan signed dispatch", () => {
   it("edits the original interaction when background work fails", async () => {
     mocks.handle.mockRejectedValue(new Error("boom"));
     expect(await (await POST(signed(payload))).json()).toEqual({ type: 5, data: { flags: 64 } });
-    await vi.waitFor(() => expect(mocks.followup).toHaveBeenCalledWith(expect.objectContaining({ ephemeral: true, suppressMentions: true })));
+    await vi.waitFor(() => expect(mocks.followup).toHaveBeenCalledWith(expect.objectContaining({ ephemeral: true, suppressMentions: true, content: "Couldn’t save your changes. Your inputs have been kept." })));
+  });
+  it("localizes the failure follow-up from the interaction locale", async () => {
+    mocks.handle.mockRejectedValue(new Error("boom"));
+    expect(await (await POST(signed({ ...payload, locale: "pt-BR" }))).json()).toEqual({ type: 5, data: { flags: 64 } });
+    await vi.waitFor(() => expect(mocks.followup).toHaveBeenCalledWith(expect.objectContaining({ content: "Não foi possível salvar suas alterações. Seus dados foram mantidos." })));
   });
 });

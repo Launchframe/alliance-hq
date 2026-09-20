@@ -38,8 +38,22 @@ test("officers can save digest settings and members can opt into private reminde
   await expect(editor).not.toBeVisible();
   await page.getByRole("button", { name: "Plunder Plan notifications", exact: true }).click();
   const notifications = page.getByRole("dialog");
-  await notifications.getByLabel("Share today’s Plunder Plans on Discord").check();
   await notifications.getByLabel("Discord channel").fill("123456789012345678");
+  await notifications.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(notifications).not.toBeVisible();
+  const [saved] = await f.sql`
+    SELECT channel_id, enabled, time_st, locale
+    FROM plunder_plan_digest_settings
+    WHERE guild_id = ${guildId} AND alliance_id = ${f.allianceId}
+  `;
+  expect(saved).toMatchObject({
+    channel_id: "123456789012345678",
+    enabled: false,
+    time_st: "09:00",
+    locale: "en-US",
+  });
+  await page.getByRole("button", { name: "Plunder Plan notifications", exact: true }).click();
+  await notifications.getByLabel("Share today’s Plunder Plans on Discord").check();
   await notifications.getByRole("button", { name: "Save", exact: true }).click();
   await expect(notifications.getByRole("alert")).toHaveText("Choose an available channel in this alliance’s linked Discord server.");
 });
@@ -84,7 +98,7 @@ test("mobile defaults to Day and keeps an explicit Week choice after reload", as
 });
 
 test("Portuguese view and anonymous API boundaries", async ({ page, context, request }) => {
-  expect([401, 403]).toContain((await request.get("/api/plunder-plan")).status());
+  expect((await request.get("/api/plunder-plan")).status()).toBe(401);
   const f = await fixture();
   await context.addCookies(playwrightAuthCookies(f.user));
   await page.goto("/pt-BR/plunder-plan");

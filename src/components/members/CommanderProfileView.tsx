@@ -150,7 +150,6 @@ export function CommanderProfileView({ initial, donationLaunchError }: Props) {
           <div className="min-w-0">
             <p className="flex min-w-0 items-center gap-2 truncate text-lg font-medium text-hq-fg">
               <span className="truncate">{member.currentName}</span>
-              <CountryFlag code={member.country} locale={locale} />
             </p>
             <p className="truncate text-sm text-hq-fg-muted">
               {member.gameUid

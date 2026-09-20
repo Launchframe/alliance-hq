@@ -5,6 +5,7 @@ import { waitUntil } from "@vercel/functions";
 import {
   createDiscordTranslator,
   getDiscordBotLocale,
+  normalizeDiscordBotLocale,
   parseLanguageChoice,
   type DiscordBotLocale,
 } from "@/lib/discord/i18n";
@@ -1480,7 +1481,8 @@ export async function POST(request: Request) {
   if ((payload.type === 2 && payload.data?.name === "plunder-plan") || ((payload.type === 3 || payload.type === 5) && payload.data?.custom_id?.startsWith("plunder:"))) {
     if (payload.type === 3 && plunderComponentNeedsModal(payload.data?.custom_id)) return NextResponse.json(await openPlunderPlanModal(payload));
     const applicationId = interactionApplicationId(payload), token = interactionToken(payload);
-    if (!applicationId || !token) return NextResponse.json(discordMessageResponse(createDiscordTranslator("en-US")("plunderPlan.errors.expired"), undefined, EPHEMERAL));
+    const interactionLocale = normalizeDiscordBotLocale(payload.locale);
+    if (!applicationId || !token) return NextResponse.json(discordMessageResponse(createDiscordTranslator(interactionLocale)("plunderPlan.errors.expired"), undefined, EPHEMERAL));
     scheduleBackgroundTask(undefined, async () => {
       try {
         const reply = await handlePlunderPlanDiscord(payload);
@@ -1488,7 +1490,11 @@ export async function POST(request: Request) {
       } catch {
         console.error("[plunder-plan] Discord response delivery failed");
         try {
-          await editDiscordOriginalInteraction({ applicationId, interactionToken: token, content: createDiscordTranslator("en-US")("plunderPlan.errors.save"), ephemeral: true, suppressMentions: true });
+          const discordUserId = interactionDiscordUserId(payload);
+          const locale = discordUserId
+            ? await getDiscordBotLocale(discordUserId, payload.locale)
+            : interactionLocale;
+          await editDiscordOriginalInteraction({ applicationId, interactionToken: token, content: createDiscordTranslator(locale)("plunderPlan.errors.save"), ephemeral: true, suppressMentions: true });
         } catch {
           console.error("[plunder-plan] Discord error follow-up failed");
         }
