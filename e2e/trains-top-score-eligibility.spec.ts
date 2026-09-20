@@ -142,6 +142,31 @@ test.describe("Train top score eligibility", () => {
     expect(body.trainTopScoreIncludesR4Plus).toBe(false);
   });
 
+  test("an invalid payload returns 400 with a machine code and no error string", async ({
+    request,
+  }) => {
+    const officer = await setupOfficer();
+
+    const patch = await request.patch(eligibilityPath(officer.tag), {
+      headers: {
+        Cookie: officer.cookieHeader,
+        "Content-Type": "application/json",
+      },
+      data: { trainTopScoreMinRank: 4, trainTopScoreIncludesR4Plus: true },
+    });
+    expect(patch.status()).toBe(400);
+    const body = await patch.json();
+    expect(body.code).toBe("invalid_payload");
+    expect(body.error).toBeUndefined();
+
+    const after = await request.get(eligibilityPath(officer.tag), {
+      headers: { Cookie: officer.cookieHeader },
+    });
+    const settings = await after.json();
+    expect(settings.trainTopScoreMinRank).toBe(3);
+    expect(settings.trainTopScoreIncludesR4Plus).toBe(true);
+  });
+
   test("a view-only member can read but not change the setting", async ({
     request,
   }) => {
@@ -225,6 +250,10 @@ test.describe("Train top score eligibility", () => {
       section.getByText("R2 and R3 members are eligible."),
     ).toBeVisible();
 
+    const includeR4Plus = page.getByTestId("train-top-score-include-r4-plus");
+    await expect(includeR4Plus).toBeChecked();
+    await includeR4Plus.uncheck();
+
     const patchResponse = page.waitForResponse(
       (res) =>
         res.url().includes("/train-top-score-eligibility") &&
@@ -238,6 +267,6 @@ test.describe("Train top score eligibility", () => {
     });
     const body = await after.json();
     expect(body.trainTopScoreMinRank).toBe(2);
-    expect(body.trainTopScoreIncludesR4Plus).toBe(true);
+    expect(body.trainTopScoreIncludesR4Plus).toBe(false);
   });
 });

@@ -86,7 +86,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const body = patchSchema.safeParse(await request.json());
     if (!body.success) {
       return NextResponse.json(
-        { error: "Could not save top score train eligibility." },
+        { code: "invalid_payload" },
         { status: 400 },
       );
     }

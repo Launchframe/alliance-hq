@@ -170,6 +170,7 @@ export function AllianceTrainTopScoreEligibilitySettings({
         <label className="mt-4 flex items-center gap-2 text-sm text-hq-fg">
           <input
             type="checkbox"
+            data-testid="train-top-score-include-r4-plus"
             checked={includesR4Plus}
             onChange={(e) => setIncludesR4Plus(e.target.checked)}
             disabled={!displaySettings.canManage || busy}
