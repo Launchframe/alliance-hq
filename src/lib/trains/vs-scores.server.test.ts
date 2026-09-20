@@ -43,6 +43,7 @@ vi.mock("@/lib/trains/rank-history", async (importActual) => {
 beforeEach(() => {
   mocks.listVsHeads.mockResolvedValue([]);
   mocks.loadTrainTopScoreEligibility.mockResolvedValue({
+    trainTopScoreMinRank: 3,
     trainTopScoreIncludesR4Plus: true,
     canManage: false,
   });
@@ -303,6 +304,7 @@ describe("fetchAllianceVsTopScorersForTrainDate", () => {
 
   it("filters out R4/R5 before the Top N slice when the alliance disables them", async () => {
     mocks.loadTrainTopScoreEligibility.mockResolvedValue({
+      trainTopScoreMinRank: 3,
       trainTopScoreIncludesR4Plus: false,
       canManage: false,
     });
@@ -365,8 +367,48 @@ describe("fetchAllianceVsTopScorersForTrainDate", () => {
     ]);
   });
 
+  it("admits R2/R3 but not R1 before Top N when the minimum rank is 2", async () => {
+    mocks.loadTrainTopScoreEligibility.mockResolvedValue({
+      trainTopScoreMinRank: 2,
+      trainTopScoreIncludesR4Plus: false,
+      canManage: false,
+    });
+    mocks.listActiveAllianceMembersForPool.mockResolvedValue([
+      { ashedMemberId: "m1", currentName: "Low", allianceRank: 1 },
+      { ashedMemberId: "m2", currentName: "Beta", allianceRank: 2 },
+      { ashedMemberId: "m3", currentName: "Gamma", allianceRank: 3 },
+    ]);
+    mocks.base44Json.mockResolvedValue([
+      { member_id: "m1", member_name: "Low", score: 15_000_000 },
+      { member_id: "m2", member_name: "Beta", score: 9_000_000 },
+      { member_id: "m3", member_name: "Gamma", score: 8_000_000 },
+    ]);
+
+    const top = await fetchAllianceVsTopScorersForTrainDate(
+      "hq-1",
+      "2026-07-09",
+      3,
+    );
+
+    expect(top).toEqual([
+      {
+        memberId: "m2",
+        memberName: "Beta",
+        allianceRank: 2,
+        priorDayVsScore: 9_000_000,
+      },
+      {
+        memberId: "m3",
+        memberName: "Gamma",
+        allianceRank: 3,
+        priorDayVsScore: 8_000_000,
+      },
+    ]);
+  });
+
   it("uses the HQ rank event over a stale synced roster rank", async () => {
     mocks.loadTrainTopScoreEligibility.mockResolvedValue({
+      trainTopScoreMinRank: 3,
       trainTopScoreIncludesR4Plus: false,
       canManage: false,
     });

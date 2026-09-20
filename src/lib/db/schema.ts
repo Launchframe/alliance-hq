@@ -599,6 +599,7 @@ export const alliances = pgTable("alliances", {
   trainConductorLeadTimeDays: integer("train_conductor_lead_time_days")
     .notNull()
     .default(0),
+  trainTopScoreMinRank: integer("train_top_score_min_rank").notNull().default(3),
   trainTopScoreIncludesR4Plus: integer("train_top_score_includes_r4_plus")
     .notNull()
     .default(1),

@@ -323,6 +323,7 @@ export async function fetchAllianceVsTopScorersForTrainDate(
       if (score <= 0 || !activeById.has(memberId)) return false;
       return isMemberEligibleForTopScoreTrain(
         resolvedRankByMember.get(memberId),
+        eligibility.trainTopScoreMinRank,
         eligibility.trainTopScoreIncludesR4Plus,
       );
     })

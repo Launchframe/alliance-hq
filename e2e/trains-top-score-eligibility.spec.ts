@@ -5,6 +5,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   createAllianceMembership,
+  createAllianceRosterMember,
   createAuthenticatedHqSession,
   createHqMemberLink,
   createNativeAlliance,
@@ -24,7 +25,9 @@ function cookieHeaderFor(sessionId: string, nextAuthToken: string): string {
     .join("; ");
 }
 
-async function setupOfficer(): Promise<Fixture> {
+async function setupOfficer(): Promise<
+  Fixture & { sessionId: string; nextAuthToken: string }
+> {
   const sql = getE2eSql();
   const alliance = await createNativeAlliance(sql, {
     tag: `TE${nanoid(4)}`,
@@ -44,6 +47,10 @@ async function setupOfficer(): Promise<Fixture> {
     allianceId: alliance.allianceId,
     hqUserId: auth.hqUserId,
   });
+  await createAllianceRosterMember(sql, {
+    allianceId: alliance.allianceId,
+    currentName: "Top Score Roster Member",
+  });
   await sql`
     UPDATE sessions
     SET current_alliance_id = ${alliance.allianceId},
@@ -54,6 +61,8 @@ async function setupOfficer(): Promise<Fixture> {
 
   return {
     cookieHeader: cookieHeaderFor(auth.sessionId, auth.nextAuthToken),
+    sessionId: auth.sessionId,
+    nextAuthToken: auth.nextAuthToken,
     allianceId: alliance.allianceId,
     tag: alliance.tag,
   };
@@ -93,7 +102,9 @@ function eligibilityPath(tag: string): string {
 }
 
 test.describe("Train top score eligibility", () => {
-  test("a new alliance defaults to including R4/R5", async ({ request }) => {
+  test("a new alliance defaults to minimum R3 with R4/R5 included", async ({
+    request,
+  }) => {
     const officer = await setupOfficer();
 
     const res = await request.get(eligibilityPath(officer.tag), {
@@ -101,11 +112,12 @@ test.describe("Train top score eligibility", () => {
     });
     expect(res.status(), await res.text()).toBe(200);
     const body = await res.json();
+    expect(body.trainTopScoreMinRank).toBe(3);
     expect(body.trainTopScoreIncludesR4Plus).toBe(true);
     expect(body.canManage).toBe(true);
   });
 
-  test("a trains officer can disable it and GET reflects the change", async ({
+  test("a trains officer can lower the minimum and disable R4/R5", async ({
     request,
   }) => {
     const officer = await setupOfficer();
@@ -115,15 +127,19 @@ test.describe("Train top score eligibility", () => {
         Cookie: officer.cookieHeader,
         "Content-Type": "application/json",
       },
-      data: { trainTopScoreIncludesR4Plus: false },
+      data: { trainTopScoreMinRank: 2, trainTopScoreIncludesR4Plus: false },
     });
     expect(patch.status(), await patch.text()).toBe(200);
-    expect((await patch.json()).trainTopScoreIncludesR4Plus).toBe(false);
+    const patched = await patch.json();
+    expect(patched.trainTopScoreMinRank).toBe(2);
+    expect(patched.trainTopScoreIncludesR4Plus).toBe(false);
 
     const after = await request.get(eligibilityPath(officer.tag), {
       headers: { Cookie: officer.cookieHeader },
     });
-    expect((await after.json()).trainTopScoreIncludesR4Plus).toBe(false);
+    const body = await after.json();
+    expect(body.trainTopScoreMinRank).toBe(2);
+    expect(body.trainTopScoreIncludesR4Plus).toBe(false);
   });
 
   test("a view-only member can read but not change the setting", async ({
@@ -137,6 +153,7 @@ test.describe("Train top score eligibility", () => {
     });
     expect(res.status(), await res.text()).toBe(200);
     const body = await res.json();
+    expect(body.trainTopScoreMinRank).toBe(3);
     expect(body.trainTopScoreIncludesR4Plus).toBe(true);
     expect(body.canManage).toBe(false);
 
@@ -145,7 +162,7 @@ test.describe("Train top score eligibility", () => {
         Cookie: member.cookieHeader,
         "Content-Type": "application/json",
       },
-      data: { trainTopScoreIncludesR4Plus: false },
+      data: { trainTopScoreMinRank: 1, trainTopScoreIncludesR4Plus: false },
     });
     expect(patch.status()).toBe(403);
   });
@@ -167,13 +184,60 @@ test.describe("Train top score eligibility", () => {
         Cookie: outsider.cookieHeader,
         "Content-Type": "application/json",
       },
-      data: { trainTopScoreIncludesR4Plus: false },
+      data: { trainTopScoreMinRank: 1, trainTopScoreIncludesR4Plus: false },
     });
     expect(patch.status()).toBe(403);
 
     const after = await request.get(eligibilityPath(officer.tag), {
       headers: { Cookie: officer.cookieHeader },
     });
-    expect((await after.json()).trainTopScoreIncludesR4Plus).toBe(true);
+    const body = await after.json();
+    expect(body.trainTopScoreMinRank).toBe(3);
+    expect(body.trainTopScoreIncludesR4Plus).toBe(true);
+  });
+
+  test("officer adjusts the minimum rank slider on the trains settings page", async ({
+    page,
+    request,
+  }) => {
+    const officer = await setupOfficer();
+
+    await page.context().addCookies(
+      playwrightAuthCookies({
+        sessionId: officer.sessionId,
+        nextAuthToken: officer.nextAuthToken,
+      }),
+    );
+
+    await page.goto("/settings/trains");
+
+    const section = page.getByTestId("train-top-score-eligibility-settings");
+    await expect(section).toBeVisible();
+
+    const slider = page.getByTestId("train-top-score-min-rank");
+    await expect(slider).toHaveValue("3");
+    await expect(slider).toHaveCSS("background-image", /linear-gradient/);
+    await expect(slider).toHaveCSS("background-image", /100%/);
+
+    await slider.fill("2");
+    await expect(slider).toHaveCSS("background-image", /50%/);
+    await expect(
+      section.getByText("R2 and R3 members are eligible."),
+    ).toBeVisible();
+
+    const patchResponse = page.waitForResponse(
+      (res) =>
+        res.url().includes("/train-top-score-eligibility") &&
+        res.request().method() === "PATCH",
+    );
+    await section.getByRole("button", { name: "Save" }).click();
+    expect((await patchResponse).status()).toBe(200);
+
+    const after = await request.get(eligibilityPath(officer.tag), {
+      headers: { Cookie: officer.cookieHeader },
+    });
+    const body = await after.json();
+    expect(body.trainTopScoreMinRank).toBe(2);
+    expect(body.trainTopScoreIncludesR4Plus).toBe(true);
   });
 });

@@ -18,6 +18,11 @@ export const dynamic = "force-dynamic";
 
 const patchSchema = z
   .object({
+    trainTopScoreMinRank: z.union([
+      z.literal(1),
+      z.literal(2),
+      z.literal(3),
+    ]),
     trainTopScoreIncludesR4Plus: z.boolean(),
   })
   .strict();
@@ -96,6 +101,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
 
     const changed =
+      before.trainTopScoreMinRank !== saved.trainTopScoreMinRank ||
       before.trainTopScoreIncludesR4Plus !==
       saved.trainTopScoreIncludesR4Plus;
 
@@ -120,9 +126,11 @@ export async function PATCH(request: Request, context: RouteContext) {
       severity: "update",
       metadata: {
         before: {
+          trainTopScoreMinRank: before.trainTopScoreMinRank,
           trainTopScoreIncludesR4Plus: before.trainTopScoreIncludesR4Plus,
         },
         after: {
+          trainTopScoreMinRank: saved.trainTopScoreMinRank,
           trainTopScoreIncludesR4Plus: saved.trainTopScoreIncludesR4Plus,
         },
       },

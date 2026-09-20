@@ -1212,6 +1212,13 @@
       "when": 1790900000184,
       "tag": "0184_train_top_score_r4_plus",
       "breakpoints": false
+    },
+    {
+      "idx": 173,
+      "version": "7",
+      "when": 1790900000185,
+      "tag": "0185_train_top_score_min_rank",
+      "breakpoints": false
     }
   ]
 }
