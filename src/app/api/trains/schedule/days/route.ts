@@ -23,22 +23,27 @@ export const dynamic = "force-dynamic";
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * A paint carries a **complete** rule. `conductorRule: null` is free choice
- * and `vipRule: null` is the conductor's pick — both are deliberate values,
- * so the payload must state them rather than omit them. That is what stops a
- * scope (Top 5) from silently reverting to a default on its way through.
+ * A paint patches each side independently. `conductorRule: null` is free
+ * choice and `vipRule: null` is the conductor's pick — both are deliberate
+ * values. An omitted side preserves the day's current rule, so a VIP-only
+ * paint can never reset the conductor scope on its way through.
  */
-const paintBodySchema = z.object({
-  dates: z.array(z.string().regex(DATE_PATTERN)).min(1),
-  conductorRule: conductorRuleSchema.nullable(),
-  vipRule: vipRuleSchema.nullable(),
-  /** Preset to stamp on the week schedule when this paint sets one. */
-  updateWeekTemplate: z.enum(WEEK_TEMPLATES).nullish(),
-  /** Preset to persist when materializing a draft week on first paint. */
-  preferredWeekTemplate: z.enum(WEEK_TEMPLATES).nullish(),
-  /** Provenance for the calendar cell — never a draw input. */
-  sourceTemplateKey: z.string().max(64).nullish(),
-});
+const paintBodySchema = z
+  .object({
+    dates: z.array(z.string().regex(DATE_PATTERN)).min(1),
+    conductorRule: conductorRuleSchema.nullable().optional(),
+    vipRule: vipRuleSchema.nullable().optional(),
+    /** Preset to stamp on the week schedule when this paint sets one. */
+    updateWeekTemplate: z.enum(WEEK_TEMPLATES).nullish(),
+    /** Preset to persist when materializing a draft week on first paint. */
+    preferredWeekTemplate: z.enum(WEEK_TEMPLATES).nullish(),
+    /** Provenance for the calendar cell — never a draw input. */
+    sourceTemplateKey: z.string().max(64).nullish(),
+  })
+  .refine(
+    (body) => body.conductorRule !== undefined || body.vipRule !== undefined,
+    { message: "Choose a conductor rule, a VIP rule, or both." },
+  );
 
 export async function GET() {
   const sessionOrError = await requireApiSession();
@@ -76,7 +81,7 @@ export async function PATCH(request: Request) {
   if (!parsed.success) {
     return NextResponse.json(
       {
-        error: "A complete conductor rule and at least one date are required.",
+        error: "Choose a conductor rule, a VIP rule, or both.",
         issues: parsed.error.issues.map((issue) => ({
           path: issue.path.join("."),
           message: issue.message,
@@ -133,8 +138,10 @@ export async function PATCH(request: Request) {
       resourceId: ctx.allianceId,
       metadata: {
         dates,
-        conductorRule: body.conductorRule,
-        vipRule: body.vipRule,
+        ...(body.conductorRule !== undefined
+          ? { conductorRule: body.conductorRule }
+          : {}),
+        ...(body.vipRule !== undefined ? { vipRule: body.vipRule } : {}),
         updateWeekTemplate: body.updateWeekTemplate ?? null,
         pastDayOverride: blockedPastDates.length > 0 && isPlatformAdmin,
         pastDates: blockedPastDates,
@@ -143,8 +150,10 @@ export async function PATCH(request: Request) {
     return NextResponse.json({
       ok: true,
       dates,
-      conductorRule: body.conductorRule,
-      vipRule: body.vipRule,
+      ...(body.conductorRule !== undefined
+        ? { conductorRule: body.conductorRule }
+        : {}),
+      ...(body.vipRule !== undefined ? { vipRule: body.vipRule } : {}),
     });
   } catch (error) {
     const { status, body: responseBody } = trainActionErrorResponse(error);

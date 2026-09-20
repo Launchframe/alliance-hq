@@ -3802,7 +3802,14 @@
       "title": "Change this day's rule",
       "ariaLabel": "Choose a rule for {date}",
       "holdHint": "Long press a day to change its rule.",
-      "dialogSubtitle": "This changes today's rule only — this week's template stays the same."
+      "dialogSubtitle": "This changes today's rule only — this week's template stays the same.",
+      "targetLabel": "Change",
+      "targetConductor": "Conductor",
+      "targetVip": "VIP",
+      "targetBoth": "Both",
+      "conductorSection": "Conductor rule",
+      "vipSection": "VIP rule",
+      "sourceDayWarning": "This rule reads from a VS break day, so its wheel will have no scores. You can still pick manually."
     },
     "weekdays": {
       "mon": "Mon",

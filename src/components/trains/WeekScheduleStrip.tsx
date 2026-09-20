@@ -52,7 +52,6 @@ import {
   canSpinVipForRule,
 } from "@/lib/trains/conductor-mechanism.shared";
 import { effectiveConductorRuleForTrainDate } from "@/lib/trains/vs-score-scope.shared";
-import { scoreDayRuleFromDayConfigs } from "@/lib/trains/train-day-context.shared";
 import { coverFlowItemStyle } from "@/lib/client/cover-flow-carousel.shared";
 import {
   DayTemplateContextMenu,
@@ -76,8 +75,6 @@ type Props = {
   isDatePaintable?: (date: string) => boolean;
   onPaintDate?: (date: string, rule: ConductorRule | null) => void;
   vrReporterCount?: number;
-  /** Conductor lead time — VS scope follows score reference day when > 0. */
-  trainConductorLeadTimeDays?: number;
   navLabels: {
     previousWeek: string;
     nextWeek: string;
@@ -133,8 +130,6 @@ function weekdayLabel(date: string): string {
 type DayCellOptions = {
   day: WeekScheduleDayConfig;
   weekRecords: WeekConductorRecordSummary[];
-  dayConfigs: WeekScheduleDayConfig[];
-  trainConductorLeadTimeDays?: number;
   today: string;
   weekStart: string;
   weekEnd: string;
@@ -152,8 +147,6 @@ type DayCellOptions = {
 function WeekScheduleDayCell({
   day,
   weekRecords,
-  dayConfigs,
-  trainConductorLeadTimeDays = 0,
   today,
   weekStart,
   weekEnd,
@@ -173,15 +166,8 @@ function WeekScheduleDayCell({
   const selectable =
     isCalendarDateOnOrAfter(day.date, weekStart) &&
     isCalendarDateOnOrAfter(weekEnd, day.date);
-  // Under lead time the tile shows the scope of the day the scores came from.
   const displayRule = effectiveConductorRuleForTrainDate({
     trainRule: day.conductorRule,
-    leadDays: trainConductorLeadTimeDays,
-    scoreDayRule: scoreDayRuleFromDayConfigs(
-      day.date,
-      trainConductorLeadTimeDays,
-      dayConfigs,
-    ),
   });
   const baseStyle = RULE_CELL_STYLES[paletteIdForRule(displayRule)];
   const style =
@@ -372,7 +358,6 @@ type CarouselProps = {
   today: string;
   selectedDate: string;
   ruleTextLabels: Record<string, string>;
-  trainConductorLeadTimeDays?: number;
   canPaintDays?: boolean;
   isDatePaintable?: (date: string) => boolean;
   onOpenTemplateMenu?: (anchor: DayTemplateMenuAnchor) => void;
@@ -391,7 +376,6 @@ function WeekScheduleInfiniteDayCarousel({
   today,
   selectedDate,
   ruleTextLabels,
-  trainConductorLeadTimeDays = 0,
   canPaintDays = false,
   isDatePaintable,
   onOpenTemplateMenu,
@@ -562,8 +546,6 @@ function WeekScheduleInfiniteDayCarousel({
         <WeekScheduleDayCell
           day={entry.day}
           weekRecords={record ? [record] : []}
-          dayConfigs={entry.weekDayConfigs}
-          trainConductorLeadTimeDays={trainConductorLeadTimeDays}
           today={today}
           weekStart={entry.weekStart}
           weekEnd={entry.weekEnd}
@@ -644,7 +626,6 @@ export function WeekScheduleStrip({
   isDatePaintable,
   onPaintDate,
   vrReporterCount = 0,
-  trainConductorLeadTimeDays = 0,
   navLabels,
   trainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK,
   externalWeek,
@@ -837,8 +818,6 @@ export function WeekScheduleStrip({
             key={day.id}
             day={day}
             weekRecords={weekRecords}
-            dayConfigs={dayConfigs}
-            trainConductorLeadTimeDays={trainConductorLeadTimeDays}
             today={today}
             weekStart={weekStart}
             weekEnd={weekEnd}
@@ -907,7 +886,6 @@ export function WeekScheduleStrip({
               today={today}
               selectedDate={selectedDate}
               ruleTextLabels={ruleTextLabels}
-              trainConductorLeadTimeDays={trainConductorLeadTimeDays}
               canPaintDays={canPaintDays}
               isDatePaintable={isDatePaintable}
               onOpenTemplateMenu={handleOpenTemplateMenu}

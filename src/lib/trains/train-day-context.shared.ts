@@ -24,16 +24,15 @@ export type TrainDaySpinSourceInput = {
 };
 
 /**
- * Conductor spin source with lead-time VS scope inheritance. Pools and Price
- * Is Freight use the train day's own rule; VS boards follow the scope painted
- * on the day the scores came from.
+ * Conductor spin source. The train day's painted rule is authoritative —
+ * lead time only shifts which date's scores are read, never the Top N scope.
  */
 export function conductorSpinSourceForTrainDay(
   input: TrainDaySpinSourceInput,
 ): SpinSource {
   const base = spinSourceForConductorRule(input.trainRule);
   if (base?.kind !== "vs_leaderboard") return base;
-  const board = resolveVsBoardForTrainDate(input);
+  const board = resolveVsBoardForTrainDate({ trainRule: input.trainRule });
   return board ? { kind: "vs_leaderboard", topN: board.topN } : base;
 }
 

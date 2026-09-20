@@ -4,10 +4,12 @@ import {
   conductorRuleChanged,
   conductorRuleIdentity,
   conductorRuleLabelKey,
+  mergeDayRulePatch,
   parseConductorRule,
   parseVipRule,
   vipRuleIdentity,
   type ConductorRule,
+  type DayRules,
 } from "@/lib/trains/rules/catalog.shared";
 
 describe("conductorRuleIdentity", () => {
@@ -127,4 +129,54 @@ describe("conductorRuleLabelKey", () => {
       expect(conductorRuleLabelKey(rule)).toBe(key);
     });
   }
+});
+
+describe("mergeDayRulePatch", () => {
+  const current: DayRules = {
+    conductorRule: { kind: "vs_top_n", topN: 10 },
+    vipRule: { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
+  };
+
+  it("preserves the event VIP on a conductor-only paint", () => {
+    expect(
+      mergeDayRulePatch(current, {
+        conductorRule: { kind: "donations_top" },
+      }),
+    ).toEqual({
+      conductorRule: { kind: "donations_top" },
+      vipRule: { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
+    });
+  });
+
+  it("preserves the conductor rule on a VIP-only paint", () => {
+    expect(
+      mergeDayRulePatch(current, { vipRule: { kind: "donations_second" } }),
+    ).toEqual({
+      conductorRule: { kind: "vs_top_n", topN: 10 },
+      vipRule: { kind: "donations_second" },
+    });
+  });
+
+  it("clears only the side that is explicitly null", () => {
+    expect(mergeDayRulePatch(current, { conductorRule: null })).toEqual({
+      conductorRule: null,
+      vipRule: { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
+    });
+    expect(mergeDayRulePatch(current, { vipRule: null })).toEqual({
+      conductorRule: { kind: "vs_top_n", topN: 10 },
+      vipRule: null,
+    });
+  });
+
+  it("replaces both sides when both are supplied", () => {
+    expect(
+      mergeDayRulePatch(current, {
+        conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+        vipRule: { kind: "none" },
+      }),
+    ).toEqual({
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      vipRule: { kind: "none" },
+    });
+  });
 });

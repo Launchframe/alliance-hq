@@ -3736,7 +3736,14 @@
       "title": "Alterar regra do dia",
       "ariaLabel": "Escolher uma regra para {date}",
       "holdHint": "Pressione longamente um dia para alterar sua regra.",
-      "dialogSubtitle": "Isso altera apenas a regra de hoje — o modelo da semana permanece o mesmo."
+      "dialogSubtitle": "Isso altera apenas a regra de hoje — o modelo da semana permanece o mesmo.",
+      "targetLabel": "Alterar",
+      "targetConductor": "Condutor",
+      "targetVip": "VIP",
+      "targetBoth": "Ambos",
+      "conductorSection": "Regra do condutor",
+      "vipSection": "Regra de VIP",
+      "sourceDayWarning": "Esta regra lê de um dia de folga do VS, então a roleta não terá pontuações. Você ainda pode escolher manualmente."
     },
     "weekdays": {
       "mon": "Seg",

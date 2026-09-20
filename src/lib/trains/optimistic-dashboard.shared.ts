@@ -9,7 +9,10 @@ import { weekDayConfigsForPreset } from "@/lib/trains/templates";
 import type { WeekTemplateType } from "@/lib/trains/types";
 import {
   conductorRuleChanged,
-  type DayRules,
+  FREE_CHOICE_DAY_RULES,
+  mergeDayRulePatch,
+  vipRuleIdentity,
+  type DayRulePatch,
 } from "@/lib/trains/rules/catalog.shared";
 import {
   encodeLegacyConductorMechanism,
@@ -235,7 +238,7 @@ export function applyOptimisticConductorSwap(
 export function patchDayConfigsForDates(
   dayConfigs: WeekScheduleDayConfig[],
   dates: string[],
-  rules: DayRules,
+  patch: DayRulePatch,
   sourceTemplateKey: string | null = null,
 ): WeekScheduleDayConfig[] {
   const dateSet = new Set(dates);
@@ -243,11 +246,17 @@ export function patchDayConfigsForDates(
 
   for (const date of dates) {
     const existing = byDate.get(date);
+    const merged = mergeDayRulePatch(
+      existing
+        ? { conductorRule: existing.conductorRule, vipRule: existing.vipRule }
+        : FREE_CHOICE_DAY_RULES,
+      patch,
+    );
     byDate.set(date, {
       id: existing?.id ?? `optimistic-${date}`,
       date,
-      conductorRule: rules.conductorRule,
-      vipRule: rules.vipRule,
+      conductorRule: merged.conductorRule,
+      vipRule: merged.vipRule,
       isOverride: true,
       sourceTemplateKey,
     });
@@ -280,7 +289,7 @@ function clearConductorPicksWhenRuleChanges(
   records: WeekConductorRecordSummary[],
   dates: string[],
   dayConfigs: WeekScheduleDayConfig[],
-  nextRules: DayRules,
+  patch: DayRulePatch,
   roster: Array<{ memberId: string; allianceRank?: number | null }> = [],
 ): WeekConductorRecordSummary[] {
   const dateSet = new Set(dates);
@@ -296,13 +305,28 @@ function clearConductorPicksWhenRuleChanges(
     const previousDay = dayConfigs.find((day) => day.date === record.date);
     if (!previousDay) return record;
 
+    const nextRules = mergeDayRulePatch(
+      {
+        conductorRule: previousDay.conductorRule,
+        vipRule: previousDay.vipRule,
+      },
+      patch,
+    );
+
     if (
       !conductorRuleChanged(
         previousDay.conductorRule,
         nextRules.conductorRule,
       )
     ) {
-      return record;
+      return vipRuleIdentity(previousDay.vipRule) !==
+        vipRuleIdentity(nextRules.vipRule)
+        ? {
+            ...record,
+            conductorRule: nextRules.conductorRule,
+            vipRule: nextRules.vipRule,
+          }
+        : record;
     }
 
     const rosterRow = record.conductorMemberId
@@ -343,7 +367,7 @@ function clearConductorPicksWhenRuleChanges(
 export function applyOptimisticPaint(
   snap: TrainsDashboardSnapshot,
   dates: string[],
-  rules: DayRules,
+  patch: DayRulePatch,
   options?: {
     /** Preset to stamp on the week schedule, when this paint sets one. */
     updateWeekTemplate?: WeekTemplateType | null;
@@ -359,7 +383,7 @@ export function applyOptimisticPaint(
       records,
       dates,
       dayConfigs,
-      rules,
+      patch,
       snap.data.roster ?? [],
     );
 
@@ -369,7 +393,7 @@ export function applyOptimisticPaint(
       dayConfigs: patchDayConfigsForDates(
         snap.data.dayConfigs,
         dates,
-        rules,
+        patch,
         sourceTemplateKey,
       ),
       weekRecords: clearRecords(snap.data.weekRecords, snap.data.dayConfigs),
@@ -389,7 +413,7 @@ export function applyOptimisticPaint(
       dayConfigs: patchDayConfigsForDates(
         snap.viewedWeek.dayConfigs,
         dates,
-        rules,
+        patch,
         sourceTemplateKey,
       ),
       weekRecords: clearRecords(
@@ -402,7 +426,7 @@ export function applyOptimisticPaint(
       dayConfigs: patchDayConfigsForDates(
         snap.viewedMonth.dayConfigs,
         dates,
-        rules,
+        patch,
         sourceTemplateKey,
       ),
       monthRecords: clearRecords(
