@@ -202,7 +202,10 @@ import {
 import {
   wheelSpeedMultiplier,
 } from "@/lib/trains/trains-wheel-speed.shared";
-import { isProvisionalDayConfig } from "@/lib/trains/week-schedule-day-configs.shared";
+import {
+  isProvisionalDayConfig,
+  resolveWeekTemplateDisplay,
+} from "@/lib/trains/week-schedule-day-configs.shared";
 
 type Props = {
   initial: TrainsDashboardPayload;
@@ -233,33 +236,6 @@ type PaintOptions = {
   /** Provenance for the calendar cell — never a draw input. */
   sourceTemplateId?: string | null;
 };
-
-/**
- * Best-guess template for the week picker, from the template each day was
- * painted with. Provenance only — it never changes how a day draws.
- */
-function inferWeekTemplateIdFromDayConfigs(
-  dayConfigs: Array<{ sourceTemplateId?: string | null }>,
-): string | null {
-  const counts = new Map<string, number>();
-  for (const day of dayConfigs) {
-    if (!day.sourceTemplateId) continue;
-    counts.set(
-      day.sourceTemplateId,
-      (counts.get(day.sourceTemplateId) ?? 0) + 1,
-    );
-  }
-
-  let dominant: string | null = null;
-  let dominantCount = 0;
-  for (const [templateId, count] of counts) {
-    if (count > dominantCount) {
-      dominant = templateId;
-      dominantCount = count;
-    }
-  }
-  return dominant;
-}
 
 export function TrainsDashboard({
   initial,
@@ -691,7 +667,7 @@ export function TrainsDashboard({
         seed = {
           weekStart: targetTrainWeekStart,
           weekEnd: targetTrainWeekEnd,
-          templateId: inferWeekTemplateIdFromDayConfigs(dayConfigs),
+          templateId: resolveWeekTemplateDisplay(dayConfigs).templateId,
           dayConfigs,
           weekRecords,
           dayScoreStats: {},
@@ -902,19 +878,29 @@ export function TrainsDashboard({
     [ruleTemplates],
   );
 
-  const activeWeekTemplateId = useMemo((): string | null => {
+  const activeWeekTemplateDisplay = useMemo(() => {
     if (walkthroughSandbox.weekTemplate) {
-      return templateIdForPresetKey(walkthroughSandbox.weekTemplate);
+      return {
+        templateId: templateIdForPresetKey(walkthroughSandbox.weekTemplate),
+        mixed: false,
+      };
     }
     const weekPage =
       viewedWeek.weekStart === targetTrainWeekStart ? viewedWeek : weekViewSeed;
+    const display = resolveWeekTemplateDisplay(weekPage.dayConfigs);
+    if (display.mixed) {
+      return { templateId: null, mixed: true };
+    }
+    if (display.templateId) {
+      return display;
+    }
     if (weekPage.templateId) {
-      return weekPage.templateId;
+      return { templateId: weekPage.templateId, mixed: false };
     }
     if (weekPage.weekStart === data.weekStart && data.schedule?.templateId) {
-      return data.schedule.templateId;
+      return { templateId: data.schedule.templateId, mixed: false };
     }
-    return inferWeekTemplateIdFromDayConfigs(weekPage.dayConfigs);
+    return { templateId: null, mixed: false };
   }, [
     data.schedule,
     data.weekStart,
@@ -924,6 +910,8 @@ export function TrainsDashboard({
     weekViewSeed,
     walkthroughSandbox.weekTemplate,
   ]);
+  const activeWeekTemplateId = activeWeekTemplateDisplay.templateId;
+  const activeWeekTemplateMixed = activeWeekTemplateDisplay.mixed;
   const activeWeekTemplate = activeWeekTemplateId
     ? (templatesById.get(activeWeekTemplateId) ?? null)
     : null;
@@ -1800,11 +1788,14 @@ export function TrainsDashboard({
       const weekPage =
         viewedWeek.weekStart === targetTrainWeekStart ? viewedWeek : weekViewSeed;
       const { weekStart, weekEnd, weekRecords } = weekPage;
-      const currentTemplateId =
-        weekPage.templateId ??
-        (weekStart === data.weekStart && data.schedule
-          ? data.schedule.templateId
-          : inferWeekTemplateIdFromDayConfigs(weekPage.dayConfigs));
+      const display = resolveWeekTemplateDisplay(weekPage.dayConfigs);
+      const currentTemplateId = display.mixed
+        ? null
+        : (display.templateId ??
+          weekPage.templateId ??
+          (weekStart === data.weekStart && data.schedule
+            ? data.schedule.templateId
+            : null));
 
       if (currentTemplateId === templateId) {
         // Draft week: Simple Mode stays on the template step until the schedule
@@ -2790,8 +2781,10 @@ export function TrainsDashboard({
                 className="flex w-full items-center justify-between gap-2 rounded-xl border border-hq-border bg-hq-surface px-3 py-2 text-left text-sm text-hq-fg hover:bg-hq-canvas disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <span className="min-w-0 truncate font-medium">
-                  {templateDisplayName(activeWeekTemplate) ??
-                    t("weekTemplateNone")}
+                  {activeWeekTemplateMixed
+                    ? t("weekTemplateMixed")
+                    : (templateDisplayName(activeWeekTemplate) ??
+                      t("weekTemplateNone"))}
                 </span>
                 <ChevronDown
                   className="h-4 w-4 shrink-0 text-hq-fg-muted"

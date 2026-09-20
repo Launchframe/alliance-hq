@@ -10,6 +10,7 @@ import { requireSessionPermission } from "@/lib/rbac/require-permission";
 import {
   RuleTemplateNameTakenError,
   createRuleTemplate,
+  getRuleTemplateForAlliance,
   listRuleTemplatesForAlliance,
 } from "@/lib/trains/rules/templates.server";
 import { templateWeekRulesSchema } from "@/lib/trains/rules/template-days.shared";
@@ -69,6 +70,19 @@ export async function POST(request: Request) {
       },
       { status: 400 },
     );
+  }
+
+  if (parsed.data.sourceTemplateId) {
+    const source = await getRuleTemplateForAlliance(
+      ctx.allianceId,
+      parsed.data.sourceTemplateId,
+    );
+    if (!source) {
+      return NextResponse.json(
+        { error: "Week template not found." },
+        { status: 404 },
+      );
+    }
   }
 
   try {

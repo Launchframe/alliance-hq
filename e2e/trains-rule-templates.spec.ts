@@ -4,6 +4,10 @@ import { nanoid } from "nanoid";
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
 import {
+  addCalendarDays,
+  getServerDayOfWeek,
+} from "../src/lib/trains/game-time";
+import {
   createAllianceMembership,
   createAllianceRosterMember,
   createAuthenticatedHqSession,
@@ -27,7 +31,11 @@ const FREE_WEEK = {
   sat: { conductorRule: null, vipRule: { kind: "none" } },
 };
 
-type Fixture = { cookieHeader: string; allianceId: string };
+type Fixture = {
+  cookieHeader: string;
+  cookies: ReturnType<typeof playwrightAuthCookies>;
+  allianceId: string;
+};
 
 async function setupOfficer(
   request: APIRequestContext,
@@ -72,6 +80,7 @@ async function setupOfficer(
     cookieHeader: cookies
       .map((cookie) => `${cookie.name}=${cookie.value}`)
       .join("; "),
+    cookies,
     allianceId: alliance.allianceId,
   };
 }
@@ -298,6 +307,168 @@ test.describe("Train rule templates", () => {
       },
     });
     expect(paint.status()).toBe(404);
+  });
+
+  test("an archived template's name can be reused, and restore collides", async ({
+    request,
+  }) => {
+    const officer = await setupOfficer(request);
+    const name = `Economy ${nanoid(6)}`;
+    const post = () =>
+      request.post("/api/trains/rule-templates", {
+        headers: {
+          Cookie: officer.cookieHeader,
+          "Content-Type": "application/json",
+        },
+        data: { name, days: FREE_WEEK },
+      });
+
+    const first = await post();
+    expect(first.status(), await first.text()).toBe(201);
+    const firstId = (await first.json()).template.id as string;
+
+    const archived = await request.delete(
+      `/api/trains/rule-templates/${firstId}`,
+      { headers: { Cookie: officer.cookieHeader } },
+    );
+    expect(archived.ok(), await archived.text()).toBeTruthy();
+
+    const second = await post();
+    expect(second.status(), await second.text()).toBe(201);
+
+    const duplicateActive = await post();
+    expect(duplicateActive.status()).toBe(409);
+
+    const restored = await request.patch(
+      `/api/trains/rule-templates/${firstId}`,
+      {
+        headers: {
+          Cookie: officer.cookieHeader,
+          "Content-Type": "application/json",
+        },
+        data: { archived: false },
+      },
+    );
+    expect(restored.status()).toBe(409);
+  });
+
+  test("create rejects a source template owned by another alliance", async ({
+    request,
+  }) => {
+    const owner = await setupOfficer(request);
+    const outsider = await setupOfficer(request);
+
+    const foreign = await request.post("/api/trains/rule-templates", {
+      headers: { Cookie: owner.cookieHeader, "Content-Type": "application/json" },
+      data: { name: `Foreign ${nanoid(4)}`, days: FREE_WEEK },
+    });
+    const foreignId = (await foreign.json()).template.id as string;
+
+    const stolen = await request.post("/api/trains/rule-templates", {
+      headers: {
+        Cookie: outsider.cookieHeader,
+        "Content-Type": "application/json",
+      },
+      data: {
+        name: `Copy ${nanoid(4)}`,
+        days: FREE_WEEK,
+        sourceTemplateId: foreignId,
+      },
+    });
+    expect(stolen.status()).toBe(404);
+
+    const ownSource = await request.post("/api/trains/rule-templates", {
+      headers: {
+        Cookie: outsider.cookieHeader,
+        "Content-Type": "application/json",
+      },
+      data: { name: `Own ${nanoid(4)}`, days: FREE_WEEK },
+    });
+    const ownSourceId = (await ownSource.json()).template.id as string;
+    const ownCopy = await request.post("/api/trains/rule-templates", {
+      headers: {
+        Cookie: outsider.cookieHeader,
+        "Content-Type": "application/json",
+      },
+      data: {
+        name: `Own copy ${nanoid(4)}`,
+        days: FREE_WEEK,
+        sourceTemplateId: ownSourceId,
+      },
+    });
+    expect(ownCopy.status(), await ownCopy.text()).toBe(201);
+    expect((await ownCopy.json()).template.sourceTemplateId).toBe(ownSourceId);
+
+    const preset = (await listTemplates(request, outsider.cookieHeader)).find(
+      (template) => template.isPreset,
+    )!;
+    const presetCopy = await request.post("/api/trains/rule-templates", {
+      headers: {
+        Cookie: outsider.cookieHeader,
+        "Content-Type": "application/json",
+      },
+      data: {
+        name: `Preset copy ${nanoid(4)}`,
+        days: FREE_WEEK,
+        sourceTemplateId: preset.id,
+      },
+    });
+    expect(presetCopy.status(), await presetCopy.text()).toBe(201);
+    expect((await presetCopy.json()).template.sourceTemplateId).toBe(preset.id);
+  });
+
+  test("a week painted from two templates shows Mixed rules", async ({
+    request,
+    page,
+  }) => {
+    const officer = await setupOfficer(request);
+    const headers = {
+      Cookie: officer.cookieHeader,
+      "Content-Type": "application/json",
+    };
+
+    const templateA = (
+      await (
+        await request.post("/api/trains/rule-templates", {
+          headers,
+          data: { name: `Week A ${nanoid(4)}`, days: FREE_WEEK },
+        })
+      ).json()
+    ).template.id as string;
+    const templateB = (
+      await (
+        await request.post("/api/trains/rule-templates", {
+          headers,
+          data: { name: `Week B ${nanoid(4)}`, days: FREE_WEEK },
+        })
+      ).json()
+    ).template.id as string;
+
+    const dashboard = await (
+      await request.get("/api/trains/schedule", { headers })
+    ).json();
+    const thisMonday = addCalendarDays(
+      dashboard.today,
+      -((getServerDayOfWeek(dashboard.today) + 6) % 7),
+    );
+    const nextMonday = addCalendarDays(thisMonday, 7);
+
+    for (const [weekStart, templateId] of [
+      [thisMonday, templateA],
+      [nextMonday, templateB],
+    ] as const) {
+      const res = await request.post("/api/trains/schedule", {
+        headers,
+        data: { weekStart, templateId },
+      });
+      expect(res.ok(), await res.text()).toBeTruthy();
+    }
+
+    await page.context().addCookies(officer.cookies);
+    await page.goto("/trains");
+    await expect(page.getByTestId("trains-week-template-button")).toContainText(
+      "Mixed rules",
+    );
   });
 
   test("a member without trains:write cannot create a template", async ({

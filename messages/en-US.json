@@ -3851,6 +3851,7 @@
       "sat": "Sat",
       "sun": "Sun"
     },
+    "weekTemplateMixed": "Mixed rules",
     "weekTemplateNone": "No template",
     "weekNavPrevious": "Previous week",
     "weekNavNext": "Next week",
