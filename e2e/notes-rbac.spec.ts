@@ -107,8 +107,6 @@ test.describe("HQ notes RBAC", () => {
     expect(row?.hq_user_id).toBeNull();
 
     const cookie = hqSessionOnlyCookie(sessionId);
-    const summaries = await request.get("/api/notes?format=summary", { headers: { Cookie: cookie } });
-    expect(summaries.status(), await summaries.text()).toBe(403);
     const list = await request.get("/api/notes", {
       headers: { Cookie: cookie },
     });

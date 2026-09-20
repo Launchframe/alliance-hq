@@ -202,13 +202,26 @@ export async function lookupPlayerByUid(
     const res = await fetchImpl(url, {
       method: "GET",
       headers: { Accept: "application/json" },
+      // Bound outbound wait so a hung lastwar-platform cannot stall HQ routes.
+      signal: AbortSignal.timeout(8_000),
     });
-    const body = (await res.json()) as LastWarPlayerLookupResponse;
+    let body: LastWarPlayerLookupResponse;
+    try {
+      body = (await res.json()) as LastWarPlayerLookupResponse;
+    } catch {
+      return {
+        ok: false,
+        reason: "request_failed",
+        message: res.ok
+          ? "Player lookup returned an unexpected response."
+          : `Player lookup failed (HTTP ${res.status}).`,
+      };
+    }
     if (!res.ok) {
       return {
         ok: false,
         reason: "request_failed",
-        message: body.message ?? "Player lookup failed.",
+        message: body.message ?? `Player lookup failed (HTTP ${res.status}).`,
       };
     }
     return parseLastWarLookupResponse(body, uid.trim());

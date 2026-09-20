@@ -17,7 +17,7 @@ function utcDatetimeLocal(iso: string | null) {
 }
 
 export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: boolean; focusId: string | null; onOpen: (id: string | null) => void }) {
-  const t = useTranslations("notes.imports"), workspaceT = useTranslations("notes.workspace");
+  const t = useTranslations("notes.imports");
   const locale = useLocale();
   const fetchNotes = useNotesFetch(), navigation = useNotesNavigation();
   const urlCursor = navigation.params.get("importCursor");
@@ -28,9 +28,6 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
   const [previousCursor, setPreviousCursor] = useState<string | null>(null);
   const listCursor = useRef<string | null>(null);
   const listReadNumber = useRef(0);
-  const lastLoadFocus = useRef(focusId);
-  const listNavigating = useRef(false);
-  const listRefreshPending = useRef(false);
   const [scope, setScope] = useState("");
   const [detail, setDetail] = useState<HistoryImportDetail | null>(null);
   const [edits, setEdits] = useState<HistoryReviewRow[]>([]);
@@ -75,16 +72,15 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
     if (!alive.current) return;
     if (failure instanceof ImportError && [401, 403, 404].includes(failure.status)) { applyScope(""); setList([]); setDetail(null); current.current = null; setEdits([]); setError(null); setListError(null); dirty.current = false; }
     (listFailure ? setListError : setError)(failure instanceof ImportError ? failure.message : t("error"));
-    if (!listFailure) requestAnimationFrame(() => errorAnchor.current?.scrollIntoView({ block: "nearest" }));
+    requestAnimationFrame(() => (listFailure ? listErrorAnchor : errorAnchor).current?.scrollIntoView({ block: "nearest" }));
   }, [t, applyScope]);
-  useEffect(() => { if (listError) listErrorAnchor.current?.scrollIntoView({ block: "nearest" }); }, [listError]);
   const api = useCallback(async <T,>(url: string, init?: RequestInit): Promise<T> => {
     const response = await fetchNotes(url, { cache: "no-store", signal: lifetime.current.signal, ...init });
     const body = await response.json().catch(() => null);
     if (!response.ok || !body) throw new ImportError(body?.error ?? t("error"), response.status);
     return body;
   }, [t, fetchNotes]);
-  const loadList = useCallback(async (cursor = listCursor.current) => {
+  const loadList = useCallback(async (cursor = urlCursor) => {
     const generation = revision.current;
     const number = ++listReadNumber.current;
     const query = cursor ? `?${new URLSearchParams({ cursor })}` : "";
@@ -94,7 +90,7 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
     applyScope(body.scope); listCursor.current = cursor; setList(body.imports); setNextCursor(body.nextCursor); setListError(null);
     setPreviousCursor(body.previousCursor);
     return !changedScope;
-  }, [api, applyScope]);
+  }, [api, applyScope, urlCursor]);
   const load = useCallback(async (id: string, page: number, reset = false) => {
     if (id !== selection.current) return;
     const generation = revision.current;
@@ -107,16 +103,13 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
     return true;
   }, [api, t, applyScope]);
   useEffect(() => {
-    const changedFocus = lastLoadFocus.current !== focusId; lastLoadFocus.current = focusId;
-    if (!focusId && !changedFocus && scopeRef.current && listCursor.current === urlCursor) return;
     revision.current++; current.current = null; dirty.current = false; setDetail(null); setEdits([]);
     if (focusId) void load(focusId, offset).catch(fail);
-    else void loadList(urlCursor).catch((failure) => fail(failure, true));
-  }, [focusId, offset, urlCursor, load, loadList, fail]);
+    else void loadList().catch((failure) => fail(failure, true));
+  }, [focusId, offset, load, loadList, fail]);
   useEffect(() => {
     const refresh = () => {
       if (focusId) void load(focusId, offset).catch(fail);
-      else if (listNavigating.current) listRefreshPending.current = true;
       else void loadList().catch((failure) => fail(failure, true));
     };
     window.addEventListener("focus", refresh);
@@ -143,18 +136,10 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
     return { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...value, requestId: receipt.current.id }) };
   }
   async function run(work: () => Promise<unknown>, listAction = false) {
-    if (busy || listNavigating.current) return;
-    if (listAction) listNavigating.current = true;
+    if (busy) return;
     setBusy(true); setError(null); setListError(null);
     try { await work(); } catch (failure) { fail(failure, listAction); }
-    finally {
-      const refresh = listAction && listRefreshPending.current;
-      if (listAction) { listNavigating.current = false; listRefreshPending.current = false; }
-      if (alive.current) {
-        setBusy(false);
-        if (refresh && !selection.current) void loadList().catch((failure) => fail(failure, true));
-      }
-    }
+    finally { if (alive.current) setBusy(false); }
   }
   async function upload(existing?: HistoryImportDetail) {
     const generation = revision.current;
@@ -215,13 +200,13 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
         <div ref={!focusId ? errorAnchor : undefined} className="space-y-2">{errorBox}<button className={control} disabled={busy || !scope || !title.trim() || !files.length && !paste.trim()}>{busy ? t("busy") : t("start")}</button></div>
       </form>}
       {!list.length ? <p className="text-sm text-hq-fg-muted">{t("empty")}</p> : <div className="grid gap-3 sm:grid-cols-2">{list.map((item) => <button key={item.id} onClick={() => navigate(item.id)} className="space-y-2 rounded-xl border border-hq-border bg-hq-canvas p-4 text-left"><p className="font-medium">{item.title}</p><p className="text-xs text-hq-fg-muted">{t(`states.${item.state}`)} · {new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(item.updatedAt))}</p></button>)}</div>}
-      {(previousCursor || nextCursor || listError) && <div ref={listErrorAnchor} className="space-y-2">
-        {listError && <><p role="alert" className="text-sm text-hq-danger">{listError}</p><button type="button" className={control} disabled={busy} onClick={() => void run(() => loadList(urlCursor), true)}>{workspaceT("retryLoading")}</button></>}
+      <div ref={listErrorAnchor} className="space-y-2">
+        {listError && <p role="alert" className="text-sm text-hq-danger">{listError}</p>}
         <div className="flex gap-2">
           <button className={control} disabled={busy || !previousCursor} onClick={() => void run(async () => { if (await loadList(previousCursor)) navigation.change({ importCursor: previousCursor }); }, true)}>{t("previous")}</button>
           <button className={control} disabled={busy || !nextCursor} onClick={() => void run(async () => { if (nextCursor && await loadList(nextCursor)) navigation.change({ importCursor: nextCursor }); }, true)}>{t("next")}</button>
         </div>
-      </div>}
+      </div>
       {!canCreate && errorBox}
     </>}
     {focusId && !detail && <div ref={errorAnchor}>{errorBox ?? <p role="status">{t("busy")}</p>}</div>}

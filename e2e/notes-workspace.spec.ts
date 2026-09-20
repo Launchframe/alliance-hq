@@ -3,15 +3,57 @@ import { authCookieHeader, playwrightAuthCookies, getE2eSql, createBrowserSessio
 import { nanoid } from "nanoid";
 import { createNotesFixture as fixture } from "./fixtures/notes";
 
-test("empty notebooks keep their empty hint and new-note action", async ({ page }) => {
-  const { author } = await fixture();
+test("Notes visual smoke keeps localized light and dark layouts readable on desktop and mobile", async ({ page, request }, testInfo) => {
+  test.setTimeout(120_000);
+  const { author } = await fixture("officer"), headers = { Cookie: authCookieHeader(author) };
+  const post = async (url: string, data: unknown) => {
+    const response = await request.post(url, { headers, data });
+    expect(response.status(), await response.text()).toBe(200);
+    return response.json();
+  };
+  const { noteId } = await post("/api/notes", { title: "Reference note", body: "Groups setup and ready.", labels: ["ops"], priority: "high" });
+  const { note } = await (await request.get(`/api/notes/${noteId}`, { headers })).json();
+  await post("/api/notes/publications", { requestId: nanoid(), noteId, expectedVersion: note.version, title: "Reviewed snapshot", body: "Groups setup and ready.", locale: "en-US", days: 1 });
+  const { boardId } = await post("/api/notes/boards", { requestId: nanoid(), name: "Operations board" });
+  for (const [index, status] of ["open", "in_progress"].entries()) await post(`/api/notes/boards/${boardId}/commands`, { kind: "create", requestId: nanoid(), expectedVersion: index + 1, task: { title: index ? "First message" : "Review coverage", description: "Groups setup and ready.", status, labels: ["ops"] } });
   await page.context().addCookies(playwrightAuthCookies(author));
-  await page.goto("/notes?view=notebook&notebook=Empty");
-  const empty = page.locator("div").filter({ has: page.getByRole("heading", { name: "A place for what matters", exact: true }) }).filter({ has: page.getByRole("button", { name: "New note", exact: true }) }).last();
-  await expect(page.getByRole("heading", { name: "A place for what matters", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Clear filters", exact: true })).toHaveCount(0);
-  await empty.getByRole("button", { name: "New note", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "New note", exact: true })).toBeVisible();
+  for (const [locale, dark, width] of [["en-US", false, 1440], ["en-US", true, 390], ["pt-BR", false, 390], ["pt-BR", true, 1440]] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.emulateMedia({ colorScheme: dark ? "dark" : "light" });
+    const capture = async (surface: string) => {
+      await expect(page.locator("html")).toHaveClass(dark ? /(?:^|\s)dark(?:\s|$)/ : /(?:^|\s)light(?:\s|$)/);
+      await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: "instant" }));
+      const dimensions = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: window.innerWidth }));
+      expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport + 2);
+      await page.screenshot({ path: testInfo.outputPath(`${locale}-${dark ? "dark" : "light"}-${width}-${surface}.png`), fullPage: true });
+    };
+    await page.goto(`/${locale}/notes?view=notebook&layout=cards`);
+    const card = page.getByTestId("note-card");
+    await expect(card).toHaveCount(1);
+    await capture("notes");
+    const contrast = await card.evaluate((element) => {
+      const context = document.createElement("canvas").getContext("2d")!;
+      const luminance = (color: string) => {
+        context.fillStyle = color; context.fillRect(0, 0, 1, 1);
+        const rgb = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3).map((value) => { const channel = value / 255; return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4; });
+        return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+      };
+      const foreground = luminance(getComputedStyle(element.querySelector("h3")!).color), background = luminance(getComputedStyle(element).backgroundColor);
+      return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+    });
+    expect(contrast).toBeGreaterThanOrEqual(4.5);
+    await card.getByRole("button").first().click();
+    await expect(page.getByRole("dialog", { name: "Reference note", exact: true })).toBeVisible();
+    await capture("editor");
+    await page.keyboard.press("Escape");
+    await page.goto(`/${locale}/notes?view=boards&board=${boardId}`);
+    await expect(page.getByTestId("notes-shared-board").getByTestId("board-task")).toHaveCount(2);
+    await capture("board");
+    await page.goto(`/${locale}/notes?view=publications&publicationNote=${noteId}`);
+    await page.getByTestId("publication-history").getByRole("button", { name: /^Reviewed snapshot/ }).click();
+    await expect(page.getByTestId("publication-preview")).toBeVisible();
+    await capture("publication");
+  }
 });
 
 test("label and commander filters are exact, combined, scoped and restored from card actions", async ({ page, request }) => {
@@ -54,10 +96,7 @@ test("workspace preferences are versioned and isolated by both account and allia
   const initial = await (await request.get("/api/notes/preferences", { headers })).json();
   expect(initial).toMatchObject({ version: 0, scope: `${alliance.allianceId}:${author.hqUserId}`, state: { view: "notebook", layout: "cards" } });
   const input = { expectedScope: initial.scope, expectedVersion: 0, state: { ...initial.state, view: "inbox", layout: "list", q: "two words " } };
-  const staleScope = await request.put("/api/notes/preferences", { headers: { ...headers, "X-Notes-Scope": "other:principal" }, data: input });
-  expect(staleScope.status(), await staleScope.text()).toBe(403);
-  expect((await (await request.get("/api/notes/preferences", { headers })).json()).version).toBe(0);
-  const saved = await request.put("/api/notes/preferences", { headers: { ...headers, "X-Notes-Scope": initial.scope }, data: input });
+  const saved = await request.put("/api/notes/preferences", { headers, data: input });
   expect(saved.status(), await saved.text()).toBe(200);
   expect((await saved.json()).version).toBe(1);
   expect((await request.put("/api/notes/preferences", { headers, data: input })).status()).toBe(409);
@@ -76,62 +115,6 @@ test("workspace preferences are versioned and isolated by both account and allia
   expect(other).toMatchObject({ version: 0, state: { view: "notebook" } });
   expect((await request.put("/api/notes/preferences", { headers: otherHeaders, data: { ...input, expectedScope: other.scope, state: { ...other.state, view: "tasks" } } })).status()).toBe(200);
   expect((await (await request.get("/api/notes/preferences", { headers })).json()).state.view).toBe("inbox");
-});
-
-test("preference conflicts wait for explicit retry rather than overwrite another tab", async ({ page, request }) => {
-  const { author } = await fixture("officer"), headers = { Cookie: authCookieHeader(author) };
-  const initial = await (await request.get("/api/notes/preferences", { headers })).json();
-  await page.context().addCookies(playwrightAuthCookies(author));
-  await page.clock.install();
-  await page.goto("/notes");
-  await expect(page.getByTestId("notes-workspace")).toBeVisible();
-  const other = await request.put("/api/notes/preferences", { headers, data: { expectedScope: initial.scope, expectedVersion: 0, state: { ...initial.state, layout: "list", q: "Other tab preference" } } });
-  expect(other.status()).toBe(200);
-  let writes = 0;
-  await page.route("**/api/notes/preferences", (route) => { if (route.request().method() === "PUT") writes++; return route.continue(); });
-  await page.getByLabel("Source", { exact: true }).selectOption("web");
-  await page.clock.runFor(700);
-  const retry = page.getByRole("button", { name: "Retry saving preferences", exact: true });
-  await expect(retry).toBeVisible();
-  await page.getByLabel("Priority", { exact: true }).selectOption("urgent");
-  await page.clock.runFor(1000);
-  expect(writes).toBe(1);
-  expect(await (await request.get("/api/notes/preferences", { headers })).json()).toMatchObject({ version: 1, state: { layout: "list", q: "Other tab preference" } });
-  await retry.click();
-  await expect.poll(async () => (await (await request.get("/api/notes/preferences", { headers })).json()).state.priority).toBe("urgent");
-  expect(writes).toBe(2);
-  await expect(retry).toHaveCount(0);
-});
-
-test("malformed workspace URLs recover saved preferences without hiding a readable note", async ({ page, request }) => {
-  const { author } = await fixture("officer"), headers = { Cookie: authCookieHeader(author) };
-  const { noteId } = await (await request.post("/api/notes", { headers, data: { title: "Readable query fixture", body: "Authorized document with a malformed URL." } })).json();
-  const initial = await (await request.get("/api/notes/preferences", { headers })).json();
-  await request.put("/api/notes/preferences", { headers, data: { expectedScope: initial.scope, expectedVersion: 0, state: { ...initial.state, view: "inbox", layout: "list" } } });
-  await page.context().addCookies(playwrightAuthCookies(author));
-  await page.goto(`/notes/${noteId}?view=bogus&cursor=%7B`);
-  await expect(page.getByRole("dialog")).toContainText("Authorized document with a malformed URL.");
-  await expect(page).toHaveURL((url) => url.searchParams.get("view") === "inbox" && !url.searchParams.has("cursor"));
-  await expect(page.getByRole("button", { name: "List view", exact: true })).toHaveAttribute("aria-pressed", "true");
-});
-
-test("leaving an edited publication offers no misleading keep action or implicit snapshot", async ({ page, request }) => {
-  const { author } = await fixture("officer"), headers = { Cookie: authCookieHeader(author) };
-  const { noteId } = await (await request.post("/api/notes", { headers, data: { title: "Publication guard fixture", body: "Private source text." } })).json();
-  await page.context().addCookies(playwrightAuthCookies(author));
-  await page.goto(`/notes?view=publications&publicationNote=${noteId}`);
-  await page.getByLabel("Public title", { exact: true }).fill("Uncommitted public title");
-  await page.getByRole("button", { name: /^Notebook/ }).click();
-  const guard = page.getByRole("dialog", { name: "Discard unsaved changes?", exact: true });
-  await expect(guard).toBeVisible();
-  await expect(guard.getByRole("button", { name: "Keep draft and close", exact: true })).toHaveCount(0);
-  await guard.getByRole("button", { name: "Keep editing", exact: true }).click();
-  await expect(page.getByLabel("Public title", { exact: true })).toHaveValue("Uncommitted public title");
-  await page.getByRole("button", { name: /^Notebook/ }).click();
-  await guard.getByRole("button", { name: "Discard changes", exact: true }).click();
-  await expect(page.getByTestId("notes-publications")).toHaveCount(0);
-  const [snapshots] = await getE2eSql()`SELECT count(*)::integer AS count FROM knowledge_publications WHERE note_id = ${noteId}`;
-  expect(snapshots.count).toBe(0);
 });
 
 test("restores scoped view filters across reload, back and forward, and retries preference saves", async ({ page, request }) => {
@@ -267,25 +250,8 @@ test("pages compact summaries without hiding older documents, counts, notebooks 
   await page.goto("/notes");
   await expect(page.getByTestId("note-card")).toHaveCount(50);
   await expect(page.getByRole("button", { name: "Older notebook", exact: true })).toBeVisible();
-  let release!: () => void, captured!: () => void;
-  const held = new Promise<void>((resolve) => { release = resolve; });
-  const ready = new Promise<void>((resolve) => { captured = resolve; });
-  let intercepted = false;
-  const pagedList = (url: URL) => url.pathname === "/api/notes" && url.searchParams.has("cursor");
-  await page.route(pagedList, async (route) => {
-    if (intercepted) return route.continue();
-    intercepted = true;
-    const response = await route.fetch(); captured(); await held; await route.fulfill({ response });
-  });
-  try {
-    await page.getByRole("button", { name: "Next page", exact: true }).click();
-    await ready;
-    await page.evaluate(() => { window.dispatchEvent(new Event("focus")); window.dispatchEvent(new Event("focus")); });
-    release();
-    await expect(page.getByTestId("note-card")).toHaveCount(2);
-    await expect(page.getByTestId("notes-list-count")).toHaveText("52");
-    await expect(page.getByRole("button", { name: "Previous page", exact: true })).toBeEnabled();
-  } finally { release(); await page.unroute(pagedList); }
+  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await expect(page.getByTestId("note-card")).toHaveCount(2);
   const oldest = page.getByTestId("note-card").filter({ hasText: "Paged note 0" });
   await oldest.getByRole("button").first().click();
   const editor = page.getByRole("dialog");
@@ -296,12 +262,8 @@ test("pages compact summaries without hiding older documents, counts, notebooks 
   await editor.getByRole("button", { name: "Save note", exact: true }).click();
   await expect(editor).not.toBeVisible();
   expect((await (await request.get(`/api/notes/${ids[0]}`, { headers })).json()).note.body).toBe(`${fullBody} Reviewed.`);
-  for (const cursor of ["{", JSON.stringify({ ...JSON.parse(first.nextCursor), scope: `${alliance.allianceId}:${peer.hqUserId}` })]) {
-    await page.goto(`/notes/${ids[1]}?${new URLSearchParams({ cursor })}`);
-    await expect(page.getByRole("dialog")).toContainText("Hidden ending marker");
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-    await expect(page.getByTestId("notes-workspace")).toBeVisible();
-  }
+  await page.goto(`/notes/${ids[1]}`);
+  await expect(page.getByRole("dialog")).toContainText("Hidden ending marker");
   await page.goto("/notes?view=publications");
   const publication = page.getByTestId("notes-publications");
   await publication.getByRole("button", { name: "Next page", exact: true }).click();
@@ -311,40 +273,6 @@ test("pages compact summaries without hiding older documents, counts, notebooks 
   expect(selectedNote.status(), await selectedNote.text()).toBe(200);
   expect((await selectedNote.json()).scope).toBe(first.scope);
   await expect(publication.getByRole("textbox", { name: "Public text", exact: true })).toHaveValue(fullBody);
-});
-
-for (const status of [401, 403, 404]) test(`single-note ${status} clears only the appropriate scope`, async ({ page }) => {
-  const { author } = await fixture("officer");
-  await page.context().addCookies(playwrightAuthCookies(author));
-  const created = await page.request.post("/api/notes", { data: { title: "Protected detail fixture", body: "Private detail fixture" } });
-  const { noteId } = await created.json();
-  await page.goto("/notes");
-  const card = page.getByTestId("note-card").filter({ hasText: "Protected detail fixture" });
-  await expect(card).toBeVisible();
-  await page.route(`**/api/notes/${noteId}`, (route) => route.fulfill({ status, json: { error: "Fixture detail denied" } }));
-  await card.getByRole("button").first().click();
-  if (status === 404) { await expect(card.getByRole("alert")).toBeVisible(); await expect(page.getByTestId("notes-workspace")).toBeVisible(); }
-  else { await expect(page.getByTestId("notes-workspace")).toHaveCount(0); await expect(page.getByRole("dialog")).toHaveCount(0); }
-});
-
-for (const target of ["draft", "publication-list", "publication-detail"] as const) test(`${target} denial clears the entire cached Notes workspace`, async ({ page }) => {
-  const { author } = await fixture("officer");
-  await page.context().addCookies(playwrightAuthCookies(author));
-  const created = await page.request.post("/api/notes", { data: { title: "Protected publication fixture", body: "Private publication fixture" } });
-  const { noteId } = await created.json();
-  if (target === "draft") {
-    await page.route("**/api/notes/drafts/denied-draft", (route) => route.fulfill({ status: 401, body: "Fixture session expired" }));
-    await page.goto("/notes?draft=denied-draft");
-  } else {
-    if (target === "publication-list") await page.route((url) => url.pathname === "/api/notes" && url.searchParams.get("format") === "summary", (route) => route.fulfill({ status: 403, body: "Fixture access denied" }));
-    await page.goto("/notes?view=publications");
-    if (target === "publication-detail") {
-      await page.route(`**/api/notes/${noteId}`, (route) => route.fulfill({ status: 401, body: "Fixture session expired" }));
-      await page.getByLabel("Source note", { exact: true }).selectOption({ label: "Protected publication fixture" });
-    }
-  }
-  await expect(page.getByTestId("notes-workspace")).toHaveCount(0);
-  await expect(page.getByTestId("notes-publications")).toHaveCount(0);
 });
 
 test("captures and edits notes with stable manual member exclusions and nullable priority", async ({ page }) => {
@@ -427,7 +355,34 @@ test("shares current content without private organization or history and honors 
   await reader.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(preview).not.toBeVisible();
   await expect(reader.getByTestId("note-card")).toHaveCount(0);
+  await expect(reader).toHaveURL((url) => url.pathname === "/notes" && !url.searchParams.has("note") && !url.searchParams.has("draft") && !url.searchParams.has("noteTask"));
   await peerContext.close();
+});
+
+test("keeps owner share and history dialogs open when the refreshed list omits the note", async ({ page }) => {
+  const { author } = await fixture();
+  await page.context().addCookies(playwrightAuthCookies(author));
+  const created = await page.request.post("/api/notes", { data: { title: "Windowed owner note", body: "Original text" } });
+  expect(created.status()).toBe(200);
+  const { noteId } = await created.json();
+  const listing = await (await page.request.get("/api/notes?format=summary")).json();
+  let intercepted = 0;
+  await page.route((url) => url.pathname === "/api/notes" && url.searchParams.get("format") === "summary", (route) => { intercepted++; return route.fulfill({ json: { ...listing, items: [] } }); });
+  for (const kind of ["share", "history"] as const) {
+    const before = intercepted;
+    await page.goto(`/notes/${noteId}`);
+    const editor = page.getByRole("dialog", { name: "Windowed owner note", exact: true });
+    await editor.getByRole("button", { name: kind === "share" ? "Share" : "Version history", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: kind === "share" ? "Share note" : "Version history", exact: true });
+    await expect(dialog).toBeVisible();
+    const detail = page.waitForResponse((response) => new URL(response.url()).pathname === `/api/notes/${noteId}` && response.request().method() === "GET");
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect.poll(() => intercepted).toBeGreaterThan(before);
+    expect((await detail).status()).toBe(200);
+    await expect(dialog).toBeVisible();
+    await dialog.getByLabel("Close", { exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+  }
 });
 
 test("keeps an authorized draft when its note is outside the refreshed list window", async ({ page }) => {

@@ -83,6 +83,17 @@ export function isMemberEligibleForPaintRule(input: {
   if (source.kind === "donations_leaderboard") {
     return true;
   }
+  // Score / ticket boards need live data. Without that board, do not treat
+  // an on-roster conductor as ineligible — that blocked painting Top 10
+  // (and Saturday PIF / Takedown) over an existing pick.
+  if (
+    source.kind === "vs_leaderboard" ||
+    source.kind === "vr_leaderboard" ||
+    source.kind === "event_leaderboard" ||
+    source.kind === "price_is_right_heavy_hitter"
+  ) {
+    return true;
+  }
   return false;
 }
 

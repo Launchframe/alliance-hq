@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, getTableColumns, inArray, isNull, sql, type SQLWrapper } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb, schema } from "@/lib/db";
 import { createPerformanceNoteInTransaction, getPerformanceNoteForAlliance } from "@/lib/performance-notes/repository.server";
@@ -18,17 +18,15 @@ import { KNOWLEDGE_PAGE_SIZE, type ResourcePage } from "./pagination.shared";
 const tasks = schema.officerActionItems;
 const resources = schema.knowledgeResources;
 
-const boundedTaskText = (column: SQLWrapper) => sql<string | null>`case when length(${column}) > 1024 then regexp_replace(left(${column}, 1024), '[A-Za-z0-9._~+/=-]+$', '') else ${column} end`;
-
-async function taskRows(actor: KnowledgeActor, filter?: { id?: string; ids?: string[]; sourceNoteId?: string; boardId?: string; personalOnly?: boolean }, access: KnowledgeAccess = "read", db: Pick<KnowledgeTransaction, "select"> = getDb(), compact = false): Promise<NoteTask[]> {
+async function taskRows(actor: KnowledgeActor, filter?: { id?: string; ids?: string[]; sourceNoteId?: string; boardId?: string; personalOnly?: boolean }, access: KnowledgeAccess = "read", db: Pick<KnowledgeTransaction, "select"> = getDb()): Promise<NoteTask[]> {
   if (filter?.sourceNoteId && !await getPerformanceNoteForAlliance({ actor, noteId: filter.sourceNoteId })) throw new KnowledgeAccessError("not_found");
   const rows = await db.select({
-    task: compact ? { ...getTableColumns(tasks), description: boundedTaskText(tasks.description), intakeProvenance: sql<null>`null` } : tasks, version: resources.version, archivedAt: resources.archivedAt,
+    task: tasks, version: resources.version, archivedAt: resources.archivedAt,
     owner: knowledgeAccessCondition(actor, tasks.resourceId, "share"), edit: knowledgeAccessCondition(actor, tasks.resourceId, "edit"),
     shared: sql<boolean>`exists(select 1 from knowledge_resource_grants g where g.resource_id = ${tasks.resourceId} and g.alliance_id = ${actor.allianceId})`,
     assigneeId: schema.hqUsers.id, assigneeName: schema.hqUsers.displayName,
     sourceId: schema.performanceNotes.id, sourceTitle: schema.performanceNotes.title,
-    sourceBody: compact ? boundedTaskText(schema.performanceNotes.body) : schema.performanceNotes.body, sourceChannel: schema.performanceNotes.source,
+    sourceBody: schema.performanceNotes.body, sourceChannel: schema.performanceNotes.source,
   }).from(tasks).innerJoin(resources, and(eq(resources.id, tasks.resourceId), eq(resources.allianceId, tasks.allianceId), eq(resources.kind, "task"), eq(resources.entityId, tasks.id)))
     .leftJoin(schema.hqUsers, eq(schema.hqUsers.id, tasks.assigneeHqUserId))
     .leftJoin(schema.performanceNotes, and(eq(schema.performanceNotes.id, tasks.sourceNoteId), eq(schema.performanceNotes.allianceId, actor.allianceId), isNull(schema.performanceNotes.expungedAt), knowledgeAccessCondition(actor, schema.performanceNotes.resourceId)))
@@ -49,7 +47,7 @@ async function taskRows(actor: KnowledgeActor, filter?: { id?: string; ids?: str
     dueAt: row.task.dueAt?.toISOString() ?? null, completedAt: row.task.completedAt?.toISOString() ?? null,
     assignee: row.assigneeId ? { id: row.assigneeId, name: row.assigneeName?.includes("@") ? null : row.assigneeName } : null,
     legacyAssigneeName: row.task.assigneeNameRaw === null ? null : redactIntakeText(row.task.assigneeNameRaw),
-    source: row.sourceId && (row.sourceChannel === "web" || row.sourceChannel === "discord") ? { id: row.sourceId, title: noteTitle({ title: redactIntakeText(row.sourceTitle ?? ""), body: redactIntakeText(row.sourceBody ?? "") }), channel: row.sourceChannel } : null,
+    source: row.sourceId && (row.sourceChannel === "web" || row.sourceChannel === "discord") ? { id: row.sourceId, title: redactIntakeText(noteTitle({ title: row.sourceTitle ?? "", body: row.sourceBody ?? "" })), channel: row.sourceChannel } : null,
     version: row.version, isOwner: row.owner === true, canEdit: row.edit === true, shared: row.shared === true, archived: row.archivedAt !== null,
     createdAt: row.task.createdAt.toISOString(), updatedAt: row.task.updatedAt.toISOString(),
   }));
@@ -72,11 +70,11 @@ export async function listNoteTaskPage(actor: KnowledgeActor, raw: TaskListFilte
       timePageBoundary(page, tasks.updatedAt, tasks.id)))
     .orderBy(page.order(tasks.updatedAt), page.order(tasks.id)).limit(KNOWLEDGE_PAGE_SIZE + 1);
   const result = resourcePage(candidates, page, (row) => ({ id: row.id, position: row.cursorTime }));
-  const rows = result.items.length ? await taskRows(actor, { ids: result.items.map((row) => row.id) }, "read", getDb(), true) : [];
+  const rows = result.items.length ? await taskRows(actor, { ids: result.items.map((row) => row.id) }) : [];
   return { ...result, items: rows.map(summarizeNoteTask) };
 }
-export const listBoardNoteTasks = (tx: KnowledgeTransaction, actor: KnowledgeActor, boardId: string, ids: string[], compact = false): Promise<NoteTask[]> =>
-  ids.length ? taskRows(actor, { boardId, ids }, "read", tx, compact) : Promise.resolve([]);
+export const listBoardNoteTasks = (tx: KnowledgeTransaction, actor: KnowledgeActor, boardId: string, ids: string[]): Promise<NoteTask[]> =>
+  ids.length ? taskRows(actor, { boardId, ids }, "read", tx) : Promise.resolve([]);
 export async function getNoteTask(actor: KnowledgeActor, id: string, access: KnowledgeAccess = "read") {
   return (await taskRows(actor, { id }, access))[0] ?? null;
 }

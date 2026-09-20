@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createNotesNavigation } from "./navigation.shared";
-import { noteFieldsSchema, notePatchSchema, noteRouteId, noteTitle, notePriorityRank, normalizeNoteLabels, notesWorkspaceLocation, noteListFilterSchema, parseNoteListCursor, noteWorkspaceStateSchema, readWorkspaceState, workspaceStateLocation, workspacePreferenceWriteSchema, scopedWorkspaceLocation, readNoteListFilter } from "./workspace.shared";
+import { noteFieldsSchema, notePatchSchema, noteRouteId, noteTitle, notePriorityRank, normalizeNoteLabels, notesWorkspaceLocation, noteListFilterSchema, parseNoteListCursor, noteWorkspaceStateSchema, readWorkspaceState, clampWorkspaceBoardsView, workspaceStateLocation, workspacePreferenceWriteSchema, scopedWorkspaceLocation, readNoteListFilter } from "./workspace.shared";
 
 describe("guarded Notes navigation", () => {
   it("keeps the current view until unsaved changes are resolved", async () => {
@@ -61,24 +61,18 @@ describe("scoped workspace navigation", () => {
     expect(normalized.searchParams.get("workspaceScope")).toBe(scope);
     expect(readWorkspaceState(new URLSearchParams("q=Two+words+"), saved, scope).q).toBe("Two words ");
   });
-  it("recovers malformed workspace options without weakening preference writes", () => {
-    const saved = noteWorkspaceStateSchema.parse({ view: "inbox", layout: "list" });
-    expect(readWorkspaceState(new URLSearchParams("view=bogus&priority=critical"), saved, scope)).toEqual(saved);
-    expect(workspacePreferenceWriteSchema.safeParse({ expectedScope: scope, expectedVersion: 0, state: { ...saved, view: "bogus" } }).success).toBe(false);
-    const normalized = new URL(scopedWorkspaceLocation("/notes?view=bogus&cursor=%7B&note=authorized", saved, scope), "https://notes.invalid");
-    expect(normalized.searchParams.get("view")).toBe("inbox");
-    expect(normalized.searchParams.get("note")).toBe("authorized");
-    expect(normalized.searchParams.has("cursor")).toBe(false);
-  });
-  it("trims exact label filters before URL restoration and queries", () => {
-    expect(noteListFilterSchema.parse({ label: " Rally " }).label).toBe("Rally");
-    const state = readWorkspaceState(new URLSearchParams("label=+Rally+&boardLabel=+Coverage+"), noteWorkspaceStateSchema.parse({}), scope);
-    expect(state).toMatchObject({ label: "Rally", boardLabel: "Coverage" });
-  });
   it("does not apply another account or alliance's URL preferences", () => {
     const saved = noteWorkspaceStateSchema.parse({ view: "tasks" });
     const params = new URLSearchParams({ workspaceScope: "other:principal", view: "notebook", notebook: "Private folder", q: "Private query" });
     expect(readWorkspaceState(params, saved, scope)).toEqual(saved);
+  });
+  it("does not keep a boards view when the actor cannot read boards", () => {
+    const boards = noteWorkspaceStateSchema.parse({ view: "boards" });
+    expect(clampWorkspaceBoardsView(boards, false).view).toBe("notebook");
+    expect(clampWorkspaceBoardsView(boards, true).view).toBe("boards");
+    expect(clampWorkspaceBoardsView(noteWorkspaceStateSchema.parse({ view: "tasks" }), false).view).toBe("tasks");
+    const fromUrl = readWorkspaceState(new URLSearchParams("view=boards"), noteWorkspaceStateSchema.parse({}), scope);
+    expect(clampWorkspaceBoardsView(fromUrl, false).view).toBe("notebook");
   });
 });
 

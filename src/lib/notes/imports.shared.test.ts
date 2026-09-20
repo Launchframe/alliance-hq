@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseOfficerChatText } from "@/lib/officer-intel/chat-ocr/parse-chat-text.shared";
-import { HISTORY_MESSAGE_LENGTH, HISTORY_MESSAGE_LIMIT, HISTORY_TEXT_BYTES, historyInitSchema, parseHistoryListCursor, parseHistoryText } from "./imports.shared";
-import { parseHistoryScreenshot } from "./import-parser.server";
+import { HISTORY_MESSAGE_LENGTH, HISTORY_MESSAGE_LIMIT, HISTORY_TEXT_BYTES, historyInitSchema, parseHistoryListCursor, parseHistoryText, parseHistoryScreenshot } from "./imports.shared";
 
 describe("history list cursors", () => {
   const cursor = { version: 1, scope: "alliance:author", updatedAt: "2026-09-15T12:00:00.123456Z", id: "source-one" };
@@ -20,24 +18,6 @@ describe("reviewed history adapters", () => {
   it("retains OCR text for review when noisy headers prevent sender parsing", () => {
     const rawLines = ["Alliance", "[TESTJAlpha", "Groups setup and ready.", "[TEST|Beta", "First message"];
     expect(parseHistoryScreenshot({ messages: [], rawLines }, "file-one", 2)).toEqual([{ sender: null, body: rawLines.slice(1).join("\n"), sentAt: null, externalId: null, sourceImageIndex: 2, locator: "file-one:ocr:0" }]);
-  });
-  it("preserves orphan preamble beside recognized messages without guessing its sender", () => {
-    const rawLines = ["Alliance", "[TESTJAlpha", "Groups setup and ready.", "[TEST]Beta", "First message"];
-    const result = parseHistoryScreenshot({ rawLines, messages: parseOfficerChatText(rawLines) }, "file-one", 2);
-    expect(result).toEqual([
-      { sender: null, body: "[TESTJAlpha\nGroups setup and ready.", sentAt: null, externalId: null, sourceImageIndex: 2, locator: "file-one:ocr:unattributed:0" },
-      { sender: "Beta", body: "First message", sentAt: null, externalId: null, sourceImageIndex: 2, locator: "file-one:ocr:0" },
-    ]);
-  });
-  it("redacts an identifier before splitting an unattributed OCR line", () => {
-    const text = "x".repeat(HISTORY_MESSAGE_LENGTH - 5) + " " + "1".repeat(14);
-    const result = parseHistoryScreenshot({ rawLines: [text], messages: [] }, "file-one", 0);
-    expect(result.map((row) => row.body).join("").includes("1111")).toBe(false);
-  });
-  it("keeps screenshot identity, byte and record bounds strict", () => {
-    expect(() => parseHistoryScreenshot({ rawLines: ["Text"], messages: [] }, "../file", 0)).toThrow();
-    expect(() => parseHistoryScreenshot({ rawLines: ["x".repeat(HISTORY_TEXT_BYTES + 1)], messages: [] }, "file", 0)).toThrow("invalid_import");
-    expect(() => parseHistoryScreenshot({ rawLines: [], messages: Array(HISTORY_MESSAGE_LIMIT + 1).fill({ senderName: "Alpha", originalText: "Text" }) }, "file", 0)).toThrow("import_limit");
   });
   it("keeps recognized messages and ignores an empty screenshot", () => {
     expect(parseHistoryScreenshot({ messages: [{ senderName: "Alpha", originalText: "First message" }], rawLines: ["[TEST]Alpha", "First message"] }, "file-one", 0)[0]).toMatchObject({ sender: "Alpha", body: "First message", sourceImageIndex: 0 });

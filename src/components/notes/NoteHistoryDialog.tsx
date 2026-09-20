@@ -22,7 +22,6 @@ export function NoteHistoryDialog({ note, onClose, onRestore }: { note: Performa
   const selectionRequest = useRef<AbortController | null>(null), errorAnchor = useRef<HTMLParagraphElement>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [retry, setRetry] = useState(0), [failedRead, setFailedRead] = useState<"list" | number | null>(null);
   useEffect(() => {
     const element = dialog.current;
     element?.showModal();
@@ -36,34 +35,34 @@ export function NoteHistoryDialog({ note, onClose, onRestore }: { note: Performa
         const response = await fetchNotes(`/api/notes/${encodeURIComponent(note.id)}/history?${query}`, { cache: "no-store", signal: controller.signal });
         const body = await response.json();
         if (!response.ok) throw new Error(body.error ?? t("loadFailed"));
-        if (!controller.signal.aborted) { setPage({ ...body, cursor }); setFailedRead(null); setError(null); }
-      } catch (failure) { if (!controller.signal.aborted) { setPage(null); setSelected(null); setFailedRead("list"); setError(failure instanceof Error ? failure.message : t("loadFailed")); } }
+        if (!controller.signal.aborted) { setPage({ ...body, cursor }); setError(null); }
+      } catch (failure) { if (!controller.signal.aborted) { setPage(null); setSelected(null); setError(failure instanceof Error ? failure.message : t("loadFailed")); } }
     })();
     return () => controller.abort();
-  }, [note.id, cursor, retry, t, fetchNotes]);
+  }, [note.id, cursor, t, fetchNotes]);
   useEffect(() => { if (error) errorAnchor.current?.scrollIntoView({ block: "nearest" }); }, [error]);
   const current = page?.cursor === cursor ? page : null, revisions = current?.items ?? [], loading = !current && !error;
   async function select(version: number) {
     selectionRequest.current?.abort();
-    const controller = new AbortController(); selectionRequest.current = controller; setSelected(null); setFailedRead(null); setError(null);
+    const controller = new AbortController(); selectionRequest.current = controller; setSelected(null); setError(null);
     try {
       const response = await fetchNotes(`/api/notes/${encodeURIComponent(note.id)}/history?version=${version}`, { cache: "no-store", signal: controller.signal });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error ?? t("loadFailed"));
       if (!controller.signal.aborted) setSelected(body.revision);
-    } catch (failure) { if (!controller.signal.aborted) { setFailedRead(version); setError(failure instanceof Error ? failure.message : t("loadFailed")); } }
+    } catch (failure) { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : t("loadFailed")); }
   }
-  function changePage(value: string | null) { selectionRequest.current?.abort(); setSelected(null); setFailedRead(null); setError(null); setCursor(value); }
+  function changePage(value: string | null) { selectionRequest.current?.abort(); setSelected(null); setCursor(value); }
   async function restore() {
     if (!selected || saving) return;
-    setSaving(true); setFailedRead(null); setError(null);
+    setSaving(true); setError(null);
     try { await onRestore({ ...selected.snapshot, expectedVersion: note.version }, note.id); }
     catch (failure) { setError(failure instanceof Error ? failure.message : t("saveFailed")); }
     finally { setSaving(false); }
   }
   return <dialog ref={dialog} aria-label={t("actions.history")} onCancel={(event) => { event.preventDefault(); if (!saving) onClose(); }} className="fixed inset-0 m-auto max-h-[90dvh] w-[min(95vw,54rem)] overflow-hidden rounded-2xl border border-hq-border bg-hq-canvas p-0 text-hq-fg shadow-2xl backdrop:bg-black/60">
-    <header className="flex items-center justify-between border-b border-hq-border px-6 py-4"><div><h2 className="flex items-center gap-2 font-semibold"><Clock3 className="h-4 w-4" />{t("actions.history")}</h2><p className="mt-1 text-xs text-hq-fg-muted">{t("history.private")}</p></div><button type="button" onClick={onClose} disabled={saving} aria-label={t("actions.close")} className="rounded-lg p-2 hover:bg-hq-surface"><X className="h-4 w-4" /></button></header>
-    <div className="grid max-h-[65dvh] gap-0 overflow-y-auto sm:grid-cols-[14rem_minmax(0,1fr)]"><aside className="space-y-1 border-b border-hq-border bg-hq-surface p-3 sm:border-r sm:border-b-0">{loading ? <p className="p-3 text-xs text-hq-fg-muted">{t("history.loading")}</p> : !revisions.length ? <p className="p-3 text-sm text-hq-fg-muted">{t("history.empty")}</p> : revisions.map((revision) => <button type="button" key={revision.id} onClick={() => void select(revision.version)} className={`w-full rounded-lg p-3 text-left ${selected?.id === revision.id ? "bg-hq-accent/10 text-hq-accent" : "hover:bg-hq-surface-muted"}`}><p className="truncate text-sm font-medium">{t("history.version", { version: revision.version })}</p><p className="mt-1 text-xs text-hq-fg-muted">{new Date(revision.editedAt).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" })}</p></button>)}<div className="flex gap-2"><button type="button" disabled={!current?.previousCursor || saving} onClick={() => changePage(current?.previousCursor ?? null)} className="rounded border border-hq-border p-2 text-xs disabled:opacity-40">{t("imports.previous")}</button><button type="button" disabled={!current?.nextCursor || saving} onClick={() => changePage(current?.nextCursor ?? null)} className="rounded border border-hq-border p-2 text-xs disabled:opacity-40">{t("imports.next")}</button></div></aside><section className="min-h-48 min-w-0 p-6">{selected ? <><h3 className="mb-4 text-xl font-semibold">{noteTitle(selected.snapshot)}</h3><NoteMarkdown body={selected.snapshot.body} /><NoteSections value={selected.snapshot} /></> : <p className="text-sm text-hq-fg-muted">{t("history.choose")}</p>}</section></div>
-    <footer className="space-y-3 border-t border-hq-border px-6 py-4">{selected ? <p className="text-xs leading-5 text-hq-fg-muted">{t("history.restoreHint")}</p> : null}{error ? <p ref={errorAnchor} role="alert" className="text-sm text-hq-danger">{error}</p> : null}<div className="flex justify-end gap-2"><button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-hq-border px-3 py-2 text-sm">{t("actions.close")}</button>{failedRead !== null ? <button type="button" disabled={saving} className="rounded-lg border border-hq-border px-3 py-2 text-sm" onClick={() => { if (failedRead === "list") { setError(null); setFailedRead(null); setRetry((value) => value + 1); } else void select(failedRead); }}>{t("workspace.retryLoading")}</button> : <button type="button" disabled={!selected || saving} onClick={() => void restore()} className="inline-flex items-center gap-2 rounded-lg bg-hq-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-40"><RotateCcw className="h-4 w-4" />{saving ? t("saving") : t("history.restore")}</button>}</div></footer>
+    <header className="flex items-center justify-between border-b border-hq-border px-6 py-4"><div><h2 className="flex items-center gap-2 font-semibold"><Clock3 className="h-4 w-4" />{t("actions.history")}</h2><p className="mt-1 text-xs text-hq-fg-muted">{t("history.private")}</p></div><button onClick={onClose} disabled={saving} aria-label={t("actions.close")} className="rounded-lg p-2 hover:bg-hq-surface"><X className="h-4 w-4" /></button></header>
+    <div className="grid max-h-[65dvh] gap-0 overflow-y-auto sm:grid-cols-[14rem_minmax(0,1fr)]"><aside className="space-y-1 border-b border-hq-border bg-hq-surface p-3 sm:border-r sm:border-b-0">{loading ? <p className="p-3 text-xs text-hq-fg-muted">{t("history.loading")}</p> : !revisions.length ? <p className="p-3 text-sm text-hq-fg-muted">{t("history.empty")}</p> : revisions.map((revision) => <button key={revision.id} onClick={() => void select(revision.version)} className={`w-full rounded-lg p-3 text-left ${selected?.id === revision.id ? "bg-hq-accent/10 text-hq-accent" : "hover:bg-hq-surface-muted"}`}><p className="truncate text-sm font-medium">{t("history.version", { version: revision.version })}</p><p className="mt-1 text-xs text-hq-fg-muted">{new Date(revision.editedAt).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" })}</p></button>)}<div className="flex gap-2"><button disabled={!current?.previousCursor || saving} onClick={() => changePage(current?.previousCursor ?? null)} className="rounded border border-hq-border p-2 text-xs disabled:opacity-40">{t("imports.previous")}</button><button disabled={!current?.nextCursor || saving} onClick={() => changePage(current?.nextCursor ?? null)} className="rounded border border-hq-border p-2 text-xs disabled:opacity-40">{t("imports.next")}</button></div></aside><section className="min-h-48 min-w-0 p-6">{selected ? <><h3 className="mb-4 text-xl font-semibold">{noteTitle(selected.snapshot)}</h3><NoteMarkdown body={selected.snapshot.body} /><NoteSections value={selected.snapshot} /></> : <p className="text-sm text-hq-fg-muted">{t("history.choose")}</p>}</section></div>
+    <footer className="space-y-3 border-t border-hq-border px-6 py-4">{selected ? <p className="text-xs leading-5 text-hq-fg-muted">{t("history.restoreHint")}</p> : null}{error ? <p ref={errorAnchor} role="alert" className="text-sm text-hq-danger">{error}</p> : null}<div className="flex justify-end gap-2"><button onClick={onClose} disabled={saving} className="rounded-lg border border-hq-border px-3 py-2 text-sm">{t("actions.close")}</button><button disabled={!selected || saving} onClick={() => void restore()} className="inline-flex items-center gap-2 rounded-lg bg-hq-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-40"><RotateCcw className="h-4 w-4" />{saving ? t("saving") : t("history.restore")}</button></div></footer>
   </dialog>;
 }

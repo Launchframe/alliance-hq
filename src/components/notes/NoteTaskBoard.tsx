@@ -18,7 +18,7 @@ import { NoteBoardTaskPicker } from "./NoteBoardTaskPicker";
 
 const MIME = "application/x-hq-note-task";
 export function NoteTaskBoard({ initial, onRevoked }: { initial: NoteBoardViewSnapshot; onRevoked: () => void }) {
-  const t = useTranslations("notes"), common = useTranslations("common");
+  const t = useTranslations("notes");
   const locale = useLocale();
   const params = useNotesSearchParams(), navigation = useNotesNavigation(), fetchNotes = useNotesFetch();
   const transport = useMemo(() => notesBoardTransport({ id: initial.id, allianceId: initial.allianceId, principalId: initial.principalId }), [initial.id, initial.allianceId, initial.principalId]);
@@ -38,24 +38,21 @@ export function NoteTaskBoard({ initial, onRevoked }: { initial: NoteBoardViewSn
   const [sharing, setSharing] = useState(false);
   const [removing, setRemoving] = useState<{ task: NoteTaskSummary; version: number } | null>(null);
   const [detail, setDetail] = useState<NoteTask | null>(null);
-  const [detailError, setDetailError] = useState<string | null>(null), [detailRetry, setDetailRetry] = useState(0);
-  const detailErrorAnchor = useRef<HTMLParagraphElement>(null);
-  useEffect(() => { if (detailError) detailErrorAnchor.current?.scrollIntoView({ block: "nearest" }); }, [detailError]);
   const detailId = editing && editing !== "new" ? editing.id : null, lastDetail = useRef(detailId);
   useEffect(() => navigation.store.subscribe(() => {
     const next = new URL(navigation.store.getSnapshot().url, window.location.origin).searchParams.get("task");
-    if (next !== lastDetail.current) { lastDetail.current = next; setDetail(null); setDetailError(null); }
+    if (next !== lastDetail.current) { lastDetail.current = next; setDetail(null); }
   }), [navigation.store]);
   useEffect(() => {
     if (!detailId) return;
     const controller = new AbortController();
     void fetchNotes(`/api/notes/tasks/${encodeURIComponent(detailId)}`, { cache: "no-store", signal: controller.signal }).then(async (response) => {
-      const value = await response.json().catch(() => null);
-      if (!response.ok || value?.task?.id !== detailId) throw new Error(value?.error ?? t("loadFailed"));
-      if (!controller.signal.aborted) { setDetail(value.task); setDetailError(null); }
-    }).catch((failure) => { if (!controller.signal.aborted) { setDetail(null); setDetailError(failure instanceof Error && !(failure instanceof TypeError) ? failure.message : t("loadFailed")); } });
+      const value = await response.json();
+      if (!response.ok) throw new Error(value.error ?? t("loadFailed"));
+      if (!controller.signal.aborted) setDetail(value.task);
+    }).catch((failure) => { if (!controller.signal.aborted) { setDetail(null); setErrors((current) => ({ ...current, [detailId]: failure instanceof Error ? failure.message : t("loadFailed") })); } });
     return () => controller.abort();
-  }, [detailId, detailRetry, fetchNotes, t]);
+  }, [detailId, fetchNotes, t]);
   useNotesDirtyState({ dirty: !!renaming && renaming.name !== board?.name, busy: pending, keys: ["pathname", "view", "board"], discard: () => setRenaming(null) });
   useEffect(() => { if (live.revoked) onRevoked(); }, [live.revoked, onRevoked]);
   const hotkeys = useMemo(() => ({ "notes.newTask": () => { if (board?.canWrite) openTask("new"); } }), [board?.canWrite, openTask]);
@@ -120,7 +117,6 @@ export function NoteTaskBoard({ initial, onRevoked }: { initial: NoteBoardViewSn
       </article>)}</div></section>;
     })}</div></div>)}</div>
     {removing ? <Dialog open title={t("boards.removeTask")} ignoreOutsideDismiss={pending} onOpenChange={(open) => { if (!open && !pending) setRemoving(null); }}><div className="space-y-4 p-5"><h2 className="font-semibold">{removing.task.title}</h2><p className="text-sm">{t("boards.removeConfirm")}</p>{errors[removing.task.id] ? <p role="alert" className="text-sm text-hq-danger">{errors[removing.task.id]}</p> : null}<div className="flex justify-end gap-3"><button disabled={pending} onClick={() => setRemoving(null)}>{t("actions.close")}</button><button disabled={pending} onClick={() => void command({ kind: "remove", taskId: removing.task.id, expectedTaskVersion: removing.task.version }, removing.version, removing.task.id).then(() => setRemoving(null)).catch(() => undefined)} className="rounded bg-hq-accent px-3 py-2 text-sm text-white">{t("boards.removeTask")}</button></div></div></Dialog> : null}
-    {currentEditing && detail?.id !== currentEditing.id && <Dialog open title={currentEditing.title} onOpenChange={(open) => { if (!open) openTask(null); }}><div className="space-y-4 p-5">{detailError ? <><p ref={detailErrorAnchor} role="alert" className="text-sm text-hq-danger">{detailError}</p><button type="button" className="rounded-lg border border-hq-border px-3 py-2 text-sm" onClick={() => { setDetailError(null); setDetailRetry((version) => version + 1); }}>{t("workspace.retryLoading")}</button></> : <p role="status" className="text-sm text-hq-fg-muted">{common("loading")}</p>}<button type="button" onClick={() => openTask(null)} className="rounded-lg border border-hq-border px-3 py-2 text-sm">{t("actions.close")}</button></div></Dialog>}
     {editing === "new" || currentEditing && detail?.id === currentEditing.id ? <NoteTaskEditor key={editing === "new" ? "new" : currentEditing!.id} task={editing === "new" ? null : { ...detail!, canEdit: currentEditing!.canEdit && board.canWrite, isOwner: currentEditing!.isOwner, source: currentEditing!.source }} boardName={board.name} people={board.people} onClose={() => openTask(null)} onSave={saveTask} /> : null}
   </section>;
 }

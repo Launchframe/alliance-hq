@@ -11,8 +11,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const context = await requireNoteBoardContext(true);
     if (context instanceof NextResponse) return context;
-    const format = new URL(request.url).searchParams.get("format");
-    if (format && format !== "summary") throw new KnowledgeAccessError("invalid");
     const command = boardCommandSchema.safeParse(await request.json().catch(() => null));
     if (!command.success) throw new KnowledgeAccessError("invalid");
     try {
@@ -20,8 +18,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     } catch (error) {
       if (!(error instanceof KnowledgeAccessError) || error.code !== "changed") throw error;
       const response = await notesErrorResponse(error);
-      const snapshot = await noteBoardSnapshot(context.actor, id, format === "summary");
-      return NextResponse.json({ ...await response.json(), snapshot: format === "summary" ? summarizeNoteBoard(snapshot) : snapshot }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
+      const snapshot = await noteBoardSnapshot(context.actor, id);
+      return NextResponse.json({ ...await response.json(), snapshot: new URL(request.url).searchParams.get("format") === "summary" ? summarizeNoteBoard(snapshot) : snapshot }, { status: 409, headers: { "Cache-Control": "private, no-store" } });
     }
   } catch (error) { return notesErrorResponse(error); }
 }

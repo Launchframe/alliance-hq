@@ -25,6 +25,7 @@ import { TrainsHelpPanel } from "@/components/trains/TrainsHelpPanel";
 import { TrainsGuidedConductorFlow } from "@/components/trains/TrainsGuidedConductorFlow";
 import { TrainDayScoreStatsSummary } from "@/components/trains/TrainDayScoreStatsSummary";
 import { TrainLockConfirmBanner } from "@/components/trains/TrainLockConfirmBanner";
+import { TrainBoardingTiming } from "@/components/trains/TrainBoardingTiming";
 import {
   trainDayScoreStatsFromVsDataStatus,
   vsDataStatusForTrainDaySelection,
@@ -112,6 +113,7 @@ import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.sh
 import {
   isAutomaticTopNBoard,
   resolveConductorTopNBoard,
+  resolveDayPaintApplyTopN,
 } from "@/lib/trains/conductor-top-n.shared";
 import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
 import { resolveScoreLeaderboardKind } from "@/lib/trains/score-leaderboard-podium.shared";
@@ -1873,11 +1875,22 @@ export function TrainsDashboard({
         handleScheduleViewChange("month");
       }),
       registerPageHandler("trains.goToToday", goToToday),
-      ...DAY_PAINT_TEMPLATES.map((template, index) =>
-        registerPageHandler(trainTemplateHotkeyIds[index]!, () => {
-          if (!data.canManageTrains) return;
-          void paintDates([selectedDate], template);
-        }),
+      ...DAY_PAINT_TEMPLATES.slice(0, trainTemplateHotkeyIds.length).map(
+        (template, index) =>
+          registerPageHandler(trainTemplateHotkeyIds[index]!, () => {
+            if (!data.canManageTrains) return;
+            const topN = resolveDayPaintApplyTopN({
+              template,
+              currentTemplate:
+                selectedDayConfig?.paintTemplate ?? activeWeekTemplate,
+              currentTopN: selectedDayConfig?.topN,
+            });
+            void paintDates(
+              [selectedDate],
+              template,
+              topN != null ? { topN } : undefined,
+            );
+          }),
       ),
     ];
 
@@ -1894,6 +1907,9 @@ export function TrainsDashboard({
     paintDates,
     registerPageHandler,
     selectedDate,
+    selectedDayConfig?.paintTemplate,
+    selectedDayConfig?.topN,
+    activeWeekTemplate,
     trainTemplateHotkeyIds,
   ]);
 
@@ -2661,6 +2677,7 @@ export function TrainsDashboard({
     >
     <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6 p-4 sm:p-6">
       {coverageDialog}
+      {data.canManageTrains && selectedRecord?.lockedAt && <TrainBoardingTiming key={`${selectedRecord.id}:${selectedRecord.lockedAt}`} recordId={selectedRecord.id} lockedAt={selectedRecord.lockedAt} canBegin={selectedDate === data.today} />}
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold text-foreground">{t("title")}</h1>
@@ -3824,6 +3841,7 @@ export function TrainsDashboard({
         }
         open={dayMechanismPickerOpen}
         currentTemplate={(conductorPaint ?? activeWeekTemplate) as WeekTemplateType}
+        currentTopN={selectedDayConfig?.topN}
         date={dayMechanismPickerTargetDate(selectedDate)}
         weekStart={targetTrainWeekStart}
         vrReporterCount={data.vrReporterCount}

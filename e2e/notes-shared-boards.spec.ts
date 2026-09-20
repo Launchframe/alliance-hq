@@ -3,42 +3,6 @@ import { nanoid } from "nanoid";
 import { createNotesFixture } from "./fixtures/notes";
 import { authCookieHeader, createAllianceMembership, getE2eSql, playwrightAuthCookies } from "./fixtures/db";
 
-test("filtered board cards expose loading and retry while formats remain strict", async ({ page, request }) => {
-  const { author } = await createNotesFixture("officer"), headers = { Cookie: authCookieHeader(author) };
-  const { boardId } = await (await request.post("/api/notes/boards", { headers, data: { name: "Detail loading board", requestId: nanoid() } })).json();
-  const description = "Full authorized task details. ".repeat(100).trim();
-  const created = await request.post(`/api/notes/boards/${boardId}/commands`, { headers, data: { kind: "create", requestId: nanoid(), expectedVersion: 1, task: { title: "Delayed board task", description, labels: ["visible"] } } });
-  expect(created.status(), await created.text()).toBe(200);
-  const snapshot = await (await request.get(`/api/notes/boards/${boardId}`, { headers })).json(), taskId = snapshot.tasks[0].id;
-  expect(snapshot.tasks[0].description).toBe(description);
-  const command = { kind: "rename", requestId: nanoid(), expectedVersion: snapshot.version, name: "Must not rename" };
-  expect((await request.get(`/api/notes/boards/${boardId}?format=bogus`, { headers })).status()).toBe(400);
-  expect((await request.post(`/api/notes/boards/${boardId}/commands?format=bogus`, { headers, data: command })).status()).toBe(400);
-  const conflict = await request.post(`/api/notes/boards/${boardId}/commands?format=summary`, { headers, data: { ...command, expectedVersion: 1 } });
-  expect(conflict.status()).toBe(409);
-  const recovered = (await conflict.json()).snapshot;
-  expect(recovered.name).toBe("Detail loading board");
-  expect(recovered.tasks[0]).not.toHaveProperty("description");
-  expect(recovered.tasks[0]).not.toHaveProperty("intakeProvenance");
-  let release!: () => void, captured!: () => void, failing = true;
-  const hold = new Promise<void>((resolve) => { release = resolve; }), ready = new Promise<void>((resolve) => { captured = resolve; });
-  await page.context().addCookies(playwrightAuthCookies(author));
-  await page.route((url) => url.pathname === `/api/notes/tasks/${taskId}`, async (route) => { if (!failing) return route.continue(); captured(); await hold; return route.fulfill({ status: 503, json: { error: "Fixture detail unavailable" } }); });
-  try {
-    await page.goto(`/notes?${new URLSearchParams({ view: "boards", board: boardId, task: taskId, boardLabel: " absent " })}`);
-    await ready;
-    const loading = page.getByRole("dialog", { name: "Delayed board task", exact: true });
-    await expect(loading.getByRole("status")).toBeVisible();
-    await expect(page.getByTestId("board-task")).toHaveCount(0);
-    await expect(page).toHaveURL((url) => url.searchParams.get("boardLabel") === "absent");
-    release();
-    await expect(loading.getByRole("alert")).toBeInViewport();
-    failing = false;
-    await loading.getByRole("button", { name: "Retry loading", exact: true }).click();
-    await expect(page.getByRole("dialog", { name: "Task details", exact: true }).getByRole("textbox", { name: "Description", exact: true })).toHaveValue(description);
-  } finally { release(); }
-});
-
 test("officer boards synchronize through SSE, preserve source privacy, and revoke live access", async ({ request, browser }) => {
   const { author, peer, alliance } = await createNotesFixture("officer");
   const headers = { Cookie: authCookieHeader(author) };

@@ -14,12 +14,12 @@ export const noteListFilterSchema = z.object({
   view: z.enum(NOTE_LIST_VIEWS).default("notebook"), q: z.string().trim().max(200).default(""),
   notebook: z.string().max(60).default(""), source: z.enum(["", "web", "discord"]).default(""),
   priority: z.enum(["all", "none", ...NOTE_PRIORITIES]).default("all"), sort: z.enum(["recent", "priority"]).default("recent"),
-  label: z.string().trim().max(32).default(""), member: z.string().max(120).default(""),
+  label: z.string().max(32).default(""), member: z.string().max(120).default(""),
 });
 export type NoteListFilter = z.infer<typeof noteListFilterSchema>;
 export const noteWorkspaceStateSchema = noteListFilterSchema.extend({
   view: z.enum(NOTE_WORKSPACE_VIEWS).default("notebook"), q: z.string().max(200).default(""), layout: z.enum(["cards", "list"]).default("cards"),
-  boardGroup: z.enum(["none", "assignee", "team"]).default("none"), boardLayout: z.enum(["board", "list"]).default("board"), boardClosed: z.boolean().default(false), boardLabel: z.string().trim().max(32).default(""),
+  boardGroup: z.enum(["none", "assignee", "team"]).default("none"), boardLayout: z.enum(["board", "list"]).default("board"), boardClosed: z.boolean().default(false), boardLabel: z.string().max(32).default(""),
   taskFilter: z.enum(["active", "all", "archived", "open", "in_progress", "done", "cancelled"]).default("active"), taskLabel: z.string().max(32).default(""),
   searchQuery: z.string().max(200).default(""), searchKind: z.enum(["all", "note", "task", "source"]).default("all"),
   knowledgeOwned: z.boolean().default(true), knowledgeQuery: z.string().max(200).default(""), knowledgeSources: z.boolean().default(false),
@@ -31,8 +31,10 @@ export type WorkspacePreferences = { scope: string; version: number; state: Note
 export const workspacePreferenceWriteSchema = z.object({ expectedScope: z.string().min(1).max(300), expectedVersion: z.number().int().nonnegative(), state: noteWorkspaceStateSchema }).strict();
 export function readWorkspaceState(params: URLSearchParams, saved: NoteWorkspaceState, scope: string): NoteWorkspaceState {
   if (params.has("workspaceScope") && params.get("workspaceScope") !== scope) return { ...saved };
-  const parsed = noteWorkspaceStateSchema.safeParse({ ...saved, ...Object.fromEntries(Object.keys(saved).flatMap((key) => params.has(key) ? [[key, typeof saved[key as keyof NoteWorkspaceState] === "boolean" ? params.get(key) === "1" : params.get(key)]] : [])) });
-  return parsed.success ? parsed.data : { ...saved };
+  return noteWorkspaceStateSchema.parse({ ...saved, ...Object.fromEntries(Object.keys(saved).flatMap((key) => params.has(key) ? [[key, typeof saved[key as keyof NoteWorkspaceState] === "boolean" ? params.get(key) === "1" : params.get(key)]] : [])) });
+}
+export function clampWorkspaceBoardsView(state: NoteWorkspaceState, canReadBoards: boolean): NoteWorkspaceState {
+  return !canReadBoards && state.view === "boards" ? { ...state, view: "notebook" } : state;
 }
 export function noteFilterFromWorkspace(state: Pick<NoteWorkspaceState, "view" | "q" | "notebook" | "source" | "priority" | "sort" | "label" | "member">): NoteListFilter {
   return noteListFilterSchema.parse({ ...state, view: NOTE_LIST_VIEWS.includes(state.view as NoteListFilter["view"]) ? state.view : "notebook" });
@@ -45,8 +47,7 @@ export function scopedWorkspaceLocation(location: string, saved: NoteWorkspaceSt
   const url = new URL(location, "https://notes.invalid");
   if (!/^\/(?:(?:en-US|pt-BR)\/)?notes(?:\/|$)/.test(url.pathname)) return `${url.pathname}${url.search}${url.hash}`;
   const foreign = url.searchParams.has("workspaceScope") && url.searchParams.get("workspaceScope") !== scope;
-  const reset: Record<string, string | null> = foreign ? Object.fromEntries(["cursor", "importCursor", "taskCursor", "noteTaskCursor", "draftCursor", "reviewCursor", "studioCursor", "studioOffset", "knowledgeCursor", "knowledgeOffset", "searchOffset", "searchRun", "messageOffset", "publicationCursor", "snapshotCursor"].map((key) => [key, null])) : {};
-  try { if (parseNoteListCursor(url.searchParams.get("cursor"))?.scope !== scope) reset.cursor = null; } catch { reset.cursor = null; }
+  const reset = foreign ? Object.fromEntries(["cursor", "importCursor", "taskCursor", "noteTaskCursor", "draftCursor", "reviewCursor", "studioCursor", "studioOffset", "knowledgeCursor", "knowledgeOffset", "searchOffset", "searchRun", "messageOffset", "publicationCursor", "snapshotCursor"].map((key) => [key, null])) : {};
   return workspaceStateLocation(url.pathname, url.search, readWorkspaceState(url.searchParams, saved, scope), scope, reset) + url.hash;
 }
 export function notesFocusKey(pathname: string, params: URLSearchParams): string {

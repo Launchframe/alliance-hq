@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { redactIntakeText } from "./intake.shared";
 import { MAX_OFFICER_INTEL_IMAGE_BYTES, MAX_OFFICER_INTEL_IMAGES } from "@/lib/officer-intel/storage.shared";
+import { isOfficerChatNoiseLine } from "@/lib/officer-intel/chat-ocr/parse-chat-text.shared";
 
 export const HISTORY_IMPORT_VERSION = 1;
 export const HISTORY_IMPORT_PAGE_SIZE = 50;
@@ -27,7 +28,6 @@ export type HistoryImportListItem = Pick<HistoryImportSummary, "id" | "title" | 
 export type HistoryImportPage = { scope: string; imports: HistoryImportListItem[]; nextCursor: string | null; previousCursor: string | null };
 
 const identity = z.string().min(1).max(120).regex(/^[A-Za-z0-9_-]+$/);
-export { identity as historyImportIdentitySchema };
 const historyListCursorSchema = z.object({ version: z.literal(1), scope: z.string().min(1).max(300), id: identity, updatedAt: z.iso.datetime({ precision: 6 }).refine((value) => !value.startsWith("0000-")), direction: z.enum(["next", "previous"]).optional() }).strict();
 export type HistoryListCursor = z.infer<typeof historyListCursorSchema>;
 export function parseHistoryListCursor(raw: string | null): HistoryListCursor | null {
@@ -50,6 +50,13 @@ const discordExport = z.object({ guild: z.object({ id: identity }), channel: z.o
 
 export function redactHistoryMessage(message: HistoryMessage): HistoryMessage {
   return historyMessageSchema.parse({ ...message, sender: message.sender?.trim() ? redactIntakeText(message.sender.trim()) : null, body: redactIntakeText(message.body) });
+}
+
+export function parseHistoryScreenshot(parsed: { messages: ReadonlyArray<{ senderName: string; originalText: string }>; rawLines: readonly string[] }, assetId: string, sourceImageIndex: number): HistoryMessage[] {
+  identity.parse(assetId);
+  if (parsed.messages.length) return parsed.messages.map((row, index) => redactHistoryMessage({ sender: row.senderName || null, body: row.originalText, sentAt: null, externalId: null, sourceImageIndex, locator: `${assetId}:ocr:${index}` }));
+  const text = parsed.rawLines.filter((line) => !isOfficerChatNoiseLine(line)).join("\n");
+  return text.trim() ? parseHistoryText("text", text, assetId).map((row, index) => historyMessageSchema.parse({ ...row, sourceImageIndex, locator: `${assetId}:ocr:${index}` })) : [];
 }
 
 export function parseHistoryText(kind: Exclude<HistoryImportKind, "screenshots">, text: string, assetId: string): HistoryMessage[] {

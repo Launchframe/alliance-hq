@@ -61,11 +61,11 @@ export async function createNoteBoard(actor: KnowledgeWebActor, input: { name: s
   });
 }
 
-export async function noteBoardSnapshot(actor: KnowledgeWebActor, id: string, compact = false): Promise<NoteBoardSnapshot> {
+export async function noteBoardSnapshot(actor: KnowledgeWebActor, id: string): Promise<NoteBoardSnapshot> {
   return getDb().transaction(async (tx) => {
     const board = await boardRow(tx, actor, id);
     const placements = await tx.select().from(items).where(and(eq(items.boardId, id), eq(items.allianceId, actor.allianceId)));
-    const cards = await listBoardNoteTasks(tx, actor, id, placements.map((item) => item.taskId), compact);
+    const cards = await listBoardNoteTasks(tx, actor, id, placements.map((item) => item.taskId));
     const support = await loadSupportBoard(tx, actor.allianceId);
     const teams = support.published ? teamIds(support).map((id) => ({ id, name: String(readField(support, fieldKey("team", id, "name")) ?? id) })) : [];
     const links = teams.length ? await tx.select({ userId: schema.hqMemberLinks.hqUserId, memberId: schema.hqMemberLinks.ashedMemberId }).from(schema.hqMemberLinks).where(eq(schema.hqMemberLinks.allianceId, actor.allianceId)) : [];

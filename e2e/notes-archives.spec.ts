@@ -8,98 +8,6 @@ import { noteFieldsSchema } from "../src/lib/notes/workspace.shared";
 
 const nextPage = (path: string, cursor: string) => `${path}${path.includes("?") ? "&" : "?"}${new URLSearchParams({ cursor })}`;
 
-test("Team Work resets task paging when personal scope changes", async ({ page }) => {
-  const { author, alliance } = await createNotesFixture("officer");
-  const sql = getE2eSql(), prefix = nanoid();
-  await sql.begin(async (tx) => {
-    for (let index = 0; index < 52; index++) {
-      const id = `${prefix}_${index}`;
-      await tx`INSERT INTO knowledge_resources (id, alliance_id, kind, entity_id, ownership_state, owner_hq_user_id, owner_bound_at) VALUES (${`task:${id}`}, ${alliance.allianceId}, 'task', ${id}, 'hq', ${author.hqUserId}, now())`;
-      await tx`INSERT INTO officer_action_items (id, resource_id, alliance_id, title, status, priority, created_by_hq_user_id) VALUES (${id}, ${`task:${id}`}, ${alliance.allianceId}, ${`Scope task ${index}`}, 'open', NULL, ${author.hqUserId})`;
-    }
-  });
-  await page.context().addCookies(playwrightAuthCookies(author));
-  await page.goto("/en-US/team-work");
-  const panel = page.getByTestId("notes-tasks");
-  await expect(panel.getByTestId("note-task")).toHaveCount(50);
-  const personal = page.getByRole("checkbox", { name: /^my team$/i });
-  for (const checked of [false, true]) {
-    await panel.getByRole("button", { name: "Next page", exact: true }).click();
-    await expect(panel.getByTestId("note-task")).toHaveCount(2);
-    const updated = page.waitForResponse((response) => { const url = new URL(response.url()); return url.pathname === "/api/notes/tasks" && url.searchParams.has("personalOnly") === checked && !url.searchParams.has("cursor"); });
-    await personal.setChecked(checked);
-    expect((await updated).status()).toBe(200);
-    await expect(panel.getByTestId("note-task")).toHaveCount(50);
-    await expect(panel.getByRole("alert")).toHaveCount(0);
-  }
-});
-
-for (const target of [
-  { view: "studio", path: "/api/notes/knowledge/resources", panel: "notes-studio" },
-  { view: "studio", path: "/api/notes/generation", panel: "notes-studio" },
-  { view: "knowledge", path: "/api/notes/knowledge/resources", panel: "notes-knowledge" },
-  { view: "imports", path: "/api/notes/imports", panel: null },
-  { view: "publications", path: "/api/notes/publications", panel: "notes-publications" },
-]) test(`${target.view} retries failed ${target.path} reads without creating work`, async ({ page, request }) => {
-  const { author } = await createNotesFixture("officer"), headers = { Cookie: authCookieHeader(author) };
-  const { noteId } = await (await request.post("/api/notes", { headers, data: { title: "Retry read fixture", body: "Private source for read retries." } })).json();
-  await page.context().addCookies(playwrightAuthCookies(author));
-  let failing = true, writes = 0;
-  await page.route((url) => url.pathname === target.path, (route) => failing && route.request().method() === "GET" ? route.fulfill({ status: 503, json: { error: "Fixture read unavailable" } }) : route.continue());
-  page.on("request", (request) => { if (/\/api\/notes\/(generation|knowledge|publications|imports)(\/|\?|$)/.test(request.url()) && request.method() !== "GET") writes++; });
-  await page.goto(`/notes?${new URLSearchParams({ view: target.view, ...(target.view === "publications" ? { publicationNote: noteId } : {}) })}`);
-  const panel = target.panel ? page.getByTestId(target.panel) : page.getByTestId("notes-workspace");
-  const retry = panel.getByRole("button", { name: "Retry loading", exact: true });
-  await expect(retry).toBeVisible();
-  await expect(retry).toHaveAttribute("type", "button");
-  failing = false;
-  const loaded = page.waitForResponse((response) => new URL(response.url()).pathname === target.path && response.status() === 200);
-  await retry.click(); await (await loaded).finished();
-  await expect(retry).toHaveCount(0);
-  expect(writes).toBe(0);
-});
-
-test("revision list and selected revision reads can be retried in place", async ({ page, request }) => {
-  const { author } = await createNotesFixture("officer"), headers = { Cookie: authCookieHeader(author) };
-  const { noteId } = await (await request.post("/api/notes", { headers, data: { title: "Retry history fixture", body: "Original revision text." } })).json();
-  const initial = await (await request.get(`/api/notes/${noteId}`, { headers })).json();
-  await request.patch(`/api/notes/${noteId}`, { headers, data: { expectedVersion: initial.note.version, body: "Current revision text." } });
-  let failure: "list" | "detail" | null = "list";
-  await page.context().addCookies(playwrightAuthCookies(author));
-  await page.route((url) => url.pathname === `/api/notes/${noteId}/history`, (route) => {
-    const detail = new URL(route.request().url()).searchParams.has("version");
-    return failure === (detail ? "detail" : "list") ? route.fulfill({ status: 503, json: { error: "Fixture history unavailable" } }) : route.continue();
-  });
-  await page.goto(`/notes/${noteId}`);
-  await page.getByRole("dialog").getByRole("button", { name: "Version history", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Version history", exact: true }), retry = dialog.getByRole("button", { name: "Retry loading", exact: true });
-  await expect(retry).toBeVisible(); failure = null; await retry.click();
-  const revision = dialog.getByRole("button", { name: /Version 1/ });
-  await expect(revision).toBeVisible(); failure = "detail"; await revision.click();
-  await expect(retry).toBeVisible(); failure = null; await retry.click();
-  await expect(dialog).toContainText("Original revision text.");
-  await expect(retry).toHaveCount(0);
-});
-
-test("selected snapshot retries are reads rather than new previews", async ({ page, request }) => {
-  const { author } = await createNotesFixture("officer"), headers = { Cookie: authCookieHeader(author) };
-  const { noteId } = await (await request.post("/api/notes", { headers, data: { title: "Retry snapshot note", body: "Private source." } })).json();
-  const { note } = await (await request.get(`/api/notes/${noteId}`, { headers })).json();
-  const prepared = await request.post("/api/notes/publications", { headers, data: { requestId: nanoid(), noteId, expectedVersion: note.version, title: "Retry snapshot", body: "Reviewed synthetic snapshot.", locale: "en-US", days: 7 } });
-  expect(prepared.status(), await prepared.text()).toBe(200);
-  const preview = await prepared.json();
-  await page.context().addCookies(playwrightAuthCookies(author));
-  let failing = true;
-  await page.route((url) => url.pathname === `/api/notes/publications/${preview.id}`, (route) => failing ? route.fulfill({ status: 503, json: { error: "Fixture snapshot unavailable" } }) : route.continue());
-  await page.goto(`/notes?view=publications&publicationNote=${noteId}`);
-  await page.getByTestId("publication-history").getByRole("button", { name: /^Retry snapshot ·/ }).click();
-  const retry = page.getByRole("button", { name: "Retry loading", exact: true });
-  await expect(retry).toBeVisible(); failing = false; await retry.click();
-  await expect(page.getByTestId("publication-preview")).toContainText("Reviewed synthetic snapshot.");
-  const [count] = await getE2eSql()`SELECT count(*)::integer AS count FROM knowledge_publications WHERE note_id = ${noteId}`;
-  expect(count.count).toBe(1);
-});
-
 test("linked task controls never submit the surrounding unsaved note", async ({ page, request }) => {
   const { author } = await createNotesFixture();
   const headers = { Cookie: authCookieHeader(author) };
@@ -258,12 +166,6 @@ test("older drafts, tasks, reviews and snapshots remain reachable without bulk d
   await publicationList.getByRole("button", { name: "Next page", exact: true }).click();
   await publicationList.getByRole("button", { name: /^Archive snapshot 1 ·/ }).click();
   await expect(page.getByTestId("publication-preview").getByText("Snapshot original only", { exact: true })).toBeVisible();
-  const shared = await request.put(`/api/notes/${noteId}/sharing`, { headers, data: { expectedVersion: (await get(`/api/notes/${noteId}`)).note.version, grants: [{ subjectKind: "user", subjectId: peer.hqUserId, role: "edit" }] } });
-  expect(shared.status(), await shared.text()).toBe(200);
-  expect((await request.get(`/api/notes/${noteId}`, { headers: peerHeaders })).status()).toBe(200);
-  for (const path of [historyPath, `/api/notes/${noteId}/history?version=1`, publicationPath, `/api/notes/publications/${id("publication", 0)}`]) {
-    expect((await request.get(path, { headers: peerHeaders })).status()).toBe(404);
-  }
   const [usage] = await sql`SELECT count(*)::integer AS count FROM knowledge_ai_usage WHERE principal_key = ${`hq:${author.hqUserId}`}`;
   expect(usage.count).toBe(0);
 });

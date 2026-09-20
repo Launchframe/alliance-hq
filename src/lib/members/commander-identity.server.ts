@@ -11,6 +11,7 @@ import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 import { getDb, schema } from "@/lib/db";
+import { postgresErrorCode } from "@/lib/db/error-message";
 import type {
   Commander,
   CommanderAllianceMembership,
@@ -515,6 +516,13 @@ async function upsertCommanderRow(input: {
   memberDisplayName?: string | null;
   existingCommanderId?: string | null;
   ashedStats?: CommanderAshedStats | null;
+  /**
+   * This roster row is already linked to a different commander than the orphan
+   * that owns the display name. Do not rewrite that commander's name or UID —
+   * `commanders_orphan_name_server_unique` rejects the collision and the
+   * refresh must not fail.
+   */
+  preserveIdentity?: boolean;
 }): Promise<{ commanderId: string }> {
   const db = getDb();
   const now = new Date();
@@ -549,15 +557,44 @@ async function upsertCommanderRow(input: {
   }
 
   if (input.existingCommanderId) {
-    await db
-      .update(schema.commanders)
-      .set({
-        ...statsWithoutLevel,
-        gameUid: normalizedUid,
-        gameServerNumber: input.gameServerNumber ?? null,
-        updatedAt: now,
-      })
-      .where(eq(schema.commanders.id, input.existingCommanderId));
+    const {
+      primaryName: _primaryName,
+      primaryNameNormalized: _primaryNameNormalized,
+      ...statsWithoutIdentity
+    } = statsWithoutLevel;
+    void _primaryName;
+    void _primaryNameNormalized;
+    const identityUpdate = {
+      ...statsWithoutIdentity,
+      ...(input.preserveIdentity
+        ? {}
+        : {
+            primaryName: statsWithoutLevel.primaryName,
+            primaryNameNormalized: statsWithoutLevel.primaryNameNormalized,
+            gameServerNumber: input.gameServerNumber ?? null,
+            // Never clear a stored UID. An empty roster UID would pull a
+            // linked commander into the orphan-name unique index.
+            ...(normalizedUid ? { gameUid: normalizedUid } : {}),
+          }),
+      updatedAt: now,
+    };
+    try {
+      await db
+        .update(schema.commanders)
+        .set(identityUpdate)
+        .where(eq(schema.commanders.id, input.existingCommanderId));
+    } catch (error) {
+      if (postgresErrorCode(error) !== "23505" || input.preserveIdentity) {
+        throw error;
+      }
+      await db
+        .update(schema.commanders)
+        .set({
+          ...statsWithoutIdentity,
+          updatedAt: now,
+        })
+        .where(eq(schema.commanders.id, input.existingCommanderId));
+    }
     return { commanderId: input.existingCommanderId };
   }
 
@@ -968,12 +1005,18 @@ export async function syncCommanderFromAllianceMember(input: {
     }
   }
 
+  const linkedCommanderIsNotNameOwner =
+    existingMembership?.commanderId != null &&
+    orphan != null &&
+    orphan.commander.id !== existingMembership.commanderId;
+
   const { commanderId } = await upsertCommanderRow({
     gameUid: null,
     gameServerNumber,
     allianceId: input.allianceId,
     ashedMemberId: input.ashedMemberId,
     memberDisplayName: displayName,
+    preserveIdentity: linkedCommanderIsNotNameOwner,
     existingCommanderId:
       adoptStaleOrphanId != null
         ? orphan?.commander.id ?? null

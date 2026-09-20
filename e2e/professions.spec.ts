@@ -243,12 +243,23 @@ test.describe("Professions — War Leader Support", () => {
       page.getByText(/alliance-wide war leader coverage/i),
     ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("profession-pairing-import")).toBeVisible();
-    await page.route("**/api/professions/officer", (route) => route.fulfill({ status: 503, json: { error: "Fixture unavailable" } }));
+    let officerCalls = 0;
+    let staleFinished = false;
+    let releaseStale: () => void = () => {};
+    await page.route("**/api/professions/officer", async (route) => {
+      officerCalls += 1;
+      if (officerCalls > 1) return route.fulfill({ status: 200, json: payload });
+      await new Promise<void>((resolve) => { releaseStale = resolve; });
+      try { await route.fulfill({ status: 503, json: { error: "Stale officer response" } }); } catch { /* aborted by retry */ }
+      staleFinished = true;
+    });
     await page.goto("/professions?tab=officer");
-    await expect(page.getByRole("alert").filter({ hasText: "Fixture unavailable" })).toHaveText("Fixture unavailable");
-    await expect(page.getByTestId("profession-pairing-import")).toHaveCount(0);
-    await page.unroute("**/api/professions/officer");
+    await expect.poll(() => officerCalls).toBe(1);
     await page.getByRole("button", { name: /^officer$/i }).click();
+    await expect(page.getByTestId("profession-pairing-import")).toBeVisible();
+    releaseStale();
+    await expect.poll(() => staleFinished).toBe(true);
+    await expect(page.getByRole("alert").filter({ hasText: "Stale officer response" })).toHaveCount(0);
     await expect(page.getByTestId("profession-pairing-import")).toBeVisible();
   });
 
@@ -264,8 +275,13 @@ test.describe("Professions — War Leader Support", () => {
 
     const wlMemberId = `wl-${nanoid(6)}`;
     const engMemberId = `eng-${nanoid(6)}`;
-    await seedAllianceCommander(sql, {
+    const officerSession = await createAuthenticatedHqSession(
+      sql,
+      uniqueEmail("prof-import-off"),
+    );
+    await seedProfessionCommander(sql, {
       allianceId: alliance.allianceId,
+      hqUserId: officerSession.hqUserId,
       ashedMemberId: wlMemberId,
       primaryName: "Import WL",
       profession: "War Leader",
@@ -277,15 +293,17 @@ test.describe("Professions — War Leader Support", () => {
       profession: "Engineer",
     });
 
-    const officerSession = await createAuthenticatedHqSession(
-      sql,
-      uniqueEmail("prof-import-off"),
-    );
     await createAllianceMembership(sql, {
       hqUserId: officerSession.hqUserId,
       allianceId: alliance.allianceId,
       roleName: "owner",
       source: "manual",
+    });
+    await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: officerSession.hqUserId,
+      ashedMemberId: wlMemberId,
+      memberDisplayName: "Import WL",
     });
     await bindSessionToAlliance(sql, officerSession.sessionId, alliance);
 
@@ -343,6 +361,16 @@ test.describe("Professions — War Leader Support", () => {
       .fill("Import WL: Import Eng");
     await page.getByRole("button", { name: /^preview$/i }).click();
     await expect(page.getByText(/already on this team/i)).toBeVisible();
+    await page.route("**/api/professions/officer", (route) => route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "fixture_officer_unavailable" }),
+    }));
+    await page.reload();
+    await expect(page.getByRole("alert").filter({ hasText: "fixture_officer_unavailable" })).toHaveText("fixture_officer_unavailable");
+    await page.unroute("**/api/professions/officer");
+    await page.getByRole("button", { name: /^officer$/i }).click();
+    await expect(page.getByTestId("profession-pairing-import")).toBeVisible();
 
     const memberSession = await createAuthenticatedHqSession(
       sql,
