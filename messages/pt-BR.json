@@ -2432,6 +2432,17 @@
       "saveFailed": "Não foi possível salvar os mínimos do condutor.",
       "officersOnly": "Somente oficiais do trem podem alterar estas configurações."
     },
+    "trainTopScoreEligibility": {
+      "sectionTitle": "Elegibilidade nos sorteios de maior pontuação",
+      "sectionBody": "Escolha se os sorteios Top VS e Top Doações incluem membros R4 e R5. Membros R3 são sempre elegíveis.",
+      "includeR4PlusLabel": "Incluir membros R4 e R5",
+      "loading": "Carregando elegibilidade dos sorteios de maior pontuação…",
+      "loadFailed": "Não foi possível carregar a elegibilidade dos sorteios de maior pontuação.",
+      "save": "Salvar",
+      "saving": "Salvando…",
+      "saveFailed": "Não foi possível salvar a elegibilidade dos sorteios de maior pontuação.",
+      "officersOnly": "Somente oficiais do trem podem alterar esta configuração."
+    },
     "trainEconomyThreshold": {
       "sectionTitle": "The Price Is Freight",
       "sectionBody": "Nos dias The Price Is Freight, a roleta do condutor sorteia entre R3 cuja pontuação VS do dia anterior está entre 7.200.000 e o limite de economia mais a margem (limite + limite × fudge %). VIP é escolha livre — o condutor do dia escolhe o VIP diretamente.",

@@ -11,6 +11,12 @@ import type { ParsedConnection } from "@/lib/connectionString";
 import { DEFAULT_APP_ID } from "@/lib/connectionString";
 import { listActiveAllianceMembersForPool } from "@/lib/members/roster.server";
 import { addCalendarDays } from "@/lib/trains/game-time";
+import {
+  getAllianceRanksAsOf,
+  resolveMemberPoolAllianceRank,
+} from "@/lib/trains/rank-history";
+import { loadTrainTopScoreEligibility } from "@/lib/trains/train-top-score-eligibility.server";
+import { isMemberEligibleForTopScoreTrain } from "@/lib/trains/train-top-score-eligibility.shared";
 import type { RollCandidate } from "@/lib/trains/types";
 import { priorDayVsAppliesForTrainDate } from "@/lib/trains/vs-data-status.shared";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
@@ -288,17 +294,38 @@ export async function fetchAllianceVsTopScorersForTrainDate(
   if (!priorDayVsAppliesForTrainDate(trainDate, leadDays)) {
     return [];
   }
-  const [activeMembers, scores] = await Promise.all([
+  const [activeMembers, scores, eligibility, rankEvents] = await Promise.all([
     listActiveAllianceMembersForPool(allianceId),
     fetchAlliancePriorDayVsScoresByMember(allianceId, vsScoreReferenceDate(trainDate, leadDays)),
+    loadTrainTopScoreEligibility(allianceId, false),
+    getAllianceRanksAsOf(allianceId, trainDate),
   ]);
 
   const activeById = new Map(
     activeMembers.map((member) => [member.ashedMemberId, member]),
   );
+  const rankEventByMember = new Map(
+    rankEvents.map((event) => [event.ashedMemberId, event]),
+  );
+  const resolvedRankByMember = new Map<string, number | null>();
+  for (const member of activeMembers) {
+    resolvedRankByMember.set(
+      member.ashedMemberId,
+      resolveMemberPoolAllianceRank(
+        member,
+        rankEventByMember.get(member.ashedMemberId),
+      ),
+    );
+  }
 
   return [...scores.entries()]
-    .filter(([memberId, score]) => score > 0 && activeById.has(memberId))
+    .filter(([memberId, score]) => {
+      if (score <= 0 || !activeById.has(memberId)) return false;
+      return isMemberEligibleForTopScoreTrain(
+        resolvedRankByMember.get(memberId),
+        eligibility.trainTopScoreIncludesR4Plus,
+      );
+    })
     .sort((a, b) => b[1] - a[1])
     .slice(0, limit)
     .map(([memberId, score]) => {
@@ -306,7 +333,7 @@ export async function fetchAllianceVsTopScorersForTrainDate(
       return {
         memberId,
         memberName: member.currentName,
-        allianceRank: member.allianceRank ?? null,
+        allianceRank: resolvedRankByMember.get(memberId) ?? null,
         priorDayVsScore: score,
       };
     });

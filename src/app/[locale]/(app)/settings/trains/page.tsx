@@ -9,6 +9,7 @@ import { AllianceTrainEconomyThresholdSettings } from "@/components/settings/All
 import { AllianceTrainLeadTimeSettings } from "@/components/settings/AllianceTrainLeadTimeSettings";
 import { AllianceTrainMinimumsSettings } from "@/components/settings/AllianceTrainMinimumsSettings";
 import { AllianceTrainTemplatesSettings } from "@/components/settings/AllianceTrainTemplatesSettings";
+import { AllianceTrainTopScoreEligibilitySettings } from "@/components/settings/AllianceTrainTopScoreEligibilitySettings";
 import { AllianceTrainWeekSettings } from "@/components/settings/AllianceTrainWeekSettings";
 import { AllianceContextRequired } from "@/components/settings/AllianceContextRequired";
 import { isDiscordBotInstallConfigured } from "@/lib/discord/bot-install-url.server";
@@ -75,6 +76,7 @@ export default async function SettingsTrainsPage({
       <AllianceTrainWeekSettings allianceTag={allianceTag} />
       <AllianceTrainLeadTimeSettings allianceTag={allianceTag} />
       <AllianceTrainTemplatesSettings leadDays={leadDays} />
+      <AllianceTrainTopScoreEligibilitySettings allianceTag={allianceTag} />
       <AllianceTrainMinimumsSettings allianceTag={allianceTag} />
       <AllianceTrainEconomyThresholdSettings allianceTag={allianceTag} />
       <AllianceTrainDiscordSettings
