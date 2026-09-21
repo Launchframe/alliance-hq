@@ -60,7 +60,7 @@ export async function listHistoryImports(actor: KnowledgeWebActor, cursor: Histo
   const page = rows.slice(0, HISTORY_IMPORT_PAGE_SIZE);
   if (backwards) page.reverse();
   const makeCursor = (row: typeof rows[number] | undefined, direction: "next" | "previous") => row ? JSON.stringify({ version: 1, scope, id: row.record.id, updatedAt: row.cursorTime, direction } satisfies HistoryListCursor) : null;
-  return { scope, imports: page.map(({ record, title }) => ({ id: record.id, title: redactIntakeText(title), state: record.state, kind: record.kind, updatedAt: record.updatedAt.toISOString() })),
+  return { scope, imports: page.map(({ record, title, cursorTime }) => ({ id: record.id, title: redactIntakeText(title), state: record.state, kind: record.kind, updatedAt: cursorTime })),
     nextCursor: (backwards ? !!cursor : rows.length > HISTORY_IMPORT_PAGE_SIZE) ? makeCursor(page.at(-1), "next") : null,
     previousCursor: (backwards ? rows.length > HISTORY_IMPORT_PAGE_SIZE : !!cursor) ? makeCursor(page[0], "previous") : null };
 }
