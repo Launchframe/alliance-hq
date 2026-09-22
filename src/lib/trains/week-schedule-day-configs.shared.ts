@@ -5,11 +5,51 @@ import {
   type VipRule,
 } from "@/lib/trains/rules/catalog.shared";
 import {
-  weekRulesForPreset,
-  weekdayKeyForDate,
-} from "@/lib/trains/rules/presets.shared";
+  templateRulesForDate,
+  type TemplateWeekRules,
+} from "@/lib/trains/rules/template-days.shared";
 import { weekDatesInTrainWeek } from "@/lib/trains/train-week-calendar.shared";
-import type { WeekTemplateType } from "@/lib/trains/types";
+
+/** The week template a display merge fills gaps from. */
+export type WeekFillTemplate = {
+  /** Null when the week has no template — every unpainted day is free choice. */
+  id: string | null;
+  days: TemplateWeekRules;
+};
+
+/**
+ * Template to fill a given date from.
+ *
+ * Resolved **per date**, not per display week. Schedule rows are keyed by the
+ * Monday calendar week, so an alliance whose calendar starts on Sunday has a
+ * display week straddling two schedule rows; filling all seven tiles from one
+ * of them would show the wrong template on the days either side of Monday.
+ */
+export type WeekFillTemplateResolver = (date: string) => WeekFillTemplate;
+
+export function resolveWeekTemplateDisplay(
+  dayConfigs: Array<{ sourceTemplateId?: string | null }>,
+): { templateId: string | null; mixed: boolean } {
+  const ids = new Set<string>();
+  let sawUnsourced = false;
+  for (const day of dayConfigs) {
+    if (day.sourceTemplateId) ids.add(day.sourceTemplateId);
+    else sawUnsourced = true;
+  }
+  if (ids.size === 1 && !sawUnsourced) {
+    return { templateId: [...ids][0]!, mixed: false };
+  }
+  return {
+    templateId: null,
+    mixed: ids.size > 1 || (ids.size === 1 && sawUnsourced),
+  };
+}
+
+export function constantFillTemplate(
+  template: WeekFillTemplate,
+): WeekFillTemplateResolver {
+  return () => template;
+}
 
 export const PROVISIONAL_DAY_CONFIG_ID_PREFIX = "preview-";
 
@@ -31,7 +71,7 @@ export type MergedWeekScheduleDayConfig = {
   conductorRule: ConductorRule | null;
   vipRule: VipRule | null;
   isOverride: boolean;
-  sourceTemplateKey: string | null;
+  sourceTemplateId: string | null;
 };
 
 type DayConfigRow = {
@@ -39,7 +79,7 @@ type DayConfigRow = {
   date: string;
   conductorRule?: unknown;
   vipRule?: unknown;
-  sourceTemplateKey?: string | null;
+  sourceTemplateId?: string | null;
   isOverride?: number | null;
 };
 
@@ -50,36 +90,41 @@ function mapDayConfigRow(row: DayConfigRow): MergedWeekScheduleDayConfig {
     conductorRule: parseConductorRule(row.conductorRule),
     vipRule: parseVipRule(row.vipRule),
     isOverride: row.isOverride === 1,
-    sourceTemplateKey: row.sourceTemplateKey ?? null,
+    sourceTemplateId: row.sourceTemplateId ?? null,
   };
 }
 
 function provisionalDay(
   date: string,
-  templateType: WeekTemplateType,
+  templateForDate: WeekFillTemplateResolver,
 ): MergedWeekScheduleDayConfig {
-  const rules = weekRulesForPreset(templateType)[weekdayKeyForDate(date)];
+  const template = templateForDate(date);
+  const rules = templateRulesForDate(template.days, date);
   return {
     id: `${PROVISIONAL_DAY_CONFIG_ID_PREFIX}${date}`,
     date,
     conductorRule: rules.conductorRule,
     vipRule: rules.vipRule,
     isOverride: false,
-    sourceTemplateKey: templateType,
+    sourceTemplateId: template.id,
   };
 }
 
 /** Seven train-week days from the preset when no DB rows exist; merge when partial. */
 export function resolveWeekDisplayDayConfigs(
   weekStart: string,
-  templateType: WeekTemplateType,
+  templateForDate: WeekFillTemplateResolver,
   dayConfigRows: DayConfigRow[],
 ): MergedWeekScheduleDayConfig[] {
   if (dayConfigRows.length > 0) {
-    return buildWeekScheduleDayConfigs(weekStart, templateType, dayConfigRows);
+    return buildWeekScheduleDayConfigs(
+      weekStart,
+      templateForDate,
+      dayConfigRows,
+    );
   }
   return weekDatesInTrainWeek(weekStart).map((date) =>
-    provisionalDay(date, templateType),
+    provisionalDay(date, templateForDate),
   );
 }
 
@@ -93,7 +138,7 @@ export function resolveWeekDisplayDayConfigs(
  */
 export function buildWeekScheduleDayConfigs(
   weekStart: string,
-  templateType: WeekTemplateType,
+  templateForDate: WeekFillTemplateResolver,
   dayConfigRows: DayConfigRow[],
 ): MergedWeekScheduleDayConfig[] {
   const byDate = new Map(
@@ -101,6 +146,6 @@ export function buildWeekScheduleDayConfigs(
   );
 
   return weekDatesInTrainWeek(weekStart).map(
-    (date) => byDate.get(date) ?? provisionalDay(date, templateType),
+    (date) => byDate.get(date) ?? provisionalDay(date, templateForDate),
   );
 }

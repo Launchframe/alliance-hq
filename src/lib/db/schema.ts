@@ -17,7 +17,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-import { sql } from "drizzle-orm";
+import { isNull, sql } from "drizzle-orm";
 import type { KnowledgeOwnershipState, KnowledgeResourceKind, KnowledgeGrant } from "@/lib/notes/policy.shared";
 import type { NoteFields } from "@/lib/notes/workspace.shared";
 import type { IntakeResult } from "@/lib/notes/intake.shared";
@@ -3159,6 +3159,76 @@ export const memberViolations = pgTable("member_violations", {
     .notNull(),
 });
 
+/**
+ * Reusable week templates: seven calendar-weekday slots, each a day rule.
+ *
+ * `alliance_id IS NULL` is an HQ preset — shared by every alliance, never
+ * deleted, hidden per alliance through `train_rule_template_archives`.
+ * Alliance-authored rows soft-delete with `archived_at` so days already
+ * painted from them keep resolving.
+ */
+export const trainRuleTemplates = pgTable(
+  "train_rule_templates",
+  {
+    id: text("id").primaryKey(),
+    /** Null for HQ presets. */
+    allianceId: text("alliance_id").references(() => alliances.id, {
+      onDelete: "cascade",
+    }),
+    /** Set for HQ presets only; the i18n key for name and description. */
+    presetKey: text("preset_key").unique(),
+    name: text("name").notNull(),
+    description: text("description"),
+    /** `Record<WeekdayKey, DayRules>` — exactly seven Mon–Sun slots. */
+    days: jsonb("days").notNull(),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    /** Set when this row was copied from another alliance's shared template. */
+    sourceTemplateId: text("source_template_id"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("train_rule_templates_alliance_name_unique")
+      .on(table.allianceId, table.name)
+      .where(isNull(table.archivedAt)),
+  ],
+);
+
+/** Per-alliance hide of an HQ preset. Presets themselves are never deleted. */
+export const trainRuleTemplateArchives = pgTable(
+  "train_rule_template_archives",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => trainRuleTemplates.id, { onDelete: "cascade" }),
+    archivedByHqUserId: text("archived_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("train_rule_template_archives_unique").on(
+      table.allianceId,
+      table.templateId,
+    ),
+  ],
+);
+
 export const trainWeekSchedules = pgTable(
   "train_week_schedules",
   {
@@ -3166,9 +3236,16 @@ export const trainWeekSchedules = pgTable(
     allianceId: text("alliance_id")
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
+    /**
+     * Monday of the calendar week. Normalized in the repository so an
+     * alliance's display week-start preference can never repoint a schedule.
+     */
     weekStart: text("week_start").notNull(),
     seasonKey: text("season_key"),
-    templateType: text("template_type").notNull(),
+    /** Week preset applied to this week; null when days were painted ad hoc. */
+    templateId: text("template_id").references(() => trainRuleTemplates.id, {
+      onDelete: "set null",
+    }),
     notes: text("notes"),
     isPivot: integer("is_pivot").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -3203,7 +3280,10 @@ export const trainDayConfigs = pgTable(
     /** `VipRule | null` — null is the conductor's free pick. */
     vipRule: jsonb("vip_rule"),
     /** Which template painted this day. Provenance only — never a draw input. */
-    sourceTemplateKey: text("source_template_key"),
+    sourceTemplateId: text("source_template_id").references(
+      () => trainRuleTemplates.id,
+      { onDelete: "set null" },
+    ),
     isOverride: integer("is_override").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()

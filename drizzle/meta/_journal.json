@@ -1191,6 +1191,20 @@
       "when": 1790900000181,
       "tag": "0181_train_day_rules",
       "breakpoints": false
+    },
+    {
+      "idx": 170,
+      "version": "7",
+      "when": 1790900000182,
+      "tag": "0182_train_rule_templates",
+      "breakpoints": false
+    },
+    {
+      "idx": 171,
+      "version": "7",
+      "when": 1790900000186,
+      "tag": "0186_train_rule_template_active_names",
+      "breakpoints": false
     }
   ]
 }

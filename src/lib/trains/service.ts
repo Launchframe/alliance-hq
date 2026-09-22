@@ -25,6 +25,7 @@ import {
 import {
   allianceTrainWeekFromRow,
   getTrainWeekStart,
+  weekDatesInTrainWeek,
   type AllianceTrainWeekConfig,
 } from "@/lib/trains/train-week-calendar.shared";
 import {
@@ -34,7 +35,6 @@ import {
   throwPoolUnavailable,
 } from "@/lib/trains/roll-errors.server";
 import {
-  resolveAnchorTemplateType,
   resolveRollDayConfig,
 } from "@/lib/trains/day-config-resolve.server";
 import { conductorRuleChanged } from "@/lib/trains/conductor-mechanism.shared";
@@ -93,6 +93,10 @@ import {
   loadAllianceTrainLeadTimeSettings,
 } from "@/lib/trains/alliance-train-lead-time.server";
 import { conductorLockBlockedByPendingConfirmation } from "@/lib/trains/conductor-record.shared";
+import { loadWeekFillTemplateById } from "@/lib/trains/rules/week-template-resolve.server";
+import { getRuleTemplateByPresetKey } from "@/lib/trains/rules/templates.server";
+import { templateRulesForDate } from "@/lib/trains/rules/template-days.shared";
+import type { WeekFillTemplate } from "@/lib/trains/week-schedule-day-configs.shared";
 import { vsScoreReferenceDate } from "@/lib/trains/vs-week-days.shared";
 import {
   effectiveConductorRuleForTrainDate,
@@ -120,7 +124,6 @@ import {
   isMemberEligibleForPool,
   resolveMemberAllianceRankAsOf,
 } from "@/lib/trains/rank-history";
-import { weekDayConfigsForPreset } from "@/lib/trains/templates";
 import {
   clearConductorAssignment,
   clearVipAssignment,
@@ -227,11 +230,20 @@ export function trainActionErrorResponse(error: unknown): {
   return { status, body: { error: message } };
 }
 
+/** Seven day configs for a week from a template's calendar-weekday slots. */
 function weekDayConfigsForTemplate(
-  templateType: WeekTemplateType,
+  template: WeekFillTemplate,
   weekStart: string,
 ): DayConfigInput[] {
-  return weekDayConfigsForPreset(templateType, weekStart);
+  return weekDatesInTrainWeek(weekStart).map((date) => {
+    const rules = templateRulesForDate(template.days, date);
+    return {
+      date,
+      conductorRule: rules.conductorRule,
+      vipRule: rules.vipRule,
+      sourceTemplateId: template.id,
+    };
+  });
 }
 
 async function fetchVsTopScorersForTrainDateResolved(input: {
@@ -830,7 +842,7 @@ export async function confirmConductorMinimumOverride(input: {
 export async function getOrCreateWeekSchedule(
   allianceId: string,
   weekStart: string,
-  templateType: WeekTemplateType = "vs_push_week",
+  templateId: string | null = null,
 ): Promise<{
   schedule: Awaited<ReturnType<typeof upsertWeekSchedule>>;
   dayConfigs: Awaited<ReturnType<typeof listDayConfigsForWeek>>;
@@ -841,14 +853,19 @@ export async function getOrCreateWeekSchedule(
     schedule = await upsertWeekSchedule({
       allianceId,
       weekStart,
-      templateType,
+      templateId,
       seasonKey,
     });
-    await replaceDayConfigs(
-      allianceId,
-      schedule.id,
-      weekDayConfigsForTemplate(templateType, weekStart),
-    );
+    if (templateId) {
+      await replaceDayConfigs(
+        allianceId,
+        schedule.id,
+        weekDayConfigsForTemplate(
+          await loadWeekFillTemplateById(templateId),
+          weekStart,
+        ),
+      );
+    }
   }
 
   const weekEnd = addCalendarDays(weekStart, 6);
@@ -863,7 +880,7 @@ export async function getOrCreateWeekSchedule(
 export async function setWeekTemplate(
   allianceId: string,
   weekStart: string,
-  templateType: WeekTemplateType,
+  templateId: string,
   isPivot = false,
 ): Promise<void> {
   const seasonKey = await resolveTrainSeasonKey(allianceId);
@@ -886,11 +903,14 @@ export async function setWeekTemplate(
   const schedule = await upsertWeekSchedule({
     allianceId,
     weekStart,
-    templateType,
+    templateId,
     seasonKey,
     isPivot,
   });
-  const configs = weekDayConfigsForTemplate(templateType, weekStart);
+  const configs = weekDayConfigsForTemplate(
+    await loadWeekFillTemplateById(templateId),
+    weekStart,
+  );
   const configsToApply = preserveThroughDate
     ? configs.filter((config) => config.date > preserveThroughDate)
     : configs;
@@ -907,18 +927,17 @@ export async function setWeekTemplate(
 export async function ensureWeekScheduleBaseline(
   allianceId: string,
   weekStart: string,
-  preferredTemplateType?: WeekTemplateType | null,
+  preferredTemplateId?: string | null,
 ): Promise<(typeof import("@/lib/db/schema").trainWeekSchedules.$inferSelect)> {
   const seasonKey = await resolveTrainSeasonKey(allianceId);
   let schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
   if (!schedule) {
-    const templateType =
-      preferredTemplateType ??
-      (await resolveAnchorTemplateType(allianceId, seasonKey));
+    // No template is a valid state: painting one day should not silently
+    // declare a preset for the other six.
     schedule = await upsertWeekSchedule({
       allianceId,
       weekStart,
-      templateType,
+      templateId: preferredTemplateId ?? null,
       seasonKey,
     });
   }
@@ -943,7 +962,8 @@ export async function recomputeWeekPivotFlag(
 ): Promise<void> {
   const seasonKey = await resolveTrainSeasonKey(allianceId);
   const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
-  if (!schedule || schedule.templateType !== "vs_push_week") {
+  const vsPushWeek = await getRuleTemplateByPresetKey("vs_push_week");
+  if (!schedule || !vsPushWeek || schedule.templateId !== vsPushWeek.id) {
     return;
   }
 
@@ -963,7 +983,7 @@ export async function recomputeWeekPivotFlag(
   await upsertWeekSchedule({
     allianceId,
     weekStart,
-    templateType: schedule.templateType as WeekTemplateType,
+    templateId: schedule.templateId,
     seasonKey,
     isPivot: hasEconomyOverride,
   });
@@ -987,14 +1007,14 @@ export async function applyPaint(
     conductorRule?: ConductorRule | null;
     vipRule?: VipRule | null;
     /** Template this paint came from, for provenance. */
-    sourceTemplateKey?: string | null;
+    sourceTemplateId?: string | null;
   },
   options?: {
     platformAdminPastOverride?: boolean;
     /** Persist the week schedule's preset (week template dropdown). */
-    updateWeekTemplate?: WeekTemplateType | null;
+    updateWeekTemplate?: string | null;
     /** Preset to persist when materializing a draft week on first paint. */
-    preferredWeekTemplate?: WeekTemplateType;
+    preferredWeekTemplate?: string | null;
   },
 ): Promise<void> {
   if (input.dates.length === 0) return;
@@ -1060,7 +1080,7 @@ export async function applyPaint(
       date,
       conductorRule: mergedRules.conductorRule,
       vipRule: mergedRules.vipRule,
-      sourceTemplateKey: input.sourceTemplateKey ?? null,
+      sourceTemplateId: input.sourceTemplateId ?? null,
     };
     await upsertDayConfigOverride(allianceId, schedule.id, paintedConfig, true);
 
@@ -1131,7 +1151,7 @@ export async function applyPaint(
         await upsertWeekSchedule({
           allianceId,
           weekStart,
-          templateType: nextWeekTemplate,
+          templateId: nextWeekTemplate,
           seasonKey,
           isPivot: schedule.isPivot === 1,
         });
@@ -1141,16 +1161,17 @@ export async function applyPaint(
   }
 }
 
-/** Apply a whole preset to a week: seven independent day paints. */
-export async function applyPresetToWeek(
+/** Apply a whole template to a week: seven independent day paints. */
+export async function applyTemplateToWeek(
   allianceId: string,
   weekStart: string,
-  templateType: WeekTemplateType,
+  templateId: string,
   options?: { platformAdminPastOverride?: boolean; isPivot?: boolean },
 ): Promise<void> {
+  const template = await loadWeekFillTemplateById(templateId);
   const today = getServerCalendarDate();
   const canPaintPast = options?.platformAdminPastOverride === true;
-  for (const config of weekDayConfigsForPreset(templateType, weekStart)) {
+  for (const config of weekDayConfigsForTemplate(template, weekStart)) {
     if (!canPaintPast && !canOfficerChangeTemplateForDate(config.date, today)) {
       continue;
     }
@@ -1160,12 +1181,12 @@ export async function applyPresetToWeek(
         dates: [config.date],
         conductorRule: config.conductorRule,
         vipRule: config.vipRule,
-        sourceTemplateKey: templateType,
+        sourceTemplateId: templateId,
       },
       {
         platformAdminPastOverride: options?.platformAdminPastOverride,
-        updateWeekTemplate: templateType,
-        preferredWeekTemplate: templateType,
+        updateWeekTemplate: templateId,
+        preferredWeekTemplate: templateId,
       },
     );
   }
@@ -1175,7 +1196,7 @@ export async function applyPresetToWeek(
     await upsertWeekSchedule({
       allianceId,
       weekStart,
-      templateType,
+      templateId,
       seasonKey,
       isPivot: options.isPivot,
     });

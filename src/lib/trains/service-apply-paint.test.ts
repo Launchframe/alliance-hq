@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   ),
   loadAllianceRow: vi.fn(async () => ({})),
   countAllianceVrReporters: vi.fn(async () => 0),
+  loadWeekFillTemplateById: vi.fn(),
+  getRuleTemplateByPresetKey: vi.fn(async () => null),
 }));
 
 vi.mock("@/lib/time-off/availability.server", () => ({
@@ -130,6 +132,14 @@ vi.mock("@/lib/bff/audit", () => ({
   writeAuditLog: vi.fn(),
 }));
 
+vi.mock("@/lib/trains/rules/week-template-resolve.server", () => ({
+  loadWeekFillTemplateById: mocks.loadWeekFillTemplateById,
+}));
+
+vi.mock("@/lib/trains/rules/templates.server", () => ({
+  getRuleTemplateByPresetKey: mocks.getRuleTemplateByPresetKey,
+}));
+
 vi.mock("@/lib/trains/game-time", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@/lib/trains/game-time")>();
@@ -139,7 +149,15 @@ vi.mock("@/lib/trains/game-time", async (importOriginal) => {
   };
 });
 
-import { applyPaint, applyPresetToWeek } from "@/lib/trains/service";
+import { applyPaint, applyTemplateToWeek } from "@/lib/trains/service";
+import { PRESET_WEEK_RULES } from "@/lib/trains/rules/presets.shared";
+
+function stubTemplateId(id: string) {
+  mocks.loadWeekFillTemplateById.mockResolvedValue({
+    id,
+    days: PRESET_WEEK_RULES[id as keyof typeof PRESET_WEEK_RULES],
+  });
+}
 
 const DATE = "2099-06-20";
 
@@ -295,7 +313,7 @@ describe("applyPaint partial patches", () => {
   });
 });
 
-describe("applyPresetToWeek", () => {
+describe("applyTemplateToWeek", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getEffectiveSeasonForAlliance.mockResolvedValue({ seasonKey: "1" });
@@ -320,8 +338,9 @@ describe("applyPresetToWeek", () => {
       lockedAt: null,
     });
     mocks.resolveMemberAllianceRankAsOf.mockResolvedValue({ rank: 4 });
+    stubTemplateId("r4_train_week");
 
-    await applyPresetToWeek("a1", "2099-06-15", "r4_train_week");
+    await applyTemplateToWeek("a1", "2099-06-15", "r4_train_week");
 
     expect(mocks.upsertDayConfigOverride).toHaveBeenCalledTimes(7);
     expect(mocks.clearConductorAssignment).not.toHaveBeenCalled();
@@ -338,8 +357,9 @@ describe("applyPresetToWeek", () => {
       lockedAt: null,
     });
     mocks.resolveMemberAllianceRankAsOf.mockResolvedValue({ rank: 4 });
+    stubTemplateId("economy_week");
 
-    await applyPresetToWeek("a1", "2099-06-15", "economy_week");
+    await applyTemplateToWeek("a1", "2099-06-15", "economy_week");
 
     expect(mocks.upsertDayConfigOverride).toHaveBeenCalledTimes(7);
     expect(mocks.clearConductorAssignment).toHaveBeenCalledTimes(7);
@@ -352,22 +372,23 @@ describe("applyPresetToWeek", () => {
       dayConfigId: "dc1",
     });
     mocks.getConductorRecord.mockResolvedValue(null);
+    stubTemplateId("economy_week");
 
-    await applyPresetToWeek("a1", "2099-06-15", "economy_week", {
+    await applyTemplateToWeek("a1", "2099-06-15", "economy_week", {
       isPivot: true,
     });
 
     expect(mocks.upsertWeekSchedule).toHaveBeenCalledWith(
       expect.objectContaining({
         weekStart: "2099-06-15",
-        templateType: "economy_week",
+        templateId: "economy_week",
         isPivot: true,
       }),
     );
   });
 });
 
-describe("applyPresetToWeek past days", () => {
+describe("applyTemplateToWeek past days", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getEffectiveSeasonForAlliance.mockResolvedValue({ seasonKey: "1" });
@@ -386,13 +407,15 @@ describe("applyPresetToWeek past days", () => {
   });
 
   it("skips days before server today for officers instead of failing", async () => {
-    await applyPresetToWeek("a1", "2099-06-14", "economy_week");
+    stubTemplateId("economy_week");
+    await applyTemplateToWeek("a1", "2099-06-14", "economy_week");
 
     expect(mocks.upsertDayConfigOverride).toHaveBeenCalledTimes(6);
   });
 
   it("paints past days for a platform-admin override", async () => {
-    await applyPresetToWeek("a1", "2099-06-14", "economy_week", {
+    stubTemplateId("economy_week");
+    await applyTemplateToWeek("a1", "2099-06-14", "economy_week", {
       platformAdminPastOverride: true,
     });
 

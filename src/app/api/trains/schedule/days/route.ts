@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { sessionHasPermission } from "@/lib/rbac/context";
+import { getRuleTemplateForAlliance } from "@/lib/trains/rules/templates.server";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import {
   applyPaint,
@@ -14,7 +15,6 @@ import {
   conductorRuleSchema,
   vipRuleSchema,
 } from "@/lib/trains/rules/catalog.shared";
-import { WEEK_TEMPLATES, type WeekTemplateType } from "@/lib/trains/types";
 import { requireApiSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
 
@@ -33,12 +33,12 @@ const paintBodySchema = z
     dates: z.array(z.string().regex(DATE_PATTERN)).min(1),
     conductorRule: conductorRuleSchema.nullable().optional(),
     vipRule: vipRuleSchema.nullable().optional(),
-    /** Preset to stamp on the week schedule when this paint sets one. */
-    updateWeekTemplate: z.enum(WEEK_TEMPLATES).nullish(),
-    /** Preset to persist when materializing a draft week on first paint. */
-    preferredWeekTemplate: z.enum(WEEK_TEMPLATES).nullish(),
+    /** Template to stamp on the week schedule when this paint sets one. */
+    updateWeekTemplate: z.string().max(64).nullish(),
+    /** Template to persist when materializing a draft week on first paint. */
+    preferredWeekTemplate: z.string().max(64).nullish(),
     /** Provenance for the calendar cell — never a draw input. */
-    sourceTemplateKey: z.string().max(64).nullish(),
+    sourceTemplateId: z.string().max(64).nullish(),
   })
   .refine(
     (body) => body.conductorRule !== undefined || body.vipRule !== undefined,
@@ -94,6 +94,22 @@ export async function PATCH(request: Request) {
   const body = parsed.data;
   const dates = [...new Set(body.dates)].sort();
 
+  // Tenant scope: a paint may only reference presets or this alliance's own
+  // templates, so a guessed id cannot attach another alliance's template.
+  for (const templateId of [
+    body.updateWeekTemplate,
+    body.preferredWeekTemplate,
+    body.sourceTemplateId,
+  ]) {
+    if (!templateId) continue;
+    if (!(await getRuleTemplateForAlliance(ctx.allianceId, templateId))) {
+      return NextResponse.json(
+        { error: "Week template not found." },
+        { status: 404 },
+      );
+    }
+  }
+
   const isPlatformAdmin = await sessionHasPermission(session.id, "hq:admin");
   const today = getServerCalendarDate();
   const blockedPastDates = dates.filter(
@@ -113,16 +129,14 @@ export async function PATCH(request: Request) {
         dates,
         conductorRule: body.conductorRule,
         vipRule: body.vipRule,
-        sourceTemplateKey: body.sourceTemplateKey ?? null,
+        sourceTemplateId: body.sourceTemplateId ?? null,
       },
       {
         platformAdminPastOverride: isPlatformAdmin,
-        updateWeekTemplate:
-          (body.updateWeekTemplate as WeekTemplateType | null) ?? null,
+        updateWeekTemplate: body.updateWeekTemplate ?? null,
         ...(body.preferredWeekTemplate
           ? {
-              preferredWeekTemplate:
-                body.preferredWeekTemplate as WeekTemplateType,
+              preferredWeekTemplate: body.preferredWeekTemplate,
             }
           : {}),
       },

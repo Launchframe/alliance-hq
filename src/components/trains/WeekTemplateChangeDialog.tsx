@@ -14,7 +14,7 @@ import type { WeekTemplateType } from "@/lib/trains/types";
 
 type Props = {
   open: boolean;
-  templateType: WeekTemplateType | null;
+  templateLabel: string | null;
   weekStart: string | null;
   weekEnd: string | null;
   today: string;
@@ -26,7 +26,7 @@ type Props = {
 
 export function WeekTemplateChangeDialog({
   open,
-  templateType,
+  templateLabel,
   weekStart,
   weekEnd,
   today,
@@ -43,9 +43,7 @@ export function WeekTemplateChangeDialog({
       : false,
   );
 
-  if (!templateType || !weekStart || !weekEnd) return null;
-
-  const templateLabel = tTrains(`templates.${templateType}`);
+  if (!templateLabel || !weekStart || !weekEnd) return null;
   const dates = restOfWeekPaintDates({
     weekStart,
     weekEnd,

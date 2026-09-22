@@ -5,8 +5,11 @@ import type {
   WeekScheduleDayConfig,
   WeekSchedulePagePayload,
 } from "@/lib/trains/load-dashboard";
-import { weekDayConfigsForPreset } from "@/lib/trains/templates";
-import type { WeekTemplateType } from "@/lib/trains/types";
+import {
+  templateRulesForDate,
+  type TemplateWeekRules,
+} from "@/lib/trains/rules/template-days.shared";
+import { weekDatesInTrainWeek } from "@/lib/trains/train-week-calendar.shared";
 import {
   conductorRuleChanged,
   FREE_CHOICE_DAY_RULES,
@@ -239,7 +242,7 @@ export function patchDayConfigsForDates(
   dayConfigs: WeekScheduleDayConfig[],
   dates: string[],
   patch: DayRulePatch,
-  sourceTemplateKey: string | null = null,
+  sourceTemplateId: string | null = null,
 ): WeekScheduleDayConfig[] {
   const dateSet = new Set(dates);
   const byDate = new Map(dayConfigs.map((d) => [d.date, d]));
@@ -258,7 +261,7 @@ export function patchDayConfigsForDates(
       conductorRule: merged.conductorRule,
       vipRule: merged.vipRule,
       isOverride: true,
-      sourceTemplateKey,
+      sourceTemplateId,
     });
   }
 
@@ -369,12 +372,12 @@ export function applyOptimisticPaint(
   dates: string[],
   patch: DayRulePatch,
   options?: {
-    /** Preset to stamp on the week schedule, when this paint sets one. */
-    updateWeekTemplate?: WeekTemplateType | null;
-    sourceTemplateKey?: string | null;
+    /** Template to stamp on the week schedule, when this paint sets one. */
+    updateWeekTemplate?: string | null;
+    sourceTemplateId?: string | null;
   },
 ): TrainsDashboardSnapshot {
-  const sourceTemplateKey = options?.sourceTemplateKey ?? null;
+  const sourceTemplateId = options?.sourceTemplateId ?? null;
   const clearRecords = (
     records: WeekConductorRecordSummary[],
     dayConfigs: WeekScheduleDayConfig[],
@@ -394,7 +397,7 @@ export function applyOptimisticPaint(
         snap.data.dayConfigs,
         dates,
         patch,
-        sourceTemplateKey,
+        sourceTemplateId,
       ),
       weekRecords: clearRecords(snap.data.weekRecords, snap.data.dayConfigs),
       conductorRecord:
@@ -414,7 +417,7 @@ export function applyOptimisticPaint(
         snap.viewedWeek.dayConfigs,
         dates,
         patch,
-        sourceTemplateKey,
+        sourceTemplateId,
       ),
       weekRecords: clearRecords(
         snap.viewedWeek.weekRecords,
@@ -427,7 +430,7 @@ export function applyOptimisticPaint(
         snap.viewedMonth.dayConfigs,
         dates,
         patch,
-        sourceTemplateKey,
+        sourceTemplateId,
       ),
       monthRecords: clearRecords(
         snap.viewedMonth.monthRecords,
@@ -436,8 +439,8 @@ export function applyOptimisticPaint(
     },
   };
 
-  const templateType = options?.updateWeekTemplate;
-  if (!templateType) {
+  const templateId = options?.updateWeekTemplate;
+  if (!templateId) {
     return next;
   }
 
@@ -448,7 +451,7 @@ export function applyOptimisticPaint(
   if (touchesViewedWeek) {
     next = {
       ...next,
-      viewedWeek: { ...next.viewedWeek, templateType },
+      viewedWeek: { ...next.viewedWeek, templateId },
     };
   }
 
@@ -463,11 +466,11 @@ export function applyOptimisticPaint(
         ...next.data,
         schedulePersisted: true,
         schedule: next.data.schedule
-          ? { ...next.data.schedule, templateType }
+          ? { ...next.data.schedule, templateId }
           : {
               id: "optimistic-schedule",
               weekStart: next.data.weekStart,
-              templateType,
+              templateId,
               isPivot: false,
             },
       },
@@ -480,19 +483,21 @@ export function applyOptimisticPaint(
 export function applyOptimisticWeekTemplate(
   snap: TrainsDashboardSnapshot,
   weekStart: string,
-  templateType: WeekTemplateType,
+  template: { id: string; days: TemplateWeekRules },
   preserveThroughDate: string | null = null,
 ): TrainsDashboardSnapshot {
-  const generated = weekDayConfigsForPreset(templateType, weekStart).map(
-    (day) => ({
-      id: `optimistic-${day.date}`,
-      date: day.date,
-      conductorRule: day.conductorRule,
-      vipRule: day.vipRule,
+  const templateId = template.id;
+  const generated = weekDatesInTrainWeek(weekStart).map((date) => {
+    const rules = templateRulesForDate(template.days, date);
+    return {
+      id: `optimistic-${date}`,
+      date,
+      conductorRule: rules.conductorRule,
+      vipRule: rules.vipRule,
       isOverride: false,
-      sourceTemplateKey: templateType,
-    }),
-  );
+      sourceTemplateId: templateId,
+    };
+  });
 
   const mergeWeekConfigs = (configs: WeekScheduleDayConfig[]) => {
     const weekEnd = generated[generated.length - 1]?.date;
@@ -525,12 +530,12 @@ export function applyOptimisticWeekTemplate(
       ...snap.data,
       schedule:
         snap.data.weekStart === weekStart && snap.data.schedule
-          ? { ...snap.data.schedule, templateType }
+          ? { ...snap.data.schedule, templateId }
           : snap.data.weekStart === weekStart
             ? {
                 id: "optimistic-schedule",
                 weekStart,
-                templateType,
+                templateId,
                 isPivot: false,
               }
             : snap.data.schedule,
@@ -543,7 +548,7 @@ export function applyOptimisticWeekTemplate(
       snap.viewedWeek.weekStart === weekStart
         ? {
             ...snap.viewedWeek,
-            templateType,
+            templateId,
             dayConfigs: mergeWeekConfigs(snap.viewedWeek.dayConfigs),
           }
         : snap.viewedWeek,
