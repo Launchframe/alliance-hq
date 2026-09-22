@@ -2530,6 +2530,24 @@
       "saveFailed": "Could not save train conductor minimums.",
       "officersOnly": "Only train officers can change these settings."
     },
+    "trainTopScoreEligibility": {
+      "sectionTitle": "Top score train eligibility",
+      "sectionBody": "Choose the minimum eligible rank for Top VS and Top Donations draws, and whether to include R4 and R5 members.",
+      "minimumRankLabel": "Minimum eligible rank",
+      "rankR1": "R1",
+      "rankR2": "R2",
+      "rankR3": "R3",
+      "minimumRankHintR1": "R1, R2, and R3 members are eligible.",
+      "minimumRankHintR2": "R2 and R3 members are eligible.",
+      "minimumRankHintR3": "Only R3 members are eligible.",
+      "includeR4PlusLabel": "Include R4 and R5 members",
+      "loading": "Loading top score train eligibility…",
+      "loadFailed": "Could not load top score train eligibility.",
+      "save": "Save",
+      "saving": "Saving…",
+      "saveFailed": "Could not save top score train eligibility.",
+      "officersOnly": "Only train officers can change this setting."
+    },
     "trainEconomyThreshold": {
       "sectionTitle": "The Price Is Freight",
       "sectionBody": "On The Price Is Freight train days, the conductor wheel draws from R3 members whose prior-day VS score is between 7,200,000 and the economy threshold plus fudge (threshold + threshold × fudge %). VIP is a free pick — today's conductor chooses VIP directly.",

@@ -1209,6 +1209,20 @@
     {
       "idx": 172,
       "version": "7",
+      "when": 1790900000184,
+      "tag": "0184_train_top_score_r4_plus",
+      "breakpoints": false
+    },
+    {
+      "idx": 173,
+      "version": "7",
+      "when": 1790900000185,
+      "tag": "0185_train_top_score_min_rank",
+      "breakpoints": false
+    },
+    {
+      "idx": 174,
+      "version": "7",
       "when": 1790900000186,
       "tag": "0186_train_rule_template_active_names",
       "breakpoints": false
