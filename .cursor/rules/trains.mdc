@@ -17,31 +17,60 @@ globs:
 
 **Lifecycle order:** assign conductor → **lock** → assign VIP. Guided Simple Mode follows the same order. Product UX invariants (day vs week paint, swap dates, share preview, wizard recovery): [trains-conductor-ux.mdc](./trains-conductor-ux.mdc).
 
-## Week templates
+## Day rules
 
-| Template | Typical use |
-|----------|-------------|
-| `vs_push_week` | **Composite:** Tue–Sat `vs_push_weekdays` + Sun–Mon `r4_event_vip` |
-| `vs_push_weekdays` | Mon `donations_top`; Tue/Fri `vs_high_score`; Wed/Thu/Sat `vs_top_10` |
-| `top_vs` / `top_vr` | Paint-only segments — `vs_top_n` / `vr_top_n` with `conductor_config.topN` |
-| `r4_event_vip` | Segment — `r4_sequence` conductor + `event_top_x_lottery` VIP (silvery cell) |
-| `economy_week` / `r3_recognition` | R3 lottery all days when saving inventory |
-| `price_is_right` | R3 lottery most days with optional **ticket weighting**; **Saturday** = heavy-hitter lottery among max-ticket overrides |
-| `r4_train_week` | Officer sequence all days |
-| `donations_week` | Top donor / second donor |
-| `custom` | Placeholder for officer-defined days |
+A day's conductor and VIP are described by a **typed rule** (`src/lib/trains/rules/catalog.shared.ts`), not by a mechanism string plus a paint template plus a `topN`:
 
-Templates expand to **per-day** `train_day_configs` (conductor + VIP mechanisms).
+```ts
+type ConductorRule =
+  | { kind: "vs_top_n"; topN: 1 | 3 | 5 | 10 }
+  | { kind: "vr_top_n"; topN: 3 | 5 | 10 }
+  | { kind: "rank_pool"; pool: "r3" | "r4_plus" | "heavy_hitter"; draw: "wheel" | "manual" }
+  | { kind: "price_is_freight"; board: "weekday" | "heavy_hitter" }
+  | { kind: "donations_top" }
+  | { kind: "event_top_x"; eventKey: string; topN: number };
+```
 
-**Composite templates** (`COMPOSITE_WEEK_TEMPLATES` in `src/lib/trains/week-template-registry.shared.ts`) map a whole-week preset to segment templates per **calendar DOW relative to Tuesday** (Tue=0 … Mon=6 via `compositeSegmentDayIndex` in `src/lib/trains/week-template-registry.shared.ts`) — independent of alliance `trainWeekStartDow`. Segment paint is stored on each day's `conductorConfig.paintTemplate`. User-defined reusable composites can extend the same registry later.
+**`null` is free choice** — a real value meaning "an officer assigns anyone", not "unset". For VIP, `null` is the conductor's pick and `{ kind: "none" }` is a skipped VIP.
 
-**`takedown_week`** — composite Saturday segment for Price Is Freight heavy-hitter (max-ticket list). Conductor rolls use the **with-replacement** PIF path (`usesPriceIsFreightConductorRoll` in `src/lib/trains/heavy-hitter-pool.shared.ts`), not depleting `heavy_hitter` pool consumption.
+Stored on `train_day_configs.conductor_rule` / `vip_rule` (jsonb). `train_conductor_records` keeps its `conductor_mechanism` / `vip_mechanism` text columns as **permanent history** and adds `conductor_rule` / `vip_rule`; new code reads the rule columns.
+
+Everything derived from a rule lives in `rules/derive.shared.ts` — spin source, pool type, wheel vs automatic, minimums, eligibility. Do not re-derive from strings.
+
+### Source day and lead time
+
+`scoreDate = trainDate − 1 − leadDays`. A rule is valid on a day only when its source day exists: VS-sourced rules (`vs_top_n`, `price_is_freight`) need the source day to be a VS match day (Mon–Sat). With lead 0 that breaks Monday; with lead 1 it breaks Tuesday. Use `ruleSourceDay` / `validateConductorRuleOnWeekday` — never hardcode a weekday. Validation is **advisory**: officers may paint anyway and pick manually.
+
+### Painting
+
+**One command.** Every surface (guided picker, long-press menu, month toolbar, hotkeys, week editor) calls `applyPaint({ dates, conductorRule, vipRule })` via `PATCH /api/trains/schedule/days`, which zod-validates a **complete** rule. A scoped board cannot be painted without its scope — that is what prevents 400s and silent Top 5 → Top 10 resets. The palette is `rules/palette.shared.ts` (`DAY_RULE_PALETTE`).
+
+**Eligibility is fail-open.** `isMemberEligibleForConductorRule` only rejects on rank, and only when rank *is* the rule (`rank_pool`, Price Is Freight weekday raffle). A board the client cannot see (VS / VR / event / max-ticket list) must never gate an on-roster conductor off a day. Spin time still enforces the board.
+
+## Week presets
+
+Presets live in `rules/presets.shared.ts` as **seven calendar-weekday slots** (Mon–Sun), one rule each:
+
+| Preset | Shape |
+|--------|-------|
+| `vs_push_week` | Tue Top VS 1; Wed/Thu/Sat Top VS 10; Fri Top VS 1; Sun–Mon R4 rotation + event VIP |
+| `vs_push_week_lead_time` | Mon–Tue R4 rotation + event VIP; Wed/Thu/Sat Top VS 10; Fri Top VS 1; Sun free |
+| `economy_week` | R3 wheel every day |
+| `price_is_right` | Tue–Fri PIF weekday raffle; Sat PIF max-ticket; Sun–Mon free |
+| `r3_recognition` | Manual R3 award every day |
+| `r4_train_week` | R4 rotation every day |
+| `donations_week` | Top donor + second donor |
+| `custom` | Free choice every day |
+
+**Slots are calendar weekdays.** `trainWeekStartDow` is render logic only — "what day does your calendar show the week starting on?" It never changes which rule applies to a date. There is no composite-segment registry and no Tue=0 indexing; a week is simply seven day rules, and applying a preset is seven independent paints grouped by rule.
+
+`vs_push_week_lead_time` exists because Tuesday reads Sunday once lead time shifts the source day — the validator explains that, rather than the preset name encoding it.
 
 ## Economy-week pivot (per-day overrides)
 
 When VS Day 1 looks unwinnable, officers **paint Tue–Sun** with `economy_week` (or similar) without replacing the whole week.
 
-- **`train_day_configs.is_override = 1`** when an officer paints a day with a template different from the week baseline.
+- **`train_day_configs.is_override = 1`** when an officer paints a day with a rule different from the week baseline. A persisted row always wins over the preset in display, override flag or not.
 - **`train_week_schedules.is_pivot = 1`** when Tue+ economy overrides apply during a `vs_push_week` baseline.
 - **Pivot window:** Mon 22:00 – Tue 12:00 server time (UTC−2).
 
@@ -50,8 +79,8 @@ Do **not** use whole-week `setWeekTemplate` for pivot — it clears overrides.
 ## Scheduling UX (product direction)
 
 - Officers plan on a **calendar** with template palette + per-day paint (Phase B).
-- **Day vs week paint are exclusive:** single-day paint / long-press / guided “Change pick” use `DAY_PAINT_TEMPLATES` (no composites). Whole-week or multi-day paint uses week/composite templates. Details: [trains-conductor-ux.mdc](./trains-conductor-ux.mdc).
-- **Week strip:** every tile always shows conductor name or "—". Long-press or right-click → day-mechanism menu (`DAY_PAINT_TEMPLATES`) → `paintDates([date], template)`. Tap still selects the day. Week-template control stays separate (composites OK).
+- **Day and week paint are the same operation:** one rule over a set of dates. A week preset is seven such paints. Details: [trains-conductor-ux.mdc](./trains-conductor-ux.mdc).
+- **Week strip:** every tile always shows conductor name or "—". Long-press or right-click → day-rule menu (`DAY_RULE_PALETTE`) → `paintDates([date], rules)`. Tap still selects the day.
 - When the roster has members (`activeMemberCount > 0`), show **preview** day configs from the anchor template — never a blank “create week” gate. Missing week template must **not** block the guided day funnel.
 - Persist `train_week_schedules` on the **first officer schedule mutation** (paint, template change, lock) via `ensureWeekScheduleBaseline` — not on page load.
 - **Clear week schedule** (`DELETE /api/trains/schedule`) is **pre-production only** (`isDevOrPreviewEnvironment`): train managers (`trains:write`) may discard a persisted week back to draft preview. Hidden and 404-gated in production. Does **not** delete conductor records.
@@ -61,7 +90,7 @@ Do **not** use whole-week `setWeekTemplate` for pivot — it clears overrides.
 - **Swap / make-up** — future unlocked days only; next-3 quick picks may cross weeks + date picker (`conductor-swap.shared.ts`). Moves drafts only — does not lock. Re-stamps depleting-pool `selectedForDate` onto the new days.
 - **Spin for the week** — rolls remaining wheel days as drafts; does not lock.
 - **Unlock** — undoes spawn/`lockedAt` only; does **not** return the conductor to a depleting pool. **Train ownership:** the officer who locked (`lockedByHqUserId`) may unlock until **midnight Server Time** of that train day. Past-day locks (history import / locking a prior date) stay unlockable by that officer at any time. After midnight, only the **alliance owner** or **platform maintainer** can unlock. Officers **Clear pending conductor** on an unlocked draft (or re-roll) to release the pool slot.
-- **Rule change vs assigned conductor** — if the current pending/locked conductor is still eligible for the new rule, keep them. If not, confirm clear when the officer can unlock (unlimited or train ownership) or offer **Request to unlock this conductor**. Locked days may be repainted when the conductor is kept.
+- **Rule change vs assigned conductor** — keep the current pending/locked conductor unless the new rule **provably** excludes them (rank only). If not, confirm clear when the officer can unlock (unlimited or train ownership) or offer **Request to unlock this conductor**. Locked days may be repainted when the conductor is kept.
 - **History import** (`/trains/history-import`, `trains:write`) — paste newest→oldest conductors (optional date anchors or newest-date picker; oldest inferred from list length), review matches, batch-lock **past** days. Include **former/inactive** roster members in match + picker (label inactive; status “Matched to an inactive member”; still commitable). Prefer active when both would match. Unmatched rows are **skipped** on commit so partial history can ship. Date gaps: flag row, re-base timeline, allow blank placeholder days before the flagged row (unknown conductors; not imported). Same locked conductor = skip; different locked = conflict (no overwrite). No Discord announce. **Does not mutate depleting pools** — import has no reliable historical mechanism (VS Push / event Top N vs Economy Week / R3 lottery), so pool depletion must stay on live roll/lock paths. Video rematch must **not** auto-include former. Shared parse: `conductor-history-import.shared.ts`; API: `POST/GET /api/trains/conductor/history-import`.
 - **Simple vs advanced mode** — guided stepper (default) vs quick-actions layout; parity contract in [trains-simple-advanced-modes.mdc](./trains-simple-advanced-modes.mdc).
 
@@ -125,14 +154,14 @@ All queries filter by session **`allianceId`**.
 
 | Surface | Mechanism | Scopes | Score source | Template-time lock |
 |--------|-----------|--------|--------------|--------------------|
-| **Top VS** | `vs_top_n` (+ legacy `vs_high_score`→1, `vs_top_10`→10) | 1, 3, 5, 10 | Prior-day **daily** Ashed VS (active roster only) | **Never** by reporter/score count — spin gated by `prior_day_vs` upload readiness |
-| **Top VR** | `vr_top_n` | 3, 5, 10 only | Season HQ VR (active roster only) | Scope N locked until active-roster `vrReporterCount >= 2×N` |
+| **Top VS** | `{ kind: "vs_top_n", topN }` | 1, 3, 5, 10 | Source-day **daily** Ashed VS (active roster only) | **Never** by reporter/score count — spin gated by `prior_day_vs` upload readiness |
+| **Top VR** | `{ kind: "vr_top_n", topN }` | 3, 5, 10 only | Season HQ VR (active roster only) | Scope N locked until active-roster `vrReporterCount >= 2×N` |
 
-Paint ids `top_vs` / `top_vr` open a scope picker. `conductor_config.topN` is merged with `paintTemplate` (do not wipe `topN` in `withPaintTemplateConfig`).
+The scope is part of the rule, so it cannot be dropped in transit. Palette entries for these boards always open the scope picker before painting.
 
 ## Data sources
 
-- **Top VS** (`vs_high_score` / `vs_top_10` / `vs_top_n`) — prior-day **daily** Ashed `VSScore` for `vsScoreReferenceDate(trainDate, leadDays)` (default leadDays=0 → T−1); filter out `is_weekly` week-ending rows; **dedupe by member** (keep max score) before Top N slice; **intersect with active HQ roster** (exclude former members). Empty when the score reference date is Sunday (VS break). Readiness `prior_day_vs`. Alliance **lead time** shifts the score date; companion week template `vs_push_week_lead_time` (R4 Mon–Tue, VS Wed–Sat).
+- **Top VS** (`vs_top_n`) — source-day **daily** Ashed `VSScore` for `vsScoreReferenceDate(trainDate, leadDays)` (default leadDays=0 → T−1); filter out `is_weekly` week-ending rows; **dedupe by member** (keep max score) before Top N slice; **intersect with active HQ roster** (exclude former members). Empty when the score reference date is Sunday (VS break). Readiness `prior_day_vs`. Alliance **lead time** shifts the score date; companion week template `vs_push_week_lead_time` (R4 Mon–Tue, VS Wed–Sat).
 - **Top VR** (`vr_top_n`) — HQ `memberSeasonVr` among active roster members; readiness kind `vr`.
 - **Event Top X VIP** — HQ season VR / event scores.
 - **Pools, economy filters, Price Is Right tickets** — HQ roster + prior-day VS where applicable.

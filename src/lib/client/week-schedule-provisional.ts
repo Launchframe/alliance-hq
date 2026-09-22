@@ -1,6 +1,6 @@
 import type { WeekSchedulePagePayload } from "@/lib/trains/load-dashboard";
 import { addCalendarDays } from "@/lib/trains/game-time";
-import { generateWeekDayConfigs } from "@/lib/trains/templates";
+import { weekDayConfigsForPreset } from "@/lib/trains/templates";
 import type { WeekTemplateType } from "@/lib/trains/types";
 
 export function buildProvisionalWeekPage(
@@ -9,15 +9,16 @@ export function buildProvisionalWeekPage(
 ): WeekSchedulePagePayload {
   const resolvedTemplate = templateType ?? "vs_push_week";
   const weekEnd = addCalendarDays(weekStart, 6);
-  const dayConfigs = generateWeekDayConfigs(resolvedTemplate, weekStart).map((d) => ({
-    id: `provisional-${d.date}`,
-    date: d.date,
-    conductorMechanism: d.conductorMechanism,
-    vipMechanism: d.vipMechanism ?? null,
-    vipConfig: d.vipConfig ?? null,
-    isOverride: false,
-    paintTemplate: resolvedTemplate,
-  }));
+  const dayConfigs = weekDayConfigsForPreset(resolvedTemplate, weekStart).map(
+    (day) => ({
+      id: `provisional-${day.date}`,
+      date: day.date,
+      conductorRule: day.conductorRule,
+      vipRule: day.vipRule,
+      isOverride: false,
+      sourceTemplateKey: resolvedTemplate,
+    }),
+  );
   return {
     weekStart,
     weekEnd,

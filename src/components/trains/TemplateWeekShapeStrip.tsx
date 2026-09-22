@@ -2,38 +2,48 @@
 
 import { useTranslations } from "next-intl";
 
-import { getServerDayOfWeek } from "@/lib/trains/game-time";
-import { TEMPLATE_PALETTE_STYLES } from "@/lib/trains/mechanism-styles";
-import { weekTemplateDayShape } from "@/lib/trains/week-template-registry.shared";
+import { conductorRuleLabelKey } from "@/lib/trains/rules/catalog.shared";
+import {
+  RULE_PALETTE_SWATCHES,
+  paletteIdForRule,
+  type DayRulePaletteId,
+} from "@/lib/trains/rules/palette.shared";
+import {
+  WEEKDAY_KEYS,
+  weekRulesForPreset,
+} from "@/lib/trains/rules/presets.shared";
 import type { WeekTemplateType } from "@/lib/trains/types";
-
-const WEEKDAY_KEY_BY_DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 type Props = {
   template: WeekTemplateType;
-  /** Any valid train-week start date — only used to resolve the 7-day shape. */
-  weekStart: string;
 };
 
-/** Miniature 7-tile week strip + color legend, replacing prose "shape of week" copy. */
-export function TemplateWeekShapeStrip({ template, weekStart }: Props) {
+/**
+ * Miniature 7-tile week strip + colour legend.
+ *
+ * Tiles are calendar weekdays (Mon–Sun), so the preview shows the same shape
+ * to every alliance — the strip no longer depends on a week start date.
+ */
+export function TemplateWeekShapeStrip({ template }: Props) {
   const t = useTranslations("trains");
 
   if (template === "custom") {
     return null;
   }
 
-  const shape = weekTemplateDayShape(template, weekStart);
+  const week = weekRulesForPreset(template);
+  // Render Mon-first; WEEKDAY_KEYS is indexed by getServerDayOfWeek (Sun = 0).
+  const days = [...WEEKDAY_KEYS.slice(1), WEEKDAY_KEYS[0]];
 
-  const legend: { segment: WeekTemplateType; label: string }[] = [];
-  const seen = new Set<WeekTemplateType>();
-  for (const { segment } of shape) {
-    if (seen.has(segment)) continue;
-    seen.add(segment);
-    const legendKey = `templateShapeLegend.${segment}` as const;
+  const legend: { paletteId: DayRulePaletteId; label: string }[] = [];
+  const seen = new Set<DayRulePaletteId>();
+  for (const day of days) {
+    const paletteId = paletteIdForRule(week[day].conductorRule);
+    if (seen.has(paletteId)) continue;
+    seen.add(paletteId);
     legend.push({
-      segment,
-      label: t.has(legendKey) ? t(legendKey) : t(`templates.${segment}`),
+      paletteId,
+      label: t(`rules.${conductorRuleLabelKey(week[day].conductorRule)}`),
     });
   }
 
@@ -44,21 +54,17 @@ export function TemplateWeekShapeStrip({ template, weekStart }: Props) {
         role="img"
         aria-label={t("templatePicker.weekShapeAria")}
       >
-        {shape.map(({ date, segment }) => {
-          const swatch = TEMPLATE_PALETTE_STYLES[segment]?.swatch ?? "bg-slate-500";
-          const weekdayKey = WEEKDAY_KEY_BY_DOW[getServerDayOfWeek(date)];
-          const legendKey = `templateShapeLegend.${segment}` as const;
-          const title = t.has(legendKey)
-            ? t(legendKey)
-            : t(`templates.${segment}`);
+        {days.map((day) => {
+          const rule = week[day].conductorRule;
+          const paletteId = paletteIdForRule(rule);
+          const swatch =
+            RULE_PALETTE_SWATCHES[paletteId]?.swatch ?? "bg-slate-500";
+          const title = t(`rules.${conductorRuleLabelKey(rule)}`);
           return (
-            <div key={date} className="flex flex-col items-center gap-1">
-              <div
-                className={`h-6 w-full rounded-md ${swatch}`}
-                title={title}
-              />
+            <div key={day} className="flex flex-col items-center gap-1">
+              <div className={`h-6 w-full rounded-md ${swatch}`} title={title} />
               <span className="text-[9px] font-medium uppercase tracking-wide text-hq-fg-muted">
-                {t(`weekdays.${weekdayKey}`)}
+                {t(`weekdays.${day}`)}
               </span>
             </div>
           );
@@ -66,14 +72,14 @@ export function TemplateWeekShapeStrip({ template, weekStart }: Props) {
       </div>
 
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-        {legend.map(({ segment, label }) => (
+        {legend.map(({ paletteId, label }) => (
           <span
-            key={segment}
+            key={paletteId}
             className="flex items-center gap-1.5 text-[11px] text-hq-fg-muted"
           >
             <span
               className={`h-2.5 w-2.5 shrink-0 rounded-sm ${
-                TEMPLATE_PALETTE_STYLES[segment]?.swatch ?? "bg-slate-500"
+                RULE_PALETTE_SWATCHES[paletteId]?.swatch ?? "bg-slate-500"
               }`}
               aria-hidden
             />

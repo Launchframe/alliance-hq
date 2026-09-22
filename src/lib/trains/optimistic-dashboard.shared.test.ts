@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { DayRules } from "@/lib/trains/rules/catalog.shared";
 import {
   applyOptimisticClearPendingConductor,
   applyOptimisticConductorPick,
@@ -11,34 +12,95 @@ import {
   upsertRecordForDate,
 } from "@/lib/trains/optimistic-dashboard.shared";
 
+const R3_WHEEL: DayRules = {
+  conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+  vipRule: null,
+};
+const R4: DayRules = {
+  conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+  vipRule: { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
+};
+const VS_TOP_10: DayRules = {
+  conductorRule: { kind: "vs_top_n", topN: 10 },
+  vipRule: null,
+};
+const FREE: DayRules = { conductorRule: null, vipRule: { kind: "none" } };
+
+function dayConfig(date: string, rules: DayRules, id = `d-${date}`) {
+  return {
+    id,
+    date,
+    conductorRule: rules.conductorRule,
+    vipRule: rules.vipRule,
+    isOverride: false,
+    sourceTemplateKey: null,
+  };
+}
+
+function conductorRecord(
+  date: string,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    id: `r-${date}`,
+    date,
+    conductorMemberId: "m1",
+    conductorMemberName: "Alice",
+    vipMemberId: null,
+    vipMemberName: null,
+    conductorRule: null,
+    vipRule: null,
+    conductorMechanism: null,
+    vipMechanism: null,
+    guardianIsVip: false,
+    lockedAt: null,
+    substituteForMemberId: null,
+    substituteForMemberName: null,
+    ...overrides,
+  };
+}
+
+function snapshot(input: {
+  dayConfigs: ReturnType<typeof dayConfig>[];
+  weekRecords?: ReturnType<typeof conductorRecord>[];
+  roster?: Array<{ memberId: string; allianceRank?: number | null }>;
+}) {
+  const dayConfigs = input.dayConfigs;
+  const weekRecords = input.weekRecords ?? [];
+  return {
+    data: {
+      today: "2026-06-10",
+      weekStart: "2026-06-08",
+      weekEnd: "2026-06-14",
+      trainWeekStartDow: 1,
+      roster: input.roster ?? [],
+      weekRecords,
+      dayConfigs,
+      conductorRecord: null,
+      schedule: { id: "s1", weekStart: "2026-06-08", templateType: "custom", isPivot: false },
+      schedulePersisted: true,
+    },
+    viewedWeek: {
+      weekStart: "2026-06-08",
+      weekEnd: "2026-06-14",
+      templateType: null,
+      dayConfigs,
+      weekRecords,
+      dayScoreStats: {},
+    },
+    viewedMonth: {
+      monthKey: "2026-06",
+      monthStart: "2026-06-01",
+      monthEnd: "2026-06-30",
+      dayConfigs,
+      monthRecords: weekRecords,
+    },
+  } as unknown as Parameters<typeof applyOptimisticPaint>[0];
+}
+
 describe("optimistic dashboard state", () => {
   it("does not mark an eligibility override until the server snapshot says so", () => {
-    const snap = {
-      data: {
-        today: "2026-06-10",
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        trainWeekStartDow: 1,
-        weekRecords: [],
-        dayConfigs: [],
-        conductorRecord: null,
-      },
-      viewedWeek: {
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        templateType: null,
-        dayConfigs: [],
-        weekRecords: [],
-      },
-      viewedMonth: {
-        monthKey: "2026-06",
-        monthStart: "2026-06-01",
-        monthEnd: "2026-06-30",
-        dayConfigs: [],
-        monthRecords: [],
-      },
-    } as unknown as Parameters<typeof applyOptimisticConductorPick>[0];
-
+    const snap = snapshot({ dayConfigs: [] });
     const next = applyOptimisticConductorPick(snap, "2026-06-10", {
       memberId: "m1",
       memberName: "Alice",
@@ -55,632 +117,166 @@ describe("optimistic dashboard state", () => {
     expect(next[0]?.conductorMemberName).toBe("Alice");
   });
 
-  it("paints day configs for a template", () => {
+  it("paints the same rule onto every selected date", () => {
     const painted = patchDayConfigsForDates(
-      [
-        {
-          id: "d1",
-          date: "2026-06-10",
-          conductorMechanism: "vs_top_10",
-          vipMechanism: "conductor_pick",
-          vipConfig: null,
-          isOverride: false,
-        },
-      ],
-      ["2026-06-10"],
+      [dayConfig("2026-06-10", VS_TOP_10), dayConfig("2026-06-11", VS_TOP_10)],
+      ["2026-06-10", "2026-06-11"],
+      R3_WHEEL,
       "economy_week",
     );
-    expect(painted[0]?.conductorMechanism).toBe("r3_lottery");
-    expect(painted[0]?.isOverride).toBe(true);
-    expect(painted[0]?.paintTemplate).toBe("economy_week");
+    for (const day of painted) {
+      expect(day.conductorRule).toEqual(R3_WHEEL.conductorRule);
+      expect(day.isOverride).toBe(true);
+      expect(day.sourceTemplateKey).toBe("economy_week");
+    }
   });
 
-  it("clears pending conductor picks when the draw mechanism changes", () => {
-    const base = {
-      data: {
-        today: "2026-06-10",
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        trainWeekStartDow: 1,
-        weekRecords: [
-          {
-            id: "r1",
-            date: "2026-06-10",
-            conductorMemberId: "m1",
-            conductorMemberName: "Alice",
-            conductorMechanism: "custom",
-            vipMemberId: null,
-            vipMemberName: null,
-            vipMechanism: "none",
-            guardianIsVip: false,
-            lockedAt: null,
-            substituteForMemberId: null,
-            substituteForMemberName: null,
-          },
-        ],
-        dayConfigs: [
-          {
-            id: "d1",
-            date: "2026-06-10",
-            conductorMechanism: "custom",
-            vipMechanism: "none",
-            vipConfig: null,
-            isOverride: true,
-            paintTemplate: "custom",
-          },
-        ],
-        conductorRecord: null,
-      },
-      viewedWeek: {
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        templateType: null,
-        dayConfigs: [
-          {
-            id: "d1",
-            date: "2026-06-10",
-            conductorMechanism: "custom",
-            vipMechanism: "none",
-            vipConfig: null,
-            isOverride: true,
-            paintTemplate: "custom",
-          },
-        ],
-        weekRecords: [
-          {
-            id: "r1",
-            date: "2026-06-10",
-            conductorMemberId: "m1",
-            conductorMemberName: "Alice",
-            conductorMechanism: "custom",
-            vipMemberId: null,
-            vipMemberName: null,
-            vipMechanism: "none",
-            guardianIsVip: false,
-            lockedAt: null,
-            substituteForMemberId: null,
-            substituteForMemberName: null,
-          },
-        ],
-      },
-      viewedMonth: {
-        monthKey: "2026-06",
-        monthStart: "2026-06-01",
-        monthEnd: "2026-06-30",
-        dayConfigs: [],
-        monthRecords: [],
-      },
-    } as unknown as Parameters<typeof applyOptimisticPaint>[0];
+  it("keeps the scope when re-painting the same board at a different scope", () => {
+    const painted = patchDayConfigsForDates(
+      [dayConfig("2026-06-10", VS_TOP_10)],
+      ["2026-06-10"],
+      { conductorRule: { kind: "vs_top_n", topN: 5 }, vipRule: null },
+    );
+    expect(painted[0]?.conductorRule).toEqual({ kind: "vs_top_n", topN: 5 });
+  });
 
-    const painted = applyOptimisticPaint(base, ["2026-06-10"], "economy_week");
-    expect(painted.data.weekRecords[0]?.conductorMemberId).toBeNull();
-    expect(painted.viewedWeek.weekRecords[0]?.conductorMemberId).toBeNull();
-    expect(painted.data.dayConfigs[0]?.conductorMechanism).toBe("r3_lottery");
+  it("clears a pending conductor when the rule changes and they are ineligible", () => {
+    const snap = snapshot({
+      dayConfigs: [dayConfig("2026-06-10", R4)],
+      weekRecords: [conductorRecord("2026-06-10", { conductorRule: R4.conductorRule })],
+      roster: [{ memberId: "m1", allianceRank: 4 }],
+    });
+
+    const next = applyOptimisticPaint(snap, ["2026-06-10"], R3_WHEEL);
+    expect(next.data.weekRecords[0]?.conductorMemberId).toBeNull();
   });
 
   it("keeps a pending R3 conductor when painting another R3 rule", () => {
-    const record = {
-      id: "r1",
-      date: "2026-06-10",
-      conductorMemberId: "m1",
-      conductorMemberName: "Alice",
-      conductorMechanism: "r3_lottery",
-      vipMemberId: null,
-      vipMemberName: null,
-      vipMechanism: "conductor_pick",
-      guardianIsVip: false,
-      lockedAt: null,
-      substituteForMemberId: null,
-      substituteForMemberName: null,
-    };
-    const dayConfig = {
-      id: "d1",
-      date: "2026-06-10",
-      conductorMechanism: "r3_lottery",
-      vipMechanism: "conductor_pick",
-      vipConfig: null,
-      isOverride: true,
-      paintTemplate: "r3_recognition",
-    };
-    const base = {
-      data: {
-        today: "2026-06-10",
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        trainWeekStartDow: 1,
-        weekRecords: [record],
-        dayConfigs: [dayConfig],
-        roster: [{ memberId: "m1", memberName: "Alice", allianceRank: 3 }],
-        conductorRecord: null,
-      },
-      viewedWeek: {
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        templateType: null,
-        dayConfigs: [dayConfig],
-        weekRecords: [record],
-      },
-      viewedMonth: {
-        monthKey: "2026-06",
-        monthStart: "2026-06-01",
-        monthEnd: "2026-06-30",
-        dayConfigs: [],
-        monthRecords: [],
-      },
-    } as unknown as Parameters<typeof applyOptimisticPaint>[0];
+    const snap = snapshot({
+      dayConfigs: [dayConfig("2026-06-10", R3_WHEEL)],
+      weekRecords: [
+        conductorRecord("2026-06-10", { conductorRule: R3_WHEEL.conductorRule }),
+      ],
+      roster: [{ memberId: "m1", allianceRank: 3 }],
+    });
 
-    const painted = applyOptimisticPaint(base, ["2026-06-10"], "economy_week");
-    expect(painted.data.weekRecords[0]?.conductorMemberId).toBe("m1");
-    expect(painted.data.weekRecords[0]?.conductorMemberName).toBe("Alice");
+    const next = applyOptimisticPaint(snap, ["2026-06-10"], {
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "manual" },
+      vipRule: null,
+    });
+    expect(next.data.weekRecords[0]?.conductorMemberId).toBe("m1");
   });
 
-  it("clears VIP picks when the draw mechanism changes", () => {
-    const base = {
-      data: {
-        today: "2026-06-10",
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        trainWeekStartDow: 1,
-        weekRecords: [
-          {
-            id: "r1",
-            date: "2026-06-10",
-            conductorMemberId: "m1",
-            conductorMemberName: "Alice",
-            conductorMechanism: "vs_top_10",
-            vipMemberId: "m2",
-            vipMemberName: "Bob",
-            vipMechanism: "conductor_pick",
-            guardianIsVip: false,
-            lockedAt: null,
-            substituteForMemberId: null,
-            substituteForMemberName: null,
-          },
-        ],
-        dayConfigs: [
-          {
-            id: "d1",
-            date: "2026-06-10",
-            conductorMechanism: "vs_top_10",
-            vipMechanism: "conductor_pick",
-            vipConfig: null,
-            isOverride: false,
-            paintTemplate: "vs_push_weekdays",
-          },
-        ],
-        conductorRecord: null,
-      },
-      viewedWeek: {
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        templateType: "vs_push_week",
-        dayConfigs: [
-          {
-            id: "d1",
-            date: "2026-06-10",
-            conductorMechanism: "vs_top_10",
-            vipMechanism: "conductor_pick",
-            vipConfig: null,
-            isOverride: false,
-            paintTemplate: "vs_push_weekdays",
-          },
-        ],
-        weekRecords: [
-          {
-            id: "r1",
-            date: "2026-06-10",
-            conductorMemberId: "m1",
-            conductorMemberName: "Alice",
-            conductorMechanism: "vs_top_10",
-            vipMemberId: "m2",
-            vipMemberName: "Bob",
-            vipMechanism: "conductor_pick",
-            guardianIsVip: false,
-            lockedAt: null,
-            substituteForMemberId: null,
-            substituteForMemberName: null,
-          },
-        ],
-      },
-      viewedMonth: {
-        monthKey: "2026-06",
-        monthStart: "2026-06-01",
-        monthEnd: "2026-06-30",
-        dayConfigs: [],
-        monthRecords: [],
-      },
-    } as unknown as Parameters<typeof applyOptimisticPaint>[0];
+  it("keeps a locked conductor the new rule cannot disprove", () => {
+    // Regression: a Saturday max-ticket paint used to pull a valid on-roster
+    // conductor off the day because the board is not knowable client-side.
+    const snap = snapshot({
+      dayConfigs: [dayConfig("2026-06-13", R4)],
+      weekRecords: [
+        conductorRecord("2026-06-13", {
+          conductorRule: R4.conductorRule,
+          lockedAt: "2026-06-13T12:00:00.000Z",
+        }),
+      ],
+      roster: [{ memberId: "m1", allianceRank: 4 }],
+    });
 
-    const painted = applyOptimisticPaint(base, ["2026-06-10"], "economy_week");
-    expect(painted.data.weekRecords[0]?.conductorMemberId).toBeNull();
-    expect(painted.data.weekRecords[0]?.vipMemberId).toBeNull();
-    expect(painted.viewedWeek.weekRecords[0]?.vipMemberId).toBeNull();
+    const next = applyOptimisticPaint(snap, ["2026-06-13"], {
+      conductorRule: { kind: "price_is_freight", board: "heavy_hitter" },
+      vipRule: null,
+    });
+    expect(next.data.weekRecords[0]?.conductorMemberId).toBe("m1");
   });
 
-  it("expands composite templates when painting multiple days", () => {
-    const base = {
-      data: {
-        today: "2026-06-09",
-        weekStart: "2026-06-09",
-        weekEnd: "2026-06-15",
-        weekRecords: [],
-        dayConfigs: [],
-        conductorRecord: null,
-      },
-      viewedWeek: {
-        weekStart: "2026-06-09",
-        weekEnd: "2026-06-15",
-        templateType: "custom",
-        dayConfigs: [],
-        weekRecords: [],
-      },
-      viewedMonth: {
-        monthKey: "2026-06",
-        monthStart: "2026-06-01",
-        monthEnd: "2026-06-30",
-        dayConfigs: [],
-        monthRecords: [],
-      },
-    } as unknown as Parameters<typeof applyOptimisticPaint>[0];
+  it("clears VIP picks when the conductor rule changes", () => {
+    const snap = snapshot({
+      dayConfigs: [dayConfig("2026-06-10", R4)],
+      weekRecords: [
+        conductorRecord("2026-06-10", {
+          conductorRule: R4.conductorRule,
+          conductorMemberId: null,
+          conductorMemberName: null,
+          vipMemberId: "m2",
+          vipMemberName: "Bob",
+        }),
+      ],
+      roster: [],
+    });
 
-    const painted = applyOptimisticPaint(
-      base,
-      ["2026-06-09", "2026-06-13"],
-      "price_is_right",
-    );
-    const byDate = new Map(
-      painted.viewedWeek.dayConfigs.map((day) => [day.date, day.paintTemplate]),
-    );
-    expect(byDate.get("2026-06-09")).toBe("price_is_right_weekdays");
-    expect(byDate.get("2026-06-13")).toBe("takedown_week");
+    const next = applyOptimisticPaint(snap, ["2026-06-10"], R3_WHEEL);
+    expect(next.data.weekRecords[0]?.vipMemberId).toBeNull();
   });
 
-  it("uses literal segment for single-day composite paint", () => {
-    const base = {
-      data: {
-        today: "2026-06-13",
-        weekStart: "2026-06-09",
-        weekEnd: "2026-06-15",
-        trainWeekStartDow: 1,
-        weekRecords: [],
-        dayConfigs: [],
-        conductorRecord: null,
-      },
-      viewedWeek: {
-        weekStart: "2026-06-09",
-        weekEnd: "2026-06-15",
-        templateType: "price_is_right",
-        dayConfigs: [],
-        weekRecords: [],
-      },
-      viewedMonth: {
-        monthKey: "2026-06",
-        monthStart: "2026-06-01",
-        monthEnd: "2026-06-30",
-        dayConfigs: [],
-        monthRecords: [],
-      },
-    } as unknown as Parameters<typeof applyOptimisticPaint>[0];
+  it("paints across data, week, and month snapshots", () => {
+    const snap = snapshot({
+      dayConfigs: [dayConfig("2026-06-10", VS_TOP_10), dayConfig("2026-06-11", VS_TOP_10)],
+    });
 
-    const painted = applyOptimisticPaint(base, ["2026-06-13"], "price_is_right");
-    expect(painted.viewedWeek.dayConfigs[0]?.paintTemplate).toBe(
-      "price_is_right_weekdays",
+    const next = applyOptimisticPaint(
+      snap,
+      ["2026-06-10", "2026-06-11"],
+      FREE,
     );
+    for (const page of [next.data, next.viewedWeek, next.viewedMonth]) {
+      for (const day of page.dayConfigs) {
+        expect(day.conductorRule).toBeNull();
+      }
+    }
   });
 
-  it("paints Saturday TPIF as eligible-VS raffle, not heavy-hitter", () => {
-    const base = {
-      data: {
-        today: "2026-06-13",
-        weekStart: "2026-06-09",
-        weekEnd: "2026-06-15",
-        trainWeekStartDow: 1,
-        weekRecords: [],
-        dayConfigs: [
-          {
-            id: "d1",
-            date: "2026-06-13",
-            conductorMechanism: "heavy_hitter_lottery",
-            vipMechanism: "conductor_pick",
-            vipConfig: null,
-            isOverride: false,
-            paintTemplate: "takedown_week",
-          },
-        ],
-        conductorRecord: null,
-      },
-      viewedWeek: {
-        weekStart: "2026-06-09",
-        weekEnd: "2026-06-15",
-        templateType: "price_is_right",
-        dayConfigs: [
-          {
-            id: "d1",
-            date: "2026-06-13",
-            conductorMechanism: "heavy_hitter_lottery",
-            vipMechanism: "conductor_pick",
-            vipConfig: null,
-            isOverride: false,
-            paintTemplate: "takedown_week",
-          },
-        ],
-        weekRecords: [],
-      },
-      viewedMonth: {
-        monthKey: "2026-06",
-        monthStart: "2026-06-01",
-        monthEnd: "2026-06-30",
-        dayConfigs: [],
-        monthRecords: [],
-      },
-    } as unknown as Parameters<typeof applyOptimisticPaint>[0];
+  it("updates the week templateType only when the paint sets one", () => {
+    const snap = snapshot({ dayConfigs: [dayConfig("2026-06-10", VS_TOP_10)] });
 
-    const painted = applyOptimisticPaint(base, ["2026-06-13"], "price_is_right");
-    expect(painted.viewedWeek.dayConfigs[0]?.conductorMechanism).toBe("r3_lottery");
-    expect(painted.viewedWeek.dayConfigs[0]?.paintTemplate).toBe(
-      "price_is_right_weekdays",
+    expect(
+      applyOptimisticPaint(snap, ["2026-06-10"], R3_WHEEL).data.schedule
+        ?.templateType,
+    ).toBe("custom");
+    expect(
+      applyOptimisticPaint(snap, ["2026-06-10"], R3_WHEEL, {
+        updateWeekTemplate: "economy_week",
+      }).data.schedule?.templateType,
+    ).toBe("economy_week");
+  });
+
+  it("applies a week preset's calendar-weekday rules", () => {
+    const snap = snapshot({ dayConfigs: [] });
+    const next = applyOptimisticWeekTemplate(snap, "2026-06-08", "price_is_right");
+    const saturday = next.viewedWeek.dayConfigs.find(
+      (day) => day.date === "2026-06-13",
     );
+    expect(saturday?.conductorRule).toEqual({
+      kind: "price_is_freight",
+      board: "heavy_hitter",
+    });
+    expect(next.viewedWeek.templateType).toBe("price_is_right");
   });
 
   it("locks a day across schedule views", () => {
-    const base = {
-      data: {
-        today: "2026-06-10",
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        weekRecords: [],
-        dayConfigs: [],
-      },
-      viewedWeek: {
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        templateType: null,
-        dayConfigs: [],
-        weekRecords: [],
-      },
-      viewedMonth: {
-        monthKey: "2026-06",
-        monthStart: "2026-06-01",
-        monthEnd: "2026-06-30",
-        dayConfigs: [],
-        monthRecords: [],
-      },
-    } as unknown as Parameters<typeof applyOptimisticLock>[0];
-
-    const locked = applyOptimisticLock(base, "2026-06-10", "2026-06-10T12:00:00.000Z");
-    expect(locked.viewedWeek.weekRecords[0]?.lockedAt).toBe(
+    const snap = snapshot({
+      dayConfigs: [dayConfig("2026-06-10", R3_WHEEL)],
+      weekRecords: [conductorRecord("2026-06-10")],
+    });
+    const next = applyOptimisticLock(snap, "2026-06-10", "2026-06-10T12:00:00.000Z");
+    expect(next.viewedWeek.weekRecords[0]?.lockedAt).toBe(
       "2026-06-10T12:00:00.000Z",
     );
-    expect(locked.viewedWeek.weekRecords[0]?.canUnlock).toBe(true);
-    expect(locked.viewedMonth.monthRecords[0]?.lockedAt).toBe(
+    expect(next.viewedMonth.monthRecords[0]?.lockedAt).toBe(
       "2026-06-10T12:00:00.000Z",
     );
   });
 
   it("clears a pending conductor across schedule views", () => {
-    const record = {
-      id: "r1",
-      date: "2026-06-10",
-      conductorMemberId: "m1",
-      conductorMemberName: "Alice",
-      conductorMechanism: "r3_lottery",
-      vipMemberId: null,
-      vipMemberName: null,
-      vipMechanism: "none",
-      guardianIsVip: false,
-      lockedAt: null,
-      substituteForMemberId: "m0",
-      substituteForMemberName: "Bob",
-    };
-    const base = {
-      data: {
-        today: "2026-06-10",
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        weekRecords: [record],
-        dayConfigs: [],
-      },
-      viewedWeek: {
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        templateType: null,
-        dayConfigs: [],
-        weekRecords: [record],
-      },
-      viewedMonth: {
-        monthKey: "2026-06",
-        monthStart: "2026-06-01",
-        monthEnd: "2026-06-30",
-        dayConfigs: [],
-        monthRecords: [record],
-      },
-    } as unknown as Parameters<typeof applyOptimisticClearPendingConductor>[0];
-
-    const cleared = applyOptimisticClearPendingConductor(base, "2026-06-10");
-    expect(cleared.viewedWeek.weekRecords[0]?.conductorMemberId).toBeNull();
-    expect(cleared.viewedWeek.weekRecords[0]?.conductorMemberName).toBeNull();
-    expect(cleared.viewedWeek.weekRecords[0]?.substituteForMemberId).toBeNull();
-    expect(cleared.viewedMonth.monthRecords[0]?.conductorMemberId).toBeNull();
-    expect(cleared.data.weekRecords[0]?.conductorMemberId).toBeNull();
+    const snap = snapshot({
+      dayConfigs: [dayConfig("2026-06-10", R3_WHEEL)],
+      weekRecords: [conductorRecord("2026-06-10")],
+    });
+    const next = applyOptimisticClearPendingConductor(snap, "2026-06-10");
+    expect(next.viewedWeek.weekRecords[0]?.conductorMemberId).toBeNull();
+    expect(next.viewedMonth.monthRecords[0]?.conductorMemberId).toBeNull();
   });
+});
 
-  it("paints multiple dates in month and week snapshots", () => {
-    const base = {
-      data: {
-        weekRecords: [],
-        dayConfigs: [
-          {
-            id: "d1",
-            date: "2026-06-09",
-            conductorMechanism: "vs_top_10",
-            vipMechanism: "conductor_pick",
-            vipConfig: null,
-            isOverride: false,
-          },
-        ],
-      },
-      viewedWeek: {
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        templateType: null,
-        dayConfigs: [
-          {
-            id: "d1",
-            date: "2026-06-09",
-            conductorMechanism: "vs_top_10",
-            vipMechanism: "conductor_pick",
-            vipConfig: null,
-            isOverride: false,
-          },
-        ],
-        weekRecords: [],
-      },
-      viewedMonth: {
-        monthKey: "2026-06",
-        monthStart: "2026-06-01",
-        monthEnd: "2026-06-30",
-        dayConfigs: [
-          {
-            id: "d1",
-            date: "2026-06-09",
-            conductorMechanism: "vs_top_10",
-            vipMechanism: "conductor_pick",
-            vipConfig: null,
-            isOverride: false,
-          },
-        ],
-        monthRecords: [],
-      },
-    } as unknown as Parameters<typeof applyOptimisticPaint>[0];
-
-    const painted = applyOptimisticPaint(base, ["2026-06-09", "2026-06-10"], "economy_week");
-    expect(painted.viewedMonth.dayConfigs).toHaveLength(2);
-    expect(painted.viewedMonth.dayConfigs.every((d) => d.conductorMechanism === "r3_lottery")).toBe(
-      true,
-    );
-  });
-
-  it("updates week templateType when painting with updateWeekTemplate", () => {
-    const base = {
-      data: {
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        schedule: {
-          id: "sched-1",
-          weekStart: "2026-06-08",
-          templateType: "vs_push_week",
-          isPivot: false,
-        },
-        dayConfigs: [],
-        weekRecords: [],
-      },
-      viewedWeek: {
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        templateType: "vs_push_week" as const,
-        dayConfigs: [],
-        weekRecords: [],
-      },
-      viewedMonth: {
-        monthKey: "2026-06",
-        monthStart: "2026-06-01",
-        monthEnd: "2026-06-30",
-        dayConfigs: [],
-        monthRecords: [],
-      },
-    } as unknown as Parameters<typeof applyOptimisticPaint>[0];
-
-    const painted = applyOptimisticPaint(
-      base,
-      ["2026-06-10", "2026-06-11"],
-      "price_is_right",
-      { updateWeekTemplate: true },
-    );
-    expect(painted.viewedWeek.templateType).toBe("price_is_right");
-    expect(painted.data.schedule?.templateType).toBe("price_is_right");
-    expect(painted.data.schedulePersisted).toBe(true);
-    // Composite PIR week: Tue–Fri paint as the weekday segment, not the parent.
-    expect(
-      painted.viewedWeek.dayConfigs.find((d) => d.date === "2026-06-10")
-        ?.paintTemplate,
-    ).toBe("price_is_right_weekdays");
-  });
-
-  it("marks schedulePersisted when creating an optimistic schedule from draft", () => {
-    const base = {
-      data: {
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        schedule: null,
-        schedulePersisted: false,
-        dayConfigs: [],
-        weekRecords: [],
-      },
-      viewedWeek: {
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        templateType: "vs_push_week" as const,
-        dayConfigs: [],
-        weekRecords: [],
-      },
-      viewedMonth: {
-        monthKey: "2026-06",
-        monthStart: "2026-06-01",
-        monthEnd: "2026-06-30",
-        dayConfigs: [],
-        monthRecords: [],
-      },
-    } as unknown as Parameters<typeof applyOptimisticPaint>[0];
-
-    const painted = applyOptimisticPaint(
-      base,
-      ["2026-06-10"],
-      "vs_push_week",
-      { updateWeekTemplate: true },
-    );
-    expect(painted.data.schedulePersisted).toBe(true);
-    expect(painted.data.schedule?.templateType).toBe("vs_push_week");
-  });
-
-  it("sets templateType on the viewed week when applying a week template", () => {
-    const base = {
-      data: {
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        schedule: {
-          id: "sched-1",
-          weekStart: "2026-06-08",
-          templateType: "vs_push_week",
-          isPivot: false,
-        },
-        dayConfigs: [],
-        weekRecords: [],
-      },
-      viewedWeek: {
-        weekStart: "2026-06-08",
-        weekEnd: "2026-06-14",
-        templateType: "vs_push_week" as const,
-        dayConfigs: [],
-        weekRecords: [],
-      },
-      viewedMonth: {
-        monthKey: "2026-06",
-        monthStart: "2026-06-01",
-        monthEnd: "2026-06-30",
-        dayConfigs: [],
-        monthRecords: [],
-      },
-    } as unknown as Parameters<typeof applyOptimisticWeekTemplate>[0];
-
-    const next = applyOptimisticWeekTemplate(
-      base,
-      "2026-06-08",
-      "economy_week",
-      null,
-    );
-    expect(next.viewedWeek.templateType).toBe("economy_week");
-    expect(next.data.schedule?.templateType).toBe("economy_week");
-  });
+describe("conductor swap", () => {
 
   it("swaps conductors and substitute metadata between two days", () => {
     const recordA = {
@@ -690,6 +286,8 @@ describe("optimistic dashboard state", () => {
       conductorMemberName: "Alice",
       vipMemberId: null,
       vipMemberName: null,
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      vipRule: null,
       conductorMechanism: "r3_lottery",
       vipMechanism: null,
       guardianIsVip: false,
@@ -704,6 +302,8 @@ describe("optimistic dashboard state", () => {
       conductorMemberName: "Bob",
       vipMemberId: null,
       vipMemberName: null,
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      vipRule: null,
       conductorMechanism: "r3_lottery",
       vipMechanism: null,
       guardianIsVip: false,
@@ -758,6 +358,8 @@ describe("optimistic dashboard state", () => {
       conductorMemberName: "Alice",
       vipMemberId: "m9",
       vipMemberName: "VIP Nine",
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      vipRule: { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
       conductorMechanism: "r3_lottery",
       vipMechanism: "event_top_x_lottery",
       guardianIsVip: true,
@@ -803,5 +405,55 @@ describe("optimistic dashboard state", () => {
     expect(dayA?.lockedAt).toBeNull();
     expect(dayB?.conductorMemberName).toBe("Alice");
     expect(dayB?.lockedAt).toBe("2026-06-12T12:00:00.000Z");
+  });
+});
+
+describe("partial day paint", () => {
+  it("preserves an event VIP on a conductor-only paint", () => {
+    const painted = patchDayConfigsForDates(
+      [dayConfig("2026-06-10", R4)],
+      ["2026-06-10"],
+      { conductorRule: { kind: "vs_top_n", topN: 5 } },
+    );
+    expect(painted[0]?.conductorRule).toEqual({ kind: "vs_top_n", topN: 5 });
+    expect(painted[0]?.vipRule).toEqual(R4.vipRule);
+  });
+
+  it("preserves the conductor rule on a VIP-only paint", () => {
+    const painted = patchDayConfigsForDates(
+      [dayConfig("2026-06-10", VS_TOP_10)],
+      ["2026-06-10"],
+      { vipRule: { kind: "donations_second" } },
+    );
+    expect(painted[0]?.conductorRule).toEqual(VS_TOP_10.conductorRule);
+    expect(painted[0]?.vipRule).toEqual({ kind: "donations_second" });
+  });
+
+  it("clears only the side painted null", () => {
+    const painted = patchDayConfigsForDates(
+      [dayConfig("2026-06-10", R4)],
+      ["2026-06-10"],
+      { vipRule: null },
+    );
+    expect(painted[0]?.conductorRule).toEqual(R4.conductorRule);
+    expect(painted[0]?.vipRule).toBeNull();
+  });
+
+  it("keeps the assigned conductor and restamps rules on a VIP-only paint", () => {
+    const snap = snapshot({
+      dayConfigs: [dayConfig("2026-06-10", R4)],
+      weekRecords: [
+        conductorRecord("2026-06-10", { conductorRule: R4.conductorRule }),
+      ],
+      roster: [{ memberId: "m1", allianceRank: 4 }],
+    });
+
+    const next = applyOptimisticPaint(snap, ["2026-06-10"], {
+      vipRule: { kind: "donations_second" },
+    });
+    const record = next.data.weekRecords[0];
+    expect(record?.conductorMemberId).toBe("m1");
+    expect(record?.conductorRule).toEqual(R4.conductorRule);
+    expect(record?.vipRule).toEqual({ kind: "donations_second" });
   });
 });

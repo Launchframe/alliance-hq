@@ -1184,6 +1184,13 @@
       "when": 1790900000180,
       "tag": "0180_calendar_remote_observation",
       "breakpoints": false
+    },
+    {
+      "idx": 169,
+      "version": "7",
+      "when": 1790900000181,
+      "tag": "0181_train_day_rules",
+      "breakpoints": false
     }
   ]
 }

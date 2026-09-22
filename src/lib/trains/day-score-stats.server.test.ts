@@ -59,25 +59,22 @@ describe("loadTrainDayScoreStats", () => {
   it("counts only available top-board members without rewriting score evidence", async () => {
     mocks.fetchAlliancePriorDayVsScoresByMember.mockResolvedValue(new Map([["away", 9000000], ["here", 8000000]]));
     mocks.fetchAllianceVsTopScorersForTrainDate.mockResolvedValue([{ memberId: "away" }, { memberId: "here" }]);
-    const stats = await loadTrainDayScoreStats({ allianceId: "ally-1", trainDate: "2026-09-09", conductorMechanism: "vs_top_10", conductorConfig: { topN: 10 }, leadDays: 0 });
+    const stats = await loadTrainDayScoreStats({ allianceId: "ally-1", trainDate: "2026-09-09", rule: { kind: "vs_top_n", topN: 10 }, leadDays: 0 });
     expect(stats).toMatchObject({ eligibleCount: 1, scoreCount: 2 });
   });
 
   it("resolves score reference day from DB when outside the loaded week batch", async () => {
     mocks.resolveDisplayMergedDayConfigForDate.mockResolvedValue({
-      conductorMechanism: "vs_top_10",
-      conductorConfig: { topN: 10 },
-      paintTemplate: "vs_push_weekdays",
+      conductorRule: { kind: "vs_top_n", topN: 10 },
     });
 
     const stats = await loadTrainDayScoreStats({
       allianceId: "ally-1",
       trainDate: "2026-08-31",
-      conductorMechanism: "r4_sequence",
-      paintTemplate: "r4_event_vip",
+      rule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
       leadDays: 1,
       seasonKey: "S1",
-      scoreDateDay: null,
+      scoreDayRule: null,
     });
 
     expect(mocks.resolveDisplayMergedDayConfigForDate).toHaveBeenCalledWith(

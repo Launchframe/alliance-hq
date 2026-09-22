@@ -4,8 +4,8 @@
  * and build the payload shape.
  */
 
-import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
-import { conductorMechanismPoolType } from "@/lib/trains/templates";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+import { conductorRulePoolType } from "@/lib/trains/rules/derive.shared";
 
 export type RosterSyncCapabilityKind =
   | "officer_ashed"
@@ -38,26 +38,13 @@ export type TrainsRosterDataStatus = {
 };
 
 export type ClassifyRosterNeedInput = {
-  conductorMechanism: string | null | undefined;
-  paintTemplate?: string | null;
-  date?: string | null;
+  rule: ConductorRule | null;
 };
 
 export function classifyRosterNeed(
   input: ClassifyRosterNeedInput,
 ): { kind: RosterNeedKind; poolType: RosterRankPoolType | null } {
-  const mechanism = effectiveConductorMechanism(
-    input.conductorMechanism,
-    input.paintTemplate as Parameters<
-      typeof effectiveConductorMechanism
-    >[1],
-    input.date,
-  );
-  if (!mechanism) {
-    return { kind: "members", poolType: null };
-  }
-
-  const poolType = conductorMechanismPoolType(mechanism);
+  const poolType = conductorRulePoolType(input.rule);
   if (
     poolType === "r3" ||
     poolType === "r4_plus" ||

@@ -1,29 +1,49 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
 import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { sessionHasPermission } from "@/lib/rbac/context";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import {
-  applyTemplateToDates,
+  applyPaint,
   getServerCalendarDate,
   trainActionErrorResponse,
 } from "@/lib/trains/service";
 import { canOfficerChangeTemplateForDate } from "@/lib/trains/trains-day-actions.shared";
 import {
-  defaultTopNForPaintTemplate,
-  isTopNPaintTemplate,
-  isVrTopN,
-  isVsTopN,
-  type ConductorTopN,
-} from "@/lib/trains/conductor-top-n.shared";
-import type { WeekTemplateType } from "@/lib/trains/types";
-import { WEEK_TEMPLATES } from "@/lib/trains/types";
+  conductorRuleSchema,
+  vipRuleSchema,
+} from "@/lib/trains/rules/catalog.shared";
+import { WEEK_TEMPLATES, type WeekTemplateType } from "@/lib/trains/types";
 import { requireApiSession } from "@/lib/session";
 import { requireTrainOfficer } from "@/lib/rbac/require-permission";
 
 export const dynamic = "force-dynamic";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * A paint patches each side independently. `conductorRule: null` is free
+ * choice and `vipRule: null` is the conductor's pick — both are deliberate
+ * values. An omitted side preserves the day's current rule, so a VIP-only
+ * paint can never reset the conductor scope on its way through.
+ */
+const paintBodySchema = z
+  .object({
+    dates: z.array(z.string().regex(DATE_PATTERN)).min(1),
+    conductorRule: conductorRuleSchema.nullable().optional(),
+    vipRule: vipRuleSchema.nullable().optional(),
+    /** Preset to stamp on the week schedule when this paint sets one. */
+    updateWeekTemplate: z.enum(WEEK_TEMPLATES).nullish(),
+    /** Preset to persist when materializing a draft week on first paint. */
+    preferredWeekTemplate: z.enum(WEEK_TEMPLATES).nullish(),
+    /** Provenance for the calendar cell — never a draw input. */
+    sourceTemplateKey: z.string().max(64).nullish(),
+  })
+  .refine(
+    (body) => body.conductorRule !== undefined || body.vipRule !== undefined,
+    { message: "Choose a conductor rule, a VIP rule, or both." },
+  );
 
 export async function GET() {
   const sessionOrError = await requireApiSession();
@@ -57,61 +77,22 @@ export async function PATCH(request: Request) {
   const ctx = await resolveTrainRequestContext();
   if (ctx instanceof NextResponse) return ctx;
 
-  const body = (await request.json()) as {
-    dates?: string[];
-    templateType?: WeekTemplateType;
-    updateWeekTemplate?: boolean;
-    topN?: number;
-    preferredWeekTemplate?: WeekTemplateType;
-  };
-
-  const dates = (body.dates ?? []).filter(
-    (date): date is string =>
-      typeof date === "string" && DATE_PATTERN.test(date.trim()),
-  );
-  if (dates.length === 0) {
+  const parsed = paintBodySchema.safeParse(await request.json());
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "At least one valid date is required." },
+      {
+        error: "Choose a conductor rule, a VIP rule, or both.",
+        issues: parsed.error.issues.map((issue) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+        })),
+      },
       { status: 400 },
     );
   }
 
-  const templateType = body.templateType;
-  if (!templateType || !WEEK_TEMPLATES.includes(templateType)) {
-    return NextResponse.json(
-      { error: "A valid templateType is required." },
-      { status: 400 },
-    );
-  }
-
-  let topN: ConductorTopN | undefined;
-  if (isTopNPaintTemplate(templateType)) {
-    const raw = body.topN;
-    if (raw == null) {
-      topN = defaultTopNForPaintTemplate(templateType);
-    } else if (typeof raw !== "number" || !Number.isInteger(raw)) {
-      return NextResponse.json(
-        { error: "A valid topN scope is required for Top VS / Top VR." },
-        { status: 400 },
-      );
-    } else if (templateType === "top_vs") {
-      if (!isVsTopN(raw)) {
-        return NextResponse.json(
-          { error: "Top VS scope must be 1, 3, 5, or 10." },
-          { status: 400 },
-        );
-      }
-      topN = raw;
-    } else {
-      if (!isVrTopN(raw)) {
-        return NextResponse.json(
-          { error: "Top VR scope must be 3, 5, or 10." },
-          { status: 400 },
-        );
-      }
-      topN = raw;
-    }
-  }
+  const body = parsed.data;
+  const dates = [...new Set(body.dates)].sort();
 
   const isPlatformAdmin = await sessionHasPermission(session.id, "hq:admin");
   const today = getServerCalendarDate();
@@ -120,22 +101,32 @@ export async function PATCH(request: Request) {
   );
   if (blockedPastDates.length > 0 && !isPlatformAdmin) {
     return NextResponse.json(
-      {
-        error: `Cannot change template for past day ${blockedPastDates[0]}.`,
-      },
+      { error: `Cannot change the rule for past day ${blockedPastDates[0]}.` },
       { status: 409 },
     );
   }
 
   try {
-    await applyTemplateToDates(ctx.allianceId, dates, templateType, {
-      platformAdminPastOverride: isPlatformAdmin,
-      updateWeekTemplate: body.updateWeekTemplate === true,
-      ...(topN != null ? { topN } : {}),
-      ...(body.preferredWeekTemplate
-        ? { preferredWeekTemplate: body.preferredWeekTemplate }
-        : {}),
-    });
+    await applyPaint(
+      ctx.allianceId,
+      {
+        dates,
+        conductorRule: body.conductorRule,
+        vipRule: body.vipRule,
+        sourceTemplateKey: body.sourceTemplateKey ?? null,
+      },
+      {
+        platformAdminPastOverride: isPlatformAdmin,
+        updateWeekTemplate:
+          (body.updateWeekTemplate as WeekTemplateType | null) ?? null,
+        ...(body.preferredWeekTemplate
+          ? {
+              preferredWeekTemplate:
+                body.preferredWeekTemplate as WeekTemplateType,
+            }
+          : {}),
+      },
+    );
     await writeTrainsOfficerAudit({
       sessionId: session.id,
       allianceId: ctx.allianceId,
@@ -147,14 +138,23 @@ export async function PATCH(request: Request) {
       resourceId: ctx.allianceId,
       metadata: {
         dates,
-        templateType,
-        topN: topN ?? null,
-        updateWeekTemplate: body.updateWeekTemplate === true,
+        ...(body.conductorRule !== undefined
+          ? { conductorRule: body.conductorRule }
+          : {}),
+        ...(body.vipRule !== undefined ? { vipRule: body.vipRule } : {}),
+        updateWeekTemplate: body.updateWeekTemplate ?? null,
         pastDayOverride: blockedPastDates.length > 0 && isPlatformAdmin,
         pastDates: blockedPastDates,
       },
     });
-    return NextResponse.json({ ok: true, dates, templateType, topN });
+    return NextResponse.json({
+      ok: true,
+      dates,
+      ...(body.conductorRule !== undefined
+        ? { conductorRule: body.conductorRule }
+        : {}),
+      ...(body.vipRule !== undefined ? { vipRule: body.vipRule } : {}),
+    });
   } catch (error) {
     const { status, body: responseBody } = trainActionErrorResponse(error);
     return NextResponse.json(responseBody, { status });

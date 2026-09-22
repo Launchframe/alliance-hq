@@ -109,9 +109,8 @@ describe("applyManualConductorDraft", () => {
 
   it("consumes a depleting r3 pool slot on Discord/web manual draft", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r3_lottery",
-      vipMechanism: "conductor_pick",
-      paintTemplate: "economy_week",
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      vipRule: null,
       dayConfigId: "dc-1",
     });
     mockGenerationPool(["m-alice", "m-bob"], ["m-alice", "m-bob"]);
@@ -151,9 +150,8 @@ describe("applyManualConductorDraft", () => {
 
   it("rejects re-awarding a member already selected in the current generation", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r3_lottery",
-      vipMechanism: "conductor_pick",
-      paintTemplate: "economy_week",
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      vipRule: null,
       dayConfigId: "dc-1",
     });
     mockGenerationPool(["m-bob"], ["m-alice", "m-bob"]);
@@ -179,9 +177,8 @@ describe("applyManualConductorDraft", () => {
 
   it("rejects manual picks when current roster rank is ineligible for the pool", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r3_lottery",
-      vipMechanism: "conductor_pick",
-      paintTemplate: "economy_week",
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      vipRule: null,
       dayConfigId: "dc-1",
     });
     mocks.memberIdsEligibleForPoolType.mockResolvedValue(new Set());
@@ -208,9 +205,8 @@ describe("applyManualConductorDraft", () => {
 
   it("allows same-generation reuse when the officer confirms the override", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r3_lottery",
-      vipMechanism: "conductor_pick",
-      paintTemplate: "economy_week",
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      vipRule: null,
       dayConfigId: "dc-1",
     });
     mockGenerationPool(["m-bob"], ["m-alice", "m-bob"]);
@@ -249,9 +245,8 @@ describe("applyManualConductorDraft", () => {
 
   it("claims the date's generation when the member is still unselected", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r4_sequence",
-      vipMechanism: "conductor_pick",
-      paintTemplate: "r4_event_vip",
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+      vipRule: null,
       dayConfigId: "dc-1",
     });
     mockGenerationPool(["m-boggle"], ["m-boggle", "m-bob"], 2);
@@ -275,9 +270,8 @@ describe("applyManualConductorDraft", () => {
 
   it("consumes the live R4 slot on first click when historically awarded", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r4_sequence",
-      vipMechanism: "conductor_pick",
-      paintTemplate: "r4_event_vip",
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+      vipRule: null,
       dayConfigId: "dc-1",
     });
     mocks.resolvePoolGenerationForDate.mockResolvedValue(1);
@@ -319,9 +313,8 @@ describe("applyManualConductorDraft", () => {
 
   it("does not consume another slot when the live generation has no open row", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r3_lottery",
-      vipMechanism: "conductor_pick",
-      paintTemplate: "economy_week",
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      vipRule: null,
       dayConfigId: "dc-1",
     });
     mockGenerationPool([], ["m-alice", "m-bob"], 1);
@@ -352,9 +345,8 @@ describe("applyManualConductorDraft", () => {
 
   it("drafts a member missing from the pool when the officer confirms override", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r4_sequence",
-      vipMechanism: "conductor_pick",
-      paintTemplate: "r4_event_vip",
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+      vipRule: null,
       dayConfigId: "dc-1",
     });
     mockGenerationPool(["m-bob"], ["m-bob"]);
@@ -382,9 +374,8 @@ describe("applyManualConductorDraft", () => {
 
   it("drafts a rank-ineligible member when the officer confirms override", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r3_lottery",
-      vipMechanism: "conductor_pick",
-      paintTemplate: "economy_week",
+      conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      vipRule: null,
       dayConfigId: "dc-1",
     });
     mocks.memberIdsEligibleForPoolType.mockResolvedValue(new Set());
@@ -411,11 +402,10 @@ describe("applyManualConductorDraft", () => {
     );
   });
 
-  it("consumes an r4_plus pool slot when paint template is r4_event_vip", async () => {
+  it("consumes an r4_plus pool slot on an R4 rotation day with an event VIP", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r3_lottery",
-      vipMechanism: "event_top_x_lottery",
-      paintTemplate: "r4_event_vip",
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+      vipRule: { kind: "event_top_x", eventKey: "capitol_war", topN: 10 },
       dayConfigId: "dc-1",
     });
     mockGenerationPool(["m-aline", "m-bob"], ["m-aline", "m-bob"]);
@@ -442,11 +432,10 @@ describe("applyManualConductorDraft", () => {
     );
   });
 
-  it("does not mark depleting pools for Price Is Freight paint templates", async () => {
+  it("does not mark depleting pools for Price Is Freight rules", async () => {
     mocks.resolveRollDayConfig.mockResolvedValue({
-      conductorMechanism: "r3_lottery",
-      vipMechanism: "conductor_pick",
-      paintTemplate: "price_is_right",
+      conductorRule: { kind: "price_is_freight", board: "weekday" },
+      vipRule: null,
       dayConfigId: "dc-1",
     });
 

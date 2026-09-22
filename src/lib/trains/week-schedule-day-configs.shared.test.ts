@@ -7,6 +7,12 @@ import {
   resolveWeekDisplayDayConfigs,
 } from "@/lib/trains/week-schedule-day-configs.shared";
 
+const R3_WHEEL_ROW = {
+  conductorRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+  vipRule: null,
+  isOverride: 0,
+};
+
 describe("isProvisionalDayConfig", () => {
   it("returns true for preview ids", () => {
     expect(isProvisionalDayConfig("preview-2026-06-16")).toBe(true);
@@ -35,99 +41,33 @@ describe("resolveWeekDisplayDayConfigs", () => {
     expect(configs).toHaveLength(7);
     expect(configs.every((day) => isProvisionalDayConfig(day.id))).toBe(true);
   });
+
+  it("fills preview days from the preset's calendar weekday rules", () => {
+    const configs = resolveWeekDisplayDayConfigs(
+      "2026-06-09",
+      "price_is_right",
+      [],
+    );
+    // 2026-06-13 is a Saturday — the max-ticket draw.
+    expect(
+      configs.find((day) => day.date === "2026-06-13")?.conductorRule,
+    ).toEqual({ kind: "price_is_freight", board: "heavy_hitter" });
+    expect(
+      configs.find((day) => day.date === "2026-06-10")?.conductorRule,
+    ).toEqual({ kind: "price_is_freight", board: "weekday" });
+  });
 });
 
 describe("buildWeekScheduleDayConfigs", () => {
-  it("remaps stored Saturday price_is_right days to heavy_hitter_lottery", () => {
-    const configs = buildWeekScheduleDayConfigs("2026-06-09", "price_is_right", [
-      {
-        id: "sat",
-        date: "2026-06-13",
-        conductorMechanism: "r3_lottery",
-        conductorConfig: { paintTemplate: "price_is_right" },
-        vipMechanism: "conductor_pick",
-        vipConfig: null,
-      },
-    ]);
-    const saturday = configs.find((day) => day.date === "2026-06-13");
-    expect(saturday?.conductorMechanism).toBe("heavy_hitter_lottery");
-  });
-
-  it("keeps officer day overrides on Saturday TPIF as r3_lottery", () => {
-    const configs = buildWeekScheduleDayConfigs("2026-06-09", "price_is_right", [
-      {
-        id: "sat",
-        date: "2026-06-13",
-        conductorMechanism: "r3_lottery",
-        conductorConfig: { paintTemplate: "price_is_right_weekdays" },
-        vipMechanism: "conductor_pick",
-        vipConfig: null,
-        isOverride: 1,
-      },
-    ]);
-    const saturday = configs.find((day) => day.date === "2026-06-13");
-    expect(saturday?.conductorMechanism).toBe("r3_lottery");
-    expect(saturday?.paintTemplate).toBe("price_is_right_weekdays");
-  });
-
   it("returns seven days when DB has six rows and the last day is missing", () => {
     const weekStart = "2026-06-16";
-    const rows = [
-      {
-        id: "dc-1",
-        date: "2026-06-16",
-        conductorMechanism: "r3_lottery",
-        vipMechanism: "conductor_pick",
-        vipConfig: null,
-        isOverride: 0,
-      },
-      {
-        id: "dc-2",
-        date: "2026-06-17",
-        conductorMechanism: "r3_lottery",
-        vipMechanism: "conductor_pick",
-        vipConfig: null,
-        isOverride: 0,
-      },
-      {
-        id: "dc-3",
-        date: "2026-06-18",
-        conductorMechanism: "r3_lottery",
-        vipMechanism: "conductor_pick",
-        vipConfig: null,
-        isOverride: 0,
-      },
-      {
-        id: "dc-4",
-        date: "2026-06-19",
-        conductorMechanism: "r3_lottery",
-        vipMechanism: "conductor_pick",
-        vipConfig: null,
-        isOverride: 0,
-      },
-      {
-        id: "dc-5",
-        date: "2026-06-20",
-        conductorMechanism: "r3_lottery",
-        vipMechanism: "conductor_pick",
-        vipConfig: null,
-        isOverride: 0,
-      },
-      {
-        id: "dc-6",
-        date: "2026-06-21",
-        conductorMechanism: "r3_lottery",
-        vipMechanism: "conductor_pick",
-        vipConfig: null,
-        isOverride: 0,
-      },
-    ];
+    const rows = Array.from({ length: 6 }, (_, index) => ({
+      id: `dc-${index + 1}`,
+      date: `2026-06-${String(index + 16).padStart(2, "0")}`,
+      ...R3_WHEEL_ROW,
+    }));
 
-    const configs = buildWeekScheduleDayConfigs(
-      weekStart,
-      "vs_push_week",
-      rows,
-    );
+    const configs = buildWeekScheduleDayConfigs(weekStart, "vs_push_week", rows);
 
     expect(configs).toHaveLength(7);
     expect(configs.map((day) => day.date)).toEqual([
@@ -145,42 +85,48 @@ describe("buildWeekScheduleDayConfigs", () => {
 
   it("uses persisted rows only when all seven days exist in DB", () => {
     const weekStart = "2026-06-16";
-    const rows = Array.from({ length: 7 }, (_, index) => {
-      const day = index + 16;
-      return {
-        id: `dc-${index + 1}`,
-        date: `2026-06-${String(day).padStart(2, "0")}`,
-        conductorMechanism: "r3_lottery",
-        vipMechanism: "conductor_pick",
-        vipConfig: null,
-        isOverride: 0,
-      };
-    });
+    const rows = Array.from({ length: 7 }, (_, index) => ({
+      id: `dc-${index + 1}`,
+      date: `2026-06-${String(index + 16).padStart(2, "0")}`,
+      ...R3_WHEEL_ROW,
+    }));
 
-    const configs = buildWeekScheduleDayConfigs(
-      weekStart,
-      "vs_push_week",
-      rows,
-    );
+    const configs = buildWeekScheduleDayConfigs(weekStart, "vs_push_week", rows);
 
     expect(configs).toHaveLength(7);
     expect(configs.every((day) => !day.id.startsWith("preview-"))).toBe(true);
   });
 
-  it("reconciles non-override persisted rows with the active week template paint", () => {
+  it("keeps a persisted rule even when the row is not an override", () => {
+    // Regression: the week preset used to overwrite non-override rows, so any
+    // baseline / import path that left is_override = 0 displayed the preset
+    // instead of the rule actually stored for that day.
     const configs = buildWeekScheduleDayConfigs("2026-06-16", "price_is_right", [
       {
         id: "wed",
         date: "2026-06-18",
-        conductorMechanism: "vs_top_n",
-        conductorConfig: { paintTemplate: "top_vs", topN: 10 },
-        vipMechanism: "conductor_pick",
-        vipConfig: null,
+        conductorRule: { kind: "vs_top_n", topN: 10 },
+        vipRule: null,
         isOverride: 0,
       },
     ]);
     const wednesday = configs.find((day) => day.date === "2026-06-18");
-    expect(wednesday?.paintTemplate).toBe("price_is_right_weekdays");
-    expect(wednesday?.conductorMechanism).toBe("r3_lottery");
+    expect(wednesday?.conductorRule).toEqual({ kind: "vs_top_n", topN: 10 });
+    expect(wednesday?.id).toBe("wed");
+  });
+
+  it("treats an unparseable stored rule as free choice", () => {
+    const configs = buildWeekScheduleDayConfigs("2026-06-16", "vs_push_week", [
+      {
+        id: "mon",
+        date: "2026-06-16",
+        conductorRule: { kind: "vs_push_weekdays" },
+        vipRule: null,
+        isOverride: 1,
+      },
+    ]);
+    expect(
+      configs.find((day) => day.date === "2026-06-16")?.conductorRule,
+    ).toBeNull();
   });
 });

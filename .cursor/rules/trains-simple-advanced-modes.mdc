@@ -23,7 +23,7 @@ See also: [trains.mdc](./trains.mdc) for week templates, pools, RBAC, and schedu
 
 Steps `prerequisites`, `roster`, and `vip` are **skipped** when not applicable (no VS/PIF score requirement; no roster sync needed; VIP mechanism is `none`).
 
-The first row is **"This day's conductor pick"** (not "Week template") — informational only: today's **day** mechanism label + a **"Change pick"** link. It does **not** block on `schedulePersisted`. **Change pick** opens **`DayMechanismPickerDialog`** (`DAY_PAINT_TEMPLATES`) and must release any unlocked pending conductor/VIP draft. Whole-week changes stay on **`WeekTemplatePickerDialog`** (separate control — never from Change pick).
+The first row is **"This day's conductor pick"** (not "Week template") — informational only: today's **day** mechanism label + a **"Change pick"** link. It does **not** block on `schedulePersisted`. **Change pick** opens **`DayMechanismPickerDialog`** (`DAY_RULE_PALETTE`) and must release any unlocked pending conductor/VIP draft. Whole-week changes stay on **`WeekTemplatePickerDialog`** (separate control — never from Change pick).
 
 Each blocking step blocks until its prerequisite is satisfied. Canonical step logic lives in **`guided-flow.shared.ts`** (`currentGuidedStep`, `guidedFlowPrerequisitesBlocking`). Score readiness classification is in **`vs-data-status.shared.ts`** (`classifyVsDataNeed`, `buildVsDataStatus`). The UI component reads these; **do not duplicate step-gating logic in the component**.
 
@@ -109,7 +109,7 @@ Every action available in one mode must be reachable in the other:
 | Wheel blocked recovery | `src/components/trains/WheelBlockedDialog.tsx` |
 | Share preview | `src/components/trains/ConductorWheelSharePreviewDialog.tsx` |
 | Spin sources | `src/lib/trains/spin-source.shared.ts` |
-| Mechanism styles | `src/lib/trains/mechanism-styles.ts` |
+| Day-rule styles | `src/lib/trains/rules/palette.shared.ts` |
 
 ## Do not
 

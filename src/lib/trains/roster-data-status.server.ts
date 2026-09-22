@@ -8,6 +8,7 @@ import {
   classifyRosterNeed,
   type TrainsRosterDataStatus,
 } from "@/lib/trains/roster-data-status.shared";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import { countEligiblePoolMembers, countRankEligiblePoolMembers } from "@/lib/trains/service";
 
 export type { TrainsRosterDataStatus };
@@ -16,8 +17,7 @@ export async function loadTrainsRosterDataStatus(input: {
   sessionId: string;
   allianceId: string;
   trainDate: string;
-  conductorMechanism: string | null | undefined;
-  paintTemplate?: string | null;
+  rule: ConductorRule | null;
   activeMemberCount?: number;
 }): Promise<TrainsRosterDataStatus> {
   const activeMemberCount =
@@ -25,11 +25,7 @@ export async function loadTrainsRosterDataStatus(input: {
     (await loadActiveAlliancePoolMembers({ allianceId: input.allianceId }))
       .length;
 
-  const need = classifyRosterNeed({
-    conductorMechanism: input.conductorMechanism,
-    paintTemplate: input.paintTemplate,
-    date: input.trainDate,
-  });
+  const need = classifyRosterNeed({ rule: input.rule });
 
   let eligiblePoolCount = 0;
   let rankEligiblePoolCount = 0;
@@ -38,10 +34,7 @@ export async function loadTrainsRosterDataStatus(input: {
       hqAllianceId: input.allianceId,
       poolType: need.poolType,
       date: input.trainDate,
-      conductorMechanism: input.conductorMechanism,
-      paintTemplate: input.paintTemplate as Parameters<
-        typeof countEligiblePoolMembers
-      >[0]["paintTemplate"],
+      rule: input.rule,
     };
     [eligiblePoolCount, rankEligiblePoolCount] = await Promise.all([
       countEligiblePoolMembers(probe),

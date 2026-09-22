@@ -1,166 +1,95 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_ALLIANCE_TRAIN_WEEK } from "@/lib/trains/train-week-calendar.shared";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import {
-  isMemberEligibleForPaintRule,
   planPaintRuleConductorGates,
   shouldKeepAssignedConductorOnPaint,
 } from "@/lib/trains/paint-rule-conductor-gate.shared";
+import type { WeekConductorRecordSummary } from "@/lib/trains/conductor-record.shared";
 
-describe("isMemberEligibleForPaintRule", () => {
-  it("keeps an R3 member for Economy Week / R3 lottery", () => {
-    expect(
-      isMemberEligibleForPaintRule({
-        memberId: "m1",
-        onRoster: true,
-        allianceRank: 3,
-        conductorMechanism: "r3_lottery",
-        paintTemplate: "economy_week",
-        date: "2026-08-12",
-      }),
-    ).toBe(true);
-  });
+const R3_WHEEL: ConductorRule = { kind: "rank_pool", pool: "r3", draw: "wheel" };
+const R4: ConductorRule = { kind: "rank_pool", pool: "r4_plus", draw: "wheel" };
+const PIF_HH: ConductorRule = {
+  kind: "price_is_freight",
+  board: "heavy_hitter",
+};
 
-  it("rejects an R4 member for Economy Week", () => {
-    expect(
-      isMemberEligibleForPaintRule({
-        memberId: "m1",
-        onRoster: true,
-        allianceRank: 4,
-        conductorMechanism: "r3_lottery",
-        paintTemplate: "economy_week",
-        date: "2026-08-12",
-      }),
-    ).toBe(false);
-  });
-
-  it("keeps an R4 member for the R4 officer sequence", () => {
-    expect(
-      isMemberEligibleForPaintRule({
-        memberId: "m1",
-        onRoster: true,
-        allianceRank: 4,
-        conductorMechanism: "r4_sequence",
-        paintTemplate: "r4_train_week",
-        date: "2026-08-12",
-      }),
-    ).toBe(true);
-  });
-
-  it("keeps an on-roster member for Top VS without a live board", () => {
-    expect(
-      isMemberEligibleForPaintRule({
-        memberId: "m1",
-        onRoster: true,
-        allianceRank: 3,
-        conductorMechanism: "vs_top_n",
-        paintTemplate: "top_vs",
-        date: "2026-08-12",
-        conductorConfig: { topN: 10 },
-      }),
-    ).toBe(true);
-  });
-
-  it("keeps an on-roster member for Takedown / Saturday PIF without a live board", () => {
-    expect(
-      isMemberEligibleForPaintRule({
-        memberId: "m1",
-        onRoster: true,
-        allianceRank: 4,
-        conductorMechanism: "heavy_hitter_lottery",
-        paintTemplate: "takedown_week",
-        date: "2026-09-19",
-      }),
-    ).toBe(true);
-  });
-
-  it("rejects a departed member for Top VS", () => {
-    expect(
-      isMemberEligibleForPaintRule({
-        memberId: "m1",
-        onRoster: false,
-        allianceRank: 3,
-        conductorMechanism: "vs_top_n",
-        paintTemplate: "top_vs",
-        date: "2026-08-12",
-        conductorConfig: { topN: 10 },
-      }),
-    ).toBe(false);
-  });
-});
+function record(
+  overrides: Partial<WeekConductorRecordSummary> = {},
+): WeekConductorRecordSummary {
+  return {
+    id: "r1",
+    date: "2026-08-12",
+    conductorMemberId: "m1",
+    conductorMemberName: "Alice",
+    vipMemberId: null,
+    vipMemberName: null,
+    conductorRule: null,
+    vipRule: null,
+    conductorMechanism: null,
+    vipMechanism: null,
+    guardianIsVip: false,
+    lockedAt: null,
+    substituteForMemberId: null,
+    substituteForMemberName: null,
+    ...overrides,
+  };
+}
 
 describe("shouldKeepAssignedConductorOnPaint", () => {
-  it("keeps the assignment when the draw did not change", () => {
+  it("keeps the assignment when the rule did not change", () => {
     expect(
       shouldKeepAssignedConductorOnPaint({
-        drawChanged: false,
+        ruleChanged: false,
         memberId: "m1",
         onRoster: true,
         allianceRank: 4,
-        nextMechanism: "r3_lottery",
-        nextPaintTemplate: "economy_week",
-        date: "2026-08-12",
+        nextRule: R3_WHEEL,
       }),
     ).toBe(true);
   });
 
-  it("clears when the draw changed and the member is not eligible", () => {
+  it("clears when the rule changed and the member is provably ineligible", () => {
     expect(
       shouldKeepAssignedConductorOnPaint({
-        drawChanged: true,
+        ruleChanged: true,
         memberId: "m1",
         onRoster: true,
         allianceRank: 4,
-        nextMechanism: "r3_lottery",
-        nextPaintTemplate: "economy_week",
-        date: "2026-08-12",
+        nextRule: R3_WHEEL,
       }),
     ).toBe(false);
+  });
+
+  it("keeps the assignment when the new rule's board cannot be proven", () => {
+    expect(
+      shouldKeepAssignedConductorOnPaint({
+        ruleChanged: true,
+        memberId: "m1",
+        onRoster: true,
+        allianceRank: 1,
+        nextRule: { kind: "vs_top_n", topN: 1 },
+      }),
+    ).toBe(true);
   });
 });
 
 describe("planPaintRuleConductorGates", () => {
-  const trainWeekConfig = DEFAULT_ALLIANCE_TRAIN_WEEK;
-  const dayConfigs = [
-    {
-      id: "d1",
-      date: "2026-08-12",
-      conductorMechanism: "r4_sequence",
-      vipMechanism: "conductor_pick",
-      vipConfig: null,
-      isOverride: true,
-      paintTemplate: "r4_train_week" as const,
-    },
-  ];
-
   it("keeps a locked R3 conductor when painting another R3 rule", () => {
     const plan = planPaintRuleConductorGates({
       dates: ["2026-08-12"],
-      templateType: "economy_week",
-      trainWeekConfig,
-      weekTemplateApply: false,
+      nextRule: R3_WHEEL,
       dayConfigs: [
         {
-          ...dayConfigs[0]!,
-          conductorMechanism: "r3_lottery",
-          paintTemplate: "r3_recognition",
+          date: "2026-08-12",
+          conductorRule: { kind: "rank_pool", pool: "r3", draw: "manual" },
         },
       ],
       records: [
-        {
-          id: "r1",
-          date: "2026-08-12",
-          conductorMemberId: "m1",
-          conductorMemberName: "Alice",
-          vipMemberId: null,
-          vipMemberName: null,
-          conductorMechanism: "r3_lottery",
-          vipMechanism: "conductor_pick",
-          guardianIsVip: false,
+        record({
+          conductorRule: { kind: "rank_pool", pool: "r3", draw: "manual" },
           lockedAt: "2026-08-12T12:00:00.000Z",
-          substituteForMemberId: null,
-          substituteForMemberName: null,
-        },
+        }),
       ],
       roster: [{ memberId: "m1", allianceRank: 3 }],
       canUnlockConductor: false,
@@ -168,29 +97,12 @@ describe("planPaintRuleConductorGates", () => {
     expect(plan.blockers).toEqual([]);
   });
 
-  it("asks to clear a pending R4 conductor painted onto Economy Week", () => {
+  it("asks to clear a pending R4 conductor painted onto the R3 wheel", () => {
     const plan = planPaintRuleConductorGates({
       dates: ["2026-08-12"],
-      templateType: "economy_week",
-      trainWeekConfig,
-      weekTemplateApply: false,
-      dayConfigs,
-      records: [
-        {
-          id: "r1",
-          date: "2026-08-12",
-          conductorMemberId: "m1",
-          conductorMemberName: "Alice",
-          vipMemberId: null,
-          vipMemberName: null,
-          conductorMechanism: "r4_sequence",
-          vipMechanism: "conductor_pick",
-          guardianIsVip: false,
-          lockedAt: null,
-          substituteForMemberId: null,
-          substituteForMemberName: null,
-        },
-      ],
+      nextRule: R3_WHEEL,
+      dayConfigs: [{ date: "2026-08-12", conductorRule: R4 }],
+      records: [record({ conductorRule: R4 })],
       roster: [{ memberId: "m1", allianceRank: 4 }],
       canUnlockConductor: false,
     });
@@ -198,169 +110,49 @@ describe("planPaintRuleConductorGates", () => {
       expect.objectContaining({
         date: "2026-08-12",
         conductorName: "Alice",
-        locked: false,
         kind: "clear",
+        locked: false,
       }),
     ]);
   });
 
-  it("requests unlock when a locked ineligible conductor cannot be unlocked", () => {
+  it("asks to request an unlock when the officer cannot unlock the day", () => {
     const plan = planPaintRuleConductorGates({
       dates: ["2026-08-12"],
-      templateType: "economy_week",
-      trainWeekConfig,
-      weekTemplateApply: false,
-      dayConfigs,
+      nextRule: R3_WHEEL,
+      dayConfigs: [{ date: "2026-08-12", conductorRule: R4 }],
       records: [
-        {
-          id: "r1",
-          date: "2026-08-12",
-          conductorMemberId: "m1",
-          conductorMemberName: "Alice",
-          vipMemberId: null,
-          vipMemberName: null,
-          conductorMechanism: "r4_sequence",
-          vipMechanism: "conductor_pick",
-          guardianIsVip: false,
-          lockedAt: "2026-08-12T12:00:00.000Z",
-          substituteForMemberId: null,
-          substituteForMemberName: null,
-        },
+        record({ conductorRule: R4, lockedAt: "2026-08-12T12:00:00.000Z" }),
       ],
       roster: [{ memberId: "m1", allianceRank: 4 }],
       canUnlockConductor: false,
     });
-    expect(plan.blockers[0]?.kind).toBe("request_unlock");
+    expect(plan.blockers[0]).toEqual(
+      expect.objectContaining({ kind: "request_unlock", locked: true }),
+    );
   });
 
-  it("offers clear when the officer can unlock a locked ineligible conductor", () => {
+  it("does not gate a Saturday max-ticket paint over an on-roster conductor", () => {
+    // Regression: the max-ticket board is not knowable client-side, and
+    // treating that as ineligible pulled a valid conductor off the day.
     const plan = planPaintRuleConductorGates({
-      dates: ["2026-08-12"],
-      templateType: "economy_week",
-      trainWeekConfig,
-      weekTemplateApply: false,
-      dayConfigs,
-      records: [
-        {
-          id: "r1",
-          date: "2026-08-12",
-          conductorMemberId: "m1",
-          conductorMemberName: "Alice",
-          vipMemberId: null,
-          vipMemberName: null,
-          conductorMechanism: "r4_sequence",
-          vipMechanism: "conductor_pick",
-          guardianIsVip: false,
-          lockedAt: "2026-08-12T12:00:00.000Z",
-          substituteForMemberId: null,
-          substituteForMemberName: null,
-        },
-      ],
+      dates: ["2026-09-19"],
+      nextRule: PIF_HH,
+      dayConfigs: [{ date: "2026-09-19", conductorRule: R4 }],
+      records: [record({ date: "2026-09-19", conductorRule: R4 })],
       roster: [{ memberId: "m1", allianceRank: 4 }],
-      canUnlockConductor: true,
-    });
-    expect(plan.blockers[0]?.kind).toBe("clear");
-    expect(plan.blockers[0]?.locked).toBe(true);
-  });
-
-  it("offers clear when train ownership can unlock a locked ineligible conductor", () => {
-    const plan = planPaintRuleConductorGates({
-      dates: ["2026-08-12"],
-      templateType: "economy_week",
-      trainWeekConfig,
-      weekTemplateApply: false,
-      dayConfigs,
-      records: [
-        {
-          id: "r1",
-          date: "2026-08-12",
-          conductorMemberId: "m1",
-          conductorMemberName: "Alice",
-          vipMemberId: null,
-          vipMemberName: null,
-          conductorMechanism: "r4_sequence",
-          vipMechanism: "conductor_pick",
-          guardianIsVip: false,
-          lockedAt: "2026-08-12T12:00:00.000Z",
-          canUnlock: true,
-          substituteForMemberId: null,
-          substituteForMemberName: null,
-        },
-      ],
-      roster: [{ memberId: "m1", allianceRank: 4 }],
-      canUnlockConductor: false,
-    });
-    expect(plan.blockers[0]?.kind).toBe("clear");
-  });
-
-  it("does not block painting Top VS Top 10 over an assigned on-roster conductor", () => {
-    const plan = planPaintRuleConductorGates({
-      dates: ["2026-09-18"],
-      templateType: "top_vs",
-      trainWeekConfig,
-      weekTemplateApply: false,
-      topN: 10,
-      dayConfigs: [
-        {
-          date: "2026-09-18",
-          conductorMechanism: "vs_top_n",
-          paintTemplate: "top_vs",
-          conductorConfig: { topN: 1, paintTemplate: "top_vs" },
-          topN: 1,
-        },
-      ],
-      records: [
-        {
-          id: "r1",
-          date: "2026-09-18",
-          conductorMemberId: "m-jason",
-          conductorMemberName: "Jason19809",
-          vipMemberId: null,
-          vipMemberName: null,
-          conductorMechanism: "vs_top_n",
-          vipMechanism: "conductor_pick",
-          guardianIsVip: false,
-          lockedAt: null,
-          substituteForMemberId: null,
-          substituteForMemberName: null,
-        },
-      ],
-      roster: [{ memberId: "m-jason", allianceRank: 4 }],
       canUnlockConductor: false,
     });
     expect(plan.blockers).toEqual([]);
   });
 
-  it("does not block painting Takedown over an assigned on-roster conductor", () => {
+  it("ignores dates outside the paint", () => {
     const plan = planPaintRuleConductorGates({
-      dates: ["2026-09-19"],
-      templateType: "takedown_week",
-      trainWeekConfig,
-      weekTemplateApply: false,
-      dayConfigs: [
-        {
-          date: "2026-09-19",
-          conductorMechanism: "r3_lottery",
-          paintTemplate: "economy_week",
-        },
-      ],
-      records: [
-        {
-          id: "r1",
-          date: "2026-09-19",
-          conductorMemberId: "m1",
-          conductorMemberName: "Alice",
-          vipMemberId: null,
-          vipMemberName: null,
-          conductorMechanism: "r3_lottery",
-          vipMechanism: "conductor_pick",
-          guardianIsVip: false,
-          lockedAt: null,
-          substituteForMemberId: null,
-          substituteForMemberName: null,
-        },
-      ],
-      roster: [{ memberId: "m1", allianceRank: 3 }],
+      dates: ["2026-08-13"],
+      nextRule: R3_WHEEL,
+      dayConfigs: [{ date: "2026-08-12", conductorRule: R4 }],
+      records: [record({ conductorRule: R4 })],
+      roster: [{ memberId: "m1", allianceRank: 4 }],
       canUnlockConductor: false,
     });
     expect(plan.blockers).toEqual([]);

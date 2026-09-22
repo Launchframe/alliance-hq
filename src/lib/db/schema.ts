@@ -3198,10 +3198,12 @@ export const trainDayConfigs = pgTable(
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
     date: text("date").notNull(),
-    conductorMechanism: text("conductor_mechanism").notNull(),
-    conductorConfig: jsonb("conductor_config"),
-    vipMechanism: text("vip_mechanism"),
-    vipConfig: jsonb("vip_config"),
+    /** `ConductorRule | null` — null is free choice, not "unset". */
+    conductorRule: jsonb("conductor_rule"),
+    /** `VipRule | null` — null is the conductor's free pick. */
+    vipRule: jsonb("vip_rule"),
+    /** Which template painted this day. Provenance only — never a draw input. */
+    sourceTemplateKey: text("source_template_key"),
     isOverride: integer("is_override").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -3237,8 +3239,15 @@ export const trainConductorRecords = pgTable(
       { onDelete: "set null" },
     ),
     guardianIsVip: integer("guardian_is_vip").notNull().default(0),
+    /**
+     * Permanent history of the mechanism strings this ritual ran under.
+     * Retained after the rule migration — new code reads `conductorRule` /
+     * `vipRule`, but past conductors must stay auditable as recorded.
+     */
     conductorMechanism: text("conductor_mechanism"),
     vipMechanism: text("vip_mechanism"),
+    conductorRule: jsonb("conductor_rule"),
+    vipRule: jsonb("vip_rule"),
     dayConfigId: text("day_config_id").references(() => trainDayConfigs.id, {
       onDelete: "set null",
     }),

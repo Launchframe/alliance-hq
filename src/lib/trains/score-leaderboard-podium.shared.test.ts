@@ -6,89 +6,58 @@ import {
 } from "@/lib/trains/score-leaderboard-podium.shared";
 
 describe("resolveScoreLeaderboardKind", () => {
-  it("returns tpif for Price Is Freight paint", () => {
+  it("returns tpif for both Price Is Freight boards", () => {
     expect(
       resolveScoreLeaderboardKind({
-        paintTemplate: "price_is_right_weekdays",
-        conductorMechanism: "r3_lottery",
+        rule: { kind: "price_is_freight", board: "weekday" },
+      }),
+    ).toBe("tpif");
+    expect(
+      resolveScoreLeaderboardKind({
+        rule: { kind: "price_is_freight", board: "heavy_hitter" },
       }),
     ).toBe("tpif");
   });
 
-  it("returns vs_push for Top VS mechanism", () => {
+  it("returns vs_push for a Top VS board", () => {
     expect(
-      resolveScoreLeaderboardKind({
-        paintTemplate: "top_vs",
-        conductorMechanism: "vs_top_n",
-      }),
+      resolveScoreLeaderboardKind({ rule: { kind: "vs_top_n", topN: 10 } }),
     ).toBe("vs_push");
   });
 
-  it("returns vs_push for VS push week paint", () => {
+  it("returns donations for the top-donor rule", () => {
     expect(
-      resolveScoreLeaderboardKind({
-        paintTemplate: "vs_push_weekdays",
-        conductorMechanism: "r3_lottery",
-      }),
-    ).toBe("vs_push");
-  });
-
-  it("returns donations for donations week", () => {
-    expect(
-      resolveScoreLeaderboardKind({
-        paintTemplate: "donations_week",
-        conductorMechanism: "donations_top",
-      }),
+      resolveScoreLeaderboardKind({ rule: { kind: "donations_top" } }),
     ).toBe("donations");
   });
 
-  it("returns null when no score leaderboard applies", () => {
+  it("returns null for pool rules and free choice", () => {
     expect(
       resolveScoreLeaderboardKind({
-        paintTemplate: "economy_week",
-        conductorMechanism: "r3_lottery",
+        rule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
       }),
     ).toBeNull();
+    expect(resolveScoreLeaderboardKind({ rule: null })).toBeNull();
   });
 
-  it("inherits vs_push from score reference day under lead time", () => {
+  it("inherits vs_push from the score reference day under lead time", () => {
     expect(
       resolveScoreLeaderboardKind({
-        paintTemplate: "vs_push_week_lead_time",
-        conductorMechanism: "custom",
+        rule: null,
         trainDate: "2026-08-30",
         leadDays: 1,
-        scoreDateDay: {
-          conductorMechanism: "vs_top_10",
-          paintTemplate: "vs_push_weekdays",
-        },
+        scoreDayRule: { kind: "vs_top_n", topN: 10 },
       }),
     ).toBe("vs_push");
   });
 
-  it("inherits tpif when train day is painted eligible VS", () => {
+  it("keeps the train day's own board over the inherited one", () => {
     expect(
       resolveScoreLeaderboardKind({
-        paintTemplate: "price_is_right_weekdays",
-        conductorMechanism: "r3_lottery",
+        rule: { kind: "price_is_freight", board: "weekday" },
         trainDate: "2026-08-30",
         leadDays: 1,
-        scoreDateDay: {
-          conductorMechanism: "vs_top_10",
-          paintTemplate: "vs_push_weekdays",
-        },
-      }),
-    ).toBe("tpif");
-  });
-
-  it("prefers tpif from week template when day paint is still VS push", () => {
-    expect(
-      resolveScoreLeaderboardKind({
-        paintTemplate: "vs_push_weekdays",
-        conductorMechanism: "vs_top_10",
-        trainDate: "2026-08-26",
-        weekTemplateType: "price_is_right",
-        weekStart: "2026-08-25",
+        scoreDayRule: { kind: "vs_top_n", topN: 10 },
       }),
     ).toBe("tpif");
   });

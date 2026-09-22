@@ -25,8 +25,9 @@ async function fixture() {
   const roster = await createAllianceRosterMember(sql, { allianceId: alliance.allianceId, currentName: "Duty Member", allianceRank: 3 });
   await createHqMemberLink(sql, { allianceId: alliance.allianceId, hqUserId: member.hqUserId, ashedMemberId: roster.ashedMemberId, memberDisplayName: "Duty Member" });
   const date = addCalendarDays(getServerCalendarDate(), 2);
-  await sql`INSERT INTO train_day_configs (id, alliance_id, date, conductor_mechanism, conductor_config, vip_mechanism, is_override)
-    VALUES (${nanoid()}, ${alliance.allianceId}, ${date}, 'r3_lottery', '{"paintTemplate":"economy_week"}'::jsonb, 'none', 1)`;
+  await sql`INSERT INTO train_day_configs (id, alliance_id, date, conductor_rule, vip_rule, is_override)
+    VALUES (${nanoid()}, ${alliance.allianceId}, ${date},
+      '{"kind":"rank_pool","pool":"r3","draw":"wheel"}'::jsonb, '{"kind":"none"}'::jsonb, 1)`;
   await sql`INSERT INTO conductor_pool_entries (id, alliance_id, pool_type, generation, member_id, member_name, alliance_rank, sequence_position)
     VALUES (${nanoid()}, ${alliance.allianceId}, 'r3', 1, ${roster.ashedMemberId}, 'Duty Member', 3, 1)`;
   return { sql, alliance, officer, member, dataEntry, roster, date, actor };
