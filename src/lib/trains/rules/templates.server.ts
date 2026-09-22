@@ -28,6 +28,8 @@ export type RuleTemplate = {
   /** Hidden for this alliance (preset archive row, or own `archived_at`). */
   archived: boolean;
   sourceTemplateId: string | null;
+  /** Last four characters of the active share code; null when not shared. */
+  shareCodeHint: string | null;
   updatedAt: string;
 };
 
@@ -48,6 +50,9 @@ function mapRow(
       ? archivedPresetIds.has(row.id)
       : row.archivedAt != null,
     sourceTemplateId: row.sourceTemplateId,
+    // Only the hint is ever exposed — the code itself is returned once, at
+    // creation, and stored hashed.
+    shareCodeHint: row.shareCodeHash ? row.shareCodeHint : null,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -261,6 +266,9 @@ export async function archiveRuleTemplate(input: {
         .update(schema.trainRuleTemplates)
         .set({
           archivedAt: input.archived ? new Date() : null,
+          shareCodeHash: null,
+          shareCodeHint: null,
+          sharedAt: null,
           updatedAt: new Date(),
         })
         .where(

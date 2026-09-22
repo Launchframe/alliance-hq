@@ -60,6 +60,16 @@ Presets are seeded by `scripts/trains/seed-rule-templates.mjs` on every deploy (
 
 **Archiving never deletes rules.** A day keeps the rule painted onto it, so an archived template stops appearing in pickers without changing any schedule. Never hard-delete a template row.
 
+### Sharing
+
+An alliance template can carry one **share code** (`share_code_hash`, sha256 of the normalized code, like alliance join codes). Presets are not shareable — every alliance already has them.
+
+- The plaintext code is returned **once**, from `POST /api/trains/rule-templates/[id]/share`. Rotating issues a new one and invalidates the old; `DELETE` revokes.
+- **Import copies.** `POST /api/trains/rule-templates/import` writes a new row the importer owns, with `source_template_id` pointing at the original. The two diverge from then on, so revoking or editing later cannot reach into a schedule another alliance is already running.
+- Preview and import warnings run `validateTemplateWeekRules` against the **importer's** lead time. The same seven rules can be sound for the author and leave a wheel with nothing to draw from for the importer.
+- Slots are calendar weekdays, so there is no re-anchoring on import — the shape lands on the same days for everyone.
+- Never log the plaintext code. The audit records the hint only.
+
 Shipped preset shapes:
 
 | Preset | Shape |

@@ -3187,6 +3187,11 @@ export const trainRuleTemplates = pgTable(
     ),
     /** Set when this row was copied from another alliance's shared template. */
     sourceTemplateId: text("source_template_id"),
+    /** sha256 of the normalized share code. Null when not shared. */
+    shareCodeHash: text("share_code_hash").unique(),
+    /** Last four characters, so officers can recognize a code they sent. */
+    shareCodeHint: text("share_code_hint"),
+    sharedAt: timestamp("shared_at", { withTimezone: true }),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()

@@ -19,6 +19,7 @@ type RuleTemplate = {
   days: TemplateWeekRules;
   isPreset: boolean;
   archived: boolean;
+  shareCodeHint: string | null;
 };
 
 type EditorState =
@@ -57,6 +58,15 @@ export function AllianceTrainTemplatesSettings({
   const [editorError, setEditorError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editorBusy, setEditorBusy] = useState(false);
+  /** Plaintext share code, shown once after create/rotate. */
+  const [revealedCode, setRevealedCode] = useState<{
+    templateId: string;
+    code: string;
+  } | null>(null);
+  const [importCode, setImportCode] = useState("");
+  const [importBusy, setImportBusy] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importNotice, setImportNotice] = useState<string | null>(null);
 
   const ruleTextLabels = useMemo(() => {
     const labels: Record<string, string> = {};
@@ -140,6 +150,72 @@ export function AllianceTrainTemplatesSettings({
       setError(t("saveFailed"));
     } finally {
       setBusyId(null);
+    }
+  }
+
+  async function share(template: RuleTemplate, enable: boolean) {
+    setBusyId(template.id);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/trains/rule-templates/${template.id}/share`,
+        { method: enable ? "POST" : "DELETE" },
+      );
+      const body = (await res.json()) as { code?: string; error?: string };
+      if (!res.ok) {
+        setError(body.error ?? t("saveFailed"));
+        return;
+      }
+      setRevealedCode(
+        enable && body.code ? { templateId: template.id, code: body.code } : null,
+      );
+      await load();
+    } catch {
+      setError(t("saveFailed"));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function importTemplate() {
+    const code = importCode.trim();
+    if (!code) return;
+    setImportBusy(true);
+    setImportError(null);
+    setImportNotice(null);
+    try {
+      const res = await fetch("/api/trains/rule-templates/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const body = (await res.json()) as {
+        template?: { name: string };
+        warnings?: Array<{ weekday: string }>;
+        error?: string;
+        code?: string;
+      };
+      if (!res.ok) {
+        setImportError(
+          body.code === "already_imported"
+            ? t("alreadyImported")
+            : (body.error ?? t("importFailed")),
+        );
+        return;
+      }
+      setImportCode("");
+      // Warnings are computed against *our* lead time, so an import that was
+      // sound for the author can still need a look here.
+      setImportNotice(
+        body.warnings?.length
+          ? t("importedWithWarnings", { count: body.warnings.length })
+          : t("imported"),
+      );
+      await load();
+    } catch {
+      setImportError(t("importFailed"));
+    } finally {
+      setImportBusy(false);
     }
   }
 
@@ -304,6 +380,21 @@ export function AllianceTrainTemplatesSettings({
                       >
                         {t("copy")}
                       </button>
+                      {template.isPreset ? null : (
+                        <button
+                          type="button"
+                          disabled={busyId === template.id}
+                          data-testid={`trains-template-share-${template.id}`}
+                          onClick={() =>
+                            void share(template, template.shareCodeHint == null)
+                          }
+                          className="rounded-md border border-hq-border px-2 py-1 text-xs font-medium text-hq-fg hover:bg-hq-canvas disabled:opacity-50"
+                        >
+                          {template.shareCodeHint
+                            ? t("stopSharing")
+                            : t("share")}
+                        </button>
+                      )}
                       <button
                         type="button"
                         disabled={busyId === template.id}
@@ -318,6 +409,22 @@ export function AllianceTrainTemplatesSettings({
                     </div>
                   ) : null}
                 </div>
+
+                {revealedCode?.templateId === template.id ? (
+                  <p
+                    className="mt-2 rounded-md border border-cyan-500/40 bg-cyan-500/10 px-2 py-1.5 text-xs text-hq-fg"
+                    data-testid={`trains-template-share-code-${template.id}`}
+                  >
+                    {t("shareCodeOnce")}{" "}
+                    <code className="font-mono font-semibold">
+                      {revealedCode.code}
+                    </code>
+                  </p>
+                ) : template.shareCodeHint ? (
+                  <p className="mt-2 text-xs text-hq-fg-muted">
+                    {t("sharedAs", { hint: template.shareCodeHint })}
+                  </p>
+                ) : null}
 
                 <div className="mt-3">
                   <TemplateWeekShapeStrip
@@ -336,6 +443,53 @@ export function AllianceTrainTemplatesSettings({
             >
               {error}
             </p>
+          ) : null}
+
+          {canManage ? (
+            <div className="mt-5 border-t border-hq-border pt-4">
+              <p className="text-sm font-medium text-hq-fg">
+                {t("importTitle")}
+              </p>
+              <p className="mt-0.5 text-xs text-hq-fg-muted">
+                {t("importBody")}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <input
+                  value={importCode}
+                  onChange={(event) => setImportCode(event.target.value)}
+                  placeholder={t("importPlaceholder")}
+                  maxLength={32}
+                  disabled={importBusy}
+                  data-testid="trains-template-import-code"
+                  className="min-w-0 flex-1 rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 font-mono text-sm uppercase text-hq-fg disabled:opacity-50"
+                />
+                <button
+                  type="button"
+                  disabled={importBusy || importCode.trim().length === 0}
+                  data-testid="trains-template-import-submit"
+                  onClick={() => void importTemplate()}
+                  className="rounded-lg border border-hq-border px-3 py-2 text-sm font-medium text-hq-fg hover:bg-hq-canvas disabled:opacity-50"
+                >
+                  {importBusy ? t("importing") : t("import")}
+                </button>
+              </div>
+              {importError ? (
+                <p
+                  className="mt-2 text-sm text-hq-danger"
+                  data-testid="trains-template-import-error"
+                >
+                  {importError}
+                </p>
+              ) : null}
+              {importNotice ? (
+                <p
+                  className="mt-2 text-sm text-hq-fg-muted"
+                  data-testid="trains-template-import-notice"
+                >
+                  {importNotice}
+                </p>
+              ) : null}
+            </div>
           ) : null}
         </>
       )}
