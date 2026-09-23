@@ -340,6 +340,12 @@
     "copyToClipboard": "Copy to clipboard",
     "copyFailed": "Could not copy to clipboard."
   },
+  "relativeDateTime": {
+    "todayAt": "Today at {time}",
+    "yesterdayAt": "Yesterday at {time}",
+    "weekdayAt": "{weekday} at {time}",
+    "lastWeekday": "Last {weekday}"
+  },
   "language": {
     "label": "Language",
     "en-US": "English (US)",
@@ -1705,12 +1711,26 @@
     "approveFailed": "Could not approve the job.",
     "rejectFailed": "Could not reject the job.",
     "needsAttentionPlatformHint": "Needs a platform maintainer — retrying won't help.",
+    "statusDetailAria": "Show status details",
     "table": {
-      "time": "Uploaded",
+      "time": "Uploaded ({zone})",
       "uploadedBy": "Uploaded by",
       "target": "Target",
-      "file": "File",
       "actions": "Actions"
+    },
+    "targets": {
+      "desertStorm": "Desert Storm",
+      "canyonStorm": "Canyon Storm",
+      "allianceExercise": "Exercise",
+      "zombieSiege": "Zombie Siege",
+      "vsPerformance": "VS",
+      "donations": "Donations",
+      "allianceKillsVideo": "Kills",
+      "frontlineBreakthrough": "Frontline",
+      "seasonal": "Seasonal",
+      "allianceStar": "THP",
+      "memberRosterVideo": "Members",
+      "bankDepositSlipHistory": "Deposits"
     },
     "hqOcrOnlyScoreTargetLockedHint": "This video type always uses Alliance HQ in-house OCR."
   },

@@ -78,7 +78,7 @@ export function RecordDetailCard({
 }
 
 /**
- * Mobile: stacked record cards. md+: full data table (no horizontal scroll on narrow viewports).
+ * Mobile: stacked record cards. md+: desktop table, horizontally scrollable when needed.
  */
 export function ResponsiveRecordViews({
   emptyMessage,
@@ -109,7 +109,9 @@ export function ResponsiveRecordViews({
   return (
     <div className={cn("min-w-0", className)}>
       <div className="grid grid-cols-1 gap-3 md:hidden">{mobileCards}</div>
-      <div className="hidden md:block">{desktopTable}</div>
+      <div className="hidden min-w-0 max-w-full overflow-x-auto md:block">
+        {desktopTable}
+      </div>
     </div>
   );
 }

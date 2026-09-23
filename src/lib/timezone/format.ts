@@ -191,6 +191,72 @@ export function formatBrowserLocalDateTime(
   return withTimeZoneLabel(formatted, "local", date, timeZone);
 }
 
+function zonedCalendarYmd(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function calendarYmdToUtcDayNumber(ymd: string): number {
+  const [year, month, day] = ymd.split("-").map(Number);
+  return Date.UTC(year!, month! - 1, day!) / 86_400_000;
+}
+
+export type RelativeAccountDateTimeLabels = {
+  todayAt: (time: string) => string;
+  yesterdayAt: (time: string) => string;
+  weekdayAt: (weekday: string, time: string) => string;
+  lastWeekday: (weekday: string) => string;
+};
+
+/**
+ * Compact relative timestamps for tables: "Tuesday at 8:01 PM",
+ * "Last Wednesday". Timezone belongs on the column header, not each cell.
+ */
+export function formatRelativeAccountDateTime(
+  value: Date | string,
+  options: {
+    locale: string;
+    timezoneId?: AccountTimezoneId;
+    now?: Date;
+    labels: RelativeAccountDateTimeLabels;
+  },
+): string {
+  const {
+    locale,
+    timezoneId = DEFAULT_ACCOUNT_TIMEZONE_ID,
+    now = new Date(),
+    labels,
+  } = options;
+  const date = typeof value === "string" ? new Date(value) : value;
+  const timeZone = resolveAccountTimeZoneIana(
+    normalizeAccountTimezoneId(timezoneId),
+  );
+  const valueYmd = zonedCalendarYmd(date, timeZone);
+  const nowYmd = zonedCalendarYmd(now, timeZone);
+  const dayDiff =
+    calendarYmdToUtcDayNumber(nowYmd) - calendarYmdToUtcDayNumber(valueYmd);
+
+  const time = new Intl.DateTimeFormat(locale, {
+    timeZone,
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+  const weekday = new Intl.DateTimeFormat(locale, {
+    timeZone,
+    weekday: "long",
+  }).format(date);
+
+  if (dayDiff === 0) return labels.todayAt(time);
+  if (dayDiff === 1) return labels.yesterdayAt(time);
+  if (dayDiff >= 2 && dayDiff <= 6) return labels.weekdayAt(weekday, time);
+  if (dayDiff >= 7 && dayDiff <= 13) return labels.lastWeekday(weekday);
+  return formatAccountDate(date, { locale, timezoneId });
+}
+
 export function formatAccountDate(
   value: Date | string,
   options: {
