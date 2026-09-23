@@ -320,15 +320,11 @@ function clearConductorPicksWhenRuleChanges(
       !conductorRuleChanged(
         previousDay.conductorRule,
         nextRules.conductorRule,
-      )
+      ) &&
+      !conductorRuleChanged(record.conductorRule, nextRules.conductorRule)
     ) {
-      const snapshotStale = conductorRuleChanged(
-        record.conductorRule,
-        nextRules.conductorRule,
-      );
-      return snapshotStale ||
-        vipRuleIdentity(previousDay.vipRule) !==
-          vipRuleIdentity(nextRules.vipRule)
+      return vipRuleIdentity(previousDay.vipRule) !==
+        vipRuleIdentity(nextRules.vipRule)
         ? {
             ...record,
             conductorRule: nextRules.conductorRule,

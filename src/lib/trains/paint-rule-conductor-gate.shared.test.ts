@@ -9,6 +9,10 @@ import type { WeekConductorRecordSummary } from "@/lib/trains/conductor-record.s
 
 const R3_WHEEL: ConductorRule = { kind: "rank_pool", pool: "r3", draw: "wheel" };
 const R4: ConductorRule = { kind: "rank_pool", pool: "r4_plus", draw: "wheel" };
+const PIF_WEEKDAY: ConductorRule = {
+  kind: "price_is_freight",
+  board: "weekday",
+};
 const PIF_HH: ConductorRule = {
   kind: "price_is_freight",
   board: "heavy_hitter",
@@ -144,6 +148,24 @@ describe("planPaintRuleConductorGates", () => {
       canUnlockConductor: false,
     });
     expect(plan.blockers).toEqual([]);
+  });
+
+  it("asks to clear an R4 leftover when the day is already weekday Price Is Freight", () => {
+    const plan = planPaintRuleConductorGates({
+      dates: ["2026-08-12"],
+      nextRule: PIF_WEEKDAY,
+      dayConfigs: [{ date: "2026-08-12", conductorRule: PIF_WEEKDAY }],
+      records: [record({ conductorRule: R4 })],
+      roster: [{ memberId: "m1", allianceRank: 4 }],
+      canUnlockConductor: false,
+    });
+    expect(plan.blockers).toEqual([
+      expect.objectContaining({
+        date: "2026-08-12",
+        kind: "clear",
+        locked: false,
+      }),
+    ]);
   });
 
   it("ignores dates outside the paint", () => {

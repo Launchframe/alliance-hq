@@ -7,16 +7,21 @@ import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { loadAllianceTrainLeadTimeSettings } from "@/lib/trains/alliance-train-lead-time.server";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { conductorLockBlockedByPendingConfirmation } from "@/lib/trains/conductor-record.shared";
+import { loadActiveAlliancePoolMembers } from "@/lib/members/game-roster";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import {
   getConductorRecord,
+  restampConductorRules,
   upsertConductorDraft,
 } from "@/lib/trains/repository";
 import {
   encodeLegacyConductorMechanism,
   encodeLegacyVipMechanism,
 } from "@/lib/trains/rules/encode.shared";
-import { getMemberRankAsOf } from "@/lib/trains/rank-history";
+import { conductorRuleChanged } from "@/lib/trains/conductor-mechanism.shared";
+import { parseConductorRule } from "@/lib/trains/rules/catalog.shared";
+import { shouldKeepAssignedConductorOnPaint } from "@/lib/trains/paint-rule-conductor-gate.shared";
+import { getMemberRankAsOf, resolveMemberAllianceRankAsOf } from "@/lib/trains/rank-history";
 import { maybeAnnounceTrainReady } from "@/lib/trains/discord-bot.server";
 import {
   getServerCalendarDate,
@@ -58,17 +63,17 @@ async function post(request: Request) {
     const seasonKey = (await getEffectiveSeasonForAlliance(ctx.allianceId))
       .seasonKey;
     let record = await getConductorRecord(ctx.allianceId, date, seasonKey);
+    const dayConfig = await resolveRollDayConfig(
+      ctx.allianceId,
+      date,
+      seasonKey,
+    );
 
     if (body.memberId && body.memberName && record?.conductorMemberId !== body.memberId) {
       const rankEvent = await getMemberRankAsOf(
         ctx.allianceId,
         body.memberId,
         date,
-      );
-      const dayConfig = await resolveRollDayConfig(
-        ctx.allianceId,
-        date,
-        seasonKey,
       );
       record = await upsertConductorDraft({
         allianceId: ctx.allianceId,
@@ -85,6 +90,40 @@ async function post(request: Request) {
         vipMechanism: encodeLegacyVipMechanism(dayConfig.vipRule),
         dayConfigId: dayConfig.dayConfigId,
       });
+    } else if (
+      record?.conductorMemberId &&
+      conductorRuleChanged(
+        parseConductorRule(record.conductorRule),
+        dayConfig.conductorRule,
+      )
+    ) {
+      const roster = await loadActiveAlliancePoolMembers({
+        allianceId: ctx.allianceId,
+      });
+      const resolved = await resolveMemberAllianceRankAsOf(
+        ctx.allianceId,
+        record.conductorMemberId,
+        date,
+      );
+      const keep = shouldKeepAssignedConductorOnPaint({
+        ruleChanged: true,
+        memberId: record.conductorMemberId,
+        onRoster: roster.some(
+          (member) => member.ashedMemberId === record!.conductorMemberId,
+        ),
+        allianceRank: resolved.rank,
+        nextRule: dayConfig.conductorRule,
+      });
+      if (keep) {
+        const restamped = await restampConductorRules({
+          allianceId: ctx.allianceId,
+          date,
+          seasonKey,
+          conductorRule: dayConfig.conductorRule,
+          vipRule: dayConfig.vipRule,
+        });
+        if (restamped) record = restamped;
+      }
     }
 
     if (!record) {

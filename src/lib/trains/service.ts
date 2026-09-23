@@ -1058,6 +1058,19 @@ export async function applyPaint(
         ),
   );
 
+  const pendingPaints: Array<{
+    date: string;
+    seasonKey: string;
+    paintedConfig: DayConfigInput;
+    mergedRules: { conductorRule: ConductorRule | null; vipRule: VipRule | null };
+    previousVipRule: VipRule | null;
+    scheduleId: string;
+    record: Awaited<ReturnType<typeof getConductorRecord>>;
+    conductorChanged: boolean;
+    snapshotMismatch: boolean;
+    keepAssigned: boolean;
+  }> = [];
+
   for (const date of uniqueDates) {
     const weekStart = getTrainWeekStart(date, trainWeekConfig);
     const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
@@ -1104,7 +1117,7 @@ export async function applyPaint(
         date,
       );
       keepAssigned = shouldKeepAssignedConductorOnPaint({
-        ruleChanged: conductorChanged,
+        ruleChanged: conductorChanged || snapshotMismatch,
         memberId: record.conductorMemberId,
         onRoster: activeMemberIds.has(record.conductorMemberId),
         allianceRank: resolved.rank,
@@ -1115,7 +1128,34 @@ export async function applyPaint(
       }
     }
 
-    await upsertDayConfigOverride(allianceId, schedule.id, paintedConfig, true);
+    pendingPaints.push({
+      date,
+      seasonKey,
+      paintedConfig,
+      mergedRules,
+      previousVipRule: previousDayConfig.vipRule,
+      scheduleId: schedule.id,
+      record,
+      conductorChanged,
+      snapshotMismatch,
+      keepAssigned,
+    });
+  }
+
+  for (const paint of pendingPaints) {
+    const {
+      date,
+      paintedConfig,
+      mergedRules,
+      previousVipRule,
+      scheduleId,
+      record,
+      conductorChanged,
+      snapshotMismatch,
+      keepAssigned,
+    } = paint;
+
+    await upsertDayConfigOverride(allianceId, scheduleId, paintedConfig, true);
 
     if (record?.conductorMemberId && (conductorChanged || snapshotMismatch)) {
       if (keepAssigned) {
@@ -1141,7 +1181,7 @@ export async function applyPaint(
       await clearVipAssignment(allianceId, date, seasonKey);
     } else if (
       record &&
-      vipRuleIdentity(previousDayConfig.vipRule) !==
+      vipRuleIdentity(previousVipRule) !==
         vipRuleIdentity(mergedRules.vipRule)
     ) {
       await restampConductorRules({

@@ -34,13 +34,29 @@ vi.mock("@/lib/game-season/sync", () => ({
 vi.mock("@/lib/trains/repository", () => ({
   getConductorRecord: vi.fn(),
   lockConductorRecord: vi.fn(),
+  restampConductorRules: vi.fn(),
   upsertConductorDraft: vi.fn(),
+}));
+
+vi.mock("@/lib/trains/day-config-resolve.server", () => ({
+  resolveRollDayConfig: vi.fn().mockResolvedValue({
+    conductorRule: null,
+    vipRule: null,
+    dayConfigId: "dc-1",
+  }),
+}));
+
+vi.mock("@/lib/members/game-roster", () => ({
+  loadActiveAlliancePoolMembers: vi.fn().mockResolvedValue([
+    { ashedMemberId: "mem-1" },
+  ]),
 }));
 
 vi.mock("@/lib/trains/boarding.server", async () => ({ lockConductorWithBoarding: (await import("@/lib/trains/repository")).lockConductorRecord }));
 
 vi.mock("@/lib/trains/rank-history", () => ({
   getMemberRankAsOf: vi.fn().mockResolvedValue({ id: "rank-1" }),
+  resolveMemberAllianceRankAsOf: vi.fn().mockResolvedValue({ rank: 4 }),
 }));
 
 vi.mock("@/lib/trains/discord-bot.server", () => ({
@@ -177,5 +193,72 @@ describe("conductor lock POST", () => {
         locale: "pt-BR",
       }),
     );
+  });
+
+  it("restamps a leftover snapshot on lock when the member is eligible today", async () => {
+    const { getConductorRecord, lockConductorRecord, restampConductorRules } =
+      await import("@/lib/trains/repository");
+    const { resolveRollDayConfig } = await import(
+      "@/lib/trains/day-config-resolve.server"
+    );
+    vi.mocked(resolveRollDayConfig).mockResolvedValueOnce({
+      conductorRule: null,
+      vipRule: { kind: "none" },
+      dayConfigId: "dc-1",
+    } as never);
+    vi.mocked(getConductorRecord).mockResolvedValue({
+      ...LOCKED_RECORD,
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+    } as never);
+    vi.mocked(restampConductorRules).mockResolvedValue({
+      ...LOCKED_RECORD,
+      conductorRule: null,
+    } as never);
+    vi.mocked(lockConductorRecord).mockResolvedValue(LOCKED_RECORD as never);
+
+    const res = await POST(
+      new Request("http://localhost/api/trains/conductor/lock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: "2026-08-10", announce: false }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(restampConductorRules).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conductorRule: null,
+        vipRule: { kind: "none" },
+      }),
+    );
+  });
+
+  it("does not restamp an ineligible leftover onto weekday Price Is Freight at lock", async () => {
+    const { getConductorRecord, lockConductorRecord, restampConductorRules } =
+      await import("@/lib/trains/repository");
+    const { resolveRollDayConfig } = await import(
+      "@/lib/trains/day-config-resolve.server"
+    );
+    vi.mocked(resolveRollDayConfig).mockResolvedValueOnce({
+      conductorRule: { kind: "price_is_freight", board: "weekday" },
+      vipRule: null,
+      dayConfigId: "dc-1",
+    } as never);
+    vi.mocked(getConductorRecord).mockResolvedValue({
+      ...LOCKED_RECORD,
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+    } as never);
+    vi.mocked(lockConductorRecord).mockResolvedValue(LOCKED_RECORD as never);
+
+    const res = await POST(
+      new Request("http://localhost/api/trains/conductor/lock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: "2026-08-10", announce: false }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(restampConductorRules).not.toHaveBeenCalled();
   });
 });
