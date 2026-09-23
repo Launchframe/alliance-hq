@@ -1058,6 +1058,19 @@ export async function applyPaint(
         ),
   );
 
+  const pendingPaints: Array<{
+    date: string;
+    seasonKey: string;
+    paintedConfig: DayConfigInput;
+    mergedRules: { conductorRule: ConductorRule | null; vipRule: VipRule | null };
+    previousVipRule: VipRule | null;
+    scheduleId: string;
+    record: Awaited<ReturnType<typeof getConductorRecord>>;
+    conductorChanged: boolean;
+    snapshotMismatch: boolean;
+    keepAssigned: boolean;
+  }> = [];
+
   for (const date of uniqueDates) {
     const weekStart = getTrainWeekStart(date, trainWeekConfig);
     const schedule = await getWeekSchedule(allianceId, weekStart, seasonKey);
@@ -1082,47 +1095,70 @@ export async function applyPaint(
       vipRule: mergedRules.vipRule,
       sourceTemplateId: input.sourceTemplateId ?? null,
     };
-    await upsertDayConfigOverride(allianceId, schedule.id, paintedConfig, true);
 
     const conductorChanged = conductorRuleChanged(
       previousDayConfig.conductorRule,
       mergedRules.conductorRule,
     );
-
-    if (!conductorChanged) {
-      if (
-        vipRuleIdentity(previousDayConfig.vipRule) !==
-        vipRuleIdentity(mergedRules.vipRule)
-      ) {
-        const record = await getConductorRecord(allianceId, date, seasonKey);
-        if (record) {
-          await restampConductorRules({
-            allianceId,
-            date,
-            seasonKey,
-            conductorRule: mergedRules.conductorRule,
-            vipRule: mergedRules.vipRule,
-          });
-        }
-      }
-      continue;
-    }
-
     const record = await getConductorRecord(allianceId, date, seasonKey);
-    if (record?.conductorMemberId) {
+    const snapshotMismatch = Boolean(
+      record?.conductorMemberId &&
+        conductorRuleChanged(
+          parseConductorRule(record.conductorRule),
+          mergedRules.conductorRule,
+        ),
+    );
+
+    let keepAssigned = true;
+    if (record?.conductorMemberId && (conductorChanged || snapshotMismatch)) {
       const resolved = await resolveMemberAllianceRankAsOf(
         allianceId,
         record.conductorMemberId,
         date,
       );
-      const keep = shouldKeepAssignedConductorOnPaint({
-        ruleChanged: true,
+      keepAssigned = shouldKeepAssignedConductorOnPaint({
+        ruleChanged: conductorChanged || snapshotMismatch,
         memberId: record.conductorMemberId,
         onRoster: activeMemberIds.has(record.conductorMemberId),
         allianceRank: resolved.rank,
         nextRule: mergedRules.conductorRule,
       });
-      if (keep) {
+      if (!keepAssigned && record.lockedAt) {
+        throw new LockedDayPaintBlockedError(date, record.conductorMemberName);
+      }
+    }
+
+    pendingPaints.push({
+      date,
+      seasonKey,
+      paintedConfig,
+      mergedRules,
+      previousVipRule: previousDayConfig.vipRule,
+      scheduleId: schedule.id,
+      record,
+      conductorChanged,
+      snapshotMismatch,
+      keepAssigned,
+    });
+  }
+
+  for (const paint of pendingPaints) {
+    const {
+      date,
+      paintedConfig,
+      mergedRules,
+      previousVipRule,
+      scheduleId,
+      record,
+      conductorChanged,
+      snapshotMismatch,
+      keepAssigned,
+    } = paint;
+
+    await upsertDayConfigOverride(allianceId, scheduleId, paintedConfig, true);
+
+    if (record?.conductorMemberId && (conductorChanged || snapshotMismatch)) {
+      if (keepAssigned) {
         await restampConductorRules({
           allianceId,
           date,
@@ -1130,16 +1166,31 @@ export async function applyPaint(
           conductorRule: mergedRules.conductorRule,
           vipRule: mergedRules.vipRule,
         });
-      } else if (record.lockedAt) {
-        throw new LockedDayPaintBlockedError(date, record.conductorMemberName);
       } else {
         await clearConductorAssignment(allianceId, date, seasonKey);
         if (record.vipMemberId) {
           await clearVipAssignment(allianceId, date, seasonKey);
         }
       }
-    } else if (record && !record.lockedAt && record.vipMemberId) {
+    } else if (
+      record &&
+      !record.lockedAt &&
+      record.vipMemberId &&
+      conductorChanged
+    ) {
       await clearVipAssignment(allianceId, date, seasonKey);
+    } else if (
+      record &&
+      vipRuleIdentity(previousVipRule) !==
+        vipRuleIdentity(mergedRules.vipRule)
+    ) {
+      await restampConductorRules({
+        allianceId,
+        date,
+        seasonKey,
+        conductorRule: mergedRules.conductorRule,
+        vipRule: mergedRules.vipRule,
+      });
     }
   }
 

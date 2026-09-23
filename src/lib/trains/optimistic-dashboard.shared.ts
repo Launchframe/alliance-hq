@@ -320,7 +320,8 @@ function clearConductorPicksWhenRuleChanges(
       !conductorRuleChanged(
         previousDay.conductorRule,
         nextRules.conductorRule,
-      )
+      ) &&
+      !conductorRuleChanged(record.conductorRule, nextRules.conductorRule)
     ) {
       return vipRuleIdentity(previousDay.vipRule) !==
         vipRuleIdentity(nextRules.vipRule)

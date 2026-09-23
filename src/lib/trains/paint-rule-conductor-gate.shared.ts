@@ -68,10 +68,9 @@ export function planPaintRuleConductorGates(input: {
     if (!dateSet.has(record.date) || !record.conductorMemberId) continue;
 
     const previousDay = input.dayConfigs.find((day) => day.date === record.date);
-    const ruleChanged = conductorRuleChanged(
-      previousDay?.conductorRule ?? record.conductorRule ?? null,
-      input.nextRule,
-    );
+    const ruleChanged =
+      conductorRuleChanged(previousDay?.conductorRule ?? null, input.nextRule) ||
+      conductorRuleChanged(record.conductorRule, input.nextRule);
 
     const rosterRow = rosterById.get(record.conductorMemberId);
     const keep = shouldKeepAssignedConductorOnPaint({
