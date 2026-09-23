@@ -1,3 +1,8 @@
+import type {
+  ConductorRule,
+  VipRule,
+} from "@/lib/trains/rules/catalog.shared";
+
 export type ConductorNominationStatus =
   | "awaiting_scores"
   | "pending_confirmation"
@@ -34,6 +39,10 @@ export type WeekConductorRecordSummary = {
   conductorMemberName: string | null;
   vipMemberId: string | null;
   vipMemberName: string | null;
+  /** Rule this pick was made under — drives "is this still today's pick". */
+  conductorRule: ConductorRule | null;
+  vipRule: VipRule | null;
+  /** Legacy mechanism snapshot, retained for history display. */
   conductorMechanism: string | null;
   vipMechanism: string | null;
   guardianIsVip: boolean;

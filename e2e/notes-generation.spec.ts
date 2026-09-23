@@ -20,13 +20,13 @@ async function indexed(request: APIRequestContext, auth: ReturnType<typeof authC
   }
   throw new Error("Index did not complete");
 }
-async function finish(request: APIRequestContext, headers: Record<string, string>, id: string): Promise<GenerationResult> {
+async function finish(request: APIRequestContext, headers: Record<string, string>, id: string, allowRunning = false): Promise<GenerationResult> {
   for (let at = 0; at < 35; at++) {
     const response = await request.get(`/api/notes/generation/${id}`, { headers });
     expect(response.status()).toBe(200);
     const job = await response.json();
     if (job.state === "ready") return job;
-    expect(job.state).toBe("pending");
+    expect(allowRunning ? ["pending", "running"] : ["pending"]).toContain(job.state);
     expect((await request.post(`/api/notes/generation/${id}/process`, { headers })).status()).toBe(200);
   }
   throw new Error("Generation did not complete");
@@ -66,7 +66,12 @@ test("questions and stored conversation context stop replaying withdrawn evidenc
   const source = await indexed(request, authCookieHeader(author));
   const ask = async (threadId?: string) => request.post("/api/notes/generation", { headers: source.headers, data: { kind: "ask", locale: "en-US", question: "What should we do about Zenith?", threadId, requestId: nanoid() } });
   const first = await ask(); expect(first.status()).toBe(200);
-  const job = await finish(request, source.headers, (await first.json()).jobId);
+  const { jobId } = await first.json();
+  const sql = getE2eSql();
+  await sql`UPDATE knowledge_generation_jobs SET state = 'running', lease_token = 'expired-worker', lease_expires_at = now() - interval '1 second', attempts = 1, version = version + 1 WHERE id = ${jobId}`;
+  const job = await finish(request, source.headers, jobId, true);
+  const [stored] = await sql`SELECT turn_count, active_job_id FROM officer_intel_threads WHERE id = ${job.threadId}`;
+  expect(stored).toMatchObject({ turn_count: 1, active_job_id: null });
   expect(job.parts.every((part) => part.sections.every((section) => section.citations.length))).toBe(true);
   const next = await ask(job.threadId!); expect(next.status()).toBe(200);
   const continued = await finish(request, source.headers, (await next.json()).jobId);

@@ -1,4 +1,5 @@
 import "server-only";
+import { lockConductorWithBoarding as lockConductorRecord } from "./boarding.server";
 
 import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import type { DiscordBotLocale } from "@/lib/discord/i18n";
@@ -7,7 +8,6 @@ import { postDiscordChannelMessage } from "@/lib/discord/post-message.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import {
   getConductorRecord,
-  lockConductorRecord,
   claimConductorDepartingSoonAnnounced,
   clearConductorDepartingSoonAnnounced,
 } from "@/lib/trains/repository";

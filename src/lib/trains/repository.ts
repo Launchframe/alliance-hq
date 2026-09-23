@@ -7,11 +7,27 @@ import { assertDutyCoverage, CoverageConflictError, findCoverageConflicts, recor
 import { resolveConductorLastConductedDate } from "@/lib/trains/conductor-stats.shared";
 import { getServerCalendarDate } from "@/lib/trains/game-time";
 import { releasePoolSelectionForDate } from "@/lib/trains/pool";
-import type { DayConfigInput, WeekTemplateType } from "@/lib/trains/types";
+import type {
+  ConductorRule,
+  VipRule,
+} from "@/lib/trains/rules/catalog.shared";
+import {
+  encodeLegacyConductorMechanism,
+  encodeLegacyVipMechanism,
+} from "@/lib/trains/rules/encode.shared";
+import { scheduleWeekStart } from "@/lib/trains/train-week-calendar.shared";
+import type { DayConfigInput } from "@/lib/trains/types";
 
 const TRAIN_CAR_COUNT = 5;
 const SLOTS_PER_CAR = 6;
 
+/**
+ * Week schedule rows are keyed by the **Monday** calendar week.
+ *
+ * `trainWeekStartDow` is a display preference, so callers pass whatever week
+ * start they render with and the key is normalized here. Changing the
+ * preference must never repoint an alliance at a different schedule row.
+ */
 export async function getWeekSchedule(
   allianceId: string,
   weekStart: string,
@@ -24,7 +40,10 @@ export async function getWeekSchedule(
     .where(
       and(
         eq(schema.trainWeekSchedules.allianceId, allianceId),
-        eq(schema.trainWeekSchedules.weekStart, weekStart),
+        eq(
+          schema.trainWeekSchedules.weekStart,
+          scheduleWeekStart(weekStart),
+        ),
       ),
     )
     .limit(1);
@@ -65,7 +84,10 @@ export async function deleteWeekScheduleAndDayConfigs(
     .where(
       and(
         eq(schema.trainWeekSchedules.allianceId, allianceId),
-        eq(schema.trainWeekSchedules.weekStart, weekStart),
+        eq(
+          schema.trainWeekSchedules.weekStart,
+          scheduleWeekStart(weekStart),
+        ),
       ),
     )
     .returning({ id: schema.trainWeekSchedules.id });
@@ -79,7 +101,8 @@ export async function deleteWeekScheduleAndDayConfigs(
 export async function upsertWeekSchedule(input: {
   allianceId: string;
   weekStart: string;
-  templateType: WeekTemplateType;
+  /** Week template row applied to this week; null when painted ad hoc. */
+  templateId: string | null;
   seasonKey?: string | null;
   notes?: string | null;
   isPivot?: boolean;
@@ -95,23 +118,23 @@ export async function upsertWeekSchedule(input: {
     await db
       .update(schema.trainWeekSchedules)
       .set({
-        templateType: input.templateType,
+        templateId: input.templateId,
         notes: input.notes ?? null,
         isPivot: input.isPivot ? 1 : 0,
         ...(input.seasonKey ? { seasonKey: input.seasonKey } : {}),
         updatedAt: new Date(),
       })
       .where(eq(schema.trainWeekSchedules.id, existing.id));
-    return { ...existing, templateType: input.templateType };
+    return { ...existing, templateId: input.templateId };
   }
 
   const id = nanoid();
   await db.insert(schema.trainWeekSchedules).values({
     id,
     allianceId: input.allianceId,
-    weekStart: input.weekStart,
+    weekStart: scheduleWeekStart(input.weekStart),
     seasonKey: input.seasonKey ?? null,
-    templateType: input.templateType,
+    templateId: input.templateId,
     notes: input.notes ?? null,
     isPivot: input.isPivot ? 1 : 0,
   });
@@ -138,10 +161,9 @@ export async function replaceDayConfigs(
         weekScheduleId,
         allianceId,
         date: config.date,
-        conductorMechanism: config.conductorMechanism,
-        conductorConfig: config.conductorConfig ?? null,
-        vipMechanism: config.vipMechanism ?? null,
-        vipConfig: config.vipConfig ?? null,
+        conductorRule: config.conductorRule,
+        vipRule: config.vipRule,
+        sourceTemplateId: config.sourceTemplateId ?? null,
       })
       .onConflictDoUpdate({
         target: [
@@ -150,10 +172,9 @@ export async function replaceDayConfigs(
         ],
         set: {
           weekScheduleId,
-          conductorMechanism: config.conductorMechanism,
-          conductorConfig: config.conductorConfig ?? null,
-          vipMechanism: config.vipMechanism ?? null,
-          vipConfig: config.vipConfig ?? null,
+          conductorRule: config.conductorRule,
+          vipRule: config.vipRule,
+          sourceTemplateId: config.sourceTemplateId ?? null,
           isOverride: 0,
         },
       });
@@ -219,10 +240,9 @@ export async function upsertDayConfigOverride(
       weekScheduleId,
       allianceId,
       date: config.date,
-      conductorMechanism: config.conductorMechanism,
-      conductorConfig: config.conductorConfig ?? null,
-      vipMechanism: config.vipMechanism ?? null,
-      vipConfig: config.vipConfig ?? null,
+      conductorRule: config.conductorRule,
+      vipRule: config.vipRule,
+      sourceTemplateId: config.sourceTemplateId ?? null,
       isOverride: isOverride ? 1 : 0,
     })
     .onConflictDoUpdate({
@@ -232,10 +252,9 @@ export async function upsertDayConfigOverride(
       ],
       set: {
         weekScheduleId,
-        conductorMechanism: config.conductorMechanism,
-        conductorConfig: config.conductorConfig ?? null,
-        vipMechanism: config.vipMechanism ?? null,
-        vipConfig: config.vipConfig ?? null,
+        conductorRule: config.conductorRule,
+        vipRule: config.vipRule,
+        sourceTemplateId: config.sourceTemplateId ?? null,
         isOverride: isOverride ? 1 : 0,
       },
     });
@@ -406,6 +425,8 @@ export async function upsertConductorDraft(input: {
   vipRankEventId?: string | null;
   conductorMechanism?: string | null;
   vipMechanism?: string | null;
+  conductorRule?: ConductorRule | null;
+  vipRule?: VipRule | null;
   dayConfigId?: string | null;
   guardianIsVip?: number | null;
   substituteForMemberId?: string | null;
@@ -467,6 +488,12 @@ export async function upsertConductorDraft(input: {
         conductorMechanism:
           input.conductorMechanism ?? existing.conductorMechanism,
         vipMechanism: input.vipMechanism ?? existing.vipMechanism,
+        conductorRule:
+          input.conductorRule !== undefined
+            ? input.conductorRule
+            : existing.conductorRule,
+        vipRule:
+          input.vipRule !== undefined ? input.vipRule : existing.vipRule,
         dayConfigId: input.dayConfigId ?? existing.dayConfigId,
         guardianIsVip:
           input.guardianIsVip != null
@@ -528,6 +555,8 @@ export async function upsertConductorDraft(input: {
     vipRankEventId: input.vipRankEventId ?? null,
     conductorMechanism: input.conductorMechanism ?? null,
     vipMechanism: input.vipMechanism ?? null,
+    conductorRule: input.conductorRule ?? null,
+    vipRule: input.vipRule ?? null,
     dayConfigId: input.dayConfigId ?? null,
     guardianIsVip: input.guardianIsVip ?? 0,
     substituteForMemberId: input.substituteForMemberId ?? null,
@@ -601,12 +630,16 @@ export async function clearConductorAssignment(
   return cleared[0] ?? null;
 }
 
-export async function restampConductorMechanisms(input: {
+/**
+ * Re-stamp the rule a kept conductor now runs under after a repaint.
+ * Also refreshes the legacy mechanism columns, which stay as history.
+ */
+export async function restampConductorRules(input: {
   allianceId: string;
   date: string;
   seasonKey?: string | null;
-  conductorMechanism: string | null;
-  vipMechanism: string | null;
+  conductorRule: ConductorRule | null;
+  vipRule: VipRule | null;
   dayConfigId?: string | null;
 }): Promise<(typeof schema.trainConductorRecords.$inferSelect) | null> {
   const existing = await getConductorRecord(
@@ -620,8 +653,10 @@ export async function restampConductorMechanisms(input: {
   await db
     .update(schema.trainConductorRecords)
     .set({
-      conductorMechanism: input.conductorMechanism,
-      vipMechanism: input.vipMechanism,
+      conductorRule: input.conductorRule,
+      vipRule: input.vipRule,
+      conductorMechanism: encodeLegacyConductorMechanism(input.conductorRule),
+      vipMechanism: encodeLegacyVipMechanism(input.vipRule),
       dayConfigId:
         input.dayConfigId !== undefined
           ? input.dayConfigId
@@ -650,6 +685,7 @@ export async function assignVipOnLockedConductor(input: {
   vipMemberName: string;
   vipRankEventId?: string | null;
   vipMechanism?: string | null;
+  vipRule?: VipRule | null;
   dayConfigId?: string | null;
   guardianIsVip?: number | null;
   automaticDuty?: boolean;
@@ -678,6 +714,7 @@ export async function assignVipOnLockedConductor(input: {
       vipMemberName: input.vipMemberName,
       vipRankEventId: input.vipRankEventId ?? null,
       vipMechanism: input.vipMechanism ?? existing.vipMechanism,
+      vipRule: input.vipRule !== undefined ? input.vipRule : existing.vipRule,
       dayConfigId: input.dayConfigId ?? existing.dayConfigId,
       guardianIsVip:
         input.guardianIsVip != null

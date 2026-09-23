@@ -4,7 +4,6 @@ import { writeTrainsOfficerAudit } from "@/lib/bff/officer-action-audit.server";
 import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { withConductorPoolClaimLock } from "@/lib/trains/conductor-pool-claim-lock.server";
 import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
-import { effectiveConductorMechanism } from "@/lib/trains/conductor-mechanism.shared";
 import {
   ManualPickEligibilityError,
   depletingManualPickErrorMessage,
@@ -13,7 +12,6 @@ import {
   rankIneligibleManualPickMessage,
   shouldReleasePriorPoolSelection,
 } from "@/lib/trains/depleting-manual-pick.shared";
-import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
 import {
   getCurrentPoolGeneration,
   listPoolEntriesInGeneration,
@@ -30,10 +28,11 @@ import {
   upsertConductorDraft,
 } from "@/lib/trains/repository";
 import { ensureConductorPoolSeeded } from "@/lib/trains/service";
+import { conductorRulePoolType } from "@/lib/trains/rules/derive.shared";
 import {
-  conductorMechanismPoolType,
-  supportsManualConductorPick,
-} from "@/lib/trains/templates";
+  encodeLegacyConductorMechanism,
+  encodeLegacyVipMechanism,
+} from "@/lib/trains/rules/encode.shared";
 
 /**
  * Shared path for HQ web manual pick and Discord `/set-conductor`.
@@ -69,19 +68,12 @@ export async function applyManualConductorDraft(input: {
     input.date,
     seasonKey,
   );
-  const mechanism =
-    effectiveConductorMechanism(
-      dayConfig.conductorMechanism,
-      dayConfig.paintTemplate,
-      input.date,
-    ) ?? dayConfig.conductorMechanism;
-  if (!supportsManualConductorPick(mechanism)) {
-    throw new Error("Manual conductor pick is not allowed for this day.");
-  }
+  const rule = dayConfig.conductorRule;
+  const mechanism = encodeLegacyConductorMechanism(rule);
 
-  const depletingPool =
-    !usesPriceIsFreightConductorRoll(dayConfig.paintTemplate) &&
-    Boolean(conductorMechanismPoolType(mechanism));
+  // Price Is Freight draws with replacement, so a manual pick there must not
+  // consume a depleting slot.
+  const depletingPool = Boolean(conductorRulePoolType(rule));
 
   const rankEvent = await getMemberRankAsOf(
     input.allianceId,
@@ -90,7 +82,7 @@ export async function applyManualConductorDraft(input: {
   );
 
   const poolType: PoolType | null = depletingPool
-    ? conductorMechanismPoolType(mechanism)
+    ? conductorRulePoolType(rule)
     : null;
   const overrideConfirmed = officerConfirmedManualPickOverride(input);
 
@@ -118,8 +110,8 @@ export async function applyManualConductorDraft(input: {
         hqAllianceId: input.allianceId,
         poolType,
         date: input.date,
-        useSequence: mechanism === "r4_sequence",
-        paintTemplate: dayConfig.paintTemplate,
+        useSequence: rule?.kind === "rank_pool" && rule.pool === "r4_plus",
+        rule,
         respectConductorMinimums: false,
       });
       await withConductorPoolClaimLock(
@@ -204,7 +196,11 @@ export async function applyManualConductorDraft(input: {
     conductorMemberName: input.memberName,
     conductorRankEventId: rankEvent?.id ?? null,
     conductorMechanism: mechanism,
-    vipMechanism: dayConfig.vipMechanism ?? null,
+    vipMechanism: encodeLegacyVipMechanism(dayConfig.vipRule) ?? null,
+    // Snapshot today's rule so GET /schedule does not treat a successful
+    // pick as a ghost leftover from the previous paint.
+    conductorRule: rule,
+    vipRule: dayConfig.vipRule,
     dayConfigId: dayConfig.dayConfigId,
     conductorEligibilityOverridden: eligibilityOverridden ? 1 : 0,
     conductorEligibilityOverriddenAt: overrideAt,

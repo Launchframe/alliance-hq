@@ -69,21 +69,21 @@ describe("train-conductor-minimums", () => {
       conductorQualificationGateApplies({
         poolType: "r3",
         minimumsEnabled: true,
-        paintTemplate: "economy_week",
+        rule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
       }),
     ).toBe(false);
     expect(
       conductorQualificationGateApplies({
         poolType: "r3",
         minimumsEnabled: true,
-        paintTemplate: "price_is_right_weekdays",
+        rule: { kind: "price_is_freight", board: "weekday" },
       }),
     ).toBe(true);
     expect(
       conductorQualificationGateApplies({
         poolType: "heavy_hitter",
         minimumsEnabled: true,
-        paintTemplate: "takedown_week",
+        rule: { kind: "price_is_freight", board: "heavy_hitter" },
       }),
     ).toBe(true);
   });
@@ -103,13 +103,13 @@ describe("train-conductor-minimums", () => {
     expect(
       evaluationPeriodForTrainDate("2026-06-10", "daily", undefined, {
         leadDays: 1,
-        paintTemplate: "price_is_right",
+        rule: { kind: "price_is_freight", board: "weekday" },
       }),
     ).toEqual({ start: "2026-06-08", end: "2026-06-08" });
     expect(
       evaluationPeriodForTrainDate("2026-06-10", "daily", undefined, {
         leadDays: 0,
-        paintTemplate: "price_is_right",
+        rule: { kind: "price_is_freight", board: "weekday" },
       }),
     ).toEqual({ start: "2026-06-09", end: "2026-06-09" });
   });
@@ -180,7 +180,7 @@ describe("train-conductor-minimums", () => {
     const status = buildConductorMinimumsDataStatus({
       settings,
       trainDate: "2026-08-28",
-      paintTemplate: "price_is_right",
+      rule: { kind: "price_is_freight", board: "weekday" },
       leadDays: 1,
       vsScoreCount: 0,
     });
@@ -188,7 +188,7 @@ describe("train-conductor-minimums", () => {
     expect(status?.uploadScoreDate).toBe(
       evaluationPeriodForTrainDate("2026-08-28", "daily", undefined, {
         leadDays: 1,
-        paintTemplate: "price_is_right",
+        rule: { kind: "price_is_freight", board: "weekday" },
       }).start,
     );
   });

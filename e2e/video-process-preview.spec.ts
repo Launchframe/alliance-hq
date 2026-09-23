@@ -12,6 +12,11 @@ function e2eBaseUrl(): string {
 }
 
 test.describe("Video process preview", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addLocatorHandler(page.getByTestId("hq-release-notes-drawer"), async () => {
+      await page.getByTestId("hq-release-notes-dismiss").click();
+    });
+  });
   test("processor can load process-preview for a pending job", async ({
     request,
   }) => {
@@ -80,7 +85,7 @@ test.describe("Video process preview", () => {
     await page.goto(`/tools/video-upload?processJob=${jobId}`);
 
     const panel = page.getByTestId("video-process-after-upload-panel");
-    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Process this video?", exact: true })).toBeVisible();
     await expect(panel).toBeVisible();
     await expect(
       panel.getByRole("heading", { name: /Process this video\?/i }),
@@ -119,7 +124,7 @@ test.describe("Video process preview", () => {
 
     await panel.getByRole("button", { name: /Process now/i }).click();
 
-    const dialog = page.getByRole("dialog");
+    const dialog = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: /While you wait/i }) });
     await expect(dialog).toBeVisible();
     await expect(
       dialog.getByRole("heading", { name: /While you wait/i }),
@@ -197,7 +202,7 @@ test.describe("Video process preview", () => {
     await expect(page).toHaveURL(/\/tools\/video-upload/);
 
     const dialog = page.getByTestId("video-awaiting-approval-dialog");
-    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Awaiting approval", exact: true })).toBeVisible();
     await expect(dialog).toBeVisible();
     await expect(
       dialog.getByRole("heading", { name: /Awaiting approval/i }),

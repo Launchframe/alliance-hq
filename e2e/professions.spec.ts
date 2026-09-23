@@ -243,6 +243,24 @@ test.describe("Professions — War Leader Support", () => {
       page.getByText(/alliance-wide war leader coverage/i),
     ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("profession-pairing-import")).toBeVisible();
+    let officerCalls = 0;
+    let staleFinished = false;
+    let releaseStale: () => void = () => {};
+    await page.route("**/api/professions/officer", async (route) => {
+      officerCalls += 1;
+      if (officerCalls > 1) return route.fulfill({ status: 200, json: payload });
+      await new Promise<void>((resolve) => { releaseStale = resolve; });
+      try { await route.fulfill({ status: 503, json: { error: "Stale officer response" } }); } catch {}
+      staleFinished = true;
+    });
+    await page.goto("/professions?tab=officer");
+    await expect.poll(() => officerCalls).toBe(1);
+    await page.getByRole("button", { name: /^officer$/i }).click();
+    await expect(page.getByTestId("profession-pairing-import")).toBeVisible();
+    releaseStale();
+    await expect.poll(() => staleFinished).toBe(true);
+    await expect(page.getByRole("alert").filter({ hasText: "Stale officer response" })).toHaveCount(0);
+    await expect(page.getByTestId("profession-pairing-import")).toBeVisible();
   });
 
   test("officer previews pairing import; members cannot", async ({
@@ -321,6 +339,18 @@ test.describe("Professions — War Leader Support", () => {
     expect(applyJson.assigned).toBe(1);
     expect(applyJson.failed).toBe(0);
 
+    const { ashedMemberId } = await createHqMemberLink(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: officerSession.hqUserId,
+      memberDisplayName: "Import officer",
+    });
+    await seedProfessionCommander(sql, {
+      allianceId: alliance.allianceId,
+      hqUserId: officerSession.hqUserId,
+      ashedMemberId,
+      primaryName: "Import officer",
+      profession: "War Leader",
+    });
     await page.context().addCookies(playwrightAuthCookies(officerSession));
     await page.goto("/professions?tab=officer");
     await expect(page.getByTestId("profession-pairing-import")).toBeVisible({

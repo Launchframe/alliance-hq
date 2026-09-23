@@ -14,28 +14,37 @@ describe("scoreDateForTrainDay", () => {
 });
 
 describe("conductorSpinSourceForTrainDay", () => {
-  it("inherits VS top-N from the score reference day under lead time", () => {
+  it("keeps the painted Top 1 even when the score day is painted Top 10", () => {
     expect(
       conductorSpinSourceForTrainDay({
-        trainDate: "2026-08-28",
-        trainDay: { conductorMechanism: "vs_high_score" },
+        trainRule: { kind: "vs_top_n", topN: 1 },
         leadDays: 1,
-        scoreDateDay: { conductorMechanism: "vs_top_10" },
+        scoreDayRule: { kind: "vs_top_n", topN: 10 },
       }),
-    ).toEqual({ kind: "vs_leaderboard", topN: 10 });
+    ).toEqual({ kind: "vs_leaderboard", topN: 1 });
+  });
+
+  it("keeps the train day's own scope when there is no lead time", () => {
+    expect(
+      conductorSpinSourceForTrainDay({
+        trainRule: { kind: "vs_top_n", topN: 5 },
+        leadDays: 0,
+        scoreDayRule: { kind: "vs_top_n", topN: 10 },
+      }),
+    ).toEqual({ kind: "vs_leaderboard", topN: 5 });
   });
 
   it("keeps Price Is Freight as a non-pool raffle source", () => {
     expect(
       conductorSpinSourceForTrainDay({
-        trainDate: "2026-06-09",
-        trainDay: {
-          conductorMechanism: "r3_lottery",
-          paintTemplate: "price_is_right",
-        },
+        trainRule: { kind: "price_is_freight", board: "weekday" },
         leadDays: 1,
       }),
     ).toEqual({ kind: "price_is_right_raffle" });
+  });
+
+  it("has no source for free choice", () => {
+    expect(conductorSpinSourceForTrainDay({ trainRule: null })).toBeNull();
   });
 });
 
@@ -43,15 +52,24 @@ describe("resolveNominationTopBoard", () => {
   it("inherits VS scope for off-template days with lead time", () => {
     expect(
       resolveNominationTopBoard({
-        trainDate: "2026-08-30",
-        trainDay: { conductorMechanism: "custom" },
+        trainRule: null,
         leadDays: 1,
-        scoreDateDay: { conductorMechanism: "vs_top_10" },
+        scoreDayRule: { kind: "vs_top_n", topN: 10 },
       }),
-    ).toEqual({
-      kind: "vs",
-      topN: 10,
-      mechanism: "vs_top_10",
-    });
+    ).toEqual({ kind: "vs", topN: 10 });
+  });
+
+  it("reports the VR board from the train day's own rule", () => {
+    expect(
+      resolveNominationTopBoard({ trainRule: { kind: "vr_top_n", topN: 5 } }),
+    ).toEqual({ kind: "vr", topN: 5 });
+  });
+
+  it("has no board for pool rules", () => {
+    expect(
+      resolveNominationTopBoard({
+        trainRule: { kind: "rank_pool", pool: "r3", draw: "wheel" },
+      }),
+    ).toBeNull();
   });
 });

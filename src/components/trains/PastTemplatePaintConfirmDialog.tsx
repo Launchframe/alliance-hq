@@ -4,13 +4,11 @@ import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import type { WeekTemplateType } from "@/lib/trains/types";
 
 type Props = {
   open: boolean;
   dates: string[];
-  templateType: WeekTemplateType;
-  templateLabel: string;
+  ruleLabel: string;
   busy?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
@@ -19,7 +17,7 @@ type Props = {
 export function PastTemplatePaintConfirmDialog({
   open,
   dates,
-  templateLabel,
+  ruleLabel,
   busy = false,
   onConfirm,
   onCancel,
@@ -36,7 +34,7 @@ export function PastTemplatePaintConfirmDialog({
     >
       <div className="space-y-4">
         <p className="text-sm text-hq-fg-muted">
-          {t("body", { template: templateLabel, count: dates.length })}
+          {t("body", { template: ruleLabel, count: dates.length })}
         </p>
         <ul className="max-h-32 list-inside list-disc overflow-y-auto rounded-md border border-hq-border bg-hq-canvas p-2 text-xs text-[#c9d1d9]">
           {dates.map((date) => (

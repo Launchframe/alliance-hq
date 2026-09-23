@@ -17,7 +17,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-import { sql } from "drizzle-orm";
+import { isNull, sql } from "drizzle-orm";
 import type { KnowledgeOwnershipState, KnowledgeResourceKind, KnowledgeGrant } from "@/lib/notes/policy.shared";
 import type { NoteFields } from "@/lib/notes/workspace.shared";
 import type { IntakeResult } from "@/lib/notes/intake.shared";
@@ -242,6 +242,106 @@ export const ocrDatasetPartitions = pgTable("ocr_dataset_partitions", {
   split: text("split").$type<OcrSplit>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [primaryKey({ columns: [table.allianceId, table.fingerprint] })]);
+
+import type { CalendarEvent, CalendarSource } from "@/lib/calendar/types.shared";
+
+export const trainBoardingWindows = pgTable("train_boarding_windows", {
+  recordId: text("record_id").primaryKey().references(() => trainConductorRecords.id, { onDelete: "cascade" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  lockAt: timestamp("lock_at", { withTimezone: true }).notNull(),
+  status: text("status").notNull().default("pending"),
+  startsAt: timestamp("starts_at", { withTimezone: true }),
+  endsAt: timestamp("ends_at", { withTimezone: true }),
+  basis: text("basis"),
+  observedAt: timestamp("observed_at", { withTimezone: true }),
+  remainingSeconds: integer("remaining_seconds"),
+  version: integer("version").notNull().default(1),
+  requestId: text("request_id"),
+  requestHash: text("request_hash"),
+  actorId: text("actor_id"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("train_boarding_alliance_idx").on(t.allianceId, t.status)]);
+
+export const trainBoardingPrompts = pgTable("train_boarding_prompts", {
+  id: text("id").primaryKey(),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  recordId: text("record_id").notNull().references(() => trainConductorRecords.id, { onDelete: "cascade" }),
+  guildId: text("guild_id").notNull(),
+  discordUserId: text("discord_user_id").notNull(),
+  state: jsonb("state").$type<{ clockToken: string; version: number; serverNow: string; observedAt?: number; countdown?: string | null }>().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export const calendarPreferences = pgTable("calendar_preferences", {
+  hqUserId: text("hq_user_id").primaryKey().references(() => hqUsers.id, { onDelete: "cascade" }),
+  alerts: jsonb("alerts").$type<number[]>().notNull().default([]),
+  locale: text("locale").notNull().default("en-US"),
+  timezone: text("timezone").notNull().default("UTC"),
+  version: integer("version").notNull().default(1),
+});
+
+export const calendarAccounts = pgTable("calendar_accounts", {
+  id: text("id").primaryKey(),
+  hqUserId: text("hq_user_id").notNull().unique().references(() => hqUsers.id, { onDelete: "cascade" }),
+  subject: text("subject").notNull(),
+  email: text("email").notNull(),
+  refreshToken: text("refresh_token"),
+  accessToken: text("access_token"),
+  refreshLeaseToken: text("refresh_lease_token"),
+  refreshLeaseUntil: timestamp("refresh_lease_until", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  status: text("status").notNull().default("connected"),
+  version: integer("version").notNull().default(1),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const calendarOauthStates = pgTable("calendar_oauth_states", {
+  hash: text("hash").primaryKey(),
+  hqUserId: text("hq_user_id").notNull().references(() => hqUsers.id, { onDelete: "cascade" }),
+  secret: text("secret").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export const calendarTargets = pgTable("calendar_targets", {
+  id: text("id").primaryKey(),
+  hqUserId: text("hq_user_id").notNull().references(() => hqUsers.id, { onDelete: "cascade" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  sources: jsonb("sources").$type<CalendarSource[]>().notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  version: integer("version").notNull().default(1),
+  generation: integer("generation").notNull().default(1),
+  scanCursor: integer("scan_cursor").notNull().default(0),
+  creationUncertain: boolean("creation_uncertain").notNull().default(false),
+  feedHash: text("feed_hash").unique(),
+  feedSecret: text("feed_secret"),
+  remoteCalendarId: text("remote_calendar_id"),
+  accountId: text("account_id").references(() => calendarAccounts.id, { onDelete: "set null" }),
+  status: text("status").notNull().default("pending"),
+  cleanup: boolean("cleanup").notNull().default(false),
+  leaseToken: text("lease_token"),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  nextSyncAt: timestamp("next_sync_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+  lastFetchAt: timestamp("last_fetch_at", { withTimezone: true }),
+  failureCount: integer("failure_count").notNull().default(0),
+}, (t) => [unique("calendar_target_owner_alliance_provider").on(t.hqUserId, t.allianceId, t.provider), index("calendar_target_due_idx").on(t.provider, t.nextSyncAt)]);
+
+export const calendarEntries = pgTable("calendar_entries", {
+  targetId: text("target_id").notNull().references(() => calendarTargets.id, { onDelete: "cascade" }),
+  key: text("key").notNull(),
+  uid: text("uid").notNull(),
+  payload: jsonb("payload").$type<CalendarEvent>().notNull(),
+  fingerprint: text("fingerprint").notNull(),
+  revision: integer("revision").notNull().default(1),
+  cancelled: boolean("cancelled").notNull().default(false),
+  remoteId: text("remote_id"),
+  remoteGeneration: integer("remote_generation").notNull().default(0),
+  appliedRevision: integer("applied_revision").notNull().default(0),
+  uncertain: boolean("uncertain").notNull().default(false),
+  remoteConfirmed: boolean("remote_confirmed").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.targetId, t.key] }), index("calendar_entry_work_idx").on(t.targetId, t.cancelled, t.updatedAt)]);
 
 export const plunderPlans = pgTable("plunder_plans", {
   id: text("id").primaryKey(),
@@ -499,6 +599,10 @@ export const alliances = pgTable("alliances", {
   trainConductorLeadTimeDays: integer("train_conductor_lead_time_days")
     .notNull()
     .default(0),
+  trainTopScoreMinRank: integer("train_top_score_min_rank").notNull().default(3),
+  trainTopScoreIncludesR4Plus: integer("train_top_score_includes_r4_plus")
+    .notNull()
+    .default(1),
   /**
    * When 1, auto-nominate conductors and require R4 confirmation before lock.
    * Defaults off; settings may enable when lead time > 0.
@@ -3138,6 +3242,81 @@ export const memberViolations = pgTable("member_violations", {
     .notNull(),
 });
 
+/**
+ * Reusable week templates: seven calendar-weekday slots, each a day rule.
+ *
+ * `alliance_id IS NULL` is an HQ preset — shared by every alliance, never
+ * deleted, hidden per alliance through `train_rule_template_archives`.
+ * Alliance-authored rows soft-delete with `archived_at` so days already
+ * painted from them keep resolving.
+ */
+export const trainRuleTemplates = pgTable(
+  "train_rule_templates",
+  {
+    id: text("id").primaryKey(),
+    /** Null for HQ presets. */
+    allianceId: text("alliance_id").references(() => alliances.id, {
+      onDelete: "cascade",
+    }),
+    /** Set for HQ presets only; the i18n key for name and description. */
+    presetKey: text("preset_key").unique(),
+    name: text("name").notNull(),
+    description: text("description"),
+    /** `Record<WeekdayKey, DayRules>` — exactly seven Mon–Sun slots. */
+    days: jsonb("days").notNull(),
+    createdByHqUserId: text("created_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    /** Set when this row was copied from another alliance's shared template. */
+    sourceTemplateId: text("source_template_id"),
+    /** sha256 of the normalized share code. Null when not shared. */
+    shareCodeHash: text("share_code_hash").unique(),
+    /** Last four characters, so officers can recognize a code they sent. */
+    shareCodeHint: text("share_code_hint"),
+    sharedAt: timestamp("shared_at", { withTimezone: true }),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("train_rule_templates_alliance_name_unique")
+      .on(table.allianceId, table.name)
+      .where(isNull(table.archivedAt)),
+  ],
+);
+
+/** Per-alliance hide of an HQ preset. Presets themselves are never deleted. */
+export const trainRuleTemplateArchives = pgTable(
+  "train_rule_template_archives",
+  {
+    id: text("id").primaryKey(),
+    allianceId: text("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => trainRuleTemplates.id, { onDelete: "cascade" }),
+    archivedByHqUserId: text("archived_by_hq_user_id").references(
+      () => hqUsers.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("train_rule_template_archives_unique").on(
+      table.allianceId,
+      table.templateId,
+    ),
+  ],
+);
+
 export const trainWeekSchedules = pgTable(
   "train_week_schedules",
   {
@@ -3145,9 +3324,16 @@ export const trainWeekSchedules = pgTable(
     allianceId: text("alliance_id")
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
+    /**
+     * Monday of the calendar week. Normalized in the repository so an
+     * alliance's display week-start preference can never repoint a schedule.
+     */
     weekStart: text("week_start").notNull(),
     seasonKey: text("season_key"),
-    templateType: text("template_type").notNull(),
+    /** Week preset applied to this week; null when days were painted ad hoc. */
+    templateId: text("template_id").references(() => trainRuleTemplates.id, {
+      onDelete: "set null",
+    }),
     notes: text("notes"),
     isPivot: integer("is_pivot").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -3177,10 +3363,15 @@ export const trainDayConfigs = pgTable(
       .notNull()
       .references(() => alliances.id, { onDelete: "cascade" }),
     date: text("date").notNull(),
-    conductorMechanism: text("conductor_mechanism").notNull(),
-    conductorConfig: jsonb("conductor_config"),
-    vipMechanism: text("vip_mechanism"),
-    vipConfig: jsonb("vip_config"),
+    /** `ConductorRule | null` — null is free choice, not "unset". */
+    conductorRule: jsonb("conductor_rule"),
+    /** `VipRule | null` — null is the conductor's free pick. */
+    vipRule: jsonb("vip_rule"),
+    /** Which template painted this day. Provenance only — never a draw input. */
+    sourceTemplateId: text("source_template_id").references(
+      () => trainRuleTemplates.id,
+      { onDelete: "set null" },
+    ),
     isOverride: integer("is_override").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -3216,8 +3407,15 @@ export const trainConductorRecords = pgTable(
       { onDelete: "set null" },
     ),
     guardianIsVip: integer("guardian_is_vip").notNull().default(0),
+    /**
+     * Permanent history of the mechanism strings this ritual ran under.
+     * Retained after the rule migration — new code reads `conductorRule` /
+     * `vipRule`, but past conductors must stay auditable as recorded.
+     */
     conductorMechanism: text("conductor_mechanism"),
     vipMechanism: text("vip_mechanism"),
+    conductorRule: jsonb("conductor_rule"),
+    vipRule: jsonb("vip_rule"),
     dayConfigId: text("day_config_id").references(() => trainDayConfigs.id, {
       onDelete: "set null",
     }),
@@ -5268,6 +5466,13 @@ export const knowledgeCaptureDrafts = pgTable("knowledge_capture_drafts", {
   foreignKey({ name: "knowledge_capture_drafts_note_alliance_fk", columns: [table.noteId, table.allianceId], foreignColumns: [performanceNotes.id, performanceNotes.allianceId] }).onDelete("restrict"),
   index("knowledge_capture_drafts_alliance_updated_idx").on(table.allianceId, table.updatedAt),
 ]);
+
+export const knowledgeWorkspacePreferences = pgTable("knowledge_workspace_preferences", {
+  hqUserId: text("hq_user_id").notNull().references(() => hqUsers.id, { onDelete: "cascade" }),
+  allianceId: text("alliance_id").notNull().references(() => alliances.id, { onDelete: "cascade" }),
+  state: jsonb("state").$type<import("@/lib/notes/workspace.shared").NoteWorkspaceState>().notNull(),
+  version: integer("version").notNull().default(0), updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [primaryKey({ columns: [table.hqUserId, table.allianceId] }), check("knowledge_workspace_preferences_version_check", sql`${table.version} >= 0`)]);
 
 export const knowledgeIntakePreferences = pgTable("knowledge_intake_preferences", {
   principalKey: text("principal_key").primaryKey(), enabled: boolean("enabled").notNull().default(false),

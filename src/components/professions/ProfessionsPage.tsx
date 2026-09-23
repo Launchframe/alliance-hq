@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
@@ -41,9 +41,9 @@ type OfficerData = {
 
 type PageTab = "mine" | "officer";
 
-async function fetchOfficerData(fallback: string): Promise<{ data: OfficerData | null; error: string | null }> {
+async function fetchOfficerData(fallback: string, signal?: AbortSignal): Promise<{ data: OfficerData | null; error: string | null }> {
   try {
-    const response = await fetch("/api/professions/officer");
+    const response = await fetch("/api/professions/officer", { cache: "no-store", signal });
     const body = await response.json();
     if (response.ok && Array.isArray(body?.wlRows)) return { data: body as OfficerData, error: null };
     return { data: null, error: typeof body?.error === "string" ? body.error : fallback };
@@ -71,6 +71,8 @@ export function ProfessionsPage({
   const [officerError, setOfficerError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [officerLoading, setOfficerLoading] = useState(initialTab === "officer");
+  const officerErrorRef = useRef<HTMLParagraphElement>(null);
+  const officerRequest = useRef<AbortController | null>(null);
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState<string | null>(null);
 
@@ -87,14 +89,46 @@ export function ProfessionsPage({
     }
   }
 
-  async function loadOfficer() {
-    setOfficerLoading(true);
-    setOfficerError(null);
-    const result = await fetchOfficerData(officerLoadFailure);
+  const loadOfficer = useCallback((signal?: AbortSignal) => fetchOfficerData(officerLoadFailure, signal), [officerLoadFailure]);
+
+  const applyOfficer = useCallback((result: { data: OfficerData | null; error: string | null }) => {
     setOfficerData(result.data);
     setOfficerError(result.error);
     setOfficerLoading(false);
-  }
+  }, []);
+
+  const refreshOfficer = useCallback(() => {
+    officerRequest.current?.abort();
+    const controller = new AbortController();
+    officerRequest.current = controller;
+    setOfficerLoading(true);
+    setOfficerError(null);
+    void loadOfficer(controller.signal).then((result) => {
+      if (!controller.signal.aborted && officerRequest.current === controller) applyOfficer(result);
+    });
+  }, [loadOfficer, applyOfficer]);
+
+  useEffect(() => {
+    if (tab !== "officer" || !isOfficer || !allianceId || !commanderId) return;
+    let active = true;
+    let controller: AbortController | null = null;
+    void Promise.resolve().then(() => {
+      if (!active) return;
+      refreshOfficer();
+      controller = officerRequest.current;
+    });
+    return () => {
+      active = false;
+      if (controller && officerRequest.current === controller) {
+        controller.abort();
+        officerRequest.current = null;
+      }
+    };
+  }, [tab, isOfficer, allianceId, commanderId, refreshOfficer]);
+
+  useEffect(() => {
+    if (officerError) officerErrorRef.current?.scrollIntoView({ block: "nearest" });
+  }, [officerError]);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,19 +147,6 @@ export function ProfessionsPage({
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (initialTab !== "officer") return;
-    let cancelled = false;
-    void fetchOfficerData(officerLoadFailure).then((result) => {
-      if (!cancelled) {
-        setOfficerData(result.data);
-        setOfficerError(result.error);
-        setOfficerLoading(false);
-      }
-    });
-    return () => { cancelled = true; };
-  }, [initialTab, officerLoadFailure]);
 
   async function handleSetProfession(p: Profession) {
     setSwitching(true);
@@ -149,9 +170,7 @@ export function ProfessionsPage({
 
   function handleSwitched() {
     void loadTeam();
-    if (tab === "officer" && isOfficer) {
-      void loadOfficer();
-    }
+    if (tab === "officer" && isOfficer) refreshOfficer();
   }
 
   if (!allianceId || !commanderId) {
@@ -207,8 +226,12 @@ export function ProfessionsPage({
             <button
               type="button"
               onClick={() => {
-                setTab("officer");
-                if (!officerData) void loadOfficer();
+                if (tab === "officer") refreshOfficer();
+                else {
+                  setOfficerLoading(true);
+                  setOfficerError(null);
+                  setTab("officer");
+                }
               }}
               className={`rounded-md px-3 py-1.5 ${
                 tab === "officer"
@@ -224,14 +247,14 @@ export function ProfessionsPage({
 
       {tab === "officer" && isOfficer ? (
         officerError ? (
-          <p role="alert" className="text-sm text-hq-danger">{officerError}</p>
+          <p ref={officerErrorRef} role="alert" className="text-sm text-hq-danger">{officerError}</p>
         ) : officerLoading || !officerData ? (
           <div className="animate-pulse text-sm text-hq-fg-muted">{t("loading")}</div>
         ) : (
           <OfficerPortal
             data={officerData}
             allianceId={allianceId}
-            onRefresh={() => void loadOfficer()}
+            onRefresh={refreshOfficer}
           />
         )
       ) : !resolvedProfession ? (

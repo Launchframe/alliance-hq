@@ -34,11 +34,11 @@ Do not commit while any gate is failing.
 
 Feature work is not done until Playwright e2e is green — see [`.cursor/rules/e2e-plan-completion.mdc`](.cursor/rules/e2e-plan-completion.mdc). Update `e2e/**/*.spec.ts` and `e2e/fixtures/**` when auth, invite, connect, or session isolation changes; run `npm run test:e2e` locally before marking a plan complete or opening a PR. **GitHub CI e2e will not run** through **1 Sep 2026** (credit freeze).
 
-## Checkout policy — worktrees require an explicit maintainer request
+## Checkout policy — primary clone first; worktrees are opt-in
 
-**DO NOT USE WORKTREES unless explicitly requested by the maintainer for the current task.** Use the primary clone on a dedicated topic branch by default. This applies to feature work, parallel agents, Multitask, Real Steel, and close-the-loop. A request to implement, review, fix, or open a PR is not a request to create or use a worktree; global skill recommendations do not override this policy.
+Work in the **primary clone** by default. **Worktrees are opt-in**: create one only when the maintainer **explicitly asks**, or when colliding sessions would consistently clobber a shared tree. When unsure, stay primary and ask. A request to implement, review, fix, Multitask, or open a PR is not by itself a request for a worktree; global skill recommendations do not override this policy.
 
-**One task → one branch → one concern.** Serialize writers and builds in the primary clone. If another task is active or unrelated work is uncommitted, stop and coordinate rather than creating a worktree, changing another agent's branch, or auto-stashing. Preserve WIP on its own branch subject to commit permission and local gates. Worktree removal also requires approval for the specific directories and preservation of uncommitted work, local environments, and local data.
+**One task → one branch → one concern.** Prefer serializing writers and builds in the primary clone. Do not auto-stash to make checkout work; preserve WIP on its own branch subject to commit permission and local gates. Worktree removal should preserve uncommitted work, local environments, and local data — ask before destructive cleanup when uncertain.
 
 Detail: [`.cursor/rules/agent-git-hygiene.mdc`](.cursor/rules/agent-git-hygiene.mdc). Real Steel's global review workflow is supplemented by [the Alliance HQ overlay](.cursor/skills/real-steel/SKILL.md); triage and finalization use [close-the-loop](.cursor/skills/close-the-loop/SKILL.md). Both follow this checkout policy.
 
@@ -156,13 +156,32 @@ Detail: [`.cursor/rules/discord-identity-auth-layers.mdc`](.cursor/rules/discord
 - On `_journal.json` merge conflicts, keep main's migration and renumber the branch SQL + journal tag; propagate renumbers parent→child in stacked work — never drop migration SQL or journal entries on rebase or force-push.
 - Maintainer must review and approve release notes before `release:ship`; set note frontmatter `status: ready` only after approval.
 - Real Steel: when Discord or onboarding hosted-guide copy changes, verify operator guides and `e2e/discord-bot-guide.spec.ts`.
-- Real Steel uses the primary clone by default. Only when the maintainer explicitly requests a worktree may `move_agent_to_root` target it.
-- Start feature work on a topic branch in the primary clone; do not create or use worktrees without an explicit maintainer request.
+- Real Steel uses the primary clone by default. Use a worktree (and `move_agent_to_root`) only when the maintainer asks or primary is genuinely contended.
+- Start feature work on a topic branch in the primary clone; worktrees are opt-in (maintainer request or colliding-session contention).
 - Hotkey changes need fault isolation and compile-time target validation for navigable pages.
 - Member-facing copy must never mention platform admins or maintainers; say alliance officers were notified instead.
 - Run `npm run test:e2e` locally before pushing PR branch updates. GitHub CI will not run it through 1 Sep 2026 (`.cursor/rules/gha-credit-freeze.mdc`).
 
 ## Learned Workspace Facts
+
+- A Notes editor missing from a refreshed list must reauthorize its saved note through the detail API. List-window absence alone must not discard an authorized draft, but confirmed denial must clear the inaccessible editor.
+- Internal history-worker membership denial must still reach lease-fenced cancellation under the resource/job locks; returning early before locking leaves revoked imports stuck running. Denial never permits source output publication.
+- Professions browser fixtures need a claimed commander (`hq_user_commanders`) with active alliance membership, not just an authenticated officer session. The officer deep link must fetch its initial data without requiring a tab click.
+- History discovery cursors retain database microseconds and a stable ID tie-breaker. Bind timestamp strings as `::text::timestamptz`; postgres.js otherwise serializes a timestamp-typed parameter through JavaScript Date and loses precision. Cursors are scope-bound pagination metadata, never access grants.
+- OCR can recognize useful text even when noisy sender headers do not parse. Stage bounded, redacted, unattributed text for review instead of rejecting it as empty or guessing an author.
+- Notes workspace reads use `format=summary`; never hand a summary/excerpt to the full-document editor or publication preview. Fetch the authorized detail first. Legacy reads retain bounded full-document semantics, and whole-library counts/notebooks are independent of the page.
+- A scheduled list refresh must not cancel an explicit page navigation. Reuse the server-rendered initial page and cancel pending debounce work when the user requests a page.
+- Notes preferences are private, versioned, and keyed by HQ user plus alliance. URL state overrides saved defaults; foreign scope markers discard personal filters/cursors before rendering. Bodies, AI prompts, and resource focus IDs never belong in persisted view preferences.
+- Notes components use the guarded navigation context, not raw router parameters, so browser Back cannot unmount dirty editors before confirmation. Each editor declares the URL keys that actually replace its content; nested task dialogs do not discard the parent note.
+- When using Next's patched native history methods, pass only custom state. Copying `__NA` into the payload makes Next treat the write as its own and skip router URL synchronization.
+- `X-Notes-Scope` fences requests from stale account/alliance views before mutations or ownership claims. It is optional for legacy clients and is never an authorization grant; Auth.js binding, RBAC, and knowledge-resource predicates remain mandatory.
+- Draft/task/review/revision/publication catalogs use scope- and query-bound pages. Revision/publication history lists contain metadata only; selected detail loads are owner-authorized. Do not decrypt every publication token or fetch every archived snapshot body just to list versions.
+- Task list status/label filters run before pagination. Opening an excerpt requires the complete authorized task; a filtered-out saved task is reauthorized independently so list-window changes do not discard an accessible editor.
+- Linked task controls can be nested in a note form. Their buttons must use `type="button"`; only the note's explicit Save control submits that form.
+- Board snapshot people reads must use the existing transaction (`listKnowledgePeople(actor, true, tx)`). Borrowing another global-pool connection while holding each snapshot transaction can exhaust all five application connections and stall otherwise unrelated requests.
+- Read board placement IDs before projecting tasks, and pass those IDs into the task query while retaining board/resource authorization. A broad correlated board predicate alone can produce a nested-loop plan that repeatedly joins the entire personal task/note library even for a single board card.
+- Modern board snapshots and conflict responses use `format=summary`; full task descriptions are fetched only for the selected editor or explicit sharing preview. Board label filters do not change canonical card placement or task state.
+- Exact Notes label/member filters run alongside resource authorization and before pagination. Keep the old cursor fingerprint when both new filters are empty so existing unfiltered page links remain valid.
 
 - Plunder Plan database suites: run `npx vitest run src/lib/plunder-plan --maxWorkers=1` with `PLUNDER_PLAN_DB_TEST=1` only after binding all three database URLs to the same guarded dedicated test database. Delivery tests mock Discord; never invoke live command registration or the authenticated delivery tick as an automated smoke test. Worktrees do not isolate the database.
 

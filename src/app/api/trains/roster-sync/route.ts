@@ -15,12 +15,12 @@ import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import {
   allianceTrainWeekFromRow,
   getTrainWeekStart,
+  weekDatesInTrainWeek,
 } from "@/lib/trains/train-week-calendar.shared";
 import { loadAllianceRow } from "@/lib/members/game-roster";
-import { resolveAnchorTemplateType } from "@/lib/trains/day-config-resolve.server";
+import { resolveWeekFillTemplateResolver } from "@/lib/trains/rules/week-template-resolve.server";
 import { resolveWeekDisplayDayConfigs } from "@/lib/trains/week-schedule-day-configs.shared";
 import { addCalendarDays } from "@/lib/trains/game-time";
-import type { WeekTemplateType } from "@/lib/trains/types";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +35,6 @@ async function todayConductorContext(allianceId: string, today: string) {
     weekStart,
     effectiveSeason.seasonKey,
   );
-  const dashboardTemplateType: WeekTemplateType = scheduleRow
-    ? (scheduleRow.templateType as WeekTemplateType)
-    : await resolveAnchorTemplateType(allianceId, effectiveSeason.seasonKey);
   const dayConfigRows = await listDayConfigsForWeek(
     allianceId,
     weekStart,
@@ -45,7 +42,11 @@ async function todayConductorContext(allianceId: string, today: string) {
   );
   const dayConfigs = resolveWeekDisplayDayConfigs(
     weekStart,
-    dashboardTemplateType,
+    await resolveWeekFillTemplateResolver(
+      allianceId,
+      weekDatesInTrainWeek(weekStart),
+      effectiveSeason.seasonKey,
+    ),
     dayConfigRows,
   );
   return dayConfigs.find((day) => day.date === today) ?? null;
@@ -74,8 +75,7 @@ export async function POST() {
       sessionId: session.id,
       allianceId: ctx.allianceId,
       trainDate: today,
-      conductorMechanism: todayDayConfig?.conductorMechanism ?? null,
-      paintTemplate: todayDayConfig?.paintTemplate ?? null,
+      rule: todayDayConfig?.conductorRule ?? null,
       activeMemberCount: syncResult.activeMemberCount,
     });
 

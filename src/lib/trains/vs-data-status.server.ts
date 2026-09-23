@@ -1,12 +1,13 @@
 import "server-only";
 
 import { fetchNativeVrTopScorers } from "@/lib/trains/native-scores.server";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
 import {
   buildVsDataStatus,
   classifyVsDataNeed,
   type TrainsVsDataStatus,
 } from "@/lib/trains/vs-data-status.shared";
-import { resolveScoreDateDayConfigForTrainDate } from "@/lib/trains/train-day-context.server";
+import { resolveScoreDayRuleForTrainDate } from "@/lib/trains/train-day-context.server";
 import { scoreDateForTrainDay } from "@/lib/trains/train-day-context.shared";
 import { fetchAlliancePriorDayVsScoresByMember } from "@/lib/trains/vs-scores.server";
 
@@ -23,15 +24,14 @@ export type { TrainsVsDataStatus };
 export async function loadTrainsVsDataStatus(input: {
   allianceId: string;
   trainDate: string;
-  conductorMechanism: string | null | undefined;
-  paintTemplate?: string | null;
+  rule: ConductorRule | null;
   leadDays?: number;
   seasonKey?: string;
 }): Promise<TrainsVsDataStatus> {
   const leadDays = input.leadDays ?? 0;
-  const scoreDateDay =
+  const scoreDayRule =
     input.seasonKey != null
-      ? await resolveScoreDateDayConfigForTrainDate({
+      ? await resolveScoreDayRuleForTrainDate({
           allianceId: input.allianceId,
           trainDate: input.trainDate,
           leadDays,
@@ -39,11 +39,10 @@ export async function loadTrainsVsDataStatus(input: {
         })
       : null;
   const need = classifyVsDataNeed({
-    conductorMechanism: input.conductorMechanism,
-    paintTemplate: input.paintTemplate,
+    rule: input.rule,
     trainDate: input.trainDate,
     leadDays,
-    scoreDateDay,
+    scoreDayRule,
   });
 
   if (need.kind === "none") {

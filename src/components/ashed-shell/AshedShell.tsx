@@ -20,6 +20,7 @@ import { AdminSequenceOverlay } from "@/components/hotkeys/AdminSequenceOverlay"
 import { HotkeyCommandPalette } from "@/components/hotkeys/HotkeyCommandPalette";
 import { HotkeyKeyboardButton } from "@/components/hotkeys/HotkeyKeyboardButton";
 import { HotkeyProvider } from "@/components/hotkeys/HotkeyProvider";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ConnectAshedBanner } from "@/components/onboarding/ConnectAshedBanner";
 import { FeedbackProvider } from "@/components/feedback";
 import { SidebarNav } from "@/components/ashed-shell/SidebarNav";
@@ -242,29 +243,32 @@ export function AshedShell({
                 ) : null}
               </div>
 
-              {hasAppAccess ? (
-                <div className="flex shrink-0 items-center gap-2">
-                  <AshedConnectionStatus
-                    isConnected={isConnected}
-                    isAshedConnectAllowed={isAshedConnectAllowed}
-                    userLabel={userLabel}
-                  />
-                  <HotkeyKeyboardButton />
-                  {sessionPermissions.includes("inbox:read") ? (
-                    <ReminderInboxBell />
-                  ) : null}
-                  {showAdminPortal ? <OpsInboxBell /> : null}
-                  <ShellProfileMenu
-                  userLabel={userLabel}
-                  displayName={displayName}
-                  userEmail={userEmail}
-                  avatarUrl={avatarUrl}
-                  showAdminPortal={showAdminPortal}
-                  showConnectLink={showConnectNudge}
-                  showMenu={Boolean(userEmail || userLabel || displayName)}
-                />
-                </div>
-              ) : null}
+              <div className="flex shrink-0 items-center gap-2">
+                <LanguageSwitcher />
+                {hasAppAccess ? (
+                  <>
+                    <AshedConnectionStatus
+                      isConnected={isConnected}
+                      isAshedConnectAllowed={isAshedConnectAllowed}
+                      userLabel={userLabel}
+                    />
+                    <HotkeyKeyboardButton />
+                    {sessionPermissions.includes("inbox:read") ? (
+                      <ReminderInboxBell />
+                    ) : null}
+                    {showAdminPortal ? <OpsInboxBell /> : null}
+                    <ShellProfileMenu
+                      userLabel={userLabel}
+                      displayName={displayName}
+                      userEmail={userEmail}
+                      avatarUrl={avatarUrl}
+                      showAdminPortal={showAdminPortal}
+                      showConnectLink={showConnectNudge}
+                      showMenu={Boolean(userEmail || userLabel || displayName)}
+                    />
+                  </>
+                ) : null}
+              </div>
             </header>
 
             <ReleaseNoticeBanner />

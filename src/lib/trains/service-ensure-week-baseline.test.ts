@@ -4,7 +4,6 @@ const mocks = vi.hoisted(() => ({
   getWeekSchedule: vi.fn(),
   upsertWeekSchedule: vi.fn(),
   replaceDayConfigs: vi.fn(),
-  resolveAnchorTemplateType: vi.fn(),
 }));
 
 vi.mock("@/lib/trains/repository", () => ({
@@ -18,7 +17,6 @@ vi.mock("@/lib/trains/repository", () => ({
 }));
 
 vi.mock("@/lib/trains/day-config-resolve.server", () => ({
-  resolveAnchorTemplateType: mocks.resolveAnchorTemplateType,
   resolveRollDayConfig: vi.fn(),
 }));
 
@@ -37,25 +35,22 @@ import { ensureWeekScheduleBaseline } from "@/lib/trains/service";
 describe("ensureWeekScheduleBaseline", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.resolveAnchorTemplateType.mockResolvedValue("economy_week");
+
     mocks.getWeekSchedule.mockResolvedValue(null);
     mocks.upsertWeekSchedule.mockResolvedValue({
       id: "sched-1",
-      templateType: "economy_week",
+      templateId: "tmpl-economy",
     });
   });
 
-  it("creates a schedule row without bulk-seeding day configs", async () => {
+  it("creates a schedule row with no template rather than inventing one", async () => {
+    // Painting one day must not declare a preset for the other six.
     await ensureWeekScheduleBaseline("alliance-1", "2026-08-11");
 
-    expect(mocks.resolveAnchorTemplateType).toHaveBeenCalledWith(
-      "alliance-1",
-      "2026-s1",
-    );
     expect(mocks.upsertWeekSchedule).toHaveBeenCalledWith({
       allianceId: "alliance-1",
       weekStart: "2026-08-11",
-      templateType: "economy_week",
+      templateId: null,
       seasonKey: "2026-s1",
     });
     expect(mocks.replaceDayConfigs).not.toHaveBeenCalled();
@@ -65,14 +60,13 @@ describe("ensureWeekScheduleBaseline", () => {
     await ensureWeekScheduleBaseline(
       "alliance-1",
       "2026-08-11",
-      "economy_week",
+      "tmpl-economy",
     );
 
-    expect(mocks.resolveAnchorTemplateType).not.toHaveBeenCalled();
     expect(mocks.upsertWeekSchedule).toHaveBeenCalledWith({
       allianceId: "alliance-1",
       weekStart: "2026-08-11",
-      templateType: "economy_week",
+      templateId: "tmpl-economy",
       seasonKey: "2026-s1",
     });
     expect(mocks.replaceDayConfigs).not.toHaveBeenCalled();
@@ -81,7 +75,7 @@ describe("ensureWeekScheduleBaseline", () => {
   it("does nothing when the week schedule already exists", async () => {
     mocks.getWeekSchedule.mockResolvedValue({
       id: "sched-existing",
-      templateType: "economy_week",
+      templateId: "tmpl-economy",
     });
 
     await ensureWeekScheduleBaseline("alliance-1", "2026-08-11");

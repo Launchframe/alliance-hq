@@ -1154,7 +1154,84 @@
       "idx": 164,
       "version": "7",
       "when": 1790900000176,
-      "tag": "0176_member_role_nudges",
+      "tag": "0176_notes_workspace_preferences",
+      "breakpoints": false
+    },
+    {
+      "idx": 165,
+      "version": "7",
+      "when": 1790900000177,
+      "tag": "0177_calendar_foundation",
+      "breakpoints": false
+    },
+    {
+      "idx": 166,
+      "version": "7",
+      "when": 1790900000178,
+      "tag": "0178_train_boarding_prompts",
+      "breakpoints": false
+    },
+    {
+      "idx": 167,
+      "version": "7",
+      "when": 1790900000179,
+      "tag": "0179_calendar_google_delivery",
+      "breakpoints": false
+    },
+    {
+      "idx": 168,
+      "version": "7",
+      "when": 1790900000180,
+      "tag": "0180_calendar_remote_observation",
+      "breakpoints": false
+    },
+    {
+      "idx": 169,
+      "version": "7",
+      "when": 1790900000181,
+      "tag": "0181_train_day_rules",
+      "breakpoints": false
+    },
+    {
+      "idx": 170,
+      "version": "7",
+      "when": 1790900000182,
+      "tag": "0182_train_rule_templates",
+      "breakpoints": false
+    },
+    {
+      "idx": 171,
+      "version": "7",
+      "when": 1790900000183,
+      "tag": "0183_train_rule_template_shares",
+      "breakpoints": false
+    },
+    {
+      "idx": 172,
+      "version": "7",
+      "when": 1790900000184,
+      "tag": "0184_train_top_score_r4_plus",
+      "breakpoints": false
+    },
+    {
+      "idx": 173,
+      "version": "7",
+      "when": 1790900000185,
+      "tag": "0185_train_top_score_min_rank",
+      "breakpoints": false
+    },
+    {
+      "idx": 174,
+      "version": "7",
+      "when": 1790900000186,
+      "tag": "0186_train_rule_template_active_names",
+      "breakpoints": false
+    },
+    {
+      "idx": 175,
+      "version": "7",
+      "when": 1790900000187,
+      "tag": "0187_member_role_nudges",
       "breakpoints": false
     }
   ]

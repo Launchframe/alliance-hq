@@ -3,7 +3,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { claimHistoryJob, completeHistoryStep, failHistoryStep } from "./jobs.server";
-import { parseHistoryText, type HistoryMessage } from "./imports.shared";
+import { parseHistoryText, parseHistoryScreenshot, type HistoryMessage } from "./imports.shared";
 import { readHistoryObject } from "./import-storage.server";
 
 export async function processHistoryStep(importId?: string) {
@@ -27,7 +27,7 @@ export async function processHistoryStep(importId?: string) {
         if (!image.width || !image.height || (image.pages ?? 1) !== 1) throw new Error("invalid_image");
         const { parseOfficerChatImage } = await import("@/lib/officer-intel/chat-ocr/parse-chat-image.server");
         const parsed = await parseOfficerChatImage(bytes, file.position);
-        messages = parsed.messages.map((row, index) => ({ sender: row.senderName || null, body: row.originalText, sentAt: null, externalId: null, sourceImageIndex: file.position, locator: `${file.id}:ocr:${index}` }));
+        messages = parseHistoryScreenshot(parsed, file.id, file.position);
       } else messages = parseHistoryText(record.kind, new TextDecoder("utf-8", { fatal: true }).decode(bytes), file.id);
       if (!messages.length) throw new Error("empty_import");
     }

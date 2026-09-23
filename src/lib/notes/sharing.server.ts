@@ -6,12 +6,12 @@ import { nanoid } from "nanoid";
 import { getDb, schema } from "@/lib/db";
 import { getPerformanceNoteForAlliance } from "@/lib/performance-notes/repository.server";
 import type { KnowledgeActor } from "./policy.shared";
-import { knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, touchKnowledgeResource } from "./resources.server";
+import { knowledgeAccessCondition, KnowledgeAccessError, lockKnowledgeResource, touchKnowledgeResource, type KnowledgeTransaction } from "./resources.server";
 import type { NoteShareInput, NoteShareState } from "./sharing.shared";
 import { touchResourceBoards } from "./board-events.server";
 
-export async function listKnowledgePeople(actor: KnowledgeActor, includeSelf = false): Promise<NoteShareState["recipients"]> {
-  const people = await getDb().select({ id: schema.hqUsers.id, name: schema.hqUsers.displayName, role: schema.roles.name, commanderName: schema.hqMemberLinks.memberDisplayName })
+export async function listKnowledgePeople(actor: KnowledgeActor, includeSelf = false, db: Pick<KnowledgeTransaction, "select"> = getDb()): Promise<NoteShareState["recipients"]> {
+  const people = await db.select({ id: schema.hqUsers.id, name: schema.hqUsers.displayName, role: schema.roles.name, commanderName: schema.hqMemberLinks.memberDisplayName })
     .from(schema.allianceMemberships).innerJoin(schema.hqUsers, eq(schema.hqUsers.id, schema.allianceMemberships.hqUserId))
     .innerJoin(schema.roles, eq(schema.roles.id, schema.allianceMemberships.roleId))
     .leftJoin(schema.hqMemberLinks, and(eq(schema.hqMemberLinks.hqUserId, schema.hqUsers.id), eq(schema.hqMemberLinks.allianceId, actor.allianceId)))

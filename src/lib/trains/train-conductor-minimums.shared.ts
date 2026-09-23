@@ -6,7 +6,8 @@ import {
   type AllianceTrainWeekConfig,
 } from "@/lib/trains/train-week-calendar.shared";
 
-import { usesPriceIsFreightConductorRoll } from "@/lib/trains/heavy-hitter-pool.shared";
+import type { ConductorRule } from "@/lib/trains/rules/catalog.shared";
+import { conductorRuleAppliesMinimums } from "@/lib/trains/rules/derive.shared";
 import type { PoolType } from "@/lib/trains/types";
 
 /** R3 and heavy-hitter pools honor alliance conductor minimums; R4+ sequence does not. */
@@ -20,10 +21,10 @@ export function poolTypeRespectsConductorMinimums(poolType: PoolType): boolean {
  *
  * Future: per-spin UI toggle (“eligible scores” vs “overall pool”).
  */
-export function conductorMinimumsApplyForPaintTemplate(
-  paintTemplate: string | null | undefined,
+export function conductorMinimumsApplyForRule(
+  rule: ConductorRule | null | undefined,
 ): boolean {
-  return usesPriceIsFreightConductorRoll(paintTemplate);
+  return conductorRuleAppliesMinimums(rule ?? null);
 }
 
 export const TRAIN_MINIMUMS_WINDOWS = ["daily", "weekly"] as const;
@@ -109,7 +110,7 @@ export function evaluationPeriodHasUploadedVsScores(
 export function buildConductorMinimumsDataStatus(input: {
   settings: TrainConductorMinimumsSettings;
   trainDate: string;
-  paintTemplate?: string | null;
+  rule?: ConductorRule | null;
   leadDays?: number;
   vsScoreCount: number;
   trainWeekConfig?: AllianceTrainWeekConfig;
@@ -122,7 +123,7 @@ export function buildConductorMinimumsDataStatus(input: {
     !conductorQualificationGateApplies({
       poolType: null,
       minimumsEnabled: true,
-      paintTemplate: input.paintTemplate,
+      rule: input.rule,
     })
   ) {
     return null;
@@ -132,7 +133,7 @@ export function buildConductorMinimumsDataStatus(input: {
     input.trainDate,
     evalSettings.window,
     input.trainWeekConfig ?? DEFAULT_ALLIANCE_TRAIN_WEEK,
-    { leadDays: input.leadDays, paintTemplate: input.paintTemplate },
+    { leadDays: input.leadDays, rule: input.rule },
   );
   const uploadScoreDate =
     evalSettings.window === "weekly" ? end : start;
@@ -167,7 +168,7 @@ export function effectiveMinimum(minimum: number, leewayPct: number): number {
 
 export type EvaluationPeriodOptions = {
   leadDays?: number;
-  paintTemplate?: string | null;
+  rule?: ConductorRule | null;
 };
 
 export function evaluationPeriodForTrainDate(
@@ -177,11 +178,9 @@ export function evaluationPeriodForTrainDate(
   options?: EvaluationPeriodOptions,
 ): { start: string; end: string } {
   if (window === "daily") {
-    const day =
-      options?.paintTemplate != null &&
-      conductorMinimumsApplyForPaintTemplate(options.paintTemplate)
-        ? vsScoreReferenceDate(trainDate, options.leadDays ?? 0)
-        : addCalendarDays(trainDate, -1);
+    const day = conductorMinimumsApplyForRule(options?.rule)
+      ? vsScoreReferenceDate(trainDate, options?.leadDays ?? 0)
+      : addCalendarDays(trainDate, -1);
     return { start: day, end: day };
   }
 
@@ -263,12 +262,9 @@ export function formatTrainPointCount(value: number, locale: string): string {
 export function conductorQualificationGateApplies(input: {
   poolType: PoolType | null | undefined;
   minimumsEnabled: boolean;
-  paintTemplate?: string | null;
+  rule?: ConductorRule | null;
 }): boolean {
-  if (
-    input.paintTemplate !== undefined &&
-    !conductorMinimumsApplyForPaintTemplate(input.paintTemplate)
-  ) {
+  if (input.rule !== undefined && !conductorMinimumsApplyForRule(input.rule)) {
     return false;
   }
   if (input.poolType != null && !poolTypeRespectsConductorMinimums(input.poolType)) {

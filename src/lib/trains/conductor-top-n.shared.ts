@@ -97,6 +97,29 @@ export function isTopNPaintTemplate(
   return template === "top_vs" || template === "top_vr";
 }
 
+/**
+ * TopN to send when applying a day rule without a fresh scope click.
+ * Re-applying the current Top VS/VR day keeps its scope (e.g. Top 5);
+ * switching onto Top VS/VR uses the template default (10 / 3).
+ */
+export function resolveDayPaintApplyTopN(input: {
+  template: string;
+  currentTemplate: string;
+  currentTopN?: number | null;
+}): ConductorTopN | undefined {
+  if (!isTopNPaintTemplate(input.template)) return undefined;
+  if (input.template === input.currentTemplate) {
+    const current = input.currentTopN;
+    if (current != null && input.template === "top_vs" && isVsTopN(current)) {
+      return current;
+    }
+    if (current != null && input.template === "top_vr" && isVrTopN(current)) {
+      return current;
+    }
+  }
+  return defaultTopNForPaintTemplate(input.template);
+}
+
 export function scopesForPaintTemplate(
   paintTemplate: "top_vs" | "top_vr",
 ): readonly ConductorTopN[] {

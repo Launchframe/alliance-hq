@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Dialog } from "@/components/ui/dialog";
+import { useNotesDirtyState, useNotesFetch, useNotesNavigation } from "./NotesNavigation";
+import { workspaceOffset } from "@/lib/notes/workspace.shared";
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
-import { HISTORY_IMPORT_KINDS, HISTORY_MESSAGE_LENGTH, HISTORY_TEXT_BYTES, historyInitSchema, type HistoryImportDetail, type HistoryImportKind, type HistoryImportSummary, type HistoryReviewRow } from "@/lib/notes/imports.shared";
+import { HISTORY_IMPORT_KINDS, HISTORY_MESSAGE_LENGTH, HISTORY_TEXT_BYTES, historyInitSchema, type HistoryImportDetail, type HistoryImportKind, type HistoryImportListItem, type HistoryImportPage, type HistoryReviewRow } from "@/lib/notes/imports.shared";
 
 class ImportError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 const control = "rounded-lg border border-hq-border bg-hq-canvas px-3 py-2 text-sm disabled:opacity-50";
-type Summary = Pick<HistoryImportSummary, "id" | "title" | "state" | "kind" | "updatedAt">;
 function utcDatetimeLocal(iso: string | null) {
   if (!iso) return "";
   const date = new Date(iso);
@@ -18,11 +19,18 @@ function utcDatetimeLocal(iso: string | null) {
 export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: boolean; focusId: string | null; onOpen: (id: string | null) => void }) {
   const t = useTranslations("notes.imports");
   const locale = useLocale();
-  const [list, setList] = useState<Summary[]>([]);
+  const fetchNotes = useNotesFetch(), navigation = useNotesNavigation();
+  const urlCursor = navigation.params.get("importCursor");
+  const offset = workspaceOffset(navigation.params.get("messageOffset"), 50);
+  const setOffset = (value: number) => navigation.change({ messageOffset: String(value) }, false, true);
+  const [list, setList] = useState<HistoryImportListItem[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [previousCursor, setPreviousCursor] = useState<string | null>(null);
+  const listCursor = useRef<string | null>(null);
+  const listReadNumber = useRef(0);
   const [scope, setScope] = useState("");
   const [detail, setDetail] = useState<HistoryImportDetail | null>(null);
   const [edits, setEdits] = useState<HistoryReviewRow[]>([]);
-  const [offset, setOffset] = useState(0);
   const [kind, setKind] = useState<HistoryImportKind>("text");
   const [title, setTitle] = useState("");
   const [paste, setPaste] = useState("");
@@ -30,6 +38,7 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
   const [busy, setBusy] = useState(false);
   const [discardAction, setDiscardAction] = useState<(() => void) | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
   const alive = useRef(false);
   const lifetime = useRef(new AbortController());
   const revision = useRef(0);
@@ -40,25 +49,48 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
   const current = useRef<HistoryImportDetail | null>(null);
   const processing = useRef(false);
   const errorAnchor = useRef<HTMLDivElement>(null);
+  const listErrorAnchor = useRef<HTMLDivElement>(null);
   const receipt = useRef({ hash: "", id: "" });
   const scopeRef = useRef("");
+  useNotesDirtyState(() => ({
+    dirty: dirty.current || !focusId && !!(paste || title || files.length), keys: ["pathname", "view", "import", "messageOffset"],
+    busy: busy && !!focusId && detail?.state === "review",
+    discard: () => {
+      revision.current++; dirty.current = false; setEdits(current.current?.messages ?? []); setTitle(""); setPaste(""); setFiles([]);
+      if (busy) { lifetime.current.abort(); lifetime.current = new AbortController(); setBusy(false); }
+    },
+  }));
   const applyScope = useCallback((next: string) => {
-    if (scopeRef.current && scopeRef.current !== next) { setFiles([]); setPaste(""); setTitle(""); setEdits([]); setDiscardAction(null); dirty.current = false; current.current = null; }
+    if (scopeRef.current && scopeRef.current !== next) {
+      revision.current++; listCursor.current = null; setPreviousCursor(null); setNextCursor(null); setList([]); setDetail(null);
+      setFiles([]); setPaste(""); setTitle(""); setEdits([]); setDiscardAction(null); dirty.current = false; current.current = null;
+    }
     scopeRef.current = next; setScope(next);
   }, []);
-  useEffect(() => { alive.current = true; const controller = new AbortController(); lifetime.current = controller; return () => { alive.current = false; controller.abort(); }; }, []);
-  const fail = useCallback((failure: unknown) => {
+  useEffect(() => { alive.current = true; const controller = new AbortController(); lifetime.current = controller; return () => { alive.current = false; controller.abort(); lifetime.current.abort(); }; }, []);
+  const fail = useCallback((failure: unknown, listFailure = false) => {
     if (!alive.current) return;
-    if (failure instanceof ImportError && [401, 403, 404].includes(failure.status)) { applyScope(""); setList([]); setDetail(null); current.current = null; setEdits([]); dirty.current = false; }
-    setError(failure instanceof ImportError ? failure.message : t("error"));
-    requestAnimationFrame(() => errorAnchor.current?.scrollIntoView({ block: "nearest" }));
+    if (failure instanceof ImportError && [401, 403, 404].includes(failure.status)) { applyScope(""); setList([]); setDetail(null); current.current = null; setEdits([]); setError(null); setListError(null); dirty.current = false; }
+    (listFailure ? setListError : setError)(failure instanceof ImportError ? failure.message : t("error"));
+    requestAnimationFrame(() => (listFailure ? listErrorAnchor : errorAnchor).current?.scrollIntoView({ block: "nearest" }));
   }, [t, applyScope]);
   const api = useCallback(async <T,>(url: string, init?: RequestInit): Promise<T> => {
-    const response = await fetch(url, { cache: "no-store", signal: lifetime.current.signal, ...init });
+    const response = await fetchNotes(url, { cache: "no-store", signal: lifetime.current.signal, ...init });
     const body = await response.json().catch(() => null);
     if (!response.ok || !body) throw new ImportError(body?.error ?? t("error"), response.status);
     return body;
-  }, [t]);
+  }, [t, fetchNotes]);
+  const loadList = useCallback(async (cursor = urlCursor) => {
+    const generation = revision.current;
+    const number = ++listReadNumber.current;
+    const query = cursor ? `?${new URLSearchParams({ cursor })}` : "";
+    const body = await api<HistoryImportPage>(`/api/notes/imports${query}`).catch((failure) => { if (generation === revision.current && number === listReadNumber.current) throw failure; return null; });
+    if (!body || !alive.current || selection.current || generation !== revision.current || number !== listReadNumber.current) return false;
+    const changedScope = !!scopeRef.current && scopeRef.current !== body.scope;
+    applyScope(body.scope); listCursor.current = cursor; setList(body.imports); setNextCursor(body.nextCursor); setListError(null);
+    setPreviousCursor(body.previousCursor);
+    return !changedScope;
+  }, [api, applyScope, urlCursor]);
   const load = useCallback(async (id: string, page: number, reset = false) => {
     if (id !== selection.current) return;
     const generation = revision.current;
@@ -71,20 +103,18 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
     return true;
   }, [api, t, applyScope]);
   useEffect(() => {
-    revision.current++; current.current = null; dirty.current = false; setDetail(null); setEdits([]); setOffset(0);
-    const generation = revision.current;
-    if (focusId) void load(focusId, 0).catch(fail);
-    else void api<{ imports: Summary[]; scope: string }>("/api/notes/imports").then((body) => { if (alive.current && generation === revision.current) { applyScope(body.scope); setList(body.imports); } }).catch(fail);
-  }, [focusId, load, api, fail, applyScope]);
+    revision.current++; current.current = null; dirty.current = false; setDetail(null); setEdits([]);
+    if (focusId) void load(focusId, offset).catch(fail);
+    else void loadList().catch((failure) => fail(failure, true));
+  }, [focusId, offset, load, loadList, fail]);
   useEffect(() => {
-    const generation = revision.current;
     const refresh = () => {
       if (focusId) void load(focusId, offset).catch(fail);
-      else void api<{ imports: Summary[]; scope: string }>("/api/notes/imports").then((body) => { if (alive.current && generation === revision.current) { applyScope(body.scope); setList(body.imports); } }).catch(fail);
+      else void loadList().catch((failure) => fail(failure, true));
     };
     window.addEventListener("focus", refresh);
     return () => window.removeEventListener("focus", refresh);
-  }, [focusId, offset, load, fail, api, applyScope]);
+  }, [focusId, offset, load, loadList, fail]);
   const processingState = detail?.state;
   useEffect(() => {
     if (!focusId || !processingState || !["queued", "processing"].includes(processingState)) return;
@@ -105,10 +135,10 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
     if (receipt.current.hash !== hash) receipt.current = { hash, id: crypto.randomUUID() };
     return { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...value, requestId: receipt.current.id }) };
   }
-  async function run(work: () => Promise<unknown>) {
+  async function run(work: () => Promise<unknown>, listAction = false) {
     if (busy) return;
-    setBusy(true); setError(null);
-    try { await work(); } catch (failure) { fail(failure); }
+    setBusy(true); setError(null); setListError(null);
+    try { await work(); } catch (failure) { fail(failure, listAction); }
     finally { if (alive.current) setBusy(false); }
   }
   async function upload(existing?: HistoryImportDetail) {
@@ -133,7 +163,7 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
           if (asset.sealed) continue;
           const path = `/api/notes/imports/${id}/assets/${asset.id}`;
           const target = await api<{ url: string; contentType: string }>(path);
-          const response = await fetch(target.url, { method: "PUT", body: selected[index], headers: { "Content-Type": target.contentType }, credentials: target.url.startsWith("/") ? "same-origin" : "omit", signal: lifetime.current.signal });
+          const response = await fetchNotes(target.url, { method: "PUT", body: selected[index], headers: { "Content-Type": target.contentType }, credentials: target.url.startsWith("/") ? "same-origin" : "omit", signal: lifetime.current.signal });
           if (!response.ok) { const failure = target.url.startsWith("/") ? await response.json().catch(() => null) : null; throw new ImportError(failure?.error ?? t("error"), response.status); }
           await api(path, { method: "POST" });
         }
@@ -170,6 +200,13 @@ export function NoteHistoryImports({ canCreate, focusId, onOpen }: { canCreate: 
         <div ref={!focusId ? errorAnchor : undefined} className="space-y-2">{errorBox}<button className={control} disabled={busy || !scope || !title.trim() || !files.length && !paste.trim()}>{busy ? t("busy") : t("start")}</button></div>
       </form>}
       {!list.length ? <p className="text-sm text-hq-fg-muted">{t("empty")}</p> : <div className="grid gap-3 sm:grid-cols-2">{list.map((item) => <button key={item.id} onClick={() => navigate(item.id)} className="space-y-2 rounded-xl border border-hq-border bg-hq-canvas p-4 text-left"><p className="font-medium">{item.title}</p><p className="text-xs text-hq-fg-muted">{t(`states.${item.state}`)} · {new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(item.updatedAt))}</p></button>)}</div>}
+      <div ref={listErrorAnchor} className="space-y-2">
+        {listError && <p role="alert" className="text-sm text-hq-danger">{listError}</p>}
+        <div className="flex gap-2">
+          <button className={control} disabled={busy || !previousCursor} onClick={() => void run(async () => { if (await loadList(previousCursor)) navigation.change({ importCursor: previousCursor }); }, true)}>{t("previous")}</button>
+          <button className={control} disabled={busy || !nextCursor} onClick={() => void run(async () => { if (nextCursor && await loadList(nextCursor)) navigation.change({ importCursor: nextCursor }); }, true)}>{t("next")}</button>
+        </div>
+      </div>
       {!canCreate && errorBox}
     </>}
     {focusId && !detail && <div ref={errorAnchor}>{errorBox ?? <p role="status">{t("busy")}</p>}</div>}
