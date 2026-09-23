@@ -114,7 +114,7 @@ export async function controlGeneration(actor: KnowledgeWebActor, id: string, co
 export async function stopGeneration(id: string, token: string, error: unknown) {
   await getDb().transaction(async (tx) => {
     const [job] = await tx.select().from(jobs).where(and(eq(jobs.id, id), eq(jobs.leaseToken, token), eq(jobs.state, "running"))).for("update");
-    if (!job || !job.leaseExpiresAt || job.leaseExpiresAt <= new Date()) return;
+    if (!job || job.leaseToken !== token || !job.leaseExpiresAt || job.leaseExpiresAt <= new Date()) return;
     const changed = error instanceof KnowledgeAccessError && ["changed", "forbidden", "not_found"].includes(error.code);
     const state = changed ? "cancelled" : job.attempts >= 3 ? "failed" : "pending";
     await tx.update(jobs).set({ state, leaseToken: null, leaseExpiresAt: null, errorCode: changed ? "changed" : "processing_failed", availableAt: new Date(Date.now() + 5_000), version: job.version + 1 }).where(eq(jobs.id, id));
@@ -141,7 +141,7 @@ export async function processGeneration(id?: string) {
         if (candidate.kind !== "ask" && !await knowledgeMemberMayProcess(tx, { allianceId: actor.allianceId, ownerHqUserId: actor.hqUserId! })) throw new KnowledgeAccessError("forbidden");
         await lockInputs(tx, actor, candidate.evidence);
         const [job] = await tx.select().from(jobs).where(eq(jobs.id, candidate.id)).for("update");
-        if (!generationCandidateAvailable(job, candidate.version)) return null;
+        if (!job || !generationCandidateAvailable(job, candidate.version)) return null;
         if (job.attempts >= 3 || job.model !== generationModel()) { await tx.update(jobs).set({ state: "failed", errorCode: "attempt_limit", leaseToken: null }).where(eq(jobs.id, job.id)); await releaseThread(tx, job); return null; }
         const [claimed] = await tx.update(jobs).set({ state: "running", leaseToken: nanoid(), leaseExpiresAt: new Date(Date.now() + 90_000), attempts: job.attempts + 1, version: job.version + 1 }).where(eq(jobs.id, job.id)).returning();
         return claimed;

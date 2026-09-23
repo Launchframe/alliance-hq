@@ -36,6 +36,11 @@ it("does not let an expired worker change job state on failure", async () => {
   await stopGeneration("job", "lease", new Error("provider failure"));
   expect(testState.update).not.toHaveBeenCalled();
 });
+it("does not let a replaced worker token change job state on failure", async () => {
+  testState.row.leaseToken = "replacement-lease";
+  await stopGeneration("job", "stale-lease", new Error("provider failure"));
+  expect(testState.update).not.toHaveBeenCalled();
+});
 it("does not cancel a newer generation version or release its conversation slot", async () => {
   testState.row.version = 4;
   testState.row.threadId = "thread";
