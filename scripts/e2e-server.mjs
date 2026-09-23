@@ -102,6 +102,7 @@ function run(command, env = process.env) {
 }
 
 function buildEnv(dbUrl) {
+  const appOrigin = `http://localhost:${port}`;
   const env = {
     PATH: process.env.PATH ?? "",
     HOME: process.env.HOME ?? "",
@@ -119,6 +120,8 @@ function buildEnv(dbUrl) {
     AUTH_SECRET: authSecret(),
     HQ_ASHED_INVITE_REQUIRED: "false",
     E2E_TEST: "true",
+    NEXT_PUBLIC_APP_URL: appOrigin,
+    CALENDAR_APP_ORIGIN: appOrigin,
     E2E_EMAIL_CODE: process.env.E2E_EMAIL_CODE?.trim() || "424242",
     ...e2eOAuthEnv(),
     ...e2eOcrWorkerEnv(),

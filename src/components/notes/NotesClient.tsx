@@ -7,7 +7,7 @@ import { NotesNavigation, useNotesNavigation, useNotesFetch, useNotesDirtyState 
 import { useWorkspacePreferences } from "./useWorkspacePreferences";
 import { Archive, ArrowRight, ArrowUpDown, BookOpen, Check, ChevronRight, FileText, Filter, Flag, FolderOpen, Globe2, Inbox, LayoutGrid, List, LockKeyhole, MessageSquare, Plus, Search, Share2, StickyNote, X } from "lucide-react";
 import type { PerformanceNoteDto, PerformanceNoteSummary, NotesWorkspacePayload } from "@/lib/performance-notes/types.shared";
-import { NOTE_PRIORITIES, NOTE_LIST_VIEWS, noteListUrl, noteFilterFromWorkspace, readWorkspaceState, workspaceStateLocation, noteWorkspaceStateSchema, notesFocusKey, type NoteFields, type NotePatch, type NoteWorkspaceView, type NoteWorkspaceState } from "@/lib/notes/workspace.shared";
+import { NOTE_PRIORITIES, NOTE_LIST_VIEWS, noteListUrl, noteFilterFromWorkspace, readWorkspaceState, workspaceStateLocation, scopedWorkspaceLocation, noteWorkspaceStateSchema, notesFocusKey, type NoteFields, type NotePatch, type NoteWorkspaceView, type NoteWorkspaceState } from "@/lib/notes/workspace.shared";
 import { useRegisterPageHotkeys } from "@/components/hotkeys/HotkeyProvider";
 import { NoteEditor } from "./NoteEditor";
 import { NoteTasksPanel } from "./NoteTasksPanel";
@@ -64,11 +64,18 @@ function NotesWorkspace({ initial, focusedNote }: Props) {
   const opening = useRef<AbortController | null>(null);
   const scheduledRefresh = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queryInput = useRef<HTMLInputElement>(null);
+  const clearFocus = useCallback((resetPage = false) => {
+    const url = new URL(navigation.store.getSnapshot().url, window.location.origin);
+    url.pathname = url.pathname.replace(/\/notes\/[^/]+$/, "/notes");
+    url.searchParams.delete("note"); url.searchParams.delete("draft"); url.searchParams.delete("noteTask");
+    if (resetPage) url.searchParams.delete("cursor");
+    navigation.store.request({ url: scopedWorkspaceLocation(`${url.pathname}${url.search}`, initial.preferences.state, initial.scope), mode: "replace" }, true);
+  }, [navigation.store, initial.preferences.state, initial.scope]);
   const revoke = useCallback(() => {
-    navigation.store.reset(); opening.current?.abort(); setModal(null); setCapture(""); setCreatingNote(false); setAccessDenied(true);
+    navigation.store.reset(); clearFocus(); opening.current?.abort(); setModal(null); setCapture(""); setCreatingNote(false); setAccessDenied(true);
     setData((current) => ({ ...current, items: [], roster: [], notebooks: [], counts: { notebook: 0, inbox: 0, shared: 0, archived: 0 }, canCreate: false, canReadBoards: false, draftCount: 0 }));
     router.refresh();
-  }, [router, navigation.store]);
+  }, [router, navigation.store, clearFocus]);
   const preferences = useWorkspacePreferences(initial.preferences, state, revoke);
   const preferenceErrorAnchor = useRef<HTMLDivElement>(null);
   useEffect(() => { if (preferences.error) preferenceErrorAnchor.current?.scrollIntoView({ block: "nearest" }); }, [preferences.error]);
@@ -174,6 +181,7 @@ function NotesWorkspace({ initial, focusedNote }: Props) {
       if (!alive.current || controller.signal.aborted) return false;
       pagePosition.current = { cursor, key: filterKey };
       setPageKey(filterKey); setData((current) => ({ ...current, ...body })); setError(null); setAccessDenied(false);
+      if (focused?.note && detailNote === null && !(body as NotesWorkspacePayload).items.some((note) => note.id === focused.note!.id)) clearFocus();
       setModal((current) => {
         if (!current?.note) return current;
         const latest = (body as NotesWorkspacePayload).items.find((note) => note.id === current.note!.id) ?? (current.note.id === focused?.note?.id ? detailNote : undefined);
@@ -185,7 +193,7 @@ function NotesWorkspace({ initial, focusedNote }: Props) {
       if (alive.current && !controller.signal.aborted) setError(failure instanceof Error ? failure.message : t("loadFailed"));
       return false;
     } finally { if (alive.current && !controller.signal.aborted) setLoading(false); }
-  }, [filter, filterKey, urlCursor, initial.scope, revoke, t, fetchNotes]);
+  }, [filter, filterKey, urlCursor, initial.scope, revoke, clearFocus, t, fetchNotes]);
 
   useEffect(() => {
     alive.current = true;
@@ -252,11 +260,7 @@ function NotesWorkspace({ initial, focusedNote }: Props) {
   }
   function closeModal(resetPage = false) {
     opening.current?.abort(); setModal(null);
-    const url = new URL(navigation.store.getSnapshot().url, window.location.origin);
-    if (resetPage) url.searchParams.delete("cursor");
-    url.pathname = url.pathname.replace(/\/notes\/[^/]+$/, "/notes");
-    url.searchParams.delete("note"); url.searchParams.delete("draft"); url.searchParams.delete("noteTask");
-    navigation.go(`${url.pathname}${url.search}`, true, true);
+    clearFocus(resetPage);
   }
   async function save(fields: NoteFields | NotePatch | CaptureCommit, noteId?: string) {
     const response = await fetchNotes(noteId ? `/api/notes/${noteId}` : "tasks" in fields ? "/api/notes/capture" : "/api/notes?format=summary", {

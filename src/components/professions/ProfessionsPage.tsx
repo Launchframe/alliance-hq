@@ -72,6 +72,7 @@ export function ProfessionsPage({
   const [loading, setLoading] = useState(true);
   const [officerLoading, setOfficerLoading] = useState(initialTab === "officer");
   const officerErrorRef = useRef<HTMLParagraphElement>(null);
+  const officerRequest = useRef<AbortController | null>(null);
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState<string | null>(null);
 
@@ -96,14 +97,34 @@ export function ProfessionsPage({
     setOfficerLoading(false);
   }, []);
 
+  const refreshOfficer = useCallback(() => {
+    officerRequest.current?.abort();
+    const controller = new AbortController();
+    officerRequest.current = controller;
+    setOfficerLoading(true);
+    setOfficerError(null);
+    void loadOfficer(controller.signal).then((result) => {
+      if (!controller.signal.aborted && officerRequest.current === controller) applyOfficer(result);
+    });
+  }, [loadOfficer, applyOfficer]);
+
   useEffect(() => {
     if (tab !== "officer" || !isOfficer || !allianceId || !commanderId) return;
-    const controller = new AbortController();
-    void loadOfficer(controller.signal).then((result) => {
-      if (!controller.signal.aborted) applyOfficer(result);
+    let active = true;
+    let controller: AbortController | null = null;
+    void Promise.resolve().then(() => {
+      if (!active) return;
+      refreshOfficer();
+      controller = officerRequest.current;
     });
-    return () => controller.abort();
-  }, [tab, isOfficer, allianceId, commanderId, loadOfficer, applyOfficer]);
+    return () => {
+      active = false;
+      if (controller && officerRequest.current === controller) {
+        controller.abort();
+        officerRequest.current = null;
+      }
+    };
+  }, [tab, isOfficer, allianceId, commanderId, refreshOfficer]);
 
   useEffect(() => {
     if (officerError) officerErrorRef.current?.scrollIntoView({ block: "nearest" });
@@ -145,12 +166,6 @@ export function ProfessionsPage({
     } finally {
       setSwitching(false);
     }
-  }
-
-  function refreshOfficer() {
-    setOfficerLoading(true);
-    setOfficerError(null);
-    void loadOfficer().then(applyOfficer);
   }
 
   function handleSwitched() {

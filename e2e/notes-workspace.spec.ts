@@ -355,7 +355,34 @@ test("shares current content without private organization or history and honors 
   await reader.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(preview).not.toBeVisible();
   await expect(reader.getByTestId("note-card")).toHaveCount(0);
+  await expect(reader).toHaveURL((url) => url.pathname === "/notes" && !url.searchParams.has("note") && !url.searchParams.has("draft") && !url.searchParams.has("noteTask"));
   await peerContext.close();
+});
+
+test("keeps owner share and history dialogs open when the refreshed list omits the note", async ({ page }) => {
+  const { author } = await fixture();
+  await page.context().addCookies(playwrightAuthCookies(author));
+  const created = await page.request.post("/api/notes", { data: { title: "Windowed owner note", body: "Original text" } });
+  expect(created.status()).toBe(200);
+  const { noteId } = await created.json();
+  const listing = await (await page.request.get("/api/notes?format=summary")).json();
+  let intercepted = 0;
+  await page.route((url) => url.pathname === "/api/notes" && url.searchParams.get("format") === "summary", (route) => { intercepted++; return route.fulfill({ json: { ...listing, items: [] } }); });
+  for (const kind of ["share", "history"] as const) {
+    const before = intercepted;
+    await page.goto(`/notes/${noteId}`);
+    const editor = page.getByRole("dialog", { name: "Windowed owner note", exact: true });
+    await editor.getByRole("button", { name: kind === "share" ? "Share" : "Version history", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: kind === "share" ? "Share note" : "Version history", exact: true });
+    await expect(dialog).toBeVisible();
+    const detail = page.waitForResponse((response) => new URL(response.url()).pathname === `/api/notes/${noteId}` && response.request().method() === "GET");
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect.poll(() => intercepted).toBeGreaterThan(before);
+    expect((await detail).status()).toBe(200);
+    await expect(dialog).toBeVisible();
+    await dialog.getByLabel("Close", { exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+  }
 });
 
 test("keeps an authorized draft when its note is outside the refreshed list window", async ({ page }) => {
