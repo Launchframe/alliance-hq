@@ -466,4 +466,28 @@ describe("partial day paint", () => {
     expect(record?.conductorRule).toEqual(R4.conductorRule);
     expect(record?.vipRule).toEqual({ kind: "donations_second" });
   });
+
+  it("restamps a leftover rule when the day is already the new board", () => {
+    const pif: DayRules = {
+      conductorRule: { kind: "price_is_freight", board: "weekday" },
+      vipRule: null,
+    };
+    const snap = snapshot({
+      dayConfigs: [dayConfig("2026-06-10", pif)],
+      weekRecords: [
+        conductorRecord("2026-06-10", {
+          conductorRule: R4.conductorRule,
+          conductorMemberName: "CAIPIRA",
+        }),
+      ],
+      roster: [{ memberId: "m1", allianceRank: 4 }],
+    });
+
+    const next = applyOptimisticPaint(snap, ["2026-06-10"], {
+      conductorRule: pif.conductorRule,
+    });
+    const record = next.data.weekRecords[0];
+    expect(record?.conductorMemberId).toBe("m1");
+    expect(record?.conductorRule).toEqual(pif.conductorRule);
+  });
 });

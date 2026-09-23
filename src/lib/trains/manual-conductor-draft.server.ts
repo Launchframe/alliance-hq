@@ -197,6 +197,10 @@ export async function applyManualConductorDraft(input: {
     conductorRankEventId: rankEvent?.id ?? null,
     conductorMechanism: mechanism,
     vipMechanism: encodeLegacyVipMechanism(dayConfig.vipRule) ?? null,
+    // Snapshot today's rule so GET /schedule does not treat a successful
+    // pick as a ghost leftover from the previous paint.
+    conductorRule: rule,
+    vipRule: dayConfig.vipRule,
     dayConfigId: dayConfig.dayConfigId,
     conductorEligibilityOverridden: eligibilityOverridden ? 1 : 0,
     conductorEligibilityOverriddenAt: overrideAt,

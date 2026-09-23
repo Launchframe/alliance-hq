@@ -7,10 +7,15 @@ import { getEffectiveSeasonForAlliance } from "@/lib/game-season/sync";
 import { loadAllianceTrainLeadTimeSettings } from "@/lib/trains/alliance-train-lead-time.server";
 import { resolveTrainRequestContext } from "@/lib/trains/api-context";
 import { conductorLockBlockedByPendingConfirmation } from "@/lib/trains/conductor-record.shared";
+import { resolveRollDayConfig } from "@/lib/trains/day-config-resolve.server";
 import {
   getConductorRecord,
   upsertConductorDraft,
 } from "@/lib/trains/repository";
+import {
+  encodeLegacyConductorMechanism,
+  encodeLegacyVipMechanism,
+} from "@/lib/trains/rules/encode.shared";
 import { getMemberRankAsOf } from "@/lib/trains/rank-history";
 import { maybeAnnounceTrainReady } from "@/lib/trains/discord-bot.server";
 import {
@@ -60,6 +65,11 @@ async function post(request: Request) {
         body.memberId,
         date,
       );
+      const dayConfig = await resolveRollDayConfig(
+        ctx.allianceId,
+        date,
+        seasonKey,
+      );
       record = await upsertConductorDraft({
         allianceId: ctx.allianceId,
         date,
@@ -67,6 +77,13 @@ async function post(request: Request) {
         conductorMemberId: body.memberId,
         conductorMemberName: body.memberName,
         conductorRankEventId: rankEvent?.id ?? null,
+        conductorRule: dayConfig.conductorRule,
+        vipRule: dayConfig.vipRule,
+        conductorMechanism: encodeLegacyConductorMechanism(
+          dayConfig.conductorRule,
+        ),
+        vipMechanism: encodeLegacyVipMechanism(dayConfig.vipRule),
+        dayConfigId: dayConfig.dayConfigId,
       });
     }
 

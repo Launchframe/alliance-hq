@@ -450,4 +450,35 @@ describe("applyManualConductorDraft", () => {
     expect(mocks.markPoolMemberSelectedForDate).not.toHaveBeenCalled();
     expect(mocks.upsertConductorDraft).toHaveBeenCalled();
   });
+
+  it("snapshots today's rule so a re-pick is still the conductor after GET", async () => {
+    mocks.getConductorRecord.mockResolvedValue({
+      id: "rec-1",
+      conductorMemberId: "m-caipira",
+      conductorMemberName: "CAIPIRA",
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+      lockedAt: null,
+    });
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorRule: { kind: "price_is_freight", board: "weekday" },
+      vipRule: null,
+      dayConfigId: "dc-1",
+    });
+
+    await applyManualConductorDraft({
+      allianceId: "ally-1",
+      date: "2026-09-22",
+      memberId: "m-caipira",
+      memberName: "CAIPIRA",
+    });
+
+    expect(mocks.upsertConductorDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conductorMemberId: "m-caipira",
+        conductorRule: { kind: "price_is_freight", board: "weekday" },
+        vipRule: null,
+        conductorMechanism: "r3_lottery",
+      }),
+    );
+  });
 });

@@ -191,6 +191,7 @@ describe("applyPaint partial patches", () => {
     mocks.getConductorRecord.mockResolvedValue({
       conductorMemberId: "m1",
       lockedAt: null,
+      conductorRule: r4,
     });
 
     await applyPaint("a1", { dates: [DATE], conductorRule: r4 });
@@ -215,6 +216,7 @@ describe("applyPaint partial patches", () => {
     mocks.getConductorRecord.mockResolvedValue({
       conductorMemberId: "m1",
       lockedAt: null,
+      conductorRule: r4,
     });
 
     await applyPaint("a1", {
@@ -310,6 +312,53 @@ describe("applyPaint partial patches", () => {
 
     expect(mocks.getWeekSchedule).not.toHaveBeenCalled();
     expect(mocks.upsertDayConfigOverride).not.toHaveBeenCalled();
+  });
+
+  it("restamps a stale conductor snapshot when the day rule did not change", async () => {
+    const pif = { kind: "price_is_freight", board: "weekday" } as const;
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorRule: pif,
+      vipRule: null,
+      dayConfigId: "dc1",
+    });
+    mocks.getConductorRecord.mockResolvedValue({
+      conductorMemberId: "m1",
+      conductorMemberName: "CAIPIRA",
+      lockedAt: null,
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+    });
+
+    await applyPaint("a1", { dates: [DATE], conductorRule: pif });
+
+    expect(mocks.upsertDayConfigOverride).toHaveBeenCalled();
+    expect(mocks.restampConductorRules).toHaveBeenCalledWith(
+      expect.objectContaining({ conductorRule: pif, vipRule: null }),
+    );
+    expect(mocks.clearConductorAssignment).not.toHaveBeenCalled();
+  });
+
+  it("does not paint a locked ineligible conductor", async () => {
+    mocks.resolveRollDayConfig.mockResolvedValue({
+      conductorRule: { kind: "rank_pool", pool: "r4_plus", draw: "wheel" },
+      vipRule: null,
+      dayConfigId: "dc1",
+    });
+    mocks.getConductorRecord.mockResolvedValue({
+      conductorMemberId: "m1",
+      conductorMemberName: "Anytime Milly",
+      lockedAt: new Date("2026-09-21T12:00:00Z"),
+    });
+    mocks.resolveMemberAllianceRankAsOf.mockResolvedValue({ rank: 4 });
+
+    await expect(
+      applyPaint("a1", {
+        dates: [DATE],
+        conductorRule: { kind: "price_is_freight", board: "weekday" },
+      }),
+    ).rejects.toMatchObject({ date: DATE });
+
+    expect(mocks.upsertDayConfigOverride).not.toHaveBeenCalled();
+    expect(mocks.restampConductorRules).not.toHaveBeenCalled();
   });
 });
 
