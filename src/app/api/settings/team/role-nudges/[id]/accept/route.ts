@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
+import { writeOfficerActionAudit } from "@/lib/bff/officer-action-audit.server";
 import {
   MemberRoleNudgeError,
   acceptMemberRoleNudge,
 } from "@/lib/member-role-nudges/actions.server";
 import { getRbacContext } from "@/lib/rbac/context";
+import { ALLIANCE_ADMIN_PERMISSION } from "@/lib/rbac/constants";
 import { resolveAllianceSettingsAccess } from "@/lib/settings/alliance-settings-access.server";
 import { loadSession, readSessionId } from "@/lib/session";
 
@@ -52,6 +54,17 @@ export async function POST(request: Request, context: RouteContext) {
       ctx: rbac,
       origin,
     });
+    await writeOfficerActionAudit({
+      sessionId,
+      allianceId,
+      hqUserId: rbac.hqUserId,
+      action: "team.role_nudge_accept",
+      severity: "update",
+      permission: ALLIANCE_ADMIN_PERMISSION,
+      resourceType: "member_role_nudge",
+      resourceId: nudgeId,
+      metadata: { kind: result.kind },
+    });
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof MemberRoleNudgeError) {
@@ -69,10 +82,8 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
     return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Accept failed.",
-      },
-      { status: 400 },
+      { error: "Accept failed.", code: "INTERNAL" },
+      { status: 500 },
     );
   }
 }

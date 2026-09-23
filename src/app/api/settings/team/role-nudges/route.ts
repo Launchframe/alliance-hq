@@ -52,7 +52,7 @@ export async function GET() {
   }
 
   const [open, history] = await Promise.all([
-    listOpenMemberRoleNudges(allianceId),
+    listOpenMemberRoleNudges(allianceId, rbac),
     listTeamRoleHistory(allianceId, 40),
   ]);
 

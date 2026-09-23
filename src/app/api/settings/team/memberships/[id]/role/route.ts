@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
+import { writeOfficerActionAudit } from "@/lib/bff/officer-action-audit.server";
 import {
   MemberRoleNudgeError,
   elevateMembershipToOfficer,
 } from "@/lib/member-role-nudges/actions.server";
 import { getRbacContext } from "@/lib/rbac/context";
+import { ALLIANCE_ADMIN_PERMISSION } from "@/lib/rbac/constants";
 import { assignableInviteRolesForContext } from "@/lib/native-alliance/team-invites.server";
 import { resolveAllianceSettingsAccess } from "@/lib/settings/alliance-settings-access.server";
 import { canRevokeOfficerAccess } from "@/lib/settings/team-officer-revoke.shared";
@@ -102,6 +104,16 @@ export async function POST(request: Request, context: RouteContext) {
         allianceId,
         membershipId,
         actorHqUserId: rbac.hqUserId,
+      });
+      await writeOfficerActionAudit({
+        sessionId,
+        allianceId,
+        hqUserId: rbac.hqUserId,
+        action: "team.role_nudge_elevate",
+        severity: "update",
+        permission: ALLIANCE_ADMIN_PERMISSION,
+        resourceType: "alliance_membership",
+        resourceId: membershipId,
       });
       return NextResponse.json({ ok: true, ...result });
     } catch (error) {

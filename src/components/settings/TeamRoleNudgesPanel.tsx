@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { preventDefaultFormSubmit } from "@/lib/client/form-enter-submit.shared";
 
@@ -12,6 +12,7 @@ export type OpenRoleNudge = {
   fromRank: number | null;
   toRank: number | null;
   memberName: string;
+  canAct: boolean;
   createdAt: string;
 };
 
@@ -39,6 +40,7 @@ export function TeamRoleNudgesPanel({
   initialHistory,
 }: Props) {
   const t = useTranslations("team.roleNudges");
+  const locale = useLocale();
   const searchParams = useSearchParams();
   const highlightId = searchParams.get("nudge");
 
@@ -111,6 +113,14 @@ export function TeamRoleNudgesPanel({
     return kind;
   }
 
+  function statusLabel(status: string): string {
+    if (status === "open") return t("statusOpen");
+    if (status === "accepted") return t("statusAccepted");
+    if (status === "rejected") return t("statusRejected");
+    if (status === "superseded") return t("statusSuperseded");
+    return status;
+  }
+
   function historyLabel(item: RoleHistoryItem): string {
     if (item.type === "nudge") {
       const kind = String(item.summary.kind ?? "");
@@ -119,7 +129,7 @@ export function TeamRoleNudgesPanel({
       return t("historyNudge", {
         name,
         kind: kindLabel(kind),
-        status,
+        status: statusLabel(status),
       });
     }
     if (item.type === "role_change") {
@@ -191,6 +201,7 @@ export function TeamRoleNudgesPanel({
                   {kindLabel(nudge.kind)} · R{nudge.fromRank ?? "?"}→R
                   {nudge.toRank ?? "?"}
                 </p>
+                {nudge.canAct ? (
                 <form
                   className="mt-3 flex flex-wrap gap-2"
                   onSubmit={(event) => {
@@ -214,6 +225,7 @@ export function TeamRoleNudgesPanel({
                     {t("reject")}
                   </button>
                 </form>
+                ) : null}
               </li>
             );
           })}
@@ -236,7 +248,7 @@ export function TeamRoleNudgesPanel({
               history.map((item) => (
                 <li key={item.id} className="border-t border-hq-border pt-2">
                   <span className="text-hq-fg-subtle">
-                    {new Date(item.at).toLocaleString()}
+                    {new Date(item.at).toLocaleString(locale)}
                   </span>
                   <div className="text-hq-fg">{historyLabel(item)}</div>
                 </li>

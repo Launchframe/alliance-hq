@@ -97,8 +97,9 @@ async function appendRankEventIfChanged(input: {
   }
 
   const db = getDb();
+  const rankEventId = nanoid();
   await db.insert(schema.memberAllianceRankEvents).values({
-    id: nanoid(),
+    id: rankEventId,
     allianceId: input.allianceId,
     ashedMemberId: input.ashedMemberId,
     memberName: input.memberName,
@@ -118,6 +119,7 @@ async function appendRankEventIfChanged(input: {
       ashedMemberId: input.ashedMemberId,
       previousRank: input.previousRank,
       nextRank: input.allianceRank,
+      rankEventId,
     });
   } catch (error) {
     console.error("[member-role-nudges] evaluate failed", error);
@@ -330,8 +332,9 @@ export async function commitRosterImport(
       updatedAt: now,
     });
 
+    const rankEventId = nanoid();
     await db.insert(schema.memberAllianceRankEvents).values({
-      id: nanoid(),
+      id: rankEventId,
       allianceId: input.allianceId,
       ashedMemberId,
       memberName: name,
@@ -342,6 +345,21 @@ export async function commitRosterImport(
       recordedByHqUserId: input.hqUserId,
     });
     rankEvents += 1;
+
+    try {
+      const { evaluateMemberRoleNudgesOnRankChange } = await import(
+        "@/lib/member-role-nudges/evaluate-rank-change.server"
+      );
+      await evaluateMemberRoleNudgesOnRankChange({
+        allianceId: input.allianceId,
+        ashedMemberId,
+        previousRank: null,
+        nextRank: row.allianceRank,
+        rankEventId,
+      });
+    } catch (error) {
+      console.error("[member-role-nudges] evaluate failed", error);
+    }
 
     await appendStatEventsForRow({
       allianceId: input.allianceId,

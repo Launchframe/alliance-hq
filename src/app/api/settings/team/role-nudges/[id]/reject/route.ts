@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { resolveSessionAllianceId } from "@/lib/alliance/session-memberships";
+import { writeOfficerActionAudit } from "@/lib/bff/officer-action-audit.server";
 import {
   MemberRoleNudgeError,
   rejectMemberRoleNudge,
 } from "@/lib/member-role-nudges/actions.server";
 import { getRbacContext } from "@/lib/rbac/context";
+import { ALLIANCE_ADMIN_PERMISSION } from "@/lib/rbac/constants";
 import { resolveAllianceSettingsAccess } from "@/lib/settings/alliance-settings-access.server";
 import { loadSession, readSessionId } from "@/lib/session";
 
@@ -49,6 +51,16 @@ export async function POST(_request: Request, context: RouteContext) {
       allianceId,
       nudgeId,
       ctx: rbac,
+    });
+    await writeOfficerActionAudit({
+      sessionId,
+      allianceId,
+      hqUserId: rbac.hqUserId,
+      action: "team.role_nudge_reject",
+      severity: "update",
+      permission: ALLIANCE_ADMIN_PERMISSION,
+      resourceType: "member_role_nudge",
+      resourceId: nudgeId,
     });
     return NextResponse.json(result);
   } catch (error) {

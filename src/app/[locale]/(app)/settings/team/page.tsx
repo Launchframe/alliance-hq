@@ -132,7 +132,7 @@ export default async function SettingsTeamPage({
 
   const roleNudgesOpen =
     rbac && canViewRoleNudges(rbac)
-      ? await listOpenMemberRoleNudges(allianceId)
+      ? await listOpenMemberRoleNudges(allianceId, rbac)
       : [];
   const roleNudgesHistory =
     rbac && canViewRoleNudges(rbac)

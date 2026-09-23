@@ -103,21 +103,176 @@ async function loadOpenNudge(allianceId: string, nudgeId: string) {
   return { ...row, kind: row.kind as MemberRoleNudgeKind };
 }
 
-async function resolveNudge(input: {
+async function claimOpenNudge(input: {
   nudgeId: string;
+  allianceId: string;
   status: "accepted" | "rejected";
   actorHqUserId: string;
 }): Promise<void> {
   const db = getDb();
-  await db
+  const [row] = await db
     .update(schema.memberRoleNudges)
     .set({
       status: input.status,
       resolvedByHqUserId: input.actorHqUserId,
       resolvedAt: new Date(),
     })
-    .where(eq(schema.memberRoleNudges.id, input.nudgeId));
-  await satisfyMemberRoleNudgeInboxItem(input.nudgeId);
+    .where(
+      and(
+        eq(schema.memberRoleNudges.id, input.nudgeId),
+        eq(schema.memberRoleNudges.allianceId, input.allianceId),
+        eq(schema.memberRoleNudges.status, "open"),
+      ),
+    )
+    .returning({ id: schema.memberRoleNudges.id });
+
+  if (!row) {
+    throw new MemberRoleNudgeError("Nudge is no longer open.", "CONFLICT");
+  }
+}
+
+async function supersedeClaimedNudge(nudgeId: string): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.memberRoleNudges)
+    .set({ status: "superseded", resolvedByHqUserId: null })
+    .where(
+      and(
+        eq(schema.memberRoleNudges.id, nudgeId),
+        eq(schema.memberRoleNudges.status, "accepted"),
+      ),
+    );
+  await satisfyMemberRoleNudgeInboxItem(nudgeId);
+}
+
+async function reopenClaimedNudge(nudgeId: string): Promise<void> {
+  const db = getDb();
+  await db
+    .update(schema.memberRoleNudges)
+    .set({ status: "open", resolvedByHqUserId: null, resolvedAt: null })
+    .where(
+      and(
+        eq(schema.memberRoleNudges.id, nudgeId),
+        eq(schema.memberRoleNudges.status, "accepted"),
+      ),
+    );
+}
+
+async function loadCurrentNudgeState(input: {
+  allianceId: string;
+  ashedMemberId: string;
+}): Promise<{
+  currentRank: number | null;
+  linkedHqUserId: string | null;
+  membershipId: string | null;
+  membershipRoleId: string | null;
+  membershipRoleName: string | null;
+}> {
+  const db = getDb();
+  const [member] = await db
+    .select({ allianceRank: schema.allianceMembers.allianceRank })
+    .from(schema.allianceMembers)
+    .where(
+      and(
+        eq(schema.allianceMembers.allianceId, input.allianceId),
+        eq(schema.allianceMembers.ashedMemberId, input.ashedMemberId),
+      ),
+    )
+    .limit(1);
+
+  const [link] = await db
+    .select({ hqUserId: schema.hqMemberLinks.hqUserId })
+    .from(schema.hqMemberLinks)
+    .where(
+      and(
+        eq(schema.hqMemberLinks.allianceId, input.allianceId),
+        eq(schema.hqMemberLinks.ashedMemberId, input.ashedMemberId),
+      ),
+    )
+    .limit(1);
+
+  if (!link) {
+    return {
+      currentRank: member?.allianceRank ?? null,
+      linkedHqUserId: null,
+      membershipId: null,
+      membershipRoleId: null,
+      membershipRoleName: null,
+    };
+  }
+
+  const [membership] = await db
+    .select({
+      id: schema.allianceMemberships.id,
+      roleId: schema.allianceMemberships.roleId,
+    })
+    .from(schema.allianceMemberships)
+    .where(
+      and(
+        eq(schema.allianceMemberships.allianceId, input.allianceId),
+        eq(schema.allianceMemberships.hqUserId, link.hqUserId),
+        eq(schema.allianceMemberships.status, "active"),
+      ),
+    )
+    .limit(1);
+
+  return {
+    currentRank: member?.allianceRank ?? null,
+    linkedHqUserId: link.hqUserId,
+    membershipId: membership?.id ?? null,
+    membershipRoleId: membership?.roleId ?? null,
+    membershipRoleName: membership
+      ? systemRoleNameForId(membership.roleId)
+      : null,
+  };
+}
+
+function validateNudgeCurrentState(input: {
+  kind: MemberRoleNudgeKind;
+  currentRank: number | null;
+  linkedHqUserId: string | null;
+  membershipId: string | null;
+  membershipRoleName: string | null;
+}): string | null {
+  const roleName = input.membershipRoleName;
+
+  if (input.kind === "escalate_invite") {
+    if (input.currentRank !== 4) {
+      return "Target is no longer R4.";
+    }
+    if (input.membershipId) {
+      return "Target already has an active HQ membership.";
+    }
+    return null;
+  }
+
+  if (input.kind === "escalate_elevate") {
+    if (input.currentRank !== 4) {
+      return "Target is no longer R4.";
+    }
+    if (!input.linkedHqUserId || !input.membershipId) {
+      return "Target has no active HQ membership to elevate.";
+    }
+    if (
+      roleName !== "member" &&
+      roleName !== "viewer" &&
+      roleName !== "data_entry"
+    ) {
+      return "Target role cannot be overwritten by elevation.";
+    }
+    return null;
+  }
+
+  if (
+    input.currentRank != null &&
+    (input.currentRank < 1 || input.currentRank > 3)
+  ) {
+    return "Target is still R4 or higher.";
+  }
+  if (!input.linkedHqUserId || roleName !== "officer") {
+    return "Target is not an active HQ officer.";
+  }
+  return null;
 }
 
 export async function rejectMemberRoleNudge(input: {
@@ -127,11 +282,13 @@ export async function rejectMemberRoleNudge(input: {
 }): Promise<{ ok: true }> {
   const nudge = await loadOpenNudge(input.allianceId, input.nudgeId);
   await assertCanActOnNudge(input.ctx, nudge.kind, input.allianceId);
-  await resolveNudge({
+  await claimOpenNudge({
     nudgeId: nudge.id,
+    allianceId: input.allianceId,
     status: "rejected",
     actorHqUserId: input.ctx.hqUserId,
   });
+  await satisfyMemberRoleNudgeInboxItem(nudge.id);
   return { ok: true };
 }
 
@@ -166,41 +323,56 @@ export async function acceptMemberRoleNudge(input: {
 }): Promise<AcceptMemberRoleNudgeResult> {
   const nudge = await loadOpenNudge(input.allianceId, input.nudgeId);
   await assertCanActOnNudge(input.ctx, nudge.kind, input.allianceId);
-  const db = getDb();
+
+  await claimOpenNudge({
+    nudgeId: nudge.id,
+    allianceId: input.allianceId,
+    status: "accepted",
+    actorHqUserId: input.ctx.hqUserId,
+  });
+
+  let current;
+  try {
+    current = await loadCurrentNudgeState({
+      allianceId: input.allianceId,
+      ashedMemberId: nudge.ashedMemberId,
+    });
+  } catch (error) {
+    await reopenClaimedNudge(nudge.id);
+    throw error;
+  }
+  const staleReason = validateNudgeCurrentState({
+    kind: nudge.kind,
+    currentRank: current.currentRank,
+    linkedHqUserId: current.linkedHqUserId,
+    membershipId: current.membershipId,
+    membershipRoleName: current.membershipRoleName,
+  });
+  if (staleReason) {
+    await supersedeClaimedNudge(nudge.id);
+    throw new MemberRoleNudgeError(staleReason, "CONFLICT");
+  }
 
   if (nudge.kind === "escalate_elevate") {
-    if (!nudge.hqUserId) {
+    const targetHqUserId = current.linkedHqUserId;
+    const fromRoleId = current.membershipRoleId;
+    if (!targetHqUserId || !current.membershipId) {
+      await supersedeClaimedNudge(nudge.id);
       throw new MemberRoleNudgeError(
-        "No linked HQ user to elevate.",
-        "INVALID",
+        "Target has no active HQ membership to elevate.",
+        "CONFLICT",
       );
     }
 
-    const [existing] = await db
-      .select({
-        id: schema.allianceMemberships.id,
-        roleId: schema.allianceMemberships.roleId,
-      })
-      .from(schema.allianceMemberships)
-      .where(
-        and(
-          eq(schema.allianceMemberships.allianceId, input.allianceId),
-          eq(schema.allianceMemberships.hqUserId, nudge.hqUserId),
-          eq(schema.allianceMemberships.status, "active"),
-        ),
-      )
-      .limit(1);
-
-    const fromRoleId = existing?.roleId ?? null;
     const membershipId = await assignManualMembership({
-      hqUserId: nudge.hqUserId,
+      hqUserId: targetHqUserId,
       allianceId: input.allianceId,
       roleId: ROLE_IDS.officer,
     });
 
     await appendAllianceMembershipRoleEvent({
       allianceId: input.allianceId,
-      hqUserId: nudge.hqUserId,
+      hqUserId: targetHqUserId,
       fromRoleId,
       toRoleId: ROLE_IDS.officer,
       source: "nudge_accept",
@@ -208,36 +380,34 @@ export async function acceptMemberRoleNudge(input: {
       nudgeId: nudge.id,
     });
 
-    await resolveNudge({
-      nudgeId: nudge.id,
-      status: "accepted",
-      actorHqUserId: input.ctx.hqUserId,
-    });
+    await satisfyMemberRoleNudgeInboxItem(nudge.id);
 
     return {
       ok: true,
       kind: "escalate_elevate",
-      hqUserId: nudge.hqUserId,
+      hqUserId: targetHqUserId,
       membershipId,
     };
   }
 
   if (nudge.kind === "escalate_invite") {
-    const invite = await createHqInvite({
-      allianceId: input.allianceId,
-      kind: "protected_link",
-      roleName: "officer" as SystemRoleName,
-      invitedByHqUserId: input.ctx.hqUserId,
-      origin: input.origin,
-      targetAshedMemberId: nudge.ashedMemberId,
-      adminLabel: `R4 privilege nudge ${nudge.id.slice(0, 8)}`,
-    });
+    let invite;
+    try {
+      invite = await createHqInvite({
+        allianceId: input.allianceId,
+        kind: "protected_link",
+        roleName: "officer" as SystemRoleName,
+        invitedByHqUserId: input.ctx.hqUserId,
+        origin: input.origin,
+        targetAshedMemberId: nudge.ashedMemberId,
+        adminLabel: `R4 privilege nudge ${nudge.id.slice(0, 8)}`,
+      });
+    } catch (error) {
+      await reopenClaimedNudge(nudge.id);
+      throw error;
+    }
 
-    await resolveNudge({
-      nudgeId: nudge.id,
-      status: "accepted",
-      actorHqUserId: input.ctx.hqUserId,
-    });
+    await satisfyMemberRoleNudgeInboxItem(nudge.id);
 
     return {
       ok: true,
@@ -250,48 +420,24 @@ export async function acceptMemberRoleNudge(input: {
     };
   }
 
-  if (!nudge.hqUserId) {
-    throw new MemberRoleNudgeError(
-      "No linked HQ officer to demote.",
-      "INVALID",
-    );
-  }
-
-  const [membership] = await db
-    .select({
-      id: schema.allianceMemberships.id,
-      roleId: schema.allianceMemberships.roleId,
-    })
-    .from(schema.allianceMemberships)
-    .where(
-      and(
-        eq(schema.allianceMemberships.allianceId, input.allianceId),
-        eq(schema.allianceMemberships.hqUserId, nudge.hqUserId),
-        eq(schema.allianceMemberships.status, "active"),
-      ),
-    )
-    .limit(1);
-
-  if (!membership || membership.roleId !== ROLE_IDS.officer) {
+  const membershipId = current.membershipId;
+  if (!membershipId) {
+    await supersedeClaimedNudge(nudge.id);
     throw new MemberRoleNudgeError(
       "Target is not an active HQ officer.",
-      "INVALID",
+      "CONFLICT",
     );
   }
 
   try {
     const result = await revokeOfficerMembershipToMember({
       allianceId: input.allianceId,
-      membershipId: membership.id,
+      membershipId,
       actorHqUserId: input.ctx.hqUserId,
       roleEventSource: "nudge_accept",
       nudgeId: nudge.id,
     });
-    await resolveNudge({
-      nudgeId: nudge.id,
-      status: "accepted",
-      actorHqUserId: input.ctx.hqUserId,
-    });
+    await satisfyMemberRoleNudgeInboxItem(nudge.id);
     return {
       ok: true,
       kind: "deescalate",
@@ -300,6 +446,7 @@ export async function acceptMemberRoleNudge(input: {
     };
   } catch (error) {
     if (error instanceof TeamOfficerRevokeError) {
+      await supersedeClaimedNudge(nudge.id);
       throw new MemberRoleNudgeError(
         error.message,
         error.code === "LAST_OFFICER" ? "LAST_OFFICER" : "INVALID",
@@ -361,7 +508,24 @@ export async function elevateMembershipToOfficer(input: {
   return { membershipId: existing.id, hqUserId: existing.hqUserId };
 }
 
-export async function listOpenMemberRoleNudges(allianceId: string) {
+function canActOnNudgeKind(
+  ctx: RbacContext,
+  kind: MemberRoleNudgeKind,
+  ownerPresent: boolean,
+): boolean {
+  if (kind === "escalate_invite" || kind === "escalate_elevate") {
+    return isEscalateAudience(ctx);
+  }
+  if (ownerPresent) {
+    return canRevokeOfficerAccess(ctx);
+  }
+  return isEscalateAudience(ctx);
+}
+
+export async function listOpenMemberRoleNudges(
+  allianceId: string,
+  ctx: RbacContext,
+) {
   const db = getDb();
   const rows = await db
     .select({
@@ -397,17 +561,38 @@ export async function listOpenMemberRoleNudges(allianceId: string) {
     )
     .orderBy(desc(schema.memberRoleNudges.createdAt));
 
-  return rows.map((row) => ({
-    id: row.id,
-    kind: row.kind as MemberRoleNudgeKind,
-    status: row.status,
-    fromRank: row.fromRank,
-    toRank: row.toRank,
-    ashedMemberId: row.ashedMemberId,
-    hqUserId: row.hqUserId,
-    memberName: row.memberName ?? row.ashedMemberId,
-    createdAt: row.createdAt.toISOString(),
-  }));
+  const ownerPresent = rows.some((row) => row.kind === "deescalate")
+    ? await allianceHasHqOwner(allianceId)
+    : false;
+
+  const result = [] as Array<{
+    id: string;
+    kind: MemberRoleNudgeKind;
+    status: string;
+    fromRank: number | null;
+    toRank: number | null;
+    ashedMemberId: string;
+    hqUserId: string | null;
+    memberName: string;
+    canAct: boolean;
+    createdAt: string;
+  }>;
+  for (const row of rows) {
+    const kind = row.kind as MemberRoleNudgeKind;
+    result.push({
+      id: row.id,
+      kind,
+      status: row.status,
+      fromRank: row.fromRank,
+      toRank: row.toRank,
+      ashedMemberId: row.ashedMemberId,
+      hqUserId: row.hqUserId,
+      memberName: row.memberName ?? row.ashedMemberId,
+      canAct: canActOnNudgeKind(ctx, kind, ownerPresent),
+      createdAt: row.createdAt.toISOString(),
+    });
+  }
+  return result;
 }
 
 export async function listTeamRoleHistory(allianceId: string, limit = 50) {

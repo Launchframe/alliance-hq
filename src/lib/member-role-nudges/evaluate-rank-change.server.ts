@@ -79,6 +79,7 @@ async function loadRejectedKindsStillApplying(input: {
   ashedMemberId: string;
   nextRank: number | null;
   hqRoleName: string | null;
+  currentRankEventId: string | null;
 }): Promise<Set<MemberRoleNudgeKind>> {
   const db = getDb();
   const rows = await db
@@ -87,6 +88,7 @@ async function loadRejectedKindsStillApplying(input: {
       status: schema.memberRoleNudges.status,
       toRank: schema.memberRoleNudges.toRank,
       fromRank: schema.memberRoleNudges.fromRank,
+      rankEventId: schema.memberRoleNudges.rankEventId,
       createdAt: schema.memberRoleNudges.createdAt,
     })
     .from(schema.memberRoleNudges)
@@ -106,6 +108,14 @@ async function loadRejectedKindsStillApplying(input: {
     if (seen.has(row.kind)) continue;
     seen.add(row.kind);
     const kind = row.kind as MemberRoleNudgeKind;
+
+    if (
+      row.rankEventId == null ||
+      input.currentRankEventId == null ||
+      row.rankEventId !== input.currentRankEventId
+    ) {
+      continue;
+    }
 
     if (kind === "escalate_invite" || kind === "escalate_elevate") {
       if (
@@ -218,12 +228,25 @@ export async function evaluateMemberRoleNudgesOnRankChange(input: {
     return { nudgeId: null, kind: null };
   }
 
-  if (
-    !crossedIntoOfficerRank(input.previousRank, input.nextRank) &&
-    !crossedOutOfOfficerRank(input.previousRank, input.nextRank)
-  ) {
+  const crossedIn = crossedIntoOfficerRank(
+    input.previousRank,
+    input.nextRank,
+  );
+  const crossedOut = crossedOutOfOfficerRank(
+    input.previousRank,
+    input.nextRank,
+  );
+  if (!crossedIn && !crossedOut) {
     return { nudgeId: null, kind: null };
   }
+
+  await supersedeOpenNudges({
+    allianceId: input.allianceId,
+    ashedMemberId: input.ashedMemberId,
+    kinds: crossedIn
+      ? ["deescalate"]
+      : ["escalate_invite", "escalate_elevate"],
+  });
 
   const linked = await loadLinkedMembership({
     allianceId: input.allianceId,
@@ -235,6 +258,7 @@ export async function evaluateMemberRoleNudgesOnRankChange(input: {
     ashedMemberId: input.ashedMemberId,
     nextRank: input.nextRank,
     hqRoleName: linked.roleName,
+    currentRankEventId: input.rankEventId ?? null,
   });
 
   const decision = decideMemberRoleNudge({
